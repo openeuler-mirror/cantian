@@ -1,0 +1,272 @@
+syntax = "proto3";
+
+package tc_db;
+
+message TseDDLColumnDataTypeDef {
+  /*
+    * These definitions is same as the `typmode_t`; thus they should
+    * be replaced by typmode_t for unifying the definition of columns
+  */
+  int32 datatype = 1; // gs_type_t
+  uint32 size = 2;
+  uint32  precision = 3;
+  int32   scale = 4;
+}
+message TseDDLColumnDef {
+  string name = 1;
+  TseDDLColumnDataTypeDef datatype = 2;
+  uint32 is_option_set = 4; 
+  uint32 col_id = 5;
+  string cons_name = 6;
+  string ref_user = 10;
+  string ref_table = 11;
+  string default_text = 12;
+  string comment = 13;
+  uint32 alter_mode    = 14; // tse_alter_column_alter_mode
+  uint64 collate = 15;
+  string new_name = 16;
+  uint32 is_unsigned = 17;
+  string default_func_name = 18;
+}
+message TseDDLForeignKeyElementDef {
+  string src_column_name = 1;
+  string ref_column_name = 2;
+}
+message TseDDLForeignKeyDef {
+  // fill_dd_foreign_keys_from_create_fields
+  string name = 1;
+  string unique_index_name = 2;
+  uint32 match_opt = 3;
+  uint32 update_opt = 4;
+  uint32 delete_opt = 5;
+  string referenced_table_schema_name = 6;
+  string referenced_table_name = 7;
+  repeated TseDDLForeignKeyElementDef elements = 8;
+}
+message TseDDLTableKeyPart {
+  // KEY_PART_INFO
+  string name = 1;
+  /* Length of key part in bytes, excluding NULL flag and length bytes */
+  uint32 length = 2;
+  int32 datatype = 3;
+  bool is_func = 4;
+  string func_text = 5;
+  string func_name = 6;
+}
+message TseDDLTableKey {
+    // Key
+    string user = 1;
+    string table = 2;
+    string name = 3;
+    string space = 4;
+    int32  key_type = 5; // tse_key_type
+    int32 algorithm = 6; // tse_ha_key_alg
+    bool is_func = 7;
+    repeated TseDDLTableKeyPart columns = 8;
+    bool is_constraint = 9;
+}
+message TseMsgCommDef {
+    uint32 inst_id = 1;
+    uint32 thd_id = 2;
+    uint32 handler_id = 3;
+    uint64 sess_addr = 4;
+}
+
+message TseDDLPartitionValueDef {
+  bool is_max_value = 1;
+  string value = 2;
+}
+
+message TseDDLPartitionTableDef {
+  string name = 1;
+  string space = 2;
+  string hiboundval = 3;
+  repeated TseDDLPartitionValueDef part_value_list = 4;
+  repeated TseDDLPartitionTableDef subpart_table_list = 5;
+}
+
+message TseDDLPartitionColumnDef {
+  string name = 1;
+  uint32 datatype = 2;
+}
+
+message TseDDLPartitionDef {
+  uint32 part_type = 1;
+  string partition_expression = 2;
+  uint32 subpart_type = 5;
+  string subpartition_expression = 6;
+  repeated TseDDLPartitionColumnDef part_column_list = 3;
+  repeated TseDDLPartitionTableDef part_table_list = 4;
+  repeated TseDDLPartitionColumnDef subpart_column_list = 7;
+}
+
+message TseDDLCreateTableDef {
+  string  schema = 1;
+  string  name   = 2;
+  string  space  = 3;
+  repeated TseDDLColumnDef columns = 4;
+  repeated TseDDLForeignKeyDef fk_list = 5;
+  repeated TseDDLTableKey  key_list = 6;
+  uint64   auto_increment_value = 7; //init auto incremnet value
+  uint32   options = 8; // if not exists
+  string db_name = 9;
+  string sql_str = 10;
+  TseDDLPartitionDef partition_def = 11;
+}
+
+message TseDDLAlterTablePorp {
+  // knl_alt_table_prop_t
+  string new_name = 1;
+  uint32 pctfree = 2;
+  uint32 appendonly = 3;
+  uint32 enable_row_move = 4;
+  uint32 shrink_opt = 5;
+  int64 serial_start = 6;
+}
+
+message TseDDLAlterTableDrop {
+    string name = 1;
+    int32 drop_type = 2; // tse_alter_table_drop_type
+    int32 key_type = 3; // tse_key_type
+}
+
+message TseDDLAlterTableDropKey {
+    string name = 1;
+    int32 drop_type = 2; // tse_alter_table_drop_type
+    int32 key_type = 3; // tse_key_type
+}
+
+message TseDDLAlterTableAlterColumn {
+    string name = 1;
+    string new_name = 2;
+    uint32 type = 3; // SET_DEFAULT, DROP_DEFAULT, RENAME_COLUMN
+    bool has_no_default = 4;
+    bool has_default = 5;
+    bool is_default_null = 6;
+    string default_text = 7;
+//    string default_data = 8;
+}
+
+message TseDDLAlterTableDef {
+  uint32 action = 1; // altable_action_t
+  uint32 options = 2;
+  string  user  = 3;
+  string  name   = 4;
+  /**
+     Columns, keys and constraints to be dropped.
+  */
+  repeated TseDDLAlterTableDrop drop_list = 5;
+  // Columns for ALTER_COLUMN_CHANGE_DEFAULT.
+  repeated TseDDLAlterTableAlterColumn alter_list = 6;
+   // List of columns, used by both CREATE and ALTER TABLE.
+  repeated TseDDLColumnDef  create_list = 7;
+  TseDDLAlterTablePorp table_def = 8;
+  repeated TseDDLTableKey  add_key_list = 9;
+  repeated TseDDLAlterTableDropKey  drop_key_list = 10;
+  repeated TseDDLForeignKeyDef add_foreign_key_list = 11;
+  uint64 new_auto_increment_value = 12;
+  string db_name = 13;
+  string sql_str = 14;
+  repeated TseDDLAlterIndexDef alter_index_list = 15;
+  repeated string drop_partition_names = 16;
+  repeated TseDDLPartitionTableDef add_part_list = 17;
+  uint32 hash_coalesce_count = 18;
+  int64 systimestamp = 19;
+  int32 tz_offset_UTC = 20;
+}
+
+message TseDDLTruncateTableDef {
+  string  schema = 1;
+  string  name   = 2;
+  string db_name = 4;
+  string sql_str = 5;
+  uint32 no_check_fk = 6;
+}
+
+message TseDDLTruncateTablePartitionDef {
+  string user = 1;
+  string db_name = 2;
+  string table_name = 3;
+  repeated string partition_name = 4;
+  repeated uint32 partition_id = 5;
+  string sql_str = 6;
+  bool is_subpart = 7;
+  repeated string subpartition_name = 8;
+  repeated uint32 subpartition_id = 9;
+}
+
+message TseDDLRenameTableDef {
+  uint32 action = 1; // altable_action_t
+  uint32 options = 2;
+  string user = 3;
+  string new_user = 4;
+  string new_table_name = 5;
+  string new_db_name = 6;
+  string old_table_name = 7;
+  string old_db_name = 8;
+  string current_db_name = 9;
+  string sql_str = 10;
+  repeated string old_constraints_name = 11;
+  repeated string new_constraints_name = 12;
+}
+
+message TseDDLDropTableDef {
+  uint32 options = 1;
+  string user = 2;
+  string name = 3;
+  string dbname_und = 4;
+  string db_name = 5;
+  string sql_str = 6;
+  string alter_copy_table = 7;
+}
+
+message TseDDLAlterIndexDef {
+    string user = 1;
+    string name = 2;
+    uint32 type = 3; // def type
+    string table = 4;
+    string new_name = 5;
+    int32  key_type = 6;  // tse_key_type
+}
+
+message TseDDLAutoExtendDef {
+  bool enabled = 1;
+  uint64 nextsize = 2;
+  int64 maxsize = 3;
+}
+
+message TseDDLDataFileDef {
+  string name = 1;
+  int64 size = 2;    //device size
+  int32 block_size = 3;
+  TseDDLAutoExtendDef autoextend = 4; // the data of the autoextend property of the device
+  uint32 node_id = 5;
+}
+
+message TseDDLSpaceDef {
+    string name = 1;    // name of the space
+    uint32 type = 2;    // type of the space
+    bool in_memory = 3;
+    bool autooffline = 4;
+    uint32 extent_size = 5;
+    repeated TseDDLDataFileDef datafiles_list = 6;
+    uint32 flags = 7;
+    string db_name = 8;
+    string sql_str = 9;
+}
+
+message TseDDLDropSpaceDef {
+  string obj_name = 1;
+  uint32 option = 2;
+  string db_name = 3;
+  string sql_str = 4;
+}
+
+message TseDDLAlterSpaceDef {
+  uint32 action = 1;
+  string name = 2;        // name of the space
+  string new_name = 3;    // name of the new space
+  uint64 auto_extend_size = 4; 
+  string db_name = 5;
+  string sql_str = 6;
+}

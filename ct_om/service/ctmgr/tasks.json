@@ -1,0 +1,41 @@
+{
+  "log query": {
+    "handler": "log",
+    "checkFunc": "",
+    "description": ""
+  },
+  "collection logs": {
+    "handler": "log_py",
+    "checkFunc": "collection_logs_checker.LogEnumCheck",
+    "paramCheck": {
+      "type": {
+        "required": true,
+        "type": "string",
+        "enum": "recent|all"
+      },
+      "log_dir": {
+        "required": true
+      }
+    },
+    "filePath": "/opt/cantian/ct_om/service/ctmgr/logs_collection/execute.py",
+    "py_input": "-p ${log_dir} -t ${type}",
+    "description": ""
+  },
+  "show cantian status": {
+    "handler": "audit_py",
+    "checkFunc": "",
+    "filePath": "/opt/cantian/cantian/server/admin/scripts/fetch_cls_stat.py",
+    "py_input": "",
+    "description": ""
+  },
+  "inspection": {
+    "handler": "inspection_py",
+    "checkFunc": "",
+    "description": ""
+  },
+  "logs progress query": {
+  "handler": "log_progress",
+  "checkFunc": "",
+  "description": ""
+  }
+}

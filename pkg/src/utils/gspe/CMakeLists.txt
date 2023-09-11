@@ -1,0 +1,10 @@
+#### zencrypt ####
+aux_source_directory(. ZENCRYPT_SRC)
+add_executable(zencrypt ${ZENCRYPT_SRC} ${VERSION_SRC})
+if (USE_FUZZASAN)
+    target_link_libraries(zencrypt PRIVATE zecommon Secodefuzz)
+else()
+    target_link_libraries(zencrypt PRIVATE zecommon)
+endif(USE_FUZZASAN)
+target_compile_definitions(zencrypt PRIVATE -DGS_LIB_VERSION=${DD_GS_LIB_VERSION})
+target_compile_definitions(zencrypt PRIVATE -DGETDBVERSION=${DD_GETENCRYVERSION})

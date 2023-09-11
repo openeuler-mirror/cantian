@@ -1,0 +1,7 @@
+[Unit]
+Description=regularly clean up the logs of each module of cantian
+
+[Service]
+Type=simple
+KillMode=process
+ExecStart=/bin/python3 /opt/cantian/common/script/logs_handler/execute.py

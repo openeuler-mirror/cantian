@@ -1,0 +1,7 @@
+[Unit]
+Description=cantian daemon service
+
+[Service]
+Type=simple
+KillMode=process
+ExecStart=/bin/bash /opt/cantian/common/script/cantian_service.sh start

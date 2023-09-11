@@ -1,0 +1,30 @@
+{
+  "ctcli-ctmgr参数交互格式": {
+    "没有参数": {
+      "command": "show cantian status",
+      "param": {
+        "inspection_items": "all"
+      }
+    },
+
+    "有参数":{
+      "command": "collection logs log",
+      "param": {
+      "log_dir": "path/path/xxx.log",
+      "type":"0"
+      }
+    }
+  },
+
+  "ctmgr-ctcli参数交互格式": {
+    "data": {
+      "DESCRIPTION":"", "ID":"0", "RUNNINGSTATUS":"1", "auditLogStrategyEnabled":false, "fileSystemCapacity":"0", "fileSystemCount":"0", "fileSystemUnUsedCapacity":"0", "fileSystemUsedCapacity":"0", "nasFreeCapacityQuota":"-1", "unmappedLunCount":"0", "unmappedLunTotalCapacity":"0", "NAME":"System_vStore", "TYPE":16442, "metroCount":"0", "nasCapacityQuota":"0", "mappedLunCount":"0", "mappedLunTotalCapacity":"0", "lunCount":"0", "lunTotalCapacity":"0", "RMCOUNT":"0"
+    },
+    "error": {"code": 0, "description": "0"}},
+
+    "data_1": [{"DESCRIPTION":"", "RMCOUNT":"0"}, {"DESCRIPTION":"vstore for auto test", "RMCOUNT":"0"}],
+    "error_1": {"code": 0, "description": "0"},
+
+    "data_2":{},
+    "error_2":{"code":1077987866,"description":"输入的密码不正确。","errorParam":"","suggestion":"检查密码后重试。"}
+}

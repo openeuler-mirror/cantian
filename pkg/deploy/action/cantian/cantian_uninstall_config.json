@@ -1,0 +1,8 @@
+{
+    "INSTALL_PATH_L": "/opt/cantian/cantian/server", 
+    "CLEAN_DATA_DIR_ON": 0, 
+    "USER_ENV_PATH": "",
+    "LOG_FILE": "",
+    "S_IRUSR": 256, 
+    "GS_DATA_PATH": "/mnt/dbdata/local/cantian/tmp/data"
+}
