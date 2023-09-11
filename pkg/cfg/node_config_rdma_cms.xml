@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config>
+	<memcfg>
+        <mem>1</mem>
+		<mem>64</mem>
+		<mem>96</mem>
+		<mem>384</mem>
+		<mem>512</mem>
+	</memcfg>
+	<node memory='1'>
+		<!-- 配置umm -->
+		<umm>
+			<uprocess name='default'><!--进程类型名称-->
+                <cfg_path path="osd.cfg"/>
+                <rdma_flag flag='1'/>
+				<process_quota size='7185'/><!--进程总内存配额大小，以M为单位，最大不超过4G-->
+				<page_num min_num="0" max_num='100000'/><!--配置page、sgl、req的数量，若不配置认为数量是0；预留的零页面会占用1个page数量-->
+				<req_num min_num="0" max_num='10000'/>
+				<sgl_num min_num="0" max_num='10000'/>
+                <io_pool reserve_size="102400" max_size="10240000" extand_size="102400" block_size="8192"/>
+                <normal_pool reserve_size="102400" max_size="10240000" extand_size="102400" block_size="8192"/>
+				<mem_coredump dump_level="0"/><!--dpmm内存coredump级别，1 不dump，2 只dump lwt栈，3 全dump，release生效，debug默认全dump，非dpmm内存不受控制-->
+				<!--约束：各模块min_size之和小于process_quota-->
+				<page_size size='8320'/>
+			</uprocess>
+		</umm>
+	</node>
+	<node memory='64'>
+		<!-- 配置umm -->
+		<umm>
+			<uprocess name='default'><!--进程类型名称-->
+                <cfg_path path="osd.cfg"/>
+                <rdma_flag flag='1'/>
+				<process_quota size='7185'/><!--进程总内存配额大小，以M为单位，最大不超过4G-->
+				<page_num min_num="0" max_num='100000'/><!--配置page、sgl、req的数量，若不配置认为数量是0；预留的零页面会占用1个page数量-->
+				<req_num min_num="0" max_num='10000'/>
+				<sgl_num min_num="0" max_num='10000'/>
+                <io_pool reserve_size="102400" max_size="10240000" extand_size="102400" block_size="8192"/>
+                <normal_pool reserve_size="102400" max_size="10240000" extand_size="102400" block_size="8192"/>
+				<mem_coredump dump_level="2"/><!--dpmm内存coredump级别，1 不dump，2 只dump lwt栈，3 全dump，release生效，debug默认全dump，非dpmm内存不受控制-->
+				<!--约束：各模块min_size之和小于process_quota-->
+				<page_size size='8320'/>
+			</uprocess>
+		</umm>
+	</node>
+	<node memory='96'>
+		<!-- 配置umm -->
+		<umm>
+			<uprocess name='default'><!--进程类型名称-->
+                <cfg_path path="osd.cfg"/>
+                <rdma_flag flag='1'/>
+				<process_quota size='7185'/><!--进程总内存配额大小，以M为单位，最大不超过4G-->
+				<page_num min_num="0" max_num='100000'/><!--配置page、sgl、req的数量，若不配置认为数量是0；预留的零页面会占用1个page数量-->
+				<req_num min_num="0" max_num='10000'/>
+				<sgl_num min_num="0" max_num='10000'/>
+                <io_pool reserve_size="102400" max_size="10240000" extand_size="102400" block_size="8192"/>
+                <normal_pool reserve_size="102400" max_size="10240000" extand_size="102400" block_size="8192"/>
+				<mem_coredump dump_level="2"/><!--dpmm内存coredump级别，1 不dump，2 只dump lwt栈，3 全dump，release生效，debug默认全dump，非dpmm内存不受控制-->
+				<!--约束：各模块min_size之和小于process_quota-->
+				<page_size size='8320'/>
+			</uprocess>
+		</umm>
+	</node>
+    <node memory='384'>
+                <!-- 配置umm -->
+                <umm>
+                        <uprocess name='default'><!--进程类型名称-->
+                                <cfg_path path="osd.cfg"/>
+                                <rdma_flag flag='1'/>
+                                <process_quota size='7185'/><!--进程总内存配额大小，以M为单位，最大不超过4G-->
+                                <page_num min_num="0" max_num='100000'/><!--配置page、sgl、req的数量，若不配置认为数量是0；预留的零页面会占用1个page数量-->
+                                <req_num min_num="0" max_num='10000'/>
+                                <sgl_num min_num="0" max_num='10000'/>
+                                <io_pool reserve_size="102400" max_size="10240000" extand_size="102400" block_size="8192"/>
+                                <normal_pool reserve_size="102400" max_size="10240000" extand_size="102400" block_size="8192"/>
+                                <mem_coredump dump_level="2"/><!--dpmm内存coredump级别，1 不dump，2 只dump lwt栈，3 全dump，release生效，debug默认全dump，非dpmm内存不受控制-->
+                                <!--约束：各模块min_size之和小于process_quota-->
+                                <page_size size='8320'/>
+                        </uprocess>
+                </umm>
+        </node>
+	<node memory='512'>
+                <!-- 配置umm -->
+                <umm>
+                        <uprocess name='default'><!--进程类型名称-->
+                                <cfg_path path="osd.cfg"/>
+                                <rdma_flag flag='1'/>
+                                <process_quota size='7185'/><!--进程总内存配额大小，以M为单位，最大不超过4G-->
+                                <page_num min_num="0" max_num='100000'/><!--配置page、sgl、req的数量，若不配置认为数量是0；预留的零页面会占用1个page数量-->
+                                <req_num min_num="0" max_num='10000'/>
+                                <sgl_num min_num="0" max_num='10000'/>
+                                <io_pool reserve_size="102400" max_size="10240000" extand_size="102400" block_size="8192"/>
+                                <normal_pool reserve_size="102400" max_size="10240000" extand_size="102400" block_size="8192"/>
+                                <mem_coredump dump_level="2"/><!--dpmm内存coredump级别，1 不dump，2 只dump lwt栈，3 全dump，release生效，debug默认全dump，非dpmm内存不受控制-->
+                                <!--约束：各模块min_size之和小于process_quota-->
+                                <page_size size='8320'/>
+                        </uprocess>
+                </umm>
+        </node>
+</config>
