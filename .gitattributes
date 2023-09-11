@@ -1,0 +1,45 @@
+# Set the default behavior, in case people don't have core.autocrlf set.
+*        text=auto
+
+# Explicitly declare text files you want to always be normalized and converted
+# to native line endings on checkout.
+*.c      text
+*.h      text
+*.cs     text diff=csharp
+*.java   text diff=java
+*.html   text diff=html
+*.css    text
+*.js     text
+*.sql    text
+*.out    text
+*.md     text
+*.py     text
+*.xml    text
+*.properties  text
+*.txt    text
+
+# Declare files that will always have CRLF line endings on checkout.
+*.csproj 	text merge=union
+*.vcxproj 	text merge=union
+*.vcxproj.filters 	text merge=union
+*.sln    	text merge=union eol=crlf
+*.docx   	diff=astextplain
+*.DOCX   	diff=astextplain
+*.bat    	text eol=crlf
+
+# Auto detect text files and perform LF normalization
+*.sh        text eol=lf
+Makefile    text eol=lf
+makefile    text eol=lf
+*.inc        text eol=lf
+*.in         text eol=lf
+
+#other
+pkg/test/gsql_test/testcase/dds/*/*.all   		text
+pkg/test/gsql_test/.classpath   text
+pkg/test/gsql_test/.project   text
+pkg/test/gsql_test/.settings/org.eclipse.core.resources.prefs   text
+pkg/test/gsql_test/.settings/org.eclipse.jdt.core.prefs   text
+pkg/test/gsql_test/src/log4j.properties.bak   text
+pkg/test/gsql_test/testcase/dds/test/.syntaxSelect.sql.coredump   text
+pkg/test/sharding_regress/.gitignore   text

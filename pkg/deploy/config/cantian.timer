@@ -1,0 +1,9 @@
+[Unit]
+Description=Run every 5s and on boot
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+
+[Install]
+WantedBy=multi-user.target

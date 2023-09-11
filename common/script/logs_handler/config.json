@@ -1,0 +1,55 @@
+[
+  {
+    "log_file_dir": "/opt/cantian/cms/log/run/cms_adm.rlog",
+    "max_log_vol": "80",
+    "userandgroup": "deploy_user"
+  },
+
+  {
+    "log_file_dir": "/opt/cantian/cms/log/run/cms_srv.rlog",
+    "max_log_vol": "80",
+    "userandgroup": "deploy_user"
+  },
+
+    {
+    "log_file_dir": "/mnt/dbdata/local/cantian/tmp/data/dbstor/data/logs/bak/log-dsware_cantiand_0.log",
+    "max_log_vol": "80",
+    "userandgroup": "deploy_user"
+  },
+
+  {
+    "log_file_dir": "/mnt/dbdata/local/cantian/tmp/data/log/run/cantiand.rlog",
+    "max_log_vol": "210",
+    "userandgroup": "deploy_user"
+  },
+
+  {
+    "log_file_dir": "/opt/cantian/ct_om/logs/exporter.log",
+    "max_log_vol": "2",
+    "userandgroup": "deploy_user"
+  },
+
+  {
+    "log_file_dir": "/opt/cantian/ct_om/service/ctmgr/ctmgr_log/ctmgr_audit.log",
+    "max_log_vol": "2",
+    "userandgroup": "ctmgruser:ctmgruser"
+  },
+
+  {
+    "log_file_dir": "/opt/cantian/ct_om/service/ctmgr/ctmgr_log/ctmgr_deploy.log",
+    "max_log_vol": "2",
+    "userandgroup": "ctmgruser:ctmgruser"
+  },
+
+  {
+    "log_file_dir": "/opt/cantian/ct_om/service/ctmgr/ctmgr_log/ctmgr_logs_collection.log",
+    "max_log_vol": "2",
+    "userandgroup": "ctmgruser:ctmgruser"
+  },
+
+  {
+    "log_file_dir": "/opt/cantian/ct_om/service/ctmgr/ctmgr_log/ctmgr_task.log",
+    "max_log_vol": "2",
+    "userandgroup": "ctmgruser:ctmgruser"
+  }
+]

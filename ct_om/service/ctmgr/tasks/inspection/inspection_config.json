@@ -1,0 +1,9 @@
+{
+  "cantian_fetch": {
+    "inspection_file_path": "/opt/cantian/cantian/server/admin/scripts/fetch_cls_stat.py",
+    "component": "cantian",
+    "description_zn": "",
+    "description_en": "",
+    "input_param": ""
+  }
+}

@@ -1,0 +1,12 @@
+bitmap
+csf
+array_storage_optimization
+nologging_insert
+table_compress
+dblink
+ix_shw_indexpart_remove_unique
+support_number2_datatype
+subpart_support_csf
+backup/restore_parameter_modification
+btree_coalesce
+encryption_iteration

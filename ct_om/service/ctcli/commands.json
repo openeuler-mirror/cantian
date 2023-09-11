@@ -1,0 +1,28 @@
+{
+  "help": {
+  "description": "executable command query: ctctl help",
+  "high risk command": "False"
+  },
+
+  "log query": {
+  "handler": "common",
+  "description": "audit log query: this_command [format=json/table]",
+  "high risk command": "False",
+  "params check": "False"
+  },
+  "collection logs": {
+  "handler": "logs_collection",
+  "description": "get logs of all modules as tar.gz: this_command [log_dir=/your_path] [type=recent/all]. example: ctctl collection logs log_dir=/root/log_saves/ type=all",
+  "high risk command": "False",
+  "params check": "True",
+  "check value": {"type": "direct",
+                  "param_val":  ["log_dir", "type"]}
+  },
+
+  "logs progress query": {
+  "handler": "common",
+  "description": "query the progress of log collection: this_command [format=json/table].",
+  "high risk command": "False",
+  "params check": "False"
+  }
+}

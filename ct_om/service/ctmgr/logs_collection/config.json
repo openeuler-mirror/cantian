@@ -1,0 +1,144 @@
+[
+  {
+    "type": "file",
+    "size": "2",
+    "component": "exporter",
+    "dir": "/opt/cantian/ct_om/logs/exporter.log",
+    "tar_name": "cantian_exporter.log.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "2",
+    "component": "ctmgr",
+    "dir": "/opt/cantian/ct_om/service/ctmgr/ctmgr_log/ctmgr_audit.log",
+    "tar_name": "ctmgr_audit.log.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "2",
+    "component": "ctmgr",
+    "dir": "/opt/cantian/ct_om/service/ctmgr/ctmgr_log/ctmgr_deploy.log",
+    "tar_name": "ctmgr_deploy.log.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "2",
+    "component": "ctmgr",
+    "dir": "/opt/cantian/ct_om/service/ctmgr/ctmgr_log/ctmgr_logs_collection.log",
+    "tar_name": "ctmgr_logs_collection.log.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "2",
+    "component": "ctmgr",
+    "dir": "/opt/cantian/ct_om/service/ctmgr/ctmgr_log/ctmgr_task.log",
+    "tar_name": "ctmgr_task.log.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "4",
+    "component": "dbstor",
+    "dir": "/opt/cantian/dbstor/log/install.log",
+    "tar_name": "dbstor_install.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "4",
+    "component": "dbstor",
+    "dir": "/opt/cantian/dbstor/log/uninstall.log",
+    "tar_name": "dbstor_uninstall.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "4",
+    "component": "dbstor",
+    "dir": "/opt/cantian/dbstor/log/backup.log",
+    "tar_name": "dbstor_backup.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "4",
+    "component": "dbstor",
+    "dir": "/opt/cantian/dbstor/log/update.log",
+    "tar_name": "dbstor_update.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "30",
+    "dir": "/mnt/dbdata/local/cantian/tmp/data/dbstor/data/logs/run/dsware_cantiand_0.log",
+    "tar_name": "dsware_cantiand.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "30",
+    "component": "cantian",
+    "dir": "/opt/cantian/cantian/log/cantian_deploy.log",
+    "tar_name": "cantian_deploy.log.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "30",
+    "component": "cantian",
+    "dir": "/mnt/dbdata/local/cantian/tmp/data/log/run/cantiand.rlog",
+    "tar_name": "cantiand.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "30",
+    "component": "cantian",
+    "dir": "/mnt/dbdata/local/cantian/tmp/data/log/cantianstatus.log",
+    "tar_name": "cantianstatus.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "30",
+    "component": "cms",
+    "dir": "/opt/cantian/cms/log/run/cms_adm.rlog",
+    "tar_name": "cms_adm.rlog.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "30",
+    "component": "cms",
+    "dir": "/opt/cantian/cms/log/run/cms_srv.rlog",
+    "tar_name": "cms_srv.rlog.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "30",
+    "component": "cms",
+    "dir": "/opt/cantian/cms/log/cms_deploy.log",
+    "tar_name": "cms_deploy.tar.gz",
+    "generate_type": "task generated"
+  }
+]
