@@ -6,39 +6,47 @@
 ##### 2、编译工程：cmake或make，建议使用cmake
 ##### 3、目录说明：
 -   Cantian：主目录，CMakeLists.txt为主工程入口；
+-   build: 编译构建脚本；
+-   common：管控面脚本；
+-   ct_om：安装部署脚本；
 -   pkg: 源代码目录，按子目录划分模块解耦；
--   common：管控面脚本
--   ct_om：安装部署
 
 #### 二、编译指导
 ##### 1、概述
-编译Cantian需要依赖CBB、DCF和binarylibs三个组件。
--   CBB：Cantian依赖的公共函数代码。可以从开源社区获取。
--   DCF：Cantian依赖的分布式一致性框架能力。可以从开源社区获取。
--   binarylibs：依赖的第三方开源软件，你可以直接编译openGauss-third_party代码获取，也可以从开源社区下载已经编译好的并上传的一个副本。
+在cantian项目根目录创建library、platform、open_source三个目录：  
+-   open_source目录存放三方库代码及头文件  
+-   platform存放huawei三方组件，如安全函数库  
+-   library存放三方组件动态或静态链接库
 
 ##### 2、操作系统和软件依赖要求
-支持以下操作系统：
--   CentOS 8.2（x86）
-适配其他系统，可参照openGauss数据库编译指导
-当前Cantian依赖第三方软件有securec、zlib、lz4、zstd、openssl、protobuf、protubuf-c;
+###### 2.1 支持以下操作系统：
+-   CentOS 8.2（x86）  
+如需适配其他系统，可参照Cantian编译指导在相应操作系统上进行编译。  
+###### 2.2 环境依赖
+-   CMake(>=3.14.1)、automake、libtool、g++、libaio、pkgconfig
+###### 2.3 三方组件依赖
+-   当前Cantian依赖第三方软件有securec、zlib、lz4、zstd、openssl、protobuf、protubuf-c; 
 ##### 3、下载Cantian及依赖组件
-pcre2-10.40：https://github.com/PCRE2Project/pcre2.git
-openssl-1.1.1n：https://github.com/openssl/openssl
-lz4-1.9.3：https://github.com/lz4/lz4
-zstd-1.5.2：https://github.com/facebook/zstd.git
-protobuf-3.13.0：https://github.com/protocolbuffers/protobuf.git
-安装完成后需要执行ldconfig命令，否则提示
-protoc: error while loading shared libraries: libprotoc.so.24: cannot open shared object file: No such file or directory
-protobuf-c.1.4.1：https://github.com/protobuf-c/protobuf-c.git
-zlib-1.2.11：https://github.com/madler/zlib.git
-huawei安全函数库：https://gitee.com/Janisa/huawei_secure_c
-securec
+-   pcre2-10.40：https://github.com/PCRE2Project/pcre2.git  
+-   openssl-1.1.1n：https://github.com/openssl/openssl  
+-   lz4-1.9.3：https://github.com/lz4/lz4  
+-   zstd-1.5.2：https://github.com/facebook/zstd.git  
+-   protobuf-3.13.0：https://github.com/protocolbuffers/protobuf.git  
+安装完成后需要执行ldconfig命令，否则提示  
+protoc: error while loading shared libraries: libprotoc.so.24: cannot open shared object file: No such file or directory  
+-   protobuf-c.1.4.1：https://github.com/protobuf-c/protobuf-c.git  
+-   zlib-1.2.11：https://github.com/madler/zlib.git  
+-   huawei安全函数库：https://gitee.com/Janisa/huawei_secure_c  
 ##### 4、编译第三方软件
-在编译Cantian之前，需要先编译依赖的开源及第三方软件。
+1、在编译Cantian之前，需要先编译依赖的开源及第三方软件。在cantian根路径下，创建open_source目录，下载步骤3中所设计的三方依赖组件。  
+2、在open_source目录下创建各依赖组件头文件目录，如open_source/{component}/include/，并将组件源码中的头文件全部拷贝对应组件的include目录。  
+3、将编译好的各组件库拷到library/{component}/lib目录。如：libpcre2-8.so*、liblz4.so*、libzstd.so*、libprotobuf-c.a、libcrypto.a、libssl.a、libz.so*拷贝到对应组件的lib目录。  
+注：protobuf需要执行make install安装默认动态库加载路径。
+4、将编译好的安全函数库libsecurec.a拷贝到library/huawei_security/lib目录下。
+5、在根目录下创建platform/huawei_security/include目录，将securec.h、securectype.h安全函数头文件拷贝到此路径。
 ##### 5、代码编译
-Debug:sh build_cantian.sh
-Release:修改bash Makefile.sh package为bash Makefile.sh package-release后执行sh build_cantian.sh
+**Debug**:sh build_cantian.sh  
+**Release**:修改bash Makefile.sh package为bash Makefile.sh package-release后执行sh build_cantian.sh  
 完成编译后，安装包生成在/tmp/cantian_new目录中
 
 #### 三、安装部署
@@ -150,7 +158,7 @@ key_path: 证书key存储路径，比如：/opt/certificate/mes.key
    - 各巡检项之间以逗号隔开，且无空格。 
    - 巡检项可通过/opt/cantian/action/inspection/inspection_config.json文件查看
 
-2. 根据回显提示，输入zsql数据库用户名、密码、IP和端口号:
+2. 根据回显提示，输入ctclient数据库用户名、密码、IP和端口号:
 
 3. 执行结果如下：
 ```angular2html
@@ -180,8 +188,30 @@ inspection result file is /opt/cantian/action/inspection/inspections_log/inspect
 查看巡检结果：
 4. 巡检完成后，巡检结果将保存在目录“/opt/cantian/action/inspections_log”下，以“inspection_时间戳”命名，并且只保存最近十次的巡检结果文件。
 
-#### 五、注意事项
-##### 5.1 cantian引擎使用ssl认证时证书私钥密码
+#### 五、对接MySQL
+##### 5.1 安装MySQL
+当前支持MySQL-8.0.27，如果需要其它版本，请开发人员适配或联系cantian仓开发人员。
+
+##### 5.2 加载ctc插件
+###### 5.2.1 部署MySQL
+1. 在环境上部署cantian
+2. 确认/dev/shm下的**共享内存文件权限**，确保cantian安装部署的用户也可以访问及rw。
+3. 确认ctc.so所依赖的库，系统加载时能找到。
+4. 登录mysql,加载插件  
+
+方法一：
+```
+install plugin ctc_ddl_rewriter soname 'ha_ctc.so'
+install plugin CTC soname 'ha_ctc.so'
+```
+方法二：
+```
+/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/mysql-server/scripts/my.cnf --initialize-insecure --datadir=/data/data
+/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/mysql-server/scripts/my.cnf --datadir=/data/data --plugin-dir=/usr/local/mysql/lib/plugin --plugin_load=ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so; --
+check_proxy_users=ON --mysql_native_password_proxy_users=ON --default-storage-engine=CTC
+```
+#### 六、注意事项
+##### 6.1 cantian引擎使用ssl认证时证书私钥密码
 1. 现版本ssl证书私钥的密码经过base64编码加密保存至配置文件，并在程序中进行解密，如需替换其他的加密算法请按照下面步骤操作。
 2. 现用的私钥密码加密步骤在pkg/deploy/action/install.sh中的copy_cert_files函数，将此步骤中的base64替换成相应的加密算法实现加密。
 3. 现用的私钥密码解密步骤在pkg/src/mec/mes_tcp.c中的mes_ssl_decode_key_pwd函数，此函数的输入参数分别为密文的地址和长度，解密后明文的存放地址和长度，将此函数中的内容替换为步骤2中对应的解密算法的实现。
