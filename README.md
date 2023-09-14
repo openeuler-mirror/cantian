@@ -41,8 +41,8 @@ protoc: error while loading shared libraries: libprotoc.so.24: cannot open share
 1、在编译Cantian之前，需要先编译依赖的开源及第三方软件。在cantian根路径下，创建open_source目录，下载步骤3中所设计的三方依赖组件。  
 2、在open_source目录下创建各依赖组件头文件目录，如open_source/{component}/include/，并将组件源码中的头文件全部拷贝对应组件的include目录。  
 3、将编译好的各组件库拷到library/{component}/lib目录。如：libpcre2-8.so*、liblz4.so*、libzstd.so*、libprotobuf-c.a、libcrypto.a、libssl.a、libz.so*拷贝到对应组件的lib目录。  
-注：protobuf需要执行make install安装默认动态库加载路径。
-4、将编译好的安全函数库libsecurec.a拷贝到library/huawei_security/lib目录下。
+注：protobuf需要执行make install安装默认动态库加载路径。  
+4、将编译好的安全函数库libsecurec.a拷贝到library/huawei_security/lib目录下。  
 5、在根目录下创建platform/huawei_security/include目录，将securec.h、securectype.h安全函数头文件拷贝到此路径。
 ##### 5、代码编译
 **Debug**:sh build_cantian.sh  
@@ -190,7 +190,7 @@ inspection result file is /opt/cantian/action/inspection/inspections_log/inspect
 
 #### 五、对接MySQL
 ##### 5.1 安装MySQL
-当前支持MySQL-8.0.27，如果需要其它版本，请开发人员适配或联系cantian仓开发人员。
+当前支持MySQL-8.0.26，如果需要其它版本，请开发人员适配或联系cantian仓开发人员。
 
 ##### 5.2 加载ctc插件
 ###### 5.2.1 部署MySQL
