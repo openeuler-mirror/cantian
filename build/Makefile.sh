@@ -140,8 +140,7 @@ func_all()
     make all -sj 8
     if [ $? -ne 0 ]; then
         ls -al ${CANTIAN_LIB}
-        ls -al /home/regress
-        ls -al /home/regress/CantianKernel/build
+        ls -al ${CANTIAN_BUILD}
         exit 1
     fi 
     set -e 
@@ -243,7 +242,6 @@ func_pkg_run_basic()
     cp -d ${ZSTD_LIB_PATH}/libzstd.so*  ${CANTIAN_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
     cp -d ${LZ4_LIB_PATH}/liblz4.so*  ${CANTIAN_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
     
-    ls -al ${CANTIAN_HOME}/../library/shared_lib
     cp -R ${CANTIAN_HOME}/admin  ${CANTIAN_BIN}/${RUN_PACK_DIR_NAME}/
     cp -R ${CANTIAN_HOME}/cfg  ${CANTIAN_BIN}/${RUN_PACK_DIR_NAME}/
     if [ "${ENABLE_LLT_ASAN}" == "YES" ]; then
