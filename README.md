@@ -23,31 +23,37 @@
 -   CentOS 8.2（x86）  
 如需适配其他系统，可参照Cantian编译指导在相应操作系统上进行编译。  
 ###### 2.2 环境依赖
--   CMake(>=3.14.1)、automake、libtool、g++、libaio、pkgconfig
+-   CMake(>=3.14.1)、automake、libtool、g++、libaio、pkgconfig、rpmbuild
 ###### 2.3 三方组件依赖
--   当前Cantian依赖第三方软件有securec、zlib、lz4、zstd、openssl、protobuf、protubuf-c; 
+当前Cantian依赖第三方软件有securec、zlib、lz4、Zstandard、openssl、protobuf、protubuf-c、pcre; 
 ##### 3、下载Cantian及依赖组件
 -   pcre2-10.40：https://github.com/PCRE2Project/pcre2.git  
 -   openssl-1.1.1n：https://github.com/openssl/openssl  
 -   lz4-1.9.3：https://github.com/lz4/lz4  
--   zstd-1.5.2：https://github.com/facebook/zstd.git  
--   protobuf-3.13.0：https://github.com/protocolbuffers/protobuf.git  
+-   Zstandard-1.5.2：https://github.com/facebook/zstd.git  
+-   protobuf-3.13.0：https://github.com/protocolbuffers/protobuf.git   
 安装完成后需要执行ldconfig命令，否则提示  
 protoc: error while loading shared libraries: libprotoc.so.24: cannot open shared object file: No such file or directory  
 -   protobuf-c.1.4.1：https://github.com/protobuf-c/protobuf-c.git  
 -   zlib-1.2.11：https://github.com/madler/zlib.git  
 -   huawei安全函数库：https://gitee.com/Janisa/huawei_secure_c  
 ##### 4、编译第三方软件
-1、在编译Cantian之前，需要先编译依赖的开源及第三方软件。在cantian根路径下，创建open_source目录，下载步骤3中所设计的三方依赖组件。  
+1、在编译Cantian之前，需要先编译依赖的开源及第三方软件。在cantian根路径下，创建open_source目录，下载步骤3中所涉及的三方依赖组件。  
 2、在open_source目录下创建各依赖组件头文件目录，如open_source/{component}/include/，并将组件源码中的头文件全部拷贝对应组件的include目录。  
-3、将编译好的各组件库拷到library/{component}/lib目录。如：libpcre2-8.so*、liblz4.so*、libzstd.so*、libprotobuf-c.a、libcrypto.a、libssl.a、libz.so*拷贝到对应组件的lib目录。  
-注：protobuf需要执行make install安装默认动态库加载路径。  
+**open_source目录组织结构**  
+**huawei_security lz4 openssl pcre protobuf protobuf-c zlib Zstandard**  
+3、创建library目录，将编译好的各组件库拷到library/{component}/lib目录。如：libpcre2-8.so*、liblz4.so*、libzstd.so*、libprotobuf-c.a、libcrypto.a、libssl.a、libz.so*拷贝到对应组件的lib目录。  
+**注：protobuf需要执行make install安装默认动态库加载路径，安装protobuf之后再安装protobuf-c。**  
+**library目录组织结构**   
+**huawei_security lz4 openssl pcre protobuf protobuf-c zlib Zstandard**  
 4、将编译好的安全函数库libsecurec.a拷贝到library/huawei_security/lib目录下。  
 5、在根目录下创建platform/huawei_security/include目录，将securec.h、securectype.h安全函数头文件拷贝到此路径。
 ##### 5、代码编译
 **Debug**:sh build_cantian.sh  
 **Release**:修改bash Makefile.sh package为bash Makefile.sh package-release后执行sh build_cantian.sh  
-完成编译后，安装包生成在/tmp/cantian_new目录中
+完成编译后，安装包生成在/tmp/cantian_new目录中  
+**注：报错无法找到protobuf-c.h的解决方案**  
+**将protobuf-c目录下的protobuf-c.h头文件拷贝至library/protobuf/protobuf-c目录下**
 
 #### 三、安装部署
 ##### 1、安装前准备
@@ -207,7 +213,7 @@ install plugin CTC soname 'ha_ctc.so'
 方法二：
 ```
 /usr/local/mysql/bin/mysqld --defaults-file=/home/regress/mysql-server/scripts/my.cnf --initialize-insecure --datadir=/data/data
-/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/mysql-server/scripts/my.cnf --datadir=/data/data --plugin-dir=/usr/local/mysql/lib/plugin --plugin_load=ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so; --
+/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/mysql-server/scripts/my.cnf --datadir=/data/data --plugin-dir=/usr/local/mysql/lib/plugin --plugin_load="ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so;" --
 check_proxy_users=ON --mysql_native_password_proxy_users=ON --default-storage-engine=CTC
 ```
 #### 六、注意事项
