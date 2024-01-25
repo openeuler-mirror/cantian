@@ -8,11 +8,14 @@ declare VERSION_DESCRIP=""
 declare PACK_PREFIX=""
 declare PROJECT_VERSION=""
 declare RUN_PACK_DIR_NAME=""
+declare LOGICREP_DIR_NAME=""
 declare ALL_PACK_DIR_NAME=""
 declare SYMBOL_PACK_DIR_NAME=""
+declare TOOLS_PACK_DIR_NAME=""
 declare COMPILE_OPTS=""
 declare SHARDING_INNER_TOOLS_PACK_NAME=""
 declare MYSQL_BUILD_TYPE=""
+declare JDRIVER_PACK_DIR_NAME=""
 export BUILD_MODE=""
 export PYTHON_INCLUDE_DIR=""
 export WORKSPACE=$(dirname $(dirname $(pwd)))
@@ -30,6 +33,12 @@ INITSQL_DIR=../
 func_prepare_git_msg
 PROJECT_VERSION=$(cat ${CONFIG_IN_FILE} | grep 'PROJECT_VERSION' | awk '{print $3}')
 CANTIAND_BIN=cantiand-${PROJECT_VERSION}
+JDBC_DIR=${CANTIANDB_HOME}/src/jdbc/cantian-jdbc/build/Cantian_PKG
+LOGICREP_DIR=${CANTIANDB_HOME}/src/zlogicrep/build/Cantian_PKG
+LOGICREP_FILE_DIR=${CANTIANDB_HOME}/src/zlogicrep/build/Cantian_PKG/file
+JAR_NAME=com.huawei.gauss.jdbc.ZenithDriver-*.jar
+JAR_ETCD=com.huawei.gauss.jdbc.etcd-*.jar
+LOGICREP_GZ_NAME=com.huawei.cantian.logicrep.tar.gz
 GODRIVER_NAME=go-cantian-driver
 ZEBRATOOL_DIR=${CANTIANDB_HOME}/src/zebratool
 MYSQL_DIR=${CANTIANDB_HOME}/../../mysql-server/mysql-source
@@ -81,9 +90,13 @@ func_prepare_pkg_name()
     fi
 
     RUN_PACK_DIR_NAME=${PACK_PREFIX}-RUN-${OS_SUFFIX}-${ARCH}bit
+    LOGICREP_DIR_NAME=${PACK_PREFIX}-LOGICREP
     ALL_PACK_DIR_NAME=${PACK_PREFIX}-DATABASE-${OS_SUFFIX}-${ARCH}bit
     SYMBOL_PACK_DIR_NAME=${PACK_PREFIX}-DATABASE-${OS_SUFFIX}-${ARCH}bit-SYMBOL
     CTBOX_DIR_NAME=${PACK_PREFIX}-CTBOX
+    TOOLS_PACK_DIR_NAME=${PACK_PREFIX}-TOOLS
+    JDRIVER_PACK_DIR_NAME=${PACK_PREFIX}-CLIENT-JDBC
+    LOGICREP_AGENT_DIR_NAME=${PACK_PREFIX}-LOGICREP-AGENT
     CTSQL_PACK_DIR_NAME=${PACK_PREFIX}-CTSQL-${OS_SUFFIX}-${ARCH}bit
 
     if [[ ! -d "${CANTIANDB_BIN}" ]]; then
@@ -169,6 +182,68 @@ func_all()
         fi
         ln cantiand ${CANTIAND_BIN}
     fi
+}
+
+func_jdriver()
+{
+    echo "make jdbc driver"
+    rm -rf ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}*
+    rm -rf ${JDBC_DIR}/file
+    cd ${JDBC_DIR} && sh build_package_unix.sh
+    mkdir -p ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}
+    cp ${JDBC_DIR}/file/${JAR_NAME} ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}/
+    cp ${JDBC_DIR}/file/${JAR_ETCD} ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}/
+    chmod 500 ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}/${JAR_NAME}
+    chmod 500 ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}/${JAR_ETCD}
+    cd ${CANTIANDB_HOME} && tar --owner=root --group=root -zcf ${JDRIVER_PACK_DIR_NAME}.tar.gz ${JDRIVER_PACK_DIR_NAME}
+    sha256sum ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}.tar.gz | cut -c1-64 > ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}.sha256
+    echo "make jdbc driver finished"
+}
+
+func_logic_rep()
+{
+    if [[ -d "${LOGICREP_FILE_DIR}" ]]; then
+        chmod -R 700 ${LOGICREP_FILE_DIR}/*
+    fi
+    rm -rf ${LOGICREP_DIR}/file
+
+    cd ${LOGICREP_DIR} && sh build_package_unix.sh
+    rm -rf ${LOGICREP_DIR}/file/${LOGICREP_GZ_NAME}
+    chmod 700 ${LOGICREP_DIR}/file/*
+    chmod 500 ${LOGICREP_DIR}/file/*.sh
+    chmod 600 ${LOGICREP_DIR}/file/*.ini
+    chmod 500 ${LOGICREP_DIR}/file/*.jar
+    chmod 500 ${LOGICREP_DIR}/file/*.py
+    chmod -R 700 ${LOGICREP_DIR}/file/conf/*
+    chmod 600 ${LOGICREP_DIR}/file/conf/*.xml
+    chmod 600 ${LOGICREP_DIR}/file/conf/*.properties
+    chmod 600 ${LOGICREP_DIR}/file/conf/repconf/*.xml
+    chmod 600 ${LOGICREP_DIR}/file/conf/topicconf/*.properties
+    chmod 600 ${LOGICREP_DIR}/file/conf/sec/*.properties
+    chmod -R 500 ${LOGICREP_DIR}/file/lib/*
+    chmod -R 500 ${LOGICREP_DIR}/file/plugin/*
+
+    rm -rf ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}*
+    mkdir -p ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}/logicrep
+    chmod 700 ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}/logicrep
+    cp /home/repo1/com/huawei/gauss/com.huawei.gauss.jdbc.ZenithDriver/Cantian/com.huawei.gauss.jdbc.ZenithDriver-Cantian.jar ${LOGICREP_DIR}/file/lib/
+    cd ${LOGICREP_DIR}/file/lib/
+    mv com.huawei.gauss.jdbc.ZenithDriver-Cantian.jar com.huawei.cantian.jdbc.CantianDriver-Cantian.jar
+    cp -r ${LOGICREP_DIR}/file/* ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}/logicrep/
+    cd ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}/logicrep/ && ln -s com.huawei.cantian.logicrep-*.jar com.huawei.cantian.logicrep.jar
+    cd ${CANTIANDB_BIN} && tar --owner=root --group=root -zcf ${LOGICREP_DIR_NAME}.tar.gz ${LOGICREP_DIR_NAME}
+    sha256sum ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}.tar.gz | cut -c1-64 > ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}.sha256
+}
+
+func_toolkit()
+{
+    func_jdriver
+    func_logic_rep
+    rm -rf ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}
+    mkdir -p ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}
+    mv ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}.tar.gz ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}
+    cd ${CANTIANDB_BIN} && tar --owner=root --group=root -zcf ${TOOLS_PACK_DIR_NAME}.tar.gz ${TOOLS_PACK_DIR_NAME}
+    sha256sum ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}.tar.gz | cut -c1-64 > ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}.sha256
 }
 
 func_release_symbol()
@@ -613,6 +688,8 @@ func_making_package()
         func_release_symbol
         func_pkg_run
     fi
+
+    func_toolkit
 
     rm -rf ${CANTIANDB_HOME}/../${ALL_PACK_DIR_NAME}
     rm -rf ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}
