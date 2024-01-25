@@ -24,7 +24,6 @@
 *.a
 /pkg/src/Debug
 /pkg/bin
-/pkg/cfg
 /pkg/lib
 /pkg/make/win32/bin
 /pkg/make/win32
