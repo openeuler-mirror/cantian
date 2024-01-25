@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cms_log_module.h"
 #include <dirent.h>
 #include "cms_defs.h"
 #include "cm_file.h"
@@ -40,15 +41,15 @@ static status_t cms_export_gcc_head(int32 file)
     char* attrs_name = "#GCC_HEAD#\nMETA_VER,NODE_COUNT,DATA_VER,CHECKSUM\n";
     char buf[CMS_EXP_ROW_BUFFER_SIZE] = { '\0' };
 
-    GS_RETURN_IFERR(cm_write_file(file, attrs_name, (int)strlen(attrs_name)));
+    CT_RETURN_IFERR(cm_write_file(file, attrs_name, (int)strlen(attrs_name)));
 
     gcc = cms_get_read_gcc();
     gcc_head = &gcc->head;
 
     if (gcc_head->magic != CMS_GCC_HEAD_MAGIC) {
-        GS_THROW_ERROR(ERR_CMS_GCC_EXPORT, "gcc head");
+        CT_THROW_ERROR(ERR_CMS_GCC_EXPORT, "gcc head");
         cms_release_gcc(&gcc);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     ret = snprintf_s(buf, CMS_EXP_ROW_BUFFER_SIZE, CMS_EXP_ROW_BUFFER_SIZE - 1, "%u,%u,%u,%u\n",
@@ -56,9 +57,9 @@ static status_t cms_export_gcc_head(int32 file)
     cms_release_gcc(&gcc);
     PRTS_RETURN_IFERR(ret);
 
-    GS_RETURN_IFERR(cm_write_file(file, buf, (int)strlen(buf)));
+    CT_RETURN_IFERR(cm_write_file(file, buf, (int)strlen(buf)));
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cms_export_node_attrs(int32 file)
@@ -69,14 +70,14 @@ static status_t cms_export_node_attrs(int32 file)
     char* attrs_name = "#GCC_NODE#\nNODE_ID,NAME,IP,PORT\n";
     char buf[CMS_EXP_ROW_BUFFER_SIZE] = { '\0' };
 
-    GS_RETURN_IFERR(cm_write_file(file, attrs_name, (int)strlen(attrs_name)));
+    CT_RETURN_IFERR(cm_write_file(file, attrs_name, (int)strlen(attrs_name)));
 
     uint32 node_count = cms_get_gcc_node_count();
     for (uint32 i = 0; i < node_count; i++) {
         gcc = cms_get_read_gcc();
         node_def = &gcc->node_def[i];
         if (node_def->magic != CMS_GCC_NODE_MAGIC) {
-            GS_THROW_ERROR(ERR_CMS_GCC_EXPORT, "gcc node attrs");
+            CT_THROW_ERROR(ERR_CMS_GCC_EXPORT, "gcc node attrs");
             cms_release_gcc(&gcc);
             continue;
         }
@@ -86,10 +87,10 @@ static status_t cms_export_node_attrs(int32 file)
         cms_release_gcc(&gcc);
         PRTS_RETURN_IFERR(ret);
 
-        GS_RETURN_IFERR(cm_write_file(file, buf, (int)strlen(buf)));
+        CT_RETURN_IFERR(cm_write_file(file, buf, (int)strlen(buf)));
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cms_export_votedisk_attrs(int32 file)
@@ -100,13 +101,13 @@ static status_t cms_export_votedisk_attrs(int32 file)
     char* attrs_name = "#VOTEDISK#\nPATH\n";
     char buf[CMS_EXP_ROW_BUFFER_SIZE] = { '\0' };
 
-    GS_RETURN_IFERR(cm_write_file(file, attrs_name, (int)strlen(attrs_name)));
+    CT_RETURN_IFERR(cm_write_file(file, attrs_name, (int)strlen(attrs_name)));
 
     for (uint32 i = 0; i < CMS_MAX_VOTEDISK_COUNT; i++) {
         gcc = cms_get_read_gcc();
         votedisk = &gcc->votedisks[i];
         if (votedisk->magic != CMS_GCC_VOTEDISK_MAGIC) {
-            GS_THROW_ERROR(ERR_CMS_GCC_EXPORT, "gcc votedisk attrs");
+            CT_THROW_ERROR(ERR_CMS_GCC_EXPORT, "gcc votedisk attrs");
             cms_release_gcc(&gcc);
             continue;
         }
@@ -115,9 +116,9 @@ static status_t cms_export_votedisk_attrs(int32 file)
         cms_release_gcc(&gcc);
         PRTS_RETURN_IFERR(ret);
 
-        GS_RETURN_IFERR(cm_write_file(file, buf, (int)strlen(buf)));
+        CT_RETURN_IFERR(cm_write_file(file, buf, (int)strlen(buf)));
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cms_export_resgrp_attrs(int32 file)
@@ -128,13 +129,13 @@ static status_t cms_export_resgrp_attrs(int32 file)
     char* attrs_name = "#RES_GRP #\nGROUP_ID,NAME\n";
     char buf[CMS_EXP_ROW_BUFFER_SIZE] = { '\0' };
 
-    GS_RETURN_IFERR(cm_write_file(file, attrs_name, (int)strlen(attrs_name)));
+    CT_RETURN_IFERR(cm_write_file(file, attrs_name, (int)strlen(attrs_name)));
 
     for (uint32 i = 0; i < CMS_MAX_RESOURCE_GRP_COUNT; i++) {
         gcc = cms_get_read_gcc();
         resgrp = &gcc->resgrp[i];
         if (resgrp->magic != CMS_GCC_RES_GRP_MAGIC) {
-            GS_THROW_ERROR(ERR_CMS_GCC_EXPORT, "gcc resgrp attrs");
+            CT_THROW_ERROR(ERR_CMS_GCC_EXPORT, "gcc resgrp attrs");
             cms_release_gcc(&gcc);
             continue;
         }
@@ -143,9 +144,9 @@ static status_t cms_export_resgrp_attrs(int32 file)
         cms_release_gcc(&gcc);
         PRTS_RETURN_IFERR(ret);
 
-        GS_RETURN_IFERR(cm_write_file(file, buf, (int)strlen(buf)));
+        CT_RETURN_IFERR(cm_write_file(file, buf, (int)strlen(buf)));
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cms_export_res_attrs(int32 file)
@@ -157,13 +158,13 @@ static status_t cms_export_res_attrs(int32 file)
         "#GCC_RES #\nRES_ID,NAME,GROUP_ID,TYPE,LEVEL,AUTO_START,START_TIMEOUT,STOP_TIMEOUT,CHECK_TIMEOUT,HB_TIMEOUT,CHECK_INTERVAL,RESTART_TIMES,SCRIPT\n";
     char buf[CMS_EXP_ROW_BUFFER_SIZE] = { '\0' };
 
-    GS_RETURN_IFERR(cm_write_file(file, attrs_name, (int)strlen(attrs_name)));
+    CT_RETURN_IFERR(cm_write_file(file, attrs_name, (int)strlen(attrs_name)));
 
     for (uint32 i = 0; i < CMS_MAX_RESOURCE_COUNT; i++) {
         gcc = cms_get_read_gcc();
         res = &gcc->res[i];
         if (res->magic != CMS_GCC_RES_MAGIC) {
-            GS_THROW_ERROR(ERR_CMS_GCC_EXPORT, "gcc res attrs");
+            CT_THROW_ERROR(ERR_CMS_GCC_EXPORT, "gcc res attrs");
             cms_release_gcc(&gcc);
             continue;
         }
@@ -175,55 +176,55 @@ static status_t cms_export_res_attrs(int32 file)
         cms_release_gcc(&gcc);
         PRTS_RETURN_IFERR(ret);
 
-        GS_RETURN_IFERR(cm_write_file(file, buf, (int)strlen(buf)));
+        CT_RETURN_IFERR(cm_write_file(file, buf, (int)strlen(buf)));
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cms_export_gcc(const char* path)
 {
-    GS_RETURN_IFERR(cms_load_gcc());
+    CT_RETURN_IFERR(cms_load_gcc());
     int32 file;
 
-    if (cm_create_file(path, O_RDWR | O_TRUNC | O_BINARY | O_CREAT, &(file)) != GS_SUCCESS) {
+    if (cm_create_file(path, O_RDWR | O_TRUNC | O_BINARY | O_CREAT, &(file)) != CT_SUCCESS) {
         CMS_LOG_ERR("failed to create file %s", path);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (cm_chmod_file(FILE_PERM_OF_DATA, file) != GS_SUCCESS) {
+    if (cm_chmod_file(FILE_PERM_OF_DATA, file) != CT_SUCCESS) {
         cm_close_file(file);
         CMS_LOG_ERR("failed to chmod export file ");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (cms_export_gcc_head(file) != GS_SUCCESS) {
+    if (cms_export_gcc_head(file) != CT_SUCCESS) {
         cm_close_file(file);
         CMS_LOG_ERR("export gcc head attributes error");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (cms_export_node_attrs(file) != GS_SUCCESS) {
+    if (cms_export_node_attrs(file) != CT_SUCCESS) {
         cm_close_file(file);
         CMS_LOG_ERR("export node attributes error");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (cms_export_votedisk_attrs(file) != GS_SUCCESS) {
+    if (cms_export_votedisk_attrs(file) != CT_SUCCESS) {
         cm_close_file(file);
         CMS_LOG_ERR("export votedisk attributes error");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (cms_export_resgrp_attrs(file) != GS_SUCCESS) {
+    if (cms_export_resgrp_attrs(file) != CT_SUCCESS) {
         cm_close_file(file);
         CMS_LOG_ERR("export resource group attributes error");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (cms_export_res_attrs(file) != GS_SUCCESS) {
+    if (cms_export_res_attrs(file) != CT_SUCCESS) {
         cm_close_file(file);
         CMS_LOG_ERR("export resource attributes error");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_close_file(file);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cms_backup_binary_gcc(const char* file_name)
@@ -232,21 +233,21 @@ static inline status_t cms_backup_binary_gcc(const char* file_name)
     int32 handle;
     errno_t ret;
 
-    if (cm_create_file(file_name, O_RDWR | O_TRUNC | O_BINARY | O_CREAT, &(handle)) != GS_SUCCESS) {
+    if (cm_create_file(file_name, O_RDWR | O_TRUNC | O_BINARY | O_CREAT, &(handle)) != CT_SUCCESS) {
         CMS_LOG_ERR("failed to create file %s", file_name);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (cm_chmod_file(FILE_PERM_OF_DATA, handle) != GS_SUCCESS) {
+    if (cm_chmod_file(FILE_PERM_OF_DATA, handle) != CT_SUCCESS) {
         cm_close_file(handle);
         CMS_LOG_ERR("failed to chmod gcc backup file ");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     temp_gcc = (cms_gcc_t*)cm_malloc_align(CMS_BLOCK_SIZE, sizeof(cms_gcc_t));
     if (temp_gcc == NULL) {
         cm_close_file(handle);
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, sizeof(cms_gcc_t), "backuping gcc");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, sizeof(cms_gcc_t), "backuping gcc");
+        return CT_ERROR;
     }
 
     const cms_gcc_t* gcc = cms_get_read_gcc();
@@ -255,21 +256,21 @@ static inline status_t cms_backup_binary_gcc(const char* file_name)
         cms_release_gcc(&gcc);
         CM_FREE_PTR(temp_gcc);
         cm_close_file(handle);
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+        return CT_ERROR;
     }
     cms_release_gcc(&gcc);
 
-    if (cm_pwrite_file(handle, (const char *)temp_gcc, sizeof(cms_gcc_t), 0) != GS_SUCCESS) {
+    if (cm_pwrite_file(handle, (const char *)temp_gcc, sizeof(cms_gcc_t), 0) != CT_SUCCESS) {
         CM_FREE_PTR(temp_gcc);
         cm_close_file(handle);
         CMS_LOG_ERR("failed to write file, file_name(%s)", file_name);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_FREE_PTR(temp_gcc);
     cm_close_file(handle);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline int32 cms_get_interval_days(date_t dt1, date_t dt2)
@@ -344,28 +345,28 @@ status_t cms_keep_recent_files(const char *bak_path, char *prefix)
     char buffer[CMS_FILE_NAME_BUFFER_SIZE];
     char *cwdir = getcwd(buffer, CMS_FILE_NAME_BUFFER_SIZE);
     if (cwdir == NULL) {
-        GS_LOG_RUN_ERR("get current work directory failed, error code %d.", errno);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("get current work directory failed, error code %d.", errno);
+        return CT_ERROR;
     }
 
     if (chdir(dirname) == -1) {
-        GS_LOG_RUN_ERR("change current work directory to %s failed, error code %d.", dirname, errno);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("change current work directory to %s failed, error code %d.", dirname, errno);
+        return CT_ERROR;
     }
 
     cms_remove_old_files(dirname, prefix);
     
     if (chdir(cwdir) == -1) {
-        GS_LOG_RUN_ERR("change current work directory to %s failed, error code %d.", cwdir, errno);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("change current work directory to %s failed, error code %d.", cwdir, errno);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cms_create_gcc_backup_files(date_t bak_time, const char *bak_type, const char *home_path)
 {
     char file_name[CMS_FILE_NAME_BUFFER_SIZE] = { 0 };
-    char time_str[GS_MAX_TIME_STRLEN] = { 0 };
+    char time_str[CT_MAX_TIME_STRLEN] = { 0 };
     int ret;
 
     ret = snprintf_s(file_name, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN, "%s/gcc_backup/",
@@ -373,16 +374,16 @@ status_t cms_create_gcc_backup_files(date_t bak_time, const char *bak_type, cons
     PRTS_RETURN_IFERR(ret);
 
     if (!cm_dir_exist(file_name)) {
-        GS_RETURN_IFERR(cm_create_dir(file_name));
+        CT_RETURN_IFERR(cm_create_dir(file_name));
     }
 
-    GS_RETURN_IFERR(cm_date2str(bak_time, "YYYYMMDDHH24MISS", time_str, GS_MAX_TIME_STRLEN));
+    CT_RETURN_IFERR(cm_date2str(bak_time, "YYYYMMDDHH24MISS", time_str, CT_MAX_TIME_STRLEN));
 
     ret = snprintf_s(file_name, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN, "%s/gcc_backup/%s_%s.exp",
         home_path, bak_type, time_str);
     PRTS_RETURN_IFERR(ret);
 
-    GS_RETURN_IFERR(cms_export_gcc(file_name));
+    CT_RETURN_IFERR(cms_export_gcc(file_name));
 
     ret = memset_sp(file_name, CMS_FILE_NAME_BUFFER_SIZE, 0, CMS_FILE_NAME_BUFFER_SIZE);
     MEMS_RETURN_IFERR(ret);
@@ -391,9 +392,9 @@ status_t cms_create_gcc_backup_files(date_t bak_time, const char *bak_type, cons
         home_path, bak_type, time_str);
     PRTS_RETURN_IFERR(ret);
 
-    GS_RETURN_IFERR(cms_backup_binary_gcc(file_name));
+    CT_RETURN_IFERR(cms_backup_binary_gcc(file_name));
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cms_backup_gcc_remote(date_t bak_time, const char *bak_type)
@@ -401,12 +402,12 @@ status_t cms_backup_gcc_remote(date_t bak_time, const char *bak_type)
     CMS_LOG_INF("cms gcc_bak: %s, cms_home:%s", g_cms_param->cms_gcc_bak, g_cms_param->cms_home);
     if (strcmp(g_cms_param->cms_gcc_bak, g_cms_param->cms_home) == 0) {
         CMS_LOG_INF("cms_gcc_bak is not exist");
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (cms_create_gcc_backup_files(bak_time, bak_type, g_cms_param->cms_gcc_bak) != GS_SUCCESS) {
+    if (cms_create_gcc_backup_files(bak_time, bak_type, g_cms_param->cms_gcc_bak) != CT_SUCCESS) {
         CMS_LOG_ERR("cms backup gcc in remote disk failed");
-        return GS_ERROR;
+        return CT_ERROR;
     }
     g_cms_inst->gcc_auto_bak.latest_bak = bak_time;
     return cms_keep_recent_files(g_cms_param->cms_gcc_bak, "auto");
@@ -414,9 +415,9 @@ status_t cms_backup_gcc_remote(date_t bak_time, const char *bak_type)
 
 status_t cms_backup_gcc_local(date_t bak_time, const char *bak_type)
 {
-    if (cms_create_gcc_backup_files(bak_time, bak_type, g_cms_param->cms_home) != GS_SUCCESS) {
+    if (cms_create_gcc_backup_files(bak_time, bak_type, g_cms_param->cms_home) != CT_SUCCESS) {
         CMS_LOG_ERR("cms backup gcc in local disk failed");
-        return GS_ERROR;
+        return CT_ERROR;
     }
     g_cms_inst->gcc_auto_bak.latest_bak = bak_time;
     return cms_keep_recent_files(g_cms_param->cms_home, "auto");
@@ -426,7 +427,7 @@ status_t cms_backup_gcc(void)
 {
     date_t bak_time = cm_now();
 
-    GS_RETURN_IFERR(cms_backup_gcc_local(bak_time, "bak"));
+    CT_RETURN_IFERR(cms_backup_gcc_local(bak_time, "bak"));
 
     return cms_backup_gcc_remote(bak_time, "bak");
 }
@@ -435,10 +436,10 @@ status_t cms_backup_gcc_auto(void)
 {
     date_t bak_time = cm_now();
 
-    GS_RETURN_IFERR(cms_backup_gcc_local(bak_time, "auto"));
-    GS_RETURN_IFERR(cms_backup_gcc_remote(bak_time, "auto"));
+    CT_RETURN_IFERR(cms_backup_gcc_local(bak_time, "auto"));
+    CT_RETURN_IFERR(cms_backup_gcc_remote(bak_time, "auto"));
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -446,13 +447,13 @@ void cms_gcc_backup_entry(thread_t * thread)
 {
     while (!thread->closed) {
         date_t now_time = cm_now();
-        if (g_cms_inst->gcc_auto_bak.is_backuping == GS_FALSE ||
+        if (g_cms_inst->gcc_auto_bak.is_backuping == CT_FALSE ||
             now_time - g_cms_inst->gcc_auto_bak.latest_bak >= CMS_GCC_BACKUP_INTERVAL) {
-            if (cms_backup_gcc_auto() != GS_SUCCESS) {
+            if (cms_backup_gcc_auto() != CT_SUCCESS) {
                 CMS_LOG_ERR("backup gcc failed");
-                g_cms_inst->gcc_auto_bak.is_backuping = GS_FALSE;
+                g_cms_inst->gcc_auto_bak.is_backuping = CT_FALSE;
             } else {
-                g_cms_inst->gcc_auto_bak.is_backuping = GS_TRUE;
+                g_cms_inst->gcc_auto_bak.is_backuping = CT_TRUE;
             }
         }
         cm_sleep(1000);

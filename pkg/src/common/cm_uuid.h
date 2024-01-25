@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -49,7 +49,7 @@ typedef struct st_uuid_t {
 #define UUID_LEN 36
 #define CM_GUID_LENGTH sizeof(uuid_t)
 #define CM_THREAD_ID_LENGTH 2
-#define CM_GUID_LAST_LENGTH (CM_GUID_LENGTH - GS_MAC_ADDRESS_LEN - CM_THREAD_ID_LENGTH)
+#define CM_GUID_LAST_LENGTH (CM_GUID_LENGTH - CT_MAC_ADDRESS_LEN - CM_THREAD_ID_LENGTH)
 
 #ifdef __cplusplus
 extern "C" {

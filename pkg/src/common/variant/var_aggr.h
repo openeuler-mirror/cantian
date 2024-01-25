@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -111,7 +111,7 @@ typedef struct st_aggr_var {
 #define GET_AGGR_VAR_COVAR(aggr_var)                                              \
     (                                                                              \
         (aggr_covar_t *)(((aggr_var)->extra_offset == 0 ||  \
-                              (aggr_var)->extra_offset >= GS_VMEM_PAGE_SIZE ||  \
+                              (aggr_var)->extra_offset >= CT_VMEM_PAGE_SIZE ||  \
                               (aggr_var)->extra_size != sizeof(aggr_covar_t) ||  \
                               ((aggr_var)->aggr_type != AGGR_TYPE_COVAR_POP&& \
                                   (aggr_var)->aggr_type != AGGR_TYPE_COVAR_SAMP)) \
@@ -121,7 +121,7 @@ typedef struct st_aggr_var {
 #define GET_AGGR_VAR_CORR(aggr_var)                                              \
     (                                                                              \
         (aggr_corr_t *)(((aggr_var)->extra_offset == 0 ||  \
-                              (aggr_var)->extra_offset >= GS_VMEM_PAGE_SIZE ||  \
+                              (aggr_var)->extra_offset >= CT_VMEM_PAGE_SIZE ||  \
                               (aggr_var)->extra_size != sizeof(aggr_corr_t) ||  \
                               (aggr_var)->aggr_type != AGGR_TYPE_CORR)       \
                               ? NULL                                               \
@@ -130,7 +130,7 @@ typedef struct st_aggr_var {
 #define GET_AGGR_VAR_STDDEV(aggr_var)                                              \
     (                                                                              \
         (aggr_stddev_t *)(((aggr_var)->extra_offset == 0 ||  \
-                              (aggr_var)->extra_offset >= GS_VMEM_PAGE_SIZE ||  \
+                              (aggr_var)->extra_offset >= CT_VMEM_PAGE_SIZE ||  \
                               (aggr_var)->extra_size != sizeof(aggr_stddev_t) ||  \
                               ((aggr_var)->aggr_type != AGGR_TYPE_STDDEV &&        \
                                   (aggr_var)->aggr_type != AGGR_TYPE_STDDEV_POP && \
@@ -144,7 +144,7 @@ typedef struct st_aggr_var {
 #define GET_AGGR_VAR_GROUPCONCAT(aggr_var)                                                   \
     (                                                                                        \
         (aggr_group_concat_t *)(((aggr_var)->extra_offset == 0 ||  \
-                                    (aggr_var)->extra_offset >= GS_VMEM_PAGE_SIZE ||  \
+                                    (aggr_var)->extra_offset >= CT_VMEM_PAGE_SIZE ||  \
                                     (aggr_var)->extra_size != sizeof(aggr_group_concat_t) ||  \
                                     (aggr_var)->aggr_type != AGGR_TYPE_GROUP_CONCAT)         \
                                     ? NULL                                                   \
@@ -153,7 +153,7 @@ typedef struct st_aggr_var {
 #define GET_AGGR_VAR_STR(aggr_var)                                          \
     (                                                                       \
         (aggr_str_t *)(((aggr_var)->extra_offset == 0 ||  \
-                           (aggr_var)->extra_offset >= GS_VMEM_PAGE_SIZE ||  \
+                           (aggr_var)->extra_offset >= CT_VMEM_PAGE_SIZE ||  \
                            (aggr_var)->extra_size != sizeof(aggr_str_t) ||  \
                            ((aggr_var)->aggr_type != AGGR_TYPE_MIN &&       \
                                (aggr_var)->aggr_type != AGGR_TYPE_MAX))     \
@@ -166,7 +166,7 @@ typedef struct st_aggr_var {
 #define GET_AGGR_VAR_AVG(aggr_var)                                              \
     (                                                                           \
         (aggr_avg_t *)(((aggr_var)->extra_offset == 0 ||  \
-                           (aggr_var)->extra_offset >= GS_VMEM_PAGE_SIZE ||  \
+                           (aggr_var)->extra_offset >= CT_VMEM_PAGE_SIZE ||  \
                            (aggr_var)->extra_size != sizeof(aggr_avg_t) ||  \
                            ((aggr_var)->aggr_type != AGGR_TYPE_AVG &&           \
                                (aggr_var)->aggr_type != AGGR_TYPE_AVG_COLLECT && \
@@ -177,7 +177,7 @@ typedef struct st_aggr_var {
 #define GET_AGGR_VAR_MEDIAN(aggr_var)                                                \
     (                                                                              \
         (aggr_median_t *)(((aggr_var)->extra_offset == 0 ||  \
-                            (aggr_var)->extra_offset >= GS_VMEM_PAGE_SIZE ||    \
+                            (aggr_var)->extra_offset >= CT_VMEM_PAGE_SIZE ||    \
                             (aggr_var)->extra_size != sizeof(aggr_median_t) ||  \
                             ((aggr_var)->aggr_type != AGGR_TYPE_MEDIAN))        \
                             ? NULL                                              \
@@ -186,7 +186,7 @@ typedef struct st_aggr_var {
 #define GET_AGGR_VAR_DENSE_RANK(aggr_var) \
     ( \
         (aggr_dense_rank_t *)(((aggr_var)->extra_offset == 0 ||  \
-                            (aggr_var)->extra_offset >= GS_VMEM_PAGE_SIZE ||    \
+                            (aggr_var)->extra_offset >= CT_VMEM_PAGE_SIZE ||    \
                             (aggr_var)->extra_size != sizeof(aggr_dense_rank_t) ||  \
                             ((aggr_var)->aggr_type != AGGR_TYPE_DENSE_RANK))        \
                             ? NULL                                              \
@@ -194,7 +194,7 @@ typedef struct st_aggr_var {
 
 #define GET_AGGR_VAR_FIR_VAL(aggr_var)                                              \
     ((aggr_fir_val_t *)(((aggr_var)->extra_offset == 0 ||                           \
-                         (aggr_var)->extra_offset >= GS_VMEM_PAGE_SIZE ||           \
+                         (aggr_var)->extra_offset >= CT_VMEM_PAGE_SIZE ||           \
                          (aggr_var)->extra_size != sizeof(aggr_fir_val_t) ||        \
                          (aggr_var)->aggr_type != AGGR_TYPE_FIRST_VALUE)            \
                         ? NULL                                                      \
@@ -202,7 +202,7 @@ typedef struct st_aggr_var {
 
 #define GET_AGGR_VAR_APPX_CDIST(aggr_var)                                           \
     ((aggr_appx_cntdis_t *)(((aggr_var)->extra_offset == 0 ||                       \
-                         (aggr_var)->extra_offset >= GS_VMEM_PAGE_SIZE ||           \
+                         (aggr_var)->extra_offset >= CT_VMEM_PAGE_SIZE ||           \
                          (aggr_var)->extra_size != sizeof(aggr_appx_cntdis_t) ||    \
                          (aggr_var)->aggr_type != AGGR_TYPE_APPX_CNTDIS)            \
                         ? NULL                                                      \

@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Perform hot backups of CANTIAN databases.
+# Perform hot backups of CantianDB100 databases.
 # Copyright © Huawei Technologies Co., Ltd. 2010-2018. All rights reserved.
 import sys
+import re
 import grp
 import os
 import platform
@@ -14,12 +15,15 @@ import subprocess
 import time
 import copy
 import json
+from log import LOGGER
+from get_config_info import get_value
 
 PYTHON242 = "2.4.2"
 PYTHON25 = "2.5"
 gPyVersion = platform.python_version()
+CUR_PATH, _ = os.path.split(os.path.abspath(__file__))
+LOG_FILE = "/opt/cantian/cms/log/cms_deploy.log"
 
-sys.path.append(os.path.split(os.path.realpath(__file__))[0])
 sys.dont_write_bytecode = True
 FORCE_UNINSTALL = None
 CHECK_MAX_TIMES = 7
@@ -51,10 +55,6 @@ class CommonValue(object):
     MAX_DIRECTORY_PERMISSION = 0o750
     MIN_DIRECTORY_PERMISSION = 0o550
 
-    DOCKER_SHARE_DIR = "/home/regress/cantian_data"
-    DOCKER_DATA_DIR = "{}/data".format(DOCKER_SHARE_DIR)
-    DOCKER_GCC_DIR = "{}/gcc_home".format(DOCKER_SHARE_DIR)
-
 
 CURRENT_OS = platform.system()
 
@@ -64,6 +64,8 @@ CANTIAND_WITH_MYSQL_ST = "cantiand_with_mysql_st"  # single process mode with my
 CANTIAND_IN_CLUSTER = "cantiand_in_cluster"
 CANTIAND_WITH_MYSQL_IN_CLUSTER = "cantiand_with_mysql_in_cluster"
 MYSQLD = "mysqld"
+CANTIAN_USER = get_value("deploy_user")
+CANTIAN_GROUP = get_value("deploy_user")
 
 VALID_RUNNING_MODE = {CANTIAND, CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST, CANTIAND_IN_CLUSTER,
                       CANTIAND_WITH_MYSQL_IN_CLUSTER, MYSQLD}
@@ -78,7 +80,6 @@ MYSQL_BIN_DIR = "/opt/cantian/mysql/install/mysql"
 MYSQL_DATA_DIR = ""
 MYSQL_LOG_FILE = ""
 
-LOG_FILE = "/opt/cantian/cms/log/cms_deploy.log"
 a_ascii = ord('a')
 z_ascii = ord('z')
 aa_ascii = ord('A')
@@ -99,12 +100,7 @@ def log(msg):
     :param msg: log message
     :return: NA
     """
-    flags = os.O_WRONLY | os.O_EXCL
-    modes = stat.S_IWUSR | stat.S_IRUSR
-
-    with os.fdopen(os.open(LOG_FILE, flags, modes), 'a') as file_object:
-        file_object.write(time.strftime("[%Y-%m-%d %H:%M:%S] ") + msg)
-        file_object.write(os.linesep)
+    LOGGER.info(msg)
 
 
 def log_exit(msg):
@@ -112,7 +108,7 @@ def log_exit(msg):
     :param msg: log message
     :return: NA
     """
-    log("Error: " + msg)
+    LOGGER.error(msg)
     if FORCE_UNINSTALL != "force":
         raise ValueError("FORCE_UNINSTALL is not force.")
 
@@ -309,6 +305,10 @@ def genreg_string(text):
             reg_string += SEP_SED + i
     return reg_string
 
+deploy_mode = get_value("deploy_mode")
+mes_type = get_value("mes_type") if deploy_mode == "dbstore" else "TCP"
+node_id = get_value("node_id")
+storage_share_fs = get_value("storage_share_fs")
 
 CMS_CONFIG = {
     "NODE_ID": 0,
@@ -320,7 +320,7 @@ CMS_CONFIG = {
     "_SPLIT_BRAIN": "TRUE",
     "_LOG_MAX_FILE_SIZE": "60M",
     "_DETECT_DISK_TIMEOUT": 100,
-    "_DISK_DETECT_FILE": "gcc_file,",
+    "_DISK_DETECT_FILE": "gcc_file_detect_disk,",
     "_STOP_RERUN_CMS_SCRIPT": "/opt/cantian/action/cms/cms_reg.sh",
     "_EXIT_NUM_COUNT_FILE": "/opt/cantian/cms/cfg/exit_num.txt",
     "_CMS_NODE_FAULT_THRESHOLD": "5",
@@ -330,16 +330,24 @@ CMS_CONFIG = {
     "_CMS_MES_MESSAGE_QUEUE_COUNT": "1",
     "_CMS_MES_MESSAGE_BUFF_COUNT": "4096",
     "_CMS_MES_MESSAGE_CHANNEL_NUM": "1",
-    "_CMS_GCC_BAK": "",
+    "_CMS_GCC_BAK": "",  # generate by installer
     "_CLUSTER_ID": 0,
-    "_USE_DBSTOR": "",
-    "_DBSTOR_NAMESPACE": "",
-    "_CMS_MES_PIPE_TYPE": "TCP",
-    "SHARED_PATH": "/home/cantiandba/data/data",
-    "_CMS_MES_SSL_SWITCH": "TRUE",
-    "_CMS_MES_SSL_KEY_PWD": None,
-    "_CMS_MES_SSL_CRT_KEY_PATH": "/opt/cantian/certificate"
+    "_USE_DBSTOR": "", # generate by installer
+    "_DBSTOR_NAMESPACE": "", # generate by installer
+    "_CMS_MES_PIPE_TYPE": mes_type
 }
+PRIMARY_KEYSTORE = "/opt/cantian/common/config/primary_keystore_bak.ks"
+STANDBY_KEYSTORE = "/opt/cantian/common/config/standby_keystore_bak.ks"
+
+MES_TCP_CONFIG = {
+        "_CMS_MES_SSL_SWITCH": "TRUE",
+        "_CMS_MES_SSL_KEY_PWD": None,
+        "_CMS_MES_SSL_CRT_KEY_PATH": f"/mnt/dbdata/remote/share_{storage_share_fs}/certificates/node{node_id}",
+        "KMC_KEY_FILES": f"({PRIMARY_KEYSTORE}, {STANDBY_KEYSTORE})"
+}
+
+if mes_type == "TCP":
+    CMS_CONFIG.update(MES_TCP_CONFIG)
 
 
 class NormalException(Exception):
@@ -363,11 +371,10 @@ class CmsCtl(object):
     uninstall_type = ""
     cms_new_config = "/opt/cantian/cms/cfg/cms.json"
     cms_old_config = "/opt/cantian/backup/files/cms.json"
-    cms_old_ini = "/opt/cantian/backup/files/cms.ini"
     cluster_config = "cluster.ini"
 
     gcc_home = ""
-    gcc_type = "FILE"
+    gcc_type = "NFS"
     running_mode = "cantiand_in_cluster"
     install_config_file = "/root/tmp/install_ct_node0/config/deploy_param.json"
     link_type = "RDMA"
@@ -385,11 +392,8 @@ class CmsCtl(object):
     cms_scripts = "/opt/cantian/action/cms"
     user_home = ""
     use_gss = False
-    use_dbstor = True
-    in_container = False
-    deploy_mode = ""
-    storage_dbstore_fs = ""
-    _cms_mes_ssl_key_pwd = ""
+    use_dbstor = True if deploy_mode == "dbstore" else False
+    mes_type = ""
 
     def __init__(self):
         install_config = "../../config/deploy_param.json"
@@ -425,7 +429,6 @@ class CmsCtl(object):
             self.storage_share_fs = load_dict["storage_share_fs"]
         if "storage_archive_fs" in load_dict:
             self.storage_archive_fs = load_dict["storage_archive_fs"]
-
         if "storage_metadata_fs" in load_dict:
             self.storage_metadata_fs = load_dict["storage_metadata_fs"]
         if "user_profile" in load_dict:
@@ -466,28 +469,33 @@ class CmsCtl(object):
             self.share_logic_ip = load_dict["share_logic_ip"]
 
     def load_user_config(self, load_dict):
+        self.check_user_exist(load_dict)
+        self.check_installation(load_dict)
+        self.check_link_type(load_dict)
+        if "cluster_name" in load_dict:
+            self.cluster_name = load_dict["cluster_name"]
+        if "mes_type" in load_dict:
+            self.mes_type = mes_type
+
+    def check_installation(self, load_dict):
+        if "install_type" in load_dict and self.install_type != "reserve":
+            self.install_type = load_dict["install_type"]
+        if "install_step" in load_dict:
+            self.install_step = load_dict["install_step"]
+
+    def check_user_exist(self, load_dict):
         if "deploy_user" in load_dict:
-            self.user, self.group = load_dict["deploy_user"].split(':')[0], load_dict["deploy_user"].split(':')[1]
+            self.user, self.group = CANTIAN_USER, CANTIAN_GROUP
         if "user" in load_dict:
             self.user = load_dict["user"]
         if "group" in load_dict:
             self.group = load_dict["group"]
-        if "install_type" in load_dict and self.install_type != "reserve":
-            self.install_type = load_dict["install_type"]
-        if "in_container" in load_dict:
-            self.in_container = load_dict["in_container"]
-        if "install_step" in load_dict:
-            self.install_step = load_dict["install_step"]
+
+    def check_link_type(self, load_dict):
         if "link_type" in load_dict and (load_dict["link_type"] == "0" or load_dict["link_type"] == "TCP"):
             self.link_type = "TCP"
         if "link_type" in load_dict and (load_dict["link_type"] == "2" or load_dict["link_type"] == "RDMA_1823"):
             self.link_type = "RDMA_1823"
-        if "cluster_name" in load_dict:
-            self.cluster_name = load_dict["cluster_name"]
-        if "deploy_mode" in load_dict:
-            self.deploy_mode = load_dict["deploy_mode"]
-        if "storage_dbstore_fs" in load_dict:
-            self.storage_dbstore_fs = load_dict["storage_dbstore_fs"]
 
     def parse_parameters(self, config_file):
         if os.path.exists(config_file):
@@ -527,11 +535,9 @@ class CmsCtl(object):
         conf_dict["cms_home"] = self.cms_home
         conf_dict["user_home"] = self.user_home
         conf_dict["use_gss"] = self.use_gss
-        conf_dict["use_dbstor"] = False if self.deploy_mode == "--nas" else True
+        conf_dict["use_dbstor"] = self.use_dbstor
         conf_dict["storage_share_fs"] = self.storage_share_fs
         conf_dict["storage_archive_fs"] = self.storage_archive_fs
-        conf_dict["storage_dbstore_fs"] = self.storage_dbstore_fs
-        conf_dict["in_container"] = self.in_container
         conf_dict["install_type"] = self.install_type
         conf_dict["uninstall_type"] = self.uninstall_type
         conf_dict["ipv_type"] = self.ipv_type
@@ -542,7 +548,7 @@ class CmsCtl(object):
         conf_dict["share_logic_ip"] = self.share_logic_ip
         conf_dict["cluster_name"] = self.cluster_name
         conf_dict["cms_gcc_bak"] = self.cms_gcc_bak
-        conf_dict["deploy_mode"] = self.deploy_mode
+        conf_dict["mes_type"] = self.mes_type
 
         log("set cms configs : %s" % (self.cms_new_config))
         flags = os.O_RDWR | os.O_CREAT | os.O_TRUNC
@@ -561,10 +567,6 @@ class CmsCtl(object):
         output: NA
         """
         conf_file = os.path.join(self.cms_home, "cfg", file)
-        if self.install_type == "reserve":
-            cmd = "cp -arf %s %s" % (self.cms_old_ini, conf_file)
-            run_cmd(cmd, "failed to copy file %s" % self.cms_old_ini)
-            return
         cmd = "echo >> %s" % conf_file
         run_cmd(cmd, "failed to write the %s" % file)
 
@@ -575,17 +577,15 @@ class CmsCtl(object):
         config["GCC_HOME"] = self.gcc_home  # generate by installer
         config["GCC_TYPE"] = self.gcc_type
         config["_CMS_GCC_BAK"] = self.cms_gcc_bak
-        config["_USE_DBSTOR"] = False if self.deploy_mode == "--nas" else True
+        config["_USE_DBSTOR"] = self.use_dbstor
         config["_DBSTOR_NAMESPACE"] = self.cluster_name
-        config["_CMS_MES_SSL_KEY_PWD"] = self._cms_mes_ssl_key_pwd
-        if self.deploy_mode == "--nas":
-            config["SHARED_PATH"] = f"/mnt/dbdata/remote/storage_{self.storage_dbstore_fs}/data"
 
         common_parameters = copy.deepcopy(config)
 
-        if "GCC_TYPE" in common_parameters and common_parameters["GCC_TYPE"] == "FILE":
+        if "GCC_TYPE" in common_parameters and \
+                (common_parameters["GCC_TYPE"] == "FILE" or
+                 common_parameters["GCC_TYPE"] == "NFS"):
             common_parameters["GCC_HOME"] = os.path.join(common_parameters["GCC_HOME"], "gcc_file")
-
         self.clean_old_conf(list(common_parameters.keys()), conf_file)
         self.set_new_conf(common_parameters, conf_file)
 
@@ -604,7 +604,7 @@ class CmsCtl(object):
         if len(node_ip) == 1:
             node_ip.append("127.0.0.1")
         gcc_home = self.gcc_home
-        if self.gcc_type == "FILE":
+        if self.gcc_type == "FILE" or self.gcc_type == "NFS":
             gcc_home = os.path.join(gcc_home, "gcc_file")
         if 'LD_LIBRARY_PATH' in os.environ:
             ld_library_path = ("%s:%s:%s" % (os.path.join(self.install_path, "lib"), os.path.join(
@@ -665,7 +665,7 @@ class CmsCtl(object):
             cmd = cmd.strip(";")
             run_cmd(cmd, "failed to write the %s" % conf_file)
 
-    def check_port(self, value):
+    def check_port(self, value, node_ip):
         """
         Check if the port is used in the installation parameters, and exit
         if the port is used.
@@ -687,7 +687,7 @@ class CmsCtl(object):
                      " : " + gPyVersion)
 
         try:
-            socket_check.bind((self.ip_addr, inner_port))
+            socket_check.bind((node_ip, inner_port))
         except socket.error as err_socket:
             socket_check.close()
             if (int(err_socket.errno) == 98 or int(err_socket.errno) == 95
@@ -758,7 +758,7 @@ class CmsCtl(object):
                      "ret_code : %s, stdout : %s, stderr : %s" % (nodeip, ret_code, stdout, stderr))
 
         ip_is_found = 1
-        if nodeip == self.ip_addr:
+        if nodeip in self.ip_addr:
             if self.all_zero_addr_after_ping(nodeip):
                 ip_is_found = 1
             elif len(nodeip) != 0:
@@ -886,36 +886,19 @@ class CmsCtl(object):
         :return:
         """
         cmd = "chown %s:%s -hR \"%s\";" % (self.user, self.group, self.gcc_home)
-        if self.in_container:
-            cmd += "chown %s:%s -hR \"%s\";" % (self.user, self.group, CommonValue.DOCKER_GCC_DIR)
         log("change owner cmd: %s" % cmd)
-        if not self.in_container:
-            self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
-            log("if blocked here, please check if the network is normal")
+        self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
+        log("if blocked here, please check if the network is normal")
 
         run_cmd(cmd, "failed to chown gcc dir: %s:%s" % (self.user, self.group))
 
     def prepare_gccdata_dir(self):
         log("prepare gcc home dir")
-
-        if self.in_container:
-            create_directory(self.skip_execute_in_node_1(), CommonValue.DOCKER_GCC_DIR)
-            if os.path.exists(self.gcc_home):
-                cmd = "rm -rf %s" % self.gcc_home
-                log("rm old gcc home dir : %s" % cmd)
-                run_cmd(cmd, "failed to remove home dir")
-            if not os.path.exists(os.path.join(self.user_home, "data")):
-                os.makedirs(os.path.join(self.user_home, "data"), CommonValue.KEY_DIRECTORY_PERMISSION)
-            cmd = "ln -s %s %s" % (CommonValue.DOCKER_GCC_DIR, os.path.join(self.user_home, "data"))
-            log("ln gcc home cmd : %s" % cmd)
-            run_cmd(cmd, "failed to link gcc home dir")
-
-        else:
-            self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
-            log("if blocked here, please check if the network is normal")
-            if not os.path.exists(self.gcc_home):
-                os.makedirs(self.gcc_home, CommonValue.KEY_DIRECTORY_PERMISSION)
-                log("makedir for gcc_home %s" % (self.gcc_home))
+        self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
+        log("if blocked here, please check if the network is normal")
+        if not os.path.exists(self.gcc_home):
+            os.makedirs(self.gcc_home, CommonValue.KEY_DIRECTORY_PERMISSION)
+            log("makedir for gcc_home %s" % (self.gcc_home))
 
     def install_xnet_lib(self):
         if self.is_rdma_startup():
@@ -982,7 +965,7 @@ class CmsCtl(object):
         if self.ip_cluster != "":
             _list = self.ip_cluster.split(';')
             self.ip_addr = _list[self.node_id]
-            for item in _list:
+            for item in re.split(r"[;,]", self.ip_cluster):
                 if len(_list) != 1 and self.all_zero_addr_after_ping(item):
                     log_exit("ip contains all-zero ip,"
                              " can not specify other ip.")
@@ -990,10 +973,10 @@ class CmsCtl(object):
         else:
             self.ip_addr = "127.0.0.1"
 
-        self.check_port(self.port)
+        for _ip in self.ip_addr.split(","):
+            self.check_port(self.port, _ip)
 
-        if not self.in_container:
-            self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
+        self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
 
         log("check running mode: %s" % self.running_mode)
         if self.running_mode not in VALID_RUNNING_MODE:
@@ -1016,7 +999,7 @@ class CmsCtl(object):
         log("copy install files cmd: " + str_cmd)
         run_cmd(str_cmd, "failed to install cms lib files")
 
-        if self.deploy_mode != "--nas":
+        if deploy_mode == "dbstore":
             self.install_xnet_lib()
 
     def pre_install(self):
@@ -1039,9 +1022,6 @@ class CmsCtl(object):
         log("======================== begin to pre_install cms configs ========================")
 
         check_user(self.user, self.group)
-        if self.in_container:
-            self.gcc_home = os.path.join("/home", self.user, "data/gcc_home")
-            self.port = "1611"
         if not check_path(self.gcc_home):
             log_exit("the gcc home directory is invalid.")
 
@@ -1094,25 +1074,67 @@ class CmsCtl(object):
             log_exit("please run pre_install previously")
 
         self.copy_app_files()
-        if self.install_type == "override":
-            self._cms_mes_ssl_key_pwd = input()
+
         self.prepare_gccdata_dir()
         self.export_user_env()
         self.change_app_permission()
 
         self.set_cluster_conf()
         self.set_conf(CMS_CONFIG, "cms.ini")
-        if self.deploy_mode != "--nas":
+        if deploy_mode == "dbstore":
             self.copy_dbstor_config()
 
-        if self.install_type == "override":
-            cmd = "sh %s -P install_cms >> %s 2>&1" % (os.path.join(self.cms_scripts, "start_cms.sh"), LOG_FILE)
-            run_cmd(cmd, "failed to set cms node information")
+        cmd = "sh %s -P install_cms >> %s 2>&1" % (os.path.join(self.cms_scripts, "start_cms.sh"), LOG_FILE)
+        run_cmd(cmd, "failed to set cms node information")
 
         self.install_step = 2
         self.set_cms_conf()
 
         log("======================== install cms module successfully ========================")
+
+    def check_start_status(self):
+        """
+        cms启动后检查server和voting状态，确保在拉起cantiand前cms状态正常
+        """
+        server_status_cmd = "source ~/.bashrc && cms stat -server %s | grep -v \"NODE_ID\" | awk '{print $2}'" \
+                            % self.node_id
+        voting_status_cmd = "source ~/.bashrc && cms node -connected | awk '{print $1, $NF}' | grep -v \"VOTING\""
+        timeout = 30
+        while timeout:
+            timeout -= 1
+            try:
+                server_status = run_cmd(server_status_cmd, "failed query cms server status")
+            except ValueError as _err:
+                time.sleep(1)
+                continue
+            if server_status == "TRUE":
+                log("Current cms server status is %s" % server_status)
+                break
+            log("Current cms server status is %s" % server_status)
+            time.sleep(1)
+        else:
+            log_exit("Query cms server status timeout")
+        time.sleep(15)
+        timeout = 30
+        while timeout:
+            timeout -= 1
+            try:
+                voting_status = run_cmd(voting_status_cmd, "failed to query voting status")
+            except ValueError as _err2:
+                time.sleep(1)
+                continue
+            if not voting_status:
+                time.sleep(1)
+                continue
+            for node_voting_status in voting_status.strip().split("\n"):
+                _node_id, status = node_voting_status.split(" ")
+                if int(_node_id) == int(self.node_id) and status == "FALSE":
+                    log("Current cms voting status is %s" % node_voting_status)
+                    return
+            log("Current cms voting status is %s" % voting_status)
+            time.sleep(1)
+        else:
+            log_exit("Query cms voting status timeout")
 
     def start(self):
         """
@@ -1130,6 +1152,7 @@ class CmsCtl(object):
 
         self.install_step = 3
         self.set_cms_conf()
+        self.check_start_status()
         log("======================== start cms process successfully ========================")
 
     def check_status(self):
@@ -1163,13 +1186,29 @@ class CmsCtl(object):
         self.set_cms_conf()
         log("======================== stop the cms successfully ========================")
 
+    def check_gcc_home_process(self):
+        """
+        删除gcc_home失败时，打印出当前暂用文件的进程
+        :return:
+        """
+        gcc_home_path = "/mnt/dbdata/remote/share_%s/gcc_home/" % self.storage_share_fs
+        remain_files = os.listdir(gcc_home_path)
+        for file in remain_files:
+            cmd = "lsof %s/%s | grep -v PID | awk '{print $2}'" % (gcc_home_path, file)
+            ret_code, stdout, stderr = _exec_popen(cmd)
+            if stdout:
+                pid_list = stdout.split("\n")
+                for pid in pid_list:
+                    _cmd = "ps -ef | grep %s | grep -v grep" % pid
+                    ret_code, _stdout, stderr = _exec_popen(cmd)
+                    if _stdout:
+                        log("gcc_home occupied by a process:%s" % _stdout)
+
     def uninstall(self):
         """
         uninstall cms: environment values and app files
         """
         log("======================== begin to uninstall cms module ========================")
-        if self.install_step == 3:
-            log_exit("the cms process is running, please stop firstly")
 
         self.clean_environment()
         self.clean_install_path()
@@ -1180,17 +1219,17 @@ class CmsCtl(object):
 
         if self.gcc_home == "":
             self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
-        if self.node_id == 0 and self.install_type != "reserve":
-            str_cmd = "rm -rf %s" % self.gcc_home
-            if not self.in_container:
-                self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
-                log("if blocked here, please check if the network is normal")
+        if self.node_id == 0:
+            str_cmd = "rm -rf %s" % (self.gcc_home)
+            self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
+            log("if blocked here, please check if the network is normal")
             ret_code, stdout, stderr = _exec_popen("timeout 10 ls %s" % self.gcc_home)
             if ret_code == 0:
                 log("clean gcc home cmd : %s" % str_cmd)
                 ret_code, stdout, stderr = _exec_popen(str_cmd)
                 if ret_code:
                     output = stdout + stderr
+                    self.check_gcc_home_process()
                     log_exit("failed to remove gcc home.\ncommand: %s.\noutput: %s \
                               \npossible reasons: \
                               \n1. user was using cms tool when uninstall. \
@@ -1295,18 +1334,7 @@ class CmsCtl(object):
         log("end clean user environment variables")
 
 
-def prepare_logfile():
-    if not os.path.exists(os.path.abspath(os.path.dirname(LOG_FILE))):
-        os.makedirs(os.path.abspath(os.path.dirname(LOG_FILE)), CommonValue.MAX_DIRECTORY_PERMISSION)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-    modes = stat.S_IWUSR | stat.S_IRUSR | stat.S_IRGRP
-    with os.fdopen(os.open(LOG_FILE, flags, modes), "w"):
-        pass
-
-
 def main():
-    if not os.path.exists(LOG_FILE):
-        prepare_logfile()
 
     cms = CmsCtl()
 

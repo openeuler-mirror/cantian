@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -52,15 +52,16 @@ status_t spc_free_extent_from_list(knl_session_t *session, space_t *space, const
 status_t spc_rebuild_space(knl_session_t *session, space_t *space);
 void spc_wait_data_buffer(knl_session_t *session, space_t *space);
 void spc_reset_space(knl_session_t *session, space_t *space);
+status_t spc_check_default_tablespace(knl_session_t *session, space_t *space);
 status_t spc_remove_space(knl_session_t *session, space_t *space, uint32 options, bool32 ignore_error);
-status_t spc_remove_space_online(knl_session_t *session, space_t *space, uint32 options);
+status_t spc_remove_space_online(knl_session_t *session, knl_handle_t stmt, space_t *space, uint32 options);
 status_t spc_active_undo_encrypt(knl_session_t *session, uint32 space_id);
 status_t spc_active_swap_encrypt(knl_session_t *session);
 uint32 spc_get_encrypt_space_count(knl_session_t *session);
 status_t spc_try_inactive_swap_encrypt(knl_session_t *session);
 void spc_init_swap_space(knl_session_t *session, space_t *space);
 void spc_set_datafile_autoextend(knl_session_t *session, datafile_t *df, knl_autoextend_def_t *def);
-status_t space_get_dev_type(knl_session_t *session, text_t *spc_name, device_type_t *type);
+status_t spc_get_device_type(knl_session_t *session, text_t *spc_name, device_type_t *type);
 
 #ifdef __cplusplus
 }

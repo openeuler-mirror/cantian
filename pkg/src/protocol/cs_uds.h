@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -64,7 +64,7 @@ static inline void cs_uds_build_addr(cs_sockaddr_un_t *un, const char *name)
     errcode = memset_s(un, sizeof(cs_sockaddr_un_t), 0, sizeof(cs_sockaddr_un_t));
     MEMS_RETVOID_IFERR(errcode);
     un->addr.sun_family = AF_UNIX;
-    errcode = strncpy_s(un->addr.sun_path, GS_UNIX_PATH_MAX, name, strlen(name));
+    errcode = strncpy_s(un->addr.sun_path, CT_UNIX_PATH_MAX, name, strlen(name));
     MEMS_RETVOID_IFERR(errcode);
     un->salen = sizeof_addr_un(un->addr);
 }

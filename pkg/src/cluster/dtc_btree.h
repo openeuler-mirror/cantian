@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -26,6 +26,9 @@
 #define __DTC_BTREE_H__
 #include "pcr_btree.h"
 #include "mes_func.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct st_msg_btree_broadcast {
     mes_message_head_t head;
@@ -41,5 +44,8 @@ void dtc_btree_broadcast_root_page(knl_session_t *session, btree_t *btree, btree
                                    knl_part_locate_t part_loc);
 EXTER_ATTACK void dtc_btree_process_root_page(void *sess, mes_message_t *msg);
 void dtc_btree_send_ack(knl_session_t *session, mes_message_t *msg);
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -42,74 +42,74 @@ static status_t raft_load_symbol(void *lib_handle, char *symbol, void **sym_lib_
     *sym_lib_handle = dlsym(lib_handle, symbol);
     dlsym_err = dlerror();
     if (dlsym_err != NULL) {
-        GS_THROW_ERROR(ERR_LOAD_SYMBOL, symbol, dlsym_err);
+        CT_THROW_ERROR(ERR_LOAD_SYMBOL, symbol, dlsym_err);
 
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t raft_load_lib(raft_procs_t *procs)
 {
     procs->lib_handle = dlopen("libconsistency.so", RTLD_LAZY);
     if (procs->lib_handle == NULL) {
-        GS_THROW_ERROR(ERR_LOAD_LIBRARY, "libconsistency.so", cm_get_os_error());
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_LOAD_LIBRARY, "libconsistency.so", cm_get_os_error());
+        return CT_ERROR;
     }
 
-    if (raft_load_symbol(procs->lib_handle, "InitConsistency", (void **)(&procs->init_consistency)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (raft_load_symbol(procs->lib_handle, "InitConsistency", (void **)(&procs->init_consistency)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (raft_load_symbol(procs->lib_handle, "QueryInfo", (void **)(&procs->query_info)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (raft_load_symbol(procs->lib_handle, "QueryInfo", (void **)(&procs->query_info)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (raft_load_symbol(procs->lib_handle, "AddMember", (void **)(&procs->add_member)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (raft_load_symbol(procs->lib_handle, "AddMember", (void **)(&procs->add_member)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (raft_load_symbol(procs->lib_handle, "DeleteMember", (void **)(&procs->delete_member)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (raft_load_symbol(procs->lib_handle, "DeleteMember", (void **)(&procs->delete_member)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (raft_load_symbol(procs->lib_handle, "InitDBEngines", (void **)(&procs->init_db_engines)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (raft_load_symbol(procs->lib_handle, "InitDBEngines", (void **)(&procs->init_db_engines)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (raft_load_symbol(procs->lib_handle, "Register", (void **)(&procs->register_callback)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (raft_load_symbol(procs->lib_handle, "Register", (void **)(&procs->register_callback)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (raft_load_symbol(procs->lib_handle, "SendMessage", (void **)(&procs->send_message)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (raft_load_symbol(procs->lib_handle, "SendMessage", (void **)(&procs->send_message)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (raft_load_symbol(procs->lib_handle, "ExecWriteLogCmd", (void **)(&procs->exec_writelog_cmd)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (raft_load_symbol(procs->lib_handle, "ExecWriteLogCmd", (void **)(&procs->exec_writelog_cmd)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (raft_load_symbol(procs->lib_handle, "PromoteLeader", (void **)(&procs->promote_leader)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (raft_load_symbol(procs->lib_handle, "PromoteLeader", (void **)(&procs->promote_leader)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (raft_load_symbol(procs->lib_handle, "StopConsistency", (void **)(&procs->stop_consistency)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (raft_load_symbol(procs->lib_handle, "StopConsistency", (void **)(&procs->stop_consistency)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (raft_load_symbol(procs->lib_handle, "GetVersion", (void **)(&procs->get_version)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (raft_load_symbol(procs->lib_handle, "GetVersion", (void **)(&procs->get_version)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (raft_load_symbol(procs->lib_handle, "SetParam", (void **)(&procs->set_param)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (raft_load_symbol(procs->lib_handle, "SetParam", (void **)(&procs->set_param)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (raft_load_symbol(procs->lib_handle, "Monitor", (void **)(&procs->monitor)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (raft_load_symbol(procs->lib_handle, "Monitor", (void **)(&procs->monitor)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void raft_close_lib(raft_procs_t *procs)
@@ -124,7 +124,7 @@ void raft_close_lib(raft_procs_t *procs)
 void raft_lib_check_loaded(raft_procs_t *procs)
 {
     if (procs->lib_handle == NULL) {
-        GS_THROW_ERROR(ERR_LOAD_LIBRARY, "libconsistency.so", cm_get_os_error());
+        CT_THROW_ERROR(ERR_LOAD_LIBRARY, "libconsistency.so", cm_get_os_error());
         exit(-1);
     }
 }
@@ -209,8 +209,8 @@ char *raft_lib_monitor(raft_procs_t *procs)
 #else
 status_t raft_load_lib(raft_procs_t *procs)
 {
-    GS_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "raft");
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "raft");
+    return CT_ERROR;
 }
 
 void raft_close_lib(raft_procs_t *procs)

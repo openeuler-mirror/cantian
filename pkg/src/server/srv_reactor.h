@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -43,10 +43,10 @@ typedef enum en_reactor_status {
     REACTOR_STATUS_STOPPED,
 } reactor_status_t;
 
-// one reactor will occupy 8 * (GS_MAX_SESSIONS + 1) bytes approximately equal to 128k
+// one reactor will occupy 8 * (CT_MAX_SESSIONS + 1) bytes approximately equal to 128k
 // the number of reactors may not be much, so it does not matter
 // the benefit is that there will not be block when adding a session killed event to reactor
-#define REACTOR_MAX_KILL_EVENTS (GS_MAX_SESSIONS + 1)
+#define REACTOR_MAX_KILL_EVENTS (CT_MAX_SESSIONS + 1)
 
 // one consumer, multi producer
 typedef struct st_kill_event_queue {
@@ -80,7 +80,7 @@ struct st_session;
 #define REACTOR_STATUS_INVALID_FOR_RETURN(reactor)                                     \
     {                                                                                  \
         if ((reactor)->status != REACTOR_STATUS_RUNNING || (reactor)->thread.closed) { \
-            return GS_SUCCESS;                                                         \
+            return CT_SUCCESS;                                                         \
         }                                                                              \
     }
 

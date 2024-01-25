@@ -24,8 +24,9 @@
 set +x
 #当前路径
 CURRENT_PATH=$(dirname $(readlink -f $0))
-SUCCESS_FLAG=/opt/cantian/pre_upgrade.success
-FAIL_FLAG=/opt/cantian/pre_upgrade.fail
+SUCCESS_FLAG_PATH=/opt/cantian/
+UPDATESYS_FLAG=/opt/cantian/updatesys.true
+CHECK_POINT_FLAG=/opt/cantian/check_point.success
 
 #脚本名称
 PARENT_DIR_NAME=$(pwd | awk -F "/" '{print $NF}')
@@ -46,19 +47,40 @@ BACKUP_NAME="backup.sh"
 RESTORE_NAME="restore.sh"
 STATUS_NAME="check_status.sh"
 UPGRADE_NAME="upgrade.sh"
+UPGRADE_COMMIT_NAME="upgrade_commit.sh"
 ROLLBACK_NAME="rollback.sh"
 PRE_UPGRADE="pre_upgrade.sh"
 CHECK_POINT="check_point.sh"
 lock_file=""
 
 function clear_history_flag() {
-    if [ -f ${SUCCESS_FLAG} ]; then
-        rm -rf ${SUCCESS_FLAG}
+    if [[ "$(find ${SUCCESS_FLAG_PATH} -type f -name 'pre_upgrade_*.success')" ]]; then
+        rm -rf ${SUCCESS_FLAG_PATH}/pre_upgrade_*.success
     fi
 
     if [ -f ${FAIL_FLAG} ]; then
         rm -rf ${FAIL_FLAG}
     fi
+
+    if [ -f ${UPDATESYS_FLAG} ]; then
+        rm -rf ${UPDATESYS_FLAG}
+    fi
+    if [ -f "${CHECK_POINT_FLAG}" ]; then
+        rm -rf ${CHECK_POINT_FLAG}
+    fi
+}
+
+function gen_pre_check_flag() {
+    local pre_upgrade_mode=$1
+    # 适配离线升级
+    if [ -z "${pre_upgrade_mode}" ] || [ -f "${pre_upgrade_mode}" ]; then
+        offline_flag="${SUCCESS_FLAG_PATH}/pre_upgrade_offline.success"
+        touch ${offline_flag} && chmod 400 ${offline_flag}
+        return 0
+    fi
+
+    mode_flag="${SUCCESS_FLAG_PATH}/pre_upgrade_${pre_upgrade_mode}.success"
+    touch ${mode_flag} && chmod 400 ${mode_flag}
 }
 
 function usage()
@@ -106,6 +128,61 @@ function clean_dir() {
     fi
 }
 
+function upgrade_init_flag() {
+    storage_metadata_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs")
+    node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
+    upgrade_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade"
+    upgrade_lock="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade.lock"
+    target_version=$(cat "${CURRENT_PATH}"/../versions.yml | grep -E "Version:" | awk '{print $2}')
+    upgrade_flag=upgrade_node${node_id}.${target_version}
+}
+
+##############################################################################################
+# 生成升级标记文件，解决以下问题：
+# 1、当前处于某个版本（如2.0.0）升级状态（升级中、升级失败、升级成功未提交），避免执行其他版本升级（如3.0.0）；
+# 2、确保不同节点使用的升级目标版本一致。
+##############################################################################################
+function check_upgrade_flag() {
+    upgrade_init_flag
+    if [ ! -d "${upgrade_path}" ];then
+        return 0
+    fi
+    upgrade_file=$(ls "${upgrade_path}" | grep -E "^upgrade.*" | grep -v "${target_version}" | grep -v upgrade.lock)
+    if [[ -n ${upgrade_file} ]];then
+        logAndEchoError "The cluster is being upgraded to another version: ${upgrade_file}, current target version: ${target_version}"
+        return 1
+    fi
+}
+
+function create_upgrade_flag() {
+    upgrade_init_flag
+    if [ ! -d "${upgrade_path}" ];then
+        mkdir -m 755 -p "${upgrade_path}"
+    fi
+    touch "${upgrade_path}"/"${upgrade_flag}" && chmod 400 "${upgrade_path}"/"${upgrade_flag}"
+    if [[ ! -f "${upgrade_lock}" ]];then
+        touch "${upgrade_lock}"
+        chmod 400 "${upgrade_lock}"
+    fi
+}
+
+# 回滚结束清理标记文件
+function clear_flag_after_rollback() {
+    upgrade_init_flag
+    if [ -f "${upgrade_path}"/"${upgrade_flag}" ];then
+        rm -f "${upgrade_path}"/"${upgrade_flag}"
+    fi
+}
+
+# 升级场景增加文件锁，避免多节点同时进行
+function upgrade_lock() {
+    exec 506>"${upgrade_lock}"
+    flock -n 506
+    if [ $? -ne 0 ]; then
+        logAndEchoError "Other node is upgrading/rollback, please check again later."
+        exit 1
+    fi
+}
 
 ##################################### main #####################################
 ACTION=$1
@@ -168,33 +245,47 @@ case "$ACTION" in
         exit $?
         ;;
     pre_upgrade)
-        CONFIG_PATH=$2
+        CONFIG_PATH=$3
         lock_file=${PRE_UPGRADE}
+        FAIL_FLAG=/opt/cantian/pre_upgrade_${INSTALL_TYPE}.fail
         clear_history_flag
-        do_deploy ${PRE_UPGRADE} ${CONFIG_PATH}
+        do_deploy ${PRE_UPGRADE} ${INSTALL_TYPE} ${CONFIG_PATH}
         if [ $? -ne 0 ]; then
-            touch ${FAIL_FLAG}
-            chmod 400 ${FAIL_FLAG}
+            touch ${FAIL_FLAG} && chmod 400 ${FAIL_FLAG}
             exit 1
-        else
-            touch ${SUCCESS_FLAG}
-            chmod 400 ${SUCCESS_FLAG}
-            exit 0
         fi
+        check_upgrade_flag
+        if [ $? -ne 0 ]; then
+            touch ${FAIL_FLAG} && chmod 400 ${FAIL_FLAG}
+            exit 1
+        fi
+        gen_pre_check_flag "${INSTALL_TYPE}"
+        exit 0
         ;;
     upgrade)
-        if [ -f ${SUCCESS_FLAG} ]; then
+        if [[ "$(find ${SUCCESS_FLAG_PATH} -type f -name pre_upgrade_"${INSTALL_TYPE}".success)" ]]; then
             UPGRADE_IP_PORT=$3
             lock_file=${UPGRADE_NAME}
+            create_upgrade_flag
+            upgrade_lock
             do_deploy ${UPGRADE_NAME} ${INSTALL_TYPE} ${UPGRADE_IP_PORT}
-            exit $?
-        elif [ -f ${FAIL_FLAG} ]; then
+            ret=$?
+            flock -u 506
+            exit ${ret}
+        elif [[ -f ${FAIL_FLAG} ]]; then
             logAndEchoError "pre_upgrade failed, upgrade is not allowed"
             exit 1
         else
             logAndEchoError "please do pre_upgrade first"
             exit 1
         fi
+        ;;
+    upgrade_commit)
+        upgrade_init_flag
+        upgrade_lock
+        lock_file=${UPGRADE_COMMIT_NAME}
+        do_deploy ${UPGRADE_COMMIT_NAME} ${INSTALL_TYPE}
+        exit $?
         ;;
     check_point)
         lock_file=${CHECK_POINT}
@@ -205,7 +296,15 @@ case "$ACTION" in
         UPGRADE_IP_PORT=$3
         ROLLBACK_VERSION=$4
         lock_file=${ROLLBACK_NAME}
+        upgrade_init_flag
+        upgrade_lock
         do_deploy ${ROLLBACK_NAME} ${INSTALL_TYPE} ${UPGRADE_IP_PORT} ${ROLLBACK_VERSION}
+        ret=$?
+        flock -u 506
+        if [[ ${ret} -ne 0 ]];then
+            exit 1
+        fi
+        clear_flag_after_rollback
         exit $?
         ;;
     clear_upgrade_backup)
@@ -218,6 +317,22 @@ case "$ACTION" in
 
         logAndEchoInfo "clear upgrade backups success"
         exit 0
+        ;;
+    certificate)
+        logAndEchoInfo "begin to Certificate Operations"
+        shift
+        python3 -B "${CURRENT_PATH}/implement/certificate_update_and_revocation.py" $@
+        exit $?
+        ;;
+    update_pwd)
+        logAndEchoInfo "begin to update ctsql sys user login passwd."
+        su -s /bin/bash - cantian -c "export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib/:$LD_LIBRARY_PATH;python3 -B ${CURRENT_PATH}/update_config.py --component=ctsql_pwd --action=add --key=cantian --value=cantian"
+        ret=$?
+        if [ "${ret}" != 0 ]; then
+            logAndEchoInfo "update ctsql sys user login passwd failed!"
+            exit 1
+        fi
+        logAndEchoInfo "update ctsql sys user login passwd success."
         ;;
     *)
         usage

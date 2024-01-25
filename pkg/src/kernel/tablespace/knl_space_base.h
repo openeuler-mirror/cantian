@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,6 +32,7 @@
 #include "knl_datafile.h"
 #include "knl_log.h"
 #include "knl_session.h"
+#include "knl_space_base_persist.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -93,6 +94,8 @@ extern "C" {
 #define IS_TEMP_SPACE(space) (((space)->ctrl->type & SPACE_TYPE_TEMP) != 0)
 #define IS_SWAP_SPACE(space) (((space)->ctrl->type & SPACE_TYPE_SWAP) != 0)
 #define IS_USER_SPACE(space) (((space)->ctrl->type & SPACE_TYPE_USERS) != 0)
+#define IS_TEMP2_UNDO_SPACE(space) ((((space)->ctrl->type & SPACE_TYPE_UNDO) != 0) && \
+    ((space)->ctrl->type & SPACE_TYPE_TEMP) != 0)
 
 #define SPACE_IS_INMEMORY(space)    ((space)->ctrl->flag & SPACE_FLAG_INMEMORY)
 #define SPACE_SET_INMEMORY(space)   CM_SET_FLAG((space)->ctrl->flag, SPACE_FLAG_INMEMORY)
@@ -127,7 +130,7 @@ extern "C" {
 #define SPACE_IS_ENCRYPT(space)         ((space)->ctrl->flag & SPACE_FLAG_ENCRYPT)
 #define SPACE_SET_ENCRYPT(space)        CM_SET_FLAG((space)->ctrl->flag, SPACE_FLAG_ENCRYPT)
 #define SPACE_UNSET_ENCRYPT(space)      CM_CLEAN_FLAG((space)->ctrl->flag, SPACE_FLAG_ENCRYPT)
-#define SPACE_NEED_ENCRYPT(size)        ((size) > 0) ? GS_TRUE : GS_FALSE;
+#define SPACE_NEED_ENCRYPT(size)        ((size) > 0) ? CT_TRUE : CT_FALSE;
 
 #define SPC_UNPROTECT_HEAD(space)         BUF_UNPROTECT_PAGE((char *)((space)->head) - sizeof(page_head_t))
 #define SPC_PROTECT_HEAD(space)           BUF_PROTECT_PAGE((char *)((space)->head) - sizeof(page_head_t))
@@ -140,31 +143,13 @@ extern "C" {
 #define IS_SPACE_COMPRESSIBLE(space) \
     (IS_USER_SPACE((space)) && SPACE_IS_BITMAPMANAGED((space)) && !IS_TEMP_SPACE((space)) && \
     !SPACE_IS_NOLOGGING((space)) && !SPACE_IS_ENCRYPT((space)))
-#define GS_SPACE_CTRL_RESERVED_BYTES_13 13
-
-typedef struct st_space_ctrl {
-    uint32 id;
-    bool32 used;
-    char name[GS_NAME_BUFFER_SIZE];
-    uint16 flag;
-    uint16 block_size;
-    uint32 extent_size;  // extent pages count
-    uint32 file_hwm;     // max allocated datafile count
-    uint32 type;
-    knl_scn_t org_scn;
-    uint8 encrypt_version;
-    uint8 cipher_reserve_size;
-    uint8 is_for_create_db;
-    uint8 unused[GS_SPACE_CTRL_RESERVED_BYTES_13];
-
-    uint32 files[GS_MAX_SPACE_FILES];  // datafile id array
-} space_ctrl_t;
+#define CT_SPACE_CTRL_RESERVED_BYTES_13 13
 
 typedef struct st_space_head {
     uint32 segment_count;
     page_list_t free_extents;
     uint32 datafile_count;
-    uint32 hwms[GS_MAX_SPACE_FILES];
+    uint32 hwms[CT_MAX_SPACE_FILES];
     uint8 reserved[28];
 } space_head_t;
 
@@ -222,20 +207,6 @@ typedef enum st_pages_boundary {
     ((buf_check_resident_page_version(session, (space)->entry)) ? \
     (SPACE_PUNCH_HEAD_PTR(space)) : (SPACE_PUNCH_HEAD_PTR(space)))
 
-#pragma pack(4)
-
-typedef struct st_rd_update_hwm {
-    uint32 file_no;  // sequence number in tablespace
-    uint32 file_hwm;
-} rd_update_hwm_t;
-
-typedef struct st_rd_punch_extents {
-    page_list_t punching_exts;
-    page_list_t punched_exts;
-} rd_punch_extents_t;
-
-#pragma pack()
-
 static inline void spc_init_page_list(page_list_t *page_list)
 {
     page_list->count = 0;
@@ -272,7 +243,7 @@ static inline bool32 spc_is_extent_last(knl_session_t *session, space_t *space, 
     uint32 start_id;
     start_id = spc_first_extent_id(session, space, page_id);
     if (page_id.page < start_id) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
     return (((page_id.page - start_id + 1) % space->ctrl->extent_size) == 0);
 }
@@ -403,9 +374,9 @@ static inline bool32 spc_punch_check_normalspc_invaild(knl_session_t *session, s
 {
     if (SPACE_IS_DEFAULT(space) || SPACE_IS_ENCRYPT(space) || IS_UNDO_SPACE(space) ||
         IS_TEMP_SPACE(space) || SPACE_IS_BITMAPMANAGED(space)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void spc_unlock_space(knl_session_t *session, space_t *space);
@@ -424,11 +395,11 @@ static inline uint32 spc_get_punch_extents(knl_session_t *session, space_t *spac
 static inline bool32 spc_is_punching(knl_session_t *session, space_t *space, const char *info)
 {
     if (space->punching) {
-        GS_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "%s when space %s is punching",
+        CT_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "%s when space %s is punching",
             info, space->ctrl->name);
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 /*
@@ -436,12 +407,12 @@ static inline bool32 spc_is_punching(knl_session_t *session, space_t *space, con
  */
 static inline int64 spc_get_datafile_minsize_byspace(knl_session_t *session, space_t *space)
 {
-    uint64 min_file_size = GS_MIN_USER_DATAFILE_SIZE;
+    uint64 min_file_size = CT_MIN_USER_DATAFILE_SIZE;
 
     if (IS_SYSTEM_SPACE(space) || (IS_UNDO_SPACE(space) && !IS_TEMP_SPACE(space))) {
-        min_file_size = GS_MIN_SYSTEM_DATAFILE_SIZE;
+        min_file_size = CT_MIN_SYSTEM_DATAFILE_SIZE;
     } else if (IS_SYSAUX_SPACE(space)) {
-        min_file_size = GS_MIN_SYSAUX_DATAFILE_SIZE;
+        min_file_size = CT_MIN_SYSAUX_DATAFILE_SIZE;
     }
 
     return min_file_size;
@@ -480,8 +451,8 @@ status_t spc_find_extend_file(knl_session_t *session, space_t *space, uint32 ext
     bool32 is_compress);
 int64 spc_get_extend_size(knl_session_t *session, datafile_t *df, uint32 extent_size, bool32 *need_group);
 void spc_alloc_free_extent(knl_session_t *session, space_t *space, page_id_t *extent);
-space_t *space_get_undo_spc(knl_session_t *session, uint8 inst_id);
-bool32 space_is_remote_swap_spc(knl_session_t *session, space_t *space);
+space_t *spc_get_undo_space(knl_session_t *session, uint8 inst_id);
+bool32 spc_is_remote_swap_space(knl_session_t *session, space_t *space);
 
 #ifdef __cplusplus
 }

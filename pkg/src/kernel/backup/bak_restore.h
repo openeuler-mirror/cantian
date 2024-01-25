@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -63,8 +63,7 @@ status_t rst_delete_track_file(knl_session_t *session, bak_t *bak, bool32 allow_
 status_t rst_stream_read_file(knl_session_t *session);
 status_t rst_extend_database_file(knl_session_t *session, bak_context_t *ctx, const char *name, device_type_t type,
                                   int64 size);
-status_t arch_find_archive_log_name(knl_session_t *session, uint32 rst_id, uint32 node_id,
-                                    uint64 lsn, char *buf, uint32 buf_size, uint64* out_lsn, uint32* out_asn);
+status_t arch_find_archive_log_name(knl_session_t *session, arch_file_name_info_t *file_name_info);
 status_t dtc_log_prepare_for_pitr(knl_session_t *se);
 status_t arch_try_regist_archive_by_dbstor(knl_session_t *session, uint32 *asn, uint32 rst_id,
                                            uint64 start_lsn, uint64 end_lsn, uint32 inst_id);
@@ -75,6 +74,10 @@ status_t rst_create_datafiles(knl_session_t *session, bak_process_t *ctx);
 status_t rst_create_logfiles(knl_session_t *session);
 status_t rst_db_version_check(knl_session_t *session, bak_t *bak, bak_head_t *head);
 status_t rst_process_existed_datafile(bak_process_t *ctx, datafile_ctrl_t *df, uint32 i);
+status_t rst_find_duplicative_archfile(knl_session_t *session, bak_file_t *file,
+                                       bool32 *found_start_lsn, bool32 *found_end_lsn);
+bool32 rst_skip_for_duplicative_archfile(knl_session_t *session, bak_file_t *cur_file, bak_file_t *next_file);
+status_t rst_init_paral_proc_resource(bak_process_t *common_proc, bak_process_t *proc, bak_context_t *ctx, uint32 i);
 
 #ifdef __cplusplus
 }

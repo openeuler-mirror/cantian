@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -41,7 +41,7 @@ extern "C" {
 
 /* galist: groups(16k/8, step=4) * extents(16k/8, step=4) * items(32) limits to 2048*2048 */
 #define LIST_EXTENT_STEP        4
-#define LIST_EXTENT_CAPACITY    (GS_SHARED_PAGE_SIZE / sizeof(pointer_t))   // capacity < max(uint16)
+#define LIST_EXTENT_CAPACITY    (CT_SHARED_PAGE_SIZE / sizeof(pointer_t))   // capacity < max(uint16)
 #define LIST_GROUP_ITEMS        (LIST_EXTENT_CAPACITY * LIST_EXTENT_SIZE)
 #define MAX_LIST_COUNT          (2048 * 2048)
 
@@ -139,22 +139,22 @@ static inline void cm_galist_clean(galist_t *list)
 static inline status_t cm_galist_copy(galist_t *dst, galist_t *src)
 {
     for (uint32 i = 0; i < src->count; i++) {
-        if (cm_galist_insert(dst, cm_galist_get(src, i)) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_galist_insert(dst, cm_galist_get(src, i)) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_galist_copy_append(galist_t *dst, size_t size, pointer_t p_src)
 {
     CM_ASSERT(size > 0 && p_src != NULL);
     pointer_t ptr = NULL;
-    if (cm_galist_new(dst, (uint32)size, &ptr) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_galist_new(dst, (uint32)size, &ptr) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     MEMS_RETURN_IFERR(memcpy_sp(ptr, size, p_src, size));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 typedef status_t (*galist_cmp_func_t)(const void *item1, const void *item2, int32 *result);
@@ -167,15 +167,15 @@ static inline status_t cm_galist_sort(galist_t *list, galist_cmp_func_t cmp_func
     int32 result;
 
     if (list->count <= 1) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (j = 0; j < list->count - 1; j++) {
         for (i = 0; i < list->count - 1 - j; i++) {
             item1 = cm_galist_get(list, i);
             item2 = cm_galist_get(list, i + 1);
-            if (cmp_func(item1, item2, &result) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cmp_func(item1, item2, &result) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             if (result > 0) {
@@ -185,7 +185,7 @@ static inline status_t cm_galist_sort(galist_t *list, galist_cmp_func_t cmp_func
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* pointer list */
@@ -236,19 +236,19 @@ static inline status_t cm_ptlist_add(ptlist_t *list, pointer_t item)
     if (list->count >= list->capacity) { /* extend the list */
         buf_size = (list->capacity + LIST_EXTENT_SIZE) * sizeof(pointer_t);
         if (buf_size == 0 || (buf_size / sizeof(pointer_t) != list->capacity + LIST_EXTENT_SIZE)) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "extending list");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "extending list");
+            return CT_ERROR;
         }
         new_items = (pointer_t *)malloc(buf_size);
         if (new_items == NULL) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "extending list");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "extending list");
+            return CT_ERROR;
         }
         errcode = memset_sp(new_items, (size_t)buf_size, 0, (size_t)buf_size);
         if (errcode != EOK) {
             CM_FREE_PTR(new_items);
-            GS_THROW_ERROR(ERR_RESET_MEMORY, "extending list");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_RESET_MEMORY, "extending list");
+            return CT_ERROR;
         }
         if (list->items != NULL) {
             if (list->capacity != 0) {
@@ -256,8 +256,8 @@ static inline status_t cm_ptlist_add(ptlist_t *list, pointer_t item)
                     (size_t)(list->capacity * sizeof(pointer_t)));
                 if (errcode != EOK) {
                     CM_FREE_PTR(new_items);
-                    GS_THROW_ERROR(ERR_RESET_MEMORY, "extending list");
-                    return GS_ERROR;
+                    CT_THROW_ERROR(ERR_RESET_MEMORY, "extending list");
+                    return CT_ERROR;
                 }
             }
 
@@ -270,7 +270,7 @@ static inline status_t cm_ptlist_add(ptlist_t *list, pointer_t item)
 
     list->items[list->count] = item;
     list->count++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* normal list: LIST_EXTENT_SIZE * MAX_LIST_EXTENTS > 100w */
@@ -348,7 +348,7 @@ static inline status_t cm_list_set(list_t *list, uint32 index, pointer_t item)
     if ((item != NULL) && (list->item_size != 0)) {
         MEMS_RETURN_IFERR(memcpy_sp(ptr, (size_t)list->item_size, item, (size_t)list->item_size));
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_list_new(list_t *list, pointer_t *item)
@@ -359,45 +359,45 @@ static inline status_t cm_list_new(list_t *list, pointer_t *item)
     if (list->extents == NULL) {
         buf_size = sizeof(pointer_t) * list->max_extents;
         if (buf_size == 0 || buf_size / sizeof(pointer_t) != list->max_extents) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "initializing list");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "initializing list");
+            return CT_ERROR;
         }
         list->extents = (pointer_t *)malloc(buf_size);
         if (list->extents == NULL) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "initializing list");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "initializing list");
+            return CT_ERROR;
         }
         rc_memzero = memset_sp(list->extents, (size_t)buf_size, 0, (size_t)buf_size);
         if (rc_memzero != EOK) {
             CM_FREE_PTR(list->extents);
-            GS_THROW_ERROR(ERR_RESET_MEMORY, "initializing list");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_RESET_MEMORY, "initializing list");
+            return CT_ERROR;
         }
     }
 
     if (list->count >= list->capacity) { /* extend the list */
         if (list->capacity == list->extent_step * list->max_extents) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY_REACH_LIMIT, list->extent_step * list->max_extents);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY_REACH_LIMIT, list->extent_step * list->max_extents);
+            return CT_ERROR;
         }
 
         buf_size = list->extent_step * list->item_size;
         /* extending count: list->capacity - LIST_EXTENT_SIZE + LIST_EXTENT_SIZE => list->capacity */
         if (buf_size == 0 || buf_size / list->item_size != list->extent_step) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "extending list");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "extending list");
+            return CT_ERROR;
         }
         char *item_buf = (char *)malloc(buf_size);
         if (item_buf == NULL) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "extending list");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "extending list");
+            return CT_ERROR;
         }
 
         rc_memzero = memset_sp(item_buf, (size_t)buf_size, 0, (size_t)buf_size);
         if (rc_memzero != EOK) {
             CM_FREE_PTR(item_buf);
-            GS_THROW_ERROR(ERR_RESET_MEMORY, "extending list");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_RESET_MEMORY, "extending list");
+            return CT_ERROR;
         }
 
         list->extents[list->extent_count] = item_buf;
@@ -410,7 +410,7 @@ static inline status_t cm_list_new(list_t *list, pointer_t *item)
     }
 
     list->count++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* bidirectional list */

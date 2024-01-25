@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -30,6 +30,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define MTRL_WRITE_BEGIN_PTR(page) ((char *)(page) + (page)->free_begin)
+#define MTRL_PAGE_CAPACITY(page) (CT_VMEM_PAGE_SIZE - ((page)->free_begin))
+#define MTRL_CURR_PAGE(segment) ((mtrl_page_t *)(segment)->curr_page->data)
   
 // for materialization
 typedef enum en_mtrl_segment_type {
@@ -81,7 +85,7 @@ typedef void (*mtrl_print_page_t)(mtrl_segment_t *segment, char *page);
 typedef struct st_mtrl_context {
     spinlock_t lock;
     uint32 seg_count;
-    uint32 open_pages[GS_MAX_MTRL_OPEN_PAGES];
+    uint32 open_pages[CT_MAX_MTRL_OPEN_PAGES];
     handle_t session;
     vm_pool_t *pool;
     mtrl_sort_cmp_t sort_cmp;
@@ -90,7 +94,7 @@ typedef struct st_mtrl_context {
     char *err_msg;
     vmc_t vmc;
     // segments must be at the end of mtrl_context_t
-    mtrl_segment_t *segments[GS_MAX_MATERIALS];
+    mtrl_segment_t *segments[CT_MAX_MATERIALS];
 } mtrl_context_t;
 
 typedef struct st_mtrl_page {
@@ -124,8 +128,8 @@ typedef struct st_mtrl_sort_cursor {
 
 typedef struct st_mtrl_row {
     char *data;
-    uint16 lens[GS_MAX_COLUMNS];
-    uint16 offsets[GS_MAX_COLUMNS];
+    uint16 lens[CT_MAX_COLUMNS];
+    uint16 offsets[CT_MAX_COLUMNS];
 } mtrl_row_t;
 
 typedef struct st_mtrl_row_assist {
@@ -167,7 +171,7 @@ typedef struct st_mtrl_cursor {
     mtrl_page_t *rs_page;
     bool32 eof;
     uint32 slot;
-    uint32 history[GS_MAX_JOIN_TABLES];
+    uint32 history[CT_MAX_JOIN_TABLES];
     uint32 count;
     mtrl_cursor_type_t type;
     mtrl_rowid_t next_cursor_rid;
@@ -187,9 +191,9 @@ static inline void mtrl_init_page(mtrl_page_t *page, uint32 id)
     page->id = id;
     page->rows = 0;
     page->free_begin = sizeof(mtrl_page_t);
-    page->has_part_info = GS_FALSE;
-    page->page_occupied = GS_FALSE;
-    page->is_sorted = GS_FALSE;
+    page->has_part_info = CT_FALSE;
+    page->page_occupied = CT_FALSE;
+    page->is_sorted = CT_FALSE;
     page->unused = 0;
 }
 void mtrl_init_context(mtrl_context_t *ctx, handle_t sess);
@@ -209,7 +213,7 @@ void mtrl_close_sort_cursor(mtrl_context_t *ctx, mtrl_sort_cursor_t *cursor);
 void mtrl_close_cursor(mtrl_context_t *ctx, mtrl_cursor_t *cursor);
 status_t mtrl_fetch_sort(mtrl_context_t *ctx, mtrl_cursor_t *cursor);
 status_t mtrl_fetch_group(mtrl_context_t *ctx, mtrl_cursor_t *cursor, bool32 *group_changed);
-status_t mtrl_get_column_value(mtrl_row_assist_t *row, bool32 eof, uint32 id, gs_type_t datatype,
+status_t mtrl_get_column_value(mtrl_row_assist_t *row, bool32 eof, uint32 id, ct_type_t datatype,
                                bool8 is_array, variant_t *value);
 status_t mtrl_fetch_rs(mtrl_context_t *ctx, mtrl_cursor_t *cursor, bool32 decode);
 mtrl_page_t *mtrl_curr_page(mtrl_context_t *ctx, uint32 seg_id);

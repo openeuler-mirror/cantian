@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,67 +34,67 @@ typedef struct st_type_desc {
     /** The weight of a datatype represents the priority of the datatype. It can
     * be used to decide the priority level of two datatypes that are in the same
     * datatypes group. The datatypes group of a datatype can be decided by
-    * the Marco, such as GS_IS_STRING_TYPE, GS_IS_NUMERIC_TYPE, .... (see datatype_group)
+    * the Marco, such as CT_IS_STRING_TYPE, CT_IS_NUMERIC_TYPE, .... (see datatype_group)
     */
     int32 weight;
 } type_desc_t;
 
-#define GS_TYPE_MASK_ALL   ((uint64)0xFFFFFFFFFFFFFFFF)
-#define GS_TYPE_MASK_NONE  ((uint64)0)
+#define CT_TYPE_MASK_ALL   ((uint64)0xFFFFFFFFFFFFFFFF)
+#define CT_TYPE_MASK_NONE  ((uint64)0)
 
-#define GS_TYPE_MASK_LOB (GS_TYPE_MASK(GS_TYPE_BLOB) | GS_TYPE_MASK(GS_TYPE_CLOB) | GS_TYPE_MASK(GS_TYPE_IMAGE))
-#define GS_TYPE_MASK_CLOB_BLOB (GS_TYPE_MASK(GS_TYPE_BLOB) | GS_TYPE_MASK(GS_TYPE_CLOB))
-#define GS_TYPE_MASK_EXC_CLOB_BLOB ((GS_TYPE_MASK_ALL) ^ (GS_TYPE_MASK_CLOB_BLOB))
+#define CT_TYPE_MASK_LOB (CT_TYPE_MASK(CT_TYPE_BLOB) | CT_TYPE_MASK(CT_TYPE_CLOB) | CT_TYPE_MASK(CT_TYPE_IMAGE))
+#define CT_TYPE_MASK_CLOB_BLOB (CT_TYPE_MASK(CT_TYPE_BLOB) | CT_TYPE_MASK(CT_TYPE_CLOB))
+#define CT_TYPE_MASK_EXC_CLOB_BLOB ((CT_TYPE_MASK_ALL) ^ (CT_TYPE_MASK_CLOB_BLOB))
 
-#define GS_TYPE_MASK_STRING                                        \
-    (GS_TYPE_MASK(GS_TYPE_CHAR) | GS_TYPE_MASK(GS_TYPE_VARCHAR) |  \
-        GS_TYPE_MASK(GS_TYPE_STRING))
+#define CT_TYPE_MASK_STRING                                        \
+    (CT_TYPE_MASK(CT_TYPE_CHAR) | CT_TYPE_MASK(CT_TYPE_VARCHAR) |  \
+        CT_TYPE_MASK(CT_TYPE_STRING))
 
-#define GS_TYPE_MASK_DATETIME                                        \
-    (GS_TYPE_MASK(GS_TYPE_TIMESTAMP) | GS_TYPE_MASK(GS_TYPE_DATE) |  \
-     GS_TYPE_MASK(GS_TYPE_TIMESTAMP_TZ_FAKE) | GS_TYPE_MASK(GS_TYPE_TIMESTAMP_TZ) | GS_TYPE_MASK(GS_TYPE_TIMESTAMP_LTZ))
+#define CT_TYPE_MASK_DATETIME                                        \
+    (CT_TYPE_MASK(CT_TYPE_TIMESTAMP) | CT_TYPE_MASK(CT_TYPE_DATE) |  \
+     CT_TYPE_MASK(CT_TYPE_TIMESTAMP_TZ_FAKE) | CT_TYPE_MASK(CT_TYPE_TIMESTAMP_TZ) | CT_TYPE_MASK(CT_TYPE_TIMESTAMP_LTZ))
 
-#define GS_TYPE_MASK_UNSIGNED_INTEGER                               \
-    (GS_TYPE_MASK(GS_TYPE_UINT32) | GS_TYPE_MASK(GS_TYPE_UINT64) |  \
-        GS_TYPE_MASK(GS_TYPE_USMALLINT) | GS_TYPE_MASK(GS_TYPE_UTINYINT))
+#define CT_TYPE_MASK_UNSIGNED_INTEGER                               \
+    (CT_TYPE_MASK(CT_TYPE_UINT32) | CT_TYPE_MASK(CT_TYPE_UINT64) |  \
+        CT_TYPE_MASK(CT_TYPE_USMALLINT) | CT_TYPE_MASK(CT_TYPE_UTINYINT))
 
-#define GS_TYPE_MASK_SIGNED_INTEGER                                  \
-    (GS_TYPE_MASK(GS_TYPE_INTEGER) | GS_TYPE_MASK(GS_TYPE_BIGINT) |  \
-        GS_TYPE_MASK(GS_TYPE_SMALLINT) | GS_TYPE_MASK(GS_TYPE_TINYINT))
+#define CT_TYPE_MASK_SIGNED_INTEGER                                  \
+    (CT_TYPE_MASK(CT_TYPE_INTEGER) | CT_TYPE_MASK(CT_TYPE_BIGINT) |  \
+        CT_TYPE_MASK(CT_TYPE_SMALLINT) | CT_TYPE_MASK(CT_TYPE_TINYINT))
 
-#define GS_TYPE_MASK_INTEGER \
-    (GS_TYPE_MASK_UNSIGNED_INTEGER | GS_TYPE_MASK_SIGNED_INTEGER)
+#define CT_TYPE_MASK_INTEGER \
+    (CT_TYPE_MASK_UNSIGNED_INTEGER | CT_TYPE_MASK_SIGNED_INTEGER)
 
-#define GS_TYPE_MASK_NUMERIC                                                            \
-    (GS_TYPE_MASK_INTEGER | GS_TYPE_MASK(GS_TYPE_REAL) | GS_TYPE_MASK(GS_TYPE_NUMBER) | \
-        GS_TYPE_MASK(GS_TYPE_DECIMAL) | GS_TYPE_MASK(GS_TYPE_NUMBER2) | GS_TYPE_MASK(GS_TYPE_NUMBER3))
+#define CT_TYPE_MASK_NUMERIC                                                            \
+    (CT_TYPE_MASK_INTEGER | CT_TYPE_MASK(CT_TYPE_REAL) | CT_TYPE_MASK(CT_TYPE_NUMBER) | \
+        CT_TYPE_MASK(CT_TYPE_DECIMAL) | CT_TYPE_MASK(CT_TYPE_NUMBER2) | CT_TYPE_MASK(CT_TYPE_NUMBER3))
 
-#define GS_TYPE_MASK_DECIMAL \
-    (GS_TYPE_MASK(GS_TYPE_NUMBER) | GS_TYPE_MASK(GS_TYPE_DECIMAL) | GS_TYPE_MASK(GS_TYPE_NUMBER3))
+#define CT_TYPE_MASK_DECIMAL \
+    (CT_TYPE_MASK(CT_TYPE_NUMBER) | CT_TYPE_MASK(CT_TYPE_DECIMAL) | CT_TYPE_MASK(CT_TYPE_NUMBER3))
 
-#define GS_TYPE_MASK_BINARY \
-    (GS_TYPE_MASK(GS_TYPE_BINARY) | GS_TYPE_MASK(GS_TYPE_VARBINARY))
+#define CT_TYPE_MASK_BINARY \
+    (CT_TYPE_MASK(CT_TYPE_BINARY) | CT_TYPE_MASK(CT_TYPE_VARBINARY))
 
-#define GS_TYPE_MASK_ARRAY \
-    (GS_TYPE_MASK(GS_TYPE_ARRAY) | GS_TYPE_MASK_STRING)
+#define CT_TYPE_MASK_ARRAY \
+    (CT_TYPE_MASK(CT_TYPE_ARRAY) | CT_TYPE_MASK_STRING)
 
-#define GS_TYPE_MASK_RAW (GS_TYPE_MASK(GS_TYPE_RAW))
+#define CT_TYPE_MASK_RAW (CT_TYPE_MASK(CT_TYPE_RAW))
 
     /** mask of variant length datatype */
-#define GS_TYPE_MASK_VARLEN \
-    (GS_TYPE_MASK_BINARY | GS_TYPE_MASK_STRING | GS_TYPE_MASK_RAW)
+#define CT_TYPE_MASK_VARLEN \
+    (CT_TYPE_MASK_BINARY | CT_TYPE_MASK_STRING | CT_TYPE_MASK_RAW)
 
-#define GS_TYPE_MASK_BINSTR \
-    (GS_TYPE_MASK_BINARY | GS_TYPE_MASK_STRING)
+#define CT_TYPE_MASK_BINSTR \
+    (CT_TYPE_MASK_BINARY | CT_TYPE_MASK_STRING)
 
     /** mask of text lob (CLOB/IMAGE) */
-#define GS_TYPE_MASK_TEXTUAL_LOB (GS_TYPE_CLOB | GS_TYPE_IMAGE)
+#define CT_TYPE_MASK_TEXTUAL_LOB (CT_TYPE_CLOB | CT_TYPE_IMAGE)
 
     /** mask of data types that require to consume extra buffer when conversion.
     *  see function var_convert to decide which data types need buffer */
-#define GS_TYPE_MASK_BUFF_CONSUMING (GS_TYPE_MASK_VARLEN | GS_TYPE_MASK_LOB)
+#define CT_TYPE_MASK_BUFF_CONSUMING (CT_TYPE_MASK_VARLEN | CT_TYPE_MASK_LOB)
 
-#define GS_TYPE_MASK_COLLECTION  GS_TYPE_MASK(GS_TYPE_COLLECTION)
+#define CT_TYPE_MASK_COLLECTION  CT_TYPE_MASK(CT_TYPE_COLLECTION)
 
     /**
     * @addtogroup datatype_group
@@ -104,78 +104,78 @@ typedef struct st_type_desc {
     *       UNION [ALL], INTERSECT and MINUS operators, inferring the datatype of
     *       CASE..WHEN, NVL and DECODE SQL function and expression.
     * @{ */
-#define GS_IS_LOB_TYPE(type)                                                                                           \
-    ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE && (GS_TYPE_MASK(type) & GS_TYPE_MASK_LOB) > 0)
-#define GS_IS_TEXTUAL_LOB(type)                                                                                        \
-    ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE && (GS_TYPE_MASK(type) & GS_TYPE_MASK_TEXTUAL_LOB) > 0)
-#define GS_IS_SIGNED_INTEGER_TYPE(type)                                                                                \
-    ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE && (GS_TYPE_MASK(type) & GS_TYPE_MASK_SIGNED_INTEGER) > 0)
-#define GS_IS_UNSIGNED_INTEGER_TYPE(type)                                                                              \
-    ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE && (GS_TYPE_MASK(type) & GS_TYPE_MASK_UNSIGNED_INTEGER) > 0)
-#define GS_IS_INTEGER_TYPE(type)                                                                                       \
-    ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE && (GS_TYPE_MASK(type) & GS_TYPE_MASK_INTEGER) > 0)
-#define GS_IS_NUMERIC_TYPE(type)                                                                                       \
-    ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE && (GS_TYPE_MASK(type) & GS_TYPE_MASK_NUMERIC) > 0)
-#define GS_IS_DATETIME_TYPE(type)                                                                                      \
-    ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE && (GS_TYPE_MASK(type) & GS_TYPE_MASK_DATETIME) > 0)
-#define GS_IS_STRING_TYPE(type)                                                                                        \
-    ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE && (GS_TYPE_MASK(type) & GS_TYPE_MASK_STRING) > 0)
-#define GS_IS_BINARY_TYPE(type)                                                                                        \
-    ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE && (GS_TYPE_MASK(type) & GS_TYPE_MASK_BINARY) > 0)
-#define GS_IS_BOOLEAN_TYPE(type)          ((type) == GS_TYPE_BOOLEAN)
-#define GS_IS_UNKNOWN_TYPE(type)          ((type) == GS_TYPE_UNKNOWN)
-#define GS_IS_DSITVL_TYPE(type)           ((type) == GS_TYPE_INTERVAL_DS)
-#define GS_IS_YMITVL_TYPE(type)           ((type) == GS_TYPE_INTERVAL_YM)
-#define GS_IS_DECIMAL_TYPE(type)                                                                                       \
-    ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE && (GS_TYPE_MASK(type) & GS_TYPE_MASK_DECIMAL) > 0)
-#define GS_IS_DOUBLE_TYPE(type)           ((type) == GS_TYPE_REAL)
-#define GS_IS_CLOB_TYPE(type)             ((type) == GS_TYPE_CLOB)
-#define GS_IS_BLOB_TYPE(type)             ((type) == GS_TYPE_BLOB)
-#define GS_IS_RAW_TYPE(type)              ((type) == GS_TYPE_RAW)
-#define GS_IS_IMAGE_TYPE(type)            ((type) == GS_TYPE_IMAGE)
-#define GS_IS_TIMESTAMP(type)             ((type) == GS_TYPE_TIMESTAMP||(type) == GS_TYPE_TIMESTAMP_TZ_FAKE)
-#define GS_IS_TIMESTAMP_TZ_TYPE(type)     ((type) == GS_TYPE_TIMESTAMP_TZ)
-#define GS_IS_TIMESTAMP_LTZ_TYPE(type)    ((type) == GS_TYPE_TIMESTAMP_LTZ)
-#define GS_IS_NUMBER_TYPE(type) \
-    ((type) == GS_TYPE_NUMBER || (type) == GS_TYPE_DECIMAL || (type) == GS_TYPE_NUMBER2 || (type) == GS_TYPE_NUMBER3)
-#define GS_IS_NUMBER2_TYPE(type) ((type) == GS_TYPE_NUMBER2)
+#define CT_IS_LOB_TYPE(type)                                                                                           \
+    ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE && (CT_TYPE_MASK(type) & CT_TYPE_MASK_LOB) > 0)
+#define CT_IS_TEXTUAL_LOB(type)                                                                                        \
+    ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE && (CT_TYPE_MASK(type) & CT_TYPE_MASK_TEXTUAL_LOB) > 0)
+#define CT_IS_SIGNED_INTEGER_TYPE(type)                                                                                \
+    ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE && (CT_TYPE_MASK(type) & CT_TYPE_MASK_SIGNED_INTEGER) > 0)
+#define CT_IS_UNSIGNED_INTEGER_TYPE(type)                                                                              \
+    ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE && (CT_TYPE_MASK(type) & CT_TYPE_MASK_UNSIGNED_INTEGER) > 0)
+#define CT_IS_INTEGER_TYPE(type)                                                                                       \
+    ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE && (CT_TYPE_MASK(type) & CT_TYPE_MASK_INTEGER) > 0)
+#define CT_IS_NUMERIC_TYPE(type)                                                                                       \
+    ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE && (CT_TYPE_MASK(type) & CT_TYPE_MASK_NUMERIC) > 0)
+#define CT_IS_DATETIME_TYPE(type)                                                                                      \
+    ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE && (CT_TYPE_MASK(type) & CT_TYPE_MASK_DATETIME) > 0)
+#define CT_IS_STRING_TYPE(type)                                                                                        \
+    ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE && (CT_TYPE_MASK(type) & CT_TYPE_MASK_STRING) > 0)
+#define CT_IS_BINARY_TYPE(type)                                                                                        \
+    ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE && (CT_TYPE_MASK(type) & CT_TYPE_MASK_BINARY) > 0)
+#define CT_IS_BOOLEAN_TYPE(type)          ((type) == CT_TYPE_BOOLEAN)
+#define CT_IS_UNKNOWN_TYPE(type)          ((type) == CT_TYPE_UNKNOWN)
+#define CT_IS_DSITVL_TYPE(type)           ((type) == CT_TYPE_INTERVAL_DS)
+#define CT_IS_YMITVL_TYPE(type)           ((type) == CT_TYPE_INTERVAL_YM)
+#define CT_IS_DECIMAL_TYPE(type)                                                                                       \
+    ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE && (CT_TYPE_MASK(type) & CT_TYPE_MASK_DECIMAL) > 0)
+#define CT_IS_DOUBLE_TYPE(type)           ((type) == CT_TYPE_REAL)
+#define CT_IS_CLOB_TYPE(type)             ((type) == CT_TYPE_CLOB)
+#define CT_IS_BLOB_TYPE(type)             ((type) == CT_TYPE_BLOB)
+#define CT_IS_RAW_TYPE(type)              ((type) == CT_TYPE_RAW)
+#define CT_IS_IMAGE_TYPE(type)            ((type) == CT_TYPE_IMAGE)
+#define CT_IS_TIMESTAMP(type)             ((type) == CT_TYPE_TIMESTAMP||(type) == CT_TYPE_TIMESTAMP_TZ_FAKE)
+#define CT_IS_TIMESTAMP_TZ_TYPE(type)     ((type) == CT_TYPE_TIMESTAMP_TZ)
+#define CT_IS_TIMESTAMP_LTZ_TYPE(type)    ((type) == CT_TYPE_TIMESTAMP_LTZ)
+#define CT_IS_NUMBER_TYPE(type) \
+    ((type) == CT_TYPE_NUMBER || (type) == CT_TYPE_DECIMAL || (type) == CT_TYPE_NUMBER2 || (type) == CT_TYPE_NUMBER3)
+#define CT_IS_NUMBER2_TYPE(type) ((type) == CT_TYPE_NUMBER2)
     /* end of datatype_group */
     /* to decide whether the datatype is variant length */
-#define GS_IS_VARLEN_TYPE(type)                                                                                        \
-    ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE && (GS_TYPE_MASK(type) & GS_TYPE_MASK_VARLEN) > 0)
+#define CT_IS_VARLEN_TYPE(type)                                                                                        \
+    ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE && (CT_TYPE_MASK(type) & CT_TYPE_MASK_VARLEN) > 0)
 
-#define GS_IS_BINSTR_TYPE(type)                                                                                        \
-    ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE && (GS_TYPE_MASK(type) & GS_TYPE_MASK_BINSTR) > 0)
+#define CT_IS_BINSTR_TYPE(type)                                                                                        \
+    ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE && (CT_TYPE_MASK(type) & CT_TYPE_MASK_BINSTR) > 0)
 
-#define GS_IS_ARRAY_TYPE(type)                                                                                         \
-    ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE && (GS_TYPE_MASK(type) & GS_TYPE_MASK_ARRAY) > 0)
+#define CT_IS_ARRAY_TYPE(type)                                                                                         \
+    ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE && (CT_TYPE_MASK(type) & CT_TYPE_MASK_ARRAY) > 0)
 
     /* to decide whether the datatype is buffer consuming when conversion */
-#define GS_IS_BUFF_CONSUMING_TYPE(type) ((type) > GS_TYPE_BASE && (type) < GS_TYPE__DO_NOT_USE &&  \
-        (GS_TYPE_MASK(type) & GS_TYPE_MASK_BUFF_CONSUMING) > 0)
+#define CT_IS_BUFF_CONSUMING_TYPE(type) ((type) > CT_TYPE_BASE && (type) < CT_TYPE__DO_NOT_USE &&  \
+        (CT_TYPE_MASK(type) & CT_TYPE_MASK_BUFF_CONSUMING) > 0)
 
-#define GS_IS_WEAK_INTEGER_TYPE(type)  (GS_IS_INTEGER_TYPE(type) || GS_IS_STRING_TYPE(type))
-#define GS_IS_WEAK_NUMERIC_TYPE(type)  (GS_IS_NUMERIC_TYPE(type) || GS_IS_STRING_TYPE(type))
-#define GS_IS_WEAK_BOOLEAN_TYPE(type)  (GS_IS_BOOLEAN_TYPE(type) || GS_IS_STRING_TYPE(type))
-#define GS_IS_WEAK_DATETIME_TYPE(type) (GS_IS_DATETIME_TYPE(type) || GS_IS_STRING_TYPE(type))
+#define CT_IS_WEAK_INTEGER_TYPE(type)  (CT_IS_INTEGER_TYPE(type) || CT_IS_STRING_TYPE(type))
+#define CT_IS_WEAK_NUMERIC_TYPE(type)  (CT_IS_NUMERIC_TYPE(type) || CT_IS_STRING_TYPE(type))
+#define CT_IS_WEAK_BOOLEAN_TYPE(type)  (CT_IS_BOOLEAN_TYPE(type) || CT_IS_STRING_TYPE(type))
+#define CT_IS_WEAK_DATETIME_TYPE(type) (CT_IS_DATETIME_TYPE(type) || CT_IS_STRING_TYPE(type))
 
     /* To decide whether two datatypes are in same group */
-#define GS_IS_STRING_TYPE2(type1, type2)   (GS_IS_STRING_TYPE(type1) && GS_IS_STRING_TYPE(type2))
-#define GS_IS_NUMERIC_TYPE2(type1, type2)  (GS_IS_NUMERIC_TYPE(type1) && GS_IS_NUMERIC_TYPE(type2))
-#define GS_IS_BINARY_TYPE2(type1, type2)   (GS_IS_BINARY_TYPE(type1) && GS_IS_BINARY_TYPE(type2))
-#define GS_IS_BOOLEAN_TYPE2(type1, type2)  (GS_IS_BOOLEAN_TYPE(type1) && GS_IS_BOOLEAN_TYPE(type2))
-#define GS_IS_DATETIME_TYPE2(type1, type2) (GS_IS_DATETIME_TYPE(type1) && GS_IS_DATETIME_TYPE(type2))
-#define GS_IS_DSITVL_TYPE2(type1, type2)   (GS_IS_DSITVL_TYPE(type1) && GS_IS_DSITVL_TYPE(type2))
-#define GS_IS_YMITVL_TYPE2(type1, type2)   (GS_IS_YMITVL_TYPE(type1) && GS_IS_YMITVL_TYPE(type2))
-#define GS_IS_CLOB_TYPE2(type1, type2)     (GS_IS_CLOB_TYPE(type1) && GS_IS_CLOB_TYPE(type2))
-#define GS_IS_BLOB_TYPE2(type1, type2)     (GS_IS_BLOB_TYPE(type1) && GS_IS_BLOB_TYPE(type2))
-#define GS_IS_RAW_TYPE2(type1, type2)      (GS_IS_RAW_TYPE(type1) && GS_IS_RAW_TYPE(type2))
-#define GS_IS_IMAGE_TYPE2(type1, type2)    (GS_IS_IMAGE_TYPE(type1) && GS_IS_IMAGE_TYPE(type2))
-#define GS_IS_BINSTR_TYPE2(type1, type2)   (GS_IS_BINSTR_TYPE(type1) && GS_IS_BINSTR_TYPE(type2))
+#define CT_IS_STRING_TYPE2(type1, type2)   (CT_IS_STRING_TYPE(type1) && CT_IS_STRING_TYPE(type2))
+#define CT_IS_NUMERIC_TYPE2(type1, type2)  (CT_IS_NUMERIC_TYPE(type1) && CT_IS_NUMERIC_TYPE(type2))
+#define CT_IS_BINARY_TYPE2(type1, type2)   (CT_IS_BINARY_TYPE(type1) && CT_IS_BINARY_TYPE(type2))
+#define CT_IS_BOOLEAN_TYPE2(type1, type2)  (CT_IS_BOOLEAN_TYPE(type1) && CT_IS_BOOLEAN_TYPE(type2))
+#define CT_IS_DATETIME_TYPE2(type1, type2) (CT_IS_DATETIME_TYPE(type1) && CT_IS_DATETIME_TYPE(type2))
+#define CT_IS_DSITVL_TYPE2(type1, type2)   (CT_IS_DSITVL_TYPE(type1) && CT_IS_DSITVL_TYPE(type2))
+#define CT_IS_YMITVL_TYPE2(type1, type2)   (CT_IS_YMITVL_TYPE(type1) && CT_IS_YMITVL_TYPE(type2))
+#define CT_IS_CLOB_TYPE2(type1, type2)     (CT_IS_CLOB_TYPE(type1) && CT_IS_CLOB_TYPE(type2))
+#define CT_IS_BLOB_TYPE2(type1, type2)     (CT_IS_BLOB_TYPE(type1) && CT_IS_BLOB_TYPE(type2))
+#define CT_IS_RAW_TYPE2(type1, type2)      (CT_IS_RAW_TYPE(type1) && CT_IS_RAW_TYPE(type2))
+#define CT_IS_IMAGE_TYPE2(type1, type2)    (CT_IS_IMAGE_TYPE(type1) && CT_IS_IMAGE_TYPE(type2))
+#define CT_IS_BINSTR_TYPE2(type1, type2)   (CT_IS_BINSTR_TYPE(type1) && CT_IS_BINSTR_TYPE(type2))
 
 const text_t  *get_datatype_name(int32 type_input);
 int32          get_datatype_weight(int32 type_input);
-gs_type_t      get_datatype_id(const char *type_str);
+ct_type_t      get_datatype_id(const char *type_str);
 const char  *get_lob_type_name(int32 type);
 
 static inline const char *get_datatype_name_str(int32 type)
@@ -183,33 +183,33 @@ static inline const char *get_datatype_name_str(int32 type)
     return get_datatype_name(type)->str;
 }
 
-bool32 var_datatype_matched(gs_type_t dest_type, gs_type_t src_type);
+bool32 var_datatype_matched(ct_type_t dest_type, ct_type_t src_type);
 
-#define GS_SET_ERROR_MISMATCH(dest_type, src_type) \
-    GS_THROW_ERROR(ERR_TYPE_MISMATCH,              \
+#define CT_SET_ERROR_MISMATCH(dest_type, src_type) \
+    CT_THROW_ERROR(ERR_TYPE_MISMATCH,              \
         get_datatype_name_str((int32)(dest_type)),  \
         get_datatype_name_str((int32)(src_type)))
 
-#define GS_SRC_ERROR_MISMATCH(loc, dest_type, src_type) \
+#define CT_SRC_ERROR_MISMATCH(loc, dest_type, src_type) \
     do {                                                \
         if (g_tls_plc_error.plc_flag) {                                \
             cm_set_error_loc((loc));                        \
-            GS_SET_ERROR_MISMATCH((dest_type), (src_type)); \
+            CT_SET_ERROR_MISMATCH((dest_type), (src_type)); \
         } else {                                            \
-            GS_SET_ERROR_MISMATCH((dest_type), (src_type)); \
+            CT_SET_ERROR_MISMATCH((dest_type), (src_type)); \
             cm_set_error_loc((loc));                        \
         }                                                   \
     } while (0)
 
-#define GS_SET_ERROR_MISMATCH_EX(src_type) \
-    GS_THROW_ERROR(ERR_UNSUPPORT_DATATYPE, \
+#define CT_SET_ERROR_MISMATCH_EX(src_type) \
+    CT_THROW_ERROR(ERR_UNSUPPORT_DATATYPE, \
         get_datatype_name_str((int32)(src_type)))
 
-#define GS_CHECK_ERROR_MISMATCH(dest_type, src_type)                \
+#define CT_CHECK_ERROR_MISMATCH(dest_type, src_type)                \
     do {                                                            \
         if (!var_datatype_matched((dest_type), (src_type))) {           \
-            GS_SET_ERROR_MISMATCH((dest_type), (src_type));         \
-            return GS_ERROR;                                        \
+            CT_SET_ERROR_MISMATCH((dest_type), (src_type));         \
+            return CT_ERROR;                                        \
         }                                                           \
     } while (0)
 
@@ -222,84 +222,84 @@ status_t var_to_round_int32(const variant_t *var, round_mode_t rnd_mode, int32 *
 static inline status_t var_as_bigint(variant_t *var)
 {
     int64 i64;
-    GS_RETURN_IFERR(var_to_round_bigint(var, ROUND_HALF_UP, &i64, NULL));
+    CT_RETURN_IFERR(var_to_round_bigint(var, ROUND_HALF_UP, &i64, NULL));
     var->v_bigint = i64;
-    var->type = GS_TYPE_BIGINT;
-    return GS_SUCCESS;
+    var->type = CT_TYPE_BIGINT;
+    return CT_SUCCESS;
 }
 
 static inline status_t var_as_ubigint(variant_t *var)
 {
     uint64 ui64;
-    GS_RETURN_IFERR(var_to_round_ubigint(var, ROUND_HALF_UP, &ui64, NULL));
+    CT_RETURN_IFERR(var_to_round_ubigint(var, ROUND_HALF_UP, &ui64, NULL));
     var->v_bigint = ui64;
-    var->type = GS_TYPE_UINT64;
-    return GS_SUCCESS;
+    var->type = CT_TYPE_UINT64;
+    return CT_SUCCESS;
 }
 
 static inline status_t var_as_floor_bigint(variant_t *var)
 {
     int64 i64;
-    GS_RETURN_IFERR(var_to_round_bigint(var, ROUND_TRUNC, &i64, NULL));
+    CT_RETURN_IFERR(var_to_round_bigint(var, ROUND_TRUNC, &i64, NULL));
     var->v_bigint = i64;
-    var->type = GS_TYPE_BIGINT;
-    return GS_SUCCESS;
+    var->type = CT_TYPE_BIGINT;
+    return CT_SUCCESS;
 }
 
 // In some case, need to know overflow type
 static inline status_t var_as_bigint_ex(variant_t *var, int *overflow)
 {
     int64 i64;
-    GS_RETURN_IFERR(var_to_round_bigint(var, ROUND_HALF_UP, &i64, overflow));
+    CT_RETURN_IFERR(var_to_round_bigint(var, ROUND_HALF_UP, &i64, overflow));
     var->v_bigint = i64;
-    var->type = GS_TYPE_BIGINT;
-    return GS_SUCCESS;
+    var->type = CT_TYPE_BIGINT;
+    return CT_SUCCESS;
 }
 
 // In some case, need to know overflow type
 static inline status_t var_as_floor_bigint_ex(variant_t *var, int *overflow)
 {
     int64 i64;
-    GS_RETURN_IFERR(var_to_round_bigint(var, ROUND_TRUNC, &i64, overflow));
+    CT_RETURN_IFERR(var_to_round_bigint(var, ROUND_TRUNC, &i64, overflow));
     var->v_bigint = i64;
-    var->type = GS_TYPE_BIGINT;
-    return GS_SUCCESS;
+    var->type = CT_TYPE_BIGINT;
+    return CT_SUCCESS;
 }
 
 static inline status_t var_as_integer(variant_t *var)
 {
     int32 i32;
-    GS_RETURN_IFERR(var_to_round_int32(var, ROUND_HALF_UP, &i32));
+    CT_RETURN_IFERR(var_to_round_int32(var, ROUND_HALF_UP, &i32));
     var->v_int = i32;
-    var->type = GS_TYPE_INTEGER;
-    return GS_SUCCESS;
+    var->type = CT_TYPE_INTEGER;
+    return CT_SUCCESS;
 }
 
 static inline status_t var_as_uint32(variant_t *var)
 {
     uint32 u32;
-    GS_RETURN_IFERR(var_to_round_uint32(var, ROUND_HALF_UP, &u32));
+    CT_RETURN_IFERR(var_to_round_uint32(var, ROUND_HALF_UP, &u32));
     var->v_uint32 = u32;
-    var->type = GS_TYPE_UINT32;
-    return GS_SUCCESS;
+    var->type = CT_TYPE_UINT32;
+    return CT_SUCCESS;
 }
 
 static inline status_t var_as_floor_integer(variant_t *var)
 {
     int32 i32;
-    GS_RETURN_IFERR(var_to_round_int32(var, ROUND_TRUNC, &i32));
+    CT_RETURN_IFERR(var_to_round_int32(var, ROUND_TRUNC, &i32));
     var->v_int = i32;
-    var->type = GS_TYPE_INTEGER;
-    return GS_SUCCESS;
+    var->type = CT_TYPE_INTEGER;
+    return CT_SUCCESS;
 }
 
 static inline status_t var_as_floor_uint32(variant_t *var)
 {
     uint32 u32;
-    GS_RETURN_IFERR(var_to_round_uint32(var, ROUND_TRUNC, &u32));
+    CT_RETURN_IFERR(var_to_round_uint32(var, ROUND_TRUNC, &u32));
     var->v_uint32 = u32;
-    var->type = GS_TYPE_UINT32;
-    return GS_SUCCESS;
+    var->type = CT_TYPE_UINT32;
+    return CT_SUCCESS;
 }
 
 status_t var_as_num(variant_t *var);
@@ -311,6 +311,7 @@ status_t var_as_number(variant_t *var);
 status_t var_as_number2(variant_t *var);
 status_t var_as_real(variant_t *var);
 status_t var_as_date(const nlsparams_t *nls, variant_t *var);
+status_t var_as_date_mysql(variant_t *var, uint32 datatype);
 status_t var_as_timestamp(const nlsparams_t *nls, variant_t *var);
 status_t var_as_timestamp_tz(const nlsparams_t *nls, variant_t *var);
 status_t var_as_timestamp_ltz(const nlsparams_t *nls, variant_t *var);
@@ -320,8 +321,8 @@ status_t var_as_binary(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
 status_t var_as_raw(variant_t *var, char *buf, uint32 buf_size);
 status_t var_as_yminterval(variant_t *var);
 status_t var_as_dsinterval(variant_t *var);
-status_t var_convert(const nlsparams_t *nls, variant_t *var, gs_type_t type, text_buf_t *buf);
-status_t var_text2num(const text_t *text, gs_type_t type, bool32 negative, variant_t *result);
+status_t var_convert(const nlsparams_t *nls, variant_t *var, ct_type_t type, text_buf_t *buf);
+status_t var_text2num(const text_t *text, ct_type_t type, bool32 negative, variant_t *result);
 status_t var_to_unix_timestamp(dec8_t *unix_ts, timestamp_t *ts_ret, int64 time_zone_offset);
 status_t var_to_int32_check_overflow(uint32 u32);
 #endif

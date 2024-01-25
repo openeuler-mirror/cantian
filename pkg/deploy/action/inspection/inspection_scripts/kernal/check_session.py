@@ -3,9 +3,9 @@
 import json
 import os
 import sys
-from gs_check import CheckContext
-from gs_check import BaseItem
-from gs_check import ResultStatus
+from ct_check import CheckContext
+from ct_check import BaseItem
+from ct_check import ResultStatus
 sys.path.append('/opt/cantian/action/inspection')
 from log_tool import setup
 

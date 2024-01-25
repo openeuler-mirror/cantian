@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -71,7 +71,7 @@ extern "C" {
 #define LOG_GROUP_T_SIZE  (uint32)16
 #define SPACE_CTRL_BK_T_SIZE  (uint32)120
 #define DATAFILE_CTRL_BK_T_SIZE  (uint32)344
-#define DTC_NODE_CTRL_T_SIZE  (uint32)152
+#define DTC_NODE_CTRL_T_SIZE  (uint32)176
 
 
 CM_STATIC_ASSERT(sizeof(datafile_header_t) == DATAFILE_HEADER_T_SIZE);

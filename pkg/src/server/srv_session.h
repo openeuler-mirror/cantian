@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -25,6 +25,7 @@
 #ifndef __SRV_SESSION_H__
 #define __SRV_SESSION_H__
 
+#include "srv_module.h"
 #include "cm_defs.h"
 #include "cs_pipe.h"
 #include "cs_protocol.h"
@@ -36,17 +37,25 @@
 #include "cm_lex.h"
 #include "knl_interface.h"
 #include "knl_session.h"
+#include "ctsql_context.h"
 #include "cm_queue.h"
 #include "repl_arch_fetch.h"
+#include "ctsql_audit.h"
 #include "cm_encrypt.h"
 #include "cm_nls.h"
 #include "cm_hba.h"
 #include "cm_pbl.h"
 #include "cm_vma.h"
+#include "ctsql_resource.h"
+#include "pl_dbg_base.h"
 #include "cms_interface.h"
 #include "cm_hash.h"
 #include "cm_hashmap.h"
 #include "tse_list.h"
+#ifdef Z_SHARDING
+#include "shd_connpool.h"
+#include "shd_comm.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,7 +68,7 @@ extern "C" {
 
 typedef struct st_object_stack {
     uint32 depth;
-    pointer_t items[GS_MAX_OBJECT_STACK_DEPTH];
+    pointer_t items[CT_MAX_OBJECT_STACK_DEPTH];
 } object_stack_t;
 
 #define OBJ_STACK_RESET(stack) \
@@ -70,14 +79,14 @@ typedef struct st_object_stack {
 
 static inline status_t obj_stack_push(object_stack_t *stack, pointer_t obj)
 {
-    if (stack->depth < GS_MAX_OBJECT_STACK_DEPTH) {
+    if (stack->depth < CT_MAX_OBJECT_STACK_DEPTH) {
         stack->items[stack->depth] = obj;
         stack->depth++;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_THROW_ERROR(ERR_OBJECT_STACK_OVERDEPTH);
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_OBJECT_STACK_OVERDEPTH);
+    return CT_ERROR;
 }
 
 static inline void obj_stack_pop(object_stack_t *stack)
@@ -116,6 +125,11 @@ typedef enum en_session_status {
 typedef char *stack_base_t;
 
 typedef enum {
+    REMOTE_CONN_APP = 0,
+    REMOTE_CONN_COORD = 1
+} remote_conn_type_t;
+
+typedef enum {
     AUTH_STATUS_NONE,
     AUTH_STATUS_PROTO, // proto code checked
     AUTH_STATUS_CONN,  // handshake done
@@ -123,10 +137,7 @@ typedef enum {
     AUTH_STATUS_LOGON  // logon done
 } auth_status_t;
 
-typedef enum {
-    REMOTE_CONN_APP = 0,
-    REMOTE_CONN_COORD = 1
-} remote_conn_type_t;
+#define CT_TRANS_TAB_HASH_BUCKET 16
 
 typedef struct st_interactive_info {
     bool32 is_on;
@@ -135,13 +146,13 @@ typedef struct st_interactive_info {
 } interactive_info_t;
 
 typedef struct st_saved_schema {
-    char user[GS_NAME_BUFFER_SIZE];
+    char user[CT_NAME_BUFFER_SIZE];
     uint32 user_id;
     bool32 switched_flag;
 } saved_schema_t;
 
 typedef struct st_saved_tenant {
-    char name[GS_TENANT_BUFFER_SIZE];
+    char name[CT_TENANT_BUFFER_SIZE];
     uint32 id;
 } saved_tenant_t;
 
@@ -193,7 +204,6 @@ typedef struct st_tse_context {
     uint8 dup_key_slot;   // for on duplicate key update
     rowid_t conflict_rid; // for on duplicate key update
     uint32_t tse_inst_id;
-    rowid_t row_id;
 } tse_context_t;
 typedef struct st_session {
     knl_session_t knl_session; // need to be first!
@@ -209,13 +219,13 @@ typedef struct st_session {
     cs_pipe_t pipe_entity; // if pipe info specified when create a session, pointer pipe will point to
     // if pipe info specified when create a session, it will point to pipe_entity, otherwise null assigned
     cs_pipe_t *pipe;
-    char os_prog[GS_FILE_NAME_BUFFER_SIZE];
-    char os_host[GS_HOST_NAME_BUFFER_SIZE];
-    char os_user[GS_NAME_BUFFER_SIZE];
-    char db_user[GS_NAME_BUFFER_SIZE];
-    char curr_schema[GS_NAME_BUFFER_SIZE];   // set by 'ALTER SESSION set current_schema=schema'. default : curr_user
-    char curr_tenant[GS_TENANT_BUFFER_SIZE]; // set by 'ALTER SESSION set tenant=tenant_name'. default : TENANT$ROOT
-    char curr_user2[GS_NAME_BUFFER_SIZE];
+    char os_prog[CT_FILE_NAME_BUFFER_SIZE];
+    char os_host[CT_HOST_NAME_BUFFER_SIZE];
+    char os_user[CT_NAME_BUFFER_SIZE];
+    char db_user[CT_NAME_BUFFER_SIZE];
+    char curr_schema[CT_NAME_BUFFER_SIZE];   // set by 'ALTER SESSION set current_schema=schema'. default : curr_user
+    char curr_tenant[CT_TENANT_BUFFER_SIZE]; // set by 'ALTER SESSION set tenant=tenant_name'. default : TENANT$ROOT
+    char curr_user2[CT_NAME_BUFFER_SIZE];
     uint32 curr_schema_id;
     uint32 curr_user2_id;
     uint32 curr_tenant_id;
@@ -231,12 +241,20 @@ typedef struct st_session {
     text_t current_sql;
     uint32 sql_id;
     uint32 prev_sql_id;
+    exec_prev_stat_t exec_prev_stat; /* statistics execute time before the latest executions */
+    ctx_prev_stat_t ctx_prev_stat;
+    sql_stat_t stat;
 
     lex_t *lex;
     vmp_t vmp;
     vmp_t vms; // for cursor sharing memory manage
     object_pool_t sql_cur_pool;
     object_pool_t knl_cur_pool;
+#ifdef Z_SHARDING
+    object_pool_t remote_cur_pool;
+    timeval_t trx_cmd_begin_tv;
+#endif
+
     nlsparams_t nls_params;
 
     struct st_sql_stmt *unnamed_stmt;
@@ -253,17 +271,20 @@ typedef struct st_session {
     void *pl_cursors;
 
     int32 rsrc_attr_id;
+    rsrc_group_t *rsrc_group; /* the consumer group this session belongs to */
     date_t queued_time;       /* if queued, the start time the session has been queued,
                                 if not queued, the value is 0. */
+    sql_audit_t sql_audit;
     interactive_info_t interactive_info;
     uint64 recent_foundrows; /* for the built-in function "FOUND_ROWS()" */
 
     uint32 client_version; /* client version */
     uint32 call_version;   /* client and server negotiated version */
-    uchar challenge[GS_MAX_CHALLENGE_LEN * 2];
-    uchar server_key[GS_HMAC256MAXSIZE];
+    uchar challenge[CT_MAX_CHALLENGE_LEN * 2];
+    uchar server_key[CT_HMAC256MAXSIZE];
     int64 last_insert_id;
     spinlock_t dbg_ctl_lock; // for write and read dbg_ctl
+    debug_control_t *dbg_ctl;
     uint64 rrs_sn; // for clean returned resultset when anonymous block broken by error occuring
     date_t optinfo_start;
     bool8 is_free;
@@ -302,6 +323,7 @@ typedef struct st_session {
     uint32_t tse_magic_num;
     int64_t query_id;
     uint16_t total_cursor_num;
+    uint16_t total_cursor_num_stack;
     spinlock_t map_lock;
     cm_oamap_t cursor_map;
 } session_t;
@@ -326,11 +348,11 @@ typedef struct st_session_pool {
     uint32 hwm; /* high water mark */
     uint32 max_sessions;
     uint32 expanded_max_sessions; /* up to max_sessions * 1.5 */
-    session_t *sessions[GS_MAX_SESSIONS];
+    session_t *sessions[CT_MAX_SESSIONS];
     atomic_t service_count;
     black_context_t pwd_black_ctx;
     white_context_t white_ctx;
-    char sysdba_privilege[GS_SCRAM256MAXSTRSIZE + 4];
+    char sysdba_privilege[CT_SCRAM256MAXSTRSIZE + 4];
     bool32 enable_sysdba_login;
     bool32 enable_sys_remote_login;
     bool32 enable_sysdba_remote_login; // local connect without pw,remote connect use file pw
@@ -351,7 +373,7 @@ typedef struct st_sql_par_pool {
     spinlock_t lock;
     uint32 max_sessions;
     uint32 used_sessions;
-    session_t *sessions[GS_PARALLEL_MAX_THREADS];
+    session_t *sessions[CT_PARALLEL_MAX_THREADS];
     sql_par_stat_t par_stat;
 } sql_par_pool_t;
 
@@ -391,7 +413,7 @@ typedef struct st_altset_def {
         text_t timezone_offset_name;  /* for time_zone */
         uint32 shd_socket_timeout;
         text_t tenant;             /* for tenant */
-        bool32 on_off;             /* GS_TRUE:ON   GS_FALSE:OFF */
+        bool32 on_off;             /* CT_TRUE:ON   CT_FALSE:OFF */
         uint32 cbo_index_caching;  /* for cbo_index_caching */
         uint32 cbo_index_cost_adj; /* for cbo_index_cost_adj */
         uint32 withas_subquery;    /* for _WITHAS_SUBQUERY */
@@ -442,8 +464,8 @@ typedef struct st_stat_pool {
     uint32 hwm;
     uint32 capacity;
     uint32 page_count;
-    char *pages[GS_MAX_STAT_PAGES];
-    knl_stat_t *stats[GS_MAX_STATS];
+    char *pages[CT_MAX_STAT_PAGES];
+    knl_stat_t *stats[CT_MAX_STATS];
     stat_list_t free_list;
 } stat_pool_t;
 
@@ -461,46 +483,62 @@ typedef struct st_stat_pool {
 #define SESSION_GET_FOUND_COUNT(session) ((session)->recent_foundrows)
 
 typedef struct st_sql_cursor sql_cursor_t;
-
-status_t server_alloc_session(session_t **session, cs_pipe_t *pipe, session_type_e type);
-status_t server_alloc_reserved_session(uint32 *sid);
-status_t server_alloc_knl_session(bool32 knl_reserved, knl_handle_t *knl_session);
-void server_release_knl_session(knl_handle_t sess);
-status_t server_create_session(cs_pipe_t *pipe);
-void server_release_session(session_t *session);
-void server_deinit_session(session_t *session);
-void server_return_session(session_t *session);
-status_t server_new_session(cs_pipe_t *pipe, session_t **session);
-void server_reset_session(session_t *session, cs_pipe_t *pipe);
-status_t server_process_command(session_t *session);
-status_t server_return_success(session_t *session);
-status_t server_return_error(session_t *session);
-bool32 server_whether_login_with_user(text_t *username);
-bool32 server_session_in_trans(session_t *session);
-status_t server_wait_all_session_be_killed(session_t *session);
-void server_wait_all_session_free(void);
-void server_kill_all_session(session_t *session, bool32 is_force);
+bool32 sql_try_inc_par_threads(sql_cursor_t *cursor);
+void sql_dec_par_threads(sql_cursor_t *cursor);
+status_t srv_alloc_par_session(session_t **session_handle);
+void srv_release_par_session(session_t *session_handle);
+status_t srv_alloc_session(session_t **session, cs_pipe_t *pipe, session_type_e type);
+status_t srv_alloc_reserved_session(uint32 *sid);
+status_t srv_alloc_knl_session(bool32 knl_reserved, knl_handle_t *knl_session);
+void srv_release_knl_session(knl_handle_t sess);
+status_t srv_create_session(cs_pipe_t *pipe);
+void srv_release_session(session_t *session);
+void srv_deinit_session(session_t *session);
+void srv_return_session(session_t *session);
+status_t srv_new_session(cs_pipe_t *pipe, session_t **session);
+void srv_reset_session(session_t *session, cs_pipe_t *pipe);
+EXTER_ATTACK status_t srv_process_command(session_t *session);
+status_t srv_return_success(session_t *session);
+status_t srv_return_error(session_t *session);
+status_t srv_wait_for_more_data(session_t *session);
+bool32 srv_whether_login_with_user(text_t *username);
+bool32 srv_session_in_trans(session_t *session);
+status_t srv_wait_all_session_be_killed(session_t *session);
+void srv_wait_all_session_free(void);
+void srv_kill_all_session(session_t *session, bool32 is_force);
 status_t srv_reset_statistic(session_t *session);
-void clean_open_curs(void *session_handle, uint64 lsn);
-void clean_open_temp_curs(void *session_handle, void *temp_cache);
+status_t srv_kill_session(session_t *session, knl_alter_sys_def_t *def);
+void clean_open_cursors(void *session_handle, uint64 lsn);
+void clean_open_temp_cursors(void *session_handle, void *temp_cache);
 void invalidate_tablespaces(uint32 space_id);
-void get_sess_min_local_scn(knl_session_t *knl_sess, knl_scn_t *local_scn);
-void server_init_ip_white(void);
-void server_init_pwd_black(void);
-void server_init_ip_login_addr(void);
-status_t server_read_packet(session_t *session);
+void get_session_min_local_scn(knl_session_t *knl_sess, knl_scn_t *local_scn);
+void srv_init_ip_white(void);
+void srv_init_pwd_black(void);
+void srv_init_ip_login_addr(void);
+EXTER_ATTACK status_t srv_read_packet(session_t *session);
+EXTER_ATTACK status_t srv_process_logout(session_t *session);
+EXTER_ATTACK status_t srv_process_cancel(session_t *session);
+EXTER_ATTACK status_t srv_process_command_core(session_t *session, uint8 cmd);
 
-status_t server_check_challenge(session_t *session, const char *rsp_str, uchar *pwd_cipher, uint32 *cipher_len);
+status_t srv_check_challenge(session_t *session, const char *rsp_str, uchar *pwd_cipher, uint32 *cipher_len);
 
-status_t server_init_sql_cur_pools(void);
-void server_mark_user_sess_killed(session_t *session, bool32 force, uint32 serial_id);
-void server_expire_unauth_timeout_session(void);
+/* memory allocation call back for pcre(PERL compatible regular expression) */
+void *srv_stack_mem_alloc(size_t size);
+void srv_stack_mem_free(void *ptr);
 
-status_t server_get_sql_text(uint32 sessionid, text_t *sql);
+status_t srv_init_sql_cur_pools(void);
+void srv_mark_user_sess_killed(session_t *session, bool32 force, uint32 serial_id);
+void srv_expire_unauth_timeout_session(void);
+
+status_t srv_get_sql_text(uint32 sessionid, text_t *sql);
+void srv_kill_session_byhost(const char *addr_ip);
+void srv_wait_session_free_byhost(uint32 current_sid, const char *addr_ip);
+bool32 srv_get_debug_info(uint32 session_id, debug_control_t **dbg_ctl, spinlock_t **dbg_ctl_lock);
+status_t srv_alloc_dbg_ctl(uint32 brkpoint_count, uint32 callstack_depth, debug_control_t **dbg_ctl);
 void srv_free_dbg_ctl(session_t *session);
-status_t server_register_zombie_epoll(session_t *session);
+status_t srv_register_zombie_epoll(session_t *session);
 
-void server_set_min_scn(knl_handle_t sess);
+void srv_set_min_scn(knl_handle_t sess);
 
 /* interface for resource group control */
 void srv_detach_ctrl_group(session_t *session);
@@ -509,29 +547,39 @@ void free_trans_table_resource(session_t *session);
 
 void release_load_local_resource(session_t *session);
 status_t sql_load_reset_fp_and_del_file(load_data_info_t *info);
-void sql_load_free_data_info(session_t *session);
+void sql_load_free_data_info(session_t *sess);
 static inline void srv_mark_sess_killed(knl_handle_t knl_session, bool32 force, uint32 serial_id)
 {
     session_t *session = (session_t *)knl_session;
 
     if (session->type == SESSION_TYPE_USER) {
-        server_mark_user_sess_killed(session, force, serial_id);
+        srv_mark_user_sess_killed(session, force, serial_id);
     } else {
-        session->knl_session.killed = GS_TRUE;
+        session->knl_session.killed = CT_TRUE;
         session->knl_session.force_kill = force;
-        GS_LOG_DEBUG_INF("mark session %d killed", session->knl_session.id);
     }
 }
 
 #define JOB_CHECK_SESSION_RETURN_ERROR(sess)                                               \
     do {                                                                                   \
         if ((sess)->type == SESSION_TYPE_JOB) {                                            \
-            GS_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "Job not support interact whit client."); \
-            return GS_ERROR;                                                               \
+            CT_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "Job not support interact whit client."); \
+            return CT_ERROR;                                                               \
         }                                                                                  \
     } while (0)
 
-status_t server_init_drbg(void);
+static inline void sql_reset_audit_sql(sql_audit_t *audit)
+{
+    audit->packet_sql.len = 0;
+    audit->sql.len = 0;
+}
+
+#ifdef Z_SHARDING
+// for online update
+bool32 srv_check_user_session_in_ddl(session_t *session);
+bool32 srv_check_all_user_session_lock_done(session_t *session);
+#endif
+
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,34 @@
+{
+    "PARENTID": 0,
+    "client_ip": "127.0.0.1/24",
+    "storage_dbstore_fs": {
+        "vstoreId": 0,
+        "SNAPSHOTRESERVEPER": 20,
+        "CAPACITYTHRESHOLD": 90,
+        "CAPACITY": "300GB"
+    },
+    "storage_dbstore_page_fs": {
+        "vstoreId": 0,
+        "SNAPSHOTRESERVEPER": 20,
+        "CAPACITYTHRESHOLD": 90,
+        "CAPACITY": "300GB"
+    },
+    "storage_share_fs": {
+        "vstoreId": 0,
+        "SNAPSHOTRESERVEPER": 20,
+        "CAPACITYTHRESHOLD": 90,
+        "CAPACITY": "300GB"
+    },
+    "storage_archive_fs": {
+        "vstoreId": 0,
+        "SNAPSHOTRESERVEPER": 20,
+        "CAPACITYTHRESHOLD": 90,
+        "CAPACITY": "300GB"
+    },
+    "storage_metadata_fs": {
+        "vstoreId": 0,
+        "SNAPSHOTRESERVEPER": 20,
+        "CAPACITYTHRESHOLD": 90,
+        "CAPACITY": "300GB"
+    }
+}

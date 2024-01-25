@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -45,7 +45,7 @@ extern "C" {
 #define STATS_CSIZE(row, id) ((row)->lens[id])
 
 #define STATS_MAX_COMPARE_SIZE 64
-#define STATS_DEC_BUCKET_SIZE  GS_MAX_DEC_OUTPUT_ALL_PREC
+#define STATS_DEC_BUCKET_SIZE  CT_MAX_DEC_OUTPUT_ALL_PREC
 #define STATS_MAX_BUCKET_SIZE  64
 
 #define STATS_SYS_INDEX_COLUMN_COUNT           12
@@ -112,12 +112,12 @@ extern "C" {
 #define STATS_TMP_SEG_STAT_ROWLOCKWAITS_COLUMN   8
 #define STATS_ROWID_NO                            0
 #define STATS_ROWID_COUNT                         1
-#define STATS_MAX_REPORT_NAME_LEN                 (GS_MAX_FILE_NAME_LEN + 4) // 4 bytes for ".csv"
+#define STATS_MAX_REPORT_NAME_LEN                 (CT_MAX_FILE_NAME_LEN + 4) // 4 bytes for ".csv"
 #define STATS_MAX_PARTNO_MSG_LEN                  128
 #define STATS_GLOBAL_PARTTABLE_COLUMNS            4
 #define STATS_GLOBAL_HISTHEAD_COLUMNS             8
 #define STATS_MAX_ITERATION_TIME                  1000
-#define STATS_MAX_COLUMN_BUF                      (GS_MAX_COLUMN_SIZE + 100)
+#define STATS_MAX_COLUMN_BUF                      (CT_MAX_COLUMN_SIZE + 100)
 #define STATS_PARALL_MIN_CPU_COUNT                2
 #define STATS_PARALL_MIN_COLUMN_COUNT             2
 
@@ -228,7 +228,7 @@ typedef struct st_stats_column {
 typedef struct st_stats_rs_column {
     text_t name;
     uint32 col_id;
-    gs_type_t datatype;
+    ct_type_t datatype;
     uint32 size;
 } stats_rs_column_t;
 
@@ -378,7 +378,7 @@ typedef struct st_stats_par_context_t {
 
 typedef struct st_stats_thread_queue_t {
     volatile uint16 pos;
-    uint16 id_list[GS_MAX_STATS_PARALL_THREADS];
+    uint16 id_list[CT_MAX_STATS_PARALL_THREADS];
 }stats_thread_queue_t;
 
 typedef struct st_stats_par_ctrl_t {
@@ -388,7 +388,7 @@ typedef struct st_stats_par_ctrl_t {
     dc_entity_t *entity;
     stats_cols_list_t *col_list;
     uint32 thread_count;
-    stats_par_context_t par_ctx[GS_MAX_STATS_PARALL_THREADS];
+    stats_par_context_t par_ctx[CT_MAX_STATS_PARALL_THREADS];
     stats_thread_queue_t par_thread_queue;
     volatile uint32 sort_count;
     volatile uint32 finish_count;
@@ -454,6 +454,8 @@ status_t stats_delete_table_stats(knl_session_t *session, const uint32 uid, cons
 status_t stats_delete_part_stats(knl_session_t *session, const uint32 uid, const uint32 oid, uint32 part_id);
 void stats_dc_invalidate(knl_session_t *session, knl_dictionary_t *dc);
 status_t stats_refresh_dc(knl_session_t *session, knl_dictionary_t *dc, stats_load_info_t load_info);
+status_t rd_internal_refresh_dc(knl_session_t *session, dc_entity_t *entity, stats_load_info_t *load_info);
+
 status_t stats_gather_table_part(knl_session_t *session, knl_dictionary_t *dc, stats_option_t stats_option,
                                  table_part_t *table_part, bool32 is_dynamic);
 status_t stats_check_analyzing(knl_session_t *session, knl_dictionary_t *dc, bool32 *need_analyze,
@@ -484,8 +486,8 @@ status_t stats_set_column(knl_session_t *session, knl_dictionary_t *dc, knl_colu
                           table_part_t *table_part, knl_column_t *column);
 status_t stats_set_index(knl_session_t *session, knl_dictionary_t *dc, knl_index_set_stats_t *idx_stats,
                          index_part_t *idx_part, index_t *index);
-status_t stats_put_result_value(row_assist_t *ra, text_t *res_value, gs_type_t type);
-void stats_flush_logic_log(knl_session_t *session, knl_dictionary_t *dc, bool32 is_dynamic);
+status_t stats_put_result_value(row_assist_t *ra, text_t *res_value, ct_type_t type);
+void stats_flush_logic_log(knl_session_t *session, knl_dictionary_t *dc, stats_load_info_t *load_info);
 void stats_commit(knl_session_t *session, bool32 is_dynamic);
 void stats_rollback(knl_session_t *session, bool32 is_dynamic);
 status_t stats_analyze_normal_table(knl_session_t *session, knl_dictionary_t *dc, stats_option_t stats_option,

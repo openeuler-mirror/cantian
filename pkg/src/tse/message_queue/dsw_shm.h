@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -225,10 +225,18 @@ int shm_proc_alive(struct shm_seg_s *seg, int proc_id);
 int shm_send_msg(struct shm_seg_s *seg, int proc_id, dsw_message_block_t *msg);
 
 /* ****************************************************************************
-function name           :  shm_seg_exit
-Functional description  :  Structure memory to release segment tags.
-Input paraments         :  struct shm_seg_s *seg : Shared memory segment label;
-Return value            :  Null
+ function name           :  shm_seg_stop
+ Functional description  :  stop job thread on this segment.
+ Input paraments         :  struct shm_seg_s *seg : Shared memory segment label;
+ Return value            :  Null
+**************************************************************************** */
+void shm_seg_stop(struct shm_seg_s *seg);
+
+/* ****************************************************************************
+ function name           :  shm_seg_exit
+ Functional description  :  Structure memory to release segment tags.
+ Input paraments         :  struct shm_seg_s *seg : Shared memory segment label;
+ Return value            :  Null
 **************************************************************************** */
 void shm_seg_exit(struct shm_seg_s *seg);
 
@@ -239,12 +247,13 @@ void shm_seg_exit(struct shm_seg_s *seg);
                                           (one instance corresponds to a label).
                             shm_mem_class_t mem_class[]: Memory application form.
                             int nr_mem_class: Memory application form size.
+                            int start_lsnr: 1 for start master listener.
  Return value            :  struct shm_seg_s *seg : Shared memory segment label;
  Precautions             :  The process of initialization must define the message
                             format of shared memory, and run in the context or process
                             of non-IO process.
 **************************************************************************** */
-struct shm_seg_s *shm_master_init(shm_key_t *shm_key, shm_mem_class_t mem_class[], int nr_mem_class);
+struct shm_seg_s *shm_master_init(shm_key_t *shm_key, shm_mem_class_t mem_class[], int nr_mem_class, int start_lsnr);
 
 
 /* ****************************************************************************
@@ -280,7 +289,7 @@ void shm_write_log_error(char *log_text, int length);
 
 void shm_assign_proc_id(struct shm_seg_s *seg, int proc_id);
 
-void shm_set_thread_calm_time(uint32_t time_us);
+void shm_set_thread_cool_time(uint32_t time_us);
 
 void shm_set_proc_connected_callback(int (*func)(int *));
 

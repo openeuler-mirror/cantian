@@ -14,6 +14,7 @@ class OmChecker:
         self.check_file = 'check_status.sh'
         self.check_daemon_cmd = 'pgrep -f cantian_daemon'
         self.check_timer_cmd = 'systemctl is-active cantian.timer'
+        self.check_res_flag = True
         self.check_note = {
             'cms': 'unknown',
             'cantian': 'unknown',
@@ -34,47 +35,51 @@ class OmChecker:
         key_file = 'ctmgr/uds_server.py'
         check_popen = subprocess.Popen(['/usr/bin/pgrep', '-f', key_file],
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
-        ct_om_pid, _ = check_popen.communicate(timeout=5)
+        ct_om_pid, _ = check_popen.communicate(timeout=60)
         if ct_om_pid.decode(self.decode_mod):
             self.check_note['ct_om'] = 'online'
         else:
             self.check_note['ct_om'] = 'offline'
+            self.check_res_flag = False
 
     def check_components(self):
         for component in self.component_check_order:
             script_path = str(Path(os.path.join(self.check_file_parent_path, component, self.check_file)))
             check_popen = subprocess.Popen(['/usr/bin/bash', script_path],
                                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
-            _, err = check_popen.communicate(timeout=5)
+            _, err = check_popen.communicate(timeout=60)
             if err.decode(self.decode_mod):
                 continue
 
             check_result = check_popen.returncode
             if check_result:
                 self.check_note[component] = 'offline'
+                self.check_res_flag = False
             else:
                 self.check_note[component] = 'online'
 
     def check_daemon(self):
         daemon = subprocess.Popen(shlex.split(self.check_daemon_cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                   shell=False)
-        output, err = daemon.communicate(timeout=5)
+        output, err = daemon.communicate(timeout=60)
         if not err.decode(self.decode_mod):
             if output.decode(self.decode_mod):
                 self.check_note['cantian_daemon'] = 'online'
             else:
                 self.check_note['cantian_daemon'] = 'offline'
+                self.check_res_flag = False
 
     def check_cantian_timer(self):
         daemon = subprocess.Popen(shlex.split(self.check_timer_cmd), stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE, shell=False)
-        output, err = daemon.communicate(timeout=5)
+        output, err = daemon.communicate(timeout=60)
         if not err.decode(self.decode_mod):
             if output.decode(self.decode_mod).strip() == 'active':
                 self.check_note['cantian_timer'] = 'active'
 
             if output.decode(self.decode_mod).strip() == 'inactive':
                 self.check_note['cantian_timer'] = 'inactive'
+                self.check_res_flag = False
 
     def get_format_output(self):
         try:
@@ -104,7 +109,9 @@ class OmChecker:
             self.format_output['error']['code'] = 1
             self.format_output['error']['description'] = "check cantian timer fained with err: {}".format(str(err))
             return self.format_output
-
+        if not self.check_res_flag:
+            self.format_output['error']['code'] = 1
+            self.format_output['error']['description'] = "check cantian status failed, details: %s" % self.check_note
         self.format_output['data'] = self.check_note
         return self.format_output
 

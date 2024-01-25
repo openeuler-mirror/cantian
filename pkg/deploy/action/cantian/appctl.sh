@@ -48,7 +48,10 @@ LOG_FILE="/opt/cantian/cantian/log/cantian_deploy.log"
 cantian_home=/opt/cantian/cantian
 cantian_local=/mnt/dbdata/local/cantian
 cantian_scripts=/opt/cantian/action/cantian
+storage_metadata_fs=$(python3 ${CURRENT_PATH}/../get_config_info.py "storage_metadata_fs")
 
+source ${CURRENT_PATH}/../env.sh
+cantian_user="${cantian_user}":"${cantian_group}"
 
 function usage()
 {
@@ -205,6 +208,9 @@ function check_rollback_files()
 }
 
 function check_cantian_status() {
+    if [[ ${version_first_number} -eq 2 ]];then
+        user=${d_user}
+    fi
     echo "check cantian cluster status processes: cms stat"
     su -s /bin/bash ${user} -c "source ~/.bashrc && cms stat"
 
@@ -229,6 +235,14 @@ function check_cantian_status() {
         echo "cantian process is running, upgrade is normal at the moment"
     else
         echo "Error: the cantiand process is abnormal"
+        return 1
+    fi
+    if [[ ${version_first_number} -eq 2 ]];then
+        return 0
+    fi
+    su -s /bin/bash "${user}" -c "source ~/.bashrc && export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && python3 -B ${CURRENT_PATH}/cantian_post_upgrade.py"
+    if [ $? -ne 0 ]; then
+        echo "Error: db status check failed."
         return 1
     fi
 }
@@ -317,7 +331,7 @@ function record_cantian_info() {
     echo "time:
           $(date)" >> ${backup_dir}/cantian/backup.bak
     echo "deploy_user:
-              ${deploy_user}" >> ${backup_dir}/cantian/backup.bak
+              ${cantian_user}" >> ${backup_dir}/cantian/backup.bak
     echo "cantian_home:
               total_size=$(du -sh ${cantian_home})
               total_files=$(tail ${backup_dir}/cantian/cantian_home_files_list.txt -n 1)" >> ${backup_dir}/cantian/backup.bak
@@ -337,6 +351,9 @@ function safety_upgrade_backup()
     echo -e "\n======================== begin to backup cantian module for upgrade ========================"
 
     old_cantian_owner=$(stat -c %U ${cantian_home})
+    if [[ ${version_first_number} -eq 2 ]];then
+        user=${d_user}
+    fi
     if [ ${old_cantian_owner} != ${user} ]; then
         echo "Error: the upgrade user is different from the installed user"
         return 1
@@ -350,20 +367,20 @@ function safety_upgrade_backup()
     fi
 
     echo "create bak dir for cantian : ${backup_dir}/cantian"
-    mkdir -m 750 ${backup_dir}/cantian
+    mkdir -m 755 ${backup_dir}/cantian
 
     echo "backup cantian home, from ${cantian_home} to ${backup_dir}/cantian/cantian_home"
-    mkdir -m 750 ${backup_dir}/cantian/cantian_home
+    mkdir -m 755 ${backup_dir}/cantian/cantian_home
     path_reg=$(echo ${cantian_home} | sed 's/\//\\\//g')
     cantian_home_backup=$(ls ${cantian_home} | awk '{if($1!="log"){print $1}}' | sed "s/^/${path_reg}\//g")
     cp -arf ${cantian_home_backup} ${backup_dir}/cantian/cantian_home
 
     echo "backup cantian scripts, from ${cantian_scripts} to ${backup_dir}/cantian/cantian_scripts"
-    mkdir -m 750 ${backup_dir}/cantian/cantian_scripts
+    mkdir -m 755 ${backup_dir}/cantian/cantian_scripts
     cp -arf ${cantian_scripts}/* ${backup_dir}/cantian/cantian_scripts
 
     echo "backup cantian local, from ${cantian_local} to ${backup_dir}/cantian/cantian_local"
-    mkdir -m 750 ${backup_dir}/cantian/cantian_local
+    mkdir -m 755 ${backup_dir}/cantian/cantian_local
     cp -arf ${cantian_local}/* ${backup_dir}/cantian/cantian_local
 
     record_cantian_info ${backup_dir}
@@ -380,6 +397,9 @@ function safety_upgrade_backup()
 
 function copy_cantian_dbstor_cfg()
 {
+    if [[ x"${deploy_mode}" == x"nas" ]]; then
+        return 0
+    fi
     echo "update the cantian local config files for dbstor in ${cantian_local}"
     link_type=$1
     cantian_local_data_dir=${cantian_local}/tmp/data
@@ -402,10 +422,16 @@ function chown_mod_cantian_server()
 {
     echo "chown and chmod the files in ${cantian_home}/server"
     chmod -R 700 ${cantian_home}/server
+    find ${cantian_home}/server/add-ons -type f | xargs chmod 500
+    find ${cantian_home}/server/admin -type f | xargs chmod 400
+    find ${cantian_home}/server/bin -type f | xargs chmod 500
+    find ${cantian_home}/server/lib -type f | xargs chmod 500
+    find ${cantian_home}/server/cfg -type f | xargs chmod 600
     chmod 750 ${cantian_home}/server
     chmod 750 ${cantian_home}/server/admin
     chmod 750 ${cantian_home}/server/admin/scripts
-    chown -R ${deploy_user} ${cantian_home}/server
+    chmod 400 ${cantian_home}/server/package.xml
+    chown -hR ${cantian_user} ${cantian_home}
     return 0
 }
 
@@ -418,12 +444,11 @@ function update_cantian_server()
     cp -arf ${cantian_pkg_file}/add-ons ${cantian_pkg_file}/admin ${cantian_pkg_file}/bin \
        ${cantian_pkg_file}/cfg ${cantian_pkg_file}/lib ${cantian_pkg_file}/package.xml ${cantian_home}/server
 
-    link_type=$1
-    deploy_mode=$2
-    if [[ x"${deploy_mode}" == x"--nas" ]];then
-        echo "deploy mode is ${deploy_mode}"
-        return
+    if [[ x"${deploy_mode}" == x"nas" ]]; then
+        return 0
     fi
+
+    link_type=$1
     if [ ${link_type} == 1 ];then
         echo "link_type is rdma"
         cp -arf ${cantian_home}/server/add-ons/mlnx/lib* ${cantian_home}/server/add-ons/
@@ -452,15 +477,17 @@ function safety_upgrade()
     set -e
     echo -e "\n======================== begin to upgrade cantian module ========================"
 
-    link_type=$(python3 ${CURRENT_PATH}/../get_config_info.py "link_type")
-    deploy_mode=$(python3 ${CURRENT_PATH}/../get_config_info.py "deploy_mode")
+    link_type=$(cat ${CURRENT_PATH}/../../config/deploy_param.json  |
+          awk -F ',' '{for(i=1;i<=NF;i++){if($i~"link_type"){print $i}}}' |
+          sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
+          awk -F '=' '{print $2}')
+    deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
 
-    update_cantian_server "${link_type}" "${deploy_mode}"
+    update_cantian_server ${link_type}
 
     chown_mod_cantian_server
-    if [[ x"${deploy_mode}" != x"--nas" ]];then
-        copy_cantian_dbstor_cfg "${link_type}"
-    fi
+
+    copy_cantian_dbstor_cfg ${link_type}
 
     update_cantian_scripts
 
@@ -523,12 +550,13 @@ deploy_user=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
               awk -F ',' '{for(i=1;i<=NF;i++){if($i~"deploy_user"){print $i}}}' |
               sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
               awk -F '=' '{print $2}')
+d_user=$(echo ${deploy_user} | awk -F ':' '{print $2}')
 node_id=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
               awk -F ',' '{for(i=1;i<=NF;i++){if($i~"node_id"){print $i}}}' |
               sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
               awk -F '=' '{print $2}')
 
-user=$(echo ${deploy_user} | awk -F ':' '{print $2}')
+user=$(echo ${cantian_user} | awk -F ':' '{print $2}')
 owner=$(stat -c %U ${CURRENT_PATH})
 
 function chown_mod_scripts() {
@@ -536,7 +564,7 @@ function chown_mod_scripts() {
     current_path_reg=$(echo $CURRENT_PATH | sed 's/\//\\\//g')
     scripts=$(ls ${CURRENT_PATH} | awk '{if($1!="appctl.sh"){print $1}}' | awk '{if($1!="cantiand_cgroup_calculate.sh"){print $1}}' |
             sed "s/^/${current_path_reg}\//")
-    chown ${deploy_user} -h ${scripts}
+    chown ${cantian_user} -h ${scripts}
     chmod 400 ${CURRENT_PATH}/*.sh ${CURRENT_PATH}/*.py
     chmod 600 ${CURRENT_PATH}/*.json
     set +e
@@ -548,7 +576,7 @@ function copy_cantian_scripts()
         rm -rf ${cantian_scripts}
     fi
     mkdir -m 700 -p ${cantian_scripts}
-    chown ${deploy_user} ${cantian_scripts}
+    chown -h ${cantian_user} ${cantian_scripts}
     cp -arf ${CURRENT_PATH}/* ${cantian_scripts}/
 }
 
@@ -557,8 +585,18 @@ function create_mysql_dir()
     if [ ! -d /opt/cantian/mysql/install/mysql ];then
         mkdir -m 750 -p /opt/cantian/mysql/install/mysql
     fi
-    chmod 755 -R /opt/cantian/mysql
-    chown ${deploy_user} -R /opt/cantian/mysql/install/mysql
+    chown ${deploy_user} -hR /opt/cantian/mysql/install
+}
+
+function clean_mysql_dir()
+{
+    if [ -d /opt/cantian/mysql/install/mysql ];then
+        rm -rf /opt/cantian/mysql/install/mysql/*
+    fi
+
+    if [[ -d /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id} && x"${UNINSTALL_TYPE}" == x"override" ]];then
+        rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}/*
+    fi
 }
 
 function clean_cantian_scripts()
@@ -576,14 +614,14 @@ function check_old_install()
     fi
 
     #解决root包卸载残留问题
-    chown ${deploy_user} -hR ${cantian_home}
+    chown ${cantian_user} -hR ${cantian_home}
     chmod 750 -R ${cantian_home}
     find ${cantian_home}/log -type f | xargs chmod 640
 
     #解决root包卸载残留问题
     cantian_local_owner=$(stat -c %U ${cantian_local})
     if [ ${cantian_local_owner} != ${user} ];then
-        chown ${deploy_user} -hR ${cantian_local}
+        chown ${cantian_user} -hR ${cantian_local}
         chmod 750 -R ${cantian_local}/..
     fi
 }
@@ -592,28 +630,28 @@ function check_and_create_cantian_home()
 {
     if [ ! -d ${cantian_home} ]; then
         mkdir -m 750 -p ${cantian_home}
-        chown ${deploy_user} -hR ${cantian_home}
+        chown ${cantian_user} -hR ${cantian_home}
     fi
 
     if [ ! -d ${cantian_home}/log ]; then
         mkdir -m 750 -p ${cantian_home}/log
-        chown ${deploy_user} -hR ${cantian_home}/log
+        chown ${cantian_user} -hR ${cantian_home}/log
     fi
 
     if [ ! -d ${cantian_home}/cfg ]; then
         mkdir -m 700 -p ${cantian_home}/cfg
-        chown ${deploy_user} -hR ${cantian_home}/cfg
+        chown ${cantian_user} -hR ${cantian_home}/cfg
     fi
 
     if [ ! -f ${LOG_FILE} ]; then
-        echo >> ${LOG_FILE}
+        touch ${LOG_FILE}
         chmod 640 ${LOG_FILE}
-        chown ${deploy_user} -hR ${LOG_FILE}
+        chown ${cantian_user} -hR /opt/cantian/cantian > /dev/null 2>&1
     fi
 
     if [ ! -d ${cantian_local} ]; then
         mkdir -m 750 -p ${cantian_local}
-        chown ${deploy_user} -hR ${cantian_local}
+        chown ${cantian_user} -hR ${cantian_local}
     fi
 
 }
@@ -665,7 +703,7 @@ function main_deploy() {
             if [[ $? -ne 0 ]]; then
                 exit 1
             fi
-            rm -rf /dev/shm/*
+            clean_mysql_dir
             cgroup_clean
             exit $?
             ;;
@@ -682,11 +720,13 @@ function main_deploy() {
             exit $?
             ;;
         pre_upgrade)
+            version_first_number=$(cat /opt/cantian/versions.yml |sed 's/ //g' | grep 'Version:' | awk -F ':' '{print $2}' | awk -F '.' '{print $1}')
             chown_mod_scripts
             pre_upgrade
             exit $?
             ;;
         upgrade_backup)
+            version_first_number=$(cat /opt/cantian/versions.yml |sed 's/ //g' | grep 'Version:' | awk -F ':' '{print $2}' | awk -F '.' '{print $1}')
             safety_upgrade_backup ${BACKUP_UPGRADE_PATH}
             exit $?
             ;;

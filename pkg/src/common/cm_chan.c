@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "cm_chan.h"
 #include "cm_error.h"
 
@@ -71,7 +72,7 @@ chan_t *cm_chan_new(uint32 capacity, uint32 size)
     (void)cm_event_init(&chan->event_recv);
     chan->waittime_ms = 100;
 
-    chan->is_closed = GS_FALSE;
+    chan->is_closed = CT_FALSE;
     chan->ref_count = 0;
 
     return chan;
@@ -81,14 +82,14 @@ status_t cm_chan_send_timeout(chan_t *chan, const void *elem, uint32 timeout_ms)
 {
     errno_t errcode;
     if (chan == NULL || elem == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_spin_lock(&chan->lock, NULL);
     {
         if (chan->buf == NULL || chan->is_closed) {
             cm_spin_unlock(&chan->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         // chan is full
@@ -96,8 +97,8 @@ status_t cm_chan_send_timeout(chan_t *chan, const void *elem, uint32 timeout_ms)
             cm_spin_unlock(&chan->lock);
 
             // wait for the recv signal
-            if (GS_TIMEDOUT == cm_event_timedwait(&chan->event_recv, timeout_ms)) {
-                return GS_TIMEDOUT;
+            if (CT_TIMEDOUT == cm_event_timedwait(&chan->event_recv, timeout_ms)) {
+                return CT_TIMEDOUT;
             }
 
             cm_spin_lock(&chan->lock, NULL);
@@ -117,8 +118,8 @@ status_t cm_chan_send_timeout(chan_t *chan, const void *elem, uint32 timeout_ms)
             errcode = memcpy_sp(chan->end, (size_t)(chan->buf_end - chan->end), elem, (size_t)chan->size);
             if (errcode != EOK) {
                 cm_spin_unlock(&chan->lock);
-                GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+                return CT_ERROR;
             }
         }
         chan->end += chan->size;
@@ -128,7 +129,7 @@ status_t cm_chan_send_timeout(chan_t *chan, const void *elem, uint32 timeout_ms)
 
     cm_event_notify(&chan->event_send);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // send an element, will block until there are space to store
@@ -142,28 +143,28 @@ status_t cm_chan_recv_timeout(chan_t *chan, void *elem, uint32 timeout_ms)
 {
     errno_t errcode;
     if (chan == NULL || elem == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_spin_lock(&chan->lock, NULL);
     {
         if (chan->buf == NULL) {
             cm_spin_unlock(&chan->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         // chan is empty
         while (chan->count == 0) {
             if (chan->is_closed) {
                 cm_spin_unlock(&chan->lock);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             cm_spin_unlock(&chan->lock);
 
             // wait for the send signal
-            if (GS_TIMEDOUT == cm_event_timedwait(&chan->event_send, timeout_ms)) {
-                return GS_TIMEDOUT;
+            if (CT_TIMEDOUT == cm_event_timedwait(&chan->event_send, timeout_ms)) {
+                return CT_TIMEDOUT;
             }
 
             cm_spin_lock(&chan->lock, NULL);
@@ -183,8 +184,8 @@ status_t cm_chan_recv_timeout(chan_t *chan, void *elem, uint32 timeout_ms)
             errcode = memcpy_sp(elem, (size_t)chan->size, chan->begin, (size_t)chan->size);
             if (errcode != EOK) {
                 cm_spin_unlock(&chan->lock);
-                GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+                return CT_ERROR;
             }
         }
         chan->begin += chan->size;
@@ -194,7 +195,7 @@ status_t cm_chan_recv_timeout(chan_t *chan, void *elem, uint32 timeout_ms)
 
     cm_event_notify(&chan->event_recv);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // send an element, will block until there are space to store
@@ -209,11 +210,11 @@ bool32 cm_chan_empty(chan_t *chan)
     cm_spin_lock(&chan->lock, NULL);
     if (chan->count == 0) {
         cm_spin_unlock(&chan->lock);
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     cm_spin_unlock(&chan->lock);
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 // close the chan, notify all block sender and receiver to exit
@@ -229,7 +230,7 @@ void cm_chan_close(chan_t *chan)
         return;
     }
 
-    chan->is_closed = GS_TRUE;
+    chan->is_closed = CT_TRUE;
 
     uint32 i = 0;
     for (i = 0; i < chan->ref_count; i++) {
@@ -259,7 +260,7 @@ void cm_chan_free(chan_t *chan)
     chan->count = 0;
     chan->size = 0;
 
-    chan->is_closed = GS_TRUE;
+    chan->is_closed = CT_TRUE;
     chan->ref_count = 0;
 
     CM_FREE_PTR(chan);

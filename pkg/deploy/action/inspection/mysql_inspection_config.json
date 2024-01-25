@@ -1,0 +1,82 @@
+{
+  "mysql_diskspace_check": {
+    "inspection_file_path": "/mf_connector/inspection/inspection_scripts/mysql/mysql_diskspace_check.py",
+    "component": "mysql",
+    "description_zn": "检查磁盘剩余空间",
+    "description_en": "check the remaining disk spaces",
+    "resource_zh": {
+      "检查步骤": "步骤1 mysql 查询datadir\n步骤2 通过系统df命令查看目录剩余空间",
+      "检查方法": "如果磁盘占用小于 90% 则检查通过",
+      "修复建议": "检查大文件，备份并清理日志释放磁盘空间"
+    },
+    "resource_en": {
+      "method": "Step 1 Query datadir in the MySQL database.\nStep 2 Run the df command to check the free space of the directory.",
+      "description": "If the disk usage is less than 90%, the check is passed.",
+      "suggestion": "Check large files and back up and delete logs to release disk space."
+    },
+    "script_input": "",
+    "time_out": 10,
+    "need_pwd": false,
+    "need_ip": false
+  },
+  "mysql_connection_check": {
+    "inspection_file_path": "/mf_connector/inspection/inspection_scripts/mysql/mysql_connection_check.py",
+    "component": "mysql",
+    "description_zn": "检查是否成功连接",
+    "description_en": "check the connection",
+    "resource_zh": {
+      "检查步骤": "步骤1 执行命令mysql -uxxx -pxxx -e\"select version()\"",
+      "检查方法": "如果能成功连接则检查通过",
+      "修复建议": "持续出现3分钟错误后查看日志具体判断，并联系工程师处理"
+    },
+    "resource_en": {
+      "method": "\nStep 1 Run the mysql -uxxx -pxxx -e\"select version()\" command.",
+      "description": "\nIf the connection is successful, the check is passed.\n",
+      "suggestion": "\nIf the error persists for three minutes, check logs and contact Huawei technical support."
+    },
+    "script_input": "",
+    "time_out": 10,
+    "need_pwd": false,
+    "need_ip": false
+  },
+  "mysql_file_check": {
+    "inspection_file_path": "/mf_connector/inspection/inspection_scripts/mysql/mysql_file_check.py",
+    "component": "mysql",
+    "description_zn": "检查共享内存通信文件",
+    "description_en": "check the shm files",
+    "resource_zh": {
+      "检查步骤": "步骤1 检查/dev/shm共享内存通信文件是否存在\n步骤2 检查/dev/shm共享内存通信文件权限",
+      "检查方法": "如果文件存在且权限符合数据库用户读写权限则检查通过",
+      "修复建议": "1、修改权限/dev/shm共享内存通信文件；\n2、执行sh /opt/cantian/action/appctl.sh stop停止参天；\n 3、执行sh /opt/cantian/action/appctl.sh start停止参天。"
+    },
+    "resource_en": {
+      "method": "1. Modify the permission on the /dev/shm shared memory communication file.\n2. Run the sh /opt/cantian/action/appctl.sh stop command to stop sky-raising.\n3. Run the sh /opt/cantian/action/appctl.sh start command to stop the upgrade.",
+      "description": "If the file exists and the permission is consistent with the read and write permission of the database user, the check is passed.",
+      "suggestion": "1. Modify the permission on the /dev/shm shared memory communication file.\n2. Run the sh /opt/cantian/action/appctl.sh stop command to stop sky-raising.\n3. Run the sh /opt/cantian/action/appctl.sh start command to stop the upgrade."
+    },
+    "script_input": "",
+    "time_out": 10,
+    "need_pwd": false,
+    "need_ip": false
+  },
+  "mysql_transaction_isolation_check": {
+    "inspection_file_path": "/mf_connector/inspection/inspection_scripts/mysql/mysql_transaction_isolation_check.py",
+    "component": "mysql",
+    "description_zn": "检查事务隔离级别",
+    "description_en": "check transaction isolation level",
+    "resource_zh": {
+      "检查步骤": "步骤1 执行命令mysql -uxxx -pxxx -e\"show variables like 'transaction_isolation'\"",
+      "检查方法": "如果事务隔离级别为“READ-COMMITTED”则检查通过",
+      "修复建议": "若步骤1检查结果为不通过，执行以下命令修改事务隔离级别：kubectl exec -n namespace pod_name -c mysql -- mysql -uxxx -pxxx -e \"set global transaction_isolation = 'read_committed';\""
+    },
+    "resource_en": {
+      "method": "Step 1 Run command mysql -uxxx -pxxx -e\"show variables like 'transaction_isolation'\"",
+      "description": "The check would pass when the transaction isolation level is READ-COMMITTED",
+      "suggestion": "If check doesnot pass in step 1, try modifying transaction isolation level by executing command: kubectl exec -n namespace pod_name -c mysql -- mysql -uxxx -pxxx -e \"set global transaction_isolation = 'read_committed';\""
+    },
+    "script_input": "",
+    "time_out": 10,
+    "need_pwd": false,
+    "need_ip": false
+  }
+}

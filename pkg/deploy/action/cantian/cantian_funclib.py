@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Perform hot backups of CANTIAN databases.
+# Perform hot backups of CantianDB100 databases.
 # Copyright © Huawei Technologies Co., Ltd. 2010-2018. All rights reserved.
 
 import sys
+import grp
 sys.dont_write_bytecode = True
 try:
     import os
@@ -20,10 +21,10 @@ try:
     import errno
     import signal
     import shlex
-    import pathlib
-    from Common import get_deploy_value
+
     from multiprocessing.dummy import Pool
     from exception import NormalException
+    from get_config_info import get_value
 except ImportError as import_err:
     raise ValueError("Unable to import module: %s." % str(import_err)) from import_err
 
@@ -58,10 +59,6 @@ class CommonValue(object):
     KEY_FILE_PERMISSION = 0o600
     KEY_DIRECTORY_PERMISSION = 0o700
 
-    DOCKER_SHARE_DIR = "/home/regress/cantian_data"
-    DOCKER_DATA_DIR = "{}/data".format(DOCKER_SHARE_DIR)
-    DOCKER_GCC_DIR = "{}/gcc_home".format(DOCKER_SHARE_DIR)
-
 
 class DefaultConfigValue(object):
     """
@@ -70,8 +67,15 @@ class DefaultConfigValue(object):
     def __init__(self):
         pass
 
-    deploy_mode = get_deploy_value()
-    storage_fs = get_deploy_value(key="storage_dbstore_fs")
+    deploy_mode = get_value("deploy_mode")
+    PRIMARY_KEYSTORE = "/opt/cantian/common/config/primary_keystore_bak.ks"
+    STANDBY_KEYSTORE = "/opt/cantian/common/config/standby_keystore_bak.ks"
+    mes_type = get_value("mes_type")
+    node_id = get_value("node_id")
+    mysql_group = get_value("mysql_group")
+    mysql_group_id = grp.getgrnam(mysql_group).gr_gid
+    storage_share_fs = get_value("storage_share_fs")
+
     CANTIAND_CONFIG = {
         "CHECKPOINT_IO_CAPACITY": 4096,
         "DTC_CKPT_NOTIFY_TASK_RATIO": 0.032,
@@ -81,13 +85,13 @@ class DefaultConfigValue(object):
         "BUFFER_LRU_SEARCH_THRE": 40,
         "BUFFER_PAGE_CLEAN_RATIO": 0.1,
         "_DEADLOCK_DETECT_INTERVAL": 1000,
-        "INTERCONNECT_CHANNEL_NUM": 32,
+        "INTERCONNECT_CHANNEL_NUM": 3 if mes_type == "UC" and deploy_mode == "dbstore" else 32,
         "_UNDO_AUTO_SHRINK": "FALSE",
         "_CHECKPOINT_TIMED_TASK_DELAY": 100,
         "DBWR_PROCESSES": 8,
         "SESSIONS": 18432,
         "CLUSTER_DATABASE": "TRUE",
-        "_DOUBLEWRITE": "FALSE",
+        "_DOUBLEWRITE": "FALSE" if deploy_mode == "dbstore" else "TRUE",
         "TEMP_BUFFER_SIZE": "25G",
         "DATA_BUFFER_SIZE": "200G",
         "SHARED_POOL_SIZE": "25G",
@@ -127,7 +131,7 @@ class DefaultConfigValue(object):
         "_UNDO_SEGMENTS": 1024,
         "_UNDO_ACTIVE_SEGMENTS": 64,
         "USE_LARGE_PAGES": "FALSE",
-        "GSS_MAX_OPEN_FILES": 40960,
+        "CTSTORE_MAX_OPEN_FILES": 40960,
         "REPLAY_PRELOAD_PROCESSES": 0,
         "LOG_REPLAY_PROCESSES": 64,
         "_LOG_MAX_FILE_SIZE": "160M",
@@ -140,7 +144,7 @@ class DefaultConfigValue(object):
         "INSTANCE_ID": 0,
         "INTERCONNECT_PORT": "1601",
         "LSNR_PORT": 1611,
-        "INTERCONNECT_TYPE": "UC" if deploy_mode == "--dbstore" else "TCP",
+        "INTERCONNECT_TYPE": "UC" if mes_type == "UC" and deploy_mode == "dbstore" else "TCP",
         "INTERCONNECT_BY_PROFILE": "FALSE",
         "INSTANCE_NAME": "cantian",
         "ENABLE_SYSDBA_LOGIN": "FALSE",
@@ -163,16 +167,15 @@ class DefaultConfigValue(object):
         "CLUSTER_ID": "",
         "_BUFFER_PAGE_CLEAN_WAIT_TIMEOUT": "1",
         "SHM_MQ_MSG_RECV_THD_NUM": 40,
-        "MES_SSL_SWITCH": "TRUE",
-        "MES_SSL_KEY_PWD": None,
-        "MES_SSL_CRT_KEY_PATH": "/opt/cantian/certificate"
+        "MYSQL_METADATA_IN_CANTIAN": "TRUE",
+        "MYSQL_DEPLOY_GROUP_ID": mysql_group_id
     }
     
     CANTIAND_DBG_CONFIG = {
         "DBWR_PROCESSES": 8,
         "SESSIONS": 8192,
         "CLUSTER_DATABASE": "TRUE",
-        "_DOUBLEWRITE": "FALSE",
+        "_DOUBLEWRITE": "FALSE" if deploy_mode == "dbstore" else "TRUE",
         "TEMP_BUFFER_SIZE": "1G",
         "DATA_BUFFER_SIZE": "8G",
         "SHARED_POOL_SIZE": "1G",
@@ -212,7 +215,7 @@ class DefaultConfigValue(object):
         "INSTANCE_ID": 0,
         "INTERCONNECT_PORT": "1601",
         "LSNR_PORT": 1611,
-        "INTERCONNECT_TYPE": "UC" if deploy_mode == "--dbstore" else "TCP",
+        "INTERCONNECT_TYPE": "UC" if mes_type == "UC" and deploy_mode == "dbstore" else "TCP",
         "INTERCONNECT_BY_PROFILE": "FALSE",
         "INSTANCE_NAME": "cantian",
         "ENABLE_SYSDBA_LOGIN": "FALSE",
@@ -228,17 +231,29 @@ class DefaultConfigValue(object):
         "ENABLE_IDX_KEY_LEN_CHECK": "FALSE",
         "EMPTY_STRING_AS_NULL": "FALSE",
         "_CHECKPOINT_MERGE_IO": "FALSE",
+        "MYSQL_METADATA_IN_CANTIAN": "TRUE",
         "MES_SSL_SWITCH": "TRUE",
         "MES_SSL_KEY_PWD": None,
-        "MES_SSL_CRT_KEY_PATH": "/opt/cantian/certificate"
+        "MES_SSL_CRT_KEY_PATH": "/opt/cantian/certificate",
+        "KMC_KEY_FILES": None,
+        "MYSQL_DEPLOY_GROUP_ID": mysql_group_id
     }
+    MES_TCP_CONFIG = {
+        "MES_SSL_SWITCH": "TRUE",
+        "MES_SSL_KEY_PWD": None,
+        "MES_SSL_CRT_KEY_PATH": f"/mnt/dbdata/remote/share_{storage_share_fs}/certificates/node{node_id}",
+        "KMC_KEY_FILES": f"({PRIMARY_KEYSTORE}, {STANDBY_KEYSTORE})"
+    }
+    if mes_type == "TCP":
+        CANTIAND_CONFIG.update(MES_TCP_CONFIG)
+        CANTIAND_DBG_CONFIG.update(MES_TCP_CONFIG)
 
 
 class SingleNodeConfig(object):
 
     @staticmethod
-    def get_config(in_container=False):
-        if not in_container:
+    def get_config(cantian_in_container=False):
+        if not cantian_in_container:
             cantiand_cfg = DefaultConfigValue.CANTIAND_CONFIG
         else:
             cantiand_cfg = DefaultConfigValue.CANTIAND_DBG_CONFIG
@@ -248,12 +263,12 @@ class SingleNodeConfig(object):
 class ClusterNode0Config(object):
 
     @staticmethod
-    def get_config(in_container=False):
-        if not in_container:
+    def get_config(cantian_in_container=False):
+        if not cantian_in_container:
             cantiand_cfg = DefaultConfigValue.CANTIAND_CONFIG
         else:
             cantiand_cfg = DefaultConfigValue.CANTIAND_DBG_CONFIG
-        if in_container:
+        if cantian_in_container:
             cantiand_cfg["LSNR_ADDR"] = "127.0.0.1"
             cantiand_cfg["INTERCONNECT_ADDR"] = "192.168.86.1,192.168.86.2"
         cantiand_cfg["INTERCONNECT_PORT"] = "1601,1602"
@@ -263,12 +278,12 @@ class ClusterNode0Config(object):
 class ClusterNode1Config(object):
 
     @staticmethod
-    def get_config(in_container=False):
-        if not in_container:
+    def get_config(cantian_in_container=False):
+        if not cantian_in_container:
             cantiand_cfg = DefaultConfigValue.CANTIAND_CONFIG
         else:
             cantiand_cfg = DefaultConfigValue.CANTIAND_DBG_CONFIG
-        if in_container:
+        if cantian_in_container:
             cantiand_cfg["LSNR_ADDR"] = "127.0.0.1"
             cantiand_cfg["INTERCONNECT_ADDR"] = "192.168.86.1,192.168.86.2"
         cantiand_cfg["INSTANCE_ID"] = 1
@@ -334,7 +349,47 @@ def get_abs_path(_file):
 
 def check_path(path_type_in):
     path_len = len(path_type_in)
+    current_os = platform.system()
+    if current_os == "Linux":
+        system_check_linux(path_len, path_type_in)
+    elif current_os == "Windows":
+        system_check_windows(path_len, path_type_in)
+    else:
+        raise ValueError("Can not support this platform.")
+    return True
+
+
+def system_check_linux(path_len, path_type_in):
     i = 0
+    a_ascii, a_uppercase_ascii, blank_ascii, num0_ascii, num9_ascii, sep1_ascii, sep2_ascii,\
+        sep3_ascii, sep4_ascii, sep5_ascii, z_ascii, z_uppercase_ascii = check_ascii()
+    ascii_list = [blank_ascii, sep1_ascii, sep2_ascii, sep4_ascii, sep5_ascii]
+    for i in range(0, path_len):
+        char_check = ord(path_type_in[i])
+        if not (a_ascii <= char_check <= z_ascii
+                or a_uppercase_ascii <= char_check <= z_uppercase_ascii
+                or num0_ascii <= char_check <= num9_ascii
+                or char_check in ascii_list):
+            return False
+    return True
+
+
+def system_check_windows(path_len, path_type_in):
+    i = 0
+    a_ascii, a_uppercase_ascii, blank_ascii, num0_ascii, num9_ascii, sep1_ascii, sep2_ascii,\
+        sep3_ascii, sep4_ascii, sep5_ascii, z_ascii, z_uppercase_ascii = check_ascii()
+    ascii_list = [blank_ascii, sep1_ascii, sep2_ascii, sep3_ascii, sep4_ascii]
+    for i in range(0, path_len):
+        char_check = ord(path_type_in[i])
+        if not (a_ascii <= char_check <= z_ascii
+                or a_uppercase_ascii <= char_check <= z_uppercase_ascii
+                or num0_ascii <= char_check <= num9_ascii
+                or char_check in ascii_list):
+            return False
+    return True
+
+
+def check_ascii():
     a_ascii = ord('a')
     z_ascii = ord('z')
     a_uppercase_ascii = ord('A')
@@ -347,36 +402,11 @@ def check_path(path_type_in):
     sep3_ascii = ord(':')
     sep4_ascii = ord('-')
     sep5_ascii = ord('.')
-
-    current_os = platform.system()
-    if current_os == "Linux":
-        for i in range(0, path_len):
-            char_check = ord(path_type_in[i])
-            if(not (a_ascii <= char_check <= z_ascii
-                    or a_uppercase_ascii <= char_check <= z_uppercase_ascii
-                    or num0_ascii <= char_check <= num9_ascii
-                    or char_check == blank_ascii
-                    or char_check == sep1_ascii
-                    or char_check == sep2_ascii
-                    or char_check == sep4_ascii
-                    or char_check == sep5_ascii)):
-                return False
-    elif current_os == "Windows":
-        for i in range(0, path_len):
-            char_check = ord(path_type_in[i])
-            if(not (a_ascii <= char_check <= z_ascii
-                    or a_uppercase_ascii <= char_check <= z_uppercase_ascii
-                    or num0_ascii <= char_check <= num9_ascii
-                    or char_check == blank_ascii
-                    or char_check == sep1_ascii
-                    or char_check == sep2_ascii
-                    or char_check == sep3_ascii
-                    or char_check == sep4_ascii)):
-                return False
-    else:
-        print("Error: Can not support this platform.")
-        raise ValueError("Can not support this platform.")
-    return True
+    ascii_list = [
+        a_ascii, a_uppercase_ascii, blank_ascii, num0_ascii, num9_ascii, sep1_ascii, sep2_ascii,
+        sep3_ascii, sep4_ascii, sep5_ascii, z_ascii, z_uppercase_ascii
+    ]
+    return ascii_list
 
 
 def check_ssh_connection(ips):
@@ -607,19 +637,19 @@ class CommandTool(object):
             success_node.append(tmp_rs)
         return ret_code, success_node, failed_node
 
-    def expect_zsql(self, ip_cmd_map):
+    def expect_ctsql(self, ip_cmd_map):
         '''
-        expect execute zsql and sql command
+        expect execute ctsql and sql command
         '''
         pool = Pool(len(ip_cmd_map))
-        result = pool.map(self.__expect_zsql, ip_cmd_map)
+        result = pool.map(self.__expect_ctsql, ip_cmd_map)
         return self.__parse(result)
 
-    def __expect_zsql(self, arg):
+    def __expect_ctsql(self, arg):
         '''
         '''
         ip = arg[0]
-        zsql = arg[1]
+        ctsql = arg[1]
         sql = arg[2]
         passwd = arg[3]
         ssh_options = " -o ServerAliveInterval=100 "
@@ -631,7 +661,7 @@ class CommandTool(object):
             else:
                 process = Execution("%s" % self.bash)
 
-            process.send_line(zsql)
+            process.send_line(ctsql)
             if passwd:
                 process.expect(['Please enter password'])
                 process.send_line(passwd)
@@ -833,12 +863,12 @@ class Execution(object):
 
         if not self.is_alive():
             # if timeout is 0, means "poll"
-            rfds, _, _ = self.__select([self.child_fd], [], [], 0)
+            rfds, _, _ = self.select([self.child_fd], [], [], 0)
             if not rfds:
                 self.eof_flag = True
                 raise EOFException('End Of File (EOF). Braindead platform.')
 
-        rfds, _, _ = self.__select([self.child_fd], [], [], timeout)
+        rfds, _, _ = self.select([self.child_fd], [], [], timeout)
 
         if not rfds:
             if not self.is_alive():
@@ -917,6 +947,24 @@ class Execution(object):
             return False
 
         wait_pid_options = 0 if self.eof_flag else os.WNOHANG
+        child_pid, child_status = self.wait_child_process(wait_pid_options)
+
+        if child_pid == 0:
+            child_pid, child_status = self.wait_child_process(wait_pid_options)
+            if child_pid == 0:
+                return True
+
+        self.check_child_process(child_status)
+
+        return False
+
+    def check_child_process(self, child_status):
+        if os.WIFEXITED(child_status) or os.WIFSIGNALED(child_status):
+            self.is_terminated = True
+        elif os.WIFSTOPPED(child_status):
+            raise ExpectException('process already been stopped.')
+
+    def wait_child_process(self, wait_pid_options):
         try:
             child_pid, child_status = os.waitpid(self.child_pid, wait_pid_options)
         except OSError as error:
@@ -925,30 +973,7 @@ class Execution(object):
                 raise ExpectException('process already not exist.') from error
             else:
                 raise error
-
-        if child_pid == 0:
-            try:
-                child_pid, child_status = os.waitpid(self.child_pid,
-                                                   wait_pid_options)
-            except OSError as err:
-                # pragma: no cover
-                if err.errno == errno.ECHILD:
-                    raise ExpectException('process already not exist.') from err
-                else:
-                    raise
-
-            if child_pid == 0:
-                return True
-
-        if child_pid == 0:
-            return True
-
-        if os.WIFEXITED(child_status) or os.WIFSIGNALED(child_status):
-            self.is_terminated = True
-        elif os.WIFSTOPPED(child_status):
-            raise ExpectException('process already been stopped.')
-
-        return False
+        return child_pid, child_status
 
     def kill(self, sig):
         if self.is_alive():
@@ -1054,20 +1079,25 @@ class Execution(object):
         s_size = struct.pack('HHHH', rows, cols, 0, 0)
         fcntl.ioctl(self.fileno(), win_size, s_size)
 
-    def __select(self, inputs, outputs, errputs, timeout=None):
+    def select(self, inputs, outputs, errputs, timeout=None):
         if timeout:
             end_time = time.time() + timeout
         while True:
             try:
                 return select.select(inputs, outputs, errputs, timeout)
             except select.error as error:
-                if error.args[0] == errno.EINTR:
-                    if timeout is not None:
-                        timeout = end_time - time.time()
-                        if timeout < 0:
-                            return([], [], [])
-                else:
-                    raise
+                if self.error_msg(error, error, timeout, end_time):
+                    return [], [], []
+
+    def error_msg(self, error, timeout, end_time):
+        if error.args[0] == errno.EINTR:
+            if timeout is not None:
+                timeout = end_time - time.time()
+                if timeout < 0:
+                    return True
+            return False
+        else:
+            raise Exception("Time out error.")
 
 
 class RESearcher(object):

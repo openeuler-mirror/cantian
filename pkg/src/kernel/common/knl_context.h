@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -67,6 +67,8 @@ typedef struct st_knl_attr {
     uint32 max_map_nodes;  // max node count in map page
     uint32 max_sessions;
     uint32 db_block_checksum;
+
+    bool32 mysql_metadata_in_cantian;
 
     uint32 default_extents;
     uint32 buf_pool_num;
@@ -138,7 +140,7 @@ typedef struct st_knl_attr {
     uint32 repl_wait_timeout;
     uint32 build_keep_alive_timeout;
     uint16 repl_port;
-    char repl_trust_host[GS_HOST_NAME_BUFFER_SIZE * GS_MAX_LSNR_HOST_COUNT];
+    char repl_trust_host[CT_HOST_NAME_BUFFER_SIZE * CT_MAX_LSNR_HOST_COUNT];
     bool32 repl_auth; // default false, if true, check user and passwd in replication
     bool32 repl_scram_auth; // default false, if true, force user and passwd using complete rfc5802
     atomic_t repl_pkg_size;
@@ -163,26 +165,27 @@ typedef struct st_knl_attr {
     uint32 raft_log_level;
     uint32 raft_log_async_buffer_num;
     uint32 raft_failover_lib_timeout;
-    char raft_peer_ids[GS_HOST_NAME_BUFFER_SIZE];
-    char raft_local_addr[GS_HOST_NAME_BUFFER_SIZE];
-    char raft_peer_addrs[GS_RAFT_PEERS_BUFFER_SIZE];
-    char raft_kudu_dir[GS_FILE_NAME_BUFFER_SIZE];
-    char raft_priority_type[GS_FILE_NAME_BUFFER_SIZE];
-    char raft_priority_level[GS_FILE_NAME_BUFFER_SIZE];
-    char raft_layout_info[GS_FILE_NAME_BUFFER_SIZE];
-    char raft_pending_cmds_buffer_size[GS_MAX_NAME_LEN];
-    char raft_send_buffer_size[GS_MAX_NAME_LEN];
-    char raft_receive_buffer_size[GS_MAX_NAME_LEN];
-    char raft_tls_dir[GS_FILE_NAME_BUFFER_SIZE];
-    char raft_token_verify[GS_FILE_NAME_BUFFER_SIZE];
-    char raft_max_size_per_msg[GS_MAX_NAME_LEN];
-    char raft_entry_cache_memory_size[GS_MAX_NAME_LEN];
-    char raft_mem_threshold[GS_MAX_NAME_LEN];
-    char raft_election_timeout[GS_MAX_NAME_LEN];
+    char raft_peer_ids[CT_HOST_NAME_BUFFER_SIZE];
+    char raft_local_addr[CT_HOST_NAME_BUFFER_SIZE];
+    char raft_peer_addrs[CT_RAFT_PEERS_BUFFER_SIZE];
+    char raft_kudu_dir[CT_FILE_NAME_BUFFER_SIZE];
+    char raft_priority_type[CT_FILE_NAME_BUFFER_SIZE];
+    char raft_priority_level[CT_FILE_NAME_BUFFER_SIZE];
+    char raft_layout_info[CT_FILE_NAME_BUFFER_SIZE];
+    char raft_pending_cmds_buffer_size[CT_MAX_NAME_LEN];
+    char raft_send_buffer_size[CT_MAX_NAME_LEN];
+    char raft_receive_buffer_size[CT_MAX_NAME_LEN];
+    char raft_tls_dir[CT_FILE_NAME_BUFFER_SIZE];
+    char raft_token_verify[CT_FILE_NAME_BUFFER_SIZE];
+    char raft_max_size_per_msg[CT_MAX_NAME_LEN];
+    char raft_entry_cache_memory_size[CT_MAX_NAME_LEN];
+    char raft_mem_threshold[CT_MAX_NAME_LEN];
+    char raft_election_timeout[CT_MAX_NAME_LEN];
 
     uint32 ckpt_interval;
     uint32 ckpt_timeout;
     uint32 ckpt_io_capacity;
+    uint32 ckpt_group_size;
     bool32 ckpt_flush_neighbors;
 
     uint64 backup_buf_size;
@@ -209,11 +212,11 @@ typedef struct st_knl_attr {
     memory_area_t *shared_area;
     memory_pool_t *large_pool;
     config_t *config;
-    gs_timer_t *timer;
+    ct_timer_t *timer;
     log_sync_param_t sync_mode;
-    arch_attr_t arch_attr[GS_MAX_ARCH_DEST];
-    char pwd_alg[GS_NAME_BUFFER_SIZE];
-    char sys_pwd[GS_PASSWORD_BUFFER_SIZE];
+    arch_attr_t arch_attr[CT_MAX_ARCH_DEST];
+    char pwd_alg[CT_NAME_BUFFER_SIZE];
+    char sys_pwd[CT_PASSWORD_BUFFER_SIZE]; // encrypted data
     file_convert_t data_file_convert;
     file_convert_t log_file_convert;
     bool32 enable_resource_limit;
@@ -228,7 +231,7 @@ typedef struct st_knl_attr {
     uint64 stats_sample_size;
     bool32 idx_auto_recycle;
     bool32 idx_auto_rebuild;
-    uint32 idx_auto_rebuild_start_date; // total seconds from 00:00:00, invalid GS_INVALID_ID32
+    uint32 idx_auto_rebuild_start_date; // total seconds from 00:00:00, invalid CT_INVALID_ID32
     uint32 idx_recycle_percent;
     uint64 idx_recycle_size;
     uint32 idx_force_recycle_time;
@@ -264,7 +267,7 @@ typedef struct st_knl_attr {
     uint8 default_space_type;
     uint8 ctrllog_backup_level;
     uint8 default_compress_algo;
-    keyfile_item_t kmc_key_files[GS_KMC_MAX_KEYFILE_NUM];
+    keyfile_item_t kmc_key_files[CT_KMC_MAX_KEYFILE_NUM];
     uint64 lob_reuse_threshold;
     uint32 index_defer_recycle_time;
     uint32 page_clean_period;
@@ -274,7 +277,7 @@ typedef struct st_knl_attr {
     uint32 ckpt_timed_task_delay;
     bool32 restore_check_version;
     uint32 nbu_backup_timeout;
-    char db_version[GS_DB_NAME_LEN];
+    char db_version[CT_DB_NAME_LEN];
     bool32 check_sysdata_version;
     uint32 shrink_percent;
     uint32 stats_paraller_threads;
@@ -299,6 +302,7 @@ typedef struct st_knl_attr {
     bool32 backup_retry;
     uint32 batch_flush_capacity;
     bool32 enable_hwm_change;
+    bool32 enable_boc;
 } knl_attr_t;
 
 typedef struct st_sys_name_context {  // for system name
@@ -323,7 +327,7 @@ typedef struct st_encrypt_context {
 
 typedef struct st_dtc_attr {
     uint32    inst_id;
-    char gss_inst_path[GS_UNIX_PATH_MAX];
+    char ctstore_inst_path[CT_UNIX_PATH_MAX];
 }dtc_attr_t;
 
 typedef struct st_knl_instance {
@@ -363,6 +367,7 @@ typedef struct st_knl_instance {
     arch_context_t arch_ctx;
     bak_context_t backup_ctx;
     aligned_buf_t ddl_file_mgr;
+    aligned_buf_t badblock_file_mgr;
     index_area_t index_ctx;
     lsnd_context_t lsnd_ctx;
     lrpl_context_t lrpl_ctx;
@@ -393,19 +398,19 @@ typedef struct st_knl_instance {
 #endif
 
     uint32 temp_ctx_count;
-    vm_pool_t temp_pool[GS_MAX_BUF_POOL_NUM];
+    vm_pool_t temp_pool[CT_MAX_BUF_POOL_NUM];
 
     switch_ctrl_t switch_ctrl;
-    volatile bool32 record_backup_trigger[GS_MAX_PHYSICAL_STANDBY];
+    volatile bool32 record_backup_trigger[CT_MAX_PHYSICAL_STANDBY];
 
     uint32 reserved_sessions;
     atomic32_t running_sessions;
     atomic32_t assigned_sessions;
-    knl_session_t *sessions[GS_MAX_SESSIONS];
-    knl_rm_t *rms[GS_MAX_RMS];
+    knl_session_t *sessions[CT_MAX_SESSIONS];
+    knl_rm_t *rms[CT_MAX_RMS];
     uint32 rm_count;
-    char instance_name[GS_NAME_BUFFER_SIZE];
-    char alarm_log_dir[GS_MAX_PATH_BUFFER_SIZE];
+    char instance_name[CT_NAME_BUFFER_SIZE];
+    char alarm_log_dir[CT_MAX_PATH_BUFFER_SIZE];
 
     date_t db_startup_time;  // the time db startup
     gbp_attr_t gbp_attr;        // gbp config params
@@ -422,6 +427,7 @@ typedef struct st_knl_instance {
     ddl_exec_status_t set_dc_complete_status;
     uint32        id;   //instance id, id = 0 if under non-clustered mode
     thread_t file_iof_thd;
+    bool32 is_sql_server_initializing; // set true if sql server initializing
 } knl_instance_t;
 
 #define KNL_MAX_ROW_SIZE(session)     ((session)->kernel->attr.max_row_size)
@@ -447,7 +453,7 @@ static inline bool32 page_compress(knl_session_t *session, page_id_t page_id)
     datafile_t *df = DATAFILE_GET(session, page_id.file);
 
     if (!DATAFILE_IS_COMPRESS(df)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     /* compress datafile can be only added in bitmap tablespace */

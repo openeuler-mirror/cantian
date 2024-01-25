@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -38,6 +38,7 @@
 #include "cm_hash.h"
 #include "cm_hba.h"
 #include "cm_vma.h"
+#include "knl_defs_persistent.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -66,14 +67,14 @@ typedef uint64 knl_scn_t;
 #endif
 
 // gen scn with given seq
-#define KNL_TIMESEQ_TO_SCN(time_val, init_time, seq) GS_TIMESEQ_TO_SCN(time_val, init_time, seq)
+#define KNL_TIMESEQ_TO_SCN(time_val, init_time, seq) CT_TIMESEQ_TO_SCN(time_val, init_time, seq)
 
-#define KNL_SCN_TO_TIMESEQ(scn, time_val, seq, init_time) GS_SCN_TO_TIMESEQ(scn, time_val, seq, init_time)
+#define KNL_SCN_TO_TIMESEQ(scn, time_val, seq, init_time) CT_SCN_TO_TIMESEQ(scn, time_val, seq, init_time)
 
 // gen scn with 0x000 seq
-#define KNL_TIME_TO_SCN(time_val, init_time) GS_TIME_TO_SCN(time_val, init_time)
+#define KNL_TIME_TO_SCN(time_val, init_time) CT_TIME_TO_SCN(time_val, init_time)
 
-#define KNL_SCN_TO_TIME(scn, time_val, init_time) GS_SCN_TO_TIME(scn, time_val, init_time)
+#define KNL_SCN_TO_TIME(scn, time_val, init_time) CT_SCN_TO_TIME(scn, time_val, init_time)
 
 uint64 knl_current_scn(knl_handle_t session);
 uint64 knl_next_scn(knl_handle_t session);
@@ -84,99 +85,7 @@ void knl_scn_to_timeval(knl_handle_t session, knl_scn_t scn, timeval_t *time_val
 
 // Page ID type identify a physical position of a page
 #pragma pack(4)
-typedef union st_undo_page_id {
-    uint32 value;  // total size is 32 bit
-    struct {
-        uint32 file : 10;
-        uint32 page : 22;
-    };
-} undo_page_id_t;
-
-// Page list type
-typedef struct st_undo_page_list {
-    uint32 count;
-    undo_page_id_t first;
-    undo_page_id_t last;
-} undo_page_list_t;
-
-// Page list type
-typedef struct st_undo_rowid {
-    undo_page_id_t page_id;
-    uint16 slot;
-    uint16 aligned;
-} undo_rowid_t;
-
-typedef struct st_undo_page_info {
-    undo_rowid_t undo_rid; /* undo page */
-    uint32 undo_fs;        /* freespace of urid->page_id */
-    bool32 encrypt_enable; /* curr undo page can encrypt */
-    bool32 undo_log_encrypt; /* if redolog of curr undorow need encrypt */
-} undo_page_info_t;
-
-#define ROWID_FILE_BITS   10
-#define ROWID_PAGE_BITS   30
-#define ROWID_SLOT_BITS   12
-#define ROWID_UNUSED_BITS 12
-#define ROWID_VALUE_BITS  52
-
 #define INVALID_FILE_ID (uint32)((1 << ROWID_FILE_BITS) - 1)
-
-typedef union st_page_id {
-    uint32 vmid;
-    struct {
-        uint32 page;
-        uint16 file;
-        uint16 aligned;
-    };
-} page_id_t;
-
-// Page id buffer
-typedef char pagid_data_t[6];
-
-// Page list type
-typedef struct st_page_list {
-    uint32 count;
-    page_id_t first;
-    page_id_t last;
-} page_list_t;
-
-// Row ID type identify a physical position of a row
-typedef union st_rowid {
-    struct {
-        uint64 value : ROWID_VALUE_BITS;
-        uint64 unused1 : ROWID_UNUSED_BITS;
-    };
-
-    struct {
-        uint64 file : ROWID_FILE_BITS;  // file
-        uint64 page : ROWID_PAGE_BITS;  // page
-        uint64 slot : ROWID_SLOT_BITS;  // slot number
-        uint64 unused2 : ROWID_UNUSED_BITS;
-    };
-
-    struct {
-        uint64 vmid : 32;     // virtual memory page id, dynamic view item, ...
-        uint64 vm_slot : 16;  // slot of virtual memory page, sub item
-        uint64 vm_tag : 16;
-    };
-
-    struct {
-        uint32 tenant_id : 16;
-        uint32 curr_ts_num : 16;
-        uint32 ts_id;
-    };
-
-    struct {
-        uint32 group_id;
-        uint32 attr_id;
-    };
-
-    struct {
-        uint32 pos;
-        uint32 bucket_id : 16;
-        uint32 sub_id : 16;
-    };
-} rowid_t;
 #pragma pack()
 
 extern const text_t g_system;
@@ -217,7 +126,7 @@ extern const undo_rowid_t g_invalid_undo_rowid;
 #define IS_INVALID_ROWID(rowid) ((uint32)(rowid).file >= INVALID_FILE_ID)
 
 /* to decide whether the ROWID is an invalid temp-table rowid */
-#define IS_INVALID_TEMP_TABLE_ROWID(rowid) ((uint32)((rowid)->vmid == GS_INVALID_ID32))
+#define IS_INVALID_TEMP_TABLE_ROWID(rowid) ((uint32)((rowid)->vmid == CT_INVALID_ID32))
 
 #define IS_SAME_PAGID(id1, id2)          ((id1).page == (id2).page && (id1).file == (id2).file)
 #define IS_SAME_PAGID_BY_ROWID(id1, id2) ((id1).page == (id2).page && (id1).file == (id2).file)
@@ -292,15 +201,19 @@ typedef struct st_knl_drop_def {
     uint32 options;
     text_t ex_owner;
     text_t ex_name;
-    text_t old_parent_name; // for mysql copy, record the parent name for update sysconsdef
+    uint32 new_parent_id; // for mysql copy, record the parent id for update sysconsdef
+    uint32 new_user_id; // for cross user, record the new user id for update sysconsdef
 } knl_drop_def_t;
 
-#define IS_LOGGING_TABLE_BY_TYPE(type) ((type) != DICT_TYPE_TABLE_NOLOGGING)
+#define IS_LOGGING_TABLE_BY_TYPE(type) ((type) != DICT_TYPE_TABLE_NOLOGGING && (type) != DICT_TYPE_TEMP_TABLE_SESSION)
+#define IS_TEMPTABLE_HAS_REDO(session) (((knl_session_t *)(session))->rm->temp_has_redo)
 #define IS_TABLE_BY_TYPE(type)         ((type) >= DICT_TYPE_TABLE && (type) <= DICT_TYPE_TABLE_EXTERNAL)
 
 bool32 knl_is_lob_table(knl_dictionary_t *dc);
 status_t knl_open_dc(knl_handle_t session, text_t *user, text_t *name, knl_dictionary_t *dc);
 status_t knl_open_dc_if_exists(knl_handle_t handle, text_t *user_name, text_t *obj_name, knl_dictionary_t *dc,
+    bool32 *is_exists);
+status_t knl_open_dc_not_ltt(knl_handle_t handle, text_t *user_name, text_t *obj_name, knl_dictionary_t *dc,
     bool32 *is_exists);
 status_t knl_open_dc_with_public(knl_handle_t session, text_t *user, bool32 implicit_user, text_t *name,
     knl_dictionary_t *dc);
@@ -308,7 +221,7 @@ status_t knl_open_dc_with_public_ex(knl_handle_t session, text_t *user, bool32 i
     knl_dictionary_t *dc);
 status_t knl_open_seq_dc(knl_handle_t session, text_t *username, text_t *seqname, knl_dictionary_t *dc);
 status_t knl_open_dc_by_id(knl_handle_t handle, uint32 uid, uint32 oid, knl_dictionary_t *dc, bool32 excl_recycled);
-status_t knl_try_open_dc_by_id(knl_handle_t handle, uint32 uid, uint32 oid, knl_dictionary_t *dc);
+EXTER_ATTACK status_t knl_try_open_dc_by_id(knl_handle_t handle, uint32 uid, uint32 oid, knl_dictionary_t *dc);
 status_t knl_check_dc(knl_handle_t handle, knl_dictionary_t *dc);
 void knl_close_dc(knl_handle_t dc);
 status_t knl_open_dc_by_index(knl_handle_t se, text_t *owner, text_t *table, text_t *idx_name,
@@ -337,7 +250,7 @@ typedef enum en_compress_object_type {
 
 /*
 * CAUTION!!!: if add new type or modify old type's order,
-*             please modify sql_func.c/g_tab_type_tab synchronously
+*             please modify ctsql_func.c/g_tab_type_tab synchronously
 */
 typedef enum en_table_type {
     TABLE_TYPE_HEAP = 0,

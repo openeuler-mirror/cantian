@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_cluster_module.h"
 #include "dtc_database.h"
 #include "dtc_context.h"
 #include "dtc_dls.h"
@@ -41,17 +42,17 @@ status_t dtc_build_logfiles(knl_session_t *session, knl_database_def_t *def)
     for (i = 0; i < def->nodes.count; i++) {
         inst = cm_galist_get(&def->nodes, i);
         total_log_count += inst->logfiles.count;
-        if (total_log_count >= GS_MAX_LOG_FILES) {
-            GS_THROW_ERROR(ERR_TOO_MANY_OBJECTS, GS_MAX_LOG_FILES, "logfiles");
-            return GS_ERROR;
+        if (total_log_count >= CT_MAX_LOG_FILES) {
+            CT_THROW_ERROR(ERR_TOO_MANY_OBJECTS, CT_MAX_LOG_FILES, "logfiles");
+            return CT_ERROR;
         }
 
-        if (dbc_build_logfiles(session, &inst->logfiles, i) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dbc_build_logfiles(session, &inst->logfiles, i) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -68,21 +69,21 @@ status_t dtc_build_node_spaces(knl_session_t *session, knl_database_def_t *def)
         ctrl = dtc_get_ctrl(session, i);
 
         node->undo_space.extent_size = UNDO_EXTENT_SIZE;
-        node->undo_space.is_for_create_db = GS_FALSE;
-        if (spc_create_space(session, &node->undo_space, &ctrl->undo_space) != GS_SUCCESS) {
-            return GS_ERROR;
+        node->undo_space.is_for_create_db = CT_FALSE;
+        if (spc_create_space(session, &node->undo_space, &ctrl->undo_space) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-        node->swap_space.is_for_create_db = GS_FALSE;
-        if (spc_create_space(session, &node->swap_space, &ctrl->swap_space) != GS_SUCCESS) {
-            return GS_ERROR;
+        node->swap_space.is_for_create_db = CT_FALSE;
+        if (spc_create_space(session, &node->swap_space, &ctrl->swap_space) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-        node->temp_undo_space.is_for_create_db = GS_FALSE;
-        if (spc_create_space(session, &node->temp_undo_space, &ctrl->temp_undo_space) != GS_SUCCESS) {
-            return GS_ERROR;
+        node->temp_undo_space.is_for_create_db = CT_FALSE;
+        if (spc_create_space(session, &node->temp_undo_space, &ctrl->temp_undo_space) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 //initialize undo tablespace
@@ -92,35 +93,47 @@ status_t dtc_init_undo_spaces(knl_session_t *session, knl_database_def_t *def)
     dtc_node_ctrl_t *ctrl;
     undo_context_t *ctx = &session->kernel->undo_ctx;
     undo_set_t *undo_set = MY_UNDO_SET(session);
+    undo_set_t *temp_undo_set = MY_TEMP_UNDO_SET(session);
 
     for (uint32 i = 0; i < def->nodes.count; i++) {
         node = (dtc_node_def_t *)cm_galist_get(&def->nodes, i);
         ctrl = dtc_get_ctrl(session, i);
-        if (spc_get_space_id(session, &node->undo_space.name, GS_FALSE, &ctrl->undo_space) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_space_id(session, &node->undo_space.name, CT_FALSE, &ctrl->undo_space) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (undo_create(session, i, ctrl->undo_space, 0, UNDO_SEGMENT_COUNT(session)) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (undo_create(session, i, ctrl->undo_space, 0, UNDO_SEGMENT_COUNT(session)) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+
+        if (spc_get_space_id(session, &node->temp_undo_space.name, CT_FALSE, &ctrl->temp_undo_space) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+
+        if (temp_undo_create(session, i, ctrl->temp_undo_space, 0, UNDO_SEGMENT_COUNT(session)) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     ctx->space = undo_set->space;
     ctx->undos = undo_set->undos;
 
-    return GS_SUCCESS;
+    ctx->temp_space = temp_undo_set->space;
+    ctx->temp_undos = temp_undo_set->undos;
+
+    return CT_SUCCESS;
 }
 
 status_t dtc_save_all_ctrls(knl_session_t *session, uint32 count)
 {
     uint32 i;
     for (i = 0; i < count; i++) {
-        if (dtc_save_ctrl(session, i) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dtc_save_ctrl(session, i) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dtc_build_completed(knl_session_t *session)
@@ -133,20 +146,20 @@ status_t dtc_build_completed(knl_session_t *session)
         node_ctrl = dtc_get_ctrl(session, i);
         node_ctrl->scn = DB_CURR_SCN(session);
 
-        if (dtc_save_ctrl(session, i) != GS_SUCCESS) {
+        if (dtc_save_ctrl(session, i) != CT_SUCCESS) {
             CM_ABORT(0, "[DC] ABORT INFO: save node control file failed when load ex_systables");
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    core_ctrl->build_completed = GS_TRUE;
+    core_ctrl->build_completed = CT_TRUE;
 
-    if (db_save_core_ctrl(session) != GS_SUCCESS) {
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT(0, "[DC] ABORT INFO: save core control file failed when load ex_systables");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dtc_save_ctrl(knl_session_t *session, uint32 id)
@@ -160,23 +173,23 @@ status_t dtc_save_ctrl(knl_session_t *session, uint32 id)
         ctrlfile = &db->ctrlfiles.items[i];
 
         /* ctrlfile can be opened for a long time, closed in db_close_ctrl_files */
-        if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[DB] failed to open %s ", ctrlfile->name);
+        if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DB] failed to open %s ", ctrlfile->name);
             cm_spin_unlock(&db->ctrl_lock);
             CM_ABORT_REASONABLE(0, "[DB] ABORT INFO: save core control file failed when open device");
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (db_save_ctrl_page(session, ctrlfile, CTRL_LOG_SEGMENT + id) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[DB] failed to write %s ", ctrlfile->name);
+        if (db_save_ctrl_page(session, ctrlfile, CTRL_LOG_SEGMENT + id) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DB] failed to write %s ", ctrlfile->name);
             cm_spin_unlock(&db->ctrl_lock);
             CM_ABORT_REASONABLE(0, "[DB] ABORT INFO: save core control file failed");
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     cm_spin_unlock(&db->ctrl_lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dtc_read_node_ctrl(knl_session_t *session, uint8 node_id)
@@ -191,31 +204,31 @@ status_t dtc_read_node_ctrl(knl_session_t *session, uint8 node_id)
         ctrlfile = &db->ctrlfiles.items[i];
 
         /* ctrlfile can be opened for a long time, closed in db_close_ctrl_files */
-        if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[DB] failed to open %s ", ctrlfile->name);
+        if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DB] failed to open %s ", ctrlfile->name);
             continue;
         }
 
-        if (db_read_ctrl_page(session, ctrlfile, CTRL_LOG_SEGMENT + node_id) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[DB] failed to read %s ", ctrlfile->name);
+        if (db_read_ctrl_page(session, ctrlfile, CTRL_LOG_SEGMENT + node_id) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DB] failed to read %s ", ctrlfile->name);
             continue;
         }
 
         dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, node_id);
         uint32 start = db_get_log_ctrl_pageid(0, db->ctrl.log_segment, node_id);
         uint32 end = db_get_log_ctrl_pageid(ctrl->log_hwm, db->ctrl.log_segment, node_id);
-        if (db_read_log_page(session, ctrlfile, start, end) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[DB] failed to read %s ", ctrlfile->name);
+        if (db_read_log_page(session, ctrlfile, start, end) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DB] failed to read %s ", ctrlfile->name);
             continue;
         }
         // read ctrl successfully
         cm_spin_unlock(&db->ctrl_lock);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     cm_spin_unlock(&db->ctrl_lock);
-    GS_LOG_RUN_ERR("[DB] failed to read ctrl file for node %u ", node_id);
-    return GS_ERROR;
+    CT_LOG_RUN_ERR("[DB] failed to read ctrl file for node %u ", node_id);
+    return CT_ERROR;
 }
 
 void dtc_update_scn(knl_session_t *session, knl_scn_t lamport_scn)
@@ -318,8 +331,8 @@ status_t dtc_reset_log(knl_session_t *session, bool32 reset_recover, bool32 rese
     for (uint32 i = 0; i < g_dtc->profile.node_count; i++) {
         node_ctrl = dtc_get_ctrl(session, i);
         if (!LOG_POINT_LFN_EQUAL(&node_ctrl->rcy_point, &node_ctrl->lrp_point)) {
-            GS_THROW_ERROR(ERR_OPEN_RESETLOGS, node_ctrl->rcy_point.lfn, node_ctrl->lrp_point.lfn);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPEN_RESETLOGS, node_ctrl->rcy_point.lfn, node_ctrl->lrp_point.lfn);
+            return CT_ERROR;
         }
 
         file_set = LOGFILE_SET(session, i);
@@ -342,7 +355,7 @@ status_t dtc_reset_log(knl_session_t *session, bool32 reset_recover, bool32 rese
             node_ctrl->consistent_lfn = node_ctrl->rcy_point.lfn;
             node_ctrl->last_asn = node_ctrl->rcy_point.asn;
             node_ctrl->last_lfn = node_ctrl->rcy_point.lfn;
-            if (cm_dbs_is_enable_dbs() == GS_TRUE) {
+            if (cm_dbs_is_enable_dbs() == CT_TRUE) {
                 node_ctrl->rcy_point.block_id = 0;
             } else {
                 // write_pos is calcaulated by CM_CALC_ALIGN use sizeof(log_file_head_t) and block_size,
@@ -353,21 +366,21 @@ status_t dtc_reset_log(knl_session_t *session, bool32 reset_recover, bool32 rese
             node_ctrl->lrp_point = node_ctrl->rcy_point;
         }
 
-        GS_LOG_RUN_INF("[DTC RCY] reset log instance %u from point [%u][%u/%u/%llu/%llu][%llu][%u]",
+        CT_LOG_RUN_INF("[DTC RCY] reset log instance %u from point [%u][%u/%u/%llu/%llu][%llu][%u]",
                        i, node_ctrl->rcy_point.rst_id, node_ctrl->rcy_point.asn, node_ctrl->rcy_point.block_id,
                        (uint64)node_ctrl->rcy_point.lfn, node_ctrl->rcy_point.lsn, node_ctrl->lsn,
                        logfile->head.asn);
 
         if (reset_archive) {
-            err = memset_sp(core->archived_log, sizeof(arch_log_id_t) * GS_MAX_ARCH_DEST, 0,
-                            sizeof(arch_log_id_t) * GS_MAX_ARCH_DEST);
+            err = memset_sp(core->archived_log, sizeof(arch_log_id_t) * CT_MAX_ARCH_DEST, 0,
+                            sizeof(arch_log_id_t) * CT_MAX_ARCH_DEST);
             knl_securec_check(err);
         }
 
-        if (dtc_save_ctrl(session, i) != GS_SUCCESS) {
+        if (dtc_save_ctrl(session, i) != CT_SUCCESS) {
                 CM_ABORT(0, "[DB] ABORT INFO: save core control file failed when reset log.");
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "knl_cluster_module.h"
 #include "mes_func.h"
 #include "dtc_dls.h"
 #include "dtc_context.h"
@@ -31,40 +31,42 @@
 #include "dtc_tran.h"
 #include "dtc_trace.h"
 #include "dtc_dcs.h"
+#include "dtc_dc.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define GS_DLS_SPIN_COUNT   (3)
+#define CT_DLS_SPIN_COUNT   (3)
 
-static status_t dls_request_msg(knl_session_t *session, drid_t *id, uint8 dst_inst, uint32 cmd, drc_lock_mode_e mode,
-                                uint64 req_version)
+static status_t dls_request_msg(knl_session_t *session, drid_t *id, uint8 dst_inst, uint32 cmd,
+    drc_req_info_t *req_info, uint64 req_version)
 {
     msg_lock_req_t lock_req;
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     mes_message_t recv_msg = {0};
     uint8 src_inst = session->kernel->dtc_attr.inst_id;
-
+    uint8 mode = req_info->req_mode;
     DTC_DRC_DEBUG_INF(
         "[DRC][%u/%u/%u/%u/%u][request remote lock action]: cmd=%u, from sid:%d, to node %d, to satisfied mode:%d,",
         id->type, id->uid, id->id, id->idx, id->part, cmd, session->id, dst_inst, mode);
 
-    mes_init_send_head(&lock_req.head, cmd, sizeof(msg_lock_req_t), GS_INVALID_ID32, src_inst, dst_inst,
-                       session->id, GS_INVALID_ID16);
+    mes_init_send_head(&lock_req.head, cmd, sizeof(msg_lock_req_t), CT_INVALID_ID32, src_inst, dst_inst,
+                       session->id, CT_INVALID_ID16);
     lock_req.req_version = req_version;
     lock_req.lock_id = *id;
     lock_req.req_mode = mode;
+    lock_req.release_timeout_ticks = req_info->release_timeout_ticks;
     ret = dcs_send_data_retry(&lock_req);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DLS_DEBUG_ERR(
             "[DLS] send message to instance(%u) failed, type(%u) resource(%llu/%llu/%u) rsn(%u) errcode(%u)", dst_inst,
             cmd, id->key1, id->key2, id->key3, lock_req.head.rsn, ret);
         return ret;
     }
 
-    ret = mes_recv(session->id, &recv_msg, GS_FALSE, lock_req.head.rsn, DLS_WAIT_TIMEOUT);
-    if (ret != GS_SUCCESS || recv_msg.head->cmd == MES_CMD_ERROR_MSG) {
+    ret = mes_recv(session->id, &recv_msg, CT_FALSE, lock_req.head.rsn, DLS_WAIT_TIMEOUT);
+    if (ret != CT_SUCCESS || recv_msg.head->cmd == MES_CMD_ERROR_MSG) {
         DTC_DLS_DEBUG_ERR(
             "[DLS] receive message to instance(%u) failed, type(%u) resource(%llu/%llu/%u) rsn(%u) errcode(%u)",
             dst_inst, cmd, id->key1, id->key2, id->key3, lock_req.head.rsn, ret);
@@ -78,7 +80,7 @@ static status_t dls_request_msg(knl_session_t *session, drid_t *id, uint8 dst_in
         DTC_DLS_DEBUG_ERR("[DLS]reforming, request lock owner failed, req_version_ack=%llu, cur_version=%llu",
             req_version_ack, DRC_GET_CURR_REFORM_VERSION);
         mes_release_message_buf(recv_msg.buffer);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     ret = lock_ack->lock_status;
@@ -90,7 +92,7 @@ static status_t dls_request_msg(knl_session_t *session, drid_t *id, uint8 dst_in
 
 static status_t dls_send_msg(knl_session_t *session, drid_t *id, uint32 dst_inst, uint32 cmd)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     uint8    src_inst = session->kernel->dtc_attr.inst_id;
@@ -99,12 +101,12 @@ static status_t dls_send_msg(knl_session_t *session, drid_t *id, uint32 dst_inst
     knl_panic(send_msg != NULL);
     head = (mes_message_head_t*)send_msg;
 
-    mes_init_send_head(head, cmd, sizeof(mes_message_head_t) + sizeof(drid_t), GS_INVALID_ID32, src_inst, dst_inst,
-                       session->id, GS_INVALID_ID16);
+    mes_init_send_head(head, cmd, sizeof(mes_message_head_t) + sizeof(drid_t), CT_INVALID_ID32, src_inst, dst_inst,
+                       session->id, CT_INVALID_ID16);
     *((drid_t*)(send_msg + sizeof(mes_message_head_t))) = *id;
 
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         cm_pop(session->stack);
         DTC_DLS_DEBUG_ERR(
             "[DLS] single way send message to instance(%u) failed, type(%u) resource(%llu/%llu/%u) rsn(%u) errcode(%u)",
@@ -116,13 +118,13 @@ static status_t dls_send_msg(knl_session_t *session, drid_t *id, uint32 dst_inst
     return ret;
 }
 
-status_t dls_request_lock_msg(knl_session_t *session, drid_t *lock_id, uint8 dst_inst, uint32 cmd, drc_lock_mode_e mode,
-                              wait_event_t event, uint64 req_version)
+status_t dls_request_lock_msg(knl_session_t *session, drid_t *lock_id, uint8 dst_inst, uint32 cmd,
+    drc_req_info_t *req_info, wait_event_t event, uint64 req_version)
 {
-    status_t ret = GS_SUCCESS;
-    knl_try_begin_session_wait(session, event, GS_TRUE);
-    ret = dls_request_msg(session, lock_id, dst_inst, cmd, mode, req_version);
-    knl_try_end_session_wait(session, event);
+    status_t ret = CT_SUCCESS;
+    knl_begin_session_wait(session, event, CT_TRUE);
+    ret = dls_request_msg(session, lock_id, dst_inst, cmd, req_info, req_version);
+    knl_end_session_wait(session, event);
 
     return ret;
 }
@@ -145,10 +147,19 @@ status_t dls_process_unlock_table(knl_session_t *session, drid_t *lock_id, drc_l
     status_t status;
     uint32 timeout = session->kernel->attr.ddl_lock_timeout;
 
-    if (knl_open_dc_by_id(session, lock_id->uid, lock_id->id, &dc, GS_FALSE) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[DLS] process table lock(%u/%u/%u/%u/%u) failed, dc not found", lock_id->type, lock_id->uid,
+    if (knl_open_dc_by_id(session, lock_id->uid, lock_id->id, &dc, CT_FALSE) != CT_SUCCESS) {
+        // for table lock, master lock res not recycle, so master records grand_map is not correct,
+        // would let table which is not owner to release lock
+
+        if (drc_get_local_resx_without_create(lock_id) == NULL) {
+            CT_LOG_RUN_WAR("[DLS] process unlock table lock(%u/%u/%u/%u/%u) success, local lock res is been recycled",
+                lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
+            return CT_SUCCESS;
+        }
+
+        CT_LOG_RUN_ERR("[DLS] process table lock(%u/%u/%u/%u/%u) failed, dc not found", lock_id->type, lock_id->uid,
             lock_id->id, lock_id->idx, lock_id->part);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     entity = (dc_entity_t *)(dc.handle);
     entry = entity->entry;
@@ -161,14 +172,23 @@ status_t dls_process_unlock_table(knl_session_t *session, drid_t *lock_id, drc_l
         lock_item_t item;
         status = lock_try_lock_table_shared_local(session, entity, timeout, &item);
     }
-    if (status != GS_SUCCESS) {
+    if (status != CT_SUCCESS) {
         dc_close(&dc);
-        GS_LOG_RUN_ERR("[DLS] process release table lock(%u/%u/%u/%u/%u) table name %s, but lock local table failed.",
+        CT_LOG_RUN_ERR("[DLS] process release table lock(%u/%u/%u/%u/%u) table name %s, but lock local table failed.",
             lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, entry->name);
         return status;
     }
 
-    lock_res = drc_get_local_resx(lock_id);
+    lock_res = drc_get_local_resx_without_create(lock_id);
+    // for table lock, master lock res not recycle, so master records grand_map is not correct,
+    // would let table which is not owner to release lock
+    if (lock_res == NULL) {
+        unlock_table_local(session, entry, session->kernel->dtc_attr.inst_id);
+        dc_close(&dc);
+        CT_LOG_RUN_WAR("[DLS] process unlock table lock(%u/%u/%u/%u/%u) success, local lock res is been recycled",
+            lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
+        return CT_SUCCESS;
+    }
     drc_lock_local_resx(lock_res);
     drc_get_local_latch_statx(lock_res, &latch_stat);
 
@@ -187,25 +207,77 @@ status_t dls_process_unlock_table(knl_session_t *session, drid_t *lock_id, drc_l
         "[DLS] release successfully table lock(%u/%u/%u/%u/%u) table name %s, local mode:%d, for remote mode:%d",
         lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, entry->name, latch_stat->lock_mode,
         mode);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+status_t dls_broadcast_btree_split(knl_session_t *session, drid_t *lock_id, drc_lock_mode_e mode)
+{
+    // when split, it must req X model, if req S, it must not split, not to broadcast
+    // shadow_index not broadcast
+    if (mode == DRC_LOCK_SHARE || lock_id->is_shadow) {
+        return CT_SUCCESS;
+    }
+    if (lock_id->type != DR_TYPE_BTREE_LATCH && lock_id->type != DR_TYPE_BRTEE_PART_LATCH) {
+        return CT_SUCCESS;
+    }
+    knl_dictionary_t dc;
+    if (knl_try_open_dc_by_id(session, lock_id->uid, lock_id->id, &dc) != CT_SUCCESS) {
+        cm_reset_error();
+        DTC_DLS_DEBUG_ERR("[DLS] dc not found, failed to open dc user id %u, table id %u, index id %u", lock_id->uid,
+            lock_id->id, lock_id->idx);
+        return CT_SUCCESS;
+    }
+
+    dc_entity_t *entity = DC_ENTITY(&dc);
+    if (entity == NULL) {
+        cm_reset_error();
+        DTC_DLS_DEBUG_ERR("[DTC] btree entity is null, uid/table_id/index_id/part/parentpart:[%d-%d-%d-%u-%u-%d]",
+            lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, lock_id->parentpart, lock_id->is_shadow);
+        dc_close(&dc);
+        return CT_SUCCESS;
+    }
+    knl_part_locate_t part_loc;
+    part_loc.part_no = (lock_id->parentpart != CT_INVALID_ID32) ? lock_id->parentpart : lock_id->part;
+    part_loc.subpart_no = (lock_id->parentpart != CT_INVALID_ID32) ? lock_id->part : lock_id->parentpart;
+    btree_t *btree = dc_get_btree_by_id(session, entity, lock_id->idx, part_loc, lock_id->is_shadow);
+    if (btree != NULL && btree->is_splitting == CT_TRUE) {
+        DTC_DLS_DEBUG_ERR("[DLS] btree is spliting, owner release lock(%u/%u/%u/%u/%u) failed, ", lock_id->type,
+            lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
+        dc_close(&dc);
+        return CT_ERROR;
+    }
+    if (btree != NULL && btree->is_splitting == CT_FALSE) {
+        if (btree->pre_struct_ver != btree->struct_ver) {
+            dtc_broadcast_btree_split(session, btree, part_loc, CT_TRUE);
+            btree->pre_struct_ver = btree->struct_ver;
+        }
+    }
+    dc_close(&dc);
+    return CT_SUCCESS;
 }
 
 status_t dls_process_release_ownership(knl_session_t *session, drid_t *lock_id, drc_lock_mode_e mode,
-                                       uint64 req_version)
+                                       uint64 req_version, uint32 release_timeout_ticks)
 {
-    bool8  is_locked = GS_TRUE;
-    bool8  is_owner = GS_FALSE;
+    bool8  is_locked = CT_TRUE;
+    bool8  is_owner = CT_FALSE;
     drc_local_latch* latch_stat;
     drc_local_lock_res_t* lock_res;
+    uint32 times = 0;
 
     DTC_DLS_DEBUG_INF("[DLS] release lock(%u/%u/%u/%u/%u)", lock_id->type, lock_id->uid, lock_id->id, lock_id->idx,
                       lock_id->part);
 
     if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
-        GS_LOG_RUN_ERR("[DLS]reforming, owner release lock(%u/%u/%u/%u/%u) failed, req_version=%llu, cur_version=%llu",
+        CT_LOG_RUN_ERR("[DLS]reforming, owner release lock(%u/%u/%u/%u/%u) failed, req_version=%llu, cur_version=%llu",
             lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
             DRC_GET_CURR_REFORM_VERSION);
-        return GS_ERROR;
+        return CT_ERROR;
+    }
+
+    if (mode != DRC_LOCK_EXCLUSIVE && mode != DRC_LOCK_SHARE) {
+        CT_LOG_RUN_ERR("[DLS] invalid mode %d", mode);
+        return CT_ERROR;
     }
 
     if (lock_id->type == DR_TYPE_TABLE) {
@@ -213,38 +285,60 @@ status_t dls_process_release_ownership(knl_session_t *session, drid_t *lock_id, 
     }
 
     for (;;) {
-        lock_res = drc_get_local_resx(lock_id);
-
+        lock_res = drc_get_local_resx_without_create(lock_id);
+        if (lock_res == NULL) {
+            CT_LOG_RUN_WAR("[DLS] process unlock table lock(%u/%u/%u/%u/%u) success, local lock res is been recycled",
+                lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
+            return CT_SUCCESS;
+        }
         drc_lock_local_resx(lock_res);
         drc_get_local_lock_statx(lock_res, &is_locked, &is_owner);
         if (is_locked && (lock_id->type == DR_TYPE_SHUTDOWN)) {
             drc_unlock_local_resx(lock_res);
-            GS_LOG_RUN_WAR("[DLS] lock type is DR_TYPE_SHUTDOWN, do not wait for release");
-            return GS_ERROR;
+            CT_LOG_RUN_WAR("[DLS] lock type is DR_TYPE_SHUTDOWN, do not wait for release");
+            return CT_ERROR;
         }
+
+        if (release_timeout_ticks != CT_INVALID_ID32 && times >= release_timeout_ticks) {
+            drc_unlock_local_resx(lock_res);
+            CT_LOG_DEBUG_WAR("[DLS] release latch(%u/%u/%u/%u/%u) timeout", lock_id->type, lock_id->uid, lock_id->id,
+                lock_id->idx, lock_id->part);
+            return CT_ERROR;
+        }
+
         if (is_locked) {
             drc_unlock_local_resx(lock_res);
             //multi-times lock release ownership when cluster in fault env
             //knl_panic(is_owner);
             cm_spin_sleep();
+            times++;
             continue;
         }
 
         if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
-            GS_LOG_RUN_ERR("[DLS] reforming, owner release lock(%u/%u/%u/%u/%u) failed, req_version=%llu,"
+            CT_LOG_RUN_ERR("[DLS] reforming, owner release lock(%u/%u/%u/%u/%u) failed, req_version=%llu,"
                 "cur_version=%llu", lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
                 DRC_GET_CURR_REFORM_VERSION);
             drc_unlock_local_resx(lock_res);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         drc_get_local_latch_statx(lock_res, &latch_stat);
         drc_get_local_lock_statx(lock_res, &is_locked, &is_owner);
         if ((!is_locked && latch_stat->stat == LATCH_STATUS_IDLE) ||
             (latch_stat->stat == LATCH_STATUS_IX && latch_stat->shared_count == 0)) {
-            knl_panic(latch_stat->lock_mode != DRC_LOCK_NULL);
+            if (latch_stat->lock_mode == DRC_LOCK_NULL) {
+                CT_LOG_RUN_ERR("[DLS] release lock(%u/%u/%u/%u/%u) failed, invalid lock mode",
+                    lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
+                drc_unlock_local_resx(lock_res);
+                return CT_ERROR;
+            }
+            if (dls_broadcast_btree_split(session, lock_id, mode) != CT_SUCCESS) {
+                drc_unlock_local_resx(lock_res);
+                return CT_ERROR;
+            }
             if (mode == DRC_LOCK_EXCLUSIVE) {
                 latch_stat->lock_mode = DRC_LOCK_NULL;
-                drc_set_local_lock_statx(lock_res, GS_FALSE, GS_FALSE);
+                drc_set_local_lock_statx(lock_res, CT_FALSE, CT_FALSE);
             } else {
                 knl_panic(mode == DRC_LOCK_SHARE);
                 // knl_panic is unreasonable in this scenario, claim failed (only syncpoint trigger)
@@ -254,7 +348,7 @@ status_t dls_process_release_ownership(knl_session_t *session, drid_t *lock_id, 
                 // but, owner Lock mode has already S mode
                 // knl_panic(latch_stat->lock_mode == DRC_LOCK_EXCLUSIVE);
                 latch_stat->lock_mode = DRC_LOCK_SHARE;
-                drc_set_local_lock_statx(lock_res, GS_FALSE, GS_TRUE);
+                drc_set_local_lock_statx(lock_res, CT_FALSE, CT_TRUE);
             }
             drc_unlock_local_resx(lock_res);
             DTC_DLS_DEBUG_INF("[DLS] release spinlock(%u/%u/%u/%u/%u) successfully, curr mode:%d", lock_id->type,
@@ -265,14 +359,14 @@ status_t dls_process_release_ownership(knl_session_t *session, drid_t *lock_id, 
         cm_spin_sleep();
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dls_process_try_release_ownership(knl_session_t *session, drid_t *lock_id, drc_lock_mode_e mode,
                                            uint64 req_version)
 {
-    bool8  is_locked = GS_TRUE;
-    bool8  is_owner = GS_FALSE;
+    bool8  is_locked = CT_TRUE;
+    bool8  is_owner = CT_FALSE;
     uint32 times = 0;
     drc_local_latch *latch_stat;
     drc_local_lock_res_t *lock_res;
@@ -281,11 +375,16 @@ status_t dls_process_try_release_ownership(knl_session_t *session, drid_t *lock_
                       lock_id->part);
 
     if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
-        GS_LOG_RUN_ERR(
+        CT_LOG_RUN_ERR(
             "[DLS]reforming, owner try release lock(%u/%u/%u/%u/%u) failed, req_version=%llu, cur_version=%llu",
             lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
             DRC_GET_CURR_REFORM_VERSION);
-        return GS_ERROR;
+        return CT_ERROR;
+    }
+
+    if (mode != DRC_LOCK_EXCLUSIVE && mode != DRC_LOCK_SHARE) {
+        CT_LOG_RUN_ERR("[DLS] invalid mode %d", mode);
+        return CT_ERROR;
     }
 
     if (lock_id->type == DR_TYPE_TABLE) {
@@ -300,43 +399,48 @@ status_t dls_process_try_release_ownership(knl_session_t *session, drid_t *lock_
     }
 
     if (times >= 3) {
-        GS_LOG_DEBUG_WAR("[DLS] release spinlock(%u/%u/%u/%u/%u) timeout", lock_id->type, lock_id->uid, lock_id->id,
+        CT_LOG_DEBUG_WAR("[DLS] release spinlock(%u/%u/%u/%u/%u) timeout", lock_id->type, lock_id->uid, lock_id->id,
                          lock_id->idx, lock_id->part);
         return ERR_DLS_LOCK_TIMEOUT;
     }
 
     drc_lock_local_resx(lock_res);
     drc_get_local_latch_statx(lock_res, &latch_stat);
-    knl_panic(latch_stat->lock_mode != DRC_LOCK_NULL);
+    if (latch_stat->lock_mode == DRC_LOCK_NULL) {
+        CT_LOG_RUN_ERR("[DLS] release lock(%u/%u/%u/%u/%u) failed, invalid lock mode",
+            lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
+        drc_unlock_local_resx(lock_res);
+        return CT_ERROR;
+    }
     if (mode == DRC_LOCK_EXCLUSIVE) {
         latch_stat->lock_mode = DRC_LOCK_NULL;
-        drc_set_local_lock_statx(lock_res, GS_FALSE, GS_FALSE);
+        drc_set_local_lock_statx(lock_res, CT_FALSE, CT_FALSE);
     } else {
         knl_panic(mode == DRC_LOCK_SHARE);
         knl_panic(latch_stat->lock_mode == DRC_LOCK_EXCLUSIVE);
         latch_stat->lock_mode = DRC_LOCK_SHARE;
-        drc_set_local_lock_statx(lock_res, GS_FALSE, GS_TRUE);
+        drc_set_local_lock_statx(lock_res, CT_FALSE, CT_TRUE);
     }
     drc_unlock_local_resx(lock_res);
     DTC_DLS_DEBUG_INF("[DLS] release spinlock(%u/%u/%u/%u/%u) successfully", lock_id->type, lock_id->uid, lock_id->id,
                       lock_id->idx, lock_id->part);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dls_process_ask_master_for_lock(knl_session_t * session, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
-    uint8 owner_id = GS_INVALID_ID8;
-    bool32 is_granted = GS_FALSE;
+    status_t ret = CT_SUCCESS;
+    uint8 owner_id = CT_INVALID_ID8;
+    bool32 is_granted = CT_FALSE;
     uint8    self_id = g_dtc->kernel->dtc_attr.inst_id;
     msg_lock_req_t lock_req = *(msg_lock_req_t *)(receive_msg->buffer);
     drid_t  *lock_id = &lock_req.lock_id;
     uint64 req_version = lock_req.req_version;
     uint64 old_owner_map = 0;
-    if (lock_req.req_mode != DRC_LOCK_EXCLUSIVE || lock_req.head.src_inst >= GS_MAX_INSTANCES) {
-        GS_LOG_RUN_ERR("invalid reqmode %d or invalid src_inst %u", lock_req.req_mode, lock_req.head.src_inst);
-        return GS_ERROR;
+    if (lock_req.req_mode != DRC_LOCK_EXCLUSIVE || lock_req.head.src_inst >= CT_MAX_INSTANCES) {
+        CT_LOG_RUN_ERR("invalid reqmode %d or invalid src_inst %u", lock_req.req_mode, lock_req.head.src_inst);
+        return CT_ERROR;
     }
     // knl_panic(lock_req.req_mode == DRC_LOCK_EXCLUSIVE);
     drc_req_info_t req_info;
@@ -347,10 +451,11 @@ status_t dls_process_ask_master_for_lock(knl_session_t * session, mes_message_t 
     req_info.rsn = lock_req.head.rsn;
     req_info.req_time = lock_req.head.req_start_time;
     req_info.req_version = req_version;
-    req_info.lsn = GS_INVALID_ID64;
+    req_info.lsn = CT_INVALID_ID64;
+    req_info.release_timeout_ticks = lock_req.release_timeout_ticks;
 
     ret = drc_request_lock_owner(session, lock_id, &req_info, &is_granted, &old_owner_map, req_version);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DRC_DEBUG_ERR("[DLS] process drc request lock(%u/%u/%u/%u/%u) owner failed",
             lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
         return ret;
@@ -366,7 +471,7 @@ status_t dls_process_ask_master_for_lock(knl_session_t * session, mes_message_t 
             DTC_DLS_DEBUG_INF(
                 "[DLS] process drc request lock(%u/%u/%u/%u/%u) owner already exist, old_owner_map(%llu), self_id(%u)",
                 lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, old_owner_map, req_info.inst_id);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         //spinlock only have one owner
@@ -379,23 +484,24 @@ status_t dls_process_ask_master_for_lock(knl_session_t * session, mes_message_t 
 
         if (self_id == owner_id) {
             //master is the owner
-            ret = dls_process_release_ownership(session, lock_id, lock_req.req_mode, req_version);
+            ret = dls_process_release_ownership(session, lock_id, lock_req.req_mode, req_version,
+                lock_req.release_timeout_ticks);
         } else {
             //somebody is the owner
-            ret = dls_request_lock_msg(session, lock_id, owner_id, MES_CMD_RELEASE_LOCK, lock_req.req_mode,
+            ret = dls_request_lock_msg(session, lock_id, owner_id, MES_CMD_RELEASE_LOCK, &req_info,
                 DLS_REQ_LOCK, req_version);
         }
-        if (ret != GS_SUCCESS) {
+        if (ret != CT_SUCCESS) {
             //not claimed
             if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
-                GS_LOG_RUN_ERR("[DLS]reforming, process dls request master ask owner(%u) for"
+                CT_LOG_RUN_ERR("[DLS]reforming, process dls request master ask owner(%u) for"
                     "lock(%u/%u/%u/%u/%u) failed, req_version=%llu, cur_version=%llu",
                     owner_id, lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
                     DRC_GET_CURR_REFORM_VERSION);
                 return ret;
             }
             drc_cancel_lock_owner_request(req_info.inst_id, lock_id);
-            GS_LOG_RUN_ERR("[DLS] process dls request master ask owner(%u) to release lock(%u/%u/%u/%u/%u) failed",
+            CT_LOG_RUN_ERR("[DLS] process dls request master ask owner(%u) to release lock(%u/%u/%u/%u/%u) failed",
                 owner_id, lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
             return ret;
         }
@@ -406,18 +512,18 @@ status_t dls_process_ask_master_for_lock(knl_session_t * session, mes_message_t 
 
 status_t dls_process_ask_master_for_latch(knl_session_t * session, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
-    bool32 is_granted = GS_FALSE;
+    status_t ret = CT_SUCCESS;
+    bool32 is_granted = CT_FALSE;
     uint8    self_id = g_dtc->kernel->dtc_attr.inst_id;
     msg_lock_req_t lock_req = *(msg_lock_req_t *)(receive_msg->buffer);
     drid_t  *lock_id = &lock_req.lock_id;
     uint64 req_version = lock_req.req_version;
     uint64 old_owner_map = 0;
     drc_lock_mode_e mode = (receive_msg->head->cmd == MES_CMD_REQUEST_LATCH_S) ? DRC_LOCK_SHARE : DRC_LOCK_EXCLUSIVE;
-    if (lock_req.req_mode != mode || lock_req.head.src_inst >= GS_MAX_INSTANCES) {
-        GS_LOG_RUN_ERR("req_mode dismatch or invalid src_inst %u, req_mode %d, proc mode %d", lock_req.head.src_inst,
+    if (lock_req.req_mode != mode || lock_req.head.src_inst >= CT_MAX_INSTANCES) {
+        CT_LOG_RUN_ERR("req_mode dismatch or invalid src_inst %u, req_mode %d, proc mode %d", lock_req.head.src_inst,
             lock_req.req_mode, mode);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     // knl_panic(lock_req.req_mode == mode);
     drc_req_info_t req_info;
@@ -428,10 +534,11 @@ status_t dls_process_ask_master_for_latch(knl_session_t * session, mes_message_t
     req_info.rsn = lock_req.head.rsn;
     req_info.req_time = lock_req.head.req_start_time;
     req_info.req_version = req_version;
-    req_info.lsn = GS_INVALID_ID64;
+    req_info.lsn = CT_INVALID_ID64;
+    req_info.release_timeout_ticks = lock_req.release_timeout_ticks;
 
     ret = drc_request_lock_owner(session, lock_id, &req_info, &is_granted, &old_owner_map, req_version);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DRC_DEBUG_ERR("[DLS] process drc request latch(%u/%u/%u/%u/%u) owner failed",
             lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
         return ret;
@@ -449,24 +556,25 @@ status_t dls_process_ask_master_for_latch(knl_session_t * session, mes_message_t
             }
             //master is the owner
             if (self_id == i) {
-                ret = dls_process_release_ownership(session, lock_id, req_info.req_mode, req_version);
+                ret = dls_process_release_ownership(session, lock_id, req_info.req_mode, req_version,
+                    lock_req.release_timeout_ticks);
             } else {
                 //somebody is the owner,
                 //todo: batch operate need for performmance
-                ret = dls_request_lock_msg(session, lock_id, i, MES_CMD_RELEASE_LOCK, req_info.req_mode,
+                ret = dls_request_lock_msg(session, lock_id, i, MES_CMD_RELEASE_LOCK, &req_info,
                     DLS_REQ_LOCK, req_version);
             }
-            if (ret != GS_SUCCESS) {
+            if (ret != CT_SUCCESS) {
                 //not claimed
                 if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
-                    GS_LOG_RUN_ERR("[DLS]reforming, process dls request master ask owner(%u) for"
+                    CT_LOG_RUN_ERR("[DLS]reforming, process dls request master ask owner(%u) for"
                         "latch(%u/%u/%u/%u/%u) failed, req_version=%llu, cur_version=%llu",
                         i, lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
                         DRC_GET_CURR_REFORM_VERSION);
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
                 drc_cancel_lock_owner_request(req_info.inst_id, lock_id);
-                GS_LOG_RUN_ERR("[DLS] process dls request master ask owner(%u) to release latch(%u/%u/%u/%u/%u) failed",
+                CT_LOG_RUN_ERR("[DLS] process dls request master ask owner(%u) to release latch(%u/%u/%u/%u/%u) failed",
                     i, lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
                 return ret;
             }
@@ -482,17 +590,17 @@ status_t dls_process_ask_master_for_latch(knl_session_t * session, mes_message_t
 
 status_t dls_process_try_ask_master_for_lock(knl_session_t * session, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
-    uint8 owner_id = GS_INVALID_ID8;
-    bool32 is_granted = GS_FALSE;
+    status_t ret = CT_SUCCESS;
+    uint8 owner_id = CT_INVALID_ID8;
+    bool32 is_granted = CT_FALSE;
     uint8    self_id = g_dtc->kernel->dtc_attr.inst_id;
     msg_lock_req_t lock_req = *(msg_lock_req_t *)(receive_msg->buffer);
     drid_t  *lock_id = &lock_req.lock_id;
     uint64 req_version = lock_req.req_version;
     uint64 old_owner_map = 0;
-    if (lock_req.req_mode != DRC_LOCK_EXCLUSIVE || lock_req.head.src_inst >= GS_MAX_INSTANCES) {
-        GS_LOG_RUN_ERR("invalid reqmode %d or invalid src_inst %u", lock_req.req_mode, lock_req.head.src_inst);
-        return GS_ERROR;
+    if (lock_req.req_mode != DRC_LOCK_EXCLUSIVE || lock_req.head.src_inst >= CT_MAX_INSTANCES) {
+        CT_LOG_RUN_ERR("invalid reqmode %d or invalid src_inst %u", lock_req.req_mode, lock_req.head.src_inst);
+        return CT_ERROR;
     }
     // knl_panic(lock_req.req_mode == DRC_LOCK_EXCLUSIVE);
     drc_req_info_t req_info;
@@ -503,13 +611,13 @@ status_t dls_process_try_ask_master_for_lock(knl_session_t * session, mes_messag
     req_info.rsn = lock_req.head.rsn;
     req_info.req_time = lock_req.head.req_start_time;
     req_info.req_version = req_version;
-    req_info.lsn = GS_INVALID_ID64;
-
+    req_info.lsn = CT_INVALID_ID64;
+    req_info.release_timeout_ticks = lock_req.release_timeout_ticks;
     DTC_DLS_DEBUG_INF("[DLS] process drc try request lock (%u/%u/%u/%u/%u)",
         lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
     ret = drc_try_request_lock_owner(session, lock_id, &req_info, &is_granted, &old_owner_map, req_version);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20,
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20,
             "[DLS] process drc try request lock(%u/%u/%u/%u/%u) owner failed",
             lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
         return ret;
@@ -527,7 +635,7 @@ status_t dls_process_try_ask_master_for_lock(knl_session_t * session, mes_messag
             DTC_DLS_DEBUG_INF(
                 "[DLS] process drc try request lock (%u/%u/%u/%u/%u) owner already exist, old_owner_map(%llu), self_id(%u)",
                 lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, old_owner_map, req_info.inst_id);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         //spinlock only have one owner
@@ -543,19 +651,19 @@ status_t dls_process_try_ask_master_for_lock(knl_session_t * session, mes_messag
             ret = dls_process_try_release_ownership(session, lock_id, req_info.req_mode, req_version);
         } else {
             // somebody is the owner
-            ret = dls_request_lock_msg(session, lock_id, owner_id, MES_CMD_TRY_RELEASE_LOCK, req_info.req_mode,
+            ret = dls_request_lock_msg(session, lock_id, owner_id, MES_CMD_TRY_RELEASE_LOCK, &req_info,
                                        DLS_REQ_LOCK, req_version);
         }
-        if (ret != GS_SUCCESS) {
+        if (ret != CT_SUCCESS) {
             if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
-                GS_LOG_RUN_ERR("[DLS]reforming, process dls request master ask owner(%u) for"
+                CT_LOG_RUN_ERR("[DLS]reforming, process dls request master ask owner(%u) for"
                     "lock(%u/%u/%u/%u/%u) failed, req_version=%llu, cur_version=%llu",
                     owner_id, lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
                     DRC_GET_CURR_REFORM_VERSION);
                 return ret;
             }
             drc_cancel_lock_owner_request(req_info.inst_id, lock_id);
-            GS_LOG_DEBUG_WAR("[DLS] process dls master try ask owner(%u) to release lock(%u/%u/%u/%u/%u) failed",
+            CT_LOG_DEBUG_WAR("[DLS] process dls master try ask owner(%u) to release lock(%u/%u/%u/%u/%u) failed",
                              owner_id, lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
             return ret;
         }
@@ -577,7 +685,7 @@ static status_t dls_process_claim_ownership(knl_session_t *session, mes_message_
     claim_info.inst_sid = lock_req.head.src_sid;
     claim_info.mode = lock_req.req_mode;
 
-    return drc_claim_lock_owner(session, lock_id, &claim_info, lock_req.req_version, GS_FALSE);
+    return drc_claim_lock_owner(session, lock_id, &claim_info, lock_req.req_version, CT_FALSE);
 }
 
 status_t dls_process_clean_granted_map(knl_session_t * session, mes_message_t * receive_msg)
@@ -587,13 +695,13 @@ status_t dls_process_clean_granted_map(knl_session_t * session, mes_message_t * 
     uint8 inst_id = lock_req.head.src_inst;
     uint64 req_version = lock_req.req_version;
     if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
-        GS_LOG_DEBUG_ERR("[DLS]reforming, clean granted map failed, req_version=%llu, cur_version=%llu",
+        CT_LOG_DEBUG_ERR("[DLS]reforming, clean granted map failed, req_version=%llu, cur_version=%llu",
             req_version, DRC_GET_CURR_REFORM_VERSION);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (inst_id >= GS_MAX_INSTANCES) {
-        GS_LOG_DEBUG_ERR("[DLS]invalid src_inst %u", inst_id);
-        return GS_ERROR;
+    if (inst_id >= CT_MAX_INSTANCES) {
+        CT_LOG_DEBUG_ERR("[DLS]invalid src_inst %u", inst_id);
+        return CT_ERROR;
     }
     return dls_clean_granted_map(session, lock_id, inst_id);
 }
@@ -609,11 +717,16 @@ status_t dls_process_clean_granted_map(knl_session_t * session, mes_message_t * 
 
 void dls_process_lock_msg(void *sess, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
+    if (sizeof(msg_lock_req_t) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("process lock msg size is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     msg_lock_req_t lock_req = *(msg_lock_req_t *)(receive_msg->buffer);
     drid_t  *lock_id = &lock_req.lock_id;
     uint64 req_version = lock_req.req_version;
-    bool32 claim = GS_FALSE;
+    bool32 claim = CT_FALSE;
     uint8   cmd = MES_CMD_LOCK_ACK;
     knl_session_t *session = (knl_session_t *)sess;
 
@@ -625,22 +738,23 @@ void dls_process_lock_msg(void *sess, mes_message_t * receive_msg)
         case MES_CMD_REQUEST_LOCK:
             //master receive message, so need to grant the lock to caller
             ret = dls_process_ask_master_for_lock(session, receive_msg);
-            claim = GS_TRUE;
+            claim = CT_TRUE;
             break;
         case MES_CMD_REQUEST_LATCH_S:
             // go through
         case MES_CMD_REQUEST_LATCH_X:
             ret = dls_process_ask_master_for_latch(session, receive_msg);
-            claim = GS_TRUE;
+            claim = CT_TRUE;
             break;
         case MES_CMD_TRY_REQUEST_LOCK:
             //master receive message, so need to grant the lock to caller
             ret = dls_process_try_ask_master_for_lock(session, receive_msg);
-            claim = GS_TRUE;
+            claim = CT_TRUE;
             break;
         case MES_CMD_RELEASE_LOCK:
             //owner receive message, others want the spinlock ownership, so i should release the ownership
-            ret = dls_process_release_ownership(session, lock_id, lock_req.req_mode, req_version);
+            ret = dls_process_release_ownership(session, lock_id, lock_req.req_mode, req_version,
+                lock_req.release_timeout_ticks);
             break;
         case MES_CMD_TRY_RELEASE_LOCK:
             ret = dls_process_try_release_ownership(session, lock_id, lock_req.req_mode, req_version);
@@ -659,27 +773,27 @@ void dls_process_lock_msg(void *sess, mes_message_t * receive_msg)
         //     return;
         default:
             //temp errorcode
-            GS_LOG_RUN_ERR("invalidate lock command(%d)", receive_msg->head->cmd);
+            CT_LOG_RUN_ERR("invalidate lock command(%d)", receive_msg->head->cmd);
             ret = ERR_DLS_INVALID_CMD;
     }
 
-    if (claim && ret == GS_SUCCESS) {
+    if (claim && ret == CT_SUCCESS) {
         ret = dls_process_claim_ownership(session, receive_msg);
-        if (ret != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[DLS] process drc claim lock(%u/%u/%u/%u/%u) owner failed, ins_id(%u)",
+        if (ret != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DLS] process drc claim lock(%u/%u/%u/%u/%u) owner failed, ins_id(%u)",
                 lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, receive_msg->head->src_inst);
         }
     }
 
     msg_lock_ack_t lock_ack;
 
-    mes_init_ack_head(&lock_req.head, &lock_ack.head, cmd, sizeof(msg_lock_ack_t), GS_INVALID_ID16);
+    mes_init_ack_head(&lock_req.head, &lock_ack.head, cmd, sizeof(msg_lock_ack_t), CT_INVALID_ID16);
     lock_ack.lock_status = ret;
     lock_ack.req_version = req_version;
     mes_release_message_buf(receive_msg->buffer);
 
     ret = dcs_send_data_retry(&lock_ack);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         //log or abort
         //knl_panic(0);
         DTC_DLS_DEBUG_ERR("[DLS] process ack message send back failed, msg type(%u),resource id(%u/%u/%u/%u/%u), errorcode(%u)",
@@ -691,10 +805,10 @@ void dls_process_lock_msg(void *sess, mes_message_t * receive_msg)
 
 status_t dls_request_lock(knl_session_t *session, drid_t *lock_id, drc_req_info_t *req_info, uint32 cmd)
 {
-    status_t ret = GS_SUCCESS;
-    uint8    master_id = GS_INVALID_ID8;
+    status_t ret = CT_SUCCESS;
+    uint8    master_id = CT_INVALID_ID8;
     uint8    self_id = session->kernel->dtc_attr.inst_id;
-    bool32 is_granted = GS_FALSE;
+    bool32 is_granted = CT_FALSE;
     uint64 old_owner_map = 0;
 
     drc_get_lock_master_id(lock_id, &master_id);
@@ -703,10 +817,10 @@ status_t dls_request_lock(knl_session_t *session, drid_t *lock_id, drc_req_info_
                       lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_info->req_mode, req_info->inst_id,
                       req_info->inst_sid);
     if (master_id == self_id) {
-        SYNC_POINT_GLOBAL_START(CANTIAN_DLS_REQUEST_LOCK_OWNER_FAIL, &ret, GS_ERROR);
+        SYNC_POINT_GLOBAL_START(CANTIAN_DLS_REQUEST_LOCK_OWNER_FAIL, &ret, CT_ERROR);
         ret = drc_request_lock_owner(session, lock_id, req_info, &is_granted, &old_owner_map, req_version);
         SYNC_POINT_GLOBAL_END;
-        if (ret != GS_SUCCESS) {
+        if (ret != CT_SUCCESS) {
             DTC_DRC_DEBUG_ERR("[DLS] drc request lock(%u/%u/%u/%u/%u) owner failed",
                 lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
             return ret;
@@ -722,15 +836,16 @@ status_t dls_request_lock(knl_session_t *session, drid_t *lock_id, drc_req_info_
                     if (self_id == i) {
                         continue; //latch condition, if latch s->i->x or x->i->s, we have get owner yet
                     }
-                    SYNC_POINT_GLOBAL_START(CANTIAN_DLS_REQUEST_LOCK_MSG_SEND_FAIL, &ret, GS_ERROR);
-                    ret = dls_request_lock_msg(session, lock_id, i, MES_CMD_RELEASE_LOCK, req_info->req_mode,
+                    SYNC_POINT_GLOBAL_START(CANTIAN_DLS_REQUEST_LOCK_MSG_SEND_FAIL, &ret, CT_ERROR);
+                    ret = dls_request_lock_msg(session, lock_id, i, MES_CMD_RELEASE_LOCK, req_info,
                                                DLS_REQ_LOCK, req_version);
                     SYNC_POINT_GLOBAL_END;
-                    if (ret != GS_SUCCESS) {
+                    if (ret != CT_SUCCESS) {
                         // todo: tell master lock failed and go next, not claim
                         drc_cancel_lock_owner_request(self_id, lock_id);
-                        GS_LOG_RUN_ERR("[DLS] dls request master ask owner(%u) to release lock(%u/%u/%u/%u/%u) failed",
-                            i, lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
+                        DTC_DRC_DEBUG_ERR(
+                            "[DLS] dls request master ask owner(%u) to release lock(%u/%u/%u/%u/%u) failed", i,
+                            lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
                         return ret;
                     }
                     if (req_info->req_mode == DRC_LOCK_EXCLUSIVE) {
@@ -754,22 +869,22 @@ status_t dls_request_lock(knl_session_t *session, drid_t *lock_id, drc_req_info_
         SYNC_POINT_GLOBAL_START(CANTIAN_DLS_CLAIM_LOCK_OWNER_BEFORE_ABORT, NULL, 0);
         SYNC_POINT_GLOBAL_END;
 
-        SYNC_POINT_GLOBAL_START(CANTIAN_DLS_CLAIM_LOCK_OWNER_FAIL, &ret, GS_ERROR);
-        ret = drc_claim_lock_owner(session, lock_id, &claim_info, req_version, GS_FALSE);
+        SYNC_POINT_GLOBAL_START(CANTIAN_DLS_CLAIM_LOCK_OWNER_FAIL, &ret, CT_ERROR);
+        ret = drc_claim_lock_owner(session, lock_id, &claim_info, req_version, CT_FALSE);
         SYNC_POINT_GLOBAL_END;
-        if (ret != GS_SUCCESS) {
+        if (ret != CT_SUCCESS) {
             drc_cancel_lock_owner_request(self_id, lock_id);
-            GS_LOG_RUN_ERR("[DLS] drc claim lock(%u/%u/%u/%u/%u) owner failed, ins_id(%u)",
+            CT_LOG_RUN_ERR("[DLS] drc claim lock(%u/%u/%u/%u/%u) owner failed, ins_id(%u)",
                 lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, self_id);
         }
         SYNC_POINT_GLOBAL_START(CANTIAN_DLS_CLAIM_LOCK_OWNER_SUCC_ABORT, NULL, 0);
         SYNC_POINT_GLOBAL_END;
     } else {
-        SYNC_POINT_GLOBAL_START(CANTIAN_DLS_REQUEST_LOCK_MSG_SEND_FAIL, &ret, GS_ERROR);
-        ret = dls_request_lock_msg(session, lock_id, master_id, cmd, req_info->req_mode, DLS_REQ_LOCK, req_version);
+        SYNC_POINT_GLOBAL_START(CANTIAN_DLS_REQUEST_LOCK_MSG_SEND_FAIL, &ret, CT_ERROR);
+        ret = dls_request_lock_msg(session, lock_id, master_id, cmd, req_info, DLS_REQ_LOCK, req_version);
         SYNC_POINT_GLOBAL_END;
-        if (ret != GS_SUCCESS) {
-            GS_LOG_DEBUG_ERR("[DLS] dls request lock(%u/%u/%u/%u/%u) owner from master(%u) failed", lock_id->type,
+        if (ret != CT_SUCCESS) {
+            CT_LOG_DEBUG_ERR("[DLS] dls request lock(%u/%u/%u/%u/%u) owner from master(%u) failed", lock_id->type,
                 lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, master_id);
             return ret;
         }
@@ -785,7 +900,7 @@ status_t dls_request_lock(knl_session_t *session, drid_t *lock_id, drc_req_info_
 
 static void dls_request_spin_lock(knl_session_t *session, drid_t *lock_id)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint32 spin_times = 0;
     drc_req_info_t req_info;
 
@@ -797,20 +912,21 @@ static void dls_request_spin_lock(knl_session_t *session, drid_t *lock_id)
         req_info.rsn = mes_get_rsn(session->id);
         req_info.req_time = KNL_NOW(session);
         req_info.req_version = DRC_GET_CURR_REFORM_VERSION;
-        req_info.lsn = GS_INVALID_ID64;
+        req_info.lsn = CT_INVALID_ID64;
+        req_info.release_timeout_ticks = CT_INVALID_ID32;
         ret = dls_request_lock(session, lock_id, &req_info, MES_CMD_REQUEST_LOCK);
-        if (ret == GS_SUCCESS) {
+        if (ret == CT_SUCCESS) {
             break;
         }
 #ifndef WIN32
         fas_cpu_pause();
 #endif  // !WIN32
         spin_times++;
-        if (SECUREC_UNLIKELY(spin_times == GS_DLS_SPIN_COUNT)) {
+        if (SECUREC_UNLIKELY(spin_times == CT_DLS_SPIN_COUNT)) {
             cm_spin_sleep();
             spin_times = 0;
         }
-    } while (GS_TRUE);
+    } while (CT_TRUE);
 
     return;
 }
@@ -818,11 +934,12 @@ static void dls_request_spin_lock(knl_session_t *session, drid_t *lock_id)
 void dls_spin_lock(knl_session_t *session, drlock_t * dlock, spin_statis_t *stat)
 {
     database_t *db = &session->kernel->db;
-    bool8  is_locked = GS_FALSE;
-    bool8  is_owner = GS_FALSE;
+    bool8  is_locked = CT_FALSE;
+    bool8  is_owner = CT_FALSE;
     drc_local_lock_res_t *lock_res;
     drc_local_latch *latch_stat = NULL;
 
+    /* CODE_REVIEW muting 00198166 2019-8-17: is this status really fine ?? */
     if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlock->drid.type != DR_TYPE_INVALID);
         lock_res = drc_get_local_resx(&dlock->drid);
@@ -837,7 +954,7 @@ void dls_spin_lock(knl_session_t *session, drlock_t * dlock, spin_statis_t *stat
             dls_request_spin_lock(session, &dlock->drid);
         }
         latch_stat->lock_mode = DRC_LOCK_EXCLUSIVE;
-        drc_set_local_lock_statx(lock_res, GS_TRUE, GS_TRUE);
+        drc_set_local_lock_statx(lock_res, CT_TRUE, CT_TRUE);
     } else {
         cm_spin_lock(&dlock->lock, stat);
     }
@@ -847,10 +964,10 @@ void dls_spin_lock(knl_session_t *session, drlock_t * dlock, spin_statis_t *stat
 
 status_t dls_try_request_lock(knl_session_t *session, drid_t *lock_id, wait_event_t event)
 {
-    status_t ret = GS_SUCCESS;
-    uint8    master_id = GS_INVALID_ID8;
+    status_t ret = CT_SUCCESS;
+    uint8    master_id = CT_INVALID_ID8;
     uint8    self_id = session->kernel->dtc_attr.inst_id;
-    bool32 is_granted = GS_FALSE;
+    bool32 is_granted = CT_FALSE;
     uint64 old_owner_map = 0;
     uint64 req_version = DRC_GET_CURR_REFORM_VERSION;
     drc_get_lock_master_id(lock_id, &master_id);
@@ -863,11 +980,12 @@ status_t dls_try_request_lock(knl_session_t *session, drid_t *lock_id, wait_even
     req_info.rsn = mes_get_rsn(session->id);
     req_info.req_time = KNL_NOW(session);
     req_info.req_version = DRC_GET_CURR_REFORM_VERSION;
-    req_info.lsn = GS_INVALID_ID64;
+    req_info.lsn = CT_INVALID_ID64;
+    req_info.release_timeout_ticks = CT_INVALID_ID32;
 
     if (master_id == self_id) {
         ret = drc_try_request_lock_owner(session, lock_id, &req_info, &is_granted, &old_owner_map, req_version);
-        if (ret != GS_SUCCESS) {
+        if (ret != CT_SUCCESS) {
             DTC_DLS_DEBUG_ERR("[DLS] drc try request lock(%u/%u/%u/%u/%u) owner failed",
                 lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
             return ret;
@@ -881,16 +999,16 @@ status_t dls_try_request_lock(knl_session_t *session, drid_t *lock_id, wait_even
                 drc_cancel_lock_owner_request(self_id, lock_id);
                 DTC_DLS_DEBUG_ERR("[DLS] drc try request lock(%u/%u/%u/%u/%u) owner error, old_owner_map(%llu), self_id(%u)",
                     lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, old_owner_map, self_id);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             //spinlock only have one owner
             for (int32 i = 0; i < g_mes.profile.inst_count; i++) {
                 if (drc_bitmap64_exist(&old_owner_map, i)) {
-                    ret = dls_request_lock_msg(session, lock_id, i, MES_CMD_TRY_RELEASE_LOCK, req_info.req_mode, event,
+                    ret = dls_request_lock_msg(session, lock_id, i, MES_CMD_TRY_RELEASE_LOCK, &req_info, event,
                                                req_version);
-                    if (ret != GS_SUCCESS) {
+                    if (ret != CT_SUCCESS) {
                         //lock failed
-                        //GS_THROW_ERROR(ret, lock_id->type, lock_id->id);
+                        //CT_THROW_ERROR(ret, lock_id->type, lock_id->id);
                         DTC_DLS_DEBUG_ERR("[DLS] dls request master ask owner(%u) to release lock(%u/%u/%u/%u/%u) failed, errcode(%u)",
                             i, lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, ret);
                         // todo: tell master lock failed and go next
@@ -906,18 +1024,18 @@ status_t dls_try_request_lock(knl_session_t *session, drid_t *lock_id, wait_even
         claim_info.inst_sid = session->id;
         claim_info.mode = req_info.req_mode;
 
-        ret = drc_claim_lock_owner(session, lock_id, &claim_info, req_version, GS_FALSE);
-        if (ret != GS_SUCCESS) {
+        ret = drc_claim_lock_owner(session, lock_id, &claim_info, req_version, CT_FALSE);
+        if (ret != CT_SUCCESS) {
             drc_cancel_lock_owner_request(self_id, lock_id);
             DTC_DLS_DEBUG_ERR("[DLS] drc claim lock(%u/%u/%u/%u/%u) owner failed, ins_id(%u)",
                 lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, self_id);
         }
     } else {
-        ret = dls_request_lock_msg(session, lock_id, master_id, MES_CMD_TRY_REQUEST_LOCK, req_info.req_mode, event,
+        ret = dls_request_lock_msg(session, lock_id, master_id, MES_CMD_TRY_REQUEST_LOCK, &req_info, event,
                                    req_version);
-        if (ret != GS_SUCCESS) {
+        if (ret != CT_SUCCESS) {
             //lock failed
-            //GS_THROW_ERROR(ret, lock_id->type, lock_id->id);
+            //CT_THROW_ERROR(ret, lock_id->type, lock_id->id);
             DTC_DLS_DEBUG_ERR("[DLS] dls request lock(%u/%u/%u/%u/%u) owner from master(%u) failed, errcode(%u)",
                 lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, master_id, ret);
             //todo: if the cancle message failed, master will always do converting, maybe master should suppory re-enter
@@ -930,10 +1048,10 @@ status_t dls_try_request_lock(knl_session_t *session, drid_t *lock_id, wait_even
 
 bool32 dls_do_spin_try_lock(knl_session_t *session, drlock_t * dlock, wait_event_t event)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     database_t *db = &session->kernel->db;
-    bool8  is_locked = GS_FALSE;
-    bool8 is_owner = GS_FALSE;
+    bool8  is_locked = CT_FALSE;
+    bool8 is_owner = CT_FALSE;
     drc_local_lock_res_t *lock_res;
     drc_local_latch *latch_stat = NULL;
 
@@ -945,7 +1063,7 @@ bool32 dls_do_spin_try_lock(knl_session_t *session, drlock_t * dlock, wait_event
         if (is_locked) {
             DTC_DLS_DEBUG_INF("[DLS] try add spinlock(%u/%u/%u/%u/%u), owner(%u) is locked",
                 dlock->drid.type, dlock->drid.uid, dlock->drid.id, dlock->drid.idx, dlock->drid.part, is_owner);
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         if (drc_try_lock_local_resx(lock_res)) {
@@ -955,22 +1073,22 @@ bool32 dls_do_spin_try_lock(knl_session_t *session, drlock_t * dlock, wait_event
                 dlock->drid.type, dlock->drid.uid, dlock->drid.id, dlock->drid.idx, dlock->drid.part, is_owner);
             if (!is_owner) {
                 ret = dls_try_request_lock(session, &dlock->drid, event);
-                if (ret != GS_SUCCESS) {
+                if (ret != CT_SUCCESS) {
                     latch_stat->lock_mode = DRC_LOCK_NULL;
-                    drc_set_local_lock_statx(lock_res, GS_FALSE, GS_FALSE);
+                    drc_set_local_lock_statx(lock_res, CT_FALSE, CT_FALSE);
                     drc_unlock_local_resx(lock_res);
                     DTC_DLS_DEBUG_INF("[DLS] try add spinlock(%u/%u/%u/%u/%u) failed, ret(%u)",
                         dlock->drid.type, dlock->drid.uid, dlock->drid.id, dlock->drid.idx, dlock->drid.part, ret);
-                    return GS_FALSE;
+                    return CT_FALSE;
                 }
             }
             latch_stat->lock_mode = DRC_LOCK_EXCLUSIVE;
-            drc_set_local_lock_statx(lock_res, GS_TRUE, GS_TRUE);
-            return GS_TRUE;
+            drc_set_local_lock_statx(lock_res, CT_TRUE, CT_TRUE);
+            return CT_TRUE;
         } else {
             DTC_DLS_DEBUG_INF("[DLS] try add spinlock(%u/%u/%u/%u/%u), local resource is locked",
                 dlock->drid.type, dlock->drid.uid, dlock->drid.id, dlock->drid.idx, dlock->drid.part);
-            return GS_FALSE;
+            return CT_FALSE;
         }
     } else {
         return cm_spin_try_lock(&dlock->lock);
@@ -985,8 +1103,8 @@ bool32 dls_spin_try_lock(knl_session_t *session, drlock_t * dlock)
 static void dls_request_spin_unlock(knl_session_t *session, drc_local_lock_res_t *lock_res)
 {
 #ifdef DB_DEBUG_VERSION
-    bool8  is_locked = GS_FALSE;
-    bool8  is_owner = GS_FALSE;
+    bool8  is_locked = CT_FALSE;
+    bool8  is_owner = CT_FALSE;
     drc_local_latch *latch_stat = NULL;
     //check dls spinlock valid in debug
 
@@ -995,7 +1113,7 @@ static void dls_request_spin_unlock(knl_session_t *session, drc_local_lock_res_t
     knl_panic(is_owner);
     knl_panic(latch_stat->lock_mode == DRC_LOCK_EXCLUSIVE);
 #endif
-    drc_set_local_lock_statx(lock_res, GS_FALSE, GS_TRUE);
+    drc_set_local_lock_statx(lock_res, CT_FALSE, CT_TRUE);
     return;
 }
 
@@ -1012,19 +1130,19 @@ bool32 dls_spin_timed_lock(knl_session_t *session, drlock_t * dlock, uint32 time
             dlock->drid.type, dlock->drid.uid, dlock->drid.id, dlock->drid.idx, dlock->drid.part);
         for (;;) {
             if (dls_do_spin_try_lock(session, dlock, event)) {
-                return GS_TRUE;
+                return CT_TRUE;
             }
             if (SECUREC_UNLIKELY(wait_ticks >= timeout_ticks)) {
                 DTC_DLS_DEBUG_INF("[DLS] add timed spinlock(%u/%u/%u/%u/%u) timeout",
                     dlock->drid.type, dlock->drid.uid, dlock->drid.id, dlock->drid.idx, dlock->drid.part);
-                return GS_FALSE;
+                return CT_FALSE;
             }
 #ifndef WIN32
             fas_cpu_pause();
 #endif  // !WIN32
 
             spin_times++;
-            if (SECUREC_UNLIKELY(spin_times == GS_SPIN_COUNT)) {
+            if (SECUREC_UNLIKELY(spin_times == CT_SPIN_COUNT)) {
                 cm_spin_sleep();
                 spin_times = 0;
                 wait_ticks++;
@@ -1037,8 +1155,8 @@ bool32 dls_spin_timed_lock(knl_session_t *session, drlock_t * dlock, uint32 time
 
 bool32 dls_spin_lock_by_self(knl_session_t *session, drlock_t * dlock)
 {
-    bool8  is_locked = GS_FALSE;
-    bool8  is_owner = GS_FALSE;
+    bool8  is_locked = CT_FALSE;
+    bool8  is_owner = CT_FALSE;
     drc_local_lock_res_t *lock_res;
 
     knl_panic(session->kernel->attr.clustered);
@@ -1159,24 +1277,28 @@ status_t dls_clean_granted_map(knl_session_t *session, drid_t *lock_id, uint8 in
     cm_spin_unlock(res_part_stat_lock);
     DTC_DRC_DEBUG_INF("[DRC][%u/%u/%u/%u/%u][clean granted map]: successed",
         lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void dls_request_clean_granted_map(knl_session_t *session, drid_t *lock_id)
 {
-    uint8 master_id = GS_INVALID_ID8;
+    uint8 master_id = CT_INVALID_ID8;
     uint8 self_id = session->kernel->dtc_attr.inst_id;
+    drc_req_info_t req_info = {0};
+    req_info.release_timeout_ticks = CT_INVALID_ID32;
+    req_info.req_mode = DRC_LOCK_MODE_MAX;
     drc_get_lock_master_id(lock_id, &master_id);
     if (master_id == self_id) {
         dls_clean_granted_map(session, lock_id, self_id);
     } else {
-        dls_request_msg(session, lock_id, master_id, MES_CMD_CLEAN_GRANTED_MAP, DRC_LOCK_MODE_MAX,
+        dls_request_msg(session, lock_id, master_id, MES_CMD_CLEAN_GRANTED_MAP, &req_info,
             DRC_GET_CURR_REFORM_VERSION);
     }
     return;
 }
 
-bool32 dls_request_latch_s(knl_session_t *session, drid_t *lock_id, bool32 timeout, uint32 timeout_ticks)
+bool32 dls_request_latch_s(knl_session_t *session, drid_t *lock_id, bool32 timeout, uint32 timeout_ticks,
+    uint32 release_timeout_ticks)
 {
     uint32 spin_times = 0;
     uint32 wait_ticks = 0;
@@ -1190,32 +1312,34 @@ bool32 dls_request_latch_s(knl_session_t *session, drid_t *lock_id, bool32 timeo
         req_info.rsn = mes_get_rsn(session->id);
         req_info.req_time = KNL_NOW(session);
         req_info.req_version = DRC_GET_CURR_REFORM_VERSION;
-        req_info.lsn = GS_INVALID_ID64;
-        if (dls_request_lock(session, lock_id, &req_info, MES_CMD_REQUEST_LATCH_S) == GS_SUCCESS) {
-            return  GS_TRUE;
+        req_info.lsn = CT_INVALID_ID64;
+        req_info.release_timeout_ticks = release_timeout_ticks;
+        if (dls_request_lock(session, lock_id, &req_info, MES_CMD_REQUEST_LATCH_S) == CT_SUCCESS) {
+            return  CT_TRUE;
         }
 
         if (timeout && SECUREC_UNLIKELY(wait_ticks >= timeout_ticks)) {
             DTC_DLS_DEBUG_INF("[DLS] add timed latch_s(%u/%u/%u/%u/%u) timeout",
                 lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
 #ifndef WIN32
         fas_cpu_pause();
 #endif  // !WIN32
         spin_times++;
-        if (SECUREC_UNLIKELY(spin_times == GS_DLS_SPIN_COUNT)) {
+        if (SECUREC_UNLIKELY(spin_times == CT_DLS_SPIN_COUNT)) {
             cm_spin_sleep();
             spin_times = 0;
             wait_ticks++;
         }
-    } while (GS_TRUE);
+    } while (CT_TRUE);
 }
 
-bool32 dls_request_latch_x(knl_session_t *session, drid_t *lock_id, bool32 timeout, uint32 timeout_ticks)
+bool32 dls_request_latch_x(knl_session_t *session, drid_t *lock_id, bool32 timeout, uint32 timeout_ticks,
+    uint32 release_timeout_ticks)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint32 spin_times = 0;
     uint32 wait_ticks = 0;
     drc_req_info_t req_info;
@@ -1228,36 +1352,37 @@ bool32 dls_request_latch_x(knl_session_t *session, drid_t *lock_id, bool32 timeo
         req_info.rsn = mes_get_rsn(session->id);
         req_info.req_time = KNL_NOW(session);
         req_info.req_version = DRC_GET_CURR_REFORM_VERSION;
-        req_info.lsn = GS_INVALID_ID64;
+        req_info.lsn = CT_INVALID_ID64;
+        req_info.release_timeout_ticks = release_timeout_ticks;
         ret = dls_request_lock(session, lock_id, &req_info, MES_CMD_REQUEST_LATCH_X);
-        if (ret == GS_SUCCESS) {
-            return  GS_TRUE;
+        if (ret == CT_SUCCESS) {
+            return  CT_TRUE;
         }
 
         if (timeout && SECUREC_UNLIKELY(wait_ticks >= timeout_ticks)) {
             DTC_DLS_DEBUG_INF("[DLS] add timed latch_x(%u/%u/%u/%u/%u) timeout",
                 lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
 #ifndef WIN32
         fas_cpu_pause();
 #endif  // !WIN32
         spin_times++;
-        if (SECUREC_UNLIKELY(spin_times == GS_DLS_SPIN_COUNT)) {
+        if (SECUREC_UNLIKELY(spin_times == CT_DLS_SPIN_COUNT)) {
             cm_spin_sleep();
             spin_times = 0;
             wait_ticks++;
         }
-    } while (GS_TRUE);
+    } while (CT_TRUE);
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static void dls_latch_ix2x(knl_session_t *session, drid_t *lock_id, drc_local_latch *latch_stat, uint32 sid, latch_statis_t *stat)
 {
     uint32 count = 0;
-    bool32 locked = GS_FALSE;
+    bool32 locked = CT_FALSE;
     drc_local_lock_res_t *lock_res;
 
     for (;;) {
@@ -1267,7 +1392,7 @@ static void dls_latch_ix2x(knl_session_t *session, drid_t *lock_id, drc_local_la
         
         while (latch_stat->shared_count > 0) {
             count++;
-            if (count >= GS_SPIN_COUNT) {
+            if (count >= CT_SPIN_COUNT) {
                 SPIN_STAT_INC(stat, ix_sleeps);
                 cm_spin_sleep();
                 count = 0;
@@ -1277,12 +1402,12 @@ static void dls_latch_ix2x(knl_session_t *session, drid_t *lock_id, drc_local_la
         lock_res = drc_get_local_resx(lock_id);
         drc_lock_local_resx(lock_res);
         if (latch_stat->shared_count == 0) {
-            locked = dls_request_latch_x(session, lock_id, GS_TRUE, 1);
+            locked = dls_request_latch_x(session, lock_id, CT_TRUE, 1, CT_INVALID_ID32);
             if (locked) {
                 latch_stat->sid = sid;
                 latch_stat->stat = LATCH_STATUS_X;
                 latch_stat->lock_mode = DRC_LOCK_EXCLUSIVE;
-                drc_set_local_lock_statx(lock_res, GS_TRUE, GS_TRUE);
+                drc_set_local_lock_statx(lock_res, CT_TRUE, CT_TRUE);
                 drc_unlock_local_resx(lock_res);
                 break;
             }
@@ -1293,10 +1418,10 @@ static void dls_latch_ix2x(knl_session_t *session, drid_t *lock_id, drc_local_la
 }
 
 static bool32 dls_latch_timed_ix2x(knl_session_t *session, drid_t *lock_id, drc_local_latch *latch_stat, uint32 sid,
-                                   uint32 wait_ticks, latch_statis_t *stat)
+                                   uint32 wait_ticks, latch_statis_t *stat, uint32 release_timeout_ticks)
 {
     uint32 count = 0;
-    bool32 locked = GS_FALSE;
+    bool32 locked = CT_FALSE;
     drc_local_lock_res_t *lock_res;
     uint32 ticks = 0;
 
@@ -1307,11 +1432,11 @@ static bool32 dls_latch_timed_ix2x(knl_session_t *session, drid_t *lock_id, drc_
 
         while (latch_stat->shared_count > 0) {
             if (ticks >= wait_ticks) {
-                return GS_FALSE;
+                return CT_FALSE;
             }
 
             count++;
-            if (count >= GS_SPIN_COUNT) {
+            if (count >= CT_SPIN_COUNT) {
                 SPIN_STAT_INC(stat, ix_sleeps);
                 cm_spin_sleep();
                 count = 0;
@@ -1322,14 +1447,14 @@ static bool32 dls_latch_timed_ix2x(knl_session_t *session, drid_t *lock_id, drc_
         lock_res = drc_get_local_resx(lock_id);
         drc_lock_local_resx(lock_res);
         if (latch_stat->shared_count == 0) {
-            locked = dls_request_latch_x(session, lock_id, GS_TRUE, 1);
+            locked = dls_request_latch_x(session, lock_id, CT_TRUE, 1, release_timeout_ticks);
             if (locked) {
                 latch_stat->sid = sid;
                 latch_stat->stat = LATCH_STATUS_X;
                 latch_stat->lock_mode = DRC_LOCK_EXCLUSIVE;
-                drc_set_local_lock_statx(lock_res, GS_TRUE, GS_TRUE);
+                drc_set_local_lock_statx(lock_res, CT_TRUE, CT_TRUE);
                 drc_unlock_local_resx(lock_res);
-                return GS_TRUE;
+                return CT_TRUE;
             }
         }
         drc_unlock_local_resx(lock_res);
@@ -1342,7 +1467,7 @@ void dls_latch_x(knl_session_t *session, drlatch_t *dlatch, uint32 sid, latch_st
     database_t *db = &session->kernel->db;
     uint32 count = 0;
     drc_local_latch* latch_stat = NULL;
-    bool32 locked = GS_FALSE;
+    bool32 locked = CT_FALSE;
     drc_local_lock_res_t *lock_res;
 
     if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
@@ -1357,7 +1482,7 @@ void dls_latch_x(knl_session_t *session, drlatch_t *dlatch, uint32 sid, latch_st
             if (latch_stat->stat == LATCH_STATUS_IDLE) {
                 //x->i->x not need lock for local latch
                 if (latch_stat->lock_mode != DRC_LOCK_EXCLUSIVE) {
-                    locked = dls_request_latch_x(session, &dlatch->drid,  GS_TRUE, 1);
+                    locked = dls_request_latch_x(session, &dlatch->drid,  CT_TRUE, 1, CT_INVALID_ID32);
                     if (!locked) {
                         drc_unlock_local_resx(lock_res);
                         cm_spin_sleep();
@@ -1367,7 +1492,7 @@ void dls_latch_x(knl_session_t *session, drlatch_t *dlatch, uint32 sid, latch_st
                 }
                 latch_stat->sid = sid;
                 latch_stat->stat = LATCH_STATUS_X;
-                drc_set_local_lock_statx(lock_res, GS_TRUE, GS_TRUE);
+                drc_set_local_lock_statx(lock_res, CT_TRUE, CT_TRUE);
                 drc_unlock_local_resx(lock_res);
                 cm_latch_stat_inc(stat, count);
                 return;
@@ -1383,7 +1508,7 @@ void dls_latch_x(knl_session_t *session, drlatch_t *dlatch, uint32 sid, latch_st
                 }
                 while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S) {
                     count++;
-                    if (count >= GS_SPIN_COUNT) {
+                    if (count >= CT_SPIN_COUNT) {
                         SPIN_STAT_INC(stat, x_sleeps);
                         cm_spin_sleep();
                         count = 0;
@@ -1401,7 +1526,7 @@ void dls_latch_s(knl_session_t *session, drlatch_t *dlatch, uint32 sid, bool32 i
     database_t *db = &session->kernel->db;
     uint32 count = 0;
     drc_local_latch* latch_stat = NULL;
-    bool32 locked = GS_FALSE;
+    bool32 locked = CT_FALSE;
     drc_local_lock_res_t *lock_res;
 
     if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
@@ -1416,7 +1541,7 @@ void dls_latch_s(knl_session_t *session, drlatch_t *dlatch, uint32 sid, bool32 i
             if (latch_stat->stat == LATCH_STATUS_IDLE) {
                 //s->i->s no need for local latch
                 if (latch_stat->lock_mode == DRC_LOCK_NULL) {
-                    locked = dls_request_latch_s(session, &dlatch->drid, GS_TRUE, 1);
+                    locked = dls_request_latch_s(session, &dlatch->drid, CT_TRUE, 1, CT_INVALID_ID32);
                     if (!locked) {
                         drc_unlock_local_resx(lock_res);
                         cm_spin_sleep();
@@ -1427,13 +1552,13 @@ void dls_latch_s(knl_session_t *session, drlatch_t *dlatch, uint32 sid, bool32 i
                 latch_stat->stat = LATCH_STATUS_S;
                 latch_stat->shared_count = 1;
                 latch_stat->sid = sid;
-                drc_set_local_lock_statx(lock_res, GS_TRUE, GS_TRUE);
+                drc_set_local_lock_statx(lock_res, CT_TRUE, CT_TRUE);
                 drc_unlock_local_resx(lock_res);
                 cm_latch_stat_inc(stat, count);
                 return;
             } else if ((latch_stat->stat == LATCH_STATUS_S) || (latch_stat->stat == LATCH_STATUS_IX && is_force)) {
                 latch_stat->shared_count++;
-                drc_set_local_lock_statx(lock_res, GS_TRUE, GS_TRUE);
+                drc_set_local_lock_statx(lock_res, CT_TRUE, CT_TRUE);
                 drc_unlock_local_resx(lock_res);
                 cm_latch_stat_inc(stat, count);
                 return;
@@ -1444,7 +1569,7 @@ void dls_latch_s(knl_session_t *session, drlatch_t *dlatch, uint32 sid, bool32 i
                 }
                 while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S) {
                     count++;
-                    if (count >= GS_SPIN_COUNT) {
+                    if (count >= CT_SPIN_COUNT) {
                         SPIN_STAT_INC(stat, s_sleeps);
                         cm_spin_sleep();
                         count = 0;
@@ -1460,7 +1585,7 @@ void dls_latch_s(knl_session_t *session, drlatch_t *dlatch, uint32 sid, bool32 i
 }
 
 bool32 dls_latch_timed_s(knl_session_t *session, drlatch_t *dlatch, uint32 ticks_for_wait, bool32 is_force,
-                         latch_statis_t *stat)
+                         latch_statis_t *stat, uint32 release_timeout_ticks)
 {
     uint32 count = 0;
     uint32 ticks = 0;
@@ -1480,33 +1605,33 @@ bool32 dls_latch_timed_s(knl_session_t *session, drlatch_t *dlatch, uint32 ticks
             if (latch_stat->stat == LATCH_STATUS_IDLE) {
                 if (latch_stat->lock_mode == DRC_LOCK_NULL) {
                     wait_ticks = (wait_ticks - ticks > 0) ? (wait_ticks - ticks) : 0;
-                    if (!dls_request_latch_s(session, &dlatch->drid, GS_TRUE, wait_ticks)) {
-                        drc_set_local_lock_statx(lock_res, GS_FALSE, GS_FALSE);
+                    if (!dls_request_latch_s(session, &dlatch->drid, CT_TRUE, wait_ticks, release_timeout_ticks)) {
+                        drc_set_local_lock_statx(lock_res, CT_FALSE, CT_FALSE);
                         drc_unlock_local_resx(lock_res);
-                        return GS_FALSE;
+                        return CT_FALSE;
                     }
                     latch_stat->lock_mode = DRC_LOCK_SHARE;
                 }
                 latch_stat->stat = LATCH_STATUS_S;
                 latch_stat->shared_count = 1;
-                drc_set_local_lock_statx(lock_res, GS_TRUE, GS_TRUE);
+                drc_set_local_lock_statx(lock_res, CT_TRUE, CT_TRUE);
                 drc_unlock_local_resx(lock_res);
-                return GS_TRUE;
+                return CT_TRUE;
             } else if ((latch_stat->stat == LATCH_STATUS_S) || (latch_stat->stat == LATCH_STATUS_IX && is_force)) {
                 latch_stat->shared_count++;
-                drc_set_local_lock_statx(lock_res, GS_TRUE, GS_TRUE);
+                drc_set_local_lock_statx(lock_res, CT_TRUE, CT_TRUE);
                 drc_unlock_local_resx(lock_res);
-                return GS_TRUE;
+                return CT_TRUE;
             } else {
                 drc_unlock_local_resx(lock_res);
                 while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S) {
                     if (ticks >= wait_ticks) {
                         DTC_DLS_DEBUG_INF("[DLS] add timed latch_s(%u/%u/%u/%u/%u) timeout",
                             dlatch->drid.type, dlatch->drid.uid, dlatch->drid.id, dlatch->drid.idx, dlatch->drid.part);
-                        return GS_FALSE;
+                        return CT_FALSE;
                     }
                     count++;
-                    if (count >= GS_SPIN_COUNT) {
+                    if (count >= CT_SPIN_COUNT) {
                         SPIN_STAT_INC(stat, s_sleeps);
                         cm_spin_sleep();
                         count = 0;
@@ -1521,7 +1646,7 @@ bool32 dls_latch_timed_s(knl_session_t *session, drlatch_t *dlatch, uint32 ticks
 }
 
 bool32 dls_latch_timed_x(knl_session_t *session, drlatch_t *dlatch, uint32 ticks_for_wait, bool32 is_force,
-                         latch_statis_t *stat)
+                         latch_statis_t *stat, uint32 release_timeout_ticks)
 {
     uint32 count = 0;
     uint32 ticks = 0;
@@ -1541,29 +1666,30 @@ bool32 dls_latch_timed_x(knl_session_t *session, drlatch_t *dlatch, uint32 ticks
             if (latch_stat->stat == LATCH_STATUS_IDLE) {
                 if (latch_stat->lock_mode != DRC_LOCK_EXCLUSIVE) {
                     wait_ticks = (wait_ticks - ticks > 0) ? (wait_ticks - ticks) : 0;
-                    if (!dls_request_latch_x(session, &dlatch->drid, GS_TRUE, wait_ticks)) {
-                        drc_set_local_lock_statx(lock_res, GS_FALSE, GS_FALSE);
+                    if (!dls_request_latch_x(session, &dlatch->drid, CT_TRUE, wait_ticks, release_timeout_ticks)) {
+                        drc_set_local_lock_statx(lock_res, CT_FALSE, CT_FALSE);
                         drc_unlock_local_resx(lock_res);
-                        return GS_FALSE;
+                        return CT_FALSE;
                     }
                     latch_stat->lock_mode = DRC_LOCK_EXCLUSIVE;
                 }
                 latch_stat->sid = session->id;
                 latch_stat->stat = LATCH_STATUS_X;
-                drc_set_local_lock_statx(lock_res, GS_TRUE, GS_TRUE);
+                drc_set_local_lock_statx(lock_res, CT_TRUE, CT_TRUE);
                 drc_unlock_local_resx(lock_res);
                 cm_latch_stat_inc(stat, count);
-                return GS_TRUE;
+                return CT_TRUE;
             } else if (latch_stat->stat == LATCH_STATUS_S) {
                 latch_stat->stat = LATCH_STATUS_IX;
                 drc_unlock_local_resx(lock_res);
-                if (!dls_latch_timed_ix2x(session, &dlatch->drid, latch_stat, session->id, wait_ticks, stat)) {
+                if (!dls_latch_timed_ix2x(session, &dlatch->drid, latch_stat, session->id, wait_ticks, stat,
+                    release_timeout_ticks)) {
                     drc_lock_local_resx(lock_res);
                     latch_stat->stat = latch_stat->shared_count > 0 ? LATCH_STATUS_S : LATCH_STATUS_IDLE;
                     drc_unlock_local_resx(lock_res);
-                    return GS_FALSE;
+                    return CT_FALSE;
                 }
-                return GS_TRUE;
+                return CT_TRUE;
             } else {
                 drc_unlock_local_resx(lock_res);
                 if (stat != NULL) {
@@ -1573,10 +1699,10 @@ bool32 dls_latch_timed_x(knl_session_t *session, drlatch_t *dlatch, uint32 ticks
                     if (ticks >= wait_ticks) {
                         DTC_DLS_DEBUG_INF("[DLS] add timed latch_x(%u/%u/%u/%u/%u) timeout", dlatch->drid.type,
                                           dlatch->drid.uid, dlatch->drid.id, dlatch->drid.idx, dlatch->drid.part);
-                        return GS_FALSE;
+                        return CT_FALSE;
                     }
                     count++;
-                    if (count >= GS_SPIN_COUNT) {
+                    if (count >= CT_SPIN_COUNT) {
                         SPIN_STAT_INC(stat, x_sleeps);
                         cm_spin_sleep();
                         count = 0;
@@ -1613,7 +1739,7 @@ void dls_unlatch(knl_session_t *session, drlatch_t *dlatch, latch_statis_t *stat
         if ((latch_stat->stat == LATCH_STATUS_S || latch_stat->stat == LATCH_STATUS_X) && (latch_stat->shared_count == 0)) {
             latch_stat->stat = LATCH_STATUS_IDLE;
         }
-        drc_set_local_lock_statx(lock_res, GS_FALSE, GS_TRUE);
+        drc_set_local_lock_statx(lock_res, CT_FALSE, CT_TRUE);
         drc_unlock_local_resx(lock_res);
     } else {
         cm_unlatch(&dlatch->latch, stat);
@@ -1624,11 +1750,11 @@ void dls_unlatch(knl_session_t *session, drlatch_t *dlatch, latch_statis_t *stat
 status_t dtc_is_inst_fault(uint32 inst_id)
 {
     cluster_view_t view;
-    rc_get_cluster_view(&view, GS_FALSE);
+    rc_get_cluster_view(&view, CT_FALSE);
     if (!rc_bitmap64_exist(&view.bitmap, inst_id)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 #define DLS_REMOTE_TXN_WAIT  (0)
@@ -1636,7 +1762,7 @@ status_t dtc_is_inst_fault(uint32 inst_id)
 
 status_t dls_request_txn_msg(knl_session_t *session, xid_t* xid, uint8 dst_inst, uint32 cmd)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     mes_message_t    recv_msg = {0};
@@ -1644,16 +1770,16 @@ status_t dls_request_txn_msg(knl_session_t *session, xid_t* xid, uint8 dst_inst,
 
     send_msg = (uint8*)cm_push(session->stack, sizeof(mes_message_head_t) + sizeof(xid_t));
     head = (mes_message_head_t*)send_msg;
-    mes_init_send_head(head, cmd, sizeof(mes_message_head_t) + sizeof(uint64), GS_INVALID_ID32, src_inst, dst_inst,
-                       session->id, GS_INVALID_ID16);
+    mes_init_send_head(head, cmd, sizeof(mes_message_head_t) + sizeof(uint64), CT_INVALID_ID32, src_inst, dst_inst,
+                       session->id, CT_INVALID_ID16);
     *((uint64*)(send_msg + sizeof(mes_message_head_t))) = xid->value;
 
-    knl_try_begin_session_wait(session, DLS_WAIT_TXN, GS_TRUE);
-    SYNC_POINT_GLOBAL_START(CANTIAN_DLS_WAIT_TXN_SEND_FAIL, &ret, GS_ERROR);
+    knl_begin_session_wait(session, DLS_WAIT_TXN, CT_TRUE);
+    SYNC_POINT_GLOBAL_START(CANTIAN_DLS_WAIT_TXN_SEND_FAIL, &ret, CT_ERROR);
     ret = mes_send_data(send_msg);
     SYNC_POINT_GLOBAL_END;
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DLS_WAIT_TXN);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DLS_WAIT_TXN);
         cm_pop(session->stack);
         DTC_DLS_DEBUG_ERR("[DLS] request txn message to instance(%u) failed, type(%u) xid(%llu) rsn(%u) errcode(%u)",
                           dst_inst, cmd, xid->value, head->rsn, ret);
@@ -1661,14 +1787,14 @@ status_t dls_request_txn_msg(knl_session_t *session, xid_t* xid, uint8 dst_inst,
     }
     cm_pop(session->stack);
 
-    ret = mes_recv(session->id, &recv_msg, GS_FALSE, head->rsn, DLS_WAIT_TIMEOUT);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DLS_WAIT_TXN);
+    ret = mes_recv(session->id, &recv_msg, CT_FALSE, head->rsn, DLS_WAIT_TIMEOUT);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DLS_WAIT_TXN);
         DTC_DLS_DEBUG_ERR("[DLS] receive message to instance(%u) failed, type(%u) xid(%llu) rsn(%u) errcode(%u)",
                           dst_inst, cmd, xid->value, head->rsn, ret);
         return ret;
     }
-    knl_try_end_session_wait(session, DLS_WAIT_TXN);
+    knl_end_session_wait(session, DLS_WAIT_TXN);
     ret = *(status_t*)(recv_msg.buffer + sizeof(mes_message_head_t));
     if (ret == DLS_REMOTE_TXN_END) {
         knl_scn_t scn = *(knl_scn_t*)(recv_msg.buffer + sizeof(mes_message_head_t) + sizeof(status_t));
@@ -1680,7 +1806,7 @@ status_t dls_request_txn_msg(knl_session_t *session, xid_t* xid, uint8 dst_inst,
 
 static void  dls_send_txn_msg(knl_session_t *session, xid_t*  xid, knl_scn_t scn, uint32 dst_inst, uint32 cmd)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     uint8    src_inst = session->kernel->dtc_attr.inst_id;
@@ -1689,12 +1815,12 @@ static void  dls_send_txn_msg(knl_session_t *session, xid_t*  xid, knl_scn_t scn
     send_msg = (uint8*)cm_push(session->stack, mes_size);
     head = (mes_message_head_t*)send_msg;
 
-    mes_init_send_head(head, cmd, mes_size, GS_INVALID_ID32, src_inst, dst_inst, session->id, GS_INVALID_ID16);
+    mes_init_send_head(head, cmd, mes_size, CT_INVALID_ID32, src_inst, dst_inst, session->id, CT_INVALID_ID16);
     *((uint64*)(send_msg + sizeof(mes_message_head_t))) = xid->value;
     *((knl_scn_t*)(send_msg + sizeof(mes_message_head_t) + sizeof(xid_t))) = scn;
 
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         cm_pop(session->stack);
         DTC_DLS_DEBUG_ERR(
             "[DLS] send txn message to instance(%u) failed, type(%u) xid(%llu) scn(%llu) rsn(%u) errcode(%u)", dst_inst,
@@ -1708,23 +1834,33 @@ static void  dls_send_txn_msg(knl_session_t *session, xid_t*  xid, knl_scn_t scn
 
 void dls_process_txn_wait(knl_session_t *session, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     txn_info_t txn_info;
-    knl_scn_t scn = GS_INVALID_ID64;
+    knl_scn_t scn = CT_INVALID_ID64;
+    if (sizeof(mes_message_head_t) + sizeof(uint64) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("process txn awake msg is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     xid_t  *xid = (xid_t*)(receive_msg->buffer + sizeof(mes_message_head_t));
     uint32 mes_size = sizeof(mes_message_head_t) + sizeof(status_t) + sizeof(knl_scn_t);
+    if ((xid->xmap.slot / TXN_PER_PAGE(session)) >= UNDO_MAX_TXN_PAGE) {
+        CT_LOG_RUN_ERR("txn xmap slot is invalid, slot %u.", xid->xmap.slot);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
 
     uint8 inst_id = xid_get_inst_id(session, *xid);
-    if (inst_id != session->kernel->id || receive_msg->head->src_inst >= GS_MAX_INSTANCES) {
-        GS_LOG_RUN_ERR("xid %llu or src_inst %u error, inst_id by xid %u, self_id %u", xid->value,
+    if (inst_id != session->kernel->id || receive_msg->head->src_inst >= CT_MAX_INSTANCES) {
+        CT_LOG_RUN_ERR("xid %llu or src_inst %u error, inst_id by xid %u, self_id %u", xid->value,
             receive_msg->head->src_inst, inst_id, session->kernel->id);
         mes_release_message_buf(receive_msg->buffer);
         return;
     }
     // knl_panic(xid_get_inst_id(session, *xid) == session->kernel->id);
-    tx_get_info(session, GS_FALSE, *xid, &txn_info);
+    tx_get_info(session, CT_FALSE, *xid, &txn_info);
     if (txn_info.status == (uint8)XACT_END) {
         ret = DLS_REMOTE_TXN_END;
         scn = txn_info.scn;
@@ -1732,7 +1868,7 @@ void dls_process_txn_wait(knl_session_t *session, mes_message_t * receive_msg)
         drc_enqueue_txn(xid, receive_msg->head->src_inst);
         ret = DLS_REMOTE_TXN_WAIT;
 
-        tx_get_info(session, GS_FALSE, *xid, &txn_info);
+        tx_get_info(session, CT_FALSE, *xid, &txn_info);
         if (txn_info.status == (uint8)XACT_END) {
             ret = DLS_REMOTE_TXN_END;
             scn = txn_info.scn;
@@ -1741,18 +1877,21 @@ void dls_process_txn_wait(knl_session_t *session, mes_message_t * receive_msg)
     }
 
     send_msg = (uint8*)cm_push(session->stack, mes_size);
-    knl_panic(send_msg != NULL);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("msg failed to malloc memory");
+        return;
+    }
     head = (mes_message_head_t*)send_msg;
 
-    mes_init_ack_head(receive_msg->head, head, MES_CMD_TXN_ACK, mes_size, GS_INVALID_ID16);
+    mes_init_ack_head(receive_msg->head, head, MES_CMD_TXN_ACK, mes_size, CT_INVALID_ID16);
     *((status_t*)(send_msg + sizeof(mes_message_head_t))) = ret;
     *((knl_scn_t*)(send_msg + sizeof(mes_message_head_t) + sizeof(status_t))) = scn;
 
     DTC_DLS_DEBUG_INF("[DLS] process wait txn %llu scn %llu status %u from instance %u", xid->value, scn, ret, receive_msg->head->src_inst);
-    SYNC_POINT_GLOBAL_START(CANTIAN_DLS_WAIT_TXN_ACK_SEND_FAIL, &ret, GS_ERROR);
+    SYNC_POINT_GLOBAL_START(CANTIAN_DLS_WAIT_TXN_ACK_SEND_FAIL, &ret, CT_ERROR);
     ret = mes_send_data(send_msg);
     SYNC_POINT_GLOBAL_END;
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DLS_DEBUG_ERR("[DLS] process wait txn %llu from instance %u failed", xid->value, receive_msg->head->src_inst);
     }
     mes_release_message_buf(receive_msg->buffer);
@@ -1762,6 +1901,12 @@ void dls_process_txn_wait(knl_session_t *session, mes_message_t * receive_msg)
 
 static void dls_process_txn_awake(knl_session_t *session, mes_message_t * receive_msg)
 {
+    uint32 mes_size = sizeof(mes_message_head_t) + sizeof(xid_t) + sizeof(knl_scn_t);
+    if (mes_size != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("process txn awake msg is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     xid_t  *xid = (xid_t*)(receive_msg->buffer + sizeof(mes_message_head_t));
     knl_scn_t scn = *(knl_scn_t*)(receive_msg->buffer + sizeof(mes_message_head_t) + sizeof(xid_t));
 
@@ -1781,14 +1926,14 @@ void dls_process_txn_msg(void *sess, mes_message_t * receive_msg)
     } else if (MES_CMD_AWAKE_TXN == receive_msg->head->cmd) {
         dls_process_txn_awake(session, receive_msg);
     } else {
-        GS_LOG_RUN_ERR("[DLS] invalid cmd %u, not process", receive_msg->head->cmd);
+        CT_LOG_RUN_ERR("[DLS] invalid cmd %u, not process", receive_msg->head->cmd);
     }
     return;
 }
 
 bool32 dls_wait_txn(knl_session_t *session, uint16 rmid)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     knl_rm_t *wait_rm = NULL;
     txn_snapshot_t snapshot;
     uint8 inst_id;
@@ -1799,10 +1944,10 @@ bool32 dls_wait_txn(knl_session_t *session, uint16 rmid)
         if (cm_wait_cond(&wait_rm->cond, TX_WAIT_INTERVEL)) {
             tx_get_snapshot(session, session->wxid.xmap, &snapshot);
             if (snapshot.xnum != session->wxid.xnum || snapshot.status == (uint8)XACT_END) {
-                return GS_TRUE;
+                return CT_TRUE;
             }
         }
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     inst_id = xid_get_inst_id(session, session->wxid);
@@ -1810,19 +1955,19 @@ bool32 dls_wait_txn(knl_session_t *session, uint16 rmid)
     // send message to owner (check txn status and record in wait hash queue)
     ret = dls_request_txn_msg(session, (xid_t *)(&session->wxid), inst_id, MES_CMD_WAIT_TXN);
     if (ret == DLS_REMOTE_TXN_END) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (ret == DLS_REMOTE_TXN_WAIT) {
         if (drc_local_txn_wait((xid_t *)(&session->wxid))) {
             tx_get_snapshot(session, session->wxid.xmap, &snapshot);
             if (snapshot.xnum != session->wxid.xnum || snapshot.status == (uint8)XACT_END) {
-                return GS_TRUE;
+                return CT_TRUE;
             }
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 void dls_wait_txn_recyle(knl_session_t *session)

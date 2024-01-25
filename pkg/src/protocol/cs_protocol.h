@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -35,7 +35,7 @@
 
 #define CS_CMD_UNKONOW       (uint8)0
 #define CS_CMD_LOGIN         (uint8)1
-#define CS_CMD_FREE_STMT     (uint8)2 /* gs_alloc_stmt() command is included in CS_CMD_PREPARE requestion */
+#define CS_CMD_FREE_STMT     (uint8)2 /* ct_alloc_stmt() command is included in CS_CMD_PREPARE requestion */
 #define CS_CMD_PREPARE       (uint8)3
 #define CS_CMD_MORE_DATA     (uint8)4
 #define CS_CMD_EXECUTE       (uint8)5
@@ -72,14 +72,14 @@
 
 typedef enum en_protocol_type {
     PROTO_TYPE_UNKNOWN = 0,
-    PROTO_TYPE_GS = 1,
+    PROTO_TYPE_CT = 1,
 } protocol_type_t;
 
 typedef enum en_client_kind {
     CLIENT_KIND_UNKNOWN = 0,
-    CLIENT_KIND_GSC_GENERIC = 1, /* for the most common program which use the gsc library */
+    CLIENT_KIND_CTCONN_GENERIC = 1, /* for the most common program which use the ctconn library */
     CLIENT_KIND_JDBC = 2,
-    CLIENT_KIND_ZSQL = 3,
+    CLIENT_KIND_CTSQL = 3,
     CLIENT_KIND_CN_INNER = 4, // resv for CN private channel
     CLIENT_KIND_TAIL, /* DO NOT ADD new type below CLIENT_KIND_TAIL */
 } client_kind_t;
@@ -111,7 +111,7 @@ static inline const text_t *cs_get_login_client_name(client_kind_t kind)
 #define CS_LOAD_GET_DATA  0x0004
 #define CS_LOAD_EXE_CMD   0x0008
 #define CS_CN_DML_ID      0x0010
-#define CS_ZSQL_IN_ALTPWD 0x0020
+#define CS_CTSQL_IN_ALTPWD 0x0020
 
 typedef struct st_cs_prepare_req {
     uint16 stmt_id;
@@ -126,23 +126,23 @@ typedef struct st_cs_prepare_ack {
 } cs_prepare_ack_t;
 
 /* attributes of column flag */
-#define GS_COLUMN_FLAG_NULLABLE       0x01
-#define GS_COLUMN_FLAG_AUTO_INCREMENT 0x02
-#define GS_COLUMN_FLAG_CHARACTER      0x04
-#define GS_COLUMN_FLAG_ARRAY          0x08
-#define GS_COLUMN_FLAG_JSONB          0x10
+#define CT_COLUMN_FLAG_NULLABLE       0x01
+#define CT_COLUMN_FLAG_AUTO_INCREMENT 0x02
+#define CT_COLUMN_FLAG_CHARACTER      0x04
+#define CT_COLUMN_FLAG_ARRAY          0x08
+#define CT_COLUMN_FLAG_JSONB          0x10
 
-#define GS_COLUMN_SET_NULLABLE(col)       (col)->flag |= GS_COLUMN_FLAG_NULLABLE
-#define GS_COLUMN_SET_AUTO_INCREMENT(col) (col)->flag |= GS_COLUMN_FLAG_AUTO_INCREMENT
-#define GS_COLUMN_SET_CHARACTER(col)      (col)->flag |= GS_COLUMN_FLAG_CHARACTER
-#define GS_COLUMN_SET_ARRAY(col)          (col)->flag |= GS_COLUMN_FLAG_ARRAY
-#define GS_COLUMN_SET_JSONB(col)          (col)->flag |= GS_COLUMN_FLAG_JSONB
+#define CT_COLUMN_SET_NULLABLE(col)       (col)->flag |= CT_COLUMN_FLAG_NULLABLE
+#define CT_COLUMN_SET_AUTO_INCREMENT(col) (col)->flag |= CT_COLUMN_FLAG_AUTO_INCREMENT
+#define CT_COLUMN_SET_CHARACTER(col)      (col)->flag |= CT_COLUMN_FLAG_CHARACTER
+#define CT_COLUMN_SET_ARRAY(col)          (col)->flag |= CT_COLUMN_FLAG_ARRAY
+#define CT_COLUMN_SET_JSONB(col)          (col)->flag |= CT_COLUMN_FLAG_JSONB
 
-#define GS_COLUMN_IS_NULLABLE(col)       (((col)->flag & GS_COLUMN_FLAG_NULLABLE) != 0)
-#define GS_COLUMN_IS_AUTO_INCREMENT(col) (((col)->flag & GS_COLUMN_FLAG_AUTO_INCREMENT) != 0)
-#define GS_COLUMN_IS_CHARACTER(col)      (((col)->flag & GS_COLUMN_FLAG_CHARACTER) != 0)
-#define GS_COLUMN_IS_ARRAY(col)          (((col)->flag & GS_COLUMN_FLAG_ARRAY) != 0)
-#define GS_COLUMN_IS_JSONB(col)          (((col)->flag & GS_COLUMN_FLAG_JSONB) != 0)
+#define CT_COLUMN_IS_NULLABLE(col)       (((col)->flag & CT_COLUMN_FLAG_NULLABLE) != 0)
+#define CT_COLUMN_IS_AUTO_INCREMENT(col) (((col)->flag & CT_COLUMN_FLAG_AUTO_INCREMENT) != 0)
+#define CT_COLUMN_IS_CHARACTER(col)      (((col)->flag & CT_COLUMN_FLAG_CHARACTER) != 0)
+#define CT_COLUMN_IS_ARRAY(col)          (((col)->flag & CT_COLUMN_FLAG_ARRAY) != 0)
+#define CT_COLUMN_IS_JSONB(col)          (((col)->flag & CT_COLUMN_FLAG_JSONB) != 0)
 
 typedef struct st_cs_column_def {
     uint16 size;
@@ -174,7 +174,7 @@ typedef struct st_cs_param_def_new {
 } cs_param_def_new_t;
 
 typedef struct st_cs_outparam_def {
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
     uint16 size;
     uint8 direction;
     uint8 datatype;

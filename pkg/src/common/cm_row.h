@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,50 +31,11 @@
 #include "cm_decimal.h"
 #include "cm_date.h"
 #include "var_inc.h"
+#include "cm_row_persist.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#pragma pack(4)
-
-#define NON_CSF_BITMAP_SIZE 3
-
-// row format
-typedef struct st_row_head {
-    union {
-        struct {
-            uint16 size;               // row size, must be the first member variable in row_head_t
-            uint16 column_count : 10;  // column count
-            uint16 flags : 6;          // total flags
-        };
-
-        struct {
-            uint16 aligned1;        // aligned row size
-            uint16 aligned2 : 10;   // aligned column_count
-            uint16 is_deleted : 1;  // deleted flag
-            uint16 is_link : 1;     // link flag
-            uint16 is_migr : 1;     // migration flag
-            uint16 self_chg : 1;    // statement self changed flag for PCR
-            uint16 is_changed : 1;  // changed flag after be locked
-            uint16 is_csf : 1;      // CSF(Compact Stream Format)
-        };
-    };
-
-    union {
-        struct {
-            uint16 sprs_count;     // sparse column count
-            uint8 sprs_itl_id;     // sparse itl_id;
-            uint8 sprs_bitmap[1];  // sparse bitmap
-        };
-
-        struct {
-            uint8 itl_id;                       // row itl_id
-            uint8 bitmap[NON_CSF_BITMAP_SIZE];  // bitmap is no used for CSF
-        };
-    };
-} row_head_t;  // following is bitmap of column
-#pragma pack()
 
 typedef struct st_row_assist {
     uint16 col_id;
@@ -91,8 +52,8 @@ typedef struct st_row_assist {
 #define CM_CHECK_ROW_FREE(row, len)                                  \
     {                                                                \
         if ((row)->head->size + (len) > (row)->max_size) {           \
-            GS_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, (row)->max_size); \
-            return GS_ERROR;                                         \
+            CT_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, (row)->max_size); \
+            return CT_ERROR;                                         \
         }                                                            \
     }
 
@@ -103,7 +64,7 @@ typedef status_t(*cm_put_row_column_t)(row_head_t *src_row, uint16 *src_offsets,
 static inline uint16 row_bitmap_ex_size(row_head_t *row)
 {
     if (IS_SPRS_ROW(row)) {
-        CM_ASSERT(row->sprs_count >= GS_SPRS_COLUMNS);
+        CM_ASSERT(row->sprs_count >= CT_SPRS_COLUMNS);
         return (uint16)(CM_ALIGN16(row->sprs_count - 4) / 4);
     } else {
         return (uint16)((row->column_count <= 12) ? 0 : (CM_ALIGN16(row->column_count - 12) / 4));
@@ -112,7 +73,7 @@ static inline uint16 row_bitmap_ex_size(row_head_t *row)
 
 static inline uint16 col_bitmap_ex_size(uint16 cols)
 {
-    if (cols >= GS_SPRS_COLUMNS) {
+    if (cols >= CT_SPRS_COLUMNS) {
         return (uint16)(CM_ALIGN16(cols - 4) / 4);
     } else {
         return (uint16)((cols <= 12) ? 0 : (CM_ALIGN16(cols - 12) / 4));
@@ -121,7 +82,7 @@ static inline uint16 col_bitmap_ex_size(uint16 cols)
 
 static inline uint16 col_bitmap_size(uint16 cols)
 {
-    if (cols >= GS_SPRS_COLUMNS) {
+    if (cols >= CT_SPRS_COLUMNS) {
         return (uint16)(CM_ALIGN16(cols - 4) / 4) + 1;
     } else {
         return (uint16)((cols <= 12) ? 0 : (CM_ALIGN16(cols - 12) / 4)) + 3;
@@ -162,7 +123,7 @@ static inline uint16 col_bitmap_size(uint16 cols)
 
 static inline uint16 csf_row_head_size(uint32 column_count)
 {
-    if (column_count >= GS_SPRS_COLUMNS) {
+    if (column_count >= CT_SPRS_COLUMNS) {
         return (uint16)OFFSET_OF(row_head_t, sprs_bitmap);
     } else {
         return (uint16)OFFSET_OF(row_head_t, bitmap);
@@ -192,19 +153,19 @@ static inline void csf_row_init(row_assist_t *ra, char *buf, uint32 max_size, ui
     ra->buf = buf;
     ra->max_size = max_size;
     ra->col_id = 0;
-    ra->is_csf = GS_TRUE;
+    ra->is_csf = CT_TRUE;
     ra->head = (row_head_t *)buf;
     ra->head->flags = 0;
     ra->head->is_csf = 1;
 
-    if (column_count >= GS_SPRS_COLUMNS) {
+    if (column_count >= CT_SPRS_COLUMNS) {
         ra->head->column_count = 0;
         ra->head->sprs_count = (uint16)column_count;
-        ra->head->sprs_itl_id = GS_INVALID_ID8;
+        ra->head->sprs_itl_id = CT_INVALID_ID8;
         ra->head->size = (uint16)OFFSET_OF(row_head_t, sprs_bitmap);
     } else {
         ra->head->column_count = (uint16)column_count;
-        ra->head->itl_id = GS_INVALID_ID8;
+        ra->head->itl_id = CT_INVALID_ID8;
         ra->head->size = (uint16)OFFSET_OF(row_head_t, bitmap);
     }
 }
@@ -224,14 +185,14 @@ static inline status_t csf_put_null(row_assist_t *ra)
 {
     CM_CHECK_ROW_FREE(ra, (uint16)1);
     csf_put_column_len(ra, CSF_NULL_FLAG);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t csf_put_zero(row_assist_t *ra)
 {
     CM_CHECK_ROW_FREE(ra, (uint16)1);
     csf_put_column_len(ra, CSF_ZERO_FLAG);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t csf_put_int32(row_assist_t *ra, int32 val)
@@ -240,7 +201,7 @@ static inline status_t csf_put_int32(row_assist_t *ra, int32 val)
     csf_put_column_len(ra, sizeof(int32));
     *(int32 *)CM_CURR_ROW_PTR(ra) = val;
     ra->head->size += sizeof(int32);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t csf_put_uint32(row_assist_t *ra, uint32 val)
@@ -254,7 +215,7 @@ static inline status_t csf_put_int64(row_assist_t *ra, int64 val)
     csf_put_column_len(ra, sizeof(int64));
     *(int64 *)CM_CURR_ROW_PTR(ra) = val;
     ra->head->size += sizeof(int64);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t csf_put_real(row_assist_t *ra, double val)
@@ -263,7 +224,7 @@ static inline status_t csf_put_real(row_assist_t *ra, double val)
     csf_put_column_len(ra, sizeof(double));
     *(double *)CM_CURR_ROW_PTR(ra) = val;
     ra->head->size += sizeof(double);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t csf_put_text(row_assist_t *ra, text_t *val)
@@ -281,7 +242,7 @@ static inline status_t csf_put_text(row_assist_t *ra, text_t *val)
         MEMS_RETURN_IFERR(memcpy_sp(CM_CURR_ROW_PTR(ra), ra->max_size - ra->head->size, val->str, val->len));
     }
     ra->head->size += (uint16)val->len;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t csf_put_text_with_term(row_assist_t *ra, text_t *val)
@@ -300,7 +261,7 @@ static inline status_t csf_put_text_with_term(row_assist_t *ra, text_t *val)
     }
     ra->head->size += (uint16)val->len;
     ra->head->size++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t csf_put_bin(row_assist_t *ra, binary_t *val)
@@ -322,7 +283,7 @@ static inline status_t csf_put_bin(row_assist_t *ra, binary_t *val)
         MEMS_RETURN_IFERR(memcpy_sp(CM_CURR_ROW_PTR(ra), ra->max_size - ra->head->size, val->bytes, val->size));
     }
     ra->head->size += (uint16)val->size;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t csf_put_lob(row_assist_t *ra, uint32 lob_locator_size, var_lob_t *lob)
@@ -338,28 +299,28 @@ static inline status_t csf_put_lob(row_assist_t *ra, uint32 lob_locator_size, va
     }
 
     switch (lob->type) {
-        case GS_LOB_FROM_KERNEL:
+        case CT_LOB_FROM_KERNEL:
             if (lob->knl_lob.size != 0) {
                 MEMS_RETURN_IFERR(memcpy_sp(CM_CURR_ROW_PTR(ra), ra->max_size - ra->head->size, lob->knl_lob.bytes,
                     lob->knl_lob.size));
             }
             break;
-        case GS_LOB_FROM_VMPOOL:
+        case CT_LOB_FROM_VMPOOL:
             MEMS_RETURN_IFERR(memcpy_sp(CM_CURR_ROW_PTR(ra), ra->max_size - ra->head->size,
                                         (char *)&lob->vm_lob, sizeof(lob->vm_lob)));
             break;
         default:
-            GS_THROW_ERROR(ERR_UNKNOWN_LOB_TYPE, "do put csf");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_UNKNOWN_LOB_TYPE, "do put csf");
+            return CT_ERROR;
     }
 
     ra->head->size += (uint16)lob_locator_size;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t csf_put_column_data(row_assist_t *ra, void *data, uint32 size)
 {
-    if (size == GS_NULL_VALUE_LEN) {
+    if (size == CT_NULL_VALUE_LEN) {
         return csf_put_null(ra);
     } else {
         if (size < CSF_VARLEN_EX) {
@@ -376,7 +337,7 @@ static inline status_t csf_put_column_data(row_assist_t *ra, void *data, uint32 
         }
         ra->head->size += size;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef WIN32
@@ -395,7 +356,7 @@ static inline void csf_decode_row(row_assist_t *ra, uint16 *offsets, uint16 *len
 
     for (i = 0; i < ROW_COLUMN_COUNT(ra->head); i++) {
         if (pos >= ra->head->size) {
-            lens[i] = (uint16)GS_NULL_VALUE_LEN;
+            lens[i] = (uint16)CT_NULL_VALUE_LEN;
             continue;
         }
 
@@ -406,7 +367,7 @@ static inline void csf_decode_row(row_assist_t *ra, uint16 *offsets, uint16 *len
             offsets[i] = pos + 1;
             pos += (lens[i] + 1);
         } else if (ind_or_len == CSF_NULL_FLAG) {
-            lens[i] = (uint16)GS_NULL_VALUE_LEN;
+            lens[i] = (uint16)CT_NULL_VALUE_LEN;
             offsets[i] = pos + 1;
             pos++;
         } else {
@@ -439,22 +400,22 @@ static inline void row_init(row_assist_t *ra, char *buf, uint32 max_size, uint32
     ra->buf = buf;
     ra->max_size = max_size;
     ra->col_id = 0;
-    ra->is_csf = GS_FALSE;
+    ra->is_csf = CT_FALSE;
 
     ra->head = (row_head_t *)buf;
     ra->head->size = (uint16)head_size;
     ra->head->flags = 0;
 
-    if (column_count >= GS_SPRS_COLUMNS) {
+    if (column_count >= CT_SPRS_COLUMNS) {
         ra->head->column_count = 0;
         ra->head->sprs_count = (uint16)column_count;
-        ra->head->sprs_itl_id = GS_INVALID_ID8;
+        ra->head->sprs_itl_id = CT_INVALID_ID8;
         MEMS_RETVOID_IFERR(memset_sp(ra->head->sprs_bitmap, ex_maps + 1, 0, ex_maps + 1));
     } else {
         ra->head->column_count = (uint16)column_count;
-        ra->head->itl_id = GS_INVALID_ID8;
-        MEMS_RETVOID_IFERR(
-            memset_sp(ra->head->bitmap, ex_maps + NON_CSF_BITMAP_SIZE, 0, ex_maps + NON_CSF_BITMAP_SIZE));
+        ra->head->itl_id = CT_INVALID_ID8;
+        MEMS_RETVOID_IFERR(memset_sp(ra->head->bitmap, (uint64)(ex_maps + NON_CSF_BITMAP_SIZE), 0,
+                                     (uint64)(ex_maps + NON_CSF_BITMAP_SIZE)));
     }
 }
 
@@ -537,7 +498,7 @@ static inline status_t bmp_put_null(row_assist_t *ra)
 {
     row_set_column_bits(ra, COL_BITS_NULL);
     ra->col_id++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t bmp_put_bin(row_assist_t *ra, binary_t *bin)
@@ -571,7 +532,7 @@ static inline status_t bmp_put_bin(row_assist_t *ra, binary_t *bin)
     ra->head->size += (uint16)actual_size;
     row_set_column_bits(ra, COL_BITS_VAR);
     ra->col_id++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t bmp_put_int32(row_assist_t *ra, int32 val)
@@ -581,7 +542,7 @@ static inline status_t bmp_put_int32(row_assist_t *ra, int32 val)
     ra->head->size += (uint16)sizeof(int32);
     row_set_column_bits(ra, COL_BITS_4);
     ra->col_id++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t bmp_put_int64(row_assist_t *ra, int64 val)
@@ -591,7 +552,7 @@ static inline status_t bmp_put_int64(row_assist_t *ra, int64 val)
     ra->head->size += (uint16)sizeof(int64);
     row_set_column_bits(ra, COL_BITS_8);
     ra->col_id++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t row_put_int64(row_assist_t *ra, int64 val)
@@ -602,6 +563,38 @@ static inline status_t row_put_int64(row_assist_t *ra, int64 val)
     } else {
         return bmp_put_int64(ra, val);
     }
+}
+
+static inline status_t bmp_put_datetime_mysql(row_assist_t *ra, int64 val, int32 precision)
+{
+    CM_CHECK_ROW_FREE(ra, sizeof(int64));
+    cm_datetime_int_to_binary(val, ((uchar *)((ra)->buf + (ra)->head->size)), precision);
+    ra->head->size += (uint16)sizeof(int64);
+    row_set_column_bits(ra, COL_BITS_8);
+    ra->col_id++;
+    return CT_SUCCESS;
+}
+
+static inline status_t row_put_datetime_mysql(row_assist_t *ra, int64 val, int32 precision)
+{
+    CM_POINTER(ra);
+    return bmp_put_datetime_mysql(ra, val, precision);
+}
+
+static inline status_t bmp_put_time_mysql(row_assist_t *ra, int64 val, int32 precision)
+{
+    CM_CHECK_ROW_FREE(ra, sizeof(int64));
+    cm_time_int_to_binary(val, ((uchar *)((ra)->buf + (ra)->head->size)), precision);
+    ra->head->size += (uint16)sizeof(int64);
+    row_set_column_bits(ra, COL_BITS_8);
+    ra->col_id++;
+    return CT_SUCCESS;
+}
+
+static inline status_t row_put_time_mysql(row_assist_t *ra, int64 val, int32 precision)
+{
+    CM_POINTER(ra);
+    return bmp_put_time_mysql(ra, val, precision);
 }
 
 static inline status_t row_put_int32(row_assist_t *ra, int32 val)
@@ -701,7 +694,7 @@ static inline status_t row_put_real(row_assist_t *ra, double val)
     ra->head->size += (uint16)sizeof(double);
     row_set_column_bits(ra, COL_BITS_8);
     ra->col_id++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t row_set_real(row_assist_t *ra, double val, uint32 col_id)
@@ -740,7 +733,7 @@ static inline status_t row_put_text(row_assist_t *ra, text_t *text)
     ra->head->size += (uint16)actual_size;
     row_set_column_bits(ra, COL_BITS_VAR);
     ra->col_id++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t row_put_vmid(row_assist_t *ra, mtrl_rowid_t *vmid)
@@ -752,7 +745,7 @@ static inline status_t row_put_vmid(row_assist_t *ra, mtrl_rowid_t *vmid)
     ra->head->size += (uint16)sizeof(mtrl_rowid_t);
     row_set_column_bits(ra, COL_BITS_8);
     ra->col_id++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t row_put_cursor(row_assist_t *ra, cursor_t *cursor)
@@ -760,7 +753,7 @@ static inline status_t row_put_cursor(row_assist_t *ra, cursor_t *cursor)
     int64 result;
     CM_POINTER2(ra, cursor);
 
-    result = ((int64)cursor->stmt_id << 32) + (int64)cursor->fetch_mode;
+    result = (int64)(((uint64)cursor->stmt_id << 32) + (uint64)cursor->fetch_mode);
     return row_put_int64(ra, result);
 }
 
@@ -793,7 +786,7 @@ static inline status_t row_put_text_with_term(row_assist_t *ra, text_t *text)
     ra->head->size += (uint16)actual_size;
     row_set_column_bits(ra, COL_BITS_VAR);
     ra->col_id++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t row_put_str_with_term(row_assist_t *ra, char *str, uint32 str_len)
@@ -833,21 +826,21 @@ static inline status_t row_put_lob(row_assist_t *ra, uint32 lob_locator_size, va
     addr += sizeof(uint16);
 
     switch (lob->type) {
-        case GS_LOB_FROM_KERNEL:
+        case CT_LOB_FROM_KERNEL:
             if (lob->knl_lob.size != 0) {
                 copy_size = lob->knl_lob.size;
                 MEMS_RETURN_IFERR(memcpy_sp(addr, ra->max_size - ra->head->size - sizeof(uint16), lob->knl_lob.bytes,
                                             copy_size));
             }
             break;
-        case GS_LOB_FROM_VMPOOL:
+        case CT_LOB_FROM_VMPOOL:
             copy_size = sizeof(lob->vm_lob);
             MEMS_RETURN_IFERR(memcpy_sp(addr, ra->max_size - ra->head->size - sizeof(uint16),
                                         (char *)&lob->vm_lob, copy_size));
             break;
         default:
-            GS_THROW_ERROR(ERR_UNKNOWN_LOB_TYPE, "do row put");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_UNKNOWN_LOB_TYPE, "do row put");
+            return CT_ERROR;
     }
 
     if (zero_count > 0) {
@@ -859,7 +852,7 @@ static inline status_t row_put_lob(row_assist_t *ra, uint32 lob_locator_size, va
     ra->head->size += (uint16)actual_size;
     row_set_column_bits(ra, COL_BITS_VAR);
     ra->col_id++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #define CURE_ADDR                            (addr + *offset)
@@ -917,7 +910,7 @@ static inline status_t csf_put_dec4_inner(row_assist_t *ra, dec4_t *dval)
     d4 = (dec4_t *)CM_CURR_ROW_PTR(ra);
     cm_dec4_copy(d4, dval);
     ra->head->size += original_size;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t csf_put_dec4(row_assist_t *ra, dec4_t *dval)
@@ -971,14 +964,14 @@ static inline status_t row_put_dec4_core(row_assist_t *ra, dec4_t *dval)
         d4->cells[dval->ncells] = 0;
     }
     cm_dec4_copy(d4, dval);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
 static inline status_t row_put_dec4(row_assist_t *ra, dec8_t *d8)
 {
     dec4_t d4;
-    GS_RETURN_IFERR(cm_dec_8_to_4(&d4, d8));
+    CT_RETURN_IFERR(cm_dec_8_to_4(&d4, d8));
     return row_put_dec4_core(ra, &d4);
 }
 
@@ -992,7 +985,7 @@ static inline status_t csf_put_dec2_inner(row_assist_t *ra, dec2_t *dval)
     d2 = (payload_t *)CM_CURR_ROW_PTR(ra);
     cm_dec2_copy_payload(d2, (const payload_t *)GET_PAYLOAD(dval), dval->len);
     ra->head->size += original_size;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t csf_put_dec2(row_assist_t *ra, dec2_t *dval)
@@ -1033,13 +1026,13 @@ static inline status_t row_put_dec2_core(row_assist_t *ra, dec2_t *dval)
         d2->cells[GET_CELLS_SIZE(dval) + i] = 0;
     }
     cm_dec2_copy_payload(d2, (const payload_t *)GET_PAYLOAD(dval), dval->len);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t row_put_dec2(row_assist_t *ra, dec8_t *d8)
 {
     dec2_t d2;
-    GS_RETURN_IFERR(cm_dec_8_to_2(&d2, d8));
+    CT_RETURN_IFERR(cm_dec_8_to_2(&d2, d8));
     return row_put_dec2_core(ra, &d2);
 }
 
@@ -1058,35 +1051,42 @@ static inline status_t row_set_dec2(row_assist_t *ra, dec8_t *dec, uint32 col_id
 static void inline row_put_prec_and_scale(row_assist_t *ra, uint32 datatype, int32 precision, int32 scale)
 {
     switch (datatype) {
-        case GS_TYPE_REAL:
-        case GS_TYPE_FLOAT:
-            if (precision != GS_UNSPECIFIED_REAL_PREC) {
+        case CT_TYPE_REAL:
+        case CT_TYPE_FLOAT:
+            if (precision != CT_UNSPECIFIED_REAL_PREC) {
                 (void)row_put_int32(ra, precision);  // precision
                 (void)row_put_int32(ra, scale);      // scale
                 return;
             }
             break;
 
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_DECIMAL:
-        case GS_TYPE_NUMBER2:
-            if (precision != GS_UNSPECIFIED_NUM_PREC) {
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_DECIMAL:
+        case CT_TYPE_NUMBER2:
+        case CT_TYPE_NUMBER3:
+            if (precision != CT_UNSPECIFIED_NUM_PREC) {
                 (void)row_put_int32(ra, precision);  // precision
                 (void)row_put_int32(ra, scale);      // scale
                 return;
             }
             break;
 
-        case GS_TYPE_INTERVAL_DS:
+        case CT_TYPE_INTERVAL_DS:
             (void)row_put_int32(ra, precision);  // precision
             (void)row_put_int32(ra, scale);      // scale
             return;
 
-        case GS_TYPE_INTERVAL_YM:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_TZ:
-        case GS_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_INTERVAL_YM:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_INTEGER:
+        case CT_TYPE_UINT32:
+        case CT_TYPE_UINT64:
+        case CT_TYPE_BIGINT:
             (void)row_put_int32(ra, precision);  // precision
             (void)row_put_null(ra);                    // scale
             return;
@@ -1144,7 +1144,7 @@ static inline void cm_decode_row_base(row_assist_t *ra, const char *ptr, uint16 
             lens[i] = 4;
             pos += 4;
         } else if (bits == COL_BITS_NULL) {
-            lens[i] = GS_NULL_VALUE_LEN;
+            lens[i] = CT_NULL_VALUE_LEN;
         } else {
             lens[i] = *(uint16 *)(ptr + pos);
             offsets[i] += sizeof(uint16);
@@ -1207,7 +1207,7 @@ static inline uint16 cm_row_init_size(bool32 is_csf, uint32 column_count)
 static inline bool32 cm_is_null_col(row_head_t *row, uint16 *lens, int16 col)
 {
     if (row->is_csf) {
-        return lens[col] == GS_NULL_VALUE_LEN;
+        return lens[col] == CT_NULL_VALUE_LEN;
     } else {
         uint8 bits = row_get_column_bits2(row, col);
         return bits == COL_BITS_NULL;
@@ -1234,7 +1234,7 @@ static inline bool32 cm_row_equal(const char *lbuf, const char *rbuf)
     uint16 r_keysize = ((row_head_t *)rbuf)->size;
 
     if (l_keysize != r_keysize) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     return (memcmp(lbuf, rbuf, l_keysize) == 0);

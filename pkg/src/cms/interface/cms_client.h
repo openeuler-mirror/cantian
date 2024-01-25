@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,6 +34,7 @@
 #define CMS_MAX_INFO_SIZE               64
 #define CMS_UDS_PATH                    "cantian.ctd.cms.uds"
 #define CMS_CLIENT_REQUEST_TIMEOUT      10000
+#define CMS_CMSTOOL_REQUEST_TIMEOUT     30000
 #define CMS_CLI_WORK_ENTRY_COUNT        10
 #define CMS_MAX_RES_TYPE_LEN            16
 #define CMS_MAX_RES_DATA_SIZE           8000
@@ -57,6 +58,8 @@ enum cms_cli_msg_type_t {
     CMS_CLI_MSG_RES_SET_RES_DATA,
     CMS_CLI_MSG_REQ_GET_RES_DATA,   // get res stat: send->recv
     CMS_CLI_MSG_RES_GET_RES_DATA,
+    CMS_CLI_MSG_REQ_UPGRADE,       // upgrade : send->recv
+    CMS_CLI_MSG_RES_UPGRADE,
     CMS_CLI_MSG_REQ_IOF_KICK,       // iof kick: recv->send
     CMS_CLI_MSG_RES_IOF_KICK,
 };
@@ -89,10 +92,10 @@ typedef struct st_packet_head {
     uint64                      msg_seq;
     uint64                      src_msg_seq;
     uint64                      uds_sid;    // uds cli msg, uds client session id
-    bool32                      need_ack;   // if the req msg need ack, need_ack euqals to GS_TRUE,
-                                            // or need_ack euqals to GS_FALSE
-    bool32                      is_ack;     // if the msg is ack msg, is_ack euqals to GS_TRUE,
-                                            // or is_ack euqals to GS_FALSE
+    bool32                      need_ack;   // if the req msg need ack, need_ack euqals to CT_TRUE,
+                                            // or need_ack euqals to CT_FALSE
+    bool32                      is_ack;     // if the msg is ack msg, is_ack euqals to CT_TRUE,
+                                            // or is_ack euqals to CT_FALSE
     uint32                      sid;    // the session id of the msg
     uint32                      rsn;    // message sequence number
 }cms_packet_head_t;
@@ -110,7 +113,7 @@ typedef struct st_cms_res_status_t {
 
 typedef struct st_cms_res_status_list_t {
     uint64 version;                    // every time members in cluster change, version increase
-    cms_res_status_t inst_list[GS_MAX_INSTANCES]; // unordered list, real-inst-id can not be used as inst_list index
+    cms_res_status_t inst_list[CT_MAX_INSTANCES]; // unordered list, real-inst-id can not be used as inst_list index
     uint8 inst_count;
     uint8 master_inst_id;
     uint8 reserve[2];
@@ -227,4 +230,16 @@ typedef struct st_cms_cli_msg_res_iof_kick_t {
     status_t                result;
 }cms_cli_msg_res_iof_kick_t;
 
+typedef struct st_cms_cli_msg_req_upgrade_t {
+    cms_packet_head_t       head;
+    uint16                  main_ver;
+    uint16                  major_ver;
+    uint16                  revision;
+    uint16                  inner;
+}cms_cli_msg_req_upgrade_t;
+ 
+typedef struct st_cms_cli_msg_res_upgrade_t {
+    cms_packet_head_t       head;
+    status_t                result;
+}cms_cli_msg_res_upgrade_t;
 #endif

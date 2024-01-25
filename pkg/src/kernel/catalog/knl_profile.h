@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -28,6 +28,7 @@
 #include "knl_session.h"
 #include "knl_log.h"
 #include "knl_interface.h"
+#include "knl_profile_persistent.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -38,8 +39,8 @@ extern "C" {
 #define PROFILE_RESOURCE_COLUMN_ID  2
 #define PROFILE_THRESHOLD_COLUMN_ID 3
 
-#define MAX_PROFILE_SIZE  (GS_SHARED_PAGE_SIZE / sizeof(pointer_t))
-#define PROFILE_HASH_SIZE (GS_SHARED_PAGE_SIZE / sizeof(bucket_t))
+#define MAX_PROFILE_SIZE  (CT_SHARED_PAGE_SIZE / sizeof(pointer_t))
+#define PROFILE_HASH_SIZE (CT_SHARED_PAGE_SIZE / sizeof(bucket_t))
 
 typedef struct st_status_desc {
     uint32 id;
@@ -64,7 +65,7 @@ typedef struct st_resource_item {
 typedef struct st_profile {
     drlock_t lock;
     bucket_t *bucket;
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
     uint32 id;
     uint32 mask;
     uint64 limit[RESOURCE_PARAM_END];
@@ -78,12 +79,6 @@ typedef struct st_profile_array {
     bucket_t *buckets;
     profile_t **profiles;
 } profile_array_t;
-
-typedef struct st_rd_profile {
-    uint32 op_type;
-    uint32 id;
-    char obj_name[GS_NAME_BUFFER_SIZE];
-} rd_profile_t;
 
 #define ACCOUNT_STATUS_TOTAL         18
 extern const resource_item_t g_resource_map[RESOURCE_PARAM_END];

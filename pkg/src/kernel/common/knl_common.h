@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -26,6 +26,7 @@
 #define __KNL_COMMON_H__
 
 #include <stdio.h>
+#include "knl_common_module.h"
 #include "cm_types.h"
 #include "cm_log.h"
 #include "knl_interface.h"
@@ -135,6 +136,8 @@ typedef struct st_btree {
     uint8 cipher_reserve_size;
     knl_scn_t min_scn;
     uint32 wait_ticks;
+    int64 pre_struct_ver;
+    void *buf_ctrl;
 } btree_t;
 
 /* lob storage entity */
@@ -151,26 +154,26 @@ typedef struct st_lob_entity {
 #define knl_panic(condition)                                                                                        \
     do {                                                                                                            \
         if (SECUREC_UNLIKELY(!(condition))) {                                                                       \
-            GS_LOG_RUN_ERR("Assertion throws an exception at line %u", (uint32)__LINE__);                           \
+            CT_LOG_RUN_ERR("Assertion throws an exception at line %u", (uint32)__LINE__);                           \
             cm_fync_logfile();                                                                                      \
             *((uint32 *)NULL) = 1;                                                                                  \
         }                                                                                                           \
     } while (0);
 
-#define knl_panic_log(condition, format, ...)                                                   \
-    do {                                                                                        \
-        if (SECUREC_UNLIKELY(!(condition))) {                                                   \
-            cm_write_normal_log(LOG_RUN, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__,       \
-                                MODULE_NAME, GS_TRUE, format, ##__VA_ARGS__);                   \
-            cm_fync_logfile();                                                                  \
-            *((uint32 *)NULL) = 1;                                                              \
-        }                                                                                       \
+#define knl_panic_log(condition, format, ...)                                                                      \
+    do {                                                                                                           \
+        if (SECUREC_UNLIKELY(!(condition))) {                                                                      \
+            cm_write_normal_log(LOG_RUN, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                                format, ##__VA_ARGS__);                                                            \
+            cm_fync_logfile();                                                                                     \
+            *((uint32 *)NULL) = 1;                                                                                 \
+        }                                                                                                          \
     } while (0);
 
 #define knl_securec_check(err)                                            \
     {                                                                     \
         if (SECUREC_UNLIKELY(EOK != (err))) {                             \
-            GS_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err)); \
+            CT_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err)); \
             cm_fync_logfile();                                            \
             *((uint32 *)NULL) = 1;                                        \
         }                                                                 \
@@ -180,7 +183,7 @@ typedef struct st_lob_entity {
 #define knl_securec_check_ss(err)                                         \
     {                                                                     \
         if (SECUREC_UNLIKELY((err) == -1)) {                              \
-            GS_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err)); \
+            CT_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err)); \
             cm_fync_logfile();                                            \
             *((uint32 *)NULL) = 1;                                        \
         }                                                                 \
@@ -190,29 +193,29 @@ typedef struct st_lob_entity {
     do {                                                                                                            \
         if (SECUREC_UNLIKELY(!(condition))) {                                                                       \
             if (LOG_RUN_ERR_ON) {                                                                                   \
-                GS_LOG_RUN_ERR("Assertion throws an exception at line %u", (uint32)__LINE__);                       \
+                CT_LOG_RUN_ERR("Assertion throws an exception at line %u", (uint32)__LINE__);                       \
                 cm_fync_logfile();                                                                                  \
             }                                                                                                       \
             *((uint32 *)NULL) = 1;                                                                                  \
         }                                                                                                           \
     } while (0);
 
-#define knl_panic_log(condition, format, ...)                                                   \
-    do {                                                                                        \
-        if (SECUREC_UNLIKELY(!(condition))) {                                                   \
-            if (LOG_RUN_ERR_ON) {                                                               \
-                cm_write_normal_log(LOG_RUN, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__,   \
-                                    MODULE_NAME, GS_TRUE, format, ##__VA_ARGS__);               \
-                cm_fync_logfile();                                                              \
-            }                                                                                   \
-            knl_panic(0);                                                                       \
-        }                                                                                       \
+#define knl_panic_log(condition, format, ...)                                                                          \
+    do {                                                                                                               \
+        if (SECUREC_UNLIKELY(!(condition))) {                                                                          \
+            if (LOG_RUN_ERR_ON) {                                                                                      \
+                cm_write_normal_log(LOG_RUN, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                                    format, ##__VA_ARGS__);                                                            \
+                cm_fync_logfile();                                                                                     \
+            }                                                                                                          \
+            knl_panic(0);                                                                                              \
+        }                                                                                                              \
     } while (0);
 
 #define knl_securec_check(err)                                            \
     {                                                                     \
         if (SECUREC_UNLIKELY(EOK != (err))) {                             \
-            GS_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err)); \
+            CT_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err)); \
             cm_fync_logfile();                                            \
             knl_panic(0);                                                 \
         }                                                                 \
@@ -222,7 +225,7 @@ typedef struct st_lob_entity {
 #define knl_securec_check_ss(err)                                         \
     {                                                                     \
         if (SECUREC_UNLIKELY((err) == -1)) {                              \
-            GS_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err)); \
+            CT_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err)); \
             cm_fync_logfile();                                            \
             knl_panic(0);                                                 \
         }                                                                 \
@@ -306,15 +309,15 @@ static inline status_t knl_cursor_ssi_conflict(knl_cursor_t *cursor, bool32 is_l
 {
     if (cursor->isolevel != (uint8)ISOLATION_SERIALIZABLE || cursor->action == CURSOR_ACTION_SELECT ||
         !cursor->ssi_conflict) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (cursor->is_locked || is_locking) {
-        GS_THROW_ERROR(ERR_SERIALIZE_ACCESS);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SERIALIZE_ACCESS);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static const char *g_checksum_level_str[] = { "OFF", "TYPICAL", "FULL" };

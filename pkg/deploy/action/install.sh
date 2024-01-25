@@ -3,19 +3,25 @@ set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
 INSTALL_TYPE=$1
+CONFIG_FILE=""
+FS_CONFIG_FILE=""
 PRE_INSTALL_PY_PATH=${CURRENT_PATH}/pre_install.py
 FILE_MOD_FILE=${CURRENT_PATH}/file_mod.sh
 CONFIG_PATH=${CURRENT_PATH}/../config
 ENV_FILE=${CURRENT_PATH}/env.sh
 MYSQL_MOUNT_PATH=/opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir
+UPDATE_CONFIG_FILE_PATH="${CURRENT_PATH}"/update_config.py
+DBSTORE_CHECK_FILE=/opt/cantian/dbstor/tools/cs_check_version.sh
 config_install_type="override"
 pass_check='true'
 add_group_user_ceck='true'
 mount_nfs_check='true'
+auto_create_fs='false'
 dbstor_user=''
 dbstor_pwd_first=''
 unix_sys_pwd_first=''
 unix_sys_pwd_second=''
+dm_login_pwd=''
 cert_encrypt_pwd=''
 storage_share_fs=''
 storage_archive_fs=''
@@ -33,9 +39,11 @@ chmod u+s /bin/ping
 
 if [ -f ${INSTALL_TYPE} ]; then  # 默认override，接收第一个参数文件为配置文件路径
     CONFIG_FILE=${INSTALL_TYPE}
+    FS_CONFIG_FILE=$2
     INSTALL_TYPE='override'
 elif [[ ${INSTALL_TYPE} == "override" ]]; then  # 指定override，接收第二个参数为配置文件路径
     CONFIG_FILE=$2
+    FS_CONFIG_FILE=$3
     if [ ! -f ${CONFIG_FILE} ]; then
         logAndEchoError "file: ${CONFIG_FILE} not exist"
         exit 1
@@ -48,20 +56,13 @@ else  # 参数输入格式有误
     exit 1
 fi
 
+# 接收第三个参数为文件系统配置文件路径
+if [ -f "${FS_CONFIG_FILE}" ];then
+    auto_create_fs="true"
+fi
+
 function correct_files_mod() {
-    for file_path in ${!FILE_R_MODE_MAP[@]}; do
-        if [ ! -e ${file_path} ]; then
-            continue
-        fi
-
-        chmod -R ${FILE_R_MODE_MAP[$file_path]} $file_path
-        if [ $? -ne 0 ]; then
-            logAndEchoError "chmod -R ${FILE_R_MODE_MAP[$file_path]} ${file_path} failed"
-            exit 1
-        fi
-    done
-
-    for file_path in ${!FILE_MODE_MAP[@]}; do
+    for file_path in "${!FILE_MODE_MAP[@]}"; do
         if [ ! -e ${file_path} ]; then
             continue
         fi
@@ -77,13 +78,13 @@ function correct_files_mod() {
 # 获取用户输入用户名密码
 function enter_pwd()
 {
-    if [[ x"${deploy_mode}" == x"--dbstore" ]];then
+    if [[ x"${deploy_mode}" != x"nas" ]];then
         read -p "please enter dbstor_user: " dbstor_user
         echo "dbstor_user is: ${dbstor_user}"
 
         read -s -p "please enter dbstor_pwd: " dbstor_pwd_first
         echo ''
-        echo "${dbstor_pwd_first}" | python3 ${CURRENT_PATH}/check_pwd.py
+        echo "${dbstor_pwd_first}" | python3 ${CURRENT_PATH}/implement/check_pwd.py
         if [ $? -ne 0 ]; then
             logAndEchoError 'dbstor_pwd not available'
             exit 1
@@ -92,7 +93,7 @@ function enter_pwd()
 
     read -s -p "please enter cantian_sys_pwd: " unix_sys_pwd_first
     echo ''
-    echo "${unix_sys_pwd_first}" | python3 ${CURRENT_PATH}/check_pwd.py
+    echo "${unix_sys_pwd_first}" | python3 ${CURRENT_PATH}/implement/check_pwd.py
     if [ $? -ne 0 ]; then
         logAndEchoError 'cantian_sys_pwd not available'
         exit 1
@@ -104,9 +105,11 @@ function enter_pwd()
         logAndEchoError "two cantian_sys_pwd are different"
         exit 1
     fi
+    if [ x"${mes_type}" == x"TCP" ];then
+        read -s -p "please enter private key encryption password:" cert_encrypt_pwd
+        echo ''
+    fi
 
-    read -s -p "please enter private key encryption password:" cert_encrypt_pwd
-    echo ''
 }
 
 # 检查用户用户组是否创建成功
@@ -127,6 +130,12 @@ function checkMountNFS() {
 
 # 配置ctmgruser sudo权限
 function config_sudo() {
+    cantian_sudo="cantian ALL=(root) NOPASSWD:/usr/bin/chrt"
+    cat /etc/sudoers | grep ^cantian
+    if [[ -n $? ]];then
+        sed -i '/^cantian*/d' /etc/sudoers
+    fi
+    echo "${cantian_sudo}" >> /etc/sudoers
     local chmod_script="/opt/cantian/action/change_log_priority.sh"
     ctmgruser_sudo="ctmgruser ALL=(root) NOPASSWD:${chmod_script}"
     cat /etc/sudoers | grep ctmgruser
@@ -141,13 +150,11 @@ function initUserAndGroup()
 {
     # 创建用户组
     groupadd cantiangroup -g 1100
-    checkGroupUserAdd $?
-    groupadd cantianmgrgroup -g 1101
-    checkGroupUserAdd $?
-    useradd ctmgruser -s /sbin/nologin -G cantiangroup,cantianmgrgroup,${deploy_group} -u 6004
-    checkGroupUserAdd $?
+    useradd cantian -s /sbin/nologin -G cantiangroup -u 6000
+    useradd ctmgruser -s /sbin/nologin -G cantiangroup -u 6004
     # 增加用户到用户组
     usermod -a -G cantiangroup ${deploy_user}
+    usermod -a -G ${deploy_group} cantian
     config_sudo
 }
 
@@ -173,15 +180,15 @@ function config_security_limits() {
   if [ $? -ne 0 ];then
     echo "* hard memlock unlimited" >> "${security_limits}"
   fi
-  grep "${deploy_user} hard nice -20" "${security_limits}"
+  grep "${cantian_user} hard nice -20" "${security_limits}"
   if [ $? -ne 0 ];then
-    echo "${deploy_user} hard nice -20" >> "${security_limits}"
+    echo "${cantian_user} hard nice -20" >> "${security_limits}"
   fi
-  grep "${deploy_user} soft nice -20" "${security_limits}"
+  grep "${cantian_user} soft nice -20" "${security_limits}"
   if [ $? -ne 0 ];then
-    echo "${deploy_user} soft nice -20" >> "${security_limits}"
+    echo "${cantian_user} soft nice -20" >> "${security_limits}"
   fi
-  grep "${deploy_user} soft nice -20" "${security_limits}" && grep "${deploy_user} hard nice -20" "${security_limits}" && grep "\* hard memlock unlimited" "${security_limits}" && grep "\* soft memlock unlimited" "${security_limits}"
+  grep "${cantian_user} soft nice -20" "${security_limits}" && grep "${cantian_user} hard nice -20" "${security_limits}"
   if [ $? -ne 0 ];then
     logAndEchoInfo "config security limits failed"
     exit 1
@@ -213,84 +220,179 @@ function check_port() {
   exit 1
 }
 
-function install_rpm()
-{
-    RPM_PATH=${CURRENT_PATH}/../repo/cantian-*.rpm
-    RPM_UNPACK_PATH_FILE="/opt/cantian/image/cantian_connector/CantianKernel/Cantian-DATABASE-CENTOS-64bit/Cantian-DATABASE-CENTOS-64bit"
-    RPM_PACK_ORG_PATH="/opt/cantian/image"
-
-    if [ ! -f  "${CURRENT_PATH}"/../repo/cantian-*.rpm ]; then
-        echo " cantian.rpm is not exist."
+function rpm_check(){
+    local count=2
+    if [ x"${deploy_mode}" == x"dbstore" ];then
+      count=3
+    fi
+    rpm_pkg_count=$(ls "${CURRENT_PATH}"/../repo | wc -l)
+    rpm_pkg_info=$(ls -l "${CURRENT_PATH}"/../repo)
+    logAndEchoInfo "There are ${rpm_pkg_count} packages in repo dir, which detail is: ${rpm_pkg_info}"
+    if [ ${rpm_pkg_count} -ne ${count} ]; then
+        logAndEchoError "We have to have only ${count} rpm package,please check"
         exit 1
     fi
-
-    rpm -ivh --replacepkgs ${RPM_PATH} --nodeps --force
-
-    tar -zxf ${RPM_UNPACK_PATH_FILE}/Cantian-RUN-CENTOS-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
-    if [ x"${deploy_mode}" == x"--dbstore" ];then
-        install_dbstore
-        if [ $? -ne 0 ];then
-            sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
-            exit 1
-        fi
-    fi
-    chown ${deploy_user} -hR ${RPM_PACK_ORG_PATH}
-    chown root:root ${RPM_PACK_ORG_PATH}
 }
 
-function install_dbstore(){
-    local arrch=$(uname -p)
-    local dbstore_path="${CURRENT_PATH}"/../repo
-    local dbtore_test_file=$(ls "${dbstore_path}"/Dbstore_Client_Test*-"${arrch}"-product-dbstore.tgz)
-    local dbtore_client_file=$(ls "${dbstore_path}"/dbstore_client-*-"${arrch}"-product-dbstore.tgz)
-    if [ ! -f ${dbtore_test_file} ];then
-        logAndEchoError "${dbtore_test_file} is not exist."
-        return 1
+function copy_certificate() {
+    local certificate_dir="/mnt/dbdata/remote/share_${storage_share_fs}/certificates"
+    local certificate_dir_node="${certificate_dir}/node${node_id}"
+    if [ -d "${certificate_dir_node}" ];then
+        rm -rf "${certificate_dir_node}"
     fi
-    if [ ! -f ${dbtore_client_file} ];then
-        logAndEchoError "${dbtore_client_file} is not exist."
-        return 1
-    fi
-    dbstore_file_path=${CURRENT_PATH}/dbstore_file_path
-    if [ -d "${dbstore_file_path}" ];then
-        rm -rf "${dbstore_file_path}"
-    fi
-    mkdir -p "${dbstore_file_path}"
-    mkdir -p "${dbstore_file_path}"/client
-    mkdir -p "${dbstore_file_path}"/client_test
-    tar -zxf "${dbtore_test_file}" -C "${dbstore_file_path}"/client_test
-    tar -zxf "${dbtore_client_file}" -C "${dbstore_file_path}"/client
-    cp -arf "${dbstore_file_path}"/client/lib/* "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/add-ons/
-    cp -arf "${dbstore_file_path}"/client_test "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit
-    rm -rf "${dbstore_file_path}"
-    return 0
-}
-
-function copy_cert_files() {
-    local target_path=/opt/cantian/certificate
+    mkdir -m 700 -p  "${certificate_dir_node}"
     local ca_path
     ca_path=$(python3 "${CURRENT_PATH}"/get_config_info.py "ca_path")
     local crt_path
     crt_path=$(python3 "${CURRENT_PATH}"/get_config_info.py "crt_path")
     local key_path
     key_path=$(python3 "${CURRENT_PATH}"/get_config_info.py "key_path")
-    mkdir -m 750 -p "${target_path}"
-    cp -arf "${ca_path}" "${target_path}"/ca.crt
-    cp -arf "${crt_path}" "${target_path}"/mes.crt
-    cp -arf "${key_path}" "${target_path}"/mes.key
-    chmod 600 "${target_path}"/*
-    chown -hR "${deploy_user}":"${deploy_group}" "${target_path}"
-    echo -e "${cert_encrypt_pwd}" | python3 -B "${CURRENT_PATH}"/check_pwd.py "check_cert_pwd"
+    cp -arf "${ca_path}" "${certificate_dir_node}"/ca.crt
+    cp -arf "${crt_path}" "${certificate_dir_node}"/mes.crt
+    cp -arf "${key_path}" "${certificate_dir_node}"/mes.key
+    chmod 600 "${certificate_dir_node}"/*
+    chown -hR "${deploy_user}":"${deploy_group}" "${certificate_dir}"
+    echo -e "${cert_encrypt_pwd}" | python3 -B "${CURRENT_PATH}"/implement/check_pwd.py "check_cert_pwd"
     if [ $? -ne 0 ];then
         logAndEchoError "Cert file or passwd check failed."
+        uninstall
         exit 1
     fi
-    cert_encrypt_pwd=$(echo -n "${cert_encrypt_pwd}" | openssl base64)
 }
 
-check_ntp_active
+function uninstall() {
+    if [[ ${auto_create_fs} == "true" && ${node_id} == "0" ]];then
+        echo -e "${dm_login_ip}\n${dm_login_user}\n${dm_login_pwd}" | sh "${CURRENT_PATH}"/uninstall.sh "${config_install_type}" delete_fs
+    else
+        sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
+    fi
+}
 
-# 公共预安装检查
+function check_deploy_param() {
+    if [[ x"${node_id}" == x"0" ]];then
+        cp -rf "${CONFIG_PATH}"/deploy_param.json /mnt/dbdata/remote/share_"${storage_share_fs}"/
+        chmod 600 /mnt/dbdata/remote/share_"${storage_share_fs}"/deploy_param.json
+        chown "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_"${storage_share_fs}"/deploy_param.json
+    else
+        su -s /bin/bash - "${cantian_user}" -c "python3 -B ${CURRENT_PATH}/implement/check_deploy_param.py"
+        if [ $? -ne 0 ];then
+            logAndEchoError "Check params failed."
+            uninstall
+            exit 1
+        fi
+    fi
+}
+
+function install_dbstor(){
+    local arrch=$(uname -p)
+    local dbstor_path="${CURRENT_PATH}"/../repo
+    local dbstor_package_file=$(ls "${dbstor_path}"/DBStor_Client*_"${arrch}"*.tgz)
+    if [ ! -f "${dbstor_package_file}" ];then
+        logAndEchoError "${dbstor_package_file} is not exist."
+        return 1
+    fi
+
+    dbstor_file_path=${CURRENT_PATH}/dbstor_file_path
+    if [ -d "${dbstor_file_path}" ];then
+        rm -rf "${dbstor_file_path}"
+    fi
+    mkdir -p "${dbstor_file_path}"
+    tar -zxf "${dbstor_package_file}" -C "${dbstor_file_path}"
+
+    local dbstor_test_file=$(ls "${dbstor_file_path}"/Dbstor_Client_Test*-"${arrch}"*-dbstor*.tgz)
+    local dbstor_client_file=$(ls "${dbstor_file_path}"/dbstor_client*-"${arrch}"*-dbstor*.tgz)
+    if [ ! -f "${dbstor_test_file}" ];then
+        logAndEchoError "${dbstor_test_file} is not exist."
+        return 1
+    fi
+    if [ ! -f "${dbstor_client_file}" ];then
+        logAndEchoError "${dbstor_client_file} is not exist."
+        return 1
+    fi
+
+    mkdir -p "${dbstor_file_path}"/client
+    mkdir -p "${dbstor_file_path}"/client_test
+    tar -zxf "${dbstor_test_file}" -C "${dbstor_file_path}"/client_test
+    tar -zxf "${dbstor_client_file}" -C "${dbstor_file_path}"/client
+    cp -arf "${dbstor_file_path}"/client/lib/* "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/add-ons/
+    cp -arf "${dbstor_file_path}"/client_test "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit
+    rm -rf "${dbstor_file_path}"
+    return 0
+}
+
+function install_rpm()
+{
+    RPM_PATH=${CURRENT_PATH}/../repo/cantian-*.rpm
+    RPM_UNPACK_PATH_FILE="/opt/cantian/image/cantian_connector/CantianKernel/Cantian-DATABASE-CENTOS-64bit"
+    RPM_PACK_ORG_PATH="/opt/cantian/image"
+
+    if [ ! -f  "${CURRENT_PATH}"/../repo/cantian-*.rpm ]; then
+        echo "cantian.rpm is not exist."
+        exit 1
+    fi
+
+    rpm -ivh --replacepkgs ${RPM_PATH} --nodeps --force
+
+    tar -zxf ${RPM_UNPACK_PATH_FILE}/Cantian-RUN-CENTOS-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
+    if [ x"${deploy_mode}" == x"dbstore" ];then
+        install_dbstor
+        if [ $? -ne 0 ];then
+            sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
+            exit 1
+        fi
+    fi
+    chmod -R 750 ${RPM_PACK_ORG_PATH}/Cantian-RUN-CENTOS-64bit
+    chown ${deploy_user}:${deploy_group} -hR ${RPM_PACK_ORG_PATH}/
+    chown root:root ${RPM_PACK_ORG_PATH}
+}
+
+function show_cantian_version() {
+    echo '#!/bin/bash
+    set +x
+    sn=$(dmidecode -s system-uuid)
+    name=$(cat /etc/hostname)
+    version=$(cat /opt/cantian/versions.yml | grep -oE "([0-9]+\.[0-9]+\.[0-9]+)" | sed "s/\.$//")
+    echo SN                          : ${sn}
+    echo System Name                 : ${name}
+    echo Product Model               : Cantian
+    echo Product Version             : ${version}' > /usr/local/bin/show
+    chmod 550 /usr/local/bin/show
+}
+
+function check_dbstore_client_compatibility() {
+    deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
+    if [[ x"${deploy_mode}" == x"nas" ]]; then
+        return 0
+    fi
+    logAndEchoInfo "begin to check dbstore client compatibility."
+    if [ ! -f "${DBSTORE_CHECK_FILE}" ];then
+        logAndEchoError "${DBSTORE_CHECK_FILE} file is not exists."
+        uninstall
+        exit 1
+    fi
+    su -s /bin/bash - "${cantian_user}" -c "sh ${DBSTORE_CHECK_FILE}"
+    if [[ $? -ne 0 ]];then
+        logAndEchoError "dbstore client compatibility check failed."
+        uninstall
+        exit 1
+    fi
+    logAndEchoInfo "dbstore client compatibility check success."
+}
+
+function update_random_seed() {
+    if [[ x"${node_id}" == x"0" ]];then
+        random_seed=$(python3 -c 'import secrets; secrets_generator = secrets.SystemRandom(); print(secrets_generator.randint(0, 255))')
+    else
+        random_seed=$(python3 ${CURRENT_PATH}/get_config_info.py "share_random_seed")
+    fi
+    python3 ${CURRENT_PATH}/write_config.py "random_seed" "${random_seed}"
+}
+
+# 容器内无需检查ntp服务
+if [ ! -f /.dockerenv ]; then
+  check_ntp_active
+fi
+
 python3 ${PRE_INSTALL_PY_PATH} ${INSTALL_TYPE} ${CONFIG_FILE}
 if [ $? -ne 0 ]; then
   logAndEchoError "over all pre_install failed. For details, see the /opt/cantian/deploy/om_deploy/om_deploy.log"
@@ -300,6 +402,10 @@ fi
 # 把生成的deploy_param.json移到config路径下
 mv -f ${CURRENT_PATH}/deploy_param.json ${CONFIG_PATH}
 python3 ${CURRENT_PATH}/write_config.py "install_type" ${INSTALL_TYPE}
+
+deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
+# 公共预安装检查
+rpm_check
 
 # 获取deploy_user和deploy_group，输入文档中的deploy_user关键字
 deploy_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
@@ -315,9 +421,30 @@ if [ $? -ne 0 ]; then
     logAndEchoError "deploy_group ${deploy_group} not exist"
     exit 1
 fi
+# 单进程场景使用deploy_user
+is_single=$(cat "${CURRENT_PATH}"/cantian/options.py | grep -oP 'self\.running_mode = "\K[^"]+')
+if [[ x"${is_single}" == x"cantiand_with_mysql_in_cluster" ]];then
+    sed -i "s/cantian_user=\"cantian\"/cantian_user=\"${deploy_user}\"/g" "${CURRENT_PATH}"/env.sh
+    sed -i "s/cantian_group=\"cantian\"/cantian_group=\"${deploy_group}\"/g" "${CURRENT_PATH}"/env.sh
+fi
+
+if [[ x"${deploy_mode}" == x"nas" ]];then
+    python3 "${CURRENT_PATH}"/modify_env.py
+    if [  $? -ne 0 ];then
+        echo "Current deploy mode is ${deploy_mode}, modify env.sh failed."
+    fi
+fi
+
+source ${CURRENT_PATH}/env.sh
+
+correct_files_mod
+
+# 创建用户用户组
+initUserAndGroup
+
 
 if [ -d /opt/cantian/backup ]; then
-    chown -hR ${deploy_user}:${deploy_group} /opt/cantian/backup
+    chown -hR ${cantian_user}:${cantian_group} /opt/cantian/backup
     if [ $? -eq 0 ]; then
         logAndEchoInfo "changed /opt/cantian/backup owner success"
     else
@@ -331,16 +458,6 @@ config_install_type=`python3 ${CURRENT_PATH}/get_config_info.py "install_type"`
 if [[ ${config_install_type} = 'override' ]]; then
     mkdir -p /opt/cantian/action
 fi
-
-deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
-if [[ x"${deploy_mode}" == x"--nas" ]];then
-    python3 "${CURRENT_PATH}"/modify_env.py
-    if [  $? -ne 0 ];then
-        echo "Current deploy mode is ${deploy_mode}, modify env.sh failed."
-    fi
-fi
-
-source ${CURRENT_PATH}/env.sh
 
 chmod 755 /opt/cantian/action
 chmod 755 /opt/cantian/
@@ -361,19 +478,28 @@ logAndEchoInfo "create '/opt/cantian/mysql/server/' for mysql success"
 for dir_name in "${DIR_LIST[@]}"
 do
     if [ -d "${dir_name}" ];then
-        chown -hR "${deploy_user}":"${deploy_group}" "${dir_name}"
+        chown -hR "${cantian_user}":"${cantian_group}" "${dir_name}"
     fi
 done
+if [ -d /opt/cantian/mysql ];then
+    chown -hR "${deploy_user}":"${deploy_group}" /opt/cantian/mysql
+fi
+
 
 # 修改公共模块文件权限
 correct_files_mod
 chmod 400 "${CURRENT_PATH}"/../repo/*
-chown "${deploy_user}":"${deploy_group}" "${CURRENT_PATH}"/obtains_lsid.py
+chown "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/obtains_lsid.py
+chown "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/implement/update_cantian_passwd.py
+chown "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/implement/check_deploy_param.py
+chown "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/update_config.py
+
+
 # 预安装各模块，有一个模块失败pass_check设为false
 for lib_name in "${PRE_INSTALL_ORDER[@]}"
 do
     logAndEchoInfo "pre_install ${lib_name}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-    sh ${CURRENT_PATH}/${lib_name}/appctl.sh pre_install >> ${OM_DEPLOY_LOG_FILE} 2>&1
+    sh ${CURRENT_PATH}/${lib_name}/appctl.sh pre_install ${config_install_type} >> ${OM_DEPLOY_LOG_FILE} 2>&1
     single_result=$?
     if [ ${single_result} -ne 0 ]; then
         logAndEchoError "[error] pre_install ${lib_name} failed"
@@ -382,32 +508,64 @@ do
     fi
     logAndEchoInfo "pre_install ${lib_name} result is ${single_result}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 done
+chmod 755 /mnt/dbdata/local
 
-# 存在预校验模块失败，退出
+# 存在预校验模块失败，卸载
 if [[ ${pass_check} = 'false' ]]; then
     logAndEchoError "pre_install failed."
     exit 1
 fi
 
 # 获取install_type 如果install_type为override 执行以下操作
-config_install_type=`python3 ${CURRENT_PATH}/get_config_info.py "install_type"`
+mes_type=$(python3 ${CURRENT_PATH}/get_config_info.py "mes_type")
+config_install_type=$(python3 ${CURRENT_PATH}/get_config_info.py "install_type")
+node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
 echo "install_type in deploy_param.json is: ${config_install_type}"
 if [[ ${config_install_type} = 'override' ]]; then
   # 用户输入密码
   enter_pwd
+  if [[ ${auto_create_fs} == "true" && ${node_id} == "0" ]];then
+      if [ ! -f "${FS_CONFIG_FILE}" ];then
+          logAndEchoError "Auto create fs config file is not exist, please check"
+          exit 1
+      fi
+      read -p "please input DM login ip:" dm_login_ip
+      if [[ x"${dm_login_ip}" == x"" ]];then
+          logAndEchoError "Enter a correct IP address, not None"
+          exit 1
+      fi
+      echo "please input DM login ip:${dm_login_ip}"
 
-  # 拷贝证书
-  copy_cert_files
+      read -s -p "please input DM login user:" dm_login_user
+      if [[ x"${dm_login_user}" == x"" ]];then
+          logAndEchoError "Enter a correct user, not None."
+          exit 1
+      fi
+      echo "please input DM login user:${dm_login_user}"
 
-  # 创建用户用户组
-  initUserAndGroup
+      read -s -p "please input DM login passwd:" dm_login_pwd
+      if [[ x"${dm_login_pwd}" == x"" ]];then
+          logAndEchoError "Enter a correct passwd, not None."
+          exit 1
+      fi
+      echo ""
 
-  # 检查用户用户组是否都创建成功
-  if [[ ${add_group_user_ceck} != 'true' ]]; then
-      logAndEchoError "add user or group failed"
-      sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
-      exit 1
+      cp ${FS_CONFIG_FILE} ${CONFIG_PATH}/file_system_info.json
+      logAndEchoInfo "Auto create fs start"
+      echo -e "${dm_login_user}\n${dm_login_pwd}" | python3 -B "${CURRENT_PATH}"/storage_operate/create_file_system.py --action="pre_check" --ip="${dm_login_ip}" >> ${OM_DEPLOY_LOG_FILE} 2>&1
+      if [ $? -ne 0 ];then
+          logAndEchoError "Auto create fs pre check failed, for details see the /opt/cantian/deploy/om_deploy/rest_request.log"
+          exit 1
+      fi
+      echo -e "${dm_login_user}\n${dm_login_pwd}" | python3 -B "${CURRENT_PATH}"/storage_operate/create_file_system.py --action="create" --ip="${dm_login_ip}" >> ${OM_DEPLOY_LOG_FILE} 2>&1
+      if [ $? -ne 0 ];then
+          logAndEchoError "Auto create fs failed, for details see the /opt/cantian/deploy/om_deploy/rest_request.log"
+          uninstall
+          exit 1
+      fi
+      logAndEchoInfo "Auto create fs success"
   fi
+
 
   # 获取要创建路径的路径名
   storage_share_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_share_fs"`
@@ -425,18 +583,18 @@ if [[ ${config_install_type} = 'override' ]]; then
   chmod 755 /mnt/dbdata /mnt/dbdata/remote /mnt/dbdata/local
   if [[ ${storage_archive_fs} != '' ]]; then
       mkdir -m 750 -p /mnt/dbdata/remote/archive_${storage_archive_fs}
-      chown ${deploy_user}:${deploy_group} /mnt/dbdata/remote/archive_${storage_archive_fs}
+      chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/archive_${storage_archive_fs}
   fi
-  chown ${deploy_user}:${deploy_group} /mnt/dbdata/remote/share_${storage_share_fs}
+  chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/share_${storage_share_fs}
   mkdir -m 755 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}
 
-  chown ${deploy_user}:${deploy_group} /opt/cantian/common/data
+  chown ${cantian_user}:${cantian_group} /opt/cantian/common/data
   if [ $? -ne 0 ]; then
-      logAndEchoError "change /opt/cantian/common/data to ${deploy_user}:${deploy_group} failed"
-      sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
+      logAndEchoError "change /opt/cantian/common/data to ${cantian_user}:${cantian_group} failed"
+      uninstall
       exit 1
   else
-      logAndEchoInfo "change /opt/cantian/common/data to ${deploy_user}:${deploy_group} success"
+      logAndEchoInfo "change /opt/cantian/common/data to ${cantian_user}:${cantian_group} sucess"
   fi
 
   # 创建dbstor需要的key
@@ -452,7 +610,6 @@ if [[ ${config_install_type} = 'override' ]]; then
 
   # 获取nfs挂载的ip
   share_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "share_logic_ip"`
-
   if [[ ${storage_archive_fs} != '' ]]; then
       archive_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "archive_logic_ip"`
       if [[ ${archive_logic_ip} = '' ]]; then
@@ -461,8 +618,13 @@ if [[ ${config_install_type} = 'override' ]]; then
   fi
   metadata_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "metadata_logic_ip"`
 
-  kerberos_type=`python3 ${CURRENT_PATH}/get_config_info.py "kerberos_key"`
-  mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+  if [[ x"${deploy_mode}" == x"dbstore" ]]; then
+      kerberos_type=`python3 ${CURRENT_PATH}/get_config_info.py "kerberos_key"`
+      mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+  else
+      mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+  fi
+
   metadata_result=$?
   if [ ${metadata_result} -ne 0 ]; then
       logAndEchoError "mount matedata nfs failed"
@@ -471,46 +633,57 @@ if [[ ${config_install_type} = 'override' ]]; then
   check_port
   sysctl fs.nfs.nfs_callback_tcpport="${NFS_PORT}" > /dev/null 2>&1
   # 挂载nfs
-  mount -t nfs -o sec="${kerberos_type}",vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+  if [[ x"${deploy_mode}" == x"dbstore" ]]; then
+      mount -t nfs -o sec="${kerberos_type}",vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+  else
+      mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+  fi
   share_result=$?
   if [ ${share_result} -ne 0 ]; then
       logAndEchoError "mount share nfs failed"
   fi
+  chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
   checkMountNFS ${share_result}
   if [[ ${storage_archive_fs} != '' ]]; then
-      mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
+      if [[ x"${deploy_mode}" == x"dbstore" ]]; then
+          mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
+      else
+          mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
+      fi
+
       archive_result=$?
       if [ ${archive_result} -ne 0 ]; then
           logAndEchoError "mount archive nfs failed"
       fi
       checkMountNFS ${archive_result}
       chmod 750 /mnt/dbdata/remote/archive_${storage_archive_fs}
+      chown -hR "${cantian_user}":"${deploy_group}" /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
       # 修改备份nfs路径属主属组
-      chown ${deploy_user}:${deploy_group} /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
   fi
   checkMountNFS ${metadata_result}
 
-  if [[ x"${deploy_mode}" == x"--nas" ]];then
+  if [[ x"${deploy_mode}" == x"nas" ]]; then
       storage_dbstore_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstore_fs"`
       storage_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "storage_logic_ip"`
       mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-      chown "${deploy_user}":"${deploy_group}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-      mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
+      chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
+      mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
       checkMountNFS $?
-      chown "${deploy_user}":"${deploy_group}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
+      chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
       mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
       mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
-      chown ${deploy_user}:${deploy_group} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
-      chown ${deploy_user}:${deploy_group} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
+      chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
+      chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
   fi
+
   # 检查nfs是否都挂载成功
   if [[ ${mount_nfs_check} != 'true' ]]; then
       logAndEchoInfo "mount nfs failed"
-      sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
+      uninstall
       exit 1
   fi
   remoteInfo=`ls -l /mnt/dbdata/remote`
-  logAndEchoInfo "/mnt/dbdata/remote detial is: ${remoteInfo}"
+  logAndEchoInfo "/mnt/dbdata/remote detail is: ${remoteInfo}"
   # 目录权限最小化
   chmod 750 /mnt/dbdata/remote/share_${storage_share_fs}
   chmod 755 /mnt/dbdata/remote/metadata_${storage_metadata_fs}
@@ -518,15 +691,23 @@ if [[ ${config_install_type} = 'override' ]]; then
   if [ -d /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id} ];then
       rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
   fi
-  mkdir -m 750 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
-  chown ${deploy_user}:${deploy_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
+  mkdir -m 770 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
+  chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
+  update_random_seed
+  # 挂载后，0节点拷贝配置文件至文件系统下，1节点检查对应配置文件参数
+  check_deploy_param
+  if [[ x"${mes_type}" == x"TCP" ]];then
+      copy_certificate
+  fi
 fi
 
 # 修改ks权限和存放ks的目录的权限
-chown -hR "${deploy_user}":"${deploy_group}" /opt/cantian/common/config
 chmod 700 /opt/cantian/common/config
+chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/common/config
+chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
+chown -hR "${cantian_user}":"${deploy_group}" /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
 # 修改日志定期清理执行脚本权限
-chown -h "${deploy_user}":"${deploy_group}" ${CURRENT_PATH}/../common/script/logs_handler/do_compress_and_archive.py
+chown -h "${cantian_user}":"${cantian_group}" ${CURRENT_PATH}/../common/script/logs_handler/do_compress_and_archive.py
 
 cp -fp ${CURRENT_PATH}/../config/cantian.service /etc/systemd/system/
 cp -fp ${CURRENT_PATH}/../config/cantian.timer /etc/systemd/system/
@@ -535,17 +716,20 @@ cp -fp ${CURRENT_PATH}/../config/cantian_logs_handler.timer /etc/systemd/system/
 
 cp -fp ${CURRENT_PATH}/* /opt/cantian/action > /dev/null 2>&1
 cp -rfp ${CURRENT_PATH}/inspection /opt/cantian/action
-cp -rfp ${CURRENT_PATH}/dbstor /opt/cantian/action
+cp -rfp ${CURRENT_PATH}/implement /opt/cantian/action
+cp -rfp ${CURRENT_PATH}/logic /opt/cantian/action
+cp -rfp ${CURRENT_PATH}/storage_operate /opt/cantian/action
+cp -rfp ${CURRENT_PATH}/utils /opt/cantian/action
 cp -rfp ${CURRENT_PATH}/../config /opt/cantian/
 cp -rfp ${CURRENT_PATH}/../common /opt/cantian/
+cp -rfp ${CURRENT_PATH}/wsr_report /opt/cantian/action
+cp -rfp ${CURRENT_PATH}/dbstor /opt/cantian/action
 
+# 适配开源场景，使用file，不使用dbstore，提前安装参天rpm包
+install_rpm
 
 # 调用各模块安装脚本，如果有模块安装失败直接退出，不继续安装接下来的模块
 logAndEchoInfo "Begin to install. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-# 适配开源场景，使用nas，不使用dbstore，提前安装参天rpm包
-
-install_rpm
-
 for lib_name in "${INSTALL_ORDER[@]}"
 do
     logAndEchoInfo "install ${lib_name}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -556,7 +740,7 @@ do
         if [ ${install_result} -ne 0 ]; then
             logAndEchoError "cantian install failed."
             logAndEchoError "For details, see the /opt/cantian/${lib_name}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
+            uninstall
             exit 1
         fi
     elif [[ ${lib_name} = 'dbstor' ]]; then
@@ -569,18 +753,18 @@ do
             else
                 logAndEchoError "dbstor install failed"
                 logAndEchoError "For details, see the /opt/cantian/${lib_name}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-                sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
+                uninstall
                 exit 1
             fi
         fi
     else
-         echo -e "${cert_encrypt_pwd}" |sh ${CURRENT_PATH}/${lib_name}/appctl.sh install >> ${OM_DEPLOY_LOG_FILE} 2>&1
+        sh ${CURRENT_PATH}/${lib_name}/appctl.sh install >> ${OM_DEPLOY_LOG_FILE} 2>&1
         install_result=$?
         logAndEchoInfo "install ${lib_name} result is ${install_result}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         if [ ${install_result} -ne 0 ]; then
             logAndEchoError "${lib_name} install failed"
             logAndEchoError "For details, see the /opt/cantian/${lib_name}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
+            uninstall
             exit 1
         fi
     fi
@@ -588,14 +772,18 @@ done
 
 # 把升级备份相关路径拷贝到/opt/cantian
 cp -rfp ${CURRENT_PATH}/../repo /opt/cantian/
-cp -fp ${CURRENT_PATH}/../versions.yml /opt/cantian/
+cp -rfp ${CURRENT_PATH}/../versions.yml /opt/cantian/
 
-config_security_limits
+config_security_limits > /dev/null 2>&1
+
+# 增UUID至参天、cms、dostore配置文件
+system_uuid=$(dmidecode -s system-uuid)
+su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=dbstore --action=add --key=SYSTEM_UUID --value=${system_uuid}"
 
 # 等各模块安装好后检查dbstor的user与pwd是否正确
-if [[ x"${deploy_mode}" != x"--nas" ]];then
+if [[ x"${deploy_mode}" != x"nas" ]];then
     logAndEchoInfo "check username and password of dbstor. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-    su -s /bin/bash "${deploy_user}" -c "sh ${CURRENT_PATH}/dbstor/check_usr_pwd.sh"
+    su -s /bin/bash - "${cantian_user}" -c "sh ${CURRENT_PATH}/dbstor/check_usr_pwd.sh"
     install_result=$?
     if [ ${install_result} -ne 0 ]; then
         logAndEchoError "check failed, possible reasons:
@@ -603,12 +791,14 @@ if [[ x"${deploy_mode}" != x"--nas" ]];then
             2 cgw create link failed.
             3 ip address of dbstor storage service is incorrect.
             please contact the engineer to solve. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
+        uninstall
         exit 1
     else
         logAndEchoInfo "user and password of dbstor check pass. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     fi
 fi
+# 检查dbstore client 与server端是否兼容
+check_dbstore_client_compatibility
 
 # 修改/home/regress/action目录下cantian, cantian_exporter, cms, dbstor, mysql权限，防止复写造成提权
 for module in "${INSTALL_ORDER[@]}"
@@ -619,10 +809,11 @@ do
     chmod 755 /opt/cantian/action/${module}
 done
 
+# 解决mysql容器巡检，把巡检相关移动到挂载路径
+cp -rfp ${CURRENT_PATH}/inspection ${MYSQL_MOUNT_PATH}
 
 # 修改巡检相关脚本为deploy_user
-chown -hR ${deploy_user}:${deploy_group} /opt/cantian/action/inspection
-
-
+chown -hR ${cantian_user}:${cantian_group} /opt/cantian/action/inspection
+show_cantian_version
 logAndEchoInfo "install success"
 exit 0

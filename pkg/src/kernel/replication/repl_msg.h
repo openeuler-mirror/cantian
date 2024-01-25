@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -175,7 +175,7 @@ typedef enum en_rep_bak_status {
 typedef struct st_rep_bak_task_t {
     volatile rep_bak_status_t status;
     bool32 failed;
-    gs_errno_t error_no;
+    ct_errno_t error_no;
 } rep_bak_task_t;
 
 typedef struct st_rep_log_switch_wait {

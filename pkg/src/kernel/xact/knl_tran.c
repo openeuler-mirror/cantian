@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,10 +22,8 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_xact_module.h"
 #include "knl_tran.h"
-#ifdef Z_SHARDING
-#include "cm_gts_timestamp.h"
-#endif
 #include "knl_lob.h"
 #include "rcr_btree.h"
 #include "pcr_btree.h"
@@ -40,6 +38,8 @@
 #include "dtc_tran.h"
 #include "dtc_dc.h"
 #include "dtc_drc.h"
+#include "dtc_context.h"
+#include "cantian_fdsa.h"
 
 pcr_itl_t g_init_pcr_itl = { .scn = 0, .xid.value = 0, .undo_page.value = 0, .undo_slot = 0, .flags = 0 };
 
@@ -47,13 +47,13 @@ static inline void tx_reset_rm(knl_rm_t *rm)
 {
     lock_reset(rm);
     lob_items_reset(rm);
-    rm->tx_id.value = GS_INVALID_ID64;
+    rm->tx_id.value = CT_INVALID_ID64;
     rm->txn = NULL;
-    rm->xid.value = GS_INVALID_ID64;
+    rm->xid.value = CT_INVALID_ID64;
     rm->svpt_count = 0;
     rm->ssn = 0;
-    rm->begin_lsn = GS_INVALID_ID64;
-    rm->temp_has_undo = GS_FALSE;
+    rm->begin_lsn = CT_INVALID_ID64;
+    rm->temp_has_undo = CT_FALSE;
     rm->noredo_undo_pages.count = 0;
     rm->noredo_undo_pages.first = INVALID_UNDO_PAGID;
     rm->noredo_undo_pages.last = INVALID_UNDO_PAGID;
@@ -88,8 +88,8 @@ status_t tx_area_init_impl(knl_session_t *session, undo_set_t *undo_set, uint32 
             uint64 buf_size = knl_txn_buffer_size(session->kernel->attr.page_size, 1);
             undo->items = (tx_item_t *)malloc((size_t)buf_size);
             if (undo->items == NULL) {
-                GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "extend undo segments");
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)buf_size, "extend undo segments");
+                return CT_ERROR;
             }
             ctx->extend_cnt++;
         } else {
@@ -97,27 +97,27 @@ status_t tx_area_init_impl(knl_session_t *session, undo_set_t *undo_set, uint32 
         }
         
         undo->free_items.count = 0;
-        undo->free_items.first = GS_INVALID_ID32;
-        undo->free_items.last = GS_INVALID_ID32;
+        undo->free_items.first = CT_INVALID_ID32;
+        undo->free_items.last = CT_INVALID_ID32;
 
         id = 0;
         for (txn_no = 0; txn_no < TXN_PER_PAGE(session); txn_no++) {
             for (page_no = 0; page_no < UNDO_DEF_TXN_PAGE(session); page_no++) {
                 item = &undo->items[id];
-                item->xmap.seg_id = seg_no + GS_MAX_UNDO_SEGMENT * undo_set->inst_id;
+                item->xmap.seg_id = seg_no + CT_MAX_UNDO_SEGMENT * undo_set->inst_id;
                 item->xmap.slot = (uint16)(page_no * TXN_PER_PAGE(session) + txn_no);
                 item->lock = 0;
-                item->prev = GS_INVALID_ID32;
-                item->next = GS_INVALID_ID32;
-                item->rmid = GS_INVALID_ID16;
-                item->in_progress = GS_FALSE;
+                item->prev = CT_INVALID_ID32;
+                item->next = CT_INVALID_ID32;
+                item->rmid = CT_INVALID_ID16;
+                item->in_progress = CT_FALSE;
                 item->systime = KNL_NOW(session);
                 id++;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t tx_area_init(knl_session_t *session, uint32 lseg_no, uint32 rseg_no)
@@ -138,7 +138,7 @@ status_t tx_area_init(knl_session_t *session, uint32 lseg_no, uint32 rseg_no)
     /* the real worker is allocated in tx_rollback_start, no need to allocate here. */
     undo_ctx->active_workers = 0;
 
-    return tx_area_init_impl(session, undo_set, lseg_no, rseg_no, GS_FALSE);
+    return tx_area_init_impl(session, undo_set, lseg_no, rseg_no, CT_FALSE);
 }
 
 void tx_extend_deinit(knl_session_t *session)
@@ -227,17 +227,17 @@ static inline undo_t *tx_bind_undo(knl_session_t *session, knl_rm_t *rm)
 
     rm->undo_page_info.undo_rid = g_invalid_undo_rowid;
     rm->undo_page_info.undo_fs = 0;
-    rm->undo_page_info.encrypt_enable = GS_FALSE;
-    rm->undo_page_info.undo_log_encrypt = GS_FALSE;
+    rm->undo_page_info.encrypt_enable = CT_FALSE;
+    rm->undo_page_info.undo_log_encrypt = CT_FALSE;
 
     rm->noredo_undo_page_info.undo_rid = g_invalid_undo_rowid;
     rm->noredo_undo_page_info.undo_fs = 0;
-    rm->noredo_undo_page_info.encrypt_enable = GS_FALSE;
-    rm->noredo_undo_page_info.undo_log_encrypt = GS_FALSE;
+    rm->noredo_undo_page_info.encrypt_enable = CT_FALSE;
+    rm->noredo_undo_page_info.undo_log_encrypt = CT_FALSE;
 
     global_segid = (uint64)cm_atomic_inc(&session->kernel->undo_segid);
 
-    if (rm->prev == GS_INVALID_ID16) {
+    if (rm->prev == CT_INVALID_ID16) {
         tx_bind_segid(session, rm, global_segid);
     } else {
         tx_bind_auton_segid(session, rm, global_segid);
@@ -253,29 +253,29 @@ static status_t txn_alloc(knl_session_t *session, knl_rm_t *rm)
     cm_spin_lock(&undo->lock, &session->stat->spin_stat.stat_txn_list);
     if (undo->free_items.count == 0) {
         cm_spin_unlock(&undo->lock);
-        GS_THROW_ERROR(ERR_TOO_MANY_PENDING_TRANS);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TOO_MANY_PENDING_TRANS);
+        return CT_ERROR;
     }
 
     rm->tx_id.item_id = undo->free_items.first;
     undo->stat.txn_cnts++;
     undo->free_items.count--;
     if (undo->free_items.count == 0) {
-        undo->free_items.first = GS_INVALID_ID32;
-        undo->free_items.last = GS_INVALID_ID32;
+        undo->free_items.first = CT_INVALID_ID32;
+        undo->free_items.last = CT_INVALID_ID32;
     } else {
         undo->free_items.first = undo->items[rm->tx_id.item_id].next;
-        knl_panic(undo->free_items.first != GS_INVALID_ID32);
-        undo->items[undo->free_items.first].prev = GS_INVALID_ID32;
+        knl_panic(undo->free_items.first != CT_INVALID_ID32);
+        undo->items[undo->free_items.first].prev = CT_INVALID_ID32;
     }
     cm_spin_unlock(&undo->lock);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void txn_release(knl_session_t *session, undo_set_t *undo_set, tx_id_t tx_id)
 {
-    CM_ASSERT(tx_id.seg_id < GS_MAX_UNDO_SEGMENT);
+    CM_ASSERT(tx_id.seg_id < CT_MAX_UNDO_SEGMENT);
     undo_t *undo = &undo_set->undos[tx_id.seg_id];
 
     if (tx_id.item_id >= undo->capacity) {
@@ -287,7 +287,7 @@ static void txn_release(knl_session_t *session, undo_set_t *undo_set, tx_id_t tx
     for (uint32 i = 0; i < session->temp_table_count; i++) {
         temp_table_ptr = &session->temp_table_cache[i];
         if (temp_table_ptr->hold_rmid == session->rmid) {
-            temp_table_ptr->hold_rmid = GS_INVALID_ID32;
+            temp_table_ptr->hold_rmid = CT_INVALID_ID32;
         }
     }
     
@@ -296,14 +296,14 @@ static void txn_release(knl_session_t *session, undo_set_t *undo_set, tx_id_t tx
         undo->free_items.count = 1;
         undo->free_items.first = tx_id.item_id;
         undo->free_items.last = tx_id.item_id;
-        undo->items[tx_id.item_id].prev = GS_INVALID_ID32;
+        undo->items[tx_id.item_id].prev = CT_INVALID_ID32;
     } else {
         undo->items[undo->free_items.last].next = tx_id.item_id;
         undo->items[tx_id.item_id].prev = undo->free_items.last;
         undo->free_items.last = tx_id.item_id;
         undo->free_items.count++;
     }
-    undo->items[tx_id.item_id].next = GS_INVALID_ID32;
+    undo->items[tx_id.item_id].next = CT_INVALID_ID32;
     cm_spin_unlock(&undo->lock);
 }
 
@@ -337,7 +337,7 @@ void tx_area_release(knl_session_t *session, undo_set_t *undo_set)
     undo_context_t *ctx = &session->kernel->undo_ctx;
     core_ctrl_t *core_ctrl = DB_CORE_CTRL(session);
     uint32 rcy_rm_id = 0;
-    bool32 need_rcy = GS_FALSE;
+    bool32 need_rcy = CT_FALSE;
     undo_t *undo = NULL;
     tx_item_t *item = NULL;
     txn_t *txn = NULL;
@@ -357,16 +357,16 @@ void tx_area_release(knl_session_t *session, undo_set_t *undo_set)
             } else {
                 item->rmid = undo_set->rb_ctx[rcy_rm_id % undo_set->assign_workers].session->rmid;
                 rcy_rm_id++;
-                need_rcy = GS_TRUE;
+                need_rcy = CT_TRUE;
             }
         }
     }
 
-    GS_LOG_RUN_INF("[tx_area_release] undo_set->active_workers=%lld, undo_ctx->active_workers=%lld",
+    CT_LOG_RUN_INF("[tx_area_release] undo_set->active_workers=%lld, undo_ctx->active_workers=%lld",
         undo_set->active_workers, ctx->active_workers);
     undo_set->active_workers = rcy_rm_id > 0 ? undo_set->assign_workers : 0;
     cm_atomic_add(&ctx->active_workers, undo_set->active_workers);
-    GS_LOG_RUN_INF("[tx_area_release] add active_workers in undo_ctx,  undo_set->active_workers=%lld, "
+    CT_LOG_RUN_INF("[tx_area_release] add active_workers in undo_ctx,  undo_set->active_workers=%lld, "
         "undo_ctx->active_workers=%lld", undo_set->active_workers, ctx->active_workers);
 
     if (session->kernel->id == undo_set->inst_id) {
@@ -398,7 +398,7 @@ void tx_rollback_items(knl_session_t *session, thread_t *thread, undo_t *undo)
         switch (txn->status) {
             case XACT_PHASE1:
                 status = xa_recover(session, item, txn, id);
-                knl_panic(status == GS_SUCCESS);
+                knl_panic(status == CT_SUCCESS);
                 break;
             case XACT_PHASE2:
             case XACT_BEGIN:
@@ -417,7 +417,7 @@ void tx_area_rollback(knl_session_t *session, thread_t *thread, undo_set_t *undo
     tx_area_t *area = &session->kernel->tran_ctx;
     uint32 seg_no;
 
-    if ((!DB_IS_READONLY(session)) && DB_IS_BG_ROLLBACK_SE(session) && DB_IN_BG_ROLLBACK(session)) {
+    if ((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session)) && DB_IS_BG_ROLLBACK_SE(session) && DB_IN_BG_ROLLBACK(session)) {
         for (seg_no = 0; seg_no < UNDO_SEGMENT_COUNT(session); seg_no++) {
             if (thread->closed) {
                 break;
@@ -451,14 +451,14 @@ status_t tx_begin(knl_session_t *session)
     undo_page_id_t page_id;
 
     if (session->kernel->undo_ctx.is_switching) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ",when swithching undo space");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ",when swithching undo space");
+        return CT_ERROR;
     }
 
     uint64 begin_time = KNL_NOW(session);
 
-    if (txn_alloc(session, rm) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (txn_alloc(session, rm) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (KNL_IS_AUTON_SE(session)) {
@@ -491,7 +491,7 @@ status_t tx_begin(knl_session_t *session)
 
     rm->txn = txn;
     log_put(session, RD_TX_BEGIN, &rm->xid, sizeof(xid_t), LOG_ENTRY_FLAG_NONE);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     if (KNL_IS_AUTON_SE(session)) {
         session->kernel->stat.auto_txn_page_waits += KNL_NOW(session) - begin_time;
@@ -504,7 +504,7 @@ status_t tx_begin(knl_session_t *session)
     knl_panic(XID_INST_ID(rm->xid) == session->kernel->id);
     rm->begin_lsn = session->curr_lsn;
     tx_item->systime = KNL_NOW(session);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -528,8 +528,8 @@ knl_scn_t tx_inc_scn(knl_session_t *session, uint32 seg_id, txn_t *txn, knl_scn_
         status_t status = gts_get_lcl_timestamp(&gts_scn);
         KNL_SCN_TO_TIMESEQ(gts_scn, &now, seq, CM_GTS_BASETIME);
         seq++;
-        knl_panic(status == GS_SUCCESS);
-    } else 
+        knl_panic(status == CT_SUCCESS);
+    } else
 #endif
     {
         (void)cm_gettimeofday(&now);
@@ -537,7 +537,7 @@ knl_scn_t tx_inc_scn(knl_session_t *session, uint32 seg_id, txn_t *txn, knl_scn_
 
     cm_spin_lock(&area->scn_lock, &session->stat->spin_stat.stat_inc_scn);
 
-    if (xa_scn != GS_INVALID_ID64) {
+    if (xa_scn != CT_INVALID_ID64) {
         scn = xa_scn;
         if (scn > KNL_GET_SCN(&session->kernel->scn)) {
             KNL_SET_SCN(&session->kernel->scn, scn);
@@ -590,9 +590,9 @@ static void tx_end(knl_session_t *session, bool32 is_commit, knl_scn_t xa_scn, b
 
     knl_panic((XID_INST_ID(rm->xid) == session->kernel->id) || DB_IS_BG_ROLLBACK_SE(session));
     rm->need_copy_logic_log = LOG_HAS_LOGIC_DATA(session);
-    rm->nolog_insert = GS_FALSE;
+    rm->nolog_insert = CT_FALSE;
     rm->nolog_type = LOGGING_LEVEL;
-    rm->logging = GS_TRUE;
+    rm->logging = CT_TRUE;
     undo_t *undo = &ctx->undos[UNDO_GET_SESSION_UNDO_SEGID(session)];
 
     redo.xmap = rm->xid.xmap;
@@ -601,7 +601,7 @@ static void tx_end(knl_session_t *session, bool32 is_commit, knl_scn_t xa_scn, b
     tx_end_stat(session, txn, tx_item);
 
     /* from now on, we are entering transaction end progress */
-    tx_item->in_progress = GS_TRUE;
+    tx_item->in_progress = CT_TRUE;
 
     if (session->kernel->attr.serialized_commit) {
         cm_spin_lock(&area->seri_lock, &session->stat->spin_stat.stat_seri_commit);
@@ -613,7 +613,7 @@ static void tx_end(knl_session_t *session, bool32 is_commit, knl_scn_t xa_scn, b
 
     cm_spin_lock(&tx_item->lock, &session->stat->spin_stat.stat_txn);
     txn->scn = tx_inc_scn(session, rm->tx_id.seg_id, txn, xa_scn);
-    tx_item->rmid = GS_INVALID_ID16;
+    tx_item->rmid = CT_INVALID_ID16;
     txn->status = (uint8)XACT_END;
     cm_spin_unlock(&tx_item->lock);
     cm_atomic_set(&session->kernel->commit_scn, (int64)txn->scn);
@@ -624,7 +624,7 @@ static void tx_end(knl_session_t *session, bool32 is_commit, knl_scn_t xa_scn, b
     if (has_logic && knl_xa_xid_valid(&rm->xa_xid)) {
         log_append_data(session, &rm->xa_xid, sizeof(knl_xa_xid_t));
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     if (KNL_IS_AUTON_SE(session)) {
         session->kernel->stat.auto_txn_page_end_waits += KNL_NOW(session) - begin_time;
@@ -633,18 +633,18 @@ static void tx_end(knl_session_t *session, bool32 is_commit, knl_scn_t xa_scn, b
     }
 
     if (txn->undo_pages.count > 0) {
-        undo_release_pages(session, undo, &txn->undo_pages, GS_TRUE);
-        session->rm->txn_alarm_enable = GS_TRUE;
+        undo_release_pages(session, undo, &txn->undo_pages, CT_TRUE);
+        session->rm->txn_alarm_enable = CT_TRUE;
     }
 
     if (session->rm->noredo_undo_pages.count > 0) {
-        undo_release_pages(session, undo, &rm->noredo_undo_pages, GS_FALSE);
+        undo_release_pages(session, undo, &rm->noredo_undo_pages, CT_FALSE);
     }
 
     if (dis_ckpt) {
-        knl_try_begin_session_wait(session, CKPT_DISABLE_WAIT, GS_TRUE);
+        knl_begin_session_wait(session, CKPT_DISABLE_WAIT, CT_TRUE);
         ckpt_disable(session);
-        knl_try_end_session_wait(session, CKPT_DISABLE_WAIT);
+        knl_end_session_wait(session, CKPT_DISABLE_WAIT);
     }
     log_atomic_op_end(session);
 
@@ -652,7 +652,7 @@ static void tx_end(knl_session_t *session, bool32 is_commit, knl_scn_t xa_scn, b
         cm_spin_unlock(&area->seri_lock);
     }
 
-    tx_item->in_progress = GS_FALSE;
+    tx_item->in_progress = CT_FALSE;
     // cm_release_cond(&rm->cond);
     dls_release_txn(session, rm);
 }
@@ -695,7 +695,7 @@ void tx_commit(knl_session_t *session, knl_scn_t xa_scn)
     knl_rm_t *rm = session->rm;
 
     rm->isolevel = session->kernel->attr.db_isolevel;
-    rm->query_scn = GS_INVALID_ID64;
+    rm->query_scn = CT_INVALID_ID64;
     bool32 has_logic = session->logic_log_size > 0 || session->rm->logic_log_size > 0;
     if (session->temp_table_count != 0) {
         knl_close_temp_tables(session, DICT_TYPE_TEMP_TABLE_TRANS);
@@ -704,7 +704,7 @@ void tx_commit(knl_session_t *session, knl_scn_t xa_scn)
     if (rm->txn == NULL || rm->txn->status == (uint8)XACT_END) {
         tx_copy_logic_log(session);
         if (has_logic) {
-            if (db_write_ddl_op(session) != GS_SUCCESS) {
+            if (db_write_ddl_op(session) != CT_SUCCESS) {
                 knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
             }
             dtc_sync_ddl(session);
@@ -714,7 +714,7 @@ void tx_commit(knl_session_t *session, knl_scn_t xa_scn)
     }
 
     if (has_logic) {
-        if (db_write_ddl_op(session) != GS_SUCCESS) {
+        if (db_write_ddl_op(session) != CT_SUCCESS) {
             knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
         }
     }
@@ -725,7 +725,7 @@ void tx_commit(knl_session_t *session, knl_scn_t xa_scn)
         lob_items_free(session);
     }
 
-    tx_end(session, GS_TRUE, xa_scn, has_logic);
+    tx_end(session, CT_TRUE, xa_scn, has_logic);
     log_commit(session);
     
     if (has_logic) {
@@ -743,11 +743,11 @@ static inline status_t tx_is_invalid_xid(knl_session_t *session, xid_t xid)
 {
     if ((xid.xmap.seg_id >= UNDO_SEGMENT_COUNT(session) && !DB_ATTR_CLUSTER(session)) ||
         (xid.xmap.slot / TXN_PER_PAGE(session)) >= UNDO_DEF_TXN_PAGE(session)) {
-        GS_THROW_ERROR(ERR_INVALID_DATABASE_DEF, "invalid xid , exceed max segment count or def txn pages");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_DATABASE_DEF, "invalid xid , exceed max segment count or def txn pages");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t knl_commit_force(knl_handle_t handle, knl_xid_t *xid)
@@ -761,21 +761,21 @@ status_t knl_commit_force(knl_handle_t handle, knl_xid_t *xid)
     uint32 i;
 
     if (!DB_IS_RESTRICT(session)) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ",operation only supported in restrict mode");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ",operation only supported in restrict mode");
+        return CT_ERROR;
     }
 
     if (rm->txn != NULL) {
-        GS_THROW_ERROR(ERR_TXN_IN_PROGRESS, "cur session is in transaction,can't commit force transaction.");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TXN_IN_PROGRESS, "cur session is in transaction,can't commit force transaction.");
+        return CT_ERROR;
     }
 
     force_xid.xmap.seg_id = xid->seg_id;
     force_xid.xmap.slot = xid->slot;
     force_xid.xnum = xid->xnum;
 
-    if (tx_is_invalid_xid(session, force_xid) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (tx_is_invalid_xid(session, force_xid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     item = xmap_get_item(session, force_xid.xmap);
@@ -790,35 +790,50 @@ status_t knl_commit_force(knl_handle_t handle, knl_xid_t *xid)
     if (i > SESSION_ID_ROLLBACK_EDN ||
         txn->status == (uint8)XACT_END ||
         txn->xnum != xid->xnum) {
-        GS_THROW_ERROR(ERR_INVALID_DATABASE_DEF, "invalid xid , not found residual transaction");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_DATABASE_DEF, "invalid xid , not found residual transaction");
+        return CT_ERROR;
     }
 
     /* if the xa trans status is XACT_PHASE2, force commit it as normal residual transaction */
     if (txn->status == (uint8)XACT_PHASE1) {
-        GS_THROW_ERROR(ERR_XATXN_IN_PROGRESS, "can't commit force residual XA transaction.");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_XATXN_IN_PROGRESS, "can't commit force residual XA transaction.");
+        return CT_ERROR;
     }
 
     tx_id = xmap_get_txid(session, force_xid.xmap);
     tx_rm_attach_trans(rm, item, txn, tx_id.item_id);
     knl_commit(handle);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void knl_commit(knl_handle_t handle)
 {
+    status_t ret = CT_ERROR;
+    io_id_t io_id = {0};
+    if (cm_dbs_is_enable_dbs()) {
+        io_id.io_no = GetFdsaIoNo();
+        io_id.fdsa_type = FDSA_KNL_COMMIT;
+        ret = AddIo2FdsaHashTable(io_id);
+    }
+    SYNC_POINT_GLOBAL_START(CANTIAN_KNL_COMMIT_DELAY, NULL, 200000); // delay 200S
+    SYNC_POINT_GLOBAL_END;
+    SYNC_POINT_GLOBAL_START(CANTIAN_KNL_COMMIT_DELAY_ONCE, NULL, 660000); // delay 660s
+    SYNC_POINT_GLOBAL_END;
     knl_session_t *session = (knl_session_t *)handle;
     g_knl_callback.before_commit(handle);
-    tx_commit(session, GS_INVALID_ID64);
+    tx_commit(session, CT_INVALID_ID64);
     session->stat->commits++;
     tx_delete_xa_xid(session);
+
+    if (cm_dbs_is_enable_dbs() && ret == CT_SUCCESS) {
+        RemovetIoFromFdsaHashtable(io_id);
+    }
 
     if (!DB_IS_CLUSTER(session) || session->logic_log_num == 0) {
         return;
     }
 
-    if (knl_begin_auton_rm(session) != GS_SUCCESS) {
+    if (knl_begin_auton_rm(session) != CT_SUCCESS) {
         return;
     }
     status_t status = db_clean_ddl_op(session, DDL_CLEAN_SESSION);
@@ -930,13 +945,19 @@ static void tx_undo_one_row(knl_session_t *session, undo_row_t *row, undo_page_t
             lob_undo_delete_commit_recycle(session, row, page, slot);
             break;
         case UNDO_LOB_ALLOC_PAGE:
-            lob_undo_write_page(session, row);
+            lob_undo_write_page(session, row, page, slot);
             break;
         case UNDO_CREATE_HEAP:
             heap_undo_create_part(session, row, page, slot);
             break;
         case UNDO_CREATE_LOB:
             lob_undo_create_part(session, row, page, slot);
+            break;
+        case UNDO_LOB_TEMP_ALLOC_PAGE:
+            lob_temp_undo_write_page(session, row, page, slot);
+            break;
+        case UNDO_LOB_TEMP_DELETE:
+            lob_temp_undo_delete(session, row, page, slot);
             break;
         default:
             knl_panic_log(0, "row type is unknown, panic info: page %u-%u type %u row type %u",
@@ -954,7 +975,7 @@ void tx_rollback_one_row(knl_session_t *session, undo_row_t *row, undo_page_t *p
 
     heap_assist.rows = 0;
     heap_assist.heap = NULL;
-    heap_assist.need_latch = GS_FALSE;
+    heap_assist.need_latch = CT_FALSE;
     dc.handle = NULL;
     page_id = AS_PAGID(page->head.id);
 
@@ -976,7 +997,7 @@ void tx_rollback_one_row(knl_session_t *session, undo_row_t *row, undo_page_t *p
     if (SPC_IS_LOGGING_BY_PAGEID(session, page_id)) {
         log_put(session, RD_UNDO_CLEAN, &slot, sizeof(int32), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_atomic_op_end(session);
 
@@ -1060,12 +1081,26 @@ static void tx_rollback_pages(knl_session_t *session, undo_page_id_t undo_page_i
     page_id = PAGID_U2N(undo_page_id);
 
     while (!IS_INVALID_PAGID(page_id)) {
-        buf_enter_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_PINNED);
+        if (buf_read_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_PINNED) != CT_SUCCESS) {
+            CM_ABORT(DB_IS_CLUSTER(session) && DB_IS_MAXFIX(session), "[BUFFER] ABORT INFO: failed to read page %u-%u", page_id.file, page_id.page);
+            CT_LOG_RUN_WAR("page: %u-%u can't be loaded, ignore rollback the reset undo pages of this tx.",
+                           AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page);
+            break;
+        }
         page = (undo_page_t *)CURR_PAGE(session);
+        if (page_is_damaged(&page->head)) {
+            CM_ABORT(DB_IS_CLUSTER(session) && DB_IS_MAXFIX(session), "[BUFFER] ABORT INFO: page damaged %u-%u",
+                     page_id.file, page_id.page);
+            CT_LOG_RUN_WAR("page: %u-%u was damaged, ignore rollback the reset undo pages of this tx.",
+                           AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page);
+            buf_leave_page(session, CT_FALSE);
+            break;
+        }
+
         end_slot = page->begin_slot;
         prev = PAGID_U2N(page->prev);
         ctrl = session->curr_page_ctrl;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
         if (svpt_urid != NULL && IS_SAME_PAGID(svpt_urid->page_id, page_id)) {
             knl_panic_log(svpt_urid->slot >= end_slot, "slot abnormal, panic info: page %u-%u type %u "
@@ -1079,7 +1114,7 @@ static void tx_rollback_pages(knl_session_t *session, undo_page_id_t undo_page_i
             row = UNDO_ROW(session, page, slot);
             // the database does not replay redo log generated by nologging insert undo, just marking undo row
             // is invalid.
-            if (row->xid.value == GS_INVALID_ID64) {
+            if (row->xid.value == CT_INVALID_ID64) {
                 continue;
             }
 
@@ -1107,7 +1142,7 @@ static void tx_rollback_pages(knl_session_t *session, undo_page_id_t undo_page_i
             }
             free_list.count++;
 
-            if (free_list.count == GS_EXTENT_SIZE) {
+            if (free_list.count == CT_EXTENT_SIZE) {
                 tx_free_undo_pages(session, &free_list, prev, need_redo);
                 free_list.count = 0;
             }
@@ -1165,23 +1200,23 @@ void tx_rollback(knl_session_t *session, knl_savepoint_t *savepoint)
     if (rm->txn == NULL || rm->txn->status == (uint8)XACT_END) {
         if (savepoint == NULL) {
             rm->isolevel = session->kernel->attr.db_isolevel;
-            rm->query_scn = GS_INVALID_ID64;
+            rm->query_scn = CT_INVALID_ID64;
         }
         return;
     }
 
     /* Only the savepoint in current transaction is valid. */
     if (savepoint != NULL && savepoint->xid == rm->xid.value) {
-        knl_panic(savepoint->lsn != GS_INVALID_ID64 || DB_IS_BG_ROLLBACK_SE(session)
+        knl_panic(savepoint->lsn != CT_INVALID_ID64 || DB_IS_BG_ROLLBACK_SE(session)
                   || IS_INVALID_PAGID(savepoint->urid.page_id) || knl_xa_xid_valid(&rm->xa_xid));
-        tx_rollback_pages(session, rm->undo_page_info.undo_rid.page_id, &savepoint->urid, GS_TRUE);
-        tx_rollback_pages(session, rm->noredo_undo_page_info.undo_rid.page_id, &savepoint->noredo_urid, GS_FALSE);
+        tx_rollback_pages(session, rm->undo_page_info.undo_rid.page_id, &savepoint->urid, CT_TRUE);
+        tx_rollback_pages(session, rm->noredo_undo_page_info.undo_rid.page_id, &savepoint->noredo_urid, CT_FALSE);
 
         g_knl_callback.invalidate_cursor(session, savepoint->lsn);
     } else {
-        knl_panic(rm->begin_lsn != GS_INVALID_ID64 || DB_IS_BG_ROLLBACK_SE(session) || knl_xa_xid_valid(&rm->xa_xid));
-        tx_rollback_pages(session, rm->undo_page_info.undo_rid.page_id, NULL, GS_TRUE);
-        tx_rollback_pages(session, rm->noredo_undo_page_info.undo_rid.page_id, NULL, GS_FALSE);
+        knl_panic(rm->begin_lsn != CT_INVALID_ID64 || DB_IS_BG_ROLLBACK_SE(session) || knl_xa_xid_valid(&rm->xa_xid));
+        tx_rollback_pages(session, rm->undo_page_info.undo_rid.page_id, NULL, CT_TRUE);
+        tx_rollback_pages(session, rm->noredo_undo_page_info.undo_rid.page_id, NULL, CT_FALSE);
 
         g_knl_callback.invalidate_cursor(session, rm->begin_lsn);
     }
@@ -1196,7 +1231,7 @@ void tx_rollback(knl_session_t *session, knl_savepoint_t *savepoint)
             lob_items_free(session);
         }
 
-        tx_end(session, GS_FALSE, GS_INVALID_ID64, GS_FALSE);
+        tx_end(session, CT_FALSE, CT_INVALID_ID64, CT_FALSE);
         tx_release(session);
         if (session->temp_table_count != 0) {
             knl_close_temp_tables(session, DICT_TYPE_TEMP_TABLE_TRANS);
@@ -1205,13 +1240,13 @@ void tx_rollback(knl_session_t *session, knl_savepoint_t *savepoint)
     session->logic_log_size = 0;
     if (savepoint == NULL) {
         rm->isolevel = session->kernel->attr.db_isolevel;
-        rm->query_scn = GS_INVALID_ID64;
+        rm->query_scn = CT_INVALID_ID64;
 
         if (!DB_IS_CLUSTER(session) || session->logic_log_num == 0) {
             return;
         }
 
-        if (knl_begin_auton_rm(session) != GS_SUCCESS) {
+        if (knl_begin_auton_rm(session) != CT_SUCCESS) {
             return;
         }
 
@@ -1226,7 +1261,7 @@ void knl_rollback(knl_handle_t handle, knl_savepoint_t *savepoint)
     knl_rm_t *rm = session->rm;
 
     if (session->rm->nolog_insert && session->rm->nolog_type == SESSION_LEVEL) {
-        GS_LOG_RUN_WAR("The rollback does not take effect because the transaction has executed "
+        CT_LOG_RUN_WAR("The rollback does not take effect because the transaction has executed "
             "session level nologging insert, rmid: %d, xid(%d, %d, %d).",
             session->rmid, rm->xid.xmap.seg_id, rm->xid.xmap.slot, rm->xid.xnum);
         return;
@@ -1262,7 +1297,7 @@ void tx_get_info(knl_session_t *session, bool32 is_scan, xid_t xid, txn_info_t *
          * If transaction is active or transaction is ending in progress and current
          * behavior is itl-reuse, we will read history version or reuse other itl.
          */
-        txn_info->is_owscn = GS_FALSE;
+        txn_info->is_owscn = CT_FALSE;
 
         if (snapshot.status == (uint8)XACT_PHASE1 || snapshot.status == (uint8)XACT_PHASE2) {
             txn_info->scn = snapshot.scn;
@@ -1281,14 +1316,14 @@ void tx_get_info(knl_session_t *session, bool32 is_scan, xid_t xid, txn_info_t *
          * can get commit version from current transaction directly.
          */
         txn_info->scn = snapshot.scn;
-        txn_info->is_owscn = GS_FALSE;
+        txn_info->is_owscn = CT_FALSE;
         txn_info->status = (uint8)XACT_END;
     } else {
         /* commit info has been overwritten, get from undo global overwrite area */
         undo_set_t *undo_set = UNDO_SET(session, XID_INST_ID(xid));
         undo_t *undo = &undo_set->undos[XID_SEG_ID(xid)];
         txn_info->status = (uint8)XACT_END;
-        txn_info->is_owscn = GS_TRUE;
+        txn_info->is_owscn = CT_TRUE;
         txn_info->scn = undo->ow_scn;
     }
 }
@@ -1315,7 +1350,7 @@ void tx_get_pcr_itl_info(knl_session_t *session, bool32 is_scan, pcr_itl_t *itl,
             }
         } else {
             txn_info->scn = DB_CURR_SCN(session);
-            txn_info->is_owscn = GS_FALSE;
+            txn_info->is_owscn = CT_FALSE;
             txn_info->status = (uint8)XACT_BEGIN;
         }
     } else {
@@ -1328,41 +1363,41 @@ void tx_get_pcr_itl_info(knl_session_t *session, bool32 is_scan, pcr_itl_t *itl,
 static status_t tx_check_wait_valid(knl_session_t *session)
 {
     if (session->dead_locked) {
-        GS_THROW_ERROR(ERR_DEAD_LOCK, "transaction", session->id);
-        GS_LOG_ALARM(WARN_DEADLOCK, "'instance-name':'%s'}", session->kernel->instance_name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DEAD_LOCK, "transaction", session->id);
+        CT_LOG_ALARM(WARN_DEADLOCK, "'instance-name':'%s'}", session->kernel->instance_name);
+        return CT_ERROR;
     }
 
     if (session->itl_dead_locked) {
-        GS_THROW_ERROR(ERR_DEAD_LOCK, "itl", session->id);
-        GS_LOG_ALARM(WARN_DEADLOCK, "'instance-name':'%s'}", session->kernel->instance_name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DEAD_LOCK, "itl", session->id);
+        CT_LOG_ALARM(WARN_DEADLOCK, "'instance-name':'%s'}", session->kernel->instance_name);
+        return CT_ERROR;
     }
 
     if (session->lock_dead_locked) {
-        GS_THROW_ERROR(ERR_DEAD_LOCK, "table", session->id);
-        GS_LOG_ALARM(WARN_DEADLOCK, "'instance-name':'%s'}", session->kernel->instance_name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DEAD_LOCK, "table", session->id);
+        CT_LOG_ALARM(WARN_DEADLOCK, "'instance-name':'%s'}", session->kernel->instance_name);
+        return CT_ERROR;
     }
 
     if (session->canceled) {
-        GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+        return CT_ERROR;
     }
 
     if (session->killed) {
-        GS_THROW_ERROR(ERR_OPERATION_KILLED);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OPERATION_KILLED);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void tx_reset_deadlock_flag(knl_session_t *session)
 {
-    session->itl_dead_locked = GS_FALSE;
-    session->dead_locked = GS_FALSE;
-    session->lock_dead_locked = GS_FALSE;
+    session->itl_dead_locked = CT_FALSE;
+    session->dead_locked = CT_FALSE;
+    session->lock_dead_locked = CT_FALSE;
 }
 
 /*
@@ -1379,47 +1414,47 @@ status_t tx_wait(knl_session_t *session, uint32 timeout, wait_event_t event)
 
     tx_get_snapshot(session, session->wxid.xmap, &snapshot);
     if (snapshot.xnum != session->wxid.xnum || snapshot.status == (uint8)XACT_END) {
-        session->wxid.value = GS_INVALID_ID64;
-        return GS_SUCCESS;
+        session->wxid.value = CT_INVALID_ID64;
+        return CT_SUCCESS;
     }
 
     begin_time = KNL_NOW(session);
     tx_reset_deadlock_flag(session);
     session->wrmid = snapshot.rmid;
 
-    knl_begin_session_wait(session, event, GS_TRUE);
+    knl_begin_session_wait(session, event, CT_TRUE);
 
     for (;;) {
         if (dls_wait_txn(session, snapshot.rmid)) {
-            status = GS_SUCCESS;
+            status = CT_SUCCESS;
             break;
         }
 
         if (timeout != 0 && (KNL_NOW(session) - begin_time) / (date_t)MICROSECS_PER_MILLISEC > (date_t)timeout) {
-            GS_THROW_ERROR(ERR_LOCK_TIMEOUT);
-            status = GS_ERROR;
+            CT_THROW_ERROR(ERR_LOCK_TIMEOUT);
+            status = CT_ERROR;
             break;
         }
 
-        if (tx_check_wait_valid(session) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (tx_check_wait_valid(session) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
         tx_get_snapshot(session, session->wxid.xmap, &snapshot);
         if (snapshot.xnum != session->wxid.xnum || snapshot.status == (uint8)XACT_END) {
-            status = GS_SUCCESS;
+            status = CT_SUCCESS;
             break;
         }
     }
 
     dls_wait_txn_recyle(session);
 
-    knl_end_session_wait(session);
-    session->stat->con_wait_time += session->wait.usecs;
+    knl_end_session_wait(session, event);
+    session->stat->con_wait_time += session->wait_pool[event].usecs;
     tx_reset_deadlock_flag(session);
-    session->wrmid = GS_INVALID_ID16;
-    session->wxid.value = GS_INVALID_ID64;
+    session->wrmid = CT_INVALID_ID16;
+    session->wxid.value = CT_INVALID_ID64;
 
     return status;
 }
@@ -1458,7 +1493,11 @@ inline void tx_get_snapshot(knl_session_t *session, xmap_t xmap, txn_snapshot_t 
                 continue;
             }
         } else {
-            if (dtc_get_remote_txn_snapshot(session, xmap, curr_id, snapshot) != GS_SUCCESS) {
+            if (g_dtc->profile.node_count <= curr_id) {
+                CT_LOG_RUN_ERR("current id get from xmap is invalid, curr_id(%u)", curr_id);
+                break;
+            }
+            if (dtc_get_remote_txn_snapshot(session, xmap, curr_id, snapshot) != CT_SUCCESS) {
                 cm_reset_error();
                 cm_sleep(MES_MSG_RETRY_TIME);
                 continue;
@@ -1483,10 +1522,10 @@ void tx_rollback_proc(thread_t *thread)
     undo_set_t *undo_set = UNDO_SET(session, rb_ctx->inst_id);
     undo_context_t *ctx = &session->kernel->undo_ctx;
 
-    session->bg_rollback = GS_TRUE;
+    session->bg_rollback = CT_TRUE;
 
     cm_set_thread_name("rollback");
-    GS_LOG_RUN_INF("rollback %u thread started", rb_ctx->inst_id);
+    CT_LOG_RUN_INF("rollback %u thread started", rb_ctx->inst_id);
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
     while (!thread->closed) {
         /*
@@ -1500,6 +1539,9 @@ void tx_rollback_proc(thread_t *thread)
          * 3. db_clean_nologging_guts wait tx_rollback_proc to rollback a running transaction;
          */
         if (session->kernel->db.status >= DB_STATUS_WAIT_CLEAN) {
+            if (DB_IS_MAXFIX(session)) {
+                break;
+            }
             if (!DB_IS_READONLY(session) && !DB_IS_MAINTENANCE(session)) {
                 break;
             }
@@ -1510,18 +1552,18 @@ void tx_rollback_proc(thread_t *thread)
     if (!thread->closed) {
         tx_area_rollback(session, thread, undo_set);
 
-        GS_LOG_RUN_INF("[tx_rollback_proc] undo_set->active_workers=%lld, undo_ctx->active_workers=%lld",
+        CT_LOG_RUN_INF("[tx_rollback_proc] undo_set->active_workers=%lld, undo_ctx->active_workers=%lld",
             undo_set->active_workers, ctx->active_workers);
         if (undo_set->active_workers > 0) {
             (void)cm_atomic_dec(&ctx->active_workers);
-            GS_LOG_RUN_INF("[tx_rollback_proc] dec active_workers in undo ctx, undo_set->active_workers=%lld, "
+            CT_LOG_RUN_INF("[tx_rollback_proc] dec active_workers in undo ctx, undo_set->active_workers=%lld, "
                 "undo_ctx->active_workers=%lld", undo_set->active_workers, ctx->active_workers);
         }
     }
 
-    session->bg_rollback = GS_FALSE;
+    session->bg_rollback = CT_FALSE;
 
-    GS_LOG_RUN_INF("rollback thread closed");
+    CT_LOG_RUN_INF("rollback thread closed");
     KNL_SESSION_CLEAR_THREADID(session);
 }
 
@@ -1536,13 +1578,13 @@ status_t tx_rollback_start(knl_session_t *session)
         undo_set->rb_ctx[i].session = kernel->sessions[SESSION_ID_ROLLBACK + i];
         undo_set->rb_ctx[i].inst_id = session->kernel->id;
         if (cm_create_thread(tx_rollback_proc, 0, &undo_set->rb_ctx[i], &kernel->tran_ctx.rollback_proc[i]) !=
-            GS_SUCCESS) {
-            return GS_ERROR;
+            CT_SUCCESS) {
+            return CT_ERROR;
         }
         undo_set->rb_ctx[i].thread = kernel->tran_ctx.rollback_proc[i];
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void tx_rollback_close(knl_session_t *session)
@@ -1584,7 +1626,7 @@ status_t txn_dump_page(knl_session_t *session, page_head_t *page_head, cm_dump_t
         CM_DUMP_WRITE_FILE(dump);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void tx_record_sql(knl_session_t *session)
@@ -1593,17 +1635,17 @@ void tx_record_sql(knl_session_t *session)
 
     sql_text.str = (char *)cm_push(session->stack, RECORD_SQL_SIZE);
     sql_text.len = RECORD_SQL_SIZE;
-    if (sql_text.str == NULL || g_knl_callback.get_sql_text(session->id, &sql_text) != GS_SUCCESS) {
+    if (sql_text.str == NULL || g_knl_callback.get_sql_text(session->id, &sql_text) != CT_SUCCESS) {
         cm_reset_error();
     } else {
-        GS_LOG_RUN_ERR("sql detail: %s", T2S(&sql_text));
+        CT_LOG_RUN_ERR("sql detail: %s", T2S(&sql_text));
     }
     cm_pop(session->stack);
 }
 
 void tx_shutdown(knl_session_t *session)
 {
-    for (uint8 id = 0; id < GS_MAX_INSTANCES; id++) {
+    for (uint8 id = 0; id < CT_MAX_INSTANCES; id++) {
         undo_set_t *undo_set = UNDO_SET(session, id);
         if (undo_set->assign_workers == 0) {
             continue;

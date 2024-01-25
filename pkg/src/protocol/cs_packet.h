@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,8 +22,8 @@
  *
  * -------------------------------------------------------------------------
  */
-#ifndef GS_PACK_H__
-#define GS_PACK_H__
+#ifndef CT_PACK_H__
+#define CT_PACK_H__
 #include "cm_base.h"
 #ifndef WIN32
 #include <string.h>
@@ -64,9 +64,9 @@ typedef enum en_cs_packet_version {
     CS_VERSION_3,     /* support inline lob */
     CS_VERSION_4,     /* support wide table(column count >= 1024) */
     CS_VERSION_5,     /* optimize SSL connection mechanism */
-    CS_VERSION_6,     /* support login package client kind like jdbc/gsc/... */
+    CS_VERSION_6,     /* support login package client kind like jdbc/ctconn/... */
     CS_VERSION_7,     /* support more efficient encode and decode param */
-    CS_VERSION_8,     /* 1. enum value of GS_TYPE_TIMESTAMP_TZ be changed (18->32)
+    CS_VERSION_8,     /* 1. enum value of CT_TYPE_TIMESTAMP_TZ be changed (18->32)
                          2. support copyright, change name of tables or views */
     CS_VERSION_9,     /* establish SSL channel before handshake */
     CS_VERSION_10,    /* 1. support get batch error code
@@ -79,7 +79,7 @@ typedef enum en_cs_packet_version {
     CS_VERSION_13,    /* support primary obtains continuous flush log point of standby */
     CS_VERSION_14,    /* support getProcedures(resolve view permissions) */
     CS_VERSION_15,    /* support db role info in connection */
-    CS_VERSION_16,    /* support autotrace, only for zsql client */
+    CS_VERSION_16,    /* support autotrace, only for ctsql client */
     CS_VERSION_17,    /* support shard statement-level rollback */
     CS_VERSION_18,    /* support tenant */
     CS_VERSION_19,    /* support verify server signature between primary and standby */
@@ -127,12 +127,12 @@ typedef enum en_cs_handshake_version {
 #define CS_FLAG_INTERACTIVE_CLT      0x0080 // whether is interactive client connect to server or not
 #define CS_FLAG_RETURNRESULT         0x0100 // whether is return result send pack or not
 #define CS_FLAG_CLIENT_SSL           0x0200 // use SSL encryption for the session, switch to SSL after sending the capability-flags
-#define CS_FLAG_ZSQL_IN_ALTPWD       0x0400 // ZSQL supports interactive password change for expired accounts
-#define GS_FLAG_CN_USE_ROUTE         0x0800 // CN direct route information
-#define GS_FLAG_ALLOWED_BATCH_ERRS   0x1000 // whether has allowed errors or not
-#define GS_FLAG_CREATE_TABLE_AS      0x2000 // whether create table as select
-#define GS_FLAG_REMOTE_AS_SYSDBA     0x4000 // support for remote connect as sysdba
-#define GS_FLAG_EXTEND               0x8000 // already used for extend flag packet
+#define CS_FLAG_CTSQL_IN_ALTPWD       0x0400 // CTSQL supports interactive password change for expired accounts
+#define CT_FLAG_CN_USE_ROUTE         0x0800 // CN direct route information
+#define CT_FLAG_ALLOWED_BATCH_ERRS   0x1000 // whether has allowed errors or not
+#define CT_FLAG_CREATE_TABLE_AS      0x2000 // whether create table as select
+#define CT_FLAG_REMOTE_AS_SYSDBA     0x4000 // support for remote connect as sysdba
+#define CT_FLAG_EXTEND               0x8000 // already used for extend flag packet
 
 /* The type of feedback message */
 typedef enum en_feedback {
@@ -163,7 +163,7 @@ typedef struct tagcs_packet {
     uint32 max_buf_size;  // MAX_ALLOWED_PACKET
     uint32 buf_size;
     char *buf;
-    char init_buf[GS_MAX_PACKET_SIZE];
+    char init_buf[CT_MAX_PACKET_SIZE];
 } cs_packet_t;
 
 typedef struct {
@@ -173,8 +173,8 @@ typedef struct {
     uint8 nologging_enable;
     uint8 isolevel;
     uint8 reserved[2];
-    char curr_schema[GS_NAME_BUFFER_SIZE];
-    char curr_user2[GS_NAME_BUFFER_SIZE];
+    char curr_schema[CT_NAME_BUFFER_SIZE];
+    char curr_user2[CT_NAME_BUFFER_SIZE];
 }alter_set_info_t;
 
 #define CS_PACKET_SIZE(pack)          ((pack)->head->size)
@@ -194,12 +194,12 @@ typedef struct {
 #define CS_IS_CN_CONNECTION(options) ((options) & CSO_CN_CONNECTION)
 #define CS_IS_CN_IN_ALTER_PWD(options) ((options) & CSO_CN_IN_ALTER_PWD)
 #define CS_XACT_WITH_TS(flags)       ((flags) & CS_FLAG_WITH_TS)
-#define CS_CREATE_TABLE_AS(flags)    ((flags) & GS_FLAG_CREATE_TABLE_AS)
+#define CS_CREATE_TABLE_AS(flags)    ((flags) & CT_FLAG_CREATE_TABLE_AS)
 
 /*
  * check the send-buffer size, extend the buffer dynamicly if need.
- * default buffer size is GS_MAX_PACKET_SIZE;
- * if max_buf_size == buf_size == GS_MAX_PACKET_SIZE, use default buffer, not extend;
+ * default buffer size is CT_MAX_PACKET_SIZE;
+ * if max_buf_size == buf_size == CT_MAX_PACKET_SIZE, use default buffer, not extend;
  * Hint : remember to free the buf if it's extended dynamicly by malloc;
  */
 #define CM_REALLOC_SEND_PACK_SIZE(pack, len) ((pack)->head->size + CM_ALIGN_8K(len))
@@ -208,39 +208,39 @@ static status_t cs_try_realloc_send_pack(cs_packet_t *pack, uint32 expect_size)
 {
     errno_t errcode = 0;
     if (!CS_HAS_REMAIN(pack, expect_size)) {
-        if (GS_MAX_UINT32 - pack->head->size < (uint32)CM_ALIGN_8K(expect_size)) {
-            GS_THROW_ERROR(ERR_NUM_OVERFLOW);
-            return GS_ERROR;
+        if (CT_MAX_UINT32 - pack->head->size < (uint32)CM_ALIGN_8K(expect_size)) {
+            CT_THROW_ERROR(ERR_NUM_OVERFLOW);
+            return CT_ERROR;
         }
         // extend memory align 8K
-        if (GS_MAX_UINT32 - pack->head->size < CM_ALIGN_8K(expect_size)) {
-            GS_THROW_ERROR(ERR_NUM_OVERFLOW);
-            return GS_ERROR;
+        if (CT_MAX_UINT32 - pack->head->size < CM_ALIGN_8K(expect_size)) {
+            CT_THROW_ERROR(ERR_NUM_OVERFLOW);
+            return CT_ERROR;
         }
 
         if (pack->head->size + expect_size > pack->max_buf_size) {
-            GS_THROW_ERROR(ERR_FULL_PACKET, "send", pack->head->size + expect_size, pack->max_buf_size);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_FULL_PACKET, "send", pack->head->size + expect_size, pack->max_buf_size);
+            return CT_ERROR;
         }
         uint32 new_buf_size = MIN(CM_REALLOC_SEND_PACK_SIZE(pack, expect_size), pack->max_buf_size);
 
         char *new_buf = (char *)malloc(new_buf_size);
         if (new_buf == NULL) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)new_buf_size, "large packet buffer");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)new_buf_size, "large packet buffer");
+            return CT_ERROR;
         }
         errcode = memcpy_s(new_buf, new_buf_size, pack->buf, pack->head->size);
         if (SECUREC_UNLIKELY(errcode != EOK)) {
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
             CM_FREE_PTR(new_buf);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         if (pack->buf != pack->init_buf) {
             errcode = memset_s(pack->buf, pack->buf_size, 0, pack->head->size);
             if (SECUREC_UNLIKELY(errcode != EOK)) {
-                GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+                CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
                 CM_FREE_PTR(new_buf);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             CM_FREE_PTR(pack->buf);
         }
@@ -250,16 +250,16 @@ static status_t cs_try_realloc_send_pack(cs_packet_t *pack, uint32 expect_size)
         pack->head = (cs_packet_head_t *)pack->buf;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-#define CM_CHECK_SEND_PACK_FREE(pack, len) GS_RETURN_IFERR(cs_try_realloc_send_pack(pack, len))
+#define CM_CHECK_SEND_PACK_FREE(pack, len) CT_RETURN_IFERR(cs_try_realloc_send_pack(pack, len))
 
 #define CM_CHECK_RECV_PACK_FREE(pack, len)                                                    \
     {                                                                                         \
         if (!CS_HAS_RECV_REMAIN(pack, len)) {                                                 \
-            GS_THROW_ERROR(ERR_PACKET_READ, (pack)->head->size, (pack)->offset, (uint32)(len)); \
-            return GS_ERROR;                                                                  \
+            CT_THROW_ERROR(ERR_PACKET_READ, (pack)->head->size, (pack)->offset, (uint32)(len)); \
+            return CT_ERROR;                                                                  \
         }                                                                                     \
     }
 
@@ -347,8 +347,8 @@ static inline void cs_init_packet(cs_packet_t *pack, uint32 options)
 {
     CM_POINTER(pack);
     pack->offset = 0;
-    pack->max_buf_size = GS_MAX_PACKET_SIZE;
-    pack->buf_size = GS_MAX_PACKET_SIZE;
+    pack->max_buf_size = CT_MAX_PACKET_SIZE;
+    pack->buf_size = CT_MAX_PACKET_SIZE;
     pack->buf = pack->init_buf;
     pack->head = (cs_packet_head_t *)pack->buf;
     pack->options = options;
@@ -374,19 +374,19 @@ static inline status_t cs_try_realloc_packet_buffer(cs_packet_t *pack, uint32 of
     if (pack->head->size > pack->buf_size) {
         uint32 new_buf_size = CM_ALIGN_8K(pack->head->size);  // align with 8K
         if (pack->head->size > pack->max_buf_size || new_buf_size > pack->max_buf_size) {
-            GS_THROW_ERROR(ERR_FULL_PACKET, "request", new_buf_size, pack->max_buf_size);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_FULL_PACKET, "request", new_buf_size, pack->max_buf_size);
+            return CT_ERROR;
         }
         char *new_buf = (char *)malloc(new_buf_size);
         if (new_buf == NULL) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)new_buf_size, "large packet buffer");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)new_buf_size, "large packet buffer");
+            return CT_ERROR;
         }
         errcode = memcpy_s(new_buf, new_buf_size, pack->buf, offset);
         if (SECUREC_UNLIKELY(errcode != EOK)) {
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
             CM_FREE_PTR(new_buf);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (pack->buf != pack->init_buf) {
@@ -398,7 +398,7 @@ static inline status_t cs_try_realloc_packet_buffer(cs_packet_t *pack, uint32 of
         pack->head = (cs_packet_head_t *)pack->buf;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void cs_try_free_packet_buffer(cs_packet_t *pack)
@@ -406,7 +406,7 @@ static inline void cs_try_free_packet_buffer(cs_packet_t *pack)
     if (pack->buf && pack->buf != pack->init_buf) {
         free(pack->buf);
 
-        pack->buf_size = GS_MAX_PACKET_SIZE;
+        pack->buf_size = CT_MAX_PACKET_SIZE;
         pack->buf = pack->init_buf;
         pack->head = (cs_packet_head_t *)pack->buf;
     }
@@ -445,7 +445,7 @@ static inline status_t cs_reserve_space(cs_packet_t *pack, uint32 size, uint32 *
         *offset = (uint32)(temp_buf - pack->buf);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_put_str(cs_packet_t *pack, const char *str)
@@ -463,7 +463,7 @@ static inline status_t cs_put_str(cs_packet_t *pack, const char *str)
     CS_WRITE_ADDR(pack)[size] = '\0';
     pack->head->size += CM_ALIGN4(size + 1);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_put_data(cs_packet_t *pack, const void *data, uint32 size)
@@ -474,7 +474,7 @@ static inline status_t cs_put_data(cs_packet_t *pack, const void *data, uint32 s
         MEMS_RETURN_IFERR(memcpy_s(CS_WRITE_ADDR(pack), CS_REMAIN_SIZE(pack), data, size));
     }
     pack->head->size += CM_ALIGN4(size);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_put_int64(cs_packet_t *pack, uint64 value)
@@ -484,7 +484,7 @@ static inline status_t cs_put_int64(cs_packet_t *pack, uint64 value)
 
     *(uint64 *)CS_WRITE_ADDR(pack) = CS_DIFFERENT_ENDIAN(pack->options) ? cs_reverse_int64(value) : value;
     pack->head->size += sizeof(uint64);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_put_int32(cs_packet_t *pack, uint32 value)
@@ -494,7 +494,7 @@ static inline status_t cs_put_int32(cs_packet_t *pack, uint32 value)
 
     *(uint32 *)CS_WRITE_ADDR(pack) = CS_DIFFERENT_ENDIAN(pack->options) ? cs_reverse_int32(value) : value;
     pack->head->size += sizeof(uint32);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_put_int16(cs_packet_t *pack, uint16 value)
@@ -503,7 +503,7 @@ static inline status_t cs_put_int16(cs_packet_t *pack, uint16 value)
     CM_CHECK_SEND_PACK_FREE(pack, CS_ALIGN_SIZE);
     *(uint16 *)CS_WRITE_ADDR(pack) = CS_DIFFERENT_ENDIAN(pack->options) ? cs_reverse_int16(value) : value;
     pack->head->size += CS_ALIGN_SIZE;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_put_real(cs_packet_t *pack, double value)
@@ -512,7 +512,7 @@ static inline status_t cs_put_real(cs_packet_t *pack, double value)
     CM_CHECK_SEND_PACK_FREE(pack, sizeof(double));
     *(double *)CS_WRITE_ADDR(pack) = CS_DIFFERENT_ENDIAN(pack->options) ? cs_reverse_real(value) : value;
     pack->head->size += sizeof(double);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_put_date(cs_packet_t *pack, date_t value)
@@ -521,7 +521,7 @@ static inline status_t cs_put_date(cs_packet_t *pack, date_t value)
     CM_CHECK_SEND_PACK_FREE(pack, sizeof(date_t));
     *(date_t *)CS_WRITE_ADDR(pack) = CS_DIFFERENT_ENDIAN(pack->options) ? cs_reverse_date(value) : value;
     pack->head->size += sizeof(date_t);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_put_text(cs_packet_t *pack, text_t *text)
@@ -531,12 +531,12 @@ static inline status_t cs_put_text(cs_packet_t *pack, text_t *text)
     /* put the length of text */
     (void)cs_put_int32(pack, text->len);
     if (text->len == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     /* put the string of text, and append the terminated sign */
     MEMS_RETURN_IFERR(memcpy_s(CS_WRITE_ADDR(pack), CS_REMAIN_SIZE(pack), text->str, text->len));
     pack->head->size += CM_ALIGN4(text->len);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_put_scn(cs_packet_t *pack, uint64* scn)
@@ -548,7 +548,7 @@ static inline status_t cs_put_timestamp(cs_packet_t *pack, const struct timeval 
 {
     cs_timeval_t *tmp_tv = NULL;
     uint32        offset;
-    GS_RETURN_IFERR(cs_reserve_space(pack, sizeof(cs_timeval_t), &offset));
+    CT_RETURN_IFERR(cs_reserve_space(pack, sizeof(cs_timeval_t), &offset));
     tmp_tv = (cs_timeval_t *)CS_RESERVE_ADDR(pack, offset);
 #ifdef WIN32
     if (CS_DIFFERENT_ENDIAN(pack->options)) {
@@ -567,7 +567,7 @@ static inline status_t cs_put_timestamp(cs_packet_t *pack, const struct timeval 
         tmp_tv->tv_usec = (uint64)ts->tv_usec;
     }
 #endif
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_put_err_msg(cs_packet_t *pack, uint32 call_version, const char *err_msg)
@@ -588,7 +588,7 @@ static inline status_t cs_inc_head_size(cs_packet_t *pack, uint32 size)
     CM_POINTER(pack);
     CM_CHECK_SEND_PACK_FREE(pack, CM_ALIGN4(size));
     pack->head->size += CM_ALIGN4(size);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_get_data(cs_packet_t *pack, uint32 size, void **buf)
@@ -604,7 +604,7 @@ static inline status_t cs_get_data(cs_packet_t *pack, uint32 size, void **buf)
     if (buf != NULL) {
         *buf = (size > 0) ? (void *)temp_buf : NULL;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_get_str(cs_packet_t *pack, char **buf)
@@ -624,7 +624,7 @@ static inline status_t cs_get_str(cs_packet_t *pack, char **buf)
     if (buf != NULL) {
         *buf = str;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_get_int64(cs_packet_t *pack, int64 *value)
@@ -638,7 +638,7 @@ static inline status_t cs_get_int64(cs_packet_t *pack, int64 *value)
     if (value != NULL) {
         *value = temp_value;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_get_int32(cs_packet_t *pack, int32 *value)
@@ -652,7 +652,7 @@ static inline status_t cs_get_int32(cs_packet_t *pack, int32 *value)
     if (value != NULL) {
         *value = temp_value;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* need keep 4-byte align by the caller */
@@ -668,7 +668,7 @@ static inline status_t cs_get_int16(cs_packet_t *pack, int16 *value)
     if (value != NULL) {
         *value = temp_value;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_get_double(cs_packet_t *pack, double *value)
@@ -682,13 +682,13 @@ static inline status_t cs_get_double(cs_packet_t *pack, double *value)
     if (value != NULL) {
         *value = temp_value;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cs_get_text(cs_packet_t *pack, text_t *text)
 {
     CM_POINTER2(pack, text);
-    GS_RETURN_IFERR(cs_get_int32(pack, (int32 *)&text->len));
+    CT_RETURN_IFERR(cs_get_int32(pack, (int32 *)&text->len));
     
     return cs_get_data(pack, text->len, (void **)&(text->str));
 }
@@ -701,7 +701,7 @@ static inline status_t cs_get_scn(cs_packet_t *pack, uint64 *scn)
 static inline status_t cs_get_timestamp(cs_packet_t *pack, struct timeval *ts)
 {
     cs_timeval_t *tmp_tv = NULL;
-    GS_RETURN_IFERR(cs_get_data(pack, sizeof(cs_timeval_t), (void **)&tmp_tv));
+    CT_RETURN_IFERR(cs_get_data(pack, sizeof(cs_timeval_t), (void **)&tmp_tv));
 #ifdef WIN32
     if (CS_DIFFERENT_ENDIAN(pack->options)) {
         ts->tv_sec = (long)cs_reverse_int64(tmp_tv->tv_sec);
@@ -719,22 +719,22 @@ static inline status_t cs_get_timestamp(cs_packet_t *pack, struct timeval *ts)
         ts->tv_usec = (suseconds_t)tmp_tv->tv_usec;
     }
 #endif
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline uint8 cs_get_param_isnull(uint8 flag)
 {
     // bit[0] can be 0 1
-    return ((flag & 0x01) == 0x01) ? (uint8)GS_TRUE : (uint8)GS_FALSE;
+    return ((flag & 0x01) == 0x01) ? (uint8)CT_TRUE : (uint8)CT_FALSE;
 }
 
 static inline uint8 cs_get_param_direction(uint8 flag)
 {
     // bit[6]bit[7] can be 00 01 10 11
     if ((flag & 0x40) == 0x40) {
-        return ((flag & 0x80) == 0x80) ? GS_INOUT_PARAM : GS_INPUT_PARAM;
+        return ((flag & 0x80) == 0x80) ? CT_INOUT_PARAM : CT_INPUT_PARAM;
     } else {
-        return ((flag & 0x80) == 0x80) ? GS_OUTPUT_PARAM : GS_INPUT_PARAM;
+        return ((flag & 0x80) == 0x80) ? CT_OUTPUT_PARAM : CT_INPUT_PARAM;
     }
 }
 
@@ -751,11 +751,11 @@ static inline status_t cs_copy_packet(cs_packet_t *src, cs_packet_t *dst)
     dst->head->size = 0;  // reset write offset
     CM_CHECK_SEND_PACK_FREE(dst, copy_len);
     errcode = memcpy_s(dst->buf, dst->buf_size, src->buf, copy_len);
-    if (errcode != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, (errcode));
-        return GS_ERROR;
+    if (errcode != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, (errcode));
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void cs_free_packet_buffer(cs_packet_t *pack)

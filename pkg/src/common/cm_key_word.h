@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -30,7 +30,7 @@ extern "C" {
 #endif
 
 
-// 20000 is used for GS_TYPE_BASE in cm_defs.h
+// 20000 is used for CT_TYPE_BASE in cm_defs.h
 #define SQL_KEY_WORD_BASE 10000
 
 #define SQL_RESERVED_WORD_BASE 30000
@@ -41,7 +41,8 @@ typedef enum en_key_wid {
     /* NOTE: 1. unknown key word, it is used as an initial value and the base for SQL keywords
              2. the keyword must be arranged by alphabetical ascending order!!! */
     KEY_WORD_0_UNKNOWN = SQL_KEY_WORD_BASE,
-    KEY_WORD_ABORT = KEY_WORD_0_UNKNOWN + 1,
+    KEY_WORD_ABNORMAL = KEY_WORD_0_UNKNOWN + 1,
+    KEY_WORD_ABORT,
     KEY_WORD_ACCOUNT,
     KEY_WORD_ACTIVATE,
     KEY_WORD_ACTIVE,
@@ -55,6 +56,7 @@ typedef enum en_key_wid {
     KEY_WORD_APPENDONLY,
     KEY_WORD_ARCHIVE,
     KEY_WORD_ARCHIVELOG,
+    KEY_WORD_ARCHIVE_SET,
     KEY_WORD_AS,
     KEY_WORD_ASC,
     KEY_WORD_ASYNC,
@@ -327,9 +329,7 @@ typedef enum en_key_wid {
     KEY_WORD_RENAME,
     KEY_WORD_REPAIR,
     KEY_WORD_REPLACE,
-#ifdef Z_SHARDING
     KEY_WORD_REPLICATION,
-#endif
     KEY_WORD_RESET,
     KEY_WORD_RESIZE,
     KEY_WORD_RESTORE,

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -258,126 +258,126 @@ static inline int32 cm_rdma_fcntl(socket_t socket, int32 cmd, ...)
 
 static inline int32 cm_rdma_socket(int32 domain, int32 type, int32 protocol)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_bind(socket_t socket, const struct sockaddr *addr, int addrlen)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_listen(socket_t socket, int32 backlog)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_accept(socket_t socket, struct sockaddr *addr, int *addrlen)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_connect(socket_t socket, const struct sockaddr *addr, int addrlen)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_shutdown(socket_t socket, int32 how)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_close(socket_t socket)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_recv(socket_t socket, void *buf, size_t len, int32 flags)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_recvfrom(socket_t socket, void *buf, size_t len, int32 flags, struct sockaddr *src_addr,
                                      int *addrlen)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_recvmsg(socket_t socket, struct msghdr *msg, int32 flags)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_send(socket_t socket, const void *buf, size_t len, int32 flags)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_sendto(socket_t socket, const void *buf, size_t len, int32 flags,
                                    const struct sockaddr *dest_addr, int addrlen)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_sendmsg(socket_t socket, const struct msghdr *msg, int32 flags)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_read(socket_t socket, void *buf, size_t count)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_readv(socket_t socket, const struct iovec *iov, int32 iovcnt)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_write(socket_t socket, const void *buf, size_t count)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_writev(socket_t socket, const struct iovec *iov, int32 iovcnt)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_poll(struct pollfd *fds, int32 nfds, int32 timeout)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_select(int32 nfds, fd_set *readfds, fd_set *writefds,
                                    fd_set *exceptfds, struct timeval *timeout)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_getpeername(socket_t socket, struct sockaddr *addr, int *addrlen)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_getsockname(socket_t socket, struct sockaddr *addr, int *addrlen)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_setsockopt(socket_t socket, int32 level, int32 optname, const void *optval,
                                        int optlen)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_getsockopt(socket_t socket, int32 level, int32 optname, void *optval, int *optlen)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline int32 cm_rdma_fcntl(socket_t socket, int32 cmd, ...)
 {
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 #endif

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -44,7 +44,7 @@ extern "C" {
 
 #define KNL_XA_XID_DATA_OFFSET ((uint64)((xa_xid_t *)0)->data)
 #define KNL_XA_XID_LEN(xid) ((uint64)(((xa_xid_t *)0)->data) + (xid)->gtrid_len + (xid)->bqual_len)
-#define KNL_MAX_XA_XID_LEN (10 + GS_MAX_XA_BASE16_GTRID_LEN + GS_MAX_XA_BASE16_BQUAL_LEN)
+#define KNL_MAX_XA_XID_LEN (10 + CT_MAX_XA_BASE16_GTRID_LEN + CT_MAX_XA_BASE16_BQUAL_LEN)
 #define KNL_IS_INVALID_ROWID(rowid) ((rowid).file == INVALID_FILE_ID && (rowid).page == 0 && (rowid).slot == 0)
 #define KNL_IS_INVALID_SCN(scn)  ((scn) == 0)
     
@@ -71,8 +71,8 @@ typedef struct st_xa_xid {
 #pragma pack(4)
 typedef struct st_knl_xa_xid {
     uint64  fmt_id;
-    char    gtrid[GS_MAX_XA_BASE16_GTRID_LEN];
-    char    bqual[GS_MAX_XA_BASE16_BQUAL_LEN];
+    char    gtrid[CT_MAX_XA_BASE16_GTRID_LEN];
+    char    bqual[CT_MAX_XA_BASE16_BQUAL_LEN];
     uint8   gtrid_len;
     uint8   bqual_len;
 } knl_xa_xid_t;
@@ -92,7 +92,7 @@ typedef struct st_lock_group {
 } lock_group_t;
 
 typedef struct st_knl_savepoint {
-    char name[GS_MAX_NAME_LEN];  // save point name
+    char name[CT_MAX_NAME_LEN];  // save point name
     undo_rowid_t urid;           // save point undo row_id;
     undo_rowid_t noredo_urid;    // save point noredo undo row_id;
     uint64 lsn;                  // lsn when the savepoint was created
@@ -120,7 +120,7 @@ void knl_xa_reset_rm(void *rm);
 void knl_tx_reset_rm(void *rm);
 status_t knl_convert_xa_xid(xa_xid_t *src, knl_xa_xid_t *dst);
 bool32 knl_xa_xid_equal(knl_xa_xid_t *xid1, knl_xa_xid_t *xid2);
-status_t knl_set_session_trans(knl_handle_t session, isolation_level_t level);
+status_t knl_set_session_trans(knl_handle_t session, isolation_level_t level, bool32 is_select);
 xact_status_t knl_xact_status(knl_handle_t session);
 status_t knl_commit_force(knl_handle_t handle, knl_xid_t *xid);
 void knl_commit(knl_handle_t handle);
@@ -152,7 +152,7 @@ static inline bool32 knl_xa_xid_valid(knl_xa_xid_t *xa_xid)
 
 static inline uint32 knl_xa_xid_hash(knl_xa_xid_t *xid)
 {
-    text_t values[GS_MAX_XA_XID_TEXT_CNT];
+    text_t values[CT_MAX_XA_XID_TEXT_CNT];
     uint16 i = 0;
     uint32 value;
 
@@ -160,10 +160,10 @@ static inline uint32 knl_xa_xid_hash(knl_xa_xid_t *xid)
     i++;
     cm_str2text_safe(xid->bqual, xid->bqual_len, &values[i]);
 
-    value = cm_hash_multi_text(values, GS_MAX_XA_XID_TEXT_CNT, GS_MAX_RM_BUCKETS);
+    value = cm_hash_multi_text(values, CT_MAX_XA_XID_TEXT_CNT, CT_MAX_RM_BUCKETS);
     value = (value << 1) | ((value & 0x80000000) ? 1 : 0);
     value ^= cm_hash_int64((int64)xid->fmt_id);
-    return value % GS_MAX_RM_BUCKETS;
+    return value % CT_MAX_RM_BUCKETS;
 }
 
 uint64 knl_txn_buffer_size(uint32 page_size, uint32 segment_count);

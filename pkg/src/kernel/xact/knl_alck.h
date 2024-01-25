@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -27,13 +27,13 @@
 
 #include "cm_latch.h"
 
-#define GS_ALCK_MAX_BUCKETS 4096
-#define GS_ALCK_EXTENT      1024
-#define GS_ALCK_MAX_EXTENTS 1024
-#define GS_ALCK_MAX_ITEMS   (GS_ALCK_MAX_EXTENTS * GS_ALCK_EXTENT)
-#define GS_ALCK_MAX_RECUR_LVL GS_INVALID_ID32
-#define GS_ALCK_MAP_MAX_EXTENTS (3 * GS_ALCK_MAX_EXTENTS)
-#define GS_ALCK_MAX_MAPS   (GS_ALCK_EXTENT * GS_ALCK_MAP_MAX_EXTENTS)
+#define CT_ALCK_MAX_BUCKETS 4096
+#define CT_ALCK_EXTENT      1024
+#define CT_ALCK_MAX_EXTENTS 1024
+#define CT_ALCK_MAX_ITEMS   (CT_ALCK_MAX_EXTENTS * CT_ALCK_EXTENT)
+#define CT_ALCK_MAX_RECUR_LVL CT_INVALID_ID32
+#define CT_ALCK_MAP_MAX_EXTENTS (3 * CT_ALCK_MAX_EXTENTS)
+#define CT_ALCK_MAX_MAPS   (CT_ALCK_EXTENT * CT_ALCK_MAP_MAX_EXTENTS)
 
 typedef enum en_alck_lock_set {
     SE_LOCK = 0,        // session level lock
@@ -48,7 +48,7 @@ typedef struct st_alck_bucket {
 
 typedef struct st_alck_item_pool {
     spinlock_t lock;
-    char *extents[GS_ALCK_MAX_EXTENTS];
+    char *extents[CT_ALCK_MAX_EXTENTS];
     volatile uint32 capacity;
     uint32 count;
     uint32 ext_cnt;
@@ -60,7 +60,7 @@ typedef struct st_alck_item_pool {
 
 typedef struct st_alck_map_pool {
     spinlock_t lock;
-    char *extents[GS_ALCK_MAP_MAX_EXTENTS];
+    char *extents[CT_ALCK_MAP_MAX_EXTENTS];
     volatile uint32 capacity;
     uint32 count;
     uint32 ext_cnt;
@@ -73,7 +73,7 @@ typedef struct st_alck_ctx_spec {
     alck_lock_set_t lock_set;
     alck_item_pool_t item_pool;
     alck_map_pool_t map_pool;
-    alck_bucket_t buckets[GS_ALCK_MAX_BUCKETS];
+    alck_bucket_t buckets[CT_ALCK_MAX_BUCKETS];
 }alck_ctx_spec_t;
 
 typedef struct st_alck_ctx {
@@ -100,7 +100,7 @@ typedef struct st_alck_map {
 
 typedef struct st_alck_item {
     spinlock_t    lock;
-    char          name[GS_ALCK_NAME_BUFFER_SIZE];
+    char          name[CT_ALCK_NAME_BUFFER_SIZE];
     uint32        lock_times; // locked times in shared mode or recursively locked by one session or rm
     uint32        sn;         // serial number, increased when unlocked
     uint32        x_map_id;   // locked exclusively by which session or rm
@@ -115,22 +115,22 @@ typedef struct st_alck_item {
     uint32        first_map;     // record which session or rm locked the lock
 }alck_item_t;
 
-#define ALCK_ITEM_PTR(pool, id) ((alck_item_t *)((pool)->extents[(id) / GS_ALCK_EXTENT] + \
-                                  sizeof(alck_item_t) * ((id) % GS_ALCK_EXTENT)))
+#define ALCK_ITEM_PTR(pool, id) ((alck_item_t *)((pool)->extents[(id) / CT_ALCK_EXTENT] + \
+                                  sizeof(alck_item_t) * ((id) % CT_ALCK_EXTENT)))
 #define ALCK_ITEM_INIT(alck_item)                         \
 do {                                                      \
-    (alck_item)->first_map = GS_INVALID_ID32;             \
-    (alck_item)->x_map_id = GS_INVALID_ID32;              \
-    (alck_item)->ix_map_id = GS_INVALID_ID32;             \
+    (alck_item)->first_map = CT_INVALID_ID32;             \
+    (alck_item)->x_map_id = CT_INVALID_ID32;              \
+    (alck_item)->ix_map_id = CT_INVALID_ID32;             \
     (alck_item)->x_times = 0;                             \
     (alck_item)->lock_times = 0;                          \
     (alck_item)->lock_mode = ALCK_MODE_IDLE;              \
-    (alck_item)->prev = GS_INVALID_ID32;                  \
-    (alck_item)->next = GS_INVALID_ID32;                  \
-} while (GS_FALSE)
+    (alck_item)->prev = CT_INVALID_ID32;                  \
+    (alck_item)->next = CT_INVALID_ID32;                  \
+} while (CT_FALSE)
 
-#define ALCK_MAP_PTR(pool, id) ((alck_map_t *)((pool)->extents[(id) / GS_ALCK_EXTENT] + \
-                                  sizeof(alck_map_t) * ((id) % GS_ALCK_EXTENT)))
+#define ALCK_MAP_PTR(pool, id) ((alck_map_t *)((pool)->extents[(id) / CT_ALCK_EXTENT] + \
+                                  sizeof(alck_map_t) * ((id) % CT_ALCK_EXTENT)))
 
 status_t alck_init_ctx(struct st_knl_instance *kernel);
 void alck_deinit_ctx(struct st_knl_instance *kernel);

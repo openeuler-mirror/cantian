@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,11 +22,12 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "mes_log_module.h"
 #include "mes_queue.h"
 #include "srv_instance.h"
 #include "dtc_context.h"
 #include "mes_func.h"
+#include "tms_monitor.h"
 
 #define MES_QUEUE_LOG_LENGTH (1024)
 
@@ -63,8 +64,8 @@ dtc_msgitem_t *mes_alloc_msgitem_nolock(dtc_msgqueue_t *queue)
     dtc_msgitem_t *ret = NULL;
 
     if (queue->count == 0) {
-        if (alloc_msgitems(&g_mes.mq_ctx.pool, queue) != GS_SUCCESS) {
-            GS_THROW_ERROR_EX(ERR_MES_CREATE_AREA, "alloc msg item failed");
+        if (alloc_msgitems(&g_mes.mq_ctx.pool, queue) != CT_SUCCESS) {
+            CT_THROW_ERROR_EX(ERR_MES_CREATE_AREA, "alloc msg item failed");
             return NULL;
         }
     }
@@ -100,18 +101,18 @@ status_t alloc_msgitems(dtc_msgitem_pool_t *pool, dtc_msgqueue_t *msgitems)
     if (pool->free_list.count == 0) {
         cm_spin_unlock(&pool->free_list.lock);
         cm_spin_lock(&pool->lock, NULL);
-        if (pool->buf_idx == GS_INVALID_ID16 || pool->hwm >= INIT_MSGITEM_BUFFER_SIZE) {
+        if (pool->buf_idx == CT_INVALID_ID16 || pool->hwm >= INIT_MSGITEM_BUFFER_SIZE) {
             pool->buf_idx++;
             if (pool->buf_idx >= MAX_POOL_BUFFER_COUNT) {
                 cm_spin_unlock(&pool->lock);
-                GS_LOG_RUN_ERR("pool->buf_idx exceed.");
-                return GS_ERROR;
+                CT_LOG_RUN_ERR("pool->buf_idx exceed.");
+                return CT_ERROR;
             }
             pool->hwm = 0;
             pool->buffer[pool->buf_idx] = (dtc_msgitem_t *)malloc(INIT_MSGITEM_BUFFER_SIZE * sizeof(dtc_msgitem_t));
             if (pool->buffer[pool->buf_idx] == NULL) {
                 cm_spin_unlock(&pool->lock);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
         item = (dtc_msgitem_t *)(pool->buffer[pool->buf_idx] + pool->hwm);
@@ -126,7 +127,7 @@ status_t alloc_msgitems(dtc_msgitem_pool_t *pool, dtc_msgqueue_t *msgitems)
         item->next = NULL;
         msgitems->last = item;
         msgitems->count = MSG_ITEM_BATCH_SIZE;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     knl_panic(pool->free_list.count >= MSG_ITEM_BATCH_SIZE);
@@ -148,7 +149,7 @@ status_t alloc_msgitems(dtc_msgitem_pool_t *pool, dtc_msgqueue_t *msgitems)
 
     cm_spin_unlock(&pool->free_list.lock);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void free_msgitems(dtc_msgitem_pool_t *pool, dtc_msgqueue_t *msgitems)
@@ -173,9 +174,9 @@ dtc_msgitem_t *mes_alloc_msgitem(dtc_msgqueue_t *queue)
 
     cm_spin_lock(&queue->lock, NULL);
     if (queue->count == 0) {
-        if (alloc_msgitems(&g_mes.mq_ctx.pool, queue) != GS_SUCCESS) {
+        if (alloc_msgitems(&g_mes.mq_ctx.pool, queue) != CT_SUCCESS) {
             cm_spin_unlock(&queue->lock);
-            GS_THROW_ERROR_EX(ERR_MES_CREATE_AREA, "alloc msg item failed");
+            CT_THROW_ERROR_EX(ERR_MES_CREATE_AREA, "alloc msg item failed");
             return NULL;
         }
     }
@@ -199,14 +200,14 @@ void init_msgqueue(dtc_msgqueue_t *queue)
 void init_msgitem_pool(dtc_msgitem_pool_t *pool)
 {
     pool->lock = 0;
-    pool->buf_idx = GS_INVALID_ID16;
+    pool->buf_idx = CT_INVALID_ID16;
     pool->hwm = 0;
     init_msgqueue(&pool->free_list);
 }
 
 void free_msgitem_pool(dtc_msgitem_pool_t *pool)
 {
-    if (pool->buf_idx == GS_INVALID_ID16) {
+    if (pool->buf_idx == CT_INVALID_ID16) {
         return;
     }
 
@@ -256,16 +257,27 @@ void dtc_task_proc(thread_t *thread)
 
     group = mes_get_task_group(index);
     if (group == NULL) {
-        GS_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes]: task index %u not belong any group.", index);
+        CT_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes]: task index %u not belong any group.", index);
         return;
     }
+
+    tms_monitor_handle monitor_handler =
+        tms_sig_event_reg("dtc_task_proc", tms_monitor_cb, TMS_MONITOR_DEFAULT_STEP);
+    if (monitor_handler == NULL) {
+        CT_LOG_RUN_ERR("[mes]: task regist monitor event failed.");
+        return;
+    }
+    tms_monitor_t *monitor_event = (tms_monitor_t *)monitor_handler;
 
     while (!thread->closed) {
         msgitem = mes_get_task_msg(group);
         if (msgitem == NULL) {
+            monitor_event->monitor_is_running = CT_FALSE;
             cm_wait_cond_no_timeout(&group->work_thread_cond);
             continue;
         }
+        tms_update_monitor_start_time(monitor_handler);
+        monitor_event->monitor_is_running = CT_TRUE;
 
         if (msgitem->msg.head->src_inst != msgitem->msg.head->dst_inst) {  // ignores the consume time of message send
                                                                            // inter, shoule use a new view if need
@@ -289,6 +301,7 @@ void dtc_task_proc(thread_t *thread)
         if (MSG_ITEM_BATCH_SIZE == finished_msgitem_queue.count) {
             free_msgitems(&g_mes.mq_ctx.pool, &finished_msgitem_queue);
         }
+        tms_update_monitor_end_time(monitor_handler);
     }
 }
 
@@ -300,7 +313,7 @@ status_t init_dtc_mq_instance(void)
         init_msgqueue(&g_mes.mq_ctx.queue[loop]);
     }
 
-    for (loop = 0; loop < GS_DTC_MAX_TASK_NUM; loop++) {
+    for (loop = 0; loop < CT_DTC_MAX_TASK_NUM; loop++) {
         init_msgqueue(&g_mes.mq_ctx.tasks[loop].queue);
         g_mes.mq_ctx.tasks[loop].choice = 0;
     }
@@ -314,13 +327,13 @@ status_t init_dtc_mq_instance(void)
 
     for (loop = 0; loop < g_mes.profile.work_thread_num; loop++) {
         g_mes.mes_ctx.work_thread_idx[loop] = loop;
-        if (GS_SUCCESS != cm_create_thread(dtc_task_proc, 0, &g_mes.mes_ctx.work_thread_idx[loop],
+        if (CT_SUCCESS != cm_create_thread(dtc_task_proc, 0, &g_mes.mes_ctx.work_thread_idx[loop],
                                            &g_mes.mq_ctx.tasks[loop].thread)) {
-            GS_LOG_RUN_ERR("create work thread %u failed.", loop);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("create work thread %u failed.", loop);
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void free_dtc_mq_instance(void)
@@ -328,7 +341,7 @@ void free_dtc_mq_instance(void)
     uint32 loop;
 
     for (loop = 0; loop < g_mes.profile.work_thread_num; loop++) {
-        g_mes.mq_ctx.tasks[loop].thread.closed = GS_TRUE;
+        g_mes.mq_ctx.tasks[loop].thread.closed = CT_TRUE;
     }
 
     for (loop = 0; loop < MES_TASK_GROUP_ALL; loop++) {
@@ -352,8 +365,8 @@ status_t mes_put_inter_msg(mes_message_t *msg)
 
     msgitem = mes_alloc_msgitem(&g_mes.mq_ctx.local_queue);
     if (msgitem == NULL) {
-        GS_LOG_RUN_ERR("mes_alloc_msgitem failed.");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("mes_alloc_msgitem failed.");
+        return CT_ERROR;
     }
     uint64 start_time = 0;
     mes_get_consume_time_start(&start_time);
@@ -365,7 +378,7 @@ status_t mes_put_inter_msg(mes_message_t *msg)
     msgitem->start_time = start_time;
 
     mes_put_msgitem(msgitem);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void mes_put_msgitem(dtc_msgitem_t *msgitem)
@@ -390,30 +403,30 @@ status_t mes_set_group_task_num(mes_task_group_id_t group_id, uint32 task_num)
     mes_task_group_t *task_group = &g_mes.mq_ctx.group.task_group[group_id];
 
     if (task_num == 0) {
-        GS_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes]: group_id %u can't set task_num 0.", group_id);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes]: group_id %u can't set task_num 0.", group_id);
+        return CT_ERROR;
     }
 
     if (task_group->is_set) {
-        GS_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes]: group_id %u has been set already.", group_id);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes]: group_id %u has been set already.", group_id);
+        return CT_ERROR;
     }
 
     if ((g_mes.mq_ctx.group.assign_task_idx + task_num) > g_mes.mq_ctx.task_num) {
-        GS_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes]: group %u task num %u has excced total task num.", group_id,
+        CT_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes]: group %u task num %u has excced total task num.", group_id,
                           task_num);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     task_group->group_id = group_id;
     task_group->task_num = task_num;
     task_group->start_task_idx = g_mes.mq_ctx.group.assign_task_idx;
     g_mes.mq_ctx.group.assign_task_idx += task_num;
-    task_group->is_set = GS_TRUE;
+    task_group->is_set = CT_TRUE;
 
-    GS_LOG_DEBUG_INF("[mes] set group %u start_task_idx %u task num %u.", group_id, task_group->start_task_idx,
+    CT_LOG_DEBUG_INF("[mes] set group %u start_task_idx %u task num %u.", group_id, task_group->start_task_idx,
         task_num);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 mes_task_group_t *mes_get_task_group(uint32 task_index)

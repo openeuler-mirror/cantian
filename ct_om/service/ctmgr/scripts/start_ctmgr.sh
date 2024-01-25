@@ -26,7 +26,6 @@ else
         logAndEchoError "start ctmgr fail please check /opt/cantian/ct_om/service/ctmgr/ctmgr_log/deploy.log"
         exit 1
     else
-        chown ctmgruser:cantianmgrgroup /opt/cantian/ct_om/service/ct_om.sock
         logAndEchoInfo "start ctmgr success"
         exit 0
     fi

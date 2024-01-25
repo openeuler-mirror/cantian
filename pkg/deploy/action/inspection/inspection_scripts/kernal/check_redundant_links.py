@@ -3,9 +3,9 @@
 import json
 import os
 import sys
-from gs_check import CheckContext
-from gs_check import BaseItem
-from gs_check import ResultStatus
+from ct_check import CheckContext
+from ct_check import BaseItem
+from ct_check import ResultStatus
 sys.path.append('/opt/cantian/action/inspection')
 from log_tool import setup
  
@@ -34,8 +34,8 @@ class CheckRedundantLinks(BaseItem):
         if (status == 0):
             vals["success"] = "Have redundant link."
         else:
-            self.result.rst = ResultStatus.WARNING
-            vals["warning"] = "Do not have redundant link, for details, see the /opt/cantian/dbstor/cgwshowdev.log ."
+            self.result.rst = ResultStatus.ERROR
+            vals["except"] = "Do not have redundant link, for details, see the /opt/cantian/dbstor/cgwshowdev.log ."
  
         # add resault to json
         self.result.val = json.dumps(vals)

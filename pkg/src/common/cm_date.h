@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -109,6 +109,12 @@ typedef int64 date_t;
 #define NANOSECS_PER_SECOND     1000000000U
 #define MICROSECS_PER_SECOND_LL 1000000LL
 
+#define DATETIMEF_INT_OFS 0x8000000000LL
+#define DATETIME_MAX_DECIMALS 6
+#define TIMEF_INT_OFS 0x800000LL
+#define TIMEF_OFS 0x800000000000LL
+
+
 #define DAYS_PER_WEEK           7U
 
 /* the minimal units of a day == SECONDS_PER_DAY * MILLISECS_PER_SECOND * MICROSECS_PER_MILLISEC */
@@ -118,42 +124,84 @@ typedef int64 date_t;
 /* FILETIME of Jan 1 1970 00:00:00 GMT, the cantian epoch */
 #define CM_UNIX_EPOCH (-946684800000000LL)
 
+#define CM_BASE_8 8
+#define CM_BASE_16 16
+#define CM_BASE_24 24
+#define CM_BASE_32 32
+
+#define CM_BYTE_0 0
+#define CM_BYTE_1 1
+#define CM_BYTE_2 2
+#define CM_BYTE_3 3
+#define CM_BYTE_4 4
+#define CM_BYTE_5 5
+#define CM_BYTE_8 8
+
+#define CM_DATE_PRE_0 0
+#define CM_DATE_PRE_1 1
+#define CM_DATE_PRE_2 2
+#define CM_DATE_PRE_3 3
+#define CM_DATE_PRE_4 4
+#define CM_DATE_PRE_5 5
+#define CM_DATE_PRE_6 6
+
+#define CM_128_BITS_MASK 128
+#define CM_255_BITS_MASK 255U
+
+#define DT_ENCODE_2 2
+#define DT_ENCODE_3 3
+#define DT_ENCODE_5 5
+#define DT_ENCODE_6 6
+#define DT_ENCODE_10 10
+#define DT_ENCODE_12 12
+#define DT_ENCODE_13 13
+#define DT_ENCODE_16 16
+#define DT_ENCODE_17 17
+#define DT_ENCODE_24 24
+#define DT_ENCODE_32 32
+
+#define CM_4_POWER_OF_10 10000
+#define CM_2_POWER_OF_10 100
+
 #define CM_IS_DATETIME_ADDTION_OVERFLOW(dt, val, res) \
     (!((val) >= 0 && (res) <= CM_MAX_DATETIME && (res) >= (dt)) &&  \
      !((val) < 0 && ((res) >= CM_MIN_DATETIME || (res) == CM_ALL_ZERO_DATETIME) && (res) <= (dt)))
 
-#define GS_SET_ERROR_DATETIME_OVERFLOW() \
-    GS_THROW_ERROR(ERR_TYPE_DATETIME_OVERFLOW, CM_MIN_YEAR, CM_MAX_YEAR);
+#define CT_SET_ERROR_DATETIME_OVERFLOW() \
+    CT_THROW_ERROR(ERR_TYPE_DATETIME_OVERFLOW, CM_MIN_YEAR, CM_MAX_YEAR);
 
-#define GS_SET_ERROR_TIMESTAMP_OVERFLOW() \
-    GS_THROW_ERROR(ERR_TYPE_TIMESTAMP_OVERFLOW, CM_MIN_YEAR, CM_MAX_YEAR);
+#define CT_SET_ERROR_TIMESTAMP_OVERFLOW() \
+    CT_THROW_ERROR(ERR_TYPE_TIMESTAMP_OVERFLOW, CM_MIN_YEAR, CM_MAX_YEAR);
+
+extern const uint64 powers_of_10[20];
 
 /* !
 * \brief A safe methods to calculate the addition between DATETIME TYPE and
 * numerical types. It can avoid the overflow/underflow.
+*
 */
 static inline status_t cm_date_add_days(date_t dt, double day, date_t *res_dt)
 {
     date_t new_dt = dt + (date_t)round((double)UNITS_PER_DAY * day);
     if (CM_IS_DATETIME_ADDTION_OVERFLOW(dt, day, new_dt)) {
-        GS_SET_ERROR_DATETIME_OVERFLOW();
-        return GS_ERROR;
+        CT_SET_ERROR_DATETIME_OVERFLOW();
+        return CT_ERROR;
     }
 
     *res_dt = new_dt;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_date_add_seconds(date_t dt, uint64 second, date_t *res_dt)
 {
     date_t new_dt = dt + (date_t)(MICROSECS_PER_SECOND * second);
     if (CM_IS_DATETIME_ADDTION_OVERFLOW(dt, second, new_dt)) {
-        GS_SET_ERROR_DATETIME_OVERFLOW();
-        return GS_ERROR;
+        CT_SET_ERROR_DATETIME_OVERFLOW();
+        return CT_ERROR;
     }
 
     *res_dt = new_dt;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_date_sub_days(date_t dt, double day, date_t *res_dt)
@@ -172,7 +220,7 @@ typedef struct st_date_detail {
     uint16 year;
     uint8 mon;
     uint8 day;
-    uint8 hour;
+    int32 hour;
     uint8 min;
     uint8 sec;
     uint8 reserved;            /* reserved 8 bytes for byte alignment */
@@ -180,6 +228,7 @@ typedef struct st_date_detail {
     uint16 microsec;           /* microsecond: 0~999, 1000 microsec = 1 millisec */
     uint16 nanosec;            /* nanosecond:  0~999, 1000 nanoseconds = 1 millisec */
     timezone_info_t tz_offset; /* time zone */
+    bool8 neg;                 /* positive or negative */
 } date_detail_t;
 #pragma pack()
 
@@ -296,13 +345,13 @@ extern uint16 g_month_days[2][12];  // 12 months in leap year and 12 months in n
 
 #define cm_get_num_and_check(part_len, start, end, date_text, num_value)         \
     do {                                                                         \
-        uint16 item_len = cm_get_num_len_in_str(date_text, part_len, GS_FALSE);  \
+        uint16 item_len = cm_get_num_len_in_str(date_text, part_len, CT_FALSE);  \
         if (item_len == 0) {                                                     \
-            return GS_ERROR;                                                     \
+            return CT_ERROR;                                                     \
         }                                                                        \
                                                                                  \
         if (cm_check_number(date_text, item_len, start, end, &(num_value)) != 0) { \
-            return GS_ERROR;                                                     \
+            return CT_ERROR;                                                     \
         }                                                                        \
                                                                                  \
         (date_text)->len -= item_len;                                            \
@@ -311,13 +360,13 @@ extern uint16 g_month_days[2][12];  // 12 months in leap year and 12 months in n
 
 #define cm_get_num_and_check_with_sign(part_len, start, end, date_text, num_value_with_sign)         \
     do {                                                                                             \
-        uint16 item_len = cm_get_num_len_in_str(date_text, part_len, GS_TRUE);                       \
+        uint16 item_len = cm_get_num_len_in_str(date_text, part_len, CT_TRUE);                       \
         if (item_len == 0) {                                                                         \
-            return GS_ERROR;                                                                         \
+            return CT_ERROR;                                                                         \
         }                                                                                            \
                                                                                                      \
         if (cm_check_number_with_sign(date_text, item_len, start, end, &(num_value_with_sign)) != 0) { \
-            return GS_ERROR;                                                                         \
+            return CT_ERROR;                                                                         \
         }                                                                                            \
                                                                                                      \
         (date_text)->len -= item_len;                                                                \
@@ -327,7 +376,7 @@ extern uint16 g_month_days[2][12];  // 12 months in leap year and 12 months in n
 #define cm_check_mask(mask_id, mask)          \
     do {                                      \
         if ((*(mask) & (mask_id)) != 0) {     \
-            return GS_ERROR;                  \
+            return CT_ERROR;                  \
         }                                     \
                                               \
         *(mask) |= (mask_id);                 \
@@ -354,6 +403,79 @@ extern uint16 g_month_days[2][12];  // 12 months in leap year and 12 months in n
     do {                                                                                              \
         cm_get_num_and_check_with_sign(part_len, start, end, date_text, num_value_with_sign);         \
         cm_check_mask(mask_id, mask);                                                                 \
+    } while (0)
+
+#define cm_int2_to_binary(ptr, i)                    \
+    do {                                           \
+        uint temp = (uint)(i);                     \
+        ((uchar *)(ptr))[1] = (uchar)(temp);       \
+        ((uchar *)(ptr))[0] = (uchar)(temp >> 8);  \
+    } while (0)
+
+#define cm_int3_to_binary(ptr, i)                    \
+    do {                                           \
+        ulong temp = (ulong)(i);                   \
+        ((uchar *)(ptr))[2] = (uchar)(temp);       \
+        ((uchar *)(ptr))[1] = (uchar)(temp >> 8);  \
+        ((uchar *)(ptr))[0] = (uchar)(temp >> 16); \
+    } while (0)
+
+#define cm_int5_to_binary(ptr, i)                    \
+    do {                                           \
+        ulong temp = (ulong)(i);                   \
+        ulong temp2 = (ulong)((i) >> 32);          \
+        ((uchar *)(ptr))[4] = (uchar)(temp);       \
+        ((uchar *)(ptr))[3] = (uchar)(temp >> 8);  \
+        ((uchar *)(ptr))[2] = (uchar)(temp >> 16); \
+        ((uchar *)(ptr))[1] = (uchar)(temp >> 24); \
+        ((uchar *)(ptr))[0] = (uchar)(temp2);      \
+    } while (0)
+
+#define cm_int6tobinary(ptr, i)                    \
+    do {                                           \
+        ulong temp = (ulong)(i);                   \
+        ulong temp2 = (ulong)((i) >> 32);          \
+        ((uchar *)(ptr))[5] = (uchar)(temp);       \
+        ((uchar *)(ptr))[4] = (uchar)(temp >> 8);  \
+        ((uchar *)(ptr))[3] = (uchar)(temp >> 16); \
+        ((uchar *)(ptr))[2] = (uchar)(temp >> 24); \
+        ((uchar *)(ptr))[1] = (uchar)(temp2);      \
+        ((uchar *)(ptr))[0] = (uchar)(temp2 >> 8); \
+    } while (0)
+
+#define cm_1_zero_ending(ptr)                      \
+    do {                                           \
+        ((uchar *)(ptr))[7] = (uchar)(0);          \
+    } while (0)
+
+#define cm_2_zero_ending(ptr)                      \
+    do {                                           \
+        ((uchar *)(ptr))[6] = (uchar)(0);          \
+        ((uchar *)(ptr))[7] = (uchar)(0);          \
+    } while (0)
+
+#define cm_3_zero_ending(ptr)                      \
+    do {                                           \
+        ((uchar *)(ptr))[5] = (uchar)(0);          \
+        ((uchar *)(ptr))[6] = (uchar)(0);          \
+        ((uchar *)(ptr))[7] = (uchar)(0);          \
+    } while (0)
+
+#define cm_4_zero_ending(ptr)                      \
+    do {                                           \
+        ((uchar *)(ptr))[4] = (uchar)(0);          \
+        ((uchar *)(ptr))[5] = (uchar)(0);          \
+        ((uchar *)(ptr))[6] = (uchar)(0);          \
+        ((uchar *)(ptr))[7] = (uchar)(0);          \
+    } while (0)
+
+#define cm_5_zero_ending(ptr)                      \
+    do {                                           \
+        ((uchar *)(ptr))[3] = (uchar)(0);          \
+        ((uchar *)(ptr))[4] = (uchar)(0);          \
+        ((uchar *)(ptr))[5] = (uchar)(0);          \
+        ((uchar *)(ptr))[6] = (uchar)(0);          \
+        ((uchar *)(ptr))[7] = (uchar)(0);          \
     } while (0)
 
 static inline int32 cm_compare_date(date_t date1, date_t date2)
@@ -394,15 +516,63 @@ status_t cm_timestamp_tz2text_ex(timestamp_tz_t *tstz, text_t *fmt, uint32 preci
 int64 cm_get_unix_timestamp(timestamp_t ts, int64 time_zone_offset);
 int32 cm_tstz_cmp(timestamp_tz_t *tstz1, timestamp_tz_t *tstz2);
 int64 cm_tstz_sub(timestamp_tz_t *tstz1, timestamp_tz_t *tstz2);
+int32 cm_datetime_cmp_mysql(void *datetime1, void *datetime2);
+int32 cm_time_cmp_mysql(void *time1, void *time2);
+int32 cm_date_cmp_mysql(void *date1, void *date2);
+date_t cm_encode_datetime_mysql(const date_detail_t *detail);
+date_t cm_encode_time_mysql(const date_detail_t *detail);
+date_t cm_encode_date_mysql(const date_detail_t *detail);
+void cm_datetime_int_to_binary(int64 input, uchar *ptr, int32 precision);
+void cm_time_int_to_binary(int64 input, uchar *ptr, int32 precision);
+date_t cm_timestamp2date_mysql(date_t date_input);
 
 static inline status_t cm_date2str_ex(date_t date, text_t *fmt_text, char *str, uint32 max_len)
 {
     text_t date_text;
     date_text.str = str;
     date_text.len = 0;
-
     return cm_date2text_ex(date, fmt_text, 0, &date_text, max_len);
 }
+
+static inline int32 cm_ptr3_to_sint_little_endian(const uchar *ptr)
+{
+    return (int32)((ptr[CM_BYTE_0] & CM_128_BITS_MASK) ? ((CM_255_BITS_MASK << CM_BASE_24) |
+        ((uint32)(ptr[CM_BYTE_0]) << CM_BASE_16) | ((uint32)(ptr[CM_BYTE_1]) << CM_BASE_8) | ((uint32)ptr[CM_BYTE_2])) :
+                                                         (((uint32)(ptr[CM_BYTE_0]) << CM_BASE_16) |
+        ((uint32)(ptr[CM_BYTE_1]) << CM_BASE_8) | ((uint32)(ptr[CM_BYTE_2]))));
+}
+
+static inline uint32 cm_ptr3_to_uint_big_endian(const uchar *ptr)
+{
+    return (uint32)(((uint32)(ptr[CM_BYTE_0])) + (((uint32)(ptr[CM_BYTE_1])) << CM_BASE_8) +
+        (((uint32)(ptr[CM_BYTE_2])) << CM_BASE_16));
+}
+
+static inline uint64 cm_ptr5_to_uint_little_endian(const uchar *ptr)
+{
+    return (uint64)((uint32)ptr[CM_BYTE_4] + ((uint32)ptr[CM_BYTE_3] << CM_BASE_8) +
+        ((uint32)ptr[CM_BYTE_2] << CM_BASE_16) + ((uint32)ptr[CM_BYTE_1] << CM_BASE_24)) +
+        ((uint64)ptr[CM_BYTE_0] << CM_BASE_32);
+}
+
+static inline uint64 cm_ptr6_to_uint_little_endian(const uchar *ptr)
+{
+    return (uint64)((uint32)ptr[CM_BYTE_5] + ((uint32)ptr[CM_BYTE_4] << CM_BASE_8) +
+        ((uint32)ptr[CM_BYTE_3] << CM_BASE_16) + ((uint32)ptr[CM_BYTE_2] << CM_BASE_24)) +
+        (((uint64)((uint32)ptr[CM_BYTE_1] + ((uint32)ptr[CM_BYTE_0] << CM_BASE_8))) << CM_BASE_32);
+}
+
+
+static inline int64 cm_get_time_int_part_from_int64(int64 input)
+{
+    return ((uint64)input >> CM_BASE_24);
+}
+
+static inline int64 cm_get_time_frac_part_from_int64(int64 input)
+{
+    return (input % (1LL << CM_BASE_24));
+}
+
 
 static inline status_t cm_timestamp2str_ex(timestamp_t ts, text_t *fmt_text, uint32 precision, char *str,
                                            uint32 max_len)
@@ -450,9 +620,30 @@ date_t cm_encode_ora_date(uint8 *ora_date);
 
 time_t cm_encode_time(date_detail_t *detail);
 
+void cm_cnvrt_datetime_from_int_to_date_detail(int64 input, date_detail_t *detail);
+
+void cm_cnvrt_time_from_int_to_date_detail(int64 input, date_detail_t *detail);
+
+status_t cm_text2date_mysql(const text_t *text, const text_t *fmt, date_t *date, uint32 datatype);
+
+// decode a date type from mysql into a data_detail_t.
+void cm_decode_date_mysql(date_t date, date_detail_t *detail);
+
+void cm_decode_datetime_mysql(date_t date, date_detail_t *detail);
+
+void cm_decode_time_mysql(date_t date, date_detail_t *detail);
+
+status_t cm_date2text_mysql_ex(uint32 datatype, date_t date, text_t *fmt, uint32 precision, text_t *text,
+    uint32 max_len);
+
+static inline status_t cm_date2text_mysql(uint32 datatype, date_t date, text_t *fmt, text_t *text, uint32 max_len)
+{
+    return cm_date2text_mysql_ex(datatype, date, fmt, CT_MAX_DATETIME_PRECISION, text, max_len);
+}
+
 static inline status_t cm_date2text(date_t date, text_t *fmt, text_t *text, uint32 max_len)
 {
-    return cm_date2text_ex(date, fmt, GS_MAX_DATETIME_PRECISION, text, max_len);
+    return cm_date2text_ex(date, fmt, CT_MAX_DATETIME_PRECISION, text, max_len);
 }
 
 static inline status_t cm_date2str(date_t date, const char *fmt, char *str, uint32 max_len)
@@ -464,7 +655,7 @@ static inline status_t cm_date2str(date_t date, const char *fmt, char *str, uint
 
 static inline status_t cm_timestamp2text(timestamp_t ts, text_t *fmt, text_t *text, uint32 max_len)
 {
-    return cm_timestamp2text_ex(ts, fmt, GS_MAX_DATETIME_PRECISION, text, max_len);
+    return cm_timestamp2text_ex(ts, fmt, CT_MAX_DATETIME_PRECISION, text, max_len);
 }
 
 static inline status_t cm_timestamp2text_prec(timestamp_t ts, text_t *fmt, text_t *text, uint32 max_len,
@@ -477,13 +668,13 @@ static inline status_t cm_timestamp2str(timestamp_t ts, const char *fmt, char *s
 {
     text_t fmt_text;
     cm_str2text((char *)fmt, &fmt_text);
-    return cm_timestamp2str_ex(ts, &fmt_text, GS_MAX_DATETIME_PRECISION, str, max_len);
+    return cm_timestamp2str_ex(ts, &fmt_text, CT_MAX_DATETIME_PRECISION, str, max_len);
 }
 
 static inline status_t cm_timestamp_tz2text(timestamp_tz_t *tstz, text_t *fmt, text_t *text,
                                             uint32 max_len)
 {
-    return cm_timestamp_tz2text_ex(tstz, fmt, GS_MAX_DATETIME_PRECISION, text, max_len);
+    return cm_timestamp_tz2text_ex(tstz, fmt, CT_MAX_DATETIME_PRECISION, text, max_len);
 }
 
 static inline status_t cm_timestamp_tz2text_prec(timestamp_tz_t *tstz, text_t *fmt, text_t *text,
@@ -496,7 +687,7 @@ static inline status_t cm_timestamp_tz2str(timestamp_tz_t *tstz, const char *fmt
 {
     text_t fmt_text;
     cm_str2text((char *)fmt, &fmt_text);
-    return cm_timestamp_tz2str_ex(tstz, &fmt_text, GS_MAX_DATETIME_PRECISION, str, max_len);
+    return cm_timestamp_tz2str_ex(tstz, &fmt_text, CT_MAX_DATETIME_PRECISION, str, max_len);
 }
 
 static inline date_t cm_adjust_date(date_t date)
@@ -540,9 +731,9 @@ static inline uint64 cm_day_usec(void)
 #else
 
 #if defined(_MSC_VER) || defined(_MSC_EXTENSIONS)
-#define GS_DELTA_EPOCH_IN_MICROSECS 11644473600000000Ui64
+#define CT_DELTA_EPOCH_IN_MICROSECS 11644473600000000Ui64
 #else
-#define GS_DELTA_EPOCH_IN_MICROSECS 11644473600000000ULL
+#define CT_DELTA_EPOCH_IN_MICROSECS 11644473600000000ULL
 #endif
 
 int cm_gettimeofday(struct timeval *tv);

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "knl_table_module.h"
 #include "cm_log.h"
 #include "knl_context.h"
 #include "pcr_heap_scan.h"
@@ -125,12 +125,19 @@ static void pcrh_reorganize_ud_upd(knl_session_t *session, row_head_t *row,
     CM_SAVE_STACK(session->stack);
 
     CM_PUSH_UPDATE_INFO(session, info);
-    /* max value of max_column_count is GS_MAX_COLUMNS(4096) */
+    /* max value of max_column_count is CT_MAX_COLUMNS(4096) */
     offsets = (uint16 *)cm_push(session->stack, session->kernel->attr.max_column_count * sizeof(uint16));
     lens = (uint16 *)cm_push(session->stack, session->kernel->attr.max_column_count * sizeof(uint16));
-
+    while (info.columns == NULL || info.offsets == NULL || info.lens == NULL || offsets == NULL || lens == NULL) {
+        CT_LOG_RUN_ERR("msg failed to malloc memory.");
+        CM_ASSERT(0);
+        CM_RESTORE_STACK(session->stack);
+        CM_PUSH_UPDATE_INFO(session, info);
+        offsets = (uint16 *)cm_push(session->stack, session->kernel->attr.max_column_count * sizeof(uint16));
+        lens = (uint16 *)cm_push(session->stack, session->kernel->attr.max_column_count * sizeof(uint16));
+    }
     info.count = undo_info->count;
-    /* info.count will not exceed GS_MAX_COLUMNS(4096), so col_size less than max value(65535) of uint16  */
+    /* info.count will not exceed CT_MAX_COLUMNS(4096), so col_size less than max value(65535) of uint16  */
     col_size = info.count * sizeof(uint16);
     if (col_size != 0) {
         ret = memcpy_sp(info.columns, (session)->kernel->attr.max_column_count * sizeof(uint16),
@@ -283,7 +290,7 @@ static void pcrh_revert_upd(knl_session_t *session, heap_page_t *cr_page, pcr_it
     knl_securec_check(ret);
 
     if (ud_row->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
 
     CM_RESTORE_STACK(session->stack);
@@ -355,7 +362,7 @@ static void pcrh_revert_del(knl_session_t *session, heap_page_t *cr_page, pcr_it
     }
 
     if (ud_row->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
 
     knl_panic_log(cr_page->free_size >= row->size, "cr_page's free_size is smaller than row's size, panic info: "
@@ -386,7 +393,7 @@ static void pcrh_revert_upd_next_rowid(knl_session_t *session, heap_page_t *cr_p
     *PCRH_NEXT_ROWID(row) = *(rowid_t *)ud_row->data;
 
     if (ud_row->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
 
     itl->ssn = ud_row->ssn;
@@ -407,7 +414,7 @@ static inline void pcrh_revert_upd_link_ssn(knl_session_t *session, heap_page_t 
     row_head_t *row = PCRH_GET_ROW(cr_page, dir);
 
     if (ud_row->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
 
     itl->ssn = ud_row->ssn;
@@ -478,13 +485,13 @@ status_t pcrh_reorganize_with_ud_list(knl_session_t *session, cr_cursor_t *curso
      * And if itl is inactive, set to active before revert.
      */
     if (!itl->is_active) {
-        itl->is_active = GS_TRUE;
+        itl->is_active = CT_TRUE;
     } else {
         /* free_size and itl->fsc both within DEFAULT_PAGE_SIZE, so the sum less than max value(65535) of uint16 */
         cr_page->free_size += itl->fsc;
     }
 
-    itl->is_hist = GS_TRUE;
+    itl->is_hist = CT_TRUE;
     itl->fsc = 0;
 
     uint8 options = cursor->is_remote ? ENTER_PAGE_TRY : ENTER_PAGE_NORMAL;
@@ -493,55 +500,61 @@ status_t pcrh_reorganize_with_ud_list(knl_session_t *session, cr_cursor_t *curso
         /* on condition of nologging, no undo page */
         if (IS_INVALID_PAGID(PAGID_U2N(itl->undo_page))) {
             tx_record_sql(session);
-            GS_LOG_RUN_ERR("snapshot too old: invalid undo page_id, itl scn %llu", itl->scn);
-            GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("snapshot too old: invalid undo page_id, itl scn %llu", itl->scn);
+            CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+            return CT_ERROR;
         }
 
-        if (buf_read_page(session, PAGID_U2N(itl->undo_page), LATCH_MODE_S, options) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (buf_read_page(session, PAGID_U2N(itl->undo_page), LATCH_MODE_S, options) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         undo_page_t *ud_page = (undo_page_t *)CURR_PAGE(session);
         if (ud_page == NULL) {
             /* only in remote CR request, force the requester to do local read */
-            cursor->local_cr = GS_TRUE;
-            return GS_SUCCESS;
+            cursor->local_cr = CT_TRUE;
+            return CT_SUCCESS;
         }
 
         if (itl->undo_slot >= ud_page->rows) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             tx_record_sql(session);
-            GS_LOG_RUN_ERR("snapshot too old, detail: snapshot slot %u, undo rows %u, query scn %llu",
+            CT_LOG_RUN_ERR("snapshot too old, detail: snapshot slot %u, undo rows %u, query scn %llu",
                            (uint32)itl->undo_slot, (uint32)ud_page->rows, cursor->query_scn);
-            GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+            return CT_ERROR;
         }
 
         undo_row_t *ud_row = UNDO_ROW(session, ud_page, itl->undo_slot);
 
         if (itl->xid.value != ud_row->xid.value) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             tx_record_sql(session);
-            GS_LOG_RUN_ERR("snapshot too old, detail: snapshot xid %llu, undo row xid %llu, query scn %llu",
+            CT_LOG_RUN_ERR("snapshot too old, detail: snapshot xid %llu, undo row xid %llu, query scn %llu",
                            itl->xid.value, ud_row->xid.value, cursor->query_scn);
-            GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+            return CT_ERROR;
         }
 
         /* support statement level read consistency */
         if (ud_row->xid.value == cursor->xid.value && ud_row->ssn < cursor->ssn) {
             itl->ssn = ud_row->ssn;
-            buf_leave_page(session, GS_FALSE);
-            return GS_SUCCESS;
+            buf_leave_page(session, CT_FALSE);
+            return CT_SUCCESS;
+        }
+
+        if (pcrh_check_ud_row_info(cr_page, ud_row) != CT_SUCCESS) {
+            buf_leave_page(session, CT_FALSE);
+            tx_record_sql(session);
+            return CT_ERROR;
         }
 
         pcrh_reorganize_with_ud(session, cr_page, itl, ud_row);
 
         /* current itl is done, caller should find a new recent itl to do CR rollback */
         if (ud_row->type == UNDO_PCRH_ITL) {
-            buf_leave_page(session, GS_FALSE);
-            return GS_SUCCESS;
+            buf_leave_page(session, CT_FALSE);
+            return CT_SUCCESS;
         }
 
         /* for flashback, we mark row has been roll backed in flashback buffer */
@@ -557,7 +570,7 @@ status_t pcrh_reorganize_with_ud_list(knl_session_t *session, cr_cursor_t *curso
             }
         }
 
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 }
 
@@ -608,9 +621,9 @@ void pcrh_undo_ins(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_p
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     heap_page_t *page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        GS_LOG_RUN_WAR("[NOLOG INSERT] page: %u-%u was loaded using the NOLOGGING option.",
+        CT_LOG_RUN_WAR("[NOLOG INSERT] page: %u-%u was loaded using the NOLOGGING option.",
             AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -650,7 +663,7 @@ void pcrh_undo_ins(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_p
         log_put(session, RD_PCRH_UNDO_INSERT, &redo, sizeof(rd_pcrh_undo_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 /*
@@ -678,7 +691,7 @@ void pcrh_undo_batch_ins(knl_session_t *session, undo_row_t *ud_row, undo_page_t
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -726,7 +739,7 @@ void pcrh_undo_batch_ins(knl_session_t *session, undo_row_t *ud_row, undo_page_t
         }
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 /*
@@ -755,7 +768,7 @@ void pcrh_undo_del(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_p
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -820,7 +833,7 @@ void pcrh_undo_del(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_p
     itl->undo_slot = ud_row->prev_slot;
     itl->ssn = ud_row->ssn;
     if (ud_row->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
 
     redo.slot = (uint16)rowid.slot;
@@ -832,7 +845,7 @@ void pcrh_undo_del(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_p
         log_put(session, RD_PCRH_UNDO_DELETE, &redo, sizeof(rd_pcrh_undo_t), LOG_ENTRY_FLAG_NONE);
         log_append_data(session, org_row, org_row->size);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 /*
@@ -860,7 +873,7 @@ void pcrh_undo_upd(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_p
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -932,7 +945,7 @@ void pcrh_undo_upd(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_p
     knl_securec_check(ret);
 
     if (ud_row->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
     itl->ssn = ud_row->ssn;
     itl->undo_page = ud_row->prev_page;
@@ -949,7 +962,7 @@ void pcrh_undo_upd(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_p
         log_put(session, RD_PCRH_UNDO_UPDATE, &redo, sizeof(rd_pcrh_undo_update_t), LOG_ENTRY_FLAG_NONE);
         log_append_data(session, org_row, org_row->size);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     if (ud_row->type == UNDO_PCRH_UPDATE) {
         cm_pop(session->stack);
@@ -973,7 +986,7 @@ void pcrh_undo_upd_next_rowid(knl_session_t *session, undo_row_t *ud_row, undo_p
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     heap_page_t *page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -999,7 +1012,7 @@ void pcrh_undo_upd_next_rowid(knl_session_t *session, undo_row_t *ud_row, undo_p
     *PCRH_NEXT_ROWID(row) = *(rowid_t *)ud_row->data;
 
     if (ud_row->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
 
     itl->ssn = ud_row->ssn;
@@ -1015,7 +1028,7 @@ void pcrh_undo_upd_next_rowid(knl_session_t *session, undo_row_t *ud_row, undo_p
         log_put(session, RD_PCRH_UNDO_NEXT_RID, &redo, sizeof(rd_pcrh_undo_t), LOG_ENTRY_FLAG_NONE);
         log_append_data(session, ud_row->data, sizeof(rowid_t));
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 /*
@@ -1038,7 +1051,7 @@ void pcrh_undo_upd_link_ssn(knl_session_t *session, undo_row_t *ud_row, undo_pag
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -1062,7 +1075,7 @@ void pcrh_undo_upd_link_ssn(knl_session_t *session, undo_row_t *ud_row, undo_pag
                   itl->xid.value, session->rm->xid.value);
 
     if (ud_row->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
 
     itl->ssn = ud_row->ssn;
@@ -1077,7 +1090,7 @@ void pcrh_undo_upd_link_ssn(knl_session_t *session, undo_row_t *ud_row, undo_pag
     if (SPC_IS_LOGGING_BY_PAGEID(session, page_id)) {
         log_put(session, RD_PCRH_UNDO_UPDATE_LINK_SSN, &redo, sizeof(rd_pcrh_undo_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 /*
@@ -1103,7 +1116,7 @@ void pcrh_ud_itl(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_pag
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -1128,7 +1141,7 @@ void pcrh_ud_itl(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_pag
     itl->is_owscn = ud_row->is_owscn;
     itl->undo_page = ud_row->prev_page;
     itl->undo_slot = ud_row->prev_slot;
-    itl->is_active = GS_FALSE;
+    itl->is_active = CT_FALSE;
 
     if (SPC_IS_LOGGING_BY_PAGEID(session, page_id)) {
         log_put(session, RD_PCRH_UNDO_ITL, itl, sizeof(pcr_itl_t), LOG_ENTRY_FLAG_NONE);
@@ -1145,6 +1158,6 @@ void pcrh_ud_itl(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_pag
     heap_assist->heap = heap;
     heap_assist->rows = 1;
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 

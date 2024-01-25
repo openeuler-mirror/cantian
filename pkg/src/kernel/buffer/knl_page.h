@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -25,6 +25,7 @@
 #ifndef __KNL_PAGE_H__
 #define __KNL_PAGE_H__
 
+#include "knl_buffer_module.h"
 #include "cm_defs.h"
 #include "cm_checksum.h"
 #include "cm_kmc.h"
@@ -134,8 +135,8 @@ status_t page_decrypt(knl_session_t *session, page_head_t *page);
 
 #define CM_DUMP_WRITE_FILE(dump) \
     do { \
-        if (cm_dump_flush(dump) != GS_SUCCESS) { \
-            return GS_ERROR; \
+        if (cm_dump_flush(dump) != CT_SUCCESS) { \
+            return CT_ERROR; \
         } \
     } while (0)
 
@@ -143,7 +144,7 @@ static inline bool32 page_verify_checksum(page_head_t *page, uint32 page_size)
 {
     uint16 org_cks = PAGE_CHECKSUM(page, page_size);
 
-    PAGE_CHECKSUM(page, page_size) = GS_INVALID_CHECKSUM;
+    PAGE_CHECKSUM(page, page_size) = CT_INVALID_CHECKSUM;
     uint32 cks = cm_get_checksum(page, page_size);
     PAGE_CHECKSUM(page, page_size) = org_cks;
 
@@ -153,7 +154,7 @@ static inline bool32 page_verify_checksum(page_head_t *page, uint32 page_size)
 
 static inline void page_calc_checksum(page_head_t *page, uint32 page_size)
 {
-    PAGE_CHECKSUM(page, page_size) = GS_INVALID_CHECKSUM;
+    PAGE_CHECKSUM(page, page_size) = CT_INVALID_CHECKSUM;
     uint32 cks = cm_get_checksum(page, page_size);
     PAGE_CHECKSUM(page, page_size) = REDUCE_CKS2UINT16(cks);
 }
@@ -162,7 +163,7 @@ static inline bool32 page_compress_verify_checksum(page_head_t *page, uint32 pag
 {
     uint16 org_cks = (uint16)COMPRESS_PAGE_HEAD(page)->checksum;
 
-    COMPRESS_PAGE_HEAD(page)->checksum = GS_INVALID_CHECKSUM;
+    COMPRESS_PAGE_HEAD(page)->checksum = CT_INVALID_CHECKSUM;
     uint32 cks = cm_get_checksum(page, page_size);
     COMPRESS_PAGE_HEAD(page)->checksum = org_cks;
 
@@ -171,7 +172,7 @@ static inline bool32 page_compress_verify_checksum(page_head_t *page, uint32 pag
 
 static inline void page_compress_calc_checksum(page_head_t *page, uint32 page_size)
 {
-    COMPRESS_PAGE_HEAD(page)->checksum = GS_INVALID_CHECKSUM;
+    COMPRESS_PAGE_HEAD(page)->checksum = CT_INVALID_CHECKSUM;
     uint32 cks = cm_get_checksum(page, page_size);
     COMPRESS_PAGE_HEAD(page)->checksum = REDUCE_CKS2UINT16(cks);
 }
@@ -257,9 +258,9 @@ static inline bool32 page_type_suport_encrypt(uint8 page_type)
     if (page_type == PAGE_TYPE_HEAP_DATA || page_type == PAGE_TYPE_PCRH_DATA ||
         page_type == PAGE_TYPE_BTREE_NODE || page_type == PAGE_TYPE_PCRB_NODE ||
         page_type == PAGE_TYPE_LOB_DATA || page_type == PAGE_TYPE_UNDO) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline bool32 page_type_suport_nolog_insert(uint8 type)
@@ -267,29 +268,29 @@ static inline bool32 page_type_suport_nolog_insert(uint8 type)
     if (type == PAGE_TYPE_HEAP_DATA || type == PAGE_TYPE_PCRH_DATA ||
         type == PAGE_TYPE_BTREE_NODE || type == PAGE_TYPE_PCRB_NODE ||
         type == PAGE_TYPE_LOB_DATA) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline bool32 page_soft_damaged(page_head_t *head)
 {
     if (PAGE_IS_SOFT_DAMAGE(head)) {
-        GS_LOG_RUN_WAR("[NOLOG INSERT] page: %u-%u is soft damage", AS_PAGID(head->id).file, AS_PAGID(head->id).page);
-        return GS_TRUE;
+        CT_LOG_RUN_WAR("[NOLOG INSERT] page: %u-%u is soft damage", AS_PAGID(head->id).file, AS_PAGID(head->id).page);
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline bool32 page_is_damaged(page_head_t *head)
 {
     if (PAGE_IS_SOFT_DAMAGE(head) || PAGE_IS_HARD_DAMAGE(head)) {
-        GS_LOG_RUN_WAR("page: %u-%u is damage", AS_PAGID(head->id).file, AS_PAGID(head->id).page);
-        return GS_TRUE;
+        CT_LOG_RUN_WAR("page: %u-%u is damage", AS_PAGID(head->id).file, AS_PAGID(head->id).page);
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 #define PAGID_U2N  as_normal_page_id

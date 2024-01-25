@@ -49,10 +49,9 @@ function do_deploy()
         logAndEchoError "${COMPONENT_NAME} ${script_name_param} is not exist. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 1
     fi
-    set +e
-    su -s /bin/bash ${deploy_user} -c "cd ${CURRENT_PATH} && sh ${CURRENT_PATH}/${script_name_param}"
+
+    su -s /bin/bash - ${deploy_user} -c "cd ${CURRENT_PATH} && sh ${CURRENT_PATH}/${script_name_param}"
     ret=$?
-    set -e
 
     if [ $ret -ne 0 ]; then
         logAndEchoError "Execute ${COMPONENT_NAME} ${script_name_param} return ${ret}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -62,16 +61,16 @@ function do_deploy()
     return 0
 }
 
-user=$(echo ${deploy_user} | awk -F ':' '{print $2}')
 owner=$(stat -c %U ${CURRENT_PATH})
 
 function chown_mod_scripts()
 {
     set -e
-    echo -e "\nInstall User:${user}   Scripts Owner:${owner} "
+    echo -e "\nInstall User:${deploy_user}   Scripts Owner:${owner} "
     current_path_reg=$(echo $CURRENT_PATH | sed 's/\//\\\//g')
     scripts=$(ls ${CURRENT_PATH} | sed '/appctl.sh/d' | sed '/chmod_file.sh/d' | sed "s/^/${current_path_reg}\/&/g")
-    chown ${deploy_user}:${deploy_group} ${scripts}
+    chown -h ${deploy_user}:${deploy_group} ${scripts}
+    chown -hR ${deploy_user}:${deploy_group} /opt/cantian/image/cantian_connector/for_mysql_official/
     chmod -R 400 ${CURRENT_PATH}
     chmod 755 ${CURRENT_PATH}
     set +e
@@ -87,6 +86,9 @@ function do_install2chown4mysql()
     cp -arfp ${CURRENT_PATH} /opt/cantian/action/
     do_deploy ${INSTALL_NAME}
     set +e
+    if [ -f "${BACKUP_UPGRADE_PATH}"/mysql/mysqld ];then
+       cp -arf "${BACKUP_UPGRADE_PATH}"/mysql/mysqld /opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir/plugin/
+    fi
     sh ${CURRENT_PATH}/chmod_file.sh
     exit $?
 }
@@ -106,8 +108,24 @@ function do_install2chown4mysqlrollback()
     cp -arfp ${backup_dir}/action/mysql /opt/cantian/action/
     do_deploy ${INSTALL_NAME}
     set +e
+    if [ -f ${backup_dir}/mysql/mysqld ];then
+        cp -arf ${backup_dir}/mysql/mysqld /opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir/plugin/
+    fi
     sh ${CURRENT_PATH}/chmod_file.sh
     exit $?
+}
+
+function do_upgrade_backup() {
+    local backup_dir
+    backup_dir=$1
+    if [ ! -d ${backup_dir}/mysql ];then
+        mkdir ${backup_dir}/mysql
+    fi
+    local mysqld_path
+    mysqld_path=/opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir/plugin/mysqld
+    if [ -f ${mysqld_path} ];then
+        cp -arf ${mysqld_path} ${backup_dir}/mysql/
+    fi
 }
 
 ##################################### main #####################################
@@ -121,8 +139,9 @@ case "$ACTION" in
     pre_upgrade)
         exit 0
         ;;
-
     upgrade_backup)
+        BACKUP_PATH=$2
+        do_upgrade_backup ${BACKUP_PATH}
         exit 0
         ;;
     upgrade)

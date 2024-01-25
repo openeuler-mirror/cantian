@@ -1,5 +1,9 @@
 #!/bin/bash
 
+function log() {
+	printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S.%N\"`" "$1"
+}
+
 usage()
 {
 	echo "Usage:"
@@ -25,8 +29,6 @@ wait_for_success() {
 	local attempts=$1
 	local success_cmd=${@:2}
 
-	xtrace=$(set -o | awk '/xtrace/ {print($2)}')
-	set -x
 	i=0
 	while ! ${success_cmd}; do
 	echo -n "."
@@ -37,7 +39,6 @@ wait_for_success() {
 	fi
 	done
 	echo
-	if [ "$xtrace" eq "on" ]; then set -x; fi
 	${success_cmd}
 }
 
@@ -60,11 +61,8 @@ wait_for_cms_start() {
 }
 
 start_cms() {
-	echo "=========== start cms ${NODE_ID} ================"
+	log "=========== start cms ${NODE_ID} ================"
 	wait_for_node_in_cluster
-
-	cms node -list
-	cms res -list
 
   nohup cms server -start >> ${STATUS_LOG} 2>&1 &
   if [ $? -ne 0 ]
@@ -73,15 +71,15 @@ start_cms() {
     exit 1
   fi
 
-	echo "=========== wait for cms server start ================"
+	log "=========== wait for cms server start ================"
 	wait_for_cms_start
-	echo "=========== start cantian ${NODE_ID} ================"
+	log "=========== start cantian ${NODE_ID} ================"
 	cms res -start db -node ${NODE_ID}
 }
 
 check_env() {
     if [ -z ${CMS_HOME} ]; then
-        echo "Environment Variable CMS_HOME NOT EXISTS!"
+        log "Environment Variable CMS_HOME NOT EXISTS!"
         exit 1
     fi
 }
@@ -100,9 +98,9 @@ then
 	check_env
 	CLUSTER_CONFIG="${CMS_HOME}/cfg/cluster.ini"
 	CMS_INSTALL_PATH="${CMS_HOME}/service"
-	set -e -u -x
+	set -e -u
 	TMPCFG=$(mktemp /tmp/tmpcfg2.XXXXXXX) || exit 1
-	echo "create temp cfg file ${TMPCFG}"
+	log "create temp cfg file ${TMPCFG}"
 	(cat ${CLUSTER_CONFIG} | sed 's/ *= */=/g') > $TMPCFG
 	source $TMPCFG
 	start_cms

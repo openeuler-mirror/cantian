@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -80,10 +80,10 @@ typedef enum en_cmp_type {
 
 /* The word type of numeric type */
 typedef enum en_numeric_type {
-    NUM_TYPE_INT = GS_TYPE_INTEGER,
-    NUM_TYPE_BIGINT = GS_TYPE_BIGINT,
-    NUM_TYPE_REAL = GS_TYPE_REAL,
-    NUM_TYPE_NUMERIC = GS_TYPE_NUMBER,
+    NUM_TYPE_INT = CT_TYPE_INTEGER,
+    NUM_TYPE_BIGINT = CT_TYPE_BIGINT,
+    NUM_TYPE_REAL = CT_TYPE_REAL,
+    NUM_TYPE_NUMERIC = CT_TYPE_NUMBER,
 } numeric_type_t;
 
 typedef enum en_comment_type {
@@ -208,7 +208,7 @@ static inline char lex_skip(lex_t *lex, uint32 step_input)
 {
     uint32 step = step_input;
     if (lex->curr_text->len < step) {
-        GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "lex->curr_text->len(%u) >= step(%u)", lex->curr_text->len, step);
+        CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "lex->curr_text->len(%u) >= step(%u)", lex->curr_text->len, step);
         step = lex->curr_text->len;
     }
     lex->curr_text->str += step;
@@ -221,7 +221,7 @@ static inline char lex_skip_line_breaks(lex_t *lex)
 {
     const uint32 step = 1;
     if (lex->curr_text->len < step) {
-        GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "lex->curr_text->len(%u) >= step(%u)", lex->curr_text->len, step);
+        CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "lex->curr_text->len(%u) >= step(%u)", lex->curr_text->len, step);
         return LEX_CURR(lex);
     }
     lex->curr_text->str += step;
@@ -258,8 +258,8 @@ static inline status_t lex_push(lex_t *lex, sql_text_t *text)
     lex_stack_item_t *item = NULL;
 
     if (lex->stack.depth >= MAX_LEX_STACK_DEPTH) {
-        GS_SRC_THROW_ERROR(text->loc, ERR_SQL_SYNTAX_ERROR, "text is too complex");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(text->loc, ERR_SQL_SYNTAX_ERROR, "text is too complex");
+        return CT_ERROR;
     }
 
     if (lex->stack.depth == 0) {
@@ -270,7 +270,7 @@ static inline status_t lex_push(lex_t *lex, sql_text_t *text)
     item->text = *text;
     lex->curr_text = &item->text;
     lex->stack.depth++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void lex_pop(lex_t *lex)
@@ -297,7 +297,7 @@ static inline void lex_init(lex_t *lex, const sql_text_t *sql)
     lex->text = *sql;
     lex->key_word_count = 0;
     lex->key_words = NULL;
-    lex->infer_numtype = GS_TRUE;
+    lex->infer_numtype = CT_TRUE;
     (void)lex_push(lex, &lex->text);
 }
 
@@ -380,14 +380,14 @@ static inline bool32 is_variant(word_t *word)
     if (word->type == WORD_TYPE_VARIANT || word->type == WORD_TYPE_PL_NEW_COL ||
         word->type == WORD_TYPE_PL_OLD_COL || word->type == WORD_TYPE_PL_ATTR ||
         word->type == WORD_TYPE_DQ_STRING) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (word->type == WORD_TYPE_KEYWORD || word->type == WORD_TYPE_DATATYPE || word->type == WORD_TYPE_RESERVED) {
         return word->namable;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline bool32 is_unamable_keyword(word_t *word)
@@ -396,7 +396,7 @@ static inline bool32 is_unamable_keyword(word_t *word)
         return !word->namable;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 #define LEX_ADD_WRAP(text)    \
@@ -448,7 +448,7 @@ static inline void lex_back_text(lex_t *lex, sql_text_t *text)
 /**
 * Try to fetch tuple with n continuous words.
 * @note the comments are allowed among in these words
-* @author
+
 */
 static inline status_t lex_try_fetch_tuple(lex_t *lex, const word_tuple_t *tuple, bool32 *result)
 {
@@ -457,7 +457,7 @@ static inline status_t lex_try_fetch_tuple(lex_t *lex, const word_tuple_t *tuple
 
 status_t lex_fetch_pl_label(lex_t *lex, word_t *word);
 status_t lex_fetch_array(lex_t *lex, word_t *word);
-status_t lex_try_match_array(lex_t *lex, uint8 *is_array, gs_type_t datatype);
+status_t lex_try_match_array(lex_t *lex, uint8 *is_array, ct_type_t datatype);
 status_t lex_try_fetch_subscript(lex_t *lex, int32 *ss_start, int32 *ss_end);
 status_t lex_fetch_in_outline(lex_t *lex, word_t *word);
 

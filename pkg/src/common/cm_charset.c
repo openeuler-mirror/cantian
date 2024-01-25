@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "cm_charset.h"
 
 #ifdef __cplusplus
@@ -29,16 +30,23 @@ extern "C" {
 #endif
 
 charset_t g_charsets[CHARSET_MAX] = {
-    { CHARSET_UTF8, "UTF8", NULL, NULL, 6, CODE_PAGE_UTF8 },
-    { CHARSET_GBK,  "GBK",  NULL, NULL, 4, CODE_PAGE_GB2312 },
+    { CHARSET_UTF8,    "UTF8",     NULL, NULL, 6, CODE_PAGE_UTF8 },
+    { CHARSET_GBK,     "GBK",      NULL, NULL, 4, CODE_PAGE_GB2312 },
 };
 
 collation_t g_collations[COLLATE_MAX] = {
-    { COLLATE_UTF8_BIN,        "UTF8_BIN" },
-    { COLLATE_UTF8_GENERAL_CI, "UTF8_GENERAL_CI" },
-    { COLLATE_UTF8_UNICODE_CI, "UTF8_UNICODE_CI" },
-    { COLLATE_GBK_BIN,         "GBK_BIN" },
-    { COLLATE_GBK_CHINESE_CI,  "GBK_CHINESE_CI" },
+    { COLLATE_UTF8_BIN,           "UTF8_BIN" },
+    { COLLATE_UTF8_GENERAL_CI,    "UTF8_GENERAL_CI" },
+    { COLLATE_UTF8_UNICODE_CI,    "UTF8_UNICODE_CI" },
+    { COLLATE_GBK_BIN,            "GBK_BIN" },
+    { COLLATE_GBK_CHINESE_CI,     "GBK_CHINESE_CI" },
+    { COLLATE_UTF8MB4_BIN,         "UTF8MB4_BIN" },
+    { COLLATE_UTF8MB4_GENERAL_CI,  "UTF8MB4_GENERAL_CI" },
+    { COLLATE_UTF8MB4_0900_BIN,    "UTF8MB4_0900_BIN" },
+    { COLLATE_UTF8MB4_0900_AI_CI,  "UTF8MB4_0900_AI_CI" },
+    { COLLATE_BINARY,              "BINARY" },
+    { COLLATE_UTF8_TOLOWER_CI,     "UTF8_TOLOWER_CI" },
+    { COLLATE_SWEDISH_CI,          "LATIN1_SWEDISH_CI" },
 };
 
 // [src][dst]
@@ -97,23 +105,363 @@ charset_func_t g_charset_func[CHARSET_MAX] = {
     }
 };
 
+CHARSET_COLLATION cm_cc_utf8mb4_general_ci = {
+    COLLATE_UTF8MB4_GENERAL_CI,
+    CM_CS_COMPILED | CM_CS_STRNXFRM | CM_CS_UNICODE | CM_CS_UNICODE_SUPPLEMENT,
+    "UTF8MB4",
+    "UTF8MB4_GENERAL_CI",
+    NULL,
+    NULL,
+    NULL,
+    &cm_unicase_default,
+    1,
+    4,
+    cm_mb_wc_utf8mb4,
+    cm_ismbchar_utf8mb4,
+    cm_numchars_mb,
+    cm_utf8mb4_general_ci_compare_collsp,
+    PAD_SPACE
+};
+
+CHARSET_COLLATION cm_cc_utf8mb4_bin = {
+    COLLATE_UTF8MB4_BIN,
+    CM_CS_COMPILED | CM_CS_BINSORT | CM_CS_STRNXFRM | CM_CS_UNICODE | CM_CS_UNICODE_SUPPLEMENT,
+    "UTF8MB4",
+    "UTF8MB4_BIN",
+    NULL,
+    NULL,
+    NULL,
+    &cm_unicase_default,
+    1,
+    4,
+    cm_mb_wc_utf8mb4,
+    cm_ismbchar_utf8mb4,
+    cm_numchars_mb,
+    cm_utf8mb4_bin_compare_collsp,
+    PAD_SPACE
+};
+
+CHARSET_COLLATION cm_cc_bin = {
+    COLLATE_BINARY,
+    CM_CS_COMPILED | CM_CS_BINSORT | CM_CS_PRIMARY,
+    "BINARY",
+    "BINARY",
+    NULL,
+    NULL,
+    NULL,
+    &cm_unicase_default,
+    1,
+    1,
+    NULL,
+    NULL,
+    cm_numchars_8bit,
+    cm_bin_compare_coll,
+    NO_PAD
+};
+
+CHARSET_COLLATION cm_cc_utf8mb4_0900_ai_ci = {
+    COLLATE_UTF8MB4_0900_AI_CI,
+    CM_CS_UTF8MB4_UCA_FLAGS | CM_CS_PRIMARY,
+    "UTF8MB4",
+    "UTF8MB4_0900_AI_CI",
+    NULL,
+    NULL,
+    &cm_uca_v900,
+    &cm_unicase_unicode900,
+    1,
+    4,
+    cm_mb_wc_utf8mb4,
+    cm_ismbchar_utf8mb4,
+    cm_numchars_mb,
+    cm_utf8mb4_0900_ai_ci_compare_coll,
+    NO_PAD
+};
+
+CHARSET_COLLATION cm_cc_utf8mb4_0900_bin = {
+    COLLATE_UTF8MB4_0900_BIN,
+    CM_CS_UTF8MB4_UCA_FLAGS,
+    "UTF8MB4",
+    "UTF8MB4_0900_BIN",
+    NULL,
+    NULL,
+    NULL,
+    &cm_unicase_unicode900,
+    1,
+    4,
+    cm_mb_wc_utf8mb4,
+    cm_ismbchar_utf8mb4,
+    cm_numchars_mb,
+    cm_bin_compare_coll,
+    NO_PAD
+};
+
+CHARSET_COLLATION cm_cc_latin1_general_ci = {
+    COLLATE_LATIN1_GENERAL_CI,
+    CM_CS_COMPILED,
+    "LATIN1",
+    "LATIN1_GENERAL_CI",
+    NULL,
+    sort_order_latin1_general_ci,
+    NULL,
+    &cm_unicase_default,
+    1,
+    1,
+    NULL,
+    NULL,
+    cm_numchars_8bit,
+    cm_simple_compare_collsp,
+    PAD_SPACE
+};
+
+CHARSET_COLLATION cm_cc_latin1_general_cs = {
+    COLLATE_LATIN1_GENERAL_CS,
+    CM_CS_COMPILED | CM_CS_CSSORT,
+    "LATIN1",
+    "LATIN1_GENERAL_CS",
+    NULL,
+    sort_order_latin1_general_cs,
+    NULL,
+    &cm_unicase_default,
+    1,
+    1,
+    NULL,
+    NULL,
+    cm_numchars_8bit,
+    cm_simple_compare_collsp,
+    PAD_SPACE
+};
+
+CHARSET_COLLATION cm_cc_latin1_bin = {
+    COLLATE_LATIN1_BIN,
+    CM_CS_COMPILED | CM_CS_BINSORT,
+    "LATIN1",
+    "LATIN1_BIN",
+    NULL,
+    NULL,
+    NULL,
+    &cm_unicase_default,
+    1,
+    1,
+    NULL,
+    NULL,
+    cm_numchars_8bit,
+    cm_8bit_bin_compare_collsp,
+    PAD_SPACE
+};
+
+CHARSET_COLLATION cm_cc_ascii_general_ci = {
+    COLLATE_ASCII_GENERAL_CI,
+    CM_CS_COMPILED | CM_CS_PRIMARY | CM_CS_PUREASCII,
+    "ASCII",
+    "ASCII_GENERAL_CI",
+    NULL,
+    sort_order_ascii_general_ci,
+    NULL,
+    &cm_unicase_default,
+    1,
+    1,
+    NULL,
+    NULL,
+    cm_numchars_8bit,
+    cm_simple_compare_collsp,
+    PAD_SPACE
+};
+
+CHARSET_COLLATION cm_cc_ascii_bin = {
+    COLLATE_ASCII_BIN,
+    CM_CS_COMPILED | CM_CS_BINSORT | CM_CS_PUREASCII,
+    "ASCII",
+    "ASCII_BIN",
+    NULL,
+    NULL,
+    NULL,
+    &cm_unicase_default,
+    1,
+    1,
+    NULL,
+    NULL,
+    cm_numchars_8bit,
+    cm_8bit_bin_compare_collsp,
+    PAD_SPACE
+};
+
+CHARSET_COLLATION cm_cc_gbk_chinese_ci = {
+    COLLATE_GBK_CHINESE_CI,
+    CM_CS_COMPILED | CM_CS_PRIMARY | CM_CS_STRNXFRM,
+    "GBK",
+    "GBK_CHINESE_CI",
+    NULL,
+    NULL,
+    NULL,
+    &cm_caseinfo_gbk,
+    1,
+    2,
+    NULL,
+    cm_ismbchar_gbk,
+    cm_numchars_mb,
+    cm_gbk_compare_collsp,
+    PAD_SPACE
+};
+
+CHARSET_COLLATION cm_cc_gbk_bin = {
+    COLLATE_GBK_BIN,
+    CM_CS_COMPILED | CM_CS_BINSORT,
+    "GBK",
+    "GBK_BIN",
+    NULL,
+    NULL,
+    NULL,
+    &cm_caseinfo_gbk,
+    1,
+    2,
+    NULL,
+    cm_ismbchar_gbk,
+    cm_numchars_mb,
+    cm_mb_bin_compare_collsp,
+    PAD_SPACE
+};
+
+CHARSET_COLLATION cm_cc_utf8mb3_general_ci = {
+    COLLATE_UTF8MB3_GENERAL_CI,
+    CM_CS_COMPILED | CM_CS_PRIMARY | CM_CS_STRNXFRM | CM_CS_UNICODE,
+    "UTF8MB3",
+    "UTF8MB3_GENERAL_CI",
+    NULL,
+    NULL,
+    NULL,
+    &cm_unicase_default,
+    1,
+    3,
+    NULL,
+    cm_ismbchar_utf8,
+    cm_numchars_mb,
+    cm_utf8_compare_collsp,
+    PAD_SPACE
+};
+
+CHARSET_COLLATION cm_cc_utf8mb3_bin = {
+    COLLATE_UTF8MB3_BIN,
+    CM_CS_COMPILED | CM_CS_BINSORT | CM_CS_STRNXFRM | CM_CS_UNICODE,
+    "UTF8MB3",
+    "UTF8MB3_BIN",
+    NULL,
+    NULL,
+    NULL,
+    &cm_unicase_default,
+    1,
+    3,
+    NULL,
+    cm_ismbchar_utf8,
+    cm_numchars_mb,
+    cm_mb_bin_compare_collsp,
+    PAD_SPACE
+};
+
+CHARSET_COLLATION cm_cc_utf8_tolower_ci = {
+    COLLATE_UTF8_TOLOWER_CI,
+    CM_CS_COMPILED | CM_CS_STRNXFRM | CM_CS_UNICODE | CM_CS_LOWER_SORT,
+    "utf8",
+    "utf8_tolower_ci",
+    NULL,
+    NULL,
+    NULL,
+    &cm_unicase_default,
+    1,
+    3,
+    cm_mb_wc_utf8mb4,
+    cm_ismbchar_utf8,
+    cm_numchars_mb,
+    cm_utf8mb4_general_ci_compare_collsp,
+    PAD_SPACE
+};
+
+CHARSET_COLLATION cm_cc_latin1 = {
+    COLLATE_SWEDISH_CI,
+    CM_CS_COMPILED | CM_CS_PRIMARY,
+    "latin1",
+    "latin1_swedish_ci",
+    NULL,
+    sort_order_latin1,
+    NULL,
+    &cm_unicase_default,
+    1,
+    1,
+    NULL,
+    NULL,
+    cm_numchars_8bit,
+    cm_simple_compare_collsp,
+    PAD_SPACE};
+
+charset_coll_t g_charset_collations[COLLATE_MAX] = {
+    [COLLATE_UTF8MB4_GENERAL_CI] = { COLLATE_UTF8MB4_GENERAL_CI, &cm_cc_utf8mb4_general_ci, CT_FALSE },
+    [COLLATE_UTF8MB4_BIN] = { COLLATE_UTF8MB4_BIN, &cm_cc_utf8mb4_bin, CT_TRUE },
+    [COLLATE_UTF8MB4_0900_AI_CI] = { COLLATE_UTF8MB4_0900_AI_CI, &cm_cc_utf8mb4_0900_ai_ci, CT_FALSE },
+    [COLLATE_UTF8MB4_0900_BIN] = { COLLATE_UTF8MB4_0900_BIN, &cm_cc_utf8mb4_0900_bin, CT_TRUE },
+    [COLLATE_BINARY] = { COLLATE_BINARY, &cm_cc_bin, CT_TRUE },
+    [COLLATE_LATIN1_GENERAL_CI] = { COLLATE_LATIN1_GENERAL_CI, &cm_cc_latin1_general_ci, CT_FALSE },
+    [COLLATE_LATIN1_GENERAL_CS] = { COLLATE_LATIN1_GENERAL_CS, &cm_cc_latin1_general_cs, CT_FALSE },
+    [COLLATE_LATIN1_BIN] = { COLLATE_LATIN1_BIN, &cm_cc_latin1_bin, CT_TRUE },
+    [COLLATE_ASCII_GENERAL_CI] = { COLLATE_ASCII_GENERAL_CI, &cm_cc_ascii_general_ci, CT_FALSE },
+    [COLLATE_ASCII_BIN] = { COLLATE_ASCII_BIN, &cm_cc_ascii_bin, CT_TRUE },
+    [COLLATE_GBK_CHINESE_CI] = { COLLATE_GBK_CHINESE_CI, &cm_cc_gbk_chinese_ci, CT_FALSE },
+    [COLLATE_GBK_BIN] = { COLLATE_GBK_BIN, &cm_cc_gbk_bin, CT_TRUE },
+    [COLLATE_UTF8MB3_GENERAL_CI] = { COLLATE_UTF8MB3_GENERAL_CI, &cm_cc_utf8mb3_general_ci, CT_FALSE },
+    [COLLATE_UTF8MB3_BIN] = { COLLATE_UTF8MB3_BIN, &cm_cc_utf8mb3_bin, CT_TRUE },
+    [COLLATE_UTF8_TOLOWER_CI] = { COLLATE_UTF8_TOLOWER_CI, &cm_cc_utf8_tolower_ci, CT_FALSE },
+    [COLLATE_SWEDISH_CI] = { COLLATE_SWEDISH_CI, &cm_cc_latin1, CT_FALSE },
+};
+
+CHARSET_COLLATION *cm_get_charset_coll(uint32 collate_id)
+{
+    switch (collate_id) {
+        case COLLATE_GBK_BIN:
+        case COLLATE_GBK_CHINESE_CI:
+        case COLLATE_UTF8MB4_GENERAL_CI:
+        case COLLATE_UTF8MB4_BIN:
+        case COLLATE_BINARY:
+        case COLLATE_UTF8MB4_0900_BIN:
+        case COLLATE_LATIN1_GENERAL_CI:
+        case COLLATE_LATIN1_GENERAL_CS:
+        case COLLATE_LATIN1_BIN:
+        case COLLATE_ASCII_GENERAL_CI:
+        case COLLATE_ASCII_BIN:
+        case COLLATE_UTF8MB3_GENERAL_CI:
+        case COLLATE_UTF8MB3_BIN:
+        case COLLATE_UTF8_TOLOWER_CI:
+        case COLLATE_SWEDISH_CI:
+            return g_charset_collations[collate_id].cs;
+        case COLLATE_UTF8_BIN:
+        case COLLATE_UTF8_GENERAL_CI:
+        case COLLATE_UTF8_UNICODE_CI:
+        case COLLATE_UTF8MB4_0900_AI_CI:
+        default:
+            return &cm_cc_utf8mb4_0900_ai_ci;
+    }
+}
+
+bool32 cm_is_collate_sensitive(uint32 collate_id)
+{
+    CHARSET_COLLATION *cs = cm_get_charset_coll(collate_id);
+    return g_charset_collations[cs->number].is_sensitive;
+}
+
 status_t cm_get_charset(const char *name, charset_t **charset)
 {
     for (uint32 i = 0; i < CHARSET_MAX; i++) {
         if (strlen(name) == strlen(g_charsets[i].name) && cm_strcmpni(name, g_charsets[i].name, strlen(name)) == 0) {
             *charset = &g_charsets[i];
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 uint16 cm_get_charset_id(const char *name)
 {
     charset_t *charset = NULL;
 
-    if (cm_get_charset(name, &charset) != GS_SUCCESS) {
-        return GS_INVALID_ID16;
+    if (cm_get_charset(name, &charset) != CT_SUCCESS) {
+        return CT_INVALID_ID16;
     }
     return charset->id;
 }
@@ -123,18 +471,18 @@ status_t cm_get_charset_ex(text_t *name, charset_t **charset)
     for (uint32 i = 0; i < CHARSET_MAX; i++) {
         if (cm_text_str_equal_ins(name, g_charsets[i].name)) {
             *charset = &g_charsets[i];
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 uint16 cm_get_charset_id_ex(text_t *name)
 {
     charset_t *charset = NULL;
 
-    if (cm_get_charset_ex(name, &charset) != GS_SUCCESS) {
-        return GS_INVALID_ID16;
+    if (cm_get_charset_ex(name, &charset) != CT_SUCCESS) {
+        return CT_INVALID_ID16;
     }
     return charset->id;
 }
@@ -144,18 +492,18 @@ status_t cm_get_collation(text_t *name, collation_t **collation)
     for (uint32 i = 0; i < COLLATE_MAX; i++) {
         if (cm_text_str_equal_ins(name, g_collations[i].name)) {
             *collation = &g_collations[i];
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 uint16 cm_get_collation_id(text_t *name)
 {
     collation_t *collation = NULL;
 
-    if (cm_get_collation(name, &collation) != GS_SUCCESS) {
-        return GS_INVALID_ID16;
+    if (cm_get_collation(name, &collation) != CT_SUCCESS) {
+        return CT_INVALID_ID16;
     }
     return collation->id;
 }
@@ -196,13 +544,13 @@ status_t cm_get_transcode_length(const text_t *src_text, uint16 src_id, uint16 d
 
     if (src_id == dst_id) {
         *dst_length = src_text->len;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_RETURN_IFERR(CM_CHARSET_FUNC(src_id).length(src_text, &src_char_cnt));
+    CT_RETURN_IFERR(CM_CHARSET_FUNC(src_id).length(src_text, &src_char_cnt));
     
     *dst_length = src_char_cnt * CM_CHARSET_FUNC(dst_id).max_bytes_per_char();
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_transcode(uint16 src_id, uint16 dst_id, void *src, uint32 *src_len, void *dst, uint32 *dst_len, bool8 force)
@@ -217,18 +565,18 @@ status_t cm_transcode(uint16 src_id, uint16 dst_id, void *src, uint32 *src_len, 
     } else {
         len = trans_func(src, src_len, dst, *dst_len, &eof);
         if (len < 0) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
         
         // if force is setted , trancate src character is allowed
         if ((!force) && (*src_len != 0 || !eof)) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         *src_len = orig_src_len;
         *dst_len = (uint32)len;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_text_find_wildcard(char **str, const char *str_end, char **wildstr, const char *wildend, char escape,
@@ -238,47 +586,47 @@ static status_t cm_text_find_wildcard(char **str, const char *str_end, char **wi
     uint32 s_nbytes;
 
     while (*wildstr != wildend) {
-        bool32 escaped = GS_FALSE;
+        bool32 escaped = CT_FALSE;
 
         CM_STR_GET_FIRST(*wildstr, w_char);
 
-        GS_BREAK_IF_TRUE(w_char == '%');
+        CT_BREAK_IF_TRUE(w_char == '%');
 
         CM_STR_REMOVE_FIRST(*wildstr);
 
         if (w_char == escape) {
             if (*wildstr == wildend) {
-                GS_THROW_ERROR(ERR_INVALID_OR_LACK_ESCAPE_CHAR);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_INVALID_OR_LACK_ESCAPE_CHAR);
+                return CT_ERROR;
             }
             CM_STR_POP_FIRST(*wildstr, w_char);
-            escaped = GS_TRUE;
+            escaped = CT_TRUE;
         }
 
         if (*str == str_end) {
             *cmp_ret = -1;
-            *need_return = GS_TRUE;
-            return GS_SUCCESS;
+            *need_return = CT_TRUE;
+            return CT_SUCCESS;
         }
         CM_STR_GET_FIRST(*str, s_char);
         bool32 res = is_sensitive ? s_char != w_char : UPPER(s_char) != UPPER(w_char);
         if ((escaped || w_char != '_') && res) {
             *cmp_ret = 1;
-            *need_return = GS_TRUE;
-            return GS_SUCCESS;
+            *need_return = CT_TRUE;
+            return CT_SUCCESS;
         }
         /* no escaped wild char,str need to skip a char(may include multi bytes) */
         s_nbytes = 1;
         if (!escaped && w_char == '_') {
-            GS_RETURN_IFERR(CM_CHARSET_FUNC(type).str_bytes(*str, (uint32)(*str - str_end), &s_nbytes));
+            CT_RETURN_IFERR(CM_CHARSET_FUNC(type).str_bytes(*str, (uint32)(*str - str_end), &s_nbytes));
         }
         CM_STR_REMOVE_FIRST_N(*str, s_nbytes);
     }
     if (*wildstr == wildend) {
         *cmp_ret = (*str != str_end);
-        *need_return = GS_TRUE;
+        *need_return = CT_TRUE;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 cm_text_remove_wildcards(char **str, const char *str_end, char **wildstr, const char *wildend,
@@ -296,16 +644,16 @@ static bool32 cm_text_remove_wildcards(char **str, const char *str_end, char **w
 
         if (w_char == '_') {
             CM_STR_REMOVE_FIRST(*wildstr);
-            if (CM_CHARSET_FUNC(type).str_bytes(*str, (uint32)(str_end - *str), &s_nbytes) != GS_SUCCESS) {
+            if (CM_CHARSET_FUNC(type).str_bytes(*str, (uint32)(str_end - *str), &s_nbytes) != CT_SUCCESS) {
                 *cmp_ret = -1;
-                return GS_TRUE;
+                return CT_TRUE;
             }
             CM_STR_REMOVE_FIRST_N(*str, s_nbytes);
             continue;
         }
         break;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 /* find str2 in str1 , match_len1 returns how many bytes are matched in str1. */
@@ -331,8 +679,8 @@ static int32 cm_in_like(const char *str1, uint32 len1, const char *str2, uint32 
                 }
                 // move i1 to next character head position.
                 if (str2[i2] == '_') {
-                    GS_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).str_bytes(str1 + i1, len1 - i1,
-                        &char_len1) != GS_SUCCESS), -1);
+                    CT_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).str_bytes(str1 + i1, len1 - i1,
+                        &char_len1) != CT_SUCCESS), -1);
                     i1 += char_len1;
                 } else {
                     i1 += 1;
@@ -347,7 +695,7 @@ static int32 cm_in_like(const char *str1, uint32 len1, const char *str2, uint32 
         }
 
         if (str2[0] == '_') {
-            GS_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).str_bytes(str1 + i1, len1 - i1, &char_len1) != GS_SUCCESS), -1);
+            CT_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).str_bytes(str1 + i1, len1 - i1, &char_len1) != CT_SUCCESS), -1);
             i1 += char_len1;
         } else {
             i1 += 1;
@@ -376,7 +724,7 @@ bool32 cm_text_like(const text_t *text1, const text_t *text2, charset_type_t typ
         }
 
         /* compare text one by one char */
-        GS_RETVALUE_IFTRUE((i2 >= text1->len), GS_FALSE);
+        CT_RETVALUE_IFTRUE((i2 >= text1->len), CT_FALSE);
 
         if (text1->str[i1] == text2->str[i2]) {
             i1++;
@@ -385,14 +733,14 @@ bool32 cm_text_like(const text_t *text1, const text_t *text2, charset_type_t typ
         }
 
         if (text2->str[i2] == '_') {
-            GS_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).str_bytes(text1->str + i1,
-                text1->len - i1, &len1) != GS_SUCCESS), GS_FALSE);
+            CT_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).str_bytes(text1->str + i1,
+                text1->len - i1, &len1) != CT_SUCCESS), CT_FALSE);
             i1 += (int32)len1;
             i2++;
             continue;
         }
 
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (pos2 == 0) {
@@ -413,7 +761,7 @@ bool32 cm_text_like(const text_t *text1, const text_t *text2, charset_type_t typ
 
                 pos = cm_in_like(text1->str + pos1, (text1->len - pos1), text2->str + pos2, part_len2,
                     &part_len1, type);
-                GS_RETVALUE_IFTRUE((pos < 0), GS_FALSE);
+                CT_RETVALUE_IFTRUE((pos < 0), CT_FALSE);
                 pos1 += (uint32)(pos + part_len1);
             }
 
@@ -422,7 +770,7 @@ bool32 cm_text_like(const text_t *text1, const text_t *text2, charset_type_t typ
     }
 
     part_len2 = text2->len - pos2;
-    GS_RETVALUE_IFTRUE((text1->len < part_len2 + pos1), GS_FALSE);
+    CT_RETVALUE_IFTRUE((text1->len < part_len2 + pos1), CT_FALSE);
 
     /*
     compare the last piece of text2(piece is split by %) to text1
@@ -439,17 +787,17 @@ bool32 cm_text_like(const text_t *text1, const text_t *text2, charset_type_t typ
         }
 
         if (text2->str[i2] == '_') {
-            GS_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).reverse_str_bytes(text1->str + i1,
-                i1 + 1, &len1) != GS_SUCCESS), GS_FALSE);
+            CT_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).reverse_str_bytes(text1->str + i1,
+                i1 + 1, &len1) != CT_SUCCESS), CT_FALSE);
             i1 -= len1;
             i2--;
             continue;
         }
 
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /* find str2 in str1 , match_len1 returns how many bytes are matched in str1. */
@@ -475,8 +823,8 @@ int32 cm_in_like_ins(const char *str1, uint32 len1, const char *str2, uint32 len
                 }
                 // move i1 to next character head position.
                 if (str2[i2] == '_') {
-                    GS_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).str_bytes(str1 + i1, len1 - i1,
-                        &char_len1) != GS_SUCCESS), -1);
+                    CT_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).str_bytes(str1 + i1, len1 - i1,
+                        &char_len1) != CT_SUCCESS), -1);
                     i1 += char_len1;
                 } else {
                     i1 += 1;
@@ -491,7 +839,7 @@ int32 cm_in_like_ins(const char *str1, uint32 len1, const char *str2, uint32 len
         }
 
         if (str2[0] == '_') {
-            GS_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).str_bytes(str1 + i1, len1 - i1, &char_len1) != GS_SUCCESS), -1);
+            CT_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).str_bytes(str1 + i1, len1 - i1, &char_len1) != CT_SUCCESS), -1);
             i1 += char_len1;
         } else {
             i1 += 1;
@@ -520,7 +868,7 @@ bool32 cm_text_like_ins(const text_t *text1, const text_t *text2, charset_type_t
         }
 
         /* compare text one by one char */
-        GS_RETVALUE_IFTRUE((i2 >= text1->len), GS_FALSE);
+        CT_RETVALUE_IFTRUE((i2 >= text1->len), CT_FALSE);
 
         if (UPPER(text1->str[i1]) == UPPER(text2->str[i2])) {
             i1++;
@@ -529,14 +877,14 @@ bool32 cm_text_like_ins(const text_t *text1, const text_t *text2, charset_type_t
         }
 
         if (text2->str[i2] == '_') {
-            GS_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).str_bytes(text1->str + i1,
-                text1->len - i1, &len1) != GS_SUCCESS), GS_FALSE);
+            CT_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).str_bytes(text1->str + i1,
+                text1->len - i1, &len1) != CT_SUCCESS), CT_FALSE);
             i1 += (int32)len1;
             i2++;
             continue;
         }
 
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (pos2 == 0) {
@@ -557,7 +905,7 @@ bool32 cm_text_like_ins(const text_t *text1, const text_t *text2, charset_type_t
 
                 pos = cm_in_like_ins(text1->str + pos1, (text1->len - pos1), text2->str + pos2, part_len2,
                     &part_len1, type);
-                GS_RETVALUE_IFTRUE((pos < 0), GS_FALSE);
+                CT_RETVALUE_IFTRUE((pos < 0), CT_FALSE);
                 pos1 += (uint32)(pos + part_len1);
             }
 
@@ -566,7 +914,7 @@ bool32 cm_text_like_ins(const text_t *text1, const text_t *text2, charset_type_t
     }
 
     part_len2 = text2->len - pos2;
-    GS_RETVALUE_IFTRUE((text1->len < part_len2 + pos1), GS_FALSE);
+    CT_RETVALUE_IFTRUE((text1->len < part_len2 + pos1), CT_FALSE);
 
     /*
     compare the last piece of text2(piece is split by %) to text1
@@ -583,48 +931,48 @@ bool32 cm_text_like_ins(const text_t *text1, const text_t *text2, charset_type_t
         }
 
         if (text2->str[i2] == '_') {
-            GS_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).reverse_str_bytes(text1->str + i1,
-                i1 + 1, &len1) != GS_SUCCESS), GS_FALSE);
+            CT_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).reverse_str_bytes(text1->str + i1,
+                i1 + 1, &len1) != CT_SUCCESS), CT_FALSE);
             i1 -= len1;
             i2--;
             continue;
         }
 
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t cm_text_like_escape_ins(char *str, const char *str_end, char *wildstr, const char *wildend, char escape,
                                  int32 *cmp_ret, charset_type_t type)
 {
     char s_char, w_char;
-    bool32 need_return = GS_FALSE;
+    bool32 need_return = CT_FALSE;
 
     while (wildstr != wildend) {
-        GS_RETURN_IFERR(cm_text_find_wildcard(&str, str_end, &wildstr, wildend, escape, cmp_ret, &need_return,
-            type, GS_FALSE));
+        CT_RETURN_IFERR(cm_text_find_wildcard(&str, str_end, &wildstr, wildend, escape, cmp_ret, &need_return,
+            type, CT_FALSE));
         if (need_return) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        GS_RETSUC_IFTRUE(cm_text_remove_wildcards(&str, str_end, &wildstr, wildend, cmp_ret, type));
+        CT_RETSUC_IFTRUE(cm_text_remove_wildcards(&str, str_end, &wildstr, wildend, cmp_ret, type));
         if (wildstr == wildend || str == str_end) {
             *cmp_ret = (wildstr == wildend ? 0 : -1);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         CM_STR_POP_FIRST(wildstr, w_char);
         if (w_char == escape) {
             if (wildstr == wildend) {
-                GS_THROW_ERROR(ERR_INVALID_OR_LACK_ESCAPE_CHAR);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_INVALID_OR_LACK_ESCAPE_CHAR);
+                return CT_ERROR;
             }
             CM_STR_POP_FIRST(wildstr, w_char);
         }
 
-        while (GS_TRUE) {
+        while (CT_TRUE) {
             while (str != str_end) {
                 CM_STR_GET_FIRST(str, s_char);
                 if (UPPER(s_char) == UPPER(w_char)) {
@@ -634,46 +982,46 @@ status_t cm_text_like_escape_ins(char *str, const char *str_end, char *wildstr, 
             }
             if (str == str_end) {
                 *cmp_ret = -1;
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
             CM_STR_REMOVE_FIRST(str);
-            GS_RETURN_IFERR(cm_text_like_escape_ins(str, str_end, wildstr, wildend, escape, cmp_ret, type));
-            GS_RETSUC_IFTRUE(*cmp_ret <= 0);
+            CT_RETURN_IFERR(cm_text_like_escape_ins(str, str_end, wildstr, wildend, escape, cmp_ret, type));
+            CT_RETSUC_IFTRUE(*cmp_ret <= 0);
         }
     }
     *cmp_ret = (str != str_end ? 1 : 0);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_text_like_escape(char *str, const char *str_end, char *wildstr, const char *wildend, char escape,
                              int32 *cmp_ret, charset_type_t type)
 {
     char s_char, w_char;
-    bool32 need_return = GS_FALSE;
+    bool32 need_return = CT_FALSE;
 
     while (wildstr != wildend) {
-        GS_RETURN_IFERR(cm_text_find_wildcard(&str, str_end, &wildstr, wildend, escape, cmp_ret, &need_return,
-            type, GS_TRUE));
+        CT_RETURN_IFERR(cm_text_find_wildcard(&str, str_end, &wildstr, wildend, escape, cmp_ret, &need_return,
+            type, CT_TRUE));
         if (need_return) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        GS_RETSUC_IFTRUE(cm_text_remove_wildcards(&str, str_end, &wildstr, wildend, cmp_ret, type));
+        CT_RETSUC_IFTRUE(cm_text_remove_wildcards(&str, str_end, &wildstr, wildend, cmp_ret, type));
         if (wildstr == wildend || str == str_end) {
             *cmp_ret = (wildstr == wildend ? 0 : -1);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         CM_STR_POP_FIRST(wildstr, w_char);
         if (w_char == escape) {
             if (wildstr == wildend) {
-                GS_THROW_ERROR(ERR_INVALID_OR_LACK_ESCAPE_CHAR);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_INVALID_OR_LACK_ESCAPE_CHAR);
+                return CT_ERROR;
             }
             CM_STR_POP_FIRST(wildstr, w_char);
         }
 
-        while (GS_TRUE) {
+        while (CT_TRUE) {
             while (str != str_end) {
                 CM_STR_GET_FIRST(str, s_char);
                 if (s_char == w_char) {
@@ -683,15 +1031,15 @@ status_t cm_text_like_escape(char *str, const char *str_end, char *wildstr, cons
             }
             if (str == str_end) {
                 *cmp_ret = -1;
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
             CM_STR_REMOVE_FIRST(str);
-            GS_RETURN_IFERR(cm_text_like_escape(str, str_end, wildstr, wildend, escape, cmp_ret, type));
-            GS_RETSUC_IFTRUE(*cmp_ret <= 0);
+            CT_RETURN_IFERR(cm_text_like_escape(str, str_end, wildstr, wildend, escape, cmp_ret, type));
+            CT_RETSUC_IFTRUE(*cmp_ret <= 0);
         }
     }
     *cmp_ret = (str != str_end ? 1 : 0);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_substr_left(text_t *src, uint32 start, uint32 size, text_t *dst, charset_type_t type)
@@ -715,7 +1063,7 @@ status_t cm_substr_left(text_t *src, uint32 start, uint32 size, text_t *dst, cha
         if (pos != NULL) {
             ++chnum;
         } else {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -729,7 +1077,7 @@ status_t cm_substr_left(text_t *src, uint32 start, uint32 size, text_t *dst, cha
         src->str = (substr_head == NULL) ? src->str : substr_head;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -752,7 +1100,7 @@ status_t cm_substr_right(text_t *src, uint32 start, uint32 size, text_t *dst, bo
         if (pos != NULL) {
             ++chnum;
         } else {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -762,7 +1110,7 @@ status_t cm_substr_right(text_t *src, uint32 start, uint32 size, text_t *dst, bo
         } else {
             src->len = 0;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (size >= start) {
@@ -775,14 +1123,14 @@ status_t cm_substr_right(text_t *src, uint32 start, uint32 size, text_t *dst, bo
             src->len = (uint32)(src->str + src->len - pos);
             src->str = pos;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     substr_head = pos;
     while (substr_chnum < size) {
         pos = CM_CHARSET_FUNC(type).move_char_forward(pos, (uint32)(src->str + src->len - pos));
         if (pos == NULL) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
         ++substr_chnum;
     }
@@ -796,7 +1144,7 @@ status_t cm_substr_right(text_t *src, uint32 start, uint32 size, text_t *dst, bo
         src->len = (uint32)(pos - substr_head);
         src->str = substr_head;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_substr(text_t *src, int32 start_input, uint32 size, text_t *dst, charset_type_t type)
@@ -810,7 +1158,7 @@ status_t cm_substr(text_t *src, int32 start_input, uint32 size, text_t *dst, cha
         return cm_substr_left(src, (uint32)start, size, dst, type);
     }
 
-    return cm_substr_right(src, (uint32)(-start), size, dst, GS_FALSE, type);
+    return cm_substr_right(src, (uint32)(-start), size, dst, CT_FALSE, type);
 }
 
 status_t cm_get_start_byte_pos(const text_t *text, uint32 char_pos, uint32 *start, charset_type_t charset)
@@ -821,12 +1169,12 @@ status_t cm_get_start_byte_pos(const text_t *text, uint32 char_pos, uint32 *star
 
     if (char_pos == 0) {
         *start = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (text->len == 0 || (char_pos > text->len - 1)) {
-        GS_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "start pos");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "start pos");
+        return CT_ERROR;
     }
 
     for (i = 0; i < text->len;) {
@@ -835,16 +1183,16 @@ status_t cm_get_start_byte_pos(const text_t *text, uint32 char_pos, uint32 *star
         }
 
         // one utf-8/GBK char contains multi bytes
-        if (CM_CHARSET_FUNC(charset).str_bytes(text->str + i, text->len - i, &tmp_byte_len) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, CM_CHARSET_FUNC(charset).name);
-            return GS_ERROR;
+        if (CM_CHARSET_FUNC(charset).str_bytes(text->str + i, text->len - i, &tmp_byte_len) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, CM_CHARSET_FUNC(charset).name);
+            return CT_ERROR;
         }
         i += tmp_byte_len;
         tmp_char_len++;
     }
 
     *start = i;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline uint32 cm_instr_core_forward(const text_t *str, const text_t *substr, uint32 nth, uint32 start_pos)
@@ -852,7 +1200,7 @@ static inline uint32 cm_instr_core_forward(const text_t *str, const text_t *subs
     uint32 occur_times = 0;
     uint32 i;
     uint32 result_pos = 0;
-    bool32 find_diff = GS_FALSE;
+    bool32 find_diff = CT_FALSE;
     uint32 start = start_pos;
 
     for (; start < str->len; start++) {
@@ -860,11 +1208,11 @@ static inline uint32 cm_instr_core_forward(const text_t *str, const text_t *subs
             return 0;
         }
 
-        find_diff = GS_FALSE;
+        find_diff = CT_FALSE;
 
         for (i = 0; i < substr->len; i++) {
             if (str->str[start + i] != substr->str[i]) {
-                find_diff = GS_TRUE;
+                find_diff = CT_TRUE;
                 break;
             }
         }
@@ -885,7 +1233,7 @@ static inline uint32 cm_instr_core_backward(const text_t *str, const text_t *sub
     uint32 occur_times = 0;
     uint32 i;
     uint32 result_pos = 0;
-    bool32 find_diff = GS_FALSE;
+    bool32 find_diff = CT_FALSE;
     uint32 start = start_input;
 
     for (;; start--) {
@@ -896,11 +1244,11 @@ static inline uint32 cm_instr_core_backward(const text_t *str, const text_t *sub
             continue;
         }
 
-        find_diff = GS_FALSE;
+        find_diff = CT_FALSE;
 
         for (i = 0; i < substr->len; i++) {
             if (str->str[start + i] != substr->str[i]) {
-                find_diff = GS_TRUE;
+                find_diff = CT_TRUE;
                 break;
             }
         }
@@ -940,8 +1288,8 @@ uint32 cm_instr(const text_t *str, const text_t *substr, int32 pos, uint32 nth, 
     uint32 start = 0;
     uint32 str1_char_len, str2_char_len;
 
-    GS_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).length(str, &str1_char_len) != GS_SUCCESS ||
-        CM_CHARSET_FUNC(type).length(substr, &str2_char_len) != GS_SUCCESS),
+    CT_RETVALUE_IFTRUE((CM_CHARSET_FUNC(type).length(str, &str1_char_len) != CT_SUCCESS ||
+        CM_CHARSET_FUNC(type).length(substr, &str2_char_len) != CT_SUCCESS),
         0);
 
     // optimize: string contains no utf-8 character
@@ -950,17 +1298,17 @@ uint32 cm_instr(const text_t *str, const text_t *substr, int32 pos, uint32 nth, 
         return cm_instrb(str, substr, pos, nth);
     }
 
-    GS_RETVALUE_IFTRUE(((uint32)abs(pos) > str1_char_len || pos == 0 || str1_char_len < str2_char_len), 0);
+    CT_RETVALUE_IFTRUE(((uint32)abs(pos) > str1_char_len || pos == 0 || str1_char_len < str2_char_len), 0);
 
     // get start bytes pos
     if (pos > 0) {
         // search forward
         // get start bytes pos with start char pos(pos-1) because one utf-8/GBK char contains multi bytes
-        GS_RETVALUE_IFTRUE((cm_get_start_byte_pos(str, (uint32)(pos - 1), &start, type) != GS_SUCCESS), 0);
+        CT_RETVALUE_IFTRUE((cm_get_start_byte_pos(str, (uint32)(pos - 1), &start, type) != CT_SUCCESS), 0);
     } else {
         // search backward
         // get start bytes pos with start char pos(char_len_str1+pos) because one utf-8/GBK char contains multi bytes
-        GS_RETVALUE_IFTRUE((cm_get_start_byte_pos(str, (uint32)(str1_char_len + pos), &start, type) != GS_SUCCESS),
+        CT_RETVALUE_IFTRUE((cm_get_start_byte_pos(str, (uint32)(str1_char_len + pos), &start, type) != CT_SUCCESS),
             0);
     }
 
@@ -973,13 +1321,13 @@ status_t cm_num_instr(const text_t *str, const text_t *substr, text_t *splitchar
     uint32 num_tmp = *num;
     uint32 curr_pos = 1;
     uint32 pre_pos = 1;
-    bool32 has_utf8 = GS_FALSE;
+    bool32 has_utf8 = CT_FALSE;
     text_t walker = *str;
     text_t item;
     int64 tmp_value = 0;
 
-    if (cm_text2bigint(substr, &tmp_value) != GS_SUCCESS || substr->len == 0) {
-        return GS_ERROR;
+    if (cm_text2bigint(substr, &tmp_value) != CT_SUCCESS || substr->len == 0) {
+        return CT_ERROR;
     }
 
     while (walker.len > 0) {
@@ -989,27 +1337,27 @@ status_t cm_num_instr(const text_t *str, const text_t *substr, text_t *splitchar
             item.str = walker.str;
             item.len = curr_pos - pre_pos;
 
-            if (cm_text2bigint(&item, &tmp_value) != GS_SUCCESS || item.len == 0) {
-                return GS_ERROR;
+            if (cm_text2bigint(&item, &tmp_value) != CT_SUCCESS || item.len == 0) {
+                return CT_ERROR;
             }
 
             if (cm_text_equal_ins(&item, substr)) {
                 *num = num_tmp;
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             } else {
                 walker.len -= (item.len + 1);
                 walker.str += (item.len + 1);
             }
         } else {
-            if (cm_text2bigint(&walker, &tmp_value) != GS_SUCCESS || walker.len == 0) {
-                return GS_ERROR;
+            if (cm_text2bigint(&walker, &tmp_value) != CT_SUCCESS || walker.len == 0) {
+                return CT_ERROR;
             }
 
             /* last item */
             if (cm_text_equal_ins(&walker, substr)) {
                 num_tmp++;
                 *num = num_tmp;
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             } else {
                 num_tmp = 0;
                 break;
@@ -1017,7 +1365,7 @@ status_t cm_num_instr(const text_t *str, const text_t *substr, text_t *splitchar
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

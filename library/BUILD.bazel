@@ -1,0 +1,274 @@
+package(default_visibility = ["//visibility:public"])
+
+[
+   filegroup(
+        name = "{0}".format(x),
+        srcs = glob(["{0}/**/*.h".format(x)]),
+    ) for x in [
+        "xnet/include",
+        "protobuf",
+   ]
+]
+
+[
+   filegroup(
+        name = "{0}".format(x),
+        srcs = glob(["{0}/*.h".format(x)]),
+    ) for x in [
+        "dbstor/include/dbstor",
+        "dbstor/include/infrastructure/infrastructure/osax",
+        "dbstor/include/infrastructure/infrastructure/dpuc",
+        "dbstor/include/infrastructure/infrastructure/umm",
+        "dbstor/include/infrastructure/infrastructure/log",
+        "dbstor/include/infrastructure/product_dep_tmp/fdsa",
+        "dbstor/include/infrastructure/infrastructure/iod",
+        "dbstor/include/infrastructure",
+        "dbstor/include/kmc",
+   ]
+]
+
+
+cc_import (
+   name = "crypto",
+    static_library = "openssl/lib/libcrypto.a",
+    alwayslink = True,
+)
+
+cc_import (
+   name = "ssl",
+    static_library = "openssl/lib/libssl.a",
+    alwayslink = True,
+)
+
+cc_import (
+    name = "KMC",
+    static_library = "huawei_kmc/lib/libKMC.a",
+    alwayslink = True,
+)
+
+cc_import (
+    name = "SDP",
+    static_library = "huawei_kmc/lib/libSDP.a",
+    alwayslink = True,
+)
+
+cc_import (
+    name = "pcre2-8",
+    shared_library = "pcre/lib/libpcre2-8.so",
+)
+
+cc_import (
+    name = "cgw_client",
+    shared_library = "dbstor/lib/libcgw_client.so",
+)
+
+cc_import (
+    name = "dbstoreClient",
+    shared_library = "dbstor/lib/libdbstoreClient.so",
+)
+
+cc_import (
+    name = "fdsa",
+    shared_library = "dbstor/lib/libfdsa.so",
+)
+
+cc_import (
+    name = "fdsa_util",
+    shared_library = "dbstor/lib/libfdsa_util.so",
+)
+
+cc_import (
+    name = "sqlite3",
+    shared_library = "dbstor/lib/libsqlite3.so",
+)
+
+cc_import (
+    name = "dif_usr",
+    shared_library = "dbstor/lib/libdif_usr.so",
+)
+
+cc_import (
+    name = "dbstor_tool",
+    shared_library = "dbstor/lib/libdbstor_tool.so",
+)
+
+cc_import (
+    name = "nomlnx/xnetlite",
+    shared_library = "dbstor/lib/nomlnx/libxnetlite.so",
+)
+
+cc_import (
+    name = "iod",
+    shared_library = "dbstor/lib/libiod.so",
+)
+
+cc_import (
+    name = "lwt",
+    shared_library = "dbstor/lib/liblwt.so",
+)
+
+cc_import (
+    name = "dplog",
+    shared_library = "dbstor/lib/libdplog.so",
+)
+
+cc_import (
+    name = "ftds_stub",
+    shared_library = "dbstor/lib/libftds_stub.so",
+)
+
+cc_import (
+    name = "ftdsclient",
+    shared_library = "dbstor/lib/libftdsclient.so",
+)
+
+cc_import (
+    name = "dposax",
+    shared_library = "dbstor/lib/libdposax.so",
+)
+
+cc_import (
+    name = "securec",
+    shared_library = "dbstor/lib/libsecurec.so",
+)
+
+cc_import (
+    name = "scpart_mgr",
+    shared_library = "dbstor/lib/libscpart_mgr.so",
+)
+
+cc_import (
+    name = "mxml",
+    shared_library = "dbstor/lib/libmxml.so.1",
+)
+
+cc_import (
+    name = "dpdiagnose",
+    shared_library = "dbstor/lib/libdpdiagnose.so",
+)
+
+cc_import (
+    name = "patmatch",
+    shared_library = "dbstor/lib/libpatmatch.so",
+)
+
+cc_import (
+    name = "dpumm_mm",
+    shared_library = "dbstor/lib/libdpumm_mm.so",
+)
+
+cc_import (
+    name = "dphpuc_roc",
+    shared_library = "dbstor/lib/libdphpuc_roc.so",
+)
+
+cc_import (
+    name = "dptracepoint",
+    shared_library = "dbstor/lib/libdptracepoint.so",
+)
+
+cc_import (
+    name = "dpumm_cmm",
+    shared_library = "dbstor/lib/libdpumm_cmm.so",
+)
+
+cc_import (
+    name = "osax_util",
+    shared_library = "dbstor/lib/libosax_util.so",
+)
+
+cc_import (
+    name = "dswcore_mem",
+    shared_library = "dbstor/lib/libdswcore_mem.so",
+)
+
+cc_import (
+    name = "byte_buffer",
+    shared_library = "dbstor/lib/libbyte_buffer.so",
+)
+
+cc_import (
+    name = "simpopb",
+    shared_library = "dbstor/lib/libsimpopb.so",
+)
+
+cc_import (
+    name = "dntf",
+    shared_library = "dbstor/lib/libdntf.so",
+)
+
+cc_import (
+    name = "dposen",
+    shared_library = "dbstor/lib/libdposen.so",
+)
+
+cc_import (
+    name = "cmclient",
+    shared_library = "dbstor/lib/libcmclient.so",
+)
+
+cc_import (
+    name = "kmc",
+    static_library = "dbstor/lib/libkmc.a",
+    alwayslink = True,
+)
+
+cc_import (
+    name = "kmcext",
+    static_library = "dbstor/lib/libkmcext.a",
+    alwayslink = True,
+)
+
+cc_import (
+    name = "sdp",
+    static_library = "dbstor/lib/libsdp.a",
+    alwayslink = True,
+)
+
+cc_import (
+    name = "securec_a",
+    static_library = "huawei_security/lib/libsecurec.a",
+    alwayslink = True,
+)
+
+cc_import (
+    name = "z",
+    shared_library = "zlib/lib/libz.so",
+)
+
+cc_import (
+    name = "zstd",
+    shared_library = "Zstandard/lib/libzstd.so",
+)
+
+cc_import (
+    name = "lz4",
+    shared_library = "lz4/lib/liblz4.so",
+)
+
+cc_import (
+    name = "protobuf-c",
+    static_library = "protobuf/lib/libprotobuf-c.a",
+    alwayslink = True,
+)
+
+cc_import (
+    name = "gtest",
+    shared_library = "gtest/lib/libgtest.so",
+)
+
+cc_import (
+    name = "gmock",
+    shared_library = "gtest/lib/libgmock.so",
+)
+
+cc_import (
+    name = "mockcpp",
+    static_library = "mockcpp/lib/libmockcpp.a",
+    alwayslink = True,
+)
+
+cc_import (
+    name = "Secodefuzz",
+    shared_library = "secodefuzz/lib/libSecodefuzz.so",
+)

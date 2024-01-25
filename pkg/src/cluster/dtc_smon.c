@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_cluster_module.h"
 #include "knl_smon.h"
 #include "knl_context.h"
 #include "pcr_heap.h"
@@ -36,25 +37,23 @@
 static dtc_dlock_stack_t g_tlock_stack;
 static dtc_dlock_stack_t g_ilock_stack;
 
-status_t dtc_smon_get_txn_dlock(knl_handle_t session, uint8 instid, uint16 rmid, dtc_dlock *dlock);
-rowid_t dtc_smon_get_rm_wrid(knl_session_t *session, uint8 dst_inst, uint16 rmid);
-bool32 dtc_smon_push_tlock(knl_session_t *session, uint8 *w_marks, dtc_dlock_stack_t *stack_lock, uint32 inst_id,
-                           uint64 table_id);
-bool32 dtc_smon_check_table_status(knl_session_t *session, dtc_tlock* tlock);
-bool32 dtc_smon_check_wait_event(knl_session_t *session, uint8 inst_id, uint16 sid);
-
 #define DTC_SMON_TRACE_SQL_LEN (1024)
 #define DTC_SMON_WAIT_TIMEOUTMS (10000)
 
 void dtc_smon_process_deadlock_sql(void *sess, mes_message_t *receive_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     knl_session_t *session = (knl_session_t *)sess;
+    if (sizeof(mes_message_head_t) + sizeof(uint16) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("smon process deadlock sql mes size is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     uint16 sid = *(uint16*)(receive_msg->buffer + sizeof(mes_message_head_t));
-    if (sid >= GS_MAX_SESSIONS) {
-        GS_LOG_RUN_ERR("smon_process_deadlock_sql failed, invalid sid %u", sid);
+    if (sid >= CT_MAX_SESSIONS) {
+        CT_LOG_RUN_ERR("smon_process_deadlock_sql failed, invalid sid %u", sid);
         mes_release_message_buf(receive_msg->buffer);
         return;
     }
@@ -62,21 +61,26 @@ void dtc_smon_process_deadlock_sql(void *sess, mes_message_t *receive_msg)
     text_t sql_text;
 
     send_msg = (uint8*)cm_push(session->stack, mes_size);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("msg failed to malloc memory");
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     head = (mes_message_head_t*)send_msg;
 
-    sql_text.len = CM_ALIGN8(DTC_SMON_TRACE_SQL_LEN  - GS_PUSH_RESERVE_SIZE);
+    sql_text.len = CM_ALIGN8(DTC_SMON_TRACE_SQL_LEN  - CT_PUSH_RESERVE_SIZE);
     sql_text.str = (char*)(send_msg + sizeof(mes_message_head_t));
-    if (g_knl_callback.get_sql_text(sid, &sql_text) != GS_SUCCESS) {
+    if (g_knl_callback.get_sql_text(sid, &sql_text) != CT_SUCCESS) {
         int check = snprintf_s(sql_text.str, sql_text.len, sql_text.len - 1, "%s", "sql statement not found");
         PRTS_RETVOID_IFERR(check);
         sql_text.len = strlen(sql_text.str);
     }
-    //GS_LOG_TRACE("wait sql: %s \n", sql_text.str);
+    //CT_LOG_TRACE("wait sql: %s \n", sql_text.str);
     mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_SQL_ACK, sizeof(mes_message_head_t) + sql_text.len,
-                      GS_INVALID_ID16);
+                      CT_INVALID_ID16);
 
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DLS_DEBUG_ERR("[SMON] process dead lock sql message from instance(%u), sid(%u) failed", receive_msg->head->src_inst, sid);
     }
     cm_pop(session->stack);
@@ -98,30 +102,30 @@ status_t dtc_smon_request_deadlock_sql(knl_session_t *session, wait_event_t even
 
     send_msg = (uint8*)cm_push(session->stack, msg_size);
     head = (mes_message_head_t*)send_msg;
-    mes_init_send_head(head, MES_CMD_DEAD_LOCK_SQL, msg_size, GS_INVALID_ID32, src_inst, dst_inst, session->id,
-                       GS_INVALID_ID16);
+    mes_init_send_head(head, MES_CMD_DEAD_LOCK_SQL, msg_size, CT_INVALID_ID32, src_inst, dst_inst, session->id,
+                       CT_INVALID_ID16);
     *((uint16*)(send_msg + sizeof(mes_message_head_t))) = sid;
 
-    knl_try_begin_session_wait(session, event, GS_TRUE);
+    knl_begin_session_wait(session, event, CT_TRUE);
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, event);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, event);
         cm_pop(session->stack);
         DTC_DLS_DEBUG_ERR("[SMON] request dead lock sql message to instance(%u) failed, event(%u) sid(%u) errcode(%u)", dst_inst, event, sid, ret);
         return ret;
     }
     cm_pop(session->stack);
 
-    ret = mes_recv(session->id, &recv_msg, GS_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, event);
+    ret = mes_recv(session->id, &recv_msg, CT_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, event);
         DTC_DLS_DEBUG_ERR("[SMON] receive dead lock sql message to instance(%u) failed, event(%u) sid(%u) errcode(%u)", dst_inst, event, sid, ret);
         return ret;
     }
 
-    knl_try_end_session_wait(session, event);
+    knl_end_session_wait(session, event);
     sql_content = (char*)(recv_msg.buffer + sizeof(mes_message_head_t));
-    GS_LOG_TRACE("wait sql: %s \n", sql_content);
+    CT_LOG_TRACE("wait sql: %s \n", sql_content);
 
     mes_release_message_buf(recv_msg.buffer);
     DTC_DLS_DEBUG_INF("[SMON] request dead lock sql message to instance(%u), event(%u) sid(%u)", dst_inst, event, sid);
@@ -134,8 +138,8 @@ static void dtc_smon_record_deadlock_sql(knl_session_t *session, wait_event_t ev
 
     if (session->kernel->dtc_attr.inst_id == inst_id) {
         smon_sql_init(session, &sql_text);
-        if (g_knl_callback.get_sql_text(sid, &sql_text) == GS_SUCCESS) {
-            GS_LOG_TRACE("wait sql: %s \n", sql_text.str);
+        if (g_knl_callback.get_sql_text(sid, &sql_text) == CT_SUCCESS) {
+            CT_LOG_TRACE("wait sql: %s \n", sql_text.str);
         }
         return;
     }
@@ -146,25 +150,35 @@ static void dtc_smon_record_deadlock_sql(knl_session_t *session, wait_event_t ev
 //dtc txn lock
 void dtc_smon_process_txn_dlock(void *sess, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     knl_session_t *session = (knl_session_t *)sess;
+    if (sizeof(mes_message_head_t) + sizeof(uint16) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("smon process txn dlock mes size is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     uint16 rmid = *(uint16*)(receive_msg->buffer + sizeof(mes_message_head_t));
     uint32 mes_size = sizeof(mes_message_head_t) + sizeof(dtc_dlock);
     dtc_dlock* dlock;
 
     send_msg = (uint8*)cm_push(session->stack, mes_size);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("msg failed to malloc memory");
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     head = (mes_message_head_t*)send_msg;
-    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_TXN_ACK, mes_size, GS_INVALID_ID16);
+    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_TXN_ACK, mes_size, CT_INVALID_ID16);
 
     dlock = (dtc_dlock*)(send_msg + sizeof(mes_message_head_t));
-    dlock->wsid = GS_INVALID_ID16;
+    dlock->wsid = CT_INVALID_ID16;
     //must be local rmid
     dtc_smon_get_txn_dlock(session, session->kernel->id, rmid, dlock);
 
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DLS_DEBUG_ERR("[SMON] process txn dead lock message from instance(%u), type(%u) rmid(%u) instid(%u) wsid(%u) failed",
             receive_msg->head->src_inst, MES_CMD_DEAD_LOCK_TXN, rmid, xid_get_inst_id(session, dlock->wxid), dlock->wsid);
     }
@@ -177,24 +191,34 @@ void dtc_smon_process_txn_dlock(void *sess, mes_message_t * receive_msg)
 
 void dtc_smon_process_get_sid(void *sess, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     knl_session_t *session = (knl_session_t *)sess;
+    if (sizeof(mes_message_head_t) + sizeof(uint16) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("smon process get sid mes size is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     uint16 rmid = *(uint16*)(receive_msg->buffer + sizeof(mes_message_head_t));
     uint32 mes_size = sizeof(mes_message_head_t) + sizeof(uint16);
     uint16 sid;
 
     send_msg = (uint8*)cm_push(session->stack, mes_size);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("msg failed to malloc memory");
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     head = (mes_message_head_t*)send_msg;
 
-    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_SID_ACK, mes_size, GS_INVALID_ID16);
+    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_SID_ACK, mes_size, CT_INVALID_ID16);
     //must be local rmid
     sid = knl_get_rm_sid(session, rmid);
     *((uint16*)(send_msg + sizeof(mes_message_head_t))) = sid;
 
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DLS_DEBUG_ERR("[SMON] process sid message from instance(%u), type(%u) rmid(%u) sid(%u) failed",
             receive_msg->head->src_inst, MES_CMD_DEAD_LOCK_SID, rmid, sid);
     }
@@ -207,24 +231,34 @@ void dtc_smon_process_get_sid(void *sess, mes_message_t * receive_msg)
 
 void dtc_smon_process_get_wrid(void *sess, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     knl_session_t *session = (knl_session_t *)sess;
+    if (sizeof(mes_message_head_t) + sizeof(uint16) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("smon process get wrid msg size is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     uint16 rmid = *(uint16*)(receive_msg->buffer + sizeof(mes_message_head_t));
     uint32 mes_size = sizeof(mes_message_head_t) + sizeof(rowid_t);
     rowid_t rowid;
 
     send_msg = (uint8*)cm_push(session->stack, mes_size);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("msg failed to malloc memory");
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     head = (mes_message_head_t*)send_msg;
 
-    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_ROWID_ACK, mes_size, GS_INVALID_ID16);
+    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_ROWID_ACK, mes_size, CT_INVALID_ID16);
     //must be local rmid
     rowid = dtc_smon_get_rm_wrid(session, session->kernel->id, rmid);
     *((rowid_t*)(send_msg + sizeof(mes_message_head_t))) = rowid;
 
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DLS_DEBUG_ERR("[SMON] process sid message from instance(%u), type(%u) rmid(%u) rowid(%u-%u-%u) failed",
             receive_msg->head->src_inst, MES_CMD_DEAD_LOCK_ROWID, rmid, rowid.file, rowid.page, rowid.slot);
     }
@@ -246,28 +280,32 @@ status_t dtc_smon_request_dlock_msg(knl_session_t *session, uint8 cmd, uint8 dst
     uint8    src_inst = session->kernel->dtc_attr.inst_id;
 
     send_msg = (uint8*)cm_push(session->stack, msg_size);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("send_msg failed to malloc memory, send_msg size %u.", msg_size);
+        return CT_ERROR;
+    }
     head = (mes_message_head_t*)send_msg;
-    mes_init_send_head(head, cmd, msg_size, GS_INVALID_ID32, src_inst, dst_inst, session->id, GS_INVALID_ID16);
+    mes_init_send_head(head, cmd, msg_size, CT_INVALID_ID32, src_inst, dst_inst, session->id, CT_INVALID_ID16);
     *((uint16*)(send_msg + sizeof(mes_message_head_t))) = rmid;
 
-    knl_try_begin_session_wait(session, DEAD_LOCK_TXN, GS_TRUE);
+    knl_begin_session_wait(session, DEAD_LOCK_TXN, CT_TRUE);
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_TXN);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_TXN);
         cm_pop(session->stack);
         DTC_DLS_DEBUG_ERR("[SMON] request dead lock message to instance(%u) failed, type(%u) rmid(%u) errcode(%u)", dst_inst, cmd, rmid, ret);
         return ret;
     }
     cm_pop(session->stack);
 
-    ret = mes_recv(session->id, &recv_msg, GS_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_TXN);
+    ret = mes_recv(session->id, &recv_msg, CT_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_TXN);
         DTC_DLS_DEBUG_ERR("[SMON] receive dead lock message to instance(%u) failed, type(%u) rmid(%u) errcode(%u)", dst_inst, cmd, rmid, ret);
         return ret;
     }
 
-    knl_try_end_session_wait(session, DEAD_LOCK_TXN);
+    knl_end_session_wait(session, DEAD_LOCK_TXN);
     ret = memcpy_s((char*)rsp_content, rsp_size, recv_msg.buffer + sizeof(mes_message_head_t), rsp_size);
     MEMS_RETURN_IFERR(ret);
     mes_release_message_buf(recv_msg.buffer);
@@ -278,7 +316,7 @@ status_t dtc_smon_request_dlock_msg(knl_session_t *session, uint8 cmd, uint8 dst
 status_t dtc_smon_request_txn_dlock(knl_session_t *session, uint8 dst_inst, uint16 rmid, dtc_dlock* dlock)
 {
     status_t status;
-    SYNC_POINT_GLOBAL_START(CANTIAN_SMON_REQUEST_TXN_DLOCK_TIMEOUT_AND_FAIL, &status, GS_ERROR);
+    SYNC_POINT_GLOBAL_START(CANTIAN_SMON_REQUEST_TXN_DLOCK_TIMEOUT_AND_FAIL, &status, CT_ERROR);
     status = dtc_smon_request_dlock_msg(session, MES_CMD_DEAD_LOCK_TXN, dst_inst, rmid, dlock, sizeof(dtc_dlock));
     SYNC_POINT_GLOBAL_END;
     return status;
@@ -287,7 +325,7 @@ status_t dtc_smon_request_txn_dlock(knl_session_t *session, uint8 dst_inst, uint
 status_t dtc_smon_request_sid(knl_session_t *session,  uint8 dst_inst, uint16 rmid, uint16* sid)
 {
     status_t status;
-    SYNC_POINT_GLOBAL_START(CANTIAN_SMON_REQUEST_SID_TIMEOUT_AND_FAIL, &status, GS_ERROR);
+    SYNC_POINT_GLOBAL_START(CANTIAN_SMON_REQUEST_SID_TIMEOUT_AND_FAIL, &status, CT_ERROR);
     status = dtc_smon_request_dlock_msg(session, MES_CMD_DEAD_LOCK_SID, dst_inst, rmid, sid, sizeof(uint16));
     SYNC_POINT_GLOBAL_END;
     return status;
@@ -296,7 +334,7 @@ status_t dtc_smon_request_sid(knl_session_t *session,  uint8 dst_inst, uint16 rm
 status_t dtc_smon_request_wrid(knl_session_t *session,  uint8 dst_inst, uint16 rmid, rowid_t* rowid)
 {
     status_t status;
-    SYNC_POINT_GLOBAL_START(CANTIAN_SMON_REQUEST_WSID_TIMEOUT_AND_FAIL, &status, GS_ERROR);
+    SYNC_POINT_GLOBAL_START(CANTIAN_SMON_REQUEST_WSID_TIMEOUT_AND_FAIL, &status, CT_ERROR);
     status = dtc_smon_request_dlock_msg(session, MES_CMD_DEAD_LOCK_ROWID, dst_inst, rmid, rowid, sizeof(rowid_t));
     SYNC_POINT_GLOBAL_END;
     return status;
@@ -304,10 +342,10 @@ status_t dtc_smon_request_wrid(knl_session_t *session,  uint8 dst_inst, uint16 r
 
 uint16 dtc_smon_get_rm_sid(knl_session_t *session,  uint8 dst_inst, uint16 rmid)
 {
-    uint16 sid = GS_INVALID_ID16;
+    uint16 sid = CT_INVALID_ID16;
 
-    if (rmid == GS_INVALID_ID16) {
-        return GS_INVALID_ID16;
+    if (rmid == CT_INVALID_ID16) {
+        return CT_INVALID_ID16;
     }
 
     if (dst_inst == session->kernel->dtc_attr.inst_id) {
@@ -325,13 +363,13 @@ rowid_t dtc_smon_get_rm_wrid(knl_session_t *session,  uint8 dst_inst, uint16 rmi
     knl_session_t *se;
     rowid_t wrid;
 
-    if (rmid >= GS_MAX_RMS) {
+    if (rmid >= CT_MAX_RMS) {
         return g_invalid_rowid;
     }
 
     if (dst_inst == session->kernel->id) {
         rm = knl_session->kernel->rms[rmid];
-        if (rm != NULL && rm->sid < GS_MAX_SESSIONS) {
+        if (rm != NULL && rm->sid < CT_MAX_SESSIONS) {
             se = knl_session->kernel->sessions[rm->sid];
             wrid = se->wrid;
         } else {
@@ -349,23 +387,23 @@ status_t dtc_smon_get_txn_dlock(knl_handle_t session, uint8 instid, uint16 rmid,
     knl_rm_t *rm = NULL;
     knl_session_t *se;
 
-    if (rmid >= GS_MAX_RMS) {
-        dlock->wsid = GS_INVALID_ID16;
-        return GS_SUCCESS;
+    if (rmid >= CT_MAX_RMS) {
+        dlock->wsid = CT_INVALID_ID16;
+        return CT_SUCCESS;
     }
 
     if (instid == knl_session->kernel->id) {
         rm = knl_session->kernel->rms[rmid];
-        if (rm != NULL && rm->sid < GS_MAX_SESSIONS) {
+        if (rm != NULL && rm->sid < CT_MAX_SESSIONS) {
             se = knl_session->kernel->sessions[rm->sid];
             dlock->curr_lsn = se->curr_lsn;
             dlock->wxid = se->wxid;
             dlock->wrmid = se->wrmid;
             dlock->wsid = dtc_smon_get_rm_sid(session, xid_get_inst_id(se, se->wxid), se->wrmid);
         } else {
-            dlock->wsid = GS_INVALID_ID16;
+            dlock->wsid = CT_INVALID_ID16;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     //remote
@@ -375,24 +413,24 @@ status_t dtc_smon_get_txn_dlock(knl_handle_t session, uint8 instid, uint16 rmid,
 static uint16 dtc_smon_find_first_local_sid(knl_session_t *session, dtc_dlock *dlockshot,
     uint32 inst_id, uint16 id)
 {
-    if (id == GS_INVALID_ID16) {
-        return GS_INVALID_ID16;
+    if (id == CT_INVALID_ID16) {
+        return CT_INVALID_ID16;
     }
 
     uint32 tmp_instid = inst_id;
     uint32 id_of_inst = inst_id;
     uint16 tmp_id = id;
-    while (dlockshot[tmp_instid * GS_MAX_SESSIONS + tmp_id].wsid != id) {
+    while (dlockshot[tmp_instid * CT_MAX_SESSIONS + tmp_id].wsid != id) {
         id_of_inst = tmp_instid;
-        tmp_instid = xid_get_inst_id(session, dlockshot[id_of_inst * GS_MAX_SESSIONS + tmp_id].wxid);
-        tmp_id = dlockshot[id_of_inst * GS_MAX_SESSIONS + tmp_id].wsid;
+        tmp_instid = xid_get_inst_id(session, dlockshot[id_of_inst * CT_MAX_SESSIONS + tmp_id].wxid);
+        tmp_id = dlockshot[id_of_inst * CT_MAX_SESSIONS + tmp_id].wsid;
         // find it, then return
         if (tmp_instid == session->kernel->id) {
             return tmp_id;
         }
     }
 
-    return GS_INVALID_ID16;
+    return CT_INVALID_ID16;
 }
 
 void dtc_smon_detect_dead_lock_in_cluster(knl_session_t *session, uint8 *wait_marks, uint16 session_id,
@@ -411,13 +449,13 @@ void dtc_smon_detect_dead_lock_in_cluster(knl_session_t *session, uint8 *wait_ma
     uint32 tmp_instid;
     uint16 id = session_id;
 
-    count = GS_MAX_INSTANCES * GS_MAX_SESSIONS * sizeof(dtc_dlock);
+    count = CT_MAX_INSTANCES * CT_MAX_SESSIONS * sizeof(dtc_dlock);
     dlockshot = (dtc_dlock *)malloc(count);
     if (dlockshot == NULL) {
-        GS_LOG_RUN_ERR("dtc transaction deadlock malloc size(%u) failed", count);
+        CT_LOG_RUN_ERR("dtc transaction deadlock malloc size(%u) failed", count);
         return;
     }
-    ret = memset_sp((char*)dlockshot, count, GS_INVALID_ID8, count);
+    ret = memset_sp((char*)dlockshot, count, CT_INVALID_ID8, count);
     knl_securec_check(ret);
 
     // suspended session should not be killed
@@ -430,9 +468,9 @@ void dtc_smon_detect_dead_lock_in_cluster(knl_session_t *session, uint8 *wait_ma
     rmid = current->rmid;
     inst_id = session->kernel->dtc_attr.inst_id;
     //check from current instance and given id(sid)
-    while (id != GS_INVALID_ID16 && dlockshot[inst_id * GS_MAX_SESSIONS + id].wsid == GS_INVALID_ID16) {
+    while (id != CT_INVALID_ID16 && dlockshot[inst_id * CT_MAX_SESSIONS + id].wsid == CT_INVALID_ID16) {
         //get wait xid,  lsn
-        if (dtc_smon_get_txn_dlock(session, inst_id, rmid, &dlockshot[inst_id * GS_MAX_SESSIONS + id]) != GS_SUCCESS) {
+        if (dtc_smon_get_txn_dlock(session, inst_id, rmid, &dlockshot[inst_id * CT_MAX_SESSIONS + id]) != CT_SUCCESS) {
             free(dlockshot);
             return;
         }
@@ -440,19 +478,19 @@ void dtc_smon_detect_dead_lock_in_cluster(knl_session_t *session, uint8 *wait_ma
             wait_marks[id] = 1;
         }
         tmp_instid = inst_id;
-        inst_id = xid_get_inst_id(session, dlockshot[tmp_instid * GS_MAX_SESSIONS + id].wxid);
-        rmid = dlockshot[tmp_instid * GS_MAX_SESSIONS + id].wrmid;
-        id = dlockshot[tmp_instid * GS_MAX_SESSIONS + id].wsid;
+        inst_id = xid_get_inst_id(session, dlockshot[tmp_instid * CT_MAX_SESSIONS + id].wxid);
+        rmid = dlockshot[tmp_instid * CT_MAX_SESSIONS + id].wrmid;
+        id = dlockshot[tmp_instid * CT_MAX_SESSIONS + id].wsid;
     }
 
     // not belong to myself, need find first session belong to me.
     if (inst_id != session->kernel->id) {
         id = dtc_smon_find_first_local_sid(session, dlockshot, inst_id, id);
-        GS_LOG_DEBUG_INF("[SMON] find first local sid[%u] inst_id[%u]", id, inst_id);
+        CT_LOG_DEBUG_INF("[SMON] find first local sid[%u] inst_id[%u]", id, inst_id);
     }
 
     // no deadlock was detected
-    if (id == GS_INVALID_ID16) {
+    if (id == CT_INVALID_ID16) {
         free(dlockshot);
         return;
     }
@@ -469,28 +507,28 @@ void dtc_smon_detect_dead_lock_in_cluster(knl_session_t *session, uint8 *wait_ma
     begin = id;
 
     for (;;) {
-        dlock.wsid = GS_INVALID_ID16;
-        if (dtc_smon_get_txn_dlock(session, inst_id, rmid, &dlock) != GS_SUCCESS) {
+        dlock.wsid = CT_INVALID_ID16;
+        if (dtc_smon_get_txn_dlock(session, inst_id, rmid, &dlock) != CT_SUCCESS) {
             break;
         }
-        if (dlock.wsid == GS_INVALID_ID16) {
+        if (dlock.wsid == CT_INVALID_ID16) {
             break;
         }
-        if (dlockshot[inst_id * GS_MAX_SESSIONS + id].wsid != dlock.wsid ||
-            dlockshot[inst_id * GS_MAX_SESSIONS + id].curr_lsn != dlock.curr_lsn ||
-            dlockshot[inst_id * GS_MAX_SESSIONS + id].wrmid != dlock.wrmid ||
-            dlockshot[inst_id * GS_MAX_SESSIONS + id].wxid.xnum != dlock.wxid.xnum) {
+        if (dlockshot[inst_id * CT_MAX_SESSIONS + id].wsid != dlock.wsid ||
+            dlockshot[inst_id * CT_MAX_SESSIONS + id].curr_lsn != dlock.curr_lsn ||
+            dlockshot[inst_id * CT_MAX_SESSIONS + id].wrmid != dlock.wrmid ||
+            dlockshot[inst_id * CT_MAX_SESSIONS + id].wxid.xnum != dlock.wxid.xnum) {
             break;
         }
 
         wait_xid = dlock.wxid;
-        if (wait_xid.value == GS_INVALID_ID64) {
+        if (wait_xid.value == CT_INVALID_ID64) {
             break;
         }
 
         tx_get_snapshot(session, wait_xid.xmap, &snapshot);
-        if (snapshot.rmid != dlockshot[inst_id * GS_MAX_SESSIONS + id].wrmid ||
-            snapshot.xnum != dlockshot[inst_id * GS_MAX_SESSIONS + id].wxid.xnum ||
+        if (snapshot.rmid != dlockshot[inst_id * CT_MAX_SESSIONS + id].wrmid ||
+            snapshot.xnum != dlockshot[inst_id * CT_MAX_SESSIONS + id].wxid.xnum ||
             snapshot.status == (uint8)XACT_END) {
             break;
         }
@@ -498,28 +536,28 @@ void dtc_smon_detect_dead_lock_in_cluster(knl_session_t *session, uint8 *wait_ma
         if (record_sql) {
             //record current session info if needed
             rowid_t wrid = dtc_smon_get_rm_wrid(session, inst_id, rmid);
-            GS_LOG_TRACE("session id: (%u/%u), wait session: (%u/%u), wait rowid: %u-%u-%u",
+            CT_LOG_TRACE("session id: (%u/%u), wait session: (%u/%u), wait rowid: %u-%u-%u",
                          inst_id, id, xid_get_inst_id(session, dlock.wxid), dlock.wsid, wrid.file, wrid.page, wrid.slot);
             dtc_smon_record_deadlock_sql(session, DEAD_LOCK_TXN, inst_id, id);
         }
 
         //switch next
         tmp_instid = inst_id;
-        inst_id = xid_get_inst_id(session, dlockshot[tmp_instid * GS_MAX_SESSIONS + id].wxid);
-        rmid = dlockshot[tmp_instid * GS_MAX_SESSIONS + id].wrmid;
-        id = dlockshot[tmp_instid * GS_MAX_SESSIONS + id].wsid;
+        inst_id = xid_get_inst_id(session, dlockshot[tmp_instid * CT_MAX_SESSIONS + id].wxid);
+        rmid = dlockshot[tmp_instid * CT_MAX_SESSIONS + id].wrmid;
+        id = dlockshot[tmp_instid * CT_MAX_SESSIONS + id].wsid;
 
         if (begin == id) {
             free(dlockshot);
             if (!record_sql) {
                 smon_record_deadlock_time();
-                GS_LOG_TRACE("[Transaction Deadlock]");
-                dtc_smon_detect_dead_lock_in_cluster(session, wait_marks, id, GS_TRUE);
-                GS_LOG_TRACE("-----------------END OF WAIT INFORMATION-----------------\n");
+                CT_LOG_TRACE("[Transaction Deadlock]");
+                dtc_smon_detect_dead_lock_in_cluster(session, wait_marks, id, CT_TRUE);
+                CT_LOG_TRACE("-----------------END OF WAIT INFORMATION-----------------\n");
                 //set initiate session dead locked
-                current->dead_locked = GS_TRUE;
+                current->dead_locked = CT_TRUE;
             }
-            GS_LOG_RUN_ERR("found transaction deadlock in instance %u session %d", session->kernel->dtc_attr.inst_id, begin);
+            CT_LOG_RUN_ERR("found transaction deadlock in instance %u session %d", session->kernel->dtc_attr.inst_id, begin);
             return;
         }
     }
@@ -533,14 +571,14 @@ status_t dtc_smon_init_stack(knl_session_t *session, dtc_dlock_stack_t* stack, u
 {
     if (session->kernel->attr.clustered) {
         stack->top = 0;
-        stack->count =  GS_MAX_SESSIONS * GS_MAX_INSTANCES;
+        stack->count =  CT_MAX_SESSIONS * CT_MAX_INSTANCES;
         stack->size = unit_size;
         stack->values = (void *)malloc(stack->count * stack->size);
         if (stack->values == NULL) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void dtc_smon_uninit_stack(knl_session_t *session, dtc_dlock_stack_t* stack)
@@ -554,17 +592,17 @@ void dtc_smon_uninit_stack(knl_session_t *session, dtc_dlock_stack_t* stack)
 
 status_t dtc_smon_init_lock_stack(knl_session_t *session)
 {
-    if (dtc_smon_init_stack(session, &g_tlock_stack, sizeof(dtc_tlock)) != GS_SUCCESS) {
-        GS_LOG_RUN_INF("smon thread init tlock failed");
-        return GS_ERROR;
+    if (dtc_smon_init_stack(session, &g_tlock_stack, sizeof(dtc_tlock)) != CT_SUCCESS) {
+        CT_LOG_RUN_INF("smon thread init tlock failed");
+        return CT_ERROR;
     }
 
-    if (dtc_smon_init_stack(session, &g_ilock_stack, sizeof(dtc_ilock)) != GS_SUCCESS) {
-        GS_LOG_RUN_INF("smon thread init ilock failed");
+    if (dtc_smon_init_stack(session, &g_ilock_stack, sizeof(dtc_ilock)) != CT_SUCCESS) {
+        CT_LOG_RUN_INF("smon thread init ilock failed");
         dtc_smon_uninit_stack(session, &g_tlock_stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void dtc_smon_uninit_lock_stack(knl_session_t *session)
@@ -576,30 +614,35 @@ void dtc_smon_uninit_lock_stack(knl_session_t *session)
 
 void dtc_smon_process_wait_tlocks_msg(void *sess, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *w_marks = NULL;
     uint32 count = 0;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     knl_session_t *session = (knl_session_t *)sess;
+    if (sizeof(mes_message_head_t) + sizeof(uint64) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     uint64 table_id = *(uint64*)(receive_msg->buffer + sizeof(mes_message_head_t));
     dtc_dlock_stack_t stack_lock;
     uint32 mes_size = 0;
     dtc_tlock* tlock;
 
-    count = GS_MAX_SESSIONS * GS_MAX_INSTANCES * sizeof(uint8);
+    count = CT_MAX_SESSIONS * CT_MAX_INSTANCES * sizeof(uint8);
     w_marks = (void *)malloc(count);
     if (w_marks == NULL) {
-        GS_LOG_RUN_ERR("dtc process table deadlock malloc size(%u) failed", count);
+        CT_LOG_RUN_ERR("dtc process table deadlock malloc size(%u) failed", count);
         mes_release_message_buf(receive_msg->buffer);
         return;
     }
     ret = memset_sp(w_marks, count, 0, count);
     knl_securec_check(ret);
 
-    if (dtc_smon_init_stack(session, &stack_lock, sizeof(dtc_tlock)) != GS_SUCCESS) {
+    if (dtc_smon_init_stack(session, &stack_lock, sizeof(dtc_tlock)) != CT_SUCCESS) {
         free(w_marks);
-        GS_LOG_RUN_ERR("dtc process table deadlock init stack failed");
+        CT_LOG_RUN_ERR("dtc process table deadlock init stack failed");
         mes_release_message_buf(receive_msg->buffer);
         return;
     }
@@ -627,12 +670,12 @@ void dtc_smon_process_wait_tlocks_msg(void *sess, mes_message_t * receive_msg)
     send_msg = (uint8*)cm_malloc(mes_size);
     if (send_msg == NULL) {
         free(w_marks);
-        GS_LOG_RUN_ERR("dtc process table deadlock malloc size(%u) failed", mes_size);
+        CT_LOG_RUN_ERR("dtc process table deadlock malloc size(%u) failed", mes_size);
         mes_release_message_buf(receive_msg->buffer);
         return;
     }
     head = (mes_message_head_t*)send_msg;
-    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_TABLES_ACK, mes_size, GS_INVALID_ID16);
+    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_TABLES_ACK, mes_size, CT_INVALID_ID16);
     *(uint32*)(send_msg + sizeof(mes_message_head_t)) = count;
     if (count != 0) {
         tlock = (dtc_tlock*)(send_msg + sizeof(mes_message_head_t) + sizeof(uint32));
@@ -641,7 +684,7 @@ void dtc_smon_process_wait_tlocks_msg(void *sess, mes_message_t * receive_msg)
     }
 
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DLS_DEBUG_INF("[SMON] process wait tlocks msg from instance(%u) table_id(%llu) count(%u) failed, ret(%u)",
             receive_msg->head->src_inst, table_id, count, ret);
     }
@@ -669,46 +712,46 @@ status_t dtc_smon_request_wait_tlocks_msg(knl_session_t *session, uint8 *w_marks
 
     send_msg = (uint8*)cm_push(session->stack, msg_size);
     mes_message_head_t *head = (mes_message_head_t*)send_msg;
-    mes_init_send_head(head, cmd, msg_size, GS_INVALID_ID32, src_inst, dst_inst, session->id, GS_INVALID_ID16);
+    mes_init_send_head(head, cmd, msg_size, CT_INVALID_ID32, src_inst, dst_inst, session->id, CT_INVALID_ID16);
     *((uint64*)(send_msg + sizeof(mes_message_head_t))) = table_id;
 
-    knl_try_begin_session_wait(session, DEAD_LOCK_TABLE, GS_TRUE);
+    knl_begin_session_wait(session, DEAD_LOCK_TABLE, CT_TRUE);
     errno_t ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
-        if (dtc_is_inst_fault(dst_inst) == GS_SUCCESS) {
-            knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    if (ret != CT_SUCCESS) {
+        if (dtc_is_inst_fault(dst_inst) == CT_SUCCESS) {
+            knl_end_session_wait(session, DEAD_LOCK_TABLE);
             cm_pop(session->stack);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
-        knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+        knl_end_session_wait(session, DEAD_LOCK_TABLE);
         cm_pop(session->stack);
         DTC_DLS_DEBUG_ERR("[SMON] request wait table locks message to instance(%u) failed, table_id(%llu) errcode(%u)", dst_inst, table_id, ret);
         return ret;
     }
     cm_pop(session->stack);
 
-    ret = mes_recv(session->id, &recv_msg, GS_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
-    if (ret != GS_SUCCESS) {
-        if (dtc_is_inst_fault(dst_inst) == GS_SUCCESS) {
-            knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
-            return GS_SUCCESS;
+    ret = mes_recv(session->id, &recv_msg, CT_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
+    if (ret != CT_SUCCESS) {
+        if (dtc_is_inst_fault(dst_inst) == CT_SUCCESS) {
+            knl_end_session_wait(session, DEAD_LOCK_TABLE);
+            return CT_SUCCESS;
         }
-        knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+        knl_end_session_wait(session, DEAD_LOCK_TABLE);
         DTC_DLS_DEBUG_ERR("[SMON] receive wait table locks message to instance(%u) failed, table_id(%llu) errcode(%u)", dst_inst, table_id, ret);
         return ret;
     }
 
-    knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    knl_end_session_wait(session, DEAD_LOCK_TABLE);
 
     uint32 count = *(uint32*)(recv_msg.buffer + sizeof(mes_message_head_t));
     for (uint32 i = 0; i < count; i++) {
         tlock = (dtc_tlock*)(recv_msg.buffer + sizeof(mes_message_head_t) + sizeof(uint32) + sizeof(dtc_tlock) * i);
-        if (tlock->sid == GS_INVALID_ID16) {
+        if (tlock->sid == CT_INVALID_ID16) {
             continue;
         }
-        if (w_marks[tlock->inst_id * GS_MAX_SESSIONS + tlock->sid] == 0) {
+        if (w_marks[tlock->inst_id * CT_MAX_SESSIONS + tlock->sid] == 0) {
                 if (dtc_dlock_push_with_check(stack_lock, tlock, sizeof(dtc_tlock))) {
-                    w_marks[tlock->inst_id * GS_MAX_SESSIONS + tlock->sid] = 1;
+                    w_marks[tlock->inst_id * CT_MAX_SESSIONS + tlock->sid] = 1;
                 }
         }
     }
@@ -720,10 +763,15 @@ status_t dtc_smon_request_wait_tlocks_msg(knl_session_t *session, uint8 *w_marks
 
 void dtc_smon_process_wait_tlock_msg(void *sess, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     knl_session_t *session = (knl_session_t *)sess;
+    if (sizeof(mes_message_head_t) + sizeof(uint64) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     uint64 table_id = *(uint64*)(receive_msg->buffer + sizeof(mes_message_head_t));
     uint32 mes_size = sizeof(mes_message_head_t) + sizeof(dtc_tlock);
     dtc_tlock* tlock;
@@ -737,14 +785,19 @@ void dtc_smon_process_wait_tlock_msg(void *sess, mes_message_t * receive_msg)
                       receive_msg->head->src_inst, table_id, receive_msg->head->cmd);
 
     send_msg = (uint8*)cm_push(session->stack, mes_size);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("send_msg failed to malloc memory, send_msg size %u.", mes_size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     head = (mes_message_head_t*)send_msg;
-    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_TABLE_ACK, mes_size, GS_INVALID_ID16);
+    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_TABLE_ACK, mes_size, CT_INVALID_ID16);
     tlock = (dtc_tlock*)(send_msg + sizeof(mes_message_head_t));
-    tlock->sid = GS_INVALID_ID16;
+    tlock->sid = CT_INVALID_ID16;
 
     wtid.value = table_id;
     ret = dc_open_user_by_id(session, wtid.uid, &user);
-    if (ret == GS_SUCCESS) {
+    if (ret == CT_SUCCESS) {
         entry = DC_GET_ENTRY(user, wtid.oid);
         if (entry != NULL) {
             cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
@@ -754,7 +807,7 @@ void dtc_smon_process_wait_tlock_msg(void *sess, mes_message_t * receive_msg)
                     for (uint32 i = 0; i < session->kernel->rm_count; i++) {
                         if (lock->map[i] != 0) {
                             uint16 id = knl_get_rm_sid(session, i);
-                            if (id == GS_INVALID_ID16) {
+                            if (id == CT_INVALID_ID16) {
                                 continue;
                             }
                             
@@ -776,7 +829,7 @@ void dtc_smon_process_wait_tlock_msg(void *sess, mes_message_t * receive_msg)
     }
 
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DLS_DEBUG_INF("[SMON] process wait tlock message from instance(%u) table_id(%llu) failed, ret(%u)",
             receive_msg->head->src_inst, table_id, ret);
     }
@@ -798,28 +851,28 @@ status_t dtc_smon_request_wait_tlock_msg(knl_session_t *session, dtc_tlock* tloc
 
     send_msg = (uint8*)cm_push(session->stack, msg_size);
     head = (mes_message_head_t*)send_msg;
-    mes_init_send_head(head, MES_CMD_DEAD_LOCK_GET_TABLE, msg_size, GS_INVALID_ID32, src_inst, dst_inst, session->id,
-                       GS_INVALID_ID16);
+    mes_init_send_head(head, MES_CMD_DEAD_LOCK_GET_TABLE, msg_size, CT_INVALID_ID32, src_inst, dst_inst, session->id,
+                       CT_INVALID_ID16);
     *((uint64*)(send_msg + sizeof(mes_message_head_t))) = table_id;
 
-    knl_try_begin_session_wait(session, DEAD_LOCK_TABLE, GS_TRUE);
+    knl_begin_session_wait(session, DEAD_LOCK_TABLE, CT_TRUE);
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_TABLE);
         cm_pop(session->stack);
         DTC_DLS_DEBUG_ERR("[SMON] request get table lock message to instance(%u) failed, table_id(%llu) errcode(%u)", dst_inst, table_id, ret);
         return ret;
     }
     cm_pop(session->stack);
 
-    ret = mes_recv(session->id, &recv_msg, GS_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    ret = mes_recv(session->id, &recv_msg, CT_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_TABLE);
         DTC_DLS_DEBUG_ERR("[SMON] receive get table lock message to instance(%u) failed, table_id(%llu) errcode(%u)", dst_inst, table_id, ret);
         return ret;
     }
 
-    knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    knl_end_session_wait(session, DEAD_LOCK_TABLE);
     ret = memcpy_s((char*)tlock, sizeof(dtc_tlock), recv_msg.buffer + sizeof(mes_message_head_t), sizeof(dtc_tlock));
     knl_securec_check(ret);
 
@@ -840,15 +893,19 @@ status_t dtc_smon_request_itl_tlock_msg(knl_session_t *session, dtc_tlock *tlock
     uint8 src_inst = session->kernel->dtc_attr.inst_id;
 
     send_msg = (uint8 *)cm_push(session->stack, msg_size);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("send_msg failed to malloc memory, send_msg size %u.", msg_size);
+        return CT_ERROR;
+    }
     head = (mes_message_head_t *)send_msg;
-    mes_init_send_head(head, cmd, msg_size, GS_INVALID_ID32, src_inst, dst_inst, session->id, GS_INVALID_ID16);
+    mes_init_send_head(head, cmd, msg_size, CT_INVALID_ID32, src_inst, dst_inst, session->id, CT_INVALID_ID16);
     *((uint16 *)(send_msg + sizeof(mes_message_head_t))) = sid;
     *((uint16 *)(send_msg + sizeof(mes_message_head_t) + sizeof(uint16))) = rmid;
 
-    knl_try_begin_session_wait(session, DEAD_LOCK_TABLE, GS_TRUE);
+    knl_begin_session_wait(session, DEAD_LOCK_TABLE, CT_TRUE);
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_TABLE);
         cm_pop(session->stack);
         DTC_DLS_DEBUG_ERR("[SMON] request get table lock message to instance(%u) failed, sid(%u) rmid(%u) errcode(%u)",
                           dst_inst, sid, rmid, ret);
@@ -856,15 +913,15 @@ status_t dtc_smon_request_itl_tlock_msg(knl_session_t *session, dtc_tlock *tlock
     }
     cm_pop(session->stack);
 
-    ret = mes_recv(session->id, &recv_msg, GS_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    ret = mes_recv(session->id, &recv_msg, CT_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_TABLE);
         DTC_DLS_DEBUG_ERR("[SMON] receive get table lock message to instance(%u) failed, sid(%u) rmid(%u) errcode(%u)",
                           dst_inst, sid, rmid, ret);
         return ret;
     }
 
-    knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    knl_end_session_wait(session, DEAD_LOCK_TABLE);
     ret = memcpy_s((char *)tlock, sizeof(dtc_tlock), recv_msg.buffer + sizeof(mes_message_head_t), sizeof(dtc_tlock));
     knl_securec_check(ret);
 
@@ -880,11 +937,11 @@ bool32 dtc_smon_request_remote_shared_wait_table(knl_session_t *session, uint8 *
             continue;
         }
         if (dtc_smon_request_wait_tlocks_msg(session, w_marks, stack_lock, i, table_id,
-                                             MES_CMD_DEAD_LOCK_WAIT_SHARED_TABLES) != GS_SUCCESS) {
-            return GS_FALSE;
+                                             MES_CMD_DEAD_LOCK_WAIT_SHARED_TABLES) != CT_SUCCESS) {
+            return CT_FALSE;
         }
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 bool32 dtc_smon_push_tlock(knl_session_t *session, uint8 *w_marks, dtc_dlock_stack_t *stack_lock,
@@ -900,107 +957,107 @@ bool32 dtc_smon_push_tlock(knl_session_t *session, uint8 *w_marks, dtc_dlock_sta
     uint16 wsid;
 
     if (session->kernel->dtc_attr.inst_id != inst_id) {
-        if (dtc_smon_request_wait_tlocks_msg(session, w_marks, stack_lock, inst_id, table_id, MES_CMD_DEAD_LOCK_WAIT_TABLES) != GS_SUCCESS) {
-            return GS_FALSE;
+        if (dtc_smon_request_wait_tlocks_msg(session, w_marks, stack_lock, inst_id, table_id, MES_CMD_DEAD_LOCK_WAIT_TABLES) != CT_SUCCESS) {
+            return CT_FALSE;
         }
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     wtid.value = table_id;
-    if (dc_open_user_by_id(session, wtid.uid, &user) != GS_SUCCESS) {
-        return GS_FALSE;
+    if (dc_open_user_by_id(session, wtid.uid, &user) != CT_SUCCESS) {
+        return CT_FALSE;
     }
 
     entry = DC_GET_ENTRY(user, wtid.oid);
     if (entry == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
     if ((!entry->ready) || (entry->recycled)) {
         cm_spin_unlock(&entry->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
     lock = entry->sch_lock;
     cm_spin_unlock(&entry->lock);
 
     if (lock == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
     winstid = lock->inst_id;
-    if (winstid == GS_INVALID_ID8) {
-        return GS_FALSE;
+    if (winstid == CT_INVALID_ID8) {
+        return CT_FALSE;
     }
 
     for (uint32 i = 0; i < session->kernel->rm_count; i++) {
         if (lock->map[i] != 0) {
             uint16 id = knl_get_rm_sid(session, i);
-            if (id == GS_INVALID_ID16) {
+            if (id == CT_INVALID_ID16) {
                 continue;
             }
 
             lock_session = session->kernel->sessions[id];
             if (lock_session == NULL) {
-                return GS_FALSE;
+                return CT_FALSE;
             }
 
             if (lock_session->lock_dead_locked) {
-                return GS_FALSE;
+                return CT_FALSE;
             }
 
             if (lock->mode == LOCK_MODE_X) {
                 if (session->kernel->dtc_attr.inst_id == winstid) {
-                    if (lock->dls_tbllock_done != GS_TRUE) {
+                    if (lock->dls_tbllock_done != CT_TRUE) {
                         continue;
                     }
                     //get local table wait
                     wsid = dtc_smon_get_rm_sid(session, winstid, i);
-                    if (wsid == GS_INVALID_ID16) {
-                        return GS_FALSE;
+                    if (wsid == CT_INVALID_ID16) {
+                        return CT_FALSE;
                     }
-                    if (w_marks[winstid * GS_MAX_SESSIONS + wsid] == 0) {
+                    if (w_marks[winstid * CT_MAX_SESSIONS + wsid] == 0) {
                         tlock.inst_id = winstid;
                         tlock.sid = wsid;
                         tlock.wtid = lock_session->wtid;
                         tlock.rmid = lock_session->rmid;
                         tlock.wrmid = lock_session->wrmid;
                         if (dtc_dlock_push_with_check(stack_lock, &tlock, sizeof(dtc_tlock))) {
-                            w_marks[winstid * GS_MAX_SESSIONS + wsid] = 1;
+                            w_marks[winstid * CT_MAX_SESSIONS + wsid] = 1;
                         }
                     }
 
                     //lock by local instance, maybe wait for remote shared table lock
-                    if (dtc_smon_request_remote_shared_wait_table(session, w_marks, stack_lock, table_id) == GS_FALSE) {
-                        return GS_FALSE;
+                    if (dtc_smon_request_remote_shared_wait_table(session, w_marks, stack_lock, table_id) == CT_FALSE) {
+                        return CT_FALSE;
                     }
                 } else {
                     // lock by remote instance, get remote session wait table info
-                    if (dtc_smon_request_wait_tlock_msg(session, &tlock, winstid, table_id) != GS_SUCCESS) {
-                        return GS_FALSE;
+                    if (dtc_smon_request_wait_tlock_msg(session, &tlock, winstid, table_id) != CT_SUCCESS) {
+                        return CT_FALSE;
                     }
-                    if (tlock.sid != GS_INVALID_ID16 && w_marks[tlock.inst_id * GS_MAX_SESSIONS + tlock.sid] == 0) {
+                    if (tlock.sid != CT_INVALID_ID16 && w_marks[tlock.inst_id * CT_MAX_SESSIONS + tlock.sid] == 0) {
                         if (tlock.inst_id != winstid) {
-                            return GS_FALSE;
+                            return CT_FALSE;
                         }
                         if (dtc_dlock_push_with_check(stack_lock, &tlock, sizeof(dtc_tlock))) {
-                            w_marks[tlock.inst_id * GS_MAX_SESSIONS + tlock.sid] = 1;
+                            w_marks[tlock.inst_id * CT_MAX_SESSIONS + tlock.sid] = 1;
                         }
                     }
                 }
             } else {
                 wsid = dtc_smon_get_rm_sid(session, winstid, i);
-                if (wsid == GS_INVALID_ID16) {
-                    return GS_FALSE;
+                if (wsid == CT_INVALID_ID16) {
+                    return CT_FALSE;
                 }
                 //shared table lock , can get session wait info localily
-                if (w_marks[winstid * GS_MAX_SESSIONS + wsid] == 0) {
+                if (w_marks[winstid * CT_MAX_SESSIONS + wsid] == 0) {
                     tlock.inst_id = winstid;
                     tlock.sid = wsid;
                     tlock.wtid = lock_session->wtid;
                     tlock.rmid = lock_session->rmid;
                     tlock.wrmid = lock_session->wrmid;
                     if (dtc_dlock_push_with_check(stack_lock, &tlock, sizeof(dtc_tlock))) {
-                        w_marks[winstid * GS_MAX_SESSIONS + wsid] = 1;
+                        w_marks[winstid * CT_MAX_SESSIONS + wsid] = 1;
                     }
                 }
             }
@@ -1008,33 +1065,42 @@ bool32 dtc_smon_push_tlock(knl_session_t *session, uint8 *w_marks, dtc_dlock_sta
     }
 
     if (lock_session == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void dtc_smon_process_check_tlock_msg(void *sess, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     knl_session_t *session = (knl_session_t *)sess;
     uint32 mes_size = sizeof(mes_message_head_t) + sizeof(bool32);
-    bool32 in_use = GS_FALSE;
+    bool32 in_use = CT_FALSE;
     dtc_tlock tlock;
-
+    if (sizeof(mes_message_head_t) + sizeof(uint64) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     tlock.wtid.value = *(uint64*)(receive_msg->buffer + sizeof(mes_message_head_t));
     tlock.inst_id = session->kernel->dtc_attr.inst_id;
 
     send_msg = (uint8*)cm_push(session->stack, mes_size);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("send_msg failed to malloc memory, send_msg size %u.", mes_size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     head = (mes_message_head_t*)send_msg;
-    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_CHECK_TABLE_ACK, mes_size, GS_INVALID_ID16);
+    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_CHECK_TABLE_ACK, mes_size, CT_INVALID_ID16);
     //must be local table id
     in_use = dtc_smon_check_table_status(session, &tlock);
      *((bool32*)(send_msg + sizeof(mes_message_head_t))) = in_use;
 
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DLS_DEBUG_ERR("[SMON] process check tlock message from instance(%u) table_id(%llu) failed, ret(%u)",
             receive_msg->head->src_inst, tlock.wtid.value, ret);
     }
@@ -1057,28 +1123,28 @@ status_t dtc_smon_request_check_tlock_msg(knl_session_t *session, uint8 dst_inst
 
     send_msg = (uint8*)cm_push(session->stack, msg_size);
     head = (mes_message_head_t*)send_msg;
-    mes_init_send_head(head, MES_CMD_DEAD_LOCK_CHECK_TABLE, msg_size, GS_INVALID_ID32, src_inst, dst_inst, session->id,
-                       GS_INVALID_ID16);
+    mes_init_send_head(head, MES_CMD_DEAD_LOCK_CHECK_TABLE, msg_size, CT_INVALID_ID32, src_inst, dst_inst, session->id,
+                       CT_INVALID_ID16);
     *((uint64*)(send_msg + sizeof(mes_message_head_t))) = table_id;
 
-    knl_try_begin_session_wait(session, DEAD_LOCK_TABLE, GS_TRUE);
+    knl_begin_session_wait(session, DEAD_LOCK_TABLE, CT_TRUE);
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_TABLE);
         cm_pop(session->stack);
         DTC_DLS_DEBUG_ERR("[SMON] request check table lock message to instance(%u) failed, table_id(%llu) errcode(%u)", dst_inst, table_id, ret);
         return ret;
     }
     cm_pop(session->stack);
 
-    ret = mes_recv(session->id, &recv_msg, GS_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    ret = mes_recv(session->id, &recv_msg, CT_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_TABLE);
         DTC_DLS_DEBUG_ERR("[SMON] receive check table lock message to instance(%u) failed, table_id(%llu) errcode(%u)", dst_inst, table_id, ret);
         return ret;
     }
 
-    knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    knl_end_session_wait(session, DEAD_LOCK_TABLE);
     *in_use = *(bool32*)(recv_msg.buffer + sizeof(mes_message_head_t));
     mes_release_message_buf(recv_msg.buffer);
 
@@ -1092,34 +1158,34 @@ bool32 dtc_smon_check_table_status(knl_session_t *session, dtc_tlock* tlock)
     dc_entry_t *entry = NULL;
     dc_user_t *user = NULL;
     lock_twait_t curr_wtid;
-    bool32 in_use = GS_FALSE;
+    bool32 in_use = CT_FALSE;
 
     if (session->kernel->dtc_attr.inst_id == tlock->inst_id) {
         curr_wtid.value = tlock->wtid.value;
-        if (dc_open_user_by_id(session, curr_wtid.uid, &user) != GS_SUCCESS) {
-            return GS_FALSE;
+        if (dc_open_user_by_id(session, curr_wtid.uid, &user) != CT_SUCCESS) {
+            return CT_FALSE;
         }
 
         entry = DC_GET_ENTRY(user, curr_wtid.oid);
         if (entry == NULL) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
         if ((!entry->ready) || (entry->recycled)) {
             cm_spin_unlock(&entry->lock);
-            return GS_FALSE;
+            return CT_FALSE;
         }
         lock = entry->sch_lock;
         cm_spin_unlock(&entry->lock);
         if (lock == NULL) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    if (dtc_smon_request_check_tlock_msg(session, tlock->inst_id, tlock->wtid.value, &in_use) != GS_SUCCESS) {
-        return GS_FALSE;
+    if (dtc_smon_request_check_tlock_msg(session, tlock->inst_id, tlock->wtid.value, &in_use) != CT_SUCCESS) {
+        return CT_FALSE;
     }
     return in_use;
 }
@@ -1141,10 +1207,10 @@ void dtc_smon_wait_rm_msg(knl_session_t *session, uint16 wsid, uint16 rmid, dtc_
 {
     knl_session_t *lock_session = session->kernel->sessions[wsid];
     // resource not changed
-    if (lock_session != NULL && lock_session->wrmid != GS_INVALID_ID16 && lock_session->wrmid == rmid) {
+    if (lock_session != NULL && lock_session->wrmid != CT_INVALID_ID16 && lock_session->wrmid == rmid) {
         uint32 instid = xid_get_inst_id(lock_session, lock_session->wxid);
         uint16 sid = dtc_smon_get_rm_sid(session, instid, lock_session->wrmid);
-        if (sid == GS_INVALID_ID16) {
+        if (sid == CT_INVALID_ID16) {
             return;
         }
         if (session->kernel->dtc_attr.inst_id == instid) {
@@ -1157,22 +1223,32 @@ void dtc_smon_wait_rm_msg(knl_session_t *session, uint16 wsid, uint16 rmid, dtc_
 
 void dtc_smon_process_get_tlock_msg(void *sess, mes_message_t *receive_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     knl_session_t *session = (knl_session_t *)sess;
+    if (sizeof(mes_message_head_t) + sizeof(uint16) + sizeof(uint16) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     uint16 wsid = *(uint16*)(receive_msg->buffer + sizeof(mes_message_head_t));
     uint16 rmid = *(uint16*)(receive_msg->buffer + sizeof(mes_message_head_t) + sizeof(uint16));
     uint32 mes_size = sizeof(mes_message_head_t) + sizeof(dtc_tlock);
     dtc_tlock* tlock;
 
     send_msg = (uint8*)cm_push(session->stack, mes_size);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("send_msg failed to malloc memory, send_msg size %u.", mes_size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     head = (mes_message_head_t*)send_msg;
-    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_TABLE_ACK, mes_size, GS_INVALID_ID16);
+    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_TABLE_ACK, mes_size, CT_INVALID_ID16);
     tlock = (dtc_tlock*)(send_msg + sizeof(mes_message_head_t));
-    tlock->sid = GS_INVALID_ID16;
+    tlock->sid = CT_INVALID_ID16;
 
-    if (wsid != GS_INVALID_ID16 && wsid < GS_MAX_SESSIONS) {
+    if (wsid != CT_INVALID_ID16 && wsid < CT_MAX_SESSIONS) {
         if (receive_msg->head->cmd  == MES_CMD_DEAD_LOCK_WAIT_RM) {
             dtc_smon_wait_rm_msg(session, wsid, rmid, tlock);
         } else if (receive_msg->head->cmd == MES_CMD_DEAD_LOCK_GET_RM) {
@@ -1182,7 +1258,7 @@ void dtc_smon_process_get_tlock_msg(void *sess, mes_message_t *receive_msg)
     }
 
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DLS_DEBUG_INF("[SMON] process get tlock message from instance(%u) rmid(%u) failed, ret(%u)", receive_msg->head->src_inst, rmid, ret);
     }
     cm_pop(session->stack);
@@ -1198,32 +1274,32 @@ void dtc_smon_push_itl_to_tlock(knl_session_t *session, uint8 *w_marks, dtc_dloc
     knl_session_t *wait_session = NULL;
     dtc_tlock* tlock;
 
-    if (wrmid == GS_INVALID_ID16 || wsid == GS_INVALID_ID16) {
+    if (wrmid == CT_INVALID_ID16 || wsid == CT_INVALID_ID16) {
         return;
     }
 
     if (session->kernel->dtc_attr.inst_id == inst_id) {
         lock_session = session->kernel->sessions[wsid];
         if (lock_session == NULL || lock_session->status == SESSION_INACTIVE ||
-            lock_session->wrmid == GS_INVALID_ID16 || lock_session->wrmid != wrmid) {
+            lock_session->wrmid == CT_INVALID_ID16 || lock_session->wrmid != wrmid) {
             //resource changed
             return;
         }
 
         uint32 instid = xid_get_inst_id(lock_session, lock_session->wxid);
         uint16 sid = dtc_smon_get_rm_sid(session, instid, lock_session->wrmid);
-        if (sid == GS_INVALID_ID16) {
+        if (sid == CT_INVALID_ID16) {
             return;
         }
         if (session->kernel->dtc_attr.inst_id == instid) {
             wait_session = session->kernel->sessions[sid];
             if (wait_session == NULL || wait_session->status == SESSION_INACTIVE ||
-                wait_session->id == GS_INVALID_ID16 || wait_session->rmid != wrmid) {
+                wait_session->id == CT_INVALID_ID16 || wait_session->rmid != wrmid) {
                 //resource changed
                 return;
             }
             //wait local resource
-            if (w_marks[instid * GS_MAX_SESSIONS + sid] == 0) {
+            if (w_marks[instid * CT_MAX_SESSIONS + sid] == 0) {
                 tlock = (dtc_tlock*)cm_push(session->stack, sizeof(dtc_tlock));
                 tlock->inst_id = instid;
                 tlock->sid = sid;
@@ -1231,19 +1307,19 @@ void dtc_smon_push_itl_to_tlock(knl_session_t *session, uint8 *w_marks, dtc_dloc
                 tlock->wrmid = wait_session->wrmid;
                 tlock->wtid = wait_session->wtid;
                 if (dtc_dlock_push_with_check(stack_lock, tlock, sizeof(dtc_tlock))) {
-                    w_marks[instid * GS_MAX_SESSIONS + sid] = 1;
+                    w_marks[instid * CT_MAX_SESSIONS + sid] = 1;
                 }
                 cm_pop(session->stack);
             }
         } else {
             tlock = (dtc_tlock*)cm_push(session->stack, sizeof(dtc_tlock));
-            tlock->sid = GS_INVALID_ID16;
+            tlock->sid = CT_INVALID_ID16;
             (void)dtc_smon_request_itl_tlock_msg(session, tlock, instid, sid, wrmid, MES_CMD_DEAD_LOCK_GET_RM);
-            if (tlock->sid != GS_INVALID_ID16 && w_marks[tlock->inst_id * GS_MAX_SESSIONS + tlock->sid] == 0) {
+            if (tlock->sid != CT_INVALID_ID16 && w_marks[tlock->inst_id * CT_MAX_SESSIONS + tlock->sid] == 0) {
                 knl_panic(tlock->inst_id == instid);
                 knl_panic(tlock->sid == sid);
                 if (dtc_dlock_push_with_check(stack_lock, tlock, sizeof(dtc_tlock))) {
-                    w_marks[tlock->inst_id * GS_MAX_SESSIONS + tlock->sid] = 1;
+                    w_marks[tlock->inst_id * CT_MAX_SESSIONS + tlock->sid] = 1;
                 }
             }
             cm_pop(session->stack);
@@ -1251,12 +1327,12 @@ void dtc_smon_push_itl_to_tlock(knl_session_t *session, uint8 *w_marks, dtc_dloc
     } else {
         //remote
         tlock = (dtc_tlock*)cm_push(session->stack, sizeof(dtc_tlock));
-        tlock->sid = GS_INVALID_ID16;
+        tlock->sid = CT_INVALID_ID16;
         (void)dtc_smon_request_itl_tlock_msg(session, tlock, inst_id, wsid, wrmid, MES_CMD_DEAD_LOCK_WAIT_RM);
-        //tlock->sid == GS_INVALID_ID16 means no table
-        if (tlock->sid != GS_INVALID_ID16 && w_marks[tlock->inst_id * GS_MAX_SESSIONS + tlock->sid] == 0) {
+        //tlock->sid == CT_INVALID_ID16 means no table
+        if (tlock->sid != CT_INVALID_ID16 && w_marks[tlock->inst_id * CT_MAX_SESSIONS + tlock->sid] == 0) {
             if (dtc_dlock_push_with_check(stack_lock, tlock, sizeof(dtc_tlock))) {
-                w_marks[tlock->inst_id * GS_MAX_SESSIONS + tlock->sid] = 1;
+                w_marks[tlock->inst_id * CT_MAX_SESSIONS + tlock->sid] = 1;
             }
         }
         cm_pop(session->stack);
@@ -1267,23 +1343,33 @@ void dtc_smon_push_itl_to_tlock(knl_session_t *session, uint8 *w_marks, dtc_dloc
 
 void dtc_smon_process_wait_event_msg(void *sess, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     knl_session_t *session = (knl_session_t *)sess;
     uint32 mes_size = sizeof(mes_message_head_t) + sizeof(bool32);
-    bool32 in_use = GS_FALSE;
+    bool32 in_use = CT_FALSE;
+    if (sizeof(mes_message_head_t) + sizeof(uint16) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     uint16 sid = *(uint16 *)(receive_msg->buffer + sizeof(mes_message_head_t));
 
     send_msg = (uint8*)cm_push(session->stack, mes_size);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("send_msg failed to malloc memory, send_msg size %u.", mes_size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     head = (mes_message_head_t*)send_msg;
-    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_WAIT_EVENT_ACK, mes_size, GS_INVALID_ID16);
+    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_WAIT_EVENT_ACK, mes_size, CT_INVALID_ID16);
     //must be local sid
     in_use = dtc_smon_check_wait_event(session, session->kernel->dtc_attr.inst_id, sid);
      *((bool32*)(send_msg + sizeof(mes_message_head_t))) = in_use;
 
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DLS_DEBUG_ERR("[SMON] process wait event message from instance(%u) sid(%u) failed, ret(%u)",
             receive_msg->head->src_inst, sid, ret);
     }
@@ -1305,29 +1391,33 @@ status_t dtc_smon_request_wait_event(knl_session_t *session, uint8 dst_inst, uin
     uint8    src_inst = session->kernel->dtc_attr.inst_id;
 
     send_msg = (uint8*)cm_push(session->stack, msg_size);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("send_msg failed to malloc memory, send_msg size %u.", msg_size);
+        return CT_ERROR;
+    }
     head = (mes_message_head_t*)send_msg;
-    mes_init_send_head(head, MES_CMD_DEAD_LOCK_WAIT_EVENT, msg_size, GS_INVALID_ID32, src_inst, dst_inst, session->id,
-                       GS_INVALID_ID16);
+    mes_init_send_head(head, MES_CMD_DEAD_LOCK_WAIT_EVENT, msg_size, CT_INVALID_ID32, src_inst, dst_inst, session->id,
+                       CT_INVALID_ID16);
     *((uint16*)(send_msg + sizeof(mes_message_head_t))) = sid;
 
-    knl_try_begin_session_wait(session, DEAD_LOCK_TABLE, GS_TRUE);
+    knl_begin_session_wait(session, DEAD_LOCK_TABLE, CT_TRUE);
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_TABLE);
         cm_pop(session->stack);
         DTC_DLS_DEBUG_ERR("[SMON] request check session wait event message to instance(%u) failed, sid(%u) errcode(%u)", dst_inst, sid, ret);
         return ret;
     }
     cm_pop(session->stack);
 
-    ret = mes_recv(session->id, &recv_msg, GS_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    ret = mes_recv(session->id, &recv_msg, CT_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_TABLE);
         DTC_DLS_DEBUG_ERR("[SMON] receive check session wait event message to instance(%u) failed, sid(%u) errcode(%u)", dst_inst, sid, ret);
         return ret;
     }
 
-    knl_try_end_session_wait(session, DEAD_LOCK_TABLE);
+    knl_end_session_wait(session, DEAD_LOCK_TABLE);
     *in_use = *(bool32*)(recv_msg.buffer + sizeof(mes_message_head_t));
     mes_release_message_buf(recv_msg.buffer);
 
@@ -1338,25 +1428,24 @@ status_t dtc_smon_request_wait_event(knl_session_t *session, uint8 dst_inst, uin
 bool32 dtc_smon_check_wait_event(knl_session_t *session, uint8 inst_id, uint16 sid)
 {
     knl_session_t *se;
-    bool32 in_use = GS_FALSE;
-    if (sid == GS_INVALID_ID16 || sid >= GS_MAX_SESSIONS) {
-        return GS_FALSE;
+    bool32 in_use = CT_FALSE;
+    if (sid == CT_INVALID_ID16 || sid >= CT_MAX_SESSIONS) {
+        return CT_FALSE;
     }
 
     if (session->kernel->dtc_attr.inst_id == inst_id) {
         se = session->kernel->sessions[sid];
         if (se == NULL || se->status != SESSION_ACTIVE) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
-        if (((se->wait.event == ENQ_TX_TABLE_S || se->wait.event == ENQ_TX_TABLE_X) && se->is_waiting) ||
-            se->wait.event == DLS_REQ_TABLE) {
-            return GS_TRUE;
+        if (se->wait_pool[ENQ_TX_TABLE_S].is_waiting || se->wait_pool[ENQ_TX_TABLE_X].is_waiting) {
+            return CT_TRUE;
         }
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    if (dtc_smon_request_wait_event(session, inst_id, sid, &in_use) != GS_SUCCESS) {
-        return GS_FALSE;
+    if (dtc_smon_request_wait_event(session, inst_id, sid, &in_use) != CT_SUCCESS) {
+        return CT_FALSE;
     }
     return in_use;
 }
@@ -1371,16 +1460,16 @@ bool32 dtc_smon_check_lock_waits_in_cluster(knl_session_t *session, knl_session_
     uint32 count;
 
     if (se == NULL || se->status != SESSION_ACTIVE || !se->wtid.is_locking) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     stack_lock = &g_tlock_stack;
     dtc_dlock_reset(stack_lock);
-    count = GS_MAX_SESSIONS * GS_MAX_INSTANCES * sizeof(uint8);
+    count = CT_MAX_SESSIONS * CT_MAX_INSTANCES * sizeof(uint8);
     w_marks = (void *)cm_malloc(count);
     if (w_marks == NULL) {
-        GS_LOG_RUN_ERR("dtc table deadlock malloc size(%u) failed", count);
-        return GS_FALSE;
+        CT_LOG_RUN_ERR("dtc table deadlock malloc size(%u) failed", count);
+        return CT_FALSE;
     }
     ret = memset_sp(w_marks, count, 0, count);
     knl_securec_check(ret);
@@ -1388,18 +1477,18 @@ bool32 dtc_smon_check_lock_waits_in_cluster(knl_session_t *session, knl_session_
     wtid.value = cm_atomic_get(&se->wtid.value);
     if (!dtc_smon_push_tlock(session, w_marks, stack_lock, se->kernel->dtc_attr.inst_id, wtid.value)) {
         cm_free(w_marks);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (record_sql) {
-        GS_LOG_TRACE("session id: %u-%u, wait object id: %u-%u", se->kernel->dtc_attr.inst_id, se->id, se->wtid.uid, se->wtid.oid);
+        CT_LOG_TRACE("session id: %u-%u, wait object id: %u-%u", se->kernel->dtc_attr.inst_id, se->id, se->wtid.uid, se->wtid.oid);
         dtc_smon_record_deadlock_sql(session, DEAD_LOCK_TABLE, se->kernel->dtc_attr.inst_id, se->id);
     }
 
     if (dtc_dlock_is_empty(stack_lock)) {
         cm_free(w_marks);
         DTC_DLS_DEBUG_INF("[SMON] no table wait found, sid(%u)", se->id);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     while (!dtc_dlock_is_empty(stack_lock)) {
@@ -1413,63 +1502,77 @@ bool32 dtc_smon_check_lock_waits_in_cluster(knl_session_t *session, knl_session_
         if (dtc_smon_check_wait_event(session, tlock->inst_id, tlock->sid)) {
             if (!dtc_smon_check_table_status(session, tlock)) {
                 cm_free(w_marks);
-                return GS_FALSE;
+                return CT_FALSE;
             }
             if (record_sql) {
-                GS_LOG_TRACE("session id: %u-%u, wait object id: %u-%u", tlock->inst_id, tlock->sid, tlock->wtid.uid, tlock->wtid.oid);
+                CT_LOG_TRACE("session id: %u-%u, wait object id: %u-%u", tlock->inst_id, tlock->sid, tlock->wtid.uid, tlock->wtid.oid);
                 dtc_smon_record_deadlock_sql(session, DEAD_LOCK_TABLE, tlock->inst_id, tlock->sid);
             }
 
             if (!dtc_smon_push_tlock(session, w_marks, stack_lock, tlock->inst_id, tlock->wtid.value)) {
                 cm_free(w_marks);
-                return GS_FALSE;
+                return CT_FALSE;
             }
-        } else if (tlock->wrmid != GS_INVALID_ID16) {
+        } else if (tlock->wrmid != CT_INVALID_ID16) {
             if (record_sql) {
-                GS_LOG_TRACE("session id: %u-%u, wait rm id: %u", tlock->inst_id, tlock->sid, tlock->wrmid);
+                CT_LOG_TRACE("session id: %u-%u, wait rm id: %u", tlock->inst_id, tlock->sid, tlock->wrmid);
                 dtc_smon_record_deadlock_sql(session, DEAD_LOCK_TABLE, tlock->inst_id, tlock->sid);
             }
             dtc_smon_push_itl_to_tlock(session, w_marks, stack_lock, tlock->inst_id, tlock->sid, tlock->wrmid);
         } else {
             cm_free(w_marks);
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
     cm_free(w_marks);
     if (se->wtid.oid != wtid.oid || se->wtid.uid != wtid.uid || !se->wtid.is_locking) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
     // re-check deadlock and record SQL text
     if (!record_sql) {
         smon_record_deadlock_time();
-        GS_LOG_TRACE("[Table Deadlock]");
-        return dtc_smon_check_lock_waits_in_cluster(session, se, GS_TRUE);
+        CT_LOG_TRACE("[Table Deadlock]");
+        return dtc_smon_check_lock_waits_in_cluster(session, se, CT_TRUE);
     }
-    GS_LOG_TRACE("-----------------END OF WAIT INFORMATION-----------------\n");
-    return GS_TRUE;
+    CT_LOG_TRACE("-----------------END OF WAIT INFORMATION-----------------\n");
+    return CT_TRUE;
 }
 
 
 void dtc_smon_process_get_ilock_msg(void *sess, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     knl_session_t *session = (knl_session_t *)sess;
+    if (sizeof(mes_message_head_t) + sizeof(xid_t) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     xid_t xid = *(xid_t*)(receive_msg->buffer + sizeof(mes_message_head_t));
     uint32 mes_size = sizeof(mes_message_head_t) + sizeof(dtc_ilock);
     dtc_ilock* ilock;
-    knl_session_t *se;
+    knl_session_t *se = NULL;
 
     send_msg = (uint8*)cm_push(session->stack, mes_size);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("send_msg failed to malloc memory, send_msg size %u.", mes_size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     head = (mes_message_head_t*)send_msg;
-    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_GET_ITL_ACK, mes_size, GS_INVALID_ID16);
+    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_GET_ITL_ACK, mes_size, CT_INVALID_ID16);
     ilock = (dtc_ilock*)(send_msg + sizeof(mes_message_head_t));
 
-    ilock->sid = GS_INVALID_ID16;
-    se = get_xid_session(session, xid);
-    if (se != NULL && se->id != GS_INVALID_ID16) {
+    ilock->sid = CT_INVALID_ID16;
+    if (xid.xmap.slot / TXN_PER_PAGE(session) >= UNDO_MAX_TXN_PAGE) {
+        CT_LOG_RUN_ERR("[SMON] process get ilock message xmap slot invalid slot(%u).", xid.xmap.slot);
+    } else {
+        se = get_xid_session(session, xid);
+    }
+    if (se != NULL && se->id != CT_INVALID_ID16) {
         ilock->status = se->status;
         ilock->wpid = se->wpid;
         ilock->wxid = se->wxid;
@@ -1478,7 +1581,7 @@ void dtc_smon_process_get_ilock_msg(void *sess, mes_message_t * receive_msg)
     }
 
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DLS_DEBUG_INF("[SMON] process get ilock message from instance(%u) xid(%llu) failed, ret(%u)", receive_msg->head->src_inst, xid.value, ret);
     }
     cm_pop(session->stack);
@@ -1502,33 +1605,33 @@ status_t dtc_smon_request_get_ilock_msg(knl_session_t *session, uint8 *w_marks, 
 
     send_msg = (uint8*)cm_push(session->stack, msg_size);
     head = (mes_message_head_t*)send_msg;
-    mes_init_send_head(head, MES_CMD_DEAD_LOCK_GET_ITL, msg_size, GS_INVALID_ID32, src_inst, dst_inst, session->id,
-                       GS_INVALID_ID16);
+    mes_init_send_head(head, MES_CMD_DEAD_LOCK_GET_ITL, msg_size, CT_INVALID_ID32, src_inst, dst_inst, session->id,
+                       CT_INVALID_ID16);
     *((xid_t*)(send_msg + sizeof(mes_message_head_t))) = xid;
 
-    knl_try_begin_session_wait(session, DEAD_LOCK_ITL, GS_TRUE);
+    knl_begin_session_wait(session, DEAD_LOCK_ITL, CT_TRUE);
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_ITL);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_ITL);
         cm_pop(session->stack);
         DTC_DLS_DEBUG_ERR("[SMON] request get itl lock message to instance(%u) failed, xid(%llu) errcode(%u)", dst_inst, xid.value, ret);
         return ret;
     }
     cm_pop(session->stack);
 
-    ret = mes_recv(session->id, &recv_msg, GS_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_ITL);
+    ret = mes_recv(session->id, &recv_msg, CT_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_ITL);
         DTC_DLS_DEBUG_ERR("[SMON] receive get itl lock message to instance(%u) failed, xid(%llu) errcode(%u)", dst_inst, xid.value, ret);
         return ret;
     }
 
-    knl_try_end_session_wait(session, DEAD_LOCK_ITL);
+    knl_end_session_wait(session, DEAD_LOCK_ITL);
     ilock = (dtc_ilock*)(recv_msg.buffer + sizeof(mes_message_head_t));
-    //ilock->sid == GS_INVALID_ID16 means no itl
-    if (ilock->sid != GS_INVALID_ID16 && w_marks[dst_inst * GS_MAX_SESSIONS + ilock->sid] == 0) {
+    //ilock->sid == CT_INVALID_ID16 means no itl
+    if (ilock->sid != CT_INVALID_ID16 && w_marks[dst_inst * CT_MAX_SESSIONS + ilock->sid] == 0) {
         if (dtc_dlock_push_with_check(stack_lock, ilock, sizeof(dtc_ilock))) {
-            w_marks[dst_inst * GS_MAX_SESSIONS + ilock->sid] = 1;
+            w_marks[dst_inst * CT_MAX_SESSIONS + ilock->sid] = 1;
         }
     }
     mes_release_message_buf(recv_msg.buffer);
@@ -1547,8 +1650,8 @@ static bool32 dtc_smon_push_xid_ilock(knl_session_t *session, uint8 *w_marks, dt
     if (session->kernel->dtc_attr.inst_id == inst_id) {
         next_session = get_xid_session(session, xid);
         if (next_session == NULL) {
-            GS_LOG_DEBUG_INF("put itl sessions in cluster, the session being waited by start session (%u) is ended.", session->id);
-            return GS_FALSE;
+            CT_LOG_DEBUG_INF("put itl sessions in cluster, the session being waited by start session (%u) is ended.", session->id);
+            return CT_FALSE;
         }
 
         ilock.status = next_session->status;
@@ -1556,19 +1659,19 @@ static bool32 dtc_smon_push_xid_ilock(knl_session_t *session, uint8 *w_marks, dt
         ilock.wxid = next_session->wxid;
         ilock.sid = next_session->id;
         ilock.xid = xid;
-        if (w_marks[inst_id * GS_MAX_SESSIONS + next_session->id] == 0) {
+        if (w_marks[inst_id * CT_MAX_SESSIONS + next_session->id] == 0) {
             if (dtc_dlock_push_with_check(dlock_stack, &ilock, sizeof(dtc_ilock))) {
-                w_marks[inst_id * GS_MAX_SESSIONS + next_session->id] = 1;
+                w_marks[inst_id * CT_MAX_SESSIONS + next_session->id] = 1;
             }
         }
     } else {
         //remote fetch back
-        if (dtc_smon_request_get_ilock_msg(session, w_marks, dlock_stack, xid) != GS_SUCCESS) {
-            return GS_FALSE;
+        if (dtc_smon_request_get_ilock_msg(session, w_marks, dlock_stack, xid) != CT_SUCCESS) {
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static bool32 dtc_smon_push_itl_sessions_ilock(knl_session_t *session, dtc_ilock *assist, page_head_t *head,
@@ -1580,14 +1683,14 @@ static bool32 dtc_smon_push_itl_sessions_ilock(knl_session_t *session, dtc_ilock
     btree_page_t *btree_page = NULL;
 
     if (assist->status == SESSION_INACTIVE) {
-        GS_LOG_RUN_INF("push itl sessions in cluster, start session(%u) is inactive.", assist->sid);
-        return GS_FALSE;
+        CT_LOG_RUN_INF("push itl sessions in cluster, start session(%u) is inactive.", assist->sid);
+        return CT_FALSE;
     }
 
     switch (head->type) {
         case PAGE_TYPE_HEAP_DATA:
         case PAGE_TYPE_BTREE_NODE:
-            GS_LOG_RUN_INF("push itl sessions in cluster not support in RCR mode.");
+            CT_LOG_RUN_INF("push itl sessions in cluster not support in RCR mode.");
             break;
 
         case PAGE_TYPE_PCRH_DATA:
@@ -1595,15 +1698,15 @@ static bool32 dtc_smon_push_itl_sessions_ilock(knl_session_t *session, dtc_ilock
             for (i = 0; i < heap_page->itls; i++) {
                 pcr_item = pcrh_get_itl(heap_page, i);
                 if (!pcr_item->is_active) {
-                    GS_LOG_RUN_INF("put itl sessions in cluster, found inactive itl in session (%u).", session->id);
-                    return GS_FALSE;
+                    CT_LOG_RUN_INF("put itl sessions in cluster, found inactive itl in session (%u).", session->id);
+                    return CT_FALSE;
                 }
                 if (pcr_item->xid.value == assist->xid.value) {
-                    GS_LOG_RUN_INF("put itl sessions in cluster, start session (%u) already has an itl.", session->id);
-                    return GS_FALSE;
+                    CT_LOG_RUN_INF("put itl sessions in cluster, start session (%u) already has an itl.", session->id);
+                    return CT_FALSE;
                 }
                 if (!dtc_smon_push_xid_ilock(session, w_marks, stack_ptr, pcr_item->xid)) {
-                    return GS_FALSE;
+                    return CT_FALSE;
                 }
             }
             break;
@@ -1614,50 +1717,63 @@ static bool32 dtc_smon_push_itl_sessions_ilock(knl_session_t *session, dtc_ilock
             for (i = 0; i < btree_page->itls; i++) {
                 pcr_item = pcrb_get_itl(btree_page, i);
                 if (!pcr_item->is_active) {
-                    GS_LOG_RUN_INF("put itl sessions in cluster, found inactive itl in session (%u).", session->id);
-                    return GS_FALSE;
+                    CT_LOG_RUN_INF("put itl sessions in cluster, found inactive itl in session (%u).", session->id);
+                    return CT_FALSE;
                 }
                 if (pcr_item->xid.value == assist->xid.value) {
-                    GS_LOG_RUN_INF("put itl sessions in cluster, start session (%u) already has an itl.", session->id);
-                    return GS_FALSE;
+                    CT_LOG_RUN_INF("put itl sessions in cluster, start session (%u) already has an itl.", session->id);
+                    return CT_FALSE;
                 }
                 if (!dtc_smon_push_xid_ilock(session, w_marks, stack_ptr, pcr_item->xid)) {
-                    return GS_FALSE;
+                    return CT_FALSE;
                 }
             }
             break;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void dtc_smon_process_check_se_msg(void *sess, mes_message_t * receive_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     uint8 *send_msg = NULL;
     mes_message_head_t* head = NULL;
     knl_session_t *session = (knl_session_t *)sess;
     uint32 mes_size = sizeof(mes_message_head_t) + sizeof(bool32);
-    bool32 in_use = GS_FALSE;
+    bool32 in_use = CT_FALSE;
+    if (sizeof(mes_message_head_t) + sizeof(xid_t) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     xid_t xid = *(xid_t*)(receive_msg->buffer + sizeof(mes_message_head_t));
     knl_session_t *curr_session = NULL;
     knl_rm_t *curr_rm = NULL;
 
     send_msg = (uint8*)cm_push(session->stack, mes_size);
+    if (send_msg == NULL) {
+        CT_LOG_RUN_ERR("send_msg failed to malloc memory, send_msg size %u.", mes_size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     head = (mes_message_head_t*)send_msg;
-    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_CHECK_ITL_ACK, mes_size, GS_INVALID_ID16);
-
-    curr_session = get_xid_session(session, xid);
+    mes_init_ack_head(receive_msg->head, head, MES_CMD_DEAD_LOCK_CHECK_ITL_ACK, mes_size, CT_INVALID_ID16);
+    if (xid.xmap.slot / TXN_PER_PAGE(session) >= UNDO_MAX_TXN_PAGE) {
+        CT_LOG_RUN_ERR("[SMON] process check se message xmap slot invalid slot(%u).", xid.xmap.slot);
+    } else {
+        curr_session = get_xid_session(session, xid);
+    }
     if (curr_session != NULL) {
         curr_rm = curr_session->rm;
         if (curr_session->status != SESSION_INACTIVE && curr_rm != NULL) {
-            in_use = GS_TRUE;
+            in_use = CT_TRUE;
         }
     }
     *((bool32*)(send_msg + sizeof(mes_message_head_t))) = in_use;
 
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         DTC_DLS_DEBUG_ERR("[SMON] process check ilock message from instance(%u) xid(%llu) failed, ret(%u)",
             receive_msg->head->src_inst, xid.value, ret);
     }
@@ -1681,28 +1797,28 @@ status_t dtc_smon_request_check_se_msg(knl_session_t *session, uint8 dst_inst, x
 
     send_msg = (uint8*)cm_push(session->stack, msg_size);
     head = (mes_message_head_t*)send_msg;
-    mes_init_send_head(head, MES_CMD_DEAD_LOCK_CHECK_ITL, msg_size, GS_INVALID_ID32, src_inst, dst_inst, session->id,
-                       GS_INVALID_ID16);
+    mes_init_send_head(head, MES_CMD_DEAD_LOCK_CHECK_ITL, msg_size, CT_INVALID_ID32, src_inst, dst_inst, session->id,
+                       CT_INVALID_ID16);
     *((xid_t*)(send_msg + sizeof(mes_message_head_t))) = xid;
 
-    knl_try_begin_session_wait(session, DEAD_LOCK_ITL, GS_TRUE);
+    knl_begin_session_wait(session, DEAD_LOCK_ITL, CT_TRUE);
     ret = mes_send_data(send_msg);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_ITL);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_ITL);
         cm_pop(session->stack);
         DTC_DLS_DEBUG_ERR("[SMON] request check itl lock message to instance(%u) failed, xid(%llu) errcode(%u)", dst_inst, xid.value, ret);
         return ret;
     }
     cm_pop(session->stack);
 
-    ret = mes_recv(session->id, &recv_msg, GS_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
-    if (ret != GS_SUCCESS) {
-        knl_try_end_session_wait(session, DEAD_LOCK_ITL);
+    ret = mes_recv(session->id, &recv_msg, CT_FALSE, rsn, DTC_SMON_WAIT_TIMEOUTMS);
+    if (ret != CT_SUCCESS) {
+        knl_end_session_wait(session, DEAD_LOCK_ITL);
         DTC_DLS_DEBUG_ERR("[SMON] receive check itl lock message to instance(%u) failed, xid(%llu) errcode(%u)", dst_inst, xid.value, ret);
         return ret;
     }
 
-    knl_try_end_session_wait(session, DEAD_LOCK_ITL);
+    knl_end_session_wait(session, DEAD_LOCK_ITL);
     *in_use = *(bool32*)(recv_msg.buffer + sizeof(mes_message_head_t));
     mes_release_message_buf(recv_msg.buffer);
 
@@ -1713,7 +1829,7 @@ status_t dtc_smon_request_check_se_msg(knl_session_t *session, uint8 dst_inst, x
 
 bool32 dtc_smon_check_se_status(knl_session_t *session, knl_session_t *start_session, dtc_ilock* ilock)
 {
-    bool32 in_use = GS_FALSE;
+    bool32 in_use = CT_FALSE;
     knl_session_t *curr_session = NULL;
     knl_rm_t *curr_rm = NULL;
     knl_rm_t *start_rm = NULL;
@@ -1721,24 +1837,24 @@ bool32 dtc_smon_check_se_status(knl_session_t *session, knl_session_t *start_ses
 
     start_rm = start_session->rm;
     if (start_session->status == SESSION_INACTIVE ||  start_rm == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (session->kernel->dtc_attr.inst_id == inst_id) {
         curr_session = get_xid_session(session, ilock->xid);
         if (curr_session == NULL) {
-            GS_LOG_RUN_INF("put itl sessions in cluster, the session being waited by xid (%llu) is ended.", ilock->xid.value);
-            return GS_FALSE;
+            CT_LOG_RUN_INF("put itl sessions in cluster, the session being waited by xid (%llu) is ended.", ilock->xid.value);
+            return CT_FALSE;
         }
         curr_rm = curr_session->rm;
         if (curr_session->status == SESSION_INACTIVE || curr_rm == NULL) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    if (dtc_smon_request_check_se_msg(session, inst_id, ilock->xid, &in_use) != GS_SUCCESS) {
-        return GS_FALSE;
+    if (dtc_smon_request_check_se_msg(session, inst_id, ilock->xid, &in_use) != CT_SUCCESS) {
+        return CT_FALSE;
     }
     return in_use;
 }
@@ -1756,36 +1872,36 @@ bool32 dtc_smon_check_itl_waits_in_cluster(knl_session_t *session, knl_session_t
     dtc_ilock *ilock;
     dtc_ilock assist;
 
-    max_sessions = GS_MAX_SESSIONS * GS_MAX_INSTANCES;
+    max_sessions = CT_MAX_SESSIONS * CT_MAX_INSTANCES;
     stack_ptr = &g_ilock_stack;
     dtc_dlock_reset(stack_ptr);
     w_marks = (uint8 *)malloc(max_sessions * sizeof(uint8));
     if (w_marks == NULL) {
-        GS_LOG_RUN_ERR("dtc itl deadlock malloc size(%u) failed", max_sessions);
+        CT_LOG_RUN_ERR("dtc itl deadlock malloc size(%u) failed", max_sessions);
     }
     ret = memset_sp(w_marks, max_sessions, 0, max_sessions);
     knl_securec_check(ret);
 
     if (start_session->status == SESSION_INACTIVE) {
         free(w_marks);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     start_wpid = start_session->wpid;
     if (IS_INVALID_PAGID(start_wpid)) {
         free(w_marks);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    if (buf_read_page(session, start_wpid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
+    if (buf_read_page(session, start_wpid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
         cm_reset_error();
         free(w_marks);
-        return GS_FALSE;
+        return CT_FALSE;
     }
     curr_page = (page_head_t *)CURR_PAGE(session);
 
     if (record_sql) {
-        GS_LOG_TRACE("session id: %u-%u, wait page_id: %u-%u", start_session->kernel->dtc_attr.inst_id, start_session->id, start_wpid.file, start_wpid.page);
+        CT_LOG_TRACE("session id: %u-%u, wait page_id: %u-%u", start_session->kernel->dtc_attr.inst_id, start_session->id, start_wpid.file, start_wpid.page);
         dtc_smon_record_deadlock_sql(session, DEAD_LOCK_ITL, start_session->kernel->dtc_attr.inst_id, start_session->id);
     }
 
@@ -1793,11 +1909,11 @@ bool32 dtc_smon_check_itl_waits_in_cluster(knl_session_t *session, knl_session_t
     assist.xid = start_session->rm->xid;
     assist.sid = start_session->id;
     if (!dtc_smon_push_itl_sessions_ilock(session, &assist, curr_page, stack_ptr, w_marks)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         free(w_marks);
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     while (!dtc_dlock_is_empty(stack_ptr)) {
         ilock = (dtc_ilock *)dtc_dlock_top(stack_ptr);
@@ -1809,21 +1925,21 @@ bool32 dtc_smon_check_itl_waits_in_cluster(knl_session_t *session, knl_session_t
         }
         if (!dtc_smon_check_se_status(session, start_session, ilock)) {
             free(w_marks);
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         curr_wpid = ilock->wpid;
         curr_wxid = ilock->wxid;
-        if (curr_wxid.value == GS_INVALID_ID64 && IS_INVALID_PAGID(curr_wpid)) {
+        if (curr_wxid.value == CT_INVALID_ID64 && IS_INVALID_PAGID(curr_wpid)) {
             free(w_marks);
-            return GS_FALSE;
-        } else if (curr_wxid.value != GS_INVALID_ID64) {
+            return CT_FALSE;
+        } else if (curr_wxid.value != CT_INVALID_ID64) {
             if (!dtc_smon_push_xid_ilock(session, w_marks, stack_ptr, curr_wxid)) {
                 free(w_marks);
-                return GS_FALSE;
+                return CT_FALSE;
             }
             if (record_sql) {
-                GS_LOG_TRACE("session id: %u-%u, wait instance id: %u", xid_get_inst_id(session, ilock->xid),
+                CT_LOG_TRACE("session id: %u-%u, wait instance id: %u", xid_get_inst_id(session, ilock->xid),
                              ilock->sid, xid_get_inst_id(session, curr_wxid));
                 dtc_smon_record_deadlock_sql(session, DEAD_LOCK_ITL, xid_get_inst_id(session, ilock->xid), ilock->sid);
             }
@@ -1833,23 +1949,23 @@ bool32 dtc_smon_check_itl_waits_in_cluster(knl_session_t *session, knl_session_t
             }
 
             if (record_sql) {
-                GS_LOG_TRACE("session id: %u-%u, wait page_id: %u-%u", xid_get_inst_id(session, ilock->xid), ilock->sid,
+                CT_LOG_TRACE("session id: %u-%u, wait page_id: %u-%u", xid_get_inst_id(session, ilock->xid), ilock->sid,
                              curr_wpid.file, curr_wpid.page);
                 dtc_smon_record_deadlock_sql(session, DEAD_LOCK_ITL, xid_get_inst_id(session, ilock->xid), ilock->sid);
             }
 
-            if (buf_read_page(session, curr_wpid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
+            if (buf_read_page(session, curr_wpid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
                 cm_reset_error();
                 free(w_marks);
-                return GS_FALSE;
+                return CT_FALSE;
             }
             curr_page = (page_head_t *)CURR_PAGE(session);
             if (!dtc_smon_push_itl_sessions_ilock(session, ilock, curr_page, stack_ptr, w_marks)) {
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
                 free(w_marks);
-                return GS_FALSE;
+                return CT_FALSE;
             }
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
         }
     }
     free(w_marks);
@@ -1857,9 +1973,9 @@ bool32 dtc_smon_check_itl_waits_in_cluster(knl_session_t *session, knl_session_t
     // re-check deadlock and record SQL text
     if (!record_sql) {
         smon_record_deadlock_time();
-        GS_LOG_TRACE("[ITL Deadlock]");
-        return dtc_smon_check_itl_waits_in_cluster(session, start_session, GS_TRUE);
+        CT_LOG_TRACE("[ITL Deadlock]");
+        return dtc_smon_check_itl_waits_in_cluster(session, start_session, CT_TRUE);
     }
-    GS_LOG_TRACE("-----------------END OF WAIT INFORMATION-----------------\n");
-    return GS_TRUE;
+    CT_LOG_TRACE("-----------------END OF WAIT INFORMATION-----------------\n");
+    return CT_TRUE;
 }

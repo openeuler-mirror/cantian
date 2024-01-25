@@ -58,9 +58,9 @@ function setup_python_3rd()
     export LDFLAGS="-Wl,-z,relro,-z,now,-z,noexecstack -s"
     export CFLAGS="-fstack-protector-all -fPIC -D_FORTIFY_SOURCE=2 -O2 -ftrapv -fstack-check"
 
-    TRUSTED_HOST_HW=cmc.centralrepo.rnd.huawei.com
-    TRUSTED_PYPI="https://${TRUSTED_HOST_HW}/pypi/simple"
-    pip install --trusted-host "${TRUSTED_HOST_HW}" -i "${TRUSTED_PYPI}" -r "${CT_REQUIREMENTS_PATH}"
+    TRUSTED_HOST_THU=pypi.tuna.tsinghua.edu.cn
+    TRUSTED_PYPI="https://${TRUSTED_HOST_HW}/simple"
+    pip install --trusted-host "${TRUSTED_HOST_THU}" -i "${TRUSTED_PYPI}" -r "${CT_REQUIREMENTS_PATH}"
     if [ $? -ne 0 ]; then
         echo "Failed to setup_python_3rd. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 1
@@ -151,27 +151,6 @@ function main()
 
     # 准备环境
     init_temp_dir
-#
-#    # 创建
-#    create_virtual_env
-#    if [ $? -ne 0 ]; then
-#        echo "Failed to create virtualenv. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-#        return 1
-#    fi
-#
-#    # 安装全部的三方插件
-#    setup_python_3rd
-#    if [ $? -ne 0 ]; then
-#        echo "Failed to setup python 3rd packages. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-#        return 1
-#    fi
-#
-#    # 退出虚拟环境
-#    exit_virtual_env
-#    if [ $? -ne 0 ]; then
-#        echo "Failed to exit virtualenv. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-#        return 1
-#    fi
 
     # 复制ct_om库的src
     copy_ct_om_src
@@ -180,17 +159,7 @@ function main()
         return 1
     fi
 
-
-    
-#    # 复制ct_om库的三方包
-#    copy_site_package
-#    if [ $? -ne 0 ]; then
-#        echo "Failed to copy ct_om src. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-#        return 1
-#    fi
-
     echo "Succeed in building ct_om. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-
     return 0
 }
 

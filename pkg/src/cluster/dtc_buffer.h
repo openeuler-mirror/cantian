@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -44,7 +44,7 @@ typedef struct st_buf_read_assist {
 } buf_read_assist_t;
 
 #define DTC_BUF_READ_ONE 1                          // read only one, no prefetch
-#define DTC_BUF_PREFETCH_EXT_NUM GS_INVALID_ID16    // prefetch by space extent_size
+#define DTC_BUF_PREFETCH_EXT_NUM CT_INVALID_ID16    // prefetch by space extent_size
                                                     // others, prefetch by given read_num
 
 #define DTC_BUF_NO_PREFETCH(read_num) ((read_num) == DTC_BUF_READ_ONE)
@@ -67,12 +67,12 @@ static inline void dtc_read_init(buf_read_assist_t *ra, page_id_t page_id, latch
     ra->query_scn = query_scn;
     ra->mode = mode;
     ra->options = options;
-    ra->try_edp = (query_scn == GS_INVALID_ID64 ? GS_FALSE : GS_TRUE);
+    ra->try_edp = (query_scn == CT_INVALID_ID64 ? CT_FALSE : CT_TRUE);
     ra->read_num = read_num;
 }
 
 status_t dtc_read_page(knl_session_t *session, buf_read_assist_t *ra);
-status_t dtc_get_owner_pages(knl_session_t *session, buf_ctrl_t **ctrl_array, buf_ctrl_t *ctrl, uint32 count);
+status_t dtc_get_share_owner_pages(knl_session_t *session, buf_ctrl_t **ctrl_array, buf_ctrl_t *ctrl, uint32 count);
 
 bool32 dtc_dcs_readable(knl_session_t *session);
 

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_persist_module.h"
 #include "knl_log.h"
 #include "cm_log.h"
 #include "cm_file.h"
@@ -36,6 +37,9 @@
 #include "dtc_dls.h"
 #include "cm_dbs_ulog.h"
 #include "cm_io_record.h"
+#include "dtc_dmon.h"
+#include "dtc_database.h"
+#include "dtc_context.h"
 
 // log_buf_init: init log buffer
 static inline void log_buf_init(knl_session_t *session)
@@ -43,7 +47,7 @@ static inline void log_buf_init(knl_session_t *session)
     knl_instance_t *kernel = session->kernel;
     log_context_t *ctx = &kernel->redo_ctx;
     log_dual_buffer_t *section = NULL;
-    uint32 sid_array_size = GS_MAX_SESSIONS * sizeof(uint16);
+    uint32 sid_array_size = CT_MAX_SESSIONS * sizeof(uint16);
 
     ctx->buf_count = kernel->attr.log_buf_count;
     ctx->buf_size = (uint32)kernel->attr.log_buf_size;
@@ -58,9 +62,9 @@ static inline void log_buf_init(knl_session_t *session)
     for (uint32 i = 0; i < ctx->buf_count; i++) {
         section = &ctx->bufs[i];
         section->members[0].size = buffer_size;
-        section->members[0].addr = kernel->attr.log_buf + (i * GS_LOG_AREA_COUNT) * buffer_size;
+        section->members[0].addr = kernel->attr.log_buf + (i * CT_LOG_AREA_COUNT) * buffer_size;
         section->members[1].size = buffer_size;
-        section->members[1].addr = kernel->attr.log_buf + (uint64)(i * GS_LOG_AREA_COUNT + 1) * buffer_size;
+        section->members[1].addr = kernel->attr.log_buf + (uint64)(i * CT_LOG_AREA_COUNT + 1) * buffer_size;
     }
 
     ctx->wid = 0;
@@ -73,7 +77,7 @@ static inline void log_buf_init(knl_session_t *session)
     ctx->logwr_cipher_buf = kernel->attr.lgwr_cipher_buf;
     ctx->logwr_cipher_buf_size = (uint32)kernel->attr.lgwr_cipher_buf_size;
     ctx->logwr_buf_pos = 0;
-    ctx->log_encrypt = GS_FALSE;
+    ctx->log_encrypt = CT_FALSE;
 }
 
 static inline bool32 log_file_not_used(log_context_t *ctx, uint32 file)
@@ -95,26 +99,30 @@ status_t log_verify_head_checksum(knl_session_t *session, log_file_head_t *head,
     uint32 cks_level = session->kernel->attr.db_block_checksum;
     uint32 org_cks = head->checksum;
 
-    if (DB_IS_CHECKSUM_OFF(session) || org_cks == GS_INVALID_CHECKSUM) {
-        return GS_SUCCESS;
+    if (DB_IS_CHECKSUM_OFF(session) || org_cks == CT_INVALID_CHECKSUM) {
+        return CT_SUCCESS;
     }
 
-    head->checksum = GS_INVALID_CHECKSUM;
+    head->checksum = CT_INVALID_CHECKSUM;
     uint32 new_cks = cm_get_checksum(head, sizeof(log_file_head_t));
     head->checksum = org_cks;
     if (org_cks != new_cks) {
-        GS_LOG_RUN_ERR("[LOG] invalid log file head checksum.file %s, rst_id %u, asn %u, "
+        CT_LOG_RUN_ERR("[LOG] invalid log file head checksum.file %s, rst_id %u, asn %u, "
                        "org_cks %u, new_cks %u, checksum level %s",
                        name, head->rst_id, head->asn, org_cks, new_cks, knl_checksum_level(cks_level));
-        GS_THROW_ERROR(ERR_CHECKSUM_FAILED, name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CHECKSUM_FAILED, name);
+        if (DB_IS_MAXFIX(session)) {
+            CT_LOG_RUN_WAR("[LOG] log file damaged, recovery will skip log batch and continue");
+            return CT_SUCCESS;
+        }
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void log_calc_head_checksum(knl_session_t *session, log_file_head_t *head)
 {
-    head->checksum = GS_INVALID_CHECKSUM;
+    head->checksum = CT_INVALID_CHECKSUM;
 
     if (DB_IS_CHECKSUM_OFF(session)) {
         return;
@@ -127,23 +135,23 @@ status_t log_init_file_head(knl_session_t *session, log_file_t *file)
     knl_instance_t *kernel = session->kernel;
     aligned_buf_t log_buf;
 
-    if (cm_aligned_malloc((int64)kernel->attr.lgwr_buf_size, "log buffer", &log_buf) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[PITR] failed to alloc log buffer with size %u", (uint32)kernel->attr.lgwr_buf_size);
-        return GS_ERROR;
+    if (cm_aligned_malloc((int64)kernel->attr.lgwr_buf_size, "log buffer", &log_buf) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[PITR] failed to alloc log buffer with size %u", (uint32)kernel->attr.lgwr_buf_size);
+        return CT_ERROR;
     }
 
     if (cm_read_device(file->ctrl->type, file->handle, 0, log_buf.aligned_buf,
-                       CM_CALC_ALIGN(sizeof(log_file_head_t), file->ctrl->block_size)) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[LOG] failed to read %s ", file->ctrl->name);
+                       CM_CALC_ALIGN(sizeof(log_file_head_t), file->ctrl->block_size)) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[LOG] failed to read %s ", file->ctrl->name);
         cm_close_device(file->ctrl->type, &file->handle);
         cm_aligned_free(&log_buf);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (log_verify_head_checksum(session, (log_file_head_t *)log_buf.aligned_buf, file->ctrl->name) != GS_SUCCESS) {
+    if (log_verify_head_checksum(session, (log_file_head_t *)log_buf.aligned_buf, file->ctrl->name) != CT_SUCCESS) {
         cm_close_device(file->ctrl->type, &file->handle);
         cm_aligned_free(&log_buf);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     uint32 log_head_size = sizeof(log_file_head_t);
@@ -151,7 +159,7 @@ status_t log_init_file_head(knl_session_t *session, log_file_t *file)
     knl_securec_check(ret);
     cm_aligned_free(&log_buf);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t log_file_init(knl_session_t *session)
@@ -166,12 +174,12 @@ static status_t log_file_init(knl_session_t *session)
     ctx->files = logfile_set->items;
     ctx->free_size = 0;
 
-    if (cm_dbs_is_enable_dbs() == GS_TRUE) {
+    if (cm_dbs_is_enable_dbs() == CT_TRUE) {
         file = &ctx->files[0];
         file->head.rst_id = db->ctrl.core.resetlogs.rst_id;
         file->head.write_pos = 0;
         ctx->free_size += log_file_freesize(file);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (uint32 i = 0; i < ctx->logfile_hwm; i++) {
@@ -182,24 +190,24 @@ static status_t log_file_init(knl_session_t *session)
         }
 
         if (cm_read_device(file->ctrl->type, file->handle, 0, ctx->logwr_buf,
-                           CM_CALC_ALIGN(sizeof(log_file_head_t), file->ctrl->block_size)) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[LOG] failed to read %s ", file->ctrl->name);
+                           CM_CALC_ALIGN(sizeof(log_file_head_t), file->ctrl->block_size)) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[LOG] failed to read %s ", file->ctrl->name);
             cm_close_device(file->ctrl->type, &file->handle);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (log_verify_head_checksum(session, (log_file_head_t *)ctx->logwr_buf, file->ctrl->name) != GS_SUCCESS) {
+        if (log_verify_head_checksum(session, (log_file_head_t *)ctx->logwr_buf, file->ctrl->name) != CT_SUCCESS) {
             cm_close_device(file->ctrl->type, &file->handle);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (log_file_not_used(ctx, i)) {
             file->head.rst_id = db->ctrl.core.resetlogs.rst_id;
             file->head.write_pos = CM_CALC_ALIGN(sizeof(log_file_head_t), file->ctrl->block_size);
             file->head.block_size = file->ctrl->block_size;
-            file->head.asn = GS_INVALID_ASN;
-            file->head.first = GS_INVALID_ID64;
-            file->head.last = GS_INVALID_ID64;
+            file->head.asn = CT_INVALID_ASN;
+            file->head.first = CT_INVALID_ID64;
+            file->head.last = CT_INVALID_ID64;
             file->head.cmp_algorithm = COMPRESS_NONE;
             ctx->free_size += log_file_freesize(&logfile_set->items[i]);
             continue;
@@ -210,7 +218,7 @@ static status_t log_file_init(knl_session_t *session)
         knl_securec_check(ret);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t log_init(knl_session_t *session)
@@ -222,7 +230,7 @@ status_t log_init(knl_session_t *session)
 
     raft_async_log_buf_init(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t log_load(knl_session_t *session)
@@ -245,7 +253,7 @@ void log_flush_head(knl_session_t *session, log_file_t *file)
     log_context_t *ctx = &session->kernel->redo_ctx;
 
     if (file->ctrl->type == DEV_TYPE_ULOG) {
-        GS_LOG_RUN_INF("NO need flush head for ulog %s.", file->ctrl->name);
+        CT_LOG_RUN_INF("NO need flush head for ulog %s.", file->ctrl->name);
         return;
     }
     
@@ -258,8 +266,8 @@ void log_flush_head(knl_session_t *session, log_file_t *file)
     /* since rebuild ctrlfiles was supported, the log file ctrl info was backup in the first block of log file. in
      * order not to overwrite it, we need to read it before write in flush log file head */
     int32 size = CM_CALC_ALIGN(sizeof(log_file_head_t), file->ctrl->block_size);
-    if (cm_read_device(file->ctrl->type, file->handle, 0, ctx->logwr_head_buf, size) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[LOG] failed to read %s ", file->ctrl->name);
+    if (cm_read_device(file->ctrl->type, file->handle, 0, ctx->logwr_head_buf, size) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[LOG] failed to read %s ", file->ctrl->name);
         CM_ABORT(0, "[LOG] ABORT INFO: read redo head:%s, offset:%u, size:%lu failed.", file->ctrl->name, 0,
                  sizeof(log_file_head_t));
     }
@@ -267,12 +275,12 @@ void log_flush_head(knl_session_t *session, log_file_t *file)
     *(log_file_head_t *)ctx->logwr_head_buf = file->head;
 
     size = CM_CALC_ALIGN(sizeof(log_file_head_t), file->ctrl->block_size);
-    if (cm_write_device(file->ctrl->type, file->handle, 0, ctx->logwr_head_buf, size) != GS_SUCCESS) {
-        GS_LOG_ALARM(WARN_FLUSHREDO, "'file-name':'%s'}", file->ctrl->name);
+    if (cm_write_device(file->ctrl->type, file->handle, 0, ctx->logwr_head_buf, size) != CT_SUCCESS) {
+        CT_LOG_ALARM(WARN_FLUSHREDO, "'file-name':'%s'}", file->ctrl->name);
         CM_ABORT(0, "[LOG] ABORT INFO: flush redo file:%s, offset:%u, size:%lu failed.", file->ctrl->name, 0,
                  sizeof(log_file_head_t));
     }
-    GS_LOG_DEBUG_INF("Flush log[%u] head with asn %u status %d", file->ctrl->file_id, file->head.asn,
+    CT_LOG_DEBUG_INF("Flush log[%u] head with asn %u status %d", file->ctrl->file_id, file->head.asn,
                      file->ctrl->status);
 }
 
@@ -283,14 +291,14 @@ status_t log_switch_file(knl_session_t *session)
     uint32 next;
     log_file_t *curr_file = NULL;
 
-    if (cm_dbs_is_enable_dbs() == GS_TRUE) {
+    if (cm_dbs_is_enable_dbs() == CT_TRUE) {
         curr_file = &ctx->files[ctx->curr_file];
         curr_file->head.write_pos = 0;
-        GS_LOG_RUN_INF("Succeed to switch logfile active %u current %u.", ctx->active_file, ctx->curr_file);
-        return GS_SUCCESS;
+        CT_LOG_RUN_INF("Succeed to switch logfile active %u current %u.", ctx->active_file, ctx->curr_file);
+        return CT_SUCCESS;
     }
 
-    log_get_next_file(session, &next, GS_TRUE);
+    log_get_next_file(session, &next, CT_TRUE);
     knl_panic_log((next != ctx->active_file), "failed to switch log file, current file is %d, "
                   "active file is %d, log free size is %llu", ctx->curr_file, ctx->active_file, ctx->free_size);
 
@@ -307,26 +315,26 @@ status_t log_switch_file(knl_session_t *session)
     next_file->head.block_size = next_file->ctrl->block_size;
     next_file->head.rst_id = rst_id;
     next_file->head.asn = asn + 1;
-    next_file->head.first = GS_INVALID_ID64;
+    next_file->head.first = CT_INVALID_ID64;
     next_file->head.cmp_algorithm = COMPRESS_NONE;
     next_file->ctrl->status = LOG_FILE_CURRENT;
-    next_file->ctrl->archived = GS_FALSE;
+    next_file->ctrl->archived = CT_FALSE;
     log_flush_head(session, next_file);
 
     dtc_my_ctrl(session)->log_last = ctx->curr_file;
 
-    if (db_save_log_ctrl(session, ctx->curr_file, session->kernel->id) != GS_SUCCESS) {
+    if (db_save_log_ctrl(session, ctx->curr_file, session->kernel->id) != CT_SUCCESS) {
         CM_ABORT(0, "[LOG] ABORT INFO: save control space file failed when switch log file");
     }
 
-    if (ctrl_backup_log_ctrl(session, curr_file->ctrl->file_id) != GS_SUCCESS) {
+    if (ctrl_backup_log_ctrl(session, curr_file->ctrl->file_id) != CT_SUCCESS) {
         CM_ABORT(0, "[LOG] ABORT INFO: backup log control info failed when switch log file");
     }
     ctx->stat.switch_count++;
 
-    GS_LOG_RUN_INF("succeed to switch logfile active %u current %u", ctx->active_file, ctx->curr_file);
+    CT_LOG_RUN_INF("succeed to switch logfile active %u current %u", ctx->active_file, ctx->curr_file);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void log_flush_init(knl_session_t *session, uint32 batch_size_input)
@@ -352,7 +360,7 @@ void log_flush_init(knl_session_t *session, uint32 batch_size_input)
 
 inline void log_calc_batch_checksum(knl_session_t *session, log_batch_t *batch)
 {
-    batch->checksum = GS_INVALID_CHECKSUM;
+    batch->checksum = CT_INVALID_CHECKSUM;
     if (DB_IS_CHECKSUM_OFF(session)) {
         return;
     }
@@ -368,17 +376,17 @@ status_t log_flush_to_disk(knl_session_t *session, log_context_t *ctx, log_batch
     batch->space_size = CM_CALC_ALIGN(batch->size, file->ctrl->block_size);
     log_calc_batch_checksum(session, batch);
     uint32 space_size = batch->space_size;
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     if (file->ctrl->type == DEV_TYPE_ULOG) {
         ret = cm_dbs_ulog_write(file->handle, batch->head.point.lsn, batch, batch->space_size, &free_size);
     } else {
         ret = cm_write_device(file->ctrl->type, file->handle, file->head.write_pos, batch, space_size);
     }
-    if (ret != GS_SUCCESS) {
-        GS_LOG_ALARM(WARN_FLUSHREDO, "'file-name':'%s'}", file->ctrl->name);
-        GS_LOG_RUN_ERR("[LOG] failed to write %s", file->ctrl->name);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_ALARM(WARN_FLUSHREDO, "'file-name':'%s'}", file->ctrl->name);
+        CT_LOG_RUN_ERR("[LOG] failed to write %s", file->ctrl->name);
         cm_close_device(file->ctrl->type, &file->handle);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     file->head.write_pos += space_size;
@@ -399,12 +407,12 @@ status_t log_flush_to_disk(knl_session_t *session, log_context_t *ctx, log_batch
     }
     
     file->head.last = batch->scn;
-    if (file->head.first == GS_INVALID_ID64) {
+    if (file->head.first == CT_INVALID_ID64) {
         file->head.first = batch->scn;
         log_flush_head(session, file);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void log_assemble_buffer(log_context_t *ctx, log_buffer_t *buf, uint64 *max_lsn)
@@ -420,10 +428,10 @@ static inline void log_assemble_buffer(log_context_t *ctx, log_buffer_t *buf, ui
     knl_securec_check(ret);
     ctx->logwr_buf_pos += buf->write_pos;
     if (buf->log_encrypt) {
-        ctx->log_encrypt = GS_TRUE;
+        ctx->log_encrypt = CT_TRUE;
     }
     buf->write_pos = 0;
-    buf->log_encrypt = GS_FALSE;
+    buf->log_encrypt = CT_FALSE;
     if (buf->lsn > *max_lsn) {
         *max_lsn = buf->lsn;
         buf->lsn = 0;
@@ -510,20 +518,20 @@ status_t log_decrypt(knl_session_t *session, log_batch_t *batch, char *plain_buf
     if (cipher_len - cipher_ctrl.cipher_expanded_size > plain_len) {
         tmp_buf = (char *)malloc(cipher_len - cipher_ctrl.cipher_expanded_size);
         if (tmp_buf == NULL) {
-            GS_LOG_RUN_ERR("[LOG] failed to malloc length: %d", (cipher_len - cipher_ctrl.cipher_expanded_size));
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[LOG] failed to malloc length: %d", (cipher_len - cipher_ctrl.cipher_expanded_size));
+            return CT_ERROR;
         }
         plain_buf = tmp_buf;
         plain_len = cipher_len - cipher_ctrl.cipher_expanded_size;
     }
     uint32 org_plain_len = plain_len;
-    status_t status = cm_kmc_decrypt(GS_KMC_KERNEL_DOMAIN, cipher_buf, cipher_len, plain_buf, &plain_len);
-    if (status != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("batch decrypt failed");
+    status_t status = cm_kmc_decrypt(CT_KMC_KERNEL_DOMAIN, cipher_buf, cipher_len, plain_buf, &plain_len);
+    if (status != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("batch decrypt failed");
         if (tmp_buf != NULL) {
             free(tmp_buf);
         }
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
 #ifdef LOG_DIAG
@@ -546,7 +554,7 @@ status_t log_decrypt(knl_session_t *session, log_batch_t *batch, char *plain_buf
     if (tmp_buf != NULL) {
         free(tmp_buf);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void log_encrypt(knl_session_t *session, log_context_t *ctx)
@@ -563,10 +571,10 @@ static void log_encrypt(knl_session_t *session, log_context_t *ctx)
     uint32 cks = cm_get_checksum(plain_buf, plain_len);
 #endif
 
-    status_t status = cm_kmc_encrypt(GS_KMC_KERNEL_DOMAIN, KMC_DEFAULT_ENCRYPT,
+    status_t status = cm_kmc_encrypt(CT_KMC_KERNEL_DOMAIN, KMC_DEFAULT_ENCRYPT,
         plain_buf, plain_len, cipher_buf, &cipher_len);
-    if (status != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("batch encrypt failed");
+    if (status != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("batch encrypt failed");
         return;
     }
 
@@ -587,7 +595,7 @@ static void log_encrypt(knl_session_t *session, log_context_t *ctx)
     errno_t ret = memcpy_sp((char *)batch + cipher_ctrl->offset, ctx->logwr_buf_size - cipher_ctrl->offset,
         cipher_buf, cipher_len);
     knl_securec_check(ret);
-    batch->encrypted = GS_TRUE;
+    batch->encrypted = CT_TRUE;
     knl_panic_log(sizeof(log_batch_t) + plain_len == ctx->logwr_buf_pos,
         "the plain_len is abnormal, panic info: plain_len %u logwr_buf_pos %u", plain_len, ctx->logwr_buf_pos);
     ctx->logwr_buf_pos = sizeof(log_batch_t) + sizeof(cipher_ctrl_t) + cipher_len;
@@ -598,12 +606,12 @@ static log_batch_t *log_assemble_batch(knl_session_t *session, log_context_t *ct
     log_batch_t *batch = (log_batch_t *)ctx->logwr_buf;
     uint32 part_count = 0;
     uint32 spin_times = 0;
-    bool8 handled[GS_MAX_LOG_BUFFERS] = { GS_FALSE };
+    bool8 handled[CT_MAX_LOG_BUFFERS] = { CT_FALSE };
     uint64 max_lsn = 0;
 
     uint32 fid = ctx->fid;
-    batch->encrypted = GS_FALSE;
-    ctx->log_encrypt = GS_FALSE;
+    batch->encrypted = CT_FALSE;
+    ctx->log_encrypt = CT_FALSE;
     ctx->logwr_buf_pos = sizeof(log_batch_t);
 
     for (;;) {
@@ -634,7 +642,7 @@ static log_batch_t *log_assemble_batch(knl_session_t *session, log_context_t *ct
                 part_count++;
             }
 
-            handled[i] = GS_TRUE;
+            handled[i] = CT_TRUE;
         }
 
         if (skip_count == 0) {
@@ -643,7 +651,7 @@ static log_batch_t *log_assemble_batch(knl_session_t *session, log_context_t *ct
 
         SPIN_STAT_INC(&session->stat->spin_stat.stat_redo_buf, spins);
         spin_times++;
-        if (spin_times == GS_SPIN_COUNT) {
+        if (spin_times == CT_SPIN_COUNT) {
             cm_spin_sleep_and_stat(&session->stat->spin_stat.stat_redo_buf);
             spin_times = 0;
         }
@@ -679,15 +687,15 @@ bool32 log_need_flush(log_context_t *ctx)
         log_buffer_t *buf = &ctx->bufs[i].members[wid];
 
         if (buf->value != 0) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
 
         if (buf->write_pos != 0) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 void log_switch_buffer(knl_session_t *session, log_context_t *ctx)
@@ -732,7 +740,7 @@ status_t log_flush(knl_session_t *session, log_point_t *point, knl_scn_t *scn, u
             *lsn = ctx->flushed_lsn;
         }
         cm_spin_unlock(&ctx->flush_lock);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!log_need_flush(ctx)) {
@@ -747,11 +755,11 @@ status_t log_flush(knl_session_t *session, log_point_t *point, knl_scn_t *scn, u
             *lsn = ctx->flushed_lsn;
         }
         cm_spin_unlock(&ctx->flush_lock);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /* set next write buffer expected lfn */
-    ctx->buf_lfn[ctx->fid] = ctx->lfn + GS_LOG_AREA_COUNT;
+    ctx->buf_lfn[ctx->fid] = ctx->lfn + CT_LOG_AREA_COUNT;
 
     /* switch write buffer */
     log_switch_buffer(session, ctx);
@@ -773,7 +781,7 @@ status_t log_flush(knl_session_t *session, log_point_t *point, knl_scn_t *scn, u
     batch->head.point.block_id = (uint32)(file->head.write_pos / file->ctrl->block_size);
     batch->head.point.asn = file->head.asn;
     batch->head.point.rst_id = file->head.rst_id;
-    if (cm_dbs_is_enable_dbs() == GS_TRUE) {
+    if (cm_dbs_is_enable_dbs() == CT_TRUE) {
         batch->head.point.lsn = batch->lsn;
     }
     log_batch_tail_t *tail = (log_batch_tail_t *)(ctx->logwr_buf + ctx->logwr_buf_pos);
@@ -786,7 +794,7 @@ status_t log_flush(knl_session_t *session, log_point_t *point, knl_scn_t *scn, u
             batch->raft_index = RAFT_DEFAULT_INDEX;
         }
 
-        if (log_flush_to_disk(session, ctx, batch) != GS_SUCCESS) {
+        if (log_flush_to_disk(session, ctx, batch) != CT_SUCCESS) {
             CM_ABORT_REASONABLE(0,
                 "[LOG] ABORT INFO: flush redo filed, Flush batch %llu lsn %llu scn %llu head magic %llx point "
                 "[%u-%u/%u/%llu] size %u space size %u for instance %u, freesize of ulog is %llu",
@@ -794,7 +802,7 @@ status_t log_flush(knl_session_t *session, log_point_t *point, knl_scn_t *scn, u
                 batch->head.point.asn, batch->head.point.block_id, (uint64)batch->head.point.lfn, batch->size,
                 batch->space_size, session->kernel->id, ctx->free_size);
             cm_spin_unlock(&ctx->flush_lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         session->kernel->lfn = batch->head.point.lfn;
@@ -802,19 +810,19 @@ status_t log_flush(knl_session_t *session, log_point_t *point, knl_scn_t *scn, u
             lsnd_flush_log(session, ctx, file, batch);
         }
     } else {
-        batch->raft_index = GS_INVALID_ID64;
+        batch->raft_index = CT_INVALID_ID64;
 
         /* set batch->space_size inside raft_write_to_async_buffer */
         knl_panic_log(raft_ctx->status >= RAFT_STATUS_INITED, "the raft_ctx's status is abnormal.");
-        if (raft_write_to_async_buffer_num(session, batch, &new_batch) != GS_SUCCESS) {
+        if (raft_write_to_async_buffer_num(session, batch, &new_batch) != CT_SUCCESS) {
             cm_spin_unlock(&ctx->flush_lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         file->head.write_pos += batch->space_size;
         ctx->free_size -= batch->space_size;
         file->head.last = batch->scn;
-        if (file->head.first == GS_INVALID_ID64) {
+        if (file->head.first == CT_INVALID_ID64) {
             file->head.first = batch->scn;
             log_flush_head(session, file);
         }
@@ -822,16 +830,16 @@ status_t log_flush(knl_session_t *session, log_point_t *point, knl_scn_t *scn, u
         raft_ctx->sent_lfn = batch->head.point.lfn;
 
         knl_panic_log(new_batch != NULL, "the new_batch is NULL.");
-        if (raft_flush_log(session, new_batch) != GS_SUCCESS) {
+        if (raft_flush_log(session, new_batch) != CT_SUCCESS) {
             cm_spin_unlock(&ctx->flush_lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     ctx->flushed_lfn = batch->head.point.lfn;
     ctx->curr_point = batch->head.point;
     ctx->curr_point.block_id += (uint32)(batch->space_size / file->ctrl->block_size);
-    if (cm_dbs_is_enable_dbs() == GS_TRUE) {
+    if (cm_dbs_is_enable_dbs() == CT_TRUE) {
         ctx->curr_point.lsn = batch->lsn;
     }
     ctx->curr_replay_point = ctx->curr_point;
@@ -854,11 +862,11 @@ status_t log_flush(knl_session_t *session, log_point_t *point, knl_scn_t *scn, u
     ctx->curr_scn = batch->scn;
     log_stat(ctx, batch->space_size);
     cm_spin_unlock(&ctx->flush_lock);
-    GS_LOG_DEBUG_INF("[DTC RCY] Flush batch %llu lsn %llu scn %llu head magic %llx point [%u-%u/%u/%llu] size %u space size %u for instance %u",
+    CT_LOG_DEBUG_INF("[DTC RCY] Flush batch %llu lsn %llu scn %llu head magic %llx point [%u-%u/%u/%llu] size %u space size %u for instance %u",
                      (uint64)batch->head.point.lfn, batch->lsn, batch->scn, batch->head.magic_num,
                      batch->head.point.rst_id, batch->head.point.asn, batch->head.point.block_id,
                      (uint64)batch->head.point.lfn, batch->size, batch->space_size, session->kernel->id);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void log_proc(thread_t *thread)
@@ -866,10 +874,10 @@ void log_proc(thread_t *thread)
     knl_session_t *session = (knl_session_t *)thread->argument;
     log_context_t *ctx = &session->kernel->redo_ctx;
     time_t flush_time = cm_current_time();
-    uint32 flush_needed = GS_FALSE;
+    uint32 flush_needed = CT_FALSE;
 
     cm_set_thread_name("lgwr");
-    GS_LOG_RUN_INF("lgwr thread started");
+    CT_LOG_RUN_INF("lgwr thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
     while (!thread->closed) {
         if (DB_NOT_READY(session)) {
@@ -886,7 +894,7 @@ void log_proc(thread_t *thread)
 
         for (uint32 i = 0; i < ctx->buf_count; i++) {
             if (ctx->bufs[i].members[wid].write_pos >= LOG_FLUSH_THRESHOLD) {
-                flush_needed = GS_TRUE;
+                flush_needed = CT_TRUE;
                 break;
             }
         }
@@ -896,16 +904,16 @@ void log_proc(thread_t *thread)
             continue;
         }
 
-        if (log_flush(session, NULL, NULL, NULL) != GS_SUCCESS) {
+        if (log_flush(session, NULL, NULL, NULL) != CT_SUCCESS) {
             KNL_SESSION_CLEAR_THREADID(session);
             CM_ABORT(0, "[LOG] ABORT INFO: redo log task flush redo file failed.");
         }
 
-        flush_needed = GS_FALSE;
+        flush_needed = CT_FALSE;
         flush_time = cm_current_time();
     }
 
-    GS_LOG_RUN_INF("lgwr thread closed");
+    CT_LOG_RUN_INF("lgwr thread closed");
     KNL_SESSION_CLEAR_THREADID(session);
 }
 
@@ -957,13 +965,13 @@ static bool32 log_commit_try_lock(knl_session_t *session, log_context_t *ctx)
 {
     for (;;) {
         if (session->log_progress == LOG_COMPLETED) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         if (session->log_progress == LOG_PENDING) {
             if (cm_spin_try_lock(&ctx->commit_lock)) {
                 if (session->log_progress == LOG_PENDING) {
-                    return GS_TRUE;
+                    return CT_TRUE;
                 }
                 cm_spin_unlock(&ctx->commit_lock);
             }
@@ -1012,13 +1020,119 @@ static inline void log_wake_up_waiter(knl_session_t *session, log_context_t *ctx
     }
 }
 
+void tx_process_scn_broadcast(void *sess, mes_message_t *msg)
+{
+    if (sizeof(mes_scn_bcast_t) != msg->head->size) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", msg->head->size);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
+    mes_scn_bcast_t *bcast = (mes_scn_bcast_t *)msg->buffer;
+    knl_scn_t latest_scn = bcast->scn;
+    mes_message_head_t ack_head = {0};
+    knl_session_t *session = (knl_session_t *)sess;
+
+    if (msg->head->src_inst >= CT_MAX_INSTANCES) {
+        mes_release_message_buf(msg->buffer);
+        CT_LOG_RUN_ERR("Do not process scn broadcast, because src_inst is invalid: %u", msg->head->src_inst);
+        return;
+    }
+    dtc_update_scn(session, latest_scn);
+    mes_init_ack_head(msg->head, &ack_head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
+    ack_head.status = CT_SUCCESS;
+    drc_mes_send_data_with_retry((const char*)&ack_head, BROADCAST_SCN_WAIT_INTERVEL,
+        BROADCAST_SCN_SEND_MSG_RETRY_TIMES);
+    CT_LOG_DEBUG_INF("process scn broadcast, latest scn: %llu", latest_scn);
+    mes_release_message_buf(msg->buffer);
+}
+#ifdef _DEBUG
+void new_tx_process_scn_broadcast(void *sess, mes_message_t *msg)
+{
+    new_mes_scn_bcast_t *new_bcast = (new_mes_scn_bcast_t *)msg->buffer;
+    if (new_bcast->fakeFlag) {
+        CT_LOG_RUN_INF("The SCN receiver is receiving the latest the message from the sender.");
+    }
+    knl_scn_t latest_scn = new_bcast->scn;
+    mes_message_head_t ack_head = {0};
+    knl_session_t *session = (knl_session_t *)sess;
+
+    if (msg->head->src_inst >= CT_MAX_INSTANCES) {
+        mes_release_message_buf(msg->buffer);
+        CT_LOG_RUN_ERR("Do not process scn broadcast, because src_inst is invalid: %u", msg->head->src_inst);
+        return;
+    }
+    dtc_update_scn(session, latest_scn);
+    mes_init_ack_head(msg->head, &ack_head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
+    ack_head.status = CT_SUCCESS;
+    drc_mes_send_data_with_retry((const char*)&ack_head, BROADCAST_SCN_WAIT_INTERVEL,
+        BROADCAST_SCN_SEND_MSG_RETRY_TIMES);
+    CT_LOG_DEBUG_INF("process scn broadcast, latest scn: %llu", latest_scn);
+    mes_release_message_buf(msg->buffer);
+}
+#endif
+
+status_t tx_scn_broadcast(knl_session_t *session)
+{
+#ifdef _DEBUG
+    ctrl_version_t fake_local_version = { 1, 0, 0, 1 };
+    ctrl_version_t cluster_version = DB_CORE_CTRL(session)->version;
+    CT_LOG_RUN_INF("Testing the rolling update function...");
+    CT_LOG_RUN_INF("The cluster version is %d.%d.%d.%d",
+        cluster_version.main, cluster_version.major, cluster_version.revision, cluster_version.inner);
+    
+    if (db_cur_ctrl_version_is_higher(session, fake_local_version) ||
+        db_equal_to_cur_ctrl_version(session, fake_local_version)) {
+        // The cluster version is higher than (or equal to) the local version. It could send the latest version.
+        CT_LOG_RUN_INF(
+            "The broadcast sender will send the NEW_MES_CMD_TXN_SCN_BROADCAST, the sender version is %d.%d.%d.%d",
+            fake_local_version.main, fake_local_version.major, fake_local_version.revision, fake_local_version.inner);
+        drc_remaster_mngr_t *remaster_mngr = &g_drc_res_ctx.part_mngr.remaster_mngr;
+        new_mes_scn_bcast_t new_bcast;
+        new_bcast.fakeFlag = 1;
+        status_t ret;
+        mes_init_send_head(&new_bcast.head, NEW_MES_CMD_TXN_SCN_BROADCAST, sizeof(new_mes_scn_bcast_t), CT_INVALID_ID32,
+            session->kernel->id, CT_INVALID_ID8, session->id, CT_INVALID_ID16);
+        new_bcast.scn = KNL_GET_SCN(&session->kernel->scn);
+        
+        uint64 alive_bitmap = get_alive_bitmap_by_reform_info(&(remaster_mngr->reform_info));
+        rc_bitmap64_clear(&alive_bitmap, session->kernel->id);
+        CT_LOG_DEBUG_INF("tx scn broadcast, latest scn: %llu, alive_bitmap: %llu", new_bcast.scn, alive_bitmap);
+        CT_LOG_RUN_INF("The broadcast sender is trying to send the NEW_MES_CMD_TXN_SCN_BROADCAST.");
+        ret = mes_broadcast_data_and_wait_with_retry(session->id, alive_bitmap, (const void *)&new_bcast,
+            BROADCAST_SCN_WAIT_INTERVEL, BROADCAST_SCN_SEND_MSG_RETRY_TIMES);
+        if (ret == CT_ERROR) {
+            CT_LOG_RUN_ERR("tx scn broadcast failed");
+        }
+        CT_LOG_RUN_INF("The broadcast sender sends the NEW_MES_CMD_TXN_SCN_BROADCAST successfully.");
+        return ret;
+    }
+#endif
+    drc_remaster_mngr_t *remaster_mngr = &g_drc_res_ctx.part_mngr.remaster_mngr;
+    mes_scn_bcast_t bcast;
+    status_t ret;
+
+    mes_init_send_head(&bcast.head, MES_CMD_TXN_SCN_BROADCAST, sizeof(mes_scn_bcast_t), CT_INVALID_ID32,
+        session->kernel->id, CT_INVALID_ID8, session->id, CT_INVALID_ID16);
+    bcast.scn = KNL_GET_SCN(&session->kernel->scn);
+
+    uint64 alive_bitmap = get_alive_bitmap_by_reform_info(&(remaster_mngr->reform_info));
+    rc_bitmap64_clear(&alive_bitmap, session->kernel->id);
+    CT_LOG_DEBUG_INF("tx scn broadcast, latest scn: %llu, alive_bitmap: %llu", bcast.scn, alive_bitmap);
+    ret = mes_broadcast_data_and_wait_with_retry(session->id, alive_bitmap, (const void *)&bcast,
+        BROADCAST_SCN_WAIT_INTERVEL, BROADCAST_SCN_SEND_MSG_RETRY_TIMES);
+    if (ret == CT_ERROR) {
+        CT_LOG_RUN_ERR("tx scn broadcast failed");
+    }
+    return ret;
+}
+
 static status_t log_commit_flush(knl_session_t *session)
 {
     log_context_t *ctx = &session->kernel->redo_ctx;
     uint64 quorum_lfn = 0;
 
     if (!log_commit_try_lock(session, ctx)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     cm_spin_lock(&ctx->tx_queue.lock, &session->stat->spin_stat.stat_commit_queue);
@@ -1029,13 +1143,16 @@ static status_t log_commit_flush(knl_session_t *session)
 
     log_set_commit_progress(begin, end, LOG_WAITING);
 
-    if (log_flush(session, NULL, NULL, NULL) != GS_SUCCESS) {
+    if (log_flush(session, NULL, NULL, NULL) != CT_SUCCESS) {
         cm_spin_unlock(&ctx->commit_lock);
         log_wake_up_waiter(session, ctx);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     uint64 flushed_lfn = ctx->flushed_lfn;
     cm_spin_unlock(&ctx->commit_lock);
+    if (session->kernel->attr.enable_boc) {
+        tx_scn_broadcast(session);
+    }
     log_wake_up_waiter(session, ctx);
 
     if (DB_IS_RAFT_ENABLED(session->kernel)) {
@@ -1049,8 +1166,7 @@ static status_t log_commit_flush(knl_session_t *session)
         }
     }
     log_set_commit_progress(begin, end, LOG_COMPLETED);
-
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void log_commit_enque(knl_session_t *session)
@@ -1079,7 +1195,7 @@ void log_commit(knl_session_t *session)
         return;
     }
 
-    knl_panic_log(!DB_IS_READONLY(session), "current DB is readonly.");
+    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session)), "current DB is readonly.");
 
     if (session->commit_nowait) {
         session->stat->nowait_commits++;
@@ -1102,16 +1218,16 @@ void log_commit(knl_session_t *session)
 
     log_commit_enque(session);
     if (SECUREC_UNLIKELY(session->commit_batch)) {
-        cm_sleep(GS_WAIT_FLUSH_TIME);
+        cm_sleep(CT_WAIT_FLUSH_TIME);
         if (session->log_progress == LOG_COMPLETED) {
             return;
         }
     }
-    knl_begin_session_wait(session, LOG_FILE_SYNC, GS_TRUE);
-    if (log_commit_flush(session) != GS_SUCCESS) {
+    knl_begin_session_wait(session, LOG_FILE_SYNC, CT_TRUE);
+    if (log_commit_flush(session) != CT_SUCCESS) {
         CM_ABORT(0, "[LOG] ABORT INFO: commit flush redo log failed");
     }
-    knl_end_session_wait(session);
+    knl_end_session_wait(session, LOG_FILE_SYNC);
 }
 
 // copy redo log from session private buffer to kernel public buffer
@@ -1171,7 +1287,7 @@ static void log_write(knl_session_t *session)
     if (SECUREC_UNLIKELY(DB_NOT_READY(session))) {
         return;
     }
-    knl_panic_log(!DB_IS_READONLY(session), "current DB is readonly.");
+    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session)), "current DB is readonly.");
 
     log_group_t *group = (log_group_t *)session->log_buf;
     uint32 log_size = (!session->rm->need_copy_logic_log) ?
@@ -1207,7 +1323,7 @@ static void log_write(knl_session_t *session)
 
         cm_spin_unlock(&buf->lock);
 
-        if (log_flush(session, NULL, NULL, NULL) != GS_SUCCESS) {
+        if (log_flush(session, NULL, NULL, NULL) != CT_SUCCESS) {
             CM_ABORT(0, "[LOG] ABORT INFO: flush redo log failed");
         }
 
@@ -1220,7 +1336,7 @@ static void log_write(knl_session_t *session)
     buf->write_pos += total_size;
 
     if (SECUREC_UNLIKELY(session->log_encrypt)) {
-        buf->log_encrypt = GS_TRUE;
+        buf->log_encrypt = CT_TRUE;
     }
     for (uint8 i = 0; i < LOG_BUF_SLOT_COUNT; i++) {
         if (buf->slots[i] == 0) {
@@ -1245,11 +1361,11 @@ static void log_write(knl_session_t *session)
 bool32 log_can_recycle(knl_session_t *session, log_file_t *file, arch_log_id_t *last_arch_log)
 {
     bool32 is_archive = session->kernel->arch_ctx.is_archive;
-    if (cm_dbs_is_enable_dbs() == GS_TRUE) {
-        return GS_TRUE;
+    if (cm_dbs_is_enable_dbs() == CT_TRUE) {
+        return CT_TRUE;
     }
     if (is_archive) {
-        if (last_arch_log->asn == GS_INVALID_ASN) {
+        if (last_arch_log->asn == CT_INVALID_ASN) {
             /*
              * If archive thread has not archived any log file,
              * there is only one situation can we recycle log file:
@@ -1257,18 +1373,18 @@ bool32 log_can_recycle(knl_session_t *session, log_file_t *file, arch_log_id_t *
              */
             knl_panic_log(last_arch_log->rst_id == 0, "the last_arch_log's rst_id is abnormal, panic info: rst_id %u",
                           last_arch_log->rst_id);
-            if (file->head.asn != GS_INVALID_ASN) {
-                return GS_FALSE;
+            if (file->head.asn != CT_INVALID_ASN) {
+                return CT_FALSE;
             }
         } else {
             // Should not recycle log file if it is not archived
             if (file->head.asn > last_arch_log->asn ||
                 (file->ctrl->status == LOG_FILE_ACTIVE && !file->ctrl->archived)) {
-                return GS_FALSE;
+                return CT_FALSE;
             }
         }
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static void log_recycle_ulog_space(knl_session_t *session, log_point_t *point)
@@ -1285,7 +1401,7 @@ static void log_recycle_ulog_space(knl_session_t *session, log_point_t *point)
     if (free_size != 0) {
         ctx->free_size = free_size;
     }
-    ctx->alerted = GS_FALSE;
+    ctx->alerted = CT_FALSE;
     cantian_record_io_stat_end(IO_RECORD_EVENT_NS_TRUNCATE_ULOG, &tv_begin, IO_STAT_SUCCESS);
     log_unlock_logfile(session);
     return;
@@ -1307,7 +1423,7 @@ static log_point_t log_recycle_get_arch_point(knl_session_t *session, log_point_
     } else {
         recycle_point.lsn = point->lsn;
     }
-    GS_LOG_DEBUG_INF("[ARCH] point(%llu), end(%llu) recycle(%llu)", point->lsn,
+    CT_LOG_DEBUG_INF("[ARCH] point(%llu), end(%llu) recycle(%llu)", point->lsn,
                      last_arch_log_record.end_lsn, recycle_point.lsn);
     return recycle_point;
 }
@@ -1327,9 +1443,9 @@ void log_recycle_file(knl_session_t *session, log_point_t *point)
         return;
     }
 
-    GS_LOG_DEBUG_INF("try to recycle log file with last_arch_log [%u-%u] active[%d] file [%u-%u]",
+    CT_LOG_DEBUG_INF("try to recycle log file with last_arch_log [%u-%u] active[%d] file [%u-%u]",
                      last_arch_log.rst_id, last_arch_log.asn, ctx->active_file, file->head.rst_id, file->head.asn);
-    if (cm_dbs_is_enable_dbs() == GS_TRUE) {
+    if (cm_dbs_is_enable_dbs() == CT_TRUE) {
         recycle_point = log_recycle_get_arch_point(session, point);
         log_recycle_ulog_space(session, &recycle_point);
         return;
@@ -1343,33 +1459,33 @@ void log_recycle_file(knl_session_t *session, log_point_t *point)
         }
 
         file->ctrl->status = LOG_FILE_INACTIVE;
-        file->ctrl->archived = GS_FALSE;
-        GS_LOG_RUN_INF("recycle log file[%u] [%u-%u] rcy_point [%u-%u]",
+        file->ctrl->archived = CT_FALSE;
+        CT_LOG_RUN_INF("recycle log file[%u] [%u-%u] rcy_point [%u-%u]",
                        file_id, file->head.rst_id, file->head.asn, point->rst_id, point->asn);
         knl_panic(!session->kernel->arch_ctx.is_archive || file->head.asn <= last_arch_log.asn);
-        knl_try_begin_session_wait(session, LOG_RECYCLE, GS_FALSE);
+        knl_begin_session_wait(session, LOG_RECYCLE, CT_FALSE);
         cm_latch_x(&file->latch, session->id, NULL);
-        file->head.asn = GS_INVALID_ASN;
+        file->head.asn = CT_INVALID_ASN;
         file->head.write_pos = CM_CALC_ALIGN(sizeof(log_file_head_t), file->ctrl->block_size);
         file->arch_pos = 0;
         cm_unlatch(&file->latch, NULL);
 
         ctx->free_size += log_file_freesize(file);
-        log_get_next_file(session, &file_id, GS_FALSE);
+        log_get_next_file(session, &file_id, CT_FALSE);
 
         ctx->active_file = file_id;
         dtc_my_ctrl(session)->log_first = file_id;
 
-        if (db_save_log_ctrl(session, file_id, session->kernel->id) != GS_SUCCESS) {
+        if (db_save_log_ctrl(session, file_id, session->kernel->id) != CT_SUCCESS) {
             CM_ABORT(0, "[LOG] ABORT INFO: save core control file failed when recycling log file");
         }
 
         if (ctx->alerted) {
-            ctx->alerted = GS_FALSE;
-            GS_LOG_RUN_WAR("[LOG] Alert for checkpoint is cleared.");
+            ctx->alerted = CT_FALSE;
+            CT_LOG_RUN_WAR("[LOG] Alert for checkpoint is cleared.");
         }
     }
-    knl_try_end_session_wait(session, LOG_RECYCLE);
+    knl_end_session_wait(session, LOG_RECYCLE);
     log_unlock_logfile(session);
 }
 
@@ -1396,9 +1512,9 @@ uint32 log_get_id_by_asn(knl_session_t *session, uint32 rst_id, uint32 asn, bool
 {
     log_context_t *ctx = &session->kernel->redo_ctx;
 
-    if (asn == GS_INVALID_ASN) {
-        CM_SET_VALUE_IF_NOTNULL(is_curr_file, GS_FALSE);
-        return GS_INVALID_ID32;
+    if (asn == CT_INVALID_ASN) {
+        CM_SET_VALUE_IF_NOTNULL(is_curr_file, CT_FALSE);
+        return CT_INVALID_ID32;
     }
 
     for (uint32 i = 0; i < ctx->logfile_hwm; i++) {
@@ -1412,7 +1528,7 @@ uint32 log_get_id_by_asn(knl_session_t *session, uint32 rst_id, uint32 asn, bool
             continue;
         }
 
-        cm_latch_s(&file->latch, session->id, GS_FALSE, NULL);
+        cm_latch_s(&file->latch, session->id, CT_FALSE, NULL);
         if (file->head.rst_id != rst_id || file->head.asn != asn) {
             cm_unlatch(&file->latch, NULL);
             continue;
@@ -1422,13 +1538,13 @@ uint32 log_get_id_by_asn(knl_session_t *session, uint32 rst_id, uint32 asn, bool
         return i;
     }
 
-    CM_SET_VALUE_IF_NOTNULL(is_curr_file, GS_FALSE);
-    return GS_INVALID_ID32;
+    CM_SET_VALUE_IF_NOTNULL(is_curr_file, CT_FALSE);
+    return CT_INVALID_ID32;
 }
 
 void log_unlatch_file(knl_session_t *session, uint32 file_id)
 {
-    knl_panic_log(file_id < GS_MAX_LOG_FILES, "the file_id is abnormal, panic info: file_id %u", file_id);
+    knl_panic_log(file_id < CT_MAX_LOG_FILES, "the file_id is abnormal, panic info: file_id %u", file_id);
     log_file_t *file = &session->kernel->redo_ctx.files[file_id];
 
     cm_unlatch(&file->latch, NULL);
@@ -1445,7 +1561,7 @@ void log_reset_file(knl_session_t *session, log_point_t *point)
         return;
     }
     uint32 file_id = bak_log_get_id(session, bak->record.data_type, (uint32)point->rst_id, point->asn);
-    if (file_id == GS_INVALID_ID32) {
+    if (file_id == CT_INVALID_ID32) {
         return;
     }
 
@@ -1476,10 +1592,10 @@ void log_try_alert(log_context_t *ctx)
         return;
     }
 
-    ctx->alerted = GS_TRUE;
+    ctx->alerted = CT_TRUE;
     cm_spin_unlock(&ctx->alert_lock);
 
-    GS_LOG_RUN_WAR("checkpoint not completed, freesize of rlog is %llu.", ctx->free_size);
+    CT_LOG_RUN_WAR("checkpoint not completed, freesize of rlog is %llu.", ctx->free_size);
 }
 
 wait_event_t log_get_switch_wait_event(knl_session_t *session)
@@ -1502,31 +1618,31 @@ void log_atomic_op_begin(knl_session_t *session)
     log_context_t *ctx = &session->kernel->redo_ctx;
     log_group_t *group = (log_group_t *)session->log_buf;
     knl_panic_log(!session->atomic_op, "the atomic_op of session is true.");
-    session->atomic_op = GS_TRUE;
-    group->lsn = GS_INVALID_ID64;
+    session->atomic_op = CT_TRUE;
+    group->lsn = CT_INVALID_ID64;
     group->rmid = session->rmid;
     group->opr_uid = (uint16)session->uid;
     group->size = sizeof(log_group_t);
-    group->nologging_insert = GS_FALSE;
+    group->nologging_insert = CT_FALSE;
 
     if (DB_NOT_READY(session)) {
         knl_panic_log(!session->kernel->db.ctrl.core.build_completed, "the core table is build_completed.");
         return;
     }
 
-    knl_panic_log(!DB_IS_READONLY(session), "current DB is readonly.");
+    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session)), "current DB is readonly.");
 
     wait_event_t wait_event = log_get_switch_wait_event(session);
     for (;;) {
         if (ctx->free_size > LOG_KEEP_SIZE(session, session->kernel)) {
             break;
         }
-        knl_try_begin_session_wait(session, wait_event, GS_TRUE);
+        knl_begin_session_wait(session, wait_event, CT_TRUE);
         log_try_alert(ctx);
-        ckpt_trigger(session, GS_FALSE, CKPT_TRIGGER_INC);
+        ckpt_trigger(session, CT_FALSE, CKPT_TRIGGER_INC);
         cm_sleep(200);
     }
-    knl_try_end_session_wait(session, wait_event);
+    knl_end_session_wait(session, wait_event);
 
     knl_panic_log(session->page_stack.depth == 0, "page_stack's depth is abnormal, panic info: page_stack depth %u",
                   session->page_stack.depth);
@@ -1557,9 +1673,9 @@ void log_atomic_op_end(knl_session_t *session)
     }
 
     group->size = 0;
-    group->nologging_insert = GS_FALSE;
-    session->log_encrypt = GS_FALSE;
-    session->atomic_op = GS_FALSE;
+    group->nologging_insert = CT_FALSE;
+    session->log_encrypt = CT_FALSE;
+    session->atomic_op = CT_FALSE;
 }
 
 void log_put_logic_data(knl_session_t *session, const void *data, uint32 size, uint8 flag)
@@ -1571,22 +1687,22 @@ void log_put_logic_data(knl_session_t *session, const void *data, uint32 size, u
     errno_t ret;
     if (rm->logic_log_size + size + LOG_ENTRY_SIZE > KNL_LOGIC_LOG_BUF_SIZE) {
     // Shared storage writes more logical logs, log_buf maybe exceed 800 bytes.
-        if (rm->large_page_id == GS_INVALID_ID32) {
-            knl_begin_session_wait(session, LARGE_POOL_ALLOC, GS_FALSE);
+        if (rm->large_page_id == CT_INVALID_ID32) {
+            knl_begin_session_wait(session, LARGE_POOL_ALLOC, CT_FALSE);
             while (!mpool_try_alloc_page(session->kernel->attr.large_pool, &rm->large_page_id)) {
                 cm_spin_sleep_and_stat2(1);
             }
-            knl_end_session_wait(session);
+            knl_end_session_wait(session, LARGE_POOL_ALLOC);
         }
  
         logic_log_buf = mpool_page_addr(session->kernel->attr.large_pool, rm->large_page_id);
         if (rm->logic_log_size <= KNL_LOGIC_LOG_BUF_SIZE) {
-            ret = memcpy_sp(logic_log_buf, GS_LARGE_PAGE_SIZE, rm->logic_log_buf, rm->logic_log_size);
+            ret = memcpy_sp(logic_log_buf, CT_LARGE_PAGE_SIZE, rm->logic_log_buf, rm->logic_log_size);
             knl_securec_check(ret);
         }
         entry = (log_entry_t *)(logic_log_buf + rm->logic_log_size);
-        log_buf_size = GS_LARGE_PAGE_SIZE;
-        GS_LOG_RUN_INF("logic log buffer exceed 800 bytes，logic_log_size %u size %u", rm->logic_log_size,
+        log_buf_size = CT_LARGE_PAGE_SIZE;
+        CT_LOG_RUN_INF("logic log buffer exceed 800 bytes，logic_log_size %u size %u", rm->logic_log_size,
                        size);
     }
     entry->type = RD_LOGIC_OPERATION;
@@ -1618,22 +1734,22 @@ void log_copy_logic_data(knl_session_t *session, log_buffer_t *buf, uint32 start
         errno_t ret = memcpy_sp(buf->addr + start_pos, remain_buf_size, rm->logic_log_buf, rm->logic_log_size);
         knl_securec_check(ret);
     } else {
-        knl_panic_log(rm->large_page_id != GS_INVALID_ID32, "the rm's large_page_id is invalid.");
+        knl_panic_log(rm->large_page_id != CT_INVALID_ID32, "the rm's large_page_id is invalid.");
         char *logic_log_buf = mpool_page_addr(session->kernel->attr.large_pool, rm->large_page_id);
         errno_t ret = memcpy_sp(buf->addr + start_pos, remain_buf_size, logic_log_buf, rm->logic_log_size);
         knl_securec_check(ret);
     }
     
     if (!DB_IS_CLUSTER(session)) {
-        if (rm->large_page_id != GS_INVALID_ID32) {
+        if (rm->large_page_id != CT_INVALID_ID32) {
             mpool_free_page(session->kernel->attr.large_pool, rm->large_page_id);
-            rm->large_page_id = GS_INVALID_ID32;
+            rm->large_page_id = CT_INVALID_ID32;
         }
     }
 
     session->logic_log_size = rm->logic_log_size;
     rm->logic_log_size = 0;
-    rm->need_copy_logic_log = GS_FALSE;
+    rm->need_copy_logic_log = CT_FALSE;
     session->log_entry = NULL;
 }
 
@@ -1648,7 +1764,7 @@ void log_put(knl_session_t *session, log_type_t type, const void *data, uint32 s
         return;
     }
 
-    knl_panic_log(!DB_IS_READONLY(session), "current DB is readonly.");
+    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session)), "current DB is readonly.");
 
     if (type == RD_LOGIC_OPERATION) {
         log_put_logic_data(session, data, size, flag);
@@ -1662,7 +1778,7 @@ void log_put(knl_session_t *session, log_type_t type, const void *data, uint32 s
     }
 #endif
 
-    knl_panic_log(size + group->size + LOG_ENTRY_SIZE <= DEFAULT_PAGE_SIZE(session) * GS_PLOG_PAGES,
+    knl_panic_log(size + group->size + LOG_ENTRY_SIZE <= DEFAULT_PAGE_SIZE(session) * CT_PLOG_PAGES,
                   "the log size is abnormal, panic info: size %u group size %u", size, group->size);
 
     entry->type = type;
@@ -1671,7 +1787,7 @@ void log_put(knl_session_t *session, log_type_t type, const void *data, uint32 s
     group->size += (uint16)LOG_ENTRY_SIZE;
 
     if (size > 0) {
-        uint32 remain_buf_size = DEFAULT_PAGE_SIZE(session) * GS_PLOG_PAGES - group->size;
+        uint32 remain_buf_size = DEFAULT_PAGE_SIZE(session) * CT_PLOG_PAGES - group->size;
         errno_t ret = memcpy_sp(entry->data, remain_buf_size, data, size);
         knl_securec_check(ret);
         entry->size += CM_ALIGN4(size);
@@ -1692,7 +1808,7 @@ void log_append_data(knl_session_t *session, const void *data, uint32 size)
         return;
     }
 
-    knl_panic_log(!DB_IS_READONLY(session), "current DB is readonly.");
+    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session)), "current DB is readonly.");
 
 #ifdef LOG_DIAG
     if (session->log_diag) {
@@ -1709,20 +1825,20 @@ void log_append_data(knl_session_t *session, const void *data, uint32 size)
             logic_log_buf = rm->logic_log_buf;
             max_buf_len = KNL_LOGIC_LOG_BUF_SIZE;
         } else {
-            if (rm->large_page_id == GS_INVALID_ID32) {
-                knl_begin_session_wait(session, LARGE_POOL_ALLOC, GS_FALSE);
+            if (rm->large_page_id == CT_INVALID_ID32) {
+                knl_begin_session_wait(session, LARGE_POOL_ALLOC, CT_FALSE);
                 while (!mpool_try_alloc_page(session->kernel->attr.large_pool, &rm->large_page_id)) {
                     cm_spin_sleep_and_stat2(1);
                 }
-                knl_end_session_wait(session);
+                knl_end_session_wait(session, LARGE_POOL_ALLOC);
             }
 
             logic_log_buf = mpool_page_addr(session->kernel->attr.large_pool, rm->large_page_id);
             if (rm->logic_log_size > 0) {
-                ret = memcpy_sp(logic_log_buf, GS_LARGE_PAGE_SIZE, rm->logic_log_buf, rm->logic_log_size);
+                ret = memcpy_sp(logic_log_buf, CT_LARGE_PAGE_SIZE, rm->logic_log_buf, rm->logic_log_size);
                 knl_securec_check(ret);
             }
-            max_buf_len = GS_LARGE_PAGE_SIZE;
+            max_buf_len = CT_LARGE_PAGE_SIZE;
             entry = (log_entry_t *)logic_log_buf;
             session->log_entry = entry;
         }
@@ -1732,10 +1848,10 @@ void log_append_data(knl_session_t *session, const void *data, uint32 size)
         entry->size += CM_ALIGN4(size);
         rm->logic_log_size += CM_ALIGN4(size);
     } else {
-        knl_panic_log(size + group->size <= DEFAULT_PAGE_SIZE(session) * GS_PLOG_PAGES,
+        knl_panic_log(size + group->size <= DEFAULT_PAGE_SIZE(session) * CT_PLOG_PAGES,
                       "the log size is abnormal, panic info: size %u group size %u", size, group->size);
 
-        uint32 remain_buf_size = DEFAULT_PAGE_SIZE(session) * GS_PLOG_PAGES - group->size;
+        uint32 remain_buf_size = DEFAULT_PAGE_SIZE(session) * CT_PLOG_PAGES - group->size;
         ret = memcpy_sp(session->log_buf + group->size, remain_buf_size, data, size);
         knl_securec_check(ret);
         entry->size += CM_ALIGN4(size);
@@ -1743,15 +1859,172 @@ void log_append_data(knl_session_t *session, const void *data, uint32 size)
     }
 }
 
+/* if make sure not to recod dml lrep log when procedure ddl, call log_add_lrep_ddl_begin before add ddl log */
+void log_add_lrep_ddl_begin(knl_session_t *session)
+{
+    bool32 has_logic = LOGIC_REP_DB_ENABLED(session);
+    if (has_logic) {
+        session->rm->is_ddl_op = CT_TRUE;
+    }
+}
+
+void log_add_lrep_ddl_begin_4database(knl_session_t *session, bool32 need_lrep)
+{
+    if (!need_lrep) {
+        return;
+    }
+    return log_add_lrep_ddl_begin(session);
+}
+
+/* log_add_lrep_ddl_begin and log_add_lrep_ddl_end appear in pairs */
+void log_add_lrep_ddl_end(knl_session_t *session)
+{
+    bool32 has_logic = LOGIC_REP_DB_ENABLED(session);
+    if (has_logic) {
+        session->rm->is_ddl_op = CT_FALSE;
+    }
+}
+
+void log_add_lrep_ddl_end_4database(knl_session_t *session, bool32 need_lrep)
+{
+    if (!need_lrep) {
+        return;
+    }
+    return log_add_lrep_ddl_end(session);
+}
+
+static void log_write_data(knl_session_t *session, logic_rep_ddl_head_t *data_head, text_t *sql)
+{
+    uint32 write_len = sql->len;
+    log_atomic_op_begin(session);
+    log_put(session, RD_LOGIC_REP_ALL_DDL, data_head, sizeof(logic_rep_ddl_head_t), LOG_ENTRY_FLAG_WITH_LOGIC_OID);
+    log_append_data(session, (char *)&(write_len), sizeof(uint32));
+    log_append_data(session, sql->str, sql->len);
+    CT_LOG_DEBUG_INF("[DDL]: sql len: %u, sql: %s", sql->len, sql->str);
+    log_atomic_op_end(session);
+}
+
+void log_append_lrep_ddl_info(knl_session_t *session, knl_handle_t stmt, logic_rep_ddl_head_t *data_head)
+{
+    log_group_t *group = (log_group_t *)(session->log_buf);
+    if (data_head == NULL) {
+        return;
+    }
+    CT_LOG_DEBUG_INF("[LREP_DDL]: op_class: %u, op_type: %u", data_head->op_class, data_head->op_type);
+    text_t sql = {0};
+    vmc_t vmc;
+    bool8 need_free = CT_FALSE;
+    status_t status = g_knl_callback.get_ddl_sql(stmt, &sql, &vmc, &need_free);
+    uint32 remain_len = group->size + (uint16)LOG_ENTRY_SIZE + sizeof(logic_rep_ddl_head_t) + sizeof(uint32);
+    if (status != CT_SUCCESS || sql.len >= (uint32)((DEFAULT_PAGE_SIZE(session)) * (CT_PLOG_PAGES)) - remain_len) {
+        CT_LOG_RUN_ERR("[LREP_DDL]: get ddl sql status[%u] failed or sql length[%u] is oversized.", status, sql.len);
+        if (need_free) {
+            vmc_free(&vmc);
+        }
+        return;
+    }
+    if (sql.str == NULL || sql.len == 0) {
+        if (need_free) {
+            vmc_free(&vmc);
+        }
+        return;
+    }
+    log_write_data(session, data_head, &sql);
+    if (need_free) {
+        vmc_free(&vmc);
+    }
+}
+
+void log_add_lrep_ddl_info(knl_session_t *session, knl_handle_t stmt, uint16 op_class, uint16 op_type,
+    knl_handle_t handle)
+{
+    logic_rep_ddl_head_t logic_rep_head;
+    table_t *table = (table_t *)handle;
+    arch_context_t *arch_ctx = &session->kernel->arch_ctx;
+
+    /* only recode when log from sql, logic rep enabled and none sysuser */
+    if (stmt == NULL || !arch_ctx->is_archive || session->uid == DB_SYS_USER_ID) {
+        return;
+    }
+
+    logic_rep_head.op_class = op_class;
+    logic_rep_head.op_type = op_type;
+    logic_rep_head.table_oid = 0xFFFF;
+
+    switch (op_class) {
+        case LOGIC_OP_VIEW:
+        case LOGIC_OP_SEQUNCE:
+        case LOGIC_OP_SYNONYM:
+        case LOGIC_OP_COMMENT:
+        case LOGIC_OP_INDEX:
+        case LOGIC_OP_TABLESPACE:
+        case LOGIC_OP_OTHER:
+            break;
+
+        case LOGIC_OP_TABLE:
+            if (table == NULL || table->desc.oid == 0xFFFFFFFF) {
+                return;
+            }
+            logic_rep_head.table_oid = table->desc.oid;
+            break;
+        default:
+            CT_LOG_RUN_ERR("[LREP_DDL] Invalid ddl log class.");
+            return;
+    }
+
+    log_append_lrep_ddl_info(session, stmt, &logic_rep_head);
+}
+
+void log_add_lrep_ddl_info_4database(knl_session_t *session, knl_handle_t stmt, uint16 op_class, uint16 op_type,
+    knl_handle_t handle, bool32 need_lrep)
+{
+    if (!need_lrep) {
+        return;
+    }
+    log_add_lrep_ddl_info(session, stmt, op_class, op_type, handle);
+}
+
+void log_lrep_shrink_table(knl_session_t *session, knl_handle_t stmt, knl_handle_t handle, status_t status)
+{
+    table_t *table = (table_t *)handle;
+    if (status == CT_SUCCESS) {
+        log_add_lrep_ddl_info(session, stmt, LOGIC_OP_TABLE, RD_ALTER_TABLE, table);
+    }
+}
+
+void log_print_lrep_ddl(log_entry_t *log)
+{
+    logic_rep_ddl_head_t *redo = (logic_rep_ddl_head_t *)log->data;
+    uint32 sql_len = *(uint32 *)(log->data + sizeof(logic_rep_ddl_head_t));
+    char *sql_text = (char *)(log->data + sizeof(logic_rep_ddl_head_t) + sizeof(uint32));
+
+    printf("op_class %u, op_type %u, op_table_oid %u, sql_len %u\n",
+        redo->op_class, redo->op_type, redo->table_oid, sql_len);
+
+    char *tmp_buf = (char *)malloc(sql_len + 1);
+    if (tmp_buf == NULL) {
+        CT_LOG_RUN_ERR("[LOG] failed to malloc length: %d", sql_len + 1);
+        return;
+    }
+
+    errno_t ret = memset_s(tmp_buf, sql_len + 1, 0, sql_len + 1);
+    knl_securec_check(ret);
+    ret = memcpy_sp(tmp_buf, sql_len + 1, sql_text, sql_len);
+    knl_securec_check(ret);
+
+    printf("sql_text:%s\n", tmp_buf);
+    free(tmp_buf);
+}
+
 uint32 log_get_free_count(knl_session_t *session)
 {
     uint32 next;
     uint32 count = 0;
 
-    log_get_next_file(session, &next, GS_TRUE);
+    log_get_next_file(session, &next, CT_TRUE);
     while (next != session->kernel->redo_ctx.active_file) {
         ++count;
-        log_get_next_file(session, &next, GS_FALSE);
+        log_get_next_file(session, &next, CT_FALSE);
     }
     return count;
 }
@@ -1779,43 +2052,43 @@ status_t log_switch_keep_hb(callback_t *callback, time_t *last_send_time)
 
     if (callback != NULL && callback->keep_hb_entry != NULL) {
         if ((now - *last_send_time) >= REPL_HEART_BEAT_CHECK) {
-            if (callback->keep_hb_entry(callback->keep_hb_param) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (callback->keep_hb_entry(callback->keep_hb_param) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             *last_send_time = now;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline bool32 log_switch_finished(uint16 spec_file_id, uint32 spec_asn, uint16 file_id, uint32 file_asn)
 {
-    if (spec_file_id == GS_INVALID_FILEID || spec_asn == GS_INVALID_ASN ||
+    if (spec_file_id == CT_INVALID_FILEID || spec_asn == CT_INVALID_ASN ||
         (file_id == spec_file_id && file_asn == spec_asn)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline bool32 log_fileid_asn_mismatch(log_context_t *ctx, uint16 spec_fileid, uint32 spec_asn, uint32 next)
 {
-    if (spec_fileid == GS_INVALID_FILEID || spec_asn == GS_INVALID_ASN) {
-        return GS_FALSE;
+    if (spec_fileid == CT_INVALID_FILEID || spec_asn == CT_INVALID_ASN) {
+        return CT_FALSE;
     }
 
     log_file_t *file = &ctx->files[ctx->curr_file];
     uint32 next_asn = file->head.asn + 1;
 
     if (spec_asn == next_asn && next != spec_fileid) {
-        GS_THROW_ERROR(ERR_SWITCH_LOGFILE, "asn %u located in different fileid %u/%u on peer node and local node",
+        CT_THROW_ERROR(ERR_SWITCH_LOGFILE, "asn %u located in different fileid %u/%u on peer node and local node",
             spec_asn, spec_fileid, next);
-        GS_LOG_RUN_ERR("[LOG] asn %u located in different fileid %u/%u on peer node and local node, "
+        CT_LOG_RUN_ERR("[LOG] asn %u located in different fileid %u/%u on peer node and local node, "
                        "perhaps the add/drop logfile has not been replayed", spec_asn, spec_fileid, next);
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 bool32 log_switch_need_wait(knl_session_t *session, uint16 spec_file_id, uint32 spec_asn)
@@ -1829,12 +2102,12 @@ bool32 log_switch_need_wait(knl_session_t *session, uint16 spec_file_id, uint32 
 
     for (;;) {
         curr_asn = next_asn;
-        log_get_next_file(session, &next_file, GS_FALSE);
+        log_get_next_file(session, &next_file, CT_FALSE);
         next_asn = curr_asn + 1;
 
         if (spec_asn == next_asn && next_file != spec_file_id) {
             log_unlock_logfile(session);
-            return GS_TRUE;
+            return CT_TRUE;
         }
 
         if (log_switch_finished(spec_file_id, spec_asn, next_file, next_asn)) {
@@ -1843,7 +2116,7 @@ bool32 log_switch_need_wait(knl_session_t *session, uint16 spec_file_id, uint32 
     }
 
     log_unlock_logfile(session);
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 /*
@@ -1855,7 +2128,7 @@ status_t log_switch_logfile(knl_session_t *session, uint16 spec_file_id, uint32 
     uint32 next;
     log_context_t *log = &session->kernel->redo_ctx;
     time_t last_send_time = cm_current_time();
-    bool32 need_skip = GS_FALSE;
+    bool32 need_skip = CT_FALSE;
 
     log_lock_logfile(session);
 
@@ -1867,37 +2140,37 @@ status_t log_switch_logfile(knl_session_t *session, uint16 spec_file_id, uint32 
     if (file->head.write_pos == CM_CALC_ALIGN(sizeof(log_file_head_t), file->ctrl->block_size)) {
         if (log_switch_finished(spec_file_id, spec_asn, log->curr_file, file->head.asn)) {
             log_unlock_logfile(session);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        need_skip = GS_TRUE;
-        GS_LOG_RUN_INF("[LOG] Switch log, need to skip file %u asn %u state %d",
+        need_skip = CT_TRUE;
+        CT_LOG_RUN_INF("[LOG] Switch log, need to skip file %u asn %u state %d",
                        log->curr_file, file->head.asn, file->ctrl->status);
     }
 
     log_unlock_logfile(session);
 
     for (;;) {
-        log_get_next_file(session, &next, GS_TRUE);
+        log_get_next_file(session, &next, CT_TRUE);
         while (next == log->active_file) {
-            ckpt_trigger(session, GS_FALSE, CKPT_TRIGGER_INC);
+            ckpt_trigger(session, CT_FALSE, CKPT_TRIGGER_INC);
             cm_sleep(1);
 
             if (session->killed) {
-                GS_THROW_ERROR(ERR_OPERATION_KILLED);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_OPERATION_KILLED);
+                return CT_ERROR;
             }
 
-            if (log_switch_keep_hb(callback, &last_send_time) != GS_SUCCESS) {
-                GS_THROW_ERROR(ERR_SWITCH_LOGFILE, "the standby failed to send heart beat message to primary");
-                return GS_ERROR;
+            if (log_switch_keep_hb(callback, &last_send_time) != CT_SUCCESS) {
+                CT_THROW_ERROR(ERR_SWITCH_LOGFILE, "the standby failed to send heart beat message to primary");
+                return CT_ERROR;
             }
 
-            log_get_next_file(session, &next, GS_TRUE);
+            log_get_next_file(session, &next, CT_TRUE);
         }
 
         if (log_fileid_asn_mismatch(log, spec_file_id, spec_asn, next)) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         log_lock_logfile(session);
@@ -1908,13 +2181,13 @@ status_t log_switch_logfile(knl_session_t *session, uint16 spec_file_id, uint32 
 
         file = &log->files[log->curr_file];
         if (file->head.write_pos == CM_CALC_ALIGN(sizeof(log_file_head_t), file->ctrl->block_size)) {
-            if (spec_file_id == GS_INVALID_FILEID || spec_asn == GS_INVALID_ASN) {
+            if (spec_file_id == CT_INVALID_FILEID || spec_asn == CT_INVALID_ASN) {
                 log_unlock_logfile(session);
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
         }
 
-        log_get_next_file(session, &next, GS_TRUE);
+        log_get_next_file(session, &next, CT_TRUE);
         if (next == log->active_file) {
             log_unlock_logfile(session);
             continue;
@@ -1922,31 +2195,31 @@ status_t log_switch_logfile(knl_session_t *session, uint16 spec_file_id, uint32 
 
         uint16 pre_fileid = log->curr_file;
         file = &log->files[log->curr_file];
-        if (DB_NOT_READY(session) && log_repair_file_offset(session, file) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_SWITCH_LOGFILE, "repair current log offset failed");
+        if (DB_NOT_READY(session) && log_repair_file_offset(session, file) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_SWITCH_LOGFILE, "repair current log offset failed");
             log_unlock_logfile(session);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         log_flush_head(session, file);
         status = log_switch_file(session);
-        log->alerted = GS_FALSE;
+        log->alerted = CT_FALSE;
 
         if (need_skip) {
             file = &log->files[pre_fileid];
-            file->head.asn = GS_INVALID_ASN;
+            file->head.asn = CT_INVALID_ASN;
             file->ctrl->status = LOG_FILE_INACTIVE;
-            file->ctrl->archived = GS_FALSE;
+            file->ctrl->archived = CT_FALSE;
             log_flush_head(session, file);
-            if (db_save_log_ctrl(session, pre_fileid, session->kernel->id) != GS_SUCCESS) {
+            if (db_save_log_ctrl(session, pre_fileid, session->kernel->id) != CT_SUCCESS) {
                 CM_ABORT(0, "[LOG] ABORT INFO: save control space file failed when switch log file");
             }
         }
 
         file = &log->files[log->curr_file];
-        if (status == GS_SUCCESS && !log_switch_finished(spec_file_id, spec_asn, log->curr_file, file->head.asn)) {
-            need_skip = GS_TRUE;
+        if (status == CT_SUCCESS && !log_switch_finished(spec_file_id, spec_asn, log->curr_file, file->head.asn)) {
+            need_skip = CT_TRUE;
             log_unlock_logfile(session);
-            GS_LOG_RUN_INF("[LOG] Switch log, need to skip file %u asn %u state %d",
+            CT_LOG_RUN_INF("[LOG] Switch log, need to skip file %u asn %u state %d",
                            log->curr_file, file->head.asn, file->ctrl->status);
             continue;
         }
@@ -1989,11 +2262,11 @@ status_t log_check_blocksize(knl_session_t *session)
     for (uint32 i = 0; i < ctx->logfile_hwm; i++) {
         log_file_t *file = &ctx->files[i];
         if (!LOG_IS_DROPPED(file->ctrl->flg) && file->ctrl->block_size != blocksize) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t log_check_minsize(knl_session_t *session)
@@ -2005,11 +2278,11 @@ status_t log_check_minsize(knl_session_t *session)
     for (uint32 i = 0; i < logfile_set->logfile_hwm; i++) {
         log_file_t *file = &logfile_set->items[i];
         if (!LOG_IS_DROPPED(file->ctrl->flg) && file->ctrl->size <= min_size) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t log_get_first_batch_lfn(knl_session_t *session, log_file_t *logfile, uint64 *first_batch_lfn)
@@ -2017,31 +2290,31 @@ static status_t log_get_first_batch_lfn(knl_session_t *session, log_file_t *logf
     uint32 log_head_size = CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size);
     aligned_buf_t log_buf;
 
-    if (cm_aligned_malloc(GS_MAX_BATCH_SIZE, "log buffer", &log_buf) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_aligned_malloc(CT_MAX_BATCH_SIZE, "log buffer", &log_buf) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     int64 size = logfile->ctrl->size - log_head_size;
-    size = (size > GS_MAX_BATCH_SIZE) ? GS_MAX_BATCH_SIZE : size;
+    size = (size > CT_MAX_BATCH_SIZE) ? CT_MAX_BATCH_SIZE : size;
     if (cm_read_device(logfile->ctrl->type, logfile->handle, log_head_size,
-        log_buf.aligned_buf, (int32)size) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[LOG] failed to read %s ", logfile->ctrl->name);
+        log_buf.aligned_buf, (int32)size) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[LOG] failed to read %s ", logfile->ctrl->name);
         cm_aligned_free(&log_buf);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     log_batch_t *batch = (log_batch_t *)log_buf.aligned_buf;
     log_batch_tail_t *tail = (log_batch_tail_t *)((char *)batch + batch->size - sizeof(log_batch_tail_t));
     if (!rcy_validate_batch(batch, tail)) {
-        GS_LOG_RUN_INF("[LOG] %s may be new or corrupted, first batch size %u head [%llu/%llu/%llu] tail [%llu/%llu]",
+        CT_LOG_RUN_INF("[LOG] %s may be new or corrupted, first batch size %u head [%llu/%llu/%llu] tail [%llu/%llu]",
             logfile->ctrl->name, batch->size, batch->head.magic_num, (uint64)batch->head.point.lfn, batch->raft_index,
             tail->magic_num, (uint64)tail->point.lfn);
         cm_aligned_free(&log_buf);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *first_batch_lfn = batch->head.point.lfn;
     cm_aligned_free(&log_buf);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 log_lfn_is_effective(knl_session_t *session, log_file_t *logfile)
@@ -2049,15 +2322,15 @@ static bool32 log_lfn_is_effective(knl_session_t *session, log_file_t *logfile)
     log_point_t rcy_point = dtc_my_ctrl(session)->rcy_point;
     uint64 first_batch_lfn;
 
-    if (log_get_first_batch_lfn(session, logfile, &first_batch_lfn) != GS_SUCCESS) {
-        return GS_FALSE;
+    if (log_get_first_batch_lfn(session, logfile, &first_batch_lfn) != CT_SUCCESS) {
+        return CT_FALSE;
     }
 
     if (first_batch_lfn < rcy_point.lfn) {
         return (logfile->head.asn == rcy_point.asn);
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 // After restore, only arch log will be replayed, online logfile is empty, so rcy point not in online log
@@ -2078,14 +2351,14 @@ static bool32 log_current_asn_is_correct(knl_session_t *session, log_file_t *log
     if (real_empty) {
         // After backup, restore and recover database, current log is first active log and is empty,
         // but rcy_point must be in the previous log of the current log.
-        if (logfile->head.asn > GS_FIRST_ASN) {
+        if (logfile->head.asn > CT_FIRST_ASN) {
             return rcy_point_belong_previous_log(logfile, rcy_point);
         }
         return (bool32)(logfile->head.asn == rcy_point.asn);
     }
 
-    if (log_get_first_batch_lfn(session, logfile, first_batch_lfn) != GS_SUCCESS) {
-        return GS_FALSE;
+    if (log_get_first_batch_lfn(session, logfile, first_batch_lfn) != CT_SUCCESS) {
+        return CT_FALSE;
     }
     // After installation, rcy_point.lfn maybe 0, first batch lfn of current log is 1,
     // but rcy_point is in the current log
@@ -2113,24 +2386,24 @@ static status_t log_check_active_log_asn(knl_session_t *session, uint32 *pre_asn
     while (file_id != ctx->curr_file) {
         logfile = &ctx->files[file_id];
         if (logfile->ctrl->status == LOG_FILE_UNUSED) {
-            log_get_next_file(session, &file_id, GS_FALSE);
+            log_get_next_file(session, &file_id, CT_FALSE);
             continue;
         }
-        if (logfile->head.asn == GS_INVALID_ASN) {
-            GS_LOG_RUN_ERR("[LOG] asn of redo log %s is invalid", logfile->ctrl->name);
-            return GS_ERROR;
+        if (logfile->head.asn == CT_INVALID_ASN) {
+            CT_LOG_RUN_ERR("[LOG] asn of redo log %s is invalid", logfile->ctrl->name);
+            return CT_ERROR;
         }
 
-        if (file_id != ctx->active_file && *pre_asn != GS_INVALID_ASN && logfile->head.asn != *pre_asn + 1) {
-            GS_LOG_RUN_ERR("[LOG] redo log asn are not continuous, %s asn: %u, previous log asn: %u",
+        if (file_id != ctx->active_file && *pre_asn != CT_INVALID_ASN && logfile->head.asn != *pre_asn + 1) {
+            CT_LOG_RUN_ERR("[LOG] redo log asn are not continuous, %s asn: %u, previous log asn: %u",
                 logfile->ctrl->name, logfile->head.asn, *pre_asn);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         *pre_asn = logfile->head.asn;
-        log_get_next_file(session, &file_id, GS_FALSE);
+        log_get_next_file(session, &file_id, CT_FALSE);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -2146,35 +2419,35 @@ status_t log_check_asn(knl_session_t *session, bool32 force_ignorlog)
     log_point_t rcy_point = dtc_my_ctrl(session)->rcy_point;
 
     if (LOG_SKIP_CHECK_ASN(session->kernel, force_ignorlog)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (ctx->active_file == ctx->curr_file) {
         log_file_t *logfile = &ctx->files[ctx->curr_file];
         if (logfile->ctrl->type == DEV_TYPE_ULOG) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
         uint64 first_batch_lfn = 0;
         if (!log_current_asn_is_correct(session, logfile, &first_batch_lfn)) {
-            GS_LOG_RUN_ERR("[LOG] check asn of redo log %s failed, logfile [%u-%u/%llu], "
+            CT_LOG_RUN_ERR("[LOG] check asn of redo log %s failed, logfile [%u-%u/%llu], "
                 "first batch lfn: %llu, rcy_point [%llu-%u-%llu]",
                 logfile->ctrl->name, logfile->head.rst_id, logfile->head.asn, logfile->head.write_pos,
                 first_batch_lfn, (uint64)rcy_point.rst_id, rcy_point.asn, (uint64)rcy_point.lfn);
-            return GS_ERROR;
+            return CT_ERROR;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint32 last_active_asn;
-    if (log_check_active_log_asn(session, &last_active_asn) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (log_check_active_log_asn(session, &last_active_asn) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     log_file_t *logfile = &ctx->files[ctx->curr_file];
     if (logfile->head.asn != last_active_asn + 1) {
-        GS_LOG_RUN_ERR("[LOG] redo log asn are not continuous, %s asn: %u, previous log asn: %u",
+        CT_LOG_RUN_ERR("[LOG] redo log asn are not continuous, %s asn: %u, previous log asn: %u",
             logfile->ctrl->name, logfile->head.asn, last_active_asn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /*
@@ -2186,12 +2459,12 @@ status_t log_check_asn(knl_session_t *session, bool32 force_ignorlog)
     if ((rcy_point.asn < ctx->files[ctx->active_file].head.asn &&
         !(is_archive && last_arch_log.asn >= ctx->files[ctx->active_file].head.asn - 1)) ||
         rcy_point.asn > logfile->head.asn) {
-        GS_LOG_RUN_ERR("[LOG] check log asn failed, rcy_point[%u], online log start[%u] end[%u], last arch log[%u]",
+        CT_LOG_RUN_ERR("[LOG] check log asn failed, rcy_point[%u], online log start[%u] end[%u], last arch log[%u]",
             rcy_point.asn, ctx->files[ctx->active_file].head.asn, logfile->head.asn, last_arch_log.asn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 uint32 log_get_count(knl_session_t *session)
@@ -2239,26 +2512,26 @@ status_t log_set_file_asn(knl_session_t *session, uint32 asn, uint32 log_first)
     log_file_ctrl_t *log_file = logfile_set->items[dtc_my_ctrl(session)->log_first].ctrl;
     log_file_head_t tmp_head;
     log_file_head_t *head = &tmp_head;
-    int32 handle = GS_INVALID_HANDLE;
+    int32 handle = CT_INVALID_HANDLE;
 
-    if (cm_open_device(log_file->name, log_file->type, knl_redo_io_flag(session), &handle) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[BACKUP] failed to open %s", log_file->name);
-        return GS_ERROR;
+    if (cm_open_device(log_file->name, log_file->type, knl_redo_io_flag(session), &handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] failed to open %s", log_file->name);
+        return CT_ERROR;
     }
 
     if (cm_read_device(log_file->type, handle, 0, ctx->logwr_head_buf,
-        CM_CALC_ALIGN(sizeof(log_file_head_t), log_file->block_size)) != GS_SUCCESS) {
+        CM_CALC_ALIGN(sizeof(log_file_head_t), log_file->block_size)) != CT_SUCCESS) {
         cm_close_device(log_file->type, &handle);
-        GS_LOG_RUN_ERR("[BACKUP] failed to read log head %s", log_file->name);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[BACKUP] failed to read log head %s", log_file->name);
+        return CT_ERROR;
     }
 
     errno_t ret = memcpy_sp(head, sizeof(log_file_head_t), ctx->logwr_head_buf, sizeof(log_file_head_t));
     knl_securec_check(ret);
 
-    if (log_first == GS_INVALID_ID32) {
-        head->first = GS_INVALID_ID64;
-        head->last = GS_INVALID_ID64;
+    if (log_first == CT_INVALID_ID32) {
+        head->first = CT_INVALID_ID64;
+        head->last = CT_INVALID_ID64;
         head->write_pos = CM_CALC_ALIGN(sizeof(log_file_head_t), log_file->block_size);
     }
     head->asn = asn;
@@ -2271,14 +2544,14 @@ status_t log_set_file_asn(knl_session_t *session, uint32 asn, uint32 log_first)
     knl_securec_check(ret);
 
     if (cm_write_device(log_file->type, handle, 0, ctx->logwr_head_buf,
-                        CM_CALC_ALIGN(sizeof(log_file_head_t), log_file->block_size)) != GS_SUCCESS) {
+                        CM_CALC_ALIGN(sizeof(log_file_head_t), log_file->block_size)) != CT_SUCCESS) {
         cm_close_device(log_file->type, &handle);
-        GS_LOG_RUN_ERR("[BACKUP] failed to write %s", log_file->name);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[BACKUP] failed to write %s", log_file->name);
+        return CT_ERROR;
     }
 
     cm_close_device(log_file->type, &handle);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void log_reset_log_head(knl_session_t *session, log_file_t *logfile)
@@ -2300,7 +2573,7 @@ status_t log_reset_logfile(knl_session_t *session, uint32 asn, uint32 log_first)
             continue;
         }
 
-        if (curr == GS_INVALID_ID32 || curr == i) {
+        if (curr == CT_INVALID_ID32 || curr == i) {
             curr = i;
             dtc_my_ctrl(session)->log_first = i;
             dtc_my_ctrl(session)->log_last = i;
@@ -2309,8 +2582,8 @@ status_t log_reset_logfile(knl_session_t *session, uint32 asn, uint32 log_first)
             logfile_ctrl->status = LOG_FILE_INACTIVE;
         }
 
-        logfile_ctrl->archived = GS_FALSE;
-        if (db_save_log_ctrl(session, i, session->kernel->id) != GS_SUCCESS) {
+        logfile_ctrl->archived = CT_FALSE;
+        if (db_save_log_ctrl(session, i, session->kernel->id) != CT_SUCCESS) {
             CM_ABORT(0, "[BACKUP] ABORT INFO: save core control file failed when restore log files");
         }
     }
@@ -2319,11 +2592,11 @@ status_t log_reset_logfile(knl_session_t *session, uint32 asn, uint32 log_first)
                   "curr position is more than core's log_hwm, panic info: curr position %u log_hwm %u", curr,
                   dtc_my_ctrl(session)->log_hwm);
 
-    if (log_set_file_asn(session, asn, log_first) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (log_set_file_asn(session, asn, log_first) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void log_reset_inactive_head(knl_session_t *session)
@@ -2347,77 +2620,77 @@ status_t log_prepare_for_pitr(knl_session_t *se)
     uint32 rst_id = se->kernel->db.ctrl.core.resetlogs.rst_id;
     uint32 archive_asn = last->asn + 1;
 
-    if (arch_try_regist_archive(se, rst_id, &archive_asn) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (arch_try_regist_archive(se, rst_id, &archive_asn) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     uint32 max_asn;
-    if (arch_try_arch_redo(se, &max_asn) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (arch_try_arch_redo(se, &max_asn) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (max_asn >= archive_asn) {
         archive_asn = max_asn + 1;
     }
 
-    if (log_reset_logfile(se, archive_asn, GS_INVALID_ID32) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (log_reset_logfile(se, archive_asn, CT_INVALID_ID32) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     log_reset_inactive_head(se);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool32 log_need_realloc_buf(log_batch_t *batch, aligned_buf_t *buf, const char *name, int64 new_size)
 {
     if (batch->head.magic_num != LOG_MAGIC_NUMBER) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    if (batch->space_size > GS_MAX_BATCH_SIZE) {
-        return GS_FALSE;
+    if (batch->space_size > CT_MAX_BATCH_SIZE) {
+        return CT_FALSE;
     }
     if (batch->space_size <= buf->buf_size) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    if (cm_aligned_realloc(new_size, name, buf) != GS_SUCCESS) {
+    if (cm_aligned_realloc(new_size, name, buf) != CT_SUCCESS) {
         CM_ABORT(0, "ABORT INFO: malloc redo buf fail.");
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t log_get_file_offset(knl_session_t *session, const char *file_name, aligned_buf_t *buf, uint64 *offset,
     uint64 *latest_lfn, uint64 *last_scn)
 {
     log_file_head_t head;
-    int32 handle = GS_INVALID_HANDLE;
-    bool32 finished = GS_FALSE;
+    int32 handle = CT_INVALID_HANDLE;
+    bool32 finished = CT_FALSE;
     uint64 size, remain_size;
     char *read_buf = buf->aligned_buf;
     uint64 buf_size = buf->buf_size;
-    bool32 first_batch = GS_TRUE;
+    bool32 first_batch = CT_TRUE;
     device_type_t type = cm_device_type(file_name);
 
-    if (log_get_file_head(file_name, &head) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (log_get_file_head(file_name, &head) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     bool32 compressed = (head.cmp_algorithm == COMPRESS_ZSTD);
-    if (cm_open_device(file_name, type, knl_arch_io_flag(session, compressed), &handle) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[LOG] failed to open %s ", file_name);
-        return GS_ERROR;
+    if (cm_open_device(file_name, type, knl_arch_io_flag(session, compressed), &handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[LOG] failed to open %s ", file_name);
+        return CT_ERROR;
     }
 
     int64 file_size = cm_file_size(handle);
     if (file_size == -1) {
         cm_close_file(handle);
-        GS_LOG_RUN_ERR("[LOG] failed to get %s size ", file_name);
-        GS_THROW_ERROR(ERR_SEEK_FILE, 0, SEEK_END, errno);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[LOG] failed to get %s size ", file_name);
+        CT_THROW_ERROR(ERR_SEEK_FILE, 0, SEEK_END, errno);
+        return CT_ERROR;
     }
 
     *offset = CM_CALC_ALIGN(sizeof(log_file_head_t), (uint32)head.block_size);
-    *last_scn = GS_INVALID_ID64;
+    *last_scn = CT_INVALID_ID64;
     *latest_lfn = 0;
 
     while (1) {
@@ -2427,13 +2700,13 @@ status_t log_get_file_offset(knl_session_t *session, const char *file_name, alig
             break;
         }
 
-        if (cm_read_device(type, handle, *offset, read_buf, size) != GS_SUCCESS) {
+        if (cm_read_device(type, handle, *offset, read_buf, size) != CT_SUCCESS) {
             cm_close_device(type, &handle);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         log_batch_t *batch = (log_batch_t *)read_buf;
-        if (log_need_realloc_buf(batch, buf, "log buffer", GS_MAX_BATCH_SIZE + SIZE_K(4))) {
+        if (log_need_realloc_buf(batch, buf, "log buffer", CT_MAX_BATCH_SIZE + SIZE_K(4))) {
             read_buf = buf->aligned_buf;
             buf_size = buf->buf_size;
             continue;
@@ -2444,10 +2717,10 @@ status_t log_get_file_offset(knl_session_t *session, const char *file_name, alig
             (batch->head.point.asn != head.asn || batch->head.point.rst_id != head.rst_id)) {
             *offset = CM_CALC_ALIGN(sizeof(log_file_head_t), (uint32)head.block_size);
             cm_close_file(handle);
-            GS_LOG_RUN_INF("[LOG] no need to repair file offset for %s, "
+            CT_LOG_RUN_INF("[LOG] no need to repair file offset for %s, "
                            "batch rstid/asn [%u/%u], file head rstid/asn [%u/%u]",
                            file_name, batch->head.point.rst_id, batch->head.point.asn, head.rst_id, head.asn);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         remain_size = size;
@@ -2455,8 +2728,8 @@ status_t log_get_file_offset(knl_session_t *session, const char *file_name, alig
             if (remain_size < batch->space_size || !rcy_validate_batch(batch, tail) ||
                 batch->head.point.rst_id != head.rst_id ||
                 (*latest_lfn != 0 && batch->head.point.lfn != *latest_lfn + 1)) {
-                finished = GS_TRUE;
-                GS_LOG_RUN_INF("[LOG] log %s [%u-%u] offset %llu invalid batch size %u "
+                finished = CT_TRUE;
+                CT_LOG_RUN_INF("[LOG] log %s [%u-%u] offset %llu invalid batch size %u "
                                "head [%llu/%u-%u/%llu/%llu] latest_lfn %llu",
                                file_name, head.rst_id, head.asn, *offset, batch->size, batch->head.magic_num,
                                batch->head.point.rst_id, batch->head.point.asn,
@@ -2465,7 +2738,7 @@ status_t log_get_file_offset(knl_session_t *session, const char *file_name, alig
                 break;
             }
 
-            first_batch = GS_FALSE;
+            first_batch = CT_FALSE;
             *latest_lfn = batch->head.point.lfn;
             *last_scn = batch->scn;
             *offset += batch->space_size;
@@ -2479,7 +2752,7 @@ status_t log_get_file_offset(knl_session_t *session, const char *file_name, alig
     }
 
     cm_close_file(handle);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t log_repair_file_offset(knl_session_t *session, log_file_t *file)
@@ -2487,19 +2760,19 @@ status_t log_repair_file_offset(knl_session_t *session, log_file_t *file)
     uint64 latest_lfn;
     aligned_buf_t log_buf;
 
-    if (cm_aligned_malloc((int64)LOG_LGWR_BUF_SIZE(session), "log buffer", &log_buf) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[LOG] failed to alloc log buffer with size %u", (uint32)LOG_LGWR_BUF_SIZE(session));
-        return GS_ERROR;
+    if (cm_aligned_malloc((int64)LOG_LGWR_BUF_SIZE(session), "log buffer", &log_buf) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[LOG] failed to alloc log buffer with size %u", (uint32)LOG_LGWR_BUF_SIZE(session));
+        return CT_ERROR;
     }
 
     if (log_get_file_offset(session, file->ctrl->name, &log_buf, (uint64 *)&file->head.write_pos,
-        &latest_lfn, &file->head.last) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[LOG] failed to get online log %s write pos", file->ctrl->name);
+        &latest_lfn, &file->head.last) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[LOG] failed to get online log %s write pos", file->ctrl->name);
         cm_aligned_free(&log_buf);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     cm_aligned_free(&log_buf);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 log_group_t *log_fetch_group(log_context_t *ctx, log_cursor_t *cursor)
@@ -2539,21 +2812,21 @@ log_group_t *log_fetch_group(log_context_t *ctx, log_cursor_t *cursor)
 
 status_t log_get_file_head(const char *file_name, log_file_head_t *head)
 {
-    int32 handle = GS_INVALID_HANDLE;
+    int32 handle = CT_INVALID_HANDLE;
     device_type_t type = cm_device_type(file_name);
-    if (cm_open_device(file_name, type, 0, &handle) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[LOG] failed to open %s", file_name);
-        return GS_ERROR;
+    if (cm_open_device(file_name, type, 0, &handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[LOG] failed to open %s", file_name);
+        return CT_ERROR;
     }
 
-    if (cm_read_device(type, handle, 0, head, sizeof(log_file_head_t)) != GS_SUCCESS) {
+    if (cm_read_device(type, handle, 0, head, sizeof(log_file_head_t)) != CT_SUCCESS) {
         cm_close_device(type, &handle);
-        GS_LOG_RUN_ERR("[LOG] failed to read %s", file_name);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[LOG] failed to read %s", file_name);
+        return CT_ERROR;
     }
 
     cm_close_device(type, &handle);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void log_set_logfile_writepos(knl_session_t *session, log_file_t *file, uint64 offset)

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -29,14 +29,7 @@
 #include "knl_interface.h"
 #include "knl_session.h"
 #include "knl_log.h"
-
-typedef struct st_rd_seq {
-    uint32 op_type;
-    uint32 id;
-    uint32 uid;
-    char seq_name[GS_NAME_BUFFER_SIZE];
-    char user_name[GS_NAME_BUFFER_SIZE];
-} rd_seq_t;
+#include "knl_sequence_persistent.h"
 
 status_t db_create_sequence(knl_session_t *session, knl_handle_t stmt, knl_sequence_def_t *def);
 status_t db_get_seq_dist_data(knl_session_t *session, text_t *user, text_t *name, binary_t **dist_data);

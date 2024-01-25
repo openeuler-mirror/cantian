@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -44,7 +44,7 @@ extern "C" {
 
 #define RENAME_DEFAULT_RETRYS 100
 #define RENAME_SLEEP_TIMES 100
-
+#define REOPEN_SLEEP_TIMES 200
 #ifdef WIN32
 #define PATH_MAX 4096
 #ifndef S_IRUSR
@@ -106,15 +106,15 @@ extern "C" {
 #define cm_fileno           fileno
 #endif
 
-#define GS_WRITE_TRY_TIMES 5
+#define CT_WRITE_TRY_TIMES 5
 
-#define GS_NULL_FILE (int32)(-1)
+#define CT_NULL_FILE (int32)(-1)
 
 typedef int32 file_t;
 
 status_t cm_open_file(const char *file_name, uint32 mode, int32 *file);
 status_t cm_chmod_file(uint32 perm, int32 fd);
-
+status_t cm_reopen_file(int fd, const char* file_name, int* out_fd);
 /**
  * Security requirements require that the permissions of
  * + sensitive data file <= 0600
@@ -127,6 +127,10 @@ status_t cm_chmod_file(uint32 perm, int32 fd);
 #define FILE_PERM_OF_EXE    0750
 #define FILE_PERM_OF_NORMAL 0640
 
+#define FILE_WAIT_FOR_READ   1
+#define FILE_WAIT_FOR_WRITE  2
+#define FILE_POLL_TIMEOUT_MS 3000
+
 static inline status_t cm_fchmod(uint32 perm, FILE *fp)
 {
     return cm_chmod_file(perm, cm_fileno(fp));
@@ -138,7 +142,9 @@ status_t cm_fdatasync_file(int32 file);
 
 status_t cm_create_file(const char *file_name, uint32 mode, int32 *file);
 void cm_close_file(int32 file);
+status_t cm_io_poll(int32 fd, uint32 wait_type, int32 timeout_ms);
 status_t cm_read_file(int32 file, void *buf, int32 len, int32 *read_size);
+status_t cm_read_file_try_timeout(const char* file_name, int32* fd, void *buf, int32 len, int32 timeout_ms);
 status_t cm_write_file(int32 file, const void *buf, int32 size);
 status_t cm_pwrite_file(int32 file, const char *buf, int32 size, int64 offset);
 status_t cm_pread_file(int32 file, void *buf, int length, int64 i_offset, int32 *read_size);

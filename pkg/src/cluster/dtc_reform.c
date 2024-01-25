@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_cluster_module.h"
 #include "dtc_reform.h"
 #include "dtc_context.h"
 #include "dtc_drc.h"
@@ -36,11 +37,12 @@
 #include "dtc_dcs.h"
 #include "tse_srv_util.h"
 #include "rc_reform.h"
+#include "dtc_backup.h"
 
 status_t init_dtc_rc(void)
 {
     knl_session_t *session;
-    GS_RETURN_IFERR(g_knl_callback.alloc_knl_session(GS_TRUE, (knl_handle_t *)&session));
+    CT_RETURN_IFERR(g_knl_callback.alloc_knl_session(CT_TRUE, (knl_handle_t *)&session));
 
     reform_init_t init_st;
     init_st.session = (void*)session;
@@ -68,12 +70,12 @@ void free_dtc_rc(void)
 
     cm_close_thread(&g_drc_res_ctx.gc_thread);
 
-    if (g_rc_ctx == NULL || g_rc_ctx->started == GS_FALSE) {
+    if (g_rc_ctx == NULL || g_rc_ctx->started == CT_FALSE) {
         return;
     }
 
     // free_cms_rc(is_shutdown_abort);
-    free_cms_rc(GS_TRUE);
+    free_cms_rc(CT_TRUE);
 
     g_knl_callback.release_knl_session(g_rc_ctx->session);
 
@@ -87,7 +89,7 @@ bool32 rc_instance_accessible(uint8 id)
     reform_role_t role;
 
     if (g_rc_ctx->status >= REFORM_OPEN) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     /** instance in reform list */
@@ -101,7 +103,7 @@ void rc_get_tx_deposit_inst_list(instance_list_t * deposit_list, instance_list_t
     rc_init_inst_list(deposit_free_list);
 
     uint64 inst_count = ((knl_session_t*)g_rc_ctx->session)->kernel->db.ctrl.core.node_count;
-    CM_ASSERT(inst_count <= GS_MAX_INSTANCES);
+    CM_ASSERT(inst_count <= CT_MAX_INSTANCES);
 
     if (g_rc_ctx->info.master_changed) {
         instance_list_t *after = &RC_REFORM_LIST(&g_rc_ctx->info, REFORM_LIST_AFTER);
@@ -139,13 +141,13 @@ void rc_get_tx_deposit_inst_list(instance_list_t * deposit_list, instance_list_t
 status_t rc_tx_area_init(instance_list_t *list)
 {
     for (uint8 i = 0; i < list->inst_id_count; i++) {
-        if (dtc_tx_area_init(g_rc_ctx->session, list->inst_id_list[i]) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[DTC RCY] failed to init tx area");
-            return GS_ERROR;
+        if (dtc_tx_area_init(g_rc_ctx->session, list->inst_id_list[i]) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DTC RCY] failed to init tx area");
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rc_undo_init(instance_list_t *list)
@@ -154,7 +156,7 @@ status_t rc_undo_init(instance_list_t *list)
         dtc_undo_init(g_rc_ctx->session, list->inst_id_list[i]);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rc_tx_area_load(instance_list_t *list)
@@ -163,7 +165,7 @@ status_t rc_tx_area_load(instance_list_t *list)
         dtc_tx_area_load(g_rc_ctx->session, list->inst_id_list[i]);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rc_rollback_close(instance_list_t *list)
@@ -172,7 +174,7 @@ status_t rc_rollback_close(instance_list_t *list)
         dtc_rollback_close(g_rc_ctx->session, list->inst_id_list[i]);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rc_undo_release(instance_list_t * list)
@@ -181,7 +183,7 @@ status_t rc_undo_release(instance_list_t * list)
         dtc_undo_release(g_rc_ctx->session, list->inst_id_list[i]);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void accumulate_recovery_stat(void)
@@ -207,7 +209,7 @@ void rc_release_tse_resources(reform_info_t * info)
             for (uint8 i = 0; i < info->reform_list[REFORM_LIST_LEAVE].inst_id_count; i++) {
                 inst_id = info->reform_list[REFORM_LIST_LEAVE].inst_id_list[i];
                 if (g_rc_ctx->self_id != inst_id) {
-                    GS_LOG_RUN_INF("[RC]REFORM_LIST_LEAVE cantian_ist_id:%u.", inst_id);
+                    CT_LOG_RUN_INF("[RC]REFORM_LIST_LEAVE cantian_ist_id:%u.", inst_id);
                     clean_up_for_bad_cantian((uint32_t)inst_id);
                 }
             }
@@ -215,7 +217,7 @@ void rc_release_tse_resources(reform_info_t * info)
             for (uint8 i = 0; i < info->reform_list[REFORM_LIST_ABORT].inst_id_count; i++) {
                 inst_id = info->reform_list[REFORM_LIST_ABORT].inst_id_list[i];
                 if (g_rc_ctx->self_id != inst_id) {
-                    GS_LOG_RUN_INF("[RC]REFORM_LIST_ABORT cantian_ist_id:%u.", inst_id);
+                    CT_LOG_RUN_INF("[RC]REFORM_LIST_ABORT cantian_ist_id:%u.", inst_id);
                     clean_up_for_bad_cantian((uint32_t)inst_id);
                 }
             }
@@ -229,38 +231,38 @@ void rc_release_tse_resources(reform_info_t * info)
 
 status_t dtc_partial_recovery(void)
 {
-    GS_LOG_RUN_INF("[RC][partial restart] start redo replay, session->kernel->lsn=%llu,"
+    CT_LOG_RUN_INF("[RC][partial restart] start redo replay, session->kernel->lsn=%llu,"
                    " g_rc_ctx->status=%u",
                    ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
-    if (dtc_start_recovery(g_rc_ctx->session, &g_rc_ctx->info.reform_list[REFORM_LIST_ABORT], GS_FALSE) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RC][partial restart] failed to start dtc recovery, session->kernel->lsn=%llu,"
+    if (dtc_start_recovery(g_rc_ctx->session, &g_rc_ctx->info.reform_list[REFORM_LIST_ABORT], CT_FALSE) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC][partial restart] failed to start dtc recovery, session->kernel->lsn=%llu,"
                        "g_rc_ctx->status=%u",
                        ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
         g_rc_ctx->status = REFORM_PREPARE;
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     // wait recovery finish here
     while (dtc_recovery_in_progress()) {
         cm_sleep(DTC_REFORM_WAIT_TIME);
     }
-    GS_LOG_RUN_INF("[RC][partial restart] finish redo replay, session->kernel->lsn=%llu,"
+    CT_LOG_RUN_INF("[RC][partial restart] finish redo replay, session->kernel->lsn=%llu,"
                    "g_rc_ctx->status=%u",
                    ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
 
     if (dtc_recovery_failed()) {
-        GS_LOG_RUN_ERR("[RC][partial restart] failed to do dtc recovery, session->kernel->lsn=%llu,"
+        CT_LOG_RUN_ERR("[RC][partial restart] failed to do dtc recovery, session->kernel->lsn=%llu,"
                        " g_rc_ctx->status=%u",
                        ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
         CM_ABORT(0, "[RC] DTC RCY failed");
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dtc_rollback_node(void)
 {
     // init deposit undo && transaction for abort or leave instances
-    GS_LOG_RUN_INF("[RC] start process undo, session->kernel->lsn=%llu, g_rc_ctx->status=%u",
+    CT_LOG_RUN_INF("[RC] start process undo, session->kernel->lsn=%llu, g_rc_ctx->status=%u",
                    ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
 
     // init deposit transaction for abort or leave instances
@@ -270,21 +272,25 @@ status_t dtc_rollback_node(void)
     rc_log_instance_list(&deposit_list, "deposit");
     rc_log_instance_list(&deposit_free_list, "deposit free");
 
-    if (rc_undo_init(&deposit_list) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RC] failed to rc_undo_init");
-        return GS_ERROR;
+    if (rc_undo_init(&deposit_list) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC] failed to rc_undo_init");
+        return CT_ERROR;
     }
 
-    if (rc_tx_area_init(&deposit_list) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RC][partial restart] failed to do tx area init, g_rc_ctx->status=%u", g_rc_ctx->status);
-        return GS_ERROR;
+    if (rc_tx_area_init(&deposit_list) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC][partial restart] failed to do tx area init, g_rc_ctx->status=%u", g_rc_ctx->status);
+        return CT_ERROR;
     }
 
-    if (rc_tx_area_load(&deposit_list) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RC][partial restart] failed to do tx area load, session->kernel->lsn=%llu, "
+    if (g_instance->kernel.db.open_status == DB_OPEN_STATUS_MAX_FIX) {
+        g_instance->kernel.db.is_readonly = CT_TRUE;
+    }
+
+    if (rc_tx_area_load(&deposit_list) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC][partial restart] failed to do tx area load, session->kernel->lsn=%llu, "
                        "g_rc_ctx->status=%u",
                        ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     g_rc_ctx->status = REFORM_OPEN;
@@ -292,23 +298,23 @@ status_t dtc_rollback_node(void)
     while (DB_IN_BG_ROLLBACK((knl_session_t *)g_rc_ctx->session)) {
         cm_sleep(DTC_REFORM_WAIT_TIME);
     }
-    GS_LOG_RUN_INF("[RC] finish undo_rollback, session->kernel->lsn=%llu, g_rc_ctx->status=%u",
+    CT_LOG_RUN_INF("[RC] finish undo_rollback, session->kernel->lsn=%llu, g_rc_ctx->status=%u",
                    ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
 
-    if (rc_rollback_close(&deposit_list) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RC][partial restart] failed to rc_tx_area_release, session->kernel->lsn=%llu, "
+    if (rc_rollback_close(&deposit_list) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC][partial restart] failed to rc_tx_area_release, session->kernel->lsn=%llu, "
                        "g_rc_ctx->status=%u",
                        ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    /*            if (rc_undo_release(&deposit_free_list) != GS_SUCCESS) {
-                    GS_LOG_RUN_ERR("[RC] failed to rc_undo_release");
+    /*            if (rc_undo_release(&deposit_free_list) != CT_SUCCESS) {
+                    CT_LOG_RUN_ERR("[RC] failed to rc_undo_release");
                     g_rc_ctx->status = REFORM_DONE;
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
     */
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void rc_reform_init(reform_info_t *reform_info)
@@ -318,7 +324,7 @@ void rc_reform_init(reform_info_t *reform_info)
 
 status_t rc_follower_reform(reform_mode_t mode, reform_detail_t *detail)
 {
-    GS_LOG_RUN_INF("[RC] reform for partial restart as follower.");
+    CT_LOG_RUN_INF("[RC] reform for partial restart as follower.");
 
     // step 2 drc_remaster
     RC_STEP_BEGIN(detail->remaster_elapsed);
@@ -328,117 +334,133 @@ status_t rc_follower_reform(reform_mode_t mode, reform_detail_t *detail)
         cm_sleep(DTC_REFORM_WAIT_TIME);
     }
     if (drc_get_remaster_status() == REMASTER_FAIL) {
-        GS_LOG_RUN_ERR("[RC][partial restart] failed to partial restart as follower, session->kernel->lsn=%llu,"
+        CT_LOG_RUN_ERR("[RC][partial restart] failed to partial restart as follower, session->kernel->lsn=%llu,"
                        " g_rc_ctx->status=%u", ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
         g_rc_ctx->status = REFORM_PREPARE;
         RC_STEP_END(detail->remaster_elapsed, RC_STEP_FAILED);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     RC_STEP_END(detail->remaster_elapsed, RC_STEP_FINISH);
 
     // wait redo finish here
     RC_STEP_BEGIN(detail->recovery_elapsed);
     while (g_rc_ctx->status < REFORM_RECOVER_DONE) {
-        GS_RETVALUE_IFTRUE(rc_reform_cancled(), GS_ERROR);
+        CT_RETVALUE_IFTRUE(rc_reform_cancled(), CT_ERROR);
         cm_sleep(DTC_REFORM_WAIT_TIME);
     }
     RC_STEP_END(detail->recovery_elapsed, RC_STEP_FINISH);
 
     drc_clean_remaster_res();
-    return GS_SUCCESS;
+
+    arch_proc_context_t arch_proc_ctx[DTC_MAX_NODE_COUNT] = { 0 };
+    if (rc_archive_log(arch_proc_ctx) != CT_SUCCESS) {
+        rc_end_archive_log(arch_proc_ctx);
+        return CT_ERROR;
+    }
+    if (rc_wait_archive_log_finish(arch_proc_ctx) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC][partial restart] arch in reform failed");
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
 }
 
 status_t rc_master_clean_ddl_op(reform_detail_t *detail)
 {
     RC_STEP_BEGIN(detail->clean_ddp_elapsed);
-    if (knl_begin_auton_rm(g_rc_ctx->session) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RC] failed to begin kernel auto rm, session->kernel->lsn=%llu, "
+    if (knl_begin_auton_rm(g_rc_ctx->session) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC] failed to begin kernel auto rm, session->kernel->lsn=%llu, "
                        "g_rc_ctx->status=%u",
                        ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
         g_rc_ctx->status = REFORM_PREPARE;
         RC_STEP_END(detail->clean_ddp_elapsed, RC_STEP_FAILED);
-        return GS_ERROR;
+        CT_LOG_RUN_INF("[RC][partial restart] master clean ddl op failed");
+        return CT_ERROR;
     }
     status_t status = db_clean_ddl_op(g_rc_ctx->session, DDL_REFORM_REPLAY);
-    if (status != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RC] failed to do clean ddl operation, session->kernel->lsn=%llu, "
+    if (status != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC] failed to do clean ddl operation, session->kernel->lsn=%llu, "
                        "g_rc_ctx->status=%u",
                        ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
         g_rc_ctx->status = REFORM_PREPARE;
         knl_end_auton_rm(g_rc_ctx->session, status);
         RC_STEP_END(detail->clean_ddp_elapsed, RC_STEP_FAILED);
-        return GS_ERROR;
+        CT_LOG_RUN_INF("[RC][partial restart] master clean ddl op failed");
+        return CT_ERROR;
     }
     knl_end_auton_rm(g_rc_ctx->session, status);
-    GS_LOG_RUN_INF("[RC] finish to complete ddl operations, session->kernel->lsn=%llu, "
+    CT_LOG_RUN_INF("[RC] finish to complete ddl operations, session->kernel->lsn=%llu, "
                    "g_rc_ctx->status=%u",
                    ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
     RC_STEP_END(detail->clean_ddp_elapsed, RC_STEP_FINISH);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rc_master_start_remaster(reform_detail_t *detail)
 {
     RC_STEP_BEGIN(detail->remaster_elapsed);
     drc_start_remaster(&g_rc_ctx->info);
-    GS_LOG_RUN_INF("[RC] reform for partial restart as master, g_rc_ctx->status=%u", g_rc_ctx->status);
+    CT_LOG_RUN_INF("[RC] reform for partial restart as master, g_rc_ctx->status=%u", g_rc_ctx->status);
     // wait remaster finish here
     while (drc_remaster_in_progress()) {
         cm_sleep(DTC_REFORM_WAIT_TIME);
     }
     if (drc_get_remaster_status() == REMASTER_FAIL) {
-        GS_LOG_RUN_ERR("[RC][partial restart] failed to partial restart as master, session->kernel->lsn=%llu,"
+        CT_LOG_RUN_ERR("[RC][partial restart] failed to partial restart as master, session->kernel->lsn=%llu,"
                        " g_rc_ctx->status=%u", ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
         g_rc_ctx->status = REFORM_PREPARE;
         RC_STEP_END(detail->remaster_elapsed, RC_STEP_FAILED);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[RC][partial restart] remaster failed");
+        return CT_ERROR;
     }
     RC_STEP_END(detail->remaster_elapsed, RC_STEP_FINISH);
-    GS_LOG_RUN_INF("[RC][partial restart] finish remaster, g_rc_ctx->status=%u", g_rc_ctx->status);
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("[RC][partial restart] finish remaster, g_rc_ctx->status=%u", g_rc_ctx->status);
+    return CT_SUCCESS;
 }
 
 status_t rc_master_partial_recovery(reform_mode_t mode, reform_detail_t *detail)
 {
     RC_STEP_BEGIN(detail->recovery_elapsed);
     if (mode == REFORM_MODE_OUT_OF_PLAN) {
-        if (dtc_partial_recovery() != GS_SUCCESS) {
+        if (dtc_partial_recovery() != CT_SUCCESS) {
             g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
             g_rc_ctx->status = REFORM_PREPARE;
             RC_STEP_END(detail->recovery_elapsed, RC_STEP_FAILED);
-            GS_LOG_RUN_ERR("[RC] failed to do partial recovery");
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[RC] failed to do partial recovery");
+            CT_LOG_RUN_ERR("[RC][partial restart] recovery failed");
+            return CT_ERROR;
         }
     } else {
-        if (rc_set_redo_replay_done(g_rc_ctx->session, &(g_rc_ctx->info)) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RC][partial restart] failed to broadcast reform status g_rc_ctx->status=%u",
+        if (rc_set_redo_replay_done(g_rc_ctx->session, &(g_rc_ctx->info)) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RC][partial restart] failed to broadcast reform status g_rc_ctx->status=%u",
                            g_rc_ctx->status);
             g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
             g_rc_ctx->status = REFORM_PREPARE;
             RC_STEP_END(detail->recovery_elapsed, RC_STEP_FAILED);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[RC][partial restart] recovery failed");
+            return CT_ERROR;
         }
     }
     RC_STEP_END(detail->recovery_elapsed, RC_STEP_FINISH);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rc_master_rollback_node(reform_detail_t *detail)
 {
     RC_STEP_BEGIN(detail->deposit_elapsed);
-    if (dtc_rollback_node() != GS_SUCCESS) {
+    if (dtc_rollback_node() != CT_SUCCESS) {
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
         g_rc_ctx->status = REFORM_PREPARE;
         RC_STEP_END(detail->deposit_elapsed, RC_STEP_FAILED);
-        GS_LOG_RUN_ERR("[RC] failed to do undo rollback");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[RC] failed to do undo rollback");
+        CT_LOG_RUN_ERR("[RC][partial restart] rollback failed");
+        return CT_ERROR;
     }
     RC_STEP_END(detail->deposit_elapsed, RC_STEP_FINISH);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rc_master_wait_ckpt_finish(reform_mode_t mode)
@@ -446,62 +468,274 @@ status_t rc_master_wait_ckpt_finish(reform_mode_t mode)
     if (mode == REFORM_MODE_OUT_OF_PLAN && dtc_update_ckpt_log_point()) {
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
         g_rc_ctx->status = REFORM_PREPARE;
-        GS_LOG_RUN_ERR("[RC] failed to do ckpt in reform");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[RC] failed to do ckpt in reform");
+        CT_LOG_RUN_ERR("[RC][partial restart] wait ckpt finish failed");
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rc_reform_build_channel(reform_detail_t *detail)
 {
     status_t ret;
     RC_STEP_BEGIN(detail->build_channel_elapsed);
-    SYNC_POINT_GLOBAL_START(CANTIAN_REFORM_BUILD_CHANNEL_FAIL, &ret, GS_ERROR);
+    SYNC_POINT_GLOBAL_START(CANTIAN_REFORM_BUILD_CHANNEL_FAIL, &ret, CT_ERROR);
     ret = rc_build_channel(&g_rc_ctx->info);
     SYNC_POINT_GLOBAL_END;
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RC] failed to rc_build_channel, g_rc_ctx->status=%u", g_rc_ctx->status);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC] failed to rc_build_channel, g_rc_ctx->status=%u", g_rc_ctx->status);
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
         g_rc_ctx->status = REFORM_PREPARE;
         RC_STEP_END(detail->build_channel_elapsed, RC_STEP_FAILED);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[RC] build channel successfully, g_rc_ctx->status=%u", g_rc_ctx->status);
-
+    CT_LOG_RUN_INF("[RC] build channel successfully, g_rc_ctx->status=%u", g_rc_ctx->status);
+    SYNC_POINT_GLOBAL_START(CANTIAN_REFORM_BUILD_CHANNEL_ABORT, NULL, 0);
+    SYNC_POINT_GLOBAL_END;
     rc_release_abort_channel(&g_rc_ctx->info);
-    GS_LOG_RUN_INF("[RC] release channel successfully, g_rc_ctx->status=%u", g_rc_ctx->status);
+    CT_LOG_RUN_INF("[RC] release channel successfully, g_rc_ctx->status=%u", g_rc_ctx->status);
     RC_STEP_END(detail->build_channel_elapsed, RC_STEP_FINISH);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+status_t rc_arch_handle_tmp_file(arch_proc_context_t *proc_ctx, uint32 node_id)
+{
+    knl_session_t *session = proc_ctx->session;
+    device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
+    log_file_t *logfile = &proc_ctx->logfile;
+    arch_set_tmp_filename(proc_ctx->tmp_file_name, proc_ctx, node_id);
+    CT_LOG_RUN_INF("[RC_ARCH] rc handle tmp arch file %s", proc_ctx->tmp_file_name);
+    if (arch_clear_tmp_file(arch_file_type, proc_ctx->tmp_file_name) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (cm_create_device_retry_when_eexist(proc_ctx->tmp_file_name, arch_file_type,
+                                           knl_io_flag(session), &proc_ctx->tmp_file_handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC_ARCH] failed to create temp archive log file %s", proc_ctx->tmp_file_name);
+        return CT_ERROR;
+    }
+    if (arch_tmp_flush_head(arch_file_type, proc_ctx->tmp_file_name,
+                            proc_ctx, logfile, proc_ctx->tmp_file_handle) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t rc_arch_init_proc_ctx(arch_proc_context_t *proc_ctx, uint32 node_id)
+{
+    CT_LOG_RUN_INF("[RC_ARCH] rc init arch proc ctx params and resource, node id %u", node_id);
+    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+    dtc_node_ctrl_t *node_ctrl = dtc_get_ctrl(session, node_id);
+    arch_ctrl_t *arch_ctrl = NULL;
+    log_file_t *logfile = &proc_ctx->logfile;
+    logfile->handle = CT_INVALID_HANDLE;
+    if (bak_open_logfile_dbstor(session, logfile, node_id) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    uint32 arch_num = (node_ctrl->archived_end - node_ctrl->archived_start + CT_MAX_ARCH_NUM) % CT_MAX_ARCH_NUM;
+    int ret = strcpy_s(proc_ctx->arch_dest, CT_FILE_NAME_BUFFER_SIZE,
+                       session->kernel->arch_ctx.arch_proc[ARCH_DEFAULT_DEST - 1].arch_dest);
+    knl_securec_check(ret);
+    proc_ctx->session = session;
+    proc_ctx->arch_id = node_id;
+    proc_ctx->last_archived_log_record.rst_id = session->kernel->db.ctrl.core.resetlogs.rst_id;
+    proc_ctx->last_archived_log_record.offset = CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size);
+    proc_ctx->write_failed = CT_FALSE;
+    proc_ctx->read_failed = CT_FALSE;
+    proc_ctx->enabled = CT_TRUE;
+    proc_ctx->tmp_file_handle = CT_INVALID_HANDLE;
+
+    if (arch_num != 0) {
+        arch_ctrl = db_get_arch_ctrl(session, node_ctrl->archived_end - 1, node_id);
+        proc_ctx->last_archived_log_record.asn = arch_ctrl->asn + 1;
+        proc_ctx->last_archived_log_record.start_lsn = arch_ctrl->end_lsn;
+        proc_ctx->last_archived_log_record.end_lsn = arch_ctrl->end_lsn;
+        proc_ctx->last_archived_log_record.cur_lsn = arch_ctrl->end_lsn;
+    } else {
+        proc_ctx->last_archived_log_record.asn = 1;
+    }
+    CT_LOG_RUN_INF("[RC_ARCH] cur arch num %u, next asn %u, next start lsn %llu", arch_num,
+                   proc_ctx->last_archived_log_record.asn, proc_ctx->last_archived_log_record.end_lsn);
+
+    uint32 redo_log_filesize = 0;
+    status_t status = cm_device_get_used_cap(logfile->ctrl->type, logfile->handle,
+                                             proc_ctx->last_archived_log_record.start_lsn + 1, &redo_log_filesize);
+    if (status != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC_ARCH] failed to fetch redolog size from DBStor");
+        return CT_ERROR;
+    }
+    proc_ctx->redo_log_filesize = SIZE_K_U64(redo_log_filesize);
+    CT_LOG_RUN_INF("[RC_ARCH] finish to init proc ctx, redo left size %llu", proc_ctx->redo_log_filesize);
+    return CT_SUCCESS;
+}
+
+status_t rc_arch_update_node_ctrl(uint32 node_id)
+{
+    CT_LOG_RUN_INF("[RC_ARCH] update offline node %u arch ctrl from device", node_id);
+    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+    database_t *db = &session->kernel->db;
+    uint32 count = CTRL_MAX_BUF_SIZE / sizeof(arch_ctrl_t);
+    uint32 pages_per_inst = (CT_MAX_ARCH_NUM - 1) / count + 1;
+    ctrl_page_t *pages = &db->ctrl.pages[db->ctrl.arch_segment + pages_per_inst * node_id];
+    bool32 loaded = CT_FALSE;
+    for (int i = 0; i < db->ctrlfiles.count; i++) {
+        ctrlfile_t *ctrlfile = &db->ctrlfiles.items[i];
+        int64 offset = (db->ctrl.arch_segment + pages_per_inst * node_id) * ctrlfile->block_size;
+        if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RC_ARCH] failed to open ctrlfile[%d], filename[%s], instid[%u]",
+                           i, ctrlfile->name, node_id);
+            continue;
+        }
+        if (cm_read_device(ctrlfile->type, ctrlfile->handle, offset,
+                           pages, pages_per_inst * ctrlfile->block_size) != CT_SUCCESS) {
+            cm_close_device(ctrlfile->type, &ctrlfile->handle);
+            CT_LOG_RUN_ERR("[RC_ARCH] fail to read offline node arch ctrl from ctrlfile[%d], instid[%u]", i, node_id);
+            continue;
+        }
+        CT_LOG_RUN_INF("[RC_ARCH] succ to get offline node arch ctrl, ctrlfile[%d], instid[%u]", i, node_id);
+        loaded = CT_TRUE;
+        break;
+    }
+    if (!loaded) {
+        CT_THROW_ERROR(ERR_LOAD_CONTROL_FILE, "no usable control file");
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t rc_archive_log_offline_node(arch_proc_context_t *proc_ctx, uint32 node_id)
+{
+    if (rc_arch_update_node_ctrl(node_id) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (rc_arch_init_proc_ctx(proc_ctx, node_id) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (proc_ctx->redo_log_filesize == 0) {
+        CT_LOG_RUN_INF("[RC_ARCH] no left redo log to fetch from DBStor, node id %u", node_id);
+        return CT_SUCCESS;
+    }
+
+    uint32 buffer_size = proc_ctx->session->kernel->attr.lgwr_buf_size;
+    if (arch_init_rw_buf(&proc_ctx->arch_rw_buf, buffer_size * ARCH_RW_BUF_NUM, "ARCH") != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (rc_arch_handle_tmp_file(proc_ctx, node_id) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (cm_create_thread(rc_arch_dbstor_read_proc, 0, proc_ctx, &proc_ctx->read_thread) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (cm_create_thread(arch_dbstor_write_proc, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+bool32 rc_need_archive_log(void)
+{
+    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+    if (session->kernel->db.ctrl.core.log_mode != ARCHIVE_LOG_ON) {
+        return CT_FALSE;
+    }
+    if (cm_dbs_is_enable_dbs() != CT_TRUE) {
+        return CT_FALSE;
+    }
+    knl_panic_log(g_dtc->profile.node_count < DTC_MAX_NODE_COUNT, "not support node count");
+    return CT_TRUE;
+}
+
+status_t rc_archive_log(arch_proc_context_t *arch_proc_ctx)
+{
+    if (rc_need_archive_log() != CT_TRUE) {
+        return CT_SUCCESS;
+    }
+    CT_LOG_RUN_INF("[RC_ARCH] start to archive redo log for all offline nodes");
+    for (uint32 i = 0; i < g_dtc->profile.node_count; i++) {
+        if (i == g_dtc->profile.inst_id) {
+            continue;
+        }
+        if (rc_get_current_stat()->inst_list[i].stat == CMS_RES_ONLINE &&
+            rc_get_target_stat()->inst_list[i].stat == CMS_RES_OFFLINE) {
+            if (rc_archive_log_offline_node(arch_proc_ctx + i, i) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+        }
+    }
+    return CT_SUCCESS;
+}
+
+void rc_end_archive_log(arch_proc_context_t *arch_proc_ctx)
+{
+    if (rc_need_archive_log() != CT_TRUE) {
+        return;
+    }
+    CT_LOG_RUN_INF("[RC_ARCH] release all arch proc ctx resource");
+    for (uint32 i = 0; i < DTC_MAX_NODE_COUNT; i++) {
+        cm_close_thread(&arch_proc_ctx[i].read_thread);
+        cm_close_thread(&arch_proc_ctx[i].write_thread);
+
+        if (arch_proc_ctx[i].arch_rw_buf.aligned_buf.alloc_buf != NULL) {
+            arch_release_rw_buf(&arch_proc_ctx[i].arch_rw_buf, "RC_ARCH");
+        }
+
+        if (arch_proc_ctx[i].tmp_file_name[0] != '\0' && arch_proc_ctx[i].tmp_file_handle != CT_INVALID_HANDLE) {
+            cm_close_device(cm_device_type(arch_proc_ctx[i].tmp_file_name), &arch_proc_ctx[i].tmp_file_handle);
+        }
+        if (arch_proc_ctx[i].logfile.ctrl != NULL && arch_proc_ctx[i].logfile.handle != CT_INVALID_HANDLE) {
+            cm_close_device(arch_proc_ctx[i].logfile.ctrl->type, &arch_proc_ctx[i].logfile.handle);
+        }
+    }
+}
+
+status_t rc_wait_archive_log_finish(arch_proc_context_t *arch_proc_ctx)
+{
+    status_t arch_stat = CT_SUCCESS;
+    if (rc_need_archive_log() != CT_TRUE) {
+        return arch_stat;
+    }
+    CT_LOG_RUN_INF("[RC_ARCH] wait all arch procs to complete");
+    for (uint32 i = 0; i < DTC_MAX_NODE_COUNT;) {
+        if (arch_proc_ctx[i].read_failed || arch_proc_ctx[i].write_failed) {
+            arch_stat = CT_ERROR;
+            break;
+        }
+        if (arch_proc_ctx[i].arch_execute == CT_TRUE) {
+            sleep(DTC_REFORM_WAIT_ARCH_LOG);
+            continue;
+        }
+        i++;
+    }
+    CT_LOG_RUN_INF("[RC_ARCH] end all arch procs, arch stat: %s", arch_stat == CT_SUCCESS ? "SUCCESS" : "ERROR");
+    rc_end_archive_log(arch_proc_ctx);
+    return arch_stat;
 }
 
 status_t rc_master_reform(reform_mode_t mode, reform_detail_t *detail)
 {
     bool32 is_full_restart = rc_is_full_restart();
     if (is_full_restart) {
-        GS_LOG_RUN_INF("[RC] reform for full restart as master, g_rc_ctx->status=%u", g_rc_ctx->status);
+        CT_LOG_RUN_INF("[RC] reform for full restart as master, g_rc_ctx->status=%u", g_rc_ctx->status);
 
         drc_start_one_master();
         g_rc_ctx->status = REFORM_MOUNTING;
 
         // in case of full restart, recover in main thread, wait recovery finish here
         while (((knl_session_t*)g_rc_ctx->session)->kernel->db.status <= DB_STATUS_RECOVERY || dtc_recovery_in_progress()) {
-            GS_RETVALUE_IFTRUE(rc_reform_cancled(), GS_ERROR);
+            CT_RETVALUE_IFTRUE(rc_reform_cancled(), CT_ERROR);
             cm_sleep(DTC_REFORM_WAIT_TIME);
         }
     } else {
-        GS_LOG_RUN_INF("[RC] reform for partial restart as master, g_rc_ctx->status=%u", g_rc_ctx->status);
+        CT_LOG_RUN_INF("[RC] reform for partial restart as master, g_rc_ctx->status=%u", g_rc_ctx->status);
         g_rc_ctx->status = REFORM_RECOVERING;
 
         // step 2 drc_remaster
-        if (rc_master_start_remaster(detail) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RC][partial restart] remaster failed");
-            return GS_ERROR;
+        if (rc_master_start_remaster(detail) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         // step 3 roll forward
-        if (rc_master_partial_recovery(mode, detail) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RC][partial restart] recovery failed");
-            return GS_ERROR;
+        if (rc_master_partial_recovery(mode, detail) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
     // recovery finish, trigger ckpt
@@ -509,31 +743,39 @@ status_t rc_master_reform(reform_mode_t mode, reform_detail_t *detail)
 
     drc_clean_remaster_res();
 
+    arch_proc_context_t arch_proc_ctx[DTC_MAX_NODE_COUNT] = { 0 };
+    if (rc_archive_log(arch_proc_ctx) != CT_SUCCESS) {
+        rc_end_archive_log(arch_proc_ctx);
+        return CT_ERROR;
+    }
+
     // step 4 rollback
-    if (rc_master_rollback_node(detail) != GS_SUCCESS) {
+    if (rc_master_rollback_node(detail) != CT_SUCCESS) {
         RC_STEP_END(detail->ckpt_elapsed, RC_STEP_FAILED);
-        GS_LOG_RUN_ERR("[RC][partial restart] rollback failed");
-        return GS_ERROR;
+        rc_end_archive_log(arch_proc_ctx);
+        return CT_ERROR;
     }
 
     rc_release_tse_resources(&g_rc_ctx->info);
 
     /* checkpoint and update log point after reform_open, in order for dtc_get_txn_info to move on and release ctrl */
     /* latch */
-    if (rc_master_wait_ckpt_finish(mode) != GS_SUCCESS) {
+    if (rc_master_wait_ckpt_finish(mode) != CT_SUCCESS) {
         RC_STEP_END(detail->ckpt_elapsed, RC_STEP_FAILED);
-        GS_LOG_RUN_ERR("[RC][partial restart] wait ckpt finish failed");
-        return GS_ERROR;
+        rc_end_archive_log(arch_proc_ctx);
+        return CT_ERROR;
     }
     RC_STEP_END(detail->ckpt_elapsed, RC_STEP_FINISH);
 
+    if (rc_wait_archive_log_finish(arch_proc_ctx) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
     if (!is_full_restart) {
-        if (rc_master_clean_ddl_op(detail) != GS_SUCCESS) {
-            GS_LOG_RUN_INF("[RC][partial restart] master clean ddl op failed");
-            return GS_ERROR;
+        if (rc_master_clean_ddl_op(detail) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rc_start_new_reform(reform_mode_t mode)
@@ -541,48 +783,49 @@ status_t rc_start_new_reform(reform_mode_t mode)
     reform_detail_t *detail = &g_rc_ctx->reform_detail;
 
     // step 0 freeze reform cluster
-    GS_LOG_RUN_INF("[RC] change g_rc_ctx->status=%u", g_rc_ctx->status);
+    CT_LOG_RUN_INF("[RC] change g_rc_ctx->status=%u", g_rc_ctx->status);
     g_rc_ctx->status = REFORM_FROZEN;
     rc_reform_init(&g_rc_ctx->info);
-    GS_LOG_RUN_INF("[RC] new reform init successfully, g_rc_ctx->status=%u", g_rc_ctx->status);
-
+    CT_LOG_RUN_INF("[RC] new reform init successfully, g_rc_ctx->status=%u", g_rc_ctx->status);
+    SYNC_POINT_GLOBAL_START(CANTIAN_REFORM_BUILD_CHANNEL_DELAY, NULL, 1000); // delay 1000ms
+    SYNC_POINT_GLOBAL_END;
     // step 1 rebuild mes channel
-    if (rc_reform_build_channel(detail) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RC] build channel step failed");
-        return GS_ERROR;
+    if (rc_reform_build_channel(detail) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC] build channel step failed");
+        return CT_ERROR;
     }
 
-    if (rc_is_master() == GS_TRUE) {
-        if (rc_master_reform(mode, detail) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RC] master reform failed");
-            return GS_ERROR;
+    if (rc_is_master() == CT_TRUE) {
+        if (rc_master_reform(mode, detail) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RC] master reform failed");
+            return CT_ERROR;
         }
     } else {
-        if (rc_follower_reform(mode, detail) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RC][partial restart] follower reform failed");
-            return GS_ERROR;
+        if (rc_follower_reform(mode, detail) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RC][partial restart] follower reform failed");
+            return CT_ERROR;
         }
     }
-    GS_LOG_RUN_INF("[RC] finish reform, g_rc_ctx->status=%u", g_rc_ctx->status);
-    GS_LOG_RUN_INF("[RC] there are (%d) flying page request", page_req_count);
+    CT_LOG_RUN_INF("[RC] finish reform, g_rc_ctx->status=%u", g_rc_ctx->status);
+    CT_LOG_RUN_INF("[RC] there are (%d) flying page request", page_req_count);
     page_req_count = 0;
     accumulate_recovery_stat();
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rc_mes_connect(uint8 inst_id)
 {
     int32 err_code;
     const char *error_msg = NULL;
-    if (mes_connect(inst_id, g_dtc->profile.nodes[inst_id], g_dtc->profile.ports[inst_id]) != GS_SUCCESS) {
+    if (mes_connect(inst_id, g_dtc->profile.nodes[inst_id], g_dtc->profile.ports[inst_id]) != CT_SUCCESS) {
         cm_get_error(&err_code, &error_msg, NULL);
         if (err_code != ERR_MES_ALREADY_CONNECT) {
-            GS_LOG_RUN_ERR("[RC] failed to create mes channel to instance %u", inst_id);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[RC] failed to create mes channel to instance %u", inst_id);
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rc_mes_connection_ready(uint8 inst_id)
@@ -592,11 +835,17 @@ status_t rc_mes_connection_ready(uint8 inst_id)
         cm_sleep(DTC_REFORM_WAIT_TIME);
         wait_time += DTC_REFORM_WAIT_TIME;
         if (wait_time > DTC_REFORM_MES_CONNECT_TIMEOUT) {
-            GS_LOG_RUN_ERR("[RC] connect to instance %u time out, wait_time %u.", inst_id, wait_time);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[RC] connect to instance %u time out, wait_time %u.", inst_id, wait_time);
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    
+    if (drc_mes_check_full_connection(inst_id) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC] connect to instance %u failed, full connection not ready.", inst_id);
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
 }
 
 status_t rc_build_channel_join(reform_info_t *info)
@@ -604,18 +853,18 @@ status_t rc_build_channel_join(reform_info_t *info)
     uint8 inst_id;
     for (uint8 i = 0; i < info->reform_list[REFORM_LIST_AFTER].inst_id_count; i++) {
         inst_id = info->reform_list[REFORM_LIST_AFTER].inst_id_list[i];
-        if (g_rc_ctx->self_id != inst_id && rc_mes_connect(inst_id) != GS_SUCCESS) {
-                return GS_ERROR;
+        if (g_rc_ctx->self_id != inst_id && rc_mes_connect(inst_id) != CT_SUCCESS) {
+                return CT_ERROR;
             }
     }
 
     for (uint8 i = 0; i < info->reform_list[REFORM_LIST_AFTER].inst_id_count; i++) {
         inst_id = info->reform_list[REFORM_LIST_AFTER].inst_id_list[i];
-        if (g_rc_ctx->self_id != inst_id && rc_mes_connection_ready(inst_id) != GS_SUCCESS) {
-                return GS_ERROR;
+        if (g_rc_ctx->self_id != inst_id && rc_mes_connection_ready(inst_id) != CT_SUCCESS) {
+                return CT_ERROR;
             }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rc_build_channel_stay(reform_info_t *info)
@@ -623,39 +872,39 @@ status_t rc_build_channel_stay(reform_info_t *info)
     uint8 inst_id;
     for (uint8 i = 0; i < info->reform_list[REFORM_LIST_JOIN].inst_id_count; i++) {
         inst_id = info->reform_list[REFORM_LIST_JOIN].inst_id_list[i];
-        if (g_rc_ctx->self_id != inst_id && rc_mes_connect(inst_id) != GS_SUCCESS) {
-                return GS_ERROR;
+        if (g_rc_ctx->self_id != inst_id && rc_mes_connect(inst_id) != CT_SUCCESS) {
+                return CT_ERROR;
         }
     }
 
     for (uint8 i = 0; i < info->reform_list[REFORM_LIST_JOIN].inst_id_count; i++) {
         inst_id = info->reform_list[REFORM_LIST_JOIN].inst_id_list[i];
-        if (g_rc_ctx->self_id != inst_id && rc_mes_connection_ready(inst_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (g_rc_ctx->self_id != inst_id && rc_mes_connection_ready(inst_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rc_build_channel(reform_info_t *info)
 {
     switch (info->role) {
         case REFORM_ROLE_JOIN:
-            if (rc_build_channel_join(info) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rc_build_channel_join(info) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             break;
 
         case REFORM_ROLE_STAY:
-            if (rc_build_channel_stay(info) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rc_build_channel_stay(info) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             break;
 
         default:
             break;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -669,7 +918,7 @@ void rc_release_abort_channel(reform_info_t *info)
             for (uint8 i = 0; i < info->reform_list[REFORM_LIST_ABORT].inst_id_count; i++) {
                 inst_id = info->reform_list[REFORM_LIST_ABORT].inst_id_list[i];
                 if (g_rc_ctx->self_id != inst_id) {
-                    mes_disconnect(inst_id, GS_FALSE);
+                    mes_disconnect(inst_id, CT_FALSE);
                     released++;
                 }
             }
@@ -697,7 +946,7 @@ void rc_release_channel(reform_info_t *info)
             for (uint8 i = 0; i < info->reform_list[REFORM_LIST_BEFORE].inst_id_count; i++) {
                 inst_id = info->reform_list[REFORM_LIST_BEFORE].inst_id_list[i];
                 if (g_rc_ctx->self_id != inst_id) {
-                    mes_disconnect(inst_id, GS_TRUE);
+                    mes_disconnect(inst_id, CT_TRUE);
                     released++;
                 }
             }
@@ -707,7 +956,7 @@ void rc_release_channel(reform_info_t *info)
             for (uint8 i = 0; i < info->reform_list[REFORM_LIST_LEAVE].inst_id_count; i++) {
                 inst_id = info->reform_list[REFORM_LIST_LEAVE].inst_id_list[i];
                 if (g_rc_ctx->self_id != inst_id) {
-                    mes_disconnect(inst_id, GS_TRUE);
+                    mes_disconnect(inst_id, CT_TRUE);
                     released++;
                 }
             }
@@ -715,7 +964,7 @@ void rc_release_channel(reform_info_t *info)
             for (uint8 i = 0; i < info->reform_list[REFORM_LIST_ABORT].inst_id_count; i++) {
                 inst_id = info->reform_list[REFORM_LIST_ABORT].inst_id_list[i];
                 if (g_rc_ctx->self_id != inst_id) {
-                    mes_disconnect(inst_id, GS_TRUE);
+                    mes_disconnect(inst_id, CT_TRUE);
                     released++;
                 }
             }
@@ -723,7 +972,7 @@ void rc_release_channel(reform_info_t *info)
             for (uint8 i = 0; i < info->reform_list[REFORM_LIST_FAIL].inst_id_count; i++) {
                 inst_id = info->reform_list[REFORM_LIST_FAIL].inst_id_list[i];
                 if (g_rc_ctx->self_id != inst_id) {
-                    mes_disconnect(inst_id, GS_TRUE);
+                    mes_disconnect(inst_id, CT_TRUE);
                     released++;
                 }
             }
@@ -743,22 +992,22 @@ void rc_release_channel(reform_info_t *info)
 bool32 rc_finished(void)
 {
     if (drc_remaster_in_progress()) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (dtc_recovery_in_progress()) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void rc_stop_cur_reform(void)
 {
-    GS_LOG_RUN_INF("[RC] start stop current reform, reform failed status(%u), remaster need stop(%u), recovery need "
+    CT_LOG_RUN_INF("[RC] start stop current reform, reform failed status(%u), remaster need stop(%u), recovery need "
                    "stop(%u), recovery failed(%u)", g_rc_ctx->info.failed_reform_status, drc_remaster_need_stop(),
                    dtc_recovery_need_stop(), dtc_recovery_failed());
     if (drc_remaster_need_stop()) {
-        if (drc_stop_remaster() != GS_SUCCESS) {
+        if (drc_stop_remaster() != CT_SUCCESS) {
             CM_ABORT_REASONABLE(0, "ABORT INFO: stop remaster failed");
         }
     }
@@ -770,13 +1019,13 @@ void rc_stop_cur_reform(void)
     if (g_rc_ctx->info.failed_reform_status > REFORM_RECOVERING && g_rc_ctx->info.failed_reform_status < REFORM_DONE) {
         CM_ABORT_REASONABLE(0, "ABORT INFO: current reform failed and cannot reentrant, exit");
     }
-    GS_LOG_RUN_INF("[RC] finish stop current reform");
+    CT_LOG_RUN_INF("[RC] finish stop current reform");
 }
 
 bool32 rc_reform_cancled(void)
 {
     if (g_instance->shutdown_ctx.mode == SHUTDOWN_MODE_ABORT || g_instance->shutdown_ctx.mode == SHUTDOWN_MODE_SIGNAL) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -42,7 +42,7 @@ typedef struct st_msg_processor {
     mes_command_t cmd;
     msg_proc_t proc;
     bool32 is_enqueue;
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
 } msg_processor_t;
 
 typedef enum en_mes_mod { MES_MOD_CLUSTER = 0, MES_MOD_EXTPROC, MES_MOD_CEIL } mes_mod_t;

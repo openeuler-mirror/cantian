@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_index_module.h"
 #include "pcr_btree_log.h"
 #include "knl_context.h"
 #include "index_common.h"
@@ -85,7 +86,7 @@ void rd_pcrb_insert(knl_session_t *session, log_entry_t *log)
     page = BTREE_CURR_PAGE(session);
     redo = (rd_pcrb_insert_t *)log->data;
     key = (pcrb_key_t *)(log->data + OFFSET_OF(rd_pcrb_insert_t, key));
-    if (key->itl_id != GS_INVALID_ID8) {
+    if (key->itl_id != CT_INVALID_ID8) {
         itl = pcrb_get_itl(page, key->itl_id);
         itl->undo_page = redo->undo_page;
         itl->undo_slot = redo->undo_slot;
@@ -117,7 +118,7 @@ void rd_pcrb_delete(knl_session_t *session, log_entry_t *log)
     itl->ssn = redo->ssn;
 
     key->itl_id = redo->itl_id;
-    key->is_deleted = GS_TRUE;
+    key->is_deleted = CT_TRUE;
 }
 
 void rd_pcrb_compact_page(knl_session_t *session, log_entry_t *log)
@@ -155,7 +156,7 @@ void rd_pcrb_copy_key(knl_session_t *session, log_entry_t *log)
     src_key = (pcrb_key_t *)log->data;
 
     key = (pcrb_key_t *)((char *)page + page->free_begin);
-    err = memcpy_sp(key, GS_KEY_BUF_SIZE, src_key, (size_t)src_key->size);
+    err = memcpy_sp(key, CT_KEY_BUF_SIZE, src_key, (size_t)src_key->size);
     knl_securec_check(err);
 
     dir = pcrb_get_dir(page, page->keys);
@@ -188,7 +189,7 @@ void rd_pcrb_set_copy_itl(knl_session_t *session, log_entry_t *log)
     itl_map = (uint8 *)log->data;
 
     for (i = 0; i < page->itls; i++) {
-        if (itl_map[i] != GS_INVALID_ID8) {
+        if (itl_map[i] != CT_INVALID_ID8) {
             itl = pcrb_get_itl(page, i);
             itl->is_copied = 1;
         }
@@ -210,7 +211,7 @@ void rd_pcrb_clean_keys(knl_session_t *session, log_entry_t *log)
         dir = pcrb_get_dir(page, i);
         key = PCRB_GET_KEY(page, dir);
         if (!key->is_cleaned) {
-            key->is_cleaned = (uint16)GS_TRUE;
+            key->is_cleaned = (uint16)CT_TRUE;
         }
     }
 
@@ -251,7 +252,7 @@ void rd_pcrb_undo_insert(knl_session_t *session, log_entry_t *log)
 
     dir = pcrb_get_dir(page, redo->slot);
     key = PCRB_GET_KEY(page, dir);
-    knl_panic_log(key->itl_id != GS_INVALID_ID8, "key's itl_id is invalid, panic info: page %u-%u type %u itl_id %u",
+    knl_panic_log(key->itl_id != CT_INVALID_ID8, "key's itl_id is invalid, panic info: page %u-%u type %u itl_id %u",
                   AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.type, key->itl_id);
     knl_panic_log(!key->is_deleted, "the key is deleted, panic info: page %u-%u type %u", AS_PAGID(page->head.id).file,
                   AS_PAGID(page->head.id).page, page->head.type);
@@ -262,7 +263,7 @@ void rd_pcrb_undo_insert(knl_session_t *session, log_entry_t *log)
     key->is_deleted = 1;
 
     if (redo->is_xfirst) {
-        key->itl_id = GS_INVALID_ID8;
+        key->itl_id = CT_INVALID_ID8;
     }
 
     itl->ssn = redo->ssn;
@@ -283,7 +284,7 @@ void rd_pcrb_undo_delete(knl_session_t *session, log_entry_t *log)
 
     dir = pcrb_get_dir(page, redo->slot);
     key = PCRB_GET_KEY(page, dir);
-    knl_panic_log(key->itl_id != GS_INVALID_ID8, "key's itl_id is invalid, panic info: page %u-%u type %u itl_id %u",
+    knl_panic_log(key->itl_id != CT_INVALID_ID8, "key's itl_id is invalid, panic info: page %u-%u type %u itl_id %u",
                   AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.type, key->itl_id);
     knl_panic_log(key->is_deleted, "the key is not deleted, panic info: page %u-%u type %u",
                   AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.type);
@@ -293,7 +294,7 @@ void rd_pcrb_undo_delete(knl_session_t *session, log_entry_t *log)
     key->is_deleted = 0;
 
     if (redo->is_xfirst) {
-        key->itl_id = GS_INVALID_ID8;
+        key->itl_id = CT_INVALID_ID8;
     }
 
     itl->ssn = redo->ssn;

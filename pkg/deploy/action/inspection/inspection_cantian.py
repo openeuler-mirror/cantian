@@ -17,8 +17,8 @@ class CantianInspection(InspectionTask):
         cls.inspection_json_file = INSPECTION_JSON_FILE
         return super().__new__(cls)
 
-    def __init__(self, _input_value):
-        super(CantianInspection, self).__init__(_input_value)
+    def __init__(self, _input_value, _use_smartkit=False):
+        super().__init__(_input_value, _use_smartkit)
         self.check_executor()
 
     @staticmethod
@@ -28,10 +28,7 @@ class CantianInspection(InspectionTask):
         :return:
             string: deploy user name
         """
-        with open(DEPLOY_CONFIG_FILE, encoding='utf-8') as file:
-            deploy_info = json.load(file)
-            deploy_user = deploy_info.get('deploy_user').split(':')[0]
-        return deploy_user
+        return "cantian"
 
     @staticmethod
     def get_node_ip():
@@ -47,17 +44,10 @@ class CantianInspection(InspectionTask):
         node_ip = cms_ip[int(node_id)]
         return "cantian_" + node_ip
 
-    @staticmethod
-    def get_deploy_mode():
-        with open(DEPLOY_CONFIG_FILE, encoding='utf-8') as file:
-            deploy_info = json.load(file)
-            deploy_mode = deploy_info.get('deploy_mode').split(':')[0]
-        return deploy_mode
-
     def check_executor(self):
         executor = pwd.getpwuid(os.getuid())[0]
-        if executor != self.deploy_user:
-            raise ValueError(f"inspection must be executed by {self.deploy_user}")
+        if executor != self.deply_user:
+            raise ValueError(f"inspection must be executed by {self.deply_user}")
 
     def task_execute_single(self, inspection_detail, name_pwd, ip_port):
         echo_sentence = ''

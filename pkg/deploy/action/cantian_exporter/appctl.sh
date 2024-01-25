@@ -31,23 +31,16 @@ SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
 
 #依赖文件
 source ${CURRENT_PATH}/../log4sh.sh
+source ${CURRENT_PATH}/../env.sh
 
 #组件名称
 COMPONENT_NAME=ct_exporter
 
-CT_ECPORTER_CGROUP=/sys/fs/cgroup/memory/cantian_exporter
-CT_ECPORTER_MEM="2G"
 CT_EXPORTER_DATA_SAVE_PATH=/opt/cantian/ct_om/service/cantian_exporter/exporter_data
 
 START_NAME="start.sh"
 STOP_NAME="stop.sh"
-PRE_INSTALL_NAME="pre_install.sh"
 STATUS_NAME="check_status.sh"
-UPGRADE_NAME="upgrade.sh"
-ROLLBACK_NAME="rollback.sh"
-POST_UPGRADE_NAME="post_upgrade.sh"
-
-user=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_user"`
 
 function usage()
 {
@@ -64,7 +57,7 @@ function do_deploy()
         logAndEchoError "${COMPONENT_NAME} ${script_name_param} is not exist. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 1
     fi
-    su -s /bin/bash ${user} -c "sh ${CURRENT_PATH}/${script_name_param}"
+    su -s /bin/bash ${cantian_user} -c "sh ${CURRENT_PATH}/${script_name_param}"
     ret=$?
 
     if [ $ret -ne 0 ]; then
@@ -74,47 +67,6 @@ function do_deploy()
 
     logAndEchoInfo "Execute ${COMPONENT_NAME} ${script_name_param} return success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     return 0
-}
-
-function create_cgroup() {
-    cgroup_name=$1
-    logAndEchoInfo "begin to create cgroup: ${cgroup_name}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        if [[ -d ${cgroup_name} ]]; then
-            rmdir ${cgroup_name}
-        fi
-        mkdir -p ${cgroup_name}
-        if [ $? -ne 0 ]; then
-            logAndEchoError "create cgroup: ${cgroup_name} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            exit 1
-        else
-            logAndEchoInfo "create cgroup: ${cgroup_name} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        fi
-}
-
-function add_pid_to_cgroup() {
-    process_pid=$1
-    cgroup_name=$2
-
-    sh -c "echo ${process_pid} > ${cgroup_name}/tasks"
-    if [ $? -ne 0 ]; then
-        logAndEchoError "add pid to cgroup: ${cgroup_name} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        exit 1
-    else
-        logAndEchoInfo "add pid to cgroup: ${cgroup_name} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-    fi
-}
-
-function limite_cgroup_mem() {
-    mem_limited=$1
-    cgroup_name=$2
-
-    sh -c "echo ${mem_limited} > ${cgroup_name}/memory.limit_in_bytes"
-    if [ $? -ne 0 ]; then
-        logAndEchoError "cgroup: ${cgroup_name} memory limited failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        exit 1
-    else
-        logAndEchoInfo "cgroup: ${cgroup_name} memory limited success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-    fi
 }
 
 function mod_prepare() {
@@ -135,8 +87,7 @@ case "$ACTION" in
     start)
         # 上报数据目录权限兼容
         if [[ -d "${CT_EXPORTER_DATA_SAVE_PATH}" ]]; then
-            group=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_group"`
-            chown -hR "${user}":"${group}" ${CT_EXPORTER_DATA_SAVE_PATH}
+            su -s /bin/bash - "${cantian_user}" -c "chown -hR ${cantian_user}:${cantian_common_group} ${CT_EXPORTER_DATA_SAVE_PATH}"
         fi
         do_deploy ${START_NAME}
         exit $?

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -51,8 +51,13 @@ typedef struct st_log_mode_map {
 
 status_t sql_verify_als_black_box_depth(void *se, void *lex, void *def);
 status_t sql_verify_als_file_dir(void *se, void *lex, void *def);
+status_t sql_verify_als_audit_level(void *se, void *lex, void *def);
+status_t sql_verify_als_audit_syslog_level(void *se, void *lex, void *def);
+status_t sql_verify_als_audit_trail_mode(void *se, void *lex, void *def);
 status_t sql_verify_als_log_backup_file_count(void *se, void *lex, void *def);
+status_t sql_verify_als_audit_backup_file_count(void *se, void *lex, void *def);
 status_t sql_verify_log_file_size(void *se, void *lex, void *def);
+status_t sql_verify_audit_file_size(void *se, void *lex, void *def);
 status_t sql_verify_pbl_file_size(void *se, void *lex, void *def);
 status_t sql_verify_als_log_level(void *se, void *lex, void *def);
 status_t sql_verify_als_log_file(void *se, void *lex, void *def);
@@ -64,9 +69,27 @@ status_t sql_verify_als_arch_file_size(void *se, void *lex, void *def);
 status_t sql_verify_als_time(void *se, void *lex, void *def);
 status_t sql_verify_als_log_archive_dest_n(void *se, void *lex, void *def);
 status_t sql_verify_als_log_archive_dest_state_n(void *se, void *lex, void *def);
+status_t sql_verify_als_raft_start_mode(void *se, void *lex, void *def);
+status_t sql_verify_als_raft_node_id(void *se, void *lex, void *def);
+status_t sql_verify_als_raft_log_level(void *se, void *lex, void *def);
+status_t sql_verify_als_raft_log_async_buf_num(void *se, void *lex, void *def);
+status_t sql_verify_als_raft_priority_type(void *se, void *lex, void *def);
+status_t sql_verify_als_raft_priority_level(void *se, void *lex, void *def);
+status_t sql_verify_als_raft_pending_cmds_buffer_size(void *se, void *lex, void *def);
+status_t sql_verify_als_raft_send_buffer_size(void *se, void *lex, void *def);
+status_t sql_verify_als_raft_receive_buffer_size(void *se, void *lex, void *def);
+status_t sql_verify_als_raft_failover_lib_timeout(void *se, void *lex, void *def);
+status_t sql_verify_als_raft_election_timeout(void *se, void *lex, void *def);
+status_t sql_verify_als_raft_tls_dir(void *se, void *lex, void *def);
+status_t sql_verify_als_raft_token_verify(void *se, void *lex, void *def);
 
+status_t sql_notify_als_audit_trail_mode(void *se, void *item, char *value);
+status_t sql_notify_als_audit_level(void *se, void *item, char *value);
+status_t sql_notify_als_audit_syslog_level(void *se, void *item, char *value);
 status_t sql_notify_als_log_backup_file_count(void *se, void *item, char *value);
+status_t sql_notify_als_audit_backup_file_count(void *se, void *item, char *value);
 status_t sql_notify_als_log_max_file_size(void *se, void *item, char *value);
+status_t sql_notify_als_audit_max_file_size(void *se, void *item, char *value);
 status_t sql_notify_als_log_level(void *se, void *item, char *value);
 status_t sql_notify_als_pbl_max_file_size(void *se, void *item, char *value);
 status_t sql_notify_als_log_file_permissions(void *se, void *item, char *value);
@@ -85,6 +108,8 @@ status_t sql_notify_als_archive_format(void *se, void *item, char *value);
 status_t sql_notify_als_archive_format_with_lsn(void *se, void *item, char *value);
 status_t sql_notify_als_entry_cache_memory_size(void *se, void *item, char *value);
 status_t sql_notify_als_max_size_per_msg(void *se, void *item, char *value);
+status_t sql_notify_als_raft_mem_threshold(void *se, void *item, char *value);
+status_t sql_notify_als_raft_election_timeout(void *se, void *item, char *value);
 
 #ifdef __cplusplus
 }

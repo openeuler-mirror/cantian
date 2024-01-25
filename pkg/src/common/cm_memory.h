@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -81,13 +81,13 @@ typedef struct st_id_list {
 static inline void cm_reset_id_list(id_list_t *list)
 {
     list->count = 0;
-    list->first = GS_INVALID_ID32;
-    list->last = GS_INVALID_ID32;
+    list->first = CT_INVALID_ID32;
+    list->last = CT_INVALID_ID32;
 }
 
 typedef struct st_memory_area {
     spinlock_t lock;
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
     char *buf;
     char *page_buf;
     uint32 *maps;
@@ -112,7 +112,7 @@ typedef struct st_memory_alloc {
 
 typedef struct st_memory_pool {
     spinlock_t lock;
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
     memory_area_t *area;  // for creating from memory area
     char *buf;            // for attached memory pool
     char *page_buf;
@@ -159,7 +159,7 @@ static inline status_t marea_reset_page_buf(memory_area_t *area, int32 val)
             val, area->page_count * area->page_size));
     }
 #endif
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t mpool_create(memory_area_t *area, const char *name, uint32 page_count, uint32 opt_count,
@@ -197,7 +197,7 @@ static inline void mctx_delete_page(memory_context_t *context, uint32 *page_id)
 {
     *page_id = context->pages.first;
     context->pages.first = context->pool->maps[*page_id];
-    context->pool->maps[*page_id] = GS_INVALID_ID32;
+    context->pool->maps[*page_id] = CT_INVALID_ID32;
     --context->pages.count;
 }
 
@@ -221,7 +221,7 @@ static inline void mctx_first_page(memory_pool_t *pool, memory_context_t **conte
     ctx->pages.count = 1;
     ctx->pages.first = page_id;
     ctx->pages.last = page_id;
-    pool->maps[page_id] = GS_INVALID_ID32;
+    pool->maps[page_id] = CT_INVALID_ID32;
     ctx->alloc_pos = sizeof(memory_context_t);
     ctx->curr_page_addr = page;
     ctx->curr_page_id = page_id;
@@ -244,13 +244,13 @@ static inline void cm_concat_page(uint32 *maps, id_list_t *list, uint32 page_id)
         list->first = page_id;
         list->last = page_id;
         list->count = 1;
-        maps[page_id] = GS_INVALID_ID32;
+        maps[page_id] = CT_INVALID_ID32;
         return;
     }
 
     list->count++;
     maps[list->last] = page_id;
-    maps[page_id] = GS_INVALID_ID32;
+    maps[page_id] = CT_INVALID_ID32;
     list->last = page_id;
 }
 
@@ -402,25 +402,18 @@ static inline void opool_attach(char *buf, uint32 buf_size, uint32 object_size, 
 static inline object_t *opool_alloc(object_pool_t *pool)
 {
     object_t *object = NULL;
-    errno_t rc_memzero;
 
     if (pool->free_objects.count == 0) {
         if (pool->object_size == 0) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)pool->object_size, "opool_alloc");
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)pool->object_size, "opool_alloc");
             return NULL;
         }
         object = (object_t *)malloc(pool->object_size);
         if (object == NULL) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)pool->object_size, "opool_alloc");
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)pool->object_size, "opool_alloc");
             return NULL;
         }
 
-        rc_memzero = memset_sp(object, pool->object_size, 0, pool->object_size);
-        if (rc_memzero != EOK) {
-            CM_FREE_PTR(object);
-            GS_THROW_ERROR(ERR_RESET_MEMORY, "opool_alloc");
-            return NULL;
-        }
         return object;
     }
 
@@ -497,8 +490,8 @@ typedef enum en_vm_stat_mode {
 
 #define RESERVED_SWAP_EXTENTS 32
 #define VM_MIN_CACHE_PAGES    16
-#define VM_CTRLS_PER_PAGE     (uint32)(GS_VMEM_PAGE_SIZE / sizeof(vm_ctrl_t))
-#define VM_MAX_CTRLS          (uint32)(GS_MAX_VMEM_MAP_PAGES * VM_CTRLS_PER_PAGE)
+#define VM_CTRLS_PER_PAGE     (uint32)(CT_VMEM_PAGE_SIZE / sizeof(vm_ctrl_t))
+#define VM_MAX_CTRLS          (uint32)(CT_MAX_VMEM_MAP_PAGES * VM_CTRLS_PER_PAGE)
 
 typedef status_t (*vm_swap_out_t)(handle_t session, vm_page_t *page, uint64 *swid, uint32 *cipher_len);
 typedef status_t (*vm_swap_in_t)(handle_t session, uint64 swid, uint32 cipher_len, vm_page_t *page);
@@ -515,10 +508,10 @@ typedef struct st_vm_swapper {
     vm_swap_extents_t get_swap_extents;
 } vm_swapper_t;
 
-#define GS_VM_FUNC_STACK_SIZE 2048
-#define GS_VM_CLOSE_PAGE_LIST_CNT 10
+#define CT_VM_FUNC_STACK_SIZE 2048
+#define CT_VM_CLOSE_PAGE_LIST_CNT 10
 typedef struct st_vm_func_stack {
-    char stack[GS_VM_FUNC_STACK_SIZE];
+    char stack[CT_VM_FUNC_STACK_SIZE];
     uint32 ref_count;
 } vm_func_stack_t;
 
@@ -539,7 +532,7 @@ typedef struct st_vm_pool {
     uint32 pool_hwm;
     vm_swapper_t swapper;
     uint32 map_count;
-    cpid_t map_pages[GS_MAX_VMEM_MAP_PAGES];
+    cpid_t map_pages[CT_MAX_VMEM_MAP_PAGES];
     uint32 ctrl_hwm;
     uint32 ctrl_count;
     id_list_t free_ctrls;
@@ -551,7 +544,7 @@ typedef struct st_vm_pool {
     uint32 max_swap_count;
     id_list_t free_pages;
     uint32 close_pool_idx;
-    vm_page_pool_t close_page_pools[GS_VM_CLOSE_PAGE_LIST_CNT]; // close page will be distribute by page-id.
+    vm_page_pool_t close_page_pools[CT_VM_CLOSE_PAGE_LIST_CNT]; // close page will be distribute by page-id.
     char *buffer;
     char *page_buffer;
     vm_func_stack_t **func_stacks;
@@ -571,7 +564,7 @@ static inline vm_page_t *vm_get_page(vm_pool_t *pool, uint32 id)
 {
     CM_ASSERT(id < pool->page_count);
     vm_page_t *page = (vm_page_t *)((char *)pool->buffer + (uint64)id * (uint64)sizeof(vm_page_t));
-    page->data = ((char *)pool->page_buffer + (uint64)id * (uint64)GS_VMEM_PAGE_SIZE);
+    page->data = ((char *)pool->page_buffer + (uint64)id * (uint64)CT_VMEM_PAGE_SIZE);
     return page;
 }
 
@@ -625,8 +618,8 @@ void mctx_concat_page(memory_context_t *context, uint32 page_id, uint32 alloc_po
 #define vm_reset_list(list)              \
     do {                                 \
         (list)->count = 0;               \
-        (list)->first = GS_INVALID_ID32; \
-        (list)->last = GS_INVALID_ID32;  \
+        (list)->first = CT_INVALID_ID32; \
+        (list)->last = CT_INVALID_ID32;  \
     } while (0)
 
 #ifdef __PROTECT_VM__
@@ -641,7 +634,7 @@ void _protect_vm_save_stack(vm_pool_t *pool, uint32 id);
 
 #define PROTECT_PAGE(pool, page, id)                                     \
     do {                                                                 \
-        if (mprotect((page)->data, GS_VMEM_PAGE_SIZE, PROT_NONE) != 0) { \
+        if (mprotect((page)->data, CT_VMEM_PAGE_SIZE, PROT_NONE) != 0) { \
             CM_ASSERT(0);                                                \
         }                                                                \
         _protect_vm_save_stack((pool), (id));                            \
@@ -649,7 +642,7 @@ void _protect_vm_save_stack(vm_pool_t *pool, uint32 id);
 
 #define UNPROTECT_PAGE(page)                                                          \
     do {                                                                              \
-        if (mprotect((page)->data, GS_VMEM_PAGE_SIZE, PROT_READ | PROT_WRITE) != 0) { \
+        if (mprotect((page)->data, CT_VMEM_PAGE_SIZE, PROT_READ | PROT_WRITE) != 0) { \
             CM_ASSERT(0);                                                             \
         }                                                                             \
     } while (0);
@@ -698,7 +691,7 @@ extern const mtrl_rowid_t g_invalid_entry;
 #define ALLOC_MINBITS 3 /* smallest chunk size is 8 bytes */
 /* 2^3, 2^4, 2^5, 2^6, 2^7, 2^8, 2^9, 2^10, 2^11, 2^12, 2^13, 2^14, 2^15, 2^16, 2^17 */
 #define ALLOCSET_NUM_FREELISTS 15
-#define ALLOC_MAX_MEM_SIZE (GS_VMEM_PAGE_SIZE - VM_CHUNKHDRSZ - sizeof(vm_page_head_t))  // 131052
+#define ALLOC_MAX_MEM_SIZE (CT_VMEM_PAGE_SIZE - VM_CHUNKHDRSZ - sizeof(vm_page_head_t))  // 131052
 
 typedef struct st_vm_context_data *pvm_context_t;
 typedef struct st_vm_chunk_data *pvm_chunk_t;
@@ -745,7 +738,7 @@ static inline void vm_init_ctx(pvm_context_t vm_ctx, handle_t session, cm_stack_
     vm_ctx->session = session;
     vm_ctx->stack = stack;
     vm_ctx->pool = pool;
-    vm_ctx->is_open = GS_FALSE;
+    vm_ctx->is_open = CT_FALSE;
     for (uint32 i = 0; i < ALLOCSET_NUM_FREELISTS; i++) {
         vm_ctx->free_list[i] = g_invalid_entry;
     }
@@ -761,14 +754,14 @@ status_t vmctx_open_page(pvm_context_t vm_ctx);
 #define VM_CTX_OPEN(vm_ctx)                                                                                         \
     do {                                                                                                            \
         if (!(vm_ctx)->is_open) {                                                                                   \
-            if (vm_alloc_and_append(VMCTX_SESSION(vm_ctx), VMCTX_POOL(vm_ctx), &(vm_ctx)->vm_list) != GS_SUCCESS) { \
-                return GS_ERROR;                                                                                    \
+            if (vm_alloc_and_append(VMCTX_SESSION(vm_ctx), VMCTX_POOL(vm_ctx), &(vm_ctx)->vm_list) != CT_SUCCESS) { \
+                return CT_ERROR;                                                                                    \
             }                                                                                                       \
-            if (vmctx_open_page(vm_ctx) != GS_SUCCESS) {                                                            \
-                GS_THROW_ERROR(ERR_VM, "fail to open the vm");                                                      \
-                return GS_ERROR;                                                                                    \
+            if (vmctx_open_page(vm_ctx) != CT_SUCCESS) {                                                            \
+                CT_THROW_ERROR(ERR_VM, "fail to open the vm");                                                      \
+                return CT_ERROR;                                                                                    \
             }                                                                                                       \
-            (vm_ctx)->is_open = GS_TRUE;                                                                            \
+            (vm_ctx)->is_open = CT_TRUE;                                                                            \
         }                                                                                                           \
     } while (0)
 
@@ -777,8 +770,8 @@ status_t vmctx_open_page(pvm_context_t vm_ctx);
         vm_page_t *d_page = VMCTX_CURR_PAGE(vm_ctx);                                                    \
         char *d_ptr = NULL;                                                                             \
         pvm_chunk_t d_chunk = NULL;                                                                     \
-        if (vm_open(VMCTX_SESSION(vm_ctx), VMCTX_POOL(vm_ctx), (entry)->vmid, &d_page) != GS_SUCCESS) { \
-            return GS_ERROR;                                                                            \
+        if (vm_open(VMCTX_SESSION(vm_ctx), VMCTX_POOL(vm_ctx), (entry)->vmid, &d_page) != CT_SUCCESS) { \
+            return CT_ERROR;                                                                            \
         }                                                                                               \
         d_chunk = VM_GET_CHUNK(d_page, (entry)->slot);                                                  \
         d_ptr = ALLOC_CHUNK_GET_POINTER(d_chunk);                                                       \
@@ -805,13 +798,13 @@ status_t vmctx_open_page(pvm_context_t vm_ctx);
 static inline status_t vmctx_open_row_id(pvm_context_t vm_ctx, mtrl_rowid_t *row_id, char **data)
 {
     vm_page_t *page = NULL;
-    if (vm_open(VMCTX_SESSION(vm_ctx), VMCTX_POOL(vm_ctx), row_id->vmid, &page) != GS_SUCCESS) {
-        GS_THROW_ERROR_EX(ERR_VM, "failed to open row id vm id %u, vm slot %u", row_id->vmid, row_id->slot);
-        return GS_ERROR;
+    if (vm_open(VMCTX_SESSION(vm_ctx), VMCTX_POOL(vm_ctx), row_id->vmid, &page) != CT_SUCCESS) {
+        CT_THROW_ERROR_EX(ERR_VM, "failed to open row id vm id %u, vm slot %u", row_id->vmid, row_id->slot);
+        return CT_ERROR;
     }
 
     *data = VMCTX_GET_DATA(page, row_id);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void vmctx_close_row_id(pvm_context_t vm_ctx, mtrl_rowid_t *row_id)

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -101,7 +101,7 @@ typedef enum {
     IO_STAT_FAILED       = 1,
 } io_record_stat_t;
 
-#define IO_RECORD_STAT_RET(status) ((status) == GS_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED)
+#define IO_RECORD_STAT_RET(status) ((status) == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED)
 
 typedef struct {
     atomic_t start;
@@ -120,8 +120,8 @@ typedef struct {
 } io_record_wait_t;
 
 typedef struct {
-    char name[GS_MAX_NAME_LEN];
-    char desc[GS_MAX_NAME_LEN];
+    char name[CT_MAX_NAME_LEN];
+    char desc[CT_MAX_NAME_LEN];
 } io_record_event_desc_t;
 
 extern io_record_wait_t g_io_record_event_wait[IO_RECORD_EVENT_COUNT];
@@ -132,9 +132,23 @@ status_t record_io_stat_reset(void);
 status_t record_io_stat_init(void);
 
 void record_io_stat_begin(timeval_t *tv_begin, atomic_t *start);
-void cantian_record_io_stat_begin(io_record_event_t event, timeval_t *tv_begin);
+static inline void cantian_record_io_stat_begin(io_record_event_t event, timeval_t *tv_begin)
+{
+#ifdef DB_DEBUG_VERSION
+    atomic_t *start = &(g_io_record_event_wait[event].detail.start);
+    record_io_stat_begin(tv_begin, start);
+#endif
+}
+
 void record_io_stat_end(timeval_t *tv_begin, int stat, io_record_detail_t *detail);
-void cantian_record_io_stat_end(io_record_event_t event, timeval_t *tv_begin, io_record_stat_t stat);
+
+static inline void cantian_record_io_stat_end(io_record_event_t event, timeval_t *tv_begin, io_record_stat_t stat)
+{
+#ifdef DB_DEBUG_VERSION
+    io_record_detail_t *detail = &(g_io_record_event_wait[event].detail);
+    record_io_stat_end(tv_begin, stat, detail);
+#endif
+}
 
 void record_io_stat_print(void);
 

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -40,7 +40,7 @@ void mes_set_msg_enqueue2(mes_command_t command, bool32 is_enqueue, mes_profile_
 bool32 mes_connection_ready2(uint32 inst_id, mes_mod_t module)
 {
     cm_assert(0);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void mes_destory_inst(mes_mod_t module)
@@ -66,5 +66,5 @@ void mes_reset_channels(mes_mod_t module)
 status_t mes_create_inst(mes_profile_t *profile)
 {
     cm_assert(0);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

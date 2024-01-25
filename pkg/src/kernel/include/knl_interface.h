@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -33,9 +33,7 @@
 #include "obj_defs.h"
 #include "dml_defs.h"
 #include "repl_defs.h"
-#ifdef Z_SHARDING
 #include "sharding_defs.h"
-#endif
 #include "persist_defs.h"
 #include "sysdba_defs.h"
 #include "db_defs.h"
@@ -105,7 +103,7 @@ typedef struct st_policy_def_t {
 } policy_def_t;
 
 typedef struct st_policy_set {
-    policy_def_t *policies[GS_MAX_POLICIES];
+    policy_def_t *policies[CT_MAX_POLICIES];
     uint32 plcy_count;
 } policy_set_t;
 
@@ -135,7 +133,7 @@ typedef struct st_knl_index_col_def {
     sort_direction_t mode;
     bool32 is_func;
     bool32 nullable;
-    gs_type_t datatype;
+    ct_type_t datatype;
     uint32 size;
     text_t func_text;    // function index text
     void *func_expr;
@@ -143,8 +141,8 @@ typedef struct st_knl_index_col_def {
 
 typedef struct st_knl_ext_desc {
     knl_ext_type_t external_type;
-    char directory[GS_FILE_NAME_BUFFER_SIZE];
-    char location[GS_MAX_NAME_LEN];
+    char directory[CT_FILE_NAME_BUFFER_SIZE];
+    char location[CT_MAX_NAME_LEN];
     char records_delimiter;
     char fields_terminator;
 } knl_ext_desc_t;
@@ -171,7 +169,7 @@ typedef enum en_part_flag_type {
  */
 typedef struct st_knl_table_desc {
     uint32 id;                       // table id
-    char name[GS_NAME_BUFFER_SIZE];  // table name
+    char name[CT_NAME_BUFFER_SIZE];  // table name
     uint32 uid;                      // user id
     uint32 space_id;                 // table space
     uint32 oid;                      // object id
@@ -196,7 +194,8 @@ typedef struct st_knl_table_desc {
             uint32 is_nologging : 1;    // table insert is nologging
             uint32 compress : 1;   // specified compress parameter
             uint32 has_trig : 1;    // table has trig
-            uint32 unused_flag : 27;
+            uint32 is_intrinsic : 1;    // is mysql internal tmp table
+            uint32 unused_flag : 26;
         };
     };
     knl_storage_desc_t storage_desc;
@@ -262,17 +261,17 @@ typedef struct st_knl_table_desc {
 typedef struct st_knl_part_key {
     part_key_t *key;                         // current part key
     part_decode_key_t decoder;               // used for decode part key
-    uint16 offsets[GS_MAX_PARTKEY_COLUMNS];  // column offsets
-    uint16 lens[GS_MAX_PARTKEY_COLUMNS];     // column lens
-    bool32 closed[GS_MAX_PARTKEY_COLUMNS];   // column include equal or not
+    uint16 offsets[CT_MAX_PARTKEY_COLUMNS];  // column offsets
+    uint16 lens[CT_MAX_PARTKEY_COLUMNS];     // column lens
+    bool32 closed[CT_MAX_PARTKEY_COLUMNS];   // column include equal or not
 } knl_part_key_t;
 
 typedef struct st_knl_index_paral_range {
     uint32 workers;
-    knl_scan_range_t  *index_range[GS_MAX_PARAL_QUERY];
+    knl_scan_range_t  *index_range[CT_MAX_PARAL_QUERY];
 }knl_index_paral_range_t;
 
-#define KNL_SCAN_KEY_SIZE (sizeof(knl_scan_key_t) + GS_KEY_BUF_SIZE)
+#define KNL_SCAN_KEY_SIZE (sizeof(knl_scan_key_t) + CT_KEY_BUF_SIZE)
 
 typedef enum en_bak_stage {
     BACKUP_START = 0,
@@ -326,7 +325,7 @@ typedef status_t (*knl_execute_check_t)(knl_handle_t handle, text_t *sql, bool32
 typedef status_t (*knl_logic_log_replay_t)(knl_handle_t session, uint32 type, void *data);
 
 typedef void (*knl_invalidate_space_t)(uint32);
-typedef status_t(*knl_func_idx_exec_t)(knl_handle_t session, knl_handle_t knl_cursor, gs_type_t datatype,
+typedef status_t(*knl_func_idx_exec_t)(knl_handle_t session, knl_handle_t knl_cursor, ct_type_t datatype,
                                        void *expr, variant_t *result, bool32 is_new);
 typedef status_t (*knl_func_idx_init_t)(knl_handle_t session, knl_handle_t cursor);
 typedef void (*knl_func_idx_free_t)(knl_handle_t session);
@@ -385,10 +384,12 @@ typedef struct st_knl_lnk_dc_callback {
 } knl_lnk_dc_callback_t;
 
 bool8 knl_is_llt_by_name(char first_char);
+bool8 knl_is_llt_by_name2(char first_char);
 
-#define IS_LTT_BY_NAME(name) (knl_is_llt_by_name((name)[0]))         /* LTT = Local Temporary Table */
-#define IS_LTT_BY_ID(id)     ((id) >= GS_LTT_ID_OFFSET && (id) < GS_DBLINK_ENTRY_START_ID) /* LTT = Local Temporary Table */
-#define IS_DBLINK_TABLE_BY_ID(id) ((id) >= GS_DBLINK_ENTRY_START_ID)
+#define IS_LTT_BY_NAME(name) (knl_is_llt_by_name2((name)[0]))         /* LTT = Local Temporary Table */
+#define IS_LTT_BY_NAME2(name) (knl_is_llt_by_name2((name)[0]))       /* LTT = Local Temporary Table for sql */
+#define IS_LTT_BY_ID(id)     ((id) >= CT_LTT_ID_OFFSET && (id) < CT_DBLINK_ENTRY_START_ID) /* LTT = Local Temporary Table */
+#define IS_DBLINK_TABLE_BY_ID(id) ((id) >= CT_DBLINK_ENTRY_START_ID)
 
 #define INVALID_INDEX_SLOT (uint8)(0xFF)
 #define IS_AUTO_REBUILD(lock_timeout) (((lock_timeout) != 0) && ((lock_timeout) != LOCK_INF_WAIT))
@@ -412,6 +413,8 @@ extern init_cursor_t g_init_cursor;
         (cursor)->dc_type = DICT_TYPE_UNKNOWN; \
         (cursor)->vnc_column = NULL;           \
         (cursor)->skip_lock = 0;               \
+        (cursor)->is_cascade = 0;              \
+        (cursor)->is_create_select = 0;        \
     } while (0)
 
 // Function type, use to open a dynamic view
@@ -444,7 +447,7 @@ typedef status_t (*register_dynamic_view_t)(knl_dynview_t *views, uint32 count);
 // view type
 typedef struct st_view_t {
     uint32 id;                       // table id
-    char name[GS_NAME_BUFFER_SIZE];  // table name
+    char name[CT_NAME_BUFFER_SIZE];  // table name
     uint32 uid;                      // user id
     knl_scn_t org_scn;               // original scn
     knl_scn_t chg_scn;               // scn when changed by DDL(alter)
@@ -461,6 +464,7 @@ typedef enum en_io_type {
 } io_type_t;
 
 typedef status_t (*knl_load_scripts_t)(knl_handle_t session, const char *file, bool8 is_necessary);
+typedef status_t (*knl_pl_init_t)(knl_handle_t session);
 typedef status_t (*knl_pl_db_drop_triggers_t)(knl_handle_t knl_session, knl_dictionary_t *dc);
 typedef void (*knl_pl_enable_trigger_t)(knl_handle_t knl_session, void *entry);
 typedef void (*knl_pl_disable_trigger_t)(knl_handle_t knl_session, void *entry);
@@ -482,7 +486,7 @@ typedef status_t(*knl_import_rows_t)(void *stmt, uint32 count);
 typedef status_t(*knl_get_ddl_sql_t)(void *stmt, text_t *sql, vmc_t *vmc, bool8 *need_free);
 typedef status_t(*knl_srv_sysdba_privilege_t)(void);
 typedef status_t(*knl_backup_keyfile_t)(char *event);
-typedef status_t(*knl_update_server_masterkey_t)();
+typedef status_t(*knl_update_server_masterkey_t)(void);
 typedef bool32(*knl_have_ssl_t)(void);
 typedef status_t (*knl_clear_sym_cache_t)(knl_handle_t se, uint32 lib_uid, char *name, char *lib_path);
 typedef status_t (*knl_get_func_index_size_t)(knl_handle_t session, text_t *func_text, typmode_t *typmode);
@@ -528,8 +532,8 @@ typedef struct st_knl_callback {
 
     knl_logic_log_replay_t pl_logic_log_replay;
     knl_execute_check_t exec_check;
-    knl_init_shard_resource_t init_shard_resource;
 #ifdef Z_SHARDING
+    knl_init_shard_resource_t init_shard_resource;
     knl_parse_distribute_info_t parse_distribute_info;
     knl_parse_distribute_bkts_t parse_distribute_bkts;
     knl_parse_distribute_from_text_t parse_distribute_from_text;
@@ -562,6 +566,7 @@ typedef struct st_knl_callback {
     knl_get_func_index_size_t get_func_index_size;
     knl_compare_index_expr_t compare_index_expr;
     knl_whether_login_with_user_t whether_login_with_user;
+    knl_pl_init_t pl_init;
     knl_pl_drop_object_t pl_drop_object;
     knl_pl_drop_synonym_by_user pl_drop_synonym_by_user;
     knl_mtrl_init_vmc_t init_vmc;
@@ -576,11 +581,11 @@ extern knl_callback_t g_knl_callback;
 
 #define CURSOR_UPDATE_COLUMN_DATA(cursor, id) ((char *)(cursor)->update_info.data + (cursor)->update_info.offsets[id])
 #define CURSOR_UPDATE_COLUMN_SIZE(cursor, id) \
-    ((id) >= (uint32)ROW_COLUMN_COUNT((cursor)->row) ? GS_NULL_VALUE_LEN : (cursor)->update_info.lens[id])
+    ((id) >= (uint32)ROW_COLUMN_COUNT((cursor)->row) ? CT_NULL_VALUE_LEN : (cursor)->update_info.lens[id])
 
 #define CURSOR_COLUMN_DATA(cursor, id) ((char *)(cursor)->row + (cursor)->offsets[id])
 #define CURSOR_COLUMN_SIZE(cursor, id) \
-    ((uint32)(id) >= (uint32)ROW_COLUMN_COUNT((cursor)->row) ? GS_NULL_VALUE_LEN : (cursor)->lens[id])
+    ((uint32)(id) >= (uint32)ROW_COLUMN_COUNT((cursor)->row) ? CT_NULL_VALUE_LEN : (cursor)->lens[id])
 
 
 /* Kernel set current schema definition */
@@ -614,7 +619,7 @@ typedef struct st_wait_table {
     bool32 is_locking;
 } lock_twait_t;
 
-#define IS_SYS_SESSION(session)     (((knl_session_t *)(session))->id < GS_SYS_SESSIONS)
+#define IS_SYS_SESSION(session)     (((knl_session_t *)(session))->id < CT_SYS_SESSIONS)
 #define KNL_IN_XATRAN(session)      (((knl_session_t *)(session))->rm->gtid[0] != '\0')
 #define KNL_IS_DATABASE_OPEN(session) (((knl_session_t *)(session))->kernel->db.status == DB_STATUS_OPEN)
 #define KNL_IS_DB_OPEN_NORMAL(session) (((knl_session_t *)(session))->kernel->db.status == DB_STATUS_OPEN && \
@@ -625,9 +630,9 @@ typedef struct st_ddm_def {
     uint32 uid;
     uint32 oid;
     uint32 column_id;
-    char rulename[GS_MAX_NAME_LEN + 1];
-    char ddmtype[GS_MAX_NAME_LEN];
-    char param[GS_MAX_DDM_LEN];
+    char rulename[CT_MAX_NAME_LEN + 1];
+    char ddmtype[CT_MAX_NAME_LEN];
+    char param[CT_MAX_DDM_LEN];
 } knl_ddm_def_t;
 
 typedef struct st_seg_desc {
@@ -670,8 +675,8 @@ typedef struct st_knl_idx_paral_info {
 
 typedef struct st_knl_corrupt_info {
     page_id_t page_id;
-    char datafile_name[GS_FILE_NAME_BUFFER_SIZE];
-    char space_name[GS_NAME_BUFFER_SIZE];
+    char datafile_name[CT_FILE_NAME_BUFFER_SIZE];
+    char space_name[CT_NAME_BUFFER_SIZE];
 } knl_corrupt_info_t;
 
 typedef struct st_knl_space_info {
@@ -691,8 +696,8 @@ void knl_logic_log_put(knl_handle_t session, uint32 type, const void *data, uint
 status_t knl_tx_enabled(knl_handle_t session);
 status_t knl_get_serial_cached_value(knl_handle_t session, knl_handle_t dc_entity, int64 *value);
 status_t knl_get_serial_value(knl_handle_t handle, knl_handle_t dc_entity, uint64 *value);
-status_t knl_get_serial_value_auto_inc(knl_handle_t handle, knl_handle_t dc_entity, uint64 *value,
-                                       uint16 auto_inc_step, uint16 auto_inc_offset);
+status_t knl_get_serial_value_4mysql(knl_handle_t handle, knl_handle_t dc_entity, uint64 *value,
+                                     uint16 auto_inc_step, uint16 auto_inc_offset);
 void knl_first_serial_value_4mysql(uint64 *curr_id, uint64 start_val, uint16 step, uint16 offset);
 void knl_cal_serial_value_4mysql(uint64 prev_id, uint64 *curr_id, uint64 start_val, uint16 step, uint16 offset);
 knl_table_desc_t *knl_get_table(knl_dictionary_t *dc);
@@ -805,12 +810,12 @@ status_t knl_do_force_archive(knl_handle_t session);
 #define CHECK_SESSION_VALID_FOR_RETURN(knl_session)      \
     do {                                                 \
         if (SECUREC_UNLIKELY((knl_session)->killed)) {   \
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);        \
-            return GS_ERROR;                             \
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);        \
+            return CT_ERROR;                             \
         }                                                \
         if (SECUREC_UNLIKELY((knl_session)->canceled)) { \
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);      \
-            return GS_ERROR;                             \
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);      \
+            return CT_ERROR;                             \
         }                                                \
     } while (0)
 
@@ -865,15 +870,21 @@ status_t knl_alter_table4mysql(knl_handle_t se,
                                uint32 def_count,
                                knl_dictionary_t *dc,
                                bool32 is_lrep_log);
+void knl_rename_table_log_put(knl_handle_t session, knl_handle_t stmt, knl_dictionary_t *dc, knl_altable_def_t *def,
+                              bool32 is_lrep_log);
+void knl_alter_table_log_put(knl_handle_t session, knl_handle_t stmt, knl_dictionary_t *dc, bool32 is_lrep_log);
+void knl_alter_table_after_commit4mysql(knl_handle_t session, knl_dictionary_t *dc);
 void knl_alter_table_commit(knl_handle_t session, knl_handle_t stmt,
                             knl_dictionary_t *dc, bool32 is_lrep_log);
+void knl_commit4mysql(knl_handle_t session);
+void knl_rollback4mysql(knl_handle_t session);
 
 void knl_alter_table_rollback(knl_handle_t session, knl_dictionary_t *dc, bool32 is_lrep_log);
 
-status_t knl_alter_table_lock_table(knl_handle_t session, knl_dictionary_t *dc);
+status_t knl_lock_table_self_parent_child_directly(knl_handle_t session, knl_dictionary_t *dc);
 
 void knl_alter_table_unlock_table(knl_handle_t session);
-
+void knl_alter_table_invalidate_dc(knl_handle_t session, knl_dictionary_t *dc);
 status_t knl_alter_table_update_dc(knl_handle_t se, knl_dictionary_t *dc);
 bool32 knl_alter_table_is_add_hashpart(knl_dictionary_t *dc, knl_altable_def_t *def);
 
@@ -882,10 +893,23 @@ void knl_rename_table_write_logical(knl_handle_t se, knl_altable_def_t *def, knl
 status_t knl_fill_fk_name_from_sys4mysql(knl_handle_t se, char *fk_name, uint32_t ref_uid,
                                          uint32_t ref_oid, knl_dictionary_t *dc);
 status_t knl_update_ref_syscons4mysql(knl_handle_t se, knl_dictionary_t *old_dc, knl_dictionary_t *new_dc);
+status_t knl_update_comment4mysql(knl_handle_t se, knl_dictionary_t *old_dc, knl_dictionary_t *new_dc);
 bool32 is_sys_col_ref(knl_cursor_t *cursor);
 bool32 is_sys_fk(knl_cursor_t *cursor, uint32_t ref_uid, uint32_t ref_oid);
 bool32 is_fetch_success(knl_handle_t se, knl_cursor_t *cursor);
+status_t knl_set_ctrl_core_version(void *item_ptr);
+status_t knl_schema_exists4mysql(knl_handle_t session, text_t *schema_name, bool32 *exist);
+status_t knl_object_exists4mysql(knl_handle_t session, text_t *schema_name, text_t *object_name, bool32 *exist);
+status_t knl_is_daac_cluster_ready(bool32 *is_ready);
 
+status_t knl_unlock_users4mysql(knl_handle_t session);
+
+void knl_set_db_status_4mysql_init(bool32 open);
+status_t knl_get_serial_value_tmp_table(knl_handle_t se, knl_handle_t dc_entity, uint64 *value,
+    uint16 auto_inc_step, uint16 auto_inc_offset, bool32 is_change);
+status_t knl_set_arch_param(knl_handle_t handle, knl_alter_sys_def_t *def);
+uint8 knl_get_initrans(void);
+void knl_set_sql_server_initializing_status(knl_handle_t session, bool32 status);
 /* @} */
 #ifdef __cplusplus
 }

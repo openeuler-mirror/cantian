@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -33,7 +33,7 @@ extern "C" {
 
 #define PMA_PAGE_SIZE            SIZE_M(1)
 #define PMA_MAX_SIZE             SIZE_T(1)
-#define VM_PAGES_PER_PPAGE       (uint32)(PMA_PAGE_SIZE / GS_VMEM_PAGE_SIZE)
+#define VM_PAGES_PER_PPAGE       (uint32)(PMA_PAGE_SIZE / CT_VMEM_PAGE_SIZE)
 
 typedef struct st_private_memory_pool {
     id_list_t pages;
@@ -51,7 +51,7 @@ static inline void pm_area_init(const char *name, char *pma_buf, uint64 pma_size
     MEMS_RETVOID_IFERR(memset_sp(pma, sizeof(pma_t), 0, sizeof(pma_t)));
     uint32 page_size = PMA_PAGE_SIZE + sizeof(pm_pool_t) + sizeof(uint32) + VM_PAGES_PER_PPAGE * sizeof(uint32);
     uint32 page_count = (uint32)(pma_size / page_size);
-    GS_RETVOID_IFTRUE(page_count == 0);
+    CT_RETVOID_IFTRUE(page_count == 0);
 
     uint64 pool_size = sizeof(pm_pool_t) * page_count;
     uint64 maps_size = sizeof(uint32) * VM_PAGES_PER_PPAGE * page_count;
@@ -76,16 +76,16 @@ static inline bool32 pm_pool_extend(pm_pool_t *pool)
     uint32 page_id;
 
     if (pool->mpool.page_count >= pool->mpool.opt_count) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    if (marea_alloc_page(pool->mpool.area, &page_id) != GS_SUCCESS) {
+    if (marea_alloc_page(pool->mpool.area, &page_id) != CT_SUCCESS) {
         cm_reset_error();
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     pm_pool_add_page(pool, page_id);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static inline void pm_pool_init(pma_t *pma, pm_pool_t *pool, uint32 page_id, uint64 max_size)
@@ -94,28 +94,28 @@ static inline void pm_pool_init(pma_t *pma, pm_pool_t *pool, uint32 page_id, uin
     pool->mpool.area = &pma->marea;
     pool->mpool.buf = pma->marea.buf;
     pool->mpool.page_buf = pma->marea.page_buf;
-    pool->mpool.page_size = GS_VMEM_PAGE_SIZE;
-    pool->mpool.opt_count = (uint32)(max_size / GS_VMEM_PAGE_SIZE);
+    pool->mpool.page_size = CT_VMEM_PAGE_SIZE;
+    pool->mpool.opt_count = (uint32)(max_size / CT_VMEM_PAGE_SIZE);
     pool->mpool.maps = pma->maps;
     pm_pool_add_page(pool, page_id);
 }
 
 static inline status_t pm_create_pool(pma_t *pma, uint64 max_size, pm_pool_t **pool)
 {
-    uint32 page_id = GS_INVALID_ID32;
+    uint32 page_id = CT_INVALID_ID32;
 
     if (pma->marea.page_count == 0 || max_size == 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
     
-    if (marea_alloc_page(&pma->marea, &page_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (marea_alloc_page(&pma->marea, &page_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     pm_pool_init(pma, &pma->pool[page_id], page_id, max_size);
 
     (*pool) = &pma->pool[page_id];
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void pm_release_pool(pm_pool_t *pool)
@@ -131,12 +131,12 @@ static inline void pm_release_pool(pm_pool_t *pool)
 static inline status_t pm_alloc(pm_pool_t *pool, uint32 *id)
 {
     if (pool->mpool.free_pages.count == 0 && !pm_pool_extend(pool)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (!mpool_try_alloc_page(&pool->mpool, id)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void pm_free(pm_pool_t *pool, uint32 id)
@@ -147,7 +147,7 @@ static inline void pm_free(pm_pool_t *pool, uint32 id)
 static inline status_t pm_open(pm_pool_t *pool, uint32 id, char **ptr)
 {
     (*ptr) = mpool_page_addr(&pool->mpool, id);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Perform hot backups of CANTIAN databases.
+# Perform hot backups of CantianDB100 databases.
 # Copyright © Huawei Technologies Co., Ltd. 2010-2018. All rights reserved.
 
 
@@ -222,11 +222,8 @@ def read_file_path():
         g_opts.note_id = json_data.get('node_id', "").strip()
         g_opts.share_logic_ip = json_data.get('share_logic_ip', "").strip()
         g_opts.cluster_name = json_data.get('cluster_name', "").strip()
-        if json_data.get('in_container', 0) == 1:
-            g_opts.ini_file = os.path.join(g_opts.docker_ini_file, "node" + g_opts.note_id, "dbstor_config.ini")
-        else:
-            g_opts.ini_file = os.path.join(g_opts.ini_file + json_data.get('storage_share_fs'),
-                                           "node" + g_opts.note_id, "dbstor_config.ini")
+        g_opts.ini_file = os.path.join(g_opts.ini_file + json_data.get('storage_share_fs'),
+                                       "node" + g_opts.note_id, "dbstor_config.ini")
         g_opts.backup_ini_file = os.path.join(g_opts.conf_file_path, "dbstor_config.ini")
 
 

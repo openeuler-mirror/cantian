@@ -25,6 +25,7 @@ set +x
 set -e -u
 #当前路径
 CURRENT_PATH=$(dirname $(readlink -f $0))
+source "${CURRENT_PATH}"/../env.sh
 
 #脚本名称
 PARENT_DIR_NAME=$(pwd | awk -F "/" '{print $NF}')
@@ -49,8 +50,11 @@ DEFAULT_MEM_SIZE=10
 cms_home=/opt/cantian/cms
 cms_scripts=/opt/cantian/action/cms
 cms_tmp_file="${cms_home}/cms_server.lck ${cms_home}/local ${cms_home}/gcc_backup ${cms_home}/cantian.ctd.cms*"
+shm_home=/dev/shm
 
 LOG_FILE="${cms_home}/log/cms_deploy.log"
+
+cantian_user_and_group=${cantian_user}:${cantian_group}
 
 function usage()
 {
@@ -77,7 +81,7 @@ function do_deploy()
     fi
 
     set +e
-    su -s /bin/bash -c "cd ${CURRENT_PATH} && sh ${CURRENT_PATH}/${script_name_param} ${uninstall_type} ${force_uninstall} >> ${LOG_FILE}" ${user}
+    su -s /bin/bash - ${cantian_user} -c "cd ${CURRENT_PATH} && sh ${CURRENT_PATH}/${script_name_param} ${uninstall_type} ${force_uninstall} >> ${LOG_FILE}"
     ret=$?
     set -e
     if [ $ret -ne 0 ]; then
@@ -109,6 +113,17 @@ function cgroup_clean()
         rmdir /sys/fs/cgroup/memory/cms
     fi
     echo "cms cgroup config is removed."
+}
+
+function clear_shm()
+{
+    local proc_name=cantiand
+    local cantiand_pid=`pidof $proc_name`
+    if [ -n "$cantiand_pid" ];then
+        echo "no need clean shm"
+        return
+    fi
+    rm -rf ${shm_home}/cantian.[0-9]* > /dev/null 2>&1
 }
 
 function iptables_accept() {
@@ -240,9 +255,9 @@ function check_rollback_files()
 function check_cms_node_and_res_list()
 {
     echo "check cms node status: cms node -list"
-    su -s /bin/bash ${user} -c "source ~/.bashrc && cms node -list"
-    node0=$(su -s /bin/bash ${user} -c "source ~/.bashrc && cms node -list" | grep 'node0' | wc -l)
-    node1=$(su -s /bin/bash ${user} -c "source ~/.bashrc && cms node -list" | grep 'node1' | wc -l)
+    su -s /bin/bash - ${cantian_user} -c "source ~/.bashrc && cms node -list"
+    node0=$(su -s /bin/bash - ${cantian_user} -c "source ~/.bashrc && cms node -list" | grep 'node0' | wc -l)
+    node1=$(su -s /bin/bash - ${cantian_user} -c "source ~/.bashrc && cms node -list" | grep 'node1' | wc -l)
     if [ ${node0} != 1 ];then
         echo "Error: the node 0 information cannot be found"
         return 1
@@ -253,8 +268,8 @@ function check_cms_node_and_res_list()
     fi
 
     echo "check cms res status: cms res -list"
-    su -s /bin/bash ${user} -c "source ~/.bashrc && cms res -list"
-    res=$(su -s /bin/bash ${user} -c "source ~/.bashrc && cms res -list" | grep 'db' | wc -l)
+    su -s /bin/bash ${cantian_user} -c "source ~/.bashrc && cms res -list"
+    res=$(su -s /bin/bash ${cantian_user} -c "source ~/.bashrc && cms res -list" | grep 'db' | wc -l)
     if [ ${res} == 0 ];then
         echo "Error: the resource information cannot be found"
         return 1
@@ -277,9 +292,13 @@ function pre_upgrade()
         return 1
     fi
 
+    if [[ ${version_first_number} -eq 2 ]];then
+        cantian_user=${d_user}
+    fi
+
     echo "check cms server processes: cms stat -server"
-    su -s /bin/bash ${user} -c "source ~/.bashrc && cms stat -server"
-    cms_count=`ps -fu ${user} | grep 'cms server -start' | grep -vE '(grep|defunct)' | wc -l`
+    su -s /bin/bash ${cantian_user} -c "source ~/.bashrc && cms stat -server"
+    cms_count=`ps -fu ${cantian_user} | grep 'cms server -start' | grep -vE '(grep|defunct)' | wc -l`
     if [ ${cms_count} -ne 1 ];then
         echo "Error: start cms process before pre_upgrade!"
         return 1
@@ -318,8 +337,8 @@ function post_upgrade()
     ls -l /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home
 
     echo "check cms server processes: cms stat -server"
-    su -s /bin/bash ${user} -c "source ~/.bashrc && cms stat -server"
-    cms_count=`ps -fu ${user} | grep "cms server -start" | grep -vE '(grep|defunct)' | wc -l`
+    su -s /bin/bash ${cantian_user} -c "source ~/.bashrc && cms stat -server"
+    cms_count=`ps -fu ${cantian_user} | grep "cms server -start" | grep -vE '(grep|defunct)' | wc -l`
     if [ ${cms_count} -ne 1 ];then
         echo "cms process is not running, upgrade is abnormal"
         return 1
@@ -342,7 +361,7 @@ function record_cms_info() {
     echo "time:
               $(date)" >> ${backup_dir}/cms/backup.bak
     echo "deploy_user:
-              ${deploy_user}" >> ${backup_dir}/cms/backup.bak
+              ${cantian_user_and_group}" >> ${backup_dir}/cms/backup.bak
     echo "cms_home:
               total_size=$(du -sh ${cms_home})
               total_files=$(tail ${backup_dir}/cms/cms_home_files_list.txt -n 1)" >> ${backup_dir}/cms/backup.bak
@@ -357,7 +376,10 @@ function safety_upgrade_backup()
     echo -e "\n======================== begin to backup cms module for upgrade ========================"
 
     old_cms_owner=$(stat -c %U ${cms_home})
-    if [ ${old_cms_owner} != ${user} ]; then
+    if [[ ${version_first_number} -eq 2 ]];then
+        cantian_user=${d_user}
+    fi
+    if [ ${old_cms_owner} != ${cantian_user} ]; then
         echo "Error: the upgrade user is different from the installed user"
         return 1
     fi
@@ -399,12 +421,13 @@ function update_cms_service() {
     rm -rf ${cms_home}/service/*
     cp -arf ${cms_pkg_file}/add-ons ${cms_pkg_file}/admin ${cms_pkg_file}/bin \
        ${cms_pkg_file}/cfg ${cms_pkg_file}/lib ${cms_pkg_file}/package.xml ${cms_home}/service
-    link_type=$1
-    deploy_mode=$2
-    if [[ x"${deploy_mode}" == x"--nas" ]];then
-        echo "deploy mode is ${deploy_mode}"
-        return
+
+    deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
+    if [[ x"${deploy_mode}" == x"nas" ]]; then
+        return 0
     fi
+
+    link_type=$1
     if [ ${link_type} == 1 ];then
         echo "link_type is rdma"
         cp -arf ${cms_home}/service/add-ons/mlnx/lib* ${cms_home}/service/add-ons/
@@ -420,7 +443,7 @@ function update_cms_service() {
 function chown_mod_cms_service()
 {
     echo "chown and chmod the files in ${cms_home}/service"
-    chown -R ${deploy_user} ${cms_home}/service
+    chown -hR ${cantian_user_and_group} ${cms_home}
     chmod -R 700 ${cms_home}/service
     find ${cms_home}/service/add-ons -type f | xargs chmod 500
     find ${cms_home}/service/admin -type f | xargs chmod 400
@@ -442,9 +465,11 @@ function safety_upgrade()
 {
     echo -e "\n======================== begin to upgrade cms module ========================"
 
-    link_type=$(python3 ${CURRENT_PATH}/../get_config_info.py "link_type")
-    deploy_mode=$(python3 ${CURRENT_PATH}/../get_config_info.py "deploy_mode")
-    update_cms_service "${link_type}" "${deploy_mode}"
+    link_type=$(cat ${CURRENT_PATH}/../../config/deploy_param.json  |
+              awk -F ',' '{for(i=1;i<=NF;i++){if($i~"link_type"){print $i}}}' |
+              sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
+              awk -F '=' '{print $2}')
+    update_cms_service ${link_type}
 
     chown_mod_cms_service
 
@@ -497,10 +522,10 @@ function safety_rollback()
 }
 
 function chown_mod_scripts() {
-    echo -e "\nInstall User:${user}"
+    echo -e "\nInstall User:${cantian_user}"
     current_path_reg=$(echo ${CURRENT_PATH} | sed 's/\//\\\//g')
     scripts=$(ls ${CURRENT_PATH} | awk '{if($1!="appctl.sh"){print $1}}' | sed "s/^/${current_path_reg}\//g")
-    chown ${deploy_user} ${scripts}
+    chown -h ${cantian_user_and_group} ${scripts}
     chmod 400 ${CURRENT_PATH}/*.sh ${CURRENT_PATH}/*.py
     chmod 500 ${CURRENT_PATH}/cms_reg.sh
 }
@@ -525,17 +550,17 @@ function check_and_create_cms_home()
 {
     if [ ! -d ${cms_home} ]; then
         mkdir -m 750 -p ${cms_home}
-        chown ${deploy_user} -hR ${cms_home}
+        chown ${cantian_user_and_group} -hR ${cms_home}
     fi
     if [ ! -d ${cms_home}/cfg ];then
         mkdir -m 750 -p ${cms_home}/cfg
-        chown ${deploy_user} -hR ${cms_home}/cfg
+        chown ${cantian_user_and_group} -hR ${cms_home}/cfg
     fi
     if [ ! -d ${cms_home}/log ]; then
         mkdir -m 750 -p ${cms_home}/log
-        echo >> ${LOG_FILE}
+        touch ${LOG_FILE}
         chmod 640 ${LOG_FILE}
-        chown ${deploy_user} -hR ${cms_home}/log
+        chown ${cantian_user_and_group} -hR ${cms_home}/log
     fi
 }
 
@@ -553,22 +578,23 @@ deploy_user=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
               awk -F ',' '{for(i=1;i<=NF;i++){if($i~"deploy_user"){print $i}}}' |
               sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
               awk -F '=' '{print $2}')
+d_user=$(echo ${deploy_user} | awk -F ':' '{print $2}')
 storage_share_fs=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
               awk -F ',' '{for(i=1;i<=NF;i++){if($i~"storage_share_fs"){print $i}}}' |
               sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
               awk -F '=' '{print $2}')
 
-user=$(echo ${deploy_user} | awk -F ':' '{print $2}')
-
 check_and_create_cms_home
 
 ACTION=$1
+INSTALL_TYPE=""
 UNINSTALL_TYPE=""
 FORCE_UNINSTALL=""
 BACKUP_UPGRADE_PATH=""
 UPGRADE_TYPE=""
 ROLLBACK_TYPE=""
 if [ $# -gt 1 ]; then
+    INSTALL_TYPE=$2
     UNINSTALL_TYPE=$2
     BACKUP_UPGRADE_PATH=$2
     UPGRADE_TYPE=$2
@@ -588,6 +614,7 @@ function main_deploy()
             set -e
             create_cgroup_path
             iptables_accept
+            clear_shm
             do_deploy ${START_NAME}
             exit $?
             ;;
@@ -597,15 +624,24 @@ function main_deploy()
             exit $?
             ;;
         pre_install)
+            if [[ ${INSTALL_TYPE} == "reserve" ]];then
+                su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py -c cms -a add -k cms_reserve -v cms"
+            fi
             check_old_install
             chown_mod_scripts
             do_deploy ${PRE_INSTALL_NAME}
             exit $?
             ;;
         install)
-            chown ${deploy_user} /mnt/dbdata/remote/share_${storage_share_fs}
+            chown ${cantian_user_and_group} /mnt/dbdata/remote/share_${storage_share_fs}
             copy_cms_scripts
             do_deploy ${INSTALL_NAME}
+            if [ $? -ne 0 ];then
+                exit 1
+            fi
+            if [[ ${INSTALL_TYPE} == "reserve" ]];then
+                su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py -component=cms_ini --action=update --key=_DISK_DETECT_FILE --value=gcc_file_detect_disk,"
+            fi
             exit $?
             ;;
         uninstall)
@@ -626,16 +662,22 @@ function main_deploy()
             exit $?
             ;;
         pre_upgrade)
+            version_first_number=$(cat /opt/cantian/versions.yml |sed 's/ //g' | grep 'Version:' | awk -F ':' '{print $2}' | awk -F '.' '{print $1}')
             chown_mod_scripts
             pre_upgrade
             exit $?
             ;;
         upgrade_backup)
+            version_first_number=$(cat /opt/cantian/versions.yml |sed 's/ //g' | grep 'Version:' | awk -F ':' '{print $2}' | awk -F '.' '{print $1}')
             safety_upgrade_backup ${BACKUP_UPGRADE_PATH}
             exit $?
             ;;
         upgrade)
             safety_upgrade ${UPGRADE_TYPE} ${BACKUP_UPGRADE_PATH}
+            if [ $? -ne 0 ];then
+                exit 1
+            fi
+            su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py --component=cms_ini --action=update --key=_DISK_DETECT_FILE --value=gcc_file_detect_disk,"
             exit $?
             ;;
         rollback)

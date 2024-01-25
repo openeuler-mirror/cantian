@@ -3,9 +3,9 @@
 import json
 import os
 import sys
-from gs_check import CheckContext
-from gs_check import BaseItem
-from gs_check import ResultStatus
+from ct_check import CheckContext
+from ct_check import BaseItem
+from ct_check import ResultStatus
 sys.path.append('/opt/cantian/action/inspection')
 from log_tool import setup
 
@@ -49,10 +49,11 @@ class CheckDRCResRatio(BaseItem):
                     self.result.rst = ResultStatus.NG
         else:
             self.result.rst = ResultStatus.ERROR
-            vals["except"] = records
+            res_ratio_dict["except"] = records
 
         # add result to json
         self.result.val = json.dumps(res_ratio_dict)
+
 
 if __name__ == '__main__':
     '''

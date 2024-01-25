@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -66,9 +66,9 @@ typedef struct st_schema_lock {
 #define SCH_LOCKED_EXCLUSIVE(dc_entity)    (((dc_entity_t *)(dc_entity))->entry->sch_lock->mode == LOCK_MODE_X)
 
 #define SCH_LOCK_INST_SET(instid, lock)        ((lock)->inst_id = instid)
-#define SCH_LOCK_INST_CLEAN(lock)        ((lock)->inst_id = GS_INVALID_ID8)
-#define SCH_LOCK_DLSTBL_SET(lock)        ((lock)->dls_tbllock_done = GS_TRUE)
-#define SCH_LOCK_DLSTBL_CLEAN(lock)        ((lock)->dls_tbllock_done = GS_INVALID_ID8)
+#define SCH_LOCK_INST_CLEAN(lock)        ((lock)->inst_id = CT_INVALID_ID8)
+#define SCH_LOCK_DLSTBL_SET(lock)        ((lock)->dls_tbllock_done = CT_TRUE)
+#define SCH_LOCK_DLSTBL_CLEAN(lock)        ((lock)->dls_tbllock_done = CT_INVALID_ID8)
 
 typedef enum en_lock_type {
     LOCK_TYPE_FREE     = 0,  // unused
@@ -113,8 +113,8 @@ typedef struct st_lock_item {
     uint16 rmid;              // rm id holding this lock
 } lock_item_t;
 
-#define LOCK_PAGE_CAPACITY (GS_SHARED_PAGE_SIZE / sizeof(lock_item_t))
-#define MAX_LOCKS          (GS_MAX_LOCK_PAGES * LOCK_PAGE_CAPACITY)
+#define LOCK_PAGE_CAPACITY (CT_SHARED_PAGE_SIZE / sizeof(lock_item_t))
+#define MAX_LOCKS          (CT_MAX_LOCK_PAGES * LOCK_PAGE_CAPACITY)
 #define UNLOCK_IX(lock)    ((lock)->shared_count > 0 ? LOCK_MODE_S : LOCK_MODE_IDLE);
 #define LOCK_NEXT(area, lock_id) (lock_addr((area), (lock_id))->next)
 
@@ -126,7 +126,7 @@ typedef struct st_lock_area {
     spinlock_t lock;
     memory_pool_t pool;
     uint32 page_count;
-    char *pages[GS_MAX_LOCK_PAGES];
+    char *pages[CT_MAX_LOCK_PAGES];
     id_list_t free_items;
     uint32 hwm;
     uint32 capacity;
@@ -135,7 +135,7 @@ typedef struct st_lock_area {
 
 #define LOCKS_THRESHOLD(session) \
     ((session)->kernel->buf_ctx.buf_set[0].capacity * (session)->kernel->buf_ctx.buf_set_count / 10)
-#define LOCK_TIMEOUT(time)       ((time) >= GS_INVALID_ID32 ? GS_INVALID_ID32 : (time))
+#define LOCK_TIMEOUT(time)       ((time) >= CT_INVALID_ID32 ? CT_INVALID_ID32 : (time))
 
 status_t lock_area_init(knl_session_t *session);
 void lock_init(knl_rm_t *rm);
@@ -195,7 +195,7 @@ static inline lock_item_t *lock_addr(lock_area_t *area, uint32 id)
 
 static inline void lock_init_group(lock_group_t *group)
 {
-    group->plock_id = GS_INVALID_ID32;
+    group->plock_id = CT_INVALID_ID32;
     cm_reset_id_list(&group->plocks);
     cm_reset_id_list(&group->glocks);
 }

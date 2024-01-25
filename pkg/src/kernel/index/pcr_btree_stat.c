@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "knl_index_module.h"
 #include "pcr_btree_stat.h"
 #include "rcr_btree_scan.h"
 #include "knl_context.h"
@@ -33,14 +33,15 @@ void pcrb_calc_ndv_key(index_t *index, pcrb_key_t *key, pcrb_key_t *compare_key,
     dc_entity_t *entity = index->entity;
     uint32 column_count = index->desc.column_count;
     knl_column_t *column = NULL;
-    gs_type_t type;
+    ct_type_t type;
     char *data1 = NULL;
     char *data2 = NULL;
     uint16 offset = sizeof(pcrb_key_t);
-    bool32 key_is_null = GS_FALSE;
-    bool32 com_key_is_null = GS_FALSE;
+    bool32 key_is_null = CT_FALSE;
+    bool32 com_key_is_null = CT_FALSE;
     int32 result = 0;
-    bool32 is_distinct = GS_TRUE;
+    bool32 is_distinct = CT_TRUE;
+    uint16 collate_id;
 
     if (key == NULL || compare_key->is_infinite) {
         btree_set_comb_ndv(info, BTREE_COMB_1_NDV, column_count);
@@ -54,13 +55,18 @@ void pcrb_calc_ndv_key(index_t *index, pcrb_key_t *key, pcrb_key_t *compare_key,
                 btree_set_comb_ndv(info, i, column_count);
                 if (is_distinct) {
                     info->distinct_keys++;
-                    is_distinct = GS_FALSE;
+                    is_distinct = CT_FALSE;
                 }
             }
             break;
         }
 
         column = dc_get_column(entity, index->desc.columns[i]);
+        if (column->is_collate) {
+            collate_id = column->collate_id;
+        } else {
+            collate_id = CT_INVALID_ID16;
+        }
         type = column->datatype;
         key_is_null = !btree_get_bitmap(&key->bitmap, i);
         com_key_is_null = !btree_get_bitmap(&compare_key->bitmap, i);
@@ -72,7 +78,7 @@ void pcrb_calc_ndv_key(index_t *index, pcrb_key_t *key, pcrb_key_t *compare_key,
             btree_set_comb_ndv(info, i, column_count);
             if (is_distinct) {
                 info->distinct_keys++;
-                is_distinct = GS_FALSE;
+                is_distinct = CT_FALSE;
             }
             break;
         }
@@ -80,12 +86,12 @@ void pcrb_calc_ndv_key(index_t *index, pcrb_key_t *key, pcrb_key_t *compare_key,
         data1 = (char *)key + offset;
         data2 = (char *)compare_key + offset;
 
-        result = btree_cmp_column_data((void *)data1, (void *)data2, type, &offset, GS_TRUE);
+        result = btree_cmp_column_data((void *)data1, (void *)data2, type, &offset, CT_TRUE, collate_id);
         if (result != 0) {
             btree_set_comb_ndv(info, i, column_count);
             if (is_distinct) {
                 info->distinct_keys++;
-                is_distinct = GS_FALSE;
+                is_distinct = CT_FALSE;
             }
             break;
         }
@@ -97,19 +103,19 @@ bool32 pcrb_is_key_dead(knl_session_t *session, btree_page_t *page, knl_scn_t mi
     txn_info_t txn_info;
 
     if (!key->is_deleted) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     pcrb_get_txn_info(session, page, key, &txn_info);
     if (txn_info.status != (uint8)XACT_END) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (txn_info.scn > min_scn) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void pcrb_stats_leaf_page(knl_session_t *session, btree_t *btree, btree_info_t *info, page_id_t *page_id,
@@ -128,8 +134,8 @@ void pcrb_stats_leaf_page(knl_session_t *session, btree_t *btree, btree_info_t *
 
     buf_enter_page(session, *page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL | ENTER_PAGE_SEQUENTIAL);
     page = BTREE_CURR_PAGE(session);
-    if (btree_check_segment_scn(page, PAGE_TYPE_PCRB_NODE, seg_scn) != GS_SUCCESS) {
-        buf_leave_page(session, GS_FALSE);
+    if (btree_check_segment_scn(page, PAGE_TYPE_PCRB_NODE, seg_scn) != CT_SUCCESS) {
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -159,13 +165,13 @@ void pcrb_stats_leaf_page(knl_session_t *session, btree_t *btree, btree_info_t *
         info->empty_leaves++;
     }
 
-    ret = memcpy_sp(prev_compare_key, GS_KEY_BUF_SIZE, compare_key, (uint32)compare_key->size);
+    ret = memcpy_sp(prev_compare_key, CT_KEY_BUF_SIZE, compare_key, (uint32)compare_key->size);
     knl_securec_check(ret);
 
     info->keys += page->keys;
     info->leaf_blocks++;
     *page_id = AS_PAGID(page->next);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 }
 
 /*
@@ -189,8 +195,8 @@ status_t pcrb_stats_leaf_by_parent(knl_session_t *session, btree_t *btree, doubl
     uint32 i;
 
     CM_SAVE_STACK(session->stack);
-    compare_key = (pcrb_key_t *)cm_push(session->stack, GS_KEY_BUF_SIZE);
-    compare_key->is_infinite = GS_TRUE;
+    compare_key = (pcrb_key_t *)cm_push(session->stack, CT_KEY_BUF_SIZE);
+    compare_key->is_infinite = CT_TRUE;
     compare_key->size = sizeof(pcrb_key_t);
 
     while (!IS_INVALID_PAGID(page_id)) {
@@ -226,10 +232,10 @@ status_t pcrb_stats_leaf_by_parent(knl_session_t *session, btree_t *btree, doubl
 
         /* stats each leaf page */
         for (i = 0; i < sample_count; i++) {
-            if (knl_check_session_status(session) != GS_SUCCESS) {
+            if (knl_check_session_status(session) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                buf_leave_page(session, GS_FALSE);
-                return GS_ERROR;
+                buf_leave_page(session, CT_FALSE);
+                return CT_ERROR;
             }
             pcrb_stats_leaf_page(session, btree, &curr_parent, &page_id_arr[i], &prev_page_id, compare_key);
         }
@@ -245,11 +251,11 @@ status_t pcrb_stats_leaf_by_parent(knl_session_t *session, btree_t *btree, doubl
 
         cm_pop(session->stack);
         page_id = AS_PAGID(page->next);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t pcrb_full_stats_info(knl_session_t *session, btree_t *btree, btree_info_t *info)
@@ -261,31 +267,31 @@ status_t pcrb_full_stats_info(knl_session_t *session, btree_t *btree, btree_info
     pcrb_key_t *compare_key = NULL;
 
     if (segment == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     tree_info.value = cm_atomic_get(&segment->tree_info.value);
     info->height = (uint32)tree_info.level;
 
-    if (btree_level_first_page(session, btree, 0, &page_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (btree_level_first_page(session, btree, 0, &page_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
-    compare_key = (pcrb_key_t *)cm_push(session->stack, GS_KEY_BUF_SIZE);
-    compare_key->is_infinite = GS_TRUE;
+    compare_key = (pcrb_key_t *)cm_push(session->stack, CT_KEY_BUF_SIZE);
+    compare_key->is_infinite = CT_TRUE;
     compare_key->size = sizeof(pcrb_key_t);
 
     while (!IS_INVALID_PAGID(page_id)) {
-        if (knl_check_session_status(session) != GS_SUCCESS) {
+        if (knl_check_session_status(session) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         pcrb_stats_leaf_page(session, btree, info, &page_id, &prev_page_id, compare_key);
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void pcrb_get_table_by_leftpage(knl_session_t *session, btree_page_t *btree_page, uint32 *uid, uint32 *tabid)
@@ -306,7 +312,7 @@ static void pcrb_get_table_by_leftpage(knl_session_t *session, btree_page_t *btr
         key = PCRB_GET_KEY(page, dir);
         child_pagid = pcrb_get_child(key);
         btree_pagid = AS_PAGID(page->head.id);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 
     page_id_t segment_pagid = btree_pagid;
@@ -315,7 +321,7 @@ static void pcrb_get_table_by_leftpage(knl_session_t *session, btree_page_t *btr
     btree_segment_t *btree_segment = BTREE_GET_SEGMENT(session);
     *uid = btree_segment->uid;
     *tabid = btree_segment->table_id;
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 }
 
 status_t pcrb_get_table_by_page(knl_session_t *session, page_head_t *page, uint32 *uid, uint32 *tabid)
@@ -325,8 +331,8 @@ status_t pcrb_get_table_by_page(knl_session_t *session, page_head_t *page, uint3
     btree_page_t *btree_page = (btree_page_t *)page;
 
     if (btree_page->keys == 0) {
-        GS_THROW_ERROR(ERR_PAGE_NOT_BELONG_TABLE, page_type(btree_page->head.type));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PAGE_NOT_BELONG_TABLE, page_type(btree_page->head.type));
+        return CT_ERROR;
     }
 
     pcrb_dir_t *dir = pcrb_get_dir(btree_page, 0);
@@ -335,7 +341,7 @@ status_t pcrb_get_table_by_page(knl_session_t *session, page_head_t *page, uint3
         /* if the btree node page has one infinite key, the page is the most left page on the btree. so we
         * need to get the page whose level == 0, it locate behind of the btree segment page */
         pcrb_get_table_by_leftpage(session, btree_page, uid, tabid);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /* for unique index or primary key, the rowid of parent key is not a valid rowid, we need to find left node */
@@ -347,16 +353,16 @@ status_t pcrb_get_table_by_page(knl_session_t *session, page_head_t *page, uint3
         dir = pcrb_get_dir(btree_page, 0);
         key = PCRB_GET_KEY(btree_page, dir);
         ROWID_COPY(rowid, key->rowid);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 
-    if (df_verify_page_by_hwm(session, rowid) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (df_verify_page_by_hwm(session, rowid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (btree_get_table_by_rowid(session, page, rowid, uid, tabid) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (btree_get_table_by_rowid(session, page, rowid, uid, tabid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

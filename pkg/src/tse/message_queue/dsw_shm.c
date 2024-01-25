@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -90,7 +90,7 @@ uint32_t shm_get_thread_cool_time(void)
     return g_thread_cool_time;
 }
 
-void shm_set_thread_calm_time(uint32_t time_us)
+void shm_set_thread_cool_time(uint32_t time_us)
 {
     g_thread_cool_time = time_us;
 }
@@ -157,6 +157,9 @@ void *_shm_alloc(struct shm_seg_sysv_s *seg, size_t size, int proc_id, int qbit_
 
     while (mem_list != NULL) {
         hdr = shm_get_blk_from_list(seg, mem_list);
+        if (hdr == NULL && size == BIG_RECORD_SIZE) {
+            return NULL;
+        }
         if (hdr != NULL) {
             break;
         }
@@ -514,6 +517,7 @@ done:
         is_hot_thread = 0;
         __sync_fetch_and_sub(&p->hot_thd_num, 1);
     }
+    __sync_fetch_and_sub(&seg->nr_proc, 1);
     free(hot_thread_arg);
     free(arg);
     return NULL;
@@ -543,6 +547,7 @@ int shm_create_recv_threads(struct shm_seg_sysv_s *seg, int thread_num, shm_proc
             free(arg);
             return -1;
         }
+        __sync_fetch_and_add(&seg->nr_proc, 1);
     }
     return 0;
 }

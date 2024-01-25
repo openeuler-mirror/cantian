@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_index_module.h"
 #include "rcr_btree_log.h"
 #include "index_common.h"
 #include "knl_context.h"
@@ -54,7 +55,7 @@ void print_btree_init_segment(log_entry_t *log)
            seg->del_scn, seg->del_pages.count, (uint32)seg->del_pages.first.file,
            (uint32)seg->del_pages.first.page, (uint32)seg->del_pages.last.file, (uint32)seg->del_pages.last.page);
     printf("first_recycle_scn %llu, last_recycle_scn %llu, del_pages(count %u, first %u-%u, last %u-%u), "
-           "ow_del_scn %llu, ow_recycle_scn %lld, recycle_ver_scn %llu \n",
+           "ow_del_scn %llu, ow_recycle_scn %lld, recycle_ver_scn %lld \n",
            seg->first_recycle_scn, seg->last_recycle_scn, seg->recycled_pages.count,
            (uint32)seg->recycled_pages.first.file, (uint32)seg->recycled_pages.first.page,
            (uint32)seg->recycled_pages.last.file, (uint32)seg->recycled_pages.last.page,
@@ -133,7 +134,7 @@ void print_btree_change_seg(log_entry_t *log)
            seg->del_scn, seg->del_pages.count, (uint32)seg->del_pages.first.file,
            (uint32)seg->del_pages.first.page, (uint32)seg->del_pages.last.file, (uint32)seg->del_pages.last.page);
     printf("first_recycle_scn %llu, last_recycle_scn %llu, del_pages(count %u, first %u-%u, last %u-%u), "
-           "ow_del_scn %llu, ow_recycle_scn %lld, recycle_version_scn %llu, ",
+           "ow_del_scn %llu, ow_recycle_scn %lld, recycle_version_scn %lld, ",
            seg->first_recycle_scn, seg->last_recycle_scn, seg->recycled_pages.count,
            (uint32)seg->recycled_pages.first.file, (uint32)seg->recycled_pages.first.page,
            (uint32)seg->recycled_pages.last.file, (uint32)seg->recycled_pages.last.page,
@@ -209,7 +210,7 @@ void rd_btree_clean_moved_keys(knl_session_t *session, log_entry_t *log)
         dir = BTREE_GET_DIR(page, i);
         key = BTREE_GET_KEY(page, dir);
         if (!key->is_cleaned) {
-            key->is_cleaned = (uint16)GS_TRUE;
+            key->is_cleaned = (uint16)CT_TRUE;
         }
     }
     page->keys = redo->keys;
@@ -272,7 +273,7 @@ void rd_btree_clean_itl(knl_session_t *session, log_entry_t *log)
     itl->is_active = 0;
     itl->is_owscn = redo->is_owscn;
     itl->is_copied = redo->is_copied;
-    itl->xid.value = GS_INVALID_ID64;
+    itl->xid.value = CT_INVALID_ID64;
 }
 
 void print_btree_clean_itl(log_entry_t *log)
@@ -298,11 +299,11 @@ void rd_btree_undo_insert(knl_session_t *session, log_entry_t *log)
     key->undo_slot = redo->undo_slot;
     key->scn = redo->scn;
     key->is_owscn = redo->is_owscn;
-    key->is_deleted = GS_TRUE;
+    key->is_deleted = CT_TRUE;
     key->rowid = redo->rowid;
 
     if (redo->is_xfirst) {
-        dir->itl_id = GS_INVALID_ID8;
+        dir->itl_id = CT_INVALID_ID8;
     }
 }
 
@@ -331,10 +332,10 @@ void rd_btree_undo_delete(knl_session_t *session, log_entry_t *log)
     key->undo_slot = redo->undo_slot;
     key->scn = redo->scn;
     key->is_owscn = redo->is_owscn;
-    key->is_deleted = GS_FALSE;
+    key->is_deleted = CT_FALSE;
 
     if (redo->is_xfirst) {
-        dir->itl_id = GS_INVALID_ID8;
+        dir->itl_id = CT_INVALID_ID8;
     }
 }
 
@@ -391,7 +392,7 @@ void rd_btree_copy_key(knl_session_t *session, log_entry_t *log)
     errno_t err;
 
     dst_key = (btree_key_t *)((char *)page + page->free_begin);
-    err = memcpy_sp(dst_key, GS_KEY_BUF_SIZE, key, (size_t)key->size);
+    err = memcpy_sp(dst_key, CT_KEY_BUF_SIZE, key, (size_t)key->size);
     knl_securec_check(err);
     dir = BTREE_GET_DIR(page, page->keys);
     dir->offset = page->free_begin;
@@ -431,7 +432,7 @@ void rd_btree_change_itl_copied(knl_session_t *session, log_entry_t *log)
     uint8 i;
 
     for (i = 0; i < page->itls; i++) {
-        if (itl_map[i] != GS_INVALID_ID8) {
+        if (itl_map[i] != CT_INVALID_ID8) {
             itl = BTREE_GET_ITL(page, i);
             itl->is_copied = 1;
         }

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -36,6 +36,7 @@ bool32 spc_auto_offline_space(knl_session_t *session, space_t *space, datafile_t
 status_t spc_mount_space(knl_session_t *session, space_t *space, bool32 auto_offline);
 void spc_umount_space(knl_session_t *session, space_t *space);
 void spc_clean_nologging_data(knl_session_t *session);
+void spc_rebuild_temp2_undo(knl_session_t *session, space_t *temp_undo_spc);
 status_t spc_drop_nologging_table(knl_session_t *session);
 void spc_offline_space_files(knl_session_t *session, uint32 *files, uint32 file_hwm);
 void spc_update_hwms(knl_session_t *session, space_t *space, uint32 *hwms);

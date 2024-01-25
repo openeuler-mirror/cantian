@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -25,6 +25,7 @@
 #ifndef __KNL_HEAP_H__
 #define __KNL_HEAP_H__
 
+#include "knl_table_module.h"
 #include "cm_defs.h"
 #include "cm_row.h"
 #include "knl_index.h"
@@ -37,6 +38,7 @@
 #include "rb_purge.h"
 #include "knl_common.h"
 #include "knl_shrink.h"
+#include "knl_heap_persistent.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -75,137 +77,6 @@ typedef enum en_lock_row_status {
     ROW_IS_LOCKED = 3,   /* row is locked successfully */
 } lock_row_status_t;
 
-#pragma pack(4)
-typedef struct st_rd_heap_alloc_itl {
-    xid_t xid;
-    uint8 itl_id;
-    uint8 unused1;
-    uint16 unused2;
-} rd_heap_alloc_itl_t;
-
-typedef struct st_rd_heap_clean_itl {
-    knl_scn_t scn;
-    uint8 itl_id;
-    uint8 is_owscn;
-    uint16 aligned;
-} rd_heap_clean_itl_t;
-
-typedef struct st_rd_heap_change_dir {
-    knl_scn_t scn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint16 slot;
-} rd_heap_change_dir_t;
-
-typedef struct st_rd_heap_lock_row {
-    knl_scn_t scn;
-    uint16 slot;
-    uint8 itl_id;
-    uint8 is_owscn;
-} rd_heap_lock_row_t;
-
-typedef struct st_rd_heap_insert {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint8  new_dir;
-    uint8 aligned;
-    char data[4];
-} rd_heap_insert_t;
-
-typedef struct st_rd_heap_logic_data {
-    uint32 tbl_id;   // table id
-    uint32 tbl_uid;  // user id
-    uint32 tbl_oid;
-} rd_heap_logic_data_t;
-
-typedef struct st_rd_logic_rep_head {
-    uint16 col_count;
-    bool8 is_pcr;
-    uint8 unused;
-} rd_logic_rep_head;
-
-typedef struct st_rd_heap_update_inplace {
-    uint16 slot;
-    uint16 count;  // update columns
-    uint16 columns[0];
-    // following is update column data
-} rd_heap_update_inplace_t;
-
-typedef struct st_rd_heap_update_inpage {
-    uint16 slot;
-    uint16 new_cols;  // new columns
-    int16 inc_size;
-    uint16 count;     // update columns
-    uint16 columns[0];  // following is update column data
-} rd_heap_update_inpage_t;
-
-typedef struct st_rd_set_link {
-    rowid_t link_rid;
-    uint16 slot;
-    uint16 aligned;
-} rd_set_link_t;
-
-typedef struct st_rd_heap_delete {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint16 slot;
-} rd_heap_delete_t;
-
-typedef struct st_rd_heap_undo {
-    knl_scn_t scn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint16 slot;
-    uint8 is_xfirst;
-    uint8 is_owscn;
-    uint16 aligned;
-} rd_heap_undo_t;
-#pragma pack()
-
-#pragma pack(4)
-typedef struct st_row_dir {
-    union {
-        struct {
-            uint16 offset;          // offset of row
-            uint16 is_owscn : 1;    // txn scn overwrite or not
-            uint16 undo_slot : 15;  // undo row index
-        };
-        struct {
-            uint16 is_free : 1;     // directory free flag
-            uint16 next_slot : 15;  // next free slot id
-            uint16 aligned;
-        };
-    };
-
-    undo_page_id_t undo_page;
-    knl_scn_t scn;  // sql sequence number(txn in progress) or commit scn
-} row_dir_t;
-
-// default heap page, as data page
-typedef struct st_heap_page {
-    page_head_t head;
-    map_index_t map;
-    knl_scn_t org_scn;
-    knl_scn_t seg_scn;
-    uint32 oid;
-    uint16 uid;
-    uint16 first_free_dir;
-    pagid_data_t next;  // next data page
-    uint16 free_begin;
-    uint16 free_end;
-    uint16 free_size;
-    uint16 rows;  // row count
-    uint16 dirs;  // row directory count
-    // ==== above aligned by 4 bytes ===
-    uint8 itls;  // itl count
-    uint8 aligned[3];
-    knl_scn_t scn;  // max committed itl scn(except delayed itl)
-    uint8 reserved[4];
-} heap_page_t;
-#pragma pack()
-
 #define HEAP_NO_FREE_DIR 0x7FFF
 
 typedef struct st_ref_cons {
@@ -219,6 +90,7 @@ typedef struct st_ref_cons {
     uint16 matched_ix;
     knl_refactor_t refactor;
     knl_constraint_state_t cons_state;
+    uint32 cons_id;
 } ref_cons_t;
 
 typedef struct st_check_cons {
@@ -231,11 +103,12 @@ typedef struct st_check_cons {
 } check_cons_t;
 
 typedef struct st_cons_set {
-    check_cons_t *check_cons[GS_MAX_CONSTRAINTS];
-    ref_cons_t *ref_cons[GS_MAX_CONSTRAINTS];
+    check_cons_t *check_cons[CT_MAX_CONSTRAINTS];
+    ref_cons_t *ref_cons[CT_MAX_CONSTRAINTS];
     uint32 check_count;
     uint32 ref_count;
     bool32 referenced;
+    uint32 max_ref_id;
 } cons_set_t;
 
 typedef struct st_shadow_index {
@@ -251,8 +124,8 @@ typedef status_t (*heap_add_update_info_t)(knl_session_t *session, knl_cursor_t 
     row_assist_t *ra, uint32 col_id);
 
 #define SHADOW_INDEX_ENTITY(shadow) \
-    ((shadow)->part_loc.part_no == GS_INVALID_ID32 ? &(shadow)->index : (shadow)->index_part.btree.index)
-#define SHADOW_INDEX_IS_PART(shadow) ((shadow)->part_loc.part_no != GS_INVALID_ID32)
+    ((shadow)->part_loc.part_no == CT_INVALID_ID32 ? &(shadow)->index : (shadow)->index_part.btree.index)
+#define SHADOW_INDEX_IS_PART(shadow) ((shadow)->part_loc.part_no != CT_INVALID_ID32)
 
 typedef struct st_table {
     knl_table_desc_t desc;        /* < table description */
@@ -290,7 +163,7 @@ static inline heap_t *knl_cursor_heap(knl_cursor_t *cursor)
 
 /* if the column value is zero with decimal type in a csf format row */
 #define CSF_IS_DECIMAL_ZERO(is_csf, len, type) \
-    ((is_csf) && ((len) == 0) && (GS_IS_NUMBER_TYPE(type)))
+    ((is_csf) && ((len) == 0) && (CT_IS_NUMBER_TYPE(type)))
 typedef enum en_heap_update_mode {
     UPDATE_INPLACE = 1,  // column size not changed
     UPDATE_INPAGE = 2,   // current page space is enough
@@ -344,14 +217,6 @@ typedef struct st_row_chains_info {
     row_chain_t chains[1];
 } row_chains_info_t;
 
-typedef struct st_heap_key {
-    uint16 col_count;
-    uint16 reserved;
-    uint16 col_id[GS_MAX_INDEX_COLUMNS];
-    uint16 col_size[GS_MAX_INDEX_COLUMNS];
-    char col_values[GS_KEY_BUF_SIZE];  // key data
-} heap_key_t;
-
 typedef struct st_heap_compact_def {
     uint32 percent;
     uint32 timeout;
@@ -369,7 +234,7 @@ typedef struct st_heap_compact_def {
     (HEAP_MAX_COST_SIZE(session) - sizeof(row_dir_t) - sizeof(itl_t) - sizeof(rowid_t))
 #define HEAP_INSERT_MAX_CHAIN_COUNT 18
 
-#define HEAP_MERGE_CHAIN_COUNT     (GS_MAX_CHAIN_COUNT - PCRH_INSERT_MAX_CHAIN_COUNT + 1)
+#define HEAP_MERGE_CHAIN_COUNT     (CT_MAX_CHAIN_COUNT - PCRH_INSERT_MAX_CHAIN_COUNT + 1)
 
 #define HEAP_GET_ROW(page, dir)      (row_head_t *)((char *)(page) + (dir)->offset)
 #define HEAP_ROW_DATA_OFFSET(row) \
@@ -390,7 +255,7 @@ typedef struct st_heap_compact_def {
             knl_securec_check(ret);                                                        \
         }                                                                                  \
     } while (0)
-#define IS_LAST_CHAIN_ROW(row)             ((*(uint64 *)(HEAP_LOC_LINK_RID(row)) == GS_INVALID_ID64))
+#define IS_LAST_CHAIN_ROW(row)             ((*(uint64 *)(HEAP_LOC_LINK_RID(row)) == CT_INVALID_ID64))
 #define HEAP_GET_EXT_LINK(chains_info, id) (row_chain_t *)(((row_chains_info_t *)(chains_info))->chains + (id))
 #define IS_DUAL_TABLE(tab)                 ((tab)->desc.uid == 0 && (tab)->desc.id == DUAL_ID)
 #define HEAP_SEGMENT(session, pageid, segment) \
@@ -401,30 +266,17 @@ typedef struct st_heap_compact_def {
  * for rowid scan, maybe cursor->rowid is from another table and cause check page fail
  * for rowid scan check page fail, INVALID ROWID error message should be thrown
  */
-#ifndef IGNORE_ASSERT
-#define HEAP_CHECKPAGE_ERROR(cursor)                                                           \
-    do {                                                                                       \
-        CM_ASSERT(0);                                                                          \
-        if ((cursor)->page_soft_damaged) {                                                     \
-            GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, (cursor)->rowid.file, (cursor)->rowid.page); \
-        } else if ((cursor)->rowid_count == 0) {                                               \
-            GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");                               \
-        } else {                                                                               \
-            GS_THROW_ERROR(ERR_INVALID_ROWID);                                                 \
-        }                                                                                      \
-    } while (0)
-#else
 #define HEAP_CHECKPAGE_ERROR(cursor)                                                           \
     do {                                                                                       \
         if ((cursor)->page_soft_damaged) {                                                     \
-            GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, (cursor)->rowid.file, (cursor)->rowid.page); \
+            CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, (cursor)->rowid.file, (cursor)->rowid.page); \
         } else if ((cursor)->rowid_count == 0) {                                               \
-            GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");                               \
+            CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");                               \
         } else {                                                                               \
-            GS_THROW_ERROR(ERR_INVALID_ROWID);                                                 \
+            CT_THROW_ERROR(ERR_INVALID_ROWID);                                                 \
         }                                                                                      \
     } while (0)
-#endif
+
 
 typedef struct st_heap_undo_assist {
     heap_t *heap;
@@ -461,7 +313,7 @@ static inline uint16 heap_calc_csf_col_actualsize(row_head_t *row, uint16 *lens,
 {
     uint32 col_actual_size;
 
-    if (lens[col_id] == GS_NULL_VALUE_LEN) {
+    if (lens[col_id] == CT_NULL_VALUE_LEN) {
         return 1;
     }
     col_actual_size = (lens[col_id] < CSF_VARLEN_EX) ?
@@ -602,7 +454,7 @@ static inline itl_t *heap_get_itl(heap_page_t *page, uint8 id)
 
 static inline uint8 page_size_units(uint32 size)
 {
-    return (uint8)(size / GS_PAGE_UNIT_SIZE);
+    return (uint8)(size / CT_PAGE_UNIT_SIZE);
 }
 
 #ifdef __cplusplus

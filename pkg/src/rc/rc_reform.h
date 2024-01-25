@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -46,7 +46,7 @@ extern "C" {
 #define CKPT_LOG_REDO_STAT_COUNT (500)
 
 typedef struct st_instance_list {
-    uint8 inst_id_list[GS_MAX_INSTANCES];
+    uint8 inst_id_list[CT_MAX_INSTANCES];
     uint8 inst_id_count;
     uint8 reserve[3];
 } instance_list_t;
@@ -122,6 +122,7 @@ typedef enum e_reform_step_state {
 } reform_step_state_t;
  
 #define RC_REFORM_IN_PROGRESS (g_rc_ctx->status < REFORM_DONE && g_rc_ctx->status > REFORM_PREPARE)
+#define RC_REFORM_RECOVERY_IN_PROGRESS (g_rc_ctx->status < REFORM_RECOVER_DONE && g_rc_ctx->status > REFORM_PREPARE)
 #define RC_REFORM_NOT_IN_PROGRESS (g_rc_ctx->status == REFORM_DONE || g_rc_ctx->status == REFORM_PREPARE)
 
 
@@ -284,7 +285,7 @@ bool32 rc_is_full_restart(void);
 static inline void rc_bitmap64_set(uint64 *bitmap, uint8 num)
 {
     uint64 position;
-    CM_ASSERT(num < GS_MAX_INSTANCES);
+    CM_ASSERT(num < CT_MAX_INSTANCES);
 
     position = (uint64)1 << num;
 
@@ -294,7 +295,7 @@ static inline void rc_bitmap64_set(uint64 *bitmap, uint8 num)
 static inline void rc_bitmap64_clear(uint64 *bitmap, uint8 num)
 {
     uint64 position;
-    CM_ASSERT(num < GS_MAX_INSTANCES);
+    CM_ASSERT(num < CT_MAX_INSTANCES);
 
     position = ~((uint64)1 << num);
 
@@ -304,7 +305,7 @@ static inline void rc_bitmap64_clear(uint64 *bitmap, uint8 num)
 static inline bool32 rc_bitmap64_exist(uint64 *bitmap, uint8 num)
 {
     uint64 position;
-    CM_ASSERT(num < GS_MAX_INSTANCES);
+    CM_ASSERT(num < CT_MAX_INSTANCES);
 
     position = (uint64)1 << num;
 
@@ -399,6 +400,8 @@ status_t rc_set_redo_replay_done(knl_session_t *session, reform_info_t *rc_info)
 
 bool32 rc_reform_trigger_disable(void);
 void rc_reform_trigger_enable(void);
+cms_res_status_list_t *rc_get_current_stat(void);
+cms_res_status_list_t *rc_get_target_stat(void);
 
 #ifdef __cplusplus
 }

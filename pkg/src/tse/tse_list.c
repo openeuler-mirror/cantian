@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "tse_module.h"
 #include "tse_list.h"
 #include "cm_defs.h"
 #include "cm_debug.h"
@@ -29,6 +30,7 @@
 #include "cm_error.h"
 #include "cm_debug.h"
 #include "knl_common.h"
+
 /*
 sizeof(tse_context_t) == 72
 按照这个宏定义，每个每个mysql的每个list可能缓存2000*72字节
@@ -96,7 +98,7 @@ void triger_tse_list_raw_delete_all(tse_list_t *list)
     CM_ASSERT(real_size == size);
     CM_ASSERT(real_del_cnt == delete_cnt);
     (void)pthread_rwlock_unlock(&list->rw_lock);
-    GS_LOG_DEBUG_INF("[TSE_LIST]:triger_tse_list_raw_delete_all delete_cnt:%lu, size:%lu", delete_cnt, size);
+    CT_LOG_DEBUG_INF("[TSE_LIST]:triger_tse_list_raw_delete_all delete_cnt:%lu, size:%lu", delete_cnt, size);
 }
 
 void triger_tse_list_raw_delete(tse_list_t *list)
@@ -134,7 +136,7 @@ void triger_tse_list_raw_delete(tse_list_t *list)
     cm_atomic_set(&list->head, cm_atomic_get(&new_list.next));
     CM_ASSERT(real_size == tse_list_calc_size(list));
     (void)pthread_rwlock_unlock(&list->rw_lock);
-    GS_LOG_DEBUG_INF("[TSE_LIST]:triger_tse_list_raw_delete: delete_cnt:%lu,size:%lu", delete_cnt, size);
+    CT_LOG_DEBUG_INF("[TSE_LIST]:triger_tse_list_raw_delete: delete_cnt:%lu,size:%lu", delete_cnt, size);
 }
 
 uint64_t tse_list_size(tse_list_t *list)

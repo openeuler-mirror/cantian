@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "cm_hash.h"
 #include "cm_context_pool.h"
 
@@ -33,18 +34,18 @@ status_t ctx_pool_create(context_pool_profile_t *profile, context_pool_t **pool)
     uint32 map_size = OFFSET_OF(context_map_t, items) + profile->optimize_pages * sizeof(uint32);
     map_size = CM_ALIGN8(map_size);
 
-    uint32 total_size = pool_size + sizeof(memory_pool_t) + map_size + GS_LRU_LIST_CNT * sizeof(lru_list_t);
+    uint32 total_size = pool_size + sizeof(memory_pool_t) + map_size + CT_LRU_LIST_CNT * sizeof(lru_list_t);
     total_size = CM_ALIGN8(total_size);
     context_pool_t *ctx_pool = (context_pool_t *)malloc(total_size);
     if (ctx_pool == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)total_size, profile->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)total_size, profile->name);
+        return CT_ERROR;
     }
     errno_t rc_memzero = memset_sp(ctx_pool, (size_t)total_size, 0, (size_t)total_size);
     if (rc_memzero != EOK) {
         CM_FREE_PTR(ctx_pool);
-        GS_THROW_ERROR(ERR_RESET_MEMORY, "ctx_pool");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_RESET_MEMORY, "ctx_pool");
+        return CT_ERROR;
     }
 
     /* initialize ctx_pool memory object */
@@ -53,16 +54,16 @@ status_t ctx_pool_create(context_pool_profile_t *profile, context_pool_t **pool)
     /* initialize ctx_pool ctx_map */
     ctx_pool->map = (context_map_t *)((char*)ctx_pool + pool_size + sizeof(memory_pool_t));
     ctx_pool->map->map_size = profile->optimize_pages;
-    ctx_pool->map->free_items.first = GS_INVALID_ID32;
+    ctx_pool->map->free_items.first = CT_INVALID_ID32;
 
     /* initialize ctx_pool lru_list */
     ctx_pool->lru_list = (lru_list_t *)((char*)ctx_pool + pool_size + sizeof(memory_pool_t) + map_size);
-    ctx_pool->lru_list_cnt = GS_LRU_LIST_CNT;
+    ctx_pool->lru_list_cnt = CT_LRU_LIST_CNT;
 
     if (mpool_create(profile->area, profile->name,
-                     profile->init_pages, profile->optimize_pages, ctx_pool->memory) != GS_SUCCESS) {
+                     profile->init_pages, profile->optimize_pages, ctx_pool->memory) != CT_SUCCESS) {
         CM_FREE_PTR(ctx_pool);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *pool = ctx_pool;
@@ -71,7 +72,7 @@ status_t ctx_pool_create(context_pool_profile_t *profile, context_pool_t **pool)
     ctx_pool->clean = profile->clean;
     ctx_pool->memory->mem_alloc.ctx = ctx_pool;
     ctx_pool->memory->mem_alloc.mem_func = (mem_func_t)sql_ctx_alloc_mem;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // context pool's life cycle is same with the instance
@@ -150,7 +151,7 @@ void ctx_bucket_insert(context_bucket_t *bucket, context_ctrl_t *ctrl)
 
 static void ctx_map_remove(context_pool_t *pool, context_ctrl_t *ctrl)
 {
-    if (ctrl->map_id == GS_INVALID_ID32) {
+    if (ctrl->map_id == CT_INVALID_ID32) {
         return;
     }
 
@@ -161,7 +162,7 @@ static void ctx_map_remove(context_pool_t *pool, context_ctrl_t *ctrl)
 
 static void ctx_map_add(context_pool_t *pool, context_ctrl_t *ctrl)
 {
-    uint32 id = GS_INVALID_ID32;
+    uint32 id = CT_INVALID_ID32;
 
     if (pool->map->free_items.count > 0) {
         id = pool->map->free_items.first & 0x7FFFFFFF;
@@ -174,7 +175,7 @@ static void ctx_map_add(context_pool_t *pool, context_ctrl_t *ctrl)
 
     ctrl->map_id = id;
 
-    if (id != GS_INVALID_ID32) {
+    if (id != CT_INVALID_ID32) {
         pool->map->items[id] = ctrl->memory->pages.first;
     }
 }
@@ -201,10 +202,10 @@ bool32 ctx_pool_try_remove(context_pool_t *pool, context_ctrl_t *ctrl)
 
     if (ctrl->ref_count > 0) {
         cm_spin_unlock(&ctrl->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    ctrl->valid = GS_FALSE;
+    ctrl->valid = CT_FALSE;
     pool->clean(ctrl);
     cm_spin_unlock(&ctrl->lock);
 
@@ -215,7 +216,7 @@ bool32 ctx_pool_try_remove(context_pool_t *pool, context_ctrl_t *ctrl)
     lru_list = &pool->lru_list[ctrl->hash_value % pool->lru_list_cnt];
     ctx_lru_remove(lru_list, ctrl);
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static inline void ctx_pool_lru_shift(lru_list_t *lru_list, context_ctrl_t *ctrl)
@@ -292,7 +293,7 @@ bool32 ctx_recycle_internal_core(context_pool_t *pool)
     context_ctrl_t *head = NULL;
     context_ctrl_t *prev = NULL;
     lru_list_t *lru_list = NULL;
-    bool32 removed = GS_FALSE;
+    bool32 removed = CT_FALSE;
     uint32 idx = pool->lru_list_idx++ % pool->lru_list_cnt;
 
     for (uint32 i = 0 ; i < pool->lru_list_cnt; i++) {
@@ -305,12 +306,12 @@ bool32 ctx_recycle_internal_core(context_pool_t *pool)
         while (ctrl != NULL) {
             if (!ctrl->fixed && ctx_pool_try_remove(pool, ctrl)) {
                 ctx_destroy(ctrl);
-                removed = GS_TRUE;
+                removed = CT_TRUE;
                 break;
             }
 
             if (ctrl->subpool != NULL && ctx_recycle_internal_core(ctrl->subpool)) {
-                removed = GS_TRUE;
+                removed = CT_TRUE;
                 break;
             }
 
@@ -330,7 +331,7 @@ bool32 ctx_recycle_internal_core(context_pool_t *pool)
         }
         cm_spin_unlock(&lru_list->lock);
 
-        if (removed == GS_TRUE) {
+        if (removed == CT_TRUE) {
             break;
         }
     }
@@ -341,7 +342,7 @@ bool32 ctx_recycle_internal_core(context_pool_t *pool)
 static bool32 ctx_recycle_external(context_pool_t *pool)
 {
     if (pool->external_recycle == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     return pool->external_recycle();
@@ -350,26 +351,26 @@ static bool32 ctx_recycle_external(context_pool_t *pool)
 static bool32 ctx_recycle(context_pool_t *pool)
 {
     if (ctx_recycle_internal_core(pool)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (ctx_recycle_external(pool)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    GS_THROW_ERROR(ERR_ALLOC_GA_MEMORY, pool->memory->name);
-    return GS_FALSE;
+    CT_THROW_ERROR(ERR_ALLOC_GA_MEMORY, pool->memory->name);
+    return CT_FALSE;
 }
 
 status_t ctx_alloc_exhausted(context_ctrl_t *ctrl, uint32 size, void **buf, uint32 *buf_size)
 {
     while (!mctx_try_alloc_exhausted(ctrl->memory, size, buf, buf_size)) {
         if (!ctx_recycle(ctrl->pool)) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifndef TEST_MEM
@@ -382,8 +383,8 @@ status_t ctx_write_text(context_ctrl_t *ctrl, text_t *text)
     char *buf = NULL;
 
     while (remain_size > 0) {
-        if (ctx_alloc_exhausted(ctrl, remain_size, (void **)&buf, &buf_size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx_alloc_exhausted(ctrl, remain_size, (void **)&buf, &buf_size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (ctrl->text_addr == NULL) {
@@ -398,7 +399,7 @@ status_t ctx_write_text(context_ctrl_t *ctrl, text_t *text)
         remain_size -= copy_size;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 #else
 status_t ctx_write_text(context_ctrl_t *ctrl, text_t *text)
@@ -406,24 +407,24 @@ status_t ctx_write_text(context_ctrl_t *ctrl, text_t *text)
     errno_t errcode;
     ctrl->text_size = text->len;
     if (text->len == 0) {
-        GS_THROW_ERROR(ERR_MALLOC_BYTES_MEMORY, text->len);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_MALLOC_BYTES_MEMORY, text->len);
+        return CT_ERROR;
     }
     ctrl->text_addr = (char *)malloc(text->len + 1);
     if (ctrl->text_addr == NULL) {
-        GS_THROW_ERROR(ERR_MALLOC_BYTES_MEMORY, text->len);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_MALLOC_BYTES_MEMORY, text->len);
+        return CT_ERROR;
     }
 
     errcode = memcpy_sp(ctrl->text_addr, text->len + 1, text->str, text->len);
     if (errcode != EOK) {
         CM_FREE_PTR(ctrl->text_addr);
-        GS_THROW_ERROR(ERR_RESET_MEMORY, "ctrl->text_addr");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_RESET_MEMORY, "ctrl->text_addr");
+        return CT_ERROR;
     }
     ctrl->text_addr[text->len] = '\0';
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 #endif  // TEST_MEM
 
@@ -438,7 +439,7 @@ void ctx_reuse(context_pool_t *pool, context_ctrl_t *ctrl)
     mctx->alloc_pos = sizeof(memory_context_t) + pool->context_size;
     mctx->curr_page_id = mctx->pages.first;
     mctx->curr_page_addr = mpool_page_addr(pool->memory, mctx->curr_page_id);
-    ctrl->valid = GS_TRUE;
+    ctrl->valid = CT_TRUE;
     ctrl->memory = mctx;
     ctrl->pool = pool;
     ctrl->subpool = NULL;
@@ -448,11 +449,11 @@ status_t ctx_create_mctx(context_pool_t *pool, memory_context_t **mctx)
 {
     while (!mctx_try_create(pool->memory, mctx)) {
         if (!ctx_recycle(pool)) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ctx_create(context_pool_t *pool, context_ctrl_t **ctrl)
@@ -460,24 +461,24 @@ status_t ctx_create(context_pool_t *pool, context_ctrl_t **ctrl)
     memory_context_t *mctx = NULL;
     context_ctrl_t *ctx_ctrl = NULL;
 
-    if (ctx_create_mctx(pool, &mctx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ctx_create_mctx(pool, &mctx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (mctx_alloc(mctx, pool->context_size, (void **)&ctx_ctrl) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mctx_alloc(mctx, pool->context_size, (void **)&ctx_ctrl) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (pool->context_size != 0) {
         MEMS_RETURN_IFERR(memset_sp(ctx_ctrl, (size_t)pool->context_size, 0, (size_t)pool->context_size));
     }
 
-    ctx_ctrl->valid = GS_TRUE;
+    ctx_ctrl->valid = CT_TRUE;
     ctx_ctrl->memory = mctx;
     ctx_ctrl->pool = pool;
     ctx_ctrl->subpool = NULL;
     *ctrl = ctx_ctrl;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void ctx_ctrl_dec_ref(context_ctrl_t *ctrl)
@@ -501,7 +502,7 @@ static bool32 ctx_matched(context_pool_t *pool, context_ctrl_t *ctrl, uint32 has
                    ctrl->remote_conn_type != remote_conn_type || ctrl->is_direct_route != is_direct_route);
     if (cond) {
         cm_spin_unlock(&ctrl->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     ctrl->ref_count++;
@@ -528,7 +529,7 @@ static bool32 ctx_matched(context_pool_t *pool, context_ctrl_t *ctrl, uint32 has
 
         if (!cm_text_equal(&piece, &sub_text)) {
             ctx_ctrl_dec_ref(ctrl);
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         sub_text.str += piece.len;
@@ -543,10 +544,10 @@ static bool32 ctx_matched(context_pool_t *pool, context_ctrl_t *ctrl, uint32 has
 
     if (remain_size != 0) {
         ctx_ctrl_dec_ref(ctrl);
-        return GS_FALSE;
+        return CT_FALSE;
     }
     
-    return GS_TRUE;
+    return CT_TRUE;
 }
 #else
 static bool32 ctx_matched(context_pool_t *pool, context_ctrl_t *ctrl, uint32 hash_value, text_t *text, uint32 uid,
@@ -560,7 +561,7 @@ static bool32 ctx_matched(context_pool_t *pool, context_ctrl_t *ctrl, uint32 has
         || ctrl->remote_conn_type != remote_conn_type
         || ctrl->is_direct_route != is_direct_route) {
         cm_spin_unlock(&ctrl->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     ctrl->ref_count++;
@@ -569,10 +570,10 @@ static bool32 ctx_matched(context_pool_t *pool, context_ctrl_t *ctrl, uint32 has
     /* secondly check: sql content */
     if (!cm_text_str_equal(text, ctrl->text_addr)) {
         ctx_ctrl_dec_ref(ctrl);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 #endif  // TEST_MEM
 
@@ -683,11 +684,11 @@ status_t ctx_read_text(context_pool_t *pool, context_ctrl_t *ctrl, text_t *text,
     char *piece_str = NULL;
     uint32 remain_size, piece_len, first_page_id, page_id, offset;
 
-    if (text->len <= ctrl->text_size && is_cut == GS_FALSE) {
-        GS_THROW_ERROR(ERR_BUFFER_OVERFLOW, ctrl->text_size, text->len);
-        return GS_ERROR;
+    if (text->len <= ctrl->text_size && is_cut == CT_FALSE) {
+        CT_THROW_ERROR(ERR_BUFFER_OVERFLOW, ctrl->text_size, text->len);
+        return CT_ERROR;
     } else if (text->len <= ctrl->text_size &&
-               is_cut == GS_TRUE) {  //  when buffer length is not enough and sql_text needs cut off.
+               is_cut == CT_TRUE) {  //  when buffer length is not enough and sql_text needs cut off.
         remain_size = text->len - 1;
     } else {
         remain_size = ctrl->text_size;
@@ -724,14 +725,14 @@ status_t ctx_read_text(context_pool_t *pool, context_ctrl_t *ctrl, text_t *text,
 
     text->str[offset] = '\0';
     text->len = offset;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 #else
 status_t ctx_read_text(context_pool_t *pool, context_ctrl_t *ctrl, text_t *text, bool32 is_cut)
 {
     text->str = ctrl->text_addr;
     text->len = ctrl->text_size;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 #endif
 
@@ -739,13 +740,13 @@ status_t sql_ctx_alloc_mem(context_pool_t *pool, memory_context_t *memory, uint3
 {
     uint32 align_size = CM_ALIGN8(size);
     if (align_size > memory->pool->page_size) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, "context memory");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, "context memory");
+        return CT_ERROR;
     }
 
     while (!mctx_try_alloc(memory, size, buf)) {
         if (!ctx_recycle(pool)) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -756,7 +757,7 @@ status_t sql_ctx_alloc_mem(context_pool_t *pool, memory_context_t *memory, uint3
     test_memory_pool_maps(pool->memory);
 #endif  // DEBUG
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 context_ctrl_t *ctx_get(context_pool_t *pool, uint32 id)
@@ -780,7 +781,7 @@ void ctx_flush_shared_pool(context_pool_t *pool)
      * flush shared pool thread lock pool->lock, then bucket->parsing_lock
      * A-B B-A deadlock
      */
-    for (uint32 i = 0; i < GS_SQL_BUCKETS; i++) {
+    for (uint32 i = 0; i < CT_SQL_BUCKETS; i++) {
         context_bucket_t *bucket = &pool->buckets[i];
         context_ctrl_t *ctrl = NULL;
         cm_spin_lock(&bucket->parsing_lock.mutex, NULL);
@@ -788,8 +789,8 @@ void ctx_flush_shared_pool(context_pool_t *pool)
 
         ctrl = bucket->first;
         while (ctrl != NULL) {
-            ctrl->fixed = GS_FALSE;
-            ctrl->valid = GS_FALSE;
+            ctrl->fixed = CT_FALSE;
+            ctrl->valid = CT_FALSE;
             ctrl = ctrl->hash_next;
         }
 

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "srv_module.h"
 #include "srv_stat.h"
 #include "srv_instance.h"
 
@@ -34,42 +34,42 @@ void stat_pool_init(stat_pool_t *pool)
     pool->page_count = 0;
 
     pool->free_list.count = 0;
-    pool->free_list.first = GS_INVALID_ID16;
-    pool->free_list.last = GS_INVALID_ID16;
+    pool->free_list.first = CT_INVALID_ID16;
+    pool->free_list.last = CT_INVALID_ID16;
 }
 
-static inline knl_stat_t *stat_address(stat_pool_t *pool, uint32 id)
+static inline knl_stat_t *stat_addr(stat_pool_t *pool, uint32 id)
 {
-    uint32 page_id = id / GS_EXTEND_STATS;
-    uint32 slot_id = id % GS_EXTEND_STATS;
+    uint32 page_id = id / CT_EXTEND_STATS;
+    uint32 slot_id = id % CT_EXTEND_STATS;
     return (knl_stat_t *)(pool->pages[page_id] + slot_id * sizeof(knl_stat_t));
 }
 
 static status_t stat_pool_extend(stat_pool_t *pool)
 {
-    if (pool->capacity >= GS_MAX_STATS) {
-        GS_THROW_ERROR(ERR_TOO_MANY_STAT_OBJECTS, GS_MAX_STATS);
-        GS_LOG_RUN_WAR("too many stat objects");
-        return GS_ERROR;
+    if (pool->capacity >= CT_MAX_STATS) {
+        CT_THROW_ERROR(ERR_TOO_MANY_STAT_OBJECTS, CT_MAX_STATS);
+        CT_LOG_RUN_WAR("too many stat objects");
+        return CT_ERROR;
     }
 
-    CM_ASSERT(pool->page_count < GS_MAX_STAT_PAGES);
+    CM_ASSERT(pool->page_count < CT_MAX_STAT_PAGES);
 
-    size_t alloc_size = sizeof(knl_stat_t) * GS_EXTEND_STATS;
+    size_t alloc_size = sizeof(knl_stat_t) * CT_EXTEND_STATS;
     char *buf = (char *)malloc(alloc_size);
     if (buf == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)alloc_size, "alloc kernel session stat");
-        GS_LOG_RUN_WAR("alloc kernel session stat failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)alloc_size, "alloc kernel session stat");
+        CT_LOG_RUN_WAR("alloc kernel session stat failed");
+        return CT_ERROR;
     }
 
     errno_t ret = memset_sp(buf, alloc_size, 0, alloc_size);
     knl_securec_check(ret);
 
-    pool->capacity += GS_EXTEND_STATS;
+    pool->capacity += CT_EXTEND_STATS;
     pool->pages[pool->page_count++] = buf;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stat_alloc(stat_pool_t *stat_pool, uint16 *stat_id)
@@ -77,14 +77,14 @@ static status_t stat_alloc(stat_pool_t *stat_pool, uint16 *stat_id)
     knl_stat_t *stat = NULL;
 
     if (stat_pool->free_list.count == 0 && stat_pool->hwm == stat_pool->capacity) {
-        if (stat_pool_extend(stat_pool) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stat_pool_extend(stat_pool) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (stat_pool->free_list.count == 0) {
         *stat_id = stat_pool->hwm;
-        stat = stat_address(stat_pool, *stat_id);
+        stat = stat_addr(stat_pool, *stat_id);
         stat->id = *stat_id;
 
         stat_pool->stats[stat_pool->hwm] = stat;
@@ -97,20 +97,20 @@ static status_t stat_alloc(stat_pool_t *stat_pool, uint16 *stat_id)
         stat_pool->free_list.first = stat->next;
         stat_pool->free_list.count--;
         if (stat_pool->free_list.count == 0) {
-            stat_pool->free_list.first = GS_INVALID_ID16;
-            stat_pool->free_list.last = GS_INVALID_ID16;
+            stat_pool->free_list.first = CT_INVALID_ID16;
+            stat_pool->free_list.last = CT_INVALID_ID16;
         }
     }
 
-    stat->next = GS_INVALID_ID16;
-    return GS_SUCCESS;
+    stat->next = CT_INVALID_ID16;
+    return CT_SUCCESS;
 }
 
 static void stat_release(stat_pool_t *stat_pool, uint16 stat_id)
 {
     knl_stat_t *stat = stat_pool->stats[stat_id];
 
-    CM_ASSERT(stat_id != GS_INVALID_ID16 && stat->id == stat_id);
+    CM_ASSERT(stat_id != CT_INVALID_ID16 && stat->id == stat_id);
 
     if (stat_pool->free_list.count == 0) {
         stat_pool->free_list.first = stat_id;
@@ -120,29 +120,29 @@ static void stat_release(stat_pool_t *stat_pool, uint16 stat_id)
         stat_pool->free_list.last = stat_id;
     }
 
-    stat->next = GS_INVALID_ID16;
+    stat->next = CT_INVALID_ID16;
     stat_pool->free_list.count++;
 }
 
-status_t server_alloc_stat(uint16 *stat_id)
+status_t srv_alloc_stat(uint16 *stat_id)
 {
     stat_pool_t *stat_pool = &g_instance->stat_pool;
 
     cm_spin_lock(&stat_pool->lock, NULL);
-    if (stat_alloc(stat_pool, stat_id) != GS_SUCCESS) {
+    if (stat_alloc(stat_pool, stat_id) != CT_SUCCESS) {
         cm_spin_unlock(&stat_pool->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     cm_spin_unlock(&stat_pool->lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-void server_release_stat(uint16 *stat_id)
+void srv_release_stat(uint16 *stat_id)
 {
     stat_pool_t *stat_pool = &g_instance->stat_pool;
 
     cm_spin_lock(&stat_pool->lock, NULL);
     stat_release(stat_pool, *stat_id);
-    *stat_id = GS_INVALID_ID16;
+    *stat_id = CT_INVALID_ID16;
     cm_spin_unlock(&stat_pool->lock);
 }

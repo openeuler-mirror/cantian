@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -60,11 +60,11 @@ typedef struct st_tcp_lsnr {
     spinlock_t lock;
     lsnr_type_t type;
     lsnr_status_t status;
-    char host[GS_MAX_LSNR_HOST_COUNT][CM_MAX_IP_LEN];
+    char host[CT_MAX_LSNR_HOST_COUNT][CM_MAX_IP_LEN];
     uint16 port;
     int epoll_fd;       // for listened sockets
     atomic_t sock_count;  // may listen on multiple IP address
-    socket_t socks[GS_MAX_LSNR_HOST_COUNT];
+    socket_t socks[CT_MAX_LSNR_HOST_COUNT];
     thread_t thread;
     connect_action_t action;  // action when a connect accepted
 } tcp_lsnr_t;
@@ -102,8 +102,8 @@ typedef struct st_uds_lsnr {
     thread_t thread;
     int epoll_fd;
     lsnr_status_t status;
-    char names[GS_MAX_LSNR_HOST_COUNT][GS_UNIX_PATH_MAX];
-    socket_t socks[GS_MAX_LSNR_HOST_COUNT];
+    char names[CT_MAX_LSNR_HOST_COUNT][CT_UNIX_PATH_MAX];
+    socket_t socks[CT_MAX_LSNR_HOST_COUNT];
     uint32 permissions;
     atomic_t sock_count;  // may listen on multiple uds file
     uds_connect_action_t action;  // action when a connect accepted

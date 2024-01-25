@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -35,8 +35,8 @@
 
 // reserved size to save the last push_offset
 // 8 bytes align
-#define GS_PUSH_RESERVE_SIZE 8
-#define GS_PUSH_OFFSET_POS 4
+#define CT_PUSH_RESERVE_SIZE 8
+#define CT_PUSH_OFFSET_POS 4
 #define STACK_MAGIC_NUM (uint32)0x12345678
 
 typedef struct st_stack {
@@ -55,8 +55,8 @@ static inline void cm_stack_reset(cm_stack_t *stack)
 static inline void *cm_push(cm_stack_t *stack, uint32 size)
 {
     uint32 last_offset;
-    uint32 actual_size = CM_ALIGN8(size) + GS_PUSH_RESERVE_SIZE;
-    uint8 *ptr = stack->buf + stack->push_offset - actual_size + GS_PUSH_RESERVE_SIZE;
+    uint32 actual_size = CM_ALIGN8(size) + CT_PUSH_RESERVE_SIZE;
+    uint8 *ptr = stack->buf + stack->push_offset - actual_size + CT_PUSH_RESERVE_SIZE;
 
     if (stack->push_offset < (uint64)stack->heap_offset + actual_size) {
         return NULL;
@@ -64,7 +64,7 @@ static inline void *cm_push(cm_stack_t *stack, uint32 size)
 
     last_offset = stack->push_offset;
     stack->push_offset -= actual_size;
-    *(uint32 *)(stack->buf + stack->push_offset + GS_PUSH_OFFSET_POS) = last_offset;
+    *(uint32 *)(stack->buf + stack->push_offset + CT_PUSH_OFFSET_POS) = last_offset;
 
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
     /* set magic number */
@@ -80,7 +80,7 @@ static inline void cm_pop(cm_stack_t *stack)
         return;
     }
 
-    stack->push_offset = *(uint32 *)(stack->buf + stack->push_offset + GS_PUSH_OFFSET_POS);
+    stack->push_offset = *(uint32 *)(stack->buf + stack->push_offset + CT_PUSH_OFFSET_POS);
 
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
     /* check magic number */
@@ -115,14 +115,14 @@ static inline status_t cm_stack_alloc(void *owner, uint32 size, void **ptr)
 
     stack = (cm_stack_t *)owner;
     actual_size = CM_ALIGN8(size);
-    if ((uint64)stack->heap_offset + actual_size + GS_MIN_KERNEL_RESERVE_SIZE >= stack->push_offset) {
-        GS_THROW_ERROR(ERR_STACK_OVERFLOW);
-        return GS_ERROR;
+    if ((uint64)stack->heap_offset + actual_size + CT_MIN_KERNEL_RESERVE_SIZE >= stack->push_offset) {
+        CT_THROW_ERROR(ERR_STACK_OVERFLOW);
+        return CT_ERROR;
     }
 
     *ptr = STACK_ALLOC_ADDR(stack);
     stack->heap_offset += actual_size;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void *cm_stack_heap_head(cm_stack_t *stack)
@@ -161,11 +161,11 @@ static inline void cm_keep_stack_variant(cm_stack_t *stack, char *buf)
         return;
     }
     if (buf < (char *)(stack->buf + stack->heap_offset) ||
-        buf >= (char *)stack->buf + stack->push_offset + GS_PUSH_RESERVE_SIZE) {
+        buf >= (char *)stack->buf + stack->push_offset + CT_PUSH_RESERVE_SIZE) {
         return;
     }
 
-    stack->push_offset = (uint32)(buf - (char *)stack->buf - GS_PUSH_RESERVE_SIZE);
+    stack->push_offset = (uint32)(buf - (char *)stack->buf - CT_PUSH_RESERVE_SIZE);
 
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
     /* check magic number when keep variant, because the buff must be pushed */
@@ -177,22 +177,22 @@ static inline void cm_keep_stack_variant(cm_stack_t *stack, char *buf)
 
 #else
 
-#define GS_MAX_TEST_HEAP_DEPTH  (uint32)256
-#define GS_MAX_TEST_STACK_DEPTH (uint32)1024
+#define CT_MAX_TEST_HEAP_DEPTH  (uint32)256
+#define CT_MAX_TEST_STACK_DEPTH (uint32)1024
 
 typedef struct st_stack {
     uint8 *buf;
     uint32 push_offset;
     uint32 heap_offset;
-    void *heap_addr[GS_MAX_TEST_HEAP_DEPTH];
+    void *heap_addr[CT_MAX_TEST_HEAP_DEPTH];
     uint32 push_depth;
-    void *stack_addr[GS_MAX_TEST_STACK_DEPTH];
+    void *stack_addr[CT_MAX_TEST_STACK_DEPTH];
 } cm_stack_t;
 
-static inline void cm_stack_reset(cm_stack_t *stack)
+inline void cm_stack_reset(cm_stack_t *stack)
 {
     uint32 i;
-    for (i = 0; i < GS_MAX_TEST_STACK_DEPTH && stack->stack_addr[i] != NULL; ++i) {
+    for (i = 0; i < CT_MAX_TEST_STACK_DEPTH && stack->stack_addr[i] != NULL; ++i) {
         CM_FREE_PTR(stack->stack_addr[i]);
     }
     stack->push_depth = 0;
@@ -207,7 +207,7 @@ static inline void *cm_push(cm_stack_t *stack, uint32 size)
 {
     errno_t rc_memzero;
 
-    if (stack->push_depth + 1 > GS_MAX_TEST_STACK_DEPTH) {
+    if (stack->push_depth + 1 > CT_MAX_TEST_STACK_DEPTH) {
         return NULL;
     }
     if (size == 0) {
@@ -228,7 +228,7 @@ static inline void *cm_push(cm_stack_t *stack, uint32 size)
     rc_memzero = memset_sp(ptr, size, 0, size);
     if (rc_memzero != EOK) {
         CM_FREE_PTR(ptr);
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
         return NULL;
     }
     return ptr;
@@ -261,17 +261,17 @@ static inline status_t cm_stack_alloc(void *owner, uint32 size, void **ptr)
 
     stack = (cm_stack_t *)owner;
 
-    if (stack->heap_offset + 1 > GS_MAX_TEST_HEAP_DEPTH) {
+    if (stack->heap_offset + 1 > CT_MAX_TEST_HEAP_DEPTH) {
         *ptr = NULL;
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (size == 0) {
         *ptr = NULL;
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *ptr = malloc(size);
     if (*ptr == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     stack->heap_addr[stack->heap_offset] = *ptr;
@@ -280,11 +280,11 @@ static inline status_t cm_stack_alloc(void *owner, uint32 size, void **ptr)
     errcode = memset_sp(*ptr, size, 0, size);
     if (errcode != EOK) {
         CM_FREE_PTR(*ptr);
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void *cm_stack_heap_head(cm_stack_t *stack)
@@ -324,7 +324,7 @@ static inline void cm_keep_stack_variant(cm_stack_t *stack, char *buf)
         return;
     }
 
-    for (i = 0; stack->stack_addr[i] != NULL && i < GS_MAX_TEST_STACK_DEPTH; i++) {
+    for (i = 0; stack->stack_addr[i] != NULL && i < CT_MAX_TEST_STACK_DEPTH; i++) {
         if (buf == stack->stack_addr[i]) {
             if (stack->push_depth < i + 1) {
                 stack->push_depth = i + 1;

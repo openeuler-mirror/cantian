@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -169,10 +169,10 @@ uint32 cm_hash_string(const char *str, uint32 range)
 uint32 cm_hash_column_name(const char *str, uint32 length, uint32 range, bool32 insensitive_flag)
 {
     if (insensitive_flag) {
-        char column_name[GS_NAME_BUFFER_SIZE];
+        char column_name[CT_NAME_BUFFER_SIZE];
         text_t hash_text;
         cm_str2text((char *)str, &hash_text);
-        cm_text2str_with_upper(&hash_text, column_name, GS_NAME_BUFFER_SIZE);
+        cm_text2str_with_upper(&hash_text, column_name, CT_NAME_BUFFER_SIZE);
         return cm_hash_bytes((uint8 *)column_name, length, range);
     }
     return cm_hash_bytes((uint8 *)str, length, range);
@@ -339,7 +339,7 @@ static inline void hash_noaligned_big_endian(const uint8 *key, uint32 len, hash_
         i++;
     }
 
-    GS_RETVOID_IFTRUE(len_tmp == 0);
+    CT_RETVOID_IFTRUE(len_tmp == 0);
 
     e.value = hash_semiword_big_endian(key, len_tmp);
     if (i >= (HASH_DIM_BATCH - 1)) {
@@ -380,7 +380,7 @@ static inline void hash_noaligned_little_endian(const uint8 *key, uint32 len, ha
         i++;
     }
 
-    GS_RETVOID_IFTRUE(len_tmp == 0);
+    CT_RETVOID_IFTRUE(len_tmp == 0);
 
     e.value = hash_semiword_little_endian(key, len_tmp);
 
@@ -461,7 +461,7 @@ uint32 cm_hash_uint64(uint64 i64)
 
 uint32 cm_hash_real(double val)
 {
-    if (fabs(val) < GS_REAL_PRECISION) {
+    if (fabs(val) < CT_REAL_PRECISION) {
         return 0;
     }
 
@@ -506,14 +506,14 @@ uint32 cm_get_prime_number(const uint32 base)
 
 static uint32 compute_hash_basic(const variant_t *value, bool32 *is_type_ok)
 {
-    *is_type_ok = GS_TRUE;
+    *is_type_ok = CT_TRUE;
     switch (value->type) {
-        case GS_TYPE_UINT32:
-        case GS_TYPE_INTEGER:
+        case CT_TYPE_UINT32:
+        case CT_TYPE_INTEGER:
             return (uint32)(value->v_int);
-        case GS_TYPE_UINT64:
+        case CT_TYPE_UINT64:
             return (uint32)(value->v_ubigint);
-        case GS_TYPE_BIGINT:
+        case CT_TYPE_BIGINT:
             return (uint32)(value->v_bigint);
             /*
             * number/decimal value hash will reach here.
@@ -522,15 +522,18 @@ static uint32 compute_hash_basic(const variant_t *value, bool32 *is_type_ok)
             * 2. we have forbidden real as distribute datatype in create table
             * @see shd_adjust_and_convert
             */
-        case GS_TYPE_REAL:
+        case CT_TYPE_REAL:
             return (uint32)(int32)(value->v_real);
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_DATE_MYSQL:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
         default:
-            *is_type_ok = GS_FALSE;
+            *is_type_ok = CT_FALSE;
             return 0;
     }
 }
@@ -540,7 +543,7 @@ uint32 hash_basic_value_combination(uint32 idx, unsigned int hashValue_input, co
 {
     unsigned int hashValue = hashValue_input;
     if (value->is_null) {
-        *is_type_ok = GS_TRUE;
+        *is_type_ok = CT_TRUE;
         return hashValue;
     }
 

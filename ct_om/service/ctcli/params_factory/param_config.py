@@ -1,5 +1,4 @@
 # -*- coding: UTF-8 -*-
-import ast
 import json
 from params_factory.tools import table_log_reader
 from params_factory.tools import json_file_reader
@@ -34,7 +33,7 @@ def logs_progress_query(log_progress_path, *args):
                    "may be the log is still being generated or " \
                    "no log collection has been performed"
 
-        return [ast.literal_eval(item) for item in load_info.split("\n") if item]
+        return [json.loads(item) for item in load_info.split("\n") if item]
 
     return "did not get the path of the json file which records logs progress"
 

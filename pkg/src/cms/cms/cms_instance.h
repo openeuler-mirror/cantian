@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -42,9 +42,19 @@
 extern "C" {
 #endif
 
+#ifdef WIN32
+char *cantiand_get_dbversion(void)
+{
+    return "NONE";
+}
+#else
+extern char *cantiand_get_dbversion(void);
+#endif
+
 #define CMS_INST_TRY_MASTER_WAIT_TIME 1000
 #define CMS_INST_SERVER_SLEEP_TIME 1000
 #define CMS_RES_STAT_MAX_RESOURCE_COUNT 2
+#define CMS_DEFAULT_INNNER_VERSION 3
 
 typedef struct st_cms_instance {
     int32                   server_lock_fd;
@@ -90,6 +100,7 @@ typedef struct st_cms_instance {
     bool32                  server_loop;
     cms_sync_t              try_master_sync;
     cm_event_t              voting_sync;
+    bool32                  is_dbstor_cli_init;
 }cms_instance_t;
 
 typedef struct st_cms_local_ctx_t {

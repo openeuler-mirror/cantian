@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -26,7 +26,7 @@
 #define __CS_SSL_H__
 
 #include "cs_tcp.h"
-
+#include "ssl.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -49,7 +49,7 @@ typedef struct st_ssl_config {
     const char *ca_file;
     const char *cert_file;
     const char *key_file;
-    const char *key_password;
+    SENSI_INFO const char *key_password;
     const char *crl_file;
     const char *cipher;
     bool32 verify_peer;
@@ -67,6 +67,7 @@ typedef enum en_cert_type {
     CERT_TYPE_CA_CERT
 } cert_type_t;
 
+EVP_PKEY *get_dh3072(void);
 /**
  * create a new ssl context object for acceptor (server side).
  * @param [in]   ca_file      SSL CA file path
@@ -109,9 +110,9 @@ const char **cs_ssl_tls13_get_default_cipher_list(void);
  * @param [in]      sock   tcp socket already accepted
  * @param [in]      timeout       timeout, unit:ms; block if < 0
  * @return
- * @retval GS_SUCCESS  accept a client successfully
+ * @retval CT_SUCCESS  accept a client successfully
  * @retval GS_TIMEOUT  accept timeout, no incoming client
- * @retval GS_ERROR   ssl connection is shutdown
+ * @retval CT_ERROR   ssl connection is shutdown
  */
 status_t cs_ssl_accept_socket(ssl_link_t *link, socket_t sock, int32 timeout);
 
@@ -121,9 +122,9 @@ status_t cs_ssl_accept_socket(ssl_link_t *link, socket_t sock, int32 timeout);
  * @param [in]      sock tcp socket already connected
  * @param [in]      timeout  timeout, unit: ms
  * @return
- * @retval GS_SUCCESS  connect to the server successfully
+ * @retval CT_SUCCESS  connect to the server successfully
  * @retval GS_TIMEOUT  connect timeout
- * @retval GS_ERROR    ssl connection is shutdown or other errors
+ * @retval CT_ERROR    ssl connection is shutdown or other errors
  */
 status_t cs_ssl_connect_socket(ssl_link_t *link, socket_t sock, int32 timeout);
 
@@ -141,8 +142,8 @@ void cs_ssl_disconnect(ssl_link_t *link);
  * @param [in]      size      input data length
  * @param [out]     send_size sent data length
  * @return
- * @retval GS_SUCCESS      write successfully
- * @retval GS_ERROR        other error
+ * @retval CT_SUCCESS      write successfully
+ * @retval CT_ERROR        other error
 */
 status_t cs_ssl_send(ssl_link_t *link, const char *buf, uint32 size, int32 *send_size);
 status_t cs_ssl_send_timed(ssl_link_t *link, const char *buf, uint32 size, uint32 timeout);
@@ -154,8 +155,8 @@ status_t cs_ssl_send_timed(ssl_link_t *link, const char *buf, uint32 size, uint3
  * @param [in]      size      data buffer max length
  * @param [out]     recv_size read data length
  * @return
- * @retval GS_SUCCESS      write successfully
- * @retval GS_ERROR        other error
+ * @retval CT_SUCCESS      write successfully
+ * @retval CT_ERROR        other error
 */
 status_t cs_ssl_recv(ssl_link_t *link, char *buf, uint32 size, int32 *recv_size, uint32 *wait_event);
 status_t cs_ssl_recv_timed(ssl_link_t *link, char *buf, uint32 size, uint32 timeout);
@@ -167,8 +168,8 @@ status_t cs_ssl_recv_timed(ssl_link_t *link, char *buf, uint32 size, uint32 time
  * @param [in]      timeout   wait timeout
  * @param [out]     ready     wait event occured
  * @return
- * @retval GS_SUCCESS      write successfully
- * @retval GS_ERROR        other error
+ * @retval CT_SUCCESS      write successfully
+ * @retval CT_ERROR        other error
  */
 status_t cs_ssl_wait(ssl_link_t *link, uint32 wait_for, int32 timeout, bool32 *ready);
 
@@ -183,8 +184,8 @@ status_t cs_ssl_wait(ssl_link_t *link, uint32 wait_for, int32 timeout, bool32 *r
  @param[out] errptr       if we fail, we'll return (a pointer to a string describing) the reason here
 
  RETURN VALUES
- @retval GS_SUCCESS Success
- @retval GS_ERROR   Failed to validate server
+ @retval CT_SUCCESS Success
+ @retval CT_ERROR   Failed to validate server
 */
 status_t cs_ssl_verify_certificate(ssl_link_t *link, ssl_verify_t vmode, const char *name, const char **errptr);
 
@@ -195,8 +196,8 @@ status_t cs_ssl_verify_certificate(ssl_link_t *link, ssl_verify_t vmode, const c
   @param[in] file_name    ssl certificate file name
 
   RETURN VALUES
-  @retval GS_SUCCESS Success
-  @retval GS_ERROR   Failed to verify
+  @retval CT_SUCCESS Success
+  @retval CT_ERROR   Failed to verify
 */
 status_t cs_ssl_verify_file_stat(const char *file_name);
 

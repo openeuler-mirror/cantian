@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,22 +32,22 @@ extern "C" {
 
 static status_t clt_remote_fetch_core(clt_stmt_t *stmt, cs_packet_t *req_pack, cs_packet_t *ack_pack)
 {
-    GS_RETURN_IFERR(clt_remote_call(stmt->conn, req_pack, ack_pack));
+    CT_RETURN_IFERR(clt_remote_call(stmt->conn, req_pack, ack_pack));
 
     do {
         if (ack_pack->head->flags & CS_FLAG_SERVEROUPUT) {
             (void)clt_receive_serveroutput(stmt, ack_pack);
-            GS_RETURN_IFERR(clt_remote_call(stmt->conn, ack_pack, ack_pack));
+            CT_RETURN_IFERR(clt_remote_call(stmt->conn, ack_pack, ack_pack));
             continue;
         } else if (ack_pack->head->flags & ~CS_FLAG_SERVEROUPUT) {
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_FETCH_INVALID_FLAGS);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         break;
-    } while (GS_TRUE);
+    } while (CT_TRUE);
 
     cs_init_get(&stmt->cache_pack->pack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t clt_remote_fetch(clt_stmt_t *stmt)
@@ -62,29 +62,29 @@ status_t clt_remote_fetch(clt_stmt_t *stmt)
 
     cs_init_set(req_pack, stmt->conn->call_version);
 
-    GS_RETURN_IFERR(cs_reserve_space(req_pack, sizeof(cs_fetch_req_t), &req_offset));
+    CT_RETURN_IFERR(cs_reserve_space(req_pack, sizeof(cs_fetch_req_t), &req_offset));
     req = (cs_fetch_req_t *)CS_RESERVE_ADDR(req_pack, req_offset);
     req->stmt_id = stmt->stmt_id;
     req->fetch_mode = stmt->fetch_mode;
     cs_putted_fetch_req(req_pack, req_offset);
 
-    GS_RETURN_IFERR(clt_remote_fetch_core(stmt, req_pack, ack_pack));
+    CT_RETURN_IFERR(clt_remote_fetch_core(stmt, req_pack, ack_pack));
 
     // get metadata of open cursor in PL
     if (req->fetch_mode == CS_FETCH_NORMAL) {
-        GS_RETURN_IFERR(cs_get_fetch_ack(ack_pack, &ack));
+        CT_RETURN_IFERR(cs_get_fetch_ack(ack_pack, &ack));
         stmt->row_index = 0;
         stmt->affected_rows = ack->total_rows;
         stmt->return_rows = ack->batch_rows;
         stmt->more_rows = ack->rows_more;
         stmt->eof = (stmt->return_rows == 0);
     } else if (req->fetch_mode == CS_FETCH_WITH_PREP_EXEC) {
-        GS_RETURN_IFERR(clt_get_prepare_ack(stmt, ack_pack, NULL));
-        GS_RETURN_IFERR(clt_get_execute_ack(stmt));
-        return GS_SUCCESS;
+        CT_RETURN_IFERR(clt_get_prepare_ack(stmt, ack_pack, NULL));
+        CT_RETURN_IFERR(clt_get_execute_ack(stmt));
+        return CT_SUCCESS;
     } else if (req->fetch_mode == CS_FETCH_WITH_PREP) {
-        GS_RETURN_IFERR(clt_get_prepare_ack(stmt, ack_pack, NULL));
-        GS_RETURN_IFERR(cs_get_fetch_ack(ack_pack, &ack));
+        CT_RETURN_IFERR(clt_get_prepare_ack(stmt, ack_pack, NULL));
+        CT_RETURN_IFERR(cs_get_fetch_ack(ack_pack, &ack));
         stmt->row_index = 0;
         stmt->affected_rows = ack->total_rows;
         stmt->return_rows = ack->batch_rows;
@@ -92,7 +92,7 @@ status_t clt_remote_fetch(clt_stmt_t *stmt)
         stmt->eof = (stmt->return_rows == 0);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #define CLT_CHECK_BIND_SIZE(column, size)                                                            \
@@ -100,7 +100,7 @@ status_t clt_remote_fetch(clt_stmt_t *stmt)
         if ((column)->bnd_ptr != NULL && (column)->bnd_size < (size)) {                              \
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_COL_SIZE_TOO_SMALL, (uint32)(column)->id, "binding", \
                 (uint32)(column)->bnd_size, (uint32)(size));                                         \
-            return GS_ERROR;                                                                         \
+            return CT_ERROR;                                                                         \
         }                                                                                            \
     } while (0)
 
@@ -128,7 +128,7 @@ static status_t clt_save_inline_lob(clt_stmt_t *stmt, clt_column_t *column)
     char *new_buf = NULL;
 
     if (!(CLT_LOB_INLINE(head) && stmt->conn->call_version >= CS_VERSION_3)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     lob = &column->inline_lob;
@@ -145,15 +145,15 @@ static status_t clt_save_inline_lob(clt_stmt_t *stmt, clt_column_t *column)
         new_buf_size = CM_ALIGN_8K(need_len);
         new_buf = (char *)malloc(new_buf_size);
         if (new_buf == NULL) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, new_buf_size, "inline lob cache buffer");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, new_buf_size, "inline lob cache buffer");
+            return CT_ERROR;
         }
 
         if (lob->used_pos > 0) {
             errno_t err = memcpy_s(new_buf, new_buf_size, lob->cache_buf.str, lob->used_pos);
             if (err != EOK) {
                 CM_FREE_PTR(new_buf);
-                GS_THROW_ERROR(ERR_SYSTEM_CALL, err);
+                CT_THROW_ERROR(ERR_SYSTEM_CALL, err);
             }
         }
         CM_FREE_PTR(lob->cache_buf.str);
@@ -178,7 +178,7 @@ static status_t clt_save_inline_lob(clt_stmt_t *stmt, clt_column_t *column)
     }
 
     column->ptr = lob->cache_buf.str + value_pos;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void clt_set_offset(clt_stmt_t *stmt, clt_column_t *column, bool8 diff_endian, uint8 bits, uint32 *pos,
@@ -221,19 +221,19 @@ static status_t clt_read_row(clt_stmt_t *stmt, bool32 fetch_ori_row)
 
     clt_get_row_assist(stmt, row_addr, diff_endian, &ra);
 
-    if (fetch_ori_row == GS_TRUE) {
+    if (fetch_ori_row == CT_TRUE) {
         stmt->ori_row = row_addr;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // check whether column count in row is equals to prepare ack
     if (stmt->fetch_pos == 0 && stmt->column_count != ROW_COLUMN_COUNT(ra.head)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_COLUMN, (uint32)ROW_COLUMN_COUNT(ra.head), "column",
             stmt->column_count);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(clt_reset_stmt_transcode_buf(stmt));
+    CT_RETURN_IFERR(clt_reset_stmt_transcode_buf(stmt));
 
     uint32 pos = sizeof(row_head_t) + ROW_BITMAP_EX_SIZE(ra.head);
 
@@ -255,26 +255,26 @@ static status_t clt_read_row(clt_stmt_t *stmt, bool32 fetch_ori_row)
         /* try trans charset for string value */
         if (stmt->conn->recv_trans_func != NULL && GSC_IS_STRING_TYPE(column->def.datatype)) {
             uint32 size = column->size;
-            if (clt_transcode_column(stmt, &column->ptr, &size, stmt->conn->recv_trans_func) != GS_SUCCESS) {
+            if (clt_transcode_column(stmt, &column->ptr, &size, stmt->conn->recv_trans_func) != CT_SUCCESS) {
                 CLT_THROW_ERROR(stmt->conn, ERR_CLT_TRANS_CHARSET, column->def.name, column->ptr);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             column->size = (uint16)size;
         }
 
         /* cache inline lob data */
         if (stmt->fetch_size > 1 && GSC_IS_LOB_TYPE(column->def.datatype)) {
-            GS_RETURN_IFERR(clt_save_inline_lob(stmt, column));
+            CT_RETURN_IFERR(clt_save_inline_lob(stmt, column));
         }
 
         /* try fill fetched column value into memory bound */
         if (column->bnd_ptr == NULL) {
             continue;
         }
-        GS_RETURN_IFERR(column->cp_func(stmt, column));
+        CT_RETURN_IFERR(column->cp_func(stmt, column));
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #define COPY_NATIVE_VAL(type, stmt, column)                                         \
@@ -291,49 +291,49 @@ static status_t clt_read_row(clt_stmt_t *stmt, bool32 fetch_ori_row)
 static status_t copy_uint32_val(clt_stmt_t *stmt, clt_column_t *column)
 {
     COPY_NATIVE_VAL(uint32, stmt, column);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_int32_val(clt_stmt_t *stmt, clt_column_t *column)
 {
     COPY_NATIVE_VAL(int32, stmt, column);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_uint32_val_reverse(clt_stmt_t *stmt, clt_column_t *column)
 {
     COPY_NATIVE_VAL_REVERSE(uint32, stmt, column, cs_reverse_uint32);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_int32_val_reverse(clt_stmt_t *stmt, clt_column_t *column)
 {
     COPY_NATIVE_VAL_REVERSE(int32, stmt, column, cs_reverse_int32);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_int64_val(clt_stmt_t *stmt, clt_column_t *column)
 {
     COPY_NATIVE_VAL(int64, stmt, column);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_int64_val_reverse(clt_stmt_t *stmt, clt_column_t *column)
 {
     COPY_NATIVE_VAL_REVERSE(int64, stmt, column, cs_reverse_int64);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_double_val(clt_stmt_t *stmt, clt_column_t *column)
 {
     COPY_NATIVE_VAL(double, stmt, column);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_double_val_reverse(clt_stmt_t *stmt, clt_column_t *column)
 {
     COPY_NATIVE_VAL_REVERSE(double, stmt, column, cs_reverse_real);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_timestamp_tz_val(clt_stmt_t *stmt, clt_column_t *column)
@@ -346,7 +346,7 @@ static status_t copy_timestamp_tz_val(clt_stmt_t *stmt, clt_column_t *column)
         column->ind_ptr[stmt->fetch_pos] = sizeof(timestamp_tz_t);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_timestamp_tz_val_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -361,7 +361,7 @@ static status_t copy_timestamp_tz_val_reverse(clt_stmt_t *stmt, clt_column_t *co
         column->ind_ptr[stmt->fetch_pos] = sizeof(timestamp_tz_t);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_str_val(clt_stmt_t *stmt, clt_column_t *column)
@@ -372,7 +372,7 @@ static status_t copy_str_val(clt_stmt_t *stmt, clt_column_t *column)
     if (col_len != 0) {
         MEMS_RETURN_IFERR(memcpy_s(bnd_ptr, column->size, column->ptr, col_len));
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_digit_val_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -383,7 +383,7 @@ static status_t copy_digit_val_reverse(clt_stmt_t *stmt, clt_column_t *column)
     if (col_len != 0) {
         cm_reverse_dec4(dst, src);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -407,7 +407,7 @@ static status_t copy_lob_val(clt_stmt_t *stmt, clt_column_t *column)
         MEMS_RETURN_IFERR(
             memcpy_s(bnd_ptr, column->bnd_size, column->ptr, MIN(stmt->conn->server_info.locator_size, col_len)));
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_default_type_val(clt_stmt_t *stmt, clt_column_t *column)
@@ -420,7 +420,7 @@ static status_t copy_default_type_val(clt_stmt_t *stmt, clt_column_t *column)
             (uint32)(col_len + 1));
 
         if (column->bnd_size == 0) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
         col_len = column->bnd_size - 1;
     }
@@ -429,7 +429,7 @@ static status_t copy_default_type_val(clt_stmt_t *stmt, clt_column_t *column)
         MEMS_RETURN_IFERR(memcpy_s(bnd_ptr, column->bnd_size, column->ptr, col_len));
     }
     bnd_ptr[col_len] = '\0';
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t chk_and_cp_null_str(clt_stmt_t *stmt, clt_column_t *column, char *bnd_ptr)
@@ -437,106 +437,106 @@ static inline status_t chk_and_cp_null_str(clt_stmt_t *stmt, clt_column_t *colum
     if (column->bnd_size <= 1) {
         if (column->bnd_size == 1) {
             bnd_ptr[0] = '\0';
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_BIND_SIZE_SMALL, (uint32)column->id, (char *)column->def.name,
             (uint32)column->bnd_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-#define COPY_NATIVE_VAL_2STR(type, print_fmt, stmt, column)                                              \
-    do {                                                                                                 \
-        if (chk_and_cp_null_str((stmt), (column), bnd_ptr) != GS_SUCCESS) {                              \
-            return GS_ERROR;                                                                             \
-        }                                                                                                \
-        type value = *(type *)(column)->ptr;                                                             \
-        int32 ret = snprintf_s(bnd_ptr, (column)->bnd_size, (column)->bnd_size - 1, (print_fmt), value); \
-        PRTS_RETURN_IFERR(ret);                                                                          \
-        if ((column)->ind_ptr) {                                                                         \
-            (column)->ind_ptr[(stmt)->fetch_pos] = ret;                                                  \
-        }                                                                                                \
+#define COPY_NATIVE_VAL_2STR(type, print_fmt, stmt, column, bnd_ptr)                                         \
+    do {                                                                                                     \
+        if (chk_and_cp_null_str((stmt), (column), (bnd_ptr)) != CT_SUCCESS) {                                \
+            return CT_ERROR;                                                                                 \
+        }                                                                                                    \
+        type value = *(type *)(column)->ptr;                                                                 \
+        int32 ret = snprintf_s((bnd_ptr), (column)->bnd_size, (column)->bnd_size - 1, (print_fmt), value);   \
+        PRTS_RETURN_IFERR(ret);                                                                              \
+        if ((column)->ind_ptr) {                                                                             \
+            (column)->ind_ptr[(stmt)->fetch_pos] = ret;                                                      \
+        }                                                                                                    \
     } while (0)
 
-#define COPY_NATIVE_VAL_2STR_REVERSE(type, print_fmt, stmt, column, reverser)                            \
-    do {                                                                                                 \
-        if (chk_and_cp_null_str((stmt), (column), bnd_ptr) != GS_SUCCESS) {                              \
-            return GS_ERROR;                                                                             \
-        }                                                                                                \
-        type value = (reverser)(*(type *)(column)->ptr);                                                 \
-        int32 ret = snprintf_s(bnd_ptr, (column)->bnd_size, (column)->bnd_size - 1, (print_fmt), value); \
-        PRTS_RETURN_IFERR(ret);                                                                          \
-        if ((column)->ind_ptr) {                                                                         \
-            (column)->ind_ptr[(stmt)->fetch_pos] = ret;                                                  \
-        }                                                                                                \
+#define COPY_NATIVE_VAL_2STR_REVERSE(type, print_fmt, stmt, column, reverser, bnd_ptr)                      \
+    do {                                                                                                    \
+        if (chk_and_cp_null_str((stmt), (column), (bnd_ptr)) != CT_SUCCESS) {                               \
+            return CT_ERROR;                                                                                \
+        }                                                                                                   \
+        type value = (reverser)(*(type *)(column)->ptr);                                                    \
+        int32 ret = snprintf_s((bnd_ptr), (column)->bnd_size, (column)->bnd_size - 1, (print_fmt), value);  \
+        PRTS_RETURN_IFERR(ret);                                                                             \
+        if ((column)->ind_ptr) {                                                                            \
+            (column)->ind_ptr[(stmt)->fetch_pos] = ret;                                                     \
+        }                                                                                                   \
     } while (0)
 
 static status_t copy_int32_val_2str(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    COPY_NATIVE_VAL_2STR(int32, PRINT_FMT_INTEGER, stmt, column);
-    return GS_SUCCESS;
+    COPY_NATIVE_VAL_2STR(int32, PRINT_FMT_INTEGER, stmt, column, bnd_ptr);
+    return CT_SUCCESS;
 }
 
 static status_t copy_int32_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    COPY_NATIVE_VAL_2STR_REVERSE(int32, PRINT_FMT_INTEGER, stmt, column, cs_reverse_int32);
-    return GS_SUCCESS;
+    COPY_NATIVE_VAL_2STR_REVERSE(int32, PRINT_FMT_INTEGER, stmt, column, cs_reverse_int32, bnd_ptr);
+    return CT_SUCCESS;
 }
 
 static status_t copy_uint32_val_2str(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    COPY_NATIVE_VAL_2STR(uint32, PRINT_FMT_UINT32, stmt, column);
-    return GS_SUCCESS;
+    COPY_NATIVE_VAL_2STR(uint32, PRINT_FMT_UINT32, stmt, column, bnd_ptr);
+    return CT_SUCCESS;
 }
 
 static status_t copy_uint32_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    COPY_NATIVE_VAL_2STR_REVERSE(uint32, PRINT_FMT_UINT32, stmt, column, cs_reverse_uint32);
-    return GS_SUCCESS;
+    COPY_NATIVE_VAL_2STR_REVERSE(uint32, PRINT_FMT_UINT32, stmt, column, cs_reverse_uint32, bnd_ptr);
+    return CT_SUCCESS;
 }
 
 static status_t copy_int64_val_2str(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    COPY_NATIVE_VAL_2STR(int64, PRINT_FMT_BIGINT, stmt, column);
-    return GS_SUCCESS;
+    COPY_NATIVE_VAL_2STR(int64, PRINT_FMT_BIGINT, stmt, column, bnd_ptr);
+    return CT_SUCCESS;
 }
 
 static status_t copy_int64_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    COPY_NATIVE_VAL_2STR_REVERSE(int64, PRINT_FMT_BIGINT, stmt, column, cs_reverse_int64);
-    return GS_SUCCESS;
+    COPY_NATIVE_VAL_2STR_REVERSE(int64, PRINT_FMT_BIGINT, stmt, column, cs_reverse_int64, bnd_ptr);
+    return CT_SUCCESS;
 }
 
 static status_t copy_double_val_2str(clt_stmt_t *stmt, clt_column_t *column)
@@ -545,15 +545,15 @@ static status_t copy_double_val_2str(clt_stmt_t *stmt, clt_column_t *column)
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
     double value = *(double *)column->ptr;
 
-    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (chk_and_cp_null_str(stmt, column, bnd_ptr) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     CM_SNPRINTF_REAL(ret, bnd_ptr, value, column->bnd_size);
     PRTS_RETURN_IFERR(ret);
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = ret;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_double_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -562,19 +562,19 @@ static status_t copy_double_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *col
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
     double value = cs_reverse_real(*(double *)column->ptr);
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
     CM_SNPRINTF_REAL(ret, bnd_ptr, value, column->bnd_size);
     PRTS_RETURN_IFERR(ret);
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = ret;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 static status_t copy_number_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     text_t text;
     text.str = bnd_ptr;
@@ -583,10 +583,10 @@ static status_t copy_number_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *col
     if (column->bnd_size > 1) {
         dec4_t dst;
         cm_reverse_dec4(&dst, (dec4_t *)column->ptr);
-        if (cm_dec4_to_text((dec4_t *)&dst, column->bnd_size - 1, &text) != GS_SUCCESS) {
+        if (cm_dec4_to_text((dec4_t *)&dst, column->bnd_size - 1, &text) != CT_SUCCESS) {
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_BIND_SIZE_SMALL, (uint32)column->id, (char *)column->def.name,
                 (uint32)column->bnd_size);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         bnd_ptr[text.len] = '\0';
     }
@@ -595,14 +595,14 @@ static status_t copy_number_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *col
         column->ind_ptr[stmt->fetch_pos] = (uint16)text.len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_number_val_2str(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     text_t text;
     text.str = bnd_ptr;
@@ -610,10 +610,10 @@ static status_t copy_number_val_2str(clt_stmt_t *stmt, clt_column_t *column)
 
     if (column->bnd_size > 1) {
         /* max write size of text.str is column->bnd_size-1 */
-        if (cm_dec4_to_text((dec4_t *)column->ptr, column->bnd_size - 1, &text) != GS_SUCCESS) {
+        if (cm_dec4_to_text((dec4_t *)column->ptr, column->bnd_size - 1, &text) != CT_SUCCESS) {
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_BIND_SIZE_SMALL, (uint32)column->id, (char *)column->def.name,
                 (uint32)column->bnd_size);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         text.str[text.len] = '\0';
     }
@@ -622,22 +622,22 @@ static status_t copy_number_val_2str(clt_stmt_t *stmt, clt_column_t *column)
         column->ind_ptr[stmt->fetch_pos] = (uint16)text.len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_number2_val_2str(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     if (column->bnd_size > 1) {
         dec2_t dec2;
         cm_dec2_copy_ex(&dec2, (const payload_t *)column->ptr, (uint8)column->size);
-        if (cm_dec2_to_str(&dec2, column->bnd_size, bnd_ptr) != GS_SUCCESS) {
+        if (cm_dec2_to_str(&dec2, column->bnd_size, bnd_ptr) != CT_SUCCESS) {
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_BIND_SIZE_SMALL, (uint32)column->id, (char *)column->def.name,
                 (uint32)column->bnd_size);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -645,14 +645,14 @@ static status_t copy_number2_val_2str(clt_stmt_t *stmt, clt_column_t *column)
         column->ind_ptr[stmt->fetch_pos] = (uint16)strlen(bnd_ptr);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_boolean_val_2str(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     int32 int_value = *(int32 *)column->ptr;
     uint32 len = cm_bool2str((bool32)int_value, bnd_ptr);
@@ -660,14 +660,14 @@ static status_t copy_boolean_val_2str(clt_stmt_t *stmt, clt_column_t *column)
         column->ind_ptr[stmt->fetch_pos] = (uint16)len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_boolean_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     int32 int_value = cs_reverse_int32(*(int32 *)column->ptr);
     uint32 len = cm_bool2str((bool32)int_value, bnd_ptr);
@@ -675,7 +675,7 @@ static status_t copy_boolean_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *co
         column->ind_ptr[stmt->fetch_pos] = (uint16)len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_date_val_2str(clt_stmt_t *stmt, clt_column_t *column)
@@ -683,7 +683,7 @@ static status_t copy_date_val_2str(clt_stmt_t *stmt, clt_column_t *column)
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
     text_t fmt_text;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     clt_session_nlsparam_geter(stmt, NLS_DATE_FORMAT, &fmt_text);
     CLT_CHECK_BIND_SIZE(column, fmt_text.len + 1);
@@ -692,13 +692,13 @@ static status_t copy_date_val_2str(clt_stmt_t *stmt, clt_column_t *column)
     date_text.str = bnd_ptr;
     date_text.len = 0;
 
-    GS_RETURN_IFERR(cm_date2text_ex((date_t)bigint_value, &fmt_text, 0, &date_text, column->bnd_size));
+    CT_RETURN_IFERR(cm_date2text_ex((date_t)bigint_value, &fmt_text, 0, &date_text, column->bnd_size));
 
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)date_text.len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_date_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -706,7 +706,7 @@ static status_t copy_date_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *colum
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
     text_t fmt_text;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     clt_session_nlsparam_geter(stmt, NLS_DATE_FORMAT, &fmt_text);
     CLT_CHECK_BIND_SIZE(column, fmt_text.len + 1);
@@ -715,13 +715,13 @@ static status_t copy_date_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *colum
     date_text.str = bnd_ptr;
     date_text.len = 0;
 
-    GS_RETURN_IFERR(cm_date2text_ex((date_t)bigint_value, &fmt_text, 0, &date_text, column->bnd_size));
+    CT_RETURN_IFERR(cm_date2text_ex((date_t)bigint_value, &fmt_text, 0, &date_text, column->bnd_size));
 
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)date_text.len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_timestamp_val_2str(clt_stmt_t *stmt, clt_column_t *column)
@@ -729,7 +729,7 @@ static status_t copy_timestamp_val_2str(clt_stmt_t *stmt, clt_column_t *column)
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
     text_t fmt_text;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     clt_session_nlsparam_geter(stmt, NLS_TIMESTAMP_FORMAT, &fmt_text);
     CLT_CHECK_BIND_SIZE(column, fmt_text.len + 7);
@@ -738,14 +738,14 @@ static status_t copy_timestamp_val_2str(clt_stmt_t *stmt, clt_column_t *column)
     tmstamp_text.str = bnd_ptr;
     tmstamp_text.len = 0;
 
-    GS_RETURN_IFERR(cm_timestamp2text_ex((timestamp_t)bigint_value, &fmt_text, column->def.precision, &tmstamp_text,
+    CT_RETURN_IFERR(cm_timestamp2text_ex((timestamp_t)bigint_value, &fmt_text, column->def.precision, &tmstamp_text,
         column->bnd_size));
 
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)tmstamp_text.len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_timestamp_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -753,7 +753,7 @@ static status_t copy_timestamp_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
     text_t fmt_text;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     clt_session_nlsparam_geter(stmt, NLS_TIMESTAMP_FORMAT, &fmt_text);
     CLT_CHECK_BIND_SIZE(column, fmt_text.len + 7);
@@ -762,14 +762,14 @@ static status_t copy_timestamp_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *
     tmstamp_text.str = bnd_ptr;
     tmstamp_text.len = 0;
 
-    GS_RETURN_IFERR(cm_timestamp2text_ex((timestamp_t)bigint_value, &fmt_text, column->def.precision, &tmstamp_text,
+    CT_RETURN_IFERR(cm_timestamp2text_ex((timestamp_t)bigint_value, &fmt_text, column->def.precision, &tmstamp_text,
         column->bnd_size));
 
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)tmstamp_text.len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_timestamp_tz_val_2str(clt_stmt_t *stmt, clt_column_t *column)
@@ -778,7 +778,7 @@ static status_t copy_timestamp_tz_val_2str(clt_stmt_t *stmt, clt_column_t *colum
     text_t fmt_text;
     text_t tmstamp_tz_text;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     clt_session_nlsparam_geter(stmt, NLS_TIMESTAMP_TZ_FORMAT, &fmt_text);
     CLT_CHECK_BIND_SIZE(column, fmt_text.len + 7);
@@ -786,14 +786,14 @@ static status_t copy_timestamp_tz_val_2str(clt_stmt_t *stmt, clt_column_t *colum
     tmstamp_tz_text.str = bnd_ptr;
     tmstamp_tz_text.len = 0;
 
-    GS_RETURN_IFERR(cm_timestamp_tz2text_ex((timestamp_tz_t *)column->ptr, &fmt_text, column->def.precision,
+    CT_RETURN_IFERR(cm_timestamp_tz2text_ex((timestamp_tz_t *)column->ptr, &fmt_text, column->def.precision,
         &tmstamp_tz_text, column->bnd_size));
 
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)tmstamp_tz_text.len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_timestamp_tz_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -803,7 +803,7 @@ static status_t copy_timestamp_tz_val_2str_reverse(clt_stmt_t *stmt, clt_column_
     text_t tmstamp_tz_text;
     timestamp_tz_t timestamp_tz;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     clt_session_nlsparam_geter(stmt, NLS_TIMESTAMP_TZ_FORMAT, &fmt_text);
     CLT_CHECK_BIND_SIZE(column, fmt_text.len + 7);
@@ -814,21 +814,21 @@ static status_t copy_timestamp_tz_val_2str_reverse(clt_stmt_t *stmt, clt_column_
     timestamp_tz.tstamp = cs_reverse_int64(((timestamp_tz_t *)column->ptr)->tstamp);
     timestamp_tz.tz_offset = cs_reverse_int16(((timestamp_tz_t *)column->ptr)->tz_offset);
 
-    GS_RETURN_IFERR(
+    CT_RETURN_IFERR(
         cm_timestamp_tz2text_ex(&timestamp_tz, &fmt_text, column->def.precision, &tmstamp_tz_text, column->bnd_size));
 
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)tmstamp_tz_text.len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_yminterval_val_2str(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     int32 int_value = *(int32 *)column->ptr;
     uint32 len = cm_yminterval2str((interval_ym_t)int_value, bnd_ptr);
@@ -836,14 +836,14 @@ static status_t copy_yminterval_val_2str(clt_stmt_t *stmt, clt_column_t *column)
         column->ind_ptr[stmt->fetch_pos] = (uint16)len;
     }
 
-    return len == 0 ? GS_ERROR : GS_SUCCESS;
+    return len == 0 ? CT_ERROR : CT_SUCCESS;
 }
 
 static status_t copy_yminterval_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     int32 int_value = cs_reverse_int32(*(int32 *)column->ptr);
     uint32 len = cm_yminterval2str((interval_ym_t)int_value, bnd_ptr);
@@ -851,14 +851,14 @@ static status_t copy_yminterval_val_2str_reverse(clt_stmt_t *stmt, clt_column_t 
         column->ind_ptr[stmt->fetch_pos] = (uint16)len;
     }
 
-    return len == 0 ? GS_ERROR : GS_SUCCESS;
+    return len == 0 ? CT_ERROR : CT_SUCCESS;
 }
 
 static status_t copy_dsinterval_val_2str(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     int64 bigint_value = *(int64 *)column->ptr;
     uint32 len = cm_dsinterval2str((interval_ds_t)bigint_value, bnd_ptr, column->bnd_size);
@@ -866,14 +866,14 @@ static status_t copy_dsinterval_val_2str(clt_stmt_t *stmt, clt_column_t *column)
         column->ind_ptr[stmt->fetch_pos] = (uint16)len;
     }
 
-    return len == 0 ? GS_ERROR : GS_SUCCESS;
+    return len == 0 ? CT_ERROR : CT_SUCCESS;
 }
 
 static status_t copy_dsinterval_val_2str_reverse(clt_stmt_t *stmt, clt_column_t *column)
 {
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     int64 bigint_value = cs_reverse_int64(*(int64 *)column->ptr);
     uint32 len = cm_dsinterval2str((interval_ds_t)bigint_value, bnd_ptr, column->bnd_size);
@@ -881,7 +881,7 @@ static status_t copy_dsinterval_val_2str_reverse(clt_stmt_t *stmt, clt_column_t 
         column->ind_ptr[stmt->fetch_pos] = (uint16)len;
     }
 
-    return len == 0 ? GS_ERROR : GS_SUCCESS;
+    return len == 0 ? CT_ERROR : CT_SUCCESS;
 }
 
 static status_t copy_raw_val_2str(clt_stmt_t *stmt, clt_column_t *column)
@@ -890,7 +890,7 @@ static status_t copy_raw_val_2str(clt_stmt_t *stmt, clt_column_t *column)
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
     binary_t bin_value;
 
-    GS_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
+    CT_RETURN_IFERR(chk_and_cp_null_str(stmt, column, bnd_ptr));
 
     bin_value.bytes = (uint8 *)column->ptr;
     bin_value.size = col_len;
@@ -899,13 +899,13 @@ static status_t copy_raw_val_2str(clt_stmt_t *stmt, clt_column_t *column)
         .len = column->bnd_size
     };
 
-    GS_RETURN_IFERR(cm_bin2text(&bin_value, GS_FALSE, &tmp_text));
+    CT_RETURN_IFERR(cm_bin2text(&bin_value, CT_FALSE, &tmp_text));
 
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)tmp_text.len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_clob_val_2str(clt_stmt_t *stmt, clt_column_t *column)
@@ -913,13 +913,13 @@ static status_t copy_clob_val_2str(clt_stmt_t *stmt, clt_column_t *column)
     uint32 read_size;
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    GS_RETURN_IFERR(clt_clob_as_string(stmt, (void *)column->ptr, bnd_ptr, column->bnd_size, &read_size));
+    CT_RETURN_IFERR(clt_clob_as_string(stmt, (void *)column->ptr, bnd_ptr, column->bnd_size, &read_size));
 
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)read_size;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_blob_val_2str(clt_stmt_t *stmt, clt_column_t *column)
@@ -927,12 +927,12 @@ static status_t copy_blob_val_2str(clt_stmt_t *stmt, clt_column_t *column)
     uint32 read_size;
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    GS_RETURN_IFERR(clt_blob_as_string(stmt, (void *)column->ptr, bnd_ptr, column->bnd_size, &read_size));
+    CT_RETURN_IFERR(clt_blob_as_string(stmt, (void *)column->ptr, bnd_ptr, column->bnd_size, &read_size));
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)read_size;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_image_val_2str(clt_stmt_t *stmt, clt_column_t *column)
@@ -940,13 +940,13 @@ static status_t copy_image_val_2str(clt_stmt_t *stmt, clt_column_t *column)
     uint32 read_size;
     char *bnd_ptr = column->bnd_ptr + column->bnd_size * stmt->fetch_pos;
 
-    GS_RETURN_IFERR(clt_image_as_string(stmt, (void *)column->ptr, bnd_ptr, column->bnd_size, &read_size));
+    CT_RETURN_IFERR(clt_image_as_string(stmt, (void *)column->ptr, bnd_ptr, column->bnd_size, &read_size));
 
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)read_size;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_binary_val_2str(clt_stmt_t *stmt, clt_column_t *column)
@@ -959,7 +959,7 @@ static status_t copy_binary_val_2str(clt_stmt_t *stmt, clt_column_t *column)
             (uint32)(col_len + 1));
 
         if (column->bnd_size == 0) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
         col_len = column->bnd_size - 1;
     }
@@ -973,7 +973,7 @@ static status_t copy_binary_val_2str(clt_stmt_t *stmt, clt_column_t *column)
         column->ind_ptr[stmt->fetch_pos] = col_len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t copy_str_2int64(clt_column_t *column, char *col_data, char *bnd_ptr)
@@ -988,11 +988,11 @@ static inline status_t copy_str_2int64(clt_column_t *column, char *col_data, cha
     temp_real2 = cm_round_real(temp_real1, ROUND_HALF_UP);
     int64 temp_bigint = (int64)temp_real2;
     if (REAL2INT64_IS_OVERFLOW(temp_bigint, temp_real2)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
+        return CT_ERROR;
     }
     *(int64 *)bnd_ptr = temp_bigint;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_val_2bigint(clt_stmt_t *stmt, clt_column_t *column)
@@ -1016,33 +1016,33 @@ static status_t copy_val_2bigint(clt_stmt_t *stmt, clt_column_t *column)
             double temp_real2 = cm_round_real(temp_real1, ROUND_HALF_UP);
             int64 temp_bigint = (int64)temp_real2;
             if (REAL2INT64_IS_OVERFLOW(temp_bigint, temp_real2)) {
-                GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
+                return CT_ERROR;
             }
             *(int64 *)bnd_ptr = temp_bigint;
             break;
         }
         case GSC_TYPE_NUMBER2:
             cm_dec2_copy_ex(&dec2, (const payload_t *)column->ptr, (uint8)column->size);
-            GS_RETURN_IFERR(cm_dec2_to_int64(&dec2, (int64 *)bnd_ptr, ROUND_HALF_UP));
+            CT_RETURN_IFERR(cm_dec2_to_int64(&dec2, (int64 *)bnd_ptr, ROUND_HALF_UP));
             break;
         case GSC_TYPE_NUMBER:
         case GSC_TYPE_DECIMAL: {
-            GS_RETURN_IFERR(cm_dec4_to_int64((dec4_t *)column->ptr, (int64 *)bnd_ptr, ROUND_HALF_UP));
+            CT_RETURN_IFERR(cm_dec4_to_int64((dec4_t *)column->ptr, (int64 *)bnd_ptr, ROUND_HALF_UP));
             break;
         }
         case GSC_TYPE_CHAR:
         case GSC_TYPE_VARCHAR:
         case GSC_TYPE_STRING:
         default:
-            GS_RETURN_IFERR(copy_str_2int64(column, column->ptr, bnd_ptr));
+            CT_RETURN_IFERR(copy_str_2int64(column, column->ptr, bnd_ptr));
     }
 
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)sizeof(int64);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_val_2bigint_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -1066,8 +1066,8 @@ static status_t copy_val_2bigint_reverse(clt_stmt_t *stmt, clt_column_t *column)
             double temp_real2 = cm_round_real(temp_real1, ROUND_HALF_UP);
             int64 temp_bigint = (int64)temp_real2;
             if (REAL2INT64_IS_OVERFLOW(temp_bigint, temp_real2)) {
-                GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
+                return CT_ERROR;
             }
             *(int64 *)bnd_ptr = temp_bigint;
             break;
@@ -1075,28 +1075,28 @@ static status_t copy_val_2bigint_reverse(clt_stmt_t *stmt, clt_column_t *column)
         case GSC_TYPE_NUMBER2: {
             dec2_t dec2;
             cm_dec2_copy_ex(&dec2, (const payload_t *)column->ptr, (uint8)column->size);
-            GS_RETURN_IFERR(cm_dec2_to_int64(&dec2, (int64 *)bnd_ptr, ROUND_HALF_UP));
+            CT_RETURN_IFERR(cm_dec2_to_int64(&dec2, (int64 *)bnd_ptr, ROUND_HALF_UP));
             break;
         }
         case GSC_TYPE_NUMBER:
         case GSC_TYPE_DECIMAL: {
             dec4_t dec4;
             cm_reverse_dec4(&dec4, (dec4_t *)column->ptr);
-            GS_RETURN_IFERR(cm_dec4_to_int64(&dec4, (int64 *)bnd_ptr, ROUND_HALF_UP));
+            CT_RETURN_IFERR(cm_dec4_to_int64(&dec4, (int64 *)bnd_ptr, ROUND_HALF_UP));
             break;
         }
         case GSC_TYPE_CHAR:
         case GSC_TYPE_VARCHAR:
         case GSC_TYPE_STRING:
         default:
-            GS_RETURN_IFERR(copy_str_2int64(column, column->ptr, bnd_ptr));
+            CT_RETURN_IFERR(copy_str_2int64(column, column->ptr, bnd_ptr));
     }
 
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)sizeof(int64);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_val_2double(clt_stmt_t *stmt, clt_column_t *column)
@@ -1138,7 +1138,7 @@ static status_t copy_val_2double(clt_stmt_t *stmt, clt_column_t *column)
             text_t temp_str;
             temp_str.str = column->ptr;
             temp_str.len = column->size;
-            GS_RETURN_IFERR(cm_text2real(&temp_str, (double *)bnd_ptr));
+            CT_RETURN_IFERR(cm_text2real(&temp_str, (double *)bnd_ptr));
         }
     }
 
@@ -1146,7 +1146,7 @@ static status_t copy_val_2double(clt_stmt_t *stmt, clt_column_t *column)
         column->ind_ptr[stmt->fetch_pos] = (uint16)sizeof(double);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_val_2double_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -1190,7 +1190,7 @@ static status_t copy_val_2double_reverse(clt_stmt_t *stmt, clt_column_t *column)
             text_t temp_str;
             temp_str.str = column->ptr;
             temp_str.len = column->size;
-            GS_RETURN_IFERR(cm_text2real(&temp_str, (double *)bnd_ptr));
+            CT_RETURN_IFERR(cm_text2real(&temp_str, (double *)bnd_ptr));
         }
     }
 
@@ -1198,7 +1198,7 @@ static status_t copy_val_2double_reverse(clt_stmt_t *stmt, clt_column_t *column)
         column->ind_ptr[stmt->fetch_pos] = (uint16)sizeof(double);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_val_2number(clt_stmt_t *stmt, clt_column_t *column)
@@ -1215,17 +1215,17 @@ static status_t copy_val_2number(clt_stmt_t *stmt, clt_column_t *column)
         case GSC_TYPE_UINT32:
             temp_uint32 = *(uint32 *)column->ptr;
             cm_uint32_to_dec4(temp_uint32, (dec4_t *)bnd_ptr);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_INTEGER:
         case GSC_TYPE_BOOLEAN:
             temp_int = *(int32 *)column->ptr;
             cm_int32_to_dec4(temp_int, (dec4_t *)bnd_ptr);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         case GSC_TYPE_BIGINT:
             temp_bigint = *(int64 *)column->ptr;
             cm_int64_to_dec4(temp_bigint, (dec4_t *)bnd_ptr);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         case GSC_TYPE_REAL:
             temp_real = *(double *)column->ptr;
@@ -1238,13 +1238,13 @@ static status_t copy_val_2number(clt_stmt_t *stmt, clt_column_t *column)
                 cm_dec_2_to_4(&dec2, &dec4);
                 MEMS_RETURN_IFERR(memcpy_s(bnd_ptr, column->bnd_size, &dec4, cm_dec4_stor_sz(&dec4)));
             }
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_NUMBER:
         case GSC_TYPE_DECIMAL:
             if (col_len != 0) {
                 MEMS_RETURN_IFERR(memcpy_s(bnd_ptr, column->size, column->ptr, col_len));
             }
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         case GSC_TYPE_CHAR:
         case GSC_TYPE_VARCHAR:
@@ -1259,7 +1259,7 @@ static status_t copy_val_2number(clt_stmt_t *stmt, clt_column_t *column)
 static inline status_t copy_number2_2number_reverse(clt_column_t *column, uint16 col_len, char *bnd_ptr)
 {
     if (col_len == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     dec4_t dec4;
@@ -1267,7 +1267,7 @@ static inline status_t copy_number2_2number_reverse(clt_column_t *column, uint16
     cm_dec2_copy_ex(&dec2, (const payload_t *)column->ptr, (uint8)column->size);
     cm_dec_2_to_4(&dec2, &dec4);
     MEMS_RETURN_IFERR(memcpy_s(bnd_ptr, column->bnd_size, (const void *)&dec4, cm_dec4_stor_sz(&dec4)));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_val_2number_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -1284,17 +1284,17 @@ static status_t copy_val_2number_reverse(clt_stmt_t *stmt, clt_column_t *column)
         case GSC_TYPE_UINT32:
             temp_uint32 = cs_reverse_uint32(*(uint32 *)column->ptr);
             cm_uint32_to_dec4(temp_uint32, (dec4_t *)bnd_ptr);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_INTEGER:
         case GSC_TYPE_BOOLEAN:
             temp_int = cs_reverse_int32(*(int32 *)column->ptr);
             cm_int32_to_dec4(temp_int, (dec4_t *)bnd_ptr);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         case GSC_TYPE_BIGINT:
             temp_bigint = cs_reverse_int64(*(int64 *)column->ptr);
             cm_int64_to_dec4(temp_bigint, (dec4_t *)bnd_ptr);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         case GSC_TYPE_REAL:
             temp_real = cs_reverse_real(*(double *)column->ptr);
@@ -1310,7 +1310,7 @@ static status_t copy_val_2number_reverse(clt_stmt_t *stmt, clt_column_t *column)
                 cm_reverse_dec4(&dec4, (dec4_t *)column->ptr);
                 MEMS_RETURN_IFERR(memcpy_s(bnd_ptr, column->size, (const void *)&dec4, cm_dec4_stor_sz(&dec4)));
             }
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         case GSC_TYPE_CHAR:
         case GSC_TYPE_VARCHAR:
@@ -1330,7 +1330,7 @@ static inline status_t copy_number2_2number2_reverse(clt_stmt_t *stmt, clt_colum
     } else {
         MEMS_RETURN_IFERR(memcpy_s(bnd_ptr, column->bnd_size, (const void *)column->ptr, col_len));
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_val_2number2_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -1362,10 +1362,10 @@ static status_t copy_val_2number2_reverse(clt_stmt_t *stmt, clt_column_t *column
         case GSC_TYPE_DECIMAL:
             if (col_len == 0) {
                 cm_zero_payload((uint8 *)(&column->ind_ptr[stmt->fetch_pos]), (payload_t *)bnd_ptr);
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
             cm_reverse_dec4(&dec4, (dec4_t *)column->ptr);
-            GS_RETURN_IFERR(cm_dec_4_to_2((const dec4_t *)&dec4, col_len, &dec2));
+            CT_RETURN_IFERR(cm_dec_4_to_2((const dec4_t *)&dec4, col_len, &dec2));
             break;
 
         case GSC_TYPE_CHAR:
@@ -1374,14 +1374,14 @@ static status_t copy_val_2number2_reverse(clt_stmt_t *stmt, clt_column_t *column
         default:
             txt.str = column->ptr;
             txt.len = column->size;
-            GS_RETURN_IFERR(cm_text_to_dec2(&txt, &dec2));
+            CT_RETURN_IFERR(cm_text_to_dec2(&txt, &dec2));
             break;
     }
     MEMS_RETURN_IFERR(memcpy_s(bnd_ptr, column->bnd_size, GET_PAYLOAD(&dec2), cm_dec2_stor_sz(&dec2)));
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = cm_dec2_stor_sz(&dec2);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_val_2number2(clt_stmt_t *stmt, clt_column_t *column)
@@ -1402,7 +1402,7 @@ static status_t copy_val_2number2(clt_stmt_t *stmt, clt_column_t *column)
             cm_int64_to_dec2(*(int64 *)column->ptr, &dec2);
             break;
         case GSC_TYPE_REAL:
-            GS_RETURN_IFERR(cm_real_to_dec2(*(double *)column->ptr, &dec2));
+            CT_RETURN_IFERR(cm_real_to_dec2(*(double *)column->ptr, &dec2));
             break;
         case GSC_TYPE_NUMBER2:
             if (col_len == 0) {
@@ -1410,12 +1410,12 @@ static status_t copy_val_2number2(clt_stmt_t *stmt, clt_column_t *column)
             } else {
                 MEMS_RETURN_IFERR(memcpy_s(bnd_ptr, column->bnd_size, column->ptr, col_len));
             }
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_NUMBER:
         case GSC_TYPE_DECIMAL:
             if (col_len == 0) {
                 cm_zero_payload((uint8 *)(&column->ind_ptr[stmt->fetch_pos]), (payload_t *)bnd_ptr);
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
             cm_dec_4_to_2((dec4_t *)column->ptr, col_len, &dec2);
             break;
@@ -1433,7 +1433,7 @@ static status_t copy_val_2number2(clt_stmt_t *stmt, clt_column_t *column)
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = cm_dec2_stor_sz(&dec2);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -1448,7 +1448,7 @@ static inline status_t copy_str_2int32(clt_column_t *column, char *col_data, cha
     double temp_value = cm_round_real(temp_real, ROUND_HALF_UP);
     INT32_OVERFLOW_CHECK(temp_value);
     *(int32 *)bnd_ptr = (int32)temp_value;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_val_2int32(clt_stmt_t *stmt, clt_column_t *column)
@@ -1458,7 +1458,7 @@ static status_t copy_val_2int32(clt_stmt_t *stmt, clt_column_t *column)
     switch (column->def.datatype) {
         case GSC_TYPE_UINT32: {
             uint32 temp_uint32 = *(uint32 *)column->ptr;
-            GS_RETURN_IFERR(var_to_int32_check_overflow(temp_uint32));
+            CT_RETURN_IFERR(var_to_int32_check_overflow(temp_uint32));
             *(int32 *)bnd_ptr = (int32)temp_uint32;
             break;
         }
@@ -1481,19 +1481,19 @@ static status_t copy_val_2int32(clt_stmt_t *stmt, clt_column_t *column)
         case GSC_TYPE_NUMBER2: {
             dec2_t dec2;
             cm_dec2_copy_ex(&dec2, (const payload_t *)column->ptr, (uint8)column->size);
-            GS_RETURN_IFERR(cm_dec2_to_int32(&dec2, (int32 *)bnd_ptr, ROUND_HALF_UP));
+            CT_RETURN_IFERR(cm_dec2_to_int32(&dec2, (int32 *)bnd_ptr, ROUND_HALF_UP));
             break;
         }
         case GSC_TYPE_NUMBER:
         case GSC_TYPE_DECIMAL:
-            GS_RETURN_IFERR(cm_dec4_to_int32((dec4_t *)column->ptr, (int32 *)bnd_ptr, ROUND_HALF_UP));
+            CT_RETURN_IFERR(cm_dec4_to_int32((dec4_t *)column->ptr, (int32 *)bnd_ptr, ROUND_HALF_UP));
             break;
 
         case GSC_TYPE_CHAR:
         case GSC_TYPE_VARCHAR:
         case GSC_TYPE_STRING:
         default:
-            GS_RETURN_IFERR(copy_str_2int32(column, column->ptr, bnd_ptr));
+            CT_RETURN_IFERR(copy_str_2int32(column, column->ptr, bnd_ptr));
             break;
     }
 
@@ -1505,7 +1505,7 @@ static status_t copy_val_2int32(clt_stmt_t *stmt, clt_column_t *column)
         column->ind_ptr[stmt->fetch_pos] = (uint16)sizeof(int32);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_val_2int32_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -1518,7 +1518,7 @@ static status_t copy_val_2int32_reverse(clt_stmt_t *stmt, clt_column_t *column)
     switch (column->def.datatype) {
         case GSC_TYPE_UINT32:
             temp_uint32 = cs_reverse_uint32(*(uint32 *)column->ptr);
-            GS_RETURN_IFERR(var_to_int32_check_overflow(temp_uint32));
+            CT_RETURN_IFERR(var_to_int32_check_overflow(temp_uint32));
             *(int32 *)bnd_ptr = (int32)temp_uint32;
             break;
         case GSC_TYPE_INTEGER:
@@ -1538,19 +1538,19 @@ static status_t copy_val_2int32_reverse(clt_stmt_t *stmt, clt_column_t *column)
         case GSC_TYPE_NUMBER2: {
             dec2_t dec2;
             cm_dec2_copy_ex(&dec2, (const payload_t *)column->ptr, (uint8)column->size);
-            GS_RETURN_IFERR(cm_dec2_to_int32(&dec2, (int32 *)bnd_ptr, ROUND_HALF_UP));
+            CT_RETURN_IFERR(cm_dec2_to_int32(&dec2, (int32 *)bnd_ptr, ROUND_HALF_UP));
             break;
         }
         case GSC_TYPE_NUMBER:
         case GSC_TYPE_DECIMAL:
             cm_reverse_dec4(&dec4, (dec4_t *)column->ptr);
-            GS_RETURN_IFERR(cm_dec4_to_int32(&dec4, (int32 *)bnd_ptr, ROUND_HALF_UP));
+            CT_RETURN_IFERR(cm_dec4_to_int32(&dec4, (int32 *)bnd_ptr, ROUND_HALF_UP));
             break;
         case GSC_TYPE_CHAR:
         case GSC_TYPE_VARCHAR:
         case GSC_TYPE_STRING:
         default:
-            GS_RETURN_IFERR(copy_str_2int32(column, column->ptr, bnd_ptr));
+            CT_RETURN_IFERR(copy_str_2int32(column, column->ptr, bnd_ptr));
             break;
     }
 
@@ -1562,7 +1562,7 @@ static status_t copy_val_2int32_reverse(clt_stmt_t *stmt, clt_column_t *column)
         column->ind_ptr[stmt->fetch_pos] = (uint16)sizeof(int32);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t copy_str_2uint32(clt_column_t *column, char *col_data, char *bnd_ptr)
@@ -1576,7 +1576,7 @@ static inline status_t copy_str_2uint32(clt_column_t *column, char *col_data, ch
     double temp_value = cm_round_real(temp_real, ROUND_HALF_UP);
     TO_UINT32_OVERFLOW_CHECK(temp_value, double);
     *(uint32 *)bnd_ptr = (uint32)temp_value;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t copy_number2_2uint32(clt_column_t *column, char *bnd_ptr)
@@ -1614,18 +1614,18 @@ static status_t copy_val_2uint32(clt_stmt_t *stmt, clt_column_t *column)
             *(uint32 *)bnd_ptr = (uint32)(int32)cm_round_real(temp_real, ROUND_HALF_UP);
             break;
         case GSC_TYPE_NUMBER2:
-            GS_RETURN_IFERR(copy_number2_2uint32(column, bnd_ptr));
+            CT_RETURN_IFERR(copy_number2_2uint32(column, bnd_ptr));
             break;
         case GSC_TYPE_NUMBER:
         case GSC_TYPE_DECIMAL: {
-            GS_RETURN_IFERR(cm_dec4_to_uint32((dec4_t *)column->ptr, (uint32 *)bnd_ptr, ROUND_HALF_UP));
+            CT_RETURN_IFERR(cm_dec4_to_uint32((dec4_t *)column->ptr, (uint32 *)bnd_ptr, ROUND_HALF_UP));
             break;
         }
         case GSC_TYPE_CHAR:
         case GSC_TYPE_VARCHAR:
         case GSC_TYPE_STRING:
         default:
-            GS_RETURN_IFERR(copy_str_2uint32(column, column->ptr, bnd_ptr));
+            CT_RETURN_IFERR(copy_str_2uint32(column, column->ptr, bnd_ptr));
             break;
     }
 
@@ -1636,7 +1636,7 @@ static status_t copy_val_2uint32(clt_stmt_t *stmt, clt_column_t *column)
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)sizeof(uint32);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_val_2uint32_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -1669,17 +1669,17 @@ static status_t copy_val_2uint32_reverse(clt_stmt_t *stmt, clt_column_t *column)
         case GSC_TYPE_NUMBER:
         case GSC_TYPE_DECIMAL:
             cm_reverse_dec4(&dec4, (dec4_t *)column->ptr);
-            GS_RETURN_IFERR(cm_dec4_to_uint32(&dec4, (uint32 *)bnd_ptr, ROUND_HALF_UP));
+            CT_RETURN_IFERR(cm_dec4_to_uint32(&dec4, (uint32 *)bnd_ptr, ROUND_HALF_UP));
             break;
         case GSC_TYPE_NUMBER2:
-            GS_RETURN_IFERR(copy_number2_2uint32(column, bnd_ptr));
+            CT_RETURN_IFERR(copy_number2_2uint32(column, bnd_ptr));
             break;
 
         case GSC_TYPE_CHAR:
         case GSC_TYPE_VARCHAR:
         case GSC_TYPE_STRING:
         default:
-            GS_RETURN_IFERR(copy_str_2uint32(column, column->ptr, bnd_ptr));
+            CT_RETURN_IFERR(copy_str_2uint32(column, column->ptr, bnd_ptr));
             break;
     }
 
@@ -1690,7 +1690,7 @@ static status_t copy_val_2uint32_reverse(clt_stmt_t *stmt, clt_column_t *column)
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)sizeof(uint32);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_date_val_2date(clt_stmt_t *stmt, clt_column_t *column)
@@ -1700,7 +1700,7 @@ static status_t copy_date_val_2date(clt_stmt_t *stmt, clt_column_t *column)
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = CLT_DATE_BINARY_SIZE;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_date_val_2date_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -1713,7 +1713,7 @@ static status_t copy_date_val_2date_reverse(clt_stmt_t *stmt, clt_column_t *colu
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = CLT_DATE_BINARY_SIZE;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_other_val_2date(clt_stmt_t *stmt, clt_column_t *column)
@@ -1726,12 +1726,12 @@ static status_t copy_other_val_2date(clt_stmt_t *stmt, clt_column_t *column)
     temp_date.str = column->ptr;
     temp_date.len = column->size;
     clt_session_nlsparam_geter(stmt, NLS_DATE_FORMAT, &fmt_text);
-    GS_RETURN_IFERR(cm_text2date(&temp_date, NULL, &date));
+    CT_RETURN_IFERR(cm_text2date(&temp_date, NULL, &date));
     clt_decode_date(date, (uint8 *)bnd_ptr);
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = CLT_DATE_BINARY_SIZE;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_date_val_2timestamp(clt_stmt_t *stmt, clt_column_t *column)
@@ -1741,7 +1741,7 @@ static status_t copy_date_val_2timestamp(clt_stmt_t *stmt, clt_column_t *column)
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)sizeof(int64);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_date_val_2timestamp_reverse(clt_stmt_t *stmt, clt_column_t *column)
@@ -1751,7 +1751,7 @@ static status_t copy_date_val_2timestamp_reverse(clt_stmt_t *stmt, clt_column_t 
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)sizeof(int64);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t copy_other_val_2timestamp(clt_stmt_t *stmt, clt_column_t *column)
@@ -1763,11 +1763,11 @@ static status_t copy_other_val_2timestamp(clt_stmt_t *stmt, clt_column_t *column
     temp_date.str = column->ptr;
     temp_date.len = column->size;
     clt_session_nlsparam_geter(stmt, NLS_TIMESTAMP_FORMAT, &fmt_text);
-    GS_RETURN_IFERR(cm_text2date(&temp_date, &fmt_text, (int64 *)bnd_ptr));
+    CT_RETURN_IFERR(cm_text2date(&temp_date, &fmt_text, (int64 *)bnd_ptr));
     if (column->ind_ptr) {
         column->ind_ptr[stmt->fetch_pos] = (uint16)sizeof(int64);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t init_cp_func_no_mapping(clt_stmt_t *stmt, clt_column_t *column)
@@ -1777,13 +1777,13 @@ static status_t init_cp_func_no_mapping(clt_stmt_t *stmt, clt_column_t *column)
             CLT_CHECK_BIND_SIZE(column, sizeof(uint32));
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_uint32_val_reverse : copy_uint32_val;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_INTEGER:
         case GSC_TYPE_BOOLEAN:
             CLT_CHECK_BIND_SIZE(column, sizeof(int32));
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_int32_val_reverse : copy_int32_val;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_BIGINT:
         case GSC_TYPE_TIMESTAMP:
         case GSC_TYPE_TIMESTAMP_TZ_FAKE:
@@ -1791,48 +1791,48 @@ static status_t init_cp_func_no_mapping(clt_stmt_t *stmt, clt_column_t *column)
             CLT_CHECK_BIND_SIZE(column, sizeof(int64));
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_int64_val_reverse : copy_int64_val;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_TIMESTAMP_TZ:
             CLT_CHECK_BIND_SIZE(column, sizeof(timestamp_tz_t));
             column->cp_func = CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_timestamp_tz_val_reverse :
                                                                                     copy_timestamp_tz_val;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_REAL:
             CLT_CHECK_BIND_SIZE(column, sizeof(double));
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_double_val_reverse : copy_double_val;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         case GSC_TYPE_INTERVAL_YM:
         case GSC_TYPE_INTERVAL_DS:
             CLT_CHECK_BIND_SIZE(column, column->def.size);
             column->cp_func = copy_str_val;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_NUMBER:
         case GSC_TYPE_DECIMAL:
             CLT_CHECK_BIND_SIZE(column, column->def.size);
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_digit_val_reverse : copy_digit_val;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_NUMBER2:
             CLT_CHECK_BIND_SIZE(column, column->def.size);
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_digit2_val_reverse : copy_digit_val;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_DATE:
             CLT_CHECK_BIND_SIZE(column, CLT_DATE_BINARY_SIZE);
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_date_val_2date_reverse : copy_date_val_2date;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_CLOB:
         case GSC_TYPE_BLOB:
         case GSC_TYPE_IMAGE:
             CLT_CHECK_BIND_SIZE(column, stmt->conn->server_info.locator_size);
             column->cp_func = copy_lob_val;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         default:
             column->cp_func = copy_default_type_val;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
     }
 }
 
@@ -1842,80 +1842,80 @@ static status_t init_cp_func_2str(clt_stmt_t *stmt, clt_column_t *column, bool32
         case GSC_TYPE_UINT32:
             column->cp_func = CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_uint32_val_2str_reverse :
                                                                                     copy_uint32_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_INTEGER:
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_int32_val_2str_reverse : copy_int32_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_BIGINT:
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_int64_val_2str_reverse : copy_int64_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_REAL:
             column->cp_func = CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_double_val_2str_reverse :
                                                                                     copy_double_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_NUMBER:
         case GSC_TYPE_DECIMAL:
             column->cp_func = CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_number_val_2str_reverse :
                                                                                     copy_number_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_NUMBER2:
             // no need to byte order conversion
             column->cp_func = copy_number2_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_BOOLEAN:
             CLT_CHECK_BIND_SIZE(column, GSC_BOOL_BOUND_SIZE);
             column->cp_func = CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_boolean_val_2str_reverse :
                                                                                     copy_boolean_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_DATE:
             CLT_CHECK_BIND_SIZE(column, GSC_TIME_BOUND_SIZE);
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_date_val_2str_reverse : copy_date_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_TIMESTAMP:
         case GSC_TYPE_TIMESTAMP_TZ_FAKE:
         case GSC_TYPE_TIMESTAMP_LTZ:
             CLT_CHECK_BIND_SIZE(column, GSC_TIME_BOUND_SIZE);
             column->cp_func = CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_timestamp_val_2str_reverse :
                                                                                     copy_timestamp_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         case GSC_TYPE_TIMESTAMP_TZ:
             CLT_CHECK_BIND_SIZE(column, GSC_TIME_BOUND_SIZE);
             column->cp_func = CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_timestamp_tz_val_2str_reverse :
                                                                                     copy_timestamp_tz_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         case GSC_TYPE_INTERVAL_YM:
             CLT_CHECK_BIND_SIZE(column, GSC_YM_INTERVAL_BOUND_SIZE);
             column->cp_func = CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_yminterval_val_2str_reverse :
                                                                                     copy_yminterval_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_INTERVAL_DS:
             CLT_CHECK_BIND_SIZE(column, GSC_DS_INTERVAL_BOUND_SIZE);
             column->cp_func = CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_dsinterval_val_2str_reverse :
                                                                                     copy_dsinterval_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_RAW:
             CLT_CHECK_BIND_SIZE(column, column->def.size + 1);
             column->cp_func = copy_raw_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_CLOB:
             column->cp_func = copy_clob_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_BLOB:
             column->cp_func = to_hex ? copy_blob_val_2str : copy_image_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_IMAGE:
             column->cp_func = copy_image_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_BINARY:
         case GSC_TYPE_VARBINARY:
         default:
             column->cp_func = copy_binary_val_2str;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
     }
 }
 
@@ -1926,35 +1926,35 @@ static status_t init_cp_func_2digit(clt_stmt_t *stmt, clt_column_t *column)
             CLT_CHECK_BIND_SIZE(column, sizeof(uint32));
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_val_2uint32_reverse : copy_val_2uint32;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_INTEGER:
         case GSC_TYPE_BOOLEAN:
             CLT_CHECK_BIND_SIZE(column, sizeof(int32));
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_val_2int32_reverse : copy_val_2int32;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_BIGINT:
             CLT_CHECK_BIND_SIZE(column, sizeof(int64));
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_val_2bigint_reverse : copy_val_2bigint;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_REAL:
             CLT_CHECK_BIND_SIZE(column, sizeof(double));
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_val_2double_reverse : copy_val_2double;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_NUMBER2:
             CLT_CHECK_BIND_SIZE(column, column->def.size);
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_val_2number2_reverse : copy_val_2number2;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_NUMBER:
         case GSC_TYPE_DECIMAL:
         default:
             CLT_CHECK_BIND_SIZE(column, column->def.size);
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_val_2number_reverse : copy_val_2number;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
     }
 }
 
@@ -1967,15 +1967,15 @@ static status_t init_cp_func_2date(clt_stmt_t *stmt, clt_column_t *column)
         case GSC_TYPE_TIMESTAMP:
             column->cp_func =
                 CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_date_val_2date_reverse : copy_date_val_2date;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_CHAR:
         case GSC_TYPE_VARCHAR:
         case GSC_TYPE_STRING:
             column->cp_func = copy_other_val_2date;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         default:
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_BIND, "bind type do not match with column type");
-            return GS_ERROR;
+            return CT_ERROR;
     }
 }
 
@@ -1988,15 +1988,15 @@ static status_t init_cp_func_2timestamp(clt_stmt_t *stmt, clt_column_t *column)
         case GSC_TYPE_TIMESTAMP:
             column->cp_func = CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options) ? copy_date_val_2timestamp_reverse :
                                                                                     copy_date_val_2timestamp;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case GSC_TYPE_CHAR:
         case GSC_TYPE_VARCHAR:
         case GSC_TYPE_STRING:
             column->cp_func = copy_other_val_2timestamp;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         default:
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_BIND, "bind type do not match with column type");
-            return GS_ERROR;
+            return CT_ERROR;
     }
 }
 
@@ -2005,9 +2005,9 @@ static status_t init_cp_func(clt_stmt_t *stmt, clt_column_t *column)
     if (column->bnd_type == column->def.datatype) {
         return init_cp_func_no_mapping(stmt, column);
     } else if (GSC_IS_STRING_TYPE(column->bnd_type)) {
-        return init_cp_func_2str(stmt, column, GS_TRUE);
+        return init_cp_func_2str(stmt, column, CT_TRUE);
     } else if (GSC_IS_BINARY_TYPE(column->bnd_type)) {
-        return init_cp_func_2str(stmt, column, GS_FALSE);
+        return init_cp_func_2str(stmt, column, CT_FALSE);
     } else if (GSC_IS_NUMBER_TYPE(column->bnd_type)) {
         return init_cp_func_2digit(stmt, column);
     } else if (column->bnd_type == GSC_TYPE_DATE) {
@@ -2017,7 +2017,7 @@ static status_t init_cp_func(clt_stmt_t *stmt, clt_column_t *column)
     }
 
     CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_BIND, "bind type do not match with column type");
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 static inline status_t init_cp_func_of_cols(clt_stmt_t *stmt)
@@ -2026,9 +2026,9 @@ static inline status_t init_cp_func_of_cols(clt_stmt_t *stmt)
 
     for (uint32 i = 0; i < stmt->column_count; ++i) {
         clt_column_t *column = (clt_column_t *)cm_list_get(columns, i);
-        GS_RETURN_IFERR(init_cp_func(stmt, column));
+        CT_RETURN_IFERR(init_cp_func(stmt, column));
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 int32 clt_fetch(clt_stmt_t *stmt, uint32 *rows, bool32 fetch_ori_row)
@@ -2037,7 +2037,7 @@ int32 clt_fetch(clt_stmt_t *stmt, uint32 *rows, bool32 fetch_ori_row)
 
     if (SECUREC_UNLIKELY(stmt->status < CLI_STMT_EXECUTED)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_API_SEQUENCE, "statement is not executed");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     stmt->status = CLI_STMT_FETCHING;
@@ -2046,22 +2046,22 @@ int32 clt_fetch(clt_stmt_t *stmt, uint32 *rows, bool32 fetch_ori_row)
     /* fetch over */
     if (stmt->eof) {
         *rows = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (stmt->fetched_rows == 0 && init_cp_func_of_cols(stmt) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stmt->fetched_rows == 0 && init_cp_func_of_cols(stmt) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     for (stmt->fetch_pos = 0; stmt->fetch_pos < stmt->fetch_size; ++stmt->fetch_pos) {
         /* try do remote fetch if fetch over from the last package */
         if (stmt->row_index == stmt->return_rows) {
             if (!stmt->more_rows) {
-                stmt->eof = GS_TRUE;
+                stmt->eof = CT_TRUE;
                 break;
             }
 
-            GS_RETURN_IFERR(clt_remote_fetch(stmt));
+            CT_RETURN_IFERR(clt_remote_fetch(stmt));
 
             if (stmt->eof) {
                 break;
@@ -2070,7 +2070,7 @@ int32 clt_fetch(clt_stmt_t *stmt, uint32 *rows, bool32 fetch_ori_row)
         }
 
         /* read row fetched */
-        GS_RETURN_IFERR(clt_read_row(stmt, fetch_ori_row));
+        CT_RETURN_IFERR(clt_read_row(stmt, fetch_ori_row));
 
         stmt->row_index++;
         stmt->fetched_rows++;
@@ -2079,7 +2079,7 @@ int32 clt_fetch(clt_stmt_t *stmt, uint32 *rows, bool32 fetch_ori_row)
     if (SECUREC_LIKELY(rows != NULL)) {
         *rows = stmt->fetch_pos;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

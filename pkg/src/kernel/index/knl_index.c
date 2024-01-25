@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_index_module.h"
 #include "knl_index.h"
 #include "rcr_btree_scan.h"
 #include "knl_context.h"
@@ -71,80 +72,83 @@ static void idx_get_varaint_data(variant_t *expr_value, char **data, uint16 *len
 {
     if (expr_value->is_null) {
         *data = NULL;
-        *len = GS_NULL_VALUE_LEN;
+        *len = CT_NULL_VALUE_LEN;
         return;
     }
     switch (expr_value->type) {
-        case GS_TYPE_UINT32:
+        case CT_TYPE_UINT32:
             *data = (char *)&expr_value->v_uint32;
             *len = sizeof(uint32);
             break;
-        case GS_TYPE_INTEGER:
+        case CT_TYPE_INTEGER:
             *data = (char *)&expr_value->v_int;
             *len = sizeof(int32);
             break;
 
-        case GS_TYPE_BOOLEAN:
+        case CT_TYPE_BOOLEAN:
             *data = (char *)&expr_value->v_bool;
             *len = sizeof(bool32);
             break;
 
-        case GS_TYPE_UINT64:
+        case CT_TYPE_UINT64:
             *data = (char *)&expr_value->v_ubigint;
             *len = sizeof(uint64);
             break;
 
-        case GS_TYPE_BIGINT:
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_BIGINT:
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_DATE_MYSQL:
             *data = (char *)&expr_value->v_bigint;
             *len = sizeof(int64);
             break;
 
-        case GS_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIMESTAMP_TZ:
             *data = (char *)&expr_value->v_tstamp_tz;
             *len = sizeof(timestamp_tz_t);
             break;
 
-        case GS_TYPE_INTERVAL_DS:
+        case CT_TYPE_INTERVAL_DS:
             *data = (char *)&expr_value->v_itvl_ds;
             *len = sizeof(interval_ds_t);
             break;
 
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_INTERVAL_YM:
             *data = (char *)&expr_value->v_itvl_ym;
             *len = sizeof(interval_ym_t);
             break;
 
-        case GS_TYPE_REAL:
+        case CT_TYPE_REAL:
             *data = (char *)&expr_value->v_real;
             *len = sizeof(double);
             break;
 
-        case GS_TYPE_DECIMAL:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_NUMBER:
+        case CT_TYPE_DECIMAL:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_NUMBER:
             (void)cm_dec_8_to_4(d4, (const dec8_t *)&expr_value->v_dec);
             *data = (char *)d4;
             *len = cm_dec4_stor_sz(d4);
             break;
-        case GS_TYPE_NUMBER2:
+        case CT_TYPE_NUMBER2:
             (void)cm_dec_8_to_2(d2, (const dec8_t *)&expr_value->v_dec);
             *data = (char *)GET_PAYLOAD(d2);
             *len = cm_dec2_stor_sz(d2);
             break;
-        case GS_TYPE_BINARY:
-        case GS_TYPE_VARBINARY:
-        case GS_TYPE_RAW:
+        case CT_TYPE_BINARY:
+        case CT_TYPE_VARBINARY:
+        case CT_TYPE_RAW:
             *data = (char *)expr_value->v_bin.bytes;
             *len = expr_value->v_bin.size;
             break;
 
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
         default:
             *data = expr_value->v_text.str;
             *len = expr_value->v_text.len;
@@ -185,52 +189,55 @@ void idx_decode_row(knl_session_t *session, knl_cursor_t *cursor, uint16 *offset
         column = dc_get_column(entity, col_id);
 
         if (!btree_get_bitmap(&bitmap, i)) {
-            lens[i] = GS_NULL_VALUE_LEN;
+            lens[i] = CT_NULL_VALUE_LEN;
             continue;
         }
 
         switch (column->datatype) {
-            case GS_TYPE_UINT32:
-            case GS_TYPE_INTEGER:
-            case GS_TYPE_BOOLEAN:
+            case CT_TYPE_UINT32:
+            case CT_TYPE_INTEGER:
+            case CT_TYPE_BOOLEAN:
                 lens[i] = sizeof(uint32);
                 offsets[i] = off;
                 off += sizeof(uint32);
                 break;
-            case GS_TYPE_UINT64:
-            case GS_TYPE_BIGINT:
-            case GS_TYPE_REAL:
-            case GS_TYPE_DATE:
-            case GS_TYPE_TIMESTAMP:
-            case GS_TYPE_TIMESTAMP_TZ_FAKE:
-            case GS_TYPE_TIMESTAMP_LTZ:
+            case CT_TYPE_UINT64:
+            case CT_TYPE_BIGINT:
+            case CT_TYPE_REAL:
+            case CT_TYPE_DATE:
+            case CT_TYPE_TIMESTAMP:
+            case CT_TYPE_TIMESTAMP_TZ_FAKE:
+            case CT_TYPE_TIMESTAMP_LTZ:
+            case CT_TYPE_DATETIME_MYSQL:
+            case CT_TYPE_TIME_MYSQL:
+            case CT_TYPE_DATE_MYSQL:
                 lens[i] = sizeof(int64);
                 offsets[i] = off;
                 off += sizeof(int64);
                 break;
-            case GS_TYPE_TIMESTAMP_TZ:
+            case CT_TYPE_TIMESTAMP_TZ:
                 lens[i] = sizeof(timestamp_tz_t);
                 offsets[i] = off;
                 off += sizeof(timestamp_tz_t);
                 break;
-            case GS_TYPE_INTERVAL_YM:
+            case CT_TYPE_INTERVAL_YM:
                 lens[i] = sizeof(interval_ym_t);
                 offsets[i] = off;
                 off += sizeof(interval_ym_t);
                 break;
-            case GS_TYPE_INTERVAL_DS:
+            case CT_TYPE_INTERVAL_DS:
                 lens[i] = sizeof(interval_ds_t);
                 offsets[i] = off;
                 off += sizeof(interval_ds_t);
                 break;
-            case GS_TYPE_NUMBER2:
+            case CT_TYPE_NUMBER2:
                 lens[i] = *(uint8 *)((char *)cursor->row + off);
                 offsets[i] = (uint16)sizeof(uint8) + off;
                 off += (sizeof(uint8) + lens[i]);
                 break;
-            case GS_TYPE_DECIMAL:
-            case GS_TYPE_NUMBER3:
-            case GS_TYPE_NUMBER:
+            case CT_TYPE_DECIMAL:
+            case CT_TYPE_NUMBER3:
+            case CT_TYPE_NUMBER:
                 if (index->desc.cr_mode == CR_PAGE) {
                     lens[i] = DECIMAL_LEN(((char *)cursor->row + off));
                     offsets[i] = off;
@@ -238,12 +245,12 @@ void idx_decode_row(knl_session_t *session, knl_cursor_t *cursor, uint16 *offset
                     break;
                 }
             // fall-through
-            case GS_TYPE_CHAR:
-            case GS_TYPE_VARCHAR:
-            case GS_TYPE_STRING:
-            case GS_TYPE_BINARY:
-            case GS_TYPE_VARBINARY:
-            case GS_TYPE_RAW:
+            case CT_TYPE_CHAR:
+            case CT_TYPE_VARCHAR:
+            case CT_TYPE_STRING:
+            case CT_TYPE_BINARY:
+            case CT_TYPE_VARBINARY:
+            case CT_TYPE_RAW:
                 lens[i] = *(uint16 *)((char *)cursor->row + off);
                 offsets[i] = (uint16)sizeof(uint16) + off;
                 off += CM_ALIGN4(lens[i] + sizeof(uint16));
@@ -263,26 +270,26 @@ void idx_decode_row(knl_session_t *session, knl_cursor_t *cursor, uint16 *offset
 /* judge index column type which has 2 bytes for column's length */
 static inline bool32 index_is_varaint_type(bool32 is_page_cr, uint32 type)
 {
-    if (type >= GS_TYPE_CHAR && type <= GS_TYPE_VARBINARY) {
-        return GS_TRUE;
+    if (type >= CT_TYPE_CHAR && type <= CT_TYPE_VARBINARY) {
+        return CT_TRUE;
     }
 
-    if (type == GS_TYPE_RAW) {
-        return GS_TRUE;
+    if (type == CT_TYPE_RAW) {
+        return CT_TRUE;
     }
 
-    if ((type == GS_TYPE_DECIMAL || type == GS_TYPE_NUMBER) && !is_page_cr) {
-        return GS_TRUE;
+    if ((type == CT_TYPE_DECIMAL || type == CT_TYPE_NUMBER) && !is_page_cr) {
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline void index_reverse_print_key(knl_column_t *column, bool32 is_page_cr, char *data)
 {
     if (index_is_varaint_type(is_page_cr, column->datatype)) {
         idx_reverse_key_data(data + sizeof(uint16), column->datatype, *(uint16*)data);
-    } else if (column->datatype == GS_TYPE_NUMBER2) {
+    } else if (column->datatype == CT_TYPE_NUMBER2) {
         idx_reverse_key_data(data + sizeof(uint8), column->datatype, *(uint8*)data);
     } else {
         uint16 size = idx_get_col_size(column->datatype, DECIMAL_FORMAT_LEN(data), is_page_cr);
@@ -311,17 +318,17 @@ static void index_print_key(knl_session_t *session, index_t *index, const char *
     value.len = MAX_INDEX_COLUMN_MSG_LEN;
 
     CM_SAVE_STACK(session->stack);
-    data = (char*)cm_push(session->stack, GS_MAX_KEY_SIZE);
+    data = (char*)cm_push(session->stack, CT_MAX_KEY_SIZE);
 
     if (is_pcr) {
         bitmap = ((pcrb_key_t *)key)->bitmap;
         copy_size = ((pcrb_key_t *)key)->size - sizeof(pcrb_key_t);
-        ret = memcpy_sp(data, GS_MAX_KEY_SIZE, key + sizeof(pcrb_key_t), copy_size);
+        ret = memcpy_sp(data, CT_MAX_KEY_SIZE, key + sizeof(pcrb_key_t), copy_size);
         knl_securec_check(ret);
     } else {
         bitmap = ((btree_key_t *)key)->bitmap;
         copy_size = ((btree_key_t *)key)->size - sizeof(btree_key_t);
-        ret = memcpy_sp(data, GS_MAX_KEY_SIZE, key + sizeof(btree_key_t), copy_size);
+        ret = memcpy_sp(data, CT_MAX_KEY_SIZE, key + sizeof(btree_key_t), copy_size);
         knl_securec_check(ret);
     }
 
@@ -339,56 +346,63 @@ static void index_print_key(knl_session_t *session, index_t *index, const char *
             }
 
             switch (column->datatype) {
-                case GS_TYPE_UINT32:
+                case CT_TYPE_UINT32:
                     cm_uint32_to_text(*(uint32 *)data, &value);
                     data += sizeof(uint32);
                     break;
-                case GS_TYPE_INTEGER:
+                case CT_TYPE_INTEGER:
                     cm_int2text(*(int32 *)data, &value);
                     data += sizeof(int32);
                     break;
-                case GS_TYPE_BOOLEAN:
+                case CT_TYPE_BOOLEAN:
                     cm_bool2text(*(bool32 *)data, &value);
                     data += sizeof(bool32);
                     break;
-                case GS_TYPE_UINT64:
+                case CT_TYPE_UINT64:
                     cm_uint64_to_text(*(uint64 *)data, &value);
                     data += sizeof(uint64);
                     break;
-                case GS_TYPE_BIGINT:
+                case CT_TYPE_BIGINT:
                     cm_bigint2text(*(int64 *)data, &value);
                     data += sizeof(int64);
                     break;
-                case GS_TYPE_REAL:
+                case CT_TYPE_REAL:
                     cm_real2text(*(double *)data, &value);
                     data += sizeof(double);
                     break;
-                case GS_TYPE_DATE:
+                case CT_TYPE_DATE_MYSQL:
+                case CT_TYPE_DATETIME_MYSQL:
+                case CT_TYPE_TIME_MYSQL:
+                    (void)cm_date2text_mysql(column->datatype, *(date_t *)data, &g_idx_ts_fmt, &value,
+                        MAX_INDEX_COLUMN_MSG_LEN);
+                    data += sizeof(date_t);
+                    break;
+                case CT_TYPE_DATE:
                     (void)cm_date2text(*(date_t *)data, &g_idx_ts_fmt, &value, MAX_INDEX_COLUMN_MSG_LEN);
                     data += sizeof(date_t);
                     break;
-                case GS_TYPE_TIMESTAMP:
-                case GS_TYPE_TIMESTAMP_TZ_FAKE:
-                case GS_TYPE_TIMESTAMP_LTZ:
+                case CT_TYPE_TIMESTAMP:
+                case CT_TYPE_TIMESTAMP_TZ_FAKE:
+                case CT_TYPE_TIMESTAMP_LTZ:
                     (void)cm_timestamp2text(*(timestamp_t *)data, &g_idx_ts_fmt, &value, MAX_INDEX_COLUMN_MSG_LEN);
                     data += sizeof(timestamp_t);
                     break;
-                case GS_TYPE_TIMESTAMP_TZ:
+                case CT_TYPE_TIMESTAMP_TZ:
                     (void)cm_timestamp_tz2text((timestamp_tz_t *)data, &g_idx_tstz_fmt, &value,
                                                MAX_INDEX_COLUMN_MSG_LEN);
                     data += sizeof(timestamp_tz_t);
                     break;
-                case GS_TYPE_INTERVAL_YM:
+                case CT_TYPE_INTERVAL_YM:
                     cm_yminterval2text(*(interval_ym_t *)data, &value);
                     data += sizeof(interval_ym_t);
                     break;
-                case GS_TYPE_INTERVAL_DS:
+                case CT_TYPE_INTERVAL_DS:
                     cm_dsinterval2text(*(interval_ds_t *)data, &value);
                     data += sizeof(interval_ds_t);
                     break;
-                case GS_TYPE_DECIMAL:
-                case GS_TYPE_NUMBER3:
-                case GS_TYPE_NUMBER: {
+                case CT_TYPE_DECIMAL:
+                case CT_TYPE_NUMBER3:
+                case CT_TYPE_NUMBER: {
                     dec4_t *d4 = NULL;
                     if (index->desc.cr_mode == CR_PAGE) {
                         d4 = (dec4_t *)data;
@@ -397,21 +411,21 @@ static void index_print_key(knl_session_t *session, index_t *index, const char *
                         d4 = (dec4_t *)(data + sizeof(uint16));
                         data += CM_ALIGN4(*(uint16 *)data + sizeof(uint16));
                     }
-                    (void)cm_dec4_to_text(d4, GS_MAX_DEC_OUTPUT_ALL_PREC, &value);
+                    (void)cm_dec4_to_text(d4, CT_MAX_DEC_OUTPUT_ALL_PREC, &value);
                     break;
                 }
-                case GS_TYPE_NUMBER2: {
+                case CT_TYPE_NUMBER2: {
                     dec2_t d2;
                     cm_dec2_copy_ex(&d2, (const payload_t *)(data + sizeof(uint8)), *(uint8 *)data);
                     data += *(uint8 *)data + sizeof(uint8);
-                    (void)cm_dec2_to_text(&d2, GS_MAX_DEC_OUTPUT_ALL_PREC, &value);
+                    (void)cm_dec2_to_text(&d2, CT_MAX_DEC_OUTPUT_ALL_PREC, &value);
                     break;
                 }
 
                 // if not, go to varchar branch
-                case GS_TYPE_CHAR:
-                case GS_TYPE_VARCHAR:
-                case GS_TYPE_STRING:
+                case CT_TYPE_CHAR:
+                case CT_TYPE_VARCHAR:
+                case CT_TYPE_STRING:
                     value.len = *(uint16 *)data;
                     if (value.len > 0) {
                         value.len = MIN(value.len, MAX_INDEX_COLUMN_MSG_LEN);
@@ -420,9 +434,9 @@ static void index_print_key(knl_session_t *session, index_t *index, const char *
                     }
                     data += CM_ALIGN4(sizeof(uint16) + *(uint16 *)data);
                     break;
-                case GS_TYPE_BINARY:
-                case GS_TYPE_VARBINARY:
-                case GS_TYPE_RAW:
+                case CT_TYPE_BINARY:
+                case CT_TYPE_VARBINARY:
+                case CT_TYPE_RAW:
                     bin.size = *(uint16 *)data;
 
                     /*
@@ -432,7 +446,7 @@ static void index_print_key(knl_session_t *session, index_t *index, const char *
                      */
                     bin.size = MIN(bin.size, (MAX_DUPKEY_MSG_LEN - 1) / 4);
                     bin.bytes = (uint8 *)data + sizeof(uint16);
-                    (void)cm_bin2text(&bin, GS_FALSE, &value);
+                    (void)cm_bin2text(&bin, CT_FALSE, &value);
                     data += CM_ALIGN4(sizeof(uint16) + bin.size);
                     break;
                 default:
@@ -472,9 +486,9 @@ status_t idx_generate_dupkey_error(knl_session_t *session, index_t *index, const
 
     index_print_key(session, index, key, (char *)msg_buf + strlen(msg_buf),
         (uint16)(MAX_DUPKEY_MSG_LEN - strlen(msg_buf)));
-    GS_THROW_ERROR(ERR_DUPLICATE_KEY, msg_buf);
+    CT_THROW_ERROR(ERR_DUPLICATE_KEY, msg_buf);
 
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 static status_t idx_try_put_key_data(uint16 col_size, uint32 datatype, const char *data, idx_data_info_t *key_info,
@@ -487,8 +501,8 @@ static status_t idx_try_put_key_data(uint16 col_size, uint32 datatype, const cha
         key_info->key_size = (uint16)knl_get_key_size(&index->desc, key_info->key_buf) +
                              btree_max_column_size(datatype, col_size, (index->desc.cr_mode == CR_PAGE));
         if (key_info->key_size > key_info->index->desc.max_key_size) {
-            GS_THROW_ERROR(ERR_MAX_KEYLEN_EXCEEDED, index->desc.max_key_size);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_MAX_KEYLEN_EXCEEDED, index->desc.max_key_size);
+            return CT_ERROR;
         }
     }
 
@@ -501,7 +515,7 @@ static status_t idx_try_put_key_data(uint16 col_size, uint32 datatype, const cha
             ((btree_key_t*)key_info->key_buf)->size - size;
         idx_reverse_key_data(key_info->key_buf + offset, datatype, col_size);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t idx_make_virtual_col_data(knl_session_t *session, knl_cursor_t *cursor, index_t *index,
@@ -515,18 +529,18 @@ static status_t idx_make_virtual_col_data(knl_session_t *session, knl_cursor_t *
     dec2_t d2;
 
     if (g_knl_callback.func_idx_exec(session, (void *)cursor, column->datatype, column->default_expr, &expr_value,
-                                     GS_FALSE)) {
-        return GS_ERROR;
+                                     CT_FALSE)) {
+        return CT_ERROR;
     }
 
     if (expr_value.is_null) {
         if (index->desc.primary) {
-            GS_THROW_ERROR(ERR_COLUMN_NOT_NULL, column->name);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_COLUMN_NOT_NULL, column->name);
+            return CT_ERROR;
         }
 
-        key_info->put_method(key_info->key_buf, column->datatype, NULL, GS_NULL_VALUE_LEN, idx_col_slot);
-        return GS_SUCCESS;
+        key_info->put_method(key_info->key_buf, column->datatype, NULL, CT_NULL_VALUE_LEN, idx_col_slot);
+        return CT_SUCCESS;
     }
 
     idx_get_varaint_data(&expr_value, &data, &col_size, &d4, &d2);
@@ -544,15 +558,15 @@ static status_t idx_make_col_data(knl_session_t *session, knl_cursor_t *cursor, 
         return idx_make_virtual_col_data(session, cursor, index, idx_col_slot, key_info);
     }
 
-    bool32 is_null = (CURSOR_COLUMN_SIZE(cursor, col_id) == GS_NULL_VALUE_LEN);
+    bool32 is_null = (CURSOR_COLUMN_SIZE(cursor, col_id) == CT_NULL_VALUE_LEN);
     if (is_null) {
         if (index->desc.primary) {
-            GS_THROW_ERROR(ERR_COLUMN_NOT_NULL, column->name);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_COLUMN_NOT_NULL, column->name);
+            return CT_ERROR;
         }
 
-        key_info->put_method(key_info->key_buf, column->datatype, NULL, GS_NULL_VALUE_LEN, idx_col_slot);
-        return GS_SUCCESS;
+        key_info->put_method(key_info->key_buf, column->datatype, NULL, CT_NULL_VALUE_LEN, idx_col_slot);
+        return CT_SUCCESS;
     }
 
     uint16 col_size = CURSOR_COLUMN_SIZE(cursor, col_id);
@@ -582,8 +596,8 @@ status_t knl_make_key(knl_handle_t session, knl_cursor_t *cursor, index_t *index
     idx_init_key_data(cursor, index, key_buf, &key_info);
     /* the max value of index->desc.column_count is 16 */
     for (uint32 i = 0; i < index->desc.column_count; i++) {
-        if (idx_make_col_data((knl_session_t *)session, cursor, index, i, &key_info) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (idx_make_col_data((knl_session_t *)session, cursor, index, i, &key_info) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
     /*
@@ -604,7 +618,7 @@ status_t knl_make_key(knl_handle_t session, knl_cursor_t *cursor, index_t *index
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t idx_generate_update_keyinfo(knl_session_t *session, knl_cursor_t *cursor, uint16 *map,
@@ -619,19 +633,19 @@ static status_t idx_generate_update_keyinfo(knl_session_t *session, knl_cursor_t
     char *data = NULL;
     uint16 col_size;
     uint32 type;
-    bool32 is_new = (map[idx_col_slot] != GS_INVALID_ID16);
+    bool32 is_new = (map[idx_col_slot] != CT_INVALID_ID16);
     dec4_t d4;
     dec2_t d2;
 
     if (SECUREC_UNLIKELY(KNL_COLUMN_IS_VIRTUAL(column))) {
         if (g_knl_callback.func_idx_exec(session, (void *)cursor, column->datatype, column->default_expr, &expr_value,
-                                         is_new) != GS_SUCCESS) {
-            return GS_ERROR;
+                                         is_new) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (is_new && index->desc.primary && expr_value.is_null) {
-            GS_THROW_ERROR(ERR_COLUMN_NOT_NULL, index->desc.name);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_COLUMN_NOT_NULL, index->desc.name);
+            return CT_ERROR;
         }
         type = (uint32)expr_value.type;
         idx_get_varaint_data(&expr_value, &data, &col_size, &d4, &d2);
@@ -639,9 +653,9 @@ static status_t idx_generate_update_keyinfo(knl_session_t *session, knl_cursor_t
         type = column->datatype;
         if (is_new) {
             uint32 uid = map[idx_col_slot];
-            if (index->desc.primary && ui->lens[uid] == GS_NULL_VALUE_LEN) {
-                GS_THROW_ERROR(ERR_COLUMN_NOT_NULL, index->desc.name);
-                return GS_ERROR;
+            if (index->desc.primary && ui->lens[uid] == CT_NULL_VALUE_LEN) {
+                CT_THROW_ERROR(ERR_COLUMN_NOT_NULL, index->desc.name);
+                return CT_ERROR;
             }
             data = ui->data + ui->offsets[uid];
             col_size = ui->lens[uid];
@@ -662,9 +676,9 @@ status_t knl_make_update_key(knl_handle_t session, knl_cursor_t *cursor, index_t
     idx_init_key_data(cursor, index, key_buf, &key_info);
     /* the max value of index->desc.column_count is 16 */
     for (uint32 i = 0; i < index->desc.column_count; i++) {
-        if (idx_generate_update_keyinfo(session, cursor, map, i, &key_info) != GS_SUCCESS) {
+        if (idx_generate_update_keyinfo(session, cursor, map, i, &key_info) != CT_SUCCESS) {
             cm_pop(((knl_session_t *)session)->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -672,18 +686,18 @@ status_t knl_make_update_key(knl_handle_t session, knl_cursor_t *cursor, index_t
     if (IS_PART_TABLE(cursor->table) && !IS_PART_INDEX(cursor->index)) {
         if (index->desc.cr_mode == CR_PAGE) {
             pcrb_put_part_id(key_buf, ((table_part_t *)cursor->table_part)->desc.part_id);
-            if (cursor->part_loc.subpart_no != GS_INVALID_ID32) {
+            if (cursor->part_loc.subpart_no != CT_INVALID_ID32) {
                 pcrb_put_part_id(key_buf, ((table_part_t *)cursor->table_part)->desc.parent_partid);
             }
         } else {
             btree_put_part_id(key_buf, ((table_part_t *)cursor->table_part)->desc.part_id);
-            if (cursor->part_loc.subpart_no != GS_INVALID_ID32) {
+            if (cursor->part_loc.subpart_no != CT_INVALID_ID32) {
                 btree_put_part_id(key_buf, ((table_part_t *)cursor->table_part)->desc.parent_partid);
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t idx_construct(btree_mt_context_t *ctx)
@@ -717,8 +731,8 @@ static table_part_t *idx_get_table_part(knl_session_t *session, knl_dictionary_t
     }
 
     if (!table_part->heap.loaded && !IS_INVALID_PAGID(table_part->heap.entry)) {
-        if (dc_load_table_part_segment(session, dc->handle, table_part) != GS_SUCCESS) {
-            GS_LOG_RUN_WAR("idx coalesce load segment failed.");
+        if (dc_load_table_part_segment(session, dc->handle, table_part) != CT_SUCCESS) {
+            CT_LOG_RUN_WAR("idx coalesce load segment failed.");
             cm_reset_error();
             return NULL;
         }
@@ -735,10 +749,10 @@ static btree_t *idx_get_recycle_btree(knl_session_t *session, knl_dictionary_t *
         return NULL;
     }
 
-    part_loc->part_no = GS_INVALID_ID32;
-    part_loc->subpart_no = GS_INVALID_ID32;
+    part_loc->part_no = CT_INVALID_ID32;
+    part_loc->subpart_no = CT_INVALID_ID32;
 
-    if (item->part_org_scn == GS_INVALID_ID64) {
+    if (item->part_org_scn == CT_INVALID_ID64) {
         return &index->btree;
     }
 
@@ -773,7 +787,7 @@ static btree_t *idx_get_recycle_btree(knl_session_t *session, knl_dictionary_t *
         part_loc->subpart_no = table_part->part_no;
     } else {
         part_loc->part_no = table_part->part_no;
-        part_loc->subpart_no = GS_INVALID_ID32;
+        part_loc->subpart_no = CT_INVALID_ID32;
     }
     
     return &index_part->btree;
@@ -786,52 +800,52 @@ static bool32 index_need_rebuild(knl_session_t *session, idx_recycle_stats_t *id
     uint64 sparse_size = sparse_pages * page_size;
 
     if (!session->kernel->attr.idx_auto_rebuild) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    if (sparse_size >= GS_MIN_INDEX_RECYCLE_SIZE) {
+    if (sparse_size >= CT_MIN_INDEX_RECYCLE_SIZE) {
         if (sparse_pages > idx_stats->total_leafs * INDEX_NEED_REBUILD_RATION ||
             sparse_size > INDEX_NEED_REBUILD_SIZE) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    GS_LOG_DEBUG_INF("no need rebuild index %s, sparse_pages %llu, sparse size %llu.",
+    CT_LOG_DEBUG_INF("no need rebuild index %s, sparse_pages %llu, sparse size %llu.",
         btree->index->desc.name, sparse_pages, sparse_size);
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static status_t idx_coalesce(knl_session_t *session, knl_dictionary_t *dc, index_recycle_item_t *item,
                              idx_recycle_stats_t *stats)
 {
-    bool32 lock_inuse = GS_FALSE;
+    bool32 lock_inuse = CT_FALSE;
     btree_t *btree = NULL;
     knl_part_locate_t part_loc;
 
     if (!lock_table_without_xact(session, dc->handle, &lock_inuse)) {
-        stats->need_coalesce = GS_TRUE;
-        GS_LOG_RUN_INF("coalesce lock table failed.idx_id %u, uid %u, table_id %u, part_org_scn %llu",
+        stats->need_coalesce = CT_TRUE;
+        CT_LOG_RUN_INF("coalesce lock table failed.idx_id %u, uid %u, table_id %u, part_org_scn %llu",
             item->index_id, item->uid, item->table_id, item->part_org_scn);
         cm_reset_error();
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     btree = idx_get_recycle_btree(session, dc, item, &part_loc);
     if (btree == NULL || btree->segment == NULL) {
-        GS_LOG_RUN_INF("no need coalesce index, segment is null."
+        CT_LOG_RUN_INF("no need coalesce index, segment is null."
             "idx_id %u, uid %u, table_id %u, part_org_scn %llu.",
             item->index_id, item->uid, item->table_id, item->part_org_scn);
         if (btree != NULL) {
-            btree->wait_recycle = GS_FALSE;
+            btree->wait_recycle = CT_FALSE;
         }
-        stats->need_coalesce = GS_FALSE;
+        stats->need_coalesce = CT_FALSE;
         unlock_table_without_xact(session, dc->handle, lock_inuse);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (btree_coalesce(session, btree, stats, part_loc, GS_TRUE) != GS_SUCCESS) {
+    if (btree_coalesce(session, btree, stats, part_loc, CT_TRUE) != CT_SUCCESS) {
         unlock_table_without_xact(session, dc->handle, lock_inuse);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (index_need_rebuild(session, stats, btree)) {
@@ -840,7 +854,7 @@ static status_t idx_coalesce(knl_session_t *session, knl_dictionary_t *dc, index
 
     unlock_table_without_xact(session, dc->handle, lock_inuse);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t idx_recycle_index_pages(knl_session_t *session, index_recycle_item_t *item, idx_recycle_stats_t *stats)
@@ -848,9 +862,9 @@ static status_t idx_recycle_index_pages(knl_session_t *session, index_recycle_it
     knl_dictionary_t dc;
     status_t status;
     knl_scn_t min_scn = btree_get_recycle_min_scn(session);
-    stats->need_coalesce = GS_FALSE;
+    stats->need_coalesce = CT_FALSE;
     stats->initerval_scn = db_time_scn(session, session->kernel->attr.idx_force_recycle_time, 0);
-    stats->xid_val = GS_INVALID_ID64;
+    stats->xid_val = CT_INVALID_ID64;
 
     if (item->is_tx_active) {
         txn_info_t txn_info;
@@ -860,44 +874,44 @@ static status_t idx_recycle_index_pages(knl_session_t *session, index_recycle_it
         itl.xid = item->xid;
 
         if (DB_IS_CLUSTER(session)) {
-            dtc_get_txn_info(session, GS_FALSE, itl.xid, &txn_info);
+            dtc_get_txn_info(session, CT_FALSE, itl.xid, &txn_info);
         } else {
-            tx_get_info(session, GS_FALSE, itl.xid, &txn_info);
+            tx_get_info(session, CT_FALSE, itl.xid, &txn_info);
         }
 
         if (txn_info.status != XACT_END) {
-            stats->need_coalesce = GS_TRUE;
-            GS_LOG_DEBUG_INF("has active txn, wait coalesce agin."
+            stats->need_coalesce = CT_TRUE;
+            CT_LOG_DEBUG_INF("has active txn, wait coalesce agin."
                 "idx_id %u, uid %u, table_id %u, part_org_scn %llu",
                 item->index_id, item->uid, item->table_id, item->part_org_scn);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        item->is_tx_active = GS_FALSE;
+        item->is_tx_active = CT_FALSE;
         item->scn = txn_info.scn;
     }
 
     if (!bt_recycle_time_expire(session, stats->initerval_scn, min_scn, item->scn)) {
-        stats->need_coalesce = GS_TRUE;
+        stats->need_coalesce = CT_TRUE;
 
-        GS_LOG_DEBUG_INF("coalesce unexpire.idx_id %u, uid %u, table_id %u, part_org_scn %llu",
+        CT_LOG_DEBUG_INF("coalesce unexpire.idx_id %u, uid %u, table_id %u, part_org_scn %llu",
             item->index_id, item->uid, item->table_id, item->part_org_scn);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (knl_open_dc_by_id(session, item->uid, item->table_id, &dc, GS_TRUE) != GS_SUCCESS) {
-        stats->need_coalesce = GS_FALSE;
-        GS_LOG_RUN_WAR("coalesce open dc failed.idx_id %u, uid %u, table_id %u, part_org_scn %llu",
+    if (knl_open_dc_by_id(session, item->uid, item->table_id, &dc, CT_TRUE) != CT_SUCCESS) {
+        stats->need_coalesce = CT_FALSE;
+        CT_LOG_RUN_WAR("coalesce open dc failed.idx_id %u, uid %u, table_id %u, part_org_scn %llu",
             item->index_id, item->uid, item->table_id, item->part_org_scn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     status = idx_coalesce(session, &dc, item, stats);
-    if (status == GS_SUCCESS && stats->need_coalesce) {
+    if (status == CT_SUCCESS && stats->need_coalesce) {
         item->scn = DB_NOW_TO_SCN(session);
-        if (stats->xid_val != GS_INVALID_ID64) {
+        if (stats->xid_val != CT_INVALID_ID64) {
             item->xid.value = stats->xid_val;
-            item->is_tx_active = GS_TRUE;
+            item->is_tx_active = CT_TRUE;
         }
     }
 
@@ -913,7 +927,7 @@ static void idx_recycle_move_to_tail(knl_session_t *session)
     cm_spin_lock(&ctx->lock, NULL);
 
     uint32 id = ctx->idx_list.first;
-    GS_LOG_DEBUG_INF("move item to tail."
+    CT_LOG_DEBUG_INF("move item to tail."
         "xid %llu scn %llu part_org_scn %llu table_id %u part_no %u uid %u index_id %u is_tx_active %d",
         ctx->items[id].xid.value, ctx->items[id].scn, ctx->items[id].part_org_scn, ctx->items[id].table_id,
         ctx->items[id].part_no, ctx->items[id].uid, ctx->items[id].index_id, ctx->items[id].is_tx_active);
@@ -927,7 +941,7 @@ static void idx_recycle_move_to_tail(knl_session_t *session)
     ctx->items[ctx->idx_list.last].next = id;
     ctx->idx_list.first = ctx->items[id].next;
     ctx->idx_list.last = id;
-    ctx->items[id].next = GS_INVALID_ID32;
+    ctx->items[id].next = CT_INVALID_ID32;
     cm_spin_unlock(&ctx->lock);
 }
 
@@ -947,16 +961,16 @@ void idx_try_recycle(knl_session_t *session)
     uint32 id = ctx->idx_list.first;
     cm_spin_unlock(&ctx->lock);
 
-    if (id != GS_INVALID_ID32) {
+    if (id != CT_INVALID_ID32) {
         item = &ctx->items[id];
 
-        if (idx_recycle_index_pages(session, item, &stats) == GS_SUCCESS) {
+        if (idx_recycle_index_pages(session, item, &stats) == CT_SUCCESS) {
             if (stats.need_coalesce) {
                 idx_recycle_move_to_tail(session);
                 return;
             }
         } else {
-            GS_LOG_DEBUG_INF("remove uid %u idx_id %u table_id %u part_org_scn %llu",
+            CT_LOG_DEBUG_INF("remove uid %u idx_id %u table_id %u part_org_scn %llu",
                 item->uid, item->index_id, item->table_id, item->part_org_scn);
             cm_reset_error();
         }
@@ -977,11 +991,11 @@ void idx_try_recycle(knl_session_t *session)
         ctx->idx_list.first = id;
 
         if (ctx->idx_list.count == 0) {
-            ctx->idx_list.last = GS_INVALID_ID32;
+            ctx->idx_list.last = CT_INVALID_ID32;
         }
 
-        item->next = GS_INVALID_ID32;
-        item->index_id = GS_INVALID_ID32;
+        item->next = CT_INVALID_ID32;
+        item->index_id = CT_INVALID_ID32;
         cm_spin_unlock(&ctx->lock);
     }
 }
@@ -995,10 +1009,10 @@ void idx_recycle_proc(thread_t *thread)
     uint32 count = 0;
 
     cm_set_thread_name("index_recycle");
-    GS_LOG_RUN_INF("index page recycle thread started");
+    CT_LOG_RUN_INF("index page recycle thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
 
-    ctx->is_working = GS_FALSE;
+    ctx->is_working = CT_FALSE;
 
     while (!thread->closed) {
         if (session->kernel->db.status != DB_STATUS_OPEN) {
@@ -1031,14 +1045,14 @@ void idx_recycle_proc(thread_t *thread)
             }
 
             idx_try_recycle(session);
-            ctx->is_working = GS_FALSE;
+            ctx->is_working = CT_FALSE;
         }
 
         cm_sleep(RECYCLE_PROC_STIME);
         count++;
     }
 
-    GS_LOG_RUN_INF("index_recycle thread closed");
+    CT_LOG_RUN_INF("index_recycle thread closed");
     KNL_SESSION_CLEAR_THREADID(session);
 }
 
@@ -1048,7 +1062,7 @@ void idx_recycle_close(knl_session_t *session)
     index_recycle_ctx_t *ctx = &kernel->index_ctx.recycle_ctx;
     knl_session_t *recycle_se = kernel->sessions[SESSION_ID_IDX_RECYCLE];
 
-    recycle_se->killed = GS_TRUE;
+    recycle_se->killed = CT_TRUE;
     cm_close_thread(&ctx->thread);
 }
 
@@ -1064,12 +1078,12 @@ static uint32 idx_cal_keys_count(knl_session_t *session, idx_range_info_t org_in
     next_page_id = AS_PAGID(page->next);
     if (IS_INVALID_PAGID(next_page_id) || IS_SAME_PAGID(org_info.l_page[level], org_info.r_page[level])) {
         keys += org_info.r_slot[level] - org_info.l_slot[level] + 1;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return keys;
     }
 
     keys += page->keys - org_info.l_slot[level];
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     for (;;) {
         buf_enter_page(session, next_page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL);
@@ -1077,12 +1091,12 @@ static uint32 idx_cal_keys_count(knl_session_t *session, idx_range_info_t org_in
 
         if (IS_SAME_PAGID(next_page_id, org_info.r_page[level])) {
             keys += org_info.r_slot[level] + 1;
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             break;
         }
         keys += page->keys;
         next_page_id = AS_PAGID(page->next);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
         if (IS_INVALID_PAGID(next_page_id)) {
             return keys;
@@ -1109,26 +1123,26 @@ status_t idx_get_tree_info(knl_session_t *session, btree_t *btree, knl_scn_t org
     btree_segment_t *segment = NULL;
     page_head_t *head = NULL;
 
-    if (buf_read_page(session, btree->entry, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (buf_read_page(session, btree->entry, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     head = (page_head_t *)session->curr_page;
     segment = BTREE_GET_SEGMENT(session);
     if (head->type != PAGE_TYPE_BTREE_HEAD || segment->org_scn != org_scn) {
-        buf_leave_page(session, GS_FALSE);
-        GS_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, btree->index->desc.name);
-        return GS_ERROR;
+        buf_leave_page(session, CT_FALSE);
+        CT_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, btree->index->desc.name);
+        return CT_ERROR;
     }
 
     tree_info->value = cm_atomic_get(&BTREE_SEGMENT(session, btree->entry, btree->segment)->tree_info.value);
     if (!spc_validate_page_id(session, AS_PAGID(tree_info->root))) {
-        buf_leave_page(session, GS_FALSE);
-        GS_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, btree->index->desc.name);
-        return GS_ERROR;
+        buf_leave_page(session, CT_FALSE);
+        CT_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, btree->index->desc.name);
+        return CT_ERROR;
     }
 
-    buf_leave_page(session, GS_FALSE);
-    return GS_SUCCESS;
+    buf_leave_page(session, CT_FALSE);
+    return CT_SUCCESS;
 }
 
 // get left border info and right border info on (root - 1) level from org_key
@@ -1142,20 +1156,20 @@ static void idx_get_org_range(knl_session_t *session, index_t *index, knl_tree_i
     btree_page_t *page = NULL;
     page_id_t child_page_id;
     btree_path_info_t path_info;
-    bool32 is_same = GS_FALSE;
+    bool32 is_same = CT_FALSE;
 
     child_page_id = AS_PAGID(tree_info.root);
     for (;;) {
         buf_enter_page(session, child_page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL);
         page = (btree_page_t *)session->curr_page;
 
-        idx_binary_search(index, session->curr_page, &org_key, &path_info, GS_TRUE, &is_same);
+        idx_binary_search(index, session->curr_page, &org_key, &path_info, CT_TRUE, &is_same);
         slot[page->level] = (uint32)path_info.path[page->level].slot;
         page_id[page->level] = AS_PAGID(page->head.id);
 
         /* level 2 means root level is 1, we split range at least on level 1 */
         if (tree_info.level == 2 || page->level < tree_info.level - 1) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             break;
         }
 
@@ -1169,7 +1183,7 @@ static void idx_get_org_range(knl_session_t *session, index_t *index, knl_tree_i
             child_page_id = btree_key->child;
         }
 
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 }
 
@@ -1184,23 +1198,23 @@ status_t idx_get_paral_schedule(knl_session_t *session, btree_t *btree, knl_scn_
 
     if (paral_info.workers == 1) {
         sub_ranges->workers = 1;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (idx_get_tree_info(session, btree, org_scn, &tree_info) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (idx_get_tree_info(session, btree, org_scn, &tree_info) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (tree_info.level == 1) {
         sub_ranges->workers = 1;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     root_level = tree_info.level - 1;
     err = memset_sp(&org_info, sizeof(idx_range_info_t), 0, sizeof(idx_range_info_t));
     knl_securec_check(err);
 
-    dls_latch_s(session, &btree->struct_latch, session->id, GS_FALSE, &session->stat_btree);
+    dls_latch_s(session, &btree->struct_latch, session->id, CT_FALSE, &session->stat_btree);
 
     idx_get_org_range(session, btree->index, tree_info, org_range->l_key, org_info.l_slot, org_info.l_page);
     idx_get_org_range(session, btree->index, tree_info, org_range->r_key, org_info.r_slot, org_info.r_page);
@@ -1216,7 +1230,7 @@ status_t idx_get_paral_schedule(knl_session_t *session, btree_t *btree, knl_scn_
     if (org_info.keys <= 1) {
         sub_ranges->workers = 1;
         dls_unlatch(session, &btree->struct_latch, &session->stat_btree);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     sub_ranges->workers = (org_info.keys < paral_info.workers) ? org_info.keys : paral_info.workers;
 
@@ -1229,9 +1243,9 @@ status_t idx_get_paral_schedule(knl_session_t *session, btree_t *btree, knl_scn_
     dls_unlatch(session, &btree->struct_latch, &session->stat_btree);
 
     for (i = 0; i < sub_ranges->workers; i++) {
-        sub_ranges->index_range[i]->is_equal = GS_FALSE;
+        sub_ranges->index_range[i]->is_equal = CT_FALSE;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void idx_enter_next_range(knl_session_t *session, page_id_t page_id, uint32 slot, uint32 step, uint32 *border)
@@ -1249,7 +1263,7 @@ void idx_enter_next_range(knl_session_t *session, page_id_t page_id, uint32 slot
 
     num += page->keys - slot - 1;
     next_page_id = AS_PAGID(page->next);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     for (;;) {
         buf_enter_page(session, next_page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL);
@@ -1266,7 +1280,7 @@ void idx_enter_next_range(knl_session_t *session, page_id_t page_id, uint32 slot
 
         num += page->keys;
         next_page_id = AS_PAGID(page->next);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 }
 
@@ -1402,47 +1416,50 @@ void idx_reverse_timestamp(timestamp_tz_t *key_value)
     idx_reverse_uint64(tstamp);
 }
 
-uint16 idx_get_col_size(gs_type_t type, uint16 len, bool32 is_pcr)
+uint16 idx_get_col_size(ct_type_t type, uint16 len, bool32 is_pcr)
 {
     switch (type) {
-        case GS_TYPE_UINT32:
-        case GS_TYPE_INTEGER:
-        case GS_TYPE_BOOLEAN:
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_UINT32:
+        case CT_TYPE_INTEGER:
+        case CT_TYPE_BOOLEAN:
+        case CT_TYPE_INTERVAL_YM:
             return sizeof(int32);
 
-        case GS_TYPE_INTERVAL_DS:
-        case GS_TYPE_BIGINT:
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_INTERVAL_DS:
+        case CT_TYPE_BIGINT:
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_DATE_MYSQL:
             return sizeof(int64);
 
-        case GS_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIMESTAMP_TZ:
             return sizeof(timestamp_tz_t);
 
-        case GS_TYPE_REAL:
+        case CT_TYPE_REAL:
             return sizeof(double);
 
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_DECIMAL:
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_DECIMAL:
             if (is_pcr) {
                 return CM_ALIGN4(len);
             } else {
                 return (CM_ALIGN4(len + sizeof(uint16)) - sizeof(uint16));
             }
             
-        case GS_TYPE_NUMBER2:
+        case CT_TYPE_NUMBER2:
             return len;
 
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
-        case GS_TYPE_BINARY:
-        case GS_TYPE_VARBINARY:
-        case GS_TYPE_RAW:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
+        case CT_TYPE_BINARY:
+        case CT_TYPE_VARBINARY:
+        case CT_TYPE_RAW:
             return (CM_ALIGN4(len + sizeof(uint16)) - sizeof(uint16));
 
         default:
@@ -1450,54 +1467,57 @@ uint16 idx_get_col_size(gs_type_t type, uint16 len, bool32 is_pcr)
     }
 }
 
-void idx_reverse_key_data(char *data, gs_type_t type, uint16 len)
+void idx_reverse_key_data(char *data, ct_type_t type, uint16 len)
 {
-    if (data == NULL || len == GS_NULL_VALUE_LEN) {
+    if (data == NULL || len == CT_NULL_VALUE_LEN) {
         return;
     }
 
     switch (type) {
-        case GS_TYPE_UINT32:
-        case GS_TYPE_INTEGER:
-        case GS_TYPE_BOOLEAN:
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_UINT32:
+        case CT_TYPE_INTEGER:
+        case CT_TYPE_BOOLEAN:
+        case CT_TYPE_INTERVAL_YM:
             idx_reverse_uint32((uint32*)data);
             break;
 
-        case GS_TYPE_INTERVAL_DS:
-        case GS_TYPE_BIGINT:
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_INTERVAL_DS:
+        case CT_TYPE_BIGINT:
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_DATE_MYSQL:
             idx_reverse_uint64((uint64*)data);
             break;
 
-        case GS_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIMESTAMP_TZ:
             idx_reverse_timestamp((timestamp_tz_t*)data);
             break;
 
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_DECIMAL:
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_DECIMAL:
             idx_reverse_number((dec4_t *)data);
             break;
 
-        case GS_TYPE_NUMBER2:
+        case CT_TYPE_NUMBER2:
             idx_reverse_number2((payload_t *)data, len);
             break;
 
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
-        case GS_TYPE_BINARY:
-        case GS_TYPE_VARBINARY:
-        case GS_TYPE_RAW:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
+        case CT_TYPE_BINARY:
+        case CT_TYPE_VARBINARY:
+        case CT_TYPE_RAW:
             idx_reverse_string(data, len);
             break;
 
         default:
-            GS_LOG_RUN_WAR("[PCRB] unknown datatype %u when generate key data", type);
+            CT_LOG_RUN_WAR("[PCRB] unknown datatype %u when generate key data", type);
             knl_panic(0);
     }
 }
@@ -1509,18 +1529,18 @@ void auto_rebuild_init(knl_session_t *session)
     auto_rebuild_item_t *item = NULL;
 
     ctx->idx_list.count = 0;
-    ctx->idx_list.first = GS_INVALID_ID32;
-    ctx->idx_list.last = GS_INVALID_ID32;
+    ctx->idx_list.first = CT_INVALID_ID32;
+    ctx->idx_list.last = CT_INVALID_ID32;
 
-    ctx->free_list.count = GS_MAX_RECYCLE_INDEXES;
+    ctx->free_list.count = CT_MAX_RECYCLE_INDEXES;
     ctx->free_list.first = 0;
-    ctx->free_list.last = GS_MAX_RECYCLE_INDEXES - 1;
+    ctx->free_list.last = CT_MAX_RECYCLE_INDEXES - 1;
 
-    for (id = 0; id < GS_MAX_RECYCLE_INDEXES; id++) {
+    for (id = 0; id < CT_MAX_RECYCLE_INDEXES; id++) {
         item = &ctx->items[id];
         errno_t err = memset_sp(item, sizeof(auto_rebuild_item_t), 0, sizeof(auto_rebuild_item_t));
         knl_securec_check(err);
-        item->next = (id == (GS_MAX_RECYCLE_INDEXES - 1)) ? GS_INVALID_ID32 : (id + 1);
+        item->next = (id == (CT_MAX_RECYCLE_INDEXES - 1)) ? CT_INVALID_ID32 : (id + 1);
     }
 }
 
@@ -1546,7 +1566,7 @@ static void auto_rebuild_move_to_tail(knl_session_t *session)
     ctx->items[ctx->idx_list.last].next = id;
     ctx->idx_list.first = ctx->items[id].next;
     ctx->idx_list.last = id;
-    ctx->items[id].next = GS_INVALID_ID32;
+    ctx->items[id].next = CT_INVALID_ID32;
     cm_spin_unlock(&ctx->lock);
 }
 
@@ -1557,7 +1577,7 @@ static status_t auto_rebuild_alloc_item(knl_session_t *session, uint32 *id)
 
     if (ctx->free_list.count == 0) {
         cm_spin_unlock(&ctx->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *id = ctx->free_list.first;
@@ -1565,10 +1585,10 @@ static status_t auto_rebuild_alloc_item(knl_session_t *session, uint32 *id)
 
     ctx->free_list.count--;
     ctx->free_list.first = item->next;
-    item->next = GS_INVALID_ID32;
+    item->next = CT_INVALID_ID32;
 
     if (ctx->free_list.count == 0) {
-        ctx->free_list.last = GS_INVALID_ID32;
+        ctx->free_list.last = CT_INVALID_ID32;
     }
 
     if (ctx->idx_list.count == 0) {
@@ -1582,7 +1602,7 @@ static status_t auto_rebuild_alloc_item(knl_session_t *session, uint32 *id)
 
     cm_spin_unlock(&ctx->lock);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void auto_rebuild_release_item(knl_session_t *session, uint32 id_input)
@@ -1610,10 +1630,10 @@ void auto_rebuild_release_item(knl_session_t *session, uint32 id_input)
     ctx->idx_list.first = id;
 
     if (ctx->idx_list.count == 0) {
-        ctx->idx_list.last = GS_INVALID_ID32;
+        ctx->idx_list.last = CT_INVALID_ID32;
     }
 
-    item->next = GS_INVALID_ID32;
+    item->next = CT_INVALID_ID32;
     item->state = AREBUILD_INDEX_INVALID;
 
     cm_spin_unlock(&ctx->lock);
@@ -1627,7 +1647,7 @@ static bool8 auto_rebuild_index_exist(knl_session_t *session, auto_rebuild_item_
 
     cm_spin_lock(&ctx->lock, NULL);
 
-    while (cur_index != GS_INVALID_ID32) {
+    while (cur_index != CT_INVALID_ID32) {
         cur_item = &ctx->items[cur_index];
 
         if (cm_str_equal(item->name, cur_item->name) &&
@@ -1640,7 +1660,7 @@ static bool8 auto_rebuild_index_exist(knl_session_t *session, auto_rebuild_item_
             }
 
             cm_spin_unlock(&ctx->lock);
-            return GS_TRUE;
+            return CT_TRUE;
         }
 
         cur_index = cur_item->next;
@@ -1648,7 +1668,7 @@ static bool8 auto_rebuild_index_exist(knl_session_t *session, auto_rebuild_item_
 
     cm_spin_unlock(&ctx->lock);
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static void auto_rebuild_fill_item(index_t *index, knl_part_locate_t part_loc, auto_rebuild_item_t *item)
@@ -1656,23 +1676,23 @@ static void auto_rebuild_fill_item(index_t *index, knl_part_locate_t part_loc, a
     index_part_t *index_part = NULL;
     errno_t err;
 
-    if (part_loc.part_no != GS_INVALID_ID32 &&
-        part_loc.subpart_no != GS_INVALID_ID32) {
+    if (part_loc.part_no != CT_INVALID_ID32 &&
+        part_loc.subpart_no != CT_INVALID_ID32) {
         index_part = INDEX_GET_PART(index, part_loc.part_no);
         index_part = PART_GET_SUBENTITY(index->part_index, index_part->subparts[part_loc.subpart_no]);
         item->type = ALINDEX_TYPE_REBUILD_SUBPART;
         item->scn = index_part->btree.segment->seg_scn;
         item->org_scn = index_part->btree.segment->org_scn;
 
-        err = memcpy_sp((void *)&item->part_name[0], GS_NAME_BUFFER_SIZE, index_part->desc.name, GS_NAME_BUFFER_SIZE);
+        err = memcpy_sp((void *)&item->part_name[0], CT_NAME_BUFFER_SIZE, index_part->desc.name, CT_NAME_BUFFER_SIZE);
         knl_securec_check(err);
-    } else if (part_loc.part_no != GS_INVALID_ID32) {
+    } else if (part_loc.part_no != CT_INVALID_ID32) {
         index_part = INDEX_GET_PART(index, part_loc.part_no);
         item->type = ALINDEX_TYPE_REBUILD_PART;
         item->scn = index_part->btree.segment->seg_scn;
         item->org_scn = index_part->btree.segment->org_scn;
 
-        err = memcpy_sp((void *)&item->part_name[0], GS_NAME_BUFFER_SIZE, index_part->desc.name, GS_NAME_BUFFER_SIZE);
+        err = memcpy_sp((void *)&item->part_name[0], CT_NAME_BUFFER_SIZE, index_part->desc.name, CT_NAME_BUFFER_SIZE);
         knl_securec_check(err);
     } else {
         item->type = ALINDEX_TYPE_REBUILD;
@@ -1690,13 +1710,13 @@ void auto_rebuild_add_index(knl_session_t *session, index_t *index, knl_part_loc
     auto_rebuild_item_t item;
    
     if (dc_is_reserved_entry(index->desc.uid, index->desc.table_id)) {
-        GS_LOG_RUN_INF("user_id %u,table_id %u,index_name %s part(%d,%d) system table index rebuild is not supported.",
+        CT_LOG_RUN_INF("user_id %u,table_id %u,index_name %s part(%d,%d) system table index rebuild is not supported.",
             index->desc.uid, index->desc.table_id, index->desc.name, part_loc.part_no, part_loc.subpart_no);
         return;
     }
 
     if (index->desc.is_func) {
-        GS_LOG_RUN_INF("user_id %u,table_id %u,index_name %s part(%d,%d) function index rebuild is not supported.",
+        CT_LOG_RUN_INF("user_id %u,table_id %u,index_name %s part(%d,%d) function index rebuild is not supported.",
             index->desc.uid, index->desc.table_id, index->desc.name, part_loc.part_no, part_loc.subpart_no);
         return;
     }
@@ -1706,19 +1726,19 @@ void auto_rebuild_add_index(knl_session_t *session, index_t *index, knl_part_loc
     item.uid = index->desc.uid;
     item.state = AREBUILD_INDEX_WAITTING;
 
-    err = memcpy_sp((void *)&item.name[0], GS_NAME_BUFFER_SIZE, index->desc.name, GS_NAME_BUFFER_SIZE);
+    err = memcpy_sp((void *)&item.name[0], CT_NAME_BUFFER_SIZE, index->desc.name, CT_NAME_BUFFER_SIZE);
     knl_securec_check(err);
     
     // index_id multiplex check
     if (auto_rebuild_index_exist(session, &item)) {
-        GS_LOG_RUN_INF("user_id %u,table_id %u,index_name %s part(%d,%d) already exist.", index->desc.uid,
+        CT_LOG_RUN_INF("user_id %u,table_id %u,index_name %s part(%d,%d) already exist.", index->desc.uid,
             index->desc.table_id, index->desc.name, part_loc.part_no, part_loc.subpart_no);
         return;
     }
 
     alloc_status = auto_rebuild_alloc_item(session, &item_id);
-    if (alloc_status != GS_SUCCESS) {
-        GS_LOG_RUN_INF("insufficient memory, user_id %u,table_id %u,index_name %s alloc failure",
+    if (alloc_status != CT_SUCCESS) {
+        CT_LOG_RUN_INF("insufficient memory, user_id %u,table_id %u,index_name %s alloc failure",
             index->desc.uid, index->desc.table_id, index->desc.name);
         return;
     }
@@ -1730,7 +1750,7 @@ void auto_rebuild_add_index(knl_session_t *session, index_t *index, knl_part_loc
     knl_securec_check(err);
     cm_spin_unlock(&ctx->lock);
 
-    GS_LOG_RUN_INF("user_id %u,table_id %u,index_name %s part(%d,%d) added to auto rebuild list.",
+    CT_LOG_RUN_INF("user_id %u,table_id %u,index_name %s part(%d,%d) added to auto rebuild list.",
         index->desc.uid, index->desc.table_id, index->desc.name, part_loc.part_no, part_loc.subpart_no);
 }
 
@@ -1740,9 +1760,9 @@ static status_t auto_rebuild_entity(knl_session_t *session, knl_alindex_def_t *r
     knl_securec_check(err);
     cm_str2text(item->name, &rebuild_def->name);
     rebuild_def->type = item->type;
-    rebuild_def->rebuild.is_online = GS_TRUE;
-    rebuild_def->rebuild.pctfree = GS_INVALID_ID32;
-    rebuild_def->rebuild.cr_mode = GS_INVALID_ID8;
+    rebuild_def->rebuild.is_online = CT_TRUE;
+    rebuild_def->rebuild.pctfree = CT_INVALID_ID32;
+    rebuild_def->rebuild.cr_mode = CT_INVALID_ID8;
     rebuild_def->rebuild.lock_timeout = SECONDS_PER_HOUR;
     rebuild_def->rebuild.org_scn = item->org_scn;
 
@@ -1753,16 +1773,16 @@ static status_t auto_rebuild_entity(knl_session_t *session, knl_alindex_def_t *r
     }
 
     item->state = AREBUILD_INDEX_RUNNING;
-    if (knl_alter_index(session, NULL, rebuild_def) != GS_SUCCESS) {
+    if (knl_alter_index(session, NULL, rebuild_def) != CT_SUCCESS) {
         // update the item scn and and lower priority
         if (cm_get_error_code() == ERR_RESOURCE_BUSY) {
             item->scn = DB_CURR_SCN(session);
             item->state = AREBUILD_INDEX_BUSY;
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 #define AUTO_REBUILD_MIN_INTERVAL   (10 * SECONDS_PER_MIN)
 static status_t auto_rebuild(knl_session_t *session)
@@ -1778,13 +1798,13 @@ static status_t auto_rebuild(knl_session_t *session)
         }
 
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            return CT_ERROR;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            return CT_ERROR;
         }
 
         knl_scn_t timeout_scn = db_time_scn(session, AUTO_REBUILD_MIN_INTERVAL, 0);
@@ -1796,33 +1816,33 @@ static status_t auto_rebuild(knl_session_t *session)
             auto_rebuild_move_to_tail(session);
             continue;
         }
-        GS_LOG_RUN_INF("user_id %u,table_id %u,index_name %s auto rebuild index started", item->uid,
+        CT_LOG_RUN_INF("user_id %u,table_id %u,index_name %s auto rebuild index started", item->uid,
             item->oid, (item->type == ALINDEX_TYPE_REBUILD) ? item->name : item->part_name);
-        if (auto_rebuild_entity(session, &rebuild_def, item) == GS_SUCCESS) {
+        if (auto_rebuild_entity(session, &rebuild_def, item) == CT_SUCCESS) {
             auto_rebuild_release_item(session, ctx->idx_list.first);
         }
-        GS_LOG_RUN_INF("user_id %u,table_id %u,index_name %s auto rebuild index ended,%u indexes left.result:%d",
+        CT_LOG_RUN_INF("user_id %u,table_id %u,index_name %s auto rebuild index ended,%u indexes left.result:%d",
             item->uid, item->oid, (item->type == ALINDEX_TYPE_REBUILD) ? item->name : item->part_name,
             ctx->idx_list.count, cm_get_error_code());
         cm_reset_error();
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #define MAX_DELAY_REBUILD_TIME  (10 * SECONDS_PER_MIN)
 static bool32 idx_auto_rebuild_start(knl_session_t *session)
 {
     if (!session->kernel->attr.idx_auto_rebuild) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     date_detail_t detail;
     time_t cur_time = cm_current_time();
     uint32 start_date_second = session->kernel->attr.idx_auto_rebuild_start_date;
 
-    if (start_date_second == GS_INVALID_ID32) {
-        return GS_TRUE;
+    if (start_date_second == CT_INVALID_ID32) {
+        return CT_TRUE;
     }
 
     cm_decode_time(cur_time, &detail);
@@ -1841,11 +1861,11 @@ void idx_auto_rebuild_proc(thread_t *thread)
     auto_rebuild_init(session);
 
     cm_set_thread_name("arebuild");
-    GS_LOG_RUN_INF("index auto rebuild thread started");
+    CT_LOG_RUN_INF("index auto rebuild thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
 
     while (!thread->closed) {
-        ctx->working = GS_FALSE;
+        ctx->working = CT_FALSE;
         session->status = SESSION_INACTIVE;
         cm_sleep(REBUILD_PROC_STIME);
 
@@ -1859,25 +1879,25 @@ void idx_auto_rebuild_proc(thread_t *thread)
             continue;
         }
 
-        session->canceled = GS_FALSE;
-        session->killed = GS_FALSE;
+        session->canceled = CT_FALSE;
+        session->killed = CT_FALSE;
         session->status = SESSION_ACTIVE;
         db_set_with_switchctrl_lock(ctrl, &ctx->working);
         if (!ctx->working) {
             continue;
         }
 
-        if (auto_rebuild(session) != GS_SUCCESS) {
+        if (auto_rebuild(session) != CT_SUCCESS) {
             int32 err_code = ERR_ERRNO_BASE;
             const char *err_msg = NULL;
 
             cm_get_error(&err_code, &err_msg, NULL);
-            GS_LOG_RUN_INF("auto rebuild err msg:%s", err_msg);
+            CT_LOG_RUN_INF("auto rebuild err msg:%s", err_msg);
             cm_reset_error();
         }
     }
 
-    ctx->working = GS_FALSE;
-    GS_LOG_RUN_INF("index auto rebuild thread closed");
+    ctx->working = CT_FALSE;
+    CT_LOG_RUN_INF("index auto rebuild thread closed");
     KNL_SESSION_CLEAR_THREADID(session);
 }

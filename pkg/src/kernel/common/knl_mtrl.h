@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -63,9 +63,9 @@ typedef struct st_mtrl_heap_ctrl {
     mtrl_context_t *ctx;
     mtrl_segment_t *segment;
     uint32 whole_count;
-    uint32 whole_pages[GS_MAX_MTRL_OPEN_PAGES];
+    uint32 whole_pages[CT_MAX_MTRL_OPEN_PAGES];
     uint32 heap_count;
-    uint32 heap_pages[GS_MAX_MTRL_OPEN_PAGES];
+    uint32 heap_pages[CT_MAX_MTRL_OPEN_PAGES];
     uint32 seg_id;
     mtrl_page_t *heap_page;
 } mtrl_heap_ctrl_t;
@@ -78,11 +78,11 @@ typedef struct st_sibl_sort_row {
 } sibl_sort_row_t;
 
 
-#define MTRL_GET_DIR(page, id) (uint32 *)((char *)(page) + GS_VMEM_PAGE_SIZE - ((id) + 1) * sizeof(uint32))
+#define MTRL_GET_DIR(page, id) (uint32 *)((char *)(page) + CT_VMEM_PAGE_SIZE - ((id) + 1) * sizeof(uint32))
 #define MTRL_GET_ROW(page, id) ((char *)(page) + *MTRL_GET_DIR((page), (id)))
 #define MTRL_DIR_SIZE(page)    ((page)->rows * sizeof(uint32))
 #define MTRL_PAGE_FREE_SIZE(page) \
-    (GS_VMEM_PAGE_SIZE - MTRL_DIR_SIZE(page) - ((page)->free_begin))
+    (CT_VMEM_PAGE_SIZE - MTRL_DIR_SIZE(page) - ((page)->free_begin))
 typedef void (*mtrl_close_page_func_t)(mtrl_context_t *ctx, mtrl_sort_cursor_t *cursor);
 
 status_t mtrl_init_cursor(mtrl_cursor_t *cursor);
@@ -117,7 +117,7 @@ void mtrl_close_sorted_page(mtrl_context_t *ctx, mtrl_sort_cursor_t *cursor);
 status_t mtrl_move_sort_cursor(mtrl_context_t *ctx, mtrl_sort_cursor_t *cursor, mtrl_close_page_func_t close_func);
 void mtrl_reset_sort_type(mtrl_context_t *ctx, uint32 id);
 status_t mtrl_move_group_cursor(mtrl_context_t *ctx, mtrl_sort_cursor_t *cursor);
-status_t mtrl_ins_row_in_page(mtrl_context_t *ctx, uint32 page_id, const char *row, bool32 *is_full);
+status_t mtrl_insert_row_in_page(mtrl_context_t *ctx, uint32 page_id, const char *row, uint32 size, bool32 *is_full);
 
 static inline void mtrl_init_segment(mtrl_segment_t *segment, mtrl_segment_type_t type, handle_t cmp_items)
 {

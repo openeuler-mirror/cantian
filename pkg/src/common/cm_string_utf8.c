@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -36,7 +36,7 @@ int32 cm_utf8_chr_bytes(uint8 c, uint32 *bytes)
     // 1 byte character
     if (chr < 0x80) {
         *bytes = 1;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // 2-6 bytes character
@@ -48,10 +48,10 @@ int32 cm_utf8_chr_bytes(uint8 c, uint32 *bytes)
 
     // begin with 10xxxxxx is invalid
     if (*bytes >= 2 && *bytes <= 6) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
         *bytes = 1;
-        return GS_ERROR;
+        return CT_ERROR;
     }
 }
 
@@ -59,23 +59,23 @@ static status_t cm_utf8_str_bytes_internal(const char *str, uint32 len, uint32 *
 {
     uint32 i;
 
-    if (cm_utf8_chr_bytes((uint8)*str, bytes) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_utf8_chr_bytes((uint8)*str, bytes) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (*bytes > len) {
         *bytes = len;
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     // verify utf8 character
     for (i = 1; i < *bytes; i++) {
         if (!IS_VALID_UTF8_CHAR((uint8)*(str + i))) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_utf8_length_internal(const text_t *text, uint32 *characters)
@@ -85,9 +85,9 @@ static status_t cm_utf8_length_internal(const text_t *text, uint32 *characters)
     pos = temp_characters = 0;
 
     while (pos < text->len) {
-        if (cm_utf8_str_bytes_internal(text->str + pos, text->len - pos, &temp_bytes) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "utf-8 buffer");
-            return GS_ERROR;
+        if (cm_utf8_str_bytes_internal(text->str + pos, text->len - pos, &temp_bytes) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "utf-8 buffer");
+            return CT_ERROR;
         }
 
         pos += temp_bytes;
@@ -95,12 +95,12 @@ static status_t cm_utf8_length_internal(const text_t *text, uint32 *characters)
     }
 
     if (pos != text->len) {
-        GS_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "utf-8 buffer");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "utf-8 buffer");
+        return CT_ERROR;
     }
 
     *characters = temp_characters;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void cm_utf8_special_multi_byte(text_t *src, text_t *dst, uint32 *i, uint32 *j)
@@ -186,7 +186,7 @@ static inline status_t cm_utf8_other_character_multi_byte(text_t *src, text_t *d
 {
     uint32 char_bytes;
 
-    GS_RETURN_IFERR(cm_utf8_chr_bytes((uint8)src->str[*i], &char_bytes));
+    CT_RETURN_IFERR(cm_utf8_chr_bytes((uint8)src->str[*i], &char_bytes));
     while (char_bytes) {
         dst->str[*j] = src->str[*i];
         char_bytes -= 1;
@@ -194,7 +194,7 @@ static inline status_t cm_utf8_other_character_multi_byte(text_t *src, text_t *d
         *j += 1;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void cm_utf8_special_single_byte(text_t *src, text_t *dst, uint32 *i, uint32 *j)
@@ -252,7 +252,7 @@ static inline status_t cm_utf8_other_character_single_byte(text_t *src, text_t *
 {
     uint32 char_bytes;
 
-    GS_RETURN_IFERR(cm_utf8_chr_bytes((uint8)src->str[*i], &char_bytes));
+    CT_RETURN_IFERR(cm_utf8_chr_bytes((uint8)src->str[*i], &char_bytes));
     while (char_bytes) {
         dst->str[*j] = src->str[*i];
         char_bytes -= 1;
@@ -260,7 +260,7 @@ static inline status_t cm_utf8_other_character_single_byte(text_t *src, text_t *
         *j += 1;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_utf8_multi_byte_internal(text_t *src, text_t *dst)
@@ -279,11 +279,11 @@ static status_t cm_utf8_multi_byte_internal(text_t *src, text_t *dst)
             cm_utf8_common_multi_byte(src, dst, &i, &j);
         } else {
             // for other character
-            GS_RETURN_IFERR(cm_utf8_other_character_multi_byte(src, dst, &i, &j));
+            CT_RETURN_IFERR(cm_utf8_other_character_multi_byte(src, dst, &i, &j));
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_utf8_single_byte_internal(text_t *src, text_t *dst)
@@ -304,30 +304,30 @@ static status_t cm_utf8_single_byte_internal(text_t *src, text_t *dst)
             cm_utf8_common_single_byte(src, dst, &i, &j);
         } else {
             // for other character
-            GS_RETURN_IFERR(cm_utf8_other_character_single_byte(src, dst, &i, &j));
+            CT_RETURN_IFERR(cm_utf8_other_character_single_byte(src, dst, &i, &j));
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_utf8_str_bytes_ignore(const char *str, uint32 len, uint32 *bytes)
 {
     uint32 i, check_len;
 
-    if (cm_utf8_chr_bytes((uint8)*str, bytes) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_utf8_chr_bytes((uint8)*str, bytes) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // verify utf8 character
     check_len = MIN(*bytes, len);
     for (i = 1; i < check_len; i++) {
         if (!IS_VALID_UTF8_CHAR((uint8)*(str + i))) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_utf8_length_ignore_internal(const text_t *text, uint32 *characters, uint32 *ignore_bytes)
@@ -337,9 +337,9 @@ static status_t cm_utf8_length_ignore_internal(const text_t *text, uint32 *chara
     pos = temp_characters = 0;
 
     while (pos < text->len) {
-        if (cm_utf8_str_bytes_ignore(text->str + pos, text->len - pos, &temp_bytes) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "utf-8 buffer");
-            return GS_ERROR;
+        if (cm_utf8_str_bytes_ignore(text->str + pos, text->len - pos, &temp_bytes) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "utf-8 buffer");
+            return CT_ERROR;
         }
         
         pos += temp_bytes;
@@ -348,7 +348,7 @@ static status_t cm_utf8_length_ignore_internal(const text_t *text, uint32 *chara
 
     *characters = temp_characters;
     *ignore_bytes = pos - text->len;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_utf8_length_ignore_truncated_bytes_internal(text_t *text)
@@ -362,7 +362,7 @@ static status_t cm_utf8_length_ignore_truncated_bytes_internal(text_t *text)
         ignore_bytes++;
 
         ret = cm_utf8_chr_bytes((uint8)(*(text->str + len - 1)), &utf8_bytes);
-        if (ret != GS_SUCCESS) {
+        if (ret != CT_SUCCESS) {
             len--;
             continue;
         }
@@ -372,18 +372,18 @@ static status_t cm_utf8_length_ignore_truncated_bytes_internal(text_t *text)
             text->len -= ignore_bytes;
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "utf8 buffer");
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "utf8 buffer");
+    return CT_ERROR;
 }
 
 char *cm_utf8_move_char_forward(const char *str, uint32 str_len)
 {
     uint32 chlen = 0;
-    if (cm_utf8_str_bytes(str, str_len, &chlen) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_GENERIC_INTERNAL_ERROR, "invalid utf-8 buffer");
+    if (cm_utf8_str_bytes(str, str_len, &chlen) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_GENERIC_INTERNAL_ERROR, "invalid utf-8 buffer");
         return NULL;
     }
 
@@ -403,10 +403,10 @@ char *cm_utf8_move_char_backward(char *str, const char *head)
         --c;
     }
 
-    if ((cm_utf8_chr_bytes(*c, &chnum) == GS_SUCCESS) && (chnum == str - c)) {
+    if ((cm_utf8_chr_bytes(*c, &chnum) == CT_SUCCESS) && (chnum == str - c)) {
         return c;
     }
-    GS_THROW_ERROR(ERR_GENERIC_INTERNAL_ERROR, "invalid utf-8 buffer");
+    CT_THROW_ERROR(ERR_GENERIC_INTERNAL_ERROR, "invalid utf-8 buffer");
     return NULL;
 }
 
@@ -422,11 +422,11 @@ bool8 cm_utf8_has_multibyte(const char *str, uint32 len)
 
     for (i = 0; i < len; i++) {
         if (ptr[i] & 0x80) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t cm_utf8_str_bytes(const char *str, uint32 len, uint32 *bytes)
@@ -441,7 +441,7 @@ status_t cm_utf8_reverse_str_bytes(const char *str, uint32 len, uint32 *bytes)
     // 1 byte character
     if (CM_IS_ASCII(*cur_c)) {
         *bytes = 1;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // 2-6 bytes character
@@ -451,7 +451,7 @@ status_t cm_utf8_reverse_str_bytes(const char *str, uint32 len, uint32 *bytes)
         cur_c -= 1;
     }
 
-    return (*bytes >= 2 && *bytes <= 6 && *bytes < len) ? GS_SUCCESS : GS_ERROR;
+    return (*bytes >= 2 && *bytes <= 6 && *bytes < len) ? CT_SUCCESS : CT_ERROR;
 }
 
 bool8 cm_utf8_text_like(const text_t *text1, const text_t *text2)
@@ -542,7 +542,7 @@ status_t cm_utf8_to_unicode(uint8 *str, uint32 *strlen)
 {
     uint32 pos = 1;
     if (*strlen < 2 || *strlen > 6) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
     uint8 tmp[6];
     for (uint32 i = 0; i < *strlen; i++) {
@@ -588,7 +588,7 @@ status_t cm_utf8_to_unicode(uint8 *str, uint32 *strlen)
             break;
     }
     *strlen = pos;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

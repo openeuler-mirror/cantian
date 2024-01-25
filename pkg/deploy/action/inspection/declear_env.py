@@ -7,7 +7,7 @@ class DeclearEnv:
     def __init__(self):
         self.version_file = str(Path("/opt/cantian/versions.yml"))
         self.root_id = 0
-        self.deploy_id = 5000
+        self.deploy_id = 6000
 
     def get_env_type(self):
         """

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -41,7 +41,7 @@
 #ifndef WIN32
 #define DB_IS_RAFT_ENABLED(kernel) ((kernel)->attr.enable_raft)
 #else
-#define DB_IS_RAFT_ENABLED(kernel) (GS_FALSE)
+#define DB_IS_RAFT_ENABLED(kernel) (CT_FALSE)
 #endif
 
 #define RAFT_IS_RESTORE_PRIMARY(kernel) (DB_IS_RAFT_ENABLED(kernel) && (kernel)->attr.raft_start_mode == 1)
@@ -86,9 +86,9 @@ typedef struct st_raft_context {
     raft_procs_t raft_proc;
     cm_thread_cond_t cond;
     repl_role_t old_role;
-    char priority_type[GS_FILE_NAME_BUFFER_SIZE];
-    char priority_level[GS_FILE_NAME_BUFFER_SIZE];
-    char layout_info[GS_FILE_NAME_BUFFER_SIZE];
+    char priority_type[CT_FILE_NAME_BUFFER_SIZE];
+    char priority_level[CT_FILE_NAME_BUFFER_SIZE];
+    char layout_info[CT_FILE_NAME_BUFFER_SIZE];
 } raft_context_t;
 
 status_t raft_flush_log(knl_session_t *session, log_batch_t *batch);

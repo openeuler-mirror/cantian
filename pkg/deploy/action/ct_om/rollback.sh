@@ -5,10 +5,11 @@ SCRIPT_NAME=${CURRENT_PATH}/$(basename $0)
 TARGET_RPM_PACKAGE_NAME=""
 INSTALLED_RPM_PACKAGE_NAME=""
 BACKUP_FILE_NAME=$1
+version=$(cat ${BACKUP_FILE_NAME}/versions.yml | grep -E "Version:" | awk '{print $2}' | cut -d '.' -f 1-3)
 source ${CURRENT_PATH}/ct_om_log.sh
 
 function get_target_rpm_package_name() {
-    TARGET_RPM_PACKAGE_NAME=$(ls ${BACKUP_FILE_NAME}/repo | grep ct_om-)
+    TARGET_RPM_PACKAGE_NAME=$(ls ${BACKUP_FILE_NAME}/repo | grep ct_om-${version})
 }
 
 function get_installed_rpm_package_name() {

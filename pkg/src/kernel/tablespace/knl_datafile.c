@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_space_module.h"
 #include "knl_datafile.h"
 #include "cm_file.h"
 #include "knl_context.h"
@@ -61,9 +62,9 @@ void spc_close_datafile(datafile_t *df, int32 *handle)
 status_t spc_read_datafile(knl_session_t *session, datafile_t *df, int32 *handle, int64 offset, void *buf, uint32 size)
 {
     if (*handle == -1) {
-        if (spc_open_datafile(session, df, handle) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[SPACE] failed to open datafile %s", df->ctrl->name);
-            return GS_ERROR;
+        if (spc_open_datafile(session, df, handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[SPACE] failed to open datafile %s", df->ctrl->name);
+            return CT_ERROR;
         }
     }
 
@@ -77,16 +78,16 @@ status_t spc_write_datafile(knl_session_t *session, datafile_t *df, int32 *handl
     status_t status;
 
     if (*handle == -1) {
-        if (spc_open_datafile(session, df, handle) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[SPACE] failed to open datafile %s", df->ctrl->name);
-            return GS_ERROR;
+        if (spc_open_datafile(session, df, handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[SPACE] failed to open datafile %s", df->ctrl->name);
+            return CT_ERROR;
         }
     }
     
     // dbstor can ensure that atomicity of read and write when page size is smaller than 8K
-    if (!(cm_dbs_is_enable_dbs() == GS_TRUE && size == GS_UDFLT_VALUE_BUFFER_SIZE)) {
+    if (!(cm_dbs_is_enable_dbs() == CT_TRUE && size == CT_UDFLT_VALUE_BUFFER_SIZE)) {
         for (;;) {
-            cm_latch_s(&df->block_latch, GS_INVALID_ID32, GS_FALSE, NULL);
+            cm_latch_s(&df->block_latch, CT_INVALID_ID32, CT_FALSE, NULL);
             if (!spc_datafile_is_blocked(session, df, (uint64)offset, end_pos)) {
                 break;
             }
@@ -96,7 +97,7 @@ status_t spc_write_datafile(knl_session_t *session, datafile_t *df, int32 *handl
     }
 
     status = cm_write_device(df->ctrl->type, *handle, offset, buf, size);
-    if (!(cm_dbs_is_enable_dbs() == GS_TRUE && size == GS_UDFLT_VALUE_BUFFER_SIZE)) {
+    if (!(cm_dbs_is_enable_dbs() == CT_TRUE && size == CT_UDFLT_VALUE_BUFFER_SIZE)) {
         cm_unlatch(&df->block_latch, NULL);
     }
     return status;
@@ -112,10 +113,10 @@ status_t df_wait_extend_completed(datafile_t *df)
         }
 
         if (ctx->status == DF_BUILD_FAILED) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void spc_extend_datafile_clean(datafile_t *df, int64 thread_cnt)
@@ -135,17 +136,17 @@ status_t spc_extend_datafile_paral(knl_session_t *session, datafile_t *df, int32
     df_build_ctx_t *build_ctx = NULL;
     char *buf = session->kernel->attr.xpurpose_buf;
 
-    if (spc_open_datafile(session, df, handle) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SPACE] failed to open file %s when extending datafile", df->ctrl->name);
-        return GS_ERROR;
+    if (spc_open_datafile(session, df, handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SPACE] failed to open file %s when extending datafile", df->ctrl->name);
+        return CT_ERROR;
     }
 
-    if (cm_truncate_file(*handle, org_size + extend_size) != GS_SUCCESS) {
+    if (cm_truncate_file(*handle, org_size + extend_size) != CT_SUCCESS) {
         cm_close_device(df->ctrl->type, handle);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    errno_t ret = memset_sp(buf, (size_t)GS_XPURPOSE_BUFFER_SIZE, 0, (size_t)GS_XPURPOSE_BUFFER_SIZE);
+    errno_t ret = memset_sp(buf, (size_t)CT_XPURPOSE_BUFFER_SIZE, 0, (size_t)CT_XPURPOSE_BUFFER_SIZE);
     knl_securec_check(ret);
 
     for (int64 i = 0; i < DF_PARAL_BUILD_THREAD; i++) {
@@ -157,32 +158,32 @@ status_t spc_extend_datafile_paral(knl_session_t *session, datafile_t *df, int32
         build_ctx->buf = buf;
         extend_size -= size_unit;
         build_ctx->status = DF_IS_BUILDING;
-        if (cm_create_thread(df_build_proc, 0, build_ctx, &build_ctx->thread) != GS_SUCCESS) {
+        if (cm_create_thread(df_build_proc, 0, build_ctx, &build_ctx->thread) != CT_SUCCESS) {
             spc_extend_datafile_clean(df, i);
             cm_close_device(df->ctrl->type, handle);
-            GS_LOG_RUN_ERR("[SPACE] failed to start thread when create datafile %s", df->ctrl->name);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[SPACE] failed to start thread when create datafile %s", df->ctrl->name);
+            return CT_ERROR;
         }
     }
 
-    if (df_wait_extend_completed(df) != GS_SUCCESS) {
+    if (df_wait_extend_completed(df) != CT_SUCCESS) {
         spc_extend_datafile_clean(df, DF_PARAL_BUILD_THREAD);
         cm_reset_error();
-        GS_THROW_ERROR(ERR_CREATE_FILE, df->ctrl->name, errno);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CREATE_FILE, df->ctrl->name, errno);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_extend_datafile_serial(knl_session_t *session, datafile_t *df, int32 *handle, int64 size)
 {
-    if (spc_open_datafile(session, df, handle) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SPACE] failed to open file %s when extending datafile", df->ctrl->name);
-        return GS_ERROR;
+    if (spc_open_datafile(session, df, handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SPACE] failed to open file %s when extending datafile", df->ctrl->name);
+        return CT_ERROR;
     }
 
-    return cm_extend_device(df->ctrl->type, *handle, session->kernel->attr.xpurpose_buf, GS_XPURPOSE_BUFFER_SIZE,
+    return cm_extend_device(df->ctrl->type, *handle, session->kernel->attr.xpurpose_buf, CT_XPURPOSE_BUFFER_SIZE,
         size, session->kernel->attr.build_datafile_prealloc);
 }
 
@@ -191,7 +192,7 @@ status_t spc_build_datafile_serial(knl_session_t *session, datafile_t *df, int32
     char *buf = session->kernel->attr.xpurpose_buf;
 
     df->ctrl->type = cm_device_type(df->ctrl->name);
-    return cm_build_device(df->ctrl->name, df->ctrl->type, buf, GS_XPURPOSE_BUFFER_SIZE, df->ctrl->size,
+    return cm_build_device(df->ctrl->name, df->ctrl->type, buf, CT_XPURPOSE_BUFFER_SIZE, df->ctrl->size,
         knl_io_flag(session), session->kernel->attr.build_datafile_prealloc, handle);
 }
 
@@ -199,27 +200,27 @@ status_t spc_extend_datafile(knl_session_t *session, datafile_t *df, int32 *hand
 {
 #ifndef WIN32
     if (size >= DF_BUILD_PARAL_THRES && session->kernel->attr.build_datafile_parallel) {
-        if (spc_extend_datafile_paral(session, df, handle, df->ctrl->size, size) != GS_SUCCESS) {
+        if (spc_extend_datafile_paral(session, df, handle, df->ctrl->size, size) != CT_SUCCESS) {
             (void)spc_truncate_datafile(session, df, handle, df->ctrl->size, need_redo);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else {
-        if (spc_extend_datafile_serial(session, df, handle, size) != GS_SUCCESS) {
+        if (spc_extend_datafile_serial(session, df, handle, size) != CT_SUCCESS) {
             (void)spc_truncate_datafile(session, df, handle, df->ctrl->size, need_redo);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 #else
-    if (spc_extend_datafile_serial(session, df, handle, size) != GS_SUCCESS) {
+    if (spc_extend_datafile_serial(session, df, handle, size) != CT_SUCCESS) {
         (void)spc_truncate_datafile(session, df, handle, df->ctrl->size, need_redo);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 #endif
 
-    if (db_fsync_file(session, *handle) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SPACE] failed to fsync datafile %s", df->ctrl->name);
+    if (db_fsync_file(session, *handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SPACE] failed to fsync datafile %s", df->ctrl->name);
         (void)spc_truncate_datafile(session, df, handle, df->ctrl->size, need_redo);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_spin_lock(&session->kernel->db.ctrl_lock, NULL);
@@ -237,13 +238,13 @@ status_t spc_extend_datafile(knl_session_t *session, datafile_t *df, int32 *hand
 
     // There is no need sync extend datafile, if other node extent the extent will get the real size from disk.
     // If write an logic log hear, CKPT process maybe blocked.
-    if (db_save_datafile_ctrl(session, df->ctrl->id) != GS_SUCCESS) {
+    if (db_save_datafile_ctrl(session, df->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file when extending datafile");
     }
 
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_EXTEND_DATAFILE_BEFORE_SYNC_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_extend_datafile_ddl(knl_session_t *session, datafile_t *df, int32 *handle, int64 size, bool32 need_redo)
@@ -276,8 +277,8 @@ status_t spc_extend_datafile_ddl(knl_session_t *session, datafile_t *df, int32 *
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_EXTEND_DATAFILE_BEFORE_EXTEND_DEVICE_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
 
-    status_t sp_ret = GS_SUCCESS;
-    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_EXTEND_DATAFILE_FAIL, &sp_ret, GS_ERROR);
+    status_t sp_ret = CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_EXTEND_DATAFILE_FAIL, &sp_ret, CT_ERROR);
 #ifndef WIN32
     if (size >= DF_BUILD_PARAL_THRES && session->kernel->attr.build_datafile_parallel) {
         sp_ret = spc_extend_datafile_paral(session, df, handle, df->ctrl->size, size);
@@ -288,24 +289,24 @@ status_t spc_extend_datafile_ddl(knl_session_t *session, datafile_t *df, int32 *
     sp_ret = spc_extend_datafile_serial(session, df, handle, size);
 #endif
     SYNC_POINT_GLOBAL_END;
-    if (sp_ret != GS_SUCCESS) {
+    if (sp_ret != CT_SUCCESS) {
         (void)spc_truncate_datafile(session, df, handle, df->ctrl->size, need_redo);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_fsync_file(session, *handle) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SPACE] failed to fsync datafile %s", df->ctrl->name);
+    if (db_fsync_file(session, *handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SPACE] failed to fsync datafile %s", df->ctrl->name);
         (void)spc_truncate_datafile(session, df, handle, df->ctrl->size, need_redo);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_EXTEND_DATAFILE_BEFORE_SAVE_DF_CTRL_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
 
-    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_EXTEND_DATAFILE_SAVE_DF_CTRL_FAIL, &sp_ret, GS_ERROR);
+    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_EXTEND_DATAFILE_SAVE_DF_CTRL_FAIL, &sp_ret, CT_ERROR);
     sp_ret = db_save_datafile_ctrl(session, df->ctrl->id);
     SYNC_POINT_GLOBAL_END;
-    if (sp_ret != GS_SUCCESS) {
+    if (sp_ret != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file when extending datafile");
     }
 
@@ -314,7 +315,7 @@ status_t spc_extend_datafile_ddl(knl_session_t *session, datafile_t *df, int32 *
     if (DB_IS_CLUSTER(session)) {
         tx_copy_logic_log(session);
         if (session->logic_log_size > 0 || session->rm->logic_log_size > 0) {
-            if (db_write_ddl_op(session) != GS_SUCCESS) {
+            if (db_write_ddl_op(session) != CT_SUCCESS) {
                 knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
             }
             dtc_sync_ddl(session);
@@ -323,7 +324,7 @@ status_t spc_extend_datafile_ddl(knl_session_t *session, datafile_t *df, int32 *
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_EXTEND_DATAFILE_AFTER_SYNC_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_truncate_datafile(knl_session_t *session, datafile_t *df, int32 *handle, int64 keep_size, bool32 need_redo)
@@ -332,9 +333,9 @@ status_t spc_truncate_datafile(knl_session_t *session, datafile_t *df, int32 *ha
     rd_truncate_datafile_t *redo = &daac_redo.datafile;
 
     if (*handle == -1) {
-        if (spc_open_datafile(session, df, handle) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[SPACE] failed to open file %s when truncate datafile", df->ctrl->name);
-            return GS_ERROR;
+        if (spc_open_datafile(session, df, handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[SPACE] failed to open file %s when truncate datafile", df->ctrl->name);
+            return CT_ERROR;
         }
     }
 
@@ -349,17 +350,17 @@ status_t spc_truncate_datafile(knl_session_t *session, datafile_t *df, int32 *ha
         log_put(session, RD_SPC_TRUNCATE_DATAFILE, redo, sizeof(rd_truncate_datafile_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    if (cm_truncate_device(df->ctrl->type, *handle, keep_size) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SPACE] failed to truncate datafile %s", df->ctrl->name);
-        return GS_ERROR;
+    if (cm_truncate_device(df->ctrl->type, *handle, keep_size) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SPACE] failed to truncate datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 
-    if (db_fsync_file(session, *handle) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SPACE] failed to fsync datafile %s", df->ctrl->name);
-        return GS_ERROR;
+    if (db_fsync_file(session, *handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SPACE] failed to fsync datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 
-    if (db_save_datafile_ctrl(session, df->ctrl->id) != GS_SUCCESS) {
+    if (db_save_datafile_ctrl(session, df->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] failed to save whole control file when truncate datafile");
     }
 
@@ -369,7 +370,7 @@ status_t spc_truncate_datafile(knl_session_t *session, datafile_t *df, int32 *ha
 
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_TRUNCATE_DATAFILE_BEFORE_SYNC_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_truncate_datafile_ddl(knl_session_t *session, datafile_t *df, int32 *handle, int64 keep_size,
@@ -379,9 +380,9 @@ status_t spc_truncate_datafile_ddl(knl_session_t *session, datafile_t *df, int32
     rd_truncate_datafile_t *redo = &daac_redo.datafile;
 
     if (*handle == -1) {
-        if (spc_open_datafile(session, df, handle) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[SPACE] failed to open file %s when truncate datafile", df->ctrl->name);
-            return GS_ERROR;
+        if (spc_open_datafile(session, df, handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[SPACE] failed to open file %s when truncate datafile", df->ctrl->name);
+            return CT_ERROR;
         }
     }
 
@@ -412,27 +413,27 @@ status_t spc_truncate_datafile_ddl(knl_session_t *session, datafile_t *df, int32
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_TRUNCATE_DATAFILE_BEFORE_TRUNCATE_DEVICE_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
 
-    status_t sp_ret = GS_SUCCESS;
-    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_TRUNCATE_DATAFILE_FAIL, &sp_ret, GS_ERROR);
+    status_t sp_ret = CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_TRUNCATE_DATAFILE_FAIL, &sp_ret, CT_ERROR);
     sp_ret = cm_truncate_device(df->ctrl->type, *handle, keep_size);
     SYNC_POINT_GLOBAL_END;
-    if (sp_ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SPACE] failed to truncate datafile %s", df->ctrl->name);
-        return GS_ERROR;
+    if (sp_ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SPACE] failed to truncate datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 
-    if (db_fsync_file(session, *handle) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SPACE] failed to fsync datafile %s", df->ctrl->name);
-        return GS_ERROR;
+    if (db_fsync_file(session, *handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SPACE] failed to fsync datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_TRUNCATE_DATAFILE_BEFORE_SAVE_DF_CTRL_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
 
-    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_TRUNCATE_DATAFILE_SAVE_DF_CTRL_FAIL, &sp_ret, GS_ERROR);
+    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_TRUNCATE_DATAFILE_SAVE_DF_CTRL_FAIL, &sp_ret, CT_ERROR);
     sp_ret = db_save_datafile_ctrl(session, df->ctrl->id);
     SYNC_POINT_GLOBAL_END;
-    if (sp_ret != GS_SUCCESS) {
+    if (sp_ret != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] failed to save whole control file when truncate datafile");
     }
 
@@ -442,7 +443,7 @@ status_t spc_truncate_datafile_ddl(knl_session_t *session, datafile_t *df, int32
     if (DB_IS_CLUSTER(session)) {
         tx_copy_logic_log(session);
         if (session->logic_log_size > 0 || session->rm->logic_log_size > 0) {
-            if (db_write_ddl_op(session) != GS_SUCCESS) {
+            if (db_write_ddl_op(session) != CT_SUCCESS) {
                 knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
             }
             dtc_sync_ddl(session);
@@ -451,49 +452,49 @@ status_t spc_truncate_datafile_ddl(knl_session_t *session, datafile_t *df, int32
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_TRUNCATE_DATAFILE_AFTER_SYNC_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_build_datafile_paral(knl_session_t *session, datafile_t *df, int32 *handle)
 {
     *handle = -1;
     df->ctrl->type = cm_device_type(df->ctrl->name);
-    if (cm_create_device(df->ctrl->name, df->ctrl->type, knl_io_flag(session), handle) != GS_SUCCESS) {
+    if (cm_create_device(df->ctrl->name, df->ctrl->type, knl_io_flag(session), handle) != CT_SUCCESS) {
         cm_close_device(df->ctrl->type, handle);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (spc_extend_datafile_paral(session, df, handle, 0, df->ctrl->size) != GS_SUCCESS) {
+    if (spc_extend_datafile_paral(session, df, handle, 0, df->ctrl->size) != CT_SUCCESS) {
         cm_close_device(df->ctrl->type, handle);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_fsync_file(session, *handle) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SPACE] failed to fsync datafile %s", df->ctrl->name);
-        return GS_ERROR;
+    if (db_fsync_file(session, *handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SPACE] failed to fsync datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_build_datafile(knl_session_t *session, datafile_t *df, int32 *handle)
 {
 #ifndef WIN32
     if (df->ctrl->size >= DF_BUILD_PARAL_THRES && session->kernel->attr.build_datafile_parallel) {
-        if (spc_build_datafile_paral(session, df, handle) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_build_datafile_paral(session, df, handle) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (spc_build_datafile_serial(session, df, handle) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_build_datafile_serial(session, df, handle) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 #else
-    if (spc_build_datafile_serial(session, df, handle) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (spc_build_datafile_serial(session, df, handle) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 #endif
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void df_expire_buffer_page(knl_session_t *session, uint32 file_id)
@@ -528,12 +529,12 @@ void spc_invalidate_datafile(knl_session_t *session, datafile_t *df, bool32 ckpt
     rmon_t *rmon_ctx = &kernel->rmon_ctx;
     uint32 i;
     uint32 name_len = (uint32)strlen(df->ctrl->name);
-    char delete_name[GS_FILE_NAME_BUFFER_SIZE] = { 0 };
+    char delete_name[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
     errno_t ret;
 
     /* remember to remove dirty pages from ckpt queue and edp pages from arrarys. */
     /* close fd of datafile allocated to each session */
-    for (i = 0; i < GS_MAX_SESSIONS; i++) {
+    for (i = 0; i < CT_MAX_SESSIONS; i++) {
         curr_session = kernel->sessions[i];
         if (curr_session != NULL && curr_session->datafiles[df->ctrl->id] != -1) {
             cm_close_device(df->ctrl->type, &curr_session->datafiles[df->ctrl->id]);
@@ -556,18 +557,18 @@ void spc_invalidate_datafile(knl_session_t *session, datafile_t *df, bool32 ckpt
 
     /* remove datafile from resource monitor */
     if (cm_exist_device(df->ctrl->type, df->ctrl->name)) {
-        if (cm_rm_device_watch(df->ctrl->type, rmon_ctx->watch_fd, &df->wd) != GS_SUCCESS) {
-            GS_LOG_RUN_WAR("[RMON]: failed to remove monitor of datafile %s", df->ctrl->name);
+        if (cm_rm_device_watch(df->ctrl->type, rmon_ctx->watch_fd, &df->wd) != CT_SUCCESS) {
+            CT_LOG_RUN_WAR("[RMON]: failed to remove monitor of datafile %s", df->ctrl->name);
         }
 
-        if (GS_DROP_DATAFILE_FORMAT_NAME_LEN(name_len) < GS_FILE_NAME_BUFFER_SIZE - 1 && !DAAC_REPLAY_NODE(session)) {
-            ret = sprintf_s(delete_name, GS_FILE_NAME_BUFFER_SIZE, "%s.delete", df->ctrl->name);
+        if (CT_DROP_DATAFILE_FORMAT_NAME_LEN(name_len) < CT_FILE_NAME_BUFFER_SIZE - 1 && !DAAC_REPLAY_NODE(session)) {
+            ret = sprintf_s(delete_name, CT_FILE_NAME_BUFFER_SIZE, "%s.delete", df->ctrl->name);
             knl_securec_check_ss(ret);
-            if (cm_rename_device(df->ctrl->type, df->ctrl->name, delete_name) != GS_SUCCESS) {
-                GS_LOG_RUN_WAR("[SPACE]: failed to rename space datafile %s", df->ctrl->name);
+            if (cm_rename_device(df->ctrl->type, df->ctrl->name, delete_name) != CT_SUCCESS) {
+                CT_LOG_RUN_WAR("[SPACE]: failed to rename space datafile %s", df->ctrl->name);
                 return;
             }
-            ret = memcpy_sp(df->ctrl->name, GS_FILE_NAME_BUFFER_SIZE, delete_name, GS_FILE_NAME_BUFFER_SIZE);
+            ret = memcpy_sp(df->ctrl->name, CT_FILE_NAME_BUFFER_SIZE, delete_name, CT_FILE_NAME_BUFFER_SIZE);
             knl_securec_check(ret);
         }
     }
@@ -575,7 +576,7 @@ void spc_invalidate_datafile(knl_session_t *session, datafile_t *df, bool32 ckpt
 
 status_t spc_init_datafile_head(knl_session_t *session, datafile_t *df)
 {
-    char *buf = (char *)cm_push(session->stack, (uint32)(df->ctrl->block_size + GS_MAX_ALIGN_SIZE_4K));
+    char *buf = (char *)cm_push(session->stack, (uint32)(df->ctrl->block_size + CT_MAX_ALIGN_SIZE_4K));
     page_head_t *page = (page_head_t *)cm_aligned_buf(buf);
     page_id_t page_id;
     errno_t ret;
@@ -589,19 +590,19 @@ status_t spc_init_datafile_head(knl_session_t *session, datafile_t *df)
     knl_securec_check(ret);
 
     if (cm_write_device(df->ctrl->type, session->datafiles[df->ctrl->id], 0, page, (int32)df->ctrl->block_size) !=
-        GS_SUCCESS) {
+        CT_SUCCESS) {
         cm_pop(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_fdatasync_file(session, session->datafiles[df->ctrl->id]) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SPACE] failed to fdatasync datafile %s", df->ctrl->name);
+    if (db_fdatasync_file(session, session->datafiles[df->ctrl->id]) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SPACE] failed to fdatasync datafile %s", df->ctrl->name);
         cm_pop(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_pop(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -629,7 +630,7 @@ void df_add_map_group(knl_session_t *session, datafile_t *df, page_id_t page_id,
     redo.begin_page = page_id;
     redo.page_count = group_size;
     log_put(session, RD_SPC_ADD_MAP_GROUP, &redo, sizeof(rd_df_add_map_group_t), LOG_ENTRY_FLAG_NONE);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     data_start.file = page_id.file;
     data_start.page = page_id.page + group_size;
@@ -646,7 +647,7 @@ void df_add_map_group(knl_session_t *session, datafile_t *df, page_id_t page_id,
         bitmap_page->first_page = data_start;
 
         log_put(session, RD_SPC_INIT_MAP_PAGE, &data_start, sizeof(page_id_t), LOG_ENTRY_FLAG_NONE);
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
 
         data_start.page += DF_MAP_BIT_CNT(session) * df->map_head->bit_unit;
         page_id.page++;
@@ -721,7 +722,7 @@ void df_init_map_head(knl_session_t *session, datafile_t *df)
     bitmap_head->group_count = 0;
 
     log_put(session, RD_SPC_INIT_MAP_HEAD, &page_id, sizeof(page_id_t), LOG_ENTRY_FLAG_NONE);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     /* add the first bitmap group starting with next page */
     page_id.page++;
@@ -752,7 +753,7 @@ void df_init_swap_map_head(knl_session_t *session, datafile_t *df)
     /* add the first bitmap group starting with next page */
     page_id.page++;
     df_add_map_group_swap(session, df, page_id, bitmap_cnt);
-    GS_LOG_DEBUG_INF("[SPACE] init swap space %u datafile %u bitmap group.", space->ctrl->id, df->ctrl->id);
+    CT_LOG_DEBUG_INF("[SPACE] init swap space %u datafile %u bitmap group.", space->ctrl->id, df->ctrl->id);
 }
 
 /*
@@ -776,7 +777,7 @@ status_t df_search_bitmap(knl_session_t *session, df_map_page_t *map_page, uint1
                 knl_panic_log(curr < DF_MAP_BIT_CNT(session), "curr pos is more than the limit, panic info: "
                               "page %u-%u type %u curr %u", AS_PAGID(map_page->page_head.id).file,
                               AS_PAGID(map_page->page_head.id).page, map_page->page_head.type, curr);
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
             curr++;
         }
@@ -785,7 +786,7 @@ status_t df_search_bitmap(knl_session_t *session, df_map_page_t *map_page, uint1
         curr = start;
         match_cnt = 0;
     }
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 /*
@@ -803,14 +804,14 @@ status_t df_alloc_extent_from_map(knl_session_t *session, datafile_t *df, page_i
     buf_enter_page(session, map_page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     map_page = (df_map_page_t *)CURR_PAGE(session);
     if (map_page->free_bits < need_bits) {
-        buf_leave_page(session, GS_FALSE);
-        return GS_ERROR;
+        buf_leave_page(session, CT_FALSE);
+        return CT_ERROR;
     }
 
     /* search extent on current bitmap */
-    if (df_search_bitmap(session, map_page, need_bits, &extent_bit) != GS_SUCCESS) {
-        buf_leave_page(session, GS_FALSE);
-        return GS_ERROR;
+    if (df_search_bitmap(session, map_page, need_bits, &extent_bit) != CT_SUCCESS) {
+        buf_leave_page(session, CT_FALSE);
+        return CT_ERROR;
     }
 
     *extent = map_page->first_page;
@@ -818,9 +819,9 @@ status_t df_alloc_extent_from_map(knl_session_t *session, datafile_t *df, page_i
 
     /* bits that searched exceed the file size, no extent available in current datafile */
     if ((extent->page + extent_size) * (int64)df->ctrl->block_size > df->ctrl->size) {
-        *need_extend = GS_TRUE;
-        buf_leave_page(session, GS_FALSE);
-        return GS_ERROR;
+        *need_extend = CT_TRUE;
+        buf_leave_page(session, CT_FALSE);
+        return CT_ERROR;
     }
 
     /* set bits and update bitmap info */
@@ -836,11 +837,11 @@ status_t df_alloc_extent_from_map(knl_session_t *session, datafile_t *df, page_i
 
     redo.start = extent_bit;
     redo.size = need_bits;
-    redo.is_set = GS_TRUE;
+    redo.is_set = CT_TRUE;
     log_put(session, RD_SPC_CHANGE_MAP, &redo, sizeof(rd_df_change_map_t), LOG_ENTRY_FLAG_NONE);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -858,14 +859,14 @@ status_t df_alloc_extent_swap_map(knl_session_t *session, datafile_t *df, page_i
     map_page = (df_map_page_t *)CURR_PAGE(session);
     if (map_page->free_bits < need_bits) {
         buf_leave_temp_page(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* search extent on current bitmap */
     uint16 extent_bit;
-    if (df_search_bitmap(session, map_page, need_bits, &extent_bit) != GS_SUCCESS) {
+    if (df_search_bitmap(session, map_page, need_bits, &extent_bit) != CT_SUCCESS) {
         buf_leave_temp_page(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *extent = map_page->first_page;
@@ -873,9 +874,9 @@ status_t df_alloc_extent_swap_map(knl_session_t *session, datafile_t *df, page_i
 
     /* bits that searched exceed the file size, no extent available in current datafile */
     if ((extent->page + extent_size) * (int64)df->ctrl->block_size > df->ctrl->size) {
-        *need_extend = GS_TRUE;
+        *need_extend = CT_TRUE;
         buf_leave_temp_page(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* set bits and update bitmap info */
@@ -888,7 +889,7 @@ status_t df_alloc_extent_swap_map(knl_session_t *session, datafile_t *df, page_i
     }
     buf_leave_temp_page(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -900,20 +901,20 @@ status_t df_alloc_extent(knl_session_t *session, datafile_t *df, uint32 extent_s
     df_map_page_t *map_page = NULL;
     page_id_t curr_map, new_group;
     uint16 i, j;
-    bool32 need_extend = GS_FALSE;
+    bool32 need_extend = CT_FALSE;
 
     for (i = 0; i < df->map_head->group_count; i++) {
         map_group = &df->map_head->groups[i];
         curr_map = map_group->first_map;
 
         for (j = 0; j < map_group->page_count; j++) {
-            if (df_alloc_extent_from_map(session, df, curr_map, extent_size, extent, &need_extend) == GS_SUCCESS) {
-                return GS_SUCCESS;
+            if (df_alloc_extent_from_map(session, df, curr_map, extent_size, extent, &need_extend) == CT_SUCCESS) {
+                return CT_SUCCESS;
             }
 
             /* current map has already exceed the datafile size, switch to next datafile */
             if (need_extend) {
-                return GS_ERROR;
+                return CT_ERROR;
             }
             curr_map.page++;
         }
@@ -929,12 +930,12 @@ status_t df_alloc_extent(knl_session_t *session, datafile_t *df, uint32 extent_s
     buf_enter_page(session, curr_map, LATCH_MODE_S, ENTER_PAGE_NORMAL);
     map_page = (df_map_page_t *)CURR_PAGE(session);
     new_group = map_page->first_page;
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     /* get the first map page of new group */
     new_group.page += DF_MAP_BIT_CNT(session) * (uint32)df->map_head->bit_unit;
     if ((new_group.page + DF_MAP_GROUP_SIZE) * (int64)DEFAULT_PAGE_SIZE(session) > df->ctrl->size) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     df_add_map_group(session, df, new_group, DF_MAP_GROUP_SIZE);
@@ -951,20 +952,20 @@ status_t df_alloc_swap_map_extent(knl_session_t *session, datafile_t *df, page_i
     df_map_page_t *map_page = NULL;
     page_id_t curr_map, new_group;
     uint16 i, j;
-    bool32 need_extend = GS_FALSE;
+    bool32 need_extend = CT_FALSE;
 
     for (i = 0; i < df->map_head->group_count; i++) {
         map_group = &df->map_head->groups[i];
         curr_map = map_group->first_map;
 
         for (j = 0; j < map_group->page_count; j++) {
-            if (df_alloc_extent_swap_map(session, df, curr_map, extent, &need_extend) == GS_SUCCESS) {
-                return GS_SUCCESS;
+            if (df_alloc_extent_swap_map(session, df, curr_map, extent, &need_extend) == CT_SUCCESS) {
+                return CT_SUCCESS;
             }
 
             /* current map has already exceed the datafile size, switch to next datafile */
             if (need_extend) {
-                return GS_ERROR;
+                return CT_ERROR;
             }
             curr_map.page++;
         }
@@ -985,7 +986,7 @@ status_t df_alloc_swap_map_extent(knl_session_t *session, datafile_t *df, page_i
     /* get the first map page of new group */
     new_group.page += DF_MAP_BIT_CNT(session) * (uint32)df->map_head->bit_unit;
     if ((new_group.page + DF_MAP_GROUP_SIZE) * (int64)DEFAULT_PAGE_SIZE(session) > df->ctrl->size) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     df_add_map_group_swap(session, df, new_group, DF_MAP_GROUP_SIZE);
@@ -1009,7 +1010,7 @@ static void df_locate_map_by_pageid(knl_session_t *session, df_map_head_t *map_h
         buf_enter_page(session, map_group->first_map, LATCH_MODE_S, ENTER_PAGE_NORMAL);
         map_page = (df_map_page_t *)CURR_PAGE(session);
         page_start = map_page->first_page.page;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
         page_end = page_start + DF_MAP_BIT_CNT(session) * map_head->bit_unit * map_group->page_count - 1;
         if (page_id.page <= page_end) {
@@ -1067,7 +1068,7 @@ void df_free_extent(knl_session_t *session, datafile_t *df, page_id_t extent)
     buf_enter_page(session, extent, LATCH_MODE_S, ENTER_PAGE_NORMAL);
     page = (page_head_t *)CURR_PAGE(session);
     bit_len = spc_ext_size_by_id((uint8)page->ext_size) / map_head->bit_unit;
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     /* free extent to bitmap */
     page_id.file = map_group.first_map.file;
@@ -1087,9 +1088,9 @@ void df_free_extent(knl_session_t *session, datafile_t *df, page_id_t extent)
 
     redo.start = bit_id;
     redo.size = bit_len;
-    redo.is_set = GS_FALSE;
+    redo.is_set = CT_FALSE;
     log_put(session, RD_SPC_CHANGE_MAP, &redo, sizeof(rd_df_change_map_t), LOG_ENTRY_FLAG_NONE);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 void df_free_swap_map_extent(knl_session_t *session, datafile_t *df, page_id_t extent)
@@ -1157,7 +1158,7 @@ uint32 df_get_used_pages(knl_session_t *session, datafile_t *df)
             search_pages += DF_MAP_BIT_CNT(session) * df->map_head->bit_unit;
             free_pages += map_page->free_bits * df->map_head->bit_unit;
 
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             curr_page.page++;
 
             if (search_pages > total_pages) {
@@ -1179,14 +1180,14 @@ static status_t df_get_next_free_extent(knl_session_t *session, datafile_t *df, 
 
     max_pageid = (uint32)((uint64)df->ctrl->size / DEFAULT_PAGE_SIZE(session));
     len = 0;
-    *is_last = GS_FALSE;
+    *is_last = CT_FALSE;
 
     /* find the first free bit */
     while (DF_MAP_UNMATCH(bitmap, start)) {
         start++;
         /* exceed the file size, +1 for the scenario there is some space less the one extent */
         if (map_page->first_page.page + (start + 1) * df->map_head->bit_unit > max_pageid) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -1196,7 +1197,7 @@ static status_t df_get_next_free_extent(knl_session_t *session, datafile_t *df, 
             if (free_count > max_pageid && len > 0) {
                 len--;
             }
-            *is_last = GS_TRUE;
+            *is_last = CT_TRUE;
             break;
         }
         len++;
@@ -1204,7 +1205,7 @@ static status_t df_get_next_free_extent(knl_session_t *session, datafile_t *df, 
 
     *extent_bit = start;
     *bit_len = len;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1234,16 +1235,16 @@ status_t df_get_free_extent(knl_session_t *session, datafile_t *df, page_id_t st
 
     buf_enter_page(session, map_page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL);
     map_page = (df_map_page_t *)CURR_PAGE(session);
-    if (df_get_next_free_extent(session, df, map_page, bit_id, &extent_bit, &bit_len, is_last) != GS_SUCCESS) {
+    if (df_get_next_free_extent(session, df, map_page, bit_id, &extent_bit, &bit_len, is_last) != CT_SUCCESS) {
         *extent = 0;
         *page_count = 0;
-        buf_leave_page(session, GS_FALSE);
-        return GS_ERROR;
+        buf_leave_page(session, CT_FALSE);
+        return CT_ERROR;
     } else {
         *extent = map_page->first_page.page + extent_bit * df->map_head->bit_unit;
         *page_count = bit_len * df->map_head->bit_unit;
-        buf_leave_page(session, GS_FALSE);
-        return GS_SUCCESS;
+        buf_leave_page(session, CT_FALSE);
+        return CT_SUCCESS;
     }
 }
 
@@ -1251,7 +1252,7 @@ void spc_block_datafile(datafile_t *df, uint32 section_id, uint64 start, uint64 
 {
     knl_panic(start < end);
     knl_panic(section_id < DATAFILE_MAX_BLOCK_NUM);
-    cm_latch_x(&df->block_latch, GS_INVALID_ID32, NULL);
+    cm_latch_x(&df->block_latch, CT_INVALID_ID32, NULL);
     if (df->block_end[section_id] == 0) {
         df->block_num++;
     }
@@ -1268,7 +1269,7 @@ void spc_try_block_datafile(datafile_t *df, uint32 section_id, uint64 start, uin
     knl_panic(section_id < DATAFILE_MAX_BLOCK_NUM);
 
     for (;;) {
-        cm_latch_x(&df->block_latch, GS_INVALID_ID32, NULL);
+        cm_latch_x(&df->block_latch, CT_INVALID_ID32, NULL);
         if (df->block_end[section_id] != 0) {
             cm_unlatch(&df->block_latch, NULL);
             cm_sleep(DF_VIEW_WAIT_INTERVAL);
@@ -1285,7 +1286,7 @@ void spc_try_block_datafile(datafile_t *df, uint32 section_id, uint64 start, uin
 
 void spc_unblock_datafile(datafile_t *df, uint32 section_id)
 {
-    cm_latch_x(&df->block_latch, GS_INVALID_ID32, NULL);
+    cm_latch_x(&df->block_latch, CT_INVALID_ID32, NULL);
     knl_panic(section_id < DATAFILE_MAX_BLOCK_NUM);
     if (df->block_end[section_id] > 0) {
         knl_panic(df->block_num > 0);
@@ -1300,15 +1301,15 @@ void spc_unblock_datafile(datafile_t *df, uint32 section_id)
 bool32 spc_datafile_is_blocked(knl_session_t *session, datafile_t *df, uint64 start, uint64 end)
 {
     if (df->block_num == 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     for (uint32 sec_id = 0; sec_id < DATAFILE_MAX_BLOCK_NUM; sec_id++) {
         if (end > df->block_start[sec_id] && start < df->block_end[sec_id]) {
             if (DB_IS_CLUSTER(session)) {
-                bool32 running = GS_TRUE;
+                bool32 running = CT_TRUE;
                 if (session->kernel->backup_ctx.bak_condition) {
-                    return GS_TRUE;
+                    return CT_TRUE;
                 }
 
                 for (uint32 i = 0; i < session->kernel->db.ctrl.core.node_count; i++) {
@@ -1316,36 +1317,36 @@ bool32 spc_datafile_is_blocked(knl_session_t *session, datafile_t *df, uint64 st
                         continue;
                     }
 
-                    if (dtc_bak_running(session, i, &running) != GS_SUCCESS || running == GS_FALSE) {
-                        return GS_FALSE;
+                    if (dtc_bak_running(session, i, &running) != CT_SUCCESS || running == CT_FALSE) {
+                        return CT_FALSE;
                     }
                 }
             }
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t spc_get_datafile_name_bynumber(knl_session_t *session, int32 filenumber, char **filename)
 {
     datafile_t *df = NULL;
 
-    if (filenumber < 0 || filenumber >= (int32)GS_MAX_DATA_FILES) {
-        GS_THROW_ERROR(ERR_INVALID_DATAFILE_NUMBER, filenumber, 0, (GS_MAX_DATA_FILES - 1));
-        return GS_ERROR;
+    if (filenumber < 0 || filenumber >= (int32)CT_MAX_DATA_FILES) {
+        CT_THROW_ERROR(ERR_INVALID_DATAFILE_NUMBER, filenumber, 0, (CT_MAX_DATA_FILES - 1));
+        return CT_ERROR;
     }
 
     df = DATAFILE_GET(session, filenumber);
     if (DF_FILENO_IS_INVAILD(df) || !df->ctrl->used) {
-        GS_THROW_ERROR(ERR_DATAFILE_NUMBER_NOT_EXIST, filenumber);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATAFILE_NUMBER_NOT_EXIST, filenumber);
+        return CT_ERROR;
     }
 
     if (filename != NULL) {
         *filename = df->ctrl->name;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t spc_get_id_by_name(knl_session_t *session, text_t *name, uint32 *id)
@@ -1355,7 +1356,7 @@ static status_t spc_get_id_by_name(knl_session_t *session, text_t *name, uint32 
 
     CM_POINTER3(session, name, id);
 
-    for (i = 0; i < GS_MAX_DATA_FILES; i++) {
+    for (i = 0; i < CT_MAX_DATA_FILES; i++) {
         df = DATAFILE_GET(session, i);
         if (DF_FILENO_IS_INVAILD(df) || !df->ctrl->used) {
             continue;
@@ -1363,12 +1364,12 @@ static status_t spc_get_id_by_name(knl_session_t *session, text_t *name, uint32 
 
         if (cm_text_str_equal_ins(name, df->ctrl->name)) {
             *id = i;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
-    GS_THROW_ERROR(ERR_FILE_NOT_EXIST, "data", T2S(name));
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_FILE_NOT_EXIST, "data", T2S(name));
+    return CT_ERROR;
 }
 
 // precheck next extend size and maxsize which may be change in autoextend
@@ -1376,7 +1377,7 @@ status_t df_alter_datafile_precheck_autoextend(knl_session_t *session, datafile_
     knl_autoextend_def_t *def)
 {
     if (!def->enabled) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // origin size, in alter process df's value has been set
@@ -1392,84 +1393,84 @@ status_t df_alter_datafile_precheck_autoextend(knl_session_t *session, datafile_
     }
 
     if (next_extend_size > maxsize) {
-        GS_THROW_ERROR(ERR_DATAFILE_SIZE_NOT_ALLOWED, "NEXT SIZE", df->ctrl->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATAFILE_SIZE_NOT_ALLOWED, "NEXT SIZE", df->ctrl->name);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t spc_alter_precheck_datafile(knl_session_t *session, knl_alterdb_datafile_t *def)
 {
     uint32 i;
     text_t *name = NULL;
-    uint32 id = GS_INVALID_ID32;
+    uint32 id = CT_INVALID_ID32;
     datafile_t *df = NULL;
     int64 max_file_size;
     space_t *space = NULL;
 
     if (!def->autoextend.enabled) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (i = 0; i < def->datafiles.count; i++) {
         name = (text_t *)cm_galist_get(&def->datafiles, i);
-        if (spc_get_id_by_name(session, name, &id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_id_by_name(session, name, &id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-        if (id == GS_INVALID_ID32) {
-            GS_THROW_ERROR(ERR_FILE_NOT_EXIST, "data", name->str);
-            return GS_ERROR;
+        if (id == CT_INVALID_ID32) {
+            CT_THROW_ERROR(ERR_FILE_NOT_EXIST, "data", name->str);
+            return CT_ERROR;
         }
 
         df = DATAFILE_GET(session, id);
         space = SPACE_GET(session, df->space_id);
         max_file_size = (int64)MAX_FILE_PAGES(space->ctrl->type) * DEFAULT_PAGE_SIZE(session);
         if (def->autoextend.nextsize > max_file_size) {
-            GS_THROW_ERROR(ERR_DATAFILE_SIZE_NOT_ALLOWED, "NEXT SIZE", T2S(name));
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_DATAFILE_SIZE_NOT_ALLOWED, "NEXT SIZE", T2S(name));
+            return CT_ERROR;
         }
 
         if (def->autoextend.maxsize > max_file_size) {
-            GS_THROW_ERROR(ERR_DATAFILE_SIZE_NOT_ALLOWED, "MAXSIZE", T2S(name));
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_DATAFILE_SIZE_NOT_ALLOWED, "MAXSIZE", T2S(name));
+            return CT_ERROR;
         }
 
         if (def->autoextend.maxsize != 0 && def->autoextend.maxsize < df->ctrl->size) {
-            GS_THROW_ERROR(ERR_DATAFILE_SIZE_NOT_ALLOWED, "MAXSIZE", T2S(name));
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_DATAFILE_SIZE_NOT_ALLOWED, "MAXSIZE", T2S(name));
+            return CT_ERROR;
         }
 
         if (df_alter_datafile_precheck_autoextend(session, df, &def->autoextend)) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_alter_datafile_autoextend(knl_session_t *session, knl_alterdb_datafile_t *def)
 {
     text_t *name = NULL;
-    uint32 id = GS_INVALID_ID32;
+    uint32 id = CT_INVALID_ID32;
     datafile_t *df = NULL;
     rd_set_df_autoextend_daac_t daac_redo;
     rd_set_df_autoextend_t *redo = &daac_redo.rd;
     space_t *space = NULL;
 
     if (session->kernel->db.status < DB_STATUS_OPEN) {
-        GS_THROW_ERROR(ERR_DATABASE_NOT_OPEN, "operation");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATABASE_NOT_OPEN, "operation");
+        return CT_ERROR;
     }
 
-    if (spc_alter_precheck_datafile(session, def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (spc_alter_precheck_datafile(session, def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < def->datafiles.count; i++) {
         name = (text_t *)cm_galist_get(&def->datafiles, i);
-        if (spc_get_id_by_name(session, name, &id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_id_by_name(session, name, &id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         df = DATAFILE_GET(session, id);
         space = SPACE_GET(session, df->space_id);
@@ -1490,7 +1491,7 @@ status_t spc_alter_datafile_autoextend(knl_session_t *session, knl_alterdb_dataf
         }
         log_atomic_op_end(session);
 
-        if (db_save_datafile_ctrl(session, df->ctrl->id) != GS_SUCCESS) {
+        if (db_save_datafile_ctrl(session, df->ctrl->id) != CT_SUCCESS) {
             CM_ABORT(0, "[SPACE] ABORT INFO: failed to save control file when extending datafile");
         }
 
@@ -1501,37 +1502,37 @@ status_t spc_alter_datafile_autoextend(knl_session_t *session, knl_alterdb_dataf
         if (DB_IS_CLUSTER(session)) {
             tx_copy_logic_log(session);
             if (session->logic_log_size > 0 || session->rm->logic_log_size > 0) {
-                if (db_write_ddl_op(session) != GS_SUCCESS) {
+                if (db_write_ddl_op(session) != CT_SUCCESS) {
                     knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
                 }
                 dtc_sync_ddl(session);
             }
         }
 
-        space->allow_extend = GS_TRUE;
+        space->allow_extend = CT_TRUE;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 spc_is_datafile_exist(knl_session_t *session, knl_alterdb_datafile_t *def)
 {
     text_t *name = NULL;
-    uint32 id = GS_INVALID_ID32;
+    uint32 id = CT_INVALID_ID32;
 
     for (uint32 i = 0; i < def->datafiles.count; i++) {
         name = (text_t *)cm_galist_get(&def->datafiles, i);
-        if (spc_get_id_by_name(session, name, &id) != GS_SUCCESS) {
-            return GS_FALSE;
+        if (spc_get_id_by_name(session, name, &id) != CT_SUCCESS) {
+            return CT_FALSE;
         }
 
-        if (id == GS_INVALID_ID32) {
-            GS_THROW_ERROR(ERR_FILE_NOT_EXIST, "data", name->str);
-            return GS_FALSE;
+        if (id == CT_INVALID_ID32) {
+            CT_THROW_ERROR(ERR_FILE_NOT_EXIST, "data", name->str);
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t static spc_resize_datafile(knl_session_t *session, space_t *space, datafile_t *df, uint64 new_file_size)
@@ -1546,15 +1547,15 @@ status_t static spc_resize_datafile(knl_session_t *session, space_t *space, data
     min_keep_size = MAX(min_file_size,
                         ((int64)SPACE_HEAD_RESIDENT(session, space)->hwms[df->file_no] * DEFAULT_PAGE_SIZE(session)));
     if (new_file_size < min_keep_size) {
-        GS_THROW_ERROR(ERR_DATAFILE_RESIZE_TOO_SMALL);
+        CT_THROW_ERROR(ERR_DATAFILE_RESIZE_TOO_SMALL);
         dls_spin_unlock(session, &space->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (new_file_size > df->ctrl->auto_extend_maxsize) {
-        GS_THROW_ERROR(ERR_DATAFILE_RESIZE_EXCEED, new_file_size, df->ctrl->auto_extend_maxsize);
+        CT_THROW_ERROR(ERR_DATAFILE_RESIZE_EXCEED, new_file_size, df->ctrl->auto_extend_maxsize);
         dls_spin_unlock(session, &space->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* resize the datafile */
@@ -1562,66 +1563,66 @@ status_t static spc_resize_datafile(knl_session_t *session, space_t *space, data
 
     ckpt_disable(session);
     if (new_file_size > df->ctrl->size) {
-        status = spc_extend_datafile_ddl(session, df, handle, new_file_size - df->ctrl->size, GS_TRUE);
+        status = spc_extend_datafile_ddl(session, df, handle, new_file_size - df->ctrl->size, CT_TRUE);
     } else {
-        status = spc_truncate_datafile_ddl(session, df, handle, new_file_size, GS_TRUE);
+        status = spc_truncate_datafile_ddl(session, df, handle, new_file_size, CT_TRUE);
     }
     ckpt_enable(session);
 
-    if (status != GS_SUCCESS) {
+    if (status != CT_SUCCESS) {
         dls_spin_unlock(session, &space->lock);
-        GS_LOG_RUN_ERR("[SPACE] failed to resize datafile %s, old size %lld, new size %lld", df->ctrl->name,
+        CT_LOG_RUN_ERR("[SPACE] failed to resize datafile %s, old size %lld, new size %lld", df->ctrl->name,
                        df->ctrl->size, new_file_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    space->allow_extend = GS_TRUE;
+    space->allow_extend = CT_TRUE;
     dls_spin_unlock(session, &space->lock);
 
     if (IS_SWAP_SPACE(space)) {
         session->temp_pool->get_swap_extents = 0;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_alter_datafile_resize(knl_session_t *session, knl_alterdb_datafile_t *def)
 {
-    uint32 id = GS_INVALID_ID32;
+    uint32 id = CT_INVALID_ID32;
     text_t *name = NULL;
     datafile_t *df = NULL;
     space_t *space = NULL;
 
     if (session->kernel->db.status < DB_STATUS_OPEN) {
-        GS_THROW_ERROR(ERR_DATABASE_NOT_OPEN, "operation");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATABASE_NOT_OPEN, "operation");
+        return CT_ERROR;
     }
 
     if (!spc_is_datafile_exist(session, def)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < def->datafiles.count; i++) {
         name = (text_t *)cm_galist_get(&def->datafiles, i);
-        if (spc_get_id_by_name(session, name, &id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_id_by_name(session, name, &id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         df = DATAFILE_GET(session, id);
         space = SPACE_GET(session, df->space_id);
         if (!SPACE_IS_ONLINE(space)) {
-            char err_msg[GS_MESSAGE_BUFFER_SIZE] = { 0 };
-            errno_t ret = sprintf_s(err_msg, GS_MESSAGE_BUFFER_SIZE, "resize datafile %s failed", df->ctrl->name);
+            char err_msg[CT_MESSAGE_BUFFER_SIZE] = { 0 };
+            errno_t ret = sprintf_s(err_msg, CT_MESSAGE_BUFFER_SIZE, "resize datafile %s failed", df->ctrl->name);
             knl_securec_check_ss(ret);
-            GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, err_msg);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, err_msg);
+            return CT_ERROR;
         }
         
-        if (spc_resize_datafile(session, space, df, def->size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_resize_datafile(session, space, df, def->size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 datafile_t *db_get_next_datafile(knl_session_t *session, uint32 *file_id, uint64 *data_size, uint32 *hwm_start)
@@ -1630,7 +1631,7 @@ datafile_t *db_get_next_datafile(knl_session_t *session, uint32 *file_id, uint64
     space_t *space = NULL;
     uint64 size;
 
-    for (; *file_id < GS_MAX_DATA_FILES; (*file_id)++) {
+    for (; *file_id < CT_MAX_DATA_FILES; (*file_id)++) {
         df = DATAFILE_GET(session, *file_id);
         if (!DATAFILE_IS_ONLINE(df) || !df->ctrl->used || DF_FILENO_IS_INVAILD(df)) {
             continue;
@@ -1676,7 +1677,7 @@ status_t df_dump_map_head_page(knl_session_t *session, page_head_t *page_head, c
         CM_DUMP_WRITE_FILE(dump);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t df_dump_map_data_page(knl_session_t *session, page_head_t *page_head, cm_dump_t *dump)
@@ -1707,7 +1708,7 @@ status_t df_dump_map_data_page(knl_session_t *session, page_head_t *page_head, c
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1727,10 +1728,10 @@ void df_build_proc(thread_t *thread)
     int32 *handle = DATAFILE_FD(session, df->ctrl->id);
 
     while (!thread->closed && remain_size > 0) {
-        uint32 curr_size = (remain_size > GS_XPURPOSE_BUFFER_SIZE) ? (int32)GS_XPURPOSE_BUFFER_SIZE
+        uint32 curr_size = (remain_size > CT_XPURPOSE_BUFFER_SIZE) ? (int32)CT_XPURPOSE_BUFFER_SIZE
                                                                    : (int32)remain_size;
-        if (cm_write_device(df->ctrl->type, *handle, offset, ctx->buf, curr_size) != GS_SUCCESS) {
-            GS_LOG_RUN_INF("[SPACE] failed to create datafile %s, error code %d", df->ctrl->name, errno);
+        if (cm_write_device(df->ctrl->type, *handle, offset, ctx->buf, curr_size) != CT_SUCCESS) {
+            CT_LOG_RUN_INF("[SPACE] failed to create datafile %s, error code %d", df->ctrl->name, errno);
             ctx->status = DF_BUILD_FAILED;
             return;
         }
@@ -1755,7 +1756,7 @@ static uint32 df_locate_last_extent(knl_session_t *session, datafile_t *df, page
     uint8 *bitmap = map_page->bitmap;
 
     if (map_page->free_bits == DF_MAP_BIT_CNT(session)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return 0;
     }
 
@@ -1779,7 +1780,7 @@ static uint32 df_locate_last_extent(knl_session_t *session, datafile_t *df, page
 
     curr_byte_pos = curr_pos * UINT8_BITS + UINT8_BITS - bit_pos;
     curr_pagid = map_page->first_page.page + df->map_head->bit_unit * curr_byte_pos;
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     return curr_pagid;
 }
@@ -1817,55 +1818,55 @@ status_t df_verify_page_by_hwm(knl_session_t *session, rowid_t rowid)
     space_t *space = SPACE_GET(session, df->space_id);
     uint32 file_hwm = DF_FILENO_IS_INVAILD(df) ? 0 : (int32)SPACE_HEAD_RESIDENT(session, space)->hwms[df->file_no];
     if (rowid.page >= file_hwm) {
-        GS_LOG_DEBUG_WAR("page is invaild, page id is not less than datafile hwm");
-        return GS_ERROR;
+        CT_LOG_DEBUG_WAR("page is invaild, page id is not less than datafile hwm");
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t df_verify_pageid_by_hwm(knl_session_t *session, page_id_t page_id)
 {
-    if (page_id.file >= GS_MAX_DATA_FILES) {
-        GS_LOG_DEBUG_WAR("page is invaild, file id(%u) is larger than max datafile id", page_id.file);
-        return GS_ERROR;
+    if (page_id.file >= CT_MAX_DATA_FILES) {
+        CT_LOG_DEBUG_WAR("page is invaild, file id(%u) is larger than max datafile id", page_id.file);
+        return CT_ERROR;
     }
 
     datafile_t *df = &session->kernel->db.datafiles[page_id.file];
     if (!df->ctrl->used || !DATAFILE_IS_ONLINE(df)) {
-        GS_LOG_DEBUG_WAR("page is invaild, file(%u) is offline", page_id.file);
-        return GS_ERROR;
+        CT_LOG_DEBUG_WAR("page is invaild, file(%u) is offline", page_id.file);
+        return CT_ERROR;
     }
 
     space_t *space = SPACE_GET(session, df->space_id);
     uint32 file_hwm = DF_FILENO_IS_INVAILD(df) ? 0 : (int32)SPACE_HEAD_RESIDENT(session, space)->hwms[df->file_no];
     if (page_id.page >= file_hwm) {
-        GS_LOG_DEBUG_WAR("page is invaild, page id(%u) is not less than datafile hwm(%u)",
+        CT_LOG_DEBUG_WAR("page is invaild, page id(%u) is not less than datafile hwm(%u)",
             page_id.page, file_hwm);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t df_verify_pageid_by_size(knl_session_t *session, page_id_t page_id)
 {
-    if (page_id.file >= GS_MAX_DATA_FILES) {
-        GS_LOG_DEBUG_WAR("page is invaild, file id(%u) is larger than max datafile id", page_id.file);
-        return GS_ERROR;
+    if (page_id.file >= CT_MAX_DATA_FILES) {
+        CT_LOG_DEBUG_WAR("page is invaild, file id(%u) is larger than max datafile id", page_id.file);
+        return CT_ERROR;
     }
 
     datafile_t *df = &session->kernel->db.datafiles[page_id.file];
     if (!df->ctrl->used || !DATAFILE_IS_ONLINE(df)) {
-        GS_LOG_DEBUG_WAR("page is invaild, file(%u) is offline", page_id.file);
-        return GS_ERROR;
+        CT_LOG_DEBUG_WAR("page is invaild, file(%u) is offline", page_id.file);
+        return CT_ERROR;
     }
 
     uint64 max_page_count = df->ctrl->size / DEFAULT_PAGE_SIZE(session);
     if (page_id.page >= (uint32)max_page_count) {
-        GS_LOG_DEBUG_WAR("page is invaild, page id(%u) is not less than datafile max page count(%u)",
+        CT_LOG_DEBUG_WAR("page is invaild, page id(%u) is not less than datafile max page count(%u)",
             page_id.page, (uint32)max_page_count);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

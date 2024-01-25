@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -42,7 +42,7 @@
 #define CM_MAX_ARRAY_SN_LEN        64
 #define CM_MAX_LUNID_LEN           11
 #define CM_HW_ARRAY_SN_LEN         21
-#define CM_MAX_RKEY_COUNT          GS_MAX_INSTANCES
+#define CM_MAX_RKEY_COUNT          CT_MAX_INSTANCES
 
 #define SAM_CHECK_CONDITION         0x02
 #define SAM_RESERVATION_CONFLICT    0x18
@@ -96,6 +96,10 @@ typedef struct st_scsi_sense_hdr {
 #ifdef WIN32
 #else
 
+//scsi2 reserve(6)/release(6)
+status_t cm_scsi2_reserve(int32 fd);
+status_t cm_scsi2_release(int32 fd);
+
 //scsi3 register/reserve/release/clear/preempt
 int32 cm_scsi3_register(int32 fd, int64 sark);
 int32 cm_scsi3_unregister(int32 fd, int64 rk);
@@ -104,9 +108,22 @@ status_t cm_scsi3_release(int32 fd, int64 rk);
 status_t cm_scsi3_clear(int32 fd, int64 rk);
 status_t cm_scsi3_preempt(int32 fd, int64 rk, int64 sark);
 //scsi3 vaai compare and write
-//return : GS_TIMEDOUT/GS_SUCCESS/GS_ERROR/CM_SCSI_ERR_MISCOMPARE
+//return : CT_TIMEDOUT/CT_SUCCESS/CT_ERROR/CM_SCSI_ERR_MISCOMPARE
 int32 cm_scsi3_caw(int32 fd, int64 block_addr, char* buff, int32 buff_len);
-status_t cm_scsi3_inql(int32 fd, inquiry_data_t *inquiry_data);
+
+//scsi3 read(10)/write(10)
+status_t cm_scsi3_read(int32 fd, int32 block_addr, uint16 block_count,
+    char* buff, int32 buff_len);
+status_t cm_scsi3_write(int32 fd, int32 block_addr, uint16 block_count,
+    char* buff, int32 buff_len);
+
+//scsi inquiry(get lun info)
+status_t cm_scsi3_inql(int32 fd, inquiry_data_t* inquiry_data);
+status_t cm_scsi3_get_array(int32 fd, array_info_t* array_info);
+status_t cm_scsi3_get_vendor(int32 fd, vendor_info_t* vendor_info);
+status_t cm_scsi3_get_lun(int32 fd, lun_info_t* lun_info);
+
+//scsi3 reserve in(get reservation keys and reservations)
 //read register keys
 status_t cm_scsi3_rkeys(int32 fd, int64* reg_keys, int32* key_count, uint32* generation);
 //read reservation key

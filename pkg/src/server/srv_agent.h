@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,6 +31,7 @@
 #include "cs_pipe.h"
 #include "srv_session.h"
 #include "cm_sync.h"
+#include "srv_job.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,6 +60,7 @@ typedef struct st_agent {
 
     union {
         cs_packet_t recv_pack; /* packet  receive from client when work as pipe mode */
+        job_info_t job_info;   /* job info when work as background mode to process job */
     };
     cs_packet_t send_pack;
     bool8 is_extend;
@@ -94,27 +96,29 @@ typedef struct st_extend_agent {
 } extend_agent_t;
 
 void free_extend_agent(agent_pool_t *agent_pool);
-void server_shutdown_agent_pool(agent_pool_t *agent_pool);
-void server_get_stack_base(thread_t *thread, agent_t **agent);
-status_t server_start_agent(agent_t *agent, thread_entry_t entry);
+void srv_shutdown_agent_pool(agent_pool_t *agent_pool);
+void srv_get_stack_base(thread_t *thread, agent_t **agent);
+status_t srv_start_agent(agent_t *agent, thread_entry_t entry);
 
 
-status_t server_create_agent_pool(agent_pool_t *agent_pool, bool8 priv);
-void server_destroy_agent_pool(agent_pool_t *agent_pool);
-status_t server_attach_agent(session_t *session, agent_t **agent, bool32 nowait);
-void server_bind_session_agent(session_t *session, agent_t *agent);
-void server_unbind_session_agent(session_t *session, agent_t *agent);
-void server_shrink_agent_pool(agent_pool_t *agent_pool);
+status_t srv_create_agent_pool(agent_pool_t *agent_pool, bool8 priv);
+void srv_destroy_agent_pool(agent_pool_t *agent_pool);
+void srv_destroy_agent_pool_nowait(agent_pool_t *agent_pool);
+status_t srv_attach_agent(session_t *session, agent_t **agent, bool32 nowait);
+void srv_bind_sess_agent(session_t *session, agent_t *agent);
+void srv_unbind_sess_agent(session_t *session, agent_t *agent);
+void srv_detach_dedicated_agent(session_t *session);
+void srv_shrink_agent_pool(agent_pool_t *agent_pool);
 void shrink_pool_core(agent_pool_t *agent_pool);
-void shutdown_extend_agent(agent_pool_t *agent_pool);
-status_t server_diag_proto_type(session_t *session);
-status_t server_process_single_session_cs_wait(session_t *session, bool32 *ready);
-status_t server_process_single_session(session_t *session);
-status_t server_alloc_agent_resource(agent_t *agent);
-void server_free_agent_resource(agent_t *agent, bool32 free_pack);
-void server_free_dedicated_agent_resource(agent_t *agent);
-agent_t *server_create_dedicated_agent(void);
-status_t server_create_agent_private_section(agent_t *agent);
+void close_extend_agent(agent_pool_t *agent_pool);
+status_t srv_diag_proto_type(session_t *session);
+status_t srv_process_single_session_cs_wait(session_t *session, bool32 *ready);
+status_t srv_process_single_session(session_t *session);
+status_t srv_alloc_agent_res(agent_t *agent);
+void srv_free_agent_res(agent_t *agent, bool32 free_pack);
+void srv_free_dedicated_agent_res(agent_t *agent);
+agent_t *srv_create_dedicated_agent(void);
+status_t srv_create_agent_private_area(agent_t *agent);
 #ifdef __cplusplus
 }
 #endif

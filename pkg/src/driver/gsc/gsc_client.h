@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,7 +31,7 @@
 extern "C" {
 #endif
 
-#define CLT_MAX_BOUND_SIZE (GS_MAX_PACKET_SIZE - 256)
+#define CLT_MAX_BOUND_SIZE (CT_MAX_PACKET_SIZE - 256)
 extern void gsc_set_paramset_size(gsc_stmt_t pstmt, uint32 sz);
 
 #ifdef __cplusplus

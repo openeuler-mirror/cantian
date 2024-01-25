@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_flash_module.h"
 #include "rb_truncate.h"
 #include "knl_context.h"
 #include "knl_table.h"
@@ -39,7 +40,7 @@ void rb_convert_desc(knl_cursor_t *cursor, knl_rb_desc_t *desc)
     desc->id = *(uint64 *)CURSOR_COLUMN_DATA(cursor, SYS_RECYCLEBIN_COL_ID);
     text.str = CURSOR_COLUMN_DATA(cursor, SYS_RECYCLEBIN_COL_NAME);
     text.len = CURSOR_COLUMN_SIZE(cursor, SYS_RECYCLEBIN_COL_NAME);
-    (void)cm_text2str(&text, desc->name, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&text, desc->name, CT_NAME_BUFFER_SIZE);
     ret = sscanf_s(desc->name, "BIN$%u[^$]", &desc->table_id);
     knl_securec_check_ss(ret);
 
@@ -47,12 +48,12 @@ void rb_convert_desc(knl_cursor_t *cursor, knl_rb_desc_t *desc)
 
     text.str = CURSOR_COLUMN_DATA(cursor, SYS_RECYCLEBIN_COL_ORG_NAME);
     text.len = CURSOR_COLUMN_SIZE(cursor, SYS_RECYCLEBIN_COL_ORG_NAME);
-    (void)cm_text2str(&text, desc->org_name, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&text, desc->org_name, CT_NAME_BUFFER_SIZE);
 
-    if (CURSOR_COLUMN_SIZE(cursor, SYS_RECYCLEBIN_COL_PARTITION_NAME) != GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, SYS_RECYCLEBIN_COL_PARTITION_NAME) != CT_NULL_VALUE_LEN) {
         text.str = CURSOR_COLUMN_DATA(cursor, SYS_RECYCLEBIN_COL_PARTITION_NAME);
         text.len = CURSOR_COLUMN_SIZE(cursor, SYS_RECYCLEBIN_COL_PARTITION_NAME);
-        (void)cm_text2str(&text, desc->part_name, GS_NAME_BUFFER_SIZE);
+        (void)cm_text2str(&text, desc->part_name, CT_NAME_BUFFER_SIZE);
     } else {
         desc->part_name[0] = '\0';
     }
@@ -61,7 +62,7 @@ void rb_convert_desc(knl_cursor_t *cursor, knl_rb_desc_t *desc)
     desc->oper = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_RECYCLEBIN_COL_OPERATION_ID);
     desc->space_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_RECYCLEBIN_COL_SPACE_ID);
 
-    if (CURSOR_COLUMN_SIZE(cursor, SYS_RECYCLEBIN_COL_ENTRY) != GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, SYS_RECYCLEBIN_COL_ENTRY) != CT_NULL_VALUE_LEN) {
         desc->entry = *(page_id_t *)CURSOR_COLUMN_DATA(cursor, SYS_RECYCLEBIN_COL_ENTRY);
     } else {
         desc->entry = INVALID_PAGID;
@@ -71,10 +72,10 @@ void rb_convert_desc(knl_cursor_t *cursor, knl_rb_desc_t *desc)
     desc->org_scn = *(knl_scn_t *)CURSOR_COLUMN_DATA(cursor, SYS_RECYCLEBIN_COL_ORG_SCN);
     desc->rec_scn = *(knl_scn_t *)CURSOR_COLUMN_DATA(cursor, SYS_RECYCLEBIN_COL_REC_SCN);
 
-    if (CURSOR_COLUMN_SIZE(cursor, SYS_RECYCLEBIN_COL_TCHG_SCN) != GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, SYS_RECYCLEBIN_COL_TCHG_SCN) != CT_NULL_VALUE_LEN) {
         desc->tchg_scn = *(knl_scn_t *)CURSOR_COLUMN_DATA(cursor, SYS_RECYCLEBIN_COL_TCHG_SCN);
     } else {
-        desc->tchg_scn = GS_INVALID_ID64;
+        desc->tchg_scn = CT_INVALID_ID64;
     }
 
     desc->base_id = *(uint64 *)CURSOR_COLUMN_DATA(cursor, SYS_RECYCLEBIN_COL_BASE_ID);
@@ -90,11 +91,11 @@ static void rb_init_table_desc(knl_session_t *session, knl_table_desc_t *table_d
     errno_t ret;
 
     desc->id = session->curr_lsn;
-    ret = snprintf_s(desc->name, GS_NAME_BUFFER_SIZE, GS_NAME_BUFFER_SIZE - 1,
+    ret = snprintf_s(desc->name, CT_NAME_BUFFER_SIZE, CT_NAME_BUFFER_SIZE - 1,
                      "BIN$%u$%llX==$0", table_desc->id, desc->id);
     knl_securec_check_ss(ret);
     name_len = strlen(table_desc->name);
-    ret = strncpy_s(desc->org_name, GS_NAME_BUFFER_SIZE, table_desc->name, name_len);
+    ret = strncpy_s(desc->org_name, CT_NAME_BUFFER_SIZE, table_desc->name, name_len);
     knl_securec_check(ret);
     desc->part_name[0] = '\0';
 
@@ -122,15 +123,15 @@ static void rb_init_table_part_desc(knl_session_t *session, table_t *table,
     errno_t ret;
 
     desc->id = session->curr_lsn;
-    ret = snprintf_s(desc->name, GS_NAME_BUFFER_SIZE, GS_NAME_BUFFER_SIZE - 1,
+    ret = snprintf_s(desc->name, CT_NAME_BUFFER_SIZE, CT_NAME_BUFFER_SIZE - 1,
                      "BIN$%u$%llX==$0", part_desc->table_id, desc->id);
     knl_securec_check_ss(ret);
 
     name_len = strlen(table->desc.name);
-    ret = strncpy_s(desc->org_name, GS_NAME_BUFFER_SIZE, table->desc.name, name_len);
+    ret = strncpy_s(desc->org_name, CT_NAME_BUFFER_SIZE, table->desc.name, name_len);
     knl_securec_check(ret);
     name_len = strlen(part_desc->name);
-    ret = strncpy_s(desc->part_name, GS_NAME_BUFFER_SIZE, part_desc->name, name_len);
+    ret = strncpy_s(desc->part_name, CT_NAME_BUFFER_SIZE, part_desc->name, name_len);
     knl_securec_check(ret);
 
     knl_panic_log(desc->oper == RB_OPER_TRUNCATE, "curr oper is abnormal, panic info: table %s rb_table %s oper %u",
@@ -156,11 +157,11 @@ static void rb_init_index_desc(knl_session_t *session, knl_index_desc_t *index_d
 {
     errno_t ret;
     desc->id = session->curr_lsn;
-    ret = snprintf_s(desc->name, GS_NAME_BUFFER_SIZE, GS_NAME_BUFFER_SIZE - 1,
+    ret = snprintf_s(desc->name, CT_NAME_BUFFER_SIZE, CT_NAME_BUFFER_SIZE - 1,
                      "BIN$%u$%llX==$0", index_desc->table_id, desc->id);
     knl_securec_check_ss(ret);
 
-    knl_get_index_name(index_desc, desc->org_name, GS_NAME_BUFFER_SIZE);
+    knl_get_index_name(index_desc, desc->org_name, CT_NAME_BUFFER_SIZE);
     /* for index object, partition name should be empty */
     desc->part_name[0] = '\0';
 
@@ -171,7 +172,7 @@ static void rb_init_index_desc(knl_session_t *session, knl_index_desc_t *index_d
     desc->flags = 0;
     desc->org_scn = index_desc->org_scn;
     desc->rec_scn = db_inc_scn(session);
-    desc->tchg_scn = GS_INVALID_ID64;
+    desc->tchg_scn = CT_INVALID_ID64;
     desc->purge_id = (desc->oper == RB_OPER_TRUNCATE) ? desc->base_id : desc->id;
 
     desc->can_flashback = (desc->id == desc->base_id) ? 1 : 0;
@@ -187,19 +188,19 @@ static void rb_init_index_part_desc(knl_session_t *session, index_t *index, knl_
                                     uint32 part_no, knl_rb_desc_t *desc)
 {
     desc->id = session->curr_lsn;
-    errno_t ret = snprintf_s(desc->name, GS_NAME_BUFFER_SIZE, GS_NAME_BUFFER_SIZE - 1,
+    errno_t ret = snprintf_s(desc->name, CT_NAME_BUFFER_SIZE, CT_NAME_BUFFER_SIZE - 1,
                              "BIN$%u$%llX==$0", part_desc->table_id, desc->id);
     knl_securec_check_ss(ret);
 
-    knl_get_index_name(&index->desc, desc->org_name, GS_NAME_BUFFER_SIZE);
+    knl_get_index_name(&index->desc, desc->org_name, CT_NAME_BUFFER_SIZE);
     if (IS_SUB_IDXPART(part_desc)) {
         index_part_t *index_compart = subpart_get_parent_idx_part(index, part_desc->parent_partid);
         knl_panic_log(index_compart != NULL, "the index_compart is NULL, panic info: rb_table %s index %s",
                       desc->name, index->desc.name);
-        ret = snprintf_s(desc->part_name, GS_NAME_BUFFER_SIZE, GS_NAME_BUFFER_SIZE - 1,
+        ret = snprintf_s(desc->part_name, CT_NAME_BUFFER_SIZE, CT_NAME_BUFFER_SIZE - 1,
                          "INDEX%uP%uSUBP%u", part_desc->index_id, index_compart->part_no, part_no);
     } else {
-        ret = snprintf_s(desc->part_name, GS_NAME_BUFFER_SIZE, GS_NAME_BUFFER_SIZE - 1,
+        ret = snprintf_s(desc->part_name, CT_NAME_BUFFER_SIZE, CT_NAME_BUFFER_SIZE - 1,
                          "INDEX%uP%u", part_desc->index_id, part_no);
     }
     knl_securec_check_ss(ret);
@@ -213,7 +214,7 @@ static void rb_init_index_part_desc(knl_session_t *session, index_t *index, knl_
     desc->flags = 0;
     desc->org_scn = part_desc->org_scn;
     desc->rec_scn = db_inc_scn(session);
-    desc->tchg_scn = GS_INVALID_ID64;
+    desc->tchg_scn = CT_INVALID_ID64;
     desc->purge_id = desc->base_id;
 
     desc->can_flashback = (desc->id == desc->base_id) ? 1 : 0;
@@ -229,11 +230,11 @@ static void rb_init_lob_desc(knl_session_t *session, knl_lob_desc_t *lob_desc, k
     errno_t ret;
 
     desc->id = session->curr_lsn;
-    ret = snprintf_s(desc->name, GS_NAME_BUFFER_SIZE, GS_NAME_BUFFER_SIZE - 1,
+    ret = snprintf_s(desc->name, CT_NAME_BUFFER_SIZE, CT_NAME_BUFFER_SIZE - 1,
                      "BIN$%u$%llX==$0", lob_desc->table_id, desc->id);
     knl_securec_check_ss(ret);
 
-    ret = snprintf_s(desc->org_name, GS_NAME_BUFFER_SIZE, GS_NAME_BUFFER_SIZE - 1,
+    ret = snprintf_s(desc->org_name, CT_NAME_BUFFER_SIZE, CT_NAME_BUFFER_SIZE - 1,
                      "LOB%uC%u", lob_desc->table_id, lob_desc->column_id);
     knl_securec_check_ss(ret);
     desc->part_name[0] = '\0';
@@ -247,7 +248,7 @@ static void rb_init_lob_desc(knl_session_t *session, knl_lob_desc_t *lob_desc, k
     desc->flags = 0;
     desc->org_scn = lob_desc->org_scn;
     desc->rec_scn = db_inc_scn(session);
-    desc->tchg_scn = GS_INVALID_ID64;
+    desc->tchg_scn = CT_INVALID_ID64;
     desc->purge_id = desc->base_id;
 
     desc->can_flashback = (desc->id == desc->base_id) ? 1 : 0;
@@ -263,11 +264,11 @@ static void rb_init_lob_part_desc(knl_session_t *session, table_t *table, knl_lo
     errno_t ret;
 
     desc->id = session->curr_lsn;
-    ret = snprintf_s(desc->name, GS_NAME_BUFFER_SIZE, GS_NAME_BUFFER_SIZE - 1,
+    ret = snprintf_s(desc->name, CT_NAME_BUFFER_SIZE, CT_NAME_BUFFER_SIZE - 1,
                      "BIN$%u$%llX==$0", part_desc->table_id, desc->id);
     knl_securec_check_ss(ret);
 
-    ret = snprintf_s(desc->org_name, GS_NAME_BUFFER_SIZE, GS_NAME_BUFFER_SIZE - 1,
+    ret = snprintf_s(desc->org_name, CT_NAME_BUFFER_SIZE, CT_NAME_BUFFER_SIZE - 1,
                      "LOB%uC%u", part_desc->table_id, part_desc->column_id);
     knl_securec_check_ss(ret);
 
@@ -275,10 +276,10 @@ static void rb_init_lob_part_desc(knl_session_t *session, table_t *table, knl_lo
         table_part_t *compart = subpart_get_parent_tabpart(table->part_table, part_desc->parent_partid);
         knl_panic_log(compart != NULL, "the compart is NULL, panic info: table %s rb_table %s", table->desc.name,
                       desc->name);
-        ret = snprintf_s(desc->part_name, GS_NAME_BUFFER_SIZE, GS_NAME_BUFFER_SIZE - 1,
+        ret = snprintf_s(desc->part_name, CT_NAME_BUFFER_SIZE, CT_NAME_BUFFER_SIZE - 1,
                          "LOB%uC%uP%uSUBP%u", part_desc->table_id, part_desc->column_id, compart->part_no, part_no);
     } else {
-        ret = snprintf_s(desc->part_name, GS_NAME_BUFFER_SIZE, GS_NAME_BUFFER_SIZE - 1,
+        ret = snprintf_s(desc->part_name, CT_NAME_BUFFER_SIZE, CT_NAME_BUFFER_SIZE - 1,
                          "LOB%uC%uP%u", part_desc->table_id, part_desc->column_id, part_no);
     }
     knl_securec_check_ss(ret);
@@ -292,7 +293,7 @@ static void rb_init_lob_part_desc(knl_session_t *session, table_t *table, knl_lo
     desc->flags = 0;
     desc->org_scn = part_desc->org_scn;
     desc->rec_scn = db_inc_scn(session);
-    desc->tchg_scn = GS_INVALID_ID64;
+    desc->tchg_scn = CT_INVALID_ID64;
     desc->purge_id = desc->base_id;
 
     desc->can_flashback = (desc->id == desc->base_id) ? 1 : 0;
@@ -313,18 +314,18 @@ static status_t rb_drop_index(knl_session_t *session, table_t *table, knl_rb_des
         index = table->index_set.items[i];
         rb_init_index_desc(session, &index->desc, desc);
 
-        if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         /* update the origin index name to recycle bin object name in index$ */
         cm_str2text(desc->name, &text);
-        if (db_update_index_name(session, index->desc.uid, index->desc.table_id, desc->org_name, &text) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_update_index_name(session, index->desc.uid, index->desc.table_id, desc->org_name, &text) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -340,57 +341,57 @@ static status_t rb_drop_all_cons(knl_session_t *session, knl_dictionary_t *dc)
     errno_t ret;
 
     /* drop foreign key, rename primary/unique constraint */
-    if (db_drop_all_cons(session, table->desc.uid, table->desc.id, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_drop_all_cons(session, table->desc.uid, table->desc.id, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
-    char *buf = (char *)cm_push(session->stack, GS_NAME_BUFFER_SIZE);
+    char *buf = (char *)cm_push(session->stack, CT_NAME_BUFFER_SIZE);
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_CONSDEF_ID, IX_SYS_CONSDEF001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
                      &table->desc.uid, sizeof(uint32), IX_COL_SYS_CONSDEF001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
                      &table->desc.id, sizeof(uint32), IX_COL_SYS_CONSDEF001_TABLE_ID);
     knl_update_info_t *ua = &cursor->update_info;
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
         type = *(uint32 *)CURSOR_COLUMN_DATA(cursor, CONSDEF_COL_TYPE);
         if (type != CONS_TYPE_REFERENCE) {
-            name_buf_size = GS_NAME_BUFFER_SIZE;
+            name_buf_size = CT_NAME_BUFFER_SIZE;
             ret = memset_sp(buf, name_buf_size, 0, name_buf_size);
             knl_securec_check(ret);
-            ret = snprintf_s(buf, name_buf_size, GS_NAME_BUFFER_SIZE - 1,
+            ret = snprintf_s(buf, name_buf_size, CT_NAME_BUFFER_SIZE - 1,
                              "BIN$%u$%llX==$0", table->desc.id, session->curr_lsn);
             knl_securec_check_ss(ret);
 
-            row_init(&ra, ua->data, GS_MAX_ROW_SIZE, 1);
+            row_init(&ra, ua->data, CT_MAX_ROW_SIZE, 1);
             (void)row_put_str(&ra, buf);
             ua->count = 1;
             ua->columns[0] = CONSDEF_COL_NAME;
             cm_decode_row(ua->data, ua->offsets, ua->lens, NULL);
 
-            if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+            if (knl_internal_update(session, cursor) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -401,7 +402,7 @@ static status_t rb_drop_all_cons(knl_session_t *session, knl_dictionary_t *dc)
  * @note caller should hold the table exclusive lock, indexes and partitions
  * share the same base id, so they can be purged or restored at the same time.
  */
-status_t rb_drop_table(knl_session_t *session, knl_handle_t stmt, knl_dictionary_t *dc)
+status_t rb_drop_table(knl_session_t *session, knl_handle_t stmt, knl_dictionary_t *dc, bool32 commit)
 {
     char *buf = NULL;
     table_t *table;
@@ -419,71 +420,83 @@ status_t rb_drop_table(knl_session_t *session, knl_handle_t stmt, knl_dictionary
 
     CM_SAVE_STACK(session->stack);
     rb_init_table_desc(session, &table->desc, &desc);
-    buf = (char *)cm_push(session->stack, GS_NAME_BUFFER_SIZE);
+    buf = (char *)cm_push(session->stack, CT_NAME_BUFFER_SIZE);
     name_len = strlen(desc.name);
-    ret = strncpy_s(buf, GS_NAME_BUFFER_SIZE, desc.name, name_len);
+    ret = strncpy_s(buf, CT_NAME_BUFFER_SIZE, desc.name, name_len);
     knl_securec_check(ret);
 
-    if (db_write_sysrb(session, &desc) != GS_SUCCESS) {
+    if (db_write_sysrb(session, &desc) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_str2text(buf, &text);
-    if (db_update_table_name(session, table->desc.uid, table->desc.name, &text, GS_TRUE) != GS_SUCCESS) {
+    if (db_update_table_name(session, table->desc.uid, table->desc.name, &text, CT_TRUE) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (rb_drop_index(session, table, &desc) != GS_SUCCESS) {
+    if (rb_drop_index(session, table, &desc) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (rb_drop_all_cons(session, dc) != GS_SUCCESS) {
+    if (rb_drop_all_cons(session, dc) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_check_policies_before_delete(session, table->desc.name, table->desc.uid) != GS_SUCCESS) {
+    if (db_check_policies_before_delete(session, table->desc.name, table->desc.uid) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* drop all the table privilege granted to users and roles */
-    if (db_drop_object_privs(session, table->desc.uid, table->desc.name, OBJ_TYPE_TABLE) != GS_SUCCESS) {
+    if (db_drop_object_privs(session, table->desc.uid, table->desc.name, OBJ_TYPE_TABLE) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
+    }
+
+    text_t table_name;
+    cm_str2text(table->desc.name, &table_name);
+    if (db_delete_garbage_table_record4mysql(session, &table_name, table->desc.uid) != CT_SUCCESS) {
+        CM_RESTORE_STACK(session->stack);
+        return CT_ERROR;
     }
 
     obj_addr.oid = dc->oid;
     obj_addr.uid = dc->uid;
     obj_addr.tid = OBJ_TYPE_TABLE;
-    if (g_knl_callback.update_depender(session, &obj_addr) != GS_SUCCESS) {
+    if (g_knl_callback.update_depender(session, &obj_addr) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (g_knl_callback.pl_db_drop_triggers(session, dc) != GS_SUCCESS) {
+    if (g_knl_callback.pl_db_drop_triggers(session, dc) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (GS_SUCCESS != stats_drop_hists(session, table->desc.uid, table->desc.id,
+    if (CT_SUCCESS != stats_drop_hists(session, table->desc.uid, table->desc.id,
         IS_NOLOGGING_BY_TABLE_TYPE(table->desc.type))) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
+    if (!commit) {
+        CM_RESTORE_STACK(session->stack);
+        return CT_SUCCESS;
+    }
     redo.op_type = RD_DROP_TABLE;
-    redo.purge = GS_FALSE;
+    redo.purge = CT_FALSE;
     redo.uid = table->desc.uid;
     redo.oid = table->desc.id;
     redo.org_scn = table->desc.org_scn;
-    ret = strcpy_sp(redo.name, GS_NAME_BUFFER_SIZE, table->desc.name);
+    ret = strcpy_sp(redo.name, CT_NAME_BUFFER_SIZE, table->desc.name);
     knl_securec_check(ret);
     log_put(session, RD_LOGIC_OPERATION, &redo, sizeof(rd_drop_table_t), LOG_ENTRY_FLAG_NONE);
 
+    log_add_lrep_ddl_info(session, stmt, LOGIC_OP_TABLE, RD_DROP_TABLE, table);
     knl_commit(session);
     // Send rd log to drop trigger
     g_knl_callback.pl_drop_triggers_entry(session, dc);
@@ -495,7 +508,7 @@ status_t rb_drop_table(knl_session_t *session, knl_handle_t stmt, knl_dictionary
     CM_RESTORE_STACK(session->stack);
 
     session->stat->table_drops++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -506,13 +519,13 @@ status_t rb_drop_table(knl_session_t *session, knl_handle_t stmt, knl_dictionary
  */
 static status_t rb_truncate_table_segment(knl_session_t *session, table_t *table)
 {
-    if (db_update_table_entry(session, &table->desc, INVALID_PAGID) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_update_table_entry(session, &table->desc, INVALID_PAGID) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     buf_unreside_page(session, table->desc.entry);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -523,13 +536,13 @@ static status_t rb_truncate_table_segment(knl_session_t *session, table_t *table
  */
 static status_t rb_truncate_table_part_segment(knl_session_t *session, table_part_t *table_part)
 {
-    if (db_update_table_part_entry(session, &table_part->desc, INVALID_PAGID) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_update_table_part_entry(session, &table_part->desc, INVALID_PAGID) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     buf_unreside_page(session, table_part->desc.entry);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -540,13 +553,13 @@ static status_t rb_truncate_table_part_segment(knl_session_t *session, table_par
  */
 static status_t rb_truncate_index_segment(knl_session_t *session, index_t *index)
 {
-    if (db_update_index_entry(session, &index->desc, INVALID_PAGID) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_update_index_entry(session, &index->desc, INVALID_PAGID) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     buf_unreside_page(session, index->desc.entry);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -557,19 +570,19 @@ static status_t rb_truncate_index_segment(knl_session_t *session, index_t *index
  */
 static status_t rb_truncate_index_part_segment(knl_session_t *session, index_part_t *index_part)
 {
-    bool32 is_changed = GS_FALSE;
+    bool32 is_changed = CT_FALSE;
 
-    if (db_update_idxpart_status(session, index_part, GS_FALSE, &is_changed) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_update_idxpart_status(session, index_part, CT_FALSE, &is_changed) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_upd_idx_part_entry(session, &index_part->desc, INVALID_PAGID) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_upd_idx_part_entry(session, &index_part->desc, INVALID_PAGID) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     buf_unreside_page(session, index_part->desc.entry);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -580,13 +593,13 @@ static status_t rb_truncate_index_part_segment(knl_session_t *session, index_par
  */
 static status_t rb_truncate_lob_segment(knl_session_t *session, lob_t *lob)
 {
-    if (db_update_lob_entry(session, &lob->desc, INVALID_PAGID) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_update_lob_entry(session, &lob->desc, INVALID_PAGID) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     buf_unreside_page(session, lob->desc.entry);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -597,52 +610,52 @@ static status_t rb_truncate_lob_segment(knl_session_t *session, lob_t *lob)
  */
 static status_t rb_truncate_lob_part_segment(knl_session_t *session, lob_part_t *lob_part)
 {
-    if (db_update_lob_part_entry(session, &lob_part->desc, INVALID_PAGID) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_update_lob_part_entry(session, &lob_part->desc, INVALID_PAGID) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     buf_unreside_page(session, lob_part->desc.entry);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rb_truncate_table_subpart_segment(knl_session_t *session, table_part_t *table_subpart)
 {
-    if (db_update_subtabpart_entry(session, &table_subpart->desc, INVALID_PAGID) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_update_subtabpart_entry(session, &table_subpart->desc, INVALID_PAGID) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     buf_unreside_page(session, table_subpart->desc.entry);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rb_truncate_index_subpart_segment(knl_session_t *session, index_part_t *index_subpart)
 {
-    bool32 is_changed = GS_FALSE;
+    bool32 is_changed = CT_FALSE;
 
-    if (db_update_sub_idxpart_status(session, index_subpart, GS_FALSE, &is_changed) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_update_sub_idxpart_status(session, index_subpart, CT_FALSE, &is_changed) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_upd_sub_idx_part_entry(session, &index_subpart->desc, INVALID_PAGID) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_upd_sub_idx_part_entry(session, &index_subpart->desc, INVALID_PAGID) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     buf_unreside_page(session, index_subpart->desc.entry);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rb_truncate_lob_subpart_segment(knl_session_t *session, lob_part_t *lob_subpart)
 {
-    if (db_update_sublobpart_entry(session, &lob_subpart->desc, INVALID_PAGID) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_update_sublobpart_entry(session, &lob_subpart->desc, INVALID_PAGID) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     buf_unreside_page(session, lob_subpart->desc.entry);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rb_truncate_lob_parts(knl_session_t *session, table_t *table, lob_t *lob, knl_rb_desc_t *desc)
@@ -658,12 +671,12 @@ static status_t rb_truncate_lob_parts(knl_session_t *session, table_t *table, lo
         }
 
         rb_init_lob_part_desc(session, table, &lob_part->desc, i, desc);
-        if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (rb_truncate_lob_part_segment(session, lob_part) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rb_truncate_lob_part_segment(session, lob_part) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!IS_PARENT_LOBPART(&lob_part->desc)) {
@@ -678,17 +691,17 @@ static status_t rb_truncate_lob_parts(knl_session_t *session, table_t *table, lo
             }
 
             rb_init_lob_part_desc(session, table, &lob_subpart->desc, j, desc);
-            if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (rb_truncate_lob_subpart_segment(session, lob_subpart) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rb_truncate_lob_subpart_segment(session, lob_subpart) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -709,24 +722,24 @@ static status_t rb_truncate_lobs(knl_session_t *session, dc_entity_t *entity, ta
 
         lob = (lob_t *)column->lob;
         rb_init_lob_desc(session, &lob->desc, desc);
-        if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!IS_PART_TABLE(table)) {
-            if (rb_truncate_lob_segment(session, lob) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rb_truncate_lob_segment(session, lob) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             continue;
         }
 
-        if (rb_truncate_lob_parts(session, table, lob, desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rb_truncate_lob_parts(session, table, lob, desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rb_truncate_part_index(knl_session_t *session, index_t *index, knl_rb_desc_t *desc)
@@ -744,13 +757,13 @@ static status_t rb_truncate_part_index(knl_session_t *session, index_t *index, k
         }
 
         rb_init_index_part_desc(session, index, &index_part->desc, i, desc);
-        if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!IS_PARENT_IDXPART(&index_part->desc)) {
-            if (rb_truncate_index_part_segment(session, index_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rb_truncate_index_part_segment(session, index_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             continue;
@@ -763,17 +776,17 @@ static status_t rb_truncate_part_index(knl_session_t *session, index_t *index, k
             }
 
             rb_init_index_part_desc(session, index, &index_subpart->desc, j, desc);
-            if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (rb_truncate_index_subpart_segment(session, index_subpart) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rb_truncate_index_subpart_segment(session, index_subpart) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -784,32 +797,32 @@ static status_t rb_truncate_part_index(knl_session_t *session, index_t *index, k
 static status_t rb_truncate_index(knl_session_t *session, table_t *table, knl_rb_desc_t *desc)
 {
     index_t *index = NULL;
-    bool32 is_changed = GS_FALSE;
+    bool32 is_changed = CT_FALSE;
 
     for (uint32 i = 0; i < table->index_set.total_count; i++) {
         index = table->index_set.items[i];
         rb_init_index_desc(session, &index->desc, desc);
-        if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!IS_PART_INDEX(index)) {
-            if (db_update_index_status(session, index, GS_FALSE, &is_changed) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_update_index_status(session, index, CT_FALSE, &is_changed) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (rb_truncate_index_segment(session, index) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rb_truncate_index_segment(session, index) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             continue;
         }
 
-        if (rb_truncate_part_index(session, index, desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rb_truncate_part_index(session, index, desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rb_truncate_part_table(knl_session_t *session, table_t *table, knl_rb_desc_t *desc)
@@ -823,13 +836,13 @@ static status_t rb_truncate_part_table(knl_session_t *session, table_t *table, k
         }
 
         rb_init_table_part_desc(session, table, &table_part->desc, desc);
-        if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!IS_PARENT_TABPART(&table_part->desc)) {
-            if (rb_truncate_table_part_segment(session, table_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rb_truncate_table_part_segment(session, table_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             continue;
@@ -843,17 +856,17 @@ static status_t rb_truncate_part_table(knl_session_t *session, table_t *table, k
             }
 
             rb_init_table_part_desc(session, table, &table_subpart->desc, desc);
-            if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (rb_truncate_table_subpart_segment(session, table_subpart) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rb_truncate_table_subpart_segment(session, table_subpart) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -880,31 +893,31 @@ status_t rb_truncate_table(knl_session_t *session, knl_dictionary_t *dc)
     rb_init_table_desc(session, &table->desc, &desc);
 
     knl_panic_log(dc->type == DICT_TYPE_TABLE, "dc type is abnormal, panic info: table %s", table->desc.name);
-    if (db_write_sysrb(session, &desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_write_sysrb(session, &desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rb_truncate_table_segment(session, table) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rb_truncate_table_segment(session, table) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (IS_PART_TABLE(table)) {
-        if (rb_truncate_part_table(session, table, &desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rb_truncate_part_table(session, table, &desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    if (rb_truncate_index(session, table, &desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rb_truncate_index(session, table, &desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (entity->contain_lob) {
-        if (rb_truncate_lobs(session, entity, table, &desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rb_truncate_lobs(session, entity, table, &desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rb_truncate_index_part(knl_session_t *session, knl_dictionary_t *dc, table_part_t *table_part,
@@ -913,11 +926,11 @@ static status_t rb_truncate_index_part(knl_session_t *session, knl_dictionary_t 
     index_t *index = NULL;
     index_part_t *index_part = NULL;
     table_t *table = DC_TABLE(dc);
-    bool32 is_changed = GS_FALSE;
-    bool32 need_invalidate_index = GS_FALSE;
+    bool32 is_changed = CT_FALSE;
+    bool32 need_invalidate_index = CT_FALSE;
 
-    if (db_need_invalidate_index(session, dc, table, table_part, &need_invalidate_index) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_need_invalidate_index(session, dc, table, table_part, &need_invalidate_index) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < table->index_set.total_count; i++) {
@@ -928,12 +941,12 @@ static status_t rb_truncate_index_part(knl_session_t *session, knl_dictionary_t 
             if (!IS_PARENT_IDXPART(&index_part->desc)) {
                 rb_init_index_part_desc(session, index, &index_part->desc, index_part->part_no, desc);
 
-                if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-                    return GS_ERROR;
+                if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+                    return CT_ERROR;
                 }
 
-                if (rb_truncate_index_part_segment(session, index_part) != GS_SUCCESS) {
-                    return GS_ERROR;
+                if (rb_truncate_index_part_segment(session, index_part) != CT_SUCCESS) {
+                    return CT_ERROR;
                 }
 
                 continue;
@@ -947,28 +960,28 @@ static status_t rb_truncate_index_part(knl_session_t *session, knl_dictionary_t 
                 }
 
                 rb_init_index_part_desc(session, index, &subpart->desc, subpart->part_no, desc);
-                if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-                    return GS_ERROR;
+                if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+                    return CT_ERROR;
                 }
 
-                if (rb_truncate_index_subpart_segment(session, subpart) != GS_SUCCESS) {
-                    return GS_ERROR;
+                if (rb_truncate_index_subpart_segment(session, subpart) != CT_SUCCESS) {
+                    return CT_ERROR;
                 }
             }
             continue;
         }
 
         if (need_invalidate_index) {
-            if (db_update_index_status(session, index, GS_TRUE, &is_changed) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_update_index_status(session, index, CT_TRUE, &is_changed) != CT_SUCCESS) {
+                return CT_ERROR;
             }
-            if (btree_segment_prepare(session, index, GS_FALSE, BTREE_DROP_SEGMENT) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (btree_segment_prepare(session, index, CT_FALSE, BTREE_DROP_SEGMENT) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rb_truncate_lob_part(knl_session_t *session, knl_dictionary_t *dc, table_part_t *table_part,
@@ -996,27 +1009,27 @@ static status_t rb_truncate_lob_part(knl_session_t *session, knl_dictionary_t *d
                 }
 
                 rb_init_lob_part_desc(session, &entity->table, &subpart->desc, j, desc);
-                if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-                    return GS_ERROR;
+                if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+                    return CT_ERROR;
                 }
 
-                if (rb_truncate_lob_subpart_segment(session, subpart) != GS_SUCCESS) {
-                    return GS_ERROR;
+                if (rb_truncate_lob_subpart_segment(session, subpart) != CT_SUCCESS) {
+                    return CT_ERROR;
                 }
             }
         } else {
             rb_init_lob_part_desc(session, &entity->table, &lob_part->desc, table_part->part_no, desc);
-            if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (rb_truncate_lob_part_segment(session, lob_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rb_truncate_lob_part_segment(session, lob_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1037,8 +1050,8 @@ status_t rb_truncate_table_part(knl_session_t *session, knl_dictionary_t *dc, ta
     rb_init_table_part_desc(session, table, &table_part->desc, &desc);
 
     knl_panic_log(dc->type == DICT_TYPE_TABLE, "dc type is abnormal, panic info: table %s", table->desc.name);
-    if (db_write_sysrb(session, &desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_write_sysrb(session, &desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (IS_PARENT_TABPART(&table_part->desc)) {
@@ -1050,47 +1063,47 @@ status_t rb_truncate_table_part(knl_session_t *session, knl_dictionary_t *dc, ta
             }
 
             rb_init_table_part_desc(session, table, &subpart->desc, &desc);
-            if (db_write_sysrb(session, &desc) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_write_sysrb(session, &desc) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (rb_truncate_table_subpart_segment(session, subpart) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rb_truncate_table_subpart_segment(session, subpart) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     } else {
-        if (rb_truncate_table_part_segment(session, table_part) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rb_truncate_table_part_segment(session, table_part) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    if (rb_truncate_index_part(session, dc, table_part, &desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rb_truncate_index_part(session, dc, table_part, &desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (entity->contain_lob) {
-        if (rb_truncate_lob_part(session, dc, table_part, &desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rb_truncate_lob_part(session, dc, table_part, &desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rb_truncate_index_subpart(knl_session_t *session, knl_dictionary_t *dc, table_part_t *subpart,
     knl_rb_desc_t *desc, uint32 compart_no)
 {
     table_t *table = DC_TABLE(dc);
-    bool32 need_invalidate_index = GS_FALSE;
+    bool32 need_invalidate_index = CT_FALSE;
 
-    if (db_need_invalidate_index(session, dc, table, (table_part_t *)subpart, &need_invalidate_index) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_need_invalidate_index(session, dc, table, (table_part_t *)subpart, &need_invalidate_index) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     index_t *index = NULL;
     index_part_t *index_compart = NULL;
     index_part_t *index_subpart = NULL;
-    bool32 is_changed = GS_FALSE;
+    bool32 is_changed = CT_FALSE;
     for (uint32 i = 0; i < table->index_set.total_count; i++) {
         index = table->index_set.items[i];
         if (IS_PART_INDEX(index)) {
@@ -1098,28 +1111,28 @@ static status_t rb_truncate_index_subpart(knl_session_t *session, knl_dictionary
             index_subpart = PART_GET_SUBENTITY(index->part_index, index_compart->subparts[subpart->part_no]);
             rb_init_index_part_desc(session, index, &index_subpart->desc, index_subpart->part_no, desc);
 
-            if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (rb_truncate_index_subpart_segment(session, index_subpart) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rb_truncate_index_subpart_segment(session, index_subpart) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             continue;
         }
 
         if (need_invalidate_index) {
-            if (db_update_index_status(session, index, GS_TRUE, &is_changed) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_update_index_status(session, index, CT_TRUE, &is_changed) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (btree_segment_prepare(session, index, GS_FALSE, BTREE_DROP_SEGMENT) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (btree_segment_prepare(session, index, CT_FALSE, BTREE_DROP_SEGMENT) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rb_truncate_lob_subpart(knl_session_t *session, knl_dictionary_t *dc, table_part_t *subpart,
@@ -1142,16 +1155,16 @@ static status_t rb_truncate_lob_subpart(knl_session_t *session, knl_dictionary_t
         lob_subpart = PART_GET_SUBENTITY(lob->part_lob, lob_part->subparts[subpart->part_no]);
         rb_init_lob_part_desc(session, &entity->table, &lob_subpart->desc, subpart->part_no, desc);
 
-        if (db_write_sysrb(session, desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sysrb(session, desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (rb_truncate_lob_subpart_segment(session, lob_subpart) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rb_truncate_lob_subpart_segment(session, lob_subpart) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rb_truncate_table_subpart(knl_session_t *session, knl_dictionary_t *dc, table_part_t *subpart,
@@ -1167,24 +1180,24 @@ status_t rb_truncate_table_subpart(knl_session_t *session, knl_dictionary_t *dc,
 
     rb_init_table_part_desc(session, table, &subpart->desc, &desc);
     knl_panic_log(dc->type == DICT_TYPE_TABLE, "dc type is abnormal, panic info: table %s", table->desc.name);
-    if (db_write_sysrb(session, &desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_write_sysrb(session, &desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rb_truncate_table_subpart_segment(session, subpart) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rb_truncate_table_subpart_segment(session, subpart) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rb_truncate_index_subpart(session, dc, subpart, &desc, compart_no) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rb_truncate_index_subpart(session, dc, subpart, &desc, compart_no) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (entity->contain_lob) {
-        if (rb_truncate_lob_subpart(session, dc, subpart, &desc, compart_no) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rb_truncate_lob_subpart(session, dc, subpart, &desc, compart_no) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 

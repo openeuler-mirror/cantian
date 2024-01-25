@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -38,6 +38,7 @@ extern "C" {
 #define CMS_GCC_RES_MAGIC        (*((uint64*)"GCC_RES "))
 #define CMS_GCC_RES_GRP_MAGIC    (*((uint64*)"RES_GRP "))
 #define CMS_GCC_VOTEDISK_MAGIC   (*((uint64*)"VOTEDISK"))
+#define CMS_GCC_UPGRADE_MAGIC    (*((uint64*)"UPGRADE"))
 
 typedef union un_cms_res_t {
     struct {
@@ -79,7 +80,7 @@ typedef union un_cms_node_def_t {
         char            name[CMS_NAME_BUFFER_SIZE];
         uint32          node_id;
         uint32          port;
-        char            ip[CMS_IP_BUFFER_SIZE];
+        char            ip[CT_MAX_INST_IP_LEN];
     };
     char    placeholder[CMS_BLOCK_SIZE];
 }cms_node_def_t;
@@ -103,6 +104,11 @@ typedef union un_cms_gcc_head {
         uint32          meta_ver;
         uint32          data_ver;
         uint32          node_count;
+        uint64          ver_magic;
+        uint16 			ver_main;
+        uint16 			ver_major;
+        uint16 			ver_revision;
+        uint16 			ver_inner;
     };
     char    placeholder[CMS_BLOCK_SIZE];
 }cms_gcc_head_t;
@@ -134,6 +140,7 @@ typedef struct st_gcc_auto_bak {
 #define CMS_GCC_DISK_SIZE   SIZE_M(8)
 CM_STATIC_ASSERT(CMS_GCC_DISK_SIZE > sizeof(cms_gcc_t) * 2 + CMS_BLOCK_SIZE * 2);
 
+status_t cms_gcc_read_disk_direct(cms_gcc_t* gcc);
 status_t cms_gcc_write_disk(cms_gcc_t* gcc);
 status_t cms_update_local_gcc(void);
 status_t cms_backup_gcc(void);
@@ -189,6 +196,9 @@ status_t cms_get_res_id_by_name(const char* name, uint32 *res_id);
 status_t cms_get_resgrp_by_name(const char* name, cms_resgrp_t* resgrp);
 
 status_t cms_text2uint32(const text_t* text_src, uint32* value);
+
+status_t cms_update_gcc_ver(uint16 main_ver, uint16 major_ver, uint16 revision, uint16 inner);
+status_t cms_get_gcc_ver(uint16* main_ver, uint16* major_ver, uint16* revision, uint16* inner);
 #ifdef __cplusplus
 }
 #endif

@@ -1,0 +1,16 @@
+system_user_name="cantiandba"
+mysql_user_name="root"
+mysql_user_password=""
+mysql_server_ip="127.0.0.1"
+mysql_server_port="3306"
+mysql_diag_total_time=60
+mysql_diag_period_time=30
+mysql_diag_mode="full"
+
+ctsql_user_name="sys"
+ctsql_user_passwd=""
+ctsql_server_ip="127.0.0.1"
+ctsql_server_port="1611"
+ctsql_snapshot_time=60
+# 该目录需要有system_user_name的写权限,不存在会自动创建
+report_output_dir="/home/regress"

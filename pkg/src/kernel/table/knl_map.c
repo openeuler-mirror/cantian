@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_table_module.h"
 #include "knl_map.h"
 #include "knl_heap.h"
 #include "pcr_heap.h"
@@ -110,7 +111,7 @@ static void heap_init_segment(knl_session_t *session, knl_table_desc_t *desc, pa
     rd_heap_format_page_t redo;
     uint32 extent_size = space->ctrl->extent_size;
     page_id_t extent = desc->entry;
-    bool32 is_compress = GS_FALSE;
+    bool32 is_compress = CT_FALSE;
     uint32 add_cnt;
 
     // used by update page count
@@ -130,7 +131,7 @@ static void heap_init_segment(knl_session_t *session, knl_table_desc_t *desc, pa
         log_put(session, RD_HEAP_FORMAT_ENTRY, &redo, sizeof(rd_heap_format_page_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    segment->uid = (uint16)desc->uid;  // the max value of uid is GS_MAX_USERS(15000)
+    segment->uid = (uint16)desc->uid;  // the max value of uid is CT_MAX_USERS(15000)
     segment->oid = desc->id;
     segment->org_scn = desc->org_scn;
     segment->seg_scn = db_inc_scn(session);
@@ -151,7 +152,7 @@ static void heap_init_segment(knl_session_t *session, knl_table_desc_t *desc, pa
     segment->data_first = INVALID_PAGID;
     segment->data_last = INVALID_PAGID;
     segment->cmp_hwm = INVALID_PAGID;
-    segment->shrinkable_scn = GS_INVALID_ID64;
+    segment->shrinkable_scn = CT_INVALID_ID64;
     segment->compress = is_compress;
 
     segment->tree_info.level = 0;
@@ -213,7 +214,7 @@ static void heap_try_init_segment_pagecount(space_t *space, heap_segment_t *segm
 {
     if (segment->page_count == 0) {
         // print log when first degrade happened
-        GS_LOG_RUN_INF("heap segment degraded alloc extent, space id: %u, uid: %u, oid: %u.",
+        CT_LOG_RUN_INF("heap segment degraded alloc extent, space id: %u, uid: %u, oid: %u.",
             (uint32)segment->space_id, (uint32)segment->uid, segment->oid);
         segment->page_count = spc_pages_by_ext_cnt(space, segment->extents.count, PAGE_TYPE_HEAP_HEAD);
     }
@@ -234,9 +235,9 @@ static status_t heap_extend_segment(knl_session_t *session, heap_t *heap, page_i
     if (!IS_INVALID_PAGID(segment->free_ufp)) {
         // use last unformatted extent.
         *extent = segment->free_ufp;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else if (segment->free_extents.count > 0) {
         // alloc extent from heap free_extents list.
         *extent = segment->free_extents.first;
@@ -258,29 +259,29 @@ static status_t heap_extend_segment(knl_session_t *session, heap_t *heap, page_i
         }
 
         heap_del_segment_free_count(segment, extent_size);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     } else {
         // alloc new extent
         extent_size = heap_get_next_ext_size(session, segment);
         // 1, get current page count
         // 2, add extent_size to get purpose page count, if bigger the max, return error.
         uint32 next_page_count = heap_get_segment_page_count(space, segment) + extent_size;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
         uint32 max_pages = (heap->max_pages != 0) ? MIN(heap->max_pages, MAX_SEG_PAGES) : MAX_SEG_PAGES;
         if ((heap->max_pages != 0 && next_page_count > heap->max_pages) || (next_page_count >= MAX_SEG_PAGES)) {
-            GS_THROW_ERROR(ERR_MAX_SEGMENT_SIZE, next_page_count, max_pages);
+            CT_THROW_ERROR(ERR_MAX_SEGMENT_SIZE, next_page_count, max_pages);
             log_atomic_op_end(session);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         // alloc new extent from space.
         // try alloc extent by estimate size, if can not, degrade size
-        bool32 is_degrade = GS_FALSE;
-        if (spc_try_alloc_extent(session, space, extent, &extent_size, &is_degrade, segment->compress) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+        bool32 is_degrade = CT_FALSE;
+        if (spc_try_alloc_extent(session, space, extent, &extent_size, &is_degrade, segment->compress) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
             log_atomic_op_end(session);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         buf_enter_page(session, heap->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
@@ -303,7 +304,7 @@ static status_t heap_extend_segment(knl_session_t *session, heap_t *heap, page_i
         if (SPACE_IS_LOGGING(space)) {
             log_put(session, RD_SPC_CONCAT_EXTENT, extent, sizeof(page_id_t), LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     } else {
         page = (heap_page_t *)CURR_PAGE(session);
         TO_PAGID_DATA(*extent, page->head.next_ext);
@@ -315,11 +316,11 @@ static status_t heap_extend_segment(knl_session_t *session, heap_t *heap, page_i
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_HEAP_CHANGE_SEG, segment, HEAP_SEG_SIZE, LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_atomic_op_end(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -356,7 +357,7 @@ static void heap_add_extent(knl_session_t *session, heap_t *heap, page_id_t exte
     }
 
     knl_panic(!segment->compress || add_cnt == PAGE_GROUP_COUNT);
-    heap_add_ufp(session, segment, extent, add_cnt, GS_TRUE);
+    heap_add_ufp(session, segment, extent, add_cnt, CT_TRUE);
     left_cnt -= add_cnt;
 
     if (left_cnt == 0) {
@@ -374,7 +375,7 @@ static void heap_add_extent(knl_session_t *session, heap_t *heap, page_id_t exte
         log_put(session, RD_HEAP_CHANGE_SEG, segment, HEAP_SEG_SIZE, LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 }
 
@@ -383,24 +384,24 @@ status_t heap_generate_create_undo(knl_session_t *session, page_id_t entry, uint
     undo_data_t undo;
     undo_heap_create_t ud_create;
 
-    if (undo_prepare(session, sizeof(undo_heap_create_t), need_redo, GS_FALSE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (undo_prepare(session, sizeof(undo_heap_create_t), need_redo, CT_FALSE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     log_atomic_op_begin(session);
     ud_create.entry = entry;
     ud_create.space_id = space_id;
 
-    undo.snapshot.is_xfirst = GS_TRUE;
+    undo.snapshot.is_xfirst = CT_TRUE;
     undo.snapshot.scn = 0;
     undo.data = (char *)&ud_create;
     undo.size = sizeof(undo_heap_create_t);
     undo.ssn = session->rm->ssn;
     undo.type = UNDO_CREATE_HEAP;
-    undo_write(session, &undo, need_redo, GS_FALSE);
+    undo_write(session, &undo, need_redo, CT_FALSE);
     log_atomic_op_end(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void heap_undo_create_part(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot)
@@ -434,7 +435,7 @@ void heap_undo_create_part(knl_session_t *session, undo_row_t *ud_row, undo_page
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_SPC_FREE_PAGE, NULL, 0, LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     buf_unreside(session, ctrl);
 
     if (free_extents.count > 0) {
@@ -444,7 +445,7 @@ void heap_undo_create_part(knl_session_t *session, undo_row_t *ud_row, undo_page
 
     spc_free_extents(session, space, &extents);
     spc_drop_segment(session, space);
-    GS_LOG_DEBUG_INF("[HEAP] undo create hash partition heap, spaceid=%u, file=%u, pageid=%u", undo->space_id,
+    CT_LOG_DEBUG_INF("[HEAP] undo create hash partition heap, spaceid=%u, file=%u, pageid=%u", undo->space_id,
                      undo->entry.file, undo->entry.page);
 }
 
@@ -456,23 +457,27 @@ status_t heap_create_segment(knl_session_t *session, table_t *table)
     heap_segment_t *segment = NULL;
     page_list_t free_extents;
     page_id_t extent;
-    bool32 add_extents = GS_FALSE;
+    bool32 add_extents = CT_FALSE;
 
     if (!spc_valid_space_object(session, space->ctrl->id)) {
-        GS_THROW_ERROR(ERR_SPACE_HAS_REPLACED, space->ctrl->name, space->ctrl->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_HAS_REPLACED, space->ctrl->name, space->ctrl->name);
+        CT_LOG_RUN_ERR("heap_create_segment fail for table %u-%u, because space %s (spc_id %u) is invalid",
+            table->desc.uid, table->desc.id, space->ctrl->name, space->ctrl->id);
+        return CT_ERROR;
     }
     
     if (table->desc.storage_desc.initial > 0) {
-        add_extents = GS_TRUE;
+        add_extents = CT_TRUE;
     }
 
     log_atomic_op_begin(session);
 
-    if (GS_SUCCESS != spc_alloc_extent(session, space, space->ctrl->extent_size, &extent, desc->compress)) {
-        GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+    if (CT_SUCCESS != spc_alloc_extent(session, space, space->ctrl->extent_size, &extent, desc->compress)) {
+        CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
         log_atomic_op_end(session);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("heap_create_segment fail when alloc extent on space %s (spc_id %u) for table %u-%u",
+            space->ctrl->name, space->ctrl->id, table->desc.uid, table->desc.id);
+        return CT_ERROR;
     }
 
     spc_create_segment(session, space);
@@ -489,8 +494,8 @@ status_t heap_create_segment(knl_session_t *session, table_t *table)
         (ENTER_PAGE_RESIDENT | ENTER_PAGE_NO_READ));
     segment = HEAP_SEG_HEAD(session);
 
-    heap_init_segment(session, desc, &free_extents, 0, add_extents, GS_FALSE);
-    buf_leave_page(session, GS_TRUE);
+    heap_init_segment(session, desc, &free_extents, 0, add_extents, CT_FALSE);
+    buf_leave_page(session, CT_TRUE);
 
     desc->seg_scn = segment->seg_scn;
 
@@ -498,15 +503,17 @@ status_t heap_create_segment(knl_session_t *session, table_t *table)
 
     // add the first extent when create segment
     while (add_extents && !IS_INVALID_PAGID(segment->free_ufp)) {
-        if (heap_extend_segment(session, heap, &extent) != GS_SUCCESS) {
-            heap->extending = GS_FALSE;
-            return GS_ERROR;
+        if (heap_extend_segment(session, heap, &extent) != CT_SUCCESS) {
+            heap->extending = CT_FALSE;
+            CT_LOG_RUN_ERR("heap_create_segment fail when add the first extent for table %u-%u", table->desc.uid,
+                table->desc.id);
+            return CT_ERROR;
         }
         heap_add_extent(session, heap, extent, NULL);
-        heap->extending = GS_FALSE;
+        heap->extending = CT_FALSE;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void heap_format_free_ufp(knl_session_t *session, heap_segment_t *segment)
@@ -535,7 +542,7 @@ void heap_format_free_ufp(knl_session_t *session, heap_segment_t *segment)
         if (SPACE_IS_LOGGING(space)) {
             log_put(session, RD_HEAP_FORMAT_PAGE, page, (uint32)OFFSET_OF(heap_page_t, reserved), LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         page_id.page++;
     }
 }
@@ -565,7 +572,7 @@ void heap_drop_segment(knl_session_t *session, table_t *table)
 
     if (head->type != PAGE_TYPE_HEAP_HEAD || segment->org_scn != table->desc.org_scn) {
         // heap segment has been released
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -580,7 +587,7 @@ void heap_drop_segment(knl_session_t *session, table_t *table)
         log_put(session, RD_SPC_FREE_PAGE, NULL, 0, LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     buf_unreside(session, ctrl);
 
@@ -610,11 +617,11 @@ status_t heap_purge_prepare(knl_session_t *session, knl_rb_desc_t *desc)
 {
     space_t *space = SPACE_GET(session, desc->space_id);
     if (!SPACE_IS_ONLINE(space) || !space->ctrl->used) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (IS_INVALID_PAGID(desc->entry)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     buf_enter_page(session, desc->entry, LATCH_MODE_S, ENTER_PAGE_NORMAL);
@@ -622,8 +629,8 @@ status_t heap_purge_prepare(knl_session_t *session, knl_rb_desc_t *desc)
     knl_seg_desc_t seg;
     seg.uid = segment->uid;
     seg.oid = segment->oid;
-    seg.index_id = GS_INVALID_ID32;
-    seg.column_id = GS_INVALID_ID32;
+    seg.index_id = CT_INVALID_ID32;
+    seg.column_id = CT_INVALID_ID32;
     seg.space_id = segment->space_id;
     seg.entry = desc->entry;
     seg.org_scn = segment->org_scn;
@@ -631,15 +638,15 @@ status_t heap_purge_prepare(knl_session_t *session, knl_rb_desc_t *desc)
     seg.initrans = segment->initrans;
     seg.pctfree = 0;
     seg.op_type = HEAP_PURGE_SEGMENT;
-    seg.reuse = GS_FALSE;
+    seg.reuse = CT_FALSE;
     seg.serial = segment->serial;
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
-    if (db_write_garbage_segment(session, &seg) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_write_garbage_segment(session, &seg) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void heap_purge_segment(knl_session_t *session, knl_seg_desc_t *desc)
@@ -661,7 +668,7 @@ void heap_purge_segment(knl_session_t *session, knl_seg_desc_t *desc)
     segment = HEAP_SEG_HEAD(session);
     if (head->type != PAGE_TYPE_HEAP_HEAD || segment->seg_scn != desc->seg_scn) {
         // heap segment has been released
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -674,7 +681,7 @@ void heap_purge_segment(knl_session_t *session, knl_seg_desc_t *desc)
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_SPC_FREE_PAGE, NULL, 0, LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     buf_unreside(session, session->curr_page_ctrl);
 
@@ -705,7 +712,7 @@ void heap_truncate_segment(knl_session_t *session, knl_table_desc_t *desc, bool3
     heap_segment_t *segment = HEAP_SEG_HEAD(session);
     if (page->type != PAGE_TYPE_HEAP_HEAD || segment->seg_scn != desc->seg_scn) {
         // HEAP segment has been released
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -739,8 +746,8 @@ void heap_truncate_segment(knl_session_t *session, knl_table_desc_t *desc, bool3
     if (HEAP_SEG_BITMAP_IS_DEGRADE(segment)) {
         ext_page_count = segment->free_page_count + segment->page_count - space->ctrl->extent_size;
     }
-    heap_init_segment(session, desc, &extents, ext_page_count, GS_FALSE, GS_TRUE);
-    buf_leave_page(session, GS_TRUE);
+    heap_init_segment(session, desc, &extents, ext_page_count, CT_FALSE, CT_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_atomic_op_end(session);
 }
@@ -777,7 +784,7 @@ static void heap_init_part_segment_inner(knl_session_t *session, knl_table_part_
     segment->data_first = INVALID_PAGID;
     segment->data_last = INVALID_PAGID;
     segment->cmp_hwm = INVALID_PAGID;
-    segment->shrinkable_scn = GS_INVALID_ID64;
+    segment->shrinkable_scn = CT_INVALID_ID64;
 }
 
 static void heap_init_part_segment(knl_session_t *session, knl_table_part_desc_t *desc, page_list_t *free_extents,
@@ -895,7 +902,7 @@ void heap_truncate_part_segment(knl_session_t *session, knl_table_part_desc_t *d
     segment = HEAP_SEG_HEAD(session);
     if (page->type != PAGE_TYPE_HEAP_HEAD || segment->seg_scn != desc->seg_scn) {
         // HEAP segment has been released
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -908,9 +915,9 @@ void heap_truncate_part_segment(knl_session_t *session, knl_table_part_desc_t *d
     if (HEAP_SEG_BITMAP_IS_DEGRADE(segment)) {
         ext_page_count = segment->free_page_count + segment->page_count - space->ctrl->extent_size;
     }
-    heap_init_part_segment(session, desc, &extents, ext_page_count, GS_FALSE, GS_TRUE);
+    heap_init_part_segment(session, desc, &extents, ext_page_count, CT_FALSE, CT_TRUE);
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 }
 
@@ -938,23 +945,27 @@ status_t heap_create_part_segment(knl_session_t *session, table_part_t *table_pa
     heap_segment_t *segment = NULL;
     page_list_t free_extents;
     page_id_t extent;
-    bool32 add_extents = GS_FALSE;
+    bool32 add_extents = CT_FALSE;
     
     if (!spc_valid_space_object(session, space->ctrl->id)) {
-        GS_THROW_ERROR(ERR_SPACE_HAS_REPLACED, space->ctrl->name, space->ctrl->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_HAS_REPLACED, space->ctrl->name, space->ctrl->name);
+        CT_LOG_RUN_ERR("heap_create_part_segment fail for table %u-%u in part %u, because space %s (id %u) is invalid",
+            desc->uid, desc->table_id, desc->part_id, space->ctrl->name, space->ctrl->id);
+        return CT_ERROR;
     }
     
     if (table_part->desc.storage_desc.initial > 0) {
-        add_extents = GS_TRUE;
+        add_extents = CT_TRUE;
     }
 
     log_atomic_op_begin(session);
 
-    if (GS_SUCCESS != spc_alloc_extent(session, space, space->ctrl->extent_size, &extent, desc->compress)) {
-        GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+    if (CT_SUCCESS != spc_alloc_extent(session, space, space->ctrl->extent_size, &extent, desc->compress)) {
+        CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+        CT_LOG_RUN_ERR("heap_create_part_segment fail when alloc extent on space %s (id %u) for table %u-%u in part %u",
+            space->ctrl->name, space->ctrl->id, desc->uid, desc->table_id, desc->part_id);
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     spc_create_segment(session, space);
@@ -970,25 +981,27 @@ status_t heap_create_part_segment(knl_session_t *session, table_part_t *table_pa
     buf_enter_page(session, extent, LATCH_MODE_X, desc->compress ? ENTER_PAGE_RESIDENT :
         (ENTER_PAGE_RESIDENT | ENTER_PAGE_NO_READ));
     segment = HEAP_SEG_HEAD(session);
-    heap_init_part_segment(session, desc, &free_extents, 0, add_extents, GS_FALSE);
-    buf_leave_page(session, GS_TRUE);
+    heap_init_part_segment(session, desc, &free_extents, 0, add_extents, CT_FALSE);
+    buf_leave_page(session, CT_TRUE);
 
     desc->seg_scn = segment->seg_scn;
-    table_part->heap.loaded = GS_TRUE;
+    table_part->heap.loaded = CT_TRUE;
 
     log_atomic_op_end(session);
 
     // add the first extent when create segment
     while (add_extents && !IS_INVALID_PAGID(segment->free_ufp)) {
-        if (heap_extend_segment(session, heap, &extent) != GS_SUCCESS) {
-            heap->extending = GS_FALSE;
-            return GS_ERROR;
+        if (heap_extend_segment(session, heap, &extent) != CT_SUCCESS) {
+            heap->extending = CT_FALSE;
+            CT_LOG_RUN_ERR("heap_create_part_segment fail when add the first extent for table %u-%u in part %u",
+                desc->uid, desc->table_id, desc->part_id);
+            return CT_ERROR;
         }
         heap_add_extent(session, heap, extent, NULL);
-        heap->extending = GS_FALSE;
+        heap->extending = CT_FALSE;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void heap_drop_part_segment(knl_session_t *session, table_part_t *table_part)
@@ -1017,7 +1030,7 @@ void heap_drop_part_segment(knl_session_t *session, table_part_t *table_part)
 
     if (head->type != PAGE_TYPE_HEAP_HEAD || segment->org_scn != table_part->desc.org_scn) {
         // heap segment has been released
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -1031,7 +1044,7 @@ void heap_drop_part_segment(knl_session_t *session, table_part_t *table_part)
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_SPC_FREE_PAGE, NULL, 0, LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     buf_unreside(session, ctrl);
 
@@ -1063,21 +1076,21 @@ static void heap_try_clean_extend_status(knl_session_t *session, heap_t *heap, k
     cm_spin_sleep();
     if (heap->wait_ticks > MAX_WAIT_TICKS && heap->extend_owner != session->kernel->id) {
         cluster_view_t view;
-        rc_get_cluster_view(&view, GS_TRUE);
+        rc_get_cluster_view(&view, CT_FALSE);
         uint64 alive_inst = view.bitmap;
-        bool8 need_clean = GS_FALSE;
+        bool8 need_clean = CT_FALSE;
         if (!rc_bitmap64_exist(&alive_inst, heap->extend_owner)) {
             need_clean = heap->extending;
         } else {
-            bool8 is_extending = GS_FALSE;
+            bool8 is_extending = CT_FALSE;
             status_t status = dtc_get_heap_extend_status(session, heap, part_loc, &is_extending);
-            need_clean = (status == GS_SUCCESS) && (is_extending == 0);
+            need_clean = (status == CT_SUCCESS) && (is_extending == 0);
         }
         if (need_clean) {
-            heap->extending = GS_FALSE;
+            heap->extending = CT_FALSE;
             heap->wait_ticks = 0;
             (void)dtc_broadcast_heap_extend(session, heap, part_loc);
-            heap->extend_owner = GS_INVALID_ID8;
+            heap->extend_owner = CT_INVALID_ID8;
         }
     }
 }
@@ -1097,14 +1110,14 @@ static bool32 heap_prepare_extend(knl_session_t *session, heap_t *heap, uint32 m
     for (;;) {
         dls_spin_lock(session, &heap->lock, NULL);
         if (!heap->extending) {
-            heap->extending = GS_TRUE;
+            heap->extending = CT_TRUE;
             if (DB_IS_CLUSTER(session)) {
                 status_t ret = dtc_broadcast_heap_extend(session, heap, part_loc);
-                if (ret != GS_SUCCESS) {
-                    heap->extending = GS_FALSE;
+                if (ret != CT_SUCCESS) {
+                    heap->extending = CT_FALSE;
                     dls_spin_unlock(session, &heap->lock);
                     cm_spin_sleep_and_stat2(1);
-                    GS_LOG_RUN_ERR(
+                    CT_LOG_RUN_ERR(
                         "prepare extend, heap failed to broadcast heap extending info, "
                         "uid/table_id/part/subpart:[%u-%u-%u-%u], extending:%d, compacting:%d",
                         heap->table->desc.uid, heap->table->desc.id, part_loc.part_no, part_loc.subpart_no,
@@ -1113,16 +1126,16 @@ static bool32 heap_prepare_extend(knl_session_t *session, heap_t *heap, uint32 m
                 }
             }
             dls_spin_unlock(session, &heap->lock);
-            return GS_TRUE;
+            return CT_TRUE;
         }
 
         heap_try_clean_extend_status(session, heap, part_loc);
         dls_spin_unlock(session, &heap->lock);
 
         // wait other session to finish extending map
-        knl_try_begin_session_wait(session, ENQ_SEGMENT_EXTEND, GS_TRUE);
+        knl_begin_session_wait(session, ENQ_SEGMENT_EXTEND, CT_TRUE);
         cm_spin_sleep_and_stat2(1);
-        knl_try_end_session_wait(session, ENQ_SEGMENT_EXTEND);
+        knl_end_session_wait(session, ENQ_SEGMENT_EXTEND);
 
         if (mid < HEAP_FREE_LIST_COUNT) {
             tree_info.value = cm_atomic_get(&HEAP_SEGMENT(session, heap->entry, heap->segment)->tree_info.value);
@@ -1133,12 +1146,12 @@ static bool32 heap_prepare_extend(knl_session_t *session, heap_t *heap, uint32 m
 
             for (lid = HEAP_FREE_LIST_COUNT - 1; lid >= mid; lid--) {
                 if (map_page->lists[lid].count > 0) {
-                    buf_leave_page(session, GS_FALSE);
-                    return GS_FALSE;
+                    buf_leave_page(session, CT_FALSE);
+                    return CT_FALSE;
                 }
             }
 
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
         }
     }
 }
@@ -1146,7 +1159,7 @@ static bool32 heap_prepare_extend(knl_session_t *session, heap_t *heap, uint32 m
 static void heap_unset_extend_flag(knl_session_t *session, heap_t *heap, knl_part_locate_t part_loc)
 {
     if (!DB_IS_CLUSTER(session)) {
-        heap->extending = GS_FALSE;
+        heap->extending = CT_FALSE;
         return;
     }
     
@@ -1154,10 +1167,10 @@ static void heap_unset_extend_flag(knl_session_t *session, heap_t *heap, knl_par
     SYNC_POINT_GLOBAL_END;
 
     dls_spin_lock(session, &heap->lock, NULL);
-    heap->extending = GS_FALSE;
+    heap->extending = CT_FALSE;
     status_t ret = dtc_broadcast_heap_extend(session, heap, part_loc);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR(
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR(
             "heap failed to broadcast heap extending info, abort, uid/table_id/part/subpart:[%u-%u-%u-%u], extending:%d, compacting:%d",
             heap->table->desc.uid, heap->table->desc.id, part_loc.part_no, part_loc.subpart_no, heap->extending,
             heap->compacting);
@@ -1173,15 +1186,15 @@ static status_t heap_create_initial(knl_session_t *session, heap_t *heap, knl_pa
         if (!heap_prepare_extend(session, heap, HEAP_FREE_LIST_COUNT, part_loc)) {
             continue;
         }
-        if (heap_extend_segment(session, heap, &extent) != GS_SUCCESS) {
+        if (heap_extend_segment(session, heap, &extent) != CT_SUCCESS) {
             heap_unset_extend_flag(session, heap, part_loc);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         heap_add_extent(session, heap, extent, NULL);
         heap_unset_extend_flag(session, heap, part_loc);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_create_part_entry(knl_session_t *session, table_part_t *table_part, knl_part_locate_t part_loc)
@@ -1190,20 +1203,23 @@ status_t heap_create_part_entry(knl_session_t *session, table_part_t *table_part
     status_t status;
     
     dls_latch_x(session, &heap->latch, session->id, &session->stat_heap);
+    CT_LOG_RUN_INF("start to heap_create_part_entry for table %u-%u in part %u-%u, part name %s",
+                   table_part->desc.uid, table_part->desc.table_id,
+                   part_loc.part_no, part_loc.subpart_no, table_part->desc.name);
     if (heap->segment != NULL) {
         dls_unlatch(session, &heap->latch, &session->stat_heap);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (heap_create_part_segment(session, table_part) != GS_SUCCESS) {
+    if (heap_create_part_segment(session, table_part) != CT_SUCCESS) {
         dls_unlatch(session, &heap->latch, &session->stat_heap);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (knl_begin_auton_rm(session) != GS_SUCCESS) {
+    if (knl_begin_auton_rm(session) != CT_SUCCESS) {
         heap_drop_part_segment(session, table_part);
         dls_unlatch(session, &heap->latch, &session->stat_heap);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (IS_SUB_TABPART(&table_part->desc)) {
@@ -1212,11 +1228,14 @@ status_t heap_create_part_entry(knl_session_t *session, table_part_t *table_part
         status = db_update_table_part_entry(session, &table_part->desc, table_part->desc.entry);
     }
 
-    if (status != GS_SUCCESS) {
-        knl_end_auton_rm(session, GS_ERROR);
+    if (status != CT_SUCCESS) {
+        knl_end_auton_rm(session, CT_ERROR);
+        CT_LOG_RUN_ERR("heap_create_part_entry fail when update entry %u-%u for table %u-%u in part %u-%u",
+            table_part->desc.entry.file, table_part->desc.entry.page,
+            table_part->desc.uid, table_part->desc.table_id, part_loc.part_no, part_loc.subpart_no);
         heap_drop_part_segment(session, table_part);
         dls_unlatch(session, &heap->latch, &session->stat_heap);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     
     if (SPACE_IS_LOGGING(SPACE_GET(session, table_part->desc.space_id))) {
@@ -1229,51 +1248,64 @@ status_t heap_create_part_entry(knl_session_t *session, table_part_t *table_part
         log_put(session, RD_LOGIC_OPERATION, &redo, sizeof(rd_create_heap_entry_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    knl_end_auton_rm(session, GS_SUCCESS);
+    knl_end_auton_rm(session, CT_SUCCESS);
 
     buf_enter_page(session, table_part->desc.entry, LATCH_MODE_S, ENTER_PAGE_RESIDENT);
     heap->segment = HEAP_SEG_HEAD(session);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
     dls_unlatch(session, &heap->latch, &session->stat_heap);
 
     if (table_part->desc.storage_desc.initial > 0) {
         space_t *space = SPACE_GET(session, table_part->desc.space_id);
         uint32 extcount = spc_ext_cnt_by_pages(space, table_part->desc.storage_desc.initial);
-        if (heap_create_initial(session, heap, part_loc, extcount) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_create_initial(session, heap, part_loc, extcount) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("heap_create_part_entry fail when create initial for table %u-%u in part %u-%u, entry %u-%u",
+                table_part->desc.uid, table_part->desc.table_id, part_loc.part_no, part_loc.subpart_no,
+                table_part->desc.entry.file, table_part->desc.entry.page);
+            return CT_ERROR;
         }
     }
+    CT_LOG_RUN_INF("finish to heap_create_part_entry for table %u-%u, in part %u-%u, part name %s, entry %u-%u",
+                   table_part->desc.uid, table_part->desc.table_id, part_loc.part_no,
+                   part_loc.subpart_no, table_part->desc.name, heap->entry.file, heap->entry.page);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_create_entry(knl_session_t *session, heap_t *heap)
 {
     table_t *table = heap->table;
+    CT_LOG_DEBUG_INF("[DDL] process heap create entry, user id %u, table id %u", table->desc.uid,
+                     table->desc.id);
 
     dls_latch_x(session, &heap->latch, session->id, &session->stat_heap);
+    CT_LOG_RUN_INF("start to heap_create_entry for table %u-%u, table name %s",
+                   table->desc.uid, table->desc.id, table->desc.name);
 
     if (heap->segment != NULL) {
         dls_unlatch(session, &heap->latch, &session->stat_heap);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (heap_create_segment(session, table) != GS_SUCCESS) {
+    if (heap_create_segment(session, table) != CT_SUCCESS) {
         dls_unlatch(session, &heap->latch, &session->stat_heap);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (knl_begin_auton_rm(session) != GS_SUCCESS) {
+    if (knl_begin_auton_rm(session) != CT_SUCCESS) {
         heap_drop_segment(session, table);
         dls_unlatch(session, &heap->latch, &session->stat_heap);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_update_table_entry(session, &table->desc, table->desc.entry) != GS_SUCCESS) {
-        knl_end_auton_rm(session, GS_ERROR);
+    if (db_update_table_entry(session, &table->desc, table->desc.entry) != CT_SUCCESS) {
+        knl_end_auton_rm(session, CT_ERROR);
+        CT_LOG_RUN_ERR("heap_create_entry fail when update entry %u-%u for table %u-%u",
+            table->desc.entry.file, table->desc.entry.page,
+            table->desc.uid, table->desc.id);
         heap_drop_segment(session, table);
         dls_unlatch(session, &heap->latch, &session->stat_heap);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (SPACE_IS_LOGGING(SPACE_GET(session, table->desc.space_id))) {
@@ -1281,26 +1313,31 @@ status_t heap_create_entry(knl_session_t *session, heap_t *heap)
         redo.tab_op.op_type = RD_CREATE_HEAP_ENTRY;
         redo.tab_op.uid = table->desc.uid;
         redo.tab_op.oid = table->desc.id;
-        redo.part_loc.part_no = GS_INVALID_ID32;
+        redo.part_loc.part_no = CT_INVALID_ID32;
         redo.entry = heap->entry;
         log_put(session, RD_LOGIC_OPERATION, &redo, sizeof(rd_create_heap_entry_t), LOG_ENTRY_FLAG_NONE);
     }
-    knl_end_auton_rm(session, GS_SUCCESS);
+    knl_end_auton_rm(session, CT_SUCCESS);
 
     buf_enter_page(session, table->desc.entry, LATCH_MODE_S, ENTER_PAGE_RESIDENT);
     heap->segment = HEAP_SEG_HEAD(session);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
     dls_unlatch(session, &heap->latch, &session->stat_heap);
 
     if (table->desc.storage_desc.initial > 0) {
         space_t *space = SPACE_GET(session, table->desc.space_id);
         uint32 extcount = spc_ext_cnt_by_pages(space, table->desc.storage_desc.initial);
-        if (heap_create_initial(session, heap, g_invalid_part_loc, extcount) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_create_initial(session, heap, g_invalid_part_loc, extcount) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("heap_create_entry fail when create initial for table %u-%u, entry %u-%u",
+                table->desc.uid, table->desc.id,
+                table->desc.entry.file, table->desc.entry.page);
+            return CT_ERROR;
         }
     }
+    CT_LOG_RUN_INF("finish to heap_create_entry for table %u-%u, table name %s, entry %u-%u",
+                   table->desc.uid, table->desc.id, table->desc.name, heap->entry.file, heap->entry.page);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1412,7 +1449,7 @@ void heap_change_map(knl_session_t *session, heap_segment_t *segment, map_index_
         heap_change_map(session, segment, &map_page->map, last_lid, level + 1);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     map->list_id = new_id;
     if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
@@ -1449,13 +1486,13 @@ void heap_try_change_map(knl_session_t *session, knl_handle_t heap_handle, page_
 
     new_id = (int8)heap_get_owner_list(session, segment, page->free_size);
     if (new_id - (int8)page->map.list_id != session->change_list) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
 
     heap_change_map(session, segment, &page->map, (uint8)new_id, 0);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_atomic_op_end(session);
 }
@@ -1484,13 +1521,13 @@ void heap_degrade_change_map(knl_session_t *session, knl_handle_t heap_handle, p
     owner_list = heap_get_owner_list(session, segment, page->free_size);
     // just degrade list id from new_id + 1 to new id
     if (new_id != owner_list - 1) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
 
     heap_change_map(session, segment, &page->map, new_id, 0);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_atomic_op_end(session);
 }
@@ -1534,7 +1571,7 @@ static void heap_alloc_mp_for_map(knl_session_t *session, heap_segment_t *segmen
         redo.aligned = 0;
         log_put(session, RD_HEAP_ALLOC_MAP_NODE, &redo, sizeof(rd_alloc_map_node_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
         log_put(session, RD_HEAP_SET_MAP, &page->map, sizeof(map_index_t), LOG_ENTRY_FLAG_NONE);
@@ -1589,7 +1626,7 @@ static void heap_alloc_mp_for_page(knl_session_t *session, heap_segment_t *segme
         heap_change_map(session, segment, &map_page->map, owner_lid, 1);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
         log_put(session, RD_HEAP_SET_MAP, &page->map, sizeof(map_index_t), LOG_ENTRY_FLAG_NONE);
@@ -1621,7 +1658,7 @@ static void heap_convert_root(knl_session_t *session, heap_segment_t *segment, m
     if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
         log_put(session, RD_HEAP_SET_MAP, &root_map->map, sizeof(map_index_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     heap_insert_into_list(page, &page->lists[lid], page->hwm);
     node = heap_get_map_node((char *)page, page->hwm);
@@ -1698,20 +1735,24 @@ void heap_add_ufp(knl_session_t *session, heap_segment_t *segment, page_id_t pag
                 log_put(session, RD_HEAP_FORMAT_MAP, &redo, sizeof(rd_heap_format_page_t), LOG_ENTRY_FLAG_NONE);
             }
             heap_convert_map(session, segment, map_page, 0);
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
 
             page_id.page++;
             continue;
         }
 
-        buf_enter_page(session, page_id, LATCH_MODE_X, need_noread ? ENTER_PAGE_NO_READ : ENTER_PAGE_NORMAL);
+        uint8 options = need_noread ? ENTER_PAGE_NO_READ : ENTER_PAGE_NORMAL;
+        if (count >= EXT_SIZE_8 && i == 0 && DB_IS_CLUSTER(session)) {
+            options = options | ENTER_PAGE_TRY_PREFETCH;
+        }
+        buf_enter_page(session, page_id, LATCH_MODE_X, options);
         page = (heap_page_t *)CURR_PAGE(session);
         heap_format_page(session, segment, page, page_id, extent_size);
         if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
             log_put(session, RD_HEAP_FORMAT_PAGE, page, (uint32)OFFSET_OF(heap_page_t, reserved), LOG_ENTRY_FLAG_NONE);
         }
         heap_alloc_mp_for_page(session, segment, page);
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
 
         if (last_page != NULL) {
             TO_PAGID_DATA(page_id, last_page->next);
@@ -1719,14 +1760,14 @@ void heap_add_ufp(knl_session_t *session, heap_segment_t *segment, page_id_t pag
             if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
                 log_put(session, RD_HEAP_CONCAT_PAGE, &page_id, sizeof(page_id_t), LOG_ENTRY_FLAG_NONE);
             }
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
         } else if (!IS_INVALID_PAGID(segment->data_last)) {
             buf_enter_page(session, segment->data_last, LATCH_MODE_X, ENTER_PAGE_NORMAL);
             TO_PAGID_DATA(page_id, ((heap_page_t *)CURR_PAGE(session))->next);
             if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
                 log_put(session, RD_HEAP_CONCAT_PAGE, &page_id, sizeof(page_id_t), LOG_ENTRY_FLAG_NONE);
             }
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
         } else {
             segment->data_first = page_id;
         }
@@ -1737,7 +1778,7 @@ void heap_add_ufp(knl_session_t *session, heap_segment_t *segment, page_id_t pag
 
     // No heap pages added, release the last data page we holded at the beginning.
     if (last_page != NULL) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 }
 
@@ -1753,7 +1794,7 @@ static status_t heap_find_map(knl_session_t *session, heap_t *heap, uint32 mid_i
     map_page_t *page = NULL;
     map_node_t *node = NULL;
     page_id_t map_id;
-    *degrade_mid = GS_FALSE;
+    *degrade_mid = CT_FALSE;
 
 FIND_MAP:
     tree_info.value = cm_atomic_get(&HEAP_SEGMENT(session, heap->entry, heap->segment)->tree_info.value);
@@ -1761,8 +1802,8 @@ FIND_MAP:
     level = tree_info.level;
 
     for (;;) {
-        if (buf_read_page(session, map_id, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (buf_read_page(session, map_id, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         page = (map_page_t *)CURR_PAGE(session);
 
@@ -1779,21 +1820,21 @@ FIND_MAP:
                     for (lid = mid; lid < HEAP_FREE_LIST_COUNT; lid++) {
                         page_count += page->lists[lid].count;
                     }
-                    *degrade_mid = GS_TRUE;
+                    *degrade_mid = CT_TRUE;
                 }
                 if (page_count == 0) {
-                    buf_leave_page(session, GS_FALSE);
+                    buf_leave_page(session, CT_FALSE);
                     *page_id = INVALID_PAGID;
-                    return GS_SUCCESS;
+                    return CT_SUCCESS;
                 }
             }
 
             if (page_count == 0) {
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
                 /* someone is trying to change map, wait a while */
-                knl_try_begin_session_wait(session, ENQ_HEAP_MAP, GS_FALSE);
+                knl_begin_session_wait(session, ENQ_HEAP_MAP, CT_FALSE);
                 cm_spin_sleep_and_stat2(1);
-                knl_try_end_session_wait(session, ENQ_HEAP_MAP);
+                knl_end_session_wait(session, ENQ_HEAP_MAP);
                 goto FIND_MAP;
             }
         }
@@ -1818,15 +1859,15 @@ FIND_MAP:
             map_id.file = (uint16)node->file;
             map_id.page = (uint32)node->page;
             map_id.aligned = 0;
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             continue;
         }
 
         page_id->file = (uint16)node->file;
         page_id->page = (uint32)node->page;
         page_id->aligned = 0;
-        buf_leave_page(session, GS_FALSE);
-        return GS_SUCCESS;
+        buf_leave_page(session, CT_FALSE);
+        return CT_SUCCESS;
     }
 }
 
@@ -1852,11 +1893,11 @@ static inline bool32 heap_find_cached_page(knl_session_t *session, heap_t *heap,
             HEAP_SEGMENT(session, heap->entry, heap->segment)->seg_scn == cached_page->seg_scn) {
             session->curr_fsm = id;
             *page_id = cached_page->page_id;
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 /*
@@ -1881,7 +1922,7 @@ void heap_remove_cached_page(knl_session_t *session, bool32 appendonly)
         return;
     }
 
-    cached_page->seg_scn = GS_INVALID_ID64;
+    cached_page->seg_scn = CT_INVALID_ID64;
     cached_page->entry = INVALID_PAGID;
     cached_page->page_id = INVALID_PAGID;
     cached_page->page_count = 0;
@@ -1914,7 +1955,7 @@ static void heap_set_max_compact_hwm(knl_session_t *session, heap_t *heap,
     hwm = segment->cmp_hwm;
 
     if (IS_INVALID_PAGID(hwm)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -1922,7 +1963,7 @@ static void heap_set_max_compact_hwm(knl_session_t *session, heap_t *heap,
     if (!IS_INVALID_PAGID(new_hwm)) {
         heap_get_map_path(session, heap, segment->cmp_hwm, &hwm_path);
         if (heap_compare_map_path(new_hwm_path, &hwm_path) <= 0) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
             return;
         }
@@ -1933,7 +1974,7 @@ static void heap_set_max_compact_hwm(knl_session_t *session, heap_t *heap,
         log_put(session, RD_HEAP_CHANGE_SEG, segment, HEAP_SEG_SIZE, LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 }
 
@@ -1941,8 +1982,8 @@ static status_t heap_extend_free_page(knl_session_t *session, heap_t *heap, knl_
                                       bool32 async_shrink, uint8 mid, page_id_t *page_id, bool32 compacting)
 {
     if (compacting) {
-        GS_THROW_ERROR(ERR_SHRINK_EXTEND);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SHRINK_EXTEND);
+        return CT_ERROR;
     }
 
     // notify async shrink skip this heap
@@ -1951,17 +1992,17 @@ static status_t heap_extend_free_page(knl_session_t *session, heap_t *heap, knl_
     }
 
     if (!heap_prepare_extend(session, heap, mid, part_loc)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (heap_extend_segment(session, heap, page_id) != GS_SUCCESS) {
+    if (heap_extend_segment(session, heap, page_id) != CT_SUCCESS) {
         heap_unset_extend_flag(session, heap, part_loc);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     heap_add_extent(session, heap, *page_id, NULL);
     heap_unset_extend_flag(session, heap, part_loc);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1978,30 +2019,30 @@ status_t heap_find_free_page(knl_session_t *session, knl_handle_t heap_handle, k
     map_path_t path;
     bool32 compacting = heap->compacting && session->compacting;
     table_t *table = heap->table;
-    bool32 async_shrink = GS_FALSE;
+    bool32 async_shrink = CT_FALSE;
     map_path_t *path_p = NULL;
 
     if (SECUREC_UNLIKELY(ASHRINK_HEAP(table, heap) && !session->compacting)) {
         if (heap->ashrink_stat != ASHRINK_WAIT_SHRINK || !IS_INVALID_PAGID(segment->cmp_hwm)) {
-            async_shrink = GS_TRUE;
+            async_shrink = CT_TRUE;
             path_p = &path;
         }
     }
 
     if (use_cached && !compacting && !async_shrink) {
         if (heap_find_cached_page(session, heap, page_id)) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
     for (;;) {
         if (compacting || (segment->extents.count == 1 || async_shrink)) {
-            if (heap_seq_find_map(session, heap, path_p, mid, page_id, degrade_mid) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (heap_seq_find_map(session, heap, path_p, mid, page_id, degrade_mid) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
-            if (heap_find_map(session, heap, mid, page_id, degrade_mid) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (heap_find_map(session, heap, mid, page_id, degrade_mid) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
@@ -2009,11 +2050,11 @@ status_t heap_find_free_page(knl_session_t *session, knl_handle_t heap_handle, k
             break;
         }
 
-        if (heap_extend_free_page(session, heap, part_loc, async_shrink, mid, page_id, compacting) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_extend_free_page(session, heap, part_loc, async_shrink, mid, page_id, compacting) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        async_shrink = GS_FALSE;
+        async_shrink = CT_FALSE;
     }
 
     if (SECUREC_UNLIKELY(async_shrink && table->ashrink_stat == ASHRINK_WAIT_SHRINK)) {
@@ -2022,7 +2063,7 @@ status_t heap_find_free_page(knl_session_t *session, knl_handle_t heap_handle, k
 
     heap_add_cached_page(session, heap, *page_id, 1);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -2035,7 +2076,7 @@ void heap_add_tx_free_page(knl_session_t *session, knl_handle_t heap_handle,
     heap_t *heap = (heap_t *)heap_handle;
     uint8 tx_fpl_idx = 0;
 
-    if (kernel->attr.enable_tx_free_page_list == GS_FALSE) {
+    if (kernel->attr.enable_tx_free_page_list == CT_FALSE) {
         session->tx_fpl.index = 0;
         session->tx_fpl.count = 0;
         return;
@@ -2068,7 +2109,7 @@ int32 heap_find_tx_free_page_index(knl_session_t *session, knl_handle_t heap_han
     heap_t *heap = (heap_t *)heap_handle;
     int32 curr_index = 0;
 
-    if (kernel->attr.enable_tx_free_page_list == GS_FALSE) {
+    if (kernel->attr.enable_tx_free_page_list == CT_FALSE) {
         session->tx_fpl.index = 0;
         session->tx_fpl.count = 0;
         return -1;
@@ -2117,7 +2158,7 @@ status_t heap_find_appendonly_page(knl_session_t *session, knl_handle_t heap_han
     uint32 page_count;
 
     if (heap_find_cached_page(session, heap, page_id)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (;;) {
@@ -2125,9 +2166,9 @@ status_t heap_find_appendonly_page(knl_session_t *session, knl_handle_t heap_han
             continue;
         }
 
-        if (heap_extend_segment(session, heap, page_id) != GS_SUCCESS) {
+        if (heap_extend_segment(session, heap, page_id) != CT_SUCCESS) {
             heap_unset_extend_flag(session, heap, part_loc);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         heap_add_extent(session, heap, *page_id, &page_count);
@@ -2137,7 +2178,7 @@ status_t heap_find_appendonly_page(knl_session_t *session, knl_handle_t heap_han
 
     heap_add_cached_page(session, heap, *page_id, page_count);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -2204,7 +2245,7 @@ static void heap_paral_traversal_map(knl_session_t *session, map_path_t *path, u
         page = (map_page_t *)CURR_PAGE(session);
         if (page->head.type != PAGE_TYPE_HEAP_MAP) {
             *page_id = INVALID_PAGID;
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             return;
         }
 
@@ -2212,7 +2253,7 @@ static void heap_paral_traversal_map(knl_session_t *session, map_path_t *path, u
         if (curr >= (uint32)page->hwm) {
             if ((uint32)page->hwm != map_nodes || level == path->level) {
                 *page_id = INVALID_PAGID;
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
                 return;
             }
 
@@ -2220,7 +2261,7 @@ static void heap_paral_traversal_map(knl_session_t *session, map_path_t *path, u
             steps[level] = (curr - (uint32)page->hwm) % map_nodes;
             index->slot = 0;
 
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             level++;
             continue;
         }
@@ -2237,14 +2278,14 @@ static void heap_paral_traversal_map(knl_session_t *session, map_path_t *path, u
             if (index->slot == INVALID_SLOT) {
                 index->slot = 0;
             }
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             continue;
         }
 
         page_id->file = (uint16)node->file;
         page_id->page = (uint32)node->page;
         page_id->aligned = 0;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 }
@@ -2321,7 +2362,7 @@ void heap_get_paral_schedule(knl_session_t *session, knl_handle_t heap_handle, k
     head = (page_head_t *)CURR_PAGE(session);
     segment = HEAP_SEG_HEAD(session);
     if (head->type != PAGE_TYPE_HEAP_HEAD || segment->org_scn != org_scn) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         range->workers = 0;
         return;
     }
@@ -2334,7 +2375,7 @@ void heap_get_paral_schedule(knl_session_t *session, knl_handle_t heap_handle, k
     // this is an estimate (exclude map level 0)
     range->workers = (extents < workers) ? extents : workers;
     pages = (uint64)heap_get_segment_page_count(space, segment) * map_nodes / (map_nodes + 1);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     heap_get_paral_range(session, map_id, level, (uint32)pages, range);
 }
@@ -2391,7 +2432,7 @@ status_t heap_seq_find_map(knl_session_t *session, knl_handle_t heap_handle, map
     uint32 level;
     uint16 slot;
     errno_t ret;
-    *degrade_mid = GS_FALSE;
+    *degrade_mid = CT_FALSE;
 
 SEQ_FIND_MAP:
     tree_info.value = cm_atomic_get(&HEAP_SEGMENT(session, heap->entry, heap->segment)->tree_info.value);
@@ -2409,28 +2450,28 @@ SEQ_FIND_MAP:
      */
     if (session->kernel->attr.enable_degrade_search && mid == (HEAP_FREE_LIST_COUNT - 1)) {
         mid--;
-        *degrade_mid = GS_TRUE;
+        *degrade_mid = CT_TRUE;
     }
 
     for (;;) {
-        if (buf_read_page(session, map_id, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (buf_read_page(session, map_id, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         page = (map_page_t *)CURR_PAGE(session);
 
         slot = heap_get_min_map_slot(page, mid);
         if (slot == INVALID_SLOT) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
 
             if (level == tree_info.level) {
                 *page_id = INVALID_PAGID;
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
 
             /** someone is trying to change map, wait a while */
-            knl_try_begin_session_wait(session, ENQ_HEAP_MAP, GS_FALSE);
+            knl_begin_session_wait(session, ENQ_HEAP_MAP, CT_FALSE);
             cm_spin_sleep_and_stat2(1);
-            knl_try_end_session_wait(session, ENQ_HEAP_MAP);
+            knl_end_session_wait(session, ENQ_HEAP_MAP);
             goto SEQ_FIND_MAP;
         }
 
@@ -2447,15 +2488,15 @@ SEQ_FIND_MAP:
             map_id.file = (uint16)node->file;
             map_id.page = (uint32)node->page;
             map_id.aligned = 0;
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             continue;
         }
 
         page_id->file = (uint16)node->file;
         page_id->page = (uint32)node->page;
         page_id->aligned = 0;
-        buf_leave_page(session, GS_FALSE);
-        return GS_SUCCESS;
+        buf_leave_page(session, CT_FALSE);
+        return CT_SUCCESS;
     }
 }
 
@@ -2499,7 +2540,7 @@ void heap_get_map_path(knl_session_t *session, knl_handle_t heap_handle, page_id
             knl_panic_log(level > 0, "current level is invalid, panic info: page %u-%u type %u level %u",
                           AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.type, level);
             path->level = level - 1;
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             return;
         } else {
             path->index[level].file = page->map.file;
@@ -2510,7 +2551,7 @@ void heap_get_map_path(knl_session_t *session, knl_handle_t heap_handle, page_id
         page_id.file = (uint16)page->map.file;
         page_id.page = (uint32)page->map.page;
         page_id.aligned = 0;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
         level++;
     }
@@ -2617,7 +2658,7 @@ status_t map_dump_page(knl_session_t *session, page_head_t *page_head, cm_dump_t
         CM_DUMP_WRITE_FILE(dump);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t map_segment_dump(knl_session_t *session, page_head_t *page_head, cm_dump_t *dump)
@@ -2672,5 +2713,5 @@ status_t map_segment_dump(knl_session_t *session, page_head_t *page_head, cm_dum
         CM_DUMP_WRITE_FILE(dump);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

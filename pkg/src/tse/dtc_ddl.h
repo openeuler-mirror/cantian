@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -38,6 +38,7 @@
 #define TSE_BROADCAST_WAIT_TIMEOUT (12000)  // ms
 #define TSE_CLUSTER_MAX_NODES (4)
 #define TSE_DDL_PROCESSING (-99)
+#define TSE_DDL_VERSION_NOT_MATCH (9999)
 #define TSE_DDL_WAIT_PROCESS (100000)  // 100ms/0.1s
 
 typedef struct st_msg_rsp_res_pair_t {
@@ -50,6 +51,7 @@ typedef struct st_msg_ddl_rsp_t {
     mes_message_head_t      head;
     int32_t                 err_code;
     bool                    allow_fail;
+    char                    err_msg[ERROR_MESSAGE_LEN];
 } msg_ddl_rsp_t;
 
 typedef struct st_msg_prepare_ddl_req_t {
@@ -73,6 +75,7 @@ typedef struct st_msg_commit_ddl_req_t {
     tianchi_handler_t       tch;
     uint32_t                mysql_inst_id;
     uint32_t                msg_num;
+    tse_lock_table_info     lock_info;
 } msg_commit_ddl_req_t;
 
 typedef struct st_msg_close_connection_req_t {
@@ -82,11 +85,19 @@ typedef struct st_msg_close_connection_req_t {
     uint32_t                  msg_num;
 } msg_close_connection_req_t;
 
-void dtc_proc_msg_tse_lock_table_req(void *sess, mes_message_t *msg);
-void dtc_proc_msg_tse_execute_ddl_req(void *sess, mes_message_t *msg);
-void dtc_proc_msg_tse_commit_ddl_req(void *sess, mes_message_t *msg);
-void dtc_proc_msg_tse_close_mysql_conn_req(void *sess, mes_message_t *msg);
-void dtc_proc_msg_tse_execute_rewrite_open_conn_req(void *sess, mes_message_t *msg);
+typedef struct st_msg_invalid_dd_req_t {
+    mes_message_head_t                  head;
+    tse_invalidate_broadcast_request    broadcast_req;
+    tianchi_handler_t                   tch;
+    uint32_t                            msg_num;
+} msg_invalid_dd_req_t;
+
+EXTER_ATTACK void dtc_proc_msg_tse_lock_table_req(void *sess, mes_message_t *msg);
+EXTER_ATTACK void dtc_proc_msg_tse_execute_ddl_req(void *sess, mes_message_t *msg);
+EXTER_ATTACK void dtc_proc_msg_tse_commit_ddl_req(void *sess, mes_message_t *msg);
+EXTER_ATTACK void dtc_proc_msg_tse_close_mysql_conn_req(void *sess, mes_message_t *msg);
+EXTER_ATTACK void dtc_proc_msg_tse_execute_rewrite_open_conn_req(void *sess, mes_message_t *msg);
+EXTER_ATTACK void dtc_proc_msg_tse_invalidate_dd_req(void *sess, mes_message_t *msg);
 status_t tse_is_inst_alive(uint8 dst_inst);
 status_t tse_send_data_retry(const void *msg_data, uint8 dst_inst);
 msg_rsp_res_pair *get_tse_msg_result_arr(void);

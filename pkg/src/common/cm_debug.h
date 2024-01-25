@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -69,7 +69,7 @@ static inline void cm_assert(bool32 condition)
 #endif
 
 /* Assert that this command is never executed. */
-#define CM_NEVER CM_ASSERT(GS_FALSE)
+#define CM_NEVER CM_ASSERT(CT_FALSE)
 
 static inline void cm_exit(int32 exitcode)
 {
@@ -108,19 +108,19 @@ static inline void cm_action(void)
 
 #define CM_ACTION_PANIC 0
 #define CM_ACTION_EXIT 1
-#define CM_ABORT_INTER(action, format, ...) \
-    do {                                                                                                         \
-        if (LOG_RUN_ERR_ON) {                                                                                    \
-            cm_write_normal_log(LOG_RUN, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE,  \
-                format, ##__VA_ARGS__);                                                                          \
-        }                                                                                                        \
-        cm_print_call_link(GS_DEFAUT_BLACK_BOX_DEPTH);                                                           \
-        cm_fync_logfile();                                                                                       \
-        if (action == CM_ACTION_PANIC) {                                                                         \
-            cm_panic(0);                                                                                         \
-        } else if (action == CM_ACTION_EXIT) {                                                                   \
-            cm_action();                                                                                         \
-        }                                                                                                        \
+#define CM_ABORT_INTER(action, format, ...)                                                                        \
+    do {                                                                                                           \
+        if (LOG_RUN_ERR_ON) {                                                                                      \
+            cm_write_normal_log(LOG_RUN, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                                format, ##__VA_ARGS__);                                                            \
+        }                                                                                                          \
+        cm_print_call_link(CT_DEFAUT_BLACK_BOX_DEPTH);                                                             \
+        cm_fync_logfile();                                                                                         \
+        if (action == CM_ACTION_PANIC) {                                                                           \
+            cm_panic(0);                                                                                           \
+        } else if (action == CM_ACTION_EXIT) {                                                                     \
+            cm_action();                                                                                           \
+        }                                                                                                          \
     } while (0);
 
 #define CM_ABORT_REASONABLE(condition, format, ...) \
@@ -143,7 +143,7 @@ static inline void cm_action(void)
 #define CM_MAGIC_CHECK(obj_declare, obj_struct)                                         \
     do {                                                                                \
         if ((obj_declare) == NULL || ((obj_declare)->cm_magic != obj_struct##_MAGIC)) { \
-            GS_LOG_RUN_ERR("[FATAL] Cantiand Halt!");                                    \
+            CT_LOG_RUN_ERR("[FATAL] Cantiand Halt!");                                    \
             CM_NEVER;                                                                   \
         }                                                                               \
     } while (0);
@@ -151,7 +151,7 @@ static inline void cm_action(void)
 #define CM_MAGIC_CHECK_EX(obj_declare, obj_struct)                                      \
     do {                                                                                \
         if ((obj_declare) != NULL && ((obj_declare)->cm_magic != obj_struct##_MAGIC)) { \
-            GS_LOG_RUN_ERR("[FATAL] Cantiand Halt!");                                    \
+            CT_LOG_RUN_ERR("[FATAL] Cantiand Halt!");                                    \
             CM_NEVER;                                                                   \
         }                                                                               \
     } while (0);

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,13 +22,13 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "cm_common_module.h"
 #include "cm_vma.h"
 
 static inline void vmc_check_mem(const void* buf, uint32 size)
 {
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
-    if (GS_TRUE) {
+    if (CT_TRUE) {
 #else
     if (g_vma_mem_check) {
 #endif
@@ -52,28 +52,28 @@ status_t vmc_alloc(void *owner, uint32 size, void **buf)
     vmc_t *context = (vmc_t *)owner;
     if (mctx_try_alloc(&context->mctx, size, buf)) {
         vmc_check_mem(*buf, size);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (mctx_try_alloc(&context->large_mctx, size, buf)) {
         vmc_check_mem(*buf, size);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_LOG_DEBUG_WAR("failed to malloc memory from VMA, only can malloc memroy from OS, memory size=%u", size);
+    CT_LOG_DEBUG_WAR("failed to malloc memory from VMA, only can malloc memroy from OS, memory size=%u", size);
 
     uint64 malloc_size = (uint64)size + sizeof(variant_mem_t);
     malloc_size = CM_ALIGN8(malloc_size);
-    if (context->os_mem_size + malloc_size > GS_MAX_VMP_OS_MEM_SIZE) {
-        GS_LOG_DEBUG_WAR("Too much OS memory has been allocated, memory size=%llu", context->os_mem_size);
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, malloc_size, "VMP(variant memory pool)");
-        return GS_ERROR;
+    if (context->os_mem_size + malloc_size > CT_MAX_VMP_OS_MEM_SIZE) {
+        CT_LOG_DEBUG_WAR("Too much OS memory has been allocated, memory size=%llu", context->os_mem_size);
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, malloc_size, "VMP(variant memory pool)");
+        return CT_ERROR;
     }
 
     variant_mem_t *pmem = (variant_mem_t *)malloc(malloc_size);
     if (pmem == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, malloc_size, "VMA(variant memory area) from OS");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, malloc_size, "VMA(variant memory area) from OS");
+        return CT_ERROR;
     }
     context->os_mem_size += malloc_size;
 
@@ -81,5 +81,5 @@ status_t vmc_alloc(void *owner, uint32 size, void **buf)
     context->head = pmem;
 
     *buf = pmem->mem;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

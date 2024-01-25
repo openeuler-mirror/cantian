@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -33,18 +33,17 @@ extern "C" {
 #endif
 
 /* Used in free sensitive info string */
-#define securec_free(m)                                  \
-    do {                                                 \
-        if ((m) != NULL) {                               \
-            errno_t rc_memzero = EOK;                    \
-            size_t len = strlen(m);                      \
-            if (len > 0) {                               \
-                rc_memzero = memset_s((m), len, 0, len); \
-            }                                            \
-            free(m);                                     \
-            (m) = NULL;                                  \
-            MEMS_RETURN_IFERR(rc_memzero);               \
-        }                                                \
+#define securec_free(m)                                              \
+    do {                                                             \
+        if ((m) != NULL) {                                           \
+            errno_t rc_memzero = EOK;                                \
+            if (strlen(m) > 0) {                                     \
+                rc_memzero = memset_s((m), strlen(m), 0, strlen(m)); \
+            }                                                        \
+            free(m);                                                 \
+            (m) = NULL;                                              \
+            MEMS_RETURN_IFERR(rc_memzero);                           \
+        }                                                            \
     } while (0)
 
 static status_t clt_query(clt_conn_t *conn, const text_t *sql);
@@ -52,7 +51,7 @@ static status_t clt_get_conn_attr(clt_conn_t *conn, int32 attr, void *data, uint
 static inline void clt_load_default_options(clt_options_t *options)
 {
     MEMS_RETVOID_IFERR(memset_s(options, sizeof(clt_options_t), 0, sizeof(clt_options_t)));
-    options->connect_timeout = (int32)GS_CONNECT_TIMEOUT / GS_TIME_THOUSAND_UN;
+    options->connect_timeout = (int32)CT_CONNECT_TIMEOUT / CT_TIME_THOUSAND;
     options->socket_timeout = -1;
     options->l_onoff = 1;
     options->l_linger = 1;
@@ -72,15 +71,15 @@ status_t gsc_alloc_conn(gsc_conn_t *pconn)
 
     connection = (clt_conn_t *)malloc(malloc_len);
     if (connection == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)malloc_len, "new connection");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)malloc_len, "new connection");
+        return CT_ERROR;
     }
 
     errno_t rc_memzero = memset_s(connection, malloc_len, 0, malloc_len);
     if (rc_memzero != EOK) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
         free(connection);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_ptlist_init(&connection->stmts);
@@ -88,32 +87,32 @@ status_t gsc_alloc_conn(gsc_conn_t *pconn)
 
     clt_load_default_options(&connection->options);
     cm_init_session_nlsparams(&connection->nls_params);
-    connection->exit_commit = GS_TRUE;
-    connection->num_width = (uint32)GS_MAX_DEC_OUTPUT_PREC;
-    connection->local_charset = GS_DEFAULT_LOCAL_CHARSET;
+    connection->exit_commit = CT_TRUE;
+    connection->num_width = (uint32)CT_MAX_DEC_OUTPUT_PREC;
+    connection->local_charset = CT_DEFAULT_LOCAL_CHARSET;
     connection->server_version = CS_LOCAL_VERSION;
     connection->call_version = CS_LOCAL_VERSION;
     connection->options.app_kind = (uint16)CLIENT_KIND_GSC_GENERIC;
     connection->shd_rw_split = GSC_SHD_RW_SPLIT_NONE;
-    connection->server_info.server_max_pack_size = GS_MAX_ALLOWED_PACKET_SIZE;
+    connection->server_info.server_max_pack_size = CT_MAX_ALLOWED_PACKET_SIZE;
     cm_create_list2(&connection->pack_list, CLT_CONN_PACK_EXTEND_STEP, MAX_LIST_EXTENTS, sizeof(clt_packet_t));
 
-    connection->pipe.connect_timeout = (int32)GS_CONNECT_TIMEOUT;
+    connection->pipe.connect_timeout = (int32)CT_CONNECT_TIMEOUT;
     connection->pipe.socket_timeout = -1;
     connection->pipe.l_onoff = 1;
     connection->pipe.l_linger = 1;
     connection->pipe.link.tcp.sock = CS_INVALID_SOCKET;
-    connection->pipe.link.tcp.closed = GS_TRUE;
+    connection->pipe.link.tcp.closed = CT_TRUE;
     connection->pipe.link.ssl.tcp.sock = CS_INVALID_SOCKET;
-    connection->pipe.link.ssl.tcp.closed = GS_TRUE;
+    connection->pipe.link.ssl.tcp.closed = CT_TRUE;
 
-    connection->alter_set_info.commit_batch = GS_INVALID_ID16;
-    connection->alter_set_info.commit_nowait = GS_INVALID_ID16;
-    connection->alter_set_info.lock_wait_timeout = GS_INVALID_ID32;
-    connection->alter_set_info.nologging_enable = GS_INVALID_ID8;
+    connection->alter_set_info.commit_batch = CT_INVALID_ID16;
+    connection->alter_set_info.commit_nowait = CT_INVALID_ID16;
+    connection->alter_set_info.lock_wait_timeout = CT_INVALID_ID32;
+    connection->alter_set_info.nologging_enable = CT_INVALID_ID8;
 
     *conn = connection;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void clt_disconnect(clt_conn_t *conn)
@@ -140,7 +139,7 @@ static void clt_disconnect(clt_conn_t *conn)
         cs_init_set(req_pack, conn->call_version);
         req_pack->head->cmd = CS_CMD_LOGOUT;
         (void)clt_remote_call(conn, req_pack, req_pack);
-        conn->ready = GS_FALSE;
+        conn->ready = CT_FALSE;
         conn->server_version = CS_LOCAL_VERSION;
         conn->call_version = CS_LOCAL_VERSION;
     }
@@ -159,11 +158,11 @@ void gsc_disconnect(gsc_conn_t pconn)
     clt_conn_t *conn = (clt_conn_t *)pconn;
 
     if (SECUREC_UNLIKELY(conn == NULL)) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "connection");
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "connection");
         return;
     }
 
-    GS_RETVOID_IFERR(clt_lock_conn(conn));
+    CT_RETVOID_IFERR(clt_lock_conn(conn));
     clt_disconnect(conn);
     clt_unlock_conn(conn);
     return;
@@ -184,7 +183,7 @@ static void clt_ssl_free(clt_conn_t *conn)
         size_t len = strlen(conn->options.ssl_keypwd);
         errno_t rc_memzero = memset_s(conn->options.ssl_keypwd, len, 0, len);
         if (rc_memzero != EOK) {
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
         }
         CM_FREE_PTR(conn->options.ssl_keypwd);
     }
@@ -204,7 +203,7 @@ static void clt_free_pack_list(clt_conn_t *conn)
 
 static void clt_free_conn(clt_conn_t *conn)
 {
-    if (conn->ready == GS_TRUE) {
+    if (conn->ready == CT_TRUE) {
         clt_disconnect(conn);
     }
 
@@ -225,7 +224,7 @@ void gsc_free_conn(gsc_conn_t pconn)
         return;
     }
 
-    if (clt_lock_conn(conn) != GS_SUCCESS) {
+    if (clt_lock_conn(conn) != CT_SUCCESS) {
         return;
     }
 
@@ -244,21 +243,21 @@ static status_t clt_update_conn_opt(clt_conn_t *conn, const char *url, const cha
         if (conn->options.user == NULL) {
             cs_disconnect(&conn->pipe);
             CLT_THROW_ERROR(conn, ERR_CLT_OBJECT_IS_NULL, "user");
-            return GS_ERROR;
+            return CT_ERROR;
         }
-        GS_RETURN_IFERR(clt_strndup(host_part.str, host_part.len, &(conn->options.host)));
+        CT_RETURN_IFERR(clt_strndup(host_part.str, host_part.len, &(conn->options.host)));
         if (conn->options.host == NULL) {
             cs_disconnect(&conn->pipe);
             CM_FREE_PTR(conn->options.user);
             CLT_THROW_ERROR(conn, ERR_CLT_OBJECT_IS_NULL, "host");
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (cm_text2uint32(&port_part, &conn->options.port) != GS_SUCCESS) {
+        if (cm_text2uint32(&port_part, &conn->options.port) != CT_SUCCESS) {
             cs_disconnect(&conn->pipe);
             CM_FREE_PTR(conn->options.user);
             CM_FREE_PTR(conn->options.host);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -267,31 +266,31 @@ static status_t clt_update_conn_opt(clt_conn_t *conn, const char *url, const cha
         if (conn->options.user == NULL) {
             cs_disconnect(&conn->pipe);
             CLT_THROW_ERROR(conn, ERR_CLT_OBJECT_IS_NULL, "user");
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
 Check if SSL can be establishes.
 
 @param  conn        the connection handle
-@retval GS_SUCCESS  success
-@retval GS_ERROR    failure
+@retval CT_SUCCESS  success
+@retval CT_ERROR    failure
 */
 static status_t clt_ssl_check(clt_conn_t *conn)
 {
     conn->client_flag = conn->options.client_flag;
     if (conn->pipe.type == CS_TYPE_DOMAIN_SCOKET) {
         conn->client_flag &= ~CS_FLAG_CLIENT_SSL;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     /* Don't fallback on unencrypted connection if SSL required */
     if (conn->options.ssl_mode >= GSC_SSL_REQUIRED && !(conn->server_capabilities & CS_FLAG_CLIENT_SSL)) {
         CLT_THROW_ERROR(conn, ERR_SSL_NOT_SUPPORT);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /*
@@ -300,7 +299,7 @@ static status_t clt_ssl_check(clt_conn_t *conn)
     */
     if (conn->options.ssl_mode > GSC_SSL_REQUIRED && !conn->options.ssl_ca) {
         CLT_THROW_ERROR(conn, ERR_SSL_CA_REQUIRED);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /*
@@ -312,32 +311,32 @@ static status_t clt_ssl_check(clt_conn_t *conn)
     } else {
         conn->client_flag &= ~CS_FLAG_CLIENT_SSL;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_remote_wait(clt_conn_t *conn)
 {
-    bool32 ready = GS_FALSE;
+    bool32 ready = CT_FALSE;
     cs_pipe_t *pipe = &conn->pipe;
 
-    if (cs_wait(pipe, CS_WAIT_FOR_READ, GS_HANDSHAKE_TIMEOUT, &ready) != GS_SUCCESS) {
+    if (cs_wait(pipe, CS_WAIT_FOR_READ, CT_HANDSHAKE_TIMEOUT, &ready) != CT_SUCCESS) {
         clt_copy_local_error(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!ready) {
-        CLT_THROW_ERROR(conn, ERR_SOCKET_TIMEOUT, GS_HANDSHAKE_TIMEOUT / GS_TIME_THOUSAND_UN);
-        return GS_ERROR;
+        CLT_THROW_ERROR(conn, ERR_SOCKET_TIMEOUT, CT_HANDSHAKE_TIMEOUT / CT_TIME_THOUSAND_UN);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
 Establishes SSL from a connected socket
 
 @param  conn        the connection handle
-@retval GS_SUCCESS  success
-@retval GS_ERROR    failure
+@retval CT_SUCCESS  success
+@retval CT_ERROR    failure
 */
 static status_t clt_ssl_establish(clt_conn_t *conn)
 {
@@ -355,25 +354,25 @@ static status_t clt_ssl_establish(clt_conn_t *conn)
     para.crl_file = options->ssl_crl;
     para.key_password = options->ssl_keypwd;
     para.cipher = options->ssl_cipher;
-    para.verify_peer = GS_TRUE;
+    para.verify_peer = CT_TRUE;
 
     /* Check certificate file access permission */
-    if (cs_ssl_verify_file_stat(para.ca_file) != GS_SUCCESS) {
+    if (cs_ssl_verify_file_stat(para.ca_file) != CT_SUCCESS) {
         clt_copy_local_error(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (cs_ssl_verify_file_stat(para.cert_file) != GS_SUCCESS) {
+    if (cs_ssl_verify_file_stat(para.cert_file) != CT_SUCCESS) {
         clt_copy_local_error(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (cs_ssl_verify_file_stat(para.key_file) != GS_SUCCESS) {
+    if (cs_ssl_verify_file_stat(para.key_file) != CT_SUCCESS) {
         clt_copy_local_error(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (cs_ssl_verify_file_stat(para.crl_file) != GS_SUCCESS) {
+    if (cs_ssl_verify_file_stat(para.crl_file) != CT_SUCCESS) {
         clt_copy_local_error(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* Create the ssl connector - init SSL and load certs */
@@ -384,25 +383,25 @@ static status_t clt_ssl_establish(clt_conn_t *conn)
 
     if (ssl_fd == NULL) {
         clt_copy_local_error(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     conn->ssl_connector = (uchar *)ssl_fd;
 
     /* Connect to the server */
-    if (cs_ssl_connect(ssl_fd, &conn->pipe) != GS_SUCCESS) {
+    if (cs_ssl_connect(ssl_fd, &conn->pipe) != CT_SUCCESS) {
         clt_copy_local_error(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* Verify server cert */
     if (options->ssl_mode > GSC_SSL_REQUIRED) {
         mode = (options->ssl_mode == GSC_SSL_VERIFY_CA) ? VERIFY_CERT : VERIFY_SUBJECT;
-        if (cs_ssl_verify_certificate(&conn->pipe.link.ssl, mode, conn->options.host, &cert_err) != GS_SUCCESS) {
+        if (cs_ssl_verify_certificate(&conn->pipe.link.ssl, mode, conn->options.host, &cert_err) != CT_SUCCESS) {
             CLT_THROW_ERROR(conn, ERR_SSL_VERIFY_CERT, cert_err);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_send_auth_init(clt_conn_t *conn, const char *user, const char *tenant, const uchar *client_key,
@@ -423,23 +422,23 @@ static status_t clt_send_auth_init(clt_conn_t *conn, const char *user, const cha
 
     // 1. write username
     cm_str2text((char *)user, &text);
-    GS_RETURN_IFERR(cs_put_text(send_pack, &text));
+    CT_RETURN_IFERR(cs_put_text(send_pack, &text));
     // 2. write client_key
     cm_str2text_safe((char *)client_key, key_len, &text);
-    GS_RETURN_IFERR(cs_put_text(send_pack, &text));
+    CT_RETURN_IFERR(cs_put_text(send_pack, &text));
 
     // Attention: if add message in a higher version, please use conn->server_version
     if (conn->server_version >= CS_VERSION_18) {
         // 3. tenant name
         cm_str2text((char *)tenant, &text);
-        GS_RETURN_IFERR(cs_put_text(send_pack, &text));
+        CT_RETURN_IFERR(cs_put_text(send_pack, &text));
     }
 
     // send AUTH_INIT request
-    if (cs_write(&conn->pipe, send_pack) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_write(&conn->pipe, send_pack) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_ssl_handshake_safe(clt_conn_t *conn, const char *user, const char *tenant, const uchar *client_key,
@@ -448,48 +447,48 @@ static status_t clt_ssl_handshake_safe(clt_conn_t *conn, const char *user, const
     uint32 ssl_notify, size;
 
     // tell server whether SSL channel is required
-    GS_RETURN_IFERR(cs_put_int32(&conn->pack, conn->client_flag));
-    if (cs_write(&conn->pipe, &conn->pack) != GS_SUCCESS) {
+    CT_RETURN_IFERR(cs_put_int32(&conn->pack, conn->client_flag));
+    if (cs_write(&conn->pipe, &conn->pack) != CT_SUCCESS) {
         clt_copy_local_error(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (conn->client_flag & CS_FLAG_CLIENT_SSL) {
         // wait for handshake notify
-        if (clt_remote_wait(conn) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (clt_remote_wait(conn) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         // read handshake notify
-        if (cs_read_bytes(&conn->pipe, (char *)&ssl_notify, sizeof(uint32), (int32 *)&size) != GS_SUCCESS) {
+        if (cs_read_bytes(&conn->pipe, (char *)&ssl_notify, sizeof(uint32), (int32 *)&size) != CT_SUCCESS) {
             clt_copy_local_error(conn);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (sizeof(ssl_notify) != size || ssl_notify == 0) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        GS_RETURN_IFERR(clt_ssl_establish(conn));
+        CT_RETURN_IFERR(clt_ssl_establish(conn));
     }
 
     // wait for handshake reply
-    if (clt_remote_wait(conn) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (clt_remote_wait(conn) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // read handshake reply
-    if (cs_read(&conn->pipe, &conn->pack, GS_TRUE) != GS_SUCCESS) {
+    if (cs_read(&conn->pipe, &conn->pack, CT_TRUE) != CT_SUCCESS) {
         clt_copy_local_error(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cs_init_get(&conn->pack);
     if (CS_HAS_EXEC_ERROR(&conn->pack)) {
-        GS_RETURN_IFERR(cs_get_int32(&conn->pack, &conn->error_code));
-        GS_RETURN_IFERR(cs_get_int16(&conn->pack, (int16 *)(&conn->loc.line)));
-        GS_RETURN_IFERR(cs_get_int16(&conn->pack, (int16 *)(&conn->loc.column)));
-        GS_RETURN_IFERR(clt_get_error_message(conn, &conn->pack, conn->message));
-        return GS_ERROR;
+        CT_RETURN_IFERR(cs_get_int32(&conn->pack, &conn->error_code));
+        CT_RETURN_IFERR(cs_get_int16(&conn->pack, (int16 *)(&conn->loc.line)));
+        CT_RETURN_IFERR(cs_get_int16(&conn->pack, (int16 *)(&conn->loc.column)));
+        CT_RETURN_IFERR(clt_get_error_message(conn, &conn->pack, conn->message));
+        return CT_ERROR;
     }
 
     // send auth_init request
@@ -503,84 +502,84 @@ static status_t clt_ssl_handshake(clt_conn_t *conn, const char *user, const ucha
 
     // 1. write username
     cm_str2text((char *)user, &text);
-    GS_RETURN_IFERR(cs_put_text(&conn->pack, &text));
+    CT_RETURN_IFERR(cs_put_text(&conn->pack, &text));
     // 2. write client_flag
-    GS_RETURN_IFERR(cs_put_int32(&conn->pack, conn->client_flag));
+    CT_RETURN_IFERR(cs_put_int32(&conn->pack, conn->client_flag));
     // 3. write client_key
     text.str = (char *)client_key;
     text.len = key_len;
-    GS_RETURN_IFERR(cs_put_text(&conn->pack, &text));
+    CT_RETURN_IFERR(cs_put_text(&conn->pack, &text));
 
     // send handshake packet
-    if (cs_write(&conn->pipe, &conn->pack) != GS_SUCCESS) {
+    if (cs_write(&conn->pipe, &conn->pack) != CT_SUCCESS) {
         clt_copy_local_error(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     // change to SSL layer if supported
     if (conn->client_flag & CS_FLAG_CLIENT_SSL) {
         // wait for handshake notify
-        if (clt_remote_wait(conn) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (clt_remote_wait(conn) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         // read handshake notify
-        if (cs_read_bytes(&conn->pipe, (char *)&ssl_notify, sizeof(uint32), (int32 *)&size) != GS_SUCCESS) {
+        if (cs_read_bytes(&conn->pipe, (char *)&ssl_notify, sizeof(uint32), (int32 *)&size) != CT_SUCCESS) {
             clt_copy_local_error(conn);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (sizeof(ssl_notify) != size || ssl_notify == 0) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        GS_RETURN_IFERR(clt_ssl_establish(conn));
+        CT_RETURN_IFERR(clt_ssl_establish(conn));
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_encrypt_login_passwd(const char *plain_text, text_t *scramble_key, uint32 iter_count,
     uchar *salted_pwd, uint32 *salted_pwd_len, char *rsp_str, uint32 *rsp_len)
 {
-    uchar client_scram[2 * GS_MAX_CHALLENGE_LEN + GS_HMAC256MAXSIZE];
-    uchar client_key[GS_HMAC256MAXSIZE];
-    uchar stored_key[GS_HMAC256MAXSIZE];
-    uchar client_sign[GS_HMAC256MAXSIZE];
+    uchar client_scram[2 * CT_MAX_CHALLENGE_LEN + CT_HMAC256MAXSIZE];
+    uchar client_key[CT_HMAC256MAXSIZE];
+    uchar stored_key[CT_HMAC256MAXSIZE];
+    uchar client_sign[CT_HMAC256MAXSIZE];
     uint32 sign_key_len, key_len, stored_key_len;
 
     // verify scramble data
-    sign_key_len = GS_MAX_CHALLENGE_LEN * 2;
-    if ((scramble_key->len != sign_key_len + GS_KDF2SALTSIZE) || (*salted_pwd_len < GS_KDF2KEYSIZE)) {
-        return GS_ERROR;
+    sign_key_len = CT_MAX_CHALLENGE_LEN * 2;
+    if ((scramble_key->len != sign_key_len + CT_KDF2SALTSIZE) || (*salted_pwd_len < CT_KDF2KEYSIZE)) {
+        return CT_ERROR;
     }
     MEMS_RETURN_IFERR(
-        memcpy_s(client_scram, 2 * GS_MAX_CHALLENGE_LEN + GS_HMAC256MAXSIZE, scramble_key->str, sign_key_len));
+        memcpy_s(client_scram, 2 * CT_MAX_CHALLENGE_LEN + CT_HMAC256MAXSIZE, scramble_key->str, sign_key_len));
 
     // salted_pwd
     if (cm_encrypt_KDF2((uchar *)plain_text, (uint32)strlen(plain_text), (uchar *)(scramble_key->str + sign_key_len),
-        GS_KDF2SALTSIZE, iter_count, salted_pwd, GS_KDF2KEYSIZE) != GS_SUCCESS) {
-        return GS_ERROR;
+        CT_KDF2SALTSIZE, iter_count, salted_pwd, CT_KDF2KEYSIZE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    *salted_pwd_len = GS_KDF2KEYSIZE;
+    *salted_pwd_len = CT_KDF2KEYSIZE;
 
     // client_key
-    key_len = GS_HMAC256MAXSIZE;
-    if (cm_encrypt_HMAC(salted_pwd, GS_KDF2KEYSIZE, (uchar *)GS_CLIENT_KEY, (uint32)strlen(GS_CLIENT_KEY), client_key,
-        &key_len) != GS_SUCCESS) {
-        return GS_ERROR;
+    key_len = CT_HMAC256MAXSIZE;
+    if (cm_encrypt_HMAC(salted_pwd, CT_KDF2KEYSIZE, (uchar *)CT_CLIENT_KEY, (uint32)strlen(CT_CLIENT_KEY), client_key,
+        &key_len) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     // stored_key
-    stored_key_len = GS_HMAC256MAXSIZE;
-    if (cm_generate_sha256(client_key, key_len, stored_key, &stored_key_len) != GS_SUCCESS) {
-        return GS_ERROR;
+    stored_key_len = CT_HMAC256MAXSIZE;
+    if (cm_generate_sha256(client_key, key_len, stored_key, &stored_key_len) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     // signature
-    key_len = GS_HMAC256MAXSIZE;
+    key_len = CT_HMAC256MAXSIZE;
     if (cm_encrypt_HMAC(stored_key, stored_key_len, (uchar *)scramble_key->str, sign_key_len, client_sign, &key_len) !=
-        GS_SUCCESS) {
-        return GS_ERROR;
+        CT_SUCCESS) {
+        return CT_ERROR;
     }
     // generate client_proof
-    for (uint32 i = 0; i < GS_HMAC256MAXSIZE; ++i) {
+    for (uint32 i = 0; i < CT_HMAC256MAXSIZE; ++i) {
         client_scram[i + sign_key_len] = (uchar)(client_key[i] ^ client_sign[i]);
     }
 
@@ -591,55 +590,55 @@ static status_t clt_encrypt_login_passwd(const char *plain_text, text_t *scrambl
 static status_t clt_do_login(clt_conn_t *conn, const char *user, const char *password, const char *tenant)
 {
     text_t text;
-    char proc[GS_BUFLEN_1K];
+    char proc[CT_BUFLEN_1K];
 
     // 1. user
     cm_str2text((char *)user, &text);
-    GS_RETURN_IFERR(cs_put_text(&conn->pack, &text));
+    CT_RETURN_IFERR(cs_put_text(&conn->pack, &text));
     // 2. pwd
     cm_str2text((char *)password, &text);
-    GS_RETURN_IFERR(cs_put_text(&conn->pack, &text));
+    CT_RETURN_IFERR(cs_put_text(&conn->pack, &text));
     // 3. hostname
     cm_str2text(cm_sys_host_name(), &text);
-    GS_RETURN_IFERR(cs_put_text(&conn->pack, &text));
+    CT_RETURN_IFERR(cs_put_text(&conn->pack, &text));
     // 4. sys user
     cm_str2text(cm_sys_user_name(), &text);
-    GS_RETURN_IFERR(cs_put_text(&conn->pack, &text));
+    CT_RETURN_IFERR(cs_put_text(&conn->pack, &text));
 
     // 5. sys program
-    PRTS_RETURN_IFERR(sprintf_s(proc, (GS_BUFLEN_1K - 1), "[%llu]%s", cm_sys_pid(), cm_sys_program_name()));
+    PRTS_RETURN_IFERR(sprintf_s(proc, (CT_BUFLEN_1K - 1), "[%llu]%s", cm_sys_pid(), cm_sys_program_name()));
 
     cm_str2text(proc, &text);
-    GS_RETURN_IFERR(cs_put_text(&conn->pack, &text));
+    CT_RETURN_IFERR(cs_put_text(&conn->pack, &text));
 
     // 6. is_coord
     if (CS_IS_CN_CONNECTION(conn->pack.options)) {
-        GS_RETURN_IFERR(cs_put_int16(&conn->pack, (uint16)CS_IS_CN_CONNECTION(conn->pack.options)));
+        CT_RETURN_IFERR(cs_put_int16(&conn->pack, (uint16)CS_IS_CN_CONNECTION(conn->pack.options)));
     } else {
-        GS_RETURN_IFERR(cs_put_int16(&conn->pack, (uint16)CS_IS_CN_IN_ALTER_PWD(conn->pack.options)));
+        CT_RETURN_IFERR(cs_put_int16(&conn->pack, (uint16)CS_IS_CN_IN_ALTER_PWD(conn->pack.options)));
     }
 
     // 7. timezone
-    GS_RETURN_IFERR(cs_put_int16(&conn->pack, cm_get_local_tzoffset()));
+    CT_RETURN_IFERR(cs_put_int16(&conn->pack, cm_get_local_tzoffset()));
     conn->local_sessiontz = cm_get_local_tzoffset();
 
     if (conn->call_version >= CS_VERSION_6) {
         // 8. client kind
-        GS_RETURN_IFERR(cs_put_int16(&conn->pack, conn->options.app_kind));
+        CT_RETURN_IFERR(cs_put_int16(&conn->pack, conn->options.app_kind));
     }
 
     if (conn->call_version >= CS_VERSION_12) {
         // 9. shard rw split flag
-        GS_RETURN_IFERR(cs_put_int16(&conn->pack, (uint16)conn->shd_rw_split));
+        CT_RETURN_IFERR(cs_put_int16(&conn->pack, (uint16)conn->shd_rw_split));
     }
 
     if (conn->call_version >= CS_VERSION_18) {
         // 10. tenant name
         cm_str2text((char *)tenant, &text);
-        GS_RETURN_IFERR(cs_put_text(&conn->pack, &text));
+        CT_RETURN_IFERR(cs_put_text(&conn->pack, &text));
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_login(clt_conn_t *conn, const char *user, const char *password, const char *tenant,
@@ -650,97 +649,97 @@ static status_t clt_login(clt_conn_t *conn, const char *user, const char *passwo
     conn->pack.head->cmd = CS_CMD_LOGIN;
     conn->pack.head->flags = conn->interactive_clt ? CS_FLAG_INTERACTIVE_CLT : 0;
     if (conn->remote_as_sysdba) {
-        conn->pack.head->flags |= GS_FLAG_REMOTE_AS_SYSDBA;
+        conn->pack.head->flags |= CT_FLAG_REMOTE_AS_SYSDBA;
     }
 
-    GS_RETURN_IFERR(clt_do_login(conn, user, password, tenant));
+    CT_RETURN_IFERR(clt_do_login(conn, user, password, tenant));
 
-    GS_RETURN_IFERR(clt_remote_call(conn, &conn->pack, &conn->pack));
+    CT_RETURN_IFERR(clt_remote_call(conn, &conn->pack, &conn->pack));
 
     /* erase the security Information */
     cs_init_get(&conn->pack);
 
-    PRTS_RETURN_IFERR(sprintf_s(conn->message, GS_MESSAGE_BUFFER_SIZE, "connected."));
-    GS_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->sid));
-    GS_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->serial));
-    GS_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->server_info.locator_size));
-    GS_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->server_info.server_charset));
+    PRTS_RETURN_IFERR(sprintf_s(conn->message, CT_MESSAGE_BUFFER_SIZE, "connected."));
+    CT_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->sid));
+    CT_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->serial));
+    CT_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->server_info.locator_size));
+    CT_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->server_info.server_charset));
 
     if (conn->server_info.server_charset >= CHARSET_MAX) {
         CLT_SET_ERROR(conn, ERR_INVALID_CHARSET, "invalid server charset id: %d", conn->server_info.server_charset);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(clt_set_conn_transcode_func(conn));
+    CT_RETURN_IFERR(clt_set_conn_transcode_func(conn));
     // server signature
-    GS_RETURN_IFERR(cs_get_text(&conn->pack, server_sign));
+    CT_RETURN_IFERR(cs_get_text(&conn->pack, server_sign));
 
     if (conn->call_version >= CS_VERSION_10) {
-        GS_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->server_info.server_max_pack_size));
+        CT_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->server_info.server_max_pack_size));
     }
     conn->pack.max_buf_size = conn->server_info.server_max_pack_size;
 
     // db role
     if (conn->call_version >= CS_VERSION_15) {
-        GS_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->server_info.db_role));
+        CT_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->server_info.db_role));
     }
 
     if (CS_HAS_MORE(&conn->pack)) {
-        GS_RETURN_IFERR(clt_get_error_message(conn, &conn->pack, conn->message));
+        CT_RETURN_IFERR(clt_get_error_message(conn, &conn->pack, conn->message));
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_verify_server_signature(uchar *salted_pwd, uint32 salted_pwd_len, text_t *scramble_key,
     text_t *server_sign)
 {
-    uchar server_key[GS_HMAC256MAXSIZE];
-    uchar c_server_sign[GS_HMAC256MAXSIZE];
+    uchar server_key[CT_HMAC256MAXSIZE];
+    uchar c_server_sign[CT_HMAC256MAXSIZE];
     uint32 server_key_len, sign_key_len, key_len;
 
-    sign_key_len = GS_MAX_CHALLENGE_LEN * 2;
+    sign_key_len = CT_MAX_CHALLENGE_LEN * 2;
     if (scramble_key->len < sign_key_len) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
     // server_key
     server_key_len = sizeof(server_key);
-    if (cm_encrypt_HMAC(salted_pwd, salted_pwd_len, (uchar *)GS_SERVER_KEY, (uint32)strlen(GS_SERVER_KEY), server_key,
-        &server_key_len) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_encrypt_HMAC(salted_pwd, salted_pwd_len, (uchar *)CT_SERVER_KEY, (uint32)strlen(CT_SERVER_KEY), server_key,
+        &server_key_len) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     // server_signature
     key_len = sizeof(c_server_sign);
     if (cm_encrypt_HMAC(server_key, server_key_len, (uchar *)scramble_key->str, sign_key_len, c_server_sign,
-        &key_len) != GS_SUCCESS) {
-        return GS_ERROR;
+        &key_len) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     // check
     if (key_len != server_sign->len || memcmp(c_server_sign, server_sign->str, key_len) != 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-static status_t clt_do_handshake(clt_conn_t *conn, const char *user, const char *passwd, const char *tenant,
+static status_t clt_do_handshake(clt_conn_t *conn, const char *user, SENSI_INFO const char *passwd, const char *tenant,
     uint32 version)
 {
     text_t scramble_key, server_sign;
-    uchar scram_buf[GS_MAX_CHALLENGE_LEN * 2 + GS_KDF2SALTSIZE];
-    uchar salted_pwd[GS_SCRAM256KEYSIZE];
-    char pwd_cipher[GS_PASSWORD_BUFFER_SIZE];
-    uchar client_key[GS_MAX_CHALLENGE_LEN];
+    uchar scram_buf[CT_MAX_CHALLENGE_LEN * 2 + CT_KDF2SALTSIZE];
+    uchar salted_pwd[CT_SCRAM256KEYSIZE];
+    char pwd_cipher[CT_PASSWORD_BUFFER_SIZE];
+    uchar client_key[CT_MAX_CHALLENGE_LEN];
     uint32 key_len, salted_pwd_len, iter_count;
 
     // before handshake set has_auth to false
-    conn->has_auth = GS_FALSE;
+    conn->has_auth = CT_FALSE;
 
     // check ssl
     conn->server_capabilities = 0;
     if (conn->pipe.options & CSO_CLIENT_SSL) {
         conn->server_capabilities |= CS_FLAG_CLIENT_SSL;
     }
-    GS_RETURN_IFERR(clt_ssl_check(conn));
+    CT_RETURN_IFERR(clt_ssl_check(conn));
 
     // clean up options flags
     conn->pipe.options &= ~CSO_CLIENT_SSL;
@@ -760,69 +759,69 @@ static status_t clt_do_handshake(clt_conn_t *conn, const char *user, const char 
     }
 
     // generate client challenge key
-    GS_RETURN_IFERR(cm_rand(client_key, GS_MAX_CHALLENGE_LEN));
+    CT_RETURN_IFERR(cm_rand(client_key, CT_MAX_CHALLENGE_LEN));
 
     // establish SSL channel first since v9.0
     if (conn->server_version >= CS_VERSION_9) {
-        GS_RETURN_IFERR(clt_ssl_handshake_safe(conn, user, tenant, client_key, GS_MAX_CHALLENGE_LEN, version));
+        CT_RETURN_IFERR(clt_ssl_handshake_safe(conn, user, tenant, client_key, CT_MAX_CHALLENGE_LEN, version));
     } else {
-        GS_RETURN_IFERR(clt_ssl_handshake(conn, user, client_key, GS_MAX_CHALLENGE_LEN));
+        CT_RETURN_IFERR(clt_ssl_handshake(conn, user, client_key, CT_MAX_CHALLENGE_LEN));
     }
 
     // wait for handshake/auth_init ack
-    if (clt_remote_wait(conn) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (clt_remote_wait(conn) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // read handshake ack
-    if (cs_read(&conn->pipe, &conn->pack, GS_TRUE) != GS_SUCCESS) {
+    if (cs_read(&conn->pipe, &conn->pack, CT_TRUE) != CT_SUCCESS) {
         clt_copy_local_error(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cs_init_get(&conn->pack);
     if (CS_HAS_EXEC_ERROR(&conn->pack)) {
-        GS_RETURN_IFERR(cs_get_int32(&conn->pack, &conn->error_code));
-        GS_RETURN_IFERR(cs_get_int16(&conn->pack, (int16 *)(&conn->loc.line)));
-        GS_RETURN_IFERR(cs_get_int16(&conn->pack, (int16 *)(&conn->loc.column)));
-        GS_RETURN_IFERR(clt_get_error_message(conn, &conn->pack, conn->message));
-        return GS_ERROR;
+        CT_RETURN_IFERR(cs_get_int32(&conn->pack, &conn->error_code));
+        CT_RETURN_IFERR(cs_get_int16(&conn->pack, (int16 *)(&conn->loc.line)));
+        CT_RETURN_IFERR(cs_get_int16(&conn->pack, (int16 *)(&conn->loc.column)));
+        CT_RETURN_IFERR(clt_get_error_message(conn, &conn->pack, conn->message));
+        return CT_ERROR;
     }
 
     // 1. server_capabilities
-    GS_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->server_capabilities));
+    CT_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->server_capabilities));
     // 2. server version
-    GS_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->server_version));
+    CT_RETURN_IFERR(cs_get_int32(&conn->pack, (int32 *)&conn->server_version));
     // 3. scramble key
-    GS_RETURN_IFERR(cs_get_text(&conn->pack, &scramble_key));
+    CT_RETURN_IFERR(cs_get_text(&conn->pack, &scramble_key));
     // 4. iteration
-    if (cs_get_int32(&conn->pack, (int32 *)&iter_count) != GS_SUCCESS) {
+    if (cs_get_int32(&conn->pack, (int32 *)&iter_count) != CT_SUCCESS) {
         cm_reset_error();
-        iter_count = GS_KDF2DEFITERATION;
+        iter_count = CT_KDF2DEFITERATION;
     }
-    if (iter_count > GS_KDF2MAXITERATION || iter_count < GS_KDF2MINITERATION) {
-        CLT_THROW_ERROR(conn, ERR_INVALID_ENCRYPTION_ITERATION, GS_KDF2MINITERATION, GS_KDF2MAXITERATION);
-        return GS_ERROR;
+    if (iter_count > CT_KDF2MAXITERATION || iter_count < CT_KDF2MINITERATION) {
+        CLT_THROW_ERROR(conn, ERR_INVALID_ENCRYPTION_ITERATION, CT_KDF2MINITERATION, CT_KDF2MAXITERATION);
+        return CT_ERROR;
     }
 
     // verify client key
     if (scramble_key.len < sizeof(client_key) || memcmp(scramble_key.str, client_key, sizeof(client_key)) != 0) {
         CLT_THROW_ERROR(conn, ERR_TCP_PKT_VERIFY, "client key");
-        return GS_ERROR;
+        return CT_ERROR;
     }
     // negotiate protocol version
     conn->call_version = (version > conn->server_version) ? conn->server_version : version;
 
     // before handshake set has_auth to false
-    conn->has_auth = GS_TRUE;
+    conn->has_auth = CT_TRUE;
 
     // 5. encrypt pwd with scramble_key
     key_len = sizeof(pwd_cipher);
     salted_pwd_len = sizeof(salted_pwd);
     if (clt_encrypt_login_passwd(passwd, &scramble_key, iter_count, salted_pwd, &salted_pwd_len, pwd_cipher,
-        &key_len) != GS_SUCCESS) {
+        &key_len) != CT_SUCCESS) {
         CLT_THROW_ERROR(conn, ERR_GENERATE_CIPHER);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     pwd_cipher[key_len] = '\0';
 
@@ -833,44 +832,44 @@ static status_t clt_do_handshake(clt_conn_t *conn, const char *user, const char 
     scramble_key.str = (char *)scram_buf;
 
     // send login request
-    GS_RETURN_IFERR(clt_login(conn, user, pwd_cipher, tenant, &server_sign));
+    CT_RETURN_IFERR(clt_login(conn, user, pwd_cipher, tenant, &server_sign));
 
     // verify signature
-    if (clt_verify_server_signature(salted_pwd, salted_pwd_len, &scramble_key, &server_sign) != GS_SUCCESS) {
+    if (clt_verify_server_signature(salted_pwd, salted_pwd_len, &scramble_key, &server_sign) != CT_SUCCESS) {
         CLT_THROW_ERROR(conn, ERR_TCP_PKT_VERIFY, "server signature");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t clt_connect(clt_conn_t *conn, const char *url, const char *user, const char *password, const char *tenant,
     uint32 version)
 {
     /* disconnect conn if was connected */
-    if (conn->ready == GS_TRUE) {
+    if (conn->ready == CT_TRUE) {
         clt_disconnect(conn);
     }
 
     /* create socket to server */
-    if (cs_connect(url, &conn->pipe, NULL, conn->options.server_path, conn->options.client_path) != GS_SUCCESS) {
+    if (cs_connect(url, &conn->pipe, NULL, conn->options.server_path, conn->options.client_path) != CT_SUCCESS) {
         clt_copy_local_error(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     conn->node_type = conn->pipe.node_type;
 
     /* update conn options */
-    GS_RETURN_IFERR(clt_update_conn_opt(conn, url, user));
+    CT_RETURN_IFERR(clt_update_conn_opt(conn, url, user));
 
     /* do handshake to server with user and pwd */
-    if (clt_do_handshake(conn, user, password, tenant, version) != GS_SUCCESS) {
+    if (clt_do_handshake(conn, user, password, tenant, version) != CT_SUCCESS) {
         cs_disconnect(&conn->pipe);
         CM_FREE_PTR(conn->options.user);
         CM_FREE_PTR(conn->options.host);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    conn->ready = GS_TRUE;
-    return GS_SUCCESS;
+    conn->ready = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 status_t gsc_set_shd_socket_timeout(clt_conn_t *conn, const void *data)
@@ -878,12 +877,12 @@ status_t gsc_set_shd_socket_timeout(clt_conn_t *conn, const void *data)
     status_t status;
     text_t tmp_text;
     text_t sql_text;
-    char sql[GS_MAX_ALSET_SOCKET] = { 0 };
-    MEMS_RETURN_IFERR(strcat_s(sql, GS_MAX_ALSET_SOCKET, "ALTER SESSION SET SHD_SOCKET_TIMEOUT = "));
-    char buf[GS_MAX_INT32_STRLEN + 1];
+    char sql[CT_MAX_ALSET_SOCKET] = { 0 };
+    MEMS_RETURN_IFERR(strcat_s(sql, CT_MAX_ALSET_SOCKET, "ALTER SESSION SET SHD_SOCKET_TIMEOUT = "));
+    char buf[CT_MAX_INT32_STRLEN + 1];
     tmp_text.str = buf;
     cm_int2text(*(int32 *)data, &tmp_text);
-    MEMS_RETURN_IFERR(strcat_s(sql, GS_MAX_ALSET_SOCKET, tmp_text.str));
+    MEMS_RETURN_IFERR(strcat_s(sql, CT_MAX_ALSET_SOCKET, tmp_text.str));
     cm_str2text(sql, &sql_text);
     status = clt_query(conn, &sql_text);
     return status;
@@ -898,46 +897,46 @@ void gsc_try_fetch_url_tenant(const char *str, text_t *url, text_t *tenant)
 
 status_t gsc_connect_inner(gsc_conn_t pconn, const char *url, const char *user, const char *password, uint32 version)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     clt_conn_t *conn = (clt_conn_t *)pconn;
     text_t cls_url = { 0 };
     text_t tenant = { 0 };
-    char url_buf[CM_UNIX_DOMAIN_PATH_LEN + GS_STR_RESERVED_LEN];
-    char tenant_buf[GS_TENANT_BUFFER_SIZE];
+    char url_buf[CM_UNIX_DOMAIN_PATH_LEN + CT_STR_RESERVED_LEN];
+    char tenant_buf[CT_TENANT_BUFFER_SIZE];
 
     GSC_CHECK_OBJECT_NULL_GS(conn, "connection");
 
     if (SECUREC_UNLIKELY(url == NULL || user == NULL || CM_IS_EMPTY_STR(password))) {
         CLT_THROW_ERROR(conn, ERR_CLT_OBJECT_IS_NULL, "url or user or password");
-        return GS_ERROR;
+        return CT_ERROR;
     }
     gsc_try_fetch_url_tenant(url, &cls_url, &tenant);
-    if (tenant.len > GS_TENANT_NAME_LEN) {
-        CLT_THROW_ERROR(conn, ERR_NAME_TOO_LONG, "tenant", tenant.len, GS_TENANT_NAME_LEN);
-        return GS_ERROR;
+    if (tenant.len > CT_TENANT_NAME_LEN) {
+        CLT_THROW_ERROR(conn, ERR_NAME_TOO_LONG, "tenant", tenant.len, CT_TENANT_NAME_LEN);
+        return CT_ERROR;
     }
-    GS_RETURN_IFERR(cm_text2str(&cls_url, url_buf, CM_UNIX_DOMAIN_PATH_LEN + GS_STR_RESERVED_LEN));
-    cm_text2str_with_upper(&tenant, tenant_buf, GS_TENANT_BUFFER_SIZE);
+    CT_RETURN_IFERR(cm_text2str(&cls_url, url_buf, CM_UNIX_DOMAIN_PATH_LEN + CT_STR_RESERVED_LEN));
+    cm_text2str_with_upper(&tenant, tenant_buf, CT_TENANT_BUFFER_SIZE);
 
-    GS_RETURN_IFERR(clt_lock_conn(conn));
+    CT_RETURN_IFERR(clt_lock_conn(conn));
     // cluster url: ip:port,ip:port,ip:port...
     if (cm_char_in_text(',', &cls_url)) {
-        char ssl_keypwd[GS_MAX_SSL_KEYPWD] = { 0 };
+        char ssl_keypwd[CT_MAX_SSL_KEYPWD] = { 0 };
         if (conn->options.ssl_keypwd != NULL) {
             status = clt_get_conn_attr(conn, GSC_ATTR_SSL_KEYPWD, ssl_keypwd, sizeof(ssl_keypwd), NULL);
         }
 
-        if (status == GS_SUCCESS) {
+        if (status == CT_SUCCESS) {
             status = clt_cluster_connect(conn, &cls_url, user, password, ssl_keypwd, tenant_buf);
         }
 
-        if (memset_s(ssl_keypwd, GS_MAX_SSL_KEYPWD, 0, GS_MAX_SSL_KEYPWD) != EOK) {
-            status = GS_ERROR;
+        if (memset_s(ssl_keypwd, CT_MAX_SSL_KEYPWD, 0, CT_MAX_SSL_KEYPWD) != EOK) {
+            status = CT_ERROR;
         }
     } else {
         status = clt_connect(conn, url_buf, user, password, tenant_buf, version);
     }
-    if (status == GS_SUCCESS && conn->node_type == CS_TYPE_CN) {
+    if (status == CT_SUCCESS && conn->node_type == CS_TYPE_CN) {
         int32 data = conn->options.socket_timeout;
         if (data != -1) {
             status = gsc_set_shd_socket_timeout(conn, &data);
@@ -957,19 +956,19 @@ static inline status_t clt_check_input_onoff_num(clt_conn_t *conn, const void *d
     *attr_value = *(int32 *)data;
 
     if (*attr_value == 0 || *attr_value == 1) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "input number", (uint32)*attr_value);
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 static status_t clt_set_conn_local_charset(clt_conn_t *conn, text_t *charset)
 {
     uint16 charset_id = cm_get_charset_id_ex(charset);
-    if (charset_id == GS_INVALID_ID16) {
+    if (charset_id == CT_INVALID_ID16) {
         CLT_SET_ERROR(conn, ERR_INVALID_CHARSET, "unsupported charset %.*s", charset->len, charset->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     conn->local_charset = charset_id;
@@ -989,12 +988,12 @@ static status_t clt_set_conn_nls(clt_conn_t *conn, nlsparam_id_t id, const void 
 
     if ((uint32)id >= NLS__MAX_PARAM_NUM) {
         CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "nls param id", (uint32)id);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (nlsval.len >= MAX_NLS_PARAM_LENGTH) {
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, g_nlsparam_items[id].key.str);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, g_nlsparam_items[id].key.str);
+        return CT_ERROR;
     }
     PRTS_RETURN_IFERR(sprintf_s(alter_sql, MAX_SET_NLS_SQL, "alter session set %s = '%s'", g_nlsparam_items[id].key.str,
         T2S(&nlsval)));
@@ -1005,8 +1004,8 @@ static status_t clt_set_conn_nls(clt_conn_t *conn, nlsparam_id_t id, const void 
     return clt_query(conn, &sql_text);
 }
 
-#define GS_MIN_NUMWIDTH (uint32)6
-#define GS_MAX_NUMWIDTH (uint32)GS_MAX_DEC_OUTPUT_ALL_PREC
+#define CT_MIN_NUMWIDTH (uint32)6
+#define CT_MAX_NUMWIDTH (uint32)CT_MAX_DEC_OUTPUT_ALL_PREC
 
 status_t clt_set_conn_attr(clt_conn_t *conn, int32 attr, const void *data, uint32 len)
 {
@@ -1016,36 +1015,36 @@ status_t clt_set_conn_attr(clt_conn_t *conn, int32 attr, const void *data, uint3
 
     switch (attr) {
         case GSC_ATTR_AUTO_COMMIT:
-            GS_RETURN_IFERR(clt_check_input_onoff_num(conn, data, &attr_value));
+            CT_RETURN_IFERR(clt_check_input_onoff_num(conn, data, &attr_value));
             conn->auto_commit = (uint8)attr_value;
             break;
 
         case GSC_ATTR_EXIT_COMMIT:
-            GS_RETURN_IFERR(clt_check_input_onoff_num(conn, data, &attr_value));
+            CT_RETURN_IFERR(clt_check_input_onoff_num(conn, data, &attr_value));
             conn->exit_commit = (uint8)attr_value;
             break;
 
         case GSC_ATTR_SERVEROUTPUT:
-            GS_RETURN_IFERR(clt_check_input_onoff_num(conn, data, &attr_value));
+            CT_RETURN_IFERR(clt_check_input_onoff_num(conn, data, &attr_value));
             conn->serveroutput = (uint8)attr_value;
             break;
 
         case GSC_ATTR_REMOTE_AS_SYSDBA:
-            GS_RETURN_IFERR(clt_check_input_onoff_num(conn, data, &attr_value));
+            CT_RETURN_IFERR(clt_check_input_onoff_num(conn, data, &attr_value));
             conn->remote_as_sysdba = (uint8)attr_value;
             break;
 
         case GSC_ATTR_CHARSET_TYPE:
             text.str = (char *)data;
             text.len = len;
-            GS_RETURN_IFERR(clt_set_conn_local_charset(conn, &text));
+            CT_RETURN_IFERR(clt_set_conn_local_charset(conn, &text));
             break;
 
         case GSC_ATTR_NUM_WIDTH:
             i32_attr = *(uint32 *)data;
-            if (i32_attr < GS_MIN_NUMWIDTH || i32_attr > GS_MAX_NUMWIDTH) {
+            if (i32_attr < CT_MIN_NUMWIDTH || i32_attr > CT_MAX_NUMWIDTH) {
                 CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "numwidth option", i32_attr);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             conn->num_width = i32_attr;
             break;
@@ -1054,7 +1053,7 @@ status_t clt_set_conn_attr(clt_conn_t *conn, int32 attr, const void *data, uint3
         case GSC_ATTR_NLS_CHARACTERSET:
         case GSC_ATTR_NLS_COMP:
         case GSC_ATTR_NLS_CURRENCY:
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         case GSC_ATTR_NLS_DATE_FORMAT:
             return clt_set_conn_nls(conn, (nlsparam_id_t)(attr - GSC_ATTR_NLS_CALENDAR), data, len);
@@ -1070,7 +1069,7 @@ status_t clt_set_conn_attr(clt_conn_t *conn, int32 attr, const void *data, uint3
         case GSC_ATTR_NLS_RDBMS_VERSION:
         case GSC_ATTR_NLS_SORT:
         case GSC_ATTR_NLS_TERRITORY:
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         case GSC_ATTR_NLS_TIMESTAMP_FORMAT:
         case GSC_ATTR_NLS_TIMESTAMP_TZ_FORMAT:
@@ -1079,23 +1078,23 @@ status_t clt_set_conn_attr(clt_conn_t *conn, int32 attr, const void *data, uint3
             return clt_set_conn_nls(conn, (nlsparam_id_t)(attr - GSC_ATTR_NLS_CALENDAR), data, len);
 
         case GSC_ATTR_INTERACTIVE_MODE:
-            GS_RETURN_IFERR(clt_check_input_onoff_num(conn, data, &attr_value));
+            CT_RETURN_IFERR(clt_check_input_onoff_num(conn, data, &attr_value));
             conn->interactive_clt = (uint8)attr_value;
             break;
 
         case GSC_ATTR_SSL_CA:
             CM_FREE_PTR(conn->options.ssl_ca);
-            GS_RETURN_IFERR(clt_strndup(data, len, &(conn->options.ssl_ca)));
+            CT_RETURN_IFERR(clt_strndup(data, len, &(conn->options.ssl_ca)));
             break;
 
         case GSC_ATTR_SSL_CERT:
             CM_FREE_PTR(conn->options.ssl_cert);
-            GS_RETURN_IFERR(clt_strndup(data, len, &(conn->options.ssl_cert)));
+            CT_RETURN_IFERR(clt_strndup(data, len, &(conn->options.ssl_cert)));
             break;
 
         case GSC_ATTR_SSL_KEY:
             CM_FREE_PTR(conn->options.ssl_key);
-            GS_RETURN_IFERR(clt_strndup(data, len, &(conn->options.ssl_key)));
+            CT_RETURN_IFERR(clt_strndup(data, len, &(conn->options.ssl_key)));
             break;
 
         case GSC_ATTR_SSL_MODE:
@@ -1104,60 +1103,60 @@ status_t clt_set_conn_attr(clt_conn_t *conn, int32 attr, const void *data, uint3
 
         case GSC_ATTR_SSL_CRL:
             CM_FREE_PTR(conn->options.ssl_crl);
-            GS_RETURN_IFERR(clt_strndup(data, len, &(conn->options.ssl_crl)));
+            CT_RETURN_IFERR(clt_strndup(data, len, &(conn->options.ssl_crl)));
             break;
 
         case GSC_ATTR_SSL_KEYPWD:
             securec_free(conn->options.ssl_keypwd);
-            GS_RETURN_IFERR(clt_strndup(data, len, &(conn->options.ssl_keypwd)));
+            CT_RETURN_IFERR(clt_strndup(data, len, &(conn->options.ssl_keypwd)));
             break;
 
         case GSC_ATTR_SSL_CIPHER:
             CM_FREE_PTR(conn->options.ssl_cipher);
-            GS_RETURN_IFERR(clt_strndup(data, len, &(conn->options.ssl_cipher)));
+            CT_RETURN_IFERR(clt_strndup(data, len, &(conn->options.ssl_cipher)));
             break;
 
         case GSC_ATTR_CONNECT_TIMEOUT:
             attr_value = *(int32 *)data;
             if (attr_value < 0 && attr_value != -1) {
                 CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "connect timeout value", (uint32)attr_value);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             conn->options.connect_timeout = attr_value;
-            conn->pipe.connect_timeout = (attr_value == -1) ? attr_value : attr_value * GS_TIME_THOUSAND_UN;
+            conn->pipe.connect_timeout = (attr_value == -1) ? attr_value : attr_value * CT_TIME_THOUSAND;
             break;
 
         case GSC_ATTR_SOCKET_TIMEOUT:
             attr_value = *(int32 *)data;
             if (attr_value < 0 && attr_value != -1) {
                 CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "socket timeout value", (uint32)attr_value);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             conn->options.socket_timeout = attr_value;
-            conn->pipe.socket_timeout = (attr_value == -1) ? attr_value : attr_value * GS_TIME_THOUSAND_UN;
+            conn->pipe.socket_timeout = (attr_value == -1) ? attr_value : attr_value * CT_TIME_THOUSAND;
             break;
 
         case GSC_ATTR_APP_KIND:
             attr_value = *(int16 *)data;
             if (attr_value <= CLIENT_KIND_UNKNOWN || attr_value >= CLIENT_KIND_TAIL) {
                 CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "app kind value", (uint32)attr_value);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             conn->options.app_kind = (int16)attr_value;
             break;
 
         case GSC_ATTR_UDS_SERVER_PATH:
             CM_FREE_PTR(conn->options.server_path);
-            GS_RETURN_IFERR(clt_strndup(data, len, &(conn->options.server_path)));
+            CT_RETURN_IFERR(clt_strndup(data, len, &(conn->options.server_path)));
             break;
 
         case GSC_ATTR_UDS_CLIENT_PATH:
             CM_FREE_PTR(conn->options.client_path);
-            GS_RETURN_IFERR(clt_strndup(data, len, &(conn->options.client_path)));
+            CT_RETURN_IFERR(clt_strndup(data, len, &(conn->options.client_path)));
             break;
 
         case GSC_ATTR_FLAG_WITH_TS:
-            GS_RETURN_IFERR(clt_check_input_onoff_num(conn, data, &attr_value));
+            CT_RETURN_IFERR(clt_check_input_onoff_num(conn, data, &attr_value));
             conn->flag_with_ts = (uint8)attr_value;
             break;
 
@@ -1165,7 +1164,7 @@ status_t clt_set_conn_attr(clt_conn_t *conn, int32 attr, const void *data, uint3
             attr_value = *(int32 *)data;
             if (attr_value < GSC_SHD_RW_SPLIT_NONE || attr_value > GSC_SHD_RW_SPLIT_ROA) {
                 CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "shard rw split flag", (int32)attr_value);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             conn->shd_rw_split = (uint8)attr_value;
             break;
@@ -1189,10 +1188,10 @@ status_t clt_set_conn_attr(clt_conn_t *conn, int32 attr, const void *data, uint3
 
         default:
             CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "connection attribute id", (uint32)attr);
-            return GS_ERROR;
+            return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_set_conn_attr(gsc_conn_t pconn, int32 attr, const void *data, uint32 len)
@@ -1203,7 +1202,7 @@ status_t gsc_set_conn_attr(gsc_conn_t pconn, int32 attr, const void *data, uint3
     GSC_CHECK_OBJECT_NULL_GS(conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(conn, data, "value of connection attribute to set");
 
-    GS_RETURN_IFERR(clt_lock_conn(conn));
+    CT_RETURN_IFERR(clt_lock_conn(conn));
     status = clt_set_conn_attr(conn, attr, data, len);
     clt_unlock_conn(conn);
     return status;
@@ -1214,9 +1213,9 @@ void gsc_set_autocommit(gsc_conn_t pconn, bool32 auto_commit)
     clt_conn_t *conn = (clt_conn_t *)pconn;
     int32 attr_value;
 
-    GS_RETVOID_IFTRUE(SECUREC_UNLIKELY(conn == NULL));
+    CT_RETVOID_IFTRUE(SECUREC_UNLIKELY(conn == NULL));
 
-    GS_RETVOID_IFERR(clt_check_input_onoff_num(conn, &auto_commit, &attr_value));
+    CT_RETVOID_IFERR(clt_check_input_onoff_num(conn, &auto_commit, &attr_value));
     conn->auto_commit = (uint8)attr_value;
 }
 
@@ -1226,13 +1225,13 @@ static status_t gsc_get_conn_nls(clt_conn_t *conn, nlsparam_id_t id, const void 
     conn->nls_params.param_geter(&conn->nls_params, id, &nlsfmt);
     if (len <= 1 || len <= nlsfmt.len) {
         CLT_THROW_ERROR(conn, ERR_CLT_BUF_SIZE_TOO_SMALL, "fetch nls fmt");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    GS_RETURN_IFERR(cm_text2str(&nlsfmt, (char *)data, len));
+    CT_RETURN_IFERR(cm_text2str(&nlsfmt, (char *)data, len));
     if (attr_len != NULL) {
         *attr_len = nlsfmt.len;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 uint32 gsc_get_call_version(gsc_conn_t conn)
@@ -1254,8 +1253,8 @@ static status_t gsc_get_attr_string(const char *attr, void *data, uint32 len, ui
     } else {
         temp_attr_len = (uint32)strlen(attr);
         if (temp_attr_len >= len) {
-            GS_THROW_ERROR(ERR_CLT_BUF_SIZE_TOO_SMALL, "fetch conn attr data");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_CLT_BUF_SIZE_TOO_SMALL, "fetch conn attr data");
+            return CT_ERROR;
         }
 
         MEMS_RETURN_IFERR(strncpy_s((char *)data, len, attr, strlen(attr)));
@@ -1265,7 +1264,7 @@ static status_t gsc_get_attr_string(const char *attr, void *data, uint32 len, ui
         *attr_len = temp_attr_len;
     }
     *((char *)data + temp_attr_len) = '\0';
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_query_conn_dbtimezone(clt_conn_t *conn)
@@ -1278,8 +1277,8 @@ static status_t clt_query_conn_dbtimezone(clt_conn_t *conn)
 
     char *alter_sql = NULL;
     text_t sql_text;
-    status_t status = GS_ERROR;
-    bool32 src_stmt_null = (conn->query.query_stmt == NULL) ? GS_TRUE : GS_FALSE;
+    status_t status = CT_ERROR;
+    bool32 src_stmt_null = (conn->query.query_stmt == NULL) ? CT_TRUE : CT_FALSE;
 
     do {
         if (conn->call_version >= CS_VERSION_8) {
@@ -1291,9 +1290,9 @@ static status_t clt_query_conn_dbtimezone(clt_conn_t *conn)
         sql_text.str = alter_sql;
         sql_text.len = (uint32)strlen(alter_sql);
 
-        if (GS_SUCCESS != clt_query(conn, &sql_text)) {
+        if (CT_SUCCESS != clt_query(conn, &sql_text)) {
             cm_reset_error();
-            conn->error_code = GS_SUCCESS;
+            conn->error_code = CT_SUCCESS;
             conn->message[0] = '\0';
 
             alter_sql = "SELECT DBTIMEZONE";
@@ -1301,19 +1300,19 @@ static status_t clt_query_conn_dbtimezone(clt_conn_t *conn)
             sql_text.str = alter_sql;
             sql_text.len = (uint32)strlen(alter_sql);
 
-            GS_BREAK_IF_ERROR(clt_query(conn, &sql_text));
+            CT_BREAK_IF_ERROR(clt_query(conn, &sql_text));
         }
 
         /* fetch result */
-        GS_BREAK_IF_ERROR(clt_fetch(conn->query.query_stmt, &row, GS_FALSE));
-        GS_BREAK_IF_ERROR(clt_get_column_by_id(conn->query.query_stmt, 0, (void **)&data, &size, &is_null));
+        CT_BREAK_IF_ERROR(clt_fetch(conn->query.query_stmt, &row, CT_FALSE));
+        CT_BREAK_IF_ERROR(clt_get_column_by_id(conn->query.query_stmt, 0, (void **)&data, &size, &is_null));
 
         /* save this value */
         text.str = data;
         text.len = size;
 
-        GS_BREAK_IF_ERROR(cm_text2tzoffset(&text, &conn->server_info.server_dbtimezone));
-        status = GS_SUCCESS;
+        CT_BREAK_IF_ERROR(cm_text2tzoffset(&text, &conn->server_info.server_dbtimezone));
+        status = CT_SUCCESS;
     } while (0);
 
     if (src_stmt_null) {
@@ -1329,21 +1328,21 @@ static status_t clt_query_conn_lastinsertid(clt_conn_t *conn)
     char *alter_sql = "SELECT LAST_INSERT_ID()";
     text_t sql_text;
     char *data = NULL;
-    status_t status = GS_ERROR;
-    bool32 src_stmt_null = (conn->query.query_stmt == NULL) ? GS_TRUE : GS_FALSE;
+    status_t status = CT_ERROR;
+    bool32 src_stmt_null = (conn->query.query_stmt == NULL) ? CT_TRUE : CT_FALSE;
 
     do {
         sql_text.str = alter_sql;
         sql_text.len = (uint32)strlen(alter_sql);
 
-        GS_BREAK_IF_ERROR(clt_query(conn, &sql_text));
+        CT_BREAK_IF_ERROR(clt_query(conn, &sql_text));
 
         /* fetch result */
-        GS_BREAK_IF_ERROR(clt_fetch(conn->query.query_stmt, NULL, GS_FALSE));
-        GS_BREAK_IF_ERROR(clt_get_column_by_id(conn->query.query_stmt, 0, (void **)&data, NULL, NULL));
+        CT_BREAK_IF_ERROR(clt_fetch(conn->query.query_stmt, NULL, CT_FALSE));
+        CT_BREAK_IF_ERROR(clt_get_column_by_id(conn->query.query_stmt, 0, (void **)&data, NULL, NULL));
 
         conn->last_insert_id = *(int64 *)data;
-        status = GS_SUCCESS;
+        status = CT_SUCCESS;
     } while (0);
 
     if (src_stmt_null) {
@@ -1361,13 +1360,13 @@ static status_t clt_get_charset_name(clt_conn_t *conn, charset_type_t charset, c
 
     if (len < CLT_CHARSET_NAME_SIZE) {
         CLT_THROW_ERROR(conn, ERR_CLT_BUF_SIZE_TOO_SMALL, "fetch charset name");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     charset_name = cm_get_charset_name(charset);
     if (data == NULL || charset_name == NULL) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "charset");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "charset");
+        return CT_ERROR;
     }
 
     charset_len = (uint32)strlen(charset_name);
@@ -1378,7 +1377,7 @@ static status_t clt_get_charset_name(clt_conn_t *conn, charset_type_t charset, c
     }
     *(data + charset_len) = '\0';
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_get_conn_attr(clt_conn_t *conn, int32 attr, void *data, uint32 len, uint32 *attr_len)
@@ -1432,7 +1431,7 @@ static status_t clt_get_conn_attr(clt_conn_t *conn, int32 attr, void *data, uint
         case GSC_ATTR_NLS_CHARACTERSET:
             if (!conn->ready) {
                 CLT_THROW_ERROR(conn, ERR_CLT_INVALID_ATTR, "NLS character set", "connection is not established");
-                return GS_ERROR;
+                return CT_ERROR;
             }
             return clt_get_charset_name(conn, (charset_type_t)conn->server_info.server_charset, (char *)data, len,
                 attr_len);
@@ -1440,7 +1439,7 @@ static status_t clt_get_conn_attr(clt_conn_t *conn, int32 attr, void *data, uint
         case GSC_ATTR_NLS_CALENDAR:
         case GSC_ATTR_NLS_COMP:
         case GSC_ATTR_NLS_CURRENCY:
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         case GSC_ATTR_NLS_DATE_FORMAT:
             return gsc_get_conn_nls(conn, (nlsparam_id_t)(attr - GSC_ATTR_NLS_CALENDAR), data, len, attr_len);
@@ -1456,7 +1455,7 @@ static status_t clt_get_conn_attr(clt_conn_t *conn, int32 attr, void *data, uint
         case GSC_ATTR_NLS_RDBMS_VERSION:
         case GSC_ATTR_NLS_SORT:
         case GSC_ATTR_NLS_TERRITORY:
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         case GSC_ATTR_NLS_TIMESTAMP_FORMAT:
         case GSC_ATTR_NLS_TIMESTAMP_TZ_FORMAT:
@@ -1556,7 +1555,7 @@ static status_t clt_get_conn_attr(clt_conn_t *conn, int32 attr, void *data, uint
             break;
 
         case GSC_ATTR_LAST_INSERT_ID:
-            GS_BREAK_IF_ERROR(clt_query_conn_lastinsertid(conn));
+            CT_BREAK_IF_ERROR(clt_query_conn_lastinsertid(conn));
             *(int64 *)data = conn->last_insert_id;
             if (attr_len != NULL) {
                 *attr_len = sizeof(int64);
@@ -1585,10 +1584,10 @@ static status_t clt_get_conn_attr(clt_conn_t *conn, int32 attr, void *data, uint
 
         default:
             CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "connection attribute id", (uint32)attr);
-            return GS_ERROR;
+            return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_get_conn_attr(gsc_conn_t pconn, int32 attr, void *data, uint32 len, uint32 *attr_len)
@@ -1599,7 +1598,7 @@ status_t gsc_get_conn_attr(gsc_conn_t pconn, int32 attr, void *data, uint32 len,
     GSC_CHECK_OBJECT_NULL_GS(conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(conn, data, "value of connection attribute to get");
 
-    GS_RETURN_IFERR(clt_lock_conn(conn));
+    CT_RETURN_IFERR(clt_lock_conn(conn));
     status = clt_get_conn_attr(conn, attr, data, len, attr_len);
     clt_unlock_conn(conn);
     return status;
@@ -1614,7 +1613,7 @@ static status_t clt_cancel(clt_conn_t *conn, uint32 sid)
 
     cs_init_set(req_pack, conn->call_version);
     req_pack->head->cmd = CS_CMD_CANCEL;
-    GS_RETURN_IFERR(cs_put_int32(req_pack, sid));
+    CT_RETURN_IFERR(cs_put_int32(req_pack, sid));
     return clt_remote_call(conn, req_pack, ack_pack);
 }
 
@@ -1625,7 +1624,7 @@ status_t gsc_cancel(gsc_conn_t pconn, uint32 sid)
 
     GSC_CHECK_OBJECT_NULL_GS(conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(conn));
+    CT_RETURN_IFERR(clt_lock_conn(conn));
     status = clt_cancel(conn, sid);
     clt_unlock_conn(conn);
     return status;
@@ -1642,12 +1641,12 @@ static status_t clt_commit(clt_conn_t *conn)
     cs_init_set(req_pack, conn->call_version);
     req_pack->head->cmd = CS_CMD_COMMIT;
 
-    if (clt_remote_call(conn, req_pack, ack_pack) != GS_SUCCESS) {
+    if (clt_remote_call(conn, req_pack, ack_pack) != CT_SUCCESS) {
         clt_copy_local_error(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_commit(gsc_conn_t pconn)
@@ -1657,7 +1656,7 @@ status_t gsc_commit(gsc_conn_t pconn)
 
     GSC_CHECK_OBJECT_NULL_GS(conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(conn));
+    CT_RETURN_IFERR(clt_lock_conn(conn));
     status = clt_commit(conn);
     clt_unlock_conn(conn);
     return status;
@@ -1684,7 +1683,7 @@ status_t gsc_rollback(gsc_conn_t pconn)
 
     GSC_CHECK_OBJECT_NULL_GS(conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(conn));
+    CT_RETURN_IFERR(clt_lock_conn(conn));
     status = clt_rollback(conn);
     clt_unlock_conn(conn);
     return status;
@@ -1704,9 +1703,9 @@ static status_t clt_query_single(clt_stmt_t *stmt, const text_t *sql)
     /* request content is "cs_execute_req_t + sql" */
     cs_init_set(req_pack, stmt->conn->call_version);
     req_pack->head->cmd = CS_CMD_QUERY;
-    GS_BIT_RESET(req_pack->head->flags, CS_FLAG_WITH_TS);
+    CT_BIT_RESET(req_pack->head->flags, CS_FLAG_WITH_TS);
 
-    GS_RETURN_IFERR(cs_reserve_space(req_pack, sizeof(cs_execute_req_t), &req_offset));
+    CT_RETURN_IFERR(cs_reserve_space(req_pack, sizeof(cs_execute_req_t), &req_offset));
     req = (cs_execute_req_t *)CS_RESERVE_ADDR(req_pack, req_offset);
     req->stmt_id = stmt->stmt_id;
     req->paramset_size = 1;
@@ -1718,22 +1717,22 @@ static status_t clt_query_single(clt_stmt_t *stmt, const text_t *sql)
     total_size = sql_size = sql->len;
 
     do {
-        GS_RETURN_IFERR(gsc_write_sql(stmt, sql->str, total_size, &sql_size, req_pack));
-        GS_RETURN_IFERR(clt_remote_call(stmt->conn, req_pack, ack_pack));
+        CT_RETURN_IFERR(gsc_write_sql(stmt, sql->str, total_size, &sql_size, req_pack));
+        CT_RETURN_IFERR(clt_remote_call(stmt->conn, req_pack, ack_pack));
 
         cs_init_set(req_pack, stmt->conn->call_version);
     } while (sql_size > 0);
 
     /* response content is "cs_prepare_ack_t + cs_execute_ack_t" */
-    GS_RETURN_IFERR(clt_try_receive_pl_proc_data(stmt, ack_pack));
+    CT_RETURN_IFERR(clt_try_receive_pl_proc_data(stmt, ack_pack));
 
-    GS_RETURN_IFERR(clt_get_prepare_ack(stmt, ack_pack, sql));
+    CT_RETURN_IFERR(clt_get_prepare_ack(stmt, ack_pack, sql));
 
-    GS_RETURN_IFERR(clt_try_process_feedback(stmt, ack_pack));
-    GS_RETURN_IFERR(clt_get_execute_ack(stmt));
+    CT_RETURN_IFERR(clt_try_process_feedback(stmt, ack_pack));
+    CT_RETURN_IFERR(clt_get_execute_ack(stmt));
 
     stmt->status = CLI_STMT_EXECUTED;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_query_fetch(gsc_conn_t pconn, uint32 *rows)
@@ -1748,14 +1747,14 @@ status_t gsc_query_fetch(gsc_conn_t pconn, uint32 *rows)
     stmt = conn->query.query_stmt;
     GSC_CHECK_OBJECT_NULL_CLT(conn, stmt, "query statement");
 
-    GS_RETURN_IFERR(clt_lock_conn(conn));
+    CT_RETURN_IFERR(clt_lock_conn(conn));
 
-    if (clt_prepare_stmt_pack(stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(stmt) != CT_SUCCESS) {
         clt_unlock_conn(conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    status = clt_fetch(stmt, &temp_rows, GS_FALSE);
+    status = clt_fetch(stmt, &temp_rows, CT_FALSE);
 
     if (temp_rows == 0) {
         clt_recycle_stmt_pack(stmt);
@@ -1806,7 +1805,7 @@ status_t gsc_query_describe_column(gsc_conn_t pconn, uint32 id, gsc_column_desc_
     stmt = conn->query.query_stmt;
     GSC_CHECK_OBJECT_NULL_CLT(conn, stmt, "query statement");
 
-    GS_RETURN_IFERR(clt_lock_conn(conn));
+    CT_RETURN_IFERR(clt_lock_conn(conn));
     status = clt_desc_column_by_id(stmt, id, desc);
     clt_unlock_conn(conn);
     return status;
@@ -1823,7 +1822,7 @@ status_t gsc_query_get_column(gsc_conn_t pconn, uint32 id, void **data, uint32 *
     stmt = conn->query.query_stmt;
     GSC_CHECK_OBJECT_NULL_CLT(conn, stmt, "query statement");
 
-    GS_RETURN_IFERR(clt_lock_conn(conn));
+    CT_RETURN_IFERR(clt_lock_conn(conn));
     status = clt_get_column_by_id(stmt, id, data, size, is_null);
     clt_unlock_conn(conn);
     return status;
@@ -1857,12 +1856,12 @@ static status_t clt_query(clt_conn_t *conn, const text_t *sql)
     }
 
     if (!conn->query.query_stmt) {
-        if (clt_alloc_stmt(conn, &stmt) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (clt_alloc_stmt(conn, &stmt) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         conn->query.query_stmt = stmt;
     }
-    GS_RETURN_IFERR(clt_prepare_stmt_pack(conn->query.query_stmt));
+    CT_RETURN_IFERR(clt_prepare_stmt_pack(conn->query.query_stmt));
     return clt_query_single(conn->query.query_stmt, sql);
 }
 
@@ -1878,7 +1877,7 @@ status_t gsc_query(gsc_conn_t pconn, const char *sql)
     sql_text.str = (char *)sql;
     sql_text.len = (uint32)strlen(sql);
 
-    GS_RETURN_IFERR(clt_lock_conn(conn));
+    CT_RETURN_IFERR(clt_lock_conn(conn));
     status = clt_query(conn, &sql_text);
     clt_unlock_conn(conn);
     return status;
@@ -1889,9 +1888,9 @@ static status_t clt_query_multiple(clt_conn_t *conn, const char *sql)
     text_t exec_sql;
     text_t sub_sql;
     clt_stmt_t *sub_stmt = NULL;
-    bool32 rs_exists = GS_FALSE;
+    bool32 rs_exists = CT_FALSE;
     uint32 *stmt_id = NULL;
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
 
     exec_sql.str = (char *)sql;
     exec_sql.len = (uint32)strlen(sql);
@@ -1902,21 +1901,21 @@ static status_t clt_query_multiple(clt_conn_t *conn, const char *sql)
 
     while (cm_fetch_subsql(&exec_sql, &sub_sql)) {
         ret = clt_alloc_stmt(conn, &sub_stmt);
-        GS_BREAK_IF_ERROR(ret);
+        CT_BREAK_IF_ERROR(ret);
 
         ret = clt_prepare_stmt_pack(sub_stmt);
-        GS_BREAK_IF_ERROR(ret);
+        CT_BREAK_IF_ERROR(ret);
 
         ret = clt_query_single(sub_stmt, &sub_sql);
-        GS_BREAK_IF_ERROR(ret);
+        CT_BREAK_IF_ERROR(ret);
 
         ret = clt_get_stmt_attr(sub_stmt, GSC_ATTR_RESULTSET_EXISTS, &rs_exists, sizeof(uint32), NULL);
-        GS_BREAK_IF_ERROR(ret);
+        CT_BREAK_IF_ERROR(ret);
 
         // keep substmt of select for fetch data after query done
         if (rs_exists) {
             ret = cm_list_new(&conn->query.ids, (void **)&stmt_id);
-            GS_BREAK_IF_ERROR(ret);
+            CT_BREAK_IF_ERROR(ret);
 
             *stmt_id = sub_stmt->id;
         } else {
@@ -1941,7 +1940,7 @@ status_t gsc_query_multiple(gsc_conn_t pconn, const char *sql)
     GSC_CHECK_OBJECT_NULL_GS(conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(conn, sql, "sql");
 
-    GS_RETURN_IFERR(clt_lock_conn(conn));
+    CT_RETURN_IFERR(clt_lock_conn(conn));
     status = clt_query_multiple(conn, sql);
     clt_unlock_conn(conn);
     return status;

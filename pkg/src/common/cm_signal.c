@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "cm_signal.h"
 #include "cm_log.h"
 #include "cm_error.h"
@@ -39,17 +40,17 @@ status_t cm_regist_signal_ex(int32 signo, void (*handle)(int, siginfo_t *, void 
     struct sigaction act;
     MEMS_RETURN_IFERR(memset_sp(&act, sizeof(struct sigaction), 0, sizeof(struct sigaction)));
     if (sigemptyset(&act.sa_mask) != 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     act.sa_flags = (int)(SA_RESETHAND | SA_SIGINFO);
     act.sa_sigaction = handle;
     if (sigaction(signo, &act, NULL) < 0) {
-        GS_LOG_RUN_ERR("resiger signal %d failed, os errno %d", signo, cm_get_os_error());
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("resiger signal %d failed, os errno %d", signo, cm_get_os_error());
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 #endif
 
@@ -57,7 +58,7 @@ status_t cm_regist_signal(int32 signo, signal_proc func)
 {
 #if !defined(HAVE_POSIX_SIGNALS)
     if (signal(signo, func) < 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
 #else
@@ -67,16 +68,16 @@ status_t cm_regist_signal(int32 signo, signal_proc func)
     MEMS_RETURN_IFERR(memset_sp(&act, sizeof(struct sigaction), 0, sizeof(struct sigaction)));
 
     if (sigemptyset(&act.sa_mask) != 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
     act.sa_flags = 0;
     act.sa_handler = func;
 
     if (sigaction(signo, &act, &oact) < 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 #endif
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

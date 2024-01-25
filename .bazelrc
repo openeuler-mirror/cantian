@@ -1,0 +1,6 @@
+# 去掉bazel默认的编译参数
+build --features=-opt --features=-default_compile_flags
+build --features=-supports_start_end_lib          # arm环境使用bfd链接器，要关闭此特性
+build --features=-supports_pic                    # 减少编译数据库差异，关掉pic特性
+build --experimental_starlark_cc_import
+build -c dbg

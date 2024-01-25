@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -87,7 +87,7 @@ static int entry_pool_extend_sync(spinlock_t *lock, entry_pool_t *pool, biqueue_
     entry_node_t *node = NULL;
     char *buf = NULL;
     uint32 loop, idx, size;
-    bool32 limit_reached = GS_FALSE;
+    bool32 limit_reached = CT_FALSE;
     errno_t rc_memzero;
 
     for (;;) {
@@ -104,7 +104,7 @@ static int entry_pool_extend_sync(spinlock_t *lock, entry_pool_t *pool, biqueue_
                 *output = biqueue_del_head(&pool->idles);
             }
             cm_spin_unlock(lock);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
         limit_reached = pool->extents == pool->threshold / pool->steps;
         idx = pool->extents++;
@@ -114,27 +114,27 @@ static int entry_pool_extend_sync(spinlock_t *lock, entry_pool_t *pool, biqueue_
 
     if (limit_reached) {
         --pool->extents;
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY_REACH_LIMIT, pool->threshold * pool->entry_size);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY_REACH_LIMIT, pool->threshold * pool->entry_size);
+        return CT_ERROR;
     }
     size = pool->entry_size * pool->steps;
     if (size == 0 || size / pool->steps != pool->entry_size) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)pool->entry_size * pool->steps, "extending memory");
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)pool->entry_size * pool->steps, "extending memory");
         --pool->extents;
-        return GS_ERROR;
+        return CT_ERROR;
     }
     buf = (char *)malloc(size);
     if (buf == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, "extending memory");
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, "extending memory");
         --pool->extents;
-        return GS_ERROR;
+        return CT_ERROR;
     }
     rc_memzero = memset_sp(buf, size, 0, size);
     if (rc_memzero != EOK) {
         CM_FREE_PTR(buf);
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, (rc_memzero));
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, (rc_memzero));
         --pool->extents;
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     node = (entry_node_t *)buf;
@@ -151,7 +151,7 @@ static int entry_pool_extend_sync(spinlock_t *lock, entry_pool_t *pool, biqueue_
 
     pool->buf[idx] = buf;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static int entry_pool_extend(entry_pool_t *pool)
@@ -160,24 +160,24 @@ static int entry_pool_extend(entry_pool_t *pool)
     uint32 loop, size;
     errno_t rc_memzero;
     if (pool->extents == pool->threshold / pool->steps) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY_REACH_LIMIT, pool->threshold * pool->entry_size);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY_REACH_LIMIT, pool->threshold * pool->entry_size);
+        return CT_ERROR;
     }
     size = pool->entry_size * pool->steps;
     if (size == 0 || size / pool->steps != pool->entry_size) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)pool->entry_size * pool->steps, "extending memory");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)pool->entry_size * pool->steps, "extending memory");
+        return CT_ERROR;
     }
     pool->buf[pool->extents] = (char *)malloc(size);
     if (pool->buf[pool->extents] == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, "extending memory");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, "extending memory");
+        return CT_ERROR;
     }
     rc_memzero = memset_sp(pool->buf[pool->extents], size, 0, size);
     if (rc_memzero != EOK) {
         CM_FREE_PTR(pool->buf[pool->extents]);
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, (rc_memzero));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, (rc_memzero));
+        return CT_ERROR;
     }
 
     for (loop = 0; loop < pool->steps; ++loop) {
@@ -187,7 +187,7 @@ static int entry_pool_extend(entry_pool_t *pool)
     }
     ++pool->extents;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static int entry_pool_init(entry_pool_t **pool, uint32 steps, uint32 threshold, uint32 entry_size)
@@ -197,20 +197,20 @@ static int entry_pool_init(entry_pool_t **pool, uint32 steps, uint32 threshold, 
 
     *pool = (entry_pool_t *)malloc(sizeof(entry_pool_t));
     if (*pool == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)sizeof(entry_pool_t), "extending memory");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)sizeof(entry_pool_t), "extending memory");
+        return CT_ERROR;
     }
     rc_memzero = memset_sp(*pool, sizeof(entry_pool_t), 0, sizeof(entry_pool_t));
     if (rc_memzero != EOK) {
         CM_FREE_PTR(*pool);
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
+        return CT_ERROR;
     }
 
     if (steps == 0) {
         CM_FREE_PTR(*pool);
-        GS_THROW_ERROR(ERR_ZERO_DIVIDE);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ZERO_DIVIDE);
+        return CT_ERROR;
     }
     threshold = (threshold + steps - 1) / steps * steps;
     maxextents = threshold / steps;
@@ -221,21 +221,21 @@ static int entry_pool_init(entry_pool_t **pool, uint32 steps, uint32 threshold, 
     biqueue_init(&(*pool)->idles);
     if (maxextents == 0) {
         CM_FREE_PTR(*pool);
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)maxextents * sizeof(char *), "extending memory");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)maxextents * sizeof(char *), "extending memory");
+        return CT_ERROR;
     }
     (*pool)->buf = (char **)malloc(maxextents * sizeof(char *));
     if ((*pool)->buf == NULL) {
         CM_FREE_PTR(*pool);
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)maxextents * sizeof(char *), "extending memory");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)maxextents * sizeof(char *), "extending memory");
+        return CT_ERROR;
     }
     rc_memzero = memset_sp((*pool)->buf, maxextents * sizeof(char *), 0, maxextents * sizeof(char *));
     if (rc_memzero != EOK) {
         CM_FREE_PTR((*pool)->buf);
         CM_FREE_PTR(*pool);
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
+        return CT_ERROR;
     }
     return entry_pool_extend(*pool);
 }
@@ -280,7 +280,7 @@ static int epoll_ctl_add(epfd_entry_t *entry, int fd, struct epoll_event *event)
     fd_entry_t *fd_entry = NULL;
 
     if (fd < 0) {
-        GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "fd(%d) >= 0", fd);
+        CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "fd(%d) >= 0", fd);
         return -1;
     }
 
@@ -300,17 +300,17 @@ static int epoll_ctl_add(epfd_entry_t *entry, int fd, struct epoll_event *event)
     node = biqueue_del_head(&entry->fd_pool->idles);
     cm_spin_unlock(&entry->fd_pool_lock);
     if (node == NULL) {
-        if (GS_SUCCESS != entry_pool_extend_sync(&entry->fd_pool_lock, entry->fd_pool, &node)) {
+        if (CT_SUCCESS != entry_pool_extend_sync(&entry->fd_pool_lock, entry->fd_pool, &node)) {
             return -1;
         }
     }
     fd_entry = OBJECT_OF(fd_entry_t, node);
     fd_entry->evnt = *event;
     if (fd_entry->evnt.events & EPOLLONESHOT) {
-        fd_entry->oneshot_flag = GS_TRUE;
-        fd_entry->oneshot_enable = GS_TRUE;
+        fd_entry->oneshot_flag = CT_TRUE;
+        fd_entry->oneshot_enable = CT_TRUE;
     } else {
-        fd_entry->oneshot_flag = GS_FALSE;
+        fd_entry->oneshot_flag = CT_FALSE;
     }
     fd_entry->id = (uint32)fd;
 
@@ -328,7 +328,7 @@ static int epoll_ctl_mod(epfd_entry_t *entry, int fd, struct epoll_event *event)
     fd_entry_t *fd_entry = NULL;
 
     if (fd < 0) {
-        GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "fd(%d) >= 0", fd);
+        CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "fd(%d) >= 0", fd);
         return -1;
     }
 
@@ -346,10 +346,10 @@ static int epoll_ctl_mod(epfd_entry_t *entry, int fd, struct epoll_event *event)
     fd_entry = OBJECT_OF(fd_entry_t, node);
     fd_entry->evnt = *event;
     if (fd_entry->evnt.events & EPOLLONESHOT) {
-        fd_entry->oneshot_flag = GS_TRUE;
-        fd_entry->oneshot_enable = GS_TRUE;
+        fd_entry->oneshot_flag = CT_TRUE;
+        fd_entry->oneshot_enable = CT_TRUE;
     } else {
-        fd_entry->oneshot_flag = GS_FALSE;
+        fd_entry->oneshot_flag = CT_FALSE;
     }
     cm_spin_unlock(&entry_bucket->bucket_lock);
     return 0;
@@ -401,8 +401,8 @@ int epoll_init()
     struct WSAData wd;
     uint16 version = MAKEWORD(1, 1);
     if (WSAStartup(version, &wd) != 0) {
-        GS_THROW_ERROR(ERR_INIT_NETWORK_ENV, "failed to start up Windows Sockets Asynchronous");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INIT_NETWORK_ENV, "failed to start up Windows Sockets Asynchronous");
+        return CT_ERROR;
         ;
     }
     epfd_pool_lock = 0;
@@ -419,7 +419,7 @@ int epoll_create1(int flags)
     node = biqueue_del_head(&epfd_pool->idles);
     cm_spin_unlock(&epfd_pool_lock);
     if (node == NULL) {
-        if (GS_SUCCESS != (entry_pool_extend_sync(&epfd_pool_lock, epfd_pool, &node))) {
+        if (CT_SUCCESS != (entry_pool_extend_sync(&epfd_pool_lock, epfd_pool, &node))) {
             return -1;
         }
     }
@@ -427,21 +427,21 @@ int epoll_create1(int flags)
     epfd_entry_t *entry = OBJECT_OF(epfd_entry_t, node);
     entry->hash_map_fd2id = malloc(EPOLL_HASHMAP_BUCKETS * sizeof(entry_bucket_t));
     if (entry->hash_map_fd2id == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)EPOLL_HASHMAP_BUCKETS * sizeof(entry_bucket_t), "extending memory");
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)EPOLL_HASHMAP_BUCKETS * sizeof(entry_bucket_t), "extending memory");
         return -1;
     }
     rc_memzero = memset_sp(entry->hash_map_fd2id, EPOLL_HASHMAP_BUCKETS * sizeof(entry_bucket_t), 0,
                            EPOLL_HASHMAP_BUCKETS * sizeof(entry_bucket_t));
     if (rc_memzero != EOK) {
         CM_FREE_PTR(entry->hash_map_fd2id);
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
+        return CT_ERROR;
     }
     for (loop = 0; loop < EPOLL_HASHMAP_BUCKETS; ++loop) {
         entry->hash_map_fd2id[loop].bucket_lock = 0;
         biqueue_init(&entry->hash_map_fd2id[loop].entry_que);
     }
-    if (GS_SUCCESS != entry_pool_init(&entry->fd_pool, EPOLL_FD_EXTENT_STEP, EPOLL_MAX_FD_COUNT, sizeof(fd_entry_t))) {
+    if (CT_SUCCESS != entry_pool_init(&entry->fd_pool, EPOLL_FD_EXTENT_STEP, EPOLL_MAX_FD_COUNT, sizeof(fd_entry_t))) {
         CM_FREE_PTR(entry->hash_map_fd2id);
         return -1;
     }
@@ -459,7 +459,7 @@ int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event)
     }
     
     if (event != NULL) {
-        GS_BIT_RESET(event->events, EPOLLRDHUP);
+        CT_BIT_RESET(event->events, EPOLLRDHUP);
         if (event->events == 0) {
             return 0;
         }
@@ -538,8 +538,8 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
     uint32 loop, nfds, selected;
     fd_entry_t *fds[FD_SETSIZE];
     fd_set rfds, efds;
-    bool32 rfdsetted = GS_FALSE;
-    bool32 efdsetted = GS_FALSE;
+    bool32 rfdsetted = CT_FALSE;
+    bool32 efdsetted = CT_FALSE;
     int ret;
     struct timeval tv;
 
@@ -572,7 +572,7 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
             events[selected].events |= efdsetted ? EPOLLHUP : 0;
             events[selected++] = fds[loop]->evnt;
             if (fds[loop]->oneshot_flag) {
-                fds[loop]->oneshot_enable = GS_FALSE;
+                fds[loop]->oneshot_enable = CT_FALSE;
             }
         }
     }

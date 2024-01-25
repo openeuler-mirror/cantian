@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -102,7 +102,7 @@ static void clt_destory_serveroutput(clt_serveroutput_t *serveroutput)
 status_t clt_prepare_stmt_pack(clt_stmt_t *stmt)
 {
     if (stmt->cache_pack != NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return clt_alloc_pack(stmt->conn, &stmt->cache_pack);
@@ -116,7 +116,7 @@ static void clt_destory_resultset(clt_stmt_t *stmt, clt_resultset_t *resultset)
     clt_rs_stmt_t *rs_stmt = NULL;
     uint32 i, id;
 
-    if (clt_prepare_stmt_pack(stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(stmt) != CT_SUCCESS) {
         return;
     }
     ack_pack = &stmt->cache_pack->pack;
@@ -127,7 +127,7 @@ static void clt_destory_resultset(clt_stmt_t *stmt, clt_resultset_t *resultset)
         req_pack = &stmt->conn->pack;
         cs_init_set(req_pack, stmt->conn->call_version);
         req_pack->head->cmd = CS_CMD_FREE_STMT;
-        if (cs_put_int16(req_pack, rs_stmt->stmt_id) == GS_SUCCESS) {
+        if (cs_put_int16(req_pack, rs_stmt->stmt_id) == CT_SUCCESS) {
             (void)clt_remote_call(stmt->conn, req_pack, ack_pack);
         }
     }
@@ -139,7 +139,7 @@ static void clt_destory_resultset(clt_stmt_t *stmt, clt_resultset_t *resultset)
         id = *(uint32 *)cm_list_get(&resultset->ids, i);
         sub_stmt = (clt_stmt_t *)cm_ptlist_get(&stmt->conn->stmts, id);
         if (sub_stmt != NULL) {
-            sub_stmt->stmt_id = GS_INVALID_ID16;
+            sub_stmt->stmt_id = CT_INVALID_ID16;
             clt_free_stmt(sub_stmt);
         }
     }
@@ -178,20 +178,20 @@ void clt_free_stmt(clt_stmt_t *stmt)
     cs_packet_t *ack_pack = NULL;
 
     if (stmt == NULL) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "statement");
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "statement");
         return;
     }
 
-    if (clt_prepare_stmt_pack(stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(stmt) != CT_SUCCESS) {
         return;
     }
     ack_pack = &stmt->cache_pack->pack;
 
-    if (stmt->stmt_id != GS_INVALID_ID16) {
+    if (stmt->stmt_id != CT_INVALID_ID16) {
         req_pack = &stmt->conn->pack;
         cs_init_set(req_pack, stmt->conn->call_version);
         req_pack->head->cmd = CS_CMD_FREE_STMT;
-        if (cs_put_int16(req_pack, stmt->stmt_id) == GS_SUCCESS) {
+        if (cs_put_int16(req_pack, stmt->stmt_id) == CT_SUCCESS) {
             (void)clt_remote_call(stmt->conn, req_pack, ack_pack);
         }
     }
@@ -202,6 +202,9 @@ void clt_free_stmt(clt_stmt_t *stmt)
     clt_destory_serveroutput(&stmt->serveroutput);
     clt_destory_resultset(stmt, &stmt->resultset);
     clt_destory_batch_errs(stmt);
+#ifdef Z_SHARDING
+    CM_FREE_PTR(stmt->batch_bnd_ptr);
+#endif
     clt_recycle_stmt_pack(stmt);
     clt_free_stmt_transcode_buf(stmt);
     cm_ptlist_set(&stmt->conn->stmts, (uint32)stmt->id, NULL);
@@ -214,46 +217,50 @@ status_t clt_alloc_stmt(clt_conn_t *conn, clt_stmt_t **stmt)
     clt_stmt_t *statement = NULL;
 
     if (stmt == NULL) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "stmt");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "stmt");
+        return CT_ERROR;
     }
 
-    if (conn->ready != GS_TRUE) {
+    if (conn->ready != CT_TRUE) {
         CLT_THROW_ERROR(conn, ERR_CLT_CONN_CLOSE);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     statement = (clt_stmt_t *)malloc(sizeof(clt_stmt_t));
     if (statement == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)sizeof(clt_stmt_t), "creating new client statement");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)sizeof(clt_stmt_t), "creating new client statement");
+        return CT_ERROR;
     }
 
     errno_t errcode = memset_s(statement, sizeof(clt_stmt_t), 0, sizeof(clt_stmt_t));
     if (errcode != EOK) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, (errcode));
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, (errcode));
         CM_FREE_PTR(statement);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     statement->conn = conn;
-    statement->id = GS_INVALID_ID16;
-    statement->stmt_id = GS_INVALID_ID16;
+    statement->id = CT_INVALID_ID16;
+    statement->stmt_id = CT_INVALID_ID16;
     statement->paramset_size = 1;
     statement->fetch_size = 1;
     statement->prefetch_rows = 0;
     statement->ctrl = NULL;
     statement->cache_pack = NULL;
 
-    cm_create_list2(&statement->columns, LIST_EXTENT_SIZE, GS_MAX_COLUMNS / LIST_EXTENT_SIZE, sizeof(clt_column_t));
-    cm_create_list2(&statement->params, LIST_EXTENT_SIZE, GS_MAX_SQL_PARAM_COUNT / LIST_EXTENT_SIZE,
+    cm_create_list2(&statement->columns, LIST_EXTENT_SIZE, CT_MAX_COLUMNS / LIST_EXTENT_SIZE, sizeof(clt_column_t));
+    cm_create_list2(&statement->params, LIST_EXTENT_SIZE, CT_MAX_SQL_PARAM_COUNT / LIST_EXTENT_SIZE,
         sizeof(clt_param_t));
-    cm_create_list2(&statement->outparams, LIST_EXTENT_SIZE, GS_MAX_SQL_PARAM_COUNT / LIST_EXTENT_SIZE,
+    cm_create_list2(&statement->outparams, LIST_EXTENT_SIZE, CT_MAX_SQL_PARAM_COUNT / LIST_EXTENT_SIZE,
         sizeof(clt_outparam_t));
     cm_create_list(&statement->serveroutput.output_data, sizeof(clt_output_item_t));
     cm_create_list(&statement->resultset.stmt_ids, sizeof(clt_rs_stmt_t));
     cm_create_list(&statement->resultset.ids, sizeof(uint32));
     cm_create_list(&statement->batch_errs.err_list, sizeof(clt_batch_error_t));
+
+#ifdef Z_SHARDING
+    statement->batch_bnd_ptr = NULL;
+#endif
 
     for (i = 0; i < conn->stmts.count; i++) {
         if (cm_ptlist_get(&conn->stmts, i) == NULL) {
@@ -262,25 +269,25 @@ status_t clt_alloc_stmt(clt_conn_t *conn, clt_stmt_t **stmt)
         }
     }
 
-    if (statement->id != GS_INVALID_ID16) {
+    if (statement->id != CT_INVALID_ID16) {
         cm_ptlist_set(&conn->stmts, (uint32)statement->id, statement);
     } else {
         statement->id = (uint16)conn->stmts.count;
 
-        if (cm_ptlist_add(&conn->stmts, statement) != GS_SUCCESS) {
+        if (cm_ptlist_add(&conn->stmts, statement) != CT_SUCCESS) {
             CM_FREE_PTR(statement);
             clt_copy_local_error(conn);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
-    if (clt_reset_stmt_transcode_buf(statement) != GS_SUCCESS) {
+    if (clt_reset_stmt_transcode_buf(statement) != CT_SUCCESS) {
         free(statement);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     statement->status = CLI_STMT_IDLE;
     *stmt = statement;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_alloc_stmt(gsc_conn_t pconn, gsc_stmt_t *pstmt)
@@ -291,7 +298,7 @@ status_t gsc_alloc_stmt(gsc_conn_t pconn, gsc_stmt_t *pstmt)
     GSC_CHECK_OBJECT_NULL_GS(conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(conn, pstmt, "statement");
 
-    GS_RETURN_IFERR(clt_lock_conn(conn));
+    CT_RETURN_IFERR(clt_lock_conn(conn));
     status = clt_alloc_stmt(conn, (clt_stmt_t **)pstmt);
     clt_unlock_conn(conn);
     return status;
@@ -303,18 +310,18 @@ void gsc_free_stmt(gsc_stmt_t pstmt)
     clt_conn_t *conn = NULL;
 
     if (SECUREC_UNLIKELY(stmt == NULL)) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "statement");
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "statement");
         return;
     }
 
     if (SECUREC_UNLIKELY(stmt->conn == NULL)) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "connection");
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "connection");
         return;
     }
 
     conn = stmt->conn;
 
-    GS_RETVOID_IFERR(clt_lock_conn(conn));
+    CT_RETVOID_IFERR(clt_lock_conn(conn));
 
     clt_free_stmt(stmt);
 
@@ -335,6 +342,17 @@ static status_t clt_set_stmt_attr(clt_stmt_t *stmt, int attr, const void *data, 
         case GSC_ATTR_PARAMSET_SIZE:
             stmt->paramset_size = *(uint32 *)data;
             break;
+#ifdef Z_SHARDING
+        case GSC_ATTR_PARAM_COUNT:
+            stmt->param_count = *(uint32 *)data;
+            break;
+
+        case GSC_ATTR_SHARD_DML_ID:
+            stmt->shard_dml_id = *(uint32 *)data;
+            break;
+
+#endif
+
         case GSC_ATTR_ALLOWED_BATCH_ERRS:
             stmt->batch_errs.allowed_count = *(uint32 *)data;
             break;
@@ -345,10 +363,10 @@ static status_t clt_set_stmt_attr(clt_stmt_t *stmt, int attr, const void *data, 
 
         default:
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "statement attribute id", (uint32)attr);
-            return GS_ERROR;
+            return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 status_t gsc_set_stmt_attr(gsc_stmt_t pstmt, int attr, const void *data, uint32 len)
 {
@@ -359,7 +377,7 @@ status_t gsc_set_stmt_attr(gsc_stmt_t pstmt, int attr, const void *data, uint32 
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, data, "value of statement attribute to set");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_set_stmt_attr(stmt, attr, data, len);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -368,8 +386,8 @@ status_t gsc_set_stmt_attr(gsc_stmt_t pstmt, int attr, const void *data, uint32 
 status_t clt_get_stmt_attr(clt_stmt_t *stmt, int attr, const void *data, uint32 buf_len, uint32 *len)
 {
     if (buf_len < sizeof(uint32)) {
-        GS_THROW_ERROR(ERR_CLT_INVALID_VALUE, "statement attribute buffer len", buf_len);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CLT_INVALID_VALUE, "statement attribute buffer len", buf_len);
+        return CT_ERROR;
     }
 
     if (len != NULL) {
@@ -435,8 +453,8 @@ status_t clt_get_stmt_attr(clt_stmt_t *stmt, int attr, const void *data, uint32 
 
         case GSC_ATTR_LOB_LOCATOR_SIZE:
             if (stmt->conn == NULL) {
-                GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "connection");
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "connection");
+                return CT_ERROR;
             }
             *(uint32 *)data = (uint32)stmt->conn->server_info.locator_size;
             break;
@@ -454,11 +472,11 @@ status_t clt_get_stmt_attr(clt_stmt_t *stmt, int attr, const void *data, uint32 
             break;
 
         default:
-            GS_THROW_ERROR(ERR_CLT_INVALID_VALUE, "statement attribute id", (uint32)attr);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_CLT_INVALID_VALUE, "statement attribute id", (uint32)attr);
+            return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_get_stmt_attr(gsc_stmt_t pstmt, int attr, const void *data, uint32 buf_len, uint32 *len)
@@ -470,7 +488,7 @@ status_t gsc_get_stmt_attr(gsc_stmt_t pstmt, int attr, const void *data, uint32 
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, data, "value of statement attribute to get");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_get_stmt_attr(stmt, attr, data, buf_len, len);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -508,14 +526,14 @@ static status_t clt_receive_returnresult(clt_stmt_t *stmt, cs_packet_t *ack)
     clt_rs_stmt_t *rs_stmt = NULL;
 
     cs_init_get(ack);
-    GS_RETURN_IFERR(cs_get_int64(ack, (int64 *)&cursor));
+    CT_RETURN_IFERR(cs_get_int64(ack, (int64 *)&cursor));
     stmt_id = (uint32)((uint64)cursor >> 32);
     fetch_mode = (uint32)((uint64)cursor & 0xFFFFFFFF);
 
-    GS_RETURN_IFERR(cm_list_new(&stmt->resultset.stmt_ids, (void **)&rs_stmt));
+    CT_RETURN_IFERR(cm_list_new(&stmt->resultset.stmt_ids, (void **)&rs_stmt));
     rs_stmt->stmt_id = stmt_id;
     rs_stmt->fetch_mode = fetch_mode;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void cs_set_req_flags(clt_stmt_t *stmt, cs_packet_t *req_pack, cs_prepare_req_t *req)
@@ -524,8 +542,8 @@ static void cs_set_req_flags(clt_stmt_t *stmt, cs_packet_t *req_pack, cs_prepare
     if (stmt->conn->autotrace) {
         req->flags = CS_PREP_AUTOTRACE;
     }
-    if (stmt->conn->zsql_in_altpwd) {
-        req->flags |= CS_ZSQL_IN_ALTPWD;
+    if (stmt->conn->ctsql_in_altpwd) {
+        req->flags |= CS_CTSQL_IN_ALTPWD;
     }
 }
 
@@ -551,14 +569,14 @@ status_t clt_prepare(clt_stmt_t *stmt, const text_t *sql)
 
     cs_init_set(req_pack, stmt->conn->call_version);
     req_pack->head->cmd = CS_CMD_PREPARE;
-    GS_RETURN_IFERR(cs_reserve_space(req_pack, sizeof(cs_prepare_req_t), &req_offset));
+    CT_RETURN_IFERR(cs_reserve_space(req_pack, sizeof(cs_prepare_req_t), &req_offset));
     req = (cs_prepare_req_t *)CS_RESERVE_ADDR(req_pack, req_offset);
     req->stmt_id = stmt->stmt_id;
     if (stmt->conn->call_version >= CS_VERSION_11) {
         if (stmt->conn->node_type == CS_TYPE_DN) {
-            GS_RETURN_IFERR(cs_put_alter_set(req_pack, stmt));
+            CT_RETURN_IFERR(cs_put_alter_set(req_pack, stmt));
         } else {
-            GS_RETURN_IFERR(cs_put_int32(req_pack, 0));
+            CT_RETURN_IFERR(cs_put_int32(req_pack, 0));
         }
     }
     cs_set_req_flags(stmt, req_pack, req);
@@ -567,22 +585,22 @@ status_t clt_prepare(clt_stmt_t *stmt, const text_t *sql)
     total_size = sql_size;
 
     do {
-        GS_RETURN_IFERR(gsc_write_sql(stmt, sql->str, total_size, &sql_size, req_pack));
-        GS_RETURN_IFERR(clt_remote_call(stmt->conn, req_pack, ack_pack));
+        CT_RETURN_IFERR(gsc_write_sql(stmt, sql->str, total_size, &sql_size, req_pack));
+        CT_RETURN_IFERR(clt_remote_call(stmt->conn, req_pack, ack_pack));
 
         cs_init_set(req_pack, stmt->conn->call_version);
         req_pack->head->cmd = CS_CMD_PREPARE;
     } while (sql_size > 0);
 
-    GS_RETURN_IFERR(clt_get_prepare_ack(stmt, ack_pack, sql));
+    CT_RETURN_IFERR(clt_get_prepare_ack(stmt, ack_pack, sql));
 
     /* DDL of PL may has warning info from prepare ack */
     if (stmt->stmt_type == GSC_STMT_DDL && CS_HAS_MORE(ack_pack)) {
-        GS_RETURN_IFERR(clt_get_error_message(stmt->conn, ack_pack, stmt->conn->message));
+        CT_RETURN_IFERR(clt_get_error_message(stmt->conn, ack_pack, stmt->conn->message));
     }
 
     stmt->status = CLI_STMT_PREPARED;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_prepare(gsc_stmt_t pstmt, const char *sql)
@@ -598,11 +616,11 @@ status_t gsc_prepare(gsc_stmt_t pstmt, const char *sql)
     sql_text.str = (char *)sql;
     sql_text.len = (uint32)strlen(sql);
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
 
-    if (clt_prepare_stmt_pack(stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(stmt) != CT_SUCCESS) {
         clt_unlock_conn(stmt->conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     status = clt_prepare(stmt, &sql_text);
@@ -611,8 +629,8 @@ status_t gsc_prepare(gsc_stmt_t pstmt, const char *sql)
     // Clear SQL to prevent sensitive information from being contained in packets.
     errno_t errcode = memset_s(stmt->conn->pack.buf, stmt->conn->pack.buf_size, 0, stmt->conn->pack.buf_size);
     if (errcode != EOK) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
-        status = GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+        status = CT_ERROR;
     }
 
     clt_unlock_conn(stmt->conn);
@@ -625,60 +643,60 @@ static status_t clt_encode_date(clt_conn_t *conn, uint8 *bnd_ptr, uint32 bnd_siz
 {
     if (bnd_size != CLT_DATE_BINARY_SIZE) {
         CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "bound size of date", bnd_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* century [100,*) */
     if (bnd_ptr[ORA_DATE_IDX_CENTURY] < 100) {
         CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "century of date", bnd_ptr[ORA_DATE_IDX_CENTURY]);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* year [100,200) */
     if (bnd_ptr[ORA_DATE_IDX_YEAR] < 100 || bnd_ptr[ORA_DATE_IDX_YEAR] >= 200) {
         CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "year of date", bnd_ptr[ORA_DATE_IDX_YEAR]);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* support year [1, 9999] */
     uint32 year = (bnd_ptr[ORA_DATE_IDX_CENTURY] - 100) * 100 + (bnd_ptr[ORA_DATE_IDX_YEAR] - 100);
     if (!CM_IS_VALID_YEAR(year)) {
         CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "year", year);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* month [1,12] */
     if (bnd_ptr[ORA_DATE_IDX_MONTH] < 1 || bnd_ptr[ORA_DATE_IDX_MONTH] > 12) {
         CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "month of date", bnd_ptr[ORA_DATE_IDX_MONTH]);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* day [1,31] */
     if (bnd_ptr[ORA_DATE_IDX_DAY] < 1 || bnd_ptr[ORA_DATE_IDX_DAY] > 31) {
         CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "day of date", bnd_ptr[ORA_DATE_IDX_DAY]);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* hour [1,24] */
     if (bnd_ptr[ORA_DATE_IDX_HOUR] < 1 || bnd_ptr[ORA_DATE_IDX_HOUR] > 24) {
         CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "hour of date", bnd_ptr[ORA_DATE_IDX_HOUR]);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* minute [1,60] */
     if (bnd_ptr[ORA_DATE_IDX_MINUTE] < 1 || bnd_ptr[ORA_DATE_IDX_MINUTE] > 60) {
         CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "minute of date", bnd_ptr[ORA_DATE_IDX_MINUTE]);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* second [1,60] */
     if (bnd_ptr[ORA_DATE_IDX_SECOND] < 1 || bnd_ptr[ORA_DATE_IDX_SECOND] > 60) {
         CLT_THROW_ERROR(conn, ERR_CLT_INVALID_VALUE, "second of date", bnd_ptr[ORA_DATE_IDX_SECOND]);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *date = cm_encode_ora_date(bnd_ptr);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static uint32 clt_total_ucs2len(const char *str, uint32 bnd_size)
@@ -705,20 +723,20 @@ static status_t clt_put_param_value(clt_stmt_t *stmt, cs_packet_t *req, uint32 o
         case GSC_TYPE_UINT32:
         case GSC_TYPE_INTEGER:
         case GSC_TYPE_BOOLEAN:
-            GS_RETURN_IFERR(cs_put_int32(req, *(uint32 *)param->curr_ptr));
+            CT_RETURN_IFERR(cs_put_int32(req, *(uint32 *)param->curr_ptr));
             break;
 
         case GSC_TYPE_BIGINT:
-            GS_RETURN_IFERR(cs_put_int64(req, *(uint64 *)param->curr_ptr));
+            CT_RETURN_IFERR(cs_put_int64(req, *(uint64 *)param->curr_ptr));
             break;
 
         case GSC_TYPE_REAL:
-            GS_RETURN_IFERR(cs_put_real(req, *(double *)param->curr_ptr));
+            CT_RETURN_IFERR(cs_put_real(req, *(double *)param->curr_ptr));
             break;
 
         case GSC_TYPE_DATE:
-            GS_RETURN_IFERR(clt_encode_date(stmt->conn, (uint8 *)param->curr_ptr, param->bnd_size, &date));
-            GS_RETURN_IFERR(cs_put_date(req, date));
+            CT_RETURN_IFERR(clt_encode_date(stmt->conn, (uint8 *)param->curr_ptr, param->bnd_size, &date));
+            CT_RETURN_IFERR(cs_put_date(req, date));
             break;
 
         case GSC_TYPE_TIMESTAMP:
@@ -726,11 +744,11 @@ static status_t clt_put_param_value(clt_stmt_t *stmt, cs_packet_t *req, uint32 o
         case GSC_TYPE_TIMESTAMP_LTZ:
             /* GSC_TYPE_TIMESTAMP_LTZ formatted in 'gsc_datetime_construct', just put value into request packet */
         case GSC_TYPE_NATIVE_DATE:
-            GS_RETURN_IFERR(cs_put_date(req, *(date_t *)param->curr_ptr));
+            CT_RETURN_IFERR(cs_put_date(req, *(date_t *)param->curr_ptr));
             break;
 
         case GSC_TYPE_TIMESTAMP_TZ:
-            GS_RETURN_IFERR(cs_put_data(req, (timestamp_tz_t *)param->curr_ptr, sizeof(timestamp_tz_t)));
+            CT_RETURN_IFERR(cs_put_data(req, (timestamp_tz_t *)param->curr_ptr, sizeof(timestamp_tz_t)));
             break;
 
         case GSC_TYPE_NUMBER:
@@ -750,7 +768,7 @@ static status_t clt_put_param_value(clt_stmt_t *stmt, cs_packet_t *req, uint32 o
                 }
                 if (text.len > param->bnd_size) {
                     CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "string param length", text.len);
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
             }
 
@@ -759,20 +777,20 @@ static status_t clt_put_param_value(clt_stmt_t *stmt, cs_packet_t *req, uint32 o
                 transcode_func = cm_from_transcode_func_ucs2(stmt->conn->server_info.server_charset);
             }
             if (GSC_IS_STRING_TYPE(param->bnd_type) && transcode_func != NULL) {
-                GS_RETURN_IFERR(clt_transcode_column(stmt, &text.str, &text.len, transcode_func));
-                GS_RETURN_IFERR(cs_put_text(req, &text));
-                GS_RETURN_IFERR(clt_reset_stmt_transcode_buf(stmt));
+                CT_RETURN_IFERR(clt_transcode_column(stmt, &text.str, &text.len, transcode_func));
+                CT_RETURN_IFERR(cs_put_text(req, &text));
+                CT_RETURN_IFERR(clt_reset_stmt_transcode_buf(stmt));
             } else {
-                GS_RETURN_IFERR(cs_put_text(req, &text));
+                CT_RETURN_IFERR(cs_put_text(req, &text));
             }
             break;
 
         case GSC_TYPE_INTERVAL_DS:
-            GS_RETURN_IFERR(cs_put_int64(req, *(interval_ds_t *)param->curr_ptr));
+            CT_RETURN_IFERR(cs_put_int64(req, *(interval_ds_t *)param->curr_ptr));
             break;
 
         case GSC_TYPE_INTERVAL_YM:
-            GS_RETURN_IFERR(cs_put_int32(req, *(interval_ym_t *)param->curr_ptr));
+            CT_RETURN_IFERR(cs_put_int32(req, *(interval_ym_t *)param->curr_ptr));
             break;
 
         case GSC_TYPE_CLOB:
@@ -782,25 +800,25 @@ static status_t clt_put_param_value(clt_stmt_t *stmt, cs_packet_t *req, uint32 o
             bnd_lob = (gsc_lob_t *)param->bnd_ptr;
             if (bnd_lob == NULL) {
                 CLT_THROW_ERROR(stmt->conn, ERR_CLT_OBJECT_IS_NULL, "the pointer bnd_lob");
-                return GS_ERROR;
+                return CT_ERROR;
             }
-            GS_RETURN_IFERR(cs_put_data(req, &bnd_lob[offset], sizeof(gsc_lob_t)));
+            CT_RETURN_IFERR(cs_put_data(req, &bnd_lob[offset], sizeof(gsc_lob_t)));
             clt_reset_lob(&bnd_lob[offset]);
             break;
 
         default:
             if (param->ind_ptr != NULL) {
                 size = MIN(param->ind_ptr[offset], param->bnd_size);
-                GS_RETURN_IFERR(cs_put_int32(req, (uint16)param->ind_ptr[offset]));
-                GS_RETURN_IFERR(cs_put_data(req, param->curr_ptr, size));
+                CT_RETURN_IFERR(cs_put_int32(req, (uint16)param->ind_ptr[offset]));
+                CT_RETURN_IFERR(cs_put_data(req, param->curr_ptr, size));
             } else {
-                GS_RETURN_IFERR(cs_put_int32(req, (uint16)param->bnd_size));
-                GS_RETURN_IFERR(cs_put_data(req, param->curr_ptr, param->bnd_size));
+                CT_RETURN_IFERR(cs_put_int32(req, (uint16)param->bnd_size));
+                CT_RETURN_IFERR(cs_put_data(req, param->curr_ptr, param->bnd_size));
             }
             break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_put_large_str_param_value(cs_packet_t *req, uint32 offset, clt_param_t *param)
@@ -816,7 +834,7 @@ static status_t clt_write_large_str_param_value(clt_stmt_t *stmt, uint32 pos, ui
     char *org_bnd_ptr = NULL;
     uint32 write_len = 0;
     uint32 nchars = 0;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
     param = (clt_param_t *)cm_list_get(&stmt->params, pos);
     // lob_ptr is prepared by 'clt_prepare_param_lob_ptr', offset must be less than stmt.paramset_size
@@ -826,14 +844,14 @@ static status_t clt_write_large_str_param_value(clt_stmt_t *stmt, uint32 pos, ui
     large_str.str = param->bnd_ptr + param->bnd_size * offset;
     if (param->ind_ptr != NULL) {
         if (param->ind_ptr[offset] == GSC_NULL) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
         large_str.len = MIN(param->ind_ptr[offset], param->bnd_size);
     } else {
         large_str.len = (uint32)strlen(large_str.str);
         if (large_str.len > param->bnd_size) {
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "large string param length", large_str.len);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -844,7 +862,7 @@ static status_t clt_write_large_str_param_value(clt_stmt_t *stmt, uint32 pos, ui
 
     while (write_len < large_str.len) {
         status = clt_write_clob(stmt, pos, 0, large_str.str + write_len, large_str.len - write_len, &nchars);
-        if (status != GS_SUCCESS) {
+        if (status != CT_SUCCESS) {
             break;
         }
         write_len += nchars;
@@ -853,6 +871,136 @@ static status_t clt_write_large_str_param_value(clt_stmt_t *stmt, uint32 pos, ui
     param->bnd_ptr = org_bnd_ptr;
     return status;
 }
+
+#ifdef Z_SHARDING
+/* put params efficiently:
+types | total_len flags param ... param | ... | total_len flags param ... param
+*/
+static status_t clt_put_params_batch_eff(clt_stmt_t *stmt, uint32 offset, bool32 add_bytes)
+{
+    uint32 i, size, req_begin;
+    uint32 types_offset = 0;
+    uint32 total_len_offset, flags_offset;
+    cs_param_head_t *head = NULL;
+    int8 *types = NULL;
+    uint32 *total_len = NULL;
+    uint8 *flags = NULL;
+    cs_packet_t *req = NULL;
+
+    req = &stmt->conn->pack;
+
+    if (add_bytes) {
+        CT_RETURN_IFERR(cs_reserve_space(req, CM_ALIGN4(stmt->param_count), &types_offset));
+    }
+
+    req_begin = req->head->size;
+
+    CT_RETURN_IFERR(cs_reserve_space(req, sizeof(uint32), &total_len_offset));
+    CT_RETURN_IFERR(cs_reserve_space(req, CM_ALIGN4(stmt->param_count), &flags_offset));
+
+    clt_param_t param;
+    for (i = 0; i < stmt->param_count; i++) {
+        head = (cs_param_head_t *)(stmt->batch_curr_ptr);
+        stmt->batch_curr_ptr += sizeof(cs_param_head_t);
+
+        if (add_bytes) {
+            types = (int8 *)CS_RESERVE_ADDR(req, types_offset);
+            types[i] = head->type;
+        }
+
+        flags = (uint8 *)CS_RESERVE_ADDR(req, flags_offset);
+        flags[i] = head->flag;
+
+        if ((flags[i] & 0x01) == CT_FALSE) {
+            param.bnd_ptr = NULL;
+            param.ind_ptr = NULL;
+            param.bnd_size = head->len;
+            param.bnd_type = (head->type == GSC_TYPE_DATE) ? GSC_TYPE_NATIVE_DATE : head->type;
+            param.curr_ptr = stmt->batch_curr_ptr;
+            param.is_W_CType = CT_FALSE;
+            if (GSC_IS_LOB_TYPE(param.bnd_type)) {
+                param.bnd_ptr = param.curr_ptr;
+                CT_RETURN_IFERR(clt_put_param_value(stmt, req, 0, &param));
+            } else {
+                CT_RETURN_IFERR(clt_put_param_value(stmt, req, offset, &param));
+            }
+
+            stmt->batch_curr_ptr += param.bnd_size;
+        }
+    }
+
+    size = req->head->size - req_begin;
+
+    total_len = (uint32 *)CS_RESERVE_ADDR(req, total_len_offset);
+    *total_len = cs_format_endian_i32(req->options, size);
+    return CT_SUCCESS;
+}
+
+static status_t clt_put_params_batch(clt_stmt_t *stmt, uint32 offset, bool32 add_bytes)
+{
+    uint32 i, size, req_begin, item_begin;
+    uint16 item_size;
+    uint32 *total_len = NULL;
+    uint32 total_len_offset;
+    cs_param_head_t *head = NULL;
+    uint32 head_offset;
+    cs_packet_t *req = NULL;
+
+    if (stmt->conn->call_version >= CS_VERSION_7) {
+        /* put params efficiently */
+        return clt_put_params_batch_eff(stmt, offset, add_bytes);
+    }
+
+    req = &stmt->conn->pack;
+    req_begin = req->head->size;
+    CT_RETURN_IFERR(cs_reserve_space(req, sizeof(uint32), &total_len_offset));
+
+    CM_POINTER(stmt->batch_bnd_ptr);
+
+    clt_param_t param;
+    for (i = 0; i < stmt->param_count; i++) {
+        item_begin = req->head->size;
+
+        CT_RETURN_IFERR(cs_reserve_space(req, sizeof(cs_param_head_t), &head_offset));
+        head = (cs_param_head_t *)CS_RESERVE_ADDR(req, head_offset);
+        *head = *(cs_param_head_t *)(stmt->batch_curr_ptr);
+        stmt->batch_curr_ptr += sizeof(cs_param_head_t);
+
+        if (head->flag & 0x01) {
+            item_size = (uint16)sizeof(cs_param_head_t);
+            head->len = item_size;
+        } else {
+            param.bnd_ptr = NULL;
+            param.ind_ptr = NULL;
+            param.bnd_size = head->len;
+            param.bnd_type = (head->type == GSC_TYPE_DATE) ? GSC_TYPE_NATIVE_DATE : head->type;
+            param.curr_ptr = stmt->batch_curr_ptr;
+            param.is_W_CType = CT_FALSE;
+            if (GSC_IS_LOB_TYPE(param.bnd_type)) {
+                param.bnd_ptr = param.curr_ptr;
+                CT_RETURN_IFERR(clt_put_param_value(stmt, req, 0, &param));
+            } else {
+                CT_RETURN_IFERR(clt_put_param_value(stmt, req, offset, &param));
+            }
+
+            stmt->batch_curr_ptr += param.bnd_size;
+
+            item_size = (uint16)(req->head->size - item_begin);
+
+            // packet address of head need get again because it may changed in clt_put_param_value!
+            head = (cs_param_head_t *)CS_RESERVE_ADDR(req, head_offset);
+            head->len = item_size;
+        }
+        cs_putted_param_head(req, head_offset);
+    }
+
+    size = req->head->size - req_begin;
+    total_len = (uint32 *)CS_RESERVE_ADDR(req, total_len_offset);
+    *total_len = cs_format_endian_i32(req->options, size);
+    return CT_SUCCESS;
+}
+
+#endif
 
 static void clt_set_param_isnull(clt_param_t *param, uint32 offset, uint8 *flag)
 {
@@ -887,7 +1035,7 @@ static status_t clt_params_eff(clt_stmt_t *stmt, cs_packet_t *req, uint32 offset
     clt_param_t *param = NULL;
     int8 *types = NULL;
     uint8 *flags = NULL;
-    bool8 large_str = GS_FALSE;
+    bool8 large_str = CT_FALSE;
 
     for (uint32 i = 0; i < stmt->param_count; i++) {
         param = (clt_param_t *)cm_list_get(&stmt->params, i);
@@ -898,7 +1046,7 @@ static status_t clt_params_eff(clt_stmt_t *stmt, cs_packet_t *req, uint32 offset
         }
 
         // bind type convert to clob if is large str data
-        large_str = GSC_IS_STRING_TYPE(param->bnd_type) && param->bnd_size > GS_MAX_COLUMN_SIZE;
+        large_str = GSC_IS_STRING_TYPE(param->bnd_type) && param->bnd_size > CT_MAX_COLUMN_SIZE;
 
         if (add_types) {
             types = (int8 *)CS_RESERVE_ADDR(req, types_offset);
@@ -913,17 +1061,17 @@ static status_t clt_params_eff(clt_stmt_t *stmt, cs_packet_t *req, uint32 offset
         clt_set_param_isnull(param, offset, &flags[i]);
         clt_set_param_direction(param->direction, &flags[i]);
 
-        if ((flags[i] & 0x01) == GS_FALSE) {
+        if ((flags[i] & 0x01) == CT_FALSE) {
             if (large_str) {
-                GS_RETURN_IFERR(clt_put_large_str_param_value(req, offset, param));
+                CT_RETURN_IFERR(clt_put_large_str_param_value(req, offset, param));
             } else {
-                GS_RETURN_IFERR(clt_put_param_value(stmt, req, offset, param));
+                CT_RETURN_IFERR(clt_put_param_value(stmt, req, offset, param));
             }
         }
 
         param->curr_ptr += param->bnd_size;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* put params efficiently:
@@ -937,31 +1085,38 @@ static status_t clt_put_params_eff(clt_stmt_t *stmt, uint32 offset, bool32 add_t
     cs_packet_t *req = &stmt->conn->pack;
 
     if (add_types) {
-        GS_RETURN_IFERR(cs_reserve_space(req, CM_ALIGN4(stmt->param_count), &types_offset));
+        CT_RETURN_IFERR(cs_reserve_space(req, CM_ALIGN4(stmt->param_count), &types_offset));
     }
 
     uint32 req_begin = req->head->size;
 
-    GS_RETURN_IFERR(cs_reserve_space(req, sizeof(uint32), &total_len_offset));
-    GS_RETURN_IFERR(cs_reserve_space(req, CM_ALIGN4(stmt->param_count), &flags_offset));
+    CT_RETURN_IFERR(cs_reserve_space(req, sizeof(uint32), &total_len_offset));
+    CT_RETURN_IFERR(cs_reserve_space(req, CM_ALIGN4(stmt->param_count), &flags_offset));
 
-    GS_RETURN_IFERR(clt_params_eff(stmt, req, offset, flags_offset, types_offset, add_types));
+    CT_RETURN_IFERR(clt_params_eff(stmt, req, offset, flags_offset, types_offset, add_types));
 
     if (req->head->size > req->buf_size) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "req pack head size", req->head->size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     uint32 size = req->head->size - req_begin;
 
     uint32 *total_len = (uint32 *)CS_RESERVE_ADDR(req, total_len_offset);
     *total_len = cs_format_endian_i32(req->options, size);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // cs_packet_head_t + cs_execute_req_t + total_len(4) + clt_param_t + ... + clt_param_t
 status_t clt_put_params(clt_stmt_t *stmt, uint32 offset, bool32 add_types)
 {
+#ifdef Z_SHARDING
+    // for CN do batch insert
+    if (stmt->batch_bnd_ptr != NULL) {
+        return clt_put_params_batch(stmt, offset, add_types);
+    }
+#endif
+
     if (stmt->conn->call_version >= CS_VERSION_7) {
         /* put params efficiently */
         return clt_put_params_eff(stmt, offset, add_types);
@@ -973,11 +1128,11 @@ status_t clt_put_params(clt_stmt_t *stmt, uint32 offset, bool32 add_types)
     clt_param_t *param = NULL;
     cs_param_head_t *head = NULL;
     cs_packet_t *req = NULL;
-    bool8 large_str = GS_FALSE;
+    bool8 large_str = CT_FALSE;
 
     req = &stmt->conn->pack;
     req_begin = req->head->size;
-    GS_RETURN_IFERR(cs_reserve_space(req, sizeof(uint32), &total_len_offset));
+    CT_RETURN_IFERR(cs_reserve_space(req, sizeof(uint32), &total_len_offset));
 
     for (i = 0; i < stmt->param_count; i++) {
         param = (clt_param_t *)cm_list_get(&stmt->params, i);
@@ -989,13 +1144,13 @@ status_t clt_put_params(clt_stmt_t *stmt, uint32 offset, bool32 add_types)
 
         item_begin = req->head->size;
 
-        GS_RETURN_IFERR(cs_reserve_space(req, sizeof(cs_param_head_t), &head_offset));
+        CT_RETURN_IFERR(cs_reserve_space(req, sizeof(cs_param_head_t), &head_offset));
         head = (cs_param_head_t *)CS_RESERVE_ADDR(req, head_offset);
         head->type = (param->bnd_type == GSC_TYPE_NATIVE_DATE) ? GSC_TYPE_DATE : param->bnd_type;
         head->flag = 0;
 
         // bind type convert to clob if is large str data
-        large_str = GSC_IS_STRING_TYPE(param->bnd_type) && param->bnd_size > GS_MAX_COLUMN_SIZE;
+        large_str = GSC_IS_STRING_TYPE(param->bnd_type) && param->bnd_size > CT_MAX_COLUMN_SIZE;
         if (large_str) {
             head->type = GSC_TYPE_CLOB;
         }
@@ -1009,9 +1164,9 @@ status_t clt_put_params(clt_stmt_t *stmt, uint32 offset, bool32 add_types)
             head->len = item_size;
         } else {
             if (large_str) {
-                GS_RETURN_IFERR(clt_put_large_str_param_value(req, offset, param));
+                CT_RETURN_IFERR(clt_put_large_str_param_value(req, offset, param));
             } else {
-                GS_RETURN_IFERR(clt_put_param_value(stmt, req, offset, param));
+                CT_RETURN_IFERR(clt_put_param_value(stmt, req, offset, param));
             }
 
             param->curr_ptr += param->bnd_size;
@@ -1026,14 +1181,14 @@ status_t clt_put_params(clt_stmt_t *stmt, uint32 offset, bool32 add_types)
 
     if (req->head->size > req->buf_size) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "req pack head size", req->head->size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     size = req->head->size - req_begin;
 
     total_len = (uint32 *)CS_RESERVE_ADDR(req, total_len_offset);
     *total_len = cs_format_endian_i32(req->options, size);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_handle_execution_ack(clt_stmt_t *stmt, cs_packet_t *ack_pack, uint32 line_offset)
@@ -1041,27 +1196,27 @@ static status_t clt_handle_execution_ack(clt_stmt_t *stmt, cs_packet_t *ack_pack
     // if error happened, receive error package, see sql_send_result_error
     if (CS_HAS_EXEC_ERROR(ack_pack)) {
         uint32 rows;
-        GS_RETURN_IFERR(cs_get_int32(ack_pack, (int32 *)&rows)); // read total_rows
+        CT_RETURN_IFERR(cs_get_int32(ack_pack, (int32 *)&rows)); // read total_rows
         stmt->affected_rows += rows;
-        GS_RETURN_IFERR(cs_get_int32(ack_pack, (int32 *)&rows)); // read batch_rows
+        CT_RETURN_IFERR(cs_get_int32(ack_pack, (int32 *)&rows)); // read batch_rows
         stmt->return_rows += rows;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // if the stmt returns success, then receive the cs_execute_ack_t package
     cs_execute_ack_t *exec_ack = NULL;
 
     // accumulate the affected_rows
-    GS_RETURN_IFERR(cs_get_exec_ack(&stmt->cache_pack->pack, &exec_ack));
+    CT_RETURN_IFERR(cs_get_exec_ack(&stmt->cache_pack->pack, &exec_ack));
     stmt->affected_rows += exec_ack->total_rows;
     stmt->return_rows += exec_ack->batch_rows;
     stmt->more_rows = exec_ack->rows_more;
     stmt->conn->xact_status = (gsc_xact_status_t)exec_ack->xact_status;
 
     // try get batch error message
-    GS_RETURN_IFERR(clt_try_get_batch_error(stmt, exec_ack, line_offset));
+    CT_RETURN_IFERR(clt_try_get_batch_error(stmt, exec_ack, line_offset));
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool32 clt_has_large_string(clt_stmt_t *stmt)
@@ -1071,12 +1226,12 @@ bool32 clt_has_large_string(clt_stmt_t *stmt)
 
     for (i = 0; i < stmt->param_count; i++) {
         param = (clt_param_t *)cm_list_get(&stmt->params, i);
-        if (GSC_IS_STRING_TYPE(param->bnd_type) && (param->bnd_size > GS_MAX_COLUMN_SIZE)) {
-            return GS_TRUE;
+        if (GSC_IS_STRING_TYPE(param->bnd_type) && (param->bnd_size > CT_MAX_COLUMN_SIZE)) {
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t clt_write_large_string(clt_stmt_t *stmt)
@@ -1087,30 +1242,31 @@ status_t clt_write_large_string(clt_stmt_t *stmt)
 
     for (param_index = 0; param_index < stmt->param_count; param_index++) {
         param = (clt_param_t *)cm_list_get(&stmt->params, param_index);
-        if (GSC_IS_STRING_TYPE(param->bnd_type) && (param->bnd_size > GS_MAX_COLUMN_SIZE)) {
+        if (GSC_IS_STRING_TYPE(param->bnd_type) && (param->bnd_size > CT_MAX_COLUMN_SIZE)) {
             if (param->lob_ptr == NULL || param->lob_ptr_size < stmt->paramset_size) {
                 CM_FREE_PTR(param->lob_ptr);
                 param->lob_ptr_size = stmt->paramset_size;
                 param->lob_ptr = (char *)malloc(sizeof(gsc_lob_t) * param->lob_ptr_size);
                 if (param->lob_ptr == NULL) {
-                    GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)(sizeof(gsc_lob_t) * param->lob_ptr_size),
+                    CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)(sizeof(gsc_lob_t) * param->lob_ptr_size),
                         "create large string bind lob");
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
             }
 
             for (paramset_index = 0; paramset_index < stmt->paramset_size; paramset_index++) {
-                GS_RETURN_IFERR(clt_write_large_str_param_value(stmt, param_index, paramset_index));
+                CT_RETURN_IFERR(clt_write_large_str_param_value(stmt, param_index, paramset_index));
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
  * Reset the execution request in the packet, and return the pointer of
  * execution request.
+ * 
  */
 static inline status_t clt_reset_execbatch_request(clt_stmt_t *stmt, uint32 *exec_req_offset)
 {
@@ -1120,7 +1276,7 @@ static inline status_t clt_reset_execbatch_request(clt_stmt_t *stmt, uint32 *exe
     cs_init_set(req_pack, stmt->conn->call_version);
     req_pack->head->cmd = CS_CMD_EXECUTE;
 
-    GS_RETURN_IFERR(cs_reserve_space(req_pack, sizeof(cs_execute_req_t), exec_req_offset));
+    CT_RETURN_IFERR(cs_reserve_space(req_pack, sizeof(cs_execute_req_t), exec_req_offset));
     exec_req = (cs_execute_req_t *)CS_RESERVE_ADDR(req_pack, *exec_req_offset);
     exec_req->stmt_id = stmt->stmt_id;
     exec_req->paramset_size = 0;
@@ -1128,7 +1284,7 @@ static inline status_t clt_reset_execbatch_request(clt_stmt_t *stmt, uint32 *exe
     exec_req->auto_commit = stmt->conn->auto_commit;
     exec_req->reserved = 0;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // after execute request, try to receive data(put_line or return_result) from pl process
@@ -1147,13 +1303,13 @@ status_t clt_try_receive_pl_proc_data(clt_stmt_t *stmt, cs_packet_t *ack)
 
         // receive more ack
         cs_init_set(ack, stmt->conn->call_version);
-        GS_RETURN_IFERR(clt_remote_call(stmt->conn, ack, ack));
+        CT_RETURN_IFERR(clt_remote_call(stmt->conn, ack, ack));
 
         has_serveroutput = (ack->head->flags & CS_FLAG_SERVEROUPUT) != 0;
         has_returnresult = (ack->head->flags & CS_FLAG_RETURNRESULT) != 0;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_execute_batch(clt_stmt_t *stmt)
@@ -1165,7 +1321,7 @@ static status_t clt_execute_batch(clt_stmt_t *stmt)
     uint32 exec_req_offset, once_paramset_size;
     uint32 max_row_bndsz = clt_get_total_row_bndsz(stmt); // the maximal binding size of a row
     status_t status;
-    bool32 add_types = GS_TRUE;
+    bool32 add_types = CT_TRUE;
     uint32 line_offset = 0;
 
     cs_init_set(req_pack, stmt->conn->call_version);
@@ -1173,11 +1329,11 @@ static status_t clt_execute_batch(clt_stmt_t *stmt)
     req_pack->head->result = 0;
     req_pack->head->flags = stmt->conn->serveroutput ? CS_FLAG_SERVEROUPUT : 0;
 
-    GS_RETURN_IFERR(clt_reset_execbatch_request(stmt, &exec_req_offset));
+    CT_RETURN_IFERR(clt_reset_execbatch_request(stmt, &exec_req_offset));
 
     if (stmt->batch_errs.allowed_count > 0) {
-        req_pack->head->flags |= GS_FLAG_ALLOWED_BATCH_ERRS;
-        GS_RETURN_IFERR(cs_put_int32(req_pack, stmt->batch_errs.allowed_count));
+        req_pack->head->flags |= CT_FLAG_ALLOWED_BATCH_ERRS;
+        CT_RETURN_IFERR(cs_put_int32(req_pack, stmt->batch_errs.allowed_count));
     }
 
     /* to ignore do realloc send pack many times in batch clt_put_params */
@@ -1188,32 +1344,32 @@ static status_t clt_execute_batch(clt_stmt_t *stmt)
     }
 
     while (offset < stmt->paramset_size) {
-        GS_RETURN_IFERR(clt_put_params(stmt, offset, add_types));
-        add_types = GS_FALSE;
+        CT_RETURN_IFERR(clt_put_params(stmt, offset, add_types));
+        add_types = CT_FALSE;
 
         exec_req = (cs_execute_req_t *)CS_RESERVE_ADDR(req_pack, exec_req_offset);
         exec_req->paramset_size++;
         offset++;
 
         if ((req_pack->max_buf_size >= CM_REALLOC_SEND_PACK_SIZE(req_pack, max_row_bndsz)) &&
-            (offset < stmt->paramset_size && exec_req->paramset_size < GS_MAX_UINT16)) {
+            (offset < stmt->paramset_size && exec_req->paramset_size < CT_MAX_UINT16)) {
             continue;
         }
 
         cs_putted_execute_req(req_pack, exec_req_offset);
 
         status = clt_remote_call(stmt->conn, req_pack, ack_pack);
-        if (status == GS_SUCCESS) {
-            GS_RETURN_IFERR(clt_try_receive_pl_proc_data(stmt, ack_pack));
+        if (status == CT_SUCCESS) {
+            CT_RETURN_IFERR(clt_try_receive_pl_proc_data(stmt, ack_pack));
 
             cs_init_get(ack_pack);
-            GS_RETURN_IFERR(clt_try_process_feedback(stmt, ack_pack));
+            CT_RETURN_IFERR(clt_try_process_feedback(stmt, ack_pack));
         }
 
-        GS_RETURN_IFERR(clt_handle_execution_ack(stmt, ack_pack, line_offset));
+        CT_RETURN_IFERR(clt_handle_execution_ack(stmt, ack_pack, line_offset));
 
-        if (status == GS_ERROR) {
-            return GS_ERROR;
+        if (status == CT_ERROR) {
+            return CT_ERROR;
         }
 
         if (offset == stmt->paramset_size) {
@@ -1221,14 +1377,14 @@ static status_t clt_execute_batch(clt_stmt_t *stmt)
         }
 
         /* reset req packet for next batch execute */
-        GS_RETURN_IFERR(clt_reset_execbatch_request(stmt, &exec_req_offset));
+        CT_RETURN_IFERR(clt_reset_execbatch_request(stmt, &exec_req_offset));
         req_pack->head->flags = stmt->conn->serveroutput ? CS_FLAG_SERVEROUPUT : 0;
         if (stmt->batch_errs.allowed_count - stmt->batch_errs.actual_count > 0) {
-            req_pack->head->flags |= GS_FLAG_ALLOWED_BATCH_ERRS;
-            GS_RETURN_IFERR(cs_put_int32(req_pack, stmt->batch_errs.allowed_count - stmt->batch_errs.actual_count));
+            req_pack->head->flags |= CT_FLAG_ALLOWED_BATCH_ERRS;
+            CT_RETURN_IFERR(cs_put_int32(req_pack, stmt->batch_errs.allowed_count - stmt->batch_errs.actual_count));
         }
 
-        add_types = GS_TRUE;
+        add_types = CT_TRUE;
         line_offset = offset;
     }
 
@@ -1236,7 +1392,7 @@ static status_t clt_execute_batch(clt_stmt_t *stmt)
     stmt->row_index = 0;
     stmt->eof = (stmt->return_rows == 0);
     stmt->status = CLI_STMT_EXECUTED;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_execute_single(clt_stmt_t *stmt)
@@ -1250,7 +1406,7 @@ static status_t clt_execute_single(clt_stmt_t *stmt)
     req_pack->head->cmd = CS_CMD_EXECUTE;
     req_pack->head->flags = stmt->conn->serveroutput ? CS_FLAG_SERVEROUPUT : 0;
 
-    GS_RETURN_IFERR(cs_reserve_space(req_pack, sizeof(cs_execute_req_t), &exec_req_offset));
+    CT_RETURN_IFERR(cs_reserve_space(req_pack, sizeof(cs_execute_req_t), &exec_req_offset));
     exec_req = (cs_execute_req_t *)CS_RESERVE_ADDR(req_pack, exec_req_offset);
     exec_req->stmt_id = stmt->stmt_id;
     exec_req->paramset_size = 1;
@@ -1260,24 +1416,34 @@ static status_t clt_execute_single(clt_stmt_t *stmt)
     cs_putted_execute_req(req_pack, exec_req_offset);
 
     if (stmt->batch_errs.allowed_count > 0) {
-        req_pack->head->flags |= GS_FLAG_ALLOWED_BATCH_ERRS;
-        GS_RETURN_IFERR(cs_put_int32(req_pack, stmt->batch_errs.allowed_count));
+        req_pack->head->flags |= CT_FLAG_ALLOWED_BATCH_ERRS;
+        CT_RETURN_IFERR(cs_put_int32(req_pack, stmt->batch_errs.allowed_count));
     }
 
     /* put param values */
     if (stmt->param_count != 0) {
-        GS_RETURN_IFERR(clt_put_params(stmt, 0, GS_TRUE));
+        CT_RETURN_IFERR(clt_put_params(stmt, 0, CT_TRUE));
     }
 
-    GS_RETURN_IFERR(clt_remote_call(stmt->conn, req_pack, ack_pack));
-    GS_RETURN_IFERR(clt_try_receive_pl_proc_data(stmt, ack_pack));
+    CT_RETURN_IFERR(clt_remote_call(stmt->conn, req_pack, ack_pack));
+    CT_RETURN_IFERR(clt_try_receive_pl_proc_data(stmt, ack_pack));
 
     cs_init_get(&stmt->cache_pack->pack);
-    GS_RETURN_IFERR(clt_try_process_feedback(stmt, ack_pack));
-    GS_RETURN_IFERR(clt_get_execute_ack(stmt));
+    CT_RETURN_IFERR(clt_try_process_feedback(stmt, ack_pack));
+    CT_RETURN_IFERR(clt_get_execute_ack(stmt));
+    
+    /* DDL of DELETE ARCHIVELOG may has echo to display remove_list */
+    if (stmt->stmt_type == GSC_STMT_DDL && CS_HAS_MORE(ack_pack)) {
+        CT_RETURN_IFERR(clt_get_error_message(stmt->conn, ack_pack, stmt->conn->message));
+    }
+
+    /* DCL of backup may has echo to display badblock warning */
+    if (stmt->stmt_type == GSC_STMT_DCL && CS_HAS_MORE(ack_pack)) {
+        CT_RETURN_IFERR(clt_get_error_message(stmt->conn, ack_pack, stmt->conn->message));
+    }
 
     stmt->status = CLI_STMT_EXECUTED;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_execute(clt_stmt_t *stmt)
@@ -1286,14 +1452,14 @@ static status_t clt_execute(clt_stmt_t *stmt)
 
     if (SECUREC_UNLIKELY(stmt->status < CLI_STMT_PREPARED)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_API_SEQUENCE, "statement is not prepared");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     clt_reset_stmt(stmt);
 
     if (clt_has_large_string(stmt)) {
         /* string to lob bind type column data will be writed to server here */
-        GS_RETURN_IFERR(clt_write_large_string(stmt));
+        CT_RETURN_IFERR(clt_write_large_string(stmt));
     }
 
     if (stmt->paramset_size <= 1 || stmt->param_count == 0) {
@@ -1302,7 +1468,7 @@ static status_t clt_execute(clt_stmt_t *stmt)
         status = clt_execute_batch(stmt);
     }
 
-    GS_RETURN_IFERR(clt_reset_stmt_transcode_buf(stmt));
+    CT_RETURN_IFERR(clt_reset_stmt_transcode_buf(stmt));
     return status;
 }
 
@@ -1314,11 +1480,11 @@ status_t gsc_execute(gsc_stmt_t pstmt)
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
 
-    if (clt_prepare_stmt_pack(stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(stmt) != CT_SUCCESS) {
         clt_unlock_conn(stmt->conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     status = clt_execute(stmt);
@@ -1340,11 +1506,11 @@ int32 clt_prepare_fetch(gsc_stmt_t pstmt, unsigned int *rows, bool32 fetch_ori_r
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
 
-    if (clt_prepare_stmt_pack(stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(stmt) != CT_SUCCESS) {
         clt_unlock_conn(stmt->conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     status = clt_fetch(stmt, &temp_rows, fetch_ori_row);
@@ -1385,12 +1551,12 @@ static uint32 clt_fetch_serveroutput(clt_stmt_t *stmt, char **data, uint32 *len)
 
 int gsc_fetch_ori_row(gsc_stmt_t pstmt, unsigned int *rows)
 {
-    return clt_prepare_fetch(pstmt, rows, GS_TRUE);
+    return clt_prepare_fetch(pstmt, rows, CT_TRUE);
 }
 
 int32 gsc_fetch(gsc_stmt_t pstmt, uint32 *rows)
 {
-    return clt_prepare_fetch(pstmt, rows, GS_FALSE);
+    return clt_prepare_fetch(pstmt, rows, CT_FALSE);
 }
 
 int32 gsc_fetch_serveroutput(gsc_stmt_t pstmt, char **data, uint32 *len)
@@ -1399,16 +1565,16 @@ int32 gsc_fetch_serveroutput(gsc_stmt_t pstmt, char **data, uint32 *len)
     clt_stmt_t *stmt = (clt_stmt_t *)pstmt;
 
     if (SECUREC_UNLIKELY(stmt == NULL)) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "statement");
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "statement");
         return 0;
     }
 
     if (SECUREC_UNLIKELY(stmt->conn == NULL)) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "connection");
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "connection");
         return 0;
     }
 
-    if (clt_lock_conn(stmt->conn) != GS_SUCCESS) {
+    if (clt_lock_conn(stmt->conn) != CT_SUCCESS) {
         return 0;
     }
     rows = clt_fetch_serveroutput(stmt, data, len);
@@ -1437,7 +1603,7 @@ static status_t clt_decode_row(char *row_addr, bool32 diff_endian, uint16 *offse
     pos = sizeof(row_head_t) + ex_maps;
 
     if (offsets_size < ROW_COLUMN_COUNT(ra.head)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
     for (i = 0; i < ROW_COLUMN_COUNT(ra.head); i++) {
         bits = row_get_column_bits(&ra, i);
@@ -1462,7 +1628,7 @@ static status_t clt_decode_row(char *row_addr, bool32 diff_endian, uint16 *offse
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_read_output_row(clt_stmt_t *stmt)
@@ -1471,22 +1637,22 @@ static status_t clt_read_output_row(clt_stmt_t *stmt)
     char *row_addr = CS_READ_ADDR(&stmt->cache_pack->pack);
     uint16 row_size = *(uint16 *)row_addr;
     uint32 outparam_count = ROW_COLUMN_COUNT((row_head_t *)row_addr);
-    uint16 offsets[GS_MAX_COLUMNS] = { 0 };
-    uint16 lens[GS_MAX_COLUMNS] = { 0 };
+    uint16 offsets[CT_MAX_COLUMNS] = { 0 };
+    uint16 lens[CT_MAX_COLUMNS] = { 0 };
     uint32 i, size;
 
-    GS_RETURN_IFERR(clt_reset_stmt_transcode_buf(stmt));
+    CT_RETURN_IFERR(clt_reset_stmt_transcode_buf(stmt));
 
     row_size = cs_format_endian_i16(stmt->cache_pack->pack.options, row_size);
 
     if (outparam_count != stmt->outparam_count) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_COLUMN, outparam_count, "outparam", stmt->outparam_count);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     stmt->cache_pack->pack.offset += row_size;
-    GS_RETURN_IFERR(
-        clt_decode_row(row_addr, CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options), offsets, GS_MAX_COLUMNS, lens));
+    CT_RETURN_IFERR(
+        clt_decode_row(row_addr, CS_DIFFERENT_ENDIAN(stmt->cache_pack->pack.options), offsets, CT_MAX_COLUMNS, lens));
 
     for (i = 0; i < stmt->outparam_count; i++) {
         outparam = cm_list_get(&stmt->outparams, i);
@@ -1499,15 +1665,15 @@ static status_t clt_read_output_row(clt_stmt_t *stmt)
 
         if (GSC_IS_STRING_TYPE(outparam->def.datatype) && stmt->conn->recv_trans_func != NULL) {
             size = outparam->size;
-            if (clt_transcode_column(stmt, &outparam->ptr, &size, stmt->conn->recv_trans_func) != GS_SUCCESS) {
+            if (clt_transcode_column(stmt, &outparam->ptr, &size, stmt->conn->recv_trans_func) != CT_SUCCESS) {
                 CLT_THROW_ERROR(stmt->conn, ERR_CLT_TRANS_CHARSET, outparam->def.name, outparam->ptr);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             outparam->size = (uint16)size;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_fetch_outparam(clt_stmt_t *stmt, uint32 *rows)
@@ -1517,16 +1683,16 @@ static status_t clt_fetch_outparam(clt_stmt_t *stmt, uint32 *rows)
     stmt->status = CLI_STMT_FETCHING;
 
     if (stmt->outparam_count == 0 || stmt->row_index >= 1) {
-        stmt->eof = GS_TRUE;
+        stmt->eof = CT_TRUE;
         *rows = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_RETURN_IFERR(clt_read_output_row(stmt));
+    CT_RETURN_IFERR(clt_read_output_row(stmt));
     stmt->row_index++;
     *rows = 1;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 status_t gsc_fetch_outparam(gsc_stmt_t pstmt, uint32 *rows)
 {
@@ -1537,11 +1703,11 @@ status_t gsc_fetch_outparam(gsc_stmt_t pstmt, uint32 *rows)
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
 
-    if (clt_prepare_stmt_pack(stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(stmt) != CT_SUCCESS) {
         clt_unlock_conn(stmt->conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     status = clt_fetch_outparam(stmt, &temp_rows);
@@ -1563,13 +1729,13 @@ static status_t clt_get_autotrace_result(clt_stmt_t *stmt)
     clt_reset_stmt(stmt);
     cs_packet_t *ack = &stmt->cache_pack->pack;
 
-    GS_RETURN_IFERR(clt_async_get_ack(stmt->conn, ack));
+    CT_RETURN_IFERR(clt_async_get_ack(stmt->conn, ack));
     cs_init_get(ack);
-    GS_RETURN_IFERR(clt_get_prepare_ack(stmt, ack, NULL));
-    GS_RETURN_IFERR(clt_get_execute_ack(stmt));
+    CT_RETURN_IFERR(clt_get_prepare_ack(stmt, ack, NULL));
+    CT_RETURN_IFERR(clt_get_execute_ack(stmt));
 
     stmt->status = CLI_STMT_EXECUTED;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_get_autotrace_result(gsc_stmt_t pstmt)
@@ -1580,11 +1746,11 @@ status_t gsc_get_autotrace_result(gsc_stmt_t pstmt)
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
 
-    if (clt_prepare_stmt_pack(stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(stmt) != CT_SUCCESS) {
         clt_unlock_conn(stmt->conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     status = clt_get_autotrace_result(stmt);
@@ -1605,14 +1771,14 @@ status_t gsc_write_clob(gsc_stmt_t pstmt, uint32 id, const void *data, uint32 si
 
     if (stmt->paramset_size > 1) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_BIND, "interface doesn't support bind batch clob");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
 
-    if (clt_prepare_stmt_pack(stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(stmt) != CT_SUCCESS) {
         clt_unlock_conn(stmt->conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     status = clt_write_clob(stmt, id, 0, (const char *)data, size, nchars);
@@ -1633,14 +1799,14 @@ status_t gsc_write_blob(gsc_stmt_t pstmt, uint32 id, const void *data, uint32 si
 
     if (stmt->paramset_size > 1) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_BIND, "interface doesn't support bind batch blob");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
 
-    if (clt_prepare_stmt_pack(stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(stmt) != CT_SUCCESS) {
         clt_unlock_conn(stmt->conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     status = clt_write_blob(stmt, id, 0, (const char *)data, size);
@@ -1661,14 +1827,14 @@ status_t gsc_write_batch_clob(gsc_stmt_t pstmt, uint32 id, uint32 piece, const v
 
     if (SECUREC_UNLIKELY(piece >= stmt->paramset_size)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_BIND, "invalid batch pos to bind clob");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
 
-    if (clt_prepare_stmt_pack(stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(stmt) != CT_SUCCESS) {
         clt_unlock_conn(stmt->conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     status = clt_write_clob(stmt, id, piece, (const char *)data, size, nchars);
@@ -1689,14 +1855,14 @@ status_t gsc_write_batch_blob(gsc_stmt_t pstmt, uint32 id, uint32 piece, const v
 
     if (SECUREC_UNLIKELY(piece >= stmt->paramset_size)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_BIND, "invalid batch pos to bind blob");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
 
-    if (clt_prepare_stmt_pack(stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(stmt) != CT_SUCCESS) {
         clt_unlock_conn(stmt->conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     status = clt_write_blob(stmt, id, piece, (const char *)data, size);
@@ -1714,12 +1880,12 @@ status_t clt_get_outparam_by_id(clt_stmt_t *stmt, uint32 id, void **data, uint32
 
     if (SECUREC_UNLIKELY(stmt->status < CLI_STMT_FETCHING)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_API_SEQUENCE, "statement is not fetched");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (SECUREC_UNLIKELY(id >= stmt->outparam_count || id >= stmt->outparams.count)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_INDEX, "outparam");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     outparam = (clt_outparam_t *)cm_list_get(&stmt->outparams, id);
@@ -1740,17 +1906,17 @@ status_t clt_get_outparam_by_id(clt_stmt_t *stmt, uint32 id, void **data, uint32
         if (!is_null_val && outparam->def.datatype == GSC_TYPE_CURSOR) {
             if (outparam->sub_stmt != NULL) {
                 *data = outparam->sub_stmt;
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
 
-            GS_RETURN_IFERR(clt_alloc_stmt(stmt->conn, &sub_stmt));
+            CT_RETURN_IFERR(clt_alloc_stmt(stmt->conn, &sub_stmt));
             uint64 cursor_info = *(uint64 *)outparam->ptr;
-            sub_stmt->stmt_id = (uint16)((cursor_info >> 32) & GS_TYPE_MASK_ALL);
-            sub_stmt->fetch_mode = (uint8)(cursor_info & GS_TYPE_MASK_ALL);
+            sub_stmt->stmt_id = (uint16)((cursor_info >> 32) & CT_TYPE_MASK_ALL);
+            sub_stmt->fetch_mode = (uint8)(cursor_info & CT_TYPE_MASK_ALL);
 
-            if (clt_prepare_stmt_pack(sub_stmt) != GS_SUCCESS || clt_remote_fetch(sub_stmt) != GS_SUCCESS) {
+            if (clt_prepare_stmt_pack(sub_stmt) != CT_SUCCESS || clt_remote_fetch(sub_stmt) != CT_SUCCESS) {
                 clt_free_stmt(sub_stmt);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             sub_stmt->status = CLI_STMT_EXECUTED;
             sub_stmt->fetch_mode = 0;
@@ -1760,7 +1926,7 @@ status_t clt_get_outparam_by_id(clt_stmt_t *stmt, uint32 id, void **data, uint32
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 status_t gsc_get_outparam_by_id(gsc_stmt_t pstmt, uint32 id, void **data, uint32 *size, bool32 *is_null)
 {
@@ -1770,7 +1936,7 @@ status_t gsc_get_outparam_by_id(gsc_stmt_t pstmt, uint32 id, void **data, uint32
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_get_outparam_by_id(stmt, id, data, size, is_null);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -1790,7 +1956,7 @@ static status_t clt_get_outparam_by_name(clt_stmt_t *stmt, const char *name, voi
     }
 
     CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_ATTR, "outparam name", name);
-    return GS_ERROR;
+    return CT_ERROR;
 }
 status_t gsc_get_outparam_by_name(gsc_stmt_t pstmt, const char *name, void **data, uint32 *size, uint32 *is_null)
 {
@@ -1801,7 +1967,7 @@ status_t gsc_get_outparam_by_name(gsc_stmt_t pstmt, const char *name, void **dat
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, name, "name");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_get_outparam_by_name(stmt, name, data, size, is_null);
     clt_unlock_conn(stmt->conn);
     return status;

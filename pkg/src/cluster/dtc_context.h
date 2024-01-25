@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -47,16 +47,18 @@ extern "C" {
 typedef struct st_dtc_profile {
     uint32 mes_pool_size;
     uint32 node_count;
-    char nodes[GS_MAX_INSTANCES][CM_MAX_IP_LEN];
-    uint16 ports[GS_MAX_INSTANCES];
-    knl_scn_t min_scn[GS_MAX_INSTANCES];
+    char nodes[CT_MAX_INSTANCES][CT_MAX_INST_IP_LEN];
+    uint16 ports[CT_MAX_INSTANCES];
+    knl_scn_t min_scn[CT_MAX_INSTANCES];
     uint32 inst_id;
     uint32 channel_num;
     uint32 reactor_thread_num;
     uint32 task_num;
     cs_pipe_type_t pipe_type;
     bool32 conn_by_profile;
-    uint32 gss_max_open_files;
+    uint32 upgrade_time_ms;
+    uint32 degrade_time_ms;
+    uint32 ctstore_max_open_files;
     bool32 enable_rmo_cr;
     uint32 remote_access_limit;
     uint32 gdv_sql_sess_tmout; // seconds
@@ -79,7 +81,7 @@ typedef void (*dtc_message_proc_t)(void *session, mes_message_t *message);
 typedef struct st_dtc_processor {
     dtc_message_proc_t  proc;
     bool32              is_enqueue;
-    char                name[GS_MAX_NAME_LEN];
+    char                name[CT_MAX_NAME_LEN];
 } dtc_processor_t;
 
 extern dtc_processor_t g_processors[];

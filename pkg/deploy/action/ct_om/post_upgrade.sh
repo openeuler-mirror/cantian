@@ -2,7 +2,7 @@
 set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${CURRENT_PATH}/$(basename $0)
-VERSION_YML_PATH="${CURRENT_PATH}/../.."
+VERSION_YML_PATH="/opt/cantian/"
 RPM_PACKAGE_NAME=""
 source ${CURRENT_PATH}/ct_om_log.sh
 

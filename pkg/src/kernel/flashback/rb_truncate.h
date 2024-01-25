@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -43,11 +43,11 @@ typedef enum en_rb_oper_type {
 
 typedef struct st_knl_rb_desc {
     uint64 id;                            // recycle bin object id
-    char name[GS_NAME_BUFFER_SIZE];       // recycle bin object name
+    char name[CT_NAME_BUFFER_SIZE];       // recycle bin object name
     uint32 uid;                           // owner user_id
     uint32 table_id;                      // table_id of current object
-    char org_name[GS_NAME_BUFFER_SIZE];   // original object name
-    char part_name[GS_NAME_BUFFER_SIZE];  // object partition name, NULL otherwise
+    char org_name[CT_NAME_BUFFER_SIZE];   // original object name
+    char part_name[CT_NAME_BUFFER_SIZE];  // object partition name, NULL otherwise
     uint32 type;                          // object type
     uint32 oper;                          // operation carried out
     uint32 space_id;                      // table space
@@ -72,7 +72,7 @@ typedef struct st_knl_rb_desc {
 } knl_rb_desc_t;
 
 void rb_convert_desc(knl_cursor_t *cursor, knl_rb_desc_t *desc);
-status_t rb_drop_table(knl_session_t *session, knl_handle_t stmt, knl_dictionary_t *dc);
+status_t rb_drop_table(knl_session_t *session, knl_handle_t stmt, knl_dictionary_t *dc, bool32 commit);
 status_t rb_truncate_table(knl_session_t *session, knl_dictionary_t *dc);
 status_t rb_truncate_table_part(knl_session_t *session, knl_dictionary_t *dc, table_part_t *table_part);
 status_t rb_truncate_table_subpart(knl_session_t *session, knl_dictionary_t *dc, table_part_t *subpart,

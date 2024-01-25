@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -102,9 +102,11 @@ void cm_aio_set_callback(cm_iocb_t *iocb, cm_io_callback_t cb);
 
 device_type_t cm_device_type(const char *name);
 status_t cm_remove_device(device_type_t type, const char *name);
+status_t cm_remove_device_when_enoent(device_type_t type, const char *name);
 status_t cm_open_device(const char *name, device_type_t type, uint32 flags, int32 *handle);
 void cm_close_device(device_type_t type, int32 *handle);
 status_t cm_rename_device(device_type_t type, const char *src, const char *dst);
+status_t cm_rename_device_when_enoent(device_type_t type, const char *src, const char *dst);
 status_t cm_read_device(device_type_t type, int32 handle, int64 offset, void *buf, int32 size);
 status_t cm_read_device_nocheck(device_type_t type, int32 handle, int64 offset, void *buf, int32 size,
                                 int32 *return_size);
@@ -119,6 +121,7 @@ status_t cm_truncate_device(device_type_t type, int32 handle, int64 keep_size);
 status_t cm_build_device(const char *name, device_type_t type, char *buf, uint32 buf_size, int64 size,
     uint32 flags, bool32 prealloc, int32 *handle);
 status_t cm_create_device(const char *name, device_type_t type, uint32 flags, int32 *handle);
+status_t cm_create_device_retry_when_eexist(const char *name, device_type_t type, uint32 flags, int32 *handle);
 status_t cm_write_zero_to_device(device_type_t type, char *buf, uint32 buf_size, int64 size, int32 *handle);
 status_t cm_access_device(device_type_t type, const char *file_name, uint32 mode);
 status_t cm_create_device_dir(device_type_t type, const char *name);
@@ -172,7 +175,7 @@ typedef struct st_raw_device_op {
 // interface for register raw device callback function
 void cm_raw_device_register(raw_device_op_t *device_op);
 
-#define CM_GSS_ALIGN_SIZE 512
+#define CM_CTSTORE_ALIGN_SIZE 512
 
 #ifdef __cplusplus
 }

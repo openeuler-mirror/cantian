@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_space_module.h"
 #include "knl_space_ddl.h"
 #include "knl_context.h"
 #include "knl_table.h"
@@ -65,38 +66,38 @@ void spc_set_datafile_autoextend(knl_session_t *session, datafile_t *df, knl_aut
 bool32 spc_auto_offline_space(knl_session_t *session, space_t *space, datafile_t *df)
 {
     if (!SPACE_IS_AUTOOFFLINE(space)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    GS_LOG_RUN_INF("[SPACE] auto offline space %s and datafile %s", space->ctrl->name, df->ctrl->name);
+    CT_LOG_RUN_INF("[SPACE] auto offline space %s and datafile %s", space->ctrl->name, df->ctrl->name);
     DATAFILE_UNSET_ONLINE(df);
     SPACE_UNSET_ONLINE(space);
 
-    if (db_save_datafile_ctrl(session, df->ctrl->id) != GS_SUCCESS) {
+    if (db_save_datafile_ctrl(session, df->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file when auto offline datafile %s",
                  df->ctrl->name);
     }
 
-    if (db_save_space_ctrl(session, space->ctrl->id) != GS_SUCCESS) {
+    if (db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file when auto offline space %s",
                  space->ctrl->name);
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t spc_active_swap_encrypt(knl_session_t *session)
 {
     encrypt_context_t *encrypt_ctx = &session->kernel->encrypt_ctx;
     if (encrypt_ctx->swap_encrypt_flg) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     knl_panic(encrypt_ctx->swap_encrypt_version > NO_ENCRYPT);
     knl_panic(encrypt_ctx->swap_cipher_reserve_size > 0);
 
-    encrypt_ctx->swap_encrypt_flg = GS_TRUE;
-    return GS_SUCCESS;
+    encrypt_ctx->swap_encrypt_flg = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 status_t spc_active_undo_encrypt(knl_session_t *session, uint32 space_id)
@@ -108,21 +109,21 @@ status_t spc_active_undo_encrypt(knl_session_t *session, uint32 space_id)
     if (space->ctrl->encrypt_version == NO_ENCRYPT) {
         space->ctrl->encrypt_version = KMC_DEFAULT_ENCRYPT;
         if (page_cipher_reserve_size(session, space->ctrl->encrypt_version,
-            &space->ctrl->cipher_reserve_size) != GS_SUCCESS) {
+            &space->ctrl->cipher_reserve_size) != CT_SUCCESS) {
             dls_spin_unlock(session, &space->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         dls_spin_unlock(session, &space->lock);
 
-        if (db_save_space_ctrl(session, space->ctrl->id) != GS_SUCCESS) {
+        if (db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
             CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file when create tablespace");
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     dls_spin_unlock(session, &space->lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void spc_umount_space(knl_session_t *session, space_t *space)
@@ -133,14 +134,14 @@ void spc_umount_space(knl_session_t *session, space_t *space)
 
     for (i = 0; i < space->ctrl->file_hwm; i++) {
         file_id = space->ctrl->files[i];
-        if (GS_INVALID_ID32 == file_id) {
+        if (CT_INVALID_ID32 == file_id) {
             continue;
         }
 
         df = DATAFILE_GET(session, file_id);
         spc_close_datafile(df, DATAFILE_FD(session, file_id));
-        df->file_no = GS_INVALID_ID32;
-        df->space_id = GS_INVALID_ID32;
+        df->file_no = CT_INVALID_ID32;
+        df->space_id = CT_INVALID_ID32;
     }
 
     space->entry = INVALID_PAGID;
@@ -168,7 +169,7 @@ static void spc_update_datafile_hwm(knl_session_t *session, space_t *space, uint
 
     cm_pop(session->stack);
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 }
 
@@ -177,7 +178,7 @@ void spc_update_hwms(knl_session_t *session, space_t *space, uint32 *hwms)
     uint32 id;
 
     for (id = 0; id < space->ctrl->file_hwm; id++) {
-        if (GS_INVALID_ID32 == space->ctrl->files[id]) {
+        if (CT_INVALID_ID32 == space->ctrl->files[id]) {
             continue;
         }
 
@@ -186,7 +187,7 @@ void spc_update_hwms(knl_session_t *session, space_t *space, uint32 *hwms)
         }
 
         spc_update_datafile_hwm(session, space, id, hwms[id]);
-        GS_LOG_RUN_INF("update hwm of file %u from %u to %u",
+        CT_LOG_RUN_INF("update hwm of file %u from %u to %u",
                        space->ctrl->files[id], SPACE_HEAD_RESIDENT(session, space)->hwms[id], hwms[id]);
     }
 }
@@ -197,11 +198,11 @@ void spc_offline_space_files(knl_session_t *session, uint32 *files, uint32 file_
     uint32 i;
 
     for (i = 0; i < file_hwm; i++) {
-        if (files[i] == GS_INVALID_ID32) {
+        if (files[i] == CT_INVALID_ID32) {
             continue;
         }
         df = DATAFILE_GET(session, files[i]);
-        GS_LOG_RUN_INF("[SPACE] set datafile %s offline", df->ctrl->name);
+        CT_LOG_RUN_INF("[SPACE] set datafile %s offline", df->ctrl->name);
         DATAFILE_UNSET_ONLINE(df);
     }
 }

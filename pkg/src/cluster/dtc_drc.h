@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -64,6 +64,7 @@ typedef struct st_drc_req_info {
     date_t req_time;
     uint64 req_version;
     uint64 lsn;
+    uint32 release_timeout_ticks;
 } drc_req_info_t;
 
 typedef struct st_drc_lock_item {
@@ -146,7 +147,7 @@ typedef enum en_drc_res_action {
 
 /* page buffer resource management structure */
 typedef struct st_drc_buf_res {
-    uint32           next;  //should be the first field
+    uint32           next;  // should be the first field
     spinlock_t       lock;
     uint32           idx;
     uint8            claimed_owner;
@@ -216,6 +217,8 @@ typedef enum st_drc_part_status {
 #define REMASTER_SEND_MSG_RETRY_TIMES (3)
 #define REMASTER_WAIT_ALL_NODE_READY_TIMEOUT (5 * 1000)
 #define REMASTER_ASSIGN_TASK_TIMEOUT (5 * 1000)
+#define DRC_CHECK_FULL_CONNECT_SLEEP_INTERVAL (1000)
+#define DRC_CHECK_FULL_CONNECT_RETRY_TIMEOUT (5 * 1000)
 
 #ifdef DB_DEBUG_VERSION
     #define REMASTER_WAIT_MIGRATE_FINISH_TIMEOUT         (10 * 60 * 1000)
@@ -275,12 +278,17 @@ typedef struct st_drc_mgrt_res_cnt {
     atomic32_t res_cnt[DRC_MGRT_RES_INVALID_TYPE];
 } drc_mgrt_res_cnt_t;
 
+typedef struct st_rc_part_info {
+    uint32 res_cnt[DRC_MGRT_RES_INVALID_TYPE];
+    uint8 src_inst;
+}rc_part_info_t;
+
 typedef struct st_drc_remaster_mngr {
     uint32 lock;
     drc_part_t target_part_map[DRC_MAX_PART_NUM];
-    drc_inst_part_t target_inst_part_tbl[GS_MAX_INSTANCES];
+    drc_inst_part_t target_inst_part_tbl[CT_MAX_INSTANCES];
 
-    inst_drm_info_t inst_drm_info[GS_MAX_INSTANCES];
+    inst_drm_info_t inst_drm_info[CT_MAX_INSTANCES];
     drc_remaster_task_t remaster_task_set[DRC_MAX_PART_NUM];
     uint32 task_num;
     bool32 is_master;
@@ -291,7 +299,7 @@ typedef struct st_drc_remaster_mngr {
     atomic_t local_task_complete_num;
 
     drc_part_t tmp_part_map[DRC_MAX_PART_NUM]; // remaster reentrant
-    drc_inst_part_t tmp_inst_part_tbl[GS_MAX_INSTANCES]; // remaster reentrant
+    drc_inst_part_t tmp_inst_part_tbl[CT_MAX_INSTANCES]; // remaster reentrant
     uint64 tmp_part_map_reform_version; //record g_rc_ctx->info.version during reform
 
     thread_t   remaster_thread;
@@ -302,6 +310,8 @@ typedef struct st_drc_remaster_mngr {
     atomic_t recovery_task_num;
     atomic_t recovery_complete_task_num;
     bool32 stopped;
+    thread_t           mgrt_part_thread;
+    rc_part_info_t     mgrt_part_info[DRC_MAX_PART_NUM];
 } drc_remaster_mngr_t;
 
 typedef struct st_drc_part_mngr {
@@ -316,7 +326,7 @@ typedef struct st_drc_part_mngr {
     uint16 reversed;
 
     drc_part_t part_map[DRC_MAX_PART_NUM];
-    drc_inst_part_t inst_part_tbl[GS_MAX_INSTANCES];  // reverse table, find part map of a specific instantance
+    drc_inst_part_t inst_part_tbl[CT_MAX_INSTANCES];  // reverse table, find part map of a specific instantance
 
     drc_remaster_mngr_t remaster_mngr;
 } drc_part_mngr_t;
@@ -358,11 +368,12 @@ typedef struct st_drc_res_ctx {
     drc_res_map_t  local_lock_map;
     drc_res_map_t  txn_res_map;
     drc_res_map_t  local_txn_map;
+    drc_res_map_t  local_io_map;
     drc_part_mngr_t part_mngr;
     drc_stat_t stat;
     thread_t gc_thread;
 
-    drc_deposit_map_t drc_deposit_map[GS_MAX_INSTANCES];
+    drc_deposit_map_t drc_deposit_map[CT_MAX_INSTANCES];
 } drc_res_ctx_t;
 
 typedef struct st_cvt_info {
@@ -518,8 +529,8 @@ typedef struct st_drc_recovery_lock_res_msg {
 
 #define DRC_BATCH_BUF_SIZE (30000)
 typedef struct st_drc_lock_batch_buf {
-    char buffers[GS_MAX_INSTANCES][DRC_BATCH_BUF_SIZE];
-    uint32 count[GS_MAX_INSTANCES];
+    char buffers[CT_MAX_INSTANCES][DRC_BATCH_BUF_SIZE];
+    uint32 count[CT_MAX_INSTANCES];
     uint32 max_count;
 } drc_lock_batch_buf_t;
 
@@ -554,7 +565,7 @@ typedef struct st_drc_remaster_target_part_msg {
     uint64 reform_trigger_version;
     uint32 buffer_len;
     drc_part_t target_part_map[DRC_MAX_PART_NUM];
-    drc_inst_part_t target_inst_part_tbl[GS_MAX_INSTANCES];
+    drc_inst_part_t target_inst_part_tbl[CT_MAX_INSTANCES];
 } drc_remaster_target_part_msg_t;
 
 extern drc_res_ctx_t g_drc_res_ctx;
@@ -586,8 +597,8 @@ static inline bool32 stop_dls_req(knl_session_t *session)
 #define REMASTER_MIG_MAX_LOCK_RES_NUM ((MES_MESSAGE_BUFFER_SIZE - sizeof(drc_res_master_msg_t)) / sizeof(drc_lock_res_msg_t))
 
 typedef struct st_drc_page_batch_buf {
-    char buffers[GS_MAX_INSTANCES][DRC_PAGE_BATCH_BUF_SIZE];
-    uint32 count[GS_MAX_INSTANCES];
+    char buffers[CT_MAX_INSTANCES][DRC_PAGE_BATCH_BUF_SIZE];
+    uint32 count[CT_MAX_INSTANCES];
     uint32 max_count;
 
     uint32 idx[DRC_PAGE_CACHE_INFO_BATCH_CNT];
@@ -661,6 +672,7 @@ void drc_get_local_latch_stat(drid_t *lock_id, drc_local_latch** latch_stat);
 */
 //for performace, these interfaces avoid multiple calls to the hash algorithm
 drc_local_lock_res_t* drc_get_local_resx(drid_t* lock_id);
+drc_local_lock_res_t* drc_get_local_resx_without_create(drid_t* lock_id);
 bool32 drc_try_lock_local_resx(drc_local_lock_res_t* lock_res);
 void drc_lock_local_resx(drc_local_lock_res_t* lock_res);
 void drc_unlock_local_resx(drc_local_lock_res_t* lock_res);
@@ -730,10 +742,16 @@ bool32 dtc_is_in_rcy(void);
 
 void drc_destroy_edp_pages_list(ptlist_t* list);
 bool32 drc_page_need_recover(knl_session_t *session, page_id_t *pagid);
+status_t drc_mes_check_full_connection(uint8 instId);
+status_t drc_mes_send_connect_ready_msg(knl_session_t *session, uint8 dst_id);
 status_t drc_lock_bucket_and_stat_with_version_check(knl_session_t *session, drid_t *lock_id, drc_res_bucket_t **bucket,
     spinlock_t **res_part_stat_lock, uint64 req_version, bool32 is_remaster);
 void drc_unlock_bucket_and_stat(drc_res_bucket_t *bucket, spinlock_t *res_part_stat_lock);
-void drc_process_recycle_lock_master(void *sess, mes_message_t *receive_msg);
+EXTER_ATTACK void drc_process_recycle_lock_master(void *sess, mes_message_t *receive_msg);
+status_t drc_check_migrate_buf_res_info(drc_buf_res_t *buf_res, drc_buf_res_msg_t *res_msg);
+bool32 drc_claim_info_is_invalid(claim_info_t *claim_info, drc_buf_res_t *buf_res);
+status_t drc_lock_local_lock_res_by_id_for_recycle(knl_session_t *session, drid_t *lock_id, uint64 req_version, bool8 *is_found);
+void drc_release_local_lock_res_by_id(knl_session_t *session, drid_t *lock_id);
 #ifdef __cplusplus
 }
 #endif

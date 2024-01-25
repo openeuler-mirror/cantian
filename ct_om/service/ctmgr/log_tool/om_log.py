@@ -1,6 +1,7 @@
 import logging
 import os
 from logging import handlers
+from logging import LogRecord
 from log_tool.om_log_config import CONSOLE_CONF
 
 log_config = CONSOLE_CONF.get("log")
@@ -8,6 +9,12 @@ LOG_DIR_MODE = 700
 LOG_DIR_MODE_OCT = 0o700
 LOG_FILE_MODE = 640
 LOG_FILE_MODE_OCT = 0o640
+SENSITIVE_STR = [
+    'Password', 'passWord', 'PASSWORD', 'password', 'Pswd',
+    'PSWD', 'pwd', 'signature', 'HmacSHA256', 'newPasswd',
+    'private', 'certfile', 'secret', 'token', 'Token', 'pswd',
+    'passwd', 'mysql -u', 'session', 'cookie'
+]
 
 
 def _get_log_file_path(project):
@@ -25,6 +32,15 @@ def _get_log_file_path(project):
     return ''
 
 
+class DefaultLogFilter(logging.Filter):
+    def filter(self, record: LogRecord) -> int:
+        msg_upper = record.getMessage().upper()
+        for item in SENSITIVE_STR:
+            if item.upper() in msg_upper:
+                return False
+        return True
+
+
 def setup(project_name):
     """
     init log config
@@ -40,6 +56,7 @@ def setup(project_name):
             log_path, maxBytes=log_config.get("log_file_max_size"),
             backupCount=log_config.get("log_file_backup_count"))
         log_root.addHandler(file_log)
+        log_root.addFilter(DefaultLogFilter())
 
     if oct(os.stat(log_path).st_mode)[-3:] != str(LOG_FILE_MODE):
         os.chmod(log_path, LOG_FILE_MODE_OCT)

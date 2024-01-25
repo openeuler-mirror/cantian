@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -90,7 +90,7 @@ typedef struct st_mem_zone {
 } mem_zone_t;
 
 typedef struct st_mem_pool {
-    char name[GS_NAME_BUFFER_SIZE];  // memory pool name
+    char name[CT_NAME_BUFFER_SIZE];  // memory pool name
     uint64 total_size;               // total size
     uint64 max_size;                 // max size
     uint64 used_size;                // current used size

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -26,17 +26,12 @@
 #define KNL_CTLG_H
 
 #include "knl_dc.h"
+#include "knl_ctlg_persistent.h"
 
+#define CT_SYS_OPT_LEN 16
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef struct st_rd_update_core_index {
-    logic_op_t op_type;
-    uint32 table_id;
-    uint32 index_id;
-    page_id_t entry;
-}rd_update_core_index_t;
 
 index_t *db_sys_index(uint32 id);
 table_t *db_sys_table(uint32 id);

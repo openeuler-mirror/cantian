@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "gs_tbox_module.h"
 #include "gs_miner_desc.h"
 #include "pcr_btree.h"
 #include "dtc_database.h"
@@ -30,8 +31,8 @@ static status_t miner_time2str(time_t time, char *str, uint16 size)
 {
     text_t fmt_text, time_text;
     if (strlen("YYYY-MM-DD HH24:MI:SS") >= size) {
-        GS_THROW_ERROR(ERR_BUFFER_UNDERFLOW, size, strlen("YYYY-MM-DD HH24:MI:SS"));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_BUFFER_UNDERFLOW, size, strlen("YYYY-MM-DD HH24:MI:SS"));
+        return CT_ERROR;
     }
 
     cm_str2text("YYYY-MM-DD HH24:MI:SS", &fmt_text);
@@ -348,7 +349,7 @@ void miner_desc_undo_page(undo_page_t *page)
         if (row->type == UNDO_BTREE_INSERT || row->type == UNDO_BTREE_DELETE) {
             seg_id = MAKE_PAGID((uint16)row->seg_file, (uint32)row->seg_page);
             printf("seg_file %u, seg_page %u, index_id %u, is_shadow %d, ", (uint32)seg_id.file, (uint32)seg_id.page,
-                   (uint32)row->index_id, (row->index_id == GS_SHADOW_INDEX_ID ? 1 : 0));
+                   (uint32)row->index_id, (row->index_id == CT_SHADOW_INDEX_ID ? 1 : 0));
         } else if (row->type == UNDO_TEMP_BTREE_INSERT || row->type == UNDO_TEMP_BTREE_DELETE) {
             printf("user_id %u, seg_page(table_id) %u, index_id %u, ", (uint32)row->user_id,
                    (uint32)row->seg_page, (uint32)row->index_id);
@@ -600,21 +601,21 @@ status_t miner_desc_page_head_tail(uint32 id, page_head_t *head, uint32 page_siz
     printf("\tnext_ext: %u-%u }\n", AS_PAGID_PTR(head->next_ext)->file, AS_PAGID_PTR(head->next_ext)->page);
     if (page_size != PAGE_SIZE(*head) && !is_force) {
         printf("\tinvalid page size %d,expected %u.\n", PAGE_SIZE(*head), page_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (head->compressed) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     tail = (page_tail_t *)((char *)head + PAGE_SIZE(*head) - sizeof(page_tail_t));
     printf("\tpage tail info {\n");
     printf("\tchecksum: %u", tail->checksum);
-    if (tail->checksum != GS_INVALID_CHECKSUM) {
+    if (tail->checksum != CT_INVALID_CHECKSUM) {
         pass_cks = page_verify_checksum(head, page_size);
         printf("\tverify checksum: %s", pass_cks ? "success" : "corrupted");
     }
     printf("\treserve: %u", tail->reserve);
     printf("\tpcn: %u }\n", tail->pcn);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void miner_desc_punch_head(spc_punch_head_t *head)
@@ -648,7 +649,7 @@ void miner_desc_space_head(space_head_t *head)
            head->free_extents.last.file, head->free_extents.last.page);
     miner_desc_punch_head((spc_punch_head_t *)((char *)head + sizeof(space_head_t)));
     printf("datafile hwms information {");
-    for (slot = 0; slot < GS_MAX_SPACE_FILES; slot++) {
+    for (slot = 0; slot < CT_MAX_SPACE_FILES; slot++) {
         if (slot % SPACE_FILES_PER_LINE == 0) {
             printf("\n\t");
         }
@@ -999,21 +1000,21 @@ status_t miner_decrypt_page(page_head_t *page)
 
     char *plain_buf = (char *)malloc(SIZE_K(MAX_PAGE_SIZE_K));
     if (plain_buf == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)(SIZE_K(MAX_PAGE_SIZE_K)), "miner batch page");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)(SIZE_K(MAX_PAGE_SIZE_K)), "miner batch page");
+        return CT_ERROR;
     }
     uint32 plain_len = PAGE_SIZE(*page);
-    if (cm_kmc_decrypt(GS_KMC_KERNEL_DOMAIN, (char *)page + cipher_ctrl->offset, cipher_len, plain_buf, &plain_len) !=
-        GS_SUCCESS) {
+    if (cm_kmc_decrypt(CT_KMC_KERNEL_DOMAIN, (char *)page + cipher_ctrl->offset, cipher_len, plain_buf, &plain_len) !=
+        CT_SUCCESS) {
         printf("[MINER KMC ERROR]page decrypt failed");
         CM_FREE_PTR(plain_buf);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     errno_t ret = memcpy_sp(org_plain_buf, PAGE_SIZE(*page), plain_buf, plain_len);
     knl_securec_check(ret);
     CM_FREE_PTR(plain_buf);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void miner_compressed_page(uint32 id, page_head_t *head)
@@ -1022,7 +1023,7 @@ void miner_compressed_page(uint32 id, page_head_t *head)
     char *compress_algo = NULL;
     uint32 size, algo, gcnt, unused;
     uint16 checksum;
-    if (miner_desc_page_head_tail(id, head, len, GS_FALSE, GS_FALSE) != GS_SUCCESS) {
+    if (miner_desc_page_head_tail(id, head, len, CT_FALSE, CT_FALSE) != CT_SUCCESS) {
         return;
     }
    
@@ -1052,7 +1053,7 @@ void miner_compressed_page(uint32 id, page_head_t *head)
     printf("\tcompress head info {\n");
     printf("\tcompressed_size:%u\t compress_algo:%s\t group_cnt:%u\t checksum: %u\t ",
         size, compress_algo, gcnt, checksum);
-    if (checksum != GS_INVALID_CHECKSUM) {
+    if (checksum != CT_INVALID_CHECKSUM) {
         bool32 pass_cks = page_compress_verify_checksum(head, len);
         printf("verify checksum: %s\t", pass_cks ? "success" : "corrupted");
     }
@@ -1069,12 +1070,12 @@ void miner_desc_page(uint32 id, char *buf, uint32 page_size, bool32 is_checksum,
         return;
     }
 
-    if (miner_desc_page_head_tail(id, head, page_size, is_checksum, is_force) != GS_SUCCESS) {
+    if (miner_desc_page_head_tail(id, head, page_size, is_checksum, is_force) != CT_SUCCESS) {
         return;
     }
 
     if (head->encrypted) {
-        if (miner_decrypt_page(head) != GS_SUCCESS) {
+        if (miner_decrypt_page(head) != CT_SUCCESS) {
             printf("miner page decrypt failed");
             return;
         }
@@ -1127,7 +1128,7 @@ static void miner_desc_ctrlfile_logfile_info(database_ctrl_t *ctrl)
     (void)printf("\tlogfiles information:\n");
     for (uint32 i = 0; i < ctrl->core.node_count; i++) {
         (void)printf("\t(id, name, size, hwm, seq, block_size, flg, type, status, forward, backward):\n");
-        for (uint32 j = 0; j < GS_MAX_LOG_FILES; j++) {
+        for (uint32 j = 0; j < CT_MAX_LOG_FILES; j++) {
             logfile = (log_file_ctrl_t *)db_get_log_ctrl_item(ctrl->pages, j, sizeof(log_file_ctrl_t),
                                                               ctrl->log_segment, i);
 
@@ -1154,7 +1155,7 @@ static void miner_desc_ctrlfile_space_info(database_ctrl_t *ctrl)
     (void)printf("\tspaces information:\n");
     (void)printf("\t(id, spaceid, used, name, flg, block_size, extent_size, file_hwm, type, org_scn,"
         " encrypt_version, cipher_reserve_size, files):\n");
-    for (uint32 i = 0; i < GS_MAX_SPACES; i++) {
+    for (uint32 i = 0; i < CT_MAX_SPACES; i++) {
         space = (space_ctrl_t *)db_get_ctrl_item(ctrl->pages, i, sizeof(space_ctrl_t), ctrl->space_segment);
 
         (void)printf("\t#%-2u ", i);
@@ -1183,7 +1184,7 @@ static void miner_desc_ctrlfile_datafile_info(database_ctrl_t *ctrl)
 
     (void)printf("\tdatafiles information:\n");
     (void)printf("\t(id, dfileid, used, name, size, block_size, flg, type, auto_extend_size, auto_extend_maxsize):\n");
-    for (uint32 i = 0; i < GS_MAX_DATA_FILES; i++) {
+    for (uint32 i = 0; i < CT_MAX_DATA_FILES; i++) {
         datafile = (datafile_ctrl_t *)db_get_ctrl_item(ctrl->pages, i, sizeof(datafile_ctrl_t), ctrl->datafile_segment);
 
         (void)printf("\t#%-2u ", i);
@@ -1207,7 +1208,7 @@ static void miner_desc_ctrlfile_archlog_info(database_ctrl_t *ctrl)
     (void)printf("\t(id, recid, dest_id, rst_id, asn, stamp, blocks, block_size, "
         "logic_size, real_size, first, last, start_lsn, end_lsn, name):\n");
     for (uint32 i = 0; i < ctrl->core.node_count; i++) {
-        for (uint32 j = 0; j < GS_MAX_ARCH_NUM; j++) {
+        for (uint32 j = 0; j < CT_MAX_ARCH_NUM; j++) {
             arch_ctrl = (arch_ctrl_t *)db_get_log_ctrl_item(ctrl->pages, j, sizeof(arch_ctrl_t), ctrl->arch_segment, i);
 
             (void)printf("\t#%u-%-2u ", i, j);
@@ -1219,7 +1220,7 @@ static void miner_desc_ctrlfile_archlog_info(database_ctrl_t *ctrl)
             (void)printf("\t%d", arch_ctrl->blocks);
             (void)printf("\t%d", arch_ctrl->block_size);
             (void)printf("\t%lld", (int64)arch_ctrl->blocks * arch_ctrl->block_size);
-            (void)printf("\t%lld", ctarch_get_arch_ctrl_size(arch_ctrl));
+            (void)printf("\t%lld", arch_get_ctrl_real_size(arch_ctrl));
             (void)printf("\t%llu", arch_ctrl->first);
             (void)printf("\t%llu", arch_ctrl->last);
             (void)printf("\t%llu", arch_ctrl->start_lsn);
@@ -1232,9 +1233,9 @@ static void miner_desc_ctrlfile_archlog_info(database_ctrl_t *ctrl)
 
 void miner_desc_ctrl_core_attribute(database_ctrl_t *ctrl)
 {
-    char *str = (char *)malloc(GS_MAX_TIME_STRLEN);
+    char *str = (char *)malloc(CT_MAX_TIME_STRLEN);
     if (str == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)GS_MAX_TIME_STRLEN, "core init time");
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)CT_MAX_TIME_STRLEN, "core init time");
         return;
     }
     str[0] = '\0';
@@ -1244,7 +1245,7 @@ void miner_desc_ctrl_core_attribute(database_ctrl_t *ctrl)
     (void)printf("\tstartup times:        %u\n", ctrl->core.open_count);
     (void)printf("\tdbid times:           %u\n", ctrl->core.dbid);
     (void)printf("\tdatabase name:        %s\n", NULL_2_STR(ctrl->core.name));
-    if (miner_time2str(ctrl->core.init_time, str, GS_MAX_TIME_STRLEN) != GS_SUCCESS) {
+    if (miner_time2str(ctrl->core.init_time, str, CT_MAX_TIME_STRLEN) != CT_SUCCESS) {
         (void)printf("\tinit time:            %s\n", "null");
     } else {
         (void)printf("\tinit time:            %s\n", NULL_2_STR(str));
@@ -1276,7 +1277,7 @@ void miner_desc_ctrl_core_log_attributes(database_ctrl_t *ctrl)
     (void)printf("\tarchive mode:         %u\n", (uint32)ctrl->core.log_mode);
 
     (void)printf("\tarchive logs:         %llu", ctrl->core.archived_log[0].arch_log);
-    for (uint32 i = 1; i < GS_MAX_ARCH_DEST; i++) {
+    for (uint32 i = 1; i < CT_MAX_ARCH_DEST; i++) {
         (void)printf("-%llu", ctrl->core.archived_log[i].arch_log);
     }
     (void)printf("\n");
@@ -1327,8 +1328,8 @@ void miner_desc_ctrlfile(database_ctrl_t *ctrl)
 
 void print_bakcup_time_str(time_t time, const char *name)
 {
-    char str[GS_MAX_TIME_STRLEN] = { 0 };
-    if (miner_time2str(time, str, GS_MAX_TIME_STRLEN) != GS_SUCCESS) {
+    char str[CT_MAX_TIME_STRLEN] = { 0 };
+    if (miner_time2str(time, str, CT_MAX_TIME_STRLEN) != CT_SUCCESS) {
         (void)printf("\t%s%s\n", name, "null");
     } else {
         (void)printf("\t%s%s\n", name, NULL_2_STR(str));

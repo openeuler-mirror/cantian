@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,7 +34,7 @@ extern "C" {
 
 typedef struct st_lrpl_arch_file {
     uint32 asn;
-    char file_name[GS_FILE_NAME_BUFFER_SIZE];
+    char file_name[CT_FILE_NAME_BUFFER_SIZE];
     int32 handle;
     log_file_head_t head;
 } lrpl_arch_file_t;
@@ -50,7 +50,7 @@ typedef struct st_lrpl_context {
     date_t begin_time;
     date_t end_time;
     arch_file_t arch_file;
-    int32 log_handle[GS_MAX_LOG_FILES];
+    int32 log_handle[CT_MAX_LOG_FILES];
     uint32 replay_fail_cnt : 7;
     uint32 load_fail_cnt : 4;
     uint32 reserved : 21;

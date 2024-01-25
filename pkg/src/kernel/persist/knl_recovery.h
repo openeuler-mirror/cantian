@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -116,6 +116,7 @@ typedef struct st_rcy_paral_stat_t {
     uint64 session_used_time;
     uint64 sleep_time_in_log_add_bucket;
     uint64 session_replay_log_group_count;
+    uint64 wait_cond_time;
 } rcy_paral_stat_t;
 
 typedef struct st_rcy_bucket {
@@ -170,8 +171,8 @@ typedef struct st_rcy_context {
     bool32 swich_buf;
     uint32 capacity;
     char *buf;
-    rcy_bucket_t bucket[GS_MAX_PARAL_RCY];
-    int32 handle[GS_MAX_LOG_FILES];  // online logfile handle
+    rcy_bucket_t bucket[CT_MAX_PARAL_RCY];
+    int32 handle[CT_MAX_LOG_FILES];  // online logfile handle
     arch_file_t arch_file;
     bool8 is_closing;
     bool8 is_demoting; // if true, recovery will not stop at lrp point
@@ -200,8 +201,8 @@ typedef struct st_rcy_context {
     volatile bool32 replay_no_lag;
 
     uint64 wait_stats_view[RCY_WAIT_STATS_COUNT];
-    thread_t preload_thread[GS_MAX_PARAL_RCY];
-    rcy_preload_info_t preload_info[GS_MAX_PARAL_RCY];
+    thread_t preload_thread[CT_MAX_PARAL_RCY];
+    rcy_preload_info_t preload_info[CT_MAX_PARAL_RCY];
 
     date_t last_lrpl_time;
     date_t add_page_time;
@@ -225,7 +226,7 @@ typedef struct st_rcy_context {
 
 static void inline rcy_eventfd_init(rcy_context_t *ctx)
 {
-    for (uint32 i = 0; i < GS_MAX_PARAL_RCY; i++) {
+    for (uint32 i = 0; i < CT_MAX_PARAL_RCY; i++) {
         ctx->bucket[i].eventfd.efd = -1;
         ctx->bucket[i].eventfd.epfd = -1;
     }
@@ -250,7 +251,8 @@ void rcy_analysis_batch(knl_session_t *session, log_batch_t *batch);
 void rcy_replay_logic(knl_session_t *session, log_entry_t *log);
 void gbp_aly_gbp_logic(knl_session_t *session, log_entry_t *log, uint64 lsn);
 void print_replay_logic(log_entry_t *log);
-void ctrcy_bak_logic_entry(knl_session_t *ct_se, log_entry_t *log_entry, bool32 *stop_backup);
+void backup_logic_entry(knl_session_t *session, log_entry_t *log, bool32 *need_unblock_backup);
+const char* rcy_redo_name(log_entry_t *log);
 uint64 rcy_fetch_batch_lsn(knl_session_t *session, log_batch_t *batch);
 status_t rcy_load(knl_session_t *session, log_point_t *point, uint32 *data_size, uint32 *block_size);
 void rcy_close_file(knl_session_t *session);
@@ -280,10 +282,11 @@ void rcy_replay_group(knl_session_t *session, log_context_t *ctx, log_group_t *g
 void rcy_free_buffer(rcy_context_t *rcy);
 status_t rcy_init_context(knl_session_t *session);
 void print_rcy_skip_page_limit(knl_session_t *session);
+void rcy_page_set_damage(knl_session_t *session, pcn_verify_t *log_pcns);
+void rcy_replay_pcn_verify(knl_session_t *session, log_entry_t *log, pcn_verify_t *log_pcns, uint32 log_pcns_size);
 
 /*
  * Version       : v 1.0
- * Author        :
  * Created       : 2017-04-25
  * Last Modified :
  * Description   : log diagnosis
@@ -297,7 +300,7 @@ void log_diag_page(knl_session_t *session);
 
 void log_get_manager(log_manager_t **lmgr, uint32 *count);
 void log_get_logic_manager(logic_log_manager_t **lmgr, uint32 *count);
-const char* rcy_redo_name(log_entry_t *log);
+
 #ifdef __cplusplus
 }
 #endif

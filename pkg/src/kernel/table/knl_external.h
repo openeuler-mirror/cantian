@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -36,8 +36,8 @@ extern "C" {
 
 typedef struct st_knl_directory_desc {
     uint32 uid;
-    char name[GS_MAX_NAME_LEN];
-    char path[GS_MAX_PATH_BUFFER_SIZE];
+    char name[CT_MAX_NAME_LEN];
+    char path[CT_MAX_PATH_BUFFER_SIZE];
 } knl_directory_desc_t;
 
 status_t external_heap_fetch(knl_handle_t handle, knl_cursor_t *cursor);

@@ -2,10 +2,7 @@
 set +x
 
 function log() {
-  xtrace=$(set -o | awk '/xtrace/ {print($2)}')
-  set +x
-  echo -e $1
-  if [ "$xtrace" == "on" ]; then set -x; fi
+  printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1"
 }
 
 function err() {
@@ -85,8 +82,6 @@ function wait_for_success() {
   local attempts=$1
   local success_cmd=${@:2}
 
-  xtrace=$(set -o | awk '/xtrace/ {print($2)}')
-  set -x
   i=0
   while ! ${success_cmd}; do
     echo -n "."
@@ -96,7 +91,6 @@ function wait_for_success() {
       break
     fi
   done
-  if [ "$xtrace" == "on" ]; then set -x; fi
   ${success_cmd}
 }
 

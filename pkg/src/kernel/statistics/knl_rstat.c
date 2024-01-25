@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_common_module.h"
 #include "knl_rstat.h"
 #include "cm_file.h"
 #include "ostat_load.h"
@@ -78,11 +79,11 @@
 #define STATS_SYS_HISTATTR_COLS_NUM                                4
 #define STATS_SYS_INDEX_COLS_NUM                                   10
 #define STATS_FLUSH_ENTITY_NUM                                     10
-#define IS_FULL_SAMPLE(ff)                                         (fabs(ff) < GS_REAL_PRECISION)
+#define IS_FULL_SAMPLE(ff)                                         (fabs(ff) < CT_REAL_PRECISION)
 #define IS_STATS_TABLE_TYPE(table)                                 \
     (((table)->desc.type == TABLE_TYPE_HEAP) || ((table)->desc.type == TABLE_TYPE_NOLOGGING))
-#define IS_ANALYZE_ALL_PARTS(table_stats)                         ((table_stats)->part_stats.part_id == GS_INVALID_ID32)
-#define STATS_NEED_AMPLIFY(sample_ratio, is_parent)             (((sample_ratio) > GS_REAL_PRECISION) && (!(is_parent)))
+#define IS_ANALYZE_ALL_PARTS(table_stats)                         ((table_stats)->part_stats.part_id == CT_INVALID_ID32)
+#define STATS_NEED_AMPLIFY(sample_ratio, is_parent)             (((sample_ratio) > CT_REAL_PRECISION) && (!(is_parent)))
 
 latch_t g_stats_latch = { .lock = 0, .shared_count = 0, .stat = 0, .sid = 0, .unused = 0 };
 
@@ -116,7 +117,7 @@ void stats_rollback(knl_session_t *session, bool32 is_dynamic)
 static inline bool32 stats_no_persistent(stats_table_t *table_stats)
 {
     if (!STATS_IS_ANALYZE_TEMP_TABLE(table_stats)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     knl_dict_type_t table_type = table_stats->temp_table->table_cache->table_type;
@@ -164,15 +165,15 @@ int32 stats_compare_data_ex(void *data1, uint16 size_1, void *data2, uint16 size
 {
     uint16 size1 = size_1;
     uint16 size2 = size_2;
-    if (size1 == GS_NULL_VALUE_LEN || size2 == GS_NULL_VALUE_LEN) {
-        return (size1 == size2) ? 0 : (size1 == GS_NULL_VALUE_LEN) ? 1 : -1;
+    if (size1 == CT_NULL_VALUE_LEN || size2 == CT_NULL_VALUE_LEN) {
+        return (size1 == size2) ? 0 : (size1 == CT_NULL_VALUE_LEN) ? 1 : -1;
     }
 
-    if (size1 > column->size && size1 != GS_NULL_VALUE_LEN) {
+    if (size1 > column->size && size1 != CT_NULL_VALUE_LEN) {
         size1 = column->size;
     }
 
-    if (size2 > column->size && size2 != GS_NULL_VALUE_LEN) {
+    if (size2 > column->size && size2 != CT_NULL_VALUE_LEN) {
         size2 = column->size;
     }
 
@@ -204,8 +205,8 @@ static inline status_t stats_pcrb_compare_mtrl_key(mtrl_segment_t *segment, char
     index_profile_t *profile = INDEX_PROFILE(btree->index);
 
     pcrb_decode_key(profile, (pcrb_key_t *)data1, &scan_key);
-    *result = pcrb_compare_key(profile, &scan_key, (pcrb_key_t *)data2, GS_TRUE, NULL);
-    return GS_SUCCESS;
+    *result = pcrb_compare_key(profile, &scan_key, (pcrb_key_t *)data2, CT_TRUE, NULL);
+    return CT_SUCCESS;
 }
 
 static inline status_t stats_btree_compare_mtrl_key(mtrl_segment_t *segment, char *data1, char *data2, int32 *result)
@@ -214,8 +215,8 @@ static inline status_t stats_btree_compare_mtrl_key(mtrl_segment_t *segment, cha
     knl_scan_key_t scan_key;
 
     btree_decode_key(btree->index, (btree_key_t *)data1, &scan_key);
-    *result = btree_compare_key(btree->index, &scan_key, (btree_key_t *)data2, GS_TRUE, NULL);
-    return GS_SUCCESS;
+    *result = btree_compare_key(btree->index, &scan_key, (btree_key_t *)data2, CT_TRUE, NULL);
+    return CT_SUCCESS;
 }
 
 status_t stats_mtrl_sort_cmp(mtrl_segment_t *segment, char *data1, char *data2, int32 *result)
@@ -224,13 +225,13 @@ status_t stats_mtrl_sort_cmp(mtrl_segment_t *segment, char *data1, char *data2, 
     stats_decode_mtrl_row(&row1, data1);
     stats_decode_mtrl_row(&row2, data2);
     *result = stats_compare_mtrl_row(segment, &row1, &row2);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t inline stats_try_begin_auton_rm(knl_session_t *session, bool32 is_dynamic)
 {
     if (!is_dynamic) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return knl_begin_auton_rm(session);
@@ -265,32 +266,32 @@ static status_t stats_match_histgram(void *handle, bool32 *match)
 {
     stats_match_cond_t *cond = (stats_match_cond_t *)handle;
     knl_cursor_t *cursor = cond->cursor;
-    *match = GS_FALSE;
+    *match = CT_FALSE;
 
     switch (cond->match_type) {
         case MATCH_PART:
-            if (CURSOR_COLUMN_SIZE(cursor, HIST_PART_ID) != GS_NULL_VALUE_LEN) {
+            if (CURSOR_COLUMN_SIZE(cursor, HIST_PART_ID) != CT_NULL_VALUE_LEN) {
                 uint32 part = *(uint32 *)CURSOR_COLUMN_DATA(cursor, HIST_PART_ID);
                 if (part != cond->part_id) {
-                    return GS_SUCCESS;
+                    return CT_SUCCESS;
                 }
             }
             break;
 
         case MATCH_SUBPART:
-            if (CURSOR_COLUMN_SIZE(cursor, HIST_SUBPART_ID) != GS_NULL_VALUE_LEN) {
+            if (CURSOR_COLUMN_SIZE(cursor, HIST_SUBPART_ID) != CT_NULL_VALUE_LEN) {
                 uint64 subpart = *(uint64 *)CURSOR_COLUMN_DATA(cursor, HIST_SUBPART_ID);
                 if (subpart != cond->subpart_id) {
-                    return GS_SUCCESS;
+                    return CT_SUCCESS;
                 }
             }
             break;
 
         case MATCH_COLUMN:
-            if (CURSOR_COLUMN_SIZE(cursor, HIST_COLUMN_ID) != GS_NULL_VALUE_LEN) {
+            if (CURSOR_COLUMN_SIZE(cursor, HIST_COLUMN_ID) != CT_NULL_VALUE_LEN) {
                 uint32 col_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, HIST_COLUMN_ID);
                 if (col_id != cond->col_id) {
-                    return GS_SUCCESS;
+                    return CT_SUCCESS;
                 }
             }
             break;
@@ -299,40 +300,40 @@ static status_t stats_match_histgram(void *handle, bool32 *match)
             break;
     }
 
-    *match = GS_TRUE;
-    return GS_SUCCESS;
+    *match = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 static status_t stats_match_histhead(void *handle, bool32 *match)
 {
     stats_match_cond_t *cond = (stats_match_cond_t *)handle;
     knl_cursor_t *cursor = cond->cursor;
-    *match = GS_FALSE;
+    *match = CT_FALSE;
 
     switch (cond->match_type) {
         case MATCH_PART:
-            if (CURSOR_COLUMN_SIZE(cursor, HIST_HEAD_PART_ID) != GS_NULL_VALUE_LEN) {
+            if (CURSOR_COLUMN_SIZE(cursor, HIST_HEAD_PART_ID) != CT_NULL_VALUE_LEN) {
                 uint32 part = *(uint32 *)CURSOR_COLUMN_DATA(cursor, HIST_HEAD_PART_ID);
                 if (part != cond->part_id) {
-                    return GS_SUCCESS;
+                    return CT_SUCCESS;
                 }
             }
             break;
 
         case MATCH_SUBPART:
-            if (CURSOR_COLUMN_SIZE(cursor, HIST_HEAD_SUBPART_ID) != GS_NULL_VALUE_LEN) {
+            if (CURSOR_COLUMN_SIZE(cursor, HIST_HEAD_SUBPART_ID) != CT_NULL_VALUE_LEN) {
                 uint64 subpart = *(uint64 *)CURSOR_COLUMN_DATA(cursor, HIST_HEAD_SUBPART_ID);
                 if (subpart != cond->subpart_id) {
-                    return GS_SUCCESS;
+                    return CT_SUCCESS;
                 }
             }
             break;
 
         case MATCH_COLUMN:
-            if (CURSOR_COLUMN_SIZE(cursor, HIST_HEAD_COLUMN_ID) != GS_NULL_VALUE_LEN) {
+            if (CURSOR_COLUMN_SIZE(cursor, HIST_HEAD_COLUMN_ID) != CT_NULL_VALUE_LEN) {
                 uint32 col_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, HIST_HEAD_COLUMN_ID);
                 if (col_id != cond->col_id) {
-                    return GS_SUCCESS;
+                    return CT_SUCCESS;
                 }
             }
             break;
@@ -341,30 +342,30 @@ static status_t stats_match_histhead(void *handle, bool32 *match)
             break;
     }
 
-    *match = GS_TRUE;
-    return GS_SUCCESS;
+    *match = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 static status_t stats_match_sys_dmls(void *handle, bool32 *match)
 {
     stats_match_cond_t *cond = (stats_match_cond_t *)handle;
     knl_cursor_t *cursor = cond->cursor;
-    *match = GS_FALSE;
+    *match = CT_FALSE;
 
-    if (cond->part_id == GS_INVALID_ID32) {
-        *match = GS_TRUE;
-        return GS_SUCCESS;
+    if (cond->part_id == CT_INVALID_ID32) {
+        *match = CT_TRUE;
+        return CT_SUCCESS;
     }
 
-    if (CURSOR_COLUMN_SIZE(cursor, STATS_MON_MODS_PART_ID) != GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, STATS_MON_MODS_PART_ID) != CT_NULL_VALUE_LEN) {
         uint32 part = *(uint32 *)CURSOR_COLUMN_DATA(cursor, STATS_MON_MODS_PART_ID);
         if (part != cond->part_id) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
-    *match = GS_TRUE;
-    return GS_SUCCESS;
+    *match = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 status_t stats_create_report_file(const char *stats_file_name, int32 *report_file)
@@ -373,69 +374,69 @@ status_t stats_create_report_file(const char *stats_file_name, int32 *report_fil
     int32 ret;
 
     if (cm_file_exist(stats_file_name)) {
-        GS_LOG_RUN_INF("[STATS] Stats report file %s already exits", stats_file_name);
-        return GS_ERROR;
+        CT_LOG_RUN_INF("[STATS] Stats report file %s already exits", stats_file_name);
+        return CT_ERROR;
     }
 
     ret = sprintf_s(stats_report_name, STATS_MAX_REPORT_NAME_LEN, "%s.csv", stats_file_name);
     knl_securec_check_ss(ret);
 
-    if (cm_file_exist(stats_report_name) && cm_remove_file(stats_report_name) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[STATS] failed to remove remained stats report file %s", stats_report_name);
-        return GS_ERROR;
+    if (cm_file_exist(stats_report_name) && cm_remove_file(stats_report_name) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[STATS] failed to remove remained stats report file %s", stats_report_name);
+        return CT_ERROR;
     }
 
-    if (cm_create_file(stats_report_name, O_BINARY | O_SYNC | O_RDWR | O_EXCL, report_file) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[STATS] failed to create stats report file %s", stats_report_name);
+    if (cm_create_file(stats_report_name, O_BINARY | O_SYNC | O_RDWR | O_EXCL, report_file) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[STATS] failed to create stats report file %s", stats_report_name);
         cm_close_file(*report_file);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_init_report_file(knl_session_t *session, dc_entity_t *entity, stats_option_t *stats_option)
 {
-    char stats_file_name[GS_MAX_FILE_NAME_LEN];
-    char stats_file_dir[GS_MAX_FILE_NAME_LEN];
+    char stats_file_name[CT_MAX_FILE_NAME_LEN];
+    char stats_file_dir[CT_MAX_FILE_NAME_LEN];
     int32 ret;
     log_param_t *log_param = cm_log_param_instance();
 
-    ret = sprintf_s(stats_file_dir, GS_MAX_FILE_NAME_LEN, STATS_REPORT_DIR, log_param->log_home);
+    ret = sprintf_s(stats_file_dir, CT_MAX_FILE_NAME_LEN, STATS_REPORT_DIR, log_param->log_home);
     knl_securec_check_ss(ret);
 
     if (!cm_dir_exist(stats_file_dir)) {
-        if (cm_create_dir(stats_file_dir) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[STATS] failed to create dir %s", stats_file_dir);
-            return GS_ERROR;
+        if (cm_create_dir(stats_file_dir) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[STATS] failed to create dir %s", stats_file_dir);
+            return CT_ERROR;
         }
     }
 
-    ret = sprintf_s(stats_file_name, GS_MAX_FILE_NAME_LEN, STATS_REPORT_FORMAT, stats_file_dir,
+    ret = sprintf_s(stats_file_name, CT_MAX_FILE_NAME_LEN, STATS_REPORT_FORMAT, stats_file_dir,
                     entity->entry->name, "TAB");
     knl_securec_check_ss(ret);
 
-    if (stats_create_report_file(stats_file_name, &stats_option->report_tab_file) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_create_report_file(stats_file_name, &stats_option->report_tab_file) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    ret = sprintf_s(stats_file_name, GS_MAX_FILE_NAME_LEN, STATS_REPORT_FORMAT, stats_file_dir,
+    ret = sprintf_s(stats_file_name, CT_MAX_FILE_NAME_LEN, STATS_REPORT_FORMAT, stats_file_dir,
                     entity->entry->name, "IDX");
     knl_securec_check_ss(ret);
 
-    if (stats_create_report_file(stats_file_name, &stats_option->report_idx_file) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_create_report_file(stats_file_name, &stats_option->report_idx_file) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    ret = sprintf_s(stats_file_name, GS_MAX_FILE_NAME_LEN, STATS_REPORT_FORMAT, stats_file_dir,
+    ret = sprintf_s(stats_file_name, CT_MAX_FILE_NAME_LEN, STATS_REPORT_FORMAT, stats_file_dir,
                     entity->entry->name, "COL");
     knl_securec_check_ss(ret);
 
-    if (stats_create_report_file(stats_file_name, &stats_option->report_col_file) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_create_report_file(stats_file_name, &stats_option->report_col_file) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void stats_close_report_file(bool8 is_report, stats_option_t *stats_option)
@@ -453,69 +454,77 @@ static status_t stats_values_convert_str(knl_column_t *column, text_t *res_value
     dec8_t dec;
 
     switch (column->datatype) {
-        case GS_TYPE_BOOLEAN:
+        case CT_TYPE_BOOLEAN:
             cm_bool2text(*(bool32 *)res_value->str, value);
             break;
 
-        case GS_TYPE_UINT32:
+        case CT_TYPE_UINT32:
             cm_uint32_to_text(*(uint32 *)res_value->str, value);
             break;
-        case GS_TYPE_INTEGER:
+        case CT_TYPE_INTEGER:
             cm_int2text(*(int32 *)res_value->str, value);
             break;
 
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_LTZ:
-            if (cm_date2text(*(date_t *)res_value->str, NULL, value, STATS_MAX_BUCKET_SIZE) != GS_SUCCESS) {
-                return GS_ERROR;
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_LTZ:
+            if (cm_date2text(*(date_t *)res_value->str, NULL, value, STATS_MAX_BUCKET_SIZE) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+            break;
+        case CT_TYPE_DATE_MYSQL:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+            if (cm_date2text_mysql(column->datatype, *(date_t *)res_value->str, NULL, value, STATS_MAX_BUCKET_SIZE) !=
+                CT_SUCCESS) {
+                return CT_ERROR;
             }
             break;
 
-        case GS_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIMESTAMP_TZ:
             if (cm_timestamp_tz2text((timestamp_tz_t *)res_value->str, NULL, value,
-                STATS_MAX_BUCKET_SIZE) != GS_SUCCESS) {
-                return GS_ERROR;
+                STATS_MAX_BUCKET_SIZE) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             break;
 
-        case GS_TYPE_UINT64:
+        case CT_TYPE_UINT64:
             cm_uint64_to_text(*(uint64 *)res_value->str, value);
             break;
-        case GS_TYPE_BIGINT:
+        case CT_TYPE_BIGINT:
             cm_bigint2text(*(int64 *)res_value->str, value);
             break;
 
-        case GS_TYPE_REAL:
+        case CT_TYPE_REAL:
             cm_real2text(*(double *)res_value->str, value);
             break;
 
-        case GS_TYPE_STRING:
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
             value->len = res_value->len;
             (void)cm_text2str(res_value, value->str, STATS_MAX_BUCKET_SIZE);
             break;
 
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_DECIMAL:
-            if (cm_dec_4_to_8(&dec, (dec4_t *)res_value->str, res_value->len) != GS_SUCCESS) {
-                return GS_ERROR;
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_DECIMAL:
+            if (cm_dec_4_to_8(&dec, (dec4_t *)res_value->str, res_value->len) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             (void)cm_dec_to_text(&dec, STATS_DEC_BUCKET_SIZE, value);
             break;
-        case GS_TYPE_NUMBER2:
-            GS_RETURN_IFERR(cm_dec_2_to_8(&dec, (payload_t *)res_value->str, res_value->len));
+        case CT_TYPE_NUMBER2:
+            CT_RETURN_IFERR(cm_dec_2_to_8(&dec, (payload_t *)res_value->str, res_value->len));
             (void)cm_dec_to_text(&dec, STATS_DEC_BUCKET_SIZE, value);
             break;
 
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_INTERVAL_YM:
             (void)cm_yminterval2text(*(interval_ym_t *)res_value->str, value);
             break;
 
-        case GS_TYPE_INTERVAL_DS:
+        case CT_TYPE_INTERVAL_DS:
             (void)cm_dsinterval2text(*(interval_ds_t *)res_value->str, value);
             break;
 
@@ -529,13 +538,13 @@ static status_t stats_values_convert_str(knl_column_t *column, text_t *res_value
                 bin.size = res_value->len;
             }
             value->len = STATS_MAX_BUCKET_SIZE;
-            if (cm_bin2text(&bin, GS_FALSE, value) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_bin2text(&bin, CT_FALSE, value) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void stats_set_load_info(stats_load_info_t *load_info, dc_entity_t *entity, bool32 load_subpart, uint32 part_id)
@@ -545,7 +554,7 @@ void stats_set_load_info(stats_load_info_t *load_info, dc_entity_t *entity, bool
     if (entity->cbo_table_stats != NULL && STATS_GLOBAL_CBO_STATS_EXIST(entity)) {
         load_info->parent_part_id = part_id;
     } else {
-        load_info->parent_part_id = GS_INVALID_ID32;
+        load_info->parent_part_id = CT_INVALID_ID32;
     }
 }
 
@@ -576,8 +585,8 @@ static status_t stats_write_report_hist_value(stats_col_handler_t *column_handle
     (void)cm_write_str(report_file, ",");
 
     if (hist_infos != NULL) {
-        if (stats_values_convert_str(column, &hist_infos->ep_value, &old_value) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_values_convert_str(column, &hist_infos->ep_value, &old_value) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         (void)cm_write_str(report_file, old_value.str);
@@ -588,7 +597,7 @@ static status_t stats_write_report_hist_value(stats_col_handler_t *column_handle
     }
 
     (void)cm_write_str(report_file, "\n");
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_put_report_hist_value(knl_session_t *session, stats_col_handler_t *column_handler,
@@ -623,21 +632,21 @@ static status_t stats_put_report_hist_value(knl_session_t *session, stats_col_ha
         res_value.len = STATS_MAX_BUCKET_SIZE;
     }
 
-    if (stats_values_convert_str(column, &res_value, &value) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_values_convert_str(column, &res_value, &value) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (tab_stats->part_stats.part_id != GS_INVALID_ID32) {
+    if (tab_stats->part_stats.part_id != CT_INVALID_ID32) {
         cbo_col = knl_get_cbo_part_column(session, entity, tab_stats->part_stats.part_no, column->id);
     } else {
         cbo_col = knl_get_cbo_column(session, entity, column->id);
     }
 
-    if (stats_write_report_hist_value(column_handler, cbo_col, report_file, &value, &endpoint_value) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_write_report_hist_value(column_handler, cbo_col, report_file, &value, &endpoint_value) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void stats_write_uint32_deviation_rate(uint32 ori_value, uint32 verify_value, int32 report_file)
@@ -674,7 +683,7 @@ static void stats_write_double_deviation_rate(double ori_value, double verify_va
     value.len = 0;
     value.str = buf;
 
-    if (verify_value > GS_REAL_PRECISION) {
+    if (verify_value > CT_REAL_PRECISION) {
         deviation_rate = (double)((ori_value - verify_value) / verify_value);
         cm_real2text(deviation_rate, &value);
         (void)cm_write_str(report_file, "Deviation rate:");
@@ -773,7 +782,7 @@ static void stats_write_report_idx_value(knl_session_t *session, dc_entity_t *en
     text_t value;
 
     if (!entity->stat_exists) {
-        GS_LOG_RUN_ERR("[STATS] fail to write report because of the statistics' absence of the table %s.",
+        CT_LOG_RUN_ERR("[STATS] fail to write report because of the statistics' absence of the table %s.",
             entity->entry->name);
         return;
     }
@@ -830,7 +839,7 @@ static void stats_write_report_idx_value(knl_session_t *session, dc_entity_t *en
     (void)cm_write_str(report_file, value.str);
     (void)cm_write_str(report_file, ",\n");
 
-    if (stats_idx->part_id == GS_INVALID_ID32) {
+    if (stats_idx->part_id == CT_INVALID_ID32) {
         cbo_idx = knl_get_cbo_index(session, entity, idx->desc.id);
     } else {
         cbo_idx = knl_get_cbo_part_index(session, entity, stats_idx->part_index->part_no, idx->desc.id);
@@ -960,14 +969,14 @@ static status_t stats_write_report_tab_value(knl_session_t *session, dc_entity_t
     }
     (void)cm_write_str(report_file, "\n");
 
-    if (stats_tab->part_stats.part_id == GS_INVALID_ID32) {
+    if (stats_tab->part_stats.part_id == CT_INVALID_ID32) {
         cbo_tab = knl_get_cbo_table(session, entity);
     } else {
         cbo_tab = knl_get_cbo_part_table(session, entity, stats_tab->part_stats.part_no);
     }
 
     stats_write_origin_tab_values(cbo_tab, stats_tab, report_file, &value, is_part);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void stats_write_report_col_header(knl_column_t *col, stats_col_handler_t *stats_col, int32 report_file,
@@ -1033,7 +1042,7 @@ static void stats_write_report_col_tail(knl_session_t *session, stats_col_handle
     (void)cm_write_str(report_file, value.str);
     (void)cm_write_str(report_file, ",\n");
 
-    if (tab_stats->part_stats.part_id != GS_INVALID_ID32) {
+    if (tab_stats->part_stats.part_id != CT_INVALID_ID32) {
         cbo_col = knl_get_cbo_part_column(session, entity, tab_stats->part_stats.part_no, column->id);
     } else {
         cbo_col = knl_get_cbo_column(session, entity, column->id);
@@ -1093,9 +1102,9 @@ void stats_init_column_handler(knl_session_t *session, stats_col_handler_t *colu
 
     column_handler->stats_cur = col_ctx->stats_cur;
     column_handler->min_value.str = column_handler->min_buf;
-    column_handler->min_value.len = GS_NULL_VALUE_LEN;
+    column_handler->min_value.len = CT_NULL_VALUE_LEN;
     column_handler->max_value.str = column_handler->max_buf;
-    column_handler->max_value.len = GS_NULL_VALUE_LEN;
+    column_handler->max_value.len = CT_NULL_VALUE_LEN;
     column_handler->mtrl.mtrl_table_ctx = temp_ctx;
     column_handler->mtrl.temp_seg_id = temp_seg;
     column_handler->simple_ratio = table_stats->estimate_sample_ratio;
@@ -1112,7 +1121,7 @@ bool32 stats_check_same_page_step(stats_sampler_t *stat_sample, uint32 randvalue
 
     for (i = 1; i < stat_sample->pages_per_ext; i++) {
         if (stat_sample->random_step[i] == randvalue) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
 
         if (stat_sample->random_step[i] == 0) {
@@ -1121,13 +1130,13 @@ bool32 stats_check_same_page_step(stats_sampler_t *stat_sample, uint32 randvalue
     }
    
     stat_sample->random_step[i] = randvalue;
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 void stats_random_page_step(stats_sampler_t *stat_sample)
 {
     uint32 randvalue = 0;
-    bool32 is_exist = GS_TRUE;
+    bool32 is_exist = CT_TRUE;
 
     while (is_exist) {
         randvalue = cm_random(stat_sample->extent_size);
@@ -1197,20 +1206,20 @@ status_t stats_next_page_in_extent(knl_session_t *session, knl_cursor_t *cursor,
     page_id.page += random_step;
 
     if (!spc_validate_page_id(session, page_id)) {
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
+        return CT_ERROR;
     }
 
     expect_type = (table->desc.cr_mode == CR_PAGE) ? PAGE_TYPE_PCRH_DATA : PAGE_TYPE_HEAP_DATA;
 
     if (session->stat_sample) {
         if (buf_read_page(session, page_id, LATCH_MODE_S,
-            ENTER_PAGE_NORMAL | ENTER_PAGE_SEQUENTIAL) != GS_SUCCESS) {
-            return GS_ERROR;
+            ENTER_PAGE_NORMAL | ENTER_PAGE_SEQUENTIAL) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (buf_read_prefetch_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_SEQUENTIAL) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (buf_read_prefetch_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_SEQUENTIAL) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
    
@@ -1221,9 +1230,9 @@ status_t stats_next_page_in_extent(knl_session_t *session, knl_cursor_t *cursor,
         stat_sample->map_pages++;
     } else {
         if (!heap_check_page(session, cursor, page, expect_type)) {
-            cursor->eof = GS_TRUE;
-            buf_leave_page(session, GS_FALSE);
-            return GS_SUCCESS;
+            cursor->eof = CT_TRUE;
+            buf_leave_page(session, CT_FALSE);
+            return CT_SUCCESS;
         }
 
         ret = memcpy_sp(cursor->page_buf, DEFAULT_PAGE_SIZE(session), page, DEFAULT_PAGE_SIZE(session));
@@ -1235,8 +1244,8 @@ status_t stats_next_page_in_extent(knl_session_t *session, knl_cursor_t *cursor,
     stat_sample->sample_extent.count++;
     stat_sample->sample_extent.last = page_id;
 
-    buf_leave_page(session, GS_FALSE);
-    return GS_SUCCESS;
+    buf_leave_page(session, CT_FALSE);
+    return CT_SUCCESS;
 }
 
 static void stats_next_extent_size(stats_sampler_t *stat_sample, stats_table_t *tab_stats,
@@ -1280,30 +1289,30 @@ static status_t stats_next_extent_page(knl_session_t *session, knl_cursor_t *cur
 
     for (;;) {
         if (IS_INVALID_PAGID(extent)) {
-            cursor->eof = GS_TRUE;
-            return GS_SUCCESS;
+            cursor->eof = CT_TRUE;
+            return CT_SUCCESS;
         }
 
         if (!spc_validate_page_id(session, extent)) {
-            GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
+            return CT_ERROR;
         }
 
         if (buf_read_page(session, extent, LATCH_MODE_S,
-            ENTER_PAGE_NORMAL | ENTER_PAGE_SEQUENTIAL) != GS_SUCCESS) {
-            return GS_ERROR;
+            ENTER_PAGE_NORMAL | ENTER_PAGE_SEQUENTIAL) != CT_SUCCESS) {
+            return CT_ERROR;
         }
        
         heap_page_t *page = (heap_page_t *)CURR_PAGE(session);
 
         if (NOT_MAP_OR_FIRST_EXTENT(stat_sample, page) && !heap_check_page(session, cursor, page, expect_type)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             if (cursor->page_soft_damaged) {
-                GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, (cursor)->rowid.file, (cursor)->rowid.page);
+                CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, (cursor)->rowid.file, (cursor)->rowid.page);
             } else {
-                GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
+                CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
             }
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (stat_sample->hwm_extents == 0 || i == stat_sample->extent_step) {
@@ -1324,12 +1333,12 @@ static status_t stats_next_extent_page(knl_session_t *session, knl_cursor_t *cur
 
             *type = page->head.type;
 
-            buf_leave_page(session, GS_FALSE);
-            return GS_SUCCESS;
+            buf_leave_page(session, CT_FALSE);
+            return CT_SUCCESS;
         }
 
         extent = AS_PAGID(page->head.next_ext);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         i++;
     }
 }
@@ -1345,23 +1354,23 @@ static status_t stats_next_sample_page(knl_session_t *session, knl_cursor_t *cur
         table->desc.name;  // table name or table part name
 
     if (!spc_validate_page_id(session, entry)) {
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
+        return CT_ERROR;
     }
 
     buf_enter_page(session, entry, LATCH_MODE_S, ENTER_PAGE_NORMAL);
     page_head_t *page = (page_head_t *)CURR_PAGE(session);
     segment = HEAP_SEG_HEAD(session);
     if (page->type != PAGE_TYPE_HEAP_HEAD || segment->seg_scn != seg_scn) {
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
-        buf_leave_page(session, GS_FALSE);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
+        buf_leave_page(session, CT_FALSE);
+        return CT_ERROR;
     }
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     if (stat_sample->hwm_pages >= stat_sample->sample_size) {
-        cursor->eof = GS_TRUE;
-        return GS_SUCCESS;
+        cursor->eof = CT_TRUE;
+        return CT_SUCCESS;
     }
 
     if (STATA_SAMPLE_CURRENT_EXTENT(stat_sample)) {
@@ -1397,7 +1406,7 @@ void stats_sample_init(knl_session_t *session, stats_sampler_t *stats_sampler, u
         stats_sampler->extent_step = STATS_GET_SAMPLE_EXT_STEP(stats_sampler);
     }
 
-    steps_len = GS_MAX_EXTENT_SIZE * sizeof(uint32);
+    steps_len = CT_MAX_EXTENT_SIZE * sizeof(uint32);
     stats_sampler->random_step = (uint32 *)cm_push(session->stack, steps_len);
     ret = memset_sp(stats_sampler->random_step, steps_len, 0, steps_len);
     knl_securec_check(ret);
@@ -1434,26 +1443,26 @@ status_t stats_delete_histhead_by_subpart(knl_session_t *session, table_part_t *
 
     cursor = knl_push_cursor(session);
     stats_open_hist_abstr_cursor(session, cursor, CURSOR_ACTION_DELETE, IX_HIST_HEAD_003_ID, is_nologging);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&sub_part->desc.uid,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&sub_part->desc.uid,
         sizeof(uint32), IX_COL_HIST_HEAD_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&sub_part->desc.table_id, sizeof(uint32), IX_COL_HIST_HEAD_003_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_HEAD_003_COL_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_HEAD_003_SPARE1);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_HEAD_003_SPARE2);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&sub_part->desc.uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&sub_part->desc.uid,
         sizeof(uint32), IX_COL_HIST_HEAD_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER,
         (void *)&sub_part->desc.table_id, sizeof(uint32), IX_COL_HIST_HEAD_003_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_HEAD_003_COL_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_HEAD_003_SPARE1);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_HEAD_003_SPARE2);
 
     for (;;) {
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -1470,14 +1479,14 @@ status_t stats_delete_histhead_by_subpart(knl_session_t *session, table_part_t *
             continue;
         }
 
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_delete_histhead_by_part(knl_session_t *session, knl_dictionary_t *dc, uint32 part_id)
@@ -1491,17 +1500,17 @@ status_t stats_delete_histhead_by_part(knl_session_t *session, knl_dictionary_t 
     knl_cursor_t *cursor = knl_push_cursor(session);
     stats_open_hist_abstr_cursor(session, cursor, CURSOR_ACTION_DELETE, IX_HIST_HEAD_003_ID,
         IS_NOLOGGING_BY_TABLE_TYPE(table->desc.type));
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&dc->uid,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&dc->uid,
                      sizeof(uint32), IX_COL_HIST_HEAD_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&dc->oid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&dc->oid,
                      sizeof(uint32), IX_COL_HIST_HEAD_003_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_HEAD_003_COL_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_HEAD_003_SPARE1);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_HEAD_003_SPARE2);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&dc->uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&dc->uid,
                      sizeof(uint32), IX_COL_HIST_HEAD_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&dc->oid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&dc->oid,
                      sizeof(uint32), IX_COL_HIST_HEAD_003_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_HEAD_003_COL_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_HEAD_003_SPARE1);
@@ -1512,31 +1521,31 @@ status_t stats_delete_histhead_by_part(knl_session_t *session, knl_dictionary_t 
     cond.session = session;
     cond.cursor = cursor;
     cond.part_id = part_id;
-    cond.subpart_id = GS_INVALID_ID32;
-    cond.col_id = GS_INVALID_ID32;
+    cond.subpart_id = CT_INVALID_ID32;
+    cond.col_id = CT_INVALID_ID32;
     cond.match_type = MATCH_PART;
 
     for (;;) {
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             session->match_cond = org_match_cond;
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
             break;
         }
 
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             session->match_cond = org_match_cond;
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     session->match_cond = org_match_cond;
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_delete_histhead_by_column(knl_session_t *session, knl_cursor_t *cursor, knl_column_t *column,
@@ -1547,44 +1556,44 @@ status_t stats_delete_histhead_by_column(knl_session_t *session, knl_cursor_t *c
 
     CM_SAVE_STACK(session->stack);
     stats_open_hist_abstr_cursor(session, cursor, CURSOR_ACTION_DELETE, IX_HIST_HEAD_003_ID, table_stats->is_nologging);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&column->uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&column->uid,
         sizeof(uint32), IX_COL_HIST_HEAD_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&column->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&column->table_id,
         sizeof(uint32), IX_COL_HIST_HEAD_003_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&column->id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&column->id,
         sizeof(uint32), IX_COL_HIST_HEAD_003_COL_ID);
 
     if (is_part) {
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_BIGINT, (void *)&part,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_BIGINT, (void *)&part,
             sizeof(uint64), IX_COL_HIST_HEAD_003_SPARE1);
     } else {
         knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_IS_NULL, IX_COL_HIST_HEAD_003_SPARE1);
     }
     if (is_subpart) {
-        uint64 sub_part = (part == GS_INVALID_ID32) ? GS_INVALID_ID32 : table_stats->part_stats.sub_stats->part_id;
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_BIGINT, (void *)&sub_part,
+        uint64 sub_part = (part == CT_INVALID_ID32) ? CT_INVALID_ID32 : table_stats->part_stats.sub_stats->part_id;
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_BIGINT, (void *)&sub_part,
             sizeof(uint64), IX_COL_HIST_HEAD_003_SPARE2);
     } else {
         knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_IS_NULL, IX_COL_HIST_HEAD_003_SPARE2);
     }
-    if (GS_SUCCESS != knl_fetch(session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(session, cursor)) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+    if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_delete_histgrams(knl_session_t *session, knl_cursor_t *cursor, knl_column_t *column, bool32 is_dynamic,
@@ -1594,43 +1603,43 @@ status_t stats_delete_histgrams(knl_session_t *session, knl_cursor_t *cursor, kn
     knl_scan_key_t *r_key = NULL;
 
     stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_DELETE, IX_HIST_003_ID, is_nologging);
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
     l_key = &cursor->scan_range.l_key;
     r_key = &cursor->scan_range.r_key;
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, (void *)&column->uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, (void *)&column->uid, sizeof(uint32),
                      IX_COL_HIST_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, (void *)&column->table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, (void *)&column->table_id, sizeof(uint32),
                      IX_COL_HIST_003_TABLE_ID);
     knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_COL_ID);
     knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_PART_ID);
     knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_ENDPOINT);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, (void *)&column->uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, (void *)&column->uid, sizeof(uint32),
                      IX_COL_HIST_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, (void *)&column->table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, (void *)&column->table_id, sizeof(uint32),
                      IX_COL_HIST_003_TABLE_ID);
     knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_COL_ID);
     knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_PART_ID);
     knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_ENDPOINT);
 
     for (;;) {
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
             break;
         }
 
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
+            return CT_ERROR;
         }
 
         session->stat->hists_deletes++;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_delete_histgram_by_subpart(knl_session_t *session, knl_cursor_t *cursor, table_part_t *subpart,
@@ -1639,29 +1648,29 @@ status_t stats_delete_histgram_by_subpart(knl_session_t *session, knl_cursor_t *
     uint32 part = 0;
 
     stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_DELETE, IX_HIST_003_ID, is_nologging);
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
     knl_scan_key_t *l_key = &cursor->scan_range.l_key;
     knl_scan_key_t *r_key = &cursor->scan_range.r_key;
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, (void *)&subpart->desc.uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, (void *)&subpart->desc.uid, sizeof(uint32),
         IX_COL_HIST_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, (void *)&subpart->desc.table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, (void *)&subpart->desc.table_id, sizeof(uint32),
         IX_COL_HIST_003_TABLE_ID);
     knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_COL_ID);
     knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_PART_ID);
     knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_ENDPOINT);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, (void *)&subpart->desc.uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, (void *)&subpart->desc.uid, sizeof(uint32),
         IX_COL_HIST_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, (void *)&subpart->desc.table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, (void *)&subpart->desc.table_id, sizeof(uint32),
         IX_COL_HIST_003_TABLE_ID);
     knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_COL_ID);
     knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_PART_ID);
     knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_ENDPOINT);
 
     for (;;) {
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -1678,37 +1687,37 @@ status_t stats_delete_histgram_by_subpart(knl_session_t *session, knl_cursor_t *
             continue;
         }
 
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
+            return CT_ERROR;
         }
 
         session->stat->hists_deletes++;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void stats_set_part_histgram_scan_key(knl_cursor_t *cursor, knl_column_t *column, uint32 part_id)
 {
     knl_scan_key_t *l_key = &cursor->scan_range.l_key;
     knl_scan_key_t *r_key = &cursor->scan_range.r_key;
-    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, (void *)&column->uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, (void *)&column->uid, sizeof(uint32),
         IX_COL_HIST_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, (void *)&column->table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, (void *)&column->table_id, sizeof(uint32),
         IX_COL_HIST_003_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, (void *)&column->id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, (void *)&column->id, sizeof(uint32),
         IX_COL_HIST_003_COL_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, (void *)&part_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, (void *)&part_id, sizeof(uint32),
         IX_COL_HIST_003_PART_ID);
     knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_ENDPOINT);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, (void *)&column->uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, (void *)&column->uid, sizeof(uint32),
         IX_COL_HIST_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, (void *)&column->table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, (void *)&column->table_id, sizeof(uint32),
         IX_COL_HIST_003_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, (void *)&column->id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, (void *)&column->id, sizeof(uint32),
         IX_COL_HIST_003_COL_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, (void *)&part_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, (void *)&part_id, sizeof(uint32),
         IX_COL_HIST_003_PART_ID);
     knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_ENDPOINT);
 }
@@ -1719,12 +1728,12 @@ status_t stats_delete_histgram_subpart_column(knl_session_t *session, knl_cursor
     uint64 part;
 
     stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_DELETE, IX_HIST_003_ID, is_nologging);
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
     stats_set_part_histgram_scan_key(cursor, column, part_loc.part_no);
 
     for (;;) {
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -1736,14 +1745,14 @@ status_t stats_delete_histgram_subpart_column(knl_session_t *session, knl_cursor
             continue;
         }
 
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
+            return CT_ERROR;
         }
 
         session->stat->hists_deletes++;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_delete_histgram_part_column(knl_session_t *session, knl_cursor_t *cursor, knl_column_t *column,
@@ -1752,12 +1761,12 @@ status_t stats_delete_histgram_part_column(knl_session_t *session, knl_cursor_t 
     uint32 part = 0;
 
     stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_DELETE, IX_HIST_003_ID, is_nologging);
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
     stats_set_part_histgram_scan_key(cursor, column, part_id);
 
     for (;;) {
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -1769,14 +1778,14 @@ status_t stats_delete_histgram_part_column(knl_session_t *session, knl_cursor_t 
             continue;
         }
 
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
+            return CT_ERROR;
         }
 
         session->stat->hists_deletes++;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_delete_histgram_by_part(knl_session_t *session, knl_cursor_t *cursor, knl_dictionary_t *dc,
@@ -1787,21 +1796,21 @@ status_t stats_delete_histgram_by_part(knl_session_t *session, knl_cursor_t *cur
     knl_match_cond_t org_match_cond = session->match_cond;
     stats_match_cond_t cond;
     stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_DELETE, IX_HIST_003_ID, is_nologging);
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
     knl_scan_key_t *l_key = &cursor->scan_range.l_key;
     knl_scan_key_t *r_key = &cursor->scan_range.r_key;
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, (void *)&dc->uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, (void *)&dc->uid, sizeof(uint32),
                      IX_COL_HIST_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, (void *)&dc->oid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, (void *)&dc->oid, sizeof(uint32),
                      IX_COL_HIST_003_TABLE_ID);
     knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_COL_ID);
     knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_PART_ID);
     knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_ENDPOINT);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, (void *)&dc->uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, (void *)&dc->uid, sizeof(uint32),
                      IX_COL_HIST_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, (void *)&dc->oid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, (void *)&dc->oid, sizeof(uint32),
                      IX_COL_HIST_003_TABLE_ID);
     knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_COL_ID);
     knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_PART_ID);
@@ -1812,30 +1821,30 @@ status_t stats_delete_histgram_by_part(knl_session_t *session, knl_cursor_t *cur
     cond.session = session;
     cond.cursor = cursor;
     cond.part_id = part_id;
-    cond.subpart_id = GS_INVALID_ID32;
-    cond.col_id = GS_INVALID_ID32;
+    cond.subpart_id = CT_INVALID_ID32;
+    cond.col_id = CT_INVALID_ID32;
     cond.match_type = MATCH_PART;
 
     for (;;) {
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             session->match_cond = org_match_cond;
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
             break;
         }
 
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             session->match_cond = org_match_cond;
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         session->stat->hists_deletes++;
     }
 
     session->match_cond = org_match_cond;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_delete_from_sys_histgram(knl_session_t *session, knl_cursor_t *cursor, uint32 uid, uint32 oid,
@@ -1846,33 +1855,33 @@ static status_t stats_delete_from_sys_histgram(knl_session_t *session, knl_curso
     stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_DELETE, IX_HIST_003_ID, is_nologging);
     l_key = &cursor->scan_range.l_key;
     r_key = &cursor->scan_range.r_key;
-    knl_init_index_scan(cursor, GS_FALSE);
-    if (oid == GS_INVALID_ID32) {
-        knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_FALSE);
+    if (oid == CT_INVALID_ID32) {
+        knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                          IX_COL_HIST_003_USER_ID);
         knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_TABLE_ID);
         knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_COL_ID);
         knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_PART_ID);
         knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_ENDPOINT);
 
-        knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+        knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                          IX_COL_HIST_003_USER_ID);
         knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_TABLE_ID);
         knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_COL_ID);
         knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_PART_ID);
         knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_ENDPOINT);
     } else {
-        knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+        knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                          IX_COL_HIST_003_USER_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+        knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
                          IX_COL_HIST_003_TABLE_ID);
         knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_COL_ID);
         knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_PART_ID);
         knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_ENDPOINT);
 
-        knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+        knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                          IX_COL_HIST_003_USER_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+        knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
                          IX_COL_HIST_003_TABLE_ID);
         knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_COL_ID);
         knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_003_PART_ID);
@@ -1880,22 +1889,22 @@ static status_t stats_delete_from_sys_histgram(knl_session_t *session, knl_curso
     }
 
     for (;;) {
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
             break;
         }
 
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
+            return CT_ERROR;
         }
 
         session->stat->hists_deletes++;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 static status_t stats_delete_from_sys_hist_head(knl_session_t *session, knl_cursor_t *cursor, uint32 uid, uint32 oid,
     bool32 is_nologging)
@@ -1905,28 +1914,28 @@ static status_t stats_delete_from_sys_hist_head(knl_session_t *session, knl_curs
     stats_open_hist_abstr_cursor(session, cursor, CURSOR_ACTION_DELETE, IX_HIST_HEAD_003_ID, is_nologging);
     l_key = &cursor->scan_range.l_key;
     r_key = &cursor->scan_range.r_key;
-    knl_init_index_scan(cursor, GS_FALSE);
-    if (oid == GS_INVALID_ID32) {
-        knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_FALSE);
+    if (oid == CT_INVALID_ID32) {
+        knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                          IX_COL_HIST_HEAD_003_USER_ID);
         knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_HEAD_003_TABLE_ID);
         knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_HEAD_003_COL_ID);
         knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_HEAD_003_SPARE1);
-        knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+        knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                          IX_COL_HIST_HEAD_003_USER_ID);
         knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_HEAD_003_TABLE_ID);
         knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_HEAD_003_COL_ID);
         knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_HEAD_003_SPARE1);
     } else {
-        knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+        knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                          IX_COL_HIST_HEAD_003_USER_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), l_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+        knl_set_scan_key(INDEX_DESC(cursor->index), l_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
                          IX_COL_HIST_HEAD_003_TABLE_ID);
         knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_HEAD_003_COL_ID);
         knl_set_key_flag(l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_HEAD_003_SPARE1);
-        knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+        knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                          IX_COL_HIST_HEAD_003_USER_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), r_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+        knl_set_scan_key(INDEX_DESC(cursor->index), r_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
                          IX_COL_HIST_HEAD_003_TABLE_ID);
         knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_HEAD_003_COL_ID);
         knl_set_key_flag(r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_HEAD_003_SPARE1);
@@ -1935,20 +1944,20 @@ static status_t stats_delete_from_sys_hist_head(knl_session_t *session, knl_curs
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_HIST_HEAD_003_SPARE2);
 
     for (;;) {
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
             break;
         }
 
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_drop_hists(knl_session_t *session, uint32 uid, uint32 oid, bool32 is_nologging)
@@ -1961,21 +1970,21 @@ status_t stats_drop_hists(knl_session_t *session, uint32 uid, uint32 oid, bool32
 
     cursor->row = (row_head_t *)cursor->buf;
 
-    if (stats_delete_from_sys_histgram(session, cursor, uid, oid, is_nologging) != GS_SUCCESS) {
+    if (stats_delete_from_sys_histgram(session, cursor, uid, oid, is_nologging) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_delete_from_sys_hist_head(session, cursor, uid, oid, is_nologging) != GS_SUCCESS) {
+    if (stats_delete_from_sys_hist_head(session, cursor, uid, oid, is_nologging) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-status_t stats_put_result_value(row_assist_t *ra, text_t *res_value, gs_type_t type)
+status_t stats_put_result_value(row_assist_t *ra, text_t *res_value, ct_type_t type)
 {
     char buf[STATS_MAX_BUCKET_SIZE] = { '\0' };
     text_t value;
@@ -1985,12 +1994,12 @@ status_t stats_put_result_value(row_assist_t *ra, text_t *res_value, gs_type_t t
     value.len = 0;
     value.str = buf;
 
-    if (res_value->len == GS_NULL_VALUE_LEN) {
+    if (res_value->len == CT_NULL_VALUE_LEN) {
         row_put_null(ra);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (res_value->len == 0 && !GS_IS_NUMBER_TYPE(type)) {
+    if (res_value->len == 0 && !CT_IS_NUMBER_TYPE(type)) {
         return row_put_text(ra, &value);
     }
 
@@ -1999,70 +2008,78 @@ status_t stats_put_result_value(row_assist_t *ra, text_t *res_value, gs_type_t t
     }
 
     switch (type) {
-        case GS_TYPE_BOOLEAN:
+        case CT_TYPE_BOOLEAN:
             cm_bool2text(*(bool32 *)res_value->str, &value);
             break;
 
-        case GS_TYPE_UINT32:
+        case CT_TYPE_UINT32:
             cm_uint32_to_text(*(uint32 *)res_value->str, &value);
             break;
-        case GS_TYPE_INTEGER:
+        case CT_TYPE_INTEGER:
             cm_int2text(*(int32 *)res_value->str, &value);
             break;
 
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_LTZ:
-            if (cm_date2text(*(date_t *)res_value->str, NULL, &value, STATS_MAX_BUCKET_SIZE) != GS_SUCCESS) {
-                return GS_ERROR;
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_LTZ:
+            if (cm_date2text(*(date_t *)res_value->str, NULL, &value, STATS_MAX_BUCKET_SIZE) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+            break;
+        case CT_TYPE_DATE_MYSQL:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+            if (cm_date2text_mysql(type, *(date_t *)res_value->str, NULL, &value, STATS_MAX_BUCKET_SIZE) !=
+                CT_SUCCESS) {
+                return CT_ERROR;
             }
             break;
 
-        case GS_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIMESTAMP_TZ:
             if (cm_timestamp_tz2text((timestamp_tz_t *)res_value->str, NULL, &value,
-                STATS_MAX_BUCKET_SIZE) != GS_SUCCESS) {
-                return GS_ERROR;
+                STATS_MAX_BUCKET_SIZE) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             break;
 
-        case GS_TYPE_UINT64:
+        case CT_TYPE_UINT64:
             cm_uint64_to_text(*(uint64 *)res_value->str, &value);
             break;
-        case GS_TYPE_BIGINT:
+        case CT_TYPE_BIGINT:
             cm_bigint2text(*(int64 *)res_value->str, &value);
             break;
 
-        case GS_TYPE_REAL:
+        case CT_TYPE_REAL:
             cm_real2text(*(double *)res_value->str, &value);
             break;
 
-        case GS_TYPE_STRING:
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
             value.len = res_value->len;
             value.str = res_value->str;
             break;
 
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_DECIMAL:
-            if (cm_dec_4_to_8(&d8, (dec4_t *)res_value->str, res_value->len) != GS_SUCCESS) {
-                return GS_ERROR;
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_DECIMAL:
+            if (cm_dec_4_to_8(&d8, (dec4_t *)res_value->str, res_value->len) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             (void)cm_dec_to_text(&d8, STATS_DEC_BUCKET_SIZE, &value);
             break;
 
-        case GS_TYPE_NUMBER2:
-            GS_RETURN_IFERR(cm_dec_2_to_8(&d8, (payload_t *)res_value->str, res_value->len));
+        case CT_TYPE_NUMBER2:
+            CT_RETURN_IFERR(cm_dec_2_to_8(&d8, (payload_t *)res_value->str, res_value->len));
             (void)cm_dec_to_text(&d8, STATS_DEC_BUCKET_SIZE, &value);
             break;
 
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_INTERVAL_YM:
             (void)cm_yminterval2text(*(interval_ym_t *)res_value->str, &value);
             break;
 
-        case GS_TYPE_INTERVAL_DS:
+        case CT_TYPE_INTERVAL_DS:
             (void)cm_dsinterval2text(*(interval_ds_t *)res_value->str, &value);
             break;
 
@@ -2076,8 +2093,8 @@ status_t stats_put_result_value(row_assist_t *ra, text_t *res_value, gs_type_t t
                 bin.size = res_value->len;
             }
             value.len = STATS_MAX_BUCKET_SIZE;
-            if (cm_bin2text(&bin, GS_FALSE, &value) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_bin2text(&bin, CT_FALSE, &value) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             break;
     }
@@ -2087,15 +2104,15 @@ status_t stats_put_result_value(row_assist_t *ra, text_t *res_value, gs_type_t t
 
 static void stats_set_histgram_scan_key(knl_cursor_t *cursor, knl_column_t *column, uint32 part_id, bool32 is_part)
 {
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&column->uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&column->uid,
                      sizeof(uint32), IX_COL_HIST_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&column->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&column->table_id,
                      sizeof(uint32), IX_COL_HIST_003_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&column->id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&column->id,
                      sizeof(uint32), IX_COL_HIST_003_COL_ID);
 
     if (is_part) {
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&part_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&part_id,
                          sizeof(uint32), IX_COL_HIST_003_PART_ID);
     } else {
         knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_IS_NULL, IX_COL_HIST_003_PART_ID);
@@ -2103,15 +2120,15 @@ static void stats_set_histgram_scan_key(knl_cursor_t *cursor, knl_column_t *colu
 
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_ENDPOINT);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&column->uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&column->uid,
                      sizeof(uint32), IX_COL_HIST_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&column->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&column->table_id,
                      sizeof(uint32), IX_COL_HIST_003_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&column->id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&column->id,
                      sizeof(uint32), IX_COL_HIST_003_COL_ID);
 
     if (is_part) {
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&part_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&part_id,
                          sizeof(uint32), IX_COL_HIST_003_PART_ID);
     } else {
         knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_IS_NULL, IX_COL_HIST_003_PART_ID);
@@ -2177,19 +2194,19 @@ static status_t stats_get_old_buckets(knl_session_t *session, stats_col_handler_
     uint32 curr_buckets = column_handler->hist_info.bucket_num;
     stats_hist_rowids_t *hist_rowids = column_handler->hist_rowids;
     stats_part_table_t *part_stats = &table_stats->part_stats;
-    uint64 subpart_id = (part_stats->is_subpart) ? part_stats->sub_stats->part_id : GS_INVALID_ID32;
+    uint64 subpart_id = (part_stats->is_subpart) ? part_stats->sub_stats->part_id : CT_INVALID_ID32;
     stats_hist_assist_t hist_assit[STATS_HISTGRAM_MAX_SIZE];
     errno_t ret = memset_s(&hist_assit, sizeof(stats_hist_assist_t) * STATS_HISTGRAM_MAX_SIZE,
                            0xFF, sizeof(stats_hist_assist_t) * STATS_HISTGRAM_MAX_SIZE);
     knl_securec_check(ret);
 
     stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_DELETE, IX_HIST_003_ID, column_handler->is_nologging);
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
     stats_set_histgram_scan_key(cursor, column_handler->column, table_stats->part_stats.part_id, table_stats->is_part);
 
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -2198,28 +2215,28 @@ static status_t stats_get_old_buckets(knl_session_t *session, stats_col_handler_
 
         if (!part_stats->is_subpart) {
             if (bucket_num < curr_buckets) {
-                stats_set_hist_rowids(cursor, hist_rowids, hist_assit, &bucket_num, GS_FALSE);
+                stats_set_hist_rowids(cursor, hist_rowids, hist_assit, &bucket_num, CT_FALSE);
                 continue;
             }
             // drop part and analyze table concurrently,some histgrams of drop part can remain. we need clean them.
-            if (knl_internal_delete(session, cursor) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (knl_internal_delete(session, cursor) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             session->stat->hists_deletes++;
             continue;
         }
 
-        bool32 subpart_found = (CURSOR_COLUMN_SIZE(cursor, HIST_SUBPART_ID) != GS_NULL_VALUE_LEN) &&
+        bool32 subpart_found = (CURSOR_COLUMN_SIZE(cursor, HIST_SUBPART_ID) != CT_NULL_VALUE_LEN) &&
             (subpart_id == *(uint64*)CURSOR_COLUMN_DATA(cursor, HIST_SUBPART_ID));
         if (subpart_found) {
             if (bucket_num < curr_buckets) {
-                stats_set_hist_rowids(cursor, hist_rowids, hist_assit, &bucket_num, GS_TRUE);
+                stats_set_hist_rowids(cursor, hist_rowids, hist_assit, &bucket_num, CT_TRUE);
                 continue;
             }
             // drop part and analyze table concurrently,some histgrams of drop part can remain. we need clean them.
-            if (knl_internal_delete(session, cursor) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (knl_internal_delete(session, cursor) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             session->stat->hists_deletes++;
@@ -2232,7 +2249,7 @@ static status_t stats_get_old_buckets(knl_session_t *session, stats_col_handler_
         stats_sort_subpart_histgrams(hist_assit, hist_rowids, bucket_num);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_check_histgram_exist(knl_session_t *session, stats_col_handler_t *column_handler,
@@ -2241,7 +2258,7 @@ static status_t stats_check_histgram_exist(knl_session_t *session, stats_col_han
     stats_part_table_t *part_stats = &table_stats->part_stats;
     knl_cursor_t *cursor = column_handler->stats_cur;
     knl_column_t *column = column_handler->column;
-    uint64 subpart_id = (part_stats->is_subpart) ? part_stats->sub_stats->part_id : GS_INVALID_ID32;
+    uint64 subpart_id = (part_stats->is_subpart) ? part_stats->sub_stats->part_id : CT_INVALID_ID32;
 
     if (stats_no_persistent(table_stats)) {
         /* temp table statistics info does not saved in systable$
@@ -2249,15 +2266,15 @@ static status_t stats_check_histgram_exist(knl_session_t *session, stats_col_han
          * 2.trans gtt
          * 3.dynamic stats for session gtt
          */
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_SELECT, IX_HIST_003_ID, column_handler->is_nologging);
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
     stats_set_histgram_scan_key(cursor, column, table_stats->part_stats.part_id, table_stats->is_part);
 
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -2265,24 +2282,24 @@ static status_t stats_check_histgram_exist(knl_session_t *session, stats_col_han
         }
 
         if (!part_stats->is_subpart) {
-            column_handler->hist_exits = GS_TRUE;
+            column_handler->hist_exits = CT_TRUE;
             break;
         }
 
-        if (CURSOR_COLUMN_SIZE(cursor, HIST_SUBPART_ID) != GS_NULL_VALUE_LEN &&
+        if (CURSOR_COLUMN_SIZE(cursor, HIST_SUBPART_ID) != CT_NULL_VALUE_LEN &&
             subpart_id == *(uint64*)CURSOR_COLUMN_DATA(cursor, HIST_SUBPART_ID)) {
-            column_handler->hist_exits = GS_TRUE;
+            column_handler->hist_exits = CT_TRUE;
             break;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_delete_old_histgram(knl_session_t *session, knl_cursor_t *cursor, stats_hist_rowids_t *hist_buckets,
                                           stats_table_t *table_stats)
 {
-    stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_DELETE, GS_INVALID_ID32, table_stats->is_nologging);
+    stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_DELETE, CT_INVALID_ID32, table_stats->is_nologging);
     cursor->scan_mode = SCAN_MODE_ROWID;
     cursor->fetch = TABLE_ACCESSOR(cursor)->do_rowid_fetch;
     cursor->rowid_no = STATS_ROWID_NO;
@@ -2291,16 +2308,16 @@ static status_t stats_delete_old_histgram(knl_session_t *session, knl_cursor_t *
     for (uint32 i = hist_buckets->curr_bucket; i < hist_buckets->bucket_num; i++) {
         cursor->rowid_array[STATS_ROWID_NO] = hist_buckets->rowid_list[i];
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
             break;
         }
 
-        if (knl_internal_delete(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_internal_delete(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         session->stat->hists_deletes++;
@@ -2308,37 +2325,37 @@ static status_t stats_delete_old_histgram(knl_session_t *session, knl_cursor_t *
         cursor->rowid_count = STATS_ROWID_COUNT;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_fetch_distinct(stats_col_handler_t *column_handler, bool32 is_gather)
 {
     mtrl_context_t *ctx = &column_handler->mtrl.mtrl_ctx;
     mtrl_cursor_t *mtrl_cur = &column_handler->mtrl.mtrl_cur;
-    bool32 group_changed = GS_FALSE;
+    bool32 group_changed = CT_FALSE;
 
     if (mtrl_cur->eof) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     while (!(group_changed || mtrl_cur->eof)) {
-        if (mtrl_fetch_group(ctx, mtrl_cur, &group_changed) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (mtrl_fetch_group(ctx, mtrl_cur, &group_changed) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (is_gather) {
-            if (STATS_GET_ROW_SIZE(mtrl_cur) != GS_NULL_VALUE_LEN) {
+            if (STATS_GET_ROW_SIZE(mtrl_cur) != CT_NULL_VALUE_LEN) {
                 column_handler->hist_info.dnv_per_num++;
             }
         } else {
-            if (STATS_GET_ROW_SIZE(mtrl_cur) == GS_NULL_VALUE_LEN && !mtrl_cur->eof) {
+            if (STATS_GET_ROW_SIZE(mtrl_cur) == CT_NULL_VALUE_LEN && !mtrl_cur->eof) {
                 column_handler->null_num++;
             }
             column_handler->total_rows++;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_calc_distinct_num(knl_session_t *session, stats_col_handler_t *column_handler)
@@ -2346,18 +2363,18 @@ static status_t stats_calc_distinct_num(knl_session_t *session, stats_col_handle
     mtrl_cursor_t  *mtrl_cur = &column_handler->mtrl.mtrl_cur;
 
     for (;;) {
-        if (stats_fetch_distinct(column_handler, GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_fetch_distinct(column_handler, CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            return CT_ERROR;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            return CT_ERROR;
         }
 
         if (mtrl_cur->eof) {
@@ -2368,12 +2385,12 @@ static status_t stats_calc_distinct_num(knl_session_t *session, stats_col_handle
             break;
         }
 
-        if (STATS_GET_ROW_SIZE(mtrl_cur) != GS_NULL_VALUE_LEN) {
+        if (STATS_GET_ROW_SIZE(mtrl_cur) != CT_NULL_VALUE_LEN) {
             column_handler->dist_num++;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_put_mtrl_row(row_assist_t *ra, knl_column_t *rs_col, char *ptr, uint32 len)
@@ -2381,75 +2398,78 @@ static status_t stats_put_mtrl_row(row_assist_t *ra, knl_column_t *rs_col, char 
     binary_t bin;
     text_t text;
     dec2_t dec2 = {0};
-    if (len == GS_NULL_VALUE_LEN) {
+    if (len == CT_NULL_VALUE_LEN) {
         row_put_null(ra);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     switch (rs_col->datatype) {
-        case GS_TYPE_BOOLEAN:
+        case CT_TYPE_BOOLEAN:
             (void)row_put_bool(ra, *(bool32 *)ptr);
             break;
 
-        case GS_TYPE_UINT32:
+        case CT_TYPE_UINT32:
             (void)row_put_uint32(ra, *(uint32 *)ptr);
             break;
 
-        case GS_TYPE_INTEGER:
+        case CT_TYPE_INTEGER:
             (void)row_put_int32(ra, *(int32 *)ptr);
             break;
 
-        case GS_TYPE_UINT64:
+        case CT_TYPE_UINT64:
             (void)row_put_uint64(ra, *(uint64 *)ptr);
             break;
 
-        case GS_TYPE_BIGINT:
+        case CT_TYPE_BIGINT:
             (void)row_put_int64(ra, *(int64 *)ptr);
             break;
 
-        case GS_TYPE_REAL:
+        case CT_TYPE_REAL:
             (void)row_put_real(ra, *(double *)ptr);
             break;
 
-        case GS_TYPE_DATE:
+        case CT_TYPE_DATE:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_DATE_MYSQL:
             (void)row_put_date(ra, *(date_t *)ptr);
             break;
 
-        case GS_TYPE_INTERVAL_DS:
+        case CT_TYPE_INTERVAL_DS:
             (void)row_put_dsinterval(ra, *((interval_ds_t *)ptr));
             break;
 
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_INTERVAL_YM:
             (void)row_put_yminterval(ra, *((interval_ym_t *)ptr));
             break;
 
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_LTZ:
             (void)row_put_timestamp(ra, *(date_t *)ptr);
             break;
 
-        case GS_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIMESTAMP_TZ:
             (void)row_put_timestamp_tz(ra, (timestamp_tz_t *)ptr);
             break;
 
-        case GS_TYPE_STRING:
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
             text.str = ptr;
             text.len = len;
             (void)row_put_text(ra, &text);
             break;
 
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_DECIMAL:
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_DECIMAL:
             if (len == 0 && ra->is_csf) {
                 return csf_put_zero(ra);
             } else {
                 return row_put_dec4_core(ra, (dec4_t*)ptr);
             }
-        case GS_TYPE_NUMBER2:
+        case CT_TYPE_NUMBER2:
             if (len == 0 && ra->is_csf) {
                 return csf_put_zero(ra);
             } else {
@@ -2463,7 +2483,7 @@ static status_t stats_put_mtrl_row(row_assist_t *ra, knl_column_t *rs_col, char 
             break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_make_mtrl_rs_row(mtrl_cursor_t *cursor, knl_column_t *rs_col, char *buf, bool32 *has_null)
@@ -2473,23 +2493,23 @@ static status_t stats_make_mtrl_rs_row(mtrl_cursor_t *cursor, knl_column_t *rs_c
     row_assist_t ra;
     row_head_t *row = (row_head_t*)cursor->row.data;
 
-    cm_row_init(&ra, buf, GS_MAX_ROW_SIZE, STATS_MAP_ROW_COUNT, row->is_csf);
+    cm_row_init(&ra, buf, CT_MAX_ROW_SIZE, STATS_MAP_ROW_COUNT, row->is_csf);
     ptr = cursor->row.data + cursor->row.offsets[rs_col->id];
     if (rs_col->id >= (uint32)ROW_COLUMN_COUNT((row_head_t *)cursor->row.data)) {
-        len = GS_NULL_VALUE_LEN;
+        len = CT_NULL_VALUE_LEN;
     } else {
         len = cursor->row.lens[rs_col->id];
     }
 
-    if (len == GS_NULL_VALUE_LEN) {
-        *has_null = GS_TRUE;
+    if (len == CT_NULL_VALUE_LEN) {
+        *has_null = CT_TRUE;
     }
 
-    if (stats_put_mtrl_row(&ra, rs_col, ptr, len) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_put_mtrl_row(&ra, rs_col, ptr, len) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_get_sample_page(knl_session_t *session, knl_cursor_t *cursor, stats_sampler_t *tab_sample,
@@ -2502,11 +2522,11 @@ static status_t stats_get_sample_page(knl_session_t *session, knl_cursor_t *curs
     uint32 blocks = 0;
     uint32 empty_block = 0;
 
-    cursor->eof = GS_FALSE;
+    cursor->eof = CT_FALSE;
 
     for (;;) {
-        if (stats_next_sample_page(session, cursor, tab_stats, tab_sample, &type) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_next_sample_page(session, cursor, tab_stats, tab_sample, &type) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -2545,7 +2565,7 @@ static status_t stats_get_sample_page(knl_session_t *session, knl_cursor_t *curs
         tab_stats->tab_info.empty_block += empty_block;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_get_nonsample_page(knl_session_t *session, knl_cursor_t *cursor, stats_table_t *tab_stats)
@@ -2554,7 +2574,7 @@ static status_t stats_get_nonsample_page(knl_session_t *session, knl_cursor_t *c
     uint32 empty_block = 0;
 
     if (IS_INVALID_ROWID(cursor->rowid)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     table_t *table = (table_t *)cursor->table;
@@ -2563,20 +2583,20 @@ static status_t stats_get_nonsample_page(knl_session_t *session, knl_cursor_t *c
     char *name = IS_PART_TABLE(table) ? ((table_part_t*)cursor->table_part)->desc.name :
         table->desc.name;  // table name or table part name
 
-    if (buf_read_prefetch_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_SEQUENTIAL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (buf_read_prefetch_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_SEQUENTIAL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     heap_page_t *page = (heap_page_t *)CURR_PAGE(session);
 
     if (!heap_check_page(session, cursor, page, expect_type)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         if (cursor->page_soft_damaged) {
-            GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, (cursor)->rowid.file, (cursor)->rowid.page);
+            CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, (cursor)->rowid.file, (cursor)->rowid.page);
         } else {
-            GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
+            CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
         }
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     errno_t ret = memcpy_sp(cursor->page_buf, DEFAULT_PAGE_SIZE(session), page, DEFAULT_PAGE_SIZE(session));
@@ -2588,9 +2608,9 @@ static status_t stats_get_nonsample_page(knl_session_t *session, knl_cursor_t *c
         empty_block++;
     }
 
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
     knl_set_table_scan_range(session, cursor, page_id, page_id);
-    cursor->eof = GS_FALSE;
+    cursor->eof = CT_FALSE;
 
     if (IS_PART_TABLE(table)) {
         if (tab_stats->part_stats.is_subpart) {
@@ -2605,7 +2625,7 @@ static status_t stats_get_nonsample_page(knl_session_t *session, knl_cursor_t *c
         tab_stats->tab_info.empty_block += empty_block;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -2645,50 +2665,50 @@ status_t stats_insert_row(knl_session_t *session, knl_cursor_t *cursor, mtrl_con
     uint32 rows = 0;
     uint64 row_len = 0;
     mtrl_segment_t *segment = NULL;
-    char *row = (char *)cm_push(session->stack, GS_MAX_ROW_SIZE + sizeof(rowid_t));
+    char *row = (char *)cm_push(session->stack, CT_MAX_ROW_SIZE + sizeof(rowid_t));
 
     segment = temp_ctx->segments[seg_id];
-    if (mtrl_open_page(temp_ctx, segment->vm_list.last, &segment->curr_page) != GS_SUCCESS) {
+    if (mtrl_open_page(temp_ctx, segment->vm_list.last, &segment->curr_page) != CT_SUCCESS) {
         cm_pop(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             mtrl_close_page(temp_ctx, segment->vm_list.last);
             segment->curr_page = NULL;
             cm_pop(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
             mtrl_close_page(temp_ctx, segment->vm_list.last);
             segment->curr_page = NULL;
             cm_pop(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
             mtrl_close_page(temp_ctx, segment->vm_list.last);
             segment->curr_page = NULL;
             cm_pop(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
             if (!STATS_IS_ANALYZE_TEMP_TABLE(table_stats)) {
                 if (buf_read_page(session, page_id, LATCH_MODE_S,
-                                  ENTER_PAGE_NORMAL | ENTER_PAGE_SEQUENTIAL) != GS_SUCCESS) {
+                                  ENTER_PAGE_NORMAL | ENTER_PAGE_SEQUENTIAL) != CT_SUCCESS) {
                     mtrl_close_page(temp_ctx, segment->vm_list.last);
                     segment->curr_page = NULL;
                     cm_pop(session->stack);
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
                 page = (heap_page_t *)CURR_PAGE(session);
                 SET_ROWID_PAGE(&cursor->rowid, AS_PAGID(page->next));
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
             }
 
             break;
@@ -2703,11 +2723,11 @@ status_t stats_insert_row(knl_session_t *session, knl_cursor_t *cursor, mtrl_con
          */
         stats_row_append_rowid(cursor, row);
 
-        if (mtrl_insert_row(temp_ctx, seg_id, row, &rid) != GS_SUCCESS) {
+        if (mtrl_insert_row(temp_ctx, seg_id, row, &rid) != CT_SUCCESS) {
             mtrl_close_page(temp_ctx, segment->vm_list.last);
             segment->curr_page = NULL;
             cm_pop(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         table_stats->now_rid = rid;
     }
@@ -2728,7 +2748,7 @@ status_t stats_insert_row(knl_session_t *session, knl_cursor_t *cursor, mtrl_con
     mtrl_close_page(temp_ctx, segment->vm_list.last);
     segment->curr_page = NULL;
     cm_pop(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t get_next_tmptab_page(knl_session_t *session, stats_table_t *table_stats, knl_cursor_t *cursor)
@@ -2738,7 +2758,7 @@ static status_t get_next_tmptab_page(knl_session_t *session, stats_table_t *tabl
     vm_ctrl_t *vm_ctrl = NULL;
     temp_heap_page_t *current_heap_page = NULL;
 
-    if (table_stats->temp_table->prev_sample_pageid == GS_INVALID_ID32) {
+    if (table_stats->temp_table->prev_sample_pageid == CT_INVALID_ID32) {
         curr_sample_pageid = table_stats->temp_table->first_pageid;
     } else {
         vm_ctrl = vm_get_ctrl(session->temp_mtrl->pool, table_stats->temp_table->prev_sample_pageid);
@@ -2746,16 +2766,16 @@ static status_t get_next_tmptab_page(knl_session_t *session, stats_table_t *tabl
     }
 
     cursor->rowid.vmid = curr_sample_pageid;
-    cursor->eof = GS_FALSE;
+    cursor->eof = CT_FALSE;
     table_stats->temp_table->prev_sample_pageid = curr_sample_pageid;
 
-    if (curr_sample_pageid == GS_INVALID_ID32) {
-        return GS_SUCCESS;
+    if (curr_sample_pageid == CT_INVALID_ID32) {
+        return CT_SUCCESS;
     }
 
-    if (buf_enter_temp_page_nolock(session, curr_sample_pageid) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("Fail to open heap migr vm page (%u).", curr_sample_pageid);
-        return GS_ERROR;
+    if (buf_enter_temp_page_nolock(session, curr_sample_pageid) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("Fail to open heap migr vm page (%u).", curr_sample_pageid);
+        return CT_ERROR;
     }
 
     current_vm_page = buf_curr_temp_page(session);
@@ -2766,9 +2786,9 @@ static status_t get_next_tmptab_page(knl_session_t *session, stats_table_t *tabl
     }
 
     table_stats->tab_info.blocks++;
-    buf_leave_temp_page_nolock(session, GS_FALSE);
+    buf_leave_temp_page_nolock(session, CT_FALSE);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -2777,28 +2797,28 @@ static status_t stats_insert_mtrl_temp_table(knl_session_t *session, knl_cursor_
 {
     uint32 sample_pages = 0;
 
-    session->stat_sample = GS_TRUE;
+    session->stat_sample = CT_TRUE;
 
     for (;;) {
         if (sample_pages >= table_stats->temp_table->sample_pages) {
             break;
         }
 
-        if (get_next_tmptab_page(session, table_stats, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (get_next_tmptab_page(session, table_stats, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (stats_insert_row(session, cursor, temp_ctx, seg_id, table_stats) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_insert_row(session, cursor, temp_ctx, seg_id, table_stats) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         sample_pages++;
     }
 
     stats_get_row_avg_len(&table_stats->tab_info);
-    session->stat_sample = GS_FALSE;
+    session->stat_sample = CT_FALSE;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool8 stats_set_sample(stats_sampler_t *stats_sample)
@@ -2807,10 +2827,10 @@ bool8 stats_set_sample(stats_sampler_t *stats_sample)
     ratio_per_ext = ((double)stats_sample->pages_per_ext / (double)stats_sample->extent_size);
    
     if (ratio_per_ext > STATS_MIN_SAMPLE_RATIO_EXT) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
     
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static void stats_flow_control(knl_session_t *session, knl_cursor_t *cursor, stats_table_t *table_stats)
@@ -2842,7 +2862,7 @@ static void stats_flow_control(knl_session_t *session, knl_cursor_t *cursor, sta
 static status_t stats_insert_mtrl_heap_table(knl_session_t *session, knl_cursor_t *cursor, mtrl_context_t *temp_ctx,
                                              stats_sampler_t *stats_sample, uint32 seg_id, stats_table_t *table_stats)
 {
-    bool32 is_sample = (stats_sample->sample_size != GS_INVALID_ID32) ? GS_TRUE : GS_FALSE;
+    bool32 is_sample = (stats_sample->sample_size != CT_INVALID_ID32) ? CT_TRUE : CT_FALSE;
     table_t *table = (table_t *)cursor->table;
     stats_table_info_t *info = NULL;
 
@@ -2854,13 +2874,13 @@ static status_t stats_insert_mtrl_heap_table(knl_session_t *session, knl_cursor_
 
     for (;;) {
         if (is_sample) {
-            if (stats_get_sample_page(session, cursor, stats_sample, table_stats) != GS_SUCCESS) {
-                session->stat_sample = GS_FALSE;
-                return GS_ERROR;
+            if (stats_get_sample_page(session, cursor, stats_sample, table_stats) != CT_SUCCESS) {
+                session->stat_sample = CT_FALSE;
+                return CT_ERROR;
             }
         } else {
-            if (stats_get_nonsample_page(session, cursor, table_stats) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (stats_get_nonsample_page(session, cursor, table_stats) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
@@ -2870,7 +2890,7 @@ static status_t stats_insert_mtrl_heap_table(knl_session_t *session, knl_cursor_
             }
 
             if (is_sample) {
-                session->stat_sample = GS_FALSE;
+                session->stat_sample = CT_FALSE;
             }
 
             break;
@@ -2878,8 +2898,8 @@ static status_t stats_insert_mtrl_heap_table(knl_session_t *session, knl_cursor_
 
         stats_flow_control(session, cursor, table_stats);
 
-        if (stats_insert_row(session, cursor, temp_ctx, seg_id, table_stats) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_insert_row(session, cursor, temp_ctx, seg_id, table_stats) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -2893,7 +2913,7 @@ static status_t stats_insert_mtrl_heap_table(knl_session_t *session, knl_cursor_
         info = &table_stats->tab_info;
     }
     stats_get_row_avg_len(info);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_open_mtrl_rs_cursor(mtrl_rowid_t rid, mtrl_context_t *temp_ctx,
@@ -2905,17 +2925,17 @@ static status_t stats_open_mtrl_rs_cursor(mtrl_rowid_t rid, mtrl_context_t *temp
         return mtrl_open_rs_cursor(temp_ctx, temp_seg, cursor);
     }
 
-    if (mtrl_open_page(temp_ctx, rid.vmid, &page) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_open_page(temp_ctx, rid.vmid, &page) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    cursor->eof = GS_FALSE;
+    cursor->eof = CT_FALSE;
     cursor->row.data = NULL;
     cursor->rs_vmid = rid.vmid;
     cursor->slot = rid.slot + 1;
     cursor->rs_page = (mtrl_page_t *)page->data;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_mtrl_distinct(knl_session_t *session, stats_col_handler_t *column_handler)
@@ -2928,47 +2948,47 @@ static status_t stats_mtrl_distinct(knl_session_t *session, stats_col_handler_t 
     uint32 dist_seg = column_handler->mtrl.dist_seg_id;
     uint32 temp_seg = column_handler->mtrl.temp_seg_id;
 
-    if (stats_open_mtrl_rs_cursor(column_handler->g_rid, temp_ctx, cursor, temp_seg) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_open_mtrl_rs_cursor(column_handler->g_rid, temp_ctx, cursor, temp_seg) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     buf = (char *)column_handler->col_buf;
 
     for (;;) {
-        if (mtrl_fetch_rs(temp_ctx, cursor, GS_TRUE) != GS_SUCCESS) {
+        if (mtrl_fetch_rs(temp_ctx, cursor, CT_TRUE) != CT_SUCCESS) {
             mtrl_close_cursor(temp_ctx, cursor);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (session->canceled) {
             mtrl_close_cursor(temp_ctx, cursor);
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            return CT_ERROR;
         }
 
         if (session->killed) {
             mtrl_close_cursor(temp_ctx, cursor);
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
             break;
         }
 
-        if (stats_make_mtrl_rs_row(cursor, column_handler->column, buf, &column_handler->has_null) != GS_SUCCESS) {
+        if (stats_make_mtrl_rs_row(cursor, column_handler->column, buf, &column_handler->has_null) != CT_SUCCESS) {
             mtrl_close_cursor(temp_ctx, cursor);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (mtrl_insert_row(ctx, dist_seg, buf, &rid) != GS_SUCCESS) {
+        if (mtrl_insert_row(ctx, dist_seg, buf, &rid) != CT_SUCCESS) {
             mtrl_close_cursor(temp_ctx, cursor);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     mtrl_close_cursor(temp_ctx, cursor);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 uint32 stats_get_table_pages(knl_session_t *session, table_t *table, uint32 *extent_count)
@@ -2982,7 +3002,7 @@ uint32 stats_get_table_pages(knl_session_t *session, table_t *table, uint32 *ext
     }
 
     if (!spc_validate_page_id(session, table->desc.entry)) {
-        GS_LOG_RUN_ERR("stats table error: table name: %s has been droped", table->desc.name);
+        CT_LOG_RUN_ERR("stats table error: table name: %s has been droped", table->desc.name);
         return estimate_blocks;
     }
 
@@ -2990,15 +3010,15 @@ uint32 stats_get_table_pages(knl_session_t *session, table_t *table, uint32 *ext
     page_head_t *page = (page_head_t *)CURR_PAGE(session);
     segment = HEAP_SEG_HEAD(session);
     if (page->type != PAGE_TYPE_HEAP_HEAD || segment->seg_scn != table->desc.seg_scn) {
-        GS_LOG_RUN_ERR("stats table error: table name: %s has been droped", table->desc.name);
-        buf_leave_page(session, GS_FALSE);
+        CT_LOG_RUN_ERR("stats table error: table name: %s has been droped", table->desc.name);
+        buf_leave_page(session, CT_FALSE);
         return estimate_blocks;
     }
 
     space = SPACE_GET(session, table->desc.space_id);
     estimate_blocks = heap_get_segment_page_count(space, segment) - segment->ufp_count;
     *extent_count = segment->extents.count;
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
     return estimate_blocks;
 }
 
@@ -3013,7 +3033,7 @@ uint32 stats_get_table_part_pages(knl_session_t *session, table_part_t *table_pa
     }
 
     if (!spc_validate_page_id(session, table_part->desc.entry)) {
-        GS_LOG_RUN_ERR("stats table part error: table part name: %s has been droped", table_part->desc.name);
+        CT_LOG_RUN_ERR("stats table part error: table part name: %s has been droped", table_part->desc.name);
         return estimate_blocks;
     }
 
@@ -3021,16 +3041,16 @@ uint32 stats_get_table_part_pages(knl_session_t *session, table_part_t *table_pa
     page_head_t *page = (page_head_t *)CURR_PAGE(session);
     segment = HEAP_SEG_HEAD(session);
     if (page->type != PAGE_TYPE_HEAP_HEAD || segment->seg_scn != table_part->desc.seg_scn) {
-        GS_LOG_RUN_ERR("stats table table_part error: table table_part name: %s has been droped",
+        CT_LOG_RUN_ERR("stats table table_part error: table table_part name: %s has been droped",
             table_part->desc.name);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return estimate_blocks;
     }
 
     space = SPACE_GET(session, table_part->desc.space_id);
     estimate_blocks = heap_get_segment_page_count(space, segment) - segment->ufp_count;
     *extent_count = segment->extents.count;
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
     return estimate_blocks;
 }
 
@@ -3101,17 +3121,17 @@ static void stats_sample_ratio_init(knl_session_t *session, knl_dictionary_t *dc
  
     estimate_sample_size = (sample_size > min_sample_blocks) ? sample_size : min_sample_blocks;
 
-    if (*sample_ratio > GS_REAL_PRECISION) {
+    if (*sample_ratio > CT_REAL_PRECISION) {
         /* min sample blocks is bigger one between one extent size and STATS_MIN_SAMPLE_BLOCKS */
         stats_check_min_sample_size(blocks, &sample_size, estimate_sample_size, sample_ratio);
     }
 
-    if (*sample_ratio > GS_REAL_PRECISION) {
+    if (*sample_ratio > CT_REAL_PRECISION) {
         ret = memset_sp(stats_sample, sizeof(stats_sampler_t), 0, sizeof(stats_sampler_t));
         knl_securec_check(ret);
         stats_sample_init(session, stats_sample, extents_count, space, sample_size, *sample_ratio);
     } else {
-        stats_sample->sample_size = GS_INVALID_ID32;
+        stats_sample->sample_size = CT_INVALID_ID32;
     }
 }
 /*
@@ -3139,10 +3159,10 @@ status_t stats_create_global_mtrl_table(knl_session_t *session, knl_dictionary_t
         cursor->part_loc.subpart_no = table_stats->part_stats.sub_stats->part_no;
     }
 
-    if (knl_open_cursor(session, cursor, dc) != GS_SUCCESS) {
+    if (knl_open_cursor(session, cursor, dc) != CT_SUCCESS) {
         knl_close_cursor(session, cursor);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cursor->isolevel = ISOLATION_CURR_COMMITTED;
@@ -3153,15 +3173,15 @@ status_t stats_create_global_mtrl_table(knl_session_t *session, knl_dictionary_t
         stats_sample_ratio_init(session, dc, &stats_sample, &table_stats->estimate_sample_ratio, table_stats);
     }
    
-    if (stats_insert_mtrl_heap_table(session, cursor, temp_ctx, &stats_sample, seg_id, table_stats) != GS_SUCCESS) {
+    if (stats_insert_mtrl_heap_table(session, cursor, temp_ctx, &stats_sample, seg_id, table_stats) != CT_SUCCESS) {
         knl_close_cursor(session, cursor);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_close_cursor(session, cursor);
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_create_mtrl_table(knl_session_t *session, knl_dictionary_t *dc, stats_tab_context_t *tab_ctx)
@@ -3182,10 +3202,10 @@ status_t stats_create_mtrl_table(knl_session_t *session, knl_dictionary_t *dc, s
     cursor->action = CURSOR_ACTION_SELECT;
     cursor->scan_mode = SCAN_MODE_TABLE_FULL;
     cursor->part_loc.part_no = table_stats->part_stats.part_no;
-    if (knl_open_cursor(session, cursor, dc) != GS_SUCCESS) {
+    if (knl_open_cursor(session, cursor, dc) != CT_SUCCESS) {
         knl_close_cursor(session, cursor);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cursor->isolevel = ISOLATION_CURR_COMMITTED;
@@ -3195,48 +3215,48 @@ status_t stats_create_mtrl_table(knl_session_t *session, knl_dictionary_t *dc, s
     }
 
     if (!STATS_IS_ANALYZE_TEMP_TABLE(table_stats)) {
-        if (stats_insert_mtrl_heap_table(session, cursor, temp_ctx, &stats_sample, seg_id, table_stats) != GS_SUCCESS) {
+        if (stats_insert_mtrl_heap_table(session, cursor, temp_ctx, &stats_sample, seg_id, table_stats) != CT_SUCCESS) {
             mtrl_close_segment(temp_ctx, seg_id);
             knl_close_cursor(session, cursor);
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else {
-        if (stats_insert_mtrl_temp_table(session, cursor, temp_ctx, seg_id, table_stats) != GS_SUCCESS) {
+        if (stats_insert_mtrl_temp_table(session, cursor, temp_ctx, seg_id, table_stats) != CT_SUCCESS) {
             mtrl_close_segment(temp_ctx, seg_id);
             knl_close_cursor(session, cursor);
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     mtrl_close_segment(temp_ctx, seg_id);
     knl_close_cursor(session, cursor);
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_alloc_vm_memory(knl_session_t *session, uint32 *vmid, char **page)
 {
     vm_page_t *vm_page = NULL;
 
-    if (vm_alloc(session, session->temp_pool, vmid) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (vm_alloc(session, session->temp_pool, vmid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (vm_open(session, session->temp_pool, *vmid, &vm_page) != GS_SUCCESS) {
+    if (vm_open(session, session->temp_pool, *vmid, &vm_page) != CT_SUCCESS) {
         vm_free(session, session->temp_pool, *vmid);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *page = vm_page->data;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void stats_close_vm(knl_handle_t session, uint32 vmid)
 {
     knl_session_t *se = (knl_session_t *)session;
-    if (vmid == GS_INVALID_ID32) {
+    if (vmid == CT_INVALID_ID32) {
         return;
     }
 
@@ -3249,29 +3269,29 @@ static status_t stats_create_distinct_values(knl_session_t *session, stats_col_h
     uint32 *seg_id = &column_handler->mtrl.dist_seg_id;
     mtrl_cursor_t *mtrl_cur = &column_handler->mtrl.mtrl_cur;
 
-    if (mtrl_create_segment(ctx, MTRL_SEGMENT_DISTINCT, (handle_t)column_handler->column, seg_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_create_segment(ctx, MTRL_SEGMENT_DISTINCT, (handle_t)column_handler->column, seg_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (mtrl_open_segment(ctx, *seg_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_open_segment(ctx, *seg_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
  
-    if (stats_mtrl_distinct(session, column_handler) != GS_SUCCESS) {
+    if (stats_mtrl_distinct(session, column_handler) != CT_SUCCESS) {
         mtrl_close_segment(ctx, *seg_id);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     mtrl_close_segment(ctx, *seg_id);
-    if (mtrl_sort_segment(ctx, *seg_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_sort_segment(ctx, *seg_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (mtrl_open_cursor(ctx, *seg_id, mtrl_cur) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_open_cursor(ctx, *seg_id, mtrl_cur) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_update_sys_subindexpart(knl_session_t *session, stats_index_t *stats_index)
@@ -3281,38 +3301,38 @@ status_t stats_update_sys_subindexpart(knl_session_t *session, stats_index_t *st
     uint16 size;
     knl_cursor_t *cursor = NULL;
 
-    if (stats_try_begin_auton_rm(session, stats_index->is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_try_begin_auton_rm(session, stats_index->is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
     cursor = knl_push_cursor(session);
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_SUB_INDEX_PARTS_ID, IX_SYS_INDEXSUBPART001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
     key = &cursor->scan_range.l_key;
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &stats_index->uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &stats_index->uid, sizeof(uint32),
         IX_COL_SYS_INDEXSUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &stats_index->table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &stats_index->table_id, sizeof(uint32),
         IX_COL_SYS_INDEXSUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &stats_index->idx_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &stats_index->idx_id, sizeof(uint32),
         IX_COL_SYS_INDEXSUBPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &stats_index->part_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &stats_index->part_id, sizeof(uint32),
         IX_COL_SYS_INDEXSUBPART001_PARENT_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &stats_index->subpart_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &stats_index->subpart_id, sizeof(uint32),
         IX_COL_SYS_INDEXSUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        stats_try_end_auton_rm(session, GS_ERROR, stats_index->is_dynamic);
-        return GS_ERROR;
+        stats_try_end_auton_rm(session, CT_ERROR, stats_index->is_dynamic);
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, T2S(&stats_index->name));
-        stats_try_end_auton_rm(session, GS_ERROR, stats_index->is_dynamic);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, T2S(&stats_index->name));
+        stats_try_end_auton_rm(session, CT_ERROR, stats_index->is_dynamic);
+        return CT_ERROR;
     }
 
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_SYS_INDEX_COLUMN_COUNT);
@@ -3320,17 +3340,17 @@ status_t stats_update_sys_subindexpart(knl_session_t *session, stats_index_t *st
     cursor->update_info.count = STATS_SYS_INDEX_COLUMN_COUNT;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_SYS_INDEX_COLUMN_COUNT);
     (void)row_put_int32(&ra, stats_index->info.height);  // btree level
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.leaf_blocks));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.distinct_keys));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.leaf_blocks));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.distinct_keys));
     (void)row_put_real(&ra, stats_index->avg_leaf_key);
     (void)row_put_real(&ra, stats_index->avg_data_key);
     (void)row_put_date(&ra, cm_now());
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.empty_leaves));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->clus_factor));  // clus_factor
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->sample_size));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.comb_cols_2_ndv));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.comb_cols_3_ndv));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.comb_cols_4_ndv));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.empty_leaves));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->clus_factor));  // clus_factor
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->sample_size));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.comb_cols_2_ndv));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.comb_cols_3_ndv));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.comb_cols_4_ndv));
 
     for (uint32 i = 0; i < STATS_SYS_INDEX_COLUMN_COUNT; i++) {
         cursor->update_info.columns[i] = i + STATS_SYS_INDEXPART_COLUMN_NUM;
@@ -3338,16 +3358,16 @@ status_t stats_update_sys_subindexpart(knl_session_t *session, stats_index_t *st
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        stats_try_end_auton_rm(session, GS_ERROR, stats_index->is_dynamic);
-        return GS_ERROR;
+        stats_try_end_auton_rm(session, CT_ERROR, stats_index->is_dynamic);
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    stats_try_end_auton_rm(session, GS_SUCCESS, stats_index->is_dynamic);
-    return GS_SUCCESS;
+    stats_try_end_auton_rm(session, CT_SUCCESS, stats_index->is_dynamic);
+    return CT_SUCCESS;
 }
 
 status_t stats_update_sys_indexpart(knl_session_t *session, stats_index_t *stats_index)
@@ -3357,36 +3377,36 @@ status_t stats_update_sys_indexpart(knl_session_t *session, stats_index_t *stats
     uint16 size;
     knl_cursor_t *cursor = NULL;
 
-    if (stats_try_begin_auton_rm(session, stats_index->is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_try_begin_auton_rm(session, stats_index->is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
  
     CM_SAVE_STACK(session->stack);
     cursor = knl_push_cursor(session);
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_INDEXPART_ID, IX_SYS_INDEXPART001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
     key = &cursor->scan_range.l_key;
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &stats_index->uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &stats_index->uid, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &stats_index->table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &stats_index->table_id, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &stats_index->idx_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &stats_index->idx_id, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &stats_index->part_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &stats_index->part_id, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        stats_try_end_auton_rm(session, GS_ERROR, stats_index->is_dynamic);
-        return GS_ERROR;
+        stats_try_end_auton_rm(session, CT_ERROR, stats_index->is_dynamic);
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, T2S(&stats_index->name));
-        stats_try_end_auton_rm(session, GS_ERROR, stats_index->is_dynamic);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, T2S(&stats_index->name));
+        stats_try_end_auton_rm(session, CT_ERROR, stats_index->is_dynamic);
+        return CT_ERROR;
     }
 
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_SYS_INDEX_COLUMN_COUNT);
@@ -3394,17 +3414,17 @@ status_t stats_update_sys_indexpart(knl_session_t *session, stats_index_t *stats
     cursor->update_info.count = STATS_SYS_INDEX_COLUMN_COUNT;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_SYS_INDEX_COLUMN_COUNT);
     (void)row_put_int32(&ra, stats_index->info.height);  // btree level
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.leaf_blocks));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.distinct_keys));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.leaf_blocks));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.distinct_keys));
     (void)row_put_real(&ra, stats_index->avg_leaf_key);
     (void)row_put_real(&ra, stats_index->avg_data_key);
     (void)row_put_date(&ra, cm_now());
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.empty_leaves));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->clus_factor));  // clus_factor
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->sample_size));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.comb_cols_2_ndv));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.comb_cols_3_ndv));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.comb_cols_4_ndv));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.empty_leaves));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->clus_factor));  // clus_factor
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->sample_size));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.comb_cols_2_ndv));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.comb_cols_3_ndv));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.comb_cols_4_ndv));
 
     for (uint32 i = 0; i < STATS_SYS_INDEX_COLUMN_COUNT; i++) {
         cursor->update_info.columns[i] = i + STATS_SYS_INDEXPART_COLUMN_NUM;
@@ -3412,17 +3432,17 @@ status_t stats_update_sys_indexpart(knl_session_t *session, stats_index_t *stats
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        stats_try_end_auton_rm(session, GS_ERROR, stats_index->is_dynamic);
-        return GS_ERROR;
+        stats_try_end_auton_rm(session, CT_ERROR, stats_index->is_dynamic);
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    stats_try_end_auton_rm(session, GS_SUCCESS, stats_index->is_dynamic);
+    stats_try_end_auton_rm(session, CT_SUCCESS, stats_index->is_dynamic);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_update_sys_index(knl_session_t *session, stats_index_t *stats_index)
@@ -3432,34 +3452,34 @@ static status_t stats_update_sys_index(knl_session_t *session, stats_index_t *st
     uint16 size;
     knl_cursor_t *cursor = NULL;
     
-    if (stats_try_begin_auton_rm(session, stats_index->is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_try_begin_auton_rm(session, stats_index->is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
     cursor = knl_push_cursor(session);
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_INDEX_ID, IX_SYS_INDEX_002_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
     key = &cursor->scan_range.l_key;
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &stats_index->uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &stats_index->uid, sizeof(uint32),
                      IX_COL_SYS_INDEX_002_USER);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_STRING, stats_index->name.str, stats_index->name.len,
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_STRING, stats_index->name.str, stats_index->name.len,
                      IX_COL_SYS_INDEX_002_NAME);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &stats_index->table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &stats_index->table_id, sizeof(uint32),
                      IX_COL_SYS_INDEX_002_TABLE);
     
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        stats_try_end_auton_rm(session, GS_ERROR, stats_index->is_dynamic);
-        return GS_ERROR;
+        stats_try_end_auton_rm(session, CT_ERROR, stats_index->is_dynamic);
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, T2S(&stats_index->name));
-        stats_try_end_auton_rm(session, GS_ERROR, stats_index->is_dynamic);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, T2S(&stats_index->name));
+        stats_try_end_auton_rm(session, CT_ERROR, stats_index->is_dynamic);
+        return CT_ERROR;
     }
 
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_SYS_INDEX_COLUMN_COUNT);
@@ -3467,17 +3487,17 @@ static status_t stats_update_sys_index(knl_session_t *session, stats_index_t *st
     cursor->update_info.count = STATS_SYS_INDEX_COLUMN_COUNT;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_SYS_INDEX_COLUMN_COUNT);
     (void)row_put_int32(&ra, stats_index->info.height);  // btree level
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.leaf_blocks));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.distinct_keys));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.leaf_blocks));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.distinct_keys));
     (void)row_put_real(&ra, stats_index->avg_leaf_key);
     (void)row_put_real(&ra, stats_index->avg_data_key);
     (void)row_put_date(&ra, cm_now());
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.empty_leaves));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->clus_factor));  // clus_factor
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->sample_size));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.comb_cols_2_ndv));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.comb_cols_3_ndv));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, stats_index->info.comb_cols_4_ndv));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.empty_leaves));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->clus_factor));  // clus_factor
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->sample_size));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.comb_cols_2_ndv));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.comb_cols_3_ndv));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, stats_index->info.comb_cols_4_ndv));
 
     cursor->update_info.columns[0] = STATS_SYS_INDEX_BLEVEL_COLUMN;
     cursor->update_info.columns[1] = STATS_SYS_INDEX_LEAF_BLOCKS_COLUMN;
@@ -3494,16 +3514,16 @@ static status_t stats_update_sys_index(knl_session_t *session, stats_index_t *st
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        stats_try_end_auton_rm(session, GS_ERROR, stats_index->is_dynamic);
-        return GS_ERROR;
+        stats_try_end_auton_rm(session, CT_ERROR, stats_index->is_dynamic);
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    stats_try_end_auton_rm(session, GS_SUCCESS, stats_index->is_dynamic);
+    stats_try_end_auton_rm(session, CT_SUCCESS, stats_index->is_dynamic);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void stats_reset_index_stats(stats_index_t *stats_idx)
@@ -3544,13 +3564,13 @@ static status_t stats_make_index_key(knl_handle_t session, mtrl_cursor_t *cursor
     knl_cur = knl_push_cursor(session);
     stats_mtrl2knl_cursor(cursor, knl_cur);
 
-    if (knl_make_key(session, knl_cur, idx, key_buf) != GS_SUCCESS) {
+    if (knl_make_key(session, knl_cur, idx, key_buf) != CT_SUCCESS) {
         CM_RESTORE_STACK(((knl_session_t *)session)->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(((knl_session_t *)session)->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_mtrl_index_key(knl_session_t *session, index_t *idx, stats_index_t *stats_idx)
@@ -3562,56 +3582,56 @@ static status_t stats_mtrl_index_key(knl_session_t *session, index_t *idx, stats
     uint32             dist_seg = stats_idx->mtrl.dist_seg_id;
     uint32             temp_seg = stats_idx->mtrl.temp_seg_id;
 
-    if (stats_open_mtrl_rs_cursor(stats_idx->g_rid, temp_ctx, cursor, temp_seg) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_open_mtrl_rs_cursor(stats_idx->g_rid, temp_ctx, cursor, temp_seg) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    char *key = (char *)cm_push(session->stack, GS_KEY_BUF_SIZE);
-    errno_t ret = memset_sp(key, GS_KEY_BUF_SIZE, 0, GS_KEY_BUF_SIZE);
+    char *key = (char *)cm_push(session->stack, CT_KEY_BUF_SIZE);
+    errno_t ret = memset_sp(key, CT_KEY_BUF_SIZE, 0, CT_KEY_BUF_SIZE);
     knl_securec_check(ret);
 
     for (;;) {
-        if (mtrl_fetch_rs(temp_ctx, cursor, GS_TRUE) != GS_SUCCESS) {
+        if (mtrl_fetch_rs(temp_ctx, cursor, CT_TRUE) != CT_SUCCESS) {
             mtrl_close_cursor(temp_ctx, cursor);
             cm_pop(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (session->canceled) {
             mtrl_close_cursor(temp_ctx, cursor);
             cm_pop(session->stack);
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            return CT_ERROR;
         }
 
         if (session->killed) {
             mtrl_close_cursor(temp_ctx, cursor);
             cm_pop(session->stack);
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
             break;
         }
 
-        if (stats_make_index_key(session, cursor, idx, key) != GS_SUCCESS) {
+        if (stats_make_index_key(session, cursor, idx, key) != CT_SUCCESS) {
             mtrl_close_cursor(temp_ctx, cursor);
             cm_pop(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (mtrl_insert_row(ctx, dist_seg, key, &rid) != GS_SUCCESS) {
+        if (mtrl_insert_row(ctx, dist_seg, key, &rid) != CT_SUCCESS) {
             mtrl_close_cursor(temp_ctx, cursor);
             cm_pop(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     mtrl_close_cursor(temp_ctx, cursor);
     cm_pop(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_create_mtrl_index(knl_session_t *session, index_t *idx, stats_index_t *stats_idx)
@@ -3628,25 +3648,25 @@ static status_t stats_create_mtrl_index(knl_session_t *session, index_t *idx, st
         ctx->sort_cmp = stats_btree_compare_mtrl_key;
     }
 
-    if (mtrl_create_segment(ctx, seg_type, stats_idx->btree, seg_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_create_segment(ctx, seg_type, stats_idx->btree, seg_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (mtrl_open_segment(ctx, *seg_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_open_segment(ctx, *seg_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (stats_mtrl_index_key(session, idx, stats_idx) != GS_SUCCESS) {
+    if (stats_mtrl_index_key(session, idx, stats_idx) != CT_SUCCESS) {
         mtrl_close_segment(ctx, *seg_id);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     mtrl_close_segment(ctx, *seg_id);
-    if (mtrl_sort_segment(ctx, *seg_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_sort_segment(ctx, *seg_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void stats_gather_pcrb_key(index_t *idx, stats_index_t *stats_idx, pcrb_key_t *prev_key,
@@ -3675,7 +3695,7 @@ static void stats_gather_pcrb_key(index_t *idx, stats_index_t *stats_idx, pcrb_k
     stats_idx->info.keys++;
     stats_idx->info.keys_total_size += key->size;
 
-    ret = memcpy_sp(prev_key, GS_KEY_BUF_SIZE, key, (uint32)(key->size));
+    ret = memcpy_sp(prev_key, CT_KEY_BUF_SIZE, key, (uint32)(key->size));
     knl_securec_check(ret);
 }
 
@@ -3705,7 +3725,7 @@ static void stats_gather_btree_key(index_t *idx,
     stats_idx->info.keys++;
     stats_idx->info.keys_total_size += key->size;
 
-    ret = memcpy_sp(prev_key, GS_KEY_BUF_SIZE, key, (uint32)(key->size));
+    ret = memcpy_sp(prev_key, CT_KEY_BUF_SIZE, key, (uint32)(key->size));
     knl_securec_check(ret);
 }
 
@@ -3772,27 +3792,27 @@ static void stats_get_index_height(knl_session_t *session, index_t *idx, stats_i
 
     if (STATS_IS_ANALYZE_TEMP_TABLE(table_stats)) {
         temp_segment = &table_stats->temp_table->table_cache->index_root[idx->desc.id];
-        stats_idx->info.height = temp_segment->level == GS_INVALID_ID32 ? 0 : temp_segment->level;
+        stats_idx->info.height = temp_segment->level == CT_INVALID_ID32 ? 0 : temp_segment->level;
     } else {
         if (IS_INVALID_PAGID(btree_entry)) {
             return;
         }
 
-        if (buf_read_page(session, btree_entry, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
+        if (buf_read_page(session, btree_entry, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
             return;
         }
         
         page_head_t *page = (page_head_t *)CURR_PAGE(session);
         btree_segment_t *segment = BTREE_GET_SEGMENT(session);
         if (page->type != PAGE_TYPE_BTREE_HEAD || segment->seg_scn != seg_scn) {
-            buf_leave_page(session, GS_FALSE);
-            GS_LOG_RUN_ERR("stats index error: found page scn is not seg scn, index name: %s", idx->desc.name);
+            buf_leave_page(session, CT_FALSE);
+            CT_LOG_RUN_ERR("stats index error: found page scn is not seg scn, index name: %s", idx->desc.name);
             return;
         }
 
         tree_info.value = cm_atomic_get(&segment->tree_info.value);
         stats_idx->info.height = (uint32)tree_info.level;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 }
 
@@ -3800,7 +3820,7 @@ static void stats_estimate_total_idx_stats(stats_index_t *stats_idx)
 {
     stats_idx->sample_size = stats_idx->info.keys;
 
-    if (stats_idx->sample_ratio > GS_REAL_PRECISION) {
+    if (stats_idx->sample_ratio > CT_REAL_PRECISION) {
         stats_idx->info.comb_cols_2_ndv = stats_estimate_ndv(stats_idx->info.comb_cols_2_ndv, stats_idx->info.keys,
             stats_idx->sample_ratio);
         stats_idx->info.comb_cols_3_ndv = stats_estimate_ndv(stats_idx->info.comb_cols_3_ndv, stats_idx->info.keys,
@@ -3829,39 +3849,39 @@ static status_t stats_gather_key_info(knl_session_t *session, index_t *idx, stat
     CM_SAVE_STACK(session->stack);
 
     if (idx->desc.cr_mode == CR_PAGE) {
-        prev_pcrb_key = (pcrb_key_t *)cm_push(session->stack, GS_KEY_BUF_SIZE);
-        ret = memset_sp(prev_pcrb_key, GS_KEY_BUF_SIZE, 0, GS_KEY_BUF_SIZE);
+        prev_pcrb_key = (pcrb_key_t *)cm_push(session->stack, CT_KEY_BUF_SIZE);
+        ret = memset_sp(prev_pcrb_key, CT_KEY_BUF_SIZE, 0, CT_KEY_BUF_SIZE);
         knl_securec_check(ret);
     } else {
-        prev_btree_key = (btree_key_t *)cm_push(session->stack, GS_KEY_BUF_SIZE);
-        ret = memset_sp(prev_btree_key, GS_KEY_BUF_SIZE, 0, GS_KEY_BUF_SIZE);
+        prev_btree_key = (btree_key_t *)cm_push(session->stack, CT_KEY_BUF_SIZE);
+        ret = memset_sp(prev_btree_key, CT_KEY_BUF_SIZE, 0, CT_KEY_BUF_SIZE);
         knl_securec_check(ret);
     }
 
-    if (mtrl_open_cursor(ctx, dist_seg, cursor) != GS_SUCCESS) {
+    if (mtrl_open_cursor(ctx, dist_seg, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     for (;;) {
-        if (mtrl_fetch_sort_key(ctx, cursor) != GS_SUCCESS) {
+        if (mtrl_fetch_sort_key(ctx, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
             mtrl_close_cursor(ctx, cursor);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (session->canceled) {
             CM_RESTORE_STACK(session->stack);
             mtrl_close_cursor(ctx, cursor);
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            return CT_ERROR;
         }
 
         if (session->killed) {
             CM_RESTORE_STACK(session->stack);
             mtrl_close_cursor(ctx, cursor);
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -3882,7 +3902,7 @@ static status_t stats_gather_key_info(knl_session_t *session, index_t *idx, stat
     mtrl_close_cursor(ctx, cursor);
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -3916,7 +3936,7 @@ static void stats_estimate_tmp_leaf_page(knl_session_t *session, stats_index_t *
 
     // key len must be smaller than max value of uint32
     avg_key_len = (uint32)(stats_idx->info.keys_total_size / stats_idx->info.keys);
-    page_data_size = GS_VMEM_PAGE_SIZE - sizeof(temp_btree_page_t) - sizeof(temp_page_tail_t);
+    page_data_size = CT_VMEM_PAGE_SIZE - sizeof(temp_btree_page_t) - sizeof(temp_page_tail_t);
     ratio = (uint32)(page_data_size * page_load_factor / (avg_key_len + sizeof(temp_btree_dir_t)));
     stats_idx->sample_size = stats_idx->info.keys;
 
@@ -3967,20 +3987,20 @@ static void stats_estimate_btree_empty_pages(knl_session_t *session, index_t *id
     page_type_t page_type = (idx->desc.cr_mode == CR_PAGE) ? PAGE_TYPE_PCRB_NODE : PAGE_TYPE_BTREE_NODE;
 
     if (!spc_validate_page_id(session, AS_PAGID(segment->tree_info.root))) {
-        GS_LOG_RUN_ERR("stats index error: index name: %s has been droped", idx->desc.name);
+        CT_LOG_RUN_ERR("stats index error: index name: %s has been droped", idx->desc.name);
         return;
     }
 
-    if (buf_read_page(session, AS_PAGID(segment->tree_info.root), LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[STATS] ERROR INFO: failed to read page %u-%u",
+    if (buf_read_page(session, AS_PAGID(segment->tree_info.root), LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[STATS] ERROR INFO: failed to read page %u-%u",
             AS_PAGID(segment->tree_info.root).file, AS_PAGID(segment->tree_info.root).page);
         return;
     }
     btree_page_t *page = BTREE_CURR_PAGE(session);
 
-    if (btree_check_segment_scn(page, page_type, segment->seg_scn) != GS_SUCCESS) {
-        buf_leave_page(session, GS_FALSE);
-        GS_LOG_RUN_ERR("stats index error: found page scn is not seg scn, index name: %s", idx->desc.name);
+    if (btree_check_segment_scn(page, page_type, segment->seg_scn) != CT_SUCCESS) {
+        buf_leave_page(session, CT_FALSE);
+        CT_LOG_RUN_ERR("stats index error: found page scn is not seg scn, index name: %s", idx->desc.name);
         return;
     }
 
@@ -3999,7 +4019,7 @@ static void stats_estimate_btree_empty_pages(knl_session_t *session, index_t *id
     avg_key_len = (page->keys > 1) ? (uint64)(avg_key_len / (page->keys - 1)) : 0;
     page_data_size = DEFAULT_PAGE_SIZE(session) - sizeof(btree_page_t) - space->ctrl->cipher_reserve_size -
                         sizeof(page_tail_t) - page->itls * itl_size;
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     uint32 ratio = (uint32)(page_data_size * page_load_factor / (avg_key_len + dir_size));
     estimate_data_page += higher_level_page;
@@ -4095,7 +4115,7 @@ static void stats_estimate_tmpidx_page_info(knl_session_t *session, index_t *idx
     stats_idx->idx_id = idx->desc.id;
 
     uint32 index_segid = table_stats->temp_table->table_cache->index_segid;
-    if (index_segid == GS_INVALID_ID32 || index_segid >= session->temp_mtrl->seg_count) {
+    if (index_segid == CT_INVALID_ID32 || index_segid >= session->temp_mtrl->seg_count) {
         return;
     }
     mtrl_segment_t *mtrl_segment = session->temp_mtrl->segments[index_segid];
@@ -4121,15 +4141,15 @@ static void stats_estimate_page_info(knl_session_t *session, index_t *idx, stats
     if (IS_INVALID_PAGID(btree_entry)) {
         return;
     }
-    if (buf_read_page(session, btree_entry, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[STATS] ERROR INFO: failed to read page %u-%u", btree_entry.file, btree_entry.page);
+    if (buf_read_page(session, btree_entry, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[STATS] ERROR INFO: failed to read page %u-%u", btree_entry.file, btree_entry.page);
         return;
     }
     page_head_t *page = (page_head_t *)CURR_PAGE(session);
     btree_segment_t *segment = BTREE_GET_SEGMENT(session);
     if (page->type != PAGE_TYPE_BTREE_HEAD || segment->seg_scn != seg_scn) {
-        buf_leave_page(session, GS_FALSE);
-        GS_LOG_RUN_ERR("stats index error: found current seg scn is not origin seg scn, index name: %s",
+        buf_leave_page(session, CT_FALSE);
+        CT_LOG_RUN_ERR("stats index error: found current seg scn is not origin seg scn, index name: %s",
             idx->desc.name);
         return;
     }
@@ -4160,7 +4180,7 @@ static void stats_estimate_page_info(knl_session_t *session, index_t *idx, stats
         stats_idx->avg_leaf_key = (double)stats_idx->info.leaf_blocks / (double)stats_idx->info.distinct_keys;
         stats_idx->avg_data_key = (double)(segment_blocks - recycled_cnt) / stats_idx->info.distinct_keys;
     }
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 }
 
 static void stats_init_index_handler(knl_session_t *session, stats_index_t *stats_idx, double sample_ratio)
@@ -4179,17 +4199,17 @@ void stats_calc_index_empty_size(knl_session_t *session, dc_entity_t *entity, in
 {
     knl_part_locate_t part_loc;
 
-    if (stats_idx->part_id != GS_INVALID_ID32) {
+    if (stats_idx->part_id != CT_INVALID_ID32) {
         if (stats_idx->is_subpart) {
             part_loc.part_no = stats_idx->part_index->parent_partno;
             part_loc.subpart_no = stats_idx->part_index->part_no;
         } else {
             part_loc.part_no = stats_idx->part_index->part_no;
-            part_loc.subpart_no = GS_INVALID_ID32;
+            part_loc.subpart_no = CT_INVALID_ID32;
         }
     } else {
-        part_loc.part_no = GS_INVALID_ID32;
-        part_loc.subpart_no = GS_INVALID_ID32;
+        part_loc.part_no = CT_INVALID_ID32;
+        part_loc.subpart_no = CT_INVALID_ID32;
     }
 
     dc_calc_index_empty_size(session, entity, idx->desc.slot, part_loc, stats_idx->info.empty_leaves);
@@ -4203,12 +4223,12 @@ static status_t stats_persist_index_stats(knl_session_t *session, stats_index_t 
 
     if (is_report) {
         stats_write_report_idx_value(session, entity, stats_idx, table_stats);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (stats_no_persistent(table_stats)) {
         cbo_load_tmptab_index_stats(table_stats->temp_table->table_cache->cbo_stats, stats_idx);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     stats_calc_index_empty_size(session, entity, idx, stats_idx);
@@ -4216,7 +4236,7 @@ static status_t stats_persist_index_stats(knl_session_t *session, stats_index_t 
     stats_idx->name.str = idx->desc.name;
     stats_idx->name.len = (uint16)strlen(idx->desc.name);
     stats_idx->table_id = idx->desc.table_id;
-    if (stats_idx->part_id != GS_INVALID_ID32) {
+    if (stats_idx->part_id != CT_INVALID_ID32) {
         if (stats_idx->is_subpart) {
             return stats_update_sys_subindexpart(session, stats_idx);
         }
@@ -4240,11 +4260,11 @@ bool32 stats_dynamic_ignore_index(knl_session_t *session, dc_entity_t *entity, u
     cbo_stats_index_t *stats_index = NULL;
 
     if (!table_stats->is_dynamic) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (dynamic_type == STATS_ALL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (table_stats->is_part) {
@@ -4261,9 +4281,9 @@ bool32 stats_dynamic_ignore_index(knl_session_t *session, dc_entity_t *entity, u
     }
 
     if (stats_index != NULL && stats_index->is_ready) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static status_t stats_gather_index_entity(knl_session_t *session, knl_dictionary_t *dc, index_t *idx,
@@ -4272,15 +4292,15 @@ static status_t stats_gather_index_entity(knl_session_t *session, knl_dictionary
     dc_entity_t *entity = DC_ENTITY(dc);
 
     if (stats_dynamic_ignore_index(session, entity, idx->desc.id, table_stats)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (stats_create_mtrl_index(session, idx, stats_idx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_create_mtrl_index(session, idx, stats_idx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (stats_gather_key_info(session, idx, stats_idx, table_stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_gather_key_info(session, idx, stats_idx, table_stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (STATS_IS_ANALYZE_TEMP_TABLE(table_stats)) {
@@ -4293,27 +4313,27 @@ static status_t stats_gather_index_entity(knl_session_t *session, knl_dictionary
         page_id_t btree_entry = (stats_idx->part_index != NULL) ? stats_idx->part_index->btree.entry : idx->btree.entry;
         knl_scn_t seg_scn = (stats_idx->part_index != NULL) ? stats_idx->part_index->desc.seg_scn : idx->desc.seg_scn;
         if (!IS_INVALID_PAGID(btree_entry)) {
-            if (buf_read_page(session, btree_entry, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("[STATS] ERROR INFO: failed to read page %u-%u", btree_entry.file, btree_entry.page);
-                return GS_ERROR;
+            if (buf_read_page(session, btree_entry, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[STATS] ERROR INFO: failed to read page %u-%u", btree_entry.file, btree_entry.page);
+                return CT_ERROR;
             }
             page_head_t *page = (page_head_t *)CURR_PAGE(session);
             btree_segment_t *segment = BTREE_GET_SEGMENT(session);
             if (page->type != PAGE_TYPE_BTREE_HEAD || segment->seg_scn != seg_scn) {
-                buf_leave_page(session, GS_FALSE);
-                GS_LOG_DEBUG_WAR("stats index error: found current seg scn is not origin seg scn, index name: %s",
+                buf_leave_page(session, CT_FALSE);
+                CT_LOG_DEBUG_WAR("stats index error: found current seg scn is not origin seg scn, index name: %s",
                     idx->desc.name);
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
         }
     }
 
-    if (stats_persist_index_stats(session, stats_idx, table_stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_persist_index_stats(session, stats_idx, table_stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_persist_empty_index_stats(knl_session_t *session, stats_index_t *stats_idx, index_t *idx,
@@ -4333,14 +4353,14 @@ static status_t stats_persist_empty_index_stats(knl_session_t *session, stats_in
  
     if (is_report) {
         stats_write_report_idx_value(session, entity, stats_idx, tab_stats);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (stats_update_sys_index(session, stats_idx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_update_sys_index(session, stats_idx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -4364,14 +4384,14 @@ status_t stats_gather_indexes(knl_session_t *session, knl_dictionary_t *dc, stat
 
     if (table->index_set.count == 0) {
         cm_pop(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (i = 0; i < table->index_set.count; i++) {
         index = table->index_set.items[i];
         btree->index = index;
         stats_init_index_handler(session, &stats_idx, table_stats->estimate_sample_ratio);
-        stats_idx.part_id = GS_INVALID_ID32;
+        stats_idx.part_id = CT_INVALID_ID32;
         stats_idx.is_dynamic = table_stats->is_dynamic;
         stats_idx.index_no = i;
         stats_idx.mtrl.mtrl_table_ctx = mtrl_tab_ctx;
@@ -4379,11 +4399,11 @@ status_t stats_gather_indexes(knl_session_t *session, knl_dictionary_t *dc, stat
         stats_idx.btree = btree;
 
         if (IS_PART_INDEX(index)) {
-            if (stats_persist_empty_index_stats(session, &stats_idx, index, table_stats) != GS_SUCCESS) {
+            if (stats_persist_empty_index_stats(session, &stats_idx, index, table_stats) != CT_SUCCESS) {
                 mtrl_release_context(&stats_idx.mtrl.mtrl_ctx);
                 cm_pop(session->stack);
                 stats_internal_rollback(session, table_stats);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             continue;
         }
@@ -4392,11 +4412,11 @@ status_t stats_gather_indexes(knl_session_t *session, knl_dictionary_t *dc, stat
             continue;
         }
 
-        if (stats_gather_index_entity(session, dc, index, &stats_idx, table_stats) != GS_SUCCESS) {
+        if (stats_gather_index_entity(session, dc, index, &stats_idx, table_stats) != CT_SUCCESS) {
             mtrl_release_context(&stats_idx.mtrl.mtrl_ctx);
             cm_pop(session->stack);
             stats_internal_rollback(session, table_stats);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     
         mtrl_release_context(&stats_idx.mtrl.mtrl_ctx);
@@ -4404,7 +4424,7 @@ status_t stats_gather_indexes(knl_session_t *session, knl_dictionary_t *dc, stat
 
     cm_pop(session->stack);
     stats_internal_commit(session, table_stats);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_update_sys_column(knl_session_t *session, stats_col_handler_t *column_handler,
@@ -4420,37 +4440,37 @@ static status_t stats_update_sys_column(knl_session_t *session, stats_col_handle
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_COLUMN_ID, IX_SYS_COLUMN_001_ID);
     key = &cursor->scan_range.l_key;
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &column->uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &column->uid, sizeof(uint32),
                      IX_COL_SYS_COLUMN_001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &column->table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &column->table_id, sizeof(uint32),
                      IX_COL_SYS_COLUMN_001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &column->id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &column->id, sizeof(uint32),
                      IX_COL_SYS_COLUMN_001_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, column->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, column->name);
+        return CT_ERROR;
     }
 
     cursor->update_info.count = STATS_SYS_COLUMN_COLUMN_COUNT;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_SYS_COLUMN_COLUMN_COUNT);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, column_handler->dist_num));  // num distinct
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, column_handler->dist_num));  // num distinct
 
-    if (stats_put_result_value(&ra, &column_handler->min_value, column_handler->column->datatype) != GS_SUCCESS) {
+    if (stats_put_result_value(&ra, &column_handler->min_value, column_handler->column->datatype) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_put_result_value(&ra, &column_handler->max_value, column_handler->column->datatype) != GS_SUCCESS) {
+    if (stats_put_result_value(&ra, &column_handler->max_value, column_handler->column->datatype) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (column_handler->hist_info.type == FREQUENCY) {
@@ -4465,13 +4485,13 @@ static status_t stats_update_sys_column(knl_session_t *session, stats_col_handle
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void stats_calc_max_min_value(stats_col_handler_t *column_handler, uint32 fetch_count, uint32 last_rows)
@@ -4481,7 +4501,7 @@ static void stats_calc_max_min_value(stats_col_handler_t *column_handler, uint32
     uint32 len;
 
     len = STATS_GET_ROW_SIZE(mtrl_cur);
-    if (len != GS_NULL_VALUE_LEN && len > STATS_MAX_BUCKET_SIZE) {
+    if (len != CT_NULL_VALUE_LEN && len > STATS_MAX_BUCKET_SIZE) {
         len = STATS_MAX_BUCKET_SIZE;
     }
 
@@ -4493,7 +4513,7 @@ static void stats_calc_max_min_value(stats_col_handler_t *column_handler, uint32
         column_handler->min_value.len = len;
         column_handler->max_value.len = column_handler->min_value.len;
 
-        if (len != 0 && len != GS_NULL_VALUE_LEN) {
+        if (len != 0 && len != CT_NULL_VALUE_LEN) {
             ret = memcpy_sp(column_handler->min_value.str, STATS_MAX_BUCKET_SIZE, STATS_GET_ROW_DATA(mtrl_cur), len);
             knl_securec_check(ret);
         }
@@ -4503,7 +4523,7 @@ static void stats_calc_max_min_value(stats_col_handler_t *column_handler, uint32
      * sort column data order by asc,for null data its len == 65535,
      * null data is sorted first for all sorted data,so it must be min value
      */
-    if (len != GS_NULL_VALUE_LEN && fetch_count == last_rows) {
+    if (len != CT_NULL_VALUE_LEN && fetch_count == last_rows) {
         column_handler->max_value.len = len;
 
         if (len != 0) {
@@ -4533,12 +4553,12 @@ static void stats_generate_one_histgram(stats_col_handler_t *column_handler)
     bucket.len = STATS_GET_ROW_SIZE(mtrl_cur);
     bucket.str = STATS_GET_ROW_DATA(mtrl_cur);
 
-    if (bucket.len == GS_NULL_VALUE_LEN) {
+    if (bucket.len == CT_NULL_VALUE_LEN) {
         return;
     }
 
     column_handler->histgram.hist_num++;
-    if (type == FREQUENCY && column_handler->simple_ratio > GS_REAL_PRECISION) {
+    if (type == FREQUENCY && column_handler->simple_ratio > CT_REAL_PRECISION) {
         endpoint = (uint32)(column_handler->hist_info.endpoint / column_handler->simple_ratio);
     } else {
         endpoint = column_handler->hist_info.endpoint;
@@ -4572,15 +4592,15 @@ static status_t stats_generate_histgram(knl_session_t *session, stats_col_handle
 
     if (stats_no_persistent(table_stats)) {
         if (cbo_load_tmptab_histgram(session, entity, table_stats->temp_table->table_cache->cbo_stats,
-                                     column_handler) != GS_SUCCESS) {
-            return GS_ERROR;
+                                     column_handler) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     stats_generate_one_histgram(column_handler);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_create_height_hist(knl_session_t *session, stats_col_handler_t *column_handler,
@@ -4590,35 +4610,35 @@ static status_t stats_create_height_hist(knl_session_t *session, stats_col_handl
     mtrl_cursor_t *mtrl_cur = &column_handler->mtrl.mtrl_cur;
     uint32 real_rows = column_handler->total_rows - column_handler->null_num;
     uint32 bucket_id = 1;
-    bool32 group_changed = GS_FALSE;
+    bool32 group_changed = CT_FALSE;
     uint64 buck_hwm;
     uint32 fetch_count = 0;
     uint16 bucket_size = column_handler->max_bucket_size;
 
     buck_hwm = stats_calc_high_hist_bucket(0, real_rows, bucket_size);
     column_handler->hist_info.type = HEIGHT_BALANCED;
-    column_handler->hist_exits = GS_FALSE;
+    column_handler->hist_exits = CT_FALSE;
 
     do {
-        if (mtrl_fetch_group(ctx, mtrl_cur, &group_changed) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (mtrl_fetch_group(ctx, mtrl_cur, &group_changed) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            return CT_ERROR;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            return CT_ERROR;
         }
 
         if (mtrl_cur->eof) {
             break;
         }
 
-        if (STATS_GET_ROW_SIZE(mtrl_cur) == GS_NULL_VALUE_LEN) {
+        if (STATS_GET_ROW_SIZE(mtrl_cur) == CT_NULL_VALUE_LEN) {
             continue;
         }
 
@@ -4631,8 +4651,8 @@ static status_t stats_create_height_hist(knl_session_t *session, stats_col_handl
         if (buck_hwm == 0) {
             column_handler->hist_info.endpoint = bucket_id;
 
-            if (stats_generate_histgram(session, column_handler, table_stats, entity) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (stats_generate_histgram(session, column_handler, table_stats, entity) != CT_SUCCESS) {
+                return CT_ERROR;
             }
           
             buck_hwm += stats_calc_high_hist_bucket(bucket_id, real_rows, bucket_size);
@@ -4641,7 +4661,7 @@ static status_t stats_create_height_hist(knl_session_t *session, stats_col_handl
         }
     } while (!mtrl_cur->eof);
     knl_panic(column_handler->hist_info.bucket_num == column_handler->max_bucket_size);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_create_frequency_hist(knl_session_t *session, stats_col_handler_t *column_handler,
@@ -4653,25 +4673,25 @@ static status_t stats_create_frequency_hist(knl_session_t *session, stats_col_ha
     column_handler->hist_info.type = FREQUENCY;
 
     do {
-        if (stats_fetch_distinct(column_handler, GS_TRUE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_fetch_distinct(column_handler, CT_TRUE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            return CT_ERROR;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            return CT_ERROR;
         }
 
         if (mtrl_cur->eof) {
             break;
         }
 
-        if (STATS_GET_ROW_SIZE(mtrl_cur) == GS_NULL_VALUE_LEN) {
+        if (STATS_GET_ROW_SIZE(mtrl_cur) == CT_NULL_VALUE_LEN) {
             continue;
         }
 
@@ -4682,17 +4702,17 @@ static status_t stats_create_frequency_hist(knl_session_t *session, stats_col_ha
         column_handler->hist_info.endpoint = STATS_GET_ENDPOINT(column_handler);
         column_handler->hist_info.prev_endpoint = column_handler->hist_info.endpoint;
 
-        if (stats_generate_histgram(session, column_handler, table_stats, entity) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_generate_histgram(session, column_handler, table_stats, entity) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (STATS_GET_ROW_SIZE(mtrl_cur) != GS_NULL_VALUE_LEN) {
+        if (STATS_GET_ROW_SIZE(mtrl_cur) != CT_NULL_VALUE_LEN) {
             column_handler->hist_info.bucket_num++;
             column_handler->hist_info.dnv_per_num = 0;
         }
     } while (!mtrl_cur->eof);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_handler_distinct_values(knl_session_t *session, dc_entity_t *entity,
@@ -4703,8 +4723,8 @@ static status_t stats_handler_distinct_values(knl_session_t *session, dc_entity_
     knl_column_t *column = column_handler->column;
     uint16 max_bucket_size = column_handler->max_bucket_size;
     
-    if (stats_calc_distinct_num(session, column_handler) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_calc_distinct_num(session, column_handler) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (table_stats->stats_option.is_report) {
@@ -4712,23 +4732,23 @@ static status_t stats_handler_distinct_values(knl_session_t *session, dc_entity_
             table_stats->part_stats.part_id);
     }
    
-    if (mtrl_open_cursor(ctx, column_handler->mtrl.dist_seg_id, mtrl_cur) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_open_cursor(ctx, column_handler->mtrl.dist_seg_id, mtrl_cur) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (column_handler->dist_num > max_bucket_size) {
         // to handle high hist
-        if (stats_create_height_hist(session, column_handler, table_stats, entity) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_create_height_hist(session, column_handler, table_stats, entity) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         // to handle frequency hist
-        if (stats_create_frequency_hist(session, column_handler, table_stats, entity) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_create_frequency_hist(session, column_handler, table_stats, entity) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_write_sys_hist_head(knl_session_t *session, stats_col_handler_t *column_handler, stats_table_t *table_stats,
@@ -4744,33 +4764,33 @@ status_t stats_write_sys_hist_head(knl_session_t *session, stats_col_handler_t *
     cursor->rowid_no = 0;
     cursor->rowid_count = 0;
    
-    if (stats_delete_histhead_by_column(session, cursor, column, table_stats, part_id, is_subpart) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_delete_histhead_by_column(session, cursor, column, table_stats, part_id, is_subpart) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     CM_SAVE_STACK(session->stack);
-    stats_open_hist_abstr_cursor(session, cursor, CURSOR_ACTION_INSERT, GS_INVALID_ID32, column_handler->is_nologging);
+    stats_open_hist_abstr_cursor(session, cursor, CURSOR_ACTION_INSERT, CT_INVALID_ID32, column_handler->is_nologging);
     table = (table_t *)cursor->table;
     row_init(&ra, cursor->buf, max_size, table->desc.column_count);
     (void)row_put_int32(&ra, column->uid);
     (void)row_put_int32(&ra, column->table_id);
     (void)row_put_int32(&ra, column->id);
     (void)row_put_int32(&ra, column_handler->hist_info.bucket_num);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, column_handler->total_rows));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, column_handler->null_num));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, column_handler->total_rows));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, column_handler->null_num));
     (void)row_put_int64(&ra, cm_now());
 
-    if (stats_put_result_value(&ra, &column_handler->min_value, column_handler->column->datatype) != GS_SUCCESS) {
+    if (stats_put_result_value(&ra, &column_handler->min_value, column_handler->column->datatype) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_put_result_value(&ra, &column_handler->max_value, column_handler->column->datatype) != GS_SUCCESS) {
+    if (stats_put_result_value(&ra, &column_handler->max_value, column_handler->column->datatype) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, column_handler->dist_num));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, column_handler->dist_num));
 
     if (column_handler->dist_num == 0) {
         density = 0;
@@ -4787,24 +4807,24 @@ status_t stats_write_sys_hist_head(knl_session_t *session, stats_col_handler_t *
     }
 
     if (part_stats->is_subpart) {
-        uint64 subpart = (part_id == GS_INVALID_ID32) ? GS_INVALID_ID32 : part_stats->sub_stats->part_id;
+        uint64 subpart = (part_id == CT_INVALID_ID32) ? CT_INVALID_ID32 : part_stats->sub_stats->part_id;
         (void)row_put_int64(&ra, subpart);
     } else {
         (void)row_put_null(&ra);
     }
 
-    uint32 sample_size = (column_handler->simple_ratio < GS_REAL_PRECISION) ? column_handler->total_rows :
+    uint32 sample_size = (column_handler->simple_ratio < CT_REAL_PRECISION) ? column_handler->total_rows :
         (uint32)column_handler->total_rows * column_handler->simple_ratio;
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, sample_size));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, sample_size));
     (void)row_put_null(&ra);  // spare4 reserved
 
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_persist_global_column_stats(knl_session_t *session, stats_col_handler_t *column_handler,
@@ -4813,20 +4833,20 @@ status_t stats_persist_global_column_stats(knl_session_t *session, stats_col_han
     stats_part_table_t *part_stats = &table_stats->part_stats;
     if (stats_no_persistent(table_stats)) {
         if (cbo_load_tmptab_column_stats(session, entity, table_stats->temp_table->table_cache->cbo_stats,
-            column_handler) != GS_SUCCESS) {
-            return GS_ERROR;
+            column_handler) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (part_stats->part_id == GS_INVALID_ID32 && !part_stats->is_subpart) {
-        if (stats_update_sys_column(session, column_handler, table_stats->is_dynamic) != GS_SUCCESS) {
-            return GS_ERROR;
+    if (part_stats->part_id == CT_INVALID_ID32 && !part_stats->is_subpart) {
+        if (stats_update_sys_column(session, column_handler, table_stats->is_dynamic) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_update_sys_subtablepart(knl_session_t *session, table_part_t *table_sub, stats_table_info_t *tab_info,
@@ -4837,44 +4857,44 @@ status_t stats_update_sys_subtablepart(knl_session_t *session, table_part_t *tab
     knl_scan_key_t *key = NULL;
     uint16 size;
 
-    if (stats_try_begin_auton_rm(session, is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_try_begin_auton_rm(session, is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
     cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_SUB_TABLE_PARTS_ID, IX_SYS_TABLESUBPART001_ID);
     key = &cursor->scan_range.l_key;
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table_sub->desc.uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table_sub->desc.uid, sizeof(uint32),
         IX_COL_SYS_TABLESUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table_sub->desc.table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table_sub->desc.table_id, sizeof(uint32),
         IX_COL_SYS_TABLESUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table_sub->desc.parent_partid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table_sub->desc.parent_partid, sizeof(uint32),
         IX_COL_SYS_TABLESUBPART001_PARENT_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table_sub->desc.part_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table_sub->desc.part_id, sizeof(uint32),
         IX_COL_SYS_TABLESUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        stats_try_end_auton_rm(session, GS_ERROR, is_dynamic);
-        return GS_ERROR;
+        stats_try_end_auton_rm(session, CT_ERROR, is_dynamic);
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table_sub->desc.name);
-        stats_try_end_auton_rm(session, GS_ERROR, is_dynamic);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table_sub->desc.name);
+        stats_try_end_auton_rm(session, CT_ERROR, is_dynamic);
+        return CT_ERROR;
     }
 
     cursor->update_info.count = STATS_SYS_TABLESUBPART_COLUMN_COUNT;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_SYS_TABLESUBPART_COLUMN_COUNT);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_info->rows));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_info->blocks));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_info->empty_block));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_info->rows));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_info->blocks));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_info->empty_block));
     (void)row_put_int32(&ra, tab_info->avg_row_len);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_info->sample_size));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_info->sample_size));
     tab_info->analyze_time = cm_now();
     (void)row_put_int64(&ra, tab_info->analyze_time);
 
@@ -4884,15 +4904,15 @@ status_t stats_update_sys_subtablepart(knl_session_t *session, table_part_t *tab
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        stats_try_end_auton_rm(session, GS_ERROR, is_dynamic);
-        return GS_ERROR;
+        stats_try_end_auton_rm(session, CT_ERROR, is_dynamic);
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    stats_try_end_auton_rm(session, GS_SUCCESS, is_dynamic);
-    return GS_SUCCESS;
+    stats_try_end_auton_rm(session, CT_SUCCESS, is_dynamic);
+    return CT_SUCCESS;
 }
 
 status_t stats_update_sys_tablepart(knl_session_t *session, knl_dictionary_t *dc, stats_table_t *tab_stats)
@@ -4906,16 +4926,16 @@ status_t stats_update_sys_tablepart(knl_session_t *session, knl_dictionary_t *dc
     table_part_t *table_part = TABLE_GET_PART(table, tab_stats->part_stats.part_no);
 
     if (is_report) {
-        stats_write_report_tab_value(session, DC_ENTITY(dc), tab_stats, GS_TRUE);
-        return GS_SUCCESS;
+        stats_write_report_tab_value(session, DC_ENTITY(dc), tab_stats, CT_TRUE);
+        return CT_SUCCESS;
     }
 
     if (tab_stats->is_dynamic && tab_stats->stats_option.dynamic_type == STATS_COLUMNS) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (stats_try_begin_auton_rm(session, tab_stats->is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_try_begin_auton_rm(session, tab_stats->is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
@@ -4925,34 +4945,34 @@ status_t stats_update_sys_tablepart(knl_session_t *session, knl_dictionary_t *dc
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_TABLEPART_ID, IX_SYS_TABLEPART001_ID);
     key = &cursor->scan_range.l_key;
     knl_init_index_scan(cursor,
-                        GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &tab_stats->uid, sizeof(uint32),
+                        CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &tab_stats->uid, sizeof(uint32),
                      IX_COL_SYS_TABLEPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &tab_stats->tab_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &tab_stats->tab_id, sizeof(uint32),
                      IX_COL_SYS_TABLEPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &tab_stats->part_stats.part_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &tab_stats->part_stats.part_id, sizeof(uint32),
                      IX_COL_SYS_TABLEPART001_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        stats_try_end_auton_rm(session, GS_ERROR, tab_stats->is_dynamic);
-        return GS_ERROR;
+        stats_try_end_auton_rm(session, CT_ERROR, tab_stats->is_dynamic);
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table_part->desc.name);
-        stats_try_end_auton_rm(session, GS_ERROR, tab_stats->is_dynamic);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table_part->desc.name);
+        stats_try_end_auton_rm(session, CT_ERROR, tab_stats->is_dynamic);
+        return CT_ERROR;
     }
 
     cursor->update_info.count = STATS_SYS_TABLE_COLUMN_COUNT;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_SYS_TABLE_COLUMN_COUNT);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_stats->part_stats.info.rows));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_stats->part_stats.info.blocks));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_stats->part_stats.info.empty_block));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_stats->part_stats.info.rows));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_stats->part_stats.info.blocks));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_stats->part_stats.info.empty_block));
     (void)row_put_int32(&ra, tab_stats->part_stats.info.avg_row_len);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_stats->part_stats.info.sample_size));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_stats->part_stats.info.sample_size));
     tab_stats->tab_info.analyze_time = cm_now();
     (void)row_put_int64(&ra, tab_stats->tab_info.analyze_time);
 
@@ -4962,15 +4982,15 @@ status_t stats_update_sys_tablepart(knl_session_t *session, knl_dictionary_t *dc
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        stats_try_end_auton_rm(session, GS_ERROR, tab_stats->is_dynamic);
-        return GS_ERROR;
+        stats_try_end_auton_rm(session, CT_ERROR, tab_stats->is_dynamic);
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    stats_try_end_auton_rm(session, GS_SUCCESS, tab_stats->is_dynamic);
-    return GS_SUCCESS;
+    stats_try_end_auton_rm(session, CT_SUCCESS, tab_stats->is_dynamic);
+    return CT_SUCCESS;
 }
 
 void stats_estimate_column_stats(stats_table_t *table_stats, stats_col_handler_t *column_handler)
@@ -4982,7 +5002,7 @@ void stats_estimate_column_stats(stats_table_t *table_stats, stats_col_handler_t
         estimate_sample_ratio = table_stats->estimate_sample_ratio;
     }
 
-    if (estimate_sample_ratio > GS_REAL_PRECISION) {
+    if (estimate_sample_ratio > CT_REAL_PRECISION) {
         column_handler->dist_num = stats_estimate_ndv(column_handler->dist_num, column_handler->total_rows,
                                                       estimate_sample_ratio);
         column_handler->total_rows = (uint32)(int32)(column_handler->total_rows / estimate_sample_ratio);
@@ -4998,56 +5018,56 @@ static status_t stats_update_sys_histhead(knl_session_t *session, stats_col_hand
     knl_scan_key_t *key = NULL;
     uint16 size;
     knl_column_t *column = column_handler->column;
-    uint64 part_id = GS_INVALID_ID32;
+    uint64 part_id = CT_INVALID_ID32;
     double   density = 0;
 
     CM_SAVE_STACK(session->stack);
     stats_open_hist_abstr_cursor(session, cursor, CURSOR_ACTION_UPDATE, IX_HIST_HEAD_003_ID, column_handler->is_nologging);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
     key = &cursor->scan_range.l_key;
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &column->uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &column->uid, sizeof(uint32),
         IX_COL_HIST_HEAD_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &column->table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &column->table_id, sizeof(uint32),
         IX_COL_HIST_HEAD_003_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &column->id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &column->id, sizeof(uint32),
         IX_COL_HIST_HEAD_003_COL_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &part_id, sizeof(uint64),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &part_id, sizeof(uint64),
         IX_COL_HIST_HEAD_003_SPARE1);
     if (is_subpart) {
-        knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &part_id, sizeof(uint64),
+        knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &part_id, sizeof(uint64),
             IX_COL_HIST_HEAD_003_SPARE2);
     } else {
         knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_IS_NULL, IX_COL_HIST_HEAD_003_SPARE2);
     }
     
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        *global_exists = GS_FALSE;
-        return GS_SUCCESS;
+        *global_exists = CT_FALSE;
+        return CT_SUCCESS;
     }
 
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_GLOBAL_HISTHEAD_COLUMNS);
     cursor->update_info.count = STATS_GLOBAL_HISTHEAD_COLUMNS;
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, column_handler->total_rows));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, column_handler->null_num));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, column_handler->total_rows));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, column_handler->null_num));
     (void)row_put_int64(&ra, cm_now());
 
-    if (stats_put_result_value(&ra, &column_handler->min_value, column_handler->column->datatype) != GS_SUCCESS) {
+    if (stats_put_result_value(&ra, &column_handler->min_value, column_handler->column->datatype) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_put_result_value(&ra, &column_handler->max_value, column_handler->column->datatype) != GS_SUCCESS) {
+    if (stats_put_result_value(&ra, &column_handler->max_value, column_handler->column->datatype) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, column_handler->dist_num));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, column_handler->dist_num));
 
     if (column_handler->dist_num == 0) {
         density = 0;
@@ -5056,9 +5076,9 @@ static status_t stats_update_sys_histhead(knl_session_t *session, stats_col_hand
     }
 
     (void)row_put_real(&ra, density);
-    uint32 sample_size = (column_handler->simple_ratio < GS_REAL_PRECISION) ? column_handler->total_rows :
+    uint32 sample_size = (column_handler->simple_ratio < CT_REAL_PRECISION) ? column_handler->total_rows :
         (uint32)column_handler->total_rows * column_handler->simple_ratio;
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, sample_size));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, sample_size));
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
     cursor->update_info.columns[0] = HIST_HEAD_TOTAL_ROWS;
     cursor->update_info.columns[1] = HIST_HEAD_NULL_NUM;
@@ -5069,13 +5089,13 @@ static status_t stats_update_sys_histhead(knl_session_t *session, stats_col_hand
     cursor->update_info.columns[6] = HIST_HEAD_DENSITY;
     cursor->update_info.columns[7] = HIST_HEAD_SAMPLE_SIZE;
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void stats_set_global_extreme_value(stats_col_handler_t *col_handler, cbo_stats_column_t *col_stats)
@@ -5087,10 +5107,10 @@ void stats_set_global_extreme_value(stats_col_handler_t *col_handler, cbo_stats_
     result = stats_compare_data_ex(col_stats->low_value.str, col_stats->low_value.len,
         col_handler->min_value.str, col_handler->min_value.len, column);
     // if extreme_value of col_stats len is 0, it means the column no data,
-    if (col_stats->low_value.len != GS_NULL_VALUE_LEN && col_stats->low_value.len != 0) {
-        // if extreme_value of col_handler len is 65535(GS_NULL_VALUE_LEN), it means the analyzing column is no data,
+    if (col_stats->low_value.len != CT_NULL_VALUE_LEN && col_stats->low_value.len != 0) {
+        // if extreme_value of col_handler len is 65535(CT_NULL_VALUE_LEN), it means the analyzing column is no data,
         // so we need set extreme_value of other columns as global stats
-        if (result < 0 || col_handler->min_value.len == GS_NULL_VALUE_LEN) {
+        if (result < 0 || col_handler->min_value.len == CT_NULL_VALUE_LEN) {
             ret = memcpy_sp(col_handler->min_value.str, STATS_MAX_BUCKET_SIZE, col_stats->low_value.str,
                 col_stats->low_value.len);
             knl_securec_check(ret);
@@ -5101,10 +5121,10 @@ void stats_set_global_extreme_value(stats_col_handler_t *col_handler, cbo_stats_
     result = stats_compare_data_ex(col_stats->high_value.str, col_stats->high_value.len,
         col_handler->max_value.str, col_handler->max_value.len, column);
 
-    if (col_stats->high_value.len != GS_NULL_VALUE_LEN && col_stats->high_value.len != 0) {
-        // if extreme_value of col_handler len is 65535(GS_NULL_VALUE_LEN), it means the column no data,
+    if (col_stats->high_value.len != CT_NULL_VALUE_LEN && col_stats->high_value.len != 0) {
+        // if extreme_value of col_handler len is 65535(CT_NULL_VALUE_LEN), it means the column no data,
         // so we need set extreme_value of other columns as global stats
-        if (result > 0 || col_handler->max_value.len == GS_NULL_VALUE_LEN) {
+        if (result > 0 || col_handler->max_value.len == CT_NULL_VALUE_LEN) {
             ret = memcpy_sp(col_handler->max_value.str, STATS_MAX_BUCKET_SIZE, col_stats->high_value.str,
                 col_stats->high_value.len);
             knl_securec_check(ret);
@@ -5133,26 +5153,26 @@ status_t stats_update_global_histhead(knl_session_t *session, stats_col_handler_
     uint32 total_rows = 0;
     uint32 dist_num = 0;
     uint32 null_num = 0;
-    bool32 is_part_key = GS_FALSE;
-    bool32 global_stats_exist = GS_TRUE;
+    bool32 is_part_key = CT_FALSE;
+    bool32 global_stats_exist = CT_TRUE;
     bool32 is_subpart = table_stats->part_stats.is_subpart;
     
     if (!table_stats->is_part) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!table_stats->single_part_analyze) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!STATS_GLOBAL_CBO_STATS_EXIST(entity)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     part_table = entity->table.part_table;
     for (uint32 i = 0; i < part_table->desc.partkeys; i++) {
         if (column->id == part_table->keycols[i].column_id) {
-            is_part_key = GS_TRUE;
+            is_part_key = CT_TRUE;
             break;
         }
     }
@@ -5195,18 +5215,18 @@ status_t stats_update_global_histhead(knl_session_t *session, stats_col_handler_
         stats_set_global_col_stats(column_handler, col_stats);
     }
     
-    if (stats_update_sys_histhead(session, column_handler, &global_stats_exist, is_subpart) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_update_sys_histhead(session, column_handler, &global_stats_exist, is_subpart) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!global_stats_exist) {
-        if (stats_write_sys_hist_head(session, column_handler, table_stats, GS_INVALID_ID32,
-            is_subpart) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_write_sys_hist_head(session, column_handler, table_stats, CT_INVALID_ID32,
+            is_subpart) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_write_histgram(knl_session_t *session, knl_cursor_t *cursor, knl_column_t *column,
@@ -5222,21 +5242,21 @@ static status_t stats_write_histgram(knl_session_t *session, knl_cursor_t *curso
     bucket.len = hist_entity->len;
     bucket.str = hist_entity->bucket;
 
-    if (bucket.len == GS_NULL_VALUE_LEN) {
-        return GS_SUCCESS;
+    if (bucket.len == CT_NULL_VALUE_LEN) {
+        return CT_SUCCESS;
     }
-    stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_INSERT, GS_INVALID_ID32, table_stats->is_nologging);
+    stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_INSERT, CT_INVALID_ID32, table_stats->is_nologging);
     table = (table_t *)cursor->table;
     row_init(&ra, cursor->buf, max_size, table->desc.column_count);
     (void)row_put_int32(&ra, column->uid);
     (void)row_put_int32(&ra, column->table_id);
     (void)row_put_int32(&ra, column->id);
 
-    if (stats_put_result_value(&ra, &bucket, column->datatype) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_put_result_value(&ra, &bucket, column->datatype) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, endpoint));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, endpoint));
 
     if (table_stats->is_part) {
         (void)row_put_int32(&ra, table_stats->part_stats.part_id);
@@ -5254,12 +5274,12 @@ static status_t stats_write_histgram(knl_session_t *session, knl_cursor_t *curso
     (void)row_put_null(&ra);  // spare2 reserved
     (void)row_put_null(&ra);  // spare3 reserved
 
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     session->stat->hists_inserts++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_update_histgram(knl_session_t *session, stats_col_handler_t *column_handler,
@@ -5275,7 +5295,7 @@ static status_t stats_update_histgram(knl_session_t *session, stats_col_handler_
     uint32 update_count = histgrams.hist_num > hist_rowids->bucket_num ? hist_rowids->bucket_num : histgrams.hist_num;
     uint32 new_count = (type == FREQUENCY) ? histgrams.hist_num : column_handler->max_bucket_size;
     knl_cursor_t *cursor = column_handler->stats_cur;
-    stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_UPDATE, GS_INVALID_ID32, column_handler->is_nologging);
+    stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_UPDATE, CT_INVALID_ID32, column_handler->is_nologging);
     cursor->scan_mode = SCAN_MODE_ROWID;
     cursor->fetch = TABLE_ACCESSOR(cursor)->do_rowid_fetch;
     
@@ -5284,8 +5304,8 @@ static status_t stats_update_histgram(knl_session_t *session, stats_col_handler_
         cursor->rowid_count = STATS_ROWID_COUNT;
         cursor->rowid_array[STATS_ROWID_NO] = hist_rowids->rowid_list[i];
         
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         hist_rowids->curr_bucket++;
@@ -5302,15 +5322,15 @@ static status_t stats_update_histgram(knl_session_t *session, stats_col_handler_
         cursor->update_info.columns[0] = HIST_EP_VALUE;
         cursor->update_info.columns[1] = HIST_EP_NUM;
 
-        if (stats_put_result_value(&ra, &bucket, column->datatype) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_put_result_value(&ra, &bucket, column->datatype) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        (void)row_put_int32(&ra, MIN(GS_MAX_INT32, histgrams.hist[i].endpoint));
+        (void)row_put_int32(&ra, MIN(CT_MAX_INT32, histgrams.hist[i].endpoint));
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         session->stat->hists_updates++;
@@ -5318,12 +5338,12 @@ static status_t stats_update_histgram(knl_session_t *session, stats_col_handler_
     cursor->rowid_no = 0;
     cursor->rowid_count = 0;
     for (uint32 i = update_count; i < new_count; i++) {
-        if (stats_write_histgram(session, cursor, column, &histgrams.hist[i], table_stats) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_write_histgram(session, cursor, column, &histgrams.hist[i], table_stats) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_clean_all_histgrams(knl_session_t *session, stats_col_handler_t *column_handler,
@@ -5336,26 +5356,26 @@ static status_t stats_clean_all_histgrams(knl_session_t *session, stats_col_hand
 
     if (IS_ANALYZE_ALL_PARTS(table_stats)) {
         if (stats_delete_histgrams(session, cursor, column, table_stats->is_dynamic,
-            column_handler->is_nologging) != GS_SUCCESS) {
-            return GS_ERROR;
+            column_handler->is_nologging) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         if (is_subpart) {
             part_loc.part_no = table_stats->part_stats.part_id;
             part_loc.subpart_no = table_stats->part_stats.sub_stats->part_id;
             if (stats_delete_histgram_subpart_column(session, cursor, column, part_loc,
-                column_handler->is_nologging) != GS_SUCCESS) {
-                return GS_ERROR;
+                column_handler->is_nologging) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
             if (stats_delete_histgram_part_column(session, cursor, column,
-                table_stats->part_stats.part_id, column_handler->is_nologging) != GS_SUCCESS) {
-                return GS_ERROR;
+                table_stats->part_stats.part_id, column_handler->is_nologging) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_persit_histgram(knl_session_t *session, stats_col_handler_t *column_handler,
@@ -5370,39 +5390,39 @@ static status_t stats_persit_histgram(knl_session_t *session, stats_col_handler_
     * delete old histgrams last time
     */
     if (column_handler->total_rows == 0) {
-        /* if part_id != GS_INVALID32 ,it means to gather one part statistics */
-        if (stats_clean_all_histgrams(session, column_handler, table_stats) != GS_SUCCESS) {
-            return GS_ERROR;
+        /* if part_id != CT_INVALID32 ,it means to gather one part statistics */
+        if (stats_clean_all_histgrams(session, column_handler, table_stats) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    if (stats_check_histgram_exist(session, column_handler, table_stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_check_histgram_exist(session, column_handler, table_stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (column_handler->hist_exits) {
         /* update + insert/delete */
-        if (stats_get_old_buckets(session, column_handler, table_stats) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_get_old_buckets(session, column_handler, table_stats) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (stats_update_histgram(session, column_handler, table_stats) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_update_histgram(session, column_handler, table_stats) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (stats_delete_old_histgram(session, cursor, column_handler->hist_rowids, table_stats) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_delete_old_histgram(session, cursor, column_handler->hist_rowids, table_stats) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         /* insert new histgrams */
         for (uint32 i = 0; i < histgram.hist_num; i++) {
-            if (stats_write_histgram(session, cursor, column, &histgram.hist[i], table_stats) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (stats_write_histgram(session, cursor, column, &histgram.hist[i], table_stats) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_persist_column_stats(knl_session_t *session, stats_col_handler_t *column_handler,
@@ -5421,29 +5441,29 @@ static status_t stats_persist_column_stats(knl_session_t *session, stats_col_han
 
     if (is_report) {
         stats_write_report_col_tail(session, column_handler, entity, table_stats);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!stats_no_persistent(table_stats)) {
-        if (stats_persit_histgram(session, column_handler, table_stats) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_persit_histgram(session, column_handler, table_stats) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (stats_write_sys_hist_head(session, column_handler, table_stats, table_stats->part_stats.part_id,
-                                      is_subpart) != GS_SUCCESS) {
-            return GS_ERROR;
+                                      is_subpart) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (stats_update_global_histhead(session, column_handler, table_stats, entity) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_update_global_histhead(session, column_handler, table_stats, entity) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    if (stats_persist_global_column_stats(session, column_handler, table_stats, entity) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_persist_global_column_stats(session, column_handler, table_stats, entity) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_parall_persist_stats(knl_session_t *session, stats_par_ctrl_t *ctrl)
@@ -5453,33 +5473,33 @@ static status_t stats_parall_persist_stats(knl_session_t *session, stats_par_ctr
     stats_tab_context_t *tab_ctx = ctrl->tab_ctx;
     dc_entity_t *entity = ctrl->entity;
 
-    for (uint32 i = 0; i < GS_MAX_STATS_PARALL_THREADS; i++) {
+    for (uint32 i = 0; i < CT_MAX_STATS_PARALL_THREADS; i++) {
         uint16 id = ctrl->par_thread_queue.id_list[i];
 
-        if (id == GS_INVALID_ID16) {
+        if (id == CT_INVALID_ID16) {
             continue;
         }
 
         par_ctx = &ctrl->par_ctx[id];
-        if (par_ctx->thread.closed || par_ctx->thread.result == GS_ERROR) {
-            return GS_ERROR;
+        if (par_ctx->thread.closed || par_ctx->thread.result == CT_ERROR) {
+            return CT_ERROR;
         }
         column_handler = par_ctx->col_ctx.col_handler;
-        if (stats_persist_column_stats(session, column_handler, tab_ctx->table_stats, entity) != GS_SUCCESS) {
-            par_ctx->thread.result = GS_ERROR;
-            par_ctx->thread.closed = GS_TRUE;
-            return GS_ERROR;
+        if (stats_persist_column_stats(session, column_handler, tab_ctx->table_stats, entity) != CT_SUCCESS) {
+            par_ctx->thread.result = CT_ERROR;
+            par_ctx->thread.closed = CT_TRUE;
+            return CT_ERROR;
         }
         ctrl->finish_count++;
-        par_ctx->is_wait = GS_FALSE;
+        par_ctx->is_wait = CT_FALSE;
     }
 
-    errno_t ret = memset_sp(&ctrl->par_thread_queue.id_list, sizeof(uint16) * GS_MAX_STATS_PARALL_THREADS, 0xFF,
-                            sizeof(uint16) * GS_MAX_STATS_PARALL_THREADS);
+    errno_t ret = memset_sp(&ctrl->par_thread_queue.id_list, sizeof(uint16) * CT_MAX_STATS_PARALL_THREADS, 0xFF,
+                            sizeof(uint16) * CT_MAX_STATS_PARALL_THREADS);
     knl_securec_check(ret);
     ctrl->par_thread_queue.pos = 0;
-    ctrl->sort_finished = GS_FALSE;
-    return GS_SUCCESS;
+    ctrl->sort_finished = CT_FALSE;
+    return CT_SUCCESS;
 }
 
 static status_t stats_gather_one_column(knl_session_t *session, stats_col_context_t *col_ctx,
@@ -5490,18 +5510,18 @@ static status_t stats_gather_one_column(knl_session_t *session, stats_col_contex
 
     stats_init_column_handler(session, column_handler, col_ctx, tab_ctx);
 
-    if (stats_create_distinct_values(session, column_handler) != GS_SUCCESS) {
+    if (stats_create_distinct_values(session, column_handler) != CT_SUCCESS) {
         mtrl_release_context(&column_handler->mtrl.mtrl_ctx);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_handler_distinct_values(session, entity, column_handler, table_stats) != GS_SUCCESS) {
+    if (stats_handler_distinct_values(session, entity, column_handler, table_stats) != CT_SUCCESS) {
         mtrl_release_context(&column_handler->mtrl.mtrl_ctx);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     mtrl_release_context(&column_handler->mtrl.mtrl_ctx);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_alloc_vm(knl_handle_t handle, mtrl_page_t **page, stats_vm_list *vm_list)
@@ -5510,26 +5530,26 @@ status_t stats_alloc_vm(knl_handle_t handle, mtrl_page_t **page, stats_vm_list *
     uint32 vmid;
     vm_page_t *vm_page = NULL;
 
-    if (vm_alloc(session, session->temp_pool, &vmid) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (vm_alloc(session, session->temp_pool, &vmid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (vm_open(session, session->temp_pool, vmid, &vm_page) != GS_SUCCESS) {
+    if (vm_open(session, session->temp_pool, vmid, &vm_page) != CT_SUCCESS) {
         vm_free(session, session->temp_pool, vmid);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *page = (mtrl_page_t *)vm_page->data;
     mtrl_init_page(*page, vmid);
 
     for (uint32 i = 0; i < STATS_PARALL_MAX_VM_PAGES; i++) {
-        if (vm_list->id_list[i] == GS_INVALID_ID32) {
+        if (vm_list->id_list[i] == CT_INVALID_ID32) {
             vm_list->id_list[i] = vmid;
             break;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void stats_close_vms(knl_handle_t session, stats_vm_list *vm_list)
@@ -5539,7 +5559,7 @@ void stats_close_vms(knl_handle_t session, stats_vm_list *vm_list)
 
     for (uint32 i = 0; i < STATS_PARALL_MAX_VM_PAGES; i++) {
         vmid = vm_list->id_list[i];
-        if (vmid != GS_INVALID_ID32) {
+        if (vmid != CT_INVALID_ID32) {
             vm_close_and_free(se, se->temp_pool, vmid);
         }
     }
@@ -5549,7 +5569,7 @@ void *stats_push_stack_from_vm(mtrl_page_t *page, uint32 size)
 {
     char *ptr = NULL;
 
-    if (page->free_begin + size > GS_VMEM_PAGE_SIZE) {
+    if (page->free_begin + size > CT_VMEM_PAGE_SIZE) {
         return NULL;
     }
 
@@ -5566,8 +5586,8 @@ status_t stats_push_cursor_from_vm(knl_handle_t handle, stats_vm_list *vm_list, 
     uint32 ext_size;
     mtrl_page_t *page = NULL;
 
-    if (stats_alloc_vm(handle, &page, vm_list) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_alloc_vm(handle, &page, vm_list) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     *cursor = (knl_cursor_t *)stats_push_stack_from_vm(page, session->kernel->attr.cursor_size);
@@ -5599,7 +5619,7 @@ status_t stats_push_cursor_from_vm(knl_handle_t handle, stats_vm_list *vm_list, 
 
     KNL_INIT_CURSOR(*cursor);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_alloc_mem_from_vm(knl_handle_t handle, stats_vm_list *vm_list, char **ptr, uint32 size)
@@ -5607,12 +5627,12 @@ status_t stats_alloc_mem_from_vm(knl_handle_t handle, stats_vm_list *vm_list, ch
     uint32 ext_size = CM_ALIGN8(size);
     mtrl_page_t *page = NULL;
 
-    if (stats_alloc_vm(handle, &page, vm_list) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_alloc_vm(handle, &page, vm_list) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     *ptr = stats_push_stack_from_vm(page, ext_size);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 knl_column_t *stats_get_column_fron_queue(stats_cols_list_t *spec_list, dc_entity_t *entity)
@@ -5669,12 +5689,12 @@ void stats_parallel_proc(thread_t *thread)
     knl_session_t *session = ctrl->session;
     stats_tab_context_t *tab_ctx = ctrl->tab_ctx;
     dc_entity_t *entity = ctrl->entity;
-    thread->result = GS_SUCCESS;
+    thread->result = CT_SUCCESS;
 
     while (!thread->closed) {
         /* parallel statistics failed or all columns finished sorted,we must stop thread to work */
         if (!ctrl->parall_success || ctrl->all_finished) {
-            stats_record_alive_thread(ctrl, GS_FALSE);
+            stats_record_alive_thread(ctrl, CT_FALSE);
             return;
         }
 
@@ -5688,7 +5708,7 @@ void stats_parallel_proc(thread_t *thread)
         cm_spin_lock(&ctrl->read_lock, NULL);
         /* sorted queue is full,we should stop sorting and start writing sys tables */
         if (ctrl->all_thread_ready && ctrl->par_thread_queue.pos == ctrl->thread_count) {
-            ctrl->sort_finished = GS_TRUE;
+            ctrl->sort_finished = CT_TRUE;
             cm_spin_unlock(&ctrl->read_lock);
             continue;
         }
@@ -5705,8 +5725,8 @@ void stats_parallel_proc(thread_t *thread)
 
         /* all columns has sorted or are sorting */
         if (ctrl->col_list->pos == ctrl->col_list->column_count) {
-            ctrl->all_finished = GS_TRUE;
-            ctrl->sort_finished = GS_TRUE;
+            ctrl->all_finished = CT_TRUE;
+            ctrl->sort_finished = CT_TRUE;
         }
 
         if (column == NULL) {
@@ -5717,22 +5737,22 @@ void stats_parallel_proc(thread_t *thread)
         par_ctx->col_ctx.column = column;
         cm_spin_unlock(&ctrl->read_lock);
 
-        if (stats_gather_one_column(session, &par_ctx->col_ctx, tab_ctx, entity) != GS_SUCCESS) {
-            ctrl->parall_success = GS_FALSE;
-            stats_record_alive_thread(ctrl, GS_FALSE);
-            thread->result = GS_ERROR;
-            thread->closed = GS_TRUE;
+        if (stats_gather_one_column(session, &par_ctx->col_ctx, tab_ctx, entity) != CT_SUCCESS) {
+            ctrl->parall_success = CT_FALSE;
+            stats_record_alive_thread(ctrl, CT_FALSE);
+            thread->result = CT_ERROR;
+            thread->closed = CT_TRUE;
             return;
         }
 
-        par_ctx->is_wait = GS_TRUE;
+        par_ctx->is_wait = CT_TRUE;
         stats_sorted_threads_enqueue(ctrl, par_ctx);
     }
 }
 
 status_t stats_parallel_proc_clean(knl_session_t *session, stats_par_ctrl_t *ctrl)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
     while (!ctrl->parall_success) {
         if (ctrl->alive_threads == 0) {
@@ -5747,9 +5767,9 @@ status_t stats_parallel_proc_clean(knl_session_t *session, stats_par_ctrl_t *ctr
 
     for (uint32 i = 0; i < ctrl->thread_count; i++) {
         cm_close_thread(&ctrl->par_ctx[i].thread);
-        if (ctrl->par_ctx[i].thread.result != GS_SUCCESS) {
-            status = GS_ERROR;
-            GS_THROW_ERROR(ERR_FAILED_PARALL_GATHER_STATS);
+        if (ctrl->par_ctx[i].thread.result != CT_SUCCESS) {
+            status = CT_ERROR;
+            CT_THROW_ERROR(ERR_FAILED_PARALL_GATHER_STATS);
             continue;
         }
     }
@@ -5809,7 +5829,7 @@ void stats_force_estimate_sample_ratio(knl_session_t *session, stats_table_t *st
     uint64 default_sample_size = session->kernel->attr.stats_sample_size;
     double ori_sample_ratio = stats_table->estimate_sample_ratio;
 
-    if (ori_sample_ratio < GS_REAL_PRECISION) {
+    if (ori_sample_ratio < CT_REAL_PRECISION) {
         stats_table->estimate_sample_ratio = ((double)default_sample_size) /
                                                           (estimate_blocks * DEFAULT_PAGE_SIZE(session));
 
@@ -5842,8 +5862,8 @@ uint32 stats_get_pages_from_subparts(knl_session_t *session, knl_dictionary_t *d
         }
 
         if (!sub_part->heap.loaded) {
-            if (dc_load_table_part_segment(session, dc->handle, (table_part_t *)sub_part) != GS_SUCCESS) {
-                GS_LOG_RUN_WAR("[DC] could not load table partition %s of table %s.%s, segment corrupted",
+            if (dc_load_table_part_segment(session, dc->handle, (table_part_t *)sub_part) != CT_SUCCESS) {
+                CT_LOG_RUN_WAR("[DC] could not load table partition %s of table %s.%s, segment corrupted",
                     sub_part->desc.name, session->kernel->dc_ctx.users[table->desc.uid]->desc.name,
                     table->desc.name);
                 cm_reset_error();
@@ -5864,8 +5884,8 @@ uint32 stats_get_pages_from_tablepart(knl_session_t *session, knl_dictionary_t *
     uint32 extents = 0;
 
     if (!table_part->heap.loaded) {
-        if (dc_load_table_part_segment(session, dc->handle, table_part) != GS_SUCCESS) {
-            GS_LOG_RUN_WAR("[DC] could not load table partition %s of table %s.%s, segment corrupted",
+        if (dc_load_table_part_segment(session, dc->handle, table_part) != CT_SUCCESS) {
+            CT_LOG_RUN_WAR("[DC] could not load table partition %s of table %s.%s, segment corrupted",
                 table_part->desc.name, session->kernel->dc_ctx.users[table->desc.uid]->desc.name,
                 table->desc.name);
             cm_reset_error();
@@ -5936,7 +5956,7 @@ void stats_estimate_sample_ratio(knl_session_t *session, knl_dictionary_t *dc, s
      * to generate statistics
      */
     if (force_sample) {
-        if (ori_sample_ratio < GS_REAL_PRECISION) {
+        if (ori_sample_ratio < CT_REAL_PRECISION) {
             if (estimate_blocks * DEFAULT_PAGE_SIZE(session) > default_sample_size) {
                 stats_force_estimate_sample_ratio(session, stats_table, estimate_blocks, specify_part_blocks);
                 return;
@@ -5959,7 +5979,7 @@ void stats_add_columns_list(stats_cols_list_t *columns_list, uint16 col_id)
             break;
         }
 
-        if (columns_list->col_list[j] == GS_INVALID_ID16) {
+        if (columns_list->col_list[j] == CT_INVALID_ID16) {
             columns_list->col_list[j] = col_id;
             columns_list->column_count++;
             break;
@@ -6059,10 +6079,10 @@ void stats_generate_columns_list(dc_entity_t *entity, stats_table_t *table_stats
             stats_generate_idx_cols_list(entity, col_list);
             break;
         case FOR_SPECIFIED_COLUMNS:
-            stats_generate_specified_cols_list(entity, col_list, table_stats, GS_FALSE);
+            stats_generate_specified_cols_list(entity, col_list, table_stats, CT_FALSE);
             break;
         case FOR_SPECIFIED_INDEXED_COLUMNS:
-            stats_generate_specified_cols_list(entity, col_list, table_stats, GS_TRUE);
+            stats_generate_specified_cols_list(entity, col_list, table_stats, CT_TRUE);
             break;
         default:
             stats_generate_all_cols_list(entity, col_list);
@@ -6113,29 +6133,29 @@ status_t stats_normal_gather_columns(knl_session_t *session, dc_entity_t *entity
 
         col_ctx.column = column;
 
-        if (stats_gather_one_column(session, &col_ctx, tab_ctx, entity) != GS_SUCCESS) {
+        if (stats_gather_one_column(session, &col_ctx, tab_ctx, entity) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (stats_persist_column_stats(session, col_ctx.col_handler, tab_ctx->table_stats, entity) != GS_SUCCESS) {
+        if (stats_persist_column_stats(session, col_ctx.col_handler, tab_ctx->table_stats, entity) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_wait_persist_end(knl_session_t *session, stats_par_ctrl_t *ctrl)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
-    while (GS_TRUE) {
+    while (CT_TRUE) {
         if (session->killed || session->canceled) {
-            ctrl->parall_success = GS_FALSE;
-            status = GS_ERROR;
+            ctrl->parall_success = CT_FALSE;
+            status = CT_ERROR;
             break;
         }
         /*
@@ -6156,9 +6176,9 @@ status_t stats_wait_persist_end(knl_session_t *session, stats_par_ctrl_t *ctrl)
             continue;
         }
 
-        if (stats_parall_persist_stats(session, ctrl) != GS_SUCCESS) {
-            ctrl->parall_success = GS_FALSE;
-            status = GS_ERROR;
+        if (stats_parall_persist_stats(session, ctrl) != CT_SUCCESS) {
+            ctrl->parall_success = CT_FALSE;
+            status = CT_ERROR;
             break;
         }
        
@@ -6174,39 +6194,39 @@ status_t stats_create_parall_threads(knl_session_t *session, stats_par_ctrl_t *c
                                      uint32 thread_num)
 {
     stats_par_context_t *par_ctx = NULL;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
-    ctrl->all_thread_ready = GS_FALSE;
+    ctrl->all_thread_ready = CT_FALSE;
     for (uint32 i = 0; i < thread_num; i++) {
         par_ctx = &ctrl->par_ctx[i];
         par_ctx->par_ctrl = (void*)ctrl;
         par_ctx->id = i;
-        par_ctx->is_wait = GS_FALSE;
+        par_ctx->is_wait = CT_FALSE;
 
         if (stats_alloc_mem_from_vm(session, vm_list, (char**)&par_ctx->col_ctx.col_handler,
-            sizeof(stats_col_handler_t)) != GS_SUCCESS) {
-            status = GS_ERROR;
+            sizeof(stats_col_handler_t)) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
-        if (stats_push_cursor_from_vm(session, vm_list, &par_ctx->col_ctx.stats_cur) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (stats_push_cursor_from_vm(session, vm_list, &par_ctx->col_ctx.stats_cur) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
-        if (cm_create_thread(stats_parallel_proc, 0, par_ctx, &par_ctx->thread) != GS_SUCCESS) {
-            ctrl->parall_success = GS_FALSE;
-            status = GS_ERROR;
+        if (cm_create_thread(stats_parallel_proc, 0, par_ctx, &par_ctx->thread) != CT_SUCCESS) {
+            ctrl->parall_success = CT_FALSE;
+            status = CT_ERROR;
             break;
         }
 
-        stats_record_alive_thread(ctrl, GS_TRUE);
+        stats_record_alive_thread(ctrl, CT_TRUE);
         ctrl->thread_count++;
     }
 
-    if (status == GS_SUCCESS) {
+    if (status == CT_SUCCESS) {
         cm_spin_lock(&ctrl->read_lock, NULL);
-        ctrl->all_thread_ready = GS_TRUE;
+        ctrl->all_thread_ready = CT_TRUE;
         cm_spin_unlock(&ctrl->read_lock);
     }
 
@@ -6227,33 +6247,33 @@ status_t stats_parall_gather_columns(knl_session_t *session, dc_entity_t *entity
     ret = memset_sp(&ctrl, sizeof(stats_par_ctrl_t), 0, sizeof(stats_par_ctrl_t));
     knl_securec_check(ret);
 
-    ret = memset_sp(&ctrl.par_thread_queue.id_list, sizeof(uint16) * GS_MAX_STATS_PARALL_THREADS, 0xFF,
-                    sizeof(uint16) * GS_MAX_STATS_PARALL_THREADS);
+    ret = memset_sp(&ctrl.par_thread_queue.id_list, sizeof(uint16) * CT_MAX_STATS_PARALL_THREADS, 0xFF,
+                    sizeof(uint16) * CT_MAX_STATS_PARALL_THREADS);
     knl_securec_check(ret);
 
-    session->thread_shared = GS_TRUE;
+    session->thread_shared = CT_TRUE;
     ctrl.session = session;
     ctrl.tab_ctx = tab_ctx;
     ctrl.entity = entity;
     ctrl.col_list = column_list;
-    ctrl.parall_success = GS_TRUE;
+    ctrl.parall_success = CT_TRUE;
     
     uint32 thread_num = (column_list->column_count > stats_max_paraller) ? stats_max_paraller : column_list->column_count;
     
     status_t status = stats_create_parall_threads(session, &ctrl, &vm_list, thread_num);
-    if (status != GS_ERROR) {
+    if (status != CT_ERROR) {
         session->stats_parall = ctrl.thread_count;
         status = stats_wait_persist_end(session, &ctrl);
     }
    
-    if (stats_parallel_proc_clean(session, &ctrl) != GS_SUCCESS) {
+    if (stats_parallel_proc_clean(session, &ctrl) != CT_SUCCESS) {
         stats_close_vms(session, &vm_list);
-        session->thread_shared = GS_FALSE;
-        return GS_ERROR;
+        session->thread_shared = CT_FALSE;
+        return CT_ERROR;
     }
 
     stats_close_vms(session, &vm_list);
-    session->thread_shared = GS_FALSE;
+    session->thread_shared = CT_FALSE;
     return status;
 }
 
@@ -6263,10 +6283,10 @@ static inline bool32 stats_judge_paraller(knl_session_t *session, uint32 col_cou
     bool32 enable_parall = session->kernel->attr.stats_enable_parall;
 
     if (!enable_parall || cpu_count < STATS_PARALL_MIN_CPU_COUNT || col_count < STATS_PARALL_MIN_COLUMN_COUNT) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t stats_gather_columns(knl_session_t *session, dc_entity_t *entity, stats_table_t *table_stats,
@@ -6278,8 +6298,8 @@ status_t stats_gather_columns(knl_session_t *session, dc_entity_t *entity, stats
     status_t status;
 
     if (!STATS_DYNAMICAL_TRANS_GTT(entity->type, table_stats->is_dynamic)) {
-        if (stats_try_begin_auton_rm(session, table_stats->is_dynamic) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_try_begin_auton_rm(session, table_stats->is_dynamic) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -6307,7 +6327,7 @@ status_t stats_gather_columns(knl_session_t *session, dc_entity_t *entity, stats
 
     CM_RESTORE_STACK(session->stack);
     
-    if (status == GS_SUCCESS) {
+    if (status == CT_SUCCESS) {
         stats_internal_commit(session, table_stats);
     } else {
         stats_internal_rollback(session, table_stats);
@@ -6326,78 +6346,78 @@ status_t stats_gather_part_columns(knl_session_t *session, knl_dictionary_t *dc,
     uint32 temp_seg = tab_ctx->mtrl_tab_seg;
     dc_entity_t *entity = DC_ENTITY(dc);
 
-    if (stats_create_global_mtrl_table(session, dc, temp_ctx, temp_seg, table_stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_create_global_mtrl_table(session, dc, temp_ctx, temp_seg, table_stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (STATS_IS_NOT_SPECIFY_PART(table_stats, table_stats->part_stats.part_id)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (stats_gather_columns(session, entity, table_stats, temp_ctx, temp_seg) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_gather_columns(session, entity, table_stats, temp_ctx, temp_seg) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_gather_global_columns_stats(knl_session_t *session, knl_dictionary_t *dc, stats_table_t *table_stats,
                                            mtrl_context_t *temp_ctx, uint32 temp_seg)
 {
     dc_entity_t *entity = DC_ENTITY(dc);
-    bool32 is_exist = GS_FALSE;
+    bool32 is_exist = CT_FALSE;
     cbo_stats_table_t *cbo_stats = entity->cbo_table_stats;
 
-    if (table_stats->specify_part_id != GS_INVALID_ID32) {
+    if (table_stats->specify_part_id != CT_INVALID_ID32) {
         if (STATS_GLOBAL_CBO_STATS_EXIST(entity)) {
             for (uint32 i = 0; i < cbo_stats->max_col_id; i++) {
                 cbo_stats_column_t  *cbo_column = cbo_get_column_stats(cbo_stats, i);
 
                 if (cbo_column != NULL) {
-                    is_exist = GS_TRUE;
+                    is_exist = CT_TRUE;
                     break;
                 }
             }
         }
        
         if (is_exist) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
     table_stats->part_start_rid.vmid = 0;
     table_stats->part_start_rid.slot = 0;
-    table_stats->part_stats.part_id = GS_INVALID_ID32;
+    table_stats->part_stats.part_id = CT_INVALID_ID32;
 
-    if (stats_gather_columns(session, entity, table_stats, temp_ctx, temp_seg) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_gather_columns(session, entity, table_stats, temp_ctx, temp_seg) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 uint32 stats_amplify_num_rows(uint32 num_rows, double sample_ratio)
 {
-    if (sample_ratio < GS_REAL_PRECISION) {
+    if (sample_ratio < CT_REAL_PRECISION) {
         return num_rows;
     }
 
     uint64 result_rows = (uint64)(int64)(num_rows / sample_ratio);
-    if (result_rows < GS_MAX_INT32) {
+    if (result_rows < CT_MAX_INT32) {
         return (uint32)result_rows;
     }
 
-    return (uint32)GS_MAX_INT32;
+    return (uint32)CT_MAX_INT32;
 }
 
 uint32 stats_add_num_rows(uint32 ori_rows, int32 curr_rows)
 {
     uint64 result_rows = (uint64)ori_rows + curr_rows;
-    if (result_rows < GS_MAX_INT32) {
+    if (result_rows < CT_MAX_INT32) {
         return (uint32)result_rows;
     }
 
-    return (uint32)GS_MAX_INT32;
+    return (uint32)CT_MAX_INT32;
 }
 
 void stats_estimate_whole_stats(stats_part_table_t *part_stats, double sample_ratio)
@@ -6552,20 +6572,20 @@ status_t stats_gather_part_index(knl_session_t *session, knl_dictionary_t *dc, s
         if (IS_PARENT_IDXPART(&index_part->desc)) {
             stats_init_part_index_info(&stats_idx, idx);
 
-            if (stats_update_sys_indexpart(session, &stats_idx) != GS_SUCCESS) {
+            if (stats_update_sys_indexpart(session, &stats_idx) != CT_SUCCESS) {
                 mtrl_release_context(&stats_idx.mtrl.mtrl_ctx);
                 CM_RESTORE_STACK(session->stack);
                 stats_internal_rollback(session, table_stats);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             continue;
         }
 
-        if (stats_gather_index_entity(session, dc, idx, &stats_idx, table_stats) != GS_SUCCESS) {
+        if (stats_gather_index_entity(session, dc, idx, &stats_idx, table_stats) != CT_SUCCESS) {
             mtrl_release_context(&stats_idx.mtrl.mtrl_ctx);
             CM_RESTORE_STACK(session->stack);
             stats_internal_rollback(session, table_stats);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         
         mtrl_release_context(&stats_idx.mtrl.mtrl_ctx);
@@ -6573,7 +6593,7 @@ status_t stats_gather_part_index(knl_session_t *session, knl_dictionary_t *dc, s
     
     CM_RESTORE_STACK(session->stack);
     stats_internal_commit(session, table_stats);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_update_empty_sys_subindexs(knl_session_t *session, part_index_t *part_index,
@@ -6590,11 +6610,11 @@ static status_t stats_update_empty_sys_subindexs(knl_session_t *session, part_in
         index_stats->subpart_id = sub_part->desc.part_id;
 
         if (stats_update_sys_subindexpart(session, index_stats)) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_update_empty_sys_indexparts(knl_session_t *session, index_t *idx, stats_index_t *index_stats, uint32 part_id)
@@ -6614,17 +6634,17 @@ status_t stats_update_empty_sys_indexparts(knl_session_t *session, index_t *idx,
         index_stats->idx_id = idx_part->desc.index_id;
         
         if (IS_PARENT_IDXPART(&idx_part->desc)) {
-            if (stats_update_empty_sys_subindexs(session, idx->part_index, idx_part, index_stats) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (stats_update_empty_sys_subindexs(session, idx->part_index, idx_part, index_stats) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         /*
-        * if part_id is GS_INVALID_ID32, it means to gather all parts statistics,
+        * if part_id is CT_INVALID_ID32, it means to gather all parts statistics,
         * we set all table part statistics to empty
         */
-        if (part_id == GS_INVALID_ID32) {
-            if (stats_update_sys_indexpart(session, index_stats) != GS_SUCCESS) {
-                return GS_ERROR;
+        if (part_id == CT_INVALID_ID32) {
+            if (stats_update_sys_indexpart(session, index_stats) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             continue;
         }
@@ -6633,14 +6653,14 @@ status_t stats_update_empty_sys_indexparts(knl_session_t *session, index_t *idx,
         * we set the table part statistics to empty
         */
         if (part_id == idx_part->desc.part_id) {
-            if (stats_update_sys_indexpart(session, index_stats) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (stats_update_sys_indexpart(session, index_stats) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             break;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_update_empty_sys_subparts(knl_session_t *session, table_t *table, table_part_t *table_part,
@@ -6659,12 +6679,12 @@ static status_t stats_update_empty_sys_subparts(knl_session_t *session, table_t 
         ret = memset_s(&tab_info, sizeof(stats_table_info_t), 0, sizeof(stats_table_info_t));
         knl_securec_check(ret);
 
-        if (stats_update_sys_subtablepart(session, sub_part, &tab_info, table_stats->is_dynamic) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_update_sys_subtablepart(session, sub_part, &tab_info, table_stats->is_dynamic) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_update_empty_sys_tablepart(knl_session_t *session, knl_dictionary_t *dc, stats_table_t *table_stats,
@@ -6684,17 +6704,17 @@ status_t stats_update_empty_sys_tablepart(knl_session_t *session, knl_dictionary
         table_stats->part_stats.part_id = table_part->desc.part_id;
         table_stats->part_stats.part_no = i;
         if (IS_PARENT_TABPART(&table_part->desc)) {
-            if (stats_update_empty_sys_subparts(session, table, table_part, table_stats) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (stats_update_empty_sys_subparts(session, table, table_part, table_stats) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         /*
-        * if part_id is GS_INVALID_ID32, it means to gather all parts statistics,
+        * if part_id is CT_INVALID_ID32, it means to gather all parts statistics,
         * we set all table part statistics to empty
         */
-        if (part_id == GS_INVALID_ID32) {
-            if (stats_update_sys_tablepart(session, dc, table_stats) != GS_SUCCESS) {
-                return GS_ERROR;
+        if (part_id == CT_INVALID_ID32) {
+            if (stats_update_sys_tablepart(session, dc, table_stats) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             continue;
         }
@@ -6703,14 +6723,14 @@ status_t stats_update_empty_sys_tablepart(knl_session_t *session, knl_dictionary
         * we set the table part statistics to empty
         */
         if (part_id == table_part->desc.part_id) {
-            if (stats_update_sys_tablepart(session, dc, table_stats) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (stats_update_sys_tablepart(session, dc, table_stats) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             break;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_try_gather_empty_subpart(knl_session_t *session, knl_dictionary_t *dc, table_part_t *table_subpart,
@@ -6724,18 +6744,18 @@ static status_t stats_try_gather_empty_subpart(knl_session_t *session, knl_dicti
     errno_t ret;
 
     if (table_subpart == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!table_subpart->heap.loaded) {
-        if (dc_load_table_part_segment(session, dc->handle, table_subpart) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_load_table_part_segment(session, dc->handle, table_subpart) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (table_subpart->heap.segment != NULL) {
-        *is_empty = GS_FALSE;
-        return GS_SUCCESS;
+        *is_empty = CT_FALSE;
+        return CT_SUCCESS;
     }
 
     ret = memset_s(&index_stats, sizeof(stats_index_t), 0, sizeof(stats_index_t));
@@ -6756,9 +6776,9 @@ static status_t stats_try_gather_empty_subpart(knl_session_t *session, knl_dicti
 
         if (IS_PART_INDEX(idx)) {
             // to update indexpart$
-            if (stats_update_sys_subindexpart(session, &index_stats) != GS_SUCCESS) {
+            if (stats_update_sys_subindexpart(session, &index_stats) != CT_SUCCESS) {
                 stats_rollback(session, is_dynamic);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
         stats_commit(session, is_dynamic);
@@ -6767,32 +6787,32 @@ static status_t stats_try_gather_empty_subpart(knl_session_t *session, knl_dicti
     ret = memset_s(&tab_info, sizeof(stats_table_info_t), 0, sizeof(stats_table_info_t));
     knl_securec_check(ret);
 
-    if (stats_update_sys_subtablepart(session, table_subpart, &tab_info, is_dynamic) != GS_SUCCESS) {
+    if (stats_update_sys_subtablepart(session, table_subpart, &tab_info, is_dynamic) != CT_SUCCESS) {
         stats_rollback(session, is_dynamic);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     stats_commit(session, is_dynamic);
-    *is_empty = GS_TRUE;
-    return GS_SUCCESS;
+    *is_empty = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 static status_t stats_check_segment_valid(knl_session_t *session, table_part_t *table_part, heap_segment_t **seg)
 {
     if (!spc_validate_page_id(session, table_part->desc.entry)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     buf_enter_page(session, table_part->desc.entry, LATCH_MODE_S, ENTER_PAGE_NORMAL);
     page_head_t *page = (page_head_t *)CURR_PAGE(session);
     *seg = HEAP_SEG_HEAD(session);
     if (page->type != PAGE_TYPE_HEAP_HEAD || (*seg)->seg_scn != table_part->desc.seg_scn) {
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table_part->desc.name);
-        buf_leave_page(session, GS_FALSE);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table_part->desc.name);
+        buf_leave_page(session, CT_FALSE);
+        return CT_ERROR;
     }
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
   
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_try_gather_empty_part(knl_session_t *session, knl_dictionary_t *dc, table_part_t *table_part,
@@ -6804,13 +6824,13 @@ static status_t stats_try_gather_empty_part(knl_session_t *session, knl_dictiona
     heap_segment_t *seg = NULL;
 
     if (!table_part->heap.loaded) {
-        if (dc_load_table_part_segment(session, dc->handle, table_part) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_load_table_part_segment(session, dc->handle, table_part) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
     // if entry is invalid page id,it means segment is not created.
-    if (stats_check_segment_valid(session, table_part, &seg) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_check_segment_valid(session, table_part, &seg) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     /*
@@ -6819,8 +6839,8 @@ static status_t stats_try_gather_empty_part(knl_session_t *session, knl_dictiona
     * 3. nologging table behave as heap table;
     */
     if (IS_STATS_TABLE_TYPE(table) && seg != NULL) {
-        *is_empty = GS_FALSE;
-        return GS_SUCCESS;
+        *is_empty = CT_FALSE;
+        return CT_SUCCESS;
     }
 
     errno_t ret = memset_s(&index_stats, sizeof(stats_index_t), 0, sizeof(stats_index_t));
@@ -6830,7 +6850,7 @@ static status_t stats_try_gather_empty_part(knl_session_t *session, knl_dictiona
     knl_securec_check(ret);
 
     tab_stats.is_dynamic = is_dynamic;
-    tab_stats.is_part = GS_TRUE;
+    tab_stats.is_part = CT_TRUE;
     for (uint32 i = 0; i < table->index_set.count; i++) {
         index_t *idx = table->index_set.items[i];
         index_stats.uid = idx->desc.uid;
@@ -6844,20 +6864,20 @@ static status_t stats_try_gather_empty_part(knl_session_t *session, knl_dictiona
         }
 
         // to update indexpart$
-        if (stats_update_empty_sys_indexparts(session, idx, &index_stats, table_part->desc.part_id) != GS_SUCCESS) {
+        if (stats_update_empty_sys_indexparts(session, idx, &index_stats, table_part->desc.part_id) != CT_SUCCESS) {
             stats_internal_rollback(session, &tab_stats);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    if (stats_update_empty_sys_tablepart(session, dc, &tab_stats, table_part->desc.part_id) != GS_SUCCESS) {
+    if (stats_update_empty_sys_tablepart(session, dc, &tab_stats, table_part->desc.part_id) != CT_SUCCESS) {
         stats_internal_rollback(session, &tab_stats);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     stats_internal_commit(session, &tab_stats);
-    *is_empty = GS_TRUE;
-    return GS_SUCCESS;
+    *is_empty = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 /*
@@ -6878,7 +6898,7 @@ void stats_calc_parent_part_stats(stats_table_t *table_stats)
         sample_ratio = table_stats->estimate_sample_ratio;
     }
 
-    if (sample_ratio > GS_REAL_PRECISION) {
+    if (sample_ratio > CT_REAL_PRECISION) {
         stats_estimate_whole_stats(sub_part, sample_ratio);
     }
 
@@ -6898,38 +6918,38 @@ status_t stats_gather_table_one_subpart(knl_session_t *session, knl_dictionary_t
     bool32 is_dynamic = table_stats->is_dynamic;
 
     if (!table_subpart->heap.loaded) {
-        if (dc_load_table_part_segment(session, dc->handle, table_subpart) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_load_table_part_segment(session, dc->handle, table_subpart) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (stats_try_gather_empty_subpart(session, dc, table_subpart, is_empty_subpart,
-        is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+        is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (*is_empty_subpart) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (stats_create_global_mtrl_table(session, dc, temp_ctx, temp_seg, table_stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_create_global_mtrl_table(session, dc, temp_ctx, temp_seg, table_stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (stats_gather_columns(session, entity, table_stats, temp_ctx, temp_seg) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_gather_columns(session, entity, table_stats, temp_ctx, temp_seg) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     stats_calc_parent_part_stats(table_stats);
 
     stats_table_info_t *tab_info = &table_stats->part_stats.sub_stats->info;
-    if (stats_update_sys_subtablepart(session, table_subpart, tab_info, is_dynamic) != GS_SUCCESS) {
+    if (stats_update_sys_subtablepart(session, table_subpart, tab_info, is_dynamic) != CT_SUCCESS) {
         stats_rollback(session, is_dynamic);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     stats_commit(session, is_dynamic);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_gather_subpart_index(knl_session_t *session, knl_dictionary_t *dc, stats_tab_context_t *tab_ctx)
@@ -6959,16 +6979,16 @@ status_t stats_gather_subpart_index(knl_session_t *session, knl_dictionary_t *dc
         btree->index = idx;
         
         stats_prepare_gather_subpart_index(session, table_stats, &stats_idx, index_subpart);
-        stats_idx.is_subpart = GS_TRUE;
+        stats_idx.is_subpart = CT_TRUE;
         stats_idx.mtrl.mtrl_table_ctx = mtrl_tab_ctx;
         stats_idx.mtrl.temp_seg_id = mtrl_tab_seg;
         stats_idx.btree = btree;
 
-        if (stats_gather_index_entity(session, dc, idx, &stats_idx, table_stats) != GS_SUCCESS) {
+        if (stats_gather_index_entity(session, dc, idx, &stats_idx, table_stats) != CT_SUCCESS) {
             cm_pop(session->stack);
             mtrl_release_context(&stats_idx.mtrl.mtrl_ctx);
             stats_internal_rollback(session, table_stats);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         mtrl_release_context(&stats_idx.mtrl.mtrl_ctx);
@@ -6976,7 +6996,7 @@ status_t stats_gather_subpart_index(knl_session_t *session, knl_dictionary_t *dc
 
     cm_pop(session->stack);
     stats_internal_commit(session, table_stats);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_gather_table_subpart(knl_session_t *session, knl_dictionary_t *dc, table_part_t *table_compart,
@@ -6988,8 +7008,8 @@ status_t stats_gather_table_subpart(knl_session_t *session, knl_dictionary_t *dc
     stats_part_table_t *compart_stats = &table_stats->part_stats;
     double ori_sample_ratio = STATS_IS_ANALYZE_SINGLE_PART(table_stats, table_stats->part_stats.part_id) ?
         table_stats->part_sample_ratio : table_stats->estimate_sample_ratio;
-    bool32 is_empty_part = GS_FALSE;
-    table_stats->part_stats.is_subpart = GS_TRUE;
+    bool32 is_empty_part = CT_FALSE;
+    table_stats->part_stats.is_subpart = CT_TRUE;
     table_stats->part_stats.parent_start_rid = table_stats->now_rid;
     table_t *table = DC_TABLE(dc);
     
@@ -7002,7 +7022,7 @@ status_t stats_gather_table_subpart(knl_session_t *session, knl_dictionary_t *dc
 
         errno_t ret = memset_sp(sub_part, sizeof(stats_part_table_t), 0, sizeof(stats_part_table_t));
         knl_securec_check(ret);
-        is_empty_part = GS_FALSE;
+        is_empty_part = CT_FALSE;
         compart_stats->sub_stats = sub_part;
         compart_stats->sub_stats->part_no = i;
         compart_stats->sub_stats->part_id = table_subpart->desc.part_id;
@@ -7013,29 +7033,29 @@ status_t stats_gather_table_subpart(knl_session_t *session, knl_dictionary_t *dc
             table_stats->estimate_sample_ratio = ori_sample_ratio;
         }
 
-        if (stats_gather_table_one_subpart(session, dc, table_subpart, tab_ctx, &is_empty_part) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_gather_table_one_subpart(session, dc, table_subpart, tab_ctx, &is_empty_part) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (is_empty_part) {
             continue;
         }
 
-        if (stats_gather_subpart_index(session, dc, tab_ctx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_gather_subpart_index(session, dc, tab_ctx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     dc_entity_t *entity = DC_ENTITY(dc);
 
     table_stats->part_start_rid = table_stats->part_stats.parent_start_rid;
-    table_stats->part_stats.sub_stats->part_id = GS_INVALID_ID32;
+    table_stats->part_stats.sub_stats->part_id = CT_INVALID_ID32;
     // gather parent part global column statistics
-    if (stats_gather_columns(session, entity, table_stats, temp_ctx, temp_seg) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_gather_columns(session, entity, table_stats, temp_ctx, temp_seg) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_gather_single_table_part(knl_session_t *session, knl_dictionary_t *dc, stats_tab_context_t *tab_ctx)
@@ -7046,7 +7066,7 @@ status_t stats_gather_single_table_part(knl_session_t *session, knl_dictionary_t
     part_table_t *part_table = table->part_table;
     table_part_t *table_part = NULL;
     uint32 part_no;
-    bool32 is_empty = GS_FALSE;
+    bool32 is_empty = CT_FALSE;
     stats_part_table_t sub_part;
 
     for (part_no = 0; part_no < part_table->desc.partcnt; part_no++) {
@@ -7063,32 +7083,32 @@ status_t stats_gather_single_table_part(knl_session_t *session, knl_dictionary_t
     errno_t ret = memset_s(part_stats, sizeof(stats_part_table_t), 0, sizeof(stats_part_table_t));
     knl_securec_check(ret);
 
-    table_stats->is_part = GS_TRUE;
+    table_stats->is_part = CT_TRUE;
     part_stats->part_no = part_no;
     part_stats->part_id = table_part->desc.part_id;
     bool32 is_parent = IS_PARENT_TABPART(&table_part->desc);
     if (is_parent) {
-        if (stats_gather_table_subpart(session, dc, table_part, tab_ctx, &sub_part) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_gather_table_subpart(session, dc, table_part, tab_ctx, &sub_part) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         if (!table_part->heap.loaded) {
-            if (dc_load_table_part_segment(session, dc->handle, table_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (dc_load_table_part_segment(session, dc->handle, table_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
-        if (stats_try_gather_empty_part(session, dc, table_part, &is_empty, table_stats->is_dynamic) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_try_gather_empty_part(session, dc, table_part, &is_empty, table_stats->is_dynamic) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (is_empty) {
             stats_calc_global_part_stats(DC_ENTITY(dc), table_stats, part_no, is_parent);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (stats_gather_part_columns(session, dc, tab_ctx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_gather_part_columns(session, dc, tab_ctx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -7100,21 +7120,21 @@ status_t stats_gather_single_table_part(knl_session_t *session, knl_dictionary_t
         }
     }
 
-    if (stats_update_sys_tablepart(session, dc, table_stats) != GS_SUCCESS) {
+    if (stats_update_sys_tablepart(session, dc, table_stats) != CT_SUCCESS) {
         stats_internal_rollback(session, table_stats);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     stats_internal_commit(session, table_stats);
 
-    if (stats_gather_part_index(session, dc, tab_ctx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_gather_part_index(session, dc, tab_ctx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (table_stats->tab_info.rows != 0) {
         table_stats->tab_info.avg_row_len = stats_calc_row_avg_len(table_stats->tab_info);
     }
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void stats_subtract_part_stats(stats_table_info_t *info, cbo_stats_table_t *part_stats)
@@ -7138,7 +7158,7 @@ static status_t stats_update_global_by_subpart(knl_session_t *session, knl_dicti
     cbo_stats_table_t *part_stats = NULL;
 
     if (!entity->stat_exists) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     CM_SAVE_STACK(session->stack);
@@ -7147,24 +7167,24 @@ static status_t stats_update_global_by_subpart(knl_session_t *session, knl_dicti
     table = DC_TABLE(dc);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_TABLE_ID, IX_SYS_TABLE_001_ID);
     key = &cursor->scan_range.l_key;
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
         IX_COL_SYS_TABLE_001_USER_ID);
     // table name is smaller than 68
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_STRING, table->desc.name,
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_STRING, table->desc.name,
         (uint16)strlen(table->desc.name), IX_COL_SYS_TABLE_001_NAME);
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s index %s",
                   cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type, table->desc.name,
                   ((index_t *)cursor->index)->desc.name);
 
-    if (CURSOR_COLUMN_SIZE(cursor, TABLE_ANALYZE_TIME) == GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, TABLE_ANALYZE_TIME) == CT_NULL_VALUE_LEN) {
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     info.rows = *(uint32*)CURSOR_COLUMN_DATA(cursor, TABLE_ROWS);
@@ -7182,10 +7202,10 @@ static status_t stats_update_global_by_subpart(knl_session_t *session, knl_dicti
 
     cursor->update_info.count = STATS_GLOBAL_PARTTABLE_COLUMNS;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_GLOBAL_PARTTABLE_COLUMNS);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, info.rows));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, info.blocks));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, info.empty_block));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, info.sample_size));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, info.rows));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, info.blocks));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, info.empty_block));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, info.sample_size));
 
     cursor->update_info.columns[0] = TABLE_ROWS;
     cursor->update_info.columns[1] = TABLE_BLOCKS;
@@ -7194,13 +7214,13 @@ static status_t stats_update_global_by_subpart(knl_session_t *session, knl_dicti
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // for drop subpart to update parent part stats
@@ -7216,7 +7236,7 @@ status_t stats_update_global_partstats(knl_session_t *session, knl_dictionary_t 
     table_part_t *parent = NULL;
 
     if (!entity->stat_exists) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     CM_SAVE_STACK(session->stack);
@@ -7225,27 +7245,27 @@ status_t stats_update_global_partstats(knl_session_t *session, knl_dictionary_t 
     table_t *table = DC_TABLE(dc);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_TABLEPART_ID, IX_SYS_TABLEPART001_ID);
     key = &cursor->scan_range.l_key;
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
         IX_COL_SYS_TABLEPART001_USER_ID);
     // table name is smaller than 68
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table->desc.id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table->desc.id, sizeof(uint32),
         IX_COL_SYS_TABLEPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &partid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &partid, sizeof(uint32),
         IX_COL_SYS_TABLEPART001_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s index %s",
                   cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type, table->desc.name,
                   ((index_t *)cursor->index)->desc.name);
 
-    if (CURSOR_COLUMN_SIZE(cursor, TABLE_PART_ANALYZE_TIME) == GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, TABLE_PART_ANALYZE_TIME) == CT_NULL_VALUE_LEN) {
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     info.rows = *(uint32*)CURSOR_COLUMN_DATA(cursor, TABLE_PART_ROWS);
@@ -7271,10 +7291,10 @@ status_t stats_update_global_partstats(knl_session_t *session, knl_dictionary_t 
 
     cursor->update_info.count = STATS_GLOBAL_PARTTABLE_COLUMNS;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_GLOBAL_PARTTABLE_COLUMNS);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, info.rows));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, info.blocks));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, info.empty_block));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, info.sample_size));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, info.rows));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, info.blocks));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, info.empty_block));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, info.sample_size));
 
     cursor->update_info.columns[0] = TABLE_PART_ROWS;
     cursor->update_info.columns[1] = TABLE_PART_BLOCKS;
@@ -7283,18 +7303,18 @@ status_t stats_update_global_partstats(knl_session_t *session, knl_dictionary_t 
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    if (stats_update_global_by_subpart(session, dc, part_no, info) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_update_global_by_subpart(session, dc, part_no, info) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_update_global_tablestats(knl_session_t *session, knl_dictionary_t *dc, uint32 part_no)
@@ -7309,7 +7329,7 @@ status_t stats_update_global_tablestats(knl_session_t *session, knl_dictionary_t
     stats_table_info_t info;
     
     if (!entity->stat_exists) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     CM_SAVE_STACK(session->stack);
@@ -7318,24 +7338,24 @@ status_t stats_update_global_tablestats(knl_session_t *session, knl_dictionary_t
     table = DC_TABLE(dc);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_TABLE_ID, IX_SYS_TABLE_001_ID);
     key = &cursor->scan_range.l_key;
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
                      IX_COL_SYS_TABLE_001_USER_ID);
     // table name is smaller than 68
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_STRING, table->desc.name,
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_STRING, table->desc.name,
                      (uint16)strlen(table->desc.name), IX_COL_SYS_TABLE_001_NAME);
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s index %s",
                   cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type, table->desc.name,
                   ((index_t *)cursor->index)->desc.name);
    
-    if (CURSOR_COLUMN_SIZE(cursor, TABLE_ANALYZE_TIME) == GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, TABLE_ANALYZE_TIME) == CT_NULL_VALUE_LEN) {
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     info.rows = *(uint32*)CURSOR_COLUMN_DATA(cursor, TABLE_ROWS);
@@ -7350,10 +7370,10 @@ status_t stats_update_global_tablestats(knl_session_t *session, knl_dictionary_t
 
     cursor->update_info.count = STATS_GLOBAL_PARTTABLE_COLUMNS;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_GLOBAL_PARTTABLE_COLUMNS);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, info.rows));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, info.blocks));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, info.empty_block));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, info.sample_size));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, info.rows));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, info.blocks));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, info.empty_block));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, info.sample_size));
 
     cursor->update_info.columns[0] = TABLE_ROWS;
     cursor->update_info.columns[1] = TABLE_BLOCKS;
@@ -7362,13 +7382,13 @@ status_t stats_update_global_tablestats(knl_session_t *session, knl_dictionary_t
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_update_sys_table(knl_session_t *session, stats_table_t *tab_stats,
@@ -7382,16 +7402,16 @@ static status_t stats_update_sys_table(knl_session_t *session, stats_table_t *ta
     bool8 is_report = tab_stats->stats_option.is_report;
 
     if (is_report) {
-        stats_write_report_tab_value(session, DC_ENTITY(dc), tab_stats, GS_FALSE);
-        return GS_SUCCESS;
+        stats_write_report_tab_value(session, DC_ENTITY(dc), tab_stats, CT_FALSE);
+        return CT_SUCCESS;
     }
 
     if (tab_stats->is_dynamic && tab_stats->stats_option.dynamic_type == STATS_COLUMNS) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (stats_try_begin_auton_rm(session, tab_stats->is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_try_begin_auton_rm(session, tab_stats->is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
@@ -7399,35 +7419,35 @@ static status_t stats_update_sys_table(knl_session_t *session, stats_table_t *ta
     table = DC_TABLE(dc);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_TABLE_ID, IX_SYS_TABLE_001_ID);
     key = &cursor->scan_range.l_key;
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
         IX_COL_SYS_TABLE_001_USER_ID);
  
     // table name is smaller than 68
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_STRING, table->desc.name,
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_STRING, table->desc.name,
                      (uint16)strlen(table->desc.name), IX_COL_SYS_TABLE_001_NAME);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        stats_try_end_auton_rm(session, GS_ERROR, tab_stats->is_dynamic);
-        return GS_ERROR;
+        stats_try_end_auton_rm(session, CT_ERROR, tab_stats->is_dynamic);
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table->desc.name);
-        stats_try_end_auton_rm(session, GS_ERROR, tab_stats->is_dynamic);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table->desc.name);
+        stats_try_end_auton_rm(session, CT_ERROR, tab_stats->is_dynamic);
+        return CT_ERROR;
     }
 
     cursor->update_info.count = STATS_SYS_TABLE_COLUMN_COUNT;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_SYS_TABLE_COLUMN_COUNT);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_stats->tab_info.rows));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_stats->tab_info.blocks));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_stats->tab_info.empty_block));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_stats->tab_info.rows));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_stats->tab_info.blocks));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_stats->tab_info.empty_block));
     (void)row_put_int64(&ra, tab_stats->tab_info.avg_row_len);
     //  this sample size is analyzed rows, so it is smaller than max value of uint32
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_stats->tab_info.sample_size));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_stats->tab_info.sample_size));
     tab_stats->tab_info.analyze_time = cm_now();
     (void)row_put_int64(&ra, tab_stats->tab_info.analyze_time);
 
@@ -7437,16 +7457,16 @@ static status_t stats_update_sys_table(knl_session_t *session, stats_table_t *ta
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        stats_try_end_auton_rm(session, GS_ERROR, tab_stats->is_dynamic);
-        return GS_ERROR;
+        stats_try_end_auton_rm(session, CT_ERROR, tab_stats->is_dynamic);
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    stats_try_end_auton_rm(session, GS_SUCCESS, tab_stats->is_dynamic);
+    stats_try_end_auton_rm(session, CT_SUCCESS, tab_stats->is_dynamic);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_gather_table(knl_session_t *session, knl_dictionary_t *dc, stats_table_t *tab_stats)
@@ -7457,7 +7477,7 @@ status_t stats_gather_table(knl_session_t *session, knl_dictionary_t *dc, stats_
     if (!tab_stats->is_part) {
         info->sample_size = info->rows;
 
-        if (tab_stats->estimate_sample_ratio > GS_REAL_PRECISION) {
+        if (tab_stats->estimate_sample_ratio > CT_REAL_PRECISION) {
             info->blocks = (uint32)(int32)(info->blocks / tab_stats->estimate_sample_ratio);
             info->empty_block = (uint32)(int32)(info->empty_block / tab_stats->estimate_sample_ratio);
             info->rows = stats_amplify_num_rows(info->rows, tab_stats->estimate_sample_ratio);
@@ -7465,20 +7485,20 @@ status_t stats_gather_table(knl_session_t *session, knl_dictionary_t *dc, stats_
     }
 
     if (is_report) {
-        stats_write_report_tab_value(session, DC_ENTITY(dc), tab_stats, GS_FALSE);
-        return GS_SUCCESS;
+        stats_write_report_tab_value(session, DC_ENTITY(dc), tab_stats, CT_FALSE);
+        return CT_SUCCESS;
     }
 
     if (stats_no_persistent(tab_stats)) {
         cbo_load_tmptab_table_stats(tab_stats->temp_table->table_cache->cbo_stats, tab_stats, dc);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (stats_update_sys_table(session, tab_stats, dc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_update_sys_table(session, tab_stats, dc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_mon_sysmods(knl_session_t *session, uint32 uid, uint32 table_id, uint32 dele_part_id,
@@ -7495,48 +7515,48 @@ status_t db_delete_mon_sysmods(knl_session_t *session, uint32 uid, uint32 table_
     * to delete dml monitor statistics.
     */
     if (is_dynamic) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     CM_SAVE_STACK(session->stack);
 
     cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_DELETE, SYS_MON_MODS_ALL_ID, IX_MODS_001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                      IX_COL_MODS_001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table_id, sizeof(uint32),
                      IX_COL_MODS_001_TABLE_ID);
     cursor->stmt = (void *)&cond;
     session->match_cond = stats_match_sys_dmls;
     cond.session = session;
     cond.cursor = cursor;
     cond.part_id = dele_part_id;
-    cond.subpart_id = GS_INVALID_ID32;
-    cond.col_id = GS_INVALID_ID32;
+    cond.subpart_id = CT_INVALID_ID32;
+    cond.col_id = CT_INVALID_ID32;
     cond.match_type = MATCH_PART;
   
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             session->match_cond = org_match_cond;
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
             break;
         }
             
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             session->match_cond = org_match_cond;
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     session->match_cond = org_match_cond;
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_insert_sys_mon_mods(knl_session_t *session, knl_cursor_t *cursor, stats_table_mon_t *table_smon,
@@ -7545,18 +7565,18 @@ status_t db_insert_sys_mon_mods(knl_session_t *session, knl_cursor_t *cursor, st
     table_t *table = NULL;
     row_assist_t ra;
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_MON_MODS_ALL_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_MON_MODS_ALL_ID, CT_INVALID_ID32);
     table = (table_t *)cursor->table;
 
     row_init(&ra, (char *)cursor->row, HEAP_MAX_ROW_SIZE(session), table->desc.column_count);
     (void)row_put_int32(&ra, uid);  // user id
     (void)row_put_int32(&ra, id);   // base table id
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, table_smon->inserts));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, table_smon->updates));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, table_smon->deletes));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, table_smon->inserts));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, table_smon->updates));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, table_smon->deletes));
     (void)row_put_date(&ra, table_smon->timestamp);
     (void)row_put_int32(&ra, 0);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, table_smon->drop_segments));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, table_smon->drop_segments));
     if (is_part) {
         (void)row_put_int32(&ra, 1);
     } else {
@@ -7565,11 +7585,11 @@ status_t db_insert_sys_mon_mods(knl_session_t *session, knl_cursor_t *cursor, st
 
     (void)row_put_int32(&ra, part_id);
 
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_update_sys_mon_modes(knl_session_t *session, knl_cursor_t *cursor, stats_table_mon_t *table_smon)
@@ -7578,11 +7598,11 @@ status_t db_update_sys_mon_modes(knl_session_t *session, knl_cursor_t *cursor, s
     uint16 size;
 
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_MON_MODS_UPDATE_COLUMNS);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, table_smon->inserts));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, table_smon->updates));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, table_smon->deletes));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, table_smon->inserts));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, table_smon->updates));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, table_smon->deletes));
     (void)row_put_date(&ra, table_smon->timestamp);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, table_smon->drop_segments));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, table_smon->drop_segments));
     cursor->update_info.count = STATS_MON_MODS_UPDATE_COLUMNS;
     cursor->update_info.columns[0] = STATS_MON_MODS_INSERTS_COLUMN;
     cursor->update_info.columns[1] = STATS_MON_MODS_UPDATES_COLUMN;
@@ -7591,53 +7611,53 @@ status_t db_update_sys_mon_modes(knl_session_t *session, knl_cursor_t *cursor, s
     cursor->update_info.columns[4] = STATS_MON_MODS_DROP_SEG_COLUMN;
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_check_empty_table_subpart(knl_session_t *session, knl_dictionary_t *dc, table_part_t *table_subpart,
                                                 bool32 *is_empty)
 {
     if (!table_subpart->heap.loaded) {
-        if (dc_load_table_part_segment(session, dc->handle, table_subpart) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_load_table_part_segment(session, dc->handle, table_subpart) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (table_subpart->heap.segment != NULL) {
-        *is_empty = GS_FALSE;
-        return GS_SUCCESS;
+        *is_empty = CT_FALSE;
+        return CT_SUCCESS;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_check_empty_table_part(knl_session_t *session, knl_dictionary_t *dc, table_part_t *table_part, bool32 *is_empty)
 {
     table_part_t *table_sub = NULL;
-    bool32 is_empty_part = GS_TRUE;
+    bool32 is_empty_part = CT_TRUE;
     table_t *table = DC_TABLE(dc);
 
     if (table_part == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!IS_PARENT_TABPART(&table_part->desc)) {
         if (!table_part->heap.loaded) {
-            if (dc_load_table_part_segment(session, dc->handle, table_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (dc_load_table_part_segment(session, dc->handle, table_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
         if (table_part->heap.segment != NULL) {
-            *is_empty = GS_FALSE;
-            return GS_SUCCESS;
+            *is_empty = CT_FALSE;
+            return CT_SUCCESS;
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (uint32 i = 0; i < table_part->desc.subpart_cnt; i++) {
@@ -7646,17 +7666,17 @@ static status_t stats_check_empty_table_part(knl_session_t *session, knl_diction
             continue;
         }
 
-        if (stats_check_empty_table_subpart(session, dc, table_sub, &is_empty_part) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_check_empty_table_subpart(session, dc, table_sub, &is_empty_part) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (is_empty_part != GS_TRUE) {
+        if (is_empty_part != CT_TRUE) {
             break;
         }
     }
 
     *is_empty = is_empty_part;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_check_empty_table(knl_session_t *session, knl_dictionary_t *dc, bool32 *is_empty)
@@ -7673,7 +7693,7 @@ status_t stats_check_empty_table(knl_session_t *session, knl_dictionary_t *dc, b
             segment = session->temp_mtrl->segments[temp_table->table_segid];
 
             if (segment->vm_list.count != 0) {
-                *is_empty = GS_FALSE;
+                *is_empty = CT_FALSE;
             }
         }
     } else if (IS_PART_TABLE(table)) {
@@ -7683,21 +7703,21 @@ status_t stats_check_empty_table(knl_session_t *session, knl_dictionary_t *dc, b
                 continue;
             }
 
-            if (stats_check_empty_table_part(session, dc, table_part, is_empty) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (stats_check_empty_table_part(session, dc, table_part, is_empty) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (*is_empty != GS_TRUE) {
+            if (*is_empty != CT_TRUE) {
                 break;
             }
         }
     } else {
         if (table->heap.segment != NULL) {
-            *is_empty = GS_FALSE;
+            *is_empty = CT_FALSE;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool32 stats_check_old_nologging(knl_session_t *session, knl_cursor_t *cursor)
@@ -7707,16 +7727,16 @@ bool32 stats_check_old_nologging(knl_session_t *session, knl_cursor_t *cursor)
     knl_dictionary_t dc;
     db_get_sys_dc(session, SYS_TEMP_HISTGRAM_ID, &dc);
 
-    if (CURSOR_COLUMN_SIZE(cursor, SYS_TABLE_COL_ANALYZETIME) != GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, SYS_TABLE_COL_ANALYZETIME) != CT_NULL_VALUE_LEN) {
         analyze_time = *(date_t*)CURSOR_COLUMN_DATA(cursor, SYS_TABLE_COL_ANALYZETIME);
-        if (knl_timestamp_to_scn(session, analyze_time, &analyze_scn) != GS_SUCCESS) {
-            return GS_TRUE;
+        if (knl_timestamp_to_scn(session, analyze_time, &analyze_scn) != CT_SUCCESS) {
+            return CT_TRUE;
         }
 
         return dc.org_scn > analyze_scn;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t stats_clean_spc_stats(knl_session_t *session, space_t *space)
@@ -7727,17 +7747,17 @@ status_t stats_clean_spc_stats(knl_session_t *session, space_t *space)
     uint32 space_id;
     stats_table_t tab_stats;
     errno_t ret;
-    bool32 is_old_nologging = GS_FALSE;
+    bool32 is_old_nologging = CT_FALSE;
 
-    knl_set_session_scn(session, GS_INVALID_ID64);
+    knl_set_session_scn(session, CT_INVALID_ID64);
     CM_SAVE_STACK(session->stack);
     cursor = knl_push_cursor(session);
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLE_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLE_ID, CT_INVALID_ID32);
     cursor->isolevel = ISOLATION_CURR_COMMITTED;
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     ret = memset_sp(&tab_stats, sizeof(stats_table_t), 0, sizeof(stats_table_t));
@@ -7749,22 +7769,22 @@ status_t stats_clean_spc_stats(knl_session_t *session, space_t *space)
             user_id = (*(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_TABLE_COL_USER_ID));
             table_id = (*(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_TABLE_COL_ID));
             is_old_nologging = stats_check_old_nologging(session, cursor);
-            if (stats_delete_table_stats(session, user_id, table_id, is_old_nologging) != GS_SUCCESS) {
+            if (stats_delete_table_stats(session, user_id, table_id, is_old_nologging) != CT_SUCCESS) {
                 knl_rollback(session, NULL);
             } else {
                 knl_commit(session);
             }
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void stats_clean_nologging_stats(knl_session_t *session)
@@ -7786,24 +7806,24 @@ void stats_clean_nologging_stats(knl_session_t *session)
         cm_sleep(100);
     }
 
-    if (db_truncate_sys_table(session, SYS_TEMP_HISTGRAM_ID) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("failed to truncate SYS_TEMP_HISTGRAM when cleaning nologging data.");
+    if (db_truncate_sys_table(session, SYS_TEMP_HISTGRAM_ID) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("failed to truncate SYS_TEMP_HISTGRAM when cleaning nologging data.");
     }
 
-    if (db_truncate_sys_table(session, SYS_TEMP_HIST_HEAD_ID) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("failed to truncate SYS_TEMP_HIST_HEAD when cleaning nologging data.");
+    if (db_truncate_sys_table(session, SYS_TEMP_HIST_HEAD_ID) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("failed to truncate SYS_TEMP_HIST_HEAD when cleaning nologging data.");
     }
 
     space_t *space = NULL;
 
     /* skip built-in tablespace */
-    for (uint32 i = 0; i < GS_MAX_SPACES; i++) {
+    for (uint32 i = 0; i < CT_MAX_SPACES; i++) {
         space = SPACE_GET(session, i);
         if (!spc_need_clean(space)) {
             continue;
         }
 
-        if (stats_clean_spc_stats(session, space) != GS_SUCCESS) {
+        if (stats_clean_spc_stats(session, space) != CT_SUCCESS) {
             continue;
         }
     }
@@ -7820,24 +7840,24 @@ static status_t stats_gather_empty_table(knl_session_t *session, knl_dictionary_
     index_t *idx = NULL;
     knl_column_t *column = NULL;
     errno_t ret;
-    bool32 no_segment = GS_TRUE;
+    bool32 no_segment = CT_TRUE;
 
-    if (stats_check_empty_table(session, dc, &no_segment) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_check_empty_table(session, dc, &no_segment) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!no_segment) {
-        *is_empty = GS_FALSE;
-        return GS_SUCCESS;
+        *is_empty = CT_FALSE;
+        return CT_SUCCESS;
     }
 
     /* stats for ltt or trans gtt doesn't be writen in system table */
     if (IS_LTT_BY_NAME(table->desc.name) || table->desc.type == TABLE_TYPE_TRANS_TEMP) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (table->desc.type == TABLE_TYPE_SESSION_TEMP && is_dynamic) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     ret = memset_sp(&tab_stats, sizeof(stats_table_t), 0, sizeof(stats_table_t));
@@ -7848,31 +7868,31 @@ static status_t stats_gather_empty_table(knl_session_t *session, knl_dictionary_
     // if the table is not empty, we just start one  auto session to commit statistics of columns when dynamic statistics
     // there are 3 sys tables(sys_columns,sys_histgram,sys_hist_abstr) will be written for columns statistics,
     // for empty table we only write sys_columns.
-    if (stats_try_begin_auton_rm(session, is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_try_begin_auton_rm(session, is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // statistics infos of empty table will be set zero
     column_handler = (stats_col_handler_t *)cm_push(session->stack, sizeof(stats_col_handler_t));
     ret = memset_s(column_handler, sizeof(stats_col_handler_t), 0, sizeof(stats_col_handler_t));
     knl_securec_check(ret);
-    column_handler->max_value.len = GS_NULL_VALUE_LEN;
-    column_handler->min_value.len = GS_NULL_VALUE_LEN;
+    column_handler->max_value.len = CT_NULL_VALUE_LEN;
+    column_handler->min_value.len = CT_NULL_VALUE_LEN;
 
     column_handler->stats_cur = knl_push_cursor(session);
     for (uint32 i = 0; i < entity->column_count; i++) {
         column = dc_get_column(entity, i);
         column_handler->column = column;
 
-        if (stats_update_sys_column(session, column_handler, is_dynamic) != GS_SUCCESS) {
+        if (stats_update_sys_column(session, column_handler, is_dynamic) != CT_SUCCESS) {
             cm_pop(session->stack);
             stats_internal_rollback(session, &tab_stats);
-            stats_try_end_auton_rm(session, GS_ERROR, is_dynamic);
-            return GS_ERROR;
+            stats_try_end_auton_rm(session, CT_ERROR, is_dynamic);
+            return CT_ERROR;
         }
     }
     cm_pop(session->stack);
-    stats_try_end_auton_rm(session, GS_SUCCESS, is_dynamic);
+    stats_try_end_auton_rm(session, CT_SUCCESS, is_dynamic);
 
     ret = memset_sp(&index_stats, sizeof(stats_index_t), 0, sizeof(stats_index_t));
     knl_securec_check(ret);
@@ -7888,37 +7908,37 @@ static status_t stats_gather_empty_table(knl_session_t *session, knl_dictionary_
 
         if (IS_PART_INDEX(idx)) {
             // to update indexpart$
-            if (stats_update_empty_sys_indexparts(session, idx, &index_stats, GS_INVALID_ID32) != GS_SUCCESS) {
+            if (stats_update_empty_sys_indexparts(session, idx, &index_stats, CT_INVALID_ID32) != CT_SUCCESS) {
                 stats_internal_rollback(session, &tab_stats);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         } else {
-            if (stats_update_sys_index(session, &index_stats) != GS_SUCCESS) {
+            if (stats_update_sys_index(session, &index_stats) != CT_SUCCESS) {
                 stats_internal_rollback(session, &tab_stats);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
     }
     
     if (IS_PART_TABLE(table)) {
         // to update tablepart$
-        if (stats_update_empty_sys_tablepart(session, dc, &tab_stats, GS_INVALID_ID32) != GS_SUCCESS) {
+        if (stats_update_empty_sys_tablepart(session, dc, &tab_stats, CT_INVALID_ID32) != CT_SUCCESS) {
             stats_internal_rollback(session, &tab_stats);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     /*
      * we should set statistics to 0 in sys_tables when table is empty no matter it is partition table or not
      */
-    if (stats_update_sys_table(session, &tab_stats, dc) != GS_SUCCESS) {
+    if (stats_update_sys_table(session, &tab_stats, dc) != CT_SUCCESS) {
         stats_internal_rollback(session, &tab_stats);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     stats_internal_commit(session, &tab_stats);
-    *is_empty = GS_TRUE;
-    return GS_SUCCESS;
+    *is_empty = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 static void stats_init_table_stats(knl_dictionary_t *dc, stats_table_t *table_stats, stats_option_t stats_option,
@@ -7935,9 +7955,9 @@ static void stats_init_table_stats(knl_dictionary_t *dc, stats_table_t *table_st
     table_stats->stats_option = stats_option;
 
     if (!IS_PART_TABLE(table)) {
-        table_stats->is_part = GS_FALSE;
-        table_stats->part_stats.part_id = GS_INVALID_ID32;
-        table_stats->part_stats.part_no = GS_INVALID_ID32;
+        table_stats->is_part = CT_FALSE;
+        table_stats->part_stats.part_id = CT_INVALID_ID32;
+        table_stats->part_stats.part_no = CT_INVALID_ID32;
     }
 
     table_stats->single_part_analyze = single_part_analyze;
@@ -7949,34 +7969,34 @@ static status_t stats_gather_each_table_part(knl_session_t *session, knl_diction
     stats_tab_context_t *tab_ctx, table_part_t *table_part)
 {
     stats_table_t *table_stats = tab_ctx->table_stats;
-    bool32 is_empty = GS_FALSE;
+    bool32 is_empty = CT_FALSE;
     stats_part_table_t sub_part;
 
     if (!IS_PARENT_TABPART(&table_part->desc) && !table_part->heap.loaded) {
-        if (dc_load_table_part_segment(session, dc->handle, table_part) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_load_table_part_segment(session, dc->handle, table_part) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (IS_PARENT_TABPART(&table_part->desc)) {
-        if (stats_gather_table_subpart(session, dc, table_part, tab_ctx, &sub_part) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_gather_table_subpart(session, dc, table_part, tab_ctx, &sub_part) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         /*
          * if some table part is empty,we should set statistics to 0  and write current time for statistics time in
          * sys_tableparts and sys_indexpart
          */
-        if (stats_try_gather_empty_part(session, dc, table_part, &is_empty, table_stats->is_dynamic) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_try_gather_empty_part(session, dc, table_part, &is_empty, table_stats->is_dynamic) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (is_empty) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (stats_gather_part_columns(session, dc, tab_ctx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_gather_part_columns(session, dc, tab_ctx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -7987,17 +8007,17 @@ static status_t stats_gather_each_table_part(knl_session_t *session, knl_diction
         table_stats->part_stats.info.avg_row_len = stats_calc_row_avg_len(table_stats->part_stats.info);
     }
 
-    if (stats_update_sys_tablepart(session, dc, table_stats) != GS_SUCCESS) {
+    if (stats_update_sys_tablepart(session, dc, table_stats) != CT_SUCCESS) {
         stats_rollback(session, table_stats->is_dynamic);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     stats_commit(session, table_stats->is_dynamic);
 
-    if (stats_gather_part_index(session, dc, tab_ctx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_gather_part_index(session, dc, tab_ctx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -8023,7 +8043,7 @@ status_t stats_gather_all_table_parts(knl_session_t *session, knl_dictionary_t *
         if (!IS_READY_PART(table_part)) {
             continue;
         }
-        table_stats->is_part = GS_TRUE;
+        table_stats->is_part = CT_TRUE;
 
         errno_t ret = memset_s(&table_stats->part_stats, sizeof(stats_part_table_t), 0, sizeof(stats_part_table_t));
         knl_securec_check(ret);
@@ -8031,14 +8051,14 @@ status_t stats_gather_all_table_parts(knl_session_t *session, knl_dictionary_t *
         table_stats->part_stats.part_id = table_part->desc.part_id;
         table_stats->estimate_sample_ratio = ori_sample_ratio;
 
-        if (stats_gather_each_table_part(session, dc, tab_ctx, table_part) != GS_SUCCESS) {
+        if (stats_gather_each_table_part(session, dc, tab_ctx, table_part) != CT_SUCCESS) {
             int32 err_code = cm_get_error_code();
             if (!IS_PART_DROPPED_OR_TRUNCATED(err_code)) {
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             cm_reset_error();
-            GS_LOG_RUN_WAR("CT-%d, fail to gather the %s partition %s, it or its subpartition has been dropped or truncated.",
+            CT_LOG_RUN_WAR("CT-%d, fail to gather the %s partition %s, it or its subpartition has been dropped or truncated.",
                 err_code, table->desc.name, table_part->desc.name);
         }
     }
@@ -8052,11 +8072,11 @@ status_t stats_gather_all_table_parts(knl_session_t *session, knl_dictionary_t *
         table_stats->estimate_sample_ratio = STATS_FULL_TABLE_SAMPLE_RATIO;
     }
 
-    if (stats_gather_global_columns_stats(session, dc, table_stats, temp_ctx, temp_seg) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_gather_global_columns_stats(session, dc, table_stats, temp_ctx, temp_seg) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_gather_part_table(knl_session_t *session, knl_dictionary_t *dc, stats_tab_context_t *tab_ctx)
@@ -8097,17 +8117,17 @@ status_t stats_prepare_table_context(knl_session_t *session, stats_tab_context_t
 
     stats_init_temp_ctx(session, temp_ctx);
 
-    if (mtrl_create_segment(temp_ctx, MTRL_SEGMENT_TEMP, NULL, &table_ctx->mtrl_tab_seg) != GS_SUCCESS) {
+    if (mtrl_create_segment(temp_ctx, MTRL_SEGMENT_TEMP, NULL, &table_ctx->mtrl_tab_seg) != CT_SUCCESS) {
         mtrl_release_context(temp_ctx);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (mtrl_open_segment(temp_ctx, table_ctx->mtrl_tab_seg) != GS_SUCCESS) {
+    if (mtrl_open_segment(temp_ctx, table_ctx->mtrl_tab_seg) != CT_SUCCESS) {
         mtrl_release_context(temp_ctx);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_gather_table_part(knl_session_t *session, knl_dictionary_t *dc, stats_option_t stats_option,
@@ -8119,7 +8139,7 @@ status_t stats_gather_table_part(knl_session_t *session, knl_dictionary_t *dc, s
     errno_t ret;
     bool32 force_sample = session->kernel->attr.enable_sample_limit;
     table_t *table = DC_TABLE(dc);
-    stats_init_table_stats(dc, &table_stats, stats_option, GS_TRUE, table_part->desc.part_id);
+    stats_init_table_stats(dc, &table_stats, stats_option, CT_TRUE, table_part->desc.part_id);
     
     /*
      * if sample_ratio is equal to 0, it means we need to scan full table to generate statistics
@@ -8137,51 +8157,51 @@ status_t stats_gather_table_part(knl_session_t *session, knl_dictionary_t *dc, s
     tab_ctx.table_stats = &table_stats;
     tab_ctx.mtrl_tab_ctx = mtrl_tab_ctx;
 
-    if (stats_prepare_table_context(session, &tab_ctx) != GS_SUCCESS) {
+    if (stats_prepare_table_context(session, &tab_ctx) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_gather_part_table(session, dc, &tab_ctx) != GS_SUCCESS) {
+    if (stats_gather_part_table(session, dc, &tab_ctx) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_gather_indexes(session, dc, &table_stats, mtrl_tab_ctx, tab_ctx.mtrl_tab_seg) != GS_SUCCESS) {
+    if (stats_gather_indexes(session, dc, &table_stats, mtrl_tab_ctx, tab_ctx.mtrl_tab_seg) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_gather_table(session, dc, &table_stats) != GS_SUCCESS) {
+    if (stats_gather_table(session, dc, &table_stats) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (table_stats.stats_option.is_report) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     
-    if (db_delete_mon_sysmods(session, dc->uid, dc->oid, table_part->desc.part_id, is_dynamic) != GS_SUCCESS) {
+    if (db_delete_mon_sysmods(session, dc->uid, dc->oid, table_part->desc.part_id, is_dynamic) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     mtrl_release_context(mtrl_tab_ctx);
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_gather_normal_table(knl_session_t *session, knl_dictionary_t *dc, stats_option_t stats_option,
                                    bool32 is_dynamic)
 {
     table_t *table = DC_TABLE(dc);
-    bool32 is_empty = GS_FALSE;
+    bool32 is_empty = CT_FALSE;
     stats_table_t table_stats;
     mtrl_context_t *mtrl_tab_ctx = NULL;
     stats_tab_context_t table_ctx;
@@ -8189,23 +8209,23 @@ status_t stats_gather_normal_table(knl_session_t *session, knl_dictionary_t *dc,
     bool8 is_report = stats_option.is_report;
 
     if (is_report) {
-        if (stats_init_report_file(session, DC_ENTITY(dc), &stats_option) != GS_SUCCESS) {
+        if (stats_init_report_file(session, DC_ENTITY(dc), &stats_option) != CT_SUCCESS) {
             stats_close_report_file(is_report, &stats_option);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
     
-    if (stats_gather_empty_table(session, dc, &is_empty, is_dynamic) != GS_SUCCESS) {
+    if (stats_gather_empty_table(session, dc, &is_empty, is_dynamic) != CT_SUCCESS) {
         stats_close_report_file(is_report, &stats_option);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (is_empty) {
         stats_close_report_file(is_report, &stats_option);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    stats_init_table_stats(dc, &table_stats, stats_option, GS_FALSE, GS_INVALID_ID32);
+    stats_init_table_stats(dc, &table_stats, stats_option, CT_FALSE, CT_INVALID_ID32);
 
     /*
      * if sample_ratio is equal to 0, it means we need to scan full table to generate statistics
@@ -8221,10 +8241,10 @@ status_t stats_gather_normal_table(knl_session_t *session, knl_dictionary_t *dc,
     table_ctx.table_stats = &table_stats;
     table_ctx.mtrl_tab_ctx = mtrl_tab_ctx;
 
-    if (stats_prepare_table_context(session, &table_ctx) != GS_SUCCESS) {
+    if (stats_prepare_table_context(session, &table_ctx) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
         stats_close_report_file(is_report, &stats_option);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /*
@@ -8232,59 +8252,59 @@ status_t stats_gather_normal_table(knl_session_t *session, knl_dictionary_t *dc,
      * analyze table first update column$,second update table$ for preventing deadlock
      */
     if (IS_PART_TABLE(table)) {
-        if (stats_gather_part_table(session, dc, &table_ctx) != GS_SUCCESS) {
+        if (stats_gather_part_table(session, dc, &table_ctx) != CT_SUCCESS) {
             mtrl_release_context(mtrl_tab_ctx);
             CM_RESTORE_STACK(session->stack);
             stats_close_report_file(is_report, &stats_option);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else {
-        if (stats_create_mtrl_table(session, dc, &table_ctx) != GS_SUCCESS) {
+        if (stats_create_mtrl_table(session, dc, &table_ctx) != CT_SUCCESS) {
             mtrl_release_context(mtrl_tab_ctx);
             CM_RESTORE_STACK(session->stack);
             stats_close_report_file(is_report, &stats_option);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (stats_gather_columns(session, DC_ENTITY(dc), &table_stats, mtrl_tab_ctx, table_ctx.mtrl_tab_seg) != GS_SUCCESS) {
+        if (stats_gather_columns(session, DC_ENTITY(dc), &table_stats, mtrl_tab_ctx, table_ctx.mtrl_tab_seg) != CT_SUCCESS) {
             mtrl_release_context(mtrl_tab_ctx);
             CM_RESTORE_STACK(session->stack);
             stats_close_report_file(is_report, &stats_option);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    if (stats_gather_indexes(session, dc, &table_stats, mtrl_tab_ctx, table_ctx.mtrl_tab_seg) != GS_SUCCESS) {
+    if (stats_gather_indexes(session, dc, &table_stats, mtrl_tab_ctx, table_ctx.mtrl_tab_seg) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
         stats_close_report_file(is_report, &stats_option);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_gather_table(session, dc, &table_stats) != GS_SUCCESS) {
+    if (stats_gather_table(session, dc, &table_stats) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
         stats_close_report_file(is_report, &stats_option);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (is_report) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
         stats_close_report_file(is_report, &stats_option);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (db_delete_mon_sysmods(session, table->desc.uid, table->desc.id, GS_INVALID_ID32,
-                              is_dynamic) != GS_SUCCESS) {
+    if (db_delete_mon_sysmods(session, table->desc.uid, table->desc.id, CT_INVALID_ID32,
+                              is_dynamic) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     mtrl_release_context(mtrl_tab_ctx);
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void stats_init_temp_sample(knl_session_t *session, stats_table_t *table_stats)
@@ -8293,9 +8313,9 @@ static void stats_init_temp_sample(knl_session_t *session, stats_table_t *table_
 
     segment = session->temp_mtrl->segments[table_stats->temp_table->table_cache->table_segid];
     table_stats->temp_table->first_pageid = segment->vm_list.first;
-    table_stats->temp_table->prev_sample_pageid = GS_INVALID_ID32;
+    table_stats->temp_table->prev_sample_pageid = CT_INVALID_ID32;
 
-    if (table_stats->estimate_sample_ratio < GS_REAL_PRECISION) {
+    if (table_stats->estimate_sample_ratio < CT_REAL_PRECISION) {
         table_stats->temp_table->sample_pages = segment->vm_list.count;
     } else {
         table_stats->temp_table->sample_pages = (uint32)(segment->vm_list.count * table_stats->estimate_sample_ratio);
@@ -8314,44 +8334,44 @@ status_t stats_gather_temp_table(knl_session_t *session, knl_dictionary_t *dc, s
     stats_table_t table_stats;
     stats_tmptab_t temp_table;
     dc_entity_t *entity = DC_ENTITY(dc);
-    bool32 is_empty = GS_TRUE;
+    bool32 is_empty = CT_TRUE;
     bool8 is_report = stats_option.is_report;
 
     if (is_report) {
-        if (stats_init_report_file(session, entity, &stats_option) != GS_SUCCESS) {
+        if (stats_init_report_file(session, entity, &stats_option) != CT_SUCCESS) {
             stats_close_report_file(is_report, &stats_option);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    stats_init_table_stats(dc, &table_stats, stats_option, GS_FALSE, GS_INVALID_ID32);
+    stats_init_table_stats(dc, &table_stats, stats_option, CT_FALSE, CT_INVALID_ID32);
     errno_t ret = memset_s(&temp_table, sizeof(stats_tmptab_t), 0, sizeof(stats_tmptab_t));
     knl_securec_check(ret);
 
     table_stats.temp_table = &temp_table;
     table_stats.temp_table->table_cache = NULL;
 
-    if (knl_ensure_temp_cache(session, entity, &table_stats.temp_table->table_cache) != GS_SUCCESS) {
+    if (knl_ensure_temp_cache(session, entity, &table_stats.temp_table->table_cache) != CT_SUCCESS) {
         stats_close_report_file(is_report, &stats_option);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     table_stats.is_dynamic = is_dynamic;
 
-    if (stats_gather_empty_table(session, dc, &is_empty, is_dynamic) != GS_SUCCESS) {
+    if (stats_gather_empty_table(session, dc, &is_empty, is_dynamic) != CT_SUCCESS) {
         stats_close_report_file(is_report, &stats_option);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (is_empty) {
         stats_close_report_file(is_report, &stats_option);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     stats_init_temp_sample(session, &table_stats);
 
-    if (cbo_alloc_temp_table_stats(session, entity, table_stats.temp_table->table_cache, is_dynamic) != GS_SUCCESS) {
+    if (cbo_alloc_temp_table_stats(session, entity, table_stats.temp_table->table_cache, is_dynamic) != CT_SUCCESS) {
         stats_close_report_file(is_report, &stats_option);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
@@ -8361,44 +8381,44 @@ status_t stats_gather_temp_table(knl_session_t *session, knl_dictionary_t *dc, s
     tab_ctx.table_stats = &table_stats;
     tab_ctx.mtrl_tab_ctx = mtrl_tab_ctx;
 
-    if (stats_prepare_table_context(session, &tab_ctx) != GS_SUCCESS) {
+    if (stats_prepare_table_context(session, &tab_ctx) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
         stats_close_report_file(is_report, &stats_option);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_create_mtrl_table(session, dc, &tab_ctx) != GS_SUCCESS) {
+    if (stats_create_mtrl_table(session, dc, &tab_ctx) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
         stats_close_report_file(is_report, &stats_option);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_gather_columns(session, DC_ENTITY(dc), &table_stats, mtrl_tab_ctx, tab_ctx.mtrl_tab_seg) != GS_SUCCESS) {
+    if (stats_gather_columns(session, DC_ENTITY(dc), &table_stats, mtrl_tab_ctx, tab_ctx.mtrl_tab_seg) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
         stats_close_report_file(is_report, &stats_option);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_gather_indexes(session, dc, &table_stats, mtrl_tab_ctx, tab_ctx.mtrl_tab_seg) != GS_SUCCESS) {
+    if (stats_gather_indexes(session, dc, &table_stats, mtrl_tab_ctx, tab_ctx.mtrl_tab_seg) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
         stats_close_report_file(is_report, &stats_option);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_gather_table(session, dc, &table_stats) != GS_SUCCESS) {
+    if (stats_gather_table(session, dc, &table_stats) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
         stats_close_report_file(is_report, &stats_option);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     mtrl_release_context(mtrl_tab_ctx);
     CM_RESTORE_STACK(session->stack);
     stats_close_report_file(is_report, &stats_option);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static heap_segment_t *stats_get_part_heap_segment(knl_session_t *session,
@@ -8502,15 +8522,15 @@ static bool32 stats_check_segment_dropped(knl_session_t *session, table_t *table
 {
     heap_segment_t *heap_seg = stats_get_heap_segment(session, table);
     if (heap_seg == NULL) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     btree_segment_t *btree_seg = stats_get_btree_segment(session, idx);
     if (btree_seg == NULL) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static status_t stats_sample_stats_one_btree(knl_session_t *session, btree_t *btree, btree_info_t *info,
@@ -8524,45 +8544,45 @@ static status_t stats_sample_stats_one_btree(knl_session_t *session, btree_t *bt
     pcrb_key_t *compare_pkey = NULL;
 
     if (segment == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     tree_info.value = cm_atomic_get(&segment->tree_info.value);
     info->height = (uint32)tree_info.level;
 
-    if (btree_level_first_page(session, btree, 1, &page_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (btree_level_first_page(session, btree, 1, &page_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
     if (info->height == 1) {
         if (btree->index->desc.cr_mode == CR_PAGE) {
-            compare_pkey = (pcrb_key_t *)cm_push(session->stack, GS_KEY_BUF_SIZE);
-            compare_pkey->is_infinite = GS_TRUE;
+            compare_pkey = (pcrb_key_t *)cm_push(session->stack, CT_KEY_BUF_SIZE);
+            compare_pkey->is_infinite = CT_TRUE;
             compare_pkey->size = sizeof(pcrb_key_t);
             pcrb_stats_leaf_page(session, btree, info, &page_id, &prev_page_id, compare_pkey);
         } else {
-            compare_bkey = (btree_key_t *)cm_push(session->stack, GS_KEY_BUF_SIZE);
-            compare_bkey->is_infinite = GS_TRUE;
+            compare_bkey = (btree_key_t *)cm_push(session->stack, CT_KEY_BUF_SIZE);
+            compare_bkey->is_infinite = CT_TRUE;
             compare_bkey->size = sizeof(btree_key_t);
             btree_stats_leaf_page(session, btree, info, &page_id, &prev_page_id, compare_bkey);
         }
     } else {
         if (btree->index->desc.cr_mode == CR_PAGE) {
-            if (pcrb_stats_leaf_by_parent(session, btree, sample_ratio, info, page_id) != GS_SUCCESS) {
+            if (pcrb_stats_leaf_by_parent(session, btree, sample_ratio, info, page_id) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         } else {
-            if (btree_stats_leaf_by_parent(session, btree, sample_ratio, info, page_id) != GS_SUCCESS) {
+            if (btree_stats_leaf_by_parent(session, btree, sample_ratio, info, page_id) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void stats_init_stats_index(stats_index_t *stats_idx, index_t *idx)
@@ -8570,9 +8590,9 @@ static inline void stats_init_stats_index(stats_index_t *stats_idx, index_t *idx
     errno_t ret = memset_sp(stats_idx, sizeof(stats_index_t), 0, sizeof(stats_index_t));
     knl_securec_check(ret);
 
-    stats_idx->is_subpart = GS_FALSE;
-    stats_idx->subpart_id = GS_INVALID_ID32;
-    stats_idx->part_id = GS_INVALID_ID32;
+    stats_idx->is_subpart = CT_FALSE;
+    stats_idx->subpart_id = CT_INVALID_ID32;
+    stats_idx->part_id = CT_INVALID_ID32;
     stats_idx->uid = idx->desc.uid;
     stats_idx->table_id = idx->desc.table_id;
     stats_idx->idx_id = idx->desc.id;
@@ -8587,7 +8607,7 @@ static status_t stats_save_btree_stats(knl_session_t *session, index_t *idx, sta
     stats_idx->is_dynamic = is_dynamic;
     stats_idx->sample_size = stats_idx->info.keys - 1; // 1 is minimum key
 
-    if (stats_idx->part_id == GS_INVALID_ID32) {
+    if (stats_idx->part_id == CT_INVALID_ID32) {
         stats_idx->name.str = idx->desc.name;
         stats_idx->name.len = (uint32)strlen(idx->desc.name);
     } else {
@@ -8606,21 +8626,21 @@ static status_t stats_save_btree_stats(knl_session_t *session, index_t *idx, sta
     }
 
     stats_calc_index_empty_size(session, idx->entity, idx, stats_idx);
-    if (stats_idx->part_id == GS_INVALID_ID32) {
-        if (stats_update_sys_index(session, stats_idx) != GS_SUCCESS) {
-            return GS_ERROR;
+    if (stats_idx->part_id == CT_INVALID_ID32) {
+        if (stats_update_sys_index(session, stats_idx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-    } else if (stats_idx->subpart_id == GS_INVALID_ID32) {
-        if (stats_update_sys_indexpart(session, stats_idx) != GS_SUCCESS) {
-            return GS_ERROR;
+    } else if (stats_idx->subpart_id == CT_INVALID_ID32) {
+        if (stats_update_sys_indexpart(session, stats_idx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (stats_update_sys_subindexpart(session, stats_idx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_update_sys_subindexpart(session, stats_idx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_sample_stats_btree_subpart(knl_session_t *session, index_t *idx,
@@ -8639,16 +8659,16 @@ static status_t stats_sample_stats_btree_subpart(knl_session_t *session, index_t
         stats_idx.part_id = index_part->desc.part_id;
         stats_idx.subpart_id = index_subpart->desc.part_id;
         stats_idx.part_index = index_subpart;
-        stats_idx.is_subpart = GS_TRUE;
+        stats_idx.is_subpart = CT_TRUE;
 
         if (stats_sample_stats_one_btree(session, &index_subpart->btree,
-            &stats_idx.info, sample_ratio) != GS_SUCCESS) {
-            return GS_ERROR;
+            &stats_idx.info, sample_ratio) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (stats_save_btree_stats(session, idx, &stats_idx,
-            (btree_segment_t *)index_subpart->btree.segment, is_dynamic) != GS_SUCCESS) {
-            return GS_ERROR;
+            (btree_segment_t *)index_subpart->btree.segment, is_dynamic) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -8682,18 +8702,18 @@ static status_t stats_sample_stats_btree_part(knl_session_t *session, index_t *i
             stats_idx.part_index = index_part;
 
             if (stats_sample_stats_one_btree(session, &index_part->btree,
-                &stats_idx.info, sample_ratio) != GS_SUCCESS) {
-                return GS_ERROR;
+                &stats_idx.info, sample_ratio) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             if (stats_save_btree_stats(session, idx, &stats_idx,
-                (btree_segment_t *)index_part->btree.segment, is_dynamic) != GS_SUCCESS) {
-                return GS_ERROR;
+                (btree_segment_t *)index_part->btree.segment, is_dynamic) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
             if (stats_sample_stats_btree_subpart(session, idx, index_part,
-                sample_ratio, is_dynamic) != GS_SUCCESS) {
-                return GS_ERROR;
+                sample_ratio, is_dynamic) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
@@ -8712,16 +8732,16 @@ static status_t stats_sample_stats_btree(knl_session_t *session, index_t *idx, d
     if (!IS_PART_INDEX(idx)) {
         stats_init_stats_index(&stats_idx, idx);
 
-        if (stats_sample_stats_one_btree(session, &idx->btree, &stats_idx.info, sample_ratio) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_sample_stats_one_btree(session, &idx->btree, &stats_idx.info, sample_ratio) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (stats_save_btree_stats(session, idx, &stats_idx,
-            (btree_segment_t *)idx->btree.segment, is_dynamic) != GS_SUCCESS) {
-            return GS_ERROR;
+            (btree_segment_t *)idx->btree.segment, is_dynamic) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return stats_sample_stats_btree_part(session, idx, sample_ratio, is_dynamic);
@@ -8730,16 +8750,16 @@ static status_t stats_sample_stats_btree(knl_session_t *session, index_t *idx, d
 static status_t stats_full_stats_one_btree(knl_session_t *session, btree_t *btree, btree_info_t *info)
 {
     if (btree->index->desc.cr_mode == CR_PAGE) {
-        if (pcrb_full_stats_info(session, btree, info) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (pcrb_full_stats_info(session, btree, info) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (btree_full_stats_info(session, btree, info) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (btree_full_stats_info(session, btree, info) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_full_stats_btree_subpart(knl_session_t *session, index_t *idx,
@@ -8758,15 +8778,15 @@ static status_t stats_full_stats_btree_subpart(knl_session_t *session, index_t *
         stats_idx.part_id = index_part->desc.part_id;
         stats_idx.subpart_id = index_subpart->desc.part_id;
         stats_idx.part_index = index_subpart;
-        stats_idx.is_subpart = GS_TRUE;
+        stats_idx.is_subpart = CT_TRUE;
 
-        if (stats_full_stats_one_btree(session, &index_subpart->btree, &stats_idx.info) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_full_stats_one_btree(session, &index_subpart->btree, &stats_idx.info) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (stats_save_btree_stats(session, idx, &stats_idx,
-            (btree_segment_t *)index_subpart->btree.segment, is_dynamic) != GS_SUCCESS) {
-            return GS_ERROR;
+            (btree_segment_t *)index_subpart->btree.segment, is_dynamic) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -8798,17 +8818,17 @@ static status_t stats_full_stats_btree_part(knl_session_t *session, index_t *idx
             stats_idx.part_id = index_part->desc.part_id;
             stats_idx.part_index = index_part;
 
-            if (stats_full_stats_one_btree(session, &index_part->btree, &stats_idx.info) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (stats_full_stats_one_btree(session, &index_part->btree, &stats_idx.info) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             if (stats_save_btree_stats(session, idx, &stats_idx,
-                (btree_segment_t *)index_part->btree.segment, is_dynamic) != GS_SUCCESS) {
-                return GS_ERROR;
+                (btree_segment_t *)index_part->btree.segment, is_dynamic) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
-            if (stats_full_stats_btree_subpart(session, idx, index_part, is_dynamic) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (stats_full_stats_btree_subpart(session, idx, index_part, is_dynamic) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
@@ -8827,15 +8847,15 @@ static status_t stats_full_stats_btree(knl_session_t *session, index_t *idx, boo
     if (!IS_PART_INDEX(idx)) {
         stats_init_stats_index(&stats_idx, idx);
 
-        if (stats_full_stats_one_btree(session, &idx->btree, &stats_idx.info) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_full_stats_one_btree(session, &idx->btree, &stats_idx.info) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (stats_save_btree_stats(session, idx, &stats_idx,
-            (btree_segment_t *)idx->btree.segment, is_dynamic) != GS_SUCCESS) {
-            return GS_ERROR;
+            (btree_segment_t *)idx->btree.segment, is_dynamic) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return stats_full_stats_btree_part(session, idx, is_dynamic);
@@ -8843,21 +8863,21 @@ static status_t stats_full_stats_btree(knl_session_t *session, index_t *idx, boo
 
 static status_t stats_write_empty_sys_index(knl_session_t *session, stats_index_t *stats_idx)
 {
-    if (stats_idx->part_id == GS_INVALID_ID32) {
-        if (stats_update_sys_index(session, stats_idx) != GS_SUCCESS) {
-            return GS_ERROR;
+    if (stats_idx->part_id == CT_INVALID_ID32) {
+        if (stats_update_sys_index(session, stats_idx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-    } else if (stats_idx->subpart_id == GS_INVALID_ID32) {
-        if (stats_update_sys_indexpart(session, stats_idx) != GS_SUCCESS) {
-            return GS_ERROR;
+    } else if (stats_idx->subpart_id == CT_INVALID_ID32) {
+        if (stats_update_sys_indexpart(session, stats_idx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (stats_update_sys_subindexpart(session, stats_idx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_update_sys_subindexpart(session, stats_idx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_write_empty_btree_stats(knl_session_t *session, index_t *idx)
@@ -8867,12 +8887,12 @@ static status_t stats_write_empty_btree_stats(knl_session_t *session, index_t *i
     stats_init_stats_index(&stats_idx, idx);
     stats_idx.name.str = idx->desc.name;
     stats_idx.name.len = (uint16)strlen(idx->desc.name); // index name len is not greater than 68
-    if (stats_write_empty_sys_index(session, &stats_idx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_write_empty_sys_index(session, &stats_idx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!IS_PART_INDEX(idx)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (uint32 i = 0; i < idx->part_index->desc.partcnt; i++) {
@@ -8886,8 +8906,8 @@ static status_t stats_write_empty_btree_stats(knl_session_t *session, index_t *i
         stats_idx.name.str = index_part->desc.name;
         stats_idx.name.len = (uint16)strlen(index_part->desc.name);
 
-        if (stats_write_empty_sys_index(session, &stats_idx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_write_empty_sys_index(session, &stats_idx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!IS_PARENT_IDXPART(&index_part->desc)) {
@@ -8901,16 +8921,16 @@ static status_t stats_write_empty_btree_stats(knl_session_t *session, index_t *i
             }
 
             stats_idx.subpart_id = index_subpart->desc.part_id;
-            stats_idx.is_subpart = GS_TRUE;
+            stats_idx.is_subpart = CT_TRUE;
             stats_idx.name.str = index_subpart->desc.name;
             stats_idx.name.len = (uint16)strlen(index_subpart->desc.name);
-            if (stats_write_empty_sys_index(session, &stats_idx) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (stats_write_empty_sys_index(session, &stats_idx) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_gather_btree_stats(knl_session_t *session, knl_dictionary_t *dc, index_t *idx,
@@ -8919,24 +8939,24 @@ static status_t stats_gather_btree_stats(knl_session_t *session, knl_dictionary_
     table_t *table = DC_TABLE(dc);
 
     if (stats_check_segment_dropped(session, table, idx)) {
-        if (stats_write_empty_btree_stats(session, idx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_write_empty_btree_stats(session, idx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (sample_ratio > GS_REAL_PRECISION) {
-        if (stats_sample_stats_btree(session, idx, sample_ratio, is_dynamic) != GS_SUCCESS) {
-            return GS_ERROR;
+    if (sample_ratio > CT_REAL_PRECISION) {
+        if (stats_sample_stats_btree(session, idx, sample_ratio, is_dynamic) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (stats_full_stats_btree(session, idx, is_dynamic) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_full_stats_btree(session, idx, is_dynamic) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_gather_index_by_btree(knl_session_t *session, knl_dictionary_t *dc, knl_analyze_index_def_t *def,
@@ -8949,7 +8969,7 @@ status_t stats_gather_index_by_btree(knl_session_t *session, knl_dictionary_t *d
 
     table = &entity->table;
     if (table->index_set.count == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (i = 0; i < table->index_set.count; i++) {
@@ -8960,64 +8980,64 @@ status_t stats_gather_index_by_btree(knl_session_t *session, knl_dictionary_t *d
     }
 
     if (idx == NULL) {
-        GS_THROW_ERROR(ERR_INDEX_NOT_EXIST, T2S(&def->owner), T2S_EX(&def->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INDEX_NOT_EXIST, T2S(&def->owner), T2S_EX(&def->name));
+        return CT_ERROR;
     }
 
     if (IS_FULL_SAMPLE(def->sample_ratio - STATS_SAMPLE_MAX_RATIO)) {
         def->sample_ratio = STATS_FULL_TABLE_SAMPLE_RATIO;
     }
 
-    if (stats_gather_btree_stats(session, dc, idx, def->sample_ratio, is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_gather_btree_stats(session, dc, idx, def->sample_ratio, is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_write_sys_mon_modes(knl_session_t *session, stats_table_mon_t *table_smon, uint32 uid, uint32 id,
                                 uint32 part_id, bool32 is_part)
 {
     if (table_smon->timestamp == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     CM_SAVE_STACK(session->stack);
 
     knl_cursor_t *cursor = knl_push_cursor(session);
-    knl_set_session_scn(session, GS_INVALID_ID64);
+    knl_set_session_scn(session, CT_INVALID_ID64);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_MON_MODS_ALL_ID, STATS_SYS_MON_MODS_ALL_INDEX_2);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
     knl_scan_key_t *key = &cursor->scan_range.l_key;
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &uid, sizeof(uint32), IX_COL_MODS_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &id, sizeof(uint32), IX_COL_MODS_003_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &part_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &uid, sizeof(uint32), IX_COL_MODS_003_USER_ID);
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &id, sizeof(uint32), IX_COL_MODS_003_TABLE_ID);
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &part_id, sizeof(uint32),
                      IX_COL_MODS_003_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
-        if (db_insert_sys_mon_mods(session, cursor, table_smon, uid, id, part_id, is_part) != GS_SUCCESS) {
+        if (db_insert_sys_mon_mods(session, cursor, table_smon, uid, id, part_id, is_part) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else {
         date_t analy_time = *(int64 *)CURSOR_COLUMN_DATA(cursor, STATS_SYS_MON_MODS_ALL_ANALYZE_TIME);
         if (analy_time >= table_smon->timestamp) {
             CM_RESTORE_STACK(session->stack);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (db_update_sys_mon_modes(session, cursor, table_smon) != GS_SUCCESS) {
+        if (db_update_sys_mon_modes(session, cursor, table_smon) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_flush_sys_mon_modes(knl_session_t *session, dc_entity_t *entity, uint32 uid, uint32 id)
@@ -9028,7 +9048,7 @@ status_t db_flush_sys_mon_modes(knl_session_t *session, dc_entity_t *entity, uin
     stats_table_mon_t *table_smon = NULL;
 
     if (entity->entry->appendix == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (IS_PART_TABLE(table)) {
@@ -9041,42 +9061,42 @@ status_t db_flush_sys_mon_modes(knl_session_t *session, dc_entity_t *entity, uin
 
             table_smon = &table_part->table_smon;
 
-            if (db_write_sys_mon_modes(session, table_smon, uid, id, table_part->desc.part_id, GS_TRUE) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_write_sys_mon_modes(session, table_smon, uid, id, table_part->desc.part_id, CT_TRUE) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         /* FOR ALL PART TABLE DML STATISTICS TO WRITE MON_MODES$ */
         table_smon = &entity->entry->appendix->table_smon;
-        if (db_write_sys_mon_modes(session, table_smon, uid, id, GS_INVALID_ID32, GS_TRUE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sys_mon_modes(session, table_smon, uid, id, CT_INVALID_ID32, CT_TRUE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         table_smon = &entity->entry->appendix->table_smon;
-        if (db_write_sys_mon_modes(session, table_smon, uid, id, GS_INVALID_ID32, GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sys_mon_modes(session, table_smon, uid, id, CT_INVALID_ID32, CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_flush_monitor_force(knl_session_t *session, dc_entity_t *entity)
 {
     if (dc_is_reserved_entry(entity->entry->uid, entity->entry->id)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (knl_begin_auton_rm(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_begin_auton_rm(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_flush_sys_mon_modes(session, entity, entity->table.desc.uid, entity->table.desc.id) != GS_SUCCESS) {
-        knl_end_auton_rm(session, GS_ERROR);
-        return GS_ERROR;
+    if (db_flush_sys_mon_modes(session, entity, entity->table.desc.uid, entity->table.desc.id) != CT_SUCCESS) {
+        knl_end_auton_rm(session, CT_ERROR);
+        return CT_ERROR;
     }
 
-    knl_end_auton_rm(session, GS_SUCCESS);
-    return GS_SUCCESS;
+    knl_end_auton_rm(session, CT_SUCCESS);
+    return CT_SUCCESS;
 }
 
 static inline bool32 stats_need_suspend(knl_session_t *session)
@@ -9086,16 +9106,16 @@ static inline bool32 stats_need_suspend(knl_session_t *session)
 
 status_t stats_flush_monitor_normal(knl_session_t *session)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     knl_dictionary_t dc;
-    uint32 uid = GS_INVALID_ID32;
-    uint32 table_id = GS_INVALID_ID32;
-    bool32 eof = GS_FALSE;
+    uint32 uid = CT_INVALID_ID32;
+    uint32 table_id = CT_INVALID_ID32;
+    bool32 eof = CT_FALSE;
     dc_appendix_t *appendix = NULL;
 
     for (;;) {
-        status = GS_SUCCESS;
-        if (dc_scan_all_tables(session, &uid, &table_id, &eof) != GS_SUCCESS) {
+        status = CT_SUCCESS;
+        if (dc_scan_all_tables(session, &uid, &table_id, &eof) != CT_SUCCESS) {
             cm_reset_error();
             continue;
         }
@@ -9112,8 +9132,8 @@ status_t stats_flush_monitor_normal(knl_session_t *session)
             break;
         }
 
-        if (knl_open_dc_by_id(session, uid, table_id, &dc, GS_TRUE) != GS_SUCCESS) {
-            GS_LOG_RUN_WAR("Open %u.%u monitor statistic failed normal, please gather statistics manually",
+        if (knl_open_dc_by_id(session, uid, table_id, &dc, CT_TRUE) != CT_SUCCESS) {
+            CT_LOG_RUN_WAR("Open %u.%u monitor statistic failed normal, please gather statistics manually",
                            uid, table_id);
             cm_reset_error();
             continue;
@@ -9124,16 +9144,16 @@ status_t stats_flush_monitor_normal(knl_session_t *session)
             continue;
         }
 
-        if (lock_table_shared_directly(session, &dc) == GS_SUCCESS) {
-            if (db_flush_sys_mon_modes(session, DC_ENTITY(&dc), uid, table_id) != GS_SUCCESS) {
-                status = GS_ERROR;
+        if (lock_table_shared_directly(session, &dc) == CT_SUCCESS) {
+            if (db_flush_sys_mon_modes(session, DC_ENTITY(&dc), uid, table_id) != CT_SUCCESS) {
+                status = CT_ERROR;
             }
         } else {
-            status = GS_ERROR;
+            status = CT_ERROR;
         }
 
-        if (status == GS_ERROR) {
-            GS_LOG_RUN_WAR("Flush %s.%s monitor statistic failed normal, please gather statistics manually",
+        if (status == CT_ERROR) {
+            CT_LOG_RUN_WAR("Flush %s.%s monitor statistic failed normal, please gather statistics manually",
                            DC_ENTITY(&dc)->entry->user->desc.name, DC_ENTITY(&dc)->table.desc.name);
             knl_rollback(session, NULL);
         } else {
@@ -9149,16 +9169,16 @@ status_t stats_flush_monitor_normal(knl_session_t *session)
 
 status_t stats_flush_monitor_from_lru(knl_session_t *session)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     knl_dictionary_t ori_dc, dc;
-    uint32 uid = GS_INVALID_ID32;
-    uint32 table_id = GS_INVALID_ID32;
+    uint32 uid = CT_INVALID_ID32;
+    uint32 table_id = CT_INVALID_ID32;
     dc_entity_t *entity = NULL;
-    bool32 is_found = GS_FALSE;
+    bool32 is_found = CT_FALSE;
 
     for (uint32 pos = 0; pos < STATS_FLUSH_ENTITY_NUM; pos++) {
-        status = GS_SUCCESS;
-        is_found = GS_FALSE;
+        status = CT_SUCCESS;
+        is_found = CT_FALSE;
         if (stats_need_suspend(session)) {
             break;
         }
@@ -9177,24 +9197,24 @@ status_t stats_flush_monitor_from_lru(knl_session_t *session)
         uid = entity->entry->uid;
         table_id = entity->entry->id;
    
-        if (knl_open_dc_by_id(session, uid, table_id, &dc, GS_TRUE) != GS_SUCCESS) {
-            GS_LOG_RUN_WAR("Open %s.%s falied from dc lru, please gather statistics manually",
+        if (knl_open_dc_by_id(session, uid, table_id, &dc, CT_TRUE) != CT_SUCCESS) {
+            CT_LOG_RUN_WAR("Open %s.%s falied from dc lru, please gather statistics manually",
                            entity->entry->user->desc.name, entity->table.desc.name);
             cm_reset_error();
             dc_close(&ori_dc);
             continue;
         }
 
-        if (lock_table_shared_directly(session, &dc) == GS_SUCCESS) {
-            if (db_flush_sys_mon_modes(session, DC_ENTITY(&dc), uid, table_id) != GS_SUCCESS) {
-                status = GS_ERROR;
+        if (lock_table_shared_directly(session, &dc) == CT_SUCCESS) {
+            if (db_flush_sys_mon_modes(session, DC_ENTITY(&dc), uid, table_id) != CT_SUCCESS) {
+                status = CT_ERROR;
             }
         } else {
-            status = GS_ERROR;
+            status = CT_ERROR;
         }
 
-        if (status == GS_ERROR) {
-            GS_LOG_RUN_WAR("Flush %s.%s monitor statistic failed from dc lru, please gather statistics manually",
+        if (status == CT_ERROR) {
+            CT_LOG_RUN_WAR("Flush %s.%s monitor statistic failed from dc lru, please gather statistics manually",
                            DC_ENTITY(&dc)->entry->user->desc.name, DC_ENTITY(&dc)->table.desc.name);
             knl_rollback(session, NULL);
         } else {
@@ -9220,9 +9240,9 @@ void stats_proc(thread_t *thread)
     uint32 sleep_time = 100;
 
     cm_set_thread_name("stats");
-    GS_LOG_RUN_INF("stats thread started");
+    CT_LOG_RUN_INF("stats thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
-    ctx->stats_gathering = GS_FALSE;
+    ctx->stats_gathering = CT_FALSE;
 
     while (!thread->closed) {
         if (session->kernel->db.status != DB_STATUS_OPEN) {
@@ -9262,7 +9282,7 @@ void stats_proc(thread_t *thread)
             }
 
             (void)stats_flush_monitor_from_lru(session);
-            ctx->stats_gathering = GS_FALSE;
+            ctx->stats_gathering = CT_FALSE;
         }
 
         if (0 == count % STATS_TABLE_MONITOR_INTERVAL) {
@@ -9273,14 +9293,14 @@ void stats_proc(thread_t *thread)
             }
 
             (void)stats_flush_monitor_normal(session);
-            ctx->stats_gathering = GS_FALSE;
+            ctx->stats_gathering = CT_FALSE;
         }
 
         cm_sleep(1000);
         count++;
     }
 
-    GS_LOG_RUN_INF("stats thread closed");
+    CT_LOG_RUN_INF("stats thread closed");
     KNL_SESSION_CLEAR_THREADID(session);
 }
 
@@ -9289,28 +9309,28 @@ status_t knl_flush_table_monitor(knl_handle_t session)
     knl_session_t *se = (knl_session_t *)session;
 
     if (DB_IS_READONLY(se)) {
-        GS_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
+        return CT_ERROR;
     }
 
     if (DB_STATUS_OPEN != se->kernel->db.status) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (DB_IS_MAINTENANCE(se) || !DB_IS_PRIMARY(&se->kernel->db) ||
         se->kernel->switch_ctrl.request != SWITCH_REQ_NONE) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!se->kernel->dc_ctx.completed || DB_IN_BG_ROLLBACK(se)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (stats_flush_monitor_normal(se) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_flush_monitor_normal(se) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void stats_close(knl_session_t *session)
@@ -9374,32 +9394,32 @@ static status_t stats_seg_insert(knl_session_t *session, knl_cursor_t *cursor, k
     row_assist_t ra;
 
     if (desc->logic_reads == 0 && desc->physical_reads == 0 && desc->physical_writes == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (knl_open_sys_temp_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_TMP_SEG_STAT_ID,
-                                 GS_INVALID_ID32) != GS_SUCCESS) {
-        return GS_ERROR;
+                                 CT_INVALID_ID32) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     row_init(&ra, cursor->buf, HEAP_MAX_ROW_SIZE(session), STATS_TMP_SEG_STAT_ALL_COLUMNS);
     (void)row_put_int64(&ra, desc->org_scn);
     (void)row_put_int32(&ra, desc->uid);
     (void)row_put_int32(&ra, desc->oid);
-    (void)row_put_int64(&ra, MIN(GS_MAX_INT64, desc->logic_reads));
-    (void)row_put_int64(&ra, MIN(GS_MAX_INT64, desc->physical_writes));
-    (void)row_put_int64(&ra, MIN(GS_MAX_INT64, desc->physical_reads));
-    (void)row_put_int64(&ra, MIN(GS_MAX_INT64, desc->itl_waits));
-    (void)row_put_int64(&ra, MIN(GS_MAX_INT64, desc->buf_busy_waits));
-    (void)row_put_int64(&ra, MIN(GS_MAX_INT64, desc->row_lock_waits));
+    (void)row_put_int64(&ra, MIN(CT_MAX_INT64, desc->logic_reads));
+    (void)row_put_int64(&ra, MIN(CT_MAX_INT64, desc->physical_writes));
+    (void)row_put_int64(&ra, MIN(CT_MAX_INT64, desc->physical_reads));
+    (void)row_put_int64(&ra, MIN(CT_MAX_INT64, desc->itl_waits));
+    (void)row_put_int64(&ra, MIN(CT_MAX_INT64, desc->buf_busy_waits));
+    (void)row_put_int64(&ra, MIN(CT_MAX_INT64, desc->row_lock_waits));
 
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
         knl_close_cursor(session, cursor);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_close_cursor(session, cursor);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void stats_seg_init_desc(seg_stat_t seg_stat, uint32 uid, uint32 oid, knl_scn_t org_scn,
@@ -9422,33 +9442,33 @@ static status_t stats_update_record(knl_session_t *session, knl_cursor_t *cursor
     row_assist_t ra;
 
     if (knl_open_sys_temp_cursor(session, cursor, CURSOR_ACTION_UPDATE,
-                                 SYS_TMP_SEG_STAT_ID, IDX_OBJECT_ID) != GS_SUCCESS) {
-        return GS_ERROR;
+                                 SYS_TMP_SEG_STAT_ID, IDX_OBJECT_ID) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_BIGINT, &desc->org_scn,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_BIGINT, &desc->org_scn,
                      sizeof(knl_scn_t), IX_COL_OBJECT_UID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         knl_close_cursor(session, cursor);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
-        if (stats_seg_insert(session, cursor, desc) != GS_SUCCESS) {
+        if (stats_seg_insert(session, cursor, desc) != CT_SUCCESS) {
             knl_close_cursor(session, cursor);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else {
         row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), STATS_TMP_SEG_STAT_UPDATE_COLUMNS);
 
-        (void)row_put_int64(&ra, MIN(GS_MAX_INT64, desc->logic_reads));
-        (void)row_put_int64(&ra, MIN(GS_MAX_INT64, desc->physical_writes));
-        (void)row_put_int64(&ra, MIN(GS_MAX_INT64, desc->physical_reads));
-        (void)row_put_int64(&ra, MIN(GS_MAX_INT64, desc->itl_waits));
-        (void)row_put_int64(&ra, MIN(GS_MAX_INT64, desc->buf_busy_waits));
-        (void)row_put_int64(&ra, MIN(GS_MAX_INT64, desc->row_lock_waits));
+        (void)row_put_int64(&ra, MIN(CT_MAX_INT64, desc->logic_reads));
+        (void)row_put_int64(&ra, MIN(CT_MAX_INT64, desc->physical_writes));
+        (void)row_put_int64(&ra, MIN(CT_MAX_INT64, desc->physical_reads));
+        (void)row_put_int64(&ra, MIN(CT_MAX_INT64, desc->itl_waits));
+        (void)row_put_int64(&ra, MIN(CT_MAX_INT64, desc->buf_busy_waits));
+        (void)row_put_int64(&ra, MIN(CT_MAX_INT64, desc->row_lock_waits));
         cursor->update_info.count = STATS_TMP_SEG_STAT_UPDATE_COLUMNS;
         cursor->update_info.columns[0] = STATS_TMP_SEG_STAT_LOGICREADS_COLUMN;
         cursor->update_info.columns[1] = STATS_TMP_SEG_STAT_PHYSICALWRITES_COLUMN;
@@ -9459,14 +9479,14 @@ static status_t stats_update_record(knl_session_t *session, knl_cursor_t *cursor
 
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, NULL);
 
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             knl_close_cursor(session, cursor);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     knl_close_cursor(session, cursor);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_insert_record(knl_session_t *session, knl_cursor_t *cursor, dc_entity_t *entity)
@@ -9480,10 +9500,10 @@ static status_t stats_insert_record(knl_session_t *session, knl_cursor_t *cursor
 
     table = &entity->table;
     stats_seg_init_desc(table->heap.stat, table->desc.uid, table->desc.id, table->desc.org_scn, &desc);
-    if (stats_update_record(session, cursor, &desc) != GS_SUCCESS) {
-        GS_LOG_DEBUG_ERR("insert table %u.%u statistic info failed, org_scn: %llu",
+    if (stats_update_record(session, cursor, &desc) != CT_SUCCESS) {
+        CT_LOG_DEBUG_ERR("insert table %u.%u statistic info failed, org_scn: %llu",
                          table->desc.uid, table->desc.id, table->desc.org_scn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (IS_PART_TABLE(table)) {
@@ -9495,10 +9515,10 @@ static status_t stats_insert_record(knl_session_t *session, knl_cursor_t *cursor
 
             stats_seg_init_desc(table_part->heap.stat, table->desc.uid,
                                 table->desc.id, table_part->desc.org_scn, &desc);
-            if (stats_update_record(session, cursor, &desc) != GS_SUCCESS) {
-                GS_LOG_DEBUG_ERR("insert table %u.%u part_table statistic info failed, org_scn: %llu",
+            if (stats_update_record(session, cursor, &desc) != CT_SUCCESS) {
+                CT_LOG_DEBUG_ERR("insert table %u.%u part_table statistic info failed, org_scn: %llu",
                                  table->desc.uid, table->desc.id, table_part->desc.org_scn);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
     }
@@ -9506,10 +9526,10 @@ static status_t stats_insert_record(knl_session_t *session, knl_cursor_t *cursor
     for (i = 0; i < table->index_set.count; i++) {
         idx = table->index_set.items[i];
         stats_seg_init_desc(idx->btree.stat, table->desc.uid, table->desc.id, idx->desc.org_scn, &desc);
-        if (stats_update_record(session, cursor, &desc) != GS_SUCCESS) {
-            GS_LOG_DEBUG_ERR("insert table %u.%u index statistic info failed, org_scn: %llu",
+        if (stats_update_record(session, cursor, &desc) != CT_SUCCESS) {
+            CT_LOG_DEBUG_ERR("insert table %u.%u index statistic info failed, org_scn: %llu",
                              table->desc.uid, table->desc.id, idx->desc.org_scn);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (!IS_PART_INDEX(idx)) {
@@ -9524,15 +9544,15 @@ static status_t stats_insert_record(knl_session_t *session, knl_cursor_t *cursor
 
             stats_seg_init_desc(index_part->btree.stat, table->desc.uid,
                                 table->desc.id, index_part->desc.org_scn, &desc);
-            if (stats_update_record(session, cursor, &desc) != GS_SUCCESS) {
-                GS_LOG_DEBUG_ERR("insert table %u.%u part_index statistic info failed, org_scn: %llu",
+            if (stats_update_record(session, cursor, &desc) != CT_SUCCESS) {
+                CT_LOG_DEBUG_ERR("insert table %u.%u part_index statistic info failed, org_scn: %llu",
                                  table->desc.uid, table->desc.id, index_part->desc.org_scn);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_temp_insert(knl_session_t *session, struct st_dc_entity *dc_entity)
@@ -9545,15 +9565,15 @@ status_t stats_temp_insert(knl_session_t *session, struct st_dc_entity *dc_entit
     int32 code;
 
     if (DB_IS_MAINTENANCE(session) || session->bootstrap || session->kernel->db.status != DB_STATUS_OPEN) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (entity == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (entity->type > DICT_TYPE_TEMP_TABLE_SESSION) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     cm_latch_x(&g_stats_latch, SESSION_ID_TMP_STAT, NULL);
@@ -9561,12 +9581,12 @@ status_t stats_temp_insert(knl_session_t *session, struct st_dc_entity *dc_entit
 
     cm_get_error(&code, &msg, &loc);
     cursor = knl_push_cursor(temp_session);
-    if (stats_insert_record(temp_session, cursor, entity) != GS_SUCCESS) {
+    if (stats_insert_record(temp_session, cursor, entity) != CT_SUCCESS) {
         knl_rollback(temp_session, NULL);
         cm_revert_error(code, msg, &loc);
         CM_RESTORE_STACK(temp_session->stack);
         cm_unlatch(&g_stats_latch, NULL);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_commit(temp_session);
@@ -9574,7 +9594,7 @@ status_t stats_temp_insert(knl_session_t *session, struct st_dc_entity *dc_entit
 
     cm_unlatch(&g_stats_latch, NULL);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_seg_load_entity(knl_session_t *session, knl_scn_t org_scn, seg_stat_t *seg_stat)
@@ -9586,7 +9606,7 @@ status_t stats_seg_load_entity(knl_session_t *session, knl_scn_t org_scn, seg_st
     int32 code;
 
     if (DB_IS_MAINTENANCE(session) || session->bootstrap || session->kernel->db.status != DB_STATUS_OPEN) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     cm_latch_x(&g_stats_latch, SESSION_ID_TMP_STAT, NULL);
@@ -9595,24 +9615,24 @@ status_t stats_seg_load_entity(knl_session_t *session, knl_scn_t org_scn, seg_st
     cm_get_error(&code, &msg, &loc);
     cursor = knl_push_cursor(temp_session);
     if (knl_open_sys_temp_cursor(temp_session, cursor, CURSOR_ACTION_SELECT,
-                                 SYS_TMP_SEG_STAT_ID, IDX_OBJECT_ID) != GS_SUCCESS) {
+                                 SYS_TMP_SEG_STAT_ID, IDX_OBJECT_ID) != CT_SUCCESS) {
         cm_revert_error(code, msg, &loc);
         CM_RESTORE_STACK(temp_session->stack);
         cm_unlatch(&g_stats_latch, NULL);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_BIGINT, &org_scn, sizeof(knl_scn_t),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_BIGINT, &org_scn, sizeof(knl_scn_t),
                      IX_COL_OBJECT_UID);
 
-    if (knl_fetch(temp_session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(temp_session, cursor) != CT_SUCCESS) {
         knl_close_temp_tables(temp_session, DICT_TYPE_TEMP_TABLE_TRANS);
         knl_close_cursor(temp_session, cursor);
         cm_revert_error(code, msg, &loc);
         CM_RESTORE_STACK(temp_session->stack);
         cm_unlatch(&g_stats_latch, NULL);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!cursor->eof) {
@@ -9629,7 +9649,7 @@ status_t stats_seg_load_entity(knl_session_t *session, knl_scn_t org_scn, seg_st
     CM_RESTORE_STACK(temp_session->stack);
 
     cm_unlatch(&g_stats_latch, NULL);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -9648,31 +9668,31 @@ status_t stats_purge_stats_by_time(knl_session_t *session, int64 max_analyze_tim
     cursor = knl_push_cursor(session);
 
     cursor->scan_mode = SCAN_MODE_TABLE_FULL;
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLE_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLE_ID, CT_INVALID_ID32);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         uid = *(uint32 *)CURSOR_COLUMN_DATA(cursor, TABLE_UID);
         table_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, TABLE_TABLE_ID);
         analyze_time = *(int64 *)CURSOR_COLUMN_DATA(cursor, TABLE_ANALYZE_TIME);
         if (analyze_time <= max_analyze_time) {
-            if (stats_delete_table_stats(session, uid, table_id, GS_FALSE) != GS_SUCCESS) {
+            if (stats_delete_table_stats(session, uid, table_id, CT_FALSE) != CT_SUCCESS) {
                 knl_rollback(session, NULL);
                 cm_reset_error();
             } else {
@@ -9681,15 +9701,15 @@ status_t stats_purge_stats_by_time(knl_session_t *session, int64 max_analyze_tim
         }
 
         /* fetch next row */
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -9711,17 +9731,17 @@ static status_t stats_reset_sys_tablepart(knl_session_t *session, uint32 uid, ui
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_TABLEPART_ID, IX_SYS_TABLEPART001_ID);
     knl_init_index_scan(cursor,
-                        GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+                        CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                      IX_COL_SYS_TABLEPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
                      IX_COL_SYS_TABLEPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &part_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &part_id, sizeof(uint32),
                      IX_COL_SYS_TABLEPART001_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!cursor->eof) {
@@ -9743,15 +9763,15 @@ static status_t stats_reset_sys_tablepart(knl_session_t *session, uint32 uid, ui
 
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_reset_sys_indexpart_by_part(knl_session_t *session, uint32 uid, uint32 oid, uint32 part_id)
@@ -9767,24 +9787,24 @@ status_t stats_reset_sys_indexpart_by_part(knl_session_t *session, uint32 uid, u
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_INDEXPART_ID, IX_SYS_INDEXPART001_ID);
     knl_init_index_scan(cursor,
-                        GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+                        CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_INDEXPART001_INDEX_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_INDEXPART001_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_INDEXPART001_INDEX_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_INDEXPART001_PART_ID);
 
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -9818,14 +9838,14 @@ status_t stats_reset_sys_indexpart_by_part(knl_session_t *session, uint32 uid, u
 
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -9847,19 +9867,19 @@ static status_t stats_reset_sys_indexpart(knl_session_t *session, uint32 uid, ui
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_INDEXPART_ID, IX_SYS_INDEXPART001_ID);
     knl_init_index_scan(cursor,
-                        GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+                        CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &idx_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &idx_id, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &part_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &part_id, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!cursor->eof) {
@@ -9885,15 +9905,15 @@ static status_t stats_reset_sys_indexpart(knl_session_t *session, uint32 uid, ui
 
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -9914,15 +9934,15 @@ static status_t stats_reset_sys_table(knl_session_t *session, uint32 uid, uint32
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_TABLE_ID, IX_SYS_TABLE_002_ID);
     knl_init_index_scan(cursor,
-                        GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+                        CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                      IX_COL_SYS_TABLE_002_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
                      IX_COL_SYS_TABLE_002_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -9944,19 +9964,19 @@ static status_t stats_reset_sys_table(knl_session_t *session, uint32 uid, uint32
 
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_reset_sys_column(knl_session_t *session, uint32 uid, uint32 oid)
@@ -9971,21 +9991,21 @@ static status_t stats_reset_sys_column(knl_session_t *session, uint32 uid, uint3
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_COLUMN_ID, IX_SYS_COLUMN_001_ID);
     knl_init_index_scan(cursor,
-                        GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+                        CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                      IX_COL_SYS_COLUMN_001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
                      IX_COL_SYS_COLUMN_001_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_COLUMN_001_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                      IX_COL_SYS_COLUMN_001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
                      IX_COL_SYS_COLUMN_001_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_COLUMN_001_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -10002,20 +10022,20 @@ static status_t stats_reset_sys_column(knl_session_t *session, uint32 uid, uint3
 
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -10037,21 +10057,21 @@ static status_t stats_reset_sys_index(knl_session_t *session, uint32 uid, uint32
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_INDEX_ID, IX_SYS_INDEX_001_ID);
     knl_init_index_scan(cursor,
-                        GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+                        CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                      IX_COL_SYS_INDEX_001_USER);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
                      IX_COL_SYS_INDEX_001_TABLE);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_INDEX_001_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
                      IX_COL_SYS_INDEX_001_USER);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
                      IX_COL_SYS_INDEX_001_TABLE);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_INDEX_001_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -10085,19 +10105,19 @@ static status_t stats_reset_sys_index(knl_session_t *session, uint32 uid, uint32
 
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_reset_tableparts_stats(knl_session_t *session, knl_dictionary_t *dc)
@@ -10112,12 +10132,12 @@ status_t stats_reset_tableparts_stats(knl_session_t *session, knl_dictionary_t *
             continue;
         }
 
-        if (stats_reset_sys_tablepart(session, dc->uid, dc->oid, table_part->desc.part_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_reset_sys_tablepart(session, dc->uid, dc->oid, table_part->desc.part_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_reset_indexparts_stats(knl_session_t *session, knl_dictionary_t *dc)
@@ -10143,13 +10163,13 @@ status_t stats_reset_indexparts_stats(knl_session_t *session, knl_dictionary_t *
             }
 
             if (stats_reset_sys_indexpart(session, dc->uid, dc->oid, idx->desc.id,
-                                          index_part->desc.part_id) != GS_SUCCESS) {
-                return GS_ERROR;
+                                          index_part->desc.part_id) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -10159,118 +10179,118 @@ status_t stats_reset_indexparts_stats(knl_session_t *session, knl_dictionary_t *
 status_t stats_delete_part_stats(knl_session_t *session, const uint32 uid, const uint32 oid, uint32 part_id)
 {
     knl_dictionary_t dc;
-    bool32 need_delete = GS_FALSE;
+    bool32 need_delete = CT_FALSE;
     stats_load_info_t load_info;
 
-    if (knl_open_dc_by_id(session, uid, oid, &dc, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_open_dc_by_id(session, uid, oid, &dc, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (stats_check_analyzing(session, &dc, &need_delete, GS_FALSE) != GS_SUCCESS) {
+    if (stats_check_analyzing(session, &dc, &need_delete, CT_FALSE) != CT_SUCCESS) {
         dc_close(&dc);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!need_delete) {
         dc_close(&dc);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
-    if (stats_delete_histgram_by_part(session, cursor, &dc, part_id) != GS_SUCCESS) {
+    if (stats_delete_histgram_by_part(session, cursor, &dc, part_id) != CT_SUCCESS) {
         stats_set_analyzed(session, &dc, need_delete);
         dc_close(&dc);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     CM_RESTORE_STACK(session->stack);
 
-    if (stats_delete_histhead_by_part(session, &dc, part_id) != GS_SUCCESS) {
+    if (stats_delete_histhead_by_part(session, &dc, part_id) != CT_SUCCESS) {
         stats_set_analyzed(session, &dc, need_delete);
         dc_close(&dc);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_reset_sys_indexpart_by_part(session, uid, oid, part_id) != GS_SUCCESS) {
+    if (stats_reset_sys_indexpart_by_part(session, uid, oid, part_id) != CT_SUCCESS) {
         stats_set_analyzed(session, &dc, need_delete);
         dc_close(&dc);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_reset_sys_tablepart(session, uid, oid, part_id) != GS_SUCCESS) {
+    if (stats_reset_sys_tablepart(session, uid, oid, part_id) != CT_SUCCESS) {
         stats_set_analyzed(session, &dc, need_delete);
         dc_close(&dc);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     stats_set_analyzed(session, &dc, need_delete);
     load_info.parent_part_id = part_id;
-    load_info.load_subpart = GS_TRUE;
-    if (stats_refresh_dc(session, &dc, load_info) != GS_SUCCESS) {
+    load_info.load_subpart = CT_TRUE;
+    if (stats_refresh_dc(session, &dc, load_info) != CT_SUCCESS) {
         dc_close(&dc);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     dc_close(&dc);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_reset_table_stats(knl_session_t *session, knl_dictionary_t *dc, bool32 is_old_nologging)
 {
     uint32 uid = dc->uid;
     uint32 oid = dc->oid;
-    bool32 need_delete = GS_FALSE;
+    bool32 need_delete = CT_FALSE;
     table_t *table = DC_TABLE(dc);
 
-    if (stats_check_analyzing(session, dc, &need_delete, GS_FALSE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_check_analyzing(session, dc, &need_delete, CT_FALSE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!need_delete) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     bool32 is_nologging = is_old_nologging ? is_old_nologging : IS_NOLOGGING_BY_TABLE_TYPE(table->desc.type);
-    if (stats_drop_hists(session, uid, oid, is_nologging) != GS_SUCCESS) {
+    if (stats_drop_hists(session, uid, oid, is_nologging) != CT_SUCCESS) {
         stats_set_analyzed(session, dc, need_delete);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_reset_sys_column(session, uid, oid) != GS_SUCCESS) {
+    if (stats_reset_sys_column(session, uid, oid) != CT_SUCCESS) {
         stats_set_analyzed(session, dc, need_delete);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_reset_sys_index(session, uid, oid) != GS_SUCCESS) {
+    if (stats_reset_sys_index(session, uid, oid) != CT_SUCCESS) {
         stats_set_analyzed(session, dc, need_delete);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (stats_reset_sys_table(session, uid, oid) != GS_SUCCESS) {
+    if (stats_reset_sys_table(session, uid, oid) != CT_SUCCESS) {
         stats_set_analyzed(session, dc, need_delete);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dc_entity_t *entity = DC_ENTITY(dc);
     cbo_stats_table_t  *cbo_stats = entity->cbo_table_stats;
 
     if (IS_PART_TABLE(table)) {
-        if (stats_reset_indexparts_stats(session, dc) != GS_SUCCESS) {
+        if (stats_reset_indexparts_stats(session, dc) != CT_SUCCESS) {
             stats_set_analyzed(session, dc, need_delete);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (stats_reset_tableparts_stats(session, dc) != GS_SUCCESS) {
+        if (stats_reset_tableparts_stats(session, dc) != CT_SUCCESS) {
             stats_set_analyzed(session, dc, need_delete);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cbo_stats != NULL) {
-            cbo_stats->global_stats_exist = GS_FALSE;
+            cbo_stats->global_stats_exist = CT_FALSE;
         }
     }
 
     stats_set_analyzed(session, dc, need_delete);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -10283,23 +10303,23 @@ status_t stats_delete_table_stats(knl_session_t *session, const uint32 uid, cons
     knl_dictionary_t dc;
     stats_load_info_t load_info;
 
-    if (knl_open_dc_by_id(session, uid, oid, &dc, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_open_dc_by_id(session, uid, oid, &dc, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
-    if (stats_reset_table_stats(session, &dc, is_old_nologging) != GS_SUCCESS) {
+    if (stats_reset_table_stats(session, &dc, is_old_nologging) != CT_SUCCESS) {
         dc_close(&dc);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    stats_set_load_info(&load_info, DC_ENTITY(&dc), GS_TRUE, GS_INVALID_ID32);
+    stats_set_load_info(&load_info, DC_ENTITY(&dc), CT_TRUE, CT_INVALID_ID32);
 
-    if (stats_refresh_dc(session, &dc, load_info) != GS_SUCCESS) {
+    if (stats_refresh_dc(session, &dc, load_info) != CT_SUCCESS) {
         dc_close(&dc);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dc_close(&dc);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void stats_calc_global_dml_stats(stats_table_mon_t *global_mon, stats_table_mon_t *part_mon)
@@ -10312,7 +10332,7 @@ void stats_calc_global_dml_stats(stats_table_mon_t *global_mon, stats_table_mon_
         global_mon->updates;
     global_mon->drop_segments = (global_mon->drop_segments >= part_mon->drop_segments) ?
         (global_mon->drop_segments - part_mon->drop_segments) : global_mon->inserts;
-    global_mon->is_change = GS_FALSE;
+    global_mon->is_change = CT_FALSE;
     global_mon->timestamp = cm_now();
 }
 
@@ -10382,30 +10402,39 @@ void stats_disable_table_mon(knl_session_t *session, knl_dictionary_t *dc, bool3
 status_t stats_refresh_dc(knl_session_t *session, knl_dictionary_t *dc, stats_load_info_t load_info)
 {
     if (dc->type == DICT_TYPE_TEMP_TABLE_TRANS) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     dc_entity_t *entity = DC_ENTITY(dc);
 
-    knl_set_session_scn(session, GS_INVALID_ID64);
-    if (cbo_refresh_statistics(session, entity, load_info) != GS_SUCCESS) {
-        return GS_ERROR;
+    knl_set_session_scn(session, CT_INVALID_ID64);
+    if (cbo_refresh_statistics(session, entity, load_info) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+status_t rd_internal_refresh_dc(knl_session_t *session, dc_entity_t *entity, stats_load_info_t *load_info)
+{
+    knl_set_session_scn(session, CT_INVALID_ID64);
+    if (cbo_refresh_statistics(session, entity, *load_info) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
 }
 
 void stats_dc_invalidate(knl_session_t *session, knl_dictionary_t *dc)
 {
     dc_entity_t *entity = DC_ENTITY(dc);
 
-    if (lock_table_directly(session, dc, LOCK_INF_WAIT) != GS_SUCCESS) {
-        GS_LOG_RUN_WAR("lock table failed when invalidate statistics");
+    if (lock_table_directly(session, dc, LOCK_INF_WAIT) != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("lock table failed when invalidate statistics");
         return;
     }
 
-    if (lock_child_table_directly(session, entity, GS_FALSE) != GS_SUCCESS) {
+    if (lock_child_table_directly(session, entity, CT_FALSE) != CT_SUCCESS) {
         unlock_tables_directly(session);
-        GS_LOG_RUN_WAR("lock table failed when invalidate statistics");
+        CT_LOG_RUN_WAR("lock table failed when invalidate statistics");
         return;
     }
 
@@ -10424,7 +10453,7 @@ void stats_set_analyzed(knl_session_t *session, knl_dictionary_t *dc, bool32 ana
     dc_entity_t *entity = DC_ENTITY(dc);
 
     cm_spin_lock(&entity->entry->lock, &session->stat->spin_stat.stat_dc_entry);
-    entity->is_analyzing = GS_FALSE;
+    entity->is_analyzing = CT_FALSE;
     cm_spin_unlock(&entity->entry->lock);
 }
 
@@ -10437,18 +10466,18 @@ status_t stats_check_analyzing(knl_session_t *session, knl_dictionary_t *dc, boo
     date_t now_date = cm_now();
     knl_scan_key_t *key = NULL;
     knl_cursor_t *cursor = NULL;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
     cm_spin_lock(&entity->entry->lock, &session->stat->spin_stat.stat_dc_entry);
     if (!entity->is_analyzing) {
-        entity->is_analyzing = GS_TRUE;
-        *need_analyze = GS_TRUE;
+        entity->is_analyzing = CT_TRUE;
+        *need_analyze = CT_TRUE;
         cm_spin_unlock(&entity->entry->lock);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
         if (is_dynamic) {
             cm_spin_unlock(&entity->entry->lock);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
     cm_spin_unlock(&entity->entry->lock);
@@ -10456,16 +10485,46 @@ status_t stats_check_analyzing(knl_session_t *session, knl_dictionary_t *dc, boo
     CM_SAVE_STACK(session->stack);
     cursor = knl_push_cursor(session);
 
-    while (GS_TRUE) {
+    while (CT_TRUE) {
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            status = GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            status = CT_ERROR;
             break;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            status = GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            status = CT_ERROR;
+            break;
+        }
+
+        cm_spin_lock(&entity->entry->lock, &session->stat->spin_stat.stat_dc_entry);
+        if (entity->is_analyzing) {
+            cm_spin_unlock(&entity->entry->lock);
+            cm_spin_sleep();
+            continue;
+        }
+        cm_spin_unlock(&entity->entry->lock);
+
+        table = DC_TABLE(dc);
+        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLE_ID, IX_SYS_TABLE_001_ID);
+        key = &cursor->scan_range.l_key;
+        knl_init_index_scan(cursor,
+                            CT_TRUE);
+        knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
+                         IX_COL_SYS_TABLE_001_USER_ID);
+        // table name is smaller than 68
+        knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_STRING, table->desc.name,
+                         (uint16)strlen(table->desc.name), IX_COL_SYS_TABLE_001_NAME);
+
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            status = CT_ERROR;
+            break;
+        }
+
+        if (cursor->eof) {
+            CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
+            status = CT_ERROR;
             break;
         }
 
@@ -10476,33 +10535,10 @@ status_t stats_check_analyzing(knl_session_t *session, knl_dictionary_t *dc, boo
             continue;
         }
 
-        table = DC_TABLE(dc);
-        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLE_ID, IX_SYS_TABLE_001_ID);
-        key = &cursor->scan_range.l_key;
-        knl_init_index_scan(cursor,
-                            GS_TRUE);
-        knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
-                         IX_COL_SYS_TABLE_001_USER_ID);
-        // table name is smaller than 68
-        knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_STRING, table->desc.name,
-                         (uint16)strlen(table->desc.name), IX_COL_SYS_TABLE_001_NAME);
-
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            cm_spin_unlock(&entity->entry->lock);
-            status = GS_ERROR;
-            break;
-        }
-
-        if (cursor->eof) {
-            GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
-            cm_spin_unlock(&entity->entry->lock);
-            status = GS_ERROR;
-            break;
-        }
         /* no analyze table */
-        if (CURSOR_COLUMN_SIZE(cursor, TABLE_ANALYZE_TIME) == GS_NULL_VALUE_LEN) {
-            entity->is_analyzing = GS_TRUE;
-            *need_analyze = GS_TRUE;
+        if (CURSOR_COLUMN_SIZE(cursor, TABLE_ANALYZE_TIME) == CT_NULL_VALUE_LEN) {
+            entity->is_analyzing = CT_TRUE;
+            *need_analyze = CT_TRUE;
             cm_spin_unlock(&entity->entry->lock);
             break;
         }
@@ -10510,8 +10546,8 @@ status_t stats_check_analyzing(knl_session_t *session, knl_dictionary_t *dc, boo
         analyze_time = *(date_t *)CURSOR_COLUMN_DATA(cursor, TABLE_ANALYZE_TIME);
         /* first concurrent analyze table thread analyze failed, second will analyze table again */
         if (now_date >= analyze_time) {
-            entity->is_analyzing = GS_TRUE;
-            *need_analyze = GS_TRUE;
+            entity->is_analyzing = CT_TRUE;
+            *need_analyze = CT_TRUE;
             cm_spin_unlock(&entity->entry->lock);
             break;
         }
@@ -10526,7 +10562,7 @@ status_t stats_check_analyzing(knl_session_t *session, knl_dictionary_t *dc, boo
 
 static void stats_recorde_table_change(knl_cursor_t *cursor, stats_table_mon_t *table_smon)
 {
-    table_smon->is_change = GS_TRUE;
+    table_smon->is_change = CT_TRUE;
     table_smon->timestamp = cm_now();
     switch (cursor->action) {
         case CURSOR_ACTION_UPDATE:
@@ -10569,7 +10605,7 @@ void stats_init_stats_option(stats_option_t *stats_option, knl_analyze_tab_def_t
     ret = memset_sp(stats_option, sizeof(stats_option_t), 0, sizeof(stats_option_t));
     knl_securec_check(ret);
 
-    stats_option->sample_ratio =  def->sample_ratio < GS_REAL_PRECISION
+    stats_option->sample_ratio =  def->sample_ratio < CT_REAL_PRECISION
                                     ? STATS_FULL_TABLE_SAMPLE_RATIO : (def->sample_ratio / 100);
     stats_option->sample_level = BLOCK_SAMPLE;
     stats_option->method_opt = def->method_opt.option;
@@ -10598,30 +10634,30 @@ status_t stats_find_part(knl_session_t *session, knl_analyze_tab_def_t *def, knl
 
     if (def->part_name.len > 0) {
         if (!part_table_find_by_name(part_table, &def->part_name, table_part)) {
-            GS_THROW_ERROR(ERR_PARTITION_NOT_EXIST, "table", T2S(&def->part_name));
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PARTITION_NOT_EXIST, "table", T2S(&def->part_name));
+            return CT_ERROR;
         }
 
         if ((*table_part)->desc.not_ready == PARTITON_NOT_READY) {
-            GS_THROW_ERROR(ERR_PARTITION_NOT_READY, "table", T2S(&def->part_name));
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PARTITION_NOT_READY, "table", T2S(&def->part_name));
+            return CT_ERROR;
         }
     } else {
-        if (def->part_no == GS_INVALID_ID32) {
-            GS_THROW_ERROR(ERR_EXCEED_MAX_PARTCNT, (uint32)GS_MAX_PART_COUNT);
-            return GS_ERROR;
+        if (def->part_no == CT_INVALID_ID32) {
+            CT_THROW_ERROR(ERR_EXCEED_MAX_PARTCNT, (uint32)CT_MAX_PART_COUNT);
+            return CT_ERROR;
         }
 
         *table_part = PART_GET_ENTITY(part_table, def->part_no);
 
         if (*table_part == NULL) {
             cm_uint32_to_text(def->part_no, &partno_str);
-            GS_THROW_ERROR(ERR_PARTITION_NOT_EXIST, "table", T2S(&partno_str));
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PARTITION_NOT_EXIST, "table", T2S(&partno_str));
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_set_analyze_time(knl_session_t *session, knl_dictionary_t *dc, bool32 locked)
@@ -10638,27 +10674,27 @@ status_t stats_set_analyze_time(knl_session_t *session, knl_dictionary_t *dc, bo
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_TABLE_ID, IX_SYS_TABLE_001_ID);
     key = &cursor->scan_range.l_key;
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
                      IX_COL_SYS_TABLE_001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_STRING, table->desc.name,
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_STRING, table->desc.name,
                      (uint16)strlen(table->desc.name), IX_COL_SYS_TABLE_001_NAME);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
+        return CT_ERROR;
     }
 
     cursor->update_info.count = 1;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), 1);
     if (locked) {
-        (void)row_put_int64(&ra, GS_INVALID_ID64);
+        (void)row_put_int64(&ra, CT_INVALID_ID64);
     } else {
         (void)row_put_date(&ra, cm_now());
     }
@@ -10666,32 +10702,32 @@ status_t stats_set_analyze_time(knl_session_t *session, knl_dictionary_t *dc, bo
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_calc_table_empty_block(knl_session_t *session, knl_table_set_stats_t *tab_stats,
     uint32 *empty_block)
 {
     if ((tab_stats->rownums == 0 && tab_stats->avgrlen != 0) || (tab_stats->avgrlen == 0 && tab_stats->rownums != 0)) {
-        GS_LOG_RUN_ERR("stats: fail to estimate empty block according to given parameters");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("stats: fail to estimate empty block according to given parameters");
+        return CT_ERROR;
     }
 
     if (tab_stats->rownums != 0 && tab_stats->avgrlen != 0 && tab_stats->blknums == 0) {
-        GS_LOG_RUN_ERR("stats: fail to estimate empty block according to given parameters");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("stats: fail to estimate empty block according to given parameters");
+        return CT_ERROR;
     }
 
     uint32 block_data_size = DEFAULT_PAGE_SIZE(session) - sizeof(heap_page_t) - sizeof(page_tail_t) - sizeof(itl_t);
     uint32 non_empty_block = (uint32)((tab_stats->avgrlen * tab_stats->rownums) / block_data_size);
     *empty_block = (tab_stats->blknums > non_empty_block) ? (tab_stats->blknums - non_empty_block) : 0;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void stats_verfiy_table_stats(knl_cursor_t *cursor, knl_table_set_stats_t *tab_stats)
@@ -10702,7 +10738,7 @@ static void stats_verfiy_table_stats(knl_cursor_t *cursor, knl_table_set_stats_t
     knl_securec_check(ret);
 
     if (tab_stats->is_single_part) {
-        if (CURSOR_COLUMN_SIZE(cursor, SYS_INDEXPART_COL_ANALYZETIME) != GS_NULL_VALUE_LEN) {
+        if (CURSOR_COLUMN_SIZE(cursor, SYS_INDEXPART_COL_ANALYZETIME) != CT_NULL_VALUE_LEN) {
             sys_stats.rownums = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_TABLEPART_COL_ROWCNT);
             sys_stats.blknums = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_TABLEPART_COL_BLKCNT);
             sys_stats.avgrlen = *(uint64 *)CURSOR_COLUMN_DATA(cursor, SYS_TABLEPART_COL_AVGRLN);
@@ -10710,7 +10746,7 @@ static void stats_verfiy_table_stats(knl_cursor_t *cursor, knl_table_set_stats_t
             sys_stats.samplesize = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_TABLEPART_COL_SAMPLESIZE);
         }
     } else {
-        if (CURSOR_COLUMN_SIZE(cursor, SYS_TABLE_COL_ANALYZETIME) != GS_NULL_VALUE_LEN) {
+        if (CURSOR_COLUMN_SIZE(cursor, SYS_TABLE_COL_ANALYZETIME) != CT_NULL_VALUE_LEN) {
             sys_stats.rownums = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_TABLE_COL_NUM_ROWS);
             sys_stats.blknums = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_TABLE_COL_BLOCKS);
             sys_stats.avgrlen = *(uint64 *)CURSOR_COLUMN_DATA(cursor, SYS_TABLE_COL_AVG_ROW_LEN);
@@ -10719,10 +10755,10 @@ static void stats_verfiy_table_stats(knl_cursor_t *cursor, knl_table_set_stats_t
         }
     }
 
-    tab_stats->rownums = (tab_stats->rownums == GS_INVALID_ID32) ? sys_stats.rownums : tab_stats->rownums;
-    tab_stats->blknums = (tab_stats->blknums == GS_INVALID_ID32) ? sys_stats.blknums : tab_stats->blknums;
-    tab_stats->avgrlen = (tab_stats->avgrlen == GS_INVALID_ID64) ? sys_stats.avgrlen : tab_stats->avgrlen;
-    tab_stats->samplesize = (tab_stats->samplesize == GS_INVALID_ID64) ? sys_stats.samplesize : tab_stats->samplesize;
+    tab_stats->rownums = (tab_stats->rownums == CT_INVALID_ID32) ? sys_stats.rownums : tab_stats->rownums;
+    tab_stats->blknums = (tab_stats->blknums == CT_INVALID_ID32) ? sys_stats.blknums : tab_stats->blknums;
+    tab_stats->avgrlen = (tab_stats->avgrlen == CT_INVALID_ID64) ? sys_stats.avgrlen : tab_stats->avgrlen;
+    tab_stats->samplesize = (tab_stats->samplesize == CT_INVALID_ID64) ? sys_stats.samplesize : tab_stats->samplesize;
 }
 
 static void stats_set_table_updata_info(knl_update_info_t *update_info, knl_table_set_stats_t *tab_stats)
@@ -10759,52 +10795,52 @@ static status_t stats_update_sys_table_force(knl_session_t *session, knl_diction
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_TABLE_ID, IX_SYS_TABLE_001_ID);
     key = &cursor->scan_range.l_key;
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table->desc.uid, sizeof(uint32),
                      IX_COL_SYS_TABLE_001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_STRING, table->desc.name,
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_STRING, table->desc.name,
                      (uint16)strlen(table->desc.name), IX_COL_SYS_TABLE_001_NAME);
    
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
+        return CT_ERROR;
     }
 
     stats_verfiy_table_stats(cursor, tab_stats);
 
     uint32 empty_block = 0;
-    if (stats_calc_table_empty_block(session, tab_stats, &empty_block) != GS_SUCCESS) {
+    if (stats_calc_table_empty_block(session, tab_stats, &empty_block) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ", fail to estimate empty_block");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ", fail to estimate empty_block");
+        return CT_ERROR;
     }
 
     cursor->update_info.count = UPDATE_COLUMN_COUNT_SIX;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), UPDATE_COLUMN_COUNT_SIX);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_stats->rownums));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_stats->blknums));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, empty_block));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_stats->rownums));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_stats->blknums));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, empty_block));
     (void)row_put_int64(&ra, tab_stats->avgrlen);
-    (void)row_put_int64(&ra, MIN(GS_MAX_INT32, tab_stats->samplesize));
-    (void)row_put_int64(&ra, GS_INVALID_ID64);
+    (void)row_put_int64(&ra, MIN(CT_MAX_INT32, tab_stats->samplesize));
+    (void)row_put_int64(&ra, CT_INVALID_ID64);
 
     stats_set_table_updata_info(&cursor->update_info, tab_stats);
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return stats_set_analyze_time(session, dc, GS_TRUE);
+    return stats_set_analyze_time(session, dc, CT_TRUE);
 }
 
 static status_t stats_update_sys_tablepart_force(knl_session_t *session, knl_dictionary_t *dc, table_part_t *table_part,
@@ -10820,54 +10856,54 @@ static status_t stats_update_sys_tablepart_force(knl_session_t *session, knl_dic
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_TABLEPART_ID, IX_SYS_TABLEPART001_ID);
     key = &cursor->scan_range.l_key;
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table_part->desc.uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table_part->desc.uid, sizeof(uint32),
                      IX_COL_SYS_TABLEPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table_part->desc.table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table_part->desc.table_id, sizeof(uint32),
                      IX_COL_SYS_TABLEPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table_part->desc.part_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table_part->desc.part_id, sizeof(uint32),
                      IX_COL_SYS_TABLEPART001_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table_part->desc.name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table_part->desc.name);
+        return CT_ERROR;
     }
 
     stats_verfiy_table_stats(cursor, tab_stats);
 
     uint32 empty_block = 0;
-    if (stats_calc_table_empty_block(session, tab_stats, &empty_block) != GS_SUCCESS) {
+    if (stats_calc_table_empty_block(session, tab_stats, &empty_block) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ", fail to estimate empty_block");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ", fail to estimate empty_block");
+        return CT_ERROR;
     }
 
     cursor->update_info.count = UPDATE_COLUMN_COUNT_FIVE;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), UPDATE_COLUMN_COUNT_FIVE);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_stats->rownums));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, tab_stats->blknums));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, empty_block));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_stats->rownums));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, tab_stats->blknums));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, empty_block));
     (void)row_put_int64(&ra, tab_stats->avgrlen);
-    (void)row_put_int64(&ra, MIN(GS_MAX_INT32, tab_stats->samplesize));
-    (void)row_put_int64(&ra, GS_INVALID_ID64);
+    (void)row_put_int64(&ra, MIN(CT_MAX_INT32, tab_stats->samplesize));
+    (void)row_put_int64(&ra, CT_INVALID_ID64);
 
     stats_set_table_updata_info(&cursor->update_info, tab_stats);
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return stats_set_analyze_time(session, dc, GS_TRUE);
+    return stats_set_analyze_time(session, dc, CT_TRUE);
 }
 
 static void stats_set_colunm_updata_info(knl_session_t *session, knl_cursor_t *cursor,
@@ -10879,11 +10915,11 @@ static void stats_set_colunm_updata_info(knl_session_t *session, knl_cursor_t *c
 
     cursor->update_info.count = UPDATE_COLUMN_COUNT_SIX;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), UPDATE_COLUMN_COUNT_SIX);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, col_stats->nullnum));
-    (void)row_put_int64(&ra, GS_INVALID_ID64);
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, col_stats->nullnum));
+    (void)row_put_int64(&ra, CT_INVALID_ID64);
     (void)row_put_text(&ra, &col_stats->min_value);
     (void)row_put_text(&ra, &col_stats->max_value);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, col_stats->distnum));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, col_stats->distnum));
     (void)row_put_real(&ra, col_stats->density);
 
     update_info->columns[0] = SYS_HISTGRAM_ABSTR_COL_NUM_NULL;
@@ -10903,7 +10939,7 @@ static void stats_verfiy_colunm_stats(knl_cursor_t *cursor, knl_column_set_stats
     errno_t ret = memset_sp(&sys_stats, sizeof(knl_column_set_stats_t), 0, sizeof(knl_column_set_stats_t));
     knl_securec_check(ret);
 
-    if (CURSOR_COLUMN_SIZE(cursor, SYS_HISTGRAM_ABSTR_COL_ANALYZETIME) != GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, SYS_HISTGRAM_ABSTR_COL_ANALYZETIME) != CT_NULL_VALUE_LEN) {
         sys_stats.nullnum = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_HISTGRAM_ABSTR_COL_NUM_NULL);
         sys_stats.distnum = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_HISTGRAM_ABSTR_COL_NUM_DISTINCT);
         sys_stats.density = *(double *)CURSOR_COLUMN_DATA(cursor, SYS_HISTGRAM_ABSTR_COL_DENSITY);
@@ -10913,10 +10949,10 @@ static void stats_verfiy_colunm_stats(knl_cursor_t *cursor, knl_column_set_stats
         sys_stats.max_value.len = CURSOR_COLUMN_SIZE(cursor, SYS_HISTGRAM_ABSTR_COL_MAXVALUE);
     }
 
-    col_stats->nullnum = (col_stats->nullnum == GS_INVALID_ID32) ? sys_stats.nullnum : col_stats->nullnum;
-    col_stats->distnum = (col_stats->distnum == GS_INVALID_ID32) ? sys_stats.distnum : col_stats->distnum;
-    col_stats->density = (col_stats->density == GS_INVALID_ID64) ? sys_stats.density : col_stats->density;
-    if (col_stats->max_value.len == GS_NULL_VALUE_LEN) {
+    col_stats->nullnum = (col_stats->nullnum == CT_INVALID_ID32) ? sys_stats.nullnum : col_stats->nullnum;
+    col_stats->distnum = (col_stats->distnum == CT_INVALID_ID32) ? sys_stats.distnum : col_stats->distnum;
+    col_stats->density = (col_stats->density == CT_INVALID_ID64) ? sys_stats.density : col_stats->density;
+    if (col_stats->max_value.len == CT_NULL_VALUE_LEN) {
         ret = memcpy_sp(col_stats->max_value.str, STATS_MAX_BUCKET_SIZE,
             sys_stats.max_value.str, sys_stats.max_value.len);
         knl_securec_check(ret);
@@ -10924,7 +10960,7 @@ static void stats_verfiy_colunm_stats(knl_cursor_t *cursor, knl_column_set_stats
         col_stats->max_value.len = sys_stats.max_value.len;
     }
 
-    if (col_stats->min_value.len == GS_NULL_VALUE_LEN) {
+    if (col_stats->min_value.len == CT_NULL_VALUE_LEN) {
         ret = memcpy_sp(col_stats->min_value.str, STATS_MAX_BUCKET_SIZE,
             sys_stats.min_value.str, sys_stats.min_value.len);
         knl_securec_check(ret);
@@ -10936,7 +10972,7 @@ static void stats_verfiy_colunm_stats(knl_cursor_t *cursor, knl_column_set_stats
 status_t stats_update_sys_histhead_force(knl_session_t *session, knl_dictionary_t *dc, knl_column_set_stats_t *col_stats,
                                          table_part_t *table_part, knl_column_t *column)
 {
-    uint64 part_id = (table_part != NULL) ? table_part->desc.part_id : GS_INVALID_ID32;
+    uint64 part_id = (table_part != NULL) ? table_part->desc.part_id : CT_INVALID_ID32;
     table_t *table = DC_TABLE(dc);
 
     CM_SAVE_STACK(session->stack);
@@ -10944,49 +10980,49 @@ status_t stats_update_sys_histhead_force(knl_session_t *session, knl_dictionary_
 
     stats_open_hist_abstr_cursor(session, cursor, CURSOR_ACTION_UPDATE, IX_HIST_HEAD_003_ID,
         IS_NOLOGGING_BY_TABLE_TYPE(DC_TABLE(dc)->desc.type));
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
     knl_scan_key_t *key = &cursor->scan_range.l_key;
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &column->uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &column->uid, sizeof(uint32),
                      IX_COL_HIST_HEAD_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &column->table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &column->table_id, sizeof(uint32),
                      IX_COL_HIST_HEAD_003_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &column->id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &column->id, sizeof(uint32),
                      IX_COL_HIST_HEAD_003_COL_ID);
     if (IS_PART_TABLE(table)) {
-        knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_BIGINT, &part_id, sizeof(uint64),
+        knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_BIGINT, &part_id, sizeof(uint64),
             IX_COL_HIST_HEAD_003_SPARE1);
     } else {
         knl_set_key_flag(key, SCAN_KEY_IS_NULL, IX_COL_HIST_HEAD_003_SPARE1);
     }
 
     if (IS_PART_TABLE(table) && IS_COMPART_TABLE(table->part_table)) {
-        knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_BIGINT, &part_id, sizeof(uint64),
+        knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_BIGINT, &part_id, sizeof(uint64),
             IX_COL_HIST_HEAD_003_SPARE2);
     } else {
         knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_IS_NULL, IX_COL_HIST_HEAD_003_SPARE2);
     }
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_OBJECT_NOT_EXISTS, "column statistics of", column->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_NOT_EXISTS, "column statistics of", column->name);
+        return CT_ERROR;
     }
 
     stats_verfiy_colunm_stats(cursor, col_stats);
     stats_set_colunm_updata_info(session, cursor, col_stats);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return stats_set_analyze_time(session, dc, GS_TRUE);
+    return stats_set_analyze_time(session, dc, CT_TRUE);
 }
 
 static void stats_set_index_updata_info(knl_update_info_t *update_info, knl_index_set_stats_t *idx_stats)
@@ -11026,7 +11062,7 @@ static void stats_verfiy_index_stats(knl_cursor_t *cursor, knl_index_set_stats_t
     knl_securec_check(ret);
 
     if (idx_stats->is_single_part) {
-        if (CURSOR_COLUMN_SIZE(cursor, SYS_INDEXPART_COL_ANALYZETIME) != GS_NULL_VALUE_LEN) {
+        if (CURSOR_COLUMN_SIZE(cursor, SYS_INDEXPART_COL_ANALYZETIME) != CT_NULL_VALUE_LEN) {
             sys_stats.indlevel = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_INDEXPART_COL_BLEVEL);
             sys_stats.numlblks = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_INDEXPART_COL_LEVEL_BLOCKS);
             sys_stats.numdist = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_INDEXPART_COL_DISTKEY);
@@ -11038,7 +11074,7 @@ static void stats_verfiy_index_stats(knl_cursor_t *cursor, knl_index_set_stats_t
             sys_stats.combndv4 = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_INDEXPART_COL_COMB_COLS_4_NDV);
         }
     } else {
-        if (CURSOR_COLUMN_SIZE(cursor, SYS_INDEX_COLUMN_ID_ANALYZETIME) != GS_NULL_VALUE_LEN) {
+        if (CURSOR_COLUMN_SIZE(cursor, SYS_INDEX_COLUMN_ID_ANALYZETIME) != CT_NULL_VALUE_LEN) {
             sys_stats.indlevel = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_INDEX_COLUMN_ID_BLEVEL);
             sys_stats.numlblks = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_INDEX_COLUMN_ID_LEVEL_BLOCKS);
             sys_stats.numdist = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_INDEX_COLUMN_ID_DISTINCT_KEYS);
@@ -11051,24 +11087,24 @@ static void stats_verfiy_index_stats(knl_cursor_t *cursor, knl_index_set_stats_t
         }
     }
 
-    idx_stats->indlevel = (idx_stats->indlevel == GS_INVALID_ID32) ? sys_stats.indlevel : idx_stats->indlevel;
-    idx_stats->numlblks = (idx_stats->numlblks == GS_INVALID_ID32) ? sys_stats.numlblks : idx_stats->numlblks;
-    idx_stats->numdist = (idx_stats->numdist == GS_INVALID_ID32) ? sys_stats.numdist : idx_stats->numdist;
-    idx_stats->avglblk = (idx_stats->avglblk == GS_INVALID_ID64) ? sys_stats.avglblk : idx_stats->avglblk;
-    idx_stats->avgdblk = (idx_stats->avgdblk == GS_INVALID_ID64) ? sys_stats.avgdblk : idx_stats->avgdblk;
-    idx_stats->clstfct = (idx_stats->clstfct == GS_INVALID_ID32) ? sys_stats.clstfct : idx_stats->clstfct;
-    idx_stats->combndv2 = (idx_stats->combndv2 == GS_INVALID_ID32) ? sys_stats.combndv2 : idx_stats->combndv2;
-    idx_stats->combndv3 = (idx_stats->combndv3 == GS_INVALID_ID32) ? sys_stats.combndv3 : idx_stats->combndv3;
-    idx_stats->combndv4 = (idx_stats->combndv4 == GS_INVALID_ID32) ? sys_stats.combndv4 : idx_stats->combndv4;
+    idx_stats->indlevel = (idx_stats->indlevel == CT_INVALID_ID32) ? sys_stats.indlevel : idx_stats->indlevel;
+    idx_stats->numlblks = (idx_stats->numlblks == CT_INVALID_ID32) ? sys_stats.numlblks : idx_stats->numlblks;
+    idx_stats->numdist = (idx_stats->numdist == CT_INVALID_ID32) ? sys_stats.numdist : idx_stats->numdist;
+    idx_stats->avglblk = (idx_stats->avglblk == CT_INVALID_ID64) ? sys_stats.avglblk : idx_stats->avglblk;
+    idx_stats->avgdblk = (idx_stats->avgdblk == CT_INVALID_ID64) ? sys_stats.avgdblk : idx_stats->avgdblk;
+    idx_stats->clstfct = (idx_stats->clstfct == CT_INVALID_ID32) ? sys_stats.clstfct : idx_stats->clstfct;
+    idx_stats->combndv2 = (idx_stats->combndv2 == CT_INVALID_ID32) ? sys_stats.combndv2 : idx_stats->combndv2;
+    idx_stats->combndv3 = (idx_stats->combndv3 == CT_INVALID_ID32) ? sys_stats.combndv3 : idx_stats->combndv3;
+    idx_stats->combndv4 = (idx_stats->combndv4 == CT_INVALID_ID32) ? sys_stats.combndv4 : idx_stats->combndv4;
 }
 
 static inline status_t stats_check_idx_stats_params(knl_index_set_stats_t *idx_stats)
 {
     if (idx_stats->avgdblk == 0 || idx_stats->numlblks == 0 || idx_stats->avglblk == 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_calc_empty_leaves_index(knl_session_t *session, index_t *idx, knl_index_set_stats_t *idx_stats,
@@ -11082,17 +11118,17 @@ static status_t stats_calc_empty_leaves_index(knl_session_t *session, index_t *i
     page_type_t page_type = (idx->desc.cr_mode == CR_PAGE) ? PAGE_TYPE_PCRB_NODE : PAGE_TYPE_BTREE_NODE;
 
     if (!spc_validate_page_id(session, AS_PAGID(segment->tree_info.root))) {
-        GS_LOG_RUN_ERR("stats: index %s has been droped", idx->desc.name);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("stats: index %s has been droped", idx->desc.name);
+        return CT_ERROR;
     }
 
     buf_enter_page(session, AS_PAGID(segment->tree_info.root), LATCH_MODE_S, ENTER_PAGE_NORMAL);
     btree_page_t *page = BTREE_CURR_PAGE(session);
 
-    if (btree_check_segment_scn(page, page_type, segment->seg_scn) != GS_SUCCESS) {
-        buf_leave_page(session, GS_FALSE);
-        GS_LOG_RUN_ERR("stats: page scn is different from seg scn, index name: %s", idx->desc.name);
-        return GS_ERROR;
+    if (btree_check_segment_scn(page, page_type, segment->seg_scn) != CT_SUCCESS) {
+        buf_leave_page(session, CT_FALSE);
+        CT_LOG_RUN_ERR("stats: page scn is different from seg scn, index name: %s", idx->desc.name);
+        return CT_ERROR;
     }
 
     uint64 avg_key_len = 0;
@@ -11108,7 +11144,7 @@ static status_t stats_calc_empty_leaves_index(knl_session_t *session, index_t *i
         }
     }
 
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     avg_key_len = (page->keys > 1) ? (uint64)(avg_key_len / (page->keys - 1)) : 0;
     uint32 page_data_size = DEFAULT_PAGE_SIZE(session) - sizeof(btree_page_t) -
@@ -11129,23 +11165,23 @@ static status_t stats_calc_empty_leaves_index(knl_session_t *session, index_t *i
     uint32 non_empty_leaves = (uint32)(total_data_block * leaf_block_percent);
     *empty_block = (non_empty_leaves > idx_stats->numlblks) ? (non_empty_leaves - idx_stats->numlblks) : 0;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_calc_empty_block_index(knl_session_t *session, index_t *idx, knl_index_set_stats_t *idx_stats,
     uint32 *empty_block)
 {
-    if (stats_check_idx_stats_params(idx_stats) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("stats: fail to estimate empty block according to given parameters");
-        return GS_ERROR;
+    if (stats_check_idx_stats_params(idx_stats) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("stats: fail to estimate empty block according to given parameters");
+        return CT_ERROR;
     }
 
     page_id_t btree_entry = idx->desc.entry;
     knl_scn_t seg_scn = idx->desc.seg_scn;
 
     if (IS_INVALID_PAGID(btree_entry)) {
-        GS_LOG_RUN_ERR("stats: invalid page id, index name: %s", idx->desc.name);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("stats: invalid page id, index name: %s", idx->desc.name);
+        return CT_ERROR;
     }
 
     buf_enter_page(session, btree_entry, LATCH_MODE_S, ENTER_PAGE_NORMAL);
@@ -11153,13 +11189,13 @@ static status_t stats_calc_empty_block_index(knl_session_t *session, index_t *id
     btree_segment_t *segment = BTREE_GET_SEGMENT(session);
  
     if (page->type != PAGE_TYPE_BTREE_HEAD || segment->seg_scn != seg_scn) {
-        buf_leave_page(session, GS_FALSE);
-        GS_LOG_RUN_ERR("stats: current seg scn is different from origin seg scn, index name: %s", idx->desc.name);
-        return GS_ERROR;
+        buf_leave_page(session, CT_FALSE);
+        CT_LOG_RUN_ERR("stats: current seg scn is different from origin seg scn, index name: %s", idx->desc.name);
+        return CT_ERROR;
     }
 
     status_t ret = stats_calc_empty_leaves_index(session, idx, idx_stats, segment, empty_block);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
     return ret;
 }
 
@@ -11170,17 +11206,17 @@ static void stats_update_sys_index_row(knl_session_t *session, knl_cursor_t *cur
     uint16 size;
 
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), UPDATE_COLUMN_COUNT_ELEVEN);
-    (void)row_put_int32(&ra, MIN(GS_MAX_ROOT_LEVEL, idx_stats->indlevel));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, idx_stats->numlblks));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, idx_stats->numdist));
+    (void)row_put_int32(&ra, MIN(CT_MAX_ROOT_LEVEL, idx_stats->indlevel));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, idx_stats->numlblks));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, idx_stats->numdist));
     (void)row_put_real(&ra, idx_stats->avglblk);
     (void)row_put_real(&ra, idx_stats->avgdblk);
-    (void)row_put_int64(&ra, GS_INVALID_ID64);
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, empty_block));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, idx_stats->clstfct));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, idx_stats->combndv2));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, idx_stats->combndv3));
-    (void)row_put_int32(&ra, MIN(GS_MAX_INT32, idx_stats->combndv4));
+    (void)row_put_int64(&ra, CT_INVALID_ID64);
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, empty_block));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, idx_stats->clstfct));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, idx_stats->combndv2));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, idx_stats->combndv3));
+    (void)row_put_int32(&ra, MIN(CT_MAX_INT32, idx_stats->combndv4));
 
     stats_set_index_updata_info(&cursor->update_info, idx_stats);
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
@@ -11197,45 +11233,45 @@ status_t stats_update_sys_index_force(knl_session_t *session, knl_dictionary_t *
     knl_cursor_t *cursor = knl_push_cursor(session);
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_INDEX_ID, IX_SYS_INDEX_002_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
     key = &cursor->scan_range.l_key;
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &index->desc.uid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &index->desc.uid, sizeof(uint32),
                      IX_COL_SYS_INDEX_002_USER);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_STRING, index->desc.name,
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_STRING, index->desc.name,
                      (uint16)strlen(index->desc.name), IX_COL_SYS_INDEX_002_NAME);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &index->desc.table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &index->desc.table_id, sizeof(uint32),
                      IX_COL_SYS_INDEX_002_TABLE);
     
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, index->desc.name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, index->desc.name);
+        return CT_ERROR;
     }
 
     stats_verfiy_index_stats(cursor, idx_stats);
 
     uint32 empty_block = 0;
-    if (stats_calc_empty_block_index(session, index, idx_stats, &empty_block) != GS_SUCCESS) {
+    if (stats_calc_empty_block_index(session, index, idx_stats, &empty_block) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ", fail to estimate empty_block.");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ", fail to estimate empty_block.");
+        return CT_ERROR;
     }
 
     cursor->update_info.count = UPDATE_COLUMN_COUNT_ELEVEN;
     stats_update_sys_index_row(session, cursor, idx_stats, empty_block);
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return stats_set_analyze_time(session, dc, GS_TRUE);
+    return stats_set_analyze_time(session, dc, CT_TRUE);
 }
 
 static status_t stats_calc_empty_leaves_part(knl_session_t *session, index_part_t *idx_part,
@@ -11249,17 +11285,17 @@ static status_t stats_calc_empty_leaves_part(knl_session_t *session, index_part_
     page_type_t page_type = (idx_part->desc.cr_mode == CR_PAGE) ? PAGE_TYPE_PCRB_NODE : PAGE_TYPE_BTREE_NODE;
 
     if (!spc_validate_page_id(session, AS_PAGID(segment->tree_info.root))) {
-        GS_LOG_RUN_ERR("stats: part index %s has been droped", idx_part->desc.name);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("stats: part index %s has been droped", idx_part->desc.name);
+        return CT_ERROR;
     }
 
     buf_enter_page(session, AS_PAGID(segment->tree_info.root), LATCH_MODE_S, ENTER_PAGE_NORMAL);
     btree_page_t *page = BTREE_CURR_PAGE(session);
 
-    if (btree_check_segment_scn(page, page_type, segment->seg_scn) != GS_SUCCESS) {
-        buf_leave_page(session, GS_FALSE);
-        GS_LOG_RUN_ERR("stats: page scn is different from seg scn, part index: %s", idx_part->desc.name);
-        return GS_ERROR;
+    if (btree_check_segment_scn(page, page_type, segment->seg_scn) != CT_SUCCESS) {
+        buf_leave_page(session, CT_FALSE);
+        CT_LOG_RUN_ERR("stats: page scn is different from seg scn, part index: %s", idx_part->desc.name);
+        return CT_ERROR;
     }
 
     uint64 avg_key_len = 0;
@@ -11275,7 +11311,7 @@ static status_t stats_calc_empty_leaves_part(knl_session_t *session, index_part_
         }
     }
 
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     avg_key_len = (page->keys > 1) ? (uint64)(avg_key_len / (page->keys - 1)) : 0;
     uint32 page_data_size = DEFAULT_PAGE_SIZE(session) - sizeof(btree_page_t) -
@@ -11296,23 +11332,23 @@ static status_t stats_calc_empty_leaves_part(knl_session_t *session, index_part_
     uint32 non_empty_leaves = (uint32)(total_data_block * leaf_block_percent);
     *empty_block = (non_empty_leaves > idx_stats->numlblks) ? (non_empty_leaves - idx_stats->numlblks) : 0;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_calc_empty_block_part(knl_session_t *session, index_part_t *idx_part,
     knl_index_set_stats_t *idx_stats, uint32 *empty_block)
 {
-    if (stats_check_idx_stats_params(idx_stats) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("stats: fail to estimate empty block according to given parameters");
-        return GS_ERROR;
+    if (stats_check_idx_stats_params(idx_stats) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("stats: fail to estimate empty block according to given parameters");
+        return CT_ERROR;
     }
 
     page_id_t btree_entry = idx_part->desc.entry;
     knl_scn_t seg_scn = idx_part->desc.seg_scn;
 
     if (IS_INVALID_PAGID(btree_entry)) {
-        GS_LOG_RUN_ERR("stats: invalid page id, part index: %s", idx_part->desc.name);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("stats: invalid page id, part index: %s", idx_part->desc.name);
+        return CT_ERROR;
     }
 
     buf_enter_page(session, btree_entry, LATCH_MODE_S, ENTER_PAGE_NORMAL);
@@ -11320,13 +11356,13 @@ static status_t stats_calc_empty_block_part(knl_session_t *session, index_part_t
     btree_segment_t *segment = BTREE_GET_SEGMENT(session);
 
     if (page->type != PAGE_TYPE_BTREE_HEAD || segment->seg_scn != seg_scn) {
-        buf_leave_page(session, GS_FALSE);
-        GS_LOG_RUN_ERR("stats: current seg scn is different from origin seg scn, part index: %s", idx_part->desc.name);
-        return GS_ERROR;
+        buf_leave_page(session, CT_FALSE);
+        CT_LOG_RUN_ERR("stats: current seg scn is different from origin seg scn, part index: %s", idx_part->desc.name);
+        return CT_ERROR;
     }
 
     status_t ret = stats_calc_empty_leaves_part(session, idx_part, idx_stats, segment, empty_block);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     return ret;
 }
@@ -11341,47 +11377,47 @@ status_t stats_update_sys_indexpart_force(knl_session_t *session, knl_dictionary
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_INDEXPART_ID, IX_SYS_INDEXPART001_ID);
     key = &cursor->scan_range.l_key;
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &idx_part->desc.uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &idx_part->desc.uid, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &idx_part->desc.table_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &idx_part->desc.table_id, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &idx_part->desc.index_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &idx_part->desc.index_id, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &idx_part->desc.part_id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &idx_part->desc.part_id, sizeof(uint32),
                      IX_COL_SYS_INDEXPART001_PART_ID);
     
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, idx_part->desc.name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INDEX_ALREADY_DROPPED, idx_part->desc.name);
+        return CT_ERROR;
     }
 
     stats_verfiy_index_stats(cursor, idx_stats);
 
     uint32 empty_block = 0;
-    if (stats_calc_empty_block_part(session, idx_part, idx_stats, &empty_block) != GS_SUCCESS) {
+    if (stats_calc_empty_block_part(session, idx_part, idx_stats, &empty_block) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ", fail to estimate empty_block.");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ", fail to estimate empty_block.");
+        return CT_ERROR;
     }
 
     cursor->update_info.count = UPDATE_COLUMN_COUNT_ELEVEN;
     stats_update_sys_index_row(session, cursor, idx_stats, empty_block);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return stats_set_analyze_time(session, dc, GS_TRUE);
+    return stats_set_analyze_time(session, dc, CT_TRUE);
 }
 
 status_t stats_set_tables(knl_session_t *session, knl_dictionary_t *dc, knl_table_set_stats_t *tab_stats,
@@ -11391,54 +11427,54 @@ status_t stats_set_tables(knl_session_t *session, knl_dictionary_t *dc, knl_tabl
     dc_entity_t *entity = DC_ENTITY(dc);
 
     if (tab_stats->is_single_part) {
-        if (stats_update_sys_tablepart_force(session, dc, table_part, tab_stats) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_update_sys_tablepart_force(session, dc, table_part, tab_stats) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (stats_update_sys_table_force(session, dc, tab_stats) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_update_sys_table_force(session, dc, tab_stats) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    stats_set_load_info(&load_info, entity, GS_TRUE, GS_INVALID_ID32);
+    stats_set_load_info(&load_info, entity, CT_TRUE, CT_INVALID_ID32);
 
-    if (stats_refresh_dc(session, dc, load_info) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_refresh_dc(session, dc, load_info) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     cm_latch_x(&entity->cbo_latch, session->id, NULL);
     if (!entity->stat_exists) {
         cm_unlatch(&entity->cbo_latch, NULL);
-        GS_THROW_ERROR(ERR_INVALID_DC, entity->entry->name);
-        GS_LOG_RUN_ERR("[DC] could not load table statistics %s.%s.", entity->entry->user_name, entity->entry->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_DC, entity->entry->name);
+        CT_LOG_RUN_ERR("[DC] could not load table statistics %s.%s.", entity->entry->user_name, entity->entry->name);
+        return CT_ERROR;
     }
 
-    entity->stats_locked = GS_TRUE;
+    entity->stats_locked = CT_TRUE;
     cm_unlatch(&entity->cbo_latch, NULL);
    
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_set_text_value(knl_session_t *session, dc_entity_t *entity,
     knl_column_t *column, text_t *src, text_t *dest)
 {
-    if (src->len == GS_NULL_VALUE_LEN) {
-        return GS_SUCCESS;
+    if (src->len == CT_NULL_VALUE_LEN) {
+        return CT_SUCCESS;
     }
 
     if (SECUREC_UNLIKELY(src->str == NULL || src->len > STATS_MAX_BUCKET_SIZE)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (cbo_alloc_value_mem(session, entity->memory, column, &dest->str) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_value_mem(session, entity->memory, column, &dest->str) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cbo_get_stats_values(entity, column, src, dest) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_get_stats_values(entity, column, src, dest) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t stats_set_cbo_column_value(knl_session_t *session, dc_entity_t *entity,
@@ -11448,16 +11484,16 @@ static status_t stats_set_cbo_column_value(knl_session_t *session, dc_entity_t *
     cbo_column->density = col_stats->density;
     cbo_column->num_null = col_stats->nullnum;
     if (stats_set_text_value(session, entity, column, &col_stats->max_value,
-        &cbo_column->high_value) != GS_SUCCESS) {
-        return GS_ERROR;
+        &cbo_column->high_value) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (stats_set_text_value(session, entity, column, &col_stats->min_value,
-        &cbo_column->low_value) != GS_SUCCESS) {
-        return GS_ERROR;
+        &cbo_column->low_value) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_set_column(knl_session_t *session, knl_dictionary_t *dc, knl_column_set_stats_t *col_stats,
@@ -11470,34 +11506,34 @@ status_t stats_set_column(knl_session_t *session, knl_dictionary_t *dc, knl_colu
     char max_buf[STATS_MAX_BUCKET_SIZE] = {0};
     char min_buf[STATS_MAX_BUCKET_SIZE] = {0};
 
-    col_stats->max_value.str = (col_stats->max_value.len == GS_NULL_VALUE_LEN) ? max_buf : col_stats->max_value.str;
-    col_stats->min_value.str = (col_stats->min_value.len == GS_NULL_VALUE_LEN) ? min_buf : col_stats->min_value.str;
+    col_stats->max_value.str = (col_stats->max_value.len == CT_NULL_VALUE_LEN) ? max_buf : col_stats->max_value.str;
+    col_stats->min_value.str = (col_stats->min_value.len == CT_NULL_VALUE_LEN) ? min_buf : col_stats->min_value.str;
 
-    if (stats_update_sys_histhead_force(session, dc, col_stats, table_part, column) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_update_sys_histhead_force(session, dc, col_stats, table_part, column) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     cm_latch_x(&entity->cbo_latch, session->id, NULL);
 
     if (!entity->stat_exists) {
         cm_unlatch(&entity->cbo_latch, NULL);
-        GS_THROW_ERROR(ERR_INVALID_DC, entity->entry->name);
-        GS_LOG_RUN_ERR("[DC] could not load table statistics %s.%s.", entity->entry->user_name, entity->entry->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_DC, entity->entry->name);
+        CT_LOG_RUN_ERR("[DC] could not load table statistics %s.%s.", entity->entry->user_name, entity->entry->name);
+        return CT_ERROR;
     }
 
     if (table_part != NULL) {
         cbo_stats_table_t *part_stats = CBO_GET_TABLE_PART(cbo_stats, table_part->part_no);
         if (part_stats == NULL) {
             cm_unlatch(&entity->cbo_latch, NULL);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (!part_stats->is_ready) {
-            stats_set_load_info(&load_info, entity, GS_TRUE, GS_INVALID_ID32);
-            if (cbo_load_table_part_stats(session, entity, table_part->part_no, load_info, GS_TRUE) != GS_SUCCESS) {
+            stats_set_load_info(&load_info, entity, CT_TRUE, CT_INVALID_ID32);
+            if (cbo_load_table_part_stats(session, entity, table_part->part_no, load_info, CT_TRUE) != CT_SUCCESS) {
                 cm_unlatch(&entity->cbo_latch, NULL);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
         cbo_column = cbo_get_column_stats(part_stats, column->id);
@@ -11506,20 +11542,20 @@ status_t stats_set_column(knl_session_t *session, knl_dictionary_t *dc, knl_colu
     }
 
     if (cbo_column == NULL) {
-        GS_LOG_RUN_WAR("Failed to modify %s.%s the %d column stats, it is not analyzed",
+        CT_LOG_RUN_WAR("Failed to modify %s.%s the %d column stats, it is not analyzed",
             entity->entry->user->desc.name, entity->table.desc.name, column->id);
         cm_unlatch(&entity->cbo_latch, NULL);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (stats_set_cbo_column_value(session, entity, column, col_stats, cbo_column) != GS_SUCCESS) {
+    if (stats_set_cbo_column_value(session, entity, column, col_stats, cbo_column) != CT_SUCCESS) {
         cm_unlatch(&entity->cbo_latch, NULL);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    entity->stats_locked = GS_TRUE;
+    entity->stats_locked = CT_TRUE;
     cm_unlatch(&entity->cbo_latch, NULL);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_set_index(knl_session_t *session, knl_dictionary_t *dc, knl_index_set_stats_t *idx_stats,
@@ -11530,12 +11566,12 @@ status_t stats_set_index(knl_session_t *session, knl_dictionary_t *dc, knl_index
     cbo_stats_index_t *part_idx_stats = NULL;
 
     if (idx_stats->is_single_part) {
-        if (stats_update_sys_indexpart_force(session, dc, idx_stats, idx_part) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_update_sys_indexpart_force(session, dc, idx_stats, idx_part) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (stats_update_sys_index_force(session, dc, idx_stats, index) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (stats_update_sys_index_force(session, dc, idx_stats, index) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -11543,9 +11579,9 @@ status_t stats_set_index(knl_session_t *session, knl_dictionary_t *dc, knl_index
 
     if (!entity->stat_exists) {
         cm_unlatch(&entity->cbo_latch, NULL);
-        GS_THROW_ERROR(ERR_INVALID_DC, entity->entry->name);
-        GS_LOG_RUN_ERR("[DC] could not load table statistics %s.%s.", entity->entry->user_name, entity->entry->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_DC, entity->entry->name);
+        CT_LOG_RUN_ERR("[DC] could not load table statistics %s.%s.", entity->entry->user_name, entity->entry->name);
+        return CT_ERROR;
     }
 
     if (idx_stats->is_single_part) {
@@ -11553,13 +11589,13 @@ status_t stats_set_index(knl_session_t *session, knl_dictionary_t *dc, knl_index
         part_idx_stats = CBO_GET_INDEX_PART(cbo_idx_stats, idx_part->part_no);
         if (part_idx_stats == NULL) {
             cm_unlatch(&entity->cbo_latch, NULL);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (!part_idx_stats->is_ready) {
-            if (cbo_load_index_part_stats(session, entity, idx_part->part_no, index->desc.id) != GS_SUCCESS) {
+            if (cbo_load_index_part_stats(session, entity, idx_part->part_no, index->desc.id) != CT_SUCCESS) {
                 cm_unlatch(&entity->cbo_latch, NULL);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
         part_idx_stats->blevel = idx_stats->indlevel;
@@ -11582,97 +11618,96 @@ status_t stats_set_index(knl_session_t *session, knl_dictionary_t *dc, knl_index
         cbo_idx_stats->comb_cols_4_ndv = idx_stats->combndv4;
     }
 
-    entity->stats_locked = GS_TRUE;
+    entity->stats_locked = CT_TRUE;
     cm_unlatch(&entity->cbo_latch, NULL);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-void stats_flush_logic_log(knl_session_t *session, knl_dictionary_t *dc, bool32 is_dynamic)
+void stats_flush_logic_log(knl_session_t *session, knl_dictionary_t *dc, stats_load_info_t *load_info)
 {
     dc_entity_t *entity = DC_ENTITY(dc);
-    rd_table_t rd_table;
+    rd_refresh_dc_t rd_ref;
     
-    if (stats_try_begin_auton_rm(session, is_dynamic) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("Analyze %s.%s statistics write logic log failed ", entity->entry->user->desc.name,
+    if (knl_begin_auton_rm(session) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("Analyze %s.%s statistics write logic log failed ", entity->entry->user->desc.name,
                        entity->table.desc.name);
         return;
     }
 
-    rd_table.op_type = RD_ALTER_TABLE;
-    rd_table.uid = dc->uid;
-    rd_table.oid = dc->oid;
-    log_put(session, RD_LOGIC_OPERATION, &rd_table, sizeof(rd_table_t), LOG_ENTRY_FLAG_NONE);
+    rd_ref.op_type = RD_REFRESH_DC;
+    rd_ref.uid = dc->uid;
+    rd_ref.oid = dc->oid;
+    rd_ref.load_subpart = load_info->load_subpart;
+    rd_ref.parent_part_id = load_info->parent_part_id;
+    log_put(session, RD_LOGIC_OPERATION, &rd_ref, sizeof(rd_table_t), LOG_ENTRY_FLAG_NONE);
 
-    stats_try_end_auton_rm(session, GS_SUCCESS, is_dynamic);
+    knl_end_auton_rm(session, CT_SUCCESS);
 }
 
 status_t stats_analyze_normal_table(knl_session_t *session, knl_dictionary_t *dc, stats_option_t stats_option,
                                     bool32 is_dynamic, bool32 *need_analyze)
 {
-     *need_analyze = GS_FALSE;
+     *need_analyze = CT_FALSE;
 
-    if (stats_check_analyzing(session, dc, need_analyze, is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_check_analyzing(session, dc, need_analyze, is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!(*need_analyze)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     CM_SAVE_STACK(session->stack);
-    if (stats_gather_normal_table(session, dc, stats_option, is_dynamic) != GS_SUCCESS) {
+    if (stats_gather_normal_table(session, dc, stats_option, is_dynamic) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     CM_RESTORE_STACK(session->stack);
 
-    stats_flush_logic_log(session, dc, is_dynamic);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_analyze_single_table_part(knl_session_t *session, knl_dictionary_t *dc, knl_analyze_tab_def_t *def,
                                          stats_option_t stats_option, bool32 is_dynamic)
 {
-    def->need_analyzed = GS_FALSE;
+    def->need_analyzed = CT_FALSE;
     def->table_part = NULL;
 
-    if (stats_find_part(session, def, dc, (table_part_t**)&def->table_part) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_find_part(session, def, dc, (table_part_t**)&def->table_part) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (stats_check_analyzing(session, dc, &def->need_analyzed, is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_check_analyzing(session, dc, &def->need_analyzed, is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!def->need_analyzed) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (stats_gather_table_part(session, dc, stats_option, (table_part_t *)def->table_part, is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_gather_table_part(session, dc, stats_option, (table_part_t *)def->table_part, is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    stats_flush_logic_log(session, dc, is_dynamic);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t stats_analyze_index(knl_session_t *session, knl_dictionary_t *dc, knl_analyze_index_def_t *def,
                              bool32 is_dynamic)
 {
-    def->need_analyzed = GS_FALSE;
+    def->need_analyzed = CT_FALSE;
 
-    if (stats_check_analyzing(session, dc, &def->need_analyzed, is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_check_analyzing(session, dc, &def->need_analyzed, is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!def->need_analyzed) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (stats_gather_index_by_btree(session, dc, def, is_dynamic) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (stats_gather_index_by_btree(session, dc, def, is_dynamic) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    stats_flush_logic_log(session, dc, is_dynamic);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

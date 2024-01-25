@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -65,7 +65,7 @@ typedef struct st_array_head_t {
     uint32 count;   /* element count */
     uint32 size;    /* total size */
     int32 datatype; /* element datatype */
-    uint32 offset;  /* the first value offset equal to GS_VMEM_PAGE_SIZE * n.m,
+    uint32 offset;  /* the first value offset equal to CT_VMEM_PAGE_SIZE * n.m,
                        1) when uncompressed, m = 0 and n >= 1
                        2) when compressed, (m = 0 and n >= 1) or (m > 0 and n >=0) */
 } array_head_t;
@@ -130,11 +130,11 @@ typedef struct st_clt_array_assist {
 
 #define ELEMENT_NULL_OFFSET       UINT32_MAX
 #define ELEMENT_IS_NULL(dir)      ((dir)->size == 0 && (dir)->offset == ELEMENT_NULL_OFFSET)
-#define MAX_DIR_COUNT_IN_ONE_VM   (GS_VMEM_PAGE_SIZE / sizeof(elem_dir_t))
-#define COMPRESS_ARRAY   GS_TRUE
-#define UNCOMPRESS_ARRAY GS_FALSE
+#define MAX_DIR_COUNT_IN_ONE_VM   (CT_VMEM_PAGE_SIZE / sizeof(elem_dir_t))
+#define COMPRESS_ARRAY   CT_TRUE
+#define UNCOMPRESS_ARRAY CT_FALSE
 #define ARRAY_USED_VM_PAGES 2
-#define ARRAY_UNUSED_SPACE_IN_VM (GS_VMEM_PAGE_SIZE / 128)
+#define ARRAY_UNUSED_SPACE_IN_VM (CT_VMEM_PAGE_SIZE / 128)
 
 #define ARRAY_INIT_ASSIST_INFO(aa, stmt)                \
     do {                                                \
@@ -172,7 +172,7 @@ static inline uint32 cm_get_vlob_page_num(vm_pool_t *vm_pool, vm_lob_t *vlob)
 {
     uint32 count = 0;
     uint32 vmid = vlob->entry_vmid;
-    while (vmid != GS_INVALID_ID32) {
+    while (vmid != CT_INVALID_ID32) {
         count++;
         vmid = vm_get_ctrl(vm_pool, vmid)->sort_next;
     }
@@ -183,68 +183,68 @@ static inline status_t cm_get_array_head(handle_t session, vm_pool_t *vm_pool, v
 {
     vm_page_t *page = NULL;
     uint32 vmid = vlob->entry_vmid;
-    GS_RETURN_IFERR(vm_open(session, vm_pool, vmid, &page));
+    CT_RETURN_IFERR(vm_open(session, vm_pool, vmid, &page));
     *head = *(array_head_t *)page->data;
     vm_close(session, vm_pool, vmid, VM_ENQUE_HEAD);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_get_array_head_offset(handle_t se, vm_pool_t *pool, var_array_t *v, uint32* head_offset)
 {
     vm_page_t *page = NULL;
-    GS_RETURN_IFERR(vm_open(se, pool, v->value.vm_lob.entry_vmid, &page));
+    CT_RETURN_IFERR(vm_open(se, pool, v->value.vm_lob.entry_vmid, &page));
     array_head_t *head = (array_head_t *)page->data;
     *head_offset = head->offset;
     vm_close(se, pool, v->value.vm_lob.entry_vmid, VM_ENQUE_TAIL);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* 1) after sql_compress_array_xxx, head_offset is equal to ctrl_size
-   2) before sql_compress_array_xxx, head_offset is euqal to (n * GS_VMEM_PAGE_SIZE)
-      notice: when ctrl_size is equal to (n * GS_VMEM_PAGE_SIZE), it is the same scene with 1)
+   2) before sql_compress_array_xxx, head_offset is euqal to (n * CT_VMEM_PAGE_SIZE)
+      notice: when ctrl_size is equal to (n * CT_VMEM_PAGE_SIZE), it is the same scene with 1)
 */
 static inline status_t array_actual_size(handle_t session, vm_pool_t *pool, var_array_t *v,
     uint32* total_size, uint32* head_offset)
 {
     uint32 ctrl_size = sizeof(array_head_t) + v->count * sizeof(elem_dir_t);
     
-    GS_RETURN_IFERR(cm_get_array_head_offset(session, pool, v, head_offset));
+    CT_RETURN_IFERR(cm_get_array_head_offset(session, pool, v, head_offset));
 
     if (*head_offset == ctrl_size) {
         *total_size = v->value.vm_lob.size;
     } else {
-        *total_size = v->value.vm_lob.size - (GS_VMEM_PAGE_SIZE - ctrl_size % GS_VMEM_PAGE_SIZE);
+        *total_size = v->value.vm_lob.size - (CT_VMEM_PAGE_SIZE - ctrl_size % CT_VMEM_PAGE_SIZE);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_update_mtrl_array_count(handle_t session, vm_pool_t *pool, var_array_t *v_array)
 {
     vm_page_t *page = NULL;
-    GS_RETURN_IFERR(vm_open(session, pool, v_array->value.vm_lob.entry_vmid, &page));
+    CT_RETURN_IFERR(vm_open(session, pool, v_array->value.vm_lob.entry_vmid, &page));
     array_head_t *head = (array_head_t *)page->data;
     v_array->count = head->count;
     vm_close(session, pool, v_array->value.vm_lob.entry_vmid, VM_ENQUE_TAIL);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* after compress the space between last dir and first data
-   the offset of array_head_t is n.m * GS_VMEM_PAGE_SIZE,
+   the offset of array_head_t is n.m * CT_VMEM_PAGE_SIZE,
    and when m > 0 , dir page count should add one */
 static inline uint32 cm_get_dir_page_count(uint32 head_offset)
 {
-    uint32 count = head_offset / GS_VMEM_PAGE_SIZE;
-    return ((head_offset % GS_VMEM_PAGE_SIZE > 0) ? (count + 1) : count);
+    uint32 count = head_offset / CT_VMEM_PAGE_SIZE;
+    return ((head_offset % CT_VMEM_PAGE_SIZE > 0) ? (count + 1) : count);
 }
 
 static inline elem_dir_t* cm_get_array_end_dir(char* data, uint32 dir_end, bool32 is_last_dir_page)
 {
     elem_dir_t* end_dir = NULL;
     if (is_last_dir_page) {
-        end_dir = (elem_dir_t *)(data + (dir_end % GS_VMEM_PAGE_SIZE));
+        end_dir = (elem_dir_t *)(data + (dir_end % CT_VMEM_PAGE_SIZE));
     } else {
-        end_dir = (elem_dir_t *)(data + GS_VMEM_PAGE_SIZE - sizeof(elem_dir_t));
+        end_dir = (elem_dir_t *)(data + CT_VMEM_PAGE_SIZE - sizeof(elem_dir_t));
     }
     return end_dir;
 }

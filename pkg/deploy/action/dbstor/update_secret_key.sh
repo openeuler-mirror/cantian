@@ -2,11 +2,11 @@
 CURRENT_PATH=$(dirname $(readlink -f $0))
 KEY_TYPE=$1
 
-user=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "deploy_user")
+cantian_user=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "deploy_user")
 current_user=$(whoami)
 
-if [[ ${user} != ${current_user} ]]; then
-    echo "please switch the current user to ${user}"
+if [[ ${cantian_user} != ${current_user} ]]; then
+    echo "please switch the current user to ${cantian_user}"
     exit 1
 fi
 

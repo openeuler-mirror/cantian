@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -119,10 +119,11 @@ typedef struct st_knl_alterdb_archivelog {
     bool32 all_delete;
     bool32 force_delete;
     date_t until_time;
+    bool32 delete_abnormal;
 } knl_alterdb_archivelog_t;
 
 typedef struct st_knl_alterdb_backupset {
-    char tag[GS_NAME_BUFFER_SIZE];
+    char tag[CT_NAME_BUFFER_SIZE];
     bool32 force_delete;
 } knl_alterdb_backupset_t;
 
@@ -138,9 +139,10 @@ typedef struct st_knl_alterdb_datafile {
 
 typedef enum en_db_open_status {
     DB_OPEN_STATUS_NORMAL = 0,
-    DB_OPEN_STATUS_RESTRICT = 1,
-    DB_OPEN_STATUS_UPGRADE = 2,
-    DB_OPEN_STATUS_UPGRADE_PHASE_2 = 3,
+    DB_OPEN_STATUS_RESTRICT,
+    DB_OPEN_STATUS_MAX_FIX,
+    DB_OPEN_STATUS_UPGRADE,
+    DB_OPEN_STATUS_UPGRADE_PHASE_2,
 } db_open_status_t;
 
 typedef enum en_db_readonly_reason {
@@ -221,6 +223,7 @@ status_t knl_startup(knl_handle_t kernel);
  * Created       : 2016-10-27 11:31:53
  * Last Modified :
  * Description   :
+
  */
 void knl_construct_oltpdatabase(void);
 
@@ -247,15 +250,15 @@ typedef struct st_knl_database_link_def {
     sql_text_t name;
     text_t user;
     text_t url;
-    char password[GS_PASSWORD_BUFFER_SIZE];
+    SENSI_INFO char password[CT_PASSWORD_BUFFER_SIZE];
 } knl_dblink_def_t;
 
 typedef struct st_knl_dblink_desc {
     uint32 owner_id;                        /* user id that create the dblink */
     uint32 id;                              /* dblink id */
     uint32 node_id;                         /* datanode id */
-    char name[GS_NAME_BUFFER_SIZE];         /* dblink name */
-    char user[GS_NAME_BUFFER_SIZE];         /* dblink user */
+    char name[CT_NAME_BUFFER_SIZE];         /* dblink name */
+    char user[CT_NAME_BUFFER_SIZE];         /* dblink user */
 } knl_dblink_desc_t;
 
 void knl_get_link_name(knl_dictionary_t *dc, text_t *user, text_t *objname);
@@ -272,7 +275,7 @@ typedef enum en_archive_mode {
  */
 typedef struct st_knl_database_def {
     text_t name;                                 // name of database
-    char sys_password[GS_PASSWORD_BUFFER_SIZE];  // sys pwd of database
+    SENSI_INFO char sys_password[CT_PASSWORD_BUFFER_SIZE];  // sys pwd of database
     text_t charset;                              // charset of database
     knl_space_def_t system_space;                // system table space handler
     knl_space_def_t user_space;                  // user tablespace handler
@@ -293,10 +296,10 @@ status_t knl_create_database(knl_handle_t session, knl_database_def_t *def, bool
 status_t knl_check_user_4mysql(knl_handle_t session, knl_user_def_t *user_def, bool32 *exist);
 status_t knl_create_space_internal(knl_handle_t session, knl_handle_t stmt, knl_space_def_t *def);
 status_t knl_create_space4mysql(knl_handle_t session, knl_handle_t stmt, knl_space_def_t *def);
-status_t knl_create_user_internal(knl_handle_t session, knl_user_def_t *def);
-status_t knl_create_user4mysql(knl_handle_t session, knl_user_def_t *def);
+status_t knl_create_user_internal(knl_handle_t session, knl_handle_t stmt, knl_user_def_t *def);
+status_t knl_create_user4mysql(knl_handle_t session, knl_handle_t stmt, knl_user_def_t *def);
 status_t knl_create_database4mysql(knl_handle_t session, knl_handle_t stmt, knl_space_def_t *space_def,
-                                   knl_user_def_t *user_def);
+                                   knl_user_def_t *user_def, bool32 is_mysql_sys_db);
 status_t knl_drop_user_internal(knl_handle_t session, knl_drop_user_t *def);
 status_t knl_drop_user4mysql(knl_handle_t session, knl_handle_t stmt, knl_drop_user_t *def);
 status_t knl_drop_space_internal(knl_handle_t session, knl_handle_t stmt, knl_drop_space_def_t *def);

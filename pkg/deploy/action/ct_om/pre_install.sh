@@ -34,7 +34,7 @@ if [ -d ${CT_OM_LOG_PATH} ]; then
         exit 1
     fi
 
-    chown -hR ctmgruser:cantianmgrgroup ${CT_OM_LOG_PATH}
+    chown -hR ctmgruser:ctmgruser ${CT_OM_LOG_PATH}
     if [ $? -eq 0 ]; then
         logAndEchoInfo "change owner of ${CT_OM_LOG_PATH} success"
     else
@@ -45,7 +45,7 @@ fi
 
 # 原子操作，仅将应为低权限属主的脚本改为低权限
 for ctmgr_file in "${CTMGR_USER_FILE_LIST[@]}"; do
-    chown -h ctmgruser:cantianmgrgroup "${CURRENT_PATH}/${ctmgr_file}"
+    chown -h ctmgruser:ctmgruser "${CURRENT_PATH}/${ctmgr_file}"
     if [ $? -eq 0 ]; then
         logAndEchoInfo "change owner of ${ctmgr_file} to ctmgruser success"
     else
@@ -64,8 +64,4 @@ if [[ ${ACTION_TYPE} != "rollback" ]];then
         logAndEchoError "copy ct_om path to /opt/cantian/action failed"
         exit 1
     fi
-fi
-
-if [ -d "${CT_OM_CTMGR}" ];then
-    chown -hR ctmgruser:cantianmgrgroup "${CT_OM_CTMGR}"
 fi

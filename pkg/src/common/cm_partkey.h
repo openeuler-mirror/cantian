@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -82,9 +82,9 @@ typedef struct st_part_decode_key {
 
 #define CM_CHECK_KEY_FREE(part_key, len)                          \
     {                                                             \
-        if ((part_key)->size + (len) > GS_MAX_COLUMN_SIZE) {      \
-            GS_THROW_ERROR(ERR_MAX_PART_KEY, GS_MAX_COLUMN_SIZE); \
-            return GS_ERROR;                                      \
+        if ((part_key)->size + (len) > CT_MAX_COLUMN_SIZE) {      \
+            CT_THROW_ERROR(ERR_MAX_PART_KEY, CT_MAX_COLUMN_SIZE); \
+            return CT_ERROR;                                      \
         }                                                         \
     }
 
@@ -167,7 +167,7 @@ static inline status_t part_put_int32(part_key_t *part_key, int32 val)
     part_set_key_bits(part_key, PART_KEY_BITS_4);
     part_key->column_count++;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t part_put_uint32(part_key_t *part_key, uint32 val)
@@ -186,12 +186,40 @@ static inline status_t part_put_int64(part_key_t *part_key, int64 val)
     part_set_key_bits(part_key, PART_KEY_BITS_8);
     part_key->column_count++;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t part_put_uint64(part_key_t *part_key, uint64 val)
 {
     return part_put_int64(part_key, (int64)val);
+}
+
+static inline status_t part_put_int64_datetime(part_key_t *part_key, int64 val, int32 pre)
+{
+    CM_POINTER(part_key);
+    CM_CHECK_KEY_FREE(part_key, sizeof(int64));
+
+    cm_datetime_int_to_binary(val, ((uchar *)part_key + part_key->size), pre);
+    part_key->size += (uint16)sizeof(int64);
+
+    part_set_key_bits(part_key, PART_KEY_BITS_8);
+    part_key->column_count++;
+
+    return CT_SUCCESS;
+}
+
+static inline status_t part_put_int64_time(part_key_t *part_key, int64 val, int32 pre)
+{
+    CM_POINTER(part_key);
+    CM_CHECK_KEY_FREE(part_key, sizeof(int64));
+
+    cm_time_int_to_binary(val, ((uchar *)part_key + part_key->size), pre);
+    part_key->size += (uint16)sizeof(int64);
+
+    part_set_key_bits(part_key, PART_KEY_BITS_8);
+    part_key->column_count++;
+
+    return CT_SUCCESS;
 }
 
 static inline status_t part_put_real(part_key_t *part_key, double val)
@@ -205,7 +233,7 @@ static inline status_t part_put_real(part_key_t *part_key, double val)
     part_set_key_bits(part_key, PART_KEY_BITS_8);
     part_key->column_count++;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t part_put_text(part_key_t *part_key, text_t *text)
@@ -216,7 +244,7 @@ static inline status_t part_put_text(part_key_t *part_key, text_t *text)
 
     if (text->str == NULL) {
         part_put_null(part_key);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     actual_size = text->len + sizeof(uint16);
@@ -229,14 +257,14 @@ static inline status_t part_put_text(part_key_t *part_key, text_t *text)
     addr += sizeof(uint16);
     if (text->len != 0) {
         MEMS_RETURN_IFERR(
-            memcpy_sp(addr, (size_t)((char *)part_key + GS_MAX_COLUMN_SIZE - addr), text->str, text->len));
+            memcpy_sp(addr, (size_t)((char *)part_key + CT_MAX_COLUMN_SIZE - addr), text->str, text->len));
     }
     part_key->size += (uint16)actual_size;
 
     part_set_key_bits(part_key, PART_KEY_BITS_VAR);
     part_key->column_count++;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t part_put_str(part_key_t *part_key, char *str, uint32 str_len)
@@ -253,7 +281,7 @@ static inline status_t part_put_bin(part_key_t *part_key, binary_t *bin)
 
     if (bin->bytes == NULL) {
         part_put_null(part_key);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     actual_size = bin->size + sizeof(uint16);
@@ -265,14 +293,14 @@ static inline status_t part_put_bin(part_key_t *part_key, binary_t *bin)
     addr += sizeof(uint16);
     if (bin->size != 0) {
         MEMS_RETURN_IFERR(
-            memcpy_sp(addr, (size_t)((char *)part_key + GS_MAX_COLUMN_SIZE - addr), bin->bytes, bin->size));
+            memcpy_sp(addr, (size_t)((char *)part_key + CT_MAX_COLUMN_SIZE - addr), bin->bytes, bin->size));
     }
     part_key->size += (uint16)actual_size;
 
     part_set_key_bits(part_key, PART_KEY_BITS_VAR);
     part_key->column_count++;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #define part_put_date          part_put_int64
@@ -328,13 +356,13 @@ static inline status_t part_put_dec4_core(part_key_t *part_key, dec4_t *dval)
     }
     cm_dec4_copy(d4, dval);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t part_put_dec4(part_key_t *part_key, dec8_t *d8)
 {
     dec4_t d4;
-    GS_RETURN_IFERR(cm_dec_8_to_4(&d4, d8));
+    CT_RETURN_IFERR(cm_dec_8_to_4(&d4, d8));
     return part_put_dec4_core(part_key, &d4);
 }
 
@@ -363,17 +391,17 @@ static status_t part_put_dec2_core(part_key_t *part_key, dec2_t *dval)
         d2->cells[GET_CELLS_SIZE(dval) + i] = 0;
     }
     cm_dec2_copy_payload(d2, (const payload_t *)GET_PAYLOAD(dval), dval->len);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t part_put_dec2(part_key_t *part_key, dec8_t *d8)
 {
     dec2_t dval;
-    GS_RETURN_IFERR(cm_dec_8_to_2(&dval, d8));
+    CT_RETURN_IFERR(cm_dec_8_to_2(&dval, d8));
     return part_put_dec2_core(part_key, &dval);
 }
 
-static inline status_t part_put_data(part_key_t *part_key, void *data, uint32 len, gs_type_t type)
+static inline status_t part_put_data(part_key_t *part_key, void *data, uint32 len, ct_type_t type)
 {
     char *addr = NULL;
     uint32 actual_size;
@@ -381,41 +409,44 @@ static inline status_t part_put_data(part_key_t *part_key, void *data, uint32 le
     CM_POINTER2(part_key, data);
 
     switch (type) {
-        case GS_TYPE_UINT32:
-        case GS_TYPE_INTEGER:
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_UINT32:
+        case CT_TYPE_INTEGER:
+        case CT_TYPE_INTERVAL_YM:
             actual_size = (uint16)sizeof(int32);
             addr = (char *)part_key + part_key->size;
             *(int32 *)addr = *(int32 *)data;
             part_set_key_bits(part_key, PART_KEY_BITS_4);
             break;
 
-        case GS_TYPE_BIGINT:
-        case GS_TYPE_REAL:
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_LTZ:
-        case GS_TYPE_INTERVAL_DS:
+        case CT_TYPE_BIGINT:
+        case CT_TYPE_REAL:
+        case CT_TYPE_DATE:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_DATE_MYSQL:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_INTERVAL_DS:
             actual_size = (uint16)sizeof(int64);
             addr = (char *)part_key + part_key->size;
             *(int64 *)addr = *(int64 *)data;
             part_set_key_bits(part_key, PART_KEY_BITS_8);
             break;
         
-        case GS_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIMESTAMP_TZ:
             actual_size = (uint16)sizeof(timestamp_tz_t);
             addr = (char *)part_key + part_key->size;
             *(timestamp_tz_t*)addr = *(timestamp_tz_t *)data;
             part_set_key_bits(part_key, PART_KEY_BITS_VAR);
             break;
 
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
-        case GS_TYPE_BINARY:
-        case GS_TYPE_RAW:
-        case GS_TYPE_NUMBER2:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
+        case CT_TYPE_BINARY:
+        case CT_TYPE_RAW:
+        case CT_TYPE_NUMBER2:
             actual_size = len + sizeof(uint16);
             actual_size = CM_ALIGN4(actual_size);
             CM_CHECK_KEY_FREE(part_key, actual_size);
@@ -424,13 +455,13 @@ static inline status_t part_put_data(part_key_t *part_key, void *data, uint32 le
             *(uint16 *)addr = (uint16)len;
             addr += sizeof(uint16);
             if (len != 0) {
-                MEMS_RETURN_IFERR(memcpy_sp(addr, (size_t)((char *)part_key + GS_MAX_COLUMN_SIZE - addr), data, len));
+                MEMS_RETURN_IFERR(memcpy_sp(addr, (size_t)((char *)part_key + CT_MAX_COLUMN_SIZE - addr), data, len));
             }
             part_set_key_bits(part_key, PART_KEY_BITS_VAR);
             break;
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_DECIMAL:
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_DECIMAL:
             addr = (char *)part_key + part_key->size;
             if (len <= PART_KEY_BITS_4_LEN) {
                 actual_size = 4;
@@ -455,19 +486,19 @@ static inline status_t part_put_data(part_key_t *part_key, void *data, uint32 le
             }
 
             if (len != 0) {
-                MEMS_RETURN_IFERR(memcpy_sp(addr, GS_MAX_COLUMN_SIZE - part_key->size, data, len));
+                MEMS_RETURN_IFERR(memcpy_sp(addr, CT_MAX_COLUMN_SIZE - part_key->size, data, len));
             }
             break;
 
         default:
-            GS_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "invalid partition key type");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "invalid partition key type");
+            return CT_ERROR;
     }
 
     part_key->size += (uint16)actual_size;
     part_key->column_count++;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void part_decode_key(part_key_t *part_key, part_decode_key_t *decoder)
@@ -476,7 +507,7 @@ static inline void part_decode_key(part_key_t *part_key, part_decode_key_t *deco
     uint16 i, pos, ex_maps;
 
     CM_POINTER2(part_key, decoder);
-    CM_ASSERT(part_key->column_count < GS_MAX_COLUMNS);
+    CM_ASSERT(part_key->column_count < CT_MAX_COLUMNS);
 
     decoder->count = part_key->column_count;
     decoder->buf = (char *)part_key;
@@ -513,13 +544,13 @@ static inline void part_decode_key(part_key_t *part_key, part_decode_key_t *deco
 }
 
 #define NUMBER_ZERO_STORAGR_LEN 2
-static inline void part_get_number_zero(gs_type_t type, char* data, int max_len, uint32* len)
+static inline void part_get_number_zero(ct_type_t type, char* data, int max_len, uint32* len)
 {
     CM_ASSERT(max_len >= NUMBER_ZERO_STORAGR_LEN);
-    if (type == GS_TYPE_NUMBER2) {
+    if (type == CT_TYPE_NUMBER2) {
         *data = ZERO_EXPN;
         *len = sizeof(c2typ_t);
-    } else if (type == GS_TYPE_NUMBER || type == GS_TYPE_DECIMAL) {
+    } else if (type == CT_TYPE_NUMBER || type == CT_TYPE_DECIMAL) {
         ((dec4_t*)data)->head = 0;
         *len = sizeof(c4typ_t);
     }

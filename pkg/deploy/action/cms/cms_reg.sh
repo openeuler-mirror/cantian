@@ -9,9 +9,14 @@ CMS_DEPLOY_LOG_FILE=/opt/cantian/cms/log/cms_deploy.log
 LOOP_TIME=1
 
 ACTION=$1
+
+function log() {
+  printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1" >> ${CMS_DEPLOY_LOG_FILE}
+}
+
 case "$ACTION" in
     enable)
-        echo "[cms reg] begin to set cms daemon enable. [Line:${LINENO}, File:${SCRIPT_NAME}]" >> ${CMS_DEPLOY_LOG_FILE}
+        log "[cms reg] begin to set cms daemon enable. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         if [ ! -f ${CMS_ENABLE_FLAG} ]; then
             touch ${CMS_ENABLE_FLAG}
             if [ $? -eq 0 ];then
@@ -20,7 +25,7 @@ case "$ACTION" in
                 echo "RES_SUCCESS"
                 exit 0
             else
-                echo "Error: [cms reg] set cms daemon enable failed. [Line:${LINENO}, File:${SCRIPT_NAME}]" >> ${CMS_DEPLOY_LOG_FILE}
+                log "Error: [cms reg] set cms daemon enable failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
                 exit 1
             fi
         fi
@@ -29,7 +34,7 @@ case "$ACTION" in
         exit 0
         ;;
     disable)
-        echo "[cms reg] begin to set cms daemon disable. [Line:${LINENO}, File:${SCRIPT_NAME}]" >> ${CMS_DEPLOY_LOG_FILE}
+        log "[cms reg] begin to set cms daemon disable. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         if [ -f ${CMS_ENABLE_FLAG} ]; then
             rm -f ${CMS_ENABLE_FLAG}
             if [ $? -eq 0 ];then
@@ -37,7 +42,7 @@ case "$ACTION" in
                 echo "RES_SUCCESS"
                 exit 0
             else
-                echo "Error: [cms reg] set cms daemon disable failed. [Line:${LINENO}, File:${SCRIPT_NAME}]" >> ${CMS_DEPLOY_LOG_FILE}
+                log "Error: [cms reg] set cms daemon disable failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
                 exit 1
             fi
         fi

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,10 +22,14 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "cm_date.h"
 #include "cm_decimal.h"
 #include "cm_nls.h"
 #include "cm_timer.h"
+
+#define IS_MYSQL_NEW_TYPE(type) \
+    (type == CT_TYPE_DATETIME_MYSQL || type == CT_TYPE_TIME_MYSQL || type == CT_TYPE_DATE_MYSQL)
 
 uint16 g_month_days[2][12] = {
     { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 },
@@ -75,6 +79,27 @@ static text_t g_month_roman_names[12] = {
     { "XII",  3 }
 };
 
+const uint64 powers_of_10[20] = {1,
+                               10,
+                               100,
+                               1000,
+                               10000UL,
+                               100000UL,
+                               1000000UL,
+                               10000000UL,
+                               100000000ULL,
+                               1000000000ULL,
+                               10000000000ULL,
+                               100000000000ULL,
+                               1000000000000ULL,
+                               10000000000000ULL,
+                               100000000000000ULL,
+                               1000000000000000ULL,
+                               10000000000000000ULL,
+                               100000000000000000ULL,
+                               1000000000000000000ULL,
+                               10000000000000000000ULL};
+
 typedef enum g_date_time_mask {
     MASK_NONE = 0,
     MASK_YEAR = 0x0000001,
@@ -94,436 +119,437 @@ static format_item_t g_formats[] = {
         .id = FMT_YEAR4,
         .fmask = MASK_YEAR,
         .placer = 4,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"%D", 2 },
         .id = FMT_DAY_OF_MONTH,
         .fmask = MASK_DAY,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"%M", 2 },
         .id = FMT_MONTH_NAME,
         .fmask = MASK_MONTH,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"%h", 2 },
         .id = FMT_HOUR_OF_DAY24,
         .fmask = MASK_HOUR,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"%i", 2 },
         .id = FMT_MINUTE,
         .fmask = MASK_MINUTE,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"%s", 2 },
         .id = FMT_SECOND,
         .fmask = MASK_SECOND,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"%x", 2 },
         .id = FMT_YEAR4,
         .fmask = MASK_YEAR,
         .placer = 4,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)" ", 1 },
         .id = FMT_SPACE,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"-", 1 },
         .id = FMT_MINUS,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"\\", 1 },
         .id = FMT_SLASH,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"/", 1 },
         .id = FMT_BACK_SLASH,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)",", 1 },
         .id = FMT_COMMA,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)".", 1 },
         .id = FMT_DOT,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)";", 1 },
         .id = FMT_SEMI_COLON,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)":", 1 },
         .id = FMT_COLON,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"X", 1 },
         .id = FMT_X,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"\"", 1 },
         .id = FMT_DQ_TEXT,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"AM", 2 },
         .id = FMT_AM_INDICATOR,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"A.M.", 4 },
         .id = FMT_AM_INDICATOR,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"PM", 2 },
         .id = FMT_PM_INDICATOR,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"P.M.", 4 },
         .id = FMT_PM_INDICATOR,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"CC", 2 },
         .id = FMT_CENTURY,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"SCC", 3 },
         .id = FMT_CENTURY,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"DAY", 3 },
         .id = FMT_DAY_NAME,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"DY", 2 },
         .id = FMT_DAY_ABBR_NAME,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"DDD", 3 },
         .id = FMT_DAY_OF_YEAR,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"DD", 2 },
         .id = FMT_DAY_OF_MONTH,
         .fmask = MASK_DAY,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"D", 1 },
         .id = FMT_DAY_OF_WEEK,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"FF1", 3 },
         .id = FMT_FRAC_SECOND1,
         .fmask = MASK_USEC,
         .placer = 1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_FALSE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_FALSE,
     },
     {
         .name = { (char *)"FF2", 3 },
         .id = FMT_FRAC_SECOND2,
         .fmask = MASK_USEC,
         .placer = 2,
-        .reversible = GS_TRUE,
-        .dt_used = GS_FALSE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_FALSE,
     },
     {
         .name = { (char *)"FF3", 3 },
         .id = FMT_FRAC_SECOND3,
         .fmask = MASK_USEC,
         .placer = 3,
-        .reversible = GS_TRUE,
-        .dt_used = GS_FALSE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_FALSE,
     },
     {
         .name = { (char *)"FF4", 3 },
         .id = FMT_FRAC_SECOND4,
         .fmask = MASK_USEC,
         .placer = 4,
-        .reversible = GS_TRUE,
-        .dt_used = GS_FALSE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_FALSE,
     },
     {
         .name = { (char *)"FF5", 3 },
         .id = FMT_FRAC_SECOND5,
         .fmask = MASK_USEC,
         .placer = 5,
-        .reversible = GS_TRUE,
-        .dt_used = GS_FALSE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_FALSE,
     },
     {
         .name = { (char *)"FF6", 3 },
         .id = FMT_FRAC_SECOND6,
         .fmask = MASK_USEC,
         .placer = 6,
-        .reversible = GS_TRUE,
-        .dt_used = GS_FALSE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_FALSE,
     },
     {
         .name = { (char *)"FF", 2 },
         .id = FMT_FRAC_SEC_VAR_LEN,
         .fmask = MASK_USEC,
         .placer = 6,
-        .reversible = GS_TRUE,
-        .dt_used = GS_FALSE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_FALSE,
     }, /* FF must be after FF3, FF6, FF9 */
     {
         .name = { (char *)"HH12", 4 },
         .id = FMT_HOUR_OF_DAY12,
         .fmask = MASK_HOUR,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"HH24", 4 },
         .id = FMT_HOUR_OF_DAY24,
         .fmask = MASK_HOUR,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"HH", 2 },
         .id = FMT_HOUR_OF_DAY12,
         .fmask = MASK_HOUR,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"MI", 2 },
         .id = FMT_MINUTE,
         .fmask = MASK_MINUTE,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"MM", 2 },
         .id = FMT_MONTH,
         .fmask = MASK_MONTH,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"RM", 2 },
         .id = FMT_MONTH_RM,
         .fmask = MASK_MONTH,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"MONTH", 5 },
         .id = FMT_MONTH_NAME,
         .fmask = MASK_MONTH,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"MON", 3 },
         .id = FMT_MONTH_ABBR_NAME,
         .fmask = MASK_MONTH,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"Q", 1 },
         .id = FMT_QUARTER,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"SSSSS", 5 },
         .id = FMT_SECOND_PASS,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"SS", 2 },
         .id = FMT_SECOND,
         .fmask = MASK_SECOND,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"WW", 2 },
         .id = FMT_WEEK_OF_YEAR,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"W", 1 },
         .id = FMT_WEEK_OF_MONTH,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"YYYY", 4 },
         .id = FMT_YEAR4,
         .fmask = MASK_YEAR,
         .placer = 4,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"YYY", 3 },
         .id = FMT_YEAR3,
         .fmask = MASK_NONE,
         .placer = 3,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"YY", 2 },
         .id = FMT_YEAR2,
         .fmask = MASK_NONE,
         .placer = 2,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"Y", 1 },
         .id = FMT_YEAR1,
         .fmask = MASK_NONE,
         .placer = 1,
-        .reversible = GS_FALSE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_FALSE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"TZH", 3 },
         .id = FMT_TZ_HOUR,
         .fmask = MASK_TZ_HOUR,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
     {
         .name = { (char *)"TZM", 3 },
         .id = FMT_TZ_MINUTE,
         .fmask = MASK_TZ_MINUTE,
         .placer = -1,
-        .reversible = GS_TRUE,
-        .dt_used = GS_TRUE,
+        .reversible = CT_TRUE,
+        .dt_used = CT_TRUE,
     },
 };
 
 #define DATE_FORMAT_COUNT (sizeof(g_formats) / sizeof(format_item_t))
+#define EVEN_NUM 2
 
 #ifdef __cplusplus
 extern "C" {
@@ -563,20 +589,20 @@ static bool32 cm_is_all_zero_time(const date_detail_t *datetime)
 {
     if (datetime->year == 0 && datetime->mon == 0 && datetime->day == 0 && datetime->hour == 0 && datetime->min == 0 &&
         datetime->sec == 0 &&  datetime->millisec == 0 && datetime->microsec == 0 && datetime->nanosec == 0) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static bool32 cm_check_valid_zero_time(date_detail_t *datetime)
 {
     if (cm_is_all_zero_time(datetime)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
     if (datetime->day == 0 || datetime->mon == 0 || datetime->year == 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void cm_now_detail(date_detail_t *detail)
@@ -684,10 +710,10 @@ bool32 cm_str2week(text_t *value, uint8 *week)
     for (uint8 i = 0; i < day_number_of_week; i++) {
         if (cm_text_str_contain_equal_ins(value, g_week_days[i].str, 3)) {
             *week = i;
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 void cm_encode_timestamp_tz(const date_detail_t *detail, timestamp_tz_t *tstz)
 {
@@ -768,7 +794,7 @@ void cm_decode_date(date_t date_input, date_detail_t *detail)
     detail->millisec = (uint16)(time % MILLISECS_PER_SECOND);
     time /= MILLISECS_PER_SECOND;
 
-    detail->hour = (uint8)(time / SECONDS_PER_HOUR);
+    detail->hour = (int16)(time / SECONDS_PER_HOUR);
     time -= (uint32)detail->hour * SECONDS_PER_HOUR;
 
     detail->min = (uint8)(time / SECONDS_PER_MIN);
@@ -926,8 +952,8 @@ date_t cm_encode_ora_date(uint8 *ora_date)
     return cm_encode_date(&date_detail);
 }
 
-#define GS_SET_DATETIME_FMT_ERROR \
-    GS_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "datetime")
+#define CT_SET_DATETIME_FMT_ERROR \
+    CT_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "datetime")
 
 /*
  * Fetch the double-quote-text item from format text, and extract the text into extra
@@ -939,8 +965,8 @@ static inline status_t cm_fetch_dqtext_item(text_t *fmt, text_t *extra, bool32 d
     CM_REMOVE_FIRST(fmt);  // remove the first quote "
     pos = cm_text_chr(fmt, '"');
     if (pos < 0) {
-        GS_SET_DATETIME_FMT_ERROR;
-        return GS_ERROR;
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
     }
 
     extra->str = fmt->str;
@@ -949,7 +975,7 @@ static inline status_t cm_fetch_dqtext_item(text_t *fmt, text_t *extra, bool32 d
         cm_trim_text(extra);
     }
     CM_REMOVE_FIRST_N(fmt, pos + 1);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -977,12 +1003,12 @@ static inline status_t cm_fetch_format_item(text_t *fmt, format_item_t **item, t
             }
 
             CM_REMOVE_FIRST_N(fmt, cmp_text.len);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
-    GS_SET_DATETIME_FMT_ERROR;
-    return GS_ERROR;
+    CT_SET_DATETIME_FMT_ERROR;
+    return CT_ERROR;
 }
 
 #define CM_YEARS_PER_CMNTURY 100u
@@ -1155,13 +1181,13 @@ static inline status_t cm_append_date_text(const date_detail_t *detail, const da
                 if (date_text->len > 0 && date_text->str[date_text->len - 1] == '.') {
                     date_text->len--;
                 }
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
 
             frac = (uint32)detail->millisec * MICROSECS_PER_MILLISEC + detail->microsec;
             PRTS_RETURN_IFERR(snprintf_s(item_str, FORMAT_ITEM_BUFFER_SIZE, FORMAT_ITEM_BUFFER_SIZE - 1, "%06u",
                                          frac));
-            CM_ASSERT(prec <= GS_MAX_DATETIME_PRECISION);
+            CM_ASSERT(prec <= CT_MAX_DATETIME_PRECISION);
             append_text.str = item_str;
             append_text.len = prec;
             break;
@@ -1189,7 +1215,7 @@ static inline status_t cm_append_date_text(const date_detail_t *detail, const da
             break;
 
         default:
-            return GS_SUCCESS;
+            return CT_SUCCESS;
     }
 
     if (append_text.str == NULL) {
@@ -1197,7 +1223,7 @@ static inline status_t cm_append_date_text(const date_detail_t *detail, const da
     }
 
     cm_concat_text(date_text, max_len, &append_text);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static uint32 cm_get_day_of_year(const date_detail_t *detail)
@@ -1262,33 +1288,33 @@ static status_t cm_detail2text(date_detail_t *detail, text_t *fmt, uint32 precis
     text->len = 0;
 
     while (fmt->len > 0) {
-        if (cm_fetch_format_item(fmt, &item, &fmt_extra, GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_fetch_format_item(fmt, &item, &fmt_extra, CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         /* check fmt */
         if ((!cm_validate_timezone(detail->tz_offset)) && (item->id == FMT_TZ_HOUR || item->id == FMT_TZ_MINUTE)) {
-            GS_SET_DATETIME_FMT_ERROR;
-            return GS_ERROR;
+            CT_SET_DATETIME_FMT_ERROR;
+            return CT_ERROR;
         }
 
         if (detail->day == 0 && (item->id == FMT_DAY_NAME || item->id == FMT_DAY_ABBR_NAME)) {
-            GS_SET_DATETIME_FMT_ERROR;
-            return GS_ERROR;
+            CT_SET_DATETIME_FMT_ERROR;
+            return CT_ERROR;
         }
 
         if (detail->mon == 0 &&
             (item->id == FMT_MONTH_ABBR_NAME || item->id == FMT_MONTH_RM || item->id == FMT_MONTH_NAME)) {
-            GS_SET_DATETIME_FMT_ERROR;
-            return GS_ERROR;
+            CT_SET_DATETIME_FMT_ERROR;
+            return CT_ERROR;
         }
 
-        GS_RETURN_IFERR(cm_append_date_text(detail, &detail_ex, item,
+        CT_RETURN_IFERR(cm_append_date_text(detail, &detail_ex, item,
                                             &fmt_extra, precision, text, max_len));
     }
 
     CM_NULL_TERM(text);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_verify_date_fmt(const text_t *fmt)
@@ -1299,24 +1325,24 @@ status_t cm_verify_date_fmt(const text_t *fmt)
     text_t fmt_text = *fmt;
 
     while (fmt_text.len > 0) {
-        if (cm_fetch_format_item(&fmt_text, &fmt_item, &fmt_extra, GS_FALSE) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_UNRECOGNIZED_FORMAT_ERROR);
-            return GS_ERROR;
+        if (cm_fetch_format_item(&fmt_text, &fmt_item, &fmt_extra, CT_FALSE) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_UNRECOGNIZED_FORMAT_ERROR);
+            return CT_ERROR;
         }
 
         if (!fmt_item->reversible || !fmt_item->dt_used) {
-            GS_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "date");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "date");
+            return CT_ERROR;
         }
 
         if ((mask & fmt_item->fmask) != 0) {
-            GS_THROW_ERROR(ERR_MUTIPLE_FORMAT_ERROR);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_MUTIPLE_FORMAT_ERROR);
+            return CT_ERROR;
         }
         mask |= fmt_item->fmask;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_verify_timestamp_fmt(const text_t *fmt)
@@ -1327,24 +1353,24 @@ status_t cm_verify_timestamp_fmt(const text_t *fmt)
     text_t fmt_text = *fmt;
 
     while (fmt_text.len > 0) {
-        if (cm_fetch_format_item(&fmt_text, &fmt_item, &fmt_extra, GS_FALSE) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_UNRECOGNIZED_FORMAT_ERROR);
-            return GS_ERROR;
+        if (cm_fetch_format_item(&fmt_text, &fmt_item, &fmt_extra, CT_FALSE) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_UNRECOGNIZED_FORMAT_ERROR);
+            return CT_ERROR;
         }
 
         if (!fmt_item->reversible) {
-            GS_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "timestamp");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "timestamp");
+            return CT_ERROR;
         }
 
         if ((mask & fmt_item->fmask) != 0) {
-            GS_THROW_ERROR(ERR_MUTIPLE_FORMAT_ERROR);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_MUTIPLE_FORMAT_ERROR);
+            return CT_ERROR;
         }
         mask |= fmt_item->fmask;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_date2text_ex(date_t date, text_t *fmt, uint32 precision, text_t *text, uint32 max_len)
@@ -1415,7 +1441,7 @@ status_t cm_time2text(time_t time, text_t *fmt, text_t *text, uint32 max_len)
         format_text = *fmt;
     }
 
-    return cm_detail2text(&detail, &format_text, GS_MAX_DATETIME_PRECISION, text, max_len);
+    return cm_detail2text(&detail, &format_text, CT_MAX_DATETIME_PRECISION, text, max_len);
 }
 
 date_t cm_time2date(time_t time)
@@ -1500,11 +1526,11 @@ static status_t cm_get_month_by_name(text_t *date_text, uint32 *mask, uint8 *mon
     CM_POINTER3(date_text, mask, mon);
 
     if ((*mask & MASK_MONTH) != 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (date_text->len < 3) {  // min length of name is 3
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *mask |= MASK_MONTH;
@@ -1524,10 +1550,10 @@ static status_t cm_get_month_by_name(text_t *date_text, uint32 *mask, uint8 *mon
         date_text->len -= g_month_names[i].len;
         date_text->str += g_month_names[i].len;
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 static status_t cm_get_month_by_abbr_name(text_t *date_text, uint32 *mask, uint8 *mon)
@@ -1537,13 +1563,13 @@ static status_t cm_get_month_by_abbr_name(text_t *date_text, uint32 *mask, uint8
     CM_POINTER3(date_text, mask, mon);
 
     if ((*mask & MASK_MONTH) != 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *mask |= MASK_MONTH;
 
     if (date_text->len < 3) {  // min length of name is 3
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cmp_text.str = date_text->str;
@@ -1561,10 +1587,10 @@ static status_t cm_get_month_by_abbr_name(text_t *date_text, uint32 *mask, uint8
         date_text->len -= 3;  // just get abbr name
         date_text->str += 3;
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 static status_t cm_get_month_by_roman_name(text_t *date_text, uint32 *mask, uint8 *mon)
@@ -1573,11 +1599,11 @@ static status_t cm_get_month_by_roman_name(text_t *date_text, uint32 *mask, uint
     CM_POINTER3(date_text, mask, mon);
 
     if ((*mask & MASK_MONTH) != 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (date_text->len == 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *mask |= MASK_MONTH;
@@ -1597,23 +1623,23 @@ static status_t cm_get_month_by_roman_name(text_t *date_text, uint32 *mask, uint
         date_text->len -= g_month_roman_names[i].len;
         date_text->str += g_month_roman_names[i].len;
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t cm_check_number(text_t *num_text,
                          uint32 size,
-                         uint32 start,
-                         uint32 end,
-                         uint32 *num_val)
+                         int64 start,
+                         int64 end,
+                         int64 *num_val)
 {
     char num[8]; /* size less than 6 always */
     CM_POINTER2(num_text, num_val);
 
     if (size >= sizeof(num)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (size != 0) {
@@ -1621,12 +1647,12 @@ status_t cm_check_number(text_t *num_text,
     }
     num[size] = '\0';
 
-    *num_val = (uint32)atoi(num);
+    *num_val = (int64)atoi(num);
 
     if (*num_val >= start && *num_val <= end) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 }
 
@@ -1642,7 +1668,7 @@ status_t cm_check_number_with_sign(text_t *num_text,
     CM_POINTER2(num_text, num_val);
 
     if (size >= sizeof(num)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (size != 0) {
@@ -1654,12 +1680,12 @@ status_t cm_check_number_with_sign(text_t *num_text,
     number_text_src.len = size;
 
     status = cm_text2int(&number_text_src, num_val);
-    GS_RETURN_IFERR(status);
+    CT_RETURN_IFERR(status);
 
     if (*num_val >= start && *num_val <= end) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 }
 
@@ -1685,6 +1711,7 @@ static uint32 cm_get_num_len_in_str(const text_t *text, uint32 part_len, bool32 
 /* !
  * \brief  Revise this function in order to enable to handle 9 digital precision
  *  (i.e., nanoseconds).
+ *
  */
 static inline status_t cm_verify_number(const text_t *num_text, uint32 size, uint32 start, uint32 end,
                                         uint32 *num_value, uint32 *act_len_val)
@@ -1705,7 +1732,7 @@ static inline status_t cm_verify_number(const text_t *num_text, uint32 size, uin
             break;
         }
         if (!(*(num_text->str + i) >= '0' && *(num_text->str + i) <= '9')) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
     if (act_len != 0) {
@@ -1719,9 +1746,9 @@ static inline status_t cm_verify_number(const text_t *num_text, uint32 size, uin
     *num_value = (uint32)atoi(num);
 
     if (*num_value >= start && *num_value <= end) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 }
 
@@ -1735,13 +1762,13 @@ static inline status_t cm_verify_part(text_t *date_text,
 {
     uint32 act_len;
     if ((*mask & mask_id) != 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_trim_text(date_text);
 
-    if (cm_verify_number(date_text, part_len, start_value, end_value, part_value, &act_len) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_verify_number(date_text, part_len, start_value, end_value, part_value, &act_len) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     *mask |= mask_id;
@@ -1753,7 +1780,19 @@ static inline status_t cm_verify_part(text_t *date_text,
         date_text->str += act_len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+static inline uint32 cm_find_point(text_t *date_text)
+{
+    uint32 len = date_text->len;
+    uint32 i = 0;
+    for (; i < len; i++) {
+        if (date_text->str[i] == '.') {
+            break;
+        }
+    }
+    return i;
 }
 
 static inline status_t cm_get_date_item(text_t *date_text,
@@ -1763,8 +1802,10 @@ static inline status_t cm_get_date_item(text_t *date_text,
                                         uint32 *mask)
 {
     text_t part_text;
-    uint32 num_value = 0;
+    int64 num_value = 0;
     int32 num_value_with_sign = 0;
+    bool8 neg = 0;
+    uint32 item_len = 0;
 
     CM_POINTER4(date_text, fmt_item, date, mask);
 
@@ -1784,7 +1825,7 @@ static inline status_t cm_get_date_item(text_t *date_text,
         case FMT_SLASH:
             part_text.len = 1;
             if (!cm_text_equal_ins(&part_text, &fmt_item->name)) {
-                return GS_ERROR;
+                return CT_ERROR;
             }
             CM_REMOVE_FIRST(date_text);
             break;
@@ -1793,7 +1834,7 @@ static inline status_t cm_get_date_item(text_t *date_text,
             part_text.len = 1;
             if (!cm_text_equal_ins(&part_text, &fmt_item->name)) {
                 if (!cm_text_str_equal(&part_text, (const char *)".")) {
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
             }
             CM_REMOVE_FIRST(date_text);
@@ -1802,7 +1843,7 @@ static inline status_t cm_get_date_item(text_t *date_text,
         case FMT_DQ_TEXT:
             part_text.len = fmt_extra->len;
             if (!cm_text_equal_ins(&part_text, fmt_extra)) {
-                return GS_ERROR;
+                return CT_ERROR;
             }
             CM_REMOVE_FIRST_N(date_text, fmt_extra->len);
             break;
@@ -1832,11 +1873,12 @@ static inline status_t cm_get_date_item(text_t *date_text,
         case FMT_FRAC_SEC_VAR_LEN:
             cm_check_special_char(date_text);
             if (fmt_item->placer <= 0) {
-                GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "fmt_item->placer(%d) > 0", fmt_item->placer);
-                return GS_ERROR;
+                CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "fmt_item->placer(%d) > 0", fmt_item->placer);
+                return CT_ERROR;
             }
-            if (cm_verify_part(date_text, mask, MASK_USEC, (fmt_item->placer), 0, 999999, &num_value) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_verify_part(date_text, mask, MASK_USEC, (fmt_item->placer), 0, 999999, (uint32 *)&num_value) !=
+                CT_SUCCESS) {
+                return CT_ERROR;
             }
             num_value *= g_1ten_powers[6 - fmt_item->placer];
             date->microsec = num_value % MICROSECS_PER_MILLISEC;
@@ -1850,9 +1892,18 @@ static inline status_t cm_get_date_item(text_t *date_text,
             break;
 
         case FMT_HOUR_OF_DAY24:
+            if (*((date_text)->str) == '-') {
+                neg = 1;
+            }
             cm_check_special_char(date_text);
-            cm_check_time(MASK_HOUR, 2, 0, 23, date_text, mask, num_value);
-            date->hour = (uint8)num_value;
+            item_len = cm_find_point(date_text);
+            if ((item_len % EVEN_NUM) == 0) {
+                cm_check_time(MASK_HOUR, 2, 0, 23, date_text, mask, num_value);
+            } else {
+                cm_check_time(MASK_HOUR, 3, -838, 838, date_text, mask, num_value);
+            }
+            date->hour = (int32)num_value;
+            date->neg = neg;
             break;
 
         case FMT_MINUTE:
@@ -1895,10 +1946,10 @@ static inline status_t cm_get_date_item(text_t *date_text,
             break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-static status_t cm_text2date_detail(const text_t *text, const text_t *fmt, date_detail_t *datetime)
+static status_t cm_text2date_detail(const text_t *text, const text_t *fmt, date_detail_t *datetime, uint32 datetype)
 {
     format_item_t *fmt_item = NULL;
     uint32 mask;
@@ -1915,13 +1966,13 @@ static status_t cm_text2date_detail(const text_t *text, const text_t *fmt, date_
     mask = 0;
 
     while (fmt_text.len > 0) {
-        if (cm_fetch_format_item(&fmt_text, &fmt_item, &fmt_extra, GS_TRUE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_fetch_format_item(&fmt_text, &fmt_item, &fmt_extra, CT_TRUE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         /* format not supported in functions for converting string to date */
         if (!fmt_item->reversible) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         cm_trim_text(&date_text);
@@ -1930,42 +1981,38 @@ static status_t cm_text2date_detail(const text_t *text, const text_t *fmt, date_
         }
 
         if (cm_get_date_item(&date_text, fmt_item, &fmt_extra, datetime, &mask) != 0) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    // only support all 0 datetime
-    if (!cm_check_valid_zero_time(datetime)) {
-        return GS_ERROR;
-    }
-
-    if (datetime->mon > 0 && datetime->day > g_month_days[IS_LEAP_YEAR(datetime->year)][datetime->mon - 1]) {
-        return GS_ERROR;
+    if (!IS_MYSQL_NEW_TYPE(datetype) && datetime->mon > 0 &&
+        datetime->day > g_month_days[IS_LEAP_YEAR(datetime->year)][datetime->mon - 1]) {
+        return CT_ERROR;
     }
 
     /* date text is not matched with format string */
     if (date_text.len > 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_adjust_timestamp(timestamp_t *ts, int32 precision)
 {
-    if (precision == GS_MAX_DATETIME_PRECISION || *ts == 0) {
-        return GS_SUCCESS;
+    if (precision == CT_MAX_DATETIME_PRECISION || *ts == 0) {
+        return CT_SUCCESS;
     }
 
-    *ts = (timestamp_t)cm_truncate_bigint(*ts, (uint32)(GS_MAX_DATETIME_PRECISION - precision));
+    *ts = (timestamp_t)cm_truncate_bigint(*ts, (uint32)(CT_MAX_DATETIME_PRECISION - precision));
 
     // round may cause out of range, e.g. 9999-12-31 23:59:59.999999
     if (!CM_IS_VALID_TIMESTAMP(*ts)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "DATETIME");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "DATETIME");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_adjust_timestamp_tz(timestamp_tz_t *tstz, int32 precision)
@@ -1976,14 +2023,14 @@ status_t cm_adjust_timestamp_tz(timestamp_tz_t *tstz, int32 precision)
 status_t cm_check_tstz_is_valid(timestamp_tz_t *tstz)
 {
     if (!CM_IS_VALID_TIMESTAMP(tstz->tstamp)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!cm_validate_timezone(tstz->tz_offset)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_text2timestamp_tz(const text_t *text, const text_t *fmt, timezone_info_t default_tz, timestamp_tz_t *tstz)
@@ -2000,20 +2047,25 @@ status_t cm_text2timestamp_tz(const text_t *text, const text_t *fmt, timezone_in
 
     cm_text2date_init(&detail);
     detail.tz_offset = default_tz;
-    if (cm_text2date_detail(text, &fmt_text, &detail) != GS_SUCCESS) {
-        GS_SET_DATETIME_FMT_ERROR;
-        return GS_ERROR;
+    if (cm_text2date_detail(text, &fmt_text, &detail, CT_TYPE_TIMESTAMP_TZ) != CT_SUCCESS) {
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
+    }
+
+    if (!cm_check_valid_zero_time(&detail)) {
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
     }
 
     cm_encode_timestamp_tz(&detail, tstz);
 
     // check again
     if (cm_check_tstz_is_valid(tstz)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "TIMESTAMP_TZ");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "TIMESTAMP_TZ");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_text2date(const text_t *text, const text_t *fmt, date_t *date)
@@ -2029,20 +2081,25 @@ status_t cm_text2date(const text_t *text, const text_t *fmt, date_t *date)
     }
 
     cm_text2date_init(&detail);
-    if (cm_text2date_detail(text, &fmt_text, &detail) != GS_SUCCESS) {
-        GS_SET_DATETIME_FMT_ERROR;
-        return GS_ERROR;
+    if (cm_text2date_detail(text, &fmt_text, &detail, CT_TYPE_DATE) != CT_SUCCESS) {
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
+    }
+
+    if (!cm_check_valid_zero_time(&detail)) {
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
     }
 
     *date = cm_encode_date(&detail);
 
     // check again
     if (!CM_IS_VALID_TIMESTAMP(*date)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "DATETIME");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "DATETIME");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_str2time(char *date, const text_t *fmt, time_t *time_stamp)
@@ -2050,19 +2107,19 @@ status_t cm_str2time(char *date, const text_t *fmt, time_t *time_stamp)
     text_t date_text;
     date_t date_stamp;
     if (strlen(date) == 0) {
-        GS_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "date");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "date");
+        return CT_ERROR;
     }
 
     cm_str2text(date, &date_text);
-    GS_RETURN_IFERR(cm_text2date(&date_text, fmt, &date_stamp));
+    CT_RETURN_IFERR(cm_text2date(&date_text, fmt, &date_stamp));
     *time_stamp = cm_date2time(date_stamp);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void cm_text2date_fixed_init(date_detail_t *datetime)
 {
-    gs_timer_t *now = g_timer();
+    ct_timer_t *now = g_timer();
     datetime->year = now->detail.year;
     datetime->mon = now->detail.mon;
     datetime->day = 1;
@@ -2081,20 +2138,25 @@ status_t cm_text2date_fixed(const text_t *text, const text_t *fmt, date_t *date)
     CM_POINTER2(text, fmt);
 
     cm_text2date_fixed_init(&detail);
-    if (cm_text2date_detail(text, fmt, &detail) != GS_SUCCESS) {
-        GS_SET_DATETIME_FMT_ERROR;
-        return GS_ERROR;
+    if (cm_text2date_detail(text, fmt, &detail, CT_TYPE_DATE) != CT_SUCCESS) {
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
+    }
+
+    if (!cm_check_valid_zero_time(&detail)) {
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
     }
 
     *date = cm_encode_date(&detail);
 
     // check again
     if (!CM_IS_VALID_TIMESTAMP(*date)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "DATETIME");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "DATETIME");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_fetch_date_field(text_t *text, uint32 minval, uint32 maxval, char spilt_char, uint32 *field_val)
@@ -2102,10 +2164,10 @@ status_t cm_fetch_date_field(text_t *text, uint32 minval, uint32 maxval, char sp
     uint32 num_len;
 
     cm_trim_text(text);
-    num_len = cm_get_num_len_in_str(text, text->len, GS_FALSE);
-    GS_RETVALUE_IFTRUE(num_len == 0, GS_ERROR);
+    num_len = cm_get_num_len_in_str(text, text->len, CT_FALSE);
+    CT_RETVALUE_IFTRUE(num_len == 0, CT_ERROR);
 
-    GS_RETURN_IFERR(cm_check_number(text, num_len, minval, maxval, field_val));
+    CT_RETURN_IFERR(cm_check_number(text, num_len, minval, maxval, (int64*)field_val));
     text->str += num_len;
     text->len -= num_len;
 
@@ -2114,17 +2176,17 @@ status_t cm_fetch_date_field(text_t *text, uint32 minval, uint32 maxval, char sp
     }
     if (spilt_char != '\0') {
         if (text->len == num_len || *text->str != spilt_char) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
         CM_REMOVE_FIRST(text);
         cm_ltrim_text(text);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_text2date_def(const text_t *text, date_t *date)
 {
-    int32 ret = GS_ERROR;
+    int32 ret = CT_ERROR;
     uint32 field_val, mon_days;
     text_t date_text;
     date_detail_t detail;
@@ -2136,37 +2198,37 @@ status_t cm_text2date_def(const text_t *text, date_t *date)
 
     do {
         // 1-1-1 ~ 1990-01-01
-        GS_BREAK_IF_TRUE((date_text.len < 5));
+        CT_BREAK_IF_TRUE((date_text.len < 5));
 
         // year
-        GS_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, CM_MIN_YEAR, CM_MAX_YEAR, '-', &field_val));
+        CT_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, CM_MIN_YEAR, CM_MAX_YEAR, '-', &field_val));
         detail.year = (uint16)field_val;
 
         // month
-        GS_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 1, 12, '-', &field_val));
+        CT_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 1, 12, '-', &field_val));
         detail.mon = (uint8)field_val;
 
         // day
         mon_days = (uint32)g_month_days[IS_LEAP_YEAR(detail.year)][detail.mon - 1];
-        GS_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 1, mon_days, '\0', &field_val));
+        CT_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 1, mon_days, '\0', &field_val));
         detail.day = (uint8)field_val;
 
-        ret = (date_text.len == 0) ? GS_SUCCESS : GS_ERROR;
+        ret = (date_text.len == 0) ? CT_SUCCESS : CT_ERROR;
     } while (0);
 
-    if (ret != GS_SUCCESS) {
-        GS_SET_DATETIME_FMT_ERROR;
-        return GS_ERROR;
+    if (ret != CT_SUCCESS) {
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
     }
 
     (*date) = cm_encode_date(&detail);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_text2timestamp_def(const text_t *text, date_t *date)
 {
-    int32 ret = GS_ERROR;
+    int32 ret = CT_ERROR;
     char buf[8];
     uint32 field_val, mon_days;
     text_t date_text;
@@ -2179,64 +2241,64 @@ status_t cm_text2timestamp_def(const text_t *text, date_t *date)
 
     do {
         // 1-1-1 1:1:1 ~ 1990-01-01 00:00:00.123456
-        GS_BREAK_IF_TRUE((date_text.len < 11));
+        CT_BREAK_IF_TRUE((date_text.len < 11));
 
         // year
-        GS_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, CM_MIN_YEAR, CM_MAX_YEAR, '-', &field_val));
+        CT_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, CM_MIN_YEAR, CM_MAX_YEAR, '-', &field_val));
         detail.year = (uint16)field_val;
 
         // month
-        GS_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 1, 12, '-', &field_val));
+        CT_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 1, 12, '-', &field_val));
         detail.mon = (uint8)field_val;
 
         // day
         mon_days = (uint32)g_month_days[IS_LEAP_YEAR(detail.year)][detail.mon - 1];
-        GS_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 1, mon_days, ' ', &field_val));
+        CT_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 1, mon_days, ' ', &field_val));
         detail.day = (uint8)field_val;
 
         // hour
-        GS_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 0, 23, ':', &field_val));
-        detail.hour = (uint8)field_val;
+        CT_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 0, 23, ':', &field_val));
+        detail.hour = (int16)field_val;
 
         // minute
-        GS_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 0, 59, ':', &field_val));
+        CT_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 0, 59, ':', &field_val));
         detail.min = (uint8)field_val;
 
         // second
-        GS_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 0, 59, '\0', &field_val));
+        CT_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 0, 59, '\0', &field_val));
         detail.sec = (uint8)field_val;
 
         // optional frac second
         if (date_text.len == 0) {
-            ret = GS_SUCCESS;
+            ret = CT_SUCCESS;
             break;
         }
-        GS_BREAK_IF_TRUE(CM_TEXT_BEGIN(&date_text) != '.');
+        CT_BREAK_IF_TRUE(CM_TEXT_BEGIN(&date_text) != '.');
         CM_REMOVE_FIRST(&date_text);
         cm_ltrim_text(&date_text);
-        GS_BREAK_IF_TRUE((date_text.len == 0 || date_text.len > 6));  // max precision is 6
+        CT_BREAK_IF_TRUE((date_text.len == 0 || date_text.len > 6));  // max precision is 6
         // append '0' for frac second
-        GS_RETURN_IFERR(cm_text2str(&date_text, buf, sizeof(buf)));
+        CT_RETURN_IFERR(cm_text2str(&date_text, buf, sizeof(buf)));
         date_text.str = buf;
         date_text.len = (uint32)strlen(buf);
         while (date_text.len < 6) {
             CM_TEXT_APPEND(&date_text, '0');
         }
-        GS_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 0, 999999, '\0', &field_val));
+        CT_BREAK_IF_ERROR(cm_fetch_date_field(&date_text, 0, 999999, '\0', &field_val));
         detail.millisec = (uint16)(field_val / 1000);
         detail.microsec = (uint16)(field_val % 1000);
 
-        ret = (date_text.len == 0) ? GS_SUCCESS : GS_ERROR;
+        ret = (date_text.len == 0) ? CT_SUCCESS : CT_ERROR;
     } while (0);
 
-    if (ret != GS_SUCCESS) {
-        GS_SET_DATETIME_FMT_ERROR;
-        return GS_ERROR;
+    if (ret != CT_SUCCESS) {
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
     }
 
     (*date) = cm_encode_date(&detail);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_numtext2date(const text_t *text, date_t *date)
@@ -2250,27 +2312,33 @@ static status_t cm_numtext2date(const text_t *text, date_t *date)
         // yyyymmdd
         date_fmt.str = (char *)"YYYYMMDD";
         date_fmt.len = 8;
-        ret = cm_text2date_detail(text, &date_fmt, &detail);
+        ret = cm_text2date_detail(text, &date_fmt, &detail, CT_TYPE_DATE);
     } else if (text->len == 14) {
         // yyyymmddhh24miss
         date_fmt.str = (char *)"YYYYMMDDHH24MISS";
         date_fmt.len = 16;
-        ret = cm_text2date_detail(text, &date_fmt, &detail);
+        ret = cm_text2date_detail(text, &date_fmt, &detail, CT_TYPE_DATE);
     } else if (text->len > 14 && cm_char_in_text('.', text)) {
         // yyyymmddhh24miss
         date_fmt.str = (char *)"YYYYMMDDHH24MISS.FF";
         date_fmt.len = 19;
-        ret = cm_text2date_detail(text, &date_fmt, &detail);
+        ret = cm_text2date_detail(text, &date_fmt, &detail, CT_TYPE_DATE);
     } else {
-        ret = GS_ERROR;
+        ret = CT_ERROR;
     }
 
-    if (ret != GS_SUCCESS) {
-        GS_SET_DATETIME_FMT_ERROR;
-        return GS_ERROR;
+    if (ret != CT_SUCCESS) {
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
     }
+
+    if (!cm_check_valid_zero_time(&detail)) {
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
+    }
+
     (*date) = cm_encode_date(&detail);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_text2date_flex(const text_t *text, date_t *date)
@@ -2302,7 +2370,7 @@ int cm_gettimeofday(struct timeval *tv)
     uint64 temp = ((uint64)ft.dwLowDateTime | ((uint64)ft.dwHighDateTime << 32)) / 10; /* convert into microseconds */
 
     /* converting file time to unix epoch */
-    temp -= GS_DELTA_EPOCH_IN_MICROSECS;
+    temp -= CT_DELTA_EPOCH_IN_MICROSECS;
     tv->tv_sec = (long)(temp / 1000000UL);
     tv->tv_usec = (long)(temp % 1000000UL);
 
@@ -2331,11 +2399,11 @@ status_t cm_round_date(date_t date, text_t *fmt, date_t *result)
     uint8 current_w_day, next_w_day;
     uint16 *day_tab = NULL;
     double double_day1, double_day2;
-    bool32 need_round = GS_FALSE;
+    bool32 need_round = CT_FALSE;
 
     cm_decode_date(date, &detail);
     cm_get_detail_ex(&detail, &detail_ex);
-    GS_RETURN_IFERR(cm_fetch_format_item(fmt, &item, &fmt_extra, GS_FALSE));
+    CT_RETURN_IFERR(cm_fetch_format_item(fmt, &item, &fmt_extra, CT_FALSE));
 
     switch (item->id) {
         /* One greater than the first two digits of a four - digit year */
@@ -2490,16 +2558,16 @@ status_t cm_round_date(date_t date, text_t *fmt, date_t *result)
             break;
         }
         default:
-            GS_SET_DATETIME_FMT_ERROR;
-            return GS_ERROR;
+            CT_SET_DATETIME_FMT_ERROR;
+            return CT_ERROR;
     }
 
     if (fmt->len > 0) {
-        GS_SET_DATETIME_FMT_ERROR;
-        return GS_ERROR;
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_trunc_date(date_t date, text_t *fmt, date_t *result)
@@ -2512,7 +2580,7 @@ status_t cm_trunc_date(date_t date, text_t *fmt, date_t *result)
 
     cm_decode_date(date, &detail);
     cm_get_detail_ex(&detail, &detail_ex);
-    GS_RETURN_IFERR(cm_fetch_format_item(fmt, &item, &fmt_extra, GS_FALSE));
+    CT_RETURN_IFERR(cm_fetch_format_item(fmt, &item, &fmt_extra, CT_FALSE));
 
     switch (item->id) {
         /* One greater than the first two digits of a four - digit year */
@@ -2622,21 +2690,260 @@ status_t cm_trunc_date(date_t date, text_t *fmt, date_t *result)
             break;
         }
         default:
-            GS_SET_DATETIME_FMT_ERROR;
-            return GS_ERROR;
+            CT_SET_DATETIME_FMT_ERROR;
+            return CT_ERROR;
     }
 
     if (fmt->len > 0) {
-        GS_SET_DATETIME_FMT_ERROR;
-        return GS_ERROR;
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 int64 cm_get_unix_timestamp(timestamp_t ts, int64 time_zone_offset)
 {
     return ((int64)ts - time_zone_offset - (int64)CM_UNIX_EPOCH) / MICROSECS_PER_SECOND;
+}
+
+static int64 cm_pack_time_to_int64(int64 intpart, int64 fracpart)
+{
+    cm_assert(abs(fracpart) <= 0xffffffLL);
+    return ((uint64)(intpart) << CM_BASE_24) + fracpart;
+}
+
+static int64 cm_cnvrt_datetime_from_binary_to_int(const uchar *ptr)
+{
+    int64 intpart = cm_ptr5_to_uint_little_endian(ptr) - DATETIMEF_INT_OFS;
+    int32 fracpart = cm_ptr3_to_sint_little_endian(ptr + CT_DATETIME_PRECISION_5);
+    return cm_pack_time_to_int64(intpart, fracpart);
+}
+
+int32 cm_datetime_cmp_mysql(void *datetime1, void *datetime2)
+{
+    int64 datetime1_int = cm_cnvrt_datetime_from_binary_to_int((const uchar *)datetime1);
+    int64 datetime2_int = cm_cnvrt_datetime_from_binary_to_int((const uchar *)datetime2);
+    return (datetime1_int < datetime2_int) ? -1 : (datetime1_int > datetime2_int) ? 1 : 0;
+}
+
+static inline int64 cm_cnvrt_time_from_binary_to_int(const uchar *ptr)
+{    
+    return ((int64)(cm_ptr6_to_uint_little_endian(ptr))) - TIMEF_OFS;
+}
+
+int32 cm_time_cmp_mysql(void *time1, void *time2)
+{
+    int64 time1_int = cm_cnvrt_time_from_binary_to_int((const uchar *)time1);
+    int64 time2_int = cm_cnvrt_time_from_binary_to_int((const uchar *)time2);
+    return (time1_int < time2_int) ? -1 : (time1_int > time2_int) ? 1 : 0;
+}
+
+static inline uint32 cm_cnvrt_date_from_binary_to_uint(const uchar *ptr)
+{
+    return cm_ptr3_to_uint_big_endian(ptr);
+}
+
+int32 cm_date_cmp_mysql(void *date1, void *date2)
+{
+    int64 date1_int = cm_cnvrt_date_from_binary_to_uint((const uchar *)date1);
+    int64 date2_int = cm_cnvrt_date_from_binary_to_uint((const uchar *)date2);
+    return (date1_int < date2_int) ? -1 : (date1_int > date2_int) ? 1 : 0;
+}
+
+date_t cm_encode_datetime_mysql(const date_detail_t *detail)
+{
+    int64 y_m_d = ((detail->year * DT_ENCODE_13 + detail->mon) << DT_ENCODE_5) | detail->day;
+    int64 h_m_s = (detail->hour << DT_ENCODE_12) | (detail->min << DT_ENCODE_6) | detail->sec;
+    int64 res = cm_pack_time_to_int64(((y_m_d << DT_ENCODE_17) | h_m_s),
+        (detail->millisec * MICROSECS_PER_MILLISEC) + detail->microsec);
+    return res;
+}
+
+date_t cm_encode_time_mysql(const date_detail_t *detail)
+{
+    int64 h_m_s = (((detail->mon ? 0 : detail->day * DT_ENCODE_24) + detail->hour) << DT_ENCODE_12) |
+        (detail->min << DT_ENCODE_6) | detail->sec;
+    int64 res = cm_pack_time_to_int64(h_m_s, (detail->millisec * MICROSECS_PER_MILLISEC) + detail->microsec);
+    return detail->neg ? -res : res;
+}
+
+date_t cm_encode_date_mysql(const date_detail_t *detail)
+{
+    int64 tmp = detail->day + detail->mon * DT_ENCODE_32 + detail->year * DT_ENCODE_16 * DT_ENCODE_32;
+    uchar ptr[CM_BYTE_8];
+    *ptr = (uchar)tmp;
+    *(ptr + 1) = (uchar)(tmp >> CM_BASE_8);
+    *(ptr + DT_ENCODE_2) = (uchar)(tmp >> CM_BASE_16);
+    return *(date_t *)ptr;
+}
+
+status_t cm_text2date_mysql(const text_t *text, const text_t *fmt, date_t *date, uint32 datatype)
+{
+    text_t fmt_text;
+    date_detail_t detail;
+    CM_POINTER(text);
+
+    if (fmt == NULL) {
+        switch (datatype) {
+            case CT_TYPE_DATETIME_MYSQL:
+            case CT_TYPE_DATE_MYSQL:
+            case CT_TYPE_TIME_MYSQL:
+                cm_default_nls_geter(NLS_TIMESTAMP_FORMAT, &fmt_text);
+                break;
+            default:
+                break;
+        }
+    } else {
+        fmt_text = *fmt;
+    }
+
+    cm_text2date_init(&detail);
+    if (cm_text2date_detail(text, &fmt_text, &detail, datatype) != CT_SUCCESS) {
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
+    }
+
+    switch (datatype) {
+        case CT_TYPE_DATETIME_MYSQL:
+            *date = cm_encode_datetime_mysql(&detail);
+            break;
+        case CT_TYPE_TIME_MYSQL:
+            *date = cm_encode_time_mysql(&detail);
+            break;
+        case CT_TYPE_DATE_MYSQL:
+            *date = cm_encode_date_mysql(&detail);
+            break;
+        default:
+            break;
+    }
+
+    return CT_SUCCESS;
+}
+
+void cm_cnvrt_datetime_from_int_to_date_detail(int64 input, date_detail_t *detail)
+{
+    int64 y_m_d;
+    int64 h_m_s;
+    int64 ymd_hms;
+    int64 y_m;
+    int64 time = input;
+
+    if (time < 0) {
+        time = -time;
+    }
+
+    detail->microsec = time % (1LL << DT_ENCODE_24);
+    ymd_hms = (uint64)time >> DT_ENCODE_24;
+    y_m_d = (uint64)ymd_hms >> DT_ENCODE_17;
+    y_m = (uint64)y_m_d >> DT_ENCODE_5;
+    h_m_s = ymd_hms % (1 << DT_ENCODE_17);
+    detail->day = (uint8)(y_m_d % (1 << DT_ENCODE_5));
+    detail->mon = (uint8)(y_m % DT_ENCODE_13);
+    detail->year = (uint16)(y_m / DT_ENCODE_13);
+
+    detail->sec = (uint8)(h_m_s % (1 << DT_ENCODE_6));
+    detail->min = (uint8)(((uint64)h_m_s >> DT_ENCODE_6) % (1 << DT_ENCODE_6));
+    detail->hour = (uint8)((uint64)h_m_s >> DT_ENCODE_12);
+
+    uint32 tmp = (uint32)(time % (1LL << DT_ENCODE_24));
+    detail->millisec = (uint16)(tmp / MICROSECS_PER_MILLISEC);
+    detail->microsec = (uint16)(tmp % MICROSECS_PER_MILLISEC);
+}
+
+void cm_cnvrt_time_from_int_to_date_detail(int64 input, date_detail_t *detail)
+{
+    int64 h_m_s;
+    int64 time = input;
+    if (time < 0) {
+        time = -time;
+    }
+    h_m_s = (uint64)time >> DT_ENCODE_24;
+    detail->year = 0;
+    detail->mon = 0;
+    detail->day = 0;
+    detail->hour = (uint8)(((uint64)h_m_s >> DT_ENCODE_12) % (1 << DT_ENCODE_10));
+    detail->min = (uint8)(((uint64)h_m_s >> DT_ENCODE_6) % (1 << DT_ENCODE_6));
+    detail->sec = (uint8)(h_m_s % (1 << DT_ENCODE_6));
+
+    uint32 tmp = (uint32)(time % (1LL << DT_ENCODE_24));
+    detail->millisec = (uint16)(tmp / MICROSECS_PER_MILLISEC);
+    detail->microsec = (uint16)(tmp % MICROSECS_PER_MILLISEC);
+}
+
+void cm_decode_date_mysql(date_t date, date_detail_t *detail)
+{
+    int64 time;
+    CM_POINTER(detail);
+
+    time = cm_cnvrt_date_from_binary_to_uint((const uchar *)(&date));
+    detail->year = (uint16)(time / DT_ENCODE_16 / DT_ENCODE_32);
+    detail->mon = (uint8)(time / DT_ENCODE_32 % DT_ENCODE_16);
+    detail->day = (uint8)(time % DT_ENCODE_32);
+
+    detail->hour = 0;
+    detail->min = 0;
+    detail->sec = 0;
+    detail->millisec = 0;
+    detail->microsec = 0;
+}
+
+void cm_decode_datetime_mysql(date_t date, date_detail_t *detail)
+{
+    int64 time;
+    CM_POINTER(detail);
+
+    time = cm_cnvrt_datetime_from_binary_to_int((const uchar *)(&date));
+    cm_cnvrt_datetime_from_int_to_date_detail(time, detail);
+}
+
+void cm_decode_time_mysql(date_t date, date_detail_t *detail)
+{
+    int64 time;
+    CM_POINTER(detail);
+
+    time = cm_cnvrt_time_from_binary_to_int((const uchar *)(&date));
+    cm_cnvrt_time_from_int_to_date_detail(time, detail);
+}
+
+status_t cm_date2text_mysql_ex(uint32 datatype, date_t date, text_t *fmt, uint32 precision, text_t *text,
+    uint32 max_len)
+{
+    date_detail_t detail;
+    text_t format_text;
+
+    CM_POINTER(text);
+    switch (datatype) {
+        case CT_TYPE_DATETIME_MYSQL:
+            cm_decode_datetime_mysql(date, &detail);
+            break;
+        case CT_TYPE_TIME_MYSQL:
+            cm_decode_time_mysql(date, &detail);
+            break;
+        case CT_TYPE_DATE_MYSQL:
+        default:
+            cm_decode_date_mysql(date, &detail);
+            break;
+    }
+
+    if (fmt == NULL || fmt->str == NULL) {
+        cm_default_nls_geter(NLS_DATE_FORMAT, &format_text);
+    } else {
+        format_text = *fmt;
+    }
+
+    if (datatype == CT_TYPE_TIME_MYSQL) {
+        detail.year = 1;
+        detail.mon = 1;
+        detail.day = 1;
+    }
+
+    if (detail.year == 0 || detail.mon == 0 || detail.day == 0) {
+        CT_LOG_RUN_ERR("invalid date time, year:%u, month:%u, date:%u", detail.year, detail.mon, detail.day);
+        CT_SET_DATETIME_FMT_ERROR;
+        return CT_ERROR;
+    }
+    return cm_detail2text(&detail, &format_text, precision, text, max_len);
 }
 
 int32 cm_tstz_cmp(timestamp_tz_t *tstz1, timestamp_tz_t *tstz2)
@@ -2657,6 +2964,78 @@ int64 cm_tstz_sub(timestamp_tz_t *tstz1, timestamp_tz_t *tstz2)
     ts1 = cm_adjust_date_between_two_tzs(tstz1->tstamp, tstz1->tz_offset, tstz2->tz_offset);
 
     return (ts1 - tstz2->tstamp);
+}
+
+void cm_datetime_int_to_binary(int64 input, uchar *ptr, int32 precision)
+{
+    CM_ASSERT(precision <= DATETIME_MAX_DECIMALS);
+    CM_ASSERT((cm_get_time_frac_part_from_int64(input) % (int)(powers_of_10[DATETIME_MAX_DECIMALS - precision])) == 0);
+
+    cm_int5_to_binary(ptr, cm_get_time_int_part_from_int64(input) + DATETIMEF_INT_OFS);
+    switch (precision) {
+        case CM_DATE_PRE_0:
+            cm_3_zero_ending(ptr);
+            break;
+        case CM_DATE_PRE_1:
+        case CM_DATE_PRE_2:
+            ptr[CM_BYTE_5] = (uchar)((char)(cm_get_time_frac_part_from_int64(input) / CM_4_POWER_OF_10));
+            cm_2_zero_ending(ptr);
+            break;
+        case CM_DATE_PRE_3:
+        case CM_DATE_PRE_4:
+            cm_int2_to_binary(ptr + CM_BYTE_5, cm_get_time_frac_part_from_int64(input) / CM_2_POWER_OF_10);
+            cm_1_zero_ending(ptr);
+            break;
+        case CM_DATE_PRE_5:
+        case CM_DATE_PRE_6:
+            cm_int3_to_binary(ptr + CM_BYTE_5, cm_get_time_frac_part_from_int64(input));
+            break;
+        default:
+            cm_3_zero_ending(ptr);
+            break;
+    }
+}
+
+void cm_time_int_to_binary(int64 input, uchar *ptr, int32 precision)
+{
+    CM_ASSERT(precision <= DATETIME_MAX_DECIMALS);
+    /* Make sure the stored value was previously properly rounded or truncated */
+    CM_ASSERT((cm_get_time_frac_part_from_int64(input) % (int)(powers_of_10[DATETIME_MAX_DECIMALS - precision])) == 0);
+
+    switch (precision) {
+        case CM_DATE_PRE_0:
+            cm_int3_to_binary(ptr, TIMEF_INT_OFS + cm_get_time_int_part_from_int64(input));
+            cm_5_zero_ending(ptr);
+            break;
+        case CM_DATE_PRE_1:
+        case CM_DATE_PRE_2:
+            cm_int3_to_binary(ptr, TIMEF_INT_OFS + cm_get_time_int_part_from_int64(input));
+            ptr[CM_BYTE_3] = (uchar)((char)(cm_get_time_frac_part_from_int64(input) / CM_4_POWER_OF_10));
+            cm_4_zero_ending(ptr);
+            break;
+        case CM_DATE_PRE_3:
+        case CM_DATE_PRE_4:
+            cm_int3_to_binary(ptr, TIMEF_INT_OFS + cm_get_time_int_part_from_int64(input));
+            cm_int2_to_binary(ptr + CM_BYTE_3, cm_get_time_frac_part_from_int64(input) / CM_2_POWER_OF_10);
+            cm_3_zero_ending(ptr);
+            break;
+        case CM_DATE_PRE_5:
+        case CM_DATE_PRE_6:
+            cm_int6tobinary(ptr, input + TIMEF_OFS);
+            cm_2_zero_ending(ptr);
+            break;
+        default:
+            cm_int3_to_binary(ptr, TIMEF_INT_OFS + cm_get_time_int_part_from_int64(input));
+            cm_5_zero_ending(ptr);
+            break;
+    }
+}
+
+date_t cm_timestamp2date_mysql(date_t date_input)
+{
+    date_detail_t detail;
+    cm_decode_date(date_input, &detail);
+    return cm_encode_datetime_mysql(&detail);
 }
 
 #ifdef __cplusplus

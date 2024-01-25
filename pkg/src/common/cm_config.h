@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,8 +32,8 @@
 extern "C" {
 #endif
 
-#define GS_CONFIG_HASH_BUCKETS                 512
-#define GS_CONFIG_ALIAS_HASH_BUCKETS           30
+#define CT_CONFIG_HASH_BUCKETS                 512
+#define CT_CONFIG_ALIAS_HASH_BUCKETS           30
 #define LOG_LONGSQL_VALUE_ON(value)           ((value) & 0x00000100)
 #define LOG_FATAL_ON(value)                   (!((value) ^ 0xFFFFFFFF))
 #define LOG_DEBUG_ON(value)                   (((value) & 0x00000077) == 0x00000077)
@@ -121,7 +121,7 @@ typedef struct st_config_item {
 typedef struct st_debug_config_item {
     char *name;
     char *default_value;
-    char curr_value[GS_PARAM_BUFFER_SIZE];
+    char curr_value[CT_PARAM_BUFFER_SIZE];
     char *range;
     char *datatype;
     config_verify_t verify;
@@ -130,8 +130,8 @@ typedef struct st_debug_config_item {
 
 typedef struct st_config {
     int32 file;
-    char file_name[GS_FILE_NAME_BUFFER_SIZE];
-    char file_buf[GS_MAX_CONFIG_FILE_SIZE];
+    char file_name[CT_FILE_NAME_BUFFER_SIZE];
+    char file_buf[CT_MAX_CONFIG_FILE_SIZE];
     char *value_buf;
     uint32 value_offset;
     uint32 value_buf_size;
@@ -142,8 +142,8 @@ typedef struct st_config {
     config_item_t *first_item; /* the first item, that occurs in config file */
     config_item_t *last_item;  /* the last item, that occurs in config file */
 
-    config_item_t *name_map[GS_CONFIG_HASH_BUCKETS];
-    config_item_t *alias_map[GS_CONFIG_ALIAS_HASH_BUCKETS];
+    config_item_t *name_map[CT_CONFIG_HASH_BUCKETS];
+    config_item_t *alias_map[CT_CONFIG_ALIAS_HASH_BUCKETS];
 
     config_item_t *first_file; /* the first include file that occurs in config file */
     config_item_t *last_file;  /* the last include file that occurs in config file */

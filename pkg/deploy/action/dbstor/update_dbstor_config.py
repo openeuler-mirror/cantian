@@ -167,6 +167,7 @@ def usage():
 
     Common options:
       --NAMESPACE_FSNAME:   namespace file system name
+      --NAMESPACE_PAGE_FSNAME namespace file system for page name
       --DPU_UUID            dpu uuid
       --LOCAL_IP            local ip address
       --REMOTE_IP           remote ip address
@@ -193,6 +194,7 @@ def parse_parameter():
     """
     parse parameters
     --NAMESPACE_FSNAME: namespace file system name
+    --NAMESPACE_PAGE_FSNAME namespace file system for page name
     --DPU_UUID:         dpu uuid
     --LINK_TYPE:        link type
     --LOCAL_IP:         local ip address
@@ -204,7 +206,7 @@ def parse_parameter():
         # Parameters are passed into argv. After parsing, they are stored
         # in opts as binary tuples. Unresolved parameters are stored in args.
         opts, args = getopt.getopt(sys.argv[1:], "",
-         ["help", "NAMESPACE_FSNAME=", "DPU_UUID=", "LINK_TYPE=", "LOCAL_IP=", "REMOTE_IP="])
+         ["help", "NAMESPACE_FSNAME=", "NAMESPACE_PAGE_FSNAME=", "DPU_UUID=", "LINK_TYPE=", "LOCAL_IP=", "REMOTE_IP="])
         if args:
             log_exit("Parameter input error: " + str(args[0]))
 
@@ -220,6 +222,8 @@ def parse_parameter():
                 continue
             if _key == "--NAMESPACE_FSNAME":
                 db_opts.dbstor_config["NAMESPACE_FSNAME"] = _value.strip().replace('/', ';')
+            if _key == "--NAMESPACE_PAGE_FSNAME":
+                db_opts.dbstor_config["NAMESPACE_PAGE_FSNAME"] = _value.strip().replace('/', ';')
             elif _key == "--DPU_UUID":
                 db_opts.dbstor_config["DPU_UUID"] = _value.strip()
             elif _key == "--LINK_TYPE":
@@ -236,6 +240,8 @@ def check_parameter():
     console_and_log("Checking parameters.")
     if len(db_opts.dbstor_config.get("NAMESPACE_FSNAME", "").strip()) == 0:
         log_exit("The storage_dbstore_fs parameter is not entered")
+    if len(db_opts.dbstor_config.get("NAMESPACE_PAGE_FSNAME", "").strip()) == 0:
+        log_exit("The storage_dbstore_page_fs parameter is not entered")
     if len(db_opts.dbstor_config.get("DPU_UUID", "").strip()) == 0:
         log_exit("The uuid parameter is not exist")
     if len(db_opts.dbstor_config.get("LOCAL_IP", "").strip()) == 0:

@@ -22,16 +22,17 @@ INSPECTION_PATH = str(Path('{}/inspections_log'.format(DIR_NAME)))
 FAIL = 'fail'
 SUCCESS = 'success'
 SUCCESS_ENUM = [0, '0']
-ZSQL_IP = "127.0.0.1"
-ZSQL_PORT = "1611"
+CTSQL_IP = "127.0.0.1"
+CTSQL_PORT = "1611"
 LOG_DIRECTORY = f'{CUR_PATH}/inspection_task_log'
 
 
 class InspectionTask:
 
-    def __init__(self, _input_value):
+    def __init__(self, _input_value, _use_smartkit=False):
         self.input_param = 'all'
         self.inspection_map = self.read_inspection_config()
+        self.use_smartkit = _use_smartkit
 
         try:
             self.inspection_items = self.get_input(_input_value)
@@ -43,12 +44,12 @@ class InspectionTask:
         self.output_data = []
         self.success_list = []
         self.fail_list = []
-        self.deploy_user = self.get_depoly_user()
+        self.deply_user = self.get_depoly_user()
         self.user_map = {
-            'cantian': self.deploy_user,
-            'cms': self.deploy_user,
-            'dbstor': self.deploy_user,
-            'mysql': self.deploy_user,
+            'cantian': self.deply_user,
+            'cms': self.deply_user,
+            'dbstor': self.deply_user,
+            'mysql': self.deply_user,
             'ctmgr': 'ctmgruser',
             'ct_om': 'root'
         }
@@ -59,10 +60,6 @@ class InspectionTask:
 
     @staticmethod
     def get_node_ip():
-        return ""
-
-    @staticmethod
-    def get_deploy_mode():
         return ""
 
     @staticmethod
@@ -135,6 +132,28 @@ class InspectionTask:
 
         return True
 
+    @staticmethod
+    def decrypt_password():
+        primary_keystore = "/opt/cantian/common/config/primary_keystore_bak.ks"
+        standby_keystore = "/opt/cantian/common/config/standby_keystore_bak.ks"
+        sys.path.append("/opt/cantian/action/dbstor")
+        from kmc_adapter import CApiWrapper
+        ctsql_ini_path = '/mnt/dbdata/local/cantian/tmp/data/cfg/ctsql.ini'
+        kmc_decrypt = CApiWrapper(primary_keystore=primary_keystore, standby_keystore=standby_keystore)
+        kmc_decrypt.initialize()
+        ctsql_ini_data = file_reader(ctsql_ini_path)
+        encrypt_pwd = ctsql_ini_data[ctsql_ini_data.find('=') + 1:].strip()
+        try:
+            kmc_decrypt_pwd = kmc_decrypt.decrypt(encrypt_pwd)
+        except Exception as error:
+            raise Exception('[result] decrypt ctsql passwd failed') from error
+        finally:
+            kmc_decrypt.finalize()
+        split_env = os.environ['LD_LIBRARY_PATH'].split(":")
+        filtered_env = [single_env for single_env in split_env if "/opt/cantian/dbstor/lib" not in single_env]
+        os.environ['LD_LIBRARY_PATH'] = ":".join(filtered_env)
+        return kmc_decrypt_pwd
+
     def read_inspection_config(self):
         """
         reading inspection config file to obtain inspection component details
@@ -143,9 +162,6 @@ class InspectionTask:
         with open(self.inspection_json_file, encoding='utf-8') as file:
             inspection_map = json.load(file)
 
-        deploy_mode = self.get_deploy_mode()
-        if deploy_mode == "--nas":
-            del inspection_map["dbs_redundant_links_check"]
         return inspection_map
 
     def get_input(self, _input_value):
@@ -202,6 +218,18 @@ class InspectionTask:
 
         return audit_file
 
+    def check_smartkit(self):
+        if self.use_smartkit:
+            user_name = "sys"
+            system_pwd = self.decrypt_password()
+        else:
+            user_name = input('Please input user:')
+            system_pwd = getpass.getpass("Please input password:")
+            if not self.user_name_reg(user_name):
+                raise ValueError(f"[error] the input username '{user_name}' is illegal, "
+                                 f"please enter a correct username.")
+        return system_pwd, user_name
+
     def get_user_pwd(self):
         """
         if there is one inspection need user or pwd, request user input user and name
@@ -211,11 +239,7 @@ class InspectionTask:
         """
         for inspection_item in self.inspection_items:
             if self.inspection_map.get(inspection_item, {}).get('need_pwd'):
-                user_name = input('Please input user: ')
-                system_pwd = getpass.getpass("Please input password: ")
-                if not self.user_name_reg(user_name):
-                    raise ValueError(f"[error] the input username '{user_name}' is illegal, "
-                                     f"please enter a correct username.")
+                system_pwd, user_name = self.check_smartkit()
                 return user_name, system_pwd
 
         return ()
@@ -229,7 +253,7 @@ class InspectionTask:
         """
         for inspection_item in self.inspection_items:
             if self.inspection_map.get(inspection_item, {}).get('need_ip'):
-                return ZSQL_IP, ZSQL_PORT
+                return CTSQL_IP, CTSQL_PORT
 
         return ()
 
@@ -291,6 +315,11 @@ class InspectionTask:
                          f'\ninspection result file is {log_full_path}')
 
 
+def file_reader(file_path):
+    with open(file_path, 'r') as file:
+        return file.read()
+
+
 def change_mode_back():
     os.chmod(LOG_DIRECTORY, 0o700)
 
@@ -299,21 +328,32 @@ def main(input_val):
     # 运行期间修改日志路径为777，确保各模块可以在日志路径内创建日志文件
     os.chmod(LOG_DIRECTORY, 0o777)
     from declear_env import DeclearEnv
+    # 获取当前为参天还是mysql容器
+    current_env = DeclearEnv().get_env_type()
     # 获取执行当前进程的用户名
-    from inspection_cantian import CantianInspection
-    cantian_inspection = CantianInspection(input_val)
-    cantian_inspection.task_execute()
+    current_executor = DeclearEnv().get_executor()
+    if current_env == "cantian":
+        from inspection_cantian import CantianInspection
+        cantian_inspection = CantianInspection(input_val, use_smartkit)
+        cantian_inspection.task_execute()
+
+    else:
+        from inspection_mysql import MysqlInspection
+        mysql_inspection = MysqlInspection(input_val, use_smartkit)
+        mysql_inspection.task_execute()
 
 
 if __name__ == '__main__':
     input_value = None
+    use_smartkit = False
     try:
         input_value = sys.argv[1]
     except Exception as err:
         _ = err
         exit('[error]: Input format is not correct, missing input value;'
              ' Input value could be "all" or "[component1,component2,...]".')
-
+    if len(sys.argv) == 3 and sys.argv[2] == "smartkit":
+        use_smartkit = True
     sys.dont_write_bytecode = True
     atexit.register(change_mode_back)
     try:

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -42,24 +42,24 @@
 
 #define TBOX_LOG_AUDIT(format, ...) cm_write_audit_log(format, ##__VA_ARGS__)
 
-// for snprintf_s/sprintf_s..., return GS_ERROR if error
+// for snprintf_s/sprintf_s..., return CT_ERROR if error
 #define PRTS_PRINT_RETURN_IFERR(func)                        \
     do {                                               \
         int32 __code__ = (func);                       \
         if (SECUREC_UNLIKELY(__code__ == -1)) {        \
             printf("system error occured, snprintf error, exit\n");   \
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, __code__); \
-            return GS_ERROR;                           \
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, __code__); \
+            return CT_ERROR;                           \
         }                                              \
     } while (0)
 
-// for snprintf_s/sprintf_s..., return GS_ERROR if error
+// for snprintf_s/sprintf_s..., return CT_ERROR if error
 #define PRTS_PRINT_RETVOID_IFERR(func)                        \
     do {                                               \
         int32 __code__ = (func);                       \
         if (SECUREC_UNLIKELY(__code__ == -1)) {        \
             printf("system error occured, snprintf error, exit\n");   \
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, __code__); \
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, __code__); \
             return;                                    \
         }                                              \
     } while (0)
@@ -71,8 +71,8 @@
         int32 __code__ = (func);                       \
         if (SECUREC_UNLIKELY(__code__ != EOK)) {       \
             printf("system error occured, memory function error, exit\n");    \
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, __code__); \
-            return GS_ERROR;                           \
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, __code__); \
+            return CT_ERROR;                           \
         }                                              \
     } while (0)
 
@@ -82,7 +82,7 @@
         int32 __code__ = (func);                                         \
         if (SECUREC_UNLIKELY(__code__ != EOK)) {                         \
             printf("system error occured, memory function error, exit\n"); \
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, __code__);                   \
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, __code__);                   \
             return;                                                      \
         }                                                                \
     } while (0)

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -68,12 +68,12 @@ typedef struct st_gbp_attr {
     char lsnr_addr[CM_MAX_IP_LEN];
     uint16 lsnr_port;
 
-    char server_addr[GS_MAX_LSNR_HOST_COUNT][CM_MAX_IP_LEN];
-    char server_addr2[GS_MAX_LSNR_HOST_COUNT][CM_MAX_IP_LEN];
+    char server_addr[CT_MAX_LSNR_HOST_COUNT][CM_MAX_IP_LEN];
+    char server_addr2[CT_MAX_LSNR_HOST_COUNT][CM_MAX_IP_LEN];
     uint32 server_count;
     uint32 server_count2;
     char local_gbp_host[CM_MAX_IP_LEN];
-    char trans_type[GS_MAX_NAME_LEN];
+    char trans_type[CT_MAX_NAME_LEN];
     uint64 gbp_buf_size;
     bool32 gbp_for_recovery;
     bool32 gbp_debug_rcy_check;
@@ -129,19 +129,19 @@ typedef struct st_gbp_queue {
 
 /* gbp context */
 typedef struct st_gbp_context {
-    knl_session_t *gbp_bg_sessions[GS_GBP_SESSION_COUNT];
+    knl_session_t *gbp_bg_sessions[CT_GBP_SESSION_COUNT];
     /* buffer manager on gbp */
-    gbp_buf_manager_t gbp_buf_manager[GS_GBP_SESSION_COUNT];
+    gbp_buf_manager_t gbp_buf_manager[CT_GBP_SESSION_COUNT];
     /* page need to send to gbp */
-    gbp_queue_t queue[GS_GBP_SESSION_COUNT];
+    gbp_queue_t queue[CT_GBP_SESSION_COUNT];
     /* request and response buffer. on primary, it is request buffer. on standby, it is response buffer */
-    char *batch_buf[GS_GBP_SESSION_COUNT];
+    char *batch_buf[CT_GBP_SESSION_COUNT];
     aligned_buf_t pipe_buf;
     /* gbp agnet on kernel */
     thread_t gbp_agent_thread;
 
     /* concurrent control for sessions read same page from gbp */
-    spinlock_t buf_read_lock[GS_GBP_RD_LOCK_COUNT];
+    spinlock_t buf_read_lock[CT_GBP_RD_LOCK_COUNT];
 
     volatile bool32 log_flushing;
     volatile bool32 gbp_read_completed;     /* gbp page read completed flag */
@@ -194,7 +194,7 @@ typedef struct st_gbp_aly_context {
     date_t last_recycle_time;
 
     arch_file_t arch_file;
-    int32 log_handle[GS_MAX_LOG_FILES];
+    int32 log_handle[CT_MAX_LOG_FILES];
 } gbp_aly_ctx_t;
 
 typedef enum en_gbp_page_status {

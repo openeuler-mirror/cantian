@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -35,13 +35,13 @@ void rd_lob_put_chunk(knl_session_t *session, log_entry_t *log);
 void rd_lob_page_init(knl_session_t *session, log_entry_t *log);
 void rd_lob_change_seg(knl_session_t *session, log_entry_t *log);
 void rd_lob_change_chunk(knl_session_t *session, log_entry_t *log);
-void redo_lob_change_page_free(knl_session_t *session, log_entry_t *log);
+void rd_lob_change_page_free(knl_session_t *session, log_entry_t *log);
 void rd_lob_page_ext_init(knl_session_t *session, log_entry_t *log);
 void print_lob_put_chunk(log_entry_t *log);
 void print_lob_page_init(log_entry_t *log);
 void print_lob_change_seg(log_entry_t *log);
 void print_lob_change_chunk(log_entry_t *log);
-void print_lob_changed_page_unused(log_entry_t *log);
+void print_lob_change_page_free(log_entry_t *log);
 void print_lob_page_ext_init(log_entry_t *log);
 
 

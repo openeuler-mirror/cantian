@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -25,6 +25,7 @@
 #ifndef __KNL_PCR_HEAP_H__
 #define __KNL_PCR_HEAP_H__
 
+#include "knl_table_module.h"
 #include "cm_defs.h"
 #include "cm_row.h"
 #include "knl_index.h"
@@ -36,6 +37,7 @@
 #include "knl_undo.h"
 #include "rb_purge.h"
 #include "knl_heap.h"
+#include "pcr_heap_persistent.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,134 +69,13 @@ typedef uint16 pcr_row_dir_t;
     (PCRH_MAX_COST_SIZE(session) - sizeof(pcr_row_dir_t) - sizeof(pcr_itl_t) - sizeof(rowid_t))
 #define PCRH_INSERT_MAX_CHAIN_COUNT 16
 
-#define PCRH_MERGE_CHAIN_COUNT     (GS_MAX_CHAIN_COUNT - PCRH_INSERT_MAX_CHAIN_COUNT + 1)
+#define PCRH_MERGE_CHAIN_COUNT     (CT_MAX_CHAIN_COUNT - PCRH_INSERT_MAX_CHAIN_COUNT + 1)
 #define PCRH_NEXT_ROWID(row) \
     (rowid_t *)((char *)(row) + (((row)->is_csf) ? (cm_row_init_size((row)->is_csf, ROW_COLUMN_COUNT(row))) : \
     (sizeof(row_head_t) + ((row)->is_link ? 0 : ROW_BITMAP_EX_SIZE((row))))))
 
 #define PCRH_UPDATE_INPAGE_SIZE(cols) (sizeof(rd_pcrh_update_inpage_t) + CM_ALIGN4(sizeof(uint16) * (cols)))
 
-typedef struct st_pcrh_undo_itl {
-    xid_t xid;
-    knl_part_locate_t part_loc;
-} pcrh_undo_itl_t;
-
-typedef struct st_rd_pcrh_clean_itl {
-    knl_scn_t scn;
-    uint8 itl_id;
-    uint8 is_owscn;
-    uint8 is_fast;
-    uint8 aligned;
-} rd_pcrh_clean_itl_t;
-
-typedef struct st_rd_pcrh_new_itl {
-    uint32 ssn;
-    xid_t xid;
-    undo_rowid_t undo_rid;
-} rd_pcrh_new_itl_t;
-
-typedef struct st_rd_pcrh_reuse_itl {
-    uint32 ssn;
-    xid_t xid;
-    union {
-        undo_rowid_t undo_rid;
-        struct {
-            undo_page_id_t page_id;
-            uint16 slot;
-            uint16 itl_id;
-        };
-    };
-} rd_pcrh_reuse_itl_t;
-
-typedef struct st_rd_pcrh_insert {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint8  new_dir;
-    uint8 aligned;
-    char data[4];
-} rd_pcrh_insert_t;
-
-typedef struct st_rd_prch_lock_row {
-    uint16 slot;
-    uint8 itl_id;
-    uint8 aligned;
-} rd_pcrh_lock_row_t;
-
-typedef struct st_rd_pcrh_update_link_ssn {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint16 slot;
-} pcrh_update_link_ssn_t;
-
-typedef struct st_rd_pcrh_delete {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint16 slot;
-} rd_pcrh_delete_t;
-
-typedef struct st_rd_pcrh_set_next_rid {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint16 slot;
-    rowid_t next_rid;
-} pcrh_set_next_rid_t;
-
-typedef struct st_rd_pcrh_update_inplace {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint16 slot;
-    uint16 count; /* < update columns */
-    uint16 aligned;
-    /* ==== above aligned by 4 bytes === */
-    uint16 columns[0]; /* < following is update column data */
-} rd_pcrh_update_inplace_t;
-
-typedef struct st_rd_pcrh_update_inpage {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint16 slot;
-    uint16 new_cols; /* < new columns */
-    int16 inc_size;
-    uint16 count; /* < update columns */
-    uint16 aligned;
-    /* ==== above aligned by 4 bytes === */
-    uint16 columns[0]; /* < following is update column data */
-} rd_pcrh_update_inpage_t;
-
-typedef struct st_rd_pcrh_undo_update {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint16 slot;
-    uint8 is_xfirst;
-    uint8 type;
-    uint16 aligned;
-} rd_pcrh_undo_update_t;
-
-typedef struct st_rd_pcrh_undo {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 slot;
-    uint16 undo_slot : 15;
-    uint16 is_xfirst : 1;
-} rd_pcrh_undo_t;
-
-typedef struct st_pcrh_batch_undo {
-    uint16 slot : 15;
-    uint16 is_xfirst : 1;
-} pcrh_batch_undo_t;
-
-typedef struct st_pcrh_undo_batch_insert {
-    uint16 count;
-    uint16 aligned;
-    pcrh_batch_undo_t undos[0];
-} pcrh_undo_batch_insert_t;
 #pragma pack()
 
 /* structures using in compact page */
@@ -252,6 +133,7 @@ void pcrh_update_inpage(knl_session_t *session, heap_page_t *page, heap_update_a
 void pcrh_compact_page(knl_session_t *session, heap_page_t *page);
 void pcrh_reset_self_changed(knl_session_t *session, heap_page_t *page, uint8 itl_id);
 void pcrh_cleanout_itls(knl_session_t *session, knl_cursor_t *cursor, heap_page_t *page, bool32 *changed);
+status_t pcrh_check_ud_row_info(heap_page_t *cr_page, undo_row_t *ud_row);
 #ifdef __cplusplus
 }
 #endif

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -25,65 +25,29 @@
 #ifndef __KNL_TRAN_H__
 #define __KNL_TRAN_H__
 
+#include "knl_xact_module.h"
 #include "knl_page.h"
 #include "knl_session.h"
 #include "knl_log.h"
+#include "knl_tran_persistent.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define TX_WAIT_INTERVEL      5  // in milliseconds
 #define TXN_PER_PAGE(session)  \
     (uint32)((DEFAULT_PAGE_SIZE(session) - PAGE_HEAD_SIZE - PAGE_TAIL_SIZE) / sizeof(txn_t))
-#define TX_NEED_READ_WAIT(se) ((se)->wxid.value != GS_INVALID_ID64 && TX_XA_CONSISTENCY(se))
+#define TX_NEED_READ_WAIT(se) ((se)->wxid.value != CT_INVALID_ID64 && TX_XA_CONSISTENCY(se))
 #define RECORD_SQL_SIZE  SIZE_K(16)
 
-#define XID_INST_ID(xid)      ((xid).xmap.seg_id / GS_MAX_UNDO_SEGMENT)
-#define XMAP_INST_ID(xmap)    ((xmap).seg_id / GS_MAX_UNDO_SEGMENT)
-#define XID_SEG_ID(xid)       ((xid).xmap.seg_id % GS_MAX_UNDO_SEGMENT)
-#define XMAP_SEG_ID(xmap)     ((xmap).seg_id % GS_MAX_UNDO_SEGMENT)
+#define XID_INST_ID(xid)      ((xid).xmap.seg_id / CT_MAX_UNDO_SEGMENT)
+#define XMAP_INST_ID(xmap)    ((xmap).seg_id / CT_MAX_UNDO_SEGMENT)
+#define XID_SEG_ID(xid)       ((xid).xmap.seg_id % CT_MAX_UNDO_SEGMENT)
+#define XMAP_SEG_ID(xmap)     ((xmap).seg_id % CT_MAX_UNDO_SEGMENT)
 
 
 #pragma pack(4)
-typedef struct st_itl {
-    knl_scn_t scn;  // commit scn
-    xid_t xid;      // txn id
-    uint16 fsc;     // free space credit (bytes)
-
-    uint16 is_active : 1;  // committed or not
-    uint16 is_owscn : 1;   // txn scn overwrite or not
-    uint16 is_copied : 1;  // itl is copied or not
-    uint16 unused : 13;    // unused flags
-} itl_t;
-
-typedef struct st_pcr_itl {
-    union {
-        knl_scn_t scn;  // commit scn
-
-        struct {
-            uint32 ssn;      // txn ssn
-            uint16 fsc;      // free space credit (bytes)
-            uint16 aligned;  // aligned
-        };
-    };
-
-    xid_t xid;                 // txn id
-    undo_page_id_t undo_page;  // undo page for current transaction
-
-    union {
-        struct {
-            uint16 undo_slot;  // undo slot
-            uint16 flags;
-        };
-        struct {
-            uint16 aligned1;
-            uint16 is_active : 1;  // committed or not
-            uint16 is_owscn : 1;   // txn scn overwrite or not
-            uint16 is_copied : 1;  // itl is copied or not
-            uint16 is_hist : 1;    // itl is historical or not (used in CR rollback)
-            uint16 is_fast : 1;    // itl is fast committed or not
-            uint16 unused : 11;
-        };
-    };
-} pcr_itl_t;
-
 typedef struct st_cr_cursor {
     rowid_t rowid;
     xid_t xid;
@@ -115,14 +79,6 @@ typedef struct st_txn_page {
     page_head_t head;
     txn_t items[1];
 } txn_page_t;
-
-typedef struct st_rd_tx_end {
-    knl_scn_t scn;
-    xmap_t xmap;
-    uint8 is_auton;   // if is autonomous transaction
-    uint8 is_commit;  // if is commit
-    uint16 aligned;
-} rd_tx_end_t;
 #pragma pack()
 
 typedef struct st_tx_item {
@@ -157,7 +113,7 @@ typedef struct st_tx_area {
     spinlock_t seri_lock;
     atomic_t rollback_num;     // txn rollback thread num
     bool32 is_xa_consistency;  // if use XA consistency read or write
-    thread_t rollback_proc[GS_MAX_ROLLBACK_PROC];
+    thread_t rollback_proc[CT_MAX_ROLLBACK_PROC];
 } tx_area_t;
 
 typedef struct st_rollback_ctx {
@@ -188,11 +144,12 @@ extern "C" {
 #endif
 txn_t *txn_addr(knl_session_t *session, xmap_t xmap);
 void tx_get_info(knl_session_t *session, bool32 is_scan, xid_t xid, txn_info_t *txn_info);
+void tx_get_snapshot(knl_session_t *session, xmap_t xmap, txn_snapshot_t *snapshot);
+EXTER_ATTACK uint8 xid_get_inst_id(knl_session_t *session, xid_t xid);
 #ifdef __cplusplus
 }
 #endif
 void txn_get_owner(knl_session_t *session, xmap_t xmap, undo_page_id_t *page_id);
-void tx_get_snapshot(knl_session_t *session, xmap_t xmap, txn_snapshot_t *snapshot);
 
 void tx_rollback_proc(thread_t *thread);
 status_t tx_rollback_start(knl_session_t *session);
@@ -206,7 +163,6 @@ tx_id_t tx_xmap_get_txid(knl_session_t *session, xmap_t xmap);
 void tx_record_sql(knl_session_t *session);
 
 void tx_get_local_snapshot(knl_session_t *session, xmap_t xmap, txn_snapshot_t *snapshot);
-uint8 xid_get_inst_id(knl_session_t *session, xid_t xid);
 uint8 xmap_get_inst_id(knl_session_t *session, xmap_t xmap);
 
 #define TX_XA_CONSISTENCY(se) ((se)->kernel->tran_ctx.is_xa_consistency)
@@ -220,12 +176,12 @@ static inline void tx_rm_attach_trans(knl_rm_t *rm, tx_item_t *item, txn_t *txn,
     rm->xid.xnum = txn->xnum;
     rm->undo_page_info.undo_rid.page_id = txn->undo_pages.last;
     rm->undo_page_info.undo_fs = 0;
-    rm->undo_page_info.encrypt_enable = GS_FALSE;
-    rm->undo_page_info.undo_log_encrypt = GS_FALSE;
+    rm->undo_page_info.encrypt_enable = CT_FALSE;
+    rm->undo_page_info.undo_log_encrypt = CT_FALSE;
     rm->noredo_undo_page_info.undo_rid.page_id = INVALID_UNDO_PAGID;
     rm->noredo_undo_page_info.undo_fs = 0;
-    rm->noredo_undo_page_info.encrypt_enable = GS_FALSE;
-    rm->noredo_undo_page_info.undo_log_encrypt = GS_FALSE;
+    rm->noredo_undo_page_info.encrypt_enable = CT_FALSE;
+    rm->noredo_undo_page_info.undo_log_encrypt = CT_FALSE;
 }
 
 static inline void tx_init_itl(knl_session_t *session, itl_t *itl, xid_t xid)
@@ -272,12 +228,16 @@ static inline void tx_record_rowid(rowid_t rid)
 {
     int32 code = cm_get_error_code();
     if (code == ERR_LOCK_TIMEOUT) {
-        GS_LOG_RUN_ERR("lock timeout while waiting for row %u-%u-%u", rid.file, rid.page, rid.slot);
+        CT_LOG_RUN_ERR("lock timeout while waiting for row %u-%u-%u", rid.file, rid.page, rid.slot);
     }
 }
 
 status_t txn_dump_page(knl_session_t *session, page_head_t *page_head, cm_dump_t *dump);
 
 void tx_copy_logic_log(knl_session_t *session);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

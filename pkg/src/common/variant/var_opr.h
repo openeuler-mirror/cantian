@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -29,7 +29,7 @@
 #include "var_cast.h"
 
 #define OPR_THROW_ERROR(oper, l_type, r_type) \
-    GS_THROW_ERROR(ERR_UNDEFINED_OPER,                       \
+    CT_THROW_ERROR(ERR_UNDEFINED_OPER,                       \
         get_datatype_name_str((int32)(l_type)),               \
         oper,                                                \
         get_datatype_name_str((int32)(r_type)))
@@ -38,12 +38,12 @@
 #define CHECK_REAL_OVERFLOW(val, inf_is_valid, zero_is_valid) \
     do {                                                       \
         if (isinf(val) && !(inf_is_valid)) {               \
-            GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "DOUBLE/REAL");  \
-            return GS_ERROR;                                   \
+            CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "DOUBLE/REAL");  \
+            return CT_ERROR;                                   \
         }                                                      \
         if ((val) == 0.0 && !(zero_is_valid)) {                \
-            GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "DOUBLE/REAL");  \
-            return GS_ERROR;                                   \
+            CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "DOUBLE/REAL");  \
+            return CT_ERROR;                                   \
         }                                                      \
     } while (0)
 
@@ -59,27 +59,27 @@ typedef struct st_opr_operand_set {
 #define OP_RESULT(op_set) ((op_set)->result)
 
 typedef status_t (*opr_exec_t)(opr_operand_set_t *op_set);
-typedef status_t (*opr_infer_t)(gs_type_t left, gs_type_t right, gs_type_t *result);
+typedef status_t (*opr_infer_t)(ct_type_t left, ct_type_t right, ct_type_t *result);
 
 typedef struct st_opr_rule {
     opr_exec_t     exec;          // executor
-    gs_type_t      lc_type;       // the type left variant converted to
-    gs_type_t      rc_type;       // the type right variant converted to
-    gs_type_t      rs_type;       // the type of result
+    ct_type_t      lc_type;       // the type left variant converted to
+    ct_type_t      rc_type;       // the type right variant converted to
+    ct_type_t      rs_type;       // the type of result
 }opr_rule_t;
 
 // declare rule for operator "+"
 #define OPR_DECL(name, lct, rct, rst)  \
     static opr_rule_t g_opr_##name = {.exec = (name), .lc_type = (lct), .rc_type = (rct), .rs_type = (rst)}
 
-#define __OPR_DEF(lt, rt, name) [GS_TYPE_I((lt))][GS_TYPE_I((rt))] = &g_opr_##name
+#define __OPR_DEF(lt, rt, name) [CT_TYPE_I((lt))][CT_TYPE_I((rt))] = &(g_opr_##name)
 
 static inline status_t opr_text2dec(variant_t *text, variant_t *dec)
 {
-    GS_RETURN_IFERR(cm_text_to_dec(VALUE_PTR(text_t, text), &dec->v_dec));
+    CT_RETURN_IFERR(cm_text_to_dec(VALUE_PTR(text_t, text), &dec->v_dec));
     dec->ctrl = 0;
-    dec->type = GS_TYPE_NUMBER2;
-    return GS_SUCCESS;
+    dec->type = CT_TYPE_NUMBER2;
+    return CT_SUCCESS;
 }
 
 extern opr_exec_t  g_opr_execs[];
@@ -88,8 +88,8 @@ extern uint32      g_opr_priority[];
 
 status_t opr_exec(operator_type_t oper,
     const nlsparams_t *nls, variant_t *left, variant_t *right, variant_t *result);
-status_t opr_infer_type(operator_type_t oper, gs_type_t left, gs_type_t right, gs_type_t *result);
-status_t opr_infer_type_sum(gs_type_t sum_type, typmode_t *typmod);
+status_t opr_infer_type(operator_type_t oper, ct_type_t left, ct_type_t right, ct_type_t *result);
+status_t opr_infer_type_sum(ct_type_t sum_type, typmode_t *typmod);
 
 // process binary as string if the binary variant is not from const hex
 // binary data converted to string directly
@@ -99,10 +99,10 @@ status_t opr_infer_type_sum(gs_type_t sum_type, typmode_t *typmod);
         variant_t *old_right = OP_RIGHT(op_set);       \
         if (!OP_RIGHT(op_set)->v_bin.is_hex_const) { \
             var.v_bin = OP_RIGHT(op_set)->v_bin; \
-            var.type  = GS_TYPE_STRING; \
+            var.type  = CT_TYPE_STRING; \
         } else { \
-            GS_RETURN_IFERR(cm_xbytes2bigint(&OP_RIGHT(op_set)->v_bin, &var.v_bigint)); \
-            var.type = GS_TYPE_BIGINT; \
+            CT_RETURN_IFERR(cm_xbytes2bigint(&OP_RIGHT(op_set)->v_bin, &var.v_bigint)); \
+            var.type = CT_TYPE_BIGINT; \
         } \
         OP_RIGHT(op_set) = &var; \
         status_t status = opr_exec_##oper(op_set); \
@@ -118,10 +118,10 @@ status_t opr_infer_type_sum(gs_type_t sum_type, typmode_t *typmod);
         variant_t *old_left = OP_LEFT(op_set);     \
         if (!OP_LEFT(op_set)->v_bin.is_hex_const) { \
             var.v_bin = OP_LEFT(op_set)->v_bin; \
-            var.type  = GS_TYPE_STRING; \
+            var.type  = CT_TYPE_STRING; \
         } else { \
-            GS_RETURN_IFERR(cm_xbytes2bigint(&OP_LEFT(op_set)->v_bin, &var.v_bigint)); \
-            var.type = GS_TYPE_BIGINT; \
+            CT_RETURN_IFERR(cm_xbytes2bigint(&OP_LEFT(op_set)->v_bin, &var.v_bigint)); \
+            var.type = CT_TYPE_BIGINT; \
         } \
         OP_LEFT(op_set) = &var; \
         status_t status = opr_exec_##oper(op_set); \
@@ -145,14 +145,14 @@ static inline char *var_get_buf(variant_t *var)
         return NULL;
     }
 
-    if (GS_IS_VARLEN_TYPE(var->type)) {
+    if (CT_IS_VARLEN_TYPE(var->type)) {
         buf = var->v_text.str;
         len = var->v_text.len;
-    } else if (GS_IS_LOB_TYPE(var->type)) {
-        if (var->v_lob.type == GS_LOB_FROM_KERNEL) {
+    } else if (CT_IS_LOB_TYPE(var->type)) {
+        if (var->v_lob.type == CT_LOB_FROM_KERNEL) {
             buf = (char *)var->v_lob.knl_lob.bytes;
             len = var->v_lob.knl_lob.size;
-        } else if (var->v_lob.type == GS_LOB_FROM_NORMAL) {
+        } else if (var->v_lob.type == CT_LOB_FROM_NORMAL) {
             buf = var->v_lob.normal_lob.value.str;
             len = var->v_lob.normal_lob.value.len;
         } else {

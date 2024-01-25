@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -24517,7 +24517,7 @@ int32 gbk2ucs2(char *gbk, uint32 gbk_len, uint16 *ucs2)
     iVal = (((uint16)(*pGbk)) << 8) + pGbk[1];
     if (iVal > GBK_MAX || iVal < GBK_MIN) {
         *ucs2 = '?';
-        GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "gbk string: %.*s", MIN(gbk_len, GS_MAX_INVALID_CHARSTR_LEN), gbk);
+        CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "gbk string: %.*s", MIN(gbk_len, CT_MAX_INVALID_CHARSTR_LEN), gbk);
         return -1;
     }
     *ucs2 = GBK_UCS2[iVal - GBK_MIN];
@@ -24534,7 +24534,7 @@ static int32 ucs2gbk(uint16 ucs2, char *gbk)
     }
 
     if (ucs2 < UCS2_MIN || ucs2 > UCS2_MAX) {
-        GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "ucs2 character: %x", ucs2);
+        CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "ucs2 character: %x", ucs2);
         return -1;
     }
 
@@ -24553,8 +24553,8 @@ static int32 utf8_to_utf32(void *utf8, uint32 utf8_len, uint32 *utf32)
         return 1;
     } else if (*ptr <= 0xDF) { /* 110xxxxx 10xxxxxx */
         if ((*ptr & 0xE0) != 0xC0) {
-            GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf8 string: %.*s",
-                MIN(utf8_len, GS_MAX_INVALID_CHARSTR_LEN), (char*)utf8);
+            CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf8 string: %.*s",
+                MIN(utf8_len, CT_MAX_INVALID_CHARSTR_LEN), (char*)utf8);
             return ICONV_ERR;
         }
         if (utf8_len < 2) {
@@ -24565,8 +24565,8 @@ static int32 utf8_to_utf32(void *utf8, uint32 utf8_len, uint32 *utf32)
         return 2;
     } else if (*ptr <= 0xEF) { /* 1110xxxx 10xxxxxx 10xxxxxx */
         if ((*ptr & 0xF0) != 0xE0) {
-            GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf8 string: %.*s",
-                MIN(utf8_len, GS_MAX_INVALID_CHARSTR_LEN), (char*)utf8);
+            CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf8 string: %.*s",
+                MIN(utf8_len, CT_MAX_INVALID_CHARSTR_LEN), (char*)utf8);
             return ICONV_ERR;
         }
         if (utf8_len < 3) {
@@ -24579,8 +24579,8 @@ static int32 utf8_to_utf32(void *utf8, uint32 utf8_len, uint32 *utf32)
     } else if (*ptr <= 0xF4) { /* 1111 0xxx 10xxxxxx 10xxxxxx 10xxxxxx */
         // max unicode 'U+0x10FFFF' : utf8 encoding is '0xF4 0x8F 0xBF 0xBF'
         if ((*ptr & 0xF8) != 0xF0) {
-            GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf8 string: %.*s",
-                MIN(utf8_len, GS_MAX_INVALID_CHARSTR_LEN), (char*)utf8);
+            CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf8 string: %.*s",
+                MIN(utf8_len, CT_MAX_INVALID_CHARSTR_LEN), (char*)utf8);
             return ICONV_ERR;
         }
         if (utf8_len < 4) {
@@ -24593,8 +24593,8 @@ static int32 utf8_to_utf32(void *utf8, uint32 utf8_len, uint32 *utf32)
         return 4;
     }
 
-    GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf8 to utf32 string: %.*s",
-        MIN(utf8_len, GS_MAX_INVALID_CHARSTR_LEN), (char*)utf8);
+    CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf8 to utf32 string: %.*s",
+        MIN(utf8_len, CT_MAX_INVALID_CHARSTR_LEN), (char*)utf8);
     return ICONV_ERR;
 }
 
@@ -24625,7 +24625,7 @@ static int32 utf32_to_utf8(uint32 utf32, void *utf8)
         pUtf8[3] = 0x80 | (0x3F & utf32);
         return 4;
     } else {
-        GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf32 to utf8 character: %x", utf32);
+        CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf32 to utf8 character: %x", utf32);
         return ICONV_ERR;
     }
 }
@@ -24636,7 +24636,7 @@ static int32 ucs2_to_utf8(uint16 ucs2, void *utf8)
     uint32 utf32 = (uint32)ucs2;
     int ret = utf32_to_utf8(utf32, utf8);
     if (ret > 3) {
-        GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "ucs2 to utf8 character: %x", ucs2);
+        CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "ucs2 to utf8 character: %x", ucs2);
         return ICONV_ERR;
     }
     return ret;
@@ -24653,8 +24653,8 @@ static int32 utf8_to_ucs2(void *utf8, uint32 utf8_len, void *ucs2)
     }
 
     if (utf32 < UCS2_MIN || utf32 > UCS2_MAX) {
-        GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf8 to ucs2 string: %.*s",
-            MIN(utf8_len, GS_MAX_INVALID_CHARSTR_LEN), (char*)utf8);
+        CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf8 to ucs2 string: %.*s",
+            MIN(utf8_len, CT_MAX_INVALID_CHARSTR_LEN), (char*)utf8);
         return ICONV_ERR;
     }
 
@@ -24692,7 +24692,7 @@ static int32 utf32_to_utf16(uint32 utf_32, utf16_t *utf16)
         utf16->code_units = 2;
         return ICONV_END;
     } else {
-        GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf32 to utf16 character: %x", utf32);
+        CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf32 to utf16 character: %x", utf32);
         return ICONV_ERR;
     }
 }
@@ -24776,14 +24776,14 @@ static int32 utf16_peek(uint8 *src_buf, uint32 src_len, utf16_t *utf16)
 
     if (utf16->code[0] >= 0xD800 && utf16->code[0] <= 0xDBFF) {
         if (src_len < 4) {
-            GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf16 surrogate1: %x", utf16->code[0]);
+            CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf16 surrogate1: %x", utf16->code[0]);
             return -1;
         }
         utf16->code[1] = *((uint16 *)(src_buf + sizeof(uint16)));
         utf16->code_units = 2;
 
         if (utf16->code[1] < 0xDC00 || utf16->code[1] > 0xDFFF) {
-            GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf16 surrogate2: %x", utf16->code[1]);
+            CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf16 surrogate2: %x", utf16->code[1]);
             return -1;
         }
     }
@@ -24832,7 +24832,7 @@ int32 cm_gbk_to_utf8(const void *src, uint32 *src_len, void *dst, uint32 dst_len
         if (iRet < 0) {
             return -1;
         } else if (iRet == 0) {
-            *eof = GS_TRUE;
+            *eof = CT_TRUE;
             break;
         }
         pGbk += iRet;
@@ -24863,7 +24863,7 @@ int32 cm_utf8_to_gbk(const void *src, uint32 *src_len, void *dst, uint32 dst_len
         if (iRet < 0) {
             return -1;
         } else if (iRet == 0) {
-            *eof = GS_TRUE;
+            *eof = CT_TRUE;
             break;
         }
         pUtf8 += iRet;
@@ -24894,7 +24894,7 @@ int32 cm_utf8_to_utf16(const void *src, uint32 *src_len, void *dst, uint32 dst_l
         if (conv_count < 0) {
             return -1;
         } else if (conv_count == 0) {
-            *eof = GS_TRUE;
+            *eof = CT_TRUE;
             break;
         }
 
@@ -24925,7 +24925,7 @@ int32 cm_utf16_to_utf8(const void *src, uint32 *src_len, void *dst, uint32 dst_l
     uint32 dst_len = dst_length;
 
     if (*src_len % 2 == 1) {
-        GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf16 to utf8, error length %u", *src_len);
+        CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf16 to utf8, error length %u", *src_len);
         return -1;
     }
 
@@ -24973,7 +24973,7 @@ int32 cm_gbk_to_utf16(const void *src, uint32 *src_len, void *dst, uint32 dst_le
         if (conv_count < 0) {
             return -1;
         } else if (conv_count == 0) {
-            *eof = GS_TRUE;
+            *eof = CT_TRUE;
             break;
         }
 
@@ -25003,7 +25003,7 @@ int32 cm_utf16_to_gbk(const void *src, uint32 *src_len, void *dst, uint32 dst_le
 
     // When the number of bytes is base, -1 is returned
     if (*src_len % 2 == 1) {
-        GS_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf16 to gbk, error length: %u", *src_len);
+        CT_THROW_ERROR_EX(ERR_INVALID_CHARSET, "utf16 to gbk, error length: %u", *src_len);
         return -1;
     }
 
@@ -25045,19 +25045,19 @@ void win_getlasterror()
    
     switch (err) {
         case ERROR_INSUFFICIENT_BUFFER:
-            GS_THROW_ERROR(ERR_INVOKE_FUNC_FAIL, "ERROR_INSUFFICIENT_BUFFER, convert widechar to multibyte");
+            CT_THROW_ERROR(ERR_INVOKE_FUNC_FAIL, "ERROR_INSUFFICIENT_BUFFER, convert widechar to multibyte");
             break;
         case ERROR_INVALID_FLAGS:
-            GS_THROW_ERROR(ERR_INVOKE_FUNC_FAIL, "ERROR_INVALID_FLAGS, convert widechar to multibyte");
+            CT_THROW_ERROR(ERR_INVOKE_FUNC_FAIL, "ERROR_INVALID_FLAGS, convert widechar to multibyte");
             break;
         case ERROR_INVALID_PARAMETER:
-            GS_THROW_ERROR(ERR_INVOKE_FUNC_FAIL, "ERROR_INVALID_PARAMETER, convert widechar to multibyte");
+            CT_THROW_ERROR(ERR_INVOKE_FUNC_FAIL, "ERROR_INVALID_PARAMETER, convert widechar to multibyte");
             break;
         case ERROR_NO_UNICODE_TRANSLATION:
-            GS_THROW_ERROR(ERR_INVOKE_FUNC_FAIL, "ERROR_NO_UNICODE_TRANSLATION, convert widechar to multibyte");
+            CT_THROW_ERROR(ERR_INVOKE_FUNC_FAIL, "ERROR_NO_UNICODE_TRANSLATION, convert widechar to multibyte");
             break;
         default:
-            GS_THROW_ERROR(ERR_INVOKE_FUNC_FAIL, "unknown error, convert widechar to multibyte");
+            CT_THROW_ERROR(ERR_INVOKE_FUNC_FAIL, "unknown error, convert widechar to multibyte");
             break;
     }
 
@@ -25071,11 +25071,11 @@ status_t cm_widechar_to_multibyte(uint32 cp_id, const wchar_t* src_w, size_t src
     stat = WideCharToMultiByte(cp_id, 0, src_w, (int)src_w_size, dest_c, (int)dest_c_size, NULL, NULL);
     if (stat != 0 && dest_c_size != 0) {
         *num_of_char = strlen(dest_c);  // stat include the length of '/0' at the end of dest_c
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
    
     win_getlasterror();
-    return GS_ERROR;
+    return CT_ERROR;
 }
 status_t cm_multibyte_to_widechar(uint32 cp_id, const char* src_c, size_t src_c_size, wchar_t* dest_w,
                                   size_t dest_w_size, size_t* num_of_wchar)
@@ -25085,11 +25085,11 @@ status_t cm_multibyte_to_widechar(uint32 cp_id, const char* src_c, size_t src_c_
     stat = MultiByteToWideChar(cp_id, 0, src_c, (int)src_c_size, dest_w, (int)dest_w_size);
     if (stat != 0 && dest_w_size != 0) {
         *num_of_wchar = stat;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
  
     win_getlasterror();
-    return GS_ERROR;
+    return CT_ERROR;
 }
 #else
 status_t cm_widechar_to_multibyte(iconv_t agent_env, const wchar_t* src_w, size_t src_w_size,
@@ -25103,12 +25103,12 @@ status_t cm_widechar_to_multibyte(iconv_t agent_env, const wchar_t* src_w, size_
     // 2)after execute iconv, the fourth parameter is length of left dest buffer space
     result = iconv(env, (char**)&src_w, &src_w_size, (char**)&dest_c, &dest_c_size);
     if (result == (size_t)-1) {
-        GS_THROW_ERROR(ERR_CONVERT_CODE_FAILED, "convert widewchar to multibyte failed", errno);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CONVERT_CODE_FAILED, "convert widewchar to multibyte failed", errno);
+        return CT_ERROR;
     }
     *num_of_char = src_left_space - dest_c_size;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 status_t cm_multibyte_to_widechar(iconv_t agent_env, const char* src_c, size_t src_c_size,
                                   wchar_t* dest_w, size_t dest_w_size, size_t *num_of_wchar)
@@ -25121,12 +25121,12 @@ status_t cm_multibyte_to_widechar(iconv_t agent_env, const char* src_c, size_t s
     // 2)after execute iconv, the fourth parameter is length of left dest buffer space
     result = iconv(env, (char**)&src_c, &src_c_size, (char**)&dest_w, &dest_w_size);
     if (result == (size_t)-1) {
-        GS_THROW_ERROR(ERR_CONVERT_CODE_FAILED, "convert multibyte to widewchar failed", errno);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CONVERT_CODE_FAILED, "convert multibyte to widewchar failed", errno);
+        return CT_ERROR;
     }
     *num_of_wchar = (src_left_space - dest_w_size) / sizeof(wchar_t);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 #endif
 

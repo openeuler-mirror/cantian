@@ -9,7 +9,7 @@ DEL_DATABASE_SH='del_databasealldata.sh'
 function kill_process()
 {
     local processName=${1}
-    killall ${processName}
+    kill -9 `pidof ${processName}`
 
 }
 
@@ -30,7 +30,6 @@ function use_cstool_query_connection()
     sleep 5s
 
     #挂起进程
-    chmod +x cstool
     nohup ./${cstoolCmd} &> /dev/null &
      
     #等待 cstool 有足够的时间后台拉起

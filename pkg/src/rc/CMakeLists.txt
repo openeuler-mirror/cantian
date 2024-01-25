@@ -1,5 +1,5 @@
 include_directories(
-        "${CTDB_SRC}/cms/interface"
+        "${CANTIANDB_SRC}/cms/interface"
 )
 
 aux_source_directory(. RC_SRC)

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -44,7 +44,7 @@
 #define TSC_UPDATE (TSC_HZ / 10)
 #define INIT_WAIT_TIME (1)
 #define MMAP_FILE_UMASK (0117)
-#define MMAP_FILE_MODE (0600)
+#define MMAP_FILE_MODE (0660)
 
 static pthread_mutex_t g_init_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct shm_seg_sysv_s *g_seg_array[MAX_SHM_SEG_NUM] = { NULL };
@@ -57,6 +57,7 @@ struct shm_ops_s g_shm_sysv_ops = {
     .shm_proc_alive = shm_sysv_proc_alive,
     .shm_assign_proc_id = shm_sysv_assign_proc_id,
     .shm_send_msg = shm_sysv_send_msg,
+    .shm_seg_stop = shm_sysv_seg_stop,
     .shm_seg_exit = shm_sysv_and_mmap_seg_exit,
     .shm_master_init = shm_sysv_master_init,
     .shm_master_exit = shm_sysv_master_exit,
@@ -102,7 +103,7 @@ static int shm_exit_one_from_seg_array(struct shm_seg_sysv_s *seg)
     return -1;
 }
 
-void shm_sysv_and_mmap_seg_exit(struct shm_seg_s *_seg)
+void shm_sysv_seg_stop(struct shm_seg_s *_seg)
 {
     struct shm_seg_sysv_s *seg = (struct shm_seg_sysv_s *)_seg->priv;
 
@@ -113,20 +114,40 @@ void shm_sysv_and_mmap_seg_exit(struct shm_seg_s *_seg)
     }
     LOG_SHM_INFO("seg will exit, all business proc must call shm_seg_exit before call this function. _seg->type = %d %d",
                  _seg->type, getpid());
+    // just influence mysqld or cantiand 1. stop scheduler thds 2. necessary condition for stopping job thds
     seg->running = 0;
     int thd_num = seg->nr_proc;
     for (int i = 0; i < MAX_SHM_PROC; i++) {
         shm_proc_t *p = &seg->all_seg_shm->procs[i];
+        // sem_post to hot_thread_cool sem_wait, make job thds change running to sleeping
         for (int j = 0; j < thd_num; j++) {
             sem_post(&p->sem);
         }
     }
-
+    // this seg`s job thread all stoped
     while (__sync_fetch_and_add(&seg->nr_proc, 0) != 0) {
-        LOG_SHM_INFO("the seg [%s] have recovery thread in proccess!seg->nr_proc = %d", seg->shm_key.mmap_name,
-                     seg->nr_proc);
+        LOG_SHM_INFO("the seg [%s] have job work thread in proccess!running thd num %d, waitting...",
+                     seg->shm_key.mmap_name, seg->nr_proc);
         usleep(100 * 1000);
-    } /*wait all the curruent thread exit*/
+    }
+    for (int i = 0; i < MAX_SHM_PROC; i++) {
+        shm_proc_t *p = &seg->all_seg_shm->procs[i];
+        // destroy job recv thds sem.
+        for (int j = 0; j < thd_num; j++) {
+            sem_destroy(&p->sem);
+        }
+    }
+}
+
+void shm_sysv_and_mmap_seg_exit(struct shm_seg_s *_seg)
+{
+    struct shm_seg_sysv_s *seg = (struct shm_seg_sysv_s *)_seg->priv;
+
+    if ((_seg == NULL) || (_seg->priv == NULL)) {
+        LOG_SHM_ERROR("the segment is NULL!please check the code!");
+        cm_panic(0);
+        return;
+    }
 
     if (_seg->type == SHM_KEY_SYSV) {
         if (seg->type == shm_segtype_master) {
@@ -223,7 +244,6 @@ static int shm_mmap_create_file(int *fd, unsigned long total_size, const char *m
         close(*fd);
         return -1;
     }
-
     return 0;
 }
 

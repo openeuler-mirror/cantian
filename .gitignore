@@ -31,8 +31,8 @@
 /pkg/cmake-build-debug
 .idea
 .vscode
-/ci/CMC/target/
-/ci/CMC/Setting.xml
+/CI/CMC/target/
+/CI/CMC/Setting.xml
 /pkg/library/3rdparty/
 /pkg/library/platform/
 /pkg/library/
@@ -41,7 +41,6 @@
 /*.si4project/
 /cmake-build-debug
 open_source
-/library
 /output
 CMakeCache.txt
 /build/CMakeFiles

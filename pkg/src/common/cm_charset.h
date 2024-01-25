@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -30,15 +30,43 @@
 #include "cm_iconv.h"
 #include "cm_string_gbk.h"
 #include "cm_string_utf8.h"
+#include "cm_string_uca.h"
+#include "cm_string_common.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#define UCA_MAX_CHAR_GRP 4
+#define CM_CS_COMPILED (1 << 0)
+#define CM_CS_CONFIG (1 << 1)
+#define CM_CS_INDEX (1 << 2)
+#define CM_CS_LOADED (1 << 3)
+#define CM_CS_BINSORT (1 << 4)
+#define CM_CS_PRIMARY (1 << 5)
+#define CM_CS_STRNXFRM (1 << 6)
+#define CM_CS_UNICODE (1 << 7)
+#define CM_CS_READY (1 << 8)
+#define CM_CS_AVAILABLE (1 << 9)
+#define CM_CS_CSSORT (1 << 10)
+#define CM_CS_HIDDEN (1 << 11)
+#define CM_CS_PUREASCII (1 << 12)
+#define CM_CS_NONASCII (1 << 13)
+#define CM_CS_UNICODE_SUPPLEMENT (1 << 14)
+#define CM_CS_LOWER_SORT (1 << 15)
+#define CM_CHARSET_UNDEFINED 0
+
+#define CM_CS_UTF8MB4_UCA_FLAGS \
+        (CM_CS_COMPILED | CM_CS_STRNXFRM | CM_CS_UNICODE | CM_CS_UNICODE_SUPPLEMENT)
+
 typedef enum st_charset_type {
     CHARSET_UTF8 = 0,
-    CHARSET_GBK = 1,
-    CHARSET_MAX = 2,
+    CHARSET_GBK,
+    CHARSET_UTF8MB4,
+    CHARSET_BINARY,
+    CHARSET_LATIN1,
+    CHARSET_ASCII,
+    CHARSET_MAX,
 } charset_type_t;
 
 /* defines the available code page identifiers */
@@ -48,11 +76,25 @@ typedef enum st_charset_type {
 
 typedef enum st_collation_type {
     COLLATE_UTF8_BIN = 0,
-    COLLATE_UTF8_GENERAL_CI = 1,
-    COLLATE_UTF8_UNICODE_CI = 2,
-    COLLATE_GBK_BIN = 3,
-    COLLATE_GBK_CHINESE_CI = 4,
-    COLLATE_MAX = 5,
+    COLLATE_UTF8_GENERAL_CI,
+    COLLATE_UTF8_UNICODE_CI,
+    COLLATE_GBK_BIN,
+    COLLATE_GBK_CHINESE_CI,
+    COLLATE_UTF8MB4_GENERAL_CI,
+    COLLATE_UTF8MB4_BIN,
+    COLLATE_BINARY,
+    COLLATE_UTF8MB4_0900_AI_CI,
+    COLLATE_UTF8MB4_0900_BIN,
+    COLLATE_LATIN1_GENERAL_CI,
+    COLLATE_LATIN1_GENERAL_CS,
+    COLLATE_LATIN1_BIN,
+    COLLATE_ASCII_GENERAL_CI,
+    COLLATE_ASCII_BIN,
+    COLLATE_UTF8MB3_GENERAL_CI,
+    COLLATE_UTF8MB3_BIN,
+    COLLATE_UTF8_TOLOWER_CI,
+    COLLATE_SWEDISH_CI = 255,
+    COLLATE_MAX,
 } collation_type_t;
 
 typedef enum st_ascii_half_type {
@@ -65,12 +107,14 @@ typedef enum st_ascii_half_type {
     ASCII_HALF_TILDE = 0x7E,
 } ascii_half_type_t;
 
+typedef ulong cm_wc_t;
+
 typedef uint16 (*charset_find_code_proc)(uint8 *code, uint32 *len);
 typedef int32 (*transcode_func_t)(const void *src, uint32 *src_len, void *dst, uint32 dst_len, bool32 *eof);
 
 typedef struct st_charset {
     charset_type_t id;
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
     char *codes;
     charset_find_code_proc find_code;
     uint32 max_size; // max length of multibyte
@@ -79,8 +123,14 @@ typedef struct st_charset {
 
 typedef struct st_collation {
     collation_type_t id;
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
 } collation_t;
+
+typedef struct st_charset_coll {
+    collation_type_t id;
+    CHARSET_COLLATION *cs;
+    bool32 is_sensitive;
+} charset_coll_t;
 
 status_t cm_get_charset(const char *name, charset_t **charset);
 status_t cm_get_charset_ex(text_t *name, charset_t **charset);
@@ -119,49 +169,30 @@ uint32 cm_instr(const text_t *str, const text_t *substr, int32 pos, uint32 nth, 
 status_t cm_num_instr(const text_t *str, const text_t *substr, text_t *splitchar, uint32 *num, charset_type_t type);
 
 uint32 cm_instr_core(const text_t *str, const text_t *substr, int32 pos, uint32 nth, uint32 start);
+CHARSET_COLLATION *cm_get_charset_coll(uint32 collate_id);
+bool32 cm_is_collate_sensitive(uint32 collate_id);
 
-/* get next char pointer of string */
 typedef char* (*charset_move_char_forward)(const char *str, uint32 str_len);
-/* get previous char pointer of string */
 typedef char* (*charset_move_char_backward)(char *str, const char *head);
-/* get current charset name */
 typedef char* (*charset_name_t)(void);
-/* multibyte */
 typedef bool8(*cm_has_multibyte_t)(const char *str, uint32 len);
-/* get bytes of single str */
 typedef status_t(*cm_str_bytes_t)(const char *str, uint32 len, uint32 *bytes);
-/* get unicode of string */
 typedef status_t(*cm_str_unicode_t)(uint8 *str, uint32 *strlen);
-/* get bytes of single str reversed */
 typedef status_t(*cm_reverse_str_bytes_t)(const char *str, uint32 len, uint32 *bytes);
-/* like */
 typedef bool8(*cm_text_like_t)(const text_t *text1, const text_t *text2);
-/* escape like */
 typedef status_t(*cm_text_like_escape_t)(char *str, const char *str_end, char *wildstr,
     const char *wildend, char escape, int32 *cmp_ret);
-/* get characters of text */
 typedef status_t(*cm_length_t)(const text_t *text, uint32 *characters);
-/* get characters of text with ignore mode */
 typedef status_t(*cm_length_ignore_t)(const text_t *text, uint32 *characters, uint32 *ignore_bytes);
-/* get characters of text with ignore truncated bytes */
 typedef status_t (*cm_length_ignore_truncated_bytes_t)(text_t *text);
-/* substr */
 typedef status_t(*cm_substr_t)(text_t *src, int32 start, uint32 size, text_t *dst);
-/* left */
 typedef status_t(*cm_substr_left_t)(text_t *src, uint32 start, uint32 size, text_t *dst);
-/* right */
 typedef status_t(*cm_substr_right_t)(text_t *src, uint32 start, uint32 size, text_t *dst, bool32 overflow_allowed);
-/* instr */
 typedef uint32(*cm_instr_t)(const text_t *str, const text_t *substr, int32 pos, uint32 nth, bool32 *is_char);
-/* get start bytes position of string by char number */
 typedef status_t(*cm_get_start_byte_pos_t)(const text_t *text, uint32 char_pos, uint32 *start);
-/* instr with num */
 typedef status_t(*cm_num_instr_t)(const text_t *str, const text_t *substr, text_t *splitchar, uint32 *num);
-/* get max bytes of per char */
 typedef uint32(*cm_max_bytes_per_char_t)(void);
-/* multi_byte */
 typedef status_t(*cm_multi_byte_t)(text_t *src, text_t *dst);
-/* single_byte */
 typedef status_t(*cm_single_byte_t)(text_t *src, text_t *dst);
 
 typedef struct {
@@ -187,6 +218,100 @@ typedef struct {
     cm_multi_byte_t     multi_byte;
     cm_single_byte_t    single_byte;
 } charset_func_t;
+
+typedef struct CM_UNI_IDX {
+    uint16 from;
+    uint16 to;
+    const uchar *tab;
+} CM_UNI_IDX;
+
+typedef enum pad_attribute_t {
+    PAD_SPACE,
+    NO_PAD
+} pad_attribute_t;
+
+typedef size_t (*cm_charset_conv_case)(const CHARSET_COLLATION *, const text_t *, const text_t *);
+typedef int (*cm_charset_conv_mb_wc)(const CHARSET_COLLATION *, cm_wc_t *, const uchar *, const uchar *);
+typedef int (*cm_charset_conv_wc_mb)(const CHARSET_COLLATION *, cm_wc_t, uchar *, uchar *);
+
+typedef struct cm_charset_handler_t {
+    cm_charset_conv_case caseup;
+    cm_charset_conv_case casedn;
+    cm_charset_conv_mb_wc mb_wc;
+    cm_charset_conv_wc_mb wc_mb;
+} cm_charset_handler_t;
+
+typedef enum enum_char_grp {
+    CHARGRP_NONE,
+    CHARGRP_CORE,
+    CHARGRP_LATIN,
+    CHARGRP_CYRILLIC,
+    CHARGRP_ARAB,
+    CHARGRP_KANA,
+    CHARGRP_OTHERS
+} enum_char_grp;
+
+typedef struct weight_boundary_t {
+    uint16 begin;
+    uint16 end;
+} weight_boundary_t;
+
+typedef struct reorder_wt_rec_t {
+    struct weight_boundary_t old_wt_bdy;
+    struct weight_boundary_t new_wt_bdy;
+} reorder_wt_rec_t;
+
+typedef struct reorder_param_t {
+    enum enum_char_grp reorder_grp[UCA_MAX_CHAR_GRP];
+    struct reorder_wt_rec_t wt_rec[2 * UCA_MAX_CHAR_GRP];
+    int wt_rec_num;
+    uint16 max_weight;
+} reorder_param_t;
+
+typedef enum case_first_t {
+    CASE_FIRST_OFF,
+    CASE_FIRST_UPPER,
+    CASE_FIRST_LOWER
+} case_first_t;
+
+typedef struct coll_param_t {
+    reorder_param_t *reorder_param;
+    bool32 norm_enabled;  // false = normalization off, default; true = on
+    case_first_t case_first;
+} coll_param_t;
+
+typedef struct CM_UNICASE_CHARACTER {
+    uint32 toupper;
+    uint32 tolower;
+    uint32 sort;
+} CM_UNICASE_CHARACTER;
+
+typedef struct CM_UNICASE_INFO {
+    cm_wc_t maxchar;
+    const CM_UNICASE_CHARACTER **page;
+} CM_UNICASE_INFO;
+
+typedef uint (*cs_ismbchar)(const CHARSET_COLLATION *, const char *, const char *);
+typedef size_t (*cs_numchars)(const CHARSET_COLLATION *, const char *b, const char *e);
+typedef int32 (*cmp_collsp)(const CHARSET_COLLATION *, text_t *, text_t *);
+typedef int32 (*cset_mb_wc)(cm_wc_t *pwc, const uchar *s, const uchar *e);
+typedef struct CHARSET_COLLATION {
+    uint number;
+    uint state;
+    char *csname;
+    char *clname;
+    coll_param_t *coll_param;
+    const uchar *sort_order;
+    struct CM_UCA_INFO *uca;
+    const CM_UNICASE_INFO *caseinfo;
+    uchar levels_for_compare;
+    uint mbmaxlen;
+    cset_mb_wc mb_wc;
+    cs_ismbchar ismbchar;
+    cs_numchars numchars;
+    cmp_collsp collsp;
+    pad_attribute_t pad_attribute;
+} CHARSET_COLLATION;
 
 extern charset_func_t g_charset_func[];
 

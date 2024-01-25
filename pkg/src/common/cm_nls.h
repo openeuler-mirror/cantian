@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -110,7 +110,7 @@ typedef struct st_nls_setting_def {
 #define CM_SET_NLSPARAM(nls_val, text_val)                             \
     do {                                                               \
         nlsvalue_t *__nls_val = nls_val;                               \
-        GS_RETURN_IFERR(cm_text2str((text_val), __nls_val->str, MAX_NLS_PARAM_LENGTH)); \
+        CT_RETURN_IFERR(cm_text2str((text_val), __nls_val->str, MAX_NLS_PARAM_LENGTH)); \
         __nls_val->len = (uint32)strlen(__nls_val->str);                       \
     } while (0)
 
@@ -127,21 +127,21 @@ static inline status_t cm_text2nlsvalue(const text_t *text, nlsvalue_t *nls_text
 {
     errno_t errcode = strncpy_s(nls_text->str, MAX_NLS_PARAM_LENGTH, text->str, text->len);
     if (SECUREC_UNLIKELY(errcode != EOK)) {
-        GS_THROW_ERROR(ERR_CLT_INVALID_VALUE, "text2nlsvalue error", (uint32)errcode);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CLT_INVALID_VALUE, "text2nlsvalue error", (uint32)errcode);
+        return CT_ERROR;
     }
     nls_text->len = text->len;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 extern const nlsparams_t g_default_session_nlsparams;
 
-#define GS_DEFALUT_SESSION_NLS_PARAMS (&g_default_session_nlsparams)
+#define CT_DEFALUT_SESSION_NLS_PARAMS (&g_default_session_nlsparams)
 
 static inline status_t cm_init_session_nlsparams(nlsparams_t *params)
 {
     MEMS_RETURN_IFERR(memcpy_sp(params, sizeof(nlsparams_t), &g_default_session_nlsparams, sizeof(nlsparams_t)));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void cm_default_nls_geter(nlsparam_id_t id, text_t *fmt_text)

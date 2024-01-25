@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,16 +22,17 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "cm_timer.h"
 #include "cm_log.h"
 
 #define DAY_USECS (uint64)86400000000
 #define TIMER_INTERVAL  2  // ms
 #define MAX_INTERVAL    60 // sec
-static gs_timer_t timer;
+static ct_timer_t timer;
 static date_t sync_time;
 
-gs_timer_t *g_timer(void)
+ct_timer_t *g_timer(void)
 {
     return &timer;
 }
@@ -46,7 +47,7 @@ void cm_set_sync_time(date_t time)
     sync_time = time;
 }
 
-static void timer_set_now_scn(gs_timer_t *timer_temp, date_t interval_us)
+static void timer_set_now_scn(ct_timer_t *timer_temp, date_t interval_us)
 {
     if (!cm_atomic_get(&timer_temp->sys_scn_valid)) {
         return;
@@ -57,7 +58,7 @@ static void timer_set_now_scn(gs_timer_t *timer_temp, date_t interval_us)
     }
 
     atomic_t sys_scn = cm_atomic_get(timer_temp->system_scn);
-    if (GS_INVALID_SCN(sys_scn)) {
+    if (CT_INVALID_SCN(sys_scn)) {
         return;
     }
 
@@ -69,7 +70,7 @@ static void timer_set_now_scn(gs_timer_t *timer_temp, date_t interval_us)
 
     timeval_t old_time;
     timeval_t new_time;
-    GS_SCN_TO_TIME(*now_scn, &old_time, timer_temp->db_init_time);
+    CT_SCN_TO_TIME(*now_scn, &old_time, timer_temp->db_init_time);
     cm_date2timeval(timer_temp->now, &new_time);
 
     // set scn by current timestamp
@@ -79,7 +80,7 @@ static void timer_set_now_scn(gs_timer_t *timer_temp, date_t interval_us)
         diff_sec += diff_usec / MICROSECS_PER_SECOND;
     }
     if (diff_sec >= 0 && diff_sec < MAX_INTERVAL) {
-        uint64 time_scn = GS_TIME_TO_SCN(&new_time, timer_temp->db_init_time);
+        uint64 time_scn = CT_TIME_TO_SCN(&new_time, timer_temp->db_init_time);
         cm_atomic_set(now_scn, time_scn);
         return;
     }
@@ -91,21 +92,21 @@ static void timer_set_now_scn(gs_timer_t *timer_temp, date_t interval_us)
     uint64 usec = (uint64)old_time.tv_usec + interval;
     old_time.tv_sec += usec / MICROSECS_PER_SECOND;
     old_time.tv_usec = usec % MICROSECS_PER_SECOND;
-    uint64 interval_scn = GS_TIME_TO_SCN(&old_time, timer_temp->db_init_time);
+    uint64 interval_scn = CT_TIME_TO_SCN(&old_time, timer_temp->db_init_time);
     cm_atomic_set(now_scn, interval_scn);
 }
 
 static void timer_proc(thread_t *thread)
 {
     date_t start_time;
-    gs_timer_t *timer_temp = (gs_timer_t *)thread->argument;
+    ct_timer_t *timer_temp = (ct_timer_t *)thread->argument;
     int16 tz_min;
 
     start_time = cm_now();
     sync_time = start_time;
     timer_temp->status = TIMER_STATUS_RUNNING;
     cm_set_thread_name("timer");
-    GS_LOG_RUN_INF("timer thread started");
+    CT_LOG_RUN_INF("timer thread started");
 
     while (!thread->closed) {
         // In order to solve the thread deadlock problem caused by local_time_r function when fork child process.
@@ -141,10 +142,10 @@ static void timer_proc(thread_t *thread)
         }
     }
 
-    GS_LOG_RUN_INF("timer thread closed");
+    CT_LOG_RUN_INF("timer thread closed");
 }
 
-status_t cm_start_timer(gs_timer_t *input_timer)
+status_t cm_start_timer(ct_timer_t *input_timer)
 {
     cm_now_detail((date_detail_t *)&input_timer->detail);
     input_timer->now = cm_encode_date((const date_detail_t *)&input_timer->detail);
@@ -161,12 +162,12 @@ status_t cm_start_timer(gs_timer_t *input_timer)
     return cm_create_thread(timer_proc, 0, input_timer, &input_timer->thread);
 }
 
-void cm_close_timer(gs_timer_t *input_timer)
+void cm_close_timer(ct_timer_t *input_timer)
 {
     cm_close_thread(&input_timer->thread);
 }
 
-void cm_pause_timer(gs_timer_t *input_timer)
+void cm_pause_timer(ct_timer_t *input_timer)
 {
     input_timer->status = TIMER_STATUS_PAUSING;
     while (input_timer->status != TIMER_STATUS_PAUSED && !input_timer->thread.closed) {
@@ -174,7 +175,7 @@ void cm_pause_timer(gs_timer_t *input_timer)
     }
 }
 
-void cm_resume_timer(gs_timer_t *input_timer)
+void cm_resume_timer(ct_timer_t *input_timer)
 {
     input_timer->status = TIMER_STATUS_RUNNING;
 }

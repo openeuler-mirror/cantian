@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "cms_log_module.h"
 #include "cms_uds_client.h"
 #include "cms_defs.h"
 #include "cm_thread.h"
@@ -54,6 +54,7 @@ thread_lock_t            g_cli_send_lock;
 thread_lock_t            g_cli_req_map_lock;
 cm_oamap_t               g_cli_req_map;
 atomic_t                 g_cli_msg_seq;
+bool32                   g_cli_recv_timeout = CT_FALSE;
 
 bool32 cms_uds_cli_seq_compare(void *key1, void *key2)
 {
@@ -62,36 +63,36 @@ bool32 cms_uds_cli_seq_compare(void *key1, void *key2)
     uint64 *seq2 = (uint64*)key2;
 
     if (*seq1 == *seq2) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 cli_request_info_t* cms_new_req_info(cms_packet_head_t* req)
 {
     cli_request_info_t *req_info = malloc(sizeof(cli_request_info_t));
     if (req_info == NULL) {
-        GS_LOG_RUN_ERR("malloc failed, size %u, errno %d[%s]", (uint32)sizeof(cli_request_info_t),
+        CT_LOG_RUN_ERR("malloc failed, size %u, errno %d[%s]", (uint32)sizeof(cli_request_info_t),
             errno, strerror(errno));
         return NULL;
     }
 
     int32 ret = pthread_condattr_init(&req_info->recv_cond_attr);
     if (ret != 0) {
-        GS_LOG_RUN_ERR("pthread condattr init failed, ret %d", ret);
+        CT_LOG_RUN_ERR("pthread condattr init failed, ret %d", ret);
         CM_FREE_PTR(req_info);
         return NULL;
     }
     ret = pthread_condattr_setclock(&req_info->recv_cond_attr, CLOCK_MONOTONIC);
     if (ret != 0) {
-        GS_LOG_RUN_ERR("pthread condattr setclock failed, ret %d", ret);
+        CT_LOG_RUN_ERR("pthread condattr setclock failed, ret %d", ret);
         (void)pthread_condattr_destroy(&req_info->recv_cond_attr);
         CM_FREE_PTR(req_info);
         return NULL;
     }
     ret = pthread_cond_init(&req_info->recv_cond, &req_info->recv_cond_attr);
     if (ret != 0) {
-        GS_LOG_RUN_ERR("pthread cond init failed, ret %d", ret);
+        CT_LOG_RUN_ERR("pthread cond init failed, ret %d", ret);
         (void)pthread_condattr_destroy(&req_info->recv_cond_attr);
         CM_FREE_PTR(req_info);
         return NULL;
@@ -119,21 +120,21 @@ void cms_free_req_info(cli_request_info_t* req_info)
 
 status_t cms_uds_cli_save_req(cms_packet_head_t* req)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     cli_request_info_t *req_info = cms_new_req_info(req);
     if (req_info == NULL) {
-        GS_LOG_RUN_ERR("cms new req info failed");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("cms new req info failed");
+        return CT_ERROR;
     }
 
     ret = cm_oamap_insert(&g_cli_req_map, cm_hash_int64((uint64)req->msg_seq), &req->msg_seq, req_info);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("save req to hashamp failed, ret %d", ret);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("save req to hashamp failed, ret %d", ret);
         cms_free_req_info(req_info);
         return ret;
     }
-    GS_LOG_DEBUG_INF("save req to hashmap, msg type %u, msg req %llu", req->msg_type, req->msg_seq);
-    return GS_SUCCESS;
+    CT_LOG_DEBUG_INF("save req to hashmap, msg type %u, msg req %llu", req->msg_type, req->msg_seq);
+    return CT_SUCCESS;
 }
 
 void cms_uds_cli_del_req(cms_packet_head_t* req)
@@ -141,7 +142,7 @@ void cms_uds_cli_del_req(cms_packet_head_t* req)
     cli_request_info_t *req_info = (cli_request_info_t*)cm_oamap_lookup(&g_cli_req_map,
         cm_hash_int64((uint64)req->msg_seq), &req->msg_seq);
     if (req_info != NULL) {
-        GS_LOG_DEBUG_INF("del req from hashmap, msg type %u, msg req %llu", req->msg_type,
+        CT_LOG_DEBUG_INF("del req from hashmap, msg type %u, msg req %llu", req->msg_type,
             req->msg_seq);
         cms_free_req_info(req_info);
     }
@@ -150,192 +151,192 @@ void cms_uds_cli_del_req(cms_packet_head_t* req)
 
 status_t cms_uds_cli_wait_res(cms_packet_head_t* req, cms_packet_head_t **res, int32 timeout_ms)
 {
-    GS_LOG_DEBUG_INF("begin wait recv res, msg type %u, msg seq %llu", req->msg_type, req->msg_seq);
+    CT_LOG_DEBUG_INF("begin wait recv res, msg type %u, msg seq %llu", req->msg_type, req->msg_seq);
     cli_request_info_t *req_info = (cli_request_info_t*)cm_oamap_lookup(&g_cli_req_map,
         cm_hash_int64((uint64)req->msg_seq), &req->msg_seq);
     if (!req_info) {
-        GS_LOG_RUN_ERR("look up req info from map failed");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("look up req info from map failed");
+        return CT_ERROR;
     }
 
     struct timespec ts;
     cm_get_timespec(&ts, timeout_ms);
     int32 ret = pthread_cond_timedwait(&req_info->recv_cond, &g_cli_req_map_lock, &ts);
     if (ret != 0) {
-        GS_LOG_RUN_ERR("wait recv cond failed, ret %d, msg type %u, msg req %llu", ret, req->msg_type,
+        CT_LOG_RUN_ERR("wait recv cond failed, ret %d, msg type %u, msg req %llu", ret, req->msg_type,
             req->msg_seq);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *res = req_info->recv_msg;
-    GS_LOG_DEBUG_INF("wait recv res succ, req msg type %u, res msg type %u, req msg seq %llu, res msg seq %llu, "
+    CT_LOG_DEBUG_INF("wait recv res succ, req msg type %u, res msg type %u, req msg seq %llu, res msg seq %llu, "
         "res msg src req %llu", req->msg_type, (*res)->msg_type, req->msg_seq, (*res)->msg_seq, (*res)->src_msg_seq);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cms_uds_cli_wakeup_sender(cms_packet_head_t *res)
 {
-    GS_LOG_DEBUG_INF("begin wakeup req sender, msg type %u, msg seq %llu, msg src seq %llu",
+    CT_LOG_DEBUG_INF("begin wakeup req sender, msg type %u, msg seq %llu, msg src seq %llu",
         res->msg_type, res->msg_seq, res->src_msg_seq);
     cm_thread_lock(&g_cli_req_map_lock);
     cli_request_info_t *req_info = (cli_request_info_t*)cm_oamap_lookup(&g_cli_req_map,
         cm_hash_int64((uint64)res->src_msg_seq), &res->src_msg_seq);
     if (!req_info) {
-        GS_LOG_RUN_ERR("can not find req sender, msg type %u, msg seq %llu, msg src seq %llu",
+        CT_LOG_RUN_ERR("can not find req sender, msg type %u, msg seq %llu, msg src seq %llu",
             res->msg_type, res->msg_seq, res->src_msg_seq);
         cm_thread_unlock(&g_cli_req_map_lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     req_info->recv_msg = res;
 
     int32 ret = pthread_cond_signal(&req_info->recv_cond);
     if (ret != 0) {
-        GS_LOG_RUN_ERR("pthread cond signal failed, ret %d, msg type %u, msg seq %llu, msg src seq %llu",
+        CT_LOG_RUN_ERR("pthread cond signal failed, ret %d, msg type %u, msg seq %llu, msg src seq %llu",
             ret, res->msg_type, res->msg_seq, res->src_msg_seq);
         req_info->recv_msg = NULL;
         cm_thread_unlock(&g_cli_req_map_lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    GS_LOG_DEBUG_INF("end wakeup req sender, msg type %u, msg seq %llu, msg src seq %llu",
+    CT_LOG_DEBUG_INF("end wakeup req sender, msg type %u, msg seq %llu, msg src seq %llu",
         res->msg_type, res->msg_seq, res->src_msg_seq);
     cm_thread_unlock(&g_cli_req_map_lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cms_uds_cli_send(cms_packet_head_t* msg, int32 timeout_ms)
 {
-    status_t ret = GS_SUCCESS;
-    GS_LOG_DEBUG_INF("begin cli send msg, sock %d, msg type %u, msg seq %llu",
+    status_t ret = CT_SUCCESS;
+    CT_LOG_DEBUG_INF("begin cli send msg, sock %d, msg type %u, msg seq %llu",
         g_cli_sock, msg->msg_type, msg->msg_seq);
     cm_thread_lock(&g_cli_send_lock);
-    GS_LOG_DEBUG_INF("begin socket send msg");
+    CT_LOG_DEBUG_INF("begin socket send msg");
     if (g_cli_sock == CMS_IO_INVALID_SOCKET || g_cli_session_id == CMS_CLI_INVALID_SESS_ID) {
-        GS_LOG_RUN_ERR("socket send failed, uds conn is closed, sock %d, session id %llu, msg type %u, msg seq %llu, "
+        CT_LOG_RUN_ERR("socket send failed, uds conn is closed, sock %d, session id %llu, msg type %u, msg seq %llu, "
             "timeout %d", g_cli_sock, g_cli_session_id, msg->msg_type, msg->msg_seq, timeout_ms);
         cm_thread_unlock(&g_cli_send_lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     
     msg->uds_sid = g_cli_session_id;
     ret = cms_socket_send(g_cli_sock, msg, timeout_ms);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("socket send failed, sock %d, msg type %u, msg seq %llu, timeout %d",
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("socket send failed, sock %d, msg type %u, msg seq %llu, timeout %d",
             g_cli_sock, msg->msg_type, msg->msg_seq, timeout_ms);
         cm_thread_unlock(&g_cli_send_lock);
         return ret;
     }
     cm_thread_unlock(&g_cli_send_lock);
-    GS_LOG_DEBUG_INF("cli send msg, sock %d, msg type %u, msg seq %llu", g_cli_sock, msg->msg_type, msg->msg_seq);
-    return GS_SUCCESS;
+    CT_LOG_DEBUG_INF("cli send msg, sock %d, msg type %u, msg seq %llu", g_cli_sock, msg->msg_type, msg->msg_seq);
+    return CT_SUCCESS;
 }
 
 status_t cms_uds_cli_recv(cms_packet_head_t* msg, int32 size, int32 timeout_ms)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
 
-    GS_LOG_DEBUG_INF("begin cms uds cli recv msg, sock %d", g_cli_sock);
-    ret = cms_socket_recv(g_cli_sock, msg, size, timeout_ms, GS_FALSE);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("cms socket recv failed, ret %d, sock %d", ret, g_cli_sock);
+    CT_LOG_DEBUG_INF("begin cms uds cli recv msg, sock %d", g_cli_sock);
+    ret = cms_socket_recv(g_cli_sock, msg, size, timeout_ms, g_cli_recv_timeout);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cms socket recv failed, ret %d, sock %d", ret, g_cli_sock);
         return ret;
     }
-    GS_LOG_DEBUG_INF("cms uds cli recv msg succ, sock %d", g_cli_sock);
-    return GS_SUCCESS;
+    CT_LOG_DEBUG_INF("cms uds cli recv msg succ, sock %d", g_cli_sock);
+    return CT_SUCCESS;
 }
 
 status_t cms_uds_cli_request(cms_packet_head_t *req, cms_packet_head_t *res, uint32 res_size, int32 timeout_ms)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     cm_thread_lock(&g_cli_req_map_lock);
-    GS_LOG_DEBUG_INF("begin cms cli uds request, msg type %u, msg seq %llu", req->msg_type, req->msg_seq);
+    CT_LOG_DEBUG_INF("begin cms cli uds request, msg type %u, msg seq %llu", req->msg_type, req->msg_seq);
     ret = cms_uds_cli_save_req(req);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("save req to map failed, ret %d, msg type %u, msg seq %llu", ret, req->msg_type, req->msg_seq);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("save req to map failed, ret %d, msg type %u, msg seq %llu", ret, req->msg_type, req->msg_seq);
         cm_thread_unlock(&g_cli_req_map_lock);
         return ret;
     }
     
     ret = cms_uds_cli_send(req, timeout_ms);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("cms cli send failed, sock %d, msg type %u, msg seq %llu, timeout %d",
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cms cli send failed, sock %d, msg type %u, msg seq %llu, timeout %d",
             g_cli_sock, req->msg_type, req->msg_seq, timeout_ms);
         cms_uds_cli_del_req(req);
         cm_thread_unlock(&g_cli_req_map_lock);
         return ret;
     }
-    GS_LOG_DEBUG_INF("send uds req succ, msg type %u, msg seq %llu", req->msg_type, req->msg_seq);
+    CT_LOG_DEBUG_INF("send uds req succ, msg type %u, msg seq %llu", req->msg_type, req->msg_seq);
     
     cms_packet_head_t* wait_res = NULL;
     ret = cms_uds_cli_wait_res(req, &wait_res, timeout_ms);
-    if (ret != GS_SUCCESS || wait_res == NULL) {
-        GS_LOG_RUN_ERR("wait msg ack failed, ret %d, msg type %u, msg seq %llu", ret, req->msg_type, req->msg_seq);
+    if (ret != CT_SUCCESS || wait_res == NULL) {
+        CT_LOG_RUN_ERR("wait msg ack failed, ret %d, msg type %u, msg seq %llu", ret, req->msg_type, req->msg_seq);
         cms_uds_cli_del_req(req);
         cm_thread_unlock(&g_cli_req_map_lock);
         return ret;
     }
-    GS_LOG_DEBUG_INF("cms cli wait recv res succ, res msg type %u, res msg size %u, res msg seq %llu, src msg req %llu",
+    CT_LOG_DEBUG_INF("cms cli wait recv res succ, res msg type %u, res msg size %u, res msg seq %llu, src msg req %llu",
         wait_res->msg_type, wait_res->msg_size, wait_res->msg_seq, wait_res->src_msg_seq);
 
     errno_t err = memcpy_s(res, res_size, wait_res, wait_res->msg_size);
     if (err != EOK) {
-        GS_LOG_RUN_ERR("memcpy_s failed, err %d, errno %d[%s], msg type %u, msg seq %llu",
+        CT_LOG_RUN_ERR("memcpy_s failed, err %d, errno %d[%s], msg type %u, msg seq %llu",
             err, errno, strerror(errno), req->msg_type, req->msg_seq);
         cms_uds_cli_del_req(req);
         cm_thread_unlock(&g_cli_req_map_lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    GS_LOG_DEBUG_INF("cms cli uds request succ, req msg type %u, req msg seq %llu, res msg type %u, res msg size %u, "
+    CT_LOG_DEBUG_INF("cms cli uds request succ, req msg type %u, req msg seq %llu, res msg type %u, res msg size %u, "
         "res msg req %llu, src msg req %llu", req->msg_type, req->msg_seq, res->msg_type, res->msg_size,
         res->msg_seq, res->src_msg_seq);
     cms_uds_cli_del_req(req);
     cm_thread_unlock(&g_cli_req_map_lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cms_uds_cli_request_sync(cms_packet_head_t *req, cms_packet_head_t *res, uint32 res_size, int32 timeout_ms)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     static char msg_buf[CMS_MAX_MSG_SIZE] = {0};
     errno_t err = EOK;
     cms_packet_head_t* msg = (cms_packet_head_t*)msg_buf;
     cm_thread_lock(&g_cli_req_map_lock);
-    GS_LOG_DEBUG_INF("begin cms cli uds request sync, msg type %u, msg seq %llu, session id %llu", req->msg_type,
+    CT_LOG_DEBUG_INF("begin cms cli uds request sync, msg type %u, msg seq %llu, session id %llu", req->msg_type,
         req->msg_seq, req->uds_sid);
 
     ret = cms_uds_cli_send(req, timeout_ms);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("cms cli send failed, sock %d, msg type %u, msg seq %llu, session id %llu, timeout %d",
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cms cli send failed, sock %d, msg type %u, msg seq %llu, session id %llu, timeout %d",
             g_cli_sock, req->msg_type, req->msg_seq, req->uds_sid, timeout_ms);
         cm_thread_unlock(&g_cli_req_map_lock);
         return ret;
     }
     
     ret = cms_uds_cli_recv((cms_packet_head_t*)msg_buf, CMS_MAX_MSG_SIZE, timeout_ms);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("cms cli recv msg failed, ret %d", ret);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cms cli recv msg failed, ret %d", ret);
         cm_thread_unlock(&g_cli_req_map_lock);
         return ret;
     }
     
     err = memcpy_s(res, res_size, msg, msg->msg_size);
     if (err != EOK) {
-        GS_LOG_RUN_ERR("memcpy_s failed, err %d, errno %d[%s], msg type %u, msg size %u, msg seq %llu, "
+        CT_LOG_RUN_ERR("memcpy_s failed, err %d, errno %d[%s], msg type %u, msg size %u, msg seq %llu, "
             "msg src seq %llu, session id %llu", err, errno, strerror(errno), msg->msg_type,
             msg->msg_size, msg->msg_seq, msg->src_msg_seq, msg->uds_sid);
         CM_FREE_PTR(res);
         cm_thread_unlock(&g_cli_req_map_lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    GS_LOG_DEBUG_INF("cms cli uds request sync succ, req msg type %u, req msg seq %llu, res msg type %u, "
+    CT_LOG_DEBUG_INF("cms cli uds request sync succ, req msg type %u, req msg seq %llu, res msg type %u, "
         "res msg size %u, res msg req %llu, src msg req %llu, session id %llu", req->msg_type, req->msg_seq,
         res->msg_type, res->msg_size, res->msg_seq, res->src_msg_seq, res->uds_sid);
     cm_thread_unlock(&g_cli_req_map_lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cms_uds_cli_init(uint16 node_id, const char* cms_home)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     errno_t err = EOK;
     
     g_cli_session_id = CMS_CLI_INVALID_SESS_ID;
@@ -349,25 +350,25 @@ status_t cms_uds_cli_init(uint16 node_id, const char* cms_home)
     cm_init_thread_lock(&g_cli_send_lock);
     cm_init_thread_lock(&g_cli_req_map_lock);
     ret = cm_regist_signal(SIGPIPE, SIG_IGN);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         cm_destroy_thread_lock(&g_cli_send_lock);
         cm_destroy_thread_lock(&g_cli_req_map_lock);
         g_cli_node_id = CMS_CLI_INVALID_NODE_ID;
-        GS_LOG_RUN_ERR("set singal ignore SIGPIE failed, ret %d", ret);
+        CT_LOG_RUN_ERR("set singal ignore SIGPIE failed, ret %d", ret);
         return ret;
     }
 
     ret = cm_oamap_init(&g_cli_req_map, CMS_CLI_SEND_MSG_HASH_SIZE, cms_uds_cli_seq_compare);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         cm_destroy_thread_lock(&g_cli_send_lock);
         cm_destroy_thread_lock(&g_cli_req_map_lock);
         g_cli_node_id = CMS_CLI_INVALID_NODE_ID;
-        GS_LOG_RUN_ERR("init cli send map failed, ret %d", ret);
+        CT_LOG_RUN_ERR("init cli send map failed, ret %d", ret);
         return ret;
     }
 
-    GS_LOG_RUN_INF("cms uds client init succ");
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("cms uds client init succ");
+    return CT_SUCCESS;
 }
 
 void cms_uds_cli_destory_oamap(void)
@@ -389,7 +390,7 @@ void cms_uds_cli_destory(void)
 static status_t cms_uds_cli_exec_conn_req(socket_t uds_sock, cms_cli_msg_res_conn_t *res,
     cms_uds_cli_info_t* cms_uds_cli_info)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     cms_cli_msg_req_conn_t req;
     errno_t err = EOK;
 
@@ -405,64 +406,64 @@ static status_t cms_uds_cli_exec_conn_req(socket_t uds_sock, cms_cli_msg_res_con
     req.cli_type = cms_uds_cli_info->cli_type;
 
     ret = cms_socket_send(uds_sock, &req.head, CMS_CLI_UDS_SEND_TMOUT);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("send msg to cms by uds failed, ret %d", ret);
-        return GS_ERROR;
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("send msg to cms by uds failed, ret %d", ret);
+        return CT_ERROR;
     }
     if (req.cli_type != CMS_CLI_TOOL) {
-        GS_LOG_RUN_INF("send conn req succ, uds sock %d, req msg type %u, req msg seq %llu, is retry %d", uds_sock,
+        CT_LOG_RUN_INF("send conn req succ, uds sock %d, req msg type %u, req msg seq %llu, is retry %d", uds_sock,
             req.head.msg_type, req.head.msg_seq, req.is_retry_conn);
     }
 
-    ret = cms_socket_recv(uds_sock, &res->head, sizeof(cms_cli_msg_res_conn_t), CMS_CLI_UDS_RECV_TMOUT,
+    ret = cms_socket_recv(uds_sock, &res->head, sizeof(cms_cli_msg_res_conn_t), CMS_CLI_RETRY_RECV_TMOUT,
         cms_uds_cli_info->is_retry_conn);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("recv msg from cms by uds failed, ret %d uds sock %d, req msg type %u, req msg seq %llu, "
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("recv msg from cms by uds failed, ret %d uds sock %d, req msg type %u, req msg seq %llu, "
             "is retry %d",
             ret, uds_sock, req.head.msg_type, req.head.msg_seq, req.is_retry_conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (req.cli_type != CMS_CLI_TOOL) {
-        GS_LOG_RUN_INF("recv conn res succ, uds sock %d, req msg type %u, req msg seq %llu, res msg type %u, "
+        CT_LOG_RUN_INF("recv conn res succ, uds sock %d, req msg type %u, req msg seq %llu, res msg type %u, "
             "res msg seq %llu, res msg src req %llu, is retry %d",
             uds_sock, req.head.msg_type, req.head.msg_seq, res->head.msg_type, res->head.msg_seq, res->head.src_msg_seq,
             req.is_retry_conn);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cms_uds_cli_connect(cms_uds_cli_info_t* cms_uds_cli_info, res_init_info_t *res_info)
 {
-    char uds_server_path[GS_FILE_NAME_BUFFER_SIZE] = {0};
+    char uds_server_path[CT_FILE_NAME_BUFFER_SIZE] = {0};
     cms_cli_msg_res_conn_t res = {0};
     socket_t uds_sock = CMS_IO_INVALID_SOCKET;
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     errno_t err = EOK;
 
     err = sprintf_s(uds_server_path, sizeof(uds_server_path), "%s/" CMS_UDS_PATH "_%d", g_cli_cms_home,
         (int32)g_cli_node_id);
     PRTS_RETURN_IFERR(err);
     ret = cms_uds_connect(uds_server_path, &uds_sock);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("connect cms by uds failed, uds path:%s", uds_server_path);
-        return GS_ERROR;
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("connect cms by uds failed, uds path:%s", uds_server_path);
+        return CT_ERROR;
     }
     if (cms_uds_cli_info->cli_type != CMS_CLI_TOOL) {
-        GS_LOG_RUN_INF("connect cms by uds succ, uds path %s, uds sock %d", uds_server_path, uds_sock);
+        CT_LOG_RUN_INF("connect cms by uds succ, uds path %s, uds sock %d", uds_server_path, uds_sock);
     }
 
     ret = cms_uds_cli_exec_conn_req(uds_sock, &res, cms_uds_cli_info);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("cms cli exec conn request failed, ret %d, uds path %s, uds sock %d",
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cms cli exec conn request failed, ret %d, uds path %s, uds sock %d",
             ret, uds_server_path, uds_sock);
         cms_socket_close(uds_sock);
         return ret;
     }
 
     if (res.head.msg_type != CMS_CLI_MSG_RES_CONNECT) {
-        GS_LOG_RUN_ERR("get usd connect res failed, invalid message type %d", res.head.msg_type);
+        CT_LOG_RUN_ERR("get usd connect res failed, invalid message type %d", res.head.msg_type);
         cms_socket_close(uds_sock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     g_cli_sock = uds_sock;
     g_cli_session_id = res.session_id;
@@ -470,16 +471,16 @@ status_t cms_uds_cli_connect(cms_uds_cli_info_t* cms_uds_cli_info, res_init_info
     if (res_info != NULL) {
         err = memcpy_s(res_info, sizeof(res_init_info_t), &res.res_init_info, sizeof(res_init_info_t));
         if (err != EOK) {
-            GS_LOG_RUN_ERR("memcpy_s failed, ret %d, errno %d[%s]", err, errno, strerror(errno));
+            CT_LOG_RUN_ERR("memcpy_s failed, ret %d, errno %d[%s]", err, errno, strerror(errno));
             cms_uds_cli_sock_close();
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
     if (cms_uds_cli_info->cli_type != CMS_CLI_TOOL) {
-        GS_LOG_RUN_INF("cms uds connect succeed, uds sock %d, session id %llu, trigger version %llu.",
+        CT_LOG_RUN_INF("cms uds connect succeed, uds sock %d, session id %llu, trigger version %llu.",
             g_cli_sock, g_cli_session_id, res.res_init_info.trigger_version);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cms_uds_cli_disconnect(void)
@@ -509,4 +510,9 @@ void cms_uds_cli_sock_close(void)
         g_cli_sock = CMS_IO_INVALID_SOCKET;
     }
     g_cli_session_id = CMS_CLI_INVALID_SESS_ID;
+}
+
+void cms_set_recv_timeout(void)
+{
+    g_cli_recv_timeout = CT_TRUE;
 }

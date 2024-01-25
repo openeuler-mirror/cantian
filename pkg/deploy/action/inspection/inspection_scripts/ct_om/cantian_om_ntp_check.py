@@ -25,6 +25,7 @@ class NtpChecker:
         self.check_zip_cmd = f'tar -Oxzf {LOG_ZIP_FILE_PATH} | grep -E "%s"'
         self.check_note = {
             'System clock synchronized': 'unknown',
+            'NTP service': "unknown",
             'pitr warning': "unknown",
         }
         self.format_output = {
@@ -61,6 +62,13 @@ class NtpChecker:
             self.check_note['System clock synchronized'] = 'yes'
         else:
             self.check_note['System clock synchronized'] = 'no'
+            raise Exception("System clock synchronized is no")
+        if "NTP service: active" in str(stdout):
+            self.check_note["NTP service"] = "active"
+        else:
+            self.check_note["NTP service"] = "inactive"
+            raise Exception("NTP service is inactive.")
+
 
     def check_time_interval(self):
         check_list = [self.check_cmd, self.check_zip_cmd]
@@ -71,6 +79,7 @@ class NtpChecker:
             try:
                 stdout = self._run_cmd(_cmd)
             except Exception as err:
+                LOG.info(str(err))
                 continue
             stdout_list = stdout.split("\n")
             check_mid.extend(stdout_list)
@@ -78,7 +87,7 @@ class NtpChecker:
             timestamp = self._get_log_time(item)
             check_result.append((timestamp, item))
         if check_result:
-            self.check_note["pitr warning"] = "\n".join([item[1] for item in sorted(check_result)])
+            self.check_note["pitr warning"] = "\n".join([item[1] for item in sorted(check_result)][-20:])
             raise Exception(str(self.check_note))
         else:
             self.check_note["pitr warning"] = "success"

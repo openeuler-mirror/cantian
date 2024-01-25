@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_dbs_module.h"
 #include "cm_dbs_map.h"
 #include "cm_hash.h"
 #include "cm_list.h"
@@ -59,7 +60,7 @@ typedef enum en_cm_dbs_latch_type {
 void cm_dbs_map_latch(cm_dbs_latch_type_e latch_type, uint32 index)
 {
     if (latch_type == LATCH_TYPE_S) {
-        cm_latch_s(&g_cm_dbs_cache_mgr.hs_cache[index].latch, 0, GS_FALSE, NULL);
+        cm_latch_s(&g_cm_dbs_cache_mgr.hs_cache[index].latch, 0, CT_FALSE, NULL);
     } else {
         cm_latch_x(&g_cm_dbs_cache_mgr.hs_cache[index].latch, 0, NULL);
     }
@@ -116,20 +117,20 @@ status_t cm_dbs_map_set(const char *name, cm_dbs_map_item_s *item, int32 *handle
 {
     cm_dbs_map_value_s *value = (cm_dbs_map_value_s *)cm_malloc(sizeof(cm_dbs_map_value_s));
     if (value == NULL) {
-        GS_LOG_RUN_ERR("Out of memory(%lu).", sizeof(cm_dbs_map_value_s));
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("Out of memory(%lu).", sizeof(cm_dbs_map_value_s));
+        return CT_ERROR;
     }
     errno_t err = strcpy_s(value->obj_name, sizeof(value->obj_name), name);
     if (err != EOK) {
         cm_free(value);
-        GS_LOG_RUN_ERR("Failed(%d) to copy the object name(%s).", err, name);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("Failed(%d) to copy the object name(%s).", err, name);
+        return CT_ERROR;
     }
     err = memcpy_s(&value->item, sizeof(value->item), item, sizeof(cm_dbs_map_item_s));
     if (err != EOK) {
         cm_free(value);
-        GS_LOG_RUN_ERR("Failed(%d) to copy the object item.", err);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("Failed(%d) to copy the object item.", err);
+        return CT_ERROR;
     }
     cm_list_init(&(value->node));
     cm_spin_lock(&g_cm_dbs_cache_mgr.hdl_seed_lock, NULL);
@@ -141,7 +142,7 @@ status_t cm_dbs_map_set(const char *name, cm_dbs_map_item_s *item, int32 *handle
     cm_list_add(&(value->node), &(g_cm_dbs_cache_mgr.hs_cache[index].hs_list));
     *handle = value->handle;
     cm_dbs_map_unlatch(index);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static cm_dbs_map_value_s *cm_dbs_cache_get_by_index(uint32 index, int32 handle)
@@ -165,16 +166,16 @@ status_t cm_dbs_map_get(int32 handle, cm_dbs_map_item_s *item)
     cm_dbs_map_value_s *value = cm_dbs_cache_get_by_index(index, handle);
     if (value == NULL) {
         cm_dbs_map_unlatch(index);
-        GS_LOG_RUN_ERR("The cache at handle(%d) is invalid.", handle);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("The cache at handle(%d) is invalid.", handle);
+        return CT_ERROR;
     }
     errno_t err = memcpy_s(item, sizeof(cm_dbs_map_item_s), &value->item, sizeof(value->item));
     cm_dbs_map_unlatch(index);
     if (err != EOK) {
-        GS_LOG_RUN_ERR("Failed(%d) to copy the object item.", err);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("Failed(%d) to copy the object item.", err);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_dbs_map_remove(int32 handle)
@@ -184,7 +185,7 @@ void cm_dbs_map_remove(int32 handle)
     cm_dbs_map_value_s *value = cm_dbs_cache_get_by_index(index, handle);
     if (value == NULL) {
         cm_dbs_map_unlatch(index);
-        GS_LOG_RUN_WAR("The cache at handle(%d) is invalid.", handle);
+        CT_LOG_RUN_WAR("The cache at handle(%d) is invalid.", handle);
         return;
     }
     cm_list_remove(&(value->node));
@@ -205,12 +206,12 @@ bool32 cm_dbs_map_exist(const char *name)
             entry = cm_list_entry(node, cm_dbs_map_value_s, node);
             if (strcmp(name, entry->obj_name) == 0) {
                 cm_dbs_map_unlatch(idx);
-                return GS_TRUE;
+                return CT_TRUE;
             }
         }
         cm_dbs_map_unlatch(idx);
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 void cm_dbs_map_update(int32 handle, cm_dbs_map_item_s *item)
@@ -220,13 +221,13 @@ void cm_dbs_map_update(int32 handle, cm_dbs_map_item_s *item)
     cm_dbs_map_value_s *value = cm_dbs_cache_get_by_index(index, handle);
     if (value == NULL) {
         cm_dbs_map_unlatch(index);
-        GS_LOG_RUN_WAR("The cache at handle(%d) is invalid.", handle);
+        CT_LOG_RUN_WAR("The cache at handle(%d) is invalid.", handle);
         return;
     }
     errno_t err = memcpy_s(&value->item, sizeof(value->item), item, sizeof(cm_dbs_map_item_s));
     cm_dbs_map_unlatch(index);
     if (err != EOK) {
-        GS_LOG_RUN_WAR("Failed(%d) to update cache at handle(%d).", err, handle);
+        CT_LOG_RUN_WAR("Failed(%d) to update cache at handle(%d).", err, handle);
         return;
     }
 }
@@ -238,13 +239,13 @@ void cm_dbs_map_get_name(int32 handle, char *name, int32 size)
     cm_dbs_map_value_s *value = cm_dbs_cache_get_by_index(index, handle);
     if (value == NULL) {
         cm_dbs_map_unlatch(index);
-        GS_LOG_RUN_WAR("The cache at handle(%d) is invalid.", handle);
+        CT_LOG_RUN_WAR("The cache at handle(%d) is invalid.", handle);
         return;
     }
     errno_t err = strcpy_s(name, size, value->obj_name);
     cm_dbs_map_unlatch(index);
     if (err != EOK) {
-        GS_LOG_RUN_ERR("Failed(%d) to copy the object name(%s).", err, name);
+        CT_LOG_RUN_ERR("Failed(%d) to copy the object name(%s).", err, name);
         return;
     }
 }

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "cm_buddy.h"
 #include "cm_error.h"
 #include "cm_spinlock.h"
@@ -187,9 +188,9 @@ status_t mem_pool_init(mem_pool_t *mem, const char *pool_name, uint64 init_size_
     uint32 len = (uint32)strlen(pool_name);
     uint64 max_size = max_size_input;
     uint64 init_size = init_size_input;
-    if (len > GS_MAX_NAME_LEN) {
-        GS_THROW_ERROR(ERR_BUFFER_OVERFLOW, len, GS_MAX_NAME_LEN);
-        return GS_ERROR;
+    if (len > CT_MAX_NAME_LEN) {
+        CT_THROW_ERROR(ERR_BUFFER_OVERFLOW, len, CT_MAX_NAME_LEN);
+        return CT_ERROR;
     }
     init_size = cm_get_next_2power(init_size);
     // modify init size val
@@ -208,19 +209,19 @@ status_t mem_pool_init(mem_pool_t *mem, const char *pool_name, uint64 init_size_
     errno_t ret = memset_sp(mem, sizeof(mem_pool_t), 0, sizeof(mem_pool_t));
     MEMS_RETURN_IFERR(ret);
     CM_MAGIC_SET(mem, mem_pool_t);
-    MEMS_RETURN_IFERR(strncpy_sp(mem->name, GS_NAME_BUFFER_SIZE, pool_name, len));
+    MEMS_RETURN_IFERR(strncpy_sp(mem->name, CT_NAME_BUFFER_SIZE, pool_name, len));
     mem->max_size = max_size;
-    GS_INIT_SPIN_LOCK(mem->lock);
+    CT_INIT_SPIN_LOCK(mem->lock);
     cm_bilist_init(&mem->mem_zone_lst);
     mem_zone = mem_zone_init(mem, init_size);
     if (mem_zone == NULL) {
-        GS_THROW_ERROR(ERR_MEM_ZONE_INIT);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_MEM_ZONE_INIT);
+        return CT_ERROR;
     }
 
     cm_bilist_add_tail(&mem_zone->link, &mem->mem_zone_lst);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static mem_block_t *mem_get_block_low(mem_zone_t *mem_zone, uint64 size)
@@ -279,33 +280,33 @@ static status_t mem_extend(mem_pool_t *mem, uint64 align_size)
     }
 
     if (extend_size < align_size) {
-        GS_THROW_ERROR(ERR_MEM_OUT_OF_MEMORY, align_size);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_MEM_OUT_OF_MEMORY, align_size);
+        return CT_ERROR;
     }
 
     mem_zone = mem_zone_init(mem, extend_size);
     if (mem_zone == NULL) {
-        GS_THROW_ERROR(ERR_MEM_ZONE_INIT);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_MEM_ZONE_INIT);
+        return CT_ERROR;
     }
     cm_bilist_add_head(&mem_zone->link, &mem->mem_zone_lst);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t mem_check_if_extend(mem_pool_t *mem, uint64 align_size)
 {
     uint64 remain_size = cm_get_prev_2power(mem->max_size - mem->used_size);
     if (align_size > remain_size) {
-        GS_THROW_ERROR(ERR_MEM_OUT_OF_MEMORY, align_size);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_MEM_OUT_OF_MEMORY, align_size);
+        return CT_ERROR;
     }
 
     if (align_size > mem->total_size - mem->used_size) {
         return mem_extend(mem, align_size);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void *galloc(mem_pool_t *mem, uint64 size)
@@ -323,7 +324,7 @@ void *galloc(mem_pool_t *mem, uint64 size)
     cm_spin_lock(&mem->lock, NULL);
 
     status = mem_check_if_extend(mem, align_size);
-    if (status != GS_SUCCESS) {
+    if (status != CT_SUCCESS) {
         cm_spin_unlock(&mem->lock);
         return NULL;
     }
@@ -339,7 +340,7 @@ void *galloc(mem_pool_t *mem, uint64 size)
 
     if (mem_block == NULL) {
         status = mem_extend(mem, align_size);
-        if (status != GS_SUCCESS) {
+        if (status != CT_SUCCESS) {
             cm_spin_unlock(&mem->lock);
             return NULL;
         }
@@ -352,7 +353,7 @@ void *galloc(mem_pool_t *mem, uint64 size)
     CM_ASSERT(mem_block != NULL);
     mem_block->actual_size = size;
     CM_ASSERT(mem_block->actual_size < mem_block->size);
-    mem_block->use_flag = GS_TRUE;
+    mem_block->use_flag = CT_TRUE;
     mem_block->mem_zone->used_size += mem_block->size;
     mem_block->mem_zone->mem->used_size += mem_block->size;
 
@@ -426,7 +427,7 @@ static void mem_recycle_low(mem_pool_t *mem, mem_block_t *mem_block)
     }
     CM_MAGIC_CHECK(mem_block_bro, mem_block_t);
 
-    if (mem_block_bro->use_flag == GS_TRUE || mem_block->size != mem_block_bro->size) {
+    if (mem_block_bro->use_flag == CT_TRUE || mem_block->size != mem_block_bro->size) {
         mem_block_list = mem_zone_get_list(mem_block->mem_zone, mem_block->size);
         cm_bilist_add_head(&mem_block->link, mem_block_list);
         return;
@@ -479,7 +480,7 @@ void gfree(void *p)
 #ifdef DB_DEBUG_VERSION
     check_mem_double_free(mem_block, mem_block->mem_zone);
 #endif
-    mem_block->use_flag = GS_FALSE;
+    mem_block->use_flag = CT_FALSE;
     mem_block->actual_size = 0;
     mem_block->mem_zone->used_size -= mem_block->size;
     mem_block->mem_zone->mem->used_size -= mem_block->size;
@@ -504,10 +505,10 @@ status_t buddy_alloc_mem(mem_pool_t *mem_pool, uint32 size, void **ptr)
 {
     *ptr = galloc(mem_pool, size);
     if (*ptr == NULL) {
-        GS_THROW_ERROR(ERR_MEM_OUT_OF_MEMORY, size);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_MEM_OUT_OF_MEMORY, size);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

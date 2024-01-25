@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,11 +22,12 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "cm_utils.h"
 #include "cm_text.h"
 #include "cm_timer.h"
 #include "cm_encrypt.h"
-#include "md5.h"
+#include "evp.h"
 #include "cm_epoll.h"
 #ifndef WIN32
 #include <sys/inotify.h>
@@ -79,34 +80,34 @@ status_t cm_verify_password_check(const char *pText, uint32 i, uint32 *type_coun
 {
     // pwd can not include ';'
     if (pText[i] == ';') {
-        GS_THROW_ERROR(ERR_PASSWORD_FORMAT_ERROR, "Password contains unexpected character.\n");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PASSWORD_FORMAT_ERROR, "Password contains unexpected character.\n");
+        return CT_ERROR;
     }
     if (IS_NUM_CHAR(pText[i])) {
         if (!(*num_flag)) {
-            *num_flag = GS_TRUE;
+            *num_flag = CT_TRUE;
             (*type_count)++;
         }
     } else if (IS_UPPER_LETTER(pText[i])) {
         if (!(*upper_flag)) {
-            *upper_flag = GS_TRUE;
+            *upper_flag = CT_TRUE;
             (*type_count)++;
         }
     } else if (IS_LOWER_LETTER(pText[i])) {
         if (!(*lower_flag)) {
-            *lower_flag = GS_TRUE;
+            *lower_flag = CT_TRUE;
             (*type_count)++;
         }
     } else if (IS_SPECIAL_CHAR(pText[i])) {
         if (!(*special_flag)) {
-            *special_flag = GS_TRUE;
+            *special_flag = CT_TRUE;
             (*type_count)++;
         }
     } else {
-        GS_THROW_ERROR(ERR_PASSWORD_FORMAT_ERROR, "Password contains unexpected character.\n");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PASSWORD_FORMAT_ERROR, "Password contains unexpected character.\n");
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_verify_password_str(const char *name, const char *passwd, uint32 pwd_min_len)
@@ -114,35 +115,35 @@ status_t cm_verify_password_str(const char *name, const char *passwd, uint32 pwd
     const char *pText = passwd;
     size_t len = strlen(pText);
     uint32 type_count = 0;
-    bool32 num_flag = GS_FALSE;
-    bool32 upper_flag = GS_FALSE;
-    bool32 lower_flag = GS_FALSE;
-    bool32 special_flag = GS_FALSE;
-    char name_reverse[GS_NAME_BUFFER_SIZE] = {0};
+    bool32 num_flag = CT_FALSE;
+    bool32 upper_flag = CT_FALSE;
+    bool32 lower_flag = CT_FALSE;
+    bool32 special_flag = CT_FALSE;
+    char name_reverse[CT_NAME_BUFFER_SIZE] = {0};
 
     /* enforce minimum length */
     if ((uint32)len < pwd_min_len) {
-        GS_THROW_ERROR(ERR_PASSWORD_FORMAT_ERROR, "password can't be less than min length characters");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PASSWORD_FORMAT_ERROR, "password can't be less than min length characters");
+        return CT_ERROR;
     }
 
     /* check maximum length */
-    if (len > GS_PASSWD_MAX_LEN) {
-        GS_THROW_ERROR(ERR_PASSWORD_FORMAT_ERROR, "password can't be greater than max length characters");
-        return GS_ERROR;
+    if (len > CT_PASSWD_MAX_LEN) {
+        CT_THROW_ERROR(ERR_PASSWORD_FORMAT_ERROR, "password can't be greater than max length characters");
+        return CT_ERROR;
     }
 
     if (name != NULL) {
         /* check if the pwd is the username or the reverse of the username */
         if (strlen(pText) == strlen(name) && cm_strcmpni(pText, name, strlen(name)) == 0) {
-            GS_THROW_ERROR(ERR_PASSWORD_FORMAT_ERROR, "password can not been same with user name");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PASSWORD_FORMAT_ERROR, "password can not been same with user name");
+            return CT_ERROR;
         }
 
-        cm_str_reverse(name_reverse, name, GS_NAME_BUFFER_SIZE);
+        cm_str_reverse(name_reverse, name, CT_NAME_BUFFER_SIZE);
         if (strlen(pText) == strlen(name_reverse) && cm_strcmpni(pText, name_reverse, strlen(name_reverse)) == 0) {
-            GS_THROW_ERROR(ERR_PASSWORD_FORMAT_ERROR, "password cannot be the same as the reverse of the name");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PASSWORD_FORMAT_ERROR, "password cannot be the same as the reverse of the name");
+            return CT_ERROR;
         }
     }
     
@@ -154,17 +155,17 @@ status_t cm_verify_password_str(const char *name, const char *passwd, uint32 pwd
     If pwd contains the other character ,will return error. */
     for (uint32 i = 0; i < len; i++) {
         if (cm_verify_password_check(pText, i, &type_count, &num_flag, &upper_flag, &lower_flag,
-                                     &special_flag) != GS_SUCCESS) {
-            return GS_ERROR;
+                                     &special_flag) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (type_count < CM_PASSWD_MIN_TYPE) {
-        GS_THROW_ERROR(ERR_PASSWORD_IS_TOO_SIMPLE);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PASSWORD_IS_TOO_SIMPLE);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 const static uint64 RAND_P1 = 0x5DEECE66DL;
@@ -212,13 +213,13 @@ uint32 cm_random(uint32 range)
     return cm_rand_int32(&seed, range);
 }
 
-#define GS_ASCII_ALPHA_COUNT 26
-#define GS_ASCII_ALPHA_CHAR_COUNT 36
-#define GS_ASCII_UPPER_CHAR_DELTA 65
-#define GS_ASCII_LOWER_CHAR_DELTA 97
-#define GS_ASCII_PRINTABLE_COUNT 96
-#define GS_ASCII_PRINTABLE_BASE 31
-#define GS_ASCII_NUMBER_DELTA 22
+#define CT_ASCII_ALPHA_COUNT 26
+#define CT_ASCII_ALPHA_CHAR_COUNT 36
+#define CT_ASCII_UPPER_CHAR_DELTA 65
+#define CT_ASCII_LOWER_CHAR_DELTA 97
+#define CT_ASCII_PRINTABLE_COUNT 96
+#define CT_ASCII_PRINTABLE_BASE 31
+#define CT_ASCII_NUMBER_DELTA 22
 
 void cm_rand_string(uint32 length, char mode, char *buf)
 {
@@ -231,41 +232,41 @@ void cm_rand_string(uint32 length, char mode, char *buf)
             case 'l':
             case 'L':
                 /* lowercase alpha characters */
-                randvalue = cm_rand_int32(&randseed, GS_ASCII_ALPHA_COUNT);
-                buf[i] = randvalue + GS_ASCII_LOWER_CHAR_DELTA;
+                randvalue = cm_rand_int32(&randseed, CT_ASCII_ALPHA_COUNT);
+                buf[i] = randvalue + CT_ASCII_LOWER_CHAR_DELTA;
                 break;
             case 'a':
             case 'A':
                 /* mixed case alpha characters */
-                randvalue = cm_rand_int32(&randseed, GS_ASCII_ALPHA_COUNT * 2);
-                if (randvalue < GS_ASCII_ALPHA_COUNT) {
-                    buf[i] = randvalue + GS_ASCII_UPPER_CHAR_DELTA;
+                randvalue = cm_rand_int32(&randseed, CT_ASCII_ALPHA_COUNT * 2);
+                if (randvalue < CT_ASCII_ALPHA_COUNT) {
+                    buf[i] = randvalue + CT_ASCII_UPPER_CHAR_DELTA;
                 } else {
-                    buf[i] = randvalue + GS_ASCII_LOWER_CHAR_DELTA - GS_ASCII_ALPHA_COUNT;
+                    buf[i] = randvalue + CT_ASCII_LOWER_CHAR_DELTA - CT_ASCII_ALPHA_COUNT;
                 }
                 break;
             case 'x':
             case 'X':
                 /* uppercase alpha-numeric characters */
-                randvalue = cm_rand_int32(&randseed, GS_ASCII_ALPHA_CHAR_COUNT);
-                if (randvalue < GS_ASCII_ALPHA_COUNT) {
-                    buf[i] = randvalue + GS_ASCII_UPPER_CHAR_DELTA;
+                randvalue = cm_rand_int32(&randseed, CT_ASCII_ALPHA_CHAR_COUNT);
+                if (randvalue < CT_ASCII_ALPHA_COUNT) {
+                    buf[i] = randvalue + CT_ASCII_UPPER_CHAR_DELTA;
                 } else {
-                    buf[i] = randvalue + GS_ASCII_NUMBER_DELTA;
+                    buf[i] = randvalue + CT_ASCII_NUMBER_DELTA;
                 }
                 break;
             case 'p':
             case 'P':
                 /* any printable characters */
-                randvalue = cm_rand_int32(&randseed, GS_ASCII_PRINTABLE_COUNT);
-                buf[i] = randvalue + GS_ASCII_PRINTABLE_BASE;
+                randvalue = cm_rand_int32(&randseed, CT_ASCII_PRINTABLE_COUNT);
+                buf[i] = randvalue + CT_ASCII_PRINTABLE_BASE;
                 break;
             case 'u':
             case 'U':
             default:
                 /* uppercase alpha characters */
-                randvalue = cm_rand_int32(&randseed, GS_ASCII_ALPHA_COUNT);
-                buf[i] = randvalue + GS_ASCII_UPPER_CHAR_DELTA;
+                randvalue = cm_rand_int32(&randseed, CT_ASCII_ALPHA_COUNT);
+                buf[i] = randvalue + CT_ASCII_UPPER_CHAR_DELTA;
                 break;
         }
     }
@@ -274,15 +275,15 @@ void cm_rand_string(uint32 length, char mode, char *buf)
 
 status_t cm_aligned_malloc(int64 size, const char *name, aligned_buf_t *buf)
 {
-    buf->alloc_buf = (char *)malloc((size_t)(size + GS_MAX_ALIGN_SIZE_4K));
+    buf->alloc_buf = (char *)malloc((size_t)(size + CT_MAX_ALIGN_SIZE_4K));
     if (buf->alloc_buf == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, name);
+        return CT_ERROR;
     }
 
     buf->aligned_buf = (char *)cm_aligned_buf(buf->alloc_buf);
     buf->buf_size = size;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_aligned_realloc(int64 size, const char *name, aligned_buf_t *buf)
@@ -291,9 +292,10 @@ status_t cm_aligned_realloc(int64 size, const char *name, aligned_buf_t *buf)
     return cm_aligned_malloc(size, name, buf);
 }
 
-void cm_calc_md5(const uchar *data, uint32 len, uchar *md)
+void cm_calc_md5(const uchar *data, uint32 len, uchar *md, uint32 *size)
 {
-    (void)MD5(data, len, md);
+    const EVP_MD *type = EVP_get_digestbyname("md5");
+    (void)EVP_Digest(data, len, md, size, type, NULL);
 }
 
 status_t cm_load_symbol(void *lib_handle, char *symbol, void **sym_lib_handle)
@@ -304,25 +306,25 @@ status_t cm_load_symbol(void *lib_handle, char *symbol, void **sym_lib_handle)
     *sym_lib_handle = dlsym(lib_handle, symbol);
     dlsym_err = dlerror();
     if (dlsym_err != NULL) {
-        GS_THROW_ERROR(ERR_LOAD_SYMBOL, symbol, dlsym_err);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_LOAD_SYMBOL, symbol, dlsym_err);
+        return CT_ERROR;
     }
 #endif // !WIN32
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_open_dl(void **lib_handle, char *symbol)
 {
 #ifdef WIN32
-    GS_THROW_ERROR(ERR_LOAD_LIBRARY, symbol, cm_get_os_error());
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_LOAD_LIBRARY, symbol, cm_get_os_error());
+    return CT_ERROR;
 #else
     *lib_handle = dlopen(symbol, RTLD_LAZY);
     if (*lib_handle == NULL) {
-        GS_THROW_ERROR(ERR_LOAD_LIBRARY, symbol, cm_get_os_error());
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_LOAD_LIBRARY, symbol, cm_get_os_error());
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 #endif
 }
 
@@ -340,25 +342,25 @@ status_t cm_watch_file_init(int32 *watch_fd, int32 *epoll_fd)
 
     *epoll_fd = epoll_create1(0);
     if (*epoll_fd < 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *watch_fd = inotify_init();
     if (*watch_fd < 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     ev.events = EPOLLIN;
     ev.data.fd = *watch_fd;
 
     if (epoll_ctl(*epoll_fd, EPOLL_CTL_ADD, *watch_fd, &ev) != 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 #else
-    *watch_fd = GS_INVALID_ID32;
-    *epoll_fd = GS_INVALID_ID32;
+    *watch_fd = CT_INVALID_ID32;
+    *epoll_fd = CT_INVALID_ID32;
 #endif
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_add_device_watch(device_type_t type, int32 fd, const char *file_name, int32 *wd)
@@ -367,13 +369,13 @@ status_t cm_add_device_watch(device_type_t type, int32 fd, const char *file_name
     if (type == DEV_TYPE_FILE) {
         *wd = inotify_add_watch(fd, file_name, IN_DELETE_SELF | IN_ATTRIB | IN_MOVE_SELF);
         if (*wd < 0) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else {
         *wd = -1;
     }
 #endif
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_rm_device_watch(device_type_t type, int32 fd, int32 *wd)
@@ -381,12 +383,12 @@ status_t cm_rm_device_watch(device_type_t type, int32 fd, int32 *wd)
 #ifndef WIN32
     if (type == DEV_TYPE_FILE) {
         if (inotify_rm_watch(fd, *wd) < 0) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
     *wd = -1;
 #endif
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_watch_file_event(int32 watch_fd, int32 epoll_fd, int32 *wd)
@@ -400,14 +402,14 @@ status_t cm_watch_file_event(int32 watch_fd, int32 epoll_fd, int32 *wd)
 
     event_num = epoll_wait(epoll_fd, &e_event, 1, 200);
     if (event_num <= 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* handle inotify event */
     if (e_event.data.fd == watch_fd) {
         read_size = read(watch_fd, buf, sizeof(buf));
         if (read_size <= 0) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         for (tmp = buf; tmp < buf + read_size; tmp += sizeof(struct inotify_event) + i_event->len) {
@@ -416,12 +418,12 @@ status_t cm_watch_file_event(int32 watch_fd, int32 epoll_fd, int32 *wd)
             if (((i_event->mask & IN_ATTRIB) && !(i_event->mask & IN_DELETE_SELF)) || (i_event->mask & IN_MOVE_SELF)) {
                 /* could not get name of  that has been removed/unlinked, so return wd */
                 *wd = i_event->wd;
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
         }
     }
 #endif
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 #ifndef WIN32
@@ -476,15 +478,15 @@ status_t save_origin_argument(int argc, char ***argv)
 
     env_new = (char **)malloc((i + 1) * sizeof(char *));
     if (env_new == NULL) {
-        GS_LOG_RUN_ERR("failed to realloc memory for environment value");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("failed to realloc memory for environment value");
+        return CT_ERROR;
     }
     for (i = 0; environ[i] != NULL; i++) {
         env_new[i] = cm_strdup(environ[i]);
         if (env_new[i] == NULL) {
-            GS_LOG_RUN_ERR("failed to realloc memory for environment value");
+            CT_LOG_RUN_ERR("failed to realloc memory for environment value");
             cm_free_secptr(i, env_new);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
     env_new[i] = NULL;
@@ -493,40 +495,40 @@ status_t save_origin_argument(int argc, char ***argv)
 
     argv_new = (char **)malloc((argc + 1) * sizeof(char *));
     if (argv_new == NULL) {
-        GS_LOG_RUN_ERR("failed to realloc memory for argv value");
+        CT_LOG_RUN_ERR("failed to realloc memory for argv value");
         environ = env_ori;
         cm_free_secptr(env_count, env_new);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     for (i = 0; i < argc; i++) {
         argv_new[i] = cm_strdup((*argv)[i]);
         if (argv_new[i] == NULL) {
-            GS_LOG_RUN_ERR("failed to realloc memory for argv value");
+            CT_LOG_RUN_ERR("failed to realloc memory for argv value");
             environ = env_ori;
             cm_free_secptr(i, argv_new);
             cm_free_secptr(env_count, env_new);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     argv_new[i] = NULL;
     *argv = argv_new;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t init_process_title(const char *title, uint32 len)
 {
     if (g_ori_argv == NULL || g_proctitle_buf == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
     for (int i = 1; i < g_ori_argc; i++) {
         g_ori_argv[i] = g_proctitle_buf + g_proctitle_buf_size;
     }
 
     if (g_proctitle_buf_size - 1 < len) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
     PRTS_RETURN_IFERR(snprintf_s(g_proctitle_buf, g_proctitle_buf_size, g_proctitle_buf_size - 1, "%s", title));
     g_curr_used_len = strlen(g_proctitle_buf);
@@ -534,7 +536,7 @@ status_t init_process_title(const char *title, uint32 len)
         size_t left_len = g_proctitle_buf_size - g_curr_used_len;
         MEMS_RETURN_IFERR(memset_s(g_proctitle_buf + g_curr_used_len, left_len, '\0', left_len));
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_usleep(uint32 us)

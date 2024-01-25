@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,15 +32,15 @@
 extern "C" {
 #endif
 
-#define ZHBA_FILENAME "zhba.conf"
-#define ZHBA_SWAP_FILENAME "zhba_swaping.conf"
+#define cthba_FILENAME "cthba.conf"
+#define cthba_SWAP_FILENAME "cthba_swaping.conf"
 
 #define HBA_MAX_LINE_SIZE SIZE_K(1)
 
-typedef struct st_zhba_context {
-    list_t zhba_list;  // st_hba_conf_node
+typedef struct st_cthba_context {
+    list_t cthba_list;  // st_hba_conf_node
     bool32 is_found;
-} zhba_context_t;
+} cthba_context_t;
 
 typedef struct st_ip_entry {
     char ip[CM_MAX_IP_LEN];
@@ -49,8 +49,8 @@ typedef struct st_ip_entry {
 } hba_ip_entry_t;
 
 typedef struct st_hba_conf_entry {
-    char host_name[GS_MAX_NAME_LEN];
-    char user_name[GS_MAX_NAME_LEN];
+    char host_name[CT_MAX_NAME_LEN];
+    char user_name[CT_MAX_NAME_LEN];
     list_t ip_entry_list;
     int32 left_count; // count without colored ip
 } hba_conf_entry_t;

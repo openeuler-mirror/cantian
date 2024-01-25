@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -43,7 +43,7 @@
 #define NS_PER_SEC (1000000000)
 #define MAX_RECV_CHECK_LEN (2000)
 #define DEAD_LOOP_PRINT_PER_TIMES (50)
-#define SOCKET_UMASK (0177)
+#define SOCKET_UMASK (0117)
 
 /* ---------- The following code implement a timer ------------ */
 struct shm_timer_s {
@@ -63,8 +63,8 @@ static int g_client_id_list[MAX_SHM_PROC] = { 0 };
 static int g_client_fd_list[MAX_SHM_PROC] = { 0 };
 static pthread_mutex_t g_client_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int g_clean_up_proc_flags[MAX_SHM_SEG_NUM][MAX_SHM_PROC] = { 0 };
-static int (*g_clean_up_proc)(int);
-static int (*g_pre_clean_up_proc)(int);
+static int (*g_clean_up_proc)(int, int *);
+static int (*g_pre_clean_up_proc)(int, int *);
 static int (*g_proc_connected_callback)(int *);
 
 int *get_client_id_list(void)
@@ -106,12 +106,12 @@ int *get_clean_up_flag(int seg_id, int proc_id)
     return &g_clean_up_proc_flags[seg_id][proc_id];
 }
 
-void set_shm_master_pre_clean_up(int (*pre_clean_up_func)(int))
+void set_shm_master_pre_clean_up(int (*pre_clean_up_func)(int, int*))
 {
     g_pre_clean_up_proc = pre_clean_up_func;
 }
 
-void set_shm_master_clean_up(int (*clean_up)(int))
+void set_shm_master_clean_up(int (*clean_up)(int, int *))
 {
     g_clean_up_proc = clean_up;
 }
@@ -143,13 +143,13 @@ static void clean_up_proc_resource(int *proc_id_ptr)
 
     g_client_id_list[client_id] = SHM_CLIENT_STATUS_RELEASING;
 
-    if (g_pre_clean_up_proc != NULL && g_pre_clean_up_proc(client_id) != 0) {
+    if (g_pre_clean_up_proc != NULL && g_pre_clean_up_proc(client_id, &g_client_id_list[client_id]) != 0) {
         LOG_SHM_ERROR("[shm]pre clean up for bad mysql failed! client_id(%d)", client_id);
         pthread_join(pthread_self(), NULL);
         return;
     }
 
-    if (g_clean_up_proc != NULL && g_clean_up_proc(client_id) < 0) {
+    if (g_clean_up_proc != NULL && g_clean_up_proc(client_id, &g_client_id_list[client_id]) < 0) {
         LOG_SHM_ERROR("[shm]clean up bad mysql failed! client_id(%d)", client_id);
         pthread_join(pthread_self(), NULL);
         return;
@@ -266,14 +266,6 @@ typedef struct shm_poller_s {
 
 static shm_poller_t shm_poller;
 static int g_shm_master_listen_fd;
-
-static void shm_dead_loop_check(int *times, int max_count)
-{
-    if ((*times > max_count) && ((*times) % DEAD_LOOP_PRINT_PER_TIMES == 0)) {
-        LOG_SHM_ERROR("the proc may be in dead loop, the times = %d, max_count = %d.", *times, max_count);
-    }
-    *times = *times + 1;
-}
 
 int shm_add_epoll_events(int epoll_fd, int sock_fd, uint32_t uEvents)
 {
@@ -619,25 +611,6 @@ static int shm_unix_sock_timer_start(void)
         (c)++;                                \
     }
 
-/* Forces free a memory and clears the reference count */
-static void shm_free_force(shm_area_t *all_shm, void *blk)
-{
-    mem_blk_hdr_t *hdr;
-    shm_mem_list_t *m;
-    shm_free_list_t old_fl, new_fl;
-
-    hdr = (mem_blk_hdr_t *)((char *)blk - sizeof(mem_blk_hdr_t));
-    hdr->ref_proc = 0;
-
-    m = &all_shm->mem_list[hdr->list_id];
-    do {
-        old_fl = ((volatile shm_mem_list_t *)m)->free_list;
-        hdr->next = old_fl.head;
-        new_fl.head = ptr2shm((char *)all_shm, hdr);
-        new_fl.fl_version = old_fl.fl_version + 1;
-    } while (!__sync_bool_compare_and_swap(&(m->free_list.val), old_fl.val, new_fl.val)); /*modify to CAS*/
-}
-
 void shm_sysv_assign_proc_id(struct shm_seg_s *_seg, int proc_id)
 {
     struct shm_seg_sysv_s *seg = (struct shm_seg_sysv_s *)_seg->priv;
@@ -781,7 +754,8 @@ int shm_sysv_master_init_prepare(shm_mem_class_t mem_class[], int nr_mem_class, 
     return 0;
 }
 
-struct shm_seg_s *shm_sysv_master_init(shm_key_t *shm_key, shm_mem_class_t mem_class[], int nr_mem_class)
+struct shm_seg_s *shm_sysv_master_init(shm_key_t *shm_key, shm_mem_class_t mem_class[],
+                                       int nr_mem_class, int start_lsnr)
 {
     int master_alive = 0, ret, seg_idx;
 
@@ -826,7 +800,7 @@ struct shm_seg_s *shm_sysv_master_init(shm_key_t *shm_key, shm_mem_class_t mem_c
         }
     }
 
-    if (shm_start_checking_thread(shm_key) < 0) {
+    if (start_lsnr == 1 && shm_start_checking_thread(shm_key) < 0) {
         shm_master_fnit(seg);
         goto failed;
     }
@@ -887,40 +861,6 @@ int shm_sysv_master_exit(struct shm_seg_s *_seg)
 
     pthread_mutex_unlock(&g_master_mutex);
     return 0;
-}
-
-/* forcibly free all of blocks in the receive queue if died process */
-static void shm_free_rcvq(struct shm_seg_sysv_s *seg, shm_proc_t *p, uint64_t active_mask, int proc_id)
-{
-    uint32_t       shm_hdr;
-    mem_blk_hdr_t   *hdr;
-    dsw_message_block_t *msg;
-    void *blk;
-    int i, loop_times = 0;
-    shm_rcvq_t old_q, new_q;
-
-    do {
-        old_q = *(volatile shm_rcvq_t *)(&p->rcvq_high);
-
-        new_q.q_head = SHM_NULL;
-        new_q.q_version = old_q.q_version + 1;
-    } while (!__sync_bool_compare_and_swap(&p->rcvq_high.val, old_q.val, new_q.val));
-
-    while (old_q.q_head != SHM_NULL) {
-        shm_hdr = old_q.q_head;
-        hdr = shm2ptr((char *)(seg->all_seg_shm), shm_hdr);
-        old_q.q_head = hdr->next;
-        LOG_SHM_INFO("recv queue blk free, hdr flags=0x%02x, proc_ref = 0x%lx, proc_id = %d", hdr->flags,
-                     hdr->ref_proc, proc_id);
-        msg = SHM_HDR2MSG(hdr);
-        shm_dead_loop_check(&loop_times, MAX_RECV_CHECK_LEN);
-        for (i = 0; i < msg->head.seg_num; i++) {
-            blk = msg->seg_buf[i];
-            shm_free_force(seg->all_seg_shm, blk);
-        }
-        shm_free_force(seg->all_seg_shm, (char *)hdr + sizeof(mem_blk_hdr_t));
-        old_q.q_version++;
-    }
 }
 
 void shm_walk_all_block(struct shm_seg_sysv_s *seg,

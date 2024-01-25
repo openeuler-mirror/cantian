@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,7 +32,7 @@ extern const char *cantiand_get_dbversion(void);
 
 static inline void tbox_print_version(void)
 {
-    printf("Database version: %s\nZtobx datafile version: %u\n",
+    printf("Database version: %s\nCtobx datafile version: %u\n",
         cantiand_get_dbversion(), (uint32)TBOX_DATAFILE_VERSION);
 }
 

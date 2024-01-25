@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -33,6 +33,7 @@
 #include "knl_session.h"
 #include "knl_log.h"
 #include "knl_page.h"
+#include "knl_datafile_persistent.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,7 +63,7 @@ extern "C" {
 #define DATAFILE_UNSET_ALARMED(df)  CM_CLEAN_FLAG((df)->ctrl->flag, DATAFILE_FLAG_ALARMED)
 
 #define DATAFILE_TBL_FUNC_BLOCK_NUM       1   // only table func dba_page_corruption
-#define DATAFILE_BACKUP_BLOCK_NUM   (GS_MAX_BACKUP_PROCESS - 1)
+#define DATAFILE_BACKUP_BLOCK_NUM   (CT_MAX_BACKUP_PROCESS - 1)
 #define DATAFILE_MAX_BLOCK_NUM      (DATAFILE_BACKUP_BLOCK_NUM + DATAFILE_TBL_FUNC_BLOCK_NUM)
 // table func dba_page_corruption will block ckpt by this ID
 #define DATAFILE_TABLE_FUNC_BLOCK_ID    (uint32)(DATAFILE_BACKUP_BLOCK_NUM)
@@ -71,7 +72,7 @@ extern "C" {
 
 #define DATAFILE_GET(session, id)         (&(session)->kernel->db.datafiles[id])
 #define DATAFILE_FD(session, id)          (&(session)->datafiles[id])
-#define MAX_FILE_PAGES(type)     ((type) & SPACE_TYPE_UNDO ? GS_MAX_UNDOFILE_PAGES : GS_MAX_DATAFILE_PAGES)
+#define MAX_FILE_PAGES(type)     ((type) & SPACE_TYPE_UNDO ? CT_MAX_UNDOFILE_PAGES : CT_MAX_DATAFILE_PAGES)
 
 /** 1, datafile structure version, include:
  *     ctrl_version_t.version.inner
@@ -101,7 +102,6 @@ extern "C" {
 #define DF_BYTE_TO_BITS           8
 #define DF_MAP_BIT_CNT(session)            (uint16)(DF_MAP_SIZE(session) * DF_BYTE_TO_BITS)
 #define DF_MAX_MAP_GROUP_CNT      (uint32)17
-#define DF_MAP_GROUP_RESERVED     3
 
 #define DF_MAP_MATCH(bitmap, pos)    (!((bitmap)[(pos) >> 3] & (1 << ((pos) & 0x07))))
 #define DF_MAP_UNMATCH(bitmap, pos)  ((bitmap)[(pos) >> 3] & (1 << ((pos) & 0x07)))
@@ -117,30 +117,8 @@ extern "C" {
 #define DF_PARAL_BUILD_THREAD 8
 #define DF_BUILD_PARAL_THRES SIZE_G(1)
 
-#define DF_FILENO_IS_INVAILD(df)     ((df)->file_no == GS_INVALID_ID32)
+#define DF_FILENO_IS_INVAILD(df)     ((df)->file_no == CT_INVALID_ID32)
 #define DF_DEFAULD_AUTOEXTEND_SIZE  SIZE_M(16)
-
-typedef struct st_datafile_ctrl {
-    uint32 id;
-    bool32 used;
-    char name[GS_FILE_NAME_BUFFER_SIZE];
-    int64 size;
-    uint16 block_size;
-    uint16 flag;
-    device_type_t type;
-    int64 auto_extend_size;
-    int64 auto_extend_maxsize;
-    uint32 create_version;    // datafile creation times for this file id
-    uint8 punched : 1;
-    uint8 unused : 7;
-    uint8 reserved[27];
-} datafile_ctrl_t;
-
-typedef struct st_datafile_header {
-    uint32 rst_id;
-    uint16 block_size;
-    uint16 spc_id;
-} datafile_header_t;
 
 typedef struct st_df_map_group {
     page_id_t first_map;    // start page id of bitmap pages of this group
@@ -206,54 +184,6 @@ typedef struct __attribute__((aligned(128))) st_datafile {
     df_build_ctx_t build_ctx[DF_PARAL_BUILD_THREAD];
 } datafile_t;
 
-#pragma pack(4)
-typedef struct rd_extend_datafile {
-    uint32 id;
-    int64 size;
-} rd_extend_datafile_t;
-
-typedef struct rd_truncate_datafile {
-    uint32 id;
-    int64 size;
-} rd_truncate_datafile_t;
-
-typedef struct rd_extend_datafile_daac {
-    uint32 op_type;
-    rd_extend_datafile_t datafile;
-} rd_extend_datafile_daac_t;
-
-typedef struct rd_truncate_datafile_daac {
-    uint32 op_type;
-    rd_truncate_datafile_t datafile;
-} rd_truncate_datafile_daac_t;
-
-typedef struct st_rd_add_bitmap_group {
-    page_id_t begin_page;
-    uint8 page_count;
-    uint8 reserved[DF_MAP_GROUP_RESERVED];
-} rd_df_add_map_group_t;
-
-typedef struct st_rd_change_bimap {
-    uint16 start;
-    uint16 size;
-    uint16 is_set;
-    uint16 reserved;
-} rd_df_change_map_t;
-
-typedef struct st_rd_set_df_autoextend {
-    uint32 id;
-    bool32 auto_extend;
-    int64 auto_extend_size;
-    int64 auto_extend_maxsize;
-} rd_set_df_autoextend_t;
-
-typedef struct st_rd_set_df_autoextend_daac {
-    uint32 op_type;
-    rd_set_df_autoextend_t rd;
-} rd_set_df_autoextend_daac_t;
-
-#pragma pack()
-
 status_t spc_open_datafile(knl_session_t *session, datafile_t *df, int32 *handle);
 void spc_close_datafile(datafile_t *df, int32 *handle);
 void spc_invalidate_datafile(knl_session_t *session, datafile_t *df, bool32 ckpt_disable);
@@ -270,9 +200,9 @@ status_t spc_init_datafile_head(knl_session_t *session, datafile_t *df);
 status_t spc_get_datafile_name_bynumber(knl_session_t *session, int32 filenumber, char **filename);
 status_t spc_alter_datafile_autoextend(knl_session_t *session, knl_alterdb_datafile_t *def);
 status_t spc_alter_datafile_resize(knl_session_t *session, knl_alterdb_datafile_t *def);
-void spc_block_datafile(datafile_t *df, uint32 section_id, uint64 start, uint64 end);
+EXTER_ATTACK void spc_block_datafile(datafile_t *df, uint32 section_id, uint64 start, uint64 end);
 void spc_try_block_datafile(datafile_t *df, uint32 section_id, uint64 start, uint64 end);
-void spc_unblock_datafile(datafile_t *df, uint32 section_id);
+EXTER_ATTACK void spc_unblock_datafile(datafile_t *df, uint32 section_id);
 bool32 spc_datafile_is_blocked(knl_session_t *session, datafile_t *df, uint64 start, uint64 end);
 
 void df_add_map_group(knl_session_t *session, datafile_t *df, page_id_t page_id, uint8 group_size);

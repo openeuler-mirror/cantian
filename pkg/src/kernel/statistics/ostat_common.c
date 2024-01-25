@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,13 +22,14 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_common_module.h"
 #include "ostat_common.h"
 #include "cm_decimal.h"
 
 index_t *cbo_find_part_index_entity(dc_entity_t *entity, uint32 idx_id)
 {
     index_t *idx = NULL;
-    bool32 is_found = GS_FALSE;
+    bool32 is_found = CT_FALSE;
 
     for (uint32 pos = 0; pos < entity->table.index_set.count; pos++) {
         idx = entity->table.index_set.items[pos];
@@ -37,7 +38,7 @@ index_t *cbo_find_part_index_entity(dc_entity_t *entity, uint32 idx_id)
         }
 
         if (idx->desc.parted) {
-            is_found = GS_TRUE;
+            is_found = CT_TRUE;
             break;
         } else {
             return idx;
@@ -57,7 +58,7 @@ cbo_stats_index_t *cbo_find_sub_index_stats(dc_entity_t *entity, uint32 idx_id, 
     cbo_stats_table_t *cbo_stats = entity->cbo_table_stats;
     cbo_stats_index_t *cbo_index = NULL;
     index_t *idx = cbo_find_part_index_entity(entity, idx_id);
-    bool32 is_found = GS_FALSE;
+    bool32 is_found = CT_FALSE;
 
     if (idx == NULL) {
         return NULL;
@@ -71,7 +72,7 @@ cbo_stats_index_t *cbo_find_sub_index_stats(dc_entity_t *entity, uint32 idx_id, 
         }
 
         if (cbo_index->is_part) {
-            is_found = GS_TRUE;
+            is_found = CT_TRUE;
             break;
         } else {
             return cbo_index;
@@ -94,7 +95,7 @@ cbo_stats_index_t *cbo_find_sub_index_stats(dc_entity_t *entity, uint32 idx_id, 
         return cbo_index->idx_part_default;
     }
 
-    *need_load = GS_TRUE;
+    *need_load = CT_TRUE;
     return subpart_stats;
 }
 
@@ -128,9 +129,9 @@ status_t cbo_alloc_subpart_table_group(knl_session_t *session, dc_entity_t *enti
 
     if (part_group == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_table_part_group_t),
-            (void **)&part_group) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            (void **)&part_group) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(part_group, sizeof(cbo_table_part_group_t), 0, sizeof(cbo_table_part_group_t));
@@ -138,7 +139,7 @@ status_t cbo_alloc_subpart_table_group(knl_session_t *session, dc_entity_t *enti
         table_stats->subpart_groups[gid] = part_group;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_alloc_part_table_group(knl_session_t *session, dc_entity_t *entity, cbo_stats_table_t *table_stats,
@@ -149,9 +150,9 @@ status_t cbo_alloc_part_table_group(knl_session_t *session, dc_entity_t *entity,
 
     if (part_group == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_table_part_group_t),
-            (void **)&part_group) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            (void **)&part_group) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(part_group, sizeof(cbo_table_part_group_t), 0, sizeof(cbo_table_part_group_t));
@@ -159,7 +160,7 @@ status_t cbo_alloc_part_table_group(knl_session_t *session, dc_entity_t *entity,
         table_stats->part_groups[gid] = part_group;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_alloc_subpart_index_group(knl_session_t *session, dc_entity_t *entity, cbo_stats_index_t *index_stats,
@@ -170,9 +171,9 @@ status_t cbo_alloc_subpart_index_group(knl_session_t *session, dc_entity_t *enti
 
     if (part_group == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_index_part_group_t),
-            (void **)&part_group) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            (void **)&part_group) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(part_group, sizeof(cbo_index_part_group_t), 0, sizeof(cbo_index_part_group_t));
@@ -180,7 +181,7 @@ status_t cbo_alloc_subpart_index_group(knl_session_t *session, dc_entity_t *enti
         index_stats->subpart_index_groups[gid] = part_group;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_alloc_part_index_group(knl_session_t *session, dc_entity_t *entity, cbo_stats_index_t *index_stats, uint32 gid)
@@ -190,9 +191,9 @@ status_t cbo_alloc_part_index_group(knl_session_t *session, dc_entity_t *entity,
 
     if (part_group == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_index_part_group_t),
-            (void **)&part_group) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            (void **)&part_group) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(part_group, sizeof(cbo_index_part_group_t), 0, sizeof(cbo_index_part_group_t));
@@ -200,7 +201,7 @@ status_t cbo_alloc_part_index_group(knl_session_t *session, dc_entity_t *entity,
         index_stats->part_index_groups[gid] = part_group;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_prepare_load_columns(knl_session_t *session, dc_entity_t *entity, cbo_stats_table_t *cbo_stats)
@@ -219,9 +220,9 @@ status_t cbo_prepare_load_columns(knl_session_t *session, dc_entity_t *entity, c
     if (cbo_stats->columns == NULL) {
         // ext_count <= 32, so sizeof(void *) * ext_count is smaller than max uint32 value
         if (dc_alloc_mem(&session->kernel->dc_ctx, memory, sizeof(void *) * ext_count,
-            (void **)&cbo_stats->columns) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            (void **)&cbo_stats->columns) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(cbo_stats->columns, sizeof(void *) * ext_count, 0, sizeof(void *) * ext_count);
@@ -235,8 +236,8 @@ status_t cbo_prepare_load_columns(knl_session_t *session, dc_entity_t *entity, c
 
         if (dc_alloc_mem(&session->kernel->dc_ctx, memory, sizeof(void *) * CBO_LIST_COUNT,
             (void **)&cbo_stats->columns[i])) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(cbo_stats->columns[i], sizeof(void *) * CBO_LIST_COUNT, 0, sizeof(void *) * CBO_LIST_COUNT);
@@ -248,7 +249,7 @@ status_t cbo_prepare_load_columns(knl_session_t *session, dc_entity_t *entity, c
             stats->analyse_time = 0;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cbo_set_max_row_subpart(dc_entity_t *entity, uint32 part_no, uint32 *max_rows)
@@ -343,9 +344,9 @@ status_t cbo_set_sub_histgrams(knl_session_t *session, dc_entity_t *entity, uint
 
         if (hist == NULL) {
             if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_column_hist_t),
-                (void **)&hist) != GS_SUCCESS) {
-                GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-                return GS_ERROR;
+                (void **)&hist) != CT_SUCCESS) {
+                CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+                return CT_ERROR;
             }
 
             ret = memset_sp(hist, sizeof(cbo_column_hist_t), 0, sizeof(cbo_column_hist_t));
@@ -357,58 +358,58 @@ status_t cbo_set_sub_histgrams(knl_session_t *session, dc_entity_t *entity, uint
         ep_value.str = cbo_hist->buckets;
         ep_value.len = cbo_hist->len;
 
-        if (cbo_alloc_value_mem(session, entity->memory, column, &hist->ep_value.str) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_value_mem(session, entity->memory, column, &hist->ep_value.str) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (cbo_get_stats_values(entity, column, &ep_value, &hist->ep_value)) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         hist->ep_number = cbo_hist->endpoint;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_precheck_index_subpart(knl_session_t *session, dc_entity_t *entity, uint32 part_no, index_t *idx, uint32 subpart_no)
 {
     index_part_t *index_part = INDEX_GET_PART(idx, part_no);
     if (index_part == NULL) {
-        GS_LOG_RUN_WAR("Load %s.%s the %d-%d index part stats falied,it is not existed ",
+        CT_LOG_RUN_WAR("Load %s.%s the %d-%d index part stats falied,it is not existed ",
             entity->entry->user->desc.name, entity->table.desc.name, idx->desc.id, part_no);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     index_part_t *index_sub = PART_GET_SUBENTITY(idx->part_index, index_part->subparts[subpart_no]);
     if (index_sub == NULL) {
-        GS_LOG_RUN_WAR("Load %s.%s the %d-%d-%d index part stats falied,it is not existed ",
+        CT_LOG_RUN_WAR("Load %s.%s the %d-%d-%d index part stats falied,it is not existed ",
             entity->entry->user->desc.name, entity->table.desc.name, idx->desc.id, part_no, subpart_no);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cbo_stats_index_t *index_stats = entity->cbo_table_stats->indexs[idx->desc.slot];
     cbo_stats_index_t *parent_stats = CBO_GET_INDEX_PART(index_stats, index_part->part_no);
     if (parent_stats == NULL) {
-        GS_LOG_RUN_WAR("Load %s.%s the %d-%d-%d index parent part stats falied,it is not existed ",
+        CT_LOG_RUN_WAR("Load %s.%s the %d-%d-%d index parent part stats falied,it is not existed ",
             entity->entry->user->desc.name, entity->table.desc.name, idx->desc.id, part_no, subpart_no);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cbo_set_histgram_scan_key(knl_cursor_t *cursor, table_t *table, uint32 cid, uint32 part_id)
 {
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&table->desc.uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&table->desc.uid,
         sizeof(uint32), IX_COL_HIST_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&table->desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&table->desc.id,
         sizeof(uint32), IX_COL_HIST_003_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&cid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&cid,
         sizeof(uint32), IX_COL_HIST_003_COL_ID);
 
     if (IS_PART_TABLE(table)) {
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&part_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&part_id,
             sizeof(uint32), IX_COL_HIST_003_PART_ID);
     } else {
         knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_IS_NULL, IX_COL_HIST_003_PART_ID);
@@ -416,15 +417,15 @@ void cbo_set_histgram_scan_key(knl_cursor_t *cursor, table_t *table, uint32 cid,
 
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_HIST_003_ENDPOINT);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&table->desc.uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&table->desc.uid,
         sizeof(uint32), IX_COL_HIST_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&table->desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&table->desc.id,
         sizeof(uint32), IX_COL_HIST_003_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&cid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&cid,
         sizeof(uint32), IX_COL_HIST_003_COL_ID);
 
     if (IS_PART_TABLE(table)) {
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&part_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&part_id,
             sizeof(uint32), IX_COL_HIST_003_PART_ID);
     } else {
         knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_IS_NULL, IX_COL_HIST_003_PART_ID);
@@ -443,8 +444,8 @@ status_t cbo_set_columns_stats(knl_session_t *session, dc_entity_t *entity, cbo_
     if (cbo_stats->col_map == NULL) {
         // ext_count <= 32, so sizeof(void *) * ext_count is smaller than max uint32 value
         if (dc_alloc_mem(&session->kernel->dc_ctx, memory, sizeof(void *) * ext_count, (void **)&cbo_stats->col_map)) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(cbo_stats->col_map, sizeof(void *) * ext_count, 0, sizeof(void *) * ext_count);
@@ -458,8 +459,8 @@ status_t cbo_set_columns_stats(knl_session_t *session, dc_entity_t *entity, cbo_
 
         if (dc_alloc_mem(&session->kernel->dc_ctx, memory, sizeof(uint32) * CBO_LIST_COUNT,
             (void **)&cbo_stats->col_map[i])) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(cbo_stats->col_map[i], sizeof(uint32) * CBO_LIST_COUNT, 0xFF, sizeof(uint32) * CBO_LIST_COUNT);
@@ -473,22 +474,23 @@ status_t cbo_set_columns_stats(knl_session_t *session, dc_entity_t *entity, cbo_
         }
     }
 
-    cbo_stats->col_stats_allowed = GS_TRUE;
-    return GS_SUCCESS;
+    cbo_stats->col_stats_allowed = CT_TRUE;
+    return CT_SUCCESS;
 }
 
-status_t cbo_calculation_part_group(uint32 *group_cnt, uint32 *group_id, uint32 *gid)
+status_t cbo_calc_part_group(knl_session_t *session, dc_entity_t *entity, uint32 *group_cnt,
+    uint32 *group_id, uint32 *gid)
 {
-    if (group_id[*gid] != GS_INVALID_ID32) {
+    if (group_id[*gid] != CT_INVALID_ID32) {
         *gid = group_id[*gid];
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     group_id[*gid] = *group_cnt;
     *gid = *group_cnt;
     (*group_cnt)++;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_alloc_table_part_default(knl_session_t *session, dc_entity_t *entity,
@@ -500,25 +502,25 @@ status_t cbo_alloc_table_part_default(knl_session_t *session, dc_entity_t *entit
 
     gid = id / PART_GROUP_SIZE;
     if (!PART_CONTAIN_INTERVAL(part_table)) {
-        if (cbo_alloc_part_table_group(session, entity, table_stats, gid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_part_table_group(session, entity, table_stats, gid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (cbo_calculation_part_group(&table_stats->part_group.group_cnt, table_stats->part_group.group_id,
-            &gid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_calc_part_group(session, entity, &table_stats->part_group.group_cnt, table_stats->part_group.group_id,
+            &gid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (cbo_alloc_part_table_group(session, entity, table_stats, gid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_part_table_group(session, entity, table_stats, gid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!table_stats->part_group.group_ready[gid]) {
-            table_stats->part_group.group_ready[gid] = GS_TRUE;
+            table_stats->part_group.group_ready[gid] = CT_TRUE;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_alloc_table_part_stats(knl_session_t *session, dc_entity_t *entity,
@@ -536,21 +538,21 @@ status_t cbo_alloc_table_part_stats(knl_session_t *session, dc_entity_t *entity,
     gid = id / PART_GROUP_SIZE;
     eid = id % PART_GROUP_SIZE;
     if (!PART_CONTAIN_INTERVAL(part_table)) {
-        if (cbo_alloc_part_table_group(session, entity, table_stats, gid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_part_table_group(session, entity, table_stats, gid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (cbo_calculation_part_group(&table_stats->part_group.group_cnt, table_stats->part_group.group_id,
-            &gid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_calc_part_group(session, entity, &table_stats->part_group.group_cnt, table_stats->part_group.group_id,
+            &gid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (cbo_alloc_part_table_group(session, entity, table_stats, gid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_part_table_group(session, entity, table_stats, gid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!table_stats->part_group.group_ready[gid]) {
-            table_stats->part_group.group_ready[gid] = GS_TRUE;
+            table_stats->part_group.group_ready[gid] = CT_TRUE;
         }
     }
 
@@ -558,19 +560,19 @@ status_t cbo_alloc_table_part_stats(knl_session_t *session, dc_entity_t *entity,
 
     if (part_group->entity[eid] == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_stats_table_t),
-            (void **)&part_stats) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            (void **)&part_stats) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         table_size = sizeof(cbo_stats_table_t);
         ret = memset_sp(part_stats, table_size, 0, table_size);
         knl_securec_check(ret);
-        part_stats->is_ready = GS_FALSE;
+        part_stats->is_ready = CT_FALSE;
         part_group->entity[eid] = part_stats;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_alloc_index_part_default(knl_session_t *session, dc_entity_t *entity,
@@ -582,25 +584,25 @@ status_t cbo_alloc_index_part_default(knl_session_t *session, dc_entity_t *entit
 
     gid = id / PART_GROUP_SIZE;
     if (!PART_CONTAIN_INTERVAL(part_table)) {
-        if (cbo_alloc_part_index_group(session, entity, index_stats, gid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_part_index_group(session, entity, index_stats, gid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (cbo_calculation_part_group(&index_stats->part_group.group_cnt, index_stats->part_group.group_id,
-            &gid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_calc_part_group(session, entity, &index_stats->part_group.group_cnt, index_stats->part_group.group_id,
+            &gid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (cbo_alloc_part_index_group(session, entity, index_stats, gid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_part_index_group(session, entity, index_stats, gid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!index_stats->part_group.group_ready[gid]) {
-            index_stats->part_group.group_ready[gid] = GS_TRUE;
+            index_stats->part_group.group_ready[gid] = CT_TRUE;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 uint32 cbo_get_part_group_count(uint32 part_cnt)
@@ -623,13 +625,13 @@ status_t cbo_alloc_index_subpart_stats(knl_session_t *session, dc_entity_t *enti
     errno_t ret;
 
     if (idx_stats->subpart_index_groups == NULL) {
-        if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, GS_SHARED_PAGE_SIZE,
-            (void **)&idx_stats->subpart_index_groups) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, CT_SHARED_PAGE_SIZE,
+            (void **)&idx_stats->subpart_index_groups) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
-        ret = memset_sp(idx_stats->subpart_index_groups, GS_SHARED_PAGE_SIZE, 0, GS_SHARED_PAGE_SIZE);
+        ret = memset_sp(idx_stats->subpart_index_groups, CT_SHARED_PAGE_SIZE, 0, CT_SHARED_PAGE_SIZE);
         knl_securec_check(ret);
     }
 
@@ -643,30 +645,30 @@ status_t cbo_alloc_index_subpart_stats(knl_session_t *session, dc_entity_t *enti
         uint32 gid = pos / PART_GROUP_SIZE;
         uint32 eid = pos % PART_GROUP_SIZE;
 
-        if (cbo_alloc_subpart_index_group(session, entity, idx_stats, gid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_subpart_index_group(session, entity, idx_stats, gid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         cbo_index_part_group_t *part_group = idx_stats->subpart_index_groups[gid];
 
         if (part_group->entity[eid] == NULL) {
             if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_stats_index_t),
-                (void **)&sub_stats) != GS_SUCCESS) {
-                GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-                return GS_ERROR;
+                (void **)&sub_stats) != CT_SUCCESS) {
+                CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+                return CT_ERROR;
             }
 
             ret = memset_sp(sub_stats, sizeof(cbo_stats_index_t), 0, sizeof(cbo_stats_index_t));
             knl_securec_check(ret);
 
-            sub_stats->is_ready = GS_FALSE;
+            sub_stats->is_ready = CT_FALSE;
             part_group->entity[eid] = sub_stats;
         }
     }
 
     cbo_stats_index_t *parent_stats = CBO_GET_INDEX_PART(idx_stats, index_part->part_no);
-    parent_stats->is_parent_part = GS_TRUE;
-    return GS_SUCCESS;
+    parent_stats->is_parent_part = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 status_t cbo_alloc_index_part_stats(knl_session_t *session, dc_entity_t *entity,
@@ -682,41 +684,41 @@ status_t cbo_alloc_index_part_stats(knl_session_t *session, dc_entity_t *entity,
     uint32 eid = id % PART_GROUP_SIZE;
 
     if (!PART_CONTAIN_INTERVAL(part_table)) {
-        if (cbo_alloc_part_index_group(session, entity, index_stats, gid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_part_index_group(session, entity, index_stats, gid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (cbo_calculation_part_group(&index_stats->part_group.group_cnt, index_stats->part_group.group_id,
-            &gid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_calc_part_group(session, entity, &index_stats->part_group.group_cnt, index_stats->part_group.group_id,
+            &gid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (cbo_alloc_part_index_group(session, entity, index_stats, gid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_part_index_group(session, entity, index_stats, gid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!index_stats->part_group.group_ready[gid]) {
-            index_stats->part_group.group_ready[gid] = GS_TRUE;
+            index_stats->part_group.group_ready[gid] = CT_TRUE;
         }
     }
 
     part_group = index_stats->part_index_groups[gid];
     if (part_group->entity[eid] == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_stats_index_t),
-            (void **)&part_stats) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            (void **)&part_stats) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         index_size = sizeof(cbo_stats_index_t);
         ret = memset_sp(part_stats, index_size, 0, index_size);
         knl_securec_check(ret);
 
-        part_stats->is_ready = GS_FALSE;
+        part_stats->is_ready = CT_FALSE;
         part_group->entity[eid] = part_stats;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cbo_set_max_row_part(cbo_stats_table_t  *table_stats, cbo_stats_table_t *part_stats, uint32 part_no)
@@ -766,7 +768,7 @@ cbo_stats_index_t *cbo_find_indexpart_stats(cbo_stats_table_t *cbo_stats, uint32
         return part_index;
     }
 
-    *need_load = GS_TRUE;
+    *need_load = CT_TRUE;
     return part_index;
 }
 
@@ -775,51 +777,54 @@ uint32 cbo_get_column_alloc_size(knl_column_t *column)
     uint32 size;
 
     switch (column->datatype) {
-        case GS_TYPE_BOOLEAN:
-        case GS_TYPE_SMALLINT:
-        case GS_TYPE_UINT32:
-        case GS_TYPE_INTEGER:
-        case GS_TYPE_USMALLINT:
-        case GS_TYPE_TINYINT:
-        case GS_TYPE_UTINYINT:
+        case CT_TYPE_BOOLEAN:
+        case CT_TYPE_SMALLINT:
+        case CT_TYPE_UINT32:
+        case CT_TYPE_INTEGER:
+        case CT_TYPE_USMALLINT:
+        case CT_TYPE_TINYINT:
+        case CT_TYPE_UTINYINT:
             size = sizeof(int32);
             break;
-        case GS_TYPE_BIGINT:
+        case CT_TYPE_BIGINT:
             size = sizeof(int64);
             break;
-        case GS_TYPE_FLOAT:
-        case GS_TYPE_REAL:
+        case CT_TYPE_FLOAT:
+        case CT_TYPE_REAL:
             size = sizeof(double);
             break;
-        case GS_TYPE_UINT64:
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_DECIMAL:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_NUMBER2:
+        case CT_TYPE_UINT64:
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_DECIMAL:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_NUMBER2:
             size = sizeof(dec8_t);
             break;
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_DATE_MYSQL:
             size = sizeof(date_t);
             break;
-        case GS_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIMESTAMP_TZ:
             size = sizeof(timestamp_tz_t);
             break;
-        case GS_TYPE_INTERVAL_DS:
+        case CT_TYPE_INTERVAL_DS:
             size = sizeof(interval_ds_t);
             break;
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_INTERVAL_YM:
             size = sizeof(interval_ym_t);
             break;
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
-        case GS_TYPE_BINARY:
-        case GS_TYPE_VARBINARY:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
+        case CT_TYPE_BINARY:
+        case CT_TYPE_VARBINARY:
             if (KNL_COLUMN_IS_CHARACTER(column)) {
-                size = MIN(column->size * GS_CHAR_TO_BYTES_RATIO, STATS_MAX_BUCKET_SIZE);
+                size = MIN(column->size * CT_CHAR_TO_BYTES_RATIO, STATS_MAX_BUCKET_SIZE);
             } else {
                 size = MIN(column->size + 1, STATS_MAX_BUCKET_SIZE);
             }
@@ -840,101 +845,106 @@ status_t cbo_alloc_value_mem(knl_session_t *session, memory_context_t *memory, k
     errno_t ret;
 
     if (*buf != NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     size = cbo_get_column_alloc_size(column);
     ctx = &session->kernel->dc_ctx;
 
-    if (dc_alloc_mem(ctx, memory, size, (void **)buf) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_mem(ctx, memory, size, (void **)buf) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     ret = memset_sp(*buf, size, 0, size);
     knl_securec_check(ret);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_get_stats_values(dc_entity_t *entity, knl_column_t *column, text_t *v_input, text_t *v_output)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     errno_t ret;
     uint32 copy_size;
     uint32 real_size;
     binary_t bin;
     dec2_t d2;
 
-    if (v_input->len == GS_NULL_VALUE_LEN) {
-        v_output->len = GS_NULL_VALUE_LEN;
-        return GS_SUCCESS;
-    } else if (v_input->len == 0 && !GS_IS_STRING_TYPE(column->datatype)) {
-        v_output->len = GS_NULL_VALUE_LEN;
-        return GS_SUCCESS;
+    if (v_input->len == CT_NULL_VALUE_LEN) {
+        v_output->len = CT_NULL_VALUE_LEN;
+        return CT_SUCCESS;
+    } else if (v_input->len == 0 && !CT_IS_STRING_TYPE(column->datatype)) {
+        v_output->len = CT_NULL_VALUE_LEN;
+        return CT_SUCCESS;
     }
 
     cm_trim_text(v_input);
 
     switch (column->datatype) {
-        case GS_TYPE_BOOLEAN:
+        case CT_TYPE_BOOLEAN:
             status = cm_text2bool(v_input, (bool32 *)v_output->str);
             v_output->len = sizeof(bool32);
             break;
-        case GS_TYPE_UINT32:
+        case CT_TYPE_UINT32:
             status = cm_text2uint32(v_input, (uint32 *)v_output->str);
             v_output->len = sizeof(uint32);
             break;
-        case GS_TYPE_SMALLINT:
-        case GS_TYPE_INTEGER:
-        case GS_TYPE_USMALLINT:
-        case GS_TYPE_TINYINT:
-        case GS_TYPE_UTINYINT:
+        case CT_TYPE_SMALLINT:
+        case CT_TYPE_INTEGER:
+        case CT_TYPE_USMALLINT:
+        case CT_TYPE_TINYINT:
+        case CT_TYPE_UTINYINT:
             status = cm_text2int(v_input, (int32 *)v_output->str);
             v_output->len = sizeof(int32);
             break;
-        case GS_TYPE_BIGINT:
+        case CT_TYPE_BIGINT:
             status = cm_text2bigint(v_input, (int64 *)v_output->str);
             v_output->len = sizeof(int64);
             break;
-        case GS_TYPE_FLOAT:
-        case GS_TYPE_REAL:
+        case CT_TYPE_FLOAT:
+        case CT_TYPE_REAL:
             status = cm_text2real(v_input, (double *)v_output->str);
             v_output->len = sizeof(double);
             break;
-        case GS_TYPE_UINT64:
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_DECIMAL:
+        case CT_TYPE_UINT64:
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_DECIMAL:
             status = cm_text_to_dec4(v_input, (dec4_t *)v_output->str);
             v_output->len = sizeof(dec4_t);
             break;
-        case GS_TYPE_NUMBER2:
-            GS_RETURN_IFERR(cm_text_to_dec2(v_input, &d2));
+        case CT_TYPE_NUMBER2:
+            CT_RETURN_IFERR(cm_text_to_dec2(v_input, &d2));
             cm_dec2_copy_payload((payload_t *)v_output->str, GET_PAYLOAD(&d2), d2.len);
             v_output->len = d2.len;
             break;
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_LTZ:
             status = cm_text2date(v_input, NULL, (date_t *)v_output->str);
             v_output->len = sizeof(date_t);
             break;
-        case GS_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIMESTAMP_TZ:
             status = cm_text2timestamp_tz(v_input, NULL, cm_get_local_tzoffset(), (timestamp_tz_t *)v_output->str);
             v_output->len = sizeof(timestamp_tz_t);
             break;
-        case GS_TYPE_INTERVAL_DS:
+        case CT_TYPE_DATE_MYSQL:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+            v_output->len = sizeof(date_t);
+            break;
+        case CT_TYPE_INTERVAL_DS:
             status = cm_text2dsinterval(v_input, (interval_ds_t *)v_output->str);
             v_output->len = sizeof(interval_ds_t);
             break;
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_INTERVAL_YM:
             status = cm_text2yminterval(v_input, (interval_ym_t *)v_output->str);
             v_output->len = sizeof(interval_ym_t);
             break;
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
             copy_size = MIN(column->size + 1, STATS_MAX_BUCKET_SIZE);
             real_size = MIN(v_input->len, copy_size);
             v_output->len = real_size;
@@ -943,17 +953,17 @@ status_t cbo_get_stats_values(dc_entity_t *entity, knl_column_t *column, text_t 
                 knl_securec_check(ret);
             }
             break;
-        case GS_TYPE_BINARY:
-        case GS_TYPE_VARBINARY:
-        case GS_TYPE_RAW:
+        case CT_TYPE_BINARY:
+        case CT_TYPE_VARBINARY:
+        case CT_TYPE_RAW:
             bin.bytes = (uint8*)v_output->str;
             bin.size = 0;
             copy_size = MIN(column->size + 1, STATS_MAX_BUCKET_SIZE);
-            status = cm_text2bin(v_input, GS_FALSE, &bin, STATS_MAX_BUCKET_SIZE);
+            status = cm_text2bin(v_input, CT_FALSE, &bin, STATS_MAX_BUCKET_SIZE);
             v_output->len = MIN(bin.size, copy_size);
             break;
         default:
-            v_output->len = GS_NULL_VALUE_LEN;
+            v_output->len = CT_NULL_VALUE_LEN;
             break;
     }
     return status;

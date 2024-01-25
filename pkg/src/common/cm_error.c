@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "cm_text.h"
 #include "cm_log.h"
 
@@ -45,7 +46,7 @@ __thread error_info_t g_tls_error = { 0 };
 __thread tls_plc_error_t g_tls_plc_error = { 0 };
 #endif
 
-bool32 g_enable_err_superposed = GS_FALSE;
+bool32 g_enable_err_superposed = CT_FALSE;
 /*
  * one error no corresponds to one error desc
  * Attention: keep the array index same as error no
@@ -247,7 +248,7 @@ const char *g_error_desc[] = {
     [ERR_ACCOUNT_AUTH_FAILED] = "Incorrect user or password",
     [ERR_TCP_INVALID_IPADDRESS] = "Invalid IP address: %s",
     [ERR_CLI_INVALID_IP_LOGIN] =
-        "IP list rejects connection for user \"%s\", ip \"%s\", current date \"%s\", please check zhba.conf or tcp valid node configuration",
+        "IP list rejects connection for user \"%s\", ip \"%s\", current date \"%s\", please check cthba.conf or tcp valid node configuration",
 
     [ERR_ESTABLISH_UDS_CONNECTION] = "Failed to establish uds connection to [%s], errno=%d",
     [ERR_SSL_INIT_FAILED] = "SSL init error: %s",
@@ -328,7 +329,7 @@ const char *g_error_desc[] = {
     [ERR_GROUPING_NOT_ALLOWED] = "GROUPING function is not allowed here",
     [ERR_TYPE_MISMATCH] = "Inconsistent datatypes, expected %s - got %s",
     [ERR_INVALID_DATA_TYPE] = "Invalid datatype for %s",
-    [ERR_INVALID_EXPRESSION] = "Invalid expression",
+    [ERR_INVALID_EXPRESSION] = "Invalid expression %s",
     [ERR_EXPR_NOT_IN_GROUP_LIST] = "Expression not in group list",
     [ERR_GROUPING_NO_GROUPBY] = "GROUPING function is supported only with GROUP BY clause",
     [ERR_REQUEST_OUT_OF_SQUENCE] = "No sql %s",
@@ -392,11 +393,6 @@ const char *g_error_desc[] = {
     [ERR_READ_LOB_NULL] = "Has no more lob data to read",
     [ERR_DATANODE_EXIST] = "Node 'node_name = %s' already exists",
     [ERR_DATANODE_NOT_EXIST] = "Node 'node_name = %s' does not exist",
-#ifdef Z_SHARDING
-    [ERR_REBALANCE_TASK_NOT_EXIST] = "Rebalnace task 'id = %s, table name = %s' not exist",
-    [ERR_OLNY_FOR_COORDNODE] = "Only the CN supports the logical capacity expansion command.",
-    [ERR_TABLE_FROZEN_STATUS] = "Table is working in frozen status.",
-#endif
     [ERR_COORDNODE_FORBIDDEN] = "Coordinator node don't allow %s",
     [ERR_DISTRI_COLUMN_FORBIDDEN] = "Cannot %s distribute column \"%s\" %s",
     [ERR_INVALID_SEL4UPDATE] = "Select .. for update syntax error: %s",
@@ -449,9 +445,6 @@ const char *g_error_desc[] = {
     [ERR_EXCEED_MAX_FIELD_LEN] = "The column \"%s\" length exceeded the maximum, (actual: %u, maximum: %u).",
     [ERR_RESERV_SQL_CURSORS_DECREASE] = "The number of reserved sql cursors can not decrease",
     [ERR_SELECT_ROWID] = "Querying views containing DISTINCT, GROUP BY, or ROWNUM for ROWID was not allowed.",
-#ifdef Z_SHARDING
-    [ERR_SELECT_ROWNODEID] = "Querying views containing DISTINCT, GROUP BY, or ROWNUM for ROWNODEID was not allowed.",
-#endif
     [ERR_INVALID_NUMBER_FORAMT] = "The input was not of the NUMBER type.",
     [ERR_INVALID_SESSION_TYPE] = "Can only kill user or job sessions",
     [ERR_SQL_MAP_ONLY_SUPPORT_DML] = "SQL mapping only supports DML and DQL statements",
@@ -554,6 +547,8 @@ const char *g_error_desc[] = {
     [ERR_INVALID_REBUILD_PART_RANGE] = "(SUB)PARTITION count out of range, it must be less than %u.",
     [ERR_PAGE_SOFT_DAMAGED] = "Data page %u-%u was loaded using the NOLOGGING option.",
     [ERR_ROW_IS_REFERENCED] = "The row is referenced by child record",
+    [ERR_EXCEED_MAX_CASCADE_DEPTH] = "Foreign key cascade delete/update exceeds max depth of 15",
+    [ERR_CHILD_ROW_CANNOT_ADD_OR_UPDATE] = "Cannot add or update a child row: a foreign key constraint fails",
 
     /* sql engine */
     [ERR_INVALID_SYNONYM_OBJ_TYPE] = "Synonym object %s.%s is not table or view type",
@@ -689,7 +684,7 @@ const char *g_error_desc[] = {
     [ERR_RECORD_SIZE_OVERFLOW] = "%s size %u exceeds the limitation %u",
     [ERR_FIND_FREE_SPACE] = "Failed to find free space size : %u",
     [ERR_DUPLICATE_KEY] = "Unique constraint violated%s",
-    [ERR_DUPLICATE_ENTRY] = "Duplicate entry for key %s.%s",
+    [ERR_DUPLICATE_ENTRY] = "Duplicate entry for key '%s.%s'",
     [ERR_NO_DB_ACTIVE] = "Database has not been created or is not open",
     [ERR_MAX_DATAFILE_PAGES] = "File hwm pages %u exceeds maximum of %u pages in space %s",
     [ERR_TXN_IN_PROGRESS] = "Error occurred when the transaction is in progress, %s",
@@ -990,47 +985,47 @@ const char *g_error_desc[] = {
     [ERR_SPACE_NO_DATAFILE] = "Space has no datafile",
 
     // cantian File System, range [2000, 2500]
-    [ERR_GSS_OPEN_VOLUME] = "Open volume '%s' failed, reason %d",
-    [ERR_GSS_READ_VOLUME] = "Read volume '%s' failed, volume id %d, reason %d",
-    [ERR_GSS_WRITE_VOLUME] = "Write volume '%s' failed, volume id %d, reason %d",
-    [ERR_GSS_SEEK_VOLUME] = "Seek volume '%s' failed, volume id %d, reason %d",
-    [ERR_GSS_INVALID_PARAM] = "Invalid GSS parameter: %s",
-    [ERR_ZFS_CREATE_SESSION] = "Create new GSS session failed, no free sessions, %d sessions used",
-    [ERR_GSS_DUPLICATED_DIR] = "Make dir or Create file failed, %s has already existed",
-    [ERR_GSS_NO_SPACE] = "gss no space in the vg",
+    [ERR_CTSTORE_OPEN_VOLUME] = "Open volume '%s' failed, reason %d",
+    [ERR_CTSTORE_READ_VOLUME] = "Read volume '%s' failed, volume id %d, reason %d",
+    [ERR_CTSTORE_WRITE_VOLUME] = "Write volume '%s' failed, volume id %d, reason %d",
+    [ERR_CTSTORE_SEEK_VOLUME] = "Seek volume '%s' failed, volume id %d, reason %d",
+    [ERR_CTSTORE_INVALID_PARAM] = "Invalid CTSTORE parameter: %s",
+    [ERR_ZFS_CREATE_SESSION] = "Create new CTSTORE session failed, no free sessions, %d sessions used",
+    [ERR_CTSTORE_DUPLICATED_DIR] = "Make dir or Create file failed, %s has already existed",
+    [ERR_CTSTORE_NO_SPACE] = "ctstore no space in the vg",
     [ERR_OAMAP_DUP_KEY_ERROR] = "Hash map duplicated key",
     [ERR_OAMAP_INSERTION_FAILED] = "Failed to insert hash map ",
     [ERR_OAMAP_FETCH_FAILED] = "Failed to fetch hash map",
-    [ERR_GSS_VG_NOT_INITIALIZED] = "The volume group has not been initialized.",
-    [ERR_GSS_ENV_NOT_INITIALIZED] = "The gss env has not been initialized.",
-    [ERR_GSS_DIR_NOT_EMPTY] = "The dir is not empty, can not remove.",
-    [ERR_GSS_DIR_NOT_EXISTED] = "The dir or file %s is not existed.",
-    [ERR_GSS_CLI_EXEC_FAIL] = "GSS client exec cmd '%s' failed, reason %s.",
-    [ERR_GSS_VG_OPEN] = "Open volume group %s failed",
-    [ERR_GSS_VG_LOCK] = "Lock volume group %s failed",
-    [ERR_GSS_VG_REMOVE] = "Forbidden remove volume group's superblock",
-    [ERR_GSS_ADD_EXISTED_VOLUME] = "Add an existed volume %s of volume-group %s failed",
-    [ERR_GSS_REMOVE_NOEXIST_VOLUME] = "Remove a non-existent volume %s of volume-group %s failed",
-    [ERR_GSS_REMOVE_NONEMPTY_VOLUME] = "Remove a nonempty volume %s failed",
-    [ERR_GSS_REMOVE_SUPER_BLOCK] = "Remove super block %s failed",
-    [ERR_GSS_LOCK_OCCUPIED] = "The lock is already occupied",
-    [ERR_GSS_PATH_ILL] = "Path %s decode error %s",
-    [ERR_GSS_VG_CHECK] = "Check volume group %s failed, reason %s",
-    [ERR_GSS_REDO_ILL] = "GSS redo log error, reason %s",
-    [ERR_GSS_FNODE_CHECK] = "GSS fnode error, reason %s",
-    [ERR_GSS_GA_INIT] = "GSS ga init error, reason %s",
-    [ERR_GSS_SHM_CREATE] = "Failed to create shared memory, key=0x%08x, size=%llu",
-    [ERR_GSS_SHM_CHECK] = "Failed to check shared memory ctrl, key=0x%08x, reason=%s",
-    [ERR_GSS_VG_CREATE] = "Create volume group %s failed, reason %s",
-    [ERR_GSS_REG_CONFLICT] = "Register conflict, rk %llu",
-    [ERR_GSS_INVALID_SESSION] = "Invalid session %d",
-    [ERR_GSS_VG_CONF] = "Please check gss_vg_conf.ini, reason %s",
-    [ERR_GSS_CHECK_RENAME] = "Rename failed, reason %s",
-    [ERR_GSS_LOCK_TIMEOUT] = "GSS lock timeout",
-    [ERR_GSS_SERVER_IS_DOWN] = "GSS server is down",
-    [ERR_GSS_CHECK_SIZE] = "Failed to specify size %d which is not aligned with GSS allocate-unit size %d",
-    [ERR_GSS_FILE_IS_OPEN] = "GSS file is open",
-    [ERR_GSS_MES_ILL] = "GSS message contact error, reason %s",
+    [ERR_CTSTORE_VG_NOT_INITIALIZED] = "The volume group has not been initialized.",
+    [ERR_CTSTORE_ENV_NOT_INITIALIZED] = "The ctstore env has not been initialized.",
+    [ERR_CTSTORE_DIR_NOT_EMPTY] = "The dir is not empty, can not remove.",
+    [ERR_CTSTORE_DIR_NOT_EXISTED] = "The dir or file %s is not existed.",
+    [ERR_CTSTORE_CLI_EXEC_FAIL] = "CTSTORE client exec cmd '%s' failed, reason %s.",
+    [ERR_CTSTORE_VG_OPEN] = "Open volume group %s failed",
+    [ERR_CTSTORE_VG_LOCK] = "Lock volume group %s failed",
+    [ERR_CTSTORE_VG_REMOVE] = "Forbidden remove volume group's superblock",
+    [ERR_CTSTORE_ADD_EXISTED_VOLUME] = "Add an existed volume %s of volume-group %s failed",
+    [ERR_CTSTORE_REMOVE_NOEXIST_VOLUME] = "Remove a non-existent volume %s of volume-group %s failed",
+    [ERR_CTSTORE_REMOVE_NONEMPTY_VOLUME] = "Remove a nonempty volume %s failed",
+    [ERR_CTSTORE_REMOVE_SUPER_BLOCK] = "Remove super block %s failed",
+    [ERR_CTSTORE_LOCK_OCCUPIED] = "The lock is already occupied",
+    [ERR_CTSTORE_PATH_ILL] = "Path %s decode error %s",
+    [ERR_CTSTORE_VG_CHECK] = "Check volume group %s failed, reason %s",
+    [ERR_CTSTORE_REDO_ILL] = "CTSTORE redo log error, reason %s",
+    [ERR_CTSTORE_FNODE_CHECK] = "CTSTORE fnode error, reason %s",
+    [ERR_CTSTORE_GA_INIT] = "CTSTORE ga init error, reason %s",
+    [ERR_CTSTORE_SHM_CREATE] = "Failed to create shared memory, key=0x%08x, size=%llu",
+    [ERR_CTSTORE_SHM_CHECK] = "Failed to check shared memory ctrl, key=0x%08x, reason=%s",
+    [ERR_CTSTORE_VG_CREATE] = "Create volume group %s failed, reason %s",
+    [ERR_CTSTORE_REG_CONFLICT] = "Register conflict, rk %llu",
+    [ERR_CTSTORE_INVALID_SESSION] = "Invalid session %d",
+    [ERR_CTSTORE_VG_CONF] = "Please check ctstore_vg_conf.ini, reason %s",
+    [ERR_CTSTORE_CHECK_RENAME] = "Rename failed, reason %s",
+    [ERR_CTSTORE_LOCK_TIMEOUT] = "CTSTORE lock timeout",
+    [ERR_CTSTORE_SERVER_IS_DOWN] = "CTSTORE server is down",
+    [ERR_CTSTORE_CHECK_SIZE] = "Failed to specify size %d which is not aligned with CTSTORE allocate-unit size %d",
+    [ERR_CTSTORE_FILE_IS_OPEN] = "CTSTORE file is open",
+    [ERR_CTSTORE_MES_ILL] = "CTSTORE message contact error, reason %s",
     // JSON, range [2501, 2599]
     [ERR_JSON_INVLID_CLAUSE] = "Invalid %s clause, %s",
     [ERR_JSON_OUTPUT_TOO_LARGE] = "Output value too large",
@@ -1063,6 +1058,7 @@ const char *g_error_desc[] = {
     [ERR_MES_ILEGAL_MESSAGE] = "MES invalid message, %s",
     [ERR_MES_PARAMETER] = "MES invalid parameter, %s",
     [ERR_MES_ALREADY_CONNECT] = "MES has already connected before, %s",
+    [ERR_MES_SEND_DATA_FAIL] = "MES send %s data fail.",
 
     // CMS, range [3100, 3199]
     [ERR_CMS_OPEN_DISK] = "open disk failed, errno %d",
@@ -1112,6 +1108,11 @@ const char *g_error_desc[] = {
         "Failed to add the foreign key constraint. Missing index for constraint '%s' in the referenced table '%s'",
     [ERR_CHILD_DUPLICATE_KEY] = "Foreign key constraint would lead to a duplicate entry in child table",
 
+    // ARCH
+    [ERR_FORCE_ARCH_FAILED] = "failed to force archive with lrp point lsn",
+
+    // BADBLOCK
+    [ERR_CHECKSUM_FAILED_WITH_PAGE] = "Checksum failed with page %u-%u when read data from file %s",
     /*
      * NOTICE: the error code defined should be smaller than ERR_ERRNO_CEIL.
      */
@@ -1189,11 +1190,11 @@ status_t cm_revert_error(int32 code, const char *message, source_location_t *loc
 {
     g_tls_error.code = code;
     if (g_tls_error.message != message) {
-        MEMS_RETURN_IFERR(memcpy_sp(g_tls_error.message, GS_MESSAGE_BUFFER_SIZE, message, GS_MESSAGE_BUFFER_SIZE));
+        MEMS_RETURN_IFERR(memcpy_sp(g_tls_error.message, CT_MESSAGE_BUFFER_SIZE, message, CT_MESSAGE_BUFFER_SIZE));
     }
     g_tls_error.loc.line = loc->line;
     g_tls_error.loc.column = loc->column;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 char *cm_get_t2s_addr(void)
@@ -1205,11 +1206,11 @@ char *cm_t2s(const char *buf, uint32 len)
 {
     uint32 copy_size;
     errno_t errcode;
-    copy_size = (len >= GS_T2S_LARGER_BUFFER_SIZE) ? GS_T2S_LARGER_BUFFER_SIZE - 1 : len;
+    copy_size = (len >= CT_T2S_LARGER_BUFFER_SIZE) ? CT_T2S_LARGER_BUFFER_SIZE - 1 : len;
     if (copy_size != 0) {
-        errcode = memcpy_sp(g_tls_error.t2s_buf1, (size_t)GS_T2S_LARGER_BUFFER_SIZE, buf, (size_t)copy_size);
+        errcode = memcpy_sp(g_tls_error.t2s_buf1, (size_t)CT_T2S_LARGER_BUFFER_SIZE, buf, (size_t)copy_size);
         if (SECUREC_UNLIKELY(errcode != EOK)) {
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
             return NULL;
         }
     }
@@ -1221,12 +1222,12 @@ char *cm_concat_t2s(const char *buf1, uint32 len1, const char *buf2, uint32 len2
 {
     uint32 copy_size = 0;
     errno_t errcode;
-    if (len1 + len2 + 1 < GS_T2S_LARGER_BUFFER_SIZE) {
+    if (len1 + len2 + 1 < CT_T2S_LARGER_BUFFER_SIZE) {
         if (len1 > 0) {
             copy_size = len1;
-            errcode = memcpy_sp(g_tls_error.t2s_buf1, (size_t)GS_T2S_LARGER_BUFFER_SIZE, buf1, (size_t)len1);
+            errcode = memcpy_sp(g_tls_error.t2s_buf1, (size_t)CT_T2S_LARGER_BUFFER_SIZE, buf1, (size_t)len1);
             if (SECUREC_UNLIKELY(errcode != EOK)) {
-                GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+                CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
                 return NULL;
             }
         }
@@ -1235,10 +1236,10 @@ char *cm_concat_t2s(const char *buf1, uint32 len1, const char *buf2, uint32 len2
             copy_size += 1;
         }
         if (len2 > 0) {
-            errcode = memcpy_sp(g_tls_error.t2s_buf1 + copy_size, (size_t)GS_T2S_LARGER_BUFFER_SIZE, buf2,
+            errcode = memcpy_sp(g_tls_error.t2s_buf1 + copy_size, (size_t)CT_T2S_LARGER_BUFFER_SIZE, buf2,
                                 (size_t)len2);
             if (SECUREC_UNLIKELY(errcode != EOK)) {
-                GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+                CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
                 return NULL;
             }
             copy_size += len2;
@@ -1252,11 +1253,11 @@ char *cm_t2s_case(const char *buf, uint32 len, bool32 case_sensitive)
 {
     uint32 copy_size;
     errno_t errcode;
-    copy_size = (len >= GS_T2S_LARGER_BUFFER_SIZE) ? GS_T2S_LARGER_BUFFER_SIZE - 1 : len;
+    copy_size = (len >= CT_T2S_LARGER_BUFFER_SIZE) ? CT_T2S_LARGER_BUFFER_SIZE - 1 : len;
     if (copy_size != 0) {
-        errcode = memcpy_sp(g_tls_error.t2s_buf1, (size_t)GS_T2S_LARGER_BUFFER_SIZE, buf, (size_t)copy_size);
+        errcode = memcpy_sp(g_tls_error.t2s_buf1, (size_t)CT_T2S_LARGER_BUFFER_SIZE, buf, (size_t)copy_size);
         if (SECUREC_UNLIKELY(errcode != EOK)) {
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
             return NULL;
         }
     }
@@ -1271,11 +1272,11 @@ char *cm_t2s_ex(const char *buf, uint32 len)
 {
     uint32 copy_size;
     errno_t errcode;
-    copy_size = (len >= GS_T2S_BUFFER_SIZE) ? GS_T2S_BUFFER_SIZE - 1 : len;
+    copy_size = (len >= CT_T2S_BUFFER_SIZE) ? CT_T2S_BUFFER_SIZE - 1 : len;
     if (copy_size != 0) {
-        errcode = memcpy_sp(g_tls_error.t2s_buf2, (size_t)GS_T2S_BUFFER_SIZE, buf, (size_t)copy_size);
+        errcode = memcpy_sp(g_tls_error.t2s_buf2, (size_t)CT_T2S_BUFFER_SIZE, buf, (size_t)copy_size);
         if (SECUREC_UNLIKELY(errcode != EOK)) {
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
             return NULL;
         }
     }
@@ -1323,23 +1324,23 @@ void cm_reset_error_user(int err_no, char *user, char *name, err_object_t type)
         cm_reset_error();
         switch (type) {
             case ERR_TYPE_LIBRARY:
-                GS_THROW_ERROR(err_no, "library", user, name);
+                CT_THROW_ERROR(err_no, "library", user, name);
                 break;
             case ERR_TYPE_TYPE:
-                GS_THROW_ERROR(err_no, "type spec", user, name);
+                CT_THROW_ERROR(err_no, "type spec", user, name);
                 break;
             case ERR_TYPE_PROCEDURE:
-                GS_THROW_ERROR(err_no, "object", user, name);
+                CT_THROW_ERROR(err_no, "object", user, name);
                 break;
             case ERR_TYPE_TRIGGER:
-                GS_THROW_ERROR(err_no, "trigger", user, name);
+                CT_THROW_ERROR(err_no, "trigger", user, name);
                 break;
             case ERR_TYPE_SEQUENCE:
             case ERR_TYPE_TABLE_OR_VIEW:
-                GS_THROW_ERROR(err_no, user, name);
+                CT_THROW_ERROR(err_no, user, name);
                 break;
             case ERR_TYPE_INDEX:
-                GS_THROW_ERROR(err_no, user, name);
+                CT_THROW_ERROR(err_no, user, name);
                 break;
             default:
                 break;
@@ -1347,14 +1348,9 @@ void cm_reset_error_user(int err_no, char *user, char *name, err_object_t type)
     }
 }
 
-void cm_set_error(const char *file, uint32 line, gs_errno_t code, const char *format, ...)
+void cm_set_error(const char *file, uint32 line, ct_errno_t code, const char *format, ...)
 {
     va_list args;
-
-#ifndef IGNORE_ASSERT
-    cm_assert(code != ERR_INVALID_ROWID);
-    cm_assert(code != ERR_OBJECT_ALREADY_DROPPED);
-#endif
 
     va_start(args, format);
     if (g_tls_plc_error.plc_flag) {
@@ -1368,40 +1364,40 @@ void cm_set_error(const char *file, uint32 line, gs_errno_t code, const char *fo
     va_end(args);
 }
 
-void cm_set_error_ex(const char *file, uint32 line, gs_errno_t code, const char *format, ...)
+void cm_set_error_ex(const char *file, uint32 line, ct_errno_t code, const char *format, ...)
 {
     va_list args;
 
     va_start(args, format);
-    char tmp[GS_MAX_LOG_CONTENT_LENGTH];
-    errno_t err = vsnprintf_s(tmp, GS_MAX_LOG_CONTENT_LENGTH, GS_MAX_LOG_CONTENT_LENGTH - 1, format, args);
+    char tmp[CT_MAX_LOG_CONTENT_LENGTH];
+    errno_t err = vsnprintf_s(tmp, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1, format, args);
     if (SECUREC_UNLIKELY(err == -1)) {
         cm_reset_error();
-        GS_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
     }
     cm_set_error(file, line, code, g_error_desc[code], tmp);
 
     va_end(args);
 #ifndef WIN32
     if (code == ERR_ASSERT_ERROR) {
-        void *array[GS_MAX_BLACK_BOX_DEPTH] = { 0 };
+        void *array[CT_MAX_BLACK_BOX_DEPTH] = { 0 };
         size_t size;
         char **stacks = NULL;
         size_t i;
-        size = backtrace(array, GS_MAX_BLACK_BOX_DEPTH);
+        size = backtrace(array, CT_MAX_BLACK_BOX_DEPTH);
         stacks = backtrace_symbols(array, size);
         if (stacks == NULL) {
             return;
         }
 
-        if (size <= GS_INIT_ASSERT_DEPTH) {
+        if (size <= CT_INIT_ASSERT_DEPTH) {
             CM_FREE_PTR(stacks);
             return;
         }
 
-        GS_LOG_RUN_ERR("assert raised, expect: %s at %s:%u", tmp, file, line);
-        for (i = GS_INIT_ASSERT_DEPTH; i < size; i++) {
-            GS_LOG_RUN_ERR("#%-2u in %s", (uint32)i, stacks[i]);
+        CT_LOG_RUN_ERR("assert raised, expect: %s at %s:%u", tmp, file, line);
+        for (i = CT_INIT_ASSERT_DEPTH; i < size; i++) {
+            CT_LOG_RUN_ERR("#%-2u in %s", (uint32)i, stacks[i]);
         }
 
         CM_FREE_PTR(stacks);
@@ -1417,43 +1413,43 @@ void cm_set_hint(const char *format, ...)
     g_tls_error.loc.line = 0;
     g_tls_error.loc.column = 0;
 
-    errno_t err = vsnprintf_s(g_tls_error.message, GS_MESSAGE_BUFFER_SIZE, GS_MESSAGE_BUFFER_SIZE - 1, format, args);
+    errno_t err = vsnprintf_s(g_tls_error.message, CT_MESSAGE_BUFFER_SIZE, CT_MESSAGE_BUFFER_SIZE - 1, format, args);
     if (SECUREC_UNLIKELY(err == -1)) {
-        GS_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting hint", err);
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting hint", err);
     }
     va_end(args);
 }
 
-void cm_set_superposed_error(gs_errno_t code, const char *log_msg)
+void cm_set_superposed_error(ct_errno_t code, const char *log_msg)
 {
     size_t exist_msg_len = strlen(g_tls_error.message);
-    char tmp_msg[GS_MESSAGE_BUFFER_SIZE] = { 0 };
+    char tmp_msg[CT_MESSAGE_BUFFER_SIZE] = { 0 };
     char *msg_ptr = NULL;
     size_t tmp_msg_len;
     uint32 remain_buf_size;
     errno_t err;
 
-    err = snprintf_s(tmp_msg, GS_MESSAGE_BUFFER_SIZE, GS_MESSAGE_BUFFER_SIZE - 1, "\r\nGS-%05d, %s", code, log_msg);
+    err = snprintf_s(tmp_msg, CT_MESSAGE_BUFFER_SIZE, CT_MESSAGE_BUFFER_SIZE - 1, "\r\nCT-%05d, %s", code, log_msg);
     if (SECUREC_UNLIKELY(err == -1)) {
-        GS_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
         return;
     }
 
     tmp_msg_len = (uint32)strlen(tmp_msg);
-    remain_buf_size = GS_MESSAGE_BUFFER_SIZE - (uint32)exist_msg_len;
-    if (exist_msg_len + tmp_msg_len < GS_MESSAGE_BUFFER_SIZE) {
+    remain_buf_size = CT_MESSAGE_BUFFER_SIZE - (uint32)exist_msg_len;
+    if (exist_msg_len + tmp_msg_len < CT_MESSAGE_BUFFER_SIZE) {
         msg_ptr = g_tls_error.message + exist_msg_len;
         err = strncpy_s(msg_ptr, (size_t)remain_buf_size, tmp_msg, (size_t)tmp_msg_len);
         if (SECUREC_UNLIKELY(err != EOK)) {
-            GS_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
+            CT_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
             return;
         }
     }
 }
 
-status_t cm_set_sql_error(const char *file, uint32 line, gs_errno_t code, const char *format, va_list args)
+status_t cm_set_sql_error(const char *file, uint32 line, ct_errno_t code, const char *format, va_list args)
 {
-    char log_msg[GS_MAX_LOG_CONTENT_LENGTH] = { 0 };
+    char log_msg[CT_MAX_LOG_CONTENT_LENGTH] = { 0 };
     char *last_file = NULL;
     log_param_t *log_param = cm_log_param_instance();
     errno_t err;
@@ -1463,15 +1459,15 @@ status_t cm_set_sql_error(const char *file, uint32 line, gs_errno_t code, const 
     last_file = strrchr(file, '/');
 #endif
 
-    err = vsnprintf_s(log_msg, GS_MAX_LOG_CONTENT_LENGTH, GS_MAX_LOG_CONTENT_LENGTH - 1, format, args);
+    err = vsnprintf_s(log_msg, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1, format, args);
     if (SECUREC_UNLIKELY(err == -1)) {
-        GS_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
     }
     if (!g_tls_error.is_ignore_log) {
-        GS_LOG_DEBUG_ERR("CT-%05d : %s [%s:%u]", code, log_msg, last_file + 1, line);
+        CT_LOG_DEBUG_ERR("CT-%05d : %s [%s:%u]", code, log_msg, last_file + 1, line);
 
         if (log_param->log_instance_startup || code == ERR_SYSTEM_CALL) {
-            GS_LOG_RUN_ERR("CT-%05d : %s [%s:%u]", code, log_msg, last_file + 1, line);
+            CT_LOG_RUN_ERR("CT-%05d : %s [%s:%u]", code, log_msg, last_file + 1, line);
         }
     }
 
@@ -1479,23 +1475,23 @@ status_t cm_set_sql_error(const char *file, uint32 line, gs_errno_t code, const 
         g_tls_error.code = code;
         g_tls_error.loc.line = 0;
         g_tls_error.loc.column = 0;
-        err = snprintf_s(g_tls_error.message, GS_MESSAGE_BUFFER_SIZE, GS_MESSAGE_BUFFER_SIZE - 1, "%s", log_msg);
+        err = snprintf_s(g_tls_error.message, CT_MESSAGE_BUFFER_SIZE, CT_MESSAGE_BUFFER_SIZE - 1, "%s", log_msg);
         if (SECUREC_UNLIKELY(err == -1)) {
-            GS_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
+            CT_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
         }
-    } else if (g_enable_err_superposed == GS_TRUE) {
+    } else if (g_enable_err_superposed == CT_TRUE) {
         cm_set_superposed_error(code, log_msg);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-status_t cm_set_srv_error(const char *file, uint32 line, gs_errno_t code, const char *format, va_list args)
+status_t cm_set_srv_error(const char *file, uint32 line, ct_errno_t code, const char *format, va_list args)
 {
-    char log_msg[GS_MESSAGE_BUFFER_SIZE];
+    char log_msg[CT_MESSAGE_BUFFER_SIZE];
 
-    errno_t err = vsnprintf_s(log_msg, GS_MESSAGE_BUFFER_SIZE, GS_MESSAGE_BUFFER_SIZE - 1, format, args);
+    errno_t err = vsnprintf_s(log_msg, CT_MESSAGE_BUFFER_SIZE, CT_MESSAGE_BUFFER_SIZE - 1, format, args);
     if (SECUREC_UNLIKELY(err == -1)) {
-        GS_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
     }
 
     if (g_tls_error.code == 0 || !g_enable_err_superposed) {
@@ -1504,23 +1500,23 @@ status_t cm_set_srv_error(const char *file, uint32 line, gs_errno_t code, const 
         g_tls_error.loc.line = 0;
         g_tls_error.loc.column = 0;
 
-        MEMS_RETURN_IFERR(memcpy_sp(g_tls_error.message, GS_MESSAGE_BUFFER_SIZE, log_msg, GS_MESSAGE_BUFFER_SIZE));
-    } else if (g_enable_err_superposed == GS_TRUE) {
+        MEMS_RETURN_IFERR(memcpy_sp(g_tls_error.message, CT_MESSAGE_BUFFER_SIZE, log_msg, CT_MESSAGE_BUFFER_SIZE));
+    } else if (g_enable_err_superposed == CT_TRUE) {
         cm_set_superposed_error(code, log_msg);
     }
 #ifdef DB_DEBUG_VERSION
     printf("%s:%u, CT-%05d: %s\n", file, line, code, g_tls_error.message);
 #endif
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-status_t cm_set_clt_error(const char *file, uint32 line, gs_errno_t code, const char *format, va_list args)
+status_t cm_set_clt_error(const char *file, uint32 line, ct_errno_t code, const char *format, va_list args)
 {
-    char log_msg[GS_MESSAGE_BUFFER_SIZE];
+    char log_msg[CT_MESSAGE_BUFFER_SIZE];
 
-    errno_t err = vsnprintf_s(log_msg, GS_MESSAGE_BUFFER_SIZE, GS_MESSAGE_BUFFER_SIZE - 1, format, args);
+    errno_t err = vsnprintf_s(log_msg, CT_MESSAGE_BUFFER_SIZE, CT_MESSAGE_BUFFER_SIZE - 1, format, args);
     if (SECUREC_UNLIKELY(err == -1)) {
-        GS_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
     }
 
     if (g_tls_error.code == 0 || !g_enable_err_superposed) {
@@ -1529,52 +1525,52 @@ status_t cm_set_clt_error(const char *file, uint32 line, gs_errno_t code, const 
         g_tls_error.loc.line = 0;
         g_tls_error.loc.column = 0;
 
-        MEMS_RETURN_IFERR(memcpy_sp(g_tls_error.message, GS_MESSAGE_BUFFER_SIZE, log_msg, GS_MESSAGE_BUFFER_SIZE));
-    } else if (g_enable_err_superposed == GS_TRUE) {
+        MEMS_RETURN_IFERR(memcpy_sp(g_tls_error.message, CT_MESSAGE_BUFFER_SIZE, log_msg, CT_MESSAGE_BUFFER_SIZE));
+    } else if (g_enable_err_superposed == CT_TRUE) {
         cm_set_superposed_error(code, log_msg);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_connect_plc_error(const char *tmp_msg)
 {
     size_t exist_msg_len = strlen(g_tls_error.message);
     size_t tmp_msg_len = (uint32)strlen(tmp_msg);
-    uint32 remain_buf_size = GS_MESSAGE_BUFFER_SIZE - (uint32)exist_msg_len;
+    uint32 remain_buf_size = CT_MESSAGE_BUFFER_SIZE - (uint32)exist_msg_len;
 
-    if (exist_msg_len + tmp_msg_len < GS_MESSAGE_BUFFER_SIZE) {
+    if (exist_msg_len + tmp_msg_len < CT_MESSAGE_BUFFER_SIZE) {
         char *msg_ptr = g_tls_error.message + exist_msg_len;
         MEMS_RETURN_IFERR(strncpy_s(msg_ptr, (size_t)remain_buf_size, tmp_msg, (size_t)tmp_msg_len));
         g_tls_plc_error.last_head_bak = g_tls_plc_error.last_head;
         g_tls_plc_error.last_head = (uint16)exist_msg_len;
     } else {
-        g_tls_error.is_full = GS_TRUE;
+        g_tls_error.is_full = CT_TRUE;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-static status_t cm_set_superposed_plc_error(gs_errno_t code, const char *log_msg)
+static status_t cm_set_superposed_plc_error(ct_errno_t code, const char *log_msg)
 {
-    char tmp_msg[GS_MESSAGE_BUFFER_SIZE] = { 0 };
+    char tmp_msg[CT_MESSAGE_BUFFER_SIZE] = { 0 };
     source_location_t loc = g_tls_error.loc;
 
     // return value of security fuction snpritf_s/vsnprintf_s which in
     if (g_tls_error.loc.line == 0 || g_tls_error.loc.column == 0) {
         PRTS_RETURN_IFERR(
-            snprintf_s(tmp_msg, GS_MESSAGE_BUFFER_SIZE, GS_MESSAGE_BUFFER_SIZE - 1, "PLC-%05d %s\n", code, log_msg));
+            snprintf_s(tmp_msg, CT_MESSAGE_BUFFER_SIZE, CT_MESSAGE_BUFFER_SIZE - 1, "PLC-%05d %s\n", code, log_msg));
     } else {
-        PRTS_RETURN_IFERR(snprintf_s(tmp_msg, GS_MESSAGE_BUFFER_SIZE, GS_MESSAGE_BUFFER_SIZE - 1,
+        PRTS_RETURN_IFERR(snprintf_s(tmp_msg, CT_MESSAGE_BUFFER_SIZE, CT_MESSAGE_BUFFER_SIZE - 1,
                                      "[%u:%u] PLC-%05d %s\n", loc.line, loc.column, code, log_msg));
     }
-    if (g_tls_error.code == ERR_PL_COMP_FMT && g_tls_plc_error.plc_cnt <= GS_MAX_PLC_CNT) {
+    if (g_tls_error.code == ERR_PL_COMP_FMT && g_tls_plc_error.plc_cnt <= CT_MAX_PLC_CNT) {
         g_tls_error.message[g_tls_plc_error.start_pos[g_tls_plc_error.plc_cnt - 1]] = '\0';
     }
     return cm_connect_plc_error(tmp_msg);
 }
 
-status_t cm_set_plc_error(const char *file, uint32 line, gs_errno_t code, const char *format, va_list args)
+status_t cm_set_plc_error(const char *file, uint32 line, ct_errno_t code, const char *format, va_list args)
 {
-    char log_msg[GS_MAX_LOG_CONTENT_LENGTH] = { 0 };
+    char log_msg[CT_MAX_LOG_CONTENT_LENGTH] = { 0 };
     char *last_file = NULL;
 #ifdef WIN32
     last_file = strrchr(file, '\\');
@@ -1583,33 +1579,33 @@ status_t cm_set_plc_error(const char *file, uint32 line, gs_errno_t code, const 
 #endif
 
     // return value of security fuction snpritf_s/vsnprintf_s which in cm_error.c or cm_log.c can be void
-    int32 rc_memzero = vsnprintf_s(log_msg, GS_MAX_LOG_CONTENT_LENGTH, GS_MAX_LOG_CONTENT_LENGTH - 1, format, args);
+    int32 rc_memzero = vsnprintf_s(log_msg, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1, format, args);
     if (rc_memzero == -1) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "PLSQL's error message is too long, exceed %d",
-                          GS_MAX_LOG_CONTENT_LENGTH - 1);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "PLSQL's error message is too long, exceed %d",
+                          CT_MAX_LOG_CONTENT_LENGTH - 1);
+        return CT_ERROR;
     }
 
-    GS_LOG_DEBUG_ERR("CT-%05d : %s [%s:%u]", code, log_msg, last_file + 1, line);
+    CT_LOG_DEBUG_ERR("CT-%05d : %s [%s:%u]", code, log_msg, last_file + 1, line);
     g_tls_error.code = code;
 
     return cm_set_superposed_plc_error(code, log_msg);
 }
 
-status_t cm_set_superposed_plc_loc(source_location_t loc, gs_errno_t code, const char *log_msg)
+status_t cm_set_superposed_plc_loc(source_location_t loc, ct_errno_t code, const char *log_msg)
 {
     if (g_tls_error.loc.line == 0 || g_tls_error.loc.column == 0 || strlen(g_tls_error.message) < 1 ||
         g_tls_error.message[g_tls_plc_error.last_head] == '[') {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    char tmp_msg[GS_MESSAGE_BUFFER_SIZE] = { 0 };
-    char tmp_log[GS_MESSAGE_BUFFER_SIZE] = { 0 };
-    MEMS_RETURN_IFERR(strncpy_s(tmp_log, GS_MESSAGE_BUFFER_SIZE, g_tls_error.message + g_tls_plc_error.last_head,
+    char tmp_msg[CT_MESSAGE_BUFFER_SIZE] = { 0 };
+    char tmp_log[CT_MESSAGE_BUFFER_SIZE] = { 0 };
+    MEMS_RETURN_IFERR(strncpy_s(tmp_log, CT_MESSAGE_BUFFER_SIZE, g_tls_error.message + g_tls_plc_error.last_head,
                                 strlen(g_tls_error.message) - g_tls_plc_error.last_head));
     g_tls_error.message[g_tls_plc_error.last_head] = '\0';
 
-    PRTS_RETURN_IFERR(snprintf_s(tmp_msg, GS_MESSAGE_BUFFER_SIZE, GS_MESSAGE_BUFFER_SIZE - 1, "[%u:%u] %s", loc.line,
+    PRTS_RETURN_IFERR(snprintf_s(tmp_msg, CT_MESSAGE_BUFFER_SIZE, CT_MESSAGE_BUFFER_SIZE - 1, "[%u:%u] %s", loc.line,
                                  loc.column, tmp_log));
     return cm_connect_plc_error(tmp_msg);
 }
@@ -1668,7 +1664,7 @@ void cm_log_protocol_error(void)
     int32 err_code = 0;
     const char *err_message = NULL;
     cm_get_error(&err_code, &err_message, NULL);
-    GS_LOG_RUN_INF("protocol interaction failed,err_code is [%d].", err_code);
+    CT_LOG_RUN_INF("protocol interaction failed,err_code is [%d].", err_code);
 }
 
 #ifdef __cplusplus

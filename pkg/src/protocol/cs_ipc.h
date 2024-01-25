@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -82,7 +82,7 @@ typedef struct st_ipc_room {
     void *node; /* address of node of service in server */
     ipc_sem_t server_sem;
     ipc_sem_t client_sem;
-    char buf[GS_MAX_PACKET_SIZE];
+    char buf[CT_MAX_PACKET_SIZE];
 } ipc_room_t;
 
 typedef struct st_ipc_link_t {
@@ -99,12 +99,12 @@ typedef struct st_ipc_token {
     int32 code;
     uint32 room_id;
     uint32 offset;
-    char message[GS_MESSAGE_BUFFER_SIZE];
+    char message[CT_MESSAGE_BUFFER_SIZE];
 } ipc_token_t;
 
 typedef struct st_ipc_process {
     uint64 pid;                          /* process id */
-    char name[GS_FILE_NAME_BUFFER_SIZE]; /* process name */
+    char name[CT_FILE_NAME_BUFFER_SIZE]; /* process name */
     int64 start_time;                    /* the start time of the process */
 } ipc_process_t;
 

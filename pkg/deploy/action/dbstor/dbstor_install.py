@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Perform hot backups of CANTIAN databases.
+# Perform hot backups of CantianDB100 databases.
 # Copyright © Huawei Technologies Co., Ltd. 2010-2018. All rights reserved.
 
 
@@ -37,8 +37,6 @@ try:
     BACKUP_CONF_FILE = "/opt/cantian/backup/files"
     SECTION = 'CLIENT'
     MAX_DIRECTORY_MODE = 0o755
-    UER = "cantianduser"
-    GROUP = "cantiangroup"
     PYTHON242 = "2.4.2"
     PYTHON25 = "2.5"
     gPyVersion = platform.python_version()
@@ -282,6 +280,7 @@ class DBStor:
         os.umask(0o27)
         self.dbstor_config_tmp = {  # dbstor_config.ini default parameters
             "NAMESPACE_FSNAME": "",
+            "NAMESPACE_PAGE_FSNAME": "",
             "DPU_UUID": "",
             "LINK_TYPE": "",
             "LOCAL_IP": "",
@@ -302,6 +301,8 @@ class DBStor:
         self.share_logic_ip = ""
         self.cluster_name = ""
         self.cluster_id = ""
+        self.dbstore_fs_vstore_id = "0"
+        self.dbstor_page_fs_vstore_id = "0"
 
     def check_ini(self):
         """
@@ -341,10 +342,13 @@ class DBStor:
         with os.fdopen(os.open(JS_CONF_FILE, os.O_RDONLY | os.O_EXCL, stat.S_IWUSR | stat.S_IRUSR), "r") as file_obj:
             json_data = json.load(file_obj)
             self.dbstor_config['NAMESPACE_FSNAME'] = json_data.get('storage_dbstore_fs', "").strip()
+            self.dbstor_config['NAMESPACE_PAGE_FSNAME'] = json_data.get('storage_dbstore_page_fs', "").strip()
             self.dbstor_config['LOCAL_IP'] = json_data.get('cantian_vlan_ip', "").strip()
             self.dbstor_config['REMOTE_IP'] = json_data.get('storage_vlan_ip', "").strip()
             self.dbstor_config['NODE_ID'] = json_data.get('node_id', "").strip()
             self.dbstor_config['LINK_TYPE'] = json_data.get('link_type', "").strip()
+            self.dbstor_config['LOG_VSTOR'] = json_data.get('dbstore_fs_vstore_id', "0").strip()
+            self.dbstor_config['PAGE_VSTOR'] = json_data.get('dbstor_page_fs_vstore_id', "0").strip()
             if json_data.get('link_type', "").strip() != '0':
                 self.dbstor_config['LINK_TYPE'] = '1'
             self.dbstor_config['CLUSTER_ID'] = json_data.get('cluster_id', "").strip()
@@ -354,6 +358,10 @@ class DBStor:
         logger.info("Checking parameters.")
         if len(self.dbstor_config.get('NAMESPACE_FSNAME', "").strip()) == 0:
             message = "The storage_dbstore_fs parameter is not entered"
+            console_and_log(message)
+            raise ValueError(message)
+        if len(self.dbstor_config.get('NAMESPACE_PAGE_FSNAME', "").strip()) == 0:
+            message = "The storage_dbstore_page_fs parameter is not entered"
             console_and_log(message)
             raise ValueError(message)
         if len(self.dbstor_config.get('LOCAL_IP', "").strip()) == 0:
@@ -596,6 +604,10 @@ class DBStor:
             for option in conf.options(SECTION):
                 value = conf.get(SECTION, option)
                 self.dbstor_config[option.strip().upper()] = value.strip()
+            if "LOG_VSTOR" not in self.dbstor_config.keys():
+                self.dbstor_config["LOG_VSTOR"] = self.dbstore_fs_vstore_id
+            if "PAGE_VSTOR" not in self.dbstor_config.keys():
+                self.dbstor_config["PAGE_VSTOR"] = self.dbstor_page_fs_vstore_id
             logger.info("Generate DBstor Config File.")
             self.set_dbstor_conf(self.dbstor_config, self.dbstor_conf_file, False)
         except Exception as error:
@@ -634,11 +646,9 @@ class DBStor:
             self.note_id = json_data.get('node_id', "").strip()
             self.cluster_id = json_data.get('cluster_id', "").strip()
             self.share_logic_ip = json_data.get('share_logic_ip', "").strip()
-            if json_data.get('in_container', 0) == 1:
-                self.conf_file_path = os.path.join(DOCKER_DBSTOR_CONF_FILE, "node" + self.note_id)
-            else:
-                self.conf_file_path = os.path.join(
-                    DBSTOR_CONF_FILE + json_data.get('storage_share_fs'), "node" + self.note_id)
+            self.dbstore_fs_vstore_id = json_data.get('dbstore_fs_vstore_id', "0").strip()
+            self.conf_file_path = os.path.join(
+                DBSTOR_CONF_FILE + json_data.get('storage_share_fs'), "node" + self.note_id)
             self.backup_conf_file = os.path.join(BACKUP_CONF_FILE, "dbstor_config.ini")
             self.cluster_name = json_data.get("cluster_name", '')
 

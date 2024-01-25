@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -726,6 +726,22 @@ typedef enum en_sys_promote_record_columns {
 } en_sys_promote_record_columns_t;
 
 #define IX_SYS_PROMOTE_RECORD_001_ID        0
+
+/********************************* SYS_GARBAGE_TABLE ***************************************************************/
+typedef enum en_sys_garbage_table_column {
+    SYS_GARBAGE_TABLE_COL_UID = 0,   // user id
+    SYS_GARBAGE_TABLE_COL_TABLE = 1, // table name
+
+    SYS_GARBAGE_TABLE_COLUMN_COUNT,    // systable column count, must be the last in the struct.
+} sys_garbage_table_column_t;
+
+/* system table index slot */
+#define IX_SYS_GARBAGE_TABLE001_ID     0
+
+/* extral system table index column */
+#define IX_COL_SYS_GARBAGE_TABLE001_UID            0
+#define IX_COL_SYS_GARBAGE_TABLE001_TABLE            1
+
 
 #ifdef __cplusplus
 }

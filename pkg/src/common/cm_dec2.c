@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -74,56 +74,56 @@ static const uint64 g_pow100_u64[] = {
 /* decimal 0.5 50*10^-2 */
 static const dec2_t DEC2_HALF_ONE = {
     .len = 2,
-    .head = CONVERT_EXPN(-2, GS_FALSE),
+    .head = CONVERT_EXPN(-2, CT_FALSE),
     .cells = { 50 }
 };
 
 /* decimal 1 1.0*10^0 */
 const dec2_t DEC2_ONE = {
     .len = 2,
-    .head = CONVERT_EXPN(0, GS_FALSE),
+    .head = CONVERT_EXPN(0, CT_FALSE),
     .cells = { 1 }
 };
 
 /* decimal pi/2 is 1.570796326794896619231321691639751442098584699687552910487472296153908 * 10 ^0 */
 static const dec2_t DEC2_HALF_PI = {
     .len = DEC2_MAX_LEN,
-    .head = CONVERT_EXPN(0, GS_FALSE),
+    .head = CONVERT_EXPN(0, CT_FALSE),
     .cells = { 1,  57, 07, 96, 32, 67, 94, 89, 66, 19, 23, 13, 21, 69, 16, 39, 75, 14, 42, 9,  85, 84, 69, 96, 88 }
 };
 
 /* decimal pi is   3.1415926535897932384626433832795028841971693993751058209749445923078164 * 10 ^0 */
 static const dec2_t DEC2_PI = {
     .len = DEC2_MAX_LEN,
-    .head = CONVERT_EXPN(0, GS_FALSE),
+    .head = CONVERT_EXPN(0, CT_FALSE),
     .cells = { 3,  14, 15, 92, 65, 35, 89, 79, 32, 38, 46, 26, 43, 38, 32, 79, 50, 28, 84, 19, 71, 69, 39, 93, 75 }
 };
 
 /* decimal 2*pi is 6.28318530717958647692528676655900576839433879875021164194988918461563281 * 10^0 */
 static const dec2_t DEC2_2PI = {
     .len = DEC2_MAX_LEN,
-    .head = CONVERT_EXPN(0, GS_FALSE),
+    .head = CONVERT_EXPN(0, CT_FALSE),
     .cells = { 6,  28, 31, 85, 30, 71, 79, 58, 64, 76, 92, 52, 86, 76, 65, 59, 00, 57, 68, 39, 43, 38, 79, 87, 50 }
 };
 
 /* 1/(2pi) is 15.9154943091895335768883763372514362034459645740456448747667344058896797634226535 * 10^-2 */
 static const dec2_t DEC2_INV_2PI = {
     .len = DEC2_MAX_LEN,
-    .head = CONVERT_EXPN(-2, GS_FALSE),
+    .head = CONVERT_EXPN(-2, CT_FALSE),
     .cells = { 15, 91, 54, 94, 30, 91, 89, 53, 35, 76, 88, 83, 76, 33, 72, 51, 43, 62, 03, 44, 59, 64, 57, 40, 46 }
 };
 
 /* decimal of the minimal int64 is -9.22 33 72 03 68 54 77 58 08 * 10^18 */
 const dec2_t DEC2_MIN_INT64 = {
     .len = 11,
-    .head = CONVERT_EXPN(18, GS_TRUE),
+    .head = CONVERT_EXPN(18, CT_TRUE),
     .cells = { 9, 22, 33, 72, 03, 68, 54, 77, 58, 8 }
 };
 
 /* decimal of the minimal int32 is -21.47483648 * 10^8 */
 static const dec2_t DEC2_MIN_INT32 = {
     .len = 6,
-    .head = CONVERT_EXPN(8, GS_TRUE),
+    .head = CONVERT_EXPN(8, CT_TRUE),
     .cells = { 21, 47, 48, 36, 48 }
 };
 
@@ -132,7 +132,7 @@ static const dec2_t g_inv_fact[] = {
             = 16.6666666666666666666666666666666666666667 * 10^-2 */
     [_I(3)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-2, GS_FALSE),
+        .head = CONVERT_EXPN(-2, CT_FALSE),
         .cells = { 16, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 67 }
     },
     /* 1/4! =
@@ -141,14 +141,14 @@ static const dec2_t g_inv_fact[] = {
      * 4.166666666666666666666666666666666666666667 * 10^-2 */
     [_I(4)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-2, GS_FALSE),
+        .head = CONVERT_EXPN(-2, CT_FALSE),
         .cells = { 4, 16, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 67 }
     },
     /* 1/5! = 0.0083333333333333333333333333333333333333333333333333333333333333333333333333333
      * 83.33333333333333333333333333333333333333333 * 10 ^-4 */
     [_I(5)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-4, GS_FALSE),
+        .head = CONVERT_EXPN(-4, CT_FALSE),
         .cells = { 83, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33 }
     },
     /* 1/6! =
@@ -157,13 +157,13 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(6)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-4, GS_FALSE),
+        .head = CONVERT_EXPN(-4, CT_FALSE),
         .cells = { 13, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 89, 88, 89 }
     },
     /* 1/7! = 0.0001984126984126984126984126984126984126984126984126984126984126984126984126984126984 */
     [_I(7)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-4, GS_FALSE),
+        .head = CONVERT_EXPN(-4, CT_FALSE),
         .cells = { 1, 98, 41, 26, 98, 41, 26, 98, 41, 26, 98, 41, 26, 98, 41, 26, 98, 41, 26, 98, 41, 26, 98, 41, 26 }
     },
     /* 1/8! =
@@ -172,21 +172,21 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(8)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-6, GS_FALSE),
+        .head = CONVERT_EXPN(-6, CT_FALSE),
         .cells = { 24, 80, 15, 87, 30, 15, 87, 30, 15, 87, 30, 15, 87, 30, 15, 87, 30, 15, 87, 30, 15, 87, 30, 15, 87 }
     },
     /* 1/9! = 0.00000275573192239858906525573192239858906525573192239858906525573192239858906525573192
      *                7557319223985890652557319223986 */
     [_I(9)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-6, GS_FALSE),
+        .head = CONVERT_EXPN(-6, CT_FALSE),
         .cells = { 2, 75, 57, 31, 92, 23, 98, 58, 90, 65, 25, 57, 31, 92, 23, 98, 58, 90, 65, 25, 57, 31, 92, 23, 99 }
     },
     /* 1/10! = 0.000000275573192239858906525573192239858906525573192239858906525573192239858906525573192
      *                  7557319223985890652557319223986 */
     [_I(10)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-8, GS_FALSE),
+        .head = CONVERT_EXPN(-8, CT_FALSE),
         .cells = { 27, 55, 73, 19, 22, 39, 85, 89, 06, 52, 55, 73, 19, 22, 39, 85, 89, 06, 52, 55, 73, 19, 22, 39, 86 }
     },
     /* 1/11! =
@@ -195,7 +195,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(11)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-8, GS_FALSE),
+        .head = CONVERT_EXPN(-8, CT_FALSE),
         .cells = { 2, 50, 52, 10, 83, 85, 44, 17, 18, 77, 50, 52, 10, 83, 85, 44, 17, 18, 77, 50, 52, 10, 83, 85, 44 }
     },
     /* 1/12! =
@@ -204,7 +204,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(12)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-10, GS_FALSE),
+        .head = CONVERT_EXPN(-10, CT_FALSE),
         .cells = { 20, 87, 67, 56, 98, 78, 68, 9, 89, 79, 21, 00, 90, 32, 12, 01, 43, 23, 12, 54, 34, 23, 65, 45, 34 }
     },
     /* 1/13! =
@@ -213,7 +213,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(13)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-10, GS_FALSE),
+        .head = CONVERT_EXPN(-10, CT_FALSE),
         .cells = { 1, 60, 59, 04, 38, 36, 82, 16, 14, 59, 93, 92, 37, 71, 70, 15, 49, 47, 93, 27, 25, 71, 05, 03, 49 }
     },
     /* 1/14! =
@@ -222,7 +222,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(14)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-12, GS_FALSE),
+        .head = CONVERT_EXPN(-12, CT_FALSE),
         .cells = { 11, 47, 07, 45, 59, 77, 29, 72, 47, 13, 85, 16, 97, 97, 86, 82, 10, 56, 66, 23, 26, 50, 35, 96, 34 }
     },
     /* 1/15! =
@@ -231,7 +231,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(15)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-14, GS_FALSE),
+        .head = CONVERT_EXPN(-14, CT_FALSE),
         .cells = { 76, 47, 16, 37, 31, 81, 98, 16, 47, 59, 01, 13, 19, 85, 78, 80, 70, 44, 41, 55, 10, 02, 39, 75, 63 }
     },
     /* 1/16! =
@@ -240,7 +240,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(16)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-14, GS_FALSE),
+        .head = CONVERT_EXPN(-14, CT_FALSE),
         .cells = { 4, 77, 94, 77, 33, 23, 87, 38, 52, 97, 43, 82, 07, 49, 11, 17, 54, 40, 27, 59, 69, 37, 64, 98, 48 }
     },
     /* 1/17! =
@@ -249,7 +249,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(17)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-16, GS_FALSE),
+        .head = CONVERT_EXPN(-16, CT_FALSE),
         .cells = { 28, 11, 45, 72, 54, 34, 55, 20, 76, 31, 98, 94, 55, 83, 01, 03, 20, 01, 62, 33, 49, 27, 35, 20, 45 }
     },
     /* 1/18! =
@@ -258,7 +258,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(18)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-16, GS_FALSE),
+        .head = CONVERT_EXPN(-16, CT_FALSE),
         .cells = { 1, 56, 19, 20, 69, 68, 58, 62, 26, 46, 22, 16, 36, 43, 50, 05, 73, 33, 42, 35, 19, 40, 40, 84, 47 }
     },
     /* 1/19! =
@@ -267,7 +267,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(19)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-18, GS_FALSE),
+        .head = CONVERT_EXPN(-18, CT_FALSE),
         .cells = { 8, 22, 06, 35, 24, 66, 24, 32, 97, 16, 95, 59, 81, 23, 68, 72, 28, 07, 49, 22, 07, 38, 99, 18, 26 }
     },
     /* 1/20! =
@@ -276,7 +276,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(20)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-20, GS_FALSE),
+        .head = CONVERT_EXPN(-20, CT_FALSE),
         .cells = { 41, 10, 31, 76, 23, 31, 21, 64, 85, 84, 77, 99, 06, 18, 43, 61, 40, 37, 46, 10, 36, 94, 95, 91, 31 }
     },
     /* 1/21! =
@@ -285,7 +285,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(21)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-20, GS_FALSE),
+        .head = CONVERT_EXPN(-20, CT_FALSE),
         .cells = { 1, 95, 72, 94, 10, 63, 39, 12, 61, 23, 8, 47, 57, 43, 73, 50, 54, 30, 35, 52, 87, 47, 37, 90, 06 }
         },
     /* 1/22! =
@@ -294,7 +294,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(22)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-22, GS_FALSE),
+        .head = CONVERT_EXPN(-22, CT_FALSE),
         .cells = { 8, 89, 67, 91, 39, 24, 50, 57, 32, 86, 74, 88, 97, 44, 25, 02, 46, 83, 43, 31, 24, 88, 8, 63, 92 }
         },
     /* 1/23! =
@@ -303,7 +303,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(23)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-24, GS_FALSE),
+        .head = CONVERT_EXPN(-24, CT_FALSE),
         .cells = { 38, 68, 17, 01, 70, 63, 06, 84, 03, 77, 16, 91, 19, 31, 52, 28, 12, 32, 31, 79, 34, 26, 46, 25, 73 }
     },
     /* 1/24! =
@@ -312,7 +312,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(24)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-24, GS_FALSE),
+        .head = CONVERT_EXPN(-24, CT_FALSE),
         .cells = { 1, 61, 17, 37, 57, 10, 96, 11, 83, 49, 04, 87, 13, 30, 48, 01, 17, 18, 01, 32, 47, 26, 10, 26, 07 }
     },
     /* 1/25! =
@@ -321,7 +321,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(25)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-26, GS_FALSE),
+        .head = CONVERT_EXPN(-26, CT_FALSE),
         .cells = { 6, 44, 69, 50, 28, 43, 84, 47, 33, 96, 19, 48, 53, 21, 92, 04, 68, 72, 05, 29, 89, 4, 41, 4, 29 }
     },
     /* 1/26! =
@@ -330,7 +330,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(26)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-28, GS_FALSE),
+        .head = CONVERT_EXPN(-28, CT_FALSE),
         .cells = { 24, 79, 59, 62, 63, 22, 47, 97, 46, 00, 74, 94, 35, 45, 84, 79, 56, 61, 74, 22, 65, 55, 42, 47, 26 }
     },
     /* 1/27! =
@@ -339,7 +339,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(27)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-30, GS_FALSE),
+        .head = CONVERT_EXPN(-30, CT_FALSE),
         .cells = { 91, 83, 68, 98, 63, 79, 55, 46, 14, 84, 25, 71, 68, 36, 47, 39, 13, 39, 78, 61, 68, 71, 94, 34, 31 }
     },
     /* 1/28! =
@@ -348,7 +348,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(28)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-30, GS_FALSE),
+        .head = CONVERT_EXPN(-30, CT_FALSE),
         .cells = { 3, 27, 98, 89, 23, 70, 69, 83, 79, 10, 15, 20, 41, 72, 73, 12, 11, 19, 27, 80, 77, 45, 42, 42, 66 }
     },
     /* 1/29! =
@@ -357,7 +357,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(29)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-32, GS_FALSE),
+        .head = CONVERT_EXPN(-32, CT_FALSE),
         .cells = { 11, 30, 99, 62, 88, 64, 47, 71, 69, 31, 55, 87, 64, 57, 69, 38, 31, 69, 92, 44, 05, 01, 47, 86, 50 }
     },
     /* 1/30! =
@@ -366,7 +366,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(30)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-34, GS_FALSE),
+        .head = CONVERT_EXPN(-34, CT_FALSE),
         .cells = { 37, 69, 98, 76, 28, 81, 59, 05, 64, 38, 52, 92, 15, 25, 64, 61, 05, 66, 41, 46, 83, 38, 23, 62, 20 }
     },
     /* 1/31! =
@@ -375,7 +375,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(31)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-34, GS_FALSE),
+        .head = CONVERT_EXPN(-34, CT_FALSE),
         .cells = { 1, 21, 61, 25, 04, 15, 53, 51, 79, 49, 62, 99, 74, 68, 56, 92, 29, 21, 49, 72, 47, 85, 10, 43, 94 }
     },
     /* 1/32! =
@@ -384,7 +384,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(32)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-36, GS_FALSE),
+        .head = CONVERT_EXPN(-36, CT_FALSE),
         .cells = { 3, 80, 03, 90, 75, 48, 54, 74, 35, 92, 59, 36, 70, 89, 27, 88, 41, 29, 67, 88, 99, 53, 45, 12, 32 }
     },
     /* 1/33! =
@@ -393,7 +393,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(33)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-38, GS_FALSE),
+        .head = CONVERT_EXPN(-38, CT_FALSE),
         .cells = { 11, 51, 63, 35, 62, 07, 71, 95, 02, 80, 58, 68, 81, 49, 32, 98, 22, 11, 14, 81, 80, 40, 76, 13, 9 }
     },
     /* 1/34! =
@@ -402,7 +402,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(34)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-40, GS_FALSE),
+        .head = CONVERT_EXPN(-40, CT_FALSE),
         .cells = { 33, 87, 15, 75, 35, 52, 11, 61, 84, 72, 31, 43, 57, 33, 32, 30, 06, 21, 02, 40, 60, 02, 23, 91, 43 }
     },
     /* 1/35! =
@@ -411,7 +411,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(35)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-42, GS_FALSE),
+        .head = CONVERT_EXPN(-42, CT_FALSE),
         .cells = { 96, 77, 59, 29, 58, 63, 18, 90, 99, 20, 89, 81, 63, 80, 92, 28, 74, 88, 64, 01, 71, 49, 25, 46, 94 }
     },
     /* 1/36! =
@@ -420,7 +420,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(36)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-42, GS_FALSE),
+        .head = CONVERT_EXPN(-42, CT_FALSE),
         .cells = { 2, 68, 82, 20, 26, 62, 86, 63, 63, 86, 69, 16, 15, 66, 13, 67, 46, 52, 46, 22, 26, 98, 59, 04, 82 }
     },
     /* 1/37! =
@@ -429,7 +429,7 @@ static const dec2_t g_inv_fact[] = {
      */
     [_I(37)] = {
         .len = DEC2_MAX_LEN,
-        .head = CONVERT_EXPN(-44, GS_FALSE),
+        .head = CONVERT_EXPN(-44, CT_FALSE),
         .cells = { 7, 26, 54, 60, 17, 91, 53, 07, 13, 15, 38, 27, 45, 03, 07, 22, 87, 90, 43, 84, 51, 31, 32, 54, 26 }
     }
 };
@@ -437,14 +437,14 @@ static const dec2_t g_inv_fact[] = {
 static inline bool32 cm_dec2_taylor_break(const dec2_t *total, const dec2_t *delta, int32 prec)
 {
     if (DECIMAL2_IS_ZERO(delta)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
     int32 total_expn = GET_100_EXPN(total);
     int32 delta_expn = GET_100_EXPN(delta);
     if (total_expn + (((total)->cells[0] >= 10) ? 1 : 0) >= (int32)SEXP_2_D2EXP(prec) + delta_expn) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline void cm_dec2_left_shift(const dec2_t *dec, uint32 offset, dec2_t *rs)
@@ -487,8 +487,8 @@ static status_t cm_dec2_right_shift(const dec2_t *dec, int32 offset, dec2_t *rs)
 
     rs->len = (uint8)(ri + 2); // ncells + 1
     if (SECUREC_UNLIKELY((int32)GET_100_EXPN(dec) + (int32)offset) > DEC2_EXPN_UPPER_HALF) { // offset > 0
-        GS_THROW_ERROR(ERR_NUM_OVERFLOW);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_NUM_OVERFLOW);
+        return CT_ERROR;
     }
     rs->head = CONVERT_EXPN2(GET_100_EXPN(dec) + offset, IS_DEC_NEG(dec));
 
@@ -502,7 +502,7 @@ static status_t cm_dec2_right_shift(const dec2_t *dec, int32 offset, dec2_t *rs)
         rs->cells[ri] = 0;
         ri--;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void cm_dec2_rebuild_cells(dec2_t *rs, uint8 cell0)
@@ -523,15 +523,15 @@ static status_t cm_dec2_rebuild(dec2_t *rs, uint8 cell0)
     int32 rs_expn = GET_100_EXPN(rs);
     rs_expn += 1;
     if (rs_expn > DEC2_EXPN_UPPER_HALF) {
-        GS_THROW_ERROR(ERR_NUM_OVERFLOW);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_NUM_OVERFLOW);
+        return CT_ERROR;
     } else if (rs_expn < DEC2_EXPN_LOW_HALF) {
         cm_zero_dec2(rs);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     rs->head = CONVERT_EXPN2(rs_expn, IS_DEC_NEG(rs));
     cm_dec2_rebuild_cells(rs, cell0);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -541,6 +541,7 @@ static status_t cm_dec2_rebuild(dec2_t *rs, uint8 cell0)
  *        zeros, then the precision of u0 is re-counted by ignoring tailing zeros
  *        e.g. | u0 = 1000 | u1 = 0 | u2 = 0 |..., the precision 1 will be
  *        returned.
+
  */
 int32 cm_dec2_calc_prec(const dec2_t *dec)
 {
@@ -589,13 +590,13 @@ status_t cm_dec2_finalise(dec2_t *dec, uint32 prec)
     // underflow check
     if (DECIMAL2_IS_ZERO(dec) || sci_exp < DEC2_EXPN_LOW) {
         cm_zero_dec2(dec);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     DEC2_OVERFLOW_CHECK_BY_SCIEXP(sci_exp);
 
-    GS_RETSUC_IFTRUE(GET_CELLS_SIZE(dec) <= (prec / DEC2_CELL_DIGIT));
+    CT_RETSUC_IFTRUE(GET_CELLS_SIZE(dec) <= (prec / DEC2_CELL_DIGIT));
 
-    GS_RETVALUE_IFTRUE(((uint32)cm_dec2_calc_prec(dec) <= prec), GS_SUCCESS);
+    CT_RETVALUE_IFTRUE(((uint32)cm_dec2_calc_prec(dec) <= prec), CT_SUCCESS);
 
     dpos = (uint32)DEC2_POS_N_BY_PREC0(prec, GET_DIGITS_HEAD_CELL(dec->cells[0]));
     cpos = dpos / (uint32)DEC2_CELL_DIGIT;
@@ -617,11 +618,11 @@ status_t cm_dec2_finalise(dec2_t *dec, uint32 prec)
     dec->cells[cpos] *= g_1ten_powers[DEC2_CELL_DIGIT - npos];
 
     if (carry > 0) {
-        GS_RETURN_IFERR(cm_dec2_rebuild(dec, 1));
+        CT_RETURN_IFERR(cm_dec2_rebuild(dec, 1));
     }
 
     cm_dec2_trim_zeros(dec);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -631,11 +632,11 @@ static status_t cm_dec2_make_round(const dec2_t *dec, uint32 pos, dec2_t *dx, bo
 {
     int32 i;
     uint32 carry, j;
-    *is_carry = GS_FALSE;
+    *is_carry = CT_FALSE;
 
     cm_dec2_copy(dx, dec);
     if (pos >= DEC2_MAX_ALLOWED_PREC) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     i = (int32)(pos / DEC2_CELL_DIGIT);
@@ -646,17 +647,17 @@ static status_t cm_dec2_make_round(const dec2_t *dec, uint32 pos, dec2_t *dx, bo
         dx->cells[i] += carry;
         carry = (dx->cells[i] >= DEC2_CELL_MASK);
         if (!carry) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
         dx->cells[i] -= DEC2_CELL_MASK;
     }
 
     if (carry > 0) {
-        GS_RETURN_IFERR(cm_dec2_rebuild(dx, 1));
-        *is_carry = GS_TRUE;
+        CT_RETURN_IFERR(cm_dec2_rebuild(dx, 1));
+        *is_carry = CT_TRUE;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void cm_dec2_abs(dec2_t *decl)
@@ -666,20 +667,20 @@ static inline void cm_dec2_abs(dec2_t *decl)
     }
 
     int expn = GET_10_EXPN(decl);
-    decl->head = CONVERT_EXPN(expn, GS_FALSE);
+    decl->head = CONVERT_EXPN(expn, CT_FALSE);
 }
 
 // whether abs(dec) is equal to 1
 static inline bool32 cm_dec2_is_absolute_one(const dec2_t *dec)
 {
     return (bool32)(dec->len == 2 && dec->cells[0] == 1 &&
-                    (dec->head == CONVERT_EXPN(0, GS_FALSE) || dec->head == CONVERT_EXPN(0, GS_TRUE)));
+                    (dec->head == CONVERT_EXPN(0, CT_FALSE) || dec->head == CONVERT_EXPN(0, CT_TRUE)));
 }
 
 //  whether dec is equal to 1
 static inline bool32 cm_dec2_is_one(const dec2_t *dec)
 {
-    return (bool32)(dec->len == 2 && dec->cells[0] == 1 && (dec->head == CONVERT_EXPN(0, GS_FALSE)));
+    return (bool32)(dec->len == 2 && dec->cells[0] == 1 && (dec->head == CONVERT_EXPN(0, CT_FALSE)));
 }
 
 static status_t cm_add_aligned_dec2(const dec2_t *d1, const dec2_t *d2, dec2_t *rs)
@@ -707,11 +708,11 @@ static status_t cm_add_aligned_dec2(const dec2_t *d1, const dec2_t *d2, dec2_t *
     }
 
     if (carry) {
-        GS_RETURN_IFERR(cm_dec2_rebuild(rs, 1));
+        CT_RETURN_IFERR(cm_dec2_rebuild(rs, 1));
     }
 
     cm_dec2_trim_zeros(rs);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /** Subtraction of two cell array. large must greater than small.
@@ -766,7 +767,7 @@ static void cm_sub_aligned_dec2(const dec2_t *large, const dec2_t *small, bool32
     // in scenario x1-x2, x1 sign is same with x2
     // abs(x1) > abs(x2) if x1 > 0, x2 must > 0; x1-x2 = x1 - x2, result is > 0.
     //                   if x1 < 0, x2 must < 0; x1-x2 = abs(x2) - abs(x1), result is < 0.
-    // if flip_sign = GS_TRUE. RET = !(x1-x2)
+    // if flip_sign = CT_TRUE. RET = !(x1-x2)
     rs->head = flip_sign ? CONVERT_EXPN2(GET_100_EXPN(large), !IS_DEC_NEG(large)) : large->head;
     if (SECUREC_UNLIKELY(rs->cells[0] == 0)) {
         for (i = 1; i < GET_CELLS_SIZE(rs); i++) {
@@ -795,6 +796,7 @@ static inline void cm_trim_cell_text(text_t *text)
 /**
  * Convert the significant digits of cells into text with a maximal len
  * @note  The tailing zeros are removed when outputting
+
  */
 static void cm_cell2s_to_text(const cell2_t cells, uint32 ncell, text_buf_t *text, int32 max_len)
 {
@@ -827,6 +829,7 @@ static void cm_cell2s_to_text(const cell2_t cells, uint32 ncell, text_buf_t *tex
  * decimal 99999.999 rounds to 7-precision decimal is 100000.00, and then
  * its actual precision is 8. The function will return the change. If
  * no change occurs, zero is returned.
+
  * @note
  * Performance sensitivity.CM_ASSERT should be guaranteed by caller, i.g. 1.max_len > 0    2.dec->cells[0] > 0
  */
@@ -841,7 +844,7 @@ static status_t cm_dec2_round_to_text(const dec2_t *dec, int32 max_len, text_buf
     prec = cm_dec2_calc_prec(dec);
     if (prec <= max_len) {  // total prec under the max_len
         cm_cell2s_to_text(dec->cells, GET_CELLS_SIZE(dec), text_out, prec);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /** if prec > max_len, the rounding mode is applied */
@@ -850,7 +853,7 @@ static status_t cm_dec2_round_to_text(const dec2_t *dec, int32 max_len, text_buf
     // Obtain the pos of 5 for rounding, then prec is used to represent position
     prec = DEC2_POS_N_BY_PREC0(max_len, prec_u0);
     // add for rounding and check whether the carry happens, and capture the changes of the precision
-    GS_RETURN_IFERR(cm_dec2_make_round(dec, (uint32)prec, &txtdec, &is_carry));
+    CT_RETURN_IFERR(cm_dec2_make_round(dec, (uint32)prec, &txtdec, &is_carry));
     if (is_carry) {
         // if carry happens, the change must exist
         cm_cell2s_to_text(txtdec.cells, GET_CELLS_SIZE(&txtdec), text_out, max_len);
@@ -859,7 +862,7 @@ static status_t cm_dec2_round_to_text(const dec2_t *dec, int32 max_len, text_buf
         cm_cell2s_to_text(txtdec.cells, GET_CELLS_SIZE(&txtdec), text_out, max_len);
         *round = (cm_count_u8digits(txtdec.cells[0]) > prec_u0) ? 1 : 0;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -930,6 +933,7 @@ static inline void cm_adjust_expn(num_part_t *np)
  * The digit text may be changed when adjust the scale of decimal to be
  * an integral multiple of DEC2_CELL_DIGIT, by appending zeros.
  * @return the precision of u0
+
  * @note
  * Performance sensitivity.CM_ASSERT should be guaranteed by caller,
  * i.g. dtext->len > 0 && dtext->len <= (uint32)DEC2_MAX_ALLOWED_PREC
@@ -956,13 +960,14 @@ static void cm_digitext_to_dec2(dec2_t *dec, num_part_t *np)
 
 /**
  * Output a decimal type in scientific format, e.g., 2.34566E-20
+
  */
 static status_t cm_dec2_to_sci_text(text_t *text, const dec2_t *dec, int32 max_len)
 {
     int32 i;
-    char obuff[GS_NUMBER_BUFFER_SIZE]; /** output buff */
+    char obuff[CT_NUMBER_BUFFER_SIZE]; /** output buff */
     text_buf_t cell_text;
-    CM_INIT_TEXTBUF(&cell_text, GS_NUMBER_BUFFER_SIZE, obuff);
+    CM_INIT_TEXTBUF(&cell_text, CT_NUMBER_BUFFER_SIZE, obuff);
 
     char sci_buff[DEC_EXPN_BUFF_SZ];
     int32 sci_exp; /** The scientific scale of the dec */
@@ -975,11 +980,11 @@ static status_t cm_dec2_to_sci_text(text_t *text, const dec2_t *dec, int32 max_l
     placer = (int32)IS_DEC_NEG(dec) + 3;
     placer += (int32)cm_count_u8digits((uint8)abs(sci_exp));
     if (max_len <= placer) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* The round of a decimal may increase the precision by 1 */
-    GS_RETURN_IFERR(cm_dec2_round_to_text(dec, max_len - placer, &cell_text, &round));
+    CT_RETURN_IFERR(cm_dec2_round_to_text(dec, max_len - placer, &cell_text, &round));
     if (round > 0) {
         ++sci_exp;
     }
@@ -1007,7 +1012,7 @@ static status_t cm_dec2_to_sci_text(text_t *text, const dec2_t *dec, int32 max_l
     errno_t ret = memcpy_sp(CM_GET_TAIL(text), max_len - text->len, sci_buff, placer);
     MEMS_RETURN_IFERR(ret);
     text->len += placer;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_dec2_text_dot_inside(text_t *text, const dec2_t *dec, text_buf_t *cell_text, int32 max_len,
@@ -1015,21 +1020,21 @@ static status_t cm_dec2_text_dot_inside(text_t *text, const dec2_t *dec, text_bu
 {
     int32 round;
     // round mode may product carry, and thus may affect the dot_pos
-    GS_RETURN_IFERR(cm_dec2_round_to_text(dec, max_len - text->len - 1, cell_text, &round));  // subtract sign & dot
+    CT_RETURN_IFERR(cm_dec2_round_to_text(dec, max_len - text->len - 1, cell_text, &round));  // subtract sign & dot
     *dot += round;
     int32 dot_pos = *dot;
     if ((int32)cell_text->len <= dot_pos) {
         cm_concat_text(text, max_len, &cell_text->value);
         cm_text_appendc(text, dot_pos - (int32)cell_text->len, '0');
     } else {
-        GS_RETURN_IFERR(cm_concat_ntext(text, &cell_text->value, dot_pos));
+        CT_RETURN_IFERR(cm_concat_ntext(text, &cell_text->value, dot_pos));
         CM_TEXT_APPEND(text, '.');
         // copy remaining digits
         cell_text->str += (uint32)dot_pos;
         cell_text->len -= (uint32)dot_pos;
         cm_concat_text(text, max_len, &cell_text->value);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1039,9 +1044,9 @@ static status_t cm_dec2_text_dot_inside(text_t *text, const dec2_t *dec, text_bu
 static status_t cm_dec2_to_plain_text(text_t *text, const dec2_t *dec, int32 max_len, int32 sci_exp, int32 prec)
 {
     int32 dot_pos;
-    char obuff[GS_NUMBER_BUFFER_SIZE]; /** output buff */
+    char obuff[CT_NUMBER_BUFFER_SIZE]; /** output buff */
     text_buf_t cell_text;
-    CM_INIT_TEXTBUF(&cell_text, GS_NUMBER_BUFFER_SIZE, obuff);
+    CM_INIT_TEXTBUF(&cell_text, CT_NUMBER_BUFFER_SIZE, obuff);
     int32 round;
 
     // clear text & output sign
@@ -1054,13 +1059,13 @@ static status_t cm_dec2_to_plain_text(text_t *text, const dec2_t *dec, int32 max
 
     if (prec <= dot_pos) {
         // only integers
-        GS_RETURN_IFERR(cm_dec2_round_to_text(dec, max_len - text->len, &cell_text, &round));  // subtract sign
+        CT_RETURN_IFERR(cm_dec2_round_to_text(dec, max_len - text->len, &cell_text, &round));  // subtract sign
         cm_concat_text(text, max_len, &cell_text.value);
         if (max_len - (int32)text->len < dot_pos - prec) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
         cm_text_appendc(text, dot_pos - prec, '0');
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /* get the position of dot w.r.t. the first significant digit */
@@ -1072,7 +1077,7 @@ static status_t cm_dec2_to_plain_text(text_t *text, const dec2_t *dec, int32 max
          * 9999999999.9 is 10000000000, whose length is 11 and greater than
          * max_len, then the scientific format is used to print the decimal
          */
-        GS_RETURN_IFERR(cm_dec2_round_to_text(dec, dot_pos, &cell_text, &round));
+        CT_RETURN_IFERR(cm_dec2_round_to_text(dec, dot_pos, &cell_text, &round));
         if (round > 0) {
             CM_TEXT_CLEAR(text);
             return cm_dec2_to_sci_text(text, dec, max_len);
@@ -1088,22 +1093,22 @@ static status_t cm_dec2_to_plain_text(text_t *text, const dec2_t *dec, int32 max
          * If a carry happens, e.g., 999999999.6 ==> 1000000000, max_len
          * number of digits will be printed.
          * */
-        GS_RETURN_IFERR(cm_dec2_round_to_text(dec, dot_pos, &cell_text, &round));
+        CT_RETURN_IFERR(cm_dec2_round_to_text(dec, dot_pos, &cell_text, &round));
         cm_concat_text(text, max_len, &cell_text.value);
         cm_text_appendc(text, max_len + round - ((int32)text->len + 1), '0');
     } else if (dot_pos >= 0) { /* dot is inside of cell_text and may be output */
-        GS_RETURN_IFERR(cm_dec2_text_dot_inside(text, dec, &cell_text, max_len, &dot_pos));
+        CT_RETURN_IFERR(cm_dec2_text_dot_inside(text, dec, &cell_text, max_len, &dot_pos));
     } else {  // dot_pos < 0
         /* dot is in the most left & add |dot_pos| zeros between dot and cell_text
          * Thus, the maxi_len should consider sign, dot, and the adding zeros */
-        GS_RETURN_IFERR(cm_dec2_round_to_text(dec, max_len - text->len - 1 + dot_pos, &cell_text, &round));
+        CT_RETURN_IFERR(cm_dec2_round_to_text(dec, max_len - text->len - 1 + dot_pos, &cell_text, &round));
         dot_pos += round;
         CM_TEXT_APPEND(text, '.');
         cm_text_appendc(text, -dot_pos, '0');
-        GS_RETURN_IFERR(cm_concat_ntext(text, &cell_text.value, max_len - (int32)text->len));
+        CT_RETURN_IFERR(cm_concat_ntext(text, &cell_text.value, max_len - (int32)text->len));
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1117,12 +1122,12 @@ status_t cm_dec2_to_text(const dec2_t *dec, int32 max_len, text_t *text)
     int32 maxlen = max_len;
 
     CM_POINTER2(dec, text);
-    maxlen = MIN(maxlen, (int32)(GS_NUMBER_BUFFER_SIZE - 1));
+    maxlen = MIN(maxlen, (int32)(CT_NUMBER_BUFFER_SIZE - 1));
 
     if (DECIMAL2_IS_ZERO(dec)) {
         text->str[0] = '0';
         text->len = 1;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // Compute the final scientific scale of the dec, i.e., format of d.xxxx , d > 0.
@@ -1144,6 +1149,7 @@ status_t cm_dec2_to_text(const dec2_t *dec, int32 max_len, text_t *text)
 
 /**
  * Convert a decimal into C-string, and return the ac
+
  * max_len should be consided \0, max len should buffer size
  */
 status_t cm_dec2_to_str(const dec2_t *dec, int max_len, char *str)
@@ -1152,9 +1158,9 @@ status_t cm_dec2_to_str(const dec2_t *dec, int max_len, char *str)
     text.str = str;
     text.len = 0;
 
-    GS_RETURN_IFERR(cm_dec2_to_text(dec, max_len - 1, &text));
+    CT_RETURN_IFERR(cm_dec2_to_text(dec, max_len - 1, &text));
     str[text.len] = '\0';
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_str_to_dec2(const char *str, dec2_t *dec)
@@ -1172,15 +1178,15 @@ static status_t cm_do_numpart_round2(const num_part_t *np, dec2_t *dec)
         dec->cells[i] += carry;
         carry = dec->cells[i] >= DEC2_CELL_MASK;
         if (!carry) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
         dec->cells[i] = dec->cells[i] - DEC2_CELL_MASK;
     }
 
     if (carry > 0) {
-        GS_RETURN_IFERR(cm_dec2_rebuild(dec, 1));
+        CT_RETURN_IFERR(cm_dec2_rebuild(dec, 1));
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static num_errno_t cm_numpart_to_dec2(num_part_t *np, dec2_t *dec)
@@ -1204,7 +1210,7 @@ static num_errno_t cm_numpart_to_dec2(num_part_t *np, dec2_t *dec)
     cm_digitext_to_dec2(dec, np);
 
     if (np->do_round) {  // when round happens, the dec->cells should increase 1
-        if (cm_do_numpart_round2(np, dec) != GS_SUCCESS) {
+        if (cm_do_numpart_round2(np, dec) != CT_SUCCESS) {
             return NERR_OVERFLOW;
         }
         cm_dec2_trim_zeros(dec);
@@ -1221,6 +1227,7 @@ static num_errno_t cm_numpart_to_dec2(num_part_t *np, dec2_t *dec)
  *               is found, the precision is set to 0, it means the merely
  *               significant digit is zero. precision > 0 represents the
  *               number of significant digits in the decimal text.
+
  */
 status_t cm_text_to_dec2(const text_t *dec_text, dec2_t *dec)
 {
@@ -1230,17 +1237,17 @@ status_t cm_text_to_dec2(const text_t *dec_text, dec2_t *dec)
 
     err_no = cm_split_num_text(dec_text, &np);
     if (err_no != NERR_SUCCESS) {
-        GS_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
+        return CT_ERROR;
     }
 
     err_no = cm_numpart_to_dec2(&np, dec);
     if (err_no != NERR_SUCCESS) {
-        GS_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -1284,7 +1291,7 @@ static void cm_fill_uint64_to_dec2(uint64 u64, dec2_t *dec)
     dec->len = 1;
     uint8 idx = 0;
     int8 expn = cm_uint_to_dec2_expn(u64);
-    dec->head = CONVERT_EXPN2(expn, GS_FALSE);
+    dec->head = CONVERT_EXPN2(expn, CT_FALSE);
     switch (expn) {
         case 9:
             FILL_CELL(u64, dec, DEC2_POW9_MASK, idx);
@@ -1336,15 +1343,16 @@ static inline void cm_dec2_negate(dec2_t *dec)
 
 /**
  * Convert an integer32 into a decimal
+
  */
 void cm_int32_to_dec2(int32 i_32, dec2_t *dec)
 {
     int32 i32 = i_32;
-    bool32 is_neg = GS_FALSE;
+    bool32 is_neg = CT_FALSE;
 
     if (i32 < 0) {
-        is_neg = GS_TRUE;
-        if (i32 == GS_MIN_INT32) {
+        is_neg = CT_TRUE;
+        if (i32 == CT_MIN_INT32) {
             cm_dec2_copy(dec, &DEC2_MIN_INT32);
             return;
         }
@@ -1376,19 +1384,20 @@ void cm_uint32_to_dec2(uint32 i32, dec2_t *dec)
 
 /**
  * Convert an integer64 into a decimal
+
  */
 void cm_int64_to_dec2(int64 i_64, dec2_t *dec)
 {
     int64 i64 = i_64;
-    bool32 is_neg = GS_FALSE;
+    bool32 is_neg = CT_FALSE;
 
     if (i64 < 0) {
-        if (i64 == GS_MIN_INT64) {
+        if (i64 == CT_MIN_INT64) {
             cm_dec2_copy(dec, &DEC2_MIN_INT64);
             return;
         }
         i64 = -i64;
-        is_neg = GS_TRUE;
+        is_neg = CT_TRUE;
     } else if (i64 == 0) {
         cm_zero_dec2(dec);
         return;
@@ -1432,12 +1441,12 @@ static status_t cm_real_to_dec2_inexac(double real, dec2_t *dec)
 {
     double r = real;
     if (SECUREC_UNLIKELY(!CM_DBL_IS_FINITE(r))) {
-        GS_THROW_ERROR(ERR_INVALID_NUMBER, "");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_NUMBER, "");
+        return CT_ERROR;
     }
     if (r == 0.0) {
         cm_zero_dec2(dec);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     uint8 index = 0;
     double int_r;
@@ -1449,11 +1458,11 @@ static status_t cm_real_to_dec2_inexac(double real, dec2_t *dec)
 
     // compute an approximate scientific exponent
     (void)frexp(r, &dexp);
-    dexp = (int32)((double)dexp * (double)GS_LOG10_2);
+    dexp = (int32)((double)dexp * (double)CT_LOG10_2);
     dexp &= 0xFFFFFFFE;
     if (dexp < DEC2_EXPN_LOW) {
         cm_zero_dec2(dec);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     DEC2_OVERFLOW_CHECK_BY_SCIEXP(dexp);
     // Set a decimal
@@ -1479,7 +1488,7 @@ static status_t cm_real_to_dec2_inexac(double real, dec2_t *dec)
     }
     dec->len = index + 1;
     cm_dec2_trim_zeros(dec);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1487,9 +1496,9 @@ static status_t cm_real_to_dec2_inexac(double real, dec2_t *dec)
  */
 status_t cm_real_to_dec2(double real, dec2_t *dec)
 {
-    GS_RETURN_IFERR(cm_real_to_dec2_inexac(real, dec));
-    // reserving at most GS_MAX_REAL_PREC precisions
-    return cm_dec2_finalise(dec, GS_MAX_REAL_PREC);
+    CT_RETURN_IFERR(cm_real_to_dec2_inexac(real, dec));
+    // reserving at most CT_MAX_REAL_PREC precisions
+    return cm_dec2_finalise(dec, CT_MAX_REAL_PREC);
 }
 
 
@@ -1561,13 +1570,13 @@ status_t cm_dec2_add_op(const dec2_t *d1, const dec2_t *d2, dec2_t *rs)
         }
 
         // left shift dot, confirm the d2 expn equal d1 expn
-        GS_RETURN_IFERR(cm_dec2_right_shift(d2, offset, &calc_dec));
+        CT_RETURN_IFERR(cm_dec2_right_shift(d2, offset, &calc_dec));
         d2 = &calc_dec;
     } else if (!is_same_sign) {  // if offset == 0, and d1, d2 have different signs
         int32 cmp = cm_dec2_cmp_cells(GET_PAYLOAD(d1), d1->len, GET_PAYLOAD(d2), d2->len);
         if (cmp == 0) {
             cm_zero_dec2(rs);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
         if (cmp < 0) {
             SWAP(const dec2_t *, d1, d2);
@@ -1575,15 +1584,15 @@ status_t cm_dec2_add_op(const dec2_t *d1, const dec2_t *d2, dec2_t *rs)
     }
 
     if (is_same_sign) {
-        GS_RETURN_IFERR(cm_add_aligned_dec2(d1, d2, rs));
+        CT_RETURN_IFERR(cm_add_aligned_dec2(d1, d2, rs));
     } else {
-        cm_sub_aligned_dec2(d1, d2, GS_FALSE, rs);
+        cm_sub_aligned_dec2(d1, d2, CT_FALSE, rs);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 
 DEC_ADD_ZERO:
     cm_dec2_copy(rs, d1);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1595,7 +1604,7 @@ status_t cm_dec2_sub_op(const dec2_t *d1, const dec2_t *d2, dec2_t *rs)
 {
     dec2_t calc_dec;
     int32 offset;
-    bool32 do_swap = GS_FALSE;
+    bool32 do_swap = CT_FALSE;
     bool32 is_same_sign;
 
     if (DECIMAL2_IS_ZERO(d2)) {
@@ -1603,7 +1612,7 @@ status_t cm_dec2_sub_op(const dec2_t *d1, const dec2_t *d2, dec2_t *rs)
     }
 
     if (DECIMAL2_IS_ZERO(d1)) {
-        do_swap = GS_TRUE;
+        do_swap = CT_TRUE;
         d1 = d2;
         goto DEC_SUB_ZERO;
     }
@@ -1616,24 +1625,24 @@ status_t cm_dec2_sub_op(const dec2_t *d1, const dec2_t *d2, dec2_t *rs)
         if (offset < 0) {
             offset = -offset;
             SWAP(const dec2_t *, d1, d2);
-            do_swap = GS_TRUE;
+            do_swap = CT_TRUE;
         }
 
         if (offset >= DEC2_MAX_EXP_OFFSET) {
             goto DEC_SUB_ZERO;
         }
 
-        GS_RETURN_IFERR(cm_dec2_right_shift(d2, offset, &calc_dec));
+        CT_RETURN_IFERR(cm_dec2_right_shift(d2, offset, &calc_dec));
         d2 = &calc_dec;
     } else if (is_same_sign) {
         int32 cmp = cm_dec2_cmp_cells(GET_PAYLOAD(d1), d1->len, GET_PAYLOAD(d2), d2->len);
         if (cmp == 0) {
             cm_zero_dec2(rs);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
         if (cmp < 0) {
             SWAP(const dec2_t *, d1, d2);
-            do_swap = GS_TRUE;
+            do_swap = CT_TRUE;
         }
     }
 
@@ -1646,14 +1655,14 @@ status_t cm_dec2_sub_op(const dec2_t *d1, const dec2_t *d2, dec2_t *rs)
         cm_add_aligned_dec2(d1, d2, rs);
         rs->head = CONVERT_EXPN2(GET_100_EXPN(rs), !sign);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 
 DEC_SUB_ZERO:
     cm_dec2_copy(rs, d1);
     if (do_swap && !DECIMAL2_IS_ZERO(rs)) {
         cm_dec2_negate(rs);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1679,7 +1688,7 @@ status_t cm_dec2_mul_op(const dec2_t *d1, const dec2_t *d2, dec2_t *rs)
 {
     if (DECIMAL2_IS_ZERO(d1) || DECIMAL2_IS_ZERO(d2)) {
         cm_zero_dec2(rs);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // carry should define int32 type, DEC2_CELL_SIZE * 9999 = 209979 < 0x7FFFFFFF
@@ -1716,11 +1725,11 @@ status_t cm_dec2_mul_op(const dec2_t *d1, const dec2_t *d2, dec2_t *rs)
     carry_expn = (carry > 0) ? 1 : 0;
     rs_expn += carry_expn;
     if (SECUREC_UNLIKELY(rs_expn > DEC2_EXPN_UPPER_HALF)) {
-        GS_THROW_ERROR(ERR_NUM_OVERFLOW);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_NUM_OVERFLOW);
+        return CT_ERROR;
     } else if (SECUREC_UNLIKELY(rs_expn < DEC2_EXPN_LOW_HALF)) {
         cm_zero_dec2(rs);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     rs->head = CONVERT_EXPN2(rs_expn, d1->sign ^ d2->sign);
 
@@ -1730,7 +1739,7 @@ status_t cm_dec2_mul_op(const dec2_t *d1, const dec2_t *d2, dec2_t *rs)
     }
 
     cm_dec2_trim_zeros(rs);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1746,6 +1755,7 @@ static inline status_t cm_dec2_init_inverse(const dec2_t *d, dec2_t *d_inv)
  * Computed the inverse of a decimal, inv_d = 1 / d
  * The Newton Inversion algorithm is used:
  *  $x_{i+1} = 2x_{i} - dx^2_{i} = x_i(2-d * x_i)$
+
  */
 static status_t cm_dec2_inv(const dec2_t *d, dec2_t *inv_d, uint32 prec)
 {
@@ -1753,29 +1763,30 @@ static status_t cm_dec2_inv(const dec2_t *d, dec2_t *inv_d, uint32 prec)
     dec2_t delta;
 
     // Step 1. compute an initial and approximate inverse by 1/double(dec)
-    GS_RETURN_IFERR(cm_dec2_init_inverse(d, inv_d));
+    CT_RETURN_IFERR(cm_dec2_init_inverse(d, inv_d));
     DEC2_DEBUG_PRINT(inv_d, "inv_init_value");
 
     // Step 2. Newton iteration begins, At least 2 iterations are required
     for (i = 0; i <= 10; i++) {
         // set delta to x(1-d*x)
-        GS_RETURN_IFERR(cm_dec2_mul_op(d, inv_d, &delta));           // set delta to d * inv_d
-        GS_RETURN_IFERR(cm_dec2_sub_op(&DEC2_ONE, &delta, &delta));  // set delta to 1 - delta
-        GS_RETURN_IFERR(cm_dec2_mul_op(&delta, inv_d, &delta));      // set delta to delta * inv_d
+        CT_RETURN_IFERR(cm_dec2_mul_op(d, inv_d, &delta));           // set delta to d * inv_d
+        CT_RETURN_IFERR(cm_dec2_sub_op(&DEC2_ONE, &delta, &delta));  // set delta to 1 - delta
+        CT_RETURN_IFERR(cm_dec2_mul_op(&delta, inv_d, &delta));      // set delta to delta * inv_d
         DEC2_DEBUG_PRINT(&delta, "inv delta: %u", i);
 
-        GS_RETURN_IFERR(cm_dec2_add_op(inv_d, &delta, inv_d));  // set inv_d(i) to inv_d(i) + delta
+        CT_RETURN_IFERR(cm_dec2_add_op(inv_d, &delta, inv_d));  // set inv_d(i) to inv_d(i) + delta
         DEC2_DEBUG_PRINT(inv_d, "inv(x): %u", i);
         // inv_d = delta + x_i
         if (cm_dec2_taylor_break(inv_d, &delta, prec)) {
             break;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
  * The division of two decimals: dec1 / dec2
+
  */
 status_t cm_dec2_divide(const dec2_t *dec1, const dec2_t *dec2, dec2_t *result)
 {
@@ -1785,19 +1796,19 @@ status_t cm_dec2_divide(const dec2_t *dec1, const dec2_t *dec2, dec2_t *result)
 
     if (SECUREC_UNLIKELY(DECIMAL2_IS_ZERO(dec1))) {
         cm_zero_dec2(result);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (SECUREC_UNLIKELY(DECIMAL2_IS_ZERO(dec2))) {
-        GS_THROW_ERROR(ERR_ZERO_DIVIDE);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ZERO_DIVIDE);
+        return CT_ERROR;
     }
 
     if (cm_dec2_is_absolute_one(dec2)) {
         cm_dec2_copy(result, dec1);
         res_sign = dec1->sign ^ dec2->sign;
         result->head = CONVERT_EXPN2(GET_100_EXPN(dec1), res_sign);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // x*100^n/(y*100^m) = x/y * 100^(n-m), so adjust the numbers by subtracting the exponents and then dividing them
@@ -1806,8 +1817,8 @@ status_t cm_dec2_divide(const dec2_t *dec1, const dec2_t *dec2, dec2_t *result)
     sub = n - m;
     // if result = x/y, then result->expn is in [-1, 0].
     if (SECUREC_UNLIKELY((sub - 1) > DEC2_EXPN_UPPER_HALF) || SECUREC_UNLIKELY((sub) < DEC2_EXPN_LOW_HALF)) {
-            GS_THROW_ERROR(ERR_NUM_OVERFLOW);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_NUM_OVERFLOW);
+            return CT_ERROR;
     }
 
     cm_dec2_copy(&x, dec1);
@@ -1815,13 +1826,13 @@ status_t cm_dec2_divide(const dec2_t *dec1, const dec2_t *dec2, dec2_t *result)
     x.head = CONVERT_EXPN2(0, IS_DEC_NEG(dec1));
     y.head = CONVERT_EXPN2(0, IS_DEC_NEG(dec2));
 
-    GS_RETURN_IFERR(cm_dec2_inv(&y, &inv_y, MAX_NUM_CMP_PREC));  // inv_y = 1 / y
-    GS_RETURN_IFERR(cm_dec2_multiply(&x, &inv_y, result));
+    CT_RETURN_IFERR(cm_dec2_inv(&y, &inv_y, MAX_NUM_CMP_PREC));  // inv_y = 1 / y
+    CT_RETURN_IFERR(cm_dec2_multiply(&x, &inv_y, result));
 
     sub += (int32)GET_100_EXPN(result);
     DEC2_OVERFLOW_CHECK_BY_EXPN(sub);
     result->head = CONVERT_EXPN2(sub, IS_DEC_NEG(result));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1900,7 +1911,7 @@ static status_t cm_make_dec2_to_int(dec2_t *dec, uint64 *u64, int8 expn, round_m
         }
     }
     *u64 = u64_val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_dec2_to_int64(dec2_t *dec, int64 *val, round_mode_t rnd_mode)
@@ -1909,21 +1920,21 @@ status_t cm_dec2_to_int64(dec2_t *dec, int64 *val, round_mode_t rnd_mode)
 
     if (DECIMAL2_IS_ZERO(dec)) {
         *val = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     int8 expn = GET_100_EXPN(dec);
     if (expn < 0) {
         *val = dec2_make_negexpn_round_value(dec, rnd_mode, expn);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     // the maximal BIGINT is 9.223372036854775807 * 100^9
     if (expn > DEC2_MAX_INT64_POWER || (expn == DEC2_MAX_INT64_POWER && dec->cells[0] > 9)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
+        return CT_ERROR;
     }
 
     uint64 u64;
-    GS_RETURN_IFERR(cm_make_dec2_to_int(dec, &u64, expn, rnd_mode));
+    CT_RETURN_IFERR(cm_make_dec2_to_int(dec, &u64, expn, rnd_mode));
     return cm_dec2int64_check_overflow(u64, IS_DEC_NEG(dec), val);
 }
 
@@ -1955,7 +1966,7 @@ static status_t cm_make_dec2_to_uint(const dec2_t *dec, uint64 *u64, int8 expn, 
     }
 
     *u64 = u64_val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1965,78 +1976,78 @@ status_t cm_dec2_to_uint32(dec2_t *dec, uint32 *i32, round_mode_t rnd_mode)
 {
     if (DECIMAL2_IS_ZERO(dec)) {
         *i32 = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // the maximal UINT32 42 9496 7295
     int8 expn = GET_100_EXPN(dec);
     if (expn > DEC2_MAX_INT32_POWER || IS_DEC_NEG(dec)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED INTEGER");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED INTEGER");
+        return CT_ERROR;
     }
 
     if (expn < 0) {
         *i32 = (uint32)dec2_make_negexpn_round_value(dec, rnd_mode, expn);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint64 u64;
-    GS_RETURN_IFERR(cm_make_dec2_to_uint(dec, &u64, expn, rnd_mode));
+    CT_RETURN_IFERR(cm_make_dec2_to_uint(dec, &u64, expn, rnd_mode));
     TO_UINT32_OVERFLOW_CHECK(u64, uint64);
     *i32 = (uint32)u64;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_dec2_to_uint16(dec2_t *dec, uint16 *i16, round_mode_t rnd_mode)
 {
     if (DECIMAL2_IS_ZERO(dec)) {
         *i16 = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // the maximal UINT16 is 65535 = 6.5535 * 100^2
     int8 expn = GET_100_EXPN(dec);
     if (expn > DEC2_MAX_INT16_POWER || IS_DEC_NEG(dec)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED INTEGER");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED INTEGER");
+        return CT_ERROR;
     }
 
     if (expn < 0) {
         *i16 = (uint16)dec2_make_negexpn_round_value(dec, rnd_mode, expn);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint64 u64;
-    GS_RETURN_IFERR(cm_make_dec2_to_uint(dec, &u64, expn, rnd_mode));
-    if (u64 < (uint64)GS_MIN_UINT16 || u64 > (uint64)GS_MAX_UINT16) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED SHORT");
-        return GS_ERROR;
+    CT_RETURN_IFERR(cm_make_dec2_to_uint(dec, &u64, expn, rnd_mode));
+    if (u64 < (uint64)CT_MIN_UINT16 || u64 > (uint64)CT_MAX_UINT16) {
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED SHORT");
+        return CT_ERROR;
     }
     *i16 = (uint16)u64;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_dec2_to_uint64(const dec2_t *dec, uint64 *u64, round_mode_t rnd_mode)
 {
     if (IS_DEC_NEG(dec)) {
-        GS_THROW_ERROR(ERR_VALUE_ERROR, "convert NUMBER into UINT64 failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_VALUE_ERROR, "convert NUMBER into UINT64 failed");
+        return CT_ERROR;
     }
 
     if (DECIMAL2_IS_ZERO(dec)) {
         *u64 = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     int8 expn = GET_100_EXPN(dec);
     if (expn < 0) {
         *u64 = dec2_make_negexpn_round_value2(dec, rnd_mode);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // the maximal UINT64 is 18.446744073709551615 * 100 ^ 9
     if (expn > DEC2_MAX_INT64_POWER || (expn == DEC2_MAX_INT64_POWER && dec->cells[0] > 18)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "UINT64");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "UINT64");
+        return CT_ERROR;
     }
 
     uint32 i, inc;
@@ -2072,33 +2083,33 @@ status_t cm_dec2_to_uint64(const dec2_t *dec, uint64 *u64, round_mode_t rnd_mode
 
     // overflow check
     if (u64h == 18000000000000000000ull && u64l > 446744073709551615ull) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "UINT64");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "UINT64");
+        return CT_ERROR;
     }
 
     *u64 = u64h + u64l;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_dec2_to_int32(dec2_t *dec, int32 *i32, round_mode_t rnd_mode)
 {
     if (DECIMAL2_IS_ZERO(dec)) {
         *i32 = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     int8 expn = GET_100_EXPN(dec);
     if (expn < 0) {
         *i32 = dec2_make_negexpn_round_value(dec, rnd_mode, expn);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     // the maximal INTEGER 2147483647 = 21.47483647 * 100^4
     if (expn > DEC2_MAX_INT32_POWER || (expn == DEC2_MAX_INT32_POWER && dec->cells[0] > 21)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTEGER");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTEGER");
+        return CT_ERROR;
     }
 
     int64 i64;
-    GS_RETURN_IFERR(cm_make_dec2_to_int(dec, (uint64 *)&i64, expn, rnd_mode));
+    CT_RETURN_IFERR(cm_make_dec2_to_int(dec, (uint64 *)&i64, expn, rnd_mode));
     if (IS_DEC_NEG(dec)) {
         i64 = -i64;
     }
@@ -2106,38 +2117,38 @@ status_t cm_dec2_to_int32(dec2_t *dec, int32 *i32, round_mode_t rnd_mode)
     INT32_OVERFLOW_CHECK(i64);
 
     *i32 = (int32)i64;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_dec2_to_int16(dec2_t *dec, int16 *i16, round_mode_t rnd_mode)
 {
     if (DECIMAL2_IS_ZERO(dec)) {
         *i16 = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     int8 expn = GET_100_EXPN(dec);
     if (expn < 0) {
         *i16 = (int16)dec2_make_negexpn_round_value(dec, rnd_mode, expn);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     // the maximal SHORT 32767 = 3.2767 * 100^2
     if (expn > DEC2_MAX_INT16_POWER || (expn == DEC2_MAX_INT16_POWER && dec->cells[0] > 3)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "SHORT");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "SHORT");
+        return CT_ERROR;
     }
 
     int64 i64;
-    GS_RETURN_IFERR(cm_make_dec2_to_int(dec, (uint64 *)&i64, expn, rnd_mode));
+    CT_RETURN_IFERR(cm_make_dec2_to_int(dec, (uint64 *)&i64, expn, rnd_mode));
     if (IS_DEC_NEG(dec)) {
         i64 = -i64;
     }
-    if (i64 > GS_MAX_INT16 || i64 < GS_MIN_INT16) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "SHORT");
-        return GS_ERROR;
+    if (i64 > CT_MAX_INT16 || i64 < CT_MIN_INT16) {
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "SHORT");
+        return CT_ERROR;
     }
 
     *i16 = (int16)i64;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // To decide whether a decimal is an integer
@@ -2146,20 +2157,20 @@ bool32 cm_dec2_is_integer(const dec2_t *dec)
     uint32 i;
 
     if (DECIMAL2_IS_ZERO(dec)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
     int8 expn = GET_100_EXPN(dec);
     if (expn < 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     i = expn + 1;
     for (; i < GET_CELLS_SIZE(dec); i++) {
         if (dec->cells[i] > 0) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /* Round a decimal by persevering at most scale digits after decimal point
@@ -2172,21 +2183,21 @@ static status_t cm_dec2_scale(dec2_t *dec, int32 scale, round_mode_t rnd_mode)
     int32 i, cpos, r_pos;
     uint32 carry, npos;
 
-    GS_RETVALUE_IFTRUE(DECIMAL2_IS_ZERO(dec), GS_SUCCESS);
+    CT_RETVALUE_IFTRUE(DECIMAL2_IS_ZERO(dec), CT_SUCCESS);
     int32 expn = GET_10_EXPN(dec);
 
     r_pos = DEC2_CELL_DIGIT + expn + scale;
     // hit scenario 11.33333*10^-4, left shift dot 0.00113333, if expn + scale + DEC2_CELL_DIGIT < 0. finally ret = 0
     if (r_pos < 0) {
         cm_zero_dec2(dec);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     // hit scenario 11.33333*10^42, right shift dot, if r_pos > DEC2_MAX_ALLOWED_PREC, no need to scale
-    GS_RETVALUE_IFTRUE((r_pos > (int32)DEC2_MAX_ALLOWED_PREC), GS_SUCCESS);
+    CT_RETVALUE_IFTRUE((r_pos > (int32)DEC2_MAX_ALLOWED_PREC), CT_SUCCESS);
 
     cpos = r_pos / DEC2_CELL_DIGIT;
     if (cpos >= (int32)GET_CELLS_SIZE(dec)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     npos = DEC2_CELL_DIGIT - ((uint32)r_pos % DEC2_CELL_DIGIT);
@@ -2211,16 +2222,16 @@ static status_t cm_dec2_scale(dec2_t *dec, int32 scale, round_mode_t rnd_mode)
     dec->len = (uint8)(cpos + 2);
 
     if (carry) {
-        GS_RETURN_IFERR(cm_dec2_rebuild(dec, 1));
+        CT_RETURN_IFERR(cm_dec2_rebuild(dec, 1));
     }
     cm_dec2_trim_zeros(dec);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
  * Compute the sin(x) using Taylor series, where x in (0, pi/4)
- * @author Added 2018/09/11
+
  * sin x = x-x^3/3!+x^5/5!- x^7/7! + ...= sum(((-1)^(n)*(x^(2n+1)))/(2n+1)!) n= 0,1,2,3
  */
 static status_t cm_dec2_sin_frac(const dec2_t *x, dec2_t *sin_x)
@@ -2230,19 +2241,19 @@ static status_t cm_dec2_sin_frac(const dec2_t *x, dec2_t *sin_x)
     dec2_t item;
 
     /* initialize the iteration variables */
-    GS_RETURN_IFERR(cm_dec2_mul_op(x, x, &x_pow2));  // set x_pow2 to x * x
+    CT_RETURN_IFERR(cm_dec2_mul_op(x, x, &x_pow2));  // set x_pow2 to x * x
     cm_dec2_copy(sin_x, x);               // set sin(x) to x
     cm_dec2_copy(&x_i, x);                // set x(i) to x
 
     for (uint32 i = _I(3); i < ELEMENT_COUNT(g_inv_fact); i += 2) {
-        GS_RETURN_IFERR(cm_dec2_mul_op(&x_i, &x_pow2, &x_i));  // set x(i) to x^2 * x(i-1)
-        GS_RETURN_IFERR(cm_dec2_mul_op(&x_i, &g_inv_fact[i], &item));
+        CT_RETURN_IFERR(cm_dec2_mul_op(&x_i, &x_pow2, &x_i));  // set x(i) to x^2 * x(i-1)
+        CT_RETURN_IFERR(cm_dec2_mul_op(&x_i, &g_inv_fact[i], &item));
         DEC2_DEBUG_PRINT(&item, "The item at [%u]", i >> 1);
 
         if (i & 2) {
-            GS_RETURN_IFERR(cm_dec2_add_op(sin_x, &item, sin_x));
+            CT_RETURN_IFERR(cm_dec2_add_op(sin_x, &item, sin_x));
         } else {
-            GS_RETURN_IFERR(cm_dec2_sub_op(sin_x, &item, sin_x));
+            CT_RETURN_IFERR(cm_dec2_sub_op(sin_x, &item, sin_x));
         }
         DEC2_DEBUG_PRINT(sin_x, "The %u-th iteration", i >> 1);
         if (cm_dec2_taylor_break(sin_x, &item, MAX_NUM_CMP_PREC)) {
@@ -2250,12 +2261,12 @@ static status_t cm_dec2_sin_frac(const dec2_t *x, dec2_t *sin_x)
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
  * Compute the cos(x) using Taylor series, where x in (0, pi/4)
- * @author Added 2018/09/13
+
  * cos x = 1-x^2/2!+x^4/4!-x^6/6! = sum((-1)^n*(x^2n/(2*n)!)) n = 0,...NAN
  */
 static status_t cm_dec2_cos_frac(const dec2_t *x, dec2_t *cos_x)
@@ -2264,22 +2275,22 @@ static status_t cm_dec2_cos_frac(const dec2_t *x, dec2_t *cos_x)
     dec2_t x_i;
     dec2_t item;
 
-    GS_RETURN_IFERR(cm_dec2_mul_op(x, x, &x_pow2));
+    CT_RETURN_IFERR(cm_dec2_mul_op(x, x, &x_pow2));
     cm_dec2_copy(&x_i, &x_pow2);
 
     // 1 - (x^2)/2
-    GS_RETURN_IFERR(cm_dec2_mul_op(&x_pow2, &DEC2_HALF_ONE, &item));
-    GS_RETURN_IFERR(cm_dec2_sub_op(&DEC2_ONE, &item, cos_x));
+    CT_RETURN_IFERR(cm_dec2_mul_op(&x_pow2, &DEC2_HALF_ONE, &item));
+    CT_RETURN_IFERR(cm_dec2_sub_op(&DEC2_ONE, &item, cos_x));
 
     for (uint32 i = _I(4); i < ELEMENT_COUNT(g_inv_fact); i += 2) {
-        GS_RETURN_IFERR(cm_dec2_mul_op(&x_i, &x_pow2, &x_i));  // set x(i) to x^2 * x(i-1)
-        GS_RETURN_IFERR(cm_dec2_mul_op(&x_i, &g_inv_fact[i], &item));
+        CT_RETURN_IFERR(cm_dec2_mul_op(&x_i, &x_pow2, &x_i));  // set x(i) to x^2 * x(i-1)
+        CT_RETURN_IFERR(cm_dec2_mul_op(&x_i, &g_inv_fact[i], &item));
         DEC2_DEBUG_PRINT(&item, "The item at [%u]", i >> 1);
 
         if (i & 2) {
-            GS_RETURN_IFERR(cm_dec2_sub_op(cos_x, &item, cos_x));
+            CT_RETURN_IFERR(cm_dec2_sub_op(cos_x, &item, cos_x));
         } else {
-            GS_RETURN_IFERR(cm_dec2_add_op(cos_x, &item, cos_x));
+            CT_RETURN_IFERR(cm_dec2_add_op(cos_x, &item, cos_x));
         }
         DEC2_DEBUG_PRINT(cos_x, "The %u-th iteration", i >> 1);
         if (cm_dec2_taylor_break(cos_x, &item, MAX_NUM_CMP_PREC)) {
@@ -2287,14 +2298,14 @@ static status_t cm_dec2_cos_frac(const dec2_t *x, dec2_t *cos_x)
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #define MAX2_RANGE_PREC (MAX_NUM_CMP_PREC - DEC2_CELL_DIGIT)
 
 static status_t cm_dec2_range_to_2pi(const dec2_t *x, dec2_t *y, double *dy)
 {
-    static const double pi = GS_PI * 2.0;
+    static const double pi = CT_PI * 2.0;
 
     *y = *x;
     dec2_t rem;
@@ -2305,15 +2316,15 @@ static status_t cm_dec2_range_to_2pi(const dec2_t *x, dec2_t *y, double *dy)
             break;
         }
 
-        GS_RETURN_IFERR(cm_dec2_mul_op(&DEC2_INV_2PI, y, &rem));  // set rem to y /(2pi)
+        CT_RETURN_IFERR(cm_dec2_mul_op(&DEC2_INV_2PI, y, &rem));  // set rem to y /(2pi)
         int8 expn = GET_100_EXPN(&rem);
         scale = (expn <= SEXP_2_D2EXP(MAX2_RANGE_PREC)) ? 0 : (MAX2_RANGE_PREC) - D2EXP_2_SEXP(expn);
 
-        GS_RETURN_IFERR(cm_dec2_scale(&rem, scale, ROUND_TRUNC));  // truncate rem to integer
-        GS_RETURN_IFERR(cm_dec2_mul_op(&rem, &DEC2_2PI, &rem));
-        GS_RETURN_IFERR(cm_dec2_sub_op(y, &rem, y));
+        CT_RETURN_IFERR(cm_dec2_scale(&rem, scale, ROUND_TRUNC));  // truncate rem to integer
+        CT_RETURN_IFERR(cm_dec2_mul_op(&rem, &DEC2_2PI, &rem));
+        CT_RETURN_IFERR(cm_dec2_sub_op(y, &rem, y));
     } while (1);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_dec2_sin_op(const dec2_t *x, dec2_t *sin_x)
@@ -2324,31 +2335,31 @@ static status_t cm_dec2_sin_op(const dec2_t *x, dec2_t *sin_x)
     bool32 is_neg = IS_DEC_NEG(x);
     cm_dec2_copy(&tmp_x, x);
     cm_dec2_abs(&tmp_x);
-    GS_RETURN_IFERR(cm_dec2_range_to_2pi(&tmp_x, &tx, &dx));
+    CT_RETURN_IFERR(cm_dec2_range_to_2pi(&tmp_x, &tx, &dx));
 
-    if (dx < GS_PI_2) {  // [0, pi/2)
+    if (dx < CT_PI_2) {  // [0, pi/2)
         // do nothing
-    } else if (dx < GS_PI) {                       // [pi/2, pi)
-        GS_RETURN_IFERR(cm_dec2_sub_op(&DEC2_PI, &tx, &tx));  // pi - tx
-    } else if (dx < GS_PI_2 + GS_PI) {             // [PI, 3/2pi)
-        GS_RETURN_IFERR(cm_dec2_sub_op(&tx, &DEC2_PI, &tx));  // tx - pi
+    } else if (dx < CT_PI) {                       // [pi/2, pi)
+        CT_RETURN_IFERR(cm_dec2_sub_op(&DEC2_PI, &tx, &tx));  // pi - tx
+    } else if (dx < CT_PI_2 + CT_PI) {             // [PI, 3/2pi)
+        CT_RETURN_IFERR(cm_dec2_sub_op(&tx, &DEC2_PI, &tx));  // tx - pi
         is_neg = !is_neg;
     } else {
-        GS_RETURN_IFERR(cm_dec2_sub_op(&DEC2_2PI, &tx, &tx));  // 2pi - tx
+        CT_RETURN_IFERR(cm_dec2_sub_op(&DEC2_2PI, &tx, &tx));  // 2pi - tx
         is_neg = !is_neg;
     }
 
     dx = cm_dec2_to_real(&tx);
-    if (dx < GS_PI_4) {
-        GS_RETURN_IFERR(cm_dec2_sin_frac(&tx, sin_x));
+    if (dx < CT_PI_4) {
+        CT_RETURN_IFERR(cm_dec2_sin_frac(&tx, sin_x));
     } else {
-        GS_RETURN_IFERR(cm_dec2_sub_op(&DEC2_HALF_PI, &tx, &tx));
-        GS_RETURN_IFERR(cm_dec2_cos_frac(&tx, sin_x));
+        CT_RETURN_IFERR(cm_dec2_sub_op(&DEC2_HALF_PI, &tx, &tx));
+        CT_RETURN_IFERR(cm_dec2_cos_frac(&tx, sin_x));
     }
     if (is_neg) {
         cm_dec2_negate(sin_x);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -2359,10 +2370,10 @@ status_t cm_dec2_sin(const dec2_t *dec, dec2_t *result)
 {
     if (DECIMAL2_IS_ZERO(dec)) {
         cm_zero_dec2(result);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_RETURN_IFERR(cm_dec2_sin_op(dec, result));
+    CT_RETURN_IFERR(cm_dec2_sin_op(dec, result));
     return cm_dec2_finalise(result, MAX_NUMERIC_BUFF);
 }
 
@@ -2371,19 +2382,19 @@ status_t cm_dec2_sin(const dec2_t *dec, dec2_t *result)
  */
 static inline status_t cm_dec2_to_text_all(const dec2_t *dec, text_buf_t *text)
 {
-    if (text->max_size <= GS_MAX_DEC_OUTPUT_ALL_PREC) {
-        return GS_ERROR;
+    if (text->max_size <= CT_MAX_DEC_OUTPUT_ALL_PREC) {
+        return CT_ERROR;
     }
-    return cm_dec2_to_text(dec, GS_MAX_DEC_OUTPUT_ALL_PREC, &text->value);
+    return cm_dec2_to_text(dec, CT_MAX_DEC_OUTPUT_ALL_PREC, &text->value);
 }
 
 static inline status_t cm_dec2_to_str_all(const dec2_t *dec, char *str, uint32 buffer_len)
 {
     text_buf_t text_buf = { .str = str, .len = 0, .max_size = buffer_len };
 
-    GS_RETURN_IFERR(cm_dec2_to_text_all(dec, &text_buf));
+    CT_RETURN_IFERR(cm_dec2_to_text_all(dec, &text_buf));
     str[text_buf.len] = '\0';
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**

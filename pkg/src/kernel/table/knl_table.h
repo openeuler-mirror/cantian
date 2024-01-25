@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,12 +31,19 @@
 #include "knl_session.h"
 #include "knl_mtrl.h"
 #include "index_defs.h"
+#include "knl_table_persistent.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define COLUMN_LIST_BUF_LEN (GS_MAX_INDEX_COLUMNS * 8)
+#define COLUMN_LIST_BUF_LEN (CT_MAX_INDEX_COLUMNS * 8)
 #define TABLE_IS_TEMP(type) (type == TABLE_TYPE_SESSION_TEMP || type == TABLE_TYPE_TRANS_TEMP)
+
+#define MYSQL_TYPE_ENUM 247
+#define MYSQL_TYPE_SET 248
+#define MYSQL_TYPE_BIT 16
+#define MYSQL_TYPE_FLOAT 4
+#define MYSQL_TYPE_DOUBLE 5
 
 typedef struct st_rebuild_info_t {
     bool32 is_alter;
@@ -46,17 +53,10 @@ typedef struct st_rebuild_info_t {
 }rebuild_info_t;
 
 typedef struct st_rd_altable_rename_table {
-    char user_str[GS_NAME_BUFFER_SIZE];
-    char name_str[GS_NAME_BUFFER_SIZE];
-    char new_name_str[GS_NAME_BUFFER_SIZE];
+    char user_str[CT_NAME_BUFFER_SIZE];
+    char name_str[CT_NAME_BUFFER_SIZE];
+    char new_name_str[CT_NAME_BUFFER_SIZE];
 } rd_altable_rename_table_t;
-
-typedef struct st_rd_view {
-    uint32 op_type;
-    uint32 uid;
-    uint32 oid;
-    char obj_name[GS_NAME_BUFFER_SIZE];
-} rd_view_t;
 
 typedef enum en_sys_consdef_col_id {
     CONSDEF_COL_USER = 0,
@@ -85,12 +85,6 @@ typedef enum en_sys_icol_col_id {
     ICOL_COL_ARG_LIST,
 } icols_col_id_t;
 
-typedef struct st_rd_synonym {
-    uint32 op_type;
-    uint32 uid;
-    uint32 id;
-} rd_synonym_t;
-
 /* heap accessor structure */
 typedef struct st_table_accessor {
     knl_cursor_operator_t do_fetch;
@@ -117,7 +111,9 @@ status_t db_altable_add_subpartition(knl_session_t *session, knl_dictionary_t *d
 status_t db_altable_split_part(knl_session_t *session, knl_dictionary_t *dc, knl_altable_def_t *def);
 status_t db_altable_coalesce_partition(knl_session_t *session, knl_dictionary_t *dc, knl_altable_def_t *def);
 status_t db_altable_coalesce_subpartition(knl_session_t *session, knl_dictionary_t *dc, knl_altable_def_t *def);
-status_t db_drop_table(knl_session_t *session, knl_handle_t stmt, knl_dictionary_t *dc);
+void db_drop_table_drop_dc(knl_session_t *session, knl_dictionary_t *dc, table_t *table);
+status_t db_delete_garbage_table_record4mysql(knl_session_t *session, text_t* name, uint32 uid);
+status_t db_drop_table(knl_session_t *session, knl_handle_t stmt, knl_dictionary_t *dc, bool32 commit);
 status_t db_drop_part_table(knl_session_t *session, knl_cursor_t *cursor, part_table_t *part_table);
 status_t db_update_part_count(knl_session_t *session, uint32 uid, uint32 tid, uint32 iid, bool32 is_add);
 status_t part_update_interval_part_count(knl_session_t *session, table_t *table, uint32 part_no, uint32 iid,

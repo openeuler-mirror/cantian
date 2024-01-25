@@ -2,25 +2,26 @@
 set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 CANTIAN_EXPORTER_PATH=/opt/cantian/action/cantian_exporter
+CANTIAN_EXPORTER_LOG_PATH=/opt/cantian/deploy/logs/cantian_exporter
+CANTIAN_EXPORTER_LOG_FILE=/opt/cantian/deploy/logs/cantian_exporter/cantian_exporter.logs
 ACTION_TYPE=$1
 
-source ${CURRENT_PATH}/cantian_exporter_log.sh
+source ${CURRENT_PATH}/../log4sh.sh
+source ${CURRENT_PATH}/../env.sh
 
 LOG_MOD=740
 CANTIAN_EXPORTER_DIR_MOD=755
 CANTIAN_EXPORTER_FILE_MOD=400
-CANTIANA_FILE_LIST=('cantian_exporter_log.sh' 'check_status.sh' 'start.sh' 'stop.sh')
+CANTIANDBA_FILE_LIST=('cantian_exporter_log.sh' 'check_status.sh' 'start.sh' 'stop.sh')
 
-user=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_user"`
-group=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_group"`
 
 # 原子操作，仅将应为低权限属主的脚本改为低权限
-for cantiandba_file in "${CANTIANA_FILE_LIST[@]}"; do
-    chown -h "${user}":"${group}" "${CURRENT_PATH}/${cantiandba_file}"
+for cantiandba_file in "${CANTIANDBA_FILE_LIST[@]}"; do
+    chown -h "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}/${cantiandba_file}"
     if [ $? -eq 0 ]; then
-        logAndEchoInfo "change owner of ${cantiandba_file} to cantiandba success"
+        logAndEchoInfo "change owner of ${cantiandba_file} to cantian success"
     else
-        logAndEchoError "change owner of ${cantiandba_file} to cantiandba failed"
+        logAndEchoError "change owner of ${cantiandba_file} to cantian failed"
         exit 1
     fi
 done
@@ -42,13 +43,18 @@ fi
 
 # 修改/opt/cantian/ct_om目录属组
 if [ -d /opt/cantian/ct_om ];then
-    chown -h "${user}":"${group}" /opt/cantian/ct_om
+    chown -h "${cantian_user}":"${cantian_common_group}" /opt/cantian/ct_om
 fi
 if [ -d /opt/cantian/ct_om/service ];then
-    chown -h "${user}":"${group}" /opt/cantian/ct_om/service
+    chown -h "${cantian_user}":"${cantian_common_group}" /opt/cantian/ct_om/service
 fi
 if [ -d /opt/cantian/ct_om/service/cantian_exporter ];then
-    chown -hR "${user}":"${group}" /opt/cantian/ct_om/service/cantian_exporter
+    chown -hR "${cantian_user}":"${cantian_common_group}" /opt/cantian/ct_om/service/cantian_exporter
+fi
+
+if [ ! -d ${CANTIAN_EXPORTER_LOG_PATH} ]; then
+    mkdir -m 750 -p ${CANTIAN_EXPORTER_LOG_PATH}
+    touch ${CANTIAN_EXPORTER_LOG_FILE}
 fi
 
 if [ -d /opt/cantian/deploy/logs ];then
@@ -73,7 +79,7 @@ if [ -d /opt/cantian/deploy/logs/cantian_exporter ]; then
         exit 1
     fi
     # 修改/opt/cantian/deploy/logs/cantian_exporter日志文件归属
-    chown -hR "${user}":"${group}" /opt/cantian/deploy/logs/cantian_exporter
+    chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/deploy/logs/cantian_exporter
     if [ $? -eq 0 ]; then
         logAndEchoInfo "change owner of /opt/cantian/deploy/logs/cantian_exporter success"
     else
@@ -98,7 +104,7 @@ if [ -d /opt/cantian/ct_om/logs ]; then
         logAndEchoError "change mod of /opt/cantian/ct_om/logs"
         exit 1
     fi
-    chown -hR "${user}":"${group}" /opt/cantian/ct_om/logs
+    chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/ct_om/logs
     if [ $? -eq 0 ]; then
         logAndEchoInfo "change owner of /opt/cantian/ct_om/logs"
     else

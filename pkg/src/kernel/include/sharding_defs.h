@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -85,7 +85,7 @@ typedef struct {
 
 typedef struct st_dist_expr_columns_t {
     uint16 column_count;
-    distribute_column_t columns[GS_DISTRIBUTE_COLUMN_COUNT];
+    distribute_column_t columns[CT_DISTRIBUTE_COLUMN_COUNT];
 } dist_expr_columns_t;
 
 typedef struct st_dist_info_buf_t {
@@ -122,7 +122,7 @@ typedef struct {
 typedef struct {
     uint32 uid;
     uint32 id;  // rule id
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
     knl_scn_t org_scn;  // original scn
     knl_scn_t chg_scn;  // scn when changed by DDL(alter)
     binary_t col_data;
@@ -150,8 +150,8 @@ typedef struct st_knl_node_def {
     uint32 group_id;
     uint8 is_primary;
     uint32 weight;                           // default 0, [0,100]
-    char username[GS_NAME_BUFFER_SIZE];      // username
-    char password[GS_PASSWORD_BUFFER_SIZE];  // encrypt pwd
+    char username[CT_NAME_BUFFER_SIZE];      // username
+    SENSI_INFO char password[CT_PASSWORD_BUFFER_SIZE];  // encrypt pwd
     uint32 min_conn_num;                     // default 10 , [1,4000]
     uint32 max_conn_num;                     // default 200 , [1,4000]
 } knl_node_def_t;
@@ -177,14 +177,14 @@ typedef struct st_knl_consis_hash_strategy {
     binary_t buckets;
 } knl_consis_hash_strategy_t;
 
-#ifdef Z_SHARDING
 routing_info_t *knl_get_table_routing_info(knl_handle_t dc_entity);
 status_t knl_get_consis_hash_buckets(knl_handle_t handle, knl_consis_hash_strategy_t *strategy, bool32 *is_found);
-#endif
 
+#ifdef Z_SHARDING
 typedef status_t(*knl_parse_distribute_info_t)(void *entity, void *distribute_info);
 typedef status_t(*knl_parse_distribute_bkts_t)(knl_handle_t handle, void *entity, void *distribute_info);
 typedef status_t(*knl_parse_distribute_from_text_t)(knl_handle_t handle, knl_handle_t entity, text_t *dist_text);
+#endif
 
 #endif
 #ifdef __cplusplus

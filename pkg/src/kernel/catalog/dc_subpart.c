@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_dc_module.h"
 #include "knl_dc.h"
 #include "knl_session.h"
 #include "knl_context.h"
@@ -43,20 +44,20 @@ status_t dc_load_subpart_columns(knl_session_t *session, knl_cursor_t *cursor, d
     dc_context_t *dc_ctx = &session->kernel->dc_ctx;
     uint32 memsize = sizeof(knl_part_column_desc_t) * part_table->desc.subpartkeys;
     
-    if (dc_alloc_mem(dc_ctx, entity->memory, memsize, (void **)&part_table->sub_keycols) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-        return GS_ERROR;
+    if (dc_alloc_mem(dc_ctx, entity->memory, memsize, (void **)&part_table->sub_keycols) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+        return CT_ERROR;
     }
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_PARTCOLUMN_ID, IX_SYS_PARTCOLUMN001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table->desc.uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table->desc.uid,
         sizeof(uint32), IX_COL_SYS_PARTCOLUMN001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table->desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table->desc.id,
         sizeof(uint32), IX_COL_SYS_PARTCOLUMN001_TABLE_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -68,89 +69,89 @@ status_t dc_load_subpart_columns(knl_session_t *session, knl_cursor_t *cursor, d
                       ((index_t *)cursor->index)->desc.name, desc.pos_id, part_table->desc.subpartkeys);
         part_table->sub_keycols[desc.pos_id] = desc;
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_alloc_subpart_table(knl_session_t *session, dc_entity_t *entity, part_table_t *part_table)
 {
     dc_context_t *dc_ctx = &session->kernel->dc_ctx;
 
-    uint32 memsize = GS_SHARED_PAGE_SIZE;
-    if (dc_alloc_mem(dc_ctx, entity->memory, memsize, (void **)&part_table->sub_groups) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-        return GS_ERROR;
+    uint32 memsize = CT_SHARED_PAGE_SIZE;
+    if (dc_alloc_mem(dc_ctx, entity->memory, memsize, (void **)&part_table->sub_groups) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+        return CT_ERROR;
     }
 
     errno_t ret = memset_sp(part_table->sub_groups, memsize, 0, memsize);
     knl_securec_check(ret);
 
-    if (dc_alloc_mem(dc_ctx, entity->memory, memsize, (void **)&part_table->subno_groups) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-        return GS_ERROR;
+    if (dc_alloc_mem(dc_ctx, entity->memory, memsize, (void **)&part_table->subno_groups) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+        return CT_ERROR;
     }
 
     ret = memset_sp(part_table->subno_groups, memsize, 0, memsize);
     knl_securec_check(ret);
 
-    if (dc_alloc_mem(dc_ctx, entity->memory, GS_SHARED_PAGE_SIZE, (void **)&part_table->sub_pbuckets) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-        return GS_ERROR;
+    if (dc_alloc_mem(dc_ctx, entity->memory, CT_SHARED_PAGE_SIZE, (void **)&part_table->sub_pbuckets) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+        return CT_ERROR;
     }
 
-    ret = memset_sp(part_table->sub_pbuckets, GS_SHARED_PAGE_SIZE, 0, GS_SHARED_PAGE_SIZE);
+    ret = memset_sp(part_table->sub_pbuckets, CT_SHARED_PAGE_SIZE, 0, CT_SHARED_PAGE_SIZE);
     knl_securec_check(ret);
 
     for (uint32 i = 0; i < PART_NAME_HASH_SIZE; i++) {
-        part_table->sub_pbuckets[i].first = GS_INVALID_ID32;
+        part_table->sub_pbuckets[i].first = CT_INVALID_ID32;
     }
 
     if (part_table->desc.subparttype != PART_TYPE_LIST) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (dc_alloc_mem(dc_ctx, entity->memory, GS_SHARED_PAGE_SIZE, (void **)&part_table->sub_lbuckets) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-        return GS_ERROR;
+    if (dc_alloc_mem(dc_ctx, entity->memory, CT_SHARED_PAGE_SIZE, (void **)&part_table->sub_lbuckets) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < LIST_PART_HASH_SIZE; i++) {
-        part_table->sub_lbuckets[i].first.id = GS_INVALID_ID32;
-        part_table->sub_lbuckets[i].first.offset = GS_INVALID_ID32;
+        part_table->sub_lbuckets[i].first.id = CT_INVALID_ID32;
+        part_table->sub_lbuckets[i].first.offset = CT_INVALID_ID32;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_alloc_subpart_index(knl_session_t *session, dc_entity_t *entity, part_index_t *part_index)
 {
     dc_context_t *dc_ctx = &session->kernel->dc_ctx;
 
-    if (dc_alloc_mem(dc_ctx, entity->memory, GS_SHARED_PAGE_SIZE, (void **)&part_index->sub_groups) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-        return GS_ERROR;
+    if (dc_alloc_mem(dc_ctx, entity->memory, CT_SHARED_PAGE_SIZE, (void **)&part_index->sub_groups) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+        return CT_ERROR;
     }
 
-    errno_t ret = memset_sp(part_index->sub_groups, GS_SHARED_PAGE_SIZE, 0, GS_SHARED_PAGE_SIZE);
+    errno_t ret = memset_sp(part_index->sub_groups, CT_SHARED_PAGE_SIZE, 0, CT_SHARED_PAGE_SIZE);
     knl_securec_check(ret);
 
-    if (dc_alloc_mem(dc_ctx, entity->memory, GS_SHARED_PAGE_SIZE, (void **)&part_index->sub_pbuckets) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-        return GS_ERROR;
+    if (dc_alloc_mem(dc_ctx, entity->memory, CT_SHARED_PAGE_SIZE, (void **)&part_index->sub_pbuckets) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+        return CT_ERROR;
     }
 
-    ret = memset_sp(part_index->sub_pbuckets, GS_SHARED_PAGE_SIZE, 0, GS_SHARED_PAGE_SIZE);
+    ret = memset_sp(part_index->sub_pbuckets, CT_SHARED_PAGE_SIZE, 0, CT_SHARED_PAGE_SIZE);
     knl_securec_check(ret);
 
     for (uint32 i = 0; i < PART_NAME_HASH_SIZE; i++) {
-        part_index->sub_pbuckets[i].first = GS_INVALID_ID32;
+        part_index->sub_pbuckets[i].first = CT_INVALID_ID32;
     }
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_alloc_table_subparts(knl_session_t *session, dc_entity_t *entity, table_part_t *compart)
@@ -159,16 +160,16 @@ status_t dc_alloc_table_subparts(knl_session_t *session, dc_entity_t *entity, ta
     uint32 memsize = compart->desc.subpart_cnt * sizeof(uint32);
 
     if (compart->subparts == NULL) {
-        if (dc_alloc_mem(ctx, entity->memory, memsize, (void **)&compart->subparts) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(ctx, entity->memory, memsize, (void **)&compart->subparts) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
     }
 
     errno_t ret = memset_sp(compart->subparts, memsize, 0XFF, memsize);
     knl_securec_check(ret);
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void dc_subpart_table_insert_name(part_table_t *part_table, table_part_t *subpart)
@@ -190,28 +191,28 @@ static status_t dc_alloc_subpart_table_group(knl_session_t *session, dc_entity_t
     dc_context_t *ctx = &session->kernel->dc_ctx;
     
     if (part_table->sub_groups[gid] != NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint32 memsize = sizeof(table_part_group_t);
-    if (dc_alloc_mem(ctx, entity->memory, memsize, (void **)&part_table->sub_groups[gid]) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-        return GS_ERROR;
+    if (dc_alloc_mem(ctx, entity->memory, memsize, (void **)&part_table->sub_groups[gid]) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+        return CT_ERROR;
     }
 
     errno_t ret = memset_sp(part_table->sub_groups[gid], memsize, 0, memsize);
     knl_securec_check(ret);
 
     memsize = sizeof(part_no_group_t);
-    if (dc_alloc_mem(ctx, entity->memory, memsize, (void **)&part_table->subno_groups[gid]) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-        return GS_ERROR;
+    if (dc_alloc_mem(ctx, entity->memory, memsize, (void **)&part_table->subno_groups[gid]) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+        return CT_ERROR;
     }
 
     ret = memset_sp(part_table->subno_groups[gid], memsize, 0xFF, memsize);
     knl_securec_check(ret);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_alloc_table_subpart(knl_session_t *session, dc_entity_t *entity, uint32 id)
@@ -223,25 +224,25 @@ status_t dc_alloc_table_subpart(knl_session_t *session, dc_entity_t *entity, uin
 
     uint32 gid = id / PART_GROUP_SIZE;
     uint32 eid = id % PART_GROUP_SIZE;
-    if (dc_alloc_subpart_table_group(session, entity, gid) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_subpart_table_group(session, entity, gid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     table_part_group_t *group = part_table->sub_groups[gid];
     if (group->entity[eid] == NULL) {
-        if (dc_alloc_mem(ctx, entity->memory, sizeof(table_part_t), (void **)&subpart) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(ctx, entity->memory, sizeof(table_part_t), (void **)&subpart) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         errno_t ret = memset_sp(subpart, sizeof(table_part_t), 0, sizeof(table_part_t));
         knl_securec_check(ret);
-        subpart->is_ready = GS_FALSE;
+        subpart->is_ready = CT_FALSE;
         subpart->desc.entry = INVALID_PAGID;
         group->entity[eid] = subpart;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void dc_init_table_subpart(dc_entity_t *entity, table_part_t *compart, knl_table_part_desc_t *desc,
@@ -268,7 +269,7 @@ static void dc_init_table_subpart(dc_entity_t *entity, table_part_t *compart, kn
     dls_init_spinlock2(&(*subpart)->heap.lock, DR_TYPE_HEAP_PART, desc->table_id,
                        desc->uid, desc->part_id, (*subpart)->part_no, (*subpart)->parent_partno);
     dls_init_latch2(&(*subpart)->heap.latch, DR_TYPE_HEAP_PART_LATCH, desc->table_id,
-                    desc->uid, desc->part_id, (*subpart)->part_no, (*subpart)->parent_partno);
+                    desc->uid, desc->part_id, (*subpart)->part_no, (*subpart)->parent_partno, 0);
 
     dc_subpart_table_insert_name(part_table, *subpart);
 }
@@ -278,18 +279,18 @@ static void dc_subpart_table_insert_list(part_table_t *part_table, table_part_t 
     uint32 hash;
     list_bucket_t *bucket = NULL;
     part_decode_key_t *decoder = NULL;
-    text_t values[GS_MAX_PARTKEY_COLUMNS];
-    bool32 is_default = GS_FALSE;
+    text_t values[CT_MAX_PARTKEY_COLUMNS];
+    bool32 is_default = CT_FALSE;
 
     for (uint32 i = 0; i < subpart->desc.groupcnt; i++) {
         decoder = &subpart->desc.groups[i];
-        is_default = GS_FALSE;
+        is_default = CT_FALSE;
 
         for (uint32 j = 0; j < decoder->count; j++) {
             values[j].str = decoder->buf + decoder->offsets[j];
 
             if (decoder->lens[j] == PART_KEY_DEFAULT_LEN) {
-                is_default = GS_TRUE;
+                is_default = CT_TRUE;
             } else if (decoder->lens[j] == PART_KEY_NULL_LEN) {
                 values[j].len = 0;
             } else {
@@ -314,12 +315,12 @@ static uint64 subpart_sort_get_scn(part_table_t *part_table, uint32 subpart_no)
 {
     table_part_t *entity = NULL;
 
-    if (subpart_no != GS_INVALID_ID32) {
+    if (subpart_no != CT_INVALID_ID32) {
         entity = PART_GET_SUBENTITY(part_table, subpart_no);
         return entity->desc.org_scn;
     }
 
-    return GS_INVALID_ID64;
+    return CT_INVALID_ID64;
 }
 
 static void dc_subpartno_sort(part_table_t *part_table)
@@ -375,8 +376,8 @@ static status_t dc_load_table_subpart(knl_session_t *session, dc_entity_t *entit
     part_table_t *part_table = table->part_table;
     uint32 partkeys = part_table->desc.subpartkeys;
 
-    if (dc_get_table_part_desc(session, cursor, entity, partkeys, &desc, GS_FALSE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_get_table_part_desc(session, cursor, entity, partkeys, &desc, CT_FALSE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* subpart's storage parameter need be refreshed from parent part */
@@ -385,23 +386,23 @@ static status_t dc_load_table_subpart(knl_session_t *session, dc_entity_t *entit
     /* empty table entry when nologging table is first loaded(db restart) */
     if (IS_NOLOGGING_BY_TABLE_TYPE(table->desc.type) && entity->entry->need_empty_entry) {
         desc.entry = INVALID_PAGID;
-        if (dc_reset_nologging_entry(session, (knl_handle_t)&desc, OBJ_TYPE_TABLE_SUBPART) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_reset_nologging_entry(session, (knl_handle_t)&desc, OBJ_TYPE_TABLE_SUBPART) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (desc.not_ready && part_table->desc.subparttype == PART_TYPE_RANGE) {
         uint32 not_ready_pos = part_table->desc.subpart_cnt - part_table->desc.not_ready_subpartcnt - 1;
-        if (dc_alloc_table_subpart(session, entity, not_ready_pos) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_alloc_table_subpart(session, entity, not_ready_pos) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         dc_init_table_subpart(entity, compart, &desc, &subpart, not_ready_pos);
         compart->subparts[subpart_ind] = not_ready_pos;
         part_table->desc.not_ready_subpartcnt++;
     } else {
-        if (dc_alloc_table_subpart(session, entity, *part_pos) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_alloc_table_subpart(session, entity, *part_pos) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         dc_init_table_subpart(entity, compart, &desc, &subpart, *part_pos);
@@ -412,19 +413,19 @@ static status_t dc_load_table_subpart(knl_session_t *session, dc_entity_t *entit
     subpart->part_no = subpart_ind;
     if (part_table->desc.subparttype == PART_TYPE_LIST) {
         uint32 memsize = sizeof(list_item_t) * subpart->desc.groupcnt;
-        if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, memsize, (void **)&subpart->lnext) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, memsize, (void **)&subpart->lnext) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         dc_subpart_table_insert_list(part_table, subpart, partkeys);
     }
 
-    subpart->is_ready = GS_TRUE;
-    GS_LOG_DEBUG_INF("get one sub partition whose status is ready, part name is %s, current ready count is %d",
+    subpart->is_ready = CT_TRUE;
+    CT_LOG_DEBUG_INF("get one sub partition whose status is ready, part name is %s, current ready count is %d",
         desc.name, (*part_pos) + 1);
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* load all table subpart of one composite partition table */
@@ -435,37 +436,37 @@ static status_t dc_load_subtabparts_of_compart(knl_session_t *session, dc_entity
     table_t *table = &entity->table;
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_TABLE_PARTS_ID, IX_SYS_TABLESUBPART001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table->desc.uid,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table->desc.uid,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table->desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table->desc.id,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &compart->desc.part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &compart->desc.part_id,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_PARENT_PART_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_TABLESUBPART001_SUB_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &table->desc.uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &table->desc.uid,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &table->desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &table->desc.id,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &compart->desc.part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &compart->desc.part_id,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_PARENT_PART_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_TABLESUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (dc_load_table_subpart(session, entity, cursor, compart, part_pos, subpart_index) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_load_table_subpart(session, entity, cursor, compart, part_pos, subpart_index) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        GS_LOG_DEBUG_INF("load table subpart, uid: %d, tid: %d, table subpart(%d-%d)", table->desc.uid,
+        CT_LOG_DEBUG_INF("load table subpart, uid: %d, tid: %d, table subpart(%d-%d)", table->desc.uid,
             table->desc.id, compart->part_no, subpart_index);
         subpart_index++;
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -473,7 +474,7 @@ static status_t dc_load_subtabparts_of_compart(knl_session_t *session, dc_entity
                   "panic info: page %u-%u type %u table %s table_part %s index %s subpart_index %u subpart_cnt %u",
                   cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type, table->desc.name,
                   compart->desc.name, ((index_t *)cursor->index)->desc.name, subpart_index, compart->desc.subpart_cnt);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_load_table_subparts(knl_session_t *session, dc_entity_t *entity, knl_cursor_t *cursor)
@@ -492,8 +493,8 @@ status_t dc_load_table_subparts(knl_session_t *session, dc_entity_t *entity, knl
         knl_panic_log(IS_PARENT_TABPART(&compart->desc), "the compart is not parent tabpart, panic info: "
                       "page %u-%u type %u table %s compart %s", cursor->rowid.file, cursor->rowid.page,
                       ((page_head_t *)cursor->page_buf)->type, table->desc.name, compart->desc.name);
-        if (dc_load_subtabparts_of_compart(session, entity, cursor, compart, &part_pos) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_load_subtabparts_of_compart(session, entity, cursor, compart, &part_pos) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -503,7 +504,7 @@ status_t dc_load_table_subparts(knl_session_t *session, dc_entity_t *entity, knl
                   ((page_head_t *)cursor->page_buf)->type, table->desc.name, compart->desc.name, part_pos,
                   part_table->desc.not_ready_subpartcnt, part_table->desc.subpart_cnt);
     dc_subpartno_sort(part_table);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 table_part_t *dc_get_table_subpart(part_table_t *part_table, uint64 org_scn)
@@ -537,16 +538,16 @@ status_t dc_alloc_index_subparts(knl_session_t *session, dc_entity_t *entity, in
     uint32 memsize = compart->desc.subpart_cnt * sizeof(uint32);
 
     if (compart->subparts == NULL) {
-        if (dc_alloc_mem(ctx, entity->memory, memsize, (void **)&compart->subparts) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(ctx, entity->memory, memsize, (void **)&compart->subparts) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
     }
 
     errno_t ret = memset_sp(compart->subparts, memsize, 0XFF, memsize);
     knl_securec_check(ret);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dc_alloc_subpart_index_group(knl_session_t *session, dc_entity_t *entity, index_t *index, uint32 gid)
@@ -555,19 +556,19 @@ static status_t dc_alloc_subpart_index_group(knl_session_t *session, dc_entity_t
     part_index_t *part_index = index->part_index;
     
     if (part_index->sub_groups[gid] != NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint32 memsize = sizeof(index_part_group_t);
-    if (dc_alloc_mem(dc_ctx, entity->memory, memsize, (void **)&part_index->sub_groups[gid]) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-        return GS_ERROR;
+    if (dc_alloc_mem(dc_ctx, entity->memory, memsize, (void **)&part_index->sub_groups[gid]) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+        return CT_ERROR;
     }
 
     errno_t ret = memset_sp(part_index->sub_groups[gid], memsize, 0, memsize);
     knl_securec_check(ret);
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_alloc_index_subpart(knl_session_t *session, dc_entity_t *entity, index_t *index, uint32 id)
@@ -577,16 +578,16 @@ status_t dc_alloc_index_subpart(knl_session_t *session, dc_entity_t *entity, ind
     part_index_t *part_index = index->part_index;
     dc_context_t *dc_ctx = &session->kernel->dc_ctx;
 
-    if (dc_alloc_subpart_index_group(session, entity, index, gid) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_subpart_index_group(session, entity, index, gid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     index_part_group_t *group = part_index->sub_groups[gid];
     index_part_t *subpart = NULL;
     if (group->entity[eid] == NULL) {
-        if (dc_alloc_mem(dc_ctx, entity->memory, sizeof(index_part_t), (void **)&subpart) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(dc_ctx, entity->memory, sizeof(index_part_t), (void **)&subpart) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         errno_t ret = memset_sp(subpart, sizeof(index_part_t), 0, sizeof(index_part_t));
@@ -595,7 +596,7 @@ status_t dc_alloc_index_subpart(knl_session_t *session, dc_entity_t *entity, ind
         group->entity[eid] = subpart;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void dc_subpart_index_insert_name(part_index_t *part_index, index_part_t *subpart)
@@ -626,8 +627,8 @@ static status_t dc_init_index_subpart(knl_session_t *session, index_t *index, in
         }
     }
 
-    if (dc_alloc_index_subpart(session, entity, index, real_pos) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_index_subpart(session, entity, index, real_pos) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     index_part_t *subpart = PART_GET_SUBENTITY(part_index, real_pos);
@@ -643,9 +644,9 @@ static status_t dc_init_index_subpart(knl_session_t *session, index_t *index, in
     dc_subpart_index_insert_name(part_index, subpart);
     *pos = real_pos;
     dls_init_latch2(&subpart->btree.struct_latch, DR_TYPE_BRTEE_PART_LATCH, subpart->desc.table_id,
-                    subpart->desc.uid, subpart->desc.index_id, subpart->part_no, subpart->parent_partno);
+                    subpart->desc.uid, subpart->desc.index_id, subpart->part_no, subpart->parent_partno, is_shadow);
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dc_load_shwidx_subpart(knl_session_t *session, index_t *index, knl_cursor_t *cursor,
@@ -661,68 +662,68 @@ static status_t dc_load_shwidx_subpart(knl_session_t *session, index_t *index, k
     errno_t ret = memset_sp(&desc, sizeof(knl_index_part_desc_t), 0, sizeof(knl_index_part_desc_t));
     knl_securec_check(ret);
 
-    if (part_convert_index_part_desc(session, cursor, entity, subpartkeys, &desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (part_convert_index_part_desc(session, cursor, entity, subpartkeys, &desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     desc.parent_partid = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_SHADOW_INDEXPART_COL_SUBPART_CNT);
 
     /* empty table entry when nologging table is first loaded(db restart) */
     if (IS_NOLOGGING_BY_TABLE_TYPE(table->desc.type) && entity->entry->need_empty_entry) {
         desc.entry = INVALID_PAGID;
-        if (dc_reset_nologging_entry(session, (knl_handle_t)&desc, OBJ_TYPE_SHADOW_INDEX_SUBPART) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_reset_nologging_entry(session, (knl_handle_t)&desc, OBJ_TYPE_SHADOW_INDEX_SUBPART) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    if (dc_init_index_subpart(session, index, compart, &desc, part_pos, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_init_index_subpart(session, index, compart, &desc, part_pos, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     index_part_t *subpart = PART_GET_SUBENTITY(part_index, *part_pos);
-    if (dc_load_index_part_segment(session, entity, (index_part_t *)subpart) != GS_SUCCESS) {
-        GS_LOG_RUN_WAR("[DC] could not load index partition %s of table %s.%s, segment corrupted",
+    if (dc_load_index_part_segment(session, entity, (index_part_t *)subpart) != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("[DC] could not load index partition %s of table %s.%s, segment corrupted",
                        subpart->desc.name, user->desc.name, entity->table.desc.name);
     }
 
     if (!IS_SYS_TABLE(table)) {
-        if (stats_seg_load_entity(session, desc.org_scn, &subpart->btree.stat) != GS_SUCCESS) {
-            GS_LOG_RUN_INF("segment statistic failed, there might be some statitics loss.");
+        if (stats_seg_load_entity(session, desc.org_scn, &subpart->btree.stat) != CT_SUCCESS) {
+            CT_LOG_RUN_INF("segment statistic failed, there might be some statitics loss.");
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dc_load_shwidx_subparts_compart(knl_session_t *session, knl_cursor_t *cursor, index_t *index,
     index_part_t *compart)
 {
     uint32 subpart_idx = 0;
-    uint32 subpart_pos = GS_INVALID_ID32;
+    uint32 subpart_pos = CT_INVALID_ID32;
     
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SHADOW_INDEXPART_ID, IX_SYS_SHW_INDEXPART001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index->desc.uid,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index->desc.uid,
         sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index->desc.table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index->desc.table_id,
         sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index->desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index->desc.id,
         sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         &compart->desc.part_id, sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_PARENTPART_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_SHW_INDEXPART001_PART_ID);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &index->desc.uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &index->desc.uid,
         sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &index->desc.table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &index->desc.table_id,
         sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &index->desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &index->desc.id,
         sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER,
         &compart->desc.part_id, sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_PARENTPART_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_SHW_INDEXPART001_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     knl_index_part_desc_t desc;
@@ -731,30 +732,30 @@ static status_t dc_load_shwidx_subparts_compart(knl_session_t *session, knl_curs
         desc.flags = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_SHADOW_INDEXPART_COL_FLAGS);
         desc.subpart_cnt = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_SHADOW_INDEXPART_COL_SUBPART_CNT);
         if (!IS_SUB_IDXPART(&desc)) {
-            if (knl_fetch(session, cursor) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (knl_fetch(session, cursor) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             continue;
         }
         
-        if (dc_load_shwidx_subpart(session, index, cursor, compart, &subpart_pos) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_load_shwidx_subpart(session, index, cursor, compart, &subpart_pos) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         compart->subparts[subpart_idx] = subpart_pos;
-        GS_LOG_DEBUG_INF("load index subparts, uid: %d, tid: %d, iid: %d, index subpart(%d-%d)",
+        CT_LOG_DEBUG_INF("load index subparts, uid: %d, tid: %d, iid: %d, index subpart(%d-%d)",
             index->desc.uid, index->desc.table_id, index->desc.id, compart->part_no, subpart_idx);
         subpart_idx++;
         
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     knl_panic_log(subpart_idx == compart->desc.subpart_cnt, "%u subparts has been loaded, but expect %u, compart %s",
         subpart_idx, compart->desc.subpart_cnt, compart->desc.name);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_load_shwidx_subparts(knl_session_t *session, knl_cursor_t *cursor, index_t *index)
@@ -775,18 +776,18 @@ status_t dc_load_shwidx_subparts(knl_session_t *session, knl_cursor_t *cursor, i
                       "type %u table %s table_part %s index %s index_compart %s",
                       cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
                       table->desc.name, table_part->desc.name, index->desc.name, compart->desc.name);
-        if (dc_load_shwidx_subparts_compart(session, cursor, index, compart) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_load_shwidx_subparts_compart(session, cursor, index, compart) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void inline dc_load_idx_subpart_empty_stats(knl_session_t *session, knl_cursor_t *cursor,
     index_part_t *idx_part)
 {
-    if (CURSOR_COLUMN_SIZE(cursor, SYS_INDEXSUBPART_COL_EMPTY_LEAF_BLOCKS) == GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, SYS_INDEXSUBPART_COL_EMPTY_LEAF_BLOCKS) == CT_NULL_VALUE_LEN) {
         return;
     }
 
@@ -806,88 +807,88 @@ static status_t dc_load_index_subpart(knl_session_t *session, index_t *index, kn
     uint32 subpartkeys = part_index->desc.subpartkeys;
     dc_user_t *user = session->kernel->dc_ctx.users[entity->table.desc.uid];
     
-    if (part_convert_index_part_desc(session, cursor, entity, subpartkeys, &desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (part_convert_index_part_desc(session, cursor, entity, subpartkeys, &desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     dc_set_index_part_valid(index, desc);
     /* empty table entry when nologging table is first loaded(db restart) */
     if (IS_NOLOGGING_BY_TABLE_TYPE(table->desc.type) && entity->entry->need_empty_entry) {
         desc.entry = INVALID_PAGID;
-        if (dc_reset_nologging_entry(session, (knl_handle_t)&desc, OBJ_TYPE_INDEX_SUBPART) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_reset_nologging_entry(session, (knl_handle_t)&desc, OBJ_TYPE_INDEX_SUBPART) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    if (dc_init_index_subpart(session, index, compart, &desc, part_pos, GS_FALSE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_init_index_subpart(session, index, compart, &desc, part_pos, CT_FALSE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     index_part_t *subpart = PART_GET_SUBENTITY(part_index, *part_pos);
-    if (dc_load_index_part_segment(session, entity, subpart) != GS_SUCCESS) {
-        GS_LOG_RUN_WAR("[DC] could not load index sub partition %s of table %s.%s, segment corrupted",
+    if (dc_load_index_part_segment(session, entity, subpart) != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("[DC] could not load index sub partition %s of table %s.%s, segment corrupted",
                        subpart->desc.name, user->desc.name, entity->table.desc.name);
     }
     
     if (!IS_SYS_TABLE(table)) {
-        if (stats_seg_load_entity(session, desc.org_scn, &subpart->btree.stat) != GS_SUCCESS) {
-            GS_LOG_RUN_INF("segment statistic failed, there might be some statitics loss.");
+        if (stats_seg_load_entity(session, desc.org_scn, &subpart->btree.stat) != CT_SUCCESS) {
+            CT_LOG_RUN_INF("segment statistic failed, there might be some statitics loss.");
         }
     }
 
     dc_load_idx_subpart_empty_stats(session, cursor, subpart);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dc_load_subidxparts_of_compart(knl_session_t *session, knl_cursor_t *cursor, index_t *index,
     index_part_t *compart)
 {
     uint32 subpart_ind = 0;
-    uint32 subpart_pos = GS_INVALID_ID32;
+    uint32 subpart_pos = CT_INVALID_ID32;
     
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_INDEX_PARTS_ID, IX_SYS_INDEXSUBPART001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index->desc.uid,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index->desc.uid,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index->desc.table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index->desc.table_id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index->desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index->desc.id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_INDEX_ID);
     knl_panic_log(IS_PARENT_IDXPART(&compart->desc),
         "the compart is not parent idxpart, panic info: page %u-%u type %u table %s, index %s index_compart %s",
         cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
         ((table_t *)cursor->table)->desc.name, index->desc.name, compart->desc.name);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         &compart->desc.part_id, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_PARENT_PART_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_INDEXSUBPART001_SUB_PART_ID);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &index->desc.uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &index->desc.uid,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &index->desc.table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &index->desc.table_id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &index->desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &index->desc.id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER,
         &compart->desc.part_id, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_PARENT_PART_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_INDEXSUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (dc_load_index_subpart(session, index, cursor, compart, &subpart_pos) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_load_index_subpart(session, index, cursor, compart, &subpart_pos) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         compart->subparts[subpart_ind] = subpart_pos;
-        GS_LOG_DEBUG_INF("load index subpart, uid: %d, tid: %d, iid: %d, index subpart(%d-%d)", index->desc.uid,
+        CT_LOG_DEBUG_INF("load index subpart, uid: %d, tid: %d, iid: %d, index subpart(%d-%d)", index->desc.uid,
             index->desc.table_id, index->desc.id, compart->part_no, subpart_ind);
         subpart_ind++;
             
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -895,7 +896,7 @@ static status_t dc_load_subidxparts_of_compart(knl_session_t *session, knl_curso
                   "page %u-%u type %u subpart_ind %u subpart_cnt %u table %s index %s compart %s", cursor->rowid.file,
                   cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type, subpart_ind, compart->desc.subpart_cnt,
                   ((table_t *)cursor->table)->desc.name, index->desc.name, compart->desc.name);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_load_index_subparts(knl_session_t *session, knl_cursor_t *cursor, index_t *index)
@@ -916,12 +917,12 @@ status_t dc_load_index_subparts(knl_session_t *session, knl_cursor_t *cursor, in
                       "page %u-%u type %u table %s table_part %s index %s index_compart %s", cursor->rowid.file,
                       cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type, table->desc.name,
                       table_part->desc.name, index->desc.name, compart->desc.name);
-        if (dc_load_subidxparts_of_compart(session, cursor, index, compart) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_load_subidxparts_of_compart(session, cursor, index, compart) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_alloc_lob_subparts(knl_session_t *session, dc_entity_t *entity, lob_part_t *compart)
@@ -930,15 +931,15 @@ status_t dc_alloc_lob_subparts(knl_session_t *session, dc_entity_t *entity, lob_
     uint32 memsize = compart->desc.subpart_cnt * sizeof(uint32);
     
     if (compart->subparts == NULL) {
-        if (dc_alloc_mem(dc_ctx, entity->memory, memsize, (void **)&compart->subparts) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(dc_ctx, entity->memory, memsize, (void **)&compart->subparts) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
     }
     
     errno_t ret = memset_sp(compart->subparts, memsize, 0, memsize);
     knl_securec_check(ret);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dc_alloc_subpart_lob_group(knl_session_t *session, dc_entity_t *entity, lob_t *lob, uint32 gid)
@@ -948,16 +949,16 @@ static status_t dc_alloc_subpart_lob_group(knl_session_t *session, dc_entity_t *
     
     if (part_lob->sub_groups[gid] == NULL) {
         uint32 memsize = sizeof(lob_part_group_t);
-        if (dc_alloc_mem(dc_ctx, entity->memory, memsize, (void **)&part_lob->sub_groups[gid]) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(dc_ctx, entity->memory, memsize, (void **)&part_lob->sub_groups[gid]) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         errno_t ret = memset_sp(part_lob->sub_groups[gid], memsize, 0, memsize);
         knl_securec_check(ret);
     }
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_alloc_lob_subpart(knl_session_t *session, dc_entity_t *entity, lob_t *lob, uint32 id)
@@ -966,16 +967,16 @@ status_t dc_alloc_lob_subpart(knl_session_t *session, dc_entity_t *entity, lob_t
     uint32 eid = id % PART_GROUP_SIZE;
     dc_context_t *dc_ctx = &session->kernel->dc_ctx;
 
-    if (dc_alloc_subpart_lob_group(session, entity, lob, gid) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_subpart_lob_group(session, entity, lob, gid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     lob_part_t *subpart = NULL;
     lob_part_group_t *group = lob->part_lob->sub_groups[gid];
     if (group->entity[eid] == NULL) {
-        if (dc_alloc_mem(dc_ctx, entity->memory, sizeof(lob_part_t), (void **)&subpart) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(dc_ctx, entity->memory, sizeof(lob_part_t), (void **)&subpart) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         errno_t ret = memset_sp(subpart, sizeof(lob_part_t), 0, sizeof(lob_part_t));
@@ -983,10 +984,10 @@ status_t dc_alloc_lob_subpart(knl_session_t *session, dc_entity_t *entity, lob_t
         subpart->desc.entry = INVALID_PAGID;
         group->entity[eid] = subpart;
         dls_init_latch2(&subpart->lob_entity.seg_latch, DR_TYPE_LOB_PART_LATCH, lob->desc.table_id, lob->desc.uid,
-                        lob->desc.column_id, subpart->part_no, subpart->parent_partno);
+                        lob->desc.column_id, subpart->part_no, subpart->parent_partno, 0);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_init_lob_subpart(knl_session_t *session, dc_entity_t *entity, lob_t *lob, lob_part_t *compart,
@@ -1005,8 +1006,8 @@ status_t dc_init_lob_subpart(knl_session_t *session, dc_entity_t *entity, lob_t 
         }
     }
 
-    if (dc_alloc_lob_subpart(session, entity, lob, real_pos) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_lob_subpart(session, entity, lob, real_pos) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     lob_part_t *subpart = PART_GET_SUBENTITY(lob->part_lob, real_pos);
@@ -1019,7 +1020,7 @@ status_t dc_init_lob_subpart(knl_session_t *session, dc_entity_t *entity, lob_t 
     subpart->lob_entity.lob = lob;
     *pos = real_pos;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dc_load_lob_subpart(knl_session_t *session, knl_cursor_t *cursor, dc_entity_t *entity,
@@ -1039,65 +1040,65 @@ static status_t dc_load_lob_subpart(knl_session_t *session, knl_cursor_t *cursor
 
     if (IS_NOLOGGING_BY_TABLE_TYPE(table->desc.type) && entity->entry->need_empty_entry) {
         desc.entry = INVALID_PAGID;
-        if (dc_reset_nologging_entry(session, (knl_handle_t)&desc, OBJ_TYPE_LOB_SUBPART) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_reset_nologging_entry(session, (knl_handle_t)&desc, OBJ_TYPE_LOB_SUBPART) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    if (dc_init_lob_subpart(session, entity, lob, lob_compart, &desc, part_pos) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_init_lob_subpart(session, entity, lob, lob_compart, &desc, part_pos) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     lob_part_t *subpart = PART_GET_SUBENTITY(lob->part_lob, *part_pos);
     dc_load_lob_part_segment(session, entity, subpart, lob);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dc_load_sublobparts_of_compart(knl_session_t *session, knl_cursor_t *cursor, dc_entity_t *entity,
     lob_t *lob, lob_part_t *compart)
 {
     uint32 subpart_ind = 0;
-    uint32 subpart_pos = GS_INVALID_ID32;
+    uint32 subpart_pos = CT_INVALID_ID32;
     
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_LOB_PARTS_ID, IX_SYS_LOBSUBPART001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &lob->desc.uid,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &lob->desc.uid,
         sizeof(uint32), IX_COL_SYS_LOBSUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &lob->desc.table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &lob->desc.table_id,
         sizeof(uint32), IX_COL_SYS_LOBSUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &compart->desc.part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &compart->desc.part_id,
         sizeof(uint32), IX_COL_SYS_LOBSUBPART001_PARENT_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &lob->desc.column_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &lob->desc.column_id,
         sizeof(uint32), IX_COL_SYS_LOBSUBPART001_COLUMN_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_LOBSUBPART001_SUB_PART_ID);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &lob->desc.uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &lob->desc.uid,
         sizeof(uint32), IX_COL_SYS_LOBSUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &lob->desc.table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &lob->desc.table_id,
         sizeof(uint32), IX_COL_SYS_LOBSUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &compart->desc.part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &compart->desc.part_id,
         sizeof(uint32), IX_COL_SYS_LOBSUBPART001_PARENT_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &lob->desc.column_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &lob->desc.column_id,
         sizeof(uint32), IX_COL_SYS_LOBSUBPART001_COLUMN_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_LOBSUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (dc_load_lob_subpart(session, cursor, entity, compart, &subpart_pos) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_load_lob_subpart(session, cursor, entity, compart, &subpart_pos) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        GS_LOG_DEBUG_INF("load lob subpart from lobsubpart$, uid: %d, tid: %d, column id: %d, ppart_id: %d",
+        CT_LOG_DEBUG_INF("load lob subpart from lobsubpart$, uid: %d, tid: %d, column id: %d, ppart_id: %d",
             lob->desc.uid, lob->desc.table_id, lob->desc.column_id, compart->desc.part_id);
         compart->subparts[subpart_ind] = subpart_pos;
         subpart_ind++;
         
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -1105,7 +1106,7 @@ static status_t dc_load_sublobparts_of_compart(knl_session_t *session, knl_curso
                   "info: page %u-%u type %u subpart_ind %u subpart_cnt %u table %s index %s", cursor->rowid.file,
                   cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type, subpart_ind, compart->desc.subpart_cnt,
                   ((table_t *)cursor->table)->desc.name, ((index_t *)cursor->index)->desc.name);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_load_lob_subparts(knl_session_t *session, knl_cursor_t *cursor, dc_entity_t *entity, lob_t *lob)
@@ -1126,12 +1127,12 @@ status_t dc_load_lob_subparts(knl_session_t *session, knl_cursor_t *cursor, dc_e
                       "the compart is not parent lobpart, panic info: page %u-%u type %u table %s table_part %s",
                       cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
                       table->desc.name, table_part->desc.name);
-        if (dc_load_sublobparts_of_compart(session, cursor, entity, lob, compart) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_load_sublobparts_of_compart(session, cursor, entity, lob, compart) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dc_init_interval_subidxpart(knl_session_t *session, knl_cursor_t *cursor, index_t *index,
@@ -1143,8 +1144,8 @@ static status_t dc_init_interval_subidxpart(knl_session_t *session, knl_cursor_t
     index_part_t *subpart = PART_GET_SUBENTITY(index->part_index, compart_index->subparts[0]);
     knl_index_part_desc_t *desc = &subpart->desc;
     uint32 subpart_keys = table->part_table->desc.subpartkeys;
-    if (part_convert_index_part_desc(session, cursor, entity, subpart_keys, desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (part_convert_index_part_desc(session, cursor, entity, subpart_keys, desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (is_shadow) {
@@ -1158,87 +1159,88 @@ static status_t dc_init_interval_subidxpart(knl_session_t *session, knl_cursor_t
     subpart->btree.index = index;
     subpart->btree.is_shadow = is_shadow;
     dls_init_latch2(&subpart->btree.struct_latch, DR_TYPE_BRTEE_PART_LATCH, subpart->desc.table_id, subpart->desc.uid,
-                    subpart->desc.index_id, subpart->part_no, subpart->parent_partno);
+                    subpart->desc.index_id, subpart->part_no, subpart->parent_partno, subpart->btree.is_shadow);
 
     dc_subpart_index_insert_name(index->part_index, subpart);
     dc_user_t *user = session->kernel->dc_ctx.users[entity->table.desc.uid];
     if (spc_valid_space_object(session, desc->space_id)) {
         if (!IS_INVALID_PAGID(desc->entry)) {
-            if (buf_read_page(session, subpart->desc.entry, LATCH_MODE_S, ENTER_PAGE_RESIDENT) != GS_SUCCESS) {
-                entity->corrupted = GS_TRUE;
-                GS_LOG_RUN_ERR("[DC CORRUPTED] could not load index partition %s of table %s.%s, segment corrupted",
+            if (buf_read_page(session, subpart->desc.entry, LATCH_MODE_S, ENTER_PAGE_RESIDENT) != CT_SUCCESS) {
+                entity->corrupted = CT_TRUE;
+                CT_LOG_RUN_ERR("[DC CORRUPTED] could not load index partition %s of table %s.%s, segment corrupted",
                     desc->name, user->desc.name, entity->table.desc.name);
             } else {
                 page_head_t *head = (page_head_t *)CURR_PAGE(session);
                 subpart->btree.segment = BTREE_GET_SEGMENT(session);
+                subpart->btree.buf_ctrl = session->curr_page_ctrl;
                 if (head->type == PAGE_TYPE_BTREE_HEAD && subpart->btree.segment->org_scn == desc->org_scn) {
                     subpart->btree.cipher_reserve_size = SPACE_GET(session, desc->space_id)->ctrl->cipher_reserve_size;
                     desc->seg_scn = subpart->btree.segment->seg_scn;
                     bt_put_change_stats(&subpart->btree);
                 } else {
-                    entity->corrupted = GS_TRUE;
-                    GS_LOG_RUN_ERR("[DC CORRUPTED] could not load index partition %s of table %s.%s, segment corrupted",
+                    entity->corrupted = CT_TRUE;
+                    CT_LOG_RUN_ERR("[DC CORRUPTED] could not load index partition %s of table %s.%s, segment corrupted",
                         desc->name, user->desc.name, entity->table.desc.name);
                 }
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
             }
         }
     } else {
-        entity->corrupted = GS_TRUE;
-        GS_LOG_RUN_ERR("[DC CORRUPTED] could not load index partition %s of table %s.%s, tablespace %s is offline",
+        entity->corrupted = CT_TRUE;
+        CT_LOG_RUN_ERR("[DC CORRUPTED] could not load index partition %s of table %s.%s, tablespace %s is offline",
             desc->name, user->desc.name, entity->table.desc.name, SPACE_GET(session, desc->space_id)->ctrl->name);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_load_interval_index_subpart(knl_session_t *session, knl_cursor_t *cursor, index_t *index,
     index_part_t *compart_index, bool32 is_shadow)
 {
-    uint32 subpart_id = GS_DFT_PARTID_STEP;
+    uint32 subpart_id = CT_DFT_PARTID_STEP;
     uint32 parentpart_id = compart_index->desc.part_id;
 
     if (is_shadow) {
         knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SHADOW_INDEXPART_ID, IX_SYS_SHW_INDEXPART001_ID);
-        knl_init_index_scan(cursor, GS_TRUE);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index->desc.uid,
+        knl_init_index_scan(cursor, CT_TRUE);
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index->desc.uid,
             sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_USER_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index->desc.table_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index->desc.table_id,
             sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_TABLE_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index->desc.id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index->desc.id,
             sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_INDEX_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &subpart_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &subpart_id,
             sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_PART_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &parentpart_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &parentpart_id,
             sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_PARENTPART_ID);
     } else {
         knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_INDEX_PARTS_ID, IX_SYS_INDEXSUBPART001_ID);
-        knl_init_index_scan(cursor, GS_TRUE);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index->desc.uid,
+        knl_init_index_scan(cursor, CT_TRUE);
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index->desc.uid,
             sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_USER_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index->desc.table_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index->desc.table_id,
             sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_TABLE_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index->desc.id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index->desc.id,
             sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_INDEX_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &parentpart_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &parentpart_id,
             sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_PARENT_PART_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &subpart_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &subpart_id,
             sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_SUB_PART_ID);
     }
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s index %s index_compart %s",
                   cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
                   ((table_t *)cursor->table)->desc.name, index->desc.name, compart_index->desc.name);
-    if (dc_init_interval_subidxpart(session, cursor, index, compart_index, is_shadow) != GS_SUCCESS) {
-        return GS_SUCCESS;
+    if (dc_init_interval_subidxpart(session, cursor, index, compart_index, is_shadow) != CT_SUCCESS) {
+        return CT_SUCCESS;
     }
 
     index->part_index->desc.subpart_cnt++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_load_interval_lob_subpart(knl_session_t *session, knl_dictionary_t *dc, knl_cursor_t *cursor,
@@ -1246,25 +1248,25 @@ status_t dc_load_interval_lob_subpart(knl_session_t *session, knl_dictionary_t *
 {
     dc_entity_t *entity = DC_ENTITY(dc);
     table_t *table = &entity->table;
-    uint32 subpart_id = GS_DFT_PARTID_STEP;
+    uint32 subpart_id = CT_DFT_PARTID_STEP;
     uint32 parentpart_id = compart_lob->desc.part_id;
     knl_lob_part_desc_t *comdesc = &compart_lob->desc;
     
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_LOB_PARTS_ID, IX_SYS_LOBSUBPART001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &comdesc->uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &comdesc->uid,
         sizeof(uint32), IX_COL_SYS_LOBSUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &comdesc->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &comdesc->table_id,
         sizeof(uint32), IX_COL_SYS_LOBSUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &parentpart_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &parentpart_id,
         sizeof(uint32), IX_COL_SYS_LOBSUBPART001_PARENT_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &comdesc->column_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &comdesc->column_id,
         sizeof(uint32), IX_COL_SYS_LOBSUBPART001_COLUMN_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &subpart_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &subpart_id,
         sizeof(uint32), IX_COL_SYS_LOBSUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s index %s",
@@ -1279,18 +1281,18 @@ status_t dc_load_interval_lob_subpart(knl_session_t *session, knl_dictionary_t *
     subpart->lob_entity.entry = subpart->desc.entry;
     subpart->lob_entity.lob = lob;
     dls_init_latch2(&subpart->lob_entity.seg_latch, DR_TYPE_LOB_PART_LATCH, lob->desc.table_id, lob->desc.uid,
-                    lob->desc.column_id, subpart->part_no, subpart->parent_partno);
+                    lob->desc.column_id, subpart->part_no, subpart->parent_partno, 0);
 
     if (!spc_valid_space_object(session, subpart->desc.space_id)) {
-        entity->corrupted = GS_TRUE;
+        entity->corrupted = CT_TRUE;
         dc_user_t *user = session->kernel->dc_ctx.users[table->desc.uid];
-        GS_LOG_RUN_ERR("[DC CORRUPTED] could not load lob partition of column %s of table %s.%s, tablespace %s is offline",
+        CT_LOG_RUN_ERR("[DC CORRUPTED] could not load lob partition of column %s of table %s.%s, tablespace %s is offline",
             dc_get_column(entity, lob->desc.column_id)->name, user->desc.name, table->desc.name,
             SPACE_GET(session, lob->desc.space_id)->ctrl->name);
     }
     
     subpart->lob_entity.cipher_reserve_size = SPACE_GET(session, subpart->desc.space_id)->ctrl->cipher_reserve_size;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dc_init_interval_subtabpart(knl_session_t *session, dc_entity_t *entity, knl_cursor_t *cursor,
@@ -1300,8 +1302,8 @@ static status_t dc_init_interval_subtabpart(knl_session_t *session, dc_entity_t 
     table_part_t *subpart = PART_GET_SUBENTITY(table->part_table, compart_tab->subparts[0]);
     uint32 *subaprt_no = &PART_GET_SUBPARTNO(table->part_table, compart_tab->subparts[0]);
     uint32 subpart_keys = table->part_table->desc.subpartkeys;
-    if (dc_get_table_part_desc(session, cursor, entity, subpart_keys, &subpart->desc, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_get_table_part_desc(session, cursor, entity, subpart_keys, &subpart->desc, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     subpart->part_no = 0;
@@ -1315,63 +1317,63 @@ static status_t dc_init_interval_subtabpart(knl_session_t *session, dc_entity_t 
     dc_subpart_table_insert_name(table->part_table, subpart);
     
     if (!spc_valid_space_object(session, subpart->desc.space_id)) {
-        entity->corrupted = GS_TRUE;
+        entity->corrupted = CT_TRUE;
         dc_user_t *user = session->kernel->dc_ctx.users[table->desc.uid];
-        GS_LOG_RUN_ERR("[DC CORRUPTED] could not load table partition %s of table %s.%s, tablespace %s is offline",
+        CT_LOG_RUN_ERR("[DC CORRUPTED] could not load table partition %s of table %s.%s, tablespace %s is offline",
             subpart->desc.name, user->desc.name, table->desc.name,
             SPACE_GET(session, subpart->desc.space_id)->ctrl->name);
     }
     
     subpart->heap.cipher_reserve_size = SPACE_GET(session, subpart->desc.space_id)->ctrl->cipher_reserve_size;
-    subpart->is_ready = GS_TRUE;
+    subpart->is_ready = CT_TRUE;
     dls_init_spinlock2(&subpart->heap.lock, DR_TYPE_HEAP_PART, subpart->desc.table_id, subpart->desc.uid,
                        subpart->desc.part_id, subpart->part_no, subpart->parent_partno);
     dls_init_latch2(&subpart->heap.latch, DR_TYPE_HEAP_PART_LATCH, subpart->desc.table_id, subpart->desc.uid,
-                    subpart->desc.part_id, subpart->part_no, subpart->parent_partno);
+                    subpart->desc.part_id, subpart->part_no, subpart->parent_partno, 0);
 
     if (table->part_table->desc.subparttype == PART_TYPE_LIST) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(list_item_t) * subpart->desc.groupcnt,
-            (void **)&subpart->lnext) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            (void **)&subpart->lnext) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         dc_subpart_table_insert_list(table->part_table, subpart, table->part_table->desc.subpartkeys);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_load_interval_table_subpart(knl_session_t *session, knl_dictionary_t *dc, knl_cursor_t *cursor,
     table_part_t *compart_tab)
 {
     dc_entity_t *entity = DC_ENTITY(dc);
-    uint32 subpart_id = GS_DFT_PARTID_STEP;
+    uint32 subpart_id = CT_DFT_PARTID_STEP;
     uint32 parentpart_id = compart_tab->desc.part_id;
     knl_table_part_desc_t *comdesc = &compart_tab->desc;
     
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_TABLE_PARTS_ID, IX_SYS_TABLESUBPART001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &comdesc->uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &comdesc->uid,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &comdesc->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &comdesc->table_id,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &parentpart_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &parentpart_id,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_PARENT_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &subpart_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &subpart_id,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s index %s",
                   cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
                   ((table_t *)cursor->table)->desc.name, ((index_t *)cursor->index)->desc.name);
 
-    if (dc_init_interval_subtabpart(session, entity, cursor, compart_tab) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_init_interval_subtabpart(session, entity, cursor, compart_tab) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

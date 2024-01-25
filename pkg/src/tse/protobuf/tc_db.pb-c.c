@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -345,51 +345,6 @@ void   tc_db__tse_msg_comm_def__free_unpacked
   assert(message->base.descriptor == &tc_db__tse_msg_comm_def__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
-void   tc_db__tse_ddlpartition_value_def__init
-                     (TcDb__TseDDLPartitionValueDef         *message)
-{
-  static const TcDb__TseDDLPartitionValueDef init_value = TC_DB__TSE_DDLPARTITION_VALUE_DEF__INIT;
-  *message = init_value;
-}
-size_t tc_db__tse_ddlpartition_value_def__get_packed_size
-                     (const TcDb__TseDDLPartitionValueDef *message)
-{
-  assert(message->base.descriptor == &tc_db__tse_ddlpartition_value_def__descriptor);
-  return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
-}
-size_t tc_db__tse_ddlpartition_value_def__pack
-                     (const TcDb__TseDDLPartitionValueDef *message,
-                      uint8_t       *out)
-{
-  assert(message->base.descriptor == &tc_db__tse_ddlpartition_value_def__descriptor);
-  return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
-}
-size_t tc_db__tse_ddlpartition_value_def__pack_to_buffer
-                     (const TcDb__TseDDLPartitionValueDef *message,
-                      ProtobufCBuffer *buffer)
-{
-  assert(message->base.descriptor == &tc_db__tse_ddlpartition_value_def__descriptor);
-  return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
-}
-TcDb__TseDDLPartitionValueDef *
-       tc_db__tse_ddlpartition_value_def__unpack
-                     (ProtobufCAllocator  *allocator,
-                      size_t               len,
-                      const uint8_t       *data)
-{
-  return (TcDb__TseDDLPartitionValueDef *)
-     protobuf_c_message_unpack (&tc_db__tse_ddlpartition_value_def__descriptor,
-                                allocator, len, data);
-}
-void   tc_db__tse_ddlpartition_value_def__free_unpacked
-                     (TcDb__TseDDLPartitionValueDef *message,
-                      ProtobufCAllocator *allocator)
-{
-  if(!message)
-    return;
-  assert(message->base.descriptor == &tc_db__tse_ddlpartition_value_def__descriptor);
-  protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
-}
 void   tc_db__tse_ddlpartition_table_def__init
                      (TcDb__TseDDLPartitionTableDef         *message)
 {
@@ -433,51 +388,6 @@ void   tc_db__tse_ddlpartition_table_def__free_unpacked
   if(!message)
     return;
   assert(message->base.descriptor == &tc_db__tse_ddlpartition_table_def__descriptor);
-  protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
-}
-void   tc_db__tse_ddlpartition_column_def__init
-                     (TcDb__TseDDLPartitionColumnDef         *message)
-{
-  static const TcDb__TseDDLPartitionColumnDef init_value = TC_DB__TSE_DDLPARTITION_COLUMN_DEF__INIT;
-  *message = init_value;
-}
-size_t tc_db__tse_ddlpartition_column_def__get_packed_size
-                     (const TcDb__TseDDLPartitionColumnDef *message)
-{
-  assert(message->base.descriptor == &tc_db__tse_ddlpartition_column_def__descriptor);
-  return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
-}
-size_t tc_db__tse_ddlpartition_column_def__pack
-                     (const TcDb__TseDDLPartitionColumnDef *message,
-                      uint8_t       *out)
-{
-  assert(message->base.descriptor == &tc_db__tse_ddlpartition_column_def__descriptor);
-  return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
-}
-size_t tc_db__tse_ddlpartition_column_def__pack_to_buffer
-                     (const TcDb__TseDDLPartitionColumnDef *message,
-                      ProtobufCBuffer *buffer)
-{
-  assert(message->base.descriptor == &tc_db__tse_ddlpartition_column_def__descriptor);
-  return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
-}
-TcDb__TseDDLPartitionColumnDef *
-       tc_db__tse_ddlpartition_column_def__unpack
-                     (ProtobufCAllocator  *allocator,
-                      size_t               len,
-                      const uint8_t       *data)
-{
-  return (TcDb__TseDDLPartitionColumnDef *)
-     protobuf_c_message_unpack (&tc_db__tse_ddlpartition_column_def__descriptor,
-                                allocator, len, data);
-}
-void   tc_db__tse_ddlpartition_column_def__free_unpacked
-                     (TcDb__TseDDLPartitionColumnDef *message,
-                      ProtobufCAllocator *allocator)
-{
-  if(!message)
-    return;
-  assert(message->base.descriptor == &tc_db__tse_ddlpartition_column_def__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
 void   tc_db__tse_ddlpartition_def__init
@@ -1245,7 +1155,7 @@ void   tc_db__tse_ddlalter_space_def__free_unpacked
   assert(message->base.descriptor == &tc_db__tse_ddlalter_space_def__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
-static const ProtobufCFieldDescriptor tc_db__tse_ddlcolumn_data_type_def__field_descriptors[4] =
+static const ProtobufCFieldDescriptor tc_db__tse_ddlcolumn_data_type_def__field_descriptors[5] =
 {
   {
     "datatype",
@@ -1295,9 +1205,22 @@ static const ProtobufCFieldDescriptor tc_db__tse_ddlcolumn_data_type_def__field_
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "mysql_ori_datatype",
+    5,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(TcDb__TseDDLColumnDataTypeDef, mysql_ori_datatype),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
 static const unsigned tc_db__tse_ddlcolumn_data_type_def__field_indices_by_name[] = {
   0,   /* field[0] = datatype */
+  4,   /* field[4] = mysql_ori_datatype */
   2,   /* field[2] = precision */
   3,   /* field[3] = scale */
   1,   /* field[1] = size */
@@ -1305,7 +1228,7 @@ static const unsigned tc_db__tse_ddlcolumn_data_type_def__field_indices_by_name[
 static const ProtobufCIntRange tc_db__tse_ddlcolumn_data_type_def__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 4 }
+  { 0, 5 }
 };
 const ProtobufCMessageDescriptor tc_db__tse_ddlcolumn_data_type_def__descriptor =
 {
@@ -1315,7 +1238,7 @@ const ProtobufCMessageDescriptor tc_db__tse_ddlcolumn_data_type_def__descriptor 
   "TcDb__TseDDLColumnDataTypeDef",
   "tc_db",
   sizeof(TcDb__TseDDLColumnDataTypeDef),
-  4,
+  5,
   tc_db__tse_ddlcolumn_data_type_def__field_descriptors,
   tc_db__tse_ddlcolumn_data_type_def__field_indices_by_name,
   1,  tc_db__tse_ddlcolumn_data_type_def__number_ranges,
@@ -1814,7 +1737,7 @@ const ProtobufCMessageDescriptor tc_db__tse_ddltable_key_part__descriptor =
   (ProtobufCMessageInit) tc_db__tse_ddltable_key_part__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor tc_db__tse_ddltable_key__field_descriptors[9] =
+static const ProtobufCFieldDescriptor tc_db__tse_ddltable_key__field_descriptors[10] =
 {
   {
     "user",
@@ -1924,11 +1847,24 @@ static const ProtobufCFieldDescriptor tc_db__tse_ddltable_key__field_descriptors
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "is_dsc",
+    10,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_BOOL,
+    0,   /* quantifier_offset */
+    offsetof(TcDb__TseDDLTableKey, is_dsc),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
 static const unsigned tc_db__tse_ddltable_key__field_indices_by_name[] = {
   5,   /* field[5] = algorithm */
   7,   /* field[7] = columns */
   8,   /* field[8] = is_constraint */
+  9,   /* field[9] = is_dsc */
   6,   /* field[6] = is_func */
   4,   /* field[4] = key_type */
   2,   /* field[2] = name */
@@ -1939,7 +1875,7 @@ static const unsigned tc_db__tse_ddltable_key__field_indices_by_name[] = {
 static const ProtobufCIntRange tc_db__tse_ddltable_key__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 9 }
+  { 0, 10 }
 };
 const ProtobufCMessageDescriptor tc_db__tse_ddltable_key__descriptor =
 {
@@ -1949,7 +1885,7 @@ const ProtobufCMessageDescriptor tc_db__tse_ddltable_key__descriptor =
   "TcDb__TseDDLTableKey",
   "tc_db",
   sizeof(TcDb__TseDDLTableKey),
-  9,
+  10,
   tc_db__tse_ddltable_key__field_descriptors,
   tc_db__tse_ddltable_key__field_indices_by_name,
   1,  tc_db__tse_ddltable_key__number_ranges,
@@ -2033,58 +1969,7 @@ const ProtobufCMessageDescriptor tc_db__tse_msg_comm_def__descriptor =
   (ProtobufCMessageInit) tc_db__tse_msg_comm_def__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor tc_db__tse_ddlpartition_value_def__field_descriptors[2] =
-{
-  {
-    "is_max_value",
-    1,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_BOOL,
-    0,   /* quantifier_offset */
-    offsetof(TcDb__TseDDLPartitionValueDef, is_max_value),
-    NULL,
-    NULL,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
-    "value",
-    2,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_STRING,
-    0,   /* quantifier_offset */
-    offsetof(TcDb__TseDDLPartitionValueDef, value),
-    NULL,
-    &protobuf_c_empty_string,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-};
-static const unsigned tc_db__tse_ddlpartition_value_def__field_indices_by_name[] = {
-  0,   /* field[0] = is_max_value */
-  1,   /* field[1] = value */
-};
-static const ProtobufCIntRange tc_db__tse_ddlpartition_value_def__number_ranges[1 + 1] =
-{
-  { 1, 0 },
-  { 0, 2 }
-};
-const ProtobufCMessageDescriptor tc_db__tse_ddlpartition_value_def__descriptor =
-{
-  PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
-  "tc_db.TseDDLPartitionValueDef",
-  "TseDDLPartitionValueDef",
-  "TcDb__TseDDLPartitionValueDef",
-  "tc_db",
-  sizeof(TcDb__TseDDLPartitionValueDef),
-  2,
-  tc_db__tse_ddlpartition_value_def__field_descriptors,
-  tc_db__tse_ddlpartition_value_def__field_indices_by_name,
-  1,  tc_db__tse_ddlpartition_value_def__number_ranges,
-  (ProtobufCMessageInit) tc_db__tse_ddlpartition_value_def__init,
-  NULL,NULL,NULL    /* reserved[123] */
-};
-static const ProtobufCFieldDescriptor tc_db__tse_ddlpartition_table_def__field_descriptors[5] =
+static const ProtobufCFieldDescriptor tc_db__tse_ddlpartition_table_def__field_descriptors[2] =
 {
   {
     "name",
@@ -2099,44 +1984,8 @@ static const ProtobufCFieldDescriptor tc_db__tse_ddlpartition_table_def__field_d
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
   {
-    "space",
-    2,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_STRING,
-    0,   /* quantifier_offset */
-    offsetof(TcDb__TseDDLPartitionTableDef, space),
-    NULL,
-    &protobuf_c_empty_string,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
-    "hiboundval",
-    3,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_STRING,
-    0,   /* quantifier_offset */
-    offsetof(TcDb__TseDDLPartitionTableDef, hiboundval),
-    NULL,
-    &protobuf_c_empty_string,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
-    "part_value_list",
-    4,
-    PROTOBUF_C_LABEL_REPEATED,
-    PROTOBUF_C_TYPE_MESSAGE,
-    offsetof(TcDb__TseDDLPartitionTableDef, n_part_value_list),
-    offsetof(TcDb__TseDDLPartitionTableDef, part_value_list),
-    &tc_db__tse_ddlpartition_value_def__descriptor,
-    NULL,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
     "subpart_table_list",
-    5,
+    2,
     PROTOBUF_C_LABEL_REPEATED,
     PROTOBUF_C_TYPE_MESSAGE,
     offsetof(TcDb__TseDDLPartitionTableDef, n_subpart_table_list),
@@ -2148,16 +1997,13 @@ static const ProtobufCFieldDescriptor tc_db__tse_ddlpartition_table_def__field_d
   },
 };
 static const unsigned tc_db__tse_ddlpartition_table_def__field_indices_by_name[] = {
-  2,   /* field[2] = hiboundval */
   0,   /* field[0] = name */
-  3,   /* field[3] = part_value_list */
-  1,   /* field[1] = space */
-  4,   /* field[4] = subpart_table_list */
+  1,   /* field[1] = subpart_table_list */
 };
 static const ProtobufCIntRange tc_db__tse_ddlpartition_table_def__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 5 }
+  { 0, 2 }
 };
 const ProtobufCMessageDescriptor tc_db__tse_ddlpartition_table_def__descriptor =
 {
@@ -2167,65 +2013,14 @@ const ProtobufCMessageDescriptor tc_db__tse_ddlpartition_table_def__descriptor =
   "TcDb__TseDDLPartitionTableDef",
   "tc_db",
   sizeof(TcDb__TseDDLPartitionTableDef),
-  5,
+  2,
   tc_db__tse_ddlpartition_table_def__field_descriptors,
   tc_db__tse_ddlpartition_table_def__field_indices_by_name,
   1,  tc_db__tse_ddlpartition_table_def__number_ranges,
   (ProtobufCMessageInit) tc_db__tse_ddlpartition_table_def__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor tc_db__tse_ddlpartition_column_def__field_descriptors[2] =
-{
-  {
-    "name",
-    1,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_STRING,
-    0,   /* quantifier_offset */
-    offsetof(TcDb__TseDDLPartitionColumnDef, name),
-    NULL,
-    &protobuf_c_empty_string,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
-    "datatype",
-    2,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_UINT32,
-    0,   /* quantifier_offset */
-    offsetof(TcDb__TseDDLPartitionColumnDef, datatype),
-    NULL,
-    NULL,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-};
-static const unsigned tc_db__tse_ddlpartition_column_def__field_indices_by_name[] = {
-  1,   /* field[1] = datatype */
-  0,   /* field[0] = name */
-};
-static const ProtobufCIntRange tc_db__tse_ddlpartition_column_def__number_ranges[1 + 1] =
-{
-  { 1, 0 },
-  { 0, 2 }
-};
-const ProtobufCMessageDescriptor tc_db__tse_ddlpartition_column_def__descriptor =
-{
-  PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
-  "tc_db.TseDDLPartitionColumnDef",
-  "TseDDLPartitionColumnDef",
-  "TcDb__TseDDLPartitionColumnDef",
-  "tc_db",
-  sizeof(TcDb__TseDDLPartitionColumnDef),
-  2,
-  tc_db__tse_ddlpartition_column_def__field_descriptors,
-  tc_db__tse_ddlpartition_column_def__field_indices_by_name,
-  1,  tc_db__tse_ddlpartition_column_def__number_ranges,
-  (ProtobufCMessageInit) tc_db__tse_ddlpartition_column_def__init,
-  NULL,NULL,NULL    /* reserved[123] */
-};
-static const ProtobufCFieldDescriptor tc_db__tse_ddlpartition_def__field_descriptors[7] =
+static const ProtobufCFieldDescriptor tc_db__tse_ddlpartition_def__field_descriptors[3] =
 {
   {
     "part_type",
@@ -2240,44 +2035,8 @@ static const ProtobufCFieldDescriptor tc_db__tse_ddlpartition_def__field_descrip
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
   {
-    "partition_expression",
-    2,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_STRING,
-    0,   /* quantifier_offset */
-    offsetof(TcDb__TseDDLPartitionDef, partition_expression),
-    NULL,
-    &protobuf_c_empty_string,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
-    "part_column_list",
-    3,
-    PROTOBUF_C_LABEL_REPEATED,
-    PROTOBUF_C_TYPE_MESSAGE,
-    offsetof(TcDb__TseDDLPartitionDef, n_part_column_list),
-    offsetof(TcDb__TseDDLPartitionDef, part_column_list),
-    &tc_db__tse_ddlpartition_column_def__descriptor,
-    NULL,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
-    "part_table_list",
-    4,
-    PROTOBUF_C_LABEL_REPEATED,
-    PROTOBUF_C_TYPE_MESSAGE,
-    offsetof(TcDb__TseDDLPartitionDef, n_part_table_list),
-    offsetof(TcDb__TseDDLPartitionDef, part_table_list),
-    &tc_db__tse_ddlpartition_table_def__descriptor,
-    NULL,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
     "subpart_type",
-    5,
+    2,
     PROTOBUF_C_LABEL_NONE,
     PROTOBUF_C_TYPE_UINT32,
     0,   /* quantifier_offset */
@@ -2288,43 +2047,27 @@ static const ProtobufCFieldDescriptor tc_db__tse_ddlpartition_def__field_descrip
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
   {
-    "subpartition_expression",
-    6,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_STRING,
-    0,   /* quantifier_offset */
-    offsetof(TcDb__TseDDLPartitionDef, subpartition_expression),
-    NULL,
-    &protobuf_c_empty_string,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
-    "subpart_column_list",
-    7,
+    "part_table_list",
+    3,
     PROTOBUF_C_LABEL_REPEATED,
     PROTOBUF_C_TYPE_MESSAGE,
-    offsetof(TcDb__TseDDLPartitionDef, n_subpart_column_list),
-    offsetof(TcDb__TseDDLPartitionDef, subpart_column_list),
-    &tc_db__tse_ddlpartition_column_def__descriptor,
+    offsetof(TcDb__TseDDLPartitionDef, n_part_table_list),
+    offsetof(TcDb__TseDDLPartitionDef, part_table_list),
+    &tc_db__tse_ddlpartition_table_def__descriptor,
     NULL,
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
 };
 static const unsigned tc_db__tse_ddlpartition_def__field_indices_by_name[] = {
-  2,   /* field[2] = part_column_list */
-  3,   /* field[3] = part_table_list */
+  2,   /* field[2] = part_table_list */
   0,   /* field[0] = part_type */
-  1,   /* field[1] = partition_expression */
-  6,   /* field[6] = subpart_column_list */
-  4,   /* field[4] = subpart_type */
-  5,   /* field[5] = subpartition_expression */
+  1,   /* field[1] = subpart_type */
 };
 static const ProtobufCIntRange tc_db__tse_ddlpartition_def__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 7 }
+  { 0, 3 }
 };
 const ProtobufCMessageDescriptor tc_db__tse_ddlpartition_def__descriptor =
 {
@@ -2334,14 +2077,14 @@ const ProtobufCMessageDescriptor tc_db__tse_ddlpartition_def__descriptor =
   "TcDb__TseDDLPartitionDef",
   "tc_db",
   sizeof(TcDb__TseDDLPartitionDef),
-  7,
+  3,
   tc_db__tse_ddlpartition_def__field_descriptors,
   tc_db__tse_ddlpartition_def__field_indices_by_name,
   1,  tc_db__tse_ddlpartition_def__number_ranges,
   (ProtobufCMessageInit) tc_db__tse_ddlpartition_def__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor tc_db__tse_ddlcreate_table_def__field_descriptors[11] =
+static const ProtobufCFieldDescriptor tc_db__tse_ddlcreate_table_def__field_descriptors[14] =
 {
   {
     "schema",
@@ -2464,8 +2207,44 @@ static const ProtobufCFieldDescriptor tc_db__tse_ddlcreate_table_def__field_desc
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
   {
-    "partition_def",
+    "alter_table_name",
     11,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_STRING,
+    0,   /* quantifier_offset */
+    offsetof(TcDb__TseDDLCreateTableDef, alter_table_name),
+    NULL,
+    &protobuf_c_empty_string,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "alter_db_name",
+    12,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_STRING,
+    0,   /* quantifier_offset */
+    offsetof(TcDb__TseDDLCreateTableDef, alter_db_name),
+    NULL,
+    &protobuf_c_empty_string,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "is_create_as_select",
+    13,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_BOOL,
+    0,   /* quantifier_offset */
+    offsetof(TcDb__TseDDLCreateTableDef, is_create_as_select),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "partition_def",
+    14,
     PROTOBUF_C_LABEL_NONE,
     PROTOBUF_C_TYPE_MESSAGE,
     0,   /* quantifier_offset */
@@ -2477,14 +2256,17 @@ static const ProtobufCFieldDescriptor tc_db__tse_ddlcreate_table_def__field_desc
   },
 };
 static const unsigned tc_db__tse_ddlcreate_table_def__field_indices_by_name[] = {
+  11,   /* field[11] = alter_db_name */
+  10,   /* field[10] = alter_table_name */
   6,   /* field[6] = auto_increment_value */
   3,   /* field[3] = columns */
   8,   /* field[8] = db_name */
   4,   /* field[4] = fk_list */
+  12,   /* field[12] = is_create_as_select */
   5,   /* field[5] = key_list */
   1,   /* field[1] = name */
   7,   /* field[7] = options */
-  10,   /* field[10] = partition_def */
+  13,   /* field[13] = partition_def */
   0,   /* field[0] = schema */
   2,   /* field[2] = space */
   9,   /* field[9] = sql_str */
@@ -2492,7 +2274,7 @@ static const unsigned tc_db__tse_ddlcreate_table_def__field_indices_by_name[] = 
 static const ProtobufCIntRange tc_db__tse_ddlcreate_table_def__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 11 }
+  { 0, 14 }
 };
 const ProtobufCMessageDescriptor tc_db__tse_ddlcreate_table_def__descriptor =
 {
@@ -2502,7 +2284,7 @@ const ProtobufCMessageDescriptor tc_db__tse_ddlcreate_table_def__descriptor =
   "TcDb__TseDDLCreateTableDef",
   "tc_db",
   sizeof(TcDb__TseDDLCreateTableDef),
-  11,
+  14,
   tc_db__tse_ddlcreate_table_def__field_descriptors,
   tc_db__tse_ddlcreate_table_def__field_indices_by_name,
   1,  tc_db__tse_ddlcreate_table_def__number_ranges,
@@ -3555,7 +3337,7 @@ const ProtobufCMessageDescriptor tc_db__tse_ddlrename_table_def__descriptor =
   (ProtobufCMessageInit) tc_db__tse_ddlrename_table_def__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor tc_db__tse_ddldrop_table_def__field_descriptors[7] =
+static const ProtobufCFieldDescriptor tc_db__tse_ddldrop_table_def__field_descriptors[6] =
 {
   {
     "options",
@@ -3629,21 +3411,8 @@ static const ProtobufCFieldDescriptor tc_db__tse_ddldrop_table_def__field_descri
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
-  {
-    "alter_copy_table",
-    7,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_STRING,
-    0,   /* quantifier_offset */
-    offsetof(TcDb__TseDDLDropTableDef, alter_copy_table),
-    NULL,
-    &protobuf_c_empty_string,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
 };
 static const unsigned tc_db__tse_ddldrop_table_def__field_indices_by_name[] = {
-  6,   /* field[6] = alter_copy_table */
   4,   /* field[4] = db_name */
   3,   /* field[3] = dbname_und */
   2,   /* field[2] = name */
@@ -3654,7 +3423,7 @@ static const unsigned tc_db__tse_ddldrop_table_def__field_indices_by_name[] = {
 static const ProtobufCIntRange tc_db__tse_ddldrop_table_def__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 7 }
+  { 0, 6 }
 };
 const ProtobufCMessageDescriptor tc_db__tse_ddldrop_table_def__descriptor =
 {
@@ -3664,7 +3433,7 @@ const ProtobufCMessageDescriptor tc_db__tse_ddldrop_table_def__descriptor =
   "TcDb__TseDDLDropTableDef",
   "tc_db",
   sizeof(TcDb__TseDDLDropTableDef),
-  7,
+  6,
   tc_db__tse_ddldrop_table_def__field_descriptors,
   tc_db__tse_ddldrop_table_def__field_indices_by_name,
   1,  tc_db__tse_ddldrop_table_def__number_ranges,

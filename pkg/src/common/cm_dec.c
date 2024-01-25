@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -57,27 +57,27 @@ const uint32 g_5ten_powers[10] = {
 status_t cm_dec2uint64_check_overflow(uint64 u64h, uint64 u64l, uint64 *u64)
 {
     if (u64h == 18440000000000000000ull && u64l > 6744073709551615ull) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "UINT64");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "UINT64");
+        return CT_ERROR;
     }
     *u64 = u64h + u64l;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_dec2int64_check_overflow(uint64 u64_val, bool8 is_neg, int64 *val)
 {
     if (u64_val > 9223372036854775807ull) {
         if (is_neg && u64_val == 9223372036854775808ull) {
-            *val = GS_MIN_INT64;
-            return GS_SUCCESS;
+            *val = CT_MIN_INT64;
+            return CT_SUCCESS;
         }
 
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
+        return CT_ERROR;
     }
 
     *val = is_neg ? -(int64)u64_val : (int64)u64_val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

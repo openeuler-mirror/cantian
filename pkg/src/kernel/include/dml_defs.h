@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -51,6 +51,10 @@ typedef struct st_knl_column {
     void *update_default_expr;  // deserialized update default expr
     uint32 next;                // hash next
     latch_t cbo_col_latch;      // for CBO statistics sync object
+    bool32 is_collate;
+    uint16 collate_id;
+    uint8 mysql_ori_datatype;    // column origin datatype at mysql
+    uint8 mysql_unsigned;        // column origin unsigned at mysql
 } knl_column_t;
 
 typedef enum st_nologing_type {
@@ -124,8 +128,8 @@ typedef enum en_knl_cursor_action {
 #define SCAN_KEY_IS_NULL        5
 
 typedef struct st_knl_scan_key_t {
-    uint8 flags[GS_MAX_INDEX_COLUMNS];
-    uint16 offsets[GS_MAX_INDEX_COLUMNS];
+    uint8 flags[CT_MAX_INDEX_COLUMNS];
+    uint16 offsets[CT_MAX_INDEX_COLUMNS];
     char *buf;
 } knl_scan_key_t;
 
@@ -133,9 +137,9 @@ typedef struct st_knl_scan_range {
     union {
         // index scan range
         struct {
-            char l_buf[GS_KEY_BUF_SIZE];
-            char r_buf[GS_KEY_BUF_SIZE];
-            char org_buf[GS_KEY_BUF_SIZE];
+            char l_buf[CT_KEY_BUF_SIZE];
+            char r_buf[CT_KEY_BUF_SIZE];
+            char org_buf[CT_KEY_BUF_SIZE];
             knl_scan_key_t l_key;
             knl_scan_key_t r_key;
             knl_scan_key_t org_key;
@@ -197,7 +201,7 @@ typedef struct st_undo_snapshot {
 
 #define KNL_ROWID_LEN        sizeof(rowid_t)
 #define REMOTE_ROWNODEID_LEN sizeof(uint16)
-#define KNL_ROWID_ARRAY_SIZE (uint32)(GS_ROWID_BUF_SIZE / KNL_ROWID_LEN)
+#define KNL_ROWID_ARRAY_SIZE (uint32)(CT_ROWID_BUF_SIZE / KNL_ROWID_LEN)
     
 /* Function type, use to fetch row from an opened cursor */
 typedef struct st_knl_cursor knl_cursor_t;
@@ -215,7 +219,7 @@ typedef struct st_knl_parts_locate {
     uint32 specified_parts;
 } knl_parts_locate_t;
 
-static const knl_part_locate_t g_invalid_part_loc = { .part_no = GS_INVALID_ID32, .subpart_no = GS_INVALID_ID32 };
+static const knl_part_locate_t g_invalid_part_loc = { .part_no = CT_INVALID_ID32, .subpart_no = CT_INVALID_ID32 };
 
 /*
  * struct used for init cursor
@@ -353,7 +357,7 @@ typedef struct st_knl_cursor {
     int32 fd;     // fd of external file
     text_t text;  // row buffer
 
-    char key[GS_KEY_BUF_SIZE];                  // key data
+    char key[CT_KEY_BUF_SIZE];                  // key data
     rowid_t rowid_array[KNL_ROWID_ARRAY_SIZE];  // for rowid scan
 
     key_locator_t key_loc;  // key location info
@@ -372,6 +376,7 @@ typedef struct st_knl_cursor {
     rowid_t rowid;                // row id
     rowid_t link_rid;             // linked row id
     rowid_t conflict_rid;         // conflict row id when update primary key
+    rowid_t rowid_pos;            // row id for pos
     undo_snapshot_t snapshot;     // snapshot of current row
     char *chain_info;             // row chain info
     row_head_t *row;              // current row data, point to buf
@@ -391,8 +396,12 @@ typedef struct st_knl_cursor {
     bool8 skip_lock;              // skip lock table when open cursor
     uint8 conflict_idx_slot;      // member for saving conflict index slot
     bool8 null_first;             // if compatible mysql, effect null comparison
-    bool8 no_cascade_check;        // cascade check for mysql
-    void *cond;              // for push condition
+    bool8 no_cascade_check;       // cascade check for mysql
+    bool8 no_logic_logging;       // no logic logging for DML operations caused by mysql triggers
+    void *cond;                   // for push condition
+    bool8 mysql_using;            // for mysql connection in cursor alloc/free
+    bool8 is_cascade;             // if cascade, no need to redo
+    bool8 is_create_select;       // whether it is CREATE TABLE ... SELECT
     char buf[0];                  // row buffer and page buffer
 } knl_cursor_t;
 
@@ -417,7 +426,7 @@ typedef enum st_row_format {
  */
 typedef struct st_knl_icol_info {
     bool32 is_func;
-    gs_type_t datatype;
+    ct_type_t datatype;
     uint32 size;
     bool32 is_dsc;
     uint16 arg_count;
@@ -438,7 +447,8 @@ typedef struct st_index_profile {
     bool32 global_idx_for_part_table;
     bool32 is_compart_table;
     uint32 column_count;
-    gs_type_t types[GS_MAX_INDEX_COLUMNS];
+    ct_type_t types[CT_MAX_INDEX_COLUMNS];
+    uint16_t collate_id[CT_MAX_INDEX_COLUMNS];
     bool8 null_first;
     uint8 reserve[3];
 } index_profile_t;
@@ -449,7 +459,7 @@ typedef struct st_knl_index_desc {
     uint32 uid;
     uint32 space_id;
     uint32 table_id;
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
     knl_scn_t org_scn;
     knl_scn_t seg_scn;
     page_id_t entry;
@@ -457,7 +467,7 @@ typedef struct st_knl_index_desc {
     bool32 unique;
     index_type_t type;
     uint32 column_count;
-    uint16 columns[GS_MAX_INDEX_COLUMNS];
+    uint16 columns[CT_MAX_INDEX_COLUMNS];
     uint32 initrans;
     cr_mode_t cr_mode;
     union {
@@ -481,18 +491,19 @@ typedef struct st_knl_index_desc {
     uint16 max_key_size;
     uint8  maxtrans;
     bool8  part_idx_invalid;
+    bool8 is_dsc; // true for dsc index
 
     index_profile_t profile;  // TODO: to be deleted
 } knl_index_desc_t;
 
 void knl_init_key(knl_index_desc_t *desc, char *buf, rowid_t *rid);
 void knl_set_key_rowid(knl_index_desc_t *desc, char *buf, rowid_t *rid);
-void knl_put_key_data(knl_index_desc_t *desc, char *buf, gs_type_t type, const void *data, uint16 len, uint16 id);
+void knl_put_key_data(knl_index_desc_t *desc, char *buf, ct_type_t type, const void *data, uint16 len, uint16 id);
 uint32 knl_get_key_size(knl_index_desc_t *desc, const char *buf);
 void knl_set_key_size(knl_index_desc_t *desc, knl_scan_key_t *key, uint32 size);
 uint32 knl_scan_key_size(knl_index_desc_t *desc, knl_scan_key_t *key);
 void knl_init_index_scan(knl_cursor_t *cursor, bool32 is_equal);
-void knl_set_scan_key(knl_index_desc_t *desc, knl_scan_key_t *scan_key, gs_type_t type, const void *data, uint16 len,
+void knl_set_scan_key(knl_index_desc_t *desc, knl_scan_key_t *scan_key, ct_type_t type, const void *data, uint16 len,
                       uint16 id);
 void knl_set_key_flag(knl_scan_key_t *border, uint8 flag, uint16 id);
 void knl_get_index_name(knl_index_desc_t *desc, char *name, uint32 max_len);
@@ -509,7 +520,7 @@ status_t knl_fetch(knl_handle_t session, knl_cursor_t *cursor);
 status_t knl_fetch_by_rowid(knl_handle_t session, knl_cursor_t *cursor, bool32 *is_found);
 status_t knl_copy_row(knl_handle_t handle, knl_cursor_t *src, knl_cursor_t *dest);
 status_t knl_lock_row(knl_handle_t session, knl_cursor_t *cursor, bool32 *is_found);
-status_t knl_verify_children_dependency(knl_handle_t session, knl_cursor_t *cursor, bool32 is_update);
+status_t knl_verify_children_dependency(knl_handle_t session, knl_cursor_t *cursor, bool32 is_update, uint8 depth);
 status_t knl_verify_ref_integrities(knl_handle_t session, knl_cursor_t *cursor);
 
 knl_column_t *knl_find_column(text_t *col_name, knl_dictionary_t *dc);
@@ -518,8 +529,8 @@ knl_column_t *knl_get_column(knl_handle_t dc_entity, uint32 id);
 
 typedef struct st_knl_paral_range {
     uint32 workers;                        // actual workers
-    page_id_t l_page[GS_MAX_PARAL_QUERY];  // left range list
-    page_id_t r_page[GS_MAX_PARAL_QUERY];  // right range list
+    page_id_t l_page[CT_MAX_PARAL_QUERY];  // left range list
+    page_id_t r_page[CT_MAX_PARAL_QUERY];  // right range list
 } knl_paral_range_t;
 
 status_t knl_get_paral_schedule(knl_handle_t handle, knl_dictionary_t *dc, knl_part_locate_t part_loc, uint32 workers,

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -193,8 +193,8 @@ status_t cm_rbtree_insert_node(rb_tree_t *rb_tree, rb_node_t *new_node)
         } else if (cmp_res < 0) {
             temp_node = temp_node->right;
         } else {
-            GS_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "this red black tree node is existent");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "this red black tree node is existent");
+            return CT_ERROR;
         }
     }
     
@@ -217,7 +217,7 @@ status_t cm_rbtree_insert_node(rb_tree_t *rb_tree, rb_node_t *new_node)
     cm_rbtree_insert_node_fixup(rb_tree, new_node);
     rb_tree->node_count++;
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void cm_rbtree_delete_node_fixup_left(rb_tree_t *rb_tree, rb_node_t **curr_node)

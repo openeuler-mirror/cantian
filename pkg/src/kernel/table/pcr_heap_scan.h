@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -43,7 +43,7 @@ status_t pcrh_fetch_chain_r(knl_session_t *session, knl_cursor_t *cursor, knl_sc
 status_t pcrh_chk_curr_visible(knl_session_t *session, cr_cursor_t *cursor, heap_page_t *cr_page,
                                bool32 check_restart, bool32 *is_found);
 status_t pcrh_dump_page(knl_session_t *session, page_head_t *head, cm_dump_t *dump);
-void pcrh_validate_page(knl_session_t *session, page_head_t *page);
+void pcrh_validate_page(knl_session_t *session, page_head_t *page_head);
 status_t pcrh_enter_ins_page(knl_session_t *session, knl_cursor_t *cursor, row_head_t *row, page_id_t *page_id);
 status_t pcrh_alloc_itl(knl_session_t *session, knl_cursor_t *cursor, heap_page_t *page,
                         pcr_itl_t **itl, bool32 *changed);
@@ -87,7 +87,7 @@ static inline void pcrh_revert_itl(knl_session_t *session, heap_page_t *cr_page,
     itl->is_owscn = undo_row->is_owscn;
     itl->undo_page = undo_row->prev_page;
     itl->undo_slot = undo_row->prev_slot;
-    itl->is_active = GS_FALSE;
+    itl->is_active = CT_FALSE;
 }
 
 #ifdef __cplusplus

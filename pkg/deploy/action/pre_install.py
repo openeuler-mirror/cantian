@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 import abc
 import os
+import re
 import subprocess
 import shlex
 import socket
@@ -9,7 +10,6 @@ import stat
 import json
 from pathlib import Path
 from om_log import LOGGER as LOG
-
 
 INSTALL_PATH = "/opt/cantian"
 NEEDED_SIZE = 20580  # M
@@ -89,6 +89,14 @@ class ConfigChecker:
         return True
 
     @staticmethod
+    def deploy_mode(value):
+        deploy_mode_enum = {"nas", "dbstore"}
+        if value not in deploy_mode_enum:
+            return False
+
+        return True
+
+    @staticmethod
     def cluster_id(value):
         try:
             value = int(value)
@@ -96,8 +104,8 @@ class ConfigChecker:
             LOG.error('cluster id type must be int : %s', str(error))
             return False
 
-        if value < 0 or value > 65535:
-            LOG.error('cluster id cannot be less than 0 or more than 65535')
+        if value < 0 or value > 255:
+            LOG.error('cluster id cannot be less than 0 or more than 255')
             return False
 
         return True
@@ -107,33 +115,71 @@ class ConfigChecker:
         if len(value) > 64 or not value:
             LOG.error('cluster name cannot be more than 64 or less than 1 in length')
             return False
+        return True
+
+    @staticmethod
+    def mes_type(value):
+        if value not in ["UC", "TCP"]:
+            return False
+        return True
+
+    @staticmethod
+    def mysql_metadata_in_cantian(value):
+        if not isinstance(value, bool):
+            return False
 
         return True
 
     @staticmethod
-    def deploy_mode(value):
-        deploy_mode_num = {"--nas", "--dbstore"}
-        if value not in deploy_mode_num:
+    def redo_num(value):
+        try:
+            int(value)
+        except Exception as error:
+            LOG.error('redo_num type must be int : %s', str(error))
+            return False
+        return True
+
+    @staticmethod
+    def redo_size(value):
+        if not value.endswith("G"):
+            return False
+        int_value = value.strip("G")
+        try:
+            int(int_value)
+        except Exception as error:
+            LOG.error('redo_size type must be int : %s', str(error))
             return False
         return True
 
     @staticmethod
     def ca_path(value):
-        if os.path.exists(value):
-            return True
-        return False
+        return os.path.exists(value)
 
     @staticmethod
     def crt_path(value):
-        if os.path.exists(value):
-            return True
-        return False
+        return os.path.exists(value)
 
     @staticmethod
     def key_path(value):
-        if os.path.exists(value):
-            return True
-        return False
+        return os.path.exists(value)
+
+    @staticmethod
+    def mes_type(value):
+        mes_type_enum = {"TCP", "UC"}
+        if value not in mes_type_enum:
+            return False
+
+        return True
+
+    @staticmethod
+    def dbstore_fs_vstore_id(value):
+        try:
+            value = int(value)
+
+        except Exception as error:
+            LOG.error('dbstore_fs_vstore id type must be int : %s', str(error))
+            return False
+        return True
 
 
 class CheckBase(metaclass=abc.ABCMeta):
@@ -217,7 +263,7 @@ class CheckDisk(CheckBase):
         return self.get_disk_available() >= NEEDED_SIZE
 
 
-class CheckInstallPtah(CheckBase):
+class CheckInstallPath(CheckBase):
     def __init__(self):
         super().__init__("check install path is right.", "please check install path")
 
@@ -225,7 +271,7 @@ class CheckInstallPtah(CheckBase):
         """
         当安装路径已存在，且不是文件夹是报错
         """
-        return not(os.path.exists(INSTALL_PATH) and not os.path.isdir(INSTALL_PATH))
+        return not (os.path.exists(INSTALL_PATH) and not os.path.isdir(INSTALL_PATH))
 
 
 class CheckInstallConfig(CheckBase):
@@ -234,18 +280,18 @@ class CheckInstallConfig(CheckBase):
         self.config_path = config_path
         self.value_checker = ConfigChecker
         self.config_key = {
-            'deploy_user',  'node_id', 'cms_ip', 'storage_logic_ip', 'cluster_id',
-            'storage_dbstore_fs', 'storage_share_fs', 'storage_archive_fs', 'deploy_mode',
-            'storage_metadata_fs', 'share_logic_ip', 'archive_logic_ip', 'metadata_logic_ip',
-            'db_type', 'MAX_ARCH_FILES_SIZE', 'mysql_in_container', 'kerberos_key', "ca_path",
-            "crt_path", "key_path"
+            'deploy_user', 'node_id', 'cms_ip', 'storage_dbstore_fs', 'storage_share_fs', 'storage_archive_fs',
+            'storage_metadata_fs', 'share_logic_ip', 'archive_logic_ip', 'metadata_logic_ip', 'db_type',
+            'MAX_ARCH_FILES_SIZE', 'mysql_in_container', 'mysql_metadata_in_cantian', 'storage_logic_ip', 'deploy_mode'
         }
         self.dbstore_config_key = {
-            'cluster_name', 'cantian_vlan_ip', 'storage_vlan_ip', 'link_type',
+            'cluster_name', 'cantian_vlan_ip', 'storage_vlan_ip', 'link_type', 'storage_dbstore_page_fs',
+            'kerberos_key', 'cluster_id', 'mes_type', "vstore_id", "dbstore_fs_vstore_id"
         }
-        self.nas_deploy_mode_key = {
-            "ca_path", "crt_path", "key_path"
+        self.file_config_key = {
+            "redo_num", "redo_size"
         }
+        self.mes_type_key = {"ca_path", "crt_path", "key_path"}
         self.config_params = {}
         self.cluster_name = None
         self.ping_timeout = 3
@@ -321,14 +367,14 @@ class CheckInstallConfig(CheckBase):
                 return False
 
         if key in ip_check_element:
-            ip_list = value.split(';')
+            ip_list = re.split(r"[;,]", value)
             for single_ip in ip_list:
                 if not self.check_ipv4(single_ip) and not self.check_ipv6(single_ip):
                     return False
 
         # 适配域名部署方式检查当前域名是否能ping通
         if key in ping_check_element:
-            ip_list = value.split(";")
+            ip_list = re.split(r"[;,]", value)
             for node_ip in ip_list:
                 cmd = "%s %s -i 1 -c 3 | grep ttl | wc -l"
                 ping_cmd = cmd % ("ping", node_ip)
@@ -376,38 +422,24 @@ class CheckInstallConfig(CheckBase):
 
         install_config_params = self.read_install_config()
 
-        if 'link_type' not in install_config_params.keys():
-            install_config_params['link_type'] = '1'
-        
-        if 'mysql_in_container' not in install_config_params.keys():
-            install_config_params['mysql_in_container'] = '0'
-
-        if 'storage_archive_fs' not in install_config_params.keys():
-            install_config_params['storage_archive_fs'] = ''
-
-        if 'archive_logic_ip' not in install_config_params.keys():
-            install_config_params['archive_logic_ip'] = ''
-
-        if install_config_params is None:
-            return False
-
-        if 'db_type' not in install_config_params.keys():
-            install_config_params['db_type'] = '0'
-
-        if "deploy_mode" not in install_config_params.keys():
-            install_config_params['deploy_mode'] = ''
+        self.install_config_params_init(install_config_params)
 
         self.cluster_name = install_config_params.get("cluster_name")
         # 不开启归档时不检查归档连通性
         if install_config_params.get("storage_archive_fs") == "":
             ping_check_element.remove("archive_logic_ip")
 
-        if install_config_params['deploy_mode'] == "--dbstore":
+        if install_config_params['deploy_mode'] == "dbstore":
             self.config_key.remove("storage_logic_ip")
             self.config_key.update(self.dbstore_config_key)
             ping_check_element.remove("storage_logic_ip")
         else:
-            self.config_key.update(self.nas_deploy_mode_key)
+            self.config_params['cluster_id'] = "0"
+            self.config_params['mes_type'] = "TCP"
+            self.config_key.update(self.file_config_key)
+
+        if os.path.exists("/.dockerenv"):
+            self.config_params['cantian_in_container'] = "1"
 
         if install_config_params['archive_logic_ip'] == "" \
                 and install_config_params['share_logic_ip'] == "" \
@@ -423,11 +455,11 @@ class CheckInstallConfig(CheckBase):
         if not self.check_install_config_params(install_config_params.keys()):
             return False
         for key, value in install_config_params.items():
-            checked_result = self.check_install_config_param(key, value)
-            if not checked_result:
-                LOG.error('check %s with value: %s failed', str(key), str(value))
-                return False
             if key in self.config_key:
+                checked_result = self.check_install_config_param(key, value)
+                if not checked_result:
+                    LOG.error('check %s with value: %s failed', str(key), str(value))
+                    return False
                 self.config_params[key] = value
         try:
             self.update_config_params()
@@ -441,6 +473,28 @@ class CheckInstallConfig(CheckBase):
             return False
         return True
 
+    def install_config_params_init(self, install_config_params):
+        if 'link_type' not in install_config_params.keys():
+            install_config_params['link_type'] = '1'
+        if 'mysql_in_container' not in install_config_params.keys():
+            install_config_params['mysql_in_container'] = '1'
+        if 'storage_archive_fs' not in install_config_params.keys():
+            install_config_params['storage_archive_fs'] = ''
+        if 'archive_logic_ip' not in install_config_params.keys():
+            install_config_params['archive_logic_ip'] = ''
+        if 'mes_type' not in install_config_params.keys():
+            install_config_params['mes_type'] = 'UC'
+        if 'deploy_mode' not in install_config_params.keys():
+            install_config_params['deploy_mode'] = "dbstore"
+        if 'dbstore_fs_vstore_id' not in install_config_params.keys():
+            install_config_params['dbstore_fs_vstore_id'] = "0"
+        if install_config_params.get("mes_type") == "TCP" or install_config_params.get("deploy_mode") == "nas":
+            self.config_key.update(self.mes_type_key)
+        if 'db_type' not in install_config_params.keys():
+            install_config_params['db_type'] = '0'
+        if 'mysql_metadata_in_cantian' not in install_config_params.keys():
+            install_config_params['mysql_metadata_in_cantian'] = True
+
 
 class PreInstall:
     def __init__(self, install_model, config_path):
@@ -453,9 +507,9 @@ class PreInstall:
         存在，但是不是目录
         """
         if self.install_model == "override":
-            check_items = [CheckMem, CheckDisk, CheckInstallPtah, CheckInstallConfig]
+            check_items = [CheckMem, CheckDisk, CheckInstallPath, CheckInstallConfig]
         else:
-            check_items = [CheckMem, CheckDisk, CheckInstallPtah]
+            check_items = [CheckMem, CheckDisk, CheckInstallPath]
 
         for item in check_items:
             check_result = True

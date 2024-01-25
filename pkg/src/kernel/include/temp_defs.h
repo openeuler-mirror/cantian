@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -64,11 +64,12 @@ typedef struct st_knl_temp_cache {
     uint32 table_id;
     uint32 table_segid;
     uint32 index_segid;
+    uint32 lob_segid;
     uint32 rmid;
     uint32 hold_rmid;    // the rm that hold the temp table
     uint32 rows;  // cbo estimated card for temp table
     stats_table_mon_t table_smon;
-    temp_btree_segment_t index_root[GS_MAX_TABLE_INDEXES];
+    temp_btree_segment_t index_root[CT_MAX_TABLE_INDEXES];
     cbo_stats_table_t *cbo_stats;
     memory_context_t *memory;
     bool32 stat_exists;

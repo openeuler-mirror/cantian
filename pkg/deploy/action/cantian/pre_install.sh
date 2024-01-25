@@ -5,6 +5,10 @@ CURRENT_PATH=$(dirname $(readlink -f $0))
 
 CANTIAN_PRE_INSTALL_PY_NAME="cantian_pre_install.py"
 
+function log() {
+  printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1"
+}
+
 CANTIAN_INSTALL_LOG_FILE=/opt/cantian/cantian/log/cantian_deploy.log
 
 # 判断是否存在对应的文件，不存在返回报错，存在则继续运行
@@ -26,7 +30,7 @@ function cantian_pre_install()
         return 1
     fi
 
-    echo "Cantian pre install success."
+    log "Cantian pre install success."
 
     return 0
 }

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -111,7 +111,7 @@ bool32 cm_wait_cond(cm_thread_cond_t *cond, uint32 ms)
     int32 ret;
 
     if (ms == 0) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
 #ifdef WIN32
@@ -253,12 +253,12 @@ status_t cm_create_thread(thread_entry_t entry, uint32 stack_size, void *argumen
 
     /* if stack_size is zero, set it with default size */
     if (stack_size_t == 0) {
-        stack_size_t = GS_DFLT_THREAD_STACK_SIZE;
+        stack_size_t = CT_DFLT_THREAD_STACK_SIZE;
     }
 
     thread->argument = argument;
     thread->entry = (void *)entry;
-    thread->closed = GS_FALSE;
+    thread->closed = CT_FALSE;
     thread->stack_size = stack_size_t;
     thread->result = 0;
     thread->reg_data = NULL;
@@ -266,53 +266,53 @@ status_t cm_create_thread(thread_entry_t entry, uint32 stack_size, void *argumen
 #ifdef WIN32
     thread->handle = CreateThread(NULL, stack_size_t, cm_thread_run, thread, 0, &thread->id);
     if (thread->handle == INVALID_HANDLE_VALUE) {
-        GS_THROW_ERROR(ERR_CREATE_THREAD, "NULL");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CREATE_THREAD, "NULL");
+        return CT_ERROR;
     }
 #else
     pthread_attr_t attr;
     int errnum;
 
     if (pthread_attr_init(&attr) != 0) {
-        GS_THROW_ERROR(ERR_INIT_THREAD);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INIT_THREAD);
+        return CT_ERROR;
     }
 
     if (pthread_attr_setstacksize(&attr, stack_size_t) != 0) {
         (void)pthread_attr_destroy(&attr);
-        GS_THROW_ERROR(ERR_SET_THREAD_STACKSIZE);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SET_THREAD_STACKSIZE);
+        return CT_ERROR;
     }
     
-    if (pthread_attr_setguardsize(&attr, GS_DFLT_THREAD_GUARD_SIZE) != 0) {
+    if (pthread_attr_setguardsize(&attr, CT_DFLT_THREAD_GUARD_SIZE) != 0) {
         (void)pthread_attr_destroy(&attr);
-        GS_THROW_ERROR(ERR_INIT_THREAD);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INIT_THREAD);
+        return CT_ERROR;
     }
 
     errnum = pthread_create(&thread->id, &attr, cm_thread_run, (void *)thread);
     if (errnum != 0) {
         (void)pthread_attr_destroy(&attr);
-        GS_THROW_ERROR_EX(ERR_CREATE_THREAD, "error code %d", errnum);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_CREATE_THREAD, "error code %d", errnum);
+        return CT_ERROR;
     }
 
     (void)pthread_attr_destroy(&attr);
 #endif
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_close_thread_nowait(thread_t *thread)
 {
     CM_POINTER(thread);
-    thread->closed = GS_TRUE;
+    thread->closed = CT_TRUE;
 }
 
 void cm_close_thread(thread_t *thread)
 {
     CM_POINTER(thread);
-    thread->closed = GS_TRUE;
+    thread->closed = CT_TRUE;
 #ifdef WIN32
     WaitForSingleObject(thread->handle, INFINITE);
 #else
@@ -350,13 +350,13 @@ uint32 cm_get_current_thread_id(void)
 #define gettid() syscall(SYS_GET_SPID)
     g_cm_thread_id.thread_id = (uint32)gettid();
 #endif
-    g_cm_thread_id.has_get = GS_TRUE;
+    g_cm_thread_id.has_get = CT_TRUE;
     return g_cm_thread_id.thread_id;
 }
 
 bool32 cm_is_current_thread_closed(void)
 {
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 long cm_get_os_thread_stack_rlimit(void)
@@ -369,12 +369,12 @@ long cm_get_os_thread_stack_rlimit(void)
     struct rlimit rlim;
 
     if (getrlimit(RLIMIT_STACK, &rlim) < 0) { // The maximum value is used by default when the invoking fails
-        stack_size = GS_MAX_THREAD_STACK_SIZE;
+        stack_size = CT_MAX_THREAD_STACK_SIZE;
         return stack_size;
     }
 
-    if (rlim.rlim_cur == RLIM_INFINITY || rlim.rlim_cur >= GS_MAX_THREAD_STACK_SIZE) {
-        stack_size = GS_MAX_THREAD_STACK_SIZE;
+    if (rlim.rlim_cur == RLIM_INFINITY || rlim.rlim_cur >= CT_MAX_THREAD_STACK_SIZE) {
+        stack_size = CT_MAX_THREAD_STACK_SIZE;
     } else {
         stack_size = rlim.rlim_cur;
     }
@@ -398,7 +398,7 @@ static thv_ctrl_t g_thv_ctrl_func[MAX_THV_TYPE];
 // Thread variant address, it will be created in function create_var_func and released in function release_var_func.
 static __thread pointer_t g_thv_addr[MAX_THV_TYPE] = { 0 };
 // Thread variant is call pthread_setspcific
-static __thread bool32 g_thv_spec = GS_FALSE;
+static __thread bool32 g_thv_spec = CT_FALSE;
 static pthread_key_t g_thv_key;
 
 // destroy all thread variable content when thread exit
@@ -422,12 +422,12 @@ status_t cm_create_thv_ctrl(void)
 {
     int32 ret = pthread_key_create(&g_thv_key, cm_destroy_thv);
     if (ret != EOK) {
-        GS_THROW_ERROR(ERR_THREAD_VARIANT_FAIL, "g_thv_key", ret, "call pthread_key_create failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_THREAD_VARIANT_FAIL, "g_thv_key", ret, "call pthread_key_create failed");
+        return CT_ERROR;
     }
     memset_s(g_thv_ctrl_func, sizeof(thv_ctrl_t) * MAX_THV_TYPE, 0,
              sizeof(thv_ctrl_t) * MAX_THV_TYPE);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_set_thv_args_by_id(thv_type_e var_type,
@@ -436,20 +436,20 @@ status_t cm_set_thv_args_by_id(thv_type_e var_type,
                                release_thv_func release)
 {
     if (var_type >= MAX_THV_TYPE) {
-        GS_THROW_ERROR(ERR_THREAD_VARIANT_FAIL, "g_thv_key", var_type, "Invalid var type");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_THREAD_VARIANT_FAIL, "g_thv_key", var_type, "Invalid var type");
+        return CT_ERROR;
     }
 
     g_thv_ctrl_func[var_type].init = init;
 
     if (create == NULL) {
-        GS_THROW_ERROR(ERR_THREAD_VARIANT_FAIL, "g_thv_ctrl_func.create", -1, "create_thv_func cannot be null");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_THREAD_VARIANT_FAIL, "g_thv_ctrl_func.create", -1, "create_thv_func cannot be null");
+        return CT_ERROR;
     }
     g_thv_ctrl_func[var_type].create = create;
     g_thv_ctrl_func[var_type].release = release;
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_init_thv(void)
@@ -466,28 +466,28 @@ status_t cm_get_thv(thv_type_e var_type, pointer_t *result)
     if (g_thv_addr[var_type] == NULL) {
         int32 ret = g_thv_ctrl_func[var_type].create(&g_thv_addr[var_type]);
         if (ret != EOK) {
-            GS_THROW_ERROR(ERR_THREAD_VARIANT_FAIL, "g_thv_ctrl_func.create", var_type, "create thread variable failed");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_THREAD_VARIANT_FAIL, "g_thv_ctrl_func.create", var_type, "create thread variable failed");
+            return CT_ERROR;
         }
         if (!g_thv_spec) {
             ret = pthread_setspecific(g_thv_key, g_thv_addr);
             if (ret != EOK) {
-                GS_THROW_ERROR(ERR_THREAD_VARIANT_FAIL, "g_thv_key", ret, "call pthread_setspecific failed");
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_THREAD_VARIANT_FAIL, "g_thv_key", ret, "call pthread_setspecific failed");
+                return CT_ERROR;
             }
-            g_thv_spec = GS_TRUE;
+            g_thv_spec = CT_TRUE;
         }
     }
 
     *result = g_thv_addr[var_type];
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 /*****Thread variable defined end.*****/
 #else
 
 status_t cm_create_thv_ctrl()
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_set_thv_args_by_id(thv_type_e var_type,
@@ -495,7 +495,7 @@ status_t cm_set_thv_args_by_id(thv_type_e var_type,
                                create_thv_func create,
                                release_thv_func release)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_init_thv()
@@ -504,7 +504,7 @@ void cm_init_thv()
 
 status_t cm_get_thv(thv_type_e var_type, pointer_t *result)
 {
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 #endif

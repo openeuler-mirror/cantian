@@ -1,8 +1,12 @@
 # -*- coding: UTF-8 -*-
 
+import os
+import stat
 import logging
 
 import ctypes
+import json
+import base64
 from ctypes import CFUNCTYPE, c_char, c_int, c_void_p, pointer, c_char_p, Structure, POINTER
 from enum import Enum
 
@@ -15,6 +19,8 @@ from enum import Enum
 
 SEC_PATH_MAX = 4096  # PATH_MAX: 待确认linux环境下大小
 MAX_MK_COUNT = 4096
+
+JS_CONF_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../config/deploy_param.json")
 
 
 class KeCallBackParam(Structure):
@@ -190,14 +196,22 @@ class CApiWrapper(object):
 
     def __init__(self, primary_keystore="/opt/cantian/common/config/primary_keystore.ks",
                  standby_keystore="/opt/cantian/common/config/standby_keystore.ks"):
-        self.kmc_ext = ctypes.cdll.LoadLibrary(self.KMC_EXT_LIB_PATH)
+        self.deploy_mode = None
         self.initialized = False
         self.kmc_ctx = None
         self.primary_keystore = primary_keystore
         self.standby_keystore = standby_keystore
+        self.get_dbstor_para()
+        if self.deploy_mode == "dbstore":
+            self.kmc_ext = ctypes.cdll.LoadLibrary(self.KMC_EXT_LIB_PATH)
+
+    def get_dbstor_para(self):
+        with os.fdopen(os.open(JS_CONF_FILE, os.O_RDONLY | os.O_EXCL, stat.S_IWUSR | stat.S_IRUSR), "r") as file_obj:
+            json_data = json.load(file_obj)
+            self.deploy_mode = json_data.get('deploy_mode', "").strip()
 
     def initialize(self):
-        if self.initialized:
+        if self.initialized or self.deploy_mode == "nas":
             return 0
 
         conf = KmcInitConf(
@@ -244,8 +258,8 @@ class CApiWrapper(object):
             self.initialized = True
         return status
 
-    def encrypt(self, plain):
-        result = None
+    def encrypt_by_kmc(self, plain):
+        result = ""
 
         ctx = self.kmc_ctx
         plain_text = str(plain).encode("utf-8")
@@ -263,8 +277,19 @@ class CApiWrapper(object):
             result = cipher.value.decode('utf-8')
         return result
 
-    def decrypt(self, cipher):
-        result = None
+    def encrypt_by_base64(self, plain):
+        encoded = base64.b64encode(plain.encode('utf-8'))
+        return encoded.decode('utf-8')
+
+    def encrypt(self, plain):
+        if self.deploy_mode == "dbstore":
+            return self.encrypt_by_kmc(plain)
+        elif self.deploy_mode == "nas":
+            return self.encrypt_by_base64(plain)
+        return ""
+
+    def decrypt_by_kmc(self, cipher):
+        result = ""
         ctx = self.kmc_ctx
         cipher_text = str(cipher).encode("utf-8")
         cipher_len = len(cipher)
@@ -281,8 +306,19 @@ class CApiWrapper(object):
             result = plain.value.decode('utf-8')
         return result
 
+    def decrypt_by_base64(self, cipher):
+        decoded = base64.b64decode(cipher.encode('utf-8'))
+        return decoded.decode('utf-8')
+
+    def decrypt(self, cipher):
+        if self.deploy_mode == "dbstore":
+            return self.decrypt_by_kmc(cipher)
+        elif self.deploy_mode == "nas":
+            return self.decrypt_by_base64(cipher)
+        return ""
+
     def finalize(self):
-        if not self.initialized:
+        if not self.initialized or self.deploy_mode == "nas":
             return 0
         return self.kmc_ext.KeFinalizeEx(pointer(self.kmc_ctx))
 

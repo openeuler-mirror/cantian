@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -66,18 +66,18 @@ extern const char *g_default_tzoffset_fmt;
 static inline bool32 cm_validate_hour_min_fortz(int32 hour, int32 minute)
 {
     if ((hour < TIMEZONE_HOUR_MINVALUE) || (hour > TIMEZONE_HOUR_MAXVALUE)) {
-        return GS_FALSE;
+        return CT_FALSE;
     } else if (hour > TIMEZONE_HOUR_MINVALUE && hour < TIMEZONE_HOUR_MAXVALUE) {
         if (minute > TIMEZONE_MINUTE_MAXVALUE || minute < TIMEZONE_MINUTE_MINVALUE) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     } else {
         if (minute != TIMEZONE_MINUTE_MINVALUE) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static inline bool32 cm_validate_timezone(timezone_info_t timezone_to_validate)

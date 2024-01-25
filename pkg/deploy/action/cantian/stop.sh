@@ -9,25 +9,29 @@ CANTIAN_START_STATUS=`python3 ${CURRENT_PATH}/get_config_info.py "CANTIAN_START_
 CANTIAN_START_STATUS_FILE="/opt/cantian/cantian/cfg/start_status.json"
 CANTIAN_INSTALL_LOG_FILE=/opt/cantian/cantian/log/cantian_deploy.log
 
+function log() {
+  printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1"
+}
+
 # 判断是否存在对应的文件，不存在返回报错，存在则继续运行
 function cantian_stop()
 {
     user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
     group=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_group"`
     if [ ! -f  ${CURRENT_PATH}/${CANTIAN_CHECK_STATUS_PY_NAME} ]; then
-        echo "${CANTIAN_CHECK_STATUS_PY_NAME} is not exist.]"
+        log "${CANTIAN_CHECK_STATUS_PY_NAME} is not exist.]"
         return 1
     fi
 
     python3 ${CURRENT_PATH}/cantian_check_status.py
 
     if [ $? -ne 0 ] && [ ${CANTIAN_START_STATUS} == "default" ]; then
-        echo "Cantian status is default, instance cantiand has not started."
+        log "Cantian status is default, instance cantiand has not started."
         return 0
     fi
 
     if [ ! -f  ${CURRENT_PATH}/${CANTIAN_STOP_PY_NAME} ]; then
-        echo "${CANTIAN_STOP_PY_NAME} is not exist.]"
+        log "${CANTIAN_STOP_PY_NAME} is not exist.]"
         return 1
     fi
 
@@ -36,10 +40,10 @@ function cantian_stop()
 
     ret=$?
     if [ ${ret} -ne 0 ]; then
-        echo "Execute ${CANTIAN_STOP_PY_NAME} return ${ret}."
+        log "Execute ${CANTIAN_STOP_PY_NAME} return ${ret}."
         return 1
     fi
-    echo "cantian stop success."
+    log "cantian stop success."
     return 0
 }
 

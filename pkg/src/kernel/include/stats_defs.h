@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -49,7 +49,7 @@ typedef struct st_knl_analyze_method_opt {
 
 typedef struct st_knl_stats_specified_cols {
     uint32 cols_count;
-    uint16 specified_cols[GS_MAX_COLUMNS];
+    uint16 specified_cols[CT_MAX_COLUMNS];
 } knl_stats_specified_cols;
 
 typedef enum st_knl_analyze_type {

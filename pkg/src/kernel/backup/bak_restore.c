@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "knl_backup_module.h"
 #include "bak_restore.h"
 #include "cm_file.h"
 #include "bak_paral.h"
@@ -32,8 +32,11 @@
 #include "dtc_dls.h"
 #include "dtc_ckpt.h"
 #include "dtc_backup.h"
+#include "dtc_log.h"
 #include "dtc_database.h"
 #include "rc_reform.h"
+#include "srv_param_common.h"
+#include "knl_badblock.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,22 +76,22 @@ void rst_close_log_files(knl_session_t *session)
 status_t rst_write_data(knl_session_t *session, bak_ctrl_t *ctrl, const char *buf, int32 size)
 {
     /* closed in rst_restore_logfiles */
-    if (cm_open_device(ctrl->name, ctrl->type, O_SYNC, &ctrl->handle) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to open %s", ctrl->name);
-        return GS_ERROR;
+    if (cm_open_device(ctrl->name, ctrl->type, O_SYNC, &ctrl->handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to open %s", ctrl->name);
+        return CT_ERROR;
     }
-    if (cm_write_device(ctrl->type, ctrl->handle, ctrl->offset, buf, size) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to write %s", ctrl->name);
-        return GS_ERROR;
+    if (cm_write_device(ctrl->type, ctrl->handle, ctrl->offset, buf, size) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to write %s", ctrl->name);
+        return CT_ERROR;
     }
 
-    if (db_fdatasync_file(session, ctrl->handle) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to fdatasync logfile %s", ctrl->name);
-        return GS_ERROR;
+    if (db_fdatasync_file(session, ctrl->handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to fdatasync logfile %s", ctrl->name);
+        return CT_ERROR;
     }
 
     ctrl->offset += size;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_create_ctrl_device(knl_session_t *session, ctrlfile_t *ctrlfile)
@@ -97,25 +100,25 @@ static status_t rst_create_ctrl_device(knl_session_t *session, ctrlfile_t *ctrlf
     bool32 is_dbstor = knl_dbs_is_enable_dbs();
     if (is_dbstor) {
         ctrlfile->blocks = kernel->attr.clustered ? CTRL_MAX_PAGES_CLUSTERED : CTRL_MAX_PAGES_NONCLUSTERED;
-        ctrlfile->block_size = GS_DFLT_CTRL_BLOCK_SIZE;
+        ctrlfile->block_size = CT_DFLT_CTRL_BLOCK_SIZE;
         uint32 flags = (ctrlfile->type == DEV_TYPE_PGPOOL ? 0xFFFFFFFF : knl_io_flag(session));
         if (cm_build_device(ctrlfile->name, ctrlfile->type, kernel->attr.xpurpose_buf,
-            GS_XPURPOSE_BUFFER_SIZE, (int64)ctrlfile->blocks * ctrlfile->block_size,
-            flags, GS_FALSE, &ctrlfile->handle) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[DB] failed to build %s ", ctrlfile->name);
-            return GS_ERROR;
+            CT_XPURPOSE_BUFFER_SIZE, (int64)ctrlfile->blocks * ctrlfile->block_size,
+            flags, CT_FALSE, &ctrlfile->handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to build %s ", ctrlfile->name);
+            return CT_ERROR;
         }
-        if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RESTORE] failed to open %s", ctrlfile->name);
-            return GS_ERROR;
+        if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to open %s", ctrlfile->name);
+            return CT_ERROR;
         }
     } else {
-        if (cm_create_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[BACKUP] failed to create %s ", ctrlfile->name);
-            return GS_ERROR;
+        if (cm_create_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to create %s ", ctrlfile->name);
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_build_ctrl_file(knl_session_t *session)
@@ -123,41 +126,41 @@ static status_t rst_build_ctrl_file(knl_session_t *session)
     knl_instance_t *kernel = session->kernel;
     ctrlfile_set_t *ctrlfiles = &kernel->db.ctrlfiles;
     ctrlfile_t *ctrlfile = NULL;
-    uint32 size = CTRL_MAX_PAGES(session) * GS_DFLT_CTRL_BLOCK_SIZE;
+    uint32 size = CTRL_MAX_PAGES(session) * CT_DFLT_CTRL_BLOCK_SIZE;
 
     db_store_core(&kernel->db);
-    knl_panic(ctrlfiles->count <= GS_MAX_CTRL_FILES);
+    knl_panic(ctrlfiles->count <= CT_MAX_CTRL_FILES);
     bak_calc_ctrlfile_checksum(session, (char *)kernel->db.ctrl.pages, CTRL_MAX_PAGES(session));
     for (uint32 i = 0; i < ctrlfiles->count; i++) {
         ctrlfile = &ctrlfiles->items[i];
         if (!cm_exist_device(ctrlfile->type, ctrlfile->name)) {
             if (rst_create_ctrl_device(session, ctrlfile)) {
-                return GS_ERROR;
+                return CT_ERROR;
             }
         } else {
-            if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("[RESTORE] failed to open %s", ctrlfile->name);
-                return GS_ERROR;
+            if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[RESTORE] failed to open %s", ctrlfile->name);
+                return CT_ERROR;
             }
         }
 
         if (cm_write_device(ctrlfile->type, ctrlfile->handle, 0, (void *)(&kernel->db.ctrl.pages[0]),
-                            size) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RESTORE] failed to write %s", ctrlfile->name);
+                            size) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to write %s", ctrlfile->name);
             cm_close_device(ctrlfile->type, &ctrlfile->handle);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (db_fdatasync_file(session, ctrlfile->handle) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RESTORE] failed to fdatasync datafile %s", ctrlfile->name);
+        if (db_fdatasync_file(session, ctrlfile->handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to fdatasync datafile %s", ctrlfile->name);
             cm_close_device(ctrlfile->type, &ctrlfile->handle);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         cm_close_device(ctrlfile->type, &ctrlfile->handle);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void rst_offline_unused_space(knl_session_t *session)
@@ -172,7 +175,7 @@ static void rst_offline_unused_space(knl_session_t *session)
         return;
     }
 
-    for (uint32 i = 0; i < GS_MAX_SPACES; i++) {
+    for (uint32 i = 0; i < CT_MAX_SPACES; i++) {
         space = &db->spaces[i];
         ctrl = space->ctrl;
         if (SPACE_IS_DEFAULT(space) || !ctrl->used ||
@@ -188,13 +191,13 @@ static void rst_convert_temp_path(knl_session_t *session)
 {
     knl_instance_t *kernel = session->kernel;
     bak_t *bak = &kernel->backup_ctx.bak;
-    char convert_path[GS_FILE_NAME_BUFFER_SIZE];
+    char convert_path[CT_FILE_NAME_BUFFER_SIZE];
     errno_t err;
 
     if (!BAK_IS_TABLESPCE_RESTORE(bak)) {
         return;
     }
-    err = snprintf_s(convert_path, GS_FILE_NAME_BUFFER_SIZE, GS_FILE_NAME_BUFFER_SIZE - 1, "%s/data", kernel->home);
+    err = snprintf_s(convert_path, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1, "%s/data", kernel->home);
     knl_securec_check_ss(err);
     db_convert_temp_path(session, convert_path);
 }
@@ -204,55 +207,55 @@ static status_t rst_restore_ctrlfile_items(knl_session_t *session)
     bak_context_t *ctx = &session->kernel->backup_ctx;
     bak_t *bak = &ctx->bak;
 
-    if (db_generate_ctrlitems(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_generate_ctrlitems(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_update_ctrl_filename(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_update_ctrl_filename(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_update_config_ctrl_name(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_update_config_ctrl_name(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (bak->record.attr.level == 0) {
-        if (db_create_ctrl_file(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_create_ctrl_file(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    if (db_update_storage_filename(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_update_storage_filename(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     rst_convert_temp_path(session);
     rst_offline_unused_space(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rst_process_existed_datafile(bak_process_t *ctx, datafile_ctrl_t *df, uint32 i)
 {
     status_t status;
 
-    if (ctx->datafiles[i] != GS_INVALID_HANDLE && !cm_str_equal(ctx->datafile_name[i], df->name)) {
+    if (ctx->datafiles[i] != CT_INVALID_HANDLE && !cm_str_equal(ctx->datafile_name[i], df->name)) {
         if (ctx->datafile_version[i] == df->create_version) {
-            GS_LOG_RUN_WAR("[RESTORE] datafile %s has been renamed to %s, id %u, create version %u",
+            CT_LOG_RUN_WAR("[RESTORE] datafile %s has been renamed to %s, id %u, create version %u",
                 ctx->datafile_name[i], df->name, i, df->create_version);
             status = cm_rename_device(df->type, ctx->datafile_name[i], df->name);
         } else {
-            GS_LOG_RUN_WAR("[RESTORE] datafile %s has been deleted, recreated as %s, id %u, version: old %u, new %u",
+            CT_LOG_RUN_WAR("[RESTORE] datafile %s has been deleted, recreated as %s, id %u, version: old %u, new %u",
                 ctx->datafile_name[i], df->name, i, ctx->datafile_version[i], df->create_version);
             cm_close_device(df->type, &ctx->datafiles[i]);
             status = cm_remove_device(ctx->file_type[i], ctx->datafile_name[i]);
-            ctx->datafiles[i] = GS_INVALID_HANDLE;
+            ctx->datafiles[i] = CT_INVALID_HANDLE;
         }
 
         return status;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_create_datafile_device(knl_session_t *session, datafile_t *df, bak_process_t *ctx, uint32 file_index)
@@ -261,26 +264,26 @@ static status_t rst_create_datafile_device(knl_session_t *session, datafile_t *d
     bool32 is_dbstor = knl_dbs_is_enable_dbs();
     if (is_dbstor) {
         if (cm_build_device(df->ctrl->name, df->ctrl->type, kernel->attr.xpurpose_buf,
-            GS_XPURPOSE_BUFFER_SIZE, df->ctrl->size,
-            knl_io_flag(session), GS_FALSE, &ctx->datafiles[file_index]) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[DB] failed to build %s ", df->ctrl->name);
-            return GS_ERROR;
+            CT_XPURPOSE_BUFFER_SIZE, df->ctrl->size,
+            knl_io_flag(session), CT_FALSE, &ctx->datafiles[file_index]) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to build %s ", df->ctrl->name);
+            return CT_ERROR;
         }
 
         /* ctrlfile can be opened for a long time, closed in db_close_ctrl_files */
         if (cm_open_device(df->ctrl->name, df->ctrl->type,
-                           knl_io_flag(session), &ctx->datafiles[file_index]) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[DB] failed to open %s ", df->ctrl->name);
-            return GS_ERROR;
+                           knl_io_flag(session), &ctx->datafiles[file_index]) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to open %s ", df->ctrl->name);
+            return CT_ERROR;
         }
     } else {
         if (cm_create_device(df->ctrl->name, df->ctrl->type, knl_io_flag(session),
-            &ctx->datafiles[file_index]) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RESTORE] failed to create %s ", df->ctrl->name);
-            return GS_ERROR;
+            &ctx->datafiles[file_index]) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to create %s ", df->ctrl->name);
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rst_create_datafiles(knl_session_t *session, bak_process_t *ctx)
@@ -292,68 +295,68 @@ status_t rst_create_datafiles(knl_session_t *session, bak_process_t *ctx)
     errno_t ret;
 
     if (BAK_IS_FULL_BUILDING(bak) && !bak->is_first_link) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    for (uint32 i = 0; i < GS_MAX_DATA_FILES; i++) {
-        ctx->datafile_size[i] = GS_INVALID_INT64;
+    for (uint32 i = 0; i < CT_MAX_DATA_FILES; i++) {
+        ctx->datafile_size[i] = CT_INVALID_INT64;
         df = &kernel->db.datafiles[i];
 
         if (bak->rst_file.file_type == RESTORE_DATAFILE && bak->rst_file.file_id != df->ctrl->id) {
             continue;
         }
-        GS_LOG_DEBUG_INF("[BACKUP] %u datafile1 %s, datatfile2 %s", i, df->ctrl->name, ctx->datafile_name[i]);
+        CT_LOG_DEBUG_INF("[BACKUP] %u datafile1 %s, datatfile2 %s", i, df->ctrl->name, ctx->datafile_name[i]);
         if (!df->ctrl->used || !DATAFILE_IS_ONLINE(df)) {
             if (strlen(ctx->datafile_name[i]) <= 0) {
                 continue;
             }
             cm_close_device(ctx->file_type[i], &ctx->datafiles[i]);
-            if (cm_remove_device(ctx->file_type[i], ctx->datafile_name[i]) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_remove_device(ctx->file_type[i], ctx->datafile_name[i]) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             ctx->datafile_name[i][0] = '\0';
-            ctx->datafiles[i] = GS_INVALID_HANDLE;
+            ctx->datafiles[i] = CT_INVALID_HANDLE;
             continue;
         }
 
-        if (rst_process_existed_datafile(ctx, df->ctrl, i) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_process_existed_datafile(ctx, df->ctrl, i) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (ctx->datafiles[i] == GS_INVALID_HANDLE) {
-            if (rst_create_datafile_device(session, df, ctx, i) != GS_SUCCESS) {
-                return GS_ERROR;
+        if (ctx->datafiles[i] == CT_INVALID_HANDLE) {
+            if (rst_create_datafile_device(session, df, ctx, i) != CT_SUCCESS) {
+                return CT_ERROR;
             }
-            GS_LOG_DEBUG_INF("[RESTORE] build file %s size %llu block size %u ", df->ctrl->name,
+            CT_LOG_DEBUG_INF("[RESTORE] build file %s size %llu block size %u ", df->ctrl->name,
                              (uint64)(df->ctrl->size), df->ctrl->block_size);
         } else {
-            if (rst_extend_database_file(session, bak_ctx, df->ctrl->name, df->ctrl->type, df->ctrl->size) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rst_extend_database_file(session, bak_ctx, df->ctrl->name, df->ctrl->type, df->ctrl->size) != CT_SUCCESS) {
+                return CT_ERROR;
             }
-            GS_LOG_RUN_INF("[RESTORE] extend file %s, file size: %lld", df->ctrl->name, df->ctrl->size);
+            CT_LOG_RUN_INF("[RESTORE] extend file %s, file size: %lld", df->ctrl->name, df->ctrl->size);
         }
 
-        ret = strcpy_sp(ctx->datafile_name[i], GS_FILE_NAME_BUFFER_SIZE, df->ctrl->name);
+        ret = strcpy_sp(ctx->datafile_name[i], CT_FILE_NAME_BUFFER_SIZE, df->ctrl->name);
         knl_securec_check(ret);
         ctx->file_type[i] = df->ctrl->type;
         ctx->datafile_version[i] = df->ctrl->create_version;
 
         ctx->datafile_size[i] = cm_device_size(cm_device_type(ctx->datafile_name[i]), ctx->datafiles[i]);
         if (ctx->datafile_size[i] == -1) {
-            GS_THROW_ERROR(ERR_SEEK_FILE, 0, SEEK_END, errno);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SEEK_FILE, 0, SEEK_END, errno);
+            return CT_ERROR;
         }
     }
-    GS_LOG_RUN_INF("[RESTORE] create all datafiles finished");
+    CT_LOG_RUN_INF("[RESTORE] create all datafiles finished");
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rst_create_logfiles(knl_session_t *session)
 {
     knl_instance_t *kernel = session->kernel;
     log_file_ctrl_t *logfile = NULL;
-    int32 handle = GS_INVALID_HANDLE;
+    int32 handle = CT_INVALID_HANDLE;
     uint32 i;
     bak_t *bak = &kernel->backup_ctx.bak;
     logfile_set_t *logfile_set = MY_LOGFILE_SET(session);
@@ -365,25 +368,25 @@ status_t rst_create_logfiles(knl_session_t *session)
             continue;
         }
         if (BAK_IS_FULL_BUILDING(bak) && !bak->is_first_link && cm_file_exist(logfile->name)) {
-            GS_LOG_RUN_INF("[BUILD] delete logfile %s ", logfile->name);
-            if (cm_remove_device(logfile->type, logfile->name) != GS_SUCCESS) {
-                return GS_ERROR;
+            CT_LOG_RUN_INF("[BUILD] delete logfile %s ", logfile->name);
+            if (cm_remove_device(logfile->type, logfile->name) != CT_SUCCESS) {
+                return CT_ERROR;
             }
-            GS_LOG_RUN_INF("[BUILD] create logfile %s ", logfile->name);
+            CT_LOG_RUN_INF("[BUILD] create logfile %s ", logfile->name);
         }
 
-        if (cm_create_device(logfile->name, logfile->type, knl_redo_io_flag(session), &handle) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RESTORE] failed to create %s ", logfile->name);
-            return GS_ERROR;
+        if (cm_create_device(logfile->name, logfile->type, knl_redo_io_flag(session), &handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to create %s ", logfile->name);
+            return CT_ERROR;
         }
-        GS_LOG_RUN_INF("[RESTORE] restore build file, src_file:%s, file size :%lld", logfile->name, logfile->size);
+        CT_LOG_RUN_INF("[RESTORE] restore build file, src_file:%s, file size :%lld", logfile->name, logfile->size);
         cm_close_device(logfile->type, &handle);
         if (is_dbstor) {
             break;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rst_extend_database_file(knl_session_t *session, bak_context_t *ctx, const char *name, device_type_t type,
@@ -392,10 +395,10 @@ status_t rst_extend_database_file(knl_session_t *session, bak_context_t *ctx, co
     bak_process_t *proc = NULL;
     proc = &ctx->process[BAK_COMMON_PROC];
     if (rst_extend_file(session, name, type, size, proc->backup_buf.aligned_buf,
-                        BACKUP_BUFFER_SIZE(&session->kernel->backup_ctx.bak)) != GS_SUCCESS) {
-        return GS_ERROR;
+                        BACKUP_BUFFER_SIZE(&session->kernel->backup_ctx.bak)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rst_set_logfile_ctrl(knl_session_t *session, uint32 curr_file_index, log_file_head_t *head,
@@ -407,50 +410,51 @@ status_t rst_set_logfile_ctrl(knl_session_t *session, uint32 curr_file_index, lo
     log_file_ctrl_t *logfile = NULL;
     logfile_set_t *logfile_set = MY_LOGFILE_SET(session);
 
-    *ignore_data = GS_FALSE;
+    *ignore_data = CT_FALSE;
     ctrl->offset = 0;
 
     if (file_info->type == BACKUP_LOG_FILE) {
         rst_wait_logfiles_created(bak);
         logfile = logfile_set->items[file_info->id].ctrl;
         ctrl->type = logfile->type;
-        errno_t ret = strcpy_sp(ctrl->name, GS_FILE_NAME_BUFFER_SIZE, logfile->name);
+        errno_t ret = strcpy_sp(ctrl->name, CT_FILE_NAME_BUFFER_SIZE, logfile->name);
         knl_securec_check(ret);
         /* open when build log files, closed in bak_end => bak_reset_ctrl */
-        if (cm_open_device(logfile->name, logfile->type, knl_redo_io_flag(session), &ctrl->handle) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_open_device(logfile->name, logfile->type, knl_redo_io_flag(session), &ctrl->handle) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     knl_panic(file_info->id == head->asn);
     if (BAK_IS_DBSOTR(bak)) {
-        arch_set_archive_log_name_with_lsn(session, head->rst_id, head->asn, ARCH_DEFAULT_DEST, ctrl->name,
-            GS_FILE_NAME_BUFFER_SIZE, file_info->inst_id, head->first_lsn, head->last_lsn);
+        arch_file_name_info_t file_name_info = {head->rst_id, head->asn, file_info->inst_id,
+                                                CT_FILE_NAME_BUFFER_SIZE, head->first_lsn, head->last_lsn, ctrl->name};
+        arch_set_archive_log_name_with_lsn(session, ARCH_DEFAULT_DEST, &file_name_info);
     } else {
         arch_set_archive_log_name(session, head->rst_id, head->asn, ARCH_DEFAULT_DEST,
-                                  ctrl->name, GS_FILE_NAME_BUFFER_SIZE, session->kernel->id);
+                                  ctrl->name, CT_FILE_NAME_BUFFER_SIZE, session->kernel->id);
     }
     ctrl->type = cm_device_type(ctrl->name);
-    GS_LOG_DEBUG_INF("[RESTORE] bak_set_logfile_ctrl get archive log %s", ctrl->name);
+    CT_LOG_DEBUG_INF("[RESTORE] bak_set_logfile_ctrl get archive log %s", ctrl->name);
 
     if (cm_exist_device(ctrl->type, ctrl->name)) {
-        GS_LOG_RUN_INF("[RESTORE] Archive log %s exists", ctrl->name);
-        if (arch_process_existed_archfile(session, ctrl->name, *head, ignore_data) != GS_SUCCESS) {
-            return GS_ERROR;
+        CT_LOG_RUN_INF("[RESTORE] Archive log %s exists", ctrl->name);
+        if (arch_process_existed_archfile(session, ctrl->name, *head, ignore_data) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (!*ignore_data) {
         if (cm_create_device(ctrl->name, ctrl->type, O_BINARY | O_SYNC | O_RDWR | O_EXCL, &ctrl->handle) !=
-            GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RESTORE] failed to create %s", ctrl->name);
-            return GS_ERROR;
+            CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to create %s", ctrl->name);
+            return CT_ERROR;
         }
-        GS_LOG_RUN_INF("[RESTORE] Create %s", ctrl->name);
+        CT_LOG_RUN_INF("[RESTORE] Create %s", ctrl->name);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_amend_ctrlinfo(knl_session_t *session, uint32 last_asn, uint32 log_first)
@@ -459,112 +463,112 @@ static status_t rst_amend_ctrlinfo(knl_session_t *session, uint32 last_asn, uint
     bak_t *bak = &ctx->bak;
     bak_ctrlinfo_t *ctrlinfo = &bak->record.ctrlinfo;
 
-    if (log_reset_logfile(session, last_asn, log_first) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (log_reset_logfile(session, last_asn, log_first) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     dtc_my_ctrl(session)->dw_start = dtc_my_ctrl(session)->dw_end = DW_DISTRICT_BEGIN(session->kernel->id);
     dtc_my_ctrl(session)->scn = ctrlinfo->scn;
     dtc_my_ctrl(session)->lrp_point = ctrlinfo->lrp_point;
     session->kernel->scn = dtc_my_ctrl(session)->scn;
-    if (dtc_save_ctrl(session, session->kernel->id) != GS_SUCCESS) {
+    if (dtc_save_ctrl(session, session->kernel->id) != CT_SUCCESS) {
         CM_ABORT(0, "[RESTORE] ABORT INFO: save node control file failed when restore log files");
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_wait_read_data(bak_t *bak, bak_process_t *ctx)
 {
     while (!bak->failed && ctx->read_size == 0) {
         if (bak->progress.stage == BACKUP_READ_FINISHED) {
-            GS_THROW_ERROR(ERR_INVALID_BACKUPSET, "incomplete backup");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_BACKUPSET, "incomplete backup");
+            return CT_ERROR;
         }
         cm_sleep(1);
     }
 
-    return bak->failed ? GS_ERROR : GS_SUCCESS;
+    return bak->failed ? CT_ERROR : CT_SUCCESS;
 }
 
 static status_t rst_update_track_file(knl_session_t *session, bak_t *bak, bool32 allow_not_exist)
 {
     build_progress_t *build_progress = &bak->progress.build_progress;
-    char bak_process_file[GS_FILE_NAME_BUFFER_SIZE];
+    char bak_process_file[CT_FILE_NAME_BUFFER_SIZE];
     int32 handle = INVALID_FILE_HANDLE;
     errno_t ret;
 
     if (!BAK_IS_FULL_BUILDING(bak)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    ret = snprintf_s(bak_process_file, GS_FILE_NAME_BUFFER_SIZE, GS_FILE_NAME_BUFFER_SIZE - 1, "%s/bak_process_file",
+    ret = snprintf_s(bak_process_file, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1, "%s/bak_process_file",
                      session->kernel->home);
     knl_securec_check_ss(ret);
 
     if (!cm_file_exist((const char *)bak_process_file)) {
         if (allow_not_exist) {
-            if (cm_create_file(bak_process_file, O_BINARY | O_RDWR, &handle) != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("[BUILD] failed to create track file %s", bak_process_file);
-                return GS_ERROR;
+            if (cm_create_file(bak_process_file, O_BINARY | O_RDWR, &handle) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[BUILD] failed to create track file %s", bak_process_file);
+                return CT_ERROR;
             }
         } else {
-            GS_LOG_RUN_ERR("[BUILD] bak track file : %s does not exist", bak_process_file);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[BUILD] bak track file : %s does not exist", bak_process_file);
+            return CT_ERROR;
         }
     } else {
-        if (cm_open_file(bak_process_file, O_BINARY | O_RDWR, &handle) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[BUILD] failed to open %s ", bak_process_file);
-            return GS_ERROR;
+        if (cm_open_file(bak_process_file, O_BINARY | O_RDWR, &handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[BUILD] failed to open %s ", bak_process_file);
+            return CT_ERROR;
         }
     }
 
-    if (cm_write_file(handle, (void *)build_progress, sizeof(build_progress_t)) != GS_SUCCESS) {
+    if (cm_write_file(handle, (void *)build_progress, sizeof(build_progress_t)) != CT_SUCCESS) {
         cm_close_file(handle);
-        GS_LOG_RUN_ERR("[BUILD] failed to write %s", bak_process_file);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[BUILD] failed to write %s", bak_process_file);
+        return CT_ERROR;
     }
 
     if (session->kernel->attr.enable_fdatasync) {
-        if (cm_fdatasync_file(handle) != GS_SUCCESS) {
+        if (cm_fdatasync_file(handle) != CT_SUCCESS) {
             cm_close_file(handle);
-            GS_LOG_RUN_ERR("[BUILD] failed to fdatasync datafile %s", bak_process_file);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[BUILD] failed to fdatasync datafile %s", bak_process_file);
+            return CT_ERROR;
         }
     }
     bak->build_retry_time = 0;
     cm_close_file(handle);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rst_delete_track_file(knl_session_t *session, bak_t *bak, bool32 allow_not_exist)
 {
-    char bak_process_file[GS_FILE_NAME_BUFFER_SIZE];
+    char bak_process_file[CT_FILE_NAME_BUFFER_SIZE];
     errno_t ret;
 
     if (!BAK_IS_FULL_BUILDING(bak) && bak->error_info.err_code != ERR_BUILD_CANCELLED) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    ret = snprintf_s(bak_process_file, GS_FILE_NAME_BUFFER_SIZE, GS_FILE_NAME_BUFFER_SIZE - 1, "%s/bak_process_file",
+    ret = snprintf_s(bak_process_file, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1, "%s/bak_process_file",
                      session->kernel->home);
     knl_securec_check_ss(ret);
 
     if (!cm_file_exist((const char *)bak_process_file)) {
         if (allow_not_exist) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
-        GS_LOG_RUN_ERR("[BUILD] failed to find track file %s", bak_process_file);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[BUILD] failed to find track file %s", bak_process_file);
+        return CT_ERROR;
     }
 
-    if (cm_remove_file(bak_process_file) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[BUILD] failed to delete track file %s", bak_process_file);
-        return GS_ERROR;
+    if (cm_remove_file(bak_process_file) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BUILD] failed to delete track file %s", bak_process_file);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_restore_logfile(knl_session_t *session, log_file_head_t *head, bool32 ignore_data)
@@ -579,20 +583,20 @@ static status_t rst_restore_logfile(knl_session_t *session, log_file_head_t *hea
     build_progress_t *build_progress = &bak->progress.build_progress;
 
     if (!ignore_data) {
-        if (rst_write_data(session, &write_ctx->ctrl, (const char *)head, read_size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_write_data(session, &write_ctx->ctrl, (const char *)head, read_size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     knl_panic(data_size >= read_size);
     data_size -= read_size;
     while (data_size > 0) {
-        if (rst_wait_read_data(bak, write_ctx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_wait_read_data(bak, write_ctx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (write_ctx->read_size < 0) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         write_ctx->left_size = write_ctx->read_size % head->block_size;
@@ -603,8 +607,8 @@ static status_t rst_restore_logfile(knl_session_t *session, log_file_head_t *hea
         read_size = ((uint64)write_ctx->read_size > data_size) ? (uint32)data_size : (uint32)write_ctx->read_size;
         if (!ignore_data) {
             if (rst_write_data(session, &write_ctx->ctrl, write_ctx->backup_buf.aligned_buf + write_ctx->write_size,
-                               read_size) != GS_SUCCESS) {
-                return GS_ERROR;
+                               read_size) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
@@ -626,11 +630,11 @@ static status_t rst_restore_logfile(knl_session_t *session, log_file_head_t *hea
         data_size -= read_size;
     }
 
-    if (rst_update_track_file(session, bak, GS_FALSE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_update_track_file(session, bak, CT_FALSE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_write_to_buf(bak_t *bak, bak_process_t *write_ctx, char *buf, uint32 buf_size)
@@ -642,8 +646,8 @@ static status_t rst_write_to_buf(bak_t *bak, bak_process_t *write_ctx, char *buf
     remain_size = buf_size;
     offset = 0;
     while (remain_size > 0) {
-        if (rst_wait_read_data(bak, write_ctx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_wait_read_data(bak, write_ctx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         read_size = (write_ctx->read_size > remain_size) ? remain_size : write_ctx->read_size;
@@ -656,8 +660,8 @@ static status_t rst_write_to_buf(bak_t *bak, bak_process_t *write_ctx, char *buf
         remain_size -= read_size;
     }
 
-    GS_LOG_DEBUG_INF("[RESTORE] restore to buf size:%u", buf_size);
-    return GS_SUCCESS;
+    CT_LOG_DEBUG_INF("[RESTORE] restore to buf size:%u", buf_size);
+    return CT_SUCCESS;
 }
 
 status_t rst_prepare_logfile(knl_session_t *session, char *buf, uint32 curr_file_index, bak_process_t *write_ctx,
@@ -668,29 +672,29 @@ status_t rst_prepare_logfile(knl_session_t *session, char *buf, uint32 curr_file
     uint32 fill_size;
     log_file_head_t *head = (log_file_head_t *)buf;
 
-    if (rst_write_to_buf(bak, write_ctx, (char *)head, sizeof(log_file_head_t)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_write_to_buf(bak, write_ctx, (char *)head, sizeof(log_file_head_t)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (log_verify_head_checksum(session, head, bak->local.name) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (log_verify_head_checksum(session, head, bak->local.name) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     fill_size = CM_CALC_ALIGN((uint32)head->block_size, sizeof(log_file_head_t)) - sizeof(log_file_head_t);
-    if (rst_write_to_buf(bak, write_ctx, buf + sizeof(log_file_head_t), fill_size) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_write_to_buf(bak, write_ctx, buf + sizeof(log_file_head_t), fill_size) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (session->kernel->attr.clustered) {
-        if (dtc_bak_set_logfile_ctrl(session, curr_file_index, head, &write_ctx->ctrl, ignore_data) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dtc_bak_set_logfile_ctrl(session, curr_file_index, head, &write_ctx->ctrl, ignore_data) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (rst_set_logfile_ctrl(session, curr_file_index, head, &write_ctx->ctrl, ignore_data) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_set_logfile_ctrl(session, curr_file_index, head, &write_ctx->ctrl, ignore_data) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_restore_arch_log(knl_session_t *session, log_file_head_t *head, uint32 curr_file_index)
@@ -699,33 +703,33 @@ static status_t rst_restore_arch_log(knl_session_t *session, log_file_head_t *he
     bak_process_t *write_ctx = &ctx->process[BAK_COMMON_PROC];
     bak_t *bak = &ctx->bak;
     status_t status;
-    bool32 ignore_data = GS_FALSE;
+    bool32 ignore_data = CT_FALSE;
 
-    if (rst_prepare_logfile(session, (char *)head, curr_file_index, write_ctx, &ignore_data) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_prepare_logfile(session, (char *)head, curr_file_index, write_ctx, &ignore_data) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     status = rst_restore_logfile(session, head, ignore_data);
     cm_close_device(write_ctx->ctrl.type, &write_ctx->ctrl.handle);
-    if (status != GS_SUCCESS) {
-        return GS_ERROR;
+    if (status != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (bak->files[curr_file_index].type == BACKUP_ARCH_FILE && bak->rst_file.file_type == RESTORE_ALL) {
         // Update control file archive information
         if (session->kernel->attr.clustered) {
             if (dtc_rst_arch_try_record_archinfo(session, ARCH_DEFAULT_DEST, write_ctx->ctrl.name, head,
-                                                 bak->files[curr_file_index].inst_id) != GS_SUCCESS) {
-                return GS_ERROR;
+                                                 bak->files[curr_file_index].inst_id) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
-            if (ctarch_do_arch_info_record(session, ARCH_DEFAULT_DEST, write_ctx->ctrl.name, head) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (arch_try_record_archinfo(session, ARCH_DEFAULT_DEST, write_ctx->ctrl.name, head) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_restore_logfiles(knl_session_t *session, uint32 *last_log_index)
@@ -741,7 +745,7 @@ static status_t rst_restore_logfiles(knl_session_t *session, uint32 *last_log_in
     bak_stage_t *stage = &bak->progress.build_progress.stage;
 
     if (BAK_IS_FULL_BUILDING(bak) && bak_get_build_stage(stage) > BUILD_LOG_STAGE) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /* only when restore full database, log file will be created */
@@ -756,13 +760,13 @@ static status_t rst_restore_logfiles(knl_session_t *session, uint32 *last_log_in
             }
         }
 
-        if (status != GS_SUCCESS) {
-            return GS_ERROR;
+        if (status != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    bak->logfiles_created = GS_TRUE;
-    GS_LOG_RUN_INF("[RESTORE] create logfiles completed");
+    bak->logfiles_created = CT_TRUE;
+    CT_LOG_RUN_INF("[RESTORE] create logfiles completed");
 
     while (!bak->failed && bak->progress.stage != BACKUP_READ_FINISHED) {
         if (write_ctx->read_size == 0 || bak_paral_task_enable(session)) {
@@ -771,8 +775,8 @@ static status_t rst_restore_logfiles(knl_session_t *session, uint32 *last_log_in
         }
 
         curr_file_index = bak->curr_file_index;
-        if (rst_restore_arch_log(session, head, curr_file_index) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_restore_arch_log(session, head, curr_file_index) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -781,7 +785,7 @@ static status_t rst_restore_logfiles(knl_session_t *session, uint32 *last_log_in
     } else {
         *last_log_index = curr_file_index;
     }
-    return bak->failed ? GS_ERROR : GS_SUCCESS;
+    return bak->failed ? CT_ERROR : CT_SUCCESS;
 }
 
 static status_t rst_write_to_ctrl_buf(knl_session_t *session)
@@ -789,25 +793,25 @@ static status_t rst_write_to_ctrl_buf(knl_session_t *session)
     knl_instance_t *kernel = session->kernel;
     bak_process_t *write_ctx = &kernel->backup_ctx.process[BAK_COMMON_PROC];
     bak_t *bak = &kernel->backup_ctx.bak;
-    uint32 size = CTRL_MAX_PAGES(session) * GS_DFLT_CTRL_BLOCK_SIZE;
+    uint32 size = CTRL_MAX_PAGES(session) * CT_DFLT_CTRL_BLOCK_SIZE;
 
     if (bak->record.is_repair) {
-        if (rst_write_to_buf(bak, write_ctx, bak->ctrl_data_buf, size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_write_to_buf(bak, write_ctx, bak->ctrl_data_buf, size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (!rst_db_files_not_changed(session, (ctrl_page_t *)bak->ctrl_data_buf)) {
-            GS_LOG_RUN_ERR("[BUILD] primary's log/data amount/name has changed");
-            GS_THROW_ERROR(ERR_INVALID_OPERATION, ": primary's log/data amount/name has changed");
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[BUILD] primary's log/data amount/name has changed");
+            CT_THROW_ERROR(ERR_INVALID_OPERATION, ": primary's log/data amount/name has changed");
+            return CT_ERROR;
         }
-        GS_LOG_RUN_INF("[BUILD] check file amount/name successfully");
+        CT_LOG_RUN_INF("[BUILD] check file amount/name successfully");
         errno_t ret = memcpy_sp((char *)(&kernel->db.ctrl.pages[0]), size, bak->ctrl_data_buf, size);
         knl_securec_check(ret);
-    } else if (rst_write_to_buf(bak, write_ctx, (char *)(&kernel->db.ctrl.pages[0]), size) != GS_SUCCESS) {
-        return GS_ERROR;
+    } else if (rst_write_to_buf(bak, write_ctx, (char *)(&kernel->db.ctrl.pages[0]), size) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_restore_ctrlfiles(knl_session_t *session)
@@ -817,32 +821,32 @@ static status_t rst_restore_ctrlfiles(knl_session_t *session)
     bak_t *bak = &kernel->backup_ctx.bak;
 
     if (BAK_IS_FULL_BUILDING(bak) && !bak->is_first_link) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     while (bak->progress.stage != BACKUP_CTRL_STAGE) {
         if (bak->failed) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
         cm_sleep(1);
     }
 
-    if (rst_write_to_ctrl_buf(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_write_to_ctrl_buf(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     db_load_core(&kernel->db);
 
-    if (rst_verify_ctrlfile_checksum(session, bak->local.name) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_verify_ctrlfile_checksum(session, bak->local.name) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_restore_ctrlfile_items(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_restore_ctrlfile_items(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (!db_sysdata_version_is_equal(session, GS_FALSE)) {
-        return GS_ERROR;
+    if (!db_sysdata_version_is_equal(session, CT_FALSE)) {
+        return CT_ERROR;
     }
 
     arch_set_arch_start(session, 0, session->kernel->id);
@@ -851,21 +855,21 @@ static status_t rst_restore_ctrlfiles(knl_session_t *session)
         dtc_rst_arch_set_arch_start_and_end(session);
     }
 
-    kernel->db.ctrl.core.build_completed = GS_FALSE;
+    kernel->db.ctrl.core.build_completed = CT_FALSE;
     kernel->db.ctrl.core.db_role = bak->is_building ? REPL_ROLE_PHYSICAL_STANDBY : REPL_ROLE_PRIMARY;
-    if (rst_build_ctrl_file(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_build_ctrl_file(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_create_datafiles(session, write_ctx) != GS_SUCCESS) {
-        bak->failed = GS_TRUE;
-        return GS_ERROR;
+    if (rst_create_datafiles(session, write_ctx) != CT_SUCCESS) {
+        bak->failed = CT_TRUE;
+        return CT_ERROR;
     }
 
-    bak->ctrlfile_completed = GS_TRUE;
+    bak->ctrlfile_completed = CT_TRUE;
     session->kernel->db.ctrl.core.bak_dbid = session->kernel->db.ctrl.core.dbid;
     session->kernel->db.ctrl.core.ddl_pitr_lsn = bak->ddl_pitr_lsn;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 uint32 rst_skip_empty_pages(char *buf, uint32 size, uint32 page_size)
@@ -914,11 +918,11 @@ status_t rst_fill_file_gap(device_type_t type, int32 handle, int64 start, int64 
     uint32 data_size;
     int64 offset = start;
 
-    if ((uint64)offset == GS_INVALID_ID64) {
+    if ((uint64)offset == CT_INVALID_ID64) {
         offset = cm_device_size(type, handle);
         if (offset == -1) {
-            GS_THROW_ERROR(ERR_SEEK_FILE, 0, SEEK_END, errno);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SEEK_FILE, 0, SEEK_END, errno);
+            return CT_ERROR;
         }
     }
 
@@ -931,14 +935,14 @@ status_t rst_fill_file_gap(device_type_t type, int32 handle, int64 start, int64 
             data_size = (uint32)(end - offset);
         }
 
-        if (cm_write_device(type, handle, offset, buf, data_size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_write_device(type, handle, offset, buf, data_size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         offset += data_size;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifndef WIN32
@@ -959,34 +963,34 @@ static status_t rst_get_group_for_one_page(knl_session_t *session, datafile_t *d
 
     if (offset >= cm_device_size(df->ctrl->type, handle)) {
         *group = read_buf;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     knl_panic_log(offset + DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT <= cm_device_size(df->ctrl->type, handle),
                   "offset: %lld is right with file size: %lld", offset, cm_device_size(df->ctrl->type, handle));
     if (cm_read_device(df->ctrl->type, handle, offset, read_buf,
-                       DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[BUFFER] failed to read datafile %s, offset %lld, size %u", df->ctrl->name, offset,
+                       DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BUFFER] failed to read datafile %s, offset %lld, size %u", df->ctrl->name, offset,
                        DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (((page_head_t *)read_buf)->size_units == 0 || !((page_head_t *)read_buf)->compressed) {
         *group = read_buf;
     } else {
         uint32 group_size;
-        if (buf_decompress_group(session, unzip_buf, read_buf, &group_size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (buf_decompress_group(session, unzip_buf, read_buf, &group_size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         knl_panic_log(group_size == DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT,
                       "group size %u is not correct", group_size);
-        if (bak_construct_decompress_group(session, unzip_buf) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_construct_decompress_group(session, unzip_buf) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         *group = unzip_buf;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static uint32 rst_update_group(knl_session_t *session, page_id_t first, page_head_t *target_page, uint32 remain_input,
@@ -1016,7 +1020,7 @@ static uint32 rst_update_group(knl_session_t *session, page_id_t first, page_hea
                             page_list_num * DEFAULT_PAGE_SIZE(session),
         (char *)target_page, page_list_num * DEFAULT_PAGE_SIZE(session));
     knl_securec_check(ret);
-    GS_LOG_DEBUG_INF("[RESTORE] update pages start pos %u, num: %u", offset_in_group, page_list_num);
+    CT_LOG_DEBUG_INF("[RESTORE] update pages start pos %u, num: %u", offset_in_group, page_list_num);
 
     return page_list_num;
 }
@@ -1028,12 +1032,12 @@ static status_t rst_punch_hole_in_group(knl_session_t *session, datafile_t *df, 
 
     for (uint32 i = 0; i < hole_num; i++) {
         if (cm_file_punch_hole(handle, first_hole_offset + i * DEFAULT_PAGE_SIZE(session),
-                               DEFAULT_PAGE_SIZE(session)) != GS_SUCCESS) {
-            return GS_ERROR;
+                               DEFAULT_PAGE_SIZE(session)) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_write_group_directly(knl_session_t *session, datafile_t *df, int32 handle, char *group)
@@ -1042,14 +1046,14 @@ static status_t rst_write_group_directly(knl_session_t *session, datafile_t *df,
     page_id_t page_id = *AS_PAGID_PTR(page->id);
     int64 offset = (int64)(AS_PAGID_PTR(page->id)->page) * DEFAULT_PAGE_SIZE(session);
     if (cm_write_device(df->ctrl->type, handle, offset, group,
-                        DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
-        return GS_ERROR;
+                        DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
-    GS_LOG_DEBUG_INF("[RESTORE] write de-compressed group start:%u-%u,type:%u", page_id.file, page_id.page,
+    CT_LOG_DEBUG_INF("[RESTORE] write de-compressed group start:%u-%u,type:%u", page_id.file, page_id.page,
         (uint32)page->type);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_write_hole(knl_session_t *session, bak_process_t *ctx, datafile_t *df, int32 handle,
@@ -1060,18 +1064,18 @@ static status_t rst_write_hole(knl_session_t *session, bak_process_t *ctx, dataf
     uint32 hole_num = PAGE_GROUP_COUNT - slot;
     int64 last_hole_offset = first_hole_offset + hole_num * DEFAULT_PAGE_SIZE(session);
     if (rst_fill_file_gap(df->ctrl->type, handle, first_hole_offset, last_hole_offset, ctx->fill_buf,
-        BACKUP_BUFFER_SIZE(&session->kernel->backup_ctx.bak)) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
-        return GS_ERROR;
+        BACKUP_BUFFER_SIZE(&session->kernel->backup_ctx.bak)) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 
-    if (rst_punch_hole_in_group(session, df, handle, first_hole_offset, hole_num) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to punch datafile %s", df->ctrl->name);
-        return GS_ERROR;
+    if (rst_punch_hole_in_group(session, df, handle, first_hole_offset, hole_num) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to punch datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
-    GS_LOG_DEBUG_INF("[RESTORE] punch holes start page_id %u, total page num: %u", hole_page_id.page + 1, hole_num);
+    CT_LOG_DEBUG_INF("[RESTORE] punch holes start page_id %u, total page num: %u", hole_page_id.page + 1, hole_num);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_write_group(knl_session_t *session, bak_process_t *ctx, datafile_t *df, int32 handle,
@@ -1087,10 +1091,10 @@ static status_t rst_write_group(knl_session_t *session, bak_process_t *ctx, data
         knl_panic(0);
     }
     if (compressed_size > DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT) {
-        if (rst_write_group_directly(session, df, handle, group) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_write_group_directly(session, df, handle, group) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     remaining_size = compressed_size;
@@ -1117,25 +1121,25 @@ static status_t rst_write_group(knl_session_t *session, bak_process_t *ctx, data
         page->compressed = 1;
         dbwr_compress_checksum(session, page);
         if (cm_write_device(df->ctrl->type, handle, (int64)(AS_PAGID_PTR(page->id)->page) * DEFAULT_PAGE_SIZE(session),
-                            page, DEFAULT_PAGE_SIZE(session)) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
-            return GS_ERROR;
+                            page, DEFAULT_PAGE_SIZE(session)) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
+            return CT_ERROR;
         }
         page_id_t page_id = *AS_PAGID_PTR(page->id);
-        GS_LOG_DEBUG_INF("[RESTORE] write compress page:%u-%u,type:%u", page_id.file, page_id.page, (uint32)page->type);
+        CT_LOG_DEBUG_INF("[RESTORE] write compress page:%u-%u,type:%u", page_id.file, page_id.page, (uint32)page->type);
         remaining_size -= actual_size;
         offset_in_zip += actual_size;
         slot++;
     } while (remaining_size != 0);
 
     if (slot == PAGE_GROUP_COUNT) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
-    if (rst_write_hole(session, ctx, df, handle, page, slot) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_write_hole(session, ctx, df, handle, page, slot) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_incr_write_compress_pages(knl_session_t *session, bak_process_t *ctx, page_head_t *page,
@@ -1153,11 +1157,11 @@ static status_t rst_incr_write_compress_pages(knl_session_t *session, bak_proces
         page_id_t target_page_id = *AS_PAGID_PTR(target_page->id);
         if (target_page_id.page < DF_MAP_HWM_START) {
             if (cm_write_device(df->ctrl->type, handle, (int64)(target_page_id.page) * DEFAULT_PAGE_SIZE(session),
-                                target_page, DEFAULT_PAGE_SIZE(session)) != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
-                return GS_ERROR;
+                                target_page, DEFAULT_PAGE_SIZE(session)) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
+                return CT_ERROR;
             }
-            GS_LOG_DEBUG_INF("[RESTORE] write less 128's page:%u-%u,type:%u",
+            CT_LOG_DEBUG_INF("[RESTORE] write less 128's page:%u-%u,type:%u",
                 target_page_id.file, target_page_id.page, (uint32)target_page->type);
             pos++;
             continue;
@@ -1165,8 +1169,8 @@ static status_t rst_incr_write_compress_pages(knl_session_t *session, bak_proces
         page_id_t first = bak_first_compress_group_id(session, *AS_PAGID_PTR(target_page->id));
         knl_panic_log(target_page->size_units != 0, "zero page not allowed");
         char *group = NULL;
-        if (rst_get_group_for_one_page(session, df, handle, first, table_compress_ctx, &group) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_get_group_for_one_page(session, df, handle, first, table_compress_ctx, &group) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         uint32 remain = page_count - pos - 1;
@@ -1174,12 +1178,12 @@ static status_t rst_incr_write_compress_pages(knl_session_t *session, bak_proces
         knl_panic_log(page_list_num >= 1 && page_list_num <= PAGE_GROUP_COUNT, "page number %u is not correct",
             page_list_num);
         pos += page_list_num;
-        if (rst_write_group(session, ctx, df, handle, table_compress_ctx, group) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_write_group(session, ctx, df, handle, table_compress_ctx, group) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_incr_write_punch_datafile(knl_session_t *session, bak_process_t *ctx, page_head_t *page,
@@ -1198,26 +1202,26 @@ static status_t rst_incr_write_punch_datafile(knl_session_t *session, bak_proces
 
         if (target_page->type == PAGE_TYPE_PUNCH_PAGE) {
             if (rst_fill_file_gap(df->ctrl->type, handle, page_offset, page_offset + DEFAULT_PAGE_SIZE(session),
-                ctx->fill_buf, BACKUP_BUFFER_SIZE(&session->kernel->backup_ctx.bak)) != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
-                return GS_ERROR;
+                ctx->fill_buf, BACKUP_BUFFER_SIZE(&session->kernel->backup_ctx.bak)) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
+                return CT_ERROR;
             }
-            if (cm_file_punch_hole(handle, page_offset, DEFAULT_PAGE_SIZE(session)) != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("[RESTORE] failed to punch datafile %s", df->ctrl->name);
-                return GS_ERROR;
+            if (cm_file_punch_hole(handle, page_offset, DEFAULT_PAGE_SIZE(session)) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[RESTORE] failed to punch datafile %s", df->ctrl->name);
+                return CT_ERROR;
             }
-            GS_LOG_DEBUG_INF("[RESTORE] punch datafile %s page_id %u-%u",
+            CT_LOG_DEBUG_INF("[RESTORE] punch datafile %s page_id %u-%u",
                 df->ctrl->name, target_page_id.file, target_page_id.page);
             continue;
         }
 
         if (cm_write_device(df->ctrl->type, handle, page_offset, target_page,
-                            DEFAULT_PAGE_SIZE(session)) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
-            return GS_ERROR;
+                            DEFAULT_PAGE_SIZE(session)) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_save_continuous_pages(knl_session_t *session, bak_process_t *ctx, page_head_t *page,
@@ -1229,26 +1233,26 @@ static status_t rst_save_continuous_pages(knl_session_t *session, bak_process_t 
 
     if (DATAFILE_IS_COMPRESS(df) && attr->level == 1) {
         if (DATAFILE_IS_PUNCHED(df)) {
-            GS_LOG_RUN_ERR("[RESTORE] compress datafile %s is not expected to be a punched datafile", df->ctrl->name);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[RESTORE] compress datafile %s is not expected to be a punched datafile", df->ctrl->name);
+            return CT_ERROR;
         }
-        if (rst_incr_write_compress_pages(session, ctx, page, rst_assist) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RESTORE] failed to write compress datafile %s", df->ctrl->name);
-            return GS_ERROR;
+        if (rst_incr_write_compress_pages(session, ctx, page, rst_assist) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to write compress datafile %s", df->ctrl->name);
+            return CT_ERROR;
         }
-        GS_LOG_DEBUG_INF("[RESTORE] inc rst, compress datafile. start page:%u-%u,type:%u,count:%u write sucessfully",
+        CT_LOG_DEBUG_INF("[RESTORE] inc rst, compress datafile. start page:%u-%u,type:%u,count:%u write sucessfully",
             rst_assist.page_id.file, rst_assist.page_id.page, (uint32)page->type, rst_assist.page_count);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (DATAFILE_IS_PUNCHED(df) && attr->level == 1) {
-        if (rst_incr_write_punch_datafile(session, ctx, page, rst_assist) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RESTORE] failed to write punched datafile %s", df->ctrl->name);
-            return GS_ERROR;
+        if (rst_incr_write_punch_datafile(session, ctx, page, rst_assist) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to write punched datafile %s", df->ctrl->name);
+            return CT_ERROR;
         }
-        GS_LOG_DEBUG_INF("[RESTORE] inc rst, punched datafile. start page:%u-%u,type:%u,count:%u write sucessfully",
+        CT_LOG_DEBUG_INF("[RESTORE] inc rst, punched datafile. start page:%u-%u,type:%u,count:%u write sucessfully",
             rst_assist.page_id.file, rst_assist.page_id.page, (uint32)page->type, rst_assist.page_count);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     page_id_t page_id = rst_assist.page_id;
@@ -1256,11 +1260,11 @@ static status_t rst_save_continuous_pages(knl_session_t *session, bak_process_t 
     int64 offset = rst_assist.file_offset;
     int32 handle = ctx->datafiles[page_id.file];
 
-    if (cm_write_device(df->ctrl->type, handle, offset, page, DEFAULT_PAGE_SIZE(session) * page_count) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
-        return GS_ERROR;
+    if (cm_write_device(df->ctrl->type, handle, offset, page, DEFAULT_PAGE_SIZE(session) * page_count) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 #endif
 
@@ -1272,7 +1276,7 @@ status_t rst_save_pages(knl_session_t *session, bak_process_t *ctx, page_head_t 
     datafile_t *df = rst_assist.datafile;
     int32 handle = INVALID_FILE_HANDLE;
     int64 offset = rst_assist.file_offset;
-    uint64 fill_start = GS_INVALID_ID64;
+    uint64 fill_start = CT_INVALID_ID64;
     bak_context_t *bak_ctx = &session->kernel->backup_ctx;
     bak_stat_t *stat = &bak_ctx->bak.stat;
     bak_t *bak = &session->kernel->backup_ctx.bak;
@@ -1285,37 +1289,37 @@ status_t rst_save_pages(knl_session_t *session, bak_process_t *ctx, page_head_t 
     if (page_id.file == 0 && page_id.page == 0 && !DATAFILE_IS_COMPRESS(df)) {
         knl_panic_log(page_count == 1, "the page_count is abnormal, panic info: page %u-%u type %u, page_count %u",
                       page_id.file, page_id.page, page->type, page_count);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     brain_repair_filer_page_from_remote(session, page, page_count);
 
-    if (spc_open_datafile(session, df, &ctx->datafiles[page_id.file]) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to open datafile %s", df->ctrl->name);
-        return GS_ERROR;
+    if (spc_open_datafile(session, df, &ctx->datafiles[page_id.file]) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to open datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
     ctx->file_type[page_id.file] = df->ctrl->type;
     handle = ctx->datafiles[page_id.file];
 
     if (!BAK_FILE_NEED_PUNCH(df) && rst_fill_file_gap(df->ctrl->type, handle, (int64)fill_start,
-        (int64)page_id.page * DEFAULT_PAGE_SIZE(session), fill_buf, BACKUP_BUFFER_SIZE(bak)) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
-        return GS_ERROR;
+        (int64)page_id.page * DEFAULT_PAGE_SIZE(session), fill_buf, BACKUP_BUFFER_SIZE(bak)) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 
 #ifdef WIN32
-    if (cm_write_device(df->ctrl->type, handle, offset, page, DEFAULT_PAGE_SIZE(session) * page_count) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
-        return GS_ERROR;
+    if (cm_write_device(df->ctrl->type, handle, offset, page, DEFAULT_PAGE_SIZE(session) * page_count) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 #else
-    if (rst_save_continuous_pages(session, ctx, page, rst_assist) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
-        return GS_ERROR;
+    if (rst_save_continuous_pages(session, ctx, page, rst_assist) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 #endif
-    if (db_fdatasync_file(session, handle) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to fdatasync datafile %s", df->ctrl->name);
-        return GS_ERROR;
+    if (db_fdatasync_file(session, handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to fdatasync datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 
     (void)cm_atomic_inc(&stat->writes);
@@ -1329,9 +1333,9 @@ status_t rst_save_pages(knl_session_t *session, bak_process_t *ctx, page_head_t 
         build_progress->file_id = df->ctrl->id;
         build_progress->data_offset = (uint64)offset + DEFAULT_PAGE_SIZE(session) * page_count;
         build_progress->curr_file_index = bak->curr_file_index;
-        if (rst_update_track_file(session, bak, GS_FALSE) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[RESTORE] failed to update track file");
-            return GS_ERROR;
+        if (rst_update_track_file(session, bak, CT_FALSE) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to update track file");
+            return CT_ERROR;
         }
     }
 
@@ -1341,7 +1345,7 @@ status_t rst_save_pages(knl_session_t *session, bak_process_t *ctx, page_head_t 
         knl_panic_log((uint64)offset >= ctx->assign_ctrl.section_start, "panic info: page %u-%u type %u",
                       page_id.file, page_id.page, page->type);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static uint64 rst_get_punch_start(knl_session_t *session, bak_process_t *ctx, uint32 file_id, uint32 data_offset)
@@ -1383,46 +1387,46 @@ static status_t rst_try_punch_empty_pages(knl_session_t *session, bak_process_t 
     datafile_t *df = DATAFILE_GET(session, file_id);
 
     if (zero_pages_offsets == 0 || !BAK_FILE_NEED_PUNCH(df)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint64 punch_start = rst_get_punch_start(session, ctx, file_id, data_offset);
     uint64 punch_end = punch_start + zero_pages_offsets;
     if (punch_start % DEFAULT_PAGE_SIZE(session) != 0) {
-        GS_LOG_RUN_ERR("[RESTORE] datafile %s punch offset %llu is not an integral multiple of page size",
+        CT_LOG_RUN_ERR("[RESTORE] datafile %s punch offset %llu is not an integral multiple of page size",
             df->ctrl->name, punch_start);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    GS_LOG_DEBUG_INF("[RESTORE] punch datafile %s start page id %u-%u, total page num: %u",
+    CT_LOG_DEBUG_INF("[RESTORE] punch datafile %s start page id %u-%u, total page num: %u",
                      df->ctrl->name, file_id, (uint32)punch_start / DEFAULT_PAGE_SIZE(session),
                      zero_pages_offsets / DEFAULT_PAGE_SIZE(session));
 
-    if (spc_open_datafile(session, df, &ctx->datafiles[file_id]) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to open datafile %s", df->ctrl->name);
-        return GS_ERROR;
+    if (spc_open_datafile(session, df, &ctx->datafiles[file_id]) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to open datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
     ctx->file_type[file_id] = df->ctrl->type;
 
     if (rst_fill_file_gap(df->ctrl->type, ctx->datafiles[file_id], (int64)punch_start,
-        (int64)punch_end, fill_buf, BACKUP_BUFFER_SIZE(bak)) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
-        return GS_ERROR;
+        (int64)punch_end, fill_buf, BACKUP_BUFFER_SIZE(bak)) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to write datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 
-    if (cm_file_punch_hole(ctx->datafiles[file_id], punch_start, punch_end - punch_start) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[RESTORE] failed to punch datafile %s start page_id %u-%u, total page num: %u",
+    if (cm_file_punch_hole(ctx->datafiles[file_id], punch_start, punch_end - punch_start) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to punch datafile %s start page_id %u-%u, total page num: %u",
                        df->ctrl->name, file_id, (uint32)punch_start / DEFAULT_PAGE_SIZE(session),
                        zero_pages_offsets / DEFAULT_PAGE_SIZE(session));
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void rst_build_wait_write_datafile(knl_session_t *session, bak_t *bak, bool32 *skip_write)
 {
     bak_stage_t *stage = &bak->progress.build_progress.stage;
     if (bak_get_build_stage(stage) > BUILD_DATA_STAGE) {
-        *skip_write = GS_TRUE;
+        *skip_write = CT_TRUE;
         return;
     }
 
@@ -1431,7 +1435,7 @@ static void rst_build_wait_write_datafile(knl_session_t *session, bak_t *bak, bo
             cm_sleep(1);
         } else {
             // For breakpoint build when the standby is disconnected before receiving a complete archive log.
-            *skip_write = GS_TRUE;
+            *skip_write = CT_TRUE;
             return;
         }
     }
@@ -1439,8 +1443,8 @@ static void rst_build_wait_write_datafile(knl_session_t *session, bak_t *bak, bo
     bak->progress.build_progress.stage = bak->progress.stage;
     bak->progress.build_progress.curr_file_index = bak->curr_file_index;
     bak->progress.build_progress.data_offset = DEFAULT_PAGE_SIZE(session);
-    if (rst_update_track_file(session, bak, bak->is_first_link) != GS_SUCCESS) {
-        bak->failed = GS_TRUE;
+    if (rst_update_track_file(session, bak, bak->is_first_link) != CT_SUCCESS) {
+        bak->failed = CT_TRUE;
     }
 }
 
@@ -1459,16 +1463,16 @@ status_t rst_restore_datafile(knl_session_t *session, bak_t *bak, bak_process_t 
     rst_assist_t rst_assist;
     rst_assist.page_count = 1;
     if (rst_verify_datafile_checksum(session, ctx, buf, (uint32)ctx->read_size / DEFAULT_PAGE_SIZE(session),
-                                     filename) != GS_SUCCESS) {
-        return GS_ERROR;
+                                     filename) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     while (!bak->failed && data_offset < (uint32)ctx->read_size) {
         if (attr->level == 0) {
             zero_pages_offsets = rst_skip_empty_pages(buf + data_offset, (uint32)ctx->read_size - data_offset,
                 DEFAULT_PAGE_SIZE(session));
-            if (rst_try_punch_empty_pages(session, ctx, data_offset, zero_pages_offsets) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rst_try_punch_empty_pages(session, ctx, data_offset, zero_pages_offsets) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             data_offset += zero_pages_offsets;
             if (data_offset >= (uint32)ctx->read_size) {
@@ -1480,8 +1484,8 @@ status_t rst_restore_datafile(knl_session_t *session, bak_t *bak, bak_process_t 
         rst_assist.file_offset = (int64)rst_assist.page_id.page * DEFAULT_PAGE_SIZE(session);
         rst_assist.page_count = rst_calc_ordered_pages(buf + data_offset, (uint32)ctx->read_size - data_offset,
             DEFAULT_PAGE_SIZE(session));
-        if (rst_save_pages(session, ctx, (page_head_t *)(buf + data_offset), rst_assist) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_save_pages(session, ctx, (page_head_t *)(buf + data_offset), rst_assist) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         /* page_count <= ctx->read_size / DEFAULT_PAGE_SIZE(session), data_offset cannot overflow */
@@ -1489,7 +1493,7 @@ status_t rst_restore_datafile(knl_session_t *session, bak_t *bak, bak_process_t 
         zero_pages_offsets = 0;
     }
 
-    return bak->failed ? GS_ERROR : GS_SUCCESS;
+    return bak->failed ? CT_ERROR : CT_SUCCESS;
 }
 
 static status_t rst_restore_datafiles(knl_session_t *session, bak_context_t *ctx, bak_process_t *write_ctx)
@@ -1497,7 +1501,7 @@ static status_t rst_restore_datafiles(knl_session_t *session, bak_context_t *ctx
     bak_t *bak = &ctx->bak;
     int32 left_offset;
     errno_t ret;
-    bool32 skip_write = GS_FALSE;
+    bool32 skip_write = CT_FALSE;
 
     if (BAK_IS_FULL_BUILDING(bak)) {
         rst_build_wait_write_datafile(session, bak, &skip_write);
@@ -1506,7 +1510,7 @@ static status_t rst_restore_datafiles(knl_session_t *session, bak_context_t *ctx
     }
 
     if (skip_write) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     while (!bak->failed && bak->progress.stage == BACKUP_DATA_STAGE) {
@@ -1520,8 +1524,8 @@ static status_t rst_restore_datafiles(knl_session_t *session, bak_context_t *ctx
         write_ctx->read_size -= write_ctx->left_size;
 
         if (rst_restore_datafile(session, bak, write_ctx, write_ctx->backup_buf.aligned_buf,
-                                 bak->local.name) != GS_SUCCESS) {
-            return GS_ERROR;
+                                 bak->local.name) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (write_ctx->left_size > 0) {
@@ -1533,7 +1537,7 @@ static status_t rst_restore_datafiles(knl_session_t *session, bak_context_t *ctx
         write_ctx->read_size = 0;
     }
 
-    return bak->failed ? GS_ERROR : GS_SUCCESS;
+    return bak->failed ? CT_ERROR : CT_SUCCESS;
 }
 
 static status_t rst_regist_archive(knl_session_t *session, uint32 *last_arvhied_asn)
@@ -1542,48 +1546,46 @@ static status_t rst_regist_archive(knl_session_t *session, uint32 *last_arvhied_
     uint32 rst_id = db->ctrl.core.resetlogs.rst_id;
     uint32 archive_asn = *last_arvhied_asn + 1;
 
-    if (arch_try_regist_archive(session, rst_id, &archive_asn) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (arch_try_regist_archive(session, rst_id, &archive_asn) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     *last_arvhied_asn = archive_asn - 1;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t arch_try_regist_archive_by_dbstor(knl_session_t *session, uint32 *asn, uint32 rst_id,
                                            uint64 start_lsn, uint64 end_lsn, uint32 inst_id)
 {
-    char file_name[GS_FILE_NAME_BUFFER_SIZE] = { 0 };
-    bool32 is_first = GS_TRUE;
-    uint64 find_lsn;
-    uint64 next_lsn;
-    uint32 next_asn;
+    char file_name[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
+    bool32 is_first = CT_TRUE;
+    arch_file_name_info_t file_name_info = {rst_id, *asn, inst_id, CT_FILE_NAME_BUFFER_SIZE,
+                                            start_lsn, end_lsn, file_name};
+    uint64 *find_lsn = &file_name_info.start_lsn;
 
     for (;;) {
         if (is_first) {
-            arch_set_archive_log_name_with_lsn(session, rst_id, *asn, ARCH_DEFAULT_DEST, file_name,
-                                               GS_FILE_NAME_BUFFER_SIZE, inst_id, start_lsn, end_lsn);
-            find_lsn = end_lsn + 1;
-            is_first = GS_FALSE;
+            arch_set_archive_log_name_with_lsn(session, ARCH_DEFAULT_DEST, &file_name_info);
+            *find_lsn = file_name_info.end_lsn + 1;
+            is_first = CT_FALSE;
         } else {
-            status_t status = arch_find_archive_log_name(session, rst_id, inst_id, find_lsn, file_name,
-                                                         GS_FILE_NAME_BUFFER_SIZE, &next_lsn, &next_asn);
-            if (status != GS_SUCCESS) {
-                return GS_SUCCESS;
+            status_t status = arch_find_archive_log_name(session, &file_name_info);
+            if (status != CT_SUCCESS) {
+                return CT_SUCCESS;
             }
-            find_lsn = next_lsn + 1;
+            *find_lsn = file_name_info.end_lsn + 1;
         }
 
         if (!cm_exist_device(cm_device_type(file_name), file_name)) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (arch_regist_archive(session, file_name) != GS_SUCCESS) {
-                return GS_ERROR;
+        if (arch_regist_archive(session, file_name) != CT_SUCCESS) {
+                return CT_ERROR;
         }
-        *asn = next_asn;
+        *asn = file_name_info.asn;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_regist_archive_by_dbstor(knl_session_t *session, uint32 *last_archived_asn)
@@ -1593,20 +1595,20 @@ static status_t rst_regist_archive_by_dbstor(knl_session_t *session, uint32 *las
     int32 file_index = bak->file_count - 1;
 
     if (file_index < 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     
     if (bak->files[file_index].type != BACKUP_ARCH_FILE) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     
     if (arch_try_regist_archive_by_dbstor(session, last_archived_asn, bak->files[file_index].rst_id,
                                           bak->files[file_index].start_lsn, bak->files[file_index].end_lsn,
-                                          bak->files[file_index].inst_id) != GS_ERROR) {
-        return GS_ERROR;
+                                          bak->files[file_index].inst_id) != CT_ERROR) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_build_wait_head(knl_session_t *session)
@@ -1614,16 +1616,16 @@ static status_t rst_build_wait_head(knl_session_t *session)
     bak_t *bak = &session->kernel->backup_ctx.bak;
 
     if (!bak->is_building) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     while (!bak->failed && !bak->head_is_built) {
-        if (bak_check_session_status(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_check_session_status(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         cm_sleep(1);
     }
-    return bak->failed ? GS_ERROR : GS_SUCCESS;
+    return bak->failed ? CT_ERROR : CT_SUCCESS;
 }
 
 static void get_asn_and_file_id(knl_session_t *session, uint32 file_index, uint32* asn, uint32* file_id)
@@ -1635,7 +1637,7 @@ static void get_asn_and_file_id(knl_session_t *session, uint32 file_index, uint3
         *asn = ctrlinfo->lrp_point.asn;
         if (DB_IS_RAFT_ENABLED(session->kernel)) {
             *file_id = bak->log_first_slot; // for raft, standby log slot must be same as primary log slot
-            GS_LOG_RUN_INF("[RESTORE] raft log fisrt is %u", *file_id);
+            CT_LOG_RUN_INF("[RESTORE] raft log fisrt is %u", *file_id);
         }
     } else {
         *asn = ctrlinfo->lrp_point.asn - 1;
@@ -1651,7 +1653,7 @@ void rst_update_process_data_size(knl_session_t *session, bak_context_t *ctx)
     uint32 i;
     logfile_set_t *logfile_set = MY_LOGFILE_SET(session);
 
-    for (i = 0; i < GS_MAX_DATA_FILES; i++) {
+    for (i = 0; i < CT_MAX_DATA_FILES; i++) {
         datafile = &kernel->db.datafiles[i];
         if (!datafile->ctrl->used || !DATAFILE_IS_ONLINE(datafile)) {
             continue;
@@ -1679,7 +1681,7 @@ static status_t rst_amend_files(knl_session_t *session, uint32 last_log_index)
     bak_context_t *ctx = &session->kernel->backup_ctx;
     bak_t *bak = &ctx->bak;
     uint32 bak_last_asn;
-    uint32 log_first = GS_INVALID_ID32;
+    uint32 log_first = CT_INVALID_ID32;
     uint32 last_archived_asn;
     uint64 data_size;
 
@@ -1689,7 +1691,7 @@ static status_t rst_amend_files(knl_session_t *session, uint32 last_log_index)
 
     /* it just return after extending the datafile to repair when restore the specifical file */
     if (ctx->bak.rst_file.file_type == RESTORE_DATAFILE) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     bool32 is_dbstor = BAK_IS_DBSOTR(bak);
@@ -1701,25 +1703,25 @@ static status_t rst_amend_files(knl_session_t *session, uint32 last_log_index)
         if (is_dbstor) {
             last_archived_asn = 0;
             bak_last_asn = last_archived_asn;
-            if (rst_regist_archive_by_dbstor(session, &last_archived_asn) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rst_regist_archive_by_dbstor(session, &last_archived_asn) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
             bak_last_asn = last_archived_asn;
-            if (rst_regist_archive(session, &last_archived_asn) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rst_regist_archive(session, &last_archived_asn) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         if (last_archived_asn != bak_last_asn) {
-            log_first = GS_INVALID_ID32; // database has more archived logfiles, reset first online log index
+            log_first = CT_INVALID_ID32; // database has more archived logfiles, reset first online log index
         }
     }
 
-    if (rst_amend_ctrlinfo(session, last_archived_asn + 1, log_first) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_amend_ctrlinfo(session, last_archived_asn + 1, log_first) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 char *rst_fetch_filename(bak_t *bak)
@@ -1727,10 +1729,10 @@ char *rst_fetch_filename(bak_t *bak)
     int32 pos = bak->depend_num - bak->curr_id;
 
     if (bak->depend_num > 0 && pos > 0) {
-        GS_LOG_DEBUG_INF("[BACKUP]depend_num2 %u, file dest %s", pos, (bak->depends + pos - 1)->file_dest);
+        CT_LOG_DEBUG_INF("[BACKUP]depend_num2 %u, file dest %s", pos, (bak->depends + pos - 1)->file_dest);
         return (bak->depends + pos - 1)->file_dest;
     }
-    GS_LOG_DEBUG_INF("[BACKUP]depend_num3 %u, record path %s", pos, bak->record.path);
+    CT_LOG_DEBUG_INF("[BACKUP]depend_num3 %u, record path %s", pos, bak->record.path);
     return bak->record.path;
 }
 
@@ -1747,24 +1749,24 @@ static void rst_write_all_files(knl_session_t *session, bak_t *bak, bak_process_
 
     while (!bak->failed) {
         if (RST_NEED_RESTORE_CTRLFILE(bak)) {
-            if (rst_restore_ctrlfiles(session) != GS_SUCCESS) {
-                bak->failed = GS_TRUE;
+            if (rst_restore_ctrlfiles(session) != CT_SUCCESS) {
+                bak->failed = CT_TRUE;
                 break;
             }
         }
 
         if (RST_NEED_RESTORE_DATAFILE(bak)) {
-            if (rst_create_datafiles(session, write_ctx) != GS_SUCCESS) {
-                bak->failed = GS_TRUE;
+            if (rst_create_datafiles(session, write_ctx) != CT_SUCCESS) {
+                bak->failed = CT_TRUE;
                 break;
             }
-            GS_LOG_RUN_INF("[RESTORE] create datafiles finished");
+            CT_LOG_RUN_INF("[RESTORE] create datafiles finished");
 
-            if (rst_restore_datafiles(session, ctx, write_ctx) != GS_SUCCESS) {
-                bak->failed = GS_TRUE;
+            if (rst_restore_datafiles(session, ctx, write_ctx) != CT_SUCCESS) {
+                bak->failed = CT_TRUE;
                 break;
             }
-            GS_LOG_RUN_INF("[RESTORE] restore datafiles finished");
+            CT_LOG_RUN_INF("[RESTORE] restore datafiles finished");
         }
 
         while (!bak->failed && bak->progress.stage == BACKUP_DATA_STAGE) {
@@ -1777,10 +1779,10 @@ static void rst_write_all_files(knl_session_t *session, bak_t *bak, bak_process_
     }
     // ensure start msg and curr_file_index have been updated with BACKUP_LOG_STAGE by read thread
     if (!bak->failed && RST_NEED_RESTORE_ARCHFILE(bak)) {
-        if (rst_restore_logfiles(session, last_log_index) != GS_SUCCESS) {
-            bak->failed = GS_TRUE;
+        if (rst_restore_logfiles(session, last_log_index) != CT_SUCCESS) {
+            bak->failed = CT_TRUE;
         }
-        GS_LOG_RUN_INF("[RESTORE] restore logfiles finished, current backupset %s", rst_fetch_filename(bak));
+        CT_LOG_RUN_INF("[RESTORE] restore logfiles finished, current backupset %s", rst_fetch_filename(bak));
     }
 }
 
@@ -1792,7 +1794,7 @@ void rst_write_proc(thread_t *thread)
     bak_t *bak = &ctx->bak;
     build_progress_t *build_progress = &bak->progress.build_progress;
     uint32 i;
-    uint32 last_log_index = GS_INVALID_ID32;
+    uint32 last_log_index = CT_INVALID_ID32;
 
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
     rst_write_all_files(session, bak, write_ctx, &last_log_index);
@@ -1802,28 +1804,28 @@ void rst_write_proc(thread_t *thread)
             last_log_index = build_progress->curr_file_index;
         }
 
-        if (rst_build_wait_head(session) != GS_SUCCESS) {
-            bak->failed = GS_TRUE;
+        if (rst_build_wait_head(session) != CT_SUCCESS) {
+            bak->failed = CT_TRUE;
         }
-        GS_LOG_RUN_INF("[RESTORE] all files have heen written");
+        CT_LOG_RUN_INF("[RESTORE] all files have heen written");
 
-        if (rst_delete_track_file(session, bak, GS_FALSE) != GS_SUCCESS) {
-            bak->failed = GS_TRUE;
+        if (rst_delete_track_file(session, bak, CT_FALSE) != CT_SUCCESS) {
+            bak->failed = CT_TRUE;
         }
 
         if (session->kernel->attr.clustered) {
-            if (dtc_rst_amend_files(session, bak->file_count - 1) != GS_SUCCESS) {
-                bak->failed = GS_TRUE;
+            if (dtc_rst_amend_files(session, bak->file_count - 1) != CT_SUCCESS) {
+                bak->failed = CT_TRUE;
             }
         } else {
-            if (rst_amend_files(session, last_log_index) != GS_SUCCESS) {
-                bak->failed = GS_TRUE;
+            if (rst_amend_files(session, last_log_index) != CT_SUCCESS) {
+                bak->failed = CT_TRUE;
             }
         }
     }
 
     bak->progress.stage = BACKUP_WRITE_FINISHED;
-    for (i = 0; i < GS_MAX_DATA_FILES; i++) {
+    for (i = 0; i < CT_MAX_DATA_FILES; i++) {
         cm_close_device(write_ctx->file_type[i], &write_ctx->datafiles[i]);
         write_ctx->datafile_name[i][0] = '\0';
     }
@@ -1840,63 +1842,64 @@ static status_t rst_set_params(bak_t *bak, knl_restore_t *param)
 {
     errno_t ret;
 
-    bak->is_building = GS_FALSE;
-    bak->is_first_link = GS_TRUE;
-    bak->need_check = GS_FALSE;
+    bak->is_building = CT_FALSE;
+    bak->is_first_link = CT_TRUE;
+    bak->need_check = CT_FALSE;
 
-    (void)cm_text2str(&param->path, bak->record.path, GS_FILE_NAME_BUFFER_SIZE);
-    (void)cm_text2str(&param->policy, bak->record.policy, GS_BACKUP_PARAM_SIZE);
+    (void)cm_text2str(&param->path, bak->record.path, CT_FILE_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&param->policy, bak->record.policy, CT_BACKUP_PARAM_SIZE);
     bak->record.device = param->device;
     bak->record.data_type = knl_dbs_is_enable_dbs() ? DATA_TYPE_DBSTOR : DATA_TYPE_FILE;
     bak->proc_count = param->parallelism == 0 ? BAK_DEFAULT_PARALLELISM : param->parallelism;
     bak->encrypt_info.encrypt_alg = param->crypt_info.encrypt_alg;
-    (void)cm_text2str(&param->spc_name, bak->spc_name, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&param->spc_name, bak->spc_name, CT_NAME_BUFFER_SIZE);
 
     if (bak->encrypt_info.encrypt_alg != ENCRYPT_NONE) {
-        ret = strncpy_sp(bak->password, GS_PASSWORD_BUFFER_SIZE, param->crypt_info.password,
+        ret = strncpy_sp(bak->password, CT_PASSWORD_BUFFER_SIZE, param->crypt_info.password,
                          strlen(param->crypt_info.password));
         knl_securec_check(ret);
         bak_replace_password(param->crypt_info.password);
     }
     bak->backup_buf_size = param->buffer_size;
-
-    return GS_SUCCESS;
+    bak->repair_type = param->repair_type;
+    CT_RETURN_IFERR(srv_get_param_bool32("RESTOR_ARCH_PREFER_BAK_SET", &bak->prefer_bak_set));
+    return CT_SUCCESS;
 }
 
 status_t rst_alloc_resource(knl_session_t *session, bak_t *bak)
 {
-    char uds_path[GS_FILE_NAME_BUFFER_SIZE];
+    char uds_path[CT_FILE_NAME_BUFFER_SIZE];
     int32 ret;
 
     /* malloc space for bak->backup_buf,bak->depends and bak->compress_buf at once, so it is multiplied by 3 */
-    if (cm_aligned_malloc(BACKUP_BUFFER_SIZE(bak) * 3, "bak buffer", &bak->align_buf) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)BACKUP_BUFFER_SIZE(bak) * 3, "backup");
-        return GS_ERROR;
+    if (cm_aligned_malloc(BACKUP_BUFFER_SIZE(bak) * 3, "bak buffer", &bak->align_buf) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)BACKUP_BUFFER_SIZE(bak) * 3, "backup");
+        return CT_ERROR;
     }
     bak->backup_buf = bak->align_buf.aligned_buf;
     bak->depends = (bak_dependence_t *)(bak->backup_buf + BACKUP_BUFFER_SIZE(bak));
-    /* 2 * GS_BACKUP_BUFFER_SIZE for size of bak->backup_buf and size of bak->depends */
+    /* 2 * CT_BACKUP_BUFFER_SIZE for size of bak->backup_buf and size of bak->depends */
     bak->compress_buf = bak->backup_buf + 2 * BACKUP_BUFFER_SIZE(bak);
 
     if (BAK_IS_UDS_DEVICE(bak)) {
-        ret = sprintf_s(uds_path, GS_FILE_NAME_BUFFER_SIZE, BAK_SUN_PATH_FORMAT,
+        ret = sprintf_s(uds_path, CT_FILE_NAME_BUFFER_SIZE, BAK_SUN_PATH_FORMAT,
             session->kernel->home, session->kernel->instance_name);
         knl_securec_check_ss(ret);
-        if (bak_init_uds(&bak->remote.uds_link, uds_path) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_init_uds(&bak->remote.uds_link, uds_path) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     // recv_stream buffers are released in bak_end
-    if (cm_aligned_malloc(BACKUP_BUFFER_SIZE(bak), "rst stream buf0", &bak->recv_stream.bufs[0]) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_aligned_malloc(BACKUP_BUFFER_SIZE(bak), "rst stream buf0", &bak->recv_stream.bufs[0]) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (cm_aligned_malloc(BACKUP_BUFFER_SIZE(bak), "rst stream buf1", &bak->recv_stream.bufs[1]) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_aligned_malloc(BACKUP_BUFFER_SIZE(bak), "rst stream buf1", &bak->recv_stream.bufs[1]) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     bak->recv_stream.buf_size = BACKUP_BUFFER_SIZE(bak);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_alloc_write_resource(bak_process_t *common_proc)
@@ -1907,9 +1910,9 @@ static status_t rst_alloc_write_resource(bak_process_t *common_proc)
 
     /* malloc space for ctx->backup_buf and ctx->fill_buf at once, so it is multiplied by 2 */
     if (cm_aligned_malloc((int64)BACKUP_BUFFER_SIZE(bak) * 2, "backup process",
-        &common_proc->backup_buf) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)BACKUP_BUFFER_SIZE(bak) * 2, "backup process");
-        return GS_ERROR;
+        &common_proc->backup_buf) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)BACKUP_BUFFER_SIZE(bak) * 2, "backup process");
+        return CT_ERROR;
     }
 
     common_proc->fill_buf = common_proc->backup_buf.aligned_buf + BACKUP_BUFFER_SIZE(bak);
@@ -1917,30 +1920,78 @@ static status_t rst_alloc_write_resource(bak_process_t *common_proc)
     knl_securec_check(ret);
 
     if (cm_aligned_malloc((int64)BACKUP_BUFFER_SIZE(bak), "backup process", &common_proc->encrypt_ctx.encrypt_buf) !=
-        GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)BACKUP_BUFFER_SIZE(bak), "backup process");
-        return GS_ERROR;
+        CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)BACKUP_BUFFER_SIZE(bak), "backup process");
+        return CT_ERROR;
     }
 
     if (cm_aligned_malloc((int64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process",
-        &common_proc->table_compress_ctx.read_buf) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process");
-        return GS_ERROR;
+        &common_proc->table_compress_ctx.read_buf) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process");
+        return CT_ERROR;
     }
 
     if (cm_aligned_malloc((int64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process",
-        &common_proc->table_compress_ctx.unzip_buf) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process");
-        return GS_ERROR;
+        &common_proc->table_compress_ctx.unzip_buf) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process");
+        return CT_ERROR;
     }
 
     if (cm_aligned_malloc((int64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process",
-        &common_proc->table_compress_ctx.zip_buf) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process");
-        return GS_ERROR;
+        &common_proc->table_compress_ctx.zip_buf) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+status_t rst_init_paral_proc_resource(bak_process_t *common_proc, bak_process_t *proc, bak_context_t *ctx, uint32 i)
+{
+    knl_session_t *session = common_proc->session;
+    proc->read_size = 0;
+    proc->write_size = 0;
+    proc->left_size = 0;
+    proc->proc_id = i;
+    proc->is_free = CT_FALSE;
+    proc->read_failed = CT_FALSE;
+    proc->write_failed = CT_FALSE;
+    proc->read_execute = CT_FALSE;
+    proc->fill_buf = common_proc->fill_buf;
+    if (cm_aligned_malloc((int64)BACKUP_BUFFER_SIZE(&ctx->bak), "restore process", &proc->backup_buf) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (bak_init_rw_buf(proc, (int64)BACKUP_BUFFER_SIZE(&ctx->bak), "RESTORE") != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)BACKUP_BUFFER_SIZE(&ctx->bak), "restore process");
+        return CT_ERROR;
+    }
+    if (cm_aligned_malloc((int64)BACKUP_BUFFER_SIZE(&ctx->bak), "restore process",
+        &proc->compress_ctx.compress_buf) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (cm_aligned_malloc((int64)BACKUP_BUFFER_SIZE(&ctx->bak), "restore process",
+        &proc->encrypt_ctx.encrypt_buf) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (cm_aligned_malloc((int64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "restore process",
+        &proc->table_compress_ctx.read_buf) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    if (cm_aligned_malloc((int64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "restore process",
+        &proc->table_compress_ctx.unzip_buf) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (cm_aligned_malloc((int64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "restore process",
+        &proc->table_compress_ctx.zip_buf) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (cm_create_thread(rst_paral_task_write_proc, 0, proc, &proc->write_thread) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (cm_create_thread(bak_paral_task_proc, 0, proc, &proc->thread) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
 }
 
 status_t rst_start_write_thread(bak_process_t *common_proc)
@@ -1948,79 +1999,33 @@ status_t rst_start_write_thread(bak_process_t *common_proc)
     bak_context_t *backup_ctx = &common_proc->session->kernel->backup_ctx;
     bak_process_t *proc = NULL;
     uint32 proc_count = backup_ctx->bak.proc_count;
-    knl_session_t *session = common_proc->session;
 
     common_proc->read_size = 0;
     common_proc->write_size = 0;
     common_proc->left_size = 0;
     common_proc->proc_id = BAK_COMMON_PROC;
 
-    if (rst_alloc_write_resource(common_proc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_alloc_write_resource(common_proc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cm_create_thread(rst_write_proc, 0, common_proc, &common_proc->thread) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_create_thread(rst_write_proc, 0, common_proc, &common_proc->thread) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!bak_paral_task_enable(common_proc->session)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (uint32 i = 1; i <= proc_count; i++) {
         proc = &backup_ctx->process[i];
-        proc->read_size = 0;
-        proc->write_size = 0;
-        proc->left_size = 0;
-        proc->proc_id = i;
-        proc->is_free = GS_FALSE;
-        proc->fill_buf = common_proc->fill_buf;
-
-        if (cm_aligned_malloc((int64)BACKUP_BUFFER_SIZE(&backup_ctx->bak), "backup process",
-            &proc->backup_buf) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)BACKUP_BUFFER_SIZE(&backup_ctx->bak), "backup process");
-            return GS_ERROR;
-        }
-
-        if (cm_aligned_malloc((int64)BACKUP_BUFFER_SIZE(&backup_ctx->bak), "backup process",
-            &proc->compress_ctx.compress_buf) !=
-                              GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)BACKUP_BUFFER_SIZE(&backup_ctx->bak), "backup process");
-            return GS_ERROR;
-        }
-
-        if (cm_aligned_malloc((int64)BACKUP_BUFFER_SIZE(&backup_ctx->bak), "backup process",
-            &proc->encrypt_ctx.encrypt_buf) !=
-            GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)BACKUP_BUFFER_SIZE(&backup_ctx->bak), "backup process");
-            return GS_ERROR;
-        }
-
-        if (cm_aligned_malloc((int64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process",
-            &proc->table_compress_ctx.read_buf) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process");
-                return GS_ERROR;
-            }
-
-        if (cm_aligned_malloc((int64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process",
-            &proc->table_compress_ctx.unzip_buf) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process");
-            return GS_ERROR;
-        }
-
-        if (cm_aligned_malloc((int64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process",
-            &proc->table_compress_ctx.zip_buf) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "backup process");
-            return GS_ERROR;
-        }
-
-        if (cm_create_thread(bak_paral_task_proc, 0, proc, &proc->thread) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_init_paral_proc_resource(common_proc, proc, backup_ctx, i) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    bak_wait_paral_proc(common_proc->session, GS_FALSE);
-    return GS_SUCCESS;
+    bak_wait_paral_proc(common_proc->session, CT_FALSE);
+    return CT_SUCCESS;
 }
 
 status_t rst_prepare(knl_session_t *session, knl_restore_t *param)
@@ -2028,8 +2033,8 @@ status_t rst_prepare(knl_session_t *session, knl_restore_t *param)
     bak_context_t *ctx = &session->kernel->backup_ctx;
     bak_t *bak = &ctx->bak;
 
-    if (rst_set_params(bak, param) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_set_params(bak, param) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (param->file_type == RESTORE_ARCHFILE) {
@@ -2038,22 +2043,26 @@ status_t rst_prepare(knl_session_t *session, knl_restore_t *param)
 
     /* file repair does't need arch init */
     if (bak->rst_file.file_type != RESTORE_DATAFILE) {
-        if (arch_init(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (arch_init(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    bak_reset_process_ctrl(bak, GS_TRUE);
+    bak_reset_process_ctrl(bak, CT_TRUE);
     bak_reset_stats(session);
-    if (rst_alloc_resource(session, bak) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_alloc_resource(session, bak) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_start_write_thread(&ctx->process[BAK_COMMON_PROC]) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (badblock_init(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    if (rst_start_write_thread(&ctx->process[BAK_COMMON_PROC]) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
 }
 
 status_t rst_read_data(bak_context_t *ctx, void *buf, int32 buf_size, int32 *read_size, bool32 *end, uint64 file_offset)
@@ -2062,18 +2071,18 @@ status_t rst_read_data(bak_context_t *ctx, void *buf, int32 buf_size, int32 *rea
     bak_t *bak = &ctx->bak;
 
     if (ctx->bak.is_building || BAK_IS_UDS_DEVICE(bak)) {
-        if (rst_agent_read(&ctx->bak, (char *)buf, (uint32)buf_size, read_size, end) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_agent_read(&ctx->bak, (char *)buf, (uint32)buf_size, read_size, end) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         status_t s = cm_read_device_nocheck(ctx->bak.local.type, ctx->bak.local.handle,
                                             file_offset, buf, buf_size, read_size);
-        if (s != GS_SUCCESS) {
-            return GS_ERROR;
+        if (s != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (ctx->block_repairing) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
         (void)cm_atomic_inc(&stat->reads);
 
@@ -2081,18 +2090,18 @@ status_t rst_read_data(bak_context_t *ctx, void *buf, int32 buf_size, int32 *rea
     }
 
     bak_update_progress(&ctx->bak, (uint64)*read_size);
-    GS_LOG_DEBUG_INF("[RESTORE] read size :%u file name:%s", *read_size, bak->local.name);
-    return GS_SUCCESS;
+    CT_LOG_DEBUG_INF("[RESTORE] read size :%u file name:%s", *read_size, bak->local.name);
+    return CT_SUCCESS;
 }
 
 status_t rst_read_check_size(int32 read_size, int32 expect_size, const char *file_name)
 {
     if (read_size != expect_size) {
-        GS_LOG_RUN_ERR("[RESTORE] read incomplete data from %s", file_name);
-        GS_THROW_ERROR(ERR_READ_DEVICE_INCOMPLETE, read_size, expect_size);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[RESTORE] read incomplete data from %s", file_name);
+        CT_THROW_ERROR(ERR_READ_DEVICE_INCOMPLETE, read_size, expect_size);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_read_start(knl_session_t *session, bak_file_type_t file_type, uint32 file_index,
@@ -2113,35 +2122,35 @@ static status_t rst_read_start(knl_session_t *session, bak_file_type_t file_type
         bak->remote.remain_data_size = 0;
     } else if (BAK_IS_UDS_DEVICE(bak)) {
         read_type = bak_get_package_type(file_type);
-        if (bak_agent_file_start(bak, path, read_type, file_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_agent_file_start(bak, path, read_type, file_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         bak->remote.remain_data_size = 0;
     } else {
         bak_generate_bak_file(session, path, file_type, file_index, file_id, sec_id, bak->local.name);
         bak->local.type = cm_device_type(bak->local.name);
         if (cm_open_device(bak->local.name, bak->local.type, O_BINARY | O_SYNC | O_RDWR, &bak->local.handle) !=
-            GS_SUCCESS) {
-            return GS_ERROR;
+            CT_SUCCESS) {
+            return CT_ERROR;
         }
-        GS_LOG_RUN_INF("[RESTORE] file name:%s, type=%d, handle=%d",
+        CT_LOG_RUN_INF("[RESTORE] file name:%s, type=%d, handle=%d",
                        bak->local.name, bak->local.type, bak->local.handle);
     }
 
     if (file_type != BACKUP_HEAD_FILE && (attr->compress != COMPRESS_NONE)) {
-        if (knl_compress_init(bak->record.attr.compress, &bak->compress_ctx, GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_compress_init(bak->record.attr.compress, &bak->compress_ctx, CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (file_type != BACKUP_HEAD_FILE && (bak->encrypt_info.encrypt_alg != ENCRYPT_NONE)) {
         if (bak_encrypt_init(bak, &ctx->process[BAK_COMMON_PROC].encrypt_ctx, &bak->files[file_index],
-            GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+            CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_read_end(knl_session_t *session, bak_t *bak, bak_file_type_t file_type, bak_file_t *file)
@@ -2150,29 +2159,29 @@ static status_t rst_read_end(knl_session_t *session, bak_t *bak, bak_file_type_t
 
     if (bak->is_building) {
         if (file_type != BACKUP_HEAD_FILE && (bak->record.attr.compress != COMPRESS_NONE)) {
-            knl_compress_end(bak->record.attr.compress, &bak->compress_ctx, GS_FALSE);
+            knl_compress_end(bak->record.attr.compress, &bak->compress_ctx, CT_FALSE);
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else if (BAK_IS_UDS_DEVICE(bak)) {
-        if (bak_agent_send_pkg(bak, BAK_PKG_ACK) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_agent_send_pkg(bak, BAK_PKG_ACK) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         cm_close_device(bak->local.type, &bak->local.handle);
-        bak->local.handle = GS_INVALID_HANDLE;
+        bak->local.handle = CT_INVALID_HANDLE;
     }
 
     if (file_type != BACKUP_HEAD_FILE && (bak->record.attr.compress != COMPRESS_NONE)) {
-        knl_compress_end(bak->record.attr.compress, &bak->compress_ctx, GS_FALSE);
+        knl_compress_end(bak->record.attr.compress, &bak->compress_ctx, CT_FALSE);
     }
 
     if (file_type != BACKUP_HEAD_FILE && (bak->encrypt_info.encrypt_alg != ENCRYPT_NONE)) {
-        if (bak_decrypt_end(bak, &ctx->process[BAK_COMMON_PROC].encrypt_ctx, file, GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_decrypt_end(bak, &ctx->process[BAK_COMMON_PROC].encrypt_ctx, file, CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_check_encrypt_version(bak_t *bak, bak_head_t *head)
@@ -2181,28 +2190,28 @@ static status_t rst_check_encrypt_version(bak_t *bak, bak_head_t *head)
 
     // the backup set is encryption version
     if (bak->encrypt_info.encrypt_alg != head->encrypt_info.encrypt_alg) {
-        GS_THROW_ERROR(ERR_CRYPTION_ERROR,
+        CT_THROW_ERROR(ERR_CRYPTION_ERROR,
                        "the SQL statement does not match the encryption attribute of the backup set");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (head->encrypt_info.encrypt_alg != ENCRYPT_NONE) {
         cm_str2text(bak->password, &c_cipher);
         cm_str2text(head->sys_pwd, &s_cipher);
 
-        if (cm_check_password(&c_cipher, &s_cipher) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_CRYPTION_ERROR, "Authentication failure");
-            return GS_ERROR;
+        if (cm_check_password(&c_cipher, &s_cipher) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_CRYPTION_ERROR, "Authentication failure");
+            return CT_ERROR;
         }
 
         if (cm_encrypt_KDF2((uchar *)bak->password, (uint32)strlen(bak->password),
-            (uchar *)head->encrypt_info.salt, GS_KDF2SALTSIZE, GS_KDF2DEFITERATION,
-            (uchar *)bak->key, GS_AES256KEYSIZE) != GS_SUCCESS) {
-            return GS_ERROR;
+            (uchar *)head->encrypt_info.salt, CT_KDF2SALTSIZE, CT_KDF2DEFITERATION,
+            (uchar *)bak->key, CT_AES256KEYSIZE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rst_set_head(knl_session_t *session, bak_head_t *head, bool32 set_config)
@@ -2215,11 +2224,11 @@ status_t rst_set_head(knl_session_t *session, bak_head_t *head, bool32 set_confi
     attr->backup_type = head->attr.backup_type;
     attr->level = head->attr.level;
     attr->compress = head->attr.compress;
-    errno_t ret = strcpy_sp(attr->tag, GS_NAME_BUFFER_SIZE, head->attr.tag);
+    errno_t ret = strcpy_sp(attr->tag, CT_NAME_BUFFER_SIZE, head->attr.tag);
     knl_securec_check(ret);
 
-    if (rst_check_encrypt_version(bak, head) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_check_encrypt_version(bak, head) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     bak->file_count = bak->is_building ? bak->file_count : head->file_count;
@@ -2228,7 +2237,7 @@ status_t rst_set_head(knl_session_t *session, bak_head_t *head, bool32 set_confi
     ctrlinfo->scn = head->ctrlinfo.scn;
     ctrlinfo->lsn = head->ctrlinfo.lsn;
     if (session->kernel->attr.clustered) {
-        for (uint32 i = 0; i < GS_MAX_INSTANCES; i++) {
+        for (uint32 i = 0; i < CT_MAX_INSTANCES; i++) {
             ctrlinfo->dtc_rcy_point[i] = head->ctrlinfo.dtc_rcy_point[i];
             ctrlinfo->dtc_lrp_point[i] = head->ctrlinfo.dtc_lrp_point[i];
         }
@@ -2237,17 +2246,17 @@ status_t rst_set_head(knl_session_t *session, bak_head_t *head, bool32 set_confi
     bak->log_first_slot = head->log_fisrt_slot;
     bak->curr_file_index = 0;
     bak->ddl_pitr_lsn = head->ddl_pitr_lsn;
-    GS_LOG_RUN_INF("[RESTORE] get ddl pitr lsn %llu from backupset head", head->ddl_pitr_lsn);
+    CT_LOG_RUN_INF("[RESTORE] get ddl pitr lsn %llu from backupset head", head->ddl_pitr_lsn);
 
     if (!set_config) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (cm_alter_config(config, "CONTROL_FILES", head->control_files, CONFIG_SCOPE_BOTH, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_alter_config(config, "CONTROL_FILES", head->control_files, CONFIG_SCOPE_BOTH, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rst_restore_config_param(knl_session_t *session)
@@ -2255,97 +2264,97 @@ status_t rst_restore_config_param(knl_session_t *session)
     config_t *config = session->kernel->attr.config;
     bak_context_t *ctx = &session->kernel->backup_ctx;
     bak_t *bak = &ctx->bak;
-    bool32 read_end = GS_FALSE;
+    bool32 read_end = CT_FALSE;
     int32 read_size;
 
     if ((BAK_IS_FULL_BUILDING(bak) && !bak->is_first_link) || bak->record.is_repair) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (rst_read_data(ctx, bak->backup_buf, GS_MAX_CONFIG_LINE_SIZE, &read_size, &read_end, 0) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_data(ctx, bak->backup_buf, CT_MAX_CONFIG_LINE_SIZE, &read_size, &read_end, 0) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_read_check_size(read_size, (int32)GS_MAX_CONFIG_LINE_SIZE, "config") != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_check_size(read_size, (int32)CT_MAX_CONFIG_LINE_SIZE, "config") != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cm_alter_config(config, "CONTROL_FILES", bak->backup_buf, CONFIG_SCOPE_BOTH, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_alter_config(config, "CONTROL_FILES", bak->backup_buf, CONFIG_SCOPE_BOTH, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rst_wait_agent_process(bak_t *bak)
 {
     if (!bak->is_building && !BAK_IS_UDS_DEVICE(bak)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (bak_agent_wait_pkg(bak, BAK_PKG_FILE_END) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (bak_agent_wait_pkg(bak, BAK_PKG_FILE_END) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_restore_fileinfo(bak_context_t *ctx, bak_head_t *head, char *buf)
 {
-    bool32 read_end = GS_FALSE;
+    bool32 read_end = CT_FALSE;
     int32 read_size;
     int32 expect_size = bak_get_align_size(ctx->bak.local.type, head->file_count * sizeof(bak_file_t),
-                                           CM_GSS_ALIGN_SIZE);
-    uint32 head_size = bak_get_align_size(ctx->bak.local.type, sizeof(bak_head_t), CM_GSS_ALIGN_SIZE);
+                                           CM_CTSTORE_ALIGN_SIZE);
+    uint32 head_size = bak_get_align_size(ctx->bak.local.type, sizeof(bak_head_t), CM_CTSTORE_ALIGN_SIZE);
 
     if (head->file_count == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (head->file_count > BAK_MAX_FILE_NUM) {
-        GS_THROW_ERROR(ERR_INVALID_BACKUPSET, "invalid number of backupset file count");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_BACKUPSET, "invalid number of backupset file count");
+        return CT_ERROR;
     }
 
-    if (rst_read_data(ctx, buf, expect_size, &read_size, &read_end, head_size) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_data(ctx, buf, expect_size, &read_size, &read_end, head_size) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_read_check_size(read_size, expect_size, "backupset file items") != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_check_size(read_size, expect_size, "backupset file items") != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_restore_dependents(bak_context_t *ctx, bak_head_t *head, char *buf)
 {
-    bool32 read_end = GS_FALSE;
+    bool32 read_end = CT_FALSE;
     int32 read_size;
     int32 expect_size = bak_get_align_size(ctx->bak.local.type, head->depend_num * sizeof(bak_dependence_t),
-                                           CM_GSS_ALIGN_SIZE);
+                                           CM_CTSTORE_ALIGN_SIZE);
     uint32 head_size = bak_get_align_size(ctx->bak.local.type,
                                           sizeof(bak_head_t) + head->file_count * sizeof(bak_file_t),
-                                          CM_GSS_ALIGN_SIZE);
+                                          CM_CTSTORE_ALIGN_SIZE);
     if (head->depend_num == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (head->depend_num > BAK_MAX_INCR_NUM) {
-        GS_THROW_ERROR(ERR_INVALID_BACKUPSET, "invalid number of backupset depentdent count");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_BACKUPSET, "invalid number of backupset depentdent count");
+        return CT_ERROR;
     }
 
-    GS_LOG_DEBUG_INF("[BACKUP] read catalog");
-    if (rst_read_data(ctx, buf, expect_size, &read_size, &read_end, head_size) != GS_SUCCESS) {
-        return GS_ERROR;
+    CT_LOG_DEBUG_INF("[BACKUP] read catalog");
+    if (rst_read_data(ctx, buf, expect_size, &read_size, &read_end, head_size) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_read_check_size(read_size, expect_size, "backupset dependent items") != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_check_size(read_size, expect_size, "backupset dependent items") != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_set_backupset_info(knl_session_t *session, bak_t *bak, bak_head_t *head, bool32 fetch_catalog,
@@ -2355,30 +2364,30 @@ static status_t rst_set_backupset_info(knl_session_t *session, bak_t *bak, bak_h
     uint32 offset;
     bool32 set_config = !session->kernel->backup_ctx.block_repairing;
 
-    bak_free_compress_context(session, GS_FALSE); // for increment restore, need reset compress algorithm
+    bak_free_compress_context(session, CT_FALSE); // for increment restore, need reset compress algorithm
     bak_free_encrypt_context(session); // for increment restore, need reset encryption
-    if (rst_set_head(session, head, set_config) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_set_head(session, head, set_config) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (bak_alloc_compress_context(session, GS_FALSE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (bak_alloc_compress_context(session, CT_FALSE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (bak_alloc_encrypt_context(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (bak_alloc_encrypt_context(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    offset = bak_get_align_size(bak->local.type, version_head_size, CM_GSS_ALIGN_SIZE);
+    offset = bak_get_align_size(bak->local.type, version_head_size, CM_CTSTORE_ALIGN_SIZE);
     if (head->file_count > 0) {
         ret = memcpy_sp(bak->files, BAK_MAX_FILE_NUM * sizeof(bak_file_t), (char *)head + offset,
                         head->file_count * sizeof(bak_file_t));
         knl_securec_check(ret);
-        offset += bak_get_align_size(bak->local.type, bak->file_count * sizeof(bak_file_t), CM_GSS_ALIGN_SIZE);
+        offset += bak_get_align_size(bak->local.type, bak->file_count * sizeof(bak_file_t), CM_CTSTORE_ALIGN_SIZE);
     }
 
     if (!fetch_catalog) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (head->depend_num > 0) {
@@ -2388,7 +2397,7 @@ static status_t rst_set_backupset_info(knl_session_t *session, bak_t *bak, bak_h
     }
     bak->depend_num = head->depend_num;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rst_bakcup_version_check(bak_t *bak, bak_head_t *head, uint32 *left_size)
@@ -2397,25 +2406,25 @@ status_t rst_bakcup_version_check(bak_t *bak, bak_head_t *head, uint32 *left_siz
 
     if (version.major_ver != BAK_VERSION_MAJOR || version.min_ver != BAK_VERSION_MIN ||
         version.magic != BAK_VERSION_MAGIC) {
-        GS_LOG_RUN_WAR("[RESTORE] backupset version mismatch, expected %u-%u-%u, input is %u-%u-%u",
+        CT_LOG_RUN_WAR("[RESTORE] backupset version mismatch, expected %u-%u-%u, input is %u-%u-%u",
                        BAK_VERSION_MAJOR, BAK_VERSION_MIN, BAK_VERSION_MAGIC,
                        version.major_ver, version.min_ver, version.magic);
     }
 
     if (version.major_ver < BAK_VERSION_MIN_WITH_ENCRYPTION) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ", backupset version is too old");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ", backupset version is too old");
+        return CT_ERROR;
     }
 
     if (version.major_ver == BAK_VERSION_MIN_WITH_ENCRYPTION && version.min_ver == 0) {
-        bak->is_noparal_version = GS_TRUE;
+        bak->is_noparal_version = CT_TRUE;
         *left_size = sizeof(bak_old_version_head_t) - sizeof(bak_version_t);
     } else {
-        bak->is_noparal_version = GS_FALSE;
+        bak->is_noparal_version = CT_FALSE;
         *left_size = sizeof(bak_head_t) - sizeof(bak_version_t);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // only calc main version, for example version 1.0.0.sp001 return strlen(1.0.0)
@@ -2447,25 +2456,25 @@ status_t rst_db_version_check(knl_session_t *session, bak_t *bak, bak_head_t *he
     knl_attr_t *attr = &session->kernel->attr;
 
     if (!attr->restore_check_version) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (bak->is_noparal_version) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (rst_get_db_main_version_len(head->db_version) != rst_get_db_main_version_len(attr->db_version)) {
-        GS_LOG_RUN_ERR("[RESTORE] backupset version %s mismatch with db version %s",
+        CT_LOG_RUN_ERR("[RESTORE] backupset version %s mismatch with db version %s",
             head->db_version, attr->db_version);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (strncmp(head->db_version, attr->db_version, rst_get_db_main_version_len(head->db_version)) != 0) {
-        GS_LOG_RUN_ERR("[RESTORE] backupset version %s mismatch with db version %s",
+        CT_LOG_RUN_ERR("[RESTORE] backupset version %s mismatch with db version %s",
             head->db_version, attr->db_version);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -2478,25 +2487,25 @@ status_t rst_db_version_check(knl_session_t *session, bak_t *bak, bak_head_t *he
 static status_t rst_incremental_backset_tag_check(knl_session_t *session, bak_t *bak, bak_head_t *head)
 {
     if (session->kernel->backup_ctx.block_repairing) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (head->attr.level == 1 && !CM_IS_EMPTY_STR(bak->record.attr.tag) &&
         !cm_str_equal_ins(bak->record.attr.tag, head->attr.base_tag)) {
-        GS_THROW_ERROR_EX(ERR_INVALID_OPERATION,
+        CT_THROW_ERROR_EX(ERR_INVALID_OPERATION,
             ", backupset with tag %s expected base backupset tag to be %s but found %s.",
             head->attr.tag, head->attr.base_tag, bak->record.attr.tag);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_check_backupset(knl_session_t *session, bak_t *bak, bak_head_t *head)
 {
     if (head->attr.backup_type != BACKUP_MODE_FULL && BAK_IS_TABLESPCE_RESTORE(bak)) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION,
+        CT_THROW_ERROR(ERR_INVALID_OPERATION,
                        ", can not restore tablespace from backupset which is not full backupset");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /*
@@ -2507,42 +2516,42 @@ static status_t rst_check_backupset(knl_session_t *session, bak_t *bak, bak_head
      * incremental database backupset must be used for database restore.
      */
     if (head->attr.backup_type == BACKUP_MODE_FULL && bak->rst_file.file_type == RESTORE_ARCHFILE) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ", because it's a full database backupset");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ", because it's a full database backupset");
+        return CT_ERROR;
     }
 
-    if (head->attr.backup_type == BACKUP_MODE_INCREMENTAL && bak->rst_file.file_type != RESTORE_ALL) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ", because it's a incremental backupset");
-        return GS_ERROR;
+    if (BAK_MODE_IS_INCREMENTAL(head->attr.backup_type) && bak->rst_file.file_type != RESTORE_ALL) {
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ", because it's a incremental backupset");
+        return CT_ERROR;
     }
 
     if (head->attr.backup_type == BACKUP_MODE_TABLESPACE && bak->rst_file.file_type != RESTORE_DATAFILE) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ", because it's a tablespace backupset");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ", because it's a tablespace backupset");
+        return CT_ERROR;
     }
 
     if (head->attr.backup_type == BACKUP_MODE_ARCHIVELOG && bak->rst_file.file_type != RESTORE_ARCHFILE) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ", because it's a archivelog backupset");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ", because it's a archivelog backupset");
+        return CT_ERROR;
     }
 
-    if (rst_db_version_check(session, bak, head) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ", database version and backupset version do not match.");
-        return GS_ERROR;
+    if (rst_db_version_check(session, bak, head) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ", database version and backupset version do not match.");
+        return CT_ERROR;
     }
 
-    if (rst_incremental_backset_tag_check(session, bak, head) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_incremental_backset_tag_check(session, bak, head) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (BAK_IS_UDS_DEVICE(bak) && (head->max_buffer_size > bak->backup_buf_size)) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION,
+        CT_THROW_ERROR(ERR_INVALID_OPERATION,
             ", buffer size for restore(%u) cannot be smaller than buffer size for backup(%u).",
             bak->backup_buf_size, head->max_buffer_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rst_restore_backupset_head(knl_session_t *session, bool32 fetch_catalog)
@@ -2550,59 +2559,59 @@ status_t rst_restore_backupset_head(knl_session_t *session, bool32 fetch_catalog
     bak_context_t *ctx = &session->kernel->backup_ctx;
     bak_t *bak = &ctx->bak;
     bak_head_t *head = (bak_head_t *)bak->backup_buf;
-    bool32 read_end = GS_FALSE;
+    bool32 read_end = CT_FALSE;
     int32 read_size;
     uint32 head_size = 0;
     uint32 left_size; // head size without version : sizeof(bak_head_t) - sizeof(bak_version_t)
 
-    if (rst_read_data(ctx, bak->backup_buf, sizeof(bak_version_t), &read_size, &read_end, head_size) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_data(ctx, bak->backup_buf, sizeof(bak_version_t), &read_size, &read_end, head_size) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_read_check_size(read_size, (int32)sizeof(bak_version_t), "backupset version") != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_check_size(read_size, (int32)sizeof(bak_version_t), "backupset version") != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (rst_bakcup_version_check(bak, head, &left_size) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_bakcup_version_check(bak, head, &left_size) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     head_size = sizeof(bak_version_t);
-    if (rst_read_data(ctx, bak->backup_buf + head_size, left_size, &read_size, &read_end, head_size) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_data(ctx, bak->backup_buf + head_size, left_size, &read_size, &read_end, head_size) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_read_check_size(read_size, (int32)left_size, "backupset head") != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_check_size(read_size, (int32)left_size, "backupset head") != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     head_size += left_size;
-    if (bak_head_verify_checksum(session, head, (uint32)head_size, GS_FALSE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (bak_head_verify_checksum(session, head, (uint32)head_size, CT_FALSE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_check_backupset(session, bak, head) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_check_backupset(session, bak, head) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_restore_fileinfo(ctx, head, bak->backup_buf + head_size) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_restore_fileinfo(ctx, head, bak->backup_buf + head_size) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     head_size += head->file_count * sizeof(bak_file_t);
-    if (rst_restore_dependents(ctx, head, bak->backup_buf + head_size) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_restore_dependents(ctx, head, bak->backup_buf + head_size) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     head_size += head->depend_num * sizeof(bak_dependence_t);
-    if (bak_head_verify_checksum(session, head, head_size, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (bak_head_verify_checksum(session, head, head_size, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_set_backupset_info(session, bak, head, fetch_catalog, left_size + sizeof(bak_version_t)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_set_backupset_info(session, bak, head, fetch_catalog, left_size + sizeof(bak_version_t)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_read_head_file(knl_session_t *session, bool32 fetch_catalog)
@@ -2614,23 +2623,23 @@ static status_t rst_read_head_file(knl_session_t *session, bool32 fetch_catalog)
     data_size = sizeof(bak_head_t) + BAK_MAX_FILE_NUM * sizeof(bak_file_t);
     bak_set_progress(session, BACKUP_HEAD_STAGE, data_size);
 
-    if (rst_read_start(session, BACKUP_HEAD_FILE, 0, 0, 0) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_start(session, BACKUP_HEAD_FILE, 0, 0, 0) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_restore_backupset_head(session, fetch_catalog) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_restore_backupset_head(session, fetch_catalog) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_wait_agent_process(bak) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_wait_agent_process(bak) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_read_end(session, bak, BACKUP_HEAD_FILE, NULL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_end(session, bak, BACKUP_HEAD_FILE, NULL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_wait_write(bak_t *bak, bak_process_t *ctx)
@@ -2640,7 +2649,7 @@ static status_t rst_wait_write(bak_t *bak, bak_process_t *ctx)
         continue;
     }
 
-    return bak->failed ? GS_ERROR : GS_SUCCESS;
+    return bak->failed ? CT_ERROR : CT_SUCCESS;
 }
 
 static status_t rst_write_to_write_buf(bak_t *bak, bak_process_t *ctx, const char *buf, int32 buf_size,
@@ -2652,8 +2661,8 @@ static status_t rst_write_to_write_buf(bak_t *bak, bak_process_t *ctx, const cha
     int32 data_size;
 
     while (!bak->failed && remain_size > 0) {
-        if (rst_wait_write(bak, ctx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_wait_write(bak, ctx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         data_size = remain_size > ((int32)BACKUP_BUFFER_SIZE(bak) - ctx->left_size) ?
@@ -2670,7 +2679,7 @@ static status_t rst_write_to_write_buf(bak_t *bak, bak_process_t *ctx, const cha
         remain_size -= data_size;
     }
 
-    return bak->failed ? GS_ERROR : GS_SUCCESS;
+    return bak->failed ? CT_ERROR : CT_SUCCESS;
 }
 
 static status_t rst_decompress_to_write_buf(bak_t *bak, bak_process_t *ctx, char *buf, uint32 buf_size,
@@ -2680,13 +2689,13 @@ static status_t rst_decompress_to_write_buf(bak_t *bak, bak_process_t *ctx, char
 
     for (;;) {
         if (knl_decompress(bak->record.attr.compress, &bak->compress_ctx, last_package, bak->compress_buf,
-            BACKUP_BUFFER_SIZE(bak)) != GS_SUCCESS) {
-            return GS_ERROR;
+            BACKUP_BUFFER_SIZE(bak)) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (rst_write_to_write_buf(bak, ctx, bak->compress_buf, (int32)bak->compress_ctx.write_len,
-                                   file_offset) != GS_SUCCESS) {
-            return GS_ERROR;
+                                   file_offset) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (bak->compress_ctx.finished) {
@@ -2694,14 +2703,14 @@ static status_t rst_decompress_to_write_buf(bak_t *bak, bak_process_t *ctx, char
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_read_file_data(knl_session_t *session)
 {
     bak_context_t *ctx = &session->kernel->backup_ctx;
     bak_t *bak = &ctx->bak;
-    bool32 read_end = GS_FALSE;
+    bool32 read_end = CT_FALSE;
     int32 read_size = 0;
     uint32 buf_content_size;
     uint64 file_size = bak->files[bak->curr_file_index].size;
@@ -2715,8 +2724,8 @@ static status_t rst_read_file_data(knl_session_t *session)
     bak->compress_ctx.last_left_size = 0;
 
     while (!bak->failed && !read_end) {
-        if (bak_check_session_status(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_check_session_status(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         request_size = (file_size - file_offset <= buf_size) ? (file_size - file_offset) : buf_size;
         if (request_size == 0) {
@@ -2724,16 +2733,16 @@ static status_t rst_read_file_data(knl_session_t *session)
         }
 
         if (rst_read_data(ctx, bak->backup_buf + bak->compress_ctx.last_left_size,
-                          request_size, &read_size, &read_end, file_offset) != GS_SUCCESS) {
-            bak->failed = GS_TRUE;
+                          request_size, &read_size, &read_end, file_offset) != CT_SUCCESS) {
+            bak->failed = CT_TRUE;
             break;
         }
         read_end = (file_size == file_offset + read_size);
 
         if (encrypted) {
             if (rst_decrypt_data(proc, bak->backup_buf + bak->compress_ctx.last_left_size, read_size,
-                                 bak->compress_ctx.last_left_size) != GS_SUCCESS) {
-                return GS_ERROR;
+                                 bak->compress_ctx.last_left_size) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             use_buf = proc->encrypt_ctx.encrypt_buf.aligned_buf;
         }
@@ -2741,27 +2750,27 @@ static status_t rst_read_file_data(knl_session_t *session)
         if (compressed) {
             buf_content_size = (uint32)read_size + bak->compress_ctx.last_left_size;
             if (rst_decompress_to_write_buf(bak, proc, use_buf, buf_content_size, read_end,
-                                            file_offset) != GS_SUCCESS) {
-                bak->failed = GS_TRUE;
+                                            file_offset) != CT_SUCCESS) {
+                bak->failed = CT_TRUE;
                 break;
             }
         } else {
-            if (rst_write_to_write_buf(bak, proc, use_buf, read_size, file_offset) != GS_SUCCESS) {
-                bak->failed = GS_TRUE;
-                return GS_ERROR;
+            if (rst_write_to_write_buf(bak, proc, use_buf, read_size, file_offset) != CT_SUCCESS) {
+                bak->failed = CT_TRUE;
+                return CT_ERROR;
             }
         }
         file_offset += read_size;
     }
 
     if (!bak->is_building && file_size != file_offset) {
-        GS_LOG_RUN_ERR("[RESTORE] unexpected read size %llu, expected file size is %llu, file name %s", file_offset,
+        CT_LOG_RUN_ERR("[RESTORE] unexpected read size %llu, expected file size is %llu, file name %s", file_offset,
                        file_size, bak->local.name);
-        GS_THROW_ERROR(ERR_FILE_SIZE_MISMATCH, (int64)file_offset, file_size);
-        bak->failed = GS_TRUE;
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_FILE_SIZE_MISMATCH, (int64)file_offset, file_size);
+        bak->failed = CT_TRUE;
+        return CT_ERROR;
     }
-    return bak->failed ? GS_ERROR : GS_SUCCESS;
+    return bak->failed ? CT_ERROR : CT_SUCCESS;
 }
 
 status_t rst_read_file(knl_session_t *session, uint32 file_index)
@@ -2770,23 +2779,23 @@ status_t rst_read_file(knl_session_t *session, uint32 file_index)
     bak_t *bak = &ctx->bak;
 
     if (rst_read_start(session, bak->files[file_index].type, file_index, bak->files[file_index].id,
-                       bak->files[file_index].sec_id) != GS_SUCCESS) {
-        return GS_ERROR;
+                       bak->files[file_index].sec_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_read_file_data(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_file_data(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_wait_write(bak, &ctx->process[BAK_COMMON_PROC]) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_wait_write(bak, &ctx->process[BAK_COMMON_PROC]) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_read_end(session, bak, bak->files[file_index].type, &bak->files[file_index]) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_end(session, bak, bak->files[file_index].type, &bak->files[file_index]) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 rst_skip_file(knl_session_t *session, bak_file_t *file)
@@ -2797,19 +2806,76 @@ static bool32 rst_skip_file(knl_session_t *session, bak_file_t *file)
     /* when executing 'restore filerecover', only the specific datafile will be restore */
     if (bak->rst_file.file_type == RESTORE_DATAFILE) {
         if (file->type != BACKUP_DATA_FILE || bak->rst_file.file_id != file->id) {
-            return GS_TRUE;
+            return CT_TRUE;
         } else {
-            bak->rst_file.exist_repair_file = GS_TRUE;
-            return GS_FALSE;
+            bak->rst_file.exist_repair_file = CT_TRUE;
+            return CT_FALSE;
         }
     }
 
     if (file->type != BACKUP_DATA_FILE) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     df = DATAFILE_GET(session, file->id);
     return (bool32)((BAK_IS_TABLESPCE_RESTORE(bak) && !DATAFILE_IS_ONLINE(df)));
+}
+
+status_t rst_find_duplicative_archfile(knl_session_t *session, bak_file_t *file,
+                                       bool32 *found_start_lsn, bool32 *found_end_lsn)
+{
+    local_arch_file_info_t file_info;
+    DIR *arch_dir;
+    struct dirent *arch_dirent;
+    char *arch_path = session->kernel->attr.arch_attr[0].local_path;
+    bool32 dbid_equal = CT_FALSE;
+    if ((arch_dir = opendir(arch_path)) == NULL) {
+        return CT_ERROR;
+    }
+    while ((arch_dirent = readdir(arch_dir)) != NULL && (*found_start_lsn != CT_TRUE || *found_end_lsn != CT_TRUE)) {
+        if (bak_convert_archfile_name(arch_dirent->d_name, &file_info,
+                                      file->inst_id, file->rst_id) == CT_FALSE) {
+            continue;
+        }
+        if (bak_check_archfile_dbid(session, arch_path, arch_dirent->d_name, &dbid_equal) != CT_SUCCESS) {
+            closedir(arch_dir);
+            return CT_ERROR;
+        }
+        if (dbid_equal != CT_TRUE) {
+            continue;
+        }
+        if (file_info.local_end_lsn >= file->end_lsn && file_info.local_start_lsn < file->end_lsn) {
+            *found_end_lsn = CT_TRUE;
+        }
+        if (file_info.local_end_lsn >= file->start_lsn + 1 && file_info.local_start_lsn < file->start_lsn + 1) {
+            *found_start_lsn = CT_TRUE;
+        }
+    }
+    closedir(arch_dir);
+    return CT_SUCCESS;
+}
+ 
+bool32 rst_skip_for_duplicative_archfile(knl_session_t *session, bak_file_t *cur_file, bak_file_t *next_file)
+{
+    if (cur_file->type == BACKUP_ARCH_FILE) {
+        cur_file->skipped = CT_FALSE;
+        if (session->kernel->backup_ctx.bak.prefer_bak_set == CT_TRUE) {
+            return CT_FALSE;
+        }
+        if (next_file->type != BACKUP_ARCH_FILE || next_file->inst_id != cur_file->inst_id) {
+            bool32 found_start_lsn = CT_FALSE;
+            bool32 found_end_lsn = CT_FALSE;
+            if (rst_find_duplicative_archfile(session, cur_file, &found_start_lsn, &found_end_lsn) != CT_SUCCESS) {
+                return CT_FALSE;
+            }
+            if (found_start_lsn && found_end_lsn) {
+                cur_file->skipped = CT_TRUE;
+                CT_LOG_RUN_INF("[RESTORE] restore logfile %u from arch dir", cur_file->id);
+                return CT_TRUE;
+            }
+        }
+    }
+    return CT_FALSE;
 }
 
 status_t rst_stream_read_file(knl_session_t *session)
@@ -2820,38 +2886,38 @@ status_t rst_stream_read_file(knl_session_t *session)
     log_file_head_t *head = (log_file_head_t *)common_proc->backup_buf.aligned_buf;
     uint32 bak_index = bak->curr_file_index;
     uint32 file_id = bak->files[bak_index].id;
-    bool32 ignore_logfile = GS_FALSE;
+    bool32 ignore_logfile = CT_FALSE;
     char *path = rst_fetch_filename(bak);
     bak_file_type_t type = bak->files[bak->curr_file_index].type;
 
     if (bak->rst_file.file_type == RESTORE_ALL) {
-        if (rst_wait_ctrlfile_ready(bak) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_wait_ctrlfile_ready(bak) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (BAK_IS_UDS_DEVICE(bak)) {
         /* build is not needed */
-        if (bak_agent_file_start(bak, path, bak_get_package_type(type), file_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_agent_file_start(bak, path, bak_get_package_type(type), file_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
     bak->remote.remain_data_size = 0;
 
     rst_init_recv_stream(bak);
-    if (rst_stream_read_prepare(session, recv_stream, head, &ignore_logfile) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_stream_read_prepare(session, recv_stream, head, &ignore_logfile) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     rst_assign_stream_restore_task(session, &common_proc->ctrl);
 
-    if (rst_recv_stream_data(session, ignore_logfile) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_recv_stream_data(session, ignore_logfile) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    bak_wait_paral_proc(session, GS_FALSE);
+    bak_wait_paral_proc(session, CT_FALSE);
 
     if (BAK_IS_UDS_DEVICE(bak)) {
-        if (bak_agent_send_pkg(bak, BAK_PKG_ACK) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_agent_send_pkg(bak, BAK_PKG_ACK) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -2864,12 +2930,12 @@ status_t rst_stream_read_file(knl_session_t *session)
     }
 
     if (bak->files[bak->curr_file_index].type == BACKUP_ARCH_FILE && bak->rst_file.file_type == RESTORE_ALL) {
-        if (ctarch_do_arch_info_record(session, ARCH_DEFAULT_DEST, common_proc->ctrl.name, head) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (arch_try_record_archinfo(session, ARCH_DEFAULT_DEST, common_proc->ctrl.name, head) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_read_files(knl_session_t *session, bak_file_type_t type)
@@ -2878,15 +2944,15 @@ static status_t rst_read_files(knl_session_t *session, bak_file_type_t type)
     bak_process_t *proc = NULL;
 
     while (!bak->failed && bak->curr_file_index < bak->file_count) {
-        if (bak_check_session_status(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_check_session_status(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-
         if (bak->files[bak->curr_file_index].type > type) {
             break;
         }
-
-        if (rst_skip_file(session, &bak->files[bak->curr_file_index])) {
+        if (rst_skip_file(session, &bak->files[bak->curr_file_index]) ||
+            rst_skip_for_duplicative_archfile(session, &bak->files[bak->curr_file_index],
+                                              &bak->files[bak->curr_file_index + 1])) {
             bak->curr_file_index++;
             continue;
         }
@@ -2894,56 +2960,54 @@ static status_t rst_read_files(knl_session_t *session, bak_file_type_t type)
         if (type >= BACKUP_DATA_FILE && type <= BACKUP_ARCH_FILE && bak_paral_task_enable(session)) {
             if (BAK_IS_UDS_DEVICE(bak)) {
                 if (rst_stream_read_file(session)) {
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
             } else {
-                if (bak_get_free_proc(session, &proc, GS_FALSE) != GS_SUCCESS) {
-                    return GS_ERROR;
+                if (bak_get_free_proc(session, &proc, CT_FALSE) != CT_SUCCESS) {
+                    return CT_ERROR;
                 }
-
-                if (bak_assign_restore_task(session, proc) != GS_SUCCESS) {
-                    return GS_ERROR;
+                if (bak_assign_restore_task(session, proc) != CT_SUCCESS) {
+                    return CT_ERROR;
                 }
             }
         } else {
-            if (rst_read_file(session, bak->curr_file_index) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rst_read_file(session, bak->curr_file_index) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
         bak->curr_file_index++;
     }
-
-    bak_wait_paral_proc(session, GS_FALSE);
-    return bak->failed ? GS_ERROR : GS_SUCCESS;
+    bak_wait_paral_proc(session, CT_FALSE);
+    return bak->failed ? CT_ERROR : CT_SUCCESS;
 }
 
 status_t rst_wait_ctrlfile_ready(bak_t *bak)
 {
     while (!bak->ctrlfile_completed) {
         if (bak->failed) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
         cm_sleep(10);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_read_ctrl_file(knl_session_t *session, bak_t *bak)
 {
-    uint32 data_size = CTRL_MAX_PAGES(session) * GS_DFLT_CTRL_BLOCK_SIZE;
+    uint32 data_size = CTRL_MAX_PAGES(session) * CT_DFLT_CTRL_BLOCK_SIZE;
 
-    bak->ctrlfile_completed = GS_FALSE;
+    bak->ctrlfile_completed = CT_FALSE;
     bak_set_progress(session, BACKUP_CTRL_STAGE, data_size);
-    if (rst_read_files(session, BACKUP_CTRL_FILE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_files(session, BACKUP_CTRL_FILE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_wait_ctrlfile_ready(bak) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_wait_ctrlfile_ready(bak) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 uint64 rst_calc_bakfiles_size(knl_session_t *session, bak_t *bak, bak_file_type_t type)
@@ -2974,19 +3038,19 @@ static status_t rst_read_datafile(knl_session_t *session, bak_t *bak)
         data_size = rst_calc_bakfiles_size(session, bak, BACKUP_DATA_FILE);
     }
     bak_set_progress(session, BACKUP_DATA_STAGE, data_size);
-    if (rst_read_files(session, BACKUP_DATA_FILE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_files(session, BACKUP_DATA_FILE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (bak->rst_file.file_type == RESTORE_DATAFILE) {
         if (!bak->rst_file.exist_repair_file) {
-            GS_THROW_ERROR(ERR_FILE_NOT_EXIST, "in backupset the", "specifical");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_FILE_NOT_EXIST, "in backupset the", "specifical");
+            return CT_ERROR;
         }
         bak->rst_file.rcy_point = bak->record.ctrlinfo.rcy_point;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void rst_wait_logfiles_created(bak_t *bak)
@@ -3007,20 +3071,20 @@ static status_t rst_read_archfile(knl_session_t *session, bak_t *bak)
     } else {
         data_size = rst_calc_bakfiles_size(session, bak, BACKUP_ARCH_FILE);
     }
-    bak->logfiles_created = GS_FALSE;
+    bak->logfiles_created = CT_FALSE;
     bak_set_progress(session, BACKUP_LOG_STAGE, data_size);
     rst_wait_logfiles_created(bak);
 
     bak->curr_arch_id = 0;
-    if (rst_read_files(session, BACKUP_ARCH_FILE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_read_files(session, BACKUP_ARCH_FILE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (bak_agent_command(bak, BAK_PKG_SET_END) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (bak_agent_command(bak, BAK_PKG_SET_END) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_restore_one_bakset(knl_session_t *session, bool32 fetch_catalog)
@@ -3028,46 +3092,46 @@ static status_t rst_restore_one_bakset(knl_session_t *session, bool32 fetch_cata
     bak_t *bak = &session->kernel->backup_ctx.bak;
 
     if (bak->is_building) {
-        if (rst_restore_config_param(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_restore_config_param(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (bak_agent_command(bak, BAK_PKG_SET_START) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_agent_command(bak, BAK_PKG_SET_START) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (rst_read_head_file(session, fetch_catalog) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_read_head_file(session, fetch_catalog) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         /* it must be restore full backset firstly */
         if (fetch_catalog && bak->depend_num > 0) {
-            if (rst_read_head_file(session, GS_FALSE) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (rst_read_head_file(session, CT_FALSE) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
     if (RST_NEED_RESTORE_CTRLFILE(bak)) {
-        if (rst_read_ctrl_file(session, bak) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_read_ctrl_file(session, bak) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (RST_NEED_RESTORE_DATAFILE(bak)) {
-        if (rst_read_datafile(session, bak) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_read_datafile(session, bak) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_restore_all_incremental_backset(knl_session_t *session, bak_t *bak)
 {
     while (!bak->failed) {
-        if (bak_check_session_status(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_check_session_status(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (bak->curr_id == bak->depend_num) {
@@ -3081,16 +3145,16 @@ static status_t rst_restore_all_incremental_backset(knl_session_t *session, bak_
             rst_close_ctrl_file(&session->kernel->db.ctrlfiles);
         }
 
-        if (bak_agent_command(bak, BAK_PKG_SET_END) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_agent_command(bak, BAK_PKG_SET_END) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (rst_restore_one_bakset(session, GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_restore_one_bakset(session, CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t rst_restore(knl_session_t *session)
@@ -3098,31 +3162,31 @@ static status_t rst_restore(knl_session_t *session)
     bak_context_t *ctx = &session->kernel->backup_ctx;
     bak_t *bak = &ctx->bak;
 
-    if (bak_agent_command(bak, BAK_PKG_START) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (bak_agent_command(bak, BAK_PKG_START) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (rst_restore_one_bakset(session, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (rst_restore_one_bakset(session, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (bak->depend_num > 0) {
-        if (rst_restore_all_incremental_backset(session, bak) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_restore_all_incremental_backset(session, bak) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (!bak->failed && RST_NEED_RESTORE_ARCHFILE(bak)) {
-        if (rst_read_archfile(session, bak) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_read_archfile(session, bak) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     bak->progress.stage = BACKUP_READ_FINISHED;
 
     if (!bak->failed) {
-        if (bak_agent_command(bak, BAK_PKG_END) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (bak_agent_command(bak, BAK_PKG_END) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (BAK_IS_UDS_DEVICE(bak)) {
@@ -3130,7 +3194,7 @@ static status_t rst_restore(knl_session_t *session)
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void rst_wait_write_end(bak_t *ctrl)
@@ -3144,22 +3208,22 @@ status_t rst_proc(knl_session_t *session)
 {
     bak_context_t *ctx = &session->kernel->backup_ctx;
     bak_t *bak = &ctx->bak;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
-    if (rst_restore(session) != GS_SUCCESS) {
-        bak->failed = GS_TRUE;
-        status = GS_ERROR;
+    if (rst_restore(session) != CT_SUCCESS) {
+        bak->failed = CT_TRUE;
+        status = CT_ERROR;
     }
 
     rst_wait_write_end(bak);
 
     /* when recover datafile, bak_end would be called after recovering datafile to lastest */
     if (bak->rst_file.file_type != RESTORE_DATAFILE) {
-        bak_end(session, GS_TRUE);
+        bak_end(session, CT_TRUE);
     }
 
     if (bak->failed) {
-        status = GS_ERROR;
+        status = CT_ERROR;
     }
 
     return status;
@@ -3178,22 +3242,22 @@ void rst_backend_proc(thread_t *thread)
 
 status_t rst_check_backupset_path(knl_restore_t *param)
 {
-    char path[GS_FILE_NAME_BUFFER_SIZE];
+    char path[CT_FILE_NAME_BUFFER_SIZE];
 
-    if (param->path.len > GS_MAX_BACKUP_PATH_LEN) {
-        GS_THROW_ERROR(ERR_EXCEED_MAX_BACKUP_PATH_LEN, T2S(&param->path), GS_MAX_BACKUP_PATH_LEN);
-        return GS_ERROR;
+    if (param->path.len > CT_MAX_BACKUP_PATH_LEN) {
+        CT_THROW_ERROR(ERR_EXCEED_MAX_BACKUP_PATH_LEN, T2S(&param->path), CT_MAX_BACKUP_PATH_LEN);
+        return CT_ERROR;
     }
 
-    (void)cm_text2str(&param->path, path, GS_FILE_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&param->path, path, CT_FILE_NAME_BUFFER_SIZE);
 
     // the path does not actually exist in nbu restore
     if (cm_check_exist_special_char(path, (uint32)strlen(path)) ||
         (param->device == DEVICE_DISK && !cm_dir_exist(path))) {
-        GS_THROW_ERROR(ERR_INVALID_DIR, path);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_DIR, path);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rst_restore_database(knl_session_t *session, knl_restore_t *param)
@@ -3201,36 +3265,36 @@ status_t rst_restore_database(knl_session_t *session, knl_restore_t *param)
     bak_context_t *ctx = &session->kernel->backup_ctx;
     uint32 paral_count = param->parallelism == 0 ? BAK_DEFAULT_PARALLELISM : param->parallelism;
     status_t status;
-    if (bak_set_running(session, ctx) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_BACKUP_IN_PROGRESS, "restore");
-        return GS_ERROR;
+    if (bak_set_running(session, ctx) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_BACKUP_IN_PROGRESS, "restore");
+        return CT_ERROR;
     }
 
     if (param->type == RESTORE_BLOCK_RECOVER) {
-        ctx->block_repairing = GS_TRUE;
+        ctx->block_repairing = CT_TRUE;
         status = abr_restore_block_recover(session, param);
         bak_unset_running(session, ctx);
-        ctx->block_repairing = GS_FALSE;
+        ctx->block_repairing = CT_FALSE;
         return status;
     }
 
     ctx->bak.arch_keep_compressed = session->kernel->attr.restore_keep_arch_compressed;
-    GS_LOG_RUN_INF("[RESTORE] restore start, device:%d, policy:%s, paral count %u, path:%s, arch_compressed %u, "
+    CT_LOG_RUN_INF("[RESTORE] restore start, device:%d, policy:%s, paral count %u, path:%s, arch_compressed %u, "
         "buffer size:%uM", param->device, T2S(&param->policy), paral_count, T2S_EX(&param->path),
         ctx->bak.arch_keep_compressed, param->buffer_size / SIZE_M(1));
 
-    if (rst_prepare(session, param) != GS_SUCCESS) {
-        bak_end(session, GS_TRUE);
-        return GS_ERROR;
+    if (rst_prepare(session, param) != CT_SUCCESS) {
+        bak_end(session, CT_TRUE);
+        return CT_ERROR;
     }
 
     if (param->disconnect) {
         if (cm_create_thread(rst_backend_proc, 0, session->kernel->sessions[SESSION_ID_BRU],
-                             &ctx->bak.restore_thread) != GS_SUCCESS) {
-            bak_end(session, GS_TRUE);
-            return GS_ERROR;
+                             &ctx->bak.restore_thread) != CT_SUCCESS) {
+            bak_end(session, CT_TRUE);
+            return CT_ERROR;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return rst_proc(session);
@@ -3243,27 +3307,27 @@ status_t dtc_log_prepare_for_pitr(knl_session_t *se)
     for (uint32 i = 0; i < kernel->db.ctrl.core.node_count; i++) {
         arch_ctrl_t *last = arch_dtc_get_last_log(se, i);
         uint32 archive_asn = last->asn + 1;
-        if (dtc_rst_regist_archive(se, &archive_asn, rst_id, i) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dtc_rst_regist_archive(se, &archive_asn, rst_id, i) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (se->kernel->id != i) {
             continue;
         }
         uint32 max_asn;
-        if (arch_try_arch_redo(se, &max_asn) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (arch_try_arch_redo(se, &max_asn) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (max_asn >= archive_asn) {
             archive_asn = max_asn + 1;
         }
 
-        if (log_reset_logfile(se, archive_asn, GS_INVALID_ID32) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (log_reset_logfile(se, archive_asn, CT_INVALID_ID32) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         log_reset_inactive_head(se);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t log_prepare_for_pitr_dbstor(knl_session_t *se)
@@ -3273,11 +3337,11 @@ status_t log_prepare_for_pitr_dbstor(knl_session_t *se)
     uint32 archive_asn = last->asn + 1;
 
     if (arch_try_regist_archive_by_dbstor(se, &archive_asn, rst_id, last->start_lsn,
-                                          last->end_lsn, 0) != GS_SUCCESS) {
-        return GS_ERROR;
+                                          last->end_lsn, 0) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dtc_log_prepare_pitr(knl_session_t *se)

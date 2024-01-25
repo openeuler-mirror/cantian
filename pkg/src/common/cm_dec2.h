@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -83,8 +83,8 @@ extern "C" {
 #define DEC2_OVERFLOW_CHECK_BY_SCIEXP(sciexp) \
     do {                                      \
         if ((sciexp) > DEC2_EXPN_UPPER) {     \
-            GS_THROW_ERROR(ERR_NUM_OVERFLOW); \
-            return GS_ERROR;                  \
+            CT_THROW_ERROR(ERR_NUM_OVERFLOW); \
+            return CT_ERROR;                  \
         }                                     \
     } while (0)
 
@@ -92,8 +92,8 @@ extern "C" {
 #define DEC2_OVERFLOW_CHECK_BY_EXPN(expn) \
     do {                                  \
         if (SECUREC_UNLIKELY((expn) > DEC2_EXPN_UPPER_HALF) || SECUREC_UNLIKELY((expn) < DEC2_EXPN_LOW_HALF)) {   \
-            GS_THROW_ERROR(ERR_NUM_OVERFLOW);   \
-            return GS_ERROR;   \
+            CT_THROW_ERROR(ERR_NUM_OVERFLOW);   \
+            return CT_ERROR;   \
         }   \
     } while (0)
 
@@ -164,7 +164,7 @@ precision that a decimal can capture at most */
  */
 #define DEC2_NCELLS(precision) (CM_ALIGN_CEIL((precision) - 1, DEC2_CELL_DIGIT) + 1)
 #define MAX_DEC2_BYTE_BY_PREC(prec) (DEC2_NCELLS(prec) * sizeof(c2typ_t) + DEC2_HEAD_SIZE)
-#define MAX_DEC2_BYTE_SZ MAX_DEC2_BYTE_BY_PREC(GS_MAX_NUM_SAVING_PREC)
+#define MAX_DEC2_BYTE_SZ MAX_DEC2_BYTE_BY_PREC(CT_MAX_NUM_SAVING_PREC)
 
 /*
  * expn: the exponent of the number
@@ -440,8 +440,8 @@ status_t cm_dec2_add_op(const dec2_t *d1, const dec2_t *d2, dec2_t *rs);
  */
 static inline status_t cm_dec2_add(const dec2_t *dec1, const dec2_t *dec2, dec2_t *result)
 {
-    if (cm_dec2_add_op(dec1, dec2, result) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_dec2_add_op(dec1, dec2, result) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     return cm_dec2_finalise(result, MAX_NUMERIC_BUFF);
 }
@@ -451,11 +451,12 @@ status_t cm_dec2_mul_op(const dec2_t *d1, const dec2_t *d2, dec2_t *rs);
 
 /*
  * multiplication of two decimal
+
  */
 static inline status_t cm_dec2_multiply(const dec2_t *dec1, const dec2_t *dec2, dec2_t *result)
 {
-    if (cm_dec2_mul_op(dec1, dec2, result) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_dec2_mul_op(dec1, dec2, result) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     return cm_dec2_finalise(result, MAX_NUMERIC_BUFF);
 }

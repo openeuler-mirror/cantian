@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -46,6 +46,7 @@ typedef enum en_mes_command {
     MES_CMD_MASTER_ACK_ALREADY_OWNER,
     MES_CMD_MASTER_ACK_OWNER,
     MES_CMD_CLAIM_OWNER_REQ,
+    MES_CMD_CLAIM_OWNER_REQ_BATCH,
     MES_CMD_RECYCLE_OWNER_REQ,
     MES_CMD_NOTIFY_MASTER_CLEAN_EDP_REQ,  // ask master to notify holders clean edp
     MES_CMD_NOTIFY_CLEAN_EDP_ACK,
@@ -65,6 +66,10 @@ typedef enum en_mes_command {
     MES_CMD_AWAKE_TXN,
     MES_CMD_TXN_ACK,
     MES_CMD_SCN_REQ,
+    MES_CMD_TXN_SCN_BROADCAST,
+    #ifdef _DEBUG
+        NEW_MES_CMD_TXN_SCN_BROADCAST,
+    #endif
     MES_CMD_SCN_BROADCAST,
     MES_CMD_LSN_BROADCAST,
     MES_CMD_TXN_INFO_REQ,
@@ -183,6 +188,9 @@ typedef enum en_mes_command {
     MES_CMD_BROADCAST_CHANGE_STATUS,
     MES_CMD_SEND_RCY_SET_ACK,
     MES_CMD_SEND_RCY_SET_ERR_ACK,
+    MES_CMD_INVALID_DD_REQ,
+    MES_CMD_INVALID_DD_RSP,
+    MES_CMD_BROADCAST_INVALIDATE_DC,
 
     // dummy, to compile extproc
     MES_CMD_RPC_REQ,
@@ -192,12 +200,20 @@ typedef enum en_mes_command {
     MES_CMD_CLOSE_MYSQL_CONNECTION_REQ,
     MES_CMD_CLOSE_MYSQL_CONNECTION_RSP,
 
+#ifdef DB_DEBUG_VERSION
     // syncpoint
     MES_CMD_SYNCPOINT_ABORT,
+#endif
 
     MES_CMD_RECYCLE_DLS_MASTER,
     MES_CMD_RECYCLE_DLS_MASTER_ACK,
     MES_CMD_CLEAN_GRANTED_MAP,
+
+    MES_CMD_UPGRADE_CTRL_VERSION,
+    MES_CMD_UPGRADE_CTRL_VERSION_ACK,
+    MES_CMD_ARCH_SET_REQ,
+    MES_CMD_TIME_BROADCAST,
+
     MES_CMD_CEIL
 } mes_command_t;
 

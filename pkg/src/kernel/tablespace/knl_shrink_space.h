@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -26,20 +26,11 @@
 #define __KNL_SHRINK_SPACE_H__
 
 #include "knl_space_ddl.h"
+#include "knl_shrink_space_persist.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#pragma pack(4)
-
-typedef struct st_rd_shrink_space {
-    uint32 op_type;
-    uint32 space_id;
-    uint32 flags;
-} rd_shrink_space_t;
-
-#pragma pack()
 
 status_t spc_shrink_space(knl_session_t *session, space_t *space, knl_shrink_def_t *shrink);
 

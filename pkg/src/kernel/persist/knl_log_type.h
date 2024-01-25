@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -210,7 +210,7 @@ typedef enum en_log_type {
     RD_PCRB_UNDO_DELETE = LOG_TYPE_PCRB + 14,
 
     RD_PUNCH_FORMAT_PAGE = LOG_TYPE_PUNCH + 0,
-
+    // logicRep
     RD_LOGIC_REP_INSERT = LOG_TYPE_LREP + 0,
     RD_LOGIC_REP_UPDATE = LOG_TYPE_LREP + 1,
     RD_LOGIC_REP_DELETE = LOG_TYPE_LREP + 2,
@@ -284,6 +284,9 @@ typedef enum st_logic_op {
     RD_CREATE_INTERVAL = 57,
     RD_TRUNCATE_TABLE = 58,
     RD_SQL_DDL = 59,
+    RD_ALTER_DB_LOGICREP = 60,
+    RD_CREATE_VIEW = 61,
+    RD_REFRESH_DC = 62,
 
     RD_SQL_LOG_BEGIN = 100,
     RD_SQL_LOG_END = 200,

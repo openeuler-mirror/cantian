@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -67,7 +67,7 @@ typedef enum en_sys_session {
     SESSION_ID_DTC_PROCESS = 29,
     SESSION_ID_DRC_REMASTER = 30,
     SESSION_ID_RES_PROCESS = 31,
-    SESSION_ID_START = GS_SYS_SESSIONS,
+    SESSION_ID_START = CT_SYS_SESSIONS,
 } sys_session_t;
 
 typedef enum en_wait_event {
@@ -147,9 +147,9 @@ typedef enum en_wait_event {
 } wait_event_t;
 
 typedef struct st_wait_event_desc {
-    char name[GS_MAX_NAME_LEN];
-    char p1[GS_MAX_NAME_LEN];
-    char wait_class[GS_MAX_NAME_LEN];
+    char name[CT_MAX_NAME_LEN];
+    char p1[CT_MAX_NAME_LEN];
+    char wait_class[CT_MAX_NAME_LEN];
 } wait_event_desc_t;
 
 const wait_event_desc_t* knl_get_event_desc(const uint16 id);
@@ -161,7 +161,7 @@ void knl_init_sess_ex(knl_handle_t kernel, knl_handle_t sess);
 
 void knl_init_rm(knl_handle_t handle, uint16 rmid);
 void knl_set_session_rm(knl_handle_t handle, uint16 rmid);
-uint16 knl_get_rm_sid(knl_handle_t session, uint16 rmid);
+EXTER_ATTACK uint16 knl_get_rm_sid(knl_handle_t session, uint16 rmid);
 status_t knl_begin_auton_rm(knl_handle_t session);
 void knl_end_auton_rm(knl_handle_t handle, status_t status);
 
@@ -170,14 +170,14 @@ void *knl_get_curr_sess(void);
 status_t knl_check_sessions_per_user(knl_handle_t session, text_t *username, uint32 count);
 status_t knl_begin_itl_waits(knl_handle_t se, uint32 *itl_waits);
 void knl_end_itl_waits(knl_handle_t se);
-void knl_try_begin_session_wait(knl_handle_t se, wait_event_t event, bool32 immediate);
-void knl_try_end_session_wait(knl_handle_t se, wait_event_t event);
+bool32 knl_exist_session_wait(knl_handle_t se);
+bool32 knl_hang_session_wait(knl_handle_t se);
 void knl_begin_session_wait(knl_handle_t se, wait_event_t event, bool32 immediate);
-void knl_end_session_wait(knl_handle_t se);
+void knl_end_session_wait(knl_handle_t se, wait_event_t event);
+void knl_end_session_waits(knl_handle_t se);
 void knl_destroy_session(knl_handle_t kernel, uint32 sid);
 void knl_set_session_scn(knl_handle_t handle, uint64 scn);
 void knl_inc_session_ssn(knl_handle_t handle);
-void knl_end_session_wait_ex(knl_handle_t se, wait_event_t event);
 
 #ifdef __cplusplus
 }

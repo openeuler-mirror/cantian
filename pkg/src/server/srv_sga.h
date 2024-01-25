@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -69,8 +69,8 @@ typedef struct st_sga {
     mem_pool_t buddy_pool;
 } sga_t;
 
-status_t server_create_sga(void);
-void server_destroy_sga(void);
+status_t srv_create_sga(void);
+void srv_destroy_sga(void);
 status_t srv_init_vmem_pool(void);
 
 #ifdef __cplusplus

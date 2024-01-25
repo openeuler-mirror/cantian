@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -87,11 +87,11 @@ typedef enum en_interval_unit {
     IU_ALL = IU_YM_INTERVAL | IU_DS_INTERVAL,
 } interval_unit_t;
 
-#define GS_IS_YM_UNIT(resid)       ((resid) == IU_YEAR || (resid) == IU_MONTH || (resid) == IU_QUARTER)
-#define GS_IS_DAY_UNIT(resid)      ((resid) == IU_DAY || (resid) == IU_WEEK)
-#define GS_IS_TIME_UNIT(resid)                                                                                         \
+#define CT_IS_YM_UNIT(resid)       ((resid) == IU_YEAR || (resid) == IU_MONTH || (resid) == IU_QUARTER)
+#define CT_IS_DAY_UNIT(resid)      ((resid) == IU_DAY || (resid) == IU_WEEK)
+#define CT_IS_TIME_UNIT(resid)                                                                                         \
     ((resid) == IU_HOUR || (resid) == IU_MINUTE || (resid) == IU_SECOND || (resid) == IU_MICROSECOND)
-#define GS_IS_DATETIME_UNIT(resid) (GS_IS_YM_UNIT(resid) || GS_IS_DAY_UNIT(resid) || GS_IS_TIME_UNIT(resid))
+#define CT_IS_DATETIME_UNIT(resid) (CT_IS_YM_UNIT(resid) || CT_IS_DAY_UNIT(resid) || CT_IS_TIME_UNIT(resid))
 
 #pragma pack(4)
 /* To represent all parts of a interval type */
@@ -179,43 +179,43 @@ typedef struct st_interval_detail {
 #define ITVL_DEFAULT_SECOND_PREC 6
 
 /* The maximal and minimal of interval values */
-#define GS_MAX_YMINTERVAL ((interval_ym_t)(ITVL_MAX_SQL_YEAR * ITVL_MONTHS_PER_YEAR + ITVL_MAX_SQL_MONTH))
-#define GS_MIN_YMINTERVAL (-(GS_MAX_YMINTERVAL))
+#define CT_MAX_YMINTERVAL ((interval_ym_t)(ITVL_MAX_SQL_YEAR * ITVL_MONTHS_PER_YEAR + ITVL_MAX_SQL_MONTH))
+#define CT_MIN_YMINTERVAL (-(CT_MAX_YMINTERVAL))
 
-#define GS_MAX_DSINTERVAL \
+#define CT_MAX_DSINTERVAL \
     ((interval_ds_t)(ITVL_MAX_SQL_DAY * ITVL_UNITS_PER_DAY         \
         + ITVL_MAX_SQL_HOUR * ITVL_UNITS_PER_HOUR                  \
         + ITVL_MAX_SQL_MINUTE * ITVL_UNITS_PER_MINUTE              \
         + ITVL_MAX_SQL_SECOND * ITVL_UNITS_PER_SECOND              \
         + ITVL_MAX_SQL_FRAC_SEC))
 
-#define GS_MIN_DSINTERVAL (-(GS_MAX_DSINTERVAL))
+#define CT_MIN_DSINTERVAL (-(CT_MAX_DSINTERVAL))
 
 #define CM_IS_VALID_DSINTERVAL(dsitvl) \
-    (((dsitvl) >= GS_MIN_DSINTERVAL) && ((dsitvl) <= GS_MAX_DSINTERVAL))
+    (((dsitvl) >= CT_MIN_DSINTERVAL) && ((dsitvl) <= CT_MAX_DSINTERVAL))
 
 
 /* addition/subtraction of two interval_ds_t, if overflow occurs, an error will be return; */
 static inline status_t cm_dsinterval_add(interval_ds_t a, interval_ds_t b, interval_ds_t *res)
 {
-    if (a < GS_MIN_DSINTERVAL || a > GS_MAX_DSINTERVAL) {
-        GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "GS_MIN_DSINTERVAL(%lld) <= a(%lld) <= GS_MAX_DSINTERVAL(%lld)",
-                          GS_MIN_DSINTERVAL, a, GS_MAX_DSINTERVAL);
-        return GS_ERROR;
+    if (a < CT_MIN_DSINTERVAL || a > CT_MAX_DSINTERVAL) {
+        CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "CT_MIN_DSINTERVAL(%lld) <= a(%lld) <= CT_MAX_DSINTERVAL(%lld)",
+                          CT_MIN_DSINTERVAL, a, CT_MAX_DSINTERVAL);
+        return CT_ERROR;
     }
-    if (b < GS_MIN_DSINTERVAL || b > GS_MAX_DSINTERVAL) {
-        GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "GS_MIN_DSINTERVAL(%lld) <= b(%lld) <= GS_MAX_DSINTERVAL(%lld)",
-                          GS_MIN_DSINTERVAL, b, GS_MAX_DSINTERVAL);
-        return GS_ERROR;
+    if (b < CT_MIN_DSINTERVAL || b > CT_MAX_DSINTERVAL) {
+        CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "CT_MIN_DSINTERVAL(%lld) <= b(%lld) <= CT_MAX_DSINTERVAL(%lld)",
+                          CT_MIN_DSINTERVAL, b, CT_MAX_DSINTERVAL);
+        return CT_ERROR;
     }
 
     *res = a + b;
-    if (*res >= GS_MIN_DSINTERVAL && *res <= GS_MAX_DSINTERVAL) {
-        return GS_SUCCESS;
+    if (*res >= CT_MIN_DSINTERVAL && *res <= CT_MAX_DSINTERVAL) {
+        return CT_SUCCESS;
     }
 
-    GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTERVAL DAY TO SECOND");
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTERVAL DAY TO SECOND");
+    return CT_ERROR;
 }
 
 static inline status_t cm_dsinterval_sub(interval_ds_t a, interval_ds_t b, interval_ds_t *res)
@@ -227,20 +227,20 @@ static inline status_t cm_tmstamp_add_dsinterval(timestamp_t ts, interval_ds_t d
 {
     *res = ts + dsitvl;
     if (CM_IS_DATETIME_ADDTION_OVERFLOW(ts, dsitvl, *res)) {
-        GS_SET_ERROR_TIMESTAMP_OVERFLOW();
-        return GS_ERROR;
+        CT_SET_ERROR_TIMESTAMP_OVERFLOW();
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_date_add_dsinterval(date_t date, interval_ds_t dsitvl, date_t *res)
 {
     *res = date + dsitvl;
     if (CM_IS_DATETIME_ADDTION_OVERFLOW(date, dsitvl, *res)) {
-        GS_SET_ERROR_DATETIME_OVERFLOW();
-        return GS_ERROR;
+        CT_SET_ERROR_DATETIME_OVERFLOW();
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_dsinterval_add_date(interval_ds_t dsitvl, date_t date, date_t *res)
@@ -266,24 +266,24 @@ static inline status_t cm_tmstamp_sub_dsinterval(timestamp_t ts, interval_ds_t d
 /* addition/subtraction of two interval_ym_t; */
 static inline status_t cm_yminterval_add(interval_ym_t a, interval_ym_t b, interval_ym_t *res)
 {
-    if (a < GS_MIN_YMINTERVAL || a > GS_MAX_YMINTERVAL) {
-        GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "GS_MIN_YMINTERVAL(%d) <= a(%d) <= GS_MAX_YMINTERVAL(%d)",
-            GS_MIN_YMINTERVAL, a, GS_MAX_YMINTERVAL);
-        return GS_ERROR;
+    if (a < CT_MIN_YMINTERVAL || a > CT_MAX_YMINTERVAL) {
+        CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "CT_MIN_YMINTERVAL(%d) <= a(%d) <= CT_MAX_YMINTERVAL(%d)",
+            CT_MIN_YMINTERVAL, a, CT_MAX_YMINTERVAL);
+        return CT_ERROR;
     }
-    if (b < GS_MIN_YMINTERVAL || b > GS_MAX_YMINTERVAL) {
-        GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "GS_MIN_YMINTERVAL(%d) <= b(%d) <= GS_MAX_YMINTERVAL(%d)",
-            GS_MIN_YMINTERVAL, b, GS_MAX_YMINTERVAL);
-        return GS_ERROR;
+    if (b < CT_MIN_YMINTERVAL || b > CT_MAX_YMINTERVAL) {
+        CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "CT_MIN_YMINTERVAL(%d) <= b(%d) <= CT_MAX_YMINTERVAL(%d)",
+            CT_MIN_YMINTERVAL, b, CT_MAX_YMINTERVAL);
+        return CT_ERROR;
     }
 
     *res = a + b;
-    if (*res >= GS_MIN_YMINTERVAL && *res <= GS_MAX_YMINTERVAL) {
-        return GS_SUCCESS;
+    if (*res >= CT_MIN_YMINTERVAL && *res <= CT_MAX_YMINTERVAL) {
+        return CT_SUCCESS;
     }
 
-    GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTERVAL YEAR TO MONTH");
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTERVAL YEAR TO MONTH");
+    return CT_ERROR;
 }
 
 static inline status_t cm_yminterval_sub(interval_ym_t a, interval_ym_t b, interval_ym_t *res)
@@ -330,7 +330,7 @@ uint32 cm_yminterval2str_ex(interval_ym_t ymitvl, uint32 year_prec, char *str);
 uint32 cm_dsinterval2str_ex(interval_ds_t dsitvl, uint32 day_prec, uint32 frac_prec, char *str, uint32 str_max_sz);
 interval_unit_t cm_get_ymitvl_unit(const text_t *text);
 interval_unit_t cm_get_dsitvl_unit(const text_t *text);
-status_t cm_text2intvl_detail(const text_t *text, gs_type_t itype, interval_detail_t *idetail, uint32 fmt);
+status_t cm_text2intvl_detail(const text_t *text, ct_type_t itype, interval_detail_t *idetail, uint32 fmt);
 status_t cm_encode_yminterval(const interval_detail_t *idetail, interval_ym_t *itvl);
 status_t cm_encode_dsinterval(const interval_detail_t *idetail, interval_ds_t *itvl);
 void cm_decode_yminterval(interval_ym_t ymitvl_input, interval_detail_t *idetail);
@@ -338,8 +338,8 @@ void cm_decode_dsinterval(interval_ds_t dsitvl_input, interval_detail_t *idetail
 
 #define CM_CHECK_ITVL_FIELD(val, MAX_ISO_VALUE, field_name)                        \
     if (fabs((val)) >= (double)((MAX_ISO_VALUE) + 1)) {                            \
-        GS_THROW_ERROR(ERR_INVALID_INTERVAL_FIELD, (field_name), (MAX_ISO_VALUE)); \
-        return GS_ERROR;                                                           \
+        CT_THROW_ERROR(ERR_INVALID_INTERVAL_FIELD, (field_name), (MAX_ISO_VALUE)); \
+        return CT_ERROR;                                                           \
     }
 
 static inline status_t cm_year2yminterval(double year, interval_ym_t *ymitvl)
@@ -354,11 +354,11 @@ static inline status_t cm_year2yminterval(double year, interval_ym_t *ymitvl)
        is out of range.Other unit of time do not exists such scenarios.
     */
     if ((fabs(*ymitvl) / ITVL_MONTHS_PER_YEAR) >= (ITVL_MAX_ISO_YEAR + 1)) {
-        GS_THROW_ERROR(ERR_INVALID_INTERVAL_FIELD, "YEAR", (ITVL_MAX_ISO_YEAR));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_INTERVAL_FIELD, "YEAR", (ITVL_MAX_ISO_YEAR));
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_month2yminterval(double month, interval_ym_t *ymitvl)
@@ -366,7 +366,7 @@ static inline status_t cm_month2yminterval(double month, interval_ym_t *ymitvl)
     CM_POINTER(ymitvl);
     CM_CHECK_ITVL_FIELD(month, ITVL_MAX_ISO_MONTH, "MONTH");
     *ymitvl = (interval_ym_t)(round(month));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_day2dsinterval(double day, interval_ds_t *dsitvl)
@@ -374,7 +374,7 @@ static inline status_t cm_day2dsinterval(double day, interval_ds_t *dsitvl)
     CM_POINTER(dsitvl);
     CM_CHECK_ITVL_FIELD(day, ITVL_MAX_ISO_DAY, "DAY");
     *dsitvl = (interval_ds_t)(round(day * ITVL_UNITS_PER_DAY));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_hour2dsinterval(double hour, interval_ds_t *dsitvl)
@@ -382,7 +382,7 @@ static inline status_t cm_hour2dsinterval(double hour, interval_ds_t *dsitvl)
     CM_POINTER(dsitvl);
     CM_CHECK_ITVL_FIELD(hour, ITVL_MAX_ISO_HOUR, "HOUR");
     *dsitvl = (interval_ds_t)(round(hour * ITVL_UNITS_PER_HOUR));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_minute2dsinterval(double minute, interval_ds_t *dsitvl)
@@ -390,7 +390,7 @@ static inline status_t cm_minute2dsinterval(double minute, interval_ds_t *dsitvl
     CM_POINTER(dsitvl);
     CM_CHECK_ITVL_FIELD(minute, ITVL_MAX_ISO_MINUTE, "MINUTE");
     *dsitvl = (interval_ds_t)(round(minute * ITVL_UNITS_PER_MINUTE));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_second2dsinterval(double sec, interval_ds_t *dsitvl)
@@ -398,7 +398,7 @@ static inline status_t cm_second2dsinterval(double sec, interval_ds_t *dsitvl)
     CM_POINTER(dsitvl);
     CM_CHECK_ITVL_FIELD(sec, ITVL_MAX_ISO_SECOND, "SECOND");
     *dsitvl = (interval_ds_t)(round(sec * ITVL_UNITS_PER_SECOND));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_adjust_yminterval(interval_ym_t *ymitvl, uint32 year_prec);

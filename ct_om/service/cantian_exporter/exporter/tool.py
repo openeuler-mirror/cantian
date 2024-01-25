@@ -4,7 +4,7 @@ import subprocess
 from exporter.log import EXPORTER_LOG as LOG
 
 FAIL = 1
-TIME_OUT = 5
+TIME_OUT = 60
 cur_abs_path, _ = os.path.split(os.path.abspath(__file__))
 
 
@@ -57,23 +57,22 @@ class SimpleSql:
         self.node_id = None
         self.sql_sh_path = None
         self.time_out = 5
-        self.zsql_ip_addr = '127.0.0.1'
-        self.zsql_port = '1611'
+        self.ctsql_ip_addr = '127.0.0.1'
+        self.ctsql_port = '1611'
+        self.__decrypt_pwd = None
 
-    def update_sys_data(self, cur_node_id):
+    def update_sys_data(self, cur_node_id, decrypt_pwd):
         self.node_id = cur_node_id
+        self.__decrypt_pwd = decrypt_pwd
 
-    def query(self, select, source_from, where=None):
-        select_item = [item.upper() for item in select]
-        source_item = 'FROM {}'.format(source_from.upper())
-        where_item = " WHERE {}='{}'".format(where[0], where[1]) if where else ''
-        self.sql_statement = 'SELECT {} {}{};'.format(','.join(select_item), source_item, where_item)
-
-        exec_cmd = "zsql sys@{}:{} -q -c \"{}\"".format(self.zsql_ip_addr,
-                                                        self.zsql_port, self.sql_statement)
+    def query(self, sql_file):
+        exec_cmd = "echo '{}' | ctsql sys@{}:{} -q -f \"{}\"".format(self.__decrypt_pwd, self.ctsql_ip_addr,
+                                                                    self.ctsql_port, sql_file)
         return_code, stdout, stderr = _exec_popen('source ~/.bashrc&&{}'.format(exec_cmd))
 
         if return_code:
+            stderr = str(stderr)
+            stderr.replace(self.__decrypt_pwd, "*****")
             LOG.error("[sql shell task] node {} execute cmd '{}' "
                       "failed, err: {}".format(self.node_id, self.sql_statement, str(stderr)))
 

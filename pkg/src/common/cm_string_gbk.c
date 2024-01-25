@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -35,13 +35,13 @@ static int32 cm_gbk_chr_bytes(uint8 c, uint32 *bytes)
 {
     if (CM_IS_ASCII((int8)c)) {
         *bytes = 1;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else if (IS_VALID_GBK_START_BYTE(c)) {
         *bytes = 2;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
         *bytes = 1;
-        return GS_ERROR;
+        return CT_ERROR;
     }
 }
 
@@ -49,42 +49,42 @@ static status_t cm_gbk_str_bytes_internal(const char *str, uint32 len, uint32 *b
 {
     uint32 i;
 
-    if (cm_gbk_chr_bytes((uint8)*str, bytes) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_gbk_chr_bytes((uint8)*str, bytes) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (*bytes > len) {
         *bytes = len;
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     // verify GBK character
     for (i = 1; i < *bytes; i++) {
         if (!IS_VALID_GBK_CHAR(*(str + i))) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_gbk_str_bytes_ignore(const char *str, uint32 len, uint32 *bytes)
 {
     uint32 i, check_len;
 
-    if (cm_gbk_chr_bytes((uint8)*str, bytes) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_gbk_chr_bytes((uint8)*str, bytes) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // verify GBK character
     check_len = MIN(*bytes, len);
     for (i = 1; i < check_len; i++) {
         if (!IS_VALID_GBK_CHAR(*(str + i))) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_gbk_length_internal(const text_t *text, uint32 *characters)
@@ -94,9 +94,9 @@ static status_t cm_gbk_length_internal(const text_t *text, uint32 *characters)
     pos = temp_characters = 0;
 
     while (pos < text->len) {
-        if (cm_gbk_str_bytes_internal(text->str + pos, text->len - pos, &temp_bytes) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "GBK buffer");
-            return GS_ERROR;
+        if (cm_gbk_str_bytes_internal(text->str + pos, text->len - pos, &temp_bytes) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "GBK buffer");
+            return CT_ERROR;
         }
 
         pos += temp_bytes;
@@ -104,12 +104,12 @@ static status_t cm_gbk_length_internal(const text_t *text, uint32 *characters)
     }
 
     if (pos != text->len) {
-        GS_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "GBK buffer");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "GBK buffer");
+        return CT_ERROR;
     }
 
     *characters = temp_characters;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void cm_gbk_special_multi_byte(text_t *src, text_t *dst, uint32 *i, uint32 *j)
@@ -261,7 +261,7 @@ static inline status_t cm_gbk_other_character_single_byte(text_t *src, text_t *d
 {
     uint32 char_bytes;
 
-    GS_RETURN_IFERR(cm_gbk_chr_bytes((uint8)src->str[*i], &char_bytes));
+    CT_RETURN_IFERR(cm_gbk_chr_bytes((uint8)src->str[*i], &char_bytes));
     if (char_bytes == 1) {
         dst->str[*j] = src->str[*i];
         *i += 1;
@@ -273,7 +273,7 @@ static inline status_t cm_gbk_other_character_single_byte(text_t *src, text_t *d
         *j += 2;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_gbk_multi_byte_internal(text_t *src, text_t *dst)
@@ -296,7 +296,7 @@ static status_t cm_gbk_multi_byte_internal(text_t *src, text_t *dst)
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_gbk_single_byte_internal(text_t *src, text_t *dst)
@@ -315,11 +315,11 @@ static status_t cm_gbk_single_byte_internal(text_t *src, text_t *dst)
             cm_gbk_common_single_byte(src, dst, &i, &j);
         } else {
             // for other character
-            GS_RETURN_IFERR(cm_gbk_other_character_single_byte(src, dst, &i, &j));
+            CT_RETURN_IFERR(cm_gbk_other_character_single_byte(src, dst, &i, &j));
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_gbk_length_ignore_internal(const text_t *text, uint32 *characters, uint32 *ignore_bytes)
@@ -329,9 +329,9 @@ static status_t cm_gbk_length_ignore_internal(const text_t *text, uint32 *charac
     pos = temp_characters = 0;
 
     while (pos < text->len) {
-        if (cm_gbk_str_bytes_ignore(text->str + pos, text->len - pos, &temp_bytes) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "GBK buffer");
-            return GS_ERROR;
+        if (cm_gbk_str_bytes_ignore(text->str + pos, text->len - pos, &temp_bytes) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_NLS_INTERNAL_ERROR, "GBK buffer");
+            return CT_ERROR;
         }
 
         pos += temp_bytes;
@@ -340,14 +340,14 @@ static status_t cm_gbk_length_ignore_internal(const text_t *text, uint32 *charac
 
     *characters = temp_characters;
     *ignore_bytes = pos - text->len;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 char *cm_gbk_move_char_forward(const char *str, uint32 str_len)
 {
     uint32 chlen = 0;
-    if (cm_gbk_str_bytes(str, str_len, &chlen) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_GENERIC_INTERNAL_ERROR, "invalid GBK buffer");
+    if (cm_gbk_str_bytes(str, str_len, &chlen) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_GENERIC_INTERNAL_ERROR, "invalid GBK buffer");
         return NULL;
     }
 
@@ -369,10 +369,10 @@ char *cm_gbk_move_char_backward(char *str, const char *head)
         c--;
     }
 
-    if ((cm_gbk_chr_bytes((uint8)*c, &chnum) == GS_SUCCESS) && (chnum == str - c)) {
+    if ((cm_gbk_chr_bytes((uint8)*c, &chnum) == CT_SUCCESS) && (chnum == str - c)) {
         return c;
     }
-    GS_THROW_ERROR(ERR_GENERIC_INTERNAL_ERROR, "invalid GBK buffer");
+    CT_THROW_ERROR(ERR_GENERIC_INTERNAL_ERROR, "invalid GBK buffer");
     return NULL;
 }
 
@@ -388,11 +388,11 @@ bool8 cm_gbk_has_multibyte(const char *str, uint32 len)
 
     for (i = 0; i < len; i++) {
         if (IS_VALID_GBK_START_BYTE(ptr[i])) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t cm_gbk_str_bytes(const char *str, uint32 len, uint32 *bytes)
@@ -407,16 +407,16 @@ status_t cm_gbk_reverse_str_bytes(const char *str, uint32 len, uint32 *bytes)
     // 1 byte character
     if (CM_IS_ASCII(*cur_c)) {
         *bytes = 1;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // 2 bytes character
     if (len < 2 || !IS_VALID_GBK_CHAR(*cur_c) || !IS_VALID_GBK_START_BYTE(*(cur_c - 1))) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *bytes = 2;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool8 cm_gbk_text_like(const text_t *text1, const text_t *text2)
@@ -444,12 +444,12 @@ status_t cm_gbk_length_ignore_truncated_bytes(text_t *text)
 {
     uint32 bytes;
     uint32 chars;
-    if (cm_gbk_length_ignore(text, &chars, &bytes) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_gbk_length_ignore(text, &chars, &bytes) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     text->len = text->len - bytes;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_gbk_substr(text_t *src, int32 start, uint32 size, text_t *dst)
@@ -505,18 +505,18 @@ status_t cm_gbk_to_unicode(uint8 *str, uint32 *strlen)
     char *pGbk = (char *)str;
 
     if (*strlen != 2) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     iRet = gbk2ucs2(pGbk, *strlen, &ucs2);
     if (iRet < 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
    
     str[0] = (ucs2 >> 8) & 0xFF;
     str[1] = ucs2 & 0xFF;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -130,7 +130,9 @@ typedef struct st_knl_constraint_state {
             uint32 initially_ops : 2;
             uint32 rely_ops : 2;
             uint32 is_encode : 1; // deprecated field
-            uint32 unused_ops : 21;
+            uint32 is_cascade : 1;
+            uint32 is_contains_vircol : 1;
+            uint32 unused_ops : 19;
         };
         uint32 option;
     };
@@ -166,7 +168,7 @@ typedef struct st_knl_part_def {
 
 typedef struct st_knl_part_column_def {
     uint32 column_id;
-    gs_type_t datatype;
+    ct_type_t datatype;
     bool32 is_char;
     uint16 size;
     uint8 precision;
@@ -227,11 +229,12 @@ typedef struct st_knl_index_def {
     bool32 is_reverse;
     bool32 nologging;
     uint8 is_for_create_db;
+    bool8 is_dsc; // true for dsc index
 } knl_index_def_t;
 
-#define GS_MAX_INDEX_COUNT_PERSQL    8
+#define CT_MAX_INDEX_COUNT_PERSQL    8
 typedef struct st_knl_indexes_def {
-    knl_index_def_t indexes_def[GS_MAX_INDEX_COUNT_PERSQL];
+    knl_index_def_t indexes_def[CT_MAX_INDEX_COUNT_PERSQL];
     uint32 index_count;
 } knl_indexes_def_t;
 
@@ -343,7 +346,7 @@ typedef struct st_knl_column_def {
          * be replaced by typmode_t for unifying the definition of columns
          */
         struct {
-            gs_type_t datatype;
+            ct_type_t datatype;
             uint16 size;
             uint8 precision;
             int8 scale;
@@ -367,7 +370,8 @@ typedef struct st_knl_column_def {
             bool32 is_dummy : 1;   // if it is a dummy column for index
             bool32 is_default_null : 1; // empty string treat as null or ''
             bool32 is_jsonb : 1;  // this col must be jsonb type(blob type in fact)
-            bool32 unused_ops : 17;
+            bool32 is_unsigned : 1; // unsigned for mysql
+            bool32 unused_ops : 16;
         };
         bool32 is_option_set;
     };
@@ -389,6 +393,8 @@ typedef struct st_knl_column_def {
     void *check_cond;  // condition tree for check
     text_t comment;
     void *table;
+    uint16 collate_id;
+    uint8 mysql_ori_datatype;
 } knl_column_def_t;
 
 typedef struct st_knl_alt_column_prop {
@@ -441,6 +447,8 @@ typedef struct st_knl_altable_def {
     void *alindex_def;
     void *drop_index_def;
     uint8 is_for_create_db;
+    uint8 is_mysql_copy;
+    uint8 contains_vircol;
 } knl_altable_def_t;
 
 typedef struct st_loginfo_base_rec {
@@ -497,12 +505,16 @@ typedef struct st_knl_table_def {
         bool32 rf_inline : 1;   // inline reference constraint
         bool32 chk_inline : 1;  // inline check constraint
         bool32 create_as_select : 1; // create table as select
+        bool32 is_mysql_copy : 1; // copy algorithm for mysql
         bool32 is_for_create_db : 1;
-        bool32 unused : 26;
+        bool32 is_intrinsic : 1;
+        bool32 contains_vircol : 1;
+        bool32 unused : 23;
     };
 
     uint32 options;      // if not exists
     uint64 serial_start;  // init auto incremnet value
+    bool32 has_serial_column;
     uint8 collate;
     uint8 charset;
     compress_type_t compress_type;
@@ -525,27 +537,38 @@ typedef struct st_knl_table_def {
 } knl_table_def_t;
 
 status_t knl_create_table(knl_handle_t session, knl_handle_t stmt, knl_table_def_t *def);
+status_t knl_create_table_log_put4mysql(knl_handle_t session, knl_handle_t stmt, knl_table_def_t *def,
+                                        knl_dictionary_t *dc);
+status_t knl_create_table4mysql(knl_handle_t session, knl_handle_t stmt, knl_table_def_t *def);
 status_t knl_create_table_as_select(knl_handle_t session, knl_handle_t stmt, knl_table_def_t *def);
-status_t knl_ddl_execute_status(knl_handle_t sess, bool32 forbid_in_rollback, ddl_exec_status_t *ddl_exec_stat);
+bool32 knl_create_table_check_exist(knl_handle_t session, knl_table_def_t *def, bool32 has_auton_rm);
+EXTER_ATTACK status_t knl_ddl_execute_status(knl_handle_t sess, bool32 forbid_in_rollback, ddl_exec_status_t *ddl_exec_stat);
 status_t knl_ddl_enabled(knl_handle_t session, bool32 forbid_in_rollback);
-
-#ifdef Z_SHARDING
 status_t knl_insert_ddl_loginfo(knl_handle_t knl_session, knl_dist_ddl_loginfo_t *info);
 status_t knl_query_ddl_loginfo(knl_handle_t knl_session, text_t *ddl_id, text_t *ddl_info, uint32 *used_encrypt);
 status_t knl_delete_ddl_loginfo(knl_handle_t knl_session, text_t *ddl_id);
 status_t knl_clean_ddl_loginfo(knl_handle_t knl_session, text_t *ddl_id, uint32 *rows);
+void knl_clean_before_commit(knl_handle_t knl_session);
 void knl_set_ddl_id(knl_handle_t knl_session, text_t *id);
 bool32 knl_is_dist_ddl(knl_handle_t knl_session);
-#endif
-void knl_clean_before_commit(knl_handle_t knl_session);
-status_t knl_internal_drop_table(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t *def);
 status_t knl_internal_drop_table_handle_ref(knl_handle_t session, knl_drop_def_t *def, knl_dictionary_t dc);
+status_t knl_internal_drop_table(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t *def, bool32 commit);
 
 status_t knl_alter_table(knl_handle_t session, knl_handle_t stmt, knl_altable_def_t *def, bool32 is_lrep_log);
 status_t knl_perform_alter_table(knl_handle_t session, knl_handle_t stmt, knl_altable_def_t *def, bool32 is_lrep_log);
 status_t knl_alter_table_shrink(knl_handle_t session, knl_handle_t stmt, knl_altable_def_t *def);
+void knl_drop_table_log_put(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t *def,
+                            knl_dictionary_t *dc);
+void knl_drop_table_after_commit4mysql(knl_handle_t session, knl_dictionary_t *dc, knl_drop_def_t *def);
 status_t knl_drop_table(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t *def);
+status_t knl_drop_table_no_commit4mysql(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t *def);
 status_t knl_drop_view(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t *def);
+
+// for mysql copy and create as select
+// used after rollback
+void knl_drop_garbage_table4mysql_copy(knl_handle_t session, knl_drop_def_t *drop_def);
+// used before commit
+status_t knl_delete_temp_table_record4mysql(knl_handle_t session, knl_table_def_t *def);
 
 typedef struct st_knl_trunc_def {
     text_t owner;  // owner's name
@@ -554,6 +577,8 @@ typedef struct st_knl_trunc_def {
     // for mysql truncate parent table, if mysql set session.foreign_key_checks = 0,
     // no_need_check_fk = 1, truncate parent table before child table is allowed
     bool32 no_need_check_fk;
+    bool32 is_changed;
+    bool32 is_not_rcyclebin;
 } knl_trunc_def_t;
 
 typedef enum st_flashback_type {
@@ -576,7 +601,14 @@ typedef struct st_knl_flashback_def {
     flashback_type_t type;
 } knl_flashback_def_t;
 
+status_t knl_truncate_table_lock_table(knl_handle_t session, knl_dictionary_t *dc);
+void knl_truncate_table_log_put(knl_handle_t session, knl_handle_t stmt, knl_dictionary_t *dc);
+void knl_truncate_table_invalidate_dc(knl_handle_t session, knl_dictionary_t *dc,
+                                      bool32 is_changed, bool32 is_not_rcyclebin);
 status_t knl_truncate_table(knl_handle_t session, knl_handle_t stmt, knl_trunc_def_t *def);
+status_t knl_truncate_table4mysql(knl_handle_t session, knl_handle_t stmt, knl_trunc_def_t *def, knl_dictionary_t *dc);
+void knl_truncate_table_after_commit(knl_handle_t session, knl_trunc_def_t *def, knl_dictionary_t *dc);
+void knl_truncate_table_after_rollback(knl_handle_t session, knl_trunc_def_t *def, knl_dictionary_t *dc);
 status_t knl_flashback_table(knl_handle_t session, knl_flashback_def_t *def);
 
 
@@ -630,7 +662,7 @@ typedef struct st_knl_purge_def {
 
 void knl_set_lockwait_timeout(knl_handle_t session, knl_lockwait_def_t *def);
 status_t knl_update_serial_value(knl_handle_t session, knl_handle_t dc_entity, int64 value, bool32 is_uint64);
-status_t knl_update_serial_value_auto_inc(knl_handle_t session, knl_handle_t dc_entity, int64 value, bool32 is_uint64);
+status_t knl_update_serial_value_4mysql(knl_handle_t session, knl_handle_t dc_entity, int64 value, bool32 is_uint64);
 #ifdef __cplusplus
 }
 #endif

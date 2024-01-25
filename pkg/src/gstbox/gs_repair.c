@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "gs_tbox_module.h"
 #include "gs_repair.h"
 #include "gs_miner.h"
 #include "gs_page.h"
@@ -38,7 +39,7 @@
 #define cm_strdup strdup
 #endif
 
-#define ZREPAIR_INTERACTION_DEFAULT_TIMEOUT (uint32)10
+#define CREPAIR_INTERACTION_DEFAULT_TIMEOUT (uint32)10
 
 status_t repair_check_file_exists(text_t *file);
 status_t repair_set_ctrl_core_version(uint32 item_size, void *item_ptr, text_t *value);
@@ -51,82 +52,82 @@ status_t repair_set_ctrl_core_resetlogs(uint32 item_size, void *item_ptr, text_t
 status_t repair_ctrlfile_func_uint8(uint32 item_size, void *item_ptr, text_t *value)
 {
     uint16 val;
-    if (cm_text2uint16(value, &val) != GS_SUCCESS) {
+    if (cm_text2uint16(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to uint16 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(uint8 *)item_ptr = (uint8)val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_ctrlfile_func_uint16(uint32 item_size, void *item_ptr, text_t *value)
 {
     uint16 val;
-    if (cm_text2uint16(value, &val) != GS_SUCCESS) {
+    if (cm_text2uint16(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to uint16 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(uint16 *)item_ptr = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_ctrlfile_func_uint32(uint32 item_size, void *item_ptr, text_t *value)
 {
     uint32 val;
-    if (cm_text2uint32(value, &val) != GS_SUCCESS) {
+    if (cm_text2uint32(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to uint32 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(uint32 *)item_ptr = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_ctrlfile_func_int32(uint32 item_size, void *item_ptr, text_t *value)
 {
     int32 val;
-    if (cm_text2int(value, &val) != GS_SUCCESS) {
+    if (cm_text2int(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to int32 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(int32 *)item_ptr = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_ctrlfile_func_bool32(uint32 item_size, void *item_ptr, text_t *value)
 {
     uint32 val;
-    if (cm_text2uint32(value, &val) != GS_SUCCESS) {
+    if (cm_text2uint32(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to uint32 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (val != GS_FALSE && val != GS_TRUE) {
+    if (val != CT_FALSE && val != CT_TRUE) {
         printf("param value \'%s\' is invalid.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(uint32 *)item_ptr = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_ctrlfile_func_int64(uint32 item_size, void *item_ptr, text_t *value)
 {
     int64 val;
-    if (cm_text2bigint(value, &val) != GS_SUCCESS) {
+    if (cm_text2bigint(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to int64 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(int64 *)item_ptr = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_ctrlfile_func_uint64(uint32 item_size, void *item_ptr, text_t *value)
 {
     uint64 val;
-    if (cm_text2uint64(value, &val) != GS_SUCCESS) {
+    if (cm_text2uint64(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to uint64 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(uint64 *)item_ptr = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_ctrlfile_func_page_id_t(uint32 item_size, void *item_ptr, text_t *value)
@@ -141,136 +142,136 @@ status_t repair_ctrlfile_func_page_id_t(uint32 item_size, void *item_ptr, text_t
     cm_trim_text(&file_str);
     cm_trim_text(&page_str);
 
-    if (cm_text2uint16(&file_str, &uint16_value) != GS_SUCCESS) {
+    if (cm_text2uint16(&file_str, &uint16_value) != CT_SUCCESS) {
         printf("param value \'%s\' is invalid.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     page_id->file = uint16_value;
 
-    if (cm_text2uint32(&page_str, &uint32_value) != GS_SUCCESS) {
+    if (cm_text2uint32(&page_str, &uint32_value) != CT_SUCCESS) {
         printf("param value \'%s\' is invalid.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     page_id->page = uint32_value;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_ctrlfile_func_time_t(uint32 item_size, void *item_ptr, text_t *value)
 {
     date_t date;
     text_t date_fmt1 = { "YYYY-MM-DD HH24:MI:SS", 21 };
-    if (cm_text2date(value, &date_fmt1, &date) != GS_SUCCESS) {
+    if (cm_text2date(value, &date_fmt1, &date) != CT_SUCCESS) {
         printf("param value \'%s\' is invalid.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(time_t *)item_ptr = cm_date2time(date);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_protect_mode(uint32 item_size, void *item_ptr, text_t *value)
 {
     uint16 val;
-    if (cm_text2uint16(value, &val) != GS_SUCCESS) {
+    if (cm_text2uint16(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to uint16 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (val < MAXIMUM_PERFORMANCE  || val > MAXIMUM_PROTECTION) {
         printf("param value \'%s\' is beyond the type range.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(uint16 *)item_ptr = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_lrep_mode(uint32 item_size, void *item_ptr, text_t *value)
 {
     uint16 val;
-    if (cm_text2uint16(value, &val) != GS_SUCCESS) {
+    if (cm_text2uint16(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to uint16 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (val != LOG_REPLICATION_OFF && val != LOG_REPLICATION_ON) {
         printf("param value \'%s\' is beyond the type range.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(uint16 *)item_ptr = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_db_role(uint32 item_size, void *item_ptr, text_t *value)
 {
     uint16 val;
-    if (cm_text2uint16(value, &val) != GS_SUCCESS) {
+    if (cm_text2uint16(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to uint16 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (val < REPL_ROLE_PRIMARY || val > REPL_ROLE_CASCADED_PHYSICAL_STANDBY) {
         printf("param value \'%s\' is beyond the type range.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(uint16 *)item_ptr = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_archive_mode(uint32 item_size, void *item_ptr, text_t *value)
 {
     uint16 val;
-    if (cm_text2uint16(value, &val) != GS_SUCCESS) {
+    if (cm_text2uint16(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to uint16 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (val != ARCHIVE_LOG_OFF && val != ARCHIVE_LOG_ON) {
         printf("param value \'%s\' is beyond the type range.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(uint16 *)item_ptr = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_device_type(uint32 item_size, void *item_ptr, text_t *value)
 {
     uint16 val;
-    if (cm_text2uint16(value, &val) != GS_SUCCESS) {
+    if (cm_text2uint16(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to uint16 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (val > DEV_TYPE_CFS || val < DEV_TYPE_FILE) {
         printf("param value \'%s\' is beyond the type range.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(uint16 *)item_ptr = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_logfile_status(uint32 item_size, void *item_ptr, text_t *value)
 {
     uint16 val;
-    if (cm_text2uint16(value, &val) != GS_SUCCESS) {
+    if (cm_text2uint16(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to uint16 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (val >= LOG_FILE_UNUSED  || val < LOG_FILE_INACTIVE) {
         printf("param value \'%s\' is beyond the type range.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(uint16 *)item_ptr = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_core_charset(uint32 item_size, void *item_ptr, text_t *value)
 {
     uint16 val;
-    if (cm_text2uint16(value, &val) != GS_SUCCESS) {
+    if (cm_text2uint16(value, &val) != CT_SUCCESS) {
         printf("param value \'%s\' can not be converted to uint16 type.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (val > 1) {
         printf("param value \'%s\' is beyond the type range.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *(uint16 *)item_ptr = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_common_str(uint32 item_size, void *item_ptr, text_t *value)
@@ -279,7 +280,7 @@ status_t repair_set_ctrl_common_str(uint32 item_size, void *item_ptr, text_t *va
     char *str = (char *)item_ptr;
     if (value->len > item_size) {
         printf("param value \'%s\' is too long.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     ret = memcpy_sp(str, item_size, value->str, value->len);
@@ -287,7 +288,7 @@ status_t repair_set_ctrl_common_str(uint32 item_size, void *item_ptr, text_t *va
     if (value->len < item_size) {
         str[value->len] = '\0';
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_common_file(uint32 item_size, void *item_ptr, text_t *value)
@@ -296,12 +297,12 @@ status_t repair_set_ctrl_common_file(uint32 item_size, void *item_ptr, text_t *v
     char *str = (char *)item_ptr;
     if (value->len > item_size) {
         printf("param value \'%s\' is too long.\n", value->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     // check
-    if (repair_check_file_exists(value) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (repair_check_file_exists(value) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     ret = memcpy_sp(str, item_size, value->str, value->len);
@@ -309,7 +310,7 @@ status_t repair_set_ctrl_common_file(uint32 item_size, void *item_ptr, text_t *v
     if (value->len < item_size) {
         str[value->len] = '\0';
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 typedef status_t (*repair_ctrlfile_func_t)(uint32 item_size, void *item_ptr, text_t *value);
@@ -330,7 +331,7 @@ typedef struct st_repair_ctrlfile_items {
 #define REPAIR_CTRL_ITEM_WITH_LEN_FUNC(name, obj, item, len, func)  \
     { (name), (uint32)(len), (uint32)(OFFSET_OF(obj, item)), (func)}
 
-#define ARCHIVE_LOGS_LEN (sizeof(arch_log_id_t) * GS_MAX_ARCH_DEST)
+#define ARCHIVE_LOGS_LEN (sizeof(arch_log_id_t) * CT_MAX_ARCH_DEST)
 
 #define REPAIR_CTRLFILE_CORE_ITEM_COUNT \
     (sizeof(g_repair_ctrlfile_core_items_list) / sizeof(repair_ctrlfile_items_t))
@@ -338,7 +339,7 @@ repair_ctrlfile_items_t g_repair_ctrlfile_core_items_list[] = {
     REPAIR_CTRL_ITEM_WITH_FUNC("version", core_ctrl_t, version, ctrl_version_t, repair_set_ctrl_core_version),
     REPAIR_CTRL_ITEM("startup_times", core_ctrl_t, open_count, uint32),
     REPAIR_CTRL_ITEM("dbid_times", core_ctrl_t, dbid, uint32),
-    REPAIR_CTRL_ITEM_WITH_LEN_FUNC("database_name", core_ctrl_t, name, GS_DB_NAME_LEN, repair_set_ctrl_common_str),
+    REPAIR_CTRL_ITEM_WITH_LEN_FUNC("database_name", core_ctrl_t, name, CT_DB_NAME_LEN, repair_set_ctrl_common_str),
     REPAIR_CTRL_ITEM("init_time", core_ctrl_t, init_time, time_t),
 
     REPAIR_CTRL_ITEM("table$_entry", core_ctrl_t, sys_table_entry, page_id_t),
@@ -386,7 +387,7 @@ repair_ctrlfile_items_t g_repair_ctrlfile_core_items_list[] = {
 #define REPAIR_CTRLFILE_STORAGE_LOGFILE_ITEM_COUNT \
     (sizeof(g_repair_ctrlfile_storage_logfile_items_list) / sizeof(repair_ctrlfile_items_t))
 repair_ctrlfile_items_t g_repair_ctrlfile_storage_logfile_items_list[] = {
-    REPAIR_CTRL_ITEM_WITH_LEN_FUNC("name", log_file_ctrl_t, name, GS_FILE_NAME_BUFFER_SIZE, repair_set_ctrl_common_file),
+    REPAIR_CTRL_ITEM_WITH_LEN_FUNC("name", log_file_ctrl_t, name, CT_FILE_NAME_BUFFER_SIZE, repair_set_ctrl_common_file),
     REPAIR_CTRL_ITEM("size", log_file_ctrl_t, size, int64),
     REPAIR_CTRL_ITEM("hwm", log_file_ctrl_t, hwm, int64),
     REPAIR_CTRL_ITEM("seq", log_file_ctrl_t, seq, uint32),
@@ -403,7 +404,7 @@ repair_ctrlfile_items_t g_repair_ctrlfile_storage_logfile_items_list[] = {
 repair_ctrlfile_items_t g_repair_ctrlfile_storage_space_items_list[] = {
     REPAIR_CTRL_ITEM("spaceid", space_ctrl_t, id, uint32),
     REPAIR_CTRL_ITEM("used", space_ctrl_t, used, bool32),
-    REPAIR_CTRL_ITEM_WITH_LEN_FUNC("name", space_ctrl_t, name, GS_NAME_BUFFER_SIZE, repair_set_ctrl_common_str),
+    REPAIR_CTRL_ITEM_WITH_LEN_FUNC("name", space_ctrl_t, name, CT_NAME_BUFFER_SIZE, repair_set_ctrl_common_str),
     REPAIR_CTRL_ITEM("flag", space_ctrl_t, flag, uint16),
     REPAIR_CTRL_ITEM("block_size", space_ctrl_t, block_size, uint16),
     REPAIR_CTRL_ITEM("extent_size", space_ctrl_t, extent_size, uint32),
@@ -419,7 +420,7 @@ repair_ctrlfile_items_t g_repair_ctrlfile_storage_space_items_list[] = {
 repair_ctrlfile_items_t g_repair_ctrlfile_storage_datafiles_items_list[] = {
     REPAIR_CTRL_ITEM("dfileid", datafile_ctrl_t, id, uint32),
     REPAIR_CTRL_ITEM("used", datafile_ctrl_t, used, bool32),
-    REPAIR_CTRL_ITEM_WITH_LEN_FUNC("name", datafile_ctrl_t, name, GS_FILE_NAME_BUFFER_SIZE, repair_set_ctrl_common_file),
+    REPAIR_CTRL_ITEM_WITH_LEN_FUNC("name", datafile_ctrl_t, name, CT_FILE_NAME_BUFFER_SIZE, repair_set_ctrl_common_file),
     REPAIR_CTRL_ITEM("size", datafile_ctrl_t, size, int64),
     REPAIR_CTRL_ITEM("block_size", datafile_ctrl_t, block_size, uint16),
     REPAIR_CTRL_ITEM("flag", datafile_ctrl_t, flag, uint16),
@@ -442,7 +443,7 @@ repair_ctrlfile_items_t g_repair_ctrlfile_storage_archive_items_list[] = {
     REPAIR_CTRL_ITEM("end_lsn", arch_ctrl_t, end_lsn, uint64),
     REPAIR_CTRL_ITEM("first", arch_ctrl_t, first, uint64),
     REPAIR_CTRL_ITEM("last", arch_ctrl_t, last, uint64),
-    REPAIR_CTRL_ITEM_WITH_LEN_FUNC("name", arch_ctrl_t, name, GS_FILE_NAME_BUFFER_SIZE, repair_set_ctrl_common_file),
+    REPAIR_CTRL_ITEM_WITH_LEN_FUNC("name", arch_ctrl_t, name, CT_FILE_NAME_BUFFER_SIZE, repair_set_ctrl_common_file),
 };
 
 #define REPAIR_CTRLFILE_STORAGE_NODE_ITEM_COUNT \
@@ -473,10 +474,10 @@ repair_ctrlfile_items_t g_repair_ctrlfile_storage_node_items_list[] = {
 
 static void usage(void)
 {
-    printf("Zrepair is an repair tool for Z-engine.\n"
+    printf("crepair is an repair tool for cantian.\n"
            "\n"
            "Usage:\n"
-           "  zrepair [OPTIONS]\n"
+           "  crepair [OPTIONS]\n"
            "\nRequired options:\n"
            "  -f DATAFILE  the database datafile to repair\n");
 
@@ -498,8 +499,8 @@ static void usage(void)
 static inline void repair_init_input_common(repair_input_common_t* input_common)
 {
     input_common->page_size = MINER_DEF_PAGE_SIZE;
-    input_common->start = GS_INVALID_ID64;
-    input_common->count = GS_INVALID_ID32;
+    input_common->start = CT_INVALID_ID64;
+    input_common->count = CT_INVALID_ID32;
     input_common->log_path = NULL;
 }
 
@@ -514,19 +515,19 @@ static void repair_init_page_input(repair_page_def_t *page_input)
     page_input->ctrlfile = NULL;
 
     page_input->head_input.input_str = NULL;
-    page_input->head_input.file_handle = GS_INVALID_INT32;
-    page_input->head_input.is_file = GS_FALSE;
+    page_input->head_input.file_handle = CT_INVALID_INT32;
+    page_input->head_input.is_file = CT_FALSE;
 
     page_input->tail_input.input_str = NULL;
-    page_input->tail_input.file_handle = GS_INVALID_INT32;
-    page_input->tail_input.is_file = GS_FALSE;
+    page_input->tail_input.file_handle = CT_INVALID_INT32;
+    page_input->tail_input.is_file = CT_FALSE;
 
     page_input->ctrl_input.input_str = NULL;
-    page_input->ctrl_input.file_handle = GS_INVALID_INT32;
-    page_input->ctrl_input.is_file = GS_FALSE;
+    page_input->ctrl_input.file_handle = CT_INVALID_INT32;
+    page_input->ctrl_input.is_file = CT_FALSE;
 
-    page_input->is_force = GS_FALSE;
-    page_input->is_checksum = GS_FALSE;
+    page_input->is_force = CT_FALSE;
+    page_input->is_checksum = CT_FALSE;
 
     page_input->log_path[0] = '\0';
 }
@@ -545,17 +546,17 @@ static void repair_warning_timeout(uint32 timeout)
 #ifdef WIN32
     return;
 #else
-    char confirm[GS_MAX_CMD_LEN] = { 0 };
-    char *env_quiet = getenv("ZTBOX_CONFIRM_QUIET");
-    bool32 quiet_flag = GS_FALSE;
+    char confirm[CT_MAX_CMD_LEN] = { 0 };
+    char *env_quiet = getenv("CTBOX_CONFIRM_QUIET");
+    bool32 quiet_flag = CT_FALSE;
 
-    if (env_quiet != NULL && cm_str2bool(env_quiet, &quiet_flag) == GS_SUCCESS) {
+    if (env_quiet != NULL && cm_str2bool(env_quiet, &quiet_flag) == CT_SUCCESS) {
         if (quiet_flag) {
             return;
         }
     }
 
-    while (GS_TRUE) {
+    while (CT_TRUE) {
         printf("Warning: modifying datafile may cause unexpected results(unable to start DB, data lost, etc), must be sure the page size you input correctly. Continue anyway? (y/n):");
         (void)fflush(stdout);
 
@@ -565,7 +566,7 @@ static void repair_warning_timeout(uint32 timeout)
         while (NULL == cm_fgets_nonblock(confirm, sizeof(confirm), stdin)) {
             (void)cm_gettimeofday(&tv_end);
             if (tv_end.tv_sec - tv_begin.tv_sec > (long)timeout) {
-                printf("\nConfirm zrepair operation timeout.\r\n");
+                printf("\nConfirm crepair operation timeout.\r\n");
                 exit(EXIT_FAILURE);
             }
         }
@@ -589,10 +590,10 @@ static inline status_t repair_check_file_version(repair_page_def_t *page_input)
     // current, only support datafile / ctrlfile(no logfile)
     if (page_input->datafile != NULL) {
         return miner_verify_datafile_version(page_input->datafile,
-            (uint32)(CORE_CTRL_PAGE_ID + 1) * GS_DFLT_CTRL_BLOCK_SIZE);
+            (uint32)(CORE_CTRL_PAGE_ID + 1) * CT_DFLT_CTRL_BLOCK_SIZE);
     } else {
         // ctrlfile will be verified later
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 }
 
@@ -600,31 +601,31 @@ status_t repair_verify_input(repair_page_def_t *page_input, const char *input_pa
 {
     if (g_gm_optind < argc) {
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind]);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind]);
+        return CT_ERROR;
     }
 
     if ((page_input->datafile == NULL && page_input->ctrlfile == NULL) || (page_input->head_input.input_str == NULL &&
         page_input->ctrl_input.input_str == NULL && page_input->tail_input.input_str == NULL)) {
         printf("must have datafile/ctrlfile and repair data input. try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "input");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "input");
+        return CT_ERROR;
     }
 
     if (page_input->datafile != NULL && page_input->ctrlfile != NULL) {
         printf("must have only one datafile/ctrlfile. try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "input");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "input");
+        return CT_ERROR;
     }
 
-    if (tbox_verify_log_path(input_path, page_input) == GS_ERROR) {
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "log path");
-        return GS_ERROR;
+    if (tbox_verify_log_path(input_path, page_input) == CT_ERROR) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "log path");
+        return CT_ERROR;
     }
 
-    if (page_input->is_force == GS_FALSE) {
+    if (page_input->is_force == CT_FALSE) {
         if (repair_check_file_version(page_input)) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -635,96 +636,96 @@ static status_t inline repair_opt_proc_of_f(repair_page_def_t *page_input)
 {
     if (page_input->datafile != NULL || g_gm_optarg == NULL) {
         printf("must specify a data file to repair\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
     page_input->datafile = (char *)cm_strdup(g_gm_optarg);
     if (page_input->datafile == NULL) {
         printf("datafile strdup failed.\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t inline repair_opt_proc_of_k(repair_page_def_t *page_input)
 {
     if (page_input->ctrlfile != NULL || g_gm_optarg == NULL) {
         printf("must specify a data file to repair\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
     page_input->ctrlfile = (char *)cm_strdup(g_gm_optarg);
     if (page_input->ctrlfile == NULL) {
         printf("ctrlfile strdup failed.\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t inline repair_opt_proc_of_H(repair_page_def_t *page_input)
 {
     if (page_input->head_input.input_str != NULL || g_gm_optarg == NULL) {
         printf("must specify a page head data to repair\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
     page_input->head_input.input_str = (char *)cm_strdup(g_gm_optarg);
     if (page_input->head_input.input_str == NULL) {
         printf("head_input strdup failed.\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t inline repair_opt_proc_of_c(repair_page_def_t *page_input)
 {
     if (page_input->ctrl_input.input_str != NULL || g_gm_optarg == NULL) {
         printf("must specify a page ctrl data to repair\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
     page_input->ctrl_input.input_str = (char *)cm_strdup(g_gm_optarg);
     if (page_input->ctrl_input.input_str == NULL) {
         printf("ctrl_input strdup failed.\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t inline repair_opt_proc_of_t(repair_page_def_t *page_input)
 {
     if (page_input->tail_input.input_str != NULL || g_gm_optarg == NULL) {
         printf("must specify a page tail data to repair\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
     page_input->tail_input.input_str = (char *)cm_strdup(g_gm_optarg);
     if (page_input->tail_input.input_str == NULL) {
         printf("tail_input strdup failed.\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t repair_opt_proc_of_L(repair_input_common_t *input_common)
 {
     if (input_common->log_path != NULL || g_gm_optarg == NULL) {
         printf("must secify a log path if you set -L\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
     input_common->log_path = (char *)cm_strdup(g_gm_optarg);
     if (input_common->log_path == NULL) {
         printf("log_path strdup failed.\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (access(input_common->log_path, R_OK) || access(input_common->log_path, W_OK) ||
         access(input_common->log_path, X_OK)) {
         printf("access %s error: Permission denied.\n", input_common->log_path);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t repair_init_parameters(int argc, char *argv[], repair_page_def_t *page_input,
     repair_input_common_t *input_common)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     int32 c;
     c = miner_getopt(argc, argv, "Ff:s:n:p:H:Cc:t:L:k:");
     while (c != -1) {
@@ -738,7 +739,7 @@ static status_t repair_init_parameters(int argc, char *argv[], repair_page_def_t
                 break;
 
             case 'C':
-                page_input->is_checksum = GS_TRUE;
+                page_input->is_checksum = CT_TRUE;
                 break;
  
             case 'n':
@@ -768,11 +769,11 @@ static status_t repair_init_parameters(int argc, char *argv[], repair_page_def_t
                 status = repair_opt_proc_of_L(input_common);
                 break;
             case 'F':
-                page_input->is_force = GS_TRUE;
+                page_input->is_force = CT_TRUE;
                 break;
             default:
                 printf("try use \"--help\" for more information.\n");
-                return GS_ERROR;
+                return CT_ERROR;
         }
         c = miner_getopt(argc, argv, "Ff:s:n:p:H:Cc:t:L:k:");
     }
@@ -803,17 +804,17 @@ status_t repair_check_file_exists(text_t *file)
 {
     char *filepath = repair_text_alloc_str(file);
     if (filepath == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!cm_file_exist(filepath)) {
         printf("file \'%s\' is not exists.\n", filepath);
         CM_FREE_PTR(filepath);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     
     CM_FREE_PTR(filepath);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_logfiles(database_ctrl_t *ctrl, text_t *part, uint32 node_id, uint32 part_idx, text_t *value)
@@ -831,7 +832,7 @@ status_t repair_set_ctrl_logfiles(database_ctrl_t *ctrl, text_t *part, uint32 no
     }
 
     printf("param value \'%s\' is not supported.\n", part->str);
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t repair_set_ctrl_spaces(database_ctrl_t *ctrl, text_t *part, uint32 part_idx, text_t *value)
@@ -848,7 +849,7 @@ status_t repair_set_ctrl_spaces(database_ctrl_t *ctrl, text_t *part, uint32 part
     }
 
     printf("param value \'%s\' is not supported.\n", part->str);
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t repair_set_ctrl_datafiles(database_ctrl_t *ctrl, text_t *part, uint32 part_idx, text_t *value)
@@ -865,7 +866,7 @@ status_t repair_set_ctrl_datafiles(database_ctrl_t *ctrl, text_t *part, uint32 p
     }
 
     printf("param value \'%s\' is not supported.\n", part->str);
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t repair_set_ctrl_archive(database_ctrl_t *ctrl, text_t *part, uint32 node_id, uint32 part_idx, text_t *value)
@@ -883,7 +884,7 @@ status_t repair_set_ctrl_archive(database_ctrl_t *ctrl, text_t *part, uint32 nod
     }
 
     printf("param value \'%s\' is not supported.\n", part->str);
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t repair_set_ctrl_node(database_ctrl_t *ctrl, text_t *part, uint32 node_id, text_t *value)
@@ -899,61 +900,61 @@ status_t repair_set_ctrl_node(database_ctrl_t *ctrl, text_t *part, uint32 node_i
     }
 
     printf("param value \'%s\' is not supported.\n", part->str);
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t repair_set_ctrl_cluster_files(database_ctrl_t *ctrl, text_t *part, uint32 node_id, text_t *value)
 {
     text_t part1, part2;
-    uint32 part_idx = GS_INVALID_ID32;
+    uint32 part_idx = CT_INVALID_ID32;
     if (node_id >= ctrl->core.node_count) {
         printf("the node index(%u) is beyond the range(%u).\n", node_id, ctrl->core.node_count);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     cm_split_text(part, '.', '\0', &part1, &part2);
-    if (repair_get_item_index(&part1, &part_idx) != GS_SUCCESS) {
+    if (repair_get_item_index(&part1, &part_idx) != CT_SUCCESS) {
         printf("param value \'%s\' is invalid.\n", part->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (part_idx == GS_INVALID_ID32) {
+    if (part_idx == CT_INVALID_ID32) {
         printf("param value \'%s\' is invalid.\n", part->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     cm_trim_text(&part1);
     cm_trim_text(&part2);
     if (cm_text_str_equal(&part1, "archive")) {
-        if (part_idx >= GS_MAX_ARCH_NUM) {
-            printf("the archive index(%u) is beyond the range(%u).\n", part_idx, GS_MAX_ARCH_NUM);
-            return GS_ERROR;
+        if (part_idx >= CT_MAX_ARCH_NUM) {
+            printf("the archive index(%u) is beyond the range(%u).\n", part_idx, CT_MAX_ARCH_NUM);
+            return CT_ERROR;
         }
         return repair_set_ctrl_archive(ctrl, &part2, node_id, part_idx, value);
     } else if (cm_text_str_equal(&part1, "logfiles")) {
-        if (part_idx >= GS_MAX_LOG_FILES) {
-            printf("the logfiles index(%u) is beyond the range(%u).\n", part_idx, GS_MAX_LOG_FILES);
-            return GS_ERROR;
+        if (part_idx >= CT_MAX_LOG_FILES) {
+            printf("the logfiles index(%u) is beyond the range(%u).\n", part_idx, CT_MAX_LOG_FILES);
+            return CT_ERROR;
         }
         return repair_set_ctrl_logfiles(ctrl, &part2, node_id, part_idx, value);
     } else {
         printf("param value \'%s\' is invalid.\n", part1.str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 }
 
 status_t repair_set_ctrl_storage(database_ctrl_t *ctrl, text_t *part, text_t *value)
 {
     text_t part1, part2;
-    uint32 part_idx = GS_INVALID_ID32;
-    uint32 node_id = GS_INVALID_ID32;
-    uint32 array_index = GS_INVALID_ID32;
+    uint32 part_idx = CT_INVALID_ID32;
+    uint32 node_id = CT_INVALID_ID32;
+    uint32 array_index = CT_INVALID_ID32;
 
     cm_split_text(part, '.', '\0', &part1, &part2);
-    if (repair_get_item_index(&part1, &array_index) != GS_SUCCESS) {
+    if (repair_get_item_index(&part1, &array_index) != CT_SUCCESS) {
         printf("param value \'%s\' is invalid.\n", part->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (array_index == GS_INVALID_ID32) {
+    if (array_index == CT_INVALID_ID32) {
         printf("param value \'%s\' is invalid.\n", part->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_trim_text(&part1);
@@ -963,21 +964,21 @@ status_t repair_set_ctrl_storage(database_ctrl_t *ctrl, text_t *part, text_t *va
         node_id = array_index;
         if (node_id >= ctrl->core.node_count) {
             printf("the node index(%u) is beyond the range(%u).\n", node_id, ctrl->core.node_count);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         return repair_set_ctrl_node(ctrl, &part2, node_id, value);
     } else if (cm_text_str_equal(&part1, "spaces")) {
         part_idx = array_index;
-        if (part_idx >= GS_MAX_SPACES) {
-            printf("the spaces index(%u) is beyond the range(%u).\n", part_idx, GS_MAX_SPACES);
-            return GS_ERROR;
+        if (part_idx >= CT_MAX_SPACES) {
+            printf("the spaces index(%u) is beyond the range(%u).\n", part_idx, CT_MAX_SPACES);
+            return CT_ERROR;
         }
         return repair_set_ctrl_spaces(ctrl, &part2, part_idx, value);
     } else if (cm_text_str_equal(&part1, "datafiles")) {
         part_idx = array_index;
-        if (part_idx >= GS_MAX_DATA_FILES) {
-            printf("the datafiles index(%u) is beyond the range(%u).\n", part_idx, GS_MAX_DATA_FILES);
-            return GS_ERROR;
+        if (part_idx >= CT_MAX_DATA_FILES) {
+            printf("the datafiles index(%u) is beyond the range(%u).\n", part_idx, CT_MAX_DATA_FILES);
+            return CT_ERROR;
         }
         return repair_set_ctrl_datafiles(ctrl, &part2, part_idx, value);
     } else if (cm_text_str_equal(&part1, "redo")) {
@@ -985,7 +986,7 @@ status_t repair_set_ctrl_storage(database_ctrl_t *ctrl, text_t *part, text_t *va
         return repair_set_ctrl_cluster_files(ctrl, &part2, node_id, value);
     } else {
         printf("param value \'%s\' is invalid.\n", part1.str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 }
 
@@ -995,7 +996,7 @@ status_t repair_set_ctrl_core_resetlogs(uint32 item_size, void *item_ptr, text_t
     reset_log_t *resetlogs = (reset_log_t *)item_ptr;
     char *str = repair_text_alloc_str(value);
     if (str == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     errno_t ret = sscanf_s(str, "%u-%u-%llu", &resetlogs->rst_id, &resetlogs->last_asn,
@@ -1003,11 +1004,11 @@ status_t repair_set_ctrl_core_resetlogs(uint32 item_size, void *item_ptr, text_t
     if (ret == -1) {
         printf("param value \'%s\' is invalid.\n", value->str);
         CM_FREE_PTR(str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_FREE_PTR(str);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_core_archive(uint32 item_size, void *item_ptr, text_t *value)
@@ -1020,7 +1021,7 @@ status_t repair_set_ctrl_core_archive(uint32 item_size, void *item_ptr, text_t *
 
     src_str = repair_text_alloc_str(value);
     if (src_str == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
     line.len = value->len;
     line.str = src_str;
@@ -1030,16 +1031,16 @@ status_t repair_set_ctrl_core_archive(uint32 item_size, void *item_ptr, text_t *
         if (pos == 1) {
             printf("param value \'%s\' is invalid.\n", value->str);
             CM_FREE_PTR(src_str);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         line.str[pos - 1] = '\0';
         if (cm_str2uint64(line.str, &archived_log[id++].arch_log)) {
             printf("param value \'%s\' is invalid.\n", value->str);
             CM_FREE_PTR(src_str);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (line.len < pos || id == GS_MAX_ARCH_DEST) {
+        if (line.len < pos || id == CT_MAX_ARCH_DEST) {
             break;
         }
 
@@ -1049,7 +1050,7 @@ status_t repair_set_ctrl_core_archive(uint32 item_size, void *item_ptr, text_t *
     }
 
     CM_FREE_PTR(src_str);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_core_rfp(uint32 item_size, void *item_ptr, text_t *value)
@@ -1057,7 +1058,7 @@ status_t repair_set_ctrl_core_rfp(uint32 item_size, void *item_ptr, text_t *valu
     raft_point_t *rfp_point = (raft_point_t *)item_ptr;
     char *str = repair_text_alloc_str(value);
     if (str == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     errno_t ret = sscanf_s(str, "scn(%llu)-lfn(%llu)-raft_index(%llu)", &rfp_point->scn,
@@ -1066,11 +1067,11 @@ status_t repair_set_ctrl_core_rfp(uint32 item_size, void *item_ptr, text_t *valu
     if (ret == -1) {
         printf("param value \'%s\' is invalid.\n", value->str);
         CM_FREE_PTR(str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_FREE_PTR(str);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_node_lrp(uint32 item_size, void *item_ptr, text_t *value)
@@ -1080,7 +1081,7 @@ status_t repair_set_ctrl_node_lrp(uint32 item_size, void *item_ptr, text_t *valu
     log_point_t *lrp_point = (log_point_t *)item_ptr;
     char *str = repair_text_alloc_str(value);
     if (str == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     errno_t ret =
@@ -1088,13 +1089,13 @@ status_t repair_set_ctrl_node_lrp(uint32 item_size, void *item_ptr, text_t *valu
     if (ret == -1) {
         (void)printf("param value \'%s\' is invalid.\n", value->str);
         CM_FREE_PTR(str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     lrp_point->rst_id = rst_id;
     lrp_point->lfn = lfn;
     CM_FREE_PTR(str);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_node_rcy(uint32 item_size, void *item_ptr, text_t *value)
@@ -1104,7 +1105,7 @@ status_t repair_set_ctrl_node_rcy(uint32 item_size, void *item_ptr, text_t *valu
     log_point_t *rcy_point = (log_point_t *)item_ptr;
     char *str = repair_text_alloc_str(value);
     if (str == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     errno_t ret =
@@ -1112,13 +1113,13 @@ status_t repair_set_ctrl_node_rcy(uint32 item_size, void *item_ptr, text_t *valu
     if (ret == -1) {
         (void)printf("param value \'%s\' is invalid.\n", value->str);
         CM_FREE_PTR(str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     rcy_point->rst_id = rst_id;
     rcy_point->lfn = lfn;
     CM_FREE_PTR(str);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_core_version(uint32 item_size, void *item_ptr, text_t *value)
@@ -1126,7 +1127,7 @@ status_t repair_set_ctrl_core_version(uint32 item_size, void *item_ptr, text_t *
     ctrl_version_t *version = (ctrl_version_t *)item_ptr;
     char *str = repair_text_alloc_str(value);
     if (str == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     errno_t ret = sscanf_s(str, "%hu-%hu-%hu-%hu", &version->main, &version->major,
@@ -1134,11 +1135,11 @@ status_t repair_set_ctrl_core_version(uint32 item_size, void *item_ptr, text_t *
     if (ret == -1) {
         printf("param value \'%s\' is invalid.\n", value->str);
         CM_FREE_PTR(str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_FREE_PTR(str);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_set_ctrl_core(database_ctrl_t *ctrl, text_t *part, text_t *value)
@@ -1154,7 +1155,7 @@ status_t repair_set_ctrl_core(database_ctrl_t *ctrl, text_t *part, text_t *value
     }
 
     printf("param value \'%s\' is not supported.\n", part->str);
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t repair_set_ctrl_page_kv(database_ctrl_t *ctrl, text_t *name, text_t *value)
@@ -1170,7 +1171,7 @@ status_t repair_set_ctrl_page_kv(database_ctrl_t *ctrl, text_t *name, text_t *va
         return repair_set_ctrl_storage(ctrl, &part2, value);
     } else {
         printf("param value \'%s\' is invalid.\n", part1.str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 }
 
@@ -1179,7 +1180,7 @@ status_t repair_ctrlfile_core(database_ctrl_t *ctrl, char *crtlinfo)
     uint32 i = 0;
     uint32 line_no = 0;
     text_t text, name, value;
-    bool32 is_eof = GS_FALSE;
+    bool32 is_eof = CT_FALSE;
 
     text.len = (uint32)strlen(crtlinfo);
     text.str = crtlinfo;
@@ -1193,8 +1194,8 @@ status_t repair_ctrlfile_core(database_ctrl_t *ctrl, char *crtlinfo)
 
     for (;;) {
         // get every kv
-        if (repair_parse_kv(&text, &name, &value, &line_no, &is_eof) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (repair_parse_kv(&text, &name, &value, &line_no, &is_eof) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (is_eof) {
@@ -1204,77 +1205,77 @@ status_t repair_ctrlfile_core(database_ctrl_t *ctrl, char *crtlinfo)
         cm_trim_text(&value);
         cm_text_lower(&name);
 
-        if (repair_set_ctrl_page_kv(ctrl, &name, &value) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (repair_set_ctrl_page_kv(ctrl, &name, &value) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_ctrlfile_prepare(repair_page_def_t *page_input, database_ctrl_t *ctrl, int32 *handle)
 {
     int32 read_size;
     errno_t ret;
-    uint32 size = CTRL_MAX_PAGES_CLUSTERED * GS_DFLT_CTRL_BLOCK_SIZE;
+    uint32 size = CTRL_MAX_PAGES_CLUSTERED * CT_DFLT_CTRL_BLOCK_SIZE;
 
     ctrl->pages = (ctrl_page_t *)malloc(size);
     if (ctrl->pages == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, "miner parse ctrlfile");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, "miner parse ctrlfile");
+        return CT_ERROR;
     }
 
     ret = memset_sp((char *)ctrl->pages, size, 0, size);
     if (ret != EOK) {
         CM_FREE_PTR(ctrl->pages);
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)GS_MAX_LOG_BUFFER_SIZE, "miner parse ctrlfile");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)CT_MAX_LOG_BUFFER_SIZE, "miner parse ctrlfile");
+        return CT_ERROR;
     }
 
-    if (cm_open_file(page_input->ctrlfile, O_RDWR | O_BINARY | O_SYNC, handle) != GS_SUCCESS) {
+    if (cm_open_file(page_input->ctrlfile, O_RDWR | O_BINARY | O_SYNC, handle) != CT_SUCCESS) {
         CM_FREE_PTR(ctrl->pages);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cm_seek_file(*handle, 0, SEEK_SET) != 0) {
         cm_close_file(*handle);
         CM_FREE_PTR(ctrl->pages);
-        GS_THROW_ERROR(ERR_SEEK_FILE, 0, SEEK_SET, errno);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SEEK_FILE, 0, SEEK_SET, errno);
+        return CT_ERROR;
     }
 
-    if (cm_read_file(*handle, (void *)ctrl->pages, size, &read_size) != GS_SUCCESS) {
+    if (cm_read_file(*handle, (void *)ctrl->pages, size, &read_size) != CT_SUCCESS) {
         cm_close_file(*handle);
         CM_FREE_PTR(ctrl->pages);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (miner_verify_ctrlfile(ctrl, GS_FALSE) != GS_SUCCESS) {
+    if (miner_verify_ctrlfile(ctrl, CT_FALSE) != CT_SUCCESS) {
         cm_close_file(*handle);
         CM_FREE_PTR(ctrl->pages);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_ctrlfile(repair_page_def_t *page_input)
 {
     database_ctrl_t ctrl;
     int32 handle = -1;
-    uint32 size = CTRL_MAX_PAGES_CLUSTERED * GS_DFLT_CTRL_BLOCK_SIZE;
+    uint32 size = CTRL_MAX_PAGES_CLUSTERED * CT_DFLT_CTRL_BLOCK_SIZE;
 
-    if (repair_ctrlfile_prepare(page_input, &ctrl, &handle) != GS_SUCCESS) {
+    if (repair_ctrlfile_prepare(page_input, &ctrl, &handle) != CT_SUCCESS) {
         printf("repair prepare fail.\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     miner_init_ctrlfile(&ctrl);
 
     // modify
-    if (repair_ctrlfile_core(&ctrl, page_input->ctrl_input.input_str) != GS_SUCCESS) {
+    if (repair_ctrlfile_core(&ctrl, page_input->ctrl_input.input_str) != CT_SUCCESS) {
         cm_close_file(handle);
         CM_FREE_PTR(ctrl.pages);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     // calc checksum again
@@ -1286,19 +1287,19 @@ status_t repair_ctrlfile(repair_page_def_t *page_input)
     if (cm_seek_file(handle, 0, SEEK_SET) != 0) {
         cm_close_file(handle);
         CM_FREE_PTR(ctrl.pages);
-        GS_THROW_ERROR(ERR_SEEK_FILE, 0, SEEK_SET, errno);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SEEK_FILE, 0, SEEK_SET, errno);
+        return CT_ERROR;
     }
 
-    if (cm_write_file(handle, (void *)ctrl.pages, size) != GS_SUCCESS) {
+    if (cm_write_file(handle, (void *)ctrl.pages, size) != CT_SUCCESS) {
         cm_close_file(handle);
         CM_FREE_PTR(ctrl.pages);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_close_file(handle);
     CM_FREE_PTR(ctrl.pages);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_execute(int argc, char *argv[])
@@ -1313,40 +1314,40 @@ status_t repair_execute(int argc, char *argv[])
         if (strcmp(argv[g_gm_optind], "--help") == 0 || strcmp(argv[g_gm_optind], "-?") == 0 ||
             strcmp(argv[g_gm_optind], "-h") == 0) {
             usage();
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (strcmp(argv[g_gm_optind], "--version") == 0 || strcmp(argv[g_gm_optind], "-V") == 0) {
             printf("repair (Z-engine) 1.0.1\n");
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
     if (repair_init_parameters(argc, argv, &page_input, &input_common)) {
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "zrepair input parameter");
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "crepair input parameter");
         repair_free_page_input(&page_input);
         repair_free_input_common(&input_common);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (repair_verify_input(&page_input, input_common.log_path, argc, argv) == GS_ERROR) {
+    if (repair_verify_input(&page_input, input_common.log_path, argc, argv) == CT_ERROR) {
         repair_free_page_input(&page_input);
         repair_free_input_common(&input_common);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    repair_warning_timeout(ZREPAIR_INTERACTION_DEFAULT_TIMEOUT);
+    repair_warning_timeout(CREPAIR_INTERACTION_DEFAULT_TIMEOUT);
 
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     if (page_input.datafile != NULL) {
         status = repair_datafile(&page_input, &input_common);
     } else if (page_input.ctrlfile != NULL) {
         status = repair_ctrlfile(&page_input);
     } else {
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "zrepair input parameter");
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "crepair input parameter");
         repair_free_page_input(&page_input);
         repair_free_input_common(&input_common);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     repair_free_page_input(&page_input);

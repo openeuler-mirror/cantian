@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,7 +31,7 @@
 #include "knl_context.h"
 #include "mes_func.h"
 #include "rc_reform.h"
-
+#include "knl_archive.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,6 +39,10 @@ extern "C" {
 
 #define DTC_REFORM_WAIT_TIME (5) //mill-seconds
 #define DTC_REFORM_MES_CONNECT_TIMEOUT (90000) // mill-seconds
+#define DTC_MAX_NODE_COUNT 4
+#define DTC_REFORM_WAIT_ARCH_LOG (100)
+#define DTC_REFORM_CREATE_ARCH_TMP_MAX_RETRY_TIMES 3
+#define DTC_REFORM_CREATE_ARCH_TMP_WAIT_TIME_MS 3000
 
 status_t init_dtc_rc(void);
 void free_dtc_rc(void);
@@ -67,6 +71,16 @@ status_t rc_master_wait_ckpt_finish(reform_mode_t mode);
 //TODO: multi node
 void rc_save_prcy_nodes_info(reform_rcy_node_t *rcy_node);
 bool32 rc_reform_cancled(void);
+
+// force arch redo log for offline node
+status_t rc_arch_handle_tmp_file(arch_proc_context_t *proc_ctx, uint32 node_id);
+status_t rc_arch_init_proc_ctx(arch_proc_context_t *proc_ctx, uint32 node_id);
+status_t rc_arch_update_node_ctrl(uint32 node_id);
+status_t rc_archive_log_offline_node(arch_proc_context_t *proc_ctx, uint32 node_id);
+bool32 rc_need_archive_log(void);
+status_t rc_archive_log(arch_proc_context_t *arch_proc_ctx);
+void rc_end_archive_log(arch_proc_context_t *arch_proc_ctx);
+status_t rc_wait_archive_log_finish(arch_proc_context_t *arch_proc_ctx);
 
 #ifdef __cplusplus
 }

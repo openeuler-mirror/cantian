@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -51,19 +51,22 @@ extern "C" {
 #define CKPT_WAIT_MS 200
 #define CKPT_BITS_PER_BYTE 8
 
-#define GS_CKPT_EDP_GROUP_SIZE (uint32)(GS_CKPT_GROUP_SIZE / 3)
-#define GS_CLEAN_EDP_GROUP_SIZE (uint32)(GS_CKPT_GROUP_SIZE * 2)
-#define PAGE_CLEAN_MAX_BYTES (GS_MAX_BUF_POOL_NUM / CKPT_BITS_PER_BYTE)
+#define CT_MAX_CKPT_EDP_GROUP_SIZE (uint32)(CT_MAX_CKPT_GROUP_SIZE / 3)
+#define CT_CKPT_EDP_GROUP_SIZE(session) (uint32)(CT_CKPT_GROUP_SIZE(session) / 3)
+#define CT_MSG_EDP_REQ_SIZE(session) (uint32)(sizeof(msg_ckpt_edp_request_t) + CT_CKPT_EDP_GROUP_SIZE(session) * sizeof(edp_page_info_t))
+#define CT_MSG_EDP_REQ_SEND_SIZE(count) (uint32)(sizeof(msg_ckpt_edp_request_t) + (count) * sizeof(edp_page_info_t))
+#define CT_CLEAN_EDP_GROUP_SIZE (uint32)(CT_MAX_CKPT_GROUP_SIZE * 2)
+#define PAGE_CLEAN_MAX_BYTES (CT_MAX_BUF_POOL_NUM / CKPT_BITS_PER_BYTE)
 typedef struct st_ckpt_edp_group {
     spinlock_t lock;
     uint32 count;
-    edp_page_info_t pages[GS_CKPT_GROUP_SIZE + 1];
+    edp_page_info_t pages[CT_MAX_CKPT_GROUP_SIZE + 1];
 } ckpt_edp_group_t;
 
 typedef struct st_ckpt_clean_edp_group {
     spinlock_t lock;
     uint32 count;
-    edp_page_info_t pages[GS_CLEAN_EDP_GROUP_SIZE + 1];
+    edp_page_info_t pages[CT_CLEAN_EDP_GROUP_SIZE + 1];
 } ckpt_clean_edp_group_t;
 
 typedef enum e_ckpt_mode {
@@ -121,12 +124,12 @@ typedef struct st_ckpt_group {
     uint32 count;
     char *buf;
     char *iocbs_buf;
-    ckpt_sort_item items[GS_CKPT_GROUP_SIZE];
+    ckpt_sort_item items[CT_MAX_CKPT_GROUP_SIZE];
 } ckpt_group_t;
 
 typedef struct st_ckpt_part_group {
     uint32 count;
-    uint32 item_index[GS_CKPT_GROUP_SIZE];
+    uint32 item_index[CT_MAX_CKPT_GROUP_SIZE];
 } ckpt_part_group_t;
 
 #ifdef WIN32
@@ -137,9 +140,9 @@ typedef sem_t cm_sem_t;
 
 typedef struct st_ckpt_asyncio_ctx {
     cm_io_context_t aio_ctx;
-    datafile_t *datafiles[GS_CKPT_GROUP_SIZE];
-    int32 *handles[GS_CKPT_GROUP_SIZE];
-    uint64 offsets[GS_CKPT_GROUP_SIZE];
+    datafile_t *datafiles[CT_MAX_CKPT_GROUP_SIZE];
+    int32 *handles[CT_MAX_CKPT_GROUP_SIZE];
+    uint64 offsets[CT_MAX_CKPT_GROUP_SIZE];
 } ckpt_asyncio_ctx_t;
 
 typedef struct st_dbwr_context {
@@ -149,8 +152,8 @@ typedef struct st_dbwr_context {
     uint16 end;
     bool32 dbwr_trigger;
     cm_sem_t sem;
-    int32 datafiles[GS_MAX_DATA_FILES];  // data file handles
-    bool32 flags[GS_MAX_DATA_FILES];
+    int32 datafiles[CT_MAX_DATA_FILES];  // data file handles
+    bool32 flags[CT_MAX_DATA_FILES];
     ckpt_asyncio_ctx_t async_ctx;
     uint32 io_cnt;
     uint32 id;
@@ -180,20 +183,20 @@ typedef struct st_ckpt_stat {
     uint64 flush_pages[CKPT_MODE_NUM];
     uint64 clean_edp_count[CKPT_MODE_NUM];
     uint64 proc_wait_cnt;
-    ckpt_part_stat_t part_stat[GS_MAX_DBWR_PROCESS];
+    ckpt_part_stat_t part_stat[CT_MAX_DBWR_PROCESS];
     date_t ckpt_begin_time[CKPT_MODE_NUM];
 } ckpt_stat_t;
 
 typedef struct st_ckpt_clean_ctx {
-    buf_ctrl_t *ctrl[GS_MAX_BUF_POOL_NUM];
-    uint64 clean_count[GS_MAX_BUF_POOL_NUM];
+    buf_ctrl_t *ctrl[CT_MAX_BUF_POOL_NUM];
+    uint64 clean_count[CT_MAX_BUF_POOL_NUM];
     uint8 bitmap[PAGE_CLEAN_MAX_BYTES];
     uint32 next_index;
 } ckpt_clean_ctx_t;
 
 typedef struct st_ckpt_ctx {
     thread_t thread;
-    dbwr_context_t dbwr[GS_MAX_DBWR_PROCESS];
+    dbwr_context_t dbwr[CT_MAX_DBWR_PROCESS];
     spinlock_t lock;
 
     volatile bool32 ckpt_enabled;
@@ -219,8 +222,8 @@ typedef struct st_ckpt_ctx {
 
     ckpt_queue_t queue;
     ckpt_group_t group;
-    ckpt_part_group_t ckpt_part_group[GS_MAX_DBWR_PROCESS];
-    rcy_sort_item_t rcy_items[GS_CKPT_GROUP_SIZE];
+    ckpt_part_group_t ckpt_part_group[CT_MAX_DBWR_PROCESS];
+    rcy_sort_item_t rcy_items[CT_MAX_CKPT_GROUP_SIZE];
     ckpt_stat_t stat;
 
     buf_ctrl_t *batch_end;   // end position of current ckpt
@@ -232,6 +235,8 @@ typedef struct st_ckpt_ctx {
     ckpt_clean_edp_group_t local_edp_clean_group;  // request from other nodes to clean edp pages
     volatile bool8 ckpt_blocked;    // to block the checkpoint temporarily.
     uint8 reserved[3];
+    volatile uint32 disable_cnt;
+    spinlock_t disable_lock;
 } ckpt_context_t;
 
 status_t ckpt_init(knl_session_t *session);
@@ -243,7 +248,7 @@ void dbwr_end(knl_session_t *session, dbwr_context_t *dbwr);
 status_t dbwr_fdatasync(knl_session_t *session, dbwr_context_t *dbwr);
 status_t dbwr_save_page(knl_session_t *session, dbwr_context_t *dbwr, page_head_t *page);
 void dbwr_compress_checksum(knl_session_t *session, page_head_t *page);
-void ckpt_trigger(knl_session_t *session, bool32 wait, ckpt_mode_t mode);
+EXTER_ATTACK void ckpt_trigger(knl_session_t *session, bool32 wait, ckpt_mode_t mode);
 void ckpt_enque_page(knl_session_t *session);
 void ckpt_enque_one_page(knl_session_t *session, buf_ctrl_t *ctrl);
 void ckpt_get_trunc_point(knl_session_t *session, log_point_t *point);
@@ -262,6 +267,10 @@ status_t ckpt_encrypt(knl_session_t *session, ckpt_context_t *ctx);
 status_t ckpt_recover_partial_write_node(knl_session_t *session, uint32 node_id);
 
 void ckpt_put_to_part_group(knl_session_t *session, ckpt_context_t *ctx, buf_ctrl_t *to_flush_ctrl);
+status_t ckpt_prepare_compress(knl_session_t *session, ckpt_context_t *ctx, buf_ctrl_t *curr_ctrl,
+    buf_ctrl_t *ctrl_next, bool8 *ctrl_next_is_flushed, bool8 *need_exit);
+status_t dbwr_aio_init(knl_session_t *session, dbwr_context_t *dbwr);
+bool32 ckpt_try_latch_group(knl_session_t *session, buf_ctrl_t *ctrl);
 
 #ifdef __cplusplus
 }

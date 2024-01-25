@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "tse_module.h"
 #include "mes_func.h"
 #include "dtc_ddl.h"
 #include "tse_ddl.h"
@@ -31,8 +32,8 @@
 
 void tse_process_broadcast_ack_ex(void *session, mes_message_t *msg)
 {
-    if (msg->head->dst_sid >= GS_MAX_MES_ROOMS) {
-        GS_LOG_RUN_ERR("[TSE_MES]:invalid msg dst_sid %u.", msg->head->dst_sid);
+    if (msg->head->dst_sid >= CT_MAX_MES_ROOMS) {
+        CT_LOG_RUN_ERR("[TSE_MES]:invalid msg dst_sid %u.", msg->head->dst_sid);
         return;
     }
     mes_instance_t *mes_inst = get_g_mes();
@@ -52,7 +53,25 @@ void tse_process_broadcast_ack_ex(void *session, mes_message_t *msg)
     return;
 }
 
-int tse_broadcast_and_recv(knl_session_t *knl_session, uint64 target_bits, const void *req_data)
+bool ctc_handle_recv_error(mes_message_t *recv_msg, char *err_msg)
+{
+    uint8_t cmd = recv_msg->head->cmd;
+    bool allow_fail = ((msg_ddl_rsp_t *)recv_msg->buffer)->allow_fail;
+    char *carry_err_msg = ((msg_ddl_rsp_t *)recv_msg->buffer)->err_msg;
+
+    if (cmd == MES_CMD_PREPARE_DDL_RSP ||  cmd == MES_CMD_REWRITE_OPEN_CONN_RSP || allow_fail == true) {
+        if (err_msg != NULL && carry_err_msg != NULL) {
+            int ret = strncpy_s(err_msg, ERROR_MESSAGE_LEN, carry_err_msg, strlen(carry_err_msg));
+            knl_securec_check(ret);
+        }
+
+        CT_LOG_RUN_ERR("[TSE_MES]:remote node exec failed. cmd:%d", cmd);
+        return true;
+    }
+    return false;
+}
+
+int tse_broadcast_and_recv(knl_session_t *knl_session, uint64 target_bits, const void *req_data, char *err_msg)
 {
     uint32 sid = knl_session->id;
     uint64 start_stat_time = 0;
@@ -76,37 +95,35 @@ int tse_broadcast_and_recv(knl_session_t *knl_session, uint64 target_bits, const
         // 发送消息, 重发依赖集群位图的可靠
         head->dst_inst = target_inst;
         status_t status = tse_send_data_retry(req_data, head->dst_inst);
-        if (status != GS_SUCCESS) {
+        if (status != CT_SUCCESS) {
             target_inst++;
             continue;
         }
 
         // 接受消息
         mes_message_t recv_msg = {0};
-        SYNC_POINT_GLOBAL_START(TSE_MES_OVERVIEW_RECV_FAIL, &status, GS_ERROR);
-        status = mes_recv(sid, &recv_msg, GS_FALSE, head->rsn, TSE_BROADCAST_WAIT_TIMEOUT);
+        SYNC_POINT_GLOBAL_START(TSE_MES_OVERVIEW_RECV_FAIL, &status, CT_ERROR);
+        status = mes_recv(sid, &recv_msg, CT_FALSE, head->rsn, TSE_BROADCAST_WAIT_TIMEOUT);
         SYNC_POINT_GLOBAL_END;
-        if (status != GS_SUCCESS) {
+        if (status != CT_SUCCESS) {
             // recv失败重发
             head->rsn = mes_get_rsn(sid);  // the rsn is filled by upper-layer services for the first time.
                                            // In other cases, the rsn needs to be updated
-            GS_LOG_RUN_ERR("[TSE_MES]:recv msg fail. going to resend. cmd%d, rsn:%d.", head->cmd, head->rsn);
+            CT_LOG_RUN_ERR("[TSE_MES]:recv msg fail. going to resend. cmd%d, rsn:%d.", head->cmd, head->rsn);
             cm_reset_error();
             continue;
         }
 
         // 接受消息成功, 某个参天执行失败继续广播其它参天
-        if (room->err_code != GS_SUCCESS) {
+        if (room->err_code != CT_SUCCESS) {
             // lock远端执行失败需要反错，触发mysql下发unlock命令.
-            if (recv_msg.head->cmd == MES_CMD_PREPARE_DDL_RSP || recv_msg.head->cmd == MES_CMD_REWRITE_OPEN_CONN_RSP ||
-                ((msg_ddl_rsp_t *)recv_msg.buffer)->allow_fail == true) {
-                GS_LOG_RUN_ERR("[TSE_MES]:remote node exec failed. inst_id:%d, error_code:%d, cmd:%d",
-                    target_inst, room->err_code, recv_msg.head->cmd);
-                cm_thread_unlock(tse_mes_lock);
+            if (ctc_handle_recv_error(&recv_msg, err_msg)) {
                 mes_release_message_buf(recv_msg.buffer);
+                cm_thread_unlock(tse_mes_lock);
                 return room->err_code;
             }
-            GS_LOG_RUN_ERR("[TSE_MES]:recv error from other node. inst_id:%d, error_code:%d, cmd:%d",
+
+            CT_LOG_RUN_ERR("[TSE_MES]:recv error from other node. inst_id:%d, error_code:%d, cmd:%d",
                 target_inst, room->err_code, recv_msg.head->cmd);
         }
 
@@ -116,5 +133,5 @@ int tse_broadcast_and_recv(knl_session_t *knl_session, uint64 target_bits, const
 
     cm_thread_unlock(tse_mes_lock);
     mes_consume_with_time(head->cmd, MES_TIME_TEST_MULTICAST, start_stat_time);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
