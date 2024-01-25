@@ -779,7 +779,7 @@ status_t arch_flush_head(device_type_t arch_file_type, const char *dst_name, arc
     head->first = first_scn;
     head->last = CT_INVALID_ID64;
     head->first_lsn = proc_ctx->last_archived_log_record.start_lsn;
-    head->last_lsn = proc_ctx->last_archived_log_record.end_lsn;
+    head->last_lsn = proc_ctx->last_archived_log_record.cur_lsn;
     head->rst_id = file->head.rst_id;
     head->asn = proc_ctx->last_archived_log_record.asn;
     head->write_pos = proc_ctx->last_archived_log_record.offset;
@@ -804,7 +804,6 @@ status_t arch_flush_head(device_type_t arch_file_type, const char *dst_name, arc
 
 static inline void arch_dbstor_update_progress(log_file_t *logfile, arch_proc_context_t *proc_ctx)
 {
-    proc_ctx->last_archived_log_record.end_lsn = proc_ctx->last_archived_log_record.cur_lsn;
     // next file offset start from log_head.
     if (proc_ctx->last_archived_log_record.rst_id < logfile->head.rst_id) {
         // pitr rst_id change, need reset asn to 1.
@@ -878,7 +877,8 @@ status_t arch_dbstor_generate_arch_file(arch_proc_context_t *proc_ctx, log_file_
     proc_ctx->last_archived_log_record.offset = CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size);
     arch_file_name_info_t file_name_info = {logfile->head.rst_id, *asn, proc_ctx->session->kernel->id,
                                             CT_FILE_NAME_BUFFER_SIZE,
-                                            proc_ctx->last_archived_log_record.start_lsn, proc_ctx->last_archived_log_record.end_lsn,
+                                            proc_ctx->last_archived_log_record.start_lsn,
+                                            proc_ctx->last_archived_log_record.cur_lsn,
                                             arch_file_name};
     arch_set_archive_log_name_with_lsn(proc_ctx->session, ARCH_DEFAULT_DEST, &file_name_info);
     if (arch_dbstor_rename_tmp_file(tmp_file_name, arch_file_name, arch_file_type) != CT_SUCCESS) {
@@ -1627,7 +1627,7 @@ void arch_dbstor_do_archive(knl_session_t *session, arch_proc_context_t *proc_ct
         if (db_save_log_ctrl(session, proc_ctx->next_file_id, proc_ctx->session->kernel->id) != CT_SUCCESS) {
             CM_ABORT(0, "[ARCH] ABORT INFO: save control redo file failed when archive file");
         }
-
+        proc_ctx->last_archived_log_record.end_lsn = proc_ctx->last_archived_log_record.cur_lsn;
         dtc_node_ctrl_t *node_ctrl = dtc_my_ctrl(session);
         log_recycle_file(session, &node_ctrl->rcy_point);
     } else {
@@ -2349,7 +2349,8 @@ status_t rc_arch_generate_file(arch_proc_context_t *proc_ctx)
     }
     arch_file_name_info_t file_name_info = {logfile->head.rst_id, proc_ctx->last_archived_log_record.asn, proc_ctx->arch_id,
                                             CT_FILE_NAME_BUFFER_SIZE,
-                                            proc_ctx->last_archived_log_record.start_lsn, proc_ctx->last_archived_log_record.end_lsn,
+                                            proc_ctx->last_archived_log_record.start_lsn,
+                                            proc_ctx->last_archived_log_record.cur_lsn,
                                             arch_file_name};
     arch_set_archive_log_name_with_lsn(proc_ctx->session, ARCH_DEFAULT_DEST, &file_name_info);
     if (arch_dbstor_rename_tmp_file(proc_ctx->tmp_file_name, arch_file_name, arch_file_type) != CT_SUCCESS) {
@@ -2369,6 +2370,7 @@ status_t rc_arch_generate_file(arch_proc_context_t *proc_ctx)
     if (db_save_log_ctrl(session, 0, proc_ctx->arch_id) != CT_SUCCESS) {
         CM_ABORT(0, "[RC_ARCH] ABORT INFO: save control redo file failed when archive file");
     }
+    proc_ctx->last_archived_log_record.end_lsn = proc_ctx->last_archived_log_record.cur_lsn;
     rc_arch_recycle_file(proc_ctx);
     return CT_SUCCESS;
 }
