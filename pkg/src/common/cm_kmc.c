@@ -190,7 +190,7 @@ int32 cm_kmc_errno_file(void *stream)
 
 int32 cm_kmc_exist_file(const char *filePathName)
 {
-    return ret == 0;
+    return 0;
 }
 
 int32 cm_kmc_utc_time(const time_t *curTime, struct tm *curTm)
