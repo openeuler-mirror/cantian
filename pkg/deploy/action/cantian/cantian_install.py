@@ -1387,7 +1387,7 @@ class Installer:
                 numa_id_str = _ans[1].strip().split('-')
                 last_numa_id = numa_id_str[-1]
                 if int(last_numa_id) >= 16:
-                    numa_str = "4-11,16-" + str(last_numa_id)
+                    numa_str = "0-1,6-11,16-" + str(last_numa_id)
             numa_info += numa_str + " "
             numa_num += 1
 
