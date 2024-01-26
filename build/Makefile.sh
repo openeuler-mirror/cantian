@@ -26,6 +26,8 @@ source ./function.sh
 
 CONFIG_IN_FILE=${CANTIANDB_BUILD}/include/config.h
 
+CMAKE_C_COMPILER=$(which gcc)
+CMAKE_CXX_COMPILER=$(which g++)
 PYTHON3_HOME=${PYTHON3_HOME}
 MYSQL_CODE_PATH=${WORKSPACE}/mysql-server/mysql-source
 INSTALL_DIR=/opt/cantiandb
@@ -124,14 +126,16 @@ func_prepare_no_clean_debug()
 {
     export BUILD_MODE=Debug
     cd ${CANTIANDB_BUILD}
-    cmake -DCMAKE_BUILD_TYPE=Debug -DUSE32BIT=OFF ${COMPILE_OPTS} ..
+    cmake -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DUSE32BIT=OFF ${COMPILE_OPTS} ..
 }
 
 func_prepare_no_clean_release()
 {
     export BUILD_MODE=Release
     cd ${CANTIANDB_BUILD}
-    cmake -DCMAKE_BUILD_TYPE=Release -DUSE32BIT=OFF ${COMPILE_OPTS} ..
+    cmake -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_BUILD_TYPE=Release -DUSE32BIT=OFF \
+          -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} ${COMPILE_OPTS} ..
     sed -i "s/-O3/-O2/g" CMakeCache.txt
 }
 
@@ -182,68 +186,6 @@ func_all()
         fi
         ln cantiand ${CANTIAND_BIN}
     fi
-}
-
-func_jdriver()
-{
-    echo "make jdbc driver"
-    rm -rf ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}*
-    rm -rf ${JDBC_DIR}/file
-    cd ${JDBC_DIR} && sh build_package_unix.sh
-    mkdir -p ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}
-    cp ${JDBC_DIR}/file/${JAR_NAME} ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}/
-    cp ${JDBC_DIR}/file/${JAR_ETCD} ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}/
-    chmod 500 ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}/${JAR_NAME}
-    chmod 500 ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}/${JAR_ETCD}
-    cd ${CANTIANDB_HOME} && tar --owner=root --group=root -zcf ${JDRIVER_PACK_DIR_NAME}.tar.gz ${JDRIVER_PACK_DIR_NAME}
-    sha256sum ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}.tar.gz | cut -c1-64 > ${CANTIANDB_HOME}/${JDRIVER_PACK_DIR_NAME}.sha256
-    echo "make jdbc driver finished"
-}
-
-func_logic_rep()
-{
-    if [[ -d "${LOGICREP_FILE_DIR}" ]]; then
-        chmod -R 700 ${LOGICREP_FILE_DIR}/*
-    fi
-    rm -rf ${LOGICREP_DIR}/file
-
-    cd ${LOGICREP_DIR} && sh build_package_unix.sh
-    rm -rf ${LOGICREP_DIR}/file/${LOGICREP_GZ_NAME}
-    chmod 700 ${LOGICREP_DIR}/file/*
-    chmod 500 ${LOGICREP_DIR}/file/*.sh
-    chmod 600 ${LOGICREP_DIR}/file/*.ini
-    chmod 500 ${LOGICREP_DIR}/file/*.jar
-    chmod 500 ${LOGICREP_DIR}/file/*.py
-    chmod -R 700 ${LOGICREP_DIR}/file/conf/*
-    chmod 600 ${LOGICREP_DIR}/file/conf/*.xml
-    chmod 600 ${LOGICREP_DIR}/file/conf/*.properties
-    chmod 600 ${LOGICREP_DIR}/file/conf/repconf/*.xml
-    chmod 600 ${LOGICREP_DIR}/file/conf/topicconf/*.properties
-    chmod 600 ${LOGICREP_DIR}/file/conf/sec/*.properties
-    chmod -R 500 ${LOGICREP_DIR}/file/lib/*
-    chmod -R 500 ${LOGICREP_DIR}/file/plugin/*
-
-    rm -rf ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}*
-    mkdir -p ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}/logicrep
-    chmod 700 ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}/logicrep
-    cp /home/repo1/com/huawei/gauss/com.huawei.gauss.jdbc.ZenithDriver/Cantian/com.huawei.gauss.jdbc.ZenithDriver-Cantian.jar ${LOGICREP_DIR}/file/lib/
-    cd ${LOGICREP_DIR}/file/lib/
-    mv com.huawei.gauss.jdbc.ZenithDriver-Cantian.jar com.huawei.cantian.jdbc.CantianDriver-Cantian.jar
-    cp -r ${LOGICREP_DIR}/file/* ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}/logicrep/
-    cd ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}/logicrep/ && ln -s com.huawei.cantian.logicrep-*.jar com.huawei.cantian.logicrep.jar
-    cd ${CANTIANDB_BIN} && tar --owner=root --group=root -zcf ${LOGICREP_DIR_NAME}.tar.gz ${LOGICREP_DIR_NAME}
-    sha256sum ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}.tar.gz | cut -c1-64 > ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}.sha256
-}
-
-func_toolkit()
-{
-    func_jdriver
-    func_logic_rep
-    rm -rf ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}
-    mkdir -p ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}
-    mv ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}.tar.gz ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}
-    cd ${CANTIANDB_BIN} && tar --owner=root --group=root -zcf ${TOOLS_PACK_DIR_NAME}.tar.gz ${TOOLS_PACK_DIR_NAME}
-    sha256sum ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}.tar.gz | cut -c1-64 > ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}.sha256
 }
 
 func_release_symbol()
@@ -479,14 +421,18 @@ func_make_mysql_debug()
   cp -arf "${CANTIANDB_LIBRARY}"/shared_lib/lib/libsecurec.so /usr/lib64/
   if [ "${MYSQL_BUILD_MODE}" == "multiple" ]; then
     if [ "${ENABLE_LLT_GCOV}" == "YES" ]; then
-      cmake .. -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DCMAKE_C_COMPILER=/usr/bin/gcc -DENABLE_GCOV=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
+      cmake .. -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DENABLE_GCOV=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
     elif [ "${ENABLE_LLT_ASAN}" == "YES" ]; then
-      cmake .. -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DCMAKE_C_COMPILER=/usr/bin/gcc -DWITH_ASAN=ON -DWITH_ASAN_SCOPE=ON -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
+      cmake .. -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DWITH_ASAN=ON -DWITH_ASAN_SCOPE=ON -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
     else
-      cmake .. -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
+      cmake .. -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug \
+            -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} \
+            -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
     fi
   elif [ "${MYSQL_BUILD_MODE}" == "single" ]; then
-    cmake .. -DWITH_DAAC=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
+    cmake .. -DWITH_DAAC=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug \
+          -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} \
+          -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
   fi
 
   MYSQL_BUILD_TYPE="debug"
@@ -541,9 +487,13 @@ func_make_mysql_release()
   cd ${MYSQL_CODE_PATH}/bld_debug
   cp -arf "${CANTIANDB_LIBRARY}"/shared_lib/lib/libsecurec.so /usr/lib64/
   if [ "${MYSQL_BUILD_MODE}" == "multiple" ]; then
-    cmake .. -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF
+    cmake .. -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} \
+          -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g \ 
+          -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
   elif [ "${MYSQL_BUILD_MODE}" == "single" ]; then
-    cmake .. -DWITH_DAAC=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF
+    cmake .. -DWITH_DAAC=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release \
+          -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF \
+          -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
   fi
 
   MYSQL_BUILD_TYPE="release"
@@ -689,8 +639,6 @@ func_making_package()
         func_pkg_run
     fi
 
-    func_toolkit
-
     rm -rf ${CANTIANDB_HOME}/../${ALL_PACK_DIR_NAME}
     rm -rf ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}
     rm -rf ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}.tar.gz
@@ -781,8 +729,8 @@ func_prepare_dependency()
     fi
 
     if [[ ! -d ${MYSQL_BINARY_CODE_PATH} ]]; then
-            echo "mysql binary code dir not exist"
-            mkdir -p ${MYSQL_BINARY_CODE_PATH}
+        echo "mysql binary code dir not exist"
+        mkdir -p ${MYSQL_BINARY_CODE_PATH}
     fi
     
     #下载三方库并编译
@@ -815,8 +763,8 @@ func_prepare_LLT_dependency()
     fi
 
     if [[ ! -d ${MYSQL_BINARY_CODE_PATH} ]]; then
-            echo "mysql binary code dir not exist"
-            mkdir -p ${MYSQL_BINARY_CODE_PATH}
+        echo "mysql binary code dir not exist"
+        mkdir -p ${MYSQL_BINARY_CODE_PATH}
     fi
 
     echo ${LCRP_HOME}
