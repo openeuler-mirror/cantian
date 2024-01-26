@@ -103,10 +103,6 @@ if (UNIX)
             OUTPUT_VARIABLE OS_ARCH
             OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-    if (OS_ARCH STREQUAL "x86_64")
-        set(CMAKE_C_COMPILER "/usr/local/bin/gcc")
-        set(CMAKE_CXX_COMPILER "/usr/local/bin/g++")
-    endif()
 
     message(${CMAKE_BUILD_TYPE})
     if (${CMAKE_BUILD_TYPE} STREQUAL "Debug"
@@ -297,7 +293,7 @@ set(Z_LIB_PATH "${CANTIANDB_LIBRARY}/zlib/lib")
 set(ODBC_LIB_PATH "${CANTIANDB_LIBRARY}/odbc/lib")
 set(LZ4_LIB_PATH "${CANTIANDB_LIBRARY}/lz4/lib")
 set(ZSTD_LIB_PATH "${CANTIANDB_LIBRARY}/Zstandard/lib")
-set(CMC_LIB_PATH "${CANTIANDB_LIBRARY}/kmc/lib")
+set(KMC_LIB_PATH "${CANTIANDB_LIBRARY}/kmc/lib")
 
 set(VPP_LIB_PATH "${SECUREC_LIB_PATH}")
 
