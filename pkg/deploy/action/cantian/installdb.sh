@@ -130,7 +130,7 @@ function start_cantiand() {
       if [[ ${OS_ARCH} =~ "aarch64" ]]; then
         CPU_CORES_NUM=`cat /proc/cpuinfo |grep "architecture" |wc -l`
         CPU_CORES_NUM=$((CPU_CORES_NUM - 1))
-        numactl_str="numactl -C 4-11,16-"${CPU_CORES_NUM}" "
+        numactl_str="numactl -C 0-1,6-11,16-"${CPU_CORES_NUM}" "
       fi
     fi
     set -e

@@ -1275,7 +1275,7 @@ class Installer:
         self.numactl_str = ""
         if self.os_type == 'aarch64' and self.have_numactl == True:
             last_cpu_core = os.cpu_count() - 1
-            self.numactl_str = "numactl -C 4-11,16-" + str(last_cpu_core) + " "        
+            self.numactl_str = "numactl -C 0-1,6-11,16-" + str(last_cpu_core) + " "        
 
         log("End init")
 
