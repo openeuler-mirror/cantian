@@ -297,7 +297,7 @@ set(Z_LIB_PATH "${CANTIANDB_LIBRARY}/zlib/lib")
 set(ODBC_LIB_PATH "${CANTIANDB_LIBRARY}/odbc/lib")
 set(LZ4_LIB_PATH "${CANTIANDB_LIBRARY}/lz4/lib")
 set(ZSTD_LIB_PATH "${CANTIANDB_LIBRARY}/Zstandard/lib")
-set(ZSTD_LIB_PATH "${CANTIANDB_LIBRARY}/kmc/lib")
+set(CMC_LIB_PATH "${CANTIANDB_LIBRARY}/kmc/lib")
 
 set(VPP_LIB_PATH "${SECUREC_LIB_PATH}")
 
@@ -380,6 +380,8 @@ if (UNIX)
     elseif (EXISTS "/etc/neokylin-release")
         add_compile_definitions(RED_HAT)
         message("KYLIN Release")
+    elseif (EXISTS "/etc/openEuler-release")
+	    message("OpenEuler Release")
     endif ()
 
     ## unzip 3rdparty lib
@@ -407,12 +409,13 @@ set(vpp_libsecurec "libsecurec.a")
 set(vpp_libipsi_crypto "libcrypto.a")
 set(vpp_libipsi_ssl "libssl.a")
 
-set(hw_kmc_lib "libkmc.a")
-set(hw_sdp_lib "libsdp.a")
+set(hw_kmc_lib "")
+set(hw_sdp_lib "")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -g -ldl -pthread")
 add_compile_options(-fno-common)
 add_compile_options(-Wtrampolines)
+add_compile_options(-Wno-address)
 add_compile_options(-freg-struct-return)
 add_compile_options(-pipe)
 add_link_options(-Wl,-Bsymbolic)
