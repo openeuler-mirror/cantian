@@ -2343,7 +2343,6 @@ status_t rc_arch_generate_file(arch_proc_context_t *proc_ctx)
     device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
     char arch_file_name[CT_FILE_NAME_BUFFER_SIZE] = {0};
     CT_LOG_RUN_INF("[RC_ARCH] convert a temporary file to a new archive file with head info");
-    proc_ctx->last_archived_log_record.end_lsn = proc_ctx->last_archived_log_record.cur_lsn;
     if (arch_flush_head(arch_file_type, proc_ctx->tmp_file_name, proc_ctx, logfile, &head) != CT_SUCCESS) {
         return CT_ERROR;
     }
