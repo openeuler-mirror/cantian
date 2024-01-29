@@ -4,7 +4,7 @@ set -e
 
 CURRENT_PATH=$(dirname $(readlink -f $0))
 CTDB_CODE_PATH="${CURRENT_PATH}"/..
-MYSQL_SERVER_PATH="${CTDB_CODE_PATH}"/../mysql-server
+MYSQL_SERVER_PATH="${CTDB_CODE_PATH}"/../cantian-connector-mysql
 BUILD_TARGET_NAME="cantian_connector"
 BUILD_PACK_NAME="Cantian_Database_Storage_Engine_3.0.0"
 ENV_TYPE=$(uname -p)
@@ -83,18 +83,18 @@ function revertPatching() {
 }
 
 function collectMysqlTarget() {
-  cp "${MYSQL_CODE_PATH}"/daac_lib/libctc_proxy.so  "${CURRENT_PATH}"/mysql-server/daac_lib
-  cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.a "${CURRENT_PATH}"/mysql-server/daac_lib
-  cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.so "${CURRENT_PATH}"/mysql-server/daac_lib
+  cp "${MYSQL_CODE_PATH}"/daac_lib/libctc_proxy.so  "${CURRENT_PATH}"/cantian-connector-mysql/daac_lib
+  cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.a "${CURRENT_PATH}"/cantian-connector-mysql/daac_lib
+  cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.so "${CURRENT_PATH}"/cantian-connector-mysql/daac_lib
 }
 
 function buildMysql() {
   echo "meta version: declare directory and copy mysql code for ha_ctc.so and libctc_proxy.so"
-  mkdir -p "${CURRENT_PATH}"/mysql-server/{daac_lib,mysql_bin,scripts}
-  mkdir -p "${CURRENT_PATH}"/mysql-server/mysql_bin/mysql/lib/plugin/{meta,nometa}
+  mkdir -p "${CURRENT_PATH}"/cantian-connector-mysql/{daac_lib,mysql_bin,scripts}
+  mkdir -p "${CURRENT_PATH}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/{meta,nometa}
 
   sh "${CURRENT_PATH}"/Makefile.sh "${MYSQL_BUILD_TYPE}"
-  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CURRENT_PATH}"/mysql-server/mysql_bin/mysql/lib/plugin/nometa
+  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CURRENT_PATH}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/nometa
 
   echo "patching MysqlCode for mysql source"
   patchingMysqlCode
@@ -106,7 +106,7 @@ function buildMysql() {
   cd "${CURRENT_PATH}"
   sh "${CURRENT_PATH}"/Makefile.sh "${MYSQL_BUILD_TYPE}"
   revertPatching
-  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CURRENT_PATH}"/mysql-server/mysql_bin/mysql/lib/plugin/meta
+  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CURRENT_PATH}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/meta
   collectMysqlTarget
 }
 
@@ -119,7 +119,7 @@ function prepare() {
   fi
   cp -arf "${CTDB_CODE_PATH}"/Cantian-DATABASE* "${CTDB_TARGET_PATH}"/
   cp -arf "${CTDB_CODE_PATH}"/CI/script/for_mysql_official "${CURRENT_PATH}"/"${BUILD_TARGET_NAME}"
-  cp -arf "${CURRENT_PATH}"/mysql-server "${CURRENT_PATH}"/"${BUILD_TARGET_NAME}"
+  cp -arf "${CURRENT_PATH}"/cantian-connector-mysql "${CURRENT_PATH}"/"${BUILD_TARGET_NAME}"
 }
 
 BUILD_TYPE=$1

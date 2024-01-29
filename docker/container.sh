@@ -126,7 +126,7 @@ function rundev()
     container="${docker_name}-dev"
     script_dir=$(dirname "$(readlink -f "$0")")
     project_dir=$(dirname $script_dir)
-    cd $(dirname $project_dir)/mysql-server/
+    cd $(dirname $project_dir)/cantian-connector-mysql/
     commitID=($(git submodule status))
     cd -
     pwd
@@ -175,14 +175,12 @@ function init()
         echo "cantian_data folder not exists, try to create"
         mkdir ${data_dir}
     fi
-    mysql_dir="$(dirname $cantian_dir)/mysql-server/"
+    mysql_dir="$(dirname $cantian_dir)/cantian-connector-mysql/"
     mysql_source="${mysql_dir}/mysql-source/"
     regress_dir="/home/regress"
     sync_mysql_code ${mysql_dir}
-    mounts="-v ${cantian_dir}:${regress_dir}/CantianKernel -v ${data_dir}:${regress_dir}/cantian_data -v ${mysql_dir}:${regress_dir}/mysql-server \
+    mounts="-v ${cantian_dir}:${regress_dir}/CantianKernel -v ${data_dir}:${regress_dir}/cantian_data -v ${mysql_dir}:${regress_dir}/cantian-connector-mysql \
 	-v ${core_dir}:${core_dir} -v ${project_dir}/cantian_om:${regress_dir}/cantian_om"
-
-    
 
     echo "cantian_dir: ${cantian_dir}"
     echo "data_dir: ${data_dir}"
@@ -256,7 +254,7 @@ function parse_params()
 
 function main()
 {
-    mode=debug
+    mode=dev
     docker_name="cantian_${mode}"
     network_name="mynetwork"
     core_dir="/home/core"
