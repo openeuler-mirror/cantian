@@ -16,6 +16,7 @@ declare COMPILE_OPTS=""
 declare SHARDING_INNER_TOOLS_PACK_NAME=""
 declare MYSQL_BUILD_TYPE=""
 declare JDRIVER_PACK_DIR_NAME=""
+declare WITHOUT_DEPS=""
 export BUILD_MODE=""
 export PYTHON_INCLUDE_DIR=""
 export WORKSPACE=$(dirname $(dirname $(pwd)))
@@ -726,7 +727,9 @@ func_prepare_dependency()
     fi
     
     #下载三方库并编译
-    func_download_3rdparty
+    if [[ -z ${WITHOUT_DEPS} ]]; then
+        func_download_3rdparty
+    fi
 
     chmod 755 ${CANTIANDB_HOME}/../library/protobuf/lib/libprotobuf-c.a
 }
@@ -1005,6 +1008,10 @@ main()
         'DAAC_READ_WRITE=1')
             echo "build with DAAC_READ_WRITE"
             COMPILE_OPTS="${COMPILE_OPTS} -DDAAC_READ_WRITE=ON"
+            ;;
+        '--without-deps')
+            echo "no need for 3rdparty dependency compilation"
+            WITHOUT_DEPS="true"
             ;;
         *)
             echo "Wrong compile options"
