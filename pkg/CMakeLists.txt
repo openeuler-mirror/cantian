@@ -1,19 +1,19 @@
 cmake_minimum_required(VERSION 3.12.1)
 
-set(VERSION_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/version/gs_version.c)
+set(VERSION_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/version/ct_version.c)
 set(DRIVER_VERSION_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/version/client_version.c)
-set(GSQL_VERSION_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/version/gsql_version.c)
+set(CTSQL_VERSION_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/version/ctsql_version.c)
 
-link_directories(${CTDB_LIB} ${CTDB_LIBRARY} ${OPENSSL_LIB_PATH} ${PCRE_LIB_PATH} ${Z_LIB_PATH}
+link_directories(${CANTIANDB_LIB} ${CANTIANDB_LIBRARY} ${OPENSSL_LIB_PATH} ${PCRE_LIB_PATH} ${Z_LIB_PATH}
         ${ODBC_LIB_PATH} ${VPP_LIB_PATH} ${KMC_LIB_PATH} ${ZSTD_LIB_PATH} ${LZ4_LIB_PATH} ${AES_LIB_PATH}
         ${UUID_LIB_PATH})
 
-set(CANTIAN_TAG "cantiand_${COMMIT_ID}")
-set(EXECUTABLE_OUTPUT_PATH ${CTDB_BIN})
-set(LIBRARY_OUTPUT_PATH ${CTDB_LIB})
+set(CANTIANDB_TAG "cantiand_${COMMIT_ID}")
+set(EXECUTABLE_OUTPUT_PATH ${CANTIANDB_BIN})
+set(LIBRARY_OUTPUT_PATH ${CANTIANDB_LIB})
 
-MESSAGE(STATUS ${DD_GS_LIB_VERSION})
-MESSAGE(STATUS ${DD_GS_LIB_VER_APINAME})
+MESSAGE(STATUS ${DD_CT_LIB_VERSION})
+MESSAGE(STATUS ${DD_CT_LIB_VER_APINAME})
 
 if (UNIX)
     add_compile_definitions(WSEC_COMPILE_CAC_OPENSSL)
@@ -27,3 +27,6 @@ endif ()
 
 # add subdir
 add_subdirectory(src)
+#if(NOT USE_OSS_BUILD)
+#    add_subdirectory(test)
+#endif()

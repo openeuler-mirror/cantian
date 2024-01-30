@@ -22,7 +22,7 @@ function stop_exporter()
 function main()
 {
     logAndEchoInfo "Begin to stop ct_exporter. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-    stop_exporter > /dev/null 2>&1
+    stop_exporter >> ${OM_DEPLOY_LOG_FILE} 2>&1
     if [ $? -ne 0 ]; then
         logAndEchoError "Fail to stop ct_exporter. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 1

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,9 @@
  *
  * -------------------------------------------------------------------------
  */
+#ifndef __GSC_COMMON_H__
+#define __GSC_COMMON_H__
+
 #include "cm_defs.h"
 #include "cm_list.h"
 #include "gsc.h"
@@ -30,9 +33,6 @@
 #include "cs_pipe.h"
 #include "cs_protocol.h"
 #include "cm_nls.h"
-
-#ifndef __GSC_COMMON_H__
-#define __GSC_COMMON_H__
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,6 +43,9 @@ typedef enum en_cli_stmt_status {
     CLI_STMT_PREPARED = 2,
     CLI_STMT_EXECUTED = 3,
     CLI_STMT_FETCHING = 4,
+#ifdef Z_SHARDING
+    CLI_STMT_PRE_PARAMS = 5, // preprocessed params in CN
+#endif
     CLI_STMT_DESCRIBLE = 6
 } cli_stmt_status_t;
 
@@ -53,13 +56,13 @@ typedef enum en_cli_db_role {
 } cli_db_role_t;
 
 #ifdef DB_DEBUG_VERSION
-#define GS_SQL_TYPE_CREATE_USER 40
+#define CT_SQL_TYPE_CREATE_USER 40
 #else
-#define GS_SQL_TYPE_CREATE_USER 39
+#define CT_SQL_TYPE_CREATE_USER 39
 #endif
 
 #define GSC_IS_DATABASE_DATATYPE(type) \
-    (CM_IS_DATABASE_DATATYPE((type) + GS_TYPE_BASE) || (type) == GSC_TYPE_NATIVE_DATE)
+    (CM_IS_DATABASE_DATATYPE((type) + CT_TYPE_BASE) || (type) == GSC_TYPE_NATIVE_DATE)
 #define GSC_IS_STRING_TYPE(type) ((type) == GSC_TYPE_CHAR || (type) == GSC_TYPE_VARCHAR || (type) == GSC_TYPE_STRING)
 #define GSC_IS_BINARY_TYPE(type) ((type) == GSC_TYPE_BINARY || (type) == GSC_TYPE_VARBINARY)
 #define GSC_IS_LOB_TYPE(type) ((type) == GSC_TYPE_CLOB || (type) == GSC_TYPE_BLOB || (type) == GSC_TYPE_IMAGE)
@@ -79,11 +82,11 @@ typedef enum en_cli_db_role {
     do {                                                                                                          \
         if ((stmt)->status == CLI_STMT_DESCRIBLE) {                                                               \
             CLT_THROW_ERROR((stmt)->conn, ERR_CLT_OUT_OF_API_SEQUENCE, "can not fetch data in describling mode"); \
-            return GS_ERROR;                                                                                      \
+            return CT_ERROR;                                                                                      \
         }                                                                                                         \
     } while (0)
 
-#define CLT_LOB_INLINE(lob) ((lob) != NULL && (lob)->type == GS_LOB_FROM_KERNEL && (!(lob)->is_outline))
+#define CLT_LOB_INLINE(lob) ((lob) != NULL && (lob)->type == CT_LOB_FROM_KERNEL && (!(lob)->is_outline))
 
 #define MAX_SET_NLS_SQL 2048
 #define CLT_DATE_BINARY_SIZE 7
@@ -127,7 +130,7 @@ typedef struct st_clt_options {
     char *ssl_key;     /* key file */
     char *ssl_cert;    /* cert file */
     char *ssl_ca;      /* CA file */
-    char *ssl_keypwd;  /* Private key */
+    SENSI_INFO char *ssl_keypwd;  /* Private key */
     char *ssl_crl;     /* Certificate revocation list */
     char *ssl_cipher;  /* Algorithm cipher list */
     char *server_path; /* unix domain socket server path, due to simplified url */
@@ -163,7 +166,7 @@ typedef struct st_clt_batch_errs_t {
 } clt_batch_errs_t;
 
 typedef struct st_cli_buf_ctrl {
-    char data[2 * GS_MAX_PACKET_SIZE];
+    char data[2 * CT_MAX_PACKET_SIZE];
     uint32 size;
     uint32 offset;
 } cli_buf_ctrl_t;
@@ -188,7 +191,7 @@ typedef struct st_clt_stmt {
     uint32 prefetch_buf;  /* no use */
 
     uint32 affected_rows; /* rows affected in server */
-    uint16 return_rows;   /* rows returned by the last call of gs_execute */
+    uint16 return_rows;   /* rows returned by the last call of ct_execute */
     uint16 stmt_type;
     uint16 sql_type;
     bool8 more_rows; /* has more rows need fetch from server */
@@ -209,6 +212,23 @@ typedef struct st_clt_stmt {
     cli_buf_ctrl_t *ctrl;            /* for trans code */
     char *ori_row;
 
+#ifdef Z_SHARDING
+    uint64 gts_scn;             /* paramset GTS's SCN for sharding mode */
+    uint32 offset;              /* paramset offset */
+    uint32 max_batch_buf_size;  /* max batch buffer size of batch_curr_ptr */
+    uint32 paramset_len_offset; /* addr offset in batch_bnd_ptr to store paramset size (because of buf realloc) */
+    char *batch_bnd_ptr;        /* point to paramsets which stored in batch_buffer, buffer can be extend dynamicly */
+                                /* paramsets: | paramset_1 | paramset_2 | ... | paramset_n | */
+                                /* paramset : | paramset_length | param_info_1 | param_info_2 | ... | param_info_n | */
+                                /* param_info:| cs_param_head_t | param_value (string contains terminator '\0') | */
+    char *batch_curr_ptr;
+    /* in case of (SQL +  parameters) is large than CT_MAX_PACKET_SIZE to split package from CN to DN */
+    bool8 can_read_ack;
+    uint32 shard_dml_id; /* used for shard statement-level rollback */
+    uint64 scn;
+    bool8 is_log_longsql;
+    cs_prepare_req_t *req;
+#endif
 } clt_stmt_t;
 
 typedef struct st_clt_query {
@@ -232,13 +252,13 @@ typedef struct st_clt_conn {
     uint16 auto_commit_xa_backup : 1; // backup the value of autocommit during opening XA, and restore it during ending
                                       // XA
     uint16 remote_as_sysdba : 1;      // support for remote connect as sysdba.
-    uint16 zsql_in_altpwd : 1;
+    uint16 ctsql_in_altpwd : 1;
     uint16 has_auth : 1;
     uint8 shd_rw_split; // flag of CN rw split, 0:not split,1:on master,2:on slave,3:on master or slave
     uint8 autotrace;    // flag of autotrace type, 0:OFF, 1:ON, 2:TRACEONLY
     source_location_t loc;
     int32 error_code;
-    char message[GS_MESSAGE_BUFFER_SIZE];
+    char message[CT_MESSAGE_BUFFER_SIZE];
     cs_packet_t pack; // for sending
     list_t pack_list; // 'clt_packet_t' list, for lob write/read, stmt receive.
     cs_pipe_t pipe;
@@ -267,7 +287,7 @@ typedef struct st_clt_conn {
 
     clt_server_info_t server_info; // information receive from server
     uint8 flag_with_ts;            // send gts_scn to server or not
-    char curr_schema[GS_NAME_BUFFER_SIZE];
+    char curr_schema[CT_NAME_BUFFER_SIZE];
     void *node;
     alter_set_info_t alter_set_info;
 } clt_conn_t;
@@ -284,7 +304,7 @@ static inline void clt_set_error(clt_conn_t *conn, const char *file, uint32 line
     conn->loc.column = 0;
 
     va_start(args, format);
-    PRTS_RETVOID_IFERR(vsnprintf_s(conn->message, GS_MESSAGE_BUFFER_SIZE, GS_MESSAGE_BUFFER_SIZE - 1, format, args));
+    PRTS_RETVOID_IFERR(vsnprintf_s(conn->message, CT_MESSAGE_BUFFER_SIZE, CT_MESSAGE_BUFFER_SIZE - 1, format, args));
     va_end(args);
 }
 
@@ -299,7 +319,7 @@ static inline void clt_set_error(clt_conn_t *conn, const char *file, uint32 line
 #define CLT_SET_LOCAL_ERROR(conn, ret)                  \
     do {                                                \
         status_t _status_ = (ret);                      \
-        if (SECUREC_UNLIKELY(_status_ != GS_SUCCESS)) { \
+        if (SECUREC_UNLIKELY(_status_ != CT_SUCCESS)) { \
             clt_copy_local_error(conn);                 \
             return _status_;                            \
         }                                               \
@@ -308,8 +328,8 @@ static inline void clt_set_error(clt_conn_t *conn, const char *file, uint32 line
 #define GSC_CHECK_OBJECT_NULL_GS(obj_ptr, obj_name)             \
     {                                                           \
         if (SECUREC_UNLIKELY((obj_ptr) == NULL)) {              \
-            GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, (obj_name)); \
-            return GS_ERROR;                                    \
+            CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, (obj_name)); \
+            return CT_ERROR;                                    \
         }                                                       \
     }
 
@@ -317,7 +337,7 @@ static inline void clt_set_error(clt_conn_t *conn, const char *file, uint32 line
     {                                                                  \
         if (SECUREC_UNLIKELY((obj_ptr) == NULL)) {                     \
             CLT_THROW_ERROR(conn, ERR_CLT_OBJECT_IS_NULL, (obj_name)); \
-            return GS_ERROR;                                           \
+            return CT_ERROR;                                           \
         }                                                              \
     }
 
@@ -339,7 +359,7 @@ typedef struct st_clt_column_desc {
     bool8 is_array;
     bool8 is_jsonb;
     uint16 name_len;
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
 } clt_column_desc_t;
 
 typedef struct st_clt_inline_lob {
@@ -374,7 +394,7 @@ typedef struct st_clt_output_item {
 } clt_output_item_t;
 
 typedef struct st_clt_param {
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
     uint8 direction;
     uint8 bnd_type;
     bool8 is_W_CType; // false, is ansi type; true is SQL_C_WCHAR
@@ -388,7 +408,7 @@ typedef struct st_clt_param {
 } clt_param_t;
 
 typedef struct st_clt_outparam_desc {
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
     uint16 size;
     uint8 direction;
     uint8 datatype;
@@ -410,12 +430,11 @@ typedef struct st_clt_rs_stmt {
 typedef struct st_clt_batch_err {
     uint32 line;
     int32 err_code;
-    char err_message[GS_MESSAGE_BUFFER_SIZE];
+    char err_message[CT_MESSAGE_BUFFER_SIZE];
 } clt_batch_error_t;
 
 typedef struct __gsc_stmt *gsc_stmt_t; /* type of statement handle */
-int gsc_transcode_ucs2(gsc_stmt_t pstmt, const void *src, unsigned int *src_len, void *dst, unsigned int dst_len,
-    unsigned int *eof);
+int gsc_transcode_ucs2(gsc_stmt_t pstmt, const void *src, uint32 *src_len, void *dst, uint32 dst_len, bool32 *eof);
 int gsc_encrypt_password(char *orig_pswd, unsigned int orig_len, char *rand_local_key, char *rand_factor_key,
     char *cipher, unsigned int *cipher_len);
 int gsc_decrypt_password(char *pswd, unsigned int len, char *rand_local_key, char *rand_factor_key, char *cipher,
@@ -447,24 +466,24 @@ static inline status_t clt_lock_conn(clt_conn_t *conn)
 {
     if (conn->in_process) {
         CLT_THROW_ERROR(conn, ERR_CLT_PARALLEL_LOCK, conn->sid, cm_get_current_thread_id());
-        return GS_ERROR;
+        return CT_ERROR;
     }
     /* thread may race here */
     cm_spin_lock(&(conn->parallel_lock), NULL);
     if (conn->in_process) {
         CLT_THROW_ERROR(conn, ERR_CLT_PARALLEL_LOCK, conn->sid, cm_get_current_thread_id());
         cm_spin_unlock(&(conn->parallel_lock));
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    conn->in_process = GS_TRUE;
+    conn->in_process = CT_TRUE;
     cm_spin_unlock(&(conn->parallel_lock));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void clt_unlock_conn(clt_conn_t *conn)
 {
     cm_spin_lock(&(conn->parallel_lock), NULL);
-    conn->in_process = GS_FALSE;
+    conn->in_process = CT_FALSE;
     cm_spin_unlock(&(conn->parallel_lock));
 }
 
@@ -482,9 +501,9 @@ static inline void clt_reset_lob(gsc_lob_t *lob)
     }
 
     lob->size = 0;
-    lob->type = GS_LOB_FROM_VMPOOL;
-    lob->entry_vmid = GS_INVALID_ID32; // reversing(big/little endian) is not necessary
-    lob->last_vmid = GS_INVALID_ID32;  // reversing(big/little endian) is not necessary
+    lob->type = CT_LOB_FROM_VMPOOL;
+    lob->entry_vmid = CT_INVALID_ID32; // reversing(big/little endian) is not necessary
+    lob->last_vmid = CT_INVALID_ID32;  // reversing(big/little endian) is not necessary
 }
 
 static inline void clt_reset_batch_lob(gsc_lob_t *lob, uint32 paramset_size)
@@ -505,26 +524,26 @@ static inline status_t clt_strndup(const void *data, uint32 len, char **res)
 {
     char *dupstr = NULL;
 
-    if (data == NULL || len == 0 || len == GS_MAX_UINT32) {
+    if (data == NULL || len == 0 || len == CT_MAX_UINT32) {
         *res = NULL;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     dupstr = (char *)malloc(len + 1);
     if (dupstr == NULL) {
-        GS_THROW_ERROR(ERR_MALLOC_BYTES_MEMORY, len + 1);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_MALLOC_BYTES_MEMORY, len + 1);
+        return CT_ERROR;
     }
 
     if (memcpy_s(dupstr, len, data, len) != EOK) {
         CM_FREE_PTR(dupstr);
-        GS_THROW_ERROR(ERR_MALLOC_BYTES_MEMORY, len + 1);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_MALLOC_BYTES_MEMORY, len + 1);
+        return CT_ERROR;
     }
 
     dupstr[len] = '\0';
     *res = dupstr;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline char *clt_strdup(const char *s)
@@ -533,7 +552,7 @@ static inline char *clt_strdup(const char *s)
     if (s == NULL) {
         return NULL;
     }
-    if (clt_strndup((const void *)s, (uint32)strlen(s), &result) != GS_SUCCESS) {
+    if (clt_strndup((const void *)s, (uint32)strlen(s), &result) != CT_SUCCESS) {
         return NULL;
     }
     return result;
@@ -548,7 +567,7 @@ static inline void clt_session_nlsparam_geter(clt_stmt_t *stmt, nlsparam_id_t id
 
 static inline uint32 clt_prefetch_rows(clt_stmt_t *stmt)
 {
-    return (stmt->fetch_size > GS_INIT_PREFETCH_ROWS && stmt->fetch_size > stmt->prefetch_rows) ? stmt->fetch_size :
+    return (stmt->fetch_size > CT_INIT_PREFETCH_ROWS && stmt->fetch_size > stmt->prefetch_rows) ? stmt->fetch_size :
                                                                                                   stmt->prefetch_rows;
 }
 

@@ -1,5 +1,6 @@
 import os
 import logging
+from logging import LogRecord
 from pathlib import Path
 from logging import handlers
 from om_log_config import CONSOLE_CONF
@@ -25,13 +26,30 @@ def _get_log_file_path(project):
     return ''
 
 
+SENSITIVE_STR = [
+    'Password', 'passWord', 'PASSWORD', 'password', 'Pswd',
+    'PSWD', 'pwd', 'signature', 'HmacSHA256', 'newPasswd',
+    'private', 'certfile', 'secret', 'token', 'Token', 'pswd',
+    'passwd', 'mysql -u', 'session', 'cookie'
+]
+
+
+class DefaultLogFilter(logging.Filter):
+    def filter(self, record: LogRecord) -> int:
+        msg_upper = record.getMessage().upper()
+        for item in SENSITIVE_STR:
+            if item.upper() in msg_upper:
+                return False
+        return True
+
+
 def setup(project_name):
     """
     init log config
     :param project_name:
     """
     console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
+    console.setLevel(logging.ERROR)
 
     log_root = logging.getLogger(project_name)
     for handler in list(log_root.handlers):
@@ -44,6 +62,7 @@ def setup(project_name):
             backupCount=log_config.get("log_file_backup_count"))
         log_root.addHandler(file_log)
         log_root.addHandler(console)
+        log_root.addFilter(DefaultLogFilter())
 
     for handler in log_root.handlers:
         handler.setFormatter(
@@ -59,8 +78,8 @@ def setup(project_name):
 
 
 LOGGER = setup("om_deploy")
-SNAPSHOT_LOGS = setup("snapshot_log")
+REST_LOG = setup("rest_request")
 log_directory = log_config.get("log_dir")
 os.chmod(log_directory, 0o750)
 os.chmod(f'{str(Path(log_directory, "om_deploy.log"))}', 0o640)
-os.chmod(f'{str(Path(log_directory, "snapshot_log.log"))}', 0o640)
+os.chmod(f'{str(Path(log_directory, "rest_request.log"))}', 0o640)

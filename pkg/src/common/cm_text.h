@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -52,12 +52,14 @@ typedef struct st_text {
 } text_t;
 #pragma pack()
 
+#ifdef Z_SHARDING
 typedef struct st_long_text {
     char *text_addr;
     uint32 text_size;
     uint32 first_page_id;
     bool32 is_long_sql;
 } long_text_t;
+#endif
 
 typedef struct st_cursor {
     uint32 stmt_id;
@@ -95,12 +97,12 @@ typedef union un_sql_text {
 } sql_text_t;
 #pragma pack()
 
-#define GS_MAX_TUPLE_SIZE 10
-#define GS_MAX_INT64_SIZE 22
+#define CT_MAX_TUPLE_SIZE 10
+#define CT_MAX_INT64_SIZE 22
 /* A tuple of continuous words with size */
 typedef struct {
     uint32 size;
-    char *words[GS_MAX_TUPLE_SIZE];
+    char *words[CT_MAX_TUPLE_SIZE];
 } word_tuple_t;
 
 /* Attach each word_tuple_t with an ID */
@@ -120,10 +122,10 @@ typedef enum en_num_flag {
     NF_ALL = 0xFFFF
 } num_flag_t;
 
-#define GS_MAX_NUM_PART_BUFF (GS_MAX_DEC_OUTPUT_ALL_PREC)
+#define CT_MAX_NUM_PART_BUFF (CT_MAX_DEC_OUTPUT_ALL_PREC)
 
 typedef struct st_digitext {
-    char str[GS_MAX_NUM_PART_BUFF];
+    char str[CT_MAX_NUM_PART_BUFF];
     uint32 len;
 } digitext_t;
 
@@ -158,7 +160,7 @@ typedef struct st_num_part {
 
 /* The Error codes when parsing numeric text */
 typedef enum en_num_errno {
-    NERR_SUCCESS = 0,  // GS_SUCCESS
+    NERR_SUCCESS = 0,  // CT_SUCCESS
     NERR_ERROR,        /* error without concrete reason */
     NERR_INVALID_LEN,
     NERR_NO_DIGIT,
@@ -184,11 +186,16 @@ extern const char *g_num_errinfos[];
         return (err_no);            \
     }
 
+#define CM_NO_CHECK_NUM_ERRNO(err_no)                                       \
+    if ((err_no) != NERR_SUCCESS && (err_no) != NERR_UNEXPECTED_CHAR) {     \
+        return (err_no);                                                    \
+    }
+
 #define CM_TRY_THROW_NUM_ERR(err_no)                                        \
     do {                                                                    \
         if ((err_no) != NERR_SUCCESS) {                                     \
-            GS_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no)); \
-            return GS_ERROR;                                                \
+            CT_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no)); \
+            return CT_ERROR;                                                \
         }                                                                   \
     } while (0)
 
@@ -335,7 +342,7 @@ static inline status_t cm_text_copy(text_t *dest, uint32 buf_len, text_t *src)
         MEMS_RETURN_IFERR(memcpy_sp((dest)->str, buf_len, (src)->str, (src)->len));
         (dest)->len = (src)->len;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void cm_text_copy_upper(text_t *dest, const text_t *src)
@@ -350,7 +357,7 @@ static inline status_t cm_text_copy_from_str(text_t *dest, const char *str, uint
 {
     MEMS_RETURN_IFERR(strcpy_s(dest->str, buf_len, str));
     dest->len = (uint32)strlen(str);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void cm_concat_text(text_t *text, uint32 max_len, const text_t *part)
@@ -368,44 +375,44 @@ void cm_concat_fmt(text_t *text, uint32 fmt_size, const char *fmt, ...);
 
 /**
  * concatenate a text with a given maximal buf size, if the result length
- * exceeds the maximal buf size return GS_FALSE; else return GS_TRUE
+ * exceeds the maximal buf size return CT_FALSE; else return CT_TRUE
  */
 static inline bool32 cm_buf_append_text(text_buf_t *dst, const text_t *part)
 {
     if (dst->len + part->len >= dst->max_size) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     for (uint32 i = 0; i < part->len; ++i) {
         CM_TEXT_APPEND(dst, part->str[i]);
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static inline bool32 cm_buf_append_char(text_buf_t *dst, char c)
 {
     if (dst->len + 1 >= dst->max_size) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     CM_TEXT_APPEND(dst, c);
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static inline bool32 cm_buf_append_str(text_buf_t *dst, const char *str)
 {
     size_t len = strlen(str);
     if (dst->len + len >= dst->max_size) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     for (uint32 i = 0; i < len; ++i) {
         CM_TEXT_APPEND(dst, str[i]);
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static inline void cm_concat_text_upper(text_t *text, const text_t *part)
@@ -445,7 +452,7 @@ static inline status_t cm_concat_ntext(text_t *dst, const text_t *src, int32 num
 {
     int32 number = num;
     if (number <= 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     if ((uint32)number > src->len) {
         number = (int32)src->len;
@@ -454,7 +461,7 @@ static inline status_t cm_concat_ntext(text_t *dst, const text_t *src, int32 num
         MEMS_RETURN_IFERR(memcpy_sp(CM_GET_TAIL(dst), number, src->str, number));
     }
     dst->len += (uint32)number;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_concat_string(text_t *text, uint32 maxsize, const char *part)
@@ -464,7 +471,7 @@ static inline status_t cm_concat_string(text_t *text, uint32 maxsize, const char
         MEMS_RETURN_IFERR(memcpy_sp(text->str + text->len, maxsize - text->len, part, len));
         text->len += len;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_concat_n_string(text_t *text, uint32 maxsize, const char *part, uint32 size)
@@ -473,12 +480,12 @@ static inline status_t cm_concat_n_string(text_t *text, uint32 maxsize, const ch
         MEMS_RETURN_IFERR(memcpy_sp(text->str + text->len, maxsize - text->len, part, size));
         text->len += size;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void cm_concat_int32(text_t *text, uint32 max_len, uint32 i32)
 {
-    char buf[GS_NUMBER_BUFFER_SIZE];
+    char buf[CT_NUMBER_BUFFER_SIZE];
     
     if (snprintf_s(buf, sizeof(buf), sizeof(buf) - 1, "%u", i32) == -1) {
         return;
@@ -489,7 +496,7 @@ static inline void cm_concat_int32(text_t *text, uint32 max_len, uint32 i32)
 
 static inline void cm_concat_int64(text_t *text, uint32 max_len, int64 i64)
 {
-    char buf[GS_NUMBER_BUFFER_SIZE];
+    char buf[CT_NUMBER_BUFFER_SIZE];
 
     if (snprintf_s(buf, sizeof(buf), sizeof(buf) - 1, "%lld", i64) == -1) {
         return;
@@ -570,16 +577,16 @@ static inline void cm_text_ltrim_zero(text_t *text)
 
 static bool32 cm_is_bracket_text(const text_t *text)
 {
-    bool32 in_string = GS_FALSE;
+    bool32 in_string = CT_FALSE;
     uint32 depth;
 
     if (text->len < 2) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     bool32 flag = CM_TEXT_BEGIN(text) != '(' || CM_TEXT_END(text) != ')';
     if (flag) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     depth = 1;
@@ -601,7 +608,7 @@ static bool32 cm_is_bracket_text(const text_t *text)
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline void cm_remove_brackets(text_t *text)
@@ -619,16 +626,16 @@ static inline bool32 cm_text_equal(const text_t *text1, const text_t *text2)
     uint32 i;
 
     if (text1->len != text2->len) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     for (i = 0; i < text1->len; i++) {
         if (text1->str[i] != text2->str[i]) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 // case insensitive, all text uses upper mode to compare.
@@ -637,16 +644,16 @@ static inline bool32 cm_text_equal_ins(const text_t *text1, const text_t *text2)
     uint32 i;
 
     if (text1->len != text2->len) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     for (i = 0; i < text1->len; i++) {
         if (UPPER(text1->str[i]) != UPPER(text2->str[i])) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 // case insensitive, the secord text uses upper mode to compare.
@@ -655,16 +662,16 @@ static inline bool32 cm_text_equal_ins2(const text_t *text1, const text_t *text2
     uint32 i;
 
     if (text1->len != text2->len) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     for (i = 0; i < text1->len; i++) {
         if (text1->str[i] != UPPER(text2->str[i])) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static inline bool32 cm_text_str_equal(const text_t *text, const char *str)
@@ -673,7 +680,7 @@ static inline bool32 cm_text_str_equal(const text_t *text, const char *str)
 
     for (i = 0; i < text->len; i++) {
         if (text->str[i] != str[i] || str[i] == '\0') {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
@@ -686,7 +693,7 @@ static inline bool32 cm_text_str_equal_ins(const text_t *text, const char *str)
 
     for (i = 0; i < text->len; i++) {
         if (UPPER(text->str[i]) != UPPER(str[i]) || str[i] == '\0') {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
@@ -698,16 +705,16 @@ static inline bool32 cm_text_str_less_equal_ins(const text_t *text, const char *
     uint32 i;
 
     if (text->len < less_len) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     for (i = 0; i < text->len; i++) {
         if (UPPER(text->str[i]) != UPPER(str[i]) || str[i] == '\0') {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static inline bool32 cm_text_str_contain_equal_ins(const text_t *text, const char *str, const uint32 str_len)
@@ -715,16 +722,16 @@ static inline bool32 cm_text_str_contain_equal_ins(const text_t *text, const cha
     uint32 i;
 
     if (text->len < str_len) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     for (i = 0; i < str_len; i++) {
         if (UPPER(text->str[i]) != UPPER(str[i])) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static inline uint32 cm_text_str_get_match_len(const text_t *text, const char *str)
@@ -912,7 +919,7 @@ static inline uint32 cm_get_first_pos(const text_t *text, const char c)
             return i;
         }
     }
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline uint32 cm_get_last_pos(const text_t *text, const char c)
@@ -922,7 +929,7 @@ static inline uint32 cm_get_last_pos(const text_t *text, const char c)
             return (uint32)(i - 1);
         }
     }
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 #define cm_compare_str(str1, str2)     strcmp(str1, str2)
@@ -947,7 +954,7 @@ status_t cm_text2bigint(const text_t *text_src, int64 *value);
 
 static inline void cm_text2digitext(const text_t *num_text, digitext_t *dig_text)
 {
-    (void)cm_text2str(num_text, dig_text->str, GS_MAX_NUM_PART_BUFF);
+    (void)cm_text2str(num_text, dig_text->str, CT_MAX_NUM_PART_BUFF);
     dig_text->len = num_text->len;
 }
 
@@ -958,9 +965,9 @@ static inline void cm_int2text(int32 value, text_t *text)
 
     CM_POINTER(text);
 
-    iret_snprintf = snprintf_s(text->str, GS_MAX_INT32_STRLEN + 1, GS_MAX_INT32_STRLEN, PRINT_FMT_INTEGER, value);
+    iret_snprintf = snprintf_s(text->str, CT_MAX_INT32_STRLEN + 1, CT_MAX_INT32_STRLEN, PRINT_FMT_INTEGER, value);
     if (iret_snprintf == -1) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, (iret_snprintf));
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, (iret_snprintf));
         return;
     }
     text->len = (uint32)iret_snprintf;
@@ -970,9 +977,9 @@ static inline void cm_uint32_to_text(uint32 value, text_t *text)
 {
     int iret_snprintf;
     CM_POINTER(text);
-    iret_snprintf = snprintf_s(text->str, GS_MAX_UINT32_STRLEN + 1, GS_MAX_UINT32_STRLEN, PRINT_FMT_UINT32, value);
+    iret_snprintf = snprintf_s(text->str, CT_MAX_UINT32_STRLEN + 1, CT_MAX_UINT32_STRLEN, PRINT_FMT_UINT32, value);
     if (iret_snprintf == -1) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, (iret_snprintf));
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, (iret_snprintf));
         return;
     }
     text->len = (uint32)iret_snprintf;
@@ -982,9 +989,9 @@ static inline void cm_bool2text(bool32 value, text_t *text)
 {
     int iret_snprintf;
     CM_POINTER(text);
-    iret_snprintf = snprintf_s(text->str, GS_MAX_BOOL_STRLEN + 1, GS_MAX_BOOL_STRLEN, value ? "TRUE" : "FALSE");
+    iret_snprintf = snprintf_s(text->str, CT_MAX_BOOL_STRLEN + 1, CT_MAX_BOOL_STRLEN, value ? "TRUE" : "FALSE");
     if (iret_snprintf == -1) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, (iret_snprintf));
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, (iret_snprintf));
         return;
     }
     text->len = (uint32)iret_snprintf;
@@ -995,13 +1002,13 @@ static inline void cm_bigint2text(int64 value, text_t *text)
     int iret_snprintf;
     CM_POINTER(text);
 #ifdef WIN32
-    iret_snprintf = snprintf_s(text->str, GS_MAX_INT64_STRLEN + 1, GS_MAX_INT64_STRLEN, PRINT_FMT_BIGINT, value);
+    iret_snprintf = snprintf_s(text->str, CT_MAX_INT64_STRLEN + 1, CT_MAX_INT64_STRLEN, PRINT_FMT_BIGINT, value);
 #else
-    iret_snprintf = snprintf_s(text->str, GS_MAX_INT64_STRLEN + 1, GS_MAX_INT64_STRLEN, PRINT_FMT_BIGINT,
+    iret_snprintf = snprintf_s(text->str, CT_MAX_INT64_STRLEN + 1, CT_MAX_INT64_STRLEN, PRINT_FMT_BIGINT,
                                (long long)value);
 #endif
     if (iret_snprintf == -1) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, (iret_snprintf));
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, (iret_snprintf));
         return;
     }
     text->len = (uint32)iret_snprintf;
@@ -1012,13 +1019,13 @@ static inline void cm_uint64_to_text(uint64 value, text_t *text)
     int iret_snprintf;
     CM_POINTER(text);
 #ifdef WIN32
-    iret_snprintf = snprintf_s(text->str, GS_MAX_UINT64_STRLEN + 1, GS_MAX_UINT64_STRLEN, PRINT_FMT_UINT64, value);
+    iret_snprintf = snprintf_s(text->str, CT_MAX_UINT64_STRLEN + 1, CT_MAX_UINT64_STRLEN, PRINT_FMT_UINT64, value);
 #else
-    iret_snprintf = snprintf_s(text->str, GS_MAX_UINT64_STRLEN + 1, GS_MAX_UINT64_STRLEN, PRINT_FMT_UINT64,
+    iret_snprintf = snprintf_s(text->str, CT_MAX_UINT64_STRLEN + 1, CT_MAX_UINT64_STRLEN, PRINT_FMT_UINT64,
                                (unsigned long long)value);
 #endif
     if (iret_snprintf == -1) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, (iret_snprintf));
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, (iret_snprintf));
         return;
     }
     text->len = (uint32)iret_snprintf;
@@ -1028,10 +1035,10 @@ static inline void cm_real2text(double real_val, text_t *text)
 {
     int iret_snprintf;
     CM_POINTER(text);
-    CM_SNPRINTF_REAL(iret_snprintf, text->str, real_val, GS_MAX_REAL_OUTPUT_STRLEN + 1);
+    CM_SNPRINTF_REAL(iret_snprintf, text->str, real_val, CT_MAX_REAL_OUTPUT_STRLEN + 1);
 
     if (iret_snprintf == -1) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, (iret_snprintf));
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, (iret_snprintf));
         return;
     }
     text->len = (uint32)iret_snprintf;
@@ -1043,6 +1050,7 @@ num_errno_t cm_text2uint32_ex(const text_t *text_src, uint32 *value);
 num_errno_t cm_text2bigint_ex(const text_t *num_text, int64 *value);
 num_errno_t cm_text2uint64_ex(const text_t *num_text, uint64 *value);
 num_errno_t cm_text2real_ex(const text_t *text_src, double *value);
+num_errno_t cm_text2real_ex_no_check_err(const text_t *text_src, double *value);
 num_errno_t cm_text2int16_ex(const text_t *text, int32 *val);
 
 /** Try convert a number parts (a struct for processed numeric text) into a navie datatype */
@@ -1067,10 +1075,10 @@ bool32 cm_is_short(const text_t *text);
 bool32 cm_is_int(const text_t *text);
 bool32 cm_is_bigint(const text_t *text, num_part_t *np);
 
-num_errno_t cm_decide_numtype(const num_part_t *np, gs_type_t *type);
+num_errno_t cm_decide_numtype(const num_part_t *np, ct_type_t *type);
 
-num_errno_t cm_is_number(const text_t *text, gs_type_t *type);
-num_errno_t cm_is_number_with_sign(const text_t *text, gs_type_t *type);
+num_errno_t cm_is_number(const text_t *text, ct_type_t *type);
+num_errno_t cm_is_number_with_sign(const text_t *text, ct_type_t *type);
 bool32 cm_is_unsigned_int(const char *num);
 void cm_truncate_text(text_t *text, uint32 max_len);
 void cm_trim_number(text_t *text, bool32 has_dot);
@@ -1096,6 +1104,7 @@ status_t cm_substrb(const text_t *src, int32 start, uint32 size, text_t *dst);
 char *cm_strchr(const text_t *str, const int32 c);
 status_t cm_replace_regexp_spec_chars(text_t *regexp, char *ret, uint32 ret_size);
 status_t cm_str2bool(const char *bool_str, bool32 *val);
+int32 cm_mysql_compare(const CHARSET_COLLATION *cc, const text_t *text1, const text_t *text2);
 
 /** Get the c-string of a char, for printing \n, \t, \r ... */
 static inline const char *cm_char2visible(int32 c)
@@ -1112,7 +1121,7 @@ static inline status_t cm_text_set(text_t *text, uint32 num, char c)
 {
     uint32 number = num;
     if (text->len == 0 || number == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (text->len < number) {
@@ -1120,7 +1129,7 @@ static inline status_t cm_text_set(text_t *text, uint32 num, char c)
     }
 
     MEMS_RETURN_IFERR(memset_s(text->str, number, c, number));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* Locate first occurrence of character in string
@@ -1150,7 +1159,7 @@ static inline int32 cm_text_chr(const text_t *text, char c)
 static inline int32 cm_text_enclosed_chr(const text_t *text, char c, char enclose_char)
 {
     int32 last_enclosed_pos = -1;
-    bool32 in_enclosed = GS_FALSE;
+    bool32 in_enclosed = CT_FALSE;
 
     for (uint32 i = 0; i < text->len; i++) {
         if (CM_IS_VALID_ENCLOSED_CHAR(enclose_char) && text->str[i] == enclose_char) {
@@ -1180,7 +1189,7 @@ static inline int32 cm_text_enclosed_chr(const text_t *text, char c, char enclos
 static inline int32 cm_str_enclosed_chr(const text_t *text, const char *search_str, char enclose_char)
 {
     int32 last_enclosed_pos = -1;
-    bool32 in_enclosed = GS_FALSE;
+    bool32 in_enclosed = CT_FALSE;
 
     for (uint32 i = 0; i < text->len; i++) {
         if (CM_IS_VALID_ENCLOSED_CHAR(enclose_char) && text->str[i] == enclose_char) {
@@ -1305,50 +1314,50 @@ static inline status_t cm_text_dup(const text_t *src, text_t **dst)
 
     if (src == NULL || (CM_IS_EMPTY(src))) {
         *dst = NULL;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     text_t *dst_path = (text_t *)malloc(sizeof(text_t));
     if (dst_path == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)sizeof(text_t), "duplicate text");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)sizeof(text_t), "duplicate text");
+        return CT_ERROR;
     }
 
     rc_memzero = memset_sp(dst_path, sizeof(text_t), 0, sizeof(text_t));
     if (rc_memzero != EOK) {
         CM_FREE_PTR(dst_path);
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
+        return CT_ERROR;
     }
     if (src->len == 0) {
         CM_FREE_PTR(dst_path);
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)(src->len + 1), "duplicate text");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)(src->len + 1), "duplicate text");
+        return CT_ERROR;
     }
     dst_path->str = (char *)malloc(src->len + 1);
     if (dst_path->str == NULL) {
         CM_FREE_PTR(dst_path);
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)(src->len + 1), "duplicate text");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)(src->len + 1), "duplicate text");
+        return CT_ERROR;
     }
 
     rc_memzero = memset_sp(dst_path->str, src->len + 1, 0, src->len + 1);
     if (rc_memzero != EOK) {
         CM_FREE_PTR(dst_path->str);
         CM_FREE_PTR(dst_path);
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
+        return CT_ERROR;
     }
 
-    if (cm_text2str(src, dst_path->str, src->len + 1) != GS_SUCCESS) {
+    if (cm_text2str(src, dst_path->str, src->len + 1) != CT_SUCCESS) {
         CM_FREE_PTR(dst_path->str);
         CM_FREE_PTR(dst_path);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     dst_path->len = src->len;
 
     *dst = dst_path;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void cm_free_text(text_t *text)
@@ -1389,7 +1398,7 @@ static inline status_t cm_chk_and_upper_base16(text_t *text)
 {
     // make sure the length of text is odd
     if (text->len % 2 != 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < text->len; ++i) {
@@ -1401,10 +1410,10 @@ static inline status_t cm_chk_and_upper_base16(text_t *text)
         if ((c >= 'A' && c <= 'F') || (c >= '0' && c <= '9')) {
             continue;
         }
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 int32 cm_text_text_ins(const text_t *src, const text_t *sub);

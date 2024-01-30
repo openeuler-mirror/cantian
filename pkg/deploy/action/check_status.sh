@@ -12,6 +12,10 @@ allOfflineFlag=0
 logAndEchoInfo "-------Begin to check process and systemd------- [Line:${LINENO}, File:${SCRIPT_NAME}]"
 for lib_name in "${START_ORDER[@]}"
 do
+    if [[ ${lib_name} == "logicrep" ]] && [ ! -f /opt/software/tools/logicrep/start.success ];then
+        continue
+    fi
+
     sh ${CURRENT_PATH}/${lib_name}/appctl.sh check_status >> ${OM_DEPLOY_LOG_FILE} 2>&1
     if [ $? -eq 0 ]; then
         logAndEchoInfo "${lib_name} is online. [Line:${LINENO}, File:${SCRIPT_NAME}]"

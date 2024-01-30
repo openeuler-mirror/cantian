@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_buffer_module.h"
 #include "knl_buffer_access.h"
 #include "knl_buflatch.h"
 #include "pcr_heap_scan.h"
@@ -51,9 +52,9 @@ status_t buf_aio_init(knl_session_t *session)
     ret = memset_sp(buf_aio_ctx, sizeof(buf_aio_ctx_t), 0, sizeof(buf_aio_ctx_t));
     knl_securec_check(ret);
 
-    if (cm_aio_setup(&kernel->aio_lib, BUF_IOCBS_MAX_NUM, &buf_aio_ctx->io_ctx) != GS_SUCCESS) {
-        GS_LOG_RUN_WAR("[BUFFER]: setup asynchronous I/O context failed, errno %d", errno);
-        return GS_ERROR;
+    if (cm_aio_setup(&kernel->aio_lib, BUF_IOCBS_MAX_NUM, &buf_aio_ctx->io_ctx) != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("[BUFFER]: setup asynchronous I/O context failed, errno %d", errno);
+        return CT_ERROR;
     }
 
     /* allocate and initialize kernel iocbs */
@@ -72,7 +73,7 @@ status_t buf_aio_init(knl_session_t *session)
     knl_iocbs->count = BUF_IOCBS_MAX_NUM;
     cm_spin_unlock(&knl_iocbs->lock);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -89,18 +90,18 @@ void buf_aio_proc(thread_t *thread)
     uint32 size;
 
     cm_set_thread_name("buf async prefetch");
-    GS_LOG_RUN_INF("buffer async io thread started");
+    CT_LOG_RUN_INF("buffer async io thread started");
 
     size = sizeof(cm_io_event_t) * BUF_IOCBS_MAX_NUM;
     events = (cm_io_event_t *)malloc(size);
     if (events == NULL) {
-        GS_LOG_RUN_WAR("[BUFFER]failed to allocate memory for aio events");
+        CT_LOG_RUN_WAR("[BUFFER]failed to allocate memory for aio events");
         return;
     }
 
     while (!thread->closed) {
         if (cm_aio_getevents(&kernel->aio_lib, buf_aio_ctx->io_ctx, 1, BUF_IOCBS_MAX_NUM,
-                             events, &aio_ret) != GS_SUCCESS) {
+                             events, &aio_ret) != CT_SUCCESS) {
             continue;
         }
 
@@ -110,7 +111,7 @@ void buf_aio_proc(thread_t *thread)
             ((cm_io_callback_t)(events[i].data))(buf_aio_ctx->io_ctx, events[i].obj, events[i].res, events[i].res2);
 
             /* release buffer iocb and large pool page */
-            if (buf_iocb->large_pool_id != GS_INVALID_ID32) {
+            if (buf_iocb->large_pool_id != CT_INVALID_ID32) {
                 mpool_free_page(kernel->attr.large_pool, buf_iocb->large_pool_id);
             }
             buf_free_iocb(buf_iocbs, buf_iocb);
@@ -118,7 +119,7 @@ void buf_aio_proc(thread_t *thread)
     }
     free(events);
     cm_aio_destroy(&kernel->aio_lib, buf_aio_ctx->io_ctx);
-    GS_LOG_RUN_INF("buffer async io thread closed");
+    CT_LOG_RUN_INF("buffer async io thread closed");
 }
 
 static inline bool32 buf_changed_verifiable(knl_session_t *session, buf_ctrl_t *ctrl, latch_mode_t mode,
@@ -133,8 +134,8 @@ static bool32 buf_verify_checksum(knl_session_t *session, page_head_t *page, pag
     space_t *space = NULL;
 
     /* curr page may be all zero page,can't use PAGE_TAIL or PAGE_SIZE */
-    if (PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)) == GS_INVALID_CHECKSUM) {
-        return GS_TRUE;
+    if (PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)) == CT_INVALID_CHECKSUM) {
+        return CT_TRUE;
     }
 
     /*
@@ -142,22 +143,22 @@ static bool32 buf_verify_checksum(knl_session_t *session, page_head_t *page, pag
      * but it does not matter, because we will discard its data, so skip crc check.
      */
     if (!SPC_IS_LOGGING_BY_PAGEID(session, page_id)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (!page_verify_checksum(page, DEFAULT_PAGE_SIZE(session))) {
         df = DATAFILE_GET(session, page_id.file);
         space = SPACE_GET(session, df->space_id);
-        GS_LOG_RUN_ERR("[BUFFER] page %u-%u corrupted: "
+        CT_LOG_RUN_ERR("[BUFFER] page %u-%u corrupted: "
                        "checksum level %s, checksum %u, page size %u, "
                        "page type %s, space name %s, datafile name %s",
                        page_id.file, page_id.page, knl_checksum_level(g_cks_level),
                        PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)), PAGE_SIZE(*page),
                        page_type(page->type), space->ctrl->name, df->ctrl->name);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static bool32 buf_verify_compress_checksum(knl_session_t *session, page_head_t *page, page_id_t page_id)
@@ -166,58 +167,72 @@ static bool32 buf_verify_compress_checksum(knl_session_t *session, page_head_t *
     space_t *space = NULL;
 
     /* curr page may be all zero page,can't use checksum */
-    if (COMPRESS_PAGE_HEAD(page)->checksum == GS_INVALID_CHECKSUM) {
-        return GS_TRUE;
+    if (COMPRESS_PAGE_HEAD(page)->checksum == CT_INVALID_CHECKSUM) {
+        return CT_TRUE;
     }
 
     if (!page_compress_verify_checksum(page, DEFAULT_PAGE_SIZE(session))) {
         df = DATAFILE_GET(session, page_id.file);
         space = SPACE_GET(session, df->space_id);
-        GS_LOG_RUN_ERR("[BUFFER] page %u-%u corrupted: "
+        CT_LOG_RUN_ERR("[BUFFER] page %u-%u corrupted: "
                        "checksum level %s, checksum %u, page size %u, "
                        "page type %s, space name %s, datafile name %s",
                        page_id.file, page_id.page, knl_checksum_level(g_cks_level),
                        COMPRESS_PAGE_HEAD(page)->checksum, PAGE_SIZE(*page),
                        page_type(page->type), space->ctrl->name, df->ctrl->name);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 
 bool32 buf_check_load_page(knl_session_t *session, page_head_t *page, page_id_t page_id, bool32 is_backup_process)
 {
     if (!DB_IS_CHECKSUM_OFF(session) && !buf_verify_checksum(session, page, page_id)) {
-        GS_LOG_RUN_ERR("[BUFFER] page checksum failed when load page");
-        return GS_FALSE;
+        CT_LOG_RUN_ERR("[BUFFER] page checksum failed when load page");
+        return CT_FALSE;
     }
 
     /* nothing to do for zero page */
     if (PAGE_SIZE(*page) == 0 && page->lsn == 0) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (page->pcn != PAGE_TAIL(page)->pcn) {
-        GS_LOG_RUN_ERR("[BUFFER] page_head pcn %u doesn't match with page_tail pcn %u",
+        CT_LOG_RUN_ERR("[BUFFER] page_head pcn %u doesn't match with page_tail pcn %u",
                        (uint32)page->pcn, (uint32)PAGE_TAIL(page)->pcn);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (!IS_SAME_PAGID(AS_PAGID(page->id), page_id)) {
-        GS_LOG_RUN_ERR("[BUFFER] read page_id %u-%u doesn't match with expected page_id %u-%u",
+        CT_LOG_RUN_ERR("[BUFFER] read page_id %u-%u doesn't match with expected page_id %u-%u",
                        (uint32)AS_PAGID(page->id).file, (uint32)AS_PAGID(page->id).page,
                        (uint32)page_id.file, (uint32)page_id.page);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     /* must after checksum verify */
     if (!is_backup_process && page->encrypted) {
-        if (page_decrypt(session, page) != GS_SUCCESS) {
-            return GS_FALSE;
+        if (page_decrypt(session, page) != CT_SUCCESS) {
+            return CT_FALSE;
         }
     }
-    return GS_TRUE;
+    return CT_TRUE;
+}
+
+bool32 buf_check_remote_root_page(knl_session_t *session, page_head_t *page)
+{
+    if (PAGE_SIZE(*page) > DEFAULT_PAGE_SIZE(session)) {
+        return CT_FALSE;
+    }
+
+    if (page->pcn != PAGE_TAIL(page)->pcn) {
+        CT_LOG_RUN_ERR("[BUFFER] page_head pcn %u doesn't match with page_tail pcn %u",
+                       (uint32)page->pcn, (uint32)PAGE_TAIL(page)->pcn);
+        return CT_FALSE;
+    }
+    return CT_TRUE;
 }
 
 status_t buf_load_page_from_disk(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t page_id)
@@ -228,31 +243,31 @@ status_t buf_load_page_from_disk(knl_session_t *session, buf_ctrl_t *ctrl, page_
     int64 offset;
     uint64 lsn = dtc_get_ctrl_lsn(ctrl);
 
-    if (!DATAFILE_IS_ONLINE(df) || df->space_id >= GS_MAX_SPACES ||
+    if (!DATAFILE_IS_ONLINE(df) || df->space_id >= CT_MAX_SPACES ||
         DF_FILENO_IS_INVAILD(df) || space->is_empty) {
         tx_record_sql(session);
-        GS_LOG_RUN_ERR("[BUFFER] offlined tablespace %u or datafile of page_id %u-%u",
+        CT_LOG_RUN_ERR("[BUFFER] offlined tablespace %u or datafile of page_id %u-%u",
                        df->space_id, (uint32)page_id.file, (uint32)page_id.page);
-        char *space_name = df->space_id >= GS_MAX_SPACES ? "invalid space" : space->ctrl->name;
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space_name, "buf load page failed");
-        return GS_ERROR;
+        char *space_name = df->space_id >= CT_MAX_SPACES ? "invalid space" : space->ctrl->name;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space_name, "buf load page failed");
+        return CT_ERROR;
     }
 
     offset = (int64)page_id.page * DEFAULT_PAGE_SIZE(session);
-    knl_begin_session_wait(session, DB_FILE_SEQUENTIAL_READ, GS_TRUE);
+    knl_begin_session_wait(session, DB_FILE_SEQUENTIAL_READ, CT_TRUE);
 
-    if (spc_read_datafile(session, df, handle, offset, ctrl->page, DEFAULT_PAGE_SIZE(session)) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[BUFFER] failed to read datafile %s, offset %lld, size %u, error code %d",
+    if (spc_read_datafile(session, df, handle, offset, ctrl->page, DEFAULT_PAGE_SIZE(session)) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BUFFER] failed to read datafile %s, offset %lld, size %u, error code %d",
                        df->ctrl->name, offset, DEFAULT_PAGE_SIZE(session), errno);
         spc_close_datafile(df, handle);
-        knl_end_session_wait(session);
-        return GS_ERROR;
+        knl_end_session_wait(session, DB_FILE_SEQUENTIAL_READ);
+        return CT_ERROR;
     }
 
-    knl_end_session_wait(session);
+    knl_end_session_wait(session, DB_FILE_SEQUENTIAL_READ);
 
     /* generally, one session can not wait for more than 0xffffffffffffffff us */
-    session->stat->disk_read_time += session->wait.usecs;
+    session->stat->disk_read_time += session->wait_pool[DB_FILE_SEQUENTIAL_READ].usecs;
     session->stat->disk_reads++;
 
     if (SECUREC_UNLIKELY(ctrl->page->type == PAGE_TYPE_UNDO)) {
@@ -262,47 +277,43 @@ status_t buf_load_page_from_disk(knl_session_t *session, buf_ctrl_t *ctrl, page_
     cm_atomic_inc(&session->kernel->total_io_read);
     g_knl_callback.accumate_io(session, IO_TYPE_READ);
 
-    if (!buf_check_load_page(session, ctrl->page, page_id, GS_FALSE)) {
-        if (abr_repair_page_from_standy(session, ctrl)) {
-            return GS_SUCCESS;
-        }
-
+    if (!buf_check_load_page(session, ctrl->page, page_id, CT_FALSE)) {
         /* record alarm log if repair failed */
-        GS_LOG_ALARM(WARN_PAGECORRUPTED, "{'page-type':'%s','space-name':'%s','file-name':'%s'}",
+        CT_LOG_ALARM(WARN_PAGECORRUPTED, "{'page-type':'%s','space-name':'%s','file-name':'%s'}",
             page_type(ctrl->page->type), space->ctrl->name, df->ctrl->name);
 
         if (PAGE_IS_HARD_DAMAGE(ctrl->page)) {
             ctrl->page->lsn = 0;
         }
-        GS_THROW_ERROR(ERR_PAGE_CORRUPTED, page_id.file, page_id.page);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PAGE_CORRUPTED, page_id.file, page_id.page);
+        return CT_ERROR;
     }
 
     knl_panic(lsn <= ctrl->page->lsn || DAAC_SESSION_IN_RECOVERY(session));
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool32 buf_check_load_compress_page(knl_session_t *session, page_head_t *page, page_id_t page_id)
 {
     if (!DB_IS_CHECKSUM_OFF(session) && !buf_verify_compress_checksum(session, page, page_id)) {
-        GS_LOG_RUN_ERR("[BUFFER] page checksum failed when load compress page");
-        return GS_FALSE;
+        CT_LOG_RUN_ERR("[BUFFER] page checksum failed when load compress page");
+        return CT_FALSE;
     }
 
     /* nothing to do for zero page */
     if (PAGE_SIZE(*page) == 0 && page->lsn == 0) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (!IS_SAME_PAGID(AS_PAGID(page->id), page_id)) {
-        GS_LOG_RUN_ERR("[BUFFER] read page_id %u-%u doesn't match with expected page_id %u-%u",
+        CT_LOG_RUN_ERR("[BUFFER] read page_id %u-%u doesn't match with expected page_id %u-%u",
                        (uint32)AS_PAGID(page->id).file, (uint32)AS_PAGID(page->id).page,
                        (uint32)page_id.file, (uint32)page_id.page);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t buf_decompress_group(knl_session_t *session, char *dst, const char *src, uint32 *size)
@@ -314,8 +325,8 @@ status_t buf_decompress_group(knl_session_t *session, char *dst, const char *src
     errno_t ret;
     pcb_assist_t pcb_assist;
 
-    if (pcb_get_buf(session, &pcb_assist) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (pcb_get_buf(session, &pcb_assist) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     group_head.compressed_size = COMPRESS_PAGE_HEAD(src)->compressed_size;
     group_head.compress_algo = COMPRESS_PAGE_HEAD(src)->compress_algo;
@@ -344,26 +355,26 @@ status_t buf_decompress_group(knl_session_t *session, char *dst, const char *src
         actual_size = ZSTD_decompress(dst, DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, pcb_assist.aligned_buf,
             group_head.compressed_size);
         if (ZSTD_isError(actual_size)) {
-            GS_LOG_RUN_ERR("[BUFFER] failed to decompress(zstd) group, first page %u-%u, error code: %lu, reason: %s",
+            CT_LOG_RUN_ERR("[BUFFER] failed to decompress(zstd) group, first page %u-%u, error code: %lu, reason: %s",
                 AS_PAGID_PTR(((page_head_t *)src)->id)->file, AS_PAGID_PTR(((page_head_t *)src)->id)->page,
                 actual_size, ZSTD_getErrorName(actual_size));
-            GS_THROW_ERROR(ERR_DECOMPRESS_ERROR, "zstd", actual_size, ZSTD_getErrorName(actual_size));
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_DECOMPRESS_ERROR, "zstd", actual_size, ZSTD_getErrorName(actual_size));
+            return CT_ERROR;
         }
     } else {
-        knl_panic_log(GS_FALSE, "compress algorithm %d not supported", group_head.compress_algo);
+        knl_panic_log(CT_FALSE, "compress algorithm %d not supported", group_head.compress_algo);
     }
 
     pcb_release_buf(session, &pcb_assist);
     *size = (uint32)actual_size; // decompress size always equals 64K，convert is safe
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t buf_construct_group_members(knl_session_t *session, buf_ctrl_t *head_ctrl, const char *src)
 {
     datafile_t *df = DATAFILE_GET(session, head_ctrl->page_id.file);
     space_t *space = SPACE_GET(session, df->space_id);
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     buf_ctrl_t *ctrl = NULL;
 
     for (int32 i = (PAGE_GROUP_COUNT - 1); i >= 0; i--) {
@@ -375,13 +386,13 @@ static status_t buf_construct_group_members(knl_session_t *session, buf_ctrl_t *
         knl_securec_check(ret);
         ctrl->page->compressed = 0;
 
-        if (!buf_check_load_page(session, ctrl->page, ctrl->page_id, GS_FALSE)) {
+        if (!buf_check_load_page(session, ctrl->page, ctrl->page_id, CT_FALSE)) {
             if (!abr_repair_page_from_standy(session, ctrl)) {
                 /* record alarm log if repair failed */
-                GS_LOG_ALARM(WARN_PAGECORRUPTED, "{'page-type':'%s','space-name':'%s','file-name':'%s'}",
+                CT_LOG_ALARM(WARN_PAGECORRUPTED, "{'page-type':'%s','space-name':'%s','file-name':'%s'}",
                     page_type(ctrl->page->type), space->ctrl->name, df->ctrl->name);
-                GS_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
-                status = GS_ERROR;
+                CT_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
+                status = CT_ERROR;
                 continue; // continue to look other pages' result
             }
         }
@@ -406,30 +417,30 @@ static status_t buf_construct_group(knl_session_t *session, buf_ctrl_t *head_ctr
     /* we need to rely on the actual compression properties of the page
     * to determine whether it needs to be decompressed */
     really_compressed = ((page_head_t *)read_buf)->compressed;
-    if (pcb_get_buf(session, &unzip_pcb_assist) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (pcb_get_buf(session, &unzip_pcb_assist) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (SECUREC_UNLIKELY(!really_compressed)) {
         /* Pages are plainly written without compression for some reason */
         src = read_buf;
     } else {
-        if (buf_decompress_group(session, unzip_pcb_assist.aligned_buf, read_buf, &size) != GS_SUCCESS) {
+        if (buf_decompress_group(session, unzip_pcb_assist.aligned_buf, read_buf, &size) != CT_SUCCESS) {
             pcb_release_buf(session, &unzip_pcb_assist);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         knl_panic_log(size == DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "decompress size %u incorrect", size);
         src = unzip_pcb_assist.aligned_buf;
     }
 
-    if (buf_construct_group_members(session, head_ctrl, src) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[BUFFER] construct compress group failed");
+    if (buf_construct_group_members(session, head_ctrl, src) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BUFFER] construct compress group failed");
         pcb_release_buf(session, &unzip_pcb_assist);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     pcb_release_buf(session, &unzip_pcb_assist);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t buf_check_load_compress_group(knl_session_t *session, page_id_t head_page_id, const char *read_buf)
@@ -438,7 +449,7 @@ status_t buf_check_load_compress_group(knl_session_t *session, page_id_t head_pa
     space_t *space = SPACE_GET(session, df->space_id);
     page_head_t *compress_page = NULL;
     page_id_t page_id = head_page_id;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
     /* we only verify compress page here */
     if (!((page_head_t *)read_buf)->compressed) {
@@ -448,10 +459,10 @@ status_t buf_check_load_compress_group(knl_session_t *session, page_id_t head_pa
     for (uint16 i = 0; i < PAGE_GROUP_COUNT; i++) {
         compress_page = (page_head_t *)((char *)read_buf + i * DEFAULT_PAGE_SIZE(session));
         if (!buf_check_load_compress_page(session, compress_page, page_id)) {
-            GS_THROW_ERROR(ERR_PAGE_CORRUPTED, page_id.file, page_id.page);
-            GS_LOG_ALARM(WARN_PAGECORRUPTED, "{'page-type':'%s','space-name':'%s','file-name':'%s'}",
+            CT_THROW_ERROR(ERR_PAGE_CORRUPTED, page_id.file, page_id.page);
+            CT_LOG_ALARM(WARN_PAGECORRUPTED, "{'page-type':'%s','space-name':'%s','file-name':'%s'}",
                 page_type(compress_page->type), space->ctrl->name, df->ctrl->name);
-            status = GS_ERROR;
+            status = CT_ERROR;
         }
         page_id.page++;
     }
@@ -469,29 +480,29 @@ static status_t buf_read_and_construct(knl_session_t *session, buf_ctrl_t *head_
 
     space_t *space = SPACE_GET(session, df->space_id);
     if (!SPACE_IS_ONLINE(space) || !DATAFILE_IS_ONLINE(df)) {
-        GS_LOG_RUN_ERR("[BUFFER] offlined tablespace or datafile of page_id %u-%u",
+        CT_LOG_RUN_ERR("[BUFFER] offlined tablespace or datafile of page_id %u-%u",
             (uint32)head_page.file, (uint32)head_page.page);
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "buf load page failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "buf load page failed");
+        return CT_ERROR;
     }
 
-    if (pcb_get_buf(session, &pcb_assist) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (pcb_get_buf(session, &pcb_assist) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    knl_begin_session_wait(session, DB_FILE_SCATTERED_READ, GS_TRUE);
+    knl_begin_session_wait(session, DB_FILE_SCATTERED_READ, CT_TRUE);
     if (spc_read_datafile(session, df, handle, offset, pcb_assist.aligned_buf,
-                          DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[BUFFER] failed to read datafile %s, offset %lld, size %u, error code %d",
+                          DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BUFFER] failed to read datafile %s, offset %lld, size %u, error code %d",
             df->ctrl->name, offset, DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, errno);
         spc_close_datafile(df, handle);
-        knl_end_session_wait(session);
+        knl_end_session_wait(session, DB_FILE_SCATTERED_READ);
         pcb_release_buf(session, &pcb_assist);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    knl_end_session_wait(session);
+    knl_end_session_wait(session, DB_FILE_SCATTERED_READ);
 
-    session->stat->disk_read_time += session->wait.usecs;
+    session->stat->disk_read_time += session->wait_pool[DB_FILE_SCATTERED_READ].usecs;
     session->stat->disk_reads++;
 
     if (SECUREC_UNLIKELY(head_ctrl->page->type == PAGE_TYPE_UNDO)) {
@@ -501,23 +512,23 @@ static status_t buf_read_and_construct(knl_session_t *session, buf_ctrl_t *head_
     cm_atomic_inc(&session->kernel->total_io_read);
     g_knl_callback.accumate_io(session, IO_TYPE_READ);
 
-    if (buf_check_load_compress_group(session, head_ctrl->page_id, pcb_assist.aligned_buf) != GS_SUCCESS) {
+    if (buf_check_load_compress_group(session, head_ctrl->page_id, pcb_assist.aligned_buf) != CT_SUCCESS) {
         pcb_release_buf(session, &pcb_assist);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (buf_construct_group(session, head_ctrl, pcb_assist.aligned_buf) != GS_SUCCESS) {
+    if (buf_construct_group(session, head_ctrl, pcb_assist.aligned_buf) != CT_SUCCESS) {
         pcb_release_buf(session, &pcb_assist);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     pcb_release_buf(session, &pcb_assist);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void buf_load_update_status(knl_session_t *session, buf_ctrl_t *head_ctrl, status_t read_status)
 {
-    if (SECUREC_UNLIKELY(read_status != GS_SUCCESS)) {
+    if (SECUREC_UNLIKELY(read_status != CT_SUCCESS)) {
         for (int32 i = PAGE_GROUP_COUNT - 1; i >= 0; i--) {
             head_ctrl->compress_group[i]->load_status = BUF_LOAD_FAILED;
         }
@@ -547,17 +558,17 @@ void buf_aio_prefetch_compress(knl_session_t *session, char *read_buf, buf_ctrl_
                   "invalid next extent page id in bitmap file, file:%d, page:%d.",
                   head_ctrl->page_id.file, head_ctrl->page_id.page);
 
-    if (large_pool_id == GS_INVALID_ID32 || !is_completed) {
-        status = GS_ERROR;
-    } else if (buf_check_load_compress_group(session, head_ctrl->page_id, read_buf) != GS_SUCCESS) {
-        status = GS_ERROR;
+    if (large_pool_id == CT_INVALID_ID32 || !is_completed) {
+        status = CT_ERROR;
+    } else if (buf_check_load_compress_group(session, head_ctrl->page_id, read_buf) != CT_SUCCESS) {
+        status = CT_ERROR;
     } else {
         status = buf_construct_group(session, head_ctrl, read_buf);
     }
     buf_load_update_status(session, head_ctrl, status);
 
     BUF_PROTECT_PAGE(head_ctrl->page);
-    buf_unlatch(session, head_ctrl, GS_TRUE);
+    buf_unlatch(session, head_ctrl, CT_TRUE);
 }
 
 void buf_aio_prefetch_normal(knl_session_t *session, const char *read_buf, buf_ctrl_t *ctrl, uint32 large_pool_id,
@@ -565,9 +576,9 @@ void buf_aio_prefetch_normal(knl_session_t *session, const char *read_buf, buf_c
 {
     errno_t ret;
 
-    if (large_pool_id == GS_INVALID_ID32 || !is_completed) {
+    if (large_pool_id == CT_INVALID_ID32 || !is_completed) {
         ctrl->load_status = (uint8)BUF_LOAD_FAILED;
-        buf_unlatch(session, ctrl, GS_TRUE);
+        buf_unlatch(session, ctrl, CT_TRUE);
         return;
     }
 
@@ -575,10 +586,10 @@ void buf_aio_prefetch_normal(knl_session_t *session, const char *read_buf, buf_c
     ret = memcpy_sp(ctrl->page, DEFAULT_PAGE_SIZE(session), read_buf, DEFAULT_PAGE_SIZE(session));
     knl_securec_check(ret);
 
-    if (!buf_check_load_page(session, ctrl->page, ctrl->page_id, GS_FALSE)) {
+    if (!buf_check_load_page(session, ctrl->page, ctrl->page_id, CT_FALSE)) {
         if (!abr_repair_page_from_standy(session, ctrl)) {
             ctrl->load_status = (uint8)BUF_LOAD_FAILED;
-            buf_unlatch(session, ctrl, GS_TRUE);
+            buf_unlatch(session, ctrl, CT_TRUE);
             return;
         }
     }
@@ -586,7 +597,7 @@ void buf_aio_prefetch_normal(knl_session_t *session, const char *read_buf, buf_c
     BUF_PROTECT_PAGE(ctrl->page);
     ctrl->load_status = (uint8)BUF_IS_LOADED;
     ctrl->force_request = 0;
-    buf_unlatch(session, ctrl, GS_TRUE);
+    buf_unlatch(session, ctrl, CT_TRUE);
 }
 
 /*
@@ -600,12 +611,12 @@ void buf_aio_prefetch_ext_callback(cm_io_context_t ctx, cm_iocb_t *iocb, long re
     char *read_buf = buf_iocb->large_buf;
     buf_ctrl_t **ctrls = buf_iocb->ctrls;
     uint32 i, skip;
-    bool8 is_completed = GS_TRUE;
+    bool8 is_completed = CT_TRUE;
 
     if (res != buf_iocb->page_cnt * DEFAULT_PAGE_SIZE(session)) {
-        GS_LOG_RUN_WAR("[BUFFER] failed to read page by async io: res: %ld, error code: %d, page_id:%u-%u",
+        CT_LOG_RUN_WAR("[BUFFER] failed to read page by async io: res: %ld, error code: %d, page_id:%u-%u",
             res, errno, (uint32)ctrls[0]->page_id.file, ctrls[0]->page_id.page);
-        is_completed = GS_FALSE;
+        is_completed = CT_FALSE;
     }
 
     for (i = 0; i < buf_iocb->page_cnt; i += skip) {
@@ -683,12 +694,12 @@ static void buf_aio_prefetch_clean_status(knl_session_t *session, buf_ctrl_t *ct
     if (ctrl->load_status != (uint8)BUF_IS_LOADED) {
         if (page_compress(session, ctrl->page_id)) {
             *skip = PAGE_GROUP_COUNT;
-            buf_load_update_status(session, ctrl, GS_ERROR);
+            buf_load_update_status(session, ctrl, CT_ERROR);
         } else {
             ctrl->load_status = (uint8)BUF_LOAD_FAILED;
         }
     }
-    buf_unlatch(session, ctrl, GS_TRUE);
+    buf_unlatch(session, ctrl, CT_TRUE);
 }
 
 /*
@@ -726,17 +737,17 @@ static status_t buf_aio_submit(knl_session_t *session, datafile_t *df, uint32 re
 {
     space_t *space = SPACE_GET(session, df->space_id);
     if (!SPACE_IS_ONLINE(space) || !DATAFILE_IS_ONLINE(df)) {
-        GS_LOG_RUN_WAR("[BUFFER] tablespace has been dropped");
-        return GS_ERROR;
+        CT_LOG_RUN_WAR("[BUFFER] tablespace has been dropped");
+        return CT_ERROR;
     }
 
     /* submit prefetch request */
     if (cm_aio_submit(&session->kernel->aio_lib, session->kernel->buf_aio_ctx.io_ctx,
-        (int32)read_times, iocbs) != GS_SUCCESS) {
-        GS_LOG_RUN_WAR("[BUFFER] failed to submit aio, error code: %d", errno);
-        return GS_ERROR;
+        (int32)read_times, iocbs) != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("[BUFFER] failed to submit aio, error code: %d", errno);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void buf_aio_alloc_ctrls(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t curr_page,
@@ -783,13 +794,13 @@ static status_t buf_aio_prefetch_ext(knl_session_t *session, buf_ctrl_t *ctrl, u
 {
     datafile_t *df = DATAFILE_GET(session, ctrl->page_id.file);
     buf_iocb_t *buf_iocb = NULL;
-    uint32 max_cnt = GS_LARGE_PAGE_SIZE / DEFAULT_PAGE_SIZE(session);
+    uint32 max_cnt = CT_LARGE_PAGE_SIZE / DEFAULT_PAGE_SIZE(session);
     uint32 page_cnt_per_time = extent_size < max_cnt ? extent_size : max_cnt;
     uint32 read_times = extent_size / page_cnt_per_time;
     
-    if (spc_open_datafile(session, df, DATAFILE_FD(session, ctrl->page_id.file)) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SPACE] failed to open datafile %s", df->ctrl->name);
-        return GS_ERROR;
+    if (spc_open_datafile(session, df, DATAFILE_FD(session, ctrl->page_id.file)) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SPACE] failed to open datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
@@ -800,21 +811,21 @@ static status_t buf_aio_prefetch_ext(knl_session_t *session, buf_ctrl_t *ctrl, u
     page_id_t curr_page = ctrl->page_id;
     for (uint32 i = 0; i < read_times; i++) {
         /* alloc read buffer from large pool */
-        mpool_pages[i] = GS_INVALID_ID32;
+        mpool_pages[i] = CT_INVALID_ID32;
         if (!mpool_try_alloc_page(session->kernel->attr.large_pool, &mpool_pages[i])) {
-            GS_LOG_DEBUG_WAR("[BUFFER] no large pool page available");
+            CT_LOG_DEBUG_WAR("[BUFFER] no large pool page available");
             buf_aio_prefetch_clean(session, mpool_pages, iocbs, i, page_cnt_per_time, ctrl);
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         read_buf[i] = mpool_page_addr(session->kernel->attr.large_pool, mpool_pages[i]);
 
         buf_iocb = buf_alloc_iocb(&session->kernel->buf_aio_ctx.buf_aio_iocbs);
         if (buf_iocb == NULL) {
-            GS_LOG_DEBUG_WAR("[BUFFER] no aio resource available");
+            CT_LOG_DEBUG_WAR("[BUFFER] no aio resource available");
             buf_aio_prefetch_clean(session, mpool_pages, iocbs, i, page_cnt_per_time, ctrl);
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         buf_iocb->large_pool_id = mpool_pages[i];
         iocbs[i] = &buf_iocb->iocb;
@@ -828,14 +839,14 @@ static status_t buf_aio_prefetch_ext(knl_session_t *session, buf_ctrl_t *ctrl, u
     }
 
     /* submit prefetch request */
-    if (buf_aio_submit(session, df, read_times, iocbs) != GS_SUCCESS) {
+    if (buf_aio_submit(session, df, read_times, iocbs) != CT_SUCCESS) {
         buf_aio_prefetch_clean(session, mpool_pages, iocbs, read_times, page_cnt_per_time, ctrl);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t buf_aio_prefetch_page(knl_session_t *session, buf_ctrl_t *ctrl)
@@ -846,10 +857,10 @@ static status_t buf_aio_prefetch_page(knl_session_t *session, buf_ctrl_t *ctrl)
     buf_iocb_t *buf_iocb = buf_alloc_iocb(&kernel->buf_aio_ctx.buf_aio_iocbs);
     if (buf_iocb == NULL) {
         cm_pop(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    buf_iocb->large_pool_id = GS_INVALID_ID32;
+    buf_iocb->large_pool_id = CT_INVALID_ID32;
     iocbs[0] = &buf_iocb->iocb;
     buf_iocb->ctrls[0] = ctrl;
 
@@ -862,18 +873,18 @@ static status_t buf_aio_prefetch_page(knl_session_t *session, buf_ctrl_t *ctrl)
     if (!SPACE_IS_ONLINE(space) || !DATAFILE_IS_ONLINE(df)) {
         buf_aio_prefetch_clean(session, NULL, iocbs, 1, 1, ctrl);
         cm_pop(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* submit prefetch request */
-    if (cm_aio_submit(&kernel->aio_lib, kernel->buf_aio_ctx.io_ctx, 1, iocbs) != GS_SUCCESS) {
+    if (cm_aio_submit(&kernel->aio_lib, kernel->buf_aio_ctx.io_ctx, 1, iocbs) != CT_SUCCESS) {
         buf_aio_prefetch_clean(session, NULL, iocbs, 1, 1, ctrl);
         cm_pop(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_pop(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t buf_read_page_asynch(knl_session_t *session, page_id_t page_id)
@@ -883,7 +894,7 @@ status_t buf_read_page_asynch(knl_session_t *session, page_id_t page_id)
     bool32 is_compress = page_compress(session, page_id);
 
     if (!session->kernel->attr.enable_asynch) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (is_compress) {
@@ -893,33 +904,33 @@ status_t buf_read_page_asynch(knl_session_t *session, page_id_t page_id)
         ctrl = buf_try_alloc_ctrl(session, page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL, BUF_ADD_COLD);
     }
     if (ctrl == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (ctrl->load_status == (uint8)BUF_IS_LOADED) {
-        buf_unlatch(session, ctrl, GS_TRUE);
-        return GS_SUCCESS;
+        buf_unlatch(session, ctrl, CT_TRUE);
+        return CT_SUCCESS;
     }
 
     if (is_compress) {
-        if (buf_aio_prefetch_ext(session, ctrl, PAGE_GROUP_COUNT) != GS_SUCCESS) {
+        if (buf_aio_prefetch_ext(session, ctrl, PAGE_GROUP_COUNT) != CT_SUCCESS) {
             if (ctrl->load_status != (uint8)BUF_IS_LOADED) {
-                buf_load_update_status(session, ctrl, GS_ERROR);
+                buf_load_update_status(session, ctrl, CT_ERROR);
             }
-            buf_unlatch(session, ctrl, GS_TRUE);
-            return GS_ERROR;
+            buf_unlatch(session, ctrl, CT_TRUE);
+            return CT_ERROR;
         }
     } else {
-        if (buf_aio_prefetch_page(session, ctrl) != GS_SUCCESS) {
+        if (buf_aio_prefetch_page(session, ctrl) != CT_SUCCESS) {
             if (ctrl->load_status != (uint8)BUF_IS_LOADED) {
                 ctrl->load_status = (uint8)BUF_LOAD_FAILED;
             }
-            buf_unlatch(session, ctrl, GS_TRUE);
-            return GS_ERROR;
+            buf_unlatch(session, ctrl, CT_TRUE);
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 /*
  * skip prefetch if next extent is invalid or extent has already loaded
@@ -935,11 +946,11 @@ status_t buf_try_prefetch_next_ext(knl_session_t *session, buf_ctrl_t *ctrl)
 
     if (SPACE_IS_BITMAPMANAGED(space)) {
         if (IS_INVALID_PAGID(next_ext)) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     } else {
         if (!spc_is_extent_first(session, space, ctrl->page_id) || IS_INVALID_PAGID(next_ext)) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
@@ -949,12 +960,12 @@ status_t buf_try_prefetch_next_ext(knl_session_t *session, buf_ctrl_t *ctrl)
         next_ctrl = buf_try_alloc_ctrl(session, next_ext, LATCH_MODE_S, ENTER_PAGE_SEQUENTIAL, BUF_ADD_OLD);
     }
     if (next_ctrl == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (next_ctrl->load_status == (uint8)BUF_IS_LOADED) {
-        buf_unlatch(session, next_ctrl, GS_TRUE);
-        return GS_SUCCESS;
+        buf_unlatch(session, next_ctrl, CT_TRUE);
+        return CT_SUCCESS;
     }
 
     if (SPACE_IS_BITMAPMANAGED(space)) {
@@ -966,19 +977,19 @@ status_t buf_try_prefetch_next_ext(knl_session_t *session, buf_ctrl_t *ctrl)
         extent_size = space->ctrl->extent_size;
     }
 
-    if (buf_aio_prefetch_ext(session, next_ctrl, extent_size) != GS_SUCCESS) {
+    if (buf_aio_prefetch_ext(session, next_ctrl, extent_size) != CT_SUCCESS) {
         if (next_ctrl->load_status != (uint8)BUF_IS_LOADED) {
             if (page_compress(session, next_ctrl->page_id)) {
-                buf_load_update_status(session, next_ctrl, GS_ERROR);
+                buf_load_update_status(session, next_ctrl, CT_ERROR);
             } else {
                 next_ctrl->load_status = (uint8)BUF_LOAD_FAILED;
             }
         }
-        buf_unlatch(session, next_ctrl, GS_TRUE);
-        return GS_ERROR;
+        buf_unlatch(session, next_ctrl, CT_TRUE);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -989,27 +1000,27 @@ static status_t buf_load_page_from_GBP(knl_session_t *session, buf_ctrl_t *ctrl,
 {
     gbp_context_t *gbp_ctx = &session->kernel->gbp_context;
     gbp_page_status_e status;
-    uint32 lock_id = page_id.page % GS_GBP_RD_LOCK_COUNT;
+    uint32 lock_id = page_id.page % CT_GBP_RD_LOCK_COUNT;
 
     cm_spin_lock(&gbp_ctx->buf_read_lock[lock_id], NULL);
     if (!KNL_RECOVERY_WITH_GBP(session->kernel)) {
         cm_spin_unlock(&gbp_ctx->buf_read_lock[lock_id]);
-        return GS_ERROR; /* recheck rcy_with_gbp flag, if GS_FALSE, all GBP pages are pulled to local buffer */
+        return CT_ERROR; /* recheck rcy_with_gbp flag, if CT_FALSE, all GBP pages are pulled to local buffer */
     }
 
-    knl_begin_session_wait(session, DB_FILE_GBP_READ, GS_TRUE);
+    knl_begin_session_wait(session, DB_FILE_GBP_READ, CT_TRUE);
     status = knl_read_page_from_gbp(session, ctrl);
     ctrl->gbp_ctrl->page_status = status;
-    knl_end_session_wait(session);
+    knl_end_session_wait(session, DB_FILE_GBP_READ);
     cm_spin_unlock(&gbp_ctx->buf_read_lock[lock_id]);
 
     if (status == GBP_PAGE_MISS || status == GBP_PAGE_OLD || status == GBP_PAGE_AHEAD) {
         /* page not exists on gbp */
-        return GS_ERROR;
+        return CT_ERROR;
     } else {
         knl_panic_log(CHECK_PAGE_PCN(ctrl->page), "page pcn is abnormal, panic info: ctrl_page %u-%u type %u",
                       ctrl->page_id.file, ctrl->page_id.page, ctrl->page->type);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 }
 
@@ -1021,33 +1032,32 @@ static status_t buf_load_page_from_GBP(knl_session_t *session, buf_ctrl_t *ctrl,
 static inline bool32 session_need_read_gbp(knl_session_t *session)
 {
     if (SESSION_IS_LOG_ANALYZE(session) || SESSION_IS_GBP_BG(session)) {
-        return GS_FALSE;
+        return CT_FALSE;
     } else {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 }
 
 /* If failover with GBP, try load page from GBP. If page is not exists on GBP, load page from disk */
 status_t buf_load_page(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t page_id)
 {
-    status_t status = GS_ERROR;
+    status_t status = CT_ERROR;
 
     knl_panic(!(ctrl->is_edp || ctrl->is_dirty) && (!DB_IS_CLUSTER(session) || DCS_BUF_CTRL_IS_OWNER(session, ctrl)));
 
     if (SECUREC_UNLIKELY(KNL_RECOVERY_WITH_GBP(session->kernel)) && session_need_read_gbp(session)) {
-        ctrl->page->lsn = GS_INVALID_LSN; // reset page lsn to 0 here, because it is not loaded from disk
+        ctrl->page->lsn = CT_INVALID_LSN; // reset page lsn to 0 here, because it is not loaded from disk
         status = buf_load_page_from_GBP(session, ctrl, page_id);
     }
 
-    if (status != GS_SUCCESS) {
+    if (status != CT_SUCCESS) {
         status = buf_load_page_from_disk(session, ctrl, page_id);
     }
 
-    if (status != GS_SUCCESS) {
+    if (status != CT_SUCCESS) {
         ctrl->load_status = (uint8)BUF_LOAD_FAILED;
-        GS_LOG_RUN_ERR("[BUFFER][%u-%u][buf load page] failed, load_status:%d, lock_mode:%d",
+        CT_LOG_RUN_ERR("[BUFFER][%u-%u][buf load page] failed, load_status:%d, lock_mode:%d",
             ctrl->page_id.file, ctrl->page_id.page, ctrl->load_status, ctrl->lock_mode);
-        CM_ASSERT(0);
     } else {
         ctrl->load_status = (uint8)BUF_IS_LOADED;
         ctrl->force_request = 0;
@@ -1056,15 +1066,15 @@ status_t buf_load_page(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t page_
     return status;
 }
 
-static status_t buf_batch_load_pages(knl_session_t *session, char *read_buf,
-    buf_ctrl_t *ctrl, page_id_t begin, uint32 count)
+static status_t buf_batch_load_pages(knl_session_t *session, char *read_buf, buf_ctrl_t *ctrl, page_id_t begin,
+                                     uint32 count, uint8 options)
 {
     datafile_t *df = DATAFILE_GET(session, begin.file);
     int32 *handle = DATAFILE_FD(session, begin.file);
     space_t *space = SPACE_GET(session, df->space_id);
     page_id_t page_id = begin;
     buf_ctrl_t **ctrl_array = NULL;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     int64 offset;
     uint32 i;
     errno_t ret;
@@ -1087,39 +1097,43 @@ static status_t buf_batch_load_pages(knl_session_t *session, char *read_buf,
     }
 
     if (DB_IS_CLUSTER(session)) {
-        if (dtc_get_owner_pages(session, ctrl_array, ctrl, count) != GS_SUCCESS) {
+        if (dtc_get_share_owner_pages(session, ctrl_array, ctrl, count) != CT_SUCCESS) {
             cm_pop(session->stack);
-            GS_LOG_RUN_ERR("[BUFFER][%u-%u][dtc get owner pages] failed", ctrl->page_id.file, ctrl->page_id.page);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[BUFFER][%u-%u][dtc get owner pages] failed", ctrl->page_id.file, ctrl->page_id.page);
+            return CT_ERROR;
         }
     }
 
     do {
+        if (options & ENTER_PAGE_NO_READ) {
+            break;
+        }
+
         if (!SPACE_IS_ONLINE(space) || !DATAFILE_IS_ONLINE(df)) {
-            GS_LOG_RUN_ERR("[BUFFER] offlined tablespace or datafile of page_id %u-%u",
+            CT_LOG_RUN_ERR("[BUFFER] offlined tablespace or datafile of page_id %u-%u",
                 (uint32)begin.file, (uint32)begin.page);
-            GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "buf load page failed");
-            status = GS_ERROR;
+            CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "buf load page failed");
+            status = CT_ERROR;
             break;
         }
 
         offset = (int64)begin.page * DEFAULT_PAGE_SIZE(session);
-        knl_begin_session_wait(session, DB_FILE_SCATTERED_READ, GS_TRUE);
+        knl_begin_session_wait(session, DB_FILE_SCATTERED_READ, CT_TRUE);
 
         if (spc_read_datafile(session, df, handle, offset, read_buf,
-                              DEFAULT_PAGE_SIZE(session) * count) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[BUFFER] failed to read datafile %s, offset %lld, size %u, error code %d",
+                              DEFAULT_PAGE_SIZE(session) * count) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[BUFFER] failed to read datafile %s, offset %lld, size %u, error code %d",
                            df->ctrl->name, offset, DEFAULT_PAGE_SIZE(session) * count, errno);
             spc_close_datafile(df, handle);
-            knl_end_session_wait(session);
-            status = GS_ERROR;
+            knl_end_session_wait(session, DB_FILE_SCATTERED_READ);
+            status = CT_ERROR;
             break;
         }
 
-        knl_end_session_wait(session);
+        knl_end_session_wait(session, DB_FILE_SCATTERED_READ);
 
         /* generally, one session can not wait for more than 0xffffffffffffffff us */
-        session->stat->disk_read_time += session->wait.usecs;
+        session->stat->disk_read_time += session->wait_pool[DB_FILE_SCATTERED_READ].usecs;
         session->stat->disk_reads++;
 
         if (SECUREC_UNLIKELY(ctrl->page->type == PAGE_TYPE_UNDO)) {
@@ -1143,14 +1157,14 @@ static status_t buf_batch_load_pages(knl_session_t *session, char *read_buf,
                 read_buf + i * DEFAULT_PAGE_SIZE(session), DEFAULT_PAGE_SIZE(session));
             knl_securec_check(ret);
 
-            if (!buf_check_load_page(session, ctrl_array[i]->page, ctrl_array[i]->page_id, GS_FALSE)) {
+            if (!buf_check_load_page(session, ctrl_array[i]->page, ctrl_array[i]->page_id, CT_FALSE)) {
                 if (!abr_repair_page_from_standy(session, ctrl_array[i])) {
                     if (ctrl_array[i]->page_id.page == ctrl->page_id.page) {
                         /* record alarm log if repair failed */
-                        GS_LOG_ALARM(WARN_PAGECORRUPTED, "{'page-type':'%s','space-name':'%s','file-name':'%s'}",
+                        CT_LOG_ALARM(WARN_PAGECORRUPTED, "{'page-type':'%s','space-name':'%s','file-name':'%s'}",
                             page_type(ctrl->page->type), space->ctrl->name, df->ctrl->name);
-                        GS_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
-                        status = GS_ERROR;
+                        CT_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
+                        status = CT_ERROR;
                     }
                     continue;
                 }
@@ -1178,7 +1192,7 @@ static status_t buf_batch_load_pages(knl_session_t *session, char *read_buf,
 
         /* For the incoming ctrl we do not un_latch it, since the caller wil handl the latch */
         if (ctrl_array[i]->page_id.page != ctrl->page_id.page) {
-            buf_unlatch(session, ctrl_array[i], GS_TRUE);
+            buf_unlatch(session, ctrl_array[i], CT_TRUE);
         }
     }
 
@@ -1191,7 +1205,8 @@ static status_t buf_batch_load_pages(knl_session_t *session, char *read_buf,
  * @param kernel session, current page ctrl, page_id(start load), load count
  * @note only if fail to load current page, can we throw error to caller
  */
-static status_t buf_load_pages(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t begin, uint32 total_count_input)
+static status_t buf_load_pages(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t begin, uint32 total_count_input,
+                               uint8 options)
 {
     uint32 total_count = total_count_input;
     page_id_t page_id = begin;
@@ -1204,14 +1219,15 @@ static status_t buf_load_pages(knl_session_t *session, buf_ctrl_t *ctrl, page_id
     }
 
     char *read_buf = mpool_page_addr(session->kernel->attr.large_pool, mpool_page_id);
-    uint32 max_count = GS_LARGE_PAGE_SIZE / DEFAULT_PAGE_SIZE(session);
+    uint32 max_count = CT_LARGE_PAGE_SIZE / DEFAULT_PAGE_SIZE(session);
+    knl_panic(max_count <= BUF_MAX_PREFETCH_NUM);
 
     while (total_count > 0) {
         count = total_count < max_count ? total_count : max_count;
 
-        if (buf_batch_load_pages(session, read_buf, ctrl, page_id, count) != GS_SUCCESS) {
+        if (buf_batch_load_pages(session, read_buf, ctrl, page_id, count, options) != CT_SUCCESS) {
             mpool_free_page(session->kernel->attr.large_pool, mpool_page_id);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         total_count -= count;
@@ -1219,7 +1235,7 @@ static status_t buf_load_pages(knl_session_t *session, buf_ctrl_t *ctrl, page_id
     }
 
     mpool_free_page(session->kernel->attr.large_pool, mpool_page_id);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline uint32 buf_log_entry_length(knl_session_t *session)
@@ -1310,7 +1326,7 @@ static void buf_validate_page(knl_session_t *session, buf_ctrl_t *ctrl, bool32 c
     if (!changed) {
         if (memcmp(session->log_diag_page[depth] + sizeof(page_head_t), session->curr_page + sizeof(page_head_t),
                    PAGE_VALID_SIZE(session)) != 0) {
-            GS_LOG_DEBUG_WAR("WARNING: leave page with no change, but changed [file: %d, page: %d, type: %d].\n",
+            CT_LOG_DEBUG_WAR("WARNING: leave page with no change, but changed [file: %d, page: %d, type: %d].\n",
                              (uint32)AS_PAGID_PTR(page->id)->file,
                              (uint32)AS_PAGID_PTR(page->id)->page, (uint32)page->type);
             knl_panic(0);
@@ -1325,7 +1341,7 @@ static void buf_validate_page(knl_session_t *session, buf_ctrl_t *ctrl, bool32 c
 
     group = (log_group_t *)(session->log_buf);
     if (buf_log_entry_length(session) >= group->size && !group->nologging_insert) {
-        GS_LOG_DEBUG_WAR("WARNING: leave page with change, but no log [file: %d, page: %d, type: %d].\n",
+        CT_LOG_DEBUG_WAR("WARNING: leave page with change, but no log [file: %d, page: %d, type: %d].\n",
                          (uint32)AS_PAGID_PTR(page->id)->file,
                          (uint32)AS_PAGID_PTR(page->id)->page, (uint32)page->type);
         knl_panic(0);
@@ -1340,12 +1356,12 @@ static void buf_validate_page(knl_session_t *session, buf_ctrl_t *ctrl, bool32 c
 
     if (memcmp(session->log_diag_page[depth], session->curr_page, DEFAULT_PAGE_SIZE(session)) != 0) {
         if (memcmp(session->log_diag_page[depth], copy_page, DEFAULT_PAGE_SIZE(session)) == 0) {
-            GS_LOG_DEBUG_WAR("WARNING: loss log for page [file: %d, page: %d, type: %d].\n",
+            CT_LOG_DEBUG_WAR("WARNING: loss log for page [file: %d, page: %d, type: %d].\n",
                              (uint32)AS_PAGID_PTR(page->id)->file,
                              (uint32)AS_PAGID_PTR(page->id)->page, (uint32)page->type);
             knl_panic(0);
         } else {
-            GS_LOG_DEBUG_WAR("WARNING: diagnose log failed for page [file: %d, page: %d, type: %d].\n",
+            CT_LOG_DEBUG_WAR("WARNING: diagnose log failed for page [file: %d, page: %d, type: %d].\n",
                              (uint32)AS_PAGID_PTR(page->id)->file,
                              (uint32)AS_PAGID_PTR(page->id)->page, (uint32)page->type);
             knl_panic(0);
@@ -1449,14 +1465,14 @@ status_t buf_validate_corrupted_page(knl_session_t *session, knl_validate_t *par
     page_id_t page_id = param->page_id;
 
     if (!abr_verify_pageid(session, page_id)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (session->kernel->db.status == DB_STATUS_OPEN) {
         /* If read page successfully, page is not corrupted */
-        if (buf_read_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL) == GS_SUCCESS) {
-            buf_leave_page(session, GS_FALSE);
-            return GS_SUCCESS;
+        if (buf_read_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL) == CT_SUCCESS) {
+            buf_leave_page(session, CT_FALSE);
+            return CT_SUCCESS;
         }
     }
 
@@ -1465,21 +1481,21 @@ status_t buf_validate_corrupted_page(knl_session_t *session, knl_validate_t *par
      * Because CRC mode if is FULL, disk page may not be corrupted. We can not repair it
      */
     if (!abr_precheck_corrupted_page(session, page_id)) {
-        GS_THROW_ERROR(ERR_PAGE_CORRUPTED, page_id.file, page_id.page);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PAGE_CORRUPTED, page_id.file, page_id.page);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool32 buf_check_loaded_page_checksum(knl_session_t *session, buf_ctrl_t *ctrl, latch_mode_t mode, uint8 options)
 {
     if (g_cks_level != CKS_FULL) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (!buf_changed_verifiable(session, ctrl, mode, options)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     return buf_verify_checksum(session, ctrl->page, ctrl->page_id);
@@ -1488,7 +1504,7 @@ bool32 buf_check_loaded_page_checksum(knl_session_t *session, buf_ctrl_t *ctrl, 
 static inline void buf_try_read_gbp_page(knl_session_t *session, buf_ctrl_t *ctrl)
 {
     if (ctrl->gbp_ctrl->page_status == GBP_PAGE_NOREAD) {
-        ctrl->page->lsn = GS_INVALID_LSN; // page is not loaded, set lsn to 0
+        ctrl->page->lsn = CT_INVALID_LSN; // page is not loaded, set lsn to 0
         ctrl->gbp_ctrl->page_status = GBP_PAGE_NONE;
     }
 
@@ -1517,20 +1533,20 @@ static status_t buf_read_compress(knl_session_t *session, buf_ctrl_t *ctrl, page
         if (options & ENTER_PAGE_NO_READ) {
             knl_panic_log(PAGE_IS_COMPRESS_HEAD(ctrl->page_id), "buf_read_compress er: non head");
             buf_read_compress_update_no_read(session, ctrl);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (buf_load_group(session, ctrl) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (buf_load_group(session, ctrl) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         if (!buf_check_loaded_page_checksum(session, ctrl, mode, options)) {
-            GS_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t buf_read_normal(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t page_id,
@@ -1542,20 +1558,20 @@ static status_t buf_read_normal(knl_session_t *session, buf_ctrl_t *ctrl, page_i
             if (SECUREC_UNLIKELY(KNL_GBP_ENABLE(session->kernel))) {
                 ctrl->gbp_ctrl->page_status = GBP_PAGE_NOREAD;
             }
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (buf_load_page(session, ctrl, page_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (buf_load_page(session, ctrl, page_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         if (!buf_check_loaded_page_checksum(session, ctrl, mode, options)) {
-            GS_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t buf_read_page(knl_session_t *session, page_id_t page_id, latch_mode_t mode, uint8 options)
@@ -1565,15 +1581,15 @@ status_t buf_read_page(knl_session_t *session, page_id_t page_id, latch_mode_t m
     status_t status;
 
     if (SECUREC_UNLIKELY(IS_INVALID_PAGID(page_id))) {
-        GS_LOG_RUN_ERR("[BUFFER] invalid page_id %u-%u", (uint32)page_id.file, (uint32)page_id.page);
+        CT_LOG_RUN_ERR("[BUFFER] invalid page_id %u-%u", (uint32)page_id.file, (uint32)page_id.page);
         CM_ASSERT(0);
-        GS_THROW_ERROR(ERR_INVALID_PAGE_ID, "");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PAGE_ID, "");
+        return CT_ERROR;
     }
 
     if (DB_IS_CLUSTER(session)) {
         buf_read_assist_t ra;
-        dtc_read_init(&ra, page_id, mode, options, GS_INVALID_ID64, DTC_BUF_READ_ONE);
+        dtc_read_init(&ra, page_id, mode, options, CT_INVALID_ID64, DTC_BUF_READ_ONE);
         return dtc_read_page(session, &ra);
     }
 
@@ -1586,15 +1602,15 @@ status_t buf_read_page(knl_session_t *session, page_id_t page_id, latch_mode_t m
                       ctrl->page_id.file, ctrl->page_id.page, ctrl->page->type);
         session->curr_page = NULL;
         session->curr_page_ctrl = NULL;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     BUF_UNPROTECT_PAGE(ctrl->page);
     status = page_compress(session, page_id) ? buf_read_compress(session, ctrl, page_id, mode, options) :
                                                buf_read_normal(session, ctrl, page_id, mode, options);
-    if (status != GS_SUCCESS) {
-        buf_unlatch(session, ctrl, GS_TRUE);
-        return GS_ERROR;
+    if (status != CT_SUCCESS) {
+        buf_unlatch(session, ctrl, CT_TRUE);
+        return CT_ERROR;
     }
 
     knl_panic_log(IS_SAME_PAGID(page_id, ctrl->page_id),
@@ -1623,7 +1639,7 @@ status_t buf_read_page(knl_session_t *session, page_id_t page_id, latch_mode_t m
     buf_push_page(session, ctrl, mode);
     buf_log_enter_page(session, ctrl, mode, options);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t buf_read_prefetch_compress(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t page_id,
@@ -1640,27 +1656,28 @@ status_t buf_read_prefetch_normal(knl_session_t *session, buf_ctrl_t *ctrl, page
     uint32 start_id = spc_first_extent_id(session, space, page_id);
     page_id_t first = page_id;
     uint32 load_count;
+    uint32 prefetch_num = MIN(space->ctrl->extent_size, BUF_MAX_PREFETCH_NUM);
 
     if (page_id.page >= start_id) {
-        first.page = page_id.page - ((page_id.page - start_id) % BUF_PREFETCH_UNIT);
+        first.page = page_id.page - ((page_id.page - start_id) % prefetch_num);
         first.aligned = 0;
-        load_count = BUF_PREFETCH_UNIT;
+        load_count = prefetch_num;
     } else {
         load_count = 1;
     }
 
     if (ctrl->load_status == (uint8)BUF_NEED_LOAD) {
-        if (buf_load_pages(session, ctrl, first, load_count) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (buf_load_pages(session, ctrl, first, load_count, options) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         if (!buf_check_loaded_page_checksum(session, ctrl, mode, options)) {
-            GS_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 status_t buf_read_prefetch_page(knl_session_t *session, page_id_t page_id, latch_mode_t mode, uint8 options)
 {
@@ -1670,9 +1687,9 @@ status_t buf_read_prefetch_page(knl_session_t *session, page_id_t page_id, latch
     status_t status;
 
     if (SECUREC_UNLIKELY(IS_INVALID_PAGID(page_id))) {
-        GS_LOG_RUN_ERR("[BUFFER] invalid page_id %u-%u", (uint32)page_id.file, (uint32)page_id.page);
-        GS_THROW_ERROR(ERR_INVALID_PAGE_ID, "");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[BUFFER] invalid page_id %u-%u", (uint32)page_id.file, (uint32)page_id.page);
+        CT_THROW_ERROR(ERR_INVALID_PAGE_ID, "");
+        return CT_ERROR;
     }
 
     /* RTO = 0, disable prefetch when db is recovery from GBP */
@@ -1682,7 +1699,7 @@ status_t buf_read_prefetch_page(knl_session_t *session, page_id_t page_id, latch
 
     if (DB_IS_CLUSTER(session)) {
         buf_read_assist_t ra;
-        dtc_read_init(&ra, page_id, mode, options, GS_INVALID_ID64, DTC_BUF_PREFETCH_EXT_NUM);
+        dtc_read_init(&ra, page_id, mode, options, CT_INVALID_ID64, DTC_BUF_PREFETCH_EXT_NUM);
         return dtc_read_page(session, &ra);
     }
 
@@ -1698,11 +1715,11 @@ status_t buf_read_prefetch_page(knl_session_t *session, page_id_t page_id, latch
         status = buf_read_prefetch_normal(session, ctrl, page_id, mode, options);
     }
 
-    if (status != GS_SUCCESS) {
-        buf_unlatch(session, ctrl, GS_TRUE);
-        GS_LOG_RUN_ERR("[BUFFER][%u-%u][buf read prefetch] failed, load_status:%d, mode:%d",
+    if (status != CT_SUCCESS) {
+        buf_unlatch(session, ctrl, CT_TRUE);
+        CT_LOG_RUN_ERR("[BUFFER][%u-%u][buf read prefetch] failed, load_status:%d, mode:%d",
             ctrl->page_id.file, ctrl->page_id.page, ctrl->load_status, mode);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(IS_SAME_PAGID(page_id, ctrl->page_id),
@@ -1722,13 +1739,13 @@ status_t buf_read_prefetch_page(knl_session_t *session, page_id_t page_id, latch
     buf_log_enter_page(session, ctrl, mode, options);
 
     if (session->kernel->attr.enable_asynch) {
-        if (buf_try_prefetch_next_ext(session, ctrl) != GS_SUCCESS) {
-            GS_LOG_DEBUG_WAR("[BUFFER] failed to prefetch next extent file : %u , page: %llu",
+        if (buf_try_prefetch_next_ext(session, ctrl) != CT_SUCCESS) {
+            CT_LOG_DEBUG_WAR("[BUFFER] failed to prefetch next extent file : %u , page: %llu",
                 (uint32)ctrl->page_id.file, (uint64)ctrl->page_id.page);
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t buf_read_prefetch_num_normal(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t page_id,
@@ -1749,16 +1766,16 @@ status_t buf_read_prefetch_num_normal(knl_session_t *session, buf_ctrl_t *ctrl, 
     }
 
     if (ctrl->load_status == (uint8)BUF_NEED_LOAD) {
-        if (buf_load_pages(session, ctrl, page_id, prefetch_num) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (buf_load_pages(session, ctrl, page_id, prefetch_num, options) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         if (!buf_check_loaded_page_checksum(session, ctrl, mode, options)) {
-            GS_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t buf_read_prefetch_page_num(knl_session_t *session, page_id_t page_id, uint32 prefetch_num,
@@ -1768,9 +1785,9 @@ status_t buf_read_prefetch_page_num(knl_session_t *session, page_id_t page_id, u
     knl_buf_wait_t temp_stat;
 
     if (SECUREC_UNLIKELY(IS_INVALID_PAGID(page_id))) {
-        GS_LOG_RUN_ERR("[BUFFER] invalid page_id %u-%u", (uint32)page_id.file, (uint32)page_id.page);
-        GS_THROW_ERROR(ERR_INVALID_PAGE_ID, "");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[BUFFER] invalid page_id %u-%u", (uint32)page_id.file, (uint32)page_id.page);
+        CT_THROW_ERROR(ERR_INVALID_PAGE_ID, "");
+        return CT_ERROR;
     }
 
     /* RTO = 0, disable prefetch when db is recovery from GBP */
@@ -1781,7 +1798,7 @@ status_t buf_read_prefetch_page_num(knl_session_t *session, page_id_t page_id, u
     if (DB_IS_CLUSTER(session)) {
         buf_read_assist_t ra;
         // prefetch_num less than BUF_MAX_PREFETCH_NUM(128)
-        dtc_read_init(&ra, page_id, mode, options, GS_INVALID_ID64, (uint16)prefetch_num);
+        dtc_read_init(&ra, page_id, mode, options, CT_INVALID_ID64, (uint16)prefetch_num);
         return dtc_read_page(session, &ra);
     }
 
@@ -1792,14 +1809,14 @@ status_t buf_read_prefetch_page_num(knl_session_t *session, page_id_t page_id, u
 
     if (ctrl->load_status == (uint8)BUF_NEED_LOAD) {
         if (!buf_read_prefetch_num_normal(session, ctrl, page_id, prefetch_num, mode, options)) {
-            buf_unlatch(session, ctrl, GS_TRUE);
-            return GS_ERROR;
+            buf_unlatch(session, ctrl, CT_TRUE);
+            return CT_ERROR;
         }
     } else {
         if (!buf_check_loaded_page_checksum(session, ctrl, mode, options)) {
-            GS_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
-            buf_unlatch(session, ctrl, GS_TRUE);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PAGE_CORRUPTED, ctrl->page_id.file, ctrl->page_id.page);
+            buf_unlatch(session, ctrl, CT_TRUE);
+            return CT_ERROR;
         }
     }
 
@@ -1819,7 +1836,7 @@ status_t buf_read_prefetch_page_num(knl_session_t *session, page_id_t page_id, u
     buf_push_page(session, ctrl, mode);
     buf_log_enter_page(session, ctrl, mode, options);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1831,7 +1848,7 @@ static inline void buf_calc_checksum(knl_session_t *session, buf_ctrl_t *ctrl)
     // checksum is invalid if page has changed
     knl_panic_log(PAGE_SIZE(*ctrl->page) != 0, "the page size is abnormal, panic info: page %u-%u type %u size %u",
                   ctrl->page_id.file, ctrl->page_id.page, ctrl->page->type, PAGE_SIZE(*ctrl->page));
-    PAGE_CHECKSUM(ctrl->page, PAGE_SIZE(*ctrl->page)) = GS_INVALID_CHECKSUM;
+    PAGE_CHECKSUM(ctrl->page, PAGE_SIZE(*ctrl->page)) = CT_INVALID_CHECKSUM;
 
     if (!DB_IS_CHECKSUM_FULL(session)) {
         return;
@@ -1887,7 +1904,7 @@ void buf_leave_page(knl_session_t *session, bool32 changed)
         if (SECUREC_UNLIKELY(KNL_GBP_ENABLE(session->kernel))) {
             ctrl->gbp_ctrl->page_status = GBP_PAGE_NONE;
             if (!ctrl->gbp_ctrl->is_gbpdirty && DB_IS_PRIMARY(&session->kernel->db)) {
-                ctrl->gbp_ctrl->is_gbpdirty = GS_TRUE;
+                ctrl->gbp_ctrl->is_gbpdirty = CT_TRUE;
                 session->gbp_dirty_pages[session->gbp_dirty_count++] = ctrl;
                 knl_panic_log(session->gbp_dirty_count <= KNL_MAX_ATOMIC_PAGES,
                               "gbp_dirty_count is abnormal, panic info: page %u-%u type %u gbp_dirty_count %u",
@@ -1903,7 +1920,7 @@ void buf_leave_page(knl_session_t *session, bool32 changed)
     }
 
     buf_log_leave_page(session, ctrl, changed);
-    buf_unlatch(session, ctrl, GS_TRUE);
+    buf_unlatch(session, ctrl, CT_TRUE);
     buf_pop_page(session);
 }
 
@@ -1927,11 +1944,11 @@ void buf_unreside_page(knl_session_t *session, page_id_t page_id)
         return;
     }
 
-    if (buf_read_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_RESIDENT) != GS_SUCCESS) {
+    if (buf_read_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_RESIDENT) != CT_SUCCESS) {
         return;
     }
     ctrl = session->curr_page_ctrl;
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
     buf_unreside(session, ctrl);
 }
 
@@ -1944,7 +1961,7 @@ void buf_enter_temp_page(knl_session_t *session, page_id_t page_id, latch_mode_t
 {
     buf_ctrl_t *ctrl = NULL;
 
-    if (SECUREC_UNLIKELY(page_id.page == GS_INVALID_ID32)) {
+    if (SECUREC_UNLIKELY(page_id.page == CT_INVALID_ID32)) {
         knl_panic_log(0, "page number is invalid, panic info: page %u-%u", page_id.file, page_id.page);
     }
 
@@ -1986,19 +2003,19 @@ void buf_leave_temp_page(knl_session_t *session)
               DATAFILE_GET(session, ctrl->page_id.file)->space_id == dtc_my_ctrl(session)->swap_space);
     BUF_PROTECT_PAGE(ctrl->page);
 
-    buf_unlatch(session, ctrl, GS_TRUE);
+    buf_unlatch(session, ctrl, CT_TRUE);
     buf_pop_page(session);
 }
 
 status_t buf_invalidate_page_with_version(knl_session_t *session, page_id_t page_id, uint64 req_version)
 {
-    buf_ctrl_t *ctrl = buf_try_latchx_page(session, page_id, GS_TRUE);
+    buf_ctrl_t *ctrl = buf_try_latchx_page(session, page_id, CT_TRUE);
     if (ctrl == NULL) {
-        GS_LOG_DEBUG_WAR("[buffer][%u-%u][buf_invalidate_page]: not found in memory", page_id.file, page_id.page);
-        return GS_SUCCESS;
+        CT_LOG_DEBUG_WAR("[buffer][%u-%u][buf_invalidate_page]: not found in memory", page_id.file, page_id.page);
+        return CT_SUCCESS;
     }
 
-    GS_LOG_DEBUG_INF(
+    CT_LOG_DEBUG_INF(
         "[buffer][%u-%u][buf_invalidate_page]: ctrl_dirty=%u, ctrl_remote_dirty=%u, ctrl_readonly=%u, "
         "in ckpt=%u, ctrl_lock_mode=%u, edp=%d",
         ctrl->page_id.file, ctrl->page_id.page, ctrl->is_dirty, ctrl->is_remote_dirty, ctrl->is_readonly, ctrl->in_ckpt,
@@ -2007,22 +2024,22 @@ status_t buf_invalidate_page_with_version(knl_session_t *session, page_id_t page
     SYNC_POINT_GLOBAL_START(CANTIAN_DCS_INVALID_REQ_OTHER_ABORT, (int32 *)session, 0);
     SYNC_POINT_GLOBAL_END;
     if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session)) {
-        GS_LOG_RUN_ERR(
+        CT_LOG_RUN_ERR(
             "[buffer][%u-%u][reforming, buf_invalidate_page failed]: ctrl_dirty=%u, ctrl_remote_dirty=%u, "
             "ctrl_readonly=%u, in ckpt=%u, ctrl_lock_mode=%u, edp=%d",
             ctrl->page_id.file, ctrl->page_id.page, ctrl->is_dirty, ctrl->is_remote_dirty,
             ctrl->is_readonly, ctrl->in_ckpt,
             ctrl->lock_mode, ctrl->is_edp);
         buf_unlatch_page(session, ctrl);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!DCS_BUF_CTRL_NOT_OWNER(session, ctrl)) {
-        GS_LOG_RUN_ERR(
+        CT_LOG_RUN_ERR(
             "[buffer][%u-%u][buf_invalidate_page failed]: is owner ctrl_lock_mode=%u",
             ctrl->page_id.file, ctrl->page_id.page, ctrl->lock_mode);
         buf_unlatch_page(session, ctrl);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     // If multiple S-readings come later, BUF_LOAD_FAILED can ensure only one invokes DCS page request.
@@ -2030,18 +2047,18 @@ status_t buf_invalidate_page_with_version(knl_session_t *session, page_id_t page
     ctrl->lock_mode = DRC_LOCK_NULL;
 
     buf_unlatch_page(session, ctrl);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t buf_invalidate_page(knl_session_t *session, page_id_t page_id)
 {
-    buf_ctrl_t *ctrl = buf_try_latchx_page(session, page_id, GS_TRUE);
+    buf_ctrl_t *ctrl = buf_try_latchx_page(session, page_id, CT_TRUE);
     if (ctrl == NULL) {
-        GS_LOG_DEBUG_WAR("[buffer][%u-%u][buf_invalidate_page]: not found in memory", page_id.file, page_id.page);
-        return GS_SUCCESS;
+        CT_LOG_DEBUG_WAR("[buffer][%u-%u][buf_invalidate_page]: not found in memory", page_id.file, page_id.page);
+        return CT_SUCCESS;
     }
 
-    GS_LOG_DEBUG_INF(
+    CT_LOG_DEBUG_INF(
         "[buffer][%u-%u][buf_invalidate_page]: ctrl_dirty=%u, ctrl_remote_dirty=%u, ctrl_readonly=%u, in ckpt=%u, ctrl_lock_mode=%u, edp=%d",
         ctrl->page_id.file, ctrl->page_id.page, ctrl->is_dirty, ctrl->is_remote_dirty, ctrl->is_readonly, ctrl->in_ckpt,
         ctrl->lock_mode, ctrl->is_edp);
@@ -2053,7 +2070,7 @@ status_t buf_invalidate_page(knl_session_t *session, page_id_t page_id)
     ctrl->lock_mode = DRC_LOCK_NULL;
 
     buf_unlatch_page(session, ctrl);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t buf_invalidate_page_owner(knl_session_t *session, page_id_t page_id, uint64 req_version)
@@ -2063,66 +2080,66 @@ status_t buf_invalidate_page_owner(knl_session_t *session, page_id_t page_id, ui
     buf_ctrl_t *ctrl = buf_find_from_bucket(bucket, page_id);
     if (!ctrl) {
         cm_spin_unlock(&bucket->lock);
-        GS_LOG_DEBUG_INF("[buffer][%u-%u][buf_invalidate_page_owner]: fast check, not found in memory", page_id.file,
+        CT_LOG_DEBUG_INF("[buffer][%u-%u][buf_invalidate_page_owner]: fast check, not found in memory", page_id.file,
                          page_id.page);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     if (!BUF_CAN_EVICT(ctrl)) {
         cm_spin_unlock(&bucket->lock);
-        GS_LOG_DEBUG_INF(
+        CT_LOG_DEBUG_INF(
             "[buffer][%u-%u][buf_invalidate_page_owner]: fast check, not recyclable and return, ctrl_dirty=%u, ctrl_remote_dirty=%u, ctrl_readonly=%u, in ckpt=%u, ctrl_lock_mode=%u, edp=%d",
             ctrl->page_id.file, ctrl->page_id.page, ctrl->is_dirty, ctrl->is_remote_dirty, ctrl->is_readonly,
             ctrl->in_ckpt, ctrl->lock_mode, ctrl->is_edp);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     cm_spin_unlock(&bucket->lock);
 
-    ctrl = buf_try_latchx_page(session, page_id, GS_TRUE);
+    ctrl = buf_try_latchx_page(session, page_id, CT_TRUE);
     if (ctrl == NULL) {
-        GS_LOG_DEBUG_INF("[buffer][%u-%u][buf_invalidate_page_owner]: not found in memory", page_id.file, page_id.page);
-        return GS_SUCCESS;
+        CT_LOG_DEBUG_INF("[buffer][%u-%u][buf_invalidate_page_owner]: not found in memory", page_id.file, page_id.page);
+        return CT_SUCCESS;
     }
 
-    GS_LOG_DEBUG_INF(
+    CT_LOG_DEBUG_INF(
         "[buffer][%u-%u][buf_invalidate_page_owner]: ctrl_dirty=%u, ctrl_remote_dirty=%u, ctrl_readonly=%u, in ckpt=%u, ctrl_lock_mode=%u, edp=%d",
         ctrl->page_id.file, ctrl->page_id.page, ctrl->is_dirty, ctrl->is_remote_dirty, ctrl->is_readonly, ctrl->in_ckpt,
         ctrl->lock_mode, ctrl->is_edp);
 
     if (ctrl->lock_mode == DRC_LOCK_NULL) {
         buf_unlatch_page(session, ctrl);
-        GS_LOG_DEBUG_INF(
+        CT_LOG_DEBUG_INF(
             "[buffer][%u-%u][buf_invalidate_page_owner]: already invalidated, ctrl_dirty=%u, ctrl_remote_dirty=%u, ctrl_readonly=%u, in ckpt=%u, ctrl_lock_mode=%u, edp=%d",
             ctrl->page_id.file, ctrl->page_id.page, ctrl->is_dirty, ctrl->is_remote_dirty, ctrl->is_readonly,
             ctrl->in_ckpt, ctrl->lock_mode, ctrl->is_edp);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!BUF_IN_USE_IS_RECYCLABLE(ctrl) || ctrl->is_resident || (ctrl->ref_num != 1)) {
         buf_unlatch_page(session, ctrl);
-        GS_LOG_DEBUG_INF(
+        CT_LOG_DEBUG_INF(
             "[buffer][%u-%u][buf_invalidate_page_owner]: not recyclable and return, ctrl_dirty=%u, ctrl_remote_dirty=%u, ctrl_readonly=%u, in ckpt=%u, ctrl_lock_mode=%u, edp=%d",
             ctrl->page_id.file, ctrl->page_id.page, ctrl->is_dirty, ctrl->is_remote_dirty, ctrl->is_readonly,
             ctrl->in_ckpt, ctrl->lock_mode, ctrl->is_edp);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session)) {
-        GS_LOG_RUN_ERR(
+        CT_LOG_RUN_ERR(
             "[buffer][%u-%u][reforming, buf_invalidate_page page failed]: ctrl_dirty=%u, ctrl_remote_dirty=%u, "
             "ctrl_readonly=%u, in ckpt=%u, ctrl_lock_mode=%u, edp=%d",
             ctrl->page_id.file, ctrl->page_id.page, ctrl->is_dirty, ctrl->is_remote_dirty,
             ctrl->is_readonly, ctrl->in_ckpt,
             ctrl->lock_mode, ctrl->is_edp);
         buf_unlatch_page(session, ctrl);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!DCS_BUF_CTRL_IS_OWNER(session, ctrl)) {
-        GS_LOG_RUN_ERR(
+        CT_LOG_RUN_ERR(
             "[buffer][%u-%u][buf_invalidate_page failed]: is not owner ctrl_lock_mode=%u",
             ctrl->page_id.file, ctrl->page_id.page, ctrl->lock_mode);
         buf_unlatch_page(session, ctrl);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     ctrl->load_status = BUF_LOAD_FAILED;
@@ -2130,11 +2147,11 @@ status_t buf_invalidate_page_owner(knl_session_t *session, page_id_t page_id, ui
 
     buf_unlatch_page(session, ctrl);
 
-    GS_LOG_DEBUG_INF(
+    CT_LOG_DEBUG_INF(
         "[buffer][%u-%u][buf_invalidate_page_owner]: invalidate page owner, ctrl_dirty=%u, ctrl_remote_dirty=%u, ctrl_readonly=%u, in ckpt=%u, ctrl_lock_mode=%u, edp=%d, page type=%d",
         ctrl->page_id.file, ctrl->page_id.page, ctrl->is_dirty, ctrl->is_remote_dirty, ctrl->is_readonly, ctrl->in_ckpt,
         ctrl->lock_mode, ctrl->is_edp, ctrl->page->type);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool32 buf_clean_edp(knl_session_t *session, edp_page_info_t page)
@@ -2143,58 +2160,58 @@ bool32 buf_clean_edp(knl_session_t *session, edp_page_info_t page)
     page_id_t page_id = page.page;
     buf_ctrl_t *ctrl = buf_try_latch_ckpt_page(session, page_id, &latched);
     if (ctrl == NULL) {
-        GS_LOG_DEBUG_WAR("[buffer][%u-%u][buf clean edp]: not found in memory", page_id.file, page_id.page);
-        return GS_TRUE;
+        CT_LOG_DEBUG_WAR("[buffer][%u-%u][buf clean edp]: not found in memory", page_id.file, page_id.page);
+        return CT_TRUE;
     }
 
     if (!latched) {
         buf_dec_ref(session, ctrl);
-        GS_LOG_DEBUG_WAR("[buffer][%u-%u][buf clean edp]: can't latch page, will retry later", page_id.file,
+        CT_LOG_DEBUG_WAR("[buffer][%u-%u][buf clean edp]: can't latch page, will retry later", page_id.file,
                          page_id.page);
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    GS_LOG_DEBUG_INF("[buffer][%u-%u][clean buf edp]: ctrl_dirty=%u, ctrl_remote_dirty=%u, ctrl_readonly=%u, in "
+    CT_LOG_DEBUG_INF("[buffer][%u-%u][clean buf edp]: ctrl_dirty=%u, ctrl_remote_dirty=%u, ctrl_readonly=%u, in "
         "ckpt=%u, ctrl_lock_mode=%u, edp=%d, ack lsn=%llu",
         ctrl->page_id.file, ctrl->page_id.page, ctrl->is_dirty, ctrl->is_remote_dirty, ctrl->is_readonly, ctrl->in_ckpt,
         ctrl->lock_mode, ctrl->is_edp, page.lsn);
 
     if (ctrl->is_edp == 0) {
         buf_unlatch_page(session, ctrl);
-        GS_LOG_DEBUG_WAR(
+        CT_LOG_DEBUG_WAR(
             "[buffer][%u-%u][clean buf edp]: not edp now, ctrl_dirty=%u, ctrl_remote_dirty=%u, ctrl_readonly=%u, in ckpt=%u, ctrl_lock_mode=%u, edp=%d",
             ctrl->page_id.file, ctrl->page_id.page, ctrl->is_dirty, ctrl->is_remote_dirty, ctrl->is_readonly,
             ctrl->in_ckpt, ctrl->lock_mode, ctrl->is_edp);
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    if (page.lsn == GS_INVALID_ID64) {
+    if (page.lsn == CT_INVALID_ID64) {
         /* On previous owner node, the ctrl is not in memory which may be a clean shared copy ctrl from remote dirty
           owner node and has been swapped out. You can't juge if local dirty page can be cleared.
         */
         buf_ctrl_t *tmp_ctrl =
             (buf_ctrl_t *)cm_push(session->stack,
-                                  sizeof(buf_ctrl_t) + (uint32)(DEFAULT_PAGE_SIZE(session) + GS_MAX_ALIGN_SIZE_4K));
+                                  sizeof(buf_ctrl_t) + (uint32)(DEFAULT_PAGE_SIZE(session) + CT_MAX_ALIGN_SIZE_4K));
         *tmp_ctrl = *ctrl;
         tmp_ctrl->lock_mode = DRC_LOCK_SHARE;
         tmp_ctrl->is_edp = 0;
         tmp_ctrl->is_dirty = 0;
         tmp_ctrl->page = (page_head_t *)cm_aligned_buf((char *)tmp_ctrl + (uint64)sizeof(buf_ctrl_t));
         tmp_ctrl->page->lsn = 0;
-        if (buf_load_page(session, tmp_ctrl, tmp_ctrl->page_id) != GS_SUCCESS) {
+        if (buf_load_page(session, tmp_ctrl, tmp_ctrl->page_id) != CT_SUCCESS) {
             tmp_ctrl->load_status = (uint8)BUF_LOAD_FAILED;
             knl_panic_log(0, "[DCS]buf clean edp page[%u-%u] (lsn:%lld) load from disk failed", ctrl->page_id.file,
                           ctrl->page_id.page, ctrl->page->lsn);
         }
-        GS_LOG_RUN_WAR("[DCS]buf clean edp page[%u-%u] with invalid ack lsn, page lsn (%lld) and disk page(%lld).",
+        CT_LOG_RUN_WAR("[DCS]buf clean edp page[%u-%u] with invalid ack lsn, page lsn (%lld) and disk page(%lld).",
                        ctrl->page_id.file, ctrl->page_id.page, ctrl->page->lsn, tmp_ctrl->page->lsn);
         page.lsn = dtc_get_ctrl_lsn(tmp_ctrl);
         cm_pop(session->stack);
     }
 
     if (page.lsn >= ctrl->page->lsn) {
-        dcs_buf_clean_ctrl_edp(session, ctrl, GS_TRUE);
+        dcs_buf_clean_ctrl_edp(session, ctrl, CT_TRUE);
     } else {
-        GS_LOG_DEBUG_WAR(
+        CT_LOG_DEBUG_WAR(
             "[buffer][%u-%u][clean buf edp]: ignore clean edp, request edp lsn (%llu) is smaller than "
             "page lsn (%llu), ctrl_dirty=%u, ctrl_remote_dirty=%u, ctrl_readonly=%u, in ckpt=%u, ctrl_lock_mode=%u,"
             " edp=%d",
@@ -2203,7 +2220,7 @@ bool32 buf_clean_edp(knl_session_t *session, edp_page_info_t page)
     }
 
     buf_unlatch_page(session, ctrl);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 buf_ctrl_t *buf_try_latch_ckpt_page(knl_session_t *session, page_id_t page_id, bool32 *latched)
@@ -2215,24 +2232,24 @@ buf_ctrl_t *buf_try_latch_ckpt_page(knl_session_t *session, page_id_t page_id, b
     ctrl = buf_find_from_bucket(bucket, page_id);
     if (ctrl == NULL) {
         cm_spin_unlock(&bucket->lock);
-        *latched = GS_FALSE;
+        *latched = CT_FALSE;
         return NULL;
     }
     ctrl->ref_num++;
     if (ctrl->load_status == (uint8)BUF_NEED_LOAD) {
         cm_spin_unlock(&bucket->lock);
-        *latched = GS_FALSE;
+        *latched = CT_FALSE;
         return ctrl;
     }
     cm_spin_unlock(&bucket->lock);
 
     if (!ckpt_try_latch_ctrl(session, ctrl)) {
-        GS_LOG_DEBUG_INF("[CKPT] try latch page find gap [%u-%u]", ctrl->page_id.file, ctrl->page_id.page);
-        *latched = GS_FALSE;
+        CT_LOG_DEBUG_INF("[CKPT] try latch page find gap [%u-%u]", ctrl->page_id.file, ctrl->page_id.page);
+        *latched = CT_FALSE;
         return ctrl;
     }
 
-    *latched = GS_TRUE;
+    *latched = CT_TRUE;
     return ctrl;
 }
 
@@ -2270,7 +2287,7 @@ buf_ctrl_t *buf_try_latchx_page(knl_session_t *session, page_id_t page_id, bool3
                 break;
             }
             times++;
-            if (times > GS_SPIN_COUNT) {
+            if (times > CT_SPIN_COUNT) {
                 times = 0;
                 cm_spin_sleep();
                 wait_ticks++;
@@ -2295,7 +2312,7 @@ buf_ctrl_t *buf_try_latchx_page(knl_session_t *session, page_id_t page_id, bool3
 
 void buf_unlatch_page(knl_session_t *session, buf_ctrl_t *ctrl)
 {
-    buf_unlatch(session, ctrl, GS_TRUE);
+    buf_unlatch(session, ctrl, CT_TRUE);
 }
 
 void buf_dec_ref(knl_session_t *session, buf_ctrl_t *ctrl)
@@ -2324,5 +2341,5 @@ void buf_set_force_request(knl_session_t *session, page_id_t page_id)
     }
     knl_panic(IS_SAME_PAGID(page_id, ctrl->page_id));
 
-    buf_unlatch(session, ctrl, GS_TRUE);
+    buf_unlatch(session, ctrl, CT_TRUE);
 }

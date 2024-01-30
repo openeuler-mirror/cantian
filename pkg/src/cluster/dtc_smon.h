@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -84,6 +84,13 @@ EXTER_ATTACK void dtc_smon_process_wait_event_msg(void *sess, mes_message_t *rec
 EXTER_ATTACK void dtc_smon_process_get_ilock_msg(void *sess, mes_message_t *receive_msg);
 EXTER_ATTACK void dtc_smon_process_check_se_msg(void *sess, mes_message_t *receive_msg);
 EXTER_ATTACK void dtc_smon_process_deadlock_sql(void *sess, mes_message_t *receive_msg);
+EXTER_ATTACK status_t dtc_smon_get_txn_dlock(knl_handle_t session, uint8 instid, uint16 rmid, dtc_dlock *dlock);
+EXTER_ATTACK rowid_t dtc_smon_get_rm_wrid(knl_session_t *session, uint8 dst_inst, uint16 rmid);
+EXTER_ATTACK bool32 dtc_smon_check_wait_event(knl_session_t *session, uint8 inst_id, uint16 sid);
+EXTER_ATTACK bool32 dtc_smon_check_table_status(knl_session_t *session, dtc_tlock* tlock);
+EXTER_ATTACK void dtc_smon_wait_rm_msg(knl_session_t *session, uint16 wsid, uint16 rmid, dtc_tlock *tlock);
+EXTER_ATTACK bool32 dtc_smon_push_tlock(knl_session_t *session, uint8 *w_marks, dtc_dlock_stack_t *stack_lock,
+                                        uint32 inst_id, uint64 table_id);
 
 void dtc_smon_detect_dead_lock_in_cluster(knl_session_t *session, uint8 *wait_marks, uint16 session_id,
     bool32 record_sql);

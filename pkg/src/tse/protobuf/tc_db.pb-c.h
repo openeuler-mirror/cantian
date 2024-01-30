@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -45,9 +45,7 @@ typedef struct TcDb__TseDDLForeignKeyDef TcDb__TseDDLForeignKeyDef;
 typedef struct TcDb__TseDDLTableKeyPart TcDb__TseDDLTableKeyPart;
 typedef struct TcDb__TseDDLTableKey TcDb__TseDDLTableKey;
 typedef struct TcDb__TseMsgCommDef TcDb__TseMsgCommDef;
-typedef struct TcDb__TseDDLPartitionValueDef TcDb__TseDDLPartitionValueDef;
 typedef struct TcDb__TseDDLPartitionTableDef TcDb__TseDDLPartitionTableDef;
-typedef struct TcDb__TseDDLPartitionColumnDef TcDb__TseDDLPartitionColumnDef;
 typedef struct TcDb__TseDDLPartitionDef TcDb__TseDDLPartitionDef;
 typedef struct TcDb__TseDDLCreateTableDef TcDb__TseDDLCreateTableDef;
 typedef struct TcDb__TseDDLAlterTablePorp TcDb__TseDDLAlterTablePorp;
@@ -80,16 +78,17 @@ struct  TcDb__TseDDLColumnDataTypeDef
    * be replaced by typmode_t for unifying the definition of columns
    */
   /*
-   * gs_type_t
+   * ct_type_t
    */
   int32_t datatype;
   uint32_t size;
   uint32_t precision;
   int32_t scale;
+  int32_t mysql_ori_datatype;
 };
 #define TC_DB__TSE_DDLCOLUMN_DATA_TYPE_DEF__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&tc_db__tse_ddlcolumn_data_type_def__descriptor) \
-    , 0, 0, 0, 0 }
+    , 0, 0, 0, 0, 0 }
 
 
 struct  TcDb__TseDDLColumnDef
@@ -193,10 +192,11 @@ struct  TcDb__TseDDLTableKey
   size_t n_columns;
   TcDb__TseDDLTableKeyPart **columns;
   protobuf_c_boolean is_constraint;
+  protobuf_c_boolean is_dsc;
 };
 #define TC_DB__TSE_DDLTABLE_KEY__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&tc_db__tse_ddltable_key__descriptor) \
-    , (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, 0, 0, 0, 0,NULL, 0 }
+    , (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, 0, 0, 0, 0,NULL, 0, 0 }
 
 
 struct  TcDb__TseMsgCommDef
@@ -212,61 +212,29 @@ struct  TcDb__TseMsgCommDef
     , 0, 0, 0, 0 }
 
 
-struct  TcDb__TseDDLPartitionValueDef
-{
-  ProtobufCMessage base;
-  protobuf_c_boolean is_max_value;
-  char *value;
-};
-#define TC_DB__TSE_DDLPARTITION_VALUE_DEF__INIT \
- { PROTOBUF_C_MESSAGE_INIT (&tc_db__tse_ddlpartition_value_def__descriptor) \
-    , 0, (char *)protobuf_c_empty_string }
-
-
 struct  TcDb__TseDDLPartitionTableDef
 {
   ProtobufCMessage base;
   char *name;
-  char *space;
-  char *hiboundval;
-  size_t n_part_value_list;
-  TcDb__TseDDLPartitionValueDef **part_value_list;
   size_t n_subpart_table_list;
   TcDb__TseDDLPartitionTableDef **subpart_table_list;
 };
 #define TC_DB__TSE_DDLPARTITION_TABLE_DEF__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&tc_db__tse_ddlpartition_table_def__descriptor) \
-    , (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, 0,NULL, 0,NULL }
-
-
-struct  TcDb__TseDDLPartitionColumnDef
-{
-  ProtobufCMessage base;
-  char *name;
-  uint32_t datatype;
-};
-#define TC_DB__TSE_DDLPARTITION_COLUMN_DEF__INIT \
- { PROTOBUF_C_MESSAGE_INIT (&tc_db__tse_ddlpartition_column_def__descriptor) \
-    , (char *)protobuf_c_empty_string, 0 }
+    , (char *)protobuf_c_empty_string, 0,NULL }
 
 
 struct  TcDb__TseDDLPartitionDef
 {
   ProtobufCMessage base;
   uint32_t part_type;
-  char *partition_expression;
   uint32_t subpart_type;
-  char *subpartition_expression;
-  size_t n_part_column_list;
-  TcDb__TseDDLPartitionColumnDef **part_column_list;
   size_t n_part_table_list;
   TcDb__TseDDLPartitionTableDef **part_table_list;
-  size_t n_subpart_column_list;
-  TcDb__TseDDLPartitionColumnDef **subpart_column_list;
 };
 #define TC_DB__TSE_DDLPARTITION_DEF__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&tc_db__tse_ddlpartition_def__descriptor) \
-    , 0, (char *)protobuf_c_empty_string, 0, (char *)protobuf_c_empty_string, 0,NULL, 0,NULL, 0,NULL }
+    , 0, 0, 0,NULL }
 
 
 struct  TcDb__TseDDLCreateTableDef
@@ -291,11 +259,14 @@ struct  TcDb__TseDDLCreateTableDef
   uint32_t options;
   char *db_name;
   char *sql_str;
+  char *alter_table_name;
+  char *alter_db_name;
+  protobuf_c_boolean is_create_as_select;
   TcDb__TseDDLPartitionDef *partition_def;
 };
 #define TC_DB__TSE_DDLCREATE_TABLE_DEF__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&tc_db__tse_ddlcreate_table_def__descriptor) \
-    , (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, 0,NULL, 0,NULL, 0,NULL, 0, 0, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, NULL }
+    , (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, 0,NULL, 0,NULL, 0,NULL, 0, 0, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, 0, NULL }
 
 
 struct  TcDb__TseDDLAlterTablePorp
@@ -496,11 +467,10 @@ struct  TcDb__TseDDLDropTableDef
   char *dbname_und;
   char *db_name;
   char *sql_str;
-  char *alter_copy_table;
 };
 #define TC_DB__TSE_DDLDROP_TABLE_DEF__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&tc_db__tse_ddldrop_table_def__descriptor) \
-    , 0, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string }
+    , 0, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string }
 
 
 struct  TcDb__TseDDLAlterIndexDef
@@ -748,25 +718,6 @@ TcDb__TseMsgCommDef *
 void   tc_db__tse_msg_comm_def__free_unpacked
                      (TcDb__TseMsgCommDef *message,
                       ProtobufCAllocator *allocator);
-/* TcDb__TseDDLPartitionValueDef methods */
-void   tc_db__tse_ddlpartition_value_def__init
-                     (TcDb__TseDDLPartitionValueDef         *message);
-size_t tc_db__tse_ddlpartition_value_def__get_packed_size
-                     (const TcDb__TseDDLPartitionValueDef   *message);
-size_t tc_db__tse_ddlpartition_value_def__pack
-                     (const TcDb__TseDDLPartitionValueDef   *message,
-                      uint8_t             *out);
-size_t tc_db__tse_ddlpartition_value_def__pack_to_buffer
-                     (const TcDb__TseDDLPartitionValueDef   *message,
-                      ProtobufCBuffer     *buffer);
-TcDb__TseDDLPartitionValueDef *
-       tc_db__tse_ddlpartition_value_def__unpack
-                     (ProtobufCAllocator  *allocator,
-                      size_t               len,
-                      const uint8_t       *data);
-void   tc_db__tse_ddlpartition_value_def__free_unpacked
-                     (TcDb__TseDDLPartitionValueDef *message,
-                      ProtobufCAllocator *allocator);
 /* TcDb__TseDDLPartitionTableDef methods */
 void   tc_db__tse_ddlpartition_table_def__init
                      (TcDb__TseDDLPartitionTableDef         *message);
@@ -785,25 +736,6 @@ TcDb__TseDDLPartitionTableDef *
                       const uint8_t       *data);
 void   tc_db__tse_ddlpartition_table_def__free_unpacked
                      (TcDb__TseDDLPartitionTableDef *message,
-                      ProtobufCAllocator *allocator);
-/* TcDb__TseDDLPartitionColumnDef methods */
-void   tc_db__tse_ddlpartition_column_def__init
-                     (TcDb__TseDDLPartitionColumnDef         *message);
-size_t tc_db__tse_ddlpartition_column_def__get_packed_size
-                     (const TcDb__TseDDLPartitionColumnDef   *message);
-size_t tc_db__tse_ddlpartition_column_def__pack
-                     (const TcDb__TseDDLPartitionColumnDef   *message,
-                      uint8_t             *out);
-size_t tc_db__tse_ddlpartition_column_def__pack_to_buffer
-                     (const TcDb__TseDDLPartitionColumnDef   *message,
-                      ProtobufCBuffer     *buffer);
-TcDb__TseDDLPartitionColumnDef *
-       tc_db__tse_ddlpartition_column_def__unpack
-                     (ProtobufCAllocator  *allocator,
-                      size_t               len,
-                      const uint8_t       *data);
-void   tc_db__tse_ddlpartition_column_def__free_unpacked
-                     (TcDb__TseDDLPartitionColumnDef *message,
                       ProtobufCAllocator *allocator);
 /* TcDb__TseDDLPartitionDef methods */
 void   tc_db__tse_ddlpartition_def__init
@@ -1151,14 +1083,8 @@ typedef void (*TcDb__TseDDLTableKey_Closure)
 typedef void (*TcDb__TseMsgCommDef_Closure)
                  (const TcDb__TseMsgCommDef *message,
                   void *closure_data);
-typedef void (*TcDb__TseDDLPartitionValueDef_Closure)
-                 (const TcDb__TseDDLPartitionValueDef *message,
-                  void *closure_data);
 typedef void (*TcDb__TseDDLPartitionTableDef_Closure)
                  (const TcDb__TseDDLPartitionTableDef *message,
-                  void *closure_data);
-typedef void (*TcDb__TseDDLPartitionColumnDef_Closure)
-                 (const TcDb__TseDDLPartitionColumnDef *message,
                   void *closure_data);
 typedef void (*TcDb__TseDDLPartitionDef_Closure)
                  (const TcDb__TseDDLPartitionDef *message,
@@ -1224,9 +1150,7 @@ extern const ProtobufCMessageDescriptor tc_db__tse_ddlforeign_key_def__descripto
 extern const ProtobufCMessageDescriptor tc_db__tse_ddltable_key_part__descriptor;
 extern const ProtobufCMessageDescriptor tc_db__tse_ddltable_key__descriptor;
 extern const ProtobufCMessageDescriptor tc_db__tse_msg_comm_def__descriptor;
-extern const ProtobufCMessageDescriptor tc_db__tse_ddlpartition_value_def__descriptor;
 extern const ProtobufCMessageDescriptor tc_db__tse_ddlpartition_table_def__descriptor;
-extern const ProtobufCMessageDescriptor tc_db__tse_ddlpartition_column_def__descriptor;
 extern const ProtobufCMessageDescriptor tc_db__tse_ddlpartition_def__descriptor;
 extern const ProtobufCMessageDescriptor tc_db__tse_ddlcreate_table_def__descriptor;
 extern const ProtobufCMessageDescriptor tc_db__tse_ddlalter_table_porp__descriptor;

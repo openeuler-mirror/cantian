@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Perform hot backups of CANTIAN databases.
+# Perform hot backups of CantianDB100 databases.
 # Copyright © Huawei Technologies Co., Ltd. 2010-2018. All rights reserved.
 
 
 import sys
+
 # If run by root, the import behavior will create folder '__pycache__'
 # whose owner will be root. The database owner has'nt permission to
 # remove the folder. So we can't create it.
@@ -22,6 +23,8 @@ try:
     import sys
     import json
     import socket
+    from get_config_info import get_value
+    from log import LOGGER
     from Common import DefaultValue, CommonPrint
     from exception import NormalException
 except ImportError as err:
@@ -44,7 +47,7 @@ CANTIAN_START_STATUS_FILE = os.path.join("/opt/cantian/cantian", "cfg", "start_s
 CANTIAN_UNINSTALL_LOG_FILE = "/opt/cantian/cantian/log/cantian_deploy.log"
 CONFIG_PARAMS_FILE = os.path.join(PKG_DIR, "config", "deploy_param.json")
 FORCE_UNINSTALL = None
-CHECK_MAX_TIMES = 7
+CHECK_MAX_TIMES = 24
 
 
 def _exec_popen(_cmd, values=None):
@@ -113,11 +116,11 @@ def cantian_check_share_logic_ip_isvalid(node_ip):
     log("checked the node IP address or domain name success: %s" % node_ip)
 
 
-
 class Options(object):
     """
     class for command line options
     """
+
     def __init__(self):
         # user information
         self.user_info = pwd.getpwuid(os.getuid())
@@ -140,61 +143,14 @@ class Options(object):
 
         # The object of opened log file.
         self.tmp_fp = None
-        
+
         self.use_gss = False
-        self.in_container = False
         self.namespace = ""
         self.node_id = 0
 
 
 g_opts = Options()
 gPyVersion = platform.python_version()
-
-
-def _exec_popen(input_cmd):
-    """
-    subprocess.Popen in python2 and 3.
-    :param cmd: commands need to execute
-    :return: status code, standard output, error output
-    """
-    bash_cmd = ["bash"]
-    p_1 = subprocess.Popen(bash_cmd, shell=False, stdin=subprocess.PIPE,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    if gPyVersion[0] == "3":
-        try:
-            stdout_1, stderr_1 = p_1.communicate(input_cmd.encode(), timeout=1800)
-        except subprocess.TimeoutExpired as err_cmd:
-            pobj.kill()
-            return -1, "Time Out.", str(err_cmd)
-        stdout_1 = stdout_1.decode()
-        stderr_1 = stderr_1.decode()
-    else:
-        try:
-            stdout_1, stderr_1 = p_1.communicate(input_cmd, timeout=1800)
-        except subprocess.TimeoutExpired as err_cmd:
-            pobj.kill()
-            return -1, "Time Out.", str(err_cmd)
-
-    if stdout_1[-1:] == os.linesep:
-        stdout_1 = stdout_1[:-1]
-    if stderr_1[-1:] == os.linesep:
-        stderr_1 = stderr_1[:-1]
-
-    return p_1.returncode, stdout_1, stderr_1
-
-
-def _get_input(msg):
-    """
-    Packaged function about user input which compatible with Python 2
-    and Python 3.
-    :param msg: input function's prompt message
-    :return: the input value of user
-    """
-    if gPyVersion[0] == "3":
-        return input(msg)
-    else:
-        return raw_input(msg)
 
 
 def usage():
@@ -268,12 +224,12 @@ def check_parameter():
     output: NA
     """
     if CURRENT_OS == "Linux":
-        deploy_user, _ = get_deploy_user()
+        deploy_user = get_value("deploy_user")
         user_id = os.getuid()
-        
+
         cmd = "id -u %s" % deploy_user
         ret_code, stdout, stderr = _exec_popen(cmd)
-        
+
         if ret_code:
             log_exit("cannot get uid. error: %s" % stderr)
 
@@ -285,9 +241,9 @@ def check_parameter():
         if g_opts.install_user_privilege != "withoutroot":
             print_str = CommonPrint()
             print_str.common_log("Error: User has no root privilege, "
-                  "do uninstall, need specify parameter '-g withoutroot'.")
+                                 "do uninstall, need specify parameter '-g withoutroot'.")
             raise ValueError("Error: User has no root privilege, "
-                  "do uninstall, need specify parameter '-g withoutroot'.")
+                             "do uninstall, need specify parameter '-g withoutroot'.")
     else:
         print_str = CommonPrint()
         print_str.common_log("Error:Check os failed:current os is not linux")
@@ -297,44 +253,13 @@ def check_parameter():
         if g_opts.clean_data_dir:
             print_str = CommonPrint()
             print_str.common_log("Error: Parameter input error: "
-                  "you can not use -D without using -F")
+                                 "you can not use -D without using -F")
             raise ValueError("Error: Parameter input error: "
-                  "you can not use -D without using -F")
+                             "you can not use -D without using -F")
     if g_opts.clean_data_dir:
         g_opts.clean_data_dir = os.path.realpath(
             os.path.normpath(g_opts.clean_data_dir))
         DefaultValue.check_invalid_path(g_opts.clean_data_dir)
-
-
-def check_log():
-    """
-    check log
-    and the log for normal user is: ~/cantianduninstall.log
-    """
-    # Get the log path
-    g_opts.log_file = CANTIAN_UNINSTALL_LOG_FILE
-
-    # Clean the old log file.
-    if os.path.exists(g_opts.log_file):
-        try:
-            os.chmod(g_opts.log_file, stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP)
-            os.remove(g_opts.log_file)
-        except OSError as error:
-            print_str = CommonPrint()
-            print_str.common_log("Error: Can not remove log file: " + g_opts.log_file)
-            print_str.common_log(str(error))
-            raise ValueError("Error: Can not remove log file.") from error
-
-    try:
-        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-        modes = stat.S_IWUSR | stat.S_IRUSR | stat.S_IRGRP
-        g_opts.tmp_fp = os.fdopen(os.open(g_opts.log_file, flags, modes), 'w')
-        os.chmod(g_opts.log_file, stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP)
-    except IOError as error:
-        print_str = CommonPrint()
-        print_str.common_log("Error: Can not create or open log file: " + g_opts.log_file)
-        print_str.common_log(str(error))
-        raise ValueError("Error: Can not create or open log file.") from error
 
 
 def check_log_path():
@@ -361,11 +286,7 @@ def log(msg, is_print=False):
         print_str = CommonPrint()
         print_str.common_log(msg)
 
-    flags = os.O_RDWR | os.O_CREAT
-    modes = stat.S_IWUSR | stat.S_IRUSR
-    with os.fdopen(os.open(g_opts.log_file, flags, modes), 'a') as fp:
-        fp.write(time.strftime("[%Y-%m-%d %H:%M:%S] ") + msg)
-        fp.write(os.linesep)
+    LOGGER.info(msg)
 
 
 def log_exit(msg):
@@ -374,7 +295,7 @@ def log_exit(msg):
     :param msg: log message
     :return: NA
     """
-    log("Error: %s" % msg)
+    LOGGER.error(msg)
     if FORCE_UNINSTALL != "force":
         raise ValueError("Execute cantian_unstall.py failed")
 
@@ -391,8 +312,8 @@ def get_install_path():
     modes = stat.S_IWUSR | stat.S_IRUSR
     with os.fdopen(os.open(JS_CONF_FILE, flags, modes), 'r') as fp:
         json_data = json.load(fp)
-        g_opts.install_path_l = json_data['R_INSTALL_PATH'].strip() 
-    # Must be exist  
+        g_opts.install_path_l = json_data['R_INSTALL_PATH'].strip()
+        # Must be exist
     if not os.path.exists(g_opts.install_path_l):
         log_exit("Failed to get install path.")
     log("End get install path")
@@ -404,11 +325,9 @@ def get_deploy_user():
 
     with os.fdopen(os.open(CONFIG_PARAMS_FILE, flags, modes), 'r') as fp1:
         json_data_deploy = json.load(fp1)
-        user_and_group = json_data_deploy.get('deploy_user', '').strip()
-        if user_and_group == "" or len(user_and_group.split(':')) != 2:
-            log_exit("wrong deploy user.")
-        deploy_user = user_and_group.split(':')[0]
-    
+
+    deploy_user = get_value("deploy_user")
+
     return deploy_user, json_data_deploy
 
 
@@ -436,6 +355,7 @@ def find_before_slice(slice_, str_):
     place = str_.find(slice_)
     return str_.find('#', 0, place)
 
+
 ####################################################################
 # Check if there is an installation path in the environment variable
 ####################################################################
@@ -454,8 +374,8 @@ def check_environment_install_path():
         tmp_f = open(g_opts.user_env_path)
     except IOError:
         log_exit("Check environment variables failed:can not open "
-                "environment variables file,please check the user that "
-                "you offered is right")
+                 "environment variables file,please check the user that "
+                 "you offered is right")
 
     line = tmp_f.readline()
     while line:
@@ -476,8 +396,8 @@ def check_environment_install_path():
         line = tmp_f.readline()
     tmp_f.close()
     log_exit("Check install path in user environment variables failed:"
-            "can not find install path in user: %s environment variables"
-            % g_opts.user_info.pw_name)
+             "can not find install path in user: %s environment variables"
+             % g_opts.user_info.pw_name)
 
     log("End check install path in user environment variables")
 
@@ -519,8 +439,8 @@ def get_gsdata_path_env():
                 if not os.path.exists(g_opts.gs_data_path):
                     f.close()
                     log_exit("Get data directory in user environment variables"
-                            " failed:data directory have been destroyed,"
-                            "can not uninstall")
+                             " failed:data directory have been destroyed,"
+                             "can not uninstall")
                 log("End find data directory in user environment variables")
                 f.close()
                 return 0
@@ -538,8 +458,8 @@ def get_gsdata_path_env():
                 if not os.path.exists(g_opts.gs_data_path):
                     f.close()
                     log_exit("Get data directory in user environment variables "
-                            "failed:data directory have been destroyed,"
-                            "can not uninstall")
+                             "failed:data directory have been destroyed,"
+                             "can not uninstall")
                 log("End find data directory in user environment variables")
                 f.close()
                 return 0
@@ -563,51 +483,13 @@ def check_data_dir():
     log("Begin check data dir...")
     if g_opts.clean_data_dir:
         if os.path.exists(g_opts.clean_data_dir) \
-           and os.path.isdir(g_opts.clean_data_dir) \
-           and g_opts.clean_data_dir == g_opts.gs_data_path:
+                and os.path.isdir(g_opts.clean_data_dir) \
+                and g_opts.clean_data_dir == g_opts.gs_data_path:
             log("path: \"%s\" is correct" % g_opts.clean_data_dir)
         else:
             log_exit("path: \"%s\" is incorrect" % g_opts.clean_data_dir)
     log("end check,match")
 
-
-#######################################################################
-# Delete data directory
-#######################################################################
-def clean_data_dir():
-    """
-    clean data directory
-    input: NA
-    output: NA
-    """
-    log("Cleaning data path...")
-    if not g_opts.clean_data_dir_on:
-        if os.path.exists(g_opts.gs_data_path):
-            if g_opts.in_container and os.path.exists(DefaultValue.DOCKER_DATA_DIR):
-                try:
-                    shutil.rmtree(DefaultValue.DOCKER_DATA_DIR)
-                except OSError as error:
-                    log_exit("Clean share data path failed:can not delete share data path "
-                            "%s\nPlease manually delete it." % str(error))
-            try:
-                shutil.rmtree(g_opts.gs_data_path)
-            except OSError as error:
-                log_exit("Clean data path failed:can not delete data path "
-                        "%s\nPlease manually delete it." % str(error))
-        else:
-            log_exit("Clean data failed:can not find data directory path"
-                    " in user environment variables,"
-                    "it might be destroyed or not exist")
-        if not g_opts.use_gss:
-            if g_opts.in_container and os.path.exists(DefaultValue.DOCKER_GCC_DIR):
-                try:
-                    shutil.rmtree(DefaultValue.DOCKER_GCC_DIR)
-                except OSError as error:
-                    log_exit("Clean gcc path failed:can not delete gcc path "
-                            "%s\nPlease manually delete it." % str(error))
-    else:
-        log("Not clean data path")
-    log("End clean data path")
 
 #########################################################################
 # Check the uninstall script location
@@ -630,28 +512,29 @@ def check_uninstall_pos():
     # Check if the install path exists
     if not os.path.exists(g_opts.install_path_l):
         log_exit("Check uninstall.py position failed:You have"
-                " changed uninstall.py position,install path not exist")
+                 " changed uninstall.py position,install path not exist")
     # Check if the bin path exists
     if not os.path.exists(bin_path):
         log_exit("Check uninstall.py position failed:You have"
-                " changed uninstall.py position,can not find path bin")
+                 " changed uninstall.py position,can not find path bin")
     # Check if the addons path exists
     if not os.path.exists(addons_path):
         log_exit("Check uninstall.py position failed:You have"
-                " changed uninstall.py position,can not find path add-ons")
+                 " changed uninstall.py position,can not find path add-ons")
     # Check if the admin path exists
     if not os.path.exists(admin_path):
         log_exit("Check uninstall.py position failed:You have"
-                " changed uninstall.py position,can not find path admin")
+                 " changed uninstall.py position,can not find path admin")
     # Check if the lib path exists
     if not os.path.exists(lib_path):
         log_exit("Check uninstall.py position failed:You have"
-                " changed uninstall.py position,can not find file lib")
+                 " changed uninstall.py position,can not find file lib")
     # Check if the package path exists
     if not os.path.isfile(pkg_file):
         log_exit("Check uninstall.py position failed:You have"
-                " changed uninstall.py position,can not find file package.xml")
+                 " changed uninstall.py position,can not find file package.xml")
     log("End check uninstall.py position")
+
 
 #########################################################################
 # Clear the installation path
@@ -664,13 +547,6 @@ def clean_install_path():
     input: NA
     output: NA
     """
-    log("Cleaning msyqld path...")
-    mysql_data_dir = MYSQL_DATA_DIR
-    mysql_bin_dir = MYSQL_BIN_DIR
-    cmd_tmp = "rm -rf {}/* {}/*".format(mysql_data_dir, mysql_bin_dir)
-    ret_code_1, _, stderr = _exec_popen(cmd_tmp)
-    if ret_code_1:
-        log_exit("Can not remove mysql data, command: %s, output: %s" % (cmd_tmp, stderr))
     log("Cleaning install path...")
     try:
         # Remove the install path and cfg
@@ -680,7 +556,7 @@ def clean_install_path():
             shutil.rmtree(g_opts.install_path_l)
     except OSError as error:
         log_exit("Clean install path failed:can not delete install path "
-                "%s\nPlease manually delete it." % str(error))
+                 "%s\nPlease manually delete it." % str(error))
     log("Clean install path success")
     log("End clean Install path")
 
@@ -702,11 +578,12 @@ def gen_reg_string(text):
     in_s_list = in_s_str.split(os.sep)
     reg_string = ""
     for i in in_s_list:
-        if(i == ""):
+        if (i == ""):
             continue
         else:
             reg_string += r"\/" + i
     return reg_string
+
 
 # Clear environment variables
 
@@ -731,11 +608,11 @@ def clean_environment():
     home_cmd = r"/^\s*export\s*CTDB_HOME=\".*\"$/d"
 
     # Clear environment ssl cert
-    ca_cmd = r"/^\s*export\s*ZSQL_SSL_CA=.*$/d"
-    cert_cmd = r"/^\s*export\s*ZSQL_SSL_CERT=.*$/d"
-    key_cmd = r"/^\s*export\s*ZSQL_SSL_KEY=.*$/d"
-    mode_cmd = r"/^\s*export\s*ZSQL_SSL_MODE=.*$/d"
-    cipher_cmd = r"/^\s*export\s*ZSQL_SSL_KEY_PASSWD=.*$/d"
+    ca_cmd = r"/^\s*export\s*CTSQL_SSL_CA=.*$/d"
+    cert_cmd = r"/^\s*export\s*CTSQL_SSL_CERT=.*$/d"
+    key_cmd = r"/^\s*export\s*CTSQL_SSL_KEY=.*$/d"
+    mode_cmd = r"/^\s*export\s*CTSQL_SSL_MODE=.*$/d"
+    cipher_cmd = r"/^\s*export\s*CTSQL_SSL_KEY_PASSWD=.*$/d"
 
     cmds = [path_cmd, lib_cmd, home_cmd,
             ca_cmd, cert_cmd, key_cmd, mode_cmd, cipher_cmd]
@@ -805,11 +682,11 @@ def get_instance_id():
     output: NA
     """
     _cmd = ("ps ux | grep -v grep | grep cantiand "
-           "| grep -w '\-D %s' |awk '{print $2}'") % g_opts.gs_data_path
+            "| grep -w '\-D %s' |awk '{print $2}'") % g_opts.gs_data_path
     status, output, _ = _exec_popen(_cmd)
     if status:
         log_exit("Failed to execute cmd: %s. Error:%s." % (str(_cmd),
-                                                          str(output)))
+                                                           str(output)))
     # process exists
     return output
 
@@ -822,14 +699,14 @@ def get_error_id(error_name):
     """
     if error_name == "installdb.sh":
         _cmd = ("ps ux | grep -v grep | grep installdb.sh | grep P | grep cantiand "
-                "| awk '{print $2}'") 
+                "| awk '{print $2}'")
     elif error_name == "cantian_start.py":
         _cmd = ("ps ux | grep -v grep | grep python | grep cantian_start.py "
                 "| awk '{print $2}'")
     status, output, error = _exec_popen(_cmd)
     if status:
         log_exit("Failed to execute cmd: %s. Output:%s. Error:%s" % (str(_cmd),
-                                                          str(output), str(error)))
+                                                                     str(output), str(error)))
     # process exists
     return output
 
@@ -845,8 +722,8 @@ def kill_instance(instance_pid):
     ret_code_1, stdout, stderr = _exec_popen(kill_cmd_tmp)
     if ret_code_1 and "No such process" not in stderr:
         log_exit("kill process %s failed."
-            "ret_code : %s, stdout : %s, stderr : %s" % (instance_pid, ret_code_1, stdout, stderr))
-    
+                 "ret_code : %s, stdout : %s, stderr : %s" % (instance_pid, ret_code_1, stdout, stderr))
+
     check_process_status("cantiand")
     log("Kill cantiand instance succeed")
 
@@ -866,10 +743,10 @@ def kill_extra_process():
             ret_code, output, error = _exec_popen(kill_cmd_tmp)
             if ret_code and "No such process" not in error:
                 log_exit("kill extra process failed. Output:%s. Error:%s." % (str(output), str(error)))
-            
+
             check_process_status(extra_process)
             log("Kill %s succeed" % extra_process)
-            
+
 
 def check_process_status(process_name):
     """
@@ -882,26 +759,26 @@ def check_process_status(process_name):
             pid = get_instance_id()
         else:
             pid = get_error_id(process_name)
-            
+
         if pid:
             log("checked %s times, %s pid is %s" % (i + 1, process_name, pid))
             if i != CHECK_MAX_TIMES - 1:
                 time.sleep(5)
         else:
             return
-    log_exit("Failed to kill %s. It is still alive after 30s." % process_name)
-    
+    log_exit("Failed to kill %s. It is still alive after 2 minutes." % process_name)
+
 
 def kill_process(process_name):
     kill_cmd_1 = (r"proc_pid_list=`ps ux | grep %s | grep -v grep"
-                r"|awk '{print $2}'` && " % process_name)
+                  r"|awk '{print $2}'` && " % process_name)
     kill_cmd_1 += (r"(if [ X\"$proc_pid_list\" != X\"\" ];then echo "
-                 r"$proc_pid_list | xargs kill -9; exit 0; fi)")
+                   r"$proc_pid_list | xargs kill -9; exit 0; fi)")
     log("kill process cmd: %s" % kill_cmd_1)
     ret_code_2, stdout, stderr = _exec_popen(kill_cmd_1)
     if ret_code_2:
         log_exit("kill process %s faild."
-            "ret_code : %s, stdout : %s, stderr : %s" % (process_name, ret_code_2, stdout, stderr))
+                 "ret_code : %s, stdout : %s, stderr : %s" % (process_name, ret_code_2, stdout, stderr))
 
 
 def stop_instance():
@@ -937,6 +814,7 @@ def stop_instance():
     kill_process("mysqld")
     if g_opts.use_gss:
         kill_process("gssd")
+    kill_extra_process()
 
     if g_opts.clean_data_dir_on == 0 and instance_pid:
         # uninstall, clean data dir, stop failed, kill process
@@ -944,8 +822,6 @@ def stop_instance():
         g_opts.db_passwd = ""
         log("Successfully killed cantian instance.")
         return
-    
-    kill_extra_process()
 
     # becasue lsof will can't work for find cantian process,
     # and in this condition, we try to use ps to find the
@@ -959,13 +835,13 @@ def stop_instance():
             install_path_l, host_ip, lsnr_port, gs_data_path)
     else:
         tmp_cmd = ("echo '%s' | %s/bin/shutdowndb.sh"
-               " -h %s -p %s -U %s -m immediate -W -D %s") % (
-            g_opts.db_passwd,
-            g_opts.install_path_l,
-            host_ip,
-            lsnr_port,
-            g_opts.db_user,
-            g_opts.gs_data_path)
+                   " -h %s -p %s -U %s -m immediate -W -D %s") % (
+                      g_opts.db_passwd,
+                      g_opts.install_path_l,
+                      host_ip,
+                      lsnr_port,
+                      g_opts.db_user,
+                      g_opts.gs_data_path)
     return_code_3, stdout_2, stderr_2 = _exec_popen(tmp_cmd)
     if return_code_3:
         g_opts.db_passwd = ""
@@ -973,7 +849,7 @@ def stop_instance():
         if (not g_opts.db_passwd) and stdout_2.find(
                 "login as sysdba is prohibited") >= 0:
             stdout_2 += ("\nsysdba login is disabled, please specify -P "
-                       "parameter to input password, refer to --help.")
+                         "parameter to input password, refer to --help.")
 
         log_exit("stop cantian instance failed. Error: %s" % stdout_2)
 
@@ -994,21 +870,6 @@ def get_error_msg(outmsg, errmsg):
     elif outmsg and errmsg:
         output = outmsg + "\n" + errmsg
     return output
-
-
-def check_invalid_symbol(para):
-    """
-    If there is invalid symbol in parameter?
-    :param para: parameter
-    :return: NA
-    """
-    symbols = (
-        "|", ";", "&", "$", "<", ">", "`", "\\", "'", "\"", "{", "}",
-        "(", ")", "[", "]", "~", "*", "?", "!", "\n",
-    )
-    for symbol in symbols:
-        if para.find(symbol) > -1:
-            log_exit("There is invalid symbol \"%s\" in %s" % (symbol, para))
 
 
 def clean_archive_dir(json_data_deploy):
@@ -1108,7 +969,7 @@ class CanTian(object):
                 g_opts.user_env_path = json_data.get('USER_ENV_PATH', '').strip()
             g_opts.install_path_l = json_data.get('INSTALL_PATH_L', '').strip()
             stat.S_IRUSR = json_data.get('S_IRUSR', '')
-        
+
         g_opts.gs_data_path = "/mnt/dbdata/local/cantian/tmp/data"
 
         log("uninstall step 1")
@@ -1134,11 +995,11 @@ class CanTian(object):
         if g_opts.tmp_fp:
             g_opts.tmp_fp.flush()
             g_opts.tmp_fp.close()
-        
+
         ret_code, cantiand_pid, stderr = _exec_popen('exit')
         if ret_code:
             log_exit("can not logout, command: exit"
-                " ret_code : %s, stdout : %s, stderr : %s" % (ret_code, cantiand_pid, stderr))
+                     " ret_code : %s, stdout : %s, stderr : %s" % (ret_code, cantiand_pid, stderr))
 
     def cantian_check_status(self):
         g_opts.gs_data_path = "/mnt/dbdata/local/cantian/tmp/data"

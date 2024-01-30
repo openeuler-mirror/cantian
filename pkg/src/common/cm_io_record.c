@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "cm_common_module.h"
 #include "cm_io_record.h"
 #include "cm_defs.h"
 #include "cm_atomic.h"
@@ -31,7 +31,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-volatile bool32 g_cm_io_record_open = GS_FALSE;
+volatile bool32 g_cm_io_record_open = CT_FALSE;
 
 io_record_wait_t g_io_record_event_wait[IO_RECORD_EVENT_COUNT];
 
@@ -94,16 +94,16 @@ io_record_event_desc_t g_io_record_event_desc[IO_RECORD_EVENT_COUNT] = {
 
 status_t record_io_stat_reset(void)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     io_record_wait_t *event_wait;
     for (uint32 i = 0; i < IO_RECORD_EVENT_COUNT; i++) {
         event_wait = &g_io_record_event_wait[i];
         ret = memset_s(&(event_wait->detail), sizeof(io_record_detail_t), 0, sizeof(io_record_detail_t));
-        if (ret != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[io record] init io record failed, event %u", i);
+        if (ret != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[io record] init io record failed, event %u", i);
             return ret;
         }
-        event_wait->detail.min_time = GS_INVALID_ID64;
+        event_wait->detail.min_time = CT_INVALID_ID64;
     }
     return ret;
 }
@@ -113,12 +113,6 @@ status_t record_io_stat_init(void)
     return record_io_stat_reset();
 }
 
-void cantian_record_io_stat_begin(io_record_event_t event, timeval_t *tv_begin)
-{
-    atomic_t *start = &(g_io_record_event_wait[event].detail.start);
-    record_io_stat_begin(tv_begin, start);
-}
-
 void record_io_stat_begin(timeval_t *tv_begin, atomic_t *start)
 {
     if (!g_cm_io_record_open) {
@@ -126,12 +120,6 @@ void record_io_stat_begin(timeval_t *tv_begin, atomic_t *start)
     }
     (void)cm_gettimeofday(tv_begin);
     cm_atomic_inc(start);
-}
-
-void cantian_record_io_stat_end(io_record_event_t event, timeval_t *tv_begin, io_record_stat_t stat)
-{
-    io_record_detail_t *detail = &(g_io_record_event_wait[event].detail);
-    record_io_stat_end(tv_begin, stat, detail);
 }
 
 void record_io_stat_end(timeval_t *tv_begin, int stat, io_record_detail_t *detail)
@@ -183,10 +171,10 @@ volatile bool32 get_iorecord_status(void)
 
 void set_iorecord_status(bool32 is_open)
 {
-    if (g_cm_io_record_open == GS_TRUE && is_open == GS_TRUE) {
+    if (g_cm_io_record_open == CT_TRUE && is_open == CT_TRUE) {
         return;
     }
-    if (is_open == GS_TRUE) {
+    if (is_open == CT_TRUE) {
         record_io_stat_reset();
     }
     g_cm_io_record_open = is_open;

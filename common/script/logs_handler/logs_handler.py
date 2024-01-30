@@ -8,7 +8,7 @@ from logs_tool.log import LOGS_HANDLER_LOG as LOG
 CUR_PATH, _ = os.path.split(os.path.abspath(__file__))
 TIME_OUT = 300
 FAIL = 1
-DEPLOY_CONFIG = "/opt/cantian/config/deploy_param.json"
+ENV_FILE = "/opt/cantian/action/env.sh"
 
 
 def file_reader(data_path):
@@ -17,9 +17,18 @@ def file_reader(data_path):
     return json.loads(info)
 
 
-def get_param_value(key):
-    config_param = file_reader(DEPLOY_CONFIG)
-    return config_param.get(key)
+def get_param_value(param):
+    with open(ENV_FILE, 'r', encoding='utf-8') as file:
+        env_config = file.readlines()
+    if param == "deploy_user":
+        for line in env_config:
+            if line.startswith("cantian_user"):
+                return line.split("=")[1].strip("\n").strip('"')
+    if param == "deploy_group":
+        for line in env_config:
+            if line.startswith("cantian_group"):
+                return line.split("=")[1].strip("\n").strip('"')
+    return ""
 
 
 def get_file_creation_time(file_path):

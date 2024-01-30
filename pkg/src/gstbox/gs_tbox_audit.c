@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "gs_tbox_module.h"
 #include "gs_tbox_audit.h"
 #include "cm_timer.h"
 
@@ -40,11 +40,11 @@
 #define TBOX_MAX_CMD_BUFFER_SIZE 1024
 
 typedef struct st_tbox_audit_assist {
-    char date[GS_MAX_TIME_STRLEN];
-    char db_user[GS_NAME_BUFFER_SIZE];
+    char date[CT_MAX_TIME_STRLEN];
+    char db_user[CT_NAME_BUFFER_SIZE];
     char host_ip[CM_MAX_IP_LEN];
-    char cmd_text[GS_PARAM_BUFFER_SIZE];
-    char return_code_buf[GS_MAX_NUMBER_LEN];
+    char cmd_text[CT_PARAM_BUFFER_SIZE];
+    char return_code_buf[CT_MAX_NUMBER_LEN];
 
     int32 code;
     int32 tz;
@@ -68,50 +68,50 @@ status_t tbox_verify_log_path(const char *input_path, repair_page_def_t *page_in
 
     // 0, get user input
     if (input_path != NULL) {
-        if (strlen(input_path) >= GS_MAX_PATH_BUFFER_SIZE) {
-            printf("log path must be less than %u", GS_MAX_PATH_BUFFER_SIZE);
+        if (strlen(input_path) >= CT_MAX_PATH_BUFFER_SIZE) {
+            printf("log path must be less than %u", CT_MAX_PATH_BUFFER_SIZE);
         }
-        if (cm_dir_exist(input_path) == GS_TRUE) {
-            PRTS_PRINT_RETURN_IFERR(snprintf_s(page_input->log_path, GS_FILE_NAME_BUFFER_SIZE, GS_MAX_FILE_NAME_LEN,
-                                               "%s/ztbox_audit_log/ztbox.aud", input_path));
-            return GS_SUCCESS;
+        if (cm_dir_exist(input_path) == CT_TRUE) {
+            PRTS_PRINT_RETURN_IFERR(snprintf_s(page_input->log_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN,
+                                               "%s/ctbox_audit_log/ctbox.aud", input_path));
+            return CT_SUCCESS;
         }
         printf("invaild log path");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    // 1 get $GAUSSLOG
+    // 1 get $CANTIANLOG
     if (input_path == NULL) {
-        path = getenv("GAUSSLOG");
+        path = getenv("CANTIANLOG");
     }
 
     // 2 get $CTDB_HOME
     if (path == NULL) {
-        path = getenv(GS_ENV_HOME);
+        path = getenv(CT_ENV_HOME);
     }
 
     // get something from 1 or 2, verify
     if (path != NULL) {
-        if (cm_dir_exist(path) == GS_TRUE) {
-            PRTS_PRINT_RETURN_IFERR(snprintf_s(page_input->log_path, GS_FILE_NAME_BUFFER_SIZE,
-                GS_MAX_FILE_NAME_LEN, "%s/log/ztbox_audit/ztbox.aud", path));
-            return GS_SUCCESS;
+        if (cm_dir_exist(path) == CT_TRUE) {
+            PRTS_PRINT_RETURN_IFERR(snprintf_s(page_input->log_path, CT_FILE_NAME_BUFFER_SIZE,
+                CT_MAX_FILE_NAME_LEN, "%s/log/ctbox_audit/ctbox.aud", path));
+            return CT_SUCCESS;
         }
     }
 
     // 3 default is current dir
-    char *ret __attribute__((unused)) = GET_CWD(page_input->log_path, GS_MAX_PATH_BUFFER_SIZE);
-    MEMS_PRINT_RETURN_IFERR(strcat_s(page_input->log_path, GS_MAX_FILE_NAME_LEN, "/ztbox_audit/ztbox.aud"));
-    return GS_SUCCESS;
+    char *ret __attribute__((unused)) = GET_CWD(page_input->log_path, CT_MAX_PATH_BUFFER_SIZE);
+    MEMS_PRINT_RETURN_IFERR(strcat_s(page_input->log_path, CT_MAX_FILE_NAME_LEN, "/ctbox_audit/ctbox.aud"));
+    return CT_SUCCESS;
 }
 
 status_t tbox_init_audit_log(const char *path)
 {
     log_file_handle_t *log_file = cm_log_logger_file(LOG_AUDIT);
-    MEMS_PRINT_RETURN_IFERR(strncpy_s(log_file->file_name, GS_FILE_NAME_BUFFER_SIZE,
-        path, (size_t)GS_MAX_FILE_NAME_LEN));
+    MEMS_PRINT_RETURN_IFERR(strncpy_s(log_file->file_name, CT_FILE_NAME_BUFFER_SIZE,
+        path, (size_t)CT_MAX_FILE_NAME_LEN));
     // lock is no used
-    GS_INIT_SPIN_LOCK(log_file->lock);
+    CT_INIT_SPIN_LOCK(log_file->lock);
     log_file->file_handle = -1;
     log_file->file_inode = 0;
     log_file->log_id = LOG_AUDIT;
@@ -128,7 +128,7 @@ status_t tbox_init_audit_log(const char *path)
     cm_log_set_file_permissions(TBOX_LOG_FILE_PERMISSIONS_640);
     cm_log_set_path_permissions(TBOX_LOG_PATH_PERMISSIONS_750);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifndef WIN32
@@ -167,7 +167,7 @@ void tbox_audit_get_host(tbox_audit_assist_t *assist)
     }
     output_text.len--; // remove \n
     cm_remove_brackets(&output_text); // remove bracket
-    MEMS_PRINT_RETVOID_IFERR(strncpy_s(assist->db_user, GS_NAME_BUFFER_SIZE, user_text.str, user_text.len));
+    MEMS_PRINT_RETVOID_IFERR(strncpy_s(assist->db_user, CT_NAME_BUFFER_SIZE, user_text.str, user_text.len));
     MEMS_PRINT_RETVOID_IFERR(strncpy_s(assist->host_ip, CM_MAX_IP_LEN, output_text.str, output_text.len));
 
     return;
@@ -176,12 +176,12 @@ void tbox_audit_get_host(tbox_audit_assist_t *assist)
 
 void tbox_audit_create_message(tbox_audit_assist_t *assist, char *log_msg, uint32 *log_msg_len)
 {
-    PRTS_PRINT_RETVOID_IFERR(snprintf_s(assist->return_code_buf, GS_MAX_NUMBER_LEN, GS_MAX_NUMBER_LEN - 1,
+    PRTS_PRINT_RETVOID_IFERR(snprintf_s(assist->return_code_buf, CT_MAX_NUMBER_LEN, CT_MAX_NUMBER_LEN - 1,
         "CT-%05d", assist->code));
 
     tbox_audit_get_host(assist);
     size_t cmd_len = strlen(assist->cmd_text);
-    int32 iret_snprintf = snprintf_s(log_msg, GS_T2S_LARGER_BUFFER_SIZE, GS_T2S_LARGER_BUFFER_SIZE - 1,
+    int32 iret_snprintf = snprintf_s(log_msg, CT_T2S_LARGER_BUFFER_SIZE, CT_T2S_LARGER_BUFFER_SIZE - 1,
         "USER:[%u] \"%s\" "
         "HOST:[%u] \"%s\" "
         "RETURNCODE:[%u] \"%s\" "
@@ -192,19 +192,19 @@ void tbox_audit_create_message(tbox_audit_assist_t *assist, char *log_msg, uint3
         (uint32)cmd_len);  // CMDTEXT
     if (iret_snprintf == -1) {
         printf("[Audit log]system error occured, snprintf error, exit.\n");
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, iret_snprintf);
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, iret_snprintf);
         return;
     }
 
-    if (iret_snprintf > GS_T2S_LARGER_BUFFER_SIZE - 1) {
-        *log_msg_len = GS_T2S_LARGER_BUFFER_SIZE - 1;
-        log_msg[GS_T2S_LARGER_BUFFER_SIZE - 1] = '\0';
+    if (iret_snprintf > CT_T2S_LARGER_BUFFER_SIZE - 1) {
+        *log_msg_len = CT_T2S_LARGER_BUFFER_SIZE - 1;
+        log_msg[CT_T2S_LARGER_BUFFER_SIZE - 1] = '\0';
         return;
     }
 
     *log_msg_len = (uint32)iret_snprintf + (uint32)cmd_len + 1;
-    if (*log_msg_len > GS_T2S_LARGER_BUFFER_SIZE - 1) {
-        *log_msg_len = GS_T2S_LARGER_BUFFER_SIZE - 1;
+    if (*log_msg_len > CT_T2S_LARGER_BUFFER_SIZE - 1) {
+        *log_msg_len = CT_T2S_LARGER_BUFFER_SIZE - 1;
     }
     if (*log_msg_len > (uint32)iret_snprintf + 1) {
         MEMS_PRINT_RETVOID_IFERR(memcpy_s(log_msg + iret_snprintf, *log_msg_len - (uint32)iret_snprintf,
@@ -220,12 +220,12 @@ static inline void tbox_get_input_cmd(tbox_audit_assist_t *assist, int argc, cha
 {
     assist->cmd_text[0] = '\0';
     for (int i = 1; i < argc; i++) {
-        if (strlen(assist->cmd_text) + strlen(argv[i]) + 1 >= GS_PARAM_BUFFER_SIZE - 1) {
-            printf("[Audit log] invalid parameter length (cannot exceeds %u).\n", GS_PARAM_BUFFER_SIZE);
+        if (strlen(assist->cmd_text) + strlen(argv[i]) + 1 >= CT_PARAM_BUFFER_SIZE - 1) {
+            printf("[Audit log] invalid parameter length (cannot exceeds %u).\n", CT_PARAM_BUFFER_SIZE);
             exit(EXIT_FAILURE);
         }
-        MEMS_PRINT_RETVOID_IFERR(strcat_s(assist->cmd_text, GS_PARAM_BUFFER_SIZE, " "));
-        MEMS_PRINT_RETVOID_IFERR(strcat_s(assist->cmd_text, GS_PARAM_BUFFER_SIZE, argv[i]));
+        MEMS_PRINT_RETVOID_IFERR(strcat_s(assist->cmd_text, CT_PARAM_BUFFER_SIZE, " "));
+        MEMS_PRINT_RETVOID_IFERR(strcat_s(assist->cmd_text, CT_PARAM_BUFFER_SIZE, argv[i]));
     }
     return;
 }
@@ -239,7 +239,7 @@ void tbox_write_audit_log(int argc, char *argv[], int32 err_code)
 
     tbox_init_audit_assist(&assist, err_code);
 
-    if (cm_start_timer(g_timer()) != GS_SUCCESS) {
+    if (cm_start_timer(g_timer()) != CT_SUCCESS) {
         printf("[Audit log]aborted due to starting timer thread.\n");
         exit(EXIT_FAILURE);
     }
@@ -248,20 +248,20 @@ void tbox_write_audit_log(int argc, char *argv[], int32 err_code)
     tz_hour = TIMEZONE_GET_HOUR(assist.tz);
     tz_min = TIMEZONE_GET_MINUTE(assist.tz);
     if (tz_hour >= 0) {
-        iret_snprintf = snprintf_s(assist.date, GS_MAX_TIME_STRLEN, GS_MAX_TIME_STRLEN - 1, "UTC+%02d:%02d ", tz_hour, tz_min);
+        iret_snprintf = snprintf_s(assist.date, CT_MAX_TIME_STRLEN, CT_MAX_TIME_STRLEN - 1, "UTC+%02d:%02d ", tz_hour, tz_min);
     } else {
-        iret_snprintf = snprintf_s(assist.date, GS_MAX_TIME_STRLEN, GS_MAX_TIME_STRLEN - 1, "UTC%02d:%02d ", tz_hour, tz_min);
+        iret_snprintf = snprintf_s(assist.date, CT_MAX_TIME_STRLEN, CT_MAX_TIME_STRLEN - 1, "UTC%02d:%02d ", tz_hour, tz_min);
     }
 
     if (iret_snprintf == -1) {
         printf("[Audit log]system error occured, snprintf error, exit.\n");
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, iret_snprintf);
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, iret_snprintf);
         cm_close_timer(g_timer());
         return;
     }
 
     (void)cm_date2str(g_timer()->now, "yyyy-mm-dd hh24:mi:ss.ff3", assist.date + iret_snprintf,
-                      GS_MAX_TIME_STRLEN - iret_snprintf);
+                      CT_MAX_TIME_STRLEN - iret_snprintf);
 
     tbox_get_input_cmd(&assist, argc, argv);
     tbox_audit_create_message(&assist, log_msg, &log_msg_len);

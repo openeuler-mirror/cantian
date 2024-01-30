@@ -11,6 +11,7 @@ CONFIG_PARAMS_FILE = os.path.join(PKG_DIR, "config", "deploy_param.json")
 CANTIAN_CONFIG_PARAMS_FILE = os.path.join(PKG_DIR, "action", "cantian", "cantian_config.json")
 CANTIAN_CONFIG_PARAMS_FILE_BACKUP = "/opt/cantian/backup/files/cantian/cantian_config.json"
 CANTIAN_START_STATUS_FILE = os.path.join("/opt/cantian/cantian", "cfg", "start_status.json")
+ENV_FILE = os.path.join(PKG_DIR, "action", "env.sh")
 info = {}
 
 with open(CONFIG_PARAMS_FILE, encoding="utf-8") as f:
@@ -27,31 +28,39 @@ if os.path.exists(CANTIAN_START_STATUS_FILE):
         _tmp_cantian = f.read()
         info_cantian_start = json.loads(_tmp_cantian)
 
+with open(ENV_FILE, "r", encoding="utf-8") as f:
+    env_config = f.readlines()
 
-def get_value():
-    param = sys.argv[1]
-    
-    if param == 'in_container':
-        return info.get('in_container', 0)
+
+def get_value(param):
+    if param == "mysql_user":
+        return info.get('deploy_user').split(':')[0]
+    if param == "mysql_group":
+        return info.get('deploy_user').split(':')[1]
+    if param == 'cantian_in_container':
+        return info.get('cantian_in_container', '0')
     if param == 'SYS_PASSWORD':
         return info_cantian.get('SYS_PASSWORD', "")
     if param == "deploy_user":
-        user_and_group = info.get('deploy_user', "")
-        user = user_and_group.split(':')[0]
-        return user
+        for line in env_config:
+            if line.startswith("cantian_user"):
+                return line.split("=")[1].strip("\n").strip('"')
     if param == "deploy_group":
-        user_and_group = info.get('deploy_user', "")
-        group = user_and_group.split(':')[1]
-        return group
+        for line in env_config:
+            if line.startswith("cantian_group"):
+                return line.split("=")[1].strip("\n").strip('"')
     if param == 'CANTIAN_START_STATUS':
         return info_cantian_start.get('start_status', "")
     if param == 'CANTIAN_DB_CREATE_STATUS':
         return info_cantian_start.get('db_create_status', "")
+    if param == 'CANTIAN_EVER_START':
+        return info_cantian_start.get('ever_started', "")
 
     return info.get(param)
 
 
 if __name__ == "__main__":
-    res = get_value()
+    _param = sys.argv[1]
+    res = get_value(_param)
     print(res)
 

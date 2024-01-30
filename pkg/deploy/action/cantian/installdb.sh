@@ -3,6 +3,8 @@
 # This library is using the variables listed in cfg/cluster.ini, and value come from install.py#set_cluster_conf
 #
 
+CURRENT_PATH=$(dirname $(readlink -f $0))
+
 function help() {
     echo ""
     echo "$1"
@@ -28,7 +30,6 @@ function wait_for_success() {
   local attempts=$1
   local success_cmd=${@:2}
 
-  xtrace=$(set -o | awk '/xtrace/ {print($2)}')
   i=0
   while ! ${success_cmd}; do
     echo -n "."
@@ -41,10 +42,7 @@ function wait_for_success() {
 }
 
 function log() {
-  xtrace=$(set -o | awk '/xtrace/ {print($2)}')
-  set +x
   printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1"
-  if [ "$xtrace" == "on" ]; then set -x; fi
 }
 
 function err() {
@@ -59,11 +57,11 @@ function wait_node1_online() {
   }
 
   function is_db1_online_by_query() {
-    echo -e "${DB_PASSWD}" | ${CTDB_HOME}/bin/ctclient SYS@127.0.0.1:1611 -q -c "SELECT NAME, STATUS, OPEN_STATUS FROM DV_DATABASE"
+    echo -e "${DB_PASSWD}" | ${CTDB_HOME}/bin/ctsql SYS@127.0.0.1:1611 -q -c "SELECT NAME, STATUS, OPEN_STATUS FROM DV_DATABASE"
   }
   log "query db1 by cms, please wait..."
   wait_for_success 1800 is_db1_online_by_cms
-  log "query db1 by ctclient, please wait..."
+  log "query db1 by ctsql, please wait..."
   wait_for_success 1800 is_db1_online_by_query
 }
 
@@ -77,7 +75,8 @@ function wait_node0_online() {
 function start_cantiand() {
   log "================ start cantiand ${NODE_ID} ================"
 
-  if [ "${NODE_ID}" != 0 ]; then
+  ever_started=`python3 ${CURRENT_PATH}/get_config_info.py "CANTIAN_EVER_START"`
+  if [ "${NODE_ID}" != 0 ] && [ "${ever_started}" != "True" ]; then
     wait_node0_online || err "timeout waiting for node0"
     sleep 60
   fi
@@ -123,7 +122,19 @@ function start_cantiand() {
       echo "instance started" >> /mnt/dbdata/local/cantian/tmp/data/log/cantianstatus.log
       return 0
     fi
-    nohup ${CTDB_HOME}/bin/cantiand ${START_MODE} -D ${CTDB_DATA} >> ${STATUS_LOG} 2>&1 &
+    numactl_str=" "
+    set +e
+    numactl --hardware
+    if [ $? -eq 0 ]; then
+      OS_ARCH=$(uname -i)
+      if [[ ${OS_ARCH} =~ "aarch64" ]]; then
+        CPU_CORES_NUM=`cat /proc/cpuinfo |grep "architecture" |wc -l`
+        CPU_CORES_NUM=$((CPU_CORES_NUM - 1))
+        numactl_str="numactl -C 0-1,6-11,16-"${CPU_CORES_NUM}" "
+      fi
+    fi
+    set -e
+    nohup ${numactl_str} ${CTDB_HOME}/bin/cantiand ${START_MODE} -D ${CTDB_DATA} >> ${STATUS_LOG} 2>&1 &
   fi
   
   if [ $? != 0 ]; then err "failed to start cantiand"; fi
@@ -151,10 +162,6 @@ function start_cms() {
       done
     fi
 
-    if [ "${USE_GSS}" == "True" ]; then
-      ${CTDB_HOME}/bin/cms res -add gss -type gss -attr "script=${CTDB_HOME}/bin/gssctrl.sh"
-    fi
-
     ${CTDB_HOME}/bin/cms res -add db -type db -attr "script=${CTDB_HOME}/bin/cluster.sh"
   elif [ ${NODE_ID} == 1 ]; then
     wait_for_node1_in_cluster
@@ -163,31 +170,6 @@ function start_cms() {
   ${CTDB_HOME}/bin/cms node -list
   ${CTDB_HOME}/bin/cms res -list
   ${CTDB_HOME}/bin/cms server -start >> ${STATUS_LOG} 2>&1 &
-}
-
-function wait_for_gss() {
-  function check_gss_resources() {
-    local target_lines=$(($CLUSTER_SIZE + 1))
-    lines=$(${CTDB_HOME}/bin/cms stat -res gss | wc -l)
-    /usr/bin/test "${lines}" = "${target_lines}"
-  }
-
-  function check_local_gssd_ready() {
-    ${CTDB_HOME}/bin/gssadmin show vg1 vg_header | grep -o gss-disk1
-  }
-
-  wait_for_success 120 check_gss_resources
-  wait_for_success 180 check_local_gssd_ready
-}
-
-function start_gss() {
-  log "============ starting gss ${NODE_ID} ================"
-  log "starting gssd daemon with CTDB_HOME=${CTDB_HOME}"
-  CTDB_HOME=${CTDB_HOME} ${CTDB_HOME}/bin/gssd -D ${CTDB_DATA} >> ${STATUS_LOG} 2>&1 &
-  sleep 3
-  gssdid=$(pgrep gssd)
-  log "gssdid = $gssdid"
-  wait_for_gss
 }
 
 function prepare_cms_gcc() {
@@ -202,40 +184,6 @@ function prepare_cms_gcc() {
   fi
 }
 
-function reghl_gss_disk() {
-  local CURR_NODE_ID=$1
-  log "============ register gss-disk ================"
-  set +e
-  if [ "${CURR_NODE_ID}" == 0 ]; then
-      CTDB_HOME=${CTDB_HOME} ${CTDB_HOME}/bin/gssadmin kickhl 0 1 -D ${CTDB_DATA}
-  fi
-  CTDB_HOME=${CTDB_HOME} ${CTDB_HOME}/bin/gssadmin reghl $CURR_NODE_ID -D ${CTDB_DATA}
-  set -e
-}
-
-function format_gss_disk() {
-  log "============ initializing gss-disk ================"
-  NUM_GSS_DISKS=3
-  for i in $(seq 1 ${NUM_GSS_DISKS}); do
-    log "clearing /dev/gss-disk$i"
-    dd if=/dev/zero of=/dev/gss-disk$i bs=8k count=1 >/dev/null 2>&1
-    log "create vg$i in /dev/gss-disk$i"
-    CTDB_HOME=${CTDB_HOME} ${CTDB_HOME}/bin/gssadmin cv vg$i /dev/gss-disk$i -D ${CTDB_DATA}
-  done
-  log "============ initializing gss-disk ========== done"
-}
-
-function prepare_gss_disk() {
-  if [ "${IS_RERUN}" == 1 ]; then
-    return 0
-  fi
-  
-  reghl_gss_disk ${NODE_ID}
-  if [ "${NODE_ID}" == 0 ]; then
-    format_gss_disk
-  fi
-}
-
 function install_cantiand() {
   start_cantiand
 }
@@ -243,19 +191,6 @@ function install_cantiand() {
 function install_cms() {
   prepare_cms_gcc
   start_cms
-}
-
-function install_gss() {
-  prepare_gss_disk
-  start_gss
-}
-
-function setcap() {
-  su -c "setcap CAP_SYS_RAWIO+ep ${CTDB_HOME}/bin/cms CAP_SYS_RAWIO+ep ${CTDB_HOME}/bin/gssd CAP_SYS_RAWIO+ep ${CTDB_HOME}/bin/gssadmin"
-  echo "/usr/lib64" > /etc/ld.so.conf.d/cantian.conf
-  echo "${CTDB_HOME}/lib" >> /etc/ld.so.conf.d/cantian.conf
-  echo "${CTDB_HOME}/add-ons" >> /etc/ld.so.conf.d/cantian.conf
-  ldconfig
 }
 
 function parse_parameter() {
@@ -339,11 +274,11 @@ function check_env() {
 
 function main() {
   source ~/.bashrc
-  read DB_PASSWD
+  read -s DB_PASSWD
   check_env
   parse_parameter "$@"
   
-  set -u
+  set -e -u
   TMPCFG=$(mktemp /tmp/tmpcfg.XXXXXXX) || exit 1
   log "create temp cfg file ${TMPCFG}"
   (cat ${CLUSTER_CONFIG} | sed 's/ *= */=/g') > $TMPCFG
@@ -353,10 +288,6 @@ function main() {
   cantiand | CANTIAND)
     log "================ Install cantiand process ================"
     install_cantiand
-    ;;
-  setcap | SETCAP)
-    log "================ Setcap for binary files ================"
-    setcap
     ;;
   *)
     help "Wrong start process passed by -P!"

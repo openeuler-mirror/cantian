@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_index_module.h"
 #include "pcr_btree.h"
 #include "cm_utils.h"
 #include "cm_log.h"
@@ -43,7 +44,7 @@
 #define ROOT_PAGE_WAIT_ACK_RETRY_THRESHOLD  (0xFFFFFFFF)
 
 static status_t pcrb_try_split_page(knl_session_t *session, knl_cursor_t *cursor, btree_path_info_t *path_info,
-                                    int64 version, bool32 use_pct);
+                                    int64 version, bool32 use_pct, uint64 trigger_version);
 static status_t pcrb_construct_ancestors(knl_session_t *session, btree_t *btree, btree_page_t **parent_page,
                                          char **key_buf, pcrb_key_t *key, uint32 level, bool32 nologging);
 
@@ -82,8 +83,8 @@ void pcrb_insert_minimum_key(knl_session_t *session)
     *dir = page->free_begin;
 
     pcrb_init_key(key, NULL);
-    key->is_infinite = GS_TRUE;
-    key->itl_id = GS_INVALID_ID8;
+    key->is_infinite = CT_TRUE;
+    key->itl_id = CT_INVALID_ID8;
 
     page->free_begin += (uint16)key->size;
     page->free_end -= sizeof(pcrb_dir_t);
@@ -111,18 +112,18 @@ void pcrb_decode_key(index_profile_t *profile, pcrb_key_t *key, knl_scan_key_t *
     offset = sizeof(pcrb_key_t);
 
     for (id = 0; id < profile->column_count; id++) {
-        btree_decode_key_column(scan_key, &key->bitmap, &offset, profile->types[id], id, GS_TRUE);
+        btree_decode_key_column(scan_key, &key->bitmap, &offset, profile->types[id], id, CT_TRUE);
     }
 }
 
-void pcrb_put_key_data(char *key_buf, gs_type_t type, const char *data, uint16 len, uint16 id)
+void pcrb_put_key_data(char *key_buf, ct_type_t type, const char *data, uint16 len, uint16 id)
 {
     pcrb_key_t *key = NULL;
     uint32 align_size;
     uint32 buf_size;
     errno_t err;
 
-    if (data == NULL || len == GS_NULL_VALUE_LEN) {
+    if ((len != 0) && (data == NULL || len == CT_NULL_VALUE_LEN)) {
         return;
     }
 
@@ -130,35 +131,38 @@ void pcrb_put_key_data(char *key_buf, gs_type_t type, const char *data, uint16 l
     btree_set_bitmap(&key->bitmap, id);
 
     switch (type) {
-        case GS_TYPE_UINT64:
+        case CT_TYPE_UINT64:
             *(uint64 *)CURR_KEY_PTR(key) = *(uint64 *)data;
             key->size += sizeof(uint64);
             break;
-        case GS_TYPE_BIGINT:
+        case CT_TYPE_BIGINT:
             if (len == sizeof(int32)) {
                 *(int64 *)CURR_KEY_PTR(key) = (int64)(*(int32 *)data);
                 key->size += sizeof(int64);
                 break;
             }
             // fall - through
-        case GS_TYPE_UINT32:
-        case GS_TYPE_INTEGER:
-        case GS_TYPE_REAL:
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_BOOLEAN:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_TZ:
-        case GS_TYPE_TIMESTAMP_LTZ:
-        case GS_TYPE_INTERVAL_DS:
-        case GS_TYPE_INTERVAL_YM:
-            buf_size = GS_KEY_BUF_SIZE - (uint32)key->size;
+        case CT_TYPE_UINT32:
+        case CT_TYPE_INTEGER:
+        case CT_TYPE_REAL:
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_BOOLEAN:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_INTERVAL_DS:
+        case CT_TYPE_INTERVAL_YM:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_DATE_MYSQL:
+            buf_size = CT_KEY_BUF_SIZE - (uint32)key->size;
             err = memcpy_sp(CURR_KEY_PTR(key), buf_size, data, len);
             knl_securec_check(err);
             key->size += len;  // for now, maximum key size is 3900, won't overflow
             break;
-        case GS_TYPE_NUMBER2:
-            buf_size = GS_KEY_BUF_SIZE - (uint32)key->size - sizeof(uint8);
+        case CT_TYPE_NUMBER2:
+            buf_size = CT_KEY_BUF_SIZE - (uint32)key->size - sizeof(uint8);
             if (SECUREC_UNLIKELY(len == 0)) {
                 *(uint8 *)CURR_KEY_PTR(key) = 1;
                 *(uint8 *)(CURR_KEY_PTR(key) + sizeof(uint8)) = ZERO_EXPN;
@@ -170,10 +174,10 @@ void pcrb_put_key_data(char *key_buf, gs_type_t type, const char *data, uint16 l
             knl_securec_check(err);
             key->size += (len + sizeof(uint8));
             break;
-        case GS_TYPE_DECIMAL:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_NUMBER:
-            buf_size = GS_KEY_BUF_SIZE - (uint32)key->size;
+        case CT_TYPE_DECIMAL:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_NUMBER:
+            buf_size = CT_KEY_BUF_SIZE - (uint32)key->size;
             if (SECUREC_UNLIKELY(len == 0)) {
                 err = memcpy_sp(CURR_KEY_PTR(key), buf_size, "\0\0\0\0", CSF_NUMBER_INDEX_LEN);
                 knl_securec_check(err);
@@ -193,14 +197,14 @@ void pcrb_put_key_data(char *key_buf, gs_type_t type, const char *data, uint16 l
             key->size += (len + align_size);
             break;
         
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
-        case GS_TYPE_BINARY:
-        case GS_TYPE_VARBINARY:
-        case GS_TYPE_RAW:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
+        case CT_TYPE_BINARY:
+        case CT_TYPE_VARBINARY:
+        case CT_TYPE_RAW:
             *(uint16 *)CURR_KEY_PTR(key) = len;
-            buf_size = GS_KEY_BUF_SIZE - (uint32)key->size - sizeof(uint16);
+            buf_size = CT_KEY_BUF_SIZE - (uint32)key->size - sizeof(uint16);
 
             if (len != 0) {
                 err = memcpy_sp(CURR_KEY_PTR(key) + sizeof(uint16), buf_size, data, len);
@@ -216,7 +220,7 @@ void pcrb_put_key_data(char *key_buf, gs_type_t type, const char *data, uint16 l
             key->size += CM_ALIGN4(len + sizeof(uint16));
             break;
         default:
-            GS_LOG_RUN_WAR("[PCRB] unknown datatype %u when generate key data", type);
+            CT_LOG_RUN_WAR("[PCRB] unknown datatype %u when generate key data", type);
             knl_panic(0);
     }
 }
@@ -225,7 +229,7 @@ static page_id_t pcrb_clean_copied_itl(knl_session_t *session, uint64 xid, page_
 {
     page_id_t page_id = page_id_input;
     txn_info_t txn_info;
-    bool32 is_changed = GS_FALSE;
+    bool32 is_changed = CT_FALSE;
     rd_pcrb_clean_itl_t redo;
     bool32 need_redo = SPC_IS_LOGGING_BY_PAGEID(session, page_id);
 
@@ -244,15 +248,15 @@ static page_id_t pcrb_clean_copied_itl(knl_session_t *session, uint64 xid, page_
         }
 
         if (itl->xid.value == session->rm->xid.value) {
-            itl->is_active = GS_FALSE;
+            itl->is_active = CT_FALSE;
             itl->scn = session->rm->txn->scn;
             itl->is_owscn = 0;
         } else {
-            tx_get_pcr_itl_info(session, GS_FALSE, itl, &txn_info);
+            tx_get_pcr_itl_info(session, CT_FALSE, itl, &txn_info);
             knl_panic_log(txn_info.status == (uint8)XACT_END, "txn's status is abnormal, panic info: page %u-%u type "
                           "%u txn status %u", page_id.file, page_id.page,
                           ((page_head_t *)CURR_PAGE(session))->type, txn_info.status);
-            itl->is_active = GS_FALSE;
+            itl->is_active = CT_FALSE;
             itl->scn = txn_info.scn;
             itl->is_owscn = (uint16)txn_info.is_owscn;
         }
@@ -269,7 +273,7 @@ static page_id_t pcrb_clean_copied_itl(knl_session_t *session, uint64 xid, page_
         if (need_redo) {
             log_put(session, RD_PCRB_CLEAN_ITL, &redo, sizeof(rd_pcrb_clean_itl_t), LOG_ENTRY_FLAG_NONE);
         }
-        is_changed = GS_TRUE;
+        is_changed = CT_TRUE;
         break;
     }
 
@@ -287,7 +291,7 @@ static status_t pcrb_check_unique(knl_session_t *session, knl_cursor_t *cursor, 
     txn_info_t txn_info;
 
     if (!IS_UNIQUE_PRIMARY_INDEX(index) || !is_same) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     cursor->snapshot.is_valid = 0;
@@ -295,10 +299,10 @@ static status_t pcrb_check_unique(knl_session_t *session, knl_cursor_t *cursor, 
     btree_page_t *page = BTREE_CURR_PAGE(session);
     pcrb_dir_t *dir = pcrb_get_dir(page, (uint32)path[0].slot);
     pcrb_key_t *key = PCRB_GET_KEY(page, dir);
-    if (key->itl_id == GS_INVALID_ID8) {
+    if (key->itl_id == CT_INVALID_ID8) {
         if (cursor->isolevel == (uint8)ISOLATION_SERIALIZABLE && cursor->query_scn < page->scn) {
-            GS_THROW_ERROR(ERR_SERIALIZE_ACCESS);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SERIALIZE_ACCESS);
+            return CT_ERROR;
         }
     } else {
         pcr_itl_t *itl = pcrb_get_itl(page, key->itl_id);
@@ -309,34 +313,34 @@ static status_t pcrb_check_unique(knl_session_t *session, knl_cursor_t *cursor, 
                 cursor->snapshot.is_valid = 1;
             }
         } else {
-            tx_get_pcr_itl_info(session, GS_FALSE, itl, &txn_info);
+            tx_get_pcr_itl_info(session, CT_FALSE, itl, &txn_info);
             if (txn_info.status != (uint8)XACT_END) {
                 ROWID_COPY(session->wrid, key->rowid);
                 session->wxid = itl->xid;
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
 
             if (cursor->isolevel == (uint8)ISOLATION_SERIALIZABLE && cursor->query_scn < txn_info.scn) {
-                GS_THROW_ERROR(ERR_SERIALIZE_ACCESS);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_SERIALIZE_ACCESS);
+                return CT_ERROR;
             }
         }
     }
 
     if (!key->is_deleted) {
         cursor->conflict_rid = key->rowid;
-        conflict_info->is_duplicate = GS_TRUE;
+        conflict_info->is_duplicate = CT_TRUE;
         cursor->conflict_idx_slot = cursor->index_slot;
         if (cursor->action != CURSOR_ACTION_UPDATE || cursor->disable_pk_update) {
-            conflict_info->conflict = GS_TRUE;
+            conflict_info->conflict = CT_TRUE;
             return idx_generate_dupkey_error(session, index, (char *)key);
         }
         
-        GS_THROW_ERROR(ERR_DUPLICATE_KEY, "");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DUPLICATE_KEY, "");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -352,7 +356,7 @@ static void pcrb_generate_itl_undo(knl_session_t *session, knl_cursor_t *cursor,
     undo->snapshot.is_owscn = itl->is_owscn;
     undo->snapshot.undo_page = itl->undo_page;
     undo->snapshot.undo_slot = itl->undo_slot;
-    undo->snapshot.is_xfirst = GS_TRUE;
+    undo->snapshot.is_xfirst = CT_TRUE;
 
     undo->size = sizeof(xid_t);
     undo->data = (char *)&itl->xid;
@@ -373,9 +377,9 @@ uint8 pcrb_new_itl(knl_session_t *session, btree_page_t *page)
     uint8 itl_id;
     errno_t ret;
 
-    if (page->itls == GS_MAX_TRANS || page->free_size < sizeof(pcr_itl_t) ||
+    if (page->itls == CT_MAX_TRANS || page->free_size < sizeof(pcr_itl_t) ||
         (page->free_end - page->free_begin) < sizeof(pcr_itl_t)) {
-        return GS_INVALID_ID8;
+        return CT_INVALID_ID8;
     }
 
     src = (char *)page + page->free_end;
@@ -417,7 +421,7 @@ void pcrb_reuse_itl(knl_session_t *session, btree_page_t *page, pcr_itl_t *itl, 
             continue;
         }
 
-        key->itl_id = GS_INVALID_ID8;
+        key->itl_id = CT_INVALID_ID8;
 
         /*
          * keys which are deleted and commit scn > min_scn would be
@@ -491,26 +495,26 @@ static status_t pcrb_find_available_itl(knl_session_t *session, knl_cursor_t *cu
     btree_page_t *page = BTREE_CURR_PAGE(session);
     pcr_itl_t *item = pcrb_get_itl(page, i);
 
-    *check_next = GS_FALSE;
+    *check_next = CT_FALSE;
     if (!item->is_active) {
         /* find the oldest itl to reuse */
         if (*itl == NULL || item->scn < (*itl)->scn) {
             session->itl_id = i;
             *itl = item;
         }
-        *check_next = GS_TRUE;
-        return GS_SUCCESS;
+        *check_next = CT_TRUE;
+        return CT_SUCCESS;
     }
 
-    tx_get_pcr_itl_info(session, GS_FALSE, item, &txn_info);
+    tx_get_pcr_itl_info(session, CT_FALSE, item, &txn_info);
     if (txn_info.status != (uint8)XACT_END) {
-        *check_next = GS_TRUE;
-        return GS_SUCCESS;
+        *check_next = CT_TRUE;
+        return CT_SUCCESS;
     }
 
     if (cursor->isolevel == (uint8)ISOLATION_SERIALIZABLE && cursor->query_scn < txn_info.scn) {
-        GS_THROW_ERROR(ERR_SERIALIZE_ACCESS);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SERIALIZE_ACCESS);
+        return CT_ERROR;
     }
 
     if (page->scn < txn_info.scn) {
@@ -535,7 +539,7 @@ static status_t pcrb_find_available_itl(knl_session_t *session, knl_cursor_t *cu
     if (need_redo && cursor->logging) {
         log_put(session, RD_PCRB_CLEAN_ITL, &rd_clean, sizeof(rd_pcrb_clean_itl_t), LOG_ENTRY_FLAG_NONE);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void pcrb_alloc_itl_set_part(knl_cursor_t *cursor, knl_part_locate_t *part_loc)
@@ -544,8 +548,8 @@ static void pcrb_alloc_itl_set_part(knl_cursor_t *cursor, knl_part_locate_t *par
         part_loc->part_no = cursor->part_loc.part_no;
         part_loc->subpart_no = cursor->part_loc.subpart_no;
     } else {
-        part_loc->part_no = GS_INVALID_ID24;
-        part_loc->subpart_no = GS_INVALID_ID32;
+        part_loc->part_no = CT_INVALID_ID24;
+        part_loc->subpart_no = CT_INVALID_ID32;
     }
 }
 
@@ -555,8 +559,8 @@ static status_t pcrb_alloc_itl(knl_session_t *session, knl_cursor_t *cursor, btr
     btree_t *btree = CURSOR_BTREE(cursor);
     bool32 check_next;
 
-    cursor->reused_xid = GS_INVALID_ID64;
-    session->itl_id = GS_INVALID_ID8;
+    cursor->reused_xid = CT_INVALID_ID64;
+    session->itl_id = CT_INVALID_ID8;
 
     *itl = NULL;
 
@@ -565,36 +569,36 @@ static status_t pcrb_alloc_itl(knl_session_t *session, knl_cursor_t *cursor, btr
         if (item->xid.value == session->rm->xid.value) {
             session->itl_id = i;  // itl already exists
             *itl = item;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (pcrb_find_available_itl(session, cursor, i, itl, &check_next) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (pcrb_find_available_itl(session, cursor, i, itl, &check_next) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (check_next) {
             continue;
         }
-        *changed = GS_TRUE;
+        *changed = CT_TRUE;
     }
 
     if (*itl == NULL) {
         if (page->itls >= btree->index->desc.maxtrans - 1) {
-            session->itl_id = GS_INVALID_ID8;
-            return GS_SUCCESS;
+            session->itl_id = CT_INVALID_ID8;
+            return CT_SUCCESS;
         }
         session->itl_id = pcrb_new_itl(session, page);
-        if (session->itl_id == GS_INVALID_ID8) {
-            return GS_SUCCESS;
+        if (session->itl_id == CT_INVALID_ID8) {
+            return CT_SUCCESS;
         }
     }
 
     pcrb_init_itl(session, cursor, page, itl);
-    *changed = GS_TRUE;
+    *changed = CT_TRUE;
 
     if (SECUREC_UNLIKELY(DB_NOT_READY(session))) {
         (*itl)->is_active = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     knl_panic_log(!DB_IS_READONLY(session), "current DB is readonly, panic info: page %u-%u type %u table %s index %s",
@@ -605,11 +609,11 @@ static status_t pcrb_alloc_itl(knl_session_t *session, knl_cursor_t *cursor, btr
     pcrb_alloc_itl_set_part(cursor, &part_loc);
     
     if (lock_itl(session, AS_PAGID(page->head.id), session->itl_id, part_loc, AS_PAGID(page->next),
-        LOCK_TYPE_PCR_KX) != GS_SUCCESS) {
-        return GS_ERROR;
+        LOCK_TYPE_PCR_KX) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void pcrb_clean_dir(knl_session_t *session, btree_page_t *page, uint16 slot)
@@ -654,7 +658,7 @@ void pcrb_compact_page(knl_session_t *session, btree_page_t *page, knl_scn_t min
         }
 
         if (key->is_deleted && page->level == 0) {
-            if (key->itl_id == GS_INVALID_ID8) {
+            if (key->itl_id == CT_INVALID_ID8) {
                 if (page->scn <= min_scn) {
                     key->is_cleaned = 1;
                     pcrb_clean_dir(session, page, (uint16)i);
@@ -721,7 +725,7 @@ static void pcrb_get_sibling_key(knl_session_t *session, btree_path_info_t *path
         if (IS_INVALID_PAGID(next_pid)) {
             return;
         }
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         buf_enter_page(session, next_pid, LATCH_MODE_S, ENTER_PAGE_NORMAL);
         page = BTREE_CURR_PAGE(session);
         slot = 0;
@@ -729,7 +733,7 @@ static void pcrb_get_sibling_key(knl_session_t *session, btree_path_info_t *path
 
     pcrb_dir_t *dir = pcrb_get_dir(page, slot);
     pcrb_key_t *key = PCRB_GET_KEY(page, dir);
-    errno_t ret = memcpy_sp(path_info->sibling_key, GS_KEY_BUF_SIZE, key, (size_t)key->size);
+    errno_t ret = memcpy_sp(path_info->sibling_key, CT_KEY_BUF_SIZE, key, (size_t)key->size);
     knl_securec_check(ret);
 }
 
@@ -753,7 +757,7 @@ static bool32 pcrb_find_update_pos(knl_session_t *session, btree_find_assist_t *
     uint32 level = (uint32)tree_info.level - 1;
     page_id_t page_id = AS_PAGID(tree_info.root);
 
-    bool32 cmp_rowid = (index->desc.primary || index->desc.unique) ? GS_FALSE : GS_TRUE;
+    bool32 cmp_rowid = (index->desc.primary || index->desc.unique) ? CT_FALSE : CT_TRUE;
     uint16 cost_size = sizeof(pcr_itl_t);
     if (find_assist->find_type != BTREE_FIND_DELETE) {
         cost_size = PCRB_COST_SIZE((pcrb_key_t *)find_assist->scan_key->buf) + sizeof(pcr_itl_t);
@@ -763,15 +767,15 @@ static bool32 pcrb_find_update_pos(knl_session_t *session, btree_find_assist_t *
         buf_enter_page(session, page_id, (level == 0) ? LATCH_MODE_X : LATCH_MODE_S, ENTER_PAGE_NORMAL);
         page = BTREE_CURR_PAGE(session);
         if (page_soft_damaged(&page->head)) {
-            buf_leave_page(session, GS_FALSE);
-            find_assist->page_damage = GS_TRUE;
+            buf_leave_page(session, CT_FALSE);
+            find_assist->page_damage = CT_TRUE;
             find_assist->page_id = page_id;
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         if (SECUREC_UNLIKELY(page->is_recycled)) {
-            buf_leave_page(session, GS_FALSE);
-            return GS_FALSE;
+            buf_leave_page(session, CT_FALSE);
+            return CT_FALSE;
         }
 
         knl_panic_log(level == page->level, "the page's level is abnormal, panic info: page %u-%u type %u index %s "
@@ -782,7 +786,7 @@ static bool32 pcrb_find_update_pos(knl_session_t *session, btree_find_assist_t *
         }
 
         if (bt_chk_leaf_recycled(session, btree, page, snap_scn)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             level = (uint32)tree_info.level - 1;
             page_id = AS_PAGID(tree_info.root);
             find_assist->find_type = org_type;
@@ -794,7 +798,7 @@ static bool32 pcrb_find_update_pos(knl_session_t *session, btree_find_assist_t *
         if (page->level == 0 && find_assist->find_type != BTREE_FIND_DELETE_NEXT &&
             BTREE_NEED_COMPACT(page, cost_size)) {
             if (compact_leaf != NULL) {
-                *compact_leaf = GS_TRUE;
+                *compact_leaf = CT_TRUE;
             }
             scn = btree_get_recycle_min_scn(session);
             btree->min_scn = scn;
@@ -825,11 +829,11 @@ static bool32 pcrb_find_update_pos(knl_session_t *session, btree_find_assist_t *
                 page_id = AS_PAGID(page->next);
                 snap_scn = KNL_GET_SCN(&seg->recycle_ver_scn);
                 if (IS_INVALID_PAGID(page_id)) {
-                    return GS_FALSE;
+                    return CT_FALSE;
                 }
 
-                buf_leave_page(session, page->level == 0 ? (*compact_leaf) : GS_FALSE);
-                *compact_leaf = GS_FALSE;
+                buf_leave_page(session, page->level == 0 ? (*compact_leaf) : CT_FALSE);
+                *compact_leaf = CT_FALSE;
                 find_assist->find_type = BTREE_FIND_DELETE_NEXT;
                 continue;
             } else if (find_assist->find_type == BTREE_FIND_INSERT) {
@@ -837,9 +841,9 @@ static bool32 pcrb_find_update_pos(knl_session_t *session, btree_find_assist_t *
                  * for insert, if located at the last slot, insert key could be the largest key of this page,
                  * or it could located on next page.
                  */
-                buf_leave_page(session, page->level == 0 ? (*compact_leaf) : GS_FALSE);
-                *compact_leaf = GS_FALSE;
-                return GS_FALSE;
+                buf_leave_page(session, page->level == 0 ? (*compact_leaf) : CT_FALSE);
+                *compact_leaf = CT_FALSE;
+                return CT_FALSE;
             }
         }
 
@@ -854,10 +858,10 @@ static bool32 pcrb_find_update_pos(knl_session_t *session, btree_find_assist_t *
         if (SECUREC_UNLIKELY(find_assist->path_info->get_sibling) && level == 0) {
             pcrb_get_sibling_key(session, find_assist->path_info);
         }
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static status_t pcrb_check_level(knl_session_t *session, btree_t *btree, rowid_t *path, uint32 level)
@@ -865,26 +869,26 @@ static status_t pcrb_check_level(knl_session_t *session, btree_t *btree, rowid_t
     btree_page_t *page = NULL;
     uint16 max_key_size;
 
-    if (level < (uint16)GS_MAX_ROOT_LEVEL) {
-        return GS_SUCCESS;
+    if (level < (uint16)CT_MAX_ROOT_LEVEL) {
+        return CT_SUCCESS;
     }
 
     max_key_size = btree_max_key_size(btree->index) + sizeof(knl_part_locate_t) + sizeof(page_id_t);
 
     /* check child of root */
-    if (buf_read_page(session, GET_ROWID_PAGE(path[GS_MAX_ROOT_LEVEL - 1]), LATCH_MODE_S, ENTER_PAGE_NORMAL) !=
-        GS_SUCCESS) {
-        return GS_ERROR;
+    if (buf_read_page(session, GET_ROWID_PAGE(path[CT_MAX_ROOT_LEVEL - 1]), LATCH_MODE_S, ENTER_PAGE_NORMAL) !=
+        CT_SUCCESS) {
+        return CT_ERROR;
     }
     page = BTREE_CURR_PAGE(session);
     if (max_key_size > page->free_size) {
-        buf_leave_page(session, GS_FALSE);
-        GS_THROW_ERROR(ERR_BTREE_LEVEL_EXCEEDED, GS_MAX_ROOT_LEVEL);
-        return GS_ERROR;
+        buf_leave_page(session, CT_FALSE);
+        CT_THROW_ERROR(ERR_BTREE_LEVEL_EXCEEDED, CT_MAX_ROOT_LEVEL);
+        return CT_ERROR;
     }
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 pcrb_is_equal_key(pcrb_key_t *key1, pcrb_key_t *key2)
@@ -893,31 +897,31 @@ static bool32 pcrb_is_equal_key(pcrb_key_t *key1, pcrb_key_t *key2)
     char *data2 = NULL;
 
     if (key1 == NULL || key2 == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (key1->size != key2->size) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     data1 = (char *)key1 + sizeof(pcrb_key_t);
     data2 = (char *)key2 + sizeof(pcrb_key_t);
     if (memcmp(data1, data2, (size_t)key1->size - sizeof(pcrb_key_t)) != 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static bool32 pcrb_is_same_key(index_t *index, pcrb_key_t *key1, pcrb_key_t *key2)
 {
-    bool32 is_same = GS_FALSE;
+    bool32 is_same = CT_FALSE;
 
     if (!pcrb_is_equal_key(key1, key2)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (index->desc.unique || index->desc.primary) {
-        return GS_TRUE;
+        return CT_TRUE;
     } else {
         is_same = IS_SAME_ROWID(key1->rowid, key2->rowid);
         return is_same;
@@ -937,18 +941,18 @@ static bool32 pcrb_check_self_conflict(knl_session_t *session, knl_cursor_t *cur
         ud_page = (undo_page_t *)CURR_PAGE(session);
         ud_row = UNDO_ROW(session, ud_page, snapshot->undo_slot);
         if (ud_row->ssn < cursor->ssn || ud_row->xid.value != cursor->xid) {
-            buf_leave_page(session, GS_FALSE);
-            return GS_FALSE;
+            buf_leave_page(session, CT_FALSE);
+            return CT_FALSE;
         }
 
         if (pcrb_is_same_key(btree->index, key, (pcrb_key_t *)ud_row->data)) {
-            buf_leave_page(session, GS_FALSE);
-            return GS_TRUE;
+            buf_leave_page(session, CT_FALSE);
+            return CT_TRUE;
         }
 
         snapshot->undo_page = ud_row->prev_page;
         snapshot->undo_slot = ud_row->prev_slot;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 }
 
@@ -967,11 +971,11 @@ static status_t pcrb_enter_insert(knl_session_t *session, knl_cursor_t *cursor, 
     pcrb_decode_key(INDEX_PROFILE(btree->index), key, &scan_key);
     path_info->part_loc = cursor->part_loc;
     for (;;) {
-        *changed = GS_FALSE;
+        *changed = CT_FALSE;
         log_atomic_op_begin(session);
         log_set_group_nolog_insert(session, cursor->logging);
         if (lock_tree) {
-            dls_latch_s(session, &btree->struct_latch, session->id, GS_FALSE, &session->stat_btree);
+            dls_latch_s(session, &btree->struct_latch, session->id, CT_FALSE, &session->stat_btree);
             version = cm_atomic_get(&btree->struct_ver);
             level = BTREE_SEGMENT(session, btree->entry, btree->segment)->tree_info.level;
             btree_init_find_assist(btree, path_info, &scan_key, BTREE_FIND_INSERT_LOCKED, &find_assist);
@@ -985,21 +989,21 @@ static status_t pcrb_enter_insert(knl_session_t *session, knl_cursor_t *cursor, 
             bool32 find_result = pcrb_find_update_pos(session, &find_assist, is_same, changed, cursor->logging);
             if (find_assist.page_damage) {
                 log_atomic_op_end(session);
-                GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, find_assist.page_id.file, find_assist.page_id.page);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, find_assist.page_id.file, find_assist.page_id.page);
+                return CT_ERROR;
             }
 
             if (!find_result) {
                 log_atomic_op_end(session);
-                lock_tree = GS_TRUE;
+                lock_tree = CT_TRUE;
                 continue;
             }
         }
 
         if (find_assist.page_damage) {
             log_atomic_op_end(session);
-            GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, find_assist.page_id.file, find_assist.page_id.page);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, find_assist.page_id.file, find_assist.page_id.page);
+            return CT_ERROR;
         }
 
         btree_page_t *page = BTREE_CURR_PAGE(session);
@@ -1008,12 +1012,13 @@ static status_t pcrb_enter_insert(knl_session_t *session, knl_cursor_t *cursor, 
                             ? BTREE_PCT_SIZE(btree) : (uint16)0;
         if (!*is_same && page->free_size < PCRB_MAX_COST_SIZE(key) + pct_size) {
             path_info->leaf_lsn = page->head.lsn;
+            uint64 trigger_version = DRC_GET_CURR_REFORM_VERSION;
             buf_leave_page(session, *changed);
 
-            if (pcrb_check_level(session, btree, path_info->path, level) != GS_SUCCESS) {
+            if (pcrb_check_level(session, btree, path_info->path, level) != CT_SUCCESS) {
                 log_atomic_op_end(session);
                 knl_end_itl_waits(session);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             log_atomic_op_end(session);
@@ -1023,14 +1028,14 @@ static status_t pcrb_enter_insert(knl_session_t *session, knl_cursor_t *cursor, 
             }
 
             path_info->is_rebuild = is_rebuild;
-            if (pcrb_try_split_page(session, cursor, path_info, version, (pct_size != 0)) != GS_SUCCESS) {
+            if (pcrb_try_split_page(session, cursor, path_info, version, (pct_size != 0), trigger_version) != CT_SUCCESS) {
                 knl_end_itl_waits(session);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             continue;
         }
 
-        if (pcrb_check_unique(session, cursor, path_info->path, *is_same, conflict_info) != GS_SUCCESS) {
+        if (pcrb_check_unique(session, cursor, path_info->path, *is_same, conflict_info) != CT_SUCCESS) {
             buf_leave_page(session, *changed);
             log_atomic_op_end(session);
             knl_end_itl_waits(session);
@@ -1038,17 +1043,17 @@ static status_t pcrb_enter_insert(knl_session_t *session, knl_cursor_t *cursor, 
                 conflict_info->conflict = pcrb_check_self_conflict(session, cursor, btree, key);
             }
 
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (session->wxid.value != GS_INVALID_ID64) {
+        if (session->wxid.value != CT_INVALID_ID64) {
             buf_leave_page(session, *changed);
             log_atomic_op_end(session);
             knl_end_itl_waits(session);
             btree->stat.row_lock_waits++;
-            if (tx_wait(session, session->lock_wait_timeout, ENQ_TX_KEY) != GS_SUCCESS) {
+            if (tx_wait(session, session->lock_wait_timeout, ENQ_TX_KEY) != CT_SUCCESS) {
                 tx_record_rowid(session->wrid);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             continue;
         }
@@ -1056,23 +1061,23 @@ static status_t pcrb_enter_insert(knl_session_t *session, knl_cursor_t *cursor, 
         /* shadow index rebuilding no need to alloc itl here */
         if (SECUREC_UNLIKELY(is_rebuild)) {
             knl_end_itl_waits(session);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (pcrb_alloc_itl(session, cursor, page, &itl, changed) != GS_SUCCESS) {
+        if (pcrb_alloc_itl(session, cursor, page, &itl, changed) != CT_SUCCESS) {
             buf_leave_page(session, *changed);
             log_atomic_op_end(session);
             knl_end_itl_waits(session);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (SECUREC_UNLIKELY(itl == NULL)) {
             session->wpid = AS_PAGID(page->head.id);
             buf_leave_page(session, *changed);
             log_atomic_op_end(session);
-            if (knl_begin_itl_waits(session, &btree->stat.itl_waits) != GS_SUCCESS) {
+            if (knl_begin_itl_waits(session, &btree->stat.itl_waits) != CT_SUCCESS) {
                 knl_end_itl_waits(session);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             continue;
         }
@@ -1080,7 +1085,7 @@ static status_t pcrb_enter_insert(knl_session_t *session, knl_cursor_t *cursor, 
         break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void pcrb_insert_into_page(knl_session_t *session, btree_page_t *page, pcrb_key_t *key, rd_pcrb_insert_t *redo)
@@ -1097,7 +1102,7 @@ void pcrb_insert_into_page(knl_session_t *session, btree_page_t *page, pcrb_key_
             page->free_size -= (uint16)curr_key->size + sizeof(pcrb_dir_t);
         }
 
-        ret = memcpy_sp(curr_key, GS_KEY_BUF_SIZE, key, (size_t)key->size);
+        ret = memcpy_sp(curr_key, CT_KEY_BUF_SIZE, key, (size_t)key->size);
         knl_securec_check(ret);
     } else {
         if (redo->slot < page->keys) {
@@ -1110,7 +1115,7 @@ void pcrb_insert_into_page(knl_session_t *session, btree_page_t *page, pcrb_key_
         dir = pcrb_get_dir(page, redo->slot);
         *dir = page->free_begin;
 
-        ret = memcpy_sp(curr_key, GS_KEY_BUF_SIZE, key, (size_t)key->size);
+        ret = memcpy_sp(curr_key, CT_KEY_BUF_SIZE, key, (size_t)key->size);
         knl_securec_check(ret);
 
         page->free_begin += (uint16)key->size;
@@ -1128,8 +1133,8 @@ static void pcrb_generate_insert_undo(knl_session_t *session, knl_cursor_t *curs
     btree_t *btree = CURSOR_BTREE(cursor);
     btree_page_t *page = BTREE_CURR_PAGE(session);
     pcrb_key_t *key = (pcrb_key_t *)cursor->key;
-    knl_part_locate_t part_loc = { .part_no = GS_INVALID_ID32,
-        .subpart_no = GS_INVALID_ID32 };
+    knl_part_locate_t part_loc = { .part_no = CT_INVALID_ID32,
+        .subpart_no = CT_INVALID_ID32 };
 
     if (IS_PART_INDEX(cursor->index)) {
         part_loc = cursor->part_loc;
@@ -1141,7 +1146,7 @@ static void pcrb_generate_insert_undo(knl_session_t *session, knl_cursor_t *curs
         pcrb_dir_t *dir = pcrb_get_dir(page, (uint32)path[0].slot);
         pcrb_key_t *old_key = PCRB_GET_KEY(page, dir);
         if (btree->is_shadow && !old_key->is_deleted) {
-            undo->snapshot.is_xfirst = GS_TRUE;
+            undo->snapshot.is_xfirst = CT_TRUE;
             errno_t ret = memcpy_sp(undo->data, undo->size, key, (size_t)key->size);
             knl_securec_check(ret);
         } else {
@@ -1150,7 +1155,7 @@ static void pcrb_generate_insert_undo(knl_session_t *session, knl_cursor_t *curs
             knl_securec_check(ret);
         }
     } else {
-        undo->snapshot.is_xfirst = GS_TRUE;
+        undo->snapshot.is_xfirst = CT_TRUE;
         errno_t ret = memcpy_sp(undo->data, undo->size, key, (size_t)key->size);
         knl_securec_check(ret);
     }
@@ -1172,7 +1177,7 @@ static void pcrb_generate_insert_undo(knl_session_t *session, knl_cursor_t *curs
     undo->type = UNDO_PCRB_INSERT;
     undo->seg_page = btree->entry.page;
     undo->seg_file = btree->entry.file;
-    undo->index_id = (btree->is_shadow) ? GS_SHADOW_INDEX_ID : btree->index->desc.id;
+    undo->index_id = (btree->is_shadow) ? CT_SHADOW_INDEX_ID : btree->index->desc.id;
 
     itl->undo_page = undo_page_info->undo_rid.page_id;
     itl->undo_slot = undo_page_info->undo_rid.slot;
@@ -1187,7 +1192,7 @@ static void pcrb_generate_insert_undo(knl_session_t *session, knl_cursor_t *curs
 
 static inline void pcrb_leave_insert(knl_session_t *session)
 {
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 }
 
@@ -1195,8 +1200,8 @@ static status_t pcrb_do_insert(knl_session_t *session, knl_cursor_t *cursor, idx
 {
     btree_t *btree = CURSOR_BTREE(cursor);
     btree_path_info_t path_info;
-    bool32 page_changed = GS_FALSE;
-    bool32 is_same = GS_FALSE;
+    bool32 page_changed = CT_FALSE;
+    bool32 is_same = CT_FALSE;
     undo_data_t undo;
     rd_pcrb_insert_t redo;
     bool32 need_redo = IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type);
@@ -1210,21 +1215,21 @@ static status_t pcrb_do_insert(knl_session_t *session, knl_cursor_t *cursor, idx
     /* We prepare two undo rows (itl undo and insert undo) */
     if (cursor->nologging_type != SESSION_LEVEL) {
         if (undo_multi_prepare(session, PCRB_INSERT_UNDO_COUNT, sizeof(xid_t) + undo.size, need_redo,
-            need_encrypt) != GS_SUCCESS) {
-            return GS_ERROR;
+            need_encrypt) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    path_info.get_sibling = GS_FALSE;
-    if (pcrb_enter_insert(session, cursor, &path_info, GS_FALSE, &is_same,
-        &page_changed, conflict_info) != GS_SUCCESS) {
-        return GS_ERROR;
+    path_info.get_sibling = CT_FALSE;
+    if (pcrb_enter_insert(session, cursor, &path_info, CT_FALSE, &is_same,
+        &page_changed, conflict_info) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     btree_page_t *page = BTREE_CURR_PAGE(session);
     page_id_t next_pid = AS_PAGID(page->next);
 
-    key->is_deleted = GS_FALSE;
+    key->is_deleted = CT_FALSE;
     key->itl_id = session->itl_id;
 
     redo.is_reuse = (uint16)is_same;
@@ -1244,7 +1249,7 @@ static status_t pcrb_do_insert(knl_session_t *session, knl_cursor_t *cursor, idx
     pcrb_validate_page(session, &page->head, btree->index);
     pcrb_leave_insert(session);
 
-    if (cursor->reused_xid != GS_INVALID_ID64 && !IS_INVALID_PAGID(next_pid)) {
+    if (cursor->reused_xid != CT_INVALID_ID64 && !IS_INVALID_PAGID(next_pid)) {
         (void)pcrb_clean_copied_itl(session, cursor->reused_xid, next_pid);
     }
 
@@ -1252,7 +1257,7 @@ static status_t pcrb_do_insert(knl_session_t *session, knl_cursor_t *cursor, idx
         btree->chg_stats.insert_size += PCRB_COST_SIZE((pcrb_key_t *)cursor->key);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void pcrb_generate_batch_insert_undo(knl_session_t *session, knl_cursor_t *cursor, const char *insert_keys,
@@ -1270,13 +1275,13 @@ static void pcrb_generate_batch_insert_undo(knl_session_t *session, knl_cursor_t
     if (IS_PART_INDEX(cursor->index)) {
         undo_insert->part_loc = cursor->part_loc;
     } else {
-        undo_insert->part_loc.part_no = GS_INVALID_ID32;
-        undo_insert->part_loc.subpart_no = GS_INVALID_ID32;
+        undo_insert->part_loc.part_no = CT_INVALID_ID32;
+        undo_insert->part_loc.subpart_no = CT_INVALID_ID32;
     }
     undo_insert->count = key_count;
     undo_insert->aligned = 0;
 
-    undo.snapshot.is_xfirst = GS_FALSE;
+    undo.snapshot.is_xfirst = CT_FALSE;
     undo.snapshot.scn = DB_CURR_SCN(session);
     undo.snapshot.is_owscn = itl->is_owscn;
     undo.snapshot.undo_page = itl->undo_page;
@@ -1293,7 +1298,7 @@ static void pcrb_generate_batch_insert_undo(knl_session_t *session, knl_cursor_t
         itl->undo_slot = undo_page_info->undo_rid.slot;
     } else {
         itl->undo_page = INVALID_UNDO_PAGID;
-        itl->undo_slot = GS_INVALID_ID16;
+        itl->undo_slot = CT_INVALID_ID16;
     }
 
     itl->ssn = (uint32)cursor->ssn;
@@ -1312,10 +1317,10 @@ static bool32 pcrb_is_batch_insert_enable(knl_session_t *session, knl_cursor_t *
     btree_t *btree = CURSOR_BTREE(cursor);
     btree_page_t *page = BTREE_CURR_PAGE(session);
     knl_scan_key_t scan_key;
-    idx_conflict_info_t conflict_info = { GS_FALSE, GS_FALSE };
+    idx_conflict_info_t conflict_info = { CT_FALSE, CT_FALSE };
     bool32 cmp_rowid = !IS_UNIQUE_PRIMARY_INDEX(btree->index);
     btree_path_info_t path_info;
-    bool32 is_same = GS_FALSE;
+    bool32 is_same = CT_FALSE;
     index_profile_t *profile = INDEX_PROFILE(btree->index);
 
     rd_insert->slot = INVALID_SLOT;
@@ -1323,29 +1328,29 @@ static bool32 pcrb_is_batch_insert_enable(knl_session_t *session, knl_cursor_t *
     pcrb_decode_key(profile, src_key, &scan_key);
     if (sibling_key != NULL) {
         if (pcrb_compare_key(profile, &scan_key, sibling_key, cmp_rowid, NULL) >= 0) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
     pcrb_binary_search(profile, page, &scan_key, &path_info, cmp_rowid, &is_same);
 
     if (!is_same && page->free_end - page->free_begin < src_key->size + sizeof(pcrb_dir_t)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    if (pcrb_check_unique(session, cursor, path_info.path, is_same, &conflict_info) != GS_SUCCESS) {
+    if (pcrb_check_unique(session, cursor, path_info.path, is_same, &conflict_info) != CT_SUCCESS) {
         cm_reset_error();
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     rd_insert->is_reuse = (uint16)is_same;
     rd_insert->slot = (uint16)path_info.path[0].slot;
 
-    if (session->wxid.value != GS_INVALID_ID64) {
-        session->wxid.value = GS_INVALID_ID64;
-        return GS_FALSE;
+    if (session->wxid.value != CT_INVALID_ID64) {
+        session->wxid.value = CT_INVALID_ID64;
+        return CT_FALSE;
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static void pcrb_batch_insert_key(knl_session_t *session, uint16 undo_size, rd_pcrb_insert_t *rd_insert,
@@ -1359,11 +1364,11 @@ static void pcrb_batch_insert_key(knl_session_t *session, uint16 undo_size, rd_p
         pcrb_key_t *old_key = PCRB_GET_KEY(page, old_dir);
         ret = memcpy_sp((void *)ud_key, undo_size, old_key, (size_t)old_key->size);
         knl_securec_check(ret);
-        ud_key->itl_id = (old_key->itl_id == session->itl_id) ? old_key->itl_id : GS_INVALID_ID8;
+        ud_key->itl_id = (old_key->itl_id == session->itl_id) ? old_key->itl_id : CT_INVALID_ID8;
     } else {
         ret = memcpy_sp((void *)ud_key, undo_size, src_key, (size_t)src_key->size);
         knl_securec_check(ret);
-        ud_key->itl_id = GS_INVALID_ID8;
+        ud_key->itl_id = CT_INVALID_ID8;
     }
 
     pcrb_insert_into_page(session, page, src_key, rd_insert);
@@ -1387,7 +1392,7 @@ static uint64 pcrb_batch_insert_keys(knl_session_t *session, knl_cursor_t *curso
     redo.ssn = (uint32)cursor->ssn;
     redo.undo_page = undo_page_info->undo_rid.page_id;
     redo.undo_slot = undo_page_info->undo_rid.slot;
-    *need_wait = GS_FALSE;
+    *need_wait = CT_FALSE;
 
     for (uint32 i = 1; i < src_page->keys; i++) {
         src_dir = pcrb_get_dir(src_page, i);
@@ -1402,7 +1407,7 @@ static uint64 pcrb_batch_insert_keys(knl_session_t *session, knl_cursor_t *curso
         }
 
         src_key->itl_id = session->itl_id;
-        src_key->is_deleted = GS_FALSE;
+        src_key->is_deleted = CT_FALSE;
         ud_key = (pcrb_key_t *)(undo_data + key_size);
         pcrb_batch_insert_key(session, *batch_size - key_size, &redo, src_key, ud_key);
 
@@ -1412,7 +1417,7 @@ static uint64 pcrb_batch_insert_keys(knl_session_t *session, knl_cursor_t *curso
         }
 
         key_size += (uint16)src_key->size;
-        src_key->is_cleaned = GS_TRUE;
+        src_key->is_cleaned = CT_TRUE;
         keys++;
         keys_size += PCRB_COST_SIZE(src_key);
     }
@@ -1430,15 +1435,15 @@ static uint64 pcrb_batch_insert_keys(knl_session_t *session, knl_cursor_t *curso
 static status_t pcrb_enter_batch_insert(knl_session_t *session, knl_cursor_t *cursor, bool32 need_redo,
     bool32 *page_changed, pcrb_key_t *sibling_key)
 {
-    bool32 is_same = GS_FALSE;
-    idx_conflict_info_t conflict_info = { GS_FALSE, GS_FALSE };
+    bool32 is_same = CT_FALSE;
+    idx_conflict_info_t conflict_info = { CT_FALSE, CT_FALSE };
     btree_path_info_t path_info;
 
-    path_info.get_sibling = GS_TRUE;
+    path_info.get_sibling = CT_TRUE;
     path_info.sibling_key = (char *)sibling_key;
-    if (pcrb_enter_insert(session, cursor, &path_info, GS_FALSE, &is_same,
-        page_changed, &conflict_info) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (pcrb_enter_insert(session, cursor, &path_info, CT_FALSE, &is_same,
+        page_changed, &conflict_info) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     btree_page_t *page = BTREE_CURR_PAGE(session);
@@ -1459,30 +1464,30 @@ static status_t pcrb_enter_batch_insert(knl_session_t *session, knl_cursor_t *cu
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t pcrb_do_batch_insert(knl_session_t *session, knl_cursor_t *cursor, btree_page_t *src_page,
                                      bool32 *need_wait, uint16 *batch_size)
 {
     btree_t *btree = CURSOR_BTREE(cursor);
-    bool32 page_changed = GS_FALSE;
+    bool32 page_changed = CT_FALSE;
     bool32 need_redo = IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type);
     bool32 need_encrypt = SPACE_NEED_ENCRYPT(btree->cipher_reserve_size);
     uint32 undo_size = CM_ALIGN4(OFFSET_OF(pcrb_undo_batch_insert_t, keys) + *batch_size);
     /* We prepare two undo rows (itl undo and insert undo) */
     if (cursor->nologging_type != SESSION_LEVEL) {
         if (undo_multi_prepare(session, PCRB_INSERT_UNDO_COUNT, sizeof(xid_t) + undo_size, need_redo, need_encrypt) !=
-            GS_SUCCESS) {
-            return GS_ERROR;
+            CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     CM_SAVE_STACK(session->stack);
-    pcrb_key_t *sibling_key = cm_push(session->stack, GS_KEY_BUF_SIZE);
-    if (pcrb_enter_batch_insert(session, cursor, need_redo, &page_changed, sibling_key) != GS_SUCCESS) {
+    pcrb_key_t *sibling_key = cm_push(session->stack, CT_KEY_BUF_SIZE);
+    if (pcrb_enter_batch_insert(session, cursor, need_redo, &page_changed, sibling_key) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     btree_page_t *page = BTREE_CURR_PAGE(session);
@@ -1490,13 +1495,13 @@ static status_t pcrb_do_batch_insert(knl_session_t *session, knl_cursor_t *curso
     uint64 keys_size = pcrb_batch_insert_keys(session, cursor, batch_size,
         IS_INVALID_PAGID(next_pid) ? NULL : sibling_key, need_wait);
     if (keys_size > 0) {
-        page_changed = GS_TRUE;
+        page_changed = CT_TRUE;
     }
 
     buf_leave_page(session, page_changed);
     log_atomic_op_end(session);
 
-    if (cursor->reused_xid != GS_INVALID_ID64 && !IS_INVALID_PAGID(next_pid)) {
+    if (cursor->reused_xid != CT_INVALID_ID64 && !IS_INVALID_PAGID(next_pid)) {
         (void)pcrb_clean_copied_itl(session, cursor->reused_xid, next_pid);
     }
 
@@ -1506,29 +1511,29 @@ static status_t pcrb_do_batch_insert(knl_session_t *session, knl_cursor_t *curso
 
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t pcrb_try_batch_insert(knl_session_t *session, knl_cursor_t *cursor, btree_page_t *src_page,
                                       uint16 *batch_size)
 {
-    bool32 need_retry = GS_FALSE;
+    bool32 need_retry = CT_FALSE;
     uint16 rest_size;
-    idx_conflict_info_t conflict_info = { GS_FALSE, GS_FALSE };
+    idx_conflict_info_t conflict_info = { CT_FALSE, CT_FALSE };
 
     if (*batch_size == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     while (*batch_size > 0) {
         rest_size = *batch_size;
         pcrb_dir_t *dir = pcrb_get_dir(src_page, 1);
         pcrb_key_t *key = PCRB_GET_KEY(src_page, dir);
-        errno_t ret = memcpy_sp(cursor->key, GS_KEY_BUF_SIZE, key, (size_t)key->size);
+        errno_t ret = memcpy_sp(cursor->key, CT_KEY_BUF_SIZE, key, (size_t)key->size);
         knl_securec_check(ret);
 
-        if (pcrb_do_batch_insert(session, cursor, src_page, &need_retry, &rest_size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (pcrb_do_batch_insert(session, cursor, src_page, &need_retry, &rest_size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (*batch_size > rest_size) {
@@ -1543,11 +1548,11 @@ static status_t pcrb_try_batch_insert(knl_session_t *session, knl_cursor_t *curs
         if (need_retry) {
             pcrb_dir_t *dir1 = pcrb_get_dir(src_page, 1);
             pcrb_key_t *key1 = PCRB_GET_KEY(src_page, dir1);
-            ret = memcpy_sp(cursor->key, GS_KEY_BUF_SIZE, key1, (size_t)key1->size);
+            ret = memcpy_sp(cursor->key, CT_KEY_BUF_SIZE, key1, (size_t)key1->size);
             knl_securec_check(ret);
 
-            if (pcrb_do_insert(session, cursor, &conflict_info) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (pcrb_do_insert(session, cursor, &conflict_info) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             key1->is_cleaned = 1;
@@ -1558,7 +1563,7 @@ static status_t pcrb_try_batch_insert(knl_session_t *session, knl_cursor_t *curs
     }
 
     CM_ASSERT(src_page->free_size == src_page->free_end - src_page->free_begin);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t pcrb_prepare_batch_insert(knl_session_t *session, knl_cursor_t *cursor)
@@ -1572,12 +1577,12 @@ static status_t pcrb_prepare_batch_insert(knl_session_t *session, knl_cursor_t *
                           "the index_part is NULL, panic info: page %u-%u type %u table %s index %s",
                           cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
                           ((table_t *)cursor->table)->desc.name, ((index_t *)btree->index)->desc.name);
-            if (btree_create_part_entry(session, btree, cursor->index_part, cursor->part_loc) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (btree_create_part_entry(session, btree, cursor->index_part, cursor->part_loc) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
-            if (btree_create_entry(session, btree) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (btree_create_entry(session, btree) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
@@ -1595,7 +1600,7 @@ static status_t pcrb_prepare_batch_insert(knl_session_t *session, knl_cursor_t *
     btree_init_page(session, page, &redo);
     pcrb_key_t min_key;
     pcrb_init_key(&min_key, NULL);
-    min_key.is_infinite = GS_TRUE;
+    min_key.is_infinite = CT_TRUE;
     errno_t ret = memcpy_sp((char *)page + page->free_begin, DEFAULT_PAGE_SIZE(session) - page->free_begin, &min_key,
                             sizeof(pcrb_key_t));
     knl_securec_check(ret);
@@ -1606,17 +1611,17 @@ static status_t pcrb_prepare_batch_insert(knl_session_t *session, knl_cursor_t *
     page->free_end -= sizeof(pcrb_dir_t);
     page->free_size -= sizeof(pcrb_key_t) + sizeof(pcrb_dir_t);
     page->keys = 1;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t pcrb_insert_into_sort_page(knl_session_t *session, btree_t *btree,
     btree_page_t *page, pcrb_key_t *key)
 {
-    rd_pcrb_insert_t rd_insert = { .ssn = 0, .is_reuse = GS_FALSE, .undo_page = INVALID_UNDO_PAGID };
+    rd_pcrb_insert_t rd_insert = { .ssn = 0, .is_reuse = CT_FALSE, .undo_page = INVALID_UNDO_PAGID };
     btree_path_info_t path_info;
     knl_scan_key_t scan_key;
     bool32 cmp_rid = !IS_UNIQUE_PRIMARY_INDEX(btree->index);
-    bool32 is_same = GS_FALSE;
+    bool32 is_same = CT_FALSE;
 
     pcrb_decode_key(INDEX_PROFILE(btree->index), key, &scan_key);
     pcrb_binary_search(INDEX_PROFILE(btree->index), page, &scan_key, &path_info, cmp_rid, &is_same);
@@ -1627,7 +1632,7 @@ static status_t pcrb_insert_into_sort_page(knl_session_t *session, btree_t *btre
     rd_insert.slot = (uint16)path_info.path[0].slot;
     pcrb_insert_into_page(session, page, key, &rd_insert);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t pcrb_batch_insert(knl_handle_t handle, knl_cursor_t *cursor)
@@ -1636,29 +1641,29 @@ status_t pcrb_batch_insert(knl_handle_t handle, knl_cursor_t *cursor)
     btree_t *btree = CURSOR_BTREE(cursor);
     btree_page_t *page = (btree_page_t *)cursor->buf;
 
-    if (pcrb_prepare_batch_insert(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (pcrb_prepare_batch_insert(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     row_head_t *org_row = cursor->row;
     uint16 batch_size = 0;
     uint32 max_batch_size = undo_max_prepare_size(session, PCRB_INSERT_UNDO_COUNT) - sizeof(xid_t) -
                             OFFSET_OF(pcrb_undo_batch_insert_t, keys);
-    pcrb_key_t *key = (pcrb_key_t *)cm_push(session->stack, GS_KEY_BUF_SIZE);
-    status_t status = GS_SUCCESS;
+    pcrb_key_t *key = (pcrb_key_t *)cm_push(session->stack, CT_KEY_BUF_SIZE);
+    status_t status = CT_SUCCESS;
 
     for (uint32 i = 0; i < cursor->rowid_count; i++) {
         cursor->rowid = cursor->rowid_array[i];
         cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, NULL);
-        if (knl_make_key(session, cursor, btree->index, (char *)key) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (knl_make_key(session, cursor, btree->index, (char *)key) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
         if (batch_size + key->size > max_batch_size || page->keys > PCRB_MAX_BATCH_INSERT_SIZE ||
             page->free_size < PCRB_COST_SIZE(key)) {
-            if (pcrb_try_batch_insert(session, cursor, page, &batch_size) != GS_SUCCESS) {
-                status = GS_ERROR;
+            if (pcrb_try_batch_insert(session, cursor, page, &batch_size) != CT_SUCCESS) {
+                status = CT_ERROR;
                 break;
             }
 
@@ -1666,7 +1671,7 @@ status_t pcrb_batch_insert(knl_handle_t handle, knl_cursor_t *cursor)
         }
 
         status = pcrb_insert_into_sort_page(session, btree, page, key);
-        if (status != GS_SUCCESS) {
+        if (status != CT_SUCCESS) {
             break;
         }
 
@@ -1674,13 +1679,13 @@ status_t pcrb_batch_insert(knl_handle_t handle, knl_cursor_t *cursor)
         batch_size += (uint16)key->size;
     }
 
-    if (status == GS_SUCCESS) {
+    if (status == CT_SUCCESS) {
         status = pcrb_try_batch_insert(session, cursor, page, &batch_size);
     }
 
     cm_pop(session->stack);
     cursor->row = org_row;
-    knl_panic_log(status != GS_SUCCESS || batch_size == 0, "batch insert SUCCESS but batch_size is not zero, "
+    knl_panic_log(status != CT_SUCCESS || batch_size == 0, "batch insert SUCCESS but batch_size is not zero, "
                   "panic info: page %u-%u type %u, table %s index %s batch_size %u",
                   cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
                   ((table_t *)cursor->table)->desc.name, ((index_t *)btree->index)->desc.name, batch_size);
@@ -1694,8 +1699,8 @@ static status_t pcrb_force_update_dupkey(knl_session_t *session, knl_cursor_t *c
     knl_handle_t index = (index_t *)cursor->index;
     knl_handle_t part = cursor->index_part;
     shadow_index_t *shadow_entity = ((table_t *)cursor->table)->shadow_index;
-    idx_conflict_info_t conflict_info = { GS_FALSE, GS_FALSE };
-    status_t status = GS_SUCCESS;
+    idx_conflict_info_t conflict_info = { CT_FALSE, CT_FALSE };
+    status_t status = CT_SUCCESS;
 
     session->rm->idx_conflicts++; /* could not overflow, we won't have a table with 2^64 rows */
     ROWID_COPY(curr_rid, key->rowid);
@@ -1704,8 +1709,8 @@ static status_t pcrb_force_update_dupkey(knl_session_t *session, knl_cursor_t *c
     ROWID_COPY(cursor->rowid, cursor->conflict_rid); /* to keep cursor->rowid == key->rowid while deleting keys */
 
     do {
-        if (pcrb_delete(session, cursor) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (pcrb_delete(session, cursor) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
@@ -1717,13 +1722,13 @@ static status_t pcrb_force_update_dupkey(knl_session_t *session, knl_cursor_t *c
              * session->idx_conflicts should +1 and do same operations on shadow index,
              */
             if (!btree_get_index_shadow(session, cursor, shadow_entity)) {
-                status = GS_SUCCESS;
+                status = CT_SUCCESS;
                 break;
             }
 
             session->rm->idx_conflicts++;
-            if (pcrb_delete(session, cursor) != GS_SUCCESS) {
-                status = GS_ERROR;
+            if (pcrb_delete(session, cursor) != CT_SUCCESS) {
+                status = CT_ERROR;
                 break;
             }
         }
@@ -1735,7 +1740,7 @@ static status_t pcrb_force_update_dupkey(knl_session_t *session, knl_cursor_t *c
     ROWID_COPY(cursor->rowid, curr_rid);
     ROWID_COPY(key->rowid, curr_rid);
 
-    if (status != GS_SUCCESS) {
+    if (status != CT_SUCCESS) {
         return status;
     }
 
@@ -1745,7 +1750,7 @@ static status_t pcrb_force_update_dupkey(knl_session_t *session, knl_cursor_t *c
 status_t pcrb_insert(knl_session_t *session, knl_cursor_t *cursor)
 {
     btree_t *btree;
-    idx_conflict_info_t conflict_info = { GS_FALSE, GS_FALSE };
+    idx_conflict_info_t conflict_info = { CT_FALSE, CT_FALSE };
 
     btree = CURSOR_BTREE(cursor);
     if (SECUREC_UNLIKELY(btree->segment == NULL)) {
@@ -1753,47 +1758,47 @@ status_t pcrb_insert(knl_session_t *session, knl_cursor_t *cursor)
             knl_panic_log(cursor->index_part != NULL, "current index_part is NULL, panic info: page %u-%u type %u, "
                 "table %s, index %s", cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
                 ((table_t *)cursor->table)->desc.name, ((index_t *)btree->index)->desc.name);
-            if (btree_create_part_entry(session, btree, cursor->index_part, cursor->part_loc) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (btree_create_part_entry(session, btree, cursor->index_part, cursor->part_loc) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
-            if (btree_create_entry(session, btree) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (btree_create_entry(session, btree) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    if (pcrb_do_insert(session, cursor, &conflict_info) != GS_SUCCESS) {
+    if (pcrb_do_insert(session, cursor, &conflict_info) != CT_SUCCESS) {
         if (!conflict_info.is_duplicate || conflict_info.conflict) {
             cursor->query_scn = DB_CURR_SCN(session);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         cm_reset_error();
         return pcrb_force_update_dupkey(session, cursor);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t pcrb_insert_into_shadow(knl_session_t *session, knl_cursor_t *cursor)
 {
     btree_path_info_t path_info;
-    bool32 is_same = GS_FALSE;
-    bool32 page_changed = GS_FALSE;
+    bool32 is_same = CT_FALSE;
+    bool32 page_changed = CT_FALSE;
     btree_page_t *page = NULL;
     pcrb_key_t *key;
-    idx_conflict_info_t conflict_info = { GS_FALSE, GS_FALSE };
+    idx_conflict_info_t conflict_info = { CT_FALSE, CT_FALSE };
     rd_pcrb_insert_t redo;
     btree_t *btree = CURSOR_BTREE(cursor);
     bool32 need_encrypt = SPACE_NEED_ENCRYPT(btree->cipher_reserve_size);
 
     key = (pcrb_key_t *)cursor->key;
 
-    path_info.get_sibling = GS_FALSE;
-    if (pcrb_enter_insert(session, cursor, &path_info, GS_TRUE,
-        &is_same, &page_changed, &conflict_info) != GS_SUCCESS) {
-        return GS_ERROR;
+    path_info.get_sibling = CT_FALSE;
+    if (pcrb_enter_insert(session, cursor, &path_info, CT_TRUE,
+        &is_same, &page_changed, &conflict_info) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     page = BTREE_CURR_PAGE(session);
@@ -1804,7 +1809,7 @@ status_t pcrb_insert_into_shadow(knl_session_t *session, knl_cursor_t *cursor)
         if (IS_SAME_ROWID(same_key->rowid, key->rowid)) {
             buf_leave_page(session, page_changed);
             log_atomic_op_end(session);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
@@ -1814,8 +1819,8 @@ status_t pcrb_insert_into_shadow(knl_session_t *session, knl_cursor_t *cursor)
     redo.undo_page = INVALID_UNDO_PAGID;
     redo.undo_slot = INVALID_SLOT;
 
-    key->is_deleted = GS_FALSE;
-    key->itl_id = GS_INVALID_ID8;
+    key->is_deleted = CT_FALSE;
+    key->itl_id = CT_INVALID_ID8;
     pcrb_insert_into_page(session, page, key, &redo);
 
     if (IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type) && cursor->logging) {
@@ -1825,11 +1830,11 @@ status_t pcrb_insert_into_shadow(knl_session_t *session, knl_cursor_t *cursor)
     }
 
     pcrb_validate_page(session, &page->head, btree->index);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_atomic_op_end(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t pcrb_need_wait(knl_session_t *session, knl_cursor_t *cursor, btree_page_t *page, pcrb_key_t *key,
@@ -1838,30 +1843,30 @@ static status_t pcrb_need_wait(knl_session_t *session, knl_cursor_t *cursor, btr
     pcr_itl_t *itl = NULL;
     txn_info_t txn_info;
 
-    if (key->itl_id == GS_INVALID_ID8) {
-        return GS_SUCCESS;
+    if (key->itl_id == CT_INVALID_ID8) {
+        return CT_SUCCESS;
     }
 
     itl = pcrb_get_itl(page, key->itl_id);
     if (itl->xid.value == session->rm->xid.value) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    tx_get_pcr_itl_info(session, GS_FALSE, itl, &txn_info);
+    tx_get_pcr_itl_info(session, CT_FALSE, itl, &txn_info);
     if (txn_info.status != (uint8)XACT_END) {
         ROWID_COPY(session->wrid, key->rowid);
         session->wxid = itl->xid;
-        *need_wait = GS_TRUE;
-        return GS_SUCCESS;
+        *need_wait = CT_TRUE;
+        return CT_SUCCESS;
     }
 
     /* transaction has committed, we need to check if it is visible for serializible isolation */
     if (cursor->isolevel == (uint8)ISOLATION_SERIALIZABLE && cursor->query_scn < txn_info.scn) {
-        GS_THROW_ERROR(ERR_SERIALIZE_ACCESS);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SERIALIZE_ACCESS);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t pcrb_enter_delete(knl_session_t *session, knl_cursor_t *cursor, btree_path_info_t *path_info,
@@ -1874,25 +1879,25 @@ static status_t pcrb_enter_delete(knl_session_t *session, knl_cursor_t *cursor, 
     pcrb_key_t *curr_key = NULL;
     pcrb_dir_t *dir = NULL;
     knl_scan_key_t scan_key;
-    bool32 changed = GS_FALSE;
-    bool32 need_wait = GS_FALSE;
+    bool32 changed = CT_FALSE;
+    bool32 need_wait = CT_FALSE;
     btree_find_assist_t find_assist;
 
     btree = CURSOR_BTREE(cursor);
     key = (pcrb_key_t *)cursor->key;
     pcrb_decode_key(INDEX_PROFILE(btree->index), key, &scan_key);
     path_info->part_loc = cursor->part_loc;
-    path_info->get_sibling = GS_FALSE;
+    path_info->get_sibling = CT_FALSE;
 
     for (;;) {
-        changed = GS_FALSE;
+        changed = CT_FALSE;
         log_atomic_op_begin(session);
         btree_init_find_assist(btree, path_info, &scan_key, BTREE_FIND_DELETE, &find_assist);
         (void)pcrb_find_update_pos(session, &find_assist, is_found, &changed, cursor->logging);
         if (find_assist.page_damage) {
             log_atomic_op_end(session);
-            GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, find_assist.page_id.file, find_assist.page_id.page);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, find_assist.page_id.file, find_assist.page_id.page);
+            return CT_ERROR;
         }
 
         page = BTREE_CURR_PAGE(session);
@@ -1904,7 +1909,7 @@ static status_t pcrb_enter_delete(knl_session_t *session, knl_cursor_t *cursor, 
                 buf_leave_page(session, changed);
                 log_atomic_op_end(session);
                 knl_end_itl_waits(session);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             /* this will not happen */
             knl_panic_log(0, "[PCRB] index %s cannot find the key %u-%u-%u to be deleted in page %u-%u",
@@ -1917,11 +1922,11 @@ static status_t pcrb_enter_delete(knl_session_t *session, knl_cursor_t *cursor, 
          * in case of update primary key, we need force delete old key,
          * which has on lock on heap row, so we need to check itl status here
          */
-        if (pcrb_need_wait(session, cursor, page, curr_key, &need_wait) != GS_SUCCESS) {
+        if (pcrb_need_wait(session, cursor, page, curr_key, &need_wait) != CT_SUCCESS) {
             buf_leave_page(session, changed);
             log_atomic_op_end(session);
             knl_end_itl_waits(session);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (need_wait) {
@@ -1929,11 +1934,11 @@ static status_t pcrb_enter_delete(knl_session_t *session, knl_cursor_t *cursor, 
             log_atomic_op_end(session);
             knl_end_itl_waits(session);
             btree->stat.row_lock_waits++;
-            need_wait = GS_FALSE;
+            need_wait = CT_FALSE;
 
-            if (tx_wait(session, session->lock_wait_timeout, ENQ_TX_KEY) != GS_SUCCESS) {
+            if (tx_wait(session, session->lock_wait_timeout, ENQ_TX_KEY) != CT_SUCCESS) {
                 tx_record_rowid(session->wrid);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             continue;
         }
@@ -1944,35 +1949,35 @@ static status_t pcrb_enter_delete(knl_session_t *session, knl_cursor_t *cursor, 
                 log_atomic_op_end(session);
                 knl_end_itl_waits(session);
                 session->rm->idx_conflicts--;
-                *is_found = GS_FALSE;
-                return GS_SUCCESS;
+                *is_found = CT_FALSE;
+                return CT_SUCCESS;
             }
         }
 
         if (btree->is_shadow) {
             if (!IS_SAME_ROWID(curr_key->rowid, cursor->rowid)) {
-                *is_found = GS_FALSE;
+                *is_found = CT_FALSE;
                 buf_leave_page(session, changed);
                 log_atomic_op_end(session);
                 knl_end_itl_waits(session);
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
         }
 
-        if (pcrb_alloc_itl(session, cursor, page, &itl, &changed) != GS_SUCCESS) {
+        if (pcrb_alloc_itl(session, cursor, page, &itl, &changed) != CT_SUCCESS) {
             buf_leave_page(session, changed);
             log_atomic_op_end(session);
             knl_end_itl_waits(session);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (itl == NULL) {
             session->wpid = AS_PAGID(page->head.id);
             buf_leave_page(session, changed);
             log_atomic_op_end(session);
-            if (knl_begin_itl_waits(session, &btree->stat.itl_waits) != GS_SUCCESS) {
+            if (knl_begin_itl_waits(session, &btree->stat.itl_waits) != CT_SUCCESS) {
                 knl_end_itl_waits(session);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             continue;
         }
@@ -1980,7 +1985,7 @@ static status_t pcrb_enter_delete(knl_session_t *session, knl_cursor_t *cursor, 
         break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void pcrb_generate_delete_undo(knl_session_t *session, knl_cursor_t *cursor, pcrb_key_t *old_key,
@@ -1997,8 +2002,8 @@ static void pcrb_generate_delete_undo(knl_session_t *session, knl_cursor_t *curs
     if (IS_PART_INDEX(cursor->index)) {
         part_loc = cursor->part_loc;
     } else {
-        part_loc.part_no = GS_INVALID_ID32;
-        part_loc.subpart_no = GS_INVALID_ID32;
+        part_loc.part_no = CT_INVALID_ID32;
+        part_loc.subpart_no = CT_INVALID_ID32;
     }
 
     undo->data = (char *)cm_push(session->stack, undo->size);
@@ -2022,20 +2027,20 @@ static void pcrb_generate_delete_undo(knl_session_t *session, knl_cursor_t *curs
     undo->type = UNDO_PCRB_DELETE;
     undo->seg_page = btree->entry.page;
     undo->seg_file = btree->entry.file;
-    undo->index_id = (btree->is_shadow) ? GS_SHADOW_INDEX_ID : btree->index->desc.id;
+    undo->index_id = (btree->is_shadow) ? CT_SHADOW_INDEX_ID : btree->index->desc.id;
 
     itl->undo_page = undo_page_info->undo_rid.page_id;
     itl->undo_slot = undo_page_info->undo_rid.slot;
     itl->ssn = (uint32)cursor->ssn;
 
-    undo_write(session, undo, need_redo, GS_FALSE);
+    undo_write(session, undo, need_redo, CT_FALSE);
 
     cm_pop(session->stack);
 }
 
 static inline void pcrb_leave_delete(knl_session_t *session)
 {
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 }
 
@@ -2055,16 +2060,16 @@ status_t pcrb_do_delete(knl_session_t *session, knl_cursor_t *cursor, bool32 *is
     bool32 need_encrypt = SPACE_NEED_ENCRYPT(btree->cipher_reserve_size);
     /* We prepare two undo rows (itl undo and insert undo) */
     if (undo_multi_prepare(session, 2, sizeof(xid_t) + undo.size, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type),
-                           need_encrypt) != GS_SUCCESS) {
-        return GS_ERROR;
+                           need_encrypt) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (pcrb_enter_delete(session, cursor, &path_info, is_found) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (pcrb_enter_delete(session, cursor, &path_info, is_found) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!(*is_found)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     btree_page_t *page = BTREE_CURR_PAGE(session);
@@ -2092,14 +2097,14 @@ status_t pcrb_do_delete(knl_session_t *session, knl_cursor_t *cursor, bool32 *is
     pcrb_generate_delete_undo(session, cursor, old_key, &undo);
 
     old_key->itl_id = session->itl_id;
-    old_key->is_deleted = GS_TRUE;
+    old_key->is_deleted = CT_TRUE;
 
     if (need_redo) {
         log_put(session, RD_PCRB_DELETE, &redo, sizeof(rd_pcrb_delete_t), LOG_ENTRY_FLAG_NONE);
     }
     pcrb_leave_delete(session);
 
-    if (cursor->reused_xid != GS_INVALID_ID64 && !IS_INVALID_PAGID(next_pid)) {
+    if (cursor->reused_xid != CT_INVALID_ID64 && !IS_INVALID_PAGID(next_pid)) {
         (void)pcrb_clean_copied_itl(session, cursor->reused_xid, next_pid);
     }
 
@@ -2108,35 +2113,35 @@ status_t pcrb_do_delete(knl_session_t *session, knl_cursor_t *cursor, bool32 *is
         btree_try_notify_recycle(session, btree, cursor->part_loc);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t pcrb_delete(knl_session_t *session, knl_cursor_t *cursor)
 {
     btree_t *btree = NULL;
-    bool32 is_found = GS_FALSE;
+    bool32 is_found = CT_FALSE;
 
-    if (pcrb_do_delete(session, cursor, &is_found) != GS_SUCCESS) {
+    if (pcrb_do_delete(session, cursor, &is_found) != CT_SUCCESS) {
         btree = CURSOR_BTREE(cursor);
         if (!btree->is_shadow || is_found) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (pcrb_insert_into_shadow(session, cursor) != GS_SUCCESS) {
+        if (pcrb_insert_into_shadow(session, cursor) != CT_SUCCESS) {
             int32 code = cm_get_error_code();
             if (code != ERR_DUPLICATE_KEY) {
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             cm_reset_error();
         }
 
-        if (pcrb_do_delete(session, cursor, &is_found) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (pcrb_do_delete(session, cursor, &is_found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -2157,7 +2162,7 @@ uint8 pcrb_copy_itl(knl_session_t *session, pcr_itl_t *src_itl, btree_page_t *ds
     }
 
     slot = pcrb_new_itl(session, dst_page);
-    knl_panic_log(slot != GS_INVALID_ID8, "the slot is invalid, panic info: page %u-%u type %u",
+    knl_panic_log(slot != CT_INVALID_ID8, "the slot is invalid, panic info: page %u-%u type %u",
                   AS_PAGID(dst_page->head.id).file, AS_PAGID(dst_page->head.id).page, dst_page->head.type);
     dst_itl = pcrb_get_itl(dst_page, slot);
 
@@ -2187,7 +2192,7 @@ static void pcrb_move_keys(knl_session_t *session, btree_page_t *src_page, btree
     if (pos < src_page->keys) {
         for (i = 0; i < src_page->itls; i++) {
             pcr_itl_t *itl = pcrb_get_itl(src_page, i);
-            tx_get_pcr_itl_info(session, GS_FALSE, itl, &txn_info);
+            tx_get_pcr_itl_info(session, CT_FALSE, itl, &txn_info);
 
             itl_map[i] = pcrb_copy_itl(session, itl, dst_page);
             if (need_redo) {
@@ -2201,11 +2206,11 @@ static void pcrb_move_keys(knl_session_t *session, btree_page_t *src_page, btree
         pcrb_key_t *src_key = PCRB_GET_KEY(src_page, src_dir);
 
         pcrb_key_t *new_key = (pcrb_key_t *)((char *)dst_page + dst_page->free_begin);
-        errno_t ret = memcpy_sp(new_key, GS_KEY_BUF_SIZE, src_key, (size_t)src_key->size);
+        errno_t ret = memcpy_sp(new_key, CT_KEY_BUF_SIZE, src_key, (size_t)src_key->size);
         knl_securec_check(ret);
 
         /* link copy key to copied itl_id */
-        if (src_key->itl_id != GS_INVALID_ID8) {
+        if (src_key->itl_id != CT_INVALID_ID8) {
             new_key->itl_id = itl_map[src_key->itl_id];
         }
 
@@ -2224,7 +2229,7 @@ static void pcrb_move_keys(knl_session_t *session, btree_page_t *src_page, btree
 
         if (!src_key->is_cleaned) {
             src_page->free_size += ((uint16)src_key->size + sizeof(pcrb_dir_t));
-            src_key->is_cleaned = (uint16)GS_TRUE;
+            src_key->is_cleaned = (uint16)CT_TRUE;
         }
     }
 
@@ -2255,7 +2260,7 @@ static void pcrb_insert_new_node(knl_session_t *session, btree_path_info_t *path
     path->slot = 0;
     SET_ROWID_PAGE(path, AS_PAGID(dst_page->head.id));
     /* get dst_page's first key to insert into high level branch */
-    ret = memcpy_sp(new_key, GS_KEY_BUF_SIZE, insert_key, (size_t)insert_key->size);
+    ret = memcpy_sp(new_key, CT_KEY_BUF_SIZE, insert_key, (size_t)insert_key->size);
     knl_securec_check(ret);
 
     if (level == 0) {
@@ -2263,8 +2268,8 @@ static void pcrb_insert_new_node(knl_session_t *session, btree_path_info_t *path
             return;
         }
 
-        insert_key->is_deleted = GS_TRUE;
-        insert_key->itl_id = GS_INVALID_ID8;
+        insert_key->is_deleted = CT_TRUE;
+        insert_key->itl_id = CT_INVALID_ID8;
     }
 
     redo.slot = (uint16)path->slot;
@@ -2281,7 +2286,7 @@ static void pcrb_insert_new_node(knl_session_t *session, btree_path_info_t *path
     }
 
     insert_key->itl_id = old_itl_id;
-    insert_key->is_deleted = GS_FALSE;
+    insert_key->is_deleted = CT_FALSE;
 }
 
 static uint16 pcrb_calc_split_pos(knl_session_t *session, btree_t *btree, btree_page_t *src_page, btree_path_info_t *path_info,
@@ -2296,7 +2301,7 @@ static uint16 pcrb_calc_split_pos(knl_session_t *session, btree_t *btree, btree_
     uint16 level = src_page->level;
     uint8 cipher_reserve_size = btree->cipher_reserve_size;
     rowid_t *path = path_info->path;
-    path_info->is_empty_newnode = GS_FALSE;
+    path_info->is_empty_newnode = CT_FALSE;
 
     dst_capacity = BTREE_SPLIT_PAGE_SIZE - sizeof(btree_page_t) - sizeof(page_tail_t) - cipher_reserve_size -
                    sizeof(pcr_itl_t) * src_page->itls;
@@ -2362,7 +2367,7 @@ static uint16 pcrb_calc_split_pos(knl_session_t *session, btree_t *btree, btree_
         }
 
         if (pos == path[level].slot) {
-            *new_node = GS_TRUE;
+            *new_node = CT_TRUE;
         } else {
             pos = ((path[level].slot > pos) ? pos : (pos - 1));
         }
@@ -2383,9 +2388,9 @@ static void pcrb_split_normal(knl_session_t *session, btree_page_t *src_page, bt
     rd_btree_clean_keys_t redo;
     rowid_t *path = path_info->path;
 
-    uint8 *itl_map = (uint8 *)cm_push(session->stack, GS_MAX_TRANS * sizeof(uint8));
+    uint8 *itl_map = (uint8 *)cm_push(session->stack, CT_MAX_TRANS * sizeof(uint8));
     if (level == 0) {
-        ret = memset_sp(itl_map, GS_MAX_TRANS, GS_INVALID_ID8, GS_MAX_TRANS);
+        ret = memset_sp(itl_map, CT_MAX_TRANS, CT_INVALID_ID8, CT_MAX_TRANS);
         knl_securec_check(ret);
     }
 
@@ -2401,11 +2406,11 @@ static void pcrb_split_normal(knl_session_t *session, btree_page_t *src_page, bt
         /* get dst_page's first key to insert into high level branch */
         pcrb_dir_t *dir = pcrb_get_dir(dst_page, 0);
         pcrb_key_t *key = PCRB_GET_KEY(dst_page, dir);
-        ret = memcpy_sp(new_key, GS_KEY_BUF_SIZE, key, (size_t)key->size);
+        ret = memcpy_sp(new_key, CT_KEY_BUF_SIZE, key, (size_t)key->size);
         knl_securec_check(ret);
     }
 
-    buf_leave_page(session, GS_TRUE); /* leave dst page */
+    buf_leave_page(session, CT_TRUE); /* leave dst page */
 
     redo.keys = src_page->keys;
     redo.free_size = src_page->free_size;
@@ -2415,7 +2420,7 @@ static void pcrb_split_normal(knl_session_t *session, btree_page_t *src_page, bt
 
     if (level == 0) {
         for (i = 0; i < src_page->itls; i++) {
-            if (itl_map[i] != GS_INVALID_ID8) {
+            if (itl_map[i] != CT_INVALID_ID8) {
                 pcr_itl_t *itl = pcrb_get_itl(src_page, i);
                 itl->is_copied = 1;
             }
@@ -2431,8 +2436,8 @@ static inline void pcrb_copy_root_page(knl_session_t *session, knl_cursor_t *cur
 {
     btree_copy_root_page(session, btree, page);
 
-    if (DB_IS_CLUSTER(session)) {
-        knl_try_begin_session_wait(session, BROADCAST_ROOT_PAGE, GS_TRUE);
+    if (DB_IS_CLUSTER(session) && !btree->is_shadow) {
+        knl_begin_session_wait(session, BROADCAST_ROOT_PAGE, CT_TRUE);
         dtc_btree_broadcast_root_page(session, btree, page, cursor->part_loc);
     }
 }
@@ -2446,14 +2451,14 @@ static void pcrb_resend_copy_root_page(knl_session_t *session, uint64 resend_bit
     btree_page_t *page = (btree_page_t *)(item->page);
     page_id_t page_id = AS_PAGID(page->head.id);
     mes_init_send_head(&bcast.head, MES_CMD_BTREE_ROOT_PAGE, sizeof(msg_btree_broadcast_t) + DEFAULT_PAGE_SIZE(session),
-        GS_INVALID_ID32, session->kernel->id, GS_INVALID_ID8, session->id, GS_INVALID_ID16);
+        CT_INVALID_ID32, session->kernel->id, CT_INVALID_ID8, session->id, CT_INVALID_ID16);
     bcast.table_id = btree->index->desc.table_id;
     bcast.uid = btree->index->desc.uid;
     bcast.index_id = btree->index->desc.id;
     bcast.part_loc = part_loc;
     bcast.is_shadow = btree->is_shadow;
 
-    GS_LOG_RUN_INF("[DTC] session %u resend root page[%u-%u] bitmap %llu, rsn %u, pcn %u, table-uid-index[%u-%u-%u]",
+    CT_LOG_RUN_INF("[DTC] session %u resend root page[%u-%u] bitmap %llu, rsn %u, pcn %u, table-uid-index[%u-%u-%u]",
         session->id, page_id.file, page_id.page, resend_bitmap, bcast.head.rsn, page->head.pcn,
         btree->index->desc.table_id, btree->index->desc.uid, btree->index->desc.id);
 
@@ -2466,13 +2471,13 @@ static inline void pcrb_wait_copy_root_page(knl_session_t *session, btree_t *btr
     if (DB_IS_CLUSTER(session)) {
         uint64 resend_bitmap = 0;
         status_t ret = mes_wait_acks_new(session->id, ROOT_PAGE_WAIT_ACK_TIMEOUT, &resend_bitmap);
-        if (ret == GS_SUCCESS) {
-            knl_try_end_session_wait(session, BROADCAST_ROOT_PAGE);
+        if (ret == CT_SUCCESS) {
+            knl_end_session_wait(session, BROADCAST_ROOT_PAGE);
             return;
         }
 
         pcrb_resend_copy_root_page(session, resend_bitmap, btree, part_loc);
-        knl_try_end_session_wait(session, BROADCAST_ROOT_PAGE);
+        knl_end_session_wait(session, BROADCAST_ROOT_PAGE);
     }
 }
 
@@ -2491,11 +2496,11 @@ static void pcrb_increase_level(knl_session_t *session, knl_cursor_t *cursor, bt
     buf_enter_page(session, alloc_assist.new_pageid, LATCH_MODE_X, options);
     btree_page_t *page = BTREE_CURR_PAGE(session);
     btree_format_page(session, segment, alloc_assist.new_pageid, (uint32)tree_info.level, (uint8)page->head.ext_size,
-        alloc_assist.type == BTREE_ALLOC_NEW_PAGE ? GS_FALSE : GS_TRUE);
+        alloc_assist.type == BTREE_ALLOC_NEW_PAGE ? CT_FALSE : CT_TRUE);
 
     /* insert left key */
     pcrb_key_t *key = (pcrb_key_t *)((char *)page + page->free_begin);
-    errno_t ret = memcpy_sp(key, GS_KEY_BUF_SIZE, key1, (size_t)key1->size);
+    errno_t ret = memcpy_sp(key, CT_KEY_BUF_SIZE, key1, (size_t)key1->size);
     knl_securec_check(ret);
 
     pcrb_dir_t *dir = pcrb_get_dir(page, page->keys);
@@ -2513,7 +2518,7 @@ static void pcrb_increase_level(knl_session_t *session, knl_cursor_t *cursor, bt
 
     /* insert right key */
     key = (pcrb_key_t *)((char *)page + page->free_begin);
-    ret = memcpy_sp(key, GS_KEY_BUF_SIZE, key2, (size_t)key2->size);
+    ret = memcpy_sp(key, CT_KEY_BUF_SIZE, key2, (size_t)key2->size);
     knl_securec_check(ret);
 
     dir = pcrb_get_dir(page, page->keys);
@@ -2530,7 +2535,7 @@ static void pcrb_increase_level(knl_session_t *session, knl_cursor_t *cursor, bt
 
     pcrb_copy_root_page(session, cursor, btree, page);
     pcrb_validate_page(session, &page->head, btree->index);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     buf_enter_page(session, btree->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
 
@@ -2542,7 +2547,7 @@ static void pcrb_increase_level(knl_session_t *session, knl_cursor_t *cursor, bt
     if (need_redo) {
         log_put(session, RD_BTREE_CHANGE_SEG, segment, sizeof(btree_segment_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 static void pcrb_split_page(knl_session_t *session, knl_cursor_t *cursor, pcrb_key_t *insert_key,
@@ -2567,8 +2572,8 @@ static void pcrb_insert_into_parent(knl_session_t *session, knl_cursor_t *cursor
 
     /* current level page is not enough, need to split again */
     if (page->free_size < PCRB_COST_SIZE(key)) {
-        buf_leave_page(session, GS_FALSE);
-        pcrb_split_page(session, cursor, key, path_info, level, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
+        pcrb_split_page(session, cursor, key, path_info, level, CT_FALSE);
         // insert the key in pcrb move new node
         if (path[level].slot == 0) {
             return;
@@ -2617,7 +2622,7 @@ static void pcrb_insert_into_parent(knl_session_t *session, knl_cursor_t *cursor
     }
 
     pcrb_validate_page(session, &page->head, btree->index);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 static void pcrb_split_remove_partid(knl_cursor_t *cursor, pcrb_key_t *src_key, pcrb_key_t *new_key)
@@ -2633,6 +2638,16 @@ static void pcrb_split_remove_partid(knl_cursor_t *cursor, pcrb_key_t *src_key, 
             pcrb_remove_part_id(new_key);
         }
     }
+}
+
+static bool32 is_include_null_in_unique_key(index_t *index, pcrb_key_t * key)
+{
+    knl_index_desc_t *index_desc = &(index->desc);
+    if (!IS_COMPATIBLE_MYSQL_INST || index->desc.primary ||
+        dc_is_reserved_entry(index_desc->uid, index_desc->table_id)) {
+        return CT_FALSE;
+    }
+    return ((uint16)(~key->bitmap) & (uint16)(0xFFFF << (16 - index_desc->column_count)));
 }
 
 static void pcrb_split_page(knl_session_t *session, knl_cursor_t *cursor, pcrb_key_t *insert_key,
@@ -2653,7 +2668,7 @@ static void pcrb_split_page(knl_session_t *session, knl_cursor_t *cursor, pcrb_k
     errno_t err;
     btree_alloc_assist_t alloc_assist;
     bool32 need_redo = IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type);
-    bool32 new_node = GS_FALSE;
+    bool32 new_node = CT_FALSE;
     uint8 options;
 
     btree = CURSOR_BTREE(cursor);
@@ -2661,8 +2676,8 @@ static void pcrb_split_page(knl_session_t *session, knl_cursor_t *cursor, pcrb_k
 
     CM_SAVE_STACK(session->stack);
 
-    src_key = (pcrb_key_t *)cm_push(session->stack, GS_KEY_BUF_SIZE);
-    new_key = (pcrb_key_t *)cm_push(session->stack, GS_KEY_BUF_SIZE);
+    src_key = (pcrb_key_t *)cm_push(session->stack, CT_KEY_BUF_SIZE);
+    new_key = (pcrb_key_t *)cm_push(session->stack, CT_KEY_BUF_SIZE);
 
     src_page_id = GET_ROWID_PAGE(path[level]);
     bt_all_pageid(session, btree, &alloc_assist);
@@ -2672,7 +2687,7 @@ static void pcrb_split_page(knl_session_t *session, knl_cursor_t *cursor, pcrb_k
     buf_enter_page(session, src_page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     src_page = BTREE_CURR_PAGE(session);
     if (level == 0 && src_page->head.lsn != path_info->leaf_lsn) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         CM_RESTORE_STACK(session->stack);
         return;
     }
@@ -2686,7 +2701,7 @@ static void pcrb_split_page(knl_session_t *session, knl_cursor_t *cursor, pcrb_k
             /* log the prev and next page meanwhile */
             log_put(session, RD_BTREE_CHANGE_CHAIN, &next_page->prev, sizeof(page_id_t) * 2, LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     }
 
     /* if new page is a recycled page enter_page_no_read will erase page->head.next_ext */
@@ -2694,7 +2709,7 @@ static void pcrb_split_page(knl_session_t *session, knl_cursor_t *cursor, pcrb_k
     buf_enter_page(session, alloc_assist.new_pageid, LATCH_MODE_X, options);
     dst_page = BTREE_CURR_PAGE(session);
     btree_format_page(session, segment, alloc_assist.new_pageid, level, (uint8)dst_page->head.ext_size,
-                      (alloc_assist.type == BTREE_ALLOC_NEW_PAGE) ? GS_FALSE : GS_TRUE);
+                      (alloc_assist.type == BTREE_ALLOC_NEW_PAGE) ? CT_FALSE : CT_TRUE);
     TO_PAGID_DATA(src_page_id, dst_page->prev);
     TO_PAGID_DATA(next_page_id, dst_page->next);
     if (need_redo) {
@@ -2713,10 +2728,10 @@ static void pcrb_split_page(knl_session_t *session, knl_cursor_t *cursor, pcrb_k
 
     dir = pcrb_get_dir(src_page, 0);
     key = PCRB_GET_KEY(src_page, dir);
-    err = memcpy_sp(src_key, GS_KEY_BUF_SIZE, key, (size_t)key->size);
+    err = memcpy_sp(src_key, CT_KEY_BUF_SIZE, key, (size_t)key->size);
     knl_securec_check(err);
     pcrb_validate_page(session, &src_page->head, btree->index);
-    buf_leave_page(session, GS_TRUE);  // src_page
+    buf_leave_page(session, CT_TRUE);  // src_page
 
     bt_all_page(session, btree, &alloc_assist);
     page_id_t alloced_page = alloc_assist.new_pageid;
@@ -2727,8 +2742,8 @@ static void pcrb_split_page(knl_session_t *session, knl_cursor_t *cursor, pcrb_k
         btree->chg_stats.alloc_pages++;
     }
 
-    new_key->is_cleaned = GS_FALSE;
-    new_key->is_deleted = GS_FALSE;
+    new_key->is_cleaned = CT_FALSE;
+    new_key->is_deleted = CT_FALSE;
 
     if (level == 0) {
         /*
@@ -2736,9 +2751,12 @@ static void pcrb_split_page(knl_session_t *session, knl_cursor_t *cursor, pcrb_k
          * null keys have compared rowid.
          */
         if (IS_UNIQUE_PRIMARY_INDEX(btree->index) && !BTREE_KEY_IS_NULL(new_key)) {
-            MINIMIZE_ROWID(new_key->rowid);
-            if ((level == segment->tree_info.level - 1) && !BTREE_KEY_IS_NULL(src_key)) {
-                MINIMIZE_ROWID(src_key->rowid);
+            bool32 include_null = is_include_null_in_unique_key(btree->index, new_key);
+            if (!include_null) {
+                MINIMIZE_ROWID(new_key->rowid);
+                if ((level == segment->tree_info.level - 1) && !BTREE_KEY_IS_NULL(src_key)) {
+                    MINIMIZE_ROWID(src_key->rowid);
+                }
             }
         }
 
@@ -2752,12 +2770,12 @@ static void pcrb_split_page(knl_session_t *session, knl_cursor_t *cursor, pcrb_k
         pcrb_set_child(new_key, alloc_assist.new_pageid);
     }
 
-    new_key->itl_id = GS_INVALID_ID8;
+    new_key->itl_id = CT_INVALID_ID8;
 
     if (SECUREC_UNLIKELY(level == segment->tree_info.level - 1)) {
-        src_key->is_cleaned = GS_FALSE;
-        src_key->is_deleted = GS_FALSE;
-        src_key->itl_id = GS_INVALID_ID8;
+        src_key->is_cleaned = CT_FALSE;
+        src_key->is_deleted = CT_FALSE;
+        src_key->itl_id = CT_INVALID_ID8;
         pcrb_increase_level(session, cursor, btree, src_key, new_key);
     } else {
         pcrb_insert_into_parent(session, cursor, new_key, path_info, level + 1);
@@ -2766,53 +2784,15 @@ static void pcrb_split_page(knl_session_t *session, knl_cursor_t *cursor, pcrb_k
     CM_RESTORE_STACK(session->stack);
 }
 
-static status_t pcrb_try_clean_spilt_status(knl_session_t *session, knl_cursor_t *cursor, btree_t *btree)
-{
-    status_t ret =  GS_SUCCESS;
-    btree->wait_ticks++;
-    cm_spin_sleep();
-    if (btree->wait_ticks > MAX_WAIT_TICKS && btree->split_owner != session->kernel->id) {
-        GS_LOG_RUN_WAR("[DTC] start clean btree split status, is_splitting %u, split_owner %u, "
-            "wait_ticks %u", btree->is_splitting, btree->split_owner, btree->wait_ticks);
-        cluster_view_t view;
-        rc_get_cluster_view(&view, GS_TRUE);
-        uint64 alive_inst = view.bitmap;
-        bool8 need_clean = GS_FALSE;
-        if (!rc_bitmap64_exist(&alive_inst, btree->split_owner)) {
-            need_clean = btree->is_splitting;
-        } else {
-            // ask split_owner for the current splitting status
-            bool8 is_splitting = GS_FALSE;
-            ret = dtc_get_btree_split_status(session, btree, cursor->part_loc, &is_splitting);
-            need_clean = (ret == GS_SUCCESS) && (is_splitting == GS_FALSE);
-        }
-        if (need_clean) {
-            btree->is_splitting = GS_FALSE;
-            btree->split_owner = GS_INVALID_ID8;
-            btree->wait_ticks = 0;
-            ret = dtc_broadcast_btree_split(session, btree, cursor->part_loc, GS_FALSE);
-            if (ret != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("[DTC][btree split clean status] pcrb failed to broadcast clean btree split status"
-                    ", uid/table_id/index_id/part:[%d-%d-%d-%u-%u], struct version:%llu, btree->is_splitting:%u"
-                    ", btree->split_owner:%u", btree->index->desc.uid, btree->index->desc.table_id,
-                    btree->index->desc.id, cursor->part_loc.part_no, cursor->part_loc.subpart_no,
-                    btree->struct_ver, btree->is_splitting, btree->split_owner);
-                return ret;
-            }
-        }
-    }
-    return ret;
-}
-
 static status_t pcrb_try_split_page(knl_session_t *session, knl_cursor_t *cursor, btree_path_info_t *path_info,
-                                    int64 version, bool32 use_pct)
+                                    int64 version, bool32 use_pct, uint64 trigger_version)
 {
     btree_t *btree;
     btree_segment_t *segment = NULL;
     page_id_t extent;
     int64 struct_ver;
     volatile char *old_root_copy = NULL;
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
 
     btree = CURSOR_BTREE(cursor);
 
@@ -2822,55 +2802,39 @@ static status_t pcrb_try_split_page(knl_session_t *session, knl_cursor_t *cursor
      * In case of struct version is the same but btree is splitting,
      * which means the version might be changed soon btree->is_splitting
      * makes sure there is only one thread doing split.
+     *
+     * when occur reform, remaster will clean dls owner, request could get dls without release owner,
+     * because btree version++ in the process of release owner, so in this case, it uses old btree version,
+     * need rescan.
      */
     struct_ver = cm_atomic_get(&btree->struct_ver);
-    if (struct_ver != version || btree->is_splitting) {
-        ret = pcrb_try_clean_spilt_status(session, cursor, btree);
+    if (struct_ver != version || btree->is_splitting || trigger_version != DRC_GET_CURR_REFORM_VERSION) {
         dls_unlatch(session, &btree->struct_latch, &session->stat_btree);
-        return ret;
+        return CT_SUCCESS;
     }
 
-    btree->is_splitting = GS_TRUE;
+    btree->is_splitting = CT_TRUE;
     segment = BTREE_SEGMENT(session, btree->entry, btree->segment);
     /* make sure segment free pages enough, avoid no free page error occurred during splitting */
     if (btree_need_extend(session, segment)) {
-        if (DB_IS_CLUSTER(session)) {
-            ret = dtc_broadcast_btree_split(session, btree, cursor->part_loc, GS_FALSE);
-            if (ret != GS_SUCCESS) {
-                btree->is_splitting = GS_FALSE;
-                btree->wait_ticks = 0;
-                dls_unlatch(session, &btree->struct_latch, &session->stat_btree);
-                return ret;
-            }
-        }
         dls_unlatch(session, &btree->struct_latch, &session->stat_btree);
         log_atomic_op_begin(session);
 
         space_t *space = SPACE_GET(session, segment->space_id);
         uint32 extent_size = spc_get_ext_size(space, segment->extents.count);
-        bool32 is_degrade = GS_FALSE;
-        ret = GS_SUCCESS;
-        SYNC_POINT_GLOBAL_START(CANTIAN_BTREE_SPLIT_ALLOC_EXTENT_FAIL, &ret, GS_ERROR);
-        ret = spc_try_alloc_extent(session, space, &extent, &extent_size, &is_degrade, GS_FALSE);
+        bool32 is_degrade = CT_FALSE;
+        ret = CT_SUCCESS;
+        SYNC_POINT_GLOBAL_START(CANTIAN_BTREE_SPLIT_ALLOC_EXTENT_FAIL, &ret, CT_ERROR);
+        ret = spc_try_alloc_extent(session, space, &extent, &extent_size, &is_degrade, CT_FALSE);
         SYNC_POINT_GLOBAL_END;
-        if (ret != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+        if (ret != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
             log_atomic_op_end(session);
             dls_latch_x(session, &btree->struct_latch, session->id, &session->stat_btree);
-            btree->is_splitting = GS_FALSE;
+            btree->is_splitting = CT_FALSE;
             btree->wait_ticks = 0;
-            if (DB_IS_CLUSTER(session)) {
-                ret = dtc_broadcast_btree_split(session, btree, cursor->part_loc, GS_FALSE);
-                if (ret != GS_SUCCESS) {
-                    knl_panic_log(
-                        0,
-                        "[DTC] pcrb failed to broadcast btree split info, abort, uid/table_id/index_id/part:[%d-%d-%d-%u-%u], struct version:%llu",
-                        btree->index->desc.uid, btree->index->desc.table_id, btree->index->desc.id,
-                        cursor->part_loc.part_no, cursor->part_loc.subpart_no, btree->struct_ver);
-                }
-            }
             dls_unlatch(session, &btree->struct_latch, &session->stat_btree);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         btree_concat_extent(session, btree, extent, extent_size, is_degrade);
@@ -2882,36 +2846,27 @@ static status_t pcrb_try_split_page(knl_session_t *session, knl_cursor_t *cursor
     log_atomic_op_begin(session);
     pcrb_split_page(session, cursor, (pcrb_key_t *)cursor->key, path_info, 0, use_pct);
     struct_ver = btree->struct_ver + 1;
+    btree->pre_struct_ver = btree->struct_ver;
     (void)cm_atomic_set(&btree->struct_ver, struct_ver);
-    btree->is_splitting = GS_FALSE;
+    btree->is_splitting = CT_FALSE;
     btree->wait_ticks = 0;
     log_atomic_op_end(session);
 
     if (DB_IS_CLUSTER(session)) {
-        if (old_root_copy != btree->root_copy) {
+        if (old_root_copy != btree->root_copy && !btree->is_shadow) {
             pcrb_wait_copy_root_page(session, btree, cursor->part_loc);
-        }
-        ret = dtc_broadcast_btree_split(session, btree, cursor->part_loc, GS_TRUE);
-        if (ret != GS_SUCCESS) {
-            dls_unlatch(session, &btree->struct_latch, &session->stat_btree);
-            knl_panic_log(
-                0,
-                "[DTC] pcrb failed to broadcast btree split info, abort, uid/table_id/index_id/part:[%d-%d-%d-%u-%u], struct version:%llu",
-                btree->index->desc.uid, btree->index->desc.table_id, btree->index->desc.id, cursor->part_loc.part_no,
-                cursor->part_loc.subpart_no, btree->struct_ver);
-            return ret;
         }
     }
 
     dls_unlatch(session, &btree->struct_latch, &session->stat_btree);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void pcrb_clean_lock(knl_session_t *session, lock_item_t *lock)
 {
     rd_pcrb_clean_itl_t redo;
-    uint64 itl_xid = GS_INVALID_ID64;
+    uint64 itl_xid = CT_INVALID_ID64;
     uint8 option = !session->kernel->attr.delay_cleanout ? ENTER_PAGE_NORMAL : (ENTER_PAGE_NORMAL | ENTER_PAGE_TRY);
 
     log_atomic_op_begin(session);
@@ -2927,26 +2882,26 @@ void pcrb_clean_lock(knl_session_t *session, lock_item_t *lock)
     page_id_t next_pagid = AS_PAGID(page->next);
 
     if (lock->itl >= page->itls) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
 
     pcr_itl_t *itl = pcrb_get_itl(page, lock->itl);
     if (!itl->is_active || itl->xid.value != session->rm->xid.value) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
 
     if (itl->is_copied) {
-        itl->is_copied = GS_FALSE;
+        itl->is_copied = CT_FALSE;
         itl_xid = itl->xid.value;
     }
 
-    itl->is_active = GS_FALSE;
+    itl->is_active = CT_FALSE;
     itl->scn = session->rm->txn->scn;
-    itl->is_owscn = GS_FALSE;
+    itl->is_owscn = CT_FALSE;
 
     if (page->scn < itl->scn) {
         page->scn = itl->scn;
@@ -2954,16 +2909,16 @@ void pcrb_clean_lock(knl_session_t *session, lock_item_t *lock)
 
     redo.itl_id = lock->itl;
     redo.scn = itl->scn;
-    redo.is_owscn = GS_FALSE;
-    redo.is_copied = GS_FALSE;
+    redo.is_owscn = CT_FALSE;
+    redo.is_copied = CT_FALSE;
     redo.aligned = (uint8)0;
     if (SPC_IS_LOGGING_BY_PAGEID(session, page_id)) {
         log_put(session, RD_PCRB_CLEAN_ITL, &redo, sizeof(rd_pcrb_clean_itl_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 
-    if (itl_xid == GS_INVALID_ID64) {
+    if (itl_xid == CT_INVALID_ID64) {
         return;
     }
 
@@ -2990,7 +2945,7 @@ void pcrb_undo_itl(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_p
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     page = BTREE_CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -3004,13 +2959,13 @@ void pcrb_undo_itl(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_p
     itl->is_owscn = ud_row->is_owscn;
     itl->undo_page = ud_row->prev_page;
     itl->undo_slot = ud_row->prev_slot;
-    itl->is_active = GS_FALSE;
+    itl->is_active = CT_FALSE;
 
     if (SPC_IS_LOGGING_BY_PAGEID(session, page_id)) {
         log_put(session, RD_PCRB_UNDO_ITL, itl, sizeof(pcr_itl_t), LOG_ENTRY_FLAG_NONE);
         log_append_data(session, &itl_id, sizeof(uint8));
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 static void pcrb_undo_insert_key(knl_session_t *session, btree_t *btree, pcrb_key_t *ud_key,
@@ -3019,7 +2974,7 @@ static void pcrb_undo_insert_key(knl_session_t *session, btree_t *btree, pcrb_ke
     btree_page_t *page = BTREE_CURR_PAGE(session);
     pcrb_dir_t *dir = pcrb_get_dir(page, (uint32)redo->slot);
     pcrb_key_t *key = PCRB_GET_KEY(page, dir);
-    knl_panic_log(key->itl_id != GS_INVALID_ID8, "key's itl_id is invalid, panic info: page %u-%u type %u, index %s",
+    knl_panic_log(key->itl_id != CT_INVALID_ID8, "key's itl_id is invalid, panic info: page %u-%u type %u, index %s",
                   AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.type,
                   ((index_t *)btree->index)->desc.name);
     knl_panic_log(!key->is_deleted, "key is deleted, panic info: page %u-%u type %u index %s",
@@ -3036,7 +2991,7 @@ static void pcrb_undo_insert_key(knl_session_t *session, btree_t *btree, pcrb_ke
     itl->undo_slot = redo->undo_slot;
 
     if (redo->is_xfirst) {
-        key->itl_id = GS_INVALID_ID8;
+        key->itl_id = CT_INVALID_ID8;
     }
 
     if (SPC_IS_LOGGING_BY_PAGEID(session, btree->entry)) {
@@ -3049,8 +3004,8 @@ void pcrb_undo_insert(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
                       knl_dictionary_t *dc)
 {
     knl_scan_key_t scan_key;
-    bool32 is_same = GS_FALSE;
-    bool32 compact_leaf = GS_FALSE;
+    bool32 is_same = CT_FALSE;
+    bool32 compact_leaf = CT_FALSE;
     btree_path_info_t path_info;
     rd_pcrb_undo_t redo;
     knl_part_locate_t part_loc;
@@ -3061,7 +3016,7 @@ void pcrb_undo_insert(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
         part_loc = *(knl_part_locate_t *)(ud_row->data + ud_key->size);
     } else {
         part_loc.part_no = *(uint32 *)(ud_row->data + ud_key->size);
-        part_loc.subpart_no = GS_INVALID_ID32;
+        part_loc.subpart_no = CT_INVALID_ID32;
     }
     
     btree_t *btree = btree_get_handle_by_undo(session, dc, part_loc, (char *)ud_row);
@@ -3071,9 +3026,9 @@ void pcrb_undo_insert(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
 
     pcrb_decode_key(INDEX_PROFILE(btree->index), ud_key, &scan_key);
     path_info.part_loc = part_loc;
-    path_info.get_sibling = GS_FALSE;
+    path_info.get_sibling = CT_FALSE;
     btree_init_find_assist(btree, &path_info, &scan_key, BTREE_FIND_DELETE, &find_assist);
-    (void)pcrb_find_update_pos(session, &find_assist, &is_same, &compact_leaf, GS_TRUE);
+    (void)pcrb_find_update_pos(session, &find_assist, &is_same, &compact_leaf, CT_TRUE);
     if (find_assist.page_damage) {
         return;
     }
@@ -3089,20 +3044,20 @@ void pcrb_undo_insert(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
     redo.undo_page = ud_row->prev_page;
     redo.undo_slot = ud_row->prev_slot;
     pcrb_undo_insert_key(session, btree, ud_key, &redo);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 void pcrb_undo_batch_insert(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot,
                             knl_dictionary_t *dc)
 {
-    bool32 is_same = GS_FALSE;
-    bool32 compact_leaf = GS_FALSE;
+    bool32 is_same = CT_FALSE;
+    bool32 compact_leaf = CT_FALSE;
     knl_scan_key_t scan_key;
     btree_path_info_t path_info;
     rd_pcrb_undo_t redo;
     pcrb_undo_batch_insert_t *ud_batch = (pcrb_undo_batch_insert_t *)ud_row->data;
     path_info.part_loc = ud_batch->part_loc;
-    path_info.get_sibling = GS_FALSE;
+    path_info.get_sibling = CT_FALSE;
 
     btree_t *btree = btree_get_handle_by_undo(session, dc, path_info.part_loc, (char *)ud_row);
     if (btree == NULL) {
@@ -3111,7 +3066,7 @@ void pcrb_undo_batch_insert(knl_session_t *session, undo_row_t *ud_row, undo_pag
 
     btree_find_assist_t find_assist;
     uint16 offset = 0;
-    bool32 find_page = GS_FALSE;
+    bool32 find_page = CT_FALSE;
     bool32 cmp_rowid = !IS_UNIQUE_PRIMARY_INDEX(btree->index);
     btree_page_t *page = NULL;
     uint16 keys = 0;
@@ -3127,32 +3082,32 @@ void pcrb_undo_batch_insert(knl_session_t *session, undo_row_t *ud_row, undo_pag
             pcrb_decode_key(INDEX_PROFILE(btree->index), ud_key, &scan_key);
             pcrb_binary_search(INDEX_PROFILE(btree->index), page, &scan_key, &path_info, cmp_rowid, &is_same);
             if (path_info.path[0].slot >= page->keys) {
-                buf_leave_page(session, GS_TRUE);
-                find_page = GS_FALSE;
+                buf_leave_page(session, CT_TRUE);
+                find_page = CT_FALSE;
                 continue;
             }
         } else {
             btree_init_find_assist(btree, &path_info, &scan_key, BTREE_FIND_DELETE, &find_assist);
-            (void)pcrb_find_update_pos(session, &find_assist, &is_same, &compact_leaf, GS_TRUE);
+            (void)pcrb_find_update_pos(session, &find_assist, &is_same, &compact_leaf, CT_TRUE);
             if (find_assist.page_damage) {
                 return;
             }
             
             page = BTREE_CURR_PAGE(session);
-            find_page = GS_TRUE;
+            find_page = CT_TRUE;
         }
 
         knl_panic_log(is_same, "[PCRB]index %s cannot find the %u key %u-%u-%u for undo batch insert page %u-%u",
             btree->index->desc.name, (uint32)keys, (uint32)ud_key->rowid.file, (uint32)ud_key->rowid.page,
             (uint32)ud_key->rowid.slot, (uint32)AS_PAGID(page->head.id).file, (uint32)AS_PAGID(page->head.id).page);
 
-        redo.is_xfirst = (ud_key->itl_id == GS_INVALID_ID8);
+        redo.is_xfirst = (ud_key->itl_id == CT_INVALID_ID8);
         redo.slot = (uint16)path_info.path[0].slot;
         pcrb_undo_insert_key(session, btree, ud_key, &redo);
         offset += (uint16)ud_key->size;
         keys++;
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 void pcrb_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot,
@@ -3161,8 +3116,8 @@ void pcrb_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
     btree_find_assist_t find_assist;
     knl_scan_key_t scan_key;
     btree_path_info_t path_info;
-    bool32 is_same = GS_FALSE;
-    bool32 compact_leaf = GS_FALSE;
+    bool32 is_same = CT_FALSE;
+    bool32 compact_leaf = CT_FALSE;
     rd_pcrb_undo_t redo;
     knl_part_locate_t part_loc;
 
@@ -3171,7 +3126,7 @@ void pcrb_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
         part_loc = *(knl_part_locate_t *)(ud_row->data + ud_key->size);
     } else {
         part_loc.part_no = *(uint32 *)(ud_row->data + ud_key->size);
-        part_loc.subpart_no = GS_INVALID_ID32;
+        part_loc.subpart_no = CT_INVALID_ID32;
     }
     
     btree_t *btree = btree_get_handle_by_undo(session, dc, part_loc, (char *)ud_row);
@@ -3181,9 +3136,9 @@ void pcrb_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
 
     pcrb_decode_key(INDEX_PROFILE(btree->index), ud_key, &scan_key);
     path_info.part_loc = part_loc;
-    path_info.get_sibling = GS_FALSE;
+    path_info.get_sibling = CT_FALSE;
     btree_init_find_assist(btree, &path_info, &scan_key, BTREE_FIND_DELETE, &find_assist);
-    (void)pcrb_find_update_pos(session, &find_assist, &is_same, &compact_leaf, GS_TRUE);
+    (void)pcrb_find_update_pos(session, &find_assist, &is_same, &compact_leaf, CT_TRUE);
     if (find_assist.page_damage) {
         return;
     }
@@ -3196,7 +3151,7 @@ void pcrb_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
 
     pcrb_dir_t *dir = pcrb_get_dir(page, (uint32)path_info.path[0].slot);
     pcrb_key_t *key = PCRB_GET_KEY(page, dir);
-    knl_panic_log(key->itl_id != GS_INVALID_ID8, "key's itl_id is invalid, panic info: page %u-%u type %u, index %s",
+    knl_panic_log(key->itl_id != CT_INVALID_ID8, "key's itl_id is invalid, panic info: page %u-%u type %u, index %s",
                   AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.type,
                   ((index_t *)btree->index)->desc.name);
     knl_panic_log(key->is_deleted, "key is not deleted, panic info: page %u-%u type %u, index %s",
@@ -3212,7 +3167,7 @@ void pcrb_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
     key->is_deleted = 0;
 
     if (ud_row->is_xfirst) {
-        key->itl_id = GS_INVALID_ID8;
+        key->itl_id = CT_INVALID_ID8;
     }
 
     itl->ssn = ud_row->ssn;
@@ -3227,7 +3182,7 @@ void pcrb_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
         redo.undo_slot = ud_row->prev_slot;
         log_put(session, RD_PCRB_UNDO_DELETE, &redo, sizeof(rd_pcrb_undo_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     if (KNL_IDX_RECYCLE_ENABLED(session->kernel)) {
         btree->chg_stats.delete_size -= PCRB_COST_SIZE(ud_key);
@@ -3243,7 +3198,7 @@ static inline void pcrb_append_to_page(btree_page_t *page, pcrb_key_t *key, uint
     dir = pcrb_get_dir(page, page->keys);
     *dir = page->free_begin;
 
-    key->itl_id = GS_INVALID_ID8;
+    key->itl_id = CT_INVALID_ID8;
     err = memcpy_sp((char *)page + page->free_begin, BTREE_PAGE_FREE_SIZE(page) - sizeof(pcrb_dir_t), key,
                     (size_t)key->size);
     knl_securec_check(err);
@@ -3259,24 +3214,24 @@ static status_t pcrb_construct_ancestors(knl_session_t *session, btree_t *btree,
 {
     page_id_t page_id, prev_page_id;
     btree_page_t *page = NULL;
-    bool32 is_ext_first = GS_FALSE;
+    bool32 is_ext_first = CT_FALSE;
     uint8 options;
 
-    if (level >= GS_MAX_ROOT_LEVEL - 1) {
-        GS_THROW_ERROR(ERR_BTREE_LEVEL_EXCEEDED, GS_MAX_ROOT_LEVEL);
-        return GS_ERROR;
+    if (level >= CT_MAX_ROOT_LEVEL - 1) {
+        CT_THROW_ERROR(ERR_BTREE_LEVEL_EXCEEDED, CT_MAX_ROOT_LEVEL);
+        return CT_ERROR;
     }
 
     // due to recursive function, we save/restore stack outside this function, in pcrb_construct
     if (key_buf[level] == NULL) {
-        key_buf[level] = (char *)cm_push(session->stack, GS_KEY_BUF_SIZE);
+        key_buf[level] = (char *)cm_push(session->stack, CT_KEY_BUF_SIZE);
     }
 
     char *min_key = key_buf[level];
     if (parent_page[level] == NULL) {
         parent_page[level] = (btree_page_t *)cm_push(session->stack, session->kernel->attr.page_size);
-        if (btree_prepare_pages(session, btree) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (btree_prepare_pages(session, btree) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         log_atomic_op_begin(session);
@@ -3285,8 +3240,8 @@ static status_t pcrb_construct_ancestors(knl_session_t *session, btree_t *btree,
         buf_enter_page(session, page_id, LATCH_MODE_X, options);
         page = BTREE_CURR_PAGE(session);
         btree_format_page(session, BTREE_SEGMENT(session, btree->entry, btree->segment), page_id, level + 1,
-            (uint8)page->head.ext_size, is_ext_first ? GS_TRUE : GS_FALSE);
-        buf_leave_page(session, GS_TRUE);
+            (uint8)page->head.ext_size, is_ext_first ? CT_TRUE : CT_FALSE);
+        buf_leave_page(session, CT_TRUE);
         log_atomic_op_end(session);
 
         btree_format_vm_page(session, BTREE_SEGMENT(session, btree->entry, btree->segment), parent_page[level], page_id,
@@ -3299,8 +3254,8 @@ static status_t pcrb_construct_ancestors(knl_session_t *session, btree_t *btree,
     uint16 pct_size = (PCRB_COST_SIZE(key) > DEFAULT_PAGE_SIZE(session) - BTREE_PCT_SIZE(btree) || vm_page->level > 0)
                    ? (uint16)0 : BTREE_PCT_SIZE(btree);
     if (vm_page->free_begin + PCRB_COST_SIZE(key) + pct_size > vm_page->free_end) {
-        if (btree_prepare_pages(session, btree) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (btree_prepare_pages(session, btree) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         log_atomic_op_begin(session);
@@ -3309,8 +3264,8 @@ static status_t pcrb_construct_ancestors(knl_session_t *session, btree_t *btree,
         buf_enter_page(session, page_id, LATCH_MODE_X, options);
         page = BTREE_CURR_PAGE(session);
         btree_format_page(session, BTREE_SEGMENT(session, btree->entry, btree->segment), page_id, level + 1,
-                          (uint8)page->head.ext_size, is_ext_first ? GS_TRUE : GS_FALSE);
-        buf_leave_page(session, GS_TRUE);
+                          (uint8)page->head.ext_size, is_ext_first ? CT_TRUE : CT_FALSE);
+        buf_leave_page(session, CT_TRUE);
         log_atomic_op_end(session);
 
         TO_PAGID_DATA(page_id, vm_page->next);
@@ -3327,49 +3282,49 @@ static status_t pcrb_construct_ancestors(knl_session_t *session, btree_t *btree,
         }
 
         if (parent_page[level + 1] != NULL) {
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
             log_atomic_op_end(session);
         } else {
             pcrb_key_t *mkey = PCRB_GET_KEY(page, pcrb_get_dir(page, 0));
-            err = memcpy_sp(min_key, GS_KEY_BUF_SIZE, mkey, (size_t)mkey->size);
+            err = memcpy_sp(min_key, CT_KEY_BUF_SIZE, mkey, (size_t)mkey->size);
             knl_securec_check(err);
             pcrb_set_child((pcrb_key_t *)min_key, AS_PAGID(parent_page[level]->head.id));
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
             log_atomic_op_end(session);
             if (pcrb_construct_ancestors(session, btree, parent_page, key_buf, (pcrb_key_t *)min_key, level + 1,
-                nologging) != GS_SUCCESS) {
-                return GS_ERROR;
+                nologging) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         prev_page_id = AS_PAGID(vm_page->head.id);
         btree_format_vm_page(session, BTREE_SEGMENT(session, btree->entry, btree->segment),
                              vm_page, page_id, level + 1);
         TO_PAGID_DATA(prev_page_id, vm_page->prev);
-        err = memcpy_sp(min_key, GS_KEY_BUF_SIZE, key, (size_t)key->size);
+        err = memcpy_sp(min_key, CT_KEY_BUF_SIZE, key, (size_t)key->size);
         knl_securec_check(err);
         pcrb_set_child((pcrb_key_t *)min_key, page_id);
         if (pcrb_construct_ancestors(session, btree, parent_page, key_buf, (pcrb_key_t *)min_key, level + 1,
-            nologging) != GS_SUCCESS) {
-            return GS_ERROR;
+            nologging) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    pcrb_append_to_page(vm_page, key, GS_INVALID_ID8);
-    return GS_SUCCESS;
+    pcrb_append_to_page(vm_page, key, CT_INVALID_ID8);
+    return CT_SUCCESS;
 }
 
 status_t pcrb_construct(btree_mt_context_t *ctx)
 {
     mtrl_cursor_t cursor;
     mtrl_sort_cursor_t cur1, cur2;
-    btree_page_t *parent_page[GS_MAX_BTREE_LEVEL];
+    btree_page_t *parent_page[CT_MAX_BTREE_LEVEL];
     pcrb_key_t *key = NULL;
     pcrb_key_t *mkey = NULL;
     page_id_t prev_page_id;
-    char *key_buf[GS_MAX_BTREE_LEVEL];
-    status_t status = GS_SUCCESS;
+    char *key_buf[CT_MAX_BTREE_LEVEL];
+    status_t status = CT_SUCCESS;
     uint16 pct_size;
-    bool32 is_ext_first = GS_FALSE;
+    bool32 is_ext_first = CT_FALSE;
     knl_session_t *session = (knl_session_t *)ctx->mtrl_ctx.session;
     btree_t *btree = (btree_t *)ctx->mtrl_ctx.segments[ctx->seg_id]->cmp_items;
     btree_segment_t *segment = BTREE_SEGMENT(session, btree->entry, btree->segment);
@@ -3384,20 +3339,20 @@ status_t pcrb_construct(btree_mt_context_t *ctx)
     log_set_group_nolog_insert(session, !ctx->nologging);
     session->rm->logging = !ctx->nologging;
     session->rm->nolog_type = TABLE_LEVEL;
-    if (btree_open_mtrl_cursor(ctx, &cur1, &cur2, &cursor) != GS_SUCCESS) {
+    if (btree_open_mtrl_cursor(ctx, &cur1, &cur2, &cursor) != CT_SUCCESS) {
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (btree_fetch_mtrl_sort_key(ctx, &cur1, &cur2, &cursor) != GS_SUCCESS) {
+    if (btree_fetch_mtrl_sort_key(ctx, &cur1, &cur2, &cursor) != CT_SUCCESS) {
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    char *src_mkey = (char *)cm_push(session->stack, GS_KEY_BUF_SIZE);
-    char *dst_mkey = (char *)cm_push(session->stack, GS_KEY_BUF_SIZE);
+    char *src_mkey = (char *)cm_push(session->stack, CT_KEY_BUF_SIZE);
+    char *dst_mkey = (char *)cm_push(session->stack, CT_KEY_BUF_SIZE);
 
-    uint32 mem_size = sizeof(char *) * GS_MAX_BTREE_LEVEL;
+    uint32 mem_size = sizeof(char *) * CT_MAX_BTREE_LEVEL;
     errno_t err = memset_sp(parent_page, mem_size, 0, mem_size);
     knl_securec_check(err);
     err = memset_sp(key_buf, mem_size, 0, mem_size);
@@ -3418,25 +3373,25 @@ status_t pcrb_construct(btree_mt_context_t *ctx)
                         LOG_ENTRY_FLAG_NONE);
             }
             prev_page_id = AS_PAGID(page->head.id);
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
             log_atomic_op_end(session);
 
             // page is full, we need move on to next page
-            if (btree_prepare_pages(session, btree) != GS_SUCCESS) {
-                status = GS_ERROR;
+            if (btree_prepare_pages(session, btree) != CT_SUCCESS) {
+                status = CT_ERROR;
                 break;
             }
 
             log_atomic_op_begin(session);
-            is_ext_first = GS_FALSE;
+            is_ext_first = CT_FALSE;
             btree_alloc_from_ufp(session, btree, &page_id, &is_ext_first);
 
             options = is_ext_first ? ENTER_PAGE_NORMAL : ENTER_PAGE_NO_READ;
             buf_enter_page(session, page_id, LATCH_MODE_X, options);
             page = BTREE_CURR_PAGE(session);
             btree_format_page(session, segment, page_id, 0, (uint8)page->head.ext_size,
-                              is_ext_first ? GS_TRUE : GS_FALSE);
-            buf_leave_page(session, GS_TRUE);
+                              is_ext_first ? CT_TRUE : CT_FALSE);
+            buf_leave_page(session, CT_TRUE);
 
             buf_enter_page(session, prev_page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
             page = BTREE_CURR_PAGE(session);
@@ -3448,29 +3403,29 @@ status_t pcrb_construct(btree_mt_context_t *ctx)
 
             if (parent_page[0] == NULL) {
                 mkey = PCRB_GET_KEY(page, pcrb_get_dir(page, 0));
-                err = memcpy_sp(src_mkey, GS_KEY_BUF_SIZE, (void *)mkey, (size_t)mkey->size);
+                err = memcpy_sp(src_mkey, CT_KEY_BUF_SIZE, (void *)mkey, (size_t)mkey->size);
                 knl_securec_check(err);
                 pcrb_minimize_unique_parent(btree->index, (pcrb_key_t *)src_mkey);
                 pcrb_put_child((pcrb_key_t *)src_mkey, AS_PAGID(page->head.id));
             }
 
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
             log_atomic_op_end(session);
 
             if (parent_page[0] == NULL && pcrb_construct_ancestors(session, btree, parent_page, key_buf,
-                (pcrb_key_t *)src_mkey, 0, ctx->nologging) != GS_SUCCESS) {
-                status = GS_ERROR;
+                (pcrb_key_t *)src_mkey, 0, ctx->nologging) != CT_SUCCESS) {
+                status = CT_ERROR;
                 break;
             }
 
-            err = memcpy_sp(dst_mkey, GS_KEY_BUF_SIZE, (void *)key, (size_t)key->size);
+            err = memcpy_sp(dst_mkey, CT_KEY_BUF_SIZE, (void *)key, (size_t)key->size);
             knl_securec_check(err);
             pcrb_minimize_unique_parent(btree->index, (pcrb_key_t *)dst_mkey);
             pcrb_put_child((pcrb_key_t *)dst_mkey, page_id);
 
             if (pcrb_construct_ancestors(session, btree, parent_page, key_buf, (pcrb_key_t *)dst_mkey, 0,
-                ctx->nologging) != GS_SUCCESS) {
-                status = GS_ERROR;
+                ctx->nologging) != CT_SUCCESS) {
+                status = CT_ERROR;
                 break;
             }
 
@@ -3483,27 +3438,27 @@ status_t pcrb_construct(btree_mt_context_t *ctx)
                                 cipher_reserve_size - page->itls * sizeof(pcr_itl_t) - BTREE_RESERVE_SIZE);
         }
 
-        pcrb_append_to_page(page, key, GS_INVALID_ID8);
+        pcrb_append_to_page(page, key, CT_INVALID_ID8);
         free_size -= (int16)key->size + sizeof(pcrb_dir_t);
 
-        if (btree_fetch_mtrl_sort_key(ctx, &cur1, &cur2, &cursor) != GS_SUCCESS) {
+        if (btree_fetch_mtrl_sort_key(ctx, &cur1, &cur2, &cursor) != CT_SUCCESS) {
             if (need_redo && !ctx->nologging) {
                 log_put(session, RD_BTREE_CONSTRUCT_PAGE, BTREE_PAGE_BODY(page), BTREE_PAGE_BODY_SIZE(page),
                     LOG_ENTRY_FLAG_NONE);
             }
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
             log_atomic_op_end(session);
-            status = GS_ERROR;
+            status = CT_ERROR;
             break;
         }
     }
 
-    if (status == GS_SUCCESS) {
+    if (status == CT_SUCCESS) {
         if (need_redo && !ctx->nologging) {
             log_put(session, RD_BTREE_CONSTRUCT_PAGE, BTREE_PAGE_BODY(page), BTREE_PAGE_BODY_SIZE(page),
                     LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         log_atomic_op_end(session);
         btree_construct_ancestors_finish(session, btree, parent_page, ctx->nologging);
     }
@@ -3524,13 +3479,13 @@ static void pcrb_get_parent_page(knl_session_t *session, btree_t *btree, knl_sca
     btree_page_t *page = NULL;
     page_id_t page_id;
     bool32 cmp_rowid;
-    bool32 is_same = GS_FALSE;
+    bool32 is_same = CT_FALSE;
     uint32 level;
 
     tree_info.value = cm_atomic_get(&seg->tree_info.value);
     level = (uint32)tree_info.level - 1;
     page_id = AS_PAGID(tree_info.root);
-    cmp_rowid = (index->desc.primary || index->desc.unique) ? GS_FALSE : GS_TRUE;
+    cmp_rowid = (index->desc.primary || index->desc.unique) ? CT_FALSE : CT_TRUE;
     for (;;) {
         buf_enter_page(session, page_id, (child_level + 1 == level) ? LATCH_MODE_X : LATCH_MODE_S, ENTER_PAGE_NORMAL);
         page = BTREE_CURR_PAGE(session);
@@ -3545,7 +3500,7 @@ static void pcrb_get_parent_page(knl_session_t *session, btree_t *btree, knl_sca
         curr_key = PCRB_GET_KEY(page, dir);
         page_id = pcrb_get_child(curr_key);
         level = page->level - 1;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 }
 
@@ -3560,7 +3515,7 @@ void pcrb_clean_key(knl_session_t *session, btree_page_t *page, uint16 slot)
     }
 
     page->free_size += ((uint16)key->size + sizeof(pcrb_dir_t));
-    key->is_cleaned = (uint16)GS_TRUE;
+    key->is_cleaned = (uint16)CT_TRUE;
     page->keys--;
 }
 
@@ -3572,18 +3527,18 @@ static bool32 pcrb_recycle_delete_leaf(knl_session_t *session, btree_t *btree, b
     pcrb_get_parent_page(session, btree, key, 0, &path_info);
     btree_page_t *parent_page = BTREE_CURR_PAGE(session);
     if (path_info.path[1].slot == 0) {
-        buf_leave_page(session, GS_FALSE);  // parent page
-        recycle_desc->is_first_child = GS_TRUE;
-        return GS_FALSE;
+        buf_leave_page(session, CT_FALSE);  // parent page
+        recycle_desc->is_first_child = CT_TRUE;
+        return CT_FALSE;
     }
 
     if (!bt_recycle_page(session, btree, recycle_desc, part_locate)) {
-        buf_leave_page(session, GS_FALSE);  // parent page
-        recycle_desc->is_sparse = GS_TRUE;
-        return GS_FALSE;
+        buf_leave_page(session, CT_FALSE);  // parent page
+        recycle_desc->is_sparse = CT_TRUE;
+        return CT_FALSE;
     }
 
-    recycle_desc->is_recycled = GS_TRUE;
+    recycle_desc->is_recycled = CT_TRUE;
     pcrb_clean_key(session, parent_page, (uint16)path_info.path[1].slot);
     uint16 key_slot = (uint16)path_info.path[1].slot;
     if (SPC_IS_LOGGING_BY_PAGEID(session, btree->entry)) {
@@ -3593,8 +3548,8 @@ static bool32 pcrb_recycle_delete_leaf(knl_session_t *session, btree_t *btree, b
     if (IS_SAME_PAGID(AS_PAGID(parent_page->head.id), root)) {
         btree_copy_root_page(session, btree, parent_page);
     }
-    buf_leave_page(session, GS_TRUE);
-    return GS_TRUE;
+    buf_leave_page(session, CT_TRUE);
+    return CT_TRUE;
 }
 
 /*
@@ -3611,7 +3566,7 @@ void pcrb_recycle_leaf(knl_session_t *session, btree_t *btree, knl_part_locate_t
     int64 version;
 
     CM_SAVE_STACK(session->stack);
-    char *key_buf = (char *)cm_push(session->stack, GS_KEY_BUF_SIZE);
+    char *key_buf = (char *)cm_push(session->stack, CT_KEY_BUF_SIZE);
     log_atomic_op_begin(session);
     for (;;) {
         dls_latch_x(session, &btree->struct_latch, session->id, &session->stat_btree);
@@ -3620,7 +3575,7 @@ void pcrb_recycle_leaf(knl_session_t *session, btree_t *btree, knl_part_locate_t
         }
         dls_unlatch(session, &btree->struct_latch, &session->stat_btree);
         cm_spin_sleep();
-        GS_LOG_DEBUG_INF("index %s recycle page %u-%u try latch btree struct latch.",
+        CT_LOG_DEBUG_INF("index %s recycle page %u-%u try latch btree struct latch.",
             btree->index->desc.name, (uint32)desc->leaf_id.file, (uint32)desc->leaf_id.page);
         continue;
     }
@@ -3628,21 +3583,21 @@ void pcrb_recycle_leaf(knl_session_t *session, btree_t *btree, knl_part_locate_t
     buf_enter_page(session, desc->leaf_id, LATCH_MODE_S, ENTER_PAGE_NORMAL);
     btree_page_t *page = BTREE_CURR_PAGE(session);
     if (page->head.lsn != desc->snapshot_lsn || page->is_recycled) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         dls_unlatch(session, &btree->struct_latch, &session->stat_btree);
         log_atomic_op_end(session);
         CM_RESTORE_STACK(session->stack);
-        desc->is_sparse = GS_TRUE;
+        desc->is_sparse = CT_TRUE;
         return;
     }
     page_id_t prev_page_id = AS_PAGID(page->prev);
     page_id_t next_page_id = AS_PAGID(page->next);
     pcrb_dir_t *dir = pcrb_get_dir(page, 0);
     pcrb_key_t *key = PCRB_GET_KEY(page, dir);
-    errno_t err = memcpy_sp(key_buf, GS_KEY_BUF_SIZE, key, (size_t)key->size);
+    errno_t err = memcpy_sp(key_buf, CT_KEY_BUF_SIZE, key, (size_t)key->size);
     knl_securec_check(err);
     pcrb_decode_key(INDEX_PROFILE(btree->index), (pcrb_key_t *)key_buf, &scan_key);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     if (!pcrb_recycle_delete_leaf(session, btree, desc, &scan_key, part_loc)) {
         dls_unlatch(session, &btree->struct_latch, &session->stat_btree);
@@ -3661,8 +3616,8 @@ void pcrb_recycle_leaf(knl_session_t *session, btree_t *btree, knl_part_locate_t
     CM_RESTORE_STACK(session->stack);
 
     if (DB_IS_CLUSTER(session)) {
-        status_t ret = dtc_broadcast_btree_split(session, btree, part_loc, GS_TRUE);
-        if (ret != GS_SUCCESS) {
+        status_t ret = dtc_broadcast_btree_split(session, btree, part_loc, CT_TRUE);
+        if (ret != CT_SUCCESS) {
             knl_panic_log(
                 0,
                 "[DTC] pcrb_recycle_leaf failed to broadcast btree split info, abort, uid/table_id/index_id/part:[%d-%d-%d-%u-%u], struct version:%llu",
@@ -3675,7 +3630,7 @@ void pcrb_recycle_leaf(knl_session_t *session, btree_t *btree, knl_part_locate_t
 
 void pcrb_get_txn_info(knl_session_t *session, btree_page_t *page, pcrb_key_t *key, txn_info_t *txn_info)
 {
-    if (key->itl_id == GS_INVALID_ID8) {
+    if (key->itl_id == CT_INVALID_ID8) {
         txn_info->status = (uint8)XACT_END;
         txn_info->scn = page->scn;
         txn_info->is_owscn = 1;
@@ -3685,7 +3640,7 @@ void pcrb_get_txn_info(knl_session_t *session, btree_page_t *page, pcrb_key_t *k
                       page->head.type, key->itl_id, page->itls);
         pcr_itl_t *itl = pcrb_get_itl(page, key->itl_id);
 
-        tx_get_pcr_itl_info(session, GS_FALSE, itl, txn_info);
+        tx_get_pcr_itl_info(session, CT_FALSE, itl, txn_info);
     }
 }
 
@@ -3699,38 +3654,38 @@ bool32 pcrb_is_recycled_page(knl_session_t *session, btree_page_t *page,
     knl_scn_t interval_scn, btree_recycle_desc_t *desc)
 {
     txn_info_t txn_info;
-    bool32 is_recyclable = GS_TRUE;
+    bool32 is_recyclable = CT_TRUE;
     uint16 used_size = 0;
     space_t *space = SPACE_GET(session, DATAFILE_GET(session, AS_PAGID_PTR(page->head.id)->file)->space_id);
     knl_scn_t min_scn = btree_get_recycle_min_scn(session);
 
-    desc->is_empty = GS_TRUE;
+    desc->is_empty = CT_TRUE;
     desc->max_del_scn = 0;
     for (uint32 i = 0; i < page->keys; i++) {
         pcrb_dir_t *dir = pcrb_get_dir(page, i);
         pcrb_key_t *key = PCRB_GET_KEY(page, dir);
         if (!key->is_deleted) {
-            desc->is_empty = GS_FALSE;
-            is_recyclable = GS_FALSE;
+            desc->is_empty = CT_FALSE;
+            is_recyclable = CT_FALSE;
             used_size += PCRB_COST_SIZE(key);
             continue;
         }
 
-        txn_info.xid.value = GS_INVALID_ID64;
+        txn_info.xid.value = CT_INVALID_ID64;
         pcrb_get_txn_info(session, page, key, &txn_info);
         if (txn_info.status != (uint8)XACT_END) {
-            is_recyclable = GS_FALSE;
-            desc->active_txn = GS_TRUE;
-            desc->xid = (txn_info.xid.value == GS_INVALID_ID64) ? desc->xid : txn_info.xid;
+            is_recyclable = CT_FALSE;
+            desc->active_txn = CT_TRUE;
+            desc->xid = (txn_info.xid.value == CT_INVALID_ID64) ? desc->xid : txn_info.xid;
             continue;
         }
 
         if (!bt_recycle_time_expire(session, interval_scn, min_scn, txn_info.scn)) {
-            is_recyclable = GS_FALSE;
-            desc->unexpire = GS_TRUE;
+            is_recyclable = CT_FALSE;
+            desc->unexpire = CT_TRUE;
             continue;
         }
-        desc->force_recycle = (min_scn >= txn_info.scn) ? desc->force_recycle : GS_TRUE;
+        desc->force_recycle = (min_scn >= txn_info.scn) ? desc->force_recycle : CT_TRUE;
         desc->max_del_scn = MAX(txn_info.scn, desc->max_del_scn);
     }
 
@@ -3739,22 +3694,22 @@ bool32 pcrb_is_recycled_page(knl_session_t *session, btree_page_t *page,
             break;
         }
         pcr_itl_t *itl = pcrb_get_itl(page, j);
-        tx_get_pcr_itl_info(session, GS_FALSE, itl, &txn_info);
+        tx_get_pcr_itl_info(session, CT_FALSE, itl, &txn_info);
         if (txn_info.status != (uint8)XACT_END) {
-            is_recyclable = GS_FALSE;
-            desc->active_txn = GS_TRUE;
+            is_recyclable = CT_FALSE;
+            desc->active_txn = CT_TRUE;
             continue;
         }
         desc->max_del_scn = MAX(txn_info.scn, desc->max_del_scn);
     }
 
     if (is_recyclable) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     uint16 total_size = pcrb_total_size(session, space, page);
     desc->is_sparse = (bool8)(!(desc->is_empty) && used_size < total_size * PCRB_MIN_PAGE_USED_RATIO);
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t pcrb_dump_page(knl_session_t *session, page_head_t *page_head, cm_dump_t *dump)
@@ -3809,7 +3764,7 @@ status_t pcrb_dump_page(knl_session_t *session, page_head_t *page_head, cm_dump_
 
         CM_DUMP_WRITE_FILE(dump);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void pcrb_validate_page(knl_session_t *session, page_head_t *page, index_t *index)
@@ -3835,7 +3790,7 @@ void pcrb_validate_page(knl_session_t *session, page_head_t *page, index_t *inde
     for (uint8 j = 0; j < copy_page->itls; j++) {
         itl = pcrb_get_itl(copy_page, j);
         if (itl->is_active) {
-            knl_panic_log(itl->xid.value != GS_INVALID_ID64,
+            knl_panic_log(itl->xid.value != CT_INVALID_ID64,
                           "itl xid is invalid, panic info: copy_page %u-%u type %u, page %u-%u type %u",
                           AS_PAGID(copy_page->head.id).file, AS_PAGID(copy_page->head.id).page, copy_page->head.type,
                           AS_PAGID(page->id).file, AS_PAGID(page->id).page, page->type);
@@ -3855,7 +3810,7 @@ void pcrb_validate_page(knl_session_t *session, page_head_t *page, index_t *inde
                       AS_PAGID(page->id).file, AS_PAGID(page->id).page, page->type, space->ctrl->cipher_reserve_size);
         key = PCRB_GET_KEY(copy_page, dir);
         uint8 itl_id = key->itl_id;
-        knl_panic_log(itl_id == GS_INVALID_ID8 || itl_id <= copy_page->itls, "itl_id is abnormal, panic info: "
+        knl_panic_log(itl_id == CT_INVALID_ID8 || itl_id <= copy_page->itls, "itl_id is abnormal, panic info: "
                       "copy_page %u-%u type %u, page %u-%u type %u itl_id %u copy_page itls %u",
                       AS_PAGID(copy_page->head.id).file, AS_PAGID(copy_page->head.id).page, copy_page->head.type,
                       AS_PAGID(page->id).file, AS_PAGID(page->id).page, page->type, itl_id, copy_page->itls);
@@ -3863,7 +3818,7 @@ void pcrb_validate_page(knl_session_t *session, page_head_t *page, index_t *inde
 
     // check key size
     uint64 total_size = sizeof(btree_page_t) + space->ctrl->cipher_reserve_size;
-    uint32 max_key_size = GS_MAX_KEY_SIZE - space->ctrl->cipher_reserve_size;
+    uint32 max_key_size = CT_MAX_KEY_SIZE - space->ctrl->cipher_reserve_size;
     max_key_size = copy_page->level > 0 ? max_key_size + sizeof(page_id_t) : max_key_size;
     for (uint16 i = 0; i < copy_page->keys; i++) {
         key = (pcrb_key_t *)((char *)copy_page + total_size);
@@ -3890,7 +3845,7 @@ void pcrb_validate_page(knl_session_t *session, page_head_t *page, index_t *inde
     // check key order
     if (index != NULL) {
         knl_scan_key_t scan_key;
-        bool32 is_same = GS_FALSE;
+        bool32 is_same = CT_FALSE;
         bool32 cmp_rowid = !IS_UNIQUE_PRIMARY_INDEX(index);
         dir = NULL;
         pcrb_key_t *key1 = NULL;
@@ -3916,47 +3871,51 @@ void pcrb_validate_page(knl_session_t *session, page_head_t *page, index_t *inde
 }
 
 #ifndef WIN32
-int32 pcrb_cmp_mtrl_column_data(knl_handle_t col1, knl_handle_t col2, gs_type_t type, uint16 *offset1, uint16 *offset2)
+int32 pcrb_cmp_mtrl_column_data(knl_handle_t col1, knl_handle_t col2, ct_type_t type, uint16 *offset1,
+                                uint16 *offset2, uint16 collate_id)
 {
     text_t text1, text2;
     static void *labels[] = {
-        [GS_TYPE_I(GS_TYPE_INTEGER)] = &&LABEL_INTEGER,
-        [GS_TYPE_I(GS_TYPE_BIGINT)] = &&LABEL_BIGINT,
-        [GS_TYPE_I(GS_TYPE_REAL)] = &&LABEL_REAL,
-        [GS_TYPE_I(GS_TYPE_NUMBER)] = &&LABEL_NUMBER,
-        [GS_TYPE_I(GS_TYPE_NUMBER2)] = &&LABEL_NUMBER2,
-        [GS_TYPE_I(GS_TYPE_DECIMAL)] = &&LABEL_NUMBER,
-        [GS_TYPE_I(GS_TYPE_DATE)] = &&LABEL_BIGINT,
-        [GS_TYPE_I(GS_TYPE_TIMESTAMP)] = &&LABEL_BIGINT,
-        [GS_TYPE_I(GS_TYPE_CHAR)] = &&LABEL_STRING,
-        [GS_TYPE_I(GS_TYPE_VARCHAR)] = &&LABEL_STRING,
-        [GS_TYPE_I(GS_TYPE_STRING)] = &&LABEL_STRING,
-        [GS_TYPE_I(GS_TYPE_BINARY)] = &&LABEL_STRING,
-        [GS_TYPE_I(GS_TYPE_VARBINARY)] = &&LABEL_STRING,
-        [GS_TYPE_I(GS_TYPE_CLOB)] = &&LABEL_ERROR,
-        [GS_TYPE_I(GS_TYPE_BLOB)] = &&LABEL_ERROR,
-        [GS_TYPE_I(GS_TYPE_CURSOR)] = &&LABEL_ERROR,
-        [GS_TYPE_I(GS_TYPE_COLUMN)] = &&LABEL_ERROR,
-        [GS_TYPE_I(GS_TYPE_BOOLEAN)] = &&LABEL_BOOLEAN,
-        [GS_TYPE_I(GS_TYPE_TIMESTAMP_TZ_FAKE)] = &&LABEL_BIGINT,
-        [GS_TYPE_I(GS_TYPE_TIMESTAMP_LTZ)] = &&LABEL_BIGINT,
-        [GS_TYPE_I(GS_TYPE_INTERVAL)] = &&LABEL_ERROR,
-        [GS_TYPE_I(GS_TYPE_INTERVAL_YM)] = &&LABEL_INTERVAL_YM,
-        [GS_TYPE_I(GS_TYPE_INTERVAL_DS)] = &&LABEL_INTERVAL_DS,
-        [GS_TYPE_I(GS_TYPE_RAW)] = &&LABEL_STRING,
-        [GS_TYPE_I(GS_TYPE_IMAGE)] = &&LABEL_ERROR,
-        [GS_TYPE_I(GS_TYPE_UINT32)] = &&LABEL_UINT32,
-        [GS_TYPE_I(GS_TYPE_UINT64)] = &&LABEL_UINT64,
-        [GS_TYPE_I(GS_TYPE_SMALLINT)] = &&LABEL_ERROR,
-        [GS_TYPE_I(GS_TYPE_USMALLINT)] = &&LABEL_ERROR,
-        [GS_TYPE_I(GS_TYPE_TINYINT)] = &&LABEL_ERROR,
-        [GS_TYPE_I(GS_TYPE_UTINYINT)] = &&LABEL_ERROR,
-        [GS_TYPE_I(GS_TYPE_FLOAT)] = &&LABEL_ERROR,
-        [GS_TYPE_I(GS_TYPE_TIMESTAMP_TZ)] = &&LABEL_TSTZ,
-        [GS_TYPE_I(GS_TYPE_NUMBER3)] = &&LABEL_NUMBER,
+        [CT_TYPE_I(CT_TYPE_INTEGER)] = &&LABEL_INTEGER,
+        [CT_TYPE_I(CT_TYPE_BIGINT)] = &&LABEL_BIGINT,
+        [CT_TYPE_I(CT_TYPE_REAL)] = &&LABEL_REAL,
+        [CT_TYPE_I(CT_TYPE_NUMBER)] = &&LABEL_NUMBER,
+        [CT_TYPE_I(CT_TYPE_NUMBER2)] = &&LABEL_NUMBER2,
+        [CT_TYPE_I(CT_TYPE_DECIMAL)] = &&LABEL_NUMBER,
+        [CT_TYPE_I(CT_TYPE_DATE)] = &&LABEL_BIGINT,
+        [CT_TYPE_I(CT_TYPE_TIMESTAMP)] = &&LABEL_BIGINT,
+        [CT_TYPE_I(CT_TYPE_CHAR)] = &&LABEL_STRING,
+        [CT_TYPE_I(CT_TYPE_VARCHAR)] = &&LABEL_STRING,
+        [CT_TYPE_I(CT_TYPE_STRING)] = &&LABEL_STRING,
+        [CT_TYPE_I(CT_TYPE_BINARY)] = &&LABEL_STRING,
+        [CT_TYPE_I(CT_TYPE_VARBINARY)] = &&LABEL_STRING,
+        [CT_TYPE_I(CT_TYPE_CLOB)] = &&LABEL_ERROR,
+        [CT_TYPE_I(CT_TYPE_BLOB)] = &&LABEL_ERROR,
+        [CT_TYPE_I(CT_TYPE_CURSOR)] = &&LABEL_ERROR,
+        [CT_TYPE_I(CT_TYPE_COLUMN)] = &&LABEL_ERROR,
+        [CT_TYPE_I(CT_TYPE_BOOLEAN)] = &&LABEL_BOOLEAN,
+        [CT_TYPE_I(CT_TYPE_TIMESTAMP_TZ_FAKE)] = &&LABEL_BIGINT,
+        [CT_TYPE_I(CT_TYPE_TIMESTAMP_LTZ)] = &&LABEL_BIGINT,
+        [CT_TYPE_I(CT_TYPE_INTERVAL)] = &&LABEL_ERROR,
+        [CT_TYPE_I(CT_TYPE_INTERVAL_YM)] = &&LABEL_INTERVAL_YM,
+        [CT_TYPE_I(CT_TYPE_INTERVAL_DS)] = &&LABEL_INTERVAL_DS,
+        [CT_TYPE_I(CT_TYPE_RAW)] = &&LABEL_STRING,
+        [CT_TYPE_I(CT_TYPE_IMAGE)] = &&LABEL_ERROR,
+        [CT_TYPE_I(CT_TYPE_UINT32)] = &&LABEL_UINT32,
+        [CT_TYPE_I(CT_TYPE_UINT64)] = &&LABEL_UINT64,
+        [CT_TYPE_I(CT_TYPE_SMALLINT)] = &&LABEL_ERROR,
+        [CT_TYPE_I(CT_TYPE_USMALLINT)] = &&LABEL_ERROR,
+        [CT_TYPE_I(CT_TYPE_TINYINT)] = &&LABEL_ERROR,
+        [CT_TYPE_I(CT_TYPE_UTINYINT)] = &&LABEL_ERROR,
+        [CT_TYPE_I(CT_TYPE_FLOAT)] = &&LABEL_ERROR,
+        [CT_TYPE_I(CT_TYPE_TIMESTAMP_TZ)] = &&LABEL_TSTZ,
+        [CT_TYPE_I(CT_TYPE_DATETIME_MYSQL)] = &&LABEL_DATETIME_MYSQL,
+        [CT_TYPE_I(CT_TYPE_TIME_MYSQL)] = &&LABEL_TIME_MYSQL,
+        [CT_TYPE_I(CT_TYPE_DATE_MYSQL)] = &&LABEL_DATE_MYSQL,
+        [CT_TYPE_I(CT_TYPE_NUMBER3)] = &&LABEL_NUMBER,
     };
 
-    goto *labels[GS_TYPE_I(type)];
+    goto *labels[CT_TYPE_I(type)];
 LABEL_UINT32:
     *offset1 += sizeof(uint32);
     *offset2 += sizeof(uint32);
@@ -3992,6 +3951,21 @@ LABEL_BIGINT:
     *offset2 += sizeof(int64);
     return NUM_DATA_CMP(int64, col1, col2);
 
+LABEL_DATETIME_MYSQL:
+    *offset1 += sizeof(int64);
+    *offset2 += sizeof(int64);
+    return cm_datetime_cmp_mysql(col1, col2);
+
+LABEL_TIME_MYSQL:
+    *offset1 += sizeof(int64);
+    *offset2 += sizeof(int64);
+    return cm_time_cmp_mysql(col1, col2);
+
+LABEL_DATE_MYSQL:
+    *offset1 += sizeof(int64);
+    *offset2 += sizeof(int64);
+    return cm_date_cmp_mysql(col1, col2);
+
 LABEL_TSTZ:
     *offset1 += sizeof(timestamp_tz_t);
     *offset2 += sizeof(timestamp_tz_t);
@@ -4020,74 +3994,92 @@ LABEL_STRING:
     text2.str = (char *)col2 + sizeof(uint16);
     *offset1 += CM_ALIGN4(text1.len + sizeof(uint16));
     *offset2 += CM_ALIGN4(text2.len + sizeof(uint16));
-
-    return cm_compare_text(&text1, &text2);
-
+    if (collate_id != CT_INVALID_ID16) {
+        CHARSET_COLLATION *charset = cm_get_charset_coll(collate_id);
+        return cm_mysql_compare(charset, &text1, &text2);
+    } else {
+        return cm_compare_text(&text1, &text2);
+    }
 LABEL_ERROR:
     knl_panic(0);
     return 0;
 }
 #else
-int32 pcrb_cmp_mtrl_column_data(knl_handle_t col1, knl_handle_t col2, gs_type_t type, uint16 *offset1, uint16 *offset2)
+int32 pcrb_cmp_mtrl_column_data(knl_handle_t col1, knl_handle_t col2, ct_type_t type, uint16 *offset1, uint16 *offset2)
 {
     text_t text1, text2;
     switch (type) {
-        case GS_TYPE_UINT32:
+        case CT_TYPE_UINT32:
             *offset1 += sizeof(uint32);
             *offset2 += sizeof(uint32);
             return NUM_DATA_CMP(uint32, col1, col2);
 
-        case GS_TYPE_INTEGER:
+        case CT_TYPE_INTEGER:
             *offset1 += sizeof(int32);
             *offset2 += sizeof(int32);
             return NUM_DATA_CMP(int32, col1, col2);
 
-        case GS_TYPE_BOOLEAN:
+        case CT_TYPE_BOOLEAN:
             *offset1 += sizeof(bool32);
             *offset2 += sizeof(bool32);
             return NUM_DATA_CMP(bool32, col1, col2);
 
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_INTERVAL_YM:
             *offset1 += sizeof(interval_ym_t);
             *offset2 += sizeof(interval_ym_t);
             return NUM_DATA_CMP(interval_ym_t, col1, col2);
 
-        case GS_TYPE_INTERVAL_DS:
+        case CT_TYPE_INTERVAL_DS:
             *offset1 += sizeof(interval_ds_t);
             *offset2 += sizeof(interval_ds_t);
             return NUM_DATA_CMP(interval_ds_t, col1, col2);
 
-        case GS_TYPE_UINT64:
+        case CT_TYPE_UINT64:
             *offset1 += sizeof(uint64);
             *offset2 += sizeof(uint64);
             return NUM_DATA_CMP(uint64, col1, col2);
 
-        case GS_TYPE_BIGINT:
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_BIGINT:
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_LTZ:
             *offset1 += sizeof(int64);
             *offset2 += sizeof(int64);
             return NUM_DATA_CMP(int64, col1, col2);
+        
+        case CT_TYPE_DATETIME_MYSQL:
+            *offset1 += sizeof(int64);
+            *offset2 += sizeof(int64);
+            return cm_datetime_cmp_mysql(col1, col2);
 
-        case GS_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIME_MYSQL:
+            *offset1 += sizeof(int64);
+            *offset2 += sizeof(int64);
+            return cm_time_cmp_mysql(col1, col2);
+
+        case CT_TYPE_DATE_MYSQL:
+            *offset1 += sizeof(int64);
+            *offset2 += sizeof(int64);
+            return cm_date_cmp_mysql(col1, col2);
+
+        case CT_TYPE_TIMESTAMP_TZ:
             *offset1 += sizeof(timestamp_tz_t);
             *offset2 += sizeof(timestamp_tz_t);
             return cm_tstz_cmp((timestamp_tz_t*)col1, (timestamp_tz_t*)col2);
 
-        case GS_TYPE_REAL:
+        case CT_TYPE_REAL:
             *offset1 += sizeof(double);
             *offset2 += sizeof(double);
             return NUM_DATA_CMP(double, col1, col2);
 
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_DECIMAL:
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_DECIMAL:
             *offset1 += DECIMAL_FORMAT_LEN((char *)col1);
             *offset2 += DECIMAL_FORMAT_LEN((char *)col2);
             return cm_dec4_cmp((dec4_t *)((char *)col1), (dec4_t *)((char *)col2));
-        case GS_TYPE_NUMBER2:
+        case CT_TYPE_NUMBER2:
             *offset1 += *(uint8 *)col1 + sizeof(uint8);
             *offset2 += *(uint8 *)col2 + sizeof(uint8);
 
@@ -4108,9 +4100,9 @@ int32 pcrb_cmp_mtrl_column_data(knl_handle_t col1, knl_handle_t col2, gs_type_t 
 #endif
 
 int32 pcrb_cmp_mtrl_column(index_profile_t *profile, pcrb_key_t *key1, pcrb_key_t *key2, uint32 idx_col_id,
-                           uint16 *offset1, uint16 *offset2)
+                           uint16 *offset1, uint16 *offset2, uint16 collate_id, bool32 *cmp_rowid)
 {
-    gs_type_t datatype = profile->types[idx_col_id];
+    ct_type_t datatype = profile->types[idx_col_id];
     bool8 null_first = profile->null_first;
     bool32 key2_is_null = !btree_get_bitmap(&key2->bitmap, idx_col_id);
     uint8 key1_is_null = !btree_get_bitmap(&key1->bitmap, idx_col_id);
@@ -4122,9 +4114,13 @@ int32 pcrb_cmp_mtrl_column(index_profile_t *profile, pcrb_key_t *key1, pcrb_key_
         }
         char *data1 = (char*)key1 + *offset1;
         char *data2 = (char *)key2 + *offset2;
-        result = pcrb_cmp_mtrl_column_data(data1, data2, datatype, offset1, offset2);
+        result = pcrb_cmp_mtrl_column_data(data1, data2, datatype, offset1, offset2, collate_id);
     } else if (key1_is_null) {
         result = (key2_is_null) ? 0 : (null_first ? -1 : 1);
+        if (IS_COMPATIBLE_MYSQL_INST && profile->unique && !dc_is_reserved_entry(profile->uid, profile->table_id) &&
+            key2_is_null) {
+            *cmp_rowid = CT_TRUE;
+        }
     }
 
     return result;
@@ -4134,6 +4130,9 @@ int32 pcrb_get_cmp_result(dc_entity_t *entity, index_t *index, pcrb_key_t *key1,
 {
     int32 result;
     index_profile_t *profile = INDEX_PROFILE(index);
+    knl_index_desc_t *desc = &index->desc;
+    knl_column_t *column;
+    uint16 collate_id;
 
     if (SECUREC_UNLIKELY(key2->is_infinite)) {
         return 1;
@@ -4142,7 +4141,13 @@ int32 pcrb_get_cmp_result(dc_entity_t *entity, index_t *index, pcrb_key_t *key1,
     uint16 offset1 = sizeof(pcrb_key_t);
     uint16 offset2 = sizeof(pcrb_key_t);
     for (uint32 i = 0; i < profile->column_count; i++) {
-        result = pcrb_cmp_mtrl_column(profile, key1, key2, i, &offset1, &offset2);
+        column = dc_get_column(entity, desc->columns[i]);
+        if (column->is_collate) {
+            collate_id = column->collate_id;
+        } else {
+            collate_id = CT_INVALID_ID16;
+        }
+        result = pcrb_cmp_mtrl_column(profile, key1, key2, i, &offset1, &offset2, collate_id, &cmp_rowid);
         if (result != 0) {
             return result;
         }
@@ -4160,22 +4165,22 @@ int32 pcrb_get_cmp_result(dc_entity_t *entity, index_t *index, pcrb_key_t *key1,
 status_t pcrb_compare_mtrl_key(mtrl_segment_t *segment, char *data1, char *data2, int32 *result)
 {
     index_t *index = ((btree_t *)segment->cmp_items)->index;
-    bool32 cmp_rowid = IS_UNIQUE_PRIMARY_INDEX(index) ? GS_FALSE : GS_TRUE;
+    bool32 cmp_rowid = IS_UNIQUE_PRIMARY_INDEX(index) ? CT_FALSE : CT_TRUE;
 
     *result = pcrb_get_cmp_result(index->entity, index, (pcrb_key_t *)data1, (pcrb_key_t *)data2, cmp_rowid);
     if (*result != 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!cmp_rowid) {
         if (IS_COMPATIBLE_MYSQL_INST) {
-            GS_THROW_ERROR(ERR_DUPLICATE_ENTRY, index->entity->table.desc.name,
-                           index->desc.primary ? "PRIMIARY" : "UNIQUE");
+            CT_THROW_ERROR(ERR_DUPLICATE_ENTRY, index->entity->table.desc.name,
+                           index->desc.primary ? "PRIMARY" : index->desc.name);
         } else {
-            GS_THROW_ERROR(ERR_DUPLICATE_KEY, "");
+            CT_THROW_ERROR(ERR_DUPLICATE_KEY, "");
         }
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

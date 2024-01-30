@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -57,8 +57,8 @@ extern "C" {
 #define DEC_OVERFLOW_CHECK_BY_SCIEXP(sciexp)  \
     do {                                      \
         if ((sciexp) > MAX_NUMERIC_EXPN) {    \
-            GS_THROW_ERROR(ERR_NUM_OVERFLOW); \
-            return GS_ERROR;                  \
+            CT_THROW_ERROR(ERR_NUM_OVERFLOW); \
+            return CT_ERROR;                  \
         }                                     \
     } while (0)
 
@@ -107,7 +107,7 @@ extern "C" {
 #define DECIMAL_LEN(buf) cm_dec4_stor_sz((dec4_t *)(buf))
 #define DECIMAL_FORMAT_LEN(buf) CM_ALIGN4(DECIMAL_LEN(buf))
 
-#define MAX_DEC_BYTE_SZ MAX_DEC_BYTE_BY_PREC(GS_MAX_NUM_SAVING_PREC)
+#define MAX_DEC_BYTE_SZ MAX_DEC_BYTE_BY_PREC(CT_MAX_NUM_SAVING_PREC)
 
 /* The number of cells (an uint32) used to store the decimal type.
 The int256 is used to represent a decimal, thus the size is 8 */
@@ -285,7 +285,7 @@ static inline void cm_dec4_copy(dec4_t *dst, const dec4_t *src)
             break;
         default:
             /* if error happens, set the error and write the log */
-            GS_THROW_ERROR(ERR_ASSERT_ERROR, "copy_dec4: invalid decimal");
+            CT_THROW_ERROR(ERR_ASSERT_ERROR, "copy_dec4: invalid decimal");
             cm_zero_dec4(dst);
             break;
     }
@@ -313,7 +313,7 @@ status_t cm_dec4_to_text(const dec4_t *dec, int32 max_length, text_t *text);
  */
 static inline status_t cm_dec4_to_text_all(const dec4_t *dec, text_t *text)
 {
-    return cm_dec4_to_text(dec, GS_MAX_DEC_OUTPUT_ALL_PREC, text);
+    return cm_dec4_to_text(dec, CT_MAX_DEC_OUTPUT_ALL_PREC, text);
 }
 
 status_t cm_str_to_dec4(const char *str, dec4_t *dec);

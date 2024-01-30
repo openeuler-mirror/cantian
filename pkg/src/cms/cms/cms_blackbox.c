@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <ucontext.h>
+#include "cms_log_module.h"
 #include "cm_signal.h"
 #include "cm_memory.h"
 #include "cm_context_pool.h"
@@ -139,74 +140,74 @@ void get_signal_info(int signum, char* buf, uint32 buf_size)
     }
 }
 
-static void print_signal_info(box_excp_item_t *excep_info, void  *cpu_info)
+static void print_sig_info(box_excp_item_t *excep_info, void  *cpu_info)
 {
-    GS_LOG_BLACKBOX("\n================= exception info =================\n");
-    GS_LOG_BLACKBOX("Exception Date          = %s\n", excep_info->date);
-    GS_LOG_BLACKBOX("Exception Number        = %d\n", excep_info->sig_index);
-    GS_LOG_BLACKBOX("Exception Code          = %d\n", excep_info->sig_code);
-    GS_LOG_BLACKBOX("Exception Name          = %s\n", excep_info->sig_name);
-    GS_LOG_BLACKBOX("Exception Process       = 0x%016llx\n", excep_info->loc_id);
-    GS_LOG_BLACKBOX("Exception Thread        = 0x%016llx\n", (uint64)excep_info->thread_id);
-    GS_LOG_BLACKBOX("Exception Process name  = %s\n", excep_info->loc_name);
-    GS_LOG_BLACKBOX("Version                 = %s\n", excep_info->version);
-    GS_LOG_BLACKBOX("Platform                = %s\n", excep_info->platform);
+    CT_LOG_BLACKBOX("\n================= exception info =================\n");
+    CT_LOG_BLACKBOX("Exception Date          = %s\n", excep_info->date);
+    CT_LOG_BLACKBOX("Exception Number        = %d\n", excep_info->sig_index);
+    CT_LOG_BLACKBOX("Exception Code          = %d\n", excep_info->sig_code);
+    CT_LOG_BLACKBOX("Exception Name          = %s\n", excep_info->sig_name);
+    CT_LOG_BLACKBOX("Exception Process       = 0x%016llx\n", excep_info->loc_id);
+    CT_LOG_BLACKBOX("Exception Thread        = 0x%016llx\n", (uint64)excep_info->thread_id);
+    CT_LOG_BLACKBOX("Exception Process name  = %s\n", excep_info->loc_name);
+    CT_LOG_BLACKBOX("Version                 = %s\n", excep_info->version);
+    CT_LOG_BLACKBOX("Platform                = %s\n", excep_info->platform);
     return;
 }
 
-static void print_register(box_reg_info_t *reg_info)
+static void print_reg(box_reg_info_t *reg_info)
 {
-    GS_LOG_BLACKBOX("\nRegister Contents:\n");
+    CT_LOG_BLACKBOX("\nRegister Contents:\n");
 #if (defined __x86_64__)
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  RAX    ", reg_info->rax);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  RBX    ", reg_info->rbx);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  RCX    ", reg_info->rcx);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  RDX    ", reg_info->rdx);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  RSI    ", reg_info->rsi);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  RDI    ", reg_info->rdi);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  RBP    ", reg_info->rbp);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  RSP    ", reg_info->rsp);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  RAX    ", reg_info->rax);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  RBX    ", reg_info->rbx);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  RCX    ", reg_info->rcx);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  RDX    ", reg_info->rdx);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  RSI    ", reg_info->rsi);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  RDI    ", reg_info->rdi);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  RBP    ", reg_info->rbp);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  RSP    ", reg_info->rsp);
 
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  R8     ", reg_info->r8);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  R9     ", reg_info->r9);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  R10    ", reg_info->r10);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  R11    ", reg_info->r11);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  R12    ", reg_info->r12);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  R13    ", reg_info->r13);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  R14    ", reg_info->r14);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  R15    ", reg_info->r15);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  R8     ", reg_info->r8);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  R9     ", reg_info->r9);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  R10    ", reg_info->r10);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  R11    ", reg_info->r11);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  R12    ", reg_info->r12);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  R13    ", reg_info->r13);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  R14    ", reg_info->r14);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  R15    ", reg_info->r15);
 
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  RIP    ", reg_info->rip);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  EFLAGS ", reg_info->eflags);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  CS     ", reg_info->cs);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  ERR    ", reg_info->err);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  TRAPNO ", reg_info->trapno);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  OM     ", reg_info->oldmask);
-    GS_LOG_BLACKBOX(REGFORMAT, "reg:  CR2    ", reg_info->cr2);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  RIP    ", reg_info->rip);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  EFLAGS ", reg_info->eflags);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  CS     ", reg_info->cs);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  ERR    ", reg_info->err);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  TRAPNO ", reg_info->trapno);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  OM     ", reg_info->oldmask);
+    CT_LOG_BLACKBOX(REGFORMAT, "reg:  CR2    ", reg_info->cr2);
 
 #elif (defined __aarch64__)
     for (uint32 i = 0; i < BOX_ARM_REG_NUM; i++) {
-        GS_LOG_BLACKBOX(REGFORMAT, i, reg_info->reg[i]);
+        CT_LOG_BLACKBOX(REGFORMAT, i, reg_info->reg[i]);
     }
 
-    GS_LOG_BLACKBOX("sp       0x%016llx\n", reg_info->sp);
-    GS_LOG_BLACKBOX("pc       0x%016llx\n", reg_info->pc);
+    CT_LOG_BLACKBOX("sp       0x%016llx\n", reg_info->sp);
+    CT_LOG_BLACKBOX("pc       0x%016llx\n", reg_info->pc);
 #endif
 }
 
 /* This block is used as resident memory, mainly to prevent exception handling,
    in the application of memory, again generate an exception */
-static status_t proc_signal_init(void)
+static status_t proc_sign_init(void)
 {
     errno_t ret = memset_s(&g_excep_info, sizeof(box_excp_item_t), 0, sizeof(box_excp_item_t));
     if (ret != EOK) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-void process_get_register_info(box_reg_info_t *cpu_info, ucontext_t *uc)
+void proc_get_register_info(box_reg_info_t *cpu_info, ucontext_t *uc)
 {
     if ((cpu_info == NULL) || (uc == NULL)) {
         return;
@@ -250,12 +251,12 @@ void process_get_register_info(box_reg_info_t *cpu_info, ucontext_t *uc)
     return;
 }
 
-void proc_signal_get_header(box_excp_item_t *excep_info, int32 sig_num,
+void proc_sig_get_header(box_excp_item_t *excep_info, int32 sig_num,
                          siginfo_t *siginfo, void *context)
 {
     uint32  loop = 0;
     box_excp_item_t *buff = excep_info;
-    char signal_name[GS_NAME_BUFFER_SIZE];
+    char signal_name[CT_NAME_BUFFER_SIZE];
     char *platform_name = NULL;
     char *loc_name = NULL;
     buff->magic    = (uint32)BOX_EXCP_MAGIC;
@@ -267,28 +268,28 @@ void proc_signal_get_header(box_excp_item_t *excep_info, int32 sig_num,
 
     signal_name[0] = 0x00;
     get_signal_info(sig_num, signal_name, sizeof(signal_name) - 1);
-    int ret = strncpy_s(buff->sig_name, GS_NAME_BUFFER_SIZE, signal_name, strlen(signal_name));
+    int ret = strncpy_s(buff->sig_name, CT_NAME_BUFFER_SIZE, signal_name, strlen(signal_name));
     MEMS_RETVOID_IFERR(ret);
     buff->sig_index = sig_num;
 
     buff->loc_id  = cm_sys_pid();
     buff->thread_id = pthread_self();
     platform_name = cm_sys_platform_name();
-    ret = strncpy_s(buff->platform, GS_NAME_BUFFER_SIZE, platform_name, strlen(platform_name));
+    ret = strncpy_s(buff->platform, CT_NAME_BUFFER_SIZE, platform_name, strlen(platform_name));
     MEMS_RETVOID_IFERR(ret);
     
     loc_name = cm_sys_program_name();
-    ret = strncpy_s(buff->loc_name, GS_FILE_NAME_BUFFER_SIZE + 1, loc_name, strlen(loc_name));
+    ret = strncpy_s(buff->loc_name, CT_FILE_NAME_BUFFER_SIZE + 1, loc_name, strlen(loc_name));
     MEMS_RETVOID_IFERR(ret);
     
     if (siginfo != NULL) {
         buff->sig_code = siginfo->si_code;
     }
-    (void)cm_date2str(g_timer()->now, "yyyy-mm-dd hh24:mi:ss.ff3", buff->date, GS_MAX_TIME_STRLEN);
+    (void)cm_date2str(g_timer()->now, "yyyy-mm-dd hh24:mi:ss.ff3", buff->date, CT_MAX_TIME_STRLEN);
     return;
 }
 
-bool32 check_stack_available(uintptr_t *sp, uint32 *max_dump_len)
+bool32 check_stack_is_available(uintptr_t *sp, uint32 *max_dump_len)
 {
     size_t  stacksize = 0;
     void   *stack_top_addr  = NULL;
@@ -298,16 +299,16 @@ bool32 check_stack_available(uintptr_t *sp, uint32 *max_dump_len)
     uintptr_t sub_sp = *sp - 512;
     *max_dump_len = BOX_STACK_SIZE;
     status_t ret = pthread_getattr_np((pthread_t)pthread_self(), &thread_attr);
-    if (ret != GS_SUCCESS) {
-        return GS_TRUE;
+    if (ret != CT_SUCCESS) {
+        return CT_TRUE;
     }
      
     ret = pthread_attr_getstack(&thread_attr, &stack_top_addr, &stacksize);
-    if (ret != GS_SUCCESS) {
-        return GS_TRUE;
+    if (ret != CT_SUCCESS) {
+        return CT_TRUE;
     }
     /* thread guard size */
-    safe_addr = (uintptr_t)stack_top_addr + GS_DFLT_THREAD_GUARD_SIZE;
+    safe_addr = (uintptr_t)stack_top_addr + CT_DFLT_THREAD_GUARD_SIZE;
     stack_end = (uintptr_t)stack_top_addr + stacksize;
 
     if ((sub_sp > safe_addr) && (sub_sp < stack_end)) {
@@ -316,16 +317,16 @@ bool32 check_stack_available(uintptr_t *sp, uint32 *max_dump_len)
         if ((stack_end - sub_sp) < BOX_STACK_SIZE) {
             *max_dump_len = stack_end - sub_sp;
         }
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     *sp = stack_end - BOX_STACK_SIZE;
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 
-uintptr_t process_get_stack_point(box_reg_info_t *reg_info, uint32 *max_dump_len)
+uintptr_t proc_get_stack_point(box_reg_info_t *reg_info, uint32 *max_dump_len)
 {
     uintptr_t sp;
 
@@ -335,12 +336,12 @@ uintptr_t process_get_stack_point(box_reg_info_t *reg_info, uint32 *max_dump_len
     sp = (uintptr_t)reg_info->reg[BOX_ARM_RSP_LOC];
 #endif
     
-    (void)check_stack_available(&sp, max_dump_len);
+    (void)check_stack_is_available(&sp, max_dump_len);
     
     return sp;
 }
 
-static void save_process_maps_file(box_excp_item_t *excep_info)
+static void save_proc_maps_file(box_excp_item_t *excep_info)
 {
     int32 fd;
     int32 cnt;
@@ -348,19 +349,19 @@ static void save_process_maps_file(box_excp_item_t *excep_info)
    
     (void)sprintf_s(buffer, sizeof(buffer), "/proc/%u/maps", (uint32)excep_info->loc_id);
 
-    GS_LOG_BLACKBOX("\nProc maps information:\n");
+    CT_LOG_BLACKBOX("\nProc maps information:\n");
 
-    if (cm_open_file_ex(buffer, O_SYNC | O_RDONLY | O_BINARY, S_IRUSR, &fd) != GS_SUCCESS) {
+    if (cm_open_file_ex(buffer, O_SYNC | O_RDONLY | O_BINARY, S_IRUSR, &fd) != CT_SUCCESS) {
         return;
     }
     cnt = read(fd, buffer, sizeof(buffer) - 1);
     while (cnt > 0) {
         ((char *)buffer)[cnt] = '\0';
-        GS_LOG_BLACKBOX("%s", buffer);
+        CT_LOG_BLACKBOX("%s", buffer);
         cnt = read(fd, buffer, sizeof(buffer) - 1);
     }
     
-    GS_LOG_BLACKBOX("\n");
+    CT_LOG_BLACKBOX("\n");
     cm_close_file(fd);
 
     return;
@@ -368,15 +369,15 @@ static void save_process_maps_file(box_excp_item_t *excep_info)
 
 
 uint32 g_sign_mutex = 0;
-void process_sign_func(int32 sig_num, siginfo_t *siginfo, void *context)
+void proc_sign_func(int32 sig_num, siginfo_t *siginfo, void *context)
 {
     box_excp_item_t *excep_info = &g_excep_info;
     uint64 locId = 0;
     sigset_t sign_old_mask;
     sigset_t sign_mask;
     uint32 max_dump_len = 0;
-    char signal_name[GS_NAME_BUFFER_SIZE] = { 0 };
-    char date[GS_MAX_TIME_STRLEN] = { 0 };
+    char signal_name[CT_NAME_BUFFER_SIZE] = { 0 };
+    char date[CT_MAX_TIME_STRLEN] = { 0 };
 
     if (g_sign_mutex != 0) {
         return;
@@ -392,8 +393,8 @@ void process_sign_func(int32 sig_num, siginfo_t *siginfo, void *context)
         sig_num == SIGTTOU || sig_num == SIGVTALRM || sig_num == SIGPROF || sig_num == SIGPWR) {
         locId = cm_sys_pid();
         get_signal_info(sig_num, signal_name, sizeof(signal_name) - 1);
-        (void)cm_date2str(g_timer()->now, "yyyy-mm-dd hh24:mi:ss.ff3", date, GS_MAX_TIME_STRLEN);
-        GS_LOG_BLACKBOX("Location[0x%016llx] has been terminated, signal name : %s, current date : %s\n",
+        (void)cm_date2str(g_timer()->now, "yyyy-mm-dd hh24:mi:ss.ff3", date, CT_MAX_TIME_STRLEN);
+        CT_LOG_BLACKBOX("Location[0x%016llx] has been terminated, signal name : %s, current date : %s\n",
             locId, signal_name, date);
         cm_fync_logfile();
         return;
@@ -405,24 +406,24 @@ void process_sign_func(int32 sig_num, siginfo_t *siginfo, void *context)
         errno_t ret = memset_sp((void *)excep_info, sizeof(box_excp_item_t), 0, sizeof(box_excp_item_t));
         MEMS_RETVOID_IFERR(ret);
          
-        proc_signal_get_header(excep_info, sig_num, siginfo, context);
+        proc_sig_get_header(excep_info, sig_num, siginfo, context);
 
-        process_get_register_info(&(excep_info->reg_info), (ucontext_t *)context);
+        proc_get_register_info(&(excep_info->reg_info), (ucontext_t *)context);
         
-        print_signal_info(excep_info, (void *)&(excep_info->reg_info));
+        print_sig_info(excep_info, (void *)&(excep_info->reg_info));
 
-        print_register(&excep_info->reg_info);
+        print_reg(&excep_info->reg_info);
 
-        cm_print_call_link(GS_DEFAUT_BLACK_BOX_DEPTH);
+        cm_print_call_link(CT_DEFAUT_BLACK_BOX_DEPTH);
         
-        excep_info->stack_addr  = process_get_stack_point(&(excep_info->reg_info), &max_dump_len);
+        excep_info->stack_addr  = proc_get_stack_point(&(excep_info->reg_info), &max_dump_len);
         ret = memcpy_s(excep_info->stack_memory, BOX_STACK_SIZE, (const void *)excep_info->stack_addr, max_dump_len);
         MEMS_RETVOID_IFERR(ret);
         
-        GS_LOG_BLACKBOX("\nDump stack(total %dBytes,  %dBytes/line:\n", BOX_STACK_SIZE, STACK_SIZE_EACH_ROW);
-        GS_UTIL_DUMP_MEM((void *)excep_info->stack_addr, BOX_STACK_SIZE);
+        CT_LOG_BLACKBOX("\nDump stack(total %dBytes,  %dBytes/line:\n", BOX_STACK_SIZE, STACK_SIZE_EACH_ROW);
+        CT_UTIL_DUMP_MEM((void *)excep_info->stack_addr, BOX_STACK_SIZE);
 
-        save_process_maps_file(excep_info);
+        save_proc_maps_file(excep_info);
     }
     
     g_sign_mutex = 0;
@@ -433,36 +434,36 @@ void process_sign_func(int32 sig_num, siginfo_t *siginfo, void *context)
     return;
 }
 
-static status_t signal_cap_reg_proc(int32 sig_num)
+static status_t sigcap_reg_proc(int32 sig_num)
 {
     status_t uiRetCode;
 
-    uiRetCode = cm_regist_signal_ex(sig_num, process_sign_func);
-    if (uiRetCode != GS_SUCCESS) {
-        GS_LOG_DEBUG_ERR("[DBG] Register the signal cap failed:%d", sig_num);
-        return GS_ERROR;
+    uiRetCode = cm_regist_signal_ex(sig_num, proc_sign_func);
+    if (uiRetCode != CT_SUCCESS) {
+        CT_LOG_DEBUG_ERR("[DBG] Register the signal cap failed:%d", sig_num);
+        return CT_ERROR;
     }
 
-    GS_LOG_DEBUG_INF("[DBG] Register the signal cap success:%d", sig_num);
-    return GS_SUCCESS;
+    CT_LOG_DEBUG_INF("[DBG] Register the signal cap success:%d", sig_num);
+    return CT_SUCCESS;
 }
 
 
-status_t signal_cap_handle_reg(void)
+status_t sigcap_handle_reg(void)
 {
-    if (proc_signal_init() != GS_SUCCESS) {
-        return GS_ERROR;
+    if (proc_sign_init() != CT_SUCCESS) {
+        return CT_ERROR;
     }
     // Ensure that backtrace is loaded successfully.
-    void *array[GS_MAX_BLACK_BOX_DEPTH] = {0};
+    void *array[CT_MAX_BLACK_BOX_DEPTH] = {0};
     size_t size;
-    size = backtrace(array, GS_MAX_BLACK_BOX_DEPTH);
+    size = backtrace(array, CT_MAX_BLACK_BOX_DEPTH);
     log_file_handle_t *log_file_handle = cm_log_logger_file(LOG_BLACKBOX);
     backtrace_symbols_fd(array, size, log_file_handle->file_handle);
 
     for (uint32 temp = 0; temp < ARRAY_NUM(g_sign_array); temp++) {
-        if (signal_cap_reg_proc(g_sign_array[temp]) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (sigcap_reg_proc(g_sign_array[temp]) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
         
@@ -471,7 +472,7 @@ status_t signal_cap_handle_reg(void)
      * sent to the application, causing the database process to be killed. So SIGHUP should not captured here.
      */
     (void)signal(SIGINT, SIG_DFL);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #endif

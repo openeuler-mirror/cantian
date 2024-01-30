@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -137,7 +137,7 @@ typedef struct st_mes_command_attr {
 
 typedef struct st_mq_context_t {
     uint32 task_num;
-    mes_task_context_t tasks[GS_DTC_MAX_TASK_NUM];  // dtc task thread
+    mes_task_context_t tasks[CT_DTC_MAX_TASK_NUM];  // dtc task thread
     dtc_msgqueue_t queue[DTC_MSG_QUEUE_NUM];        // msg queue for session background task, multiple queue to reduce
                                                     // contention
     mes_command_attr_t command_attr[MES_CMD_CEIL];

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,11 +22,10 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "knl_space_module.h"
 #include "knl_punch_space.h"
 #include "knl_context.h"
 #include "dtc_dls.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -39,7 +38,7 @@ static inline void spc_print_punch_log(knl_session_t *session, space_t *space, c
     page_list_t *p_ing = &punch_head->punching_exts;
     page_list_t *p_ed = &punch_head->punched_exts;
     page_list_t *free = &space->head->free_extents;
-    GS_LOG_DEBUG_INF("[SPC PUNCH] %s: free extents count %u first %u-%u last %u-%u, punching extents count %u "
+    CT_LOG_DEBUG_INF("[SPC PUNCH] %s: free extents count %u first %u-%u last %u-%u, punching extents count %u "
         "first %u-%u last %u-%u, punched extents count %u first %u-%u last %u-%u.", info,
         free->count, (uint32)free->first.file, free->first.page, (uint32)free->last.file, free->last.page,
         p_ing->count, (uint32)p_ing->first.file, p_ing->first.page, (uint32)p_ing->last.file, p_ing->last.page,
@@ -48,11 +47,11 @@ static inline void spc_print_punch_log(knl_session_t *session, space_t *space, c
 
 void spc_set_datafile_ctrl_punched(knl_session_t *session, uint16 file_id)
 {
-    knl_panic_log(file_id != GS_INVALID_FILEID, "file id is invalid when set datafile ctrl punched");
+    knl_panic_log(file_id != CT_INVALID_FILEID, "file id is invalid when set datafile ctrl punched");
     datafile_t *df = DATAFILE_GET(session, file_id);
     if (!df->ctrl->punched) {
-        df->ctrl->punched = GS_TRUE;
-        if (db_save_datafile_ctrl(session, file_id) != GS_SUCCESS) {
+        df->ctrl->punched = CT_TRUE;
+        if (db_save_datafile_ctrl(session, file_id) != CT_SUCCESS) {
             CM_ABORT(0, "[SPACE] ABORT INFO: failed to save datafile ctrl");
         }
     }
@@ -80,7 +79,7 @@ void spc_punch_extent(knl_session_t *session, page_id_t first_page, uint32 ext_s
         redo.page_id.page = punch_page.page;
         redo.page_id.file = punch_page.file;
         log_put(session, RD_PUNCH_FORMAT_PAGE, &redo, sizeof(rd_punch_page_t), LOG_ENTRY_FLAG_NONE);
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         punch_page.page++;
         log_atomic_op_end(session);
     }
@@ -89,9 +88,9 @@ void spc_punch_extent(knl_session_t *session, page_id_t first_page, uint32 ext_s
 static inline bool32 spc_punch_normal_verify_extent(page_id_t *page_id)
 {
     if (IS_INVALID_PAGID(*page_id) || page_id->file == 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void spc_punch_residual_extents(knl_session_t *session, uint32 extent_size, page_list_t *punch_exts)
@@ -101,9 +100,9 @@ void spc_punch_residual_extents(knl_session_t *session, uint32 extent_size, page
     for (uint32 i = 0; i < punch_exts->count; i++) {
         // first get next page id, because extent may be punched by ckpt
         if (!spc_punch_normal_verify_extent(&page_id)) {
-            GS_LOG_RUN_WAR("punch extent(%u-%u) is invailed, extent list first is %u-%u.",
+            CT_LOG_RUN_WAR("punch extent(%u-%u) is invailed, extent list first is %u-%u.",
                 page_id.file, page_id.page, punch_exts->first.file, punch_exts->first.page);
-            GS_LOG_RUN_WAR("punch residual extent is invailed, may cause %llu space leak.",
+            CT_LOG_RUN_WAR("punch residual extent is invailed, may cause %llu space leak.",
                 (uint64)extent_size * (punch_exts->count - i) * DEFAULT_PAGE_SIZE(session));
             return;
         }
@@ -121,7 +120,7 @@ status_t spc_punch_bitmap_batch_extents(knl_session_t *session, df_map_page_t *m
     uint8 *bitmap = map_page->bitmap;
     int32 i = (int32)*bit;
     int64 punch_pages = 0;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
     while (i >= 0) {
         if (DF_MAP_MATCH(bitmap, *bit)) {
@@ -146,14 +145,14 @@ status_t spc_punch_bitmap_batch_extents(knl_session_t *session, df_map_page_t *m
         }
 
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            status = GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            status = CT_ERROR;
             break;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            status = GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            status = CT_ERROR;
             break;
         }
     }
@@ -167,78 +166,78 @@ bool32 spc_check_bitmap_enable_punch(knl_session_t *session, page_id_t map_pagei
     df_map_page_t *map_page = (df_map_page_t *)CURR_PAGE(session);
 
     if (map_page->first_page.page > *curr_hwm) {
-        buf_leave_page(session, GS_FALSE);
-        return GS_FALSE;
+        buf_leave_page(session, CT_FALSE);
+        return CT_FALSE;
     }
 
     if (map_page->free_bits == 0) {
         *curr_hwm -= (DF_MAP_BIT_CNT(session) * df->map_head->bit_unit) + 1;
-        buf_leave_page(session, GS_FALSE);
-        return GS_FALSE;
+        buf_leave_page(session, CT_FALSE);
+        return CT_FALSE;
     }
-    buf_leave_page(session, GS_FALSE);
-    return GS_TRUE;
+    buf_leave_page(session, CT_FALSE);
+    return CT_TRUE;
 }
 
 bool32 spc_punch_bitmap_check_break(knl_session_t *session, spc_punch_info_t *punch_info, status_t *status)
 {
     if (punch_info->do_punch_size <= 0) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (session->canceled) {
-        GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-        *status = GS_ERROR;
-        return GS_TRUE;
+        CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+        *status = CT_ERROR;
+        return CT_TRUE;
     }
 
     if (session->killed) {
-        GS_THROW_ERROR(ERR_OPERATION_KILLED);
-        *status = GS_ERROR;
-        return GS_TRUE;
+        CT_THROW_ERROR(ERR_OPERATION_KILLED);
+        *status = CT_ERROR;
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static status_t spc_punch_bitmap_free_bits(knl_session_t *session, datafile_t *df, page_id_t map_pagid,
     uint32 *curr_hwm, spc_punch_info_t *punch_info)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     int64 punch_size = 0;
     space_t *space = SPACE_GET(session, df->space_id);
     df_map_page_t *map_page = (df_map_page_t *)cm_push(session->stack, DEFAULT_PAGE_SIZE(session));
     knl_panic(map_page != NULL);
-    int32 i = GS_INVALID_INT32;
+    int32 i = CT_INVALID_INT32;
     uint32 bit_uints = 0;
     uint32 bit = DF_MAP_BIT_CNT(session);
 
     for (;;) {
         if (!spc_try_lock_space(session, space, SPACE_DDL_WAIT_INTERVAL, "punch space failed")) {
-            status = GS_ERROR;
+            status = CT_ERROR;
             break;
         }
 
         buf_enter_page(session, map_pagid, LATCH_MODE_S, ENTER_PAGE_NORMAL);
         errno_t ret = memcpy_sp(map_page, DEFAULT_PAGE_SIZE(session), CURR_PAGE(session), DEFAULT_PAGE_SIZE(session));
         knl_securec_check(ret);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
-        if (i == GS_INVALID_INT32) {
+        if (i == CT_INVALID_INT32) {
             bit_uints = *curr_hwm - map_page->first_page.page;
             bit = (bit_uints / df->map_head->bit_unit) - 1;
             i = (int32)bit;
         }
 
-        if (spc_punch_bitmap_batch_extents(session, map_page, punch_info, &bit, &punch_size) != GS_SUCCESS) {
+        if (spc_punch_bitmap_batch_extents(session, map_page, punch_info, &bit, &punch_size) != CT_SUCCESS) {
             dls_spin_unlock(session, &space->lock);
-            status = GS_ERROR;
+            status = CT_ERROR;
             break;
         }
 
         dls_spin_unlock(session, &space->lock);
         // do inc ckpt when punching 4096 pages
-        ckpt_trigger(session, GS_TRUE, CKPT_TRIGGER_INC);
+        ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_INC);
 
         i = (int32)bit;
 
@@ -254,7 +253,7 @@ static status_t spc_punch_bitmap_free_bits(knl_session_t *session, datafile_t *d
     *curr_hwm -= bit_uints + 1;
     punch_info->real_punch_size += punch_size;
     cm_pop(session->stack);
-    GS_LOG_DEBUG_INF("[SPC] punch expected page count %llu in map page %d-%d", punch_size / DEFAULT_PAGE_SIZE(session),
+    CT_LOG_DEBUG_INF("[SPC] punch expected page count %llu in map page %d-%d", punch_size / DEFAULT_PAGE_SIZE(session),
         map_pagid.file, map_pagid.page);
     return status;
 }
@@ -277,7 +276,7 @@ status_t spc_punch_fetch_bitmap_group(knl_session_t *session, space_t *space, da
             }
 
             if (!spc_try_lock_space_file(session, space, df)) {
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             if (!spc_check_bitmap_enable_punch(session, curr_map, &curr_hwm, df)) {
@@ -288,79 +287,79 @@ status_t spc_punch_fetch_bitmap_group(knl_session_t *session, space_t *space, da
 
             dls_spin_unlock(session, &space->lock);
 
-            if (spc_punch_bitmap_free_bits(session, df, curr_map, &curr_hwm, punch_info) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (spc_punch_bitmap_free_bits(session, df, curr_map, &curr_hwm, punch_info) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             curr_map.page--;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // if change this func, plz change func spc_punch_check_normalspc_invaild
 status_t spc_punch_check_space_invaild(knl_session_t *session, space_t *space)
 {
     if (SPACE_IS_DEFAULT(space)) {
-        GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "punch tablespace", "default tablespace");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "punch tablespace", "default tablespace");
+        return CT_ERROR;
     }
 
     if (SPACE_IS_ENCRYPT(space)) {
-        GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "punch tablespace", "ENCRYPT tablespace");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "punch tablespace", "ENCRYPT tablespace");
+        return CT_ERROR;
     }
 
     if (IS_UNDO_SPACE(space)) {
-        GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "punch tablespace", "undo tablespace");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "punch tablespace", "undo tablespace");
+        return CT_ERROR;
     }
 
     if (IS_TEMP_SPACE(space)) {
-        GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "punch tablespace", "temp tablespace");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "punch tablespace", "temp tablespace");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_punch_precheck(knl_session_t *session, space_t *space)
 {
     if (session->kernel->db.status != DB_STATUS_OPEN) {
-        GS_THROW_ERROR(ERR_DATABASE_NOT_OPEN, "punch tablespace");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATABASE_NOT_OPEN, "punch tablespace");
+        return CT_ERROR;
     }
 
     if (!SPACE_IS_ONLINE(space)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "punch tablespace failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "punch tablespace failed");
+        return CT_ERROR;
     }
 
-    return spc_punch_check_space_invaild(session, space) != GS_SUCCESS;
+    return spc_punch_check_space_invaild(session, space) != CT_SUCCESS;
 }
 
 status_t spc_punch_space_bitmap(knl_session_t *session, space_t *space, spc_punch_info_t *punch_info)
 {
     datafile_t *df = NULL;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
     if (!spc_try_lock_space(session, space, SPACE_DDL_WAIT_INTERVAL, "punch space failed")) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (space->punching) {
         spc_unlock_space(session, space);
-        GS_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "space %s is punching, parallel punching is not allowed",
+        CT_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "space %s is punching, parallel punching is not allowed",
             space->ctrl->name);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    space->punching = GS_TRUE;
+    space->punching = CT_TRUE;
     spc_unlock_space(session, space);
 
     for (uint32 i = 0; i < space->ctrl->file_hwm; i++) {
-        if (space->ctrl->files[i] == GS_INVALID_ID32) {
+        if (space->ctrl->files[i] == CT_INVALID_ID32) {
             continue;
         }
 
@@ -369,18 +368,18 @@ status_t spc_punch_space_bitmap(knl_session_t *session, space_t *space, spc_punc
             continue;
         }
 
-        if (spc_punch_fetch_bitmap_group(session, space, df, space->head->hwms[i], punch_info) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (spc_punch_fetch_bitmap_group(session, space, df, space->head->hwms[i], punch_info) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
     }
 
     if (!spc_try_lock_space(session, space, SPACE_DDL_WAIT_INTERVAL, "punch space failed")) {
-        space->punching = GS_FALSE;
-        return GS_ERROR;
+        space->punching = CT_FALSE;
+        return CT_ERROR;
     }
 
-    space->punching = GS_FALSE;
+    space->punching = CT_FALSE;
     spc_unlock_space(session, space);
     return status;
 }
@@ -415,7 +414,7 @@ void spc_clean_punching_extents(knl_session_t *session, space_t *space)
     log_put(session, RD_SPC_PUNCH_EXTENTS, &punch_head->punching_exts, sizeof(rd_punch_extents_t),
         LOG_ENTRY_FLAG_NONE);
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
     spc_print_punch_log(session, space, "clean punching extens");
 }
@@ -448,7 +447,7 @@ void spc_punch_free_extent(knl_session_t *session, space_t *space)
     log_put(session, RD_SPC_PUNCH_EXTENTS, &punch_head->punching_exts,
         sizeof(rd_punch_extents_t), LOG_ENTRY_FLAG_NONE);
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 
     spc_print_punch_log(session, space, "punch free extent");
@@ -457,12 +456,12 @@ void spc_punch_free_extent(knl_session_t *session, space_t *space)
 void spc_force_reset_punching_stat(knl_session_t *session, space_t *space, volatile bool8 *punching)
 {
     if (cm_get_error_code() == ERR_SPACE_OFFLINE) {
-        *punching = GS_FALSE;
+        *punching = CT_FALSE;
         return;
     }
 
     dls_spin_lock(session, &space->lock, &session->stat->spin_stat.stat_space);
-    *punching = GS_FALSE;
+    *punching = CT_FALSE;
     dls_spin_unlock(session, &space->lock);
 }
 
@@ -486,25 +485,25 @@ status_t spc_punching_free_extents_part(knl_session_t *session, space_t *space, 
     page_id_t punch_ext;
 
     if (!spc_try_lock_space(session, space, SPACE_DDL_WAIT_INTERVAL, "punch space failed")) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (SECUREC_UNLIKELY(spc_is_punching(session, space, "parallel punch"))) {
         spc_unlock_space(session, space);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     // extent size maybe 8192, ckpt_exts can not be 0, so + 1
     uint32 ckpt_exts = SPACE_PUNCH_CKPT_INTERVAL / space->ctrl->extent_size + 1;
-    space->punching = GS_TRUE;
+    space->punching = CT_TRUE;
     spc_clean_residual_punching_extent(session, space);
 
     while (expect_exts > *real_exts) {
         if (SECUREC_UNLIKELY(!SPACE_IS_ONLINE(space))) {
-            GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "punch tablespace failed");
-            space->punching = GS_FALSE;
+            CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "punch tablespace failed");
+            space->punching = CT_FALSE;
             spc_unlock_space(session, space);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (space->head->free_extents.count == 0) {
@@ -518,20 +517,20 @@ status_t spc_punching_free_extents_part(knl_session_t *session, space_t *space, 
         spc_punch_extent(session, punch_ext, space->ctrl->extent_size);
         (*real_exts)++;
         if ((*real_exts) % ckpt_exts == 0) {
-            ckpt_trigger(session, GS_TRUE, CKPT_TRIGGER_INC);
+            ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_INC);
         }
 
         if (!spc_try_lock_space(session, space, SPACE_DDL_WAIT_INTERVAL, "punch space failed")) {
             // reset space->punching inside
             spc_force_reset_punching_stat(session, space, &space->punching);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     spc_clean_punching_extents(session, space);
-    space->punching = GS_FALSE;
+    space->punching = CT_FALSE;
     spc_unlock_space(session, space);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t spc_punch_space_normal(knl_session_t *session, space_t *space, spc_punch_info_t *punch_info)
@@ -554,13 +553,13 @@ status_t spc_punch_space(knl_session_t *session, space_t *space, spc_punch_info_
 
 status_t spc_punch_hole(knl_session_t *session, space_t *space, int64 punch_size)
 {
-    if (spc_punch_precheck(session, space) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (spc_punch_precheck(session, space) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    uint64 space_size = DEFAULT_PAGE_SIZE(session) * spc_count_pages_with_ext(session, space, GS_TRUE);
+    uint64 space_size = DEFAULT_PAGE_SIZE(session) * spc_count_pages_with_ext(session, space, CT_TRUE);
     spc_punch_info_t punch_info;
-    if (punch_size == GS_INVALID_INT64) {
+    if (punch_size == CT_INVALID_INT64) {
         punch_info.do_punch_size = space_size;
     } else {
         punch_info.do_punch_size = (space_size < punch_size) ? space_size : punch_size;
@@ -569,7 +568,7 @@ status_t spc_punch_hole(knl_session_t *session, space_t *space, int64 punch_size
     punch_info.real_punch_size = 0;
     status_t status = spc_punch_space(session, space, &punch_info);
 
-    GS_LOG_RUN_INF("[SPC] punch space %s, expect size %lld, punched size %lld.", space->ctrl->name,
+    CT_LOG_RUN_INF("[SPC] punch space %s, expect size %lld, punched size %lld.", space->ctrl->name,
         punch_info.do_punch_size, punch_info.real_punch_size);
     return status;
 }

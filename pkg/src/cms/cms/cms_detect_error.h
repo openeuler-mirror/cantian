@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -40,10 +40,10 @@
 extern "C" {
 #endif
 
-#define CMS_SECOND_TRANS_MICROSECOND 1000000 // The time obtained by calling the cm_now interface is in microseconds.
+#define CMS_SECOND_TRANS_MICROSECOND 1000000U // The time obtained by calling the cm_now interface is in microseconds.
 #define CMS_DETECT_DISK_INTERVAL 1000        // The input parameter to cm_sleep is in milliseconds.
 #define CMS_RETRY_DISK_DETECT 200
-#define CMS_READ_DISK_TIMEOUT_WAIT 2000 // Read timed out, waiting for CMS itself abort.
+#define CMS_READ_DISK_TIMEOUT_WAIT 60000 // 60s Read timed out, waiting for CMS itself abort.
 #define CMS_STOP_RERUN_SCRIPT_TIMEOUT 5000
 #define CMS_WAIT_STOP_RERUN_ENABLE 2000 // It takes 2 seconds for the stop pull command to take effect.
 #define CMS_DETECT_DISK_ERR_TIMEOUT 10000000
@@ -57,13 +57,14 @@ void cms_kill_self(void);
 status_t cms_daemon_stop_pull(void);
 status_t cms_judge_disk_error(void);
 status_t cms_detect_disk(void);
-status_t cms_detect_file_stat(const char *read_file);
+status_t cms_detect_file_stat(const char *read_file, disk_handle_t* gcc_handle);
 status_t cms_exec_stop_rerun_script(const char *script, const char *arg, uint32 timeout_ms, status_t *result);
 status_t cms_exec_script_inner(cms_res_t res, char *type);
 status_t cms_get_script_from_memory(cms_res_t *res);
 void cms_try_init_exit_num(void);
 void cms_refresh_last_check_time(date_t start_time);
 void cms_judge_disk_io_stat(void);
+status_t cms_open_detect_file(void);
 
 typedef struct st_cms_disk_check_t {
     date_t last_check_time;

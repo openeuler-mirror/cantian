@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,6 +31,7 @@
 #include "knl_session.h"
 #include "knl_part_output.h"
 #include "knl_log.h"
+#include "rb_purge_persistent.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,13 +48,6 @@ typedef enum en_rb_object_type {
     RB_INDEX_SUBPART_OBJECT = 7,
     RB_LOB_SUBPART_OBJECT = 8,
 } rb_object_type_t;
-
-typedef struct st_rd_flashback_drop {
-    uint32 op_type;
-    uint32 uid;
-    uint32 table_id;
-    char new_name[GS_NAME_BUFFER_SIZE];
-} rd_flashback_drop_t;
 
 // recycle bin purge interface
 status_t rb_purge(knl_session_t *session, knl_rb_desc_t *desc);

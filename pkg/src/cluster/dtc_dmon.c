@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,28 +22,39 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_cluster_module.h"
 #include "dtc_dmon.h"
 #include "dtc_database.h"
 #include "dtc_tran.h"
 
 #define SCN_BROADCAST_CLOCK 5  // broadcast scn per 5ms
+#define TIME_BROADCAST_CLOCK (10 * SECONDS_PER_MIN * MILLISECS_PER_SECOND)  // broadcast time per 10 mins
 
-#define DTC_TIME_INTERVAL_OPEN_WARNING_US 500000 // 500ms
-#define DTC_TIME_INTERVAL_CLOSE_WARNING_US 300000 // 300ms
-#define DTC_TIME_INTERVAL_LOG_PRINT_INTERVAL_MINUTES_10 600
-
-bool32 g_dtc_time_interval_open = GS_FALSE;
+static g_cluster_time_interval_t g_cluster_time_interval_instance = { 0 };
+g_cluster_time_interval_t  *g_cluster_time_interval_pitr = &g_cluster_time_interval_instance;
 
 static void dmon_scn_broadcast(knl_session_t *session)
 {
     mes_scn_bcast_t bcast;
     uint64 success_inst;
 
-    mes_init_send_head(&bcast.head, MES_CMD_SCN_BROADCAST, sizeof(mes_scn_bcast_t), GS_INVALID_ID32,
-                       g_dtc->profile.inst_id, GS_INVALID_ID8, session->id, GS_INVALID_ID16);
+    mes_init_send_head(&bcast.head, MES_CMD_SCN_BROADCAST, sizeof(mes_scn_bcast_t), CT_INVALID_ID32,
+                       g_dtc->profile.inst_id, CT_INVALID_ID8, session->id, CT_INVALID_ID16);
     bcast.scn = KNL_GET_SCN(&g_dtc->kernel->scn);
     bcast.min_scn = KNL_GET_SCN(&g_dtc->kernel->local_min_scn);
     bcast.lsn = cm_atomic_get(&g_dtc->kernel->lsn);
+    (void)cm_gettimeofday(&(bcast.cur_time));
+    
+    mes_broadcast(session->id, MES_BROADCAST_ALL_INST, &bcast, &success_inst);
+}
+
+void dmon_time_broadcast(knl_session_t *session)
+{
+    mes_time_bcast_t bcast;
+    uint64 success_inst;
+
+    mes_init_send_head(&bcast.head, MES_CMD_TIME_BROADCAST, sizeof(mes_time_bcast_t), CT_INVALID_ID32,
+                       g_dtc->profile.inst_id, CT_INVALID_ID8, session->id, CT_INVALID_ID16);
     (void)cm_gettimeofday(&(bcast.cur_time));
     
     mes_broadcast(session->id, MES_BROADCAST_ALL_INST, &bcast, &success_inst);
@@ -58,13 +69,17 @@ void dmon_proc(thread_t *thread)
     ctx->session = session;
 
     cm_set_thread_name("dmon");
-    GS_LOG_RUN_INF("dmon thread started");
+    CT_LOG_RUN_INF("dmon thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
 
     while (!thread->closed) {
         // try broadcast scn per seconds
         if (ticks % SCN_BROADCAST_CLOCK == 0) {
             dmon_scn_broadcast(session);
+        }
+
+        if (ticks % TIME_BROADCAST_CLOCK == 0) {
+            dmon_time_broadcast(session);
         }
 
         cm_sleep(1);
@@ -76,15 +91,15 @@ status_t dmon_startup(void)
 {
     knl_session_t *session = NULL;
 
-    if (g_knl_callback.alloc_knl_session(GS_TRUE, (knl_handle_t *)&session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (g_knl_callback.alloc_knl_session(CT_TRUE, (knl_handle_t *)&session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cm_create_thread(dmon_proc, 0, session, &g_dtc->dmon_ctx.thread) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_create_thread(dmon_proc, 0, session, &g_dtc->dmon_ctx.thread) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void dmon_close(void)
@@ -113,33 +128,45 @@ void dtc_process_scn_req(void *sess, mes_message_t *msg)
     mes_send_data((void *)&bcast);
 }
 
-void dtc_check_time_interval(timeval_t db_time, int64 time_interval_open, int64 time_interval_close)
+void dtc_keep_time_interval(uint64 time_interval_us)
+{
+    date_t date_now = cm_now();
+    if (!cm_spin_try_lock(&g_cluster_time_interval_pitr->lock)) {
+        return;
+    }
+    uint16 number = g_cluster_time_interval_pitr->number;
+    if (number >= CLUSTER_TIME_INTERVAL_ARRAY_SIZE) {
+        cm_spin_unlock(&g_cluster_time_interval_pitr->lock);
+        return;
+    }
+    g_cluster_time_interval_pitr->date_record[number] = date_now;
+    g_cluster_time_interval_pitr->interval_record[number] = time_interval_us;
+    g_cluster_time_interval_pitr->number++;
+    cm_spin_unlock(&g_cluster_time_interval_pitr->lock);
+}
+
+void dtc_check_time_interval(timeval_t db_time)
 {
     timeval_t p_now;
     (void)cm_gettimeofday(&p_now);
-    
     int64 time_interval_us = (int64)(1000000 * (p_now.tv_sec - db_time.tv_sec) + p_now.tv_usec - db_time.tv_usec);
-    if (abs(time_interval_us) > time_interval_open) {
-        g_dtc_time_interval_open = GS_TRUE;
-        GS_LOG_RUN_WAR_LIMIT(DTC_TIME_INTERVAL_LOG_PRINT_INTERVAL_MINUTES_10, "[NTP_TIME_WARN] cluster exist "
-                             "time interval %llu us.", (uint64)abs(time_interval_us));
-    } else if (g_dtc_time_interval_open && (abs(time_interval_us) <= time_interval_close)) {
-        g_dtc_time_interval_open = GS_FALSE;
-        GS_LOG_RUN_WAR("[NTP_TIME_WARN] cluster exist time interval %llu us can be ignored.",
-                       (uint64)abs(time_interval_us));
-    }
+    dtc_keep_time_interval(abs(time_interval_us));
 }
 
 void dtc_process_scn_broadcast(void *sess, mes_message_t *msg)
 {
+    if (sizeof(mes_scn_bcast_t) != msg->head->size) {
+        CT_LOG_RUN_ERR("scn broadcast is invalid, msg size %u.", msg->head->size);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
     mes_scn_bcast_t *bcast = (mes_scn_bcast_t *)msg->buffer;
     knl_scn_t lamport_scn = bcast->scn;
     int64 lamport_lsn = bcast->lsn;
-    timeval_t db_time = bcast->cur_time;
     knl_session_t *session = (knl_session_t *)sess;
-    if (msg->head->src_inst >= GS_MAX_INSTANCES) {
+    if (msg->head->src_inst >= CT_MAX_INSTANCES) {
         mes_release_message_buf(msg->buffer);
-        GS_LOG_RUN_ERR("Do not process scn broadcast, because src_inst is invalid: %u", msg->head->src_inst);
+        CT_LOG_RUN_ERR("Do not process scn broadcast, because src_inst is invalid: %u", msg->head->src_inst);
         return;
     }
     KNL_SET_SCN(&g_dtc->profile.min_scn[msg->head->src_inst], bcast->min_scn);
@@ -147,18 +174,40 @@ void dtc_process_scn_broadcast(void *sess, mes_message_t *msg)
 
     dtc_update_scn(session, lamport_scn);
     dtc_update_lsn(session, lamport_lsn);
-    dtc_check_time_interval(db_time, DTC_TIME_INTERVAL_OPEN_WARNING_US,
-                            DTC_TIME_INTERVAL_CLOSE_WARNING_US);
 }
 
 void dtc_process_lsn_broadcast(void *sess, mes_message_t *msg)
 {
+    if (sizeof(mes_lsn_bcast_t) != msg->head->size) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", msg->head->size);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
     mes_lsn_bcast_t *bcast = (mes_lsn_bcast_t *)msg->buffer;
     int64 lamport_lsn = bcast->lsn;
     knl_session_t *session = (knl_session_t *)sess;
 
     mes_release_message_buf(msg->buffer);
     dtc_update_lsn(session, lamport_lsn);
+}
+
+void dtc_process_time_broadcast(void *sess, mes_message_t *msg)
+{
+    if (sizeof(mes_time_bcast_t) != msg->head->size) {
+        CT_LOG_RUN_ERR("time broadcast is invalid, msg size %u.", msg->head->size);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
+    mes_time_bcast_t *bcast = (mes_time_bcast_t *)msg->buffer;
+
+    timeval_t db_time = bcast->cur_time;
+    if (msg->head->src_inst >= CT_MAX_INSTANCES) {
+        mes_release_message_buf(msg->buffer);
+        CT_LOG_RUN_ERR("Do not process time broadcast, because src_inst is invalid: %u", msg->head->src_inst);
+        return;
+    }
+    mes_release_message_buf(msg->buffer);
+    dtc_check_time_interval(db_time);
 }
 
 /*
@@ -168,7 +217,7 @@ knl_scn_t dtc_get_min_scn(knl_scn_t cur_min_scn)
 {
     dtc_profile_t *profile = &g_dtc->profile;
     cluster_view_t view;
-    rc_get_cluster_view(&view, GS_FALSE);
+    rc_get_cluster_view(&view, CT_FALSE);
     knl_scn_t min_scn = cur_min_scn;
 
     for (uint32 i = 0; i < profile->node_count; i++) {

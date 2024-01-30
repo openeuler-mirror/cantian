@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "cm_binary.h"
 
 #ifdef __cplusplus
@@ -123,13 +124,13 @@ void cm_bigint2hex(uint64 val, text_t *result)
 static inline status_t cm_xbytes_as_uint64(const binary_t *bin, uint64 *result, const char *type_name)
 {
     if (bin->size > sizeof(int64)) {  // int64 for 8 * bytes
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, type_name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, type_name);
+        return CT_ERROR;
     }
 
     if (bin->size == 0) {
         *result = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint64 u64 = bin->bytes[0];
@@ -138,7 +139,7 @@ static inline status_t cm_xbytes_as_uint64(const binary_t *bin, uint64 *result, 
     }
 
     *result = u64;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // XBYTES is used for compitable with MySQL(sample ...where a = X\010203...)
@@ -156,19 +157,19 @@ status_t cm_xbytes2ubigint(const binary_t *bin, uint64 *result)
 status_t cm_xbytes2uint32(const binary_t *bin, uint32 *result)
 {
     uint64 u64;
-    GS_RETURN_IFERR(cm_xbytes_as_uint64(bin, &u64, "UNSIGNED INTEGER"));
+    CT_RETURN_IFERR(cm_xbytes_as_uint64(bin, &u64, "UNSIGNED INTEGER"));
     TO_UINT32_OVERFLOW_CHECK(u64, uint64);
     *result = (uint32)u64;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_xbytes2int32(const binary_t *bin, int32 *result)
 {
     uint64 u64;
-    GS_RETURN_IFERR(cm_xbytes_as_uint64(bin, &u64, "INTEGER"));
+    CT_RETURN_IFERR(cm_xbytes_as_uint64(bin, &u64, "INTEGER"));
     TO_UINT32_OVERFLOW_CHECK(u64, uint64);
     *result = (int32)u64;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_str2bin(const char *str, bool32 hex_prefix, binary_t *bin, uint32 bin_max_sz)
@@ -185,8 +186,8 @@ status_t cm_verify_hex_string(const text_t *text)
                         ((text->str[1] == 'x') || (text->str[1] == 'X'));
     if (has_prefix) {
         if (text->len < 3) {  // min hex string is 0x0
-            GS_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "hex");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "hex");
+            return CT_ERROR;
         }
     }
 
@@ -195,23 +196,23 @@ status_t cm_verify_hex_string(const text_t *text)
     for (; i < text->len; i++) {
         half_byte = cm_hex2int8((uint8)text->str[i]);
         if (half_byte == 0xFF) {
-            GS_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "hex");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "hex");
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_text2bin_check(const text_t *text, bool32 hex_prefix, binary_t *bin)
 {
     if (hex_prefix) {
         if (text->len < 3) {  // min hex string is 0x0
-            GS_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "hex");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "hex");
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_text2bin(const text_t *text, bool32 hex_prefix, binary_t *bin, uint32 bin_max_sz)
@@ -220,10 +221,10 @@ status_t cm_text2bin(const text_t *text, bool32 hex_prefix, binary_t *bin, uint3
     uint8 half_byte;
 
     CM_POINTER2(text, bin);
-    GS_RETURN_IFERR(cm_text2bin_check(text, hex_prefix, bin));
+    CT_RETURN_IFERR(cm_text2bin_check(text, hex_prefix, bin));
     if (text->len == 0) {
         bin->size = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // set the starting position
@@ -237,14 +238,14 @@ status_t cm_text2bin(const text_t *text, bool32 hex_prefix, binary_t *bin, uint3
     pos = 0;
     if (len % 2 == 1) {  // handle odd length hex string
         if (pos >= bin_max_sz) {
-            GS_THROW_ERROR(ERR_BUFFER_OVERFLOW, pos, bin_max_sz);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_BUFFER_OVERFLOW, pos, bin_max_sz);
+            return CT_ERROR;
         }
 
         bin->bytes[pos] = cm_hex2int8((uint8)text->str[i]);
         if (bin->bytes[pos] == 0xFF) {
-            GS_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "hex");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "hex");
+            return CT_ERROR;
         }
         pos++;
         i++;
@@ -253,21 +254,21 @@ status_t cm_text2bin(const text_t *text, bool32 hex_prefix, binary_t *bin, uint3
     for (; i < len; i += 2) {  // 1 byte needs 2 chars to express
         half_byte = cm_hex2int8((uint8)text->str[i]);
         if (half_byte == 0xFF) {
-            GS_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "hex");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "hex");
+            return CT_ERROR;
         }
 
         if (pos >= bin_max_sz) {
-            GS_THROW_ERROR(ERR_BUFFER_OVERFLOW, pos, bin_max_sz);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_BUFFER_OVERFLOW, pos, bin_max_sz);
+            return CT_ERROR;
         }
 
         bin->bytes[pos] = (uint8)(half_byte << 4);
 
         half_byte = cm_hex2int8((uint8)text->str[i + 1]);
         if (half_byte == 0xFF) {
-            GS_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "hex");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "hex");
+            return CT_ERROR;
         }
 
         bin->bytes[pos] += half_byte;
@@ -276,7 +277,7 @@ status_t cm_text2bin(const text_t *text, bool32 hex_prefix, binary_t *bin, uint3
 
     bin->size = pos;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_bin2text(const binary_t *bin, bool32 hex_prefix, text_t *text)
@@ -289,8 +290,8 @@ status_t cm_bin2text(const binary_t *bin, bool32 hex_prefix, text_t *text)
     buf_len = text->len;
     if (hex_prefix) {
         if (bin->size * 2 + 2 > buf_len) {  // 1 byte needs 2 chars
-            GS_THROW_ERROR(ERR_COVNERT_FORMAT_ERROR, "string");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_COVNERT_FORMAT_ERROR, "string");
+            return CT_ERROR;
         }
 
         str[0] = '0';
@@ -299,8 +300,8 @@ status_t cm_bin2text(const binary_t *bin, bool32 hex_prefix, text_t *text)
         pos = 2;  // if the prefix exists, the position must start from 2
     } else {
         if (bin->size * 2 > buf_len) { // 1 byte needs 2 chars
-            GS_THROW_ERROR(ERR_COVNERT_FORMAT_ERROR, "string");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_COVNERT_FORMAT_ERROR, "string");
+            return CT_ERROR;
         }
 
         pos = 0;
@@ -314,21 +315,21 @@ status_t cm_bin2text(const binary_t *bin, bool32 hex_prefix, text_t *text)
     }
 
     text->len = pos;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_bin2str(binary_t *bin, bool32 hex_prefix, char *str, uint32 buf_len)
 {
     text_t tmp_text = { .str = str, .len = buf_len };
 
-    GS_RETURN_IFERR(cm_bin2text(bin, hex_prefix, &tmp_text));
+    CT_RETURN_IFERR(cm_bin2text(bin, hex_prefix, &tmp_text));
 
     if (tmp_text.len >= buf_len) {
-        GS_THROW_ERROR(ERR_BUFFER_OVERFLOW, tmp_text.len + 1, buf_len);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_BUFFER_OVERFLOW, tmp_text.len + 1, buf_len);
+        return CT_ERROR;
     }
     str[tmp_text.len] = '\0';
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_hex2int64(const char *str, uint32 strlen, int64 *res)
@@ -343,12 +344,12 @@ status_t cm_hex2int64(const char *str, uint32 strlen, int64 *res)
         } else if (*ptr >= 'a' && *ptr <= 'f') {
             iret = (iret << 4) + (((*ptr) - 'a') + 10);
         } else {
-            return GS_ERROR;
+            return CT_ERROR;
         }
         ++ptr;
     }
     *res = iret;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 int32 cm_compare_bin(const binary_t *left, const binary_t *right)
@@ -378,7 +379,7 @@ status_t cm_concat_bin(binary_t *bin, uint32 bin_len, const binary_t *part)
             memcpy_sp(bin->bytes + bin->size, (size_t)(bin_len - bin->size), part->bytes, (size_t)part->size));
     }
     bin->size += part->size;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

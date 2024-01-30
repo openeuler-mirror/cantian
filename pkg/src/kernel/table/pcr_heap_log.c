@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_table_module.h"
 #include "pcr_heap_log.h"
 #include "knl_context.h"
 
@@ -196,12 +197,12 @@ void rd_pcrh_update_inplace(knl_session_t *session, log_entry_t *log)
 
     info.count = redo->count;
     info.data = (log->data + (sizeof(rd_pcrh_update_inplace_t)) + CM_ALIGN4(sizeof(uint16) * redo->count));
-    /* max value of redo->count is GS_MAX_COLUMNS(4096) */
+    /* max value of redo->count is CT_MAX_COLUMNS(4096) */
     col_size = sizeof(uint16) * redo->count;
     ret = memcpy_sp(info.columns, (session)->kernel->attr.max_column_count * sizeof(uint16), redo->columns, col_size);
     knl_securec_check(ret);
 
-    /* max column count of table is GS_MAX_COLUMNS(4096) */
+    /* max column count of table is CT_MAX_COLUMNS(4096) */
     offsets = (uint16 *)cm_push(session->stack, sizeof(uint16) * session->kernel->attr.max_column_count * 2);
     lens = (uint16 *)((char *)offsets + sizeof(uint16) * session->kernel->attr.max_column_count);
 
@@ -227,8 +228,8 @@ void rd_pcrh_update_inpage(knl_session_t *session, log_entry_t *log)
     pcr_itl_t *itl = NULL;
     heap_update_assist_t ua;
     knl_update_info_t info;
-    uint16 offsets[GS_MAX_COLUMNS];
-    uint16 lens[GS_MAX_COLUMNS];
+    uint16 offsets[CT_MAX_COLUMNS];
+    uint16 lens[CT_MAX_COLUMNS];
     uint16 data_size, col_size;
     errno_t ret;
 
@@ -483,7 +484,7 @@ void rd_pcrh_undo_delete(knl_session_t *session, log_entry_t *log)
     itl->undo_slot = redo->undo_slot;
     itl->ssn = redo->ssn;
     if (redo->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
 }
 
@@ -536,7 +537,7 @@ void rd_pcrh_undo_update(knl_session_t *session, log_entry_t *log)
     knl_securec_check(ret);
 
     if (redo->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
     itl->ssn = redo->ssn;
     itl->undo_page = redo->undo_page;
@@ -559,7 +560,7 @@ void rd_pcrh_undo_update_next_rid(knl_session_t *session, log_entry_t *log)
     *PCRH_NEXT_ROWID(row) = *next_rid;
 
     if (redo->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
 
     itl->ssn = redo->ssn;
@@ -600,7 +601,7 @@ void rd_pcrh_undo_lock_link(knl_session_t *session, log_entry_t *log)
     row_head_t *row = PCRH_GET_ROW(page, dir);
     pcr_itl_t *itl = pcrh_get_itl(page, ROW_ITL_ID(row));
 
-    ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+    ROW_SET_ITL_ID(row, CT_INVALID_ID8);
 
     itl->ssn = redo->ssn;
     itl->undo_page = redo->undo_page;
@@ -616,7 +617,7 @@ void rd_pcrh_undo_update_link_ssn(knl_session_t *session, log_entry_t *log)
     pcr_itl_t *itl = pcrh_get_itl(page, ROW_ITL_ID(row));
 
     if (redo->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
 
     itl->ssn = redo->ssn;

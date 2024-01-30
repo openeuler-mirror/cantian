@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_db_module.h"
 #include "knl_ctlg.h"
 #include "knl_table.h"
 #include "knl_context.h"
@@ -32,94 +33,94 @@
 #include "dtc_database.h"
 #include "dtc_dls.h"
 #include "srv_instance.h"
+#include "knl_database.h"
 
-#define GS_SYS_OPT_LEN 16
 
 // definition of core system tables and indexes
 knl_column_t g_sys_table_columns[] = {
-    { 0,  "USER#",        0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 1,  "ID",           0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 2,  "NAME",         0, SYS_TABLE_ID, GS_TYPE_VARCHAR,   GS_MAX_NAME_LEN, 0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 3,  "SPACE#",       0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 4,  "ORG_SCN",      0, SYS_TABLE_ID, GS_TYPE_BIGINT,    sizeof(uint64),  0,                         0, GS_FALSE, 0, { NULL, 0 } },  // scn when creating
-    { 5,  "CHG_SCN",      0, SYS_TABLE_ID, GS_TYPE_BIGINT,    sizeof(uint64),  0,                         0, GS_FALSE, 0, { NULL, 0 } },  // ddl time
-    { 6,  "TYPE",         0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 7,  "COLS",         0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 8,  "INDEXES",      0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 9,  "PARTITIONED",  0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 10, "ENTRY",        0, SYS_TABLE_ID, GS_TYPE_BIGINT,    sizeof(uint64),  0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 11, "INITRANS",     0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 12, "PCTFREE",      0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 13, "CR_MODE",      0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 14, "RECYCLED",     0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 15, "APPENDONLY",   0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 16, "NUM_ROWS",     0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_TRUE,  0, { NULL, 0 } },
-    { 17, "BLOCKS",       0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_TRUE,  0, { NULL, 0 } },
-    { 18, "EMPTY_BLOCKS", 0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_TRUE,  0, { NULL, 0 } },
-    { 19, "AVG_ROW_LEN",  0, SYS_TABLE_ID, GS_TYPE_BIGINT,    sizeof(uint64),  0,                         0, GS_TRUE,  0, { NULL, 0 } },
-    { 20, "SAMPLESIZE",   0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_TRUE,  0, { NULL, 0 } },
-    { 21, "ANALYZETIME",  0, SYS_TABLE_ID, GS_TYPE_TIMESTAMP, sizeof(int64),   GS_MAX_DATETIME_PRECISION, 0, GS_TRUE,  0, { NULL, 0 } },
-    { 22, "SERIAL_START", 0, SYS_TABLE_ID, GS_TYPE_BIGINT,    sizeof(int64),   0,                         0, GS_FALSE, 0, { NULL, 0 } },
-    { 23, "OPTIONS",      0, SYS_TABLE_ID, GS_TYPE_RAW,       GS_SYS_OPT_LEN,  0,                         0, GS_TRUE,  0, { NULL, 0 } },
-    { 24, "OBJ#",         0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_TRUE,  0, { NULL, 0 } },
-    { 25, "VERSION",      0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_TRUE,  0, { NULL, 0 } },
-    { 26, "FLAG",         0, SYS_TABLE_ID, GS_TYPE_INTEGER,   sizeof(uint32),  0,                         0, GS_TRUE,  0, { NULL, 0 } },
+    { 0,  "USER#",        0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 1,  "ID",           0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 2,  "NAME",         0, SYS_TABLE_ID, CT_TYPE_VARCHAR,   CT_MAX_NAME_LEN, 0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 3,  "SPACE#",       0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 4,  "ORG_SCN",      0, SYS_TABLE_ID, CT_TYPE_BIGINT,    sizeof(uint64),  0,                         0, CT_FALSE, 0, { NULL, 0 } },  // scn when creating
+    { 5,  "CHG_SCN",      0, SYS_TABLE_ID, CT_TYPE_BIGINT,    sizeof(uint64),  0,                         0, CT_FALSE, 0, { NULL, 0 } },  // ddl time
+    { 6,  "TYPE",         0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 7,  "COLS",         0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 8,  "INDEXES",      0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 9,  "PARTITIONED",  0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 10, "ENTRY",        0, SYS_TABLE_ID, CT_TYPE_BIGINT,    sizeof(uint64),  0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 11, "INITRANS",     0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 12, "PCTFREE",      0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 13, "CR_MODE",      0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 14, "RECYCLED",     0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 15, "APPENDONLY",   0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 16, "NUM_ROWS",     0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_TRUE,  0, { NULL, 0 } },
+    { 17, "BLOCKS",       0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_TRUE,  0, { NULL, 0 } },
+    { 18, "EMPTY_BLOCKS", 0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_TRUE,  0, { NULL, 0 } },
+    { 19, "AVG_ROW_LEN",  0, SYS_TABLE_ID, CT_TYPE_BIGINT,    sizeof(uint64),  0,                         0, CT_TRUE,  0, { NULL, 0 } },
+    { 20, "SAMPLESIZE",   0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_TRUE,  0, { NULL, 0 } },
+    { 21, "ANALYZETIME",  0, SYS_TABLE_ID, CT_TYPE_TIMESTAMP, sizeof(int64),   CT_MAX_DATETIME_PRECISION, 0, CT_TRUE,  0, { NULL, 0 } },
+    { 22, "SERIAL_START", 0, SYS_TABLE_ID, CT_TYPE_BIGINT,    sizeof(int64),   0,                         0, CT_FALSE, 0, { NULL, 0 } },
+    { 23, "OPTIONS",      0, SYS_TABLE_ID, CT_TYPE_RAW,       CT_SYS_OPT_LEN,  0,                         0, CT_TRUE,  0, { NULL, 0 } },
+    { 24, "OBJ#",         0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_TRUE,  0, { NULL, 0 } },
+    { 25, "VERSION",      0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_TRUE,  0, { NULL, 0 } },
+    { 26, "FLAG",         0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_TRUE,  0, { NULL, 0 } },
 };
 
 knl_column_t g_sys_column_columns[] = {
     // syscolumn columns
-    { 0,  "USER#",        0, SYS_COLUMN_ID, GS_TYPE_INTEGER, sizeof(uint32),            0, 0, GS_FALSE, 0, { NULL, 0 } },
-    { 1,  "TABLE#",       0, SYS_COLUMN_ID, GS_TYPE_INTEGER, sizeof(uint32),            0, 0, GS_FALSE, 0, { NULL, 0 } },
-    { 2,  "ID",           0, SYS_COLUMN_ID, GS_TYPE_INTEGER, sizeof(uint32),            0, 0, GS_FALSE, 0, { NULL, 0 } },
-    { 3,  "NAME",         0, SYS_COLUMN_ID, GS_TYPE_VARCHAR, GS_MAX_NAME_LEN,           0, 0, GS_FALSE, 0, { NULL, 0 } },
-    { 4,  "DATATYPE",     0, SYS_COLUMN_ID, GS_TYPE_INTEGER, sizeof(uint32),            0, 0, GS_FALSE, 0, { NULL, 0 } },
-    { 5,  "BYTES",        0, SYS_COLUMN_ID, GS_TYPE_INTEGER, sizeof(uint32),            0, 0, GS_FALSE, 0, { NULL, 0 } },
-    { 6,  "PRECISION",    0, SYS_COLUMN_ID, GS_TYPE_INTEGER, sizeof(uint32),            0, 0, GS_TRUE,  0, { NULL, 0 } },
-    { 7,  "SCALE",        0, SYS_COLUMN_ID, GS_TYPE_INTEGER, sizeof(uint32),            0, 0, GS_TRUE,  0, { NULL, 0 } },
-    { 8,  "NULLABLE",     0, SYS_COLUMN_ID, GS_TYPE_INTEGER, sizeof(uint32),            0, 0, GS_FALSE, 0, { NULL, 0 } },
-    { 9,  "FLAGS",        0, SYS_COLUMN_ID, GS_TYPE_INTEGER, sizeof(uint32),            0, 0, GS_FALSE, 0, { NULL, 0 } },
-    { 10, "DEFAULT_TEXT", 0, SYS_COLUMN_ID, GS_TYPE_VARCHAR, GS_MAX_DFLT_VALUE_LEN,     0, 0, GS_FALSE, 0, { NULL, 0 } },
-    { 11, "DEFAULT_DATA", 0, SYS_COLUMN_ID, GS_TYPE_RAW,     GS_DFLT_VALUE_BUFFER_SIZE, 0, 0, GS_FALSE, 0, { NULL, 0 } },
-    { 12, "NUM_DISTINCT", 0, SYS_COLUMN_ID, GS_TYPE_INTEGER, sizeof(uint32),            0, 0, GS_TRUE,  0, { NULL, 0 } },
-    { 13, "LOW_VALUE",    0, SYS_COLUMN_ID, GS_TYPE_VARCHAR, GS_MAX_MIN_VALUE_SIZE,     0, 0, GS_TRUE,  0, { NULL, 0 } },
-    { 14, "HIGH_VALUE",   0, SYS_COLUMN_ID, GS_TYPE_VARCHAR, GS_MAX_MIN_VALUE_SIZE,     0, 0, GS_TRUE,  0, { NULL, 0 } },
-    { 15, "HISTOGRAM",    0, SYS_COLUMN_ID, GS_TYPE_VARCHAR, GS_MAX_NAME_LEN,           0, 0, GS_TRUE,  0, { NULL, 0 } },
-    { 16, "OPTIONS",      0, SYS_COLUMN_ID, GS_TYPE_RAW,     GS_SYS_OPT_LEN,            0, 0, GS_TRUE,  0, { NULL, 0 } },
+    { 0,  "USER#",        0, SYS_COLUMN_ID, CT_TYPE_INTEGER, sizeof(uint32),            0, 0, CT_FALSE, 0, { NULL, 0 } },
+    { 1,  "TABLE#",       0, SYS_COLUMN_ID, CT_TYPE_INTEGER, sizeof(uint32),            0, 0, CT_FALSE, 0, { NULL, 0 } },
+    { 2,  "ID",           0, SYS_COLUMN_ID, CT_TYPE_INTEGER, sizeof(uint32),            0, 0, CT_FALSE, 0, { NULL, 0 } },
+    { 3,  "NAME",         0, SYS_COLUMN_ID, CT_TYPE_VARCHAR, CT_MAX_NAME_LEN,           0, 0, CT_FALSE, 0, { NULL, 0 } },
+    { 4,  "DATATYPE",     0, SYS_COLUMN_ID, CT_TYPE_INTEGER, sizeof(uint32),            0, 0, CT_FALSE, 0, { NULL, 0 } },
+    { 5,  "BYTES",        0, SYS_COLUMN_ID, CT_TYPE_INTEGER, sizeof(uint32),            0, 0, CT_FALSE, 0, { NULL, 0 } },
+    { 6,  "PRECISION",    0, SYS_COLUMN_ID, CT_TYPE_INTEGER, sizeof(uint32),            0, 0, CT_TRUE,  0, { NULL, 0 } },
+    { 7,  "SCALE",        0, SYS_COLUMN_ID, CT_TYPE_INTEGER, sizeof(uint32),            0, 0, CT_TRUE,  0, { NULL, 0 } },
+    { 8,  "NULLABLE",     0, SYS_COLUMN_ID, CT_TYPE_INTEGER, sizeof(uint32),            0, 0, CT_FALSE, 0, { NULL, 0 } },
+    { 9,  "FLAGS",        0, SYS_COLUMN_ID, CT_TYPE_INTEGER, sizeof(uint32),            0, 0, CT_FALSE, 0, { NULL, 0 } },
+    { 10, "DEFAULT_TEXT", 0, SYS_COLUMN_ID, CT_TYPE_VARCHAR, CT_MAX_DFLT_VALUE_LEN,     0, 0, CT_FALSE, 0, { NULL, 0 } },
+    { 11, "DEFAULT_DATA", 0, SYS_COLUMN_ID, CT_TYPE_RAW,     CT_DFLT_VALUE_BUFFER_SIZE, 0, 0, CT_FALSE, 0, { NULL, 0 } },
+    { 12, "NUM_DISTINCT", 0, SYS_COLUMN_ID, CT_TYPE_INTEGER, sizeof(uint32),            0, 0, CT_TRUE,  0, { NULL, 0 } },
+    { 13, "LOW_VALUE",    0, SYS_COLUMN_ID, CT_TYPE_VARCHAR, CT_MAX_MIN_VALUE_SIZE,     0, 0, CT_TRUE,  0, { NULL, 0 } },
+    { 14, "HIGH_VALUE",   0, SYS_COLUMN_ID, CT_TYPE_VARCHAR, CT_MAX_MIN_VALUE_SIZE,     0, 0, CT_TRUE,  0, { NULL, 0 } },
+    { 15, "HISTOGRAM",    0, SYS_COLUMN_ID, CT_TYPE_VARCHAR, CT_MAX_NAME_LEN,           0, 0, CT_TRUE,  0, { NULL, 0 } },
+    { 16, "OPTIONS",      0, SYS_COLUMN_ID, CT_TYPE_RAW,     CT_SYS_OPT_LEN,            0, 0, CT_TRUE,  0, { NULL, 0 } },
 };
 
 knl_column_t g_sys_index_columns[] = {
     // sysindex columns
-    { 0,  "USER#",                   0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 1,  "TABLE#",                  0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 2,  "ID",                      0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 3,  "NAME",                    0, SYS_INDEX_ID, GS_TYPE_VARCHAR,   GS_MAX_NAME_LEN,     0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 4,  "SPACE#",                  0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 5,  "SEQUENCE#",               0, SYS_INDEX_ID, GS_TYPE_BIGINT,    sizeof(uint64),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },  // scn when creating
-    { 6,  "ENTRY",                   0, SYS_INDEX_ID, GS_TYPE_BIGINT,    sizeof(uint64),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 7,  "IS_PRIMARY",              0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 8,  "IS_UNIQUE",               0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 9,  "TYPE",                    0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 10, "COLS",                    0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 11, "COL_LIST",                0, SYS_INDEX_ID, GS_TYPE_VARCHAR,   COLUMN_LIST_BUF_LEN, 0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 12, "INITRANS",                0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 13, "CR_MODE",                 0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 14, "FLAGS",                   0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 15, "PARTITIONED",             0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 16, "PCTFREE",                 0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_FALSE, 0, { NULL, 0 } },
-    { 17, "BLEVEL",                  0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_TRUE,  0, { NULL, 0 } },
-    { 18, "LEVEL_BLOCKS",            0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_TRUE,  0, { NULL, 0 } },
-    { 19, "DISTINCT_KEYS",           0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_TRUE,  0, { NULL, 0 } },
-    { 20, "AVG_LEAF_BLOCKS_PER_KEY", 0, SYS_INDEX_ID, GS_TYPE_REAL,      sizeof(double),      GS_UNSPECIFIED_REAL_PREC,  GS_UNSPECIFIED_REAL_SCALE, GS_TRUE,  0, { NULL, 0 } },
-    { 21, "AVG_DATA_BLOCKS_PER_KEY", 0, SYS_INDEX_ID, GS_TYPE_REAL,      sizeof(double),      GS_UNSPECIFIED_REAL_PREC,  GS_UNSPECIFIED_REAL_SCALE, GS_TRUE,  0, { NULL, 0 } },
-    { 22, "ANALYZETIME",             0, SYS_INDEX_ID, GS_TYPE_TIMESTAMP, sizeof(uint64),      GS_MAX_DATETIME_PRECISION, 0,                         GS_TRUE,  0, { NULL, 0 } },
-    { 23, "EMPTY_LEAF_BLOCKS",       0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_TRUE,  0, { NULL, 0 } },
-    { 24, "OPTIONS",                 0, SYS_INDEX_ID, GS_TYPE_RAW,       GS_SYS_OPT_LEN,      0,                         0,                         GS_TRUE,  0, { NULL, 0 } },
-    { 25, "CLUFAC",                  0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_TRUE,  0, { NULL, 0 } },
-    { 26, "SAMPLESIZE",              0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_TRUE,  0, { NULL, 0 } },
-    { 27, "OBJ#",                    0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_TRUE,  0, { NULL, 0 } },
-    { 28, "COMB_COLS_2_NDV",         0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_TRUE,  0, { NULL, 0 } },
-    { 29, "COMB_COLS_3_NDV",         0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_TRUE,  0, { NULL, 0 } },
-    { 30, "COMB_COLS_4_NDV",         0, SYS_INDEX_ID, GS_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         GS_TRUE,  0, { NULL, 0 } },
+    { 0,  "USER#",                   0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 1,  "TABLE#",                  0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 2,  "ID",                      0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 3,  "NAME",                    0, SYS_INDEX_ID, CT_TYPE_VARCHAR,   CT_MAX_NAME_LEN,     0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 4,  "SPACE#",                  0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 5,  "SEQUENCE#",               0, SYS_INDEX_ID, CT_TYPE_BIGINT,    sizeof(uint64),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },  // scn when creating
+    { 6,  "ENTRY",                   0, SYS_INDEX_ID, CT_TYPE_BIGINT,    sizeof(uint64),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 7,  "IS_PRIMARY",              0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 8,  "IS_UNIQUE",               0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 9,  "TYPE",                    0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 10, "COLS",                    0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 11, "COL_LIST",                0, SYS_INDEX_ID, CT_TYPE_VARCHAR,   COLUMN_LIST_BUF_LEN, 0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 12, "INITRANS",                0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 13, "CR_MODE",                 0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 14, "FLAGS",                   0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 15, "PARTITIONED",             0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 16, "PCTFREE",                 0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_FALSE, 0, { NULL, 0 } },
+    { 17, "BLEVEL",                  0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_TRUE,  0, { NULL, 0 } },
+    { 18, "LEVEL_BLOCKS",            0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_TRUE,  0, { NULL, 0 } },
+    { 19, "DISTINCT_KEYS",           0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_TRUE,  0, { NULL, 0 } },
+    { 20, "AVG_LEAF_BLOCKS_PER_KEY", 0, SYS_INDEX_ID, CT_TYPE_REAL,      sizeof(double),      CT_UNSPECIFIED_REAL_PREC,  CT_UNSPECIFIED_REAL_SCALE, CT_TRUE,  0, { NULL, 0 } },
+    { 21, "AVG_DATA_BLOCKS_PER_KEY", 0, SYS_INDEX_ID, CT_TYPE_REAL,      sizeof(double),      CT_UNSPECIFIED_REAL_PREC,  CT_UNSPECIFIED_REAL_SCALE, CT_TRUE,  0, { NULL, 0 } },
+    { 22, "ANALYZETIME",             0, SYS_INDEX_ID, CT_TYPE_TIMESTAMP, sizeof(uint64),      CT_MAX_DATETIME_PRECISION, 0,                         CT_TRUE,  0, { NULL, 0 } },
+    { 23, "EMPTY_LEAF_BLOCKS",       0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_TRUE,  0, { NULL, 0 } },
+    { 24, "OPTIONS",                 0, SYS_INDEX_ID, CT_TYPE_RAW,       CT_SYS_OPT_LEN,      0,                         0,                         CT_TRUE,  0, { NULL, 0 } },
+    { 25, "CLUFAC",                  0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_TRUE,  0, { NULL, 0 } },
+    { 26, "SAMPLESIZE",              0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_TRUE,  0, { NULL, 0 } },
+    { 27, "OBJ#",                    0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_TRUE,  0, { NULL, 0 } },
+    { 28, "COMB_COLS_2_NDV",         0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_TRUE,  0, { NULL, 0 } },
+    { 29, "COMB_COLS_3_NDV",         0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_TRUE,  0, { NULL, 0 } },
+    { 30, "COMB_COLS_4_NDV",         0, SYS_INDEX_ID, CT_TYPE_INTEGER,   sizeof(uint32),      0,                         0,                         CT_TRUE,  0, { NULL, 0 } },
 };
 
 #define ID_COLUMN_ID         0
@@ -139,20 +140,20 @@ knl_column_t g_sys_index_columns[] = {
 
 knl_column_t g_sys_user_columns[] = {
     // sysuser columns
-    { 0,  "ID",          0, SYS_USER_ID, GS_TYPE_INTEGER, sizeof(uint32),          0, 0, GS_FALSE, 0, { NULL, 0 } },
-    { 1,  "NAME",        0, SYS_USER_ID, GS_TYPE_VARCHAR, GS_MAX_NAME_LEN,         0, 0, GS_FALSE, 0, { NULL, 0 } },
-    { 2,  "PASSWORD",    0, SYS_USER_ID, GS_TYPE_RAW,     GS_PASSWORD_BUFFER_SIZE, 0, 0, GS_FALSE, 0, { NULL, 0 } },
-    { 3,  "DATA_SPACE#", 0, SYS_USER_ID, GS_TYPE_INTEGER, sizeof(uint32),          0, 0, GS_FALSE, 0, { NULL, 0 } },  // default tablespace
-    { 4,  "TEMP_SPACE#", 0, SYS_USER_ID, GS_TYPE_INTEGER, sizeof(uint32),          0, 0, GS_FALSE, 0, { NULL, 0 } },  // temporary space
-    { 5,  "CTIME",       0, SYS_USER_ID, GS_TYPE_DATE,    sizeof(date_t),          0, 0, GS_FALSE, 0, { NULL, 0 } },  // user account creation time
-    { 6,  "PTIME",       0, SYS_USER_ID, GS_TYPE_DATE,    sizeof(date_t),          0, 0, GS_FALSE, 0, { NULL, 0 } },  // pwd change time
-    { 7,  "EXPTIME",     0, SYS_USER_ID, GS_TYPE_DATE,    sizeof(date_t),          0, 0, GS_TRUE,  0, { NULL, 0 } },  // actual pwd expiration time
-    { 8,  "LTIME",       0, SYS_USER_ID, GS_TYPE_DATE,    sizeof(date_t),          0, 0, GS_TRUE,  0, { NULL, 0 } },  // time when account is locked
-    { 9,  "PROFILE#",    0, SYS_USER_ID, GS_TYPE_INTEGER, sizeof(uint32),          0, 0, GS_FALSE, 0, { NULL, 0 } },  // profile#
-    { 10, "ASTATUS",     0, SYS_USER_ID, GS_TYPE_INTEGER, sizeof(uint32),          0, 0, GS_FALSE, 0, { NULL, 0 } },  // status of the account. 0x00 = Open, 0x01 = Locked, 0x02 = Expired
-    { 11, "LCOUNT",      0, SYS_USER_ID, GS_TYPE_INTEGER, sizeof(uint32),          0, 0, GS_FALSE, 0, { NULL, 0 } },  // count of failed login attempts
-    { 12, "OPTIONS",     0, SYS_USER_ID, GS_TYPE_RAW,     GS_SYS_OPT_LEN,          0, 0, GS_TRUE,  0, { NULL, 0 } },
-    { 13, "TENANT_ID",   0, SYS_USER_ID, GS_TYPE_INTEGER, sizeof(uint32),          0, 0, GS_FALSE, 0, { NULL, 0 } },  // tenant id
+    { 0,  "ID",          0, SYS_USER_ID, CT_TYPE_INTEGER, sizeof(uint32),          0, 0, CT_FALSE, 0, { NULL, 0 } },
+    { 1,  "NAME",        0, SYS_USER_ID, CT_TYPE_VARCHAR, CT_MAX_NAME_LEN,         0, 0, CT_FALSE, 0, { NULL, 0 } },
+    { 2,  "PASSWORD",    0, SYS_USER_ID, CT_TYPE_RAW,     CT_PASSWORD_BUFFER_SIZE, 0, 0, CT_FALSE, 0, { NULL, 0 } },
+    { 3,  "DATA_SPACE#", 0, SYS_USER_ID, CT_TYPE_INTEGER, sizeof(uint32),          0, 0, CT_FALSE, 0, { NULL, 0 } },  // default tablespace
+    { 4,  "TEMP_SPACE#", 0, SYS_USER_ID, CT_TYPE_INTEGER, sizeof(uint32),          0, 0, CT_FALSE, 0, { NULL, 0 } },  // temporary space
+    { 5,  "CTIME",       0, SYS_USER_ID, CT_TYPE_DATE,    sizeof(date_t),          0, 0, CT_FALSE, 0, { NULL, 0 } },  // user account creation time
+    { 6,  "PTIME",       0, SYS_USER_ID, CT_TYPE_DATE,    sizeof(date_t),          0, 0, CT_FALSE, 0, { NULL, 0 } },  // pwd change time
+    { 7,  "EXPTIME",     0, SYS_USER_ID, CT_TYPE_DATE,    sizeof(date_t),          0, 0, CT_TRUE,  0, { NULL, 0 } },  // actual pwd expiration time
+    { 8,  "LTIME",       0, SYS_USER_ID, CT_TYPE_DATE,    sizeof(date_t),          0, 0, CT_TRUE,  0, { NULL, 0 } },  // time when account is locked
+    { 9,  "PROFILE#",    0, SYS_USER_ID, CT_TYPE_INTEGER, sizeof(uint32),          0, 0, CT_FALSE, 0, { NULL, 0 } },  // profile#
+    { 10, "ASTATUS",     0, SYS_USER_ID, CT_TYPE_INTEGER, sizeof(uint32),          0, 0, CT_FALSE, 0, { NULL, 0 } },  // status of the account. 0x00 = Open, 0x01 = Locked, 0x02 = Expired
+    { 11, "LCOUNT",      0, SYS_USER_ID, CT_TYPE_INTEGER, sizeof(uint32),          0, 0, CT_FALSE, 0, { NULL, 0 } },  // count of failed login attempts
+    { 12, "OPTIONS",     0, SYS_USER_ID, CT_TYPE_RAW,     CT_SYS_OPT_LEN,          0, 0, CT_TRUE,  0, { NULL, 0 } },
+    { 13, "TENANT_ID",   0, SYS_USER_ID, CT_TYPE_INTEGER, sizeof(uint32),          0, 0, CT_FALSE, 0, { NULL, 0 } },  // tenant id
 };
 
 #define SYSTABLE_COLS  (uint32)(sizeof(g_sys_table_columns) / sizeof(knl_column_t))
@@ -161,20 +162,20 @@ knl_column_t g_sys_user_columns[] = {
 #define SYSUSER_COLS   (uint32)(sizeof(g_sys_user_columns) / sizeof(knl_column_t))
 
 table_t g_sys_tables[] = {
-    { { SYS_TABLE_ID, "SYS_TABLES", 0, SYS_SPACE_ID, SYS_TABLE_ID, 0, 0, 0, TABLE_TYPE_HEAP, SYSTABLE_COLS, 2, 0, { 2 }, GS_INI_TRANS, GS_PCT_FREE, 0, CR_ROW, 0 } },
-    { { SYS_COLUMN_ID, "SYS_COLUMNS", 0, SYS_SPACE_ID, SYS_COLUMN_ID, 0, 0, 0, TABLE_TYPE_HEAP, SYSCOLUMN_COLS, 1, 0, { 2 }, GS_INI_TRANS, GS_PCT_FREE, 0, CR_ROW, 0 } },
-    { { SYS_INDEX_ID, "SYS_INDEXES", 0, SYS_SPACE_ID, SYS_INDEX_ID, 0, 0, 0, TABLE_TYPE_HEAP, SYSINDEX_COLS, 2, 0, { 2 }, GS_INI_TRANS, GS_PCT_FREE, 0, CR_ROW, 0 } },
-    { { SYS_USER_ID, "SYS_USERS", 0, SYS_SPACE_ID, SYS_USER_ID, 0, 0, 0, TABLE_TYPE_HEAP, SYSUSER_COLS, 2, 0, { 2 }, GS_INI_TRANS, GS_PCT_FREE, 0, CR_ROW, 0 } },
+    { { SYS_TABLE_ID, "SYS_TABLES", 0, SYS_SPACE_ID, SYS_TABLE_ID, 0, 0, 0, TABLE_TYPE_HEAP, SYSTABLE_COLS, 2, 0, { 2 }, CT_INI_TRANS, CT_PCT_FREE, 0, CR_ROW, 0 } },
+    { { SYS_COLUMN_ID, "SYS_COLUMNS", 0, SYS_SPACE_ID, SYS_COLUMN_ID, 0, 0, 0, TABLE_TYPE_HEAP, SYSCOLUMN_COLS, 1, 0, { 2 }, CT_INI_TRANS, CT_PCT_FREE, 0, CR_ROW, 0 } },
+    { { SYS_INDEX_ID, "SYS_INDEXES", 0, SYS_SPACE_ID, SYS_INDEX_ID, 0, 0, 0, TABLE_TYPE_HEAP, SYSINDEX_COLS, 2, 0, { 2 }, CT_INI_TRANS, CT_PCT_FREE, 0, CR_ROW, 0 } },
+    { { SYS_USER_ID, "SYS_USERS", 0, SYS_SPACE_ID, SYS_USER_ID, 0, 0, 0, TABLE_TYPE_HEAP, SYSUSER_COLS, 2, 0, { 2 }, CT_INI_TRANS, CT_PCT_FREE, 0, CR_ROW, 0 } },
 };
 
 static index_t g_sys_indexes[] = {
-    { { 0, 0, 0, SYS_SPACE_ID, SYS_TABLE_ID, "IX_TABLE$001", 0, 0, { 0 }, GS_FALSE, GS_TRUE, INDEX_TYPE_BTREE, 2, { 0, 2 }, GS_INI_TRANS, CR_ROW, { 0 }, 0, GS_PCT_FREE, GS_FALSE, NULL, GS_MAX_KEY_SIZE} },
-    { { 1, 1, 0, SYS_SPACE_ID, SYS_TABLE_ID, "IX_TABLE$002", 0, 0, { 0 }, GS_FALSE, GS_TRUE, INDEX_TYPE_BTREE, 2, { 0, 1 }, GS_INI_TRANS, CR_ROW, { 0 }, 0, GS_PCT_FREE, GS_FALSE, NULL, GS_MAX_KEY_SIZE } },
-    { { 0, 0, 0, SYS_SPACE_ID, SYS_COLUMN_ID, "IX_COLUMN$001", 0, 0, { 0 }, GS_FALSE, GS_TRUE, INDEX_TYPE_BTREE, 3, { 0, 1, 2 }, GS_INI_TRANS, CR_ROW, { 0 }, 0, GS_PCT_FREE, GS_FALSE, NULL, GS_MAX_KEY_SIZE } },
-    { { 0, 0, 0, SYS_SPACE_ID, SYS_INDEX_ID, "IX_INDEX$001", 0, 0, { 0 }, GS_FALSE, GS_FALSE, INDEX_TYPE_BTREE, 3, { 0, 1, 2 }, GS_INI_TRANS, CR_ROW, { 0 }, 0, GS_PCT_FREE, GS_FALSE, NULL, GS_MAX_KEY_SIZE } },
-    { { 1, 1, 0, SYS_SPACE_ID, SYS_INDEX_ID, "IX_INDEX$002", 0, 0, { 0 }, GS_FALSE, GS_TRUE, INDEX_TYPE_BTREE, 3, { 0, 3, 1}, GS_INI_TRANS, CR_ROW, { 0 }, 0, GS_PCT_FREE, GS_FALSE, NULL, GS_MAX_KEY_SIZE } },
-    { { 0, 0, 0, SYS_SPACE_ID, SYS_USER_ID, "IX_USER$001", 0, 0, { 0 }, GS_FALSE, GS_TRUE, INDEX_TYPE_BTREE, 1, { 0 }, GS_INI_TRANS, CR_ROW, { 0 }, 0, GS_PCT_FREE, GS_FALSE, NULL, GS_MAX_KEY_SIZE } },
-    { { 1, 1, 0, SYS_SPACE_ID, SYS_USER_ID, "IX_USER$002", 0, 0, { 0 }, GS_FALSE, GS_TRUE, INDEX_TYPE_BTREE, 1, { 1 }, GS_INI_TRANS, CR_ROW, { 0 }, 0, GS_PCT_FREE, GS_FALSE, NULL, GS_MAX_KEY_SIZE } },
+    { { 0, 0, 0, SYS_SPACE_ID, SYS_TABLE_ID, "IX_TABLE$001", 0, 0, { 0 }, CT_FALSE, CT_TRUE, INDEX_TYPE_BTREE, 2, { 0, 2 }, CT_INI_TRANS, CR_ROW, { 0 }, 0, CT_PCT_FREE, CT_FALSE, NULL, CT_MAX_KEY_SIZE} },
+    { { 1, 1, 0, SYS_SPACE_ID, SYS_TABLE_ID, "IX_TABLE$002", 0, 0, { 0 }, CT_FALSE, CT_TRUE, INDEX_TYPE_BTREE, 2, { 0, 1 }, CT_INI_TRANS, CR_ROW, { 0 }, 0, CT_PCT_FREE, CT_FALSE, NULL, CT_MAX_KEY_SIZE } },
+    { { 0, 0, 0, SYS_SPACE_ID, SYS_COLUMN_ID, "IX_COLUMN$001", 0, 0, { 0 }, CT_FALSE, CT_TRUE, INDEX_TYPE_BTREE, 3, { 0, 1, 2 }, CT_INI_TRANS, CR_ROW, { 0 }, 0, CT_PCT_FREE, CT_FALSE, NULL, CT_MAX_KEY_SIZE } },
+    { { 0, 0, 0, SYS_SPACE_ID, SYS_INDEX_ID, "IX_INDEX$001", 0, 0, { 0 }, CT_FALSE, CT_FALSE, INDEX_TYPE_BTREE, 3, { 0, 1, 2 }, CT_INI_TRANS, CR_ROW, { 0 }, 0, CT_PCT_FREE, CT_FALSE, NULL, CT_MAX_KEY_SIZE } },
+    { { 1, 1, 0, SYS_SPACE_ID, SYS_INDEX_ID, "IX_INDEX$002", 0, 0, { 0 }, CT_FALSE, CT_TRUE, INDEX_TYPE_BTREE, 3, { 0, 3, 1}, CT_INI_TRANS, CR_ROW, { 0 }, 0, CT_PCT_FREE, CT_FALSE, NULL, CT_MAX_KEY_SIZE } },
+    { { 0, 0, 0, SYS_SPACE_ID, SYS_USER_ID, "IX_USER$001", 0, 0, { 0 }, CT_FALSE, CT_TRUE, INDEX_TYPE_BTREE, 1, { 0 }, CT_INI_TRANS, CR_ROW, { 0 }, 0, CT_PCT_FREE, CT_FALSE, NULL, CT_MAX_KEY_SIZE } },
+    { { 1, 1, 0, SYS_SPACE_ID, SYS_USER_ID, "IX_USER$002", 0, 0, { 0 }, CT_FALSE, CT_TRUE, INDEX_TYPE_BTREE, 1, { 1 }, CT_INI_TRANS, CR_ROW, { 0 }, 0, CT_PCT_FREE, CT_FALSE, NULL, CT_MAX_KEY_SIZE } },
 };
 
 static knl_column_t *g_system_table_columns[] = {
@@ -202,14 +203,14 @@ status_t db_write_systable(knl_session_t *session, knl_cursor_t *cursor, knl_tab
 
     space = SPACE_GET(session, desc->space_id);
     if (!SPACE_IS_ONLINE(space)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to table$ failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to table$ failed");
+        return CT_ERROR;
     }
 
     if (IS_CORE_SYS_TABLE(desc->uid, desc->id)) {
         knl_open_core_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_TABLE_ID);
     } else {
-        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_TABLE_ID, GS_INVALID_ID32);
+        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_TABLE_ID, CT_INVALID_ID32);
     }
 
     max_size = session->kernel->attr.max_row_size;
@@ -253,7 +254,7 @@ status_t db_write_sysstorage(knl_session_t *session, knl_cursor_t *cursor, knl_s
     uint32 max_size;
     row_assist_t ra;
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_STORAGE_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_STORAGE_ID, CT_INVALID_ID32);
 
     max_size = session->kernel->attr.max_row_size;
     row_init(&ra, (char *)cursor->row, max_size, SYS_STORAGE_COLUMN_COUNT);
@@ -282,7 +283,7 @@ status_t db_write_sysview(knl_session_t *session, knl_cursor_t *cursor, knl_view
     knl_column_t *lob_column = NULL;
 
     max_size = session->kernel->attr.max_row_size;
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_VIEW_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_VIEW_ID, CT_INVALID_ID32);
     table = (table_t *)cursor->table;
     lob_column = knl_get_column(cursor->dc_entity, SYS_VIEW_TEXT_COLUMN);
     row_init(&ra, (char *)cursor->row, max_size, table->desc.column_count);
@@ -295,17 +296,17 @@ status_t db_write_sysview(knl_session_t *session, knl_cursor_t *cursor, knl_view
     (void)row_put_int64(&ra, view->chg_scn);
     (void)row_put_int32(&ra, def->sub_sql.len);
 
-    if (knl_row_put_lob(session, cursor, lob_column, &def->sub_sql, &ra) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_row_put_lob(session, cursor, lob_column, &def->sub_sql, &ra) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     (void)row_put_int32(&ra, view->sql_type);
 
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_write_sysrb(knl_session_t *session, knl_rb_desc_t *desc)
@@ -317,10 +318,10 @@ status_t db_write_sysrb(knl_session_t *session, knl_rb_desc_t *desc)
     CM_SAVE_STACK(session->stack);
 
     cursor = knl_push_cursor(session);
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_RB_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_RB_ID, CT_INVALID_ID32);
     table = (table_t *)cursor->table;
 
-    row_init(&ra, (char *)cursor->row, GS_MAX_ROW_SIZE, table->desc.column_count);
+    row_init(&ra, (char *)cursor->row, CT_MAX_ROW_SIZE, table->desc.column_count);
     (void)row_put_int64(&ra, desc->id);
     (void)row_put_str(&ra, desc->name);
     (void)row_put_int32(&ra, desc->uid);
@@ -340,7 +341,7 @@ status_t db_write_sysrb(knl_session_t *session, knl_rb_desc_t *desc)
     (void)row_put_int64(&ra, desc->org_scn);
     (void)row_put_int64(&ra, desc->rec_scn);
 
-    if (desc->tchg_scn == GS_INVALID_ID64) {
+    if (desc->tchg_scn == CT_INVALID_ID64) {
         row_put_null(&ra);
     } else {
         (void)row_put_int64(&ra, desc->tchg_scn);
@@ -349,14 +350,14 @@ status_t db_write_sysrb(knl_session_t *session, knl_rb_desc_t *desc)
     (void)row_put_int64(&ra, desc->base_id);
     (void)row_put_int64(&ra, desc->purge_id);
 
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void db_make_syscolumn_row(knl_session_t *session, knl_cursor_t *cursor, knl_column_t *column)
@@ -385,6 +386,24 @@ static void db_make_syscolumn_row(knl_session_t *session, knl_cursor_t *cursor, 
     for (uint32 i = 0; i < STATS_SYS_COLUMN_COLUMN_COUNT; i++) {
         row_put_null(&ra);
     }
+    /* if use mysql option will write collate id */
+    if (DB_ATTR_COMPATIBLE_MYSQL(session)) {
+        binary_t bin;
+        uint8 buf[CT_SYS_OPT_LEN] = { 0 };
+        bin.bytes = buf;
+        bin.is_hex_const = CT_FALSE;
+        bin.size = sizeof(uint16) + sizeof(uint8) + sizeof(uint8);
+        if (column->is_collate) {
+            (void)memcpy_sp(buf, CT_SYS_OPT_LEN, &(column->collate_id), sizeof(uint16));
+        } else {
+            (void)memset_sp(buf, CT_SYS_OPT_LEN, CT_INVALID_ID16, sizeof(uint16));
+        }
+        (void)memcpy_sp(buf + sizeof(uint16), CT_SYS_OPT_LEN - sizeof(uint16),
+                        &(column->mysql_ori_datatype), sizeof(uint8));
+        (void)memcpy_sp(buf + sizeof(uint16) + sizeof(uint8), CT_SYS_OPT_LEN - sizeof(uint16) - sizeof(uint8),
+                        &(column->mysql_unsigned), sizeof(uint8));
+        (void)row_put_bin(&ra, &bin);
+    }
 }
 
 status_t db_write_syscolumn(knl_session_t *session, knl_cursor_t *cursor, knl_column_t *column)
@@ -392,7 +411,7 @@ status_t db_write_syscolumn(knl_session_t *session, knl_cursor_t *cursor, knl_co
     if (IS_CORE_SYS_TABLE(column->uid, column->table_id)) {
         knl_open_core_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_COLUMN_ID);
     } else {
-        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_COLUMN_ID, GS_INVALID_ID32);
+        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_COLUMN_ID, CT_INVALID_ID32);
     }
     db_make_syscolumn_row(session, cursor, column);
 
@@ -410,7 +429,7 @@ status_t db_write_sysview_column(knl_session_t *session, knl_cursor_t *cursor, k
     table_t *table = NULL;
 
     max_size = session->kernel->attr.max_row_size;
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_VIEWCOL_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_VIEWCOL_ID, CT_INVALID_ID32);
     table = (table_t *)cursor->table;
     row_init(&ra, (char *)cursor->row, max_size, table->desc.column_count);
     (void)row_put_int32(&ra, column->uid);                                            // user id
@@ -423,11 +442,11 @@ status_t db_write_sysview_column(knl_session_t *session, knl_cursor_t *cursor, k
     (void)row_put_int32(&ra, column->nullable);                                       // nullable
     (void)row_put_int32(&ra, column->flags);                                          // flags
 
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_insert_syscolumn_rows(knl_session_t *session, knl_cursor_t *cursor, knl_column_t *columns,
@@ -440,37 +459,37 @@ static status_t db_insert_syscolumn_rows(knl_session_t *session, knl_cursor_t *c
 
     for (i = 0; i < count; i++) {
         row_init(&ra, cursor->buf, max_size, SYSCOLUMN_COLS);
-        if (db_write_syscolumn(session, cursor, &columns[i]) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_syscolumn(session, cursor, &columns[i]) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_build_sys_column(knl_session_t *session, knl_cursor_t *cursor)
 {
     cursor->table = db_sys_table(SYS_COLUMN_ID);
 
-    if (db_insert_syscolumn_rows(session, cursor, g_sys_table_columns, SYSTABLE_COLS) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_insert_syscolumn_rows(session, cursor, g_sys_table_columns, SYSTABLE_COLS) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_insert_syscolumn_rows(session, cursor, g_sys_column_columns, SYSCOLUMN_COLS) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_insert_syscolumn_rows(session, cursor, g_sys_column_columns, SYSCOLUMN_COLS) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_insert_syscolumn_rows(session, cursor, g_sys_index_columns, SYSINDEX_COLS) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_insert_syscolumn_rows(session, cursor, g_sys_index_columns, SYSINDEX_COLS) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_insert_syscolumn_rows(session, cursor, g_sys_user_columns, SYSUSER_COLS) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_insert_syscolumn_rows(session, cursor, g_sys_user_columns, SYSUSER_COLS) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     knl_commit(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_write_sysindex(knl_session_t *session, knl_cursor_t *cursor, knl_index_desc_t *desc)
@@ -484,17 +503,17 @@ status_t db_write_sysindex(knl_session_t *session, knl_cursor_t *cursor, knl_ind
 
     space_t *space = SPACE_GET(session, desc->space_id);
     if (!SPACE_IS_ONLINE(space)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to system index failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to system index failed");
+        return CT_ERROR;
     }
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_INDEX_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_INDEX_ID, CT_INVALID_ID32);
 
     for (uint32 i = 0; i < desc->column_count; i++) {
         cm_concat_int32(&column_list, COLUMN_LIST_BUF_LEN, desc->columns[i]);
         if (i + 1 < desc->column_count) {
-            if (cm_concat_string(&column_list, COLUMN_LIST_BUF_LEN, ",") != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_concat_string(&column_list, COLUMN_LIST_BUF_LEN, ",") != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
@@ -519,7 +538,21 @@ status_t db_write_sysindex(knl_session_t *session, knl_cursor_t *cursor, knl_ind
     (void)(row_put_int32(&ra, desc->pctfree));           // pctfree
 
     /* write statistics columns */
-    for (uint32 j = SYS_INDEX_COLUMN_ID_BLEVEL; j < SYSINDEX_COLS; j++) {
+    for (uint32 j = SYS_INDEX_COLUMN_ID_BLEVEL; j < SYS_INDEX_COLUMN_ID_OPTIONS; j++) {
+        row_put_null(&ra);
+    }
+    if (DB_ATTR_COMPATIBLE_MYSQL(session) && desc->is_dsc) { // is dsc index (record in column options)
+        binary_t bin;
+        uint8 buffer[CT_SYS_OPT_LEN] = { 0 };
+        bin.bytes = buffer;
+        bin.is_hex_const = CT_FALSE;
+        bin.size = sizeof(bool8);
+        (void)memcpy_sp(buffer, CT_SYS_OPT_LEN, &(desc->is_dsc), sizeof(bool8));
+        (void)row_put_bin(&ra, &bin);
+    } else {
+        row_put_null(&ra);
+    }
+    for (uint32 j = SYS_INDEX_COLUMN_ID_CLUFAC; j < SYSINDEX_COLS; j++) {
         row_put_null(&ra);
     }
 
@@ -530,28 +563,28 @@ status_t db_build_sys_user(knl_session_t *session, knl_cursor_t *cursor)
 {
     uint32 max_size;
     row_assist_t ra;
-    char rand_buf[GS_PASSWD_MIN_LEN + 1];
-    char public_pwd[GS_PASSWORD_BUFFER_SIZE];
-    uint32 public_pwd_len = GS_PASSWORD_BUFFER_SIZE;
+    char rand_buf[CT_PASSWD_MIN_LEN + 1];
+    SENSI_INFO char public_pwd[CT_PASSWORD_BUFFER_SIZE];
+    uint32 public_pwd_len = CT_PASSWORD_BUFFER_SIZE;
     char *cipher = NULL;
     date_t date = cm_now();
     errno_t err;
 
     /* create a random string for public as the password. */
-    if (cm_rand((uchar *)rand_buf, GS_PASSWD_MIN_LEN) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_rand((uchar *)rand_buf, CT_PASSWD_MIN_LEN) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cm_base64_encode((uchar *)rand_buf, GS_PASSWD_MIN_LEN, public_pwd, &public_pwd_len) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_base64_encode((uchar *)rand_buf, CT_PASSWD_MIN_LEN, public_pwd, &public_pwd_len) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    err = memset_sp(rand_buf, GS_PASSWD_MIN_LEN + 1, 0, GS_PASSWD_MIN_LEN + 1);
+    err = memset_sp(rand_buf, CT_PASSWD_MIN_LEN + 1, 0, CT_PASSWD_MIN_LEN + 1);
     knl_securec_check(err);
     
     knl_open_core_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_USER_ID);
 
     max_size = session->kernel->attr.max_row_size;
-    cipher = (char *)cm_push(session->stack, GS_PASSWORD_BUFFER_SIZE);
+    cipher = (char *)cm_push(session->stack, CT_PASSWORD_BUFFER_SIZE);
 
     row_init(&ra, cursor->buf, max_size, SYSUSER_COLS);
     (void)(row_put_int32(&ra, 0));                            // id
@@ -568,18 +601,18 @@ status_t db_build_sys_user(knl_session_t *session, knl_cursor_t *cursor)
     (void)(row_put_int32(&ra, 0));                            // lcount
     row_put_null(&ra);                                        // options
     (void)(row_put_int32(&ra, 0));                            // tenant id
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
         cm_pop(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    err = memset_sp(cipher, GS_PASSWORD_BUFFER_SIZE, 0, GS_PASSWORD_BUFFER_SIZE);
+    err = memset_sp(cipher, CT_PASSWORD_BUFFER_SIZE, 0, CT_PASSWORD_BUFFER_SIZE);
     knl_securec_check(err);
     if (user_encrypt_password((char *)session->kernel->attr.pwd_alg, session->kernel->attr.alg_iter,
                               public_pwd, (uint32)strlen(public_pwd), cipher,
-                              GS_PASSWORD_BUFFER_SIZE) != GS_SUCCESS) {
+                              CT_PASSWORD_BUFFER_SIZE) != CT_SUCCESS) {
         cm_pop(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     row_init(&ra, cursor->buf, max_size, SYSUSER_COLS);
@@ -597,15 +630,36 @@ status_t db_build_sys_user(knl_session_t *session, knl_cursor_t *cursor)
     (void)row_put_int32(&ra, 0);                    // lcount
     row_put_null(&ra);                              // options
     (void)(row_put_int32(&ra, 0));                  // tenant id
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
         cm_pop(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
+    if (DB_ATTR_COMPATIBLE_MYSQL(session)) {
+        row_init(&ra, cursor->buf, max_size, SYSUSER_COLS);
+        (void)row_put_int32(&ra, 2);                    // id
+        (void)row_put_str(&ra, "tmp");               // name
+        (void)row_put_str(&ra, cipher);                 // pwd
+        (void)row_put_int32(&ra, SYS_SPACE_ID);         // tablespace system
+        (void)row_put_int32(&ra, dtc_my_ctrl(session)->swap_space);  // temp tablespace
+        (void)row_put_date(&ra, date);                  // create time
+        (void)row_put_date(&ra, date);                  // pwd change time
+        row_put_null(&ra);                              // expire time
+        row_put_null(&ra);                              // lock time
+        (void)row_put_int32(&ra, 0);                    // profile#, default 0
+        (void)row_put_int32(&ra, ACCOUNT_STATUS_OPEN);  // astatus
+        (void)row_put_int32(&ra, 0);                    // lcount
+        row_put_null(&ra);                              // options
+        (void)(row_put_int32(&ra, 0));                  // tenant id
+        if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+            cm_pop(session->stack);
+            return CT_ERROR;
+        }
+    }
     knl_commit(session);
     cm_pop(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -668,8 +722,8 @@ status_t db_build_sys_index(knl_session_t *session, knl_cursor_t *cursor)
             index->desc.cr_mode = CR_PAGE;
         }
 
-        if (btree_create_segment(session, index) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (btree_create_segment(session, index) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         column_list.str = buf;
@@ -696,8 +750,8 @@ status_t db_build_sys_index(knl_session_t *session, knl_cursor_t *cursor)
         (void)(row_put_int32(&ra, desc->parted));
         (void)(row_put_int32(&ra, desc->pctfree));
 
-        if (TABLE_ACCESSOR(cursor)->do_insert(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (TABLE_ACCESSOR(cursor)->do_insert(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -710,43 +764,43 @@ status_t db_build_sys_index(knl_session_t *session, knl_cursor_t *cursor)
     core->ix_sys_user1_entry = db_sys_index(IX_SYS_USER1_ID)->desc.entry;
     core->ix_sys_user2_entry = db_sys_index(IX_SYS_USER2_ID)->desc.entry;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_fill_indexes_of_table(knl_session_t *session, knl_cursor_t *cursor, uint32 table_id)
 {
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, table_id, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, table_id, CT_INVALID_ID32);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (knl_insert_indexes(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_insert_indexes(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_build_dual(knl_session_t *session, knl_cursor_t *cursor)
 {
     row_assist_t ra;
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, DUAL_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, DUAL_ID, CT_INVALID_ID32);
 
-    row_init(&ra, cursor->buf, GS_MAX_DUAL_ROW_SIZE, 1);
+    row_init(&ra, cursor->buf, CT_MAX_DUAL_ROW_SIZE, 1);
     (void)(row_put_str(&ra, "X"));
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* in-build role : connect */
@@ -759,12 +813,12 @@ status_t db_build_sys_roles(knl_session_t *session, knl_cursor_t *cursor)
 
     def.owner_uid = 0;
     def.password[0] = '\0';
-    def.is_encrypt = GS_FALSE;
+    def.is_encrypt = CT_FALSE;
 
-    err = strcpy_sp(def.name, GS_NAME_BUFFER_SIZE, "CONNECT");
+    err = strcpy_sp(def.name, CT_NAME_BUFFER_SIZE, "CONNECT");
     knl_securec_check(err);
-    if (user_create_role(session, &def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (user_create_role(session, &def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* grant create session to connect */
@@ -775,12 +829,12 @@ status_t db_build_sys_roles(knl_session_t *session, knl_cursor_t *cursor)
     (void)(row_put_int32(&ra, CREATE_SESSION));                // privilege
     (void)(row_put_int32(&ra, PRIVS_ADMIN_OPTION_FALSE));      // admin option
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PRIVS_ID, GS_INVALID_ID32);
-    if (GS_SUCCESS != knl_internal_insert(session, cursor)) {
-        return GS_ERROR;
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PRIVS_ID, CT_INVALID_ID32);
+    if (CT_SUCCESS != knl_internal_insert(session, cursor)) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_build_sys_privs(knl_session_t *session, knl_cursor_t *cursor)
@@ -791,20 +845,20 @@ status_t db_build_sys_privs(knl_session_t *session, knl_cursor_t *cursor)
 
     max_size = session->kernel->attr.max_row_size;
 
-    for (priv_id = ALL_PRIVILEGES + 1; priv_id < GS_SYS_PRIVS_COUNT; priv_id++) {
+    for (priv_id = ALL_PRIVILEGES + 1; priv_id < CT_SYS_PRIVS_COUNT; priv_id++) {
         row_init(&ra, cursor->buf, max_size, 4);
         (void)row_put_int32(&ra, 0);
         (void)row_put_int32(&ra, 0);
         (void)row_put_int32(&ra, priv_id);
         (void)row_put_int32(&ra, 1);
 
-        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PRIVS_ID, GS_INVALID_ID32);
-        if (GS_SUCCESS != knl_internal_insert(session, cursor)) {
-            return GS_ERROR;
+        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PRIVS_ID, CT_INVALID_ID32);
+        if (CT_SUCCESS != knl_internal_insert(session, cursor)) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* in-build user_history sys */
@@ -821,12 +875,12 @@ static status_t db_build_user_sys_history(knl_session_t *session, knl_cursor_t *
     (void)(row_put_str(&ra, session->kernel->attr.sys_pwd));  // PASSWORD
     (void)(row_put_date(&ra, cm_now()));                      // PASSWORD_DATE
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_USER_HISTORY_ID, GS_INVALID_ID32);
-    if (GS_SUCCESS != knl_internal_insert(session, cursor)) {
-        return GS_ERROR;
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_USER_HISTORY_ID, CT_INVALID_ID32);
+    if (CT_SUCCESS != knl_internal_insert(session, cursor)) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* in-build sys_tenants sys */
@@ -835,14 +889,14 @@ static status_t db_build_sys_tenants(knl_session_t *session, knl_cursor_t *curso
     uint32 max_size;
     row_assist_t ra;
     binary_t bin;
-    uint8 buf[GS_SPACES_BITMAP_SIZE];
+    uint8 buf[CT_SPACES_BITMAP_SIZE];
     core_ctrl_t *core_ctrl = DB_CORE_CTRL(session);
 
     bin.bytes = buf;
-    bin.is_hex_const = GS_FALSE;
-    bin.size = GS_SPACES_BITMAP_SIZE;
+    bin.is_hex_const = CT_FALSE;
+    bin.size = CT_SPACES_BITMAP_SIZE;
 
-    errno_t ret = memset_sp(buf, GS_SPACES_BITMAP_SIZE, -1, GS_SPACES_BITMAP_SIZE);
+    errno_t ret = memset_sp(buf, CT_SPACES_BITMAP_SIZE, -1, CT_SPACES_BITMAP_SIZE);
     knl_securec_check(ret);
 
     max_size = session->kernel->attr.max_row_size;
@@ -857,12 +911,12 @@ static status_t db_build_sys_tenants(knl_session_t *session, knl_cursor_t *curso
     (void)(row_put_date(&ra, cm_now()));                        // create time
     (void)(row_put_null(&ra));                                  // options
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_TENANTS_ID, GS_INVALID_ID32);
-    if (GS_SUCCESS != knl_internal_insert(session, cursor)) {
-        return GS_ERROR;
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_TENANTS_ID, CT_INVALID_ID32);
+    if (CT_SUCCESS != knl_internal_insert(session, cursor)) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_build_ex_systables(knl_session_t *session)
@@ -872,42 +926,42 @@ status_t db_build_ex_systables(knl_session_t *session)
     CM_SAVE_STACK(session->stack);
 
     cursor = knl_push_cursor(session);
-    knl_set_session_scn(session, GS_INVALID_ID64);
+    knl_set_session_scn(session, CT_INVALID_ID64);
 
-    if (db_build_dual(session, cursor) != GS_SUCCESS) {
+    if (db_build_dual(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_build_sys_privs(session, cursor) != GS_SUCCESS) {
+    if (db_build_sys_privs(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_build_sys_roles(session, cursor) != GS_SUCCESS) {
+    if (db_build_sys_roles(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (profile_build_sysprofile(session, cursor) != GS_SUCCESS) {
+    if (profile_build_sysprofile(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (db_build_user_sys_history(session, cursor)) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_build_sys_tenants(session, cursor) != GS_SUCCESS) {
+    if (db_build_sys_tenants(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
     knl_commit(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_build_completed(knl_session_t *session)
@@ -915,14 +969,14 @@ status_t db_build_completed(knl_session_t *session)
     core_ctrl_t *core_ctrl = &session->kernel->db.ctrl.core;
 
     dtc_my_ctrl(session)->scn = DB_CURR_SCN(session);
-    core_ctrl->build_completed = GS_TRUE;
+    core_ctrl->build_completed = CT_TRUE;
 
-    if (db_save_core_ctrl(session) != GS_SUCCESS) {
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT(0, "[DC] ABORT INFO: save core control file failed when load ex_systables");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_fill_builtin_indexes(knl_session_t *session)
@@ -939,15 +993,15 @@ status_t db_fill_builtin_indexes(knl_session_t *session)
             continue;
         }
 
-        if (db_fill_indexes_of_table(session, cursor, i) != GS_SUCCESS) {
+        if (db_fill_indexes_of_table(session, cursor, i) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     knl_commit(session);
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_insert_sys_user(knl_session_t *session, knl_cursor_t *cursor, knl_user_desc_t *desc)
@@ -980,11 +1034,11 @@ status_t db_insert_sys_user(knl_session_t *session, knl_cursor_t *cursor, knl_us
     (void)(row_put_int32(&row, desc->lcount));      // lcount
     row_put_null(&row);                             // options
     (void)(row_put_int32(&row, desc->tenant_id));   // tenant id
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_insert_sys_tenants(knl_session_t *session, knl_cursor_t *cursor, knl_tenant_desc_t *desc)
@@ -994,8 +1048,8 @@ status_t db_insert_sys_tenants(knl_session_t *session, knl_cursor_t *cursor, knl
     binary_t bin;
 
     bin.bytes = (uint8 *)desc->ts_bitmap;
-    bin.size = GS_SPACES_BITMAP_SIZE;
-    bin.is_hex_const = GS_FALSE;
+    bin.size = CT_SPACES_BITMAP_SIZE;
+    bin.is_hex_const = CT_FALSE;
 
     CM_MAGIC_CHECK(desc, knl_tenant_desc_t);
 
@@ -1008,11 +1062,11 @@ status_t db_insert_sys_tenants(knl_session_t *session, knl_cursor_t *cursor, knl
     (void)(row_put_bin(&row, &bin));                      // tablespace bitmap
     (void)row_put_date(&row, desc->ctime);                // create time
     (void)(row_put_null(&row));                           // options
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void db_alter_user_field_core(knl_user_desc_t *desc, knl_cursor_t *cursor, uint32 update_flag,
@@ -1080,7 +1134,7 @@ status_t db_alter_user_field(knl_session_t *session, knl_user_desc_t *desc, knl_
 
     (void)db_alter_user_field_core(desc, cursor, update_flag, row, update_cols);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_alter_tenant_field(knl_session_t *session, knl_tenant_desc_t *desc)
@@ -1093,16 +1147,16 @@ status_t db_alter_tenant_field(knl_session_t *session, knl_tenant_desc_t *desc)
 
     cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_TENANTS_ID, IX_SYS_TENANTS_001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &desc->id,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &desc->id,
         sizeof(uint32), 0);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     if (cursor->eof) {
-        GS_THROW_ERROR(ERR_OBJECT_ID_NOT_EXIST, "tenant", desc->id);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ID_NOT_EXIST, "tenant", desc->id);
+        return CT_ERROR;
     }
 
     max_size = session->kernel->attr.max_row_size;
@@ -1112,8 +1166,8 @@ status_t db_alter_tenant_field(knl_session_t *session, knl_tenant_desc_t *desc)
     cursor->update_info.columns[update_cols++] = SYS_TENANTS_COL_TABLESPACE_ID;
 
     bin.bytes = (uint8 *)desc->ts_bitmap;
-    bin.size = GS_SPACES_BITMAP_SIZE;
-    bin.is_hex_const = GS_FALSE;
+    bin.size = CT_SPACES_BITMAP_SIZE;
+    bin.is_hex_const = CT_FALSE;
 
     (void)row_put_int32(&row, desc->ts_num);
     cursor->update_info.columns[update_cols++] = SYS_TENANTS_COL_TABLESPACES_NUM;
@@ -1142,14 +1196,14 @@ static status_t db_init_dc_columns(knl_session_t *session, dc_entity_t *entity, 
 
     entity->column_count = desc->column_count;
 
-    if (dc_prepare_load_columns(session, entity) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_prepare_load_columns(session, entity) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     for (i = 0; i < desc->column_count; i++) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory,
-                         sizeof(knl_column_t), (void **)&column) != GS_SUCCESS) {
-            return GS_ERROR;
+                         sizeof(knl_column_t), (void **)&column) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         err = memcpy_sp(column, sizeof(knl_column_t), &g_system_table_columns[desc->id][i], sizeof(knl_column_t));
@@ -1165,7 +1219,7 @@ static status_t db_init_dc_columns(knl_session_t *session, dc_entity_t *entity, 
         entity->column_groups[hash / DC_COLUMN_GROUP_SIZE].column_index[hash % DC_COLUMN_GROUP_SIZE] = (uint16)i;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_init_dc_index(knl_session_t *session, dc_entity_t *entity, knl_table_desc_t *desc)
@@ -1181,8 +1235,8 @@ static status_t db_init_dc_index(knl_session_t *session, dc_entity_t *entity, kn
             continue;
         }
 
-        if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(index_t), (void **)&index) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(index_t), (void **)&index) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         err = memset_sp(index, sizeof(index_t), 0, sizeof(index_t));
@@ -1198,18 +1252,19 @@ static status_t db_init_dc_index(knl_session_t *session, dc_entity_t *entity, kn
         dc_set_index_profile(session, entity, index);
         dc_set_index_accessor(&entity->table, index);
         dls_init_latch2(&index->btree.struct_latch, DR_TYPE_BTREE_LATCH, index->desc.table_id, index->desc.uid,
-                        index->desc.id, GS_INVALID_ID32, GS_INVALID_ID32);
+                        index->desc.id, CT_INVALID_ID32, CT_INVALID_ID32, index->btree.is_shadow);
 
         buf_enter_page(session, ix_desc->entry, LATCH_MODE_S, ENTER_PAGE_RESIDENT);
         index->btree.segment = BTREE_GET_SEGMENT(session);
+        index->btree.buf_ctrl = session->curr_page_ctrl;
         bt_put_change_stats(&index->btree);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
         index->entity = entity;
         index->desc.seg_scn = BTREE_SEGMENT(session, index->btree.entry, index->btree.segment)->seg_scn;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_load_core_entity_by_id(knl_session_t *session, memory_context_t *memory, table_t *table)
@@ -1223,8 +1278,8 @@ status_t db_load_core_entity_by_id(knl_session_t *session, memory_context_t *mem
     user = ctx->users[0];
     entry = user->groups[0]->entries[table->desc.id];
 
-    if (dc_alloc_mem(ctx, memory, sizeof(dc_entity_t), (void **)&entry->entity) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_mem(ctx, memory, sizeof(dc_entity_t), (void **)&entry->entity) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     err = memset_sp(entry->entity, sizeof(dc_entity_t), 0, sizeof(dc_entity_t));
@@ -1234,7 +1289,7 @@ status_t db_load_core_entity_by_id(knl_session_t *session, memory_context_t *mem
     entity = entry->entity;
     entity->entry = entry;
     entity->memory = memory;
-    entity->valid = GS_TRUE;
+    entity->valid = CT_TRUE;
     entity->type = DICT_TYPE_TABLE;
     err = memcpy_sp(&entity->table, sizeof(table_t), table, sizeof(table_t));
     knl_securec_check(err);
@@ -1243,15 +1298,15 @@ status_t db_load_core_entity_by_id(knl_session_t *session, memory_context_t *mem
     dls_init_spinlock(&entity->table.heap.lock, DR_TYPE_HEAP, table->desc.id, (uint16)table->desc.uid);
     dls_init_latch(&entity->table.heap.latch, DR_TYPE_HEAP_LATCH, table->desc.id, (uint16)table->desc.uid);
 
-    if (db_init_dc_columns(session, entity, &table->desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_init_dc_columns(session, entity, &table->desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_init_dc_index(session, entity, &table->desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_init_dc_index(session, entity, &table->desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void db_get_sys_dc(knl_session_t *session, uint32 id, knl_dictionary_t *dc)
@@ -1272,15 +1327,15 @@ void db_get_sys_dc(knl_session_t *session, uint32 id, knl_dictionary_t *dc)
 status_t db_fetch_systable_by_start_oid(knl_session_t *session, uint32 uid, uint32 start_oid, knl_cursor_t *cursor)
 {
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLE_ID, IX_SYS_TABLE_002_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
 
     /* find the tuple by uid and oid */
     knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key,
-                     GS_TYPE_INTEGER, &uid, sizeof(uint32), IX_COL_SYS_TABLE_002_USER_ID);
+                     CT_TYPE_INTEGER, &uid, sizeof(uint32), IX_COL_SYS_TABLE_002_USER_ID);
     knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key,
-                     GS_TYPE_INTEGER, &uid, sizeof(uint32), IX_COL_SYS_TABLE_002_USER_ID);
+                     CT_TYPE_INTEGER, &uid, sizeof(uint32), IX_COL_SYS_TABLE_002_USER_ID);
     knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key,
-                     GS_TYPE_INTEGER, &start_oid, sizeof(uint32), IX_COL_SYS_TABLE_002_ID);
+                     CT_TYPE_INTEGER, &start_oid, sizeof(uint32), IX_COL_SYS_TABLE_002_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_TABLE_002_ID);
 
     return knl_fetch(session, cursor);
@@ -1291,12 +1346,12 @@ status_t db_analyze_schema(knl_session_t *session, knl_analyze_schema_def_t *def
     knl_analyze_tab_def_t tab;
     knl_cursor_t *cursor = NULL;
     uint32 uid, oid, start_oid, table_count;
-    bool32 is_recycled = GS_FALSE;
+    bool32 is_recycled = CT_FALSE;
     errno_t ret;
 
     if (!dc_get_user_id(session, &def->owner, &uid)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&def->owner));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&def->owner));
+        return CT_ERROR;
     }
 
     ret = memset_sp(&tab, sizeof(knl_analyze_tab_def_t), 0, sizeof(knl_analyze_tab_def_t));
@@ -1309,14 +1364,14 @@ status_t db_analyze_schema(knl_session_t *session, knl_analyze_schema_def_t *def
     start_oid = 0;
 
     do {
-        knl_set_session_scn(session, GS_INVALID_ID64);
+        knl_set_session_scn(session, CT_INVALID_ID64);
 
         CM_SAVE_STACK(session->stack);
 
         cursor = knl_push_cursor(session);
-        if (db_fetch_systable_by_start_oid(session, uid, start_oid, cursor) != GS_SUCCESS) {
+        if (db_fetch_systable_by_start_oid(session, uid, start_oid, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         tab.sample_level = def->sample_level;
@@ -1325,15 +1380,15 @@ status_t db_analyze_schema(knl_session_t *session, knl_analyze_schema_def_t *def
         table_count = 0;
         while (!cursor->eof) {
             if (session->canceled) {
-                GS_THROW_ERROR(ERR_OPERATION_CANCELED);
+                CT_THROW_ERROR(ERR_OPERATION_CANCELED);
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             if (session->killed) {
-                GS_THROW_ERROR(ERR_OPERATION_KILLED);
+                CT_THROW_ERROR(ERR_OPERATION_KILLED);
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             oid = *(uint32 *)CURSOR_COLUMN_DATA(cursor, TABLE_TABLE_ID);
@@ -1342,7 +1397,7 @@ status_t db_analyze_schema(knl_session_t *session, knl_analyze_schema_def_t *def
             is_recycled = *(uint32 *)CURSOR_COLUMN_DATA(cursor, TABLE_RECYCLED);
             /* recycled table will not be analyzed. */
             if (!is_recycled) {
-                (void)db_analyze_table(session, &tab, GS_FALSE);
+                (void)db_analyze_table(session, &tab, CT_FALSE);
                 cm_reset_error();
                 table_count++;
             }
@@ -1352,7 +1407,7 @@ status_t db_analyze_schema(knl_session_t *session, knl_analyze_schema_def_t *def
                 break;
             }
 
-            if (GS_SUCCESS != knl_fetch(session, cursor)) {
+            if (CT_SUCCESS != knl_fetch(session, cursor)) {
                 int32 err_code = cm_get_error_code();
                 if (err_code == ERR_SNAPSHOT_TOO_OLD) {
                     start_oid = oid + 1;
@@ -1360,7 +1415,7 @@ status_t db_analyze_schema(knl_session_t *session, knl_analyze_schema_def_t *def
                 }
 
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
 
@@ -1371,30 +1426,30 @@ status_t db_analyze_schema(knl_session_t *session, knl_analyze_schema_def_t *def
         }
     } while (table_count > 0);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_schema_stats(knl_session_t *session, text_t *schema_name)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     knl_dictionary_t dc;
-    uint32 uid = GS_INVALID_ID32;
-    uint32 table_id = GS_INVALID_ID32;
-    bool32 eof = GS_FALSE;
+    uint32 uid = CT_INVALID_ID32;
+    uint32 table_id = CT_INVALID_ID32;
+    bool32 eof = CT_FALSE;
 
     if (DB_IS_READONLY(session)) {
-        GS_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
+        return CT_ERROR;
     }
 
     if (!knl_get_user_id(session, schema_name, &uid)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(schema_name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(schema_name));
+        return CT_ERROR;
     }
     
     for (;;) {
-        status = GS_SUCCESS;
-        if (dc_scan_tables_by_user(session, uid, &table_id, &eof) != GS_SUCCESS) {
+        status = CT_SUCCESS;
+        if (dc_scan_tables_by_user(session, uid, &table_id, &eof) != CT_SUCCESS) {
             return status;
         }
 
@@ -1403,26 +1458,26 @@ status_t db_delete_schema_stats(knl_session_t *session, text_t *schema_name)
         }
 
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            return CT_ERROR;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            return CT_ERROR;
         }
 
-        if (knl_open_dc_by_id(session, uid, table_id, &dc, GS_TRUE) != GS_SUCCESS) {
+        if (knl_open_dc_by_id(session, uid, table_id, &dc, CT_TRUE) != CT_SUCCESS) {
             continue;
         }
 
-        if (lock_table_shared_directly(session, &dc) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (lock_table_shared_directly(session, &dc) != CT_SUCCESS) {
+            status = CT_ERROR;
         } else {
-            status = stats_delete_table_stats(session, uid, table_id, GS_FALSE);
+            status = stats_delete_table_stats(session, uid, table_id, CT_FALSE);
         }
 
-        if (status != GS_SUCCESS) {
+        if (status != CT_SUCCESS) {
             knl_rollback(session, NULL);
             cm_reset_error();
         } else {
@@ -1433,11 +1488,15 @@ status_t db_delete_schema_stats(knl_session_t *session, text_t *schema_name)
         dc_close(&dc);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void print_db_update_core_index(log_entry_t *log)
 {
+    if (log->size != CM_ALIGN4(sizeof(rd_update_core_index_t)) + LOG_ENTRY_SIZE) {
+        CT_LOG_RUN_ERR("no need to replay update core index, log size %u is wrong", log->size);
+        return;
+    }
     rd_update_core_index_t *redo = (rd_update_core_index_t *)log->data;
 
     printf("update core index %u.%u entry %u-%u", redo->table_id, redo->index_id, redo->entry.file, redo->entry.page);
@@ -1445,10 +1504,14 @@ void print_db_update_core_index(log_entry_t *log)
 
 void rd_db_update_core_index(knl_session_t *session, log_entry_t *log)
 {
+    if (log->size != CM_ALIGN4(sizeof(rd_update_core_index_t)) + LOG_ENTRY_SIZE) {
+        CT_LOG_RUN_ERR("no need to replay update core index, log size %u is wrong", log->size);
+        return;
+    }
     rd_update_core_index_t *redo = (rd_update_core_index_t *)log->data;
 
     db_update_core_index(session, redo);
-    if (db_save_core_ctrl(session) != GS_SUCCESS) {
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT(0, "[RD] ABORT INFO: save core control file failed when update core index");
     }
 }
@@ -1493,30 +1556,30 @@ static inline void db_convert_segment_desc(knl_cursor_t *cursor, knl_seg_desc_t 
 
 bool32 db_valid_seg_tablespace(knl_session_t *session, uint32 space_id, page_id_t entry)
 {
-    if (space_id >= GS_MAX_SPACES) {
-        GS_LOG_RUN_INF("space id:%u is invalid.", space_id);
-        return GS_FALSE;
+    if (space_id >= CT_MAX_SPACES) {
+        CT_LOG_RUN_INF("space id:%u is invalid.", space_id);
+        return CT_FALSE;
     }
 
     if (!spc_valid_space_object(session, space_id)) {
-        GS_LOG_RUN_INF("space id:%u is invalid.", space_id);
-        return GS_FALSE;
+        CT_LOG_RUN_INF("space id:%u is invalid.", space_id);
+        return CT_FALSE;
     }
 
     if (IS_INVALID_PAGID(entry)) {
-        GS_LOG_RUN_INF("entry id:%u is invalid.", (uint32)entry.file);
-        return GS_FALSE;
+        CT_LOG_RUN_INF("entry id:%u is invalid.", (uint32)entry.file);
+        return CT_FALSE;
     }
 
     datafile_t *df = DATAFILE_GET(session, entry.file);
-    if (!DATAFILE_IS_ONLINE(df) || df->space_id >= GS_MAX_SPACES ||
+    if (!DATAFILE_IS_ONLINE(df) || df->space_id >= CT_MAX_SPACES ||
         SPACE_GET(session, df->space_id)->is_empty || DF_FILENO_IS_INVAILD(df)) {
-        GS_LOG_RUN_INF("invalid df, online:%u, space id:%u, invalid:%u",
+        CT_LOG_RUN_INF("invalid df, online:%u, space id:%u, invalid:%u",
             DATAFILE_IS_ONLINE(df), space_id, DF_FILENO_IS_INVAILD(df));
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void db_garbage_segment_init(knl_session_t *session)
@@ -1534,19 +1597,19 @@ status_t db_garbage_segment_clean(knl_session_t *session)
     knl_seg_desc_t desc;
 
     if (DB_IS_READONLY(session) || DB_IS_MAINTENANCE(session)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
-    GS_LOG_RUN_INF("[DB] Clean garbage segment start");
-    knl_set_session_scn(session, GS_INVALID_ID64);
+    CT_LOG_RUN_INF("[DB] Clean garbage segment start");
+    knl_set_session_scn(session, CT_INVALID_ID64);
 
     CM_SAVE_STACK(session->stack);
 
     cursor = knl_push_cursor(session);
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_GARBAGE_SEGMENT_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_GARBAGE_SEGMENT_ID, CT_INVALID_ID32);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -1560,16 +1623,16 @@ status_t db_garbage_segment_clean(knl_session_t *session)
             g_segment_proc[desc.op_type](session, &desc);
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    GS_LOG_RUN_INF("[DB] Clean garbage segment end");
+    CT_LOG_RUN_INF("[DB] Clean garbage segment end");
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline bool32 is_purge_truncate_type(seg_op_t op_type)
@@ -1584,15 +1647,15 @@ static status_t db_truncate_garbage_heap(knl_session_t *session, knl_cursor_t *c
     knl_seg_desc_t desc;
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_DELETE, SYS_GARBAGE_SEGMENT_ID, IX_SYS_GARBAGE_SEGMENT001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
         IX_COL_SYS_GARBAGE_SEGMENT001_UID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
         IX_COL_SYS_GARBAGE_SEGMENT001_OID);
 
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -1604,12 +1667,12 @@ static status_t db_truncate_garbage_heap(knl_session_t *session, knl_cursor_t *c
         if (desc.op_type == HEAP_TRUNCATE_PART_SEGMENT || desc.op_type == HEAP_TRUNCATE_SEGMENT) {
             g_segment_proc[desc.op_type](session, &desc);
 
-            if (knl_internal_delete(session, cursor) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (knl_internal_delete(session, cursor) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1620,15 +1683,15 @@ status_t db_clean_tablespace_garbage_seg(knl_session_t *session, uint32 space_id
     knl_seg_desc_t desc;
 
     CM_SAVE_STACK(session->stack);
-    knl_set_session_scn(session, GS_INVALID_ID64);
+    knl_set_session_scn(session, CT_INVALID_ID64);
     knl_cursor_t *cursor = knl_push_cursor(session);
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_DELETE, SYS_GARBAGE_SEGMENT_ID, GS_INVALID_ID32);
-    status_t status = GS_SUCCESS;
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_DELETE, SYS_GARBAGE_SEGMENT_ID, CT_INVALID_ID32);
+    status_t status = CT_SUCCESS;
 
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            GS_LOG_RUN_WAR("[DB] fetch tablespace %u garbage segment failed.", space_id);
-            status = GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            CT_LOG_RUN_WAR("[DB] fetch tablespace %u garbage segment failed.", space_id);
+            status = CT_ERROR;
             break;
         }
 
@@ -1642,10 +1705,10 @@ status_t db_clean_tablespace_garbage_seg(knl_session_t *session, uint32 space_id
         }
 
         // force clean space's garbage segment, because space is dropped
-        if (knl_internal_delete(session, cursor) != GS_SUCCESS) {
-            GS_LOG_RUN_WAR("[DB] Clean tablespace %u garbage segment failed, uid %u, oid %u.",
+        if (knl_internal_delete(session, cursor) != CT_SUCCESS) {
+            CT_LOG_RUN_WAR("[DB] Clean tablespace %u garbage segment failed, uid %u, oid %u.",
                 space_id, desc.uid, desc.oid);
-            status = GS_ERROR;
+            status = CT_ERROR;
             continue;
         }
     }
@@ -1661,28 +1724,28 @@ status_t db_garbage_segment_handle(knl_session_t *session, uint32 uid, uint32 oi
     knl_seg_desc_t desc;
 
     if (DB_IS_READONLY(session) || DB_IS_MAINTENANCE(session)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     CM_SAVE_STACK(session->stack);
-    knl_set_session_scn(session, GS_INVALID_ID64);
+    knl_set_session_scn(session, CT_INVALID_ID64);
     cursor = knl_push_cursor(session);
-    if (db_truncate_garbage_heap(session, cursor, uid, oid) != GS_SUCCESS) {
+    if (db_truncate_garbage_heap(session, cursor, uid, oid) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_DELETE, SYS_GARBAGE_SEGMENT_ID, IX_SYS_GARBAGE_SEGMENT001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32),
         IX_COL_SYS_GARBAGE_SEGMENT001_UID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &oid, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &oid, sizeof(uint32),
         IX_COL_SYS_GARBAGE_SEGMENT001_OID);
 
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -1701,16 +1764,16 @@ status_t db_garbage_segment_handle(knl_session_t *session, uint32 uid, uint32 oi
 
         g_segment_proc[desc.op_type](session, &desc);
 
-        if (knl_internal_delete(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_delete(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     knl_commit(session);
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_write_garbage_segment(knl_session_t *session, knl_seg_desc_t *seg)
@@ -1720,12 +1783,12 @@ status_t db_write_garbage_segment(knl_session_t *session, knl_seg_desc_t *seg)
     uint32 max_size;
 
     if (IS_INVALID_PAGID(seg->entry)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (DB_IS_MAINTENANCE(session)) {
         g_segment_proc[seg->op_type](session, seg);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     CM_SAVE_STACK(session->stack);
@@ -1748,14 +1811,14 @@ status_t db_write_garbage_segment(knl_session_t *session, knl_seg_desc_t *seg)
     (void)row_put_int32(&ra, seg->reuse);
     (void)row_put_int64(&ra, seg->serial);
 
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_update_garbage_segment_entry(knl_session_t *session, knl_table_desc_t *desc, page_id_t entry)
@@ -1768,15 +1831,15 @@ status_t db_update_garbage_segment_entry(knl_session_t *session, knl_table_desc_
 
     cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_GARBAGE_SEGMENT_ID, IX_SYS_GARBAGE_SEGMENT001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &desc->uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &desc->uid, sizeof(uint32),
         IX_COL_SYS_GARBAGE_SEGMENT001_UID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &desc->id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &desc->id, sizeof(uint32),
         IX_COL_SYS_GARBAGE_SEGMENT001_OID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -1787,19 +1850,19 @@ status_t db_update_garbage_segment_entry(knl_session_t *session, knl_table_desc_
 
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_update_garbage_segment_optype(knl_session_t *session, knl_index_desc_t desc)
@@ -1811,10 +1874,10 @@ static status_t db_update_garbage_segment_optype(knl_session_t *session, knl_ind
 
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_GARBAGE_SEGMENT_ID, IX_SYS_GARBAGE_SEGMENT001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &desc.uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &desc.uid, sizeof(uint32),
         IX_COL_SYS_GARBAGE_SEGMENT001_UID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &desc.table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &desc.table_id,
         sizeof(uint32), IX_COL_SYS_GARBAGE_SEGMENT001_OID);
 
     knl_scn_t del_scn = DB_CURR_SCN(session);
@@ -1822,9 +1885,9 @@ static status_t db_update_garbage_segment_optype(knl_session_t *session, knl_ind
     uint32 index_id;
 
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -1853,15 +1916,15 @@ static status_t db_update_garbage_segment_optype(knl_session_t *session, knl_ind
         (void)row_put_int32(&ra, *(int32 *)&op_type);
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
     knl_commit(session);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void db_update_index_clean_option(knl_session_t *session, knl_alindex_def_t *def, knl_index_desc_t desc)
@@ -1875,13 +1938,13 @@ void db_update_index_clean_option(knl_session_t *session, knl_alindex_def_t *def
         return;
     }
 
-    if (db_update_garbage_segment_optype(session, desc) == GS_SUCCESS) {
+    if (db_update_garbage_segment_optype(session, desc) == CT_SUCCESS) {
         cm_spin_lock(&session->kernel->rmon_ctx.mark_mutex, NULL);
-        session->kernel->rmon_ctx.delay_clean_segments = GS_TRUE;
+        session->kernel->rmon_ctx.delay_clean_segments = CT_TRUE;
         cm_spin_unlock(&session->kernel->rmon_ctx.mark_mutex);
     } else {
         knl_rollback(session, NULL);
-        GS_LOG_RUN_ERR("[DB] failed to update garbage segment del scn");
+        CT_LOG_RUN_ERR("[DB] failed to update garbage segment del scn");
     }
 }
 
@@ -1900,13 +1963,13 @@ void db_clean_garbage_partition(knl_session_t *session)
 
     CM_SAVE_STACK(session->stack);
 
-    knl_set_session_scn(session, GS_INVALID_ID64);
+    knl_set_session_scn(session, CT_INVALID_ID64);
     del_cursor = knl_push_cursor(session);
-    knl_open_sys_cursor(session, del_cursor, CURSOR_ACTION_SELECT, SYS_TABLEPART_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, del_cursor, CURSOR_ACTION_SELECT, SYS_TABLEPART_ID, CT_INVALID_ID32);
 
-    if (knl_fetch(session, del_cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, del_cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        GS_LOG_RUN_ERR("[DB] failed to purge system TABLEPART");
+        CT_LOG_RUN_ERR("[DB] failed to purge system TABLEPART");
         return;
     }
 
@@ -1917,12 +1980,12 @@ void db_clean_garbage_partition(knl_session_t *session)
         def.part_def.name.str = CURSOR_COLUMN_DATA(del_cursor, SYS_TABLEPART_COL_NAME);
         def.part_def.name.len = CURSOR_COLUMN_SIZE(del_cursor, SYS_TABLEPART_COL_NAME);
         def.action = ALTABLE_DROP_PARTITION;
-        def.part_def.is_garbage_clean = GS_TRUE;
+        def.part_def.is_garbage_clean = CT_TRUE;
 
         if (flags & PARTITON_NOT_READY) { // partition not ready
-            if (dc_open_user_by_id(session, uid, &user) != GS_SUCCESS) {
+            if (dc_open_user_by_id(session, uid, &user) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                GS_LOG_RUN_ERR("[DB] failed to open dc when clean garbage partition");
+                CT_LOG_RUN_ERR("[DB] failed to open dc when clean garbage partition");
                 return;
             }
 
@@ -1933,19 +1996,19 @@ void db_clean_garbage_partition(knl_session_t *session)
             def.name.str = entry->name;
             def.name.len = (uint32)strlen(entry->name);
 
-            if (knl_perform_alter_table(session, NULL, &def, GS_FALSE) != GS_SUCCESS) {
+            if (knl_perform_alter_table(session, NULL, &def, CT_FALSE) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                GS_LOG_RUN_ERR("[DB] failed to delete garbage partition from system TABLEPART");
+                CT_LOG_RUN_ERR("[DB] failed to delete garbage partition from system TABLEPART");
                 return;
             }
 
-            GS_LOG_RUN_INF("[DB] delete one garbage partition from system TABLEPART, the partition name is %s",
+            CT_LOG_RUN_INF("[DB] delete one garbage partition from system TABLEPART, the partition name is %s",
                 def.part_def.name.str);
         }
 
-        if (knl_fetch(session, del_cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, del_cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            GS_LOG_RUN_ERR("[DB] failed to purge system TABLEPART");
+            CT_LOG_RUN_ERR("[DB] failed to purge system TABLEPART");
             return;
         }
     }
@@ -1967,12 +2030,12 @@ void db_clean_garbage_subpartition(knl_session_t *session)
     }
 
     CM_SAVE_STACK(session->stack);
-    knl_set_session_scn(session, GS_INVALID_ID64);
+    knl_set_session_scn(session, CT_INVALID_ID64);
     knl_cursor_t *cursor = knl_push_cursor(session);
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_TABLE_PARTS_ID, GS_INVALID_ID32);
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_TABLE_PARTS_ID, CT_INVALID_ID32);
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        GS_LOG_RUN_ERR("[DB] failed to purge system SUBTABLEPART");
+        CT_LOG_RUN_ERR("[DB] failed to purge system SUBTABLEPART");
         return;
     }
 
@@ -1983,11 +2046,11 @@ void db_clean_garbage_subpartition(knl_session_t *session)
         def.part_def.name.str = CURSOR_COLUMN_DATA(cursor, SYS_TABLESUBPART_COL_NAME);
         def.part_def.name.len = CURSOR_COLUMN_SIZE(cursor, SYS_TABLESUBPART_COL_NAME);
         def.action = ALTABLE_DROP_SUBPARTITION;
-        def.part_def.is_garbage_clean = GS_TRUE;
+        def.part_def.is_garbage_clean = CT_TRUE;
 
         if (flag & PARTITON_NOT_READY) {
-            if (dc_open_user_by_id(session, uid, &user) != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("[DB] failed to open dc when clean garbage partition");
+            if (dc_open_user_by_id(session, uid, &user) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[DB] failed to open dc when clean garbage partition");
                 break;
             }
 
@@ -1997,17 +2060,17 @@ void db_clean_garbage_subpartition(knl_session_t *session)
             def.name.str = entry->name;
             def.name.len = (uint32)strlen(entry->name);
 
-            if (knl_perform_alter_table(session, NULL, &def, GS_FALSE) != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("[DB] failed to delete garbage partition from system SUBTABLEPART");
+            if (knl_perform_alter_table(session, NULL, &def, CT_FALSE) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[DB] failed to delete garbage partition from system SUBTABLEPART");
                 break;
             }
 
-            GS_LOG_RUN_INF("[DB] delete one garbage subpartition from system SUBTABLEPART, the partition name is %s",
+            CT_LOG_RUN_INF("[DB] delete one garbage subpartition from system SUBTABLEPART, the partition name is %s",
                 def.part_def.name.str);
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[DB] failed to purge system TABLEPART");
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DB] failed to purge system TABLEPART");
             break;
         }
     }
@@ -2021,18 +2084,18 @@ void db_delay_clean_segments(knl_session_t *session)
     CM_SAVE_STACK(session->stack);
     uint32 timeout = session->kernel->attr.idx_rebuild_keep_storage_time;
     knl_scn_t timeout_scn = db_time_scn(session, timeout, 0);
-    knl_set_session_scn(session, GS_INVALID_ID64);
+    knl_set_session_scn(session, CT_INVALID_ID64);
     knl_cursor_t *cursor = knl_push_cursor(session);
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_DELETE, SYS_GARBAGE_SEGMENT_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_DELETE, SYS_GARBAGE_SEGMENT_ID, CT_INVALID_ID32);
 
     uint32 op_type;
     knl_seg_desc_t desc;
     knl_scn_t min_scn, del_scn;
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             knl_rollback(session, NULL);
             CM_RESTORE_STACK(session->stack);
-            GS_LOG_RUN_ERR("[DB] failed to delay clean GARBAGE_SEGMENT");
+            CT_LOG_RUN_ERR("[DB] failed to delay clean GARBAGE_SEGMENT");
             return;
         }
 
@@ -2050,9 +2113,9 @@ void db_delay_clean_segments(knl_session_t *session)
 
         knl_scn_t cur_scn = DB_CURR_SCN(session);
         if (min_scn <= del_scn) {
-            if (GS_INVALID_SCN(timeout_scn) || (cur_scn - del_scn) < timeout_scn) {
+            if (CT_INVALID_SCN(timeout_scn) || (cur_scn - del_scn) < timeout_scn) {
                 cm_spin_lock(&session->kernel->rmon_ctx.mark_mutex, NULL);
-                session->kernel->rmon_ctx.delay_clean_segments = GS_TRUE;
+                session->kernel->rmon_ctx.delay_clean_segments = CT_TRUE;
                 cm_spin_unlock(&session->kernel->rmon_ctx.mark_mutex);
                 continue;
             }
@@ -2061,10 +2124,10 @@ void db_delay_clean_segments(knl_session_t *session)
         db_convert_segment_desc(cursor, &desc);
         g_segment_proc[desc.op_type](session, &desc);
 
-        if (knl_internal_delete(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_delete(session, cursor) != CT_SUCCESS) {
             knl_rollback(session, NULL);
             CM_RESTORE_STACK(session->stack);
-            GS_LOG_RUN_ERR("[DB] failed to delay clean GARBAGE_SEGMENT");
+            CT_LOG_RUN_ERR("[DB] failed to delay clean GARBAGE_SEGMENT");
             return;
         }
     }
@@ -2085,26 +2148,26 @@ void db_purge_garbage_segment(knl_session_t *session)
 
     CM_SAVE_STACK(session->stack);
 
-    knl_set_session_scn(session, GS_INVALID_ID64);
+    knl_set_session_scn(session, CT_INVALID_ID64);
     cursor = knl_push_cursor(session);
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_DELETE, SYS_GARBAGE_SEGMENT_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_DELETE, SYS_GARBAGE_SEGMENT_ID, CT_INVALID_ID32);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        GS_LOG_RUN_ERR("[DB] failed to purge system GARBAGE_SEGMENT");
+        CT_LOG_RUN_ERR("[DB] failed to purge system GARBAGE_SEGMENT");
         return;
     }
 
     while (!cursor->eof) {
-        if (knl_internal_delete(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_delete(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            GS_LOG_RUN_ERR("[DB] failed to purge system GARBAGE_SEGMENT");
+            CT_LOG_RUN_ERR("[DB] failed to purge system GARBAGE_SEGMENT");
             return;
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            GS_LOG_RUN_ERR("[DB] failed to purge system GARBAGE_SEGMENT");
+            CT_LOG_RUN_ERR("[DB] failed to purge system GARBAGE_SEGMENT");
             return;
         }
     }
@@ -2123,21 +2186,21 @@ static status_t db_repair_syscolumns(knl_session_t *session, uint32 table_id, kn
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_COLUMN_ID, 0);
     index_t *index = (index_t *)cursor->index;
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(&index->desc, &cursor->scan_range.l_key, GS_TYPE_INTEGER, &user_id, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(&index->desc, &cursor->scan_range.l_key, CT_TYPE_INTEGER, &user_id, sizeof(uint32),
                      IX_COL_SYS_COLUMN_001_USER_ID);
-    knl_set_scan_key(&index->desc, &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table_id, sizeof(uint32),
+    knl_set_scan_key(&index->desc, &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table_id, sizeof(uint32),
                      IX_COL_SYS_COLUMN_001_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_COLUMN_001_ID);
-    knl_set_scan_key(&index->desc, &cursor->scan_range.r_key, GS_TYPE_INTEGER, &user_id, sizeof(uint32),
+    knl_set_scan_key(&index->desc, &cursor->scan_range.r_key, CT_TYPE_INTEGER, &user_id, sizeof(uint32),
                      IX_COL_SYS_COLUMN_001_USER_ID);
-    knl_set_scan_key(&index->desc, &cursor->scan_range.r_key, GS_TYPE_INTEGER, &table_id, sizeof(uint32),
+    knl_set_scan_key(&index->desc, &cursor->scan_range.r_key, CT_TYPE_INTEGER, &table_id, sizeof(uint32),
                      IX_COL_SYS_COLUMN_001_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_COLUMN_001_ID);
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         if (cursor->eof) {
             break;
@@ -2146,36 +2209,36 @@ static status_t db_repair_syscolumns(knl_session_t *session, uint32 table_id, kn
     }
     if (old_cols >= new_cols) {
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_COLUMN_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_COLUMN_ID, CT_INVALID_ID32);
     for (uint32 i = old_cols; i < new_cols; i++) {
         db_make_syscolumn_row(session, cursor, columns + i);
-        if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
             knl_rollback(session, NULL);
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
     knl_commit(session);
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t knl_internal_repair_catalog(knl_session_t *session)
 {
     knl_commit(session);
-    if (db_repair_syscolumns(session, SYS_TABLE_ID, g_sys_table_columns, SYSTABLE_COLS) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_repair_syscolumns(session, SYS_TABLE_ID, g_sys_table_columns, SYSTABLE_COLS) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (db_repair_syscolumns(session, SYS_COLUMN_ID, g_sys_column_columns, SYSCOLUMN_COLS) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_repair_syscolumns(session, SYS_COLUMN_ID, g_sys_column_columns, SYSCOLUMN_COLS) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (db_repair_syscolumns(session, SYS_INDEX_ID, g_sys_index_columns, SYSINDEX_COLS) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_repair_syscolumns(session, SYS_INDEX_ID, g_sys_index_columns, SYSINDEX_COLS) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (db_repair_syscolumns(session, SYS_USER_ID, g_sys_user_columns, SYSUSER_COLS) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_repair_syscolumns(session, SYS_USER_ID, g_sys_user_columns, SYSUSER_COLS) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

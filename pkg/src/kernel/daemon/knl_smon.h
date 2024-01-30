@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -40,7 +40,7 @@ typedef struct st_smon {
     volatile bool32 shrink_inactive;
 } smon_t;
 
-#define SMON_ENABLE(session)        ((session)->kernel->smon_ctx.disable = GS_FALSE)
+#define SMON_ENABLE(session)        ((session)->kernel->smon_ctx.disable = CT_FALSE)
 #define SMON_CHECK_DISABLE(session) ((session)->kernel->smon_ctx.disable)
 #define SMON_UNDO_SHRINK_CLOCK    60000
 #define SMON_INDEX_RECY_CLOCK     100000
@@ -50,7 +50,7 @@ typedef struct st_smon {
 
 void smon_sql_init(knl_session_t *session, text_t *sql_text);
 void smon_record_deadlock_time(void);
-knl_session_t *get_xid_session(knl_session_t *session, xid_t xid);
+EXTER_ATTACK knl_session_t *get_xid_session(knl_session_t *session, xid_t xid);
 
 void smon_proc(thread_t *thread);
 void smon_close(knl_session_t *session);

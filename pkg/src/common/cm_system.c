@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "cm_system.h"
 #include "cm_spinlock.h"
 #include "cm_text.h"
@@ -44,18 +45,18 @@ extern "C" {
 #endif
 
 
-static bool32 volatile g_system_initialized = GS_FALSE;
+static bool32 volatile g_system_initialized = CT_FALSE;
 static spinlock_t g_system_lock;
-static char g_program_name[GS_FILE_NAME_BUFFER_SIZE + 1] = {0};
-static char g_user_name[GS_NAME_BUFFER_SIZE] = {0};
-static char g_host_name[GS_HOST_NAME_BUFFER_SIZE] = {0};
-static char g_platform_name[GS_NAME_BUFFER_SIZE] = {0};
+static char g_program_name[CT_FILE_NAME_BUFFER_SIZE + 1] = {0};
+static char g_user_name[CT_NAME_BUFFER_SIZE] = {0};
+static char g_host_name[CT_HOST_NAME_BUFFER_SIZE] = {0};
+static char g_platform_name[CT_NAME_BUFFER_SIZE] = {0};
 static uint64 g_process_id = 0;
 static uint32 g_nprocs = 0;
 
 static void cm_get_host_name()
 {
-    (void)gethostname(g_host_name, GS_HOST_NAME_BUFFER_SIZE);
+    (void)gethostname(g_host_name, CT_HOST_NAME_BUFFER_SIZE);
 }
 
 static void cm_get_process_id(void)
@@ -72,7 +73,7 @@ static void cm_get_program_name(void)
     int64 len;
 
 #ifdef WIN32
-    len = GetModuleFileName(NULL, g_program_name, GS_FILE_NAME_BUFFER_SIZE);
+    len = GetModuleFileName(NULL, g_program_name, CT_FILE_NAME_BUFFER_SIZE);
 #elif defined(AIX)
     pid_t pid;
     struct procentry64 processInfo;
@@ -81,12 +82,12 @@ static void cm_get_program_name(void)
         if (uint64)
             (processInfo.pi_pid == g_process_id)
         {
-            len = getargs(&processInfo, sizeof(processInfo), g_program_name, GS_FILE_NAME_BUFFER_SIZE);
+            len = getargs(&processInfo, sizeof(processInfo), g_program_name, CT_FILE_NAME_BUFFER_SIZE);
             break;
         }
     }
 #else /* linux */
-    len = readlink("/proc/self/exe", g_program_name, GS_FILE_NAME_BUFFER_SIZE);
+    len = readlink("/proc/self/exe", g_program_name, CT_FILE_NAME_BUFFER_SIZE);
     if (len > 0) {
         g_program_name[len] = '\0';
         return;
@@ -97,8 +98,8 @@ static void cm_get_program_name(void)
     // set g_program_name as empty, here We do not return Error, as the
     // architecture is hard to be allowed
     if (len == 0) {
-        GS_THROW_ERROR(ERR_INIT_SYSTEM, cm_get_os_error());
-        PRTS_RETVOID_IFERR(snprintf_s(g_program_name, GS_FILE_NAME_BUFFER_SIZE, GS_FILE_NAME_BUFFER_SIZE - 1,
+        CT_THROW_ERROR(ERR_INIT_SYSTEM, cm_get_os_error());
+        PRTS_RETVOID_IFERR(snprintf_s(g_program_name, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1,
                                       "<empty>"));
     }
 }
@@ -106,7 +107,7 @@ static void cm_get_program_name(void)
 static void cm_get_user_name(void)
 {
 #ifdef WIN32
-    uint32 size = GS_NAME_BUFFER_SIZE;
+    uint32 size = CT_NAME_BUFFER_SIZE;
     GetUserName(g_user_name, &size);
 #else
     struct passwd *pw = getpwuid(geteuid());
@@ -116,8 +117,8 @@ static void cm_get_user_name(void)
         return;
     }
     name_len = strlen(pw->pw_name);
-    if (strncpy_s(g_user_name, GS_NAME_BUFFER_SIZE, pw->pw_name, name_len) != EOK) {
-        GS_LOG_RUN_ERR("Secure C lib has thrown an error while getting user name");
+    if (strncpy_s(g_user_name, CT_NAME_BUFFER_SIZE, pw->pw_name, name_len) != EOK) {
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error while getting user name");
         return;
     }
 #endif
@@ -128,8 +129,8 @@ static void cm_get_platform_name(void)
 #ifdef WIN32
     static char *platform_name = "Windows";
 
-    if (strncpy_s(g_platform_name, GS_NAME_BUFFER_SIZE, platform_name, strlen(platform_name)) != EOK) {
-        GS_LOG_RUN_ERR("Secure C lib has thrown an error while getting platform name");
+    if (strncpy_s(g_platform_name, CT_NAME_BUFFER_SIZE, platform_name, strlen(platform_name)) != EOK) {
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error while getting platform name");
         return;
     }
 #else
@@ -155,13 +156,13 @@ status_t cm_get_host_ip(char *ipstr, uint32 len)
 #ifdef WIN32
     errcode = strncpy_s(ipstr, len, LOOPBACK_ADDRESS, strlen(LOOPBACK_ADDRESS));
     if (errcode != EOK) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 #else
     struct ifaddrs *ifa = NULL;
     struct ifaddrs *if_list = NULL;
     if (getifaddrs(&if_list) == -1) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
     for (ifa = if_list; ifa != NULL; ifa = ifa->ifa_next) {
         if (ifa->ifa_addr == NULL) {
@@ -178,12 +179,12 @@ status_t cm_get_host_ip(char *ipstr, uint32 len)
         errcode = strncpy_s(ipstr, len, LOOPBACK_ADDRESS, strlen(LOOPBACK_ADDRESS));
         if (errcode != EOK) {
             freeifaddrs(if_list);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
     freeifaddrs(if_list);
 #endif
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void cm_get_sys_nprocs(void)
@@ -217,7 +218,7 @@ void cm_try_init_system(void)
     cm_get_platform_name();
     cm_get_sys_nprocs();
 
-    g_system_initialized = GS_TRUE;
+    g_system_initialized = CT_TRUE;
 
     cm_spin_unlock(&g_system_lock);
 }
@@ -292,7 +293,7 @@ int64 cm_sys_process_start_time(uint64 pid)
 
     iret_snprintf = snprintf_s(path, sizeof(path), sizeof(path) - 1, "/proc/%llu/stat", pid);
     if (SECUREC_UNLIKELY(iret_snprintf == -1)) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, iret_snprintf);
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, iret_snprintf);
         return 0;
     }
     int32 fd = open(path, O_RDONLY);
@@ -304,14 +305,14 @@ int64 cm_sys_process_start_time(uint64 pid)
     if (size == -1) {
         ret = close(fd);
         if (ret != 0) {
-            GS_LOG_RUN_ERR("failed to close file with handle %d, error code %d", fd, errno);
+            CT_LOG_RUN_ERR("failed to close file with handle %d, error code %d", fd, errno);
         }
         return 0;
     }
 
     ret = close(fd);
     if (ret != 0) {
-        GS_LOG_RUN_ERR("failed to close file with handle %d, error code %d", fd, errno);
+        CT_LOG_RUN_ERR("failed to close file with handle %d, error code %d", fd, errno);
     }
     stat_buf[size] = '\0';
     cm_str2text_safe(stat_buf, strlen(stat_buf), &stat_text);
@@ -351,19 +352,19 @@ uint32 cm_sys_get_nprocs(void)
 status_t cm_get_file_host_name(char *path, char *host_name)
 {
     struct stat st;
-    if (stat(path, &st) == GS_ERROR) {
-        return GS_ERROR;
+    if (stat(path, &st) == CT_ERROR) {
+        return CT_ERROR;
     }
     struct passwd *pw = getpwuid(st.st_uid);
     uint32 name_len;
     if (pw == NULL) {
         host_name[0] = '\0';
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     name_len = strlen(pw->pw_name);
-    MEMS_RETURN_IFERR(strncpy_s(host_name, GS_NAME_BUFFER_SIZE, pw->pw_name, name_len));
+    MEMS_RETURN_IFERR(strncpy_s(host_name, CT_NAME_BUFFER_SIZE, pw->pw_name, name_len));
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 #endif
 

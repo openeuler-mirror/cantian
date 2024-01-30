@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_table_module.h"
 #include "knl_heap.h"
 #include "cm_utils.h"
 #include "knl_table.h"
@@ -93,7 +94,7 @@ typedef struct st_dual_row {
 #pragma pack()
 
 dual_row_t g_dual_row = {
-    { .size = 12, .column_count = 1, .flags = 0, .itl_id = GS_INVALID_ID8, .bitmap = { 0xFF, 0, 0 }},
+    { .size = 12, .column_count = 1, .flags = 0, .itl_id = CT_INVALID_ID8, .bitmap = { 0xFF, 0, 0 }},
     .len = 1, .value = { 'X', '\0' }
 };
 
@@ -159,7 +160,7 @@ status_t heap_dump_page(knl_session_t *session, page_head_t *page_head, cm_dump_
 
         CM_DUMP_WRITE_FILE(dump);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline uint16 heap_calc_null_row_size(row_head_t *row)
@@ -201,11 +202,11 @@ static void heap_init_row(knl_session_t *session, row_assist_t *ra, char *buf, u
     uint8 itl_id, uint16 flags)
 {
     if (ra->is_csf) {
-        csf_row_init(ra, buf, GS_MAX_ROW_SIZE, column_count);
+        csf_row_init(ra, buf, CT_MAX_ROW_SIZE, column_count);
         ra->head->flags = flags;
         ra->head->is_csf = 1;
     } else {
-        row_init(ra, buf, GS_MAX_ROW_SIZE, column_count);
+        row_init(ra, buf, CT_MAX_ROW_SIZE, column_count);
         ra->head->flags = flags;
         ra->head->is_csf = 0;
     }
@@ -216,11 +217,11 @@ static void heap_init_chain_row(knl_session_t *session, row_assist_t *ra, char *
     uint8 itl_id, uint16 flags)
 {
     if (ra->is_csf) {
-        csf_row_init(ra, buf, GS_MAX_ROW_SIZE, column_count);
+        csf_row_init(ra, buf, CT_MAX_ROW_SIZE, column_count);
         ra->head->flags = flags;
         ra->head->is_csf = 1;
     } else {
-        row_init(ra, buf, GS_MAX_ROW_SIZE, column_count);
+        row_init(ra, buf, CT_MAX_ROW_SIZE, column_count);
         ra->head->flags = flags;
         ra->head->is_csf = 0;
     }
@@ -259,11 +260,11 @@ static void heap_compact_page(knl_session_t *session, heap_page_t *page)
 
         row = HEAP_GET_ROW(page, dir);
         if (row->is_deleted) {
-            knl_panic_log(ROW_ITL_ID(row) != GS_INVALID_ID8, "row_itl_id is invalid, panic info: page %u-%u type %u",
+            knl_panic_log(ROW_ITL_ID(row) != CT_INVALID_ID8, "row_itl_id is invalid, panic info: page %u-%u type %u",
                           AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.type);
             itl = heap_get_itl(page, ROW_ITL_ID(row));
             if (!itl->is_active) {
-                ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+                ROW_SET_ITL_ID(row, CT_INVALID_ID8);
                 dir->scn = itl->scn;
                 dir->is_owscn = itl->is_owscn;
                 dir->is_free = 1;
@@ -337,18 +338,18 @@ bool32 heap_check_page(knl_session_t *session, knl_cursor_t *cursor, heap_page_t
 {
     // page type invalid
     if (SECUREC_UNLIKELY(page->head.type != type)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     table_t *table = (table_t *)cursor->table;
     space_t *space = SPACE_GET(session, table->desc.space_id);
     if (!spc_valid_space_object(session, space->ctrl->id)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (PAGE_IS_SOFT_DAMAGE((page_head_t*)page)) {
-        cursor->page_soft_damaged = GS_TRUE;
-        return GS_FALSE;
+        cursor->page_soft_damaged = CT_TRUE;
+        return CT_FALSE;
     }
 
     if (!IS_PART_TABLE(table)) {
@@ -370,9 +371,9 @@ bool32 heap_check_page(knl_session_t *session, knl_cursor_t *cursor, heap_page_t
 
     if (table_part != NULL) {
         if (SECUREC_UNLIKELY(!table_part->heap.loaded)) {
-            if (dc_load_table_part_segment(session, cursor->dc_entity, table_part) != GS_SUCCESS) {
+            if (dc_load_table_part_segment(session, cursor->dc_entity, table_part) != CT_SUCCESS) {
                 cm_reset_error();
-                return GS_FALSE;
+                return CT_FALSE;
             }
         }
 
@@ -386,14 +387,14 @@ bool32 heap_check_page(knl_session_t *session, knl_cursor_t *cursor, heap_page_t
                 cursor->part_loc.subpart_no = table_part->part_no;
             } else {
                 cursor->part_loc.part_no = table_part->part_no;
-                cursor->part_loc.subpart_no = GS_INVALID_ID32;
+                cursor->part_loc.subpart_no = CT_INVALID_ID32;
             }
             cursor->table_part = table_part;
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 uint8 heap_new_itl(knl_session_t *session, heap_page_t *page)
@@ -403,8 +404,8 @@ uint8 heap_new_itl(knl_session_t *session, heap_page_t *page)
     char *dst = NULL;
     char *src = NULL;
 
-    if (page->itls == GS_MAX_TRANS || page->free_size < sizeof(itl_t)) {
-        return GS_INVALID_ID8;
+    if (page->itls == CT_MAX_TRANS || page->free_size < sizeof(itl_t)) {
+        return CT_INVALID_ID8;
     }
 
     if (page->free_begin + sizeof(itl_t) > page->free_end) {
@@ -445,7 +446,7 @@ void heap_reuse_itl(knl_session_t *session, heap_page_t *page, itl_t *itl, uint8
             continue;
         }
 
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
         if (!row->is_changed) {
             row->is_changed = 1;
             continue;
@@ -474,7 +475,7 @@ static status_t heap_get_reusable_itl(knl_session_t *session, knl_cursor_t *curs
         if (item->xid.value == session->rm->xid.value) {
             session->itl_id = i;  // itl already exists
             *itl = item;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (!item->is_active) {
@@ -485,7 +486,7 @@ static status_t heap_get_reusable_itl(knl_session_t *session, knl_cursor_t *curs
             continue;
         }
 
-        tx_get_itl_info(session, GS_FALSE, item, &txn_info);
+        tx_get_itl_info(session, CT_FALSE, item, &txn_info);
         if (txn_info.status != (uint8)XACT_END) {
             continue;
         }
@@ -497,9 +498,9 @@ static status_t heap_get_reusable_itl(knl_session_t *session, knl_cursor_t *curs
         item->scn = txn_info.scn;
         item->is_active = 0;
         item->is_owscn = (uint16)txn_info.is_owscn;
-        item->xid.value = GS_INVALID_ID64;
+        item->xid.value = CT_INVALID_ID64;
 
-        *changed = GS_TRUE;
+        *changed = CT_TRUE;
         if (need_redo && cursor->logging) {
             rd_clean.scn = item->scn;
             rd_clean.is_owscn = (uint8)item->is_owscn;
@@ -514,7 +515,7 @@ static status_t heap_get_reusable_itl(knl_session_t *session, knl_cursor_t *curs
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void heap_init_itl(knl_session_t *session, knl_cursor_t *cursor, heap_page_t *page,
@@ -525,7 +526,7 @@ static void heap_init_itl(knl_session_t *session, knl_cursor_t *cursor, heap_pag
 
     if (*itl == NULL) {
         session->itl_id = heap_new_itl(session, page);
-        if (session->itl_id == GS_INVALID_ID8) {
+        if (session->itl_id == CT_INVALID_ID8) {
             return;
         }
         *itl = heap_get_itl(page, session->itl_id);
@@ -546,33 +547,33 @@ static void heap_init_itl(knl_session_t *session, knl_cursor_t *cursor, heap_pag
         }
     }
 
-    *changed = GS_TRUE;
+    *changed = CT_TRUE;
 }
 
 static status_t heap_alloc_itl(knl_session_t *session, knl_cursor_t *cursor, heap_page_t *page,
                                itl_t **itl, bool32 *changed)
 {
-    *changed = GS_FALSE;
+    *changed = CT_FALSE;
     *itl = NULL;
-    session->itl_id = GS_INVALID_ID8;
+    session->itl_id = CT_INVALID_ID8;
 
-    if (heap_get_reusable_itl(session, cursor, page, itl, changed) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_get_reusable_itl(session, cursor, page, itl, changed) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (*itl != NULL && (*itl)->xid.value == session->rm->xid.value) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     heap_init_itl(session, cursor, page, itl, changed);
 
-    if (session->itl_id == GS_INVALID_ID8) {
-        return GS_SUCCESS;
+    if (session->itl_id == CT_INVALID_ID8) {
+        return CT_SUCCESS;
     }
 
     if (DB_NOT_READY(session)) {
         (*itl)->is_active = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     knl_panic_log(!DB_IS_READONLY(session), "current DB is readonly, panic info: page %u-%u type %u table %s",
@@ -583,16 +584,16 @@ static status_t heap_alloc_itl(knl_session_t *session, knl_cursor_t *cursor, hea
     if (IS_PART_TABLE(cursor->table)) {
         part_loc = cursor->part_loc;
     } else {
-        part_loc.part_no = GS_INVALID_ID24;
-        part_loc.subpart_no = GS_INVALID_ID32;
+        part_loc.part_no = CT_INVALID_ID24;
+        part_loc.subpart_no = CT_INVALID_ID32;
     }
 
     if (lock_itl(session, *AS_PAGID_PTR(page->head.id), session->itl_id, part_loc,
-                 g_invalid_pagid, LOCK_TYPE_RCR_RX) != GS_SUCCESS) {
-        return GS_ERROR;
+                 g_invalid_pagid, LOCK_TYPE_RCR_RX) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void heap_make_cond_key(knl_cursor_t *cursor, heap_key_t *key, uint32 *size)
@@ -613,15 +614,15 @@ void heap_make_cond_key(knl_cursor_t *cursor, heap_key_t *key, uint32 *size)
     for (i = 0; i < idx->desc.column_count; i++) {
         key->col_id[i] = idx->desc.columns[i];
         key->col_size[i] = CURSOR_COLUMN_SIZE(cursor, key->col_id[i]);
-        if (key->col_size[i] != GS_NULL_VALUE_LEN) {
-            ret = memcpy_sp(key->col_values + offset, GS_KEY_BUF_SIZE - offset,
+        if (key->col_size[i] != CT_NULL_VALUE_LEN) {
+            ret = memcpy_sp(key->col_values + offset, CT_KEY_BUF_SIZE - offset,
                 CURSOR_COLUMN_DATA(cursor, key->col_id[i]), key->col_size[i]);
             knl_securec_check(ret);
             offset += key->col_size[i];
         }
     }
 
-    *size = sizeof(heap_key_t) - GS_KEY_BUF_SIZE + offset;
+    *size = sizeof(heap_key_t) - CT_KEY_BUF_SIZE + offset;
 }
 
 void heap_append_logic_data(knl_session_t *session, knl_cursor_t *cursor, bool32 cond_need)
@@ -655,16 +656,16 @@ static status_t heap_lock_migr(knl_session_t *session, knl_cursor_t *cursor)
     itl_t *itl = NULL;
     heap_page_t *page = NULL;
     uint8 owner_list;
-    bool32 changed = GS_FALSE;
+    bool32 changed = CT_FALSE;
     rowid_t link_rid, curr_rid;
     row_head_t *row = NULL;
-    bool32 is_has_itl = GS_FALSE;  // indicate that whether the txn has a itl on the row
+    bool32 is_has_itl = CT_FALSE;  // indicate that whether the txn has a itl on the row
 
     link_rid = cursor->link_rid;
     heap = CURSOR_HEAP(cursor);
 
     while (!IS_INVALID_ROWID(link_rid)) {
-        is_has_itl = GS_FALSE;
+        is_has_itl = CT_FALSE;
         for (;;) {
             log_atomic_op_begin(session);
 
@@ -678,18 +679,18 @@ static status_t heap_lock_migr(knl_session_t *session, knl_cursor_t *cursor)
             // we can only alloc an itl for a row,
             // and set it's is_changed equal to 0 on the first time when we try to lock the row.
             row = HEAP_GET_ROW(page, dir);
-            if (ROW_ITL_ID(row) != GS_INVALID_ID8) {
+            if (ROW_ITL_ID(row) != CT_INVALID_ID8) {
                 itl = heap_get_itl(page, ROW_ITL_ID(row));
                 if (itl->xid.value == session->rm->xid.value) {
                     link_rid = *(rowid_t *)HEAP_LOC_LINK_RID(row);
-                    buf_leave_page(session, GS_FALSE);
+                    buf_leave_page(session, CT_FALSE);
                     log_atomic_op_end(session);
-                    is_has_itl = GS_TRUE;
+                    is_has_itl = CT_TRUE;
                     break;
                 }
             }
 
-            if (heap_alloc_itl(session, cursor, page, &itl, &changed) != GS_SUCCESS) {
+            if (heap_alloc_itl(session, cursor, page, &itl, &changed) != CT_SUCCESS) {
                 owner_list = heap_get_owner_list(session, (heap_segment_t *)heap->segment, page->free_size);
                 session->change_list = owner_list - (uint8)page->map.list_id;
                 buf_leave_page(session, changed);
@@ -697,16 +698,16 @@ static status_t heap_lock_migr(knl_session_t *session, knl_cursor_t *cursor)
                 log_atomic_op_end(session);
 
                 heap_try_change_map(session, heap, GET_ROWID_PAGE(link_rid));
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             if (itl == NULL) {
                 session->wpid = AS_PAGID(page->head.id);
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
                 log_atomic_op_end(session);
-                if (knl_begin_itl_waits(session, &heap->stat.itl_waits) != GS_SUCCESS) {
+                if (knl_begin_itl_waits(session, &heap->stat.itl_waits) != CT_SUCCESS) {
                     knl_end_itl_waits(session);
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
                 continue;
             }
@@ -739,33 +740,33 @@ static status_t heap_lock_migr(knl_session_t *session, knl_cursor_t *cursor)
         session->change_list = owner_list - (uint8)page->map.list_id;
         curr_rid = link_rid;
         link_rid = *(rowid_t *)HEAP_LOC_LINK_RID(row);
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         log_atomic_op_end(session);
 
         heap_try_change_map(session, heap, GET_ROWID_PAGE(curr_rid));
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline bool32 heap_row_is_changed(knl_session_t *session, knl_cursor_t *cursor, row_head_t *row, knl_scn_t scn)
 {
     if (scn != cursor->scn) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (row->is_link) {
         // if cursor->row is normal
         if (cursor->chain_count == 0 && !cursor->row->is_migr) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
 
         rowid_t lnk_rid = *HEAP_LOC_LINK_RID(row);
         if (!IS_SAME_ROWID(lnk_rid, cursor->link_rid)) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 /*
@@ -779,46 +780,46 @@ status_t heap_try_tx_wait(knl_session_t *session, knl_cursor_t *cursor, bool32 *
     heap_t *heap = CURSOR_HEAP(cursor);
     rowmark_t *rowmark = &cursor->rowmark;
 
-    *is_skipped = GS_FALSE;
+    *is_skipped = CT_FALSE;
 
     if (cursor->action != CURSOR_ACTION_UPDATE || rowmark->type == ROWMARK_WAIT_BLOCK) {
         heap->stat.row_lock_waits++;
-        if (tx_wait(session, session->lock_wait_timeout, ENQ_TX_ROW) != GS_SUCCESS) {
+        if (tx_wait(session, session->lock_wait_timeout, ENQ_TX_ROW) != CT_SUCCESS) {
             tx_record_rowid(session->wrid);
-            return GS_ERROR;
+            return CT_ERROR;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     switch (rowmark->type) {
         case ROWMARK_NOWAIT:
-            session->wxid.value = GS_INVALID_ID64;
-            GS_THROW_ERROR(ERR_ROW_LOCKED_NOWAIT);
-            return GS_ERROR;
+            session->wxid.value = CT_INVALID_ID64;
+            CT_THROW_ERROR(ERR_ROW_LOCKED_NOWAIT);
+            return CT_ERROR;
 
         case ROWMARK_WAIT_SECOND:
             if (rowmark->wait_seconds == 0) {
-                session->wxid.value = GS_INVALID_ID64;
-                GS_THROW_ERROR(ERR_LOCK_TIMEOUT);
-                return GS_ERROR;
+                session->wxid.value = CT_INVALID_ID64;
+                CT_THROW_ERROR(ERR_LOCK_TIMEOUT);
+                return CT_ERROR;
             } else {
                 heap->stat.row_lock_waits++;
-                if (tx_wait(session, rowmark->wait_seconds * MILLISECS_PER_SECOND, ENQ_TX_ROW) != GS_SUCCESS) {
+                if (tx_wait(session, rowmark->wait_seconds * MILLISECS_PER_SECOND, ENQ_TX_ROW) != CT_SUCCESS) {
                     tx_record_rowid(session->wrid);
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
 
         case ROWMARK_SKIP_LOCKED:
-            session->wxid.value = GS_INVALID_ID64;
-            *is_skipped = GS_TRUE;
-            return GS_SUCCESS;
+            session->wxid.value = CT_INVALID_ID64;
+            *is_skipped = CT_TRUE;
+            return CT_SUCCESS;
 
         default:
-            session->wxid.value = GS_INVALID_ID64;
-            GS_THROW_ERROR(ERR_UNKNOWN_FORUPDATE_MODE);
-            return GS_ERROR;
+            session->wxid.value = CT_INVALID_ID64;
+            CT_THROW_ERROR(ERR_UNKNOWN_FORUPDATE_MODE);
+            return CT_ERROR;
     }
 }
 
@@ -833,12 +834,12 @@ static status_t heap_check_lock_row(knl_session_t *session, knl_cursor_t *cursor
     dir = heap_get_dir(page, (uint32)cursor->rowid.slot);
     if (dir->is_free) {
         *status = ROW_IS_DELETED;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     txn_info->is_owscn = (uint8)dir->is_owscn;
     row = HEAP_GET_ROW(page, dir);
-    if (ROW_ITL_ID(row) != GS_INVALID_ID8) {
+    if (ROW_ITL_ID(row) != CT_INVALID_ID8) {
         itl = heap_get_itl(page, ROW_ITL_ID(row));
         if (itl->xid.value == session->rm->xid.value) {
             /* if row is locked but never changed, treat it as first time modification. */
@@ -851,7 +852,7 @@ static status_t heap_check_lock_row(knl_session_t *session, knl_cursor_t *cursor
              */
             if (!row->is_changed && cursor->scn < dir->scn) {
                 *status = ROW_IS_CHANGED;
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
             
             /* if the link row is changed in the same ssn sql, we need to get the latest link_rid
@@ -861,20 +862,20 @@ static status_t heap_check_lock_row(knl_session_t *session, knl_cursor_t *cursor
                 link_rid = *HEAP_LOC_LINK_RID(row);
                 if (!IS_SAME_ROWID(link_rid, cursor->link_rid)) {
                     *status = ROW_IS_CHANGED;
-                    return GS_SUCCESS;
+                    return CT_SUCCESS;
                 }
             }
             
             *status = ROW_IS_LOCKED;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        tx_get_itl_info(session, GS_FALSE, itl, txn_info);
+        tx_get_itl_info(session, CT_FALSE, itl, txn_info);
         if (txn_info->status != (uint8)XACT_END) {
             ROWID_COPY(session->wrid, cursor->rowid);
             session->wxid = itl->xid;
             *status = ROW_IS_CHANGED;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (!row->is_changed) {
@@ -885,23 +886,23 @@ static status_t heap_check_lock_row(knl_session_t *session, knl_cursor_t *cursor
     }
 
     if (cursor->isolevel == (uint8)ISOLATION_SERIALIZABLE && cursor->query_scn < txn_info->scn) {
-        GS_THROW_ERROR(ERR_SERIALIZE_ACCESS);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SERIALIZE_ACCESS);
+        return CT_ERROR;
     }
 
     if (row->is_deleted) {
         *status = ROW_IS_DELETED;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // row changed by another session, need to fetch the row again
     if (heap_row_is_changed(session, cursor, row, txn_info->scn)) {
         *status = ROW_IS_CHANGED;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     *status = ROW_IS_LOCKABLE;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_try_lock_row(knl_session_t *session, knl_cursor_t *cursor,
@@ -912,7 +913,7 @@ static status_t heap_try_lock_row(knl_session_t *session, knl_cursor_t *cursor,
     itl_t *itl = NULL;
     txn_info_t txn_info;
     uint8 owner_list;
-    bool32 changed = GS_FALSE;
+    bool32 changed = CT_FALSE;
     row_head_t *row = NULL;
 
     for (;;) {
@@ -920,37 +921,37 @@ static status_t heap_try_lock_row(knl_session_t *session, knl_cursor_t *cursor,
 
         buf_enter_page(session, GET_ROWID_PAGE(cursor->rowid), LATCH_MODE_X, ENTER_PAGE_NORMAL);
         page = (heap_page_t *)CURR_PAGE(session);
-        if (heap_check_lock_row(session, cursor, page, &txn_info, status) != GS_SUCCESS) {
-            buf_leave_page(session, GS_FALSE);
+        if (heap_check_lock_row(session, cursor, page, &txn_info, status) != CT_SUCCESS) {
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
             knl_end_itl_waits(session);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (*status != ROW_IS_LOCKABLE) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
             knl_end_itl_waits(session);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (heap_alloc_itl(session, cursor, page, &itl, &changed) != GS_SUCCESS) {
+        if (heap_alloc_itl(session, cursor, page, &itl, &changed) != CT_SUCCESS) {
             owner_list = heap_get_owner_list(session, (heap_segment_t *)heap->segment, page->free_size);
             session->change_list = owner_list - (uint8)page->map.list_id;
             buf_leave_page(session, changed);
             log_atomic_op_end(session);
             knl_end_itl_waits(session);
             heap_try_change_map(session, heap, GET_ROWID_PAGE(cursor->rowid));
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (itl == NULL) {
             session->wpid = AS_PAGID(page->head.id);
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
-            if (knl_begin_itl_waits(session, &heap->stat.itl_waits) != GS_SUCCESS) {
+            if (knl_begin_itl_waits(session, &heap->stat.itl_waits) != CT_SUCCESS) {
                 knl_end_itl_waits(session);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             knl_end_itl_waits(session);
             continue;
@@ -977,28 +978,28 @@ static status_t heap_try_lock_row(knl_session_t *session, knl_cursor_t *cursor,
 
     owner_list = heap_get_owner_list(session, (heap_segment_t *)heap->segment, page->free_size);
     session->change_list = owner_list - (uint8)page->map.list_id;
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 
     heap_try_change_map(session, heap, GET_ROWID_PAGE(cursor->rowid));
 
     *status = ROW_IS_LOCKED;
-    cursor->is_locked = GS_TRUE;
-    cursor->is_xfirst = GS_TRUE;
+    cursor->is_locked = CT_TRUE;
+    cursor->is_xfirst = CT_TRUE;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t heap_try_check_restart(knl_session_t *session, knl_cursor_t *cursor,
     heap_t *heap, table_t *table, bool32 is_deleted)
 {
     if (SECUREC_UNLIKELY(ASHRINK_HEAP(table, heap) && is_deleted && !session->compacting)) {
-        if (heap_check_restart(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_check_restart(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_lock_row(knl_session_t *session, knl_cursor_t *cursor, bool32 *is_locked)
@@ -1006,21 +1007,21 @@ status_t heap_lock_row(knl_session_t *session, knl_cursor_t *cursor, bool32 *is_
     heap_t *heap = CURSOR_HEAP(cursor);
     table_t *table = (table_t *)cursor->table;
     lock_row_status_t status;
-    bool32 is_found = GS_FALSE;
-    bool32 is_deleted = GS_FALSE;
-    bool32 is_skipped = GS_FALSE;
+    bool32 is_found = CT_FALSE;
+    bool32 is_deleted = CT_FALSE;
+    bool32 is_skipped = CT_FALSE;
 
-    if (knl_cursor_ssi_conflict(cursor, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_cursor_ssi_conflict(cursor, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (lock_table_shared(session, cursor->dc_entity, LOCK_INF_WAIT) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lock_table_shared(session, cursor->dc_entity, LOCK_INF_WAIT) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     for (;;) {
-        if (heap_try_lock_row(session, cursor, heap, &status) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_try_lock_row(session, cursor, heap, &status) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (status != ROW_IS_CHANGED) {
@@ -1028,9 +1029,9 @@ status_t heap_lock_row(knl_session_t *session, knl_cursor_t *cursor, bool32 *is_
             break;
         }
 
-        if (session->wxid.value != GS_INVALID_ID64) {
-            if (heap_try_tx_wait(session, cursor, &is_skipped) != GS_SUCCESS) {
-                return GS_ERROR;
+        if (session->wxid.value != CT_INVALID_ID64) {
+            if (heap_try_tx_wait(session, cursor, &is_skipped) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             if (is_skipped) {
@@ -1040,17 +1041,17 @@ status_t heap_lock_row(knl_session_t *session, knl_cursor_t *cursor, bool32 *is_
 
         /* try read the latest committed row version */
         if (heap_read_by_rowid(session, cursor, DB_CURR_SCN(session),
-                               (uint8)ISOLATION_CURR_COMMITTED, &is_found) != GS_SUCCESS) {
-            return GS_ERROR;
+                               (uint8)ISOLATION_CURR_COMMITTED, &is_found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!is_found) {
-            is_deleted = GS_TRUE;
+            is_deleted = CT_TRUE;
             break;
         }
 
-        if (knl_match_cond(session, cursor, &is_found) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_match_cond(session, cursor, &is_found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!is_found) {
@@ -1066,8 +1067,8 @@ status_t heap_lock_row(knl_session_t *session, knl_cursor_t *cursor, bool32 *is_
         }
     } else {
         if (cursor->isolevel == (uint8)ISOLATION_SERIALIZABLE) {
-            GS_THROW_ERROR(ERR_SERIALIZE_ACCESS);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SERIALIZE_ACCESS);
+            return CT_ERROR;
         }
     }
 
@@ -1098,7 +1099,7 @@ void heap_clean_lock(knl_session_t *session, lock_item_t *item)
     page = (heap_page_t *)CURR_PAGE(session);
     itl = heap_get_itl(page, item->itl);
     if (!itl->is_active || itl->xid.value != session->rm->xid.value) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -1113,7 +1114,7 @@ void heap_clean_lock(knl_session_t *session, lock_item_t *item)
     itl->fsc = 0;
     itl->is_active = 0;
     itl->scn = session->rm->txn->scn;
-    itl->xid.value = GS_INVALID_ID64;
+    itl->xid.value = CT_INVALID_ID64;
 
     if (SPACE_IS_LOGGING(SPACE_GET(session, heap->table->desc.space_id))) {
         rd_heap_clean_itl_t rd;
@@ -1127,7 +1128,7 @@ void heap_clean_lock(knl_session_t *session, lock_item_t *item)
 
     owner_list = heap_get_owner_list(session, (heap_segment_t *)heap->segment, page->free_size);
     session->change_list = owner_list - (uint8)page->map.list_id;
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 
     heap_try_change_map(session, heap, page_id);
@@ -1146,7 +1147,7 @@ static void heap_cleanout_itls(knl_session_t *session, knl_cursor_t *cursor, hea
             continue;
         }
 
-        tx_get_itl_info(session, GS_FALSE, itl, &txn_info);
+        tx_get_itl_info(session, CT_FALSE, itl, &txn_info);
         if (txn_info.status != (uint8)XACT_END) {
             continue;
         }
@@ -1158,7 +1159,7 @@ static void heap_cleanout_itls(knl_session_t *session, knl_cursor_t *cursor, hea
         itl->is_active = 0;
         itl->scn = txn_info.scn;
         itl->is_owscn = (uint16)txn_info.is_owscn;
-        itl->xid.value = GS_INVALID_ID64;
+        itl->xid.value = CT_INVALID_ID64;
 
         if (IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type) && cursor->logging) {
             rd_heap_clean_itl_t rd;
@@ -1169,7 +1170,7 @@ static void heap_cleanout_itls(knl_session_t *session, knl_cursor_t *cursor, hea
             rd.aligned = 0;
             log_put(session, RD_HEAP_CLEAN_ITL, &rd, sizeof(rd_heap_clean_itl_t), LOG_ENTRY_FLAG_NONE);
         }
-        *changed = GS_TRUE;
+        *changed = CT_TRUE;
     }
 }
 
@@ -1178,8 +1179,8 @@ void heap_cleanout_page(knl_session_t *session, knl_cursor_t *cursor, page_id_t 
 {
     heap_t *heap = NULL;
     heap_page_t *page = NULL;
-    bool32 changed = GS_FALSE;
-    bool32 lock_inuse = GS_FALSE;
+    bool32 changed = CT_FALSE;
+    bool32 lock_inuse = CT_FALSE;
     uint8 owner_list;
 
     if (DB_IS_READONLY(session)) {
@@ -1200,14 +1201,14 @@ void heap_cleanout_page(knl_session_t *session, knl_cursor_t *cursor, page_id_t 
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     page = (heap_page_t *)CURR_PAGE(session);
     if (page_soft_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         unlock_table_without_xact(session, cursor->dc_entity, lock_inuse);
         return;
     }
 
     if (!heap_check_page(session, cursor, page, is_pcr ? PAGE_TYPE_PCRH_DATA : PAGE_TYPE_HEAP_DATA)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         unlock_table_without_xact(session, cursor->dc_entity, lock_inuse);
         return;
@@ -1219,7 +1220,7 @@ void heap_cleanout_page(knl_session_t *session, knl_cursor_t *cursor, page_id_t 
         heap_cleanout_itls(session, cursor, page, &changed);
     }
 
-    cursor->cleanout = GS_FALSE;
+    cursor->cleanout = CT_FALSE;
     heap = CURSOR_HEAP(cursor);
     owner_list = heap_get_owner_list(session, (heap_segment_t *)heap->segment, page->free_size);
     session->change_list = owner_list - (uint8)page->map.list_id;
@@ -1253,8 +1254,8 @@ void heap_insert_into_page(knl_session_t *session, heap_page_t *page, row_head_t
         undo->snapshot.is_owscn = 0;
         undo->snapshot.undo_page = INVALID_UNDO_PAGID;
         undo->snapshot.undo_slot = 0;
-        undo->snapshot.is_xfirst = GS_TRUE;
-        undo->snapshot.contain_subpartno = GS_FALSE;
+        undo->snapshot.is_xfirst = CT_TRUE;
+        undo->snapshot.contain_subpartno = CT_FALSE;
     } else {
         *slot = page->first_free_dir;
         dir = heap_get_dir(page, *slot);
@@ -1264,8 +1265,8 @@ void heap_insert_into_page(knl_session_t *session, heap_page_t *page, row_head_t
         undo->snapshot.is_owscn = dir->is_owscn;
         undo->snapshot.undo_page = dir->undo_page;
         undo->snapshot.undo_slot = dir->undo_slot;
-        undo->snapshot.is_xfirst = GS_TRUE;
-        undo->snapshot.contain_subpartno = GS_FALSE;
+        undo->snapshot.is_xfirst = CT_TRUE;
+        undo->snapshot.contain_subpartno = CT_FALSE;
     }
 
     dir->undo_page = rd->undo_page;
@@ -1309,7 +1310,7 @@ void heap_remove_cached_pages(knl_session_t *session, heap_segment_t *segment)
                 continue;
             }
 
-            cached_fsm->seg_scn = GS_INVALID_ID64;
+            cached_fsm->seg_scn = CT_INVALID_ID64;
             cached_fsm->entry = INVALID_PAGID;
             cached_fsm->page_id = INVALID_PAGID;
             cached_fsm->page_count = 0;
@@ -1356,19 +1357,19 @@ bool32 heap_use_appendonly(knl_session_t *session, knl_cursor_t *cursor, heap_se
     table_t *table = (table_t *)cursor->table;
 
     if (SECUREC_UNLIKELY(entity == NULL)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (SECUREC_UNLIKELY(session->compacting)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (SECUREC_UNLIKELY(table->ashrink_stat != ASHRINK_END)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (SECUREC_UNLIKELY(segment->extents.count == 1 && !IS_INVALID_PAGID(segment->free_ufp))) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     return  entity->table.desc.appendonly;
@@ -1400,13 +1401,13 @@ static status_t heap_enter_insert_page(knl_session_t *session, knl_cursor_t *cur
     bool32 appendonly;
     bool32 use_cached;
     uint8 owner_list;
-    bool32 changed = GS_FALSE;
-    bool32 degrade_mid = GS_FALSE;
+    bool32 changed = CT_FALSE;
+    bool32 degrade_mid = CT_FALSE;
     uint8 mid;
     uint32 cost_size;
     uint32 real_size;
 
-    use_cached = GS_TRUE;
+    use_cached = CT_TRUE;
     heap = CURSOR_HEAP(cursor);
     segment = HEAP_SEGMENT(session, heap->entry, heap->segment);
     appendonly = heap_use_appendonly(session, cursor, segment);
@@ -1418,43 +1419,43 @@ static status_t heap_enter_insert_page(knl_session_t *session, knl_cursor_t *cur
 
     for (;;) {
         if (appendonly) {
-            if (GS_SUCCESS != heap_find_appendonly_page(session, heap, g_invalid_part_loc, cost_size, page_id)) {
+            if (CT_SUCCESS != heap_find_appendonly_page(session, heap, g_invalid_part_loc, cost_size, page_id)) {
                 knl_end_itl_waits(session);
-                GS_THROW_ERROR(ERR_FIND_FREE_SPACE, cost_size);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_FIND_FREE_SPACE, cost_size);
+                return CT_ERROR;
             }
         } else {
-            if (GS_SUCCESS !=
+            if (CT_SUCCESS !=
                 heap_find_free_page(session, heap, g_invalid_part_loc, mid, use_cached, page_id, &degrade_mid)) {
                 knl_end_itl_waits(session);
-                GS_THROW_ERROR(ERR_FIND_FREE_SPACE, cost_size);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_FIND_FREE_SPACE, cost_size);
+                return CT_ERROR;
             }
         }
 
         log_atomic_op_begin(session);
         log_set_group_nolog_insert(session, cursor->logging);
-        if (buf_read_page(session, *page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
+        if (buf_read_page(session, *page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
             log_atomic_op_end(session);
             knl_end_itl_waits(session);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         page = (heap_page_t *)CURR_PAGE(session);
         if (PAGE_IS_SOFT_DAMAGE((page_head_t*)page)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
             knl_end_itl_waits(session);
-            GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, page_id->file, page_id->page);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, page_id->file, page_id->page);
+            return CT_ERROR;
         }
 
         // if the page is not heap page, we should skip it and try again
         if (page->head.type != PAGE_TYPE_HEAP_DATA) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
             heap_remove_cached_page(session, appendonly);
             knl_end_itl_waits(session);
-            use_cached = GS_FALSE;
+            use_cached = CT_FALSE;
             continue;
         }
 
@@ -1477,7 +1478,7 @@ static status_t heap_enter_insert_page(knl_session_t *session, knl_cursor_t *cur
         if (heap_insert_size_invalid(page, cost_size, real_size)) {
             owner_list = heap_get_owner_list(session, segment, page->free_size);
             session->change_list = owner_list - (uint8)page->map.list_id;
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
             if (degrade_mid && (owner_list == mid - 1)) {
                 heap_degrade_change_map(session, heap, *page_id, owner_list - 1);
@@ -1486,44 +1487,44 @@ static status_t heap_enter_insert_page(knl_session_t *session, knl_cursor_t *cur
             }
 
             heap_remove_cached_page(session, appendonly);
-            use_cached = GS_FALSE;
+            use_cached = CT_FALSE;
             continue;
         }
 
         if (!itl_needed) {
             knl_end_itl_waits(session);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (page->itls == 0) {
             heap_init_page_itls(session, cursor, segment, page, cost_size);
         }
 
-        if (heap_alloc_itl(session, cursor, page, &itl, &changed) != GS_SUCCESS) {
+        if (heap_alloc_itl(session, cursor, page, &itl, &changed) != CT_SUCCESS) {
             owner_list = heap_get_owner_list(session, segment, page->free_size);
             session->change_list = owner_list - (uint8)page->map.list_id;
             buf_leave_page(session, changed);
             log_atomic_op_end(session);
             knl_end_itl_waits(session);
             heap_try_change_map(session, heap, *page_id);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (itl == NULL) {
             session->wpid = *page_id;
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
 
-            if (knl_begin_itl_waits(session, &heap->stat.itl_waits) != GS_SUCCESS) {
+            if (knl_begin_itl_waits(session, &heap->stat.itl_waits) != CT_SUCCESS) {
                 knl_end_itl_waits(session);
-                return GS_ERROR;
+                return CT_ERROR;
             }
-            use_cached = GS_FALSE;
+            use_cached = CT_FALSE;
             continue;
         }
 
         knl_end_itl_waits(session);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 }
 
@@ -1582,10 +1583,10 @@ uint16 heap_split_chain_row(knl_session_t *session, knl_cursor_t *cursor, chain_
     knl_put_row_column_t put_col_func = cursor->row->is_csf ? heap_put_csf_row_column : heap_put_bmp_row_column;
 
     ra.is_csf = cursor->row->is_csf;
-    heap_init_row(session, &ra, (char *)cra[0].row, ROW_COLUMN_COUNT(cursor->row), GS_INVALID_ID8, cursor->row->flags);
+    heap_init_row(session, &ra, (char *)cra[0].row, ROW_COLUMN_COUNT(cursor->row), CT_INVALID_ID8, cursor->row->flags);
     cra[0].row->size = HEAP_MIN_ROW_SIZE;
     cra[0].row->is_link = 1;
-    HEAP_SET_LINK_RID(cra[0].row, GS_INVALID_ID64);
+    HEAP_SET_LINK_RID(cra[0].row, CT_INVALID_ID64);
 
     cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, NULL);
 
@@ -1595,7 +1596,7 @@ uint16 heap_split_chain_row(knl_session_t *session, knl_cursor_t *cursor, chain_
                   ((page_head_t *)cursor->page_buf)->type, ((table_t *)cursor->table)->desc.name, chain_slot, cra_len);
 
     for (slot = 1; slot <= chain_slot; slot++) {
-        heap_init_chain_row(session, &ra, (char *)cra[slot].row, cra[slot].column_count, GS_INVALID_ID8, 0);
+        heap_init_chain_row(session, &ra, (char *)cra[slot].row, cra[slot].column_count, CT_INVALID_ID8, 0);
 
         for (i = 0; i < cra[slot].column_count; i++) {
             col_id = i + cra[slot].col_id;
@@ -1639,7 +1640,7 @@ void heap_insert_into_page_migr(knl_session_t *session, heap_page_t *page, row_h
     page->free_size -= row->size;
 
     row->is_migr = 1;
-    ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+    ROW_SET_ITL_ID(row, CT_INVALID_ID8);
 
     row_addr = (char *)page + dir->offset;
     ret = memcpy_sp(row_addr, page->free_end - dir->offset, row, row->size);
@@ -1685,7 +1686,7 @@ static void heap_generate_undo_for_update(knl_session_t *session, knl_cursor_t *
         redo.undo_slot = dir->undo_slot;
         log_put(session, RD_HEAP_CHANGE_DIR, &redo, sizeof(rd_heap_change_dir_t), LOG_ENTRY_FLAG_NONE);
     }
-    undo_write(session, undo, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), GS_FALSE);
+    undo_write(session, undo, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), CT_FALSE);
 }
 
 static void heap_delete_migr_row(knl_session_t *session, knl_cursor_t *cursor, rowid_t old_rid, rowid_t new_rid)
@@ -1720,7 +1721,7 @@ static void heap_delete_migr_row(knl_session_t *session, knl_cursor_t *cursor, r
     undo.snapshot.undo_page = migr_dir->undo_page;
     undo.snapshot.undo_slot = migr_dir->undo_slot;
     undo.snapshot.is_xfirst = cursor->is_xfirst;
-    undo.snapshot.contain_subpartno = GS_FALSE;
+    undo.snapshot.contain_subpartno = CT_FALSE;
 
     if (IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type)) {
         migr_dir->undo_page = session->rm->undo_page_info.undo_rid.page_id;
@@ -1744,10 +1745,10 @@ static void heap_delete_migr_row(knl_session_t *session, knl_cursor_t *cursor, r
     rd_chg.scn = cursor->ssn;
 
     undo.data = (char *)cm_push(session->stack, migr_row->size + partloc_size + sizeof(rowid_t));
-    undo.snapshot.contain_subpartno = GS_FALSE;
+    undo.snapshot.contain_subpartno = CT_FALSE;
     table_t *table = (table_t *)cursor->table;
     if (IS_PART_TABLE(table) && IS_COMPART_TABLE(table->part_table)) {
-        undo.snapshot.contain_subpartno = GS_TRUE;
+        undo.snapshot.contain_subpartno = CT_TRUE;
         *(knl_part_locate_t *)(undo.data) = cursor->part_loc;
     } else {
         *(uint32 *)(undo.data) = cursor->part_loc.part_no;
@@ -1760,7 +1761,7 @@ static void heap_delete_migr_row(knl_session_t *session, knl_cursor_t *cursor, r
     if (IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type)) {
         log_put(session, RD_HEAP_CHANGE_DIR, &rd_chg, sizeof(rd_heap_change_dir_t), LOG_ENTRY_FLAG_NONE);
     }
-    undo_write(session, &undo, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), GS_FALSE);
+    undo_write(session, &undo, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), CT_FALSE);
 
     knl_panic_log(!migr_row->is_deleted, "migr_row is deleted, panic info: page %u-%u type %u table %s",
                   cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
@@ -1788,7 +1789,7 @@ static void heap_delete_migr_row(knl_session_t *session, knl_cursor_t *cursor, r
         log_put(session, RD_HEAP_DELETE_MIGR, &rd_del, sizeof(rd_heap_delete_t), LOG_ENTRY_FLAG_NONE);
     }
     if (!IS_SAME_PAGID(old_rid, new_rid)) {
-        buf_leave_page(session, GS_TRUE);  // leave old migr_page
+        buf_leave_page(session, CT_TRUE);  // leave old migr_page
     }
     cm_pop(session->stack);
 }
@@ -1825,7 +1826,7 @@ static void heap_update_owner_nextrid(knl_session_t *session, knl_cursor_t *curs
     }
     owner_list = heap_get_owner_list(session, segment, owner_page->free_size);
     *change_list = owner_list - (uint8)owner_page->map.list_id;
-    buf_leave_page(session, GS_TRUE);  // leave owner_page
+    buf_leave_page(session, CT_TRUE);  // leave owner_page
 }
 
 static void heap_insert_migrate_row(knl_session_t *session, knl_cursor_t *cursor, heap_page_t *migr_page,
@@ -1886,7 +1887,7 @@ static void heap_remove_migr_row(knl_session_t *session, knl_cursor_t *cursor,
     }
     owner_list = heap_get_owner_list(session, segment, migr_page->free_size);
     *change_list = owner_list - (uint8)migr_page->map.list_id;
-    buf_leave_page(session, GS_TRUE);  // leave old migr_page
+    buf_leave_page(session, CT_TRUE);  // leave old migr_page
 }
 
 static status_t heap_update_migr_row(knl_session_t *session, knl_cursor_t *cursor,
@@ -1899,17 +1900,17 @@ static status_t heap_update_migr_row(knl_session_t *session, knl_cursor_t *curso
     heap_page_t *migr_page = NULL;
     uint8 owner_list, mid;
     int8 change_list[3] = {0};   // for row, migration row and old row
-    bool32 degrade_mid = GS_FALSE;
+    bool32 degrade_mid = CT_FALSE;
 
     // no need to alloc itl , cost size should not include sizeof(itl_t)
-    cost_size = heap_calc_insert_cost(session, segment, ra->head->size, GS_FALSE);
+    cost_size = heap_calc_insert_cost(session, segment, ra->head->size, CT_FALSE);
     // list id range is [0, HEAP_FREE_LIST_COUNT-1(5)]
     mid = (uint8)heap_get_target_list(session, segment, cost_size);
 
     for (;;) {
-        if (heap_find_free_page(session, heap, g_invalid_part_loc, mid, GS_FALSE, &page_id, &degrade_mid) !=
-            GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_find_free_page(session, heap, g_invalid_part_loc, mid, CT_FALSE, &page_id, &degrade_mid) !=
+            CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         SET_ROWID_PAGE(&migr_assist->new_rid, page_id);
@@ -1918,17 +1919,17 @@ static status_t heap_update_migr_row(knl_session_t *session, knl_cursor_t *curso
         cm_latch_x(&heap->latch.latch, session->id, &session->stat_heap);
 
         if (buf_read_page(session, GET_ROWID_PAGE(migr_assist->new_rid),
-                          LATCH_MODE_X, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
+                          LATCH_MODE_X, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
             cm_unlatch(&heap->latch.latch, &session->stat_heap);
             log_atomic_op_end(session);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         migr_page = (heap_page_t *)CURR_PAGE(session);
         if (migr_page->free_size < cost_size && !(migr_page->rows == 0 &&
                                                   migr_page->free_size >= ra->head->size + sizeof(row_dir_t))) {
             owner_list = heap_get_owner_list(session, segment, migr_page->free_size);
             session->change_list = owner_list - (uint8)migr_page->map.list_id;
-            buf_leave_page(session, GS_FALSE);  // leave migr_page
+            buf_leave_page(session, CT_FALSE);  // leave migr_page
             cm_unlatch(&heap->latch.latch, &session->stat_heap);
             log_atomic_op_end(session);
 
@@ -1948,7 +1949,7 @@ static status_t heap_update_migr_row(knl_session_t *session, knl_cursor_t *curso
 
         owner_list = heap_get_owner_list(session, segment, migr_page->free_size);
         change_list[0] = owner_list - (uint8)migr_page->map.list_id;
-        buf_leave_page(session, GS_TRUE);  // leave migr_page
+        buf_leave_page(session, CT_TRUE);  // leave migr_page
 
         // owner page
         if (!IS_INVALID_ROWID(migr_assist->owner_rid)) {
@@ -1973,7 +1974,7 @@ static status_t heap_update_migr_row(knl_session_t *session, knl_cursor_t *curso
         break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_update_chain_undo_prepare(knl_session_t *session, knl_cursor_t *cursor,
@@ -1987,26 +1988,26 @@ static status_t heap_update_chain_undo_prepare(knl_session_t *session, knl_curso
     // If there is a MIGR row previous, set it deleted -- only first split row judge this
     if (!IS_INVALID_ROWID(migr_assist->old_rid)) {
         if (buf_read_page(session, GET_ROWID_PAGE(migr_assist->old_rid),
-                          LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-            return GS_ERROR;
+                          LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         page = (heap_page_t *)CURR_PAGE(session);
         dir = heap_get_dir(page, (uint32)migr_assist->old_rid.slot);
         row = HEAP_GET_ROW(page, dir);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
         if (undo_prepare(session, row->size + partloc_size + sizeof(rowid_t),
-                         IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), need_encrypt) != GS_SUCCESS) {
-            return GS_ERROR;
+                         IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), need_encrypt) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (undo_prepare(session, partloc_size, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (undo_prepare(session, partloc_size, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_update_chain_row(knl_session_t *session, knl_cursor_t *cursor,
@@ -2020,22 +2021,22 @@ static status_t heap_update_chain_row(knl_session_t *session, knl_cursor_t *curs
     uint8 owner_list;
     int8 change_list[3] = {0};
     undo_data_t undo;
-    bool32 degrade_mid = GS_FALSE;
+    bool32 degrade_mid = CT_FALSE;
     uint8 mid;
     bool32 need_encrypt = SPACE_NEED_ENCRYPT(heap->cipher_reserve_size);
-    if (heap_update_chain_undo_prepare(session, cursor, migr_assist, need_encrypt) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_update_chain_undo_prepare(session, cursor, migr_assist, need_encrypt) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // no need to alloc itl , cost size should not include sizeof(itl_t)
-    cost_size = heap_calc_insert_cost(session, segment, ra->head->size, GS_FALSE);
+    cost_size = heap_calc_insert_cost(session, segment, ra->head->size, CT_FALSE);
     // list id range is [0, HEAP_FREE_LIST_COUNT-1(5)]
     mid = (uint8)heap_get_target_list(session, segment, cost_size);
 
     for (;;) {
-        if (heap_find_free_page(session, heap, g_invalid_part_loc, mid, GS_FALSE, &page_id, &degrade_mid) !=
-            GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_find_free_page(session, heap, g_invalid_part_loc, mid, CT_FALSE, &page_id, &degrade_mid) !=
+            CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         SET_ROWID_PAGE(&migr_assist->new_rid, page_id);
@@ -2044,17 +2045,17 @@ static status_t heap_update_chain_row(knl_session_t *session, knl_cursor_t *curs
         cm_latch_x(&heap->latch.latch, session->id, &session->stat_heap);
 
         if (buf_read_page(session, GET_ROWID_PAGE(migr_assist->new_rid),
-                          LATCH_MODE_X, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
+                          LATCH_MODE_X, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
             cm_unlatch(&heap->latch.latch, &session->stat_heap);
             log_atomic_op_end(session);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         migr_page = (heap_page_t *)CURR_PAGE(session);
         if (migr_page->free_size < cost_size && !(migr_page->rows == 0 &&
                                                  migr_page->free_size >= ra->head->size + sizeof(row_dir_t))) {
             owner_list = heap_get_owner_list(session, segment, migr_page->free_size);
             session->change_list = owner_list - (uint8)migr_page->map.list_id;
-            buf_leave_page(session, GS_FALSE);  // leave migr_page
+            buf_leave_page(session, CT_FALSE);  // leave migr_page
             cm_unlatch(&heap->latch.latch, &session->stat_heap);
             log_atomic_op_end(session);
 
@@ -2071,14 +2072,14 @@ static status_t heap_update_chain_row(knl_session_t *session, knl_cursor_t *curs
         }
 
         heap_insert_migrate_row(session, cursor, migr_page, ra->head, migr_assist, (uint32)cursor->ssn);
-        undo.snapshot.contain_subpartno = GS_FALSE;
+        undo.snapshot.contain_subpartno = CT_FALSE;
         // If there is a MIGR row previous, set it deleted -- only first splited row judge this
         if (!IS_INVALID_ROWID(migr_assist->old_rid)) {
             heap_delete_migr_row(session, cursor, migr_assist->old_rid, migr_assist->new_rid);
         } else {
             table_t *table = (table_t *)cursor->table;
             if (IS_PART_TABLE(table) && IS_COMPART_TABLE(table->part_table)) {
-                undo.snapshot.contain_subpartno = GS_TRUE;
+                undo.snapshot.contain_subpartno = CT_TRUE;
             }
             undo.type = UNDO_HEAP_INSERT_MIGR;
             undo.size = undo_part_locate_size(table);
@@ -2094,12 +2095,12 @@ static status_t heap_update_chain_row(knl_session_t *session, knl_cursor_t *curs
             undo.snapshot.undo_slot = 0;
             undo.snapshot.is_xfirst = cursor->is_xfirst;
 
-            undo_write(session, &undo, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), GS_FALSE);
+            undo_write(session, &undo, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), CT_FALSE);
         }
 
         owner_list = heap_get_owner_list(session, segment, migr_page->free_size);
         change_list[0] = owner_list - (uint8)migr_page->map.list_id;
-        buf_leave_page(session, GS_TRUE);  // leave migr_page
+        buf_leave_page(session, CT_TRUE);  // leave migr_page
 
         // owner page
         if (!IS_INVALID_ROWID(migr_assist->owner_rid)) {
@@ -2117,7 +2118,7 @@ static status_t heap_update_chain_row(knl_session_t *session, knl_cursor_t *curs
         break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_insert_row(knl_session_t *session, knl_cursor_t *cursor, heap_t *heap, row_head_t *row)
@@ -2133,8 +2134,8 @@ static status_t heap_insert_row(knl_session_t *session, knl_cursor_t *cursor, he
     bool32 need_encrypt = SPACE_NEED_ENCRYPT(heap->cipher_reserve_size);
     bool32 need_redo = IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type);
 
-    if (heap_enter_insert_page(session, cursor, GS_TRUE, row, &page_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_enter_insert_page(session, cursor, CT_TRUE, row, &page_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     SET_ROWID_PAGE(&cursor->rowid, page_id);
@@ -2181,13 +2182,13 @@ static status_t heap_insert_row(knl_session_t *session, knl_cursor_t *cursor, he
    
     uint8 owner_list = heap_get_owner_list(session, (heap_segment_t *)heap->segment, page->free_size);
     session->change_list = owner_list - (uint8)page->map.list_id;
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_atomic_op_end(session);
 
     heap_try_change_map(session, heap, page_id);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_enter_chain_pages(knl_session_t *session, knl_cursor_t *cursor,
@@ -2196,27 +2197,27 @@ static status_t heap_enter_chain_pages(knl_session_t *session, knl_cursor_t *cur
     row_head_t *row = (row_head_t *)cra[slot].row;
     heap_t *heap = CURSOR_HEAP(cursor);
     heap_segment_t *segment = HEAP_SEGMENT(session, heap->entry, heap->segment);
-    uint32 cost_size = heap_calc_insert_cost(session, segment, row->size, GS_FALSE);
-    uint32 real_size = heap_calc_insert_relsize(GS_FALSE, row);
+    uint32 cost_size = heap_calc_insert_cost(session, segment, row->size, CT_FALSE);
+    uint32 real_size = heap_calc_insert_relsize(CT_FALSE, row);
     page_id_t prev_pageid = GET_ROWID_PAGE(cra[slot - 1].rid);
     page_id_t page_id;
 
     for (;;) {
-        if (heap_enter_insert_page(session, cursor, GS_FALSE, row, &page_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_enter_insert_page(session, cursor, CT_FALSE, row, &page_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
 
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            return CT_ERROR;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            return CT_ERROR;
         }
 
         log_atomic_op_begin(session);
@@ -2230,9 +2231,9 @@ static status_t heap_enter_chain_pages(knl_session_t *session, knl_cursor_t *cur
         heap_page_t *page = (heap_page_t *)CURR_PAGE(session);
 
         if (heap_insert_size_invalid(page, cost_size, real_size)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             if (*diff_page) {
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
             }
             log_atomic_op_end(session);
             continue;
@@ -2246,7 +2247,7 @@ static status_t heap_enter_chain_pages(knl_session_t *session, knl_cursor_t *cur
         break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_insert_chain_row(knl_session_t *session, knl_cursor_t *cursor, heap_t *heap,
@@ -2259,13 +2260,13 @@ static status_t heap_insert_chain_row(knl_session_t *session, knl_cursor_t *curs
     bool32 has_logic = LOGIC_REP_DB_ENABLED(session) && dc_replication_enabled(session, entity, cursor->part_loc);
     uint8 entry_flag = has_logic ? LOG_ENTRY_FLAG_WITH_LOGIC_OID : LOG_ENTRY_FLAG_NONE;
     bool32 need_encrypt = SPACE_NEED_ENCRYPT(heap->cipher_reserve_size);
-    bool32 diff_page = GS_FALSE;
+    bool32 diff_page = CT_FALSE;
 
     knl_panic_log(slot > 0, "No available slot, panic info: page %u-%u type %u table %s", cursor->rowid.file,
                   cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type, ((table_t *)cursor->table)->desc.name);
 
-    if (heap_enter_chain_pages(session, cursor, cra, slot, &diff_page) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_enter_chain_pages(session, cursor, cra, slot, &diff_page) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     heap_page_t *page = (heap_page_t *)CURR_PAGE(session);
@@ -2287,7 +2288,7 @@ static status_t heap_insert_chain_row(knl_session_t *session, knl_cursor_t *curs
     uint8 owner_list = heap_get_owner_list(session, (heap_segment_t *)heap->segment, page->free_size);
     session->change_list = owner_list - (uint8)page->map.list_id;
     if (diff_page) {
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     }
 
     // set prev link info
@@ -2304,7 +2305,7 @@ static status_t heap_insert_chain_row(knl_session_t *session, knl_cursor_t *curs
         rd_set_link.aligned = 0;
         log_put(session, RD_HEAP_SET_LINK, &rd_set_link, sizeof(rd_set_link), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 
     heap_try_change_map(session, heap, GET_ROWID_PAGE(cra[slot].rid));
@@ -2314,7 +2315,7 @@ static status_t heap_insert_chain_row(knl_session_t *session, knl_cursor_t *curs
     row_chain_t *chain = &chain_info->chains[slot - 1];
     chain->chain_rid = cra[slot].rid;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_chain_insert(knl_session_t *session, knl_cursor_t *cursor)
@@ -2337,27 +2338,27 @@ status_t heap_chain_insert(knl_session_t *session, knl_cursor_t *cursor)
         cra[i].row = (row_head_t *)cm_push(session->stack, HEAP_MAX_MIGR_ROW_SIZE(session));
     }
 
-    cursor->chain_count = (uint8)heap_split_chain_row(session, cursor, cra, max_chains, GS_TRUE);
+    cursor->chain_count = (uint8)heap_split_chain_row(session, cursor, cra, max_chains, CT_TRUE);
 
     // insert the link row
-    if (heap_insert_row(session, cursor, heap, cra[0].row) != GS_SUCCESS) {
+    if (heap_insert_row(session, cursor, heap, cra[0].row) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cra[0].rid = cursor->rowid;
 
     // now, insert the following chain rows
     for (uint8 i = 1; i <= cursor->chain_count; i++) {
-        if (heap_insert_chain_row(session, cursor, heap, cra, i) != GS_SUCCESS) {
+        if (heap_insert_chain_row(session, cursor, heap, cra, i) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_convert_insert(knl_session_t *session, knl_cursor_t *cursor, uint32 max_row_len)
@@ -2366,8 +2367,8 @@ status_t heap_convert_insert(knl_session_t *session, knl_cursor_t *cursor, uint3
     uint32 scan_id = 0;
 
     if (!entity->contain_lob) {
-        GS_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "insert row", cursor->row->size, max_row_len);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "insert row", cursor->row->size, max_row_len);
+        return CT_ERROR;
     }
 
     if (IS_PART_TABLE(cursor->table)) {
@@ -2376,35 +2377,35 @@ status_t heap_convert_insert(knl_session_t *session, knl_cursor_t *cursor, uint3
             table_part_t *table_subpart = PART_GET_SUBENTITY(((table_t *)(cursor->table))->part_table,
                 table_part->subparts[cursor->part_loc.subpart_no]);
             if (!table_subpart->desc.is_csf) {
-                GS_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "insert row", cursor->row->size, max_row_len);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "insert row", cursor->row->size, max_row_len);
+                return CT_ERROR;
             }
         } else {
             if (!table_part->desc.is_csf) {
-                GS_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "insert row", cursor->row->size, max_row_len);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "insert row", cursor->row->size, max_row_len);
+                return CT_ERROR;
             }
         }
     } else {
         if (!entity->table.desc.is_csf) {
-            GS_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "insert row", cursor->row->size, max_row_len);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "insert row", cursor->row->size, max_row_len);
+            return CT_ERROR;
         }
     }
 
     while (scan_id != entity->column_count - 1) {
         cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, NULL);
-        if (knl_reconstruct_lob_row(session, entity, cursor, &scan_id, entity->column_count - 1) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_reconstruct_lob_row(session, entity, cursor, &scan_id, entity->column_count - 1) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (cursor->row->size < max_row_len) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
-    GS_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "insert row", cursor->row->size, max_row_len);
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "insert row", cursor->row->size, max_row_len);
+    return CT_ERROR;
 }
 
 static status_t heap_fetch_entry(knl_session_t *session, knl_cursor_t *cursor, heap_t *heap)
@@ -2412,26 +2413,26 @@ static status_t heap_fetch_entry(knl_session_t *session, knl_cursor_t *cursor, h
     if (IS_PART_TABLE(cursor->table)) {
         if (!heap->loaded) {
             if (dc_load_table_part_segment(session, cursor->dc_entity,
-                (table_part_t *)cursor->table_part) != GS_SUCCESS) {
-                return GS_ERROR;
+                (table_part_t *)cursor->table_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
         if (heap->segment == NULL) {
-            if (heap_create_part_entry(session, (table_part_t *)cursor->table_part, g_invalid_part_loc) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (heap_create_part_entry(session, (table_part_t *)cursor->table_part, g_invalid_part_loc) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     } else {
-        cursor->part_loc.part_no = GS_INVALID_ID32;
+        cursor->part_loc.part_no = CT_INVALID_ID32;
         if (heap->segment == NULL) {
-            if (heap_create_entry(session, heap) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (heap_create_entry(session, heap) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_insert(knl_session_t *session, knl_cursor_t *cursor)
@@ -2440,7 +2441,7 @@ status_t heap_insert(knl_session_t *session, knl_cursor_t *cursor)
     row_head_t *row = cursor->row;
     dc_entity_t *entity = cursor->dc_entity;
     uint16 column_count = ROW_COLUMN_COUNT(row);
-    uint32 max_row_len = heap_table_max_row_len(cursor->table, GS_MAX_ROW_SIZE, cursor->part_loc);
+    uint32 max_row_len = heap_table_max_row_len(cursor->table, CT_MAX_ROW_SIZE, cursor->part_loc);
     bool32 has_logic = LOGIC_REP_DB_ENABLED(session) && dc_replication_enabled(session, entity, cursor->part_loc);
     bool32 need_redo = IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type);
 
@@ -2451,27 +2452,27 @@ status_t heap_insert(knl_session_t *session, knl_cursor_t *cursor)
                   cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type, ((table_t *)cursor->table)->desc.name);
 
     if (row->size > max_row_len) {
-        if (heap_convert_insert(session, cursor, max_row_len) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_convert_insert(session, cursor, max_row_len) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     row->size = MAX(row->size, HEAP_MIN_ROW_SIZE);
 
-    if (lock_table_shared(session, cursor->dc_entity, LOCK_INF_WAIT) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lock_table_shared(session, cursor->dc_entity, LOCK_INF_WAIT) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cursor->xid = (cursor->xid != session->rm->xid.value) ? session->rm->xid.value : cursor->xid;
 
-    if (heap_fetch_entry(session, cursor, heap) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_fetch_entry(session, cursor, heap) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (cursor->nologging_type != SESSION_LEVEL) {
         if (undo_prepare(session, undo_part_locate_size(cursor->table), need_redo,
-            GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+            CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -2481,23 +2482,23 @@ status_t heap_insert(knl_session_t *session, knl_cursor_t *cursor)
     if (has_logic && need_redo) {
         log_atomic_op_begin(session);
         log_put(session, RD_LOGIC_REP_INSERT, &column_count, sizeof(uint16), LOG_ENTRY_FLAG_WITH_LOGIC_OID);
-        heap_append_logic_data(session, cursor, GS_FALSE);
+        heap_append_logic_data(session, cursor, CT_FALSE);
         log_atomic_op_end(session);
     }
 
     if (row->size <= HEAP_MAX_ROW_SIZE(session) - heap->cipher_reserve_size) {
-        if (heap_insert_row(session, cursor, heap, row) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_insert_row(session, cursor, heap, row) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (heap_chain_insert(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_chain_insert(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     SYNC_POINT(session, "SP_AFTER_HEAP_INSERT");
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void heap_get_partloc_from_udrow(const undo_row_t *ud_row, knl_part_locate_t *part_loc)
@@ -2506,7 +2507,7 @@ static void heap_get_partloc_from_udrow(const undo_row_t *ud_row, knl_part_locat
         *part_loc = *(knl_part_locate_t *)ud_row->data;
     } else {
         part_loc->part_no = *(uint32 *)ud_row->data;
-        part_loc->subpart_no = GS_INVALID_ID32;
+        part_loc->subpart_no = CT_INVALID_ID32;
     }
 }
 
@@ -2535,7 +2536,7 @@ void heap_undo_insert(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
     buf_enter_page(session, GET_ROWID_PAGE(rid), LATCH_MODE_X, ENTER_PAGE_NORMAL);
     page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -2547,7 +2548,7 @@ void heap_undo_insert(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
                   "page %u-%u type %u dir undo_slot %u ud_slot %u", AS_PAGID(page->head.id).file,
                   AS_PAGID(page->head.id).page, page->head.type, dir->undo_slot, ud_slot);
     row = HEAP_GET_ROW(page, dir);
-    knl_panic_log(ROW_ITL_ID(row) != GS_INVALID_ID8, "row's itl id is invalid, panic info: page %u-%u type %u",
+    knl_panic_log(ROW_ITL_ID(row) != CT_INVALID_ID8, "row's itl id is invalid, panic info: page %u-%u type %u",
                   AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.type);
 
     heap = dc_get_heap(session, page->uid, page->oid, part_loc, dc);
@@ -2556,8 +2557,8 @@ void heap_undo_insert(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
     if (is_link) {
         if (!heap_assist->need_latch) {
             heap_assist->heap = heap;
-            heap_assist->need_latch = GS_TRUE;
-            buf_leave_page(session, GS_FALSE);
+            heap_assist->need_latch = CT_TRUE;
+            buf_leave_page(session, CT_FALSE);
             return;
         }
     }
@@ -2590,7 +2591,7 @@ void heap_undo_insert(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
     dir->undo_page = ud_row->prev_page;
     dir->undo_slot = ud_row->prev_slot;
 
-    ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+    ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     row->is_deleted = 1;
     dir->is_free = 1;
     dir->next_slot = page->first_free_dir;
@@ -2609,14 +2610,14 @@ void heap_undo_insert(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
     heap_assist->change_list[page_count] = owner_list - (uint8)page->map.list_id;
     heap_assist->page_id[page_count] = GET_ROWID_PAGE(rid);
     page_count++;
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     if (is_link) {
         while (!IS_INVALID_ROWID(link_rid)) {
             buf_enter_page(session, GET_ROWID_PAGE(link_rid), LATCH_MODE_X, ENTER_PAGE_NORMAL);
             page = (heap_page_t *)CURR_PAGE(session);
             if (page_is_damaged(&page->head)) {
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
                 return;
             }
             dir = heap_get_dir(page, (uint32)link_rid.slot);
@@ -2641,7 +2642,7 @@ void heap_undo_insert(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
             heap_assist->page_id[page_count] = GET_ROWID_PAGE(link_rid);
             page_count++;
             link_rid = *(rowid_t *)HEAP_LOC_LINK_RID(row);
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
         }
     }
 
@@ -2655,8 +2656,8 @@ void heap_undo_insert_migr(knl_session_t *session, undo_row_t *ud_row, undo_page
     rd_heap_undo_t redo;
     uint8 page_count = 0;
     rowid_t rid = ud_row->rowid;
-    knl_part_locate_t part_loc = { .part_no = GS_INVALID_ID32,
-        .subpart_no = GS_INVALID_ID32 };
+    knl_part_locate_t part_loc = { .part_no = CT_INVALID_ID32,
+        .subpart_no = CT_INVALID_ID32 };
 
     heap_get_partloc_from_udrow(ud_row, &part_loc);
     if (!spc_validate_page_id(session, GET_ROWID_PAGE(rid))) {
@@ -2667,7 +2668,7 @@ void heap_undo_insert_migr(knl_session_t *session, undo_row_t *ud_row, undo_page
     buf_enter_page(session, GET_ROWID_PAGE(rid), LATCH_MODE_X, ENTER_PAGE_NORMAL);
     heap_page_t *page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -2692,7 +2693,7 @@ void heap_undo_insert_migr(knl_session_t *session, undo_row_t *ud_row, undo_page
     dir->undo_page = ud_row->prev_page;
     dir->undo_slot = ud_row->prev_slot;
 
-    ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+    ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     row->is_deleted = 1;
     dir->is_free = 1;
     dir->next_slot = page->first_free_dir;
@@ -2712,7 +2713,7 @@ void heap_undo_insert_migr(knl_session_t *session, undo_row_t *ud_row, undo_page
     heap_assist->page_id[page_count] = GET_ROWID_PAGE(rid);
     page_count++;
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     heap_assist->heap = heap;
     heap_assist->rows = page_count;
@@ -2732,7 +2733,7 @@ void heap_undo_update_linkrid(knl_session_t *session, undo_row_t *ud_row, undo_p
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     heap_page_t *page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
     row_dir_t *dir = heap_get_dir(page, (uint32)rid.slot);
@@ -2746,7 +2747,7 @@ void heap_undo_update_linkrid(knl_session_t *session, undo_row_t *ud_row, undo_p
                   AS_PAGID(page->head.id).page, page->head.type, dir->undo_slot, ud_slot);
     row_head_t *row = HEAP_GET_ROW(page, dir);
     if (!row->is_migr) {
-        knl_panic_log(ROW_ITL_ID(row) != GS_INVALID_ID8, "row itl id is invalid, panic info: page %u-%u type %u",
+        knl_panic_log(ROW_ITL_ID(row) != CT_INVALID_ID8, "row itl id is invalid, panic info: page %u-%u type %u",
                       AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.type);
         itl_t *itl = heap_get_itl(page, ROW_ITL_ID(row));
         knl_panic_log(itl->is_active, "itl is inactive, panic info: page %u-%u type %u", AS_PAGID(page->head.id).file,
@@ -2762,7 +2763,7 @@ void heap_undo_update_linkrid(knl_session_t *session, undo_row_t *ud_row, undo_p
 
     if (ud_row->is_xfirst) {
         dir->scn = ud_row->scn;
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     } else {
         dir->scn = ud_row->ssn;
     }
@@ -2789,7 +2790,7 @@ void heap_undo_update_linkrid(knl_session_t *session, undo_row_t *ud_row, undo_p
         log_append_data(session, undo_data, ud_data_size);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 void heap_undo_delete_migr(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot,
@@ -2815,7 +2816,7 @@ void heap_undo_delete_migr(knl_session_t *session, undo_row_t *ud_row, undo_page
     buf_enter_page(session, GET_ROWID_PAGE(rid), LATCH_MODE_X, ENTER_PAGE_NORMAL);
     page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -2841,7 +2842,7 @@ void heap_undo_delete_migr(knl_session_t *session, undo_row_t *ud_row, undo_page
     dir->undo_page = INVALID_UNDO_PAGID;
     dir->undo_slot = 0;
 
-    ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+    ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     row->is_deleted = 1;
     dir->is_free = 1;
     dir->next_slot = page->first_free_dir;
@@ -2861,7 +2862,7 @@ void heap_undo_delete_migr(knl_session_t *session, undo_row_t *ud_row, undo_page
     heap_assist->page_id[page_count] = GET_ROWID_PAGE(rid);
     page_count++;
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     heap_assist->heap = heap;
     heap_assist->rows = page_count;
@@ -2871,7 +2872,7 @@ void heap_undo_delete_migr(knl_session_t *session, undo_row_t *ud_row, undo_page
     buf_enter_page(session, GET_ROWID_PAGE(rid), LATCH_MODE_X, ENTER_PAGE_NORMAL);
     page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -2883,7 +2884,7 @@ void heap_undo_delete_migr(knl_session_t *session, undo_row_t *ud_row, undo_page
                   "page %u-%u type %u dir undo_slot %u ud_slot %u", AS_PAGID(page->head.id).file,
                   AS_PAGID(page->head.id).page, page->head.type, dir->undo_slot, ud_slot);
     row = HEAP_GET_ROW(page, dir);
-    knl_panic_log(ROW_ITL_ID(row) != GS_INVALID_ID8, "row's itl id is invalid, panic info: page %u-%u type %u",
+    knl_panic_log(ROW_ITL_ID(row) != CT_INVALID_ID8, "row's itl id is invalid, panic info: page %u-%u type %u",
                   AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.type);
     itl = heap_get_itl(page, ROW_ITL_ID(row));
     knl_panic_log(itl->is_active, "itl is inactive, panic info: page %u-%u type %u", AS_PAGID(page->head.id).file,
@@ -2899,7 +2900,7 @@ void heap_undo_delete_migr(knl_session_t *session, undo_row_t *ud_row, undo_page
     // to keep consistent read, only after rollback, can we set the dir itl_id to invalid.
     if (ud_row->is_xfirst) {
         dir->scn = ud_row->scn;
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     } else {
         dir->scn = ud_row->ssn;
     }
@@ -2918,7 +2919,7 @@ void heap_undo_delete_migr(knl_session_t *session, undo_row_t *ud_row, undo_page
     if (SPACE_IS_LOGGING(SPACE_GET(session, heap->segment->space_id))) {
         log_put(session, RD_HEAP_UNDO_DELETE, &redo, sizeof(rd_heap_undo_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 void heap_update_prepare(knl_session_t *session, row_head_t *row, uint16 *offsets, uint16 *lens,
@@ -2928,7 +2929,7 @@ void heap_update_prepare(knl_session_t *session, row_head_t *row, uint16 *offset
     uint16 col_id;
     int16 new_col_size, old_col_size;
     int16 inc_head;
-    bool32 inplace = GS_TRUE;
+    bool32 inplace = CT_TRUE;
     row_head_t *update_info = NULL;
     uint32 uid = 0;
     knl_cal_col_size_t  calc_col_size_func = row->is_csf ? heap_calc_csf_col_actualsize : heap_calc_bmp_col_actualsize;
@@ -2948,7 +2949,7 @@ void heap_update_prepare(knl_session_t *session, row_head_t *row, uint16 *offset
     // column_count, column array, row head, extra bitmap bytes
     ua->inc_size = 0;
     ua->undo_size = (uint16)UNDO_ROW_HEAD_SIZE;
-    // the max value of ua->info->count is GS_MAX_COLUMNS(4096)
+    // the max value of ua->info->count is CT_MAX_COLUMNS(4096)
     ua->undo_size += sizeof(uint16) + ua->info->count * sizeof(uint16);
     ua->undo_size += cm_row_init_size(row->is_csf, ua->info->count);
 
@@ -2967,7 +2968,7 @@ void heap_update_prepare(knl_session_t *session, row_head_t *row, uint16 *offset
         }
 
         if (new_col_size != old_col_size) {
-            inplace = GS_FALSE;
+            inplace = CT_FALSE;
             ua->inc_size += new_col_size - old_col_size;
         }
     }
@@ -2986,12 +2987,12 @@ void heap_update_prepare(knl_session_t *session, row_head_t *row, uint16 *offset
         }
 
         if (new_col_size != old_col_size) {
-            inplace = GS_FALSE;
+            inplace = CT_FALSE;
             ua->inc_size += new_col_size - old_col_size;
         }
     }
 
-    if (inplace == GS_TRUE) {
+    if (inplace == CT_TRUE) {
         ua->new_size = CM_ALIGN4(data_size);
         ua->mode = UPDATE_INPLACE;
         return;
@@ -3001,8 +3002,8 @@ void heap_update_prepare(knl_session_t *session, row_head_t *row, uint16 *offset
     knl_panic_log(inc_head >= 0, "inc_head is smaller than zero, panic info: inc_head %u", inc_head);
 
     ua->inc_size += inc_head;
-    // update column size is less than GS_MAX_ROW_SIZE(64000),
-    // so ua->inc_size will not exceed  GS_MAX_ROW_SIZE, the sum is less than max value of uint32
+    // update column size is less than CT_MAX_ROW_SIZE(64000),
+    // so ua->inc_size will not exceed  CT_MAX_ROW_SIZE, the sum is less than max value of uint32
     ua->new_size = CM_ALIGN4((uint32)(data_size + ua->inc_size));
 
     if (ua->new_size < PCRH_MIN_ROW_SIZE) {
@@ -3092,7 +3093,7 @@ void heap_update_inplace(knl_session_t *session, uint16 *offsets, uint16 *lens,
 
     for (i = 0; i < ua_info->count; i++) {
         col_id = ua_info->columns[i];
-        if (ua_info->lens[i] == GS_NULL_VALUE_LEN) {
+        if (ua_info->lens[i] == CT_NULL_VALUE_LEN) {
             /* for csf row format and number column type, zero or null has the same length, but
              * different column flags, it need to update the column flag
              */
@@ -3183,7 +3184,7 @@ void heap_get_update_undo_data(knl_session_t *session, heap_update_assist_t *ua,
     info = (heap_undo_update_info_t *)undo->data;
     info->old_cols = ua->old_cols;
     info->count = ua->info->count;
-    /* max value of info->count is GS_MAX_COLUMNS(4096) */
+    /* max value of info->count is CT_MAX_COLUMNS(4096) */
     col_size = info->count * sizeof(uint16);
     ret = memcpy_sp(info->columns, undo_buf_size - (uint32)OFFSET_OF(heap_undo_update_info_t, columns),
         ua->info->columns, col_size);
@@ -3192,7 +3193,7 @@ void heap_get_update_undo_data(knl_session_t *session, heap_update_assist_t *ua,
     head_size = HEAP_UNDO_UPDATE_INFO_SIZE(ua->info->count);
     row_buf = undo->data + head_size;
 
-    heap_init_row(session, &ra, row_buf, ua->info->count, GS_INVALID_ID8, 0);
+    heap_init_row(session, &ra, row_buf, ua->info->count, CT_INVALID_ID8, 0);
 
     for (i = 0; i < ua->info->count; i++) {
         col_id = ua->info->columns[i];
@@ -3245,7 +3246,7 @@ static void heap_prepare_split_for_update(knl_session_t *session, knl_cursor_t *
             (uint16)HEAP_MAX_MIGR_ROW_SIZE(session) - cipher_reserve_size) {
             sa->col_start[++sa->split_count] = i;
             sa->uid_start[sa->split_count] = uid;
-            // the sum of col_len for a row is less than GS_MAX_ROW_SIZE(64000)
+            // the sum of col_len for a row is less than CT_MAX_ROW_SIZE(64000)
             row_size = cm_row_init_size(row->is_csf, 0) + sizeof(rowid_t) + col_len;
             col_count = 1;
         }
@@ -3279,7 +3280,7 @@ static void heap_split_for_update(knl_session_t *session, split_assist_t *sa, ui
 
     uid = sa->uid_start[split_no];
 
-    heap_init_chain_row(session, sub_ra, buf, col_count, GS_INVALID_ID8, 0);
+    heap_init_chain_row(session, sub_ra, buf, col_count, CT_INVALID_ID8, 0);
 
     for (i = sa->col_start[split_no]; i < col_count + sa->col_start[split_no]; i++) {
         if (uid < info->count && i == info->columns[uid]) {
@@ -3327,14 +3328,14 @@ static status_t heap_split_and_update(knl_session_t *session, knl_cursor_t *curs
          * update migr row does not write undo here, because undo is generated by original row
          */
         if (is_chain) {
-            if (heap_update_chain_row(session, cursor, &ra, &new_ma) != GS_SUCCESS) {
+            if (heap_update_chain_row(session, cursor, &ra, &new_ma) != CT_SUCCESS) {
                 cm_pop(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         } else {
-            if (heap_update_migr_row(session, cursor, &ra, &new_ma) != GS_SUCCESS) {
+            if (heap_update_migr_row(session, cursor, &ra, &new_ma) != CT_SUCCESS) {
                 cm_pop(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
 
@@ -3348,7 +3349,7 @@ static status_t heap_split_and_update(knl_session_t *session, knl_cursor_t *curs
 
     cm_pop(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_trigger_migration(knl_session_t *session, knl_cursor_t *cursor, heap_update_assist_t *ua)
@@ -3369,7 +3370,7 @@ static status_t heap_trigger_migration(knl_session_t *session, knl_cursor_t *cur
     migr_assist.undo = NULL;
     migr_assist.col_start = 0;
     char *buf = (char *)cm_push(session->stack, ua->new_size);
-    heap_init_chain_row(session, &ra, buf, ua->new_cols, GS_INVALID_ID8, 0);
+    heap_init_chain_row(session, &ra, buf, ua->new_cols, CT_INVALID_ID8, 0);
 
     if (cursor->chain_count > 1) {
         next_rid = ((row_chains_info_t *)(cursor->chain_info))->chains[1].chain_rid;
@@ -3383,13 +3384,13 @@ static status_t heap_trigger_migration(knl_session_t *session, knl_cursor_t *cur
         knl_panic_log(ra.head->size == ua->new_size, "the size of row recorded is incorrect, panic info: "
             "ra's size %u new_size %u page %u-%u type %u table %s", ra.head->size, ua->new_size, cursor->rowid.file,
             cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type, ((table_t *)cursor->table)->desc.name);
-        if (heap_update_migr_row(session, cursor, &ra, &migr_assist) != GS_SUCCESS) {
+        if (heap_update_migr_row(session, cursor, &ra, &migr_assist) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /* 1. first split row should keep rowid, otherwise chain may damaged.
@@ -3399,7 +3400,7 @@ static status_t heap_trigger_migration(knl_session_t *session, knl_cursor_t *cur
      */
     sa.org_row = ra.head;
     sa.ua = ua;
-    /* max value of ua->new_cols is GS_MAX_COLUMNS(4096) */
+    /* max value of ua->new_cols is CT_MAX_COLUMNS(4096) */
     sa.offsets = (uint16 *)cm_push(session->stack, ua->new_cols * sizeof(uint16));
     sa.lens = (uint16 *)cm_push(session->stack, ua->new_cols * sizeof(uint16));
     if (cursor->row->is_migr) {
@@ -3412,13 +3413,13 @@ static status_t heap_trigger_migration(knl_session_t *session, knl_cursor_t *cur
 
     heap_prepare_split_for_update(session, cursor, &sa);
 
-    if (heap_split_and_update(session, cursor, &sa, &migr_assist, GS_FALSE, NULL) != GS_SUCCESS) {
+    if (heap_split_and_update(session, cursor, &sa, &migr_assist, CT_FALSE, NULL) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_migrate_chain_row(knl_session_t *session, knl_cursor_t *cursor, heap_update_assist_t *ua,
@@ -3434,25 +3435,25 @@ static status_t heap_migrate_chain_row(knl_session_t *session, knl_cursor_t *cur
     CM_SAVE_STACK(session->stack);
     ra.is_csf = row->is_csf;
 
-    /* max value of ua->new_cols is GS_MAX_COLUMNS(4096) */
+    /* max value of ua->new_cols is CT_MAX_COLUMNS(4096) */
     sa.offsets = (uint16 *)cm_push(session->stack, ua->new_cols * sizeof(uint16));
     sa.lens = (uint16 *)cm_push(session->stack, ua->new_cols * sizeof(uint16));
     cm_decode_row((char *)row, sa.offsets, sa.lens, NULL);
     buf = (char *)cm_push(session->stack, ua->new_size);
-    heap_init_chain_row(session, &ra, buf, ua->new_cols, GS_INVALID_ID8, 0);
+    heap_init_chain_row(session, &ra, buf, ua->new_cols, CT_INVALID_ID8, 0);
     next_link = HEAP_LOC_LINK_RID((row_head_t *)buf);
     *next_link = migr_assist->next_rid;
 
     heap_reorganize_with_update(row, sa.offsets, sa.lens, ua->info, &ra);
 
     if (ra.head->size <= HEAP_MAX_MIGR_ROW_SIZE(session) - cipher_reserve_size) {
-        if (heap_update_chain_row(session, cursor, &ra, migr_assist) != GS_SUCCESS) {
+        if (heap_update_chain_row(session, cursor, &ra, migr_assist) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     sa.org_row = ra.head;
@@ -3461,13 +3462,13 @@ static status_t heap_migrate_chain_row(knl_session_t *session, knl_cursor_t *cur
     cm_decode_row((char *)sa.org_row, sa.offsets, sa.lens, NULL);
     heap_prepare_split_for_update(session, cursor, &sa);
 
-    if (heap_split_and_update(session, cursor, &sa, migr_assist, GS_TRUE, NULL) != GS_SUCCESS) {
+    if (heap_split_and_update(session, cursor, &sa, migr_assist, CT_TRUE, NULL) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_update_link_row(knl_session_t *session, knl_cursor_t *cursor, row_chain_t *chain,
@@ -3498,15 +3499,15 @@ static status_t heap_update_link_row(knl_session_t *session, knl_cursor_t *curso
     owner_dir = heap_get_dir(owner_page, (uint32)cursor->rowid.slot);
     owner_row = HEAP_GET_ROW(owner_page, owner_dir);
     if (owner_row->is_changed && owner_dir->scn == cursor->ssn) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         cm_unlatch(&heap->latch.latch, &session->stat_heap);
         log_atomic_op_end(session);
-        GS_THROW_ERROR(ERR_ROW_SELF_UPDATED);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROW_SELF_UPDATED);
+        return CT_ERROR;
     }
 
     heap_generate_undo_for_update(session, cursor, cursor->rowid, (heap_page_t *)CURR_PAGE(session), undo, ua);
-    buf_leave_page(session, GS_TRUE);  // leave owner_page
+    buf_leave_page(session, CT_TRUE);  // leave owner_page
 
     buf_enter_page(session, GET_ROWID_PAGE(cursor->link_rid), LATCH_MODE_X, ENTER_PAGE_NORMAL);
     migr_page = (heap_page_t *)CURR_PAGE(session);
@@ -3525,18 +3526,18 @@ static status_t heap_update_link_row(knl_session_t *session, knl_cursor_t *curso
 
         heap_update_inplace(session, cursor->offsets, cursor->lens, ua->info, migr_row);
 
-        buf_leave_page(session, GS_TRUE);  // leave migr_page
+        buf_leave_page(session, CT_TRUE);  // leave migr_page
         cm_unlatch(&heap->latch.latch, &session->stat_heap);
         log_atomic_op_end(session);
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // Calculate the accurate inc_size and migration row new_size
     ua->inc_size = ua->new_size - migr_row->size;
 
     if (ua->inc_size > 0 && (uint16)ua->inc_size > migr_page->free_size) {
-        buf_leave_page(session, GS_FALSE);  // leave migr_page
+        buf_leave_page(session, CT_FALSE);  // leave migr_page
         cm_unlatch(&heap->latch.latch, &session->stat_heap);
         log_atomic_op_end(session);
 
@@ -3559,12 +3560,12 @@ static status_t heap_update_link_row(knl_session_t *session, knl_cursor_t *curso
 
     owner_list = heap_get_owner_list(session, (heap_segment_t *)heap->segment, migr_page->free_size);
     session->change_list = owner_list - (uint8)migr_page->map.list_id;
-    buf_leave_page(session, GS_TRUE);  // leave migr_page
+    buf_leave_page(session, CT_TRUE);  // leave migr_page
     cm_unlatch(&heap->latch.latch, &session->stat_heap);
     log_atomic_op_end(session);
 
     heap_try_change_map(session, heap, GET_ROWID_PAGE(cursor->link_rid));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void heap_reorgnize_chain_update_assist(heap_update_assist_t *ua, uint32 col_end, row_chain_t *chain,
@@ -3652,7 +3653,7 @@ static void heap_reorganize_update_assist(knl_session_t *session, knl_cursor_t *
     }
 
     new_info->count = 0;
-    cm_row_init(&ra, new_info->data, GS_MAX_ROW_SIZE, col_count, is_csf);
+    cm_row_init(&ra, new_info->data, CT_MAX_ROW_SIZE, col_count, is_csf);
     for (i = uid_start - col_count; i < uid_start; i++) {
         put_col_func((row_head_t *)old_info->data, old_info->offsets, old_info->lens, i, &ra);
         new_info->columns[new_info->count] = old_info->columns[i];
@@ -3696,7 +3697,7 @@ static void heap_get_chain_update_undo(knl_session_t *session, knl_cursor_t *cur
                   "count of update columns %u", cursor->rowid.file, cursor->rowid.page,
                   ((page_head_t *)cursor->page_buf)->type, ((table_t *)cursor->table)->desc.name, info->count);
     if (info->count != 0) {
-        col_size = info->count * sizeof(uint16);  // the max value of info->count is GS_MAX_COLUMNS(4096)
+        col_size = info->count * sizeof(uint16);  // the max value of info->count is CT_MAX_COLUMNS(4096)
         ret = memcpy_sp(info->columns, HEAP_MAX_MIGR_ROW_SIZE(session) + sizeof(uint32), ua->info->columns, col_size);
         knl_securec_check(ret);
     }
@@ -3704,11 +3705,11 @@ static void heap_get_chain_update_undo(knl_session_t *session, knl_cursor_t *cur
     head_size = HEAP_UNDO_UPDATE_INFO_SIZE(ua->info->count);
     row_buf = undo->data + head_size;
 
-    heap_init_chain_row(session, &ra, row_buf, ua->info->count, GS_INVALID_ID8, 0);
+    heap_init_chain_row(session, &ra, row_buf, ua->info->count, CT_INVALID_ID8, 0);
     HEAP_SET_LINK_RID((row_head_t *)row_buf, next_rid.value);
 
     for (i = 0; i < ua->info->count; i++) {
-        // the max value of ua->info->columns[] and col_start is GS_MAX_COLUMNS(4096)
+        // the max value of ua->info->columns[] and col_start is CT_MAX_COLUMNS(4096)
         col_id = ua->info->columns[i] + col_start;
 
         if (col_id >= ua->old_cols + col_start) {
@@ -3754,8 +3755,8 @@ static status_t heap_update_chain(knl_session_t *session, knl_cursor_t *cursor, 
         undo->size += partloc_size;
     }
 
-    if (undo_prepare(session, undo->size, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), need_encrypt) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (undo_prepare(session, undo->size, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), need_encrypt) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
@@ -3776,7 +3777,7 @@ static status_t heap_update_chain(knl_session_t *session, knl_cursor_t *cursor, 
         migr_buf = (char *)cm_push(session->stack, migr_row->size);
         ret = memcpy_sp(migr_buf, migr_row->size, migr_row, migr_row->size);
         knl_securec_check(ret);
-        buf_leave_page(session, GS_FALSE);  // leave migr_page
+        buf_leave_page(session, CT_FALSE);  // leave migr_page
         log_atomic_op_end(session);
 
         migr_assist.owner_rid = chain->owner_rid;
@@ -3784,14 +3785,14 @@ static status_t heap_update_chain(knl_session_t *session, knl_cursor_t *cursor, 
         migr_assist.next_rid = chain->next_rid;
         migr_assist.undo = undo;
         migr_assist.col_start = chain->col_start;
-        if (heap_migrate_chain_row(session, cursor, ua, (row_head_t *)migr_buf, &migr_assist) != GS_SUCCESS) {
+        if (heap_migrate_chain_row(session, cursor, ua, (row_head_t *)migr_buf, &migr_assist) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         chain->chain_rid = migr_assist.new_rid;
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     migr_page = (heap_page_t *)CURR_PAGE(session);
@@ -3814,12 +3815,12 @@ static status_t heap_update_chain(knl_session_t *session, knl_cursor_t *cursor, 
         ((row_head_t *)undo->data)->size = chain->row_size;
         table_t *table = (table_t *)cursor->table;
         if (IS_PART_TABLE(table) && IS_COMPART_TABLE(table->part_table)) {
-            undo->snapshot.contain_subpartno = GS_TRUE;
+            undo->snapshot.contain_subpartno = CT_TRUE;
             *(knl_part_locate_t *)(undo->data + undo->size - partloc_size) = cursor->part_loc;
         } else if (IS_PART_TABLE(table)) {
             *(uint32 *)(undo->data + undo->size - partloc_size) = cursor->part_loc.part_no;
         } else {
-            *(uint32 *)(undo->data + undo->size - partloc_size) = GS_INVALID_ID32;
+            *(uint32 *)(undo->data + undo->size - partloc_size) = CT_INVALID_ID32;
         }
     }
 
@@ -3839,11 +3840,11 @@ static status_t heap_update_chain(knl_session_t *session, knl_cursor_t *cursor, 
         }
         heap_update_inplace(session, offsets, lens, ua->info, migr_row);
 
-        buf_leave_page(session, GS_TRUE);  // leave migr_page
+        buf_leave_page(session, CT_TRUE);  // leave migr_page
         log_atomic_op_end(session);
         CM_RESTORE_STACK(session->stack);
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     heap_generate_undo_for_update(session, cursor, chain->chain_rid, migr_page, undo, ua);
@@ -3865,13 +3866,13 @@ static status_t heap_update_chain(knl_session_t *session, knl_cursor_t *cursor, 
     heap_update_inpage(session, (row_head_t *)migr_buf, offsets, lens, ua, migr_page, (uint16)chain->chain_rid.slot);
     owner_list = heap_get_owner_list(session, (heap_segment_t *)heap->segment, migr_page->free_size);
     session->change_list = owner_list - (uint8)migr_page->map.list_id;
-    buf_leave_page(session, GS_TRUE);  // leave migr_page
+    buf_leave_page(session, CT_TRUE);  // leave migr_page
     log_atomic_op_end(session);
 
     heap_try_change_map(session, heap, GET_ROWID_PAGE(chain->chain_rid));
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_generate_undo_for_linkrid(knl_session_t *session, knl_cursor_t *cursor, rowid_t rowid,
@@ -3882,16 +3883,16 @@ static status_t heap_generate_undo_for_linkrid(knl_session_t *session, knl_curso
     row_dir_t *dir = NULL;
     row_head_t *row = NULL;
 
-    if (buf_read_page(session, GET_ROWID_PAGE(rowid), LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (buf_read_page(session, GET_ROWID_PAGE(rowid), LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     page = (heap_page_t *)CURR_PAGE(session);
     dir = heap_get_dir(page, (uint32)rowid.slot);
     row = HEAP_GET_ROW(page, dir);
     if (row->is_changed && self_update_check && dir->scn == cursor->ssn) {
-        buf_leave_page(session, GS_FALSE);
-        GS_THROW_ERROR(ERR_ROW_SELF_UPDATED);
-        return GS_ERROR;
+        buf_leave_page(session, CT_FALSE);
+        CT_THROW_ERROR(ERR_ROW_SELF_UPDATED);
+        return CT_ERROR;
     }
 
     ROWID_COPY(undo.rowid, rowid);
@@ -3900,11 +3901,11 @@ static status_t heap_generate_undo_for_linkrid(knl_session_t *session, knl_curso
     undo.type = UNDO_HEAP_UPDATE_LINKRID;
     undo.size = sizeof(rowid_t);
 
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
-    if (undo_prepare(session, undo.size, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), GS_FALSE) != GS_SUCCESS) {
+    if (undo_prepare(session, undo.size, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), CT_FALSE) != CT_SUCCESS) {
         cm_pop(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     log_atomic_op_begin(session);
@@ -3913,11 +3914,11 @@ static status_t heap_generate_undo_for_linkrid(knl_session_t *session, knl_curso
 
     heap_generate_undo_for_update(session, cursor, rowid, page, &undo, ua);
 
-    buf_leave_page(session, GS_TRUE);  // leave owner_page
+    buf_leave_page(session, CT_TRUE);  // leave owner_page
     log_atomic_op_end(session);
     cm_pop(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_update_chain_rows(knl_session_t *session, knl_cursor_t *cursor, heap_update_assist_t *ua)
@@ -3935,8 +3936,8 @@ static status_t heap_update_chain_rows(knl_session_t *session, knl_cursor_t *cur
                   "chain_count %u", cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
                   ((table_t *)cursor->table)->desc.name, cursor->chain_count);
     table_t *table = (table_t *)cursor->table;
-    if (heap_generate_undo_for_linkrid(session, cursor, cursor->rowid, ua, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_generate_undo_for_linkrid(session, cursor, cursor->rowid, ua, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
@@ -3955,19 +3956,19 @@ static status_t heap_update_chain_rows(knl_session_t *session, knl_cursor_t *cur
         heap_reorganize_update_assist(session, cursor, ua, chain, &uid_start, &sub_ua);
 
         if (sub_ua.info->count == 0) {
-            if (heap_generate_undo_for_linkrid(session, cursor, chain->chain_rid, ua, GS_FALSE) != GS_SUCCESS) {
+            if (heap_generate_undo_for_linkrid(session, cursor, chain->chain_rid, ua, CT_FALSE) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             owner_rid = chain->chain_rid;
             continue;
         }
 
         undo.data = (char *)cm_push(session->stack, HEAP_MAX_MIGR_ROW_SIZE(session) + undo_part_locate_size(table));
-        undo.snapshot.contain_subpartno = GS_FALSE;
-        if (heap_update_chain(session, cursor, chain, &sub_ua, &undo) != GS_SUCCESS) {
+        undo.snapshot.contain_subpartno = CT_FALSE;
+        if (heap_update_chain(session, cursor, chain, &sub_ua, &undo) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         cm_pop(session->stack);
@@ -3975,7 +3976,7 @@ static status_t heap_update_chain_rows(knl_session_t *session, knl_cursor_t *cur
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_insert_merged_chain_rows(knl_session_t *session, knl_cursor_t *cursor,
@@ -4017,11 +4018,11 @@ static status_t heap_insert_merged_chain_rows(knl_session_t *session, knl_cursor
     migr_assist.undo = NULL;
     migr_assist.col_start = 0;
 
-    if (heap_split_and_update(session, cursor, &sa, &migr_assist, GS_TRUE, next_rid) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_split_and_update(session, cursor, &sa, &migr_assist, CT_TRUE, next_rid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void heap_update_next_rid(knl_session_t *session, knl_cursor_t *cursor, rowid_t rowid, rowid_t next_rid)
@@ -4049,7 +4050,7 @@ static void heap_update_next_rid(knl_session_t *session, knl_cursor_t *cursor, r
         log_put(session, RD_HEAP_SET_LINK, &rd_set_link, sizeof(rd_set_link), LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_atomic_op_end(session);
 }
@@ -4057,7 +4058,7 @@ static void heap_update_next_rid(knl_session_t *session, knl_cursor_t *cursor, r
 /*
  * heap merge chain update
  * @note insert a new chain delete old chains when chain count exceed HEAP_MERGE_CHAIN_COUNT,
- * otherwise chain count will increase exceed GS_MAX_CHAIN_COUNT after update
+ * otherwise chain count will increase exceed CT_MAX_CHAIN_COUNT after update
  * @param kernel session, kernel cursor, update assist
  */
 static status_t heap_merge_chain_update(knl_session_t *session, knl_cursor_t *cursor, heap_update_assist_t *ua)
@@ -4068,13 +4069,13 @@ static status_t heap_merge_chain_update(knl_session_t *session, knl_cursor_t *cu
     int32 i;
 
     // link row should check first for self update check
-    if (heap_generate_undo_for_linkrid(session, cursor, cursor->rowid, ua, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_generate_undo_for_linkrid(session, cursor, cursor->rowid, ua, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // insert new chains
-    if (heap_insert_merged_chain_rows(session, cursor, ua, &next_rid) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_insert_merged_chain_rows(session, cursor, ua, &next_rid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // change next rid of link row
@@ -4085,12 +4086,12 @@ static status_t heap_merge_chain_update(knl_session_t *session, knl_cursor_t *cu
         chain = chain_info->chains + i;
 
         if (heap_delete_row(session, cursor, chain->chain_rid, INVALID_ROWID,
-                            GS_FALSE, chain->data_size, GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+                            CT_FALSE, chain->data_size, CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void heap_update_write_logic_log(knl_session_t *session, knl_cursor_t *cursor, bool32 has_logic)
@@ -4099,11 +4100,11 @@ static void heap_update_write_logic_log(knl_session_t *session, knl_cursor_t *cu
     if (has_logic && IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type)) {
         log_atomic_op_begin(session);
         logic_head.col_count = cursor->update_info.count;
-        logic_head.is_pcr = GS_FALSE;
+        logic_head.is_pcr = CT_FALSE;
         logic_head.unused = 0;
         log_put(session, RD_LOGIC_REP_UPDATE, &logic_head, sizeof(rd_logic_rep_head), LOG_ENTRY_FLAG_WITH_LOGIC_OID);
         log_append_data(session, cursor->update_info.columns, cursor->update_info.count * sizeof(uint16));
-        heap_append_logic_data(session, cursor, GS_TRUE);
+        heap_append_logic_data(session, cursor, CT_TRUE);
         log_atomic_op_end(session);
     }
 }
@@ -4144,26 +4145,26 @@ static void heap_update_prepare_undo_data(knl_session_t *session, knl_cursor_t *
                                           heap_update_assist_t *ua, uint8 cipher_reserve_size)
 {
     errno_t ret;
-    undo->data = (char *)cm_push(session->stack, GS_MAX_ROW_SIZE);
+    undo->data = (char *)cm_push(session->stack, CT_MAX_ROW_SIZE);
     if (ua->undo_size >= cursor->row->size || ua->new_size > HEAP_MAX_ROW_SIZE(session) - cipher_reserve_size) {
         undo->type = UNDO_HEAP_UPDATE_FULL;
-        ret = memcpy_sp(undo->data, GS_MAX_ROW_SIZE, cursor->row, cursor->row->size);
+        ret = memcpy_sp(undo->data, CT_MAX_ROW_SIZE, cursor->row, cursor->row->size);
         knl_securec_check(ret);
         undo->size = cursor->row->size;
     } else {
         undo->type = UNDO_HEAP_UPDATE;
-        heap_get_update_undo_data(session, ua, undo, GS_MAX_ROW_SIZE);
+        heap_get_update_undo_data(session, ua, undo, CT_MAX_ROW_SIZE);
     }
 
     /* write part no at tail of undo_data for recyling of splitted page */
     table_t *table = (table_t *)cursor->table;
     if (IS_PART_TABLE(table) && IS_COMPART_TABLE(table->part_table)) {
-        undo->snapshot.contain_subpartno = GS_TRUE;
+        undo->snapshot.contain_subpartno = CT_TRUE;
         *(knl_part_locate_t *)(undo->data + undo->size) = cursor->part_loc;
     } else if (IS_PART_TABLE(table)) {
         *(uint32 *)(undo->data + undo->size) = cursor->part_loc.part_no;
     } else {
-        *(uint32 *)(undo->data + undo->size) = GS_INVALID_ID32;
+        *(uint32 *)(undo->data + undo->size) = CT_INVALID_ID32;
     }
 
     undo->size += undo_part_locate_size(table);
@@ -4201,8 +4202,8 @@ static status_t heap_update_internal(knl_session_t *session, knl_cursor_t *curso
     bool32 need_encrypt = SPACE_NEED_ENCRYPT(heap->cipher_reserve_size);
 
     if (entity->contain_lob) {
-        if (lob_update(session, cursor, ua) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lob_update(session, cursor, ua) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -4219,12 +4220,12 @@ static status_t heap_update_internal(knl_session_t *session, knl_cursor_t *curso
         }
     }
 
-    undo.snapshot.contain_subpartno = GS_FALSE;
+    undo.snapshot.contain_subpartno = CT_FALSE;
     heap_update_prepare_undo_data(session, cursor, &undo, ua, cipher_reserve_size);
 
-    if (undo_prepare(session, undo.size, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), need_encrypt) != GS_SUCCESS) {
+    if (undo_prepare(session, undo.size, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), need_encrypt) != CT_SUCCESS) {
         cm_pop(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!IS_INVALID_ROWID(cursor->link_rid)) {
@@ -4244,11 +4245,11 @@ static status_t heap_update_internal(knl_session_t *session, knl_cursor_t *curso
                   cursor->rowid.page, page->head.type, ((table_t *)cursor->table)->desc.name);
 
     if (row->is_changed && dir->scn == cursor->ssn) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         cm_pop(session->stack);
-        GS_THROW_ERROR(ERR_ROW_SELF_UPDATED);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROW_SELF_UPDATED);
+        return CT_ERROR;
     }
 
     heap_generate_undo_for_update(session, cursor, cursor->rowid, page, &undo, ua);
@@ -4256,11 +4257,11 @@ static status_t heap_update_internal(knl_session_t *session, knl_cursor_t *curso
     if (ua->mode == UPDATE_INPLACE) {
         heap_update_write_inplace_rd(session, cursor, page, need_encrypt, entry_flag, ua);
         heap_update_inplace(session, cursor->offsets, cursor->lens, ua->info, row);
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         log_atomic_op_end(session);
 
         cm_pop(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // Calculate the accurate inc_size and row new_size
@@ -4268,7 +4269,7 @@ static status_t heap_update_internal(knl_session_t *session, knl_cursor_t *curso
 
     if (((ua->inc_size > 0) && ((uint32)ua->inc_size > page->free_size)) ||
         (ua->new_size > HEAP_MAX_ROW_SIZE(session) - cipher_reserve_size)) {
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         log_atomic_op_end(session);
         if (!cursor->row->is_migr) {
             ua->new_size += sizeof(rowid_t);
@@ -4283,13 +4284,13 @@ static status_t heap_update_internal(knl_session_t *session, knl_cursor_t *curso
     heap_update_inpage(session, cursor->row, cursor->offsets, cursor->lens, ua, page, (uint16)cursor->rowid.slot);
     owner_list = heap_get_owner_list(session, (heap_segment_t *)heap->segment, page->free_size);
     session->change_list = owner_list - (uint8)page->map.list_id;
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 
     heap_try_change_map(session, heap, GET_ROWID_PAGE(cursor->rowid));
     cm_pop(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 uint32 heap_table_max_row_len(knl_handle_t handle, uint32 max_col_size, knl_part_locate_t part_loc)
@@ -4320,7 +4321,7 @@ static status_t heap_write_delcol_update_info(knl_session_t *session, knl_cursor
                                               uint32 col_id)
 {
     row_put_null(ra);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_reorganize_update_info(knl_session_t *session, knl_cursor_t *cursor,
@@ -4329,7 +4330,7 @@ status_t heap_reorganize_update_info(knl_session_t *session, knl_cursor_t *curso
     uint32 i = 0;
     uint32 j = 0;
     row_assist_t ra;
-    bool32 from_add_info = GS_FALSE;
+    bool32 from_add_info = CT_FALSE;
     knl_update_info_t *old_info = add_update_column->old_info;
     knl_update_info_t *new_info = add_update_column->new_info;
     uint16 *add_cols = add_update_column->add_columns;
@@ -4338,12 +4339,12 @@ status_t heap_reorganize_update_info(knl_session_t *session, knl_cursor_t *curso
     knl_put_row_column_t put_col_func = is_csf ? heap_put_csf_row_column : heap_put_bmp_row_column;
 
     new_info->count = 0;
-    cm_row_init(&ra, new_info->data, GS_MAX_ROW_SIZE, add_count + old_info->count, is_csf);
+    cm_row_init(&ra, new_info->data, CT_MAX_ROW_SIZE, add_count + old_info->count, is_csf);
     while (i < add_count || j < old_info->count) {
         if (j >= old_info->count) {
-            from_add_info = GS_TRUE;
+            from_add_info = CT_TRUE;
         } else if (i >= add_count) {
-            from_add_info = GS_FALSE;
+            from_add_info = CT_FALSE;
         } else {
             from_add_info = (add_cols[i] < old_info->columns[j]);
         }
@@ -4351,8 +4352,8 @@ status_t heap_reorganize_update_info(knl_session_t *session, knl_cursor_t *curso
         if (from_add_info) {
             new_info->columns[new_info->count] = add_cols[i];
 
-            if (add_func(session, cursor, &ra, add_cols[i]) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (add_func(session, cursor, &ra, add_cols[i]) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             i++;
@@ -4366,7 +4367,7 @@ status_t heap_reorganize_update_info(knl_session_t *session, knl_cursor_t *curso
     }
 
     row_end(&ra);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_reorganize_del_column_update_info(knl_session_t *session, knl_cursor_t *cursor,
@@ -4396,7 +4397,7 @@ status_t heap_reorganize_del_column_update_info(knl_session_t *session, knl_curs
             continue;
         }
 
-        if (cursor->lens[i] == GS_NULL_VALUE_LEN) {
+        if (cursor->lens[i] == CT_NULL_VALUE_LEN) {
             continue;
         }
 
@@ -4410,16 +4411,16 @@ status_t heap_reorganize_del_column_update_info(knl_session_t *session, knl_curs
     add_update_column.add_count = del_count;
 
     if (heap_reorganize_update_info(session, cursor, &add_update_column,
-                                    heap_write_delcol_update_info) != GS_SUCCESS) {
+                                    heap_write_delcol_update_info) != CT_SUCCESS) {
         cm_pop(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_pop(session->stack);
 
     cm_decode_row(new_info->data, new_info->offsets, new_info->lens, NULL);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -4441,12 +4442,12 @@ bool32 heap_check_deleted_column(knl_cursor_t *cursor, knl_update_info_t *info, 
             continue;
         }
 
-        if (lens[i] != GS_NULL_VALUE_LEN) {
-            return GS_TRUE;
+        if (lens[i] != CT_NULL_VALUE_LEN) {
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 /*
@@ -4462,16 +4463,16 @@ status_t heap_convert_update(knl_session_t *session, knl_cursor_t *cursor, heap_
     dc_entity_t *entity = NULL;
     knl_update_info_t *del_info = NULL;
     knl_update_info_t *lob_info = NULL;
-    bool32 is_reorg = GS_FALSE;
+    bool32 is_reorg = CT_FALSE;
     status_t status;
-    uint32 max_row_len = heap_table_max_row_len(cursor->table, GS_MAX_ROW_SIZE, cursor->part_loc);
+    uint32 max_row_len = heap_table_max_row_len(cursor->table, CT_MAX_ROW_SIZE, cursor->part_loc);
 
     CM_SAVE_STACK(session->stack);
 
     entity = (dc_entity_t *)cursor->dc_entity;
 
     if (heap_check_deleted_column(cursor, &cursor->update_info, cursor->row, cursor->lens)) {
-        del_info = (knl_update_info_t *)cm_push(session->stack, sizeof(knl_update_info_t) + GS_MAX_ROW_SIZE);
+        del_info = (knl_update_info_t *)cm_push(session->stack, sizeof(knl_update_info_t) + CT_MAX_ROW_SIZE);
         del_info->data = (char *)del_info + sizeof(knl_update_info_t);
         CM_PUSH_UPDATE_INFO(session, *del_info);
         heap_reorganize_del_column_update_info(session, cursor, ua->info, del_info);
@@ -4480,16 +4481,16 @@ status_t heap_convert_update(knl_session_t *session, knl_cursor_t *cursor, heap_
     }
 
     if (entity->contain_lob && ua->new_size > max_row_len) {
-        lob_info = (knl_update_info_t *)cm_push(session->stack, sizeof(knl_update_info_t) + GS_MAX_ROW_SIZE);
+        lob_info = (knl_update_info_t *)cm_push(session->stack, sizeof(knl_update_info_t) + CT_MAX_ROW_SIZE);
         lob_info->data = (char *)lob_info + sizeof(knl_update_info_t);
         CM_PUSH_UPDATE_INFO(session, *lob_info);
 
         /*
          * lob_reorganize_update_info will check new size and throw ERR_RECORD_SIZE_OVERFLOW when row size overflow
          */
-        if (lob_reorganize_columns(session, cursor, ua, lob_info, &is_reorg) != GS_SUCCESS) {
+        if (lob_reorganize_columns(session, cursor, ua, lob_info, &is_reorg) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (is_reorg) {
@@ -4500,8 +4501,8 @@ status_t heap_convert_update(knl_session_t *session, knl_cursor_t *cursor, heap_
 
     if (ua->new_size > max_row_len) {
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "update row", ua->new_size, max_row_len);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "update row", ua->new_size, max_row_len);
+        return CT_ERROR;
     }
 
     status = heap_update_internal(session, cursor, ua);
@@ -4516,7 +4517,7 @@ status_t heap_update(knl_session_t *session, knl_cursor_t *cursor)
     heap_update_assist_t ua;
     dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
     status_t status;
-    uint32 max_row_len = heap_table_max_row_len(cursor->table, GS_MAX_ROW_SIZE, cursor->part_loc);
+    uint32 max_row_len = heap_table_max_row_len(cursor->table, CT_MAX_ROW_SIZE, cursor->part_loc);
 
     CM_ASSERT(!DB_IS_CLUSTER(session));
     SYNC_POINT(session, "SP_B4_HEAP_UPDATE");
@@ -4533,13 +4534,13 @@ status_t heap_update(knl_session_t *session, knl_cursor_t *cursor)
     }
 
     if (!IS_PART_TABLE(cursor->table)) {
-        cursor->part_loc.part_no = GS_INVALID_ID32;
-        cursor->part_loc.subpart_no = GS_INVALID_ID32;
+        cursor->part_loc.part_no = CT_INVALID_ID32;
+        cursor->part_loc.subpart_no = CT_INVALID_ID32;
     }
 
     // update assist
     ua.old_cols = ROW_COLUMN_COUNT(cursor->row);
-    // column count will not exceed GS_MAX_COLUMNS (4096)
+    // column count will not exceed CT_MAX_COLUMNS (4096)
     ua.new_cols = (uint16)entity->column_count;
     ROWID_COPY(ua.rowid, cursor->rowid);
     ua.info = &cursor->update_info;
@@ -4564,32 +4565,32 @@ static bool32 heap_get_lob_locator(knl_cursor_t *cursor, lob_locator_t **locator
     if (*update_id < update_info->count && column->id == update_info->columns[*update_id]) {
         if (!COLUMN_IS_LOB(column)) {
             (*update_id)++;
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         /* if the value of lob is null, skip it */
-        if (CURSOR_UPDATE_COLUMN_SIZE(cursor, *update_id) == GS_NULL_VALUE_LEN) {
+        if (CURSOR_UPDATE_COLUMN_SIZE(cursor, *update_id) == CT_NULL_VALUE_LEN) {
             (*update_id)++;
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         *locator = (lob_locator_t *)CURSOR_UPDATE_COLUMN_DATA(cursor, *update_id);
-        *from_update = GS_TRUE;
+        *from_update = CT_TRUE;
         (*update_id)++;
     } else {
         if (!COLUMN_IS_LOB(column)) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
-        if (CURSOR_COLUMN_SIZE(cursor, column->id) == GS_NULL_VALUE_LEN) {
-            return GS_FALSE;
+        if (CURSOR_COLUMN_SIZE(cursor, column->id) == CT_NULL_VALUE_LEN) {
+            return CT_FALSE;
         }
 
         *locator = (lob_locator_t *)CURSOR_COLUMN_DATA(cursor, column->id);
-        *from_update = GS_FALSE;
+        *from_update = CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static status_t heap_insert_lob_new_part(knl_session_t *session, knl_cursor_t *cursor, row_head_t *new_row,
@@ -4599,7 +4600,7 @@ static status_t heap_insert_lob_new_part(knl_session_t *session, knl_cursor_t *c
     lob_locator_t *locator = NULL;
     knl_column_t *column = NULL;
     lob_t *lob = NULL;
-    bool32 lob_from_update = GS_FALSE;
+    bool32 lob_from_update = CT_FALSE;
 
     knl_part_locate_t new_part_loc = cursor->part_loc;
     dc_entity_t *dc_entity = (dc_entity_t *)cursor->dc_entity;
@@ -4627,31 +4628,31 @@ static status_t heap_insert_lob_new_part(knl_session_t *session, knl_cursor_t *c
 
         ret = memset_sp(&insert_locator, sizeof(lob_locator_t), 0xFF, sizeof(lob_locator_t));
         knl_securec_check(ret);
-        insert_locator.head.is_outline = GS_TRUE;
+        insert_locator.head.is_outline = CT_TRUE;
         insert_locator.head.type = locator->head.type;
         lob = (lob_t *)column->lob;
-        if (knl_copy_lob(session, cursor, &insert_locator, locator, column) != GS_SUCCESS) {
+        if (knl_copy_lob(session, cursor, &insert_locator, locator, column) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         /* delete lob on the update info */
         if (lob_from_update) {
             cursor->part_loc = old_part_loc;
-            if (lob_recycle_pages(session, cursor, lob, locator) != GS_SUCCESS) {
+            if (lob_recycle_pages(session, cursor, lob, locator) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             cursor->part_loc = new_part_loc;
         }
 
         /* update lob locator for insert cursor */
-        ret = memcpy_sp((char*)new_row + offsets[i], GS_MAX_ROW_SIZE, &insert_locator, sizeof(lob_locator_t));
+        ret = memcpy_sp((char*)new_row + offsets[i], CT_MAX_ROW_SIZE, &insert_locator, sizeof(lob_locator_t));
         knl_securec_check(ret);
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* update overpart prepare interface. This function reorganize the new row with the old row and update info.
@@ -4691,37 +4692,37 @@ status_t heap_prepare_update_overpart(knl_session_t *session, knl_cursor_t *curs
      */
     offsets = (uint16 *)cm_push(session->stack, table->desc.column_count * sizeof(uint16));
     lens = (uint16 *)cm_push(session->stack, table->desc.column_count * sizeof(uint16));
-    cm_row_init(&ra, (char*)new_row, GS_MAX_ROW_SIZE, table->desc.column_count, is_csf);
+    cm_row_init(&ra, (char*)new_row, CT_MAX_ROW_SIZE, table->desc.column_count, is_csf);
     heap_reorganize_with_update(cursor->row, cursor->offsets, cursor->lens, &cursor->update_info, &ra);
     cm_decode_row((char *)new_row, offsets, lens, NULL);
 
     /* a row can be updated into another new interval part that is not existes now, so it is need to create
      * a new interval part before insert data into it.
      */
-    key = (part_key_t *)cm_push(session->stack, GS_MAX_COLUMN_SIZE);
-    errno_t ret = memset_sp(key, GS_MAX_COLUMN_SIZE, 0, GS_MAX_COLUMN_SIZE);
+    key = (part_key_t *)cm_push(session->stack, CT_MAX_COLUMN_SIZE);
+    errno_t ret = memset_sp(key, CT_MAX_COLUMN_SIZE, 0, CT_MAX_COLUMN_SIZE);
     knl_securec_check(ret);
-    if (part_generate_part_key(session, new_row, offsets, lens, part_table, key) != GS_SUCCESS) {
+    if (part_generate_part_key(session, new_row, offsets, lens, part_table, key) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (knl_verify_interval_part(entity, new_part_loc.part_no)) {
-        if (knl_create_interval_part(session, &dc, new_part_loc.part_no, key) != GS_SUCCESS) {
+        if (knl_create_interval_part(session, &dc, new_part_loc.part_no, key) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
     knl_set_table_part(cursor, new_part_loc);
 
     /* write the lob data into the new lob part segment and put the lob locator onto insert cursor */
-    if (heap_insert_lob_new_part(session, cursor, new_row, &cursor->update_info, old_part_loc) != GS_SUCCESS) {
+    if (heap_insert_lob_new_part(session, cursor, new_row, &cursor->update_info, old_part_loc) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void heap_revert_update(knl_session_t *session, heap_undo_update_info_t *undo_info, row_head_t *row,
@@ -4738,19 +4739,19 @@ void heap_revert_update(knl_session_t *session, heap_undo_update_info_t *undo_in
     CM_SAVE_STACK(session->stack);
     CM_PUSH_UPDATE_INFO(session, info);
 
-    buf = (char *)cm_push(session->stack, GS_MAX_ROW_SIZE);
+    buf = (char *)cm_push(session->stack, CT_MAX_ROW_SIZE);
     knl_panic_log(buf != NULL, "current buf is NULL.");
 
 #ifdef LOG_DIAG
     // Random buf may cause inconsistent row memory area when column lens is non-aligned.
-    ret = memset_sp(buf, GS_MAX_ROW_SIZE, 0, GS_MAX_ROW_SIZE);
+    ret = memset_sp(buf, CT_MAX_ROW_SIZE, 0, CT_MAX_ROW_SIZE);
     knl_securec_check(ret);
 #endif
     new_ra.is_csf = row->is_csf;
     row_size = row->size;
 
     info.count = undo_info->count;
-    // the max value of info.count is GS_MAX_COLUMNS (4096)
+    // the max value of info.count is CT_MAX_COLUMNS (4096)
     col_size = info.count * sizeof(uint16);
     if (col_size != 0) {
         ret = memcpy_sp(info.columns, (session)->kernel->attr.max_column_count * sizeof(uint16),
@@ -4835,7 +4836,7 @@ void heap_undo_link_row(knl_session_t *session, undo_row_t *ud_row, rowid_t *rid
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     heap_page_t *page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -4865,7 +4866,7 @@ void heap_undo_link_row(knl_session_t *session, undo_row_t *ud_row, rowid_t *rid
         CM_RESTORE_STACK(session->stack);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 void heap_undo_update(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot,
@@ -4893,7 +4894,7 @@ void heap_undo_update(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged((page_head_t *)page)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -4916,25 +4917,25 @@ void heap_undo_update(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
                 part_loc = *(knl_part_locate_t *)((char *)ud_row->data + ud_data_size);
             } else {
                 part_loc.part_no = *(uint32 *)((char *)ud_row->data + ud_data_size);
-                part_loc.subpart_no = GS_INVALID_ID32;
+                part_loc.subpart_no = CT_INVALID_ID32;
             }
             heap = dc_get_heap(session, page->uid, page->oid, part_loc, dc);
 
             heap_assist->heap = heap;
-            heap_assist->need_latch = GS_TRUE;
-            buf_leave_page(session, GS_FALSE);
+            heap_assist->need_latch = CT_TRUE;
+            buf_leave_page(session, CT_FALSE);
             return;
         }
 
         link_rid = *HEAP_LOC_LINK_RID(row);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         heap_undo_link_row(session, ud_row, &link_rid, dc, heap_assist);
 
         /* ok, now rollback the origin row */
         buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
         page = (heap_page_t *)CURR_PAGE(session);
         if (page_is_damaged((page_head_t *)page)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             return;
         }
         dir = heap_get_dir(page, (uint32)rid.slot);
@@ -4942,7 +4943,7 @@ void heap_undo_update(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
     }
 
     if (!row->is_migr) {
-        knl_panic_log(ROW_ITL_ID(row) != GS_INVALID_ID8, "row_itl_id is invalid, panic info: page %u-%u type %u",
+        knl_panic_log(ROW_ITL_ID(row) != CT_INVALID_ID8, "row_itl_id is invalid, panic info: page %u-%u type %u",
                       AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.type);
         itl = heap_get_itl(page, ROW_ITL_ID(row));
         knl_panic_log(itl->is_active, "itl is inactive, panic info: page %u-%u type %u", AS_PAGID(page->head.id).file,
@@ -4958,7 +4959,7 @@ void heap_undo_update(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
 
     if (ud_row->is_xfirst) {
         dir->scn = ud_row->scn;
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     } else {
         dir->scn = ud_row->ssn;
     }
@@ -4976,7 +4977,7 @@ void heap_undo_update(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
     }
 
     if (is_link) {
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         return;
     }
 
@@ -5012,7 +5013,7 @@ void heap_undo_update(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
         CM_RESTORE_STACK(session->stack);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 static void heap_delete_link_row(knl_session_t *session, knl_cursor_t *cursor, rowid_t lnk_rid)
@@ -5045,7 +5046,7 @@ static void heap_delete_link_row(knl_session_t *session, knl_cursor_t *cursor, r
     if (IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type)) {
         log_put(session, RD_HEAP_DELETE_LINK, &slot, sizeof(uint16), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 }
 
@@ -5060,8 +5061,8 @@ static status_t heap_delete_row(knl_session_t *session, knl_cursor_t *cursor, ro
     rd_heap_delete_t rd;
     heap_t *heap = CURSOR_HEAP(cursor);
     bool32 need_encrypt = SPACE_NEED_ENCRYPT(heap->cipher_reserve_size);
-    if (undo_prepare(session, data_size, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), need_encrypt) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (undo_prepare(session, data_size, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), need_encrypt) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     undo.type = is_org ? UNDO_HEAP_DELETE_ORG : UNDO_HEAP_DELETE;
@@ -5081,14 +5082,14 @@ static status_t heap_delete_row(knl_session_t *session, knl_cursor_t *cursor, ro
     row = HEAP_GET_ROW(page, dir);
     if (row->is_changed && self_update_check && dir->scn == cursor->ssn) {
         cursor->is_found = (row->is_deleted == 0);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
 
         if (cursor->is_found) {
-            GS_THROW_ERROR(ERR_ROW_SELF_UPDATED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ROW_SELF_UPDATED);
+            return CT_ERROR;
         } else {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
@@ -5097,7 +5098,7 @@ static status_t heap_delete_row(knl_session_t *session, knl_cursor_t *cursor, ro
     undo.snapshot.undo_page = dir->undo_page;
     undo.snapshot.undo_slot = dir->undo_slot;
     undo.snapshot.is_xfirst = cursor->is_xfirst;
-    undo.snapshot.contain_subpartno = GS_FALSE;
+    undo.snapshot.contain_subpartno = CT_FALSE;
 
     if (IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type)) {
         dir->undo_page = session->rm->undo_page_info.undo_rid.page_id;
@@ -5122,7 +5123,7 @@ static status_t heap_delete_row(knl_session_t *session, knl_cursor_t *cursor, ro
 
     undo.data = (row->is_migr || is_org) ? (char *)row : (char *)cursor->row;
 
-    undo_write(session, &undo, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), GS_FALSE);
+    undo_write(session, &undo, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), CT_FALSE);
 
     knl_panic_log(!row->is_deleted, "row is deleted, panic info: page %u-%u type %u table %s", cursor->rowid.file,
                   cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type, ((table_t *)cursor->table)->desc.name);
@@ -5141,12 +5142,12 @@ static status_t heap_delete_row(knl_session_t *session, knl_cursor_t *cursor, ro
         log_put(session, RD_HEAP_DELETE, &rd, sizeof(rd_heap_delete_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 
     heap_delete_link_row(session, cursor, lnk_rid);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_delete_chain_rows(knl_session_t *session, knl_cursor_t *cursor)
@@ -5157,24 +5158,24 @@ static status_t heap_delete_chain_rows(knl_session_t *session, knl_cursor_t *cur
     uint8 i;
 
     lnk_rid = INVALID_ROWID;
-    if (heap_delete_row(session, cursor, cursor->rowid, lnk_rid, GS_TRUE, HEAP_MIN_ROW_SIZE, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_delete_row(session, cursor, cursor->rowid, lnk_rid, CT_TRUE, HEAP_MIN_ROW_SIZE, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!cursor->is_found) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (i = 0; i < cursor->chain_count; i++) {
         chain = chain_info->chains + i;
 
-        if (heap_delete_row(session, cursor, chain->chain_rid, lnk_rid, GS_FALSE,
-                            chain->data_size, GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_delete_row(session, cursor, chain->chain_rid, lnk_rid, CT_FALSE,
+                            chain->data_size, CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_delete(knl_session_t *session, knl_cursor_t *cursor)
@@ -5196,13 +5197,13 @@ status_t heap_delete(knl_session_t *session, knl_cursor_t *cursor)
     if (has_logic && IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type) && (!IS_SYS_TABLE(&entity->table))) {
         log_atomic_op_begin(session);
         log_put(session, RD_LOGIC_REP_DELETE, NULL, 0, LOG_ENTRY_FLAG_WITH_LOGIC_OID);
-        heap_append_logic_data(session, cursor, GS_TRUE);
+        heap_append_logic_data(session, cursor, CT_TRUE);
         log_atomic_op_end(session);
     }
 
     if (entity->contain_lob) {
-        if (GS_SUCCESS != lob_delete(session, cursor)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != lob_delete(session, cursor)) {
+            return CT_ERROR;
         }
     }
 
@@ -5210,12 +5211,12 @@ status_t heap_delete(knl_session_t *session, knl_cursor_t *cursor)
         return heap_delete_chain_rows(session, cursor);
     }
 
-    if (heap_delete_row(session, cursor, cursor->rowid, cursor->link_rid, GS_FALSE,
-                        cursor->row->size, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_delete_row(session, cursor, cursor->rowid, cursor->link_rid, CT_FALSE,
+                        cursor->row->size, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void heap_undo_delete_link_row(knl_session_t *session, rowid_t *link_rid)
@@ -5232,7 +5233,7 @@ void heap_undo_delete_link_row(knl_session_t *session, rowid_t *link_rid)
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged(&page->head)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -5250,12 +5251,12 @@ void heap_undo_delete_link_row(knl_session_t *session, rowid_t *link_rid)
             log_put(session, RD_HEAP_UNDO_DELETE_LINK, &slot, sizeof(uint16), LOG_ENTRY_FLAG_NONE);
         }
 
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         log_atomic_op_end(session);
 
         return;
     }
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     log_atomic_op_end(session);
 }
@@ -5279,7 +5280,7 @@ void heap_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
     buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     page = (heap_page_t *)CURR_PAGE(session);
     if (page_is_damaged((page_head_t *)page)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -5291,12 +5292,12 @@ void heap_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
                   "dir undo_slot %u ud_slot %u", AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page,
                   page->head.type, dir->undo_slot, ud_slot);
     row = HEAP_GET_ROW(page, dir);
-    knl_panic_log(ROW_ITL_ID(row) != GS_INVALID_ID8, "this row's itl_id is invalid, panic info: page %u-%u type %u",
+    knl_panic_log(ROW_ITL_ID(row) != CT_INVALID_ID8, "this row's itl_id is invalid, panic info: page %u-%u type %u",
                   AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.type);
 
     if (row->is_link) {
         link_rid = *HEAP_LOC_LINK_RID(row);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
         log_atomic_op_end(session);
 
@@ -5310,7 +5311,7 @@ void heap_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
         buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
         page = (heap_page_t *)CURR_PAGE(session);
         if (page_is_damaged((page_head_t *)page)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             return;
         }
         dir = heap_get_dir(page, (uint32)rid.slot);
@@ -5331,7 +5332,7 @@ void heap_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
     // to keep consistent read, only after rollback, can we set the dir itl_id to invalid.
     if (ud_row->is_xfirst) {
         dir->scn = ud_row->scn;
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     } else {
         dir->scn = ud_row->ssn;
     }
@@ -5357,14 +5358,14 @@ void heap_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *u
         log_put(session, RD_HEAP_UNDO_DELETE, &redo, sizeof(rd_heap_undo_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 static void heap_reorganize_with_undo(knl_session_t *session, const knl_cursor_t *cursor, query_snapshot_t *query_info,
                                       undo_row_t *ud_row, bool32 *is_found)
 {
     errno_t ret;
-    *is_found = GS_TRUE;
+    *is_found = CT_TRUE;
     table_t *table = (table_t *)cursor->table;
     uint32 partloc_size = undo_part_locate_size(table);
 
@@ -5374,7 +5375,7 @@ static void heap_reorganize_with_undo(knl_session_t *session, const knl_cursor_t
         heap_revert_update(session, (heap_undo_update_info_t *)ud_row->data, query_info->row,
                            query_info->offsets, query_info->lens);
     } else if (ud_row->type == UNDO_HEAP_INSERT) {
-        *is_found = GS_FALSE;
+        *is_found = CT_FALSE;
     } else if (ud_row->type == UNDO_HEAP_DELETE || ud_row->type == UNDO_HEAP_DELETE_ORG ||
         ud_row->type == UNDO_HEAP_COMPACT_DELETE || ud_row->type == UNDO_HEAP_COMPACT_DELETE_ORG) {
         ret = memcpy_sp(query_info->row, ud_row->data_size, ud_row->data, ud_row->data_size);
@@ -5395,38 +5396,38 @@ static void heap_reorganize_with_undo(knl_session_t *session, const knl_cursor_t
 static status_t heap_reorganize_with_udss(knl_session_t *session, knl_cursor_t *cursor, query_snapshot_t *query_info,
                                           undo_snapshot_t *snapshot, bool32 *is_found)
 {
-    if (buf_read_page(session, PAGID_U2N(snapshot->undo_page), LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (buf_read_page(session, PAGID_U2N(snapshot->undo_page), LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     undo_page_t *ud_page = (undo_page_t *)CURR_PAGE(session);
     if ((uint16)snapshot->undo_slot >= ud_page->rows) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         tx_record_sql(session);
-        GS_LOG_RUN_ERR("snapshot too old, detail: snapshot slot %u, undo rows %u, query scn %llu",
+        CT_LOG_RUN_ERR("snapshot too old, detail: snapshot slot %u, undo rows %u, query scn %llu",
                        (uint32)snapshot->undo_slot, ud_page->rows, query_info->query_scn);
-        GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+        return CT_ERROR;
     }
 
     undo_row_t *ud_row = UNDO_ROW(session, ud_page, snapshot->undo_slot);
     if (!snapshot->is_xfirst) {
         if (snapshot->xid != ud_row->xid.value) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             tx_record_sql(session);
-            GS_LOG_RUN_ERR("snapshot too old, detail: snapshot xid %llu, undo row xid %llu, query scn %llu",
+            CT_LOG_RUN_ERR("snapshot too old, detail: snapshot xid %llu, undo row xid %llu, query scn %llu",
                            snapshot->xid, ud_row->xid.value, query_info->query_scn);
-            GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+            return CT_ERROR;
         }
     } else {
         if (snapshot->scn <= ud_row->scn || !IS_SAME_ROWID(ud_row->rowid, query_info->rowid)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             tx_record_sql(session);
-            GS_LOG_RUN_ERR("snapshot too old, detail: snapshot scn %llu, undo row scn %llu, query scn %llu",
+            CT_LOG_RUN_ERR("snapshot too old, detail: snapshot scn %llu, undo row scn %llu, query scn %llu",
                            snapshot->scn, ud_row->scn, query_info->query_scn);
-            GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+            return CT_ERROR;
         }
     }
 
@@ -5443,11 +5444,11 @@ static status_t heap_reorganize_with_udss(knl_session_t *session, knl_cursor_t *
                          ud_row->type != UNDO_HEAP_DELETE_MIGR && ud_row->type != UNDO_HEAP_COMPACT_DELETE &&
                          ud_row->type != UNDO_HEAP_COMPACT_DELETE_ORG);
             snapshot->scn = ud_row->scn;
-            snapshot->is_owscn = GS_FALSE;
-            snapshot->is_xfirst = GS_TRUE;
+            snapshot->is_owscn = CT_FALSE;
+            snapshot->is_xfirst = CT_TRUE;
             snapshot->xid = ud_row->xid.value;
-            buf_leave_page(session, GS_FALSE);
-            return GS_SUCCESS;
+            buf_leave_page(session, CT_FALSE);
+            return CT_SUCCESS;
         }
     }
 
@@ -5465,11 +5466,11 @@ static status_t heap_reorganize_with_udss(knl_session_t *session, knl_cursor_t *
                               cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
                               ((table_t *)cursor->table)->desc.name, ud_row->type);
                 snapshot->scn = ud_row->ssn;
-                snapshot->is_owscn = GS_FALSE;
-                snapshot->is_xfirst = GS_TRUE;
+                snapshot->is_owscn = CT_FALSE;
+                snapshot->is_xfirst = CT_TRUE;
                 snapshot->xid = ud_row->xid.value;
-                buf_leave_page(session, GS_FALSE);
-                return GS_SUCCESS;
+                buf_leave_page(session, CT_FALSE);
+                return CT_SUCCESS;
             }
         }
     }
@@ -5479,9 +5480,9 @@ static status_t heap_reorganize_with_udss(knl_session_t *session, knl_cursor_t *
     snapshot->is_owscn = ud_row->is_owscn;
     snapshot->is_xfirst = ud_row->is_xfirst;
     snapshot->xid = ud_row->xid.value;
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_reorganize_with_undo_list(knl_session_t *session, knl_cursor_t *cursor,
@@ -5493,12 +5494,12 @@ static status_t heap_reorganize_with_undo_list(knl_session_t *session, knl_curso
         page_id = PAGID_U2N(snapshot->undo_page);
         if (IS_INVALID_PAGID(page_id)) {
             // row inserted after query starting
-            *is_found = GS_FALSE;
-            return GS_SUCCESS;
+            *is_found = CT_FALSE;
+            return CT_SUCCESS;
         }
 
-        if (heap_reorganize_with_udss(session, cursor, query_ss, snapshot, is_found) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_reorganize_with_udss(session, cursor, query_ss, snapshot, is_found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!snapshot->is_xfirst) {
@@ -5507,19 +5508,19 @@ static status_t heap_reorganize_with_undo_list(knl_session_t *session, knl_curso
 
         if (snapshot->scn <= query_ss->query_scn) {
             query_ss->scn = snapshot->scn;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (snapshot->is_owscn) {
             tx_record_sql(session);
-            GS_LOG_RUN_ERR("snapshot too old, detail: snapshot owscn %llu, query scn %llu",
+            CT_LOG_RUN_ERR("snapshot too old, detail: snapshot owscn %llu, query scn %llu",
                            snapshot->scn, query_ss->query_scn);
-            GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+            return CT_ERROR;
         }
 
         if (cursor->isolevel == (uint8)ISOLATION_SERIALIZABLE) {
-            cursor->ssi_conflict = GS_TRUE;
+            cursor->ssi_conflict = CT_TRUE;
         }
     }
 }
@@ -5527,41 +5528,41 @@ static status_t heap_reorganize_with_undo_list(knl_session_t *session, knl_curso
 static status_t heap_check_visible_with_udss(knl_session_t *session, knl_cursor_t *cursor,
     bool32 check_restart, bool32 *is_found)
 {
-    if (buf_read_page(session, PAGID_U2N(cursor->snapshot.undo_page), LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (buf_read_page(session, PAGID_U2N(cursor->snapshot.undo_page), LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     undo_page_t *ud_page = (undo_page_t *)CURR_PAGE(session);
     if ((uint16)cursor->snapshot.undo_slot >= ud_page->rows) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         tx_record_sql(session);
-        GS_LOG_RUN_ERR("snapshot too old, detail: snapshot slot %u, undo rows %u,"
+        CT_LOG_RUN_ERR("snapshot too old, detail: snapshot slot %u, undo rows %u,"
             " query scn %llu, check_restart %u",
             (uint32)cursor->snapshot.undo_slot, ud_page->rows, cursor->query_scn, (uint32)check_restart);
-        GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+        return CT_ERROR;
     }
 
     undo_row_t *ud_row = UNDO_ROW(session, ud_page, (uint16)cursor->snapshot.undo_slot);
     if (!cursor->snapshot.is_xfirst) {
         if (cursor->snapshot.xid != ud_row->xid.value) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             tx_record_sql(session);
-            GS_LOG_RUN_ERR("snapshot too old, detail: snapshot xid %llu, undo row xid %llu,"
+            CT_LOG_RUN_ERR("snapshot too old, detail: snapshot xid %llu, undo row xid %llu,"
                 " query scn %llu, check_restart %u",
                 cursor->snapshot.xid, ud_row->xid.value, cursor->query_scn, (uint32)check_restart);
-            GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+            return CT_ERROR;
         }
     } else {
         if (cursor->snapshot.scn <= ud_row->scn || !IS_SAME_ROWID(ud_row->rowid, cursor->rowid)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             tx_record_sql(session);
-            GS_LOG_RUN_ERR("snapshot too old, detail: snapshot scn %llu, undo row scn %llu,"
+            CT_LOG_RUN_ERR("snapshot too old, detail: snapshot scn %llu, undo row scn %llu,"
                 " query scn %llu, check_restart %u",
                 cursor->snapshot.scn, ud_row->scn, cursor->query_scn, (uint32)check_restart);
-            GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+            return CT_ERROR;
         }
     }
 
@@ -5577,18 +5578,18 @@ static status_t heap_check_visible_with_udss(knl_session_t *session, knl_cursor_
                      ud_row->type != UNDO_HEAP_DELETE_MIGR && ud_row->type != UNDO_HEAP_COMPACT_DELETE &&
                      ud_row->type != UNDO_HEAP_COMPACT_DELETE_ORG);
         cursor->snapshot.scn = ud_row->scn;
-        cursor->snapshot.is_owscn = GS_FALSE;
-        cursor->snapshot.is_xfirst = GS_TRUE;
+        cursor->snapshot.is_owscn = CT_FALSE;
+        cursor->snapshot.is_xfirst = CT_TRUE;
         cursor->snapshot.xid = ud_row->xid.value;
-        buf_leave_page(session, GS_FALSE);
-        return GS_SUCCESS;
+        buf_leave_page(session, CT_FALSE);
+        return CT_SUCCESS;
     }
 
     if (check_restart) {
         if (ud_row->type == UNDO_HEAP_COMPACT_DELETE || ud_row->type == UNDO_HEAP_COMPACT_DELETE_ORG) {
-            buf_leave_page(session, GS_FALSE);
-            GS_THROW_ERROR(ERR_NEED_RESTART);
-            return GS_ERROR;
+            buf_leave_page(session, CT_FALSE);
+            CT_THROW_ERROR(ERR_NEED_RESTART);
+            return CT_ERROR;
         }
     } else {
         *is_found = (ud_row->type != UNDO_HEAP_INSERT);
@@ -5600,9 +5601,9 @@ static status_t heap_check_visible_with_udss(knl_session_t *session, knl_cursor_
     cursor->snapshot.is_owscn = ud_row->is_owscn;
     cursor->snapshot.is_xfirst = ud_row->is_xfirst;
     cursor->snapshot.xid = ud_row->xid.value;
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -5620,12 +5621,12 @@ static status_t heap_check_current_visible(knl_session_t *session, knl_cursor_t 
     for (;;) {
         if (IS_INVALID_PAGID(cursor->snapshot.undo_page)) {
             // this would never happened
-            *is_found = GS_FALSE;
-            return GS_SUCCESS;
+            *is_found = CT_FALSE;
+            return CT_SUCCESS;
         }
 
-        if (heap_check_visible_with_udss(session, cursor, check_restart, is_found) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_check_visible_with_udss(session, cursor, check_restart, is_found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!cursor->snapshot.is_xfirst) {
@@ -5633,15 +5634,15 @@ static status_t heap_check_current_visible(knl_session_t *session, knl_cursor_t 
         }
 
         if (cursor->snapshot.scn <= cursor->query_scn) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (cursor->snapshot.is_owscn) {
             tx_record_sql(session);
-            GS_LOG_RUN_ERR("snapshot too old, detail: snapshot owscn %llu, query scn %llu, check_restart %u",
+            CT_LOG_RUN_ERR("snapshot too old, detail: snapshot owscn %llu, query scn %llu, check_restart %u",
                            cursor->snapshot.scn, cursor->query_scn, (uint32)check_restart);
-            GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+            return CT_ERROR;
         }
 
         if (check_restart) {
@@ -5650,7 +5651,7 @@ static status_t heap_check_current_visible(knl_session_t *session, knl_cursor_t 
 
         if (!*is_found) {
             // visible row has been deleted
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 }
@@ -5671,7 +5672,7 @@ void heap_reorganize_chain_row(knl_session_t *session, knl_cursor_t *cursor, row
     errno_t ret;
 
     if (row->is_csf) {
-        if (ROW_COLUMN_COUNT(row) >= GS_SPRS_COLUMNS && column_count < GS_SPRS_COLUMNS) {
+        if (ROW_COLUMN_COUNT(row) >= CT_SPRS_COLUMNS && column_count < CT_SPRS_COLUMNS) {
             row->column_count = column_count;
             row->itl_id = row->sprs_itl_id;
 
@@ -5700,7 +5701,7 @@ void heap_reorganize_chain_row(knl_session_t *session, knl_cursor_t *cursor, row
     new_data_addr = (char *)row + sizeof(row_head_t) + new_ext_bitmap;
     data_size = row->size - sizeof(row_head_t) - ext_bitmap;
 
-    knl_panic_log(sizeof(row_head_t) + new_ext_bitmap + data_size <= GS_MAX_ROW_SIZE, "the row size is more than "
+    knl_panic_log(sizeof(row_head_t) + new_ext_bitmap + data_size <= CT_MAX_ROW_SIZE, "the row size is more than "
                   "max row size, panic info: page %u-%u type %u table %s new_ext_bitmap %u data_size %u",
                   cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
                   ((table_t *)cursor->table)->desc.name, new_ext_bitmap, data_size);
@@ -5710,7 +5711,7 @@ void heap_reorganize_chain_row(knl_session_t *session, knl_cursor_t *cursor, row
      * bitmap to its new correct address first, than move the row data.
      * Other wise, only move the row data.
      */
-    if (ROW_COLUMN_COUNT(row) >= GS_SPRS_COLUMNS && column_count < GS_SPRS_COLUMNS) {
+    if (ROW_COLUMN_COUNT(row) >= CT_SPRS_COLUMNS && column_count < CT_SPRS_COLUMNS) {
         row->column_count = column_count;
         row->itl_id = row->sprs_itl_id;
 
@@ -5755,15 +5756,15 @@ void heap_merge_chain_row(knl_cursor_t *cursor, row_head_t *row, uint16 col_id_i
 
     copy_size = data_size - HEAP_ROW_DATA_OFFSET(row);
     if (copy_size != 0) { // all columns are not null
-        knl_panic_log(cursor->row->size + copy_size <= GS_VMEM_PAGE_SIZE, "the row size is more than "
+        knl_panic_log(cursor->row->size + copy_size <= CT_VMEM_PAGE_SIZE, "the row size is more than "
                       "the vmem page size, panic info: page %u-%u type %u table %s current row size %u copy_size %u",
                       cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
                       ((table_t *)cursor->table)->desc.name, cursor->row->size, copy_size);
         row_data = (char *)HEAP_LOC_CHAIN_ROW_DATA(row);
-        ret = memcpy_sp(data, GS_VMEM_PAGE_SIZE - *offset, row_data, copy_size);
+        ret = memcpy_sp(data, CT_VMEM_PAGE_SIZE - *offset, row_data, copy_size);
         knl_securec_check(ret);
         *offset += copy_size;
-        cursor->row->size += copy_size;  // the sum of chain row size is less than GS_MAX_ROW_SIZE(64000)
+        cursor->row->size += copy_size;  // the sum of chain row size is less than CT_MAX_ROW_SIZE(64000)
     }
 }
 
@@ -5772,18 +5773,18 @@ static status_t heap_get_chain_migr_row(knl_session_t *session, knl_cursor_t *cu
 {
     rowid_t next_rid = *HEAP_LOC_LINK_RID(chain_row);
     if (IS_INVALID_ROWID(next_rid)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (buf_read_page(session, GET_ROWID_PAGE(next_rid), LATCH_MODE_FORCE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (buf_read_page(session, GET_ROWID_PAGE(next_rid), LATCH_MODE_FORCE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     heap_page_t *migr_page = (heap_page_t *)CURR_PAGE(session);
     if (!heap_check_page(session, cursor, migr_page, PAGE_TYPE_HEAP_DATA)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         HEAP_CHECKPAGE_ERROR(cursor);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     row_dir_t migr_dir = *heap_get_dir(migr_page, (uint32)next_rid.slot);
@@ -5793,8 +5794,8 @@ static status_t heap_get_chain_migr_row(knl_session_t *session, knl_cursor_t *cu
         errno_t ret = memcpy_sp(row, HEAP_MAX_MIGR_ROW_SIZE(session), migr_row, migr_row->size);
         knl_securec_check(ret);
     }
-    buf_leave_page(session, GS_FALSE);
-    return GS_SUCCESS;
+    buf_leave_page(session, CT_FALSE);
+    return CT_SUCCESS;
 }
 
 static void heap_get_chain_row(knl_session_t *session, knl_cursor_t *cursor, row_head_t *row,
@@ -5812,28 +5813,28 @@ static void heap_get_chain_row(knl_session_t *session, knl_cursor_t *cursor, row
         knl_securec_check(ret);
     }
 
-    if ((*chain_row) == NULL || (ROW_ITL_ID(*chain_row) == GS_INVALID_ID8) || !(*chain_row)->is_changed) {
+    if ((*chain_row) == NULL || (ROW_ITL_ID(*chain_row) == CT_INVALID_ID8) || !(*chain_row)->is_changed) {
         txn_info.scn = dir.scn;
         txn_info.is_owscn = (uint8)dir.is_owscn;
         txn_info.status = (uint8)XACT_END;
     } else {
         itl = heap_get_itl(page, ROW_ITL_ID(*chain_row));
-        tx_get_itl_info(session, GS_TRUE, itl, &txn_info);
+        tx_get_itl_info(session, CT_TRUE, itl, &txn_info);
     }
 
-    snapshot->is_valid = GS_FALSE;
+    snapshot->is_valid = CT_FALSE;
     if (txn_info.status == (uint8)XACT_END) {
         if (txn_info.scn > query_scn) {
-            snapshot->is_valid = GS_TRUE;
+            snapshot->is_valid = CT_TRUE;
             snapshot->scn = txn_info.scn;
-            snapshot->is_xfirst = GS_TRUE;
-            snapshot->xid = GS_INVALID_ID64;
+            snapshot->is_xfirst = CT_TRUE;
+            snapshot->xid = CT_INVALID_ID64;
         }
     } else {
         if (itl->xid.value != cursor->xid || dir.scn >= cursor->ssn) {
-            snapshot->is_valid = GS_TRUE;
+            snapshot->is_valid = CT_TRUE;
             snapshot->scn = DB_CURR_SCN(session);
-            snapshot->is_xfirst = GS_FALSE;
+            snapshot->is_xfirst = CT_FALSE;
             snapshot->xid = itl->xid.value;
         }
     }
@@ -5860,34 +5861,34 @@ static status_t heap_fetch_chain_row(knl_session_t *session, knl_cursor_t *curso
     SYNC_POINT(session, "SP_B1_HEAP_GET_CHAIN_ROW");
     SYNC_POINT(session, "SP_B2_HEAP_GET_CHAIN_ROW");
 
-    if (buf_read_page(session, GET_ROWID_PAGE(next_rid), LATCH_MODE_FORCE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (buf_read_page(session, GET_ROWID_PAGE(next_rid), LATCH_MODE_FORCE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     heap_page_t *page = (heap_page_t *)CURR_PAGE(session);
 
     if (!heap_check_page(session, cursor, page, PAGE_TYPE_HEAP_DATA)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         HEAP_CHECKPAGE_ERROR(cursor);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if ((uint16)next_rid.slot >= page->dirs) {
-        buf_leave_page(session, GS_FALSE);
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
-        return GS_ERROR;
+        buf_leave_page(session, CT_FALSE);
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
+        return CT_ERROR;
     }
 
     heap_get_chain_row(session, cursor, row, &chain_row, next_rid, snapshot, query_scn);
 
     if (chain_row != NULL && chain_row->is_link) {
-        if (heap_get_chain_migr_row(session, cursor, chain_row, row) != GS_SUCCESS) {
-            buf_leave_page(session, GS_FALSE);
-            return GS_ERROR;
+        if (heap_get_chain_migr_row(session, cursor, chain_row, row) != CT_SUCCESS) {
+            buf_leave_page(session, CT_FALSE);
+            return CT_ERROR;
         }
     }
 
-    buf_leave_page(session, GS_FALSE);
-    return GS_SUCCESS;
+    buf_leave_page(session, CT_FALSE);
+    return CT_SUCCESS;
 }
 
 static status_t heap_fetch_chain_rows(knl_session_t *session, knl_cursor_t *cursor, knl_scn_t query_scn)
@@ -5905,18 +5906,18 @@ static status_t heap_fetch_chain_rows(knl_session_t *session, knl_cursor_t *curs
     rowid_t next_rid;
     row_head_t *row = NULL;
     uint16 data_offset;
-    bool32 is_found = GS_FALSE;
+    bool32 is_found = CT_FALSE;
     bool32 is_csf = cursor->row->is_csf;
-    uint32 max_row_len = heap_table_max_row_len(cursor->table, GS_MAX_ROW_SIZE, cursor->part_loc);
+    uint32 max_row_len = heap_table_max_row_len(cursor->table, CT_MAX_ROW_SIZE, cursor->part_loc);
 
     next_rid = *HEAP_LOC_LINK_RID(cursor->row);
-    if (knl_cursor_use_vm(session, cursor, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_cursor_use_vm(session, cursor, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
 
-    /* the max value of entity->column_count is GS_MAX_COLUMNS(4096) */
+    /* the max value of entity->column_count is CT_MAX_COLUMNS(4096) */
     offsets = (uint16 *)cm_push(session->stack, entity->column_count * sizeof(uint16));
     lens = (uint16 *)cm_push(session->stack, entity->column_count * sizeof(uint16));
     row = (row_head_t *)cm_push(session->stack, HEAP_MAX_MIGR_ROW_SIZE(session));
@@ -5932,9 +5933,9 @@ static status_t heap_fetch_chain_rows(knl_session_t *session, knl_cursor_t *curs
     cursor->chain_count = 0;
 
     do {
-        if (heap_fetch_chain_row(session, cursor, next_rid, query_scn, row, &snapshot) != GS_SUCCESS) {
+        if (heap_fetch_chain_row(session, cursor, next_rid, query_scn, row, &snapshot) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (snapshot.is_valid) {
@@ -5943,15 +5944,15 @@ static status_t heap_fetch_chain_rows(knl_session_t *session, knl_cursor_t *curs
             query_ss.rowid = next_rid;
             query_ss.row = (row_head_t *)row;
 
-            if (heap_reorganize_with_undo_list(session, cursor, &query_ss, &snapshot, &is_found) != GS_SUCCESS) {
+            if (heap_reorganize_with_undo_list(session, cursor, &query_ss, &snapshot, &is_found) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             if (!is_found) {
-                GS_THROW_ERROR(ERR_INVALID_ROWID);
+                CT_THROW_ERROR(ERR_INVALID_ROWID);
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
 
@@ -5968,7 +5969,7 @@ static status_t heap_fetch_chain_rows(knl_session_t *session, knl_cursor_t *curs
 
         heap_merge_chain_row(cursor, row, col_count, size, &data_offset);
 
-        col_count += chain->col_count;  // the sum of each chain's column count is  <= GS_MAX_COLUMNS(4096)
+        col_count += chain->col_count;  // the sum of each chain's column count is  <= CT_MAX_COLUMNS(4096)
         cursor->chain_count++;
         owner_rid = next_rid;
         next_rid = *HEAP_LOC_LINK_RID(row);
@@ -5981,7 +5982,7 @@ static status_t heap_fetch_chain_rows(knl_session_t *session, knl_cursor_t *curs
     }
     row_end(&ra);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_get_migr_row(knl_session_t *session, knl_cursor_t *cursor, bool32 *is_found)
@@ -5992,19 +5993,19 @@ static status_t heap_get_migr_row(knl_session_t *session, knl_cursor_t *cursor, 
     rowid_t next_rid;
     errno_t ret;
 
-    if (buf_read_page(session, GET_ROWID_PAGE(cursor->link_rid), LATCH_MODE_FORCE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (buf_read_page(session, GET_ROWID_PAGE(cursor->link_rid), LATCH_MODE_FORCE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     page = (heap_page_t *)CURR_PAGE(session);
     dir = heap_get_dir(page, (uint32)cursor->link_rid.slot);
     if (dir->is_free) {
-        buf_leave_page(session, GS_FALSE);
-        return GS_SUCCESS;
+        buf_leave_page(session, CT_FALSE);
+        return CT_SUCCESS;
     }
     row = HEAP_GET_ROW(page, dir);
     if (!row->is_migr) {
-        buf_leave_page(session, GS_FALSE);
-        return GS_SUCCESS;
+        buf_leave_page(session, CT_FALSE);
+        return CT_SUCCESS;
     }
     next_rid = *HEAP_LOC_LINK_RID(row);
     if (IS_INVALID_ROWID(next_rid)) {
@@ -6013,8 +6014,8 @@ static status_t heap_get_migr_row(knl_session_t *session, knl_cursor_t *cursor, 
         cursor->row->is_link = 1;
         cursor->chain_count = 1;
     }
-    buf_leave_page(session, GS_FALSE);
-    return GS_SUCCESS;
+    buf_leave_page(session, CT_FALSE);
+    return CT_SUCCESS;
 }
 
 static status_t heap_get_row(knl_session_t *session, knl_cursor_t *cursor, heap_page_t *page,
@@ -6031,24 +6032,24 @@ static status_t heap_get_row(knl_session_t *session, knl_cursor_t *cursor, heap_
     } else {
         row = HEAP_GET_ROW(page, dir);
         if (row->is_migr) {
-            session->has_migr = GS_TRUE;
-            *is_found = GS_FALSE;
-            return GS_SUCCESS;
+            session->has_migr = CT_TRUE;
+            *is_found = CT_FALSE;
+            return CT_SUCCESS;
         }
     }
 
-    if (row == NULL || (ROW_ITL_ID(row) == GS_INVALID_ID8) || !row->is_changed) {
+    if (row == NULL || (ROW_ITL_ID(row) == CT_INVALID_ID8) || !row->is_changed) {
         itl = NULL;
         txn_info.status = (uint8)XACT_END;
         txn_info.is_owscn = (uint8)dir->is_owscn;
         cursor->scn = dir->scn;
     } else {
         itl = heap_get_itl(page, ROW_ITL_ID(row));
-        tx_get_itl_info(session, GS_TRUE, itl, &txn_info);
+        tx_get_itl_info(session, CT_TRUE, itl, &txn_info);
         cursor->scn = txn_info.scn;
 
         if (itl->is_active && txn_info.status == (uint8)XACT_END) {
-            cursor->cleanout = GS_TRUE;
+            cursor->cleanout = CT_TRUE;
         }
     }
 
@@ -6057,26 +6058,26 @@ static status_t heap_get_row(knl_session_t *session, knl_cursor_t *cursor, heap_
 
     if (txn_info.status == (uint8)XACT_END) {
         cursor->snapshot.scn = cursor->scn;
-        cursor->snapshot.is_xfirst = GS_TRUE;
-        cursor->snapshot.xid = GS_INVALID_ID64;
+        cursor->snapshot.is_xfirst = CT_TRUE;
+        cursor->snapshot.xid = CT_INVALID_ID64;
 
         if (cursor->scn <= query_scn) {
             *is_found = ((row != NULL) && !(row->is_deleted));
             if (*is_found) {
                 HEAP_COPY_ROW(session, cursor, row);
             }
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (txn_info.is_owscn) {
             tx_record_sql(session);
-            GS_LOG_RUN_ERR("snapshot too old, detail: dir owscn %llu, query scn %llu", cursor->scn, query_scn);
-            GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("snapshot too old, detail: dir owscn %llu, query scn %llu", cursor->scn, query_scn);
+            CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+            return CT_ERROR;
         }
 
         if (cursor->isolevel == (uint8)ISOLATION_SERIALIZABLE) {
-            cursor->ssi_conflict = GS_TRUE;
+            cursor->ssi_conflict = CT_TRUE;
         }
 
         if (row != NULL) {
@@ -6084,7 +6085,7 @@ static status_t heap_get_row(knl_session_t *session, knl_cursor_t *cursor, heap_
         }
     } else {
         cursor->snapshot.scn = DB_CURR_SCN(session);
-        cursor->snapshot.is_xfirst = GS_FALSE;
+        cursor->snapshot.is_xfirst = CT_FALSE;
         cursor->snapshot.xid = itl->xid.value;
 
         if (itl->xid.value == cursor->xid) {
@@ -6093,17 +6094,17 @@ static status_t heap_get_row(knl_session_t *session, knl_cursor_t *cursor, heap_
                 if (*is_found) {
                     HEAP_COPY_ROW(session, cursor, row);
                 }
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
         } else {
             if (TX_XA_CONSISTENCY(session) &&
                 (txn_info.status == (uint8)XACT_PHASE1 || txn_info.status == (uint8)XACT_PHASE2) &&
                 txn_info.scn < query_scn) {
-                GS_LOG_DEBUG_INF("need read wait.prepare_scn[%llu] <= query_scn[%llu]", txn_info.scn, query_scn);
+                CT_LOG_DEBUG_INF("need read wait.prepare_scn[%llu] <= query_scn[%llu]", txn_info.scn, query_scn);
                 session->wxid = itl->xid;
                 ROWID_COPY(session->wrid, cursor->rowid);
-                *is_found = GS_FALSE;
-                return GS_SUCCESS;
+                *is_found = CT_FALSE;
+                return CT_SUCCESS;
             }
         }
 
@@ -6112,10 +6113,10 @@ static status_t heap_get_row(knl_session_t *session, knl_cursor_t *cursor, heap_
         }
     }
 
-    *is_found = GS_TRUE;
+    *is_found = CT_TRUE;
     cursor->snapshot.is_valid = 1;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void heap_scan_backspace_cursor(knl_cursor_t *cursor)
@@ -6131,7 +6132,7 @@ static inline void heap_scan_backspace_cursor(knl_cursor_t *cursor)
 static status_t heap_scan_full_page(knl_session_t *session, knl_cursor_t *cursor, heap_page_t *page,
                                     knl_scn_t query_scn, bool32 *is_found)
 {
-    *is_found = GS_FALSE;
+    *is_found = CT_FALSE;
     cursor->snapshot.is_valid = 0;
 
     for (;;) {
@@ -6153,25 +6154,25 @@ static status_t heap_scan_full_page(knl_session_t *session, knl_cursor_t *cursor
 
             cursor->rowid.slot = INVALID_SLOT;
 
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if ((uint16)cursor->rowid.slot > page->dirs) {
-            GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
+            return CT_ERROR;
         }
 
-        if (heap_get_row(session, cursor, page, query_scn, is_found) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_get_row(session, cursor, page, query_scn, is_found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (*is_found) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (SECUREC_UNLIKELY(session->wxid.value != GS_INVALID_ID64)) {
+        if (SECUREC_UNLIKELY(session->wxid.value != CT_INVALID_ID64)) {
             heap_scan_backspace_cursor(cursor);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 }
@@ -6184,14 +6185,14 @@ static status_t heap_try_fetch_chain_rows(knl_session_t *session, knl_cursor_t *
             HEAP_SET_LINK_RID(cursor->row, cursor->link_rid.value);
         }
 
-        if (heap_fetch_chain_rows(session, cursor, query_scn) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_fetch_chain_rows(session, cursor, query_scn) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else if (!cursor->row->is_link && cursor->row->is_migr) {
-        *is_found = GS_FALSE;
+        *is_found = CT_FALSE;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool32 heap_cached_invalid(knl_session_t *session, knl_cursor_t *cursor)
@@ -6200,7 +6201,7 @@ bool32 heap_cached_invalid(knl_session_t *session, knl_cursor_t *cursor)
 
     if (cursor->rowid.slot != INVALID_SLOT) {
         if (cursor->isolevel != (uint8)ISOLATION_CURR_COMMITTED) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         timeout = (date_t)
@@ -6209,7 +6210,7 @@ bool32 heap_cached_invalid(knl_session_t *session, knl_cursor_t *cursor)
         return (bool32)((KNL_NOW(session) - cursor->cc_cache_time) >= timeout);
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static status_t heap_cache_scan_page(knl_session_t *session, knl_cursor_t *cursor, knl_scn_t *query_scn)
@@ -6219,21 +6220,21 @@ static status_t heap_cache_scan_page(knl_session_t *session, knl_cursor_t *curso
 
     if (session->stat_sample) {
         if (buf_read_page(session, GET_ROWID_PAGE(cursor->rowid), LATCH_MODE_S,
-            ENTER_PAGE_NORMAL | ENTER_PAGE_SEQUENTIAL) != GS_SUCCESS) {
-            return GS_ERROR;
+            ENTER_PAGE_NORMAL | ENTER_PAGE_SEQUENTIAL) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         if (buf_read_prefetch_page(session, GET_ROWID_PAGE(cursor->rowid),
-            LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-            return GS_ERROR;
+            LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     page = (heap_page_t *)CURR_PAGE(session);
     if (!heap_check_page(session, cursor, page, PAGE_TYPE_HEAP_DATA)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         HEAP_CHECKPAGE_ERROR(cursor);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->isolevel == (uint8)ISOLATION_CURR_COMMITTED) {
@@ -6244,9 +6245,9 @@ static status_t heap_cache_scan_page(knl_session_t *session, knl_cursor_t *curso
 
     ret = memcpy_sp(cursor->page_buf, DEFAULT_PAGE_SIZE(session), page, DEFAULT_PAGE_SIZE(session));
     knl_securec_check(ret);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void heap_init_query_snapshot(knl_cursor_t *cursor, knl_scn_t query_scn, query_snapshot_t *query_ss)
@@ -6271,27 +6272,27 @@ static status_t heap_fetch_by_page(knl_session_t *session, knl_cursor_t *cursor,
 
         if (cursor->action == CURSOR_ACTION_SELECT) {
             if (heap_cached_invalid(session, cursor)) {
-                if (heap_cache_scan_page(session, cursor, &query_scn) != GS_SUCCESS) {
-                    return GS_ERROR;
+                if (heap_cache_scan_page(session, cursor, &query_scn) != CT_SUCCESS) {
+                    return CT_ERROR;
                 }
             }
             page = (heap_page_t *)cursor->page_buf;
 
-            if (heap_scan_full_page(session, cursor, page, query_scn, is_found) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (heap_scan_full_page(session, cursor, page, query_scn, is_found) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (SECUREC_UNLIKELY(session->wxid.value != GS_INVALID_ID64)) {
-                GS_LOG_DEBUG_INF("fetch row begin read wait.");
-                if (tx_wait(session, 0, ENQ_TX_READ_WAIT) != GS_SUCCESS) {
+            if (SECUREC_UNLIKELY(session->wxid.value != CT_INVALID_ID64)) {
+                CT_LOG_DEBUG_INF("fetch row begin read wait.");
+                if (tx_wait(session, 0, ENQ_TX_READ_WAIT) != CT_SUCCESS) {
                     tx_record_rowid(session->wrid);
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
                 continue;
             }
 
             if (!*is_found) {
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
 
             if (!IS_INVALID_ROWID(cursor->link_rid)) {
@@ -6299,14 +6300,14 @@ static status_t heap_fetch_by_page(knl_session_t *session, knl_cursor_t *cursor,
             }
         } else {
             if (buf_read_prefetch_page(session, GET_ROWID_PAGE(cursor->rowid),
-                                       LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-                return GS_ERROR;
+                                       LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             page = (heap_page_t *)CURR_PAGE(session);
             if (!heap_check_page(session, cursor, page, PAGE_TYPE_HEAP_DATA)) {
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
                 HEAP_CHECKPAGE_ERROR(cursor);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             if (cursor->isolevel == (uint8)ISOLATION_CURR_COMMITTED) {
@@ -6315,29 +6316,29 @@ static status_t heap_fetch_by_page(knl_session_t *session, knl_cursor_t *cursor,
                 cursor->cc_cache_time = KNL_NOW(session);
             }
 
-            if (heap_scan_full_page(session, cursor, page, query_scn, is_found) != GS_SUCCESS) {
-                buf_leave_page(session, GS_FALSE);
-                return GS_ERROR;
+            if (heap_scan_full_page(session, cursor, page, query_scn, is_found) != CT_SUCCESS) {
+                buf_leave_page(session, CT_FALSE);
+                return CT_ERROR;
             }
 
-            if (SECUREC_UNLIKELY(session->wxid.value != GS_INVALID_ID64)) {
-                buf_leave_page(session, GS_FALSE);
-                GS_LOG_DEBUG_INF("fetch row begin read wait.");
-                if (tx_wait(session, 0, ENQ_TX_READ_WAIT) != GS_SUCCESS) {
+            if (SECUREC_UNLIKELY(session->wxid.value != CT_INVALID_ID64)) {
+                buf_leave_page(session, CT_FALSE);
+                CT_LOG_DEBUG_INF("fetch row begin read wait.");
+                if (tx_wait(session, 0, ENQ_TX_READ_WAIT) != CT_SUCCESS) {
                     tx_record_rowid(session->wrid);
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
                 continue;
             }
 
             if (*is_found && !IS_INVALID_ROWID(cursor->link_rid)) {
-                if (heap_get_migr_row(session, cursor, is_found) != GS_SUCCESS) {
-                    buf_leave_page(session, GS_FALSE);
-                    return GS_ERROR;
+                if (heap_get_migr_row(session, cursor, is_found) != CT_SUCCESS) {
+                    buf_leave_page(session, CT_FALSE);
+                    return CT_ERROR;
                 }
             }
 
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
         }
         break;
     }
@@ -6346,20 +6347,20 @@ static status_t heap_fetch_by_page(knl_session_t *session, knl_cursor_t *cursor,
         query_snapshot_t query_ss;
 
         heap_init_query_snapshot(cursor, query_scn, &query_ss);
-        if (heap_reorganize_with_undo_list(session, cursor, &query_ss, &cursor->snapshot, is_found) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_reorganize_with_undo_list(session, cursor, &query_ss, &cursor->snapshot, is_found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         cursor->scn = query_ss.scn;
     }
 
     if (*is_found) {
-        if (heap_try_fetch_chain_rows(session, cursor, query_scn, is_found) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_try_fetch_chain_rows(session, cursor, query_scn, is_found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -6370,26 +6371,26 @@ static status_t heap_fetch_by_page(knl_session_t *session, knl_cursor_t *cursor,
 status_t dual_fetch(knl_session_t *session, knl_cursor_t *cursor)
 {
     if (cursor->eof) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (cursor->rowid.slot != INVALID_SLOT) {
-        cursor->eof = GS_TRUE;
-        return GS_SUCCESS;
+        cursor->eof = CT_TRUE;
+        return CT_SUCCESS;
     }
 
-    cursor->is_found = GS_TRUE;
+    cursor->is_found = CT_TRUE;
     cursor->rowid.slot = 0;
     cursor->row = (row_head_t *)&g_dual_row;
     cursor->scn = 0;
 
-    if (knl_match_cond(session, cursor, &cursor->is_found) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_match_cond(session, cursor, &cursor->is_found) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cursor->eof = !cursor->is_found;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_fetch(knl_handle_t handle, knl_cursor_t *cursor)
@@ -6398,7 +6399,7 @@ status_t heap_fetch(knl_handle_t handle, knl_cursor_t *cursor)
     rowid_t row_id;
     heap_t *heap = CURSOR_HEAP(cursor);
     seg_stat_t temp_stat;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     CM_ASSERT(!DB_IS_CLUSTER(session));
     knl_panic_log(cursor->is_valid, "cursor is invalid, panic info: page %u-%u type %u table %s", cursor->rowid.file,
                   cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type, ((table_t *)cursor->table)->desc.name);
@@ -6411,33 +6412,33 @@ status_t heap_fetch(knl_handle_t handle, knl_cursor_t *cursor)
     
     for (;;) {
         if (IS_INVALID_ROWID(cursor->rowid)) {
-            cursor->is_found = GS_FALSE;
-            cursor->eof = GS_TRUE;
-            return GS_SUCCESS;
+            cursor->is_found = CT_FALSE;
+            cursor->eof = CT_TRUE;
+            return CT_SUCCESS;
         }
 
-        cursor->ssi_conflict = GS_FALSE;
+        cursor->ssi_conflict = CT_FALSE;
         row_id = cursor->rowid;
-        if (heap_fetch_by_page(session, cursor, &cursor->is_found) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (heap_fetch_by_page(session, cursor, &cursor->is_found) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
         if (!IS_SAME_PAGID_BY_ROWID(row_id, cursor->rowid)) {
             if (session->canceled) {
-                GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-                status = GS_ERROR;
+                CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+                status = CT_ERROR;
                 break;
             }
 
             if (session->killed) {
-                GS_THROW_ERROR(ERR_OPERATION_KILLED);
-                status = GS_ERROR;
+                CT_THROW_ERROR(ERR_OPERATION_KILLED);
+                status = CT_ERROR;
                 break;
             }
 
             if (cursor->cleanout) {
-                heap_cleanout_page(session, cursor, GET_ROWID_PAGE(row_id), GS_FALSE);
+                heap_cleanout_page(session, cursor, GET_ROWID_PAGE(row_id), CT_FALSE);
             }
         }
 
@@ -6445,8 +6446,8 @@ status_t heap_fetch(knl_handle_t handle, knl_cursor_t *cursor)
             continue;
         }
 
-        if (knl_match_cond(session, cursor, &cursor->is_found) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (knl_match_cond(session, cursor, &cursor->is_found) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
@@ -6455,12 +6456,12 @@ status_t heap_fetch(knl_handle_t handle, knl_cursor_t *cursor)
         }
 
         if (cursor->action <= CURSOR_ACTION_SELECT) {
-            status = GS_SUCCESS;
+            status = CT_SUCCESS;
             break;
         }
 
-        if (heap_lock_row(session, cursor, &cursor->is_found) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (heap_lock_row(session, cursor, &cursor->is_found) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
@@ -6468,7 +6469,7 @@ status_t heap_fetch(knl_handle_t handle, knl_cursor_t *cursor)
             continue;
         }
 
-        status = GS_SUCCESS;
+        status = CT_SUCCESS;
         break;
     }
 
@@ -6481,51 +6482,51 @@ static status_t heap_read_by_rowid(knl_session_t *session, knl_cursor_t *cursor,
 {
     heap_page_t *page = NULL;
 
-    *is_found = GS_FALSE;
+    *is_found = CT_FALSE;
     cursor->snapshot.is_valid = 0;
     SET_ROWID_PAGE(&cursor->link_rid, INVALID_PAGID);
     cursor->chain_count = 0;
 
     for (;;) {
-        if (buf_read_page(session, GET_ROWID_PAGE(cursor->rowid), LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (buf_read_page(session, GET_ROWID_PAGE(cursor->rowid), LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         page = (heap_page_t *)CURR_PAGE(session);
         if (!heap_check_page(session, cursor, page, PAGE_TYPE_HEAP_DATA)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             HEAP_CHECKPAGE_ERROR(cursor);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if ((uint16)cursor->rowid.slot >= page->dirs) {
-            buf_leave_page(session, GS_FALSE);
-            GS_THROW_ERROR(ERR_INVALID_ROWID);
-            return GS_ERROR;
+            buf_leave_page(session, CT_FALSE);
+            CT_THROW_ERROR(ERR_INVALID_ROWID);
+            return CT_ERROR;
         }
 
-        if (heap_get_row(session, cursor, page, query_scn, is_found) != GS_SUCCESS) {
-            buf_leave_page(session, GS_FALSE);
-            return GS_ERROR;
+        if (heap_get_row(session, cursor, page, query_scn, is_found) != CT_SUCCESS) {
+            buf_leave_page(session, CT_FALSE);
+            return CT_ERROR;
         }
 
-        if (SECUREC_UNLIKELY(session->wxid.value != GS_INVALID_ID64)) {
-            buf_leave_page(session, GS_FALSE);
-            GS_LOG_DEBUG_INF("read row by rowid begin read wait.");
-            if (tx_wait(session, 0, ENQ_TX_READ_WAIT) != GS_SUCCESS) {
+        if (SECUREC_UNLIKELY(session->wxid.value != CT_INVALID_ID64)) {
+            buf_leave_page(session, CT_FALSE);
+            CT_LOG_DEBUG_INF("read row by rowid begin read wait.");
+            if (tx_wait(session, 0, ENQ_TX_READ_WAIT) != CT_SUCCESS) {
                 tx_record_rowid(session->wrid);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             continue;
         }
 
         if (*is_found && !IS_INVALID_ROWID(cursor->link_rid)) {
-            if (heap_get_migr_row(session, cursor, is_found) != GS_SUCCESS) {
-                buf_leave_page(session, GS_FALSE);
-                return GS_ERROR;
+            if (heap_get_migr_row(session, cursor, is_found) != CT_SUCCESS) {
+                buf_leave_page(session, CT_FALSE);
+                return CT_ERROR;
             }
         }
 
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         break;
     }
 
@@ -6533,59 +6534,59 @@ static status_t heap_read_by_rowid(knl_session_t *session, knl_cursor_t *cursor,
         query_snapshot_t query_ss;
 
         heap_init_query_snapshot(cursor, query_scn, &query_ss);
-        if (heap_reorganize_with_undo_list(session, cursor, &query_ss, &cursor->snapshot, is_found) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_reorganize_with_undo_list(session, cursor, &query_ss, &cursor->snapshot, is_found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         cursor->scn = query_ss.scn;
     }
 
     if (*is_found) {
-        if (heap_try_fetch_chain_rows(session, cursor, query_scn, is_found) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_try_fetch_chain_rows(session, cursor, query_scn, is_found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (!*is_found) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (isolevel == (uint8)ISOLATION_CURR_COMMITTED &&
         cursor->isolevel != (uint8)ISOLATION_SERIALIZABLE &&
         cursor->snapshot.scn > cursor->query_scn) {
-        if (heap_check_current_visible(session, cursor, GS_FALSE, is_found) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_check_current_visible(session, cursor, CT_FALSE, is_found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_fetch_by_rowid(knl_handle_t handle, knl_cursor_t *cursor)
 {
     knl_session_t *session = (knl_session_t *)handle;
-    cursor->ssi_conflict = GS_FALSE;
-    if (heap_read_by_rowid(session, cursor, cursor->query_scn, cursor->isolevel, &cursor->is_found) != GS_SUCCESS) {
-        return GS_ERROR;
+    cursor->ssi_conflict = CT_FALSE;
+    if (heap_read_by_rowid(session, cursor, cursor->query_scn, cursor->isolevel, &cursor->is_found) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!cursor->is_found) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (knl_match_cond(session, cursor, &cursor->is_found) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_match_cond(session, cursor, &cursor->is_found) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!cursor->is_found || cursor->action <= CURSOR_ACTION_SELECT) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (heap_lock_row(session, cursor, &cursor->is_found) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_lock_row(session, cursor, &cursor->is_found) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -6598,8 +6599,8 @@ status_t heap_rowid_fetch(knl_handle_t session, knl_cursor_t *cursor)
     knl_session_t *se = (knl_session_t *)session;
     for (;;) {
         if (cursor->rowid_no == cursor->rowid_count) {
-            cursor->eof = GS_TRUE;
-            return GS_SUCCESS;
+            cursor->eof = CT_TRUE;
+            return CT_SUCCESS;
         }
 
         ROWID_COPY(cursor->rowid, cursor->rowid_array[cursor->rowid_no]);
@@ -6619,12 +6620,12 @@ status_t heap_rowid_fetch(knl_handle_t session, knl_cursor_t *cursor)
             cursor->cc_cache_time = KNL_NOW(se);
         }
 
-        if (heap_fetch_by_rowid(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_fetch_by_rowid(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (cursor->is_found) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 }
@@ -6639,7 +6640,7 @@ void heap_update_serial(knl_session_t *session, heap_t *heap, uint64 value)
             LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 }
 
@@ -6647,12 +6648,12 @@ void heap_increase_serial(knl_session_t *session, heap_t *heap)
 {
     log_atomic_op_begin(session);
     buf_enter_page(session, heap->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
-    heap->segment->serial += (heap->segment->serial == 0) ? 1 + GS_SERIAL_CACHE_COUNT : GS_SERIAL_CACHE_COUNT;
+    heap->segment->serial += (heap->segment->serial == 0) ? 1 + CT_SERIAL_CACHE_COUNT : CT_SERIAL_CACHE_COUNT;
     if (SPACE_IS_LOGGING(SPACE_GET(session, heap->segment->space_id))) {
         log_put(session, RD_HEAP_CHANGE_SEG, (void *)heap->segment, sizeof(heap_segment_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 }
 
@@ -6662,12 +6663,12 @@ static bool32 heap_row_shrinkable(knl_session_t *session, knl_cursor_t *cursor, 
     row_head_t *row = cursor->row;
     map_path_t find_path;
     page_id_t page_id;
-    bool32 degrade_mid = GS_FALSE;
+    bool32 degrade_mid = CT_FALSE;
     uint32 list_id, cost_size, row_size;
     uint8 cipher_reserve_size = heap->cipher_reserve_size;
 
     if (shrink_pages->row_chain_shrink) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (row->is_migr) {
@@ -6681,35 +6682,35 @@ static bool32 heap_row_shrinkable(knl_session_t *session, knl_cursor_t *cursor, 
     if (segment->cr_mode == CR_PAGE) {
         // skip check link row, check it after insert
         if (row_size > PCRH_MAX_ROW_SIZE(session) - cipher_reserve_size) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
         cost_size = pcrh_calc_insert_cost(session, segment, row_size);
     } else {
         // skip check link row, check it after insert
         if (row_size > HEAP_MAX_ROW_SIZE(session) - cipher_reserve_size) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
-        cost_size = heap_calc_insert_cost(session, segment, row_size, GS_TRUE);
+        cost_size = heap_calc_insert_cost(session, segment, row_size, CT_TRUE);
     }
 
     list_id = heap_get_target_list(session, segment, cost_size);
-    if (heap_seq_find_map(session, heap, &find_path, list_id, &page_id, &degrade_mid) != GS_SUCCESS) {
+    if (heap_seq_find_map(session, heap, &find_path, list_id, &page_id, &degrade_mid) != CT_SUCCESS) {
         cm_reset_error();
-        GS_LOG_RUN_INF("shrink row find free page failed.uid %u oid %u", segment->uid, segment->oid);
-        return GS_FALSE;
+        CT_LOG_RUN_INF("shrink row find free page failed.uid %u oid %u", segment->uid, segment->oid);
+        return CT_FALSE;
     }
 
     if (IS_INVALID_ROWID(page_id)) {
-        GS_LOG_RUN_INF("shrink row find invalid free page.uid %u oid %u", segment->uid, segment->oid);
-        return GS_FALSE;
+        CT_LOG_RUN_INF("shrink row find invalid free page.uid %u oid %u", segment->uid, segment->oid);
+        return CT_FALSE;
     }
 
     if (heap_compare_map_path(&find_path, &shrink_pages->path) >= 0) {
-        GS_LOG_RUN_INF("shrink row find no free page.uid %u oid %u", segment->uid, segment->oid);
-        return GS_FALSE;
+        CT_LOG_RUN_INF("shrink row find no free page.uid %u oid %u", segment->uid, segment->oid);
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static void heap_get_max_row_pagid(knl_session_t *session, knl_cursor_t *cursor, map_path_t *path)
@@ -6763,7 +6764,7 @@ static status_t heap_shrink_page(knl_session_t *session, knl_dictionary_t *dc, k
     map_path_t dpath, ipath;
     status_t status;
 
-    shrink_page->is_shrinkable = GS_TRUE;
+    shrink_page->is_shrinkable = CT_TRUE;
     CM_SAVE_STACK(session->stack);
 
     dcursor = knl_push_cursor(session);
@@ -6771,9 +6772,9 @@ static status_t heap_shrink_page(knl_session_t *session, knl_dictionary_t *dc, k
     dcursor->scan_mode = SCAN_MODE_TABLE_FULL;
     dcursor->part_loc = part_loc;
 
-    if (knl_open_cursor(session, dcursor, dc) != GS_SUCCESS) {
+    if (knl_open_cursor(session, dcursor, dc) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dcursor->isolevel = (uint8)ISOLATION_CURR_COMMITTED;
@@ -6782,27 +6783,27 @@ static status_t heap_shrink_page(knl_session_t *session, knl_dictionary_t *dc, k
     icursor = knl_push_cursor(session);
     icursor->action = CURSOR_ACTION_INSERT;
 
-    if (knl_open_cursor(session, icursor, dc) != GS_SUCCESS) {
+    if (knl_open_cursor(session, icursor, dc) != CT_SUCCESS) {
         knl_close_cursor(session, dcursor);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    icursor->row = (row_head_t *)cm_push(session->stack, GS_MAX_ROW_SIZE);
+    icursor->row = (row_head_t *)cm_push(session->stack, CT_MAX_ROW_SIZE);
 
     if (IS_PART_TABLE(icursor->table)) {
         knl_set_table_part(icursor, part_loc);
     }
 
     for (;;) {
-        if (knl_fetch(session, dcursor) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (knl_fetch(session, dcursor) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
         if (dcursor->eof) {
             knl_rollback(session, NULL);
-            status = GS_SUCCESS;
+            status = CT_SUCCESS;
             break;
         }
 
@@ -6815,35 +6816,35 @@ static status_t heap_shrink_page(knl_session_t *session, knl_dictionary_t *dc, k
 
         if (!heap_row_shrinkable(session, dcursor, shrink_pages)) {
             knl_rollback(session, NULL);
-            shrink_page->is_shrinkable = GS_FALSE;
-            status = GS_SUCCESS;
+            shrink_page->is_shrinkable = CT_FALSE;
+            status = CT_SUCCESS;
             break;
         }
 
         heap_get_max_row_pagid(session, dcursor, &dpath);
 
-        if (knl_copy_row(session, dcursor, icursor) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (knl_copy_row(session, dcursor, icursor) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
-        if (knl_internal_delete(session, dcursor) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (knl_internal_delete(session, dcursor) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
-        if (knl_internal_insert(session, icursor) != GS_SUCCESS) {
+        if (knl_internal_insert(session, icursor) != CT_SUCCESS) {
             int32 code = cm_get_error_code();
             if (code == ERR_SHRINK_EXTEND) {
                 cm_reset_error();
-                shrink_page->is_shrinkable = GS_FALSE;
-                status = GS_SUCCESS;
+                shrink_page->is_shrinkable = CT_FALSE;
+                status = CT_SUCCESS;
                 knl_rollback(session, NULL);
-                GS_LOG_RUN_INF("shrink page find no free page. uid %u oid %u part_no %d subpart_no %d",
+                CT_LOG_RUN_INF("shrink page find no free page. uid %u oid %u part_no %d subpart_no %d",
                     dc->uid, dc->oid, part_loc.part_no, part_loc.subpart_no);
                 break;
             }
-            status = GS_ERROR;
+            status = CT_ERROR;
             break;
         }
 
@@ -6851,17 +6852,17 @@ static status_t heap_shrink_page(knl_session_t *session, knl_dictionary_t *dc, k
 
         if (heap_compare_map_path(&dpath, &ipath) <= 0) {
             knl_rollback(session, NULL);
-            status = GS_SUCCESS;
+            status = CT_SUCCESS;
             if (!shrink_pages->row_chain_shrink) {
-                shrink_page->is_shrinkable = GS_FALSE;
-                GS_LOG_RUN_INF("shrink page find no free page. uid %u oid %u part_no %d subpart_no %d",
+                shrink_page->is_shrinkable = CT_FALSE;
+                CT_LOG_RUN_INF("shrink page find no free page. uid %u oid %u part_no %d subpart_no %d",
                     dc->uid, dc->oid, part_loc.part_no, part_loc.subpart_no);
                 break;
             }
         } else {
-            session->commit_nowait = GS_TRUE;
+            session->commit_nowait = CT_TRUE;
             knl_commit(session);
-            session->commit_nowait = GS_FALSE;
+            session->commit_nowait = CT_FALSE;
             shrink_page->shrinked_rows++;
         }
     }
@@ -6888,7 +6889,7 @@ void heap_set_initrans(knl_session_t *session, heap_t *heap, uint32 initrans)
     if (SPC_IS_LOGGING_BY_PAGEID(session, heap->entry)) {
         log_put(session, RD_HEAP_CHANGE_SEG, segment, HEAP_SEG_SIZE, LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_atomic_op_end(session);
 }
@@ -6907,7 +6908,7 @@ void heap_set_compact_hwm(knl_session_t *session, heap_t *heap, page_id_t cmp_hw
         log_put(session, RD_HEAP_CHANGE_SEG, segment, HEAP_SEG_SIZE, LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_atomic_op_end(session);
 }
@@ -6915,14 +6916,14 @@ void heap_set_compact_hwm(knl_session_t *session, heap_t *heap, page_id_t cmp_hw
 static inline bool32 heap_shrink_compactable(knl_session_t *session, heap_t *heap, bool32 shrink_hwm)
 {
     if (heap->segment == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (shrink_hwm && !IS_INVALID_PAGID(HEAP_SEGMENT(session, heap->entry, heap->segment)->cmp_hwm)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static bool32 heap_compact_check_stop(knl_session_t *session, heap_cmp_def_t def,
@@ -6930,22 +6931,22 @@ static bool32 heap_compact_check_stop(knl_session_t *session, heap_cmp_def_t def
 {
     // convert real to percentage then compare
     if (((double)shrink_pages->shrinked_pages / shrink_pages->total_pages) * 100 >= def.percent) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (session->canceled) {
-        GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-        *status = GS_ERROR;
-        return GS_TRUE;
+        CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+        *status = CT_ERROR;
+        return CT_TRUE;
     }
 
     if (session->killed) {
-        GS_THROW_ERROR(ERR_OPERATION_KILLED);
-        *status = GS_ERROR;
-        return GS_TRUE;
+        CT_THROW_ERROR(ERR_OPERATION_KILLED);
+        *status = CT_ERROR;
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 bool32 is_shrink_row_chain(knl_session_t *session, knl_dictionary_t *dc, knl_part_locate_t part_loc,
@@ -6956,40 +6957,40 @@ bool32 is_shrink_row_chain(knl_session_t *session, knl_dictionary_t *dc, knl_par
     bool32 async_shrink = (bool32)(def.timeout != 0);
 
     if (attr->shrink_wait_recycled_pages == 0) {
-        GS_LOG_DEBUG_INF("shrink row chain is closed. uid %u oid %u name %s part_no %d subpart_no %d.",
+        CT_LOG_DEBUG_INF("shrink row chain is closed. uid %u oid %u name %s part_no %d subpart_no %d.",
             dc->uid, dc->oid, table->desc.name, part_loc.part_no, part_loc.subpart_no);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (shrink_pages->shrinked_pages == 0) {
-        GS_LOG_DEBUG_INF("no pages be shrinked. uid %u oid %u name %s part_no %d subpart_no %d",
+        CT_LOG_DEBUG_INF("no pages be shrinked. uid %u oid %u name %s part_no %d subpart_no %d",
             dc->uid, dc->oid, table->desc.name, part_loc.part_no, part_loc.subpart_no);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (async_shrink && (KNL_NOW(session) - def.end_time) / MICROSECS_PER_SECOND > 0) {
-        GS_LOG_DEBUG_INF("async shrink timeout. uid %u oid %u name %s part_no %d subpart_no %d.",
+        CT_LOG_DEBUG_INF("async shrink timeout. uid %u oid %u name %s part_no %d subpart_no %d.",
             dc->uid, dc->oid, table->desc.name, part_loc.part_no, part_loc.subpart_no);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (((double)shrink_pages->shrinked_pages / shrink_pages->total_pages) * 100 >= def.percent) {
-        GS_LOG_DEBUG_INF("shrink percent has finished. uid %u oid %u name %s part_no %d subpart_no %d",
+        CT_LOG_DEBUG_INF("shrink percent has finished. uid %u oid %u name %s part_no %d subpart_no %d",
             dc->uid, dc->oid, table->desc.name, part_loc.part_no, part_loc.subpart_no);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (shrink_pages->wait_recycled_pages < attr->shrink_wait_recycled_pages) {
-        GS_LOG_DEBUG_INF("shrink row chain is not meet threshold condition. uid %u oid %u name %s "
+        CT_LOG_DEBUG_INF("shrink row chain is not meet threshold condition. uid %u oid %u name %s "
             "part_no %d subpart_no %d wait_recycled_pages %d.", dc->uid, dc->oid, table->desc.name,
             part_loc.part_no, part_loc.subpart_no, shrink_pages->wait_recycled_pages);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    GS_LOG_RUN_INF("shrink row chain begin. uid %u oid %u name %s part_no %d subpart_no %d.",
+    CT_LOG_RUN_INF("shrink row chain begin. uid %u oid %u name %s part_no %d subpart_no %d.",
         dc->uid, dc->oid, table->desc.name, part_loc.part_no, part_loc.subpart_no);
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void heap_shrink_pages_update(shrink_page_t shrink_page, shrink_pages_t *shrink_pages)
@@ -7004,7 +7005,7 @@ void heap_shrink_pages_update(shrink_page_t shrink_page, shrink_pages_t *shrink_
     }
 
     if (shrink_pages->row_chain_shrink) {
-        GS_LOG_DEBUG_INF("shrink row chain. chain_rows %d.", shrink_pages->chain_rows);
+        CT_LOG_DEBUG_INF("shrink row chain. chain_rows %d.", shrink_pages->chain_rows);
     }
 }
 
@@ -7012,15 +7013,15 @@ static inline void heap_shrink_pages_init(knl_session_t *session, shrink_page_t 
                                           shrink_pages_t *shrink_pages)
 {
     shrink_page->shrinked_rows = 0;
-    shrink_page->is_shrinkable = GS_FALSE;
+    shrink_page->is_shrinkable = CT_FALSE;
     shrink_page->shrink_id = INVALID_PAGID;
-    session->has_migr = GS_FALSE;
+    session->has_migr = CT_FALSE;
 }
 
 status_t heap_shrink_pages(knl_session_t *session, knl_dictionary_t *dc, knl_part_locate_t part_loc,
     heap_cmp_def_t def, shrink_pages_t *shrink_pages)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     table_t *table = DC_TABLE(dc);
     shrink_page_t shrink_page;
     page_id_t page_id = shrink_pages->cmp_hwm;
@@ -7040,14 +7041,14 @@ status_t heap_shrink_pages(knl_session_t *session, knl_dictionary_t *dc, knl_par
         }
 
         if (async_shrink && (KNL_NOW(session) - def.end_time) / MICROSECS_PER_SECOND > 0) {
-            GS_LOG_RUN_INF("async shrink timeout. uid %u oid %u name %s part_no %d subpart_no %d.",
+            CT_LOG_RUN_INF("async shrink timeout. uid %u oid %u name %s part_no %d subpart_no %d.",
                 dc->uid, dc->oid, table->desc.name, part_loc.part_no, part_loc.subpart_no);
             break;
         }
 
         shrink_page.shrink_id = page_id;
-        if (heap_shrink_page(session, dc, part_loc, shrink_pages, &shrink_page) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (heap_shrink_page(session, dc, part_loc, shrink_pages, &shrink_page) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
@@ -7066,7 +7067,7 @@ status_t heap_shrink_pages(knl_session_t *session, knl_dictionary_t *dc, knl_par
             }
             shrink_pages->wait_recycled_pages += (!IS_INVALID_PAGID(new_hwm)) ? 1 : 0;
         } else {
-            is_first = GS_FALSE;
+            is_first = CT_FALSE;
         }
 
         shrink_page.shrinked_rows = 0;
@@ -7094,7 +7095,7 @@ static void heap_shrink_compact_init(knl_session_t *session, heap_t *heap, shrin
     shrink_pages->shrinked_pages = 0;
     shrink_pages->chain_rows = 0;
     shrink_pages->wait_recycled_pages = 0;
-    shrink_pages->row_chain_shrink = GS_FALSE;
+    shrink_pages->row_chain_shrink = CT_FALSE;
     shrink_pages->cmp_hwm = INVALID_PAGID;
 }
 
@@ -7123,28 +7124,28 @@ status_t heap_shrink_compact(knl_session_t *session, knl_dictionary_t *dc, knl_p
 
     if (!heap_shrink_compactable(session, heap, shrink_hwm)) {
         heap->ashrink_stat = ASHRINK_END;
-        GS_LOG_RUN_INF("shrink uncompactable.uid %u oid %u name %s part_no %u subpart_no %u async_shrink %u.",
+        CT_LOG_RUN_INF("shrink uncompactable.uid %u oid %u name %s part_no %u subpart_no %u async_shrink %u.",
             dc->uid, dc->oid, table->desc.name, part_loc.part_no, part_loc.subpart_no, (uint32)async_shrink);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     dls_spin_lock(session, &heap->lock, NULL);
     if (heap->compacting) {
         dls_spin_unlock(session, &heap->lock);
-        GS_THROW_ERROR(ERR_SHRINK_IN_PROGRESS_FMT, DC_ENTRY_USER_NAME(dc), DC_ENTRY_NAME(dc));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SHRINK_IN_PROGRESS_FMT, DC_ENTRY_USER_NAME(dc), DC_ENTRY_NAME(dc));
+        return CT_ERROR;
     }
-    heap->compacting = GS_TRUE;
+    heap->compacting = CT_TRUE;
     heap->ashrink_stat = async_shrink ? ASHRINK_COMPACT : ASHRINK_END;
     dls_spin_unlock(session, &heap->lock);
     
-    session->compacting = GS_TRUE;
+    session->compacting = CT_TRUE;
 
     heap_shrink_compact_init(session, heap, &shrink_pages);
 
     status = heap_shrink_pages(session, dc, part_loc, def, &shrink_pages);
-    if (status == GS_SUCCESS && is_shrink_row_chain(session, dc, part_loc, def, &shrink_pages)) {
-        shrink_pages.row_chain_shrink = GS_TRUE;
+    if (status == CT_SUCCESS && is_shrink_row_chain(session, dc, part_loc, def, &shrink_pages)) {
+        shrink_pages.row_chain_shrink = CT_TRUE;
         status = heap_shrink_pages(session, dc, part_loc, def, &shrink_pages);
     }
 
@@ -7152,9 +7153,9 @@ status_t heap_shrink_compact(knl_session_t *session, knl_dictionary_t *dc, knl_p
     if (shrink_pages.shrinked_pages == 0 || IS_INVALID_PAGID(shrink_pages.cmp_hwm)) {
         heap->ashrink_stat = ASHRINK_END;
     }
-    heap->compacting = GS_FALSE;
-    session->compacting = GS_FALSE;
-    session->has_migr = GS_FALSE;
+    heap->compacting = CT_FALSE;
+    session->compacting = CT_FALSE;
+    session->has_migr = CT_FALSE;
 
     return status;
 }
@@ -7167,20 +7168,20 @@ status_t heap_shrink_compart_compact(knl_session_t *session, knl_dictionary_t *d
     table_part_t *table_part = TABLE_GET_PART(table, part_loc.part_no);
 
     if (!IS_PARENT_TABPART(&table_part->desc)) {
-        part_loc.subpart_no = GS_INVALID_ID32;
-        if (heap_shrink_compact(session, dc, part_loc, shrink_hwm, def) != GS_SUCCESS) {
-            return GS_ERROR;
+        part_loc.subpart_no = CT_INVALID_ID32;
+        if (heap_shrink_compact(session, dc, part_loc, shrink_hwm, def) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         for (uint32 i = 0; i < table_part->desc.subpart_cnt; i++) {
             part_loc.subpart_no = i;
-            if (heap_shrink_compact(session, dc, part_loc, shrink_hwm, def) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (heap_shrink_compact(session, dc, part_loc, shrink_hwm, def) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void heap_ashrink_update_hwm(knl_session_t *session, knl_dictionary_t *dc, knl_part_locate_t part_loc, page_id_t *hwm)
@@ -7237,34 +7238,34 @@ static bool32 heap_check_space_shrinkable(knl_session_t *session, knl_dictionary
     knl_part_locate_t part_loc, heap_t *heap, bool32 async_shrink)
 {
     if (heap->segment == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     heap_segment_t *segment = HEAP_SEGMENT(session, heap->entry, heap->segment);
 
     if (IS_INVALID_PAGID(segment->cmp_hwm)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (!async_shrink) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     knl_scn_t shrinkable_scn = segment->shrinkable_scn;
     knl_scn_t min_scn = KNL_GET_SCN(&session->kernel->min_scn);
 
     if (heap->ashrink_stat == ASHRINK_END) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    if (heap->ashrink_stat != ASHRINK_WAIT_SHRINK || shrinkable_scn == GS_INVALID_ID64 || min_scn < shrinkable_scn) {
-        GS_LOG_RUN_WAR("heap async shrink invalid scn or status.min_scn %llu shrinkable scn %llu "
+    if (heap->ashrink_stat != ASHRINK_WAIT_SHRINK || shrinkable_scn == CT_INVALID_ID64 || min_scn < shrinkable_scn) {
+        CT_LOG_RUN_WAR("heap async shrink invalid scn or status.min_scn %llu shrinkable scn %llu "
             "uid %u oid %u part_no %u subpart_no %u stat %u", min_scn, shrinkable_scn, dc->uid,
             dc->oid, part_loc.part_no, part_loc.subpart_no, (uint32)heap->ashrink_stat);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static status_t heap_shrink_space(knl_session_t *session, knl_dictionary_t *dc,
@@ -7276,7 +7277,7 @@ static status_t heap_shrink_space(knl_session_t *session, knl_dictionary_t *dc,
 
     if (!heap_check_space_shrinkable(session, dc, part_loc, heap, async_shrink)) {
         heap->ashrink_stat = ASHRINK_END;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     heap_segment_t *segment = HEAP_SEGMENT(session, heap->entry, heap->segment);
@@ -7285,16 +7286,16 @@ static status_t heap_shrink_space(knl_session_t *session, knl_dictionary_t *dc,
     heap_remove_cached_pages(session, segment);
     heap_shrink_hwm(session, heap, async_shrink);
 
-    knl_set_session_scn(session, GS_INVALID_ID64);
+    knl_set_session_scn(session, CT_INVALID_ID64);
 
-    if (db_update_table_chgscn(session, &table->desc) != GS_SUCCESS) {
+    if (db_update_table_chgscn(session, &table->desc) != CT_SUCCESS) {
         knl_rollback(session, NULL);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_commit(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_shrink_compart_space(knl_session_t *session, knl_dictionary_t *dc,
@@ -7305,20 +7306,20 @@ static status_t heap_shrink_compart_space(knl_session_t *session, knl_dictionary
     table_part_t *table_part = TABLE_GET_PART(table, part_loc.part_no);
 
     if (!IS_PARENT_TABPART(&table_part->desc)) {
-        part_loc.subpart_no = GS_INVALID_ID32;
-        if (heap_shrink_space(session, dc, part_loc, async_shrink) != GS_SUCCESS) {
-            return GS_ERROR;
+        part_loc.subpart_no = CT_INVALID_ID32;
+        if (heap_shrink_space(session, dc, part_loc, async_shrink) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         for (uint32 i = 0; i < table_part->desc.subpart_cnt; i++) {
             part_loc.subpart_no = i;
-            if (heap_shrink_space(session, dc, part_loc, async_shrink) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (heap_shrink_space(session, dc, part_loc, async_shrink) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_shrink_spaces(knl_session_t *session, knl_dictionary_t *dc, bool32 async_shrink)
@@ -7330,11 +7331,11 @@ status_t heap_shrink_spaces(knl_session_t *session, knl_dictionary_t *dc, bool32
 
     if (!IS_PART_TABLE(table)) {
         part_loc.part_no = 0;
-        part_loc.subpart_no = GS_INVALID_ID32;
-        if (heap_shrink_space(session, dc, part_loc, async_shrink) != GS_SUCCESS) {
-            return GS_ERROR;
+        part_loc.subpart_no = CT_INVALID_ID32;
+        if (heap_shrink_space(session, dc, part_loc, async_shrink) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (uint32 i = 0; i < table->part_table->desc.partcnt; i++) {
@@ -7344,12 +7345,12 @@ status_t heap_shrink_spaces(knl_session_t *session, knl_dictionary_t *dc, bool32
         }
 
         part_loc.part_no = i;
-        if (heap_shrink_compart_space(session, dc, part_loc, async_shrink) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_shrink_compart_space(session, dc, part_loc, async_shrink) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -7366,7 +7367,7 @@ void heap_validate_page(knl_session_t *session, page_head_t *page)
     uint8 j;
     uint32 total_size;
     errno_t ret;
-    uint8 itl_id = GS_INVALID_ID8;
+    uint8 itl_id = CT_INVALID_ID8;
 
     copy_page = (heap_page_t *)cm_push(session->stack, DEFAULT_PAGE_SIZE(session));
     ret = memcpy_sp(copy_page, DEFAULT_PAGE_SIZE(session), page, DEFAULT_PAGE_SIZE(session));
@@ -7378,7 +7379,7 @@ void heap_validate_page(knl_session_t *session, page_head_t *page)
         if (itl->is_active) {
             knl_panic_log(itl->scn == 0, "itl's scn is abnormal, panic info: page %u-%u type %u itl scn %llu",
                 AS_PAGID(copy_page->head.id).file, AS_PAGID(copy_page->head.id).page, copy_page->head.type, itl->scn);
-            knl_panic_log(itl->xid.value != GS_INVALID_ID64,
+            knl_panic_log(itl->xid.value != CT_INVALID_ID64,
                           "current itl's xid is invalid, panic info: page %u-%u type %u",
                           AS_PAGID(copy_page->head.id).file, AS_PAGID(copy_page->head.id).page, copy_page->head.type);
         }
@@ -7401,7 +7402,7 @@ void heap_validate_page(knl_session_t *session, page_head_t *page)
 
         row = HEAP_GET_ROW(copy_page, dir);
         itl_id = ROW_ITL_ID(row);
-        knl_panic_log(itl_id == GS_INVALID_ID8 || itl_id < copy_page->itls, "itl_id is abnormal, it is valid "
+        knl_panic_log(itl_id == CT_INVALID_ID8 || itl_id < copy_page->itls, "itl_id is abnormal, it is valid "
             "and more than the counts of copy_page's itl, panic info: page %u-%u type %u itl_id %u",
             AS_PAGID(copy_page->head.id).file, AS_PAGID(copy_page->head.id).page, copy_page->head.type, itl_id);
     }
@@ -7447,23 +7448,23 @@ static status_t heap_check_page_belong_subpart(knl_session_t *session, heap_page
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_TABLE_PARTS_ID, IX_SYS_TABLESUBPART001_ID);
 
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
                      &uid, sizeof(uint32), IX_COL_SYS_TABLESUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
                      &table_id, sizeof(uint32), IX_COL_SYS_TABLESUBPART001_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_TABLESUBPART001_PARENT_PART_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_TABLESUBPART001_SUB_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER,
                      &uid, sizeof(uint32), IX_COL_SYS_TABLESUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER,
                      &table_id, sizeof(uint32), IX_COL_SYS_TABLESUBPART001_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_TABLESUBPART001_PARENT_PART_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_TABLESUBPART001_SUB_PART_ID);
 
     if (knl_fetch(session, cursor)) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     page_id_t entry;
@@ -7473,22 +7474,22 @@ static status_t heap_check_page_belong_subpart(knl_session_t *session, heap_page
             buf_enter_page(session, entry, LATCH_MODE_S, ENTER_PAGE_NORMAL);
             heap_segment_t *segment = HEAP_SEG_HEAD(session);
             if (segment->seg_scn == page->seg_scn) {
-                buf_leave_page(session, GS_FALSE);
-                *belong = GS_TRUE;
+                buf_leave_page(session, CT_FALSE);
+                *belong = CT_TRUE;
                 break;
             }
 
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
         }
 
         if (knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_check_page_belong_part(knl_session_t *session, heap_page_t *page, uint32 uid,
@@ -7498,21 +7499,21 @@ static status_t heap_check_page_belong_part(knl_session_t *session, heap_page_t 
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLEPART_ID, IX_SYS_TABLEPART001_ID);
 
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
                      &uid, sizeof(uint32), IX_COL_SYS_TABLEPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
                      &table_id, sizeof(uint32), IX_COL_SYS_TABLEPART001_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_TABLEPART001_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER,
                      &uid, sizeof(uint32), IX_COL_SYS_TABLEPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER,
                      &table_id, sizeof(uint32), IX_COL_SYS_TABLEPART001_TABLE_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_TABLEPART001_PART_ID);
 
     if (knl_fetch(session, cursor)) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     page_id_t entry;
@@ -7522,47 +7523,47 @@ static status_t heap_check_page_belong_part(knl_session_t *session, heap_page_t 
             buf_enter_page(session, entry, LATCH_MODE_S, ENTER_PAGE_NORMAL);
             heap_segment_t *segment = HEAP_SEG_HEAD(session);
             if (segment->seg_scn == page->seg_scn) {
-                buf_leave_page(session, GS_FALSE);
-                *belong = GS_TRUE;
+                buf_leave_page(session, CT_FALSE);
+                *belong = CT_TRUE;
                 CM_RESTORE_STACK(session->stack);
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
 
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
         }
 
         if (knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_check_page_belong_table(knl_session_t *session, heap_page_t *page, uint32 uid,
     uint32 table_id, bool32 *belong)
 {
-    *belong = GS_FALSE;
+    *belong = CT_FALSE;
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLE_ID, IX_SYS_TABLE_002_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &uid,
                      sizeof(uint32), IX_COL_SYS_TABLE_002_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table_id,
                      sizeof(uint32), IX_COL_SYS_TABLE_002_ID);
 
     if (knl_fetch(session, cursor)) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
-        GS_THROW_ERROR(ERR_OBJECT_NOT_EXISTS, "table", "");
+        CT_THROW_ERROR(ERR_OBJECT_NOT_EXISTS, "table", "");
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     page_id_t entry = *(page_id_t *)CURSOR_COLUMN_DATA(cursor, SYS_TABLE_COL_ENTRY);
@@ -7571,27 +7572,27 @@ status_t heap_check_page_belong_table(knl_session_t *session, heap_page_t *page,
         buf_enter_page(session, entry, LATCH_MODE_S, ENTER_PAGE_NORMAL);
         heap_segment_t *segment = HEAP_SEG_HEAD(session);
         if (segment->seg_scn == page->seg_scn) {
-            *belong = GS_TRUE;
+            *belong = CT_TRUE;
         }
 
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (heap_check_page_belong_part(session, page, uid, table_id, belong) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_check_page_belong_part(session, page, uid, table_id, belong) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (*belong) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (heap_check_page_belong_subpart(session, page, uid, table_id, belong) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (heap_check_page_belong_subpart(session, page, uid, table_id, belong) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_page_corruption_scan(knl_session_t *session, heap_segment_t *segment, knl_corrupt_info_t *corrupt_info)
@@ -7601,33 +7602,33 @@ status_t heap_page_corruption_scan(knl_session_t *session, heap_segment_t *segme
     uint32 ext_count = segment->extents.count;
 
     if (SECUREC_UNLIKELY(IS_INVALID_PAGID(curr_pageid)) || IS_SAME_PAGID(curr_pageid, last_pageid)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
-    if (buf_read_page(session, curr_pageid, LATCH_MODE_S, ENTER_PAGE_SEQUENTIAL) != GS_SUCCESS) {
-        if (GS_ERRNO == ERR_PAGE_CORRUPTED) {
+    if (buf_read_page(session, curr_pageid, LATCH_MODE_S, ENTER_PAGE_SEQUENTIAL) != CT_SUCCESS) {
+        if (CT_ERRNO == ERR_PAGE_CORRUPTED) {
             db_save_corrupt_info(session, curr_pageid, corrupt_info);
         }
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     heap_page_t *page = (heap_page_t *)CURR_PAGE(session);
     uint32 ext_size = spc_ext_size_by_id(page->head.ext_size);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     for (uint32 i = 0; i < ext_count; i++) {
         for (uint32 j = 0; j < ext_size; j++) {
-            if (knl_check_session_status(session) !=  GS_SUCCESS) {
-                return GS_ERROR;
+            if (knl_check_session_status(session) !=  CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             if (SECUREC_UNLIKELY(IS_INVALID_PAGID(curr_pageid)) || IS_SAME_PAGID(curr_pageid, last_pageid)) {
                 break;
             }
-            if (buf_read_page(session, curr_pageid, LATCH_MODE_S, ENTER_PAGE_SEQUENTIAL) != GS_SUCCESS) {
-                if (GS_ERRNO == ERR_PAGE_CORRUPTED) {
+            if (buf_read_page(session, curr_pageid, LATCH_MODE_S, ENTER_PAGE_SEQUENTIAL) != CT_SUCCESS) {
+                if (CT_ERRNO == ERR_PAGE_CORRUPTED) {
                     db_save_corrupt_info(session, curr_pageid, corrupt_info);
                 }
-                return GS_ERROR;
+                return CT_ERROR;
             }
             curr_pageid.page++;
             if (j == ext_size - 1) {
@@ -7635,10 +7636,10 @@ status_t heap_page_corruption_scan(knl_session_t *session, heap_segment_t *segme
                 ext_size = spc_ext_size_by_id(page->head.ext_size);
                 curr_pageid = AS_PAGID(page->head.next_ext);
             }
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t heap_table_corruption_verify(knl_session_t *session, knl_dictionary_t *dc, knl_corrupt_info_t *corrupt_info)
@@ -7647,13 +7648,13 @@ status_t heap_table_corruption_verify(knl_session_t *session, knl_dictionary_t *
     table_t *table = (table_t *)&entity->table;
     heap_segment_t *segment = (heap_segment_t *)table->heap.segment;
     if (segment != NULL) {
-        if (heap_page_corruption_scan(session, segment, corrupt_info) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_page_corruption_scan(session, segment, corrupt_info) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (!entity->contain_lob) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (uint32 i = 0; i < table->desc.column_count; i++) {
@@ -7664,18 +7665,18 @@ status_t heap_table_corruption_verify(knl_session_t *session, knl_dictionary_t *
         lob_t *lob = (lob_t *)column->lob;
         lob_segment_t *lob_segment = (lob_segment_t *)lob->lob_entity.segment;
         if (lob_segment != NULL) {
-            if (lob_corruption_scan(session, lob_segment, corrupt_info) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (lob_corruption_scan(session, lob_segment, corrupt_info) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t heap_check_restart(knl_session_t *session, knl_cursor_t *cursor)
 {
-    bool32 is_found = GS_FALSE;
+    bool32 is_found = CT_FALSE;
     heap_t *heap = CURSOR_HEAP(cursor);
     heap_segment_t *segment = HEAP_SEGMENT(session, heap->entry, heap->segment);
 
@@ -7684,47 +7685,47 @@ static status_t heap_check_restart(knl_session_t *session, knl_cursor_t *cursor)
     cursor->chain_count = 0;
 
     if (heap->ashrink_stat == ASHRINK_WAIT_SHRINK && cursor->query_scn >= segment->shrinkable_scn) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (cursor->for_update_fetch) {
-        GS_LOG_DEBUG_INF("select for update checked when shrink table");
-        return GS_SUCCESS;
+        CT_LOG_DEBUG_INF("select for update checked when shrink table");
+        return CT_SUCCESS;
     }
 
-    if (buf_read_page(session, GET_ROWID_PAGE(cursor->rowid), LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-                return GS_ERROR;
+    if (buf_read_page(session, GET_ROWID_PAGE(cursor->rowid), LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+                return CT_ERROR;
     }
     heap_page_t *page = (heap_page_t *)CURR_PAGE(session);
 
     if (!heap_check_page(session, cursor, page, PAGE_TYPE_HEAP_DATA)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         HEAP_CHECKPAGE_ERROR(cursor);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if ((uint16)cursor->rowid.slot >= page->dirs) {
-        buf_leave_page(session, GS_FALSE);
-        GS_THROW_ERROR(ERR_INVALID_ROWID);
-        return GS_ERROR;
+        buf_leave_page(session, CT_FALSE);
+        CT_THROW_ERROR(ERR_INVALID_ROWID);
+        return CT_ERROR;
     }
 
-    if (heap_get_row(session, cursor, page, DB_CURR_SCN(session), &is_found) != GS_SUCCESS) {
-        buf_leave_page(session, GS_FALSE);
-        return GS_ERROR;
+    if (heap_get_row(session, cursor, page, DB_CURR_SCN(session), &is_found) != CT_SUCCESS) {
+        buf_leave_page(session, CT_FALSE);
+        return CT_ERROR;
     }
 
-    if (SECUREC_UNLIKELY(session->wxid.value != GS_INVALID_ID64)) {
-        session->wxid.value = GS_INVALID_ID64;
+    if (SECUREC_UNLIKELY(session->wxid.value != CT_INVALID_ID64)) {
+        session->wxid.value = CT_INVALID_ID64;
     }
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     if (cursor->snapshot.scn > cursor->query_scn) {
-        if (heap_check_current_visible(session, cursor, GS_TRUE, &is_found) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (heap_check_current_visible(session, cursor, CT_TRUE, &is_found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 

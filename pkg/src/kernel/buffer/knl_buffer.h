@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,6 +32,7 @@
 #include "knl_log.h"
 #include "knl_page.h"
 #include "knl_session.h"
+#include "knl_buffer_persistent.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,7 +45,7 @@ extern "C" {
 #define ENTER_PAGE_TRY            (uint8)0x08  // try to read from buffer, don't read from disk
 #define ENTER_PAGE_SEQUENTIAL     (uint8)0x10  // for situation like table full scan to descrease impact on buffer
 #define ENTER_PAGE_HIGH_AGE       (uint8)0x20  // decrease possibility to be recycled of page
-#define ENTER_PAGE_LOCAL (uint8)0x40           // check local page without redo log in DAAC only
+#define ENTER_PAGE_TRY_PREFETCH (uint8)0x40    // try to prefetch for heap noread
 #define ENTER_PAGE_FROM_REMOTE (uint8)0x80     // remote access mode
 
 #define RD_ENTER_PAGE_MASK        (~(ENTER_PAGE_PINNED | ENTER_PAGE_NO_READ | ENTER_PAGE_TRY | ENTER_PAGE_RESIDENT))
@@ -91,7 +92,7 @@ extern "C" {
 #define BUF_OPTIMIZE_MIN_PAGES 131072   // use scan list only when buffer set size less than 1G
 
 #define PAGE_GROUP_COUNT 8
-#define MAX_PCB_VM_COUNT 8192           // GS_MAX_TAB_COMPRESS_BUF_SIZE(1G)  / 128k (vm page size)
+#define MAX_PCB_VM_COUNT 8192           // CT_MAX_TAB_COMPRESS_BUF_SIZE(1G)  / 128k (vm page size)
 
 extern uint32 g_cks_level;
 
@@ -117,8 +118,8 @@ typedef enum en_buf_load_status {
 typedef struct st_buf_latch {
     volatile uint16 shared_count;
     volatile uint16 stat;
-    volatile uint16 sid;   // the first session latched buffer, less than GS_MAX_SESSIONS(8192)
-    volatile uint16 xsid;  // the last session exclusively latched buffer, less than GS_MAX_SESSIONS(8192)
+    volatile uint16 sid;   // the first session latched buffer, less than CT_MAX_SESSIONS(8192)
+    volatile uint16 xsid;  // the last session exclusively latched buffer, less than CT_MAX_SESSIONS(8192)
 } buf_latch_t;
 
 typedef enum en_buf_expire_type {
@@ -242,7 +243,7 @@ typedef struct st_buf_set {
 } buf_set_t;
 
 typedef struct st_buf_context {
-    buf_set_t buf_set[GS_MAX_BUF_POOL_NUM];
+    buf_set_t buf_set[CT_MAX_BUF_POOL_NUM];
     uint32 buf_set_count;
     thread_lock_t buf_mutex;
 } buf_context_t;
@@ -290,16 +291,6 @@ typedef struct st_pcb_assist {
     uint32 buf_id;
     bool32 from_vm;
 } pcb_assist_t;
-
-#pragma pack(4)
-typedef struct st_rd_enter_page {
-    uint32 page;
-    uint16 file;
-    uint8 options;
-    uint8 align;
-    uint32 pcn;
-} rd_enter_page_t;
-#pragma pack()
 
 typedef struct st_edp_page_info {
     page_id_t page;
@@ -385,6 +376,7 @@ void buf_reset_cleaned_pages_all_bufset(buf_context_t *buf_ctx, buf_lru_list_t *
 void buf_balance_set_list(buf_set_t *set);
 void buf_check_page_version(knl_session_t *session, buf_ctrl_t *ctrl);
 bool32 buf_check_resident_page_version(knl_session_t *session, page_id_t page_id);
+bool32 buf_check_resident_page_version_with_ctrl(knl_session_t *session, void *buf_ctrl, page_id_t page_id);
 void buf_expire_datafile_pages(knl_session_t *session, uint32 file_id);
 status_t pcb_get_buf(knl_session_t *session, pcb_assist_t *pcb_assist);
 void pcb_release_buf(knl_session_t *session, pcb_assist_t *pcb_assist);

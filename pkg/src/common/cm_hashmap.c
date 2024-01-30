@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "cm_common_module.h"
 #include "cm_hashmap.h"
 //#include "cm_utils.h"
 //#include "cm_string.h"
@@ -99,25 +99,25 @@ int32 oamap_rehash(cm_oamap_t *map, uint32 new_capacity)
     bool32 found;
 
     if (0 == new_capacity) {
-        return ERR_GSS_INVALID_PARAM;
+        return ERR_CTSTORE_INVALID_PARAM;
     }
 
     size = new_capacity * (sizeof(cm_oamap_bucket_t) + sizeof(void *) + sizeof(void *));
-    if (size >= GS_INVALID_ID32) {
-        GS_LOG_DEBUG_ERR("Invalid capacity value specified for rehashing map.");
-        return ERR_GSS_INVALID_PARAM;
+    if (size >= CT_INVALID_ID32) {
+        CT_LOG_DEBUG_ERR("Invalid capacity value specified for rehashing map.");
+        return ERR_CTSTORE_INVALID_PARAM;
     }
     // if (map->mem_ctx != NULL)
     //{
     //     //new_buckets = (cm_oamap_bucket_t *)memctx_alloc(map->mem_ctx, (uint32)size);
-    //     return ERR_GSS_INVALID_PARAM;
+    //     return ERR_CTSTORE_INVALID_PARAM;
     // }
     // else
     {
         new_buckets = (cm_oamap_bucket_t *)cm_malloc((uint32)size);
     }
     if (new_buckets == NULL) {
-        GS_LOG_DEBUG_ERR("Malloc failed");
+        CT_LOG_DEBUG_ERR("Malloc failed");
         return ERR_ALLOC_MEMORY;
     }
     /*lint -save -e740 */
@@ -138,14 +138,14 @@ int32 oamap_rehash(cm_oamap_t *map, uint32 new_capacity)
         }
         // TODO:PERF
         start = src_bucket->hash % new_capacity;
-        found = GS_FALSE;
+        found = CT_FALSE;
         for (j = start; j < new_capacity; j++) {
             dst_bucket = &new_buckets[j];
             if (dst_bucket->state != (uint32)USED) {
                 *dst_bucket = *src_bucket;
                 new_key[j] = map->key[i];
                 new_value[j] = map->value[i];
-                found = GS_TRUE;
+                found = CT_TRUE;
                 used++;
                 break;
             }
@@ -158,7 +158,7 @@ int32 oamap_rehash(cm_oamap_t *map, uint32 new_capacity)
                     *dst_bucket = *src_bucket;
                     new_key[start] = map->key[i];
                     new_value[start] = map->value[i];
-                    found = GS_TRUE;
+                    found = CT_TRUE;
                     used++;
                     break;
                 }
@@ -175,13 +175,13 @@ int32 oamap_rehash(cm_oamap_t *map, uint32 new_capacity)
     map->num = new_capacity;
     map->deleted = 0;
     map->used = used;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_oamap_init_mem(cm_oamap_t *map)
 {
     if (NULL == map) {
-        GS_LOG_DEBUG_ERR("Null pointer specified");
+        CT_LOG_DEBUG_ERR("Null pointer specified");
         return;
     }
 
@@ -201,34 +201,34 @@ int32 cm_oamap_init(cm_oamap_t *map, uint32 init_capacity,
     uint64 size;
     uint32 i;
     if (map == NULL || compare_func == NULL) {
-        GS_LOG_DEBUG_ERR("Null pointer specified");
-        return ERR_GSS_INVALID_PARAM;
+        CT_LOG_DEBUG_ERR("Null pointer specified");
+        return ERR_CTSTORE_INVALID_PARAM;
     }
     // The max oamap
     map->num = oamap_get_near_prime(init_capacity);
     if (map->num >= MAX_OAMAP_BUCKET_NUM) {
-        GS_LOG_DEBUG_ERR("Invalid bucket num specified");
-        return ERR_GSS_INVALID_PARAM;
+        CT_LOG_DEBUG_ERR("Invalid bucket num specified");
+        return ERR_CTSTORE_INVALID_PARAM;
     }
     map->used = 0;
     size = map->num * (sizeof(cm_oamap_bucket_t) + sizeof(void *) + sizeof(void *));
-    if (size >= GS_INVALID_ID32) {
-        GS_LOG_DEBUG_ERR("Invalid map size");
-        return ERR_GSS_INVALID_PARAM;
+    if (size >= CT_INVALID_ID32) {
+        CT_LOG_DEBUG_ERR("Invalid map size");
+        return ERR_CTSTORE_INVALID_PARAM;
     }
     map->compare_func = compare_func;
     // map->mem_ctx = mem_ctx;
     // if (mem_ctx != NULL)
     //{
     //     //map->buckets = (cm_oamap_bucket_t *)memctx_alloc(mem_ctx, (uint32)size);
-    //     return ERR_GSS_INVALID_PARAM;
+    //     return ERR_CTSTORE_INVALID_PARAM;
     // }
     // else
     {
         map->buckets = (cm_oamap_bucket_t *)cm_malloc((uint32)size);
     }
     if (map->buckets == NULL) {
-        GS_LOG_DEBUG_ERR("Malloc failed");
+        CT_LOG_DEBUG_ERR("Malloc failed");
         return ERR_ALLOC_MEMORY;
     }
     /*lint -save -e740 */
@@ -242,7 +242,7 @@ int32 cm_oamap_init(cm_oamap_t *map, uint32 init_capacity,
         map->value[i] = NULL;
     }
     map->deleted = 0;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_oamap_destroy(cm_oamap_t *map)
@@ -276,87 +276,87 @@ int32 cm_oamap_insert(cm_oamap_t *map, uint32 hash_input, void *key, void *value
     cm_oamap_bucket_t *bucket;
     uint32 hash = hash_input;
     if (NULL == map) {
-        GS_LOG_DEBUG_ERR("Pointer to map is NULL");
-        return ERR_GSS_INVALID_PARAM;
+        CT_LOG_DEBUG_ERR("Pointer to map is NULL");
+        return ERR_CTSTORE_INVALID_PARAM;
     }
     if ((map->used - map->deleted) * 3 > map->num * 2) {
         new_size = oamap_get_near_prime(map->num + 1);
         if (new_size > MAX_OAMAP_BUCKET_NUM) {
-            GS_LOG_DEBUG_ERR("Invalid bucket num specified");
-            return ERR_GSS_INVALID_PARAM;
+            CT_LOG_DEBUG_ERR("Invalid bucket num specified");
+            return ERR_CTSTORE_INVALID_PARAM;
         }
         ret = (uint32)oamap_rehash(map, new_size);
-        if (ret != GS_SUCCESS) {
-            GS_LOG_DEBUG_ERR("OAMAP rehash failed,%d.", ret);
+        if (ret != CT_SUCCESS) {
+            CT_LOG_DEBUG_ERR("OAMAP rehash failed,%d.", ret);
             return ret;
         }
     }
     hash = hash & HASH_MASK;
     // TODO:PERF
     start = hash % map->num;
-    found_free = GS_FALSE;
-    found_pos = GS_FALSE;
+    found_free = CT_FALSE;
+    found_pos = CT_FALSE;
     for (i = start; i < map->num; i++) {
         bucket = &(map->buckets[i]);
         if (bucket->state == (uint32)FREE) {
-            found_free = GS_TRUE;
-            if (found_pos != GS_TRUE) {
+            found_free = CT_TRUE;
+            if (found_pos != CT_TRUE) {
                 // find a new free pos to insert. so need to update the used counter
                 map->used++;
-                found_pos = GS_TRUE;
+                found_pos = CT_TRUE;
                 insert_pos = i;
             }
             break;
         } else if (bucket->state == (uint32)DELETED) {
-            if (found_pos != GS_TRUE) {
+            if (found_pos != CT_TRUE) {
                 // find a deleted pos to reuse for insert. so need to udpate the deleted counter
                 map->deleted--;
-                found_pos = GS_TRUE;
+                found_pos = CT_TRUE;
                 insert_pos = i;
             }
         } else {
-            if (bucket->hash == hash && map->compare_func(map->key[i], key) == GS_TRUE) {
-                GS_LOG_DEBUG_ERR("Duplicate key being inserted, i:%d, hash:%u", i, hash);
+            if (bucket->hash == hash && map->compare_func(map->key[i], key) == CT_TRUE) {
+                CT_LOG_DEBUG_ERR("Duplicate key being inserted, i:%d, hash:%u", i, hash);
                 return ERR_OAMAP_DUP_KEY_ERROR;
             }
         }
     }
-    if (found_free != GS_TRUE) {
+    if (found_free != CT_TRUE) {
         while (start > 0) {
             start--;
             bucket = &(map->buckets[start]);
             if (bucket->state == (uint32)FREE) {
-                if (found_pos != GS_TRUE) {
+                if (found_pos != CT_TRUE) {
                     // find a new free pos to insert. so need to update the used counter
                     map->used++;
-                    found_pos = GS_TRUE;
+                    found_pos = CT_TRUE;
                     insert_pos = start;
                 }
                 break;
             } else if (bucket->state == (uint32)DELETED) {
-                if (found_pos != GS_TRUE) {
+                if (found_pos != CT_TRUE) {
                     // find a deleted pos to reuse for insert. so need to update the deleted counter
                     map->deleted--;
-                    found_pos = GS_TRUE;
+                    found_pos = CT_TRUE;
                     insert_pos = start;
                 }
             } else {
-                if (bucket->hash == hash && map->compare_func(map->key[start], key) == GS_TRUE) {
-                    GS_LOG_DEBUG_ERR("Duplicate key being inserted");
+                if (bucket->hash == hash && map->compare_func(map->key[start], key) == CT_TRUE) {
+                    CT_LOG_DEBUG_ERR("Duplicate key being inserted");
                     return ERR_OAMAP_DUP_KEY_ERROR;
                 }
             }
         }
     }
-    if (found_pos == GS_TRUE) {
+    if (found_pos == CT_TRUE) {
         bucket = &(map->buckets[insert_pos]);
         bucket->hash = hash;
         bucket->state = (uint32)USED;
         map->key[insert_pos] = key;
         map->value[insert_pos] = value;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
-        GS_LOG_DEBUG_ERR("Insertion failed");
+        CT_LOG_DEBUG_ERR("Insertion failed");
         return ERR_OAMAP_INSERTION_FAILED;
     }
 }
@@ -368,12 +368,12 @@ void *cm_oamap_lookup(cm_oamap_t *map, uint32 hash_input, void *key)
     uint32 hash = hash_input;
 
     if (NULL == map) {
-        GS_LOG_DEBUG_ERR("Pointer to map is NULL");
+        CT_LOG_DEBUG_ERR("Pointer to map is NULL");
         return NULL;
     }
 
     if (0 == map->num) {
-        GS_LOG_DEBUG_ERR("The map is not initialized.");
+        CT_LOG_DEBUG_ERR("The map is not initialized.");
         return NULL;
     }
 
@@ -384,13 +384,13 @@ void *cm_oamap_lookup(cm_oamap_t *map, uint32 hash_input, void *key)
     for (i = start; i < map->num; i++) {
         bucket = &(map->buckets[i]);
         if (bucket->state == (uint32)FREE) {
-            GS_LOG_DEBUG_INF("Search key not found, i:%u, hash:%u", i, hash);
+            CT_LOG_DEBUG_INF("Search key not found, i:%u, hash:%u", i, hash);
             return NULL;
         } else if (bucket->state == (uint32)USED) {
-            if (bucket->hash == hash && map->compare_func(map->key[i], key) == GS_TRUE) {
+            if (bucket->hash == hash && map->compare_func(map->key[i], key) == CT_TRUE) {
                 return map->value[i];
             }
-            GS_LOG_DEBUG_INF("Search key not equal, i:%u, hash:%u, bucket hash:%u", i, hash, bucket->hash);
+            CT_LOG_DEBUG_INF("Search key not equal, i:%u, hash:%u, bucket hash:%u", i, hash, bucket->hash);
         } else {
             // for lint
         }
@@ -400,17 +400,17 @@ void *cm_oamap_lookup(cm_oamap_t *map, uint32 hash_input, void *key)
         start--;
         bucket = &(map->buckets[start]);
         if (bucket->state == (uint32)FREE) {
-            GS_LOG_DEBUG_INF("Search key not found, start:%u, hash:%u", start, hash);
+            CT_LOG_DEBUG_INF("Search key not found, start:%u, hash:%u", start, hash);
             return NULL;
         } else if (bucket->state == (uint32)USED) {
-            if (bucket->hash == hash && map->compare_func(map->key[start], key) == GS_TRUE) {
+            if (bucket->hash == hash && map->compare_func(map->key[start], key) == CT_TRUE) {
                 return map->value[start];
             }
         } else {
             // for lint
         }
     }
-    GS_LOG_DEBUG_INF("Search key not found");
+    CT_LOG_DEBUG_INF("Search key not found");
     return NULL;
 }
 
@@ -421,7 +421,7 @@ void *cm_oamap_remove(cm_oamap_t *map, uint32 hash_input, void *key)
     uint32 hash = hash_input;
     void *value = NULL;
     if (NULL == map) {
-        GS_LOG_DEBUG_ERR("Pointer to map is NULL");
+        CT_LOG_DEBUG_ERR("Pointer to map is NULL");
         return NULL;
     }
 
@@ -433,7 +433,7 @@ void *cm_oamap_remove(cm_oamap_t *map, uint32 hash_input, void *key)
         if (bucket->state == (uint32)FREE) {
             return NULL;
         } else if (bucket->state == (uint32)USED) {
-            if (bucket->hash == hash && map->compare_func(map->key[i], key) == GS_TRUE) {
+            if (bucket->hash == hash && map->compare_func(map->key[i], key) == CT_TRUE) {
                 bucket->hash = 0;
                 bucket->state = (uint32)DELETED;
                 map->deleted++;
@@ -453,7 +453,7 @@ void *cm_oamap_remove(cm_oamap_t *map, uint32 hash_input, void *key)
         if (bucket->state == (uint32)FREE) {
             return NULL;
         } else if (bucket->state == (uint32)USED) {
-            if (bucket->hash == hash && map->compare_func(map->key[start], key) == GS_TRUE) {
+            if (bucket->hash == hash && map->compare_func(map->key[start], key) == CT_TRUE) {
                 bucket->hash = 0;
                 bucket->state = (uint32)DELETED;
                 map->deleted++;
@@ -466,7 +466,7 @@ void *cm_oamap_remove(cm_oamap_t *map, uint32 hash_input, void *key)
             // for lint
         }
     }
-    GS_LOG_DEBUG_ERR("Key to remove not found");
+    CT_LOG_DEBUG_ERR("Key to remove not found");
     return value;
 }
 
@@ -488,7 +488,7 @@ int32 cm_oamap_fetch(cm_oamap_t *map, cm_oamap_iterator_t *iter, void **key, voi
             *key = map->key[i];
             *value = map->value[i];
             *iter = i + 1;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 

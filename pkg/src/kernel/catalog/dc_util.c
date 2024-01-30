@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_dc_module.h"
 #include "dc_util.h"
 #include "cm_log.h"
 #include "knl_context.h"
@@ -117,8 +118,8 @@ status_t dc_init_lru(dc_context_t *ctx)
     dc_lru_queue_t *dc_lru = NULL;
     errno_t err;
 
-    if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_lru_queue_t), (void **)&ctx->lru_queue) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_lru_queue_t), (void **)&ctx->lru_queue) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     dc_lru = ctx->lru_queue;
@@ -128,7 +129,7 @@ status_t dc_init_lru(dc_context_t *ctx)
     dc_lru->lock = 0;
     dc_lru->head = NULL;
     dc_lru->tail = NULL;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void dc_free_entity(dc_context_t *ctx, dc_entry_t *entry)
@@ -147,26 +148,26 @@ static void dc_free_entity(dc_context_t *ctx, dc_entry_t *entry)
 /* nologging table dc entity can only recyclable if its entry has been emptied */
 #define DC_ENTITY_RECYCLABLE(entry, entity)                                 \
     ((entity)->ref_count == 0 && (entity)->valid &&                         \
-    (entity) == (entry)->entity && ((entry)->need_empty_entry == GS_FALSE))
+    (entity) == (entry)->entity && ((entry)->need_empty_entry == CT_FALSE))
 
 bool32 dc_try_recycle(dc_context_t *ctx, dc_lru_queue_t *queue, dc_entity_t *entity)
 {
     dc_entry_t *entry = NULL;
 
     if (entity == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     entry = entity->entry;
 
     if (!DC_ENTITY_RECYCLABLE(entry, entity)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     cm_spin_lock(&entry->lock, NULL);
     if (!DC_ENTITY_RECYCLABLE(entry, entity)) {
         cm_spin_unlock(&entry->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     /*
@@ -176,7 +177,7 @@ bool32 dc_try_recycle(dc_context_t *ctx, dc_lru_queue_t *queue, dc_entity_t *ent
     */
     if (dc_is_locked(entry)) {
         cm_spin_unlock(&entry->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     dc_lru_remove(queue, entity);
@@ -193,7 +194,7 @@ bool32 dc_try_recycle(dc_context_t *ctx, dc_lru_queue_t *queue, dc_entity_t *ent
     cm_spin_unlock(&entry->ref_lock);
     cm_spin_unlock(&entry->lock);
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static status_t dc_lru_recycle(dc_context_t *ctx)
@@ -208,8 +209,8 @@ static status_t dc_lru_recycle(dc_context_t *ctx)
 
     if (queue->count == 0) {
         cm_spin_unlock(&queue->lock);
-        GS_THROW_ERROR(ERR_ALLOC_GA_MEMORY, ctx->pool.name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_GA_MEMORY, ctx->pool.name);
+        return CT_ERROR;
     }
 
     head = queue->head;
@@ -224,7 +225,7 @@ static status_t dc_lru_recycle(dc_context_t *ctx)
 
         if (dc_try_recycle(ctx, queue, curr)) {
             cm_spin_unlock(&queue->lock);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         dc_lru_shift(queue, curr);
@@ -232,8 +233,8 @@ static status_t dc_lru_recycle(dc_context_t *ctx)
     }
 
     cm_spin_unlock(&queue->lock);
-    GS_THROW_ERROR(ERR_ALLOC_GA_MEMORY, ctx->pool.name);
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_ALLOC_GA_MEMORY, ctx->pool.name);
+    return CT_ERROR;
 }
 
 dc_entity_t *dc_get_entity_from_lru(knl_session_t *session, uint32 pos, bool32 *is_found)
@@ -283,7 +284,7 @@ dc_entity_t *dc_get_entity_from_lru(knl_session_t *session, uint32 pos, bool32 *
 
         cm_spin_lock(&entity->ref_lock, NULL);
         entity->ref_count++;
-        *is_found = GS_TRUE;
+        *is_found = CT_TRUE;
         cm_spin_unlock(&entity->ref_lock);
         cm_spin_unlock(&entry->lock);
     }
@@ -294,8 +295,8 @@ dc_entity_t *dc_get_entity_from_lru(knl_session_t *session, uint32 pos, bool32 *
 
 status_t dc_recycle_ctx(dc_context_t *ctx)
 {
-    if (dc_lru_recycle(ctx) == GS_SUCCESS) {
-        return GS_SUCCESS;
+    if (dc_lru_recycle(ctx) == CT_SUCCESS) {
+        return CT_SUCCESS;
     }
 
     cm_reset_error();
@@ -313,7 +314,7 @@ status_t dc_alloc_mem(dc_context_t *ctx, memory_context_t *mem, uint32 size, voi
         }
 
         /* 2. try to recycle from dc_lru queue */
-        if (dc_recycle_ctx(ctx) == GS_SUCCESS) {
+        if (dc_recycle_ctx(ctx) == CT_SUCCESS) {
             continue;
         }
 
@@ -323,10 +324,10 @@ status_t dc_alloc_mem(dc_context_t *ctx, memory_context_t *mem, uint32 size, voi
             break;
         }
 
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_alloc_page(dc_context_t *ctx, char **page)
@@ -339,7 +340,7 @@ status_t dc_alloc_page(dc_context_t *ctx, char **page)
             break;
         }
 
-        if (dc_recycle_ctx(ctx) == GS_SUCCESS) {
+        if (dc_recycle_ctx(ctx) == CT_SUCCESS) {
             continue;
         }
 
@@ -348,14 +349,14 @@ status_t dc_alloc_page(dc_context_t *ctx, char **page)
             break;
         }
 
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *page = mpool_page_addr(&ctx->pool, page_id);
-    err = memset_sp(*page, GS_SHARED_PAGE_SIZE, 0, GS_SHARED_PAGE_SIZE);
+    err = memset_sp(*page, CT_SHARED_PAGE_SIZE, 0, CT_SHARED_PAGE_SIZE);
     knl_securec_check(err);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_alloc_memory_page(dc_context_t *ctx, uint32 *page_id)
@@ -365,7 +366,7 @@ status_t dc_alloc_memory_page(dc_context_t *ctx, uint32 *page_id)
             break;
         }
 
-        if (dc_recycle_ctx(ctx) == GS_SUCCESS) {
+        if (dc_recycle_ctx(ctx) == CT_SUCCESS) {
             continue;
         }
 
@@ -374,10 +375,10 @@ status_t dc_alloc_memory_page(dc_context_t *ctx, uint32 *page_id)
             break;
         }
 
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_create_memory_context(dc_context_t *ctx, memory_context_t **memory)
@@ -387,7 +388,7 @@ status_t dc_create_memory_context(dc_context_t *ctx, memory_context_t **memory)
             break;
         }
 
-        if (dc_recycle_ctx(ctx) == GS_SUCCESS) {
+        if (dc_recycle_ctx(ctx) == CT_SUCCESS) {
             continue;
         }
 
@@ -396,10 +397,10 @@ status_t dc_create_memory_context(dc_context_t *ctx, memory_context_t **memory)
             break;
         }
 
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dc_alloc_from_ctx(knl_session_t *session, dc_list_t *list, uint32 size, void **buf)
@@ -412,9 +413,9 @@ static status_t dc_alloc_from_ctx(knl_session_t *session, dc_list_t *list, uint3
     *buf = dc_list_remove(list);
 
     if (*buf == NULL) {
-        if (dc_alloc_mem(ctx, ctx->memory, size, buf) != GS_SUCCESS) {
+        if (dc_alloc_mem(ctx, ctx->memory, size, buf) != CT_SUCCESS) {
             cm_spin_unlock(&ctx->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -423,23 +424,23 @@ static status_t dc_alloc_from_ctx(knl_session_t *session, dc_list_t *list, uint3
     err = memset_sp(*buf, size, 0, size);
     knl_securec_check(err);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_copy_text2str(knl_session_t *session, memory_context_t *context, text_t *src, char **dst)
 {
     if (src->len == 0) {
         *dst = NULL;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (dc_alloc_mem(&session->kernel->dc_ctx, context, src->len + 1, (void **)dst) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_mem(&session->kernel->dc_ctx, context, src->len + 1, (void **)dst) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     (void)cm_text2str(src, *dst, src->len + 1);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_alloc_appendix(knl_session_t *session, dc_entry_t *entry)
@@ -459,8 +460,8 @@ status_t dc_alloc_schema_lock(knl_session_t *session, dc_entry_t *entry)
     status_t ret;
     ret = dc_alloc_from_ctx(session, &session->kernel->dc_ctx.free_schema_locks, (uint32)SCHEMA_LOCK_SIZE,
                             (void **)&entry->sch_lock);
-    if (ret == GS_SUCCESS) {
-        entry->sch_lock->inst_id = GS_INVALID_ID8;
+    if (ret == CT_SUCCESS) {
+        entry->sch_lock->inst_id = CT_INVALID_ID8;
     }
     return ret;
 }
@@ -471,13 +472,13 @@ bool32 dc_try_reuse_entry(dc_user_t *user, dc_entry_t **entry)
     *entry = (dc_entry_t *)cm_bilist_remove_head(&user->free_entries);
     if (*entry == NULL) {
         cm_spin_unlock(&user->free_entries_lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    (*entry)->is_free = GS_FALSE;
-    (*entry)->ready = GS_FALSE;
-    (*entry)->used = GS_TRUE;
+    (*entry)->is_free = CT_FALSE;
+    (*entry)->ready = CT_FALSE;
+    (*entry)->used = CT_TRUE;
     cm_spin_unlock(&user->free_entries_lock);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 // if entry in free list, remove it
@@ -486,7 +487,7 @@ void dc_try_remove_entry(dc_user_t *user, dc_entry_t *entry)
     cm_spin_lock(&user->free_entries_lock, NULL);
     if (entry->is_free) {
         cm_bilist_del(&entry->node, &user->free_entries);
-        entry->is_free = GS_FALSE;
+        entry->is_free = CT_FALSE;
     }
     cm_spin_unlock(&user->free_entries_lock);
 }

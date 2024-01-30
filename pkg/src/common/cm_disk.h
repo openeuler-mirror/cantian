@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -75,6 +75,11 @@ status_t cm_lockw_record_fd(int32 fd, uint32 id);
 status_t cm_lockr_record_fd(int32 fd, uint32 id);
 status_t cm_unlock_file_fd(int32 fd);
 status_t cm_unlock_record_fd(int32 fd, uint32 id);
+
+status_t cm_lock_range_fd(int32 fd, uint64 l_start, uint64 l_len, uint8 type);
+status_t cm_lockw_range_fd(int32 fd, uint64 l_start, uint64 l_len);
+status_t cm_lockr_range_fd(int32 fd, uint64 l_start, uint64 l_len);
+status_t cm_unlock_range_fd(int32 fd, uint64 l_start, uint64 l_len);
 
 #ifdef __cplusplus
 }

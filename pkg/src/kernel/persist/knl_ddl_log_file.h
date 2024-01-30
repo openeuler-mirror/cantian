@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -35,7 +35,7 @@ typedef struct st_logic_op_ddl_write_file_buffer {
 } logic_ddl_file_buffer_t;
 
 typedef struct st_logic_ddl_file {
-    char name[GS_FILE_NAME_BUFFER_SIZE];  // file name
+    char name[CT_FILE_NAME_BUFFER_SIZE];  // file name
     int32 handle;                         // file handle
     device_type_t type;
     int64 size;                           // uncomprss file size
@@ -44,7 +44,7 @@ typedef struct st_logic_ddl_file {
 typedef struct st_logic_op_ddl_file_mgr {
     logic_ddl_local_file_t data_file;
     logic_ddl_file_buffer_t file_buffer;
-    char path[GS_FILE_NAME_BUFFER_SIZE];
+    char path[CT_FILE_NAME_BUFFER_SIZE];
     uint32 file_flags;
     uint32 buffer_offset;
     uint64 file_offset;

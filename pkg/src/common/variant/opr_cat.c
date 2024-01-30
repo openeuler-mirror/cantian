@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -33,26 +33,26 @@
 */
 status_t opr_exec_cat(opr_operand_set_t *op_set)
 {
-    char buf[GS_STRING_BUFFER_SIZE];
+    char buf[CT_STRING_BUFFER_SIZE];
     variant_t l_var, r_var;
     text_buf_t buffer;
     uint32 result_len;
 
     buf[0] = '\0';
-    CM_INIT_TEXTBUF(&buffer, GS_MAX_STRING_LEN, buf);
+    CM_INIT_TEXTBUF(&buffer, CT_MAX_STRING_LEN, buf);
 
     // record len of OP_RESULT memory
     result_len = OP_RESULT(op_set)->v_text.len;
     OP_RESULT(op_set)->v_text.len = 0;
 
     if (OP_LEFT(op_set)->is_null && OP_RIGHT(op_set)->is_null) {
-        VAR_SET_NULL(OP_RESULT(op_set), GS_DATATYPE_OF_NULL);
-        return GS_SUCCESS;
+        VAR_SET_NULL(OP_RESULT(op_set), CT_DATATYPE_OF_NULL);
+        return CT_SUCCESS;
     }
 
     if (!OP_LEFT(op_set)->is_null) {
         l_var = *OP_LEFT(op_set);
-        GS_RETURN_IFERR(var_as_string(op_set->nls, &l_var, &buffer));
+        CT_RETURN_IFERR(var_as_string(op_set->nls, &l_var, &buffer));
 
         l_var.v_text.len = MIN(result_len - OP_RESULT(op_set)->v_text.len, l_var.v_text.len);
         cm_concat_text(&OP_RESULT(op_set)->v_text, result_len, &l_var.v_text);
@@ -60,13 +60,13 @@ status_t opr_exec_cat(opr_operand_set_t *op_set)
 
     if (!OP_RIGHT(op_set)->is_null) {
         r_var = *OP_RIGHT(op_set);
-        GS_RETURN_IFERR(var_as_string(op_set->nls, &r_var, &buffer));
+        CT_RETURN_IFERR(var_as_string(op_set->nls, &r_var, &buffer));
 
         r_var.v_text.len = MIN(result_len - OP_RESULT(op_set)->v_text.len, r_var.v_text.len);
         cm_concat_text(&OP_RESULT(op_set)->v_text, result_len, &r_var.v_text);
     }
 
-    OP_RESULT(op_set)->type = GS_TYPE_STRING;
-    OP_RESULT(op_set)->is_null = GS_FALSE;
-    return GS_SUCCESS;
+    OP_RESULT(op_set)->type = CT_TYPE_STRING;
+    OP_RESULT(op_set)->is_null = CT_FALSE;
+    return CT_SUCCESS;
 }

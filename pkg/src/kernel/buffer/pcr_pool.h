@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -84,7 +84,7 @@ typedef struct __attribute__((aligned(128))) st_pcrp_set {
 } pcrp_set_t;
 
 typedef struct st_pcrp_context {
-    pcrp_set_t pcrp_set[GS_MAX_CR_POOL_COUNT];
+    pcrp_set_t pcrp_set[CT_MAX_CR_POOL_COUNT];
     uint32 pcrp_set_count;
 } pcrp_context_t;
 

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -33,7 +33,7 @@ extern "C" {
 #endif /* __cpluscplus */
 
 #define SHM_SEG_MAX_NUM 64
-#define TSE_MAX_COLUMNS 4096  // GS_MAX_COLUMNS
+#define TSE_MAX_COLUMNS 4096  // CT_MAX_COLUMNS
 #define INDEX_KEY_SIZE 4096  // 索引查询条件的大小mysql限制为3072，取4096
 #define MAX_PREFETCH_REC_NUM 100
 #define REQUEST_SIZE (MAX_RECORD_SIZE + (2 * MAX_PREFETCH_REC_NUM) + 24)  // 根据rnd_prefetch_request计算, 取8字节对齐
@@ -87,6 +87,7 @@ struct bulk_write_request {
     uint32_t err_pos;
     uint8_t record[MAX_RECORD_SIZE];
     dml_flag_t flag;
+    ctc_part_t part_ids[MAX_BULK_INSERT_PART_ROWS];
 };
 
 struct update_row_request {
@@ -136,37 +137,32 @@ struct rnd_next_request {
 struct rnd_prefetch_request {
     tianchi_handler_t tch;
     int result;
-    uint32_t rowNum;
+    int max_row_size;
     uint8_t records[MAX_RECORD_SIZE];
     uint16_t record_lens[MAX_PREFETCH_REC_NUM];
     uint32_t recNum[1];
     uint64_t rowids[MAX_PREFETCH_REC_NUM];
 };
 
-struct alter_commit_request {
-    tianchi_handler_t tch;
-    int result;
-};
-
-struct alter_rollback_request {
-    tianchi_handler_t tch;
-    int result;
-};
-
 struct trx_begin_request {
     tianchi_handler_t tch;
     int result;
     tianchi_trx_context_t trx_context;
+    bool is_mysql_local;
 };
-
-struct srv_commit_request {
+struct trx_commit_request {
     tianchi_handler_t tch;
     int result;
+    bool is_ddl_commit;
+    int32_t csize;
+    uint64_t *cursors;
 };
 
-struct srv_rollback_request {
+struct trx_rollback_request {
     tianchi_handler_t tch;
     int result;
+    int32_t csize;
+    uint64_t *cursors;
 };
 
 struct lock_table_request {
@@ -183,11 +179,10 @@ struct lock_table_request {
 struct pre_create_db_request {
     tianchi_handler_t tch;
     char sql_str[MAX_DDL_SQL_LEN];
-    char db_name_with_suffix[SMALL_RECORD_SIZE];
+    char db_name[SMALL_RECORD_SIZE];
     uint32_t tse_db_datafile_size;
     bool tse_db_datafile_autoextend;
     uint32_t tse_db_datafile_extend_size;
-    char user_password[SMALL_RECORD_SIZE];
     int error_code;
     char error_message[SMALL_RECORD_SIZE];
     int result;
@@ -196,7 +191,6 @@ struct pre_create_db_request {
 struct drop_tablespace_and_user_request {
     tianchi_handler_t tch;
     char db_name[SMALL_RECORD_SIZE];
-    char db_name_with_suffix[SMALL_RECORD_SIZE];
     char sql_str[MAX_DDL_SQL_LEN];
     char user_name[SMALL_RECORD_SIZE];
     char user_ip[SMALL_RECORD_SIZE];
@@ -223,6 +217,8 @@ struct srv_rollback_savepoint_request {
     char name[SMALL_RECORD_SIZE];
     tianchi_handler_t tch;
     int result;
+    int32_t csize;
+    uint64_t *cursors;
 };
 
 struct srv_release_savepoint_request {
@@ -272,11 +268,18 @@ struct general_fetch_request {
 struct general_prefetch_request {
     tianchi_handler_t tch;
     int result;
-    uint32_t rowNum;
+    int max_row_size;
     uint8_t records[MAX_RECORD_SIZE];
     uint16_t record_lens[MAX_PREFETCH_REC_NUM];
     uint32_t recNum[1];
     uint64_t rowids[MAX_PREFETCH_REC_NUM];
+};
+
+struct free_session_cursors_request {
+    tianchi_handler_t tch;
+    int result;
+    int32_t csize;
+    uint64_t *cursors;
 };
 
 struct get_index_slot_request {
@@ -310,11 +313,10 @@ struct delete_all_rows_request {
 struct knl_write_lob_request {
     tianchi_handler_t tch;
     char locator[MAX_LOB_LOCATOR_SIZE];
-    char column_name[SMALL_RECORD_SIZE];
+    int column_id;
     uint32_t data_len;
     bool force_outline;
     int result;
-    uint32_t buffer_size;
     char data[0];
 };
 
@@ -325,7 +327,6 @@ struct knl_read_lob_request {
     uint32_t size;
     uint32_t read_size;
     int result;
-    uint32_t buffer_size;
     char buf[0];
 };
 
@@ -338,13 +339,6 @@ struct analyze_table_request {
     char table_name[SMALL_RECORD_SIZE];
     char user_name[SMALL_RECORD_SIZE];
     double ratio;
-    int result;
-};
-
-struct optimize_table_request {
-    tianchi_handler_t tch;
-    char user_name[SMALL_RECORD_SIZE];
-    char table_name[SMALL_RECORD_SIZE];
     int result;
 };
 
@@ -379,6 +373,20 @@ struct tse_unlock_tables_request {
     tianchi_handler_t tch;
     int result;
     uint32_t mysql_inst_id;
+    tse_lock_table_info lock_info;
+};
+
+struct check_table_exists_request {
+    char db[SMALL_RECORD_SIZE];
+    char name[SMALL_RECORD_SIZE];
+    bool is_exists;
+    int result;
+};
+ 
+struct search_metadata_status_request {
+    bool metadata_switch;
+    bool cluster_ready;
+    int result;
 };
 
 struct execute_ddl_mysql_sql_request {
@@ -396,13 +404,22 @@ struct execute_mysql_ddl_sql_request {
 };
 
 struct lock_instance_request {
+    bool is_mysqld_starting;
     tse_lock_table_mode_t lock_type;
     tianchi_handler_t tch;
     int result;
 };
 
 struct unlock_instance_request {
+    bool is_mysqld_starting;
     tianchi_handler_t tch;
+    int result;
+};
+
+struct invalidate_mysql_dd_request {
+    tse_invalidate_broadcast_request broadcast_req;
+    tianchi_handler_t tch;
+    int err_code;
     int result;
 };
 

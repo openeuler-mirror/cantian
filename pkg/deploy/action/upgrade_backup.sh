@@ -7,8 +7,8 @@ REPO_PATH=/opt/cantian/repo
 COMMON_PATH=/opt/cantian/common
 CONFIG_PATH=/opt/cantian/config
 VERSION_FILE_PATH=/opt/cantian/versions.yml
-BACKUP_NOTE=/opt/backup_note
 MYSQL_INSPECTION_PATH=/opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir/inspection
+BACKUP_NOTE=/opt/backup_note
 BACKUP_NOTE_LIMITED=2
 source_version=''
 dircetory_path=''
@@ -18,7 +18,7 @@ source ${CURRENT_PATH}/env.sh
 
 #  获取源版本版本号
 function get_source_version() {
-    source_version=$(python3 ${CURRENT_PATH}/get_source_version.py)
+    source_version=$(python3 ${CURRENT_PATH}/implement/get_source_version.py)
     if [ -z "${source_version}" ]; then
         logAndEchoError "failed to obtain source version"
         exit 1
@@ -50,14 +50,12 @@ function create_backup_directory() {
         fi
         rm -rf ${dircetory_path}/*  # 避免底层模块备份重入失败
     fi
-
     # 创建mysql巡检备份路径
     mkdir -m 750 -p ${dircetory_path}/mysql_inspection
     if [ $? -ne 0 ]; then
         logAndEchoError "create mysql inspection backup directory: ${dircetory_path}/mysql_inspection failed"
         exit 1
     fi
-
     logAndEchoInfo "create backup directory: ${dircetory_path} success"
 }
 
@@ -75,6 +73,7 @@ function copy_source_resource() {
     else
         rm -rf ${MYSQL_INSPECTION_PATH}
     fi
+
     logAndEchoInfo "copy source resource finished"
 }
 

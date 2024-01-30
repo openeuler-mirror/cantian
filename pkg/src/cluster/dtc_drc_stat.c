@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,10 +22,11 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_cluster_module.h"
 #include "dtc_drc.h"
 #include "dtc_context.h"
 
-char g_master_info_record_name[][GS_DYNVIEW_NORMAL_LEN] = {
+char g_master_info_record_name[][CT_DYNVIEW_NORMAL_LEN] = {
     {"R_PO_TOTAL"},
     {"R_PO_CONVETED"},
     {"R_PO_FIRST"},
@@ -45,7 +46,7 @@ status_t drc_master_info_init(drc_res_ctx_t *ctx)
     uint32 stat_info_size = sizeof(drc_master_info_row) * stat_row_cnt;
     ctx->stat.stat_info = (drc_master_info_row *)malloc(stat_info_size);
     if (ctx->stat.stat_info == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     ctx->stat.master_info_row_cnt = stat_row_cnt;
@@ -57,7 +58,7 @@ status_t drc_master_info_init(drc_res_ctx_t *ctx)
         row->cnt = 0;
         row++;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 status_t drc_stat_init(void)
 {
@@ -74,12 +75,12 @@ status_t drc_stat_init(void)
     (void)cm_atomic_set(&ctx->stat.mig_buf_msg_sent_cnt, 0);
     (void)cm_atomic_set(&ctx->stat.mig_lock_msg_sent_cnt, 0);
 
-    if (GS_SUCCESS != drc_master_info_init(ctx)) {
+    if (CT_SUCCESS != drc_master_info_init(ctx)) {
         drc_stat_res_destroy();
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void drc_stat_res_destroy(void)

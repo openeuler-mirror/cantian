@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -67,7 +67,7 @@ static inline uint32 clt_get_total_row_bndsz(clt_stmt_t *stmt)
         param = (clt_param_t *)cm_list_get(&stmt->params, i);
         actual_bnd_size =
             GSC_IS_TYPE_NEED_EXTRA(param->bnd_type) ? (sizeof(uint32) + CM_ALIGN4(param->bnd_size)) : param->bnd_size;
-        if (GSC_IS_STRING_TYPE(param->bnd_type) && param->bnd_size > GS_MAX_COLUMN_SIZE) {
+        if (GSC_IS_STRING_TYPE(param->bnd_type) && param->bnd_size > CT_MAX_COLUMN_SIZE) {
             actual_bnd_size = sizeof(gsc_lob_t);
         }
         bnd_size += actual_bnd_size;

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -50,25 +50,25 @@ typedef struct st_rm_pool {
     uint32 hwm;
     uint32 capacity;
     uint32 page_count;
-    char *pages[GS_MAX_RM_PAGES];
-    knl_rm_t *rms[GS_MAX_RMS];
-    rm_bucket_t buckets[GS_MAX_RM_BUCKETS];
+    char *pages[CT_MAX_RM_PAGES];
+    knl_rm_t *rms[CT_MAX_RMS];
+    rm_bucket_t buckets[CT_MAX_RM_BUCKETS];
     rm_list_t free_list;
 } rm_pool_t;
 
-void resource_manager_pool_init(rm_pool_t *pool);
-status_t server_alloc_resource_manager(uint16 *rmid);
-void server_release_resource_manager(uint16 rmid);
-status_t server_alloc_auton_resource_manager(knl_handle_t handle);
-status_t server_release_auton_resource_manager(knl_handle_t handle);
-void server_detach_suspend_resource_manager(knl_handle_t handle, uint16 new_rmid);
-bool32 server_attach_suspend_resource_manager(knl_handle_t handle, knl_xa_xid_t *xa_xid, uint8 status, bool8 release);
-void server_detach_pending_resource_manager(knl_handle_t handle, uint16 new_rmid);
-bool32 server_attach_pending_resource_manager(knl_handle_t handle, knl_xa_xid_t *xa_xid);
-uint16 server_get_xa_xid(knl_xa_xid_t *xa_xid);
-bool32 server_add_xa_xid(knl_xa_xid_t *xa_xid, uint16 rmid, uint8 status);
-void server_delete_xa_xid(knl_xa_xid_t *xa_xid);
-void server_shrink_xa_rms(knl_handle_t handle, bool32 force);
+void rm_pool_init(rm_pool_t *pool);
+status_t srv_alloc_rm(uint16 *rmid);
+void srv_release_rm(uint16 rmid);
+status_t srv_alloc_auton_rm(knl_handle_t handle);
+status_t srv_release_auton_rm(knl_handle_t handle);
+void srv_detach_suspend_rm(knl_handle_t handle, uint16 new_rmid);
+bool32 srv_attach_suspend_rm(knl_handle_t handle, knl_xa_xid_t *xa_xid, uint8 status, bool8 release);
+void srv_detach_pending_rm(knl_handle_t handle, uint16 new_rmid);
+bool32 srv_attach_pending_rm(knl_handle_t handle, knl_xa_xid_t *xa_xid);
+uint16 srv_get_xa_xid(knl_xa_xid_t *xa_xid);
+bool32 srv_add_xa_xid(knl_xa_xid_t *xa_xid, uint16 rmid, uint8 status);
+void srv_delete_xa_xid(knl_xa_xid_t *xa_xid);
+void srv_shrink_xa_rms(knl_handle_t handle, bool32 force);
 
 #ifdef __cplusplus
 }

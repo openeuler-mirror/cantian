@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_table_module.h"
 #include "knl_heap_log.h"
 #include "knl_context.h"
 
@@ -74,7 +75,7 @@ void rd_heap_clean_itl(knl_session_t *session, log_entry_t *log)
     itl->is_active = 0;
     itl->scn = rd->scn;
     itl->is_owscn = rd->is_owscn;
-    itl->xid.value = GS_INVALID_ID64;
+    itl->xid.value = CT_INVALID_ID64;
 }
 
 void print_heap_clean_itl(log_entry_t *log)
@@ -163,7 +164,7 @@ void rd_heap_update_inplace(knl_session_t *session, log_entry_t *log)
 
     info.count = rd->count;
     info.data = log->data + OFFSET_OF(rd_heap_update_inplace_t, columns) + CM_ALIGN4(sizeof(uint16) * rd->count);
-    col_size = sizeof(uint16) * rd->count; // the max value of rd->count is GS_MAX_COLUMNS(4096)
+    col_size = sizeof(uint16) * rd->count; // the max value of rd->count is CT_MAX_COLUMNS(4096)
     ret = memcpy_sp(info.columns, (session)->kernel->attr.max_column_count * sizeof(uint16), rd->columns, col_size);
     knl_securec_check(ret);
 
@@ -216,13 +217,13 @@ void rd_heap_update_inpage(knl_session_t *session, log_entry_t *log)
     ua.new_size = row->size + ua.inc_size;
     ua.info = &info;
     info.data = log->data + HEAP_UPDATE_INPAGE_SIZE(rd->count);
-    col_size = sizeof(uint16) * rd->count;                      // the max value of rd->count is GS_MAX_COLUMNS(4096)
+    col_size = sizeof(uint16) * rd->count;                      // the max value of rd->count is CT_MAX_COLUMNS(4096)
     ret = memcpy_sp(info.columns, (session)->kernel->attr.max_column_count * sizeof(uint16), rd->columns, col_size);
     knl_securec_check(ret);
     ret = memcpy_sp(copy_row, HEAP_MAX_MIGR_ROW_SIZE(session), row, row->size);
     knl_securec_check(ret);
 
-    /** max column count of table is GS_MAX_COLUMNS(4096) */
+    /** max column count of table is CT_MAX_COLUMNS(4096) */
     offsets = (uint16 *)cm_push(session->stack, sizeof(uint16 *) * session->kernel->attr.max_column_count * 2);
     lens = (uint16 *)((char *)offsets + sizeof(uint16 *) * session->kernel->attr.max_column_count);
     cm_decode_row((char *)copy_row, offsets, lens, &data_size);
@@ -397,7 +398,7 @@ void rd_heap_undo_insert(knl_session_t *session, log_entry_t *log)
     /* redo->undo_slot is from dir->undo_slot */
     dir->undo_slot = redo->undo_slot;
 
-    ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+    ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     row->is_deleted = 1;
     dir->is_free = 1;
     dir->next_slot = page->first_free_dir;
@@ -423,7 +424,7 @@ void rd_heap_undo_change_dir(knl_session_t *session, log_entry_t *log)
     dir->undo_page = redo->undo_page;
     dir->undo_slot = redo->undo_slot;
     if (redo->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
 }
 
@@ -502,7 +503,7 @@ void rd_heap_undo_delete(knl_session_t *session, log_entry_t *log)
     dir->undo_slot = redo->undo_slot;
 
     if (redo->is_xfirst) {
-        ROW_SET_ITL_ID(row, GS_INVALID_ID8);
+        ROW_SET_ITL_ID(row, CT_INVALID_ID8);
     }
     row->is_deleted = 0;
     page->rows++;

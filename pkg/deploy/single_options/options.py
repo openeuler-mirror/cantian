@@ -40,7 +40,7 @@ class Options(object):
         self.white_list = ""
 
         # flag of if install inside docker container
-        self.in_container = False
+        self.cantian_in_container = False
 
         # flag of if need to check package is mattched with current os version
         self.ignore_pkg_check = False

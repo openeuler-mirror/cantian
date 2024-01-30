@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -105,18 +105,18 @@ typedef struct st_box_excp_item {
                                                                 showing the cause of the signal */
     box_reg_info_t   reg_info;                               /* register info */
     uintptr_t        stack_addr;                             /* stack top pointer minus 512 bytes  */
-    char             sig_name[GS_NAME_BUFFER_SIZE];          /* signal name */
-    char             loc_name[GS_FILE_NAME_BUFFER_SIZE + 1]; /* location name */
-    char             platform[GS_NAME_BUFFER_SIZE];          /* platform name */
+    char             sig_name[CT_NAME_BUFFER_SIZE];          /* signal name */
+    char             loc_name[CT_FILE_NAME_BUFFER_SIZE + 1]; /* location name */
+    char             platform[CT_NAME_BUFFER_SIZE];          /* platform name */
     uchar            stack_memory[BOX_STACK_SIZE];           /* system stack info */
     uchar            ins_content[BOX_INS_CONT_LEN];          /* 16 bytes before and after exception
                                                                 instruction address */
     char             version[BOX_VERSION_LEN];               /* database version */
-    char             date[GS_MAX_TIME_STRLEN];               /* exception date */
+    char             date[CT_MAX_TIME_STRLEN];               /* exception date */
     uint32           trace_tail[BOX_SPACE_SIZE];             /* protect info */
 } box_excp_item_t;
 
-status_t signal_cap_handle_reg(void);
+status_t sigcap_handle_reg(void);
 
 #ifdef __cplusplus
 }

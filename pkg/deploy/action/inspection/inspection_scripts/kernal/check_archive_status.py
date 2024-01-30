@@ -4,7 +4,7 @@ import sys
 import stat
 import re
 from pathlib import Path
-from gs_check import CheckContext, BaseItem, ResultStatus
+from ct_check import CheckContext, BaseItem, ResultStatus
 
 sys.path.append('/opt/cantian/action/inspection')
 from log_tool import setup
@@ -85,10 +85,10 @@ class CheckArchiveStatus(BaseItem):
         used_capacity_num = float(used_capacity_number_str) * UNIT_CONVERSION_MAP.get(used_capacity_unit_str, 0)
         max_capacity_num = float(max_capacity_number_str) * UNIT_CONVERSION_MAP.get(max_capacity_unit_str, 0)
 
-        if self.max_archive_size > max_capacity_num * 0.9:
-            self.result.rst = ResultStatus.WARNING
-            values["result"] = "The archive configuration capacity must be less than or " \
-                               "equal to 90% of the maximum archive file system capacity"
+        if self.max_archive_size > max_capacity_num * 0.45:
+            self.result.rst = ResultStatus.ERROR
+            values["except"] = "The archive configuration capacity must be less than or " \
+                               "equal to 45% of the maximum archive file system capacity"
             self.result.sug = "Please modify the archive file"
             self.result.val = json.dumps(values)
             return
@@ -121,7 +121,7 @@ if __name__ == '__main__':
         unit_str = re.compile("[A-z]").findall(archive_object.max_archive_size_str)[0]
         number_str = re.sub("[A-z]", "", archive_object.max_archive_size_str)
         if UNIT_CONVERSION_MAP.get(unit_str, 0) != 0:
-            archive_object.max_archive_size = int(number_str) * UNIT_CONVERSION_MAP.get(unit_str)
+            archive_object.max_archive_size = float(number_str) * UNIT_CONVERSION_MAP.get(unit_str)
 
     checker_context = CheckContext()
     archive_object.run_check(checker_context, cantian_log)

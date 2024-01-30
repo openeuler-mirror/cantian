@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_index_module.h"
 #include "index_common.h"
 #include "knl_common.h"
 #include "knl_context.h"
@@ -44,13 +45,13 @@ static inline void idx_set_err_msg(char *msg)
         len = strlen("Index build failed: ");
         err_msg += len;
     }
-    err = memcpy_sp(msg, GS_MESSAGE_BUFFER_SIZE, err_msg, GS_MESSAGE_BUFFER_SIZE - len);
+    err = memcpy_sp(msg, CT_MESSAGE_BUFFER_SIZE, err_msg, CT_MESSAGE_BUFFER_SIZE - len);
     knl_securec_check(err);
 }
 
 static knl_part_locate_t idx_get_part_loc(spinlock_t *parl_lock, table_t *table, idx_part_info_t *part_info)
 {
-    knl_part_locate_t part_loc = { GS_INVALID_ID32, GS_INVALID_ID32 };
+    knl_part_locate_t part_loc = { CT_INVALID_ID32, CT_INVALID_ID32 };
     table_part_t *table_subpart = NULL;
 
     for (;;) {
@@ -116,38 +117,38 @@ void idx_part_paral_proc(thread_t *thread)
     idxpart_paral_ctx_t *ctx = worker->ctx;
     knl_dictionary_t *dc = ctx->private_dc;
     table_t *table = DC_TABLE(dc);
-    thread->result = GS_SUCCESS;
+    thread->result = CT_SUCCESS;
 
     while (!thread->closed) {
         part_loc = idx_get_part_loc(&ctx->parl_lock, table, &ctx->part_info);
-        if (part_loc.part_no == GS_INVALID_ID32 && part_loc.subpart_no == GS_INVALID_ID32) {
-            thread->result = GS_SUCCESS;
+        if (part_loc.part_no == CT_INVALID_ID32 && part_loc.subpart_no == CT_INVALID_ID32) {
+            thread->result = CT_SUCCESS;
             break;
         }
 
-        if (knl_check_session_status(session) != GS_SUCCESS) {
+        if (knl_check_session_status(session) != CT_SUCCESS) {
             idx_set_err_msg(ctx->err_msg);
-            thread->result = GS_ERROR;
+            thread->result = CT_ERROR;
             break;
         }
 
         if (ctx->index_cnt == 1) {
             if (db_fill_index_entity_paral(session, dc, ctx->indexes[0], part_loc, ctx->paral_count,
-                ctx->nologging) != GS_SUCCESS) {
+                ctx->nologging) != CT_SUCCESS) {
                 idx_set_err_msg(ctx->err_msg);
-                thread->result = GS_ERROR;
+                thread->result = CT_ERROR;
                 break;
             }
         } else {
             if (db_fill_multi_indexes_paral(session, dc, ctx->indexes, ctx->index_cnt,
-                ctx->paral_count, part_loc, ctx->nologging) != GS_SUCCESS) {
+                ctx->paral_count, part_loc, ctx->nologging) != CT_SUCCESS) {
                 idx_set_err_msg(ctx->err_msg);
-                thread->result = GS_ERROR;
+                thread->result = CT_ERROR;
                 break;
             }
         }
     }
-    worker->is_working = GS_FALSE;
+    worker->is_working = CT_FALSE;
     return;
 }
 
@@ -159,21 +160,21 @@ status_t idxpart_alloc_resource(knl_session_t *session, uint32 paral_no, idxpart
 
     for (uint32 i = 0; i < paral_no; i++) {
         worker = &paral_ctx->workers[i];
-        if (g_knl_callback.alloc_knl_session(GS_FALSE, (knl_handle_t*)&worker->session) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_EXCEED_SESSIONS_PER_USER, session->kernel->attr.max_sessions);
-            return GS_ERROR;
+        if (g_knl_callback.alloc_knl_session(CT_FALSE, (knl_handle_t*)&worker->session) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_EXCEED_SESSIONS_PER_USER, session->kernel->attr.max_sessions);
+            return CT_ERROR;
         }
 
         worker_pool_id = (main_pool_id + i) % session->kernel->temp_ctx_count;
         worker->session->temp_pool = &worker->session->kernel->temp_pool[worker_pool_id];
         worker->session->temp_mtrl->pool = worker->session->temp_pool;
         worker->ctx = paral_ctx;
-        worker->is_working = GS_TRUE;
-        if (cm_create_thread(idx_part_paral_proc, 0, &paral_ctx->workers[i], &worker->thread) != GS_SUCCESS) {
-            return GS_ERROR;
+        worker->is_working = CT_TRUE;
+        if (cm_create_thread(idx_part_paral_proc, 0, &paral_ctx->workers[i], &worker->thread) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void idxpart_release_resource(uint32 paral_no, idxpart_paral_ctx_t *paral_ctx)
@@ -182,9 +183,9 @@ void idxpart_release_resource(uint32 paral_no, idxpart_paral_ctx_t *paral_ctx)
 
     for (uint32 i = 0; i < paral_no; i++) {
         worker = &paral_ctx->workers[i];
-        worker->is_working = GS_FALSE;
+        worker->is_working = CT_FALSE;
         if (worker->session != NULL) {
-            worker->session->canceled = GS_TRUE;
+            worker->session->canceled = CT_TRUE;
         }
 
         if (!worker->thread.closed) {
@@ -205,7 +206,7 @@ void idx_start_all_workers(idx_paral_sort_ctx_t *ctx, idx_sort_phase_t phase)
     ctx->phase = phase;
 
     for (uint32 i = 0; i < ctx->paral_count; i++) {
-        ctx->workers[i].is_working = GS_TRUE;
+        ctx->workers[i].is_working = CT_TRUE;
         ctx->workers[i].phase = phase;
     }
     ctx->working_count = ctx->paral_count;
@@ -224,18 +225,18 @@ status_t idx_wait_all_workers(knl_session_t *session, idx_paral_sort_ctx_t *ctx)
                 count--;
             }
 
-            if (worker->thread.result != GS_SUCCESS) {
-                GS_THROW_ERROR(ERR_BUILD_INDEX_PARALLEL, ctx->err_msg);
-                return GS_ERROR;
+            if (worker->thread.result != CT_SUCCESS) {
+                CT_THROW_ERROR(ERR_BUILD_INDEX_PARALLEL, ctx->err_msg);
+                return CT_ERROR;
             }
         }
 
-        if (knl_check_session_status(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_check_session_status(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         cm_sleep(100);
     } while (count != 0);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t idx_fill_segments(knl_session_t *session, knl_cursor_t *cursor,
@@ -245,40 +246,40 @@ static status_t idx_fill_segments(knl_session_t *session, knl_cursor_t *cursor,
     index_t *index = worker->ctx->btree[0]->index;
     char *key = NULL;
     mtrl_rowid_t rid;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
     sort_ctrl->ctx = mtrl_ctx;
     sort_ctrl->segment = mtrl_ctx->segments[worker->seg_id];
-    key = (char *)cm_push(session->stack, GS_KEY_BUF_SIZE);
+    key = (char *)cm_push(session->stack, CT_KEY_BUF_SIZE);
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
         if (cursor->eof) {
-            status = GS_SUCCESS;
+            status = CT_SUCCESS;
             break;
         }
 
-        if (knl_check_session_status(session) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (knl_check_session_status(session) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
-        if (knl_make_key(session, cursor, index, key) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (knl_make_key(session, cursor, index, key) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
         if (index->desc.cr_mode == CR_ROW) {
             ((btree_key_t *)key)->scn = cursor->scn;
         } else {
-            ((pcrb_key_t *)key)->itl_id = GS_INVALID_ID8;
+            ((pcrb_key_t *)key)->itl_id = CT_INVALID_ID8;
         }
 
-        if (mtrl_insert_row_parallel(mtrl_ctx, worker->seg_id, key, sort_ctrl, &rid) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (mtrl_insert_row_parallel(mtrl_ctx, worker->seg_id, key, sort_ctrl, &rid) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
@@ -295,20 +296,20 @@ static status_t idx_fill_part_segments(knl_session_t *session, knl_cursor_t *cur
 
     for (;;) {
         part_loc = idx_get_part_loc(&worker->ctx->parl_lock, cursor->table, &worker->ctx->part_info);
-        if (part_loc.part_no == GS_INVALID_ID32 && part_loc.subpart_no == GS_INVALID_ID32) {
+        if (part_loc.part_no == CT_INVALID_ID32 && part_loc.subpart_no == CT_INVALID_ID32) {
             break;
         }
 
         cursor->part_loc = part_loc;
-        if (knl_reopen_cursor(session, cursor, worker->ctx->private_dc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_reopen_cursor(session, cursor, worker->ctx->private_dc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (idx_fill_segments(session, cursor, sort_ctrl, worker) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (idx_fill_segments(session, cursor, sort_ctrl, worker) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t idx_init_build_segment(knl_session_t *session, idx_sort_worker_t *worker,
@@ -318,9 +319,9 @@ static status_t idx_init_build_segment(knl_session_t *session, idx_sort_worker_t
 
     errno_t err = memset_sp(sort_ctrl, sizeof(mtrl_sort_ctrl_t), 0, sizeof(mtrl_sort_ctrl_t));
     knl_securec_check(err);
-    sort_ctrl->initialized = GS_TRUE;
-    sort_ctrl->use_parallel = GS_TRUE;
-    session->thread_shared = GS_TRUE;
+    sort_ctrl->initialized = CT_TRUE;
+    sort_ctrl->use_parallel = CT_TRUE;
+    session->thread_shared = CT_TRUE;
 
     if (worker->ctx->is_global || !IS_PART_INDEX(worker->ctx->btree[0]->index)) {
         sort_ctrl->thread_count = MIN(cpu_count / worker->ctx->paral_count, MAX_SORT_THREADS);
@@ -330,8 +331,8 @@ static status_t idx_init_build_segment(knl_session_t *session, idx_sort_worker_t
     sort_ctrl->thread_count = MAX(MIN_SORT_THREADS, sort_ctrl->thread_count);
 
     for (uint32 i = 0; i < sort_ctrl->thread_count; i++) {
-        if (cm_create_thread(mtrl_sort_proc, 0, sort_ctrl, &sort_ctrl->threads[i]) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_create_thread(mtrl_sort_proc, 0, sort_ctrl, &sort_ctrl->threads[i]) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
     mtrl_set_sort_type(worker->mtrl_ctx->segments[worker->seg_id], MTRL_SORT_TYPE_QSORT);
@@ -339,13 +340,13 @@ static status_t idx_init_build_segment(knl_session_t *session, idx_sort_worker_t
     cursor->action = CURSOR_ACTION_SELECT;
     cursor->scan_mode = SCAN_MODE_TABLE_FULL;
     cursor->part_loc = worker->ctx->part_info.curr_part;
-    if (knl_open_cursor(session, cursor, worker->ctx->private_dc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_open_cursor(session, cursor, worker->ctx->private_dc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cursor->isolevel = (uint8)ISOLATION_CURR_COMMITTED;
     cursor->query_scn = DB_CURR_SCN(session);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t idx_build_segment(knl_session_t *session, idx_sort_worker_t *worker)
@@ -357,10 +358,10 @@ status_t idx_build_segment(knl_session_t *session, idx_sort_worker_t *worker)
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
 
-    if (idx_init_build_segment(session, worker, &sort_ctrl, cursor) != GS_SUCCESS) {
+    if (idx_init_build_segment(session, worker, &sort_ctrl, cursor) != CT_SUCCESS) {
         (void)mtrl_sort_clean(&sort_ctrl);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     
     // fetch + insert + sort_page phase
@@ -373,16 +374,16 @@ status_t idx_build_segment(knl_session_t *session, idx_sort_worker_t *worker)
         status = idx_fill_segments(session, cursor, &sort_ctrl, worker);
     }
 
-    if (mtrl_sort_clean(&sort_ctrl) != GS_SUCCESS) {
-        status = GS_ERROR;
+    if (mtrl_sort_clean(&sort_ctrl) != CT_SUCCESS) {
+        status = CT_ERROR;
     }
 
     mtrl_close_segment(mtrl_ctx, worker->seg_id);
     knl_close_cursor(session, cursor);
     CM_RESTORE_STACK(session->stack);
 
-    if (status == GS_ERROR) {
-        return GS_ERROR;
+    if (status == CT_ERROR) {
+        return CT_ERROR;
     }
 
     // sort own segment
@@ -408,20 +409,20 @@ static void idx_get_2segments(idx_sort_worker_t *worker, id_list_t *sort_info, u
         if (!(sort_info->count == 2 && ctx->working_count == 1 && worker->ctx->index_count == 1)) {
             *id1 = sort_info->first;
             *id2 = ctx->workers[*id1].next_id;
-            knl_panic(*id1 != GS_INVALID_ID32 && *id2 != GS_INVALID_ID32);
+            knl_panic(*id1 != CT_INVALID_ID32 && *id2 != CT_INVALID_ID32);
             sort_info->first = ctx->workers[*id2].next_id;
             // 2 means two ids are taken out from list, then list count need minus 2.
             sort_info->count = sort_info->count - 2;
 
             if (sort_info->count == 0) {
-                sort_info->last = GS_INVALID_ID32;
+                sort_info->last = CT_INVALID_ID32;
             }
             cm_spin_unlock(&ctx->parl_lock);
             return;
         }
     }
 
-    worker->is_working = GS_FALSE;
+    worker->is_working = CT_FALSE;
     ctx->working_count--;
     cm_spin_unlock(&ctx->parl_lock);
     return;
@@ -477,13 +478,13 @@ static status_t idx_merge_segments(idx_sort_worker_t *worker)
             continue;
         }
 
-        if (mtrl_merge_2pools((knl_handle_t)worker->ctx, id1, id2) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (mtrl_merge_2pools((knl_handle_t)worker->ctx, id1, id2) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         idx_seg_in_list(worker->ctx, sort_info, id1);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t idx_init_sort_workers(idx_sort_worker_t *worker, btree_t *btree)
@@ -506,17 +507,17 @@ static status_t idx_init_sort_workers(idx_sort_worker_t *worker, btree_t *btree)
         worker->mtrl_ctx->sort_cmp = btree_compare_mtrl_key;
     }
 
-    if (GS_SUCCESS != mtrl_create_segment(worker->mtrl_ctx, type, (handle_t)btree, &worker->seg_id)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != mtrl_create_segment(worker->mtrl_ctx, type, (handle_t)btree, &worker->seg_id)) {
+        return CT_ERROR;
     }
 
-    if (GS_SUCCESS != mtrl_open_segment(worker->mtrl_ctx, worker->seg_id)) {
+    if (CT_SUCCESS != mtrl_open_segment(worker->mtrl_ctx, worker->seg_id)) {
         mtrl_release_context(worker->mtrl_ctx);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     worker->segment = worker->mtrl_ctx->segments[worker->seg_id];
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void idx_fetch_paral_proc(thread_t *thread)
@@ -531,24 +532,24 @@ void idx_fetch_paral_proc(thread_t *thread)
             continue;
         }
 
-        if (idx_init_sort_workers(worker, ctx->btree[0]) != GS_SUCCESS) {
+        if (idx_init_sort_workers(worker, ctx->btree[0]) != CT_SUCCESS) {
             idx_set_err_msg(ctx->err_msg);
-            thread->result = GS_ERROR;
+            thread->result = CT_ERROR;
             break;
         }
 
         worker->mtrl_ctx->err_msg = g_tls_error.message;
-        if (idx_build_segment(session, worker) != GS_SUCCESS) {
+        if (idx_build_segment(session, worker) != CT_SUCCESS) {
             idx_set_err_msg(ctx->err_msg);
-            thread->result = GS_ERROR;
+            thread->result = CT_ERROR;
             break;
         }
         break;
     }
 
-    worker->is_working = GS_FALSE;
+    worker->is_working = CT_FALSE;
     ctx->working_count--;
-    if (thread->result != GS_SUCCESS) {
+    if (thread->result != CT_SUCCESS) {
         return;
     }
 
@@ -558,16 +559,16 @@ void idx_fetch_paral_proc(thread_t *thread)
             continue;
         }
 
-        if (idx_merge_segments(worker) != GS_SUCCESS) {
+        if (idx_merge_segments(worker) != CT_SUCCESS) {
             idx_set_err_msg(ctx->err_msg);
-            thread->result = GS_ERROR;
-            worker->is_working = GS_FALSE;
+            thread->result = CT_ERROR;
+            worker->is_working = CT_FALSE;
             ctx->working_count--;
             return;
         }
         break;
     }
-    worker->is_working = GS_FALSE;
+    worker->is_working = CT_FALSE;
     return;
 }
 
@@ -577,9 +578,9 @@ void idx_fetch_release_resource(idx_paral_sort_ctx_t *sort_ctx)
 
     for (uint32 i = 0; i < sort_ctx->paral_count; i++) {
         worker = &sort_ctx->workers[i];
-        worker->is_working = GS_FALSE;
+        worker->is_working = CT_FALSE;
         if (worker->session != NULL) {
-            worker->session->canceled = GS_TRUE;
+            worker->session->canceled = CT_TRUE;
         }
 
         if (!worker->thread.closed) {
@@ -605,9 +606,9 @@ status_t idx_fetch_alloc_resource(knl_session_t *session, idx_paral_sort_ctx_t *
 
     for (uint32 i = 0; i < sort_ctx->paral_count; i++) {
         worker = &sort_ctx->workers[i];
-        if (g_knl_callback.alloc_knl_session(GS_FALSE, (knl_handle_t*)&worker->session) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_EXCEED_SESSIONS_PER_USER, session->kernel->attr.max_sessions);
-            return GS_ERROR;
+        if (g_knl_callback.alloc_knl_session(CT_FALSE, (knl_handle_t*)&worker->session) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_EXCEED_SESSIONS_PER_USER, session->kernel->attr.max_sessions);
+            return CT_ERROR;
         }
 
         worker->session->temp_pool = &worker->session->kernel->temp_pool[worker->pool_id];
@@ -615,11 +616,11 @@ status_t idx_fetch_alloc_resource(knl_session_t *session, idx_paral_sort_ctx_t *
         worker->ctx = sort_ctx;
         worker->id = i;
 
-        if (cm_create_thread(idx_fetch_paral_proc, 0, worker, &worker->thread) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_create_thread(idx_fetch_paral_proc, 0, worker, &worker->thread) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void idx_start_build_workers(idx_paral_sort_ctx_t *ctx, idx_sort_phase_t phase)
@@ -627,7 +628,7 @@ void idx_start_build_workers(idx_paral_sort_ctx_t *ctx, idx_sort_phase_t phase)
     ctx->phase = phase;
 
     for (uint32 i = 0; i < ctx->build_count; i++) {
-        ctx->build_workers[i].is_working = GS_TRUE;
+        ctx->build_workers[i].is_working = CT_TRUE;
     }
     ctx->working_count = ctx->build_count;
 }
@@ -645,29 +646,29 @@ status_t idx_wait_build_workers(knl_session_t *session, idx_paral_sort_ctx_t *ct
                 count--;
             }
 
-            if (worker->thread.result != GS_SUCCESS) {
-                GS_THROW_ERROR(ERR_BUILD_INDEX_PARALLEL, ctx->err_msg);
-                return GS_ERROR;
+            if (worker->thread.result != CT_SUCCESS) {
+                CT_THROW_ERROR(ERR_BUILD_INDEX_PARALLEL, ctx->err_msg);
+                return CT_ERROR;
             }
         }
 
-        if (knl_check_session_status(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_check_session_status(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         cm_sleep(100);
     } while (count != 0);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t idx_close_multi_segments(mtrl_sort_ctrl_t *sort_ctrl, idx_build_worker_t *build_worker)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     idx_multi_info_t *curr_idx_info = NULL;
 
     for (uint32 i = 0; i < build_worker->index_count; i++) {
         curr_idx_info = &build_worker->idx_info[i];
-        if (mtrl_sort_clean(&sort_ctrl[i]) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (mtrl_sort_clean(&sort_ctrl[i]) != CT_SUCCESS) {
+            status = CT_ERROR;
         }
 
         mtrl_close_segment(&curr_idx_info->mtrl_ctx, curr_idx_info->seg_id);
@@ -681,24 +682,24 @@ static status_t idx_fill_muti_segments(knl_session_t *session, knl_cursor_t *cur
 {
     char *key = NULL;
     mtrl_rowid_t rid;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     idx_multi_info_t *curr_idx_info = NULL;
     index_t *index = NULL;
 
-    key = (char *)cm_push(session->stack, GS_KEY_BUF_SIZE);
+    key = (char *)cm_push(session->stack, CT_KEY_BUF_SIZE);
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
         if (cursor->eof) {
-            status = GS_SUCCESS;
+            status = CT_SUCCESS;
             break;
         }
 
-        if (knl_check_session_status(session) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (knl_check_session_status(session) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
@@ -706,25 +707,25 @@ static status_t idx_fill_muti_segments(knl_session_t *session, knl_cursor_t *cur
             curr_idx_info = &build_worker->idx_info[i];
             index = curr_idx_info->btree->index;
 
-            if (knl_make_key(session, cursor, index, key) != GS_SUCCESS) {
-                status = GS_ERROR;
+            if (knl_make_key(session, cursor, index, key) != CT_SUCCESS) {
+                status = CT_ERROR;
                 break;
             }
 
             if (index->desc.cr_mode == CR_ROW) {
                 ((btree_key_t *)key)->scn = cursor->scn;
             } else {
-                ((pcrb_key_t *)key)->itl_id = GS_INVALID_ID8;
+                ((pcrb_key_t *)key)->itl_id = CT_INVALID_ID8;
             }
 
             if (mtrl_insert_row_parallel(&curr_idx_info->mtrl_ctx, curr_idx_info->seg_id,
-                key, &sort_ctrl[i], &rid) != GS_SUCCESS) {
-                status = GS_ERROR;
+                key, &sort_ctrl[i], &rid) != CT_SUCCESS) {
+                status = CT_ERROR;
                 break;
             }
         }
 
-        if (status == GS_ERROR) {
+        if (status == CT_ERROR) {
             break;
         }
 
@@ -739,16 +740,16 @@ static status_t idx_init_multi_segment(knl_session_t *session, idx_build_worker_
     mtrl_sort_ctrl_t *sort_ctrl, knl_cursor_t *cursor)
 {
     for (uint32 i = 0; i < worker->index_count; i++) {
-        sort_ctrl[i].initialized = GS_TRUE;
-        sort_ctrl[i].use_parallel = GS_TRUE;
-        session->thread_shared = GS_TRUE;
+        sort_ctrl[i].initialized = CT_TRUE;
+        sort_ctrl[i].use_parallel = CT_TRUE;
+        session->thread_shared = CT_TRUE;
         sort_ctrl[i].thread_count = MIN_SORT_THREADS;
         sort_ctrl[i].ctx = &worker->idx_info[i].mtrl_ctx;
         sort_ctrl[i].segment = worker->idx_info[i].mtrl_ctx.segments[worker->idx_info[i].seg_id];
 
         for (uint32 j = 0; j < sort_ctrl[i].thread_count; j++) {
-            if (cm_create_thread(mtrl_sort_proc, 0, &sort_ctrl[i], &sort_ctrl[i].threads[j]) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_create_thread(mtrl_sort_proc, 0, &sort_ctrl[i], &sort_ctrl[i].threads[j]) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         mtrl_set_sort_type(worker->idx_info[i].mtrl_ctx.segments[worker->idx_info[i].seg_id], MTRL_SORT_TYPE_QSORT);
@@ -757,13 +758,13 @@ static status_t idx_init_multi_segment(knl_session_t *session, idx_build_worker_
     cursor->action = CURSOR_ACTION_SELECT;
     cursor->scan_mode = SCAN_MODE_TABLE_FULL;
     cursor->part_loc = worker->ctx->part_info.curr_part;
-    if (knl_open_cursor(session, cursor, worker->ctx->private_dc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_open_cursor(session, cursor, worker->ctx->private_dc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cursor->isolevel = (uint8)ISOLATION_CURR_COMMITTED;
     cursor->query_scn = DB_CURR_SCN(session);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t idx_fill_multi_part_segments(knl_session_t *session, knl_cursor_t *cursor,
@@ -773,25 +774,25 @@ static status_t idx_fill_multi_part_segments(knl_session_t *session, knl_cursor_
 
     for (;;) {
         part_loc = idx_get_part_loc(&worker->ctx->parl_lock, cursor->table, &worker->ctx->part_info);
-        if (part_loc.part_no == GS_INVALID_ID32 && part_loc.subpart_no == GS_INVALID_ID32) {
+        if (part_loc.part_no == CT_INVALID_ID32 && part_loc.subpart_no == CT_INVALID_ID32) {
             break;
         }
 
         cursor->part_loc = part_loc;
-        if (knl_reopen_cursor(session, cursor, worker->ctx->private_dc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_reopen_cursor(session, cursor, worker->ctx->private_dc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (idx_fill_muti_segments(session, cursor, sort_ctrl, worker) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (idx_fill_muti_segments(session, cursor, sort_ctrl, worker) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t idx_build_multi_segment(knl_session_t *session, idx_build_worker_t *build_worker)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
@@ -799,10 +800,10 @@ status_t idx_build_multi_segment(knl_session_t *session, idx_build_worker_t *bui
     mtrl_sort_ctrl_t *sort_ctrl = (mtrl_sort_ctrl_t *)cm_push(session->stack, mem_size);
     errno_t ret = memset_sp(sort_ctrl, mem_size, 0, mem_size);
     knl_securec_check(ret);
-    if (idx_init_multi_segment(session, build_worker, sort_ctrl, cursor) != GS_SUCCESS) {
+    if (idx_init_multi_segment(session, build_worker, sort_ctrl, cursor) != CT_SUCCESS) {
         (void)idx_close_multi_segments(sort_ctrl, build_worker);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (build_worker->ctx->is_global) {
         status = idx_fill_multi_part_segments(session, cursor, sort_ctrl, build_worker);
@@ -814,8 +815,8 @@ status_t idx_build_multi_segment(knl_session_t *session, idx_build_worker_t *bui
         status = idx_fill_muti_segments(session, cursor, sort_ctrl, build_worker);
     }
 
-    if (idx_close_multi_segments(sort_ctrl, build_worker) != GS_SUCCESS) {
-        status = GS_ERROR;
+    if (idx_close_multi_segments(sort_ctrl, build_worker) != CT_SUCCESS) {
+        status = CT_ERROR;
     }
 
     knl_close_cursor(session, cursor);
@@ -836,15 +837,15 @@ void idx_build_paral_proc(thread_t *thread)
             continue;
         }
 
-        if (idx_build_multi_segment(session, build_worker) != GS_SUCCESS) {
+        if (idx_build_multi_segment(session, build_worker) != CT_SUCCESS) {
             idx_set_err_msg(ctx->err_msg);
-            thread->result = GS_ERROR;
+            thread->result = CT_ERROR;
             break;
         }
         break;
     }
 
-    build_worker->is_working = GS_FALSE;
+    build_worker->is_working = CT_FALSE;
     return;
 }
 
@@ -855,12 +856,12 @@ void idx_init_construct_ctx(idx_paral_sort_ctx_t *paral_ctx, uint32 id1, uint32 
     knl_securec_check(err);
     ctx->mtrl_ctx = *paral_ctx->workers[id1].mtrl_ctx;
     ctx->seg_id = paral_ctx->workers[id1].seg_id;
-    ctx->initialized = GS_TRUE;
-    ctx->is_parallel = GS_FALSE;
+    ctx->initialized = CT_TRUE;
+    ctx->is_parallel = CT_FALSE;
     ctx->nologging = paral_ctx->nologging;
-    if (id2 != GS_INVALID_ID32 && paral_ctx->sort_info.count == 2) {
+    if (id2 != CT_INVALID_ID32 && paral_ctx->sort_info.count == 2) {
         // parallel construct index when index has 2 more mtrl segments
-        ctx->is_parallel = GS_TRUE;
+        ctx->is_parallel = CT_TRUE;
         ctx->mtrl_ctx_paral = *paral_ctx->workers[id2].mtrl_ctx;
     }
 }
@@ -872,7 +873,7 @@ static status_t idx_construct_segment(idx_sort_worker_t *worker)
     cm_spin_lock(&ctx->parl_lock, NULL);
     if (ctx->multi_sort_info[worker->index_id].count == 0) {
         cm_spin_unlock(&ctx->parl_lock);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint32 id = ctx->multi_sort_info[worker->index_id].first;
@@ -885,21 +886,21 @@ static status_t idx_construct_segment(idx_sort_worker_t *worker)
     knl_securec_check(err);
     btree_ctx.mtrl_ctx = *ctx->workers[id].mtrl_ctx;
     btree_ctx.seg_id = ctx->workers[id].seg_id;
-    btree_ctx.initialized = GS_TRUE;
-    btree_ctx.is_parallel = GS_FALSE;
+    btree_ctx.initialized = CT_TRUE;
+    btree_ctx.is_parallel = CT_FALSE;
     btree_ctx.nologging = ctx->nologging;
 
-    if (id2 != GS_INVALID_ID32 && ctx->multi_sort_info[worker->index_id].count == 2) {
+    if (id2 != CT_INVALID_ID32 && ctx->multi_sort_info[worker->index_id].count == 2) {
         // parallel construct index when index has 2 more mtrl segments
-        btree_ctx.is_parallel = GS_TRUE;
+        btree_ctx.is_parallel = CT_TRUE;
         btree_ctx.mtrl_ctx_paral = *ctx->workers[id2].mtrl_ctx;
     }
 
-    if (idx_construct(&btree_ctx) != GS_SUCCESS) {
+    if (idx_construct(&btree_ctx) != CT_SUCCESS) {
         idx_set_err_msg(ctx->err_msg);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void idx_construct_paral_proc(thread_t *thread)
@@ -914,15 +915,15 @@ void idx_construct_paral_proc(thread_t *thread)
         }
 
         if (worker->rows > 0) {
-            if (mtrl_sort_segment(worker->mtrl_ctx, worker->seg_id) != GS_SUCCESS) {
+            if (mtrl_sort_segment(worker->mtrl_ctx, worker->seg_id) != CT_SUCCESS) {
                 idx_set_err_msg(worker->ctx->err_msg);
-                thread->result = GS_ERROR;
-                worker->is_working = GS_FALSE;
+                thread->result = CT_ERROR;
+                worker->is_working = CT_FALSE;
                 return;
             }
         }
-        worker->is_working = GS_FALSE;
-        thread->result = GS_SUCCESS;
+        worker->is_working = CT_FALSE;
+        thread->result = CT_SUCCESS;
         break;
     }
 
@@ -933,8 +934,8 @@ void idx_construct_paral_proc(thread_t *thread)
         }
 
         thread->result = idx_merge_segments(worker);
-        worker->is_working = GS_FALSE;
-        if (thread->result != GS_SUCCESS) {
+        worker->is_working = CT_FALSE;
+        if (thread->result != CT_SUCCESS) {
             idx_set_err_msg(worker->ctx->err_msg);
             worker->ctx->working_count--;
             return;
@@ -949,8 +950,8 @@ void idx_construct_paral_proc(thread_t *thread)
         }
 
         thread->result = idx_construct_segment(worker);
-        worker->is_working = GS_FALSE;
-        if (thread->result != GS_SUCCESS) {
+        worker->is_working = CT_FALSE;
+        if (thread->result != CT_SUCCESS) {
             idx_set_err_msg(worker->ctx->err_msg);
             return;
         }
@@ -987,19 +988,19 @@ static status_t idx_init_build_worker(idx_build_worker_t *worker, btree_t **btre
             mtrl_ctx->sort_cmp = btree_compare_mtrl_key;
         }
 
-        if (GS_SUCCESS != mtrl_create_segment(mtrl_ctx, type, (handle_t)btree[i], &idx_info->seg_id)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != mtrl_create_segment(mtrl_ctx, type, (handle_t)btree[i], &idx_info->seg_id)) {
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != mtrl_open_segment(mtrl_ctx, idx_info->seg_id)) {
+        if (CT_SUCCESS != mtrl_open_segment(mtrl_ctx, idx_info->seg_id)) {
             mtrl_release_context(mtrl_ctx);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         idx_info->segment = mtrl_ctx->segments[idx_info->seg_id];
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* alloc N build sessions, each build M mtrl_segments */
@@ -1010,23 +1011,23 @@ status_t idx_build_alloc_resource(knl_session_t *session, idx_paral_sort_ctx_t *
     for (uint32 i = 0; i < sort_ctx->build_count; i++) {
         worker = &sort_ctx->build_workers[i];
         worker->index_count = sort_ctx->index_count;
-        if (g_knl_callback.alloc_knl_session(GS_FALSE, (knl_handle_t*)&worker->session) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_EXCEED_SESSIONS_PER_USER, session->kernel->attr.max_sessions);
-            return GS_ERROR;
+        if (g_knl_callback.alloc_knl_session(CT_FALSE, (knl_handle_t*)&worker->session) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_EXCEED_SESSIONS_PER_USER, session->kernel->attr.max_sessions);
+            return CT_ERROR;
         }
 
         worker->session->temp_pool = &worker->session->kernel->temp_pool[worker->pool_id];
         worker->session->temp_mtrl->pool = worker->session->temp_pool;
         worker->ctx = sort_ctx;
-        if (idx_init_build_worker(worker, sort_ctx->btree) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (idx_init_build_worker(worker, sort_ctx->btree) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (cm_create_thread(idx_build_paral_proc, 0, worker, &worker->thread) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_create_thread(idx_build_paral_proc, 0, worker, &worker->thread) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void idx_init_construct_workers(idx_paral_sort_ctx_t *sort_ctx, idx_sort_worker_t *worker,
@@ -1060,15 +1061,15 @@ status_t idx_construct_alloc_resource(knl_session_t *session, idx_paral_sort_ctx
         for (uint32 j = 0; j < sort_ctx->build_count; j++) {
             worker = &sort_ctx->workers[thread_id];
             worker->id = thread_id;
-            if (g_knl_callback.alloc_knl_session(GS_FALSE, (knl_handle_t*)&worker->session) != GS_SUCCESS) {
-                GS_THROW_ERROR(ERR_EXCEED_SESSIONS_PER_USER, session->kernel->attr.max_sessions);
-                return GS_ERROR;
+            if (g_knl_callback.alloc_knl_session(CT_FALSE, (knl_handle_t*)&worker->session) != CT_SUCCESS) {
+                CT_THROW_ERROR(ERR_EXCEED_SESSIONS_PER_USER, session->kernel->attr.max_sessions);
+                return CT_ERROR;
             }
 
             idx_init_construct_workers(sort_ctx, worker, i, j);
 
-            if (cm_create_thread(idx_construct_paral_proc, 0, worker, &worker->thread) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_create_thread(idx_construct_paral_proc, 0, worker, &worker->thread) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             if (sort_ctx->multi_sort_info[i].count == 0) {
@@ -1082,10 +1083,10 @@ status_t idx_construct_alloc_resource(knl_session_t *session, idx_paral_sort_ctx
             }
             thread_id = thread_id + 1;
         }
-        sort_ctx->workers[thread_id].next_id = GS_INVALID_ID8;
+        sort_ctx->workers[thread_id].next_id = CT_INVALID_ID8;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void idx_close_build_thread(idx_paral_sort_ctx_t *sort_ctx)
@@ -1094,7 +1095,7 @@ void idx_close_build_thread(idx_paral_sort_ctx_t *sort_ctx)
 
     for (uint32 i = 0; i < sort_ctx->build_count; i++) {
         worker = &sort_ctx->build_workers[i];
-        worker->is_working = GS_FALSE;
+        worker->is_working = CT_FALSE;
 
         if (!worker->thread.closed) {
             cm_close_thread(&worker->thread);
@@ -1115,9 +1116,9 @@ void idx_build_release_resource(idx_paral_sort_ctx_t *sort_ctx, bool32 is_free)
 
     for (uint32 i = 0; i < sort_ctx->build_count; i++) {
         worker = &sort_ctx->build_workers[i];
-        worker->is_working = GS_FALSE;
+        worker->is_working = CT_FALSE;
         if (worker->session != NULL) {
-            worker->session->canceled = GS_TRUE;
+            worker->session->canceled = CT_TRUE;
         }
 
         if (!worker->thread.closed) {
@@ -1145,9 +1146,9 @@ void idx_construct_release_resource(idx_paral_sort_ctx_t *sort_ctx)
 
     for (uint32 i = 0; i < sort_ctx->paral_count; i++) {
         worker = &sort_ctx->workers[i];
-        worker->is_working = GS_FALSE;
+        worker->is_working = CT_FALSE;
         if (worker->session != NULL) {
-            worker->session->canceled = GS_TRUE;
+            worker->session->canceled = CT_TRUE;
         }
 
         if (!worker->thread.closed) {
@@ -1174,7 +1175,7 @@ static void idx_start_group_workers(idx_paral_sort_ctx_t *ctx, uint8 index_id, i
     build_count = ctx->paral_count / ctx->index_count;
 
     for (uint32 i = (uint32)index_id * build_count; i < index_id * build_count + build_count; i++) {
-        ctx->workers[i].is_working = GS_TRUE;
+        ctx->workers[i].is_working = CT_TRUE;
         ctx->workers[i].phase = phase;
         if (phase == CONSTRUCT_INDEX_PHASE) {
             break;
@@ -1198,13 +1199,13 @@ status_t idx_check_workers_status(idx_paral_sort_ctx_t *paral_ctx, uint8 index_i
             (*count)--;
         }
 
-        if (worker->thread.result != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_BUILD_INDEX_PARALLEL, paral_ctx->err_msg);
-            return GS_ERROR;
+        if (worker->thread.result != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_BUILD_INDEX_PARALLEL, paral_ctx->err_msg);
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t idx_switch_create_phase(knl_session_t *session, idx_paral_sort_ctx_t *paral_ctx,
@@ -1217,12 +1218,12 @@ status_t idx_switch_create_phase(knl_session_t *session, idx_paral_sort_ctx_t *p
     do {
         for (uint8 i = 0; i < paral_ctx->index_count; i++) {
             count = build_count;
-            if (idx_check_workers_status(paral_ctx, i, build_count, phase1, &count) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (idx_check_workers_status(paral_ctx, i, build_count, phase1, &count) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (knl_check_session_status(session) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (knl_check_session_status(session) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             if (count == 0) {
@@ -1233,7 +1234,7 @@ status_t idx_switch_create_phase(knl_session_t *session, idx_paral_sort_ctx_t *p
         }
     } while (index_count != 0);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void idx_rebuild_list_add_worker(uint64 *list, uint32 index)
@@ -1262,10 +1263,10 @@ static bool32 idx_acquire_idle_rebuild_worker(idx_paral_rebuild_ctx_t *ctx, uint
 
         *work_index = i;
         cm_spin_unlock(&worker->parl_lock);
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static void idx_active_rebuild_worker(idx_paral_rebuild_ctx_t *ctx, uint32 worker_index,
@@ -1278,10 +1279,10 @@ static void idx_active_rebuild_worker(idx_paral_rebuild_ctx_t *ctx, uint32 worke
     worker->current_range_index = 0;
     worker->splited_cnt = split_cnt;
 
-    worker->is_working = GS_TRUE;
+    worker->is_working = CT_TRUE;
     cm_spin_unlock(&worker->parl_lock);
 
-    GS_LOG_DEBUG_INF("worker:%u, part start:%u", worker_index, part_loc.part_no);
+    CT_LOG_DEBUG_INF("worker:%u, part start:%u", worker_index, part_loc.part_no);
 }
 
 static bool32 idx_split_overload_rebuild_worker(idx_paral_rebuild_ctx_t *ctx, uint32 overload_worker_index,
@@ -1295,7 +1296,7 @@ static bool32 idx_split_overload_rebuild_worker(idx_paral_rebuild_ctx_t *ctx, ui
 
     if (current_range_index < 1) { // overload_worker have one scan range, no need others help rebuild.
         cm_spin_unlock(&overload_worker->parl_lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     overload_worker->current_range_index--;
@@ -1311,10 +1312,10 @@ static bool32 idx_split_overload_rebuild_worker(idx_paral_rebuild_ctx_t *ctx, ui
     idx_active_rebuild_worker(ctx, idle_worker_index, part_loc, 0);
     cm_spin_unlock(&overload_worker->parl_lock);
 
-    GS_LOG_DEBUG_INF("active worker:%u, over worker:%u, part start:%u, last_range:%u", idle_worker_index,
+    CT_LOG_DEBUG_INF("active worker:%u, over worker:%u, part start:%u, last_range:%u", idle_worker_index,
         overload_worker_index, part_loc.part_no, current_range_index);
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 index_t* idx_get_index_by_shadow(knl_dictionary_t *dc)
@@ -1343,7 +1344,7 @@ static int64 idx_table_sub_part_traversal(knl_session_t *session, knl_dictionary
         return 0;
     }
 
-    if (!is_idx_part_existed(current_part_loc, parts_loc, GS_TRUE)) {
+    if (!is_idx_part_existed(current_part_loc, parts_loc, CT_TRUE)) {
         current_part_loc->subpart_no++;
         return 0;
     }
@@ -1368,19 +1369,19 @@ static status_t idx_table_part_traversal(knl_session_t *session, knl_dictionary_
     uint32 last_part;
 
     for (;;) {
-        if (knl_check_session_status(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_check_session_status(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         last_part = part_table->desc.partcnt;
         if (current_part_loc->part_no >= last_part) {
-            *finish_stat = GS_TRUE;
+            *finish_stat = CT_TRUE;
             break;
         }
 
         table_part = TABLE_GET_PART(table, current_part_loc->part_no);
         if (!IS_READY_PART(table_part) ||
-            !is_idx_part_existed(current_part_loc, parts_loc, GS_FALSE)) {
+            !is_idx_part_existed(current_part_loc, parts_loc, CT_FALSE)) {
             current_part_loc->part_no++;
             continue;
         }
@@ -1390,14 +1391,14 @@ static status_t idx_table_part_traversal(knl_session_t *session, knl_dictionary_
             if (pages == 0) {
                 continue;
             } else if (pages < 0) {
-                return GS_ERROR;
+                return CT_ERROR;
             }
             break;
         }
 
-        current_part_loc->subpart_no = GS_INVALID_ID32;
-        if (part_get_heap_segment_size(session, dc, table_part, SEG_PAGES, &pages) != GS_SUCCESS) {
-            return GS_ERROR;
+        current_part_loc->subpart_no = CT_INVALID_ID32;
+        if (part_get_heap_segment_size(session, dc, table_part, SEG_PAGES, &pages) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (pages == 0) {
             current_part_loc->part_no++;
@@ -1406,7 +1407,7 @@ static status_t idx_table_part_traversal(knl_session_t *session, knl_dictionary_
         break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t idx_check_worker_status(idx_paral_rebuild_ctx_t *ctx)
@@ -1417,43 +1418,43 @@ static status_t idx_check_worker_status(idx_paral_rebuild_ctx_t *ctx)
     for (uint32 worker_index = 0; worker_index < max_paral_worker; worker_index++) {
         worker = &ctx->workers[worker_index];
 
-        if (worker->thread.result != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_BUILD_INDEX_PARALLEL, ctx->err_msg);
-            return GS_ERROR;
+        if (worker->thread.result != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_BUILD_INDEX_PARALLEL, ctx->err_msg);
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t idx_start_rebuild_workers(knl_session_t *session, idx_paral_rebuild_ctx_t *ctx, knl_parts_locate_t parts_loc)
 {
     status_t ret;
     knl_dictionary_t *dc = ctx->dc;
-    bool32 finish_stat = GS_FALSE;
+    bool32 finish_stat = CT_FALSE;
     uint32 split_cnt = (parts_loc.specified_parts == 0) ? MAX_SPLIT_RANGE_CNT : 1;
 
-    if (ctx->current_part.part_no == GS_INVALID_ID32) {
+    if (ctx->current_part.part_no == CT_INVALID_ID32) {
         ctx->current_part.part_no = 0;
     }
 
-    if (ctx->current_part.subpart_no == GS_INVALID_ID32) {
+    if (ctx->current_part.subpart_no == CT_INVALID_ID32) {
         ctx->current_part.subpart_no = 0;
     }
 
     for (;;) {
         ret = idx_table_part_traversal(session, dc, &ctx->current_part, &finish_stat, parts_loc);
-        if (ret != GS_SUCCESS || finish_stat) {
+        if (ret != CT_SUCCESS || finish_stat) {
             break;
         }
 
-        if (knl_check_session_status(session) != GS_SUCCESS) {
-            ret = GS_ERROR;
+        if (knl_check_session_status(session) != CT_SUCCESS) {
+            ret = CT_ERROR;
             break;
         }
 
-        if (idx_check_worker_status(ctx) != GS_SUCCESS) {
-            ret = GS_ERROR;
+        if (idx_check_worker_status(ctx) != CT_SUCCESS) {
+            ret = CT_ERROR;
             break;
         }
 
@@ -1462,7 +1463,7 @@ status_t idx_start_rebuild_workers(knl_session_t *session, idx_paral_rebuild_ctx
             continue;
         }
 
-        if (ctx->current_part.subpart_no != GS_INVALID_ID32) {
+        if (ctx->current_part.subpart_no != CT_INVALID_ID32) {
             ctx->current_part.subpart_no++;
         } else {
             ctx->current_part.part_no++;
@@ -1478,31 +1479,31 @@ bool32 idx_start_rebuild_worker(knl_session_t *session, idx_paral_rebuild_ctx_t 
     knl_part_locate_t part_loc = ctx->current_part;
 
     if (!idx_acquire_idle_rebuild_worker(ctx, &worker_index)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     idx_active_rebuild_worker(ctx, worker_index, part_loc, split_cnt);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t idx_init_worker_pool(knl_session_t *session, idx_paral_rebuild_ctx_t *ctx, uint32 range_count)
 {
     for (uint32 i = 0; i < range_count; i++) {
         idx_paral_rebuild_worker_t *worker = ctx->workers + i;
-        if (g_knl_callback.alloc_knl_session(GS_FALSE, (knl_handle_t *)&worker->session) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_EXCEED_SESSIONS_PER_USER, session->kernel->attr.max_sessions);
-            return GS_ERROR;
+        if (g_knl_callback.alloc_knl_session(CT_FALSE, (knl_handle_t *)&worker->session) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_EXCEED_SESSIONS_PER_USER, session->kernel->attr.max_sessions);
+            return CT_ERROR;
         }
 
         worker->id = i;
         worker->ctx = ctx;
 
-        if (cm_create_thread(idx_rebuild_index_proc, 0, worker, &worker->thread) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_create_thread(idx_rebuild_index_proc, 0, worker, &worker->thread) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t idx_alloc_parallel_rebuild_rsc(knl_session_t *session, knl_dictionary_t *dc, uint32 paral_count,
@@ -1535,7 +1536,7 @@ static bool32 idx_optimize_rebuild_workers(idx_paral_rebuild_ctx_t *ctx, uint32 
         return idx_split_overload_rebuild_worker(ctx, overload_worker_index, i);
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 bool32 idx_is_multi_segments(idx_paral_rebuild_ctx_t *ctx, knl_parts_locate_t parts_loc,
@@ -1546,15 +1547,15 @@ bool32 idx_is_multi_segments(idx_paral_rebuild_ctx_t *ctx, knl_parts_locate_t pa
     table_t* table = DC_TABLE(dc);
     
     if (rebuild_def->specified_parts) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    if (parts_loc.part[0].part_no != GS_INVALID_ID32) {
+    if (parts_loc.part[0].part_no != CT_INVALID_ID32) {
         table_part = TABLE_GET_PART(table, parts_loc.part[0].part_no);
         if (IS_PARENT_TABPART(&table_part->desc)) {
-            return parts_loc.part[0].subpart_no == GS_INVALID_ID32;
+            return parts_loc.part[0].subpart_no == CT_INVALID_ID32;
         }
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     return IS_PART_TABLE(table);
@@ -1573,8 +1574,8 @@ status_t idx_wait_rebuild_workers(knl_session_t *session, idx_paral_rebuild_ctx_
 
         cm_sleep(REBUILD_WAIT_MSEC);
 
-        if (idx_check_worker_status(ctx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (idx_check_worker_status(ctx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         for (uint32 worker_index = 0; worker_index < max_paral_worker; worker_index++) {
@@ -1591,8 +1592,8 @@ status_t idx_wait_rebuild_workers(knl_session_t *session, idx_paral_rebuild_ctx_
             }
         }
 
-        if (knl_check_session_status(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_check_session_status(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (idx_optimize_rebuild_workers(ctx, over_load_worker_index, idle_worker_list)) {
@@ -1604,7 +1605,7 @@ status_t idx_wait_rebuild_workers(knl_session_t *session, idx_paral_rebuild_ctx_
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void idx_release_parallel_rebuild_rsc(knl_session_t *session, idx_paral_rebuild_ctx_t *ctx, uint32 workers)
@@ -1614,9 +1615,9 @@ void idx_release_parallel_rebuild_rsc(knl_session_t *session, idx_paral_rebuild_
 
     for (worker_index = 0; worker_index < workers; worker_index++) {
         worker = &ctx->workers[worker_index];
-        worker->is_working = GS_FALSE;
+        worker->is_working = CT_FALSE;
         if (worker->session != NULL) {
-            worker->session->canceled = GS_TRUE;
+            worker->session->canceled = CT_TRUE;
         }
         cm_close_thread(&worker->thread);
 
@@ -1636,8 +1637,8 @@ static status_t idx_split_table_segment_range(idx_paral_rebuild_worker_t *worker
     knl_paral_range_t paral_range;
     paral_range.workers = *range_cnt;
 
-    if (knl_get_paral_schedule(session, dc, worker->part_loc, paral_range.workers, &paral_range) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_get_paral_schedule(session, dc, worker->part_loc, paral_range.workers, &paral_range) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < paral_range.workers; i++) {
@@ -1646,7 +1647,7 @@ static status_t idx_split_table_segment_range(idx_paral_rebuild_worker_t *worker
     }
 
     *range_cnt = paral_range.workers;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 idx_split_worker_range(idx_paral_rebuild_worker_t *worker, uint32 split_cnt)
@@ -1677,7 +1678,7 @@ static bool32 idx_split_worker_range(idx_paral_rebuild_worker_t *worker, uint32 
     }
 
     status = idx_split_table_segment_range(worker, range, &range_cnt);
-    if (status == GS_SUCCESS) {
+    if (status == CT_SUCCESS) {
         cm_spin_lock(&worker->parl_lock, NULL);
         for (uint32 i = 0; i < range_cnt; i++) {
             worker->split_range[i] = range[i];
@@ -1686,7 +1687,7 @@ static bool32 idx_split_worker_range(idx_paral_rebuild_worker_t *worker, uint32 
         cm_spin_unlock(&worker->parl_lock);
     }
 
-    return status == GS_SUCCESS;
+    return status == CT_SUCCESS;
 }
 
 status_t idx_open_cursor(idx_paral_rebuild_worker_t *worker, knl_cursor_t *cursor, int32 range_index,
@@ -1702,16 +1703,16 @@ status_t idx_open_cursor(idx_paral_rebuild_worker_t *worker, knl_cursor_t *curso
     cursor->action = CURSOR_ACTION_SELECT;
     cursor->scan_mode = SCAN_MODE_TABLE_FULL;
     cursor->index_slot = old_index->desc.slot;
-    cursor->index_only = GS_FALSE;
+    cursor->index_only = CT_FALSE;
     cursor->part_loc = worker->part_loc;
-    cursor->index_paral = GS_TRUE;
-    cursor->index_dsc = GS_FALSE;
+    cursor->index_paral = CT_TRUE;
+    cursor->index_dsc = CT_FALSE;
 
-    if (cursor->part_loc.part_no == GS_INVALID_ID32) {
+    if (cursor->part_loc.part_no == CT_INVALID_ID32) {
         cursor->part_loc.part_no = 0;
     }
 
-    if (cursor->part_loc.subpart_no == GS_INVALID_ID32) {
+    if (cursor->part_loc.subpart_no == CT_INVALID_ID32) {
         cursor->part_loc.subpart_no = 0;
     }
 
@@ -1722,16 +1723,16 @@ status_t idx_open_cursor(idx_paral_rebuild_worker_t *worker, knl_cursor_t *curso
             ret = knl_open_cursor(session, cursor, dc);
         }
 
-        if (ret != GS_SUCCESS) {
+        if (ret != CT_SUCCESS) {
             break;
         }
 
         knl_init_table_scan(session, cursor);
         knl_set_table_scan_range(session, cursor, range->l_page, range->r_page);
 
-        GS_LOG_DEBUG_INF("lfile = %u, page= %u, vmid = %u", range->l_page.file, range->l_page.page,
+        CT_LOG_DEBUG_INF("lfile = %u, page= %u, vmid = %u", range->l_page.file, range->l_page.page,
             range->l_page.vmid);
-        GS_LOG_DEBUG_INF("rfile = %u, page= %u, vmid = %u", range->r_page.file, range->r_page.page,
+        CT_LOG_DEBUG_INF("rfile = %u, page= %u, vmid = %u", range->r_page.file, range->r_page.page,
             range->r_page.vmid);
 
         break;
@@ -1746,7 +1747,7 @@ static status_t idx_rebuild_index_range_proc_entity(idx_paral_rebuild_worker_t *
 {
     knl_session_t *session = worker->session;
     int32 current_range_index;
-    bool32 reopen = GS_FALSE;
+    bool32 reopen = CT_FALSE;
 
     for (;;) {
         cm_spin_lock(&worker->parl_lock, NULL);
@@ -1759,23 +1760,23 @@ static status_t idx_rebuild_index_range_proc_entity(idx_paral_rebuild_worker_t *
         worker->current_range_index--;
         cm_spin_unlock(&worker->parl_lock);
 
-        GS_LOG_DEBUG_INF("worker:%u,process part:%u-%u start,current_range_index:%d", worker->id,
+        CT_LOG_DEBUG_INF("worker:%u,process part:%u-%u start,current_range_index:%d", worker->id,
             worker->part_loc.part_no, worker->part_loc.subpart_no, current_range_index);
 
-        if (idx_open_cursor(worker, cursor, current_range_index, reopen) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (idx_open_cursor(worker, cursor, current_range_index, reopen) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (db_fill_shadow_index_parallel(session, cursor, dc, worker->part_loc, REBUILD_INDEX_PARALLEL) !=
-            GS_SUCCESS) {
-            return GS_ERROR;
+            CT_SUCCESS) {
+            return CT_ERROR;
         }
-        reopen = GS_TRUE;
-        GS_LOG_DEBUG_INF("worker:%u,process end:%u-%d, cnt:%d", worker->id, worker->part_loc.part_no,
+        reopen = CT_TRUE;
+        CT_LOG_DEBUG_INF("worker:%u,process end:%u-%d, cnt:%d", worker->id, worker->part_loc.part_no,
             worker->part_loc.subpart_no, current_range_index);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void idx_rebuild_index_proc(thread_t *thread)
@@ -1788,13 +1789,13 @@ void idx_rebuild_index_proc(thread_t *thread)
     knl_dictionary_t *dc = ctx->dc;
     knl_cursor_t *cursor = NULL;
     uint32 splited_cnt;
-    bool32 splited_result = GS_TRUE;
+    bool32 splited_result = CT_TRUE;
 
     for (;;) {
         cm_spin_lock(&worker->parl_lock, NULL);
 
         if (thread->closed) {
-            worker->is_working = GS_FALSE;
+            worker->is_working = CT_FALSE;
             cm_spin_unlock(&worker->parl_lock);
             break;
         }
@@ -1811,30 +1812,30 @@ void idx_rebuild_index_proc(thread_t *thread)
         if (splited_cnt == 1) {
             index_t *index = &DC_TABLE(dc)->shadow_index->index;
             thread->result = db_fill_index_entity_paral(session, dc, index, worker->part_loc, worker->ctx->paral_cnt,
-                GS_FALSE);
+                CT_FALSE);
         } else {
             if (splited_cnt > 0 && splited_cnt <= MAX_SPLIT_RANGE_CNT) {
                 splited_result = idx_split_worker_range(worker, splited_cnt);
             }
 
             cursor = knl_push_cursor(session);
-            if (!splited_result || idx_rebuild_index_range_proc_entity(worker, cursor, dc) != GS_SUCCESS) {
-                thread->result = GS_ERROR;
+            if (!splited_result || idx_rebuild_index_range_proc_entity(worker, cursor, dc) != CT_SUCCESS) {
+                thread->result = CT_ERROR;
             }
 
             knl_close_cursor(session, cursor);
         }
         CM_RESTORE_STACK(session->stack);
         cm_spin_lock(&worker->parl_lock, NULL);
-        worker->is_working = GS_FALSE;
+        worker->is_working = CT_FALSE;
 
-        if (thread->result != GS_SUCCESS) {
+        if (thread->result != CT_SUCCESS) {
             cm_spin_unlock(&worker->parl_lock);
             idx_set_err_msg(ctx->err_msg);
             continue;
         }
 
-        thread->result = GS_SUCCESS;
+        thread->result = CT_SUCCESS;
         cm_spin_unlock(&worker->parl_lock);
     }
 }

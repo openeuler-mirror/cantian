@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -89,20 +89,20 @@ static status_t try_extend_free_list(cm_hash_pool_t *pool)
     cm_hash_item_t *next = NULL;
     cm_hash_bucket_t *free_list = &pool->free_list;
     if (pool->hwm >= HASH_MAX_SIZE(pool)) {
-        GS_THROW_ERROR(ERR_TOO_MANY_OBJECTS, HASH_MAX_SIZE(pool), HASH_NAME(pool));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TOO_MANY_OBJECTS, HASH_MAX_SIZE(pool), HASH_NAME(pool));
+        return CT_ERROR;
     }
     uint32 size = (ENTRY_SIZE(pool) + HASH_ITEM_SIZE) * HASH_MEM_EXTENT_SIZE;
     extent = (cm_hash_item_t *)malloc(size);
     if (extent == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, pool->profile.name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, pool->profile.name);
+        return CT_ERROR;
     }
     errno_t ret = memset_sp(extent, size, 0, size);
     if (ret != EOK) {
         CM_FREE_PTR(extent);
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+        return CT_ERROR;
     }
 
     curr = extent;
@@ -118,7 +118,7 @@ static status_t try_extend_free_list(cm_hash_pool_t *pool)
     pool->hwm += HASH_MEM_EXTENT_SIZE;
     pool->pages[pool->count++] = (char *)extent;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t remove_from_free_list(cm_hash_pool_t *pool, cm_hash_item_t **item)
@@ -127,9 +127,9 @@ static status_t remove_from_free_list(cm_hash_pool_t *pool, cm_hash_item_t **ite
 
     cm_spin_lock(&free_list->lock, NULL);
     if (free_list->count == 0) {
-        if (try_extend_free_list(pool) != GS_SUCCESS) {
+        if (try_extend_free_list(pool) != CT_SUCCESS) {
             cm_spin_unlock(&free_list->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -142,7 +142,7 @@ static status_t remove_from_free_list(cm_hash_pool_t *pool, cm_hash_item_t **ite
     free_list->count--;
     cm_spin_unlock(&free_list->lock);
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void add_to_free_list(cm_hash_bucket_t *free_list, cm_hash_item_t *item)
@@ -160,33 +160,33 @@ status_t cm_hash_pool_create(cm_hash_profile_t *profile, cm_hash_pool_t *pool)
     uint32 mem_size = profile->bucket_num * sizeof(cm_hash_bucket_t);
     pool->buckets = (cm_hash_bucket_t *)malloc(mem_size);
     if (pool->buckets == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, mem_size, profile->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, mem_size, profile->name);
+        return CT_ERROR;
     }
     errno_t ret = memset_sp(pool->buckets, mem_size, 0, mem_size);
     if (ret != EOK) {
         CM_FREE_PTR(pool->buckets);
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+        return CT_ERROR;
     }
 
     mem_size = CM_ALIGN_CEIL(HASH_MAX_SIZE(pool), HASH_MEM_EXTENT_SIZE) * sizeof(char *);
     pool->pages = (char **)malloc(mem_size);
     if (pool->pages == NULL) {
         CM_FREE_PTR(pool->buckets);
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, mem_size, profile->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, mem_size, profile->name);
+        return CT_ERROR;
     }
     
     ret = memset_sp(pool->pages, mem_size, 0, mem_size);
     if (ret != EOK) {
         CM_FREE_PTR(pool->buckets);
         CM_FREE_PTR(pool->pages);
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+        return CT_ERROR;
     }
     init_hash_bucket(&pool->free_list);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -199,7 +199,7 @@ void *cm_hash_pool_match_lock(cm_hash_pool_t *pool, void *data)
     cm_hash_item_t *item = NULL;
 
     cm_spin_lock(&bucket->lock, NULL);
-    item = find_in_hash_bucket(pool, bucket, data, GS_TRUE);
+    item = find_in_hash_bucket(pool, bucket, data, CT_TRUE);
     if (item != NULL) {
         match_data = item->data;
     }
@@ -217,27 +217,27 @@ status_t cm_hash_pool_add(cm_hash_pool_t *pool, void *data)
     cm_hash_item_t *item = NULL;
 
     cm_spin_lock(&bucket->lock, NULL);
-    item = find_in_hash_bucket(pool, bucket, data, GS_FALSE);
+    item = find_in_hash_bucket(pool, bucket, data, CT_FALSE);
     if (item != NULL) {
         cm_spin_unlock(&bucket->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (remove_from_free_list(pool, &item) != GS_SUCCESS) {
+    if (remove_from_free_list(pool, &item) != CT_SUCCESS) {
         cm_spin_unlock(&bucket->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     errno_t ret = memcpy_sp(item->data, ENTRY_SIZE(pool), data, ENTRY_SIZE(pool));
     if (ret != EOK) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
         cm_spin_unlock(&bucket->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
    
     add_to_hash_bucket_nolock(pool, bucket, item);
     cm_spin_unlock(&bucket->lock);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_hash_pool_del(cm_hash_pool_t *pool, void *data)
@@ -248,7 +248,7 @@ void cm_hash_pool_del(cm_hash_pool_t *pool, void *data)
     cm_hash_item_t *item = NULL;
     
     cm_spin_lock(&bucket->lock, NULL);
-    item = find_in_hash_bucket(pool, bucket, data, GS_TRUE);
+    item = find_in_hash_bucket(pool, bucket, data, CT_TRUE);
     if (item == NULL) {
         cm_spin_unlock(&bucket->lock);
         return;

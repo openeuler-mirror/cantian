@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -664,7 +664,7 @@ static int shm_get_config_file(int *ret_fd, int i)
         flags = O_RDWR;
     }
 
-    fd = open(file_name, flags, 0600);
+    fd = open(file_name, flags, 0660);
     if (fd < 0) {
         LOG_SHM_ERROR("open, errno = %d", errno);
         return -1;
@@ -673,6 +673,7 @@ static int shm_get_config_file(int *ret_fd, int i)
     ret = flock(fd, LOCK_EX);
     if (ret == -1) {
         LOG_SHM_ERROR("flock, errno = %d", errno);
+        close(fd);
         return -1;
     }
     *ret_fd = fd;

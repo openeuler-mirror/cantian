@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -56,14 +56,22 @@ typedef enum en_cms_msg_type {
     CMS_MSG_RES_DEL_GRP,
     CMS_MSG_REQ_ADD_NODE,
     CMS_MSG_RES_ADD_NODE,
+    CMS_MSG_REQ_VERSION_UPGRADE,
+    CMS_MSG_RES_VERSION_UPGRADE,
     CMS_MSG_REQ_DEL_NODE,
     CMS_MSG_RES_DEL_NODE,
     CMS_MSG_REQ_GET_SRV_STAT,
     CMS_MSG_RES_GET_SRV_STAT,
     CMS_MSG_REQ_UPDATE_LOCAL_GCC,
+    CMS_MSG_RES_UPDATE_LOCAL_GCC,
     CMS_MSG_REQ_IOF_KICK,
     CMS_MSG_RES_IOF_KICK,
+    CMS_MSG_REQ_UPGRADE_LOCAL_VERSION,
+    CMS_MSG_RES_UPGRADE_LOCAL_VERSION,
     CMS_MSG_REQ_STAT_CHG,
+    #ifdef DB_DEBUG_VERSION
+        CMS_MSG_REQ_STAT_CHG_NEW
+    #endif
 }cms_msg_type_t;
 
 #define CMS_IS_TIMER_MSG(msg_type) \
@@ -90,6 +98,7 @@ typedef struct st_cms_msg_res_hb {
 typedef enum en_cms_msg_scope {
     CMS_MSG_SCOPE_CLUSTER = 1,
     CMS_MSG_SCOPE_NODE = 2,
+    CMS_MSG_SCOPE_NODE_FORCE = 3,
 }cms_msg_scope_t;
 
 typedef struct st_cms_msg_req_start_res {
@@ -195,7 +204,7 @@ typedef struct st_cms_msg_req_add_node {
     cms_packet_head_t       head;
     uint32                  node_id;
     char                    name[CMS_NAME_BUFFER_SIZE];
-    char                    ip[CMS_IP_BUFFER_SIZE];
+    char                    ip[CT_MAX_INST_IP_LEN];
     uint32                  port;
 }cms_msg_req_add_node_t;
 
@@ -221,11 +230,34 @@ typedef struct st_cms_msg_req_update_local_gcc_t {
     uint8                   type; // reserved for future
 }cms_msg_req_update_local_gcc_t;
 
+typedef struct st_cms_msg_req_version_update {
+    cms_packet_head_t       head;
+    uint16                  main_ver;
+    uint16                  major_ver;
+    uint16                  revision;
+    uint16                  inner;
+}cms_msg_req_version_update_t;
+
+typedef struct st_cms_msg_res_version_update {
+    cms_packet_head_t       head;
+    status_t                result;
+    char                    info[CMS_INFO_BUFFER_SIZE];
+}cms_msg_res_version_update_t;
+
 typedef struct st_cms_msg_req_stat_chg {
     cms_packet_head_t       head;
     uint64                  version;
     uint32                  res_id;
 }cms_msg_req_stat_chg_t;
+
+#ifdef DB_DEBUG_VERSION
+typedef struct st_cms_msg_req_stat_chg_new {
+    cms_packet_head_t       head;
+    uint64                  version;
+    uint32                  res_id;
+    int32                   fake_flag;
+}cms_msg_req_stat_chg_new_t;
+#endif
 
 typedef struct st_cms_msg_req_bak_gcc {
     cms_packet_head_t       head;
@@ -278,6 +310,10 @@ typedef enum en_cms_tool_msg_type {
     CMS_TOOL_MSG_RES_ADD_RES,
     CMS_TOOL_MSG_REQ_EDIT_RES,
     CMS_TOOL_MSG_RES_EDIT_RES,
+    CMS_TOOL_MSG_REQ_UPGRADE,
+    CMS_TOOL_MSG_RES_UPGRADE,
+    CMS_TOOL_MSG_REQ_VERSION,
+    CMS_TOOL_MSG_RES_VERSION,
     CMS_TOOL_MSG_REQ_DEL_RES,
     CMS_TOOL_MSG_RES_DEL_RES,
     CMS_TOOL_MSG_REQ_GET_IOSTAT,
@@ -306,7 +342,7 @@ typedef struct st_cms_tool_msg_req_add_node {
     cms_packet_head_t       head;
     uint32                  node_id;
     char                    name[CMS_NAME_BUFFER_SIZE];
-    char                    ip[CMS_IP_BUFFER_SIZE];
+    char                    ip[CT_MAX_INST_IP_LEN];
     uint32                  port;
 }cms_tool_msg_req_add_node_t;
 
@@ -315,6 +351,38 @@ typedef struct st_cms_tool_msg_res_add_node {
     status_t                result;
     char                    info[CMS_INFO_BUFFER_SIZE];
 }cms_tool_msg_res_add_node_t;
+
+typedef struct st_cms_tool_msg_req_upgrade {
+    cms_packet_head_t       head;
+    uint16                  main_ver;
+    uint16                  major_ver;
+    uint16                  revision;
+    uint16                  inner;
+}cms_tool_msg_req_upgrade_t;
+
+typedef struct st_cms_tool_msg_res_upgrade {
+    cms_packet_head_t       head;
+    status_t                result;
+    char                    info[CMS_INFO_BUFFER_SIZE];
+}cms_tool_msg_res_upgrade_t;
+
+typedef struct st_cms_tool_msg_req_version {
+    cms_packet_head_t       head;
+}cms_tool_msg_req_version_t;
+
+typedef struct st_cms_tool_msg_res_version {
+    cms_packet_head_t       head;
+    status_t                result;
+    uint16                  gcc_main_ver;
+    uint16                  gcc_major_ver;
+    uint16                  gcc_revision;
+    uint16                  gcc_inner;
+    uint16                  mem_main_ver;
+    uint16                  mem_major_ver;
+    uint16                  mem_revision;
+    uint16                  mem_inner;
+    char                    info[CMS_INFO_BUFFER_SIZE];
+}cms_tool_msg_res_version_t;
 
 typedef struct st_cms_tool_msg_req_del_node {
     cms_packet_head_t       head;

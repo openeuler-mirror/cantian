@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -48,8 +48,8 @@ bool32 abr_precheck_corrupted_page(knl_session_t *session, page_id_t page_id);
 status_t abr_restore_block_recover(knl_session_t *session, knl_restore_t *param);
 status_t abr_restore_file_recover(knl_session_t *session, knl_restore_t *param);
 status_t abr_wait_paral_rcy_compelte(knl_session_t *session);
-void ctabr_page_rcy_need_replay(knl_session_t *ct_se, log_entry_t *log_entry, bool32 *replay);
-void ctabr_page_rcy_skip_replay(knl_session_t *ct_se, log_entry_t *log_entry, bool32 *replay);
+void nolog_page_need_rcy_log(knl_session_t *session, log_entry_t *log, bool32 *need_replay);
+void nolog_page_skip_rcy_log(knl_session_t *session, log_entry_t *log, bool32 *need_replay);
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -25,8 +25,8 @@
 #ifndef __CM_TYPES_H__
 #define __CM_TYPES_H__
 
-#ifndef GS_TYPES_DEFINED
-#define GS_TYPES_DEFINED 1
+#ifndef CT_TYPES_DEFINED
+#define CT_TYPES_DEFINED 1
 
 typedef unsigned char uchar;
 typedef unsigned long ulong;
@@ -77,7 +77,7 @@ typedef void *handle_t;
 #define UINT16_BITS 16
 #define UINT8_BITS 8
 
-#endif /* GS_TYPES_DEFINED */
+#endif /* CT_TYPES_DEFINED */
 
 #endif /* __CM_TYPES_H__ */
 

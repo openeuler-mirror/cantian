@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -62,8 +62,10 @@ status_t sql_verify_als_shard_refusesql_level(void *se, void *lex, void *def);
 status_t sql_verify_als_shard_refusetrans_level(void *se, void *lex, void *def);
 
 // params notify
+status_t sql_notify_als_shard_restricted_feature(void *se, void *item, char *value);
 status_t sql_notify_als_access_dc_enable_bool(void *se, void *item, char *value);
 status_t sql_notify_als_view_access_dc_bool(void *se, void *item, char *value);
+status_t sql_notify_als_shard_error_force_rollback(void *se, void *item, char *value);
 status_t sql_notify_als_normal_emerge_sess_factor(void *se, void *item, char *value);
 status_t sql_notify_als_prefetch_rows(void *se, void *item, char *value);
 status_t sql_notify_als_enable_arr_store_opt(void *se, void *item, char *value);
@@ -90,11 +92,40 @@ status_t sql_notify_empty_string_null(void *se, void *item, char *value);
 status_t sql_notify_als_enable_sql_map(void *se, void *item, char *value);
 status_t sql_notify_als_max_sql_map_per_user(void *se, void *item, char *value);
 status_t sql_notify_als_sga_core_dump_config(void *se, void *item, char *value);
+status_t sql_notify_als_shard_serial_execution(void *se, void *item, char *value);
+status_t sql_notify_als_shard_check_unique(void *se, void *item, char *value);
+status_t sql_notify_als_shard_refusesql_level(void *se, void *item, char *value);
+status_t sql_notify_als_shard_refusetrans_level(void *se, void *item, char *value);
+status_t sql_notify_als_shard_retry_times(void *se, void *item, char *value);
+status_t sql_notify_als_shard_retry_interval(void *se, void *item, char *value);
+status_t sql_notify_als_shard_connect_timeout(void *se, void *item, char *value);
+status_t sql_notify_als_shard_socket_timeout(void *se, void *item, char *value);
+status_t sql_notify_als_shard_heartbeat_timeout(void *se, void *item, char *value);
+status_t sql_notify_als_shard_ptrans_clean_timeout(void *se, void *item, char *value);
 status_t sql_notify_enable_local_infile(void *se, void *item, char *value);
+status_t sql_notify_als_enable_permissive_unicode(void *se, void *item, char *value);
 status_t sql_notify_als_disable_var_peek(void *se, void *item, char *value);
 status_t sql_notify_als_enable_cursor_sharing(void *se, void *item, char *value);
 status_t sql_notify_als_enable_use_spm(void *se, void *item, char *value);
 status_t sql_notify_als_compatible_mysql(void *se, void *item, char *value);
+#ifdef Z_SHARDING
+status_t sql_verify_als_cache_size(void *se, void *lex, void *def);
+status_t sql_verify_als_node_heartbeat_timeout(void *se, void *lex, void *def);
+status_t sql_verify_als_ptrans_timeout(void *se, void *lex, void *def);
+status_t sql_verify_als_dn_groups_before_expand(void *se, void *lex, void *def);
+status_t shd_verify_als_priv_connection(void *se, void *lex, void *def);
+status_t shd_verify_als_priv_session(void *se, void *lex, void *def);
+status_t shd_verify_als_priv_agent(void *se, void *lex, void *def);
+
+status_t sql_notify_als_seq_cache_size(void *se, void *item, char *value);
+status_t shd_notify_als_strong_cons(void *se, void *item, char *value);
+status_t shd_notify_als_ptrans_clean_interval(void *se, void *item, char *value);
+status_t shd_notify_als_node_heartbeat_timeout(void *se, void *item, char *value);
+status_t shd_notify_als_ptrans_timeout(void *se, void *item, char *value);
+status_t sql_notify_als_dn_groups_before_expand(void *se, void *item, char *value);
+status_t sql_notify_als_shard_check_db_role(void *se, void *item, char *value);
+
+#endif
 status_t sql_notify_json_dyn_buf_size(void *se, void *item, char *value);
 
 status_t sql_verify_als_interconnect_port(void *se, void *lex, void *def);

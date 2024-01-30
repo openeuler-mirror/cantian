@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,9 +32,9 @@ extern "C" {
 #endif
 
 #define EXPANDED_SESSIONS(sessions) (uint32)(int32)((sessions) * 1.5)
-status_t server_load_srv_params(void);
-status_t server_load_cluster_params(void);
-status_t server_load_gdv_params(void);
+status_t srv_load_server_params(void);
+status_t srv_load_cluster_params(void);
+status_t srv_load_gdv_params(void);
 
 #ifdef __cplusplus
 }

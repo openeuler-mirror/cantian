@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -44,7 +44,7 @@ uint32 knl_lob_size(knl_handle_t locator);
 char *knl_inline_lob_data(knl_handle_t locator);
 bool32 knl_lob_is_inline(knl_handle_t locator);
 status_t knl_read_lob(knl_handle_t se, knl_handle_t loc, uint32 offset_input, void *buf, uint32 size,
-                      uint32 *read_size);
+                      uint32 *read_size, page_id_t *page_id);
 status_t knl_write_lob(knl_handle_t se, knl_cursor_t *cursor, char *locator, knl_column_t *column,
                        bool32 force_outline, void *data);
 status_t knl_row_put_lob(knl_handle_t session, knl_cursor_t *cursor, knl_column_t *column,
@@ -101,7 +101,7 @@ typedef enum e_object_type {
     OBJ_TYPE_LOB_SUBPART = 28,
     OBJ_TYPE_SHADOW_INDEX_SUBPART = 29,
     OBJ_TYPE_SYS_PACKAGE = 30,
-    OBJ_TYPE_INVALID = GS_INVALID_ID32,
+    OBJ_TYPE_INVALID = CT_INVALID_ID32,
 } object_type_t;
 
 typedef struct st_obj_info {
@@ -122,9 +122,9 @@ typedef struct st_synonym_t {
     uint32 id;                              // synonym id
     knl_scn_t org_scn;                      // original scn
     knl_scn_t chg_scn;                      // scn when changed by DDL(alter)
-    char name[GS_NAME_BUFFER_SIZE];         // synonym name
-    char table_owner[GS_NAME_BUFFER_SIZE];  // table owner
-    char table_name[GS_NAME_BUFFER_SIZE];   // table name
+    char name[CT_NAME_BUFFER_SIZE];         // synonym name
+    char table_owner[CT_NAME_BUFFER_SIZE];  // table owner
+    char table_name[CT_NAME_BUFFER_SIZE];   // table name
     uint32 flags;                           // synonym tatus:valid(1), invalid(0), unknown(2)
     object_type_t type;                     //  type of real object
 } knl_synonym_t;

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_cluster_module.h"
 #include "dtc_ckpt.h"
 #include "dtc_dcs.h"
 #include "dtc_buffer.h"
@@ -84,8 +85,11 @@ uint32 ckpt_merge_to_array(edp_page_info_t* src_pages, uint32 start, uint32 src_
 
     ckpt_sort_page_id_array(dst_pages, tmp_dst_count);
     while (i - start < src_count && j < tmp_dst_count && tmp_dst_count < dst_capacity) {
-        knl_panic(!(src_pages[i].page.page == 0 && src_pages[i].page.file == 0));
-        knl_panic(src_pages[i].page.file != INVALID_FILE_ID);
+        if ((src_pages[i].page.page == 0 && src_pages[i].page.file == 0) || src_pages[i].page.file >= INVALID_FILE_ID) {
+            CT_LOG_RUN_ERR("[%u-%u][dcs] dcs clean edp pageid is invalid", src_pages[i].page.page,
+                src_pages[i].page.file);
+            return (start + src_count);
+        }
         result = cmp_edp_page_info_t(&src_pages[i], &dst_pages[j]);
         if (result == 0) {
             i++;
@@ -104,7 +108,7 @@ uint32 ckpt_merge_to_array(edp_page_info_t* src_pages, uint32 start, uint32 src_
         }
     }
     if (i - start >= src_count || j >= dst_capacity - 1 || tmp_dst_count >= dst_capacity) {
-        GS_LOG_DEBUG_INF("[CKPT] merge src array(%d) to dst array(%d), found duplicated (%d), new dst size(%d)", src_count, *dst_count, is_same, tmp_dst_count);
+        CT_LOG_DEBUG_INF("[CKPT] merge src array(%d) to dst array(%d), found duplicated (%d), new dst size(%d)", src_count, *dst_count, is_same, tmp_dst_count);
         *dst_count = tmp_dst_count;
         sanity_check_sorted_page_id_array(dst_pages, tmp_dst_count);
         return i;
@@ -117,9 +121,8 @@ uint32 ckpt_merge_to_array(edp_page_info_t* src_pages, uint32 start, uint32 src_
     knl_securec_check(ret);
     i += left;
     tmp_dst_count += left;
-    GS_LOG_DEBUG_INF("[CKPT] merge src array(%d) to dst array(%d), found duplicated (%d), new dst size(%d)", src_count, *dst_count, is_same, tmp_dst_count);
+    CT_LOG_DEBUG_INF("[CKPT] merge src array(%d) to dst array(%d), found duplicated (%d), new dst size(%d)", src_count, *dst_count, is_same, tmp_dst_count);
     *dst_count = tmp_dst_count;
-    knl_panic(*dst_count <= dst_capacity);
     sanity_check_sorted_page_id_array(dst_pages, tmp_dst_count);
     return i;
 }
@@ -127,7 +130,7 @@ uint32 ckpt_merge_to_array(edp_page_info_t* src_pages, uint32 start, uint32 src_
 bool32 dtc_need_empty_ckpt(knl_session_t* session)
 {
     if (!DB_IS_CLUSTER(session)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     /* The ckpt queue may be cleared by clean edp msg from edp page's owner node. */
@@ -138,15 +141,15 @@ bool32 dtc_need_empty_ckpt(knl_session_t* session)
 
 bool32 dtc_add_to_edp_group(knl_session_t *session, ckpt_edp_group_t *dst, uint32 count, page_id_t page, uint64 lsn)
 {
-    GS_LOG_DEBUG_INF("[CKPT]add edp [%u-%u], count(%u), max count(%u)", page.file, page.page, dst->count, count);
+    CT_LOG_DEBUG_INF("[CKPT]add edp [%u-%u], count(%u), max count(%u)", page.file, page.page, dst->count, count);
     if (dst->count >= count) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     dst->pages[dst->count].page = page;
     dst->pages[dst->count].lsn = lsn;
     dst->count++;
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t dtc_ckpt_trigger(knl_session_t *session, msg_ckpt_trigger_point_t *point, bool32 wait,
@@ -159,7 +162,7 @@ status_t dtc_ckpt_trigger(knl_session_t *session, msg_ckpt_trigger_point_t *poin
     mes_message_t  msg;
 
     mes_init_send_head(&head, MES_CMD_CKPT_TRIGGER, sizeof(mes_message_head_t) + sizeof(msg_ckpt_trigger_t),
-                       GS_INVALID_ID32, session->kernel->dtc_attr.inst_id, target_id, session->id, GS_INVALID_ID16);
+                       CT_INVALID_ID32, session->kernel->dtc_attr.inst_id, target_id, session->id, CT_INVALID_ID16);
 
     msg_ckpt_trigger_t ckpt;
     ckpt.wait = wait;
@@ -168,19 +171,19 @@ status_t dtc_ckpt_trigger(knl_session_t *session, msg_ckpt_trigger_point_t *poin
     ckpt.trigger = trigger;
     ckpt.lsn = DB_CURR_LSN(session);
 
-    if (mes_send_data2(&head, &ckpt) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[BACKUP] %s failed", "send ckpt trigger mes ");
-        return GS_ERROR;
+    if (mes_send_data2(&head, &ckpt) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] %s failed", "send ckpt trigger mes ");
+        return CT_ERROR;
     }
 
-    if (mes_recv(session->id, &msg, GS_FALSE, GS_INVALID_ID32, MES_WAIT_MAX_TIME) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[BACKUP] %s failed", "receive ckpt trigger mes ");
-        return GS_ERROR;
+    if (mes_recv(session->id, &msg, CT_FALSE, CT_INVALID_ID32, MES_WAIT_MAX_TIME) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] %s failed", "receive ckpt trigger mes ");
+        return CT_ERROR;
     }
 
     if (SECUREC_UNLIKELY(msg.head->cmd != MES_CMD_CKPT_TRIGGER_ACK)) {
         mes_release_message_buf(msg.buffer);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     msg_ckpt_trigger_point_t *trigger_info = (msg_ckpt_trigger_point_t *)(msg.buffer + sizeof(mes_message_head_t));
@@ -190,40 +193,54 @@ status_t dtc_ckpt_trigger(knl_session_t *session, msg_ckpt_trigger_point_t *poin
     }
     mes_release_message_buf(msg.buffer);
     if (ret != DTC_BAK_SUCCESS) {
-        GS_LOG_RUN_ERR("[BACKUP] ckpt trigger failed, instid %u, result %u", target_id, ret);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[BACKUP] ckpt trigger failed, instid %u, result %u", target_id, ret);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void dtc_process_ckpt_trigger(void *sess, mes_message_t * receive_msg)
 {
     mes_message_head_t head;
+    if (sizeof(mes_message_head_t) + sizeof(msg_ckpt_trigger_t) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("process ckpt trigger msg size is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
     msg_ckpt_trigger_t *ckpt = (msg_ckpt_trigger_t *)(receive_msg->buffer + sizeof(mes_message_head_t));
     knl_session_t *session = (knl_session_t *)sess;
     // todo trigger arch file
-    status_t s = GS_SUCCESS;
+    status_t s = CT_SUCCESS;
     uint32 ret = DTC_BAK_SUCCESS;
     dtc_update_lsn(session, ckpt->lsn);
     if (ckpt->force_switch) {
-        s = arch_switch_archfile_trigger(session, GS_FALSE);
-        if (s != GS_SUCCESS) {
+        SYNC_POINT_GLOBAL_START(CANTIAN_BACKUP_TRIGGER_FORCH_ARCH_ABORT, NULL, 0);
+        SYNC_POINT_GLOBAL_END;
+        s = arch_switch_archfile_trigger(session, CT_FALSE);
+        if (s != CT_SUCCESS) {
             ret = DTC_BAK_ERROR;
         }
     }
-    ckpt_trigger(session, ckpt->wait, ckpt->trigger);
+    SYNC_POINT_GLOBAL_START(CANTIAN_BACKUP_TRIGGER_CKPT_ABORT, NULL, 0);
+    SYNC_POINT_GLOBAL_END;
     msg_ckpt_trigger_point_t return_info;
-    if (!ckpt->update) {
-        SYNC_POINT_GLOBAL_START(CANTIAN_BACKUP_REV_RCY_REQ_ABORT, NULL, 0);
-        SYNC_POINT_GLOBAL_END;
-        return_info.point = dtc_my_ctrl(session)->rcy_point;
-        GS_LOG_DEBUG_INF("[BACKUP] set rcy log point: [%llu/%llu/%llu/%u]",
-                         (uint64)return_info.point.rst_id, return_info.point.lsn,
-                         (uint64)return_info.point.lfn, return_info.point.asn);
+    if (CKPT_IS_TRIGGER(ckpt->trigger) == CT_TRUE) {
+        ckpt_trigger(session, ckpt->wait, ckpt->trigger);
+        if (!ckpt->update) {
+            SYNC_POINT_GLOBAL_START(CANTIAN_BACKUP_REV_RCY_REQ_ABORT, NULL, 0);
+            SYNC_POINT_GLOBAL_END;
+            return_info.rcy_point = dtc_my_ctrl(session)->rcy_point;
+            CT_LOG_DEBUG_INF("[BACKUP] set rcy log point: [%llu/%llu/%llu/%u]",
+                             (uint64)return_info.rcy_point.rst_id, return_info.rcy_point.lsn,
+                             (uint64)return_info.rcy_point.lfn, return_info.rcy_point.asn);
+        } else {
+            SYNC_POINT_GLOBAL_START(CANTIAN_BACKUP_REV_LRP_REQ_ABORT, NULL, 0);
+            SYNC_POINT_GLOBAL_END;
+            return_info.rcy_point = dtc_my_ctrl(session)->rcy_point;
+            return_info.lrp_point = dtc_my_ctrl(session)->lrp_point;
+        }
     } else {
-        SYNC_POINT_GLOBAL_START(CANTIAN_BACKUP_REV_LRP_REQ_ABORT, NULL, 0);
-        SYNC_POINT_GLOBAL_END;
-        return_info.point = dtc_my_ctrl(session)->lrp_point;
+        ret = DTC_BAK_ERROR;
     }
     SYNC_POINT_GLOBAL_START(CANTIAN_BACKUP_REV_CKPT_REQ_FAIL, (int32*)&ret, DTC_BAK_ERROR);
     return_info.result = ret;
@@ -232,8 +249,8 @@ void dtc_process_ckpt_trigger(void *sess, mes_message_t * receive_msg)
     mes_init_ack_head(receive_msg->head, &head, MES_CMD_CKPT_TRIGGER_ACK,
                       sizeof(mes_message_head_t) + sizeof(msg_ckpt_trigger_point_t), session->id);
     mes_release_message_buf(receive_msg->buffer);
-    if (mes_send_data2((void*)&head, &return_info) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[BACKUP] %s failed", "send ckpt trigger mes ack ");
+    if (mes_send_data2((void*)&head, &return_info) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] %s failed", "send ckpt trigger mes ack ");
         return;
     }
 }
@@ -249,19 +266,19 @@ void dcs_process_ckpt_edp_local(knl_session_t *session, edp_page_info_t *pages, 
         return;
     }
 
-    GS_LOG_DEBUG_INF("[CKPT] process remote request to write (%d) edp pages", page_count);
+    CT_LOG_DEBUG_INF("[CKPT] process remote request to write (%d) edp pages", page_count);
 
     ckpt_sort_page_id_array(pages, page_count);
     cm_spin_lock(&group->lock, NULL);
     while (i < page_count && !CKPT_CLOSED(session)) {
-        i = ckpt_merge_to_array(pages, i, page_count - i, group->pages, &group->count, GS_CLEAN_EDP_GROUP_SIZE);
+        i = ckpt_merge_to_array(pages, i, page_count - i, group->pages, &group->count, CT_CLEAN_EDP_GROUP_SIZE);
         if (i == page_count || DAAC_CKPT_SESSION(session)) {
             break;
         }
         cm_spin_unlock(&group->lock);
         ckpt_trigger(session, wait, CKPT_TRIGGER_INC);
         if (times++ > CKPT_TRY_ADD_TO_GROUP_TIMES || !ctx->ckpt_enabled) {
-            GS_LOG_DEBUG_WAR("[CKPT] remote edp group is full when process remote request to write (%d) edp pages"
+            CT_LOG_DEBUG_WAR("[CKPT] remote edp group is full when process remote request to write (%d) edp pages"
                              "or ckpt is disabled %d", page_count, ctx->ckpt_enabled);
             return;
         }
@@ -272,10 +289,8 @@ void dcs_process_ckpt_edp_local(knl_session_t *session, edp_page_info_t *pages, 
     ckpt_trigger(session, wait, CKPT_TRIGGER_INC);
 }
 
-static inline status_t dcs_notify_owner_for_ckpt_l(knl_session_t *session, edp_page_info_t *pages, uint32 start,
-                                                   uint32 end)
+status_t dcs_notify_owner_for_ckpt_l(knl_session_t *session, edp_page_info_t *pages, uint32 start, uint32 end)
 {
-    msg_ckpt_edp_request_t msg;
     ckpt_edp_group_t edp_group;
     uint32 page_left;
     uint32 page_sent;
@@ -285,16 +300,21 @@ static inline status_t dcs_notify_owner_for_ckpt_l(knl_session_t *session, edp_p
     uint8 cur_owner_id;
     cluster_view_t view;
 
-    GS_LOG_DEBUG_INF("[CKPT][master try to notify page owner to write edp pages]: master src_id=%u, count=%d", DCS_SELF_INSTID(session), end - start);
+    CT_LOG_DEBUG_INF("[CKPT][master try to notify page owner to write edp pages]: master src_id=%u, count=%d", DCS_SELF_INSTID(session), end - start);
 
     if (start >= end) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
+    }
+    msg_ckpt_edp_request_t *msg = (msg_ckpt_edp_request_t *)cm_push(session->stack, CT_MSG_EDP_REQ_SIZE(session));
+    if (msg == NULL) {
+        CT_LOG_RUN_ERR("msg failed to malloc memory");
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < g_dtc->profile.node_count; i++) {
-        rc_get_cluster_view(&view, GS_FALSE);
+        rc_get_cluster_view(&view, CT_FALSE);
         if (!rc_bitmap64_exist(&view.bitmap, i)) {
-            GS_LOG_RUN_INF("[CKPT] inst id (%u) is not alive, alive bitmap: %llu", i, view.bitmap);
+            CT_LOG_RUN_INF("[CKPT] inst id (%u) is not alive, alive bitmap: %llu", i, view.bitmap);
             continue;
         }
         edp_group.count = 0;
@@ -302,8 +322,8 @@ static inline status_t dcs_notify_owner_for_ckpt_l(knl_session_t *session, edp_p
             page_id_t page_id = pages[j].page;
             drc_res_action_e action;
 
-            if (SECUREC_UNLIKELY(drc_get_page_owner_id(session, page_id, &cur_owner_id, &action) != GS_SUCCESS)) {
-                GS_LOG_RUN_WAR(
+            if (SECUREC_UNLIKELY(drc_get_page_owner_id(session, page_id, &cur_owner_id, &action) != CT_SUCCESS)) {
+                CT_LOG_RUN_WAR(
                     "[CKPT][%u-%u][notify page owner for ckpt page]: master src_id=%u, get owner failed, clean edp msg may be lost, node id=%d, index=%d, start=%d, end=%d, curr owner=%d",
                     page_id.file, page_id.page, DCS_SELF_INSTID(session), i, j, start, end, cur_owner_id);
                 action = DRC_RES_CLEAN_EDP_ACTION;
@@ -311,7 +331,7 @@ static inline status_t dcs_notify_owner_for_ckpt_l(knl_session_t *session, edp_p
                                      clean edp msg may be lost. */
             }
 
-            if ((cur_owner_id == GS_INVALID_ID8) || (cur_owner_id != i)) {
+            if ((cur_owner_id == CT_INVALID_ID8) || (cur_owner_id != i)) {
                 continue;
             }
             pages[j].action = action;
@@ -320,7 +340,7 @@ static inline status_t dcs_notify_owner_for_ckpt_l(knl_session_t *session, edp_p
 
         if (i == DCS_SELF_INSTID(session)) {
             if (edp_group.count > 0) {
-                dcs_process_ckpt_edp_local(session, edp_group.pages, edp_group.count, GS_FALSE);
+                dcs_process_ckpt_edp_local(session, edp_group.pages, edp_group.count, CT_FALSE);
             }
             continue;
         }
@@ -328,31 +348,31 @@ static inline status_t dcs_notify_owner_for_ckpt_l(knl_session_t *session, edp_p
         page_left = edp_group.count;
 
         while (page_left > 0) {
-            msg.count = MIN(GS_CKPT_EDP_GROUP_SIZE, page_left);
-            ret = memcpy_sp((char*)msg.edp_pages, msg.count * sizeof(edp_page_info_t),
-                            (char*)edp_group.pages + page_sent * sizeof(edp_page_info_t), msg.count * sizeof(edp_page_info_t));
+            msg->count = MIN(CT_CKPT_EDP_GROUP_SIZE(session), page_left);
+            ret = memcpy_sp((char*)msg->edp_pages, msg->count * sizeof(edp_page_info_t),
+                            (char*)edp_group.pages + page_sent * sizeof(edp_page_info_t), msg->count * sizeof(edp_page_info_t));
             knl_securec_check(ret);
 
-            mes_init_send_head(&msg.head, MES_CMD_CKPT_EDP_BROADCAST_TO_OWNER, sizeof(msg_ckpt_edp_request_t),
-                               GS_INVALID_ID32, DCS_SELF_INSTID(session), i, DCS_SELF_SID(session), GS_INVALID_ID16);
-            status = dcs_send_data_retry((void *)&msg);
-            if (status != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("[CKPT][notify page owner for ckpt page]: master src_id=%u, send message failed, dest node id=%d, start=%d, end=%d",
+            mes_init_send_head(&msg->head, MES_CMD_CKPT_EDP_BROADCAST_TO_OWNER, CT_MSG_EDP_REQ_SEND_SIZE(msg->count),
+                               CT_INVALID_ID32, DCS_SELF_INSTID(session), i, DCS_SELF_SID(session), CT_INVALID_ID16);
+            status = dcs_send_data_retry((void *)msg);
+            if (status != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[CKPT][notify page owner for ckpt page]: master src_id=%u, send message failed, dest node id=%d, start=%d, end=%d",
                     DCS_SELF_INSTID(session), i, start, end);
                 break;
             }
 
-            page_sent += msg.count;
-            page_left -= msg.count;
+            page_sent += msg->count;
+            page_left -= msg->count;
         }
-        GS_LOG_DEBUG_INF("[CKPT] broadcast request to write (%d) edp pages to page owner %d", edp_group.count, i);
+        CT_LOG_DEBUG_INF("[CKPT] broadcast request to write (%d) edp pages to page owner %d", edp_group.count, i);
     }
-    return GS_SUCCESS;
+    cm_pop(session->stack);
+    return CT_SUCCESS;
 }
 
 status_t dcs_master_process_ckpt_request(knl_session_t *session, edp_page_info_t *pages, uint32 count, bool32 broadcast_to_others)
 {
-    msg_ckpt_edp_request_t msg;
     uint64 success_inst;
     uint32 page_left;
     uint32 page_sent;
@@ -361,12 +381,11 @@ status_t dcs_master_process_ckpt_request(knl_session_t *session, edp_page_info_t
     errno_t ret;
     status_t status;
 
-    GS_LOG_DEBUG_INF("[CKPT] master start to process request to write (%d) edp pages", count);
+    CT_LOG_DEBUG_INF("[CKPT] master start to process request to write (%d) edp pages", count);
 
     for (uint32 i = 0; i < count; i++) {
-        knl_panic(!(pages[i].page.page == 0 && pages[i].page.file));
-        if (drc_get_page_master_id(pages[i].page, &master_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (drc_get_page_master_id(pages[i].page, &master_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         // move page whose master is on current node to the end of the array
@@ -377,78 +396,106 @@ status_t dcs_master_process_ckpt_request(knl_session_t *session, edp_page_info_t
     }
 
     status = dcs_notify_owner_for_ckpt_l(session, pages, notify_master_idx, count);
-    if (status != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[CKPT] master process local owner ckpt failed, notify_master_idx=%d, count=%d", notify_master_idx, count);
-        return GS_ERROR;
+    if (status != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CKPT] master process local owner ckpt failed, notify_master_idx=%d, count=%d", notify_master_idx, count);
+        return CT_ERROR;
     }
 
     if (!broadcast_to_others || notify_master_idx == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
+    }
+    msg_ckpt_edp_request_t *msg = (msg_ckpt_edp_request_t *)cm_push(session->stack, CT_MSG_EDP_REQ_SIZE(session));
+    if (msg == NULL) {
+        CT_LOG_RUN_ERR("msg failed to malloc memory");
+        return CT_ERROR;
     }
 
     page_left = notify_master_idx;
     page_sent = 0;
 
     while (page_left > 0) {
-        msg.count = MIN(GS_CKPT_EDP_GROUP_SIZE, page_left);
-        ret = memcpy_sp((char*)msg.edp_pages, msg.count * sizeof(edp_page_info_t),
-                        (char*)pages + page_sent * sizeof(edp_page_info_t), msg.count * sizeof(edp_page_info_t));
+        msg->count = MIN(CT_CKPT_EDP_GROUP_SIZE(session), page_left);
+        ret = memcpy_sp((char*)msg->edp_pages, msg->count * sizeof(edp_page_info_t),
+                        (char*)pages + page_sent * sizeof(edp_page_info_t), msg->count * sizeof(edp_page_info_t));
         knl_securec_check(ret);
 
-        mes_init_send_head(&msg.head, MES_CMD_CKPT_EDP_BROADCAST_TO_MASTER, sizeof(msg_ckpt_edp_request_t),
-                           GS_INVALID_ID32, g_dtc->profile.inst_id, GS_INVALID_ID8, session->id, GS_INVALID_ID16);
-        mes_broadcast(session->id, MES_BROADCAST_ALL_INST, &msg, &success_inst);
+        mes_init_send_head(&msg->head, MES_CMD_CKPT_EDP_BROADCAST_TO_MASTER, CT_MSG_EDP_REQ_SEND_SIZE(msg->count),
+                           CT_INVALID_ID32, g_dtc->profile.inst_id, CT_INVALID_ID8, session->id, CT_INVALID_ID16);
+        mes_broadcast(session->id, MES_BROADCAST_ALL_INST, msg, &success_inst);
 
-        page_sent += msg.count;
-        page_left -= msg.count;
+        page_sent += msg->count;
+        page_left -= msg->count;
     }
 
-    GS_LOG_DEBUG_INF("[CKPT] broadcast request to write (%d) edp pages to master", notify_master_idx);
+    CT_LOG_DEBUG_INF("[CKPT] broadcast request to write (%d) edp pages to master", notify_master_idx);
 
-    return GS_SUCCESS;
+    cm_pop(session->stack);
+    return CT_SUCCESS;
 }
 
 status_t dcs_notify_owner_for_ckpt(knl_session_t * session, ckpt_context_t *ctx)
 {
     if (!DB_IS_CLUSTER(session) || ctx->edp_group.count == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    knl_panic(ctx->edp_group.count <= GS_CKPT_GROUP_SIZE);
-    return dcs_master_process_ckpt_request(session, ctx->edp_group.pages, ctx->edp_group.count, GS_TRUE);
+    knl_panic(ctx->edp_group.count <= CT_CKPT_GROUP_SIZE(session));
+    return dcs_master_process_ckpt_request(session, ctx->edp_group.pages, ctx->edp_group.count, CT_TRUE);
+}
+
+static status_t dcs_check_ckpt_edp_broadcast_msg(mes_message_t * msg)
+{
+    if (sizeof(msg_ckpt_edp_request_t) > msg->head->size) {
+        return CT_ERROR;
+    }
+    msg_ckpt_edp_request_t *request = (msg_ckpt_edp_request_t *)msg->buffer;
+    if (CT_MSG_EDP_REQ_SEND_SIZE(request->count) != msg->head->size) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
 }
 
 void dcs_process_ckpt_edp_broadcast_to_master_req(void *sess, mes_message_t * msg)
 {
+    if (dcs_check_ckpt_edp_broadcast_msg(msg) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", msg->head->size);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
     msg_ckpt_edp_request_t *request = (msg_ckpt_edp_request_t *)msg->buffer;
     knl_session_t *session = (knl_session_t *)sess;
     uint32 page_count = request->count;
 
-    if (page_count > GS_CKPT_EDP_GROUP_SIZE) {
-        GS_LOG_RUN_ERR("[%u] edp request page count invalid,", page_count);
+    if (page_count > CT_CKPT_EDP_GROUP_SIZE(session)) {
+        CT_LOG_RUN_ERR("[%u] edp request page count invalid,", page_count);
         mes_release_message_buf(msg->buffer);
         return;
     }
 
-    (void)dcs_master_process_ckpt_request(session, request->edp_pages, page_count, GS_FALSE);
+    (void)dcs_master_process_ckpt_request(session, request->edp_pages, page_count, CT_FALSE);
 
-    GS_LOG_DEBUG_INF("[CKPT] master process request to write (%d) edp pages", page_count);
+    CT_LOG_DEBUG_INF("[CKPT] master process request to write (%d) edp pages", page_count);
     mes_release_message_buf(msg->buffer);
 }
 
 void dcs_process_ckpt_edp_broadcast_to_owner_req(void *sess, mes_message_t * msg)
 {
+    if (dcs_check_ckpt_edp_broadcast_msg(msg) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", msg->head->size);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
     msg_ckpt_edp_request_t *request = (msg_ckpt_edp_request_t *)msg->buffer;
     knl_session_t *session = (knl_session_t *)sess;
     uint32 page_count = request->count;
-    if (page_count > GS_CKPT_EDP_GROUP_SIZE) {
-        GS_LOG_RUN_ERR("[%u] edp request page count invalid,", page_count);
+    if (page_count > CT_CKPT_EDP_GROUP_SIZE(session)) {
+        CT_LOG_RUN_ERR("[%u] edp request page count invalid,", page_count);
         mes_release_message_buf(msg->buffer);
         return;
     }
 
-    GS_LOG_DEBUG_INF("[CKPT] owner process request to write (%d) edp pages", page_count);
-    dcs_process_ckpt_edp_local(session, request->edp_pages, page_count, GS_FALSE);
+    CT_LOG_DEBUG_INF("[CKPT] owner process request to write (%d) edp pages", page_count);
+    dcs_process_ckpt_edp_local(session, request->edp_pages, page_count, CT_FALSE);
     mes_release_message_buf(msg->buffer);
 }
 
@@ -468,10 +515,10 @@ status_t dcs_ckpt_remote_edp_prepare(knl_session_t *session, ckpt_context_t *ctx
     cm_spin_lock(&group->lock, NULL);
     if (group->count == 0) {
         cm_spin_unlock(&group->lock);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    knl_panic(group->count <= GS_CLEAN_EDP_GROUP_SIZE);
+    knl_panic(group->count <= CT_CLEAN_EDP_GROUP_SIZE);
     i = 0;
     count = group->count;
 
@@ -486,8 +533,8 @@ status_t dcs_ckpt_remote_edp_prepare(knl_session_t *session, ckpt_context_t *ctx
                with invalid lsn, and requester need to load from disk and check.
             */
             i++;
-            (void)dtc_add_to_edp_group(session, &ctx->remote_edp_clean_group, GS_CKPT_GROUP_SIZE, page_id, clean_lsn);
-            GS_LOG_RUN_WAR("[CKPT][%u-%u][ckpt remote prepare]: not found in memory, page is clean, and resend clean "
+            (void)dtc_add_to_edp_group(session, &ctx->remote_edp_clean_group, CT_CKPT_GROUP_SIZE(session), page_id, clean_lsn);
+            CT_LOG_RUN_WAR("[CKPT][%u-%u][ckpt remote prepare]: not found in memory, page is clean, and resend clean "
                 "edp message, requester needs to double check disk page, clean_lsn:%llu, current_lsn:%llu",
                 page_id.file, page_id.page, clean_lsn, DB_CURR_LSN(session));
             continue;
@@ -497,7 +544,7 @@ status_t dcs_ckpt_remote_edp_prepare(knl_session_t *session, ckpt_context_t *ctx
             buf_dec_ref(session, ctrl);
             SWAP(edp_page_info_t, group->pages[i], group->pages[count - 1]);
             count--;
-            GS_LOG_DEBUG_WAR("[CKPT][%u-%u][ckpt remote prepare]: can't latch page", page_id.file, page_id.page);
+            CT_LOG_DEBUG_WAR("[CKPT][%u-%u][ckpt remote prepare]: can't latch page", page_id.file, page_id.page);
             continue;
         }
 
@@ -519,6 +566,14 @@ status_t dcs_ckpt_remote_edp_prepare(knl_session_t *session, ckpt_context_t *ctx
             continue;
         }
 
+        if (clean_lsn > ctrl->page->lsn && g_rc_ctx->status >= REFORM_RECOVER_DONE) {
+            buf_unlatch_page(session, ctrl);
+            CT_LOG_RUN_ERR(
+                "[CKPT][%u-%u][ckpt remote prepare]: invalid edp request, clean lsn %llu, ctrl page lsn %llu",
+                page_id.file, page_id.page, clean_lsn, ctrl->page->lsn);
+            continue;
+        }
+
         /* Both ctrl->is_remote_dirty and ctrl->is_dirty may be 0. It has to flush page to disk and send ack again, in
            case: 1) previous clean edp msg is lost, and other edp ctrl resends ckpt request. Or ctrl ownership changed
            after this request. 2) this ctrl is a local clean shared copy from remote dirty ctrl owner, it's newer than
@@ -526,7 +581,7 @@ status_t dcs_ckpt_remote_edp_prepare(knl_session_t *session, ckpt_context_t *ctx
         */
         knl_panic_log(clean_lsn <= ctrl->page->lsn || g_rc_ctx->status < REFORM_RECOVER_DONE, "page_id %u-%u, i %u",
             ctrl->page_id.file, ctrl->page_id.page, i);
-        (void)dtc_add_to_edp_group(session, &ctx->remote_edp_clean_group, GS_CKPT_GROUP_SIZE, ctrl->page_id,
+        (void)dtc_add_to_edp_group(session, &ctx->remote_edp_clean_group, CT_CKPT_GROUP_SIZE(session), ctrl->page_id,
                                    ctrl->page->lsn);
         knl_panic_log(!ctrl->is_edp, "page_id %u-%u, i %u", ctrl->page_id.file, ctrl->page_id.page, i);
         knl_panic_log(DCS_BUF_CTRL_IS_OWNER(session, ctrl), "page_id %u-%u, i %u", ctrl->page_id.file,
@@ -538,7 +593,7 @@ status_t dcs_ckpt_remote_edp_prepare(knl_session_t *session, ckpt_context_t *ctx
                       ctrl->page_id.file, ctrl->page_id.page, ctrl->page->type, AS_PAGID(ctrl->page->id).file,
                       AS_PAGID(ctrl->page->id).page, ctrl->page->type);
 
-        /* DEFAULT_PAGE_SIZE is 8192,  ctx->group.count <= GS_CKPT_GROUP_SIZE(4096), integers cannot cross bounds */
+        /* DEFAULT_PAGE_SIZE is 8192,  ctx->group.count <= CT_CKPT_GROUP_SIZE(4096), integers cannot cross bounds */
         ret = memcpy_sp(ctx->group.buf + DEFAULT_PAGE_SIZE(session) * ctx->group.count,
                         DEFAULT_PAGE_SIZE(session), ctrl->page, DEFAULT_PAGE_SIZE(session));
         knl_securec_check(ret);
@@ -562,20 +617,20 @@ status_t dcs_ckpt_remote_edp_prepare(knl_session_t *session, ckpt_context_t *ctx
         buf_unlatch_page(session, ctrl);
         ctx->group.items[ctx->group.count].ctrl = ctrl;
         ctx->group.items[ctx->group.count].buf_id = ctx->group.count;
-        ctx->group.items[ctx->group.count].need_punch = GS_FALSE;
+        ctx->group.items[ctx->group.count].need_punch = CT_FALSE;
 
-        if (ckpt_encrypt(session, ctx) != GS_SUCCESS) {
+        if (ckpt_encrypt(session, ctx) != CT_SUCCESS) {
             cm_spin_unlock(&group->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
-        if (ckpt_checksum(session, ctx) != GS_SUCCESS) {
+        if (ckpt_checksum(session, ctx) != CT_SUCCESS) {
             cm_spin_unlock(&group->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         ckpt_put_to_part_group(session, ctx, ctrl);
         ctx->group.count++;
 
-        if (ctx->group.count >= GS_CKPT_GROUP_SIZE) {
+        if (ctx->group.count >= CT_CKPT_GROUP_SIZE(session)) {
             break;
         }
     }
@@ -588,7 +643,7 @@ status_t dcs_ckpt_remote_edp_prepare(knl_session_t *session, ckpt_context_t *ctx
     }
 
     cm_spin_unlock(&group->lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dcs_ckpt_clean_local_edp(knl_session_t *session, ckpt_context_t *ctx)
@@ -603,13 +658,13 @@ status_t dcs_ckpt_clean_local_edp(knl_session_t *session, ckpt_context_t *ctx)
     cm_spin_lock(&group->lock, NULL);
     if (group->count == 0) {
         cm_spin_unlock(&group->lock);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     count = group->count;
 
-    GS_LOG_DEBUG_INF("[CKPT] ckpt clean local (%d) edp pages", count);
-    knl_panic(count <= GS_CLEAN_EDP_GROUP_SIZE);
+    CT_LOG_DEBUG_INF("[CKPT] ckpt clean local (%d) edp pages", count);
+    knl_panic(count <= CT_CLEAN_EDP_GROUP_SIZE);
 
     while (i < count) {
         page = group->pages[i];
@@ -633,7 +688,7 @@ status_t dcs_ckpt_clean_local_edp(knl_session_t *session, ckpt_context_t *ctx)
         knl_securec_check(ret);
     }
     cm_spin_unlock(&group->lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -652,8 +707,8 @@ void dcs_ckpt_trigger(knl_session_t *session, bool32 wait, ckpt_mode_t trigger)
     req.trigger = trigger;
     req.wait = wait;
 
-    mes_init_send_head(&req.head, MES_CMD_CKPT_REQ, sizeof(msg_ckpt_request_t), GS_INVALID_ID32,
-        DCS_SELF_INSTID(session), 0, session->id, GS_INVALID_ID16);
+    mes_init_send_head(&req.head, MES_CMD_CKPT_REQ, sizeof(msg_ckpt_request_t), CT_INVALID_ID32,
+        DCS_SELF_INSTID(session), 0, session->id, CT_INVALID_ID16);
     mes_broadcast_and_wait(session->id, MES_BROADCAST_ALL_INST, (void *)&req, MES_WAIT_MAX_TIME, NULL);
 }
 
@@ -669,13 +724,13 @@ void dcs_broadcast_retry(knl_session_t *session, cluster_view_t *view, msg_ckpt_
 
     bitmap = view->bitmap;
     for (;;) {
-        GS_LOG_DEBUG_INF("[CKPT] broadcast , bitmap = %llu.", bitmap);
+        CT_LOG_DEBUG_INF("[CKPT] broadcast , bitmap = %llu.", bitmap);
         ret = mes_broadcast_and_wait(session->id, bitmap, (void *)req, MAX_DCS_CHECKPOINT_TIMEOUT, &suc_inst);
-        if (ret != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[CKPT] failed to broadcast cluster, ret = %d, bitmap = %llu, success instance = %llu.", ret,
+        if (ret != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[CKPT] failed to broadcast cluster, ret = %d, bitmap = %llu, success instance = %llu.", ret,
                            bitmap, suc_inst);
             if (rc_is_cluster_changed(view)) {
-                GS_LOG_DEBUG_INF("[CKPT] cluster is changed.");
+                CT_LOG_DEBUG_INF("[CKPT] cluster is changed.");
                 break;
             }
             bitmap = bitmap & (~suc_inst);
@@ -699,47 +754,52 @@ void dcs_ckpt_trigger4drop(knl_session_t *session, bool32 wait, ckpt_mode_t trig
 
     cluster_view_t view;
     do {
-        rc_get_cluster_view(&view, GS_FALSE);
+        rc_get_cluster_view(&view, CT_FALSE);
         if (!view.is_stable) {
-            GS_LOG_RUN_INF("[CKPT] failed to get stable cluster view, is_stable = %d.", view.is_stable);
+            CT_LOG_RUN_INF("[CKPT] failed to get stable cluster view, is_stable = %d.", view.is_stable);
             cm_sleep(DCS_CHECKPOINT_SLEEP_TIME);
             continue;
         }
-        GS_LOG_RUN_INF("[CKPT] begin to checkpoint once.");
+        CT_LOG_RUN_INF("[CKPT] begin to checkpoint once.");
         ckpt_trigger(session, wait, trigger);
 
         msg_ckpt_request_t req;
         req.trigger = trigger;
         req.wait = wait;
 
-        mes_init_send_head(&req.head, MES_CMD_CKPT_REQ, sizeof(msg_ckpt_request_t), GS_INVALID_ID32,
-            DCS_SELF_INSTID(session), 0, session->id, GS_INVALID_ID16);
+        mes_init_send_head(&req.head, MES_CMD_CKPT_REQ, sizeof(msg_ckpt_request_t), CT_INVALID_ID32,
+            DCS_SELF_INSTID(session), 0, session->id, CT_INVALID_ID16);
         dcs_broadcast_retry(session, &view, &req);
 
-        GS_LOG_RUN_INF("[CKPT] succeed to finish checkpoint once.");
+        CT_LOG_RUN_INF("[CKPT] succeed to finish checkpoint once.");
     } while (rc_is_cluster_changed(&view));
 }
 
 void dcs_process_ckpt_request(void *sess, mes_message_t * msg)
 {
     knl_session_t *session = (knl_session_t*)sess;
+    if (sizeof(msg_ckpt_request_t) != msg->head->size) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", msg->head->size);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
     msg_ckpt_request_t *req = (msg_ckpt_request_t*)msg->buffer;
     mes_message_head_t head = {0};
 
-    GS_LOG_DEBUG_INF("[CKPT] process request to trigger checkpoint, type = %d, wait=%d", req->trigger, req->wait);
-    if (req->trigger < CKPT_TRIGGER_INC && req->trigger > CKPT_TRIGGER_CLEAN) {
-        GS_LOG_RUN_ERR("[%u] ckpt request trigger invalid,", req->trigger);
+    CT_LOG_DEBUG_INF("[CKPT] process request to trigger checkpoint, type = %d, wait=%d", req->trigger, req->wait);
+    if (req->trigger < CKPT_TRIGGER_INC || req->trigger > CKPT_TRIGGER_CLEAN) {
+        CT_LOG_RUN_ERR("[%u] ckpt request trigger invalid,", req->trigger);
         mes_release_message_buf(msg->buffer);
         return;
     }
     ckpt_trigger(session, req->wait, req->trigger);
 
-    mes_init_ack_head(msg->head, &head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), GS_INVALID_ID16);
+    mes_init_ack_head(msg->head, &head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), CT_INVALID_ID16);
     mes_release_message_buf(msg->buffer);
-    if (mes_send_data(&head) != GS_SUCCESS) {
+    if (mes_send_data(&head) != CT_SUCCESS) {
         CM_ASSERT(0);
     }
-    GS_LOG_RUN_INF("[CKPT] done request to trigger checkpoint, type = %d", req->trigger);
+    CT_LOG_RUN_INF("[CKPT] done request to trigger checkpoint, type = %d", req->trigger);
 
     return;
 }
@@ -755,12 +815,12 @@ status_t dtc_cal_redo_size(knl_session_t *session, log_point_t pre_lrp_point, lo
     uint64 recycle_log_size = 0;
     uint32 rcy_log_size = 0;
 
-    if (cm_dbs_is_enable_dbs() == GS_TRUE) {
+    if (cm_dbs_is_enable_dbs() == CT_TRUE) {
         if (cm_device_get_used_cap(log_file->ctrl->type, log_file->handle, node_ctrl->rcy_point.lsn, &rcy_log_size) !=
-            GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[DTC CKPT] failed to fetch rcy redo log size of rcy point lsn(%llu) from DBStor",
+            CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DTC CKPT] failed to fetch rcy redo log size of rcy point lsn(%llu) from DBStor",
                            node_ctrl->lrp_point.lsn);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         redo_stat_list->redo_recovery_size = ((uint64)rcy_log_size * SIZE_K(1)) / SIZE_M(1);
     } else {
@@ -780,7 +840,7 @@ status_t dtc_cal_redo_size(knl_session_t *session, log_point_t pre_lrp_point, lo
                        1ULL * pre_rcy_point.block_id * log_file->ctrl->block_size;
     redo_stat_list->redo_recycle_size = recycle_log_size / SIZE_M(1);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void dtc_calculate_rcy_redo_size(knl_session_t *session, buf_ctrl_t *ckpt_first_ctrl)
@@ -799,10 +859,10 @@ void dtc_calculate_rcy_redo_size(knl_session_t *session, buf_ctrl_t *ckpt_first_
         rc_redo_stat_list_t redo_stat_list;
         uint32 redo_stat_insert_ind = 0;
 
-        if (dtc_cal_redo_size(session, pre_lrp_point, pre_rcy_point, &redo_stat_list) != GS_SUCCESS) {
+        if (dtc_cal_redo_size(session, pre_lrp_point, pre_rcy_point, &redo_stat_list) != CT_SUCCESS) {
             redo_stat->ckpt_num--;
             cm_spin_unlock(&redo_stat->lock);
-            GS_LOG_RUN_WAR("[DTC] update dtc rcy redo stat failed, try next time");
+            CT_LOG_RUN_WAR("[DTC] update dtc rcy redo stat failed, try next time");
             return;
         }
 

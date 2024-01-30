@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -35,6 +35,7 @@ extern "C" {
 
 /*
  * Decode a decimal from a void data with size
+
  */
 static inline void cm_dec_2_to_4(const dec2_t *d2, dec4_t *d4)
 {
@@ -69,17 +70,17 @@ static inline status_t cm_dec_4_to_2(const dec4_t *d4, const uint32 sz_byte, dec
 {
     if (sz_byte == 0 || DECIMAL_IS_ZERO(d4)) {
         cm_zero_dec2(d2);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     // check validation again
     if (SECUREC_UNLIKELY((uint32)(cm_dec4_stor_sz(d4)) > sz_byte)) {
-        GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "cm_dec4_stor_sz(d4)(%u) <= sz_byte(%u)", (uint32)(cm_dec2_stor_sz(d2)),
+        CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "cm_dec4_stor_sz(d4)(%u) <= sz_byte(%u)", (uint32)(cm_dec2_stor_sz(d2)),
                           sz_byte);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (DEC4_GET_SEXP(d4) > DEC2_EXPN_UPPER) {
-        GS_THROW_ERROR(ERR_NUM_OVERFLOW);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_NUM_OVERFLOW);
+        return CT_ERROR;
     }
     uint32 i4 = 0;
     uint32 i2 = 0;
@@ -105,7 +106,7 @@ static inline status_t cm_dec_4_to_2(const dec4_t *d4, const uint32 sz_byte, dec
     d2->len = len + 1;
     cm_dec2_trim_zeros(d2);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* The arithmetic operations among DECIMAL2 */
@@ -123,22 +124,23 @@ static inline status_t cm_dec_4_to_2(const dec4_t *d4, const uint32 sz_byte, dec
 
 /*
  * Decode a decimal from a void data with size
+
  */
 static inline status_t cm_dec_4_to_8(dec8_t *d8, const dec4_t *d4, uint32 sz_byte)
 {
     if (sz_byte == 0) {
         cm_zero_dec8(d8);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     // check validation again
     if ((uint32)(cm_dec4_stor_sz(d4)) > sz_byte) {
-        GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "cm_dec4_stor_sz(d4)(%u) <= sz_byte(%u)",
+        CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "cm_dec4_stor_sz(d4)(%u) <= sz_byte(%u)",
                           (uint32)(cm_dec4_stor_sz(d4)), sz_byte);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (DECIMAL_IS_ZERO(d4)) {
         cm_zero_dec8(d8);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint32 i4 = 0;
@@ -163,23 +165,23 @@ static inline status_t cm_dec_4_to_8(dec8_t *d8, const dec4_t *d4, uint32 sz_byt
     }
     d8->len = i8 + 1;
     cm_dec8_trim_zeros(d8);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_dec_8_to_4(dec4_t *d4, const dec8_t *d8)
 {
     if (DECIMAL8_IS_ZERO(d8)) {
         cm_zero_dec4(d4);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     int16 expn = DEC8_GET_SEXP(d8);
     if (expn > MAX_NUMERIC_EXPN) {
-        GS_THROW_ERROR(ERR_NUM_OVERFLOW);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_NUM_OVERFLOW);
+        return CT_ERROR;
     } else if (expn < MIN_NUMERIC_EXPN) {
         cm_zero_dec4(d4);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint32 i8 = 0;
@@ -204,19 +206,19 @@ static inline status_t cm_dec_8_to_4(dec4_t *d4, const dec8_t *d8)
         i4--;
     }
     d4->ncells = (uint8)i4;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_dec_2_to_8(dec8_t *d8, const payload_t *d2, uint32 len)
 {
     if (len == 0) {
         cm_zero_dec8(d8);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (len == 1 && DEC2_HEAD_IS_ZERO(d2->head)) {
         cm_zero_dec8(d8);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint32 i2 = 0;
@@ -255,14 +257,14 @@ static inline status_t cm_dec_2_to_8(dec8_t *d8, const payload_t *d2, uint32 len
         }
     }
     d8->len = i8 + 1;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_dec_8_to_2(dec2_t *d2, const dec8_t *d8)
 {
     if (DECIMAL8_IS_ZERO(d8)) {
         cm_zero_dec2(d2);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint8 i2 = 0;
@@ -276,11 +278,11 @@ static inline status_t cm_dec_8_to_2(dec2_t *d2, const dec8_t *d8)
     }
     expn = GET_DEC8_EXPN(d8) * 4 + extra_expn;
     if (expn > DEC2_EXPN_UPPER_HALF) {
-        GS_THROW_ERROR(ERR_NUM_OVERFLOW);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_NUM_OVERFLOW);
+        return CT_ERROR;
     } else if (expn < DEC2_EXPN_LOW_HALF) {
         cm_zero_dec2(d2);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     tmp = d8->cells[0];
@@ -308,36 +310,36 @@ static inline status_t cm_dec_8_to_2(dec2_t *d2, const dec8_t *d8)
     d2->len = i2 + 1;
     // remove tailing zero if exits
     cm_dec2_trim_zeros(d2);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* The actual bytes of a dec8 in storage */
 static inline uint32 cm_dec8_stor_sz(const dec8_t *d8)
 {
     dec4_t d4;
-    GS_RETURN_IFERR(cm_dec_8_to_4(&d4, d8));
+    CT_RETURN_IFERR(cm_dec_8_to_4(&d4, d8));
     return cm_dec4_stor_sz(&d4);
 }
 
 static inline uint32 cm_dec8_stor_sz2(const dec8_t *d8)
 {
     dec2_t d2;
-    GS_RETURN_IFERR(cm_dec_8_to_2(&d2, d8));
+    CT_RETURN_IFERR(cm_dec_8_to_2(&d2, d8));
     return cm_dec2_stor_sz(&d2);
 }
 
 static inline status_t cm_adjust_double(double *val, int32 precision, int32 scale)
 {
-    if (precision == GS_UNSPECIFIED_NUM_PREC) {
-        return GS_SUCCESS;
+    if (precision == CT_UNSPECIFIED_NUM_PREC) {
+        return CT_SUCCESS;
     }
 
     dec8_t dec;
-    GS_RETURN_IFERR(cm_real_to_dec8(*val, &dec));
-    GS_RETURN_IFERR(cm_adjust_dec8(&dec, precision, scale));
+    CT_RETURN_IFERR(cm_real_to_dec8(*val, &dec));
+    CT_RETURN_IFERR(cm_adjust_dec8(&dec, precision, scale));
 
     *val = cm_dec8_to_real(&dec);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* The arithmetic operations among DECIMAL and BIGINT */
@@ -386,8 +388,8 @@ static inline status_t cm_int64_div_dec8(int64 i64, const dec8_t *dec, dec8_t *r
 static inline status_t cm_dec8_add_real(const dec8_t *dec, double real, dec8_t *result)
 {
     dec8_t real_dec;
-    if (cm_real_to_dec8(real, &real_dec) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_real_to_dec8(real, &real_dec) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     return cm_dec8_add(dec, &real_dec, result);
 }
@@ -395,8 +397,8 @@ static inline status_t cm_dec8_add_real(const dec8_t *dec, double real, dec8_t *
 static inline status_t cm_real_sub_dec8(double real, const dec8_t *dec, dec8_t *result)
 {
     dec8_t real_dec;
-    if (cm_real_to_dec8(real, &real_dec) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_real_to_dec8(real, &real_dec) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     return cm_dec8_subtract(&real_dec, dec, result);
 }
@@ -404,8 +406,8 @@ static inline status_t cm_real_sub_dec8(double real, const dec8_t *dec, dec8_t *
 static inline status_t cm_dec8_mul_real(const dec8_t *dec, double real, dec8_t *result)
 {
     dec8_t real_dec;
-    if (cm_real_to_dec8(real, &real_dec) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_real_to_dec8(real, &real_dec) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     return cm_dec8_multiply(dec, &real_dec, result);
 }
@@ -413,8 +415,8 @@ static inline status_t cm_dec8_mul_real(const dec8_t *dec, double real, dec8_t *
 static inline status_t cm_dec8_div_real(const dec8_t *dec, double real, dec8_t *result)
 {
     dec8_t real_dec;
-    if (cm_real_to_dec8(real, &real_dec) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_real_to_dec8(real, &real_dec) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     return cm_dec8_divide(dec, &real_dec, result);
 }
@@ -422,8 +424,8 @@ static inline status_t cm_dec8_div_real(const dec8_t *dec, double real, dec8_t *
 static inline status_t cm_real_div_dec8(double real, const dec8_t *dec, dec8_t *result)
 {
     dec8_t real_dec;
-    if (cm_real_to_dec8(real, &real_dec) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_real_to_dec8(real, &real_dec) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     return cm_dec8_divide(&real_dec, dec, result);
 }

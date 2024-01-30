@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -112,11 +112,11 @@ typedef struct st_temp_undo_btreeb_insert {
 
 #define TEMP_PAGE_HEAD(page)    ((page_head_t *)(page))
 #define TEMP_PAGE_TAIL(page)    ((temp_page_tail_t *)((char *)(page) + PAGE_SIZE(*(page)) - sizeof(temp_page_tail_t)))
-#define TEMP_LOB_TO_CHAR_LENGTH GS_MAX_COLUMN_SIZE
+#define TEMP_LOB_TO_CHAR_LENGTH CT_MAX_COLUMN_SIZE
 #define FREE_LIST_GETIN_LIMIT   SIZE_K(8)
 #define FREE_LIST_GETOUT_LIMIT  SIZE_K(1)
 #define TEMP_ESTIMATE_ROW_SIZE_RATIO 0.01
-#define TEMP_PAGE_SIZE GS_VMEM_PAGE_SIZE
+#define TEMP_PAGE_SIZE CT_VMEM_PAGE_SIZE
 #define TEMP_HEAP_CURR_PAGE(session)  ((temp_heap_page_t *)buf_curr_temp_page((session))->data)
 #define TEMP_HEAP_GET_ROW(page, dir) (row_head_t *)((char *)(page) + (dir)->offset)
 
@@ -159,6 +159,7 @@ status_t temp_heap_lock_row(knl_session_t *session, knl_cursor_t *cursor, bool32
 bool32 knl_temp_object_isvalid_by_id(knl_session_t *session, uint32 uid, uint32 oid, knl_scn_t org_scn);
 void temp_set_compative_config(bool8 is_compative_mysql);
 bool8 temp_is_compative_mysql(void);
+status_t temp_undo_enter_page(knl_session_t *session, uint32 vmid);
 #ifdef __cplusplus
 }
 #endif

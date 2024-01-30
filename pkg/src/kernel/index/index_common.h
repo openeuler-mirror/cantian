@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -66,7 +66,7 @@ typedef struct st_idxpart_paral_ctx {
     uint32 index_cnt;
     uint32 paral_count;     // internal fetch parallel count
     bool32 nologging;       // construct btree segemnt in nologging mode
-    char err_msg[GS_MESSAGE_BUFFER_SIZE];
+    char err_msg[CT_MESSAGE_BUFFER_SIZE];
     struct st_idxpart_worker workers[MAX_IDX_PARAL_THREADS];
 }idxpart_paral_ctx_t;
 
@@ -125,17 +125,17 @@ typedef struct st_idx_paral_sort_ctx {
     uint32 paral_count;
     uint32 build_count;
     volatile uint32 working_count;
-    btree_t *btree[GS_MAX_INDEX_COUNT_PERSQL];
+    btree_t *btree[CT_MAX_INDEX_COUNT_PERSQL];
     uint32 index_count;
     knl_dictionary_t *private_dc;
     idx_part_info_t part_info;
     union {
         id_list_t sort_info;
-        id_list_t multi_sort_info[GS_MAX_INDEX_COUNT_PERSQL];
+        id_list_t multi_sort_info[CT_MAX_INDEX_COUNT_PERSQL];
     };
     bool32 is_global;
     bool32 nologging;
-    char err_msg[GS_MESSAGE_BUFFER_SIZE];
+    char err_msg[CT_MESSAGE_BUFFER_SIZE];
     volatile idx_sort_phase_t phase;
     idx_sort_worker_t *workers;
     idx_build_worker_t *build_workers;
@@ -164,8 +164,8 @@ typedef struct st_idx_paral_rebuild_ctx {
     knl_dictionary_t *dc;
     uint32 paral_cnt;
     knl_part_locate_t current_part;
-    char err_msg[GS_MESSAGE_BUFFER_SIZE];
-    struct st_idx_paral_rebuild_worker workers[GS_MAX_REBUILD_INDEX_PARALLELISM];
+    char err_msg[CT_MESSAGE_BUFFER_SIZE];
+    struct st_idx_paral_rebuild_worker workers[CT_MAX_REBUILD_INDEX_PARALLELISM];
 }idx_paral_rebuild_ctx_t;
 
 void btree_area_init(knl_session_t *session);
@@ -174,7 +174,7 @@ void btree_copy_root_page_base(knl_session_t *session, btree_t *btree, btree_pag
 
 void btree_release_root_copy(knl_session_t *session);
 
-void btree_decode_key_column(knl_scan_key_t *scan_key, uint16 *bitmap, uint16 *offset, gs_type_t type, uint32 id,
+void btree_decode_key_column(knl_scan_key_t *scan_key, uint16 *bitmap, uint16 *offset, ct_type_t type, uint32 id,
     bool32 is_pcr);
 
 uint16 btree_max_key_size(index_t *index);
@@ -186,7 +186,7 @@ void btree_drop_garbage_segment(knl_session_t *session, knl_seg_desc_t *seg);
 void btree_drop_part_garbage_segment(knl_session_t *session, knl_seg_desc_t *seg);
 void btree_truncate_garbage_segment(knl_session_t *session, knl_seg_desc_t *seg);
 void btree_truncate_part_garbage_segment(knl_session_t *session, knl_seg_desc_t *seg);
-bool32 bt_recycle_leaf_reusable(knl_session_t *session, knl_scn_t recycle_scn, knl_scn_t min_scn);
+bool32 bt_recycle_leaf_reusable(knl_session_t *session, knl_scn_t rec_scn, knl_scn_t min_scn);
 status_t btree_create_entry(knl_session_t *session, btree_t *btree);
 status_t btree_create_part_entry(knl_session_t *session, btree_t *btree, index_part_t *index_part,
                                  knl_part_locate_t part_loc);

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_xact_module.h"
 #include "knl_xact_log.h"
 #include "knl_context.h"
 #include "knl_xa.h"
@@ -195,7 +196,7 @@ void print_undo_write(log_entry_t *log)
         seg_id.file = (uint32)row->seg_file;
         seg_id.page = (uint32)row->seg_page;
         printf("seg_id %u-%u, is_shadow %d, ",
-               (uint32)seg_id.file, (uint32)seg_id.page, (row->index_id == GS_SHADOW_INDEX_ID ? 1 : 0));
+               (uint32)seg_id.file, (uint32)seg_id.page, (row->index_id == CT_SHADOW_INDEX_ID ? 1 : 0));
     } else if (row->type == UNDO_TEMP_BTREE_INSERT || row->type == UNDO_TEMP_BTREE_DELETE) {
         printf("user_id %u, table_id %u, index_id %u, ",
                (uint32)row->user_id, (uint32)row->seg_page, (uint32)row->index_id);
@@ -235,11 +236,11 @@ void update_undo_ctx_active_workers(undo_context_t *ctx, undo_set_t *undo_set)
 {
     CM_ASSERT(undo_set->rb_ctx[0].session != NULL);
     if (undo_set->active_workers == 0) {
-        GS_LOG_RUN_INF("[update undo_ctx active_workers] before, undo_set->active_workers=%lld, "
+        CT_LOG_RUN_INF("[update undo_ctx active_workers] before, undo_set->active_workers=%lld, "
             "undo_ctx->active_workers=%lld", undo_set->active_workers, ctx->active_workers);
         undo_set->active_workers = 1;
         cm_atomic_add(&ctx->active_workers, undo_set->active_workers);
-        GS_LOG_RUN_INF("[update undo_ctx active_workers] after, undo_set->active_workers=%lld, "
+        CT_LOG_RUN_INF("[update undo_ctx active_workers] after, undo_set->active_workers=%lld, "
             "undo_ctx->active_workers=%lld", undo_set->active_workers, ctx->active_workers);
     }
 }
@@ -278,10 +279,10 @@ void rd_tx_begin(knl_session_t *session, log_entry_t *log)
         knl_panic(undo->free_items.count > 0);
         undo->free_items.count--;
         area->rollback_num = session->kernel->attr.tx_rollback_proc_num;
-        if (GS_INVALID_ID32 != tx_item->prev) {
+        if (CT_INVALID_ID32 != tx_item->prev) {
             undo->items[tx_item->prev].next = tx_item->next;
         }
-        if (GS_INVALID_ID32 != tx_item->next) {
+        if (CT_INVALID_ID32 != tx_item->next) {
             undo->items[tx_item->next].prev = tx_item->prev;
         }
         if (undo->free_items.first == tx_id.item_id) {
@@ -294,7 +295,7 @@ void rd_tx_begin(knl_session_t *session, log_entry_t *log)
 
         undo_set_t *undo_set = MY_UNDO_SET(session);
         undo_context_t *ctx = &session->kernel->undo_ctx;
-        GS_LOG_RUN_INF("[rd_tx_begin] update undo_ctx active_workers");
+        CT_LOG_RUN_INF("[rd_tx_begin] update undo_ctx active_workers");
         update_undo_ctx_active_workers(ctx, undo_set);
     }
 }
@@ -352,7 +353,7 @@ void rd_tx_end(knl_session_t *session, log_entry_t *log)
     if (XMAP_INST_ID(redo->xmap) == session->kernel->id && !is_skip && !DB_IS_PRIMARY(&session->kernel->db) &&
         !DB_NOT_READY(session)) {
         cm_spin_lock(&tx_item->lock, &session->stat->spin_stat.stat_txn);
-        tx_item->rmid = GS_INVALID_ID16;
+        tx_item->rmid = CT_INVALID_ID16;
         cm_spin_unlock(&tx_item->lock);
 
         cm_spin_lock(&undo->lock, &session->stat->spin_stat.stat_txn_list);
@@ -360,14 +361,14 @@ void rd_tx_end(knl_session_t *session, log_entry_t *log)
             undo->free_items.count = 1;
             undo->free_items.first = tx_id.item_id;
             undo->free_items.last = tx_id.item_id;
-            undo->items[tx_id.item_id].prev = GS_INVALID_ID32;
+            undo->items[tx_id.item_id].prev = CT_INVALID_ID32;
         } else {
             undo->items[undo->free_items.last].next = tx_id.item_id;
             undo->items[tx_id.item_id].prev = undo->free_items.last;
             undo->free_items.last = tx_id.item_id;
             undo->free_items.count++;
         }
-        undo->items[tx_id.item_id].next = GS_INVALID_ID32;
+        undo->items[tx_id.item_id].next = CT_INVALID_ID32;
         cm_spin_unlock(&undo->lock);
     }
     if (!SESSION_IS_LOG_ANALYZE(session)) {
@@ -551,56 +552,72 @@ void print_undo_move_txn(log_entry_t *log)
 
 void rd_switch_undo_space(knl_session_t *session, log_entry_t *log)
 {
+    if (log->size != CM_ALIGN4(sizeof(rd_switch_undo_space_t)) + LOG_ENTRY_SIZE) {
+        CT_LOG_RUN_ERR("no need to replay switch undo space rule, log size %u is wrong", log->size);
+        return;
+    }
     rd_switch_undo_space_t *rd = (rd_switch_undo_space_t*)log->data;
+    if (rd->space_id >= CT_MAX_SPACES) {
+        CT_LOG_RUN_ERR("no need to replay switch undo space rule, invalid space id %u", rd->space_id);
+        return;
+    }
     uint32 space_id = rd->space_id;
     core_ctrl_t *core_ctrl = DB_CORE_CTRL(session);
     space_t *old_undo_space = SPACE_GET(session, dtc_my_ctrl(session)->undo_space);
     space_t *new_undo_space = NULL;
     undo_set_t *undo_set = MY_UNDO_SET(session);
 
-    knl_panic(0);  // TODO: need to design, save node id to redo log
-    session->kernel->undo_ctx.is_switching = GS_TRUE;
+    new_undo_space = SPACE_GET(session, space_id);
+    if (!SPACE_IS_ONLINE(new_undo_space) || !new_undo_space->ctrl->used) {
+        CT_LOG_RUN_ERR("new space has not been created");
+        return;
+    }
+
+    session->kernel->undo_ctx.is_switching = CT_TRUE;
     undo_invalid_segments(session);
 
-    GS_LOG_RUN_INF("[RD] switch undo space start");
+    CT_LOG_RUN_INF("[RD] switch undo space start");
+    if (rd->space_entry.page >= CT_MAX_UNDOFILE_PAGES || IS_INVALID_PAGID(rd->space_entry)) {
+        CT_LOG_RUN_ERR("switch undo space rule failed, invalid page entry, page %u, file %u", rd->space_entry.page,
+            rd->space_entry.file);
+        return;
+    }
     undo_reload_segment(session, rd->space_entry);
     dtc_my_ctrl(session)->undo_space = space_id;
 
     undo_init(session, 0, core_ctrl->undo_segments);
 
-    if (tx_area_init(session, 0, core_ctrl->undo_segments) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("rd_switch_undo_space failed");
-        session->kernel->undo_ctx.is_switching = GS_FALSE;
+    if (tx_area_init(session, 0, core_ctrl->undo_segments) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("rd_switch_undo_space failed");
+        session->kernel->undo_ctx.is_switching = CT_FALSE;
         return;
     }
 
     tx_area_release(session, undo_set);
-    session->kernel->undo_ctx.is_switching = GS_FALSE;
-
-    new_undo_space = SPACE_GET(session, space_id);
+    session->kernel->undo_ctx.is_switching = CT_FALSE;
     new_undo_space->ctrl->type = SPACE_TYPE_UNDO | SPACE_TYPE_DEFAULT;
     old_undo_space->ctrl->type = SPACE_TYPE_UNDO;
 
-    if (db_save_space_ctrl(session, old_undo_space->ctrl->id) != GS_SUCCESS) {
+    if (db_save_space_ctrl(session, old_undo_space->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: failed to save space ctrl file when load tablespace %s",
             old_undo_space->ctrl->name);
     }
 
-    if (db_save_space_ctrl(session, new_undo_space->ctrl->id) != GS_SUCCESS) {
+    if (db_save_space_ctrl(session, new_undo_space->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: failed to save space ctrl file when load tablespace %s",
             new_undo_space->ctrl->name);
     }
 
-    if (db_save_core_ctrl(session) != GS_SUCCESS) {
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: failed to save core ctrl file when load tablespace");
     }
 
     if (cm_alter_config(session->kernel->attr.config, "UNDO_TABLESPACE", new_undo_space->ctrl->name,
-                        CONFIG_SCOPE_MEMORY, GS_TRUE) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[UNDO] failed to alter undo tablespace config");
+                        CONFIG_SCOPE_MEMORY, CT_TRUE) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[UNDO] failed to alter undo tablespace config");
     }
     
-    GS_LOG_RUN_INF("[UNDO] succeed to switch undo tablespace %s", new_undo_space->ctrl->name);
+    CT_LOG_RUN_INF("[UNDO] succeed to switch undo tablespace %s", new_undo_space->ctrl->name);
 }
 
 void print_switch_undo_space(log_entry_t *log)
@@ -618,7 +635,7 @@ void rd_undo_nologging_write(knl_session_t *session, log_entry_t *log)
     /* undo_data->size is less than page size(8192), the sum will not exceed max value of uint16 */
     uint16 actual_size = (uint16)(UNDO_ROW_HEAD_SIZE + data_size);
 
-    row->xid.value = GS_INVALID_ID64;
+    row->xid.value = CT_INVALID_ID64;
     slot = UNDO_SLOT(session, page, page->rows);
     *slot = page->free_begin;
 

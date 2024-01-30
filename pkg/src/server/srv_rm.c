@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,15 +22,16 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "srv_module.h"
 #include "srv_rm.h"
 #include "srv_agent.h"
 #include "srv_instance.h"
+#include "dml_executor.h"
 #include "cm_log.h"
-#include "cm_defs.h"
 #include "cm_ip.h"
 #include "knl_xact_log.h"
 
-void resource_manager_pool_init(rm_pool_t *pool)
+void rm_pool_init(rm_pool_t *pool)
 {
     uint32 i;
 
@@ -40,67 +41,67 @@ void resource_manager_pool_init(rm_pool_t *pool)
     pool->page_count = 0;
 
     pool->free_list.count = 0;
-    pool->free_list.first = GS_INVALID_ID16;
-    pool->free_list.last = GS_INVALID_ID16;
+    pool->free_list.first = CT_INVALID_ID16;
+    pool->free_list.last = CT_INVALID_ID16;
 
-    for (i = 0; i < GS_MAX_RM_BUCKETS; i++) {
+    for (i = 0; i < CT_MAX_RM_BUCKETS; i++) {
         pool->buckets[i].lock = 0;
         pool->buckets[i].count = 0;
-        pool->buckets[i].first = GS_INVALID_ID16;
+        pool->buckets[i].first = CT_INVALID_ID16;
     }
 }
 
-static inline knl_rm_t *resource_manager_addr(rm_pool_t *pool, uint32 id)
+static inline knl_rm_t *rm_addr(rm_pool_t *pool, uint32 id)
 {
-    uint32 page_id = id / GS_EXTEND_RMS;
-    uint32 slot_id = id % GS_EXTEND_RMS;
+    uint32 page_id = id / CT_EXTEND_RMS;
+    uint32 slot_id = id % CT_EXTEND_RMS;
     return (knl_rm_t *)(pool->pages[page_id] + slot_id * sizeof(knl_rm_t));
 }
 
-static status_t resource_manager_pool_extend(rm_pool_t *pool)
+static status_t rm_pool_extend(rm_pool_t *pool)
 {
     char *buf = NULL;
     size_t alloc_size;
     errno_t ret;
 
     if (pool->capacity >= g_instance->kernel.attr.max_rms) {
-        GS_THROW_ERROR(ERR_TOO_MANY_RM_OBJECTS, g_instance->kernel.attr.max_rms);
-        GS_LOG_RUN_WAR("too many rm objects");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TOO_MANY_RM_OBJECTS, g_instance->kernel.attr.max_rms);
+        CT_LOG_RUN_WAR("too many rm objects");
+        return CT_ERROR;
     }
 
-    CM_ASSERT(pool->page_count < GS_MAX_RM_PAGES);
+    CM_ASSERT(pool->page_count < CT_MAX_RM_PAGES);
 
-    alloc_size = sizeof(knl_rm_t) * GS_EXTEND_RMS;
+    alloc_size = sizeof(knl_rm_t) * CT_EXTEND_RMS;
     buf = (char *)malloc(alloc_size);
     if (buf == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)alloc_size, "alloc rm");
-        GS_LOG_RUN_WAR("alloc rm failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)alloc_size, "alloc rm");
+        CT_LOG_RUN_WAR("alloc rm failed");
+        return CT_ERROR;
     }
 
     ret = memset_sp(buf, alloc_size, 0, alloc_size);
     knl_securec_check(ret);
 
-    pool->capacity += GS_EXTEND_RMS;
+    pool->capacity += CT_EXTEND_RMS;
     pool->pages[pool->page_count++] = buf;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-static status_t resource_manager_alloc(rm_pool_t *rm_pool, uint16 *rmid)
+static status_t rm_alloc(rm_pool_t *rm_pool, uint16 *rmid)
 {
     knl_rm_t *rm = NULL;
 
     if (rm_pool->free_list.count == 0 && rm_pool->hwm == rm_pool->capacity) {
-        if (resource_manager_pool_extend(rm_pool) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rm_pool_extend(rm_pool) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (rm_pool->free_list.count == 0) {
         *rmid = rm_pool->hwm;
-        rm = resource_manager_addr(rm_pool, *rmid);
+        rm = rm_addr(rm_pool, *rmid);
         knl_init_rm(rm, *rmid);
 
         rm_pool->rms[rm_pool->hwm] = rm;
@@ -109,34 +110,34 @@ static status_t resource_manager_alloc(rm_pool_t *rm_pool, uint16 *rmid)
         g_instance->kernel.rm_count++;
     } else {
         *rmid = rm_pool->free_list.first;
-        rm = resource_manager_addr(rm_pool, *rmid);
+        rm = rm_addr(rm_pool, *rmid);
         CM_ASSERT(rm->id == *rmid);
 
         rm_pool->free_list.first = rm->next;
         rm_pool->free_list.count--;
         if (rm_pool->free_list.count == 0) {
-            rm_pool->free_list.first = GS_INVALID_ID16;
-            rm_pool->free_list.last = GS_INVALID_ID16;
+            rm_pool->free_list.first = CT_INVALID_ID16;
+            rm_pool->free_list.last = CT_INVALID_ID16;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-static inline void resource_manager_release(rm_pool_t *rm_pool, uint16 rmid)
+static inline void rm_release(rm_pool_t *rm_pool, uint16 rmid)
 {
     knl_rm_t *rm = rm_pool->rms[rmid];
 
-    CM_ASSERT(rmid != GS_INVALID_ID16 && rm->id == rmid);
-    rm->sid = GS_INVALID_ID16;
-    rm->uid = GS_INVALID_ID32;
-    rm->next = GS_INVALID_ID16;
+    CM_ASSERT(rmid != CT_INVALID_ID16 && rm->id == rmid);
+    rm->sid = CT_INVALID_ID16;
+    rm->uid = CT_INVALID_ID32;
+    rm->next = CT_INVALID_ID16;
     rm->nolog_type = LOGGING_LEVEL;
-    rm->nolog_insert = GS_FALSE;
-    rm->logging = GS_TRUE;
+    rm->nolog_insert = CT_FALSE;
+    rm->logging = CT_TRUE;
 
     if (rm_pool->free_list.count == 0) {
-        rm->prev = GS_INVALID_ID16;
+        rm->prev = CT_INVALID_ID16;
         rm_pool->free_list.first = rmid;
         rm_pool->free_list.last = rmid;
     } else {
@@ -149,11 +150,11 @@ static inline void resource_manager_release(rm_pool_t *rm_pool, uint16 rmid)
     rm_pool->free_list.count++;
 }
 
-static inline void resource_manager_add_to_bucket(rm_pool_t *rm_pool, rm_bucket_t *bucket, uint16 rmid, uint8 status)
+static inline void rm_add_to_bucket(rm_pool_t *rm_pool, rm_bucket_t *bucket, uint16 rmid, uint8 status)
 {
     knl_rm_t *rm = NULL;
 
-    if (bucket->first != GS_INVALID_ID16) {
+    if (bucket->first != CT_INVALID_ID16) {
         rm = rm_pool->rms[bucket->first];
         rm->xa_prev = rmid;
     }
@@ -166,12 +167,12 @@ static inline void resource_manager_add_to_bucket(rm_pool_t *rm_pool, rm_bucket_
     bucket->count++;
 }
 
-static inline uint16 resource_manager_find_from_bucket(rm_pool_t *rm_pool, rm_bucket_t *bucket, knl_xa_xid_t *xa_xid)
+static inline uint16 rm_find_from_bucket(rm_pool_t *rm_pool, rm_bucket_t *bucket, knl_xa_xid_t *xa_xid)
 {
     uint16 rmid = bucket->first;
     knl_rm_t *rm = NULL;
 
-    while (rmid != GS_INVALID_ID16) {
+    while (rmid != CT_INVALID_ID16) {
         rm = rm_pool->rms[rmid];
 
         if (knl_xa_xid_equal(xa_xid, &rm->xa_xid)) {
@@ -184,18 +185,18 @@ static inline uint16 resource_manager_find_from_bucket(rm_pool_t *rm_pool, rm_bu
     return rmid;
 }
 
-static inline void resource_manager_remove_from_bucket(rm_pool_t *rm_pool, rm_bucket_t *bucket, uint16 rmid)
+static inline void rm_remove_from_bucket(rm_pool_t *rm_pool, rm_bucket_t *bucket, uint16 rmid)
 {
     knl_rm_t *rm = NULL;
 
     CM_ASSERT(bucket->count > 0);
 
     rm = rm_pool->rms[rmid];
-    if (rm->xa_prev != GS_INVALID_ID16) {
+    if (rm->xa_prev != CT_INVALID_ID16) {
         rm_pool->rms[rm->xa_prev]->xa_next = rm->xa_next;
     }
 
-    if (rm->xa_next != GS_INVALID_ID16) {
+    if (rm->xa_next != CT_INVALID_ID16) {
         rm_pool->rms[rm->xa_next]->xa_prev = rm->xa_prev;
     }
 
@@ -207,34 +208,34 @@ static inline void resource_manager_remove_from_bucket(rm_pool_t *rm_pool, rm_bu
     knl_xa_reset_rm(rm);
 }
 
-status_t server_alloc_resource_manager(uint16 *rmid)
+status_t srv_alloc_rm(uint16 *rmid)
 {
     rm_pool_t *rm_pool = &g_instance->rm_pool;
     knl_rm_t *rm = NULL;
 
     cm_spin_lock(&rm_pool->lock, NULL);
-    if (resource_manager_alloc(rm_pool, rmid) != GS_SUCCESS) {
+    if (rm_alloc(rm_pool, rmid) != CT_SUCCESS) {
         cm_spin_unlock(&rm_pool->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     cm_spin_unlock(&rm_pool->lock);
 
     rm = rm_pool->rms[*rmid];
-    rm->prev = GS_INVALID_ID16;
-    rm->next = GS_INVALID_ID16;
-    return GS_SUCCESS;
+    rm->prev = CT_INVALID_ID16;
+    rm->next = CT_INVALID_ID16;
+    return CT_SUCCESS;
 }
 
-void server_release_resource_manager(uint16 rmid)
+void srv_release_rm(uint16 rmid)
 {
     rm_pool_t *rm_pool = &g_instance->rm_pool;
 
     cm_spin_lock(&rm_pool->lock, NULL);
-    resource_manager_release(rm_pool, rmid);
+    rm_release(rm_pool, rmid);
     cm_spin_unlock(&rm_pool->lock);
 }
 
-status_t server_alloc_auton_resource_manager(knl_handle_t handle)
+status_t srv_alloc_auton_rm(knl_handle_t handle)
 {
     session_t *session = (session_t *)handle;
     rm_pool_t *rm_pool = &g_instance->rm_pool;
@@ -242,57 +243,57 @@ status_t server_alloc_auton_resource_manager(knl_handle_t handle)
     uint16 rmid;
 
     cm_spin_lock(&rm_pool->lock, NULL);
-    if (resource_manager_alloc(rm_pool, &rmid) != GS_SUCCESS) {
+    if (rm_alloc(rm_pool, &rmid) != CT_SUCCESS) {
         cm_spin_unlock(&rm_pool->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     cm_spin_unlock(&rm_pool->lock);
 
     rm = rm_pool->rms[rmid];
     rm->prev = session->knl_session.rmid;
-    rm->next = GS_INVALID_ID16;
+    rm->next = CT_INVALID_ID16;
 
     session->knl_session.rm->next = rmid;
     knl_set_session_rm(session, rmid);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-status_t server_release_auton_resource_manager(knl_handle_t handle)
+status_t srv_release_auton_rm(knl_handle_t handle)
 {
     session_t *session = (session_t *)handle;
     rm_pool_t *rm_pool = &g_instance->rm_pool;
     knl_rm_t *rm = NULL;
     uint16 curr, prev;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
     curr = session->knl_session.rmid;
     rm = session->knl_session.rm;
 
     prev = rm->prev;
-    if (prev == GS_INVALID_ID16) {
-        return GS_SUCCESS;
+    if (prev == CT_INVALID_ID16) {
+        return CT_SUCCESS;
     }
 
     if (knl_xact_status(&session->knl_session) != XACT_END) {
         do_rollback(session, NULL);
-        GS_THROW_ERROR(ERR_TXN_IN_PROGRESS, "detect active transaction at the end of autonomous session");
-        status = GS_ERROR;
+        CT_THROW_ERROR(ERR_TXN_IN_PROGRESS, "detect active transaction at the end of autonomous session");
+        status = CT_ERROR;
     }
 
     rm = rm_pool->rms[prev];
-    rm->next = GS_INVALID_ID16;
+    rm->next = CT_INVALID_ID16;
 
     session->knl_session.rmid = prev;
     session->knl_session.rm = rm;
 
     cm_spin_lock(&rm_pool->lock, NULL);
-    resource_manager_release(rm_pool, curr);
+    rm_release(rm_pool, curr);
     cm_spin_unlock(&rm_pool->lock);
 
     return status;
 }
 
-uint16 server_get_xa_xid(knl_xa_xid_t *xa_xid)
+uint16 srv_get_xa_xid(knl_xa_xid_t *xa_xid)
 {
     rm_pool_t *rm_pool = &g_instance->rm_pool;
     rm_bucket_t *bucket = NULL;
@@ -303,13 +304,13 @@ uint16 server_get_xa_xid(knl_xa_xid_t *xa_xid)
     bucket = &rm_pool->buckets[hash];
 
     cm_spin_lock(&bucket->lock, NULL);
-    rmid = resource_manager_find_from_bucket(rm_pool, bucket, xa_xid);
+    rmid = rm_find_from_bucket(rm_pool, bucket, xa_xid);
     cm_spin_unlock(&bucket->lock);
 
     return rmid;
 }
 
-bool32 server_add_xa_xid(knl_xa_xid_t *xa_xid, uint16 rmid, uint8 status)
+bool32 srv_add_xa_xid(knl_xa_xid_t *xa_xid, uint16 rmid, uint8 status)
 {
     rm_pool_t *rm_pool = &g_instance->rm_pool;
     rm_bucket_t *bucket = NULL;
@@ -320,18 +321,18 @@ bool32 server_add_xa_xid(knl_xa_xid_t *xa_xid, uint16 rmid, uint8 status)
     bucket = &rm_pool->buckets[hash];
 
     cm_spin_lock(&bucket->lock, NULL);
-    temp = resource_manager_find_from_bucket(rm_pool, bucket, xa_xid);
-    if (temp != GS_INVALID_ID16) {
+    temp = rm_find_from_bucket(rm_pool, bucket, xa_xid);
+    if (temp != CT_INVALID_ID16) {
         cm_spin_unlock(&bucket->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    resource_manager_add_to_bucket(rm_pool, bucket, rmid, status);
+    rm_add_to_bucket(rm_pool, bucket, rmid, status);
     cm_spin_unlock(&bucket->lock);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
-void server_delete_xa_xid(knl_xa_xid_t *xa_xid)
+void srv_delete_xa_xid(knl_xa_xid_t *xa_xid)
 {
     rm_pool_t *rm_pool = &g_instance->rm_pool;
     rm_bucket_t *bucket = NULL;
@@ -342,13 +343,13 @@ void server_delete_xa_xid(knl_xa_xid_t *xa_xid)
     bucket = &rm_pool->buckets[hash];
 
     cm_spin_lock(&bucket->lock, NULL);
-    rmid = resource_manager_find_from_bucket(rm_pool, bucket, xa_xid);
-    if (rmid == GS_INVALID_ID16) {
+    rmid = rm_find_from_bucket(rm_pool, bucket, xa_xid);
+    if (rmid == CT_INVALID_ID16) {
         cm_spin_unlock(&bucket->lock);
         return;
     }
 
-    resource_manager_remove_from_bucket(rm_pool, bucket, rmid);
+    rm_remove_from_bucket(rm_pool, bucket, rmid);
     cm_spin_unlock(&bucket->lock);
 }
 
@@ -361,26 +362,26 @@ static inline void assign_trans_to_bg_rollback(knl_rm_t *rm)
 
     undo_context_t *ctx = &g_instance->kernel.undo_ctx;
     undo_set_t *undo_set = &ctx->undo_sets[XID_INST_ID(rm->xid)];
-    GS_LOG_RUN_INF("[assign_trans_to_bg_rollback] update undo_ctx active_workers");
+    CT_LOG_RUN_INF("[assign_trans_to_bg_rollback] update undo_ctx active_workers");
     update_undo_ctx_active_workers(ctx, undo_set);
 }
 
-void server_shrink_xa_rms(knl_handle_t handle, bool32 force)
+void srv_shrink_xa_rms(knl_handle_t handle, bool32 force)
 {
     session_t *session = (session_t *)handle;
     uint16 org_rmid = session->knl_session.rmid;
     knl_rm_t *org_rm = session->knl_session.rm;
     rm_pool_t *rm_pool = &g_instance->rm_pool;
-    bool32 release_rm = GS_FALSE;
+    bool32 release_rm = CT_FALSE;
     knl_rm_t *rm = NULL;
     uint64 timeout;
 
     for (uint16 i = 0; i < rm_pool->hwm; i++) {
-        GS_BREAK_IF_TRUE(session->knl_session.canceled);
-        GS_BREAK_IF_TRUE(session->knl_session.killed);
+        CT_BREAK_IF_TRUE(session->knl_session.canceled);
+        CT_BREAK_IF_TRUE(session->knl_session.killed);
 
         rm = rm_pool->rms[i];
-        GS_CONTINUE_IFTRUE(!knl_xa_xid_valid(&rm->xa_xid));
+        CT_CONTINUE_IFTRUE(!knl_xa_xid_valid(&rm->xa_xid));
 
         session->knl_session.rmid = i;
         session->knl_session.rm = rm;
@@ -392,8 +393,8 @@ void server_shrink_xa_rms(knl_handle_t handle, bool32 force)
                 // used for rollback procs to recover table locks of current residual xa transaction
                 assign_trans_to_bg_rollback(rm);
                 knl_tx_reset_rm(rm);
-                GS_LOG_DEBUG_INF("lock free sch group of pending rm.rmid %u", i);
-                release_rm = GS_TRUE;
+                CT_LOG_DEBUG_INF("lock free sch group of pending rm.rmid %u", i);
+                release_rm = CT_TRUE;
             }
         }
 
@@ -401,8 +402,8 @@ void server_shrink_xa_rms(knl_handle_t handle, bool32 force)
             timeout = (uint64)(KNL_NOW(&session->knl_session) - rm->suspend_time);
             if (force || timeout / MICROSECS_PER_SECOND > rm->suspend_timeout) {
                 do_rollback(session, NULL);
-                GS_LOG_DEBUG_INF("rollback timeout suspend rm.rmid %u", i);
-                release_rm = GS_TRUE;
+                CT_LOG_DEBUG_INF("rollback timeout suspend rm.rmid %u", i);
+                release_rm = CT_TRUE;
             }
         }
 
@@ -412,46 +413,46 @@ void server_shrink_xa_rms(knl_handle_t handle, bool32 force)
         cm_spin_unlock(&rm->lock);
 
         if (release_rm) {
-            server_delete_xa_xid(&rm->xa_xid);
+            srv_delete_xa_xid(&rm->xa_xid);
             cm_spin_lock(&rm_pool->lock, NULL);
-            resource_manager_release(rm_pool, i);
+            rm_release(rm_pool, i);
             cm_spin_unlock(&rm_pool->lock);
         }
-        release_rm = GS_FALSE;
+        release_rm = CT_FALSE;
     }
 
     session->knl_session.rmid = org_rmid;
     session->knl_session.rm = org_rm;
 }
 
-static bool32 server_attach_resource_manager(session_t *session, knl_xa_xid_t *xa_xid, uint8 exp_status, uint8 status, bool8 release)
+static bool32 srv_attach_rm(session_t *session, knl_xa_xid_t *xa_xid, uint8 exp_status, uint8 status, bool8 release)
 {
     rm_pool_t *rm_pool = &g_instance->rm_pool;
     knl_rm_t *rm = NULL;
     uint16 rmid, curr;
 
-    rmid = server_get_xa_xid(xa_xid);
-    if (rmid == GS_INVALID_ID16) {
-        return GS_FALSE;
+    rmid = srv_get_xa_xid(xa_xid);
+    if (rmid == CT_INVALID_ID16) {
+        return CT_FALSE;
     }
 
     rm = rm_pool->rms[rmid];
 
     if (rm->xa_status != exp_status) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     cm_spin_lock(&rm->lock, NULL);
     if (rm->xa_status != exp_status || !knl_xa_xid_equal(xa_xid, &rm->xa_xid)) {
         cm_spin_unlock(&rm->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     /* the transaction branch can not be ended in one session, but resumed in another one */
     if ((rm->xa_flags & KNL_XA_NOMIGRATE) && exp_status == XA_SUSPEND && status == XA_START &&
         rm->sid != session->knl_session.id) {
         cm_spin_unlock(&rm->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     rm->xa_status = status;
@@ -464,16 +465,16 @@ static bool32 server_attach_resource_manager(session_t *session, knl_xa_xid_t *x
     rm->sid = session->knl_session.id;
 
     if (release) {
-        CM_ASSERT(curr != GS_INVALID_ID16);
+        CM_ASSERT(curr != CT_INVALID_ID16);
         cm_spin_lock(&rm_pool->lock, NULL);
-        resource_manager_release(rm_pool, curr);
+        rm_release(rm_pool, curr);
         cm_spin_unlock(&rm_pool->lock);
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
-void server_detach_suspend_resource_manager(knl_handle_t handle, uint16 new_rmid)
+void srv_detach_suspend_rm(knl_handle_t handle, uint16 new_rmid)
 {
     session_t *session = (session_t *)handle;
     knl_rm_t *rm = session->knl_session.rm;
@@ -482,30 +483,30 @@ void server_detach_suspend_resource_manager(knl_handle_t handle, uint16 new_rmid
     rm->xa_status = XA_SUSPEND;
     rm->suspend_time = KNL_NOW(&session->knl_session);
     if (!(rm->xa_flags & KNL_XA_NOMIGRATE)) {
-        rm->sid = GS_INVALID_ID16;
+        rm->sid = CT_INVALID_ID16;
     }
 
     knl_set_session_rm(session, new_rmid);
 }
 
-bool32 server_attach_suspend_resource_manager(knl_handle_t handle, knl_xa_xid_t *xa_xid, uint8 status, bool8 release)
+bool32 srv_attach_suspend_rm(knl_handle_t handle, knl_xa_xid_t *xa_xid, uint8 status, bool8 release)
 {
-    return server_attach_resource_manager((session_t *)handle, xa_xid, XA_SUSPEND, status, release);
+    return srv_attach_rm((session_t *)handle, xa_xid, XA_SUSPEND, status, release);
 }
 
-void server_detach_pending_resource_manager(knl_handle_t handle, uint16 new_rmid)
+void srv_detach_pending_rm(knl_handle_t handle, uint16 new_rmid)
 {
     session_t *session = (session_t *)handle;
     knl_rm_t *rm = session->knl_session.rm;
 
     CM_ASSERT(rm != NULL);
     rm->xa_status = XA_PENDING;
-    rm->sid = GS_INVALID_ID16;
+    rm->sid = CT_INVALID_ID16;
 
     knl_set_session_rm(session, new_rmid);
 }
 
-bool32 server_attach_pending_resource_manager(knl_handle_t handle, knl_xa_xid_t *xa_xid)
+bool32 srv_attach_pending_rm(knl_handle_t handle, knl_xa_xid_t *xa_xid)
 {
-    return server_attach_resource_manager((session_t *)handle, xa_xid, XA_PENDING, XA_PHASE2, GS_FALSE);
+    return srv_attach_rm((session_t *)handle, xa_xid, XA_PENDING, XA_PHASE2, CT_FALSE);
 }

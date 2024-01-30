@@ -4,8 +4,12 @@ set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 CANTIAN_START_PY_NAME="cantian_start.py"
 CANTIAN_STOP_SH_NAME="stop.sh"
-CANTIAN_SYS_PWD=""
 CANTIAN_INSTALL_LOG_FILE=/opt/cantian/cantian/log/cantian_deploy.log
+
+function log() {
+  printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1" >> ${CANTIAN_INSTALL_LOG_FILE}
+}
+
 function check_cantian_exporter_daemon_status()
 {
     for i in {1..3}
@@ -17,7 +21,7 @@ function check_cantian_exporter_daemon_status()
     if [ -z "${cantiand_pid}" ];then
         return 1
     fi
-    echo "Cantiand process has exist." >> ${CANTIAN_INSTALL_LOG_FILE}
+    log "Cantiand process has exist."
     return 0
 } 
 
@@ -25,25 +29,20 @@ function check_cantian_exporter_daemon_status()
 function cantian_start()
 {
     if [ ! -f  ${CURRENT_PATH}/${CANTIAN_START_PY_NAME} ]; then
-        echo "${CANTIAN_START_PY_NAME} is not exist.]" >> ${CANTIAN_INSTALL_LOG_FILE}
+        log "${CANTIAN_START_PY_NAME} is not exist.]"
         return 1
     fi
 
     export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH}
-    DEPLOY_MODE=$(python3 "${CURRENT_PATH}"/get_config_info.py "deploy_mode")
-    if [ x"${DEPLOY_MODE}" == x"--nas" ];then
-        read -s -p "please enter cantian_sys_pwd: " CANTIAN_SYS_PWD
-        echo ''
-    fi
-    echo -e "${CANTIAN_SYS_PWD}" | python3 "${CURRENT_PATH}"/${CANTIAN_START_PY_NAME}
+    python3 ${CURRENT_PATH}/${CANTIAN_START_PY_NAME}
     ret=$?
 
     if [ ${ret} -ne 0 ]; then
-        echo "Execute ${CANTIAN_START_PY_NAME} return ${ret}." >> ${CANTIAN_INSTALL_LOG_FILE}
+        log "Execute ${CANTIAN_START_PY_NAME} return ${ret}."
         return 1
     fi
 
-    echo "cantian start success." >> ${CANTIAN_INSTALL_LOG_FILE}
+    log "cantian start success."
     return 0
 }
 
@@ -53,12 +52,12 @@ function check_cantian_db_create_status()
     CANTIAN_SQL_EXECUTE_STATUS=`python3 ${CURRENT_PATH}/get_config_info.py "CANTIAN_DB_CREATE_STATUS"`
 
     if [ -z ${CANTIAN_SQL_EXECUTE_STATUS} ]; then
-        echo "Failed to get db create status, please check file start_status.json or reinstall cantian." >> ${CANTIAN_INSTALL_LOG_FILE}
+        log "Failed to get db create status, please check file start_status.json or reinstall cantian."
         exit 1
     fi
 
     if [ ${CANTIAN_SQL_EXECUTE_STATUS} == "creating" ]; then
-        echo "Failed to create namespace at last startup, please reinstall it after uninstalling cantian and modifying namespace." >> ${CANTIAN_INSTALL_LOG_FILE}
+        log "Failed to create namespace at last startup, please reinstall it after uninstalling cantian and modifying namespace."
         exit 1
     fi
 }
@@ -72,7 +71,7 @@ function check_cantian_start_status()
     if [ ${CANTIAN_START_STATUS} == "default" ]; then
         check_cantian_exporter_daemon_status
         if [ $? -eq 0 ]; then
-            echo "Cantian has not started, but process cantiand was detected, trying to stop and restart it." >> ${CANTIAN_INSTALL_LOG_FILE}
+            log "Cantian has not started, but process cantiand was detected, trying to stop and restart it."
             sh ${CURRENT_PATH}/${CANTIAN_STOP_SH_NAME}
         fi
     fi
@@ -80,7 +79,7 @@ function check_cantian_start_status()
     # 2.参天拉起状态为starting，此时正在拉起参天，但异常退出了。需要强制stop，重新拉起参天
     # 在database的创建流程之外参天被异常退出时，参天还可以再次被拉起
     if [ ${CANTIAN_START_STATUS} == "starting" ]; then
-        echo "Last startup process was interrupted, trying to stop existing cantian process and restart it." >> ${CANTIAN_INSTALL_LOG_FILE}
+        log "Last startup process was interrupted, trying to stop existing cantian process and restart it."
         sh ${CURRENT_PATH}/${CANTIAN_STOP_SH_NAME}
     fi
 
@@ -90,10 +89,10 @@ function check_cantian_start_status()
     if [ ${CANTIAN_START_STATUS} == "started" ]; then
         check_cantian_exporter_daemon_status
         if [ $? -eq 0 ]; then
-            echo "Cantian is already started, no need to restart it." >> ${CANTIAN_INSTALL_LOG_FILE}
+            log "Cantian is already started, no need to restart it."
             exit 0
         else
-            echo "Cantian status is started, but no process is detected, trying to restart it." >> ${CANTIAN_INSTALL_LOG_FILE}
+            log "Cantian status is started, but no process is detected, trying to restart it."
             sh ${CURRENT_PATH}/${CANTIAN_STOP_SH_NAME}
         fi
     fi

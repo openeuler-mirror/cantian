@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -25,6 +25,7 @@
 #ifndef __RCR_BTREE_H__
 #define __RCR_BTREE_H__
 
+#include "knl_index_module.h"
 #include "cm_defs.h"
 #include "knl_common.h"
 #include "knl_interface.h"
@@ -36,6 +37,7 @@
 #include "rb_purge.h"
 #include "knl_dc.h"
 #include "knl_buffer.h"
+#include "rcr_btree_protect.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -84,218 +86,15 @@ extern "C" {
 #define BTREE_SEGMENT(session, pageid, segment)                                                     \
     ((buf_check_resident_page_version((session), (pageid))) ? ((btree_segment_t *)(segment)) \
                                                           : ((btree_segment_t *)(segment)))
-typedef enum st_btree_find_type {
-    BTREE_FIND_INSERT = 0,
-    BTREE_FIND_DELETE,
-    BTREE_FIND_INSERT_LOCKED,
-    BTREE_FIND_DELETE_NEXT,
-} btree_find_type;
 
-#pragma pack(4)
-typedef struct st_btree_page {
-    page_head_t head;
-    knl_scn_t seg_scn;  // it is also org_scn on temp btree
-
-    uint16 is_recycled : 1;
-    uint16 unused : 15;
-    uint16 keys;
-
-    pagid_data_t prev;
-    uint8 level;
-    uint8 itls;
-
-    pagid_data_t next;
-    uint16 free_begin;
-
-    uint16 free_end;
-    uint16 free_size;
-    knl_scn_t scn;      // max committed itl scn(except delayed itl)
-    uint8 reserved[8];  // reserved for future use
-} btree_page_t;
-
-typedef struct st_btree_dir_t {
-    uint16 offset;
-    uint8 itl_id;
-    uint8 unused;
-} btree_dir_t;
-
-typedef struct st_btree_key {
-    union {
-        knl_scn_t scn;  // sql sequence number(txn in progress) or commit scn
-        page_id_t child;
-    };
-
-    union {
-        rowid_t rowid;  // leaf node: rowid;
-        struct {
-            uint64 align_rowid : ROWID_VALUE_BITS;
-            uint64 size : ROWID_UNUSED_BITS;
-        };
-    };
-
-    undo_page_id_t undo_page;
-    uint16 undo_slot : 12;
-    uint16 is_deleted : 1;
-    uint16 is_infinite : 1;
-    uint16 is_owscn : 1;
-    uint16 is_cleaned : 1;
-    uint16 bitmap;
-} btree_key_t;
-
-typedef struct st_btree_segment {
-    knl_tree_info_t tree_info;
-    knl_scn_t org_scn;
-    knl_scn_t seg_scn;
-    uint32 table_id;
-    uint16 uid;
-    uint16 index_id;
-
-    uint16 space_id;
-    uint8 initrans;
-    uint8 cr_mode;
-    page_list_t extents;
-
-    uint32 ufp_count;
-    page_id_t ufp_first;
-    page_id_t ufp_extent;
-
-    knl_scn_t del_scn;  // recycle scn of last page in del_pages
-    page_list_t del_pages;  // recycled page list
-    uint32 pctfree;
-
-    /**
-     * this is new variable for rocord page_count of this index
-     * used for bitmap scenario when try to allow THE SIZE is not available,
-     * then try to degrade size (eg 8192 -> 1024 ->128 -> 8), will update this vaule
-     * otherwise, always be 0 (also elder version is 0).
-     * scenarios(same usage for heap segment):
-     *  1 page_count is 0, extent size and page count of this table should be count as before
-     *  2 page_count is not 0, page count size must read for extent head (page_head_t)ext_size,
-     *    page count used this one.
-     */
-    uint32 page_count;
-    uint64 garbage_size;
-    knl_scn_t first_recycle_scn;  // recycle scn of first page in del_pages
-    knl_scn_t ow_del_scn;
-    atomic_t ow_recycle_scn;
-    knl_scn_t last_recycle_scn;  // recycle scn of last page in del_pages
-    page_list_t recycled_pages;  // recycled page list
-    uint32 unused;
-    atomic_t recycle_ver_scn;
-} btree_segment_t;
-
-typedef struct st_rd_btree_insert {
-    uint16 slot;
-    uint8 is_reuse;
-    uint8 itl_id;
-    char key[0];
-} rd_btree_insert_t;
-
-typedef struct st_rd_btree_reuse_itl {
-    knl_scn_t min_scn;
-    xid_t xid;
-    uint8 itl_id;
-    uint8 unused1;   // for future use
-    uint16 unused2;  // for future use
-} rd_btree_reuse_itl_t;
-
-typedef struct st_rd_btree_clean_itl {
-    knl_scn_t scn;
-    uint8 itl_id;
-    uint8 is_owscn;
-    uint8 is_copied;
-    uint8 aligned;
-} rd_btree_clean_itl_t;
-
-typedef struct st_rd_btree_delete {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint16 slot;
-    uint8 itl_id;
-    uint8 unused1;   // for future use
-    uint16 unused2;  // for future use
-} rd_btree_delete_t;
-
-typedef struct st_rd_btree_clean_keys {
-    uint16 keys;
-    uint16 free_size;
-} rd_btree_clean_keys_t;
-
-typedef struct st_rd_btree_page_init {
-    knl_scn_t seg_scn;
-    page_id_t page_id;
-    uint8 level;
-    uint8 itls;
-    uint8 cr_mode;
-    uint8 extent_size;
-    bool8 reserve_ext;
-    uint8 aligned;
-    uint16 unused;
-} rd_btree_page_init_t;
-
-typedef struct st_rd_btree_undo {
-    knl_scn_t scn;
-    rowid_t rowid;
-    undo_page_id_t undo_page;
-    uint16 undo_slot : 12;
-    uint16 is_xfirst : 1;
-    uint16 is_owscn : 1;
-    uint16 unused : 2;
-    uint16 slot;  // btree slot
-} rd_btree_undo_t;
-
-typedef struct st_rd_update_btree_partid {
-    uint32 part_id;
-    uint32 parent_partid;
-    uint16 slot;
-    uint16 is_compart_table : 1;
-    uint16 unused : 15;
-} rd_update_btree_partid_t;
-
-typedef struct st_undo_btree_create {
-    uint32 space_id;
-    page_id_t entry;
-} undo_btree_create_t;
-
-typedef struct st_rd_btree_init_entry {
-    page_id_t page_id;
-    uint32 extent_size;
-} rd_btree_init_entry_t;
-
-typedef struct st_rd_btree_info {
-    knl_scn_t min_scn;
-    uint32 uid;
-    uint32 oid;
-    uint32 idx_id;
-    knl_part_locate_t part_loc;
-} rd_btree_info_t;
-
-typedef struct st_rd_btree_set_recycle {
-    rd_btree_info_t btree_info;
-    knl_scn_t ow_del_scn;
-} rd_btree_set_recycle_t;
-
-typedef struct st_rd_btree_concat_dels {
-    page_id_t next_del_page;
-    knl_scn_t next_recycle_scn;
-} rd_btree_concat_dels_t;
-
-typedef struct st_btree_find_assist {
-    btree_t *btree;
-    bool32 page_damage;
-    page_id_t page_id;
-    knl_scan_key_t *scan_key;
-    btree_path_info_t *path_info;
-    btree_find_type find_type;
-} btree_find_assist_t;
-
-#pragma pack()
+#define BTREE_SEGMENT_WITH_CTRL(session, ctrl, pageid, segment)                                                     \
+    ((buf_check_resident_page_version_with_ctrl((session), (ctrl), (pageid))) ? ((btree_segment_t *)(segment)) \
+                                                          : ((btree_segment_t *)(segment)))
 
 typedef struct st_btree_key_data {
     btree_key_t *key;
-    char *data[GS_MAX_INDEX_COLUMNS];
-    uint16 size[GS_MAX_INDEX_COLUMNS];
+    char *data[CT_MAX_INDEX_COLUMNS];
+    uint16 size[CT_MAX_INDEX_COLUMNS];
 } btree_key_data_t;
 
 typedef struct st_btree_search {
@@ -370,7 +169,7 @@ void btree_construct_ancestors_finish(knl_session_t *session, btree_t *btree, bt
     bool32 nologging);
 void btree_append_to_page(knl_session_t *session, btree_page_t *page, btree_key_t *key, uint8 itl_id);
 void btree_init_key(btree_key_t *key, rowid_t *rid);
-void btree_put_key_data(char *key_buf, gs_type_t type, const char *data, uint16 len, uint16 id);
+void btree_put_key_data(char *key_buf, ct_type_t type, const char *data, uint16 len, uint16 id);
 void btree_clean_lock(knl_session_t *session, lock_item_t *lock);
 status_t btree_construct(btree_mt_context_t *ctx);
 status_t bt_chk_exist_pre(knl_session_t *session, btree_t *btree, btree_search_t *search_info);
@@ -391,8 +190,8 @@ knl_scn_t btree_get_recycle_min_scn(knl_session_t *session);
 bool32 bt_recycle_time_expire(knl_session_t *session, knl_scn_t interval_scn, knl_scn_t min_scn,
     knl_scn_t commit_scn);
 status_t btree_compare_mtrl_key(mtrl_segment_t *segment, char *data1, char *data2, int32 *result);
-char *btree_get_column(knl_scan_key_t *key, gs_type_t type, uint32 id, uint16 *len, bool32 is_pcr);
-uint16 btree_max_column_size(gs_type_t type, uint16 size, bool32 is_pcr);
+char *btree_get_column(knl_scan_key_t *key, ct_type_t type, uint32 id, uint16 *len, bool32 is_pcr);
+uint16 btree_max_column_size(ct_type_t type, uint16 size, bool32 is_pcr);
 bool32 btree_need_recycle(knl_session_t *session, btree_t *btree, idx_recycle_info_t *recycle_info);
 
 #ifdef LOG_DIAG
@@ -438,21 +237,21 @@ static inline void btree_set_key_rowid(btree_key_t *key, rowid_t *rid)
 static inline status_t btree_check_segment_scn(btree_page_t *page, page_type_t type, knl_scn_t seg_scn)
 {
     if (page->head.type != type || page->seg_scn != seg_scn) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t btree_check_min_scn(knl_scn_t query_scn, knl_scn_t min_scn, uint16 level)
 {
     if (level == 0 && query_scn < min_scn) {
-        GS_LOG_RUN_ERR("snapshot too old, detail: query_scn %llu, btree_min_scn %llu", query_scn, min_scn);
-        GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("snapshot too old, detail: query_scn %llu, btree_min_scn %llu", query_scn, min_scn);
+        CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline btree_t *knl_cursor_btree(knl_cursor_t *cursor)
@@ -522,7 +321,7 @@ static inline void btree_clean_key(knl_session_t *session, btree_page_t *page, u
     }
 
     page->free_size += ((uint16)key->size + sizeof(btree_dir_t));
-    key->is_cleaned = (uint16)GS_TRUE;
+    key->is_cleaned = (uint16)CT_TRUE;
     page->keys--;
 }
 
@@ -531,12 +330,12 @@ static inline void btree_delete_key(knl_session_t *session, btree_page_t *page, 
     btree_dir_t *dir = BTREE_GET_DIR(page, redo->slot);
     btree_key_t *key = BTREE_GET_KEY(page, dir);
 
-    key->is_deleted = GS_TRUE;
+    key->is_deleted = CT_TRUE;
     dir->itl_id = redo->itl_id;
     key->scn = redo->ssn;
     key->undo_page = redo->undo_page;
     key->undo_slot = redo->undo_slot;
-    key->is_owscn = GS_FALSE;
+    key->is_owscn = CT_FALSE;
 }
 
 static inline uint8 btree_new_itl(knl_session_t *session, btree_page_t *page)
@@ -576,7 +375,7 @@ static inline void btree_try_init_segment_pagecount(space_t *space, btree_segmen
 {
     if (segment->page_count == 0) {
         // print log when first degrade happened
-        GS_LOG_RUN_INF("btree segment degraded alloc extent, space id: %u, uid: %u, table id: %u, index id: %u.",
+        CT_LOG_RUN_INF("btree segment degraded alloc extent, space id: %u, uid: %u, table id: %u, index id: %u.",
             (uint32)segment->space_id, (uint32)segment->uid, segment->table_id, (uint32)segment->index_id);
         segment->page_count = spc_pages_by_ext_cnt(space, segment->extents.count, PAGE_TYPE_BTREE_HEAD);
     }
@@ -587,7 +386,7 @@ static inline void btree_init_find_assist(btree_t *btree, btree_path_info_t *pat
 {
     find_assist->btree = btree;
     find_assist->find_type = find_type;
-    find_assist->page_damage = GS_FALSE;
+    find_assist->page_damage = CT_FALSE;
     find_assist->page_id = INVALID_PAGID;
     find_assist->path_info = path_info;
     find_assist->scan_key = scan_key;

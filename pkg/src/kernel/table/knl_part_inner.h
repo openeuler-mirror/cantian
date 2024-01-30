@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -67,7 +67,7 @@ status_t part_lob_get_space_id(knl_session_t *session, lob_t *lob, knl_part_def_
     uint32 *space_id);
 status_t part_init_table_part_desc(knl_session_t *session, table_t *table, knl_part_def_t *def,
     uint32 part_id, knl_table_part_desc_t *desc, bool32 not_ready);
-void part_get_hash_key_variant(gs_type_t datatype, text_t *value, variant_t *variant_value, uint32 version);
+void part_get_hash_key_variant(ct_type_t datatype, text_t *value, variant_t *variant_value, uint32 version);
 uint32 part_generate_part_id(table_t *table, uint32 number);
 status_t part_check_interval_valid(part_key_t *interval_key);
 status_t part_write_sys_shadowindex_part(knl_session_t *session, knl_index_part_desc_t *desc);

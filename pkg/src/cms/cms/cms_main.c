@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,9 +22,11 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cms_log_module.h"
 #include "cm_defs.h"
 #include "cms_instance.h"
 #include "cms_cmd_imp.h"
+#include "cms_cmd_upgrade.h"
 #include "cm_timer.h"
 #include "cm_file.h"
 #include "cms_param.h"
@@ -70,15 +72,15 @@ status_t cms_init_loggers(proc_type_t proc_type)
 
     if (!cm_dir_exist(log_param->log_home) || 0 != access(log_param->log_home, W_OK | R_OK)) {
         printf("invalid log home dir:%s", log_param->log_home);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     log_param->log_backup_file_count = g_cms_param->log_backup_file_count;
     log_param->audit_backup_file_count = g_cms_param->log_backup_file_count;
     log_param->max_log_file_size = g_cms_param->max_log_file_size;
     log_param->max_audit_file_size = g_cms_param->max_log_file_size;
-    cm_log_set_file_permissions(GS_DEF_LOG_FILE_PERMISSIONS_640);
-    cm_log_set_path_permissions(GS_DEF_LOG_PATH_PERMISSIONS_750);
+    cm_log_set_file_permissions(CT_DEF_LOG_FILE_PERMISSIONS_640);
+    cm_log_set_path_permissions(CT_DEF_LOG_PATH_PERMISSIONS_750);
     log_param->log_level = g_cms_param->log_level;
 
     for (int32 i = 0; i < LOG_COUNT; i++) {
@@ -99,12 +101,12 @@ status_t cms_init_loggers(proc_type_t proc_type)
         cm_log_init(g_cms_log[i].log_id, file_name);
     }
 
-    if (cm_start_timer(g_timer()) != GS_SUCCESS) {
+    if (cm_start_timer(g_timer()) != CT_SUCCESS) {
         printf("Aborted due to starting timer thread");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 typedef int32(*cmd_pro_func_t)(int32 argc, char* argv[]);
@@ -150,6 +152,7 @@ cms_cmd_def_t    g_cms_cmd_defs[] = {
     {{"res",  "-start", "*[RESOURCE NAME]", "-node", "*[NODE_ID]"}, cms_res_start_with_node, "start a resource in a specified node"},
     {{"res",  "-stop", "*[RESOURCE NAME]"}, cms_res_stop_cmd, "stop a resource"},
     {{"res",  "-stop", "*[RESOURCE NAME]", "-node", "*[NODE_ID]"}, cms_res_stop_with_node, "stop a resource in a specified node"},
+    {{"res",  "-stop", "*[RESOURCE NAME]", "-node", "*[NODE_ID]", "-f"}, cms_res_stop_with_node_force, "stop a resource in a specified node by force"},
     {{"stat"}, cms_stat_cluster, "display the cluster's status"},
     {{"stat", "-res"}, cms_stat_res, "display the all resource's status"},
     {{"stat", "-res", "*[RESOURCE NAME]"}, cms_stat_res, "display the resource's status"},
@@ -160,8 +163,12 @@ cms_cmd_def_t    g_cms_cmd_defs[] = {
     {{"iostat"}, cms_iostat, "display message statistics."},
     {{"iostat", "-reset"}, cms_iostat_reset, "reset cms statistics."},
     {{"diskiostat"}, cms_local_disk_iostat, "display local disk io message statistics."},
+    {{"upgrade",  "-version", "*[MAIN]", "*[MAJOR]", "*[REVISION]"}, cms_upgrade, "upgrage version"},
+    {{"version"}, cms_get_version, "get upgrage version"},
+    {{"degrade",  "-version", "-force", "*[MAIN]", "*[MAJOR]", "*[REVISION]"}, cms_degrade_force, "degrage version force"},
 #ifdef DB_DEBUG_VERSION
-    {{"syncpoint", "-enable", "*[INJECTION TYPE]", "*[EXECUTION NUM]"}, cms_enable_inject, "enable specified fault injection effective"},
+    {{"syncpoint", "-enable", "*[INJECTION TYPE]", "*[EXECUTION NUM]"}, cms_enable_inject,
+        "enable specified fault injection effective"},
 #endif
 };
 
@@ -187,25 +194,43 @@ int32 cms_cmd_help(int32 argc, char* argv[])
 
         printf(",%s\n", cmd_def->desc);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cms_alloc_g_invalid_lock(void)
 {
     if (g_invalid_lock == NULL) {
         g_invalid_lock = (cms_flock_t*)cm_malloc_align(CMS_BLOCK_SIZE, sizeof(cms_flock_t));
-        GS_RETVALUE_IFTRUE((g_invalid_lock == NULL), GS_ERROR);
+        CT_RETVALUE_IFTRUE((g_invalid_lock == NULL), CT_ERROR);
         errno_t err = memset_s(g_invalid_lock, sizeof(cms_flock_t), 0, sizeof(cms_flock_t));
         if (err != EOK) {
             CM_FREE_PTR(g_invalid_lock);
             printf("memset_s failed, err %d, errno %d[%s].\n", err, errno, strerror(errno));
-            return GS_ERROR;
+            return CT_ERROR;
         }
         g_invalid_lock->magic = CMS_STAT_LOCK_MAGIC;
         g_invalid_lock->node_id = (uint8)-1;
         g_invalid_lock->lock_time = 0;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+status_t cms_alloc_g_master_info(void)
+{
+    if (g_master_info == NULL) {
+        g_master_info = (cms_master_info_t*)cm_malloc_align(CMS_BLOCK_SIZE, sizeof(cms_master_info_t));
+        CT_RETVALUE_IFTRUE((g_master_info == NULL), CT_ERROR);
+        errno_t err = memset_s(g_master_info, sizeof(cms_master_info_t), 0, sizeof(cms_master_info_t));
+        if (err != EOK) {
+            CM_FREE_PTR(g_master_info);
+            printf("memset_s failed, err %d, errno %d[%s].\n", err, errno, strerror(errno));
+            return CT_ERROR;
+        }
+        g_master_info->magic = CMS_MASTER_INFO_MAGIC;
+        g_master_info->node_id = (uint8)-1;
+        g_master_info->lock_time = 0;
+    }
+    return CT_SUCCESS;
 }
 
 static void cms_info_log_print(cms_cmd_def_t* cmd_def)
@@ -213,11 +238,12 @@ static void cms_info_log_print(cms_cmd_def_t* cmd_def)
     if (cmd_def->cmd_pro_func == cms_local_disk_iostat || cmd_def->cmd_pro_func == cms_node_connected) {
         return;
     }
-    GS_LOG_RUN_INF("CMS NODE_ID:%d", (int32)g_cms_param->node_id);
-    GS_LOG_RUN_INF("CMS CMS_HOME:%s", g_cms_param->cms_home);
-    GS_LOG_RUN_INF("CMS GCC_HOME:%s", g_cms_param->gcc_home);
-    GS_LOG_RUN_INF("CMS GCC_TYPPE:%s", g_cms_param->gcc_type == CMS_DEV_TYPE_SD ? "SD" : "FILE");
-    GS_LOG_RUN_INF("CMS CMD: %s", cmd_def->desc);
+    CT_LOG_RUN_INF("CMS NODE_ID:%d", (int32)g_cms_param->node_id);
+    CT_LOG_RUN_INF("CMS CMS_HOME:%s", g_cms_param->cms_home);
+    CT_LOG_RUN_INF("CMS GCC_HOME:%s", g_cms_param->gcc_home);
+    CT_LOG_RUN_INF("CMS GCC_TYPPE:%s", g_cms_param->gcc_type == CMS_DEV_TYPE_SD ? "SD" :
+        (g_cms_param->gcc_type == CMS_DEV_TYPE_FILE ? "FILE" : "NFS"));
+    CT_LOG_RUN_INF("CMS CMD: %s", cmd_def->desc);
 }
 
 EXTER_ATTACK int32 main(int32 argc, char *argv[])
@@ -249,31 +275,43 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
 
     if (i == cmd_count) {
         printf("invalid argument\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    GS_RETURN_IFERR(cms_load_param());
+    CT_RETURN_IFERR(cms_load_param());
     if (cmd_def->cmd_pro_func == cms_server_start) {
-        GS_RETURN_IFERR(cms_init_loggers(CMS_SERVER));
+        CT_RETURN_IFERR(cms_init_loggers(CMS_SERVER));
     } else {
-        GS_RETURN_IFERR(cms_init_loggers(CMS_TOOLS));
+        CT_RETURN_IFERR(cms_init_loggers(CMS_TOOLS));
     }
 
     cms_info_log_print(cmd_def);
-    int32 ret = GS_ERROR;
+    int32 ret = CT_ERROR;
     do {
-        if (cms_alloc_g_invalid_lock() != GS_SUCCESS) {
+        if (cm_file_exist(g_cms_param->gcc_home) != CT_TRUE) {
+            printf("gcc file is not exist.\n");
+            CMS_LOG_ERR("gcc file is not exist.");
+            break;
+        }
+
+        if (cms_alloc_g_invalid_lock() != CT_SUCCESS) {
             printf("alloc global invalid lock failed.\n");
             CMS_LOG_ERR("alloc global invalid lock failed.");
             break;
         }
 
-        if (cms_init_gcc_disk_lock() != GS_SUCCESS) {
+        if (cms_alloc_g_master_info() != CT_SUCCESS) {
+            printf("alloc global master info failed.\n");
+            CMS_LOG_ERR("alloc global master info failed.");
+            break;
+        }
+
+        if (cms_init_gcc_disk_lock() != CT_SUCCESS) {
             printf("initialize gcc disk lock failed.\n");
             CMS_LOG_ERR("initialize gcc disk lock failed.");
             break;
         }
 
-        if (cms_uds_cli_init(g_cms_param->node_id, g_cms_param->cms_home) != GS_SUCCESS) {
+        if (cms_uds_cli_init(g_cms_param->node_id, g_cms_param->cms_home) != CT_SUCCESS) {
             printf("initialize uds client failed.\n");
             CMS_LOG_ERR("initialize uds client failed.");
             break;

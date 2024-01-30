@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,8 +34,8 @@ extern "C" {
 status_t pcrb_fetch(knl_handle_t handle, knl_cursor_t *cursor);
 status_t pcrb_fetch_depended(knl_session_t *session, knl_cursor_t *cursor);
 
-int32 pcrb_cmp_column(gs_type_t datatype, knl_scan_key_t *scan_key, uint32 idx_col_id, pcrb_key_t *key, uint16 *offset,
-                      bool8 null_first);
+int32 pcrb_cmp_column(ct_type_t datatype, knl_scan_key_t *scan_key, uint32 idx_col_id, pcrb_key_t *key, uint16 *offset,
+                      bool8 null_first, uint16 collate_id);
 int32 pcrb_compare_key(index_profile_t *profile, knl_scan_key_t *scan_key, pcrb_key_t *key, bool32 cmp_rowid,
                        bool32 *is_same);
 void pcrb_binary_search(index_profile_t *profile, btree_page_t *page, knl_scan_key_t *scan_key,

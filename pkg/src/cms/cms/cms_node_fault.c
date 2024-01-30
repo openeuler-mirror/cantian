@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cms_log_module.h"
 #include "cms_node_fault.h"
 #include "cms_param.h"
 #include "cms_uds_server.h"
@@ -38,10 +39,11 @@ cms_hb_mgr_t *g_cms_hb_manager = &g_cms_hb_mgr;
 
 void cms_hb_counter_update(cms_packet_head_t *head)
 {
-    status_t ret = GS_SUCCESS;
-    CMS_SYNC_POINT_GLOBAL_START(CMS_SEND_HEARTBEAT_MESSAGE_FAIL, &ret, GS_ERROR);
+    status_t ret = CT_SUCCESS;
+    CMS_SYNC_POINT_GLOBAL_START(CMS_SEND_HEARTBEAT_MESSAGE_FAIL, &ret, CT_ERROR);
     CMS_SYNC_POINT_GLOBAL_END;
-    if (ret != GS_SUCCESS) {
+    
+    if (ret != CT_SUCCESS) {
         return;
     }
 
@@ -62,7 +64,7 @@ void cms_res_offline_broadcast(uint32 offline_node)
     cms_res_t res = {0};
     CMS_LOG_INF("cms res offline node, node id %u", offline_node);
     for (uint32 res_id = 0; res_id < CMS_MAX_RESOURCE_COUNT; res_id++) {
-        if (cms_get_res_by_id(res_id, &res) != GS_SUCCESS) {
+        if (cms_get_res_by_id(res_id, &res) != CT_SUCCESS) {
             continue;
         }
         cms_stat_chg_notify_to_cms(res_id, 0);
@@ -73,43 +75,48 @@ status_t cms_node_all_res_offline(uint32 node_id, bool32 *stat_changed)
 {
     cms_res_t res;
     for (uint32 res_id = 0; res_id < CMS_MAX_RESOURCE_COUNT; res_id++) {
-        if (cms_get_res_by_id(res_id, &res) != GS_SUCCESS) {
+        if (cms_get_res_by_id(res_id, &res) != CT_SUCCESS) {
             continue;
         }
 
         CMS_LOG_INF("Update res[%u:%u:%s]", node_id, res_id, res.name);
         cms_res_stat_t *stat;
-        bool32 is_changed = GS_FALSE;
+        bool32 is_changed = CT_FALSE;
         CMS_SYNC_POINT_GLOBAL_START(CMS_RES_OTHER_TO_OFFLINE_ABORT, NULL, 0);
         CMS_SYNC_POINT_GLOBAL_END;
+        cm_thread_lock(&g_node_lock[node_id]);
         if (cms_disk_lock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_WAIT_TIMEOUT, DISK_LOCK_WRITE) !=
-            GS_SUCCESS) {
+            CT_SUCCESS) {
             CMS_LOG_ERR("cms_disk_lock timeout.");
-            return GS_ERROR;
+            cm_thread_unlock(&g_node_lock[node_id]);
+            return CT_ERROR;
         }
-        if (cms_stat_read_from_disk(node_id, res_id, &stat) != GS_SUCCESS) {
+        if (cms_stat_read_from_disk(node_id, res_id, &stat) != CT_SUCCESS) {
             cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id]);
             CMS_LOG_ERR("cms_stat_read_from_disk failed.");
-            return GS_ERROR;
+            cm_thread_unlock(&g_node_lock[node_id]);
+            return CT_ERROR;
         }
         cms_stat_set(stat, CMS_RES_OFFLINE, &is_changed);
-        if (cms_stat_write_to_disk(node_id, res_id, stat) != GS_SUCCESS) {
+        if (cms_stat_write_to_disk(node_id, res_id, stat) != CT_SUCCESS) {
             cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id]);
             CMS_LOG_ERR("cms_stat_write_to_disk failed.");
-            return GS_ERROR;
+            cm_thread_unlock(&g_node_lock[node_id]);
+            return CT_ERROR;
         }
         cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id]);
         *stat_changed |= is_changed;
+        cm_thread_unlock(&g_node_lock[node_id]);
     }
     CMS_SYNC_POINT_GLOBAL_START(CMS_SET_OTHER_NODE_OFFLINE_BEFORE_INCVER_ABORT, NULL, 0);
     CMS_SYNC_POINT_GLOBAL_END;
     
-    if (inc_stat_version() != GS_SUCCESS) {
+    if (inc_stat_version() != CT_SUCCESS) {
         CMS_LOG_ERR("cms inc stat version fialed");
-        return GS_ERROR;
+        return CT_ERROR;
     }
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -117,9 +124,9 @@ bool32 is_node_in_cluster(uint32 node_id)
 {
     vote_result_ctx_t *vote_result = get_current_vote_result();
     if (!cms_bitmap64_exist(vote_result, node_id)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void cms_hb_lost_handle(uint32 node_id)
@@ -129,7 +136,7 @@ void cms_hb_lost_handle(uint32 node_id)
     atomic_t lost_cnt = cm_atomic_inc(&stat->lost_cnt);
 
     if (g_cms_param->split_brain == CMS_OPEN_WITHOUT_SPLIT_BRAIN) {
-        bool32 is_master = GS_FALSE;
+        bool32 is_master = CT_FALSE;
         CMS_RETRY_IF_ERR(cms_is_master(&is_master));
         if (!is_master) {
             return;
@@ -158,8 +165,8 @@ void cms_hb_lost_handle(uint32 node_id)
         CMS_LOG_DEBUG_INF("Detect lost hearbeat and trigger voting");
         cms_trigger_voting();
     } else {
-        bool32 stat_changed = GS_FALSE;
-        if (cms_node_all_res_offline(node_id, &stat_changed) != GS_SUCCESS) {
+        bool32 stat_changed = CT_FALSE;
+        if (cms_node_all_res_offline(node_id, &stat_changed) != CT_SUCCESS) {
             CMS_LOG_ERR("Update node stat fail");
             return;
         }

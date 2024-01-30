@@ -1,4 +1,4 @@
-create database clustered dbstor
+create database clustered dbstor archivelog
     character set utf8
     controlfile('-ctrl1', '-ctrl2', '-ctrl3')
     system     tablespace      datafile '-sys.dat'          size 128M autoextend on next 32M

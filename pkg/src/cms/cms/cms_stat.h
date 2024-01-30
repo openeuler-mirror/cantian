@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -44,6 +44,7 @@ extern "C" {
 #endif
 typedef struct st_cms_res_session {
     thread_lock_t       lock;
+    thread_lock_t       uds_lock;
     socket_t            uds_sock;
     cms_cli_type_t      type;
 }cms_res_session_t;
@@ -64,12 +65,14 @@ typedef struct st_cms_hb_aync_start_t {
 #define CMS_RES_DATA_DISK_SIZE      SIZE_M(32)
 
 #define CMS_RES_LOCK_OFFSET         (CMS_RES_DATA_OFFSET + sizeof(cms_cluster_res_data_t) + CMS_RESERVED_BLOCKS_SIZE)
+#define CMS_MES_CHANNEL_OFFSET      (CMS_RES_LOCK_OFFSET + sizeof(cms_cluster_res_lock_t))
 #define CMS_RES_LOCK_DISK_SIZE      SIZE_M(32)
 
 #define CMS_STAT_HEAD_MAGIC         (*((uint64*)"STATHEAD"))
 #define CMS_RES_DATA_MAGIC          (*((uint64*)"RES_DATA"))
 #define CMS_RES_STAT_MAGIC          (*((uint64*)"RES_STAT"))
 #define CMS_REFORMER_MAGIC          (*((uint64*)"REFORMER"))
+#define CMS_CHANNEL_VERSION_MAGIC   (*((uint64*)"CHANNEL_VER"))
 
 #define STAT_LOCK_WAIT_TIMEOUT    5000
 #define CMS_WAIT_RES_JOINED_INTERNAL 1000
@@ -82,6 +85,28 @@ typedef struct st_cms_hb_aync_start_t {
 #define CMS_RETRY_SLEEP_TIME 100
 #define CMS_HB_AYNC_UPDATE_INTERNAL 5000
 #define CMS_CHECK_RES_RUNING_TIMES 10
+
+// range lock defs for nfs
+#define CMS_RLOCK_VOTE_RESULT_LOCK_START    (0)
+#define CMS_RLOCK_VOTE_RESULT_LOCK_LEN      (sizeof(vote_result_ctx_t))
+#define CMS_RLOCK_VOTE_INFO_LOCK_START      (0)
+#define CMS_RLOCK_VOTE_INFO_LOCK_LEN        (0)
+#define CMS_VOTE_DATA_ADDR(node_id, slot_id) \
+    ((uint64)(&(((cms_cluster_vote_data_t*)NULL)->vote_data[node_id][slot_id])))
+#define CMS_RLOCK_VOTE_DATA_LOCK_START(node_id, slot_id) CMS_VOTE_DATA_ADDR(node_id, slot_id)
+#define CMS_RLOCK_VOTE_DATA_LOCK_LEN        (sizeof(cms_vote_data_t))
+
+#define CMS_ERROR_DETECT_START                          0
+#define CMS_RLOCK_MASTER_LOCK_START                     0
+#define CMS_RLOCK_MASTER_LOCK_LEN                       CMS_BLOCK_SIZE
+#define CMS_RLOCK_STAT_LOCK_START                       CMS_CLUSTER_STAT_OFFSET
+#define CMS_RLOCK_STAT_LOCK_LEN                         (sizeof(cms_cluster_stat_head_t))
+#define CMS_RLOCK_RES_START_LOCK_START                  CMS_RES_START_LOCK_POS
+#define CMS_RLOCK_RES_START_LOCK_LEN                    CMS_BLOCK_SIZE
+#define CMS_RLOCK_RES_DATA_LOCK_START(res_id, slot_id)  CMS_RES_DATA_GCC_OFFSET(res_id, slot_id)
+#define CMS_RLOCK_RES_DATA_LOCK_LEN                     sizeof(cms_res_data_t)
+#define CMS_RLOCK_RES_STAT_LOCK_START(node_id, res_id)  CMS_RES_STAT_POS(node_id, res_id)
+#define CMS_RLOCK_RES_STAT_LOCK_LEN                     (sizeof(cms_res_stat_t))
 
 #define CMS_RETRY_IF_ERR(func)          \
     while (func) {                      \
@@ -211,6 +236,20 @@ CM_STATIC_ASSERT(CMS_RES_DATA_DISK_SIZE > sizeof(cms_cluster_res_data_t));
 #define CMS_RES_DATA_ADDR(res_id, slot_id) ((uint64)(&(((cms_cluster_res_data_t*)NULL)->res_data[res_id][slot_id])))
 #define CMS_RES_DATA_GCC_OFFSET(res_id, slot_id) (CMS_RES_DATA_OFFSET + CMS_RES_DATA_ADDR(res_id, slot_id))
 
+typedef union st_channel_info_t {
+    struct {
+        uint64      magic;
+        uint64      channel_version;
+    };
+    char    placeholder[CMS_BLOCK_SIZE];
+}cms_channel_info_t;
+
+typedef struct st_cms_mes_channel_t {
+    cms_channel_info_t  channel_info[CMS_MAX_NODE_COUNT];
+}cms_mes_channel_t;
+
+extern thread_lock_t g_node_lock[CMS_MAX_NODE_COUNT];
+extern cms_res_session_t g_res_session[CMS_MAX_UDS_SESSION_COUNT];
 status_t cms_init_stat(void);
 status_t cms_lock_stat(uint8 lock_type);
 status_t cms_unlock_stat(void);
@@ -218,6 +257,7 @@ status_t cms_unlock_stat(void);
 status_t cms_res_init(uint32 res_id, uint32 timeout_ms);
 status_t cms_res_start(uint32 res_id, uint32 timeout_ms);
 status_t cms_res_stop(uint32 res_id, uint8 need_write_disk);
+status_t cms_res_stop_by_force(uint32 res_id, uint8 need_write_disk);
 status_t cms_res_check(uint32 res_id, bool32 *res_running);
 status_t cms_res_reset(uint32 res_id);
 
@@ -243,6 +283,7 @@ status_t cms_stat_get_res_data(const char* res_type, uint32 slot_id, char* data,
     uint32* data_size, uint64* data_version);
 status_t cms_stat_set_res_data(const char* res_type, uint32 slot_id, char* data, uint32 data_size, uint64 old_version);
 void cms_stat_update_restart_attr(uint32 res_id);
+void cms_stat_reset_restart_attr(uint32 res_id);
 status_t cms_get_stat_version_ex(uint64 version, cms_res_status_list_t* stat);
 status_t cms_get_cluster_res_list(uint32 res_id, cms_res_status_list_t *stat);
 
@@ -266,6 +307,8 @@ status_t cms_update_disk_hb(void);
 status_t cms_is_all_restart(bool32 *all_restart);
 status_t cms_init_vote_info(void);
 bool32 cms_try_be_new_master(void);
+status_t cms_vote_file_init(void);
+status_t cms_res_lock_init(void);
 status_t cms_get_start_lock(cms_disk_lock_t *lock, bool32 *cms_get_lock);
 void cms_record_io_aync_hb_gap_end(biqueue_node_t *node_hb_aync, io_record_stat_t stat);
 status_t cms_get_res_start_lock(uint32 res_id);
@@ -277,6 +320,8 @@ status_t cms_server_stat(uint32 node_id, bool32* cms_online);
 status_t cms_get_node_view(uint64* cms_online_bitmap);
 status_t cms_check_res_running(uint32 res_id);
 
+status_t cms_init_mes_channel_version(void);
+status_t cms_get_mes_channel_version(uint64* version);
 #ifdef __cplusplus
 }
 #endif

@@ -22,11 +22,13 @@ function use_cstool_query_connection()
             sleep 1s
         else
             #链路数量不小于2
+            echo "0"
             exit 0
         fi
     done
  
     #链路数量小于2
+    echo "1"
     exit 1
 }
  

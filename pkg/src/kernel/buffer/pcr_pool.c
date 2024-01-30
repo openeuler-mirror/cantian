@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_buffer_module.h"
 #include "pcr_pool.h"
 #include "knl_context.h"
 #include "knl_interface.h"
@@ -248,7 +249,7 @@ static inline void pcrp_remove_from_bucket(pcrp_bucket_t *bucket, pcrp_ctrl_t *c
 
     ctrl->hash_prev = NULL;
     ctrl->hash_next = NULL;
-    ctrl->bucket_id = GS_INVALID_ID32;
+    ctrl->bucket_id = CT_INVALID_ID32;
     bucket->count--;
 }
 
@@ -272,7 +273,7 @@ static pcrp_ctrl_t *pcrp_recycle(knl_session_t *session, pcrp_set_t *ctx)
      * we shift the ctrl to the head.
      */
     for (i = 0; i < ctx->count; i++) {
-        if (item->bucket_id == GS_INVALID_ID32) {
+        if (item->bucket_id == CT_INVALID_ID32) {
             break;
         }
 
@@ -393,7 +394,7 @@ void pcrp_enter_page(knl_session_t *session, page_id_t page_id, knl_scn_t scn, u
     cm_spin_lock(&bucket->lock, &session->stat->spin_stat.stat_pcr_bucket);
     ctrl = pcrp_find_from_bucket(session, set, bucket, page_id, scn, ssn);
     if (ctrl) {
-        ctrl->recyclable = GS_FALSE;
+        ctrl->recyclable = CT_FALSE;
         cm_spin_unlock(&bucket->lock);
 
         session->curr_cr_page = (char *)ctrl->page;
@@ -417,8 +418,8 @@ static pcrp_ctrl_t *pcrp_try_alloc_ctrl_from_bucket(pcrp_bucket_t *bucket, page_
     pcrp_ctrl_t *item = bucket->first;
     pcrp_ctrl_t *oldest = NULL;
     uint32 page_count = 0;
-    knl_scn_t min_scn = GS_INVALID_ID64;
-    bool8 has_same_page = GS_FALSE;
+    knl_scn_t min_scn = CT_INVALID_ID64;
+    bool8 has_same_page = CT_FALSE;
 
     while (item != NULL) {
         /* find the oldest same page on this bucket */
@@ -428,7 +429,7 @@ static pcrp_ctrl_t *pcrp_try_alloc_ctrl_from_bucket(pcrp_bucket_t *bucket, page_
                 oldest = item;
             }
             page_count++;
-            has_same_page = GS_TRUE;
+            has_same_page = CT_TRUE;
         }
 
         if (!IS_SAME_PAGID(item->page_id, page_id) && has_same_page) {
@@ -456,7 +457,7 @@ void pcrp_alloc_page(knl_session_t *session, page_id_t page_id, knl_scn_t scn, u
     pcrp_set_t *set = NULL;
     pcrp_bucket_t *bucket = NULL;
     pcrp_ctrl_t *ctrl = NULL;
-    bool8 from_bucket = GS_TRUE;
+    bool8 from_bucket = CT_TRUE;
     uint32 pool_id;
     uint32 hash_id;
 
@@ -474,7 +475,7 @@ void pcrp_alloc_page(knl_session_t *session, page_id_t page_id, knl_scn_t scn, u
     if (ctrl == NULL) {
         cm_spin_unlock(&bucket->lock);
         ctrl = pcrp_alloc_ctrl(session, set);
-        from_bucket = GS_FALSE;
+        from_bucket = CT_FALSE;
     }
 
     ctrl->rmid = session->rmid;
@@ -483,7 +484,7 @@ void pcrp_alloc_page(knl_session_t *session, page_id_t page_id, knl_scn_t scn, u
     ctrl->ssn = ssn;
     ctrl->pool_id = pool_id;
     ctrl->bucket_id = hash_id;
-    ctrl->recyclable = GS_FALSE;
+    ctrl->recyclable = CT_FALSE;
 
     /*
      * need to add ctrl from bucket to bucket and lru list
@@ -534,7 +535,7 @@ void pcrp_leave_page(knl_session_t *session, bool32 release)
             cm_spin_unlock(&set->lock);
         } else {
             cm_spin_lock(&bucket->lock, &session->stat->spin_stat.stat_pcr_bucket);
-            ctrl->recyclable = GS_TRUE;
+            ctrl->recyclable = CT_TRUE;
             cm_spin_unlock(&bucket->lock);
         }
 

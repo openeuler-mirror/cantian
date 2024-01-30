@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,6 +31,7 @@
 #include "mes_func.h"
 #include "knl_heap.h"
 #include "knl_dc.h"
+#include "knl_db_ctrl.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -132,9 +133,14 @@ typedef struct st_msg_user_stat_t {
     uint32 user_locked_owner;
 } msg_user_stat_t;
 
+typedef struct st_msg_broadcast_upgrade_version_t {
+    mes_message_head_t head;
+    ctrl_version_t version;
+} msg_broadcast_upgrade_version_t;
+
 status_t dtc_sync_ddl_redo(knl_handle_t knl_session, char *redo, uint32 redo_size);
 status_t dtc_sync_ddl(knl_handle_t knl_session);
-void dtc_refresh_ddl(knl_session_t *session, log_entry_t *log);
+status_t dtc_refresh_ddl(knl_session_t *session, log_entry_t *log);
 status_t dtc_broadcast_btree_split(knl_session_t *session, btree_t *btree, knl_part_locate_t part_loc,
                                    bool32 is_splitted);
 status_t dtc_broadcast_heap_extend(knl_session_t *session, heap_t *heap, knl_part_locate_t part_loc);
@@ -156,11 +162,17 @@ void db_clean_ddl_op_garbage(knl_session_t *session);
 
 status_t dtc_modify_drop_uid(knl_session_t *knl_session, uint32 uid);
 status_t dtc_try_clean_user_lock(knl_session_t *knl_session, dc_user_t *dc_user);
-void dtc_process_get_user_lock_status(knl_session_t *session, mes_message_t *req_msg, char *data);
+EXTER_ATTACK void dtc_process_get_user_lock_status(knl_session_t *session, mes_message_t *req_msg, char *data);
 status_t dtc_process_btree_splitting(knl_session_t *session, char *data, uint8 src_inst);
+void dtc_process_btree_split_status(knl_session_t *session, mes_message_t *req_msg, char *data);
 status_t dtc_process_heap_extend(knl_session_t *session, char *data, uint8 src_inst);
+void dtc_process_heap_extend_status(knl_session_t *session, mes_message_t *req_msg, char *data);
+void dtc_process_user_status(knl_session_t *session, char *data);
+EXTER_ATTACK void dtc_process_invalidate_dc(knl_session_t *session, char *data);
 void dtc_broadcast_data_send_ack(knl_session_t *session, mes_message_t *msg, status_t process_ret);
 status_t dtc_sync_ddl_internal(knl_handle_t knl_session, char *logic_log_buf, uint32 logic_log_size);
+status_t dtc_sync_upgrade_ctrl_version(knl_handle_t knl_session);
+void dtc_process_upgrade_ctrl_version(void *sess, mes_message_t *msg);
 #ifdef __cplusplus
 }
 #endif

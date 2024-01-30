@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_common_module.h"
 #include "knl_sort_page.h"
 #include "knl_common.h"
 
@@ -68,8 +69,8 @@ static status_t mtrl_sort_move_left(mtrl_context_t *ctx, mtrl_segment_t *segment
 
     while (*l_ind <= r_ind) {
         row_l = MTRL_GET_ROW(page, *l_ind);
-        if (ctx->sort_cmp(segment, row_l, pivot, &result) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_l, pivot, &result) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (result > 0) {
             break;
@@ -78,7 +79,7 @@ static status_t mtrl_sort_move_left(mtrl_context_t *ctx, mtrl_segment_t *segment
         (*l_ind)++;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t mtrl_sort_move_right(mtrl_context_t *ctx, mtrl_segment_t *segment, mtrl_page_t *page,
@@ -89,8 +90,8 @@ static status_t mtrl_sort_move_right(mtrl_context_t *ctx, mtrl_segment_t *segmen
 
     while (l_ind < *r_ind) {
         row_r = MTRL_GET_ROW(page, *r_ind);
-        if (ctx->sort_cmp(segment, row_r, pivot, &result) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_r, pivot, &result) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (result <= 0) {
             break;
@@ -99,7 +100,7 @@ static status_t mtrl_sort_move_right(mtrl_context_t *ctx, mtrl_segment_t *segmen
         (*r_ind)--;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void mtrl_swap_dir(mtrl_page_t *page, int32 id1, int32 id2)
@@ -132,15 +133,15 @@ static status_t mtrl_sort_span(mtrl_context_t *ctx, mtrl_segment_t *segment, mtr
     r_ind = span->right;
 
     while (l_ind <= r_ind) {
-        if (mtrl_sort_move_left(ctx, segment, page, pivot, r_ind, &l_ind) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (mtrl_sort_move_left(ctx, segment, page, pivot, r_ind, &l_ind) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (l_ind >= r_ind) {
             break;
         }
 
-        if (mtrl_sort_move_right(ctx, segment, page, pivot, l_ind, &r_ind) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (mtrl_sort_move_right(ctx, segment, page, pivot, l_ind, &r_ind) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (l_ind >= r_ind) {
             break;
@@ -154,13 +155,13 @@ static status_t mtrl_sort_span(mtrl_context_t *ctx, mtrl_segment_t *segment, mtr
 
     *new_ind = l_ind - 1;
     if (l_ind == span->left + 1) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     mtrl_swap_dir(page, *new_ind, span->left);
     MTRL_PRINT_PAGE(ctx, segment, page);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // quick sort by Double-End Scanning and Swapping
@@ -171,7 +172,7 @@ status_t mtrl_sort_page(mtrl_context_t *ctx, mtrl_segment_t *segment, mtrl_page_
     qsort_span_t span;
 
     if (page->rows <= 1) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     stack.depth = 0;
@@ -179,8 +180,8 @@ status_t mtrl_sort_page(mtrl_context_t *ctx, mtrl_segment_t *segment, mtrl_page_
 
     while (stack.depth > 0) {
         span = QSORT_CURR(&stack);
-        if (mtrl_sort_span(ctx, segment, page, &span, &new_ind) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (mtrl_sort_span(ctx, segment, page, &span, &new_ind) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         QSORT_POP(&stack);
 
@@ -193,7 +194,7 @@ status_t mtrl_sort_page(mtrl_context_t *ctx, mtrl_segment_t *segment, mtrl_page_
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 //         Sorted              unknown
@@ -219,8 +220,8 @@ static status_t mtrl_binary_insert_sort(mtrl_context_t *ctx, mtrl_segment_t *seg
         tmp_right = i - 1;
         row_i = MTRL_GET_ROW(page, i);
         row_right = MTRL_GET_ROW(page, tmp_right);
-        if (ctx->sort_cmp(segment, row_right, row_i, &cmp) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_right, row_i, &cmp) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (cmp <= 0) {
             continue;
@@ -229,8 +230,8 @@ static status_t mtrl_binary_insert_sort(mtrl_context_t *ctx, mtrl_segment_t *seg
         while (tmp_left <= tmp_right) {
             mid = (tmp_left + tmp_right) / 2;
             row_mid = MTRL_GET_ROW(page, mid);
-            if (ctx->sort_cmp(segment, row_mid, row_i, &cmp) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (ctx->sort_cmp(segment, row_mid, row_i, &cmp) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             if (cmp > 0) {
                 tmp_right = mid - 1;
@@ -250,7 +251,7 @@ static status_t mtrl_binary_insert_sort(mtrl_context_t *ctx, mtrl_segment_t *seg
         dir = MTRL_GET_DIR(page, tmp_left);
         *dir = dir_i;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t mtrl_five_points_check_equal(mtrl_context_t *ctx, mtrl_segment_t *segment, mtrl_page_t *page,
@@ -259,40 +260,40 @@ static status_t mtrl_five_points_check_equal(mtrl_context_t *ctx, mtrl_segment_t
     int32 cmp = 0;
     char *row_l = MTRL_GET_ROW(page, e1);
     char *row_r = MTRL_GET_ROW(page, e2);
-    if (ctx->sort_cmp(segment, row_l, row_r, &cmp) != GS_SUCCESS) { // e1 & e2
-        return GS_ERROR;
+    if (ctx->sort_cmp(segment, row_l, row_r, &cmp) != CT_SUCCESS) { // e1 & e2
+        return CT_ERROR;
     }
     if (cmp == 0) {
-        *equal = GS_TRUE;
-        return GS_SUCCESS;
+        *equal = CT_TRUE;
+        return CT_SUCCESS;
     }
 
     row_l = MTRL_GET_ROW(page, e3);
-    if (ctx->sort_cmp(segment, row_l, row_r, &cmp) != GS_SUCCESS) { // e2 & e3
-        return GS_ERROR;
+    if (ctx->sort_cmp(segment, row_l, row_r, &cmp) != CT_SUCCESS) { // e2 & e3
+        return CT_ERROR;
     }
     if (cmp == 0) {
-        *equal = GS_TRUE;
-        return GS_SUCCESS;
+        *equal = CT_TRUE;
+        return CT_SUCCESS;
     }
 
     row_r = MTRL_GET_ROW(page, e4);
-    if (ctx->sort_cmp(segment, row_l, row_r, &cmp) != GS_SUCCESS) { // e3 & e4
-        return GS_ERROR;
+    if (ctx->sort_cmp(segment, row_l, row_r, &cmp) != CT_SUCCESS) { // e3 & e4
+        return CT_ERROR;
     }
     if (cmp == 0) {
-        *equal = GS_TRUE;
-        return GS_SUCCESS;
+        *equal = CT_TRUE;
+        return CT_SUCCESS;
     }
 
     row_l = MTRL_GET_ROW(page, e5);
-    if (ctx->sort_cmp(segment, row_l, row_r, &cmp) != GS_SUCCESS) { // e4 & e5
-        return GS_ERROR;
+    if (ctx->sort_cmp(segment, row_l, row_r, &cmp) != CT_SUCCESS) { // e4 & e5
+        return CT_ERROR;
     }
     if (cmp == 0) {
-        *equal = GS_TRUE;
+        *equal = CT_TRUE;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t mtrl_adaptive_dual_pivots_swap(mtrl_context_t *ctx, mtrl_segment_t *segment, mtrl_page_t *page,
@@ -304,8 +305,8 @@ static status_t mtrl_adaptive_dual_pivots_swap(mtrl_context_t *ctx, mtrl_segment
 
     for (int32 k = *less; k <= *great; k++) {
         row_k = MTRL_GET_ROW(page, k);
-        if (ctx->sort_cmp(segment, row_k, pivot1, &cmp1) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_k, pivot1, &cmp1) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (cmp1 < 0) {
             mtrl_swap_dir(page, k, *less);
@@ -313,28 +314,28 @@ static status_t mtrl_adaptive_dual_pivots_swap(mtrl_context_t *ctx, mtrl_segment
             continue;
         }
 
-        if (ctx->sort_cmp(segment, row_k, pivot2, &cmp2) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_k, pivot2, &cmp2) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (cmp2 <= 0) {
             continue;
         }
 
         row_g = MTRL_GET_ROW(page, *great);
-        if (ctx->sort_cmp(segment, row_g, pivot2, &cmp2) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_g, pivot2, &cmp2) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         while (cmp2 > 0) {
             if ((*great)-- == k) {
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
             row_g = MTRL_GET_ROW(page, *great);
-            if (ctx->sort_cmp(segment, row_g, pivot2, &cmp2) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (ctx->sort_cmp(segment, row_g, pivot2, &cmp2) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
-        if (ctx->sort_cmp(segment, row_g, pivot1, &cmp1) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_g, pivot1, &cmp1) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         mtrl_swap_dir(page, k, *great);
         if (cmp1 < 0) {
@@ -344,7 +345,7 @@ static status_t mtrl_adaptive_dual_pivots_swap(mtrl_context_t *ctx, mtrl_segment
 
         (*great)--;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t mtrl_adaptive_dual_pivots_center_swap(mtrl_context_t *ctx, mtrl_segment_t *segment, mtrl_page_t *page,
@@ -356,8 +357,8 @@ static status_t mtrl_adaptive_dual_pivots_center_swap(mtrl_context_t *ctx, mtrl_
 
     for (int32 k = *less; k <= *great; k++) {
         row_k = MTRL_GET_ROW(page, k);
-        if (ctx->sort_cmp(segment, row_k, pivot1, &cmp1) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_k, pivot1, &cmp1) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (cmp1 == 0) {
             mtrl_swap_dir(page, k, *less);
@@ -365,28 +366,28 @@ static status_t mtrl_adaptive_dual_pivots_center_swap(mtrl_context_t *ctx, mtrl_
             continue;
         }
 
-        if (ctx->sort_cmp(segment, row_k, pivot2, &cmp2) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_k, pivot2, &cmp2) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (cmp2 != 0) {
             continue;
         }
 
         row_g = MTRL_GET_ROW(page, *great);
-        if (ctx->sort_cmp(segment, row_g, pivot2, &cmp2) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_g, pivot2, &cmp2) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         while (cmp2 == 0) {
             if ((*great)-- == k) {
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
             row_g = MTRL_GET_ROW(page, *great);
-            if (ctx->sort_cmp(segment, row_g, pivot2, &cmp2) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (ctx->sort_cmp(segment, row_g, pivot2, &cmp2) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
-        if (ctx->sort_cmp(segment, row_g, pivot1, &cmp1) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_g, pivot1, &cmp1) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         mtrl_swap_dir(page, k, *great);
@@ -396,7 +397,7 @@ static status_t mtrl_adaptive_dual_pivots_center_swap(mtrl_context_t *ctx, mtrl_
         }
         (*great)--;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t mtrl_adaptive_dual_pivots_center(mtrl_context_t *ctx, mtrl_segment_t *segment, mtrl_page_t *page,
@@ -407,26 +408,26 @@ static status_t mtrl_adaptive_dual_pivots_center(mtrl_context_t *ctx, mtrl_segme
     int32 cmp1, cmp2;
 
     row_less = MTRL_GET_ROW(page, *less);
-    if (ctx->sort_cmp(segment, row_less, pivot1, &cmp1) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ctx->sort_cmp(segment, row_less, pivot1, &cmp1) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     while (cmp1 == 0) {
         (*less)++;
         row_less = MTRL_GET_ROW(page, *less);
-        if (ctx->sort_cmp(segment, row_less, pivot1, &cmp1) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_less, pivot1, &cmp1) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     row_great = MTRL_GET_ROW(page, *great);
-    if (ctx->sort_cmp(segment, row_great, pivot2, &cmp2) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ctx->sort_cmp(segment, row_great, pivot2, &cmp2) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     while (cmp2 == 0) {
         (*great)--;
         row_great = MTRL_GET_ROW(page, *great);
-        if (ctx->sort_cmp(segment, row_great, pivot2, &cmp2) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_great, pivot2, &cmp2) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
     return mtrl_adaptive_dual_pivots_center_swap(ctx, segment, page, pivot1, pivot2, less, great);
@@ -459,20 +460,20 @@ static status_t mtrl_adaptive_sort_dual_pivots(mtrl_context_t *ctx, mtrl_segment
 
     do {
         row_less = MTRL_GET_ROW(page, ++less);
-        if (ctx->sort_cmp(segment, row_less, pivot1, &cmp1) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_less, pivot1, &cmp1) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } while (cmp1 < 0);
 
     do {
         row_great = MTRL_GET_ROW(page, --great);
-        if (ctx->sort_cmp(segment, row_great, pivot2, &cmp2) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_great, pivot2, &cmp2) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } while (cmp2 > 0);
 
-    if (mtrl_adaptive_dual_pivots_swap(ctx, segment, page, pivot1, pivot2, &less, &great) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_adaptive_dual_pivots_swap(ctx, segment, page, pivot1, pivot2, &less, &great) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     mtrl_swap_dir(page, span->left, less - 1);
@@ -487,14 +488,14 @@ static status_t mtrl_adaptive_sort_dual_pivots(mtrl_context_t *ctx, mtrl_segment
     }
 
     if (less < e2 - seventh && e4 + seventh < great) {  // If center part is too large (comprises > 4/7 of the array)
-        if (mtrl_adaptive_dual_pivots_center(ctx, segment, page, pivot1, pivot2, &less, &great) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (mtrl_adaptive_dual_pivots_center(ctx, segment, page, pivot1, pivot2, &less, &great) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
     if (less < great) {
         QSORT_PUSH(stack, less, great);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 //        < pivot               = pivot             unknown        > pivot
@@ -515,8 +516,8 @@ static status_t mtrl_three_ways_qsort_swap(mtrl_context_t *ctx, mtrl_segment_t *
 
     for (int32 k = (*i) + 1; k <= *j; k++) {
         row_k = MTRL_GET_ROW(page, k);
-        if (ctx->sort_cmp(segment, row_k, pivot, &cmp_k) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_k, pivot, &cmp_k) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (cmp_k == 0) {
             continue;
@@ -528,16 +529,16 @@ static status_t mtrl_three_ways_qsort_swap(mtrl_context_t *ctx, mtrl_segment_t *
         }
 
         row_j = MTRL_GET_ROW(page, *j);
-        if (ctx->sort_cmp(segment, row_j, pivot, &cmp_j) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row_j, pivot, &cmp_j) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         while (cmp_j > 0) {
             if (--(*j) < k) {
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
             row_j = MTRL_GET_ROW(page, *j);
-            if (ctx->sort_cmp(segment, row_j, pivot, &cmp_j) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (ctx->sort_cmp(segment, row_j, pivot, &cmp_j) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         if (cmp_j < 0) {
@@ -547,7 +548,7 @@ static status_t mtrl_three_ways_qsort_swap(mtrl_context_t *ctx, mtrl_segment_t *
         mtrl_swap_dir(page, k, *j);
         (*j)--;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t mtrl_adaptive_sort_three_ways(mtrl_context_t *ctx, mtrl_segment_t *segment, mtrl_page_t *page,
@@ -555,8 +556,8 @@ static status_t mtrl_adaptive_sort_three_ways(mtrl_context_t *ctx, mtrl_segment_
 {
     int32 i = span->left;
     int32 j = span->right;
-    if (mtrl_three_ways_qsort_swap(ctx, segment, page, &i, &j) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_three_ways_qsort_swap(ctx, segment, page, &i, &j) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     QSORT_POP(stack);
     if (span->left < i - 1) {
@@ -566,7 +567,7 @@ static status_t mtrl_adaptive_sort_three_ways(mtrl_context_t *ctx, mtrl_segment_
     if (j + 1 < span->right) {
         QSORT_PUSH(stack, j + 1, span->right);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #define MOVE_FIVE_POINTS(page, left, e1, e2, e3, e4, e5) \
@@ -594,16 +595,16 @@ static status_t mtrl_adaptive_sort_span(mtrl_context_t *ctx, mtrl_segment_t *seg
     int32 e1 = e2 - seventh;
     int32 e4 = e3 + seventh;
     int32 e5 = e4 + seventh;
-    bool8 equal = GS_FALSE;
+    bool8 equal = CT_FALSE;
     // Use [left, left + 4] to temporarily store the values of five sampling points and restore them after sorting.
     MOVE_FIVE_POINTS(page, left, e1, e2, e3, e4, e5);
-    if (mtrl_binary_insert_sort(ctx, segment, page, left, left + 4) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_binary_insert_sort(ctx, segment, page, left, left + 4) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     MOVE_FIVE_POINTS(page, left, e1, e2, e3, e4, e5);
 
-    if (mtrl_five_points_check_equal(ctx, segment, page, e1, e2, e3, e4, e5, &equal) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_five_points_check_equal(ctx, segment, page, e1, e2, e3, e4, e5, &equal) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     if (!equal) {
         return mtrl_adaptive_sort_dual_pivots(ctx, segment, page, span, stack, e2, e4);
@@ -618,18 +619,18 @@ status_t mtrl_adaptive_sort_page(mtrl_context_t *ctx, mtrl_segment_t *segment, m
     qsort_stack_t stack;
     qsort_span_t span;
     if (page->rows <= 1) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     stack.depth = 0;
     QSORT_PUSH(&stack, 0, page->rows - 1);
     while (stack.depth > 0) {
         span = QSORT_CURR(&stack);
-        if (mtrl_adaptive_sort_span(ctx, segment, page, &span, &stack) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (mtrl_adaptive_sort_span(ctx, segment, page, &span, &stack) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t mtrl_binsearch(mtrl_context_t *ctx, mtrl_segment_t *segment, mtrl_page_t *page, char *row,
@@ -641,18 +642,18 @@ static status_t mtrl_binsearch(mtrl_context_t *ctx, mtrl_segment_t *segment, mtr
 
     if (page->rows == 0) {
         *slot = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     result = 0;
     // if >= the last row, put at the end directly
     cmp_row = MTRL_GET_ROW(page, page->rows - 1);
-    if (ctx->sort_cmp(segment, row, cmp_row, &result) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ctx->sort_cmp(segment, row, cmp_row, &result) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     if (result >= 0) {
         *slot = page->rows;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // search the correct position
@@ -663,13 +664,13 @@ static status_t mtrl_binsearch(mtrl_context_t *ctx, mtrl_segment_t *segment, mtr
     while (begin < end) {
         curr = (end + begin) / 2;
         cmp_row = MTRL_GET_ROW(page, curr);
-        if (ctx->sort_cmp(segment, row, cmp_row, &result) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctx->sort_cmp(segment, row, cmp_row, &result) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (result == 0) {
             *slot = curr + 1;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (result < 0) {
@@ -685,7 +686,7 @@ static status_t mtrl_binsearch(mtrl_context_t *ctx, mtrl_segment_t *segment, mtr
         *slot = curr;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void mtrl_shift_slots(mtrl_page_t *page, uint32 pos)
@@ -712,8 +713,8 @@ status_t mtrl_insert_sorted_page(mtrl_context_t *ctx, mtrl_segment_t *segment, m
     uint32 *dir = NULL;
     errno_t ret;
 
-    if (mtrl_binsearch(ctx, segment, page, row, &pos) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mtrl_binsearch(ctx, segment, page, row, &pos) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     mtrl_shift_slots(page, pos);
@@ -730,7 +731,7 @@ status_t mtrl_insert_sorted_page(mtrl_context_t *ctx, mtrl_segment_t *segment, m
 
     page->rows++;
     page->free_begin += row_size;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

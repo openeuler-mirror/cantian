@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -30,7 +30,7 @@
 extern "C" {
 #endif
 
-#define MAX_LOB_BATCH_SIZE (uint32)(GS_MAX_PACKET_SIZE - SIZE_K(1)) // 64K
+#define MAX_LOB_BATCH_SIZE (uint32)(CT_MAX_PACKET_SIZE - SIZE_K(1)) // 64K
 
 status_t clt_blob_as_string(clt_stmt_t *stmt, void *locator, char *str, uint32 buf_size, uint32 *strl_len);
 status_t clt_clob_as_string(clt_stmt_t *stmt, void *locator, char *str, uint32 buf_size, uint32 *read_size);

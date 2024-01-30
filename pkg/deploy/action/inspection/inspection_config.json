@@ -1,4 +1,24 @@
 {
+  "logicrep_check": {
+    "inspection_file_path": "/opt/cantian/action/inspection/inspection_scripts/ct_om/cantian_om_logicrep_check.py",
+    "component": "ct_om",
+    "description_zn": "logicrep服务检查",
+    "description_en": "Logicrep server check",
+    "resource_zh": {
+      "检查步骤": "步骤1 检查当前节点是否为逻辑复制主节点。\n步骤2 检查逻辑复制进程是否存在。\n步骤3 检查日志中的异常信息。",
+      "检查方法": "步骤1 命令执行失败，巡检失败。\n步骤2 进程运行但目录缺失，巡检失败。\n步骤3 检查出有告警信息，巡检失败。",
+      "修复建议": "联系技术支持工程师协助处理。"
+    },
+    "resource_en": {
+      "method": "Step 1 Check whether the current node is the master node of logicrep.\nStep 2 Check whether the logicrep process exists.\nStep 3 Check the exception information in log.",
+      "description": "Step 1 The command fails to be executed and the inspection fails.\nStep 2 The inspection fails if the directory is missing but process exist.\nStep 3 The inspection fails if alarm massages is found",
+      "suggestion": "Contact technical support engineers for assistance."
+    },
+    "script_input": "",
+    "time_out": 60,
+    "need_pwd": false,
+    "need_ip": false
+  },  
   "ntp_server_check": {
     "inspection_file_path": "/opt/cantian/action/inspection/inspection_scripts/ct_om/cantian_om_ntp_check.py",
     "component": "ct_om",
@@ -7,15 +27,15 @@
     "resource_zh": {
       "检查步骤": "步骤1 执行命令 timedatectl；查看时间同步是否开启。\n步骤2 在日志文件及日志压缩包中检索时间跳变信息。",
       "检查方法": "步骤1 命令执行失败，巡检失败\n步骤2 如果检查出有时间跳变信息，巡检失败",
-      "修复建议": "参考《数据加速插件2.0.0产品文档》 5.4.2章节 步骤6 进行处理。"
+      "修复建议": "参考《Cantian引擎 3.0.0 产品文档》 3.4.2章节 步骤6 进行处理。"
     },
     "resource_en": {
       "method": "Step 1 Run the timedatectl command. Check whether time synchronization is enabled.\nStep 2 Search for time change information in log files and compressed log packages.",
       "description": "Step 1 The command fails to be executed and the inspection fails.\nStep 2 If time change information is found, the inspection fails.",
-      "suggestion": "For details, see step 6 in section 5.4.2 in the 《Distributed DB Storage Solution 2.0.0》."
+      "suggestion": "For details, see step 6 in section 3.4.2 in the 《Cantian Engine 3.0. 0 Product Documentation》."
     },
     "script_input": "",
-    "time_out": 5,
+    "time_out": 60,
     "need_pwd": false,
     "need_ip": false
   },
@@ -35,7 +55,7 @@
       "suggestion": "Contact technical support engineers for assistance."
     },
     "script_input": "",
-    "time_out": 5,
+    "time_out": 60,
     "need_pwd": false,
     "need_ip": false
   },
@@ -45,17 +65,17 @@
     "description_zn": "session使用量检查",
     "description_en": "Session usage",
     "resource_zh": {
-      "检查步骤": "步骤1 登陆ctclient 执行命令SELECT COUNT(1) FROM DV_SESSIONS;获取count字段\n步骤2 判断数量是否大于配置的80%。",
+      "检查步骤": "步骤1 登陆ctsql 执行命令SELECT COUNT(1) FROM DV_SESSIONS;获取count字段\n步骤2 判断数量是否大于配置的80%。",
       "检查方法": "步骤1 命令执行失败，巡检失败\n步骤2 如果检查失败，巡检失败\n如果已使用session配置大于80%，巡检异常告警。",
       "修复建议": "如果session配置已大于80%，建议降低业务流量，限制链接数，否则有过载风险"
     },
     "resource_en": {
-      "method": "Step 1 Log in to ctclient and run SELECT COUNT(1) FROM DV_SESSION. Obtains the count field.\nStep 2 Check whether the quantity is greater than 80% of the configured quantity.",
+      "method": "Step 1 Log in to ctsql and run SELECT COUNT(1) FROM DV_SESSION. Obtains the count field.\nStep 2 Check whether the quantity is greater than 80% of the configured quantity.",
       "description": "Step 1 The command fails to be executed and the inspection fails.\nStep 2 If the check fails, the inspection fails.\nIf the number of used sessions is greater than 80%, an alarm is generated.",
       "suggestion": "If the session configuration is greater than 80%, you are advised to reduce the service traffic and limit the number of connections. Otherwise, overload may occur."
     },
     "script_input": "",
-    "time_out": 5,
+    "time_out": 60,
     "need_pwd": true,
     "need_ip": true
   },
@@ -65,17 +85,17 @@
     "description_zn": "长事务检查",
     "description_en": "Long transaction check",
     "resource_zh": {
-      "检查步骤": "步骤1 登陆ctclient 执行命令 SELECT COUNT(1) FROM DV_TRANSACTIONS WHERE STATUS = 'ACTIVE' AND EXEC_TIME > 180000000 获取count字段\n步骤2 判断数量是否大于1。",
+      "检查步骤": "步骤1 登陆ctsql 执行命令 SELECT COUNT(1) FROM DV_TRANSACTIONS WHERE STATUS = 'ACTIVE' AND EXEC_TIME > 180000000 获取count字段\n步骤2 判断数量是否大于1。",
       "检查方法": "步骤1 命令执行失败，巡检失败\n步骤2 如果数量大于1 巡检异常告警",
       "修复建议": "如果发现事务执行超过3分钟，\n1.建议dba检查是否有事务没有提交\n2.如果检查到有事务没有提交，判断是否有慢sql，如果有慢sql则建议优化sql语句。如果不存在慢sql，则检查是否一个事务内做大量操作，如复制表。\n3.如果没有检查到有事务没有提交则查看是否有会话长时间没有关闭，如果有则建议dba关闭该会话。\n4.如果无法解决该问题，建议联系技术工程师协助处理。"
     },
     "resource_en": {
-      "method": "Step 1 Log in to ctclient and run SELECT COUNT(1) FROM DV_TRANSACTIONS WHERE STATUS = 'Active' AND EXEC_TIME > 180000000 to obtain the count field.\nStep 2 Check whether the number is greater than 1.",
+      "method": "Step 1 Log in to ctsql and run SELECT COUNT(1) FROM DV_TRANSACTIONS WHERE STATUS = 'Active' AND EXEC_TIME > 180000000 to obtain the count field.\nStep 2 Check whether the number is greater than 1.",
       "description": "Step 1 The command fails to be executed, and the inspection fails.\nStep 2 If the number is greater than 1, check whether an alarm is generated.",
-      "suggestion": "if a transaction is found to be execute for more than 3 minutes,\n1. It is recommended that the DBA check whether any transaction is not submitted.\n2. If a transaction is not submitted, check whether there are slow SQL statements. If there are slow SQL statements, optimize the SQL statements. If no slow SQL statement exists, check whether a large number of operations, such as copying tables, are performed in a transaction.\n3. If no transaction is not submitted, check whether any session is not closed for a long time. If yes, it is recommended that DBA close the session.\n4. If the problem persists, contact technical support engineers."
+      "suggestion": "If a transaction is found to be executed for more than 3 minutes,\n1. It is recommended that the DBA check whether any transaction is not submitted.\n2. If a transaction is not submitted, check whether there are slow SQL statements. If there are slow SQL statements, optimize the SQL statements. If no slow SQL statement exists, check whether a large number of operations, such as copying tables, are performed in a transaction.\n3. If no transaction is not submitted, check whether any session is not closed for a long time. If yes, it is recommended that DBA close the session.\n4. If the problem persists, contact technical support engineers."
     },
     "script_input": "",
-    "time_out": 5,
+    "time_out": 60,
     "need_pwd": true,
     "need_ip": true
   },
@@ -95,7 +115,7 @@
       "suggestion": "Contact technical support engineers for assistance."
     },
     "script_input": "",
-    "time_out": 5,
+    "time_out": 60,
     "need_pwd": true,
     "need_ip": true
   },
@@ -105,17 +125,17 @@
     "description_zn": "drc资源使用率",
     "description_en": "DRC resource usage",
     "resource_zh": {
-      "检查步骤": "步骤1 登录ctclient执行命令： select * from DV_DRC_RES_RATIO；\n步骤2 判断page_buf_res是否大于95%。",
+      "检查步骤": "步骤1 登录ctsql执行命令： select * from DV_DRC_RES_RATIO；\n步骤2 判断page_buf_res是否大于95%。",
       "检查方法": "如果page_buf_res> 95%，则巡检失败。",
-      "修复建议": "登录ctclient，执行alter system checkpoint命令"
+      "修复建议": "登录ctsql，执行alter system checkpoint命令"
     },
     "resource_en": {
-      "method": "Step 1 Log in to ctclient and run the select * from DV_DRC_RES_RATIO command.\nStep 2 Check whether the value of page_buf_res is greater than 95%.",
+      "method": "Step 1 Log in to ctsql and run the select * from DV_DRC_RES_RATIO command.\nStep 2 Check whether the value of page_buf_res is greater than 95%.",
       "description": "If the value of page_buf_res is greater than 95%, the inspection fails.",
-      "suggestion": "Log in to ctclient and run the alter system checkpoint command."
+      "suggestion": "Log in to ctsql and run the alter system checkpoint command."
     },
     "script_input": "",
-    "time_out": 5,
+    "time_out": 60,
     "need_pwd": true,
     "need_ip": true
   },
@@ -135,7 +155,7 @@
       "suggestion": "1. If the check is not passed, run the following command to change the value of HB_TIMEOUT: cms res -edit [RESOURCE NAME] -attr HB_TIME=10000"
     },
     "script_input": "",
-    "time_out": 5,
+    "time_out": 60,
     "need_pwd": false,
     "need_ip": false
   },
@@ -155,7 +175,7 @@
       "suggestion": "If the check fails, run the one-click log collection command to collect logs and contact technical support for assistance."
     },
     "script_input": "",
-    "time_out": 5,
+    "time_out": 60,
     "need_pwd": false,
     "need_ip": false
   },
@@ -175,7 +195,7 @@
       "suggestion": "Contact technical support engineers for assistance."
     },
     "script_input": "",
-    "time_out": 5,
+    "time_out": 60,
     "need_pwd": false,
     "need_ip": false
   },
@@ -192,10 +212,10 @@
     "resource_en": {
       "method": "Step 1 Check the archive fields in the configuration file.\nStep 2 Ping the remote IP address.\nStep 3 Run the xxx (to be developed) command to check whether the archive space exceeds the threshold.\nStep 4 Check whether the status of the archive file system is normal and whether the used capacity of the file system exceeds 95% of the configured capacity.",
       "description": "1. If the archiving function is disabled in step 1, the check result is Warning.\n2. If the ping operation fails in step 2, the check fails.\n3. Compare the size of the configured file system with that of the shared file system. If the size of the configured archive file system is greater than 90% of the size of the archive file system, the check result is warning.\n4. If the used capacity of the archive file system exceeds the threshold (95%), the check result is warning.",
-      "suggestion": "1. If the check result in step 1 is warning, a message is displayed, indicating that the backup function is invalid. You are advised to enable the backup function.\n2. If the check in step 2 is not passed, the is disconnected from the file system,\nHint:\n1. Check whether the network link is normal.\n2) If the link is normal, contact technical support engineers.\n3. If a warning is reported in step 3, the number of archived files exceeds the preset threshold, and archiving may fail. In this case, a message is displayed, indicating that the archive capacity is less than or equal to 90% of the maximum capacity of the archived file system.\n4. If the check in step 4 is not passed, the used capacity of archived files exceeds the preset threshold, and archiving may fail. A message is displayed, indicating that the archived files may fail. Contact technical support engineers to rectify the fault."
+      "suggestion": "1. If the check result in step 1 is warning, a message is displayed, indicating that the backup function is invalid. You are advised to enable the backup function.\n2. If the check in step 2 is not passed, the is disconnected from the file system,\nHint:\n1. Check whether the network link is normal.\n2. If the link is normal, contact technical support engineers.\n3. If a warning is reported in step 3, the number of archived files exceeds the preset threshold, and archiving may fail. In this case, a message is displayed, indicating that the archive capacity is less than or equal to 90% of the maximum capacity of the archived file system.\n4. If the check in step 4 is not passed, the used capacity of archived files exceeds the preset threshold, and archiving may fail. A message is displayed, indicating that the archived files may fail. Contact technical support engineers to rectify the fault."
     },
     "script_input": "",
-    "time_out": 15,
+    "time_out": 60,
     "need_pwd": false,
     "need_ip": false
   },
@@ -215,7 +235,7 @@
       "suggestion": "If the check result is optimization advice,\n1. Check whether physical links between host storage devices are redundant. If yes, add physical links.\n2. Contact technical support engineers and run the cgw createdev -l [localIp] -r [remoteIp1];[remoteIp2] -u [usrname] -p [password] command to add a logical link."
     },
     "script_input": "",
-    "time_out": 10,
+    "time_out": 60,
     "need_pwd": false,
     "need_ip": false
   }

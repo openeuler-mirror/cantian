@@ -7,7 +7,8 @@
 # eg "Date         :"
 # eg "Description  : Common is a utility with a lot of common functions"
 #############################################################################
-import json
+
+
 import sys
 sys.dont_write_bytecode = True
 
@@ -16,7 +17,6 @@ try:
     import platform
     import re
     import subprocess
-    import pathlib
 except ImportError as err:
     raise ValueError("Unable to import module: %s." % str(err)) from err
 
@@ -45,9 +45,6 @@ class DefaultValue(object):
     KEY_FILE_PERMISSION = 0o600
     KEY_DIRECTORY_PERMISSION = 0o700
     CANTIAND_CONF_NAME = "cantiand.ini"
-    DOCKER_SHARE_DIR = "/home/regress/cantian_data"
-    DOCKER_DATA_DIR = "{}/data".format(DOCKER_SHARE_DIR)
-    DOCKER_GCC_DIR = "{}/gcc_home".format(DOCKER_SHARE_DIR)
     
     # get os version and python version
     CURRENT_OS = platform.system()
@@ -175,13 +172,3 @@ class DefaultValue(object):
         elif outmsg and errmsg:
             output = outmsg + "\n" + errmsg
         return output
-
-
-def get_deploy_value(key="deploy_mode"):
-    cur_path = os.path.dirname(os.path.realpath(__file__))
-    deploy_conf = str(pathlib.Path(os.path.join(cur_path, "../../config/deploy_param.json")))
-    with open(deploy_conf, "r", encoding="utf-8") as f:
-        _tmp = f.read()
-    info = json.loads(_tmp)
-    return info.get(key)
-

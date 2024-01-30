@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -139,7 +139,7 @@ typedef DWORD cpu_set_t;
 #define DB_MAX_THV_OBJ_NUM 3
 
 typedef enum tag_thv_type {
-    GLOBAL_THV_OBJ0 = 0, // had been occupied by gss connection
+    GLOBAL_THV_OBJ0 = 0, // had been occupied by ctstore connection
     GLOBAL_THV_OBJ1 = 1,
     GLOBAL_THV_OBJ2 = 2,
     // add more here, notice modify DB_MAX_THV_OBJ_NUM

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -52,7 +52,7 @@ typedef struct st_lftc_clt_req {
 } lftc_clt_req_t;
 
 typedef struct st_lftc_file_ctx {
-    char file_name[GS_FILE_NAME_BUFFER_SIZE];
+    char file_name[CT_FILE_NAME_BUFFER_SIZE];
     cs_pipe_t *pipe;
     aligned_buf_t msg_buf;
     uint32 msg_buf_size;
@@ -73,8 +73,8 @@ typedef struct st_lftc_srv_ctx {
 } lftc_srv_ctx_t;
 
 typedef struct st_lftc_clt_task_t {
-    char file_name[GS_FILE_NAME_BUFFER_SIZE];
-    char tmp_file_name[GS_FILE_NAME_BUFFER_SIZE + 4]; /* 4 bytes for ".tmp" */
+    char file_name[CT_FILE_NAME_BUFFER_SIZE];
+    char tmp_file_name[CT_FILE_NAME_BUFFER_SIZE + 4]; /* 4 bytes for ".tmp" */
     spinlock_t lock;
     thread_t thread;
     cs_pipe_t pipe;

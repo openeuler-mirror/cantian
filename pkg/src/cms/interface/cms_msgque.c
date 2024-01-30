@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -107,7 +107,7 @@ biqueue_node_t* cms_deque(cms_que_t* que)
             }
         }
 
-        if (node != NULL || cms_sync_wait(&que->sync, CMS_QUE_DEQUEUE_WAIT_TIME) != GS_SUCCESS) {
+        if (node != NULL || cms_sync_wait(&que->sync, CMS_QUE_DEQUEUE_WAIT_TIME) != CT_SUCCESS) {
             break;
         }
     }
@@ -127,7 +127,7 @@ biqueue_node_t* cms_deque_ex(cms_que_t* que, uint32 priority)
             que->count--;
             break;
         } else {
-            if (cms_sync_wait(&que->sync, CMS_QUE_DEQUEUE_WAIT_TIME) != GS_SUCCESS) {
+            if (cms_sync_wait(&que->sync, CMS_QUE_DEQUEUE_WAIT_TIME) != CT_SUCCESS) {
                 break;
             }
         }

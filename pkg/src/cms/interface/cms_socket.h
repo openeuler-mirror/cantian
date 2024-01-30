@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -33,15 +33,16 @@
 extern "C" {
 #endif
 
-#define GS_ERROR_CONN_CLOSED      (-2)
+#define CT_ERROR_CONN_CLOSED      (-2)
 #define CMS_RETRY_CONN_COUNT      5
 #define CMS_RETRY_CONN_INTERVAL   1000
 #define CMS_UDS_LISTEN_BACKLOG    20
 #define CMS_CLI_UDS_SEND_TMOUT    1000
-#define CMS_CLI_UDS_RECV_TMOUT    1000
+#define CMS_CLI_UDS_RECV_TMOUT    4000
+#define CMS_CLI_RETRY_RECV_TMOUT  1000
 #define CMS_IO_INVALID_SOCKET     (-1)
 #define CMS_LINUX_RECV_TMOUNT_SEC 0
-#define CMS_LINUX_RECV_TMOUNT_SEC_RETRY 2
+#define CMS_LINUX_RECV_TMOUNT_SEC_RETRY 1
 #define CMS_LINUX_RECV_TMOUNT_MS  0
 typedef struct sockaddr_un cms_sockaddr_un_t;
 

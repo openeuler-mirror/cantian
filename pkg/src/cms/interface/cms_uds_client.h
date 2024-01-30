@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -53,6 +53,7 @@ socket_t cms_uds_cli_get_sid(void);
 socket_t cms_uds_cli_get_sock(void);
 uint64 cms_uds_cli_get_msg_seq(void);
 void cms_uds_cli_sock_close(void);
+void cms_set_recv_timeout(void);
 
 bool32 cms_uds_cli_seq_compare(void *key1, void *key2);
 status_t cms_uds_cli_save_req(cms_packet_head_t* req);

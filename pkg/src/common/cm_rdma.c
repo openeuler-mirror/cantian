@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "cm_common_module.h"
 #include "cm_rdma.h"
 #include "cm_log.h"
 #include "cm_error.h"
@@ -36,7 +36,7 @@ extern "C" {
 
 #ifndef WIN32
 
-static rdma_socket_procs_t g_rdma_lib_handle = { .rdma_useble = GS_FALSE, .rdma_handle = NULL };
+static rdma_socket_procs_t g_rdma_lib_handle = { .rdma_useble = CT_FALSE, .rdma_handle = NULL };
 
 rdma_socket_procs_t *rdma_global_handle(void)
 {
@@ -50,10 +50,10 @@ static status_t rdma_load_symbol(void *lib_handle, char *symbol, void **sym_lib_
     *sym_lib_handle = dlsym(lib_handle, symbol);
     dlsym_err = dlerror();
     if (dlsym_err != NULL) {
-        GS_THROW_ERROR(ERR_LOAD_SYMBOL, symbol, dlsym_err);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_LOAD_SYMBOL, symbol, dlsym_err);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rdma_init_lib(void)
@@ -61,46 +61,46 @@ status_t rdma_init_lib(void)
     rdma_socket_procs_t *procs = rdma_global_handle();
     procs->rdma_handle = dlopen("librdmacm.so", RTLD_LAZY);
     if (procs->rdma_handle == NULL) {
-        GS_LOG_RUN_WAR("failed to load librdmacm.so, maybe no rdma driver, or lib path error");
-        return GS_ERROR;
+        CT_LOG_RUN_WAR("failed to load librdmacm.so, maybe no rdma driver, or lib path error");
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rsocket",      (void **)(&procs->socket)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rbind",        (void **)(&procs->bind)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rlisten",      (void **)(&procs->listen)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "raccept",      (void **)(&procs->accept)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rconnect",     (void **)(&procs->connect)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rshutdown",    (void **)(&procs->shutdown)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rclose",       (void **)(&procs->close)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rsocket",      (void **)(&procs->socket)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rbind",        (void **)(&procs->bind)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rlisten",      (void **)(&procs->listen)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "raccept",      (void **)(&procs->accept)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rconnect",     (void **)(&procs->connect)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rshutdown",    (void **)(&procs->shutdown)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rclose",       (void **)(&procs->close)));
 
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rrecv",        (void **)(&procs->recv)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rrecvfrom",    (void **)(&procs->recvfrom)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rrecvmsg",     (void **)(&procs->recvmsg)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rsend",        (void **)(&procs->send)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rsendto",      (void **)(&procs->sendto)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rsendmsg",     (void **)(&procs->sendmsg)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rrecv",        (void **)(&procs->recv)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rrecvfrom",    (void **)(&procs->recvfrom)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rrecvmsg",     (void **)(&procs->recvmsg)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rsend",        (void **)(&procs->send)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rsendto",      (void **)(&procs->sendto)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rsendmsg",     (void **)(&procs->sendmsg)));
 
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rread",        (void **)(&procs->read)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rreadv",       (void **)(&procs->readv)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rwrite",       (void **)(&procs->write)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rwritev",      (void **)(&procs->writev)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rread",        (void **)(&procs->read)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rreadv",       (void **)(&procs->readv)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rwrite",       (void **)(&procs->write)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rwritev",      (void **)(&procs->writev)));
 
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rpoll",        (void **)(&procs->poll)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rselect",      (void **)(&procs->select)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rgetpeername", (void **)(&procs->getpeername)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rgetsockname", (void **)(&procs->getsockname)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rsetsockopt",  (void **)(&procs->setsockopt)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rgetsockopt",  (void **)(&procs->getsockopt)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rfcntl",       (void **)(&procs->fcntl)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rpoll",        (void **)(&procs->poll)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rselect",      (void **)(&procs->select)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rgetpeername", (void **)(&procs->getpeername)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rgetsockname", (void **)(&procs->getsockname)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rsetsockopt",  (void **)(&procs->setsockopt)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rgetsockopt",  (void **)(&procs->getsockopt)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "rfcntl",       (void **)(&procs->fcntl)));
 
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "riomap",       (void **)(&procs->iomap)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "riounmap",     (void **)(&procs->iounmap)));
-    GS_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "riowrite",     (void **)(&procs->iowrite)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "riomap",       (void **)(&procs->iomap)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "riounmap",     (void **)(&procs->iounmap)));
+    CT_RETURN_IFERR(rdma_load_symbol(procs->rdma_handle, "riowrite",     (void **)(&procs->iowrite)));
 
-    procs->rdma_useble = GS_TRUE;
-    GS_LOG_RUN_INF("load librdmacm.so done");
+    procs->rdma_useble = CT_TRUE;
+    CT_LOG_RUN_INF("load librdmacm.so done");
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void rdma_close_lib(void)
@@ -116,7 +116,7 @@ void rdma_close_lib(void)
 
 status_t rdma_init_lib()
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void rdma_close_lib()

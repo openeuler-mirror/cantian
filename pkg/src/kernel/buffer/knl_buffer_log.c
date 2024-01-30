@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_buffer_module.h"
 #include "knl_buffer_log.h"
 #include "knl_buflatch.h"
 #include "knl_buffer_access.h"
@@ -42,7 +43,7 @@ void buf_enter_invalid_page(knl_session_t *session, latch_mode_t mode)
 static void abr_enter_page(knl_session_t *session, page_id_t page_id)
 {
     rcy_context_t *rcy = &session->kernel->rcy_ctx;
-    bool32 is_skip = GS_TRUE;
+    bool32 is_skip = CT_TRUE;
 
     if (IS_SAME_PAGID(rcy->abr_ctrl->page_id, page_id)) {
         session->curr_page = (char *)rcy->abr_ctrl->page;
@@ -75,19 +76,19 @@ void rd_enter_page(knl_session_t *session, log_entry_t *log)
 
     if (!DATAFILE_IS_ONLINE(df) || !df->ctrl->used || DF_FILENO_IS_INVAILD(df)) {
         buf_enter_invalid_page(session, LATCH_MODE_X);
-        session->page_stack.is_skip[session->page_stack.depth - 1] = GS_TRUE;
+        session->page_stack.is_skip[session->page_stack.depth - 1] = CT_TRUE;
         return;
     }
     space_t *space = SPACE_GET(session, df->space_id);
     if (!SPACE_IS_ONLINE(space) || !space->ctrl->used) {
         buf_enter_invalid_page(session, LATCH_MODE_X);
-        session->page_stack.is_skip[session->page_stack.depth - 1] = GS_TRUE;
+        session->page_stack.is_skip[session->page_stack.depth - 1] = CT_TRUE;
         return;
     }
 
     if (IS_FILE_RECOVER(session) && redo->file != session->kernel->rcy_ctx.repair_file_id) {
         buf_enter_invalid_page(session, LATCH_MODE_X);
-        session->page_stack.is_skip[session->page_stack.depth - 1] = GS_TRUE;
+        session->page_stack.is_skip[session->page_stack.depth - 1] = CT_TRUE;
         return;
     }
 
@@ -96,24 +97,40 @@ void rd_enter_page(knl_session_t *session, log_entry_t *log)
         bool32 need_recover = dtc_rcy_page_in_rcyset(page_id);
         // skip this page if it is not in recovery set
         if (!need_recover) {
-            if ((dtc_add_dirtypage_for_recovery(session, page_id) == GS_SUCCESS)) {
+            if ((dtc_add_dirtypage_for_recovery(session, page_id) == CT_SUCCESS)) {
                 buf_enter_invalid_page(session, LATCH_MODE_X);
-                session->page_stack.is_skip[session->page_stack.depth - 1] = GS_TRUE;
-                GS_LOG_DEBUG_INF("[DTC RCY] skip enter page [%u-%u] due to no need, pcn=%u", page_id.file, page_id.page,
+                session->page_stack.is_skip[session->page_stack.depth - 1] = CT_TRUE;
+                CT_LOG_DEBUG_INF("[DTC RCY] skip enter page [%u-%u] due to no need, pcn=%u", page_id.file, page_id.page,
                     redo->pcn);
                 return;
             }
             dtc_rcy_page_update_need_replay(page_id);
         }
     }
-    buf_enter_page(session, page_id, LATCH_MODE_X, options);
-    page_head_t *curr_page_head = (page_head_t *)session->curr_page;
-    bool32 need_skip = (!(options & ENTER_PAGE_NO_READ) && (session->curr_lsn <= curr_page_head->lsn));
+
+    page_head_t *curr_page_head = NULL;
+    uint64 curr_page_lsn = 0;
+    bool32 need_skip = CT_FALSE;
+    status_t status = buf_read_page(session, page_id, LATCH_MODE_X, options);
+    if (status == CT_SUCCESS) {
+        curr_page_head = (page_head_t *)session->curr_page;
+        need_skip = (!(options & ENTER_PAGE_NO_READ) && (session->curr_lsn <= curr_page_head->lsn));
+        curr_page_lsn = curr_page_head->lsn;
+    } else {
+        need_skip = (cm_get_error_code() == ERR_PAGE_CORRUPTED && (session->curr_page_ctrl != NULL) &&
+                     PAGE_IS_HARD_DAMAGE(session->curr_page_ctrl->page));
+        if (need_skip) {
+            curr_page_lsn = 0;
+            buf_enter_invalid_page(session, LATCH_MODE_X);
+        } else {
+            knl_panic_log(0, "[DTC RCY] rd enter page, error read page [%u-%u]", page_id.file, page_id.page)
+        }
+    }
     session->page_stack.is_skip[session->page_stack.depth - 1] = need_skip;
     knl_panic(need_skip || session->curr_page_ctrl != NULL);
-    GS_LOG_DEBUG_INF("[DTC RCY] rd enter page [%u-%u] with pcn %u skiped %d curr_lsn %llu page_lsn %llu", page_id.file,
-        page_id.page, curr_page_head->pcn, session->page_stack.is_skip[session->page_stack.depth - 1],
-        session->curr_lsn, curr_page_head->lsn);
+    CT_LOG_DEBUG_INF("[DTC RCY] rd enter page [%u-%u] skiped %d curr_lsn %llu page_lsn %llu, staus=%d", page_id.file,
+        page_id.page, session->page_stack.is_skip[session->page_stack.depth - 1],
+        session->curr_lsn, curr_page_lsn, status);
 }
 
 void print_enter_page(log_entry_t *log)
@@ -163,7 +180,7 @@ void rd_leave_page(knl_session_t *session, log_entry_t *log)
 
     buf_ctrl_t *ctrl = buf_curr_page(session);
     if (SECUREC_LIKELY(ctrl != NULL)) {
-        GS_LOG_DEBUG_INF("[DTC RCY] rd leave page [%u/%u] with pcn %u changed %d skiped %d", ctrl->page_id.file,
+        CT_LOG_DEBUG_INF("[DTC RCY] rd leave page [%u/%u] with pcn %u changed %d skiped %d", ctrl->page_id.file,
                          ctrl->page_id.page, ctrl->page->pcn, changed, is_skip);
     }
 
@@ -173,7 +190,7 @@ void rd_leave_page(knl_session_t *session, log_entry_t *log)
     }
 
     bool32 is_soft_damage = (session->curr_page == NULL) ?
-                                GS_FALSE :
+                                CT_FALSE :
                                 PAGE_IS_SOFT_DAMAGE((page_head_t*)CURR_PAGE(session));
     /*
      * for page is set soft_damge, we must ensure it been flushed to disk.
@@ -182,7 +199,7 @@ void rd_leave_page(knl_session_t *session, log_entry_t *log)
         /* redo between redo->curr_point and gbp->rcy_point should be skipped */
         if (KNL_RECOVERY_WITH_GBP(session->kernel) && session->kernel->redo_ctx.gbp_rcy_lfn != 0 &&
             session->kernel->redo_ctx.lfn < session->kernel->redo_ctx.gbp_rcy_lfn) {
-            knl_panic_log((session->page_stack.is_skip[session->page_stack.depth - 1] == GS_TRUE),
+            knl_panic_log((session->page_stack.is_skip[session->page_stack.depth - 1] == CT_TRUE),
                           "[GBP] redo between redo->curr_point and gbp->rcy_point should be skipped");
         }
 
@@ -192,9 +209,9 @@ void rd_leave_page(knl_session_t *session, log_entry_t *log)
             knl_panic_log(0, "[GBP] should not replay log on hit page");
         }
 
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     } else {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 }
 
@@ -223,7 +240,7 @@ void gbp_aly_enter_page(knl_session_t *session, log_entry_t *log, uint64 lsn)
         buf_enter_invalid_page(session, LATCH_MODE_X);
 
         /* must do log analysis for page's redo log, so can not skip */
-        session->page_stack.is_skip[session->page_stack.depth - 1] = GS_FALSE;
+        session->page_stack.is_skip[session->page_stack.depth - 1] = CT_FALSE;
     }
 
     knl_panic_log(session->page_stack.depth > 0, "page_stack's depth is abnormal, panic info: page %u-%u depth %u",

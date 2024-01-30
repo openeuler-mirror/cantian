@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "knl_space_module.h"
 #include "knl_temp_space.h"
 #include "knl_context.h"
 
@@ -49,11 +49,11 @@ static status_t spc_extend_temp_extent(knl_session_t *session, space_t *space, p
     uint32 file_no, id, hwm;
 
     size = 0;
-    file_no = GS_INVALID_ID32;
+    file_no = CT_INVALID_ID32;
     extent_size = (int64)space->ctrl->extent_size * DEFAULT_PAGE_SIZE(session);
 
     for (id = 0; id < space->ctrl->file_hwm; id++) {
-        if (GS_INVALID_ID32 == space->ctrl->files[id]) {
+        if (CT_INVALID_ID32 == space->ctrl->files[id]) {
             continue;
         }
 
@@ -80,18 +80,18 @@ static status_t spc_extend_temp_extent(knl_session_t *session, space_t *space, p
         buf_enter_temp_page(session, space->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
         spc_alloc_datafile_temp_extent(session, space, id, extent, space->ctrl->extent_size);
         buf_leave_temp_page(session);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (GS_INVALID_ID32 == file_no) {
-        GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
-        return GS_ERROR;
+    if (CT_INVALID_ID32 == file_no) {
+        CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+        return CT_ERROR;
     }
 
     hwm = SPACE_HEAD_RESIDENT(session, space)->hwms[file_no];
     if (hwm + space->ctrl->extent_size > MAX_FILE_PAGES(space->ctrl->type)) {
-        GS_THROW_ERROR(ERR_MAX_DATAFILE_PAGES, hwm, MAX_FILE_PAGES(space->ctrl->type), space->ctrl->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_MAX_DATAFILE_PAGES, hwm, MAX_FILE_PAGES(space->ctrl->type), space->ctrl->name);
+        return CT_ERROR;
     }
 
     df = DATAFILE_GET(session, space->ctrl->files[file_no]);
@@ -107,15 +107,15 @@ static status_t spc_extend_temp_extent(knl_session_t *session, space_t *space, p
         size = extent_size - unused_size;
     }
 
-    if (GS_SUCCESS != spc_extend_datafile(session, df, handle, size, GS_FALSE)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != spc_extend_datafile(session, df, handle, size, CT_FALSE)) {
+        return CT_ERROR;
     }
 
     buf_enter_temp_page(session, space->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
     spc_alloc_datafile_temp_extent(session, space, file_no, extent, space->ctrl->extent_size);
     buf_leave_temp_page(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t spc_load_temp_page_header(knl_session_t *session, page_id_t page_id, page_head_t *page)
@@ -125,30 +125,30 @@ static status_t spc_load_temp_page_header(knl_session_t *session, page_id_t page
     int64 offset;
 
     if (IS_INVALID_PAGID(page_id)) {
-        GS_LOG_RUN_ERR("invalid page id in getting temp page cache");
+        CT_LOG_RUN_ERR("invalid page id in getting temp page cache");
         knl_panic_log(0, "panic info: page %u-%u type %u", page_id.file, page_id.page, page->type);
     }
 
     df = DATAFILE_GET(session, page_id.file);
     handle = DATAFILE_FD(session, page_id.file);
     offset = (int64)page_id.page * DEFAULT_PAGE_SIZE(session);  // the maximum offset is 2^30 * 2^13
-    if (spc_read_datafile(session, df, handle, offset, page, DEFAULT_PAGE_SIZE(session)) != GS_SUCCESS) {
+    if (spc_read_datafile(session, df, handle, offset, page, DEFAULT_PAGE_SIZE(session)) != CT_SUCCESS) {
         spc_close_datafile(df, handle);
-        GS_LOG_RUN_ERR("[BUFFER] failed to open datafile %s", df->ctrl->name);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[BUFFER] failed to open datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 page_id_t spc_get_next_temp_ext(knl_session_t *session, page_id_t extent_input)
 {
     page_id_t extent = extent_input;
-    char *alloc_buffer = (char *)cm_push(session->stack, (uint32)(DEFAULT_PAGE_SIZE(session) + GS_MAX_ALIGN_SIZE_4K));
+    char *alloc_buffer = (char *)cm_push(session->stack, (uint32)(DEFAULT_PAGE_SIZE(session) + CT_MAX_ALIGN_SIZE_4K));
     char *buffer = (char *)cm_aligned_buf(alloc_buffer);
     page_head_t *last_page;
 
     last_page = (page_head_t *)buffer;
-    if (GS_SUCCESS != spc_load_temp_page_header(session, extent, last_page)) {
+    if (CT_SUCCESS != spc_load_temp_page_header(session, extent, last_page)) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to load temparory page %u-%u", extent.file, extent.page);
     }
     extent = AS_PAGID(last_page->next_ext);
@@ -196,17 +196,17 @@ status_t spc_alloc_swap_extent_normal(knl_session_t *session, space_t *space, pa
     cm_spin_lock(&space->lock.lock, &session->stat->spin_stat.stat_space);
     for (;;) {
         if (space->head->free_extents.count == 0) {
-            if (GS_SUCCESS != spc_extend_temp_extent(session, space, extent)) {
+            if (CT_SUCCESS != spc_extend_temp_extent(session, space, extent)) {
                 cm_spin_unlock(&space->lock.lock);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             cm_spin_unlock(&space->lock.lock);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         spc_alloc_free_temp_extent(session, space, extent);
         if (extent->page >= space->head->hwms[DATAFILE_GET(session, extent->file)->file_no]) {
-            GS_LOG_RUN_INF("ignore invalid extent(%u-%d), space %s, file no %u",
+            CT_LOG_RUN_INF("ignore invalid extent(%u-%d), space %s, file no %u",
                            extent->file, extent->page, space->ctrl->name, DATAFILE_GET(session, extent->file)->file_no);
             continue;
         }
@@ -214,7 +214,7 @@ status_t spc_alloc_swap_extent_normal(knl_session_t *session, space_t *space, pa
     }
 
     cm_spin_unlock(&space->lock.lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void spc_try_update_swap_hwm(knl_session_t *session, space_t *space, uint32 file_no, uint32 hwm)
@@ -233,7 +233,7 @@ status_t spc_alloc_swap_map_extent(knl_session_t *session, space_t *space, uint3
     uint32 id;
 
     for (id = 0; id < space->ctrl->file_hwm; id++) {
-        if (space->ctrl->files[id] == GS_INVALID_ID32) {
+        if (space->ctrl->files[id] == CT_INVALID_ID32) {
             continue;
         }
 
@@ -242,37 +242,37 @@ status_t spc_alloc_swap_map_extent(knl_session_t *session, space_t *space, uint3
             continue;
         }
 
-        if (df_alloc_swap_map_extent(session, df, extent) != GS_SUCCESS) {
+        if (df_alloc_swap_map_extent(session, df, extent) != CT_SUCCESS) {
             continue;
         }
 
         spc_try_update_swap_hwm(session, space, id, extent->page + extent_size);
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     // caller will print error log
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t spc_extend_swap_datafile_map(knl_session_t *session, space_t *space, uint32 extent_size, page_id_t *extent)
 {
     datafile_t *df = NULL;
     int64 size;
-    uint32 file_no = GS_INVALID_ID32;
+    uint32 file_no = CT_INVALID_ID32;
     page_id_t page_id;
-    bool32 new_group = GS_FALSE;
+    bool32 new_group = CT_FALSE;
 
     for (;;) {
-        if (spc_find_extend_file(session, space, extent_size, &file_no, GS_FALSE) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
-            return GS_ERROR;
+        if (spc_find_extend_file(session, space, extent_size, &file_no, CT_FALSE) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+            return CT_ERROR;
         }
 
         df = DATAFILE_GET(session, space->ctrl->files[file_no]);
         size = spc_get_extend_size(session, df, extent_size, &new_group);
-        if (spc_extend_datafile(session, df, DATAFILE_FD(session, df->ctrl->id), size, GS_FALSE) != GS_SUCCESS) {
+        if (spc_extend_datafile(session, df, DATAFILE_FD(session, df->ctrl->id), size, CT_FALSE) != CT_SUCCESS) {
             // will print log inside
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (new_group) {
@@ -282,12 +282,12 @@ status_t spc_extend_swap_datafile_map(knl_session_t *session, space_t *space, ui
             df_add_map_group_swap(session, df, page_id, DF_MAP_GROUP_SIZE);
         }
 
-        if (df_alloc_swap_map_extent(session, df, extent) != GS_SUCCESS) {
+        if (df_alloc_swap_map_extent(session, df, extent) != CT_SUCCESS) {
             continue;
         }
 
         spc_try_update_swap_hwm(session, space, file_no, extent->page + extent_size);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 }
 
@@ -297,23 +297,23 @@ status_t spc_alloc_swap_extent_map(knl_session_t *session, space_t *space, page_
         space->ctrl->id, space->ctrl->type);
     cm_spin_lock(&space->lock.lock, &session->stat->spin_stat.stat_space);
 
-    if (spc_alloc_swap_map_extent(session, space, space->ctrl->extent_size, extent) == GS_SUCCESS) {
+    if (spc_alloc_swap_map_extent(session, space, space->ctrl->extent_size, extent) == CT_SUCCESS) {
         knl_panic_log(!IS_INVALID_PAGID(*extent),
             "alloc bitmap extent (%u-%u) error, page id is invalid.", extent->file, extent->page);
         cm_spin_unlock(&space->lock.lock);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (spc_extend_swap_datafile_map(session, space, space->ctrl->extent_size, extent) != GS_SUCCESS) {
+    if (spc_extend_swap_datafile_map(session, space, space->ctrl->extent_size, extent) != CT_SUCCESS) {
         cm_spin_unlock(&space->lock.lock);
-        GS_LOG_RUN_ERR("[SPACE] space %u extend datafile failed, extend size is %u.",
+        CT_LOG_RUN_ERR("[SPACE] space %u extend datafile failed, extend size is %u.",
             space->ctrl->id, space->ctrl->extent_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic(!IS_INVALID_PAGID(*extent));
     cm_spin_unlock(&space->lock.lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_alloc_swap_extent(knl_session_t *session, space_t *space, page_id_t *extent)
@@ -332,35 +332,35 @@ static status_t spc_write_temp_page_header(knl_session_t *session, page_id_t pag
     int64 offset;
 
     if (IS_INVALID_PAGID(page_id)) {
-        GS_LOG_RUN_ERR("invalid page id in getting temp page cache");
+        CT_LOG_RUN_ERR("invalid page id in getting temp page cache");
         knl_panic_log(0, "panic info: page %u-%u type %u", page_id.file, page_id.page, page->type);
     }
 
     df = DATAFILE_GET(session, page_id.file);
     handle = DATAFILE_FD(session, page_id.file);
     offset = (int64)page_id.page * DEFAULT_PAGE_SIZE(session);  // the maximum offset is 2^30 * 2^13
-    if (spc_write_datafile(session, df, handle, offset, page, (int32)DEFAULT_PAGE_SIZE(session)) != GS_SUCCESS) {
+    if (spc_write_datafile(session, df, handle, offset, page, (int32)DEFAULT_PAGE_SIZE(session)) != CT_SUCCESS) {
         spc_close_datafile(df, handle);
-        GS_LOG_RUN_ERR("[BUFFER] failed to write datafile %s", df->ctrl->name);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[BUFFER] failed to write datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void spc_concat_temp_extent(knl_session_t *session, page_id_t last_ext, page_id_t ext)
 {
-    char *alloc_buffer = (char *)cm_push(session->stack, (uint32)(DEFAULT_PAGE_SIZE(session) + GS_MAX_ALIGN_SIZE_4K));
+    char *alloc_buffer = (char *)cm_push(session->stack, (uint32)(DEFAULT_PAGE_SIZE(session) + CT_MAX_ALIGN_SIZE_4K));
     char *buffer = (char *)cm_aligned_buf(alloc_buffer);
     page_head_t *head;
 
     head = (page_head_t *)buffer;
-    if (GS_SUCCESS != spc_load_temp_page_header(session, last_ext, head)) {
+    if (CT_SUCCESS != spc_load_temp_page_header(session, last_ext, head)) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to load temporary page %u-%u", last_ext.file, last_ext.page);
     }
 
     TO_PAGID_DATA(ext, head->next_ext);
 
-    if (GS_SUCCESS != spc_write_temp_page_header(session, last_ext, head)) {
+    if (CT_SUCCESS != spc_write_temp_page_header(session, last_ext, head)) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to write temporary page %u-%u", last_ext.file, last_ext.page);
     }
 

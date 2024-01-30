@@ -6,7 +6,6 @@ include_directories(
 aux_source_directory(. COMMON_SRC)
 aux_source_directory(./variant COMMON_VARIANT_SRC)
 
-
 set(COMMON_ALL_SRC
         ${COMMON_VARIANT_SRC}
         ${COMMON_SRC}
@@ -31,16 +30,16 @@ add_library(zecommon SHARED ${COMMON_ALL_SRC})
 # dynamic libraries and static libraries exist at the same time
 set_target_properties(zecommon PROPERTIES OUTPUT_NAME zecommon
         CLEAN_DIRECT_OUTPUT 1
-        ARCHIVE_OUTPUT_DIRECTORY ${CTDB_LIB}
+        ARCHIVE_OUTPUT_DIRECTORY ${CANTIANDB_LIB}
         )
 set_target_properties(zecommon_static PROPERTIES OUTPUT_NAME zecommon
         CLEAN_DIRECT_OUTPUT 1
-        ARCHIVE_OUTPUT_DIRECTORY ${CTDB_LIB}
+        ARCHIVE_OUTPUT_DIRECTORY ${CANTIANDB_LIB}
         )
 if (USE_FUZZASAN)
-    target_link_libraries(zecommon PRIVATE -Wl,--whole-archive ${vpp_libipsi_crypto} ${vpp_libipsi_ssl} -Wl,--no-whole-archive pthread dl m rt pcre2-8 Secodefuzz)
+    target_link_libraries(zecommon PRIVATE -Wl,--whole-archive ${vpp_libipsi_crypto} ${vpp_libipsi_ssl} ${hw_kmc_lib} ${hw_sdp_lib} -Wl,--no-whole-archive pthread dl m rt pcre2-8 Secodefuzz)
 else ()
-target_link_libraries(zecommon PRIVATE -Wl,--whole-archive ${vpp_libipsi_crypto} ${vpp_libipsi_ssl} -Wl,--no-whole-archive pthread dl m rt pcre2-8)
+target_link_libraries(zecommon PRIVATE -Wl,--whole-archive ${vpp_libipsi_crypto} ${vpp_libipsi_ssl} ${hw_kmc_lib} ${hw_sdp_lib} -Wl,--no-whole-archive pthread dl m rt pcre2-8)
 endif(USE_FUZZASAN)
 
 target_link_libraries(zecommon PUBLIC

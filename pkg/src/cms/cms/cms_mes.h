@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -50,7 +50,7 @@ typedef void(*cms_message_proc_t)(mes_message_t *message);
 typedef struct st_cms_processor {
     cms_message_proc_t  proc;
     bool32              is_enqueue;
-    char                name[GS_MAX_NAME_LEN];
+    char                name[CT_MAX_NAME_LEN];
 } cms_processor_t;
 
 typedef enum en_cms_mes_command {
@@ -83,13 +83,13 @@ void cms_destroy_session(cms_session_t *session);
 cms_session_ctrl_t *get_session_ctrl(void);
 cms_processor_t *get_g_cms_processors(void);
 void cms_msg_enque(cms_packet_head_t *head);
-void cms_process_message(uint32 work_idx, mes_message_t *msg);
+EXTER_ATTACK void cms_process_message(uint32 work_idx, mes_message_t *msg);
 status_t cms_register_proc_func(cms_mes_command_t command_type, cms_message_proc_t proc, bool32 is_enqueue,
                                 const char *func_name);
 status_t cms_register_proc(void);
 status_t cms_set_mes_profile(void);
-void cms_mes_process_msg_ack(mes_message_t *msg);
-void mes_proc_recv_msg(mes_message_t *mes_msg);
+EXTER_ATTACK void cms_mes_process_msg_ack(mes_message_t *msg);
+EXTER_ATTACK void mes_proc_recv_msg(mes_message_t *mes_msg);
 status_t cms_startup_mes(void);
 status_t cms_mes_send_data(cms_packet_head_t* cms_msg, cms_packet_head_t* res, cms_session_t *session,
     uint32 timeout_ms, bool32 request_ack);

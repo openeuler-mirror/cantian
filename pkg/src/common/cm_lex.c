@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -108,7 +108,7 @@ static inline void lex_begin_fetch(lex_t *lex, word_t *word)
 
 static word_type_t lex_diagnose_word_type_by_colon(lex_t *lex)
 {
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
     char c2 = LEX_NEXT(lex);
     if (c2 == ':') {
         return WORD_TYPE_ANCHOR;
@@ -118,7 +118,7 @@ static word_type_t lex_diagnose_word_type_by_colon(lex_t *lex)
         return WORD_TYPE_PL_SETVAL;
     }
 
-    if (lex_try_fetch(lex, ":NEW.", &result) != GS_SUCCESS) {
+    if (lex_try_fetch(lex, ":NEW.", &result) != CT_SUCCESS) {
         return WORD_TYPE_ERROR;
     }
 
@@ -126,7 +126,7 @@ static word_type_t lex_diagnose_word_type_by_colon(lex_t *lex)
         return WORD_TYPE_PL_NEW_COL;
     }
 
-    if (lex_try_fetch(lex, ":OLD.", &result) != GS_SUCCESS) {
+    if (lex_try_fetch(lex, ":OLD.", &result) != CT_SUCCESS) {
         return WORD_TYPE_ERROR;
     }
 
@@ -257,7 +257,7 @@ static inline bool32 lex_diag_num_word(word_t *word, text_t *text, num_part_t *n
         if (IS_SIZE_INDICATOR(c)) {
             if (np->is_neg || np->has_dot || np->has_expn ||
                 word->text.len < 2) {  // the SIZE must be positive, no dot and its length GEQ 2
-                return GS_FALSE;
+                return CT_FALSE;
             }
             
             word->type = WORD_TYPE_SIZE;
@@ -274,11 +274,11 @@ static inline bool32 lex_diag_num_word(word_t *word, text_t *text, num_part_t *n
                 np->sz_indicator = c;
             }
         } else {  // unexpected character
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /**
@@ -294,34 +294,34 @@ static num_errno_t lex_fetch_numpart(lex_t *lex, word_t *word)
     uint32 i = 0;
     num_part_t *np = &word->np;
 
-    np->is_neg = np->has_dot = np->has_expn = GS_FALSE;
+    np->is_neg = np->has_dot = np->has_expn = CT_FALSE;
 
     // Step 1. simple scan
-    GS_RETVALUE_IFTRUE((lex->curr_text->len == 0), NERR_ERROR);
+    CT_RETVALUE_IFTRUE((lex->curr_text->len == 0), NERR_ERROR);
 
     char c = lex->curr_text->str[i];
     if (c == '-') {
         // if negative sign not allowed
-        GS_RETVALUE_IFTRUE((np->excl_flag & NF_NEGATIVE_SIGN), NERR_UNALLOWED_NEG);
-        np->is_neg = GS_TRUE;
+        CT_RETVALUE_IFTRUE((np->excl_flag & NF_NEGATIVE_SIGN), NERR_UNALLOWED_NEG);
+        np->is_neg = CT_TRUE;
         i++;
     } else if (c == '+') {
         i++;
     }
     /* check again */
-    GS_RETVALUE_IFTRUE((i >= lex->curr_text->len), NERR_ERROR);
+    CT_RETVALUE_IFTRUE((i >= lex->curr_text->len), NERR_ERROR);
 
     for (; i < lex->curr_text->len; i++) {
         c = lex->curr_text->str[i];
         if (CM_IS_DOT(c)) {
             // dot not allowed or more than one dot
-            GS_RETVALUE_IFTRUE((np->excl_flag & NF_DOT), NERR_UNALLOWED_DOT);
-            GS_RETVALUE_IFTRUE((np->has_dot), NERR_MULTIPLE_DOTS);
+            CT_RETVALUE_IFTRUE((np->excl_flag & NF_DOT), NERR_UNALLOWED_DOT);
+            CT_RETVALUE_IFTRUE((np->has_dot), NERR_MULTIPLE_DOTS);
 
             char n = ((i + 1) < lex->curr_text->len) ? lex->curr_text->str[i + 1] : '\0';
             // when meet two dot, back and return.
-            GS_BREAK_IF_TRUE(CM_IS_DOT(n));
-            np->has_dot = GS_TRUE;
+            CT_BREAK_IF_TRUE(CM_IS_DOT(n));
+            np->has_dot = CT_TRUE;
             continue;
         }
         if (IS_SPLITTER(c)) {
@@ -329,9 +329,9 @@ static num_errno_t lex_fetch_numpart(lex_t *lex, word_t *word)
             // handle scientific 21321E+3213 or 2132E-2323
             if (CM_IS_SIGN_CHAR(c) && CM_IS_EXPN_CHAR(lex->curr_text->str[i - 1])) {
                 // expn 'E' or 'e' not allowed
-                GS_RETVALUE_IFTRUE((np->has_expn), NERR_EXPN_WITH_NCHAR);
-                GS_RETVALUE_IFTRUE((np->excl_flag & NF_EXPN), NERR_UNALLOWED_EXPN);
-                np->has_expn = GS_TRUE;
+                CT_RETVALUE_IFTRUE((np->has_expn), NERR_EXPN_WITH_NCHAR);
+                CT_RETVALUE_IFTRUE((np->excl_flag & NF_EXPN), NERR_UNALLOWED_EXPN);
+                np->has_expn = CT_TRUE;
                 continue;
             }
             break;
@@ -346,9 +346,9 @@ static num_errno_t lex_fetch_numpart(lex_t *lex, word_t *word)
         }
     }
     // check again
-    GS_RETVALUE_IFTRUE((i == 0), NERR_NO_DIGIT);
+    CT_RETVALUE_IFTRUE((i == 0), NERR_NO_DIGIT);
     word->text.len = i;
-    GS_RETVALUE_IFTRUE((!lex_diag_num_word(word, &text, np)), NERR_ERROR);
+    CT_RETVALUE_IFTRUE((!lex_diag_num_word(word, &text, np)), NERR_ERROR);
     CM_CHECK_NUM_ERRNO(cm_split_num_text(&text, np));
 
     (void)lex_skip(lex, word->text.len);
@@ -368,6 +368,7 @@ static num_errno_t lex_fetch_numpart(lex_t *lex, word_t *word)
  * + If 'E' is at the end of the word, the word is a size word;
  * + If two or more indicators are found, an error will be returned.
  *
+
  */
 static status_t lex_fetch_num(lex_t *lex, word_t *word)
 {
@@ -376,22 +377,22 @@ static status_t lex_fetch_num(lex_t *lex, word_t *word)
 
     err_no = lex_fetch_numpart(lex, word);
     if (err_no != NERR_SUCCESS) {
-        GS_SRC_THROW_ERROR(word->loc, ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word->loc, ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
+        return CT_ERROR;
     }
 
     // process the fetched numeric word, and decide its type
     if (lex->infer_numtype) {
-        err_no = cm_decide_numtype(&word->np, (gs_type_t *)&word->id);
+        err_no = cm_decide_numtype(&word->np, (ct_type_t *)&word->id);
         if (err_no != NERR_SUCCESS) {
-            GS_SRC_THROW_ERROR(word->loc, ERR_SQL_SYNTAX_ERROR, "invalid number");
-            return GS_ERROR;
+            CT_SRC_THROW_ERROR(word->loc, ERR_SQL_SYNTAX_ERROR, "invalid number");
+            return CT_ERROR;
         }
     } else {
-        word->id = GS_TYPE_NUMBER;
+        word->id = CT_TYPE_NUMBER;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void lex_cmp2any_type(word_t *word)
@@ -473,8 +474,8 @@ static status_t lex_fetch_cmp(lex_t *lex, word_t *word)
         }
     } else if (curr == '!') {
         if (next != '=') {
-            GS_THROW_ERROR(ERR_ASSERT_ERROR, "next == '='");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ASSERT_ERROR, "next == '='");
+            return CT_ERROR;
         }
         (void)lex_skip(lex, 1);
         word->id = (uint32)CMP_TYPE_NOT_EQUAL;
@@ -484,8 +485,8 @@ static status_t lex_fetch_cmp(lex_t *lex, word_t *word)
 
     word->text.len = (uint32)(lex->curr_text->str - word->text.str);
 
-    if (lex_try_fetch_1of3(lex, "ANY", "ALL", "SOME", &match_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_try_fetch_1of3(lex, "ANY", "ALL", "SOME", &match_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (match_id == 0 || match_id == 2) {
@@ -494,7 +495,7 @@ static status_t lex_fetch_cmp(lex_t *lex, word_t *word)
         lex_cmp2all_type(word);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void lex_fetch_anchor(lex_t *lex, word_t *word)
@@ -586,7 +587,7 @@ static void lex_fetch_oper(lex_t *lex, word_t *word)
 static status_t lex_fetch_comment(lex_t *lex, word_t *word)
 {
     char curr, next;
-    bool32 finished = GS_FALSE;
+    bool32 finished = CT_FALSE;
 
     curr = CM_TEXT_BEGIN(lex->curr_text);
     (void)lex_skip(lex, 2);
@@ -600,7 +601,7 @@ static status_t lex_fetch_comment(lex_t *lex, word_t *word)
             curr = lex_skip(lex, 1);
         }
 
-        finished = GS_TRUE;
+        finished = CT_TRUE;
     } else {                 // parse COMMENT SECTION
         if (word != NULL) {  // word is not null
             word->id = (uint32)COMMENT_TYPE_SECTION;
@@ -614,7 +615,7 @@ static status_t lex_fetch_comment(lex_t *lex, word_t *word)
 
             if (curr == '*' && next == '/') {
                 (void)lex_skip(lex, 2);
-                finished = GS_TRUE;
+                finished = CT_TRUE;
                 break;
             }
 
@@ -627,15 +628,15 @@ static status_t lex_fetch_comment(lex_t *lex, word_t *word)
     }
 
     if (!finished) {
-        GS_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "text is not completed");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "text is not completed");
+        return CT_ERROR;
     }
 
     if (word != NULL) {  // word is not null
         word->text.len = (uint32)(lex->curr_text->str - word->text.str);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void lex_fetch_special_char(lex_t *lex, word_t *word)
@@ -654,8 +655,8 @@ static status_t lex_fetch_name(lex_t *lex, word_t *word)
         }
 
         if (!IS_NAMABLE(c)) {
-            GS_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "namable char expected but %c found", c);
-            return GS_ERROR;
+            CT_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "namable char expected but %c found", c);
+            return CT_ERROR;
         }
 
         c = lex_skip(lex, 1);
@@ -663,19 +664,19 @@ static status_t lex_fetch_name(lex_t *lex, word_t *word)
 
     word->text.len = (uint32)(lex->curr_text->str - word->text.str);
 
-    if (word->text.len > GS_MAX_NAME_LEN) {
-        GS_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "object is too long or varaint name");
-        return GS_ERROR;
+    if (word->text.len > CT_MAX_NAME_LEN) {
+        CT_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "object is too long or varaint name");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lex_fetch_param(lex_t *lex, word_t *word)
 {
     if (CM_TEXT_BEGIN(lex->curr_text) == '?') {
         lex_fetch_special_char(lex, word);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
         return lex_fetch_name(lex, word);
     }
@@ -687,24 +688,24 @@ static status_t lex_fetch_alpha_param(lex_t *lex, word_t *word)
     c = lex_skip(lex, 1);
     if (c == LEX_END || IS_SPLITTER(c)) {
         word->text.len = 1;
-        word->namable = GS_FALSE;
-        return GS_SUCCESS;
+        word->namable = CT_FALSE;
+        return CT_SUCCESS;
     }
 
-    GS_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "text is incorrect");
-    return GS_ERROR;
+    CT_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "text is incorrect");
+    return CT_ERROR;
 }
 
 static status_t lex_expected_fetch_extra(lex_t *lex, word_t *ex_word)
 {
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
     uint32 flags = lex->flags;
 
     lex->flags = LEX_SINGLE_WORD;
 
-    if (lex_fetch(lex, ex_word) != GS_SUCCESS) {
+    if (lex_fetch(lex, ex_word) != CT_SUCCESS) {
         lex->flags = flags;
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     lex->flags = flags;
@@ -712,54 +713,54 @@ static status_t lex_expected_fetch_extra(lex_t *lex, word_t *ex_word)
     result = IS_VARIANT(ex_word) || (ex_word->type == WORD_TYPE_RESERVED && (ex_word->namable ||
         ex_word->id == RES_WORD_ROWID || ex_word->id == RES_WORD_ROWSCN || ex_word->id == RES_WORD_ROWNODEID));
     if (!result) {
-        GS_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "expression expected but '%s' found", W2S(ex_word));
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "expression expected but '%s' found", W2S(ex_word));
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lex_try_fetch_onedot(lex_t *lex, bool32 *result)
 {
     sql_text_t *text = lex->curr_text;
-    if (lex_skip_comments(lex, NULL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_skip_comments(lex, NULL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (text->len == 0 || *text->str != '.') {
-        *result = GS_FALSE;
-        return GS_SUCCESS;
+        *result = CT_FALSE;
+        return CT_SUCCESS;
     }
 
     if ((LEX_CURR(lex) == '.') && (LEX_NEXT(lex) == '.')) {
-        *result = GS_FALSE;
-        return GS_SUCCESS;
+        *result = CT_FALSE;
+        return CT_SUCCESS;
     }
 
     (void)lex_skip(lex, 1);
-    *result = GS_TRUE;
-    return GS_SUCCESS;
+    *result = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 static status_t lex_try_fetch_owner(lex_t *lex, word_t *word)
 {
     word_t ex_word;
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
     key_word_t *save_key_words = NULL;
     uint32 save_key_word_count;
     for (;;) {
-        GS_RETURN_IFERR(lex_try_fetch_onedot(lex, &result));
+        CT_RETURN_IFERR(lex_try_fetch_onedot(lex, &result));
 
         if (!result) {
             break;
         }
 
         if (word->ex_count >= MAX_EXTRA_TEXTS - 1) {
-            GS_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "too many '.' found");
-            return GS_ERROR;
+            CT_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "too many '.' found");
+            return CT_ERROR;
         }
 
-        GS_RETURN_IFERR(lex_try_fetch(lex, "*", &result));
+        CT_RETURN_IFERR(lex_try_fetch(lex, "*", &result));
 
         if (result) {
             word->ori_type = word->type;
@@ -768,21 +769,21 @@ static status_t lex_try_fetch_owner(lex_t *lex, word_t *word)
             word->ex_words[word->ex_count].text.str = lex->begin_addr;
             word->ex_words[word->ex_count].text.loc = lex->loc;
             word->ex_count++;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         SAVE_LEX_KEY_WORD(lex, save_key_words, save_key_word_count);
         SET_LEX_KEY_WORD(lex, (key_word_t *)g_method_key_words, METHOD_KEY_WORDS_COUNT);
-        if (lex_expected_fetch_extra(lex, &ex_word) != GS_SUCCESS) {
+        if (lex_expected_fetch_extra(lex, &ex_word) != CT_SUCCESS) {
             SET_LEX_KEY_WORD(lex, save_key_words, save_key_word_count);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         SET_LEX_KEY_WORD(lex, save_key_words, save_key_word_count);
         
         if (word->ex_count + ex_word.ex_count + 1 > MAX_EXTRA_TEXTS) {
-            GS_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "complex extra texts more than %u level",
+            CT_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "complex extra texts more than %u level",
                 (int32)MAX_EXTRA_TEXTS);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         for (uint32 i = 0; i <= ex_word.ex_count; i++) {
             word->ex_words[word->ex_count].text = (i == 0) ? ex_word.text : ex_word.ex_words[i - 1].text;
@@ -795,7 +796,7 @@ static status_t lex_try_fetch_owner(lex_t *lex, word_t *word)
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lex_try_fetch_pl_attr(lex_t *lex, word_t *word, bool32 *result)
@@ -804,26 +805,26 @@ static status_t lex_try_fetch_pl_attr(lex_t *lex, word_t *word, bool32 *result)
 
     LEX_SAVE(lex);
 
-    if (lex_try_fetch_char(lex, '%', result) != GS_SUCCESS) {  // result = true, PL ATTR
+    if (lex_try_fetch_char(lex, '%', result) != CT_SUCCESS) {  // result = true, PL ATTR
         LEX_RESTORE(lex);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!(*result)) {
         LEX_RESTORE(lex);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     lex_begin_fetch(lex, &ex_word);
 
     if (lex->stack.depth == 0 || CM_IS_EMPTY(&lex->curr_text->value)) {
         LEX_RESTORE(lex);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (lex_fetch_name(lex, &ex_word) != GS_SUCCESS) {
+    if (lex_fetch_name(lex, &ex_word) != CT_SUCCESS) {
         LEX_RESTORE(lex);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (lex_match_subset((key_word_t *)g_pl_attr_words, PL_ATTR_WORDS_COUNT, &ex_word)) {
@@ -834,31 +835,31 @@ static status_t lex_try_fetch_pl_attr(lex_t *lex, word_t *word, bool32 *result)
     } else {
         LEX_RESTORE(lex);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_try_fetch_database_link(lex_t *lex, word_t *word, bool32 *result)
 {
     LEX_SAVE(lex);
 
-    if (lex_try_fetch_char(lex, '@', result) != GS_SUCCESS) {  // result = true, PL ATTR
+    if (lex_try_fetch_char(lex, '@', result) != CT_SUCCESS) {  // result = true, PL ATTR
         LEX_RESTORE(lex);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!(*result)) {
         LEX_RESTORE(lex);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     lex_begin_fetch(lex, word);
     if (lex->stack.depth == 0 || CM_IS_EMPTY(lex->curr_text)) {
-        GS_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "database link name cannot be null.");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "database link name cannot be null.");
+        return CT_ERROR;
     }
-    GS_RETURN_IFERR(lex_fetch_name(lex, word));
+    CT_RETURN_IFERR(lex_fetch_name(lex, word));
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 lex_is_unnamable_function(word_t *word)
@@ -872,23 +873,23 @@ static status_t lex_fetch_variant(lex_t *lex, word_t *word, bool32 in_hint)
 {
     uint32 flags = lex->flags;
     word_t ex_word;
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
 
-    GS_RETURN_IFERR(lex_fetch_name(lex, word));
+    CT_RETURN_IFERR(lex_fetch_name(lex, word));
 
     if (SECUREC_UNLIKELY(in_hint)) {
         return lex_match_hint_keyword(lex, word);
     }
 
-    GS_RETURN_IFERR(lex_try_fetch_pl_attr(lex, word, &result));
+    CT_RETURN_IFERR(lex_try_fetch_pl_attr(lex, word, &result));
 
-    word->namable = GS_TRUE;
+    word->namable = CT_TRUE;
     if (word->type != WORD_TYPE_PL_ATTR) {
-        GS_RETURN_IFERR(lex_match_keyword(lex, word));
+        CT_RETURN_IFERR(lex_match_keyword(lex, word));
     }
     
     if (!word->namable && !lex_is_unnamable_function(word)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (lex->ext_flags != 0) {
@@ -896,15 +897,15 @@ static status_t lex_fetch_variant(lex_t *lex, word_t *word, bool32 in_hint)
     }
 
     if (flags & LEX_WITH_OWNER) {
-        GS_RETURN_IFERR(lex_try_fetch_owner(lex, word));
+        CT_RETURN_IFERR(lex_try_fetch_owner(lex, word));
         if (word->ex_count > 0 && word->type != WORD_TYPE_PL_ATTR) {
-            word->id = GS_INVALID_ID32;
+            word->id = CT_INVALID_ID32;
         }
     }
 
     // If word is prior, don't need fetch arg.
     if ((flags & LEX_WITH_ARG) && (word->id != OPER_TYPE_PRIOR)) {
-        GS_RETURN_IFERR(lex_try_fetch_bracket(lex, &ex_word, &result));
+        CT_RETURN_IFERR(lex_try_fetch_bracket(lex, &ex_word, &result));
 
         if (result) {
             cm_trim_text(&ex_word.text.value);
@@ -921,12 +922,12 @@ static status_t lex_fetch_variant(lex_t *lex, word_t *word, bool32 in_hint)
     }
     lex->ext_flags = 0;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lex_fetch_quote(lex_t *lex, word_t *word, char quote)
 {
-    bool32 finished = GS_FALSE;
+    bool32 finished = CT_FALSE;
     char curr, next;
 
     curr = lex_move(lex);
@@ -934,7 +935,7 @@ static status_t lex_fetch_quote(lex_t *lex, word_t *word, char quote)
     char charcurr = LEX_CURR(lex);
     char charnext = LEX_NEXT(lex);
     if (charcurr == '0' && charnext == 'x') {
-        word->id = GS_TYPE_BINARY;
+        word->id = CT_TYPE_BINARY;
     }
 
     while (curr != LEX_END) {
@@ -946,7 +947,7 @@ static status_t lex_fetch_quote(lex_t *lex, word_t *word, char quote)
             }
 
             (void)lex_skip(lex, 1);
-            finished = GS_TRUE;
+            finished = CT_TRUE;
             break;
         }
 
@@ -954,46 +955,46 @@ static status_t lex_fetch_quote(lex_t *lex, word_t *word, char quote)
     }
 
     if (!finished) {
-        GS_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "text is not completed");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "text is not completed");
+        return CT_ERROR;
     }
 
     word->text.len = (uint32)(lex->curr_text->str - word->text.str);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lex_fetch_dquote(lex_t *lex, word_t *word, char quote)
 {
     word_t ex_word;
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
 
-    if (lex_fetch_quote(lex, word, quote) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_fetch_quote(lex, word, quote) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (word->text.len <= 2) {
-        GS_SRC_THROW_ERROR(word->loc, ERR_SQL_SYNTAX_ERROR, "invalid identifier, length 0");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word->loc, ERR_SQL_SYNTAX_ERROR, "invalid identifier, length 0");
+        return CT_ERROR;
     }
 
     CM_REMOVE_ENCLOSED_CHAR(&word->text);
 
-    if (word->text.len > GS_MAX_NAME_LEN) {
-        GS_SRC_THROW_ERROR_EX(word->text.loc, ERR_SQL_SYNTAX_ERROR, "text is too long, max is %u",
-                              GS_MAX_NAME_LEN);
-        return GS_ERROR;
+    if (word->text.len > CT_MAX_NAME_LEN) {
+        CT_SRC_THROW_ERROR_EX(word->text.loc, ERR_SQL_SYNTAX_ERROR, "text is too long, max is %u",
+                              CT_MAX_NAME_LEN);
+        return CT_ERROR;
     }
 
     if (lex->flags & LEX_WITH_OWNER) {
-        if (lex_try_fetch_owner(lex, word) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lex_try_fetch_owner(lex, word) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (lex->flags & LEX_WITH_ARG) {
-        if (lex_try_fetch_bracket(lex, &ex_word, &result) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lex_try_fetch_bracket(lex, &ex_word, &result) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (result) {
@@ -1004,7 +1005,7 @@ static status_t lex_fetch_dquote(lex_t *lex, word_t *word, char quote)
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_fetch_string(lex_t *lex, word_t *word)
@@ -1014,8 +1015,8 @@ status_t lex_fetch_string(lex_t *lex, word_t *word)
 
 static status_t lex_fetch_bracket(lex_t *lex, word_t *word)
 {
-    bool32 in_string = GS_FALSE;
-    bool32 in_quot = GS_FALSE;
+    bool32 in_string = CT_FALSE;
+    bool32 in_quot = CT_FALSE;
     uint32 depth = 1;
     char c = lex_move(lex);
 
@@ -1041,7 +1042,7 @@ static status_t lex_fetch_bracket(lex_t *lex, word_t *word)
             continue;
         }
         if ((c == '/' && LEX_NEXT(lex) == '*') || (c == '-' && LEX_NEXT(lex) == '-')) {
-            GS_RETURN_IFERR(lex_fetch_comment(lex, NULL));
+            CT_RETURN_IFERR(lex_fetch_comment(lex, NULL));
             c = LEX_CURR(lex);
             continue;
         }
@@ -1059,13 +1060,13 @@ static status_t lex_fetch_bracket(lex_t *lex, word_t *word)
     }
 
     if (in_quot || in_string || depth != 0) {
-        GS_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "text is not completed");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "text is not completed");
+        return CT_ERROR;
     }
 
     word->text.len = (uint32)(lex->curr_text->str - word->text.str);
     lex_remove_brackets(&word->text);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lex_fetch_pl_setval(lex_t *lex, word_t *word)
@@ -1074,12 +1075,12 @@ static status_t lex_fetch_pl_setval(lex_t *lex, word_t *word)
     word->text.len = 2;
     (void)lex_move(lex);
     (void)lex_move(lex);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_fetch_pl_label(lex_t *lex, word_t *word)
 {
-    bool32 finished = GS_FALSE;
+    bool32 finished = CT_FALSE;
     char curr, next;
 
     curr = *lex->curr_text->str;
@@ -1091,37 +1092,37 @@ status_t lex_fetch_pl_label(lex_t *lex, word_t *word)
         if ((curr == '>') && (next == '>')) {  // a''b => a'b
             (void)lex_move(lex);
             (void)lex_move(lex);
-            finished = GS_TRUE;
+            finished = CT_TRUE;
             break;
         }
         curr = lex_move(lex);
     } while (next != LEX_END);
 
     if (!finished) {
-        GS_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "text is not completed");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "text is not completed");
+        return CT_ERROR;
     }
 
     LEX_RESTORE(lex);
 
-    if (lex_expected_fetch(lex, word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch(lex, word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lex_fetch_new_or_old_col(lex_t *lex, word_t *word)
 {
     word_t ex_word;
 
-    if (lex_expected_fetch_extra(lex, &ex_word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch_extra(lex, &ex_word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (ex_word.ex_count > 0) {
-        GS_SRC_THROW_ERROR(word->loc, ERR_SQL_SYNTAX_ERROR, "invalid column");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word->loc, ERR_SQL_SYNTAX_ERROR, "invalid column");
+        return CT_ERROR;
     }
 
     word->ex_words[0].text = ex_word.text;
@@ -1129,7 +1130,7 @@ static status_t lex_fetch_new_or_old_col(lex_t *lex, word_t *word)
     word->ex_count = 1;
     word->text.len = (uint32)(lex->curr_text->str - word->text.str);
     cm_rtrim_text(&word->text.value);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lex_fetch_hexadecimal_val(lex_t *lex, word_t *word)
@@ -1154,61 +1155,61 @@ static status_t lex_fetch_hexadecimal_val(lex_t *lex, word_t *word)
         }
 
         word->text.len = (uint32)(lex->curr_text->str - word->text.str);
-        word->id = GS_TYPE_BINARY;
+        word->id = CT_TYPE_BINARY;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-status_t lex_try_match_array(lex_t *lex, uint8 *is_array, gs_type_t datatype)
+status_t lex_try_match_array(lex_t *lex, uint8 *is_array, ct_type_t datatype)
 {
     uint32 num;
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
 
     if (lex->call_version < VERSION_10) {
-        *is_array = GS_FALSE;
-        return GS_SUCCESS;
+        *is_array = CT_FALSE;
+        return CT_SUCCESS;
     }
 
     LEX_SAVE(lex);
-    *is_array = GS_FALSE;
+    *is_array = CT_FALSE;
 
-    if (lex_try_fetch(lex, "[", &result) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_try_fetch(lex, "[", &result) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (result) {
-        if (lex_try_fetch(lex, "]", &result) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lex_try_fetch(lex, "]", &result) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (result) {
-            *is_array = GS_TRUE;
+            *is_array = CT_TRUE;
         } else {
-            if (lex_expected_fetch_uint32(lex, &num) != GS_SUCCESS) {
+            if (lex_expected_fetch_uint32(lex, &num) != CT_SUCCESS) {
                 LEX_RESTORE(lex);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
-            if (lex_expected_fetch_word(lex, "]") != GS_SUCCESS) {
+            if (lex_expected_fetch_word(lex, "]") != CT_SUCCESS) {
                 LEX_RESTORE(lex);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
-            *is_array = GS_TRUE;
+            *is_array = CT_TRUE;
         }
     } else {
         LEX_RESTORE(lex);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (*is_array == GS_TRUE) {
+    if (*is_array == CT_TRUE) {
         if (!cm_datatype_arrayable(datatype)) {
-            GS_THROW_ERROR(ERR_DATATYPE_NOT_SUPPORT_ARRAY, get_datatype_name_str(datatype));
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_DATATYPE_NOT_SUPPORT_ARRAY, get_datatype_name_str(datatype));
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_try_fetch_subscript(lex_t *lex, int32 *ss_start, int32 *ss_end)
@@ -1218,59 +1219,59 @@ status_t lex_try_fetch_subscript(lex_t *lex, int32 *ss_start, int32 *ss_end)
     bool32 result;
     LEX_SAVE(lex);
 
-    if (lex_try_fetch(lex, "[", &result) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_try_fetch(lex, "[", &result) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (result) {
         do {
-            if (lex_expected_fetch_int32(lex, &start) != GS_SUCCESS) {
+            if (lex_expected_fetch_int32(lex, &start) != CT_SUCCESS) {
                 break;
             }
             if (start <= 0) {
-                GS_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "invalid array subscript");
-                return GS_ERROR;
+                CT_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "invalid array subscript");
+                return CT_ERROR;
             }
-            if (lex_try_fetch(lex, "]", &result) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (lex_try_fetch(lex, "]", &result) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             /* f1[m] */
             if (result) {
                 *ss_start = start;
-                *ss_end = GS_INVALID_ID32;
-                return GS_SUCCESS;
+                *ss_end = CT_INVALID_ID32;
+                return CT_SUCCESS;
             }
 
             /* f1[m:n] */
-            if (lex_expected_fetch_word(lex, ":") != GS_SUCCESS) {
+            if (lex_expected_fetch_word(lex, ":") != CT_SUCCESS) {
                 break;
             }
 
-            if (lex_expected_fetch_int32(lex, &end) != GS_SUCCESS) {
+            if (lex_expected_fetch_int32(lex, &end) != CT_SUCCESS) {
                 break;
             }
 
             if (end <= 0) {
-                GS_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "invalid array subscript");
-                return GS_ERROR;
+                CT_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "invalid array subscript");
+                return CT_ERROR;
             }
 
-            if (lex_expected_fetch_word(lex, "]") != GS_SUCCESS) {
+            if (lex_expected_fetch_word(lex, "]") != CT_SUCCESS) {
                 break;
             }
 
             *ss_start = start;
             *ss_end = end;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         } while (0);
         LEX_RESTORE(lex);
         cm_reset_error();
     }
 
-    *ss_start = (int32)GS_INVALID_ID32;
-    *ss_end = (int32)GS_INVALID_ID32;
-    return GS_SUCCESS;
+    *ss_start = (int32)CT_INVALID_ID32;
+    *ss_end = (int32)CT_INVALID_ID32;
+    return CT_SUCCESS;
 }
 
 status_t lex_fetch_array(lex_t *lex, word_t *word)
@@ -1286,8 +1287,8 @@ status_t lex_fetch_array(lex_t *lex, word_t *word)
     curr = LEX_CURR(lex);
     while (curr != LEX_END && curr != ']') {
         if (curr == '\'' || curr == '"') {
-            if (lex_fetch_quote(lex, &tmp_word, curr) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (lex_fetch_quote(lex, &tmp_word, curr) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             curr = LEX_CURR(lex);
         } else {
@@ -1296,15 +1297,15 @@ status_t lex_fetch_array(lex_t *lex, word_t *word)
     }
 
     if (curr != ']') {
-        GS_SRC_THROW_ERROR(LEX_LOC, ERR_INVALID_ARRAY_FORMAT);
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(LEX_LOC, ERR_INVALID_ARRAY_FORMAT);
+        return CT_ERROR;
     } else {
         word->text.len = (uint32)(lex->curr_text->str - word->text.str);
-        word->id = GS_TYPE_ARRAY;
+        word->id = CT_TYPE_ARRAY;
         (void)lex_skip(lex, 1); // skip ]
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void lex_fetch_range_char(lex_t *lex, word_t *word)
@@ -1317,8 +1318,8 @@ static status_t lex_fetch_word(lex_t *lex, word_t *word, bool32 in_hint)
 {
     status_t status;
 
-    word->namable = GS_TRUE;
-    word->id = GS_INVALID_ID32;
+    word->namable = CT_TRUE;
+    word->id = CT_INVALID_ID32;
     word->ex_count = 0;
     word->ori_type = WORD_TYPE_UNKNOWN;
     word->flag_type = 0;
@@ -1326,48 +1327,48 @@ static status_t lex_fetch_word(lex_t *lex, word_t *word, bool32 in_hint)
 
     if (lex->curr_text->len == 0 || lex->stack.depth == 0) {
         word->type = WORD_TYPE_EOF;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /* diagnose the word type preliminarily */
     word->type = lex_diagnose_word_type(lex);
-    status = GS_SUCCESS;
+    status = CT_SUCCESS;
 
     switch (word->type) {
         case WORD_TYPE_NUMBER:
             status = lex_fetch_num(lex, word);
-            word->namable = GS_FALSE;
+            word->namable = CT_FALSE;
             break;
 
         case WORD_TYPE_COMPARE:
             status = lex_fetch_cmp(lex, word);
-            word->namable = GS_FALSE;
+            word->namable = CT_FALSE;
             break;
 
         case WORD_TYPE_OPERATOR:
             lex_fetch_oper(lex, word);
-            word->namable = GS_FALSE;
+            word->namable = CT_FALSE;
             break;
 
         case WORD_TYPE_COMMENT:
             status = lex_fetch_comment(lex, word);
-            word->namable = GS_FALSE;
+            word->namable = CT_FALSE;
             break;
 
         case WORD_TYPE_PARAM:
             status = lex_fetch_param(lex, word);
-            word->namable = GS_FALSE;
+            word->namable = CT_FALSE;
             break;
 
         case WORD_TYPE_PL_RANGE:
             lex_fetch_range_char(lex, word);
-            word->namable = GS_FALSE;
+            word->namable = CT_FALSE;
             break;
 
         case WORD_TYPE_PL_TERM:
         case WORD_TYPE_SPEC_CHAR:
             lex_fetch_special_char(lex, word);
-            word->namable = GS_FALSE;
+            word->namable = CT_FALSE;
             break;
 
         case WORD_TYPE_STRING:
@@ -1376,7 +1377,7 @@ static status_t lex_fetch_word(lex_t *lex, word_t *word, bool32 in_hint)
 
         case WORD_TYPE_BRACKET:
             status = lex_fetch_bracket(lex, word);
-            word->namable = GS_FALSE;
+            word->namable = CT_FALSE;
             break;
 
         case WORD_TYPE_VARIANT:
@@ -1385,7 +1386,7 @@ static status_t lex_fetch_word(lex_t *lex, word_t *word, bool32 in_hint)
 
         case WORD_TYPE_ANCHOR:
             lex_fetch_anchor(lex, word);
-            word->namable = GS_FALSE;
+            word->namable = CT_FALSE;
             break;
 
         case WORD_TYPE_DQ_STRING:
@@ -1403,13 +1404,13 @@ static status_t lex_fetch_word(lex_t *lex, word_t *word, bool32 in_hint)
 
         case WORD_TYPE_HEXADECIMAL:
             status = lex_fetch_hexadecimal_val(lex, word);
-            word->namable = GS_FALSE;
+            word->namable = CT_FALSE;
             break;
 
         case WORD_TYPE_ARRAY:
             lex_skip(lex, sizeof("array") - 1);
             word->text.len = sizeof("array") - 1;
-            status = GS_SUCCESS;
+            status = CT_SUCCESS;
             break;
 
         case WORD_TYPE_ALPHA_PARAM:
@@ -1417,8 +1418,8 @@ static status_t lex_fetch_word(lex_t *lex, word_t *word, bool32 in_hint)
             break;
 
         default:
-            GS_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "text is incorrect");
-            return GS_ERROR;
+            CT_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "text is incorrect");
+            return CT_ERROR;
     }
 
     return status;
@@ -1427,23 +1428,23 @@ static status_t lex_fetch_word(lex_t *lex, word_t *word, bool32 in_hint)
 status_t lex_fetch(lex_t *lex, word_t *word)
 {
     do {
-        if (lex_fetch_word(lex, word, GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lex_fetch_word(lex, word, CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } while (word->type == WORD_TYPE_COMMENT);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_fetch_in_hint(lex_t *lex, word_t *word)
 {
     do {
-        if (lex_fetch_word(lex, word, GS_TRUE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lex_fetch_word(lex, word, CT_TRUE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } while (word->type == WORD_TYPE_COMMENT);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool32 lex_match_head(sql_text_t *text, const char *word, uint32 *len)
@@ -1456,7 +1457,7 @@ bool32 lex_match_head(sql_text_t *text, const char *word, uint32 *len)
         }
 
         if (UPPER(word[i]) != UPPER(text->str[i])) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
@@ -1483,125 +1484,125 @@ status_t lex_expected_fetch(lex_t *lex, word_t *word)
 {
     word->ex_count = 0;
 
-    if (lex_fetch(lex, word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_fetch(lex, word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (word->type == WORD_TYPE_EOF) {
-        GS_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "more text expected but terminated");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "more text expected but terminated");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_expected_fetch_word(lex_t *lex, const char *word)
 {
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
 
-    if (lex_try_fetch(lex, word, &result) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_try_fetch(lex, word, &result) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!result) {
-        GS_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "%s expected", word);
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "%s expected", word);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
 * Expect to fetch two continuous words.
 * @note the comments are allowed among in these words
-* @author
+
 */
 status_t lex_expected_fetch_word2(lex_t *lex, const char *word1, const char *word2)
 {
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
 
-    if (lex_try_fetch2(lex, word1, word2, &result) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_try_fetch2(lex, word1, word2, &result) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!result) {
-        GS_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "'%s %s' expected", word1, word2);
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "'%s %s' expected", word1, word2);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
 * Expect to fetch three continuous words.
 * @note the comments are allowed among in these words
-* @author
+
 */
 status_t lex_expected_fetch_word3(lex_t *lex, const char *word1, const char *word2, const char *word3)
 {
-    bool32 result = GS_FALSE;
-    if (lex_try_fetch3(lex, word1, word2, word3, &result) != GS_SUCCESS) {
-        return GS_ERROR;
+    bool32 result = CT_FALSE;
+    if (lex_try_fetch3(lex, word1, word2, word3, &result) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!result) {
-        GS_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "'%s %s %s' expected", word1, word2, word3);
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "'%s %s %s' expected", word1, word2, word3);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_try_fetch_1of2(lex_t *lex, const char *word1, const char *word2, uint32 *matched_id)
 {
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
 
-    if (lex_try_fetch(lex, word1, &result) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_try_fetch(lex, word1, &result) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (result) {
         *matched_id = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (lex_try_fetch(lex, word2, &result) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_try_fetch(lex, word2, &result) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (result) {
         *matched_id = 1;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    *matched_id = GS_INVALID_ID32;
-    return GS_SUCCESS;
+    *matched_id = CT_INVALID_ID32;
+    return CT_SUCCESS;
 }
 
 status_t lex_try_fetch_1of3(lex_t *lex, const char *word1, const char *word2, const char *word3,
                             uint32 *matched_id)
 {
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
 
-    if (lex_try_fetch_1of2(lex, word1, word2, matched_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_try_fetch_1of2(lex, word1, word2, matched_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (*matched_id != GS_INVALID_ID32) {
-        return GS_SUCCESS;
+    if (*matched_id != CT_INVALID_ID32) {
+        return CT_SUCCESS;
     }
 
-    if (lex_try_fetch(lex, word3, &result) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_try_fetch(lex, word3, &result) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    *matched_id = result ? 2 : GS_INVALID_ID32;
-    return GS_SUCCESS;
+    *matched_id = result ? 2 : CT_INVALID_ID32;
+    return CT_SUCCESS;
 }
 
 status_t lex_try_fetch_1ofn(lex_t *lex, uint32 *matched_id, int num, ...)
 {
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
     va_list ap;
     int i = num;
     uint32 j = 0;
@@ -1610,15 +1611,15 @@ status_t lex_try_fetch_1ofn(lex_t *lex, uint32 *matched_id, int num, ...)
     while (i > 0) {
         const char *word = (const char *)va_arg(ap, const char *);
 
-        if (lex_try_fetch(lex, word, &result) != GS_SUCCESS) {
+        if (lex_try_fetch(lex, word, &result) != CT_SUCCESS) {
             va_end(ap);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (result) {
             *matched_id = j;
             va_end(ap);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         j++;
@@ -1626,66 +1627,66 @@ status_t lex_try_fetch_1ofn(lex_t *lex, uint32 *matched_id, int num, ...)
     }
     va_end(ap);
 
-    *matched_id = GS_INVALID_ID32;
-    return GS_SUCCESS;
+    *matched_id = CT_INVALID_ID32;
+    return CT_SUCCESS;
 }
 
 status_t lex_expected_fetch_1of2(lex_t *lex, const char *word1, const char *word2, uint32 *matched_id)
 {
-    if (lex_try_fetch_1of2(lex, word1, word2, matched_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_try_fetch_1of2(lex, word1, word2, matched_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (*matched_id == GS_INVALID_ID32) {
-        GS_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "%s or %s expected", word1, word2);
-        return GS_ERROR;
+    if (*matched_id == CT_INVALID_ID32) {
+        CT_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "%s or %s expected", word1, word2);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_expected_fetch_1of3(lex_t *lex, const char *word1, const char *word2, const char *word3,
                                  uint32 *matched_id)
 {
-    if (lex_try_fetch_1of3(lex, word1, word2, word3, matched_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_try_fetch_1of3(lex, word1, word2, word3, matched_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (*matched_id == GS_INVALID_ID32) {
-        GS_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "%s or %s or %s expected", word1, word2, word3);
-        return GS_ERROR;
+    if (*matched_id == CT_INVALID_ID32) {
+        CT_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "%s or %s or %s expected", word1, word2, word3);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_expected_fetch_1ofn(lex_t *lex, uint32 *matched_id, int num, ...)
 {
     int iret_snprintf;
     va_list ap;
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
     uint32 msg_len, remain_msg_len;
     int i = num;
     uint32 j = 0;
-    char message[GS_MESSAGE_BUFFER_SIZE] = { 0 };
+    char message[CT_MESSAGE_BUFFER_SIZE] = { 0 };
 
     va_start(ap, num);
     while (i > 0) {
         const char *word = (const char *)va_arg(ap, const char *);
 
-        if (lex_try_fetch(lex, word, &result) != GS_SUCCESS) {
+        if (lex_try_fetch(lex, word, &result) != CT_SUCCESS) {
             va_end(ap);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (result) {
             *matched_id = j;
             va_end(ap);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         msg_len = (uint32)strlen(message);
-        remain_msg_len = GS_MESSAGE_BUFFER_SIZE - msg_len;
+        remain_msg_len = CT_MESSAGE_BUFFER_SIZE - msg_len;
         if (i != 1) {
             iret_snprintf = snprintf_s(message + msg_len, remain_msg_len, remain_msg_len - 1, "%s or ", word);
         } else {
@@ -1693,8 +1694,8 @@ status_t lex_expected_fetch_1ofn(lex_t *lex, uint32 *matched_id, int num, ...)
         }
         if (iret_snprintf == -1) {
             va_end(ap);
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, iret_snprintf);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, iret_snprintf);
+            return CT_ERROR;
         }
 
         j++;
@@ -1702,9 +1703,9 @@ status_t lex_expected_fetch_1ofn(lex_t *lex, uint32 *matched_id, int num, ...)
     }
     va_end(ap);
 
-    *matched_id = GS_INVALID_ID32;
-    GS_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "%s expected", message);
-    return GS_ERROR;
+    *matched_id = CT_INVALID_ID32;
+    CT_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "%s expected", message);
+    return CT_ERROR;
 }
 
 static inline num_errno_t lex_parse_size(lex_t *lex, word_t *word, int64 *size)
@@ -1716,10 +1717,10 @@ static inline num_errno_t lex_parse_size(lex_t *lex, word_t *word, int64 *size)
     err_no = lex_fetch_numpart(lex, word);
     CM_CHECK_NUM_ERRNO(err_no);
 
-    err_no = cm_decide_numtype(&word->np, (gs_type_t *)&word->id);
+    err_no = cm_decide_numtype(&word->np, (ct_type_t *)&word->id);
     CM_CHECK_NUM_ERRNO(err_no);
 
-    if (!GS_IS_INTEGER_TYPE(word->id)) {
+    if (!CT_IS_INTEGER_TYPE(word->id)) {
         return NERR_EXPECTED_INTEGER;
     }
 
@@ -1737,37 +1738,37 @@ status_t lex_expected_fetch_size(lex_t *lex, int64 *size, int64 min_size, int64 
     word_t word;
     num_errno_t err_no;
 
-    if (GS_INVALID_INT64 != min_size && GS_INVALID_INT64 != max_size) {
+    if (CT_INVALID_INT64 != min_size && CT_INVALID_INT64 != max_size) {
         if (min_size > max_size) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    if (lex_skip_comments(lex, &word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_skip_comments(lex, &word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     err_no = lex_parse_size(lex, &word, size);
     if (err_no != NERR_SUCCESS) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "size must be a positive long integer");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "size must be a positive long integer");
+        return CT_ERROR;
     }
 
-    if (GS_INVALID_INT64 != min_size && *size < min_size) {
-        GS_SRC_THROW_ERROR_EX(word.text.loc, ERR_SQL_SYNTAX_ERROR, "size value is smaller "
+    if (CT_INVALID_INT64 != min_size && *size < min_size) {
+        CT_SRC_THROW_ERROR_EX(word.text.loc, ERR_SQL_SYNTAX_ERROR, "size value is smaller "
                               "than minimum(" PRINT_FMT_INT64 ") required",
                               min_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (GS_INVALID_INT64 != max_size && *size > max_size) {
-        GS_SRC_THROW_ERROR_EX(word.text.loc, ERR_SQL_SYNTAX_ERROR, "size value is bigger "
+    if (CT_INVALID_INT64 != max_size && *size > max_size) {
+        CT_SRC_THROW_ERROR_EX(word.text.loc, ERR_SQL_SYNTAX_ERROR, "size value is bigger "
                               "than maximum(" PRINT_FMT_INT64 ") required",
                               max_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_expected_fetch_int32(lex_t *lex, int32 *size)
@@ -1775,8 +1776,8 @@ status_t lex_expected_fetch_int32(lex_t *lex, int32 *size)
     word_t word;
     num_errno_t err_no;
 
-    if (lex_skip_comments(lex, &word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_skip_comments(lex, &word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // for an integer dot, expn, size are not allowed
@@ -1784,21 +1785,21 @@ status_t lex_expected_fetch_int32(lex_t *lex, int32 *size)
     word.type = WORD_TYPE_EOF;
     err_no = lex_fetch_numpart(lex, &word);
     if (err_no != NERR_SUCCESS) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid integer");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid integer");
+        return CT_ERROR;
     }
 
     if (word.type != WORD_TYPE_NUMBER) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid integer");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid integer");
+        return CT_ERROR;
     }
 
     err_no = cm_numpart2int(&word.np, size);
     if (err_no != NERR_SUCCESS) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid integer");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid integer");
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_expected_fetch_uint32(lex_t *lex, uint32 *num)
@@ -1806,8 +1807,8 @@ status_t lex_expected_fetch_uint32(lex_t *lex, uint32 *num)
     word_t word;
     num_errno_t err_no;
 
-    if (lex_skip_comments(lex, &word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_skip_comments(lex, &word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // for an integer dot, expn, size are not allowed
@@ -1815,22 +1816,22 @@ status_t lex_expected_fetch_uint32(lex_t *lex, uint32 *num)
     word.type = WORD_TYPE_EOF;
     err_no = lex_fetch_numpart(lex, &word);
     if (err_no != NERR_SUCCESS) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "unsigned integer expected");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "unsigned integer expected");
+        return CT_ERROR;
     }
 
     if (word.type != WORD_TYPE_NUMBER) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "unsigned integer expected");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "unsigned integer expected");
+        return CT_ERROR;
     }
 
     err_no = cm_numpart2uint32(&word.np, num);
     if (err_no != NERR_SUCCESS) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "unsigned integer expected");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "unsigned integer expected");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_expected_fetch_uint64(lex_t *lex, uint64 *size)
@@ -1838,8 +1839,8 @@ status_t lex_expected_fetch_uint64(lex_t *lex, uint64 *size)
     word_t word;
     num_errno_t err_no;
 
-    if (lex_skip_comments(lex, &word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_skip_comments(lex, &word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // for an uint64, dot, negative, expn, size are not allowed
@@ -1847,35 +1848,35 @@ status_t lex_expected_fetch_uint64(lex_t *lex, uint64 *size)
     word.type = WORD_TYPE_EOF;
     err_no = lex_fetch_numpart(lex, &word);
     if (err_no != NERR_SUCCESS) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid uint64");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid uint64");
+        return CT_ERROR;
     }
 
     if (word.type != WORD_TYPE_NUMBER) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid uint64");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid uint64");
+        return CT_ERROR;
     }
 
     err_no = cm_numpart2uint64(&word.np, size);
     if (err_no != NERR_SUCCESS) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid uint64");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid uint64");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
  * To fetch a decimal
- * @author Added, 2018/06/17
+
  */
 status_t lex_expected_fetch_dec(lex_t *lex, dec8_t *dec)
 {
     word_t word;
     num_errno_t err_no;
 
-    if (lex_skip_comments(lex, &word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_skip_comments(lex, &word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     word.np.excl_flag = NF_NONE;
@@ -1894,32 +1895,32 @@ status_t lex_expected_fetch_dec(lex_t *lex, dec8_t *dec)
         if (err_no != NERR_SUCCESS) {
             break;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } while (0);
 
-    GS_SRC_THROW_ERROR_EX(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid number text %s", cm_get_num_errinfo(err_no));
-    return GS_ERROR;
+    CT_SRC_THROW_ERROR_EX(word.loc, ERR_SQL_SYNTAX_ERROR, "invalid number text %s", cm_get_num_errinfo(err_no));
+    return CT_ERROR;
 }
 
 /**
 * To fetch a sequence value, The currently implementation require the
-* value of a sequence to be between in GS_MIN_INT64 and GS_MAX_INT64.
+* value of a sequence to be between in CT_MIN_INT64 and CT_MAX_INT64.
 * For the values that out of the range is a TODO word in future.
-* @author Added, 2018/06/17
+
 */
 status_t lex_expected_fetch_seqval(lex_t *lex, int64 *val)
 {
     dec8_t dec;
-    if (lex_expected_fetch_dec(lex, &dec) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch_dec(lex, &dec) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!cm_dec_is_integer(&dec)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     (void)cm_dec8_to_int64_range(&dec, val, ROUND_TRUNC);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1942,11 +1943,11 @@ static inline status_t lex_text2hexchar(text_t *text, source_location_t *loc, ch
             break;
         }
         *c = (char)val;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } while (0);
 
-    GS_SRC_THROW_ERROR(*loc, ERR_SQL_SYNTAX_ERROR, "invalid hexdecimal character format, \\x00 ~ \\x7F is ok");
-    return GS_ERROR;
+    CT_SRC_THROW_ERROR(*loc, ERR_SQL_SYNTAX_ERROR, "invalid hexdecimal character format, \\x00 ~ \\x7F is ok");
+    return CT_ERROR;
 }
 
 /**
@@ -1970,10 +1971,10 @@ static inline status_t lex_str2hexchar(const char *str, char *c)
             break;
         }
         *c = (char)val;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } while (0);
 
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 typedef struct {
@@ -1981,7 +1982,7 @@ typedef struct {
     char value;
 } char_map_t;
 
-#define GS_MAX_KEY_STR_LEN  6  // "\\\""
+#define CT_MAX_KEY_STR_LEN  6  // "\\\""
 
 static const char_map_t g_supported_escape_char[] = {
     { "\\a",  '\a' },
@@ -1998,26 +1999,26 @@ static const char_map_t g_supported_escape_char[] = {
 
 status_t lex_check_asciichar(text_t *text, source_location_t *loc, char *c, bool32 allow_empty_char)
 {
-    bool32 cond = GS_FALSE;
+    bool32 cond = CT_FALSE;
 
     do {
         if (CM_IS_EMPTY(text)) {
-            GS_BREAK_IF_TRUE(!allow_empty_char);
-            *c = GS_INVALID_INT8;
-            return GS_SUCCESS;
+            CT_BREAK_IF_TRUE(!allow_empty_char);
+            *c = CT_INVALID_INT8;
+            return CT_SUCCESS;
         }
 
         if (text->len == 1) {
-            GS_BREAK_IF_TRUE(!CM_IS_ASCII(text->str[0]));
+            CT_BREAK_IF_TRUE(!CM_IS_ASCII(text->str[0]));
             *c = text->str[0];
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         // escaped char = '
         cond = (text->len == 2) && CM_TEXT_BEGIN(text) == '\'' && CM_TEXT_SECOND(text) == '\'';
         if (cond) {
             *c = '\'';
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         // handing escaped char \0x
@@ -2027,18 +2028,18 @@ status_t lex_check_asciichar(text_t *text, source_location_t *loc, char *c, bool
         }
 
         // handing escaped char  \,  ascii_char = g_supported_escape_char
-        cond = CM_TEXT_BEGIN(text) == '\\' && text->len < GS_MAX_KEY_STR_LEN;
+        cond = CM_TEXT_BEGIN(text) == '\\' && text->len < CT_MAX_KEY_STR_LEN;
         if (cond) {
             for (uint32 i = 0; i < sizeof(g_supported_escape_char) / sizeof(char_map_t); i++) {
                 if (cm_compare_text_str_ins(text, g_supported_escape_char[i].key) == 0) {
                     *c = g_supported_escape_char[i].value;
-                    return GS_SUCCESS;
+                    return CT_SUCCESS;
                 }
             }
         }
     } while (0);
 
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 /**
@@ -2048,13 +2049,13 @@ status_t lex_expected_fetch_asciichar(lex_t *lex, char *c, bool32 allow_empty_ch
 {
     word_t word;
 
-    if (lex_expected_fetch_string(lex, &word) != GS_SUCCESS ||
-        lex_check_asciichar(&word.text.value, &word.loc, c, allow_empty_char) != GS_SUCCESS) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "single ASCII character expected");
-        return GS_ERROR;
+    if (lex_expected_fetch_string(lex, &word) != CT_SUCCESS ||
+        lex_check_asciichar(&word.text.value, &word.loc, c, allow_empty_char) != CT_SUCCESS) {
+        CT_SRC_THROW_ERROR(word.loc, ERR_SQL_SYNTAX_ERROR, "single ASCII character expected");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -2065,13 +2066,13 @@ status_t lex_expected_fetch_str(lex_t *lex, char *str, uint32 str_max_length, ch
     word_t word;
     uint32 j = 0;
     do {
-        GS_BREAK_IF_TRUE(lex_expected_fetch_string(lex, &word) != GS_SUCCESS);
-        GS_BREAK_IF_TRUE(CM_IS_EMPTY(&word.text.value));
+        CT_BREAK_IF_TRUE(lex_expected_fetch_string(lex, &word) != CT_SUCCESS);
+        CT_BREAK_IF_TRUE(CM_IS_EMPTY(&word.text.value));
 
         if (word.text.len > str_max_length) {
-            GS_SRC_THROW_ERROR_EX(word.loc, ERR_SQL_SYNTAX_ERROR, "%s is too long, max length is %u", key_word_info,
+            CT_SRC_THROW_ERROR_EX(word.loc, ERR_SQL_SYNTAX_ERROR, "%s is too long, max length is %u", key_word_info,
                                   str_max_length);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         for (uint32 i = 0; i < word.text.len; i++) {
@@ -2083,7 +2084,7 @@ status_t lex_expected_fetch_str(lex_t *lex, char *str, uint32 str_max_length, ch
 
                 // if resolve hex to char successfully, skip 3 characters.
                 // otherwise, these four characters will be resolved as common characters
-                if (GS_SUCCESS == lex_str2hexchar(hex_str, &ret_c)) {
+                if (CT_SUCCESS == lex_str2hexchar(hex_str, &ret_c)) {
                     str[j++] = ret_c;
 
                     i += 3;
@@ -2121,37 +2122,37 @@ status_t lex_expected_fetch_str(lex_t *lex, char *str, uint32 str_max_length, ch
         }
         str[j] = '\0';
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } while (0);
 
-    GS_SRC_THROW_ERROR_EX(word.loc, ERR_SQL_SYNTAX_ERROR, "fetch %s failed.", key_word_info);
-    return GS_ERROR;
+    CT_SRC_THROW_ERROR_EX(word.loc, ERR_SQL_SYNTAX_ERROR, "fetch %s failed.", key_word_info);
+    return CT_ERROR;
 }
 
 status_t lex_expected_fetch_string(lex_t *lex, word_t *word)
 {
-    if (lex_expected_fetch(lex, word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch(lex, word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (word->type != WORD_TYPE_STRING) {
-        GS_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "'...' expected but %s found", W2S(word));
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "'...' expected but %s found", W2S(word));
+        return CT_ERROR;
     }
 
     LEX_REMOVE_WRAP(word);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_expected_fetch_dqstring(lex_t *lex, word_t *word)
 {
     lex_begin_fetch(lex, word);
 
-    if (lex_fetch_quote(lex, word, '\"') != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_fetch_quote(lex, word, '\"') != CT_SUCCESS) {
+        return CT_ERROR;
     }
     CM_REMOVE_ENCLOSED_CHAR(&word->text);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* Fetch a string that enclosed by ("), ('), (`) */
@@ -2161,16 +2162,16 @@ status_t lex_expected_fetch_enclosed_string(lex_t *lex, word_t *word)
 
     char qchar = LEX_CURR(lex);
     if (qchar != '\"' && qchar != '\'' && qchar != '`') {
-        GS_SRC_THROW_ERROR(lex->loc, ERR_SQL_SYNTAX_ERROR, "expected an enclosed char: (\"), (\'), (`)");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(lex->loc, ERR_SQL_SYNTAX_ERROR, "expected an enclosed char: (\"), (\'), (`)");
+        return CT_ERROR;
     }
 
-    if (lex_fetch_quote(lex, word, qchar) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_fetch_quote(lex, word, qchar) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_REMOVE_ENCLOSED_CHAR(&word->text);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -2179,16 +2180,16 @@ status_t lex_expected_fetch_enclosed_string(lex_t *lex, word_t *word)
  */
 status_t lex_expected_fetch_tblname(lex_t *lex, word_t *word, text_buf_t *tbl_textbuf)
 {
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
     word_t ex_word = { 0 };
 
     word->ex_count = 0;
-    GS_RETURN_IFERR(lex_expected_fetch_variant(lex, word));
-    GS_RETURN_IFERR(lex_try_fetch_char(lex, '.', &result));
+    CT_RETURN_IFERR(lex_expected_fetch_variant(lex, word));
+    CT_RETURN_IFERR(lex_try_fetch_char(lex, '.', &result));
 
     if (result) {  // dot is found
-        if (lex_expected_fetch_extra(lex, &ex_word) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lex_expected_fetch_extra(lex, &ex_word) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         word->ex_words[word->ex_count].text = ex_word.text;
         word->ex_words[word->ex_count].type = ex_word.type;
@@ -2197,122 +2198,122 @@ status_t lex_expected_fetch_tblname(lex_t *lex, word_t *word, text_buf_t *tbl_te
 
     // if textbuf is not null, set the buf with user.tbl_name
     if (tbl_textbuf == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     do {
         if (word->type == WORD_TYPE_DQ_STRING) {
-            GS_BREAK_IF_TRUE(!cm_buf_append_char(tbl_textbuf, *word->begin_addr));
+            CT_BREAK_IF_TRUE(!cm_buf_append_char(tbl_textbuf, *word->begin_addr));
         }
-        GS_BREAK_IF_TRUE(!cm_buf_append_text(tbl_textbuf, &word->text.value));
+        CT_BREAK_IF_TRUE(!cm_buf_append_text(tbl_textbuf, &word->text.value));
         if (word->type == WORD_TYPE_DQ_STRING) {
-            GS_BREAK_IF_TRUE(!cm_buf_append_char(tbl_textbuf, *word->begin_addr));
+            CT_BREAK_IF_TRUE(!cm_buf_append_char(tbl_textbuf, *word->begin_addr));
         }
         if (result) {
-            GS_BREAK_IF_TRUE(!cm_buf_append_str(tbl_textbuf, "."));
+            CT_BREAK_IF_TRUE(!cm_buf_append_str(tbl_textbuf, "."));
             if (ex_word.type == WORD_TYPE_DQ_STRING) {
-                GS_BREAK_IF_TRUE(!cm_buf_append_char(tbl_textbuf, *ex_word.begin_addr));
+                CT_BREAK_IF_TRUE(!cm_buf_append_char(tbl_textbuf, *ex_word.begin_addr));
             }
-            GS_BREAK_IF_TRUE(!cm_buf_append_text(tbl_textbuf, &ex_word.text.value));
+            CT_BREAK_IF_TRUE(!cm_buf_append_text(tbl_textbuf, &ex_word.text.value));
             if (ex_word.type == WORD_TYPE_DQ_STRING) {
-                GS_BREAK_IF_TRUE(!cm_buf_append_char(tbl_textbuf, *ex_word.begin_addr));
+                CT_BREAK_IF_TRUE(!cm_buf_append_char(tbl_textbuf, *ex_word.begin_addr));
             }
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } while (0);
 
-    GS_SRC_THROW_ERROR(word->text.loc, ERR_SQL_SYNTAX_ERROR, "object name is too long");
-    return GS_ERROR;
+    CT_SRC_THROW_ERROR(word->text.loc, ERR_SQL_SYNTAX_ERROR, "object name is too long");
+    return CT_ERROR;
 }
 
 status_t lex_expected_fetch_variant(lex_t *lex, word_t *word)
 {
-    if (lex_expected_fetch(lex, word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch(lex, word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!IS_VARIANT(word)) {
-        GS_SRC_THROW_ERROR(word->text.loc, ERR_SQL_SYNTAX_ERROR, "invalid variant/object name was found");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word->text.loc, ERR_SQL_SYNTAX_ERROR, "invalid variant/object name was found");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_try_fetch_datatype(lex_t *lex, word_t *typword, bool32 *is_found)
 {
     if (lex->stack.depth == 0 || CM_IS_EMPTY(lex->curr_text)) {
-        GS_SRC_THROW_ERROR(lex->loc, ERR_SQL_SYNTAX_ERROR, "missing datatype");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(lex->loc, ERR_SQL_SYNTAX_ERROR, "missing datatype");
+        return CT_ERROR;
     }
 
-    if (lex_skip_comments(lex, typword) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_skip_comments(lex, typword) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (CM_IS_EMPTY(lex->curr_text)) {  // check again
-        GS_SRC_THROW_ERROR(lex->loc, ERR_SQL_SYNTAX_ERROR, "missing datatype");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(lex->loc, ERR_SQL_SYNTAX_ERROR, "missing datatype");
+        return CT_ERROR;
     }
 
-    typword->namable = GS_TRUE;
-    typword->id = GS_INVALID_ID32;
+    typword->namable = CT_TRUE;
+    typword->id = CT_INVALID_ID32;
 
-    if (lex_fetch_name(lex, typword) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_fetch_name(lex, typword) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (lex_try_match_datatype(lex, typword, is_found) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_try_match_datatype(lex, typword, is_found) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_expected_fetch_bracket(lex_t *lex, word_t *word)
 {
-    if (lex_fetch(lex, word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_fetch(lex, word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (word->type != WORD_TYPE_BRACKET) {
-        GS_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "(...) expected but %s found", W2S(word));
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "(...) expected but %s found", W2S(word));
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_expected_fetch_comp(lex_t *lex, word_t *word, bool32 fetch_pwd)
 {
-    if (lex_expected_fetch(lex, word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch(lex, word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (word->type != WORD_TYPE_COMPARE) {
         if (fetch_pwd) {
-            GS_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "= expected after PASSWORD");
+            CT_SRC_THROW_ERROR(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "= expected after PASSWORD");
         } else {
-            GS_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "= expected but %s found", W2S(word));
+            CT_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "= expected but %s found", W2S(word));
         }
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_expected_end(lex_t *lex)
 {
     word_t word;
-    if (lex_fetch(lex, &word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_fetch(lex, &word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (word.type != WORD_TYPE_EOF) {
-        GS_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "expected end but %s found", W2S(&word));
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "expected end but %s found", W2S(&word));
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_try_fetch_comment(lex_t *lex, word_t *word, bool32 *result)
@@ -2320,17 +2321,17 @@ status_t lex_try_fetch_comment(lex_t *lex, word_t *word, bool32 *result)
     sql_text_t *text = lex->curr_text;
     lex_trim(text);
 
-    *result = GS_FALSE;
+    *result = CT_FALSE;
     if (text->len < 2) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if ((*text->str == '-' && text->str[1] == '-') || (*text->str == '/' && text->str[1] == '*')) {
-        *result = GS_TRUE;
+        *result = CT_TRUE;
         return lex_fetch_comment(lex, word);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void lex_extract_hint_content(word_t *word)
@@ -2346,28 +2347,28 @@ status_t lex_try_fetch_hint_comment(lex_t *lex, word_t *word, bool32 *result)
     sql_text_t *text = lex->curr_text;
     lex_trim(text);
 
-    *result = GS_FALSE;
+    *result = CT_FALSE;
 
     // hint format: /* +[space][hint_items][space] */
     if (text->len < 5) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     if (*text->str == '/' && text->str[1] == '*' && text->str[2] == '+') {
-        *result = GS_TRUE;
+        *result = CT_TRUE;
         lex_begin_fetch(lex, word);
-        if (lex_fetch_comment(lex, word) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lex_fetch_comment(lex, word) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         lex_extract_hint_content(word);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_try_fetch_variant(lex_t *lex, word_t *word, bool32 *result)
 {
-    if (lex_fetch(lex, word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_fetch(lex, word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     *result = IS_VARIANT(word);
@@ -2376,19 +2377,19 @@ status_t lex_try_fetch_variant(lex_t *lex, word_t *word, bool32 *result)
         lex_back(lex, word);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_try_fetch_variant_excl(lex_t *lex, word_t *word, uint32 excl, bool32 *result)
 {
-    if (lex_fetch(lex, word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_fetch(lex, word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if ((uint32)word->type & excl) {
         lex_back(lex, word);
-        *result = GS_FALSE;
-        return GS_SUCCESS;
+        *result = CT_FALSE;
+        return CT_SUCCESS;
     }
 
     *result = IS_VARIANT(word);
@@ -2397,101 +2398,101 @@ status_t lex_try_fetch_variant_excl(lex_t *lex, word_t *word, uint32 excl, bool3
         lex_back(lex, word);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_skip_comments(lex_t *lex, word_t *word)
 {
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
 
     do {
-        if (lex_try_fetch_comment(lex, word, &result) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lex_try_fetch_comment(lex, word, &result) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } while (result);
 
     lex_begin_fetch(lex, word);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
 status_t lex_try_fetch_bracket(lex_t *lex, word_t *word, bool32 *result)
 {
     sql_text_t *text = lex->curr_text;
-    if (lex_skip_comments(lex, word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_skip_comments(lex, word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!(text->len > 0 && *text->str == '(')) {
-        *result = GS_FALSE;
-        return GS_SUCCESS;
+        *result = CT_FALSE;
+        return CT_SUCCESS;
     }
     word->type = WORD_TYPE_BRACKET;
-    *result = GS_TRUE;
+    *result = CT_TRUE;
     return lex_fetch_bracket(lex, word);
 }
 
 status_t lex_try_fetch_char(lex_t *lex, char c, bool32 *result)
 {
     sql_text_t *text = lex->curr_text;
-    if (lex_skip_comments(lex, NULL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_skip_comments(lex, NULL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (text->len == 0 || *text->str != c) {
-        *result = GS_FALSE;
-        return GS_SUCCESS;
+        *result = CT_FALSE;
+        return CT_SUCCESS;
     }
 
     if ((c == '.') && (LEX_NEXT(lex) == '.')) {
-        *result = GS_FALSE;
-        return GS_SUCCESS;
+        *result = CT_FALSE;
+        return CT_SUCCESS;
     }
 
     (void)lex_skip(lex, 1);
-    *result = GS_TRUE;
-    return GS_SUCCESS;
+    *result = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 status_t lex_try_fetch(lex_t *lex, const char *word, bool32 *result)
 {
     uint32 len;
 
-    if (lex_skip_comments(lex, NULL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_skip_comments(lex, NULL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (lex_match_head(lex->curr_text, word, &len)) {
-        *result = GS_TRUE;
+        *result = CT_TRUE;
         (void)lex_skip(lex, len);
     } else {
-        *result = GS_FALSE;
+        *result = CT_FALSE;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
 /**
 * Try to fetch n continuous words.
 * @note the comments are allowed among in these words
-* @author
+
 */
 status_t lex_try_fetch_n(lex_t *lex, uint32 n, const char **words, bool32 *result)
 {
     LEX_SAVE(lex);
 
     for (uint32 i = 0; i < n; i++) {
-        if (lex_try_fetch(lex, words[i], result) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lex_try_fetch(lex, words[i], result) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (!(*result)) {
             LEX_RESTORE(lex);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_try_fetch_anyone(lex_t *lex, uint32 n, const char **words, bool32 *result)
@@ -2499,22 +2500,22 @@ status_t lex_try_fetch_anyone(lex_t *lex, uint32 n, const char **words, bool32 *
     LEX_SAVE(lex);
 
     for (uint32 i = 0; i < n; i++) {
-        if (lex_try_fetch(lex, words[i], result) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lex_try_fetch(lex, words[i], result) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if ((*result)) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
     LEX_RESTORE(lex);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
  * Try to fetch two continuous words.
  * @note the comments are allowed among in these words
- * @author
+
  */
 status_t lex_try_fetch2(lex_t *lex, const char *word1, const char *word2, bool32 *result)
 {
@@ -2525,7 +2526,7 @@ status_t lex_try_fetch2(lex_t *lex, const char *word1, const char *word2, bool32
 /**
 * Try to fetch three continuous words.
 * @note the comments are allowed among in these words
-* @author
+
 */
 status_t lex_try_fetch3(lex_t *lex, const char *word1, const char *word2, const char *word3, bool32 *result)
 {
@@ -2535,7 +2536,7 @@ status_t lex_try_fetch3(lex_t *lex, const char *word1, const char *word2, const 
 /**
 * Try to fetch four continuous words.
 * @note the comments are allowed among in these words
-* @author
+
 */
 status_t lex_try_fetch4(lex_t *lex, const char *word1, const char *word2, const char *word3, const char *word4,
                         bool32 *result)
@@ -2546,31 +2547,31 @@ status_t lex_try_fetch4(lex_t *lex, const char *word1, const char *word2, const 
 
 status_t lex_try_match_records(lex_t *lex, const word_record_t *records, uint32 num, uint32 *matched_id)
 {
-    bool32 result = GS_FALSE;
+    bool32 result = CT_FALSE;
 
     for (uint32 i = 0; i < num; i++) {
-        if (lex_try_fetch_tuple(lex, &records[i].tuple, &result) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lex_try_fetch_tuple(lex, &records[i].tuple, &result) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (result) {
             *matched_id = records[i].id;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
-    *matched_id = GS_INVALID_ID32;
-    return GS_SUCCESS;
+    *matched_id = CT_INVALID_ID32;
+    return CT_SUCCESS;
 }
 
 status_t lex_fetch_to_char(lex_t *lex, word_t *word, char c)
 {
     do {
-        if (lex_fetch_word(lex, word, GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lex_fetch_word(lex, word, CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } while (!(word->type == WORD_TYPE_EOF || IS_SPEC_CHAR(word, c)));
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_inc_special_word(lex_t *lex, const char *word, bool32 *result)
@@ -2578,23 +2579,23 @@ status_t lex_inc_special_word(lex_t *lex, const char *word, bool32 *result)
     word_t tmp_word;
 
     LEX_SAVE(lex);
-    *result = GS_FALSE;
+    *result = CT_FALSE;
 
     do {
-        if (lex_fetch(lex, &tmp_word) != GS_SUCCESS) {
+        if (lex_fetch(lex, &tmp_word) != CT_SUCCESS) {
             LEX_RESTORE(lex);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cm_text_str_equal_ins(&tmp_word.text.value, word)) {
             LEX_RESTORE(lex);
-            *result = GS_TRUE;
-            return GS_SUCCESS;
+            *result = CT_TRUE;
+            return CT_SUCCESS;
         }
     } while (!(tmp_word.type == WORD_TYPE_EOF));
 
     LEX_RESTORE(lex);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lex_fetch_outline_name(lex_t *lex, word_t *word)
@@ -2610,43 +2611,43 @@ static status_t lex_fetch_outline_name(lex_t *lex, word_t *word)
 
     word->text.len = (uint32)(lex->curr_text->str - word->text.str);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lex_fetch_outline_word(lex_t *lex, word_t *word)
 {
     if (lex->curr_text->len == 0 || lex->stack.depth == 0) {
         word->type = WORD_TYPE_EOF;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     char curr = LEX_CURR(lex);
     if (curr == '(') {
         word->type = WORD_TYPE_BRACKET;
-        GS_RETURN_IFERR(lex_fetch_bracket(lex, word));
+        CT_RETURN_IFERR(lex_fetch_bracket(lex, word));
     } else if (curr == '"') {
         word->type = WORD_TYPE_DQ_STRING;
-        GS_RETURN_IFERR(lex_fetch_dquote(lex, word, LEX_CURR(lex)));
+        CT_RETURN_IFERR(lex_fetch_dquote(lex, word, LEX_CURR(lex)));
     } else if (curr == '\'') {
         word->type = WORD_TYPE_STRING;
-        GS_RETURN_IFERR(lex_fetch_string(lex, word));
+        CT_RETURN_IFERR(lex_fetch_string(lex, word));
         CM_REMOVE_ENCLOSED_CHAR(&word->text);
     } else {
         word->type = WORD_TYPE_VARIANT;
-        GS_RETURN_IFERR(lex_fetch_outline_name(lex, word));
+        CT_RETURN_IFERR(lex_fetch_outline_name(lex, word));
         return lex_match_hint_keyword(lex, word);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lex_fetch_in_outline(lex_t *lex, word_t *word)
 {
-    if (lex_fetch_outline_word(lex, word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_fetch_outline_word(lex, word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

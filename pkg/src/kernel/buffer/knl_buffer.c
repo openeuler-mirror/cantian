@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_buffer_module.h"
 #include "knl_buffer.h"
 #include "knl_buflatch.h"
 #include "pcr_heap.h"
@@ -36,7 +37,7 @@
 #define BUF_PAGE_COST (DEFAULT_PAGE_SIZE(session) + BUCKET_TIMES * sizeof(buf_bucket_t) + sizeof(buf_ctrl_t))
 #define BUF_PAGE_COST_WITH_GBP (BUF_PAGE_COST + sizeof(buf_gbp_ctrl_t))
 
-static buf_ctrl_t g_init_buf_ctrl = { .bucket_id = GS_INVALID_ID32 };
+static buf_ctrl_t g_init_buf_ctrl = { .bucket_id = CT_INVALID_ID32 };
 uint32 g_cks_level;
 
 static void buf_init_list(buf_set_t *set)
@@ -88,7 +89,7 @@ status_t buf_init(knl_session_t *session)
     
     cm_init_thread_lock(&ctx->buf_mutex);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline uint32 buf_lru_get_list_len(buf_ctrl_t *list_start, buf_ctrl_t *list_end, uint8 in_old)
@@ -379,11 +380,11 @@ static void buf_check_gbp_queue_gap(knl_session_t *session, buf_ctrl_t *item)
 {
     if (item->gbp_ctrl->is_gbpdirty) {
         gbp_queue_set_gap(session, item);
-        if (item->bucket_id != GS_INVALID_ID32) {
-            buf_latch_x(session, item, GS_TRUE);
+        if (item->bucket_id != CT_INVALID_ID32) {
+            buf_latch_x(session, item, CT_TRUE);
             /* concurrency with `gbp_knl_write_to_gbp' */
             item->load_status = BUF_NEED_LOAD;
-            buf_unlatch(session, item, GS_FALSE);
+            buf_unlatch(session, item, CT_FALSE);
         }
     }
 }
@@ -403,7 +404,7 @@ static void buf_init_ctrl(knl_session_t *session, buf_set_t *set, buf_ctrl_t *it
         *item = init_ctrl_with_gbp;
         item->page = page;
         /* do not memset is_gbpdirty, gbp_next and gbp_trunc_point */
-        item->gbp_ctrl->is_from_gbp = GS_FALSE;
+        item->gbp_ctrl->is_from_gbp = CT_FALSE;
         item->gbp_ctrl->gbp_read_version = 0;
         item->gbp_ctrl->page_status = GBP_PAGE_NONE;
         cm_spin_unlock(&item->gbp_ctrl->init_lock);
@@ -442,6 +443,16 @@ static inline uint32 buf_bucket_hash(page_id_t page_id, uint32 range)
     return (HASH_SEED * page_id.page + page_id.file) * HASH_SEED % range;
 }
 
+static inline uint32 buf_get_pool_id_by_hash(uint32 hash_val, uint32 pool_num)
+{
+    return hash_val % pool_num;
+}
+
+static inline uint32 buf_get_bucket_id_by_hash(uint32 hash_val, uint32 bucket_num)
+{
+    return hash_val % bucket_num;
+}
+
 static inline int32 buf_find_visited(buf_bucket_t **bucket_visited, uint32 bucket_visisted_num,
     buf_bucket_t *cur_bucket)
 {
@@ -463,7 +474,7 @@ static inline bool32 buf_can_expire(buf_ctrl_t *ctrl, buf_expire_type_t expire_t
     } else if (SECUREC_UNLIKELY(expire_type == BUF_EXPIRE_CACHE)) {
         return BUF_CAN_EXPIRE_CACHE(ctrl);
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline void buf_expire_compress_remove(buf_bucket_t **bucket_visited, uint32 bucket_visisted_num,
@@ -471,7 +482,7 @@ static inline void buf_expire_compress_remove(buf_bucket_t **bucket_visited, uin
 {
     for (int i = 0; i < PAGE_GROUP_COUNT; i++) {
         buf_remove_from_bucket(bucket_visited[map_ctrl_to_bucket[i]], head->compress_group[i]);
-        head->compress_group[i]->bucket_id = GS_INVALID_ID32;
+        head->compress_group[i]->bucket_id = CT_INVALID_ID32;
         if (SECUREC_UNLIKELY(expire_type == BUF_EXPIRE_PAGE)) {
             head->compress_group[i]->is_resident = 0;
         }
@@ -603,7 +614,7 @@ static uint32 buf_expire_normal(knl_session_t *session, buf_set_t *set, buf_ctrl
     buf_remove_from_bucket(bucket, ctrl);
     cm_spin_unlock(&bucket->lock);
 
-    ctrl->bucket_id = GS_INVALID_ID32;
+    ctrl->bucket_id = CT_INVALID_ID32;
     if (SECUREC_UNLIKELY(expire_type == BUF_EXPIRE_PAGE)) {
         ctrl->is_resident = 0;
     }
@@ -631,7 +642,7 @@ uint32 buf_expire_cache(knl_session_t *session, buf_set_t *set)
             shift = item;
             item = item->prev;
 
-            if (shift->bucket_id == GS_INVALID_ID32) {
+            if (shift->bucket_id == CT_INVALID_ID32) {
                 continue;
             }
 
@@ -656,7 +667,6 @@ void buf_expire_page(knl_session_t *session, page_id_t page_id)
 {
     buf_ctrl_t *ctrl = NULL;
     buf_bucket_t *bucket = NULL;
-    uint32 hash_id, buf_pool_id;
     uint8 list_id;
     buf_lru_list_t *list = NULL;
 
@@ -664,9 +674,10 @@ void buf_expire_page(knl_session_t *session, page_id_t page_id)
         return;
     }
 
-    buf_pool_id = buf_get_pool_id(page_id, session->kernel->buf_ctx.buf_set_count);
+    uint32 hash_val = buf_page_hash_value(page_id);
+    uint32 buf_pool_id = buf_get_pool_id_by_hash(hash_val, session->kernel->buf_ctx.buf_set_count);
     buf_set_t *set = &session->kernel->buf_ctx.buf_set[buf_pool_id];
-    hash_id = buf_bucket_hash(page_id, set->bucket_num);
+    uint32 hash_id = buf_get_bucket_id_by_hash(hash_val, set->bucket_num);
     bucket = BUF_GET_BUCKET(set, hash_id);
 
     cm_spin_lock(&bucket->lock, &session->stat->spin_stat.stat_bucket);
@@ -694,7 +705,7 @@ void buf_expire_page(knl_session_t *session, page_id_t page_id)
     /* The ctrl may have chaned after we lock the list,
      * if so,  we skip this expireation.
      */
-    if (ctrl->bucket_id == GS_INVALID_ID32 || ctrl->list_id != list_id ||
+    if (ctrl->bucket_id == CT_INVALID_ID32 || ctrl->list_id != list_id ||
         !IS_SAME_PAGID(ctrl->page_id, page_id)) {
         cm_spin_unlock(&list->lock);
         return;
@@ -715,11 +726,11 @@ static bool32 buf_is_cold_dirty_general(knl_session_t *session, buf_ctrl_t *head
     buf_ctrl_t *cur_ctrl = NULL;
 
     if (head->is_dirty && !BUF_IS_HOT(head)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (!BUF_IS_COMPRESS(head)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     for (i = 1; i < PAGE_GROUP_COUNT; i++) {
@@ -730,11 +741,11 @@ static bool32 buf_is_cold_dirty_general(knl_session_t *session, buf_ctrl_t *head
             head->page_id.file, head->page_id.page, i);
 
         if (cur_ctrl->is_dirty && !BUF_IS_HOT(cur_ctrl)) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
     
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static bool32 buf_can_evict_general(knl_session_t *session, buf_ctrl_t *head)
@@ -743,11 +754,11 @@ static bool32 buf_can_evict_general(knl_session_t *session, buf_ctrl_t *head)
     buf_ctrl_t *cur_ctrl = NULL;
 
     if (!buf_can_expire(head, BUF_EVICT)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (!BUF_IS_COMPRESS(head)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     for (i = 1; i < PAGE_GROUP_COUNT; i++) {
@@ -758,11 +769,11 @@ static bool32 buf_can_evict_general(knl_session_t *session, buf_ctrl_t *head)
             head->page_id.file, head->page_id.page, i);
 
         if (!buf_can_expire(cur_ctrl, BUF_EVICT)) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /*
@@ -791,7 +802,7 @@ static buf_ctrl_t *buf_recycle(knl_session_t *session, buf_set_t *set, buf_lru_l
             break;
         }
 
-        if (item->bucket_id == GS_INVALID_ID32) {
+        if (item->bucket_id == CT_INVALID_ID32) {
             /* The page has been invalided, so directly reuse it */
             break;
         }
@@ -834,7 +845,7 @@ static buf_ctrl_t *buf_recycle(knl_session_t *session, buf_set_t *set, buf_lru_l
     cm_spin_unlock(&list->lock);
     buf_lru_append_list(&set->write_list, &dirty_list);
 
-    if (DB_IS_CLUSTER(session) && (item != NULL) && (item->bucket_id != GS_INVALID_ID32) &&
+    if (DB_IS_CLUSTER(session) && (item != NULL) && (item->bucket_id != CT_INVALID_ID32) &&
         DCS_BUF_CTRL_IS_OWNER(session, item)) {
         drc_buf_res_try_recycle(session, item->page_id);
     }
@@ -887,7 +898,7 @@ static void buf_get_ctrl(knl_session_t *session, buf_set_t *set, uint32 options,
 
     item = buf_alloc_hwm(session, set);
     if (item != NULL) {
-        buf_init_ctrl(session, set, item, GS_TRUE, options);
+        buf_init_ctrl(session, set, item, CT_TRUE, options);
         *ctrl = item;
         return;
     }
@@ -902,7 +913,7 @@ static void buf_get_ctrl(knl_session_t *session, buf_set_t *set, uint32 options,
             break;
         }
 
-        ckpt_trigger(session, GS_FALSE, CKPT_TRIGGER_CLEAN);
+        ckpt_trigger(session, CT_FALSE, CKPT_TRIGGER_CLEAN);
 
         if (timeout_ms == 0) {
             knl_wait_for_tick(session);
@@ -912,14 +923,14 @@ static void buf_get_ctrl(knl_session_t *session, buf_set_t *set, uint32 options,
         session->stat->buffer_recycle_wait++;
     }
 
-    buf_init_ctrl(session, set, item, GS_FALSE, options);
+    buf_init_ctrl(session, set, item, CT_FALSE, options);
     *ctrl = item;
 }
 
 static void buf_latch_get_latch(knl_session_t *session, buf_bucket_t *bucket, buf_ctrl_t *ctrl, latch_mode_t mode)
 {
     uint32 times = 0;
-    bool32 lock_needed = GS_FALSE;
+    bool32 lock_needed = CT_FALSE;
 
     if (mode != LATCH_MODE_X) {
         buf_latch_s(session, ctrl, (mode == LATCH_MODE_FORCE_S), lock_needed);
@@ -930,14 +941,14 @@ static void buf_latch_get_latch(knl_session_t *session, buf_bucket_t *bucket, bu
 
     for (;;) {
         while (ctrl->is_readonly && ctrl->latch.xsid != session->id) {
-            knl_try_begin_session_wait(session, event, GS_TRUE);
+            knl_begin_session_wait(session, event, CT_TRUE);
             if (!lock_needed) {
                 cm_spin_unlock(&bucket->lock);
-                lock_needed = GS_TRUE;
+                lock_needed = CT_TRUE;
             }
 
             times++;
-            if (SECUREC_UNLIKELY(times > GS_SPIN_COUNT)) {
+            if (SECUREC_UNLIKELY(times > CT_SPIN_COUNT)) {
                 times = 0;
                 SPIN_STAT_INC(&session->stat_page, r_sleeps);
                 cm_spin_sleep();
@@ -946,13 +957,13 @@ static void buf_latch_get_latch(knl_session_t *session, buf_bucket_t *bucket, bu
 
         buf_latch_x(session, ctrl, lock_needed);
         if (ctrl->is_readonly && ctrl->latch.xsid != session->id) {
-            buf_unlatch(session, ctrl, GS_FALSE);
-            lock_needed = GS_TRUE; // always need lock after latched on time since bucket is released.
+            buf_unlatch(session, ctrl, CT_FALSE);
+            lock_needed = CT_TRUE; // always need lock after latched on time since bucket is released.
             continue;
         }
 
         ctrl->latch.xsid = session->id;
-        knl_try_end_session_wait(session, event);
+        knl_end_session_wait(session, event);
         return;
     }
 }
@@ -988,15 +999,15 @@ static void buf_latch_ctrl(knl_session_t *session, buf_bucket_t *bucket, buf_ctr
             break;
         }
 
-        knl_try_begin_session_wait(session, READ_BY_OTHER_SESSION, GS_TRUE);
+        knl_begin_session_wait(session, READ_BY_OTHER_SESSION, CT_TRUE);
         times++;
-        if (times > GS_SPIN_COUNT) {
+        if (times > CT_SPIN_COUNT) {
             times = 0;
             SPIN_STAT_INC(&session->stat_page, r_sleeps);
             cm_spin_sleep();
         }
     }
-    knl_try_end_session_wait(session, READ_BY_OTHER_SESSION);
+    knl_end_session_wait(session, READ_BY_OTHER_SESSION);
 }
 
 static inline void buf_init_ctrl_options(knl_session_t *session, buf_ctrl_t *ctrl, uint32 options)
@@ -1026,7 +1037,7 @@ static void buf_set_ctrl_options(knl_session_t *session, buf_set_t *set, buf_ctr
     }
 
     /* we don't need to make accurate statistics */
-    if ((options & ENTER_PAGE_FROM_REMOTE) && ctrl->remote_access < GS_REMOTE_ACCESS_LIMIT) {
+    if ((options & ENTER_PAGE_FROM_REMOTE) && ctrl->remote_access < CT_REMOTE_ACCESS_LIMIT) {
         ctrl->remote_access++;
     }
 }
@@ -1046,7 +1057,8 @@ static inline void buf_update_ctrl_touch_nr(knl_session_t *session, buf_ctrl_t *
 
 buf_ctrl_t *buf_alloc_ctrl(knl_session_t *session, page_id_t page_id, latch_mode_t mode, uint32 options)
 {
-    uint32 buf_pool_id = buf_get_pool_id(page_id, session->kernel->buf_ctx.buf_set_count);
+    uint32 hash_val = buf_page_hash_value(page_id);
+    uint32 buf_pool_id = buf_get_pool_id_by_hash(hash_val, session->kernel->buf_ctx.buf_set_count);
     buf_set_t *set = &session->kernel->buf_ctx.buf_set[buf_pool_id];
     datafile_t *df = DATAFILE_GET(session, page_id.file);
     buf_ctrl_t *item = NULL;
@@ -1060,7 +1072,7 @@ buf_ctrl_t *buf_alloc_ctrl(knl_session_t *session, page_id_t page_id, latch_mode
         return NULL;
     }
 
-    uint32 hash_id = buf_bucket_hash(page_id, set->bucket_num);
+    uint32 hash_id = buf_get_bucket_id_by_hash(hash_val, set->bucket_num);
     buf_bucket_t *bucket = BUF_GET_BUCKET(set, hash_id);
 
     /* lock bucket to find page ctrl and release lock after latching */
@@ -1089,9 +1101,9 @@ buf_ctrl_t *buf_alloc_ctrl(knl_session_t *session, page_id_t page_id, latch_mode
     }
     cm_spin_unlock(&bucket->lock);
 
-    knl_begin_session_wait(session, BUFFER_POOL_ALLOC, GS_FALSE);
+    knl_begin_session_wait(session, BUFFER_POOL_ALLOC, CT_FALSE);
     buf_get_ctrl(session, set, options, &item);
-    knl_end_session_wait(session);
+    knl_end_session_wait(session, BUFFER_POOL_ALLOC);
 
     /*
      * if the same page ctrl has been added to bucket concurrently,
@@ -1125,9 +1137,9 @@ buf_ctrl_t *buf_alloc_ctrl(knl_session_t *session, page_id_t page_id, latch_mode
 
     /* latch the ctrl directly causing no concurrent operations on it */
     if (mode != LATCH_MODE_X) {
-        buf_latch_s(session, item, (mode == LATCH_MODE_FORCE_S), GS_FALSE);
+        buf_latch_s(session, item, (mode == LATCH_MODE_FORCE_S), CT_FALSE);
     } else {
-        buf_latch_x(session, item, GS_FALSE);
+        buf_latch_x(session, item, CT_FALSE);
         item->latch.xsid = session->id;
     }
 
@@ -1155,7 +1167,8 @@ buf_ctrl_t *buf_alloc_ctrl(knl_session_t *session, page_id_t page_id, latch_mode
 buf_ctrl_t *buf_try_alloc_ctrl(knl_session_t *session, page_id_t page_id, latch_mode_t mode, uint32 options,
                                buf_add_pos_t add_pos)
 {
-    uint32 buf_pool_id = buf_get_pool_id(page_id, session->kernel->buf_ctx.buf_set_count);
+    uint32 hash_val = buf_page_hash_value(page_id);
+    uint32 buf_pool_id = buf_get_pool_id_by_hash(hash_val, session->kernel->buf_ctx.buf_set_count);
     buf_set_t *set = &session->kernel->buf_ctx.buf_set[buf_pool_id];
     datafile_t *df = DATAFILE_GET(session, page_id.file);
     buf_ctrl_t *item = NULL;
@@ -1169,7 +1182,7 @@ buf_ctrl_t *buf_try_alloc_ctrl(knl_session_t *session, page_id_t page_id, latch_
         return NULL;
     }
 
-    uint32 hash_id = buf_bucket_hash(page_id, set->bucket_num);
+    uint32 hash_id = buf_get_bucket_id_by_hash(hash_val, set->bucket_num);
     buf_bucket_t *bucket = BUF_GET_BUCKET(set, hash_id);
 
     cm_spin_lock(&bucket->lock, &session->stat->spin_stat.stat_bucket);
@@ -1188,7 +1201,7 @@ buf_ctrl_t *buf_try_alloc_ctrl(knl_session_t *session, page_id_t page_id, latch_
                     item->page_id.file, item->page_id.page, item->page->type, item->buf_pool_id, buf_pool_id);
                 return item;
             } else {
-                buf_unlatch(session, item, GS_TRUE);
+                buf_unlatch(session, item, CT_TRUE);
                 return NULL;
             }
         } else {
@@ -1204,9 +1217,9 @@ buf_ctrl_t *buf_try_alloc_ctrl(knl_session_t *session, page_id_t page_id, latch_
     }
     cm_spin_unlock(&bucket->lock);
 
-    knl_begin_session_wait(session, BUFFER_POOL_ALLOC, GS_FALSE);
+    knl_begin_session_wait(session, BUFFER_POOL_ALLOC, CT_FALSE);
     buf_get_ctrl(session, set, options, &item);
-    knl_end_session_wait(session);
+    knl_end_session_wait(session, BUFFER_POOL_ALLOC);
 
     /*
      * if anyone has just added the same page ctrl to bucket,
@@ -1233,7 +1246,7 @@ buf_ctrl_t *buf_try_alloc_ctrl(knl_session_t *session, page_id_t page_id, latch_
                     temp->page_id.file, temp->page_id.page, temp->page->type, temp->buf_pool_id, buf_pool_id);
                 return temp;
             } else {
-                buf_unlatch(session, temp, GS_TRUE);
+                buf_unlatch(session, temp, CT_TRUE);
                 return NULL;
             }
         } else {
@@ -1258,9 +1271,9 @@ buf_ctrl_t *buf_try_alloc_ctrl(knl_session_t *session, page_id_t page_id, latch_
 
     /* latch the ctrl directly causing no concurrent operations on it */
     if (mode != LATCH_MODE_X) {
-        buf_latch_s(session, item, (mode == LATCH_MODE_FORCE_S), GS_FALSE);
+        buf_latch_s(session, item, (mode == LATCH_MODE_FORCE_S), CT_FALSE);
     } else {
-        buf_latch_x(session, item, GS_FALSE);
+        buf_latch_x(session, item, CT_FALSE);
         item->latch.xsid = session->id;
     }
 
@@ -1319,7 +1332,7 @@ static void buf_alloc_member(knl_session_t *session, buf_ctrl_t *head_ctrl, page
             knl_panic(head_ctrl->compress_group[i]->load_status != BUF_IS_LOADED); // may be transient need_load
                 // status as another session calls buf_alloc_compress with this page
             knl_panic(head_ctrl->compress_group[i]->compress_group[0] == head_ctrl);
-            knl_panic(head_ctrl->compress_group[i]->bucket_id != GS_INVALID_ID32);
+            knl_panic(head_ctrl->compress_group[i]->bucket_id != CT_INVALID_ID32);
         }
     }
 
@@ -1340,13 +1353,13 @@ static void buf_alloc_member(knl_session_t *session, buf_ctrl_t *head_ctrl, page
         member_ctrl->compress_group[0] = head_ctrl; // so from member we can access head
         head_ctrl->compress_group[i] = member_ctrl; // from head we can access each member
         if (member_page.page != wanted_page.page) {
-            buf_unlatch(session, member_ctrl, GS_TRUE);
+            buf_unlatch(session, member_ctrl, CT_TRUE);
         }
     }
 
     if (wanted_page.page != head_page.page) {
         // only keep the wanted ctrl latched finally.
-        buf_unlatch(session, head_ctrl, GS_TRUE);
+        buf_unlatch(session, head_ctrl, CT_TRUE);
     }
 }
 
@@ -1361,7 +1374,7 @@ buf_ctrl_t *buf_alloc_compress(knl_session_t *session, page_id_t wanted_page, la
     page_id_t head_page = page_first_group_id(session, wanted_page);
     buf_add_pos_t add_pos = (options & ENTER_PAGE_RESIDENT) ? BUF_ADD_HOT : BUF_ADD_OLD;
 
-    while (GS_TRUE) {
+    while (CT_TRUE) {
         ctrl = buf_alloc_ctrl(session, wanted_page, mode, options);
         if (ctrl == NULL) {
             // options with ENTER_PAGE_TRY
@@ -1381,7 +1394,7 @@ buf_ctrl_t *buf_alloc_compress(knl_session_t *session, page_id_t wanted_page, la
         knl_panic_log(!(options & ENTER_PAGE_NO_READ), "First no read must come with a head page:%d-%d",
             wanted_page.file, wanted_page.page);
         ctrl->load_status = (uint8)BUF_LOAD_FAILED; // so it can be latched again.
-        buf_unlatch(session, ctrl, GS_TRUE);
+        buf_unlatch(session, ctrl, CT_TRUE);
 
         // Use buf_try_alloc_ctrl instead of buf_alloc_member to avoid deadlock.
         ctrl = buf_try_alloc_ctrl(session, head_page, LATCH_MODE_S, ENTER_PAGE_NORMAL, add_pos);
@@ -1414,7 +1427,7 @@ buf_ctrl_t *buf_try_alloc_compress(knl_session_t *session, page_id_t wanted_page
 
     if (wanted_page.page != head_page.page) {
         ctrl->load_status = (uint8)BUF_LOAD_FAILED; // so it can be latched again.
-        buf_unlatch(session, ctrl, GS_TRUE);
+        buf_unlatch(session, ctrl, CT_TRUE);
         ctrl = buf_try_alloc_ctrl(session, head_page, LATCH_MODE_S, ENTER_PAGE_NORMAL, add_pos);
         if (ctrl == NULL) {
             return NULL;
@@ -1432,11 +1445,12 @@ buf_ctrl_t *buf_find_by_pageid(knl_session_t *session, page_id_t page_id)
 {
     buf_ctrl_t *ctrl = NULL;
     buf_bucket_t *bucket = NULL;
-    uint32 hash_id, buf_pool_id;
 
-    buf_pool_id = buf_get_pool_id(page_id, session->kernel->buf_ctx.buf_set_count);
+    uint32 hash_val = buf_page_hash_value(page_id);
+    uint32 buf_pool_id = buf_get_pool_id_by_hash(hash_val, session->kernel->buf_ctx.buf_set_count);
+
     buf_set_t *set = &session->kernel->buf_ctx.buf_set[buf_pool_id];
-    hash_id = buf_bucket_hash(page_id, set->bucket_num);
+    uint32 hash_id = buf_get_bucket_id_by_hash(hash_val, set->bucket_num);
     bucket = BUF_GET_BUCKET(set, hash_id);
 
     cm_spin_lock(&bucket->lock, &session->stat->spin_stat.stat_bucket);
@@ -1486,7 +1500,7 @@ void buf_reset_cleaned_pages_all_bufset(buf_context_t *buf_ctx, buf_lru_list_t *
     buf_ctrl_t *shift = NULL;
  
     uint32 pool_id = 0;
-    buf_lru_list_t temp_list[GS_MAX_BUF_POOL_NUM] = {0};
+    buf_lru_list_t temp_list[CT_MAX_BUF_POOL_NUM] = {0};
     while (ctrl != NULL) {
         pool_id = ctrl->buf_pool_id;
         shift = ctrl;
@@ -1550,7 +1564,7 @@ void buf_check_page_version(knl_session_t *session, buf_ctrl_t *ctrl)
 
     /* read latest page versioin */
     if (KNL_RECOVERY_WITH_GBP(kernel) && ctrl->gbp_ctrl->gbp_read_version != KNL_GBP_READ_VER(kernel)) {
-        uint32 lock_id = page_id.page % GS_GBP_RD_LOCK_COUNT;
+        uint32 lock_id = page_id.page % CT_GBP_RD_LOCK_COUNT;
 
         cm_spin_lock(&kernel->gbp_context.buf_read_lock[lock_id], NULL);
         if (!KNL_RECOVERY_WITH_GBP(kernel)) {
@@ -1561,9 +1575,9 @@ void buf_check_page_version(knl_session_t *session, buf_ctrl_t *ctrl)
 
         if (item != NULL) {
             if (ctrl->page->lsn < item->lsn) {
-                knl_begin_session_wait(session, DB_FILE_GBP_READ, GS_TRUE);
+                knl_begin_session_wait(session, DB_FILE_GBP_READ, CT_TRUE);
                 ctrl->gbp_ctrl->page_status = knl_read_page_from_gbp(session, ctrl);
-                knl_end_session_wait(session);
+                knl_end_session_wait(session, DB_FILE_GBP_READ);
             } else {
                 /*
                  * page lsn >= expect lsn (item->lsn), we must set item->is_verified here, otherwise
@@ -1612,35 +1626,35 @@ bool32 buf_check_resident_page_version(knl_session_t *session, page_id_t page_id
             dcs_local_page_usable(session, (buf_ctrl_t *)ctrl, LATCH_MODE_S) &&
             (ctrl->transfer_status != BUF_TRANS_REL_OWNER)) {
                 cm_spin_unlock(&bucket->lock);
-                return GS_TRUE;
+                return CT_TRUE;
         }
         cm_spin_unlock(&bucket->lock);
 
         uint32 depth = session->page_stack.depth;
         while (depth > 0) {
             if (IS_SAME_PAGID(session->page_stack.pages[depth - 1]->page_id, page_id)) {
-                return GS_TRUE;
+                return CT_TRUE;
             }
             depth--;
         }
 
         buf_enter_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL);
-        buf_leave_page(session, GS_FALSE);
-        return GS_TRUE;
+        buf_leave_page(session, CT_FALSE);
+        return CT_TRUE;
     }
 
     if (SECUREC_LIKELY(!KNL_RECOVERY_WITH_GBP(session->kernel))) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (SESSION_IS_LOG_ANALYZE(session) || SESSION_IS_GBP_BG(session)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     uint32 depth = session->page_stack.depth;
     while (depth > 0) {
         if (IS_SAME_PAGID(session->page_stack.pages[depth - 1]->page_id, page_id)) {
-            return GS_TRUE;  // resident page has been enter by self
+            return CT_TRUE;  // resident page has been enter by self
         }
         depth--;
     }
@@ -1654,7 +1668,23 @@ bool32 buf_check_resident_page_version(knl_session_t *session, page_id_t page_id
     }
     cm_spin_unlock(&bucket->lock);
 
-    return GS_TRUE;
+    return CT_TRUE;
+}
+
+bool32 buf_check_resident_page_version_with_ctrl(knl_session_t *session, void *buf_ctrl, page_id_t page_id)
+{
+    if (DB_IS_CLUSTER(session)) {
+        buf_ctrl_t *ctrl = (buf_ctrl_t *)buf_ctrl;
+        if (ctrl != NULL && IS_SAME_PAGID(ctrl->page_id, page_id) &&
+            dcs_local_page_usable(session, ctrl, LATCH_MODE_S) &&
+            (ctrl->transfer_status != BUF_TRANS_REL_OWNER)) {
+                if (IS_SAME_PAGID(ctrl->page_id, page_id)) {
+                    return CT_TRUE;
+                }
+        }
+    }
+
+    return buf_check_resident_page_version(session, page_id);
 }
 
 void buf_expire_datafile_pages(knl_session_t *session, uint32 file_id)
@@ -1665,13 +1695,13 @@ void buf_expire_datafile_pages(knl_session_t *session, uint32 file_id)
         buf_set_t *set = &ctx->buf_set[i];
         for (uint32 j = 0; j < set->hwm; j++) {
             buf_ctrl_t *ctrl = &set->ctrls[j];
-            if (ctrl->page_id.file != file_id || ctrl->bucket_id == GS_INVALID_ID32) {
+            if (ctrl->page_id.file != file_id || ctrl->bucket_id == CT_INVALID_ID32) {
                 continue;
             }
 
             buf_bucket_t *bucket = BUF_GET_BUCKET(set, ctrl->bucket_id);
             cm_spin_lock(&bucket->lock, &session->stat->spin_stat.stat_bucket);
-            ctrl->bucket_id = GS_INVALID_ID32;
+            ctrl->bucket_id = CT_INVALID_ID32;
             ctrl->is_resident = 0;
             buf_remove_from_bucket(bucket, ctrl);
             cm_spin_unlock(&bucket->lock);
@@ -1686,7 +1716,7 @@ bool32 pcb_get_buf_from_vm(knl_session_t *session, char **buf, uint32 *buf_id)
     uint32 i;
 
     if (!session->kernel->attr.tab_compress_enable_buf) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     cm_spin_lock(&com_ctx->lock, NULL);
@@ -1699,24 +1729,24 @@ bool32 pcb_get_buf_from_vm(knl_session_t *session, char **buf, uint32 *buf_id)
         }
 
         if (buf_com_ctrl != NULL) {
-            buf_com_ctrl->used = GS_TRUE;
+            buf_com_ctrl->used = CT_TRUE;
             com_ctx->opt_count--;
             *buf = buf_com_ctrl->vm_page->data;
             *buf_id = i;
             cm_spin_unlock(&com_ctx->lock);
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
     cm_spin_unlock(&com_ctx->lock);
-    return GS_FALSE;
+    return CT_FALSE;
 }
 void pcb_assist_init(pcb_assist_t *pcb_assist)
 {
     pcb_assist->ori_buf = NULL;
     pcb_assist->aligned_buf = NULL;
     pcb_assist->buf_id = 0;
-    pcb_assist->from_vm = GS_TRUE;
+    pcb_assist->from_vm = CT_TRUE;
 }
 
 /*
@@ -1727,20 +1757,20 @@ status_t pcb_get_buf(knl_session_t *session, pcb_assist_t *pcb_assist)
 {
     pcb_assist_init(pcb_assist);
     if (!pcb_get_buf_from_vm(session, &pcb_assist->ori_buf, &pcb_assist->buf_id)) {
-        pcb_assist->ori_buf = (char *)malloc(DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT + GS_MAX_ALIGN_SIZE_4K);
-        pcb_assist->from_vm = GS_FALSE;
+        pcb_assist->ori_buf = (char *)malloc(DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT + CT_MAX_ALIGN_SIZE_4K);
+        pcb_assist->from_vm = CT_FALSE;
     }
 
     if (pcb_assist->ori_buf == NULL) {
         pcb_assist->aligned_buf = NULL;
-        GS_LOG_RUN_ERR("[BUFFER] alloc memory for compress table failed");
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "table compress");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[BUFFER] alloc memory for compress table failed");
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, "table compress");
+        return CT_ERROR;
     }
 
     pcb_assist->aligned_buf = cm_aligned_buf(pcb_assist->ori_buf);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void pcb_release_buf_from_vm(knl_session_t *session, uint32 buf_id)
@@ -1748,7 +1778,7 @@ void pcb_release_buf_from_vm(knl_session_t *session, uint32 buf_id)
     pcb_context_t *com_ctx = &session->kernel->compress_buf_ctx;
 
     cm_spin_lock(&com_ctx->lock, NULL);
-    com_ctx->com_bufs[buf_id].used = GS_FALSE;
+    com_ctx->com_bufs[buf_id].used = CT_FALSE;
     com_ctx->opt_count++;
     cm_spin_unlock(&com_ctx->lock);
 }
@@ -1777,39 +1807,40 @@ status_t pcb_init_ctx(knl_session_t *session)
 
     if (!kernel->attr.tab_compress_enable_buf) {
         com_ctx->opt_count = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    uint32 vm_count = kernel->attr.tab_compress_buf_size / GS_VMEM_PAGE_SIZE;
+    uint32 vm_count = kernel->attr.tab_compress_buf_size / CT_VMEM_PAGE_SIZE;
 
     cm_spin_lock(&com_ctx->lock, NULL);
     for (uint32 i = 0; i < vm_count; i++) {
         vm_page_t *vm_page = NULL;
-        if (vm_alloc(session, session->temp_pool, &vmid) != GS_SUCCESS) {
+        if (vm_alloc(session, session->temp_pool, &vmid) != CT_SUCCESS) {
             cm_spin_unlock(&com_ctx->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (vm_open(session, session->temp_pool, vmid, &vm_page) != GS_SUCCESS) {
+        if (vm_open(session, session->temp_pool, vmid, &vm_page) != CT_SUCCESS) {
             vm_free(session, session->temp_pool, vmid);
             cm_spin_unlock(&com_ctx->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        com_ctx->com_bufs[i].used = GS_FALSE;
+        com_ctx->com_bufs[i].used = CT_FALSE;
         com_ctx->com_bufs[i].vm_page = vm_page;
         com_ctx->opt_count++;
     }
     cm_spin_unlock(&com_ctx->lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 buf_bucket_t *buf_find_bucket(knl_session_t *session, page_id_t page_id)
 {
-    uint32 buf_pool_id = buf_get_pool_id(page_id, session->kernel->buf_ctx.buf_set_count);
+    uint32 hash_val = buf_page_hash_value(page_id);
+    uint32 buf_pool_id = buf_get_pool_id_by_hash(hash_val, session->kernel->buf_ctx.buf_set_count);
     buf_set_t *set = &session->kernel->buf_ctx.buf_set[buf_pool_id];
     buf_bucket_t *bucket = NULL;
-    uint32 hash_id = buf_bucket_hash(page_id, set->bucket_num);
+    uint32 hash_id = buf_get_bucket_id_by_hash(hash_val, set->bucket_num);
     bucket = BUF_GET_BUCKET(set, hash_id);
     return bucket;
 }

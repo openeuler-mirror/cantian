@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -38,18 +38,18 @@ extern "C" {
 typedef volatile uint32 spinlock_t;
 typedef volatile uint32 ip_spinlock_t;
 #if defined(__arm__) || defined(__aarch64__)
-#define GS_INIT_SPIN_LOCK(lock)                       \
+#define CT_INIT_SPIN_LOCK(lock)                       \
     {                                                 \
         __atomic_store_n(&lock, 0, __ATOMIC_SEQ_CST); \
     }
 #else
-#define GS_INIT_SPIN_LOCK(lock) \
+#define CT_INIT_SPIN_LOCK(lock) \
     {                           \
         (lock) = 0;               \
     }
 #endif
 
-#define GS_SPIN_COUNT             1000
+#define CT_SPIN_COUNT             1000
 #define SPIN_STAT_INC(stat, item) \
     {                             \
         if ((stat) != NULL) {     \
@@ -125,6 +125,8 @@ typedef struct st_dr_id {
             uint64 key1;
             uint64 key2; // index partition
             uint32 key3;
+            bool8  key4;
+            uint8  unused[3];
         };
         struct {
             uint16    type;  //lock type
@@ -134,7 +136,9 @@ typedef struct st_dr_id {
             uint32    idx; // index id
             uint32    part; // partition id
 
-            uint32 subpart;  // sub partition id
+            uint32 parentpart;  // parent partition id
+            bool8  is_shadow; // btree is_shadow
+            uint8  reserve[3];
         };
     };
 } drid_t;
@@ -185,7 +189,7 @@ static inline void cm_spin_sleep_ex(uint32 tick)
 static inline uint32 cm_spin_set(spinlock_t *ptr, uint32 value)
 {
     uint32 oldvalue = 0;
-    return !__atomic_compare_exchange_n(ptr, &oldvalue, value, GS_FALSE, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    return !__atomic_compare_exchange_n(ptr, &oldvalue, value, CT_FALSE, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
 }
 static inline void cm_spin_unlock(spinlock_t *lock)
 {
@@ -235,7 +239,7 @@ static inline void cm_spin_lock(spinlock_t *lock, spin_statis_t *stat)
 #endif
             SPIN_STAT_INC(stat, spins);
             spin_times++;
-            if (SECUREC_UNLIKELY(spin_times == GS_SPIN_COUNT)) {
+            if (SECUREC_UNLIKELY(spin_times == CT_SPIN_COUNT)) {
                 cm_spin_sleep_and_stat(stat);
                 spin_times = 0;
             }
@@ -311,7 +315,7 @@ static inline void cm_spin_lock_by_sid(uint32 sid, spinlock_t *lock, spin_statis
 #endif
             SPIN_STAT_INC(stat, spins);
             spin_times++;
-            if (SECUREC_UNLIKELY(spin_times == GS_SPIN_COUNT)) {
+            if (SECUREC_UNLIKELY(spin_times == CT_SPIN_COUNT)) {
                 cm_spin_sleep_and_stat(stat);
                 spin_times = 0;
             }
@@ -349,7 +353,7 @@ static inline bool32 cm_spin_try_lock(spinlock_t *lock)
 #else
     if (*lock != 0) {
 #endif
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     return (cm_spin_set(lock, 1) == 0);
@@ -367,7 +371,7 @@ static inline bool32 cm_spin_timed_lock(spinlock_t *lock, uint32 timeout_ticks)
         while (*lock != 0) {
 #endif
             if (SECUREC_UNLIKELY(wait_ticks >= timeout_ticks)) {
-                return GS_FALSE;
+                return CT_FALSE;
             }
 
 #ifndef WIN32
@@ -375,7 +379,7 @@ static inline bool32 cm_spin_timed_lock(spinlock_t *lock, uint32 timeout_ticks)
 #endif  // !WIN32
 
             spin_times++;
-            if (SECUREC_UNLIKELY(spin_times == GS_SPIN_COUNT)) {
+            if (SECUREC_UNLIKELY(spin_times == CT_SPIN_COUNT)) {
                 cm_spin_sleep();
                 spin_times = 0;
                 wait_ticks++;
@@ -394,7 +398,7 @@ static inline bool32 cm_spin_timed_lock(spinlock_t *lock, uint32 timeout_ticks)
         break;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 // caution!! can not use by session 0

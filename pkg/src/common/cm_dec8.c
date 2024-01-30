@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -50,63 +50,63 @@ static const dec8_t DEC8_ZERO = {
 /* decimal 0.5 */
 static const dec8_t DEC8_HALF_ONE = {
     .len = (uint8)2,
-    .head = CONVERT_D8EXPN(-8, GS_FALSE),
+    .head = CONVERT_D8EXPN(-8, CT_FALSE),
     .cells = { 50000000 }
 };
 
 /* decimal 1 */
 const dec8_t DEC8_ONE = {
     .len = (uint8)2,
-    .head = CONVERT_D8EXPN(0, GS_FALSE),
+    .head = CONVERT_D8EXPN(0, CT_FALSE),
     .cells = { 1 }
 };
 
 /* decimal -1 */
 static const dec8_t DEC8_NEG_ONE = {
     .len = (uint8)2,
-    .head = CONVERT_D8EXPN(0, GS_TRUE),
+    .head = CONVERT_D8EXPN(0, CT_TRUE),
     .cells = { 1 }
 };
 
 /* decimal 2 */
 static const dec8_t DEC8_TWO = {
     .len = (uint8)2,
-    .head = CONVERT_D8EXPN(0, GS_FALSE),
+    .head = CONVERT_D8EXPN(0, CT_FALSE),
     .cells = { 2 }
 };
 
 /* decimal 4 */
 static const dec8_t DEC8_FOUR = {
     .len = (uint8)2,
-    .head = CONVERT_D8EXPN(0, GS_FALSE),
+    .head = CONVERT_D8EXPN(0, CT_FALSE),
     .cells = { 4 }
 };
 
 /* decimal pi/2 is 1.570796326794896619231321691639751442098584699687552910487472296153908 */
 static const dec8_t DEC8_HALF_PI = {
     .len = DEC8_MAX_LEN,
-    .head = CONVERT_D8EXPN(0, GS_FALSE),
+    .head = CONVERT_D8EXPN(0, CT_FALSE),
     .cells = {1, 57079632, 67948966, 19231321, 69163975, 14420985, 84699688}
 };
 
 /* decimal pi is 3.1415926535897932384626433832795028841971693993751058209749445923078164 */
 static const dec8_t DEC8_PI = {
     .len = DEC8_MAX_LEN,
-    .head = CONVERT_D8EXPN(0, GS_FALSE),
+    .head = CONVERT_D8EXPN(0, CT_FALSE),
     .cells = {3, 14159265, 35897932, 38462643, 38327950, 28841971, 69399375}
 };
 
 /* decimal 2*pi is 6.28318530717958647692528676655900576839433879875021164194988918461563281 */
 static const dec8_t DEC8_2PI = {
     .len = DEC8_MAX_LEN,
-    .head = CONVERT_D8EXPN(0, GS_FALSE),
+    .head = CONVERT_D8EXPN(0, CT_FALSE),
     .cells = {6, 28318530, 71795864, 76925286, 76655900, 57683943, 38798750}
 };
 
 /* 1/(2pi) is 0.159154943091895335768883763372514362034459645740456448747667344058896797634226535 */
 static const dec8_t DEC8_INV_2PI = {
     .len = DEC8_MAX_LEN,
-    .head = CONVERT_D8EXPN(-8, GS_FALSE),
+    .head = CONVERT_D8EXPN(-8, CT_FALSE),
     .cells = { 15915494, 30918953, 35768883, 76337251, 43620344, 59645740, 45644875 }
 };
 
@@ -114,21 +114,21 @@ static const dec8_t DEC8_INV_2PI = {
 const dec8_t DEC8_MIN_INT64 = {
     // to make the expn be the integer multiple times of DEC_CELL_DIGIT
     .len = (uint8)4,
-    .head = CONVERT_D8EXPN(16, GS_TRUE),
+    .head = CONVERT_D8EXPN(16, CT_TRUE),
     .cells = { 922, 33720368, 54775808 }
 };
 
 /* decimal of the maximal bigint is 9,223,372,036,854,775,807 */
 const dec8_t DEC8_MAX_INT64 = {
     .len = (uint8)4,
-    .head = CONVERT_D8EXPN(16, GS_FALSE),
+    .head = CONVERT_D8EXPN(16, CT_FALSE),
     .cells = { 922, 33720368, 54775807 }
 };
 
 /* decimal of the maximal uint64 is 18,446,744,073,709,551,615 */
 const dec8_t DEC8_MAX_UINT64 = {
     .len = (uint8)4,
-    .head = CONVERT_D8EXPN(16, GS_FALSE),
+    .head = CONVERT_D8EXPN(16, CT_FALSE),
     .cells = { 1844, 67440737, 9551615 }
 };
 
@@ -136,28 +136,28 @@ const dec8_t DEC8_MAX_UINT64 = {
 static const dec8_t DEC8_MIN_INT32 = {
     // to make the expn be the integer multiple times of DEC_CELL_DIGIT
     .len = (uint8)3,
-    .head = CONVERT_D8EXPN(8, GS_TRUE),
+    .head = CONVERT_D8EXPN(8, CT_TRUE),
     .cells = { 21, 47483648 }
 };
 
 /* 2.71828182845904523536028747135266249775724709369995957496696762772407663 */
 static const dec8_t DEC8_EXP = {
     .len = DEC8_MAX_LEN,
-    .head = CONVERT_D8EXPN(0, GS_FALSE),
+    .head = CONVERT_D8EXPN(0, CT_FALSE),
     .cells = { 2, 71828182, 84590452, 35360287, 47135266, 24977572, 47093699 }
 };
 
 /* 0.367879441171442321595523770161460867445811131031767834507836801 */
 static const dec8_t DEC8_INV_EXP = {
     .len = DEC8_MAX_LEN,
-    .head = CONVERT_D8EXPN(-8, GS_FALSE),
+    .head = CONVERT_D8EXPN(-8, CT_FALSE),
     .cells = { 36787944, 11714423, 21595523, 77016146, 8674458, 11131031, 76783451 }
 };
 
 /* ln(10) is 2.3025850929940456840179914546843642076011014886287729760333279009675726 */
 static const dec8_t DEC8_LN10 = {
     .len = DEC8_MAX_LEN,
-    .head = CONVERT_D8EXPN(0, GS_FALSE),
+    .head = CONVERT_D8EXPN(0, CT_FALSE),
     .cells = {2, 30258509, 29940456, 84017991, 45468436, 42076011, 1488629}
 };
 
@@ -167,7 +167,7 @@ static const dec8_t g_dec8_inv_fact[] = {
     /* 1/3! = 0.166666666666666666666666666666666666666666666666666666666666666666666666666 */
     [_I(3)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-8, GS_FALSE),
+        .head = CONVERT_D8EXPN(-8, CT_FALSE),
         .cells = { 16666666, 66666666, 66666666, 66666666, 66666666, 66666666, 66666667 }
     },
     /* 1/4! =
@@ -175,13 +175,13 @@ static const dec8_t g_dec8_inv_fact[] = {
      * 6666666666666666666666 */
     [_I(4)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-8, GS_FALSE),
+        .head = CONVERT_D8EXPN(-8, CT_FALSE),
         .cells = { 4166666, 66666666, 66666666, 66666666, 66666666, 66666666, 66666667 }
     },
     /* 1/5! = 0.0083333333333333333333333333333333333333333333333333333333333333333333333333333 */
     [_I(5)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-8, GS_FALSE),
+        .head = CONVERT_D8EXPN(-8, CT_FALSE),
         .cells = { 833333, 33333333, 33333333, 33333333, 33333333, 33333333, 33333333 }
     },
     /* 1/6! =
@@ -190,13 +190,13 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(6)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-8, GS_FALSE),
+        .head = CONVERT_D8EXPN(-8, CT_FALSE),
         .cells = { 138888, 88888888, 88888888, 88888888, 88888888, 88888888, 88888889 }
     },
     /* 1/7! = 0.0001984126984126984126984126984126984126984126984126984126984126984126984126984126984 */
     [_I(7)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-8, GS_FALSE),
+        .head = CONVERT_D8EXPN(-8, CT_FALSE),
         .cells = { 19841, 26984126, 98412698, 41269841, 26984126, 98412698, 41269841 }
     },
     /* 1/8! =
@@ -205,19 +205,19 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(8)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-8, GS_FALSE),
+        .head = CONVERT_D8EXPN(-8, CT_FALSE),
         .cells = { 2480, 15873015, 87301587, 30158730, 15873015, 87301587, 30158730 }
     },
     /* 1/9! = 0.00000275573192239858906525573192239858906525573192239858906525573192239858906525573192 */
     [_I(9)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-8, GS_FALSE),
+        .head = CONVERT_D8EXPN(-8, CT_FALSE),
         .cells = { 275, 57319223, 98589065, 25573192, 23985890, 65255731, 92239859 }
     },
     /* 1/10! = 0.000000275573192239858906525573192239858906525573192239858906525573192239858906525573192 */
     [_I(10)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-8, GS_FALSE),
+        .head = CONVERT_D8EXPN(-8, CT_FALSE),
         .cells = { 27, 55731922, 39858906, 52557319, 22398589, 6525573, 19223986 }
     },
     /* 1/11! =
@@ -226,7 +226,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(11)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-8, GS_FALSE),
+        .head = CONVERT_D8EXPN(-8, CT_FALSE),
         .cells = { 2, 50521083, 85441718, 77505210, 83854417, 18775052, 10838544 }
     },
     /* 1/12! =
@@ -235,7 +235,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(12)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-16, GS_FALSE),
+        .head = CONVERT_D8EXPN(-16, CT_FALSE),
         .cells = { 20876756, 98786809, 89792100, 90321201, 43231254, 34236545, 34765646 }
     },
     /* 1/13! =
@@ -244,7 +244,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(13)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-16, GS_FALSE),
+        .head = CONVERT_D8EXPN(-16, CT_FALSE),
         .cells = { 1605904, 38368216, 14599392, 37717015, 49479327, 25710503, 48828127 }
     },
     /* 1/14! =
@@ -253,7 +253,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(14)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-16, GS_FALSE),
+        .head = CONVERT_D8EXPN(-16, CT_FALSE),
         .cells = { 114707, 45597729, 72471385, 16979786, 82105666, 23265035, 96344867 }
     },
     /* 1/15! =
@@ -262,7 +262,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(15)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-16, GS_FALSE),
+        .head = CONVERT_D8EXPN(-16, CT_FALSE),
         .cells = { 7647, 16373181, 98164759, 1131985, 78807044, 41551002, 39756324 }
     },
     /* 1/16! =
@@ -271,7 +271,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(16)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-16, GS_FALSE),
+        .head = CONVERT_D8EXPN(-16, CT_FALSE),
         .cells = { 477, 94773323, 87385297, 43820749, 11175440, 27596937, 64984770 }
     },
     /* 1/17! =
@@ -280,7 +280,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(17)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-16, GS_FALSE),
+        .head = CONVERT_D8EXPN(-16, CT_FALSE),
         .cells = { 28, 11457254, 34552076, 31989455, 83010320, 1623349, 27352045 }
     },
     /* 1/18! =
@@ -289,7 +289,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(18)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-16, GS_FALSE),
+        .head = CONVERT_D8EXPN(-16, CT_FALSE),
         .cells = { 1, 56192069, 68586226, 46221636, 43500573, 33423519, 40408447 }
     },
     /* 1/19! =
@@ -298,7 +298,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(19)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-24, GS_FALSE),
+        .head = CONVERT_D8EXPN(-24, CT_FALSE),
         .cells = { 8220635, 24662432, 97169559, 81236872, 28074922, 7389918, 26114134 }
     },
     /* 1/20! =
@@ -307,7 +307,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(20)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-24, GS_FALSE),
+        .head = CONVERT_D8EXPN(-24, CT_FALSE),
         .cells = { 411031, 76233121, 64858477, 99061843, 61403746, 10369495, 91305707 }
     },
     /* 1/21! =
@@ -316,7 +316,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(21)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-24, GS_FALSE),
+        .head = CONVERT_D8EXPN(-24, CT_FALSE),
         .cells = { 19572, 94106339, 12612308, 47574373, 50543035, 52874737, 90062177 }
     },
     /* 1/22! =
@@ -325,7 +325,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(22)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-24, GS_FALSE),
+        .head = CONVERT_D8EXPN(-24, CT_FALSE),
         .cells = { 889, 67913924, 50573286, 74889744, 25024683, 43312488, 8639190 }
     },
     /* 1/23! =
@@ -334,7 +334,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(23)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-24, GS_FALSE),
+        .head = CONVERT_D8EXPN(-24, CT_FALSE),
         .cells = { 38, 68170170, 63068403, 77169119, 31522812, 32317934, 26462573 }
     },
     /* 1/24! =
@@ -343,7 +343,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(24)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-24, GS_FALSE),
+        .head = CONVERT_D8EXPN(-24, CT_FALSE),
         .cells = { 1, 61173757, 10961183, 49048713, 30480117, 18013247, 26102607 }
     },
     /* 1/25! =
@@ -352,7 +352,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(25)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-32, GS_FALSE),
+        .head = CONVERT_D8EXPN(-32, CT_FALSE),
         .cells = { 6446950, 28438447, 33961948, 53219204, 68720529, 89044104, 28911894 }
     },
     /* 1/26! =
@@ -361,7 +361,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(26)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-32, GS_FALSE),
+        .head = CONVERT_D8EXPN(-32, CT_FALSE),
         .cells = { 247959, 62632247, 97460074, 94354584, 79566174, 22655542, 47265842 }
     },
     /* 1/27! =
@@ -370,7 +370,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(27)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-32, GS_FALSE),
+        .head = CONVERT_D8EXPN(-32, CT_FALSE),
         .cells = { 9183, 68986379, 55461484, 25716836, 47391339, 78616871, 94343179 }
     },
     /* 1/28! =
@@ -379,7 +379,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(28)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-32, GS_FALSE),
+        .head = CONVERT_D8EXPN(-32, CT_FALSE),
         .cells = { 327, 98892370, 69837910, 15204172, 73121119, 27807745, 42655114 }
     },
     /* 1/29! =
@@ -388,7 +388,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(29)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-32, GS_FALSE),
+        .head = CONVERT_D8EXPN(-32, CT_FALSE),
         .cells = { 11, 30996288, 64477169, 31558764, 57693831, 69924405, 147865 }
     },
     /* 1/30! =
@@ -397,7 +397,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(30)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-40, GS_FALSE),
+        .head = CONVERT_D8EXPN(-40, CT_FALSE),
         .cells = { 37699876, 28815905, 64385292, 15256461, 5664146, 83382362, 19948015 }
     },
     /* 1/31! =
@@ -406,7 +406,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(31)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-40, GS_FALSE),
+        .head = CONVERT_D8EXPN(-40, CT_FALSE),
         .cells = { 1216125, 4155351, 79496299, 74685692, 29214972, 47851043, 94191871 }
     },
     /* 1/32! =
@@ -415,7 +415,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(32)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-40, GS_FALSE),
+        .head = CONVERT_D8EXPN(-40, CT_FALSE),
         .cells = { 38003, 90754854, 74359259, 36708927, 88412967, 88995345, 12318496 }
     },
     /* 1/33! =
@@ -424,7 +424,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(33)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-40, GS_FALSE),
+        .head = CONVERT_D8EXPN(-40, CT_FALSE),
         .cells = { 1151, 63356207, 71950280, 58688149, 32982211, 14818040, 76130863 }
     },
     /* 1/34! =
@@ -433,7 +433,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(34)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-40, GS_FALSE),
+        .head = CONVERT_D8EXPN(-40, CT_FALSE),
         .cells = { 33, 87157535, 52116184, 72314357, 33323006, 21024060, 2239143 }
     },
     /* 1/35! =
@@ -442,7 +442,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(35)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-48, GS_FALSE),
+        .head = CONVERT_D8EXPN(-48, CT_FALSE),
         .cells = { 96775929, 58631890, 99208981, 63809228, 74886401, 71492546, 94412993 }
     },
     /* 1/36! =
@@ -451,7 +451,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(36)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-48, GS_FALSE),
+        .head = CONVERT_D8EXPN(-48, CT_FALSE),
         .cells = { 2688220, 26628663, 63866916, 15661367, 46524622, 26985904, 8178139 }
     },
     /* 1/37! =
@@ -460,7 +460,7 @@ static const dec8_t g_dec8_inv_fact[] = {
      */
     [_I(37)] = {
         .len = DEC8_MAX_LEN,
-        .head = CONVERT_D8EXPN(-48, GS_FALSE),
+        .head = CONVERT_D8EXPN(-48, CT_FALSE),
         .cells = { 72654, 60179153, 7131538, 27450307, 22879043, 84513132, 54275085 }
     }
 };
@@ -470,14 +470,14 @@ static int32 cm_dec8_calc_prec(const dec8_t *dec);
 static inline bool32 cm_dec8_taylor_break(const dec8_t *total, const dec8_t *delta, int32 prec)
 {
     if (DECIMAL8_IS_ZERO(delta)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
     int32 total_expn = GET_DEC8_EXPN(total);
     int32 delta_expn = GET_DEC8_EXPN(delta);
     if ((total_expn + ((total->cells[0] >= 10000000) ? 1 : 0)) > (int32)SEXP_2_D8EXP(prec) + delta_expn) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline void cm_dec8_left_shift(const dec8_t *dec, uint32 offset, dec8_t *rs)
@@ -555,15 +555,15 @@ status_t cm_dec8_finalise(dec8_t *dec, uint32 prec, bool32 allow_overflow)
     // underflow check
     if (sci_exp < DEC8_EXPN_LOW) {
         cm_zero_dec8(dec);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     if (!allow_overflow) {
         DEC8_OVERFLOW_CHECK_BY_SCIEXP(sci_exp);
     }
 
-    GS_RETSUC_IFTRUE(GET_CELLS8_SIZE(dec) <= (prec / DEC8_CELL_DIGIT));
+    CT_RETSUC_IFTRUE(GET_CELLS8_SIZE(dec) <= (prec / DEC8_CELL_DIGIT));
 
-    GS_RETVALUE_IFTRUE(((uint32)cm_dec8_calc_prec(dec) <= prec), GS_SUCCESS);
+    CT_RETVALUE_IFTRUE(((uint32)cm_dec8_calc_prec(dec) <= prec), CT_SUCCESS);
 
     dpos = (uint32)DEC8_POS_N_BY_PREC0(prec, cm_count_u32digits(dec->cells[0]));
     cpos = dpos / (uint32)DEC8_CELL_DIGIT;
@@ -594,7 +594,7 @@ status_t cm_dec8_finalise(dec8_t *dec, uint32 prec, bool32 allow_overflow)
     }
 
     cm_dec8_trim_zeros(dec);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -607,7 +607,7 @@ static inline bool32 cm_dec8_make_round(const dec8_t* dec, uint32 pos, dec8_t* d
 
     cm_dec8_copy(dx, dec);
     if (pos >= DEC8_MAX_ALLOWED_PREC) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     i = (int32)(pos / DEC8_CELL_DIGIT);
@@ -618,7 +618,7 @@ static inline bool32 cm_dec8_make_round(const dec8_t* dec, uint32 pos, dec8_t* d
         dx->cells[i] += carry;
         carry = (dx->cells[i] >= DEC8_CELL_MASK);
         if (!carry) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
         dx->cells[i] -= DEC8_CELL_MASK;
     }
@@ -634,13 +634,13 @@ static inline bool32 cm_dec8_make_round(const dec8_t* dec, uint32 pos, dec8_t* d
 static inline bool32 cm_dec8_is_absolute_one(const dec8_t *dec)
 {
     return (bool32)(dec->len == 2 && dec->cells[0] == 1 &&
-                    (dec->head == CONVERT_D8EXPN(0, GS_FALSE) || dec->head == CONVERT_D8EXPN(0, GS_TRUE)));
+                    (dec->head == CONVERT_D8EXPN(0, CT_FALSE) || dec->head == CONVERT_D8EXPN(0, CT_TRUE)));
 }
 
 //  whether dec is equal to 1
 static inline bool32 cm_dec8_is_one(const dec8_t *d8)
 {
-    return (bool32)(d8->len == 2 && d8->cells[0] == 1 && d8->head == CONVERT_D8EXPN(0, GS_FALSE));
+    return (bool32)(d8->len == 2 && d8->cells[0] == 1 && d8->head == CONVERT_D8EXPN(0, CT_FALSE));
 }
 
 // check whether abs(x) is greater than 1
@@ -652,7 +652,7 @@ static inline bool32 dec8_is_greater_than_one(const dec8_t *x)
         return cm_dec8_cmp(x, &DEC8_ONE) > 0;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline void cm_add_aligned_dec8(const dec8_t *d1, const dec8_t *d2, dec8_t *rs)
@@ -740,6 +740,7 @@ static inline void cm_sub_aligned_dec8(
 *        zeros, then the precision of u0 is re-counted by ignoring tailing zeros
 *        e.g. | u0 = 1000 | u1 = 0 | u2 = 0 |..., the precision 1 will be
 *        returned.
+
 */
 static int32 cm_dec8_calc_prec(const dec8_t *dec)
 {
@@ -783,6 +784,7 @@ static int32 cm_dec8_calc_prec(const dec8_t *dec)
 /**
 * Convert the significant digits of cells into text with a maximal len
 * @note  The tailing zeros are removed when outputting
+
 */
 static void cm_cell8s_to_text(const cell8_t cells, uint32 ncell, text_t *text, int32 max_len)
 {
@@ -820,6 +822,7 @@ static void cm_cell8s_to_text(const cell8_t cells, uint32 ncell, text_t *text, i
 * decimal 99999.999 rounds to 7-precision decimal is 100000.00, and then
 * its actual precision is 8. The function will return the change. If
 * no change occurs, zero is returned.
+
 * @note
 * Performance sensitivity.CM_ASSERT should be guaranteed by caller, i.g. 1.max_len > 0    2.dec->cells[0] > 0
 */
@@ -890,6 +893,7 @@ static inline int32 cm_digitext_to_cell8s(digitext_t *dtext, cell8_t cells, int3
 * The digit text may be changed when adjust the scale of decimal to be
 * an integral multiple of DEC_CELL_DIGIT, by appending zeros.
 * @return the precision of u0
+
 * @note
 * Performance sensitivity.CM_ASSERT should be guaranteed by caller,
 * i.g. dtext->len > 0 && dtext->len <= (uint32)DEC_MAX_ALLOWED_PREC
@@ -927,11 +931,12 @@ static inline int32 cm_digitext_to_dec8(dec8_t *dec, digitext_t *dtext, int32 sc
 #define DEC_EXPN_BUFF_SZ 16
 /**
 * Output a decimal type in scientific format, e.g., 2.34566E-20
+
 */
 static inline status_t cm_dec8_to_sci_text(text_t *text, const dec8_t *dec, int32 max_len)
 {
     int32 i;
-    char obuff[GS_NUMBER_BUFFER_SIZE]; /** output buff */
+    char obuff[CT_NUMBER_BUFFER_SIZE]; /** output buff */
     text_t cell_text = { .str = obuff, .len = 0 };
     char sci_buff[DEC_EXPN_BUFF_SZ];
     int32 sci_exp; /** The scientific scale of the dec */
@@ -943,8 +948,8 @@ static inline status_t cm_dec8_to_sci_text(text_t *text, const dec8_t *dec, int3
     placer = (int32)IS_DEC8_NEG(dec) + 3;
     placer += (int32)cm_count_u32digits((c8typ_t)abs(sci_exp));
     if (max_len <= placer) {
-        GS_THROW_ERROR(ERR_SIZE_ERROR, placer, max_len, "char");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SIZE_ERROR, placer, max_len, "char");
+        return CT_ERROR;
     }
 
     /* The round of a decimal may increase the precision by 1 */
@@ -975,7 +980,7 @@ static inline status_t cm_dec8_to_sci_text(text_t *text, const dec8_t *dec, int3
     errno_t ret = memcpy_sp(CM_GET_TAIL(text), max_len - text->len, sci_buff, placer);
     MEMS_RETURN_IFERR(ret);
     text->len += placer;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -986,7 +991,7 @@ static inline status_t cm_dec8_to_plain_text(text_t *text, const dec8_t *dec, in
                                              int32 prec)
 {
     int32 dot_pos;
-    char obuff[GS_NUMBER_BUFFER_SIZE]; /** output buff */
+    char obuff[CT_NUMBER_BUFFER_SIZE]; /** output buff */
     text_t cell_text;
     cell_text.str = obuff;
     cell_text.len = 0;
@@ -1003,7 +1008,7 @@ static inline status_t cm_dec8_to_plain_text(text_t *text, const dec8_t *dec, in
         (void)cm_dec8_round_to_text(dec, max_len - text->len, &cell_text);  // subtract sign
         cm_concat_text(text, max_len, &cell_text);
         cm_text_appendc(text, dot_pos - prec, '0');
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /* get the position of dot w.r.t. the first significant digit */
@@ -1040,7 +1045,7 @@ static inline status_t cm_dec8_to_plain_text(text_t *text, const dec8_t *dec, in
             cm_concat_text(text, max_len, &cell_text);
             cm_text_appendc(text, dot_pos - (int32)cell_text.len, '0');
         } else {
-            GS_RETURN_IFERR(cm_concat_ntext(text, &cell_text, dot_pos));
+            CT_RETURN_IFERR(cm_concat_ntext(text, &cell_text, dot_pos));
             CM_TEXT_APPEND(text, '.');
             // copy remaining digits
             cell_text.str += (uint32)dot_pos;
@@ -1053,14 +1058,15 @@ static inline status_t cm_dec8_to_plain_text(text_t *text, const dec8_t *dec, in
         dot_pos += cm_dec8_round_to_text(dec, max_len - text->len - 1 + dot_pos, &cell_text);
         CM_TEXT_APPEND(text, '.');
         cm_text_appendc(text, -dot_pos, '0');
-        GS_RETURN_IFERR(cm_concat_ntext(text, &cell_text, max_len - (int32)text->len));
+        CT_RETURN_IFERR(cm_concat_ntext(text, &cell_text, max_len - (int32)text->len));
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
 * Convert a decimal into a text with a given maximal precision
+
 * @note
 * Performance sensitivity.CM_ASSERT should be guaranteed by caller,
 * cm_dec8_to_text is not guaranteed end of \0, if need string, should use cm_dec8_to_str
@@ -1072,12 +1078,12 @@ status_t cm_dec8_to_text(const dec8_t *dec, int32 max_length, text_t *text)
     int32 max_len = max_length;
 
     CM_POINTER2(dec, text);
-    max_len = MIN(max_length, (int32)(GS_NUMBER_BUFFER_SIZE - 1));
+    max_len = MIN(max_length, (int32)(CT_NUMBER_BUFFER_SIZE - 1));
 
     if (dec->len == 1) {
         text->str[0] = '0';
         text->len = 1;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // Compute the final scientific scale of the dec, i.e., format of d.xxxx , d > 0.
@@ -1099,6 +1105,7 @@ status_t cm_dec8_to_text(const dec8_t *dec, int32 max_length, text_t *text)
 
 /**
 * Convert a decimal into C-string, and return the ac
+
 * max_len should be consided \0, max len should buffer size
 */
 status_t cm_dec8_to_str(const dec8_t *dec, int max_len, char *str)
@@ -1107,9 +1114,9 @@ status_t cm_dec8_to_str(const dec8_t *dec, int max_len, char *str)
     text.str = str;
     text.len = 0;
 
-    GS_RETURN_IFERR(cm_dec8_to_text(dec, max_len - 1, &text));
+    CT_RETURN_IFERR(cm_dec8_to_text(dec, max_len - 1, &text));
     str[text.len] = '\0';
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_str_to_dec8(const char *str, dec8_t *dec)
@@ -1175,6 +1182,7 @@ num_errno_t cm_numpart_to_dec8(num_part_t *np, dec8_t *dec)
 *               is found, the precision is set to 0, it means the merely
 *               significant digit is zero. precision > 0 represents the
 *               number of significant digits in the decimal text.
+
 */
 status_t cm_text_to_dec8(const text_t *dec_text, dec8_t *dec)
 {
@@ -1184,17 +1192,17 @@ status_t cm_text_to_dec8(const text_t *dec_text, dec8_t *dec)
 
     err_no = cm_split_num_text(dec_text, &np);
     if (err_no != NERR_SUCCESS) {
-        GS_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
+        return CT_ERROR;
     }
 
     err_no = cm_numpart_to_dec8(&np, dec);
     if (err_no != NERR_SUCCESS) {
-        GS_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_hext_to_dec8(const text_t *hex_text, dec8_t *dec)
@@ -1204,13 +1212,13 @@ status_t cm_hext_to_dec8(const text_t *hex_text, dec8_t *dec)
 
     static const dec8_t DEC8_16 = {
         .len = (uint8)2,
-        .head = CONVERT_D8EXPN(0, GS_FALSE),
+        .head = CONVERT_D8EXPN(0, CT_FALSE),
         .cells = { 16 }
     };
 
     if (CM_IS_EMPTY(hex_text)) {
-        GS_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(NERR_NO_DIGIT));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(NERR_NO_DIGIT));
+        return CT_ERROR;
     }
 
     cm_zero_dec8(dec);
@@ -1218,14 +1226,14 @@ status_t cm_hext_to_dec8(const text_t *hex_text, dec8_t *dec)
     for (i = 0; i < hex_text->len; i++) {
         u8 = cm_hex2int8((uchar)hex_text->str[i]);
         if (u8 == (uint8)0xFF) {
-            GS_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(NERR_UNEXPECTED_CHAR));
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(NERR_UNEXPECTED_CHAR));
+            return CT_ERROR;
         }
-        GS_RETURN_IFERR(cm_dec8_multiply(dec, &DEC8_16, dec));
-        GS_RETURN_IFERR(cm_dec8_add_int32(dec, u8, dec));
+        CT_RETURN_IFERR(cm_dec8_multiply(dec, &DEC8_16, dec));
+        CT_RETURN_IFERR(cm_dec8_add_int32(dec, u8, dec));
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1249,6 +1257,7 @@ static inline void cm_fill_uint32_into_dec8(uint32 u32, dec8_t *dec)
 
 /**
 * Convert an integer32 into a decimal
+
 */
 void cm_int32_to_dec8(int32 i_32, dec8_t *dec)
 {
@@ -1256,7 +1265,7 @@ void cm_int32_to_dec8(int32 i_32, dec8_t *dec)
     if (i32 > 0) {
         dec->sign = DEC8_SIGN_PLUS;
     } else if (i32 < 0) {
-        if (i32 == GS_MIN_INT32) {
+        if (i32 == CT_MIN_INT32) {
             cm_dec8_copy(dec, &DEC8_MIN_INT32);
             return;
         }
@@ -1316,6 +1325,7 @@ static inline void cm_fill_uint64_into_dec8(uint64 u_64, dec8_t *dec)
 
 /**
 * Convert an integer64 into a decimal
+
 */
 void cm_int64_to_dec8(int64 i_64, dec8_t *dec)
 {
@@ -1323,7 +1333,7 @@ void cm_int64_to_dec8(int64 i_64, dec8_t *dec)
     if (i64 > 0) {
         dec->sign = DEC8_SIGN_PLUS;
     } else if (i64 < 0) {
-        if (i64 == GS_MIN_INT64) {
+        if (i64 == CT_MIN_INT64) {
             cm_dec8_copy(dec, &DEC8_MIN_INT64);
             return;
         }
@@ -1341,6 +1351,7 @@ void cm_int64_to_dec8(int64 i_64, dec8_t *dec)
 
 /**
 * Convert an uint64 into a decimal
+
 */
 void cm_uint64_to_dec8(uint64 u64, dec8_t *dec)
 {
@@ -1398,9 +1409,9 @@ static status_t cm_real_to_dec8_inexac(double real, dec8_t *dec);
 */
 status_t cm_real_to_dec8(double real, dec8_t *dec)
 {
-    GS_RETURN_IFERR(cm_real_to_dec8_inexac(real, dec));
-    // reserving at most GS_MAX_REAL_PREC precisions
-    return cm_dec8_finalise(dec, GS_MAX_REAL_PREC, GS_FALSE);
+    CT_RETURN_IFERR(cm_real_to_dec8_inexac(real, dec));
+    // reserving at most CT_MAX_REAL_PREC precisions
+    return cm_dec8_finalise(dec, CT_MAX_REAL_PREC, CT_FALSE);
 }
 
 /**
@@ -1408,8 +1419,14 @@ status_t cm_real_to_dec8(double real, dec8_t *dec)
  */
 status_t cm_real_to_dec8_prec16(double real, dec8_t *dec)
 {
-    GS_RETURN_IFERR(cm_real_to_dec8_inexac(real, dec));
-    return cm_dec8_finalise(dec, GS_MAX_INDEX_REAL_PREC, GS_FALSE);
+    CT_RETURN_IFERR(cm_real_to_dec8_inexac(real, dec));
+    return cm_dec8_finalise(dec, CT_MAX_INDEX_REAL_PREC, CT_FALSE);
+}
+
+status_t cm_real_to_dec8_prec17(double real, dec8_t *dec)
+{
+    CT_RETURN_IFERR(cm_real_to_dec8_inexac(real, dec));
+    return cm_dec8_finalise(dec, CT_MAX_CM_DOUBLE_PREC, CT_FALSE);
 }
 
 /**
@@ -1421,13 +1438,13 @@ static status_t cm_real_to_dec8_inexac(double real, dec8_t *dec)
 {
     double r = real;
     if (!CM_DBL_IS_FINITE(r)) {
-        GS_THROW_ERROR(ERR_INVALID_NUMBER, "");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_NUMBER, "");
+        return CT_ERROR;
     }
 
     if (r == 0.0) {
         cm_zero_dec8(dec);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     double int_r;
@@ -1440,7 +1457,7 @@ static status_t cm_real_to_dec8_inexac(double real, dec8_t *dec)
 
     // compute an approximate scientific exponent
     (void)frexp(r, &dexp);
-    dexp = (int32)((double)dexp * (double)GS_LOG10_2);
+    dexp = (int32)((double)dexp * (double)CT_LOG10_2);
     dexp &= 0xFFFFFFF8;
     // dexp can less than DEC8_EXPN_LOW, because cell[0] may have more than one number, DEC8_GET_SEXP is in the range.
     DEC8_OVERFLOW_CHECK_BY_SCIEXP(dexp);
@@ -1466,7 +1483,7 @@ static status_t cm_real_to_dec8_inexac(double real, dec8_t *dec)
     }
     dec->len = index + 1;
     cm_dec8_trim_zeros(dec);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1558,7 +1575,7 @@ void cm_dec8_add_op(const dec8_t *d1, const dec8_t *d2, dec8_t *rs)
     if (is_same_sign) {
         cm_add_aligned_dec8(d1, d2, rs);
     } else {
-        cm_sub_aligned_dec8(d1, d2, GS_FALSE, rs);
+        cm_sub_aligned_dec8(d1, d2, CT_FALSE, rs);
     }
     return;
 
@@ -1577,7 +1594,7 @@ void cm_dec8_sub_op(const dec8_t *d1, const dec8_t *d2, dec8_t *rs)
 {
     dec8_t calc_dec;
     int32 offset;
-    bool32 do_swap = GS_FALSE;
+    bool32 do_swap = CT_FALSE;
     bool32 is_same_sign;
 
     if (DECIMAL8_IS_ZERO(d2)) {
@@ -1585,7 +1602,7 @@ void cm_dec8_sub_op(const dec8_t *d1, const dec8_t *d2, dec8_t *rs)
     }
 
     if (DECIMAL8_IS_ZERO(d1)) {
-        do_swap = GS_TRUE;
+        do_swap = CT_TRUE;
         d1 = d2;
         goto DEC8_SUB_ZERO;
     }
@@ -1598,7 +1615,7 @@ void cm_dec8_sub_op(const dec8_t *d1, const dec8_t *d2, dec8_t *rs)
         if (offset < 0) {
             offset = -offset;
             SWAP(const dec8_t*, d1, d2);
-            do_swap = GS_TRUE;
+            do_swap = CT_TRUE;
         }
 
         if (offset >= DEC8_MAX_EXP_OFFSET) {
@@ -1611,7 +1628,7 @@ void cm_dec8_sub_op(const dec8_t *d1, const dec8_t *d2, dec8_t *rs)
         int32 cmp = cm_dec8_cmp_data(d1, d2);
         if (cmp < 0) {
             SWAP(const dec8_t*, d1, d2);
-            do_swap = GS_TRUE;
+            do_swap = CT_TRUE;
         } else if (cmp == 0) {
             cm_zero_dec8(rs);
             return;
@@ -1717,6 +1734,7 @@ static inline status_t cm_dec8_init_inverse(const dec8_t *d, dec8_t *d_inv)
 * Computed the inverse of a decimal, inv_d = 1 / d
 * The Newton Inversion algorithm is used:
 *  $x_{i+1} = 2x_{i} - dx^2_{i} = x_i(2-d * x_i)$
+
 */
 static inline status_t cm_dec8_inv(const dec8_t *d, dec8_t *inv_d)
 {
@@ -1724,7 +1742,7 @@ static inline status_t cm_dec8_inv(const dec8_t *d, dec8_t *inv_d)
     dec8_t delta;
 
     // Step 1. compute an initial and approximate inverse by 1/double(dec)
-    GS_RETURN_IFERR(cm_dec8_init_inverse(d, inv_d));
+    CT_RETURN_IFERR(cm_dec8_init_inverse(d, inv_d));
     DEC8_DEBUG_PRINT(inv_d, "inv_init_value");
 
     // Step 2. Newton iteration begins, At least 2 iterations are required
@@ -1742,11 +1760,12 @@ static inline status_t cm_dec8_inv(const dec8_t *d, dec8_t *inv_d)
             break;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
 * The division of two decimals: dec1 / dec2
+
 */
 status_t cm_dec8_divide(const dec8_t *dec1, const dec8_t *dec2, dec8_t *result)
 {
@@ -1754,23 +1773,23 @@ status_t cm_dec8_divide(const dec8_t *dec1, const dec8_t *dec2, dec8_t *result)
     uint8 res_sign;
 
     if (DECIMAL8_IS_ZERO(dec2)) {
-        GS_THROW_ERROR(ERR_ZERO_DIVIDE);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ZERO_DIVIDE);
+        return CT_ERROR;
     }
 
     if (DECIMAL8_IS_ZERO(dec1)) {
         cm_zero_dec8(result);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (cm_dec8_is_absolute_one(dec2)) {
         res_sign = dec1->sign ^ dec2->sign;
         cm_dec8_copy(result, dec1);
         result->head = CONVERT_D8EXPN2(GET_DEC8_EXPN(dec1), res_sign);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_RETURN_IFERR(cm_dec8_inv(dec2, &inv_dec2));
+    CT_RETURN_IFERR(cm_dec8_inv(dec2, &inv_dec2));
 
     return cm_dec8_multiply(dec1, &inv_dec2, result);
 }
@@ -1784,25 +1803,25 @@ static inline bool32 cm_dec8_has_tail(const dec8_t *dec, uint32 c_pos, uint32 np
     uint32 cpos = c_pos;
     if (npos > 0) {
         if (dec->cells[cpos] % g_1ten_powers[DEC8_CELL_DIGIT - npos] > 0) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
         ++cpos;
     }
 
     for (; cpos < GET_CELLS8_SIZE(dec); cpos++) {
         if (dec->cells[cpos] > 0) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 /**
  * Get a carry for rounding
  * + cpos -- the position of truncating in decimal->cells
  * + npos -- the position of truncating in decimal->cells[x]
- * @author , 2018/06/04
+
  * @note
  * Performance sensitivity.CM_ASSERT should be guaranteed by caller, i.g. npos<DEC_CELL_DIGIT
 */
@@ -1849,13 +1868,13 @@ static inline bool32 cm_dec8_round_cells(dec8_t *dec, int32 precision, int32 dec
     r_pos = d_pos + DEC8_CELL_DIGIT;
 
     if (r_pos > (int32)DEC8_MAX_ALLOWED_PREC) {  // the rounded position exceeds the maximal precision
-        return GS_FALSE;
+        return CT_FALSE;
     }
     // Step 1: round begin
     *d = div(r_pos, DEC8_CELL_DIGIT);
 
     if ((uint32)d->quot >= GET_CELLS8_SIZE(dec)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     dec->len = (uint8)(d->quot + 2); // ncells is d->quot + 1
@@ -1876,7 +1895,7 @@ static inline bool32 cm_dec8_round_cells(dec8_t *dec, int32 precision, int32 dec
     if (i <= 0) {  // the rounding mode may change the precision
         d_pos += (*carry == 0) ? (int32)cm_count_u32digits(dec->cells[0]) : (DEC8_CELL_DIGIT + 1);
         if (d_pos > precision) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
@@ -1884,12 +1903,13 @@ static inline bool32 cm_dec8_round_cells(dec8_t *dec, int32 precision, int32 dec
     dec->cells[d->quot] /= (c8typ_t)g_1ten_powers[DEC8_CELL_DIGIT - d->rem];
     dec->cells[d->quot] *= (c8typ_t)g_1ten_powers[DEC8_CELL_DIGIT - d->rem];
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /**
 * Round the number with fixed precision and scale, and return the number
 * of 10-base digits before the scale position
+
 */
 static inline bool32 cm_dec8_round(dec8_t *dec, int32 precision, int32 scale_input, round_mode_t rnd_mode)
 {
@@ -1897,27 +1917,27 @@ static inline bool32 cm_dec8_round(dec8_t *dec, int32 precision, int32 scale_inp
     uint32 carry = 0;
     int32 r_pos;
     int32 scale = scale_input;
-    GS_RETVALUE_IFTRUE(DECIMAL8_IS_ZERO(dec), GS_TRUE);
+    CT_RETVALUE_IFTRUE(DECIMAL8_IS_ZERO(dec), CT_TRUE);
 
     scale += GET_DEC8_SCI_EXP(dec);
     r_pos = scale + (int32)cm_count_u32digits(dec->cells[0]);  // r_pos is then the length of the scaled cells
 
     // Step 0: early check
-    GS_RETVALUE_IFTRUE(r_pos > precision, GS_FALSE);
+    CT_RETVALUE_IFTRUE(r_pos > precision, CT_FALSE);
 
     if (r_pos < 0) {
         cm_zero_dec8(dec);
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     // Step 1: scale round
-    GS_RETVALUE_IFTRUE(!cm_dec8_round_cells(dec, precision, scale, &d, &carry, rnd_mode), GS_FALSE);
+    CT_RETVALUE_IFTRUE(!cm_dec8_round_cells(dec, precision, scale, &d, &carry, rnd_mode), CT_FALSE);
 
     // The cell[0] may be truncated to zero, e.g. 0.0043 for number(3,2)
     // Then zero is returned
     if ((d.quot == 0) && (carry == 0) && (dec->cells[0] == 0)) {
         cm_zero_dec8(dec);
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (carry > 0) {
@@ -1925,7 +1945,7 @@ static inline bool32 cm_dec8_round(dec8_t *dec, int32 precision, int32 scale_inp
     }
 
     cm_dec8_trim_zeros(dec);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 
@@ -1933,25 +1953,26 @@ static inline bool32 cm_dec8_round(dec8_t *dec, int32 precision, int32 scale_inp
 * Adjust a decimal into fixed precision and scale. If failed, an error
 * will be returned.
 * @see cm_dec8_round
+
 */
 status_t cm_adjust_dec8(dec8_t *dec, int32 precision, int32 scale)
 {
-    if (precision == GS_UNSPECIFIED_NUM_PREC) {
-        return GS_SUCCESS;
+    if (precision == CT_UNSPECIFIED_NUM_PREC) {
+        return CT_SUCCESS;
     }
 
     if (!cm_dec8_round(dec, precision, scale, ROUND_HALF_UP)) {
-        GS_THROW_ERROR(ERR_VALUE_ERROR, "value larger than specified precision");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_VALUE_ERROR, "value larger than specified precision");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
 * Get the carry of a decimal with negative expn when convert decimal into integer
 * @note Required: expn < 0
-* @author Added 2019/02/12
+
 */
 static inline int32 dec8_make_negexpn_round_value(const dec8_t *dec, round_mode_t rnd_mode)
 {
@@ -1975,7 +1996,6 @@ static inline int32 dec8_make_negexpn_round_value(const dec8_t *dec, round_mode_
 }
 
 /** Round a positive and non-zero decimal into uint64 */
-/* @author Added 2019/02/12 */
 static inline uint64 dec8_make_negexpn_round_value2(const dec8_t *dec, round_mode_t rnd_mode)
 {
     switch (rnd_mode) {
@@ -1996,24 +2016,24 @@ static inline uint64 dec8_make_negexpn_round_value2(const dec8_t *dec, round_mod
 status_t cm_dec8_to_uint64(const dec8_t *dec, uint64 *u64, round_mode_t rnd_mode)
 {
     if (IS_DEC8_NEG(dec)) {
-        GS_THROW_ERROR(ERR_VALUE_ERROR, "convert NUMBER into UINT64 failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_VALUE_ERROR, "convert NUMBER into UINT64 failed");
+        return CT_ERROR;
     }
 
     if (DECIMAL8_IS_ZERO(dec)) {
         *u64 = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     int8 expn = GET_DEC8_EXPN(dec);
     if (expn < 0) {
         *u64 = dec8_make_negexpn_round_value2(dec, rnd_mode);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // the maximal UINT64 is 1844 67440737 09551615
     if (expn > 2 || (expn == 2 && dec->cells[0] > 1844)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "UINT64");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "UINT64");
+        return CT_ERROR;
     }
 
     uint32 i;
@@ -2085,7 +2105,7 @@ static status_t cm_make_dec8_to_int(const dec8_t *dec, uint64 *u64, int8 expn, r
         }
     }
     *u64 = u64_val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_dec8_to_int64(const dec8_t *dec, int64 *val, round_mode_t rnd_mode)
@@ -2094,22 +2114,22 @@ status_t cm_dec8_to_int64(const dec8_t *dec, int64 *val, round_mode_t rnd_mode)
 
     if (DECIMAL8_IS_ZERO(dec)) {
         *val = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     int8 expn = GET_DEC8_EXPN(dec);
     if (expn < 0) {
         *val = dec8_make_negexpn_round_value(dec, rnd_mode);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // the maximal BIGINT is 922 33720368 54775807
     if (expn > 2 || (expn == 2 && dec->cells[0] > 922)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
+        return CT_ERROR;
     }
 
     uint64 u64;
-    GS_RETURN_IFERR(cm_make_dec8_to_int(dec, &u64, expn, rnd_mode));
+    CT_RETURN_IFERR(cm_make_dec8_to_int(dec, &u64, expn, rnd_mode));
     return cm_dec2int64_check_overflow(u64, IS_DEC8_NEG(dec), val);
 }
 
@@ -2118,15 +2138,15 @@ status_t cm_dec8_to_int64(const dec8_t *dec, int64 *val, round_mode_t rnd_mode)
  * value is returned.
  * @return
  * 0: -- no overflow and underflow
- * 1: -- overflow, and return GS_MAX_INT64
- * -1: -- underflow, and return GS_MIN_INT64
- * @author Added, 2018/06/17
+ * 1: -- overflow, and return CT_MAX_INT64
+ * -1: -- underflow, and return CT_MIN_INT64
+
  */
 int32 cm_dec8_to_int64_range(const dec8_t *dec, int64 *i64, round_mode_t rnd_mode)
 {
-    if (cm_dec8_to_int64(dec, i64, rnd_mode) != GS_SUCCESS) {
+    if (cm_dec8_to_int64(dec, i64, rnd_mode) != CT_SUCCESS) {
         cm_reset_error();
-        *i64 = IS_DEC8_NEG(dec) ? GS_MIN_INT64 : GS_MAX_INT64;
+        *i64 = IS_DEC8_NEG(dec) ? CT_MIN_INT64 : CT_MAX_INT64;
         return IS_DEC8_NEG(dec) ? -1 : 1;
     }
 
@@ -2161,7 +2181,7 @@ static status_t cm_make_dec8_to_uint(const dec8_t *dec, uint64 *u64, int8 expn, 
     }
 
     *u64 = u64_val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -2171,25 +2191,25 @@ status_t cm_dec8_to_uint32(const dec8_t *dec, uint32 *i32, round_mode_t rnd_mode
 {
     if (DECIMAL8_IS_ZERO(dec)) {
         *i32 = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     int8 expn = GET_DEC8_EXPN(dec);
     // the maximal UINT32 42 9496 7295
     if (expn > 2 || IS_DEC8_NEG(dec)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED INTEGER");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED INTEGER");
+        return CT_ERROR;
     }
 
     if (expn < 0) {
         *i32 = (uint32)dec8_make_negexpn_round_value(dec, rnd_mode);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint64 u64_val;
-    GS_RETURN_IFERR(cm_make_dec8_to_uint(dec, &u64_val, expn, rnd_mode));
+    CT_RETURN_IFERR(cm_make_dec8_to_uint(dec, &u64_val, expn, rnd_mode));
     TO_UINT32_OVERFLOW_CHECK(u64_val, uint64);
     *i32 = (uint32)u64_val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -2200,22 +2220,22 @@ status_t cm_dec8_to_int32(const dec8_t *dec, int32 *i32, round_mode_t rnd_mode)
 {
     if (DECIMAL8_IS_ZERO(dec)) {
         *i32 = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     int8 expn = GET_DEC8_EXPN(dec);
     if (expn < 0) {
         *i32 = dec8_make_negexpn_round_value(dec, rnd_mode);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // the maximal INTEGER 21 47483648
     if (expn > 1) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTEGER");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTEGER");
+        return CT_ERROR;
     }
 
     int64 i64_val;
-    GS_RETURN_IFERR(cm_make_dec8_to_int(dec, (uint64 *)&i64_val, expn, rnd_mode));
+    CT_RETURN_IFERR(cm_make_dec8_to_int(dec, (uint64 *)&i64_val, expn, rnd_mode));
     if (IS_DEC8_NEG(dec)) {
         i64_val = -i64_val;
     }
@@ -2223,7 +2243,7 @@ status_t cm_dec8_to_int32(const dec8_t *dec, int32 *i32, round_mode_t rnd_mode)
     INT32_OVERFLOW_CHECK(i64_val);
 
     *i32 = (int32)i64_val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -2231,14 +2251,14 @@ status_t cm_dec8_to_int32(const dec8_t *dec, int32 *i32, round_mode_t rnd_mode)
 * if overflow happened, the border value is returned.
 * @return
 * 0: -- no overflow and underflow
-* 1: -- overflow, and return GS_MAX_INT32
-* -1: -- underflow, and return GS_MIN_INT32
+* 1: -- overflow, and return CT_MAX_INT32
+* -1: -- underflow, and return CT_MIN_INT32
 */
 static inline int32 cm_dec8_to_int32_range(const dec8_t *dec, int32 *val, uint32 max_prec, round_mode_t rnd_mode)
 {
-    if (cm_dec8_to_int32(dec, val, rnd_mode) != GS_SUCCESS) {
+    if (cm_dec8_to_int32(dec, val, rnd_mode) != CT_SUCCESS) {
         cm_reset_error();
-        *val = IS_DEC8_NEG(dec) ? GS_MIN_INT32 : GS_MAX_INT32;
+        *val = IS_DEC8_NEG(dec) ? CT_MIN_INT32 : CT_MAX_INT32;
         return IS_DEC8_NEG(dec) ? -1 : 1;
     }
 
@@ -2247,38 +2267,38 @@ static inline int32 cm_dec8_to_int32_range(const dec8_t *dec, int32 *val, uint32
 
 /**
  * To decide whether a decimal is an integer
- * @author Added 2018/06/04
+
  */
 bool32 cm_dec8_is_integer(const dec8_t *dec)
 {
     uint32 i;
 
     if (DECIMAL8_IS_ZERO(dec)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
     int8 expn = GET_DEC8_EXPN(dec);
     if (expn < 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     i = expn + 1;
     for (; i < GET_CELLS8_SIZE(dec); i++) {
         if (dec->cells[i] > 0) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /**
 * To decide whether a integer decimal is odd;
 * note that the decimal must be an integer
-* @author Added 2018/06/04
+
 */
 static inline bool32 cm_dec8_is_odd(const dec8_t *integer)
 {
     if (DECIMAL8_IS_ZERO(integer)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
     return integer->cells[(int32)GET_DEC8_EXPN(integer)] & 1;
 }
@@ -2286,10 +2306,10 @@ static inline bool32 cm_dec8_is_odd(const dec8_t *integer)
 status_t cm_dec8_floor(dec8_t *dec)
 {
     uint32 i;
-    bool32 has_tail = GS_FALSE;
+    bool32 has_tail = CT_FALSE;
     uint32 carry;
 
-    GS_RETVALUE_IFTRUE(DECIMAL8_IS_ZERO(dec), GS_SUCCESS);
+    CT_RETVALUE_IFTRUE(DECIMAL8_IS_ZERO(dec), CT_SUCCESS);
     int8 expn = GET_DEC8_EXPN(dec);
     if (expn < 0) {
         if (IS_DEC8_NEG(dec)) {
@@ -2297,22 +2317,22 @@ status_t cm_dec8_floor(dec8_t *dec)
         } else {
             cm_zero_dec8(dec);
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (i = expn + 1; i < GET_CELLS8_SIZE(dec); i++) {
         if (dec->cells[i] > 0) {
-            has_tail = GS_TRUE;
+            has_tail = CT_TRUE;
             break;
         }
     }
 
-    GS_RETVALUE_IFTRUE(!has_tail, GS_SUCCESS);
+    CT_RETVALUE_IFTRUE(!has_tail, CT_SUCCESS);
 
     dec->len = expn + 2; // ncells is expn + 1
     if (!IS_DEC8_NEG(dec)) {
         cm_dec8_trim_zeros(dec);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     carry = 1;
@@ -2332,16 +2352,16 @@ status_t cm_dec8_floor(dec8_t *dec)
     }
 
     cm_dec8_trim_zeros(dec);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_dec8_ceil(dec8_t *dec)
 {
     uint32 i;
-    bool32 has_tail = GS_FALSE;
+    bool32 has_tail = CT_FALSE;
     uint32 carry;
 
-    GS_RETVALUE_IFTRUE(DECIMAL8_IS_ZERO(dec), GS_SUCCESS);
+    CT_RETVALUE_IFTRUE(DECIMAL8_IS_ZERO(dec), CT_SUCCESS);
     int8 expn = GET_DEC8_EXPN(dec);
     if (expn < 0) {
         if (IS_DEC8_NEG(dec)) {
@@ -2349,22 +2369,22 @@ status_t cm_dec8_ceil(dec8_t *dec)
         } else {
             cm_dec8_copy(dec, &DEC8_ONE);
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (i = expn + 1; i < GET_CELLS8_SIZE(dec); i++) {
         if (dec->cells[i] > 0) {
-            has_tail = GS_TRUE;
+            has_tail = CT_TRUE;
             break;
         }
     }
 
-    GS_RETVALUE_IFTRUE(!has_tail, GS_SUCCESS);
+    CT_RETVALUE_IFTRUE(!has_tail, CT_SUCCESS);
 
     dec->len = expn + 2; // ncells is expn + 1
     if (IS_DEC8_NEG(dec)) {
         cm_dec8_trim_zeros(dec);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     carry = 1;
@@ -2384,7 +2404,7 @@ status_t cm_dec8_ceil(dec8_t *dec)
     }
 
     cm_dec8_trim_zeros(dec);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* Round a decimal by persevering at most scale digits after decimal point
@@ -2398,21 +2418,21 @@ status_t cm_dec8_scale(dec8_t *dec, int32 scale, round_mode_t rnd_mode)
     uint32 carry = 0;
     uint32 npos;
 
-    GS_RETVALUE_IFTRUE(DECIMAL8_IS_ZERO(dec), GS_SUCCESS);
+    CT_RETVALUE_IFTRUE(DECIMAL8_IS_ZERO(dec), CT_SUCCESS);
 
     r_pos = GET_DEC8_SCI_EXP(dec) + DEC8_CELL_DIGIT + scale;
     if (r_pos < 0) {
         cm_zero_dec8(dec);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     // the rounded position exceeds the maximal precision
-    GS_RETVALUE_IFTRUE((r_pos > DEC8_MAX_ALLOWED_PREC), GS_SUCCESS);
+    CT_RETVALUE_IFTRUE((r_pos > DEC8_MAX_ALLOWED_PREC), CT_SUCCESS);
 
     cpos = r_pos / DEC8_CELL_DIGIT;
     npos = DEC8_CELL_DIGIT - ((uint32)r_pos % DEC8_CELL_DIGIT);
 
     if ((uint32)cpos >= GET_CELLS8_SIZE(dec)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (rnd_mode == ROUND_HALF_UP) {
@@ -2444,27 +2464,27 @@ status_t cm_dec8_scale(dec8_t *dec, int32 scale, round_mode_t rnd_mode)
     }
 
     cm_dec8_trim_zeros(dec);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* decimal 3/8 = 0.375 */
 static const dec8_t DEC8_3_in_8 = {
     .len = (uint8)2,
-    .head = CONVERT_D8EXPN(-DEC8_CELL_DIGIT, GS_FALSE),
+    .head = CONVERT_D8EXPN(-DEC8_CELL_DIGIT, CT_FALSE),
     .cells = { 37500000 }
 };
 
 /* decimal 10/8 = 1.25 */
 static const dec8_t DEC8_10_in_8 = {
     .len = (uint8)3,
-    .head = CONVERT_D8EXPN(0, GS_FALSE),
+    .head = CONVERT_D8EXPN(0, CT_FALSE),
     .cells = { 1, 25000000 }
 };
 
 /* decimal 15/8 = 1.875 */
 static const dec8_t DEC8_15_in_8 = {
     .len = (uint8)3,
-    .head = CONVERT_D8EXPN(0, GS_FALSE),
+    .head = CONVERT_D8EXPN(0, CT_FALSE),
     .cells = { 1, 87500000 }
 };
 
@@ -2474,12 +2494,12 @@ status_t cm_dec8_sqrt(const dec8_t *d, dec8_t *r)
 
     if (DECIMAL8_IS_ZERO(d)) {
         cm_zero_dec8(r);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (IS_DEC8_NEG(d)) {
-        GS_THROW_ERROR(ERR_VALUE_ERROR, "argument value of function sqrt must not be a negative number");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_VALUE_ERROR, "argument value of function sqrt must not be a negative number");
+        return CT_ERROR;
     }
 
     /* The Halley's algorithm is applied to compute the square roots.
@@ -2492,7 +2512,7 @@ status_t cm_dec8_sqrt(const dec8_t *d, dec8_t *r)
      * which involves division, multiplication and addition.
      * However, the Goldschmidt's algorithm merely involves multiply Cadd instruction.
      * Set an initial value */
-    GS_RETURN_IFERR(cm_real_to_dec8_inexac(sqrt(1.0 / cm_dec8_to_real(d)), r)); /* set r to 1.0/sqrt(d) */
+    CT_RETURN_IFERR(cm_real_to_dec8_inexac(sqrt(1.0 / cm_dec8_to_real(d)), r)); /* set r to 1.0/sqrt(d) */
 
     cm_dec8_mul_op(d, r, &ti);   /* set ti to d * r */
     cm_dec8_mul_op(&ti, r, &yi); /* set yi to ti * r */
@@ -2504,12 +2524,12 @@ status_t cm_dec8_sqrt(const dec8_t *d, dec8_t *r)
     cm_dec8_sub_op(&DEC8_15_in_8, r, r); /* set r to 15/8 - r */
     cm_dec8_mul_op(&ti, r, r);              /* set r to r * ti */
 
-    return cm_dec8_finalise(r, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(r, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 /**
 * Compute the sin(x) using Taylor series, where x in (0, pi/4)
-* @author Added 2018/09/11
+
 * sin x = x-x^3/3!+x^5/5!-......+(-1)^(n)*(x^(2n+1))/(2n+1)!+......
 */
 static void cm_dec8_sin_frac(const dec8_t *x, dec8_t *sin_x)
@@ -2544,7 +2564,7 @@ static void cm_dec8_sin_frac(const dec8_t *x, dec8_t *sin_x)
 
 /**
 * Compute the cos(x) using Taylor series, where x in (0, pi/4)
-* @author Added 2018/09/13
+
 * cos x = 1-x^2/2!+x^4/4!-......+(-1)^(n)*(x^(2n))/(2n)!+......
 */
 static void cm_dec8_cos_frac(const dec8_t *x, dec8_t *cos_x)
@@ -2583,7 +2603,7 @@ static void cm_dec8_cos_frac(const dec8_t *x, dec8_t *cos_x)
 
 static inline status_t cm_dec8_range_to_2pi(const dec8_t *x, dec8_t *y, double *dy)
 {
-    static const double pi = GS_PI * 2.0;
+    static const double pi = CT_PI * 2.0;
 
     *y = *x;
     dec8_t rem;
@@ -2598,12 +2618,12 @@ static inline status_t cm_dec8_range_to_2pi(const dec8_t *x, dec8_t *y, double *
         int8 expn = GET_DEC8_EXPN(&rem);
         scale = (expn <= SEXP_2_D8EXP(MAX8_RANGE_PREC)) ? 0 : (MAX8_RANGE_PREC) - D8EXP_2_SEXP(expn);
 
-        GS_RETURN_IFERR(cm_dec8_scale(&rem, scale, ROUND_TRUNC));  // truncate rem to integer
+        CT_RETURN_IFERR(cm_dec8_scale(&rem, scale, ROUND_TRUNC));  // truncate rem to integer
         cm_dec8_mul_op(&rem, &DEC8_2PI, &rem);
         cm_dec8_sub_op(y, &rem, y);
     } while (1);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cm_dec8_sin_op(const dec8_t *x, dec8_t *sin_x)
@@ -2614,13 +2634,13 @@ static status_t cm_dec8_sin_op(const dec8_t *x, dec8_t *sin_x)
     dec8_t tmp_x;
     cm_dec8_copy(&tmp_x, x);
     cm_dec8_abs(&tmp_x);
-    GS_RETURN_IFERR(cm_dec8_range_to_2pi(&tmp_x, &tx, &dx));
+    CT_RETURN_IFERR(cm_dec8_range_to_2pi(&tmp_x, &tx, &dx));
 
-    if (dx < GS_PI_2) {  // [0, pi/2)
+    if (dx < CT_PI_2) {  // [0, pi/2)
         // do nothing
-    } else if (dx < GS_PI) {                               // [pi/2, pi)
+    } else if (dx < CT_PI) {                               // [pi/2, pi)
         cm_dec8_sub_op(&DEC8_PI, &tx, &tx);  // pi - tx
-    } else if (dx < GS_PI_2 + GS_PI) {                     // [PI, 3/2pi)
+    } else if (dx < CT_PI_2 + CT_PI) {                     // [PI, 3/2pi)
         cm_dec8_sub_op(&tx, &DEC8_PI, &tx);  // tx - pi
         is_neg = !is_neg;
     } else {
@@ -2629,7 +2649,7 @@ static status_t cm_dec8_sin_op(const dec8_t *x, dec8_t *sin_x)
     }
 
     dx = cm_dec8_to_real(&tx);
-    if (dx < GS_PI_4) {
+    if (dx < CT_PI_4) {
         cm_dec8_sin_frac(&tx, sin_x);
     } else {
         cm_dec8_sub_op(&DEC8_HALF_PI, &tx, &tx);
@@ -2638,28 +2658,28 @@ static status_t cm_dec8_sin_op(const dec8_t *x, dec8_t *sin_x)
     if (is_neg && !IS_DEC8_NEG(sin_x)) {
         cm_dec8_negate(sin_x);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
 * Compute the sin(x) using Taylor series
-* @author Added 2018/07/04
+
 * sin x = x-x^3/3!+x^5/5!-......+(-1)^(n)*(x^(2n+1))/(2n+1)!+......
 */
 status_t cm_dec8_sin(const dec8_t *dec, dec8_t *result)
 {
     if (DECIMAL8_IS_ZERO(dec)) {
         cm_zero_dec8(result);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_RETURN_IFERR(cm_dec8_sin_op(dec, result));
-    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, GS_FALSE);
+    CT_RETURN_IFERR(cm_dec8_sin_op(dec, result));
+    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 /**
 * Compute the cos(x) using cos(x) = sin (x +pi/2)
-* @author Added 2018/07/04
+
 */
 status_t cm_dec8_cos(const dec8_t *dec, dec8_t *result)
 {
@@ -2667,7 +2687,7 @@ status_t cm_dec8_cos(const dec8_t *dec, dec8_t *result)
 
     if (DECIMAL8_IS_ZERO(dec)) {
         cm_dec8_copy(result, &DEC8_ONE);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     cm_dec8_add_op(dec, &DEC8_HALF_PI, &tmp_dec);
@@ -2677,7 +2697,7 @@ status_t cm_dec8_cos(const dec8_t *dec, dec8_t *result)
 
 /**
 * Compute the tan(x) using tan(x) = sin(x) / cos(x)
-* @author Added 2019/07/09
+
 */
 status_t cm_dec8_tan(const dec8_t *dec, dec8_t *result)
 {
@@ -2687,52 +2707,52 @@ status_t cm_dec8_tan(const dec8_t *dec, dec8_t *result)
 
     if (DECIMAL8_IS_ZERO(dec)) {
         cm_zero_dec8(result);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_RETURN_IFERR(cm_dec8_sin(dec, &sin_dec));     // sin(x)
-    GS_RETURN_IFERR(cm_dec8_cos(dec, &cos_dec));     // cos(x)
+    CT_RETURN_IFERR(cm_dec8_sin(dec, &sin_dec));     // sin(x)
+    CT_RETURN_IFERR(cm_dec8_cos(dec, &cos_dec));     // cos(x)
     if (DECIMAL8_IS_ZERO(&cos_dec)) {
-        GS_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "the value is not exist");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "the value is not exist");
+        return CT_ERROR;
     }
-    GS_RETURN_IFERR(cm_dec8_inv(&cos_dec, &inv_cos_dec));  // 1 / cos(x)
+    CT_RETURN_IFERR(cm_dec8_inv(&cos_dec, &inv_cos_dec));  // 1 / cos(x)
     cm_dec8_mul_op(&sin_dec, &inv_cos_dec, result);  // sin(x) / cos(x)
-    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 
 /**
 * Compute the radians(x) using radians(x) = (x * PI) / 180.0
-* @author Added 2023/04/01
+
 */
 status_t cm_dec8_radians(const dec8_t *dec, dec8_t *result)
 {
     if (DECIMAL8_IS_ZERO(dec)) {
         cm_zero_dec8(result);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     cm_dec8_mul_op(dec, &DEC8_PI, result);
     cm_dec_div_real(result, 180.0, result);
 
-    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 /**
 * Compute the pi() using pi() = PI
-* @author Added 2023/04/01
+
 */
 status_t cm_dec8_pi(dec8_t *result)
 {
     cm_dec8_add_op(&DEC8_ZERO, &DEC8_PI, result);
 
-    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 
 /**
 * Compute the asin(x) using Newton's method
-* @author Added 2018/07/12
+
 * Xn+1 = Xn - f(Xn)/f'(Xn) = Xn - (sin(Xn) - a)/cos(Xn)
 */
 status_t cm_dec8_asin_op(const dec8_t *d, dec8_t *rs)
@@ -2746,12 +2766,12 @@ status_t cm_dec8_asin_op(const dec8_t *d, dec8_t *rs)
 
     if (DECIMAL8_IS_ZERO(d)) {
         cm_zero_dec8(rs);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (dec8_is_greater_than_one(d)) {
-        GS_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "argument value of function ASIN must between [-1, 1]");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "argument value of function ASIN must between [-1, 1]");
+        return CT_ERROR;
     }
 
     if (cm_dec8_is_absolute_one(d)) {
@@ -2759,13 +2779,13 @@ status_t cm_dec8_asin_op(const dec8_t *d, dec8_t *rs)
         if (IS_DEC8_NEG(d)) {
             cm_dec8_negate(rs);
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // result : Xn
     cm_dec8_copy(&initial_dec, d);
     initial_val = asin(cm_dec8_to_real(d));
-    if (GS_SUCCESS != cm_real_to_dec8(initial_val, rs)) {
+    if (CT_SUCCESS != cm_real_to_dec8(initial_val, rs)) {
         cm_dec8_copy(rs, d);
     }
     DEC8_DEBUG_PRINT(rs, "asin initial value");
@@ -2773,12 +2793,12 @@ status_t cm_dec8_asin_op(const dec8_t *d, dec8_t *rs)
     do {
         cm_dec8_copy(&last_dec, rs);
 
-        GS_RETURN_IFERR(cm_dec8_sin(rs, &tmp_dec));  // sin(Xn)
+        CT_RETURN_IFERR(cm_dec8_sin(rs, &tmp_dec));  // sin(Xn)
 
         cm_dec8_sub_op(&tmp_dec, &initial_dec, &tmp_dec);  // sin(Xn) - a
 
-        GS_RETURN_IFERR(cm_dec8_cos(rs, &cos_dec));          // cos(Xn)
-        GS_RETURN_IFERR(cm_dec8_inv(&cos_dec, &inv_cos_dec));  // 1 / cos(Xn)
+        CT_RETURN_IFERR(cm_dec8_cos(rs, &cos_dec));          // cos(Xn)
+        CT_RETURN_IFERR(cm_dec8_inv(&cos_dec, &inv_cos_dec));  // 1 / cos(Xn)
 
         cm_dec8_mul_op(&tmp_dec, &inv_cos_dec, &tmp_dec);  // (sin(Xn) - a) / cos(Xn)
 
@@ -2786,18 +2806,18 @@ status_t cm_dec8_asin_op(const dec8_t *d, dec8_t *rs)
         DEC8_DEBUG_PRINT(rs, "asin iteration");
     } while (!cm_dec8_taylor_break(rs, &tmp_dec, MAX_NUM_CMP_PREC));
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_dec8_acos(const dec8_t *dec, dec8_t *result)
 {
     if (dec8_is_greater_than_one(dec)) {
-        GS_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "argument value of function ACOS must between [-1, 1]");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "argument value of function ACOS must between [-1, 1]");
+        return CT_ERROR;
     }
-    GS_RETURN_IFERR(cm_dec8_asin_op(dec, result));
+    CT_RETURN_IFERR(cm_dec8_asin_op(dec, result));
     cm_dec8_sub_op(&DEC8_HALF_PI, result, result);  // set acosx to PI - asinx
-    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 /**
@@ -2811,7 +2831,7 @@ status_t cm_dec8_atan(const dec8_t *dec, dec8_t *result)
 
     if (DECIMAL8_IS_ZERO(dec)) {
         cm_dec8_copy(result, &DEC8_ZERO);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (sci_exp > 63) {   // when sci_exp>63, set atan(x)=+/-PI/2
@@ -2824,11 +2844,11 @@ status_t cm_dec8_atan(const dec8_t *dec, dec8_t *result)
     } else {
         cm_dec8_mul_op(dec, dec, &tmp_x);    // x^2
         cm_dec8_add_op(&tmp_x, &DEC8_ONE, &tmp_x);  // x^2 + 1
-        GS_RETURN_IFERR(cm_dec8_sqrt(&tmp_x, &tmp_result));      // sqrt(x^2+1)
-        GS_RETURN_IFERR(cm_dec8_divide(dec, &tmp_result, &tmp_result)); // x/sqt(x^2+1)
-        GS_RETURN_IFERR(cm_dec8_asin(&tmp_result, result));   // set atan(x) to asin(x/sqrt(x^2+1))
+        CT_RETURN_IFERR(cm_dec8_sqrt(&tmp_x, &tmp_result));      // sqrt(x^2+1)
+        CT_RETURN_IFERR(cm_dec8_divide(dec, &tmp_result, &tmp_result)); // x/sqt(x^2+1)
+        CT_RETURN_IFERR(cm_dec8_asin(&tmp_result, result));   // set atan(x) to asin(x/sqrt(x^2+1))
     }
-    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 /**
@@ -2845,8 +2865,8 @@ status_t cm_dec8_atan2(const dec8_t *dec1, const dec8_t *dec2, dec8_t *result)
     dec8_t tmp_result;
 
     if (DECIMAL8_IS_ZERO(dec1) && DECIMAL8_IS_ZERO(dec2)) {
-        GS_THROW_ERROR(ERR_NUM_OVERFLOW);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_NUM_OVERFLOW);
+        return CT_ERROR;
     }
 
     if (DECIMAL8_IS_ZERO(dec2)) {
@@ -2854,11 +2874,11 @@ status_t cm_dec8_atan2(const dec8_t *dec1, const dec8_t *dec2, dec8_t *result)
         if (IS_DEC8_NEG(dec1)) {
             cm_dec8_negate(result);
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_RETURN_IFERR(cm_dec8_divide(dec1, dec2, &tmp_dec)); // set tmp_dec to dec1/dec2
-    GS_RETURN_IFERR(cm_dec8_atan(&tmp_dec, &tmp_result));  // set tmp_result to atan(tmp_dec)
+    CT_RETURN_IFERR(cm_dec8_divide(dec1, dec2, &tmp_dec)); // set tmp_dec to dec1/dec2
+    CT_RETURN_IFERR(cm_dec8_atan(&tmp_dec, &tmp_result));  // set tmp_result to atan(tmp_dec)
 
     if (!IS_DEC8_NEG(dec2)) {
         cm_dec8_copy(result, &tmp_result);
@@ -2868,7 +2888,7 @@ status_t cm_dec8_atan2(const dec8_t *dec1, const dec8_t *dec2, dec8_t *result)
         cm_dec8_sub_op(&tmp_result, &DEC8_PI, result);
     }
 
-    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 status_t cm_dec8_tanh(const dec8_t *dec, dec8_t *result)
@@ -2883,7 +2903,7 @@ status_t cm_dec8_tanh(const dec8_t *dec, dec8_t *result)
 
     if (DECIMAL8_IS_ZERO(dec)) {
         cm_dec8_copy(result, &DEC8_ZERO);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     int32 int_dec;
@@ -2891,20 +2911,20 @@ status_t cm_dec8_tanh(const dec8_t *dec, dec8_t *result)
 
     if (int_dec > 46) {  // tanh(46) is 1
         cm_dec8_copy(result, &DEC8_ONE);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     if (int_dec < -45) {  // tanh(-45) is -1
         cm_dec8_copy(result, &DEC8_NEG_ONE);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     (void)cm_dec8_exp(dec, &tmp_exp1);                                  // e^x
-    GS_RETURN_IFERR(cm_dec8_divide(&DEC8_ONE, &tmp_exp1, &tmp_exp2));   // e^-x
+    CT_RETURN_IFERR(cm_dec8_divide(&DEC8_ONE, &tmp_exp1, &tmp_exp2));   // e^-x
     cm_dec8_sub_op(&tmp_exp1, &tmp_exp2, &tmp_value1);                  // e^x-e^-x
     cm_dec8_add_op(&tmp_exp1, &tmp_exp2, &tmp_value2);                  // e^x+e^-x
-    GS_RETURN_IFERR(cm_dec8_divide(&tmp_value1, &tmp_value2, result));  // (e^x-e^-x)/(e^x+e^-x)
+    CT_RETURN_IFERR(cm_dec8_divide(&tmp_value1, &tmp_value2, result));  // (e^x-e^-x)/(e^x+e^-x)
 
-    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 /* x = exp(n), n is an integer */
@@ -2913,38 +2933,38 @@ static status_t cm_dec8_exp_n(int32 i32, dec8_t *x)
     dec8_t y;
 
     if (i32 < 0) {
-        GS_RETURN_IFERR(cm_dec8_exp_n(-i32 / 2, x));
-        GS_RETURN_IFERR(cm_dec8_inv(x, &y));
+        CT_RETURN_IFERR(cm_dec8_exp_n(-i32 / 2, x));
+        CT_RETURN_IFERR(cm_dec8_inv(x, &y));
 
         cm_dec8_mul_op(&y, &y, x);
         if ((-i32) & 1) {
             cm_dec8_mul_op(x, &DEC8_INV_EXP, x);
         }
         DEC8_DEBUG_PRINT(x, "exp(-n)");
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (i32 == 0) {
         cm_dec8_copy(x, &DEC8_ONE);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     if (i32 == 1) {
         cm_dec8_copy(x, &DEC8_EXP);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_RETURN_IFERR(cm_dec8_exp_n(i32 / 2, &y));
+    CT_RETURN_IFERR(cm_dec8_exp_n(i32 / 2, &y));
     cm_dec8_mul_op(&y, &y, x);
 
     if (i32 & 1) {
         cm_dec8_mul_op(x, &DEC8_EXP, x);
     }
     DEC8_DEBUG_PRINT(x, "exp(%d)", i32);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* Compute the exp(x) using Taylor series, where abs(x) <= 0.5
-* @author Added by 2018/07/31
+
 * */
 static inline void cm_dec8_exp_frac(const dec8_t *x, dec8_t *exp_x, uint32 prec)
 {
@@ -2977,18 +2997,18 @@ static inline status_t cm_dec8_exp_op(const dec8_t *x, dec8_t *y, uint32 prec)
 {
     if (DECIMAL8_IS_ZERO(x)) {
         cm_dec8_copy(y, &DEC8_ONE);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     int32 int_x;
 
     (void)cm_dec8_to_int32_range(x, &int_x, 3, ROUND_HALF_UP);
     if (int_x > 295) {  //  exp(295) is greater than 10^127
-        GS_THROW_ERROR(ERR_NUM_OVERFLOW);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_NUM_OVERFLOW);
+        return CT_ERROR;
     } else if (int_x < -300) {  // exp(-300) is less than 10^-130
         cm_zero_dec8(y);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (cm_dec8_is_integer(x)) {
@@ -2998,7 +3018,7 @@ static inline status_t cm_dec8_exp_op(const dec8_t *x, dec8_t *y, uint32 prec)
     if (int_x == 0) {  // whether [x] is equal to 0
         DEC8_DEBUG_PRINT(x, "exp(x), integer is zero");
         cm_dec8_exp_frac(x, y, prec);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     dec8_t frac_x;
@@ -3008,20 +3028,20 @@ static inline status_t cm_dec8_exp_op(const dec8_t *x, dec8_t *y, uint32 prec)
     DEC8_DEBUG_PRINT(&frac_x, "exp(frac)");
     cm_dec8_exp_frac(&frac_x, y, prec);  // set y to exp(x - [x])
 
-    GS_RETURN_IFERR(cm_dec8_exp_n(int_x, &frac_x));   // set frac_x to exp([x])
+    CT_RETURN_IFERR(cm_dec8_exp_n(int_x, &frac_x));   // set frac_x to exp([x])
     cm_dec8_mul_op(y, &frac_x, y);  // set y to y * frac_x
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_dec8_exp(const dec8_t *dec, dec8_t *result)
 {
     DEC8_DEBUG_PRINT(dec, "go into exp(x)");
-    if (cm_dec8_exp_op(dec, result, MAX_NUM_CMP_PREC) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_dec8_exp_op(dec, result, MAX_NUM_CMP_PREC) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 /* Natural logarithm of small decimal
@@ -3032,14 +3052,14 @@ static inline status_t cm_dec8_ln_small(const dec8_t *x, dec8_t *ln_x, uint32 pr
     dec8_t x4times;
     dec8_t delta, z2; /* two intermediate variables */
 
-    GS_RETURN_IFERR(cm_real_to_dec8_inexac(log(cm_dec8_to_real(x)), ln_x));
+    CT_RETURN_IFERR(cm_real_to_dec8_inexac(log(cm_dec8_to_real(x)), ln_x));
     DEC8_DEBUG_PRINT(ln_x, "ln initial value");
     cm_dec8_mul_op(x, &DEC8_FOUR, &x4times);
     for (i = 0; i <= 5; ++i) {
         // set delta to 4x/(x + exp(ln_x)) - 2
         (void)cm_dec8_exp_op(ln_x, &delta, prec);
         cm_dec8_add_op(x, &delta, &z2);
-        GS_RETURN_IFERR(cm_dec8_inv(&z2, &delta));
+        CT_RETURN_IFERR(cm_dec8_inv(&z2, &delta));
         cm_dec8_mul_op(&delta, &x4times, &z2);
         cm_dec8_sub_op(&z2, &DEC8_TWO, &delta);
         DEC8_DEBUG_PRINT(&delta, "ln delta: %u", i);
@@ -3051,14 +3071,14 @@ static inline status_t cm_dec8_ln_small(const dec8_t *x, dec8_t *ln_x, uint32 pr
             break;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t cm_dec8_ln_op(const dec8_t *dec, dec8_t *result, uint32 prec)
 {
     if (IS_DEC8_NEG(dec) || DECIMAL8_IS_ZERO(dec)) {
-        GS_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "argument must be greater than 0");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "argument must be greater than 0");
+        return CT_ERROR;
     }
     int8 expn = GET_DEC8_EXPN(dec);
     DEC8_DEBUG_PRINT(dec, "go into ln(x) with expn = %d", expn);
@@ -3070,7 +3090,7 @@ static inline status_t cm_dec8_ln_op(const dec8_t *dec, dec8_t *result, uint32 p
         cm_dec8_copy(&x, dec);
         x.head = (uint8)NON_NEG_ZERO_D8EXPN;
         // set y to ln(x)
-        GS_RETURN_IFERR(cm_dec8_ln_small(&x, result, prec));  // ln(x)
+        CT_RETURN_IFERR(cm_dec8_ln_small(&x, result, prec));  // ln(x)
 
         // set x to exponent  * ln(10)
         cm_int32_to_dec8(exponent, &x);
@@ -3078,18 +3098,18 @@ static inline status_t cm_dec8_ln_op(const dec8_t *dec, dec8_t *result, uint32 p
 
         // set result to x + y
         cm_dec8_add_op(result, &x, result);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 }
 
 status_t cm_dec8_ln(const dec8_t *dec, dec8_t *result)
 {
     DEC8_DEBUG_PRINT(dec, "go into ln(dec)");
-    if (cm_dec8_ln_op(dec, result, MAX_NUM_CMP_PREC) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_dec8_ln_op(dec, result, MAX_NUM_CMP_PREC) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 // 2. log(n2, n1) = ln(n1) / ln(n2), where n2 > 0 && n2 != 1 && n1 > 0.
@@ -3099,16 +3119,16 @@ status_t cm_dec8_log(const dec8_t *n2, const dec8_t *n1, dec8_t *result)
     dec8_t ln_n2;
 
     if (cm_dec8_is_one(n2)) {
-        GS_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "the first argument can not be 0 or 1");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "the first argument can not be 0 or 1");
+        return CT_ERROR;
     }
 
-    if (cm_dec8_ln_op(n2, &ln_n2, MAX_NUM_CMP_PREC) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_dec8_ln_op(n2, &ln_n2, MAX_NUM_CMP_PREC) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cm_dec8_ln_op(n1, &ln_n1, MAX_NUM_CMP_PREC) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_dec8_ln_op(n1, &ln_n1, MAX_NUM_CMP_PREC) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     return cm_dec8_divide(&ln_n1, &ln_n2, result);
@@ -3117,55 +3137,55 @@ status_t cm_dec8_log(const dec8_t *n2, const dec8_t *n1, dec8_t *result)
 /* Compute the y = x^r
  * + if x < 0 and r is non-integer return error
  * + if x = 0 && r < 0 return error
- * @author Added by 2018/07/31
+
  **/
 status_t cm_dec8_power(const dec8_t *x, const dec8_t *r, dec8_t *y)
 {
     if (DECIMAL8_IS_ZERO(x)) {
         if (IS_DEC8_NEG(r)) {
-            GS_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "invalid argument for POWER function");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "invalid argument for POWER function");
+            return CT_ERROR;
         }
         if (DECIMAL8_IS_ZERO(r)) {  // whether 0^0 is equal to 1
             cm_dec8_copy(y, &DEC8_ONE);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
         cm_zero_dec8(y);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (cm_dec8_is_one(r)) {
         cm_dec8_copy(y, x);
-        return cm_dec8_finalise(y, MAX_NUMERIC_BUFF, GS_FALSE);
+        return cm_dec8_finalise(y, MAX_NUMERIC_BUFF, CT_FALSE);
     }
 
     dec8_t abs_a;
-    bool32 is_neg = GS_FALSE;
+    bool32 is_neg = CT_FALSE;
     const dec8_t *pa = x;
 
     if (IS_DEC8_NEG(x)) {
         if (!cm_dec8_is_integer(r)) {
-            GS_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "invalid argument for POWER function");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_FUNC_PARAMS, "invalid argument for POWER function");
+            return CT_ERROR;
         }
         if (cm_dec8_is_odd(r)) {
-            is_neg = GS_TRUE;
+            is_neg = CT_TRUE;
         }
         cm_dec8_negate2((dec8_t *)x, &abs_a);
         pa = &abs_a;
     }
 
     // extra 5 precisions for achieve a higher computation precision
-    GS_RETURN_IFERR(cm_dec8_ln_op(pa, y, MAX_NUM_CMP_PREC + 5));  // set y to ln(abs(x))
+    CT_RETURN_IFERR(cm_dec8_ln_op(pa, y, MAX_NUM_CMP_PREC + 5));  // set y to ln(abs(x))
     cm_dec8_mul_op(y, r, &abs_a);
-    GS_RETURN_IFERR(cm_dec8_exp_op(&abs_a, y, MAX_NUM_CMP_PREC));
+    CT_RETURN_IFERR(cm_dec8_exp_op(&abs_a, y, MAX_NUM_CMP_PREC));
 
     // here y >= 0
     if (is_neg && !DECIMAL8_IS_ZERO(y)) {
         cm_dec8_negate(y);
     }
 
-    return cm_dec8_finalise(y, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(y, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 /** set y to n2 - n1 * FLOOR(n2 / n1)
@@ -3174,34 +3194,34 @@ status_t cm_dec8_mod(const dec8_t *n2, const dec8_t *n1, dec8_t *y)
 {
     if (DECIMAL8_IS_ZERO(n1)) {
         cm_dec8_copy(y, n2);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     dec8_t z;
 
     // set y to n2 / n1
-    GS_RETURN_IFERR(cm_dec8_inv(n1, &z));
+    CT_RETURN_IFERR(cm_dec8_inv(n1, &z));
     cm_dec8_mul_op(n2, &z, y);
-    GS_RETURN_IFERR(cm_dec8_finalise(y, GS_MAX_DEC_OUTPUT_PREC, GS_TRUE));
+    CT_RETURN_IFERR(cm_dec8_finalise(y, CT_MAX_DEC_OUTPUT_PREC, CT_TRUE));
 
     // set z to floor(y) *n1
-    GS_RETURN_IFERR(cm_dec8_floor(y));
+    CT_RETURN_IFERR(cm_dec8_floor(y));
     cm_dec8_mul_op(y, n1, &z);
-    GS_RETURN_IFERR(cm_dec8_finalise(&z, GS_MAX_DEC_OUTPUT_PREC, GS_TRUE));
+    CT_RETURN_IFERR(cm_dec8_finalise(&z, CT_MAX_DEC_OUTPUT_PREC, CT_TRUE));
 
     // set y to n2 - z
     cm_dec8_sub_op(n2, &z, y);
-    GS_RETURN_IFERR(cm_dec8_finalise(y, GS_MAX_DEC_OUTPUT_PREC, GS_TRUE));
+    CT_RETURN_IFERR(cm_dec8_finalise(y, CT_MAX_DEC_OUTPUT_PREC, CT_TRUE));
 
     if (DECIMAL8_IS_ZERO(y)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // for illegal cases return 0
     bool32 cond = (n1->sign == n2->sign && n2->sign != y->sign);
     if (cond) {
         cm_zero_dec8(y);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /* to ensure y has the same SIGN of n2 */
@@ -3210,12 +3230,12 @@ status_t cm_dec8_mod(const dec8_t *n2, const dec8_t *n1, dec8_t *y)
         cm_dec8_sub_op(y, n1, y);
     }
 
-    return cm_dec8_finalise(y, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(y, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 /**
 * Compute the sign of a decimal
-* @author Added 2018/08/21
+
 */
 void cm_dec8_sign(const dec8_t *dec, dec8_t *result)
 {
@@ -3264,7 +3284,7 @@ void cm_dec8_print(const dec8_t *dec, const char *file, uint32 line, const char 
     printf("}\n");
 
     fl_dec = *dec;
-    (void)cm_dec8_finalise(&fl_dec, MAX_NUM_CMP_PREC, GS_TRUE);
+    (void)cm_dec8_finalise(&fl_dec, MAX_NUM_CMP_PREC, CT_TRUE);
     (void)cm_dec8_to_str_all(&fl_dec, buf, sizeof(buf));
     printf("finalized dec := %s\n\n", buf);
     (void)fflush(stdout);
@@ -3297,15 +3317,15 @@ void cm_dec8_negate2(dec8_t *dec, dec8_t *ret)
 status_t cm_dec8_check_type_overflow(dec8_t *dec, int16 type)
 {
     if (DECIMAL8_IS_ZERO(dec)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     int32 sexp = DEC8_GET_SEXP(dec);
-    if (type == GS_TYPE_NUMBER2) {
+    if (type == CT_TYPE_NUMBER2) {
         DEC2_OVERFLOW_CHECK_BY_SCIEXP(sexp);
     } else if (sexp < MIN_NUMERIC_EXPN) { // underflow return 0
         cm_zero_dec8(dec);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

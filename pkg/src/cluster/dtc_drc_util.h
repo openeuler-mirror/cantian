@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -49,8 +49,8 @@ typedef struct st_drc_list_node {
 #define DRC_LIST_INIT(list)              \
     do {                                 \
         (list)->count = 0;               \
-        (list)->first = GS_INVALID_ID32; \
-        (list)->last = GS_INVALID_ID32;  \
+        (list)->first = CT_INVALID_ID32; \
+        (list)->last = CT_INVALID_ID32;  \
     } while (0)
 
 /* mempool structure for DRC resource management */
@@ -116,7 +116,7 @@ typedef struct st_drc_global_res {
 static inline void drc_bitmap64_set(uint64 *bitmap, uint8 num)
 {
     uint64 position;
-    CM_ASSERT(num < GS_MAX_INSTANCES);
+    CM_ASSERT(num < CT_MAX_INSTANCES);
 
     position = (uint64)1 << num;
 
@@ -126,7 +126,7 @@ static inline void drc_bitmap64_set(uint64 *bitmap, uint8 num)
 static inline void drc_bitmap64_clear(uint64 *bitmap, uint8 num)
 {
     uint64 position;
-    CM_ASSERT(num < GS_MAX_INSTANCES);
+    CM_ASSERT(num < CT_MAX_INSTANCES);
 
     position = ~((uint64)1 << num);
 
@@ -136,14 +136,14 @@ static inline void drc_bitmap64_clear(uint64 *bitmap, uint8 num)
 static inline bool32 drc_bitmap64_exist(uint64 *bitmap, uint8 num)
 {
     uint64 position;
-    bool32 is_exist = GS_FALSE;
-    CM_ASSERT(num < GS_MAX_INSTANCES);
+    bool32 is_exist = CT_FALSE;
+    CM_ASSERT(num < CT_MAX_INSTANCES);
 
     position = (uint64)1 << num;
 
     position = *bitmap & position;
 
-    is_exist = (0 == position) ? GS_FALSE : GS_TRUE;
+    is_exist = (0 == position) ? CT_FALSE : CT_TRUE;
 
     return is_exist;
 }

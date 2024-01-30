@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -93,7 +93,7 @@ static inline void cm_latch_ix2x(latch_t *latch, uint32 sid, latch_statis_t *sta
         }
         while (latch->shared_count > 0) {
             count++;
-            if (count >= GS_SPIN_COUNT) {
+            if (count >= CT_SPIN_COUNT) {
                 SPIN_STAT_INC(stat, ix_sleeps);
                 cm_spin_sleep();
                 count = 0;
@@ -102,7 +102,7 @@ static inline void cm_latch_ix2x(latch_t *latch, uint32 sid, latch_statis_t *sta
 
         cm_spin_lock(&latch->lock, (stat != NULL) ? &stat->ix_spin : NULL);
         if (latch->shared_count == 0) {
-            latch->sid = sid;
+            latch->sid = (uint16)sid;
             latch->stat = LATCH_STATUS_X;
             cm_spin_unlock(&latch->lock);
             cm_latch_stat_inc(stat, count);
@@ -123,11 +123,11 @@ static inline bool32 cm_latch_timed_ix2x(latch_t *latch, uint32 sid, uint32 wait
         }
         while (latch->shared_count > 0) {
             if (ticks >= wait_ticks) {
-                return GS_FALSE;
+                return CT_FALSE;
             }
 
             count++;
-            if (count >= GS_SPIN_COUNT) {
+            if (count >= CT_SPIN_COUNT) {
                 SPIN_STAT_INC(stat, ix_sleeps);
                 cm_spin_sleep();
                 count = 0;
@@ -141,7 +141,7 @@ static inline bool32 cm_latch_timed_ix2x(latch_t *latch, uint32 sid, uint32 wait
             latch->stat = LATCH_STATUS_X;
             cm_spin_unlock(&latch->lock);
             cm_latch_stat_inc(stat, count);
-            return GS_TRUE;
+            return CT_TRUE;
         }
 
         cm_spin_unlock(&latch->lock);
@@ -156,7 +156,7 @@ static inline void cm_latch_x(latch_t *latch, uint32 sid, latch_statis_t *stat)
         cm_spin_lock(&latch->lock, (stat != NULL) ? &stat->x_spin : NULL);
 
         if (latch->stat == LATCH_STATUS_IDLE) {
-            latch->sid = sid;
+            latch->sid = (uint16)sid;
             latch->stat = LATCH_STATUS_X;
             cm_spin_unlock(&latch->lock);
             cm_latch_stat_inc(stat, count);
@@ -173,7 +173,7 @@ static inline void cm_latch_x(latch_t *latch, uint32 sid, latch_statis_t *stat)
             }
             while (latch->stat != LATCH_STATUS_IDLE && latch->stat != LATCH_STATUS_S) {
                 count++;
-                if (count >= GS_SPIN_COUNT) {
+                if (count >= CT_SPIN_COUNT) {
                     SPIN_STAT_INC(stat, x_sleeps);
                     cm_spin_sleep();
                     count = 0;
@@ -196,7 +196,7 @@ static inline bool32 cm_latch_timed_x(latch_t *latch, uint32 sid, uint32 wait_ti
             latch->stat = LATCH_STATUS_X;
             cm_spin_unlock(&latch->lock);
             cm_latch_stat_inc(stat, count);
-            return GS_TRUE;
+            return CT_TRUE;
         } else if (latch->stat == LATCH_STATUS_S) {
             latch->stat = LATCH_STATUS_IX;
             cm_spin_unlock(&latch->lock);
@@ -204,9 +204,9 @@ static inline bool32 cm_latch_timed_x(latch_t *latch, uint32 sid, uint32 wait_ti
                 cm_spin_lock(&latch->lock, (stat != NULL) ? &stat->x_spin : NULL);
                 latch->stat = latch->shared_count > 0 ? LATCH_STATUS_S : LATCH_STATUS_IDLE;
                 cm_spin_unlock(&latch->lock);
-                return GS_FALSE;
+                return CT_FALSE;
             }
-            return GS_TRUE;
+            return CT_TRUE;
         } else {
             cm_spin_unlock(&latch->lock);
             if (stat != NULL) {
@@ -214,11 +214,11 @@ static inline bool32 cm_latch_timed_x(latch_t *latch, uint32 sid, uint32 wait_ti
             }
             while (latch->stat != LATCH_STATUS_IDLE && latch->stat != LATCH_STATUS_S) {
                 if (ticks >= wait_ticks) {
-                    return GS_FALSE;
+                    return CT_FALSE;
                 }
 
                 count++;
-                if (count >= GS_SPIN_COUNT) {
+                if (count >= CT_SPIN_COUNT) {
                     SPIN_STAT_INC(stat, x_sleeps);
                     cm_spin_sleep();
                     count = 0;
@@ -239,7 +239,7 @@ static inline void cm_latch_s(latch_t *latch, uint32 sid, bool32 is_force, latch
         if (latch->stat == LATCH_STATUS_IDLE) {
             latch->stat = LATCH_STATUS_S;
             latch->shared_count = 1;
-            latch->sid = sid;
+            latch->sid = (uint16)sid;
             cm_spin_unlock(&latch->lock);
             cm_latch_stat_inc(stat, count);
             return;
@@ -255,7 +255,7 @@ static inline void cm_latch_s(latch_t *latch, uint32 sid, bool32 is_force, latch
             }
             while (latch->stat != LATCH_STATUS_IDLE && latch->stat != LATCH_STATUS_S) {
                 count++;
-                if (count >= GS_SPIN_COUNT) {
+                if (count >= CT_SPIN_COUNT) {
                     SPIN_STAT_INC(stat, s_sleeps);
                     cm_spin_sleep();
                     count = 0;
@@ -277,20 +277,20 @@ static inline bool32 cm_latch_timed_s(latch_t *latch, uint32 wait_ticks, bool32 
             latch->stat = LATCH_STATUS_S;
             latch->shared_count = 1;
             cm_spin_unlock(&latch->lock);
-            return GS_TRUE;
+            return CT_TRUE;
         } else if ((latch->stat == LATCH_STATUS_S) || (latch->stat == LATCH_STATUS_IX && is_force)) {
             latch->shared_count++;
             cm_spin_unlock(&latch->lock);
-            return GS_TRUE;
+            return CT_TRUE;
         } else {
             cm_spin_unlock(&latch->lock);
             while (latch->stat != LATCH_STATUS_IDLE && latch->stat != LATCH_STATUS_S) {
                 if (ticks >= wait_ticks) {
-                    return GS_FALSE;
+                    return CT_FALSE;
                 }
 
                 count++;
-                if (count >= GS_SPIN_COUNT) {
+                if (count >= CT_SPIN_COUNT) {
                     SPIN_STAT_INC(stat, s_sleeps);
                     cm_spin_sleep();
                     count = 0;
@@ -343,7 +343,7 @@ static inline void cm_latch_init(latch_t *latch)
     latch->shared_count = 0;
     latch->sid = 0;
     latch->stat = 0;
-    GS_INIT_SPIN_LOCK(latch->lock);
+    CT_INIT_SPIN_LOCK(latch->lock);
 }
 
 #ifdef __cplusplus

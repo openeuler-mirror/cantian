@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -49,16 +49,17 @@ extern "C" {
  * @note  MAX_NUM_CMP_PREC <= MAX_NUMERIC_BUFF, i.e., must less than
  * the number of digits in buff
  */
-#define MAX_NUM_CMP_PREC GS_MAX_NUM_SAVING_PREC
+#define MAX_NUM_CMP_PREC CT_MAX_NUM_SAVING_PREC
     
-#define GS_PI 3.14159265358979323846        // pi
-#define GS_PI_2 1.57079632679489661923      // pi/2
-#define GS_PI_4 0.785398163397448309616     // pi/4
-#define GS_1_PI 0.318309886183790671538     // 1/pi
-#define GS_2_PI 0.636619772367581343076     // 2/pi
-#define GS_2_SQRTPI 1.12837916709551257390  // 2/sqrt(pi)
+#define CT_PI 3.14159265358979323846        // pi
+#define CT_PI_2 1.57079632679489661923      // pi/2
+#define CT_PI_4 0.785398163397448309616     // pi/4
+#define CT_1_PI 0.318309886183790671538     // 1/pi
+#define CT_2_PI 0.636619772367581343076     // 2/pi
+#define CT_2_SQRTPI 1.12837916709551257390  // 2/sqrt(pi)
+#define CT_180_DEGREE 180.0                 //180°
     
-#define GS_LOG10_2 0.30102999566398119521374  // log10(2)
+#define CT_LOG10_2 0.30102999566398119521374  // log10(2)
 #define DEC_EXPN_BUFF_SZ 16
 
 #define INV_FACT_START 3
@@ -154,6 +155,7 @@ static inline double cm_round_real(double val, round_mode_t mode)
 /**
  * Convert a single cell text into uint32. A single cell text is a text of
  * digits, with the number of text is no more than 9
+
  */
 static inline uint32 cm_celltext2uint32(const text_t *cellt)
 {

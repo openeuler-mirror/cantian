@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_common_module.h"
 #include "knl_lob.h"
 #include "knl_context.h"
 #include "knl_table.h"
@@ -30,6 +31,11 @@
 #include "dtc_dls.h"
 #include "dtc_tran.h"
 #include "dtc_dc.h"
+#include "knl_temp.h"
+#include "knl_space_base.h"
+ 
+status_t lob_temp_alloc_page(knl_session_t *session, knl_cursor_t *cursor, lob_entity_t *lob_entity,
+    lob_alloc_assist_t *lob_assist);
 
 void lob_area_init(knl_session_t *session)
 {
@@ -38,17 +44,17 @@ void lob_area_init(knl_session_t *session)
     char *buf = NULL;
     uint32 i;
 
-    (void)mpool_create(shared_pool, "lob pool", GS_MIN_LOB_ITEMS_PAGES, MAX_LOB_ITEMS_PAGES, &area->pool);
+    (void)mpool_create(shared_pool, "lob pool", CT_MIN_LOB_ITEMS_PAGES, MAX_LOB_ITEMS_PAGES, &area->pool);
     buf = marea_page_addr(shared_pool, area->pool.free_pages.first);
     area->lock = 0;
-    area->capacity = GS_MIN_LOB_ITEMS_PAGES * LOB_ITEM_PAGE_CAPACITY;
+    area->capacity = CT_MIN_LOB_ITEMS_PAGES * LOB_ITEM_PAGE_CAPACITY;
     area->hwm = 0;
     area->free_items.count = 0;
-    area->free_items.first = GS_INVALID_ID32;
-    area->free_items.last = GS_INVALID_ID32;
-    area->page_count = GS_MIN_LOB_ITEMS_PAGES;
+    area->free_items.first = CT_INVALID_ID32;
+    area->free_items.last = CT_INVALID_ID32;
+    area->page_count = CT_MIN_LOB_ITEMS_PAGES;
 
-    for (i = 0; i < GS_MIN_LOB_ITEMS_PAGES; i++) {
+    for (i = 0; i < CT_MIN_LOB_ITEMS_PAGES; i++) {
         area->pages[i] = buf + i * shared_pool->page_size;
     }
 }
@@ -61,31 +67,31 @@ static status_t lob_area_extend(knl_session_t *session)
     uint32 i, page_count, area_pages;
 
     if (area->page_count >= MAX_LOB_ITEMS_PAGES) {
-        GS_THROW_ERROR(ERR_NO_MORE_LOB_ITEMS);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_NO_MORE_LOB_ITEMS);
+        return CT_ERROR;
     }
 
     page_count = mpool_get_extend_page_count(MAX_LOB_ITEMS_PAGES, area->page_count);
-    if (mpool_extend(&area->pool, page_count, &extent) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mpool_extend(&area->pool, page_count, &extent) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     area_pages = area->page_count;
 
     for (i = 0; i < extent.count; i++) {
         if (area_pages + i >= MAX_LOB_ITEMS_PAGES) {
-            GS_THROW_ERROR(ERR_NO_MORE_LOB_ITEMS);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_NO_MORE_LOB_ITEMS);
+            return CT_ERROR;
         }
 
         area->pages[area_pages + i] = marea_page_addr(shared_pool, extent.pages[i]);
     }
 
     area->page_count += extent.count;
-    /* extent.count <=4 and lob_item_page_capacity GS_SHARED_PAGE_SIZE / sizeof(lob_item_t) */
+    /* extent.count <=4 and lob_item_page_capacity CT_SHARED_PAGE_SIZE / sizeof(lob_item_t) */
     /* area->page_count max is 1024, so area->capacity max is (1024 * 16 * 1024 / sizeof(lob_item_t)) */
     area->capacity += LOB_ITEM_PAGE_CAPACITY * extent.count;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lob_area_alloc(knl_session_t *session, uint32 *item_id)
@@ -98,9 +104,9 @@ static status_t lob_area_alloc(knl_session_t *session, uint32 *item_id)
 
     // no more free lob items, try to extend from shared pool, to do
     if (area->hwm == area->capacity && area->free_items.count == 0) {
-        if (lob_area_extend(session) != GS_SUCCESS) {
+        if (lob_area_extend(session) != CT_SUCCESS) {
             cm_spin_unlock(&area->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -109,7 +115,7 @@ static status_t lob_area_alloc(knl_session_t *session, uint32 *item_id)
         item = lob_item_addr(area, *item_id);
         ret = memset_sp(item, sizeof(lob_item_t), 0, sizeof(lob_item_t));
         knl_securec_check(ret);
-        item->next = GS_INVALID_ID32;
+        item->next = CT_INVALID_ID32;
         item->item_id = *item_id;
         area->hwm++;
     } else {
@@ -122,13 +128,13 @@ static status_t lob_area_alloc(knl_session_t *session, uint32 *item_id)
         item->item_id = *item_id;
 
         if (area->free_items.count == 0) {
-            area->free_items.first = GS_INVALID_ID32;
-            area->free_items.last = GS_INVALID_ID32;
+            area->free_items.first = CT_INVALID_ID32;
+            area->free_items.last = CT_INVALID_ID32;
         }
     }
 
     cm_spin_unlock(&area->lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 lob_item_find(knl_session_t *session, page_id_t entry, lob_item_t **lob_item)
@@ -137,7 +143,7 @@ static bool32 lob_item_find(knl_session_t *session, page_id_t entry, lob_item_t 
     lob_item_t *item = NULL;
 
     if (rm->lob_items.count == 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     item = rm->lob_items.first;
@@ -145,13 +151,13 @@ static bool32 lob_item_find(knl_session_t *session, page_id_t entry, lob_item_t 
     while (item != NULL) {
         if (IS_SAME_PAGID(item->pages_info.entry, entry)) {
             *lob_item = item;
-            return GS_TRUE;
+            return CT_TRUE;
         }
 
         item = item->next_item;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static void lob_item_add(lob_item_list_t *item_list, lob_item_t *lob_item)
@@ -177,8 +183,8 @@ static status_t lob_item_alloc(knl_session_t *session, lob_t *lob, knl_part_loca
     uint32 size_pages_info;
     errno_t ret;
 
-    if (lob_area_alloc(session, &id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lob_area_alloc(session, &id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     size_pages_info = sizeof(lob_pages_info_t);
@@ -188,7 +194,7 @@ static status_t lob_item_alloc(knl_session_t *session, lob_t *lob, knl_part_loca
     lob_pages.table_id = lob->desc.table_id;
     lob_pages.uid = lob->desc.uid;
     lob_pages.part_loc = part_loc;
-    if (part_loc.part_no == GS_INVALID_ID32) {
+    if (part_loc.part_no == CT_INVALID_ID32) {
         lob_pages.entry = lob->lob_entity.entry;
     } else {
         lob_part = LOB_GET_PART(lob, part_loc.part_no);
@@ -199,12 +205,12 @@ static status_t lob_item_alloc(knl_session_t *session, lob_t *lob, knl_part_loca
     }
 
     *lob_item = lob_item_addr(area, id);
-    (*lob_item)->next = GS_INVALID_ID32;
+    (*lob_item)->next = CT_INVALID_ID32;
     (*lob_item)->next_item = NULL;
     ret = memcpy_sp(&(*lob_item)->pages_info, size_pages_info, &lob_pages, size_pages_info);
     knl_securec_check(ret);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void lob_items_reset(knl_rm_t *rm)
@@ -233,13 +239,13 @@ void lob_items_free(knl_session_t *session)
         area->free_items.count = free_list->count;
         area->free_items.first = free_list->first->item_id;
         area->free_items.last = free_list->last->item_id;
-        knl_panic(area->free_items.first != GS_INVALID_ID32);
+        knl_panic(area->free_items.first != CT_INVALID_ID32);
     } else {
         free_list->last->next = area->free_items.first;
         area->free_items.first = free_list->first->item_id;
         /* area->free_items max is 1024 * 16 * 1024 / sizeof(lob_item_t) = 264144 */
         area->free_items.count += free_list->count;
-        knl_panic(area->free_items.first != GS_INVALID_ID32);
+        knl_panic(area->free_items.first != CT_INVALID_ID32);
     }
 
     cm_spin_unlock(&area->lock);
@@ -270,7 +276,7 @@ void lob_reset_svpt(knl_session_t *session, knl_savepoint_t *savepoint)
             rm->lob_items = needless_items;
             lob_items_free(session);
             rm->lob_items = savepoint->lob_items; /* reset to savepoint lob items list */
-            rm->lob_items.last->next = GS_INVALID_ID32;
+            rm->lob_items.last->next = CT_INVALID_ID32;
             rm->lob_items.last->next_item = NULL;
         }
     }
@@ -295,8 +301,8 @@ static void lob_write_inline(lob_locator_t *locator, uint32 len, const char *dat
 {
     errno_t err;
 
-    locator->head.is_outline = GS_FALSE;
-    locator->head.type = GS_LOB_FROM_KERNEL;
+    locator->head.is_outline = CT_FALSE;
+    locator->head.type = CT_LOB_FROM_KERNEL;
     locator->head.size = len;
 
     if (len == 0) {
@@ -310,12 +316,12 @@ static void lob_write_inline(lob_locator_t *locator, uint32 len, const char *dat
 static bool32 lob_need_force_outline(knl_cursor_t *cursor, knl_column_t *column, row_assist_t *ra,
     text_t *data)
 {
-    uint32 lob_size = knl_lob_inline_size(cursor->row->is_csf, data->len, GS_TRUE);
+    uint32 lob_size = knl_lob_inline_size(cursor->row->is_csf, data->len, CT_TRUE);
     if (ra->head->size + lob_size > ra->max_size) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t knl_row_put_lob(knl_handle_t session, knl_cursor_t *cursor, knl_column_t *column, void *data,
@@ -329,21 +335,21 @@ status_t knl_row_put_lob(knl_handle_t session, knl_cursor_t *cursor, knl_column_
 
     force_outline = lob_need_force_outline(cursor, column, (row_assist_t *)ra, (text_t *)data);
 
-    lob_locator = (lob_locator_t *)cm_push(knl_session->stack, GS_LOB_LOCATOR_BUF_SIZE);
-    err = memset_sp(lob_locator, GS_LOB_LOCATOR_BUF_SIZE, 0xFF, sizeof(lob_locator_t));
+    lob_locator = (lob_locator_t *)cm_push(knl_session->stack, CT_LOB_LOCATOR_BUF_SIZE);
+    err = memset_sp(lob_locator, CT_LOB_LOCATOR_BUF_SIZE, 0xFF, sizeof(lob_locator_t));
     knl_securec_check(err);
 
-    if (knl_write_lob(session, cursor, (char *)lob_locator, column, force_outline, data) != GS_SUCCESS) {
+    if (knl_write_lob(session, cursor, (char *)lob_locator, column, force_outline, data) != CT_SUCCESS) {
         cm_pop(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     bin.bytes = (uint8 *)lob_locator;
     bin.size = knl_lob_locator_size(lob_locator);
 
-    if (row_put_bin((row_assist_t *)ra, &bin) != GS_SUCCESS) {
+    if (row_put_bin((row_assist_t *)ra, &bin) != CT_SUCCESS) {
         cm_pop(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!lob_locator->head.is_outline) {
@@ -351,7 +357,7 @@ status_t knl_row_put_lob(knl_handle_t session, knl_cursor_t *cursor, knl_column_
     }
 
     cm_pop(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t knl_copy_lob(knl_session_t *session, knl_cursor_t *dst_cursor, lob_locator_t *dst_locator,
@@ -370,6 +376,7 @@ status_t knl_copy_lob(knl_session_t *session, knl_cursor_t *dst_cursor, lob_loca
     uint32 remain_size;
     uint32 offset = 0;
     bool32 force_outline;
+    page_id_t first_page_id = src_locator->first;
 
     remain_size = knl_lob_size(src_locator);
     piece.bytes = (uint8 *)cm_push(session->stack, LOB_MAX_CHUNK_SIZE(session));
@@ -383,23 +390,24 @@ status_t knl_copy_lob(knl_session_t *session, knl_cursor_t *dst_cursor, lob_loca
     }
 
     while (remain_size > 0) {
-        if (knl_read_lob(session, src_locator, offset, (void *)piece.bytes, buffer_size, &piece.size) != GS_SUCCESS) {
+        if (knl_read_lob(session, src_locator, offset, (void *)piece.bytes, buffer_size, &piece.size, &first_page_id) !=
+            CT_SUCCESS) {
             cm_pop(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         remain_size -= piece.size;
         offset += piece.size;
 
-        if (knl_write_lob(session, dst_cursor, (char *)dst_locator, column, force_outline, &piece) != GS_SUCCESS) {
+        if (knl_write_lob(session, dst_cursor, (char *)dst_locator, column, force_outline, &piece) != CT_SUCCESS) {
             cm_pop(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     cm_pop(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t knl_row_move_lob(knl_handle_t session, knl_cursor_t *cursor, knl_column_t *column,
@@ -411,13 +419,13 @@ status_t knl_row_move_lob(knl_handle_t session, knl_cursor_t *cursor, knl_column
     var_lob_t lob;
     errno_t err;
 
-    dst_locator = (lob_locator_t *)cm_push(knl_session->stack, GS_LOB_LOCATOR_BUF_SIZE);
+    dst_locator = (lob_locator_t *)cm_push(knl_session->stack, CT_LOB_LOCATOR_BUF_SIZE);
     err = memset_sp(dst_locator, sizeof(lob_locator_t), 0xFF, sizeof(lob_locator_t));
     knl_securec_check(err);
 
-    if (knl_copy_lob(knl_session, cursor, dst_locator, (lob_locator_t *)src_locator, column) != GS_SUCCESS) {
+    if (knl_copy_lob(knl_session, cursor, dst_locator, (lob_locator_t *)src_locator, column) != CT_SUCCESS) {
         cm_pop(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /*
@@ -428,24 +436,46 @@ status_t knl_row_move_lob(knl_handle_t session, knl_cursor_t *cursor, knl_column
     if (dst_locator->head.is_outline) {
         lob.knl_lob.bytes = (uint8 *)dst_locator;
         lob.knl_lob.size = knl_lob_locator_size(dst_locator);
-        lob.type = GS_LOB_FROM_KERNEL;
+        lob.type = CT_LOB_FROM_KERNEL;
 
-        if (row_put_lob((row_assist_t *)ra, sizeof(lob_locator_t), &lob) != GS_SUCCESS) {
+        if (row_put_lob((row_assist_t *)ra, sizeof(lob_locator_t), &lob) != CT_SUCCESS) {
             cm_pop(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else {
         dst_bin.bytes = (uint8 *)dst_locator;
         dst_bin.size = knl_lob_locator_size(dst_locator);
-        if (row_put_bin((row_assist_t *)ra, &dst_bin) != GS_SUCCESS) {
+        if (row_put_bin((row_assist_t *)ra, &dst_bin) != CT_SUCCESS) {
             cm_pop(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         cursor->lob_inline_num++;
     }
 
     cm_pop(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+void lob_temp_init_page(knl_session_t *session, uint32 page_id, page_type_t type, bool32 init_head)
+{
+    lob_data_page_t *data = NULL;
+    page_head_t *page;
+    vm_page_t *vm_page = NULL;
+    vm_page = buf_curr_temp_page(session);
+    page = (page_head_t *)vm_page->data;
+    if (init_head) {
+        temp_page_init(session, page, page_id, type);
+    } else {
+        page->type = type;
+    }
+ 
+    if (type == PAGE_TYPE_LOB_DATA) {
+        data = (lob_data_page_t *)vm_page->data;
+        data->chunk.next = INVALID_PAGID;
+        data->chunk.free_next = INVALID_PAGID;
+        data->chunk.is_recycled = CT_FALSE;
+        data->pre_free_page = INVALID_PAGID;
+    }
 }
 
 void lob_init_page(knl_session_t *session, page_id_t page_id, page_type_t type, bool32 init_head)
@@ -464,7 +494,7 @@ void lob_init_page(knl_session_t *session, page_id_t page_id, page_type_t type, 
         data = LOB_CURR_DATA_PAGE(session);
         data->chunk.next = INVALID_PAGID;
         data->chunk.free_next = INVALID_PAGID;
-        data->chunk.is_recycled = GS_FALSE;
+        data->chunk.is_recycled = CT_FALSE;
         data->pre_free_page = INVALID_PAGID;
     }
 }
@@ -544,24 +574,24 @@ status_t lob_generate_create_undo(knl_session_t *session, page_id_t entry, uint3
     undo_data_t undo;
     undo_lob_create_t ud_create;
 
-    if (undo_prepare(session, sizeof(undo_lob_create_t), need_redo, GS_FALSE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (undo_prepare(session, sizeof(undo_lob_create_t), need_redo, CT_FALSE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     log_atomic_op_begin(session);
     ud_create.entry = entry;
     ud_create.space_id = space_id;
 
-    undo.snapshot.is_xfirst = GS_TRUE;
+    undo.snapshot.is_xfirst = CT_TRUE;
     undo.snapshot.scn = 0;
     undo.data = (char *)&ud_create;
     undo.size = sizeof(undo_lob_create_t);
     undo.ssn = session->rm->ssn;
     undo.type = UNDO_CREATE_LOB;
-    undo_write(session, &undo, need_redo, GS_FALSE);
+    undo_write(session, &undo, need_redo, CT_FALSE);
     log_atomic_op_end(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void lob_undo_create_part(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot)
@@ -592,12 +622,12 @@ void lob_undo_create_part(knl_session_t *session, undo_row_t *ud_row, undo_page_
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_SPC_FREE_PAGE, NULL, 0, LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     buf_unreside(session, ctrl);
 
     spc_free_extents(session, space, &extents);
     spc_drop_segment(session, space);
-    GS_LOG_DEBUG_INF("[LOB] undo create hash partition lob, spaceid=%u, file=%u, pageid=%u", undo->space_id,
+    CT_LOG_DEBUG_INF("[LOB] undo create hash partition lob, spaceid=%u, file=%u, pageid=%u", undo->space_id,
                      undo->entry.file, undo->entry.page);
 }
 
@@ -610,15 +640,15 @@ status_t lob_create_segment(knl_session_t *session, lob_t *lob)
     page_list_t extents;
 
     if (!spc_valid_space_object(session, space->ctrl->id)) {
-        GS_THROW_ERROR(ERR_SPACE_HAS_REPLACED, space->ctrl->name, space->ctrl->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_HAS_REPLACED, space->ctrl->name, space->ctrl->name);
+        return CT_ERROR;
     }
 
     log_atomic_op_begin(session);
-    if (GS_SUCCESS != spc_alloc_extent(session, space, space->ctrl->extent_size, &extent, GS_FALSE)) {
-        GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+    if (CT_SUCCESS != spc_alloc_extent(session, space, space->ctrl->extent_size, &extent, CT_FALSE)) {
+        CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     spc_create_segment(session, space);
@@ -635,19 +665,19 @@ status_t lob_create_segment(knl_session_t *session, lob_t *lob)
 
     buf_enter_page(session, extent, LATCH_MODE_X, ENTER_PAGE_RESIDENT | ENTER_PAGE_NO_READ);
     segment = LOB_SEG_HEAD(session);
-    lob_init_page(session, extents.first, PAGE_TYPE_LOB_HEAD, GS_TRUE);
+    lob_init_page(session, extents.first, PAGE_TYPE_LOB_HEAD, CT_TRUE);
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_LOB_PAGE_INIT, (page_head_t *)CURR_PAGE(session), sizeof(page_head_t), LOG_ENTRY_FLAG_NONE);
     }
 
     lob_init_segment(session, &lob->desc, extents, ufp_extent);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     lob->desc.seg_scn = segment->seg_scn;
 
     log_atomic_op_end(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lob_create_part_segment(knl_session_t *session, lob_part_t *lob_part)
@@ -659,15 +689,15 @@ status_t lob_create_part_segment(knl_session_t *session, lob_part_t *lob_part)
     page_list_t extents;
 
     if (!spc_valid_space_object(session, space->ctrl->id)) {
-        GS_THROW_ERROR(ERR_SPACE_HAS_REPLACED, space->ctrl->name, space->ctrl->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_HAS_REPLACED, space->ctrl->name, space->ctrl->name);
+        return CT_ERROR;
     }
 
     log_atomic_op_begin(session);
-    if (GS_SUCCESS != spc_alloc_extent(session, space, space->ctrl->extent_size, &extent, GS_FALSE)) {
-        GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+    if (CT_SUCCESS != spc_alloc_extent(session, space, space->ctrl->extent_size, &extent, CT_FALSE)) {
+        CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     spc_create_segment(session, space);
@@ -684,19 +714,19 @@ status_t lob_create_part_segment(knl_session_t *session, lob_part_t *lob_part)
 
     buf_enter_page(session, extent, LATCH_MODE_X, ENTER_PAGE_RESIDENT | ENTER_PAGE_NO_READ);
     segment = LOB_SEG_HEAD(session);
-    lob_init_page(session, extents.first, PAGE_TYPE_LOB_HEAD, GS_TRUE);
+    lob_init_page(session, extents.first, PAGE_TYPE_LOB_HEAD, CT_TRUE);
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_LOB_PAGE_INIT, (page_head_t *)CURR_PAGE(session), sizeof(page_head_t), LOG_ENTRY_FLAG_NONE);
     }
 
     lob_init_part_segment(session, &lob_part->desc, extents, ufp_extent);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     lob_part->desc.seg_scn = segment->seg_scn;
 
     log_atomic_op_end(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void lob_drop_segment(knl_session_t *session, lob_t *lob)
@@ -725,7 +755,7 @@ void lob_drop_segment(knl_session_t *session, lob_t *lob)
     lob_entity->segment = NULL;
     if (head->type != PAGE_TYPE_LOB_HEAD || segment->org_scn != lob->desc.org_scn) {
         // lob segment has been released
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -737,7 +767,7 @@ void lob_drop_segment(knl_session_t *session, lob_t *lob)
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_SPC_FREE_PAGE, NULL, 0, LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     buf_unreside(session, ctrl);
     spc_free_extents(session, space, &extents);
@@ -766,7 +796,7 @@ void lob_drop_garbage_segment(knl_session_t *session, knl_seg_desc_t *seg)
     segment = LOB_SEG_HEAD(session);
     if (head->type != PAGE_TYPE_LOB_HEAD || segment->org_scn != seg->org_scn) {
         // lob segment has been released
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -778,7 +808,7 @@ void lob_drop_garbage_segment(knl_session_t *session, knl_seg_desc_t *seg)
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_SPC_FREE_PAGE, NULL, 0, LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     buf_unreside(session, ctrl);
     spc_free_extents(session, space, &extents);
@@ -813,7 +843,7 @@ void lob_drop_part_segment(knl_session_t *session, lob_part_t *lob_part)
     lob_entity->segment = NULL;
     if (head->type != PAGE_TYPE_LOB_HEAD || segment->org_scn != lob_part->desc.org_scn) {
         // lob segment has been released
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -825,7 +855,7 @@ void lob_drop_part_segment(knl_session_t *session, lob_part_t *lob_part)
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_SPC_FREE_PAGE, NULL, 0, LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     buf_unreside(session, ctrl);
     spc_free_extents(session, space, &extents);
@@ -854,7 +884,7 @@ void lob_drop_part_garbage_segment(knl_session_t *session, knl_seg_desc_t *seg)
     segment = LOB_SEG_HEAD(session);
     if (head->type != PAGE_TYPE_LOB_HEAD || segment->org_scn != seg->org_scn) {
         // lob segment has been released
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -866,7 +896,7 @@ void lob_drop_part_garbage_segment(knl_session_t *session, knl_seg_desc_t *seg)
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_SPC_FREE_PAGE, NULL, 0, LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     buf_unreside(session, ctrl);
     spc_free_extents(session, space, &extents);
@@ -926,11 +956,11 @@ status_t lob_purge_prepare(knl_session_t *session, knl_rb_desc_t *desc)
 {
     space_t *space = SPACE_GET(session, desc->space_id);
     if (!SPACE_IS_ONLINE(space) || !space->ctrl->used) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (IS_INVALID_PAGID(desc->entry)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     buf_enter_page(session, desc->entry, LATCH_MODE_S, ENTER_PAGE_NORMAL);
@@ -938,8 +968,8 @@ status_t lob_purge_prepare(knl_session_t *session, knl_rb_desc_t *desc)
     knl_seg_desc_t seg;
     seg.uid = segment->uid;
     seg.oid = segment->table_id;
-    seg.index_id = GS_INVALID_ID32;
-    seg.column_id = GS_INVALID_ID32;
+    seg.index_id = CT_INVALID_ID32;
+    seg.column_id = CT_INVALID_ID32;
     seg.space_id = segment->space_id;
     seg.entry = desc->entry;
     seg.org_scn = segment->org_scn;
@@ -947,15 +977,15 @@ status_t lob_purge_prepare(knl_session_t *session, knl_rb_desc_t *desc)
     seg.initrans = 0;
     seg.pctfree = 0;
     seg.op_type = LOB_PURGE_SEGMENT;
-    seg.reuse = GS_FALSE;
+    seg.reuse = CT_FALSE;
     seg.serial = 0;
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
-    if (db_write_garbage_segment(session, &seg) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_write_garbage_segment(session, &seg) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void lob_purge_segment(knl_session_t *session, knl_seg_desc_t *desc)
@@ -976,7 +1006,7 @@ void lob_purge_segment(knl_session_t *session, knl_seg_desc_t *desc)
     segment = LOB_SEG_HEAD(session);
     if (head->type != PAGE_TYPE_LOB_HEAD || segment->seg_scn != desc->seg_scn) {
         // lob segment has been released
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -986,7 +1016,7 @@ void lob_purge_segment(knl_session_t *session, knl_seg_desc_t *desc)
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_SPC_FREE_PAGE, NULL, 0, LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     buf_unreside(session, session->curr_page_ctrl);
 
@@ -1015,7 +1045,7 @@ void lob_truncate_segment(knl_session_t *session, knl_lob_desc_t *desc, bool32 r
 
     if (page->type != PAGE_TYPE_LOB_HEAD || segment->seg_scn != desc->seg_scn) {
         // LOB segment has been released
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -1031,7 +1061,7 @@ void lob_truncate_segment(knl_session_t *session, knl_lob_desc_t *desc, bool32 r
         extents.first = segment->extents.first;
         extents.last = segment->extents.first;
         TO_PAGID_DATA(INVALID_PAGID, page->next_ext);
-        lob_init_page(session, desc->entry, PAGE_TYPE_LOB_HEAD, GS_TRUE);
+        lob_init_page(session, desc->entry, PAGE_TYPE_LOB_HEAD, CT_TRUE);
         if (SPACE_IS_LOGGING(space)) {
             log_put(session, RD_LOB_PAGE_INIT, CURR_PAGE(session), sizeof(page_head_t), LOG_ENTRY_FLAG_NONE);
         }
@@ -1042,14 +1072,14 @@ void lob_truncate_segment(knl_session_t *session, knl_lob_desc_t *desc, bool32 r
             ufp_extent = AS_PAGID(page->next_ext);
         }
 
-        lob_init_page(session, desc->entry, PAGE_TYPE_LOB_HEAD, GS_FALSE);
+        lob_init_page(session, desc->entry, PAGE_TYPE_LOB_HEAD, CT_FALSE);
         if (SPACE_IS_LOGGING(space)) {
             log_put(session, RD_LOB_PAGE_EXT_INIT, CURR_PAGE(session), sizeof(page_head_t), LOG_ENTRY_FLAG_NONE);
         }
     }
 
     lob_init_segment(session, desc, extents, ufp_extent);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 }
 
@@ -1087,7 +1117,7 @@ void lob_truncate_part_segment(knl_session_t *session, knl_lob_part_desc_t *desc
     ufp_extent = INVALID_PAGID;
     if (page->type != PAGE_TYPE_LOB_HEAD || segment->seg_scn != desc->seg_scn) {
         // LOB segment has been released
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         return;
     }
@@ -1103,7 +1133,7 @@ void lob_truncate_part_segment(knl_session_t *session, knl_lob_part_desc_t *desc
         extents.first = segment->extents.first;
         extents.last = segment->extents.first;
         TO_PAGID_DATA(INVALID_PAGID, page->next_ext);
-        lob_init_page(session, desc->entry, PAGE_TYPE_LOB_HEAD, GS_TRUE);
+        lob_init_page(session, desc->entry, PAGE_TYPE_LOB_HEAD, CT_TRUE);
         if (SPACE_IS_LOGGING(space)) {
             log_put(session, RD_LOB_PAGE_INIT, CURR_PAGE(session), sizeof(page_head_t), LOG_ENTRY_FLAG_NONE);
         }
@@ -1114,14 +1144,14 @@ void lob_truncate_part_segment(knl_session_t *session, knl_lob_part_desc_t *desc
             ufp_extent = AS_PAGID(page->next_ext);
         }
 
-        lob_init_page(session, desc->entry, PAGE_TYPE_LOB_HEAD, GS_FALSE);
+        lob_init_page(session, desc->entry, PAGE_TYPE_LOB_HEAD, CT_FALSE);
         if (SPACE_IS_LOGGING(space)) {
             log_put(session, RD_LOB_PAGE_EXT_INIT, CURR_PAGE(session), sizeof(page_head_t), LOG_ENTRY_FLAG_NONE);
         }
     }
 
     lob_init_part_segment(session, desc, extents, ufp_extent);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_atomic_op_end(session);
 }
@@ -1148,12 +1178,12 @@ status_t lob_set_column_default(knl_session_t *session, knl_cursor_t *cursor, lo
     lob_t *lob = (lob_t *)column->lob;
 
     if (IS_PART_TABLE(cursor->table)) {
-        knl_panic_log(cursor->part_loc.part_no != GS_INVALID_ID32, "the part_no is invalid, panic info: "
+        knl_panic_log(cursor->part_loc.part_no != CT_INVALID_ID32, "the part_no is invalid, panic info: "
                       "page %u-%u type %u table %s", cursor->rowid.file, cursor->rowid.page,
                       ((page_head_t *)cursor->page_buf)->type, ((table_t *)cursor->table)->desc.name);
         lob_part_t *lob_part = LOB_GET_PART(lob, cursor->part_loc.part_no);
         if (IS_PARENT_LOBPART(&lob_part->desc)) {
-            knl_panic_log(cursor->part_loc.subpart_no != GS_INVALID_ID32, "the subpart_no is invalid, panic info: "
+            knl_panic_log(cursor->part_loc.subpart_no != CT_INVALID_ID32, "the subpart_no is invalid, panic info: "
                           "page %u-%u type %u table %s", cursor->rowid.file, cursor->rowid.page,
                           ((page_head_t *)cursor->page_buf)->type, ((table_t *)cursor->table)->desc.name);
             lob_part = PART_GET_SUBENTITY(lob->part_lob, lob_part->subparts[cursor->part_loc.subpart_no]);
@@ -1162,28 +1192,28 @@ status_t lob_set_column_default(knl_session_t *session, knl_cursor_t *cursor, lo
         dls_latch_x(session, &lob_entity->seg_latch, session->id, &session->stat_lob);
 
         if (lob_entity->segment == NULL) {
-            if (lob_create_part_segment(session, lob_part) != GS_SUCCESS) {
+            if (lob_create_part_segment(session, lob_part) != CT_SUCCESS) {
                 dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             if (IS_SUB_LOBPART(&lob_part->desc)) {
-                if (db_update_sublobpart_entry(session, &lob_part->desc, lob_part->desc.entry) != GS_SUCCESS) {
+                if (db_update_sublobpart_entry(session, &lob_part->desc, lob_part->desc.entry) != CT_SUCCESS) {
                     lob_drop_part_segment(session, lob_part);
                     dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
             } else {
-                if (db_update_lob_part_entry(session, &lob_part->desc, lob_part->desc.entry) != GS_SUCCESS) {
+                if (db_update_lob_part_entry(session, &lob_part->desc, lob_part->desc.entry) != CT_SUCCESS) {
                     lob_drop_part_segment(session, lob_part);
                     dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
             }
 
             buf_enter_page(session, lob_part->desc.entry, LATCH_MODE_S, ENTER_PAGE_RESIDENT);
             lob_entity->segment = LOB_SEG_HEAD(session);
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
         }
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
     } else {
@@ -1191,33 +1221,33 @@ status_t lob_set_column_default(knl_session_t *session, knl_cursor_t *cursor, lo
         dls_latch_x(session, &lob_entity->seg_latch, session->id, &session->stat_lob);
 
         if (lob_entity->segment == NULL) {
-            if (lob_create_segment(session, lob) != GS_SUCCESS) {
+            if (lob_create_segment(session, lob) != CT_SUCCESS) {
                 dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
-            if (db_update_lob_entry(session, &lob->desc, lob->desc.entry) != GS_SUCCESS) {
+            if (db_update_lob_entry(session, &lob->desc, lob->desc.entry) != CT_SUCCESS) {
                 lob_drop_segment(session, lob);
                 dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             buf_enter_page(session, lob->desc.entry, LATCH_MODE_S, ENTER_PAGE_RESIDENT);
             lob_entity->segment = LOB_SEG_HEAD(session);
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
         }
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
     }
-    if (((variant_t *)data)->v_lob.type == GS_LOB_FROM_VMPOOL) {
-        if (g_knl_callback.set_vm_lob_to_knl(stmt, cursor, column, data, (char *)locator) != GS_SUCCESS) {
-            return GS_ERROR;
+    if (((variant_t *)data)->v_lob.type == CT_LOB_FROM_VMPOOL) {
+        if (g_knl_callback.set_vm_lob_to_knl(stmt, cursor, column, data, (char *)locator) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-    } else if (knl_write_lob(session, cursor, (char *)locator, column, GS_FALSE,
-                             &((variant_t *)data)->v_lob.normal_lob.value) != GS_SUCCESS) {
-        return GS_ERROR;
+    } else if (knl_write_lob(session, cursor, (char *)locator, column, CT_FALSE,
+                             &((variant_t *)data)->v_lob.normal_lob.value) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lob_alloc_from_space(knl_session_t *session, lob_entity_t *lob_entity, page_id_t *page_id)
@@ -1225,24 +1255,24 @@ static status_t lob_alloc_from_space(knl_session_t *session, lob_entity_t *lob_e
     lob_segment_t *seg = NULL;
     space_t *space = NULL;
     page_id_t extent;
-    bool32 init_head = GS_FALSE;
+    bool32 init_head = CT_FALSE;
 
     dls_latch_x(session, &lob_entity->seg_latch, session->id, &session->stat_lob);
     seg = LOB_SEGMENT(session, lob_entity->entry, lob_entity->segment);
     space = SPACE_GET(session, seg->space_id);
 
     if (seg->ufp_count == 0 && IS_INVALID_PAGID(seg->ufp_extent)) {
-        if (spc_alloc_extent(session, space, space->ctrl->extent_size, &extent, GS_FALSE) != GS_SUCCESS) {
+        if (spc_alloc_extent(session, space, space->ctrl->extent_size, &extent, CT_FALSE) != CT_SUCCESS) {
             dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-            GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+            return CT_ERROR;
         }
 
         buf_enter_page(session, lob_entity->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
         seg = LOB_SEG_HEAD(session);
         // entry of lob is same to extents last page of segment when  extents count is 1
         if (seg->extents.count == 1) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             spc_concat_extent(session, seg->extents.last, extent);
             buf_enter_page(session, lob_entity->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
             seg = LOB_SEG_HEAD(session);
@@ -1256,24 +1286,24 @@ static status_t lob_alloc_from_space(knl_session_t *session, lob_entity_t *lob_e
         seg->ufp_first = extent;
         *page_id = seg->ufp_first;
         seg->ufp_first.page++;
-        init_head = GS_TRUE;
+        init_head = CT_TRUE;
     } else {
         if (seg->ufp_count > 0) {
             buf_enter_page(session, lob_entity->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
             *page_id = seg->ufp_first;
             seg->ufp_first.page++;
             seg->ufp_count--;
-            init_head = GS_TRUE;
+            init_head = CT_TRUE;
         } else {
             buf_enter_page(session, lob_entity->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
             buf_enter_page(session, seg->ufp_extent, LATCH_MODE_S, ENTER_PAGE_NORMAL);
             seg->ufp_first = seg->ufp_extent;
             seg->ufp_extent = AS_PAGID(((page_head_t *)CURR_PAGE(session))->next_ext);
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             seg->ufp_count = space->ctrl->extent_size - 1;
             *page_id = seg->ufp_first;
             seg->ufp_first.page++;
-            init_head = GS_FALSE;
+            init_head = CT_FALSE;
         }
     }
 
@@ -1282,7 +1312,7 @@ static status_t lob_alloc_from_space(knl_session_t *session, lob_entity_t *lob_e
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_LOB_CHANGE_SEG, seg, sizeof(lob_segment_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     buf_enter_page(session, *page_id, LATCH_MODE_X, init_head ? ENTER_PAGE_NO_READ : ENTER_PAGE_NORMAL);
     lob_init_page(session, *page_id, PAGE_TYPE_LOB_DATA, init_head);
@@ -1297,14 +1327,14 @@ static status_t lob_alloc_from_space(knl_session_t *session, lob_entity_t *lob_e
         }
     }
 
-    buf_leave_page(session, GS_TRUE);
-    return GS_SUCCESS;
+    buf_leave_page(session, CT_TRUE);
+    return CT_SUCCESS;
 }
 
 static bool32 lob_need_reuse_page(knl_session_t *session, lob_entity_t *lob_entity)
 {
     if (lob_entity->shrinking) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     uint64 lob_reuse_count = session->kernel->attr.lob_reuse_threshold / DEFAULT_PAGE_SIZE(session);
@@ -1314,53 +1344,53 @@ static bool32 lob_need_reuse_page(knl_session_t *session, lob_entity_t *lob_enti
     uint32 lob_free_pages = seg->free_list.count;
     knl_panic(seg->free_list.count <= lob_page_count);
     if (lob_page_count < lob_reuse_count) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     double pct_ratio = LOB_PCT_RATIO(lob_free_pages, lob_page_count);
     if (pct_ratio < lob_entity->lob->desc.pctversion) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
-static bool32 lob_check_page_exact(knl_session_t *session, bool32 *is_soft_disabled)
+static bool32 lob_check_page_valid(knl_session_t *session, bool32 *soft_damaged)
 {
     lob_chunk_t *chunk = LOB_GET_CHUNK(session);
     txn_info_t txn_info;
 
     if (page_soft_damaged((page_head_t*)CURR_PAGE(session))) {
-        *is_soft_disabled = GS_TRUE;
-        return GS_FALSE;
+        *soft_damaged = CT_TRUE;
+        return CT_FALSE;
     }
 
     // judge transaction that delete lob data is end or not,
     // locator first page of delete  is marked xid of  session when delete lob data
-    if (chunk->del_xid.value != GS_INVALID_ID64) {
+    if (chunk->del_xid.value != CT_INVALID_ID64) {
         if (DB_IS_CLUSTER(session)) {
             dtc_get_txn_info(session, 0, chunk->del_xid, &txn_info);
         } else {
-            tx_get_info(session, GS_FALSE, chunk->del_xid, &txn_info);
+            tx_get_info(session, CT_FALSE, chunk->del_xid, &txn_info);
         }
         if (txn_info.status != (uint8)XACT_END && txn_info.xid.xnum == chunk->del_xid.xnum) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    if (chunk->ins_xid.value != GS_INVALID_ID64) {
+    if (chunk->ins_xid.value != CT_INVALID_ID64) {
         // judge transaction that ins lob data is end or not
         if (DB_IS_CLUSTER(session)) {
             dtc_get_txn_info(session, 0, chunk->ins_xid, &txn_info);
         } else {
-            tx_get_info(session, GS_FALSE, chunk->ins_xid, &txn_info);
+            tx_get_info(session, CT_FALSE, chunk->ins_xid, &txn_info);
         }
         if (txn_info.status != (uint8)XACT_END && txn_info.xid.xnum == chunk->ins_xid.xnum) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static bool32 lob_try_reuse_page(knl_session_t *session, lob_entity_t *lob_entity, page_id_t *page_id,
@@ -1370,14 +1400,14 @@ static bool32 lob_try_reuse_page(knl_session_t *session, lob_entity_t *lob_entit
     lob_chunk_t *chunk = NULL;
 
     if (!lob_need_reuse_page(session, lob_entity)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     dls_latch_x(session, &lob_entity->seg_latch, session->id, &session->stat_lob);
 
     if (!lob_need_reuse_page(session, lob_entity)) {
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     buf_enter_page(session, lob_entity->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
@@ -1387,17 +1417,17 @@ static bool32 lob_try_reuse_page(knl_session_t *session, lob_entity_t *lob_entit
     dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
     buf_enter_page(session, *page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
    
-    if (!lob_check_page_exact(session, soft_damaged)) {
-        buf_leave_page(session, GS_FALSE);
-        buf_leave_page(session, GS_FALSE);
-        return GS_FALSE;
+    if (!lob_check_page_valid(session, soft_damaged)) {
+        buf_leave_page(session, CT_FALSE);
+        buf_leave_page(session, CT_FALSE);
+        return CT_FALSE;
     }
 
     chunk = LOB_GET_CHUNK(session);
     seg->free_list.first = chunk->free_next;
     seg->free_list.count--;
 
-    lob_init_page(session, *page_id, PAGE_TYPE_LOB_DATA, GS_FALSE);
+    lob_init_page(session, *page_id, PAGE_TYPE_LOB_DATA, CT_FALSE);
 
     space_t *space = SPACE_GET(session, seg->space_id);
 
@@ -1405,20 +1435,20 @@ static bool32 lob_try_reuse_page(knl_session_t *session, lob_entity_t *lob_entit
         log_put(session, RD_LOB_PAGE_EXT_INIT, (page_head_t *)CURR_PAGE(session),
                 sizeof(page_head_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_LOB_CHANGE_SEG, seg, sizeof(lob_segment_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
-    return GS_TRUE;
+    buf_leave_page(session, CT_TRUE);
+    return CT_TRUE;
 }
 
-static void lob_gen_undo_alloc_page(knl_session_t *session, knl_cursor_t *cur, lob_entity_t *lob_enty,
-                                    lob_undo_alloc_page_t *lob_undo)
+static void lob_temp_generate_undo_alloc_page(knl_session_t *session, knl_cursor_t *cursor, lob_entity_t *lob_entity,
+    lob_temp_undo_alloc_page_t *lob_undo)
 {
     undo_data_t undo;
-    bool32 need_redo = IS_LOGGING_TABLE_BY_TYPE(cur->dc_type);
+    bool32 need_redo = IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type);
     if (need_redo) {
         undo.snapshot.undo_page = session->rm->undo_page_info.undo_rid.page_id;
         undo.snapshot.undo_slot = session->rm->undo_page_info.undo_rid.slot;
@@ -1427,15 +1457,41 @@ static void lob_gen_undo_alloc_page(knl_session_t *session, knl_cursor_t *cur, l
         undo.snapshot.undo_slot = session->rm->noredo_undo_page_info.undo_rid.slot;
     }
 
-    undo.snapshot.is_xfirst = cur->is_xfirst;
+    undo.snapshot.is_xfirst = cursor->is_xfirst;
     undo.snapshot.scn = 0;
-    undo.ssn = (uint32)cur->ssn;
+    undo.ssn = (uint32)cursor->ssn;
     undo.size = sizeof(lob_undo_alloc_page_t);
-    undo.seg_file = lob_enty->entry.file;
-    undo.seg_page = lob_enty->entry.page;
+    undo.seg_file = lob_entity->entry.file;
+    undo.seg_page = lob_entity->entry.page;
+    undo.data = (char *)lob_undo;
+    undo.type = UNDO_LOB_TEMP_ALLOC_PAGE;
+    log_atomic_op_begin(session);
+    undo_write(session, &undo, need_redo, !cursor->logging);
+    log_atomic_op_end(session);
+}
+
+static void lob_generate_undo_alloc_page(knl_session_t *session, knl_cursor_t *cursor, lob_entity_t *lob_entity,
+    lob_undo_alloc_page_t *lob_undo)
+{
+    undo_data_t undo;
+    bool32 need_redo = IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type);
+    if (need_redo) {
+        undo.snapshot.undo_page = session->rm->undo_page_info.undo_rid.page_id;
+        undo.snapshot.undo_slot = session->rm->undo_page_info.undo_rid.slot;
+    } else {
+        undo.snapshot.undo_page = session->rm->noredo_undo_page_info.undo_rid.page_id;
+        undo.snapshot.undo_slot = session->rm->noredo_undo_page_info.undo_rid.slot;
+    }
+
+    undo.snapshot.is_xfirst = cursor->is_xfirst;
+    undo.snapshot.scn = 0;
+    undo.ssn = (uint32)cursor->ssn;
+    undo.size = sizeof(lob_undo_alloc_page_t);
+    undo.seg_file = lob_entity->entry.file;
+    undo.seg_page = lob_entity->entry.page;
     undo.data = (char *)lob_undo;
     undo.type = UNDO_LOB_ALLOC_PAGE;
-    undo_write(session, &undo, need_redo, !cur->logging);
+    undo_write(session, &undo, need_redo, !cursor->logging);
 }
 
 static status_t lob_alloc_page(knl_session_t *session, knl_cursor_t *cursor, lob_entity_t *lob_entity,
@@ -1443,12 +1499,12 @@ static status_t lob_alloc_page(knl_session_t *session, knl_cursor_t *cursor, lob
 {
     lob_undo_alloc_page_t lob_undo;
     bool32 need_redo = IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type);
-    bool32 soft_damage = GS_FALSE;
+    bool32 soft_damage = CT_FALSE;
 
     if (cursor->nologging_type != SESSION_LEVEL && lob_assist->generate_undo) {
         if (undo_prepare(session, sizeof(lob_undo_alloc_page_t), need_redo,
-            GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+            CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -1456,24 +1512,24 @@ static status_t lob_alloc_page(knl_session_t *session, knl_cursor_t *cursor, lob
     if (!lob_try_reuse_page(session, lob_entity, lob_assist->lob_page_id, &soft_damage)) {
         if (soft_damage) {
             log_atomic_op_end(session);
-            GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, lob_assist->lob_page_id->file, lob_assist->lob_page_id->page);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, lob_assist->lob_page_id->file, lob_assist->lob_page_id->page);
+            return CT_ERROR;
         }
 
-        if (lob_alloc_from_space(session, lob_entity, lob_assist->lob_page_id) != GS_SUCCESS) {
+        if (lob_alloc_from_space(session, lob_entity, lob_assist->lob_page_id) != CT_SUCCESS) {
             log_atomic_op_end(session);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     lob_undo.first_page = *lob_assist->lob_page_id;
     lob_undo.ori_scn = lob_assist->org_scn;
     if (cursor->nologging_type != SESSION_LEVEL && lob_assist->generate_undo) {
-        lob_gen_undo_alloc_page(session, cursor, lob_entity, &lob_undo);
+        lob_generate_undo_alloc_page(session, cursor, lob_entity, &lob_undo);
     }
 
     log_atomic_op_end(session);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lob_create_entry(knl_session_t *session, lob_entity_t *lob_entity)
@@ -1484,47 +1540,47 @@ static status_t lob_create_entry(knl_session_t *session, lob_entity_t *lob_entit
 
     if (lob_entity->segment != NULL) {
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (lob_create_segment(session, lob) != GS_SUCCESS) {
+    if (lob_create_segment(session, lob) != CT_SUCCESS) {
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (knl_begin_auton_rm(session) != GS_SUCCESS) {
+    if (knl_begin_auton_rm(session) != CT_SUCCESS) {
         lob_drop_segment(session, lob);
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_update_lob_entry(session, &lob->desc, lob->desc.entry) != GS_SUCCESS) {
-        knl_end_auton_rm(session, GS_ERROR);
+    if (db_update_lob_entry(session, &lob->desc, lob->desc.entry) != CT_SUCCESS) {
+        knl_end_auton_rm(session, CT_ERROR);
         lob_drop_segment(session, lob);
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     rd_create_lob_entry_t redo;
     redo.tab_op.op_type = RD_CREATE_LOB_ENTRY;
     redo.tab_op.uid = lob->desc.uid;
     redo.tab_op.oid = lob->desc.table_id;
-    redo.part_loc.part_no = GS_INVALID_ID32;
+    redo.part_loc.part_no = CT_INVALID_ID32;
     redo.entry = lob->desc.entry;
     redo.column_id = lob->desc.column_id;
     if (SPC_IS_LOGGING_BY_PAGEID(session, lob->desc.entry)) {
         log_put(session, RD_LOGIC_OPERATION, &redo, sizeof(rd_create_lob_entry_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    knl_end_auton_rm(session, GS_SUCCESS);
+    knl_end_auton_rm(session, CT_SUCCESS);
 
     buf_enter_page(session, lob->desc.entry, LATCH_MODE_S, ENTER_PAGE_RESIDENT);
     lob_entity->segment = LOB_SEG_HEAD(session);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lob_create_part_entry(knl_session_t *session, lob_entity_t *lob_entity, knl_part_locate_t part_loc)
@@ -1533,38 +1589,38 @@ static status_t lob_create_part_entry(knl_session_t *session, lob_entity_t *lob_
 
     if (lob_entity->segment != NULL) {
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     lob_part_t *lob_part = LOB_GET_PART(lob_entity->lob, part_loc.part_no);
     if (IS_PARENT_LOBPART(&lob_part->desc)) {
-        knl_panic(part_loc.subpart_no != GS_INVALID_ID32);
+        knl_panic(part_loc.subpart_no != CT_INVALID_ID32);
         lob_part = PART_GET_SUBENTITY(lob_entity->lob->part_lob, lob_part->subparts[part_loc.subpart_no]);
     }
 
-    if (lob_create_part_segment(session, lob_part) != GS_SUCCESS) {
+    if (lob_create_part_segment(session, lob_part) != CT_SUCCESS) {
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (knl_begin_auton_rm(session) != GS_SUCCESS) {
+    if (knl_begin_auton_rm(session) != CT_SUCCESS) {
         lob_drop_part_segment(session, lob_part);
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     if (IS_SUB_LOBPART(&lob_part->desc)) {
         ret = db_update_sublobpart_entry(session, &lob_part->desc, lob_part->desc.entry);
     } else {
         ret = db_update_lob_part_entry(session, &lob_part->desc, lob_part->desc.entry);
     }
 
-    if (ret != GS_SUCCESS) {
-        knl_end_auton_rm(session, GS_ERROR);
+    if (ret != CT_SUCCESS) {
+        knl_end_auton_rm(session, CT_ERROR);
         lob_drop_part_segment(session, lob_part);
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     rd_create_lob_entry_t redo;
@@ -1578,15 +1634,15 @@ static status_t lob_create_part_entry(knl_session_t *session, lob_entity_t *lob_
         log_put(session, RD_LOGIC_OPERATION, &redo, sizeof(rd_create_lob_entry_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    knl_end_auton_rm(session, GS_SUCCESS);
+    knl_end_auton_rm(session, CT_SUCCESS);
 
     buf_enter_page(session, lob_part->desc.entry, LATCH_MODE_S, ENTER_PAGE_RESIDENT);
     lob_entity->segment = LOB_SEG_HEAD(session);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void lob_generate_undo_delete(knl_session_t *session, knl_cursor_t *cursor, lob_entity_t *lob_entity,
@@ -1609,7 +1665,7 @@ static void lob_generate_undo_delete(knl_session_t *session, knl_cursor_t *curso
     undo.seg_page = lob_entity->entry.page;
     undo.data = (char *)&lob_del_undo;
     undo.type = UNDO_LOB_DELETE;
-    undo_write(session, &undo, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), GS_FALSE);
+    undo_write(session, &undo, IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type), CT_FALSE);
 }
 
 static void lob_generate_undo_delete_commit(knl_session_t *session, lob_pages_info_t page_info, bool32 need_redo)
@@ -1629,13 +1685,69 @@ static void lob_generate_undo_delete_commit(knl_session_t *session, lob_pages_in
         undo.snapshot.undo_page = session->rm->noredo_undo_page_info.undo_rid.page_id;
         undo.snapshot.undo_slot = session->rm->noredo_undo_page_info.undo_rid.slot;
     }
-    undo.snapshot.is_xfirst = GS_FALSE;
+    undo.snapshot.is_xfirst = CT_FALSE;
     undo.snapshot.scn = 0;
     undo.ssn = session->rm->ssn;
     undo.size = sizeof(lob_seg_recycle_undo_t);
     undo.data = (char *)&lob_seg_undo;
     undo.type = UNDO_LOB_DELETE_COMMIT_RECYCLE;
-    undo_write(session, &undo, need_redo, GS_FALSE);
+    undo_write(session, &undo, need_redo, CT_FALSE);
+}
+
+lob_chunk_t *lob_get_temp_chunk(knl_session_t *session)
+{
+    return &((lob_data_page_t *)(buf_curr_temp_page(session))->data)->chunk;
+}
+
+status_t lob_temp_write_chunk(knl_session_t *session, knl_cursor_t *cursor, lob_entity_t *lob_entity,
+                              lob_locator_t *locator, char *data_ptr, page_id_t *first_chunk_page)
+{
+    page_id_t lob_page_id, next_page_id;
+    uint32 left_size, chunk_size;
+    lob_page_id = *first_chunk_page;
+    left_size = locator->head.size;
+    uint8 cipher_reserve_size = lob_entity->cipher_reserve_size;
+    lob_alloc_assist_t lob_assist = { 0 };
+
+    while (left_size > 0) {
+        chunk_size = left_size > LOB_TEMP_MAX_CHUNK_SIZE - cipher_reserve_size ?
+            LOB_TEMP_MAX_CHUNK_SIZE - cipher_reserve_size : left_size;
+        /* locator->head.size max_size 4g, chunk_size max is 8k */
+        left_size -= chunk_size;
+
+        if (left_size > 0) {
+            lob_init_assist(&lob_assist, &next_page_id, locator->org_scn, CT_FALSE);
+            if (lob_temp_alloc_page(session, cursor, lob_entity, &lob_assist) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+        } else {
+            locator->last = lob_page_id;
+            next_page_id = INVALID_PAGID;
+        }
+
+        if (buf_enter_temp_page_nolock(session, lob_page_id.vmid) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("Fail to open extend vm (%d) when lob alloc page.", lob_page_id.vmid);
+            return CT_ERROR;
+        }
+
+        lob_chunk_t *chunk = lob_get_temp_chunk(session);
+        chunk->size = chunk_size;
+        chunk->next = next_page_id;
+        chunk->ins_xid = locator->xid;
+        chunk->del_xid.value = CT_INVALID_ID64;
+        chunk->org_scn = locator->org_scn;
+        chunk->free_next = chunk->next;
+        chunk->is_recycled = CT_FALSE;
+        errno_t ret = memcpy_sp(chunk->data, chunk_size, data_ptr, chunk_size);
+        knl_securec_check(ret);
+
+        buf_leave_temp_page_nolock(session, CT_TRUE);
+
+        data_ptr += chunk_size;
+        lob_page_id = next_page_id;
+    }
+
+    return CT_SUCCESS;
 }
 
 static status_t lob_write_chunk(knl_session_t *session, knl_cursor_t *cursor, lob_entity_t *lob_entity,
@@ -1659,9 +1771,9 @@ static status_t lob_write_chunk(knl_session_t *session, knl_cursor_t *cursor, lo
         left_size -= chunk_size;
 
         if (left_size > 0) {
-            lob_init_assist(&lob_assist, &next_page_id, locator->org_scn, GS_FALSE);
-            if (lob_alloc_page(session, cursor, lob_entity, &lob_assist) != GS_SUCCESS) {
-                return GS_ERROR;
+            lob_init_assist(&lob_assist, &next_page_id, locator->org_scn, CT_FALSE);
+            if (lob_alloc_page(session, cursor, lob_entity, &lob_assist) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
             locator->last = lob_page_id;
@@ -1674,10 +1786,10 @@ static status_t lob_write_chunk(knl_session_t *session, knl_cursor_t *cursor, lo
         chunk->size = chunk_size;
         chunk->next = next_page_id;
         chunk->ins_xid = locator->xid;
-        chunk->del_xid.value = GS_INVALID_ID64;
+        chunk->del_xid.value = CT_INVALID_ID64;
         chunk->org_scn = locator->org_scn;
         chunk->free_next = chunk->next;
-        chunk->is_recycled = GS_FALSE;
+        chunk->is_recycled = CT_FALSE;
         errno_t ret = memcpy_sp(chunk->data, chunk_size, data_ptr, chunk_size);
         knl_securec_check(ret);
         log_set_group_nolog_insert(session, cursor->logging);
@@ -1686,15 +1798,109 @@ static status_t lob_write_chunk(knl_session_t *session, knl_cursor_t *cursor, lo
             log_put(session, RD_LOB_PUT_CHUNK, chunk, OFFSET_OF(lob_chunk_t, data), entry_flag);
             log_append_data(session, chunk->data, chunk->size);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         data_ptr += chunk_size;
         lob_page_id = next_page_id;
         log_atomic_op_end(session);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
+static status_t lob_temp_append_chunk(knl_session_t *session, knl_cursor_t *cursor, lob_entity_t *lob_entity,
+                                      lob_locator_t *locator, char *data_ptr, uint32 left_chunk_size)
+{
+    page_id_t lob_page_id, next_page_id;
+    uint32 left_size, chunk_size, ori_chunk_size;
+    lob_chunk_t *chunk = NULL;
+    errno_t ret;
+    lob_alloc_assist_t lob_assist = { 0 };
+
+    left_size = locator->head.size;
+    chunk_size = left_size > left_chunk_size ? left_chunk_size : left_size;
+    left_size -= chunk_size;
+    uint8 cipher_reserve_size = lob_entity->cipher_reserve_size;
+
+    if (left_size > 0) {
+        lob_init_assist(&lob_assist, &lob_page_id, locator->org_scn, CT_FALSE);
+        if (lob_temp_alloc_page(session, cursor, lob_entity, &lob_assist) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+
+        // add lob data to page of locator
+        if (buf_enter_temp_page_nolock(session, locator->last.vmid) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("Fail to open extend vm (%d) when lob alloc page.", locator->last.vmid);
+            return CT_ERROR;
+        }
+
+        chunk = lob_get_temp_chunk(session);
+        ori_chunk_size = chunk->size;
+        chunk->size += chunk_size;
+        chunk->next = lob_page_id;
+        chunk->free_next = chunk->next;
+        ret = memcpy_sp(chunk->data + ori_chunk_size,
+            LOB_TEMP_MAX_CHUNK_SIZE - cipher_reserve_size - ori_chunk_size, data_ptr, chunk_size);
+        knl_securec_check(ret);
+
+        buf_leave_temp_page_nolock(session, CT_TRUE);
+    } else {
+        if (buf_enter_temp_page_nolock(session, locator->last.vmid) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("Fail to open extend vm (%d) when lob alloc page.", locator->last.vmid);
+            return CT_ERROR;
+        }
+        chunk = lob_get_temp_chunk(session);
+        ori_chunk_size = chunk->size;
+        chunk->size += chunk_size;
+        knl_panic_log(IS_INVALID_PAGID(chunk->next), "current chunk's next page id is valid, panic info: "
+                      "next page %u-%u locator last page %u-%u type %u", chunk->next.file, chunk->next.page,
+                      locator->last.file, locator->last.page, ((page_head_t *)CURR_PAGE(session))->type);
+        ret = memcpy_sp(chunk->data + ori_chunk_size,
+            LOB_TEMP_MAX_CHUNK_SIZE - cipher_reserve_size - ori_chunk_size, data_ptr, chunk_size);
+        knl_securec_check(ret);
+        buf_leave_temp_page_nolock(session, CT_TRUE);
+        return CT_SUCCESS;
+    }
+
+    data_ptr += chunk_size;
+
+    while (left_size > 0) {
+        chunk_size = left_size > LOB_TEMP_MAX_CHUNK_SIZE - cipher_reserve_size ?
+            LOB_TEMP_MAX_CHUNK_SIZE - cipher_reserve_size : left_size;
+        left_size -= chunk_size;
+
+        if (left_size > 0) {
+            lob_init_assist(&lob_assist, &next_page_id, locator->org_scn, CT_FALSE);
+            if (lob_temp_alloc_page(session, cursor, lob_entity, &lob_assist) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+        } else {
+            locator->last = lob_page_id;
+            next_page_id = INVALID_PAGID;
+        }
+
+        if (buf_enter_temp_page_nolock(session, lob_page_id.vmid) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("Fail to open extend vm (%d) when lob alloc page.", lob_page_id.vmid);
+            return CT_ERROR;
+        }
+        chunk = lob_get_temp_chunk(session);
+        chunk->size = chunk_size;
+        chunk->next = next_page_id;
+        chunk->ins_xid = locator->xid;
+        chunk->del_xid.value = CT_INVALID_ID64;
+        chunk->org_scn = locator->org_scn;
+        chunk->free_next = chunk->next;
+        chunk->is_recycled = CT_FALSE;
+        ret = memcpy_sp(chunk->data, LOB_TEMP_MAX_CHUNK_SIZE - cipher_reserve_size, data_ptr, chunk_size);
+        knl_securec_check(ret);
+
+        buf_leave_temp_page_nolock(session, CT_TRUE);
+        data_ptr += chunk_size;
+        lob_page_id = next_page_id;
+    }
+
+    return CT_SUCCESS;
+}
+ 
 static status_t lob_append_chunk(knl_session_t *session, knl_cursor_t *cursor, lob_entity_t *lob_entity,
                                  lob_locator_t *locator, char *data_ptr, uint32 left_chunk_size)
 {
@@ -1714,18 +1920,18 @@ static status_t lob_append_chunk(knl_session_t *session, knl_cursor_t *cursor, l
     bool32 need_encrypt = SPACE_NEED_ENCRYPT(cipher_reserve_size);
    
     if (left_size > 0) {
-        lob_init_assist(&lob_assist, &lob_page_id, locator->org_scn, GS_FALSE);
-        if (lob_alloc_page(session, cursor, lob_entity, &lob_assist) != GS_SUCCESS) {
-            return GS_ERROR;
+        lob_init_assist(&lob_assist, &lob_page_id, locator->org_scn, CT_FALSE);
+        if (lob_alloc_page(session, cursor, lob_entity, &lob_assist) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         log_atomic_op_begin(session);
         // add lob data to page of locator
         buf_enter_page(session, locator->last, LATCH_MODE_X, ENTER_PAGE_NORMAL);
         if (PAGE_IS_SOFT_DAMAGE((page_head_t*)CURR_PAGE(session))) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
-            GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, locator->last.file, locator->last.page);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, locator->last.file, locator->last.page);
+            return CT_ERROR;
         }
 
         chunk = LOB_GET_CHUNK(session);
@@ -1742,16 +1948,16 @@ static status_t lob_append_chunk(knl_session_t *session, knl_cursor_t *cursor, l
             log_put(session, RD_LOB_PUT_CHUNK, chunk, OFFSET_OF(lob_chunk_t, data), entry_flag);
             log_append_data(session, chunk->data, chunk->size);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         log_atomic_op_end(session);
     } else {
         log_atomic_op_begin(session);
         buf_enter_page(session, locator->last, LATCH_MODE_X, ENTER_PAGE_NORMAL);
         if (PAGE_IS_SOFT_DAMAGE((page_head_t*)CURR_PAGE(session))) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
-            GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, locator->last.file, locator->last.page);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, locator->last.file, locator->last.page);
+            return CT_ERROR;
         }
 
         chunk = LOB_GET_CHUNK(session);
@@ -1769,9 +1975,9 @@ static status_t lob_append_chunk(knl_session_t *session, knl_cursor_t *cursor, l
             log_put(session, RD_LOB_PUT_CHUNK, chunk, OFFSET_OF(lob_chunk_t, data), entry_flag);
             log_append_data(session, chunk->data, chunk->size);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         log_atomic_op_end(session);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     data_ptr += chunk_size;
@@ -1782,9 +1988,9 @@ static status_t lob_append_chunk(knl_session_t *session, knl_cursor_t *cursor, l
         left_size -= chunk_size;
 
         if (left_size > 0) {
-            lob_init_assist(&lob_assist, &next_page_id, locator->org_scn, GS_FALSE);
-            if (lob_alloc_page(session, cursor, lob_entity, &lob_assist) != GS_SUCCESS) {
-                return GS_ERROR;
+            lob_init_assist(&lob_assist, &next_page_id, locator->org_scn, CT_FALSE);
+            if (lob_alloc_page(session, cursor, lob_entity, &lob_assist) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
             locator->last = lob_page_id;
@@ -1797,10 +2003,10 @@ static status_t lob_append_chunk(knl_session_t *session, knl_cursor_t *cursor, l
         chunk->size = chunk_size;
         chunk->next = next_page_id;
         chunk->ins_xid = locator->xid;
-        chunk->del_xid.value = GS_INVALID_ID64;
+        chunk->del_xid.value = CT_INVALID_ID64;
         chunk->org_scn = locator->org_scn;
         chunk->free_next = chunk->next;
-        chunk->is_recycled = GS_FALSE;
+        chunk->is_recycled = CT_FALSE;
         ret = memcpy_sp(chunk->data, LOB_MAX_CHUNK_SIZE(session) - cipher_reserve_size, data_ptr, chunk_size);
         knl_securec_check(ret);
         log_set_group_nolog_insert(session, cursor->logging);
@@ -1809,13 +2015,130 @@ static status_t lob_append_chunk(knl_session_t *session, knl_cursor_t *cursor, l
             log_put(session, RD_LOB_PUT_CHUNK, chunk, OFFSET_OF(lob_chunk_t, data), entry_flag);
             log_append_data(session, chunk->data, chunk->size);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         data_ptr += chunk_size;
         lob_page_id = next_page_id;
         log_atomic_op_end(session);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+status_t lob_temp_alloc_page(knl_session_t *session, knl_cursor_t *cursor, lob_entity_t *lob_entity,
+    lob_alloc_assist_t *lob_assist)
+{
+    lob_temp_undo_alloc_page_t lob_undo;
+    bool32 need_redo = IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type);
+    mtrl_segment_t *segment = NULL;
+    mtrl_context_t *ctx = session->temp_mtrl;
+    uint32 vmid;
+
+    knl_temp_cache_t *temp_cache = cursor->temp_cache;
+    if (temp_cache == NULL || temp_cache->lob_segid == CT_INVALID_ID32) {
+        CT_LOG_RUN_ERR("[TEMP] failed to alloc page");
+        return CT_ERROR;
+    }
+
+    if (cursor->nologging_type != SESSION_LEVEL && lob_assist->generate_undo) {
+        if (undo_prepare(session, sizeof(lob_temp_undo_alloc_page_t), need_redo,
+            CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    }
+
+    segment = session->temp_mtrl->segments[temp_cache->lob_segid];
+
+    if (vm_alloc(ctx->session, ctx->pool, &vmid) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("Fail to extend segment when lob alloc page.");
+        return CT_ERROR;
+    }
+
+    if (buf_enter_temp_page_nolock(session, vmid) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("Fail to open extend vm (%d) when lob alloc page.", vmid);
+        return CT_ERROR;
+    }
+
+    lob_temp_init_page(session, vmid, PAGE_TYPE_LOB_DATA, CT_TRUE);
+
+    buf_leave_temp_page_nolock(session, CT_TRUE);
+    vm_append(ctx->pool, &segment->vm_list, vmid);
+    lob_assist->lob_page_id->file = 0;
+    lob_assist->lob_page_id->vmid = vmid;
+    lob_undo.first_page = *lob_assist->lob_page_id;
+    lob_undo.lob_segid = temp_cache->lob_segid;
+    lob_undo.ori_scn = lob_assist->org_scn;
+    if (cursor->nologging_type != SESSION_LEVEL && lob_assist->generate_undo) {
+        lob_temp_generate_undo_alloc_page(session, cursor, lob_entity, &lob_undo);
+    }
+
+    return CT_SUCCESS;
+}
+
+status_t lob_temp_write_data(knl_session_t *session, knl_cursor_t *cursor, lob_entity_t *lob_entity,
+                             lob_locator_t *locator, char *data)
+{
+    uint32 left_size, chunk_left_size;
+    page_id_t lob_page_id;
+    lob_chunk_t *chunk = NULL;
+    char *data_ptr = data;
+    uint8 cipher_reserve_size = lob_entity->cipher_reserve_size;
+    lob_alloc_assist_t lob_assist = { 0 };
+    left_size = locator->head.size;
+
+    if (left_size == 0) {
+        locator->first = INVALID_PAGID;
+        locator->last = locator->first;
+        return CT_SUCCESS;
+    }
+
+    if (IS_INVALID_PAGID(locator->first)) {
+        lob_init_assist(&lob_assist, &locator->first, locator->org_scn, CT_TRUE);
+        if (lob_temp_alloc_page(session, cursor, lob_entity, &lob_assist) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+
+        if (lob_temp_write_chunk(session, cursor, lob_entity, locator, data_ptr,
+                                 lob_assist.lob_page_id) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    } else {
+        if (buf_enter_temp_page_nolock(session, locator->last.vmid) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("Fail to open extend vm (%d) when lob alloc page.", locator->last.vmid);
+            return CT_ERROR;
+        }
+        chunk = lob_get_temp_chunk(session);
+        if (chunk->size == LOB_TEMP_MAX_CHUNK_SIZE - cipher_reserve_size) {
+            buf_leave_temp_page_nolock(session, CT_FALSE);
+
+            // add to locator last page
+            lob_init_assist(&lob_assist, &lob_page_id, locator->org_scn, CT_FALSE);
+            if (lob_temp_alloc_page(session, cursor, lob_entity, &lob_assist) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+
+            if (buf_enter_temp_page_nolock(session, locator->last.vmid) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("Fail to open extend vm (%d) when lob alloc page.", locator->last.vmid);
+                return CT_ERROR;
+            }
+            chunk = lob_get_temp_chunk(session);
+            chunk->next = lob_page_id;
+            chunk->free_next = chunk->next;
+            buf_leave_temp_page_nolock(session, CT_TRUE);
+
+            if (lob_temp_write_chunk(session, cursor, lob_entity, locator, data_ptr, &lob_page_id) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+        } else {
+            chunk_left_size = LOB_TEMP_MAX_CHUNK_SIZE - cipher_reserve_size - chunk->size;
+            buf_leave_temp_page_nolock(session, CT_FALSE);
+
+            if (lob_temp_append_chunk(session, cursor, lob_entity, locator, data_ptr, chunk_left_size) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+        }
+    }
+
+    return CT_SUCCESS;
 }
 
 status_t lob_write_data(knl_session_t *session, knl_cursor_t *cursor, lob_entity_t *lob_entity,
@@ -1832,37 +2155,37 @@ status_t lob_write_data(knl_session_t *session, knl_cursor_t *cursor, lob_entity
     if (left_size == 0) {
         locator->first = INVALID_PAGID;
         locator->last = locator->first;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     
     if (IS_INVALID_PAGID(locator->first)) {
-        lob_init_assist(&lob_assist, &locator->first, locator->org_scn, GS_TRUE);
-        if (lob_alloc_page(session, cursor, lob_entity, &lob_assist) != GS_SUCCESS) {
-            return GS_ERROR;
+        lob_init_assist(&lob_assist, &locator->first, locator->org_scn, CT_TRUE);
+        if (lob_alloc_page(session, cursor, lob_entity, &lob_assist) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (lob_write_chunk(session, cursor, lob_entity, locator, data_ptr, lob_assist.lob_page_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lob_write_chunk(session, cursor, lob_entity, locator, data_ptr, lob_assist.lob_page_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         buf_enter_page(session, locator->last, LATCH_MODE_S, ENTER_PAGE_NORMAL);
         chunk = LOB_GET_CHUNK(session);
         if (chunk->size == LOB_MAX_CHUNK_SIZE(session) - cipher_reserve_size) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
 
             // add to locator last page
-            lob_init_assist(&lob_assist, &lob_page_id, locator->org_scn, GS_FALSE);
-            if (lob_alloc_page(session, cursor, lob_entity, &lob_assist) != GS_SUCCESS) {
-                return GS_ERROR;
+            lob_init_assist(&lob_assist, &lob_page_id, locator->org_scn, CT_FALSE);
+            if (lob_alloc_page(session, cursor, lob_entity, &lob_assist) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             log_atomic_op_begin(session);
             buf_enter_page(session, locator->last, LATCH_MODE_X, ENTER_PAGE_NORMAL);
             if (PAGE_IS_SOFT_DAMAGE((page_head_t*)CURR_PAGE(session))) {
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
                 log_atomic_op_end(session);
-                GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, locator->last.file, locator->last.page);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, locator->last.file, locator->last.page);
+                return CT_ERROR;
             }
             chunk = LOB_GET_CHUNK(session);
             chunk->next = lob_page_id;
@@ -1872,29 +2195,49 @@ status_t lob_write_data(knl_session_t *session, knl_cursor_t *cursor, lob_entity
                 log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
             }
 
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
             log_atomic_op_end(session);
 
-            if (lob_write_chunk(session, cursor, lob_entity, locator, data_ptr, &lob_page_id) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (lob_write_chunk(session, cursor, lob_entity, locator, data_ptr, &lob_page_id) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
             chunk_left_size = LOB_MAX_CHUNK_SIZE(session) - cipher_reserve_size - chunk->size;
-            buf_leave_page(session, GS_FALSE);
-            if (lob_append_chunk(session, cursor, lob_entity, locator, data_ptr, chunk_left_size) != GS_SUCCESS) {
-                return GS_ERROR;
+            buf_leave_page(session, CT_FALSE);
+            if (lob_append_chunk(session, cursor, lob_entity, locator, data_ptr, chunk_left_size) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
     if (DB_IS_CLUSTER(session) && (session->rm->logic_log_size >= KNL_LOGIC_LOG_FLUSH_SIZE)) {
         tx_copy_logic_log(session);
-        if (db_write_ddl_op(session) != GS_SUCCESS) {
+        if (db_write_ddl_op(session) != CT_SUCCESS) {
             knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
         }
         dtc_sync_ddl(session);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+status_t lob_temp_internal_write(knl_session_t *session, knl_cursor_t *cursor, lob_locator_t *locator,
+                                 knl_column_t *column, char *data)
+{
+    lob_t *lob = (lob_t *)column->lob;
+    lob_entity_t *lob_entity = NULL;
+
+    locator->xid = session->rm->xid;
+    locator->head.is_outline = CT_TRUE;
+    locator->head.is_not_temp = 0;
+
+    lob_entity = &lob->lob_entity;
+    locator->org_scn = lob->desc.org_scn;
+
+    if (lob_temp_write_data(session, cursor, lob_entity, locator, data) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
 }
 
 status_t lob_internal_write(knl_session_t *session, knl_cursor_t *cursor, lob_locator_t *locator,
@@ -1906,23 +2249,26 @@ status_t lob_internal_write(knl_session_t *session, knl_cursor_t *cursor, lob_lo
     dc_entity_t *entity;
 
     entity = (dc_entity_t *)cursor->dc_entity;
+    if (cursor->dc_type == DICT_TYPE_TEMP_TABLE_SESSION) {
+        return lob_temp_internal_write(session, cursor, locator, column, data);
+    }
 
-    if (lock_table_shared(session, entity, LOCK_INF_WAIT) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lock_table_shared(session, entity, LOCK_INF_WAIT) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     locator->xid = session->rm->xid;
-    locator->head.is_outline = GS_TRUE;
+    locator->head.is_outline = CT_TRUE;
     locator->head.unused = 0;
 
     if (IS_PART_TABLE(cursor->table)) {
-        knl_panic_log(cursor->part_loc.part_no != GS_INVALID_ID32,
+        knl_panic_log(cursor->part_loc.part_no != CT_INVALID_ID32,
                       "the part_no is invalid, panic info: page %u-%u type %u table %s", cursor->rowid.file,
                       cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type, entity->table.desc.name);
         lob_part = LOB_GET_PART(lob, cursor->part_loc.part_no);
         if (IS_PARENT_LOBPART(&lob_part->desc)) {
             uint32 subpart_no = cursor->part_loc.subpart_no;
-            knl_panic_log(subpart_no != GS_INVALID_ID32, "the subpart_no is invalid, panic info: "
+            knl_panic_log(subpart_no != CT_INVALID_ID32, "the subpart_no is invalid, panic info: "
                           "page %u-%u type %u table %s", cursor->rowid.file, cursor->rowid.page,
                           ((page_head_t *)cursor->page_buf)->type, entity->table.desc.name);
             lob_part_t *lob_subpart = PART_GET_SUBENTITY(lob->part_lob, lob_part->subparts[subpart_no]);
@@ -1934,8 +2280,8 @@ status_t lob_internal_write(knl_session_t *session, knl_cursor_t *cursor, lob_lo
         }
 
         if (lob_entity->segment == NULL) {
-            if (lob_create_part_entry(session, lob_entity, cursor->part_loc) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (lob_create_part_entry(session, lob_entity, cursor->part_loc) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     } else {
@@ -1943,17 +2289,17 @@ status_t lob_internal_write(knl_session_t *session, knl_cursor_t *cursor, lob_lo
         locator->org_scn = lob->desc.org_scn;
 
         if (lob_entity->segment == NULL) {
-            if (lob_create_entry(session, lob_entity) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (lob_create_entry(session, lob_entity) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    if (lob_write_data(session, cursor, lob_entity, locator, data) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lob_write_data(session, cursor, lob_entity, locator, data) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1971,7 +2317,7 @@ status_t knl_write_lob(knl_handle_t se, knl_cursor_t *cursor, char *locator, knl
     knl_session_t *session = (knl_session_t *)se;
     errno_t ret;
 
-    if (column->datatype == GS_TYPE_CLOB || column->datatype == GS_TYPE_IMAGE) {
+    if (column->datatype == CT_TYPE_CLOB || column->datatype == CT_TYPE_IMAGE) {
         lob.str = ((text_t *)data)->str;
         lob.len = ((text_t *)data)->len;
     } else {
@@ -1981,71 +2327,171 @@ status_t knl_write_lob(knl_handle_t se, knl_cursor_t *cursor, char *locator, knl
 
     if (!force_outline && ((lob_t *)column->lob)->desc.is_inrow && lob.len <= LOB_MAX_INLIINE_SIZE) {
         lob_write_inline((lob_locator_t *)locator, lob.len, lob.str);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     ret = memcpy_sp(&tmp_locator, sizeof(lob_locator_t), locator, sizeof(lob_locator_t));
     knl_securec_check(ret);
     tmp_locator.head.size = lob.len;
 
-    if (lob_internal_write(session, cursor, &tmp_locator, column, lob.str) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lob_internal_write(session, cursor, &tmp_locator, column, lob.str) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     ori_locator = LOB_GET_LOCATOR(locator);
-    ori_locator->head.type = GS_LOB_FROM_KERNEL;
-    ori_locator->head.is_outline = GS_TRUE;
+    ori_locator->head.type = CT_LOB_FROM_KERNEL;
+    ori_locator->head.is_outline = CT_TRUE;
+    ori_locator->head.is_not_temp = tmp_locator.head.is_not_temp;
     ori_locator->first = tmp_locator.first;
     ori_locator->last = tmp_locator.last;
     ori_locator->xid = tmp_locator.xid;
     ori_locator->org_scn = tmp_locator.org_scn;
 
-    if (ori_locator->head.size == GS_INVALID_ID32) {
+    if (ori_locator->head.size == CT_INVALID_ID32) {
         ori_locator->head.size = tmp_locator.head.size;
     } else {
         writed_lob_size = (uint64)ori_locator->head.size + (uint64)tmp_locator.head.size;
-        if (writed_lob_size >= GS_MAX_LOB_SIZE) {
-            GS_THROW_ERROR(ERR_LOB_SIZE_TOO_LARGE, "4294967295 bytes");
-            return GS_ERROR;
+        if (writed_lob_size >= CT_MAX_LOB_SIZE) {
+            CT_THROW_ERROR(ERR_LOB_SIZE_TOO_LARGE, "4294967295 bytes");
+            return CT_ERROR;
         }
         ori_locator->head.size = (uint32)writed_lob_size;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-status_t knl_read_lob_chk(knl_session_t *session, page_id_t page_id, lob_locator_t *loc)
+status_t knl_read_lob_check(knl_session_t *session, page_id_t page_id, lob_locator_t *locator)
 {
     lob_data_page_t *data = NULL;
     lob_chunk_t *chunk = NULL;
 
     if (page_is_damaged((page_head_t *)CURR_PAGE(session))) {
-        GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, page_id.file, page_id.page);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, page_id.file, page_id.page);
+        return CT_ERROR;
     }
 
     data = LOB_CURR_DATA_PAGE(session);
     if (data->head.type != PAGE_TYPE_LOB_DATA) {
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
+        return CT_ERROR;
     }
 
     chunk = LOB_GET_CHUNK(session);
-    if (!LOB_CHECK_XID(loc, chunk)) {
+    if (!LOB_CHECK_XID(locator, chunk)) {
         tx_record_sql(session);
-        GS_LOG_RUN_ERR("snapshot too old, detail: lob data is invalid");
-        GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("snapshot too old, detail: lob data is invalid");
+        CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+        return CT_ERROR;
     }
 
-    if (!LOB_CHECK_ORG_SCN(loc, data)) {
-        GS_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
-        return GS_ERROR;
+    if (!LOB_CHECK_ORG_SCN(locator, data)) {
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-status_t knl_read_lob(knl_handle_t se, knl_handle_t loc, uint32 offset_input, void *buf, uint32 size, uint32 *read_size)
+status_t lob_temp_read_lob_check(knl_session_t *session, page_id_t page_id, lob_locator_t *locator)
+{
+    lob_data_page_t *data = NULL;
+    lob_chunk_t *chunk = NULL;
+
+    if (page_is_damaged((page_head_t *)CURR_PAGE(session))) {
+        CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, page_id.file, page_id.page);
+        return CT_ERROR;
+    }
+
+    data = (lob_data_page_t *)(buf_curr_temp_page(session))->data;
+
+    if (data->head.type != PAGE_TYPE_LOB_DATA) {
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
+        return CT_ERROR;
+    }
+
+    chunk = lob_get_temp_chunk(session);
+
+    if (!LOB_CHECK_XID(locator, chunk)) {
+        tx_record_sql(session);
+        CT_LOG_RUN_ERR("snapshot too old, detail: lob data is invalid");
+        CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+        return CT_ERROR;
+    }
+
+    if (!LOB_CHECK_ORG_SCN(locator, data)) {
+        CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t lob_temp_read_lob(knl_handle_t se, knl_handle_t loc, uint32 offset, void *buf, uint32 size, uint32 *read_size)
+{
+    page_id_t chunk_page_id;
+    lob_chunk_t *chunk = NULL;
+    uint32 curr_len = 0;
+    uint32 len;
+    uint32 copy_len;
+    knl_session_t *session = (knl_session_t *)se;
+    lob_locator_t *locator = (lob_locator_t *)loc;
+    errno_t ret;
+
+    if (size == CT_INVALID_ID32 || size > locator->head.size) {
+        len = locator->head.size - offset;
+    } else {
+        len = size;
+    }
+
+    chunk_page_id = locator->first;
+
+    for (;;) {
+        if (buf_enter_temp_page_nolock(session, chunk_page_id.vmid) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("Fail to open extend vm (%d) when lob alloc page.", chunk_page_id.vmid);
+            return CT_ERROR;
+        }
+
+        if (lob_temp_read_lob_check(session, chunk_page_id, locator) != CT_SUCCESS) {
+            buf_leave_temp_page_nolock(session, CT_FALSE);
+            return CT_ERROR;
+        }
+
+        chunk = lob_get_temp_chunk(session);
+
+        if (offset < chunk->size) {
+            copy_len = MIN(chunk->size - offset, len);
+            ret = memcpy_s((char *)buf + curr_len, copy_len, chunk->data + offset, copy_len);
+            knl_securec_check(ret);
+            curr_len += copy_len;
+            len -= copy_len;
+
+            if (len == 0) {
+                buf_leave_temp_page_nolock(session, CT_FALSE);
+                break;
+            } else {
+                offset = 0;
+            }
+        } else {
+            offset -= chunk->size;
+        }
+
+        if (IS_INVALID_PAGID(chunk->next)) {
+            buf_leave_temp_page_nolock(session, CT_FALSE);
+            break;
+        }
+
+        chunk_page_id = chunk->next;
+        buf_leave_temp_page_nolock(session, CT_FALSE);
+    }
+
+    if (read_size != NULL) {
+        *read_size = curr_len;
+    }
+
+    return CT_SUCCESS;
+}
+
+status_t knl_read_lob(knl_handle_t se, knl_handle_t loc, uint32 offset_input, void *buf, uint32 size, uint32 *read_size,
+    page_id_t *page_id)
 {
     page_id_t chunk_page_id;
     lob_chunk_t *chunk = NULL;
@@ -2057,15 +2503,15 @@ status_t knl_read_lob(knl_handle_t se, knl_handle_t loc, uint32 offset_input, vo
     lob_locator_t *locator = (lob_locator_t *)loc;
     errno_t ret;
 
-    // for gsdb sql engine, locator which lob size is 0 is not filtered in gsdb sql engine
+    // for ctdb sql engine, locator which lob size is 0 is not filtered in ctdb sql engine
     if (locator->head.size == 0 || offset >= locator->head.size) {
         if (read_size != NULL) {
             *read_size = 0;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (size == GS_INVALID_ID32 || size > locator->head.size) {
+    if (size == CT_INVALID_ID32 || size > locator->head.size) {
         len = locator->head.size - offset;
     } else {
         len = size;
@@ -2080,19 +2526,27 @@ status_t knl_read_lob(knl_handle_t se, knl_handle_t loc, uint32 offset_input, vo
             *read_size = curr_len;
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    chunk_page_id = locator->first;
+    if (!locator->head.is_not_temp) {
+        return lob_temp_read_lob(se, loc, offset, buf, size, read_size);
+    }
+    if (page_id == NULL) {
+        chunk_page_id = locator->first;
+    } else {
+        offset = 0;
+        chunk_page_id = *page_id;
+    }
 
     for (;;) {
-        if (buf_read_page(session, chunk_page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (buf_read_page(session, chunk_page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (knl_read_lob_chk(session, chunk_page_id, locator) != GS_SUCCESS) {
-            buf_leave_page(session, GS_FALSE);
-            return GS_ERROR;
+        if (knl_read_lob_check(session, chunk_page_id, locator) != CT_SUCCESS) {
+            buf_leave_page(session, CT_FALSE);
+            return CT_ERROR;
         }
 
         chunk = LOB_GET_CHUNK(session);
@@ -2102,9 +2556,14 @@ status_t knl_read_lob(knl_handle_t se, knl_handle_t loc, uint32 offset_input, vo
             knl_securec_check(ret);
             curr_len += copy_len;
             len -= copy_len;
-
+            // 传page_id的情况，每次只拷贝一个页面
+            if (page_id != NULL) {
+                *page_id = chunk->next;
+                buf_leave_page(session, CT_FALSE);
+                break;
+            }
             if (len == 0) {
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
                 break;
             } else {
                 offset = 0;
@@ -2114,27 +2573,27 @@ status_t knl_read_lob(knl_handle_t se, knl_handle_t loc, uint32 offset_input, vo
         }
 
         if (IS_INVALID_PAGID(chunk->next)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             break;
         }
 
         chunk_page_id = chunk->next;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 
     if (read_size != NULL) {
         *read_size = curr_len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-void lob_update_unused_list(knl_session_t *session, lob_seg_recycle_undo_t *lob_undo, page_id_t page_id)
+void lob_update_free_list(knl_session_t *session, lob_seg_recycle_undo_t *lob_undo, page_id_t pre_free_last)
 {
     lob_segment_t *segment = LOB_SEG_HEAD(session);
 
     if (IS_SAME_PAGID(segment->free_list.last, lob_undo->free_list.last)) {
-        segment->free_list.last = page_id;
+        segment->free_list.last = pre_free_last;
     }
     knl_panic_log(segment->free_list.count >= lob_undo->free_list.count,
                   "the free list's count of segment and lob_undo are not equal, panic info: segment free list's last "
@@ -2161,7 +2620,7 @@ void lob_change_pre_free_page(knl_session_t *session, lob_segment_t *segment, pa
             log_put(session, RD_LOB_CHANGE_PAGE_FREE, &(LOB_CURR_DATA_PAGE(session))->pre_free_page, sizeof(page_id_t),
                 LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     }
 }
 
@@ -2182,33 +2641,33 @@ void lob_undo_delete_commit_recycle(knl_session_t *session, undo_row_t *ud_row, 
 
     buf_enter_page(session, lob_undo->free_list.last, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     if (page_is_damaged((page_head_t *)CURR_PAGE(session))) {
-        buf_leave_page(session, GS_FALSE);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
     chunk = LOB_GET_CHUNK(session);
-    chunk->is_recycled = GS_FALSE;
-    chunk->del_xid.value = GS_INVALID_ID64;
+    chunk->is_recycled = CT_FALSE;
+    chunk->del_xid.value = CT_INVALID_ID64;
     last_free_page = chunk->free_next;
     chunk->free_next = INVALID_PAGID;
     if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
         log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     // if free list last is invalid page id, it means free list has no pages when add child free chain.
     if (IS_INVALID_PAGID(lob_undo->pre_free_last)) {
         segment->free_list.first = last_free_page;
-        lob_update_unused_list(session, lob_undo, lob_undo->pre_free_last);
-        buf_leave_page(session, GS_TRUE);
+        lob_update_free_list(session, lob_undo, lob_undo->pre_free_last);
+        buf_leave_page(session, CT_TRUE);
         return;
     }
 
     buf_enter_page(session, lob_undo->pre_free_last, LATCH_MODE_X, ENTER_PAGE_NORMAL);
     if (page_is_damaged((page_head_t *)CURR_PAGE(session))) {
-        buf_leave_page(session, GS_FALSE);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -2220,7 +2679,7 @@ void lob_undo_delete_commit_recycle(knl_session_t *session, undo_row_t *ud_row, 
     3. if first->pre_free is invalid, still use undo pre_free_last and do nothing.
 */
     if (!IS_SAME_PAGID(chunk->free_next, lob_undo->free_list.first)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         page_id_t ori_pre_free_last = lob_undo->pre_free_last;
         lob_change_pre_free_page(session, segment, lob_undo->free_list.first, INVALID_PAGID, &pre_free_last);
         if (IS_INVALID_PAGID(pre_free_last)) {
@@ -2229,8 +2688,8 @@ void lob_undo_delete_commit_recycle(knl_session_t *session, undo_row_t *ud_row, 
 
         buf_enter_page(session, pre_free_last, LATCH_MODE_X, ENTER_PAGE_NORMAL);
         if (page_is_damaged((page_head_t *)CURR_PAGE(session))) {
-            buf_leave_page(session, GS_FALSE);
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
+            buf_leave_page(session, CT_FALSE);
             return;
         }
         chunk = LOB_GET_CHUNK(session);
@@ -2244,10 +2703,10 @@ void lob_undo_delete_commit_recycle(knl_session_t *session, undo_row_t *ud_row, 
         }
         /* if the chunk->free_next is vaild, change chunk->free_next'page_data->pre_free to the current pre_free */
         lob_change_pre_free_page(session, segment, chunk->free_next, pre_free_last, NULL);
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     } else {
         // chunk need not to modify,leave current page
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         knl_panic_log(IS_SAME_PAGID(segment->free_list.first, lob_undo->free_list.first),
                       "the free list's first page of segment and lob_undo are not same, panic info: "
                       "segment page %u-%u lob_undo page %u-%u", segment->free_list.first.file,
@@ -2255,8 +2714,8 @@ void lob_undo_delete_commit_recycle(knl_session_t *session, undo_row_t *ud_row, 
         segment->free_list.first = last_free_page;
     }
 
-    lob_update_unused_list(session, lob_undo, pre_free_last);
-    buf_leave_page(session, GS_TRUE);
+    lob_update_free_list(session, lob_undo, pre_free_last);
+    buf_leave_page(session, CT_TRUE);
 }
 
 void lob_undo_delete_commit(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot)
@@ -2283,8 +2742,8 @@ void lob_undo_delete_commit(knl_session_t *session, undo_row_t *ud_row, undo_pag
         free_last_page = segment->free_list.last;
         buf_enter_page(session, free_last_page, LATCH_MODE_X, ENTER_PAGE_NORMAL);
         if (page_is_damaged((page_head_t *)CURR_PAGE(session))) {
-            buf_leave_page(session, GS_FALSE);
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
+            buf_leave_page(session, CT_FALSE);
             return;
         }
 
@@ -2293,15 +2752,34 @@ void lob_undo_delete_commit(knl_session_t *session, undo_row_t *ud_row, undo_pag
         if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
             log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     }
 
     if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
         log_put(session, RD_LOB_CHANGE_SEG, segment, sizeof(lob_segment_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
+void lob_temp_free_delete_pages(knl_session_t *session, lob_item_t *lob_item)
+{
+    mtrl_segment_t *segment = NULL;
+    mtrl_context_t *ctx = session->temp_mtrl;
+    uint32 vmid;
+    page_id_t next;
+    lob_chunk_t *chunk = NULL;
+    page_id_t first = lob_item->pages_info.del_pages.first;
+    while (IS_INVALID_PAGID(first)) {
+        vmid = first.vmid;
+        temp_undo_enter_page(session, vmid);
+        chunk = lob_get_temp_chunk(session);
+        next = chunk->next;
+        buf_leave_temp_page_nolock(session, CT_FALSE);
+        vm_remove(ctx->pool, &segment->vm_list, vmid);
+        vm_free(session, ctx->pool, vmid);
+        first = next;
+    }
+}
 
 void lob_free_delete_pages(knl_session_t *session)
 {
@@ -2342,11 +2820,11 @@ void lob_free_delete_pages(knl_session_t *session)
         entity = entry->entity;
         lob = (lob_t *)dc_get_column(entity, pages_info.col_id)->lob;
         if (IS_PART_TABLE(&entity->table)) {
-            knl_panic_log(pages_info.part_loc.part_no != GS_INVALID_ID32,
+            knl_panic_log(pages_info.part_loc.part_no != CT_INVALID_ID32,
                           "the part_no is invalid, panic info: table %s", entity->table.desc.name);
             lob_part = LOB_GET_PART(lob, pages_info.part_loc.part_no);
             if (IS_PARENT_LOBPART(&lob_part->desc)) {
-                knl_panic_log(pages_info.part_loc.subpart_no != GS_INVALID_ID32,
+                knl_panic_log(pages_info.part_loc.subpart_no != CT_INVALID_ID32,
                               "the subpart_no is invalid, panic info: table %s", entity->table.desc.name);
                 lob_part = PART_GET_SUBENTITY(lob->part_lob, lob_part->subparts[pages_info.part_loc.subpart_no]);
             }
@@ -2355,8 +2833,14 @@ void lob_free_delete_pages(knl_session_t *session)
             lob_entity = &lob->lob_entity;
         }
 
+        if (entity->type == DICT_TYPE_TEMP_TABLE_SESSION) {
+            lob_temp_free_delete_pages(session, lob_item);
+            lob_item = lob_item->next_item;
+            continue;
+        }
+
         if (undo_prepare(session, sizeof(lob_seg_recycle_undo_t),
-            SPACE_IS_LOGGING(SPACE_GET(session, lob->desc.space_id)), GS_FALSE) != GS_SUCCESS) {
+            SPACE_IS_LOGGING(SPACE_GET(session, lob->desc.space_id)), CT_FALSE) != CT_SUCCESS) {
             continue;
         }
 
@@ -2368,11 +2852,11 @@ void lob_free_delete_pages(knl_session_t *session)
 
         /* segment->free_list.count > INVALID_32 */
         free_pages = (uint64)segment->free_list.count + pages_info.del_pages.count;
-        if (free_pages > GS_MAX_UINT32) {
-            GS_LOG_RUN_ERR("user-%d,table-%d,column-%d,part(%d-%d), too much free delete pages %lld",
+        if (free_pages > CT_MAX_UINT32) {
+            CT_LOG_RUN_ERR("user-%d,table-%d,column-%d,part(%d-%d), too much free delete pages %lld",
                 pages_info.uid, pages_info.table_id, pages_info.col_id, pages_info.part_loc.part_no,
                 pages_info.part_loc.subpart_no, free_pages);
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
             log_atomic_op_end(session);
             lob_item = lob_item->next_item;
@@ -2394,7 +2878,7 @@ void lob_free_delete_pages(knl_session_t *session)
             if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
                 log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
             }
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
 
             segment->free_list.last = pages_info.del_pages.last;
             segment->free_list.count += pages_info.del_pages.count;
@@ -2403,7 +2887,7 @@ void lob_free_delete_pages(knl_session_t *session)
         if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
             log_put(session, RD_LOB_CHANGE_SEG, segment, sizeof(lob_segment_t), LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
 
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
         log_atomic_op_end(session);
@@ -2411,7 +2895,7 @@ void lob_free_delete_pages(knl_session_t *session)
     }
 }
 
-status_t lob_chk_chunk(knl_session_t *session, knl_cursor_t *cur, lob_locator_t *loc, lob_entity_t *lob_enty)
+status_t lob_check_chunk(knl_session_t *session, knl_cursor_t *cursor, lob_locator_t *locator, lob_entity_t *lob_entity)
 {
     lob_data_page_t *data = NULL;
     lob_chunk_t *chunk = NULL;
@@ -2419,36 +2903,133 @@ status_t lob_chk_chunk(knl_session_t *session, knl_cursor_t *cur, lob_locator_t 
     data = LOB_CURR_DATA_PAGE(session);
     chunk = LOB_GET_CHUNK(session);
     if (PAGE_IS_SOFT_DAMAGE(&data->head)) {
-        GS_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, AS_PAGID(&data->head).file, AS_PAGID(&data->head).page);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, AS_PAGID(&data->head).file, AS_PAGID(&data->head).page);
+        return CT_ERROR;
     }
     // if lob has been shrink,chunk may be used by others.
-    if (data->head.type != PAGE_TYPE_LOB_DATA || !LOB_CHECK_XID(loc, chunk) || !LOB_CHECK_ORG_SCN(loc, data)) {
-        if (cur->query_scn < lob_enty->segment->shrink_scn) {
+    if (data->head.type != PAGE_TYPE_LOB_DATA || !LOB_CHECK_XID(locator, chunk) || !LOB_CHECK_ORG_SCN(locator, data)) {
+        if (cursor->query_scn < lob_entity->segment->shrink_scn) {
             tx_record_sql(session);
-            GS_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_SNAPSHOT_TOO_OLD);
+            return CT_ERROR;
         }
 
         knl_panic_log(data->head.type == PAGE_TYPE_LOB_DATA,
                       "the data type is abnormal, panic info: page %u-%u type %u "
-                      "table %s data_type %u", loc->first.file, loc->first.page,
+                      "table %s data_type %u", locator->first.file, locator->first.page,
                       ((page_head_t *)CURR_PAGE(session))->type,
-                      ((table_t *)cur->table)->desc.name, data->head.type);
-        knl_panic_log(loc->xid.value == chunk->ins_xid.value,
+                      ((table_t *)cursor->table)->desc.name, data->head.type);
+        knl_panic_log(locator->xid.value == chunk->ins_xid.value,
                       "the lob chunk xid is abnormal, panic info: page %u-%u type %u "
-                      "table %s lob xid %u-%u-%u", loc->first.file, loc->first.page,
+                      "table %s lob xid %u-%u-%u", locator->first.file, locator->first.page,
                       ((page_head_t *)CURR_PAGE(session))->type,
-                      ((table_t *)cur->table)->desc.name, chunk->ins_xid.xmap.seg_id,
+                      ((table_t *)cursor->table)->desc.name, chunk->ins_xid.xmap.seg_id,
                       chunk->ins_xid.xmap.slot, chunk->ins_xid.xnum);
-        knl_panic_log(loc->org_scn == chunk->org_scn,
+        knl_panic_log(locator->org_scn == chunk->org_scn,
                       "the lob chunk org_scn is abnormal, panic info: page %u-%u type %u "
-                      "table %s lob scn %llu", loc->first.file, loc->first.page,
+                      "table %s lob scn %llu", locator->first.file, locator->first.page,
                       ((page_head_t *)CURR_PAGE(session))->type,
-                      ((table_t *)cur->table)->desc.name, chunk->org_scn);
+                      ((table_t *)cursor->table)->desc.name, chunk->org_scn);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+static status_t lob_temp_internal_delete(knl_session_t *session, knl_cursor_t *cursor,
+                                    lob_entity_t *lob_entity, lob_locator_t *locator)
+{
+    lob_item_t *lob_item = NULL;
+    page_id_t first_page, last_page;
+    lob_chunk_t *chunk = NULL;
+    uint32 chunk_count;
+    bool32 is_found;
+    lob_item_list_t *item_list = NULL;
+    lob_del_undo_t lob_del_undo;
+    uint64 lob_delete_pages;
+    knl_part_locate_t part_loc = { .part_no = CT_INVALID_ID32,
+        .subpart_no = CT_INVALID_ID32 };
+
+    is_found = lob_item_find(session, lob_entity->entry, &lob_item);
+    if (!is_found) {
+        if (lob_item_alloc(session, lob_entity->lob, part_loc, &lob_item) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+
+        item_list = &session->rm->lob_items;
+        lob_item_add(item_list, lob_item);
+    }
+
+    if (undo_prepare(session, sizeof(lob_del_undo_t), IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type),
+        CT_FALSE) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    cm_spin_lock(&lob_item->lock, NULL);
+
+    first_page = locator->first;
+    last_page = locator->last;
+
+    if (buf_enter_temp_page_nolock(session, first_page.vmid) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("Fail to open extend vm (%d) when lob alloc page.", first_page.vmid);
+        return CT_ERROR;
+    }
+
+    chunk = lob_get_temp_chunk(session);
+    // judge locator page in lob item del_pages list or ins_pages
+    if (chunk->is_recycled) {
+        buf_leave_temp_page_nolock(session, CT_FALSE);
+        cm_spin_unlock(&lob_item->lock);
+        return CT_SUCCESS;
+    } else {
+        chunk = lob_get_temp_chunk(session);
+        chunk->is_recycled = CT_TRUE;
+        chunk->del_xid = session->rm->xid;
+        buf_leave_temp_page_nolock(session, CT_TRUE);
+    }
+
+    if (lob_item->pages_info.del_pages.count == 0) {
+        lob_item->pages_info.del_pages.first = first_page;
+        lob_del_undo.prev_page = INVALID_PAGID;
+    } else {
+        if (buf_enter_temp_page_nolock(session, lob_item->pages_info.del_pages.last.vmid) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("Fail to open extend vm (%d) when lob alloc page.",
+                           lob_item->pages_info.del_pages.last.vmid);
+            return CT_ERROR;
+        }
+        chunk = lob_get_temp_chunk(session);
+        knl_panic_log(IS_INVALID_PAGID(chunk->free_next), "the next free page is valid, panic info: page %u-%u "
+            "type %u table %s", lob_item->pages_info.del_pages.last.file, lob_item->pages_info.del_pages.last.page,
+            ((page_head_t *)CURR_PAGE(session))->type, ((table_t *)cursor->table)->desc.name);
+        chunk->free_next = first_page;
+        buf_leave_temp_page_nolock(session, CT_TRUE);
+        lob_del_undo.prev_page = lob_item->pages_info.del_pages.last;
+    }
+
+    chunk_count = LOB_TEMP_GET_CHUNK_COUNT(locator);
+    /*
+     *  if DEL_PAGES.count > invalid_32 error
+     */
+    lob_delete_pages = (uint64)lob_item->pages_info.del_pages.count + chunk_count;
+
+    if (lob_delete_pages >= CT_MAX_UINT32) {
+        cm_spin_unlock(&lob_item->lock);
+        CT_THROW_ERROR(ERR_TOO_MANY_OBJECTS, CT_MAX_UINT32, "lob pages deleted");
+        return CT_ERROR;
+    }
+
+    lob_item->pages_info.del_pages.count += chunk_count;
+    lob_item->pages_info.del_pages.last = last_page;
+    lob_del_undo.first_page = first_page;
+    lob_del_undo.last_page = last_page;
+    lob_del_undo.chunk_count = chunk_count;
+
+    log_atomic_op_begin(session);
+    lob_generate_undo_delete(session, cursor, lob_entity, lob_del_undo);
+
+    cm_spin_unlock(&lob_item->lock);
+    log_atomic_op_end(session);
+
+    return CT_SUCCESS;
 }
 
 static status_t lob_internal_delete(knl_session_t *session, knl_cursor_t *cursor,
@@ -2462,8 +3043,12 @@ static status_t lob_internal_delete(knl_session_t *session, knl_cursor_t *cursor
     lob_item_list_t *item_list = NULL;
     lob_del_undo_t lob_del_undo;
     uint64 lob_delete_pages;
-    knl_part_locate_t part_loc = { .part_no = GS_INVALID_ID32,
-        .subpart_no = GS_INVALID_ID32 };
+    knl_part_locate_t part_loc = { .part_no = CT_INVALID_ID32,
+        .subpart_no = CT_INVALID_ID32 };
+
+    if (cursor->dc_type == DICT_TYPE_TEMP_TABLE_SESSION) {
+        return lob_temp_internal_delete(session, cursor, lob_entity, locator);
+    }
 
     is_found = lob_item_find(session, lob_entity->entry, &lob_item);
     if (!is_found) {
@@ -2471,8 +3056,8 @@ static status_t lob_internal_delete(knl_session_t *session, knl_cursor_t *cursor
             part_loc = cursor->part_loc;
         }
 
-        if (lob_item_alloc(session, lob_entity->lob, part_loc, &lob_item) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lob_item_alloc(session, lob_entity->lob, part_loc, &lob_item) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         item_list = &session->rm->lob_items;
@@ -2480,8 +3065,8 @@ static status_t lob_internal_delete(knl_session_t *session, knl_cursor_t *cursor
     }
 
     if (undo_prepare(session, sizeof(lob_del_undo_t), IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type),
-        GS_FALSE) != GS_SUCCESS) {
-        return GS_ERROR;
+        CT_FALSE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     log_atomic_op_begin(session);
@@ -2491,28 +3076,28 @@ static status_t lob_internal_delete(knl_session_t *session, knl_cursor_t *cursor
     last_page = locator->last;
 
     buf_enter_page(session, first_page, LATCH_MODE_X, ENTER_PAGE_NORMAL);
-    if (lob_chk_chunk(session, cursor, locator, lob_entity) != GS_SUCCESS) {
-        buf_leave_page(session, GS_FALSE);
+    if (lob_check_chunk(session, cursor, locator, lob_entity) != CT_SUCCESS) {
+        buf_leave_page(session, CT_FALSE);
         cm_spin_unlock(&lob_item->lock);
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     chunk = LOB_GET_CHUNK(session);
     // judge locator page in lob item del_pages list or ins_pages
     if (chunk->is_recycled) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         cm_spin_unlock(&lob_item->lock);
         log_atomic_op_end(session);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
         chunk = LOB_GET_CHUNK(session);
-        chunk->is_recycled = GS_TRUE;
+        chunk->is_recycled = CT_TRUE;
         chunk->del_xid = session->rm->xid;
         if (IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type)) {
             log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     }
 
     if (lob_item->pages_info.del_pages.count == 0) {
@@ -2528,7 +3113,7 @@ static status_t lob_internal_delete(knl_session_t *session, knl_cursor_t *cursor
         if (IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type)) {
             log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         lob_del_undo.prev_page = lob_item->pages_info.del_pages.last;
     }
 
@@ -2538,11 +3123,11 @@ static status_t lob_internal_delete(knl_session_t *session, knl_cursor_t *cursor
      */
     lob_delete_pages = (uint64)lob_item->pages_info.del_pages.count + chunk_count;
 
-    if (lob_delete_pages >= GS_MAX_UINT32) {
+    if (lob_delete_pages >= CT_MAX_UINT32) {
         cm_spin_unlock(&lob_item->lock);
         log_atomic_op_end(session);
-        GS_THROW_ERROR(ERR_TOO_MANY_OBJECTS, GS_MAX_UINT32, "lob pages deleted");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TOO_MANY_OBJECTS, CT_MAX_UINT32, "lob pages deleted");
+        return CT_ERROR;
     }
 
     lob_item->pages_info.del_pages.count += chunk_count;
@@ -2555,7 +3140,7 @@ static status_t lob_internal_delete(knl_session_t *session, knl_cursor_t *cursor
     cm_spin_unlock(&lob_item->lock);
     log_atomic_op_end(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lob_delete(knl_session_t *session, knl_cursor_t *cursor)
@@ -2574,7 +3159,7 @@ status_t lob_delete(knl_session_t *session, knl_cursor_t *cursor)
             continue;
         }
 
-        if (CURSOR_COLUMN_SIZE(cursor, i) == GS_NULL_VALUE_LEN) {
+        if (CURSOR_COLUMN_SIZE(cursor, i) == CT_NULL_VALUE_LEN) {
             continue;
         }
 
@@ -2598,12 +3183,12 @@ status_t lob_delete(knl_session_t *session, knl_cursor_t *cursor)
             lob_entity = &lob->lob_entity;
         }
 
-        if (lob_internal_delete(session, cursor, lob_entity, locator) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lob_internal_delete(session, cursor, lob_entity, locator) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lob_internal_update(knl_session_t *session, knl_cursor_t *cursor, lob_locator_t *locator,
@@ -2615,7 +3200,7 @@ static status_t lob_internal_update(knl_session_t *session, knl_cursor_t *cursor
     lob_entity_t *lob_entity = NULL;
 
     if (locator == NULL || locator->head.size == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     entity = (dc_entity_t *)cursor->dc_entity;
@@ -2631,11 +3216,11 @@ static status_t lob_internal_update(knl_session_t *session, knl_cursor_t *cursor
         lob_entity = &lob->lob_entity;
     }
 
-    if (lob_internal_delete(session, cursor, lob_entity, locator) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lob_internal_delete(session, cursor, lob_entity, locator) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 lob_check_update_column(knl_session_t *session, knl_cursor_t *cursor,
@@ -2651,11 +3236,11 @@ static bool32 lob_check_update_column(knl_session_t *session, knl_cursor_t *curs
         col_id = ua->info->columns[i];
         column = dc_get_column(entity, col_id);
         if (COLUMN_IS_LOB(column)) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static bool32 lob_check_locator(knl_cursor_t *cursor, lob_t *lob, lob_locator_t *locator)
@@ -2663,26 +3248,26 @@ static bool32 lob_check_locator(knl_cursor_t *cursor, lob_t *lob, lob_locator_t 
     lob_part_t *lob_part = NULL;
 
     if (IS_PART_TABLE(cursor->table)) {
-        knl_panic_log(cursor->part_loc.part_no != GS_INVALID_ID32, "the part_no is invalid, panic info: "
+        knl_panic_log(cursor->part_loc.part_no != CT_INVALID_ID32, "the part_no is invalid, panic info: "
                       "page %u-%u type %u table %s", cursor->rowid.file, cursor->rowid.page,
                       ((page_head_t *)cursor->page_buf)->type, ((table_t *)cursor->table)->desc.name);
         lob_part = LOB_GET_PART(lob, cursor->part_loc.part_no);
         if (IS_PARENT_LOBPART(&lob_part->desc)) {
-            knl_panic_log(cursor->part_loc.subpart_no != GS_INVALID_ID32, "the subpart_no is invalid, panic info: "
+            knl_panic_log(cursor->part_loc.subpart_no != CT_INVALID_ID32, "the subpart_no is invalid, panic info: "
                           "page %u-%u type %u table %s", cursor->rowid.file, cursor->rowid.page,
                           ((page_head_t *)cursor->page_buf)->type, ((table_t *)cursor->table)->desc.name);
             lob_part = PART_GET_SUBENTITY(lob->part_lob, lob_part->subparts[cursor->part_loc.subpart_no]);
         }
         if (locator->org_scn != lob_part->desc.org_scn) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     } else {
         if (locator->org_scn != lob->desc.org_scn) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t lob_update(knl_session_t *session, knl_cursor_t *cursor, heap_update_assist_t *ua)
@@ -2695,11 +3280,11 @@ status_t lob_update(knl_session_t *session, knl_cursor_t *cursor, heap_update_as
     lob_t *lob = NULL;
 
     if (!lob_check_update_column(session, cursor, ua)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (cursor->set_default) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (i = 0; i < ua->info->count; i++) {
@@ -2707,7 +3292,7 @@ status_t lob_update(knl_session_t *session, knl_cursor_t *cursor, heap_update_as
         column = dc_get_column(entity, col_id);
         if (COLUMN_IS_LOB(column)) {
             lob = (lob_t *)column->lob;
-            if (CURSOR_COLUMN_SIZE(cursor, col_id) == GS_NULL_VALUE_LEN) {
+            if (CURSOR_COLUMN_SIZE(cursor, col_id) == CT_NULL_VALUE_LEN) {
                 continue;
             }
 
@@ -2720,13 +3305,13 @@ status_t lob_update(knl_session_t *session, knl_cursor_t *cursor, heap_update_as
                 continue;
             }
 
-            if (lob_internal_update(session, cursor, locator, col_id) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (lob_internal_update(session, cursor, locator, col_id) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void lob_free_insert_pages(knl_session_t *session, page_id_t lob_entry, uint32 part_no,
@@ -2746,7 +3331,7 @@ void lob_free_insert_pages(knl_session_t *session, page_id_t lob_entry, uint32 p
     for (;;) {
         buf_enter_page(session, last_page, LATCH_MODE_S, ENTER_PAGE_NORMAL);
         if (page_soft_damaged((page_head_t*)CURR_PAGE(session))) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             return;
         }
 
@@ -2754,12 +3339,12 @@ void lob_free_insert_pages(knl_session_t *session, page_id_t lob_entry, uint32 p
         chunk_count++;
 
         if (IS_INVALID_PAGID(chunk->next)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             break;
         }
 
         last_page = LOB_NEXT_DATA_PAGE(session);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 
     buf_enter_page(session, lob_entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
@@ -2767,16 +3352,16 @@ void lob_free_insert_pages(knl_session_t *session, page_id_t lob_entry, uint32 p
     segment = LOB_SEG_HEAD(session);
     /* for modify lob column or add lob column failed, segment will be release before rollback. */
     if (page->type != PAGE_TYPE_LOB_HEAD || segment->org_scn != locator->org_scn) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
     
     /* segment->free_list.count > INVALID_32 */
     free_pages = (uint64)segment->free_list.count + chunk_count;
-    if (free_pages > GS_MAX_UINT32) {
-        GS_LOG_RUN_ERR("user-%d,table-%d,column-%d,part:(%d),too much free insert pages %lld", segment->uid,
+    if (free_pages > CT_MAX_UINT32) {
+        CT_LOG_RUN_ERR("user-%d,table-%d,column-%d,part:(%d),too much free insert pages %lld", segment->uid,
                        segment->table_id, segment->column_id, part_no, free_pages);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -2785,16 +3370,16 @@ void lob_free_insert_pages(knl_session_t *session, page_id_t lob_entry, uint32 p
     // lob pages of recycle only exist in ins_pages or  only exist in dele_pages
     // is_recycle is used to mark this locator pages in recycle pages(ins_pages or dele_pages) or not
     if (chunk->is_recycled) {
-        buf_leave_page(session, GS_FALSE);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     } else {
         chunk = LOB_GET_CHUNK(session);
-        chunk->is_recycled = GS_TRUE;
+        chunk->is_recycled = CT_TRUE;
         if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
             log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     }
 
     if (segment->free_list.count == 0) {
@@ -2803,8 +3388,8 @@ void lob_free_insert_pages(knl_session_t *session, page_id_t lob_entry, uint32 p
         free_last_page = segment->free_list.last;
         buf_enter_page(session, free_last_page, LATCH_MODE_X, ENTER_PAGE_NORMAL);
         if (page_soft_damaged((page_head_t*)CURR_PAGE(session))) {
-            buf_leave_page(session, GS_FALSE);
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
+            buf_leave_page(session, CT_FALSE);
             return;
         }
         chunk = LOB_GET_CHUNK(session);
@@ -2816,7 +3401,7 @@ void lob_free_insert_pages(knl_session_t *session, page_id_t lob_entry, uint32 p
             log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
         }
 
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     }
 
     segment->free_list.last = last_page;
@@ -2824,19 +3409,45 @@ void lob_free_insert_pages(knl_session_t *session, page_id_t lob_entry, uint32 p
     if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
         log_put(session, RD_LOB_CHANGE_SEG, segment, sizeof(lob_segment_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
-uint32 lob_get_chunk_cnt(knl_session_t *session, page_id_t *page_id, bool32 *is_soft_disabled)
+uint32 lob_temp_get_chunk_count(knl_session_t *session, page_id_t *last_page)
 {
     lob_chunk_t *chunk = NULL;
     uint32 chunk_count = 0;
 
     for (;;) {
-        buf_enter_page(session, *page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL);
+        if (temp_undo_enter_page(session, last_page->page) != CT_SUCCESS) {
+            knl_panic_log(0, "temp get chunk enter vmid %u failed.", last_page->page);
+            return 0;
+        }
+
+        chunk = LOB_TEMP_GET_CHUNK(session);
+        chunk_count++;
+
+        if (IS_INVALID_PAGID(chunk->next)) {
+            buf_leave_temp_page_nolock(session, CT_FALSE);
+            break;
+        }
+
+        *last_page = LOB_TEMP_NEXT_DATA_PAGE(session);
+        buf_leave_temp_page_nolock(session, CT_FALSE);
+    }
+
+    return chunk_count;
+}
+
+uint32 lob_get_chunk_count(knl_session_t *session, page_id_t *last_page, bool32 *soft_damaged)
+{
+    lob_chunk_t *chunk = NULL;
+    uint32 chunk_count = 0;
+
+    for (;;) {
+        buf_enter_page(session, *last_page, LATCH_MODE_S, ENTER_PAGE_NORMAL);
         if (page_soft_damaged((page_head_t*)CURR_PAGE(session))) {
-            *is_soft_disabled = GS_TRUE;
-            buf_leave_page(session, GS_FALSE);
+            *soft_damaged = CT_TRUE;
+            buf_leave_page(session, CT_FALSE);
             return chunk_count;
         }
 
@@ -2844,41 +3455,86 @@ uint32 lob_get_chunk_cnt(knl_session_t *session, page_id_t *page_id, bool32 *is_
         chunk_count++;
 
         if (IS_INVALID_PAGID(chunk->next)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             break;
         }
 
-        *page_id = LOB_NEXT_DATA_PAGE(session);
-        buf_leave_page(session, GS_FALSE);
+        *last_page = LOB_NEXT_DATA_PAGE(session);
+        buf_leave_page(session, CT_FALSE);
     }
 
     return chunk_count;
 }
 
-void lob_release_alloc_page(knl_session_t *session, page_id_t page_id, lob_undo_alloc_page_t *lob_undo)
+void lob_temp_free_alloc_page(knl_session_t *session, uint32 lob_entry, lob_temp_undo_alloc_page_t *lob_undo)
 {
-    buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
-    page_head_t *page = (page_head_t *)CURR_PAGE(session);
-    lob_segment_t *segment = LOB_SEG_HEAD(session);
+    mtrl_segment_t* mtrl_segment = session->temp_mtrl->segments[lob_undo->lob_segid];
+    mtrl_context_t *ctx = session->temp_mtrl;
+    if (temp_undo_enter_page(session, lob_entry) != CT_SUCCESS) {
+        knl_panic_log(0, "temp undo alloc page enter vmid %u failed.", lob_entry);
+        return;
+    }
+    page_head_t *page = (page_head_t *)(buf_curr_temp_page(session)->data);
+
+    lob_segment_t *segment = (lob_segment_t *)(buf_curr_temp_page(session)->data + PAGE_HEAD_SIZE);
     /* for modify lob column or add lob column failed, segment will be release before rollback. */
     if (page->type != PAGE_TYPE_LOB_HEAD || segment->org_scn != lob_undo->ori_scn) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_temp_page_nolock(session, CT_FALSE);
         return;
     }
 
     page_id_t last_page = lob_undo->first_page;
-    bool32 soft_damaged = GS_FALSE;
-    uint32 chunk_count = lob_get_chunk_cnt(session, &last_page, &soft_damaged);
+
+    lob_chunk_t *chunk = NULL;
+    for (;;) {
+        uint32 vmid = last_page.vmid;
+        if (temp_undo_enter_page(session, last_page.vmid) != CT_SUCCESS) {
+            knl_panic_log(0, "temp get chunk enter vmid %u failed.", last_page.vmid);
+            return;
+        }
+
+        chunk = LOB_TEMP_GET_CHUNK(session);
+
+        if (IS_INVALID_PAGID(chunk->next)) {
+            buf_leave_temp_page_nolock(session, CT_FALSE);
+            break;
+        }
+
+        last_page = LOB_TEMP_NEXT_DATA_PAGE(session);
+        buf_leave_temp_page_nolock(session, CT_FALSE);
+        vm_remove(ctx->pool, &mtrl_segment->vm_list, vmid);
+        vm_free(ctx->session, ctx->pool, vmid);
+    }
+
+    vm_remove(ctx->pool, &mtrl_segment->vm_list, last_page.vmid);
+    vm_free(ctx->session, ctx->pool, last_page.vmid);
+ 
+}
+
+void lob_free_alloc_page(knl_session_t *session, page_id_t lob_entry, lob_undo_alloc_page_t *lob_undo)
+{
+    buf_enter_page(session, lob_entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
+    page_head_t *page = (page_head_t *)CURR_PAGE(session);
+    lob_segment_t *segment = LOB_SEG_HEAD(session);
+    /* for modify lob column or add lob column failed, segment will be release before rollback. */
+    if (page->type != PAGE_TYPE_LOB_HEAD || segment->org_scn != lob_undo->ori_scn) {
+        buf_leave_page(session, CT_FALSE);
+        return;
+    }
+
+    page_id_t last_page = lob_undo->first_page;
+    bool32 soft_damaged = CT_FALSE;
+    uint32 chunk_count = lob_get_chunk_count(session, &last_page, &soft_damaged);
     if (soft_damaged) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
     uint64 free_pages = (uint64)segment->free_list.count + chunk_count;
-    if (free_pages > GS_MAX_UINT32) {
-        GS_LOG_RUN_ERR("user-%d,table-%d,column-%d, entry %u-%u,too much free insert pages %lld", segment->uid,
-            segment->table_id, segment->column_id, page_id.file, page_id.page, free_pages);
-        buf_leave_page(session, GS_FALSE);
+    if (free_pages > CT_MAX_UINT32) {
+        CT_LOG_RUN_ERR("user-%d,table-%d,column-%d, entry %u-%u,too much free insert pages %lld", segment->uid,
+            segment->table_id, segment->column_id, lob_entry.file, lob_entry.page, free_pages);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 
@@ -2887,16 +3543,16 @@ void lob_release_alloc_page(knl_session_t *session, page_id_t page_id, lob_undo_
     // lob pages of recycle only exist in ins_pages or  only exist in dele_pages
     // is_recycle is used to mark this locator pages in recycle pages(ins_pages or dele_pages) or not
     if (chunk->is_recycled) {
-        buf_leave_page(session, GS_FALSE);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     } else {
         chunk = LOB_GET_CHUNK(session);
-        chunk->is_recycled = GS_TRUE;
+        chunk->is_recycled = CT_TRUE;
         if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
             log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     }
 
     if (segment->free_list.count == 0) {
@@ -2905,8 +3561,8 @@ void lob_release_alloc_page(knl_session_t *session, page_id_t page_id, lob_undo_
         page_id_t free_last_page = segment->free_list.last;
         buf_enter_page(session, free_last_page, LATCH_MODE_X, ENTER_PAGE_NORMAL);
         if (page_soft_damaged((page_head_t*)CURR_PAGE(session))) {
-            buf_leave_page(session, GS_FALSE);
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
+            buf_leave_page(session, CT_FALSE);
             return;
         }
 
@@ -2919,7 +3575,7 @@ void lob_release_alloc_page(knl_session_t *session, page_id_t page_id, lob_undo_
             log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
         }
 
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     }
 
     segment->free_list.last = last_page;
@@ -2927,7 +3583,90 @@ void lob_release_alloc_page(knl_session_t *session, page_id_t page_id, lob_undo_
     if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
         log_put(session, RD_LOB_CHANGE_SEG, segment, sizeof(lob_segment_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
+}
+
+void lob_temp_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot)
+{
+    lob_del_undo_t *del_undo;
+    lob_chunk_t *chunk = NULL;
+    page_id_t page_id;
+    bool32 is_found = CT_FALSE;
+    lob_item_t *lob_item = NULL;
+
+    del_undo = (lob_del_undo_t *)ud_row->data;
+    page_id = MAKE_PAGID((uint16)ud_row->seg_file, (uint32)ud_row->seg_page);
+    if (!spc_validate_page_id(session, page_id)) {
+        return;
+    }
+    // savepoint exist, we must recycle session's delete pages list to status before delete this locator
+    if (session->rm->lob_items.count != 0) {
+        is_found = lob_item_find(session, page_id, &lob_item);
+        knl_panic_log(is_found, "lob_item is not found, panic info: page %u-%u", page_id.file, page_id.page);
+        CM_ABORT(is_found, "[LOB] ABORT INFO: cannot find lob item while doing undo delete");
+ 
+        cm_spin_lock(&lob_item->lock, NULL);
+        lob_item->pages_info.del_pages.last = del_undo->prev_page;
+        lob_item->pages_info.del_pages.count -= del_undo->chunk_count;
+        cm_spin_unlock(&lob_item->lock);
+
+        if (IS_INVALID_PAGID(lob_item->pages_info.del_pages.last)) {
+            knl_panic_log(lob_item->pages_info.del_pages.count == 0, "the deleted counts of lob page is incorrect, "
+                "panic info: del_undo first_page %u-%u del_pages's first %u-%u del_pages's count %u",
+                del_undo->first_page.file, del_undo->first_page.page, lob_item->pages_info.del_pages.first.file,
+                lob_item->pages_info.del_pages.first.page, lob_item->pages_info.del_pages.count);
+            knl_panic_log(IS_SAME_PAGID(del_undo->first_page, lob_item->pages_info.del_pages.first),
+                          "del_undo's first_page and lob del_pages's first are not same, panic info: "
+                          "ud_page %u-%u type %u del_undo first_page %u-%u lob del_pages's first %u-%u",
+                          AS_PAGID(ud_page->head.id).file, AS_PAGID(ud_page->head.id).page, ud_page->head.type,
+                          del_undo->first_page.file, del_undo->first_page.page,
+                          lob_item->pages_info.del_pages.first.file, lob_item->pages_info.del_pages.first.page);
+            lob_item->pages_info.del_pages.first = INVALID_PAGID;
+        } else {
+            // for set free next of session's delete pages list last page to invalid
+            buf_enter_page(session, lob_item->pages_info.del_pages.last, LATCH_MODE_X, ENTER_PAGE_NORMAL);
+            if (temp_undo_enter_page(session, lob_item->pages_info.del_pages.last.vmid) != CT_SUCCESS) {
+                knl_panic_log(0, "temp undo alloc page enter vmid %u failed.",
+                              lob_item->pages_info.del_pages.last.vmid);
+                return;
+            }
+            chunk = LOB_TEMP_GET_CHUNK(session);
+            chunk->free_next = INVALID_PAGID;
+            buf_leave_temp_page_nolock(session, CT_TRUE);
+        }
+    }
+    /* check del_xid before change chunk */
+    if (temp_undo_enter_page(session, del_undo->first_page.vmid) != CT_SUCCESS) {
+        knl_panic_log(0, "temp undo alloc page enter vmid %u failed.", del_undo->first_page.vmid);
+        return;
+    }
+    chunk = LOB_TEMP_GET_CHUNK(session);
+    /* check del_xid in case of double delete and rollback */
+    if ((chunk->del_xid.value != ud_row->xid.value)) {
+        buf_leave_temp_page_nolock(session, CT_FALSE);
+        return;
+    }
+    chunk->is_recycled = CT_FALSE;
+    chunk->del_xid.value = CT_INVALID_ID64;
+
+    if (IS_SAME_PAGID(del_undo->first_page, del_undo->last_page)) {
+        chunk->free_next = INVALID_PAGID;
+        buf_leave_temp_page_nolock(session, CT_TRUE);
+    } else {
+        buf_leave_temp_page_nolock(session, CT_TRUE);
+
+        if (temp_undo_enter_page(session, del_undo->last_page.vmid) != CT_SUCCESS) {
+            knl_panic_log(0, "temp undo alloc page enter vmid %u failed.", del_undo->last_page.vmid);
+            return;
+        }
+        chunk = LOB_TEMP_GET_CHUNK(session);
+        if (IS_INVALID_PAGID(chunk->free_next)) {
+            buf_leave_temp_page_nolock(session, CT_FALSE);
+        } else {
+            chunk->free_next = INVALID_PAGID;
+            buf_leave_temp_page_nolock(session, CT_TRUE);
+        }
+    }
 }
 
 void lob_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot)
@@ -2935,7 +3674,7 @@ void lob_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud
     lob_del_undo_t *del_undo;
     lob_chunk_t *chunk = NULL;
     page_id_t page_id;
-    bool32 is_found = GS_FALSE;
+    bool32 is_found = CT_FALSE;
     lob_item_t *lob_item = NULL;
 
     del_undo = (lob_del_undo_t *)ud_row->data;
@@ -2973,14 +3712,14 @@ void lob_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud
             buf_enter_page(session, lob_item->pages_info.del_pages.last, LATCH_MODE_X, ENTER_PAGE_NORMAL);
             chunk = LOB_GET_CHUNK(session);
             if (page_is_damaged((page_head_t *)CURR_PAGE(session))) {
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
                 return;
             }
             chunk->free_next = INVALID_PAGID;
             if (SPC_IS_LOGGING_BY_PAGEID(session, lob_item->pages_info.del_pages.last)) {
                 log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
             }
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
         }
     }
     /* check del_xid before change chunk */
@@ -2989,51 +3728,51 @@ void lob_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud
         chunk = LOB_GET_CHUNK(session);
         /* check del_xid in case of double delete and rollback */
         if (page_is_damaged((page_head_t *)CURR_PAGE(session)) || (chunk->del_xid.value != ud_row->xid.value)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             return;
         }
 
-        chunk->is_recycled = GS_FALSE;
+        chunk->is_recycled = CT_FALSE;
         chunk->free_next = INVALID_PAGID;
-        chunk->del_xid.value = GS_INVALID_ID64;
+        chunk->del_xid.value = CT_INVALID_ID64;
         if (SPC_IS_LOGGING_BY_PAGEID(session, del_undo->first_page)) {
             log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
         }
 
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     } else {
         buf_enter_page(session, del_undo->first_page, LATCH_MODE_X, ENTER_PAGE_NORMAL);
         chunk = LOB_GET_CHUNK(session);
         if (page_is_damaged((page_head_t *)CURR_PAGE(session)) || (chunk->del_xid.value != ud_row->xid.value)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             return;
         }
 
-        chunk->is_recycled = GS_FALSE;
-        chunk->del_xid.value = GS_INVALID_ID64;
+        chunk->is_recycled = CT_FALSE;
+        chunk->del_xid.value = CT_INVALID_ID64;
         if (SPC_IS_LOGGING_BY_PAGEID(session, del_undo->first_page)) {
             log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
         }
 
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
 
         buf_enter_page(session, del_undo->last_page, LATCH_MODE_X, ENTER_PAGE_NORMAL);
 
         if (page_is_damaged((page_head_t *)CURR_PAGE(session))) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             return;
         }
 
         chunk = LOB_GET_CHUNK(session);
         if (IS_INVALID_PAGID(chunk->free_next)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
         } else {
             chunk->free_next = INVALID_PAGID;
             if (SPC_IS_LOGGING_BY_PAGEID(session, del_undo->last_page)) {
                 log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
             }
 
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
         }
     }
 }
@@ -3057,18 +3796,27 @@ void lob_undo_insert(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud
     lob_free_insert_pages(session, page_id, lob_undo->part_no, locator);
 }
 
-void lob_undo_write_page(knl_session_t *session, undo_row_t *undo_row)
+void lob_temp_undo_write_page(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot)
+{
+    lob_temp_undo_alloc_page_t *lob_undo;
+
+    lob_undo = (lob_temp_undo_alloc_page_t *)ud_row->data;
+
+    lob_temp_free_alloc_page(session, (uint32)ud_row->seg_page, lob_undo);
+}
+
+void lob_undo_write_page(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot)
 {
     page_id_t lob_entry;
     lob_undo_alloc_page_t *lob_undo;
 
-    lob_undo = (lob_undo_alloc_page_t *)undo_row->data;
-    lob_entry = MAKE_PAGID((uint16)undo_row->seg_file, (uint32)undo_row->seg_page);
+    lob_undo = (lob_undo_alloc_page_t *)ud_row->data;
+    lob_entry = MAKE_PAGID((uint16)ud_row->seg_file, (uint32)ud_row->seg_page);
     if (!spc_validate_page_id(session, lob_entry)) {
         return;
     }
 
-    lob_release_alloc_page(session, lob_entry, lob_undo);
+    lob_free_alloc_page(session, lob_entry, lob_undo);
 }
 
 status_t lob_write_2pc_buff(knl_session_t *session, binary_t *buf, uint32 max_size)
@@ -3078,15 +3826,15 @@ status_t lob_write_2pc_buff(knl_session_t *session, binary_t *buf, uint32 max_si
     errno_t ret;
 
     if (item_list.count == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     lob_item = item_list.first;
 
     while (lob_item != NULL) {
         if (buf->size >= max_size) {
-            GS_THROW_ERROR(ERR_TOO_MANY_OBJECTS, buf->size, "XA extend buffer size");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_TOO_MANY_OBJECTS, buf->size, "XA extend buffer size");
+            return CT_ERROR;
         }
 
         ret = memcpy_sp(buf->bytes + buf->size, sizeof(lob_pages_info_t),
@@ -3096,7 +3844,7 @@ status_t lob_write_2pc_buff(knl_session_t *session, binary_t *buf, uint32 max_si
         lob_item = lob_item->next_item;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lob_create_2pc_items(knl_session_t *session, uint8 *buf, uint32 buf_size, lob_item_list_t *item_list)
@@ -3111,22 +3859,22 @@ status_t lob_create_2pc_items(knl_session_t *session, uint8 *buf, uint32 buf_siz
 
     knl_panic(item_list->count == 0);
     if (buf_size == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     while (offset != buf_size) {
         ret = memcpy_sp(&pages_info, sizeof(lob_pages_info_t), buf + offset, sizeof(lob_pages_info_t));
         knl_securec_check(ret);
         if (knl_open_dc_by_id((knl_handle_t)session, pages_info.uid, pages_info.table_id, &dc,
-                              GS_TRUE) != GS_SUCCESS) {
-            return GS_ERROR;
+                              CT_TRUE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         entity = DC_ENTITY(&dc);
         lob = (lob_t *)dc_get_column(entity, pages_info.col_id)->lob;
-        if (lob_item_alloc(session, lob, pages_info.part_loc, &lob_item) != GS_SUCCESS) {
+        if (lob_item_alloc(session, lob, pages_info.part_loc, &lob_item) != CT_SUCCESS) {
             dc_close(&dc);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         lob_item->pages_info.del_pages = pages_info.del_pages;
@@ -3136,7 +3884,7 @@ status_t lob_create_2pc_items(knl_session_t *session, uint8 *buf, uint32 buf_siz
         dc_close(&dc);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 lob_find_max_column(uint16 *lob_cols, uint32 columns, uint32 col_id)
@@ -3145,11 +3893,11 @@ static bool32 lob_find_max_column(uint16 *lob_cols, uint32 columns, uint32 col_i
 
     for (j = 0; j < columns; j++) {
         if (lob_cols[j] == col_id) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static uint32 lob_max_lob_column(knl_cursor_t *cursor, knl_update_info_t *info, uint32 *max_col_size,
@@ -3157,7 +3905,7 @@ static uint32 lob_max_lob_column(knl_cursor_t *cursor, knl_update_info_t *info, 
 {
     dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
     knl_column_t *column = NULL;
-    uint32 col_id = GS_INVALID_ID32;
+    uint32 col_id = CT_INVALID_ID32;
     uint32 i;
     uint16 max_size = 0;
     uint16 col_size;
@@ -3177,7 +3925,7 @@ static uint32 lob_max_lob_column(knl_cursor_t *cursor, knl_update_info_t *info, 
             continue;
         }
 
-        if (CURSOR_COLUMN_SIZE(cursor, i) == GS_NULL_VALUE_LEN) {
+        if (CURSOR_COLUMN_SIZE(cursor, i) == CT_NULL_VALUE_LEN) {
             continue;
         }
 
@@ -3209,7 +3957,7 @@ static uint32 lob_max_lob_column(knl_cursor_t *cursor, knl_update_info_t *info, 
 static uint32 lob_max_update_column(dc_entity_t *entity, knl_update_info_t *info, uint32 *max_col_size)
 {
     knl_column_t *column = NULL;
-    uint32 col_id = GS_INVALID_ID32;
+    uint32 col_id = CT_INVALID_ID32;
     uint32 i;
     uint16 max_size = 0;
     uint16 col_size;
@@ -3221,7 +3969,7 @@ static uint32 lob_max_update_column(dc_entity_t *entity, knl_update_info_t *info
             continue;
         }
 
-        if (info->lens[i] == GS_NULL_VALUE_LEN) {
+        if (info->lens[i] == CT_NULL_VALUE_LEN) {
             continue;
         }
 
@@ -3280,16 +4028,16 @@ static status_t lob_force_write_outline(knl_session_t *session, knl_cursor_t *cu
     knl_securec_check(err);
     lob.len = src_locator->head.size;
     lob.str = LOB_INLINE_DATA(src_locator);
-    if (knl_write_lob(session, cursor, (char *)&new_locator, dc_get_column(entity, col_id), GS_TRUE,
-                      &lob) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_write_lob(session, cursor, (char *)&new_locator, dc_get_column(entity, col_id), CT_TRUE,
+                      &lob) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (row_put_bin(ra, &locator_bin) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (row_put_bin(ra, &locator_bin) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lob_reorganize_update_info(knl_session_t *session, knl_cursor_t *cursor,
@@ -3298,13 +4046,13 @@ static status_t lob_reorganize_update_info(knl_session_t *session, knl_cursor_t 
     dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
     uint32 max_size;
     uint32 new_size = size;
-    uint32 col_id = GS_INVALID_ID32;
+    uint32 col_id = CT_INVALID_ID32;
     knl_add_update_column_t add_update_column;
     uint16 lob_count = 0;
     uint16 *lob_cols = NULL;
     errno_t err;
     bool32 is_csf = ((row_head_t *)old_info->data)->is_csf;
-    uint32 max_row_len = heap_table_max_row_len(cursor->table, GS_MAX_ROW_SIZE, cursor->part_loc);
+    uint32 max_row_len = heap_table_max_row_len(cursor->table, CT_MAX_ROW_SIZE, cursor->part_loc);
 
     lob_cols = (uint16 *)cm_push(session->stack, entity->column_count * sizeof(uint16));
 
@@ -3313,10 +4061,10 @@ static status_t lob_reorganize_update_info(knl_session_t *session, knl_cursor_t 
 
     while (CM_ALIGN4(new_size) > max_row_len) {
         col_id = lob_max_lob_column(cursor, old_info, &max_size, lob_cols);
-        if (col_id == GS_INVALID_ID32) {
+        if (col_id == CT_INVALID_ID32) {
             cm_pop(session->stack);
-            GS_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "update row", size, max_row_len);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "update row", size, max_row_len);
+            return CT_ERROR;
         }
 
         lob_cols[lob_count] = col_id;
@@ -3331,14 +4079,14 @@ static status_t lob_reorganize_update_info(knl_session_t *session, knl_cursor_t 
     add_update_column.add_columns = lob_cols;
     add_update_column.add_count = lob_count;
 
-    if (heap_reorganize_update_info(session, cursor, &add_update_column, lob_force_write_outline) != GS_SUCCESS) {
+    if (heap_reorganize_update_info(session, cursor, &add_update_column, lob_force_write_outline) != CT_SUCCESS) {
         cm_pop(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_pop(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lob_reorganize_columns(knl_session_t *session, knl_cursor_t *cursor, heap_update_assist_t *ua,
@@ -3359,12 +4107,12 @@ status_t lob_reorganize_columns(knl_session_t *session, knl_cursor_t *cursor, he
     text_t lob;
     errno_t err;
     bool32 is_csf = ((row_head_t *)old_info->data)->is_csf;
-    uint32 max_row_len = heap_table_max_row_len(cursor->table, GS_MAX_ROW_SIZE, cursor->part_loc);
+    uint32 max_row_len = heap_table_max_row_len(cursor->table, CT_MAX_ROW_SIZE, cursor->part_loc);
     uint16 update_info_size;
 
     for (;;) {
         uid = lob_max_update_column(entity, old_info, &max_size);
-        if (uid == GS_INVALID_ID32) {
+        if (uid == CT_INVALID_ID32) {
             break;
         }
         err = memset_sp(&dst_locator, sizeof(lob_locator_t), 0xFF, sizeof(lob_locator_t));
@@ -3376,18 +4124,18 @@ status_t lob_reorganize_columns(knl_session_t *session, knl_cursor_t *cursor, he
         lob.len = src_locator->head.size;
         lob.str = LOB_INLINE_DATA(src_locator);
 
-        if (knl_write_lob(session, cursor, (char *)&dst_locator, column, GS_TRUE, (void *)&lob) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_write_lob(session, cursor, (char *)&dst_locator, column, CT_TRUE, (void *)&lob) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         copy_row_start = heap_get_col_start((row_head_t *)old_info->data, old_info->offsets, old_info->lens, uid);
         copy_row_dest = copy_row_start + knl_lob_outline_size(is_csf);
-        copy_row_src = copy_row_start + knl_lob_inline_size(is_csf, src_locator->head.size, GS_TRUE);
+        copy_row_src = copy_row_start + knl_lob_inline_size(is_csf, src_locator->head.size, CT_TRUE);
 
         new_locator =  knl_lob_col_new_start(is_csf, src_locator, lob.len);
 
         copy_size = (uint16)(((row_head_t *)old_info->data)->size - old_info->offsets[uid] -
-            knl_lob_inline_size(is_csf, src_locator->head.size, GS_FALSE));
+            knl_lob_inline_size(is_csf, src_locator->head.size, CT_FALSE));
         heap_write_col_size(is_csf, copy_row_start, KNL_LOB_LOCATOR_SIZE);
 
         if (copy_size != 0) {
@@ -3403,21 +4151,21 @@ status_t lob_reorganize_columns(knl_session_t *session, knl_cursor_t *cursor, he
 
         heap_update_prepare(session, cursor->row, cursor->offsets, cursor->lens, cursor->data_size, ua);
         if (ua->new_size <= max_row_len) {
-            *changed = GS_FALSE;
-            return GS_SUCCESS;
+            *changed = CT_FALSE;
+            return CT_SUCCESS;
         }
     }
 
     /* no lob is updated to inline, then we try to move inline lob (which is not to be updated) outline */
     if (lob_reorganize_update_info(session, cursor, ua->info, cursor->data_size + ua->inc_size, lob_info) !=
-        GS_SUCCESS) {
-        return GS_ERROR;
+        CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cm_decode_row(lob_info->data, lob_info->offsets, lob_info->lens, NULL);
-    *changed = GS_TRUE;
+    *changed = CT_TRUE;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void lob_update_seg_free_list(knl_session_t *session, lob_segment_t *segment, page_id_t first_page,
@@ -3440,7 +4188,7 @@ void lob_update_seg_free_list(knl_session_t *session, lob_segment_t *segment, pa
             log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
         }
 
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     }
 
     segment->free_list.last = last_page;
@@ -3469,7 +4217,7 @@ status_t lob_recycle_pages(knl_session_t *session, knl_cursor_t *cursor, lob_t *
     lob_part_t    *lob_part = NULL;
 
     if (locator->head.size == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     first_page = locator->first;
@@ -3491,12 +4239,12 @@ status_t lob_recycle_pages(knl_session_t *session, knl_cursor_t *cursor, lob_t *
         chunk_count++;
 
         if (IS_INVALID_PAGID(chunk->next)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             break;
         }
         
         last_page = LOB_NEXT_DATA_PAGE(session);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
     log_atomic_op_begin(session);
     buf_enter_page(session, lob_entity->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
@@ -3506,14 +4254,14 @@ status_t lob_recycle_pages(knl_session_t *session, knl_cursor_t *cursor, lob_t *
      * check segment->free_list.count is bigger than INVALID_32 or not
      */
     free_pages = (uint64)segment->free_list.count + chunk_count;
-    if (free_pages > GS_MAX_UINT32) {
-        buf_leave_page(session, GS_FALSE);
+    if (free_pages > CT_MAX_UINT32) {
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
-        GS_LOG_RUN_ERR("user-%d,table-%d,column-%d,part(%d-%d),too much free insert or update pages %lld", segment->uid,
+        CT_LOG_RUN_ERR("user-%d,table-%d,column-%d,part(%d-%d),too much free insert or update pages %lld", segment->uid,
                        segment->table_id, segment->column_id, cursor->part_loc.part_no, cursor->part_loc.subpart_no,
                        free_pages);
-        GS_THROW_ERROR(ERR_TOO_MANY_OBJECTS, GS_MAX_UINT32, "lob free pages");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TOO_MANY_OBJECTS, CT_MAX_UINT32, "lob free pages");
+        return CT_ERROR;
     }
 
     buf_enter_page(session, first_page, LATCH_MODE_X, ENTER_PAGE_NORMAL);
@@ -3523,24 +4271,24 @@ status_t lob_recycle_pages(knl_session_t *session, knl_cursor_t *cursor, lob_t *
      * is_recycle is used to mark this locator pages in recycle pages(ins_pages or dele_pages) or not
      */
     if (chunk->is_recycled) {
-        buf_leave_page(session, GS_FALSE);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
         chunk = LOB_GET_CHUNK(session);
-        chunk->is_recycled = GS_TRUE;
+        chunk->is_recycled = CT_TRUE;
         if (SPACE_IS_LOGGING(SPACE_GET(session, segment->space_id))) {
             log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     }
 
     lob_update_seg_free_list(session, segment, first_page, last_page, chunk_count);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_atomic_op_end(session);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 lob_is_insert_before_shrink(knl_session_t *session, lob_segment_t *segment,
@@ -3553,17 +4301,17 @@ static bool32 lob_is_insert_before_shrink(knl_session_t *session, lob_segment_t 
     page_head_t *page = NULL;
     itl_t itl;
 
-    itl.is_active = GS_TRUE;
+    itl.is_active = CT_TRUE;
     itl.xid = xid;
 
-    tx_get_itl_info(session, GS_TRUE, &itl, &txn_info);
+    tx_get_itl_info(session, CT_TRUE, &itl, &txn_info);
 
     if (txn_info.scn <= assist->min_scn) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (!txn_info.is_owscn) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     first_page = spc_get_extent_first(session, space, pagid);
@@ -3571,20 +4319,20 @@ static bool32 lob_is_insert_before_shrink(knl_session_t *session, lob_segment_t 
 
     for (;;) {
         if (IS_SAME_PAGID(first_page, extent)) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         if (IS_SAME_PAGID(extent, segment->extents.last)) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
 
         buf_enter_page(session, extent, LATCH_MODE_S, ENTER_PAGE_NORMAL);
         page = (page_head_t *)CURR_PAGE(session);
         extent = AS_PAGID(page->next_ext);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static void lob_compact_extents(knl_session_t *session, lob_entity_t *lob_entity,
@@ -3604,7 +4352,7 @@ static void lob_compact_extents(knl_session_t *session, lob_entity_t *lob_entity
     for (uint32 i = 1; i < space->ctrl->extent_size; i++) {
         log_atomic_op_begin(session);
         buf_enter_page(session, free_pagid, LATCH_MODE_X, ENTER_PAGE_NO_READ);
-        lob_init_page(session, free_pagid, PAGE_TYPE_LOB_DATA, GS_TRUE);
+        lob_init_page(session, free_pagid, PAGE_TYPE_LOB_DATA, CT_TRUE);
 
         if (need_log) {
             log_put(session, RD_LOB_PAGE_INIT, CURR_PAGE(session), sizeof(page_head_t), LOG_ENTRY_FLAG_NONE);
@@ -3612,8 +4360,8 @@ static void lob_compact_extents(knl_session_t *session, lob_entity_t *lob_entity
 
         free_pagid.page++;
         chunk = LOB_GET_CHUNK(session);
-        chunk->is_recycled = GS_TRUE;
-        chunk->del_xid.value = GS_INVALID_ID64;
+        chunk->is_recycled = CT_TRUE;
+        chunk->del_xid.value = CT_INVALID_ID64;
         chunk->ins_xid = session->rm->xid;
         chunk->size = 0;
         chunk->free_next = (i == space->ctrl->extent_size - 1) ? INVALID_PAGID : free_pagid;
@@ -3621,7 +4369,7 @@ static void lob_compact_extents(knl_session_t *session, lob_entity_t *lob_entity
             log_encrypt_prepare(session, ((page_head_t *)session->curr_page)->type, need_encrypt);
             log_put(session, RD_LOB_PUT_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         log_atomic_op_end(session);
     }
 
@@ -3645,7 +4393,7 @@ static void lob_compact_extents(knl_session_t *session, lob_entity_t *lob_entity
     if (need_log) {
         log_put(session, RD_LOB_CHANGE_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     segment->free_list.first = assist->new_extent;
     segment->free_list.last = spc_get_extent_last(session, space, lob_entity->entry);
 
@@ -3653,14 +4401,14 @@ static void lob_compact_extents(knl_session_t *session, lob_entity_t *lob_entity
 
     if (free_extents.count > 0) {
         buf_enter_page(session, free_extents.last, LATCH_MODE_X, ENTER_PAGE_NORMAL);
-        lob_init_page(session, free_extents.last, PAGE_TYPE_LOB_DATA, GS_TRUE);
+        lob_init_page(session, free_extents.last, PAGE_TYPE_LOB_DATA, CT_TRUE);
 
         if (need_log) {
             log_put(session, RD_LOB_PAGE_INIT, (page_head_t *)CURR_PAGE(session),
                     sizeof(page_head_t), LOG_ENTRY_FLAG_NONE);
         }
 
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
         spc_free_extents(session, space, &free_extents);
     }
 
@@ -3671,7 +4419,7 @@ static void lob_compact_extents(knl_session_t *session, lob_entity_t *lob_entity
         log_put(session, RD_LOB_CHANGE_SEG, segment, sizeof(lob_segment_t), LOG_ENTRY_FLAG_NONE);
         log_put(session, RD_SPC_CONCAT_EXTENT, &assist->new_extent, sizeof(page_id_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
 
     log_atomic_op_end(session);
@@ -3689,7 +4437,7 @@ static status_t lob_reorganize_free_list(knl_session_t *session, lob_entity_t *l
     space_t *space = SPACE_GET(session, segment->space_id);
     bool32    need_log = SPACE_IS_LOGGING(space);
     xid_t     ins_xid;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
     log_atomic_op_begin(session);
     dls_latch_x(session, &lob_entity->seg_latch, session->id, &session->stat_lob);
@@ -3702,18 +4450,18 @@ static status_t lob_reorganize_free_list(knl_session_t *session, lob_entity_t *l
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
         log_atomic_op_end(session);
         lob_compact_extents(session, lob_entity, assist, 0);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (buf_read_page(session, assist->last_free_pagid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
+    if (buf_read_page(session, assist->last_free_pagid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     chunk = LOB_GET_CHUNK(session);
     free_pagid = chunk->free_next;
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
     prev_pagid = assist->last_free_pagid;
     last_pagid = segment->free_list.last;
     dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
@@ -3721,25 +4469,25 @@ static status_t lob_reorganize_free_list(knl_session_t *session, lob_entity_t *l
 
     for (;;) {
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            status = GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            status = CT_ERROR;
             break;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            status = GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            status = CT_ERROR;
             break;
         }
 
-        if (buf_read_page(session, free_pagid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (buf_read_page(session, free_pagid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
         chunk = LOB_GET_CHUNK(session);
         ins_xid = chunk->ins_xid;
         next_pagid = chunk->free_next;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
         if (lob_is_insert_before_shrink(session, segment, assist, free_pagid, ins_xid)) {
             skipped_pages++;
@@ -3754,7 +4502,7 @@ static status_t lob_reorganize_free_list(knl_session_t *session, lob_entity_t *l
             if (need_log) {
                 log_put(session, RD_LOB_CHANGE_CHUNK, (const void *)chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
             }
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
 
             buf_enter_page(session, free_pagid, LATCH_MODE_X, ENTER_PAGE_NORMAL);
             chunk = LOB_GET_CHUNK(session);
@@ -3762,7 +4510,7 @@ static status_t lob_reorganize_free_list(knl_session_t *session, lob_entity_t *l
             if (need_log) {
                 log_put(session, RD_LOB_CHANGE_CHUNK, (const void *)chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
             }
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
 
             segment->free_list.first = free_pagid;
 
@@ -3773,7 +4521,7 @@ static status_t lob_reorganize_free_list(knl_session_t *session, lob_entity_t *l
             if (need_log) {
                 log_put(session, RD_LOB_CHANGE_SEG, (const void *)segment, sizeof(lob_segment_t), LOG_ENTRY_FLAG_NONE);
             }
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
             dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
             log_atomic_op_end(session);
         } else {
@@ -3787,13 +4535,13 @@ static status_t lob_reorganize_free_list(knl_session_t *session, lob_entity_t *l
         free_pagid = next_pagid;
     }
 
-    if (status != GS_SUCCESS) {
-        return GS_ERROR;
+    if (status != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     lob_compact_extents(session, lob_entity, assist, skipped_pages);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lob_prepare_shrink(knl_session_t *session, knl_cursor_t *cursor, lob_entity_t *lob_entity,
@@ -3802,7 +4550,7 @@ status_t lob_prepare_shrink(knl_session_t *session, knl_cursor_t *cursor, lob_en
     lob_segment_t *segment = NULL;
     space_t *space = NULL;
     lob_chunk_t *chunk = NULL;
-    bool32 need_redo = GS_TRUE;
+    bool32 need_redo = CT_TRUE;
 
     segment = LOB_SEGMENT(session, lob_entity->entry, lob_entity->segment);
 
@@ -3812,22 +4560,22 @@ status_t lob_prepare_shrink(knl_session_t *session, knl_cursor_t *cursor, lob_en
 
     log_atomic_op_begin(session);
 
-    if (spc_alloc_extent(session, space, space->ctrl->extent_size, &assist->new_extent, GS_FALSE) != GS_SUCCESS) {
+    if (spc_alloc_extent(session, space, space->ctrl->extent_size, &assist->new_extent, CT_FALSE) != CT_SUCCESS) {
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     buf_enter_page(session, assist->new_extent, LATCH_MODE_X, ENTER_PAGE_NO_READ);
-    lob_init_page(session, assist->new_extent, PAGE_TYPE_LOB_DATA, GS_TRUE);
+    lob_init_page(session, assist->new_extent, PAGE_TYPE_LOB_DATA, CT_TRUE);
 
     if (need_redo) {
         log_put(session, RD_LOB_PAGE_INIT, (page_head_t *)CURR_PAGE(session), sizeof(page_head_t), LOG_ENTRY_FLAG_NONE);
     }
 
     chunk = LOB_GET_CHUNK(session);
-    chunk->is_recycled = GS_TRUE;
-    chunk->del_xid.value = GS_INVALID_ID64;
-    chunk->ins_xid.value = GS_INVALID_ID64;
+    chunk->is_recycled = CT_TRUE;
+    chunk->del_xid.value = CT_INVALID_ID64;
+    chunk->ins_xid.value = CT_INVALID_ID64;
     chunk->size = 0;
     chunk->free_next = INVALID_PAGID;
 
@@ -3835,12 +4583,12 @@ status_t lob_prepare_shrink(knl_session_t *session, knl_cursor_t *cursor, lob_en
         log_encrypt_prepare(session, ((page_head_t *)session->curr_page)->type, need_encrypt);
         log_put(session, RD_LOB_PUT_CHUNK, chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     dls_latch_x(session, &lob_entity->seg_latch, session->id, &session->stat_lob);
     assist->extents = segment->extents;
     assist->min_scn = DB_CURR_SCN(session);
-    lob_entity->shrinking = GS_TRUE;
+    lob_entity->shrinking = CT_TRUE;
     spc_concat_extent(session, segment->extents.last, assist->new_extent);
     buf_enter_page(session, lob_entity->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
     /* set first page of new extent recycled, and set second page of new extent as ufp first */
@@ -3859,7 +4607,7 @@ status_t lob_prepare_shrink(knl_session_t *session, knl_cursor_t *cursor, lob_en
         log_put(session, RD_LOB_CHANGE_CHUNK, (const void *)chunk, sizeof(lob_chunk_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     segment->free_list.last = assist->new_extent;
     segment->free_list.count++;
@@ -3867,7 +4615,7 @@ status_t lob_prepare_shrink(knl_session_t *session, knl_cursor_t *cursor, lob_en
     if (need_redo) {
         log_put(session, RD_LOB_CHANGE_SEG, segment, sizeof(lob_segment_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     assist->free_count = segment->free_list.count;
     assist->last_free_pagid = segment->free_list.last;
@@ -3875,7 +4623,7 @@ status_t lob_prepare_shrink(knl_session_t *session, knl_cursor_t *cursor, lob_en
     dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
     log_atomic_op_end(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lob_shrink_segment(knl_session_t *session, knl_cursor_t *cursor, knl_column_t *column,
@@ -3885,29 +4633,29 @@ static status_t lob_shrink_segment(knl_session_t *session, knl_cursor_t *cursor,
     lob_locator_t *locator = NULL;
     uint16 len;
     row_assist_t ra;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     bool32 is_csf = knl_is_table_csf(cursor->dc_entity, cursor->part_loc);
 
     segment = LOB_SEGMENT(session, lob_entity->entry, lob_entity->segment);
     if (segment == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (;;) {
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            status = GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            status = CT_ERROR;
             break;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            status = GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            status = CT_ERROR;
             break;
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
@@ -3916,7 +4664,7 @@ static status_t lob_shrink_segment(knl_session_t *session, knl_cursor_t *cursor,
         }
 
         len = CURSOR_COLUMN_SIZE(cursor, column->id);
-        if (len == GS_NULL_VALUE_LEN) {
+        if (len == CT_NULL_VALUE_LEN) {
             continue;
         }
 
@@ -3928,8 +4676,8 @@ static status_t lob_shrink_segment(knl_session_t *session, knl_cursor_t *cursor,
         cm_row_init(&ra, cursor->update_info.data, DEFAULT_PAGE_SIZE(session), 1, is_csf);
 
         if (knl_row_move_lob(session, cursor, column, (knl_handle_t)locator,
-            (knl_handle_t)&ra) != GS_SUCCESS) {
-            status = GS_ERROR;
+            (knl_handle_t)&ra) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
@@ -3937,24 +4685,24 @@ static status_t lob_shrink_segment(knl_session_t *session, knl_cursor_t *cursor,
 
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, NULL);
 
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
         knl_commit(session);
     }
 
-    if (status != GS_SUCCESS) {
+    if (status != CT_SUCCESS) {
         dls_latch_x(session, &lob_entity->seg_latch, session->id, &session->stat_lob);
-        lob_entity->shrinking = GS_FALSE;
+        lob_entity->shrinking = CT_FALSE;
         dls_unlatch(session, &lob_entity->seg_latch, &session->stat_lob);
         knl_rollback(session, NULL);
         return status;
     }
 
     knl_commit(session);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lob_shrink_space(knl_session_t *session, knl_cursor_t *cursor, knl_column_t *column)
@@ -3966,23 +4714,23 @@ status_t lob_shrink_space(knl_session_t *session, knl_cursor_t *cursor, knl_colu
     table_part_t *table_part = NULL;
     lob_part_t *lob_part = NULL;
     part_lob_t *part_lob = ((lob_t *)column->lob)->part_lob;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
     if (IS_PART_TABLE(table)) {
         table_part = TABLE_GET_PART(table, cursor->part_loc.part_no);
         if (!IS_READY_PART(table_part)) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         lob_part = LOB_GET_PART(column->lob, cursor->part_loc.part_no);
         if (lob_part == NULL) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (IS_PARENT_TABPART(&table_part->desc) && cursor->part_loc.subpart_no != GS_INVALID_ID32) {
+        if (IS_PARENT_TABPART(&table_part->desc) && cursor->part_loc.subpart_no != CT_INVALID_ID32) {
             lob_part = PART_GET_SUBENTITY(part_lob, lob_part->subparts[cursor->part_loc.subpart_no]);
             if (lob_part == NULL) {
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
         }
         lob_entity = &lob_part->lob_entity;
@@ -3991,33 +4739,33 @@ status_t lob_shrink_space(knl_session_t *session, knl_cursor_t *cursor, knl_colu
     }
 
     if (lob_entity->segment == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (LOB_SEGMENT(session, lob_entity->entry, lob_entity->segment)->extents.count < LOB_MIN_SHRINK_EXTENTS ||
         LOB_SEGMENT(session, lob_entity->entry, lob_entity->segment)->free_list.count == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    lob_entity->shrinking = GS_TRUE;
+    lob_entity->shrinking = CT_TRUE;
 
     for (;;) {
-        if (lob_prepare_shrink(session, cursor, lob_entity, &assist) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (lob_prepare_shrink(session, cursor, lob_entity, &assist) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
         /* degrade table lock because shrink segment may cost a lot of time */
         lock_degrade_table_lock(session, entity);
 
-        if (lob_shrink_segment(session, cursor, column, lob_entity, &assist) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (lob_shrink_segment(session, cursor, column, lob_entity, &assist) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
         /* upgrade table lock to wait for concurrent transacitons end */
-        if (lock_upgrade_table_lock(session, entity, LOCK_INF_WAIT) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (lock_upgrade_table_lock(session, entity, LOCK_INF_WAIT) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
@@ -4027,15 +4775,15 @@ status_t lob_shrink_space(knl_session_t *session, knl_cursor_t *cursor, knl_colu
         status = lob_reorganize_free_list(session, lob_entity, &assist);
 
         /* upgrade table lock to invalid dc */
-        if (lock_upgrade_table_lock(session, entity, LOCK_INF_WAIT) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (lock_upgrade_table_lock(session, entity, LOCK_INF_WAIT) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
-        knl_set_session_scn(session, GS_INVALID_ID64);
+        knl_set_session_scn(session, CT_INVALID_ID64);
         
-        if (db_update_table_chgscn(session, &table->desc) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (db_update_table_chgscn(session, &table->desc) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
 
@@ -4043,7 +4791,7 @@ status_t lob_shrink_space(knl_session_t *session, knl_cursor_t *cursor, knl_colu
         break;
     }
 
-    lob_entity->shrinking = GS_FALSE;
+    lob_entity->shrinking = CT_FALSE;
     return status;
 }
 
@@ -4064,7 +4812,7 @@ status_t lob_dump_page(knl_session_t *session, page_head_t *page_head, cm_dump_t
     cm_dump(dump, "\tis_recycled: %u\n", (uint32)chunk->is_recycled);
     CM_DUMP_WRITE_FILE(dump);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lob_segment_dump(knl_session_t *session, page_head_t *page_head, cm_dump_t *dump)
@@ -4091,7 +4839,7 @@ status_t lob_segment_dump(knl_session_t *session, page_head_t *page_head, cm_dum
     cm_dump(dump, "\tufp_extent: %u-%u\n", segment->ufp_extent.file, segment->ufp_extent.page);
     CM_DUMP_WRITE_FILE(dump);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lob_check_page_belong_subpart(knl_session_t *session, lob_data_page_t *lob_page, uint32 *table_id,
@@ -4101,10 +4849,10 @@ status_t lob_check_page_belong_subpart(knl_session_t *session, lob_data_page_t *
 
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_LOB_PARTS_ID, GS_INVALID_ID32);
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_LOB_PARTS_ID, CT_INVALID_ID32);
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -4112,18 +4860,18 @@ status_t lob_check_page_belong_subpart(knl_session_t *session, lob_data_page_t *
         if (org_scn == lob_page->chunk.org_scn) {
             *uid = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_LOBSUBPART_COL_USER_ID);
             *table_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_LOBSUBPART_COL_TABLE_ID);
-            *belong = GS_TRUE;
+            *belong = CT_TRUE;
             break;
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lob_check_page_belong_part(knl_session_t *session, lob_data_page_t *lob_page, uint32 *table_id,
@@ -4134,10 +4882,10 @@ status_t lob_check_page_belong_part(knl_session_t *session, lob_data_page_t *lob
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_LOBPART_ID, GS_INVALID_ID32);
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_LOBPART_ID, CT_INVALID_ID32);
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -4145,18 +4893,18 @@ status_t lob_check_page_belong_part(knl_session_t *session, lob_data_page_t *lob
         if (org_scn == lob_page->chunk.org_scn) {
             *uid = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_LOBPART_COL_USER_ID);
             *table_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_LOBPART_COL_TABLE_ID);
-            *belong = GS_TRUE;
+            *belong = CT_TRUE;
             break;
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lob_check_page_belong_table(knl_session_t *session, lob_data_page_t *lob_page, uint32 *table_id,
@@ -4167,10 +4915,10 @@ status_t lob_check_page_belong_table(knl_session_t *session, lob_data_page_t *lo
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_LOB_ID, GS_INVALID_ID32);
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_LOB_ID, CT_INVALID_ID32);
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -4178,59 +4926,59 @@ status_t lob_check_page_belong_table(knl_session_t *session, lob_data_page_t *lo
         if (org_scn == lob_page->chunk.org_scn) {
             *uid = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_LOB_COL_USER_ID);
             *table_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_LOB_COL_TABLE_ID);
-            *belong = GS_TRUE;
+            *belong = CT_TRUE;
             break;
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lob_get_table_by_page(knl_session_t *session, page_head_t *page, uint32 *uid, uint32 *table_id)
 {
-    bool32 belong = GS_FALSE;
+    bool32 belong = CT_FALSE;
     lob_data_page_t *lob_page = (lob_data_page_t *)page;
 
     if (lob_page->chunk.is_recycled) {
-        GS_THROW_ERROR(ERR_PAGE_NOT_BELONG_TABLE, page_type(lob_page->head.type));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PAGE_NOT_BELONG_TABLE, page_type(lob_page->head.type));
+        return CT_ERROR;
     }
 
-    if (lob_check_page_belong_table(session, lob_page, table_id, uid, &belong) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_PAGE_NOT_BELONG_TABLE, page_type(lob_page->head.type));
-        return GS_ERROR;
+    if (lob_check_page_belong_table(session, lob_page, table_id, uid, &belong) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_PAGE_NOT_BELONG_TABLE, page_type(lob_page->head.type));
+        return CT_ERROR;
     }
 
     if (belong) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     
-    if (lob_check_page_belong_part(session, lob_page, table_id, uid, &belong) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_PAGE_NOT_BELONG_TABLE, page_type(lob_page->head.type));
-        return GS_ERROR;
+    if (lob_check_page_belong_part(session, lob_page, table_id, uid, &belong) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_PAGE_NOT_BELONG_TABLE, page_type(lob_page->head.type));
+        return CT_ERROR;
     }
 
     if (belong) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (lob_check_page_belong_subpart(session, lob_page, table_id, uid, &belong) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_PAGE_NOT_BELONG_TABLE, page_type(lob_page->head.type));
-        return GS_ERROR;
+    if (lob_check_page_belong_subpart(session, lob_page, table_id, uid, &belong) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_PAGE_NOT_BELONG_TABLE, page_type(lob_page->head.type));
+        return CT_ERROR;
     }
 
     if (!belong) {
-        GS_THROW_ERROR(ERR_PAGE_NOT_BELONG_TABLE, page_type(lob_page->head.type));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PAGE_NOT_BELONG_TABLE, page_type(lob_page->head.type));
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lob_corruption_scan(knl_session_t *session, lob_segment_t *segment, knl_corrupt_info_t *corrupt_info)
@@ -4242,29 +4990,29 @@ status_t lob_corruption_scan(knl_session_t *session, lob_segment_t *segment, knl
 
     for (uint32 i = 0; i < segment->extents.count; i++) {
         for (uint32 j = 0; j < ext_size; j++) {
-            if (knl_check_session_status(session) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (knl_check_session_status(session) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             if (SECUREC_UNLIKELY(IS_INVALID_PAGID(curr_pageid)) || IS_SAME_PAGID(curr_pageid, last_pageid)) {
                 break;
             }
-            if (buf_read_page(session, curr_pageid, LATCH_MODE_S, ENTER_PAGE_SEQUENTIAL) != GS_SUCCESS) {
-                if (GS_ERRNO == ERR_PAGE_CORRUPTED) {
+            if (buf_read_page(session, curr_pageid, LATCH_MODE_S, ENTER_PAGE_SEQUENTIAL) != CT_SUCCESS) {
+                if (CT_ERRNO == ERR_PAGE_CORRUPTED) {
                     db_save_corrupt_info(session, curr_pageid, corrupt_info);
                 }
-                return GS_ERROR;
+                return CT_ERROR;
             }
             curr_pageid.page++;
             if (j == ext_size - 1) {
                 page = (heap_page_t *)CURR_PAGE(session);
                 curr_pageid = AS_PAGID(page->head.next_ext);
             }
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lob_check_space(knl_session_t *session, table_t *table, uint32 space_id)
@@ -4273,28 +5021,28 @@ status_t lob_check_space(knl_session_t *session, table_t *table, uint32 space_id
 
     space = SPACE_GET(session, space_id);
     if (IS_SWAP_SPACE(space)) {
-        GS_THROW_ERROR(ERR_PERMANENTOBJ_IN_TEMPSPACE);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PERMANENTOBJ_IN_TEMPSPACE);
+        return CT_ERROR;
     }
 
     if (IS_UNDO_SPACE(space)) {
-        GS_THROW_ERROR(ERR_MISUSE_UNDO_SPACE, space->ctrl->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_MISUSE_UNDO_SPACE, space->ctrl->name);
+        return CT_ERROR;
     }
 
     if (table->desc.type == TABLE_TYPE_NOLOGGING) {
         if (SPACE_IS_LOGGING(space)) {
-            GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create logging lob", "nologging table");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create logging lob", "nologging table");
+            return CT_ERROR;
         }
     } else {
         if (SPACE_IS_NOLOGGING(space)) {
-            GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create nologging lob", "logging table");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create nologging lob", "logging table");
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef LOG_DIAG
@@ -4323,3 +5071,58 @@ void lob_validate_page(knl_session_t *session, page_head_t *page)
     CM_RESTORE_STACK(session->stack);
 }
 #endif
+
+static void lob_temp_init_segment(knl_session_t *session, knl_temp_cache_t *temp_table_ptr)
+{
+    lob_segment_t *segment = NULL;
+    errno_t ret;
+
+    vm_page_t *vm_page = NULL;
+    vm_page = buf_curr_temp_page(session);
+    segment = (lob_segment_t *)(vm_page->data + PAGE_HEAD_SIZE);
+
+    ret = memset_sp(segment, sizeof(lob_segment_t), 0, sizeof(lob_segment_t));
+    knl_securec_check(ret);
+    segment->org_scn = temp_table_ptr->org_scn;
+    segment->seg_scn = db_inc_scn(session);
+    segment->shrink_scn = 0;
+    segment->uid = temp_table_ptr->user_id;
+    segment->table_id = temp_table_ptr->table_id;
+ 
+}
+
+status_t lob_temp_create_segment(knl_session_t *session, knl_temp_cache_t *temp_table_ptr)
+{
+    uint32 lob_segid;
+    mtrl_segment_t *segment = NULL;
+    uint32 vmid = CT_INVALID_ID32;
+    mtrl_context_t *ctx = session->temp_mtrl;
+
+    if (temp_create_segment(session, &lob_segid) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    temp_table_ptr->lob_segid = lob_segid;
+    segment = session->temp_mtrl->segments[lob_segid];
+
+    if (vm_alloc(ctx->session, ctx->pool, &vmid) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("Fail to extend segment when lob alloc page.");
+        return CT_ERROR;
+    }
+
+    if (buf_enter_temp_page_nolock(session, vmid) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("Fail to open extend vm (%d) when lob alloc page.", vmid);
+        return CT_ERROR;
+    }
+
+    lob_temp_init_page(session, vmid, PAGE_TYPE_LOB_HEAD, CT_TRUE);
+    lob_temp_init_segment(session, temp_table_ptr);
+    buf_leave_temp_page_nolock(session, CT_TRUE);
+    vm_append(ctx->pool, &segment->vm_list, vmid);
+
+    knl_panic_log(segment->vm_list.last == vmid, "the vm list is abnormal, panic info: vm_list's last %u vmid %u.",
+                  segment->vm_list.last, vmid);
+    knl_panic_log(segment->vm_list.count > 0, "the count of vm list is abnormal, panic info: vm_list's count %u",
+                  segment->vm_list.count);
+    return CT_SUCCESS;
+}

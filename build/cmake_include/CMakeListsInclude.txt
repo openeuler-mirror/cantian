@@ -13,41 +13,41 @@ execute_process(
 )
 
 execute_process(
-    COMMAND bash -c "cat ${PROJECT_SOURCE_DIR}/build/conf/git_message.in | grep gsql_commit_id |  awk -F'=' '{print  $2}'"
-    OUTPUT_VARIABLE GSQL_COMMIT_ID
+    COMMAND bash -c "cat ${PROJECT_SOURCE_DIR}/build/conf/git_message.in | grep ctsql_commit_id |  awk -F'=' '{print  $2}'"
+    OUTPUT_VARIABLE CTSQL_COMMIT_ID
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 ######################################### version configuration here ################################################
 set(VERSION_DESCRIP "Cantian")
 set(DRIVER_VERSION_DESCRIP "Cantian")
-set(GSQL_VERSION_DESCRIP "Cantian")
+set(CTSQL_VERSION_DESCRIP "Cantian")
 set(PACK_PREFIX "Cantian")
-set(PROJECT_VERSION "2.0.0")
+set(PROJECT_VERSION "3.0.0")
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug" OR ${CMAKE_BUILD_TYPE} STREQUAL "")
-    set(DD_GS_LIB_VERSION "static char* str_GS_LIB_VERSION=\"${VERSION_DESCRIP} Debug ${PROJECT_VERSION} ${COMMIT_ID}\"")
+    set(DD_CT_LIB_VERSION "static char* str_CT_LIB_VERSION=\"${VERSION_DESCRIP} Debug ${PROJECT_VERSION} ${COMMIT_ID}\"")
 else()
-    set(DD_GS_LIB_VERSION "static char* str_GS_LIB_VERSION=\"${VERSION_DESCRIP} Release ${PROJECT_VERSION}\"")
+    set(DD_CT_LIB_VERSION "static char* str_CT_LIB_VERSION=\"${VERSION_DESCRIP} Release ${PROJECT_VERSION}\"")
 endif ()
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug" OR ${CMAKE_BUILD_TYPE} STREQUAL "")
-    set(DD_GS_DRIVER_VERSION "static char* str_GS_DRIVER_VERSION=\"${DRIVER_VERSION_DESCRIP} Debug ${DRIVER_COMMIT_ID}\"")
+    set(DD_CT_DRIVER_VERSION "static char* str_CT_DRIVER_VERSION=\"${DRIVER_VERSION_DESCRIP} Debug ${DRIVER_COMMIT_ID}\"")
 	set(PYTHON_DRIVER_VERSION "${DRIVER_VERSION_DESCRIP} Debug ${DRIVER_COMMIT_ID}")
 else()
-    set(DD_GS_DRIVER_VERSION "static char* str_GS_DRIVER_VERSION=\"${DRIVER_VERSION_DESCRIP} Release\"")
+    set(DD_CT_DRIVER_VERSION "static char* str_CT_DRIVER_VERSION=\"${DRIVER_VERSION_DESCRIP} Release\"")
 	set(PYTHON_DRIVER_VERSION "${DRIVER_VERSION_DESCRIP} Release")
 endif ()
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug" OR ${CMAKE_BUILD_TYPE} STREQUAL "")
-    set(DD_GS_GSQL_VERSION "static char* str_GS_GSQL_VERSION=\"${GSQL_VERSION_DESCRIP} Debug ${GSQL_COMMIT_ID}\"")
+    set(DD_CT_CTSQL_VERSION "static char* str_CT_CTSQL_VERSION=\"${CTSQL_VERSION_DESCRIP} Debug ${CTSQL_COMMIT_ID}\"")
 else()
-    set(DD_GS_GSQL_VERSION "static char* str_GS_GSQL_VERSION=\"${GSQL_VERSION_DESCRIP} Release\"")
+    set(DD_CT_CTSQL_VERSION "static char* str_CT_CTSQL_VERSION=\"${CTSQL_VERSION_DESCRIP} Release\"")
 endif()
 
 set(DD_GETDBVERSION cantiand_get_dbversion)
-set(DD_GETENCRYVERSION zencrypt_getDBVersion)
-set(DD_GS_LIB_VER_APINAME gsc_get_dbversion)
-set(DD_GETGSQLVERSION gsql_get_dbversion)
+set(DD_GETENCRYVERSION ctencrypt_getDBVersion)
+set(DD_CT_LIB_VER_APINAME ctconn_get_dbversion)
+set(DD_GETCTSQLVERSION ctsql_get_dbversion)
 
 configure_file (
         "${PROJECT_SOURCE_DIR}/build/include/config.h.in"

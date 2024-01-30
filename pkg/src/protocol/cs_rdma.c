@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -83,41 +83,41 @@ int32 cs_rdma_poll(struct pollfd *fds, uint32 nfds, int32 timeout)
 status_t cs_create_rdma_socket(int ai_family, socket_t *sock)
 {
     /* try init signal for (SIGPIPE,SIG_IGN) */
-    GS_RETURN_IFERR(cs_tcp_init());
+    CT_RETURN_IFERR(cs_tcp_init());
 
     *sock = (socket_t)cm_rdma_socket(ai_family, SOCK_STREAM, 0);
     if (*sock == CS_INVALID_SOCKET) {
-        GS_THROW_ERROR(ERR_CREATE_SOCKET, errno);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CREATE_SOCKET, errno);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cs_rdma_connect(const char *host, uint16 port, rdma_link_t *link)
 {
     CM_POINTER2(host, link);
 
-    GS_RETURN_IFERR(cm_ipport_to_sockaddr(host, port, &link->remote));
-    if (cs_create_rdma_socket(SOCKADDR_FAMILY(&link->remote), &link->sock) != GS_SUCCESS) {
-        return GS_ERROR;
+    CT_RETURN_IFERR(cm_ipport_to_sockaddr(host, port, &link->remote));
+    if (cs_create_rdma_socket(SOCKADDR_FAMILY(&link->remote), &link->sock) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    cs_rdma_set_buffer_size(link->sock, GS_RSOCKET_DEFAULT_BUFFER_SIZE, GS_RSOCKET_DEFAULT_BUFFER_SIZE);
+    cs_rdma_set_buffer_size(link->sock, CT_RSOCKET_DEFAULT_BUFFER_SIZE, CT_RSOCKET_DEFAULT_BUFFER_SIZE);
     if (0 != cm_rdma_connect(link->sock, SOCKADDR(&link->remote), link->remote.salen)) {
         cs_close_rdma_socket(link->sock);
         link->sock = CS_INVALID_SOCKET;
-        link->closed = GS_TRUE;
+        link->closed = CT_TRUE;
 
-        GS_THROW_ERROR(ERR_ESTABLISH_TCP_CONNECTION, host, (uint32)port, cm_get_os_error());
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ESTABLISH_TCP_CONNECTION, host, (uint32)port, cm_get_os_error());
+        return CT_ERROR;
     }
 
-    cs_rdma_set_keep_alive(link->sock, GS_RSOCKET_KEEP_IDLE, GS_RSOCKET_KEEP_INTERVAL, GS_RSOCKET_KEEP_COUNT);
-    cs_rdma_set_io_mode(link->sock, GS_TRUE, GS_TRUE);
+    cs_rdma_set_keep_alive(link->sock, CT_RSOCKET_KEEP_IDLE, CT_RSOCKET_KEEP_INTERVAL, CT_RSOCKET_KEEP_COUNT);
+    cs_rdma_set_io_mode(link->sock, CT_TRUE, CT_TRUE);
     cs_rdma_set_linger(link->sock); /* it is likely that no use for rsocket */
-    link->closed = GS_FALSE;
-    return GS_SUCCESS;
+    link->closed = CT_FALSE;
+    return CT_SUCCESS;
 }
 
 bool32 cs_rdma_try_connect(const char *host, uint16 port)
@@ -129,17 +129,17 @@ bool32 cs_rdma_try_connect(const char *host, uint16 port)
     CM_POINTER(host);
 
     if (strlen(host) == 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    if (cm_ipport_to_sockaddr(host, port, &sock_addr) != GS_SUCCESS) {
-        return GS_FALSE;
+    if (cm_ipport_to_sockaddr(host, port, &sock_addr) != CT_SUCCESS) {
+        return CT_FALSE;
     }
 
     sock = (socket_t)cm_rdma_socket(SOCKADDR_FAMILY(&sock_addr), SOCK_STREAM, 0);
     if (sock == CS_INVALID_SOCKET) {
-        GS_THROW_ERROR(ERR_CREATE_SOCKET, errno);
-        return GS_FALSE;
+        CT_THROW_ERROR(ERR_CREATE_SOCKET, errno);
+        return CT_FALSE;
     }
 
     result = (0 == cm_rdma_connect(sock, SOCKADDR(&sock_addr), sock_addr.salen));
@@ -158,7 +158,7 @@ void cs_rdma_disconnect(rdma_link_t *link)
     }
 
     (void)cs_close_rdma_socket(link->sock);
-    link->closed = GS_TRUE;
+    link->closed = CT_TRUE;
     link->sock = CS_INVALID_SOCKET;
 }
 
@@ -169,12 +169,12 @@ status_t cs_rdma_wait(rdma_link_t *link, uint32 wait_for, int32 timeout, bool32 
     int32 tv;
 
     if (ready != NULL) {
-        *ready = GS_FALSE;
+        *ready = CT_FALSE;
     }
 
     if (link->closed) {
-        GS_THROW_ERROR(ERR_PEER_CLOSED, "rdma");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PEER_CLOSED, "rdma");
+        return CT_ERROR;
     }
 
     tv = (timeout < 0 ? -1 : timeout);
@@ -190,19 +190,19 @@ status_t cs_rdma_wait(rdma_link_t *link, uint32 wait_for, int32 timeout, bool32 
     ret = cs_rdma_poll(&fd, 1, tv);
     if (ret > 0 && ((uint16)fd.revents & (POLLERR | POLLHUP))) {
         if (errno != EINTR) {
-            GS_THROW_ERROR(ERR_PEER_CLOSED, "rdma");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PEER_CLOSED, "rdma");
+            return CT_ERROR;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else if (ret >= 0) {
         if (ready != NULL) {
             // 'ready' doesn't change when 0 == ret and errno != EINTR
             *ready = (ret > 0 || (0 == ret && errno == EINTR));
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
-        GS_THROW_ERROR(ERR_PEER_CLOSED, "rdma");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PEER_CLOSED, "rdma");
+        return CT_ERROR;
     }
 }
 
@@ -212,7 +212,7 @@ status_t cs_rdma_send(rdma_link_t *link, const char *buf, uint32 size, int32 *se
 
     if (size == 0) {
         *send_size = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     *send_size = cm_rdma_send(link->sock, buf, size, MSG_DONTWAIT);
@@ -220,13 +220,13 @@ status_t cs_rdma_send(rdma_link_t *link, const char *buf, uint32 size, int32 *se
         code = errno;
         if (errno == EWOULDBLOCK) {
             *send_size = 0;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
-        GS_THROW_ERROR(ERR_PEER_CLOSED_REASON, "rdma socket", code);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PEER_CLOSED_REASON, "rdma socket", code);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cs_rdma_send_timed(rdma_link_t *link, const char *buf, uint32 size, uint32 timeout)
@@ -237,47 +237,47 @@ status_t cs_rdma_send_timed(rdma_link_t *link, const char *buf, uint32 size, uin
     bool32 ready;
 
     if (link->closed) {
-        GS_THROW_ERROR(ERR_PEER_CLOSED, "rdma socket");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PEER_CLOSED, "rdma socket");
+        return CT_ERROR;
     }
 
     /* must do wait, because rsocket only check peer status here, if peer is closed, wiil return ERROR here */
-    if (cs_rdma_wait(link, CS_WAIT_FOR_WRITE, GS_POLL_WAIT, &ready) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_rdma_wait(link, CS_WAIT_FOR_WRITE, CT_POLL_WAIT, &ready) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* for most cases, all data are written by the following call */
-    if (cs_rdma_send(link, buf, size, &writen_size) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_rdma_send(link, buf, size, &writen_size) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     remain_size = size - writen_size;
     offset = (uint32)writen_size;
 
     while (remain_size > 0) {
-        if (cs_rdma_wait(link, CS_WAIT_FOR_WRITE, GS_POLL_WAIT, &ready) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_rdma_wait(link, CS_WAIT_FOR_WRITE, CT_POLL_WAIT, &ready) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!ready) {
-            wait_interval += GS_POLL_WAIT;
+            wait_interval += CT_POLL_WAIT;
             if (wait_interval >= timeout) {
-                GS_THROW_ERROR(ERR_TCP_TIMEOUT, "rdma send data");
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_TCP_TIMEOUT, "rdma send data");
+                return CT_ERROR;
             }
 
             continue;
         }
 
-        if (cs_rdma_send(link, buf + offset, remain_size, &writen_size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_rdma_send(link, buf + offset, remain_size, &writen_size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         remain_size -= writen_size;
         offset += writen_size;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* cs_rdma_recv must following cs_rdma_wait */
@@ -287,7 +287,7 @@ status_t cs_rdma_recv(rdma_link_t *link, char *buf, uint32 size, int32 *recv_siz
 
     if (size == 0) {
         *recv_size = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (;;) {
@@ -296,17 +296,17 @@ status_t cs_rdma_recv(rdma_link_t *link, char *buf, uint32 size, int32 *recv_siz
             break;
         }
         if (rsize == 0) {
-            GS_THROW_ERROR(ERR_PEER_CLOSED, "rdma socket");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PEER_CLOSED, "rdma socket");
+            return CT_ERROR;
         }
         if (cm_get_sock_error() == EINTR || cm_get_sock_error() == EAGAIN) {
             continue;
         }
-        GS_THROW_ERROR(ERR_TCP_RECV, "rdma socket", cm_get_sock_error());
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TCP_RECV, "rdma socket", cm_get_sock_error());
+        return CT_ERROR;
     }
     *recv_size = rsize;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* cs_rdma_recv_timed must following cs_rdma_wait */
@@ -321,41 +321,41 @@ status_t cs_rdma_recv_timed(rdma_link_t *link, char *buf, uint32 size, uint32 ti
     offset = 0;
 
     /* must do wait, because rsocket only check peer status here, if peer is closed, wiil return ERROR here */
-    if (cs_rdma_wait(link, CS_WAIT_FOR_READ, GS_POLL_WAIT, &ready) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_rdma_wait(link, CS_WAIT_FOR_READ, CT_POLL_WAIT, &ready) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cs_rdma_recv(link, buf + offset, remain_size, &recv_size, NULL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_rdma_recv(link, buf + offset, remain_size, &recv_size, NULL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     remain_size -= recv_size;
     offset += recv_size;
 
     while (remain_size > 0) {
-        if (cs_rdma_wait(link, CS_WAIT_FOR_READ, GS_POLL_WAIT, &ready) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_rdma_wait(link, CS_WAIT_FOR_READ, CT_POLL_WAIT, &ready) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!ready) {
-            wait_interval += GS_POLL_WAIT;
+            wait_interval += CT_POLL_WAIT;
             if (wait_interval >= timeout) {
-                GS_THROW_ERROR(ERR_TCP_TIMEOUT, "rdma recv data");
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_TCP_TIMEOUT, "rdma recv data");
+                return CT_ERROR;
             }
 
             continue;
         }
 
-        if (cs_rdma_recv(link, buf + offset, remain_size, &recv_size, NULL) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_rdma_recv(link, buf + offset, remain_size, &recv_size, NULL) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         remain_size -= recv_size;
         offset += recv_size;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #else
@@ -382,17 +382,17 @@ void cs_rdma_set_linger(socket_t sock)
 
 status_t cs_create_rdma_socket(int ai_family, socket_t *sock)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cs_rdma_connect(const char *host, uint16 port, rdma_link_t *link)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool32 cs_rdma_try_connect(const char *host, uint16 port)
 {
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void cs_rdma_disconnect(rdma_link_t *link)
@@ -402,27 +402,27 @@ void cs_rdma_disconnect(rdma_link_t *link)
 
 status_t cs_rdma_send(rdma_link_t *link, const char *buf, uint32 size, int32 *send_size)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cs_rdma_send_timed(rdma_link_t *link, const char *buf, uint32 size, uint32 timeout)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cs_rdma_recv(rdma_link_t *link, char *buf, uint32 size, int32 *recv_size, uint32 *wait_event)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cs_rdma_recv_timed(rdma_link_t *link, char *buf, uint32 size, uint32 timeout)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cs_rdma_wait(rdma_link_t *link, uint32 wait_for, int32 timeout, bool32 *ready)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 

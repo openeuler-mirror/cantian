@@ -44,7 +44,7 @@ function main()
 
     check_rpm_exist > /dev/null 2>&1
     if [ $? -eq 0 ]; then
-        logAndEchoInfo "Start to unnstall rpm bag. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        logAndEchoInfo "Start to uninstall rpm bag. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 
         uninstall_ctom_rpm > /dev/null 2>&1
         if [ $? -eq 0 ]; then

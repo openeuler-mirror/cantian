@@ -5,6 +5,7 @@ SCRIPT_NAME=${CURRENT_PATH}/$(basename $0)
 MAIN_PATH=$(dirname $(dirname ${CURRENT_PATH}))
 
 source ${CURRENT_PATH}/ct_om_log.sh
+version=$(cat ${CURRENT_PATH}/../../versions.yml | grep -E "Version:" | awk '{print $2}' | cut -d '.' -f 1-3)
 
 function check_rpm_exist()
 {
@@ -14,7 +15,7 @@ function check_rpm_exist()
 
 function install_ctom_rpm()
 {
-    rpm -ivh ${MAIN_PATH}/repo/ct_om*.rpm
+    rpm -ivh ${MAIN_PATH}/repo/ct_om-${version}*.rpm
     return $?
 }
 

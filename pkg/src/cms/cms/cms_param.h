@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -72,6 +72,7 @@ status_t cms_init_detect_file(char *detect_file_all);
 status_t cms_get_value_is_valid(char* value, uint32 *val_uint32);
 void cms_get_mes_config_value(config_t *cfg);
 status_t cms_get_dbstore_config_value(config_t *cfg);
+status_t cms_load_keyfiles(void);
 
 extern const cms_param_t* g_cms_param;
 extern cms_param_t  g_param;

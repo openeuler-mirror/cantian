@@ -6,8 +6,10 @@ import json
 import subprocess
 import platform
 from pathlib import Path
+from get_config_info import get_env_info
 
 CONFIG_PATH = "/opt/cantian/config/deploy_param.json"
+CANTIAN_USER = get_env_info("cantian_user")
 
 
 def _exec_popen(cmd, values=None):
@@ -67,8 +69,8 @@ def parse_node_stat(node_stat):
 
 
 def fetch_cms_stat():
-    user = get_user()
-    cmd = 'su - %s -c "cms stat" | tail -n +2' % user
+    user = CANTIAN_USER
+    cmd = 'su - %s -s /bin/bash -c "source ~/.bashrc && cms stat" | tail -n +2' % user
     _, output, _ = _exec_popen(cmd)
     output = output.split('\n')
     cms_stat_json = {}

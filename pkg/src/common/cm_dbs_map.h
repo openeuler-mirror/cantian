@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -36,7 +36,8 @@ extern "C" {
 #define CM_DBS_INVALID_HANDLE (-1)
 
 typedef struct {
-    NameSpaceId ns_id;
+    // NameSpaceId ns_id;
+    char *ns_name;
     object_id_t obj_id;
     union {
         struct {

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -137,6 +137,10 @@ typedef struct st_dtc_view_mes_queue_ack {
     dtc_view_mes_queue_t mes_queue_view;
 } dtc_view_mes_queue_ack_t;
 
+typedef struct st_dtc_view_mes_channel {
+    mes_channel_view_t mes_channel[CT_MES_MAX_INSTANCE_ID];
+} dtc_view_mes_channel_stat_t;
+
 typedef struct st_dtc_view_node_info {
     uint8          inst_id;
     uint32         channel_num;
@@ -152,13 +156,13 @@ typedef struct st_dtc_view_node_info_ack {
 } dtc_view_node_info_ack_t;
 
 typedef struct st_dtc_view_mes_task_queue {
-    mes_task_queue_t mes_task_queue[GS_DTC_MAX_TASK_NUM];
+    mes_task_queue_t mes_task_queue[CT_DTC_MAX_TASK_NUM];
 } dtc_view_mes_task_queue_t;
 
 dynview_desc_t *vw_describe_dtc(uint32 id);
-void dtc_view_process_get_view_info(void *sess, mes_message_t *receive_msg);
+EXTER_ATTACK void dtc_view_process_get_view_info(void *sess, mes_message_t *receive_msg);
 
-void dtc_view_process_get_buffer_ctrl_info(void *sess, mes_message_t *receive_msg);
+EXTER_ATTACK void dtc_view_process_get_buffer_ctrl_info(void *sess, mes_message_t *receive_msg);
 
 #ifdef __cplusplus
 }

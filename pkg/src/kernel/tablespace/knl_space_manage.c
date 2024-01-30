@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "knl_space_module.h"
 #include "knl_space_manage.h"
 #include "knl_context.h"
 #include "dtc_dls.h"
@@ -55,7 +55,7 @@ void spc_alloc_datafile_hwm_extent(knl_session_t *session, space_t *space,
 
     cm_pop(session->stack);
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 /*
@@ -72,9 +72,9 @@ static void spc_try_update_hwm(knl_session_t *session, space_t *space, uint32 fi
         redo.file_no = file_no;
         redo.file_hwm = space->head->hwms[file_no];
         log_put(session, RD_SPC_UPDATE_HWM, &redo, sizeof(rd_update_hwm_t), LOG_ENTRY_FLAG_NONE);
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     } else {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 }
 
@@ -99,7 +99,7 @@ void spc_do_free_extent_list(knl_session_t *session, space_t *space)
     }
 
     log_put(session, RD_SPC_ALLOC_EXTENT, &space->head->free_extents, sizeof(page_list_t), LOG_ENTRY_FLAG_NONE);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 // the function need to be done under SPACE -> LOCK
@@ -110,13 +110,13 @@ bool32 spc_try_free_extent_list(knl_session_t *session, space_t *space)
     if (SPACE_HEAD_RESIDENT(session, space)->free_extents.count == 0) {
         dls_spin_unlock(session, &space->lock);
         log_atomic_op_end(session);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     spc_do_free_extent_list(session, space);
 
     log_atomic_op_end(session);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /*
@@ -129,34 +129,34 @@ bool32 spc_try_free_extent_list(knl_session_t *session, space_t *space)
 static bool32 spc_auto_purge(knl_session_t *session, space_t *space)
 {
     knl_rb_desc_t desc;
-    bool32 found = GS_FALSE;
+    bool32 found = CT_FALSE;
     int32 code;
     const char *msg = NULL;
-    bool32 is_free = GS_FALSE;
+    bool32 is_free = CT_FALSE;
 
     if (!SPACE_IS_AUTOPURGE(space) || DB_IN_BG_ROLLBACK(session)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     knl_panic(!DB_IS_CLUSTER(session));
 
-    if (rb_purge_fetch_space(session, space->ctrl->id, &desc, &found) != GS_SUCCESS) {
+    if (rb_purge_fetch_space(session, space->ctrl->id, &desc, &found) != CT_SUCCESS) {
         cm_get_error(&code, &msg, NULL);
-        GS_LOG_RUN_ERR("[SPACE] failed to fetch space autopurge: CT-%05d: %s", code, msg);
+        CT_LOG_RUN_ERR("[SPACE] failed to fetch space autopurge: CT-%05d: %s", code, msg);
         cm_reset_error();
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (found) {
-        space->purging = GS_TRUE;
+        space->purging = CT_TRUE;
         dls_spin_unlock(session, &space->lock);
 
         log_atomic_op_end(session);
 
-        if (rb_purge(session, &desc) != GS_SUCCESS) {
+        if (rb_purge(session, &desc) != CT_SUCCESS) {
             code = cm_get_error_code();
             if (code != ERR_RECYCLE_OBJ_NOT_EXIST && code != ERR_RESOURCE_BUSY && code != ERR_DC_INVALIDATED) {
-                GS_LOG_RUN_ERR("[SPACE] failed to purge space autopurge: CT-%05d: %s", code, msg);
+                CT_LOG_RUN_ERR("[SPACE] failed to purge space autopurge: CT-%05d: %s", code, msg);
             }
             cm_reset_error();
         }
@@ -164,16 +164,16 @@ static bool32 spc_auto_purge(knl_session_t *session, space_t *space)
         log_atomic_op_begin(session);
 
         dls_spin_lock(session, &space->lock, &session->stat->spin_stat.stat_space);
-        space->purging = GS_FALSE;
-        GS_LOG_RUN_INF("[SPACE] auto purge space %s", space->ctrl->name);
-        return GS_TRUE;
+        space->purging = CT_FALSE;
+        CT_LOG_RUN_INF("[SPACE] auto purge space %s", space->ctrl->name);
+        return CT_TRUE;
     } else {
         if (!SPACE_IS_BITMAPMANAGED(space)) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         if (SPACE_HEAD_RESIDENT(session, space)->free_extents.count == 0) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         log_atomic_op_end(session);
@@ -194,20 +194,20 @@ status_t spc_extend_datafile_map(knl_session_t *session, space_t *space, uint32 
 {
     datafile_t *df = NULL;
     int64 size;
-    uint32 file_no = GS_INVALID_ID32;
+    uint32 file_no = CT_INVALID_ID32;
     page_id_t page_id;
     bool32 new_group;
 
     for (;;) {
-        if (spc_find_extend_file(session, space, extent_size, &file_no, is_compress) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
-            return GS_ERROR;
+        if (spc_find_extend_file(session, space, extent_size, &file_no, is_compress) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+            return CT_ERROR;
         }
 
         df = DATAFILE_GET(session, space->ctrl->files[file_no]);
         size = spc_get_extend_size(session, df, extent_size, &new_group);
-        if (spc_extend_datafile(session, df, DATAFILE_FD(session, df->ctrl->id), size, GS_TRUE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_extend_datafile(session, df, DATAFILE_FD(session, df->ctrl->id), size, CT_TRUE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (new_group) {
@@ -217,12 +217,12 @@ status_t spc_extend_datafile_map(knl_session_t *session, space_t *space, uint32 
             df_add_map_group(session, df, page_id, DF_MAP_GROUP_SIZE);
         }
 
-        if (df_alloc_extent(session, df, extent_size, extent) != GS_SUCCESS) {
+        if (df_alloc_extent(session, df, extent_size, extent) != CT_SUCCESS) {
             continue;
         }
 
         spc_try_update_hwm(session, space, file_no, extent->page + extent_size);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 }
 
@@ -236,7 +236,7 @@ status_t spc_alloc_datafile_map_extent(knl_session_t *session, space_t *space, u
     uint32 id;
 
     for (id = 0; id < space->ctrl->file_hwm; id++) {
-        if (space->ctrl->files[id] == GS_INVALID_ID32) {
+        if (space->ctrl->files[id] == CT_INVALID_ID32) {
             continue;
         }
 
@@ -249,14 +249,14 @@ status_t spc_alloc_datafile_map_extent(knl_session_t *session, space_t *space, u
             continue;
         }
 
-        if (df_alloc_extent(session, df, extent_size, extent) != GS_SUCCESS) {
+        if (df_alloc_extent(session, df, extent_size, extent) != CT_SUCCESS) {
             continue;
         }
 
         spc_try_update_hwm(session, space, id, extent->page + extent_size);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 /*
@@ -273,14 +273,14 @@ status_t spc_alloc_extent_with_map(knl_session_t *session, space_t *space, uint3
     dls_spin_lock(session, &space->lock, &session->stat->spin_stat.stat_space);
 
     for (;;) {
-        if (spc_alloc_datafile_map_extent(session, space, extent_size, extent, is_compress) == GS_SUCCESS) {
+        if (spc_alloc_datafile_map_extent(session, space, extent_size, extent, is_compress) == CT_SUCCESS) {
             dls_spin_unlock(session, &space->lock);
             knl_panic_log(!IS_INVALID_PAGID(*extent), "alloce bitmap extent (%u-%u) assert, "
                 "datafile id is out of range.", extent->file, extent->page);
             // page 0 is datafile head, allow can not be 0. verified when alloc success. same as below
             knl_panic_log((extent->page != 0), "alloce bitmap extent (%u-%u) assert, 0 should be datafile head page.",
                 extent->file, extent->page);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         // other sessions come here and find space->purging is true, do not wait for purging completed
@@ -293,9 +293,9 @@ status_t spc_alloc_extent_with_map(knl_session_t *session, space_t *space, uint3
         }
     }
 
-    if (spc_extend_datafile_map(session, space, extent_size, extent, is_compress) != GS_SUCCESS) {
+    if (spc_extend_datafile_map(session, space, extent_size, extent, is_compress) != CT_SUCCESS) {
         dls_spin_unlock(session, &space->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dls_spin_unlock(session, &space->lock);
@@ -303,7 +303,7 @@ status_t spc_alloc_extent_with_map(knl_session_t *session, space_t *space, uint3
         extent->file, extent->page);
     knl_panic_log((extent->page != 0), "alloce bitmap extent (%u-%u) assert, 0 should be datafile head page.",
         extent->file, extent->page);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -319,11 +319,11 @@ static status_t spc_extend_extent(knl_session_t *session, space_t *space, page_i
     uint32 file_no, id, hwm;
 
     size = 0;
-    file_no = GS_INVALID_ID32;
+    file_no = CT_INVALID_ID32;
     extent_size = (int64)space->ctrl->extent_size * DEFAULT_PAGE_SIZE(session);
 
     for (id = 0; id < space->ctrl->file_hwm; id++) {
-        if (space->ctrl->files[id] == GS_INVALID_ID32) {
+        if (space->ctrl->files[id] == CT_INVALID_ID32) {
             continue;
         }
 
@@ -338,9 +338,9 @@ static status_t spc_extend_extent(knl_session_t *session, space_t *space, page_i
         if (DB_IS_CLUSTER(session) && unused_size < extent_size) {
             handle = DATAFILE_FD(session, space->ctrl->files[id]);
             /* open file if hendle is -1 which means it's not open */
-            if (*handle == -1 && spc_open_datafile(session, df, handle) != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("[SPACE] failed to open file %s", df->ctrl->name);
-                return GS_ERROR;
+            if (*handle == -1 && spc_open_datafile(session, df, handle) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[SPACE] failed to open file %s", df->ctrl->name);
+                return CT_ERROR;
             }
  
             /* sync file size from device */
@@ -373,18 +373,18 @@ static status_t spc_extend_extent(knl_session_t *session, space_t *space, page_i
 
         spc_alloc_datafile_hwm_extent(session, space, id, extent, space->ctrl->extent_size);
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (GS_INVALID_ID32 == file_no) {
-        GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
-        return GS_ERROR;
+    if (CT_INVALID_ID32 == file_no) {
+        CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+        return CT_ERROR;
     }
 
     hwm = SPACE_HEAD_RESIDENT(session, space)->hwms[file_no];
     if (hwm + space->ctrl->extent_size > MAX_FILE_PAGES(space->ctrl->type)) {
-        GS_THROW_ERROR(ERR_MAX_DATAFILE_PAGES, hwm, MAX_FILE_PAGES(space->ctrl->type), space->ctrl->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_MAX_DATAFILE_PAGES, hwm, MAX_FILE_PAGES(space->ctrl->type), space->ctrl->name);
+        return CT_ERROR;
     }
 
     df = DATAFILE_GET(session, space->ctrl->files[file_no]);
@@ -400,13 +400,13 @@ static status_t spc_extend_extent(knl_session_t *session, space_t *space, page_i
         size = extent_size - unused_size;
     }
 
-    if (spc_extend_datafile(session, df, handle, size, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (spc_extend_datafile(session, df, handle, size, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     spc_alloc_datafile_hwm_extent(session, space, file_no, extent, space->ctrl->extent_size);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 spc_alloc_hwm_extent(knl_session_t *session, space_t *space, page_id_t *extent)
@@ -416,7 +416,7 @@ static bool32 spc_alloc_hwm_extent(knl_session_t *session, space_t *space, page_
     uint32 id;
 
     for (id = 0; id < space->ctrl->file_hwm; id++) {
-        if (GS_INVALID_ID32 == space->ctrl->files[id]) {
+        if (CT_INVALID_ID32 == space->ctrl->files[id]) {
             continue;
         }
 
@@ -437,10 +437,10 @@ static bool32 spc_alloc_hwm_extent(knl_session_t *session, space_t *space, page_
 
         spc_alloc_datafile_hwm_extent(session, space, id, extent, space->ctrl->extent_size);
 
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 /*
@@ -465,8 +465,8 @@ status_t spc_alloc_extent_normal(knl_session_t *session, space_t *space, page_id
         }
 
         if (!space->ctrl->used || !SPACE_IS_ONLINE(space)) {
-            GS_THROW_ERROR(ERR_OBJECT_ID_NOT_EXIST, "tablespace", space->ctrl->id);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OBJECT_ID_NOT_EXIST, "tablespace", space->ctrl->id);
+            return CT_ERROR;
         }
 
         cm_sleep(2);
@@ -476,7 +476,7 @@ status_t spc_alloc_extent_normal(knl_session_t *session, space_t *space, page_id
         if (SPACE_HEAD_RESIDENT(session, space)->free_extents.count > 0) {
             spc_alloc_free_extent(session, space, extent);
             if (extent->page >= space->head->hwms[DATAFILE_GET(session, extent->file)->file_no]) {
-                GS_LOG_RUN_INF("ignore invalid extent(%u-%d), space %s, file no %u", extent->file,
+                CT_LOG_RUN_INF("ignore invalid extent(%u-%d), space %s, file no %u", extent->file,
                                extent->page, space->ctrl->name, DATAFILE_GET(session, extent->file)->file_no);
                 continue;
             }
@@ -485,14 +485,14 @@ status_t spc_alloc_extent_normal(knl_session_t *session, space_t *space, page_id
             // page 0 is datafile head, allow can not be 0. verified when alloc success. same as below
             knl_panic_log((extent->page != 0), "alloce normal extent (%u-%u) assert, 0 should be datafile head page.",
                 extent->file, extent->page);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (spc_alloc_hwm_extent(session, space, extent)) {
             dls_spin_unlock(session, &space->lock);
             knl_panic_log((extent->page != 0), "alloce normal extent (%u-%u) assert, 0 should be datafile head page.",
                 extent->file, extent->page);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         // other sessions come here and find space->purging is true, do not wait for purging completed
@@ -505,15 +505,15 @@ status_t spc_alloc_extent_normal(knl_session_t *session, space_t *space, page_id
         }
     }
 
-    if (spc_extend_extent(session, space, extent) != GS_SUCCESS) {
+    if (spc_extend_extent(session, space, extent) != CT_SUCCESS) {
         dls_spin_unlock(session, &space->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dls_spin_unlock(session, &space->lock);
     knl_panic_log((extent->page != 0), "alloce normal extent (%u-%u) assert, 0 should be datafile head page.",
         extent->file, extent->page);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -528,7 +528,7 @@ status_t spc_alloc_extent(knl_session_t *session, space_t *space, uint32 extent_
         return spc_alloc_extent_with_map(session, space, extent_size, extent, is_compress);
     } else {
         if (is_compress) {
-            GS_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "allocate compress extent from normal tablespace");
+            CT_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "allocate compress extent from normal tablespace");
         }
         return spc_alloc_extent_normal(session, space, extent);
     }
@@ -558,11 +558,11 @@ status_t spc_try_alloc_extent(knl_session_t *session, space_t *space, page_id_t 
     uint32 *extent_size, bool32 *is_degrade, bool32 is_compress)
 {
     uint32 size = *extent_size;
-    status_t status = GS_ERROR;
+    status_t status = CT_ERROR;
 
     while (size != 0) {
         status = spc_alloc_extent(session, space, size, extent, is_compress);
-        if (status == GS_SUCCESS) {
+        if (status == CT_SUCCESS) {
             break;
         }
 
@@ -571,12 +571,12 @@ status_t spc_try_alloc_extent(knl_session_t *session, space_t *space, page_id_t 
         }
 
         size = spc_degrade_extent_size(space, size);
-        *is_degrade = GS_TRUE;
+        *is_degrade = CT_TRUE;
     }
 
-    if (status == GS_SUCCESS && size != *extent_size) {
+    if (status == CT_SUCCESS && size != *extent_size) {
         cm_reset_error();
-        GS_LOG_DEBUG_INF("alloc extent degrades, expect size: %u, degrade size: %u", *extent_size, size);
+        CT_LOG_DEBUG_INF("alloc extent degrades, expect size: %u, degrade size: %u", *extent_size, size);
     }
 
     *extent_size = size;
@@ -586,7 +586,7 @@ status_t spc_try_alloc_extent(knl_session_t *session, space_t *space, page_id_t 
 status_t spc_df_alloc_extent_normal(knl_session_t *session, space_t *space, uint32 extent_size, page_id_t *extent,
     datafile_t *df)
 {
-    bool32 need_extend = GS_FALSE;
+    bool32 need_extend = CT_FALSE;
     int64 size, extent_bytes, unused_size, max_size;
     int32 *handle = NULL;
     uint32 hwm;
@@ -596,8 +596,8 @@ status_t spc_df_alloc_extent_normal(knl_session_t *session, space_t *space, uint
     for (;;) {
         if (need_extend) {
             if (!DATAFILE_IS_AUTO_EXTEND(df)) {
-                GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+                return CT_ERROR;
             }
 
             if (df->ctrl->auto_extend_maxsize == 0 ||
@@ -609,8 +609,8 @@ status_t spc_df_alloc_extent_normal(knl_session_t *session, space_t *space, uint
 
             unused_size = df->ctrl->size - (int64)hwm * DEFAULT_PAGE_SIZE(session);
             if (df->ctrl->size - unused_size + extent_bytes > max_size) {
-                GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+                return CT_ERROR;
             }
 
             if (df->ctrl->size + df->ctrl->auto_extend_size > max_size) {
@@ -624,21 +624,21 @@ status_t spc_df_alloc_extent_normal(knl_session_t *session, space_t *space, uint
             }
 
             handle = DATAFILE_FD(session, space->ctrl->files[df->file_no]);
-            if (spc_extend_datafile(session, df, handle, size, GS_TRUE) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (spc_extend_datafile(session, df, handle, size, CT_TRUE) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            need_extend = GS_FALSE;
+            need_extend = CT_FALSE;
         }
 
         hwm = SPACE_HEAD_RESIDENT(session, space)->hwms[df->file_no];
         if (hwm + space->ctrl->extent_size > MAX_FILE_PAGES(space->ctrl->type)) {
-            GS_THROW_ERROR(ERR_MAX_DATAFILE_PAGES, hwm, MAX_FILE_PAGES(space->ctrl->type), space->ctrl->name);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_MAX_DATAFILE_PAGES, hwm, MAX_FILE_PAGES(space->ctrl->type), space->ctrl->name);
+            return CT_ERROR;
         }
 
         if (df->ctrl->size < (int64)(hwm + space->ctrl->extent_size) * space->ctrl->block_size) {
-            need_extend = GS_TRUE;
+            need_extend = CT_TRUE;
             continue;
         }
 
@@ -647,7 +647,7 @@ status_t spc_df_alloc_extent_normal(knl_session_t *session, space_t *space, uint
         break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* This function only used in restrict now!! So we don't consider concurrency here. */
@@ -655,18 +655,18 @@ status_t spc_df_alloc_extent(knl_session_t *session, space_t *space, uint32 exte
     datafile_t *df)
 {
     if (!DATAFILE_IS_ONLINE(df)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "extend undo segments failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "extend undo segments failed");
+        return CT_ERROR;
     }
 
     if (!DB_IS_RESTRICT(session)) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ",operation only supported in restrict mode");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ",operation only supported in restrict mode");
+        return CT_ERROR;
     }
 
     if (SPACE_IS_BITMAPMANAGED(space)) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ",operation only supported in normal space");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ",operation only supported in normal space");
+        return CT_ERROR;
     }
 
     return spc_df_alloc_extent_normal(session, space, extent_size, extent, df);
@@ -683,11 +683,11 @@ static bool32 spc_extend_undo_extent(knl_session_t *session, space_t *space, uin
     uint32 file_no, id, hwm;
 
     size = 0;
-    file_no = GS_INVALID_ID32;
+    file_no = CT_INVALID_ID32;
     extent_size = (int64)extents * DEFAULT_PAGE_SIZE(session);
 
     for (id = 0; id < space->ctrl->file_hwm; id++) {
-        if (GS_INVALID_ID32 == space->ctrl->files[id]) {
+        if (CT_INVALID_ID32 == space->ctrl->files[id]) {
             continue;
         }
 
@@ -711,26 +711,26 @@ static bool32 spc_extend_undo_extent(knl_session_t *session, space_t *space, uin
             continue;
         }
 
-        if (hwm + GS_EXTENT_SIZE > MAX_FILE_PAGES(space->ctrl->type)) {
+        if (hwm + CT_EXTENT_SIZE > MAX_FILE_PAGES(space->ctrl->type)) {
             continue;
         }
 
-        spc_alloc_datafile_hwm_extent(session, space, id, extent, GS_EXTENT_SIZE);
+        spc_alloc_datafile_hwm_extent(session, space, id, extent, CT_EXTENT_SIZE);
 
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    if (GS_INVALID_ID32 == file_no) {
-        space->allow_extend = GS_FALSE;
-        GS_LOG_RUN_INF("invalid undo file number,disable undo space extend.");
-        return GS_FALSE;
+    if (CT_INVALID_ID32 == file_no) {
+        space->allow_extend = CT_FALSE;
+        CT_LOG_RUN_INF("invalid undo file number,disable undo space extend.");
+        return CT_FALSE;
     }
 
     hwm = SPACE_HEAD_RESIDENT(session, space)->hwms[file_no];
-    if (hwm + GS_EXTENT_SIZE > MAX_FILE_PAGES(space->ctrl->type)) {
-        space->allow_extend = GS_FALSE;
-        GS_LOG_RUN_INF("undo file[%u] no free space,disable undo space extend.", file_no);
-        return GS_FALSE;
+    if (hwm + CT_EXTENT_SIZE > MAX_FILE_PAGES(space->ctrl->type)) {
+        space->allow_extend = CT_FALSE;
+        CT_LOG_RUN_INF("undo file[%u] no free space,disable undo space extend.", file_no);
+        return CT_FALSE;
     }
 
     df = DATAFILE_GET(session, space->ctrl->files[file_no]);
@@ -746,13 +746,13 @@ static bool32 spc_extend_undo_extent(knl_session_t *session, space_t *space, uin
         size = extent_size - unused_size;
     }
 
-    if (spc_extend_datafile(session, df, handle, size, GS_TRUE) != GS_SUCCESS) {
-        return GS_FALSE;
+    if (spc_extend_datafile(session, df, handle, size, CT_TRUE) != CT_SUCCESS) {
+        return CT_FALSE;
     }
 
-    spc_alloc_datafile_hwm_extent(session, space, file_no, extent, GS_EXTENT_SIZE);
+    spc_alloc_datafile_hwm_extent(session, space, file_no, extent, CT_EXTENT_SIZE);
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 page_id_t spc_get_next_undo_ext_prefetch(knl_session_t *session, page_id_t extent_input)
@@ -764,7 +764,7 @@ page_id_t spc_get_next_undo_ext_prefetch(knl_session_t *session, page_id_t exten
                                 ENTER_PAGE_HIGH_AGE);
     last_page = (page_head_t *)session->curr_page;
     extent = AS_PAGID(last_page->next_ext);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
     return extent;
 }
 
@@ -816,7 +816,7 @@ void spc_validate_extents(knl_session_t *session, page_list_t *extents)
 
         buf_enter_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL);
         page_id = AS_PAGID(((page_head_t *)CURR_PAGE(session))->next_ext);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 
     knl_panic_log(count == extents->count, "The current record extents count is not as expected, panic info: "
@@ -845,7 +845,7 @@ void spc_validate_undo_extents(knl_session_t *session, undo_page_list_t *extents
 
         buf_enter_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL);
         page_id = AS_PAGID(((page_head_t *)CURR_PAGE(session))->next_ext);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 
     knl_panic_log(count == extents->count, "The current record extents count is not as expected, panic info: "
@@ -855,7 +855,7 @@ void spc_validate_undo_extents(knl_session_t *session, undo_page_list_t *extents
 
 /*
  * Used for undo alloc pages for txn, pages are linked on space head free extent.
- * When try to extend extent, alloc extent in GS_EXTENT_SIZE steps as normal
+ * When try to extend extent, alloc extent in CT_EXTENT_SIZE steps as normal
  * space without error msg.
  */
 bool32 spc_alloc_undo_extent(knl_session_t *session, space_t *space, page_id_t *extent, uint32 *extent_size)
@@ -867,19 +867,19 @@ bool32 spc_alloc_undo_extent(knl_session_t *session, space_t *space, page_id_t *
     // take a quick glance at undo space with optimistic lock.
     if (!space->allow_extend && SPACE_HEAD_RESIDENT(session, space)->free_extents.count == 0) {
         *extent_size = 0;
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     cm_spin_lock(&space->lock.lock, &session->stat->spin_stat.stat_space);
     if (!space->allow_extend && SPACE_HEAD_RESIDENT(session, space)->free_extents.count == 0) {
         *extent_size = 0;
         cm_spin_unlock(&space->lock.lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     for (;;) {
         if (SPACE_HEAD_RESIDENT(session, space)->free_extents.count == 0) {
-            *extent_size = GS_EXTENT_SIZE;
+            *extent_size = CT_EXTENT_SIZE;
             bool32 result = spc_extend_undo_extent(session, space, *extent_size, extent);
             cm_spin_unlock(&space->lock.lock);
             return result;
@@ -887,10 +887,10 @@ bool32 spc_alloc_undo_extent(knl_session_t *session, space_t *space, page_id_t *
 
         buf_enter_page(session, space->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
         spc_alloc_undo_from_space(session, space, extent, need_redo);
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
 
         if (extent->page >= space->head->hwms[DATAFILE_GET(session, extent->file)->file_no]) {
-            GS_LOG_RUN_INF("ignore invalid extent(%u-%d), space %s, file no %u",
+            CT_LOG_RUN_INF("ignore invalid extent(%u-%d), space %s, file no %u",
                            extent->file, extent->page, space->ctrl->name, DATAFILE_GET(session, extent->file)->file_no);
             continue;
         }
@@ -900,7 +900,7 @@ bool32 spc_alloc_undo_extent(knl_session_t *session, space_t *space, page_id_t *
     *extent_size = space->ctrl->extent_size;
     cm_spin_unlock(&space->lock.lock);
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void spc_free_extent(knl_session_t *session, space_t *space, page_id_t extent)
@@ -933,7 +933,7 @@ void spc_free_extent(knl_session_t *session, space_t *space, page_id_t extent)
     if (need_redo) {
         log_put(session, RD_SPC_FREE_EXTENT, &space->head->free_extents, sizeof(page_list_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     dls_spin_unlock(session, &space->lock);
 }
@@ -976,7 +976,7 @@ void spc_free_extents(knl_session_t *session, space_t *space, page_list_t *exten
         log_put(session, RD_SPC_FREE_EXTENT, &space->head->free_extents, sizeof(page_list_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     dls_spin_unlock(session, &space->lock);
 }
@@ -990,32 +990,32 @@ status_t spc_free_extent_from_list(knl_session_t *session, space_t *space, const
 
     if (!dls_spin_try_lock(session, &space->lock)) {
         if (oper != NULL) {
-            GS_THROW_ERROR_EX(ERR_OPERATIONS_NOT_ALLOW, "%s when space %s is being locked",
+            CT_THROW_ERROR_EX(ERR_OPERATIONS_NOT_ALLOW, "%s when space %s is being locked",
                 oper, space->ctrl->name);
         }
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* space has been dropped or no free page when been reused */
     if (!SPACE_IS_ONLINE(space)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "bitmap space free extents failed");
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "bitmap space free extents failed");
         dls_spin_unlock(session, &space->lock);
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (SPACE_HEAD_RESIDENT(session, space)->free_extents.count == 0) {
         dls_spin_unlock(session, &space->lock);
         log_atomic_op_end(session);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     spc_do_free_extent_list(session, space);
 
     dls_spin_unlock(session, &space->lock);
     log_atomic_op_end(session);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void spc_free_undo_extents(knl_session_t *session, space_t *space, undo_page_list_t *extents)
@@ -1058,7 +1058,7 @@ void spc_free_undo_extents(knl_session_t *session, space_t *space, undo_page_lis
         log_put(session, RD_SPC_FREE_EXTENT, &space->head->free_extents, sizeof(page_list_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     cm_spin_unlock(&space->lock.lock);
 }
@@ -1073,7 +1073,7 @@ void spc_create_segment(knl_session_t *session, space_t *space)
         log_put(session, RD_SPC_CHANGE_SEGMENT, &space->head->segment_count, sizeof(uint32), LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 void spc_drop_segment(knl_session_t *session, space_t *space)
@@ -1089,7 +1089,7 @@ void spc_drop_segment(knl_session_t *session, space_t *space)
         log_put(session, RD_SPC_CHANGE_SEGMENT, &space->head->segment_count, sizeof(uint32), LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 #ifdef __cplusplus

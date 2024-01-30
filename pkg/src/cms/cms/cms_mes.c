@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "cms_log_module.h"
 #include "cm_malloc.h"
 #include "cms_instance.h"
 #include "mes_queue.h"
@@ -45,56 +45,56 @@ status_t cms_init_session(void)
     g_cms_session_ctrl.sessions = (cms_session_t *)cm_malloc(max_session_num * sizeof(cms_session_t));
     if (g_cms_session_ctrl.sessions == NULL) {
         CMS_LOG_ERR("cms instance failed to get instance object address!");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     uint32 cms_session_size = max_session_num * sizeof(cms_session_t);
     errno_t err = memset_s(g_cms_session_ctrl.sessions, cms_session_size, 0, cms_session_size);
     if (err != EOK) {
         CM_FREE_PTR(g_cms_session_ctrl.sessions);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < max_session_num; ++i) {
         g_cms_session_ctrl.sessions[i].id = i;
-        g_cms_session_ctrl.sessions[i].is_closed = GS_TRUE;
+        g_cms_session_ctrl.sessions[i].is_closed = CT_TRUE;
     }
 
     g_cms_session_ctrl.used_count = 0;
     g_cms_session_ctrl.total = max_session_num;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cms_create_session(cms_session_t **session)
 {
     *session = NULL;
-    uint32 id = GS_INVALID_ID32;
+    uint32 id = CT_INVALID_ID32;
     cm_spin_lock(&g_cms_session_ctrl.lock, NULL);
     for (uint32 i = 0; i < g_cms_session_ctrl.total; i++) {
-        if (g_cms_session_ctrl.sessions[i].is_closed == GS_TRUE) {
+        if (g_cms_session_ctrl.sessions[i].is_closed == CT_TRUE) {
             id = i;
             break;
         }
     }
 
-    if (id == GS_INVALID_ID32) {
+    if (id == CT_INVALID_ID32) {
         cm_spin_unlock(&g_cms_session_ctrl.lock);
         CMS_LOG_ERR("there is no unused session");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    g_cms_session_ctrl.sessions[id].is_closed = GS_FALSE;
+    g_cms_session_ctrl.sessions[id].is_closed = CT_FALSE;
     g_cms_session_ctrl.used_count++;
     cm_spin_unlock(&g_cms_session_ctrl.lock);
     *session = &g_cms_session_ctrl.sessions[id];
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cms_destroy_session(cms_session_t *session)
 {
     uint32 id = session->id;
     cm_spin_lock(&g_cms_session_ctrl.lock, NULL);
-    g_cms_session_ctrl.sessions[id].is_closed = GS_TRUE;
+    g_cms_session_ctrl.sessions[id].is_closed = CT_TRUE;
     g_cms_session_ctrl.used_count--;
     cm_spin_unlock(&g_cms_session_ctrl.lock);
 }
@@ -118,36 +118,36 @@ status_t init_mes_send_msg(cms_packet_head_t* cms_msg, uint32 sid, bool32 reques
 {
     if (cms_msg->msg_size > CMS_MSG_MAX_LEN) {
         CMS_LOG_ERR("msg size exceed max mag len, msg size: %u", cms_msg->msg_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     uint8 cmd;
-    // if the res msg is ack, cms_msg->is_ack equals to GS_TRUE
-    if (cms_msg->is_ack == GS_TRUE) {
+    // if the res msg is ack, cms_msg->is_ack equals to CT_TRUE
+    if (cms_msg->is_ack == CT_TRUE) {
         cmd = CMS_MES_MSG_WITH_ACK;
     } else {
-        cms_msg->sid = GS_INVALID_ID16;
+        cms_msg->sid = CT_INVALID_ID16;
         cmd = CMS_MES_MSG;
     }
-    mes_init_send_head(&mes_msg->head, cmd, sizeof(mes_message_head_t) + cms_msg->msg_size, GS_INVALID_ID32,
+    mes_init_send_head(&mes_msg->head, cmd, sizeof(mes_message_head_t) + cms_msg->msg_size, CT_INVALID_ID32,
         g_mes.profile.inst_id, cms_msg->dest_node, sid, cms_msg->sid);
     // for res msg
-    if (cms_msg->is_ack == GS_TRUE) {
-        cms_msg->need_ack = GS_FALSE;
+    if (cms_msg->is_ack == CT_TRUE) {
+        cms_msg->need_ack = CT_FALSE;
         mes_msg->head.rsn = cms_msg->rsn;
         mes_msg->head.dst_sid = cms_msg->sid;
     }
 
-    // for req msg, if req msg need ack, request_ack equals to GS_TRUE
-    if (request_ack == GS_TRUE) {
-        cms_msg->need_ack = GS_TRUE;
+    // for req msg, if req msg need ack, request_ack equals to CT_TRUE
+    if (request_ack == CT_TRUE) {
+        cms_msg->need_ack = CT_TRUE;
         cms_msg->rsn = mes_msg->head.rsn;
         cms_msg->sid = mes_msg->head.src_sid;
     }
     errno_t ret = EOK;
     ret = memcpy_s(mes_msg->cms_msg, CMS_MSG_MAX_LEN, (const void *)cms_msg, cms_msg->msg_size);
     MEMS_RETURN_IFERR(ret);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t creat_mes_recv_msg(mes_message_t *mes_res, cms_packet_head_t* res)
@@ -158,7 +158,7 @@ status_t creat_mes_recv_msg(mes_message_t *mes_res, cms_packet_head_t* res)
     ret = memcpy_s(res, CMS_MSG_MAX_LEN, (const void *)recv_msg->cms_msg, cms_msg->msg_size);
     MEMS_RETURN_IFERR(ret);
     mes_release_message_buf(mes_res->buffer);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cms_mes_send_data(cms_packet_head_t* cms_msg, cms_packet_head_t* res, cms_session_t *session,
@@ -170,27 +170,27 @@ status_t cms_mes_send_data(cms_packet_head_t* cms_msg, cms_packet_head_t* res, c
     
     cms_mes_msg_t mes_msg;
     status_t ret = init_mes_send_msg(cms_msg, session->id, request_ack, &mes_msg);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         CMS_LOG_ERR("Failed to init mes send msg.");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (mes_cms_send_data((void*)&mes_msg) != GS_SUCCESS) {
+    if (mes_cms_send_data((void*)&mes_msg) != CT_SUCCESS) {
         CMS_LOG_WAR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20,
                           "send msg to node %u err, msg type %u.", cms_msg->dest_node, cms_msg->msg_type);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!request_ack) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     mes_message_t mes_res;
-    if (mes_recv(session->id, &mes_res, GS_FALSE, GS_INVALID_ID32, timeout_ms) != GS_SUCCESS) {
+    if (mes_recv(session->id, &mes_res, CT_FALSE, CT_INVALID_ID32, timeout_ms) != CT_SUCCESS) {
         CMS_LOG_ERR("recv msg from node %u err, msg type %u.", cms_msg->dest_node, cms_msg->msg_type + 1);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     ret = creat_mes_recv_msg(&mes_res, res);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         CMS_LOG_ERR("Failed to creat mes recv msg.");
     }
 
@@ -235,26 +235,26 @@ void cms_msg_enque(cms_packet_head_t *head)
 
 status_t cms_mes_request(cms_packet_head_t* req, cms_packet_head_t* res, uint32 timeout_ms)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     cms_session_t *session = NULL;
-    if (cms_create_session(&session) != GS_SUCCESS) {
+    if (cms_create_session(&session) != CT_SUCCESS) {
         CMS_LOG_ERR("creat session failed");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    ret = cms_mes_send_data(req, res, session, timeout_ms, GS_TRUE);
+    ret = cms_mes_send_data(req, res, session, timeout_ms, CT_TRUE);
     cms_destroy_session(session);
     return ret;
 }
 
 status_t cms_mes_send_to(cms_packet_head_t* cms_msg)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     cms_session_t *session = NULL;
-    if (cms_create_session(&session) != GS_SUCCESS) {
+    if (cms_create_session(&session) != CT_SUCCESS) {
         CMS_LOG_ERR("creat session failed");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    ret = cms_mes_send_data(cms_msg, NULL, session, CMS_MES_WAIT_MAX_TIME, GS_FALSE);
+    ret = cms_mes_send_data(cms_msg, NULL, session, CMS_MES_WAIT_MAX_TIME, CT_FALSE);
     cms_destroy_session(session);
     return ret;
 }
@@ -269,7 +269,7 @@ status_t cms_mes_send_cmd_to_other(cms_packet_head_t* req, cms_packet_head_t* re
 
 void cms_mes_wakeup_rooms(void)
 {
-    GS_LOG_RUN_WAR("[mes] start wakeup all rooms.");
+    CT_LOG_RUN_WAR("[mes] start wakeup all rooms.");
     mes_instance_t *mes_param = get_g_mes();
     for (uint32 i = 0; i < g_cms_param->cms_mes_max_session_num; i++) {
         mes_waiting_room_t *room = &mes_param->mes_ctx.waiting_rooms[i];
@@ -277,7 +277,7 @@ void cms_mes_wakeup_rooms(void)
         (void)cm_atomic_set(&room->timeout, 0);
         cm_spin_unlock(&room->lock);
     }
-    GS_LOG_RUN_WAR("[mes] finish wakeup all rooms.");
+    CT_LOG_RUN_WAR("[mes] finish wakeup all rooms.");
 }
 
 void mes_proc_recv_msg(mes_message_t *mes_msg)
@@ -285,7 +285,7 @@ void mes_proc_recv_msg(mes_message_t *mes_msg)
     cms_mes_msg_t *recv_msg = (cms_mes_msg_t*)(mes_msg->buffer);
     cms_packet_head_t* head = (cms_packet_head_t*)recv_msg->cms_msg;
     if (head->msg_size > CMS_MSG_MAX_LEN) {
-        GS_LOG_RUN_ERR("invalid msg size: %d", head->msg_size);
+        CT_LOG_RUN_ERR("invalid msg size: %d", head->msg_size);
     } else {
         cms_msg_enque(head);
     }
@@ -295,6 +295,10 @@ void mes_proc_recv_msg(mes_message_t *mes_msg)
 
 void cms_mes_process_msg_ack(mes_message_t *msg)
 {
+    if (SECUREC_UNLIKELY(msg->head->dst_sid >= CT_MAX_MES_ROOMS)) {
+        CT_LOG_RUN_ERR("[cms] invalid msg dst_inst: %u", msg->head->dst_sid);
+        return;
+    }
     mes_instance_t *mes_param = get_g_mes();
     mes_waiting_room_t *room = &mes_param->mes_ctx.waiting_rooms[msg->head->dst_sid];
     mes_consume_with_time(0, MES_TIME_MES_ACK, msg->head->req_start_time);
@@ -314,9 +318,13 @@ void cms_mes_process_msg_ack(mes_message_t *msg)
 
 void cms_process_message(uint32 work_idx, mes_message_t *msg)
 {
+    if (SECUREC_UNLIKELY(msg->head->cmd >= CMS_MES_CMD_CEIL)) {
+        CT_LOG_RUN_ERR("[cms] invalid msg cmd: %u", msg->head->cmd);
+        return;
+    }
     cms_processor_t *processor = &g_cms_processors[msg->head->cmd];
     if (processor->proc == NULL) {
-        GS_LOG_RUN_ERR("The processing function of this message is NULL, cmd=%u", msg->head->cmd);
+        CT_LOG_RUN_ERR("The processing function of this message is NULL, cmd=%u", msg->head->cmd);
         return;
     }
     processor->proc(msg);
@@ -328,91 +336,125 @@ status_t cms_register_proc_func(cms_mes_command_t command_type, cms_message_proc
 {
     errno_t ret;
     if (command_type >= CMS_MES_CMD_CEIL) {
-        GS_THROW_ERROR_EX(ERR_MES_INVALID_CMD, "register mes command type(%d) is invalid.", command_type);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_MES_INVALID_CMD, "register mes command type(%d) is invalid.", command_type);
+        return CT_ERROR;
     }
 
     g_cms_processors[command_type].proc = proc;
     g_cms_processors[command_type].is_enqueue = is_enqueue;
-    ret = strncpy_s(g_cms_processors[command_type].name, GS_MAX_NAME_LEN, func_name, strlen(func_name));
+    ret = strncpy_s(g_cms_processors[command_type].name, CT_MAX_NAME_LEN, func_name, strlen(func_name));
     if (ret != EOK) {
-        GS_THROW_ERROR_EX(ERR_MES_INVALID_CMD, "register func name (%s) is invalid.", func_name);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_MES_INVALID_CMD, "register func name (%s) is invalid.", func_name);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cms_register_proc(void)
 {
-    GS_RETURN_IFERR(cms_register_proc_func(CMS_MES_MSG, mes_proc_recv_msg, GS_TRUE, "cms mes recv msg"));
-    GS_RETURN_IFERR(cms_register_proc_func(CMS_MES_MSG_WITH_ACK, cms_mes_process_msg_ack, GS_TRUE,
+    CT_RETURN_IFERR(cms_register_proc_func(CMS_MES_MSG, mes_proc_recv_msg, CT_TRUE, "cms mes recv msg"));
+    CT_RETURN_IFERR(cms_register_proc_func(CMS_MES_MSG_WITH_ACK, cms_mes_process_msg_ack, CT_TRUE,
         "cms mes recv msg with ack"));
 
     mes_register_proc_func(cms_process_message);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+status_t cms_init_mes_profile_attr(mes_profile_t *profile)
+{
+    profile->pool_size = MES_MESSAGE_POOL_SIZE;
+    profile->buffer_pool_attr.pool_count = g_cms_param->cms_mes_msg_pool_count;
+    profile->buffer_pool_attr.buf_attr[0].queue_count = g_cms_param->cms_mes_msg_queue_count;
+    profile->buffer_pool_attr.buf_attr[0].size = MES_MESSAGE_BUFFER_SIZE;
+    profile->buffer_pool_attr.buf_attr[0].count = g_cms_param->cms_mes_msg_buff_count;
+    profile->inst_id = g_cms_param->node_id;
+    profile->pipe_type = g_cms_param->cms_mes_pipe_type;
+    profile->channel_num = g_cms_param->cms_mes_msg_channel_num;
+    profile->work_thread_num = g_cms_param->cms_mes_thread_num;
+    profile->reactor_thread_num = REACTOR_THREAD_NUM;
+    profile->conn_by_profile = CT_TRUE;
+    profile->inst_count = cms_get_gcc_node_count();
+    return (profile->inst_count >= CT_MAX_INSTANCES ? CT_ERROR : CT_SUCCESS);
+}
+
+status_t cms_init_mes_profile_ip(mes_profile_t *profile)
+{
+    errno_t ret;
+    cms_node_def_t node_def;
+    for (uint32 i = 0; i < profile->inst_count; i++) {
+        // set lsid
+        profile->inst_lsid[i] = get_config_lsid(i);
+        CT_LOG_RUN_INF("cms instance %d get lsid 0x%x", i, profile->inst_lsid[i]);
+        if (cms_get_node_by_id(i, &node_def) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("node def is invalid ,node_id:%u", i);
+            return CT_ERROR;
+        }
+        ret = strncpy_s(profile->inst_arr[i].ip, CT_MAX_INST_IP_LEN,
+            node_def.ip, strnlen(node_def.ip, CT_MAX_INST_IP_LEN - 1));
+        if (ret != EOK) {
+            CT_LOG_RUN_ERR("cms_init_mes_profile_ip failed,node_id:%u, ip:%s", i, node_def.ip);
+            return CT_ERROR;
+        }
+        profile->inst_arr[i].port = node_def.port;
+        CT_LOG_RUN_INF("cms init node(%u) profile ip_addrs[%s] port[%u].",
+            i, profile->inst_arr[i].ip, profile->inst_arr[i].port);
+    }
+    return CT_SUCCESS;
+}
+
+status_t cms_init_mes_profile(mes_profile_t *profile)
+{
+    if (profile == NULL) {
+        CT_LOG_RUN_ERR("cms_init_mes_profile failed, profile is NULL");
+        return CT_ERROR;
+    }
+
+    if (cms_init_mes_profile_attr(profile) == CT_ERROR) {
+        CT_LOG_RUN_ERR("cms_init_mes_profile_attr failed, inst count(%u).", profile->inst_count);
+        return CT_ERROR;
+    }
+
+    CT_RETURN_IFERR(cms_get_mes_channel_version(&(profile->channel_version)));
+
+    if (cms_init_mes_profile_ip(profile) == CT_ERROR) {
+        CT_LOG_RUN_ERR("cms_init_mes_profile_ip failed.");
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
 }
 
 status_t cms_set_mes_profile(void)
 {
-    errno_t ret;
     mes_profile_t profile;
-
     MEMS_RETURN_IFERR(memset_sp(&profile, sizeof(mes_profile_t), 0, sizeof(mes_profile_t)));
-    profile.pool_size = MES_MESSAGE_POOL_SIZE;
-    profile.buffer_pool_attr.pool_count = g_cms_param->cms_mes_msg_pool_count;
-    profile.buffer_pool_attr.buf_attr[0].queue_count = g_cms_param->cms_mes_msg_queue_count;
-    profile.buffer_pool_attr.buf_attr[0].size = MES_MESSAGE_BUFFER_SIZE;
-    profile.buffer_pool_attr.buf_attr[0].count = g_cms_param->cms_mes_msg_buff_count;
-    profile.inst_id = g_cms_param->node_id;
-    profile.pipe_type = g_cms_param->cms_mes_pipe_type;
-    profile.channel_num = g_cms_param->cms_mes_msg_channel_num;
-    profile.work_thread_num = g_cms_param->cms_mes_thread_num;
-    profile.reactor_thread_num = REACTOR_THREAD_NUM;
-    profile.conn_by_profile = GS_TRUE;
-    GS_RETURN_IFERR(cms_get_stat_version(&(profile.channel_version)));
 
-    uint32 node_count = cms_get_gcc_node_count();
-    profile.inst_count = node_count;
-
-    cms_node_def_t node_def;
-    for (uint32 i = 0; i < node_count; i++) {
-#ifdef _DBSTOR_ENABLE_
-        // set lsid
-        profile.inst_lsid[i] = get_config_lsid(i);
-        GS_LOG_RUN_INF("cms instance %d get lsid 0x%x", i, profile.inst_lsid[i]);
-#endif
-        if (cms_get_node_by_id(i, &node_def) == GS_SUCCESS) {
-            ret = strncpy_s(profile.inst_arr[i].ip, CM_MAX_IP_LEN, node_def.ip, strlen(node_def.ip));
-            if (ret != EOK) {
-                GS_LOG_RUN_ERR("strncpy ip of node %u err.", i);
-                return GS_ERROR;
-            }
-            profile.inst_arr[i].port = node_def.port;
-        }
+    if (cms_init_mes_profile(&profile) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cms_init_mes_profile failed.");
+        return CT_ERROR;
     }
 
-    if (profile.inst_count >= GS_MAX_INSTANCES) {
-        GS_LOG_RUN_ERR("inst_count %u is invalid.", profile.inst_count);
-        return GS_ERROR;
+    if (profile.inst_count >= CT_MAX_INSTANCES) {
+        CT_LOG_RUN_ERR("inst_count %u is invalid.", profile.inst_count);
+        return CT_ERROR;
     }
 
-    if (mes_set_profile(&profile) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("mes_set_profile failed.");
-        return GS_ERROR;
+    if (mes_set_profile(&profile) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("mes_set_profile failed.");
+        return CT_ERROR;
     }
 
-    if (mes_set_uc_dpumm_config_path(g_cms_param->cms_home) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("mes_set_uc_dpumm_config_path failed.");
-        return GS_ERROR;
+    if (mes_set_uc_dpumm_config_path(g_cms_param->cms_home) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("mes_set_uc_dpumm_config_path failed.");
+        return CT_ERROR;
     }
 
-    if (mes_set_group_task_num(0, CMS_MES_THREAD_NUM) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[mes]: mes_set_group_task_num %u failed.", 0);
-        return GS_ERROR;
+    if (mes_set_group_task_num(0, CMS_MES_THREAD_NUM) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[mes]: mes_set_group_task_num %u failed.", 0);
+        return CT_ERROR;
     }
     mes_set_crc_check_switch(g_cms_param->cms_mes_crc_check_switch);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 cms_session_ctrl_t *get_session_ctrl(void)
@@ -427,30 +469,30 @@ cms_processor_t *get_g_cms_processors(void)
 
 status_t cms_startup_mes(void)
 {
-    if (cms_register_proc() != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("cms_register_proc failed.");
-        return GS_ERROR;
+    if (cms_register_proc() != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cms_register_proc failed.");
+        return CT_ERROR;
     }
  
-    if (cms_set_mes_profile() != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("cms_set_mes_profile failed.");
-        return GS_ERROR;
+    if (cms_set_mes_profile() != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cms_set_mes_profile failed.");
+        return CT_ERROR;
     }
 
-    if (cms_init_session() != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("cms_init_session failed.");
+    if (cms_init_session() != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cms_init_session failed.");
         cms_free_mes_session();
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (mes_startup() != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("mes_startup failed.");
+    if (mes_startup() != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("mes_startup failed.");
         cms_free_mes_session();
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    GS_LOG_RUN_INF("mes startup success");
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("mes startup success");
+    return CT_SUCCESS;
 }
 
 void cms_mes_send_entry(thread_t* thread)
@@ -476,8 +518,8 @@ void cms_mes_send_entry(thread_t* thread)
         }
 
         ret = cms_mes_send_to(msg);
-        if (ret != GS_SUCCESS) {
-            CMS_LOG_MSG(GS_LOG_DEBUG_ERR, "send msg faild", msg);
+        if (ret != CT_SUCCESS) {
+            CMS_LOG_MSG(CT_LOG_DEBUG_ERR, "send msg faild", msg);
         } else {
             if (CMS_IS_TIMER_MSG(msg->msg_type)) {
                 CMS_LOG_MSG(CMS_LOG_TIMER, "send msg succeed", msg);

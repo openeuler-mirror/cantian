@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -52,6 +52,7 @@ typedef struct st_msg_txn_wait {
 EXTER_ATTACK void dtc_process_txn_info_req(void *sess, mes_message_t *msg);
 status_t dtc_get_remote_txn_snapshot(knl_session_t *session, xmap_t xmap, uint32 dst_id, txn_snapshot_t *snapshot);
 EXTER_ATTACK void dtc_process_txn_snapshot_req(void *sess, mes_message_t *msg);
+EXTER_ATTACK void dtc_flush_log(knl_session_t *session, page_id_t page_id);
 
 status_t dtc_get_remote_txn_info(knl_session_t *session, bool32 is_scan, xid_t xid, uint8 dst_id,
                                  txn_info_t *txn_info);

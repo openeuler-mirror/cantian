@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -85,12 +85,12 @@ static inline atomic32_t cm_atomic32_get(atomic32_t *val)
 
 static inline bool32 cm_atomic_cas(atomic_t *val, int64 oldval, int64 newval)
 {
-    return (InterlockedCompareExchange64(val, newval, oldval) == oldval) ? GS_TRUE : GS_FALSE;
+    return (InterlockedCompareExchange64(val, newval, oldval) == oldval) ? CT_TRUE : CT_FALSE;
 }
 
 static inline bool32 cm_atomic32_cas(atomic32_t *val, int32 oldval, int32 newval)
 {
-    return (InterlockedCompareExchange(val, newval, oldval) == oldval) ? GS_TRUE : GS_FALSE;
+    return (InterlockedCompareExchange(val, newval, oldval) == oldval) ? CT_TRUE : CT_FALSE;
 }
 
 #else

@@ -7,10 +7,11 @@ message TseDDLColumnDataTypeDef {
     * These definitions is same as the `typmode_t`; thus they should
     * be replaced by typmode_t for unifying the definition of columns
   */
-  int32 datatype = 1; // gs_type_t
+  int32 datatype = 1; // ct_type_t
   uint32 size = 2;
-  uint32  precision = 3;
-  int32   scale = 4;
+  uint32 precision = 3;
+  int32 scale = 4;
+  int32 mysql_ori_datatype = 5;
 }
 message TseDDLColumnDef {
   string name = 1;
@@ -64,6 +65,7 @@ message TseDDLTableKey {
     bool is_func = 7;
     repeated TseDDLTableKeyPart columns = 8;
     bool is_constraint = 9;
+    bool is_dsc = 10;
 }
 message TseMsgCommDef {
     uint32 inst_id = 1;
@@ -72,32 +74,15 @@ message TseMsgCommDef {
     uint64 sess_addr = 4;
 }
 
-message TseDDLPartitionValueDef {
-  bool is_max_value = 1;
-  string value = 2;
-}
-
 message TseDDLPartitionTableDef {
   string name = 1;
-  string space = 2;
-  string hiboundval = 3;
-  repeated TseDDLPartitionValueDef part_value_list = 4;
-  repeated TseDDLPartitionTableDef subpart_table_list = 5;
-}
-
-message TseDDLPartitionColumnDef {
-  string name = 1;
-  uint32 datatype = 2;
+  repeated TseDDLPartitionTableDef subpart_table_list = 2;
 }
 
 message TseDDLPartitionDef {
   uint32 part_type = 1;
-  string partition_expression = 2;
-  uint32 subpart_type = 5;
-  string subpartition_expression = 6;
-  repeated TseDDLPartitionColumnDef part_column_list = 3;
-  repeated TseDDLPartitionTableDef part_table_list = 4;
-  repeated TseDDLPartitionColumnDef subpart_column_list = 7;
+  uint32 subpart_type = 2;
+  repeated TseDDLPartitionTableDef part_table_list = 3;
 }
 
 message TseDDLCreateTableDef {
@@ -111,7 +96,10 @@ message TseDDLCreateTableDef {
   uint32   options = 8; // if not exists
   string db_name = 9;
   string sql_str = 10;
-  TseDDLPartitionDef partition_def = 11;
+  string alter_table_name = 11;
+  string alter_db_name = 12;
+  bool is_create_as_select = 13;
+  TseDDLPartitionDef partition_def = 14;
 }
 
 message TseDDLAlterTablePorp {
@@ -217,7 +205,6 @@ message TseDDLDropTableDef {
   string dbname_und = 4;
   string db_name = 5;
   string sql_str = 6;
-  string alter_copy_table = 7;
 }
 
 message TseDDLAlterIndexDef {

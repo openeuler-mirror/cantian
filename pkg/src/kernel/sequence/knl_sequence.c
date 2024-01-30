@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_common_module.h"
 #include "knl_sequence.h"
 #include "dc_seq.h"
 #include "dc_log.h"
@@ -43,10 +44,9 @@
  * @param[in]  session - knl_session_t
  * @param[in]  def - pointer to the definition of sequence
  * @return
- * - GS_SUCCESS
- * - GS_ERROR
+ * - CT_SUCCESS
+ * - CT_ERROR
  * @note
- * @par history:  2017/4/26, wangjincheng 343637, create
  *
  */
 status_t db_create_sequence(knl_session_t *session, knl_handle_t stmt, knl_sequence_def_t *def)
@@ -61,13 +61,13 @@ status_t db_create_sequence(knl_session_t *session, knl_handle_t stmt, knl_seque
     errno_t ret;
 
     if (!dc_get_user_id(session, &def->user, &desc.uid)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&def->user));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&def->user));
+        return CT_ERROR;
     }
 
     txt_seq = def->name;
 
-    (void)cm_text2str(&txt_seq, desc.name, GS_MAX_NAME_LEN + 1);
+    (void)cm_text2str(&txt_seq, desc.name, CT_MAX_NAME_LEN + 1);
     desc.is_cache = def->nocache ? 0 : 1;
     desc.is_cyclable = def->is_cycle;
     desc.is_order = def->is_order;
@@ -81,8 +81,8 @@ status_t db_create_sequence(knl_session_t *session, knl_handle_t stmt, knl_seque
     desc.dist_data = def->dist_data;
 #endif
 
-    if (dc_alloc_seq_entry(session, &desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_seq_entry(session, &desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
@@ -109,25 +109,29 @@ status_t db_create_sequence(knl_session_t *session, knl_handle_t stmt, knl_seque
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_SEQ_ID, SYS_SEQ001_ID);
 
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
-        if (dc_open_user_by_id(session, desc.uid, &user) != GS_SUCCESS) {
+    log_add_lrep_ddl_begin(session);
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+        log_add_lrep_ddl_end(session);
+        if (dc_open_user_by_id(session, desc.uid, &user) != CT_SUCCESS) {
             knl_panic_log(0, "[SEQUENCE] ABORT INFO: open user failed while drop sequence");
         }
         sequence_entry_t *entry = DC_GET_SEQ_ENTRY(user, desc.id);
         dc_sequence_drop(session, entry);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     redo.op_type = RD_CREATE_SEQUENCE;
     redo.id = desc.id;
     redo.uid = desc.uid;
-    ret = strcpy_sp(redo.seq_name, GS_NAME_BUFFER_SIZE, desc.name);
+    ret = strcpy_sp(redo.seq_name, CT_NAME_BUFFER_SIZE, desc.name);
     knl_securec_check(ret);
     log_put(session, RD_LOGIC_OPERATION, &redo, sizeof(rd_seq_t), LOG_ENTRY_FLAG_NONE);
+    log_add_lrep_ddl_info(session, stmt, LOGIC_OP_SEQUNCE, RD_CREATE_SEQUENCE, NULL);
+    log_add_lrep_ddl_end(session);
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t rd_dc_create_sequence(knl_session_t *session, dc_user_t *user, text_t *seq_name)
@@ -143,31 +147,31 @@ status_t rd_dc_create_sequence(knl_session_t *session, dc_user_t *user, text_t *
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SEQ_ID, SYS_SEQ001_ID);
 
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&user->desc.id,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&user->desc.id,
         sizeof(uint32), IX_COL_SYS_SEQ001_UID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, (void *)seq_name->str,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, (void *)seq_name->str,
         seq_name->len, IX_COL_SYS_SEQ001_NAME);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dc_convert_seq_desc(cursor, &desc);
     dls_spin_lock(session, &user->lock, NULL);
-    if (dc_create_sequence_entry(session, user, desc.id, &entry) != GS_SUCCESS) {
+    if (dc_create_sequence_entry(session, user, desc.id, &entry) != CT_SUCCESS) {
         dls_spin_unlock(session, &user->lock);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    err = memcpy_sp(entry->name, GS_NAME_BUFFER_SIZE, desc.name, GS_MAX_NAME_LEN + 1);
+    err = memcpy_sp(entry->name, CT_NAME_BUFFER_SIZE, desc.name, CT_MAX_NAME_LEN + 1);
     knl_securec_check(err);
     dc_insert_into_seqindex(user, entry);
 
@@ -177,37 +181,43 @@ status_t rd_dc_create_sequence(knl_session_t *session, dc_user_t *user, text_t *
     dls_spin_unlock(session, &user->lock);
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void rd_create_sequence(knl_session_t *session, log_entry_t *log)
 {
+    if (log->size != CM_ALIGN4(sizeof(rd_seq_t)) + LOG_ENTRY_SIZE) {
+        CT_LOG_RUN_ERR("[SEQ] no need to replay create sequence, log size %u is wrong", log->size);
+        return;
+    }
     rd_seq_t *rd = (rd_seq_t *)log->data;
+    rd->seq_name[CT_NAME_BUFFER_SIZE - 1] = 0;
+    rd->user_name[CT_NAME_BUFFER_SIZE - 1] = 0;
     dc_user_t *user = NULL;
     knl_dictionary_t dc;
     text_t seq_name;
 
-    if (dc_open_user_by_id(session, rd->uid, &user) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SEQ] failed to replay create sequence,user id %u doesn't exists", rd->uid);
+    if (dc_open_user_by_id(session, rd->uid, &user) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SEQ] failed to replay create sequence,user id %u doesn't exists", rd->uid);
         rd_check_dc_replay_err(session);
         return;
     }
 
     cm_str2text(rd->seq_name, &seq_name);
 
-    if (dc_init_sequence_set(session, user) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SEQ] failed to replay create sequence");
+    if (dc_init_sequence_set(session, user) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SEQ] failed to replay create sequence");
         rd_check_dc_replay_err(session);
         return;
     }
 
     if (dc_seq_find(session, user, &seq_name, &dc)) {
-        GS_LOG_RUN_INF("[SEQ] no need to replay create sequence,sequence already exists");
+        CT_LOG_RUN_INF("[SEQ] no need to replay create sequence,sequence already exists");
         return;
     }
 
-    if (rd_dc_create_sequence(session, user, &seq_name) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[SEQ] failed to create sequence");
+    if (rd_dc_create_sequence(session, user, &seq_name) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[SEQ] failed to create sequence");
         rd_check_dc_replay_err(session);
     }
 }
@@ -223,14 +233,14 @@ status_t db_get_seq_dist_data(knl_session_t *session, text_t *user, text_t *name
     knl_dictionary_t dc;
     dc_sequence_t *sequence = NULL;
 
-    if (GS_SUCCESS != dc_seq_open(session, user, name, &dc)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != dc_seq_open(session, user, name, &dc)) {
+        return CT_ERROR;
     }
 
     sequence = (dc_sequence_t *)dc.handle;
     *dist_data = &sequence->dist_data;
     dc_seq_close(&dc);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_get_sequence_id(knl_session_t *session, text_t *user, text_t *name, uint32 *id)
@@ -238,14 +248,14 @@ status_t db_get_sequence_id(knl_session_t *session, text_t *user, text_t *name, 
     knl_dictionary_t dc;
     dc_sequence_t *sequence = NULL;
 
-    if (GS_SUCCESS != dc_seq_open(session, user, name, &dc)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != dc_seq_open(session, user, name, &dc)) {
+        return CT_ERROR;
     }
 
     sequence = (dc_sequence_t *)dc.handle;
     *id = sequence->id;
     dc_seq_close(&dc);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_set_cn_seq_currval(knl_session_t *session, text_t *user, text_t *name, int64 nextval)
@@ -255,8 +265,8 @@ status_t db_set_cn_seq_currval(knl_session_t *session, text_t *user, text_t *nam
     dc_currval_t *currval = NULL;
     knl_dictionary_t dc_seq;
 
-    if (GS_SUCCESS != dc_seq_open(session, user, name, &dc_seq)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != dc_seq_open(session, user, name, &dc_seq)) {
+        return CT_ERROR;
     }
 
     sequence = (dc_sequence_t *)dc_seq.handle;
@@ -266,17 +276,17 @@ status_t db_set_cn_seq_currval(knl_session_t *session, text_t *user, text_t *nam
     if (!sequence->valid || entry->org_scn > DB_CURR_SCN(session)) {
         dls_spin_unlock(session, &entry->lock);
         dc_seq_close(&dc_seq);
-        GS_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(user), T2S_EX(name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(user), T2S_EX(name));
+        return CT_ERROR;
     }
 
     /* Initialize the currval in current session */
     if (sequence->currvals[session->id / DC_GROUP_CURRVAL_COUNT] == NULL) {
-        if (dc_alloc_mem(&session->kernel->dc_ctx, entry->entity->memory, GS_SHARED_PAGE_SIZE,
-            (void **)&sequence->currvals[session->id / DC_GROUP_CURRVAL_COUNT]) != GS_SUCCESS) {
+        if (dc_alloc_mem(&session->kernel->dc_ctx, entry->entity->memory, CT_SHARED_PAGE_SIZE,
+            (void **)&sequence->currvals[session->id / DC_GROUP_CURRVAL_COUNT]) != CT_SUCCESS) {
             dls_spin_unlock(session, &entry->lock);
             dc_seq_close(&dc_seq);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -289,7 +299,7 @@ status_t db_set_cn_seq_currval(knl_session_t *session, text_t *user, text_t *nam
 
     dls_spin_unlock(session, &entry->lock);
     dc_seq_close(&dc_seq);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_current_seq_value(knl_session_t *session, text_t *user, text_t *name, int64 *currval)
@@ -298,8 +308,8 @@ status_t db_current_seq_value(knl_session_t *session, text_t *user, text_t *name
     dc_sequence_t *sequence = NULL;
     dc_currval_t *dc_currval = NULL;
 
-    if (GS_SUCCESS != dc_seq_open(session, user, name, &dc)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != dc_seq_open(session, user, name, &dc)) {
+        return CT_ERROR;
     }
 
     sequence = (dc_sequence_t *)dc.handle;
@@ -308,29 +318,29 @@ status_t db_current_seq_value(knl_session_t *session, text_t *user, text_t *name
     if (!sequence->valid || sequence->entry->org_scn > DB_CURR_SCN(session)) {
         dls_spin_unlock(session, &sequence->entry->lock);
         dc_seq_close(&dc);
-        GS_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(user), T2S_EX(name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(user), T2S_EX(name));
+        return CT_ERROR;
     }
         
     if (sequence->currvals[session->id / DC_GROUP_CURRVAL_COUNT] == NULL) {
-        GS_THROW_ERROR(ERR_SEQ_INVALID, "sequence CURRVAL is not defined in this session");
+        CT_THROW_ERROR(ERR_SEQ_INVALID, "sequence CURRVAL is not defined in this session");
         dls_spin_unlock(session, &sequence->entry->lock);
         dc_seq_close(&dc);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dc_currval = DC_GET_SEQ_CURRVAL(sequence, session->id);
     if (dc_currval->serial_id != session->serial_id) {
-        GS_THROW_ERROR(ERR_SEQ_INVALID, "sequence CURRVAL is not defined in this session");
+        CT_THROW_ERROR(ERR_SEQ_INVALID, "sequence CURRVAL is not defined in this session");
         dls_spin_unlock(session, &sequence->entry->lock);
         dc_seq_close(&dc);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     /* max_value of sequence_def is DDL_ASC_SEQUENCE_DEFAULT_MAX_VALUE, i.e., LLONG_MAX(i.e., 2^63-1) */
     *currval = dc_currval->data;
     dls_spin_unlock(session, &sequence->entry->lock);
     dc_seq_close(&dc);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -338,21 +348,21 @@ status_t db_current_seq_value(knl_session_t *session, text_t *user, text_t *name
  * @param[in]  sequence in dc
  * @param[out]  sequence in dc
  * @return
- * - GS_SUCCESS
- * - GS_ERROR
+ * - CT_SUCCESS
+ * - CT_ERROR
  */
 static status_t seq_get_next_value(dc_sequence_t *sequence)
 {
     int64 res;
 
     if (sequence->lastval > sequence->maxval || sequence->lastval < sequence->minval) {
-        if (sequence->is_cyclable == GS_FALSE) {
+        if (sequence->is_cyclable == CT_FALSE) {
             if (sequence->step > 0) {
-                GS_THROW_ERROR(ERR_SEQ_INVALID, "sequence NEXTVAL exceeds MAXVALUE");
+                CT_THROW_ERROR(ERR_SEQ_INVALID, "sequence NEXTVAL exceeds MAXVALUE");
             } else {
-                GS_THROW_ERROR(ERR_SEQ_INVALID, "sequence NEXTVAL goes below MINVALUE");
+                CT_THROW_ERROR(ERR_SEQ_INVALID, "sequence NEXTVAL goes below MINVALUE");
             }
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         sequence->lastval = sequence->step > 0 ? sequence->minval : sequence->maxval;
@@ -360,18 +370,18 @@ static status_t seq_get_next_value(dc_sequence_t *sequence)
 
     if (opr_int64add_overflow(sequence->rsv_nextval, sequence->step, &res)) {
         if (sequence->step > 0) {
-            GS_THROW_ERROR(ERR_SEQ_INVALID, "sequence NEXTVAL exceeds MAXVALUE");
+            CT_THROW_ERROR(ERR_SEQ_INVALID, "sequence NEXTVAL exceeds MAXVALUE");
         } else {
-            GS_THROW_ERROR(ERR_SEQ_INVALID, "sequence NEXTVAL goes below MINVALUE");
+            CT_THROW_ERROR(ERR_SEQ_INVALID, "sequence NEXTVAL goes below MINVALUE");
         }
 
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     sequence->rsv_nextval = sequence->lastval;
     sequence->lastval += sequence->step;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 db_reach_sequence_boundary(dc_sequence_t *sequence, uint32 batch_count,
@@ -384,14 +394,14 @@ static bool32 db_reach_sequence_boundary(dc_sequence_t *sequence, uint32 batch_c
         (sequence->step < 0 && val > sequence->minval)) {
         sequence->lastval = val;
         *end_val = val - sequence->step;
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     *end_val = sequence->step > 0 ? sequence->maxval : sequence->minval;
 
     if (sequence->is_cyclable) {
         sequence->lastval = ((sequence->step > 0) ? sequence->minval : sequence->maxval);
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     /* sequence->lastval cannot exceed the boundary */
@@ -401,7 +411,7 @@ static bool32 db_reach_sequence_boundary(dc_sequence_t *sequence, uint32 batch_c
         sequence->lastval += ((sequence->minval - sequence->lastval) / sequence->step + 1) * sequence->step;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /*
@@ -451,26 +461,26 @@ static void seq_generate_last_number(dc_sequence_t *sequence, int64 *last_number
  * @param[in]   name - name of sequence
  * @param[out]  cursor
  * @return
- * - GS_SUCCESS
- * - GS_ERROR
+ * - CT_SUCCESS
+ * - CT_ERROR
  */
 status_t db_fetch_seq_description(knl_session_t *session, knl_cursor_t *cursor, uint32 uid, text_t *name)
 {
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_SEQ_ID, 0);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32), 0);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, name->str, name->len, 1);
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32), 0);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, name->str, name->len, 1);
 
-    if (GS_SUCCESS != knl_fetch(session, cursor)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != knl_fetch(session, cursor)) {
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
-        GS_THROW_ERROR(ERR_SEQ_INVALID, "sequence does not exist");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SEQ_INVALID, "sequence does not exist");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t seq_generate_cache(knl_session_t *session, dc_sequence_t *sequence, text_t *name)
@@ -481,17 +491,17 @@ status_t seq_generate_cache(knl_session_t *session, dc_sequence_t *sequence, tex
     knl_cursor_t *cursor = NULL;
 
     if (++sequence->cache_pos >= sequence->cache_size) {
-        if (knl_begin_auton_rm(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_begin_auton_rm(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         CM_SAVE_STACK(session->stack);
 
         cursor = knl_push_cursor(session);
-        if (GS_SUCCESS != db_fetch_seq_description(session, cursor, sequence->uid, name)) {
+        if (CT_SUCCESS != db_fetch_seq_description(session, cursor, sequence->uid, name)) {
             CM_RESTORE_STACK(session->stack);
-            knl_end_auton_rm(session, GS_ERROR);
-            return GS_ERROR;
+            knl_end_auton_rm(session, CT_ERROR);
+            return CT_ERROR;
         }
 
         lastval = *(int64 *)CURSOR_COLUMN_DATA(cursor, SEQ_LASTVAL_COLUMN_ID);
@@ -504,19 +514,19 @@ status_t seq_generate_cache(knl_session_t *session, dc_sequence_t *sequence, tex
         cursor->update_info.count = 1;
         cursor->update_info.columns[0] = SEQ_LASTVAL_COLUMN_ID;
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
-        if (GS_SUCCESS != knl_internal_update(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_update(session, cursor)) {
             CM_RESTORE_STACK(session->stack);
-            knl_end_auton_rm(session, GS_ERROR);
-            return GS_ERROR;
+            knl_end_auton_rm(session, CT_ERROR);
+            return CT_ERROR;
         }
 
         sequence->cache_pos = 0;
         CM_RESTORE_STACK(session->stack);
 
-        knl_end_auton_rm(session, GS_SUCCESS);
+        knl_end_auton_rm(session, CT_SUCCESS);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_next_seq_value(knl_session_t *session, text_t *user, text_t *name, int64 *nextval)
@@ -526,8 +536,8 @@ status_t db_next_seq_value(knl_session_t *session, text_t *user, text_t *name, i
     dc_currval_t *currval = NULL;
     knl_dictionary_t dc_seq;
 
-    if (GS_SUCCESS != dc_seq_open(session, user, name, &dc_seq)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != dc_seq_open(session, user, name, &dc_seq)) {
+        return CT_ERROR;
     }
 
     sequence = (dc_sequence_t *)dc_seq.handle;
@@ -538,31 +548,31 @@ status_t db_next_seq_value(knl_session_t *session, text_t *user, text_t *name, i
         dls_spin_unlock(session, &entry->lock);
         dc_seq_close(&dc_seq);
 
-        GS_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(user), T2S_EX(name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(user), T2S_EX(name));
+        return CT_ERROR;
     }
 
-    if (seq_generate_cache(session, sequence, name) != GS_SUCCESS) {
+    if (seq_generate_cache(session, sequence, name) != CT_SUCCESS) {
         dls_spin_unlock(session, &entry->lock);
         dc_seq_close(&dc_seq);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (GS_SUCCESS != seq_get_next_value(sequence)) {
+    if (CT_SUCCESS != seq_get_next_value(sequence)) {
         dls_spin_unlock(session, &entry->lock);
         dc_seq_close(&dc_seq);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *nextval = sequence->rsv_nextval;
 
     /* Initialize the currval in current session */
     if (sequence->currvals[session->id / DC_GROUP_CURRVAL_COUNT] == NULL) {
-        if (dc_alloc_mem(&session->kernel->dc_ctx, entry->entity->memory, GS_SHARED_PAGE_SIZE,
-                         (void **)&sequence->currvals[session->id / DC_GROUP_CURRVAL_COUNT]) != GS_SUCCESS) {
+        if (dc_alloc_mem(&session->kernel->dc_ctx, entry->entity->memory, CT_SHARED_PAGE_SIZE,
+                         (void **)&sequence->currvals[session->id / DC_GROUP_CURRVAL_COUNT]) != CT_SUCCESS) {
             dls_spin_unlock(session, &entry->lock);
             dc_seq_close(&dc_seq);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -573,7 +583,7 @@ status_t db_next_seq_value(knl_session_t *session, text_t *user, text_t *name, i
 
     dls_spin_unlock(session, &entry->lock);
     dc_seq_close(&dc_seq);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_get_nextval_for_cn(knl_session_t *session, text_t *user, text_t *name, int64 *value)
@@ -582,8 +592,8 @@ status_t db_get_nextval_for_cn(knl_session_t *session, text_t *user, text_t *nam
     sequence_entry_t *entry = NULL;
     knl_dictionary_t dc_seq;
 
-    if (GS_SUCCESS != dc_seq_open(session, user, name, &dc_seq)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != dc_seq_open(session, user, name, &dc_seq)) {
+        return CT_ERROR;
     }
 
     sequence = (dc_sequence_t *)dc_seq.handle;
@@ -591,23 +601,23 @@ status_t db_get_nextval_for_cn(knl_session_t *session, text_t *user, text_t *nam
     dls_spin_lock(session, &entry->lock, NULL);
 
     if (!sequence->valid || entry->org_scn > DB_CURR_SCN(session)) {
-        GS_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(user), T2S_EX(name));
+        CT_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(user), T2S_EX(name));
         dls_spin_unlock(session, &entry->lock);
         dc_seq_close(&dc_seq);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (seq_generate_cache(session, sequence, name) != GS_SUCCESS) {
+    if (seq_generate_cache(session, sequence, name) != CT_SUCCESS) {
         dls_spin_unlock(session, &entry->lock);
         dc_seq_close(&dc_seq);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *value = sequence->lastval;
     sequence->rsv_nextval = sequence->lastval;
     dls_spin_unlock(session, &entry->lock);
     dc_seq_close(&dc_seq);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_multi_seq_value(knl_session_t *session, knl_sequence_def_t *def,
@@ -618,13 +628,13 @@ status_t db_multi_seq_value(knl_session_t *session, knl_sequence_def_t *def,
     knl_dictionary_t dc_seq;
     uint32 remain_size = count;
     uint32 batch_count;
-    bool32 is_first = GS_TRUE;
+    bool32 is_first = CT_TRUE;
     int64 start_val = 0;
     int64 end_val = 0;
-    bool32 allow_cycle = GS_TRUE;
+    bool32 allow_cycle = CT_TRUE;
 
-    if (GS_SUCCESS != dc_seq_open(session, &def->user, &def->name, &dc_seq)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != dc_seq_open(session, &def->user, &def->name, &dc_seq)) {
+        return CT_ERROR;
     }
 
     sequence = (dc_sequence_t *)dc_seq.handle;
@@ -634,15 +644,15 @@ status_t db_multi_seq_value(knl_session_t *session, knl_sequence_def_t *def,
     if (!sequence->valid || entry->org_scn > DB_CURR_SCN(session)) {
         dls_spin_unlock(session, &entry->lock);
         dc_seq_close(&dc_seq);
-        GS_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(&def->user), T2S_EX(&def->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(&def->user), T2S_EX(&def->name));
+        return CT_ERROR;
     }
 
     while (remain_size) {
-        if (seq_generate_cache(session, sequence, &def->name) != GS_SUCCESS) {
+        if (seq_generate_cache(session, sequence, &def->name) != CT_SUCCESS) {
             dls_spin_unlock(session, &entry->lock);
             dc_seq_close(&dc_seq);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         batch_count = (uint32)(sequence->cache_size - sequence->cache_pos);
@@ -650,22 +660,22 @@ status_t db_multi_seq_value(knl_session_t *session, knl_sequence_def_t *def,
         batch_count = (remain_size > batch_count) ? batch_count : remain_size;
 
         if (sequence->lastval > sequence->maxval || sequence->lastval < sequence->minval) {
-            if (sequence->is_cyclable == GS_FALSE) {
+            if (sequence->is_cyclable == CT_FALSE) {
                 dls_spin_unlock(session, &entry->lock);
                 dc_seq_close(&dc_seq);
-                GS_THROW_ERROR(ERR_SEQ_INVALID, "sequence exceeds MINVALUE or MAXVALUE");
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_SEQ_INVALID, "sequence exceeds MINVALUE or MAXVALUE");
+                return CT_ERROR;
             }
         }
 
         if (is_first) {
             start_val = sequence->lastval;
-            is_first = GS_FALSE;
+            is_first = CT_FALSE;
         }
 
         if (db_reach_sequence_boundary(sequence, batch_count, &end_val, group_order, group_cnt)) {
             if (sequence->is_cyclable && allow_cycle) {
-                allow_cycle = GS_FALSE;
+                allow_cycle = CT_FALSE;
                 if ((sequence->step > 0 && start_val > end_val) || (sequence->step < 0 && start_val < end_val)) {
                     if (sequence->step > 0) {
                         start_val = sequence->minval;
@@ -688,7 +698,7 @@ status_t db_multi_seq_value(knl_session_t *session, knl_sequence_def_t *def,
     def->max_value = end_val;
     dls_spin_unlock(session, &entry->lock);
     dc_seq_close(&dc_seq);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -697,8 +707,8 @@ status_t db_multi_seq_value(knl_session_t *session, knl_sequence_def_t *def,
  * @param[in]   user - username
  * @param[in]   name - sequence name
  * @return
- * - GS_SUCCESS
- * - GS_ERROR
+ * - CT_SUCCESS
+ * - CT_ERROR
  */
 status_t db_drop_sequence(knl_session_t *session, knl_handle_t stmt, knl_dictionary_t *dc, bool32 *exists)
 {
@@ -710,7 +720,7 @@ status_t db_drop_sequence(knl_session_t *session, knl_handle_t stmt, knl_diction
     obj_info_t obj_addr;
     cm_str2text(seq->name, &name);
 
-    knl_set_session_scn(session, GS_INVALID_ID64);
+    knl_set_session_scn(session, CT_INVALID_ID64);
 
     CM_SAVE_STACK(session->stack);
 
@@ -718,58 +728,63 @@ status_t db_drop_sequence(knl_session_t *session, knl_handle_t stmt, knl_diction
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_DELETE, SYS_SEQ_ID, 0);
 
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &seq->uid, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &seq->uid, sizeof(uint32),
                      0);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, name.str, name.len, 1);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, name.str, name.len, 1);
 
-    if (GS_SUCCESS != knl_fetch(session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(session, cursor)) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
-        *exists = GS_FALSE;
+        *exists = CT_FALSE;
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    *exists = GS_TRUE;
+    *exists = CT_TRUE;
 
-    if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+    log_add_lrep_ddl_begin(session);
+    if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
+        log_add_lrep_ddl_end(session);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* drop the privileges on the sequence granted to user and roles */
-    if (GS_SUCCESS != db_drop_object_privs(session, seq->uid, seq->name, OBJ_TYPE_SEQUENCE)) {
+    if (CT_SUCCESS != db_drop_object_privs(session, seq->uid, seq->name, OBJ_TYPE_SEQUENCE)) {
+        log_add_lrep_ddl_end(session);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     redo.op_type = RD_DROP_SEQUENCE;
     redo.id = seq->id;
     redo.uid = seq->uid;
-    ret = strcpy_sp(redo.user_name, GS_NAME_BUFFER_SIZE, seq->entry->user->desc.name);
+    ret = strcpy_sp(redo.user_name, CT_NAME_BUFFER_SIZE, seq->entry->user->desc.name);
     knl_securec_check(ret);
-    ret = strcpy_sp(redo.seq_name, GS_NAME_BUFFER_SIZE, seq->name);
+    ret = strcpy_sp(redo.seq_name, CT_NAME_BUFFER_SIZE, seq->name);
     knl_securec_check(ret);
     log_put(session, RD_LOGIC_OPERATION, &redo, sizeof(rd_seq_t), LOG_ENTRY_FLAG_NONE);
 
     obj_addr.oid = dc->oid;
     obj_addr.uid = dc->uid;
     obj_addr.tid = OBJ_TYPE_SEQUENCE;
-    if (g_knl_callback.update_depender(session, &obj_addr) != GS_SUCCESS) {
+    if (g_knl_callback.update_depender(session, &obj_addr) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
+    log_add_lrep_ddl_info(session, stmt, LOGIC_OP_SEQUNCE, RD_DROP_SEQUENCE, NULL);
+    log_add_lrep_ddl_end(session);
     knl_commit(session);
 
     dc_drop_object_privs(&session->kernel->dc_ctx, seq->uid, seq->name, OBJ_TYPE_SEQUENCE);
     dc_sequence_drop(session, seq->entry);
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void print_drop_sequence(log_entry_t *log)
@@ -778,70 +793,70 @@ void print_drop_sequence(log_entry_t *log)
     printf("drop sequence uid:%u,seq_name:%s\n", rd->uid, rd->seq_name);
 }
 
-void ctdb_alter_sequence_update_row(knl_session_t *session, knl_sequence_def_t *def, knl_cursor_t *cur,
-    dc_sequence_t *seq)
+void db_alter_seq_update_row(knl_session_t *session, knl_sequence_def_t *def, knl_cursor_t *cursor,
+    dc_sequence_t *sequence)
 {
     row_assist_t ra;
-    bool32 lastnum_changed = GS_FALSE;
+    bool32 lastnum_changed = CT_FALSE;
     uint16 update_cols = 0;
     uint16 size;
-    row_init(&ra, cur->update_info.data, HEAP_MAX_ROW_SIZE(session), SEQ_COLUMN_COUNTS);
+    row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), SEQ_COLUMN_COUNTS);
 
     if (def->is_minval_set) {
-        cur->update_info.columns[update_cols++] = SEQ_MINVAL_COLUMN_ID;
+        cursor->update_info.columns[update_cols++] = SEQ_MINVAL_COLUMN_ID;
         (void)row_put_int64(&ra, def->min_value);
-        seq->minval = def->min_value;
+        sequence->minval = def->min_value;
     }
 
     if (def->is_maxval_set) {
-        cur->update_info.columns[update_cols++] = SEQ_MAXVAL_COLUMN_ID;
+        cursor->update_info.columns[update_cols++] = SEQ_MAXVAL_COLUMN_ID;
         (void)row_put_int64(&ra, def->max_value);
-        seq->maxval = def->max_value;
+        sequence->maxval = def->max_value;
     }
 
     if (def->is_step_set) {
-        seq->step = def->step;
-        cur->update_info.columns[update_cols++] = SEQ_STEP_COLUMN_ID;
+        sequence->step = def->step;
+        cursor->update_info.columns[update_cols++] = SEQ_STEP_COLUMN_ID;
         (void)row_put_int64(&ra, def->step);
-        lastnum_changed = GS_TRUE;
+        lastnum_changed = CT_TRUE;
     }
 
     if (def->is_cache_set) {
-        cur->update_info.columns[update_cols++] = SEQ_CACHESIZE_COLUMN_ID;
+        cursor->update_info.columns[update_cols++] = SEQ_CACHESIZE_COLUMN_ID;
         (void)row_put_int64(&ra, def->cache);
-        seq->cache_size = def->cache;
-        lastnum_changed = GS_TRUE;
+        sequence->cache_size = def->cache;
+        lastnum_changed = CT_TRUE;
     }
 
-    if (def->is_cycle != seq->is_cyclable) {
-        cur->update_info.columns[update_cols++] = SEQ_CYCLE_FLAG_COLUMN_ID;
+    if (def->is_cycle != sequence->is_cyclable) {
+        cursor->update_info.columns[update_cols++] = SEQ_CYCLE_FLAG_COLUMN_ID;
         (void)row_put_int32(&ra, def->is_cycle);
-        seq->is_cyclable = def->is_cycle;
+        sequence->is_cyclable = def->is_cycle;
     }
 
-    if (def->is_order != seq->is_order) {
-        cur->update_info.columns[update_cols++] = SEQ_ORDER_FALG_COLUMN_ID;
+    if (def->is_order != sequence->is_order) {
+        cursor->update_info.columns[update_cols++] = SEQ_ORDER_FALG_COLUMN_ID;
         (void)row_put_int32(&ra, def->is_order);
-        seq->is_order = def->is_order;
+        sequence->is_order = def->is_order;
     }
 
-    cur->update_info.columns[update_cols++] = SEQ_CHG_SCN_COLUMN_ID;
+    cursor->update_info.columns[update_cols++] = SEQ_CHG_SCN_COLUMN_ID;
     (void)row_put_int64(&ra, db_inc_scn(session));
 
     /* regenerate lastnumber when step or cache size changed */
     if (lastnum_changed) {
-        seq->lastval += def->step - seq->step;
-        seq->step = def->step;
-        cur->update_info.columns[update_cols++] = SEQ_LASTVAL_COLUMN_ID;
-        (void)row_put_int64(&ra, seq->lastval);
+        sequence->lastval += def->step - sequence->step;
+        sequence->step = def->step;
+        cursor->update_info.columns[update_cols++] = SEQ_LASTVAL_COLUMN_ID;
+        (void)row_put_int64(&ra, sequence->lastval);
 
         /* regenerate last_number when nextval */
-        seq->cache_pos = seq->cache_size;
+        sequence->cache_pos = sequence->cache_size;
     }
 
-    cur->update_info.count = update_cols;
+    cursor->update_info.count = update_cols;
     ra.head->column_count = update_cols;
-    cm_decode_row(cur->update_info.data, cur->update_info.offsets, cur->update_info.lens, &size);
+    cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 }
 
 status_t db_alter_sequence(knl_session_t *session, knl_handle_t stmt, knl_sequence_def_t *def)
@@ -852,11 +867,11 @@ status_t db_alter_sequence(knl_session_t *session, knl_handle_t stmt, knl_sequen
     sequence_entry_t *entry = NULL;
     rd_seq_t redo;
     if (!def->is_option_set) {
-        GS_THROW_ERROR(ERR_SEQ_INVALID, "no options specified for alter sequence");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SEQ_INVALID, "no options specified for alter sequence");
+        return CT_ERROR;
     }
-    if (GS_SUCCESS != dc_seq_open(session, &def->user, &def->name, &dc_seq)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != dc_seq_open(session, &def->user, &def->name, &dc_seq)) {
+        return CT_ERROR;
     }
 
     sequence = (dc_sequence_t *)dc_seq.handle;
@@ -866,36 +881,40 @@ status_t db_alter_sequence(knl_session_t *session, knl_handle_t stmt, knl_sequen
     if (!sequence->valid || entry->org_scn > DB_CURR_SCN(session)) {
         dls_spin_unlock(session, &entry->lock);
         dc_seq_close(&dc_seq);
-        GS_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(&def->user), T2S_EX(&def->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(&def->user), T2S_EX(&def->name));
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
     cursor = knl_push_cursor(session);
-    if (GS_SUCCESS != db_fetch_seq_description(session, cursor, sequence->uid, &def->name)) {
+    if (CT_SUCCESS != db_fetch_seq_description(session, cursor, sequence->uid, &def->name)) {
         dls_spin_unlock(session, &entry->lock);
         CM_RESTORE_STACK(session->stack);
         dc_seq_close(&dc_seq);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    ctdb_alter_sequence_update_row(session, def, cursor, sequence);
-    if (GS_SUCCESS != knl_internal_update(session, cursor)) {
+    db_alter_seq_update_row(session, def, cursor, sequence);
+    log_add_lrep_ddl_begin(session);
+    if (CT_SUCCESS != knl_internal_update(session, cursor)) {
+        log_add_lrep_ddl_end(session);
         dls_spin_unlock(session, &entry->lock);
         CM_RESTORE_STACK(session->stack);
         dc_seq_close(&dc_seq);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     redo.op_type = RD_ALTER_SEQUENCE;
     redo.uid = dc_seq.uid;
     redo.id = dc_seq.oid;
     log_put(session, RD_LOGIC_OPERATION, &redo, sizeof(rd_seq_t), LOG_ENTRY_FLAG_NONE);
+    log_add_lrep_ddl_info(session, stmt, LOGIC_OP_SEQUNCE, RD_ALTER_SEQUENCE, NULL);
+    log_add_lrep_ddl_end(session);
 
     knl_commit(session);
     dls_spin_unlock(session, &entry->lock);
     CM_RESTORE_STACK(session->stack);
     dc_seq_close(&dc_seq);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t seq_update_seq_nextval(knl_session_t *session, dc_sequence_t *sequence, text_t *name, int64 value)
@@ -904,17 +923,17 @@ status_t seq_update_seq_nextval(knl_session_t *session, dc_sequence_t *sequence,
     row_assist_t ra;
     knl_cursor_t *cursor = NULL;
 
-    if (knl_begin_auton_rm(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_begin_auton_rm(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
 
     cursor = knl_push_cursor(session);
-    if (GS_SUCCESS != db_fetch_seq_description(session, cursor, sequence->uid, name)) {
+    if (CT_SUCCESS != db_fetch_seq_description(session, cursor, sequence->uid, name)) {
         CM_RESTORE_STACK(session->stack);
-        knl_end_auton_rm(session, GS_ERROR);
-        return GS_ERROR;
+        knl_end_auton_rm(session, CT_ERROR);
+        return CT_ERROR;
     }
 
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), 1);
@@ -922,19 +941,19 @@ status_t seq_update_seq_nextval(knl_session_t *session, dc_sequence_t *sequence,
     cursor->update_info.count = 1;
     cursor->update_info.columns[0] = SEQ_LASTVAL_COLUMN_ID;
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
-    if (GS_SUCCESS != knl_internal_update(session, cursor)) {
+    if (CT_SUCCESS != knl_internal_update(session, cursor)) {
         CM_RESTORE_STACK(session->stack);
-        knl_end_auton_rm(session, GS_ERROR);
-        return GS_ERROR;
+        knl_end_auton_rm(session, CT_ERROR);
+        return CT_ERROR;
     }
 
     sequence->lastval = value;
     sequence->cache_pos = sequence->cache_size;
     CM_RESTORE_STACK(session->stack);
 
-    knl_end_auton_rm(session, GS_SUCCESS);
+    knl_end_auton_rm(session, CT_SUCCESS);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_get_seq_def(knl_session_t *session, text_t *user, text_t *name, knl_sequence_def_t *def)
@@ -943,8 +962,8 @@ status_t db_get_seq_def(knl_session_t *session, text_t *user, text_t *name, knl_
     sequence_entry_t *entry = NULL;
     knl_dictionary_t dc_seq;
 
-    if (GS_SUCCESS != dc_seq_open(session, user, name, &dc_seq)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != dc_seq_open(session, user, name, &dc_seq)) {
+        return CT_ERROR;
     }
 
     sequence = (dc_sequence_t *)dc_seq.handle;
@@ -954,8 +973,8 @@ status_t db_get_seq_def(knl_session_t *session, text_t *user, text_t *name, knl_
     if (!sequence->valid || entry->org_scn > DB_CURR_SCN(session)) {
         dls_spin_unlock(session, &entry->lock);
         dc_seq_close(&dc_seq);
-        GS_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(user), T2S_EX(name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(user), T2S_EX(name));
+        return CT_ERROR;
     }
 
     def->step = sequence->step;
@@ -966,7 +985,7 @@ status_t db_get_seq_def(knl_session_t *session, text_t *user, text_t *name, knl_
     def->start = sequence->lastval;
     dls_spin_unlock(session, &entry->lock);
     dc_seq_close(&dc_seq);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_alter_seq_nextval(knl_session_t *session, knl_sequence_def_t *def, int64 value)
@@ -977,8 +996,8 @@ status_t db_alter_seq_nextval(knl_session_t *session, knl_sequence_def_t *def, i
     text_t *user = &def->user;
     text_t *name = &def->name;
 
-    if (GS_SUCCESS != dc_seq_open(session, user, name, &dc_seq)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != dc_seq_open(session, user, name, &dc_seq)) {
+        return CT_ERROR;
     }
 
     sequence = (dc_sequence_t *)dc_seq.handle;
@@ -988,19 +1007,19 @@ status_t db_alter_seq_nextval(knl_session_t *session, knl_sequence_def_t *def, i
     if (!sequence->valid || entry->org_scn > DB_CURR_SCN(session)) {
         dls_spin_unlock(session, &entry->lock);
         dc_seq_close(&dc_seq);
-        GS_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(user), T2S_EX(name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SEQ_NOT_EXIST, T2S(user), T2S_EX(name));
+        return CT_ERROR;
     }
 
-    if (seq_update_seq_nextval(session, sequence, name, value) != GS_SUCCESS) {
+    if (seq_update_seq_nextval(session, sequence, name, value) != CT_SUCCESS) {
         dls_spin_unlock(session, &entry->lock);
         dc_seq_close(&dc_seq);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dls_spin_unlock(session, &entry->lock);
     dc_seq_close(&dc_seq);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void print_alter_sequence(log_entry_t *log)
@@ -1014,8 +1033,8 @@ void print_alter_sequence(log_entry_t *log)
  * @param[in]   session - user session
  * @param[in]   user - username
  * @return
- * - GS_SUCCESS
- * - GS_ERROR
+ * - CT_SUCCESS
+ * - CT_ERROR
  */
 static status_t db_fetch_seq_by_uid(knl_session_t *session, uint32 uid, sequence_desc_t *desc, bool32 *found)
 {
@@ -1028,29 +1047,29 @@ static status_t db_fetch_seq_by_uid(knl_session_t *session, uint32 uid, sequence
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SEQ_ID, SYS_SEQ001_ID);
 
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &uid, sizeof(uint32), 0);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &uid, sizeof(uint32), 0);
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &uid, sizeof(uint32), 0);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &uid, sizeof(uint32), 0);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, 1);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, 1);
 
-    if (GS_SUCCESS != knl_fetch(session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(session, cursor)) {
         CM_RESTORE_STACK(session->stack);
-        *found = GS_FALSE;
-        return GS_SUCCESS;
+        *found = CT_FALSE;
+        return CT_SUCCESS;
     }
 
     if (!cursor->eof) {
         seq_name.str = CURSOR_COLUMN_DATA(cursor, SYS_SEQUENCE_COL_NAME);
         seq_name.len = CURSOR_COLUMN_SIZE(cursor, SYS_SEQUENCE_COL_NAME);
-        (void)cm_text2str(&seq_name, desc->name, GS_MAX_NAME_LEN + 1);
-        *found = GS_TRUE;
+        (void)cm_text2str(&seq_name, desc->name, CT_MAX_NAME_LEN + 1);
+        *found = CT_TRUE;
     } else {
-        *found = GS_FALSE;
+        *found = CT_FALSE;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1058,39 +1077,39 @@ static status_t db_fetch_seq_by_uid(knl_session_t *session, uint32 uid, sequence
  * @param[in]   session - user session
  * @param[in]   user - username
  * @return
- * - GS_SUCCESS
- * - GS_ERROR
+ * - CT_SUCCESS
+ * - CT_ERROR
  */
 status_t db_drop_sequence_by_user(knl_session_t *session, text_t *user, uint32 uid)
 {
-    bool32 found = GS_FALSE;
+    bool32 found = CT_FALSE;
     sequence_desc_t desc;
     knl_dictionary_t dc;
     text_t seq_name;
-    bool32 seq_exists = GS_FALSE;
+    bool32 seq_exists = CT_FALSE;
 
-    if (db_fetch_seq_by_uid(session, uid, &desc, &found) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_fetch_seq_by_uid(session, uid, &desc, &found) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     while (found) {
         cm_str2text(desc.name, &seq_name);
-        if (GS_SUCCESS != dc_seq_open(session, user, &seq_name, &dc)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != dc_seq_open(session, user, &seq_name, &dc)) {
+            return CT_ERROR;
         }
 
-        if (db_drop_sequence(session, NULL, &dc, &seq_exists) != GS_SUCCESS) {
+        if (db_drop_sequence(session, NULL, &dc, &seq_exists) != CT_SUCCESS) {
             dc_seq_close(&dc);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         dc_seq_close(&dc);
 
-        knl_set_session_scn(session, GS_INVALID_ID64);
+        knl_set_session_scn(session, CT_INVALID_ID64);
 
-        if (db_fetch_seq_by_uid(session, uid, &desc, &found) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_fetch_seq_by_uid(session, uid, &desc, &found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Perform hot backups of CANTIAN databases.
+# Perform hot backups of CantianDB100 databases.
 # Copyright © Huawei Technologies Co., Ltd. 2010-2018. All rights reserved.
-import json
+
 import sys
 
 sys.dont_write_bytecode = True
 
 try:
+    import glob
     import getopt
     import getpass
     import grp
@@ -25,12 +26,16 @@ try:
     import json
     import sys
     import collections
-    from cantian_funclib import CommonValue, SingleNodeConfig, ClusterNode0Config, ClusterNode1Config
-    from Common import CommonPrint, get_deploy_value
+    from get_config_info import get_value
+    from cantian_funclib import CommonValue, SingleNodeConfig, ClusterNode0Config, \
+        ClusterNode1Config, DefaultConfigValue
+    from Common import CommonPrint
     from options import Options
     from exception import NormalException
+    from log import LOGGER
     sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "dbstor"))
     from kmc_adapter import CApiWrapper
+
     PYTHON242 = "2.4.2"
     PYTHON3 = "3.0"
     gPyVersion = platform.python_version()
@@ -40,7 +45,7 @@ try:
         print_str.common_log("This install script can not support python version: %s"
                              % gPyVersion)
         raise ValueError("This install script can not support python version: %s"
-                             % gPyVersion)
+                         % gPyVersion)
 
     sys.path.append(os.path.split(os.path.realpath(__file__))[0])
     sys.dont_write_bytecode = True
@@ -57,7 +62,6 @@ CANTIAND_WITH_MYSQL_IN_CLUSTER = "cantiand_with_mysql_in_cluster"
 MYSQLD = "mysqld"
 
 INSTALL_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "installdb.sh")
-IN_CONTAINER_INSTALL_SCRIPT = "/opt/cantian/cantian/script/installdb.sh"
 
 VALID_RUNNING_MODE = {CANTIAND, CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST, CANTIAND_IN_CLUSTER,
                       CANTIAND_WITH_MYSQL_IN_CLUSTER, MYSQLD}
@@ -75,7 +79,7 @@ CONFIG_PARAMS_FILE = os.path.join(PKG_DIR, "config", "deploy_param.json")
 CANTIAN_START_STATUS_FILE = os.path.join("/opt/cantian/cantian", "cfg", "start_status.json")
 CANTIAN_INSTALL_LOG_FILE = "/opt/cantian/cantian/log/cantian_deploy.log"
 CANTIAND_INI_FILE = "/mnt/dbdata/local/cantian/tmp/data/cfg/cantiand.ini"
-ZSQL_INI_FILE = '/mnt/dbdata/local/cantian/tmp/data/cfg/zsql.ini'
+CTSQL_INI_FILE = '/mnt/dbdata/local/cantian/tmp/data/cfg/*sql.ini'
 
 MYSQL_CODE_DIR = "/opt/cantian/image/cantian_connector/mysql-server"
 MYSQL_BIN_DIR = "/opt/cantian/mysql/install/mysql"
@@ -84,13 +88,13 @@ MYSQL_LOG_FILE = ""
 
 g_opts = Options()
 CheckPathsInfo = collections.namedtuple('CheckPathsInfo', ['path_len', 'path_type_in', 'a_ascii',
-                                                            'z_ascii', 'a_cap_ascii', 'z_cap_ascii',
-                                                            'num0_ascii', 'num9_ascii', 'char_check_list'])
+                                                           'z_ascii', 'a_cap_ascii', 'z_cap_ascii',
+                                                           'num0_ascii', 'num9_ascii', 'char_check_list'])
 
 UnitConversionInfo = collections.namedtuple('UnitConversionInfo', ['tmp_gb', 'tmp_mb', 'tmp_kb', 'key', 'value',
-                                                                        'sga_buff_size', 'temp_buffer_size',
-                                                                        'data_buffer_size', 'shared_pool_size',
-                                                                        'log_buffer_size'])
+                                                                   'sga_buff_size', 'temp_buffer_size',
+                                                                   'data_buffer_size', 'shared_pool_size',
+                                                                   'log_buffer_size'])
 
 
 def check_kernel_parameter(para):
@@ -165,11 +169,11 @@ def check_path(path_type_in):
                         ]
     if CURRENT_OS == "Linux":
         get_check_path_linux_info = CheckPathsInfo(path_len, path_type_in, a_ascii, z_ascii, a_cap_ascii,
-                                                        z_cap_ascii, num0_ascii, num9_ascii, char_check_list1)
+                                                   z_cap_ascii, num0_ascii, num9_ascii, char_check_list1)
         return check_path_linux(get_check_path_linux_info)
     elif CURRENT_OS == "Windows":
         get_check_path_windows_info = CheckPathsInfo(path_len, path_type_in, a_ascii, z_ascii, a_cap_ascii,
-                                                        z_cap_ascii, num0_ascii, num9_ascii, char_check_list2)
+                                                     z_cap_ascii, num0_ascii, num9_ascii, char_check_list2)
         return check_path_windows(get_check_path_windows_info)
     else:
         print_str_1 = CommonPrint()
@@ -178,8 +182,8 @@ def check_path(path_type_in):
 
 
 def check_path_linux(get_check_path_linux_info):
-    path_len, path_type_in, a_ascii, z_ascii, a_cap_ascii,\
-    z_cap_ascii, num0_ascii, num9_ascii, char_check_list1 = get_check_path_linux_info
+    path_len, path_type_in, a_ascii, z_ascii, a_cap_ascii, \
+        z_cap_ascii, num0_ascii, num9_ascii, char_check_list1 = get_check_path_linux_info
     for i in range(0, path_len):
         char_check = ord(path_type_in[i])
         if (not (a_ascii <= char_check <= z_ascii
@@ -191,8 +195,8 @@ def check_path_linux(get_check_path_linux_info):
 
 
 def check_path_windows(get_check_path_windows_info):
-    path_len, path_type_in, a_ascii, z_ascii, a_cap_ascii,\
-    z_cap_ascii, num0_ascii, num9_ascii, char_check_list2 = get_check_path_windows_info
+    path_len, path_type_in, a_ascii, z_ascii, a_cap_ascii, \
+        z_cap_ascii, num0_ascii, num9_ascii, char_check_list2 = get_check_path_windows_info
     for i in range(0, path_len):
         char_check = ord(path_type_in[i])
         if (not (a_ascii <= char_check <= z_ascii
@@ -203,7 +207,7 @@ def check_path_windows(get_check_path_windows_info):
     return True
 
 
-def _exec_popen(cmd, values=None, timeout=1800):
+def _exec_popen(cmd, values=None):
     """
     subprocess.Popen in python2 and 3.
     :param cmd: commands need to execute
@@ -222,7 +226,7 @@ def _exec_popen(cmd, values=None, timeout=1800):
             pobj.stdin.write(value.encode())
             pobj.stdin.write(os.linesep.encode())
         try:
-            stdout, stderr = pobj.communicate(timeout=timeout)
+            stdout, stderr = pobj.communicate(timeout=3600)
         except subprocess.TimeoutExpired as err_cmd:
             pobj.kill()
             return -1, "Time Out.", str(err_cmd)
@@ -254,7 +258,9 @@ def _get_input(msg):
     :param msg: input function's prompt message
     :return: the input value of user
     """
-    return input(msg)
+    if gPyVersion[0] == "3":
+        return input(msg)
+    return raw_input(msg)
 
 
 def check_platform():
@@ -275,56 +281,38 @@ def check_platform():
         raise ValueError("This install script can not support %s platform." % CURRENT_OS)
 
 
-def check_runner():
-    """Check whether the user and owner of the script are the same."""
-    owner_uid = os.stat(__file__).st_uid
-    runner_uid = os.getuid()
-    # Owner is root
-    if owner_uid == 0:
-        if runner_uid != 0:
-            runner = pwd.getpwuid(runner_uid).pw_name
-            print_str_1 = CommonPrint()
-            print_str_1.common_log("Error: The owner of install.py has root privilege,"
-                                   " can't run it by user [%s]." % runner)
-            raise ValueError("Error: The owner of install.py has root privilege,"
-                                   " can't run it by user [%s]." % runner)
-    else:
-        if runner_uid == 0:
-            owner = pwd.getpwuid(owner_uid).pw_name
-            print_str_2 = CommonPrint()
-            print_str_2.common_log("Error: The owner of install.py is [%s],"
-                                   " can't run it by root." % owner)
-            raise ValueError("Error: The owner of install.py is [%s],"
-                                   " can't run it by root." % owner)
-        elif runner_uid != owner_uid:
-            runner = pwd.getpwuid(runner_uid).pw_name
-            owner = pwd.getpwuid(owner_uid).pw_name
-            print_str_3 = CommonPrint()
-            print_str_3.common_log("Error: The owner of install.py [%s] is different"
-                                   " with the executor [%s]." % (owner, runner))
-            raise ValueError("Error: The owner of install.py [%s] is different"
-                                   " with the executor [%s]." % (owner, runner))
-
-
-def get_random_num(lower_num, upper_num):
-    # range of values
-    differ_num = upper_num - lower_num + 1
-    # get the first ten rows of random numbers
-    cmd = "cat /dev/urandom | head -n 10 | cksum | awk -F ' ' '{print $1}'"
-    p = subprocess.Popen(["/bin/bash", "-c", cmd], shell=False,
-                         stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE)
-    # format result to string
-    result_num = p.stdout.read().strip().decode()
-    # string to int
-    result_num = int(result_num)
-    rand_num = result_num % differ_num + lower_num
-    return rand_num
-
-
 def usage():
     print_str_1 = CommonPrint()
     print_str_1.common_log(usage.__doc__)
+
+
+def load_config_param(json_data):
+    g_opts.node_id = int(json_data.get('node_id'))
+    if json_data.get('link_type', '0').strip() == '0':
+        g_opts.link_type = "TCP"
+    elif json_data.get('link_type', '0').strip() == '1':
+        g_opts.link_type = "RDMA"
+    elif json_data.get('link_type', '0').strip() == '2':
+        g_opts.link_type = "RDMA_1823"
+    if json_data.get('cantian_in_container', 0) == '1':
+        g_opts.cantian_in_container = True
+    g_opts.db_type = json_data.get('db_type', '').strip()
+    g_opts.storage_dbstore_fs = json_data.get("storage_dbstore_fs").strip()
+    g_opts.storage_share_fs = json_data['storage_share_fs'].strip()
+    g_opts.namespace = json_data.get('cluster_name', 'test1').strip()
+    g_opts.share_logic_ip = json_data.get('share_logic_ip', '').strip()
+    g_opts.archive_logic_ip = json_data.get('archive_logic_ip', '').strip()
+    g_opts.mes_type = json_data.get("mes_type", "UC").strip()
+    g_opts.archive_location = "location=/mnt/dbdata/remote/archive_" + json_data['storage_archive_fs'].strip()
+    metadata_str = "metadata_" + json_data.get('storage_metadata_fs', '').strip()
+    node_str = "node" + str(g_opts.node_id)
+    global MYSQL_DATA_DIR
+    MYSQL_DATA_DIR = os.path.join("/mnt/dbdata/remote", metadata_str, node_str)
+    global MYSQL_LOG_FILE
+    MYSQL_LOG_FILE = os.path.join(MYSQL_DATA_DIR, "mysql.log")
+    g_opts.max_arch_files_size = json_data['MAX_ARCH_FILES_SIZE'].strip()
+    g_opts.cluster_id = json_data['cluster_id'].strip()
+    g_opts.use_dbstor = True if json_data.get("deploy_mode", "").strip() == "dbstore" else False
 
 
 def parse_parameter():
@@ -341,7 +329,7 @@ def parse_parameter():
         for _key, _value in opts:
             if _key == "-s":
                 g_opts.password = _get_input("please input pwd: ").strip()
-                g_opts.cert_password = _get_input("please private key encryption pwd: ").strip()
+                g_opts.cert_encrypt_pwd = _get_input("please input cert_encrypt_pwd:").strip()
             if _key == "-t":
                 if _value.strip() == 'reserve':
                     g_opts.isencrept = False
@@ -353,10 +341,6 @@ def parse_parameter():
             g_opts.log_file = json_data['l_LOG_FILE'].strip()  # -I
             g_opts.running_mode = json_data['M_RUNING_MODE'].strip()  # -M
             g_opts.ignore_pkg_check = True  # -p
-            if json_data.get('USE_DBSTORE', '') == '--dbstor':
-                g_opts.use_dbstor = True  # -dbstore
-            else:
-                g_opts.use_dbstor = False
 
         flags = os.O_RDONLY
         modes = stat.S_IWUSR | stat.S_IRUSR
@@ -368,34 +352,6 @@ def parse_parameter():
         print_str_2 = CommonPrint()
         print_str_2.common_log("Parameter input error: " + error.msg)
         raise ValueError(str(error)) from error
-
-
-def load_config_param(json_data):
-    g_opts.node_id = int(json_data.get('node_id'))
-    if json_data.get('link_type', '0').strip() == '0':
-        g_opts.link_type = "TCP"
-    elif json_data.get('link_type', '0').strip() == '1':
-        g_opts.link_type = "RDMA"
-    elif json_data.get('link_type', '0').strip() == '2':
-        g_opts.link_type = "RDMA_1823"
-    if json_data.get('in_container', 0) == 1:
-        g_opts.in_container = True
-    g_opts.db_type = json_data.get('db_type', '').strip()
-    g_opts.storage_dbstore_fs = json_data.get("storage_dbstore_fs").strip()
-    g_opts.storage_share_fs = json_data['storage_share_fs'].strip()
-    g_opts.namespace = json_data.get('cluster_name', 'test1').strip()
-    g_opts.share_logic_ip = json_data.get('share_logic_ip', '').strip()
-    g_opts.archive_logic_ip = json_data.get('archive_logic_ip', '').strip()
-    g_opts.archive_location = "location=/mnt/dbdata/remote/archive_" + json_data['storage_archive_fs'].strip()
-    metadata_str = "metadata_" + json_data.get('storage_metadata_fs', '').strip()
-    node_str = "node" + str(g_opts.node_id)
-    global MYSQL_DATA_DIR
-    MYSQL_DATA_DIR = os.path.join("/mnt/dbdata/remote", metadata_str, node_str)
-    global MYSQL_LOG_FILE
-    MYSQL_LOG_FILE = os.path.join(MYSQL_DATA_DIR, "mysql.log")
-    g_opts.max_arch_files_size = json_data['MAX_ARCH_FILES_SIZE'].strip()
-    g_opts.cluster_id = json_data.get("cluster_id", "").strip()
-    g_opts.deploy_mode = json_data["deploy_mode"].strip()
 
 
 def is_mlnx():
@@ -421,12 +377,12 @@ def is_mlnx():
     ret_code, os_arch, stderr = _exec_popen("uname -i")
     aarch_mlnx_version_list = ['OFED-internal-5.8-2.0.3', 'MLNX_OFED_LINUX-5.8', 'MLNX_OFED_LINUX-5.9']
     aarch_version_check_result = any(mlnx_version if mlnx_version in stdout else False
-        for mlnx_version in aarch_mlnx_version_list)
+                                     for mlnx_version in aarch_mlnx_version_list)
     if os_arch == "aarch64" and aarch_version_check_result == True:
         log("Is mlnx 5.8~5.9"
             " ret_code : %s, stdout : %s, stderr : %s" % (ret_code, os_arch, stderr))
         return True
-        
+
     log("Not mlnx 5.5")
     return False
 
@@ -459,10 +415,11 @@ def check_parameter():
     # Use the default log path.
     if not g_opts.log_file:
         use_default_log_path()
-    # Check the legitimacy of the path logfile
-    if not check_path(g_opts.log_file):
-        print_str_7.common_log("Error: There is invalid character in specified log file.")
-        raise ValueError("Error: There is invalid character in specified log file.")
+    check_logfile_path(print_str_7)
+    check_running_mode(print_str_7)
+
+
+def check_running_mode(print_str_7):
     # Check running mode
     if len(g_opts.running_mode) == 0 or g_opts.running_mode.lower() not in VALID_RUNNING_MODE:
         print_str_7.common_log("Invalid running mode: " + g_opts.running_mode)
@@ -473,10 +430,13 @@ def check_parameter():
     if g_opts.running_mode.lower() in [CANTIAND, CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST] and g_opts.node_id == 1:
         print_str_7.common_log("Invalid node id: " + g_opts.node_id + ", this node id can only run in cluster mode")
         raise ValueError("Invalid node id: " + g_opts.node_id + ", this node id can only run in cluster mode")
-    # Check docker option
-    if g_opts.in_container ^ os.path.exists("/.dockerenv"):
-        print_str_7.common_log("Wrong docker container env option of -d")
-        raise ValueError("Wrong docker container env option of -d")
+
+
+def check_logfile_path(print_str_7):
+    # Check the legitimacy of the path logfile
+    if not check_path(g_opts.log_file):
+        print_str_7.common_log("Error: There is invalid character in specified log file.")
+        raise ValueError("Error: There is invalid character in specified log file.")
 
 
 def init_start_status_file():
@@ -484,7 +444,7 @@ def init_start_status_file():
     try:
         flags = os.O_WRONLY | os.O_TRUNC | os.O_CREAT
         modes = stat.S_IWUSR | stat.S_IRUSR
-        start_parameters = {'start_status': 'default', 'db_create_status': 'default'}
+        start_parameters = {'start_status': 'default', 'db_create_status': 'default', 'ever_started': False}
         with os.fdopen(os.open(CANTIAN_START_STATUS_FILE, flags, modes), 'w') as load_fp:
             json.dump(start_parameters, load_fp)
     except IOError as ex:
@@ -529,12 +489,7 @@ def log(msg, is_screen=False):
     if is_screen:
         print_str_1 = CommonPrint()
         print_str_1.common_log(msg)
-
-    flags = os.O_RDWR | os.O_CREAT
-    modes = stat.S_IWUSR | stat.S_IRUSR
-    with os.fdopen(os.open(g_opts.log_file, flags, modes), 'a') as fp:
-        fp.write(time.strftime("[%Y-%m-%d %H:%M:%S] ") + msg)
-        fp.write(os.linesep)
+    LOGGER.info(msg)
 
 
 def log_exit(msg):
@@ -543,7 +498,7 @@ def log_exit(msg):
     :param msg: log message
     :return: NA
     """
-    log("Error: " + msg)
+    LOGGER.error(msg)
     raise ValueError("Execute cantian_install.py failed")
 
 
@@ -778,11 +733,11 @@ class Installer:
     # Record the steps for the current operation to fail
     failed_pos = failed_init
     # Record running version number information
-    # Initial value is "CANTIAN-RUN"
+    # Initial value is "CANTIANDB100-V300R001C00-RUN"
     RUN_VERSION_A = "Cantian-RUN"
 
-    # other version: Cantian
-    RUN_VERSION_B = "Cantian-RUN"
+    # other version: CantianDB_100
+    RUN_VERSION_B = "CantianDB_100_1.0.0-RUN"
 
     # start mode
     NOMOUNT_MODE = "nomount"
@@ -790,12 +745,10 @@ class Installer:
     OPEN_MODE = "open"
     # configure file
     CANTIAND_CONF_FILE = "cantiand.ini"
-    ZSQL_CONF_FILE = "zsql.ini"
+    CTSQL_CONF_FILE = "ctsql.ini"
     CMS_CONF_FILE = "cms.ini"
-    GSS_CONF_FILE = "gss_inst.ini"
-    GSS_VG_FILE = "gss_vg_conf.ini"
     CLUSTER_CONF_FILE = "cluster.ini"
-    CANTIAND_HBA_FILE = "zhba.conf"
+    CANTIAND_HBA_FILE = "cthba.conf"
     DEFAULT_INSTANCE_NAME = "cantian"
     # backup cantiand install log dir
     backup_log_dir = ""
@@ -882,11 +835,37 @@ class Installer:
 
         self.factor_key = ""
 
-        self.passwd_in_cantian_ini = ""
-
-        self.zsql_conf = {}
+        self.ctsql_conf = {}
 
         log("End init")
+
+    @staticmethod
+    def set_sql_redo_size_and_num(db_data_path, create_database_sql):
+        """
+        开源场景纯file部署，redo size和num用户可配置
+        """
+        redo_num = int(get_value("redo_num"))
+        redo_size = get_value("redo_size")
+        sql_file = os.path.join(db_data_path, create_database_sql)
+        with open(sql_file, "r") as file:
+            sql_content = file.read()
+        pattern = r"logfile (\(.*\n{0,}.*\))"
+        replace_content = re.findall(pattern, sql_content)
+        for item in replace_content:
+            sql_content = sql_content.replace(item, "(%s)")
+        s = []
+        for i in range(1, redo_num * 2 + 1):
+            redo_index = "{:02d}".format(i)
+            if i == 10:
+                redo_index = "0a"
+            s.append("'dbfiles3/redo%s.dat' size %s" % (redo_index, redo_size))
+        node0_redo = ", ".join(s[:redo_num])
+        node1_redo = ", ".join(s[redo_num:])
+        data = sql_content % (node0_redo, node1_redo)
+        modes = stat.S_IWRITE | stat.S_IRUSR
+        flags = os.O_WRONLY | os.O_TRUNC | os.O_CREAT
+        with os.fdopen(os.open(sql_file, flags, modes), 'w', encoding='utf-8') as file:
+            file.write(data)
 
     def get_decompress_tarname(self, tar_file):
         '''
@@ -956,11 +935,11 @@ class Installer:
         """
         # 获取默认值
         if g_opts.running_mode in [CANTIAND, CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST]:
-            self.cantiand_configs = SingleNodeConfig.get_config(g_opts.in_container)
+            self.cantiand_configs = SingleNodeConfig.get_config(g_opts.cantian_in_container)
         if g_opts.running_mode in [CANTIAND_IN_CLUSTER, CANTIAND_WITH_MYSQL_IN_CLUSTER] and g_opts.node_id == 0:
-            self.cantiand_configs = ClusterNode0Config.get_config(g_opts.in_container)
+            self.cantiand_configs = ClusterNode0Config.get_config(g_opts.cantian_in_container)
         if g_opts.running_mode in [CANTIAND_IN_CLUSTER, CANTIAND_WITH_MYSQL_IN_CLUSTER] and g_opts.node_id == 1:
-            self.cantiand_configs = ClusterNode1Config.get_config(g_opts.in_container)
+            self.cantiand_configs = ClusterNode1Config.get_config(g_opts.cantian_in_container)
 
     def check_parameter(self):
         """
@@ -991,7 +970,7 @@ class Installer:
         ret_code, stdout, stderr = _exec_popen(str_cmd)
         if ret_code:
             log_exit("%s : no such user, command: %s"
-                "ret_code : %s, stdout : %s, stderr : %s" % (self.user, str_cmd, ret_code, stdout, stderr))
+                     "ret_code : %s, stdout : %s, stderr : %s" % (self.user, str_cmd, ret_code, stdout, stderr))
         if self.option == self.INS_ALL:
             # App data and inst data can't be the same one.
             if self.install_path == self.data:
@@ -1041,15 +1020,16 @@ class Installer:
 
     def add_config_for_dbstore(self):
         self.cantiand_configs["CONTROL_FILES"] = "{0}, {1}, {2}".format(os.path.join(self.data, "data/ctrl1"),
-                                                                       os.path.join(self.data, "data/ctrl2"),
-                                                                       os.path.join(self.data, "data/ctrl3"))
+                                                                        os.path.join(self.data, "data/ctrl2"),
+                                                                        os.path.join(self.data, "data/ctrl3"))
         if g_opts.use_dbstor:
             self.cantiand_configs["CONTROL_FILES"] = "(-ctrl1, -ctrl2, -ctrl3)"
             self.cantiand_configs["SHARED_PATH"] = "-"
             self.cantiand_configs["ENABLE_DBSTOR"] = "TRUE"
             self.cantiand_configs["DBSTOR_NAMESPACE"] = g_opts.namespace
         else:
-            self.cantiand_configs["SHARED_PATH"] = '/mnt/dbdata/remote/storage_{}/data'.format(g_opts.storage_dbstore_fs)
+            self.cantiand_configs["SHARED_PATH"] = '/mnt/dbdata/remote/storage_{}/data'.format(
+                g_opts.storage_dbstore_fs)
 
     def parse_key_and_value(self):
         flags = os.O_RDONLY
@@ -1057,7 +1037,11 @@ class Installer:
         with os.fdopen(os.open(CONFIG_PARAMS_FILE, flags, modes), 'r') as fp:
             json_data = json.load(fp)
             _value = json_data.get('cms_ip', '0').strip()
-            self.cantiand_configs['INTERCONNECT_ADDR'] = _value.replace(';', ',')
+            self.cantiand_configs['INTERCONNECT_ADDR'] = _value
+            node_addr = _value.split(";")[g_opts.node_id]
+            self.cantiand_configs['LSNR_ADDR'] += "," + node_addr
+            _value = json_data.get('mysql_metadata_in_cantian', 'True')
+            self.cantiand_configs['MYSQL_METADATA_IN_CANTIAN'] = str(_value).upper()
 
         flags = os.O_RDONLY
         modes = stat.S_IWUSR | stat.S_IRUSR
@@ -1073,8 +1057,8 @@ class Installer:
                     self.cantiand_configs[_value[0].strip().upper()] = _value[1].strip()
             if g_opts.password:
                 self.cantiand_configs["_SYS_PASSWORD"] = g_opts.password
-            if g_opts.cert_password:
-                self.cantiand_configs["MES_SSL_KEY_PWD"] = g_opts.cert_password
+            if g_opts.cert_encrypt_pwd:
+                self.cantiand_configs["MES_SSL_KEY_PWD"] = g_opts.cert_encrypt_pwd
             self.close_ssl = True
 
     def check_runner(self):
@@ -1113,8 +1097,6 @@ class Installer:
         :return:
         """
         cmd = "chown %s:%s -hR \"%s\";" % (self.user, self.group, self.data)
-        if g_opts.in_container:
-            cmd += "chown %s:%s -hR \"%s\";" % (self.user, self.group, CommonValue.DOCKER_DATA_DIR)
         log("Change owner cmd: %s" % cmd)
         ret_code, _, stderr = _exec_popen(cmd)
         if ret_code:
@@ -1139,7 +1121,7 @@ class Installer:
         ret_code, stdout, stderr = _exec_popen(str_cmd)
         if ret_code:
             log_exit("Can not get user home."
-                "ret_code : %s, stdout : %s, stderr : %s" % (ret_code, stdout, stderr))
+                     "ret_code : %s, stdout : %s, stderr : %s" % (ret_code, stdout, stderr))
         # Get the profile of user.
         output = os.path.realpath(os.path.normpath(stdout))
         if (not check_path(output)):
@@ -1175,7 +1157,7 @@ class Installer:
             user_info = str_line.split()
             self.dealwith_gsdb_data(user_info, str_line)
             if (len(user_info) >= 2 and user_info[0] == "export"
-                    and user_info[1].startswith("GSDB_HOME_BAK=") > 0):
+                    and user_info[1].startswith("CTDB_HOME_BAK=") > 0):
                 is_find = True
                 break
             else:
@@ -1295,14 +1277,14 @@ class Installer:
                         ret_code, stdout, stderr = _exec_popen(str_cmd)
                         if ret_code:
                             log_exit("can not get detail information of the"
-                                    " port, command: %s."
-                                    "ret_code : %s, stdout : %s, stderr : %s" % (str_cmd, ret_code, stdout, stderr))
+                                     " port, command: %s."
+                                     "ret_code : %s, stdout : %s, stderr : %s" % (str_cmd, ret_code, stdout, stderr))
                         log_exit(str(stdout))
                 except ValueError as ex:
                     log_exit("check port failed: " + str(ex))
             else:
                 log_exit("This install script can not support python version"
-                        " : " + gPyVersion)
+                         " : " + gPyVersion)
 
     def check_inner_port(self, value):
         time_out = 2
@@ -1352,7 +1334,7 @@ class Installer:
 
         if ret_code or stdout != '3':
             log_exit("The invalid IP address is %s. "
-                    "ret_code : %s, stdout : %s, stderr : %s" % (node_ip, ret_code, stdout, stderr))
+                     "ret_code : %s, stdout : %s, stderr : %s" % (node_ip, ret_code, stdout, stderr))
 
         if all_zero_addr_after_ping(node_ip):
             ip_is_found = 1
@@ -1364,8 +1346,7 @@ class Installer:
 
         if ret_code or not int(ip_is_found):
             log_exit("The invalid IP address is %s. "
-                    "ret_code : %s, ip_is_found : %s, stderr : %s" % (node_ip, ret_code, ip_is_found, stderr))
-
+                     "ret_code : %s, ip_is_found : %s, stderr : %s" % (node_ip, ret_code, ip_is_found, stderr))
 
         log("checked the node IP address : %s" % node_ip)
 
@@ -1401,9 +1382,15 @@ class Installer:
             if len(_ans) != 2:
                 log("Warning: numa node get error, ans:%s" % ans)
                 return
-            numa_info += _ans[1].strip() + " "
+            numa_str = _ans[1].strip()
+            if platform.machine() == 'aarch64' and numa_num == 0:
+                numa_id_str = _ans[1].strip().split('-')
+                last_numa_id = numa_id_str[-1]
+                if int(last_numa_id) >= 16:
+                    numa_str = "0-1,6-11,16-" + str(last_numa_id)
+            numa_info += numa_str + " "
             numa_num += 1
-        
+
         if not numa_info.isspace():
             shm_mysql_cpu_group_info = (numa_info[:-1] + ";") * numa_cpu_num
             self.cantiand_configs["SHM_MYSQL_CPU_GROUP_INFO"] = shm_mysql_cpu_group_info[:-1]
@@ -1439,8 +1426,8 @@ class Installer:
                 check_invalid_symbol(value)
                 # Unit conversion
                 get_unit_conversion_info = UnitConversionInfo(tmp_gb, tmp_mb, tmp_kb, key, value,
-                                                                sga_buff_size, temp_buffer_size, data_buffer_size,
-                                                                shared_pool_size, log_buffer_size)
+                                                              sga_buff_size, temp_buffer_size, data_buffer_size,
+                                                              shared_pool_size, log_buffer_size)
                 sga_buff_size = self.do_unit_conversion(get_unit_conversion_info)
             except ValueError as ex:
                 log_exit("check kernel parameter failed: " + str(ex))
@@ -1451,7 +1438,7 @@ class Installer:
             for item in _list:
                 if len(_list) != 1 and all_zero_addr_after_ping(item):
                     log_exit("lsnr_addr contains all-zero ip,"
-                            " can not specify other ip.")
+                             " can not specify other ip.")
                 self.check_ip_is_vaild(item)
         else:
             # If this parameter is empty, the IPv4 is used by default.
@@ -1478,11 +1465,11 @@ class Installer:
             log_exit("can not get shmmax parameters, command: %s, err: %s" % (cmd, stderr))
         if sga_buff_size < 114 * tmp_mb:
             log_exit("sga_buff_size should bigger than or equal to 114*MB,"
-                    " please check it!")
+                     " please check it!")
         try:
             if sga_buff_size > int(cur_avi_memory) * tmp_kb:
                 log_exit("sga_buff_size should smaller than shmmax,"
-                        " please check it!")
+                         " please check it!")
         except ValueError as ex:
             log_exit("check kernel parameter failed: " + str(ex))
 
@@ -1501,8 +1488,8 @@ class Installer:
 
     @staticmethod
     def kmc_resovle_password(mode, plain_text):
-        primary_keystore = "/opt/cantian/common/config/primary_keystore_bak.ks"
-        standby_keystore = "/opt/cantian/common/config/standby_keystore_bak.ks"
+        primary_keystore = DefaultConfigValue.PRIMARY_KEYSTORE
+        standby_keystore = DefaultConfigValue.STANDBY_KEYSTORE
         kmc_adapter = CApiWrapper(primary_keystore, standby_keystore)
         kmc_adapter.initialize()
         try:
@@ -1519,14 +1506,23 @@ class Installer:
 
         return ret_pwd
 
-    def decrypt_db_passwd(self):
-        if g_opts.use_dbstor:
-            zsql_ini_data = file_reader(ZSQL_INI_FILE)
-            encrypt_pwd = zsql_ini_data[zsql_ini_data.find('=') + 1:].strip()
-            mode = "decrypted"
-            g_opts.db_passwd = Installer.kmc_resovle_password(mode, encrypt_pwd)
-        else:
-            g_opts.db_passwd = input("please enter cantian_sys_pwd:")
+    @staticmethod
+    def decrypt_db_passwd():
+        file_list = glob.glob(CTSQL_INI_FILE)
+        ctsql_ini_data = file_reader(file_list[0])
+        encrypt_pwd = ctsql_ini_data[ctsql_ini_data.find('=') + 1:].strip()
+        mode = "decrypted"
+        g_opts.db_passwd = Installer.kmc_resovle_password(mode, encrypt_pwd)
+
+    @staticmethod
+    def set_cms_ini(passwd):
+        cms_conf = "/opt/cantian/cms/cfg/cms.ini"
+        str_cmd = f"sed -i '/_CMS_MES_SSL_KEY_PWD = None/d' {cms_conf}" \
+                  f"&& echo '_CMS_MES_SSL_KEY_PWD = {passwd}' >> {cms_conf}"
+        log("Copy config files cmd: " + str_cmd)
+        ret_code, _, stderr = _exec_popen(str_cmd)
+        if ret_code:
+            log_exit("update cms.ini failed: " + str(ret_code) + os.linesep + stderr)
 
     def init_specify_kernel_para(self, key, value):
         """get the value of some kernel parameters."""
@@ -1555,9 +1551,9 @@ class Installer:
             return
 
     def do_unit_conversion(self, get_unit_conversion_info):
-        tmp_gb, tmp_mb, tmp_kb, key, value,\
-        sga_buff_size, temp_buffer_size, data_buffer_size,\
-        shared_pool_size, log_buffer_size = get_unit_conversion_info
+        tmp_gb, tmp_mb, tmp_kb, key, value, \
+            sga_buff_size, temp_buffer_size, data_buffer_size, \
+            shared_pool_size, log_buffer_size = get_unit_conversion_info
         if key in ["TEMP_BUFFER_SIZE", "DATA_BUFFER_SIZE",
                    "SHARED_POOL_SIZE", "LOG_BUFFER_SIZE"]:
             if value[0:-1].isdigit() and value[-1:] in ["G", "M", "K"]:
@@ -1589,48 +1585,48 @@ class Installer:
         """
         # change install path privilege to 700
         str_cmd = "chmod %s %s -R" % (CommonValue.KEY_DIRECTORY_MODE,
-                                     self.install_path)
+                                      self.install_path)
         # chmod add-ons/ file 500
         str_cmd += ("&& find '%s'/add-ons -type f | xargs chmod %s "
-                   % (self.install_path, CommonValue.MID_FILE_MODE))
+                    % (self.install_path, CommonValue.MID_FILE_MODE))
         # chmod admin/ file 600
         str_cmd += ("&& find '%s'/admin -type f | xargs chmod %s "
-                   % (self.install_path, CommonValue.KEY_FILE_MODE))
+                    % (self.install_path, CommonValue.KEY_FILE_MODE))
         # chmod admin/scripts/fetch_cls_stat.py file 550
         str_cmd += ("&& find '%s'/admin -type f | grep fetch_cls_stat.py | xargs chmod %s "
-                   % (self.install_path, CommonValue.MAX_FILE_MODE))
+                    % (self.install_path, CommonValue.MAX_FILE_MODE))
         # chmod lib/ file 500
         str_cmd += ("&& find '%s'/lib -type f | xargs chmod %s"
-                   % (self.install_path, CommonValue.MID_FILE_MODE))
+                    % (self.install_path, CommonValue.MID_FILE_MODE))
         # chmod bin/ file 500
         str_cmd += ("&& find '%s'/bin -type f | xargs chmod %s "
-                   % (self.install_path, CommonValue.MID_FILE_MODE))
+                    % (self.install_path, CommonValue.MID_FILE_MODE))
         str_cmd += ("&& find '%s'/cfg -type f | xargs chmod %s "
-                   % (self.install_path, CommonValue.KEY_FILE_MODE))
+                    % (self.install_path, CommonValue.KEY_FILE_MODE))
         package_xml = os.path.join(self.install_path, "package.xml")
         if os.path.exists(package_xml):
             str_cmd += ("&& chmod %s '%s'/package.xml"
-                       % (CommonValue.MIN_FILE_MODE, self.install_path))
+                        % (CommonValue.MIN_FILE_MODE, self.install_path))
 
         log("Change app permission cmd: %s" % str_cmd)
         ret_code, _, stderr = _exec_popen(str_cmd)
         if ret_code:
             self.failed_pos = self.DECOMPRESS_BIN_FAILED
             log_exit("chmod %s return: " % CommonValue.KEY_DIRECTORY_MODE
-                    + str(ret_code) + os.linesep + stderr)
+                     + str(ret_code) + os.linesep + stderr)
         # 管控面使用
         str_cmd = "chmod %s %s " % (CommonValue.MAX_DIRECTORY_MODE,
-                                   self.install_path)
+                                    self.install_path)
         str_cmd += "&& chmod %s %s " % (CommonValue.MAX_DIRECTORY_MODE,
-                                       os.path.join(self.install_path, "admin"))
+                                        os.path.join(self.install_path, "admin"))
         str_cmd += "&& chmod %s %s" % (CommonValue.MAX_DIRECTORY_MODE,
-                                      os.path.join(self.install_path, "admin", "scripts"))
+                                       os.path.join(self.install_path, "admin", "scripts"))
         log("Change app server/admin/scripts dir for om. cmd: %s" % str_cmd)
         ret_code, _, stderr = _exec_popen(str_cmd)
         if ret_code:
             self.failed_pos = self.DECOMPRESS_BIN_FAILED
             log_exit("chmod %s return: " % CommonValue.KEY_DIRECTORY_MODE
-                    + str(ret_code) + os.linesep + stderr)
+                     + str(ret_code) + os.linesep + stderr)
 
     def verify_new_passwd(self, passwd, shortest_len):
         """
@@ -1700,6 +1696,38 @@ class Installer:
         else:
             raise ValueError("Failed to get new %s." % pw_prompt)
 
+    def check_sys_passwd(self):
+        """
+        Whether the password of the sys user has been specified. If not, raise
+        :return: NA
+        """
+        # 0. "_SYS_PASSWORD" can't be set when ENABLE_SYSDBA_LOGIN is False
+        sys_password = self.cantiand_configs["_SYS_PASSWORD"]
+        if not self.enable_sysdba_login and len(sys_password) != 0:
+            raise ValueError("Can't use _SYS_PASSWORD to set the password of "
+                             "user [SYS] in the installation script when "
+                             "ENABLE_SYSDBA_LOGIN is False.")
+
+        # 1. Get passed from parameter -C
+        # Set passwd of SYS in cantiand.ini by parameter -C
+        if len(sys_password) != 0:
+            return
+
+        # 2. Get passwd from pipe and interactive input
+        if sys.stdin.isatty():
+            # If not pipe content, get passwd by interactive input
+            g_opts.db_passwd = self.get_new_passwd(
+                pw_prompt="database password",
+                user_prompt="user [SYS]",
+                shortest_len=8)
+        else:
+            try:
+                # Get passwd from pipe
+                g_opts.db_passwd = _get_input("")
+            except EOFError as error:
+                # Not find passwd from pipe
+                raise ValueError("The content got from pipe not find passwd.") from error
+            self.verify_new_passwd(g_opts.db_passwd, 8)
 
     def install_xnet_lib(self):
         if is_rdma_startup():
@@ -1722,7 +1750,7 @@ class Installer:
         Unzip the installation files to the installation directory.
         :return: NA
         """
-        self.run_file = "/opt/cantian/image/cantian_connector/CantianKernel/Cantian-DATABASE-CENTOS-64bit/"\
+        self.run_file = "/opt/cantian/image/cantian_connector/CantianKernel/Cantian-DATABASE-CENTOS-64bit/" \
                         "Cantian-RUN-CENTOS-64bit.tar.gz"
         self.run_pkg_name = self.get_decompress_tarname(self.run_file)
 
@@ -1742,11 +1770,11 @@ class Installer:
 
             str_cmd += " && cp %s/cfg/osd.cfg %s/dbstor/conf/infra/config/osd.cfg" % (self.install_path, self.data)
             str_cmd += " && cp /mnt/dbdata/remote/share_%s/node%s/dbstor_config.ini %s/dbstor/conf/dbs/" % (
-            g_opts.storage_share_fs, g_opts.node_id, self.data)
+                g_opts.storage_share_fs, g_opts.node_id, self.data)
             str_cmd += " && echo 'DBSTOR_OWNER_NAME = cantian' >> %s/dbstor/conf/dbs/dbstor_config.ini" % (self.data)
             str_cmd += " && sed -i '/^\s*$/d' %s/dbstor/conf/dbs/dbstor_config.ini" % (self.data)
             str_cmd += " && chown -R %s:%s %s/dbstor" % (self.user, self.group, self.data)
-            str_cmd += " && chmod 640 %s/dbstor/conf/dbs/dbstor_config.ini" % self.data
+            str_cmd += " && chmod 640 %s/dbstor/conf/dbs/dbstor_config.ini" % (self.data)
             log("Copy config files cmd: " + str_cmd)
             ret_code, _, stderr = _exec_popen(str_cmd)
             if ret_code:
@@ -1755,21 +1783,21 @@ class Installer:
 
         cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
 
-        if g_opts.deploy_mode != "--nas":
+        if g_opts.use_dbstor:
             self.install_xnet_lib()
         # change app permission
         self.change_app_permission()
 
         # change owner to user:group
         str_cmd = "chown %s:%s -hR %s " % (self.user, self.group,
-                                          self.install_path)
+                                           self.install_path)
         # Change the owner
         log("Change owner cmd: %s" % str_cmd)
         ret_code, _, stderr = _exec_popen(str_cmd)
         if ret_code:
             self.failed_pos = self.DECOMPRESS_BIN_FAILED
             log_exit("chown to %s: %s return: %s%s%s"
-                    % (self.user, self.group, str(ret_code), os.linesep, stderr))
+                     % (self.user, self.group, str(ret_code), os.linesep, stderr))
 
         log("End decompress bin file.")
 
@@ -1779,6 +1807,9 @@ class Installer:
             modes = stat.S_IWUSR | stat.S_IRUSR
             with os.fdopen(os.open(self.user_profile, flags, modes), 'a') as _file:
                 _file.write("export CTDB_HOME=\"%s\"" % self.install_path)
+                _file.write(os.linesep)
+                _file.write("export PATH=\"%s\":$PATH"
+                            % os.path.join(MYSQL_BIN_DIR, "bin"))
                 _file.write(os.linesep)
                 _file.write("export PATH=\"%s\":$PATH"
                             % os.path.join(self.install_path, "bin"))
@@ -1817,7 +1848,7 @@ class Installer:
         log("Setting user env.")
         # set PATH, LD_LIBRARY_PATH
         self.export_user_env()
-        # Avoid create database failed by the value of ZSQL_SSL_KEY_PASSWD
+        # Avoid create database failed by the value of CTSQL_SSL_KEY_PASSWD
         self.clean_ssl_env()
 
         os.environ['PATH'] = (os.path.join(self.install_path, "bin")
@@ -1838,12 +1869,12 @@ class Installer:
 
         # Clean the env about ssl cert
         # Avoid remaining environmental variables interfering
-        # with the execution of subsequent zsql
-        os.environ["ZSQL_SSL_CA"] = ""
-        os.environ["ZSQL_SSL_CERT"] = ""
-        os.environ["ZSQL_SSL_KEY"] = ""
-        os.environ["ZSQL_SSL_MODE"] = ""
-        os.environ["ZSQL_SSL_KEY_PASSWD"] = ""
+        # with the execution of subsequent ctsql
+        os.environ["CTSQL_SSL_CA"] = ""
+        os.environ["CTSQL_SSL_CERT"] = ""
+        os.environ["CTSQL_SSL_KEY"] = ""
+        os.environ["CTSQL_SSL_MODE"] = ""
+        os.environ["CTSQL_SSL_KEY_PASSWD"] = ""
         log("End set user env.")
 
     def set_new_conf(self, param_dict, conf_file):
@@ -1884,11 +1915,10 @@ class Installer:
                                 % (conf_file, cmd, stderr))
 
     def generate_nomount_passwd(self, plain_passwd=""):
-
-        cmd = "temp_path=${LD_LIBRARY_PATH}; export LD_LIBRARY_PATH=/usr/lib64/:%s/lib:${LD_LIBRARY_PATH} " \
-              "; %s/bin/zencrypt -e PBKDF2 ; export LD_LIBRARY_PATH=${temp_path}" % (self.install_path, self.install_path)
+        cmd = "source ~/.bashrc && %s/bin/ctencrypt -e PBKDF2" % self.install_path
         g_opts.db_passwd = g_opts.db_passwd if len(plain_passwd.strip()) == 0 else plain_passwd.strip()
         values = [g_opts.db_passwd, g_opts.db_passwd]
+
         ret_code, stdout, stderr = _exec_popen(cmd, values)
         if ret_code:
             raise OSError("Failed to encrypt password of user [sys]."
@@ -1901,12 +1931,7 @@ class Installer:
         # *********
         # eg 'Cipher:         XXXXXXXXXXXXXXXXXXXXXXX'
         lines = stdout.split(os.linesep)
-        for line in lines:
-            if "Cipher" in line:
-                cipher = line.split(":")[1].strip()
-                break
-        else:
-            raise Exception("zencrypt cantian sys pwd failed")
+        cipher = lines[4].split(":")[1].strip()
         return cipher
 
     def set_conf(self, config, file, encrypt_passwd=False):
@@ -1928,24 +1953,31 @@ class Installer:
         # Generate new kernel parameters
         common_parameters = copy.deepcopy(config)
         # Set password of NOMOUNT mode before create database.
-        if encrypt_passwd and g_opts.use_dbstor:
-            mode = "encrypted"
-            self.zsql_conf["SYS_PASSWORD"] = Installer.kmc_resovle_password(mode, common_parameters["_SYS_PASSWORD"])
-            common_parameters["MES_SSL_KEY_PWD"] = g_opts.cert_password
-            self.set_zsql_conf()
         if encrypt_passwd:
+            mode = "encrypted"
+            self.ctsql_conf["SYS_PASSWORD"] = Installer.kmc_resovle_password(mode, common_parameters["_SYS_PASSWORD"])
             common_parameters["_SYS_PASSWORD"] = self.generate_nomount_passwd(common_parameters["_SYS_PASSWORD"])
+            if g_opts.mes_type == "TCP":
+                common_parameters["MES_SSL_KEY_PWD"] = Installer.kmc_resovle_password(mode, g_opts.cert_encrypt_pwd)
+
+                self.set_cms_ini(common_parameters["MES_SSL_KEY_PWD"])
             g_opts.password = common_parameters["_SYS_PASSWORD"]
+        else:
+            self.ctsql_conf["SYS_PASSWORD"] = common_parameters["_SYS_PASSWORD"]
+
+        if not g_opts.use_dbstor:
+            common_parameters["FILE_OPTIONS"] = "FULLDIRECTIO"
 
         # 1.clean old conf
         self.clean_old_conf(list(common_parameters.keys()), conf_file)
         # 2.set new conf
         self.set_new_conf(common_parameters, conf_file)
+        self.set_ctsql_conf()
 
-    def set_zsql_conf(self):
-        conf_file = os.path.join(self.data, "cfg", self.ZSQL_CONF_FILE)
+    def set_ctsql_conf(self):
+        conf_file = os.path.join(self.data, "cfg", self.CTSQL_CONF_FILE)
         cmd = ""
-        for key, value in self.zsql_conf.items():
+        for key, value in self.ctsql_conf.items():
             cmd += "echo '%s = %s' >> %s;" % (key, value, conf_file)
         if cmd:
             cmd = cmd.strip(";")
@@ -1970,10 +2002,19 @@ class Installer:
             size = 1
         if g_opts.node_id == 0 or g_opts.node_id == 1:
             node_ip = self.cantiand_configs["INTERCONNECT_ADDR"].split(",")
+            if ";" in self.cantiand_configs["INTERCONNECT_ADDR"]:
+                node_ip = self.cantiand_configs["INTERCONNECT_ADDR"].split(";")
         if len(node_ip) == 1:
             node_ip.append("127.0.0.1")
         # Generate new kernel parameters
+        common_parameters = self.write_cluster_conf(node_ip, size)
 
+        # 1.clean old conf
+        self.clean_old_conf(list(common_parameters.keys()), conf_file)
+        # 2.set new conf
+        self.set_new_conf(common_parameters, conf_file)
+
+    def write_cluster_conf(self, node_ip, size):
         common_parameters = {
             "REPORT_FILE": g_opts.log_file,
             "STATUS_LOG": os.path.join(self.data, "log", "cantianstatus.log"),
@@ -2013,15 +2054,12 @@ class Installer:
         with os.fdopen(os.open(CANTIAN_CONF_FILE, flags, modes), 'w') as fp:
             json.dump(cantian_config_data, fp)
 
-        # 1.clean old conf
-        self.clean_old_conf(list(common_parameters.keys()), conf_file)
-        # 2.set new conf
-        self.set_new_conf(common_parameters, conf_file)
+        return common_parameters
 
-    def set_zhba_ssl(self):
-        """Replace host to hostssl in zhba.conf"""
-        zhba_file = os.path.join(self.data, "cfg", self.CANTIAND_HBA_FILE)
-        cmd = "sed -i 's#^host #hostssl #g' %s" % zhba_file
+    def set_cthba_ssl(self):
+        """Replace host to hostssl in cthba.conf"""
+        cthba_file = os.path.join(self.data, "cfg", self.CANTIAND_HBA_FILE)
+        cmd = "sed -i 's#^host #hostssl #g' %s" % cthba_file
         log("Set white list from host to hostssl.")
         ret_code, _, stderr = _exec_popen(cmd)
         if ret_code:
@@ -2029,12 +2067,12 @@ class Installer:
             log(err_msg + " Error: %s" % stderr)
             log_exit(err_msg)
 
-    def add_zhba_item(self):
-        """Add INTERCONNECT_ADDR and ip white list to zhba.conf"""
+    def add_cthba_item(self):
+        """Add INTERCONNECT_ADDR and ip white list to cthba.conf"""
         addr_list = []
         if len(g_opts.white_list) != 0:
             addr_list = [_.strip() for _ in g_opts.white_list.split(",")]
-        for item in self.cantiand_configs["INTERCONNECT_ADDR"].split(","):
+        for item in re.split(r"[;,]", self.cantiand_configs["INTERCONNECT_ADDR"]):
             if item not in addr_list:
                 addr_list.append(item)
         if "127.0.0.1" in addr_list:
@@ -2043,11 +2081,11 @@ class Installer:
             addr_list.remove("::1")
 
         if addr_list:
-            zhba_file = os.path.join(self.data, "cfg", self.CANTIAND_HBA_FILE)
+            cthba_file = os.path.join(self.data, "cfg", self.CANTIAND_HBA_FILE)
             host_type = self.close_ssl and "host" or "hostssl"
             cmd = ""
             for addr in addr_list:
-                cmd += "echo '%s * %s' >> %s; " % (host_type, addr, zhba_file)
+                cmd += "echo '%s * %s' >> %s; " % (host_type, addr, cthba_file)
 
             if cmd:
                 cmd = cmd.strip(";")
@@ -2066,10 +2104,10 @@ class Installer:
         log("Initialize db instance.")
         try:
             self.failed_pos = self.INIT_DB_FAILED
-            # Set zhba.conf to hostssl
+            # Set cthba.conf to hostssl
             if not self.close_ssl:
-                self.set_zhba_ssl()
-            self.add_zhba_item()
+                self.set_cthba_ssl()
+            self.add_cthba_item()
             # g_opts.isencrept默认加密
             self.set_conf(self.cantiand_configs, self.CANTIAND_CONF_FILE, g_opts.isencrept)
             self.set_cluster_conf()
@@ -2118,11 +2156,11 @@ class Installer:
         """
         log("Begin clean user environment variables about ssl...")
         # Clear environment ssl cert
-        ca_cmd = r"/^\s*export\s*ZSQL_SSL_CA=.*$/d"
-        cert_cmd = r"/^\s*export\s*ZSQL_SSL_CERT=.*$/d"
-        key_cmd = r"/^\s*export\s*ZSQL_SSL_KEY=.*$/d"
-        mode_cmd = r"/^\s*export\s*ZSQL_SSL_MODE=.*$/d"
-        cipher_cmd = r"/^\s*export\s*ZSQL_SSL_KEY_PASSWD=.*$/d"
+        ca_cmd = r"/^\s*export\s*CTSQL_SSL_CA=.*$/d"
+        cert_cmd = r"/^\s*export\s*CTSQL_SSL_CERT=.*$/d"
+        key_cmd = r"/^\s*export\s*CTSQL_SSL_KEY=.*$/d"
+        mode_cmd = r"/^\s*export\s*CTSQL_SSL_MODE=.*$/d"
+        cipher_cmd = r"/^\s*export\s*CTSQL_SSL_KEY_PASSWD=.*$/d"
         cmds = [ca_cmd, cert_cmd, key_cmd, mode_cmd, cipher_cmd]
 
         # do clean
@@ -2151,11 +2189,11 @@ class Installer:
         # Clear environment variable CMS_HOME
 
         # Clear environment ssl cert
-        ca_cmd = r"/^\s*export\s*ZSQL_SSL_CA=.*$/d"
-        cert_cmd = r"/^\s*export\s*ZSQL_SSL_CERT=.*$/d"
-        key_cmd = r"/^\s*export\s*ZSQL_SSL_KEY=.*$/d"
-        mode_cmd = r"/^\s*export\s*ZSQL_SSL_MODE=.*$/d"
-        cipher_cmd = r"/^\s*export\s*ZSQL_SSL_KEY_PASSWD=.*$/d"
+        ca_cmd = r"/^\s*export\s*CTSQL_SSL_CA=.*$/d"
+        cert_cmd = r"/^\s*export\s*CTSQL_SSL_CERT=.*$/d"
+        key_cmd = r"/^\s*export\s*CTSQL_SSL_KEY=.*$/d"
+        mode_cmd = r"/^\s*export\s*CTSQL_SSL_MODE=.*$/d"
+        cipher_cmd = r"/^\s*export\s*CTSQL_SSL_KEY_PASSWD=.*$/d"
 
         cmds = [path_cmd, lib_cmd, home_cmd,
                 ca_cmd, cert_cmd, key_cmd, mode_cmd, cipher_cmd]
@@ -2168,16 +2206,8 @@ class Installer:
 
     def rollback_data_dirs(self):
         if os.path.exists(self.data):
-            if g_opts.in_container and os.path.exists(CommonValue.DOCKER_DATA_DIR):
-                shutil.rmtree(CommonValue.DOCKER_DATA_DIR)
-                log("Roll back: " + CommonValue.DOCKER_DATA_DIR)
             shutil.rmtree(self.data)
             log("Roll back: " + self.data)
-
-        if not g_opts.use_gss and not g_opts.use_dbstor:
-            if g_opts.in_container and os.path.exists(CommonValue.DOCKER_GCC_DIR):
-                shutil.rmtree(CommonValue.DOCKER_GCC_DIR)
-                log("Roll back: " + CommonValue.DOCKER_GCC_DIR)
 
     def rollback_from_decompress(self):
         if os.path.exists(self.install_path):
@@ -2212,7 +2242,7 @@ class Installer:
         ret_code, stdout, stderr = _exec_popen(kill_cmd)
         if ret_code:
             log_exit("kill process %s faild."
-                "ret_code : %s, stdout : %s, stderr : %s" % (process_name, ret_code, stdout, stderr))
+                     "ret_code : %s, stdout : %s, stderr : %s" % (process_name, ret_code, stdout, stderr))
 
     #######################################################################
     # check datadir and prepare cfg/cantiand.ini,
@@ -2239,13 +2269,7 @@ class Installer:
 
             # create data, cfg, log dir, trc
             data_dir = "%s/data" % self.data
-            if g_opts.in_container:
-                create_dir_if_needed(skip_execute_in_node_1(), CommonValue.DOCKER_DATA_DIR)
-                cmd = "ln -s %s %s;" % (CommonValue.DOCKER_DATA_DIR, data_dir)
-                ret_code, _, stderr = _exec_popen(cmd)
-                if ret_code:
-                    raise Exception("Can not link data dir, command: %s, output: %s" % (cmd, stderr))
-            elif g_opts.deploy_mode == "--nas":
+            if not g_opts.use_dbstor:
                 mount_storage_data = f"/mnt/dbdata/remote/storage_{g_opts.storage_dbstore_fs}/data"
                 cmd = "ln -s %s %s;" % (mount_storage_data, self.data)
                 ret_code, _, stderr = _exec_popen(cmd)
@@ -2262,7 +2286,7 @@ class Installer:
                 os.makedirs("%s/dbs" % self.data, CommonValue.KEY_DIRECTORY_PERMISSION)
 
             # move the config files about database.
-            cmd = "mv -i %s/cfg %s;touch %s/cfg/%s" % (self.install_path, self.data, self.data, self.ZSQL_CONF_FILE)
+            cmd = "mv -i %s/cfg %s;touch %s/cfg/%s" % (self.install_path, self.data, self.data, self.CTSQL_CONF_FILE)
             ret_code, _, stderr = _exec_popen(cmd)
             if ret_code:
                 raise Exception("Can not create prepare data dir, command: %s, output: %s" % (cmd, stderr))
@@ -2270,7 +2294,7 @@ class Installer:
             # Change the mode of config files to 600
             cmd = "chmod {0} {1}/cfg/{2} {1}/cfg/{3} {1}/cfg/{4} {1}/cfg/{5}".format(
                 CommonValue.KEY_FILE_MODE, self.data, self.CANTIAND_CONF_FILE,
-                self.CMS_CONF_FILE, self.CANTIAND_HBA_FILE, self.ZSQL_CONF_FILE)
+                self.CMS_CONF_FILE, self.CANTIAND_HBA_FILE, self.CTSQL_CONF_FILE)
             ret_code, _, stderr = _exec_popen(cmd)
             if ret_code:
                 raise Exception("chmod %s return: " % CommonValue.KEY_FILE_MODE + str(ret_code) + os.linesep + stderr)
@@ -2322,19 +2346,14 @@ class Installer:
             start_mode = self.OPEN_MODE
 
         # Start instance, according to running mode can point to cantiand or cantiand with mysql
-        if g_opts.in_container:
-            cmd = "echo -e '%s' | sh %s -P cantiand -M %s -T %s -C %s >> %s 2>&1" % (
-                g_opts.db_passwd, IN_CONTAINER_INSTALL_SCRIPT, start_mode, g_opts.running_mode.lower(),
-                g_opts.mysql_config_file_path, g_opts.log_file)
-        else:
-            cmd = "echo -e '%s' | sh %s -P cantiand -M %s -T %s -C %s >> %s 2>&1" % (
-                g_opts.db_passwd, INSTALL_SCRIPT, start_mode, g_opts.running_mode.lower(),
-                g_opts.mysql_config_file_path, g_opts.log_file)
+        cmd = "echo -e '%s' | sh %s -P cantiand -M %s -T %s -C %s >> %s 2>&1" % (
+            g_opts.db_passwd, INSTALL_SCRIPT, start_mode, g_opts.running_mode.lower(),
+            g_opts.mysql_config_file_path, g_opts.log_file)
 
         status, stdout, stderr = _exec_popen(cmd)
         if status != 0:
             output = stdout + stderr
-            if g_opts.db_passwd in output: 
+            if g_opts.db_passwd in output:
                 output = "installdb.sh was killed"
             raise Exception("Can not start instance %s.\nOutput: %s" % (self.data, output))
 
@@ -2414,6 +2433,11 @@ class Installer:
                 log("Instance startup in progress, please wait.")
         return tem_log_info, status_success
 
+    def update_factor_key(self):
+        if len(self.factor_key.strip()) == 0:
+            return
+        sql = "ALTER SYSTEM SET _FACTOR_KEY = '%s' " % self.factor_key
+        self.execute_sql(sql, "set the value of _FACTOR_KEY")
 
     def execute_sql_file(self, sql_file):
         """
@@ -2422,31 +2446,31 @@ class Installer:
         output: NA
         """
         # root or normal user can execute install command, and can enable
-        # or disable sysdba user, so the zsql command have 4 condition
+        # or disable sysdba user, so the ctsql command have 4 condition
         # 1 root execute install.py and enable sysdba
         # 2 root execute install.py and disable sysdba
         # 3 normal user execute install.py and enable sysdba
         # 4 normal user execute install.py and disable sysdba
         if g_opts.install_type == "reserve":
-            return
-        timeout = 18000
+            return "Install type is reserve."
+
         if self.enable_sysdba_login:
-            cmd = "source ~/.bashrc && %s/bin/ctclient / as sysdba -q -D %s -f %s" % (
-                self.install_path, self.data, sql_file)
-            return_code, stdout_data, stderr_data = _exec_popen(cmd, timeout=timeout)
+            cmd = "source ~/.bashrc && %s/bin/ctsql / as sysdba -q -D %s -f %s" % (self.install_path,
+                                                                                  self.data, sql_file)
+            return_code, stdout_data, stderr_data = _exec_popen(cmd)
         else:
-            cmd = ("source ~/.bashrc && echo -e '%s' | %s/bin/ctclient %s@%s:%s -q -f %s" % (
+            cmd = ("source ~/.bashrc && echo -e '%s' | %s/bin/ctsql %s@%s:%s -q -f %s" % (
                 g_opts.db_passwd,
                 self.install_path,
                 g_opts.db_user,
                 self.login_ip,
                 self.lsnr_port,
                 sql_file))
-            return_code, stdout_data, stderr_data = _exec_popen(cmd, timeout=timeout)
+            return_code, stdout_data, stderr_data = _exec_popen(cmd)
 
         output = "%s%s" % (str(stdout_data), str(stderr_data))
         if g_opts.db_passwd in output:
-            output = "execute ctclient file failed"
+            output = "execute ctsql file failed"
         log("Execute sql file %s output: %s" % (sql_file, output))
         if return_code:
             raise Exception("Failed to execute sql file %s, output:%s" % (sql_file, output))
@@ -2455,6 +2479,7 @@ class Installer:
         result = output.replace("\n", "")
         if re.match(".*CT-\d{5}.*", result) or re.match(".*ZS-\d{5}.*", result):
             raise Exception("Failed to execute sql file %s, output:%s" % (sql_file, output))
+        return stdout_data
 
     def execute_sql(self, sql, message):
         """
@@ -2463,30 +2488,31 @@ class Installer:
         output: NA
         """
         # root or normal user can execute install command, and can enable
-        # or disable sysdba user, so the ctclient command have 4 condition
+        # or disable sysdba user, so the ctsql command have 4 condition
         # 1 root execute install.py and enable sysdba
         # 2 root execute install.py and disable sysdba
         # 3 normal user execute install.py and enable sysdba
         # 4 normal user execute install.py and disable sysdba
-
-        timeout = 18000
+        ctsql_path = "%s/bin/*sql" % self.install_path
+        ctsql_path = glob.glob(ctsql_path)[0]
         if self.enable_sysdba_login:
-            cmd = ("source ~/.bashrc && %s/bin/ctclient / as sysdba "
-                   "-q -D %s -c \\\"%s\\\""
-                   % (self.install_path, self.data, sql))
-            return_code, stdout_data, stderr_data = _exec_popen(cmd, timeout=timeout)
+            cmd = ("source ~/.bashrc && %s / as sysdba "
+                   "-q -D %s -c \"%s\""
+                   % (ctsql_path, self.data, sql))
+            return_code, stdout_data, stderr_data = _exec_popen(cmd)
         else:
-            cmd = ("source ~/.bashrc && echo -e '%s' | %s/bin/ctclient %s@%s:%s -q"
+            cmd = ("source ~/.bashrc && echo -e '%s' | %s %s@%s:%s -q"
                    " -c \"%s\"" % (
                        g_opts.db_passwd,
-                       self.install_path,
+                       ctsql_path,
                        g_opts.db_user,
                        self.login_ip,
                        self.lsnr_port,
                        sql))
-            return_code, stdout_data, stderr_data = _exec_popen(cmd, timeout=timeout)
+            return_code, stdout_data, stderr_data = _exec_popen(cmd)
 
         output = "%s%s" % (str(stdout_data), str(stderr_data))
+        output.replace(g_opts.db_passwd, "*****")
         if return_code:
             raise Exception("Failed to %s by sql, output:%s"
                             % (message, output))
@@ -2495,6 +2521,7 @@ class Installer:
         result = output.replace("\n", "")
         if re.match(".*CT-\d{5}.*", result) or re.match(".*ZS-\d{5}.*", result):
             raise Exception("Failed to execute sql %s, output:%s" % (sql, output))
+        return stdout_data
 
     def deploy_cantian(self):
         """
@@ -2508,6 +2535,26 @@ class Installer:
         log("Creating database.")
 
         cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
+
+        flags = os.O_RDONLY
+        modes = stat.S_IWUSR | stat.S_IRUSR
+        with os.fdopen(os.open(CANTIAN_CONF_FILE, flags, modes), 'r') as fp:
+            json_data = json.load(fp)
+            self.user = json_data['USER'].strip()
+            self.group = json_data['GROUP'].strip()
+            self.data = json_data['DATA'].strip()
+            self.create_db_file = json_data['CREAT_DB_FILE'].strip()
+            self.install_path = json_data['INSTALL_PATH'].strip()
+            g_opts.running_mode = json_data['RUNNING_MODE'].strip()
+            self.cantiand_configs["LOG_HOME"] = json_data.get('LOG_HOME', '').strip()
+            if g_opts.use_dbstor:
+                self.cantiand_configs["SHARED_PATH"] = json_data.get('SHARED_PATH', '')
+                self.cantiand_configs["CONTROL_FILES"] = json_data.get('CONTROL_FILES', '').strip()
+                self.cantiand_configs["ENABLE_DBSTOR"] = json_data.get('ENABLE_DBSTOR', '').strip()
+                self.cantiand_configs["DBSTOR_NAMESPACE"] = json_data.get('DBSTOR_NAMESPACE', '').strip()
+            else:
+                self.cantiand_configs["SHARED_PATH"] = '/mnt/dbdata/remote/storage_{}/data'.format(
+                    g_opts.storage_dbstore_fs)
 
         # clean old backup log
         # backup log file before rm data
@@ -2539,12 +2586,8 @@ class Installer:
             self.create_db()
         except Exception as error:
             log_exit(str(error))
+        self.check_db_status()
         log("Creating database succeed.")
-
-    def check_passwd(self):
-        if not g_opts.use_dbstor:
-            sql = "QUIT"
-            self.execute_sql(sql, "check passwd")
 
     def create_db(self):
         if skip_execute_in_node_1():
@@ -2554,7 +2597,7 @@ class Installer:
         with os.fdopen(os.open(CANTIAN_START_STATUS_FILE, flags, modes), 'r') as load_fp:
             start_parameters = json.load(load_fp)
         if (start_parameters.setdefault('db_create_status', "default") == "default"):
-            self.check_passwd()
+            self.update_factor_key()
             flags = os.O_WRONLY | os.O_TRUNC
             db_create_status_item = {'db_create_status': "creating"}
             start_parameters.update(db_create_status_item)
@@ -2565,6 +2608,46 @@ class Installer:
             start_parameters.update(db_create_status_item)
             with os.fdopen(os.open(CANTIAN_START_STATUS_FILE, flags, modes), 'w') as load_fp:
                 json.dump(start_parameters, load_fp)
+
+    def check_db_status(self):
+        """
+        参天启动后检查db状态，db状态为open状态后返回成功。超时设置为10min中，sql返回exp:
+
+        Please enter password:
+        ********
+        connected.
+
+
+        SQL>
+        NAME                             STATUS               OPEN_STATUS
+        -------------------------------- -------------------- --------------------
+        dbstor                           OPEN                 READ WRITE
+
+        1 rows fetched.
+
+
+        """
+        sql_cmd = "SELECT NAME, STATUS, OPEN_STATUS FROM DV_DATABASE"
+        message = "check ctsql db status"
+        db_status = ""
+        timeout = 600
+        while timeout:
+            timeout -= 10
+            time.sleep(10)
+            try:
+                res = self.execute_sql(sql_cmd, message)
+            except Exception as _err:
+                log(str(_err))
+                continue
+            if "1 rows fetched" not in res:
+                continue
+            db_status = re.split(r"\s+", re.split(r"\n+", res.strip())[-2].strip())[1].strip()
+            log("ctsql db status: %s" % db_status)
+            if db_status == "OPEN":
+                log("Cantiand start success, db status: %s" % db_status)
+                return
+        else:
+            log_exit("Cantiand start timeout, db status:%s" % db_status)
 
     def get_database_file(self):
         if self.create_db_file:
@@ -2599,6 +2682,7 @@ class Installer:
                 create_database_sql = os.path.join(sql_file_path, create_database_sql_dic.get(g_opts.db_type))
         else:
             db_data_path = os.path.join(self.data, "data").replace('/', '\/')
+            self.set_sql_redo_size_and_num(db_data_path, create_database_sql)
             self._sed_file("dbfiles1", db_data_path, create_database_sql)
             self._sed_file("dbfiles2", db_data_path, create_database_sql)
             self._sed_file("dbfiles3", db_data_path, create_database_sql)
@@ -2618,7 +2702,35 @@ class Installer:
             raise Exception("chown to %s:%s return: %s%s%s"
                             % (self.user, self.group, str(ret_code), os.linesep, stderr))
 
-    def get_zencrypt_keys_and_file(self):
+    def get_ctencrypt_keys(self, skip_execute_sql=False):
+        """Set the config about _FACTOR_KEY and LOCAL_KEY."""
+        # Generate Key and WorkKey
+        log("Generate encrypted keys.")
+        cmd = "%s/bin/ctencrypt -g" % self.install_path
+        ret_code, stdout, stderr = _exec_popen(cmd)
+        if ret_code:
+            raise OSError("Failed to generate encrypted keys. Error: %s"
+                          % (stderr + os.linesep + stderr))
+
+        # Example of output:
+        # eg'Key:            XXXXXXXXXXXXXXXXXXXXXXX'
+        # eg'WorkKey:        XXXXXXXXXXXXXXXXXXXXXXX'
+        lines = stdout.split(os.linesep)
+        key_ = lines[0].split(":")[1].strip()
+        work_key = lines[1].split(":")[1].strip()
+
+        # Set the value of _FACTOR_KEY
+        if not skip_execute_sql:
+            sql = "ALTER SYSTEM SET _FACTOR_KEY = '%s' " % key_
+            self.execute_sql(sql, "set the value of _FACTOR_KEY")
+            # Set the value of LOCAL_KEY
+            sql = "ALTER SYSTEM SET LOCAL_KEY = '%s' " % work_key
+            self.execute_sql(sql, "set the value of LOCAL_KEY")
+
+        log("Generate encrypted keys successfully.")
+        return key_, work_key
+
+    def get_ctencrypt_keys_and_file(self):
         """Set the config about _FACTOR_KEY and LOCAL_KEY."""
         log("Generate encrypted keys.")
         f_factor1 = os.path.join(self.data, "dbs", "zenith_key1")
@@ -2627,7 +2739,7 @@ class Installer:
         # Generate Key and WorkKey
         #   This command will encrypt _FACTOR_KEY and write it into f_factor1.
 
-        cmd = "%s/bin/zencrypt -g -o '%s' " % (self.install_path, f_factor1)
+        cmd = "%s/bin/ctencrypt -g -o '%s' " % (self.install_path, f_factor1)
         ret_code, stdout, stderr = _exec_popen(cmd)
         if ret_code:
             raise OSError("Failed to generate encrypted keys. Error: %s"
@@ -2654,14 +2766,64 @@ class Installer:
         log("Generate encrypted keys successfully.")
         return key_, work_key
 
+    def encrypt_ssl_key_passwd(self, key_, work_key, ssl_passwd, skip_execute_sql=False):
+        """Encrypt ssl key password with _FACTOR_KEY and LOCAL_KEY."""
+        log("Encrypt ssl key password.")
+
+        cmd = ("%s/bin/ctencrypt -e AES256 -f %s -k %s"
+               % (self.install_path, key_, work_key))
+
+        values = [ssl_passwd, ssl_passwd]
+        ret_code, stdout, stderr = _exec_popen(cmd, values)
+        if ret_code:
+            raise OSError("Failed to encrypt ssl key password. Error: %s"
+                          % (stderr + os.linesep + stderr))
+
+        # Example of output:
+        # Please enter password to encrypt:
+        # ***********
+        # Please input password again:
+        # ***********
+        # eg'Cipher:         XXXXXXXXXXXXXXXXXXXXXXX'
+        lines = stdout.split(os.linesep)
+        cipher = lines[4].split(":")[1].strip()
+
+        if self.option == self.INS_ALL and not skip_execute_sql:
+            # Set SSL_KEY_PASSWORD
+            sql = "ALTER SYSTEM SET SSL_KEY_PASSWORD = '%s'" % cipher
+            self.execute_sql(sql, "set the value of SSL_KEY_PASSWORD")
+        return cipher
+
+    def set_ssl_conf(self, cipher="", factor_key="", work_key=""):
+        """Set the config about ssl"""
+        # Don't set SSL_CA and CTSQL_SSL_CA.
+        # Avoid the need to copy files, env and kernel parameter
+        # from the primary dn when installing the backup dn.
+        cantian_conf_file = os.path.join(self.data, "cfg",
+                                        self.CANTIAND_CONF_FILE)
+        ssl_map = {
+            "SSL_CERT": os.path.join(self.ssl_path, "server.crt"),
+            "SSL_KEY": os.path.join(self.ssl_path, "server.key"),
+            "SSL_VERIFY_PEER": "FALSE",
+        }
+        if cipher:
+            ssl_map["SSL_KEY_PASSWORD"] = cipher
+        if work_key:
+            ssl_map["LOCAL_KEY"] = work_key
+        if factor_key:
+            self.factor_key = factor_key
+        self.clean_old_conf(list(ssl_map.keys()), cantian_conf_file)
+        self.clean_old_conf(["SSL_CA"], cantian_conf_file)
+        self.set_new_conf(ssl_map, cantian_conf_file)
+
     def set_ssl_env(self, cipher):
         """
-        1. export ZSQL_SSL_CERT = the path of client.crt
-        2. export ZSQL_SSL_KEY = the path of client.key
-        3. export ZSQL_SSL_MODE = required
-        4. export ZSQL_SSL_KEY_PASSWD = {cipher}
+        1. export CTSQL_SSL_CERT = the path of client.crt
+        2. export CTSQL_SSL_KEY = the path of client.key
+        3. export CTSQL_SSL_MODE = required
+        4. export CTSQL_SSL_KEY_PASSWD = {cipher}
         """
-        # Don't set SSL_CA and ZSQL_SSL_CA.
+        # Don't set SSL_CA and CTSQL_SSL_CA.
         # Avoid the need to copy files, env and kernel parameter
         # from the primary dn when installing the backup dn.
         log("Set user environment variables about ssl.")
@@ -2669,25 +2831,25 @@ class Installer:
             flags = os.O_RDWR
             modes = stat.S_IWUSR | stat.S_IRUSR
             with os.fdopen(os.open(self.user_profile, flags, modes), 'a') as _file:
-                _file.write("export ZSQL_SSL_CERT=\"%s\""
+                _file.write("export CTSQL_SSL_CERT=\"%s\""
                             % os.path.join(self.ssl_path, "client.crt"))
                 _file.write(os.linesep)
-                _file.write("export ZSQL_SSL_KEY=\"%s\""
+                _file.write("export CTSQL_SSL_KEY=\"%s\""
                             % os.path.join(self.ssl_path, "client.key"))
                 _file.write(os.linesep)
-                _file.write("export ZSQL_SSL_MODE=\"required\"")
+                _file.write("export CTSQL_SSL_MODE=\"required\"")
                 _file.write(os.linesep)
-                _file.write("export ZSQL_SSL_KEY_PASSWD=\"%s\"" % cipher)
+                _file.write("export CTSQL_SSL_KEY_PASSWD=\"%s\"" % cipher)
                 _file.write(os.linesep)
                 _file.flush()
         except IOError as ex:
             raise IOError("Failed Set user environment variables about ssl: %s"
                           % str(ex)) from ex
 
-        os.environ["ZSQL_SSL_CERT"] = os.path.join(self.ssl_path, "client.crt")
-        os.environ["ZSQL_SSL_KEY"] = os.path.join(self.ssl_path, "client.key")
-        os.environ["ZSQL_SSL_MODE"] = "required"
-        os.environ["ZSQL_SSL_KEY_PASSWD"] = cipher
+        os.environ["CTSQL_SSL_CERT"] = os.path.join(self.ssl_path, "client.crt")
+        os.environ["CTSQL_SSL_KEY"] = os.path.join(self.ssl_path, "client.key")
+        os.environ["CTSQL_SSL_MODE"] = "required"
+        os.environ["CTSQL_SSL_KEY_PASSWD"] = cipher
         log("Set user environment variables about ssl successfully.")
 
     def stop_database(self):
@@ -2724,7 +2886,7 @@ class Installer:
         """
         try:
             str_cmd = ("find '%s'/admin -type f | xargs chmod %s "
-                      % (self.install_path, CommonValue.MIN_FILE_MODE))
+                       % (self.install_path, CommonValue.MIN_FILE_MODE))
             ret_code, _, _ = _exec_popen(str_cmd)
             if ret_code:
                 print_str_1 = CommonPrint()
@@ -2792,34 +2954,12 @@ class Installer:
                 (key, val) = line.split(" = ")
                 val = val.replace('\n', '')
                 cantiand_ini[key] = val
-        self.enable_sysdba_login = Installer.check_pare_bool_value("ENABLE_SYSDBA_LOGIN", 
-            cantiand_ini.get("ENABLE_SYSDBA_LOGIN", "FALSE"))
-        self.passwd_in_cantian_ini = cantiand_ini.get("_SYS_PASSWORD")
-
-        flags = os.O_RDONLY
-        modes = stat.S_IWUSR | stat.S_IRUSR
-        with os.fdopen(os.open(CANTIAN_CONF_FILE, flags, modes), 'r') as fp:
-            json_data = json.load(fp)
-            self.user = json_data['USER'].strip()
-            self.group = json_data['GROUP'].strip()
-            self.data = json_data['DATA'].strip()
-            self.create_db_file = json_data['CREAT_DB_FILE'].strip()
-            self.install_path = json_data['INSTALL_PATH'].strip()
-            g_opts.running_mode = json_data['RUNNING_MODE'].strip()
-            self.cantiand_configs["LOG_HOME"] = json_data.get('LOG_HOME', '').strip()
-            if g_opts.use_dbstor:
-                self.cantiand_configs["SHARED_PATH"] = json_data.get('SHARED_PATH', '')
-                self.cantiand_configs["CONTROL_FILES"] = json_data.get('CONTROL_FILES', '').strip()
-                self.cantiand_configs["ENABLE_DBSTOR"] = json_data.get('ENABLE_DBSTOR', '').strip()
-                self.cantiand_configs["DBSTOR_NAMESPACE"] = json_data.get('DBSTOR_NAMESPACE', '').strip()
-            else:
-                self.cantiand_configs["SHARED_PATH"] = '/mnt/dbdata/remote/storage_{}/data'.format(
-                    g_opts.storage_dbstore_fs)
+        self.enable_sysdba_login = Installer.check_pare_bool_value("ENABLE_SYSDBA_LOGIN",
+                                                                   cantiand_ini.get("ENABLE_SYSDBA_LOGIN", "FALSE"))
 
     def install_start(self):
         self.parse_cantiand_ini()
-        if not self.enable_sysdba_login:
-            self.decrypt_db_passwd()
+        Installer.decrypt_db_passwd()
         self.deploy_cantian()
         self.security_audit()
         log("Successfully install %s instance." % self.instance_name)
@@ -2918,7 +3058,7 @@ class Installer:
         permission_ok, stderr = self.check_permission(one_path)
         if not permission_ok:
             log_exit("Failed to check user [%s] path [%s] permission. Error: %s"
-                    % (self.user, one_path, stderr))
+                     % (self.user, one_path, stderr))
 
     def prepare_mysql_data_dir(self):
         log("Preparing mysql data dir...")
@@ -2936,6 +3076,14 @@ class Installer:
         ret_code, _, stderr = _exec_popen(cmd)
         if ret_code:
             log_exit("Can not copy mysql bin, command: %s, output: %s" % (cmd, stderr))
+        is_mysql_metadata_in_cantian = self.cantiand_configs.get("MYSQL_METADATA_IN_CANTIAN")
+        if is_mysql_metadata_in_cantian == "TRUE":
+            ctc_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin/meta/ha_ctc.so")
+        else:
+            ctc_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin/nometa/ha_ctc.so")
+        if os.path.exists(ctc_path):
+            mysql_plugin_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin")
+            shutil.copy(ctc_path, mysql_plugin_path)
 
     def set_mysql_env(self):
         log("Preparing mysql running env...")
@@ -2985,21 +3133,15 @@ def check_archive_dir():
         for file in files:
             if (file[-4:] == ".arc" and file[:4] == "arch") or ("arch_file.tmp" in file):
                 log_exit("archive dir %s is not empty, "
-                        "history archive file or archive tmp file : %s." % (archive_dir, file))
+                         "history archive file or archive tmp file : %s." % (archive_dir, file))
     else:
         log_exit("archive dir %s is not exist." % archive_dir)
     log("checked the archive dir.")
 
 
 class CanTian(object):
-    flags = os.O_RDONLY
-    modes = stat.S_IWUSR | stat.S_IRUSR
-    with os.fdopen(os.open(CONFIG_PARAMS_FILE, flags, modes), 'r') as fp:
-        json_data = json.load(fp)
-        user_info = json_data.get('deploy_user', '0').strip()
-        user_info = user_info.split(":")
-        g_opts.os_user, g_opts.os_group = user_info[0], user_info[1]
-        g_opts.install_type = json_data.get('install_type', '0').strip()
+    g_opts.os_user, g_opts.os_group = get_value("deploy_user"), get_value("deploy_group")
+    g_opts.install_type = get_value('install_type') if get_value('install_type') else "0"
 
     def cantian_pre_install(self):
         check_platform()
@@ -3040,6 +3182,8 @@ class CanTian(object):
                 start_parameters = json.load(load_fp)
                 start_status_item = {'start_status': "started"}
                 start_parameters.update(start_status_item)
+                ever_started_item = {'ever_started': True}
+                start_parameters.update(ever_started_item)
                 load_fp.seek(0)
                 load_fp.truncate()
                 json.dump(start_parameters, load_fp)
@@ -3055,7 +3199,7 @@ class CanTian(object):
             cantiand_pid = cantiand_pid.strip(" ")
             if cantiand_pid is not None and len(cantiand_pid) > 0:
                 cmd = "echo 0x6f > " + sep_mark + "proc" + sep_mark + str(cantiand_pid) + \
-                    sep_mark + "coredump_filter"
+                      sep_mark + "coredump_filter"
                 ret_code, cantiand_pid, stderr = _exec_popen(cmd)
                 if ret_code:
                     log_exit("can not set coredump_filter, command: %s, err: %s" % (cmd, stderr))
@@ -3065,6 +3209,18 @@ class CanTian(object):
             log("Start failed: " + str(error))
             log("Please refer to install log \"%s\" for more detailed information." % g_opts.log_file)
             raise ValueError(str(error)) from error
+
+    def post_check(self):
+        log("Post upgrade check start.")
+        installer = Installer(g_opts.os_user, g_opts.os_group)
+        installer.decrypt_db_passwd()
+        flags = os.O_RDONLY
+        modes = stat.S_IWUSR | stat.S_IRUSR
+        with os.fdopen(os.open(JS_CONF_FILE, flags, modes), 'r') as fp:
+            json_data = json.load(fp)
+            installer.install_path = json_data['R_INSTALL_PATH'].strip()
+        installer.check_db_status()
+        log("Post upgrade check success.")
 
 
 if __name__ == "__main__":

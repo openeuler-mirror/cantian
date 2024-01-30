@@ -25,6 +25,7 @@ set +x
 #当前路径
 CURRENT_PATH=$(dirname $(readlink -f $0))
 
+source "${CURRENT_PATH}"/../env.sh
 #脚本名称
 PARENT_DIR_NAME=$(pwd | awk -F "/" '{print $NF}')
 SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
@@ -48,9 +49,11 @@ CILENT_TEST_PATH="/opt/cantian/dbstor/tools"
 dbstor_home="/opt/cantian/dbstor"
 dbstor_scripts="/opt/cantian/action/dbstor"
 
+cantian_user_and_group="${cantian_user}":"${cantian_group}"
+
 function usage()
 {
-    logAndEchoInfo "Usage: ${0##*/} {start|stop|install|uninstall|pre_install|pre_upgrade|check_status|upgrade|rollback|upgrade_backup}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    echo "Usage: ${0##*/} {start|stop|install|uninstall|pre_install|pre_upgrade|check_status|upgrade|rollback|upgrade_backup}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     exit 1
 }
 
@@ -67,18 +70,18 @@ function do_deploy()
     fi
 
     if [ ! -f  ${CURRENT_PATH}/${script_name_param} ]; then
-        logAndEchoError "${COMPONENT_NAME} ${script_name_param} is not exist. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        echo "${COMPONENT_NAME} ${script_name_param} is not exist. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 1
     fi
 
-    su -s /bin/bash -c "cd ${CURRENT_PATH} && sh ${CURRENT_PATH}/${script_name_param} ${uninstall_type} ${force_uninstall}" ${user}
+    su -s /bin/bash - ${cantian_user} -c "cd ${CURRENT_PATH} && sh ${CURRENT_PATH}/${script_name_param} ${uninstall_type} ${force_uninstall}"
 
     ret=$?
     if [ $ret -eq 2 ]; then
         return 2
     fi
     if [ $ret -ne 0 ]; then
-        logAndEchoError "Execute ${COMPONENT_NAME} ${script_name_param} return ${ret}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        echo "Execute ${COMPONENT_NAME} ${script_name_param} return ${ret}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 1
     fi
 
@@ -87,12 +90,11 @@ function do_deploy()
 
 function chown_mod_scripts()
 {
-    echo -e "\nInstall User:${user}   Scripts Owner:${owner}"
+    echo -e "\nInstall User:${cantian_user}   Scripts Owner:${owner}"
     current_path_reg=$(echo $CURRENT_PATH | sed 's/\//\\\//g')
     scripts=$(ls ${CURRENT_PATH} | sed '/appctl.sh/d' | sed "s/^/${current_path_reg}\/&/g")
-    chown ${deploy_user} ${CURRENT_PATH}
-    chown ${deploy_user} ${scripts}
-    chmod 750 ${CURRENT_PATH}
+    chown -h ${cantian_user_and_group} ${scripts}
+    chmod 755 ${CURRENT_PATH}
     chmod 400 ${CURRENT_PATH}/*.sh ${CURRENT_PATH}/*.py
 }
 
@@ -100,9 +102,8 @@ function chown_pre_install_set()
 {
     if [ ! -d /opt/cantian/action/dbstor ]; then
         mkdir -m 750 -p /opt/cantian/action/dbstor
-        cp -arf ${CURRENT_PATH}/* /opt/cantian/action/dbstor/
     fi
-    chown ${deploy_user} /opt/cantian/action/dbstor
+    cp -arf ${CURRENT_PATH}/* /opt/cantian/action/dbstor/
 
     if [ -d /opt/cantian/dbstor ]; then
         chmod 750 /opt/cantian/dbstor
@@ -120,7 +121,7 @@ function chown_pre_install_set()
             chmod 640 "${file}"
         fi
     done
-    chown ${deploy_user} -R /opt/cantian/dbstor
+    chown ${cantian_user_and_group} -hR /opt/cantian/dbstor
 }
 
 # 预安装时提前检查是否存在信号量，如果有则删除
@@ -133,20 +134,25 @@ function check_sem_id() {
     fi
 }
 
-# 预安装时提前是否存在秘钥文件，如果有且安装模式为override则删除
-function check_ksf() {
-    local install_type=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "install_type"`
-    if [[ ${install_type} = "override" ]]; then
-          rm -rf /opt/cantian/common/config
+function uninstall_rpm()
+{
+    RPM_PACK_ORG_PATH="/opt/cantian/image/Cantian-RUN-CENTOS-64bit"
+    result=`rpm -qa cantian | wc -l`
+    if [ ${result} -ne 0 ]; then
+        rpm -ev cantian --nodeps
+    fi
+
+    if [ -d ${RPM_PACK_ORG_PATH} ]; then
+        rm -rf ${RPM_PACK_ORG_PATH}
     fi
 }
 
 function chown_install_set()
 {
-    chown ${deploy_user} /mnt/dbdata/remote/share_${share_name}
+    chown -h ${cantian_user_and_group} /mnt/dbdata/remote/share_${share_name}
     if [ -d /mnt/dbdata/remote/share_${share_name}/node${node_id} ]; then
         chmod 750 /mnt/dbdata/remote/share_${share_name}/node${node_id}
-        chown ${deploy_user} -R /mnt/dbdata/remote/share_${share_name}/node${node_id}
+        chown -hR ${cantian_user_and_group} /mnt/dbdata/remote/share_${share_name}/node${node_id}
     fi
     if [ ! -d  /opt/cantian/dbstor/tools ]; then
         mkdir  -m 750 -p /opt/cantian/dbstor/tools
@@ -169,7 +175,7 @@ function chown_install_set()
     chmod 500 /opt/cantian/dbstor/lib/libcrypto.so
     chmod 500 /opt/cantian/dbstor/lib/libcrypto.so.1.1
     chmod 500 /opt/cantian/dbstor/lib/libkmc.so
-    chown ${deploy_user} -R /opt/cantian/dbstor
+    chown ${cantian_user_and_group} -hR /opt/cantian/dbstor
 }
 
 function check_rollback_files()
@@ -229,8 +235,8 @@ function record_dbstor_info() {
     echo "dbstor backup information for upgrade" >> ${backup_dir}/dbstor/backup.bak
     echo "time:
           $(date)" >> ${backup_dir}/dbstor/backup.bak
-    echo "deploy_user:
-              ${deploy_user}" >> ${backup_dir}/dbstor/backup.bak
+    echo "cantian_user:
+              ${cantian_user_and_group}" >> ${backup_dir}/dbstor/backup.bak
     echo "dbstor_home:
               total_size=$(du -sh ${dbstor_home})
               total_files=$(tail ${backup_dir}/dbstor/dbstor_home_files_list.txt -n 1)" >> ${backup_dir}/dbstor/backup.bak
@@ -285,13 +291,34 @@ function check_backup_files()
     done < ${backup_list}
 }
 
+function backup_dbstor_config_ini() {
+    set -e
+    backup_dir=$1
+    echo "backup dbstor config ini"
+    mkdir -m 750 -p ${backup_dir}/dbstor/conf/cantiand_cnf
+    mkdir -m 750 -p ${backup_dir}/dbstor/conf/cms_cnf
+    mkdir -m 750 -p ${backup_dir}/dbstor/conf/share_cnf
+    mkdir -m 750 -p ${backup_dir}/dbstor/conf/tool_cnf
+    cp -arf /opt/cantian/cms/dbstor/conf/dbs/* ${backup_dir}/dbstor/conf/cms_cnf
+    cp -arf /mnt/dbdata/local/cantian/tmp/data/dbstor/conf/dbs/* ${backup_dir}/dbstor/conf/cantiand_cnf
+    cp -arf /mnt/dbdata/remote/share_${share_name}/node${node_id}/* ${backup_dir}/dbstor/conf/share_cnf
+    cp -arf ${dbstor_home}/tools/* ${backup_dir}/dbstor/conf/tool_cnf
+    if [[ ! -f ${backup_dir}/dbstor/conf/tool_cnf/dbstor_config.ini ]];then
+        cp -arf /mnt/dbdata/remote/share_${share_name}/node${node_id}/dbstor_config.ini  ${backup_dir}/dbstor/conf/tool_cnf
+    fi
+    set +e
+}
+
 function safety_upgrade_backup()
 {
     set -e
     echo -e "\n======================== begin to backup dbstor module for upgrade ========================"
 
     old_cantian_owner=$(stat -c %U ${dbstor_home})
-    if [ ${old_cantian_owner} != ${user} ]; then
+    if [[ ${version_first_number} -eq 2 ]];then
+        cantian_user=${d_user}
+    fi
+    if [ ${old_cantian_owner} != ${cantian_user} ]; then
         echo "Error: the upgrade user is different from the installed user"
         return 1
     fi
@@ -321,6 +348,8 @@ function safety_upgrade_backup()
     echo "check that all files are backed up to ensure that no data is lost for safety upgrade and rollback"
     check_backup_files ${backup_dir}/dbstor/dbstor_home_files_list.txt ${backup_dir}/dbstor/dbstor_home ${dbstor_home}
 
+    backup_dbstor_config_ini ${backup_dir}
+
     set +e
     echo "======================== backup dbstor module for upgrade successfully ========================"
     return 0
@@ -331,10 +360,6 @@ function safety_upgrade()
     set -e
     echo -e "\n======================== begin to upgrade dbstor module ========================"
 
-    echo  "start replace rpm package"
-    uninstall_rpm
-    install_rpm
-
     link_type=$(cat ${CURRENT_PATH}/../../config/deploy_param.json  |
               awk -F ',' '{for(i=1;i<=NF;i++){if($i~"link_type"){print $i}}}' |
               sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
@@ -343,6 +368,7 @@ function safety_upgrade()
     echo "update the tools files in ${dbstor_home}/tools"
     rm -rf ${dbstor_home}/tools/*
     cp -arf ${RPM_UNPACK_PATH}/client_test/* ${dbstor_home}/tools
+    cp -arf ${UPGRADE_PATH}/dbstor/conf/tool_cnf/dbstor_config.ini ${dbstor_home}/tools/
 
     echo "update the lib files in ${dbstor_home}/lib"
     rm -rf ${dbstor_home}/lib/*
@@ -364,7 +390,7 @@ function safety_upgrade()
     cp -arf ${RPM_UNPACK_PATH}/cfg/osd.cfg \
         ${dbstor_config_dir}/osd.cfg
 
-    chown ${deploy_user} -R /opt/cantian/dbstor
+    chown ${cantian_user_and_group} -hR /opt/cantian/dbstor
 
     echo "update the dbstor scripts in ${dbstor_scripts}"
     if [ -d "${dbstor_scripts}" ]; then
@@ -377,11 +403,23 @@ function safety_upgrade()
     cp -arf ${CURRENT_PATH}/* ${dbstor_scripts}
     chmod 400 ${dbstor_scripts}/*
     chmod 755 ${dbstor_scripts}
-    chown ${deploy_user} ${dbstor_scripts}/*
+    chown -h ${cantian_user_and_group} ${dbstor_scripts}/*
+    chown -h root:root ${dbstor_scripts}/appctl.sh
 
     echo "======================== upgrade dbstor module successfully ========================"
     set +e
     return 0
+}
+
+function rollback_dbstor_config_ini() {
+    set -e
+    backup_dir=$1
+    echo "rollback dbstor config ini"
+    cp -arf ${backup_dir}/dbstor/conf/cms_cnf/* /opt/cantian/cms/dbstor/conf/dbs/
+    cp -arf ${backup_dir}/dbstor/conf/cantiand_cnf/* /mnt/dbdata/local/cantian/tmp/data/dbstor/conf/dbs/
+    cp -arf ${backup_dir}/dbstor/conf/share_cnf/* /mnt/dbdata/remote/share_${share_name}/node${node_id}/
+    cp -arf ${backup_dir}/dbstor/conf/tool_cnf/* ${dbstor_home}/tools/
+    set +e
 }
 
 function safety_rollback()
@@ -397,10 +435,6 @@ function safety_rollback()
         echo "Error: backup_dir is empty"
         return 1
     fi
-
-    echo "start rollback rpm package"
-    uninstall_rpm
-    install_rpm ${backup_dir}
 
     if [ ! -d ${backup_dir}/cantian ];then
         echo "Error: backup_dir ${backup_dir}/cantian does not exist"
@@ -421,6 +455,8 @@ function safety_rollback()
     echo "check that all files are rolled back to ensure that no data is lost for safety rollback"
     check_rollback_files ${backup_dir}/dbstor/dbstor_home_files_list.txt ${backup_dir}/dbstor/dbstor_home ${dbstor_home}
 
+    rollback_dbstor_config_ini ${backup_dir}
+
     echo "======================== rollback dbstor module successfully ========================"
     set +e
     return 0
@@ -432,8 +468,7 @@ deploy_user=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
               awk -F ',' '{for(i=1;i<=NF;i++){if($i~"deploy_user"){print $i}}}' |
               sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
               awk -F '=' '{print $2}')
-
-user=$(echo ${deploy_user} | awk -F ':' '{print $2}')
+d_user=$(echo ${deploy_user} | awk -F ':' '{print $2}')
 owner=$(stat -c %U ${CURRENT_PATH})
 share_name=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
               awk -F ',' '{for(i=1;i<=NF;i++){if($i~"storage_share_fs"){print $i}}}' |
@@ -465,7 +500,7 @@ fi
 
 if [ ! -d /opt/cantian/dbstor/log ]; then
     mkdir -m 750 -p /opt/cantian/dbstor/log
-    chown ${deploy_user} -R /opt/cantian/dbstor
+    chown ${cantian_user_and_group} -hR /opt/cantian/dbstor
 fi
 
 case "$ACTION" in
@@ -494,7 +529,7 @@ case "$ACTION" in
         if [ -f /opt/cantian/dbstor/log/uninstall.log ];then
             chmod 640 /opt/cantian/dbstor/log/uninstall.log
         fi
-        rm -rf /dev/shm/*
+        rm -rf /dev/shm/cantian* /dev/shm/FDSA* /dev/shm/cpuinfo_shm /dev/shm/cputimeinfo_shm /dev/shm/diag_server_usr_lock
         do_deploy ${UNINSTALL_NAME} ${UNINSTALL_TYPE} ${FORCE_UNINSTALL}
         exit $?
         ;;
@@ -506,7 +541,7 @@ case "$ACTION" in
         if [ ! -d /opt/cantian/backup/files ]; then
             mkdir -m 750 -p /opt/cantian/backup/files
         fi
-        chown ${deploy_user} -R /opt/cantian/backup
+        chown ${cantian_user_and_group} -hR /opt/cantian/backup
         do_deploy ${BACKUP_NAME}
         exit $?
         ;;
@@ -518,6 +553,7 @@ case "$ACTION" in
         exit 0
         ;;
     upgrade_backup)
+        version_first_number=$(cat /opt/cantian/versions.yml |sed 's/ //g' | grep 'Version:' | awk -F ':' '{print $2}' | awk -F '.' '{print $1}')
         safety_upgrade_backup ${BACKUP_PATH}
         exit $?
         ;;

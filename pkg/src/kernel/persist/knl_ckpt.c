@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_persist_module.h"
 #include "knl_ckpt.h"
 #include "cm_log.h"
 #include "cm_file.h"
@@ -48,7 +49,7 @@ static void ckpt_page_clean(knl_session_t *session);
 
 static inline void init_ckpt_part_group(knl_session_t *session)
 {
-    if (cm_dbs_is_enable_dbs() == GS_FALSE || cm_dbs_is_enable_batch_flush() == GS_FALSE) {
+    if (cm_dbs_is_enable_dbs() == CT_FALSE || cm_dbs_is_enable_batch_flush() == CT_FALSE) {
         return;
     }
     knl_instance_t *kernel = session->kernel;
@@ -67,24 +68,24 @@ static inline void ckpt_param_init(knl_session_t *session)
     ctx->double_write = kernel->attr.enable_double_write;
 }
 
-static status_t dbwr_aio_init(knl_session_t *session, dbwr_context_t *dbwr)
+status_t dbwr_aio_init(knl_session_t *session, dbwr_context_t *dbwr)
 {
     knl_instance_t *kernel = session->kernel;
     errno_t ret;
 
     if (!session->kernel->attr.enable_asynch) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     ret = memset_sp(&dbwr->async_ctx.aio_ctx, sizeof(cm_io_context_t), 0, sizeof(cm_io_context_t));
     knl_securec_check(ret);
 
-    if (cm_aio_setup(&kernel->aio_lib, GS_CKPT_GROUP_SIZE, &dbwr->async_ctx.aio_ctx) != GS_SUCCESS) {
-        GS_LOG_RUN_WAR("[CKPT]: setup asynchronous I/O context failed, errno %d", errno);
-        return GS_ERROR;
+    if (cm_aio_setup(&kernel->aio_lib, CT_CKPT_GROUP_SIZE(session), &dbwr->async_ctx.aio_ctx) != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("[CKPT]: setup asynchronous I/O context failed, errno %d", errno);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dbwr_init(knl_session_t *session)
@@ -96,22 +97,22 @@ static status_t dbwr_init(knl_session_t *session)
 
     for (uint32 i = 0; i < ctx->dbwr_count; i++) {
         dbwr = &ctx->dbwr[i];
-        dbwr->dbwr_trigger = GS_FALSE;
+        dbwr->dbwr_trigger = CT_FALSE;
         dbwr->session = kernel->sessions[SESSION_ID_DBWR];
-        ret = memset_sp(&dbwr->datafiles, GS_MAX_DATA_FILES * sizeof(int32), 0xFF, GS_MAX_DATA_FILES * sizeof(int32));
+        ret = memset_sp(&dbwr->datafiles, CT_MAX_DATA_FILES * sizeof(int32), 0xFF, CT_MAX_DATA_FILES * sizeof(int32));
         knl_securec_check(ret);
 #ifdef WIN32
         dbwr->sem = CreateSemaphore(NULL, 0, 1, NULL);
 #else
         sem_init(&dbwr->sem, 0, 0);
 
-        if (dbwr_aio_init(session, dbwr) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dbwr_aio_init(session, dbwr) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 #endif  // WIN32
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ckpt_init(knl_session_t *session)
@@ -128,7 +129,7 @@ status_t ckpt_init(knl_session_t *session)
     cm_init_cond(&ctx->ckpt_cond);
 
     ctx->group.buf = kernel->attr.ckpt_buf;
-    ctx->ckpt_enabled = GS_TRUE;
+    ctx->ckpt_enabled = CT_TRUE;
     ctx->trigger_task = CKPT_MODE_IDLE;
     ctx->timed_task = CKPT_MODE_IDLE;
     ctx->trigger_finish_num = 0;
@@ -137,21 +138,23 @@ status_t ckpt_init(knl_session_t *session)
     ctx->dw_file = -1;
     ctx->batch_end = NULL;
     ctx->clean_end = NULL;
-    ctx->ckpt_blocked = GS_FALSE;
+    ctx->ckpt_blocked = CT_FALSE;
+    CT_INIT_SPIN_LOCK(ctx->disable_lock);
+    ctx->disable_cnt = 0;
 
-    if (dbwr_init(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dbwr_init(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (kernel->attr.enable_asynch) {
-        ctx->group.iocbs_buf = (char *)malloc(GS_CKPT_GROUP_SIZE * CM_IOCB_LENTH);
+        ctx->group.iocbs_buf = (char *)malloc(CT_CKPT_GROUP_SIZE(session) * CM_IOCB_LENTH);
         if (ctx->group.iocbs_buf == NULL) {
-            GS_LOG_RUN_ERR("[CKPT] iocb malloc fail");
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[CKPT] iocb malloc fail");
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void ckpt_load(knl_session_t *session)
@@ -177,20 +180,20 @@ void ckpt_close(knl_session_t *session)
     ckpt_context_t *ctx = &kernel->ckpt_ctx;
 
 #ifndef WIN32
-    ctx->thread.closed = GS_TRUE;
+    ctx->thread.closed = CT_TRUE;
 #endif
 
     cm_close_thread(&ctx->thread);
     for (uint32 i = 0; i < ctx->dbwr_count; i++) {
 #ifndef WIN32
-        ctx->dbwr[i].thread.closed = GS_TRUE;
-        ctx->dbwr[i].dbwr_trigger = GS_TRUE;
+        ctx->dbwr[i].thread.closed = CT_TRUE;
+        ctx->dbwr[i].dbwr_trigger = CT_TRUE;
         (void)sem_post(&ctx->dbwr[i].sem);
 #endif
         cm_close_thread(&ctx->dbwr[i].thread);
     }
     cm_close_file(ctx->dw_file);
-    ctx->dw_file = GS_INVALID_HANDLE;
+    ctx->dw_file = CT_INVALID_HANDLE;
 #ifndef WIN32
     if (ctx->group.iocbs_buf != NULL) {
         free(ctx->group.iocbs_buf);
@@ -271,23 +274,23 @@ static status_t ckpt_save_ctrl(knl_session_t *session)
         return dtc_save_ctrl(session, session->kernel->id);
     }
 
-    if (db_save_core_ctrl(session) != GS_SUCCESS) {
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
         KNL_SESSION_CLEAR_THREADID(session);
         CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void ckpt_block_and_wait_enable(ckpt_context_t *ctx)
 {
     while (!ctx->ckpt_enabled) {
-        ctx->ckpt_blocked = GS_TRUE;
+        ctx->ckpt_blocked = CT_TRUE;
         cm_sleep(CKPT_WAIT_ENABLE_MS);
     }
 
-    ctx->ckpt_blocked = GS_FALSE;
+    ctx->ckpt_blocked = CT_FALSE;
 }
 /*
  * trigger full checkpoint to promote rcy point to current point
@@ -296,7 +299,7 @@ static void ckpt_full_checkpoint(knl_session_t *session)
 {
     ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
     ctx->batch_end = NULL;
-    GS_LOG_RUN_INF("start trigger full checkpoint, expect process pages %d", ctx->queue.count);
+    CT_LOG_RUN_INF("start trigger full checkpoint, expect process pages %d", ctx->queue.count);
     uint64 curr_flush_count = ctx->stat.flush_pages[ctx->trigger_task];
     uint64 curr_clean_edp_count = ctx->stat.clean_edp_count[ctx->trigger_task];
     uint64 task_begin = KNL_NOW(session);
@@ -310,7 +313,7 @@ static void ckpt_full_checkpoint(knl_session_t *session)
             ctx->batch_end = ctx->queue.last;
         }
 
-        if (ckpt_perform(session) != GS_SUCCESS) {
+        if (ckpt_perform(session) != CT_SUCCESS) {
             KNL_SESSION_CLEAR_THREADID(session);
             CM_ABORT(0, "[CKPT] ABORT INFO: redo log task flush redo file failed.");
         }
@@ -319,18 +322,18 @@ static void ckpt_full_checkpoint(knl_session_t *session)
 
         ckpt_update_log_point(session);
         // Save log point
-        if (ckpt_save_ctrl(session) != GS_SUCCESS) {
+        if (ckpt_save_ctrl(session) != CT_SUCCESS) {
             KNL_SESSION_CLEAR_THREADID(session);
             CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
         }
         log_recycle_file(session, &dtc_my_ctrl(session)->rcy_point);
-        GS_LOG_DEBUG_INF("[CKPT] Set rcy point to [%u-%u/%u/%llu] in ctrl for instance %u",
+        CT_LOG_DEBUG_INF("[CKPT] Set rcy point to [%u-%u/%u/%llu] in ctrl for instance %u",
                          dtc_my_ctrl(session)->rcy_point.rst_id, dtc_my_ctrl(session)->rcy_point.asn,
                          dtc_my_ctrl(session)->rcy_point.block_id, (uint64)dtc_my_ctrl(session)->rcy_point.lfn,
                          session->kernel->id);
 
         /* backup some core ctrl info on datafile head */
-        if (ctrl_backup_core_log_info(session) != GS_SUCCESS) {
+        if (ctrl_backup_core_log_info(session) != CT_SUCCESS) {
             KNL_SESSION_CLEAR_THREADID(session);
             CM_ABORT(0, "[CKPT] ABORT INFO: backup core control info failed when perform checkpoint");
         }
@@ -342,13 +345,13 @@ static void ckpt_full_checkpoint(knl_session_t *session)
 
         if (ctx->batch_end != NULL) {
             if (ctx->edp_group.count != 0) {
-                uint32 sleep_time = (ctx->edp_group.count / (GS_CKPT_GROUP_SIZE / 2 + 1) + 1) * 3 * CKPT_WAIT_MS;
+                uint32 sleep_time = (ctx->edp_group.count / (CT_CKPT_GROUP_SIZE(session) / 2 + 1) + 1) * 3 * CKPT_WAIT_MS;
                 cm_sleep(sleep_time);
             }
             continue;
         }
 
-        if (ckpt_save_ctrl(session) != GS_SUCCESS) {
+        if (ckpt_save_ctrl(session) != CT_SUCCESS) {
             KNL_SESSION_CLEAR_THREADID(session);
             CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
         }
@@ -356,7 +359,7 @@ static void ckpt_full_checkpoint(knl_session_t *session)
         break;
     }
     uint64 task_end = KNL_NOW(session);
-    GS_LOG_RUN_INF("Finish trigger full checkpoint, Flush pages %llu, Clean edp count %llu, cost time(us) %llu",
+    CT_LOG_RUN_INF("Finish trigger full checkpoint, Flush pages %llu, Clean edp count %llu, cost time(us) %llu",
         ctx->stat.flush_pages[ctx->trigger_task] - curr_flush_count,
         ctx->stat.clean_edp_count[ctx->trigger_task] - curr_clean_edp_count, task_end - task_begin);
 }
@@ -368,7 +371,7 @@ static void ckpt_inc_checkpoint(knl_session_t *session)
 {
     ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
     
-    if (ckpt_perform(session) != GS_SUCCESS) {
+    if (ckpt_perform(session) != CT_SUCCESS) {
         KNL_SESSION_CLEAR_THREADID(session);
         CM_ABORT(0, "[CKPT] ABORT INFO: redo log task flush redo file failed.");
     }
@@ -377,23 +380,23 @@ static void ckpt_inc_checkpoint(knl_session_t *session)
 
     ckpt_update_log_point(session);
     // save log point first
-    if (ckpt_save_ctrl(session) != GS_SUCCESS) {
+    if (ckpt_save_ctrl(session) != CT_SUCCESS) {
         KNL_SESSION_CLEAR_THREADID(session);
         CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
     }
     log_recycle_file(session, &dtc_my_ctrl(session)->rcy_point);
-    GS_LOG_DEBUG_INF("[CKPT] Set rcy point to [%u-%u/%u/%llu] in ctrl for instance %u",
+    CT_LOG_DEBUG_INF("[CKPT] Set rcy point to [%u-%u/%u/%llu] in ctrl for instance %u",
                      dtc_my_ctrl(session)->rcy_point.rst_id, dtc_my_ctrl(session)->rcy_point.asn,
                      dtc_my_ctrl(session)->rcy_point.block_id, (uint64)dtc_my_ctrl(session)->rcy_point.lfn,
                      session->kernel->id);
 
     /* backup some core info on datafile head: only back up core log info for full ckpt and timed task */
-    if (NEED_SYNC_LOG_INFO(ctx) && ctrl_backup_core_log_info(session) != GS_SUCCESS) {
+    if (NEED_SYNC_LOG_INFO(ctx) && ctrl_backup_core_log_info(session) != CT_SUCCESS) {
         KNL_SESSION_CLEAR_THREADID(session);
         CM_ABORT(0, "[CKPT] ABORT INFO: backup core control info failed when perform checkpoint");
     }
 
-    if (ckpt_save_ctrl(session) != GS_SUCCESS) {
+    if (ckpt_save_ctrl(session) != CT_SUCCESS) {
         KNL_SESSION_CLEAR_THREADID(session);
         CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
     }
@@ -425,11 +428,11 @@ void ckpt_pop_page(knl_session_t *session, ckpt_context_t *ctx, buf_ctrl_t *ctrl
         }
     }
 
-    knl_panic_log(ctrl->in_ckpt == GS_TRUE, "ctrl is not in ckpt, panic info: page %u-%u type %u", ctrl->page_id.file,
+    knl_panic_log(ctrl->in_ckpt == CT_TRUE, "ctrl is not in ckpt, panic info: page %u-%u type %u", ctrl->page_id.file,
                   ctrl->page_id.page, ctrl->page->type);
     ctrl->ckpt_prev = NULL;
     ctrl->ckpt_next = NULL;
-    ctrl->in_ckpt = GS_FALSE;
+    ctrl->in_ckpt = CT_FALSE;
 
     cm_spin_unlock(&ctx->queue.lock);
 }
@@ -440,8 +443,6 @@ static void ckpt_assign_trigger_task(knl_session_t *session, trigger_task_t *tas
     uint64_t snap_num = 0;
     
     /* To ensure the trigger_task action is valid, we use white list for debugging */
-    knl_panic (CKPT_IS_TRIGGER(task_desc->mode));
-
     for (;;) {
         cm_spin_lock(&ctx->lock, &session->stat->spin_stat.stat_ckpt);
         if (ctx->trigger_task == CKPT_MODE_IDLE && ctx->ckpt_enabled) {
@@ -494,11 +495,11 @@ static inline status_t ckpt_assign_timed_task(knl_session_t *session, ckpt_conte
      */
     if (SECUREC_UNLIKELY(!ctx->ckpt_enabled)) {
         cm_spin_unlock(&ctx->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     ctx->timed_task = mode;
     cm_spin_unlock(&ctx->lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void ckpt_trigger(knl_session_t *session, bool32 wait, ckpt_mode_t mode)
@@ -513,13 +514,13 @@ void ckpt_trigger(knl_session_t *session, bool32 wait, ckpt_mode_t mode)
      */
     ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
     trigger_task_t task;
-    task.guarantee = GS_FALSE;
-    task.join = GS_TRUE;
+    task.guarantee = CT_FALSE;
+    task.join = CT_TRUE;
     task.wait = wait;
 
     if (mode == CKPT_TRIGGER_FULL) {
-        task.guarantee = GS_TRUE;
-        task.join = GS_FALSE;
+        task.guarantee = CT_TRUE;
+        task.join = CT_FALSE;
         (void)cm_atomic_inc(&ctx->full_trigger_active_num);
     }
     
@@ -574,7 +575,7 @@ static void ckpt_do_timed_task(knl_session_t *session, ckpt_context_t *ctx, date
 
     if (attr->page_clean_period != 0 &&
         KNL_NOW(session) - (*clean_time) >= (date_t)attr->page_clean_period * MILLISECS_PER_SECOND) {
-        if (ckpt_assign_timed_task(session, ctx, CKPT_TIMED_CLEAN) == GS_SUCCESS) {
+        if (ckpt_assign_timed_task(session, ctx, CKPT_TIMED_CLEAN) == CT_SUCCESS) {
             date_t task_begin = KNL_NOW(session);
             ctx->stat.ckpt_begin_time[CKPT_TIMED_CLEAN] = task_begin;
             ckpt_page_clean(session);
@@ -588,9 +589,9 @@ static void ckpt_do_timed_task(knl_session_t *session, ckpt_context_t *ctx, date
     }
 
     if (ctx->queue.count + ctx->remote_edp_group.count >= attr->ckpt_interval ||
-        ctx->remote_edp_group.count + ctx->local_edp_clean_group.count >= GS_CKPT_EDP_GROUP_SIZE ||
+        ctx->remote_edp_group.count + ctx->local_edp_clean_group.count >= CT_CKPT_EDP_GROUP_SIZE(session) ||
         KNL_NOW(session) - (*ckpt_time) >= (date_t)attr->ckpt_timeout * MICROSECS_PER_SECOND) {
-        if (ckpt_assign_timed_task(session, ctx, CKPT_TIMED_INC) == GS_SUCCESS) {
+        if (ckpt_assign_timed_task(session, ctx, CKPT_TIMED_INC) == CT_SUCCESS) {
             date_t task_begin = KNL_NOW(session);
             ctx->stat.ckpt_begin_time[CKPT_TIMED_INC] = task_begin;
             ckpt_inc_checkpoint(session);
@@ -619,7 +620,7 @@ void ckpt_proc(thread_t *thread)
     date_t clean_time = 0;
 
     cm_set_thread_name("ckpt");
-    GS_LOG_RUN_INF("ckpt thread started");
+    CT_LOG_RUN_INF("ckpt thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
     
     while (!thread->closed) {
@@ -641,6 +642,11 @@ void ckpt_proc(thread_t *thread)
             continue;
         }
 
+        /* Quicly go the next schedul if dirty queue satisfies timed schedule */
+        if (ctx->queue.count >= attr->ckpt_interval && ctx->ckpt_enabled) {
+            continue;
+        }
+
          /* For performance consideration,  we may don't want the timed task runing too frequently
           * in large-memory environment.
           * So we wait for a short time (default to 100ms with parameter), in which we can still
@@ -650,11 +656,6 @@ void ckpt_proc(thread_t *thread)
         uint32 timed_task_delay_ms = session->kernel->attr.ckpt_timed_task_delay;
         (void)cm_wait_cond(&ctx->ckpt_cond, timed_task_delay_ms);
         if (ctx->trigger_task != CKPT_MODE_IDLE) {
-            continue;
-        }
-
-        /* Quicly go the next schedul if dirty queue satisfies timed schedule */
-        if (ctx->queue.count >= attr->ckpt_interval && ctx->ckpt_enabled) {
             continue;
         }
 
@@ -668,7 +669,7 @@ void ckpt_proc(thread_t *thread)
         ctx->stat.proc_wait_cnt++;
     }
 
-    GS_LOG_RUN_INF("ckpt thread closed");
+    CT_LOG_RUN_INF("ckpt thread closed");
     KNL_SESSION_CLEAR_THREADID(session);
 }
 
@@ -680,18 +681,18 @@ bool32 ckpt_try_latch_ctrl(knl_session_t *session, buf_ctrl_t *ctrl)
     ckpt_context_t *ctx = &kernel->ckpt_ctx;
     
     for (;;) {
-        if (ctx->ckpt_enabled == GS_FALSE) {
-            return GS_FALSE;
+        if (ctx->ckpt_enabled == CT_FALSE) {
+            return CT_FALSE;
         }
         while (ctrl->is_readonly) {
-            if (ctx->ckpt_enabled == GS_FALSE) {
-                return GS_FALSE;
+            if (ctx->ckpt_enabled == CT_FALSE) {
+                return CT_FALSE;
             }
             if (wait_ticks >= CKPT_LATCH_WAIT) {
-                return GS_FALSE;
+                return CT_FALSE;
             }
             times++;
-            if (times > GS_SPIN_COUNT) {
+            if (times > CT_SPIN_COUNT) {
                 cm_spin_sleep();
                 times = 0;
                 wait_ticks++;
@@ -700,14 +701,14 @@ bool32 ckpt_try_latch_ctrl(knl_session_t *session, buf_ctrl_t *ctrl)
         }
 
         // in checkpoint, we don't increase the ref_num.
-        if (!buf_latch_timed_s(session, ctrl, CKPT_LATCH_TIMEOUT, GS_FALSE, GS_TRUE)) {
-            return GS_FALSE;
+        if (!buf_latch_timed_s(session, ctrl, CKPT_LATCH_TIMEOUT, CT_FALSE, CT_TRUE)) {
+            return CT_FALSE;
         }
 
         if (!ctrl->is_readonly) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
-        buf_unlatch(session, ctrl, GS_FALSE);
+        buf_unlatch(session, ctrl, CT_FALSE);
     }
 }
 
@@ -717,20 +718,20 @@ status_t ckpt_checksum(knl_session_t *session, ckpt_context_t *ctx)
     page_head_t *page = (page_head_t *)(ctx->group.buf + DEFAULT_PAGE_SIZE(session) * ctx->group.count);
 
     if (cks_level == (uint32)CKS_FULL) {
-        if (PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)) != GS_INVALID_CHECKSUM
+        if (PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)) != CT_INVALID_CHECKSUM
             && !page_verify_checksum(page, DEFAULT_PAGE_SIZE(session))) {
-            GS_LOG_RUN_ERR("[CKPT] page corrupted(file %u, page %u).checksum level %s, page size %u, cks %u",
+            CT_LOG_RUN_ERR("[CKPT] page corrupted(file %u, page %u).checksum level %s, page size %u, cks %u",
                 AS_PAGID_PTR(page->id)->file, AS_PAGID_PTR(page->id)->page, knl_checksum_level(cks_level),
                 PAGE_SIZE(*page), PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)));
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else if (cks_level == (uint32)CKS_OFF) {
-        PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)) = GS_INVALID_CHECKSUM;
+        PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)) = CT_INVALID_CHECKSUM;
     } else {
         page_calc_checksum(page, DEFAULT_PAGE_SIZE(session));
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static uint32 ckpt_get_neighbors(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t *first)
@@ -773,10 +774,10 @@ static inline bool32 page_encrypt_enable(knl_session_t *session, space_t *space,
     }
 
     if (SPACE_IS_ENCRYPT(space) && page_type_suport_encrypt(page->type)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t ckpt_encrypt(knl_session_t *session, ckpt_context_t *ctx)
@@ -784,14 +785,14 @@ status_t ckpt_encrypt(knl_session_t *session, ckpt_context_t *ctx)
     page_head_t *page = (page_head_t *)(ctx->group.buf + DEFAULT_PAGE_SIZE(session) * ctx->group.count);
     space_t *space = SPACE_GET(session, DATAFILE_GET(session, AS_PAGID_PTR(page->id)->file)->space_id);
     if (!page_encrypt_enable(session, space, page)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (page_encrypt(session, page, space->ctrl->encrypt_version, space->ctrl->cipher_reserve_size) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (page_encrypt(session, page, space->ctrl->encrypt_version, space->ctrl->cipher_reserve_size) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef LOG_DIAG
@@ -806,7 +807,7 @@ static status_t ckpt_verify_decrypt(knl_session_t *session, ckpt_context_t *ctx)
     knl_securec_check(ret);
 
     if (((page_head_t *)copy_page)->encrypted) {
-        if (page_decrypt(session, (page_head_t *)copy_page) != GS_SUCCESS) {
+        if (page_decrypt(session, (page_head_t *)copy_page) != CT_SUCCESS) {
             knl_panic_log(0, "decrypt verify failed![AFTER ENCRYPT]AFTER CKPT CHECKSUM! ,DECRYPT IMMEDEATLY ERROR: "
                 "page_info: page %u, file %u, page_type %u, encrypted %u,"
                 "space->ctrl->cipher_reserve_size: %u ",
@@ -814,7 +815,7 @@ static status_t ckpt_verify_decrypt(knl_session_t *session, ckpt_context_t *ctx)
         }
     }
     cm_pop(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 #endif
 
@@ -830,7 +831,7 @@ void ckpt_unlatch_group(knl_session_t *session, page_id_t first, uint32 start, u
         to_flush_ctrl = buf_find_by_pageid(session, page_id);
         knl_panic_log(to_flush_ctrl != NULL, "ctrl missed in buffer, panic info: group head %u-%u, missed %u-%u",
             first.file, first.page, first.file, first.page + i);
-        buf_unlatch(session, to_flush_ctrl, GS_FALSE);
+        buf_unlatch(session, to_flush_ctrl, CT_FALSE);
     }
 }
 
@@ -859,9 +860,9 @@ bool32 buf_group_compressible(knl_session_t *session, buf_ctrl_t *ctrl)
 
     first = page_first_group_id(session, ctrl->page_id);
     if (!IS_SAME_PAGID(first, ctrl->page_id)) {
-        GS_LOG_RUN_ERR("group incompressible, first: %d-%d != current: %d-%d", first.file, first.page,
+        CT_LOG_RUN_ERR("group incompressible, first: %d-%d != current: %d-%d", first.file, first.page,
             ctrl->page_id.file, ctrl->page_id.page);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     page_id.file = first.file;
@@ -871,13 +872,13 @@ bool32 buf_group_compressible(knl_session_t *session, buf_ctrl_t *ctrl)
         /* as a page group is alloc and release as a whole, so we consider a page group
          * which members are not all in buffer is incompressible */
         if (to_compress_ctrl == NULL || !page_compress(session, to_compress_ctrl->page_id)) {
-            GS_LOG_RUN_ERR("group incompressible, member: %d-0x%llx, current: %d-%d", i, (uint64)to_compress_ctrl,
+            CT_LOG_RUN_ERR("group incompressible, member: %d, current: %d-%d", i,
                 ctrl->page_id.file, ctrl->page_id.page);
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 bool32 ckpt_try_latch_group(knl_session_t *session, buf_ctrl_t *ctrl)
@@ -899,23 +900,23 @@ bool32 ckpt_try_latch_group(knl_session_t *session, buf_ctrl_t *ctrl)
             first.file, first.page, first.file, first.page + i);
         if (!ckpt_try_latch_ctrl(session, to_compress_ctrl)) {
             ckpt_unlatch_group(session, first, 0, i);
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
  
 static void ckpt_copy_item(knl_session_t *session, buf_ctrl_t *ctrl, buf_ctrl_t *to_flush_ctrl)
 {
     gbp_context_t *gbp_ctx = &session->kernel->gbp_context;
     ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
-    uint32 gbp_lock_id = GS_INVALID_ID32;
+    uint32 gbp_lock_id = CT_INVALID_ID32;
     errno_t ret;
 
     /* concurrent with knl_read_page_from_gbp when buf_enter_page with LATCH_S lock */
     if (SECUREC_UNLIKELY(KNL_RECOVERY_WITH_GBP(session->kernel))) {
-        gbp_lock_id = ctrl->page_id.page % GS_GBP_RD_LOCK_COUNT;
+        gbp_lock_id = ctrl->page_id.page % CT_GBP_RD_LOCK_COUNT;
         cm_spin_lock(&gbp_ctx->buf_read_lock[gbp_lock_id], NULL);
     }
 
@@ -936,14 +937,14 @@ static void ckpt_copy_item(knl_session_t *session, buf_ctrl_t *ctrl, buf_ctrl_t 
         ctx->consistent_lfn = to_flush_ctrl->lastest_lfn;
     }
 
-    /* DEFAULT_PAGE_SIZE is 8192,  ctx->group.count <= GS_CKPT_GROUP_SIZE(4096), integers cannot cross bounds */
+    /* DEFAULT_PAGE_SIZE is 8192,  ctx->group.count <= CT_CKPT_GROUP_SIZE(4096), integers cannot cross bounds */
     ret = memcpy_sp(ctx->group.buf + DEFAULT_PAGE_SIZE(session) * ctx->group.count, DEFAULT_PAGE_SIZE(session),
         to_flush_ctrl->page, DEFAULT_PAGE_SIZE(session));
     knl_securec_check(ret);
 
-    if (SECUREC_UNLIKELY(gbp_lock_id != GS_INVALID_ID32)) {
+    if (SECUREC_UNLIKELY(gbp_lock_id != CT_INVALID_ID32)) {
         cm_spin_unlock(&gbp_ctx->buf_read_lock[gbp_lock_id]);
-        gbp_lock_id = GS_INVALID_ID32;
+        gbp_lock_id = CT_INVALID_ID32;
     }
 
     if (to_flush_ctrl == ctx->batch_end) {
@@ -961,7 +962,7 @@ static void ckpt_copy_item(knl_session_t *session, buf_ctrl_t *ctrl, buf_ctrl_t 
 
     ctx->group.items[ctx->group.count].ctrl = to_flush_ctrl;
     ctx->group.items[ctx->group.count].buf_id = ctx->group.count;
-    ctx->group.items[ctx->group.count].need_punch = GS_FALSE;
+    ctx->group.items[ctx->group.count].need_punch = CT_FALSE;
 
     ckpt_put_to_part_group(session, ctx, to_flush_ctrl);
 }
@@ -969,37 +970,37 @@ static void ckpt_copy_item(knl_session_t *session, buf_ctrl_t *ctrl, buf_ctrl_t 
 static status_t ckpt_ending_prepare(knl_session_t *session, ckpt_context_t *ctx)
 {
     /* must before checksum calc */
-    if (ckpt_encrypt(session, ctx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ckpt_encrypt(session, ctx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (ckpt_checksum(session, ctx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ckpt_checksum(session, ctx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 #ifdef LOG_DIAG
-    if (ckpt_verify_decrypt(session, ctx) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("ERROR: ckpt verify decrypt failed. ");
-        return GS_ERROR;
+    if (ckpt_verify_decrypt(session, ctx) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("ERROR: ckpt verify decrypt failed. ");
+        return CT_ERROR;
     }
 #endif
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-static status_t ckpt_prepare_compress(knl_session_t *session, ckpt_context_t *ctx, buf_ctrl_t *curr_ctrl,
+status_t ckpt_prepare_compress(knl_session_t *session, ckpt_context_t *ctx, buf_ctrl_t *curr_ctrl,
     buf_ctrl_t *ctrl_next, bool8 *ctrl_next_is_flushed, bool8 *need_exit)
 {
     page_id_t first_page_id, to_flush_pageid;
     buf_ctrl_t *to_flush_ctrl = NULL;
 
-    ctx->has_compressed = GS_TRUE;
+    ctx->has_compressed = CT_TRUE;
 
-    if (ctx->group.count + PAGE_GROUP_COUNT > GS_CKPT_GROUP_SIZE) {
-        *need_exit = GS_TRUE;
-        return GS_SUCCESS;
+    if (ctx->group.count + PAGE_GROUP_COUNT > CT_CKPT_GROUP_SIZE(session)) {
+        *need_exit = CT_TRUE;
+        return CT_SUCCESS;
     }
 
     if (!ckpt_try_latch_group(session, curr_ctrl)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     first_page_id = page_first_group_id(session, curr_ctrl->page_id);
@@ -1022,37 +1023,37 @@ static status_t ckpt_prepare_compress(knl_session_t *session, ckpt_context_t *ct
         /* we should retain items for clean pages in page group, as a result, it may lead to lower io capacity */
         if (to_flush_ctrl->is_marked) {
             /* this ctrl has been added to ckpt group, so skip it */
-            if (to_flush_ctrl->in_ckpt == GS_FALSE) {
-                buf_unlatch(session, to_flush_ctrl, GS_FALSE);
+            if (to_flush_ctrl->in_ckpt == CT_FALSE) {
+                buf_unlatch(session, to_flush_ctrl, CT_FALSE);
                 continue;
             }
             ckpt_unlatch_group(session, first_page_id, i, PAGE_GROUP_COUNT);
-            *need_exit = GS_TRUE;
-            return GS_SUCCESS;
+            *need_exit = CT_TRUE;
+            return CT_SUCCESS;
         }
 
         ckpt_copy_item(session, curr_ctrl, to_flush_ctrl);
 
         if (to_flush_ctrl == ctrl_next) {
-            *ctrl_next_is_flushed = GS_TRUE;
+            *ctrl_next_is_flushed = CT_TRUE;
         }
 
-        buf_unlatch(session, to_flush_ctrl, GS_FALSE);
+        buf_unlatch(session, to_flush_ctrl, CT_FALSE);
 
-        if (ckpt_ending_prepare(session, ctx) != GS_SUCCESS) {
+        if (ckpt_ending_prepare(session, ctx) != CT_SUCCESS) {
             ckpt_unlatch_group(session, first_page_id, i + 1, PAGE_GROUP_COUNT);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         ctx->group.count++;
 
-        if (ctx->group.count >= GS_CKPT_GROUP_SIZE) {
-            *need_exit = GS_TRUE;
-            return GS_SUCCESS;
+        if (ctx->group.count >= CT_CKPT_GROUP_SIZE(session)) {
+            *need_exit = CT_TRUE;
+            return CT_SUCCESS;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t ckpt_prepare_normal(knl_session_t *session, ckpt_context_t *ctx, buf_ctrl_t *curr_ctrl,
@@ -1078,7 +1079,7 @@ static status_t ckpt_prepare_normal(knl_session_t *session, ckpt_context_t *ctx,
         }
 
         /* not a flushable page */
-        if (to_flush_ctrl == NULL || to_flush_ctrl->in_ckpt == GS_FALSE) {
+        if (to_flush_ctrl == NULL || to_flush_ctrl->in_ckpt == CT_FALSE) {
             continue;
         }
 
@@ -1093,29 +1094,29 @@ static status_t ckpt_prepare_normal(knl_session_t *session, ckpt_context_t *ctx,
 
         if (DB_IS_CLUSTER(session)) {
             if (to_flush_ctrl->is_edp) {
-                GS_LOG_DEBUG_INF("[CKPT]checkpoint find edp [%u-%u], count(%d)", to_flush_ctrl->page_id.file,
+                CT_LOG_DEBUG_INF("[CKPT]checkpoint find edp [%u-%u], count(%d)", to_flush_ctrl->page_id.file,
                                  to_flush_ctrl->page_id.page, ctx->edp_group.count);
                 knl_panic(DCS_BUF_CTRL_NOT_OWNER(session, to_flush_ctrl));
-                buf_unlatch(session, to_flush_ctrl, GS_FALSE);
-                if (!dtc_add_to_edp_group(session, &ctx->edp_group, GS_CKPT_GROUP_SIZE, to_flush_ctrl->page_id,
+                buf_unlatch(session, to_flush_ctrl, CT_FALSE);
+                if (!dtc_add_to_edp_group(session, &ctx->edp_group, CT_CKPT_GROUP_SIZE(session), to_flush_ctrl->page_id,
                                           to_flush_ctrl->page->lsn)) {
-                    *need_exit = GS_TRUE;
+                    *need_exit = CT_TRUE;
                     break;
                 }
                 continue;
             }
 
-            if (to_flush_ctrl->in_ckpt == GS_FALSE) {
-                buf_unlatch(session, to_flush_ctrl, GS_FALSE);
+            if (to_flush_ctrl->in_ckpt == CT_FALSE) {
+                buf_unlatch(session, to_flush_ctrl, CT_FALSE);
                 continue;
             }
 
             knl_panic(DCS_BUF_CTRL_IS_OWNER(session, to_flush_ctrl));
             if (to_flush_ctrl->is_remote_dirty &&
-                !dtc_add_to_edp_group(session, &ctx->remote_edp_clean_group, GS_CKPT_GROUP_SIZE, to_flush_ctrl->page_id,
+                !dtc_add_to_edp_group(session, &ctx->remote_edp_clean_group, CT_CKPT_GROUP_SIZE(session), to_flush_ctrl->page_id,
                                       to_flush_ctrl->page->lsn)) {
-                buf_unlatch(session, to_flush_ctrl, GS_FALSE);
-                *need_exit = GS_TRUE;
+                buf_unlatch(session, to_flush_ctrl, CT_FALSE);
+                *need_exit = CT_TRUE;
                 break;
             }
         }
@@ -1125,42 +1126,42 @@ static status_t ckpt_prepare_normal(knl_session_t *session, ckpt_context_t *ctx,
         * end this prepare, we can not handle two copies of same page
         */
         if (to_flush_ctrl->is_marked) {
-            buf_unlatch(session, to_flush_ctrl, GS_FALSE);
-            *need_exit = GS_TRUE;
-            return GS_SUCCESS;
+            buf_unlatch(session, to_flush_ctrl, CT_FALSE);
+            *need_exit = CT_TRUE;
+            return CT_SUCCESS;
         }
 
         ckpt_copy_item(session, curr_ctrl, to_flush_ctrl);
 
         if (to_flush_ctrl == ctrl_next) {
-            *ctrl_next_is_flushed = GS_TRUE;
+            *ctrl_next_is_flushed = CT_TRUE;
         }
 
-        buf_unlatch(session, to_flush_ctrl, GS_FALSE);
+        buf_unlatch(session, to_flush_ctrl, CT_FALSE);
 
-        if (ckpt_ending_prepare(session, ctx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ckpt_ending_prepare(session, ctx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         ctx->stat.ckpt_total_neighbors_len++;
         ctx->stat.ckpt_curr_neighbors_len++;
         ctx->group.count++;
 
-        if (ctx->group.count >= GS_CKPT_GROUP_SIZE) {
-            *need_exit = GS_TRUE;
-            return GS_SUCCESS;
+        if (ctx->group.count >= CT_CKPT_GROUP_SIZE(session)) {
+            *need_exit = CT_TRUE;
+            return CT_SUCCESS;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ckpt_prepare_pages(knl_session_t *session, ckpt_context_t *ctx)
 {
     buf_ctrl_t *ctrl_next = NULL;
     buf_ctrl_t *ctrl = ctx->queue.first;
-    bool8 ctrl_next_is_flushed = GS_FALSE;
-    bool8 need_exit = GS_FALSE;
+    bool8 ctrl_next_is_flushed = CT_FALSE;
+    bool8 need_exit = CT_FALSE;
 
     ctx->group.count = 0;
     ctx->edp_group.count = 0;
@@ -1171,27 +1172,27 @@ status_t ckpt_prepare_pages(knl_session_t *session, ckpt_context_t *ctx)
         dtc_calculate_rcy_redo_size(session, ctrl);
     }
 
-    if (ctx->queue.count == 0 || ctx->group.count >= GS_CKPT_GROUP_SIZE) {
-        return GS_SUCCESS;
+    if (ctx->queue.count == 0 || ctx->group.count >= CT_CKPT_GROUP_SIZE(session)) {
+        return CT_SUCCESS;
     }
 
     ctx->trunc_lsn = 0;
     ctx->consistent_lfn = 0;
-    ctx->has_compressed = GS_FALSE;
+    ctx->has_compressed = CT_FALSE;
     ctx->stat.ckpt_curr_neighbors_times = 0;
     ctx->stat.ckpt_curr_neighbors_len = 0;
 
     while (ctrl != NULL) {
         ctrl_next = ctrl->ckpt_next;
-        ctrl_next_is_flushed = GS_FALSE;
+        ctrl_next_is_flushed = CT_FALSE;
         if (page_compress(session, ctrl->page_id)) {
             knl_panic(!DB_IS_CLUSTER(session));  // not support compress in cluster for now
-            if (ckpt_prepare_compress(session, ctx, ctrl, ctrl_next, &ctrl_next_is_flushed, &need_exit) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (ckpt_prepare_compress(session, ctx, ctrl, ctrl_next, &ctrl_next_is_flushed, &need_exit) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
-            if (ckpt_prepare_normal(session, ctx, ctrl, ctrl_next, &ctrl_next_is_flushed, &need_exit) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (ckpt_prepare_normal(session, ctx, ctrl, ctrl_next, &ctrl_next_is_flushed, &need_exit) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
@@ -1200,7 +1201,7 @@ status_t ckpt_prepare_pages(knl_session_t *session, ckpt_context_t *ctx)
         }
 
         ctrl = ctrl_next_is_flushed ? ctx->queue.first : ctrl_next;
-        /* prevent that dirty page count is less than GS_CKPT_GROUP_SIZE,
+        /* prevent that dirty page count is less than CT_CKPT_GROUP_SIZE,
            in the same time there is one page is latched. */
         if (!ctx->ckpt_enabled) {
             break;
@@ -1211,12 +1212,12 @@ status_t ckpt_prepare_pages(knl_session_t *session, ckpt_context_t *ctx)
         ctx->stat.ckpt_last_neighbors_len = (ctx->stat.ckpt_curr_neighbors_len / ctx->stat.ckpt_curr_neighbors_times);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void ckpt_unlatch_datafiles(datafile_t **df, uint32 count, int32 size)
 {
-    if (cm_dbs_is_enable_dbs() == GS_TRUE && size == GS_UDFLT_VALUE_BUFFER_SIZE) {
+    if (cm_dbs_is_enable_dbs() == CT_TRUE && size == CT_UDFLT_VALUE_BUFFER_SIZE) {
         return;
     }
 
@@ -1228,7 +1229,7 @@ static inline void ckpt_unlatch_datafiles(datafile_t **df, uint32 count, int32 s
 static void ckpt_latch_datafiles(knl_session_t *session, datafile_t **df, uint64 *offset, int32 size, uint32 count)
 {
     // dbstor can ensure that atomicity of read and write when page size is smaller than 8K
-    if (cm_dbs_is_enable_dbs() == GS_TRUE && size == GS_UDFLT_VALUE_BUFFER_SIZE) {
+    if (cm_dbs_is_enable_dbs() == CT_TRUE && size == CT_UDFLT_VALUE_BUFFER_SIZE) {
         return;
     }
 
@@ -1238,7 +1239,7 @@ static void ckpt_latch_datafiles(knl_session_t *session, datafile_t **df, uint64
         for (i = 0; i < count; i++) {
             end_pos = offset[i] + (uint64)size;
 
-            if (!cm_latch_timed_s(&df[i]->block_latch, 1, GS_FALSE, NULL)) {
+            if (!cm_latch_timed_s(&df[i]->block_latch, 1, CT_FALSE, NULL)) {
                 /* latch fail need release them and try again from first page */
                 ckpt_unlatch_datafiles(df, i, size);
                 cm_sleep(1);
@@ -1262,7 +1263,7 @@ void dbwr_compress_checksum(knl_session_t *session, page_head_t *page)
     uint32 cks_level = session->kernel->attr.db_block_checksum;
 
     if (cks_level == (uint32)CKS_OFF) {
-        COMPRESS_PAGE_HEAD(page)->checksum = GS_INVALID_CHECKSUM;
+        COMPRESS_PAGE_HEAD(page)->checksum = CT_INVALID_CHECKSUM;
     } else {
         page_compress_calc_checksum(page, DEFAULT_PAGE_SIZE(session));
     }
@@ -1319,7 +1320,7 @@ static void dbwr_construct_group(knl_session_t *session, dbwr_context_t *dbwr, u
     } while (remaining_size != 0);
 
     while (slot <= begin + PAGE_GROUP_COUNT - 1) {
-        ctx->group.items[slot].need_punch = GS_TRUE;
+        ctx->group.items[slot].need_punch = CT_TRUE;
         ctrl = ctx->group.items[slot].ctrl;
         knl_panic_log(page_compress(session, ctrl->page_id), "the page is incompressible, panic info: "
             "curr page %u-%u", ctrl->page_id.file, ctrl->page_id.page);
@@ -1345,15 +1346,15 @@ static status_t dbwr_compress_group(knl_session_t *session, dbwr_context_t *dbwr
     compressed_size = ZSTD_compress((char *)zbuf, DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, src,
         DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, ZSTD_DEFAULT_COMPRESS_LEVEL);
     if (ZSTD_isError(compressed_size)) {
-        GS_THROW_ERROR(ERR_COMPRESS_ERROR, "zstd", compressed_size, ZSTD_getErrorName(compressed_size));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_COMPRESS_ERROR, "zstd", compressed_size, ZSTD_getErrorName(compressed_size));
+        return CT_ERROR;
     }
 
     if (SECUREC_LIKELY(compressed_size <= COMPRESS_GROUP_VALID_SIZE(session))) {
         dbwr_construct_group(session, dbwr, begin, compressed_size, zbuf);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* we devide ckpt group into two groups,one is pages which would be punched,the other is pages wihch would be submit */
@@ -1368,13 +1369,13 @@ static status_t dbwr_compress_prepare(knl_session_t *session, dbwr_context_t *db
     pcb_assist_t zbuf_pcb_assist;
     uint16 i;
 
-    if (pcb_get_buf(session, &src_pcb_assist) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (pcb_get_buf(session, &src_pcb_assist) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (pcb_get_buf(session, &zbuf_pcb_assist) != GS_SUCCESS) {
+    if (pcb_get_buf(session, &zbuf_pcb_assist) != CT_SUCCESS) {
         pcb_release_buf(session, &src_pcb_assist);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     ret = memset_sp(zbuf_pcb_assist.aligned_buf, DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT, 0,
@@ -1390,17 +1391,17 @@ static status_t dbwr_compress_prepare(knl_session_t *session, dbwr_context_t *db
         }
         knl_panic(AS_PAGID(page->id).page % PAGE_GROUP_COUNT == 0);
         if (dbwr_compress_group(session, dbwr, i, zbuf_pcb_assist.aligned_buf,
-            src_pcb_assist.aligned_buf) != GS_SUCCESS) {
+            src_pcb_assist.aligned_buf) != CT_SUCCESS) {
             pcb_release_buf(session, &src_pcb_assist);
             pcb_release_buf(session, &zbuf_pcb_assist);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         skip_cnt = PAGE_GROUP_COUNT;
     }
 
     pcb_release_buf(session, &src_pcb_assist);
     pcb_release_buf(session, &zbuf_pcb_assist);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dbwr_async_io_write(knl_session_t *session, cm_aio_iocbs_t *aio_cbs, ckpt_context_t *ctx,
@@ -1425,9 +1426,9 @@ static status_t dbwr_async_io_write(knl_session_t *session, cm_aio_iocbs_t *aio_
     for (uint16 i = dbwr->begin; i <= dbwr->end; i++) {
         item = &ctx->group.items[i];
         if (item->need_punch) {
-            if (cm_file_punch_hole(*asyncio_ctx->handles[idx], (int64)asyncio_ctx->offsets[idx], size) != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("[CKPT] failed to punch datafile %s", asyncio_ctx->datafiles[idx]->ctrl->name);
-                return GS_ERROR;
+            if (cm_file_punch_hole(*asyncio_ctx->handles[idx], (int64)asyncio_ctx->offsets[idx], size) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[CKPT] failed to punch datafile %s", asyncio_ctx->datafiles[idx]->ctrl->name);
+                return CT_ERROR;
             }
         } else {
             buf_id = ctx->group.items[i].buf_id;
@@ -1441,15 +1442,15 @@ static status_t dbwr_async_io_write(knl_session_t *session, cm_aio_iocbs_t *aio_
             cb_id++;
 
             df = asyncio_ctx->datafiles[idx];
-            dbwr->flags[df->ctrl->id] = GS_TRUE;
+            dbwr->flags[df->ctrl->id] = CT_TRUE;
         }
         idx++;
     }
     knl_panic(cb_id == dbwr->io_cnt);
     aio_ret = lib_ctx->io_submit(dbwr->async_ctx.aio_ctx, (long)event_num, aio_cbs->iocb_ptrs);
     if (aio_ret != event_num) {
-        GS_LOG_RUN_ERR("[CKPT] failed to submit by async io, error code: %d, aio_ret: %d", errno, aio_ret);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[CKPT] failed to submit by async io, error code: %d, aio_ret: %d", errno, aio_ret);
+        return CT_ERROR;
     }
 
     while (event_num > 0) {
@@ -1460,13 +1461,13 @@ static status_t dbwr_async_io_write(knl_session_t *session, cm_aio_iocbs_t *aio_
             if (errno == EINTR || aio_ret == -EINTR) {
                 continue;
             }
-            GS_LOG_RUN_ERR("[CKPT] failed to getevent by async io, error code: %d, aio_ret: %d", errno, aio_ret);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[CKPT] failed to getevent by async io, error code: %d, aio_ret: %d", errno, aio_ret);
+            return CT_ERROR;
         }
         for (int32 i = 0; i < aio_ret; i++) {
             if (aio_cbs->events[i].res != size) {
-                GS_LOG_RUN_ERR("[CKPT] failed to write by event, error code: %ld", aio_cbs->events[i].res);
-                return GS_ERROR;
+                CT_LOG_RUN_ERR("[CKPT] failed to write by event, error code: %ld", aio_cbs->events[i].res);
+                return CT_ERROR;
             }
         }
         event_num = event_num - aio_ret;
@@ -1486,10 +1487,10 @@ static status_t dbwr_flush_async_io(knl_session_t *session, dbwr_context_t *dbwr
     ckpt_sort_item *item = NULL;
 
     if (ctx->has_compressed) {
-        if (dbwr_compress_prepare(session, dbwr) != GS_SUCCESS) {
+        if (dbwr_compress_prepare(session, dbwr) != CT_SUCCESS) {
             int32 err_code = cm_get_error_code();
             if (err_code != ERR_ALLOC_MEMORY) {
-                return GS_ERROR;
+                return CT_ERROR;
             }
             /* if there is not enough memory, no compression is performed */
             cm_reset_error();
@@ -1515,9 +1516,9 @@ static status_t dbwr_flush_async_io(knl_session_t *session, dbwr_context_t *dbwr
         knl_panic(page_compress(session, AS_PAGID(page)) || CHECK_PAGE_PCN(page));
 
         if (spc_open_datafile(session, asyncio_ctx->datafiles[latch_cnt],
-            asyncio_ctx->handles[latch_cnt]) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[CKPT] failed to open datafile %s", asyncio_ctx->datafiles[latch_cnt]->ctrl->name);
-            return GS_ERROR;
+            asyncio_ctx->handles[latch_cnt]) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[CKPT] failed to open datafile %s", asyncio_ctx->datafiles[latch_cnt]->ctrl->name);
+            return CT_ERROR;
         }
         latch_cnt++;
     }
@@ -1530,10 +1531,10 @@ static status_t dbwr_flush_async_io(knl_session_t *session, dbwr_context_t *dbwr
     aio_cbs.iocb_ptrs = (cm_iocb_t**)(ctx->group.iocbs_buf + buf_offset);
 
     ckpt_latch_datafiles(session, asyncio_ctx->datafiles, asyncio_ctx->offsets, DEFAULT_PAGE_SIZE(session), latch_cnt);
-    if (dbwr_async_io_write(session, &aio_cbs, ctx, dbwr, DEFAULT_PAGE_SIZE(session)) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[CKPT] failed to write datafile by async io");
+    if (dbwr_async_io_write(session, &aio_cbs, ctx, dbwr, DEFAULT_PAGE_SIZE(session)) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CKPT] failed to write datafile by async io");
         ckpt_unlatch_datafiles(asyncio_ctx->datafiles, latch_cnt, DEFAULT_PAGE_SIZE(session));
-        return GS_ERROR;
+        return CT_ERROR;
     }
     ckpt_unlatch_datafiles(asyncio_ctx->datafiles, latch_cnt, DEFAULT_PAGE_SIZE(session));
 
@@ -1541,22 +1542,22 @@ static status_t dbwr_flush_async_io(knl_session_t *session, dbwr_context_t *dbwr
         ctx->group.items[i].ctrl->is_marked = 0;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dbwr_sync_pg_pool(knl_session_t *session, dbwr_context_t *dbwr, uint32 part_id)
 {
     database_t *db = &session->kernel->db;
 
-    for (uint32 i = 0; i < GS_MAX_DATA_FILES; i++) {
+    for (uint32 i = 0; i < CT_MAX_DATA_FILES; i++) {
         if (dbwr->flags[i]) {
-            if (cm_sync_device_by_part(dbwr->datafiles[i], part_id) != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("failed to fdatasync datafile %s, part_id %d", db->datafiles[i].ctrl->name, part_id);
-                return GS_ERROR;
+            if (cm_sync_device_by_part(dbwr->datafiles[i], part_id) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("failed to fdatasync datafile %s, part_id %d", db->datafiles[i].ctrl->name, part_id);
+                return CT_ERROR;
             }
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dbwr_async_io_write_dbs(knl_session_t *session, ckpt_context_t *ctx, dbwr_context_t *dbwr, uint32 size)
@@ -1579,14 +1580,14 @@ status_t dbwr_async_io_write_dbs(knl_session_t *session, ckpt_context_t *ctx, db
             page = (page_head_t *)(ctx->group.buf + ((uint64)buf_id) * size);
             if (cm_aio_prep_write_by_part(*asyncio_ctx->handles[i], (int64)asyncio_ctx->offsets[i], page, size,
                 dbwr->id)) {
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             df = asyncio_ctx->datafiles[i];
-            dbwr->flags[df->ctrl->id] = GS_TRUE;
+            dbwr->flags[df->ctrl->id] = CT_TRUE;
         }
-        if (dbwr_sync_pg_pool(session, dbwr, dbwr->id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dbwr_sync_pg_pool(session, dbwr, dbwr->id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         for (uint16 i = begin; i < end; i++) {
             uint32 group_index = ctx->ckpt_part_group[dbwr->id].item_index[i];
@@ -1595,7 +1596,7 @@ status_t dbwr_async_io_write_dbs(knl_session_t *session, ckpt_context_t *ctx, db
         begin = end;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dbwr_flush_async_dbs(knl_session_t *session, dbwr_context_t *dbwr)
@@ -1623,21 +1624,21 @@ status_t dbwr_flush_async_dbs(knl_session_t *session, dbwr_context_t *dbwr)
         knl_panic(CHECK_PAGE_PCN(page));
 
         if (spc_open_datafile(session, asyncio_ctx->datafiles[latch_cnt], asyncio_ctx->handles[latch_cnt]) !=
-            GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[CKPT] failed to open datafile %s", asyncio_ctx->datafiles[latch_cnt]->ctrl->name);
-            return GS_ERROR;
+            CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[CKPT] failed to open datafile %s", asyncio_ctx->datafiles[latch_cnt]->ctrl->name);
+            return CT_ERROR;
         }
         latch_cnt++;
     }
 
     ckpt_latch_datafiles(session, asyncio_ctx->datafiles, asyncio_ctx->offsets, DEFAULT_PAGE_SIZE(session), latch_cnt);
-    if (dbwr_async_io_write_dbs(session, ctx, dbwr, DEFAULT_PAGE_SIZE(session)) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[CKPT] failed to write datafile by async io");
+    if (dbwr_async_io_write_dbs(session, ctx, dbwr, DEFAULT_PAGE_SIZE(session)) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CKPT] failed to write datafile by async io");
         ckpt_unlatch_datafiles(asyncio_ctx->datafiles, latch_cnt, DEFAULT_PAGE_SIZE(session));
-        return GS_ERROR;
+        return CT_ERROR;
     }
     ckpt_unlatch_datafiles(asyncio_ctx->datafiles, latch_cnt, DEFAULT_PAGE_SIZE(session));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t ckpt_double_write(knl_session_t *session, ckpt_context_t *ctx)
@@ -1660,16 +1661,16 @@ static status_t ckpt_double_write(knl_session_t *session, ckpt_context_t *ctx)
     knl_panic(df->file_no == 0);  // first sysaux file
 
     offset = (uint64)ctx->dw_ckpt_start * DEFAULT_PAGE_SIZE(session);
-    /* DEFAULT_PAGE_SIZE is 8192, ctx->group.count <= GS_CKPT_GROUP_SIZE(4096), can not cross bounds */
+    /* DEFAULT_PAGE_SIZE is 8192, ctx->group.count <= CT_CKPT_GROUP_SIZE(4096), can not cross bounds */
     if (spc_write_datafile(session, df, &ctx->dw_file, offset, ctx->group.buf,
-                           ctx->group.count * DEFAULT_PAGE_SIZE(session)) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[CKPT] failed to write datafile %s", df->ctrl->name);
-        return GS_ERROR;
+                           ctx->group.count * DEFAULT_PAGE_SIZE(session)) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CKPT] failed to write datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 
-    if (db_fdatasync_file(session, ctx->dw_file) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[CKPT] failed to fdatasync datafile %s", (char *)DATAFILE_GET(session, 0));
-        return GS_ERROR;
+    if (db_fdatasync_file(session, ctx->dw_file) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CKPT] failed to fdatasync datafile %s", (char *)DATAFILE_GET(session, 0));
+        return CT_ERROR;
     }
 
     cm_spin_lock(&db->ctrl_lock, NULL);
@@ -1681,7 +1682,7 @@ static status_t ckpt_double_write(knl_session_t *session, ckpt_context_t *ctx)
     ctx->stat.double_writes++;
     ctx->stat.double_write_time += (uint64)TIMEVAL_DIFF_US(&tv_begin, &tv_end);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static int32 ckpt_buforder_comparator(const void *pa, const void *pb)
@@ -1747,7 +1748,7 @@ static inline status_t ckpt_flush(knl_session_t *session, ckpt_context_t *ctx, u
         }
 
         ctx->dbwr[i].end = curr_page - 1;
-        ctx->dbwr[i].dbwr_trigger = GS_TRUE;
+        ctx->dbwr[i].dbwr_trigger = CT_TRUE;
         trigger_count++;
 #ifdef WIN32
         ReleaseSemaphore(ctx->dbwr[i].sem, 1, NULL);
@@ -1765,7 +1766,7 @@ static inline status_t ckpt_flush(knl_session_t *session, ckpt_context_t *ctx, u
             cm_sleep(1);
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void ckpt_delay(knl_session_t *session, uint32 ckpt_io_capacity)
@@ -1790,7 +1791,7 @@ static uint32 ckpt_get_dirty_ratio(knl_session_t *session)
     set = &buf_ctx->buf_set[0];
     total_pages = (uint64)set->capacity * buf_ctx->buf_set_count;
 
-    return (uint32)ceil((double)ckpt_ctx->queue.count / ((double)total_pages) * GS_PERCENT);
+    return (uint32)ceil((double)ckpt_ctx->queue.count / ((double)total_pages) * CT_PERCENT);
 }
 
 static uint32 ckpt_adjust_io_capacity(knl_session_t *session)
@@ -1805,7 +1806,7 @@ static uint32 ckpt_adjust_io_capacity(knl_session_t *session)
         /* triggered, max capacity */
         ckpt_io_capacity = ctx->group.count;
     } else if (ctx->prev_io_read == curr_io_read || /* no read, max capacity */
-               ckpt_get_dirty_ratio(session) > GS_MAX_BUF_DIRTY_PCT) {
+               ckpt_get_dirty_ratio(session) > CT_MAX_BUF_DIRTY_PCT) {
         ckpt_io_capacity = ctx->group.count;
     } else {
         /* normal case */
@@ -1823,7 +1824,7 @@ static status_t ckpt_flush_by_part(knl_session_t *session, ckpt_context_t *ctx)
         if (ctx->ckpt_part_group[i].count == 0) {
             continue;
         }
-        ctx->dbwr[i].dbwr_trigger = GS_TRUE;
+        ctx->dbwr[i].dbwr_trigger = CT_TRUE;
         ctx->dbwr[i].id = i;
         (void)sem_post(&ctx->dbwr[i].sem);
     }
@@ -1845,7 +1846,7 @@ static status_t ckpt_flush_by_part(knl_session_t *session, ckpt_context_t *ctx)
         }
         ctx->stat.part_stat[i].flush_times++;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t ckpt_flush_pages(knl_session_t *session)
@@ -1880,8 +1881,8 @@ static status_t ckpt_flush_pages(knl_session_t *session)
         }
 
         (void)cm_gettimeofday(&tv_begin);
-        if (ckpt_flush(session, ctx, begin, end) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ckpt_flush(session, ctx, begin, end) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         (void)cm_gettimeofday(&tv_end);
@@ -1903,7 +1904,7 @@ static status_t ckpt_flush_pages(knl_session_t *session)
     }
 #endif
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1916,8 +1917,8 @@ static status_t ckpt_flush_prepare(knl_session_t *session, ckpt_context_t *ctx)
 {
     core_ctrl_t *core = &session->kernel->db.ctrl.core;
 
-    if (log_flush(session, &ctx->lrp_point, &ctx->lrp_scn, NULL) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (log_flush(session, &ctx->lrp_point, &ctx->lrp_scn, NULL) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!DB_NOT_READY(session) && !DB_IS_READONLY(session)) {
@@ -1929,8 +1930,8 @@ static status_t ckpt_flush_prepare(knl_session_t *session, ckpt_context_t *ctx)
     }
 
     if ((ctx->group.count != 0) && ctx->double_write) {
-        if (ckpt_double_write(session, ctx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ckpt_double_write(session, ctx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -1949,26 +1950,26 @@ static status_t ckpt_flush_prepare(knl_session_t *session, ckpt_context_t *ctx)
         core->raft_flush_point = raft_ctx->raft_flush_point;
         cm_spin_unlock(&raft_ctx->raft_write_disk_lock);
 
-        if (db_save_core_ctrl(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_save_core_ctrl(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         knl_panic(session->kernel->raft_ctx.saved_raft_flush_point.lfn <= core->raft_flush_point.lfn &&
                   session->kernel->raft_ctx.saved_raft_flush_point.raft_index <= core->raft_flush_point.raft_index);
         session->kernel->raft_ctx.saved_raft_flush_point = core->raft_flush_point;
     } else {
-        if (dtc_save_ctrl(session, session->kernel->id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dtc_save_ctrl(session, session->kernel->id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     /* backup some core info on datafile head: only back up core log info for full ckpt & timed task */
-    if (NEED_SYNC_LOG_INFO(ctx) && ctrl_backup_core_log_info(session) != GS_SUCCESS) {
+    if (NEED_SYNC_LOG_INFO(ctx) && ctrl_backup_core_log_info(session) != CT_SUCCESS) {
         KNL_SESSION_CLEAR_THREADID(session);
         CM_ABORT(0, "[CKPT] ABORT INFO: backup core control info failed when perform checkpoint");
     }
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1981,8 +1982,8 @@ static status_t ckpt_perform(knl_session_t *session)
 {
     ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
 
-    if (ckpt_prepare_pages(session, ctx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ckpt_prepare_pages(session, ctx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     dcs_notify_owner_for_ckpt(session, ctx);
@@ -1997,16 +1998,16 @@ static status_t ckpt_perform(knl_session_t *session)
 
     if ((ctx->group.count == 0) && !dtc_need_empty_ckpt(session)) {
         dcs_clean_edp(session, ctx);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (ckpt_flush_prepare(session, ctx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ckpt_flush_prepare(session, ctx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (ctx->group.count != 0) {
-        if (ckpt_flush_pages(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ckpt_flush_pages(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -2017,12 +2018,12 @@ static status_t ckpt_perform(knl_session_t *session)
     dtc_my_ctrl(session)->ckpt_id++;
     dtc_my_ctrl(session)->dw_start = ctx->dw_ckpt_start;
 
-    if (dtc_save_ctrl(session, session->kernel->id) != GS_SUCCESS) {
+    if (dtc_save_ctrl(session, session->kernel->id) != CT_SUCCESS) {
         KNL_SESSION_CLEAR_THREADID(session);
         CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void ckpt_enque_page(knl_session_t *session)
@@ -2047,9 +2048,9 @@ void ckpt_enque_page(knl_session_t *session)
 
     /** set log truncate point for every dirty page in current session */
     for (i = 0; i < session->dirty_count; i++) {
-        knl_panic(session->dirty_pages[i]->in_ckpt == GS_FALSE);
+        knl_panic(session->dirty_pages[i]->in_ckpt == CT_FALSE);
         session->dirty_pages[i]->trunc_point = queue->trunc_point;
-        session->dirty_pages[i]->in_ckpt = GS_TRUE;
+        session->dirty_pages[i]->in_ckpt = CT_TRUE;
     }
 
     cm_spin_unlock(&queue->lock);
@@ -2078,7 +2079,7 @@ void ckpt_enque_one_page(knl_session_t *session, buf_ctrl_t *ctrl)
     queue->count++;
 
     ctrl->trunc_point = queue->trunc_point;
-    ctrl->in_ckpt = GS_TRUE;
+    ctrl->in_ckpt = CT_TRUE;
     cm_spin_unlock(&queue->lock);
 }
 
@@ -2087,9 +2088,9 @@ bool32 ckpt_check(knl_session_t *session)
     ckpt_context_t *ckpt_ctx = &session->kernel->ckpt_ctx;
 
     if (ckpt_ctx->trigger_task == CKPT_MODE_IDLE && ckpt_ctx->queue.count == 0) {
-        return GS_TRUE;
+        return CT_TRUE;
     } else {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 }
 
@@ -2127,33 +2128,33 @@ status_t dbwr_save_page(knl_session_t *session, dbwr_context_t *dbwr, page_head_
     knl_panic_log(CHECK_PAGE_PCN(page), "page pcn is abnormal, panic info: page %u-%u type %u", page_id->file,
         page_id->page, page->type);
 
-    if (spc_write_datafile(session, df, handle, offset, page, PAGE_SIZE(*page)) != GS_SUCCESS) {
+    if (spc_write_datafile(session, df, handle, offset, page, PAGE_SIZE(*page)) != CT_SUCCESS) {
         spc_close_datafile(df, handle);
-        GS_LOG_RUN_ERR("[CKPT] failed to write datafile %s", df->ctrl->name);
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[CKPT] failed to write datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 
     if (!dbwr->flags[page_id->file]) {
-        dbwr->flags[page_id->file] = GS_TRUE;
+        dbwr->flags[page_id->file] = CT_TRUE;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dbwr_fdatasync(knl_session_t *session, dbwr_context_t *dbwr)
 {
     database_t *db = &session->kernel->db;
 
-    for (uint32 i = 0; i < GS_MAX_DATA_FILES; i++) {
+    for (uint32 i = 0; i < CT_MAX_DATA_FILES; i++) {
         if (dbwr->flags[i]) {
-            if (cm_fdatasync_file(dbwr->datafiles[i]) != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("failed to fdatasync datafile %s", db->datafiles[i].ctrl->name);
-                return GS_ERROR;
+            if (cm_fdatasync_file(dbwr->datafiles[i]) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("failed to fdatasync datafile %s", db->datafiles[i].ctrl->name);
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dbwr_write_or_punch(knl_session_t *session, ckpt_sort_item *item, int32 *handle, datafile_t *df,
@@ -2169,24 +2170,24 @@ static status_t dbwr_write_or_punch(knl_session_t *session, ckpt_sort_item *item
 
     if (item->need_punch) {
         knl_panic(page_compress(session, *page_id));
-        if (cm_file_punch_hole(*handle, (uint64)offset, PAGE_SIZE(*page)) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[CKPT] failed to punch datafile compress %s", df->ctrl->name);
-            return GS_ERROR;
+        if (cm_file_punch_hole(*handle, (uint64)offset, PAGE_SIZE(*page)) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[CKPT] failed to punch datafile compress %s", df->ctrl->name);
+            return CT_ERROR;
         }
     } else if (page->type == PAGE_TYPE_PUNCH_PAGE) {
         knl_panic(!page_compress(session, *page_id));
-        if (cm_file_punch_hole(*handle, (uint64)offset, PAGE_SIZE(*page)) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[CKPT] failed to punch datafile normal %s", df->ctrl->name);
-            return GS_ERROR;
+        if (cm_file_punch_hole(*handle, (uint64)offset, PAGE_SIZE(*page)) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[CKPT] failed to punch datafile normal %s", df->ctrl->name);
+            return CT_ERROR;
         }
     } else {
-        if (cm_write_device(df->ctrl->type, *handle, offset, page, PAGE_SIZE(*page)) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[CKPT] failed to write datafile %s", df->ctrl->name);
-            return GS_ERROR;
+        if (cm_write_device(df->ctrl->type, *handle, offset, page, PAGE_SIZE(*page)) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[CKPT] failed to write datafile %s", df->ctrl->name);
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
     
 static status_t dbwr_save_page_by_id(knl_session_t *session, dbwr_context_t *dbwr, uint16 begin, uint16 *saved_cnt)
@@ -2204,14 +2205,14 @@ static status_t dbwr_save_page_by_id(knl_session_t *session, dbwr_context_t *dbw
     *saved_cnt = 0;
 
     if (*handle == -1) {
-        if (spc_open_datafile(session, df, handle) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[SPACE] failed to open datafile %s", df->ctrl->name);
-            return GS_ERROR;
+        if (spc_open_datafile(session, df, handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[SPACE] failed to open datafile %s", df->ctrl->name);
+            return CT_ERROR;
         }
     }
 
     for (;;) {
-        cm_latch_s(&df->block_latch, GS_INVALID_ID32, GS_FALSE, NULL);
+        cm_latch_s(&df->block_latch, CT_INVALID_ID32, CT_FALSE, NULL);
         if (!spc_datafile_is_blocked(session, df, (uint64)offset, end_pos)) {
             break;
         }
@@ -2229,22 +2230,22 @@ static status_t dbwr_save_page_by_id(knl_session_t *session, dbwr_context_t *dbw
             "panic info: ctrl_page %u-%u type %u, page %u-%u type %u", ctrl->page_id.file,
             ctrl->page_id.page, ctrl->page->type, AS_PAGID(page->id).file, AS_PAGID(page->id).page, page->type);
 
-        if (dbwr_write_or_punch(session, &ctx->group.items[i], handle, df, page) != GS_SUCCESS) {
+        if (dbwr_write_or_punch(session, &ctx->group.items[i], handle, df, page) != CT_SUCCESS) {
             cm_unlatch(&df->block_latch, NULL);
             spc_close_datafile(df, handle);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         ctrl->is_marked = 0;
     }
 
     if (!dbwr->flags[page_id->file]) {
-        dbwr->flags[page_id->file] = GS_TRUE;
+        dbwr->flags[page_id->file] = CT_TRUE;
     }
 
     cm_unlatch(&df->block_latch, NULL);
     *saved_cnt = sequent_cnt;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dbwr_flush_sync_io(knl_session_t *session, dbwr_context_t *dbwr)
@@ -2256,10 +2257,10 @@ static status_t dbwr_flush_sync_io(knl_session_t *session, dbwr_context_t *dbwr)
     knl_securec_check(ret);
 
     if (ctx->has_compressed) {
-        if (dbwr_compress_prepare(session, dbwr) != GS_SUCCESS) {
+        if (dbwr_compress_prepare(session, dbwr) != CT_SUCCESS) {
             int32 err_code = cm_get_error_code();
             if (err_code != ERR_ALLOC_MEMORY) {
-                return GS_ERROR;
+                return CT_ERROR;
             }
             /* if there is not enough memory, no compression is performed */
             cm_reset_error();
@@ -2267,8 +2268,8 @@ static status_t dbwr_flush_sync_io(knl_session_t *session, dbwr_context_t *dbwr)
     }
 
     for (uint16 i = dbwr->begin; i <= dbwr->end; i += saved_cnt) {
-        if (dbwr_save_page_by_id(session, dbwr, i, &saved_cnt) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dbwr_save_page_by_id(session, dbwr, i, &saved_cnt) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         knl_panic(saved_cnt == 1 || saved_cnt == PAGE_GROUP_COUNT);
     }
@@ -2276,39 +2277,39 @@ static status_t dbwr_flush_sync_io(knl_session_t *session, dbwr_context_t *dbwr)
     if (session->kernel->attr.enable_fdatasync) {
         return dbwr_fdatasync(session, dbwr);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dbwr_flush(knl_session_t *session, dbwr_context_t *dbwr)
 {
     if (cm_dbs_is_enable_dbs() && cm_dbs_is_enable_batch_flush()) {
-        if (dbwr_flush_async_dbs(session, dbwr) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dbwr_flush_async_dbs(session, dbwr) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 #ifndef WIN32
     if (session->kernel->attr.enable_asynch) {
-        if (dbwr_flush_async_io(session, dbwr) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dbwr_flush_async_io(session, dbwr) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 #endif
 
-    if (dbwr_flush_sync_io(session, dbwr) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dbwr_flush_sync_io(session, dbwr) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void dbwr_end(knl_session_t *session, dbwr_context_t *dbwr)
 {
-    for (uint32 i = 0; i < GS_MAX_DATA_FILES; i++) {
+    for (uint32 i = 0; i < CT_MAX_DATA_FILES; i++) {
         datafile_t *df = DATAFILE_GET(session, i);
         cm_close_device(df->ctrl->type, &dbwr->datafiles[i]);
-        dbwr->datafiles[i] = GS_INVALID_HANDLE;
+        dbwr->datafiles[i] = CT_INVALID_HANDLE;
     }
 }
 
@@ -2332,7 +2333,7 @@ void dbwr_proc(thread_t *thread)
     status_t status;
 
     cm_set_thread_name("dbwr");
-    GS_LOG_RUN_INF("dbwr thread started");
+    CT_LOG_RUN_INF("dbwr thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
     while (!thread->closed) {
 #ifdef WIN32
@@ -2359,17 +2360,17 @@ void dbwr_proc(thread_t *thread)
         knl_panic(dbwr->dbwr_trigger);
 
         status = dbwr_flush(session, dbwr);
-        if (status != GS_SUCCESS) {
-            GS_LOG_ALARM(WARN_FLUSHBUFFER, "'instance-name':'%s'}", session->kernel->instance_name);
+        if (status != CT_SUCCESS) {
+            CT_LOG_ALARM(WARN_FLUSHBUFFER, "'instance-name':'%s'}", session->kernel->instance_name);
             KNL_SESSION_CLEAR_THREADID(session);
             CM_ABORT_REASONABLE(0, "[CKPT] ABORT INFO: db flush fail");
         }
-        dbwr->dbwr_trigger = GS_FALSE;
+        dbwr->dbwr_trigger = CT_FALSE;
     }
 
     dbwr_end(session, dbwr);
     dbwr_aio_destroy(session, dbwr);
-    GS_LOG_RUN_INF("dbwr thread closed");
+    CT_LOG_RUN_INF("dbwr thread closed");
     KNL_SESSION_CLEAR_THREADID(session);
 }
 
@@ -2388,14 +2389,14 @@ static status_t ckpt_read_doublewrite_pages(knl_session_t *session, uint32 node_
     knl_panic(df->ctrl->id == dw_file_id);  // first sysware file
 
     ctx->group.count = ctx->dw_ckpt_end - ctx->dw_ckpt_start;
-    /* DEFAULT_PAGE_SIZE is 8192, ctx->group.count <= GS_CKPT_GROUP_SIZE(4096), can not cross bounds */
+    /* DEFAULT_PAGE_SIZE is 8192, ctx->group.count <= CT_CKPT_GROUP_SIZE(4096), can not cross bounds */
     if (spc_read_datafile(session, df, &ctx->dw_file, offset, ctx->group.buf,
-        ctx->group.count * DEFAULT_PAGE_SIZE(session)) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[CKPT] failed to open datafile %s", df->ctrl->name);
-        return GS_ERROR;
+        ctx->group.count * DEFAULT_PAGE_SIZE(session)) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CKPT] failed to open datafile %s", df->ctrl->name);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t ckpt_recover_decompress(knl_session_t *session, int32 *handle, page_head_t *page,
@@ -2404,20 +2405,20 @@ static status_t ckpt_recover_decompress(knl_session_t *session, int32 *handle, p
     const uint32 group_size = DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT;
     page_id_t *page_id = AS_PAGID_PTR(page->id);
     datafile_t *df = DATAFILE_GET(session, page_id->file);
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     page_head_t *org_page = NULL;
     uint32 size;
     errno_t ret;
 
     if (((page_head_t *)read_buf)->compressed) {
-        if (buf_check_load_compress_group(session, *page_id, read_buf) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (buf_check_load_compress_group(session, *page_id, read_buf) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-        if (buf_decompress_group(session, org_group, read_buf, &size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (buf_decompress_group(session, org_group, read_buf, &size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (size != group_size) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else {
         ret = memcpy_s(org_group, group_size, read_buf, group_size);
@@ -2426,11 +2427,11 @@ static status_t ckpt_recover_decompress(knl_session_t *session, int32 *handle, p
 
     for (uint32 i = 0; i < PAGE_GROUP_COUNT; i++) {
         org_page = (page_head_t *)((char *)org_group + i * DEFAULT_PAGE_SIZE(session));
-        if (!CHECK_PAGE_PCN(org_page) || (PAGE_CHECKSUM(org_page, DEFAULT_PAGE_SIZE(session)) == GS_INVALID_CHECKSUM) ||
+        if (!CHECK_PAGE_PCN(org_page) || (PAGE_CHECKSUM(org_page, DEFAULT_PAGE_SIZE(session)) == CT_INVALID_CHECKSUM) ||
             !page_verify_checksum(org_page, DEFAULT_PAGE_SIZE(session))) {
-            GS_LOG_RUN_INF("[CKPT] datafile %s page corrupted(file %u, page %u), recover from doublewrite page",
+            CT_LOG_RUN_INF("[CKPT] datafile %s page corrupted(file %u, page %u), recover from doublewrite page",
                 df->ctrl->name, page_id->file, page_id->page + i);
-            status = GS_ERROR;
+            status = CT_ERROR;
         }
     }
 
@@ -2447,46 +2448,46 @@ static status_t ckpt_recover_one(knl_session_t *session, int32 *handle, page_hea
     status_t status;
 
     if (!force_recover) {
-        if (CHECK_PAGE_PCN(org_page) && (PAGE_CHECKSUM(org_page, DEFAULT_PAGE_SIZE(session)) != GS_INVALID_CHECKSUM) &&
+        if (CHECK_PAGE_PCN(org_page) && (PAGE_CHECKSUM(org_page, DEFAULT_PAGE_SIZE(session)) != CT_INVALID_CHECKSUM) &&
             page_verify_checksum(org_page, DEFAULT_PAGE_SIZE(session))) {
             if (org_page->lsn >= page->lsn) {
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
-            GS_LOG_RUN_INF(
+            CT_LOG_RUN_INF(
                 "[CKPT] datafile %s page (file %u, page %u) found older data with lsn %llu than doublewrite %llu",
                 df->ctrl->name, page_id->file, page_id->page, org_page->lsn, page->lsn);
 
-            if (!(CHECK_PAGE_PCN(page) && (PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)) != GS_INVALID_CHECKSUM) &&
+            if (!(CHECK_PAGE_PCN(page) && (PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)) != CT_INVALID_CHECKSUM) &&
                   page_verify_checksum(page, DEFAULT_PAGE_SIZE(session)))) {
-                GS_LOG_RUN_INF("[CKPT] datafile %s page (file %u, page %u) is newer in dbwr but is corrupted.",
+                CT_LOG_RUN_INF("[CKPT] datafile %s page (file %u, page %u) is newer in dbwr but is corrupted.",
                                df->ctrl->name, page_id->file, page_id->page);
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
         }
-        GS_LOG_RUN_INF("[CKPT] datafile %s page corrupted(file %u, page %u), recover from doublewrite page",
+        CT_LOG_RUN_INF("[CKPT] datafile %s page corrupted(file %u, page %u), recover from doublewrite page",
             df->ctrl->name, page_id->file, page_id->page);
     }
 
     knl_panic_log(CHECK_PAGE_PCN(page), "page pcn is abnormal, panic info: page %u-%u type %u", page_id->file,
         page_id->page, page->type);
-    knl_panic_log((PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)) == GS_INVALID_CHECKSUM) ||
+    knl_panic_log((PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)) == CT_INVALID_CHECKSUM) ||
         page_verify_checksum(page, DEFAULT_PAGE_SIZE(session)), "checksum is wrong, panic info: page %u-%u type %u",
         page_id->file, page_id->page, page->type);
 
     status = spc_write_datafile(session, df, handle, offset, page, DEFAULT_PAGE_SIZE(session));
-    if (status != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[CKPT] failed to write datafile %s, file %u, page %u", df->ctrl->name, page_id->file,
+    if (status != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CKPT] failed to write datafile %s, file %u, page %u", df->ctrl->name, page_id->file,
             page_id->page);
     } else {
         status = db_fdatasync_file(session, *handle);
-        if (status != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[CKPT] failed to fdatasync datafile %s", df->ctrl->name);
+        if (status != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[CKPT] failed to fdatasync datafile %s", df->ctrl->name);
         }
     }
 
-    if (status != GS_SUCCESS) {
+    if (status != CT_SUCCESS) {
         if (spc_auto_offline_space(session, space, df)) {
-            status = GS_SUCCESS;
+            status = CT_SUCCESS;
         }
     }
 
@@ -2506,48 +2507,48 @@ static status_t ckpt_recover_compress_group(knl_session_t *session, ckpt_context
     char *src = NULL;
     char *org_group = NULL;
     uint32 size;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
     knl_panic_log(page_id->page % PAGE_GROUP_COUNT == 0, "panic info: page %u-%u not the group head", page_id->file,
         page_id->page);
     size = DEFAULT_PAGE_SIZE(session) * PAGE_GROUP_COUNT;
-    src = (char *)malloc(size + GS_MAX_ALIGN_SIZE_4K);
+    src = (char *)malloc(size + CT_MAX_ALIGN_SIZE_4K);
     if (src == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, size + GS_MAX_ALIGN_SIZE_4K, "recover compress group");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, size + CT_MAX_ALIGN_SIZE_4K, "recover compress group");
+        return CT_ERROR;
     }
     org_group = (char *)malloc(size);
     if (org_group == NULL) {
         free(src);
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, size, "recover compress group");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, size, "recover compress group");
+        return CT_ERROR;
     }
     read_buf = (char *)cm_aligned_buf(src);
-    if (spc_read_datafile(session, df, &handle, offset, read_buf, size) != GS_SUCCESS) {
+    if (spc_read_datafile(session, df, &handle, offset, read_buf, size) != CT_SUCCESS) {
         spc_close_datafile(df, &handle);
-        GS_LOG_RUN_ERR("[CKPT] failed to read datafile %s, file %u, page %u", df->ctrl->name, page_id->file,
+        CT_LOG_RUN_ERR("[CKPT] failed to read datafile %s, file %u, page %u", df->ctrl->name, page_id->file,
             page_id->page);
 
         if (spc_auto_offline_space(session, space, df)) {
-            GS_LOG_RUN_INF("[CKPT] skip recover offline space %s and datafile %s", space->ctrl->name, df->ctrl->name);
+            CT_LOG_RUN_INF("[CKPT] skip recover offline space %s and datafile %s", space->ctrl->name, df->ctrl->name);
             free(org_group);
             free(src);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         free(org_group);
         free(src);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (ckpt_recover_decompress(session, &handle, page, read_buf, org_group) != GS_SUCCESS) {
-        GS_LOG_RUN_INF("[CKPT] datafile %s decompress group failed(file %u, page %u), recover from doublewrite",
+    if (ckpt_recover_decompress(session, &handle, page, read_buf, org_group) != CT_SUCCESS) {
+        CT_LOG_RUN_INF("[CKPT] datafile %s decompress group failed(file %u, page %u), recover from doublewrite",
             df->ctrl->name, page_id->file, page_id->page);
         /* we need to recover the compress group as a whole */
         for (uint32 i = 0; i < PAGE_GROUP_COUNT; i++) {
             if (ckpt_recover_one(session, &handle, ctx->rcy_items[slot + i].page,
-                (page_head_t *)((char *)org_group + i * DEFAULT_PAGE_SIZE(session)), GS_TRUE) != GS_SUCCESS) {
-                status = GS_ERROR;
+                (page_head_t *)((char *)org_group + i * DEFAULT_PAGE_SIZE(session)), CT_TRUE) != CT_SUCCESS) {
+                status = CT_ERROR;
                 break;
             }
         }
@@ -2570,20 +2571,20 @@ static status_t ckpt_recover_normal(knl_session_t *session, ckpt_context_t *ctx,
     int32 handle = -1;
     status_t status;
 
-    if (spc_read_datafile(session, df, &handle, offset, org_page, DEFAULT_PAGE_SIZE(session)) != GS_SUCCESS) {
+    if (spc_read_datafile(session, df, &handle, offset, org_page, DEFAULT_PAGE_SIZE(session)) != CT_SUCCESS) {
         spc_close_datafile(df, &handle);
-        GS_LOG_RUN_ERR("[CKPT] failed to read datafile %s, file %u, page %u", df->ctrl->name, page_id->file,
+        CT_LOG_RUN_ERR("[CKPT] failed to read datafile %s, file %u, page %u", df->ctrl->name, page_id->file,
             page_id->page);
 
         if (spc_auto_offline_space(session, space, df)) {
-            GS_LOG_RUN_INF("[CKPT] skip recover offline space %s and datafile %s", space->ctrl->name, df->ctrl->name);
-            return GS_SUCCESS;
+            CT_LOG_RUN_INF("[CKPT] skip recover offline space %s and datafile %s", space->ctrl->name, df->ctrl->name);
+            return CT_SUCCESS;
         }
 
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    status = ckpt_recover_one(session, &handle, page, org_page, GS_FALSE);
+    status = ckpt_recover_one(session, &handle, page, org_page, CT_FALSE);
     spc_close_datafile(df, &handle);
     return status;
 }
@@ -2599,8 +2600,8 @@ status_t ckpt_recover_page(knl_session_t *session, ckpt_context_t *ctx, uint32 s
     status_t status;
 
     if (!SPACE_IS_ONLINE(space) || !DATAFILE_IS_ONLINE(df)) {
-        GS_LOG_RUN_INF("[CKPT] skip recover offline space %s and datafile %s", space->ctrl->name, df->ctrl->name);
-        return GS_SUCCESS;
+        CT_LOG_RUN_INF("[CKPT] skip recover offline space %s and datafile %s", space->ctrl->name, df->ctrl->name);
+        return CT_SUCCESS;
     }
 
     if (page_compress(session, *page_id)) {
@@ -2653,7 +2654,7 @@ static status_t ckpt_recover_pages(knl_session_t *session, ckpt_context_t *ctx, 
 {
     uint32 i;
     page_head_t *page = NULL;
-    char *page_buf = (char *)cm_push(session->stack, DEFAULT_PAGE_SIZE(session) + GS_MAX_ALIGN_SIZE_4K);
+    char *page_buf = (char *)cm_push(session->stack, DEFAULT_PAGE_SIZE(session) + CT_MAX_ALIGN_SIZE_4K);
     char *head = (char *)cm_aligned_buf(page_buf);
     dtc_node_ctrl_t *node = dtc_get_ctrl(session, node_id);
     uint16 swap_file_head = SPACE_GET(session, node->swap_space)->ctrl->files[0];
@@ -2666,13 +2667,13 @@ static status_t ckpt_recover_pages(knl_session_t *session, ckpt_context_t *ctx, 
         skip_cnt = 1;
 
         if (page_id->file == swap_file_head) {
-            GS_LOG_RUN_INF("[CKPT] skip recover swap datafile %s", DATAFILE_GET(session, swap_file_head)->ctrl->name);
+            CT_LOG_RUN_INF("[CKPT] skip recover swap datafile %s", DATAFILE_GET(session, swap_file_head)->ctrl->name);
             continue;
         }
 
-        if (ckpt_recover_page(session, ctx, i, (page_head_t *)head, &skip_cnt) != GS_SUCCESS) {
+        if (ckpt_recover_page(session, ctx, i, (page_head_t *)head, &skip_cnt) != CT_SUCCESS) {
             cm_pop(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -2681,11 +2682,11 @@ static status_t ckpt_recover_pages(knl_session_t *session, ckpt_context_t *ctx, 
     ctx->dw_ckpt_start = ctx->dw_ckpt_end;
     node->dw_start = ctx->dw_ckpt_end;
 
-    if (dtc_save_ctrl(session, node_id) != GS_SUCCESS) {
+    if (dtc_save_ctrl(session, node_id) != CT_SUCCESS) {
         CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when checkpoint recover pages");
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ckpt_recover_partial_write_node(knl_session_t *session, uint32 node_id)
@@ -2697,18 +2698,18 @@ status_t ckpt_recover_partial_write_node(knl_session_t *session, uint32 node_id)
     ctx->dw_ckpt_end = node->dw_end;
 
     if (ctx->dw_ckpt_start == ctx->dw_ckpt_end) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (ckpt_read_doublewrite_pages(session, node_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ckpt_read_doublewrite_pages(session, node_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (ckpt_recover_pages(session, ctx, node_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ckpt_recover_pages(session, ctx, node_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[CKPT] ckpt recover doublewrite finish for node %u", node_id);
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("[CKPT] ckpt recover doublewrite finish for node %u", node_id);
+    return CT_SUCCESS;
 }
 
 status_t ckpt_recover_partial_write(knl_session_t *session)
@@ -2720,8 +2721,8 @@ status_t ckpt_recover_partial_write(knl_session_t *session)
     if (DB_ATTR_CLUSTER(session) && !rc_is_master()) {
         ctx->dw_ckpt_start = node->dw_start;
         ctx->dw_ckpt_end = node->dw_start;
-        GS_LOG_RUN_INF("[CKPT] ckpt doublewrite recover has been done on master node.");
-        return GS_SUCCESS;
+        CT_LOG_RUN_INF("[CKPT] ckpt doublewrite recover has been done on master node.");
+        return CT_SUCCESS;
     }
 
     for (uint32 i = 0; i < node_count; i++) {
@@ -2731,17 +2732,18 @@ status_t ckpt_recover_partial_write(knl_session_t *session)
     ctx->dw_ckpt_start = node->dw_start;
     ctx->dw_ckpt_end = node->dw_start;
 
-    GS_LOG_RUN_INF("[CKPT] ckpt recover finish, memory usage=%lu", cm_print_memory_usage());
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("[CKPT] ckpt recover finish, memory usage=%lu", cm_print_memory_usage());
+    return CT_SUCCESS;
 }
 
 /* Forbidden others to set new task, and then wait the running task to finish */
 void ckpt_disable(knl_session_t *session)
 {
     ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
-    cm_spin_lock(&ctx->lock, &session->stat->spin_stat.stat_ckpt);
-    ctx->ckpt_enabled = GS_FALSE;
-    cm_spin_unlock(&ctx->lock);
+    cm_spin_lock(&ctx->disable_lock, NULL);
+    ctx->disable_cnt++;
+    ctx->ckpt_enabled = CT_FALSE;
+    cm_spin_unlock(&ctx->disable_lock);
     while ((ctx->trigger_task != CKPT_MODE_IDLE || ctx->timed_task != CKPT_MODE_IDLE) && !ctx->ckpt_blocked) {
         cm_sleep(10);
     }
@@ -2750,7 +2752,14 @@ void ckpt_disable(knl_session_t *session)
 void ckpt_enable(knl_session_t *session)
 {
     ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
-    ctx->ckpt_enabled = GS_TRUE;
+    cm_spin_lock(&ctx->disable_lock, NULL);
+    if (ctx->disable_cnt > 0) {
+        ctx->disable_cnt--;
+    }
+    if (ctx->disable_cnt == 0) {
+        ctx->ckpt_enabled = CT_TRUE;
+    }
+    cm_spin_unlock(&ctx->disable_lock);
 }
 
 /*
@@ -2790,7 +2799,7 @@ void ckpt_remove_df_page(knl_session_t *session, datafile_t *df, bool32 need_dis
         ckpt_enable(session);
     }
 
-    GS_LOG_RUN_INF("[CKPT] remove df page, count=%u, df=%s.", pop_count, df->ctrl->name);
+    CT_LOG_RUN_INF("[CKPT] remove df page, count=%u, df=%s.", pop_count, df->ctrl->name);
 }
 
 static status_t ckpt_clean_try_latch_group(knl_session_t *session, buf_ctrl_t *ctrl, buf_ctrl_t **ctrl_group)
@@ -2806,28 +2815,28 @@ static status_t ckpt_clean_try_latch_group(knl_session_t *session, buf_ctrl_t *c
         knl_panic(cur_ctrl != NULL);
         if (!ckpt_try_latch_ctrl(session, cur_ctrl)) {
             for (j = 0; j < i; j++) {
-                buf_unlatch(session, ctrl_group[j], GS_FALSE);
+                buf_unlatch(session, ctrl_group[j], CT_FALSE);
             }
-            return GS_ERROR;
+            return CT_ERROR;
         }
         ctrl_group[i] = cur_ctrl;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ckpt_clean_prepare_compress(knl_session_t *session, ckpt_context_t *ctx, buf_ctrl_t *head)
 {
-    ctx->has_compressed = GS_TRUE;
+    ctx->has_compressed = CT_TRUE;
     buf_ctrl_t *ctrl_group[PAGE_GROUP_COUNT];
     int32 i, j;
 
-    if (ctx->group.count + PAGE_GROUP_COUNT > GS_CKPT_GROUP_SIZE) {
-        return GS_SUCCESS; // continue the next
+    if (ctx->group.count + PAGE_GROUP_COUNT > CT_CKPT_GROUP_SIZE(session)) {
+        return CT_SUCCESS; // continue the next
     }
 
-    if (ckpt_clean_try_latch_group(session, head, ctrl_group) != GS_SUCCESS) {
-        return GS_SUCCESS; // continue the next
+    if (ckpt_clean_try_latch_group(session, head, ctrl_group) != CT_SUCCESS) {
+        return CT_SUCCESS; // continue the next
     }
 
     knl_panic(!head->is_marked);
@@ -2857,58 +2866,58 @@ status_t ckpt_clean_prepare_compress(knl_session_t *session, ckpt_context_t *ctx
             ctrl_group[i]->is_dirty = 0;
         }
 
-        buf_unlatch(session, ctrl_group[i], GS_FALSE);
+        buf_unlatch(session, ctrl_group[i], CT_FALSE);
 
         ctx->group.items[ctx->group.count].ctrl = ctrl_group[i];
         ctx->group.items[ctx->group.count].buf_id = ctx->group.count;
-        ctx->group.items[ctx->group.count].need_punch = GS_FALSE;
+        ctx->group.items[ctx->group.count].need_punch = CT_FALSE;
 
-        if (ckpt_encrypt(session, ctx) != GS_SUCCESS) {
+        if (ckpt_encrypt(session, ctx) != CT_SUCCESS) {
             for (j = i + 1; j < PAGE_GROUP_COUNT; j++) {
-                buf_unlatch(session, ctrl_group[j], GS_FALSE);
+                buf_unlatch(session, ctrl_group[j], CT_FALSE);
             }
-            return GS_ERROR;
+            return CT_ERROR;
         }
-        if (ckpt_checksum(session, ctx) != GS_SUCCESS) {
+        if (ckpt_checksum(session, ctx) != CT_SUCCESS) {
             for (j = i + 1; j < PAGE_GROUP_COUNT; j++) {
-                buf_unlatch(session, ctrl_group[j], GS_FALSE);
+                buf_unlatch(session, ctrl_group[j], CT_FALSE);
             }
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         ctx->group.count++;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ckpt_clean_prepare_normal(knl_session_t *session, ckpt_context_t *ctx, buf_ctrl_t *shift)
 {
     if (!ckpt_try_latch_ctrl(session, shift)) {
-        return GS_SUCCESS; // continue the next
+        return CT_SUCCESS; // continue the next
     }
 
     if (DB_IS_CLUSTER(session)) {
         if (shift->is_edp) {
-            GS_LOG_DEBUG_INF("[CKPT]checkpoint find edp [%u-%u], count(%d)", shift->page_id.file, shift->page_id.page,
+            CT_LOG_DEBUG_INF("[CKPT]checkpoint find edp [%u-%u], count(%d)", shift->page_id.file, shift->page_id.page,
                              ctx->edp_group.count);
             knl_panic(DCS_BUF_CTRL_NOT_OWNER(session, shift));
-            buf_unlatch(session, shift, GS_FALSE);
-            (void)(dtc_add_to_edp_group(session, &ctx->edp_group, GS_CKPT_GROUP_SIZE, shift->page_id,
+            buf_unlatch(session, shift, CT_FALSE);
+            (void)(dtc_add_to_edp_group(session, &ctx->edp_group, CT_CKPT_GROUP_SIZE(session), shift->page_id,
                                         shift->page->lsn));
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (shift->in_ckpt == GS_FALSE) {
-            buf_unlatch(session, shift, GS_FALSE);
-            return GS_SUCCESS;
+        if (shift->in_ckpt == CT_FALSE) {
+            buf_unlatch(session, shift, CT_FALSE);
+            return CT_SUCCESS;
         }
 
         knl_panic(DCS_BUF_CTRL_IS_OWNER(session, shift));
-        if (shift->is_remote_dirty && !dtc_add_to_edp_group(session, &ctx->remote_edp_clean_group, GS_CKPT_GROUP_SIZE,
+        if (shift->is_remote_dirty && !dtc_add_to_edp_group(session, &ctx->remote_edp_clean_group, CT_CKPT_GROUP_SIZE(session),
                                                             shift->page_id, shift->page->lsn)) {
-            buf_unlatch(session, shift, GS_FALSE);
-            return GS_SUCCESS;
+            buf_unlatch(session, shift, CT_FALSE);
+            return CT_SUCCESS;
         }
     }
 
@@ -2936,21 +2945,21 @@ status_t ckpt_clean_prepare_normal(knl_session_t *session, ckpt_context_t *ctx, 
     CM_MFENCE;
     shift->is_dirty = 0;
     shift->is_remote_dirty = 0;
-    buf_unlatch(session, shift, GS_FALSE);
+    buf_unlatch(session, shift, CT_FALSE);
 
     ctx->group.items[ctx->group.count].ctrl = shift;
     ctx->group.items[ctx->group.count].buf_id = ctx->group.count;
-    ctx->group.items[ctx->group.count].need_punch = GS_FALSE;
+    ctx->group.items[ctx->group.count].need_punch = CT_FALSE;
 
-    if (ckpt_encrypt(session, ctx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ckpt_encrypt(session, ctx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (ckpt_checksum(session, ctx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ckpt_checksum(session, ctx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     ckpt_put_to_part_group(session, ctx, shift);
     ctx->group.count++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -2961,7 +2970,7 @@ status_t ckpt_clean_prepare_normal(knl_session_t *session, ckpt_context_t *ctx, 
 static status_t ckpt_clean_prepare_pages(knl_session_t *session, ckpt_context_t *ctx, buf_set_t *set,
     buf_lru_list_t *page_list)
 {
-    ctx->has_compressed = GS_FALSE;
+    ctx->has_compressed = CT_FALSE;
     buf_ctrl_t *ctrl = NULL;
     buf_ctrl_t *shift = NULL;
     if (ctx->clean_end != NULL) {
@@ -2979,8 +2988,8 @@ static status_t ckpt_clean_prepare_pages(knl_session_t *session, ckpt_context_t 
         dcs_ckpt_clean_local_edp(session, ctx);
     }
 
-    if (ctx->group.count >= GS_CKPT_GROUP_SIZE) {
-        return GS_SUCCESS;
+    if (ctx->group.count >= CT_CKPT_GROUP_SIZE(session)) {
+        return CT_SUCCESS;
     }
 
     while (ctrl != NULL) {
@@ -2988,7 +2997,7 @@ static status_t ckpt_clean_prepare_pages(knl_session_t *session, ckpt_context_t 
         ctrl = ctrl->prev;
     
         /* page has been expired */
-        if (shift->bucket_id == GS_INVALID_ID32) {
+        if (shift->bucket_id == CT_INVALID_ID32) {
             buf_stash_marked_page(set, page_list, shift);
             continue;
         }
@@ -3019,21 +3028,21 @@ static status_t ckpt_clean_prepare_pages(knl_session_t *session, ckpt_context_t 
         } else {
             status = ckpt_clean_prepare_normal(session, ctx, shift);
         }
-        if (status != GS_SUCCESS) {
-            return GS_ERROR;
+        if (status != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         buf_stash_marked_page(set, page_list, shift);
 
-        if (ctx->group.count >= GS_CKPT_GROUP_SIZE || ctx->edp_group.count >= GS_CKPT_GROUP_SIZE ||
-            ctx->remote_edp_clean_group.count >= GS_CKPT_GROUP_SIZE) {
+        if (ctx->group.count >= CT_CKPT_GROUP_SIZE(session) || ctx->edp_group.count >= CT_CKPT_GROUP_SIZE(session) ||
+            ctx->remote_edp_clean_group.count >= CT_CKPT_GROUP_SIZE(session)) {
             ctx->clean_end = ctrl;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
     ctx->clean_end = NULL;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -3049,8 +3058,8 @@ static status_t ckpt_clean_single_set(knl_session_t *session, ckpt_context_t *ck
 
     for (;;) {
         page_list = g_init_list_t;
-        if (ckpt_clean_prepare_pages(session, ckpt_ctx, set, &page_list) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ckpt_clean_prepare_pages(session, ckpt_ctx, set, &page_list) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         dcs_notify_owner_for_ckpt(session, ckpt_ctx);
@@ -3064,14 +3073,14 @@ static status_t ckpt_clean_single_set(knl_session_t *session, ckpt_context_t *ck
         if (ckpt_ctx->group.count == 0) {
             dcs_clean_edp(session, ckpt_ctx);
             buf_reset_cleaned_pages(set, &page_list);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (ckpt_flush_prepare(session, ckpt_ctx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ckpt_flush_prepare(session, ckpt_ctx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (ckpt_flush_pages(session) != GS_SUCCESS) {
+        if (ckpt_flush_pages(session) != CT_SUCCESS) {
             CM_ABORT(0, "[CKPT] ABORT INFO: flush page failed when clean page.");
         }
 
@@ -3083,17 +3092,17 @@ static status_t ckpt_clean_single_set(knl_session_t *session, ckpt_context_t *ck
         ckpt_ctx->dw_ckpt_start = ckpt_ctx->dw_ckpt_end;
         dtc_my_ctrl(session)->dw_start = ckpt_ctx->dw_ckpt_end;
 
-        if (dtc_save_ctrl(session, session->kernel->id) != GS_SUCCESS) {
+        if (dtc_save_ctrl(session, session->kernel->id) != CT_SUCCESS) {
             KNL_SESSION_CLEAR_THREADID(session);
             CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
         }
 
         /* only clean a part of pages when generate by trigger */
         if (clean_cnt <= 0 || ckpt_ctx->clean_end == NULL) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void ckpt_bitmap_set(uint8 *bitmap, uint8 num)
@@ -3124,7 +3133,7 @@ static inline bool32 ckpt_bitmap_exist(uint8 *bitmap, uint8 num)
 status_t ckpt_clean_prepare_pages_all_set(knl_session_t *session, ckpt_context_t *ctx, buf_lru_list_t *page_list,
     ckpt_clean_ctx_t *page_clean_ctx)
 {
-    ctx->has_compressed = GS_FALSE;
+    ctx->has_compressed = CT_FALSE;
     buf_context_t *buf_ctx = &session->kernel->buf_ctx;
     buf_ctrl_t *shift = NULL;
     ctx->group.count = 0;
@@ -3135,8 +3144,8 @@ status_t ckpt_clean_prepare_pages_all_set(knl_session_t *session, ckpt_context_t
         dcs_ckpt_clean_local_edp(session, ctx);
     }
 
-    if (ctx->group.count >= GS_CKPT_GROUP_SIZE) {
-        return GS_SUCCESS;
+    if (ctx->group.count >= CT_CKPT_GROUP_SIZE(session)) {
+        return CT_SUCCESS;
     }
 
     uint32 index = page_clean_ctx->next_index;
@@ -3157,7 +3166,7 @@ status_t ckpt_clean_prepare_pages_all_set(knl_session_t *session, ckpt_context_t
             ckpt_bitmap_clear(page_clean_ctx->bitmap, index);
         }
         /* page has been expired */
-        if (shift->bucket_id == GS_INVALID_ID32) {
+        if (shift->bucket_id == CT_INVALID_ID32) {
             buf_stash_marked_page(&buf_ctx->buf_set[index], page_list, shift);
             continue;
         }
@@ -3188,17 +3197,17 @@ status_t ckpt_clean_prepare_pages_all_set(knl_session_t *session, ckpt_context_t
         } else {
             status = ckpt_clean_prepare_normal(session, ctx, shift);
         }
-        if (status != GS_SUCCESS) {
-            return GS_ERROR;
+        if (status != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         buf_stash_marked_page(&buf_ctx->buf_set[index], page_list, shift);
-        if (ctx->group.count >= GS_CKPT_GROUP_SIZE || ctx->edp_group.count >= GS_CKPT_GROUP_SIZE ||
-            ctx->remote_edp_clean_group.count >= GS_CKPT_GROUP_SIZE) {
-            return GS_SUCCESS;
+        if (ctx->group.count >= CT_CKPT_GROUP_SIZE(session) || ctx->edp_group.count >= CT_CKPT_GROUP_SIZE(session) ||
+            ctx->remote_edp_clean_group.count >= CT_CKPT_GROUP_SIZE(session)) {
+            return CT_SUCCESS;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void ckpt_clean_prepare_buf_list(buf_context_t *buf_ctx, ckpt_clean_ctx_t *page_clean_ctx, double clean_ratio)
@@ -3227,8 +3236,8 @@ status_t ckpt_clean_all_set(knl_session_t *session)
     buf_lru_list_t page_list;
     for (;;) {
         page_list = g_init_list_t;
-        if (ckpt_clean_prepare_pages_all_set(session, ckpt_ctx, &page_list, &page_clean_ctx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ckpt_clean_prepare_pages_all_set(session, ckpt_ctx, &page_list, &page_clean_ctx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         dcs_notify_owner_for_ckpt(session, ckpt_ctx);
@@ -3242,14 +3251,14 @@ status_t ckpt_clean_all_set(knl_session_t *session)
         if (ckpt_ctx->group.count == 0) {
             dcs_clean_edp(session, ckpt_ctx);
             buf_reset_cleaned_pages_all_bufset(buf_ctx, &page_list);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        if (ckpt_flush_prepare(session, ckpt_ctx) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ckpt_flush_prepare(session, ckpt_ctx) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (ckpt_flush_pages(session) != GS_SUCCESS) {
+        if (ckpt_flush_pages(session) != CT_SUCCESS) {
             CM_ABORT(0, "[CKPT] ABORT INFO: flush page failed when clean page.");
         }
 
@@ -3260,17 +3269,17 @@ status_t ckpt_clean_all_set(knl_session_t *session)
         ckpt_ctx->dw_ckpt_start = ckpt_ctx->dw_ckpt_end;
         dtc_my_ctrl(session)->dw_start = ckpt_ctx->dw_ckpt_end;
 
-        if (dtc_save_ctrl(session, session->kernel->id) != GS_SUCCESS) {
+        if (dtc_save_ctrl(session, session->kernel->id) != CT_SUCCESS) {
             KNL_SESSION_CLEAR_THREADID(session);
             CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
         }
 
         /* only clean a part of pages when generate by trigger */
         if (memcmp(page_clean_ctx.bitmap, g_page_clean_finish_flag, PAGE_CLEAN_MAX_BYTES) == 0) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -3284,7 +3293,7 @@ static void ckpt_page_clean(knl_session_t *session)
 
     if (clean_mode == PAGE_CLEAN_MODE_ALLSET) {
         ckpt_block_and_wait_enable(&session->kernel->ckpt_ctx);
-        if (ckpt_clean_all_set(session) != GS_SUCCESS) {
+        if (ckpt_clean_all_set(session) != CT_SUCCESS) {
             KNL_SESSION_CLEAR_THREADID(session);
             CM_ABORT(0, "[CKPT] ABORT INFO: flush page failed when clean dirty page");
         }
@@ -3292,7 +3301,7 @@ static void ckpt_page_clean(knl_session_t *session)
         for (uint32 i = 0; i < buf_ctx->buf_set_count; i++) {
             ckpt_block_and_wait_enable(&session->kernel->ckpt_ctx);
 
-            if (ckpt_clean_single_set(session, ckpt_ctx, &buf_ctx->buf_set[i]) != GS_SUCCESS) {
+            if (ckpt_clean_single_set(session, ckpt_ctx, &buf_ctx->buf_set[i]) != CT_SUCCESS) {
                 KNL_SESSION_CLEAR_THREADID(session);
                 CM_ABORT(0, "[CKPT] ABORT INFO: flush page failed when clean dirty page");
             }
@@ -3304,7 +3313,7 @@ static void ckpt_page_clean(knl_session_t *session)
 
 void ckpt_put_to_part_group(knl_session_t *session, ckpt_context_t *ctx, buf_ctrl_t *to_flush_ctrl)
 {
-    if (cm_dbs_is_enable_dbs() == GS_FALSE || cm_dbs_is_enable_batch_flush() == GS_FALSE) {
+    if (cm_dbs_is_enable_dbs() == CT_FALSE || cm_dbs_is_enable_batch_flush() == CT_FALSE) {
         return;
     }
     uint32 part_id = 0;

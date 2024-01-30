@@ -16,7 +16,6 @@ class Options(object):
         # User info
         self.os_user = ""
         self.os_group = ""
-        self.deploy_mode = ""
 
         # The object of opened log file.
         self.file_obj = None
@@ -40,7 +39,7 @@ class Options(object):
         self.white_list = ""
 
         # flag of if install inside docker container
-        self.in_container = False
+        self.cantian_in_container = False
 
         # flag of if need to check package is mattched with current os version
         self.ignore_pkg_check = False
@@ -59,8 +58,6 @@ class Options(object):
 
         self.password = ""
 
-        self.cert_password = ""
-
         self.db_type = ""
 
         self.archive_location = ""
@@ -68,5 +65,9 @@ class Options(object):
         self.share_logic_ip = ""
 
         self.archive_logic_ip = ""
+
+        self.mes_type = "UC"
+
+        self.cert_encrypt_pwd = ""
 
         self.storage_dbstore_fs = ""

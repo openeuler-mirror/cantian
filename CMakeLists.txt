@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14.1)
 
-project(Cantian)
+project(CantianDB)
 
 include(
         "${PROJECT_SOURCE_DIR}/build/cmake_include/CMakeListsInclude.txt"
@@ -18,13 +18,8 @@ include_directories(
         "${PROJECT_SOURCE_DIR}/open_source/zlib/include"
         "${PROJECT_SOURCE_DIR}/open_source/Zstandard/include"
 
-        "${PROJECT_SOURCE_DIR}/platform/huawei_kmc/include/"
-        "${PROJECT_SOURCE_DIR}/platform/huawei_kmc/src/cac"
-        "${PROJECT_SOURCE_DIR}/platform/huawei_kmc/src/common"
-        "${PROJECT_SOURCE_DIR}/platform/huawei_kmc/src/kmc"
-        "${PROJECT_SOURCE_DIR}/platform/huawei_kmc/src/mip"
-        "${PROJECT_SOURCE_DIR}/platform/huawei_kmc/src/sdp"
         "${PROJECT_SOURCE_DIR}/platform/huawei_security/include"
+        "${PROJECT_SOURCE_DIR}/library/kmc"
 
         "${PROJECT_SOURCE_DIR}/build_dependence/unixODBC/include"
         "${PROJECT_SOURCE_DIR}/build_dependence/libaio/include" 
@@ -32,15 +27,42 @@ include_directories(
         "${PROJECT_SOURCE_DIR}/pkg/src/common/variant"
         "${PROJECT_SOURCE_DIR}/pkg/src/common"
         "${PROJECT_SOURCE_DIR}/pkg/src/driver"
-        "${PROJECT_SOURCE_DIR}/pkg/src/driver/gsc"
+        "${PROJECT_SOURCE_DIR}/pkg/src/driver/ctconn"
         "${PROJECT_SOURCE_DIR}/pkg/src/driver/odbc"
-        "${PROJECT_SOURCE_DIR}/pkg/src/driver/pyzenith/include"
         "${PROJECT_SOURCE_DIR}/pkg/src/protocol"
         "${PROJECT_SOURCE_DIR}/pkg/src/server"
         "${PROJECT_SOURCE_DIR}/pkg/src/server/params"
-        "${PROJECT_SOURCE_DIR}/pkg/src/cmd"
-        "${PROJECT_SOURCE_DIR}/pkg/src/cmd/json"
-        "${PROJECT_SOURCE_DIR}/pkg/src/cmd/function"
+        "${PROJECT_SOURCE_DIR}/pkg/src/shard"
+        "${PROJECT_SOURCE_DIR}/pkg/src/shard/rebalance"
+        "${PROJECT_SOURCE_DIR}/pkg/src/shard/ddl"
+        "${PROJECT_SOURCE_DIR}/pkg/src/shard/dml"
+        "${PROJECT_SOURCE_DIR}/pkg/src/shard/route"
+        "${PROJECT_SOURCE_DIR}/pkg/src/shard/adapter"
+        "${PROJECT_SOURCE_DIR}/pkg/src/shard/dblink"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/catalog"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/executor"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/json"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/node"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/function"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/optimizer"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/parallel"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/parser"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/parser_ddl"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/plan"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl/include"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl/clang"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl/debug"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl/meta"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl/persist"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl/type"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl/ast"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl/parser"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl/common"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl/executor"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/verifier"
+
         "${PROJECT_SOURCE_DIR}/pkg/src/kernel"
         "${PROJECT_SOURCE_DIR}/pkg/src/kernel/backup"
         "${PROJECT_SOURCE_DIR}/pkg/src/kernel/buffer"
@@ -61,21 +83,18 @@ include_directories(
 
         "${PROJECT_SOURCE_DIR}/pkg/src/utils"
         "${PROJECT_SOURCE_DIR}/pkg/src/utils/gspe"
-        "${PROJECT_SOURCE_DIR}/pkg/src/utils/gsql"
-        "${PROJECT_SOURCE_DIR}/pkg/src/gstbox"
+        "${PROJECT_SOURCE_DIR}/pkg/src/utils/ctsql"
+        "${PROJECT_SOURCE_DIR}/pkg/src/utils/ctbackup"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctbox"
         "${PROJECT_SOURCE_DIR}/pkg/src/ztrst"
         "${PROJECT_SOURCE_DIR}/pkg/src/gbp"
+        "${PROJECT_SOURCE_DIR}/pkg/src/extproc"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl/include"
         "${PROJECT_SOURCE_DIR}/pkg/src/mec"
         "${PROJECT_SOURCE_DIR}/pkg/src/tse"
         "${PROJECT_SOURCE_DIR}/library/xnet/include"
-        "${PROJECT_SOURCE_DIR}/library/dbstor/include/dbstor"
-        "${PROJECT_SOURCE_DIR}/library/dbstor/include/kmc"
-        "${PROJECT_SOURCE_DIR}/library/dbstor/include/infrastructure/infrastructure/dpuc"
         "${PROJECT_SOURCE_DIR}/library/xnet/include/vos_win/vos"
-        "${PROJECT_SOURCE_DIR}/library/dbstor/include/infrastructure/infrastructure/log"
-        "${PROJECT_SOURCE_DIR}/library/dbstor/include/infrastructure/infrastructure/osax"
-        "${PROJECT_SOURCE_DIR}/library/dbstor/include/infrastructure"
-        "${PROJECT_SOURCE_DIR}/library/dbstor/include/infrastructure/infrastructure/umm"
+        "${PROJECT_SOURCE_DIR}/library/xnet/include/infrastructure"
 )
 
 if (UNIX)
@@ -84,10 +103,6 @@ if (UNIX)
             OUTPUT_VARIABLE OS_ARCH
             OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-    if (OS_ARCH STREQUAL "x86_64")
-        set(CMAKE_C_COMPILER "/usr/local/bin/gcc")
-        set(CMAKE_CXX_COMPILER "/usr/local/bin/g++")
-    endif()
 
     message(${CMAKE_BUILD_TYPE})
     if (${CMAKE_BUILD_TYPE} STREQUAL "Debug"
@@ -238,17 +253,11 @@ if (USE_OSS_BUILD)
     message(STATUS "Toolchain: Build use -DOSS_BUILD")
 endif (USE_OSS_BUILD)
 
-option(IGNORE_ASSERT OFF)
-if (IGNORE_ASSERT)
-    add_compile_definitions(IGNORE_ASSERT)
-    message(STATUS "Toolchain: Build with IGNORE_ASSERT")
-endif (IGNORE_ASSERT)
-
-option(CANTIAN_READ_WRITE OFF)
-if (CANTIAN_READ_WRITE)
-    add_compile_definitions(CANTIAN_READ_WRITE)
-    message(STATUS "Toolchain: Build with CANTIAN_READ_WRITE")
-endif (CANTIAN_READ_WRITE)
+option(DAAC_READ_WRITE OFF)
+if (DAAC_READ_WRITE)
+    add_compile_definitions(DAAC_READ_WRITE)
+    message(STATUS "Toolchain: Build with DAAC_READ_WRITE")
+endif (DAAC_READ_WRITE)
 
 if (UNIX)
     set_property(TARGET PROPERTY C_STANDARD 99)
@@ -273,24 +282,24 @@ if (UNIX)
 
 endif ()
 
-set(CTDB_LIBRARY "${PROJECT_SOURCE_DIR}/library")
-set(CTDB_SRC "${PROJECT_SOURCE_DIR}/pkg/src")
+set(CANTIANDB_LIBRARY "${PROJECT_SOURCE_DIR}/library")
+set(CANTIANDB_SRC "${PROJECT_SOURCE_DIR}/pkg/src")
 
-set(OPENSSL_LIB_PATH "${CTDB_LIBRARY}/openssl/lib")
-set(SECUREC_LIB_PATH "${CTDB_LIBRARY}/huawei_security/lib")
-set(KMC_LIB_PATH "${CTDB_LIBRARY}/huawei_kmc/lib")
+set(OPENSSL_LIB_PATH "${CANTIANDB_LIBRARY}/openssl/lib")
+set(SECUREC_LIB_PATH "${CANTIANDB_LIBRARY}/huawei_security/lib")
 
-set(PCRE_LIB_PATH "${CTDB_LIBRARY}/pcre/lib")
-set(Z_LIB_PATH "${CTDB_LIBRARY}/zlib/lib")
-set(ODBC_LIB_PATH "${CTDB_LIBRARY}/odbc/lib")
-set(LZ4_LIB_PATH "${CTDB_LIBRARY}/lz4/lib")
-set(ZSTD_LIB_PATH "${CTDB_LIBRARY}/Zstandard/lib")
+set(PCRE_LIB_PATH "${CANTIANDB_LIBRARY}/pcre/lib")
+set(Z_LIB_PATH "${CANTIANDB_LIBRARY}/zlib/lib")
+set(ODBC_LIB_PATH "${CANTIANDB_LIBRARY}/odbc/lib")
+set(LZ4_LIB_PATH "${CANTIANDB_LIBRARY}/lz4/lib")
+set(ZSTD_LIB_PATH "${CANTIANDB_LIBRARY}/Zstandard/lib")
+set(KMC_LIB_PATH "${CANTIANDB_LIBRARY}/kmc/lib")
 
 set(VPP_LIB_PATH "${SECUREC_LIB_PATH}")
 
 set(ZEN_OUTPUT_PATH "${PROJECT_SOURCE_DIR}/output")
-set(CTDB_LIB "${ZEN_OUTPUT_PATH}/lib")
-set(CTDB_BIN "${ZEN_OUTPUT_PATH}/bin")
+set(CANTIANDB_LIB "${ZEN_OUTPUT_PATH}/lib")
+set(CANTIANDB_BIN "${ZEN_OUTPUT_PATH}/bin")
 
 option(USE_FUZZASAN OFF)
 if (USE_FUZZASAN)
@@ -324,11 +333,11 @@ execute_process(
 message(STATUS ${DRIVER_COMMIT_ID})
 
 execute_process(
-    COMMAND bash -c "cat ${PROJECT_SOURCE_DIR}/build/conf/git_message.in | grep gsql_commit_id |  awk -F'=' '{print  $2}'"
-    OUTPUT_VARIABLE GSQL_COMMIT_ID
+    COMMAND bash -c "cat ${PROJECT_SOURCE_DIR}/build/conf/git_message.in | grep ctsql_commit_id |  awk -F'=' '{print  $2}'"
+    OUTPUT_VARIABLE CTSQL_COMMIT_ID
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
-message(STATUS ${GSQL_COMMIT_ID})
+message(STATUS ${CTSQL_COMMIT_ID})
 
 if (UNIX)
     message("UNIX Release check")
@@ -367,6 +376,8 @@ if (UNIX)
     elseif (EXISTS "/etc/neokylin-release")
         add_compile_definitions(RED_HAT)
         message("KYLIN Release")
+    elseif (EXISTS "/etc/openEuler-release")
+	    message("OpenEuler Release")
     endif ()
 
     ## unzip 3rdparty lib
@@ -394,12 +405,13 @@ set(vpp_libsecurec "libsecurec.a")
 set(vpp_libipsi_crypto "libcrypto.a")
 set(vpp_libipsi_ssl "libssl.a")
 
-set(hw_kmc_lib "libKMC.a")
-set(hw_sdp_lib "libSDP.a")
+set(hw_kmc_lib "")
+set(hw_sdp_lib "")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -g -ldl -pthread")
 add_compile_options(-fno-common)
 add_compile_options(-Wtrampolines)
+add_compile_options(-Wno-address)
 add_compile_options(-freg-struct-return)
 add_compile_options(-pipe)
 add_link_options(-Wl,-Bsymbolic)
@@ -407,8 +419,8 @@ if (UNIX)
     add_link_options(-rdynamic)
 endif()
 
-link_directories(${CTDB_LIB} "${CTDB_LIBRARY}/protobuf/lib" ${CTDB_LIBRARY} ${OPENSSL_LIB_PATH} ${PCRE_LIB_PATH} ${Z_LIB_PATH} ${ODBC_LIB_PATH} ${VPP_LIB_PATH}
-        ${KMC_LIB_PATH} ${ZSTD_LIB_PATH} ${LZ4_LIB_PATH} ${AES_LIB_PATH})
+link_directories(${CANTIANDB_LIB} "${CANTIANDB_LIBRARY}/protobuf/lib" ${CANTIANDB_LIBRARY} ${OPENSSL_LIB_PATH} ${PCRE_LIB_PATH} ${Z_LIB_PATH} ${ODBC_LIB_PATH} ${VPP_LIB_PATH}
+         ${ZSTD_LIB_PATH} ${KMC_LIB_PATH} ${LZ4_LIB_PATH} ${AES_LIB_PATH})
 
 # add subdir, this should be the last line!!
 add_subdirectory(pkg)

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -103,7 +103,7 @@ typedef struct st_lrcv_context {
     uint32 dbid;
     uint32 reset_asn;
     bool32 host_changed;
-    char primary_host[GS_HOST_NAME_BUFFER_SIZE]; // node is connected by this host
+    char primary_host[CT_HOST_NAME_BUFFER_SIZE]; // node is connected by this host
     knl_scn_t primary_reset_log_scn;
 } lrcv_context_t;
 

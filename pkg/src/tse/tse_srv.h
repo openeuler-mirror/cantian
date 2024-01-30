@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -23,7 +23,7 @@
  * -------------------------------------------------------------------------
  */
 
-/* * @file storage/ctc/tse_srv.h
+/* * @file storage/tianchi/tse_srv.h
 The server side adapter for txn API and kernel API. This should be transparent ideally.
 Logics like init, mgmt, auth, buffering, queueing, etc should be involved within this module.
 
@@ -45,10 +45,15 @@ extern "C" {
 #define EXTER_ATTACK
 #endif
 
+#ifndef SENSI_INFO
+#define SENSI_INFO
+#endif
+
 #define SMALL_RECORD_SIZE 128  // 表名、库名等长度不会特别大，取128
 #define ERROR_MESSAGE_LEN 512
-#define MAX_DDL_SQL_LEN_CONTEXT (30720)  // 30kb, MES底层广播逻辑限制单个包的长度是MES_MESSAGE_BUFFER_SIZE 32kb
-#define MAX_DDL_SQL_LEN (MAX_DDL_SQL_LEN_CONTEXT + 30)  // ddl sql语句的长度 不能超过30kb, 超过了会报错
+#define MAX_DDL_SQL_LEN_CONTEXT (129024)  // 126kb, 预留2kb
+#define MAX_DDL_SQL_LEN (MAX_DDL_SQL_LEN_CONTEXT + 30)  // ddl sql语句的长度 不能超过128kb, 超过了会报错
+#define DD_BROADCAST_RECORD_LENGTH (3072)
 #define LOCK_TABLE_SQL_FMT_LEN 20
 #define MAX_LOCK_TABLE_NAME (MAX_DDL_SQL_LEN - LOCK_TABLE_SQL_FMT_LEN)
 #define MAX_KEY_COLUMNS (uint32_t)16  // cantian限制复合索引最大支持字段不超过16
@@ -64,11 +69,18 @@ extern "C" {
 #define TSE_MAX_KEY_NAME_LENGTH 64
 #define TSE_SQL_START_INTERNAL_SAVEPOINT "TSE4CANTIAN_SYS_SV"
 #define IS_TSE_PART(part_id) ((part_id) < (PART_CURSOR_NUM))
+#define MAX_BULK_INSERT_PART_ROWS 128
+#define SESSION_CURSOR_NUM (8192 * 2)
 
 // for broadcast_req.options
-#define TSE_OPEN_NO_CHECK_FK_FOR_CURRENT_SQL 0x01000000
-#define TSE_CURRENT_SQL_CONTAIN_PLAINTEXT_PASSWORD 0x00100000
-#define TSE_NOT_NEED_CANTIAN_EXECUTE 0x00010000
+#define TSE_SET_VARIABLE_PERSIST (0x1 << 8)
+#define TSE_SET_VARIABLE_PERSIST_ONLY (0x1 << 7)
+#define TSE_OPEN_NO_CHECK_FK_FOR_CURRENT_SQL (0x1 << 6)
+#define TSE_CURRENT_SQL_CONTAIN_PLAINTEXT_PASSWORD (0x1 << 5)
+#define TSE_NOT_NEED_CANTIAN_EXECUTE (0x1 << 4)
+#define TSE_SET_VARIABLE_TO_DEFAULT (0x1 << 3)
+#define TSE_SET_VARIABLE_TO_NULL (0x1 << 2)
+#define TSE_SET_VARIABLE_WITH_SUBSELECT (0x1 << 0)
 
 #define CTC_AUTOINC_OLD_STYLE_LOCKING 0
 #define CTC_AUTOINC_NEW_STYLE_LOCKING 1
@@ -82,10 +94,16 @@ typedef struct {
     uint64_t sess_addr;
     uint64_t ctx_addr;
     uint64_t cursor_addr;
+    int32_t cursor_ref;
+    bool cursor_valid;
     uint16_t bind_core;
     uint8_t sql_command;
     int64_t query_id;
     uint8_t sql_stat_start;
+    uint8_t change_data_capture;
+    bool is_broadcast;
+    uint64_t pre_sess_addr;
+    void* msg_buf;
 } tianchi_handler_t;
 
 typedef struct {
@@ -94,6 +112,7 @@ typedef struct {
     char user_name[SMALL_RECORD_SIZE];
     char user_ip[SMALL_RECORD_SIZE];
     int32_t sql_type;
+    int32_t mdl_namespace;
 } tse_lock_table_info;
 
 #pragma pack(4)
@@ -162,13 +181,15 @@ typedef struct {
     uint32_t msg_len;
     tianchi_handler_t tch;
     uint32_t mysql_inst_id;
-    bool is_alter_table;
+    bool is_alter_copy;
+    uint32_t table_flags;
 } ddl_ctrl_t;
 
 typedef struct {
     int isolation_level;
     uint32_t autocommit;
     uint32_t lock_wait_timeout;
+    bool use_exclusive_lock;
 } tianchi_trx_context_t;
 
 typedef struct {
@@ -180,7 +201,22 @@ typedef struct {
     int err_code;
     uint8_t sql_command;
     uint32_t options;
+    char err_msg[ERROR_MESSAGE_LEN];
 } tse_ddl_broadcast_request;
+
+typedef struct {
+    uint8_t type;
+    char first[SMALL_RECORD_SIZE];
+    char second[SMALL_RECORD_SIZE];
+} invalidate_obj_entry_t;
+ 
+typedef struct {
+    char buff[DD_BROADCAST_RECORD_LENGTH];
+    uint32_t buff_len;
+    uint32_t mysql_inst_id;
+    bool is_dcl;
+    int err_code;
+} tse_invalidate_broadcast_request;
 
 typedef struct {
     bool is_key_null;        // 该列数据是否为null
@@ -201,12 +237,12 @@ typedef union {
         uint32_t primary : 1;            // if it is a primary key (主键)
         uint32_t unique : 1;             // 是否唯一
         uint32_t is_serial : 1;          // 自增
-        uint32_t is_check : 1;           // 检查列(取值范围)约束  http://c.biancheng.net/view/2446.html
+        uint32_t is_check : 1;           // 检查列(取值范围)约束
         uint32_t is_ref : 1;             // 指定外键 参考sql_parse_column_ref
         uint32_t is_default : 1;         // 是否有默认值 通过is_default_null default_text来设置默认值
         uint32_t is_update_default : 1;  // sql_parse_column_default
         uint32_t is_comment : 1;         // 是否有注释  sql_parse_column_comment 通过 column->comment 存储注释
-        uint32_t is_collate : 1;         // sql_parse_collate 字符串排序用的 跟字符集有关系 https://www.cnblogs.com/jpfss/p/11548826.html
+        uint32_t is_collate : 1;         // sql_parse_collate 字符串排序用的 跟字符集有关系
         uint32_t has_null : 1;           // not null sql_parse_column_not_null
         uint32_t has_quote : 1;          // if column name wrapped with double quotation 如果列名用双引号括起来
         uint32_t is_dummy : 1;           // if it is a dummy column for index  目前在daac代码中暂未使用
@@ -242,6 +278,7 @@ enum TSE_FUNC_TYPE {
     TSE_FUNC_TYPE_CLOSE_TABLE,
     TSE_FUNC_TYPE_CLOSE_SESSION,
     TSE_FUNC_TYPE_WRITE_ROW,
+    TSE_FUNC_TYPE_WRITE_THROUGH_ROW,
     TSE_FUNC_TYPE_UPDATE_ROW,
     TSE_FUNC_TYPE_DELETE_ROW,
     TSE_FUNC_TYPE_RND_INIT,
@@ -249,11 +286,9 @@ enum TSE_FUNC_TYPE {
     TSE_FUNC_TYPE_RND_NEXT,
     TSE_FUNC_TYPE_RND_PREFETCH,
     TSE_FUNC_TYPE_SCAN_RECORDS,
-    TSE_FUNC_TYPE_ALTER_COMMIT,
-    TSE_FUNC_TYPE_ALTER_ROLLBACK,
+    TSE_FUNC_TYPE_TRX_COMMIT,
+    TSE_FUNC_TYPE_TRX_ROLLBACK,
     TSE_FUNC_TYPE_TRX_BEGIN,
-    TSE_FUNC_TYPE_SRV_COMMIT,
-    TSE_FUNC_TYPE_SRV_ROLLBACK,
     TSE_FUNC_TYPE_LOCK_TABLE,
     TSE_FUNC_TYPE_UNLOCK_TABLE,
     TSE_FUNC_TYPE_INDEX_END,
@@ -262,6 +297,7 @@ enum TSE_FUNC_TYPE {
     TSE_FUNC_TYPE_SRV_RELEASE_SAVEPOINT,
     TSE_FUNC_TYPE_GENERAL_FETCH,
     TSE_FUNC_TYPE_GENERAL_PREFETCH,
+    TSE_FUNC_TYPE_FREE_CURSORS,
     TSE_FUNC_TYPE_GET_INDEX_NAME,
     TSE_FUNC_TYPE_INDEX_READ,
     TSE_FUNC_TYPE_RND_POS,
@@ -285,14 +321,17 @@ enum TSE_FUNC_TYPE {
     TSE_FUNC_TYPE_DROP_TABLESPACE,
     TSE_FUNC_TYPE_BULK_INSERT,
     TSE_FUNC_TYPE_ANALYZE,
-    TSE_FUNC_TYPE_OPTIMIZE,
     TSE_FUNC_TYPE_GET_MAX_SESSIONS,
     TSE_FUNC_LOCK_INSTANCE,
     TSE_FUNC_UNLOCK_INSTANCE,
+    TSE_FUNC_CHECK_TABLE_EXIST,
+    TSE_FUNC_SEARCH_METADATA_SWITCH,
     TSE_FUNC_PRE_CREATE_DB,
     TSE_FUNC_TYPE_DROP_TABLESPACE_AND_USER,
     TSE_FUNC_DROP_DB_PRE_CHECK,
     TSE_FUNC_KILL_CONNECTION,
+    TSE_FUNC_TYPE_INVALIDATE_OBJECT,
+    TSE_FUNC_TYPE_RECORD_SQL,
     /* for instance registration, should be the last but before duplex */
     TSE_FUNC_TYPE_REGISTER_INSTANCE,
     TSE_FUNC_TYPE_WAIT_CONNETOR_STARTUPED,
@@ -302,6 +341,8 @@ enum TSE_FUNC_TYPE {
     TSE_FUNC_TYPE_LOCK_TABLES,
     TSE_FUNC_TYPE_UNLOCK_TABLES,
     TSE_FUNC_TYPE_EXECUTE_REWRITE_OPEN_CONN,
+    TSE_FUNC_TYPE_INVALIDATE_OBJECTS,
+    /* the number of total funcs */
     TSE_FUNC_TYPE_NUMBER,
 };
 
@@ -392,9 +433,7 @@ typedef enum en_tse_lock_table_mode {
 } tse_lock_table_mode_t;
 
 typedef struct tse_db_infos {
-    char *name_suffix;
     char *name;
-    char *user_password;
     uint32_t datafile_size;
     bool datafile_autoextend;
     uint32_t datafile_extend_size;
@@ -424,7 +463,7 @@ typedef struct en_tse_cond_field_t {
     uint16_t field_size;
     void *field_value;
     bool null_value;
-    bool is_sensitive;
+    uint32_t collate_id;
     bool col_updated;
     bool no_backslash;
 } tse_cond_field;
@@ -447,15 +486,25 @@ typedef struct {
     uint64_t ignore : 1;
     uint64_t no_foreign_key_check : 1;
     uint64_t no_cascade_check : 1;
+    uint64_t dd_update : 1;
     uint64_t is_replace : 1;
     uint64_t dup_update : 1;
+    uint64_t no_logging : 1;
     uint64_t auto_inc_used : 1;
     uint64_t has_explicit_autoinc : 1;
+    uint64_t auto_increase : 1;
     uint64_t autoinc_lock_mode : 2;
     uint64_t auto_inc_step : 16;
     uint64_t auto_inc_offset : 16;
-    uint64_t unused_ops : 23;
+    uint64_t write_through : 1;
+    uint64_t is_create_select : 1;
+    uint64_t unused_ops : 18;
 } dml_flag_t;
+
+typedef struct {
+    uint32_t part_id;
+    uint32_t subpart_id;
+} ctc_part_t;
 
 /* General Control Interface */
 int srv_wait_instance_startuped(void);
@@ -474,8 +523,11 @@ void tse_free_buf(tianchi_handler_t *tch, uint8_t *buf);
 /* Data Manipulation Language(DML) Related Interface */
 int tse_write_row(tianchi_handler_t *tch, const record_info_t *record_info,
                   uint16_t serial_column_offset, uint64_t *last_insert_id, dml_flag_t flag);
+/* This function is for recording slow_log and general_log only. */
+int tse_write_through_row(tianchi_handler_t *tch, const record_info_t *record_info,
+                          uint16_t serial_column_offset, uint64_t *last_insert_id, dml_flag_t flag);
 int tse_bulk_write(tianchi_handler_t *tch, const record_info_t *record_info, uint64_t rec_num,
-                   uint32_t *err_pos, dml_flag_t flag);
+                   uint32_t *err_pos, dml_flag_t flag, ctc_part_t *part_ids);
 int tse_update_row(tianchi_handler_t *tch, uint16_t new_record_len, const uint8_t *new_record,
                    const uint16_t *upd_cols, uint16_t col_num, dml_flag_t flag);
 int tse_delete_row(tianchi_handler_t *tch, uint16_t record_len, dml_flag_t flag);
@@ -483,8 +535,8 @@ int tse_rnd_init(tianchi_handler_t *tch, expected_cursor_action_t action,
                  tse_select_mode_t mode, tse_conds *cond);
 int tse_rnd_end(tianchi_handler_t *tch);
 int tse_rnd_next(tianchi_handler_t *tch, record_info_t *record_info);
-int tse_rnd_prefetch(tianchi_handler_t *tch, uint32_t rowNum, uint8_t *records,
-                     uint16_t *record_lens, uint32_t *recNum, uint64_t *rowids);
+int tse_rnd_prefetch(tianchi_handler_t *tch, uint8_t *records, uint16_t *record_lens,
+                     uint32_t *recNum, uint64_t *rowids, int32_t max_row_size);
 int tse_position(tianchi_handler_t *tch, uint8_t *position, uint16_t pos_length);
 int tse_rnd_pos(tianchi_handler_t *tch, uint16_t pos_length, uint8_t *position, record_info_t *record_info);
 int tse_delete_all_rows(tianchi_handler_t *tch, dml_flag_t flag);
@@ -494,42 +546,38 @@ int tse_index_end(tianchi_handler_t *tch);
 int tse_index_read(tianchi_handler_t *tch, record_info_t *record_info, index_key_info_t *index_info,
                    tse_select_mode_t mode, tse_conds *cond, const bool is_replace);
 int tse_general_fetch(tianchi_handler_t *tch, record_info_t *record_info);
-int tse_general_prefetch(tianchi_handler_t *tch, uint32_t rowNum, uint8_t *records,
-                         uint16_t *record_lens, uint32_t *recNum, uint64_t *rowids);
-
-/* alter table atomic Related Interface */
-int tse_alter_commit(tianchi_handler_t *tch);
-int tse_alter_rollback(tianchi_handler_t *tch);
+int tse_general_prefetch(tianchi_handler_t *tch, uint8_t *records, uint16_t *record_lens,
+                         uint32_t *recNum, uint64_t *rowids, int32_t max_row_size);
+int tse_free_session_cursors(tianchi_handler_t *tch, uint64_t *cursors, int32_t csize);
 
 /* Transaction Related Interface */
-int tse_trx_begin(tianchi_handler_t *tch, tianchi_trx_context_t trx_context);
-int tse_srv_commit(tianchi_handler_t *tch);
-int tse_srv_rollback(tianchi_handler_t *tch);
+int tse_trx_begin(tianchi_handler_t *tch, tianchi_trx_context_t trx_context, bool is_mysql_local);
+int tse_trx_commit(tianchi_handler_t *tch, uint64_t *cursors, int32_t csize, bool *is_ddl_commit);
+int tse_trx_rollback(tianchi_handler_t *tch, uint64_t *cursors, int32_t csize);
 
 int tse_srv_set_savepoint(tianchi_handler_t *tch, const char *name);
-int tse_srv_rollback_savepoint(tianchi_handler_t *tch, const char *name);
+int tse_srv_rollback_savepoint(tianchi_handler_t *tch, uint64_t *cursors, int32_t csize, const char *name);
 int tse_srv_release_savepoint(tianchi_handler_t *tch, const char *name);
 
 /* Optimizer Related Interface */
 int tse_analyze_table(tianchi_handler_t *tch, const char *db_name, const char *table_name, double sampling_ratio);
 int tse_get_cbo_stats(tianchi_handler_t *tch, tianchi_cbo_stats_t *stats);
-int tse_optimize_table(tianchi_handler_t *tch, const char *db_name, const char *table_name);
 int tse_get_index_name(tianchi_handler_t *tch, char *index_name);
 
 /* Datatype Related Interface */
 int tse_knl_write_lob(tianchi_handler_t *tch, char *locator, uint32_t locator_size,
-                      char *column_name, void *data, uint32_t data_len, bool force_outline, uint32_t buffer_size);
+                      int column_id, void *data, uint32_t data_len, bool force_outline);
 int tse_knl_read_lob(tianchi_handler_t *tch, char* loc, uint32_t offset,
-                     void *buf, uint32_t size, uint32_t *read_size, uint32_t buffer_size);
+                     void *buf, uint32_t size, uint32_t *read_size);
 
 /* Data Definition Language(DDL) Related Interface */
 int tse_lock_table(tianchi_handler_t *tch, const char *db_name, tse_lock_table_info *lock_info, int *error_code);
-int tse_unlock_table(tianchi_handler_t *tch, uint32_t mysql_inst_id);
+int tse_unlock_table(tianchi_handler_t *tch, uint32_t mysql_inst_id, tse_lock_table_info *lock_info);
 
-int tse_lock_instance(tse_lock_table_mode_t lock_type, tianchi_handler_t *tch);
-int tse_unlock_instance(tianchi_handler_t *tch);
+int tse_lock_instance(bool *is_mysqld_starting, tse_lock_table_mode_t lock_type, tianchi_handler_t *tch);
+int tse_unlock_instance(bool *is_mysqld_starting, tianchi_handler_t *tch);
 
-int tse_drop_tablespace_and_user(tianchi_handler_t *tch, const char *db_name, const char *db_name_with_suffix,
+int tse_drop_tablespace_and_user(tianchi_handler_t *tch, const char *db_name,
                                  const char *sql_str, const char *user_name, const char *user_ip,
                                  int *error_code, char *error_message);
 int tse_drop_db_pre_check(tianchi_handler_t *tch, const char *db_name, int *error_code, char *error_message);
@@ -548,16 +596,24 @@ int tse_rename_table(void *alter_def, ddl_ctrl_t *ddl_ctrl);
 int tse_drop_table(void *drop_def, ddl_ctrl_t *ddl_ctrl);
 
 int tse_get_max_sessions_per_node(uint32_t *max_sessions);
-int tse_get_serial_value(tianchi_handler_t *tch, uint64_t *value, uint16_t auto_inc_step, uint16_t auto_inc_offset);
+int tse_get_serial_value(tianchi_handler_t *tch, uint64_t *value, dml_flag_t flag);
 
 int close_mysql_connection(uint32_t thd_id, uint32_t mysql_inst_id);
 int tse_ddl_execute_lock_tables(tianchi_handler_t *tch, char *db_name, tse_lock_table_info *lock_info, int *err_code);
-int tse_ddl_execute_unlock_tables(tianchi_handler_t *tch, uint32_t mysql_inst_id);
+int tse_ddl_execute_unlock_tables(tianchi_handler_t *tch, uint32_t mysql_inst_id, tse_lock_table_info *lock_info);
 EXTER_ATTACK int tse_ddl_execute_update(uint32_t thd_id, tse_ddl_broadcast_request *broadcast_req, bool *allow_fail);
 EXTER_ATTACK int tse_execute_mysql_ddl_sql(tianchi_handler_t *tch, tse_ddl_broadcast_request *broadcast_req, bool allow_fail);
 int tse_execute_rewrite_open_conn(uint32_t thd_id, tse_ddl_broadcast_request *broadcast_req);
 int tse_broadcast_rewrite_sql(tianchi_handler_t *tch, tse_ddl_broadcast_request *broadcast_req, bool allow_fail);
 
+/* Metadata Related Interface*/
+int tse_check_db_table_exists(const char *db, const char *name, bool *is_exists);
+int tse_search_metadata_status(bool *cantian_metadata_switch, bool *cantian_cluster_ready);
+
+int tse_invalidate_mysql_dd_cache(tianchi_handler_t *tch, tse_invalidate_broadcast_request *broadcast_req, int *err_code);
+int tse_broadcast_mysql_dd_invalidate(tianchi_handler_t *tch, tse_invalidate_broadcast_request *broadcast_req);
+
+int ctc_record_sql_for_cantian(tianchi_handler_t *tch, tse_ddl_broadcast_request *broadcast_req, bool allow_fail);
 #ifdef __cplusplus
 }
 #endif

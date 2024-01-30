@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_common_module.h"
 #include "knl_smon.h"
 #include "knl_context.h"
 #include "pcr_heap.h"
@@ -59,7 +60,7 @@ static void smon_set_undo_retention(knl_session_t *session);
 void smon_sql_init(knl_session_t *session, text_t *sql_text)
 {
     sql_text->str = (char *)(session->stack->buf + session->stack->heap_offset);
-    sql_text->len = CM_ALIGN8(session->stack->push_offset - session->stack->heap_offset - GS_PUSH_RESERVE_SIZE);
+    sql_text->len = CM_ALIGN8(session->stack->push_offset - session->stack->heap_offset - CT_PUSH_RESERVE_SIZE);
 }
 
 static void smon_record_deadlock(knl_session_t *session, knl_session_t *dead_session)
@@ -67,20 +68,20 @@ static void smon_record_deadlock(knl_session_t *session, knl_session_t *dead_ses
     text_t sql_text;
 
     smon_sql_init(session, &sql_text);
-    if (g_knl_callback.get_sql_text(dead_session->id, &sql_text) == GS_SUCCESS) {
-        GS_LOG_TRACE("wait sql: %s \n", sql_text.str);
+    if (g_knl_callback.get_sql_text(dead_session->id, &sql_text) == CT_SUCCESS) {
+        CT_LOG_TRACE("wait sql: %s \n", sql_text.str);
     }
 }
 
 void smon_record_deadlock_time()
 {
-    char date[GS_MAX_TIME_STRLEN] = {0};
+    char date[CT_MAX_TIME_STRLEN] = {0};
 
-    (void)cm_date2str(cm_now(), "yyyy-mm-dd hh24:mi:ss", date, GS_MAX_TIME_STRLEN);
-    GS_LOG_TRACE("**************%s DEADLOCK DETECTED*****************", date);
-    GS_LOG_TRACE("\nThe following deadlock is not a ZENITH error. \nIt is due to user error in the design of SQL.");
-    GS_LOG_TRACE("The following information may aid in determining the deadlock : \n");
-    GS_LOG_TRACE("----------------------WAIT INFORMATION---------------------\n");
+    (void)cm_date2str(cm_now(), "yyyy-mm-dd hh24:mi:ss", date, CT_MAX_TIME_STRLEN);
+    CT_LOG_TRACE("**************%s DEADLOCK DETECTED*****************", date);
+    CT_LOG_TRACE("\nThe following deadlock is not a Cantian error. \nIt is due to user error in the design of SQL.");
+    CT_LOG_TRACE("The following information may aid in determining the deadlock : \n");
+    CT_LOG_TRACE("----------------------WAIT INFORMATION---------------------\n");
 }
 
 /*
@@ -104,13 +105,13 @@ void smon_detect_dead_lock(knl_session_t *session, uint8 *wait_marks, uint16 id_
     errno_t ret;
 
     CM_SAVE_STACK(session->stack);
-    curr_lsn = (uint64 *)cm_push(session->stack, GS_MAX_SESSIONS * sizeof(uint64));
-    wait_sid = (uint16 *)cm_push(session->stack, GS_MAX_SESSIONS * sizeof(uint16));
-    count = GS_MAX_SESSIONS * sizeof(uint16);
-    ret = memset_sp(wait_sid, count, GS_INVALID_ID16, count);
+    curr_lsn = (uint64 *)cm_push(session->stack, CT_MAX_SESSIONS * sizeof(uint64));
+    wait_sid = (uint16 *)cm_push(session->stack, CT_MAX_SESSIONS * sizeof(uint16));
+    count = CT_MAX_SESSIONS * sizeof(uint16);
+    ret = memset_sp(wait_sid, count, CT_INVALID_ID16, count);
     knl_securec_check(ret);
 
-    while (id != GS_INVALID_ID16 && wait_sid[id] == GS_INVALID_ID16) {
+    while (id != CT_INVALID_ID16 && wait_sid[id] == CT_INVALID_ID16) {
         current = session->kernel->sessions[id];
         wait_sid[id] = knl_get_rm_sid(session, current->wrmid);
         curr_lsn[id] = current->curr_lsn;
@@ -120,7 +121,7 @@ void smon_detect_dead_lock(knl_session_t *session, uint8 *wait_marks, uint16 id_
     }
 
     // no deadlock was detected
-    if (id == GS_INVALID_ID16) {
+    if (id == CT_INVALID_ID16) {
         CM_RESTORE_STACK(session->stack);
         return;
     }
@@ -143,7 +144,7 @@ void smon_detect_dead_lock(knl_session_t *session, uint8 *wait_marks, uint16 id_
         }
 
         wait_xid = current->wxid;
-        if (wait_xid.value == GS_INVALID_ID64) {
+        if (wait_xid.value == CT_INVALID_ID64) {
             CM_RESTORE_STACK(session->stack);
             return;
         }
@@ -160,7 +161,7 @@ void smon_detect_dead_lock(knl_session_t *session, uint8 *wait_marks, uint16 id_
         current = session->kernel->sessions[id];
 
         if (record_sql) {
-            GS_LOG_TRACE("session id: %u, wait session: %u, wait rowid: %u-%u-%u",
+            CT_LOG_TRACE("session id: %u, wait session: %u, wait rowid: %u-%u-%u",
                          current->id, knl_get_rm_sid(session, current->wrmid),
                          current->wrid.file, current->wrid.page, current->wrid.slot);
             smon_record_deadlock(session, current);
@@ -170,12 +171,12 @@ void smon_detect_dead_lock(knl_session_t *session, uint8 *wait_marks, uint16 id_
             CM_RESTORE_STACK(session->stack);
             if (!record_sql) {
                 smon_record_deadlock_time();
-                GS_LOG_TRACE("[Transaction Deadlock]");
-                smon_detect_dead_lock(session, wait_marks, id, GS_TRUE);
-                GS_LOG_TRACE("-----------------END OF WAIT INFORMATION-----------------\n");
-                current->dead_locked = GS_TRUE;
+                CT_LOG_TRACE("[Transaction Deadlock]");
+                smon_detect_dead_lock(session, wait_marks, id, CT_TRUE);
+                CT_LOG_TRACE("-----------------END OF WAIT INFORMATION-----------------\n");
+                current->dead_locked = CT_TRUE;
             }
-            GS_LOG_RUN_ERR("found transaction deadlock in session %d", begin);
+            CT_LOG_RUN_ERR("found transaction deadlock in session %d", begin);
             return;
         }
     }
@@ -185,16 +186,16 @@ void smon_check_active_sessions(knl_session_t *session)
 {
     uint32 i;
     knl_session_t *se = NULL;
-    uint8 w_marks[GS_MAX_SESSIONS];
+    uint8 w_marks[CT_MAX_SESSIONS];
     uint32 max_sessions;
     errno_t ret;
-    bool32 dead_lock = GS_FALSE;
+    bool32 dead_lock = CT_FALSE;
 
-    max_sessions = GS_MAX_SESSIONS;
+    max_sessions = CT_MAX_SESSIONS;
     ret = memset_sp(w_marks, max_sessions, 0, max_sessions);
     knl_securec_check(ret);
 
-    for (i = GS_SYS_SESSIONS; i < GS_MAX_SESSIONS; i++) {
+    for (i = CT_SYS_SESSIONS; i < CT_MAX_SESSIONS; i++) {
         se = session->kernel->sessions[i];
 
         if (se == NULL || se->status != SESSION_ACTIVE || se->dtc_session_type == DTC_WORKER) {
@@ -202,34 +203,34 @@ void smon_check_active_sessions(knl_session_t *session)
         }
 
         // The marked session is no longer detected
-        if (se->wrmid != GS_INVALID_ID16 && w_marks[i] != 1) {
+        if (se->wrmid != CT_INVALID_ID16 && w_marks[i] != 1) {
             if (session->kernel->attr.clustered) {
-                dtc_smon_detect_dead_lock_in_cluster(session, w_marks, i, GS_FALSE);
+                dtc_smon_detect_dead_lock_in_cluster(session, w_marks, i, CT_FALSE);
             } else {
-                smon_detect_dead_lock(session, w_marks, i, GS_FALSE);
+                smon_detect_dead_lock(session, w_marks, i, CT_FALSE);
             }
         } else if (!IS_INVALID_PAGID(se->wpid)) {
             if (session->kernel->attr.clustered) {
-                dead_lock = dtc_smon_check_itl_waits_in_cluster(session, se, GS_FALSE);
+                dead_lock = dtc_smon_check_itl_waits_in_cluster(session, se, CT_FALSE);
             } else {
-                dead_lock = smon_check_itl_waits(session, se, GS_FALSE);
+                dead_lock = smon_check_itl_waits(session, se, CT_FALSE);
             }
             if (dead_lock) {
-                se->itl_dead_locked = GS_TRUE;
-                GS_LOG_RUN_ERR("smon found itl deadlock in session(%u), page_id : %u-%u",
+                se->itl_dead_locked = CT_TRUE;
+                CT_LOG_RUN_ERR("smon found itl deadlock in session(%u), page_id : %u-%u",
                                se->id, se->wpid.file, se->wpid.page);
-                GS_LOG_ALARM(WARN_DEADLOCK, "'instance-name':'%s'}", se->kernel->instance_name);
+                CT_LOG_ALARM(WARN_DEADLOCK, "'instance-name':'%s'}", se->kernel->instance_name);
             }
         } else if (se->wtid.is_locking) {
             if (session->kernel->attr.clustered) {
-                dead_lock = dtc_smon_check_lock_waits_in_cluster(session, se, GS_FALSE);
+                dead_lock = dtc_smon_check_lock_waits_in_cluster(session, se, CT_FALSE);
             } else {
-                dead_lock = smon_check_lock_waits(session, se, GS_FALSE);
+                dead_lock = smon_check_lock_waits(session, se, CT_FALSE);
             }
             if (dead_lock) {
-                se->lock_dead_locked = GS_TRUE;
-                GS_LOG_RUN_ERR("smon found table deadlock in session(%u)", se->id);
-                GS_LOG_ALARM(WARN_DEADLOCK, "'instance-name':'%s'}", se->kernel->instance_name);
+                se->lock_dead_locked = CT_TRUE;
+                CT_LOG_RUN_ERR("smon found table deadlock in session(%u)", se->id);
+                CT_LOG_ALARM(WARN_DEADLOCK, "'instance-name':'%s'}", se->kernel->instance_name);
             }
         }
     }
@@ -251,7 +252,7 @@ static void smon_calculate_space_size(knl_session_t *session, space_t *space, ui
     *used_pages = 0;
 
     for (uint32 j = 0; j < space->ctrl->file_hwm; j++) {
-        if (space->ctrl->files[j] == GS_INVALID_ID32) {
+        if (space->ctrl->files[j] == CT_INVALID_ID32) {
             continue;
         }
 
@@ -309,31 +310,31 @@ static inline void smon_usage_alarm_log(knl_session_t *session, space_t *space, 
 {
 #ifdef Z_SHARDING
     if (session->kernel->is_coordinator) {
-        GS_LOG_ALARM_CN(warn_name, "'space-name':'%s', 'alarm-threshold':'%d'}",
+        CT_LOG_ALARM_CN(warn_name, "'space-name':'%s', 'alarm-threshold':'%d'}",
             space->ctrl->name, usage_alarm_threshold);
-        space->alarm_enabled = GS_FALSE;
+        space->alarm_enabled = CT_FALSE;
         return;
     }
 #endif
 
-    GS_LOG_ALARM(warn_name, "'space-name':'%s', 'alarm-threshold':'%d'}", space->ctrl->name, usage_alarm_threshold);
-    space->alarm_enabled = GS_FALSE;
+    CT_LOG_ALARM(warn_name, "'space-name':'%s', 'alarm-threshold':'%d'}", space->ctrl->name, usage_alarm_threshold);
+    space->alarm_enabled = CT_FALSE;
 }
 
 static inline void smon_usage_recovery_log(knl_session_t *session, space_t *space, uint32 usage_alarm_threshold, warn_name_t warn_name)
 {
 #ifdef Z_SHARDING
         if (session->kernel->is_coordinator) {
-            GS_LOG_ALARM_RECOVER_CN(warn_name, "'space-name':'%s', 'alarm-threshold':'%d'}",
+            CT_LOG_ALARM_RECOVER_CN(warn_name, "'space-name':'%s', 'alarm-threshold':'%d'}",
                 space->ctrl->name, usage_alarm_threshold);
-            space->alarm_enabled = GS_TRUE;
+            space->alarm_enabled = CT_TRUE;
             return;
         }
 #endif
 
-    GS_LOG_ALARM_RECOVER(warn_name, "'space-name':'%s', 'alarm-threshold':'%d'}",
+    CT_LOG_ALARM_RECOVER(warn_name, "'space-name':'%s', 'alarm-threshold':'%d'}",
         space->ctrl->name, usage_alarm_threshold);
-    space->alarm_enabled = GS_TRUE;
+    space->alarm_enabled = CT_TRUE;
 }
 
 /*
@@ -347,7 +348,7 @@ static void smon_check_space_usage(knl_session_t *session)
     uint64 used_pages;
     uint64 threshold_size;
 
-    for (uint32 i = 0; i < GS_MAX_SPACES; i++) {
+    for (uint32 i = 0; i < CT_MAX_SPACES; i++) {
         space = SPACE_GET(session, i);
         cm_spin_lock(&space->lock.lock, NULL);
         /* for undo tablespace, it is not necessary to check the usage status */
@@ -369,7 +370,7 @@ static void smon_check_space_usage(knl_session_t *session)
             smon_check_undo_usage(session, space, &used_pages, &usage_alarm_threshold, &warn_name);
         }
 
-        threshold_size = max_size * usage_alarm_threshold / GS_PERCENT;
+        threshold_size = max_size * usage_alarm_threshold / CT_PERCENT;
         if (used_pages * DEFAULT_PAGE_SIZE(session) >= threshold_size) {
             if (space->alarm_enabled) {
                 smon_usage_alarm_log(session, space, usage_alarm_threshold, warn_name);
@@ -386,53 +387,53 @@ static void smon_check_space_usage(knl_session_t *session)
 
 static void smon_set_dc_completed(knl_session_t *session)
 {
-    bool32 is_found = GS_FALSE;
+    bool32 is_found = CT_FALSE;
 
     if (!session->kernel->dc_ctx.completed && !DB_IN_BG_ROLLBACK(session)) {
-        GS_LOG_RUN_INF("set dc completed in clean_all_shadow_indexes.");
+        CT_LOG_RUN_INF("set dc completed in clean_all_shadow_indexes.");
         session->kernel->set_dc_complete_status = DDL_PART_DISABLE_CLEAN_SHADOW_IDX;
         (void)db_clean_all_shadow_indexes(session);
 
-        GS_LOG_RUN_INF("set dc completed in purge_garbage_segment.");
+        CT_LOG_RUN_INF("set dc completed in purge_garbage_segment.");
         session->kernel->set_dc_complete_status = DDL_PART_DISABLE_PURGE_GARBAGE_SEG;
         (void)db_purge_garbage_segment(session);
 
-        GS_LOG_RUN_INF("set dc completed in clean_garbage_partition.");
+        CT_LOG_RUN_INF("set dc completed in clean_garbage_partition.");
         session->kernel->set_dc_complete_status = DDL_PART_DISABLE_CLEAN_GARBAGE_PART;
         (void)db_clean_garbage_partition(session);  // clean those partitions that with flag = 1
 
-        GS_LOG_RUN_INF("set dc completed in clean_garbage_subpartition.");
+        CT_LOG_RUN_INF("set dc completed in clean_garbage_subpartition.");
         session->kernel->set_dc_complete_status = DDL_PART_DISABLE_CLEAN_GARBAGE_SUBPART;
         (void)db_clean_garbage_subpartition(session);
 
-        GS_LOG_RUN_INF("set dc completed in delete_ptrans_remained.");
+        CT_LOG_RUN_INF("set dc completed in delete_ptrans_remained.");
         session->kernel->set_dc_complete_status = DDL_PART_DISABLE_DEL_PENDING_TRANS;
         (void)db_delete_ptrans_remained(session, NULL, NULL, &is_found);
 
-        GS_LOG_RUN_INF("set dc completed when clean cluster ddl ops.");
+        CT_LOG_RUN_INF("set dc completed when clean cluster ddl ops.");
         (void)db_clean_ddl_op_garbage(session);
 
-        session->kernel->dc_ctx.completed = GS_TRUE;
-        GS_LOG_RUN_INF("set dc completed.");
+        session->kernel->dc_ctx.completed = CT_TRUE;
+        CT_LOG_RUN_INF("set dc completed.");
         session->kernel->set_dc_complete_status = DDL_ENABLE;
     }
 }
 
 static void smon_check_nologging(knl_session_t *session, smon_t *ctx)
 {
-    bool32 has_nolog = GS_FALSE;
-    if (knl_database_has_nolog_object(session, &has_nolog) != GS_SUCCESS) {
+    bool32 has_nolog = CT_FALSE;
+    if (knl_database_has_nolog_object(session, &has_nolog) != CT_SUCCESS) {
         return;
     }
 
     if (has_nolog && !ctx->nolog_alarm) {
-        GS_LOG_ALARM(WARN_NOLOG_OBJ, "'instance-name':'%s'}", session->kernel->instance_name);
-        ctx->nolog_alarm = GS_TRUE;
+        CT_LOG_ALARM(WARN_NOLOG_OBJ, "'instance-name':'%s'}", session->kernel->instance_name);
+        ctx->nolog_alarm = CT_TRUE;
     }
 
     if (!has_nolog && ctx->nolog_alarm) {
-        GS_LOG_ALARM_RECOVER(WARN_NOLOG_OBJ, "'instance-name':'%s'}", session->kernel->instance_name);
-        ctx->nolog_alarm = GS_FALSE;
+        CT_LOG_ALARM_RECOVER(WARN_NOLOG_OBJ, "'instance-name':'%s'}", session->kernel->instance_name);
+        ctx->nolog_alarm = CT_FALSE;
     }
 }
 
@@ -441,8 +442,8 @@ static void undo_try_shrink_inactive(knl_session_t *session, smon_t *ctx, switch
     db_set_with_switchctrl_lock(ctrl, &ctx->undo_shrinking);
     if (ctx->undo_shrinking) {
         undo_shrink_inactive_segments(session);
-        ctx->shrink_inactive = GS_FALSE;
-        ctx->undo_shrinking = GS_FALSE;
+        ctx->shrink_inactive = CT_FALSE;
+        ctx->undo_shrinking = CT_FALSE;
     }
 
     return;
@@ -470,7 +471,7 @@ static void smon_timed_task(knl_session_t *session, uint32 count, smon_t *ctx, s
         db_set_with_switchctrl_lock(ctrl, &ctx->undo_shrinking);
         if (ctx->undo_shrinking) {
             undo_shrink_segments(session);
-            ctx->undo_shrinking = GS_FALSE;
+            ctx->undo_shrinking = CT_FALSE;
         }
     }
     
@@ -480,7 +481,7 @@ static void smon_timed_task(knl_session_t *session, uint32 count, smon_t *ctx, s
     }
     
     if (count % SMON_CHECK_XA_CLOCK == 0) {
-        g_knl_callback.shrink_xa_rms(session, GS_FALSE);
+        g_knl_callback.shrink_xa_rms(session, CT_FALSE);
     }
 
     if (count % SMON_CHECK_NOLOGGING == 0) {
@@ -514,13 +515,13 @@ void smon_proc(thread_t *thread)
     uint32 count = 0;
 
     cm_set_thread_name("smon");
-    GS_LOG_RUN_INF("smon thread started");
+    CT_LOG_RUN_INF("smon thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
 
-    ctx->undo_shrinking = GS_FALSE;
-    ctx->shrink_inactive = GS_FALSE;
+    ctx->undo_shrinking = CT_FALSE;
+    ctx->shrink_inactive = CT_FALSE;
     smon_init_undo_hist(session);
-    if (dtc_smon_init_lock_stack(session) != GS_SUCCESS) {
+    if (dtc_smon_init_lock_stack(session) != CT_SUCCESS) {
         knl_panic(0);
         return;
     }
@@ -560,7 +561,7 @@ void smon_proc(thread_t *thread)
     }
 
     dtc_smon_uninit_lock_stack(session);
-    GS_LOG_RUN_INF("smon thread closed");
+    CT_LOG_RUN_INF("smon thread closed");
     KNL_SESSION_CLEAR_THREADID(session);
 }
 
@@ -573,7 +574,7 @@ void smon_close(knl_session_t *session)
 
 knl_session_t *get_xid_session(knl_session_t *session, xid_t xid)
 {
-    txn_snapshot_t snapshot;
+    txn_snapshot_t snapshot = {0};
     uint16 sid;
 
     tx_get_snapshot(session, xid.xmap, &snapshot);
@@ -583,7 +584,7 @@ knl_session_t *get_xid_session(knl_session_t *session, xid_t xid)
 
     sid = knl_get_rm_sid(session, snapshot.rmid);
 
-    return (sid != GS_INVALID_ID16) ? session->kernel->sessions[sid] : NULL;
+    return (sid != CT_INVALID_ID16) ? session->kernel->sessions[sid] : NULL;
 }
 
 static bool32 smon_push_itl(knl_session_t *start_session, itl_t *item, knl_dlock_stack_t *stack_ptr,
@@ -591,15 +592,15 @@ static bool32 smon_push_itl(knl_session_t *start_session, itl_t *item, knl_dlock
 {
     knl_session_t *next_session = NULL;
     if (!item->is_active) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
     if (item->xid.value == start_session->rm->xid.value) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     next_session = get_xid_session(start_session, item->xid);
     if (next_session == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (w_marks[next_session->id] == 0) {
@@ -607,7 +608,7 @@ static bool32 smon_push_itl(knl_session_t *start_session, itl_t *item, knl_dlock
             w_marks[next_session->id] = 1;
         }
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static bool32 smon_push_pcr_itl(knl_session_t *session, pcr_itl_t *itl, knl_dlock_stack_t *dlock_stack,
@@ -616,16 +617,16 @@ static bool32 smon_push_pcr_itl(knl_session_t *session, pcr_itl_t *itl, knl_dloc
     knl_session_t *next_session = NULL;
 
     if (!itl->is_active) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (itl->xid.value == session->rm->xid.value) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     next_session = get_xid_session(session, itl->xid);
     if (next_session == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (w_marks[next_session->id] == 0) {
@@ -634,7 +635,7 @@ static bool32 smon_push_pcr_itl(knl_session_t *session, pcr_itl_t *itl, knl_dloc
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 // return FALSE means no deadlock and break check
@@ -647,7 +648,7 @@ static bool32 smon_push_itl_sessions(knl_session_t *start_session, page_head_t *
     btree_page_t *btree_page = NULL;
 
     if (start_session->status == SESSION_INACTIVE) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     switch (head->type) {
@@ -656,7 +657,7 @@ static bool32 smon_push_itl_sessions(knl_session_t *start_session, page_head_t *
             for (uint8 i = 0; i < heap_page->itls; i++) {
                 item = heap_get_itl(heap_page, i);
                 if (!smon_push_itl(start_session, item, stack_ptr, w_marks)) {
-                    return GS_FALSE;
+                    return CT_FALSE;
                 }
             }
             break;
@@ -666,7 +667,7 @@ static bool32 smon_push_itl_sessions(knl_session_t *start_session, page_head_t *
             for (uint8 i = 0; i < btree_page->itls; i++) {
                 item = BTREE_GET_ITL(btree_page, i);
                 if (!smon_push_itl(start_session, item, stack_ptr, w_marks)) {
-                    return GS_FALSE;
+                    return CT_FALSE;
                 }
             }
             break;
@@ -676,7 +677,7 @@ static bool32 smon_push_itl_sessions(knl_session_t *start_session, page_head_t *
             for (uint8 i = 0; i < heap_page->itls; i++) {
                 pcr_item = pcrh_get_itl(heap_page, i);
                 if (!smon_push_pcr_itl(start_session, pcr_item, stack_ptr, w_marks)) {
-                    return GS_FALSE;
+                    return CT_FALSE;
                 }
             }
             break;
@@ -687,13 +688,13 @@ static bool32 smon_push_itl_sessions(knl_session_t *start_session, page_head_t *
             for (uint8 i = 0; i < btree_page->itls; i++) {
                 pcr_item = pcrb_get_itl(btree_page, i);
                 if (!smon_push_pcr_itl(start_session, pcr_item, stack_ptr, w_marks)) {
-                    return GS_FALSE;
+                    return CT_FALSE;
                 }
             }
             break;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 // check if all pathes end in a circle or to session itself
@@ -711,7 +712,7 @@ static bool32 smon_check_itl_waits(knl_session_t *session, knl_session_t *start_
     uint32 max_sessions;
     errno_t ret;
 
-    max_sessions = GS_MAX_SESSIONS;
+    max_sessions = CT_MAX_SESSIONS;
     stack_ptr = &g_dlock_stack;
     stack_ptr->top = 0;
     w_marks = (uint8 *)cm_push(session->stack, max_sessions * sizeof(uint8));
@@ -720,33 +721,33 @@ static bool32 smon_check_itl_waits(knl_session_t *session, knl_session_t *start_
 
     if (start_session->status == SESSION_INACTIVE) {
         cm_pop(session->stack);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     start_wpid = start_session->wpid;
     if (IS_INVALID_PAGID(start_wpid)) {
         cm_pop(session->stack);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    if (buf_read_page(session, start_wpid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
+    if (buf_read_page(session, start_wpid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
         cm_reset_error();
         cm_pop(session->stack);
-        return GS_FALSE;
+        return CT_FALSE;
     }
     curr_page = (page_head_t *)CURR_PAGE(session);
 
     if (record_sql) {
-        GS_LOG_TRACE("session id: %u, wait page_id: %u-%u", start_session->id, start_wpid.file, start_wpid.page);
+        CT_LOG_TRACE("session id: %u, wait page_id: %u-%u", start_session->id, start_wpid.file, start_wpid.page);
         smon_record_deadlock(session, start_session);
     }
 
     if (!smon_push_itl_sessions(start_session, curr_page, stack_ptr, w_marks)) {
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         cm_pop(session->stack);
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     while (!dlock_is_empty(stack_ptr)) {
         curr_session = (knl_session_t *)dlock_top(stack_ptr);
@@ -758,12 +759,12 @@ static bool32 smon_check_itl_waits(knl_session_t *session, knl_session_t *start_
         if (curr_session->status == SESSION_INACTIVE || start_session->status == SESSION_INACTIVE ||
             curr_rm == NULL || start_rm == NULL) {
             cm_pop(session->stack);
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         if (curr_rm->xid.value == start_rm->xid.value) {
             if (record_sql) {
-                GS_LOG_TRACE("session id: %u, wait page_id: %u-%u", curr_session->id, curr_wpid.file, curr_wpid.page);
+                CT_LOG_TRACE("session id: %u, wait page_id: %u-%u", curr_session->id, curr_wpid.file, curr_wpid.page);
                 smon_record_deadlock(session, curr_session);
             }
             continue;
@@ -771,18 +772,18 @@ static bool32 smon_check_itl_waits(knl_session_t *session, knl_session_t *start_
 
         curr_wpid = curr_session->wpid;
         curr_wxid = curr_session->wxid;
-        if (curr_wxid.value == GS_INVALID_ID64 && IS_INVALID_PAGID(curr_wpid)) {
+        if (curr_wxid.value == CT_INVALID_ID64 && IS_INVALID_PAGID(curr_wpid)) {
             cm_pop(session->stack);
-            return GS_FALSE;
-        } else if (curr_wxid.value != GS_INVALID_ID64) {
+            return CT_FALSE;
+        } else if (curr_wxid.value != CT_INVALID_ID64) {
             next_session = get_xid_session(session, curr_wxid);
             if (next_session == NULL) {
                 cm_pop(session->stack);
-                return GS_FALSE;
+                return CT_FALSE;
             }
 
             if (record_sql) {
-                GS_LOG_TRACE("session id: %u, wait session id: %u", curr_session->id, next_session->id);
+                CT_LOG_TRACE("session id: %u, wait session id: %u", curr_session->id, next_session->id);
                 smon_record_deadlock(session, curr_session);
             }
 
@@ -794,29 +795,29 @@ static bool32 smon_check_itl_waits(knl_session_t *session, knl_session_t *start_
         } else {
             if (IS_SAME_PAGID(curr_wpid, start_wpid)) {
                 if (record_sql) {
-                    GS_LOG_TRACE("session id: %u, wait page_id: %u-%u", curr_session->id, curr_wpid.file, curr_wpid.page);
+                    CT_LOG_TRACE("session id: %u, wait page_id: %u-%u", curr_session->id, curr_wpid.file, curr_wpid.page);
                     smon_record_deadlock(session, curr_session);
                 }
                 continue;
             }
 
             if (record_sql) {
-                GS_LOG_TRACE("session id: %u, wait page_id: %u-%u", curr_session->id, curr_wpid.file, curr_wpid.page);
+                CT_LOG_TRACE("session id: %u, wait page_id: %u-%u", curr_session->id, curr_wpid.file, curr_wpid.page);
                 smon_record_deadlock(session, curr_session);
             }
 
-            if (buf_read_page(session, curr_wpid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
+            if (buf_read_page(session, curr_wpid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
                 cm_reset_error();
                 cm_pop(session->stack);
-                return GS_FALSE;
+                return CT_FALSE;
             }
             curr_page = (page_head_t *)CURR_PAGE(session);
             if (!smon_push_itl_sessions(curr_session, curr_page, stack_ptr, w_marks)) {
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
                 cm_pop(session->stack);
-                return GS_FALSE;
+                return CT_FALSE;
             }
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
         }
     }
     cm_pop(session->stack);
@@ -824,11 +825,11 @@ static bool32 smon_check_itl_waits(knl_session_t *session, knl_session_t *start_
     // re-check deadlock and record SQL text
     if (!record_sql) {
         smon_record_deadlock_time();
-        GS_LOG_TRACE("[ITL Deadlock]");
-        return smon_check_itl_waits(session, start_session, GS_TRUE);
+        CT_LOG_TRACE("[ITL Deadlock]");
+        return smon_check_itl_waits(session, start_session, CT_TRUE);
     }
-    GS_LOG_TRACE("-----------------END OF WAIT INFORMATION-----------------\n");
-    return GS_TRUE;
+    CT_LOG_TRACE("-----------------END OF WAIT INFORMATION-----------------\n");
+    return CT_TRUE;
 }
 
 static void smon_push_itl_to_lock(knl_session_t *session, uint8 *w_marks, knl_dlock_stack_t *stack_lock)
@@ -837,12 +838,12 @@ static void smon_push_itl_to_lock(knl_session_t *session, uint8 *w_marks, knl_dl
     uint16 wsid, wrmid;
 
     wrmid = session->wrmid;
-    if (wrmid == GS_INVALID_ID16) {
+    if (wrmid == CT_INVALID_ID16) {
         return;
     }
 
     wsid = knl_get_rm_sid(session, wrmid);
-    if (wsid == GS_INVALID_ID16) {
+    if (wsid == CT_INVALID_ID16) {
         return;
     }
 
@@ -862,23 +863,23 @@ static bool32 smon_push_lock(knl_session_t *session, uint8 *w_marks, knl_dlock_s
     uint32 count = 0;
 
     if (lock == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     for (uint32 i = 0; i < session->kernel->rm_count; i++) {
         if (lock->map[i] != 0) {
             sid = knl_get_rm_sid(session, i);
-            if (sid == GS_INVALID_ID16) {
+            if (sid == CT_INVALID_ID16) {
                 continue;
             }
 
             lock_session = session->kernel->sessions[sid];
             if (lock_session == NULL) {
-                return GS_FALSE;
+                return CT_FALSE;
             }
 
             if (lock_session->lock_dead_locked) {
-                return GS_FALSE;
+                return CT_FALSE;
             }
 
             if (i != session->rmid) {
@@ -894,14 +895,14 @@ static bool32 smon_push_lock(knl_session_t *session, uint8 *w_marks, knl_dlock_s
     }
     // current session has no available locked_session
     if (count == 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (lock_session == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static bool32 smon_check_lock_waits(knl_session_t *session, knl_session_t *se, bool32 record_sql)
@@ -920,35 +921,35 @@ static bool32 smon_check_lock_waits(knl_session_t *session, knl_session_t *se, b
     uint16 curr_wrmid;
 
     if (se == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     wtid.value = cm_atomic_get(&se->wtid.value);
-    if (dc_open_user_by_id(session, wtid.uid, &user) != GS_SUCCESS) {
-        return GS_FALSE;
+    if (dc_open_user_by_id(session, wtid.uid, &user) != CT_SUCCESS) {
+        return CT_FALSE;
     }
 
     entry = DC_GET_ENTRY(user, wtid.oid);
     if (entry == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
     if ((!entry->ready) || (entry->recycled)) {
         cm_spin_unlock(&entry->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
     lock = entry->sch_lock;
     cm_spin_unlock(&entry->lock);
 
     if (lock == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (!se->wtid.is_locking) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    max_sessions = GS_MAX_SESSIONS;
+    max_sessions = CT_MAX_SESSIONS;
     stack_lock = &g_dlock_stack;
     stack_lock->top = 0;
     w_marks = (uint8 *)cm_push(session->stack, max_sessions * sizeof(uint8));
@@ -956,13 +957,13 @@ static bool32 smon_check_lock_waits(knl_session_t *session, knl_session_t *se, b
     knl_securec_check(ret);
 
     if (record_sql) {
-        GS_LOG_TRACE("session id: %u, wait object id: %u-%u", se->id, se->wtid.uid, se->wtid.oid);
+        CT_LOG_TRACE("session id: %u, wait object id: %u-%u", se->id, se->wtid.uid, se->wtid.oid);
         smon_record_deadlock(session, se);
     }
 
     if (!smon_push_lock(se, w_marks, stack_lock, lock)) {
         cm_pop(session->stack);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     while (!dlock_is_empty(stack_lock)) {
@@ -971,7 +972,7 @@ static bool32 smon_check_lock_waits(knl_session_t *session, knl_session_t *se, b
 
         if (curr_session == NULL) {
             cm_pop(session->stack);
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         if (se->rmid == curr_session->rmid) {
@@ -981,97 +982,96 @@ static bool32 smon_check_lock_waits(knl_session_t *session, knl_session_t *se, b
         curr_wpid = curr_session->wpid;
         curr_wrmid = curr_session->wrmid;
 
-        if ((curr_session->wait.event == ENQ_TX_TABLE_S || curr_session->wait.event == ENQ_TX_TABLE_X) &&
-            curr_session->is_waiting) {
+        if (curr_session->wait_pool[ENQ_TX_TABLE_S].is_waiting || curr_session->wait_pool[ENQ_TX_TABLE_X].is_waiting) {
             curr_wtid.value = cm_atomic_get(&curr_session->wtid.value);
-            if (dc_open_user_by_id(session, curr_wtid.uid, &user) != GS_SUCCESS) {
+            if (dc_open_user_by_id(session, curr_wtid.uid, &user) != CT_SUCCESS) {
                 cm_pop(session->stack);
-                return GS_FALSE;
+                return CT_FALSE;
             }
 
             entry = DC_GET_ENTRY(user, curr_wtid.oid);
             if (entry == NULL) {
                 cm_pop(session->stack);
-                return GS_FALSE;
+                return CT_FALSE;
             }
 
             cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
             if ((!entry->ready) || (entry->recycled)) {
                 cm_spin_unlock(&entry->lock);
                 cm_pop(session->stack);
-                return GS_FALSE;
+                return CT_FALSE;
             }
             lock = entry->sch_lock;
             cm_spin_unlock(&entry->lock);
 
             if (record_sql) {
-                GS_LOG_TRACE("session id: %u, wait object id: %u-%u",
+                CT_LOG_TRACE("session id: %u, wait object id: %u-%u",
                              curr_session->id, curr_session->wtid.uid, curr_session->wtid.oid);
                 smon_record_deadlock(session, curr_session);
             }
 
             if (!smon_push_lock(curr_session, w_marks, stack_lock, lock)) {
                 cm_pop(session->stack);
-                return GS_FALSE;
+                return CT_FALSE;
             }
-        } else if (curr_wrmid != GS_INVALID_ID16 && curr_session->status != SESSION_INACTIVE) {
+        } else if (curr_wrmid != CT_INVALID_ID16 && curr_session->status != SESSION_INACTIVE) {
             if (record_sql) {
-                GS_LOG_TRACE("session id: %u, wait session id: %u",
+                CT_LOG_TRACE("session id: %u, wait session id: %u",
                              curr_session->id, knl_get_rm_sid(session, curr_wrmid));
                 smon_record_deadlock(session, curr_session);
             }
 
             smon_push_itl_to_lock(curr_session, w_marks, stack_lock);
         } else if (!IS_INVALID_PAGID(curr_wpid) && curr_session->status != SESSION_INACTIVE) {
-            if (buf_read_page(session, curr_wpid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != GS_SUCCESS) {
+            if (buf_read_page(session, curr_wpid, LATCH_MODE_S, ENTER_PAGE_NORMAL) != CT_SUCCESS) {
                 cm_reset_error();
                 cm_pop(session->stack);
-                return GS_FALSE;
+                return CT_FALSE;
             }
             curr_page = (page_head_t *)CURR_PAGE(session);
 
             if (record_sql) {
-                GS_LOG_TRACE("session id: %u, wait page_id: %u-%u", curr_session->id, curr_wpid.file, curr_wpid.page);
+                CT_LOG_TRACE("session id: %u, wait page_id: %u-%u", curr_session->id, curr_wpid.file, curr_wpid.page);
                 smon_record_deadlock(session, curr_session);
             }
 
             if (!smon_push_itl_sessions(curr_session, curr_page, stack_lock, w_marks)) {
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
                 cm_pop(session->stack);
-                return GS_FALSE;
+                return CT_FALSE;
             }
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
         } else {
             cm_pop(session->stack);
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
     if (se->wtid.oid != wtid.oid || se->wtid.uid != wtid.uid || !se->wtid.is_locking) {
         cm_pop(session->stack);
-        return GS_FALSE;
+        return CT_FALSE;
     }
     cm_pop(session->stack);
 
     // re-check deadlock and record SQL text
     if (!record_sql) {
         smon_record_deadlock_time();
-        GS_LOG_TRACE("[Table Deadlock]");
-        return smon_check_lock_waits(session, se, GS_TRUE);
+        CT_LOG_TRACE("[Table Deadlock]");
+        return smon_check_lock_waits(session, se, CT_TRUE);
     }
-    GS_LOG_TRACE("-----------------END OF WAIT INFORMATION-----------------\n");
-    return GS_TRUE;
+    CT_LOG_TRACE("-----------------END OF WAIT INFORMATION-----------------\n");
+    return CT_TRUE;
 }
 
 status_t smon_start(knl_session_t *session)
 {
     knl_instance_t *kernel = session->kernel;
 
-    if (cm_create_thread(smon_proc, 0, kernel->sessions[SESSION_ID_SMON], &kernel->smon_ctx.thread) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_create_thread(smon_proc, 0, kernel->sessions[SESSION_ID_SMON], &kernel->smon_ctx.thread) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void smon_init_undo_hist(knl_session_t *session)
@@ -1107,7 +1107,7 @@ static uint32 smon_get_min_undo_retention(knl_session_t *session)
         min_undo_retention = get_scn_diff_time(cur_local_scn, min_local_scn);
     }
     if (min_undo_retention >= g_instance->kernel.attr.undo_retention_time) {
-        GS_LOG_DEBUG_INF("min > undo_retention %llu - %llu = %u ", cur_local_scn, min_local_scn, min_undo_retention);
+        CT_LOG_DEBUG_INF("min > undo_retention %llu - %llu = %u ", cur_local_scn, min_local_scn, min_undo_retention);
     }
     return min_undo_retention;
 }
@@ -1141,7 +1141,7 @@ static void smon_set_undo_retention(knl_session_t *session)
         }
     }
     if (min_undo_retenion != g_instance->kernel.undo_ctx.retention) {
-        GS_LOG_DEBUG_INF("smon_set_undo_retention %u -> %u \n", g_instance->kernel.undo_ctx.retention,
+        CT_LOG_DEBUG_INF("smon_set_undo_retention %u -> %u \n", g_instance->kernel.undo_ctx.retention,
             min_undo_retenion);
         g_instance->kernel.undo_ctx.retention = min_undo_retenion;
     }

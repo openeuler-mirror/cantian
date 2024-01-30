@@ -1,0 +1,23 @@
+{
+  "deploy_mode": "nas",
+  "deploy_user": "ctdba:ctdba",
+  "node_id": "0",
+  "cms_ip": "192.168.86.1;192.168.86.2",
+  "storage_dbstore_fs": "foo",
+  "storage_share_fs": "share",
+  "storage_archive_fs": "archive",
+  "storage_metadata_fs": "metadata",
+  "mysql_in_container": "1",
+  "share_logic_ip": "10.77.78.1",
+  "archive_logic_ip": "10.77.78.2",
+  "metadata_logic_ip": "10.77.78.3",
+  "storage_logic_ip": "10.77.78.4",
+  "db_type": "0",
+  "mysql_metadata_in_cantian": true,
+  "MAX_ARCH_FILES_SIZE": "300G",
+  "ca_path": "/opt/certificate/ca.crt",
+  "crt_path": "/opt/certificate/mes.crt",
+  "key_path": "/opt/certificate/mes.key",
+  "redo_num": "6",
+  "redo_size": "5G"
+}

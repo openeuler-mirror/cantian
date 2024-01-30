@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_xact_module.h"
 #include "knl_interface.h"
 #include "knl_session.h"
 #include "knl_context.h"
@@ -59,7 +60,7 @@ typedef struct st_alck_assit {
 void knl_check_alck_item(alck_item_pool_t *pool, uint32 p_first, uint32 target)
 {
     uint32 first = p_first;
-    while (first != GS_INVALID_ID32) {
+    while (first != CT_INVALID_ID32) {
         cm_assert(target != first);
         first = ALCK_ITEM_PTR(pool, first)->next;
     }
@@ -68,7 +69,7 @@ void knl_check_alck_item(alck_item_pool_t *pool, uint32 p_first, uint32 target)
 
 status_t alck_check_db_status(knl_session_t *session)
 {
-    return knl_ddl_enabled(session, GS_FALSE);
+    return knl_ddl_enabled(session, CT_FALSE);
 }
 
 #define INIT_POOL(pool)                   \
@@ -77,25 +78,25 @@ do {                                      \
     (pool)->count = 0;                    \
     (pool)->lock = 0;                     \
     (pool)->ext_cnt = 0;                  \
-    (pool)->free_first = GS_INVALID_ID32; \
+    (pool)->free_first = CT_INVALID_ID32; \
     (pool)->free_count = 0;               \
-    (pool)->extending = GS_FALSE;         \
+    (pool)->extending = CT_FALSE;         \
 } while (0)
 
 
 static void alck_free_map_node(alck_map_pool_t *pool, alck_item_t *alck_item, alck_map_t *map)
 {
-    if (map->prev != GS_INVALID_ID32) {
+    if (map->prev != CT_INVALID_ID32) {
         ALCK_MAP_PTR(pool, map->prev)->next = map->next;
     }
-    if (map->next != GS_INVALID_ID32) {
+    if (map->next != CT_INVALID_ID32) {
         ALCK_MAP_PTR(pool, map->next)->prev = map->prev;
     }
     if (alck_item->first_map == map->id) {
         alck_item->first_map = map->next;
     }
-    map->next = GS_INVALID_ID32;
-    map->prev = GS_INVALID_ID32;
+    map->next = CT_INVALID_ID32;
+    map->prev = CT_INVALID_ID32;
 
     cm_spin_lock(&pool->lock, NULL);
     map->next = pool->free_first;
@@ -110,7 +111,7 @@ alck_map_t *alck_get_map(alck_map_pool_t *map_pool, alck_item_t *alck_item, uint
     uint32 map_id = alck_item->first_map;
     alck_map_t *alck_map = NULL;
 
-    while (map_id != GS_INVALID_ID32) {
+    while (map_id != CT_INVALID_ID32) {
         alck_map = ALCK_MAP_PTR(map_pool, map_id);
         if (alck_map->idx == idx) {
             return alck_map;
@@ -124,19 +125,19 @@ status_t alck_alloc_item(alck_assist_t *assist, alck_item_t **alck_item)
 {
     alck_item_pool_t *pool = &ALCK_CTX(assist)->item_pool;
     for (;;) {
-        if (knl_check_session_status(ALCK_SESS(assist)) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_check_session_status(ALCK_SESS(assist)) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         
         cm_spin_lock(&pool->lock, NULL);
 
-        if (pool->free_first != GS_INVALID_ID32) {
+        if (pool->free_first != CT_INVALID_ID32) {
             *alck_item = ALCK_ITEM_PTR(pool, pool->free_first);
             pool->free_first = (*alck_item)->next;
             pool->free_count--;
             cm_spin_unlock(&pool->lock);
             ALCK_ITEM_INIT(*alck_item);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (pool->count < pool->capacity) {
@@ -145,7 +146,7 @@ status_t alck_alloc_item(alck_assist_t *assist, alck_item_t **alck_item)
             ++pool->count;
             cm_spin_unlock(&pool->lock);
             ALCK_ITEM_INIT(*alck_item);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (pool->extending) {
@@ -154,38 +155,38 @@ status_t alck_alloc_item(alck_assist_t *assist, alck_item_t **alck_item)
             continue;
         }
 
-        pool->extending = GS_TRUE;
+        pool->extending = CT_TRUE;
         cm_spin_unlock(&pool->lock);
 
-        if (pool->capacity == GS_ALCK_MAX_ITEMS) {
-            pool->extending = GS_FALSE;
-            GS_THROW_ERROR(ERR_ALCK_LOCK_THRESHOLD, GS_ALCK_MAX_ITEMS);
-            return GS_ERROR;
+        if (pool->capacity == CT_ALCK_MAX_ITEMS) {
+            pool->extending = CT_FALSE;
+            CT_THROW_ERROR(ERR_ALCK_LOCK_THRESHOLD, CT_ALCK_MAX_ITEMS);
+            return CT_ERROR;
         }
-        uint32 alloc_size = sizeof(alck_item_t) * GS_ALCK_EXTENT;
+        uint32 alloc_size = sizeof(alck_item_t) * CT_ALCK_EXTENT;
         pool->extents[pool->ext_cnt] = malloc(alloc_size);
         if (pool->extents[pool->ext_cnt] == NULL) {
-            pool->extending = GS_FALSE;
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, alloc_size, "advisory lock");
-            return GS_ERROR;
+            pool->extending = CT_FALSE;
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, alloc_size, "advisory lock");
+            return CT_ERROR;
         }
 
         errno_t ret = memset_sp(pool->extents[pool->ext_cnt], alloc_size, 0, alloc_size);
         knl_securec_check(ret);
 
-        pool->capacity += GS_ALCK_EXTENT;
+        pool->capacity += CT_ALCK_EXTENT;
         ++pool->ext_cnt;
         CM_MFENCE;
-        pool->extending = GS_FALSE;
+        pool->extending = CT_FALSE;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void alck_free_item(alck_item_pool_t *pool, alck_item_t *alck_item)
 {
     cm_spin_lock(&pool->lock, NULL);
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
-    CM_ASSERT(alck_item->first_map == GS_INVALID_ID32);
+    CM_ASSERT(alck_item->first_map == CT_INVALID_ID32);
     knl_check_alck_item(pool, pool->free_first, alck_item->id);
 #endif
     alck_item->next = pool->free_first;
@@ -199,27 +200,27 @@ static inline status_t alck_init_spec_ctx(alck_ctx_spec_t *ctx)
     INIT_POOL(&ctx->item_pool);
     INIT_POOL(&ctx->map_pool);
     
-    for (uint32 lp = 0; lp < GS_ALCK_MAX_BUCKETS; ++lp) {
+    for (uint32 lp = 0; lp < CT_ALCK_MAX_BUCKETS; ++lp) {
         ctx->buckets[lp].latch.lock = 0;
         ctx->buckets[lp].latch.shared_count = 0;
         ctx->buckets[lp].latch.stat = LATCH_STATUS_IDLE;
         ctx->buckets[lp].id = lp;
-        ctx->buckets[lp].first = GS_INVALID_ID32;
+        ctx->buckets[lp].first = CT_INVALID_ID32;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t alck_init_ctx(struct st_knl_instance *kernel)
 {
     kernel->alck_ctx.se_ctx.lock_set = SE_LOCK;
-    if (alck_init_spec_ctx(&kernel->alck_ctx.se_ctx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_init_spec_ctx(&kernel->alck_ctx.se_ctx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     kernel->alck_ctx.tx_ctx.lock_set = TX_LOCK;
-    if (alck_init_spec_ctx(&kernel->alck_ctx.tx_ctx) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_init_spec_ctx(&kernel->alck_ctx.tx_ctx) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #define RESET_POOL(pool)                       \
@@ -227,9 +228,9 @@ status_t alck_init_ctx(struct st_knl_instance *kernel)
         (pool)->capacity = 0;                  \
         (pool)->count = 0;                     \
         (pool)->ext_cnt = 0;                   \
-        (pool)->free_first = GS_INVALID_ID32;  \
+        (pool)->free_first = CT_INVALID_ID32;  \
         (pool)->free_count = 0;                \
-        (pool)->extending = GS_FALSE;          \
+        (pool)->extending = CT_FALSE;          \
     } while (0)
     
 static inline void alck_deinit_spec_ctx(alck_ctx_spec_t *ctx)
@@ -246,12 +247,12 @@ static inline void alck_deinit_spec_ctx(alck_ctx_spec_t *ctx)
     RESET_POOL(pool);
     RESET_POOL(map_pool);
     
-    for (uint32 lp = 0; lp < GS_ALCK_MAX_BUCKETS; ++lp) {
+    for (uint32 lp = 0; lp < CT_ALCK_MAX_BUCKETS; ++lp) {
         ctx->buckets[lp].latch.lock = 0;
         ctx->buckets[lp].latch.shared_count = 0;
         ctx->buckets[lp].latch.stat = LATCH_STATUS_IDLE;
         ctx->buckets[lp].id = lp;
-        ctx->buckets[lp].first = GS_INVALID_ID32;
+        ctx->buckets[lp].first = CT_INVALID_ID32;
     }
     return;
 }
@@ -268,10 +269,10 @@ void alck_bucket_delete(alck_ctx_spec_t *ctx, alck_bucket_t *bucket, alck_item_t
     if (alck_item->id == bucket->first) {
         bucket->first = alck_item->next;
     }
-    if (alck_item->prev != GS_INVALID_ID32) {
+    if (alck_item->prev != CT_INVALID_ID32) {
         ALCK_ITEM_PTR(&ctx->item_pool, alck_item->prev)->next = alck_item->next;
     }
-    if (alck_item->next != GS_INVALID_ID32) {
+    if (alck_item->next != CT_INVALID_ID32) {
         ALCK_ITEM_PTR(&ctx->item_pool, alck_item->next)->prev = alck_item->prev;
     }
 }
@@ -282,10 +283,10 @@ void alck_bucket_insert(alck_ctx_spec_t *ctx, alck_bucket_t *bucket, alck_item_t
     knl_check_alck_item(&ctx->item_pool, bucket->first, alck_item->id);
 #endif
     alck_item->next = bucket->first;
-    if (bucket->first != GS_INVALID_ID32) {
+    if (bucket->first != CT_INVALID_ID32) {
         ALCK_ITEM_PTR(&ctx->item_pool, bucket->first)->prev = alck_item->id;
     }
-    alck_item->prev = GS_INVALID_ID32;
+    alck_item->prev = CT_INVALID_ID32;
     bucket->first = alck_item->id;
     alck_item->bucket_id = bucket->id;
 }
@@ -295,7 +296,7 @@ alck_item_t *alck_bucket_match(alck_ctx_spec_t *ctx, alck_bucket_t *bucket, text
     uint32 lock_id = bucket->first;
     alck_item_t *alck_item = NULL;
 
-    while (lock_id != GS_INVALID_ID32) {
+    while (lock_id != CT_INVALID_ID32) {
         alck_item = ALCK_ITEM_PTR(&ctx->item_pool, lock_id);
         if (!cm_compare_text_str(name, alck_item->name)) {
             return alck_item;
@@ -308,7 +309,7 @@ alck_item_t *alck_bucket_match(alck_ctx_spec_t *ctx, alck_bucket_t *bucket, text
 // when a item found, it's spin-lock was locked
 static inline alck_item_t *alck_find_item(alck_assist_t *assist, alck_bucket_t *bucket, text_t *name)
 {
-    cm_latch_s(&bucket->latch, 0, GS_FALSE, NULL);
+    cm_latch_s(&bucket->latch, 0, CT_FALSE, NULL);
 
     alck_item_t *alck_item = alck_bucket_match(ALCK_CTX(assist), bucket, name);
     if (alck_item != NULL) {
@@ -326,18 +327,18 @@ status_t alck_alloc_map(alck_assist_t *assist, alck_map_t **alck_map)
 {
     alck_map_pool_t *pool = &ALCK_CTX(assist)->map_pool;
     for (;;) {
-        if (knl_check_session_status(ALCK_SESS(assist)) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_check_session_status(ALCK_SESS(assist)) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         cm_spin_lock(&pool->lock, NULL);
 
-        if (pool->free_first != GS_INVALID_ID32) {
+        if (pool->free_first != CT_INVALID_ID32) {
             *alck_map = ALCK_MAP_PTR(pool, pool->free_first);
             pool->free_first = (*alck_map)->next;
             pool->free_count--;
             cm_spin_unlock(&pool->lock);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (pool->count < pool->capacity) {
@@ -346,7 +347,7 @@ status_t alck_alloc_map(alck_assist_t *assist, alck_map_t **alck_map)
             (*alck_map)->id = pool->count;
             ++pool->count;
             cm_spin_unlock(&pool->lock);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (pool->extending) {
@@ -355,31 +356,31 @@ status_t alck_alloc_map(alck_assist_t *assist, alck_map_t **alck_map)
             continue;
         }
 
-        pool->extending = GS_TRUE;
+        pool->extending = CT_TRUE;
         cm_spin_unlock(&pool->lock);
 
-        if (pool->capacity == GS_ALCK_MAX_MAPS) {
-            pool->extending = GS_FALSE;
-            GS_THROW_ERROR(ERR_ALCK_MAP_THRESHOLD, GS_ALCK_MAX_MAPS);
-            return GS_ERROR;
+        if (pool->capacity == CT_ALCK_MAX_MAPS) {
+            pool->extending = CT_FALSE;
+            CT_THROW_ERROR(ERR_ALCK_MAP_THRESHOLD, CT_ALCK_MAX_MAPS);
+            return CT_ERROR;
         }
-        uint32 alloc_size = sizeof(alck_map_t) * GS_ALCK_EXTENT;
+        uint32 alloc_size = sizeof(alck_map_t) * CT_ALCK_EXTENT;
         pool->extents[pool->ext_cnt] = malloc(alloc_size);
         if (pool->extents[pool->ext_cnt] == NULL) {
-            pool->extending = GS_FALSE;
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, alloc_size, "advisory lock map");
-            return GS_ERROR;
+            pool->extending = CT_FALSE;
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, alloc_size, "advisory lock map");
+            return CT_ERROR;
         }
 
         errno_t ret = memset_sp(pool->extents[pool->ext_cnt], alloc_size, 0, alloc_size);
         knl_securec_check(ret);
 
-        pool->capacity += GS_ALCK_EXTENT;
+        pool->capacity += CT_ALCK_EXTENT;
         ++pool->ext_cnt;
         CM_MFENCE;
-        pool->extending = GS_FALSE;
+        pool->extending = CT_FALSE;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -387,22 +388,22 @@ status_t alck_map_add_idx(alck_assist_t *assist, alck_item_t *alck_item, alck_ma
 {
     if (*map != NULL) {
         (*map)->count++;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     alck_map_pool_t *pool = &ALCK_CTX(assist)->map_pool;
-    if (alck_alloc_map(assist, map) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_alloc_map(assist, map) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     (*map)->count = 1;
     (*map)->idx = idx;
     (*map)->next = alck_item->first_map;
-    if (alck_item->first_map != GS_INVALID_ID32) {
+    if (alck_item->first_map != CT_INVALID_ID32) {
         ALCK_MAP_PTR(pool, alck_item->first_map)->prev = (*map)->id;
     }
-    (*map)->prev = GS_INVALID_ID32;
+    (*map)->prev = CT_INVALID_ID32;
     alck_item->first_map = (*map)->id;
  
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -429,11 +430,11 @@ static inline status_t alck_insert_item(alck_assist_t *assist, alck_bucket_t *bu
         cm_unlatch(&bucket->latch, NULL);
         alck_free_item(&ALCK_CTX(assist)->item_pool, input_item);
         *alck_item = locked;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
-    if (alck_map_add_idx(assist, input_item, &map, ALCK_MAP_ID(assist)) != GS_SUCCESS) {
+    if (alck_map_add_idx(assist, input_item, &map, ALCK_MAP_ID(assist)) != CT_SUCCESS) {
         cm_unlatch(&bucket->latch, NULL);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     alck_bucket_insert(ALCK_CTX(assist), bucket, input_item);
     input_item->lock_mode = ALCK_LOCK_MODE(assist);
@@ -443,19 +444,19 @@ static inline status_t alck_insert_item(alck_assist_t *assist, alck_bucket_t *bu
         input_item->x_map_id = ALCK_MAP_ID(assist);
         input_item->x_times = 1;
     } else {
-        input_item->x_map_id = GS_INVALID_ID32;
+        input_item->x_map_id = CT_INVALID_ID32;
         input_item->x_times = 0;
     }
 
-    ret = strncpy_s(input_item->name, GS_ALCK_NAME_BUFFER_SIZE, ALCK_NAME(assist)->str, ALCK_NAME(assist)->len);
+    ret = strncpy_s(input_item->name, CT_ALCK_NAME_BUFFER_SIZE, ALCK_NAME(assist)->str, ALCK_NAME(assist)->len);
     knl_securec_check(ret);
 
     cm_unlatch(&bucket->latch, NULL);
 
     ALCK_ID(assist) = input_item->id;
-    ALCK_NEW_LOCKED(assist) = GS_TRUE;
+    ALCK_NEW_LOCKED(assist) = CT_TRUE;
     *alck_item = NULL;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void alck_try_delete_item(alck_assist_t *assist, alck_bucket_t *bucket, alck_item_t *alck_item,
@@ -483,29 +484,29 @@ static inline void alck_try_delete_item(alck_assist_t *assist, alck_bucket_t *bu
 
 status_t alck_wait_sess_responds(alck_assist_t *assist, alck_item_t *alck_item, date_t time_beg, date_t to_us)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     do {
         if (ALCK_SESS(assist)->alck_se_dead_locked) {
-            GS_THROW_ERROR(ERR_DEAD_LOCK, "advisory lock", ALCK_SESS(assist)->id);
-            ret = GS_ERROR;
+            CT_THROW_ERROR(ERR_DEAD_LOCK, "advisory lock", ALCK_SESS(assist)->id);
+            ret = CT_ERROR;
             break;
         }
 
         if (ALCK_SESS(assist)->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            ret = GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            ret = CT_ERROR;
             break;
         }
 
         if (ALCK_SESS(assist)->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            ret = GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            ret = CT_ERROR;
             break;
         }
 
         if (ALCK_TIMEOUT(assist) != 0 && (KNL_NOW(ALCK_SESS(assist)) - time_beg) > to_us) {
-            GS_THROW_ERROR(ERR_RESOURCE_BUSY);
-            ret = GS_TIMEDOUT;
+            CT_THROW_ERROR(ERR_RESOURCE_BUSY);
+            ret = CT_TIMEDOUT;
             break;
         }
     } while (0);
@@ -527,16 +528,16 @@ static bool32 alck_locked_by_others(alck_assist_t *assist, alck_item_t *alck_ite
             alck_item->ix_map_id = ALCK_MAP_ID(assist);
             alck_item->lock_mode = ALCK_MODE_IX;
         }
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t alck_add(alck_assist_t *assist, alck_item_t *alck_item, alck_map_t *map, bool32 *locked,
     alck_mode_t lock_mode)
 {
-    if (alck_map_add_idx(assist, alck_item, &map, ALCK_MAP_ID(assist)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_map_add_idx(assist, alck_item, &map, ALCK_MAP_ID(assist)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     ++alck_item->lock_times;
@@ -544,22 +545,22 @@ status_t alck_add(alck_assist_t *assist, alck_item_t *alck_item, alck_map_t *map
         alck_item->lock_mode = ALCK_MODE_X;
         alck_item->x_times = 1;
         alck_item->x_map_id = ALCK_MAP_ID(assist);
-        alck_item->ix_map_id = GS_INVALID_ID32;
+        alck_item->ix_map_id = CT_INVALID_ID32;
     } else {
         alck_item->lock_mode = ALCK_MODE_S;
     }
     ALCK_NEW_LOCKED(assist) = (map->count == 1);
 
     ALCK_ID(assist) = alck_item->id;
-    *locked = GS_TRUE;
-    return GS_SUCCESS;
+    *locked = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 static inline void alck_lock_downgrade(alck_assist_t *assist, alck_item_t *alck_item)
 {
     cm_spin_lock(&alck_item->lock, NULL);
     if (alck_item->lock_mode == ALCK_MODE_IX && alck_item->ix_map_id == ALCK_MAP_ID(assist)) {
-        alck_item->ix_map_id = GS_INVALID_ID32;
+        alck_item->ix_map_id = CT_INVALID_ID32;
         alck_item->lock_mode = (alck_item->lock_times == 0) ? ALCK_MODE_IDLE : ALCK_MODE_S;
     }
     cm_spin_unlock(&alck_item->lock);
@@ -588,15 +589,15 @@ status_t alck_wait_ex(alck_assist_t *assist, alck_item_t *alck_item, bool32 *loc
     date_t to_us = ALCK_TIMEOUT(assist) * MICROSECS_PER_SECOND;
     status_t ret;
 
-    knl_begin_session_wait(ALCK_SESS(assist), ENQ_ADVISORY_LOCK, GS_FALSE);
-    while (GS_TRUE) {
+    knl_begin_session_wait(ALCK_SESS(assist), ENQ_ADVISORY_LOCK, CT_FALSE);
+    while (CT_TRUE) {
         ret = alck_wait_sess_responds(assist, alck_item, time_beg, to_us);
-        GS_BREAK_IF_ERROR(ret);
+        CT_BREAK_IF_ERROR(ret);
         cm_spin_sleep_and_stat2(1);
 
         // when the lock is released, it will be removed from hash bucket
         // and the sn number will be increased
-        GS_BREAK_IF_TRUE(walck->serial != alck_item->sn);
+        CT_BREAK_IF_TRUE(walck->serial != alck_item->sn);
 
         cm_spin_lock(&alck_item->lock, NULL);
         if (walck->serial != alck_item->sn) {
@@ -617,7 +618,7 @@ status_t alck_wait_ex(alck_assist_t *assist, alck_item_t *alck_item, bool32 *loc
         }
 
         // if lock is locked by others or not
-        if (alck_locked_by_others(assist, alck_item, map) == GS_TRUE) {
+        if (alck_locked_by_others(assist, alck_item, map) == CT_TRUE) {
             cm_spin_unlock(&alck_item->lock);
             continue;
         }
@@ -631,8 +632,8 @@ status_t alck_wait_ex(alck_assist_t *assist, alck_item_t *alck_item, bool32 *loc
         cm_spin_unlock(&alck_item->lock);
         break;
     }
-    knl_end_session_wait(ALCK_SESS(assist));
-    if (ret != GS_SUCCESS) {
+    knl_end_session_wait(ALCK_SESS(assist), ENQ_ADVISORY_LOCK);
+    if (ret != CT_SUCCESS) {
         alck_lock_downgrade(assist, alck_item);
     }
     return ret;
@@ -651,10 +652,10 @@ status_t alck_wait_sh(alck_assist_t *assist, alck_item_t *alck_item, bool32 *loc
     date_t to_us = ALCK_TIMEOUT(assist) * MICROSECS_PER_SECOND;
     status_t ret;
 
-    knl_begin_session_wait(ALCK_SESS(assist), ENQ_ADVISORY_LOCK, GS_FALSE);
+    knl_begin_session_wait(ALCK_SESS(assist), ENQ_ADVISORY_LOCK, CT_FALSE);
     for (;;) {
         ret = alck_wait_sess_responds(assist, alck_item, time_beg, to_us);
-        GS_BREAK_IF_ERROR(ret);
+        CT_BREAK_IF_ERROR(ret);
         cm_spin_sleep_and_stat2(1);
 
         // when the lock is released, it will be removed from hash bucket
@@ -681,17 +682,17 @@ status_t alck_wait_sh(alck_assist_t *assist, alck_item_t *alck_item, bool32 *loc
         cm_spin_unlock(&alck_item->lock);
         break;
     }
-    knl_end_session_wait(ALCK_SESS(assist));
+    knl_end_session_wait(ALCK_SESS(assist), ENQ_ADVISORY_LOCK);
     return ret;
 }
 
 static inline status_t alck_deal_self_locked_ex(alck_assist_t *assist, alck_item_t *alck_item, alck_map_t *map,
     bool32 *locked)
 {
-    if (map->count == GS_ALCK_MAX_RECUR_LVL) {
-        GS_THROW_ERROR(ERR_ALCK_RECURSIVE_LEVEL, GS_ALCK_MAX_RECUR_LVL);
+    if (map->count == CT_ALCK_MAX_RECUR_LVL) {
+        CT_THROW_ERROR(ERR_ALCK_RECURSIVE_LEVEL, CT_ALCK_MAX_RECUR_LVL);
         cm_spin_unlock(&alck_item->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     ++alck_item->lock_times;
     ++map->count;
@@ -702,7 +703,7 @@ static inline status_t alck_deal_self_locked_ex(alck_assist_t *assist, alck_item
         alck_item->lock_mode = ALCK_MODE_X;
         alck_item->x_map_id = ALCK_MAP_ID(assist);
         alck_item->x_times = 1;
-        alck_item->ix_map_id = GS_INVALID_ID32;
+        alck_item->ix_map_id = CT_INVALID_ID32;
     } else {
         ++alck_item->x_times;
     }
@@ -710,9 +711,9 @@ static inline status_t alck_deal_self_locked_ex(alck_assist_t *assist, alck_item
     cm_spin_unlock(&alck_item->lock);
 
     ALCK_ID(assist) = alck_item->id;
-    ALCK_NEW_LOCKED(assist) = GS_FALSE;
-    *locked = GS_TRUE;
-    return GS_SUCCESS;
+    ALCK_NEW_LOCKED(assist) = CT_FALSE;
+    *locked = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 status_t alck_lock_or_wait_ex(alck_assist_t *assist, alck_item_t *alck_item, bool32 *locked)
@@ -722,9 +723,9 @@ status_t alck_lock_or_wait_ex(alck_assist_t *assist, alck_item_t *alck_item, boo
     if (map != NULL && map->count == alck_item->lock_times) { // locked by self
         return alck_deal_self_locked_ex(assist, alck_item, map, locked);
     } else if (!alck_item->lock_times) { // just unlocked, not deleted from hash map
-        if (alck_map_add_idx(assist, alck_item, &map, ALCK_MAP_ID(assist)) != GS_SUCCESS) {
+        if (alck_map_add_idx(assist, alck_item, &map, ALCK_MAP_ID(assist)) != CT_SUCCESS) {
             cm_spin_unlock(&alck_item->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         alck_item->lock_mode = ALCK_MODE_X;
         ++alck_item->lock_times;
@@ -732,14 +733,14 @@ status_t alck_lock_or_wait_ex(alck_assist_t *assist, alck_item_t *alck_item, boo
         alck_item->x_times = 1;
         cm_spin_unlock(&alck_item->lock);
         ALCK_ID(assist) = alck_item->id;
-        ALCK_NEW_LOCKED(assist) = GS_TRUE;
-        *locked = GS_TRUE;
-        return GS_SUCCESS;
+        ALCK_NEW_LOCKED(assist) = CT_TRUE;
+        *locked = CT_TRUE;
+        return CT_SUCCESS;
     } else { // locked by other
-        *locked = GS_FALSE;
+        *locked = CT_FALSE;
         if (ALCK_NO_WAIT(assist)) {
             cm_spin_unlock(&alck_item->lock);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         } else {
             return alck_wait_ex(assist, alck_item, locked);
         }
@@ -759,36 +760,36 @@ status_t alck_lock_or_wait_sh(alck_assist_t *assist, alck_item_t *alck_item, boo
     alck_map_t *map = alck_get_map(map_pool, alck_item, ALCK_MAP_ID(assist));
 
     if (map != NULL && map->count > 0) {
-        if (map->count == GS_ALCK_MAX_RECUR_LVL) {
-            GS_THROW_ERROR(ERR_ALCK_RECURSIVE_LEVEL, GS_ALCK_MAX_RECUR_LVL);
+        if (map->count == CT_ALCK_MAX_RECUR_LVL) {
+            CT_THROW_ERROR(ERR_ALCK_RECURSIVE_LEVEL, CT_ALCK_MAX_RECUR_LVL);
             cm_spin_unlock(&alck_item->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         ++alck_item->lock_times;
         ++map->count;
         cm_spin_unlock(&alck_item->lock);
 
         ALCK_ID(assist) = alck_item->id;
-        ALCK_NEW_LOCKED(assist) = GS_FALSE;
-        *locked = GS_TRUE;
-        return GS_SUCCESS;
+        ALCK_NEW_LOCKED(assist) = CT_FALSE;
+        *locked = CT_TRUE;
+        return CT_SUCCESS;
     } else if (alck_item->lock_mode != ALCK_MODE_X && alck_item->lock_mode != ALCK_MODE_IX) {
-        if (alck_map_add_idx(assist, alck_item, &map, ALCK_MAP_ID(assist)) != GS_SUCCESS) {
+        if (alck_map_add_idx(assist, alck_item, &map, ALCK_MAP_ID(assist)) != CT_SUCCESS) {
             cm_spin_unlock(&alck_item->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         ++alck_item->lock_times;
         cm_spin_unlock(&alck_item->lock);
 
         ALCK_ID(assist) = alck_item->id;
-        ALCK_NEW_LOCKED(assist) = GS_TRUE;
-        *locked = GS_TRUE;
-        return GS_SUCCESS;
+        ALCK_NEW_LOCKED(assist) = CT_TRUE;
+        *locked = CT_TRUE;
+        return CT_SUCCESS;
     } else {
-        *locked = GS_FALSE;
+        *locked = CT_FALSE;
         if (ALCK_NO_WAIT(assist)) {
             cm_spin_unlock(&alck_item->lock);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         } else {
             return alck_wait_sh(assist, alck_item, locked);
         }
@@ -806,50 +807,50 @@ status_t alck_lock_or_wait(alck_assist_t *assist, alck_item_t *alck_item, bool32
 
 status_t alck_lock(alck_assist_t *assist, bool32 *locked)
 {
-    uint32 bucket_id = cm_hash_text(ALCK_NAME(assist), GS_ALCK_MAX_BUCKETS);
+    uint32 bucket_id = cm_hash_text(ALCK_NAME(assist), CT_ALCK_MAX_BUCKETS);
     alck_bucket_t *bucket = &ALCK_CTX(assist)->buckets[bucket_id];
 
     alck_item_t *alck_item = alck_find_item(assist, bucket, ALCK_NAME(assist));
     do {
         if (alck_item != NULL) {
             status_t ret = alck_lock_or_wait(assist, alck_item, locked);
-            if (SECUREC_UNLIKELY(ret != GS_SUCCESS)) {
-                if (ret == GS_TIMEDOUT) {
-                    return GS_SUCCESS;
+            if (SECUREC_UNLIKELY(ret != CT_SUCCESS)) {
+                if (ret == CT_TIMEDOUT) {
+                    return CT_SUCCESS;
                 } else {
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
             }
             if (*locked) {
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
             // alck_item already released
             // refer to branch: if (walck->serial != alck_item->sn) in alck_wait
         }
 
-        if (alck_alloc_item(assist, &alck_item) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (alck_alloc_item(assist, &alck_item) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         // when the lock with same name is locked by other session
         // adv_ctx_lock will return the locked item, and free the item just allocated.
-        if (alck_insert_item(assist, bucket, &alck_item) != GS_SUCCESS) {
+        if (alck_insert_item(assist, bucket, &alck_item) != CT_SUCCESS) {
             alck_free_item(&ALCK_CTX(assist)->item_pool, alck_item);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (!alck_item) {
-            *locked = GS_TRUE;
-            return GS_SUCCESS;
+            *locked = CT_TRUE;
+            return CT_SUCCESS;
         }
     } while (1);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t alck_try_lock(alck_assist_t *assist, bool32 *locked)
 {
-    uint32 bucket_id = cm_hash_text(ALCK_NAME(assist), GS_ALCK_MAX_BUCKETS);
+    uint32 bucket_id = cm_hash_text(ALCK_NAME(assist), CT_ALCK_MAX_BUCKETS);
     alck_bucket_t *bucket = &ALCK_CTX(assist)->buckets[bucket_id];
 
     alck_item_t *alck_item = alck_find_item(assist, bucket, ALCK_NAME(assist));
@@ -858,45 +859,45 @@ status_t alck_try_lock(alck_assist_t *assist, bool32 *locked)
             return alck_lock_or_wait(assist, alck_item, locked);
         }
 
-        if (alck_alloc_item(assist, &alck_item) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (alck_alloc_item(assist, &alck_item) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (alck_insert_item(assist, bucket, &alck_item) != GS_SUCCESS) {
+        if (alck_insert_item(assist, bucket, &alck_item) != CT_SUCCESS) {
             alck_free_item(&ALCK_CTX(assist)->item_pool, alck_item);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (alck_item == NULL) {
-            *locked = GS_TRUE;
-            return GS_SUCCESS;
+            *locked = CT_TRUE;
+            return CT_SUCCESS;
         }
     } while (1);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline bool32 alck_unlock_ex(alck_assist_t *assist, alck_bucket_t *bucket, alck_item_t *alck_item)
 {
     uint32 curr_sn;
     if (alck_item == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (alck_item->lock_mode != ALCK_MODE_X) {
         cm_spin_unlock(&alck_item->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
     alck_map_pool_t *map_pool = &ALCK_CTX(assist)->map_pool;
     alck_map_t *map = alck_get_map(map_pool, alck_item, ALCK_MAP_ID(assist));
     if (map == NULL) {
         cm_spin_unlock(&alck_item->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
     CM_ASSERT(map->count > 0);
     if (alck_item->x_map_id != ALCK_MAP_ID(assist)) {
         cm_spin_unlock(&alck_item->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (alck_item->lock_times > 1) {
@@ -905,18 +906,18 @@ static inline bool32 alck_unlock_ex(alck_assist_t *assist, alck_bucket_t *bucket
         --alck_item->x_times;
         if (alck_item->x_times == 0) {
             alck_item->lock_mode = ALCK_MODE_S;
-            alck_item->x_map_id = GS_INVALID_ID32;
+            alck_item->x_map_id = CT_INVALID_ID32;
         }
         CM_ASSERT(map->count > 0);
         cm_spin_unlock(&alck_item->lock);
 
         ALCK_ID(assist) = alck_item->id;
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     alck_item->lock_mode = ALCK_MODE_IDLE;
     alck_item->lock_times = 0;
-    alck_item->x_map_id = GS_INVALID_ID32;
+    alck_item->x_map_id = CT_INVALID_ID32;
     alck_item->x_times = 0;
     curr_sn = alck_item->sn;
     alck_free_map_node(map_pool, alck_item, map);
@@ -924,7 +925,7 @@ static inline bool32 alck_unlock_ex(alck_assist_t *assist, alck_bucket_t *bucket
 
     ALCK_ID(assist) = alck_item->id;
     alck_try_delete_item(assist, bucket, alck_item, curr_sn);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 bool32 alck_unlock_ex_by_id(alck_assist_t *assist, uint32 alck_id)
@@ -937,7 +938,7 @@ bool32 alck_unlock_ex_by_id(alck_assist_t *assist, uint32 alck_id)
 
 bool32 alck_unlock_ex_by_name(alck_assist_t *assist, text_t *name)
 {
-    uint32 bucket_id = cm_hash_text(name, GS_ALCK_MAX_BUCKETS);
+    uint32 bucket_id = cm_hash_text(name, CT_ALCK_MAX_BUCKETS);
     alck_bucket_t *bucket = &ALCK_CTX(assist)->buckets[bucket_id];
     alck_item_t *alck_item = alck_find_item(assist, bucket, name);
     return alck_unlock_ex(assist, bucket, alck_item);
@@ -947,18 +948,18 @@ static inline bool32 alck_unlock_sh(alck_assist_t *assist, alck_bucket_t *bucket
 {
     uint32 curr_sn;
     if (alck_item == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
     alck_map_pool_t *map_pool = &ALCK_CTX(assist)->map_pool;
     alck_map_t *map = alck_get_map(map_pool, alck_item, ALCK_MAP_ID(assist));
     if (map == NULL) {
         cm_spin_unlock(&alck_item->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
     CM_ASSERT(map->count > 0);
     if (alck_item->lock_times == alck_item->x_times) {
         cm_spin_unlock(&alck_item->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (alck_item->lock_times > 1) {
@@ -970,7 +971,7 @@ static inline bool32 alck_unlock_sh(alck_assist_t *assist, alck_bucket_t *bucket
         cm_spin_unlock(&alck_item->lock);
 
         ALCK_ID(assist) = alck_item->id;
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     alck_item->lock_times = 0;
@@ -979,7 +980,7 @@ static inline bool32 alck_unlock_sh(alck_assist_t *assist, alck_bucket_t *bucket
     if (alck_item->lock_mode == ALCK_MODE_IX) {
         cm_spin_unlock(&alck_item->lock);
         ALCK_ID(assist) = alck_item->id;
-        return GS_TRUE;
+        return CT_TRUE;
     }
     
     alck_item->lock_mode = ALCK_MODE_IDLE;
@@ -988,7 +989,7 @@ static inline bool32 alck_unlock_sh(alck_assist_t *assist, alck_bucket_t *bucket
     ALCK_ID(assist) = alck_item->id;
 
     alck_try_delete_item(assist, bucket, alck_item, curr_sn);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 bool32 alck_unlock_sh_by_id(alck_assist_t *assist, uint32 alck_id)
@@ -1001,7 +1002,7 @@ bool32 alck_unlock_sh_by_id(alck_assist_t *assist, uint32 alck_id)
 
 bool32 alck_unlock_sh_by_name(alck_assist_t *assist, text_t *name)
 {
-    uint32 bucket_id = cm_hash_text(name, GS_ALCK_MAX_BUCKETS);
+    uint32 bucket_id = cm_hash_text(name, CT_ALCK_MAX_BUCKETS);
     alck_bucket_t *bucket = &ALCK_CTX(assist)->buckets[bucket_id];
     alck_item_t *alck_item = alck_find_item(assist, bucket, name);
     return alck_unlock_sh(assist, bucket, alck_item);
@@ -1024,7 +1025,7 @@ static inline void alck_unlock_all(alck_assist_t *assist, uint32 alck_id)
     if (alck_item->x_map_id == ALCK_MAP_ID(assist)) {
         alck_item->x_times = 0;
         alck_item->lock_mode = ALCK_MODE_S;
-        alck_item->x_map_id = GS_INVALID_ID32;
+        alck_item->x_map_id = CT_INVALID_ID32;
     }
     if (alck_item->lock_times > 0) {
         cm_spin_unlock(&alck_item->lock);
@@ -1041,9 +1042,9 @@ static inline void alck_unlock_all(alck_assist_t *assist, uint32 alck_id)
 
 static inline status_t alck_check_name_db(knl_handle_t session, text_t *name)
 {
-    if (name->len > GS_MAX_ALCK_USER_NAME_LEN) {
-        GS_THROW_ERROR(ERR_NAME_TOO_LONG, "advisory lock", name->len, GS_MAX_NAME_LEN);
-        return GS_ERROR;
+    if (name->len > CT_MAX_ALCK_USER_NAME_LEN) {
+        CT_THROW_ERROR(ERR_NAME_TOO_LONG, "advisory lock", name->len, CT_MAX_NAME_LEN);
+        return CT_ERROR;
     }
     return alck_check_db_status(session);
 }
@@ -1076,10 +1077,10 @@ static inline status_t alck_register(alck_assist_t *assist, lock_type_t lock_typ
     // first locked
     if (!ALCK_NEW_LOCKED(assist) && (ALCK_LOCK_SET(assist) != TX_LOCK)) {
         lock_add_alck_times(ALCK_SESS(assist), ALCK_ID(assist), ALCK_LOCK_SET(assist));
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (SECUREC_UNLIKELY(lock_alloc(ALCK_SESS(assist), lock_type, &lock_item) != GS_SUCCESS)) {
+    if (SECUREC_UNLIKELY(lock_alloc(ALCK_SESS(assist), lock_type, &lock_item) != CT_SUCCESS)) {
         switch (lock_type) {
             case LOCK_TYPE_ALCK_SS:
             case LOCK_TYPE_ALCK_TS:
@@ -1092,13 +1093,13 @@ static inline status_t alck_register(alck_assist_t *assist, lock_type_t lock_typ
             default:
                 break;
         }
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     lock_item->alck_id = ALCK_ID(assist);
     lock_item->alck_times = 1;
     lock_item->type = lock_type;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool32 knl_alck_have_se_lock(knl_handle_t sess)
@@ -1111,18 +1112,18 @@ bool32 knl_alck_have_se_lock(knl_handle_t sess)
 
 status_t knl_alck_se_lock_ex(knl_handle_t sess, text_t *name, uint32 timeout, bool32 *locked)
 {
-    if (alck_check_name_db(sess, name) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_check_name_db(sess, name) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     alck_assist_t assist;
-    ALCK_INIT_ASSIST(sess, name, timeout, ALCK_MODE_X, SE_LOCK, GS_FALSE, assist);
+    ALCK_INIT_ASSIST(sess, name, timeout, ALCK_MODE_X, SE_LOCK, CT_FALSE, assist);
 
-    if (alck_lock(&assist, locked) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_lock(&assist, locked) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!*locked) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return alck_register(&assist, LOCK_TYPE_ALCK_SX);
@@ -1130,18 +1131,18 @@ status_t knl_alck_se_lock_ex(knl_handle_t sess, text_t *name, uint32 timeout, bo
 
 status_t knl_alck_se_try_lock_ex(knl_handle_t sess, text_t *name, bool32 *locked)
 {
-    if (alck_check_name_db(sess, name) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_check_name_db(sess, name) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     alck_assist_t assist;
-    ALCK_INIT_ASSIST(sess, name, 0, ALCK_MODE_X, SE_LOCK, GS_TRUE, assist);
+    ALCK_INIT_ASSIST(sess, name, 0, ALCK_MODE_X, SE_LOCK, CT_TRUE, assist);
 
-    if (alck_try_lock(&assist, locked) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_try_lock(&assist, locked) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!*locked) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return alck_register(&assist, LOCK_TYPE_ALCK_SX);
@@ -1149,18 +1150,18 @@ status_t knl_alck_se_try_lock_ex(knl_handle_t sess, text_t *name, bool32 *locked
 
 status_t knl_alck_se_lock_sh(knl_handle_t sess, text_t *name, uint32 timeout, bool32 *locked)
 {
-    if (alck_check_name_db(sess, name) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_check_name_db(sess, name) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     alck_assist_t assist;
-    ALCK_INIT_ASSIST(sess, name, timeout, ALCK_MODE_S, SE_LOCK, GS_FALSE, assist);
+    ALCK_INIT_ASSIST(sess, name, timeout, ALCK_MODE_S, SE_LOCK, CT_FALSE, assist);
 
-    if (alck_lock(&assist, locked) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_lock(&assist, locked) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!*locked) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return alck_register(&assist, LOCK_TYPE_ALCK_SS);
@@ -1168,18 +1169,18 @@ status_t knl_alck_se_lock_sh(knl_handle_t sess, text_t *name, uint32 timeout, bo
 
 status_t knl_alck_se_try_lock_sh(knl_handle_t sess, text_t *name, bool32 *locked)
 {
-    if (alck_check_name_db(sess, name) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_check_name_db(sess, name) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     alck_assist_t assist;
-    ALCK_INIT_ASSIST(sess, name, 0, ALCK_MODE_S, SE_LOCK, GS_TRUE, assist);
+    ALCK_INIT_ASSIST(sess, name, 0, ALCK_MODE_S, SE_LOCK, CT_TRUE, assist);
 
-    if (alck_try_lock(&assist, locked) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_try_lock(&assist, locked) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!*locked) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return alck_register(&assist, LOCK_TYPE_ALCK_SS);
@@ -1187,59 +1188,59 @@ status_t knl_alck_se_try_lock_sh(knl_handle_t sess, text_t *name, bool32 *locked
 
 status_t knl_alck_se_unlock_ex(knl_handle_t sess, text_t *name, bool32 *unlocked)
 {
-    if (alck_check_name_db(sess, name) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_check_name_db(sess, name) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     alck_assist_t assist;
-    ALCK_INIT_ASSIST(sess, name, 0, ALCK_MODE_X, SE_LOCK, GS_FALSE, assist);
+    ALCK_INIT_ASSIST(sess, name, 0, ALCK_MODE_X, SE_LOCK, CT_FALSE, assist);
 
     if (alck_unlock_ex_by_name(&assist, name)) {
         lock_del_alck_times(assist.se, assist.lock_id, SE_LOCK);
-        *unlocked = GS_TRUE;
+        *unlocked = CT_TRUE;
     } else {
-        *unlocked = GS_FALSE;
+        *unlocked = CT_FALSE;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t knl_alck_se_unlock_sh(knl_handle_t sess, text_t *name, bool32 *unlocked)
 {
-    if (alck_check_name_db(sess, name) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_check_name_db(sess, name) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     alck_assist_t assist;
-    ALCK_INIT_ASSIST(sess, name, 0, ALCK_MODE_S, SE_LOCK, GS_FALSE, assist);
+    ALCK_INIT_ASSIST(sess, name, 0, ALCK_MODE_S, SE_LOCK, CT_FALSE, assist);
 
     if (alck_unlock_sh_by_name(&assist, name)) {
         lock_del_alck_times(assist.se, assist.lock_id, SE_LOCK);
-        *unlocked = GS_TRUE;
+        *unlocked = CT_TRUE;
     } else {
-        *unlocked = GS_FALSE;
+        *unlocked = CT_FALSE;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void alck_se_unlock_all(knl_handle_t sess, uint32 alck_id)
 {
     alck_assist_t assist;
-    ALCK_INIT_ASSIST(sess, NULL, 0, ALCK_MODE_IDLE, SE_LOCK, GS_FALSE, assist);
+    ALCK_INIT_ASSIST(sess, NULL, 0, ALCK_MODE_IDLE, SE_LOCK, CT_FALSE, assist);
     alck_unlock_all(&assist, alck_id);
 }
 
 status_t knl_alck_tx_lock_ex(knl_handle_t sess, text_t *name, uint32 timeout, bool32 *locked)
 {
-    if (alck_check_name_db(sess, name) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_check_name_db(sess, name) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     alck_assist_t assist;
-    ALCK_INIT_ASSIST(sess, name, timeout, ALCK_MODE_X, TX_LOCK, GS_FALSE, assist);
+    ALCK_INIT_ASSIST(sess, name, timeout, ALCK_MODE_X, TX_LOCK, CT_FALSE, assist);
 
-    if (alck_lock(&assist, locked) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_lock(&assist, locked) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!*locked) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return alck_register(&assist, LOCK_TYPE_ALCK_TX);
@@ -1247,18 +1248,18 @@ status_t knl_alck_tx_lock_ex(knl_handle_t sess, text_t *name, uint32 timeout, bo
 
 status_t knl_alck_tx_try_lock_ex(knl_handle_t sess, text_t *name, bool32 *locked)
 {
-    if (alck_check_name_db(sess, name) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_check_name_db(sess, name) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     alck_assist_t assist;
-    ALCK_INIT_ASSIST(sess, name, 0, ALCK_MODE_X, TX_LOCK, GS_TRUE, assist);
+    ALCK_INIT_ASSIST(sess, name, 0, ALCK_MODE_X, TX_LOCK, CT_TRUE, assist);
 
-    if (alck_try_lock(&assist, locked) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_try_lock(&assist, locked) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!*locked) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return alck_register(&assist, LOCK_TYPE_ALCK_TX);
@@ -1266,18 +1267,18 @@ status_t knl_alck_tx_try_lock_ex(knl_handle_t sess, text_t *name, bool32 *locked
 
 status_t knl_alck_tx_lock_sh(knl_handle_t sess, text_t *name, uint32 timeout, bool32 *locked)
 {
-    if (alck_check_name_db(sess, name) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_check_name_db(sess, name) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     alck_assist_t assist;
-    ALCK_INIT_ASSIST(sess, name, timeout, ALCK_MODE_S, TX_LOCK, GS_FALSE, assist);
+    ALCK_INIT_ASSIST(sess, name, timeout, ALCK_MODE_S, TX_LOCK, CT_FALSE, assist);
 
-    if (alck_lock(&assist, locked) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_lock(&assist, locked) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!*locked) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return alck_register(&assist, LOCK_TYPE_ALCK_TS);
@@ -1285,18 +1286,18 @@ status_t knl_alck_tx_lock_sh(knl_handle_t sess, text_t *name, uint32 timeout, bo
 
 status_t knl_alck_tx_try_lock_sh(knl_handle_t sess, text_t *name, bool32 *locked)
 {
-    if (alck_check_name_db(sess, name) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_check_name_db(sess, name) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     alck_assist_t assist;
-    ALCK_INIT_ASSIST(sess, name, 0, ALCK_MODE_S, TX_LOCK, GS_TRUE, assist);
+    ALCK_INIT_ASSIST(sess, name, 0, ALCK_MODE_S, TX_LOCK, CT_TRUE, assist);
 
-    if (alck_try_lock(&assist, locked) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (alck_try_lock(&assist, locked) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!*locked) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return alck_register(&assist, LOCK_TYPE_ALCK_TS);
@@ -1305,13 +1306,13 @@ status_t knl_alck_tx_try_lock_sh(knl_handle_t sess, text_t *name, bool32 *locked
 void alck_tx_unlock_sh(knl_handle_t sess, uint32 alck_id)
 {
     alck_assist_t assist;
-    ALCK_INIT_ASSIST(sess, NULL, 0, ALCK_MODE_S, TX_LOCK, GS_FALSE, assist);
+    ALCK_INIT_ASSIST(sess, NULL, 0, ALCK_MODE_S, TX_LOCK, CT_FALSE, assist);
     alck_unlock_sh_by_id(&assist, alck_id);
 }
 
 void alck_tx_unlock_ex(knl_handle_t sess, uint32 alck_id)
 {
     alck_assist_t assist;
-    ALCK_INIT_ASSIST(sess, NULL, 0, ALCK_MODE_X, TX_LOCK, GS_FALSE, assist);
+    ALCK_INIT_ASSIST(sess, NULL, 0, ALCK_MODE_X, TX_LOCK, CT_FALSE, assist);
     alck_unlock_ex_by_id(&assist, alck_id);
 }

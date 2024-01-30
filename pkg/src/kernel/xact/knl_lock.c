@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_xact_module.h"
 #include "knl_lock.h"
 #include "knl_heap.h"
 #include "pcr_heap.h"
@@ -41,8 +42,8 @@ status_t lock_area_init(knl_session_t *session)
     uint32 i;
     uint32 init_lockpool_pages = session->kernel->attr.init_lockpool_pages;
 
-    if (mpool_create(shared_pool, "lock pool", init_lockpool_pages, GS_MAX_LOCK_PAGES, &area->pool) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mpool_create(shared_pool, "lock pool", init_lockpool_pages, CT_MAX_LOCK_PAGES, &area->pool) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     buf = marea_page_addr(shared_pool, area->pool.free_pages.first);
 
@@ -50,14 +51,14 @@ status_t lock_area_init(knl_session_t *session)
     area->capacity = init_lockpool_pages * LOCK_PAGE_CAPACITY;  // fixed value, won't overflow
     area->hwm = 0;
     area->free_items.count = 0;
-    area->free_items.first = GS_INVALID_ID32;
-    area->free_items.last = GS_INVALID_ID32;
+    area->free_items.first = CT_INVALID_ID32;
+    area->free_items.last = CT_INVALID_ID32;
     area->page_count = init_lockpool_pages;
 
     for (i = 0; i < init_lockpool_pages; i++) {
         area->pages[i] = buf + i * shared_pool->page_size;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lock_area_extend(knl_session_t *session)
@@ -67,24 +68,24 @@ static status_t lock_area_extend(knl_session_t *session)
     lock_area_t *area = &session->kernel->lock_ctx;
     uint32 i, page_count;
 
-    if (area->page_count == GS_MAX_LOCK_PAGES) {
-        GS_THROW_ERROR(ERR_NO_MORE_LOCKS);
-        return GS_ERROR;
+    if (area->page_count == CT_MAX_LOCK_PAGES) {
+        CT_THROW_ERROR(ERR_NO_MORE_LOCKS);
+        return CT_ERROR;
     }
 
-    page_count = mpool_get_extend_page_count(GS_MAX_LOCK_PAGES, area->page_count);
-    if (mpool_extend(&area->pool, page_count, &extent) != GS_SUCCESS) {
-        return GS_ERROR;
+    page_count = mpool_get_extend_page_count(CT_MAX_LOCK_PAGES, area->page_count);
+    if (mpool_extend(&area->pool, page_count, &extent) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    // alloc  GS_MAX_LOCK_PAGES - area->page_count extent count, the array won't overrun
+    // alloc  CT_MAX_LOCK_PAGES - area->page_count extent count, the array won't overrun
     for (i = 0; i < extent.count; i++) {
         area->pages[area->page_count + i] = marea_page_addr(shared_pool, extent.pages[i]);
     }
 
     area->page_count += extent.count;
     area->capacity += LOCK_PAGE_CAPACITY * extent.count;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lock_area_alloc(knl_session_t *session, uint32 *lockid)
@@ -98,9 +99,9 @@ static status_t lock_area_alloc(knl_session_t *session, uint32 *lockid)
 
     // no more free locks, try to extend from shared pool
     if (area->hwm == area->capacity && area->free_items.count == 0) {
-        if (lock_area_extend(session) != GS_SUCCESS) {
+        if (lock_area_extend(session) != CT_SUCCESS) {
             cm_spin_unlock(&area->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -118,13 +119,13 @@ static status_t lock_area_alloc(knl_session_t *session, uint32 *lockid)
         area->free_items.count--;
 
         if (area->free_items.count == 0) {
-            area->free_items.first = GS_INVALID_ID32;
-            area->free_items.last = GS_INVALID_ID32;
+            area->free_items.first = CT_INVALID_ID32;
+            area->free_items.last = CT_INVALID_ID32;
         }
     }
 
     cm_spin_unlock(&area->lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lock_alloc_item(knl_session_t *session, lock_group_t *group, uint32 private_locks,
@@ -134,18 +135,18 @@ static status_t lock_alloc_item(knl_session_t *session, lock_group_t *group, uin
     id_list_t *list = NULL;
     uint32 id;
 
-    if (group->plock_id != GS_INVALID_ID32) {
+    if (group->plock_id != CT_INVALID_ID32) {
         *lock = lock_addr(area, group->plock_id);
         group->plock_id = (*lock)->next;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (lock_area_alloc(session, &id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lock_area_alloc(session, &id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     *lock = lock_addr(area, id);
-    (*lock)->next = GS_INVALID_ID32;
+    (*lock)->next = CT_INVALID_ID32;
     (*lock)->rmid = session->rmid;
 
     list = (group->plocks.count < private_locks) ? &group->plocks : &group->glocks;
@@ -157,7 +158,7 @@ static status_t lock_alloc_item(knl_session_t *session, lock_group_t *group, uin
     list->last = id;
     list->count++;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lock_alloc(knl_session_t *session, lock_type_t type, lock_item_t **lock)
@@ -165,19 +166,19 @@ status_t lock_alloc(knl_session_t *session, lock_type_t type, lock_item_t **lock
     knl_rm_t *rm = session->rm;
 
     if (rm->txn == NULL && !IS_SESSION_OR_PL_LOCK(type)) {
-        if (tx_begin(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (tx_begin(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (type == LOCK_TYPE_TS || type == LOCK_TYPE_TX) {
-        return lock_alloc_item(session, &rm->sch_lock_group, GS_MAX_PRIVATE_LOCKS, lock);
+        return lock_alloc_item(session, &rm->sch_lock_group, CT_MAX_PRIVATE_LOCKS, lock);
     } else if (type == LOCK_TYPE_RCR_RX || type == LOCK_TYPE_PCR_RX) {
         return lock_alloc_item(session, &rm->row_lock_group, session->kernel->attr.private_row_locks, lock);
     } else if (type == LOCK_TYPE_ALCK_SS || type == LOCK_TYPE_ALCK_SX) {
-        return lock_alloc_item(session, &session->alck_lock_group, GS_MAX_PRIVATE_LOCKS, lock);
+        return lock_alloc_item(session, &session->alck_lock_group, CT_MAX_PRIVATE_LOCKS, lock);
     } else if (type == LOCK_TYPE_ALCK_TS || type == LOCK_TYPE_ALCK_TX) {
-        return lock_alloc_item(session, &rm->alck_lock_group, GS_MAX_PRIVATE_LOCKS, lock);
+        return lock_alloc_item(session, &rm->alck_lock_group, CT_MAX_PRIVATE_LOCKS, lock);
     } else {
         return lock_alloc_item(session, &rm->key_lock_group, session->kernel->attr.private_key_locks, lock);
     }
@@ -190,8 +191,8 @@ status_t lock_itl(knl_session_t *session, page_id_t page_id, uint8 itl_id, knl_p
 
     knl_panic_log(session->rm->txn != NULL, "rm's txn is NULL, panic info: page %u-%u", page_id.file, page_id.page);
 
-    if (lock_alloc(session, type, &item) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lock_alloc(session, type, &item) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     item->page = (uint32)page_id.page;
@@ -202,7 +203,7 @@ status_t lock_itl(knl_session_t *session, page_id_t page_id, uint8 itl_id, knl_p
     item->type = (uint8)type;
     TO_PAGID_DATA(next_pagid, item->next_pagid);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lock_try_lock_table_shared_local(knl_session_t *session, knl_handle_t dc_entity, uint32 timeout_s,
@@ -224,45 +225,45 @@ status_t lock_try_lock_table_shared_local(knl_session_t *session, knl_handle_t d
 
     for (;;) {
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
             break;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
             break;
         }
 
         if (timeout_us != 0 && (KNL_NOW(session) - begin_time) > timeout_us) {
-            GS_THROW_ERROR(ERR_RESOURCE_BUSY);
+            CT_THROW_ERROR(ERR_RESOURCE_BUSY);
             break;
         }
 
         cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
         if (!entity->valid) {
             cm_spin_unlock(&entry->sch_lock_mutex);
-            GS_THROW_ERROR(ERR_DC_INVALIDATED);
+            CT_THROW_ERROR(ERR_DC_INVALIDATED);
             break;
         }
 
         session->wtid.oid = entity->entry->id;
         session->wtid.uid = entity->entry->uid;
         if (lock->mode == LOCK_MODE_IX || lock->mode == LOCK_MODE_X) {
-            session->wtid.is_locking = GS_TRUE;
+            session->wtid.is_locking = CT_TRUE;
             if (timeout_us != 0) {
-                knl_try_begin_session_wait(session, ENQ_TX_TABLE_S, GS_FALSE);
+                knl_begin_session_wait(session, ENQ_TX_TABLE_S, CT_FALSE);
                 if (session->lock_dead_locked) {
                     cm_spin_unlock(&entry->sch_lock_mutex);
-                    GS_THROW_ERROR(ERR_DEAD_LOCK, "table", session->id);
+                    CT_THROW_ERROR(ERR_DEAD_LOCK, "table", session->id);
                     break;
                 }
                 cm_spin_unlock(&entry->sch_lock_mutex);
                 cm_spin_sleep_and_stat2(1);
-                knl_try_end_session_wait(session, ENQ_TX_TABLE_S);
+                knl_end_session_wait(session, ENQ_TX_TABLE_S);
                 continue;
             } else {
                 cm_spin_unlock(&entry->sch_lock_mutex);
-                GS_THROW_ERROR(ERR_RESOURCE_BUSY);
+                CT_THROW_ERROR(ERR_RESOURCE_BUSY);
                 break;
             }
         }
@@ -272,26 +273,26 @@ status_t lock_try_lock_table_shared_local(knl_session_t *session, knl_handle_t d
          */
         if (!entity->valid) {
             cm_spin_unlock(&entry->sch_lock_mutex);
-            GS_THROW_ERROR(ERR_DC_INVALIDATED);
+            CT_THROW_ERROR(ERR_DC_INVALIDATED);
             break;
         }
 
         lock->mode = LOCK_MODE_S;
-        knl_panic(lock->shared_count != GS_INVALID_ID32);
+        knl_panic(lock->shared_count != CT_INVALID_ID32);
         lock->shared_count++;
         SCH_LOCK_SET(session, lock);
         SCH_LOCK_INST_SET(session->kernel->dtc_attr.inst_id, lock);
         cm_spin_unlock(&entry->sch_lock_mutex);
-        knl_try_end_session_wait(session, ENQ_TX_TABLE_S);
-        session->wtid.is_locking = GS_FALSE;
-        GS_LOG_DEBUG_INF("[DLS] add table shared lock table name %s", entry->name);
-        return GS_SUCCESS;
+        knl_end_session_wait(session, ENQ_TX_TABLE_S);
+        session->wtid.is_locking = CT_FALSE;
+        CT_LOG_DEBUG_INF("[DLS] add table shared lock table name %s", entry->name);
+        return CT_SUCCESS;
     }
     item->dc_entry = NULL;
-    session->lock_dead_locked = GS_FALSE;
-    session->wtid.is_locking = GS_FALSE;
-    knl_try_end_session_wait(session, ENQ_TX_TABLE_S);
-    return GS_ERROR;
+    session->lock_dead_locked = CT_FALSE;
+    session->wtid.is_locking = CT_FALSE;
+    knl_end_session_wait(session, ENQ_TX_TABLE_S);
+    return CT_ERROR;
 }
 
 static status_t lock_try_lock_table_shared(knl_session_t *session, knl_handle_t dc_entity, uint32 timeout_s,
@@ -300,7 +301,7 @@ static status_t lock_try_lock_table_shared(knl_session_t *session, knl_handle_t 
     SYNC_POINT_GLOBAL_START(CANTIAN_LOCK_TABLE_S_LOCAL_BEFORE_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
     status_t ret = lock_try_lock_table_shared_local(session, dc_entity, timeout_s, item);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         return ret;
     }
 
@@ -308,38 +309,38 @@ static status_t lock_try_lock_table_shared(knl_session_t *session, knl_handle_t 
     SYNC_POINT_GLOBAL_END;
 
     if (!DB_ATTR_CLUSTER(session)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     knl_panic(session->kernel->db.status >= DB_STATUS_MOUNT);
     dc_entity_t *entity = (dc_entity_t *)dc_entity;
     dc_entry_t *entry = entity->entry;
     drc_local_latch *latch_stat = NULL;
-    bool32 locked = GS_FALSE;
+    bool32 locked = CT_FALSE;
 
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&entry->ddl_latch.drid);
     drc_lock_local_resx(lock_res);
     drc_get_local_latch_statx(lock_res, &latch_stat);
     if (latch_stat->lock_mode == DRC_LOCK_NULL) {
-        locked = dls_request_latch_s(session, &entry->ddl_latch.drid, GS_TRUE, timeout_s);
+        locked = dls_request_latch_s(session, &entry->ddl_latch.drid, CT_TRUE, timeout_s, CT_INVALID_ID32);
         cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
         if (locked && !entity->valid) {
             dls_request_clean_granted_map(session, &entry->ddl_latch.drid);
-            locked = GS_FALSE;
+            locked = CT_FALSE;
             // request master to unlock dls
         }
         cm_spin_unlock(&entry->sch_lock_mutex);
         if (!locked) {
             drc_unlock_local_resx(lock_res);
             unlock_table_local(session, entry, session->kernel->dtc_attr.inst_id);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         latch_stat->lock_mode = DRC_LOCK_SHARE;
     }
     drc_unlock_local_resx(lock_res);
     SYNC_POINT_GLOBAL_START(CANTIAN_LOCK_TABLE_S_DLS_AFTER_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lock_table_shared_directly(knl_session_t *session, knl_handle_t dc)
@@ -357,17 +358,17 @@ status_t lock_table_shared_directly(knl_session_t *session, knl_handle_t dc)
     user = ctx->users[pdc->uid];
 
     if (DB_IS_READONLY(session)) {
-        GS_THROW_ERROR(ERR_DATABASE_ROLE, "locking table shared", "in read only mode");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATABASE_ROLE, "locking table shared", "in read only mode");
+        return CT_ERROR;
     }
 
     if (DB_NOT_READY(session) || pdc->handle == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (session->rm->txn == NULL) {
-        if (tx_begin(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (tx_begin(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -375,25 +376,25 @@ status_t lock_table_shared_directly(knl_session_t *session, knl_handle_t dc)
     table = &entity->table;
 
     if (dc_locked_by_self(session, entity->entry) && !DB_IS_BG_ROLLBACK_SE(session)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (lock_alloc_item(session, &session->rm->direct_lock_group, GS_MAX_PRIVATE_LOCKS, &item) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lock_alloc_item(session, &session->rm->direct_lock_group, CT_MAX_PRIVATE_LOCKS, &item) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (lock_try_lock_table_shared(session, pdc->handle, LOCK_INF_WAIT, item) == GS_SUCCESS) {
+    if (lock_try_lock_table_shared(session, pdc->handle, LOCK_INF_WAIT, item) == CT_SUCCESS) {
         dc_load_all_part_segments(session, pdc->handle);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (;;) {
         code = cm_get_error_code();
         if (code != ERR_DC_INVALIDATED) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
         cm_reset_error();
-        if (knl_open_dc_by_id(session, pdc->uid, pdc->oid, &reopen_dc, GS_TRUE) != GS_SUCCESS) {
+        if (knl_open_dc_by_id(session, pdc->uid, pdc->oid, &reopen_dc, CT_TRUE) != CT_SUCCESS) {
             code = cm_get_error_code();
             /*
              * if table was dropped, table name described by error message is recycle table name.
@@ -401,23 +402,23 @@ status_t lock_table_shared_directly(knl_session_t *session, knl_handle_t dc)
              */
             if (code == ERR_TABLE_OR_VIEW_NOT_EXIST) {
                 cm_reset_error();
-                GS_THROW_ERROR(ERR_TABLE_OR_VIEW_NOT_EXIST, user->desc.name, table->desc.name);
+                CT_THROW_ERROR(ERR_TABLE_OR_VIEW_NOT_EXIST, user->desc.name, table->desc.name);
             }
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (pdc->org_scn != reopen_dc.org_scn) {
             dc_close(&reopen_dc);
-            GS_THROW_ERROR(ERR_TABLE_ID_NOT_EXIST, pdc->uid, pdc->oid);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_TABLE_ID_NOT_EXIST, pdc->uid, pdc->oid);
+            return CT_ERROR;
         }
         dc_close(pdc);
         ret = memcpy_sp(pdc, sizeof(knl_dictionary_t), &reopen_dc, sizeof(knl_dictionary_t));
         knl_securec_check(ret);
 
-        if (lock_try_lock_table_shared(session, pdc->handle, LOCK_INF_WAIT, item) == GS_SUCCESS) {
+        if (lock_try_lock_table_shared(session, pdc->handle, LOCK_INF_WAIT, item) == CT_SUCCESS) {
             dc_load_all_part_segments(session, pdc->handle);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 }
@@ -428,26 +429,36 @@ static status_t lock_local_temp_table(knl_session_t *session, lock_group_t *grou
     lock_item_t *item = NULL;
     dc_entity_t *entity = (dc_entity_t *)dc_entity;
 
+    CT_LOG_RUN_INF("[lock_local_temp_table] start to lock temp table %s in mode %u", entity->entry->name, mode);
+
     if (entity->entry->ltt_lock_mode != LOCK_MODE_IDLE) {
         entity->entry->ltt_lock_mode = (entity->entry->ltt_lock_mode == LOCK_MODE_X) ? LOCK_MODE_X : mode;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (session->rm->txn == NULL) {
-        if (tx_begin(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (tx_begin(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    if (lock_alloc_item(session, group, GS_PRIVATE_TABLE_LOCKS, &item) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (DB_ATTR_COMPATIBLE_MYSQL(session)) {
+        CT_LOG_RUN_INF("[lock_local_temp_table] Finish to lock temp table %s in mode %u for mysql, not alloc item",
+                       entity->entry->name, mode);
+        return CT_SUCCESS;
+    }
+
+    if (lock_alloc_item(session, group, CT_PRIVATE_TABLE_LOCKS, &item) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     item->type = (uint8)((mode == LOCK_MODE_S) ? LOCK_TYPE_TS : LOCK_TYPE_TX);
     item->dc_entry = entity->entry;
     entity->entry->ltt_lock_mode = mode;
 
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("[lock_local_temp_table] Finish to lock temp table %s in mode %u", entity->entry->name, mode);
+
+    return CT_SUCCESS;
 }
 
 status_t lock_table_shared(knl_session_t *session, knl_handle_t dc_entity, uint32 timeout_s)
@@ -456,17 +467,17 @@ status_t lock_table_shared(knl_session_t *session, knl_handle_t dc_entity, uint3
     dc_entity_t *entity = NULL;
 
     if (DB_IS_READONLY(session)) {
-        GS_THROW_ERROR(ERR_DATABASE_ROLE, "locking table shared", "in read only mode");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATABASE_ROLE, "locking table shared", "in read only mode");
+        return CT_ERROR;
     }
 
     if (DB_NOT_READY(session) || dc_entity == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (session->rm->txn == NULL) {
-        if (tx_begin(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (tx_begin(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -477,11 +488,11 @@ status_t lock_table_shared(knl_session_t *session, knl_handle_t dc_entity, uint3
     }
 
     if (dc_locked_by_self(session, entity->entry) && !DB_IS_BG_ROLLBACK_SE(session)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (lock_alloc(session, LOCK_TYPE_TS, &item) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lock_alloc(session, LOCK_TYPE_TS, &item) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     return lock_try_lock_table_shared(session, dc_entity, timeout_s, item);
@@ -491,8 +502,8 @@ status_t lock_table_exclusive_mode(knl_session_t *session, knl_handle_t dc_entit
                                    uint32 timeout_s, uint8 inst_id)
 {
     time_t begin_time;
-    bool32 lock_ix = GS_FALSE;
-    bool32 is_locked = GS_FALSE;
+    bool32 lock_ix = CT_FALSE;
+    bool32 is_locked = CT_FALSE;
     schema_lock_t *lock;
     dc_entry_t *entry;
     int64 timeout_us;
@@ -511,47 +522,47 @@ status_t lock_table_exclusive_mode(knl_session_t *session, knl_handle_t dc_entit
 
     for (;;) {
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
             break;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
             break;
         }
 
         if (timeout_us != 0 && (KNL_NOW(session) - begin_time) > timeout_us) {
-            GS_THROW_ERROR(ERR_RESOURCE_BUSY);
+            CT_THROW_ERROR(ERR_RESOURCE_BUSY);
             break;
         }
 
         cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
         if (SECUREC_UNLIKELY(entity != NULL && !entity->valid)) {
             cm_spin_unlock(&entry->sch_lock_mutex);
-            GS_THROW_ERROR(ERR_DC_INVALIDATED);
+            CT_THROW_ERROR(ERR_DC_INVALIDATED);
             break;
         }
 
         session->wtid.oid = entry->id;
         session->wtid.uid = entry->uid;
         if (lock->mode == LOCK_MODE_X) {
-            knl_try_begin_session_wait(session, ENQ_TX_TABLE_X, GS_FALSE);
+            knl_begin_session_wait(session, ENQ_TX_TABLE_X, CT_FALSE);
             if (session->lock_dead_locked) {
                 cm_spin_unlock(&entry->sch_lock_mutex);
-                GS_THROW_ERROR(ERR_DEAD_LOCK, "table", session->id);
+                CT_THROW_ERROR(ERR_DEAD_LOCK, "table", session->id);
                 break;
             }
 
             if (dc_locked_by_self(session, entry)) {
                 cm_spin_unlock(&entry->sch_lock_mutex);
-                knl_try_end_session_wait(session, ENQ_TX_TABLE_X);
-                session->wtid.is_locking = GS_FALSE;
-                return GS_SUCCESS;
+                knl_end_session_wait(session, ENQ_TX_TABLE_X);
+                session->wtid.is_locking = CT_FALSE;
+                return CT_SUCCESS;
             }
 
             cm_spin_unlock(&entry->sch_lock_mutex);
             if (timeout_us == 0) {
-                GS_THROW_ERROR(ERR_RESOURCE_BUSY);
+                CT_THROW_ERROR(ERR_RESOURCE_BUSY);
                 break;
             }
             cm_spin_sleep_and_stat2(1);
@@ -563,7 +574,7 @@ status_t lock_table_exclusive_mode(knl_session_t *session, knl_handle_t dc_entit
             lock->shared_count--;
             lock->mode = LOCK_MODE_X;
             cm_spin_unlock(&entry->sch_lock_mutex);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         // if entry is locked by others or not
@@ -574,21 +585,21 @@ status_t lock_table_exclusive_mode(knl_session_t *session, knl_handle_t dc_entit
         }
 
         if (is_locked) {
-            knl_try_begin_session_wait(session, ENQ_TX_TABLE_X, GS_FALSE);
+            knl_begin_session_wait(session, ENQ_TX_TABLE_X, CT_FALSE);
             if (session->lock_dead_locked) {
                 cm_spin_unlock(&entry->sch_lock_mutex);
-                GS_THROW_ERROR(ERR_DEAD_LOCK, "table", session->id);
+                CT_THROW_ERROR(ERR_DEAD_LOCK, "table", session->id);
                 break;
             }
             if (timeout_us == 0) {
                 cm_spin_unlock(&entry->sch_lock_mutex);
-                GS_THROW_ERROR(ERR_RESOURCE_BUSY);
+                CT_THROW_ERROR(ERR_RESOURCE_BUSY);
                 break;
             }
 
             if (lock->mode == LOCK_MODE_S) {
                 lock->mode = LOCK_MODE_IX;
-                lock_ix = GS_TRUE;
+                lock_ix = CT_TRUE;
             }
 
             cm_spin_unlock(&entry->sch_lock_mutex);
@@ -597,10 +608,10 @@ status_t lock_table_exclusive_mode(knl_session_t *session, knl_handle_t dc_entit
         }
 
         if (lock->mode == LOCK_MODE_IX && !lock_ix) {
-            knl_try_begin_session_wait(session, ENQ_TX_TABLE_X, GS_FALSE);
+            knl_begin_session_wait(session, ENQ_TX_TABLE_X, CT_FALSE);
             if (session->lock_dead_locked) {
                 cm_spin_unlock(&entry->sch_lock_mutex);
-                GS_THROW_ERROR(ERR_DEAD_LOCK, "table", session->id);
+                CT_THROW_ERROR(ERR_DEAD_LOCK, "table", session->id);
                 break;
             }
             cm_spin_unlock(&entry->sch_lock_mutex);
@@ -612,7 +623,7 @@ status_t lock_table_exclusive_mode(knl_session_t *session, knl_handle_t dc_entit
             /* there is no other sessions hold lock on this table */
             lock->mode = LOCK_MODE_IDLE;
             cm_spin_unlock(&entry->sch_lock_mutex);
-            GS_THROW_ERROR(ERR_DC_INVALIDATED);
+            CT_THROW_ERROR(ERR_DC_INVALIDATED);
             break;
         }
 
@@ -626,12 +637,12 @@ status_t lock_table_exclusive_mode(knl_session_t *session, knl_handle_t dc_entit
         SCH_LOCK_SET(session, lock);
         SCH_LOCK_INST_SET(inst_id, lock);
         cm_spin_unlock(&entry->sch_lock_mutex);
-        knl_try_end_session_wait(session, ENQ_TX_TABLE_X);
-        session->wtid.is_locking = GS_FALSE;
-        return GS_SUCCESS;
+        knl_end_session_wait(session, ENQ_TX_TABLE_X);
+        session->wtid.is_locking = CT_FALSE;
+        return CT_SUCCESS;
     }
 
-    knl_try_end_session_wait(session, ENQ_TX_TABLE_X);
+    knl_end_session_wait(session, ENQ_TX_TABLE_X);
     cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
     /* 1 lock_upgrade_table_lock has the highest priority, as a result, if session has lock table in IX mode,
      * session which is upgrading table lock may lock table in X mode.
@@ -642,22 +653,22 @@ status_t lock_table_exclusive_mode(knl_session_t *session, knl_handle_t dc_entit
         lock->mode = (lock->shared_count > 0 ? LOCK_MODE_S : LOCK_MODE_IDLE);
     }
     cm_spin_unlock(&entry->sch_lock_mutex);
-    session->lock_dead_locked = GS_FALSE;
-    session->wtid.is_locking = GS_FALSE;
-    return GS_ERROR;
+    session->lock_dead_locked = CT_FALSE;
+    session->wtid.is_locking = CT_FALSE;
+    return CT_ERROR;
 }
 
 status_t lock_table_in_exclusive_mode(knl_session_t *session, knl_handle_t dc_entity, knl_handle_t dc_entry,
                                       uint32 timeout_s)
 {
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     database_t *db = &session->kernel->db;
 
     SYNC_POINT_GLOBAL_START(CANTIAN_LOCK_TABLE_X_LOCAL_BEFORE_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
     ret = lock_table_exclusive_mode(session, dc_entity, dc_entry, timeout_s, session->kernel->dtc_attr.inst_id);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_DEBUG_ERR("[DLS] local lock table exclusive failed, table name %s errcode %u",
+    if (ret != CT_SUCCESS) {
+        CT_LOG_DEBUG_ERR("[DLS] local lock table exclusive failed, table name %s errcode %u",
                          ((dc_entry_t *)dc_entry)->name, ret);
         return ret;
     }
@@ -665,31 +676,31 @@ status_t lock_table_in_exclusive_mode(knl_session_t *session, knl_handle_t dc_en
     SYNC_POINT_GLOBAL_END;
 
     if (!DB_ATTR_CLUSTER(session)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     knl_panic(db->status >= DB_STATUS_MOUNT);
     drc_local_latch *latch_stat = NULL;
-    bool32 locked = GS_FALSE;
+    bool32 locked = CT_FALSE;
     dc_entry_t *entry = (dc_entry_t *)dc_entry;
 
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&entry->ddl_latch.drid);
     drc_lock_local_resx(lock_res);
     drc_get_local_latch_statx(lock_res, &latch_stat);
     if (latch_stat->lock_mode != DRC_LOCK_EXCLUSIVE) {
-        locked = dls_request_latch_x(session, &entry->ddl_latch.drid, GS_TRUE, timeout_s);
+        locked = dls_request_latch_x(session, &entry->ddl_latch.drid, CT_TRUE, timeout_s, CT_INVALID_ID32);
         dc_entity_t *entity = (dc_entity_t *)dc_entity;
         cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
         if (locked && entity != NULL && !entity->valid) {
             dls_request_clean_granted_map(session, &entry->ddl_latch.drid);
-            locked = GS_FALSE;
+            locked = CT_FALSE;
             // request master to unlock dls
         }
         cm_spin_unlock(&entry->sch_lock_mutex);
         if (!locked) {
             drc_unlock_local_resx(lock_res);
             unlock_table_local(session, entry, session->kernel->dtc_attr.inst_id);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         latch_stat->lock_mode = DRC_LOCK_EXCLUSIVE;
     }
@@ -697,8 +708,8 @@ status_t lock_table_in_exclusive_mode(knl_session_t *session, knl_handle_t dc_en
     SYNC_POINT_GLOBAL_START(CANTIAN_LOCK_TABLE_X_DLS_AFTER_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
 
-    GS_LOG_DEBUG_INF("end lock table in exclusive mode");
-    return GS_SUCCESS;
+    CT_LOG_DEBUG_INF("end lock table in exclusive mode");
+    return CT_SUCCESS;
 }
 
 static status_t lock_try_lock_table_exclusive(knl_session_t *session, knl_handle_t dc_entity, uint32 timeout_s,
@@ -712,12 +723,12 @@ static status_t lock_try_lock_table_exclusive(knl_session_t *session, knl_handle
     item->dc_entry = entry;
     item->type = (uint8)LOCK_TYPE_TX;
 
-    if (lock_table_in_exclusive_mode(session, entity, entry, timeout_s) != GS_SUCCESS) {
+    if (lock_table_in_exclusive_mode(session, entity, entry, timeout_s) != CT_SUCCESS) {
         item->dc_entry = NULL;
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lock_table_exclusive(knl_session_t *session, knl_handle_t dc_entity, uint32 wait_time)
@@ -725,23 +736,23 @@ status_t lock_table_exclusive(knl_session_t *session, knl_handle_t dc_entity, ui
     lock_item_t *item = NULL;
 
     if (DB_IS_READONLY(session)) {
-        GS_THROW_ERROR(ERR_DATABASE_ROLE, "locking table exclusively", "in read only mode");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATABASE_ROLE, "locking table exclusively", "in read only mode");
+        return CT_ERROR;
     }
 
     if (!DB_IS_MAINTENANCE(session) && DB_IN_BG_ROLLBACK(session) && !DB_IS_BG_ROLLBACK_SE(session)) {
-        GS_THROW_ERROR_EX(ERR_INVALID_OPERATION, ",txn area is rollbacking,can't lock table exclusive,db_status[%u]",
+        CT_THROW_ERROR_EX(ERR_INVALID_OPERATION, ",txn area is rollbacking,can't lock table exclusive,db_status[%u]",
             (uint32)(session->kernel->db.status));
         knl_panic_log(0, "txn area is rollbacking,can't lock table exclusive");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (IS_LTT_BY_ID(((dc_entity_t *)dc_entity)->entry->id)) {
         return lock_local_temp_table(session, &session->rm->sch_lock_group, dc_entity, LOCK_MODE_X);
     }
 
-    if (lock_alloc(session, LOCK_TYPE_TX, &item) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lock_alloc(session, LOCK_TYPE_TX, &item) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     return lock_try_lock_table_exclusive(session, dc_entity, wait_time, item);
@@ -754,7 +765,7 @@ status_t lock_upgrade_table_lock(knl_session_t *session, knl_handle_t dc_entity,
     lock_area_t *ctx = &session->kernel->lock_ctx;
     schema_lock_t *lock;
     dc_entity_t *entity;
-    bool32 lock_ix = GS_FALSE;
+    bool32 lock_ix = CT_FALSE;
     dc_entry_t *entry;
     uint32 wait_times = 0;
     time_t begin_time;
@@ -770,18 +781,18 @@ status_t lock_upgrade_table_lock(knl_session_t *session, knl_handle_t dc_entity,
 
     for (;;) {
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
             break;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
             break;
         }
 
         if (timeout_s != LOCK_INF_WAIT &&
             (KNL_NOW(session) - begin_time) > (int64)LOCK_TIMEOUT(timeout_s) * MICROSECS_PER_SECOND) {
-            GS_THROW_ERROR(ERR_RESOURCE_BUSY);
+            CT_THROW_ERROR(ERR_RESOURCE_BUSY);
             break;
         }
         cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
@@ -789,24 +800,24 @@ status_t lock_upgrade_table_lock(knl_session_t *session, knl_handle_t dc_entity,
         knl_panic_log(dc_locked_by_self(session, entry), "table was not locked by self, panic info: table %s",
                       entity->table.desc.name);
         if (lock->mode == LOCK_MODE_X) {
-            session->wtid.is_locking = GS_FALSE;
-            session->lock_dead_locked = GS_FALSE;
-            knl_try_end_session_wait(session, ENQ_TX_TABLE_X);
+            session->wtid.is_locking = CT_FALSE;
+            session->lock_dead_locked = CT_FALSE;
+            knl_end_session_wait(session, ENQ_TX_TABLE_X);
             cm_spin_unlock(&entry->sch_lock_mutex);
             cm_spin_unlock(&ctx->upgrade_lock);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (lock->shared_count > 1) {
             /* if locked in S mode, change to IX mode */
             if (lock->mode == LOCK_MODE_S) {
-                lock_ix = GS_TRUE;
+                lock_ix = CT_TRUE;
                 lock->mode = LOCK_MODE_IX;
             }
 
             if (wait_times == LOCK_UPGRADE_WAIT_TIMES) {
-                session->wtid.is_locking = GS_FALSE;
-                knl_try_end_session_wait(session, ENQ_TX_TABLE_X);
+                session->wtid.is_locking = CT_FALSE;
+                knl_end_session_wait(session, ENQ_TX_TABLE_X);
                 lock->mode = LOCK_MODE_S;
                 cm_spin_unlock(&entry->sch_lock_mutex);
                 cm_spin_unlock(&ctx->upgrade_lock);
@@ -815,7 +826,7 @@ status_t lock_upgrade_table_lock(knl_session_t *session, knl_handle_t dc_entity,
                  * unlock upgrade lock, and sleep 100ms waiting for DML commit or concurrent
                  * upgrading lock finished.
                  */
-                lock_ix = GS_FALSE;
+                lock_ix = CT_FALSE;
                 wait_times = 0;
                 cm_sleep(100);
                 cm_spin_lock(&ctx->upgrade_lock, NULL);
@@ -824,19 +835,19 @@ status_t lock_upgrade_table_lock(knl_session_t *session, knl_handle_t dc_entity,
             cm_spin_unlock(&entry->sch_lock_mutex);
 
             if (session->lock_dead_locked) {
-                GS_THROW_ERROR(ERR_DEAD_LOCK, "table", session->id);
+                CT_THROW_ERROR(ERR_DEAD_LOCK, "table", session->id);
                 break;
             }
 
-            knl_try_begin_session_wait(session, ENQ_TX_TABLE_X, GS_FALSE);
-            session->wtid.is_locking = GS_TRUE;
+            knl_begin_session_wait(session, ENQ_TX_TABLE_X, CT_FALSE);
+            session->wtid.is_locking = CT_TRUE;
             cm_spin_sleep();
             wait_times++;
             continue;
         }
-        session->lock_dead_locked = GS_FALSE;
-        session->wtid.is_locking = GS_FALSE;
-        knl_try_end_session_wait(session, ENQ_TX_TABLE_X);
+        session->lock_dead_locked = CT_FALSE;
+        session->wtid.is_locking = CT_FALSE;
+        knl_end_session_wait(session, ENQ_TX_TABLE_X);
         lock->shared_count--;
         knl_panic(lock->shared_count == 0);
         lock->mode = LOCK_MODE_X;
@@ -846,9 +857,9 @@ status_t lock_upgrade_table_lock(knl_session_t *session, knl_handle_t dc_entity,
         if (DB_ATTR_CLUSTER(session)) {
             knl_panic(session->kernel->db.status >= DB_STATUS_MOUNT);
             drc_local_latch *latch_stat = NULL;
-            bool32 locked = GS_FALSE;
+            bool32 locked = CT_FALSE;
 
-            GS_LOG_DEBUG_INF("[DLS] upgrade table lock(%u/%u/%u/%u/%u), table name %s", entry->ddl_latch.drid.type,
+            CT_LOG_DEBUG_INF("[DLS] upgrade table lock(%u/%u/%u/%u/%u), table name %s", entry->ddl_latch.drid.type,
                              entry->ddl_latch.drid.uid, entry->ddl_latch.drid.id, entry->ddl_latch.drid.idx,
                              entry->ddl_latch.drid.part, entry->name);
 
@@ -857,11 +868,11 @@ status_t lock_upgrade_table_lock(knl_session_t *session, knl_handle_t dc_entity,
             drc_get_local_latch_statx(lock_res, &latch_stat);
             if (latch_stat->lock_mode != DRC_LOCK_EXCLUSIVE) {
                 knl_panic(latch_stat->lock_mode == DRC_LOCK_SHARE);
-                locked = dls_request_latch_x(session, &entry->ddl_latch.drid, GS_TRUE, timeout_s);
+                locked = dls_request_latch_x(session, &entry->ddl_latch.drid, CT_TRUE, timeout_s, CT_INVALID_ID32);
                 if (!locked) {
                     drc_unlock_local_resx(lock_res);
                     cm_sleep(DLS_TABLE_WAIT_TIMEOUT);
-                    GS_LOG_DEBUG_INF(
+                    CT_LOG_DEBUG_INF(
                         "[DLS] upgrade table lock(%u/%u/%u/%u/%u), try dls failed, will restart, table name %s",
                         entry->ddl_latch.drid.type, entry->ddl_latch.drid.uid, entry->ddl_latch.drid.id,
                         entry->ddl_latch.drid.idx, entry->ddl_latch.drid.part, entry->name);
@@ -872,11 +883,11 @@ status_t lock_upgrade_table_lock(knl_session_t *session, knl_handle_t dc_entity,
             }
             drc_unlock_local_resx(lock_res);
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
-    session->wtid.is_locking = GS_FALSE;
-    session->lock_dead_locked = GS_FALSE;
-    knl_try_end_session_wait(session, ENQ_TX_TABLE_X);
+    session->wtid.is_locking = CT_FALSE;
+    session->lock_dead_locked = CT_FALSE;
+    knl_end_session_wait(session, ENQ_TX_TABLE_X);
     cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
     if (lock->mode == LOCK_MODE_IX && lock_ix) {
         lock->mode = LOCK_MODE_S;
@@ -884,7 +895,7 @@ status_t lock_upgrade_table_lock(knl_session_t *session, knl_handle_t dc_entity,
     cm_spin_unlock(&entry->sch_lock_mutex);
     cm_spin_unlock(&ctx->upgrade_lock);
 
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 void lock_degrade_table_lock(knl_session_t *session, knl_handle_t dc_entity)
@@ -924,7 +935,7 @@ void unlock_table_local(knl_session_t *session, knl_handle_t dc_entry, uint32 in
     schema_lock_t *lock = entry->sch_lock;
 
     cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
-    knl_panic(lock->inst_id == GS_INVALID_ID8 || lock->inst_id == inst_id);
+    knl_panic(lock->inst_id == CT_INVALID_ID8 || lock->inst_id == inst_id);
 
     if (lock->mode == LOCK_MODE_S || lock->mode == LOCK_MODE_IX) {
         knl_panic_log(lock->shared_count > 0, "lock's shared_count is abnormal, panic info: shared_count %u",
@@ -974,48 +985,47 @@ status_t lock_table_directly(knl_session_t *session, knl_handle_t dc, uint32 tim
     table = &entity->table;
 
     if (DB_IS_READONLY(session)) {
-        GS_THROW_ERROR(ERR_DATABASE_ROLE, "locking table directly", "in read only mode");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATABASE_ROLE, "locking table directly", "in read only mode");
+        return CT_ERROR;
     }
 
     if (!DB_IS_MAINTENANCE(session) && DB_IN_BG_ROLLBACK(session) && !DB_IS_BG_ROLLBACK_SE(session)) {
-        GS_THROW_ERROR_EX(ERR_INVALID_OPERATION, ",txn area is rollbacking,can't lock table exclusive,db_status[%u]",
+        CT_THROW_ERROR_EX(ERR_INVALID_OPERATION, ",txn area is rollbacking,can't lock table exclusive,db_status[%u]",
             (uint32)(session->kernel->db.status));
-        knl_panic_log(0, "txn area is rollbacking,can't lock table exclusive");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (rm->txn == NULL) {
-        if (tx_begin(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (tx_begin(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (timeout > DEADLOCK_DETECT_TIME) {
-        session->wtid.is_locking = GS_TRUE;
+        session->wtid.is_locking = CT_TRUE;
     }
 
     if (IS_LTT_BY_ID(((knl_dictionary_t *)dc)->oid)) {
         return lock_local_temp_table(session, &rm->direct_lock_group, pdc->handle, LOCK_MODE_X);
     }
 
-    if (lock_alloc_item(session, &rm->direct_lock_group, GS_PRIVATE_TABLE_LOCKS, &item) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lock_alloc_item(session, &rm->direct_lock_group, CT_PRIVATE_TABLE_LOCKS, &item) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (lock_try_lock_table_exclusive(session, pdc->handle, timeout, item) == GS_SUCCESS) {
-        knl_set_session_scn(session, GS_INVALID_ID64);
+    if (lock_try_lock_table_exclusive(session, pdc->handle, timeout, item) == CT_SUCCESS) {
+        knl_set_session_scn(session, CT_INVALID_ID64);
         dc_load_all_part_segments(session, pdc->handle);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     for (;;) {
         code = cm_get_error_code();
         if (code != ERR_DC_INVALIDATED) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
         cm_reset_error();
-        if (knl_open_dc_by_id(session, pdc->uid, pdc->oid, &reopen_dc, GS_TRUE) != GS_SUCCESS) {
+        if (knl_open_dc_by_id(session, pdc->uid, pdc->oid, &reopen_dc, CT_TRUE) != CT_SUCCESS) {
             code = cm_get_error_code();
             /*
              * if table was dropped, table name described by error message is recycle table name.
@@ -1023,28 +1033,28 @@ status_t lock_table_directly(knl_session_t *session, knl_handle_t dc, uint32 tim
              */
             if (code == ERR_TABLE_OR_VIEW_NOT_EXIST) {
                 cm_reset_error();
-                GS_THROW_ERROR(ERR_TABLE_OR_VIEW_NOT_EXIST, user->desc.name, table->desc.name);
+                CT_THROW_ERROR(ERR_TABLE_OR_VIEW_NOT_EXIST, user->desc.name, table->desc.name);
             }
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (pdc->org_scn != reopen_dc.org_scn) {
             dc_close(&reopen_dc);
-            GS_THROW_ERROR(ERR_TABLE_ID_NOT_EXIST, pdc->uid, pdc->oid);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_TABLE_ID_NOT_EXIST, pdc->uid, pdc->oid);
+            return CT_ERROR;
         }
         dc_close(pdc);
         ret = memcpy_sp(pdc, sizeof(knl_dictionary_t), &reopen_dc, sizeof(knl_dictionary_t));
         knl_securec_check(ret);
 
         if (timeout > DEADLOCK_DETECT_TIME) {
-            session->wtid.is_locking = GS_TRUE;
+            session->wtid.is_locking = CT_TRUE;
         }
 
-        if (lock_try_lock_table_exclusive(session, pdc->handle, timeout, item) == GS_SUCCESS) {
-            knl_set_session_scn(session, GS_INVALID_ID64);
+        if (lock_try_lock_table_exclusive(session, pdc->handle, timeout, item) == CT_SUCCESS) {
+            knl_set_session_scn(session, CT_INVALID_ID64);
             dc_load_all_part_segments(session, pdc->handle);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 }
@@ -1054,20 +1064,20 @@ status_t lock_table_ux(knl_session_t *session, knl_handle_t dc_entry)
     lock_item_t *item = NULL;
 
     if (!DB_IS_MAINTENANCE(session) && DB_IN_BG_ROLLBACK(session) && !DB_IS_BG_ROLLBACK_SE(session)) {
-        GS_THROW_ERROR_EX(ERR_INVALID_OPERATION, ",txn area is rollbacking,can't lock table exclusive,db_status[%u]",
+        CT_THROW_ERROR_EX(ERR_INVALID_OPERATION, ",txn area is rollbacking,can't lock table exclusive,db_status[%u]",
             (uint32)(session->kernel->db.status));
         knl_panic_log(0, "txn area is rollbacking,can't lock table exclusive");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (session->rm->txn == NULL) {
-        if (tx_begin(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (tx_begin(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    if (lock_alloc_item(session, &session->rm->direct_lock_group, GS_PRIVATE_TABLE_LOCKS, &item) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lock_alloc_item(session, &session->rm->direct_lock_group, CT_PRIVATE_TABLE_LOCKS, &item) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     item->dc_entry = (dc_entry_t *)dc_entry;
@@ -1075,15 +1085,15 @@ status_t lock_table_ux(knl_session_t *session, knl_handle_t dc_entry)
 
     uint32 timeout = session->kernel->attr.ddl_lock_timeout;
     if (timeout > DEADLOCK_DETECT_TIME) {
-        session->wtid.is_locking = GS_TRUE;
+        session->wtid.is_locking = CT_TRUE;
     }
 
-    if (lock_table_in_exclusive_mode(session, NULL, dc_entry, timeout) != GS_SUCCESS) {
+    if (lock_table_in_exclusive_mode(session, NULL, dc_entry, timeout) != CT_SUCCESS) {
         item->dc_entry = NULL;
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void unlock_heap_list(knl_session_t *session, uint32 start_id_input, uint32 end_id, bool32 delay_cleanout)
@@ -1209,7 +1219,7 @@ void lock_free_sch_group(knl_session_t *session)
     }
 
     if (group->glocks.count != 0) {
-        unlock_table_list(session, group->glocks.first, GS_INVALID_ID32);
+        unlock_table_list(session, group->glocks.first, CT_INVALID_ID32);
     }
     lock_release_glocks(session, group);
 }
@@ -1223,7 +1233,7 @@ static inline void lock_free_row_group(knl_session_t *session, knl_rm_t *rm, boo
     }
 
     if (group->glocks.count != 0) {
-        unlock_heap_list(session, group->glocks.first, GS_INVALID_ID32, delay_cleanout);
+        unlock_heap_list(session, group->glocks.first, CT_INVALID_ID32, delay_cleanout);
     }
     lock_release_glocks(session, group);
 }
@@ -1237,7 +1247,7 @@ static inline void lock_free_key_group(knl_session_t *session, knl_rm_t *rm, boo
     }
 
     if (group->glocks.count != 0) {
-        unlock_key_list(session, group->glocks.first, GS_INVALID_ID32, delay_cleanout);
+        unlock_key_list(session, group->glocks.first, CT_INVALID_ID32, delay_cleanout);
     }
     lock_release_glocks(session, group);
 }
@@ -1269,7 +1279,7 @@ static inline void lock_free_alck_group(knl_session_t *session)
     }
 
     if (group->glocks.count != 0) {
-        unlock_tx_alck_list(session, group->glocks.first, GS_INVALID_ID32);
+        unlock_tx_alck_list(session, group->glocks.first, CT_INVALID_ID32);
     }
     lock_release_glocks(session, group);
 }
@@ -1295,7 +1305,7 @@ void lock_destroy_se_alcks(knl_session_t *session)
     }
 
     if (group->glocks.count != 0) {
-        unlock_se_alck_list(session, group->glocks.first, GS_INVALID_ID32);
+        unlock_se_alck_list(session, group->glocks.first, CT_INVALID_ID32);
     }
 
     lock_release_plocks(session, group);
@@ -1305,7 +1315,7 @@ void lock_destroy_se_alcks(knl_session_t *session)
 
 static inline void lock_reset_group(lock_group_t *group)
 {
-    group->plock_id = (group->plocks.count > 0) ? group->plocks.first : GS_INVALID_ID32;
+    group->plock_id = (group->plocks.count > 0) ? group->plocks.first : CT_INVALID_ID32;
     cm_reset_id_list(&group->glocks);
 }
 
@@ -1321,11 +1331,11 @@ void lock_free(knl_session_t *session, knl_rm_t *rm)
 {
     lock_group_t *row = &rm->row_lock_group;
     lock_group_t *key = &rm->key_lock_group;
-    bool32 delay_cleanout = GS_FALSE;
+    bool32 delay_cleanout = CT_FALSE;
 
     if (row->glocks.count + key->glocks.count > LOCKS_THRESHOLD(session)
         && session->kernel->attr.delay_cleanout) {
-        delay_cleanout = GS_TRUE;
+        delay_cleanout = CT_TRUE;
     }
 
     lock_free_key_group(session, rm, delay_cleanout);
@@ -1339,7 +1349,7 @@ static inline void lock_reset_svpt_group(knl_session_t *session, lock_group_t *g
     lock_area_t *area = &session->kernel->lock_ctx;
     lock_item_t *item = NULL;
 
-    if (svpt_group->plock_id == GS_INVALID_ID32) {
+    if (svpt_group->plock_id == CT_INVALID_ID32) {
         group->plock_id = (svpt_group->plocks.count == 0) ?
             group->plocks.first : LOCK_NEXT(area, svpt_group->plocks.last);
     } else {
@@ -1347,9 +1357,9 @@ static inline void lock_reset_svpt_group(knl_session_t *session, lock_group_t *g
     }
 
     group->glocks = svpt_group->glocks;
-    if (group->glocks.last != GS_INVALID_ID32) {
+    if (group->glocks.last != CT_INVALID_ID32) {
         item = lock_addr(area, group->glocks.last);
-        item->next = GS_INVALID_ID32;
+        item->next = CT_INVALID_ID32;
     }
 }
 
@@ -1389,7 +1399,7 @@ static void lock_free_sch_svpt(knl_session_t *session, lock_group_t *svpt_group)
 
     if (group->plocks.count != 0) {
         if (svpt_group->plocks.count != 0) {
-            start_pid = (svpt_group->plock_id == GS_INVALID_ID32) ?
+            start_pid = (svpt_group->plock_id == CT_INVALID_ID32) ?
                 LOCK_NEXT(area, svpt_group->plocks.last) : svpt_group->plock_id;
         } else {
             start_pid = group->plocks.first;
@@ -1404,7 +1414,7 @@ static void lock_free_sch_svpt(knl_session_t *session, lock_group_t *svpt_group)
         } else {
             start_gid = group->glocks.first;
         }
-        unlock_table_list(session, start_gid, GS_INVALID_ID32);
+        unlock_table_list(session, start_gid, CT_INVALID_ID32);
         lock_release_to_svpt(session, group, svpt_group, start_gid);
     }
 }
@@ -1419,12 +1429,12 @@ static void lock_free_key_svpt(knl_session_t *session, lock_group_t *svpt_group)
 
     if (group->plocks.count != 0) {
         if (svpt_group->plocks.count != 0) {
-            start_pid = (svpt_group->plock_id == GS_INVALID_ID32) ?
+            start_pid = (svpt_group->plock_id == CT_INVALID_ID32) ?
                 LOCK_NEXT(area, svpt_group->plocks.last) : svpt_group->plock_id;
         } else {
             start_pid = group->plocks.first;
         }
-        unlock_key_list(session, start_pid, group->plock_id, GS_FALSE);
+        unlock_key_list(session, start_pid, group->plock_id, CT_FALSE);
     }
 
     if (group->glocks.count != 0) {
@@ -1434,7 +1444,7 @@ static void lock_free_key_svpt(knl_session_t *session, lock_group_t *svpt_group)
         } else {
             start_gid = group->glocks.first;
         }
-        unlock_key_list(session, start_gid, GS_INVALID_ID32, GS_FALSE);
+        unlock_key_list(session, start_gid, CT_INVALID_ID32, CT_FALSE);
         lock_release_to_svpt(session, group, svpt_group, start_gid);
     }
 }
@@ -1449,12 +1459,12 @@ static void lock_free_row_svpt(knl_session_t *session, lock_group_t *svpt_group)
 
     if (group->plocks.count != 0) {
         if (svpt_group->plocks.count != 0) {
-            start_pid = (svpt_group->plock_id == GS_INVALID_ID32) ?
+            start_pid = (svpt_group->plock_id == CT_INVALID_ID32) ?
                 LOCK_NEXT(area, svpt_group->plocks.last) : svpt_group->plock_id;
         } else {
             start_pid = group->plocks.first;
         }
-        unlock_heap_list(session, start_pid, group->plock_id, GS_FALSE);
+        unlock_heap_list(session, start_pid, group->plock_id, CT_FALSE);
     }
 
     if (group->glocks.count != 0) {
@@ -1464,7 +1474,7 @@ static void lock_free_row_svpt(knl_session_t *session, lock_group_t *svpt_group)
         } else {
             start_gid = group->glocks.first;
         }
-        unlock_heap_list(session, start_gid, GS_INVALID_ID32, GS_FALSE);
+        unlock_heap_list(session, start_gid, CT_INVALID_ID32, CT_FALSE);
         lock_release_to_svpt(session, group, svpt_group, start_gid);
     }
 }
@@ -1479,7 +1489,7 @@ static void lock_free_alck_svpt(knl_session_t *session, lock_group_t *svpt_group
 
     if (group->plocks.count != 0) {
         if (svpt_group->plocks.count != 0) {
-            start_pid = (svpt_group->plock_id == GS_INVALID_ID32) ?
+            start_pid = (svpt_group->plock_id == CT_INVALID_ID32) ?
                 LOCK_NEXT(area, svpt_group->plocks.last) : svpt_group->plock_id;
         } else {
             start_pid = group->plocks.first;
@@ -1494,7 +1504,7 @@ static void lock_free_alck_svpt(knl_session_t *session, lock_group_t *svpt_group
         } else {
             start_gid = group->glocks.first;
         }
-        unlock_tx_alck_list(session, start_gid, GS_INVALID_ID32);
+        unlock_tx_alck_list(session, start_gid, CT_INVALID_ID32);
         lock_release_to_svpt(session, group, svpt_group, start_gid);
     }
 }
@@ -1526,7 +1536,7 @@ void unlock_tables_directly(knl_session_t *session)
     }
 
     if (group->glocks.count != 0) {
-        unlock_table_list(session, group->glocks.first, GS_INVALID_ID32);
+        unlock_table_list(session, group->glocks.first, CT_INVALID_ID32);
     }
     lock_release_glocks(session, group);
     lock_reset_group(&session->rm->direct_lock_group);
@@ -1554,44 +1564,44 @@ bool32 lock_table_without_xact_local(knl_session_t *session, knl_handle_t dc_ent
     dc_entity_t *entity = NULL;
 
     if (DB_NOT_READY(session) || dc_entity == NULL) {
-        GS_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "lock table without transaction when database is not ready");
-        return GS_FALSE;
+        CT_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "lock table without transaction when database is not ready");
+        return CT_FALSE;
     }
 
     if (DB_IS_READONLY(session)) {
-        GS_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
-        return GS_FALSE;
+        CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
+        return CT_FALSE;
     }
 
     entity = (dc_entity_t *)dc_entity;
     lock = entity->entry->sch_lock;
 
     if (dc_locked_by_self(session, entity->entry)) {
-        *inuse = GS_TRUE;
-        return GS_TRUE;
+        *inuse = CT_TRUE;
+        return CT_TRUE;
     }
 
-    *inuse = GS_FALSE;
+    *inuse = CT_FALSE;
 
     cm_spin_lock(&entity->entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
     if (!entity->valid) {
         cm_spin_unlock(&entity->entry->sch_lock_mutex);
-        GS_THROW_ERROR(ERR_DC_INVALIDATED);
-        return GS_FALSE;
+        CT_THROW_ERROR(ERR_DC_INVALIDATED);
+        return CT_FALSE;
     }
 
     if (lock->mode == LOCK_MODE_IX || lock->mode == LOCK_MODE_X) {
         cm_spin_unlock(&entity->entry->sch_lock_mutex);
-        GS_THROW_ERROR(ERR_RESOURCE_BUSY);
-        return GS_FALSE;
+        CT_THROW_ERROR(ERR_RESOURCE_BUSY);
+        return CT_FALSE;
     }
 
-    knl_panic(lock->shared_count != GS_INVALID_ID32);
+    knl_panic(lock->shared_count != CT_INVALID_ID32);
     lock->shared_count++;
     SCH_LOCK_SET(session, lock);
     SCH_LOCK_INST_SET(session->kernel->dtc_attr.inst_id, lock);
     cm_spin_unlock(&entity->entry->sch_lock_mutex);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void unlock_table_without_xact(knl_session_t *session, knl_handle_t dc_entity, bool32 inuse)
@@ -1629,31 +1639,31 @@ bool32 lock_table_without_xact(knl_session_t *session, knl_handle_t dc_entity, b
     SYNC_POINT_GLOBAL_END;
 
     if (!DB_ATTR_CLUSTER(session)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     knl_panic(session->kernel->db.status >= DB_STATUS_MOUNT);
     dc_entity_t *entity = (dc_entity_t *)dc_entity;
     dc_entry_t *entry = entity->entry;
     drc_local_latch *latch_stat = NULL;
-    bool32 locked = GS_FALSE;
+    bool32 locked = CT_FALSE;
 
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&entry->ddl_latch.drid);
     drc_lock_local_resx(lock_res);
     drc_get_local_latch_statx(lock_res, &latch_stat);
     if (latch_stat->lock_mode == DRC_LOCK_NULL) {
-        locked = dls_request_latch_s(session, &entry->ddl_latch.drid, GS_TRUE, LOCK_INF_WAIT);
+        locked = dls_request_latch_s(session, &entry->ddl_latch.drid, CT_TRUE, LOCK_INF_WAIT, CT_INVALID_ID32);
         if (!locked) {
             drc_unlock_local_resx(lock_res);
             unlock_table_without_xact(session, entry, *inuse);
-            return GS_FALSE;
+            return CT_FALSE;
         }
         latch_stat->lock_mode = DRC_LOCK_SHARE;
     }
     drc_unlock_local_resx(lock_res);
     SYNC_POINT_GLOBAL_START(CANTIAN_LOCK_TABLE_S_DLS_AFTER_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t lock_parent_table_directly(knl_session_t *session, knl_handle_t entity, bool32 is_default)
@@ -1669,21 +1679,21 @@ status_t lock_parent_table_directly(knl_session_t *session, knl_handle_t entity,
     // ref_count won't exceed 32
     for (i = 0; i < table->cons_set.ref_count; i++) {
         ref = table->cons_set.ref_cons[i];
-        if (ref->ref_oid == GS_INVALID_ID32) {
+        if (ref->ref_oid == CT_INVALID_ID32) {
             continue;
         }
-        if (knl_open_dc_by_id(session, ref->ref_uid, ref->ref_oid, &ref_dc, GS_TRUE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_open_dc_by_id(session, ref->ref_uid, ref->ref_oid, &ref_dc, CT_TRUE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (lock_table_directly(session, &ref_dc, timeout) != GS_SUCCESS) {
+        if (lock_table_directly(session, &ref_dc, timeout) != CT_SUCCESS) {
             dc_close(&ref_dc);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         dc_close(&ref_dc);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t lock_child_table_directly(knl_session_t *session, knl_handle_t entity, bool32 is_default)
@@ -1699,7 +1709,7 @@ status_t lock_child_table_directly(knl_session_t *session, knl_handle_t entity, 
     table = &dc_entity->table;
 
     if (table->index_set.count == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint32 timeout = is_default ? session->kernel->attr.ddl_lock_timeout : LOCK_INF_WAIT;
@@ -1718,13 +1728,13 @@ status_t lock_child_table_directly(knl_session_t *session, knl_handle_t entity, 
                 continue;
             }
 
-            if (knl_open_dc_by_id(session, dep->uid, dep->oid, &dep_dc, GS_TRUE) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (knl_open_dc_by_id(session, dep->uid, dep->oid, &dep_dc, CT_TRUE) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (lock_table_directly(session, &dep_dc, timeout) != GS_SUCCESS) {
+            if (lock_table_directly(session, &dep_dc, timeout) != CT_SUCCESS) {
                 dc_close(&dep_dc);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             dc_close(&dep_dc);
@@ -1732,7 +1742,7 @@ status_t lock_child_table_directly(knl_session_t *session, knl_handle_t entity, 
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 char *lock_mode_string(knl_handle_t dc_entry)
@@ -1757,7 +1767,7 @@ static inline uint32 lock_search_alck(knl_session_t *session, uint32 beg, uint32
     lock_area_t *area = &session->kernel->lock_ctx;
     lock_item_t *item = NULL;
     uint32 curr = beg;
-    uint32 prev = GS_INVALID_ID32;
+    uint32 prev = CT_INVALID_ID32;
 
     while (curr != end) {
         item = lock_addr(area, curr);
@@ -1768,7 +1778,7 @@ static inline uint32 lock_search_alck(knl_session_t *session, uint32 beg, uint32
         prev = curr;
         curr = item->next;
     }
-    return GS_INVALID_ID32;
+    return CT_INVALID_ID32;
 }
 
 static inline lock_group_t *lock_get_alck_group(knl_session_t *session, int32 lock_set)
@@ -1784,16 +1794,16 @@ void lock_add_alck_times(knl_session_t *session, uint32 alck_id, int32 lock_set)
 {
     lock_group_t *group = NULL;
     lock_item_t *item = NULL;
-    uint32 lock_id = GS_INVALID_ID32;
+    uint32 lock_id = CT_INVALID_ID32;
 
     group = lock_get_alck_group(session, lock_set);
     if (group->plocks.count) {
         lock_id = lock_search_alck(session, group->plocks.first, group->plock_id, alck_id);
     }
-    if (lock_id == GS_INVALID_ID32 && group->glocks.count) {
-        lock_id = lock_search_alck(session, group->glocks.first, GS_INVALID_ID32, alck_id);
+    if (lock_id == CT_INVALID_ID32 && group->glocks.count) {
+        lock_id = lock_search_alck(session, group->glocks.first, CT_INVALID_ID32, alck_id);
     }
-    if (lock_id != GS_INVALID_ID32) {
+    if (lock_id != CT_INVALID_ID32) {
         lock_area_t *area = &session->kernel->lock_ctx;
         item = lock_addr(area, lock_id);
         ++item->alck_times;
@@ -1805,19 +1815,19 @@ void lock_del_alck_times(knl_session_t *session, uint32 alck_id, int32 lock_set)
     lock_group_t *group = NULL;
     lock_item_t *item = NULL;
     id_list_t *list = NULL;
-    uint32 lock_id = GS_INVALID_ID32;
+    uint32 lock_id = CT_INVALID_ID32;
 
     group = lock_get_alck_group(session, lock_set);
     if (group->plocks.count) {
         list = &group->plocks;
         lock_id = lock_search_alck(session, group->plocks.first, group->plock_id, alck_id);
     }
-    if (lock_id == GS_INVALID_ID32 && group->glocks.count) {
+    if (lock_id == CT_INVALID_ID32 && group->glocks.count) {
         list = &group->glocks;
-        lock_id = lock_search_alck(session, group->glocks.first, GS_INVALID_ID32, alck_id);
+        lock_id = lock_search_alck(session, group->glocks.first, CT_INVALID_ID32, alck_id);
     }
 
-    if (lock_id == GS_INVALID_ID32) { return; }
+    if (lock_id == CT_INVALID_ID32) { return; }
 
     lock_area_t *area = &session->kernel->lock_ctx;
     item = lock_addr(area, lock_id);
@@ -1829,7 +1839,7 @@ void lock_del_alck_times(knl_session_t *session, uint32 alck_id, int32 lock_set)
     if (lock_id == list->last) {
         list->last = item->prev;
     }
-    if (item->prev == GS_INVALID_ID32) {
+    if (item->prev == CT_INVALID_ID32) {
         list->first = item->next;
     } else {
         lock_item_t *prev_item = lock_addr(area, item->prev);
@@ -1837,8 +1847,8 @@ void lock_del_alck_times(knl_session_t *session, uint32 alck_id, int32 lock_set)
     }
 
     if (list == &group->plocks) {
-        item->next = GS_INVALID_ID32;
-        if (list->last == GS_INVALID_ID32) {
+        item->next = CT_INVALID_ID32;
+        if (list->last == CT_INVALID_ID32) {
             list->first = lock_id;
             list->last = lock_id;
             group->plock_id = lock_id;
@@ -1847,7 +1857,7 @@ void lock_del_alck_times(knl_session_t *session, uint32 alck_id, int32 lock_set)
         lock_item_t *last_item = lock_addr(area,  list->last);
         last_item->next = lock_id;
         list->last = lock_id;
-        if (group->plock_id == GS_INVALID_ID32) {
+        if (group->plock_id == CT_INVALID_ID32) {
             group->plock_id = lock_id;
         }
         return;
@@ -1857,7 +1867,7 @@ void lock_del_alck_times(knl_session_t *session, uint32 alck_id, int32 lock_set)
     // return item to area
     cm_spin_lock(&area->lock, NULL);
     if (area->free_items.count == 0) {
-        item->next = GS_INVALID_ID32;
+        item->next = CT_INVALID_ID32;
         area->free_items.first = lock_id;
         area->free_items.last = lock_id;
         area->free_items.count = 1;
@@ -1877,32 +1887,32 @@ bool32 lock_table_is_shared_mode(knl_session_t *session, uint64 table_id)
     dc_user_t *user = NULL;
 
     wtid.value = table_id;
-    if (dc_open_user_by_id(session, wtid.uid, &user) != GS_SUCCESS) {
-        return GS_FALSE;
+    if (dc_open_user_by_id(session, wtid.uid, &user) != CT_SUCCESS) {
+        return CT_FALSE;
     }
 
     entry = DC_GET_ENTRY(user, wtid.oid);
     if (entry == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
     if ((!entry->ready) || (entry->recycled)) {
         cm_spin_unlock(&entry->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
     lock = entry->sch_lock;
     if (lock == NULL) {
         cm_spin_unlock(&entry->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
     cm_spin_unlock(&entry->lock);
 
     cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
     if (lock->mode == LOCK_MODE_S || lock->shared_count > 0) {
         cm_spin_unlock(&entry->sch_lock_mutex);
-        return GS_TRUE;
+        return CT_TRUE;
     }
     cm_spin_unlock(&entry->sch_lock_mutex);
-    return GS_FALSE;
+    return CT_FALSE;
 }

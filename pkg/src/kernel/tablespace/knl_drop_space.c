@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "knl_space_module.h"
 #include "knl_drop_space.h"
 #include "knl_context.h"
 #include "knl_sys_part_defs.h"
@@ -87,15 +87,15 @@ status_t spc_get_table_space_id(knl_session_t *session, uint32 uid, uint32 oid, 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLE_ID, IX_SYS_TABLE_002_ID);
     cursor->isolevel = ISOLATION_CURR_COMMITTED;
 
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
                      (void *)&uid, sizeof(uint32), 0);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
                      (void *)&oid, sizeof(uint32), 1);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s", cursor->rowid.file,
@@ -103,7 +103,7 @@ status_t spc_get_table_space_id(knl_session_t *session, uint32 uid, uint32 oid, 
 
     *space_id = (*(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_TABLE_COL_SPACE_ID));
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_check_systable_objects(knl_session_t *session, knl_cursor_t *cursor, space_t *space, uint32 options)
@@ -112,7 +112,7 @@ status_t spc_check_systable_objects(knl_session_t *session, knl_cursor_t *cursor
     knl_dictionary_t dc;
     table_t *table = NULL;
     knl_drop_def_t def;
-    bool32 is_found = GS_FALSE;
+    bool32 is_found = CT_FALSE;
     errno_t ret;
 
     dc_convert_table_desc(cursor, &desc);
@@ -121,22 +121,22 @@ status_t spc_check_systable_objects(knl_session_t *session, knl_cursor_t *cursor
         knl_securec_check(ret);
         knl_get_user_name(session, desc.uid, &def.owner);
         cm_str2text(desc.name, &def.name);
-        if (knl_open_dc_if_exists(session, &def.owner, &def.name, &dc, &is_found) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_open_dc_if_exists(session, &def.owner, &def.name, &dc, &is_found) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (is_found) {
             table = DC_TABLE(&dc);
-            bool32 is_referenced = db_table_is_referenced(session, table, GS_FALSE);
+            bool32 is_referenced = db_table_is_referenced(session, table, CT_FALSE);
             if (is_referenced && !SPC_DROP_CASCADE(options)) {
-                GS_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name, "table in the space is referenced");
+                CT_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name, "table in the space is referenced");
                 knl_close_dc(&dc);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             knl_close_dc(&dc);
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_check_sysindex_objects(knl_session_t *session, knl_cursor_t *cursor, space_t *space, uint32 options)
@@ -146,17 +146,17 @@ status_t spc_check_sysindex_objects(knl_session_t *session, knl_cursor_t *cursor
 
     dc_convert_index(session, cursor, &desc);
     if (desc.space_id == space->ctrl->id) {
-        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (table_space_id != space->ctrl->id) {
-            GS_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
+            CT_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
                            "index of table in the space was created in other space");
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_check_syslob_objects(knl_session_t *session, knl_cursor_t *cursor, space_t *space, uint32 options)
@@ -166,17 +166,17 @@ status_t spc_check_syslob_objects(knl_session_t *session, knl_cursor_t *cursor, 
 
     dc_convert_lob_desc(cursor, &desc);
     if (desc.space_id == space->ctrl->id) {
-        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (table_space_id != space->ctrl->id) {
-            GS_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
+            CT_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
                            "parent table of lob column is not in the same tablespace");
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_check_sys_tablepart_objects(knl_session_t *session, knl_cursor_t *cursor, space_t *space, uint32 options)
@@ -186,17 +186,17 @@ status_t spc_check_sys_tablepart_objects(knl_session_t *session, knl_cursor_t *c
 
     dc_convert_table_part_desc(cursor, &desc);
     if (desc.space_id == space->ctrl->id) {
-        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (table_space_id != space->ctrl->id) {
-            GS_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
+            CT_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
                            "parent table of (sub)partition is not in the same tablespace");
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_check_sys_indexpart_objects(knl_session_t *session, knl_cursor_t *cursor, space_t *space, uint32 options)
@@ -206,17 +206,17 @@ status_t spc_check_sys_indexpart_objects(knl_session_t *session, knl_cursor_t *c
 
     dc_convert_index_part_desc(cursor, &desc);
     if (desc.space_id == space->ctrl->id) {
-        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (table_space_id != space->ctrl->id) {
-            GS_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
+            CT_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
                            "parent table of index (sub)partition is not in the same tablespace");
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_check_sys_lobpart_objects(knl_session_t *session, knl_cursor_t *cursor, space_t *space, uint32 options)
@@ -226,17 +226,17 @@ status_t spc_check_sys_lobpart_objects(knl_session_t *session, knl_cursor_t *cur
 
     dc_convert_lob_part_desc(cursor, &desc);
     if (desc.space_id == space->ctrl->id) {
-        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (table_space_id != space->ctrl->id) {
-            GS_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
+            CT_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
                            "parent table of lob column is not in the same tablespace");
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_check_sys_partstore_objects(knl_session_t *session, knl_cursor_t *cursor, space_t *space, uint32 options)
@@ -246,17 +246,17 @@ status_t spc_check_sys_partstore_objects(knl_session_t *session, knl_cursor_t *c
 
     dc_convert_part_store_desc(cursor, &desc);
     if (desc.space_id == space->ctrl->id) {
-        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (table_space_id != space->ctrl->id) {
-            GS_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
+            CT_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
                            "parent table of pos id is not in the same tablespace");
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_check_shadow_index_objects(knl_session_t *session, knl_cursor_t *cursor, space_t *space, uint32 options)
@@ -266,17 +266,17 @@ status_t spc_check_shadow_index_objects(knl_session_t *session, knl_cursor_t *cu
 
     dc_convert_index(session, cursor, &desc);
     if (desc.space_id == space->ctrl->id) {
-        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (table_space_id != space->ctrl->id) {
-            GS_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
+            CT_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
                            "parent table of shadow index is not in the same tablespace");
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_check_shadow_index_part_objects(knl_session_t *session, knl_cursor_t *cursor, space_t *space,
@@ -287,17 +287,17 @@ status_t spc_check_shadow_index_part_objects(knl_session_t *session, knl_cursor_
 
     dc_convert_index_part_desc(cursor, &desc);
     if (desc.space_id == space->ctrl->id) {
-        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_table_space_id(session, desc.uid, desc.table_id, &table_space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (table_space_id != space->ctrl->id) {
-            GS_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
+            CT_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name,
                            "parent table of shadow index (sub)part is not in the same tablespace");
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -311,13 +311,13 @@ status_t spc_check_object_exist(knl_session_t *session, space_t *space)
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
     for (uint32 i = 0; i < SPC_OBJ_TYPE_COUNT; i++) {
-        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, g_spc_obj_fetch_list[i].sys_tbl_id, GS_INVALID_ID32);
+        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, g_spc_obj_fetch_list[i].sys_tbl_id, CT_INVALID_ID32);
         cursor->isolevel = ISOLATION_CURR_COMMITTED;
 
         for (;;) {
-            if (knl_fetch(session, cursor) != GS_SUCCESS) {
+            if (knl_fetch(session, cursor) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             if (cursor->eof) {
@@ -327,13 +327,13 @@ status_t spc_check_object_exist(knl_session_t *session, space_t *space)
             space_id = (*(uint32 *)CURSOR_COLUMN_DATA(cursor, g_spc_obj_fetch_list[i].spc_col_id));
             if (space_id == space->ctrl->id) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 uint32 spc_get_encrypt_space_count(knl_session_t *session)
@@ -341,7 +341,7 @@ uint32 spc_get_encrypt_space_count(knl_session_t *session)
     uint32 count = 0;
     space_t *space = NULL;
 
-    for (uint32 i = 0; i < GS_MAX_SPACES; i++) {
+    for (uint32 i = 0; i < CT_MAX_SPACES; i++) {
         space = SPACE_GET(session, i);
         if (space->ctrl->used && SPACE_IS_ONLINE(space) && SPACE_IS_ENCRYPT(space)) {
             count++;
@@ -355,16 +355,16 @@ status_t spc_try_inactive_swap_encrypt(knl_session_t *session)
 {
     encrypt_context_t *encrypt_ctx = &session->kernel->encrypt_ctx;
     if (!encrypt_ctx->swap_encrypt_flg) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // has other encryption space except swap space
     if (spc_get_encrypt_space_count(session) > 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    session->kernel->encrypt_ctx.swap_encrypt_flg = GS_FALSE;
-    return GS_SUCCESS;
+    session->kernel->encrypt_ctx.swap_encrypt_flg = CT_FALSE;
+    return CT_SUCCESS;
 }
 
 status_t spc_drop_sys_table_objects(knl_session_t *session, space_t *space, uint32 options)
@@ -375,18 +375,18 @@ status_t spc_drop_sys_table_objects(knl_session_t *session, space_t *space, uint
     knl_table_desc_t desc;
     errno_t ret;
 
-    knl_set_session_scn(session, GS_INVALID_ID64);
+    knl_set_session_scn(session, CT_INVALID_ID64);
     CM_SAVE_STACK(session->stack);
 
     cursor = knl_push_cursor(session);
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLE_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLE_ID, CT_INVALID_ID32);
     cursor->isolevel = ISOLATION_CURR_COMMITTED;
 
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -398,32 +398,32 @@ status_t spc_drop_sys_table_objects(knl_session_t *session, space_t *space, uint
             ret = memset_sp(&def, sizeof(knl_drop_def_t), 0, sizeof(knl_drop_def_t));
             knl_securec_check(ret);
             dc_convert_table_desc(cursor, &desc);
-            def.purge = GS_TRUE;
+            def.purge = CT_TRUE;
 
             if (SPC_DROP_CASCADE(options)) {
                 def.options |= DROP_CASCADE_CONS;
             }
 
-            if (knl_get_user_name(session, desc.uid, &def.owner) != GS_SUCCESS) {
+            if (knl_get_user_name(session, desc.uid, &def.owner) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             cm_str2text(desc.name, &def.name);
-            if (knl_internal_drop_table(session, NULL, &def) != GS_SUCCESS) {
+            if (knl_internal_drop_table(session, NULL, &def, CT_TRUE) != CT_SUCCESS) {
                 int code = cm_get_error_code();
                 if (code == ERR_TABLE_OR_VIEW_NOT_EXIST) {
                     cm_reset_error();  // table dropped by other session, continue drop table space
                 } else {
                     CM_RESTORE_STACK(session->stack);
-                    GS_THROW_ERROR(ERR_TABLESPACES_IS_NOT_EMPTY, space->ctrl->name, "failed to drop object");
-                    return GS_ERROR;
+                    CT_THROW_ERROR(ERR_TABLESPACES_IS_NOT_EMPTY, space->ctrl->name, "failed to drop object");
+                    return CT_ERROR;
                 }
             }
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_drop_sys_rb_objects(knl_session_t *session, space_t *space)
@@ -435,20 +435,20 @@ static inline bool32 spc_contain_datafile(space_ctrl_t *ctrl, uint32 file_id)
 {
     for (uint32 i = 0; i < ctrl->file_hwm; ++i) {
         if (file_id == ctrl->files[i]) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 void spc_remove_datafile_info(knl_session_t *session, datafile_t *df, uint32 id)
 {
-    df->space_id = GS_INVALID_ID32;
+    df->space_id = CT_INVALID_ID32;
     df->ctrl->size = 0;
     df->ctrl->name[0] = '\0';
-    df->file_no = GS_INVALID_ID32;
+    df->file_no = CT_INVALID_ID32;
 
-    if (db_save_datafile_ctrl(session, id) != GS_SUCCESS) {
+    if (db_save_datafile_ctrl(session, id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control datafile ctrl when remove datafile");
     }
 }
@@ -460,10 +460,10 @@ status_t spc_remove_datafile(knl_session_t *session, space_t *space, uint32 id, 
 
     if (DATAFILE_IS_ONLINE(df) &&
         (space->ctrl->file_hwm == 0 || !df->ctrl->used || space->ctrl->files[df->file_no] != id)) {
-        GS_LOG_RUN_ERR("[SPACE] space %s remove datafile %s failed, id=%u is not exist.", space->ctrl->name,
+        CT_LOG_RUN_ERR("[SPACE] space %s remove datafile %s failed, id=%u is not exist.", space->ctrl->name,
                        df->ctrl->name, id);
-        GS_THROW_ERROR(ERR_DATAFILE_NUMBER_NOT_EXIST, id);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATAFILE_NUMBER_NOT_EXIST, id);
+        return CT_ERROR;
     }
 
     ckpt_disable(session);
@@ -482,7 +482,7 @@ status_t spc_remove_datafile(knl_session_t *session, space_t *space, uint32 id, 
     space->head->datafile_count--;
     space->head->hwms[df->file_no] = 0;
     log_put(session, RD_SPC_REMOVE_DATAFILE, redo, sizeof(rd_remove_datafile_t), LOG_ENTRY_FLAG_NONE);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     if (DB_IS_CLUSTER(session)) {
         log_put(session, RD_LOGIC_OPERATION, daac_redo, sizeof(rd_remove_datafile_daac_t), LOG_ENTRY_FLAG_NONE);
@@ -496,39 +496,39 @@ status_t spc_remove_datafile(knl_session_t *session, space_t *space, uint32 id, 
 
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_REMOVE_DATAFILE_AFTER_LOGPUT_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
-    space->ctrl->files[df->file_no] = GS_INVALID_ID32;
+    space->ctrl->files[df->file_no] = CT_INVALID_ID32;
     db->ctrl.core.device_count--;
 
-    status_t sp_ret = GS_SUCCESS;
-    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_REMOVE_DATAFILE_SAVE_SPC_CTRL_FAIL, &sp_ret, GS_ERROR);
+    status_t sp_ret = CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_REMOVE_DATAFILE_SAVE_SPC_CTRL_FAIL, &sp_ret, CT_ERROR);
     sp_ret = db_save_space_ctrl(session, space->ctrl->id);
     SYNC_POINT_GLOBAL_END;
-    if (sp_ret != GS_SUCCESS) {
+    if (sp_ret != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save control space ctrl when remove datafile");
     }
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_REMOVE_DATAFILE_AFTER_WRITE_SPACECTRL_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
 
     DATAFILE_UNSET_ONLINE(df);
-    df->ctrl->used = GS_FALSE;
+    df->ctrl->used = CT_FALSE;
 
-    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_REMOVE_DATAFILE_SAVE_DF_CTRL_FAIL, &sp_ret, GS_ERROR);
+    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_REMOVE_DATAFILE_SAVE_DF_CTRL_FAIL, &sp_ret, CT_ERROR);
     sp_ret = db_save_datafile_ctrl(session, id);
     SYNC_POINT_GLOBAL_END;
-    if (sp_ret != GS_SUCCESS) {
+    if (sp_ret != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save the part of control datafile ctrl when remove datafile");
     }
 
-    spc_invalidate_datafile(session, df, GS_FALSE);
+    spc_invalidate_datafile(session, df, CT_FALSE);
 
     if (drop_datafile) {
-        SYNC_POINT_GLOBAL_START(CANTIAN_DDL_REMOVE_DATAFILE_FAIL, &sp_ret, GS_ERROR);
+        SYNC_POINT_GLOBAL_START(CANTIAN_DDL_REMOVE_DATAFILE_FAIL, &sp_ret, CT_ERROR);
         sp_ret = cm_remove_device(df->ctrl->type, df->ctrl->name);
         SYNC_POINT_GLOBAL_END;
-        if (sp_ret != GS_SUCCESS) {
+        if (sp_ret != CT_SUCCESS) {
             ckpt_enable(session);
-            GS_LOG_RUN_ERR("[DB] failed to remove datafile %s from space %s", df->ctrl->name, space->ctrl->name);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[DB] failed to remove datafile %s from space %s", df->ctrl->name, space->ctrl->name);
+            return CT_ERROR;
         }
     }
 
@@ -539,7 +539,7 @@ status_t spc_remove_datafile(knl_session_t *session, space_t *space, uint32 id, 
     if (DB_IS_CLUSTER(session)) {
         tx_copy_logic_log(session);
         if (session->logic_log_size > 0 || session->rm->logic_log_size > 0) {
-            if (db_write_ddl_op(session) != GS_SUCCESS) {
+            if (db_write_ddl_op(session) != CT_SUCCESS) {
                 knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
             }
             dtc_sync_ddl(session);
@@ -549,8 +549,8 @@ status_t spc_remove_datafile(knl_session_t *session, space_t *space, uint32 id, 
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_REMOVE_DATAFILE_AFTER_SYNC_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
     ckpt_enable(session);
-    GS_LOG_RUN_INF("[SPACE] space %s remove datafile %s success", space->ctrl->name, df->ctrl->name);
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("[SPACE] space %s remove datafile %s success", space->ctrl->name, df->ctrl->name);
+    return CT_SUCCESS;
 }
 
 status_t spc_drop_datafile(knl_session_t *session, space_t *space, knl_device_def_t *def)
@@ -559,7 +559,7 @@ status_t spc_drop_datafile(knl_session_t *session, space_t *space, knl_device_de
     uint32 i;
     uint32 empty_hwm;
 
-    for (i = 0; i < GS_MAX_DATA_FILES; i++) {
+    for (i = 0; i < CT_MAX_DATA_FILES; i++) {
         df = DATAFILE_GET(session, i);
         if (df->ctrl->used && cm_text_str_equal(&def->name, df->ctrl->name) &&
             spc_contain_datafile(space->ctrl, i)) {
@@ -567,27 +567,27 @@ status_t spc_drop_datafile(knl_session_t *session, space_t *space, knl_device_de
         }
     }
 
-    if (i == GS_MAX_DATA_FILES || df == NULL) {
-        GS_THROW_ERROR(ERR_FILE_NOT_EXIST, "data", T2S(&def->name));
-        return GS_ERROR;
+    if (i == CT_MAX_DATA_FILES || df == NULL) {
+        CT_THROW_ERROR(ERR_FILE_NOT_EXIST, "data", T2S(&def->name));
+        return CT_ERROR;
     }
 
     if (!DATAFILE_IS_ONLINE(df)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "remove datafile failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "remove datafile failed");
+        return CT_ERROR;
     }
 
     empty_hwm = SPACE_IS_BITMAPMANAGED(space) ? DF_MAP_HWM_START : DF_HWM_START;
     if (df->file_no != 0 && SPACE_HEAD_RESIDENT(session, space)->hwms[df->file_no] == empty_hwm) {
-        if (spc_remove_datafile(session, space, df->ctrl->id, GS_TRUE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_remove_datafile(session, space, df->ctrl->id, CT_TRUE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        GS_THROW_ERROR(ERR_DATAFILE_HAS_BEEN_USED, T2S(&def->name), space->ctrl->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATAFILE_HAS_BEEN_USED, T2S(&def->name), space->ctrl->name);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_offline_datafile(knl_session_t *session, space_t *space, knl_device_def_t *def)
@@ -599,7 +599,7 @@ status_t spc_offline_datafile(knl_session_t *session, space_t *space, knl_device
 
     for (i = 0; i < space->ctrl->file_hwm; i++) {
         file_id = space->ctrl->files[i];
-        if (GS_INVALID_ID32 == file_id) {
+        if (CT_INVALID_ID32 == file_id) {
             continue;
         }
 
@@ -607,24 +607,24 @@ status_t spc_offline_datafile(knl_session_t *session, space_t *space, knl_device
         if (!cm_text_str_equal(&def->name, df->ctrl->name)) {
             continue;
         }
-        GS_LOG_RUN_INF("[SPACE] set datafile %s offline, space is %s ", df->ctrl->name, space->ctrl->name);
+        CT_LOG_RUN_INF("[SPACE] set datafile %s offline, space is %s ", df->ctrl->name, space->ctrl->name);
         DATAFILE_UNSET_ONLINE(df);
-        if (db_save_datafile_ctrl(session, df->ctrl->id) != GS_SUCCESS) {
+        if (db_save_datafile_ctrl(session, df->ctrl->id) != CT_SUCCESS) {
             CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file when space offline datafiles");
         }
 
         /* remove datafile from resource monitor */
         if (cm_exist_device(df->ctrl->type, df->ctrl->name)) {
-            if (cm_rm_device_watch(df->ctrl->type, rmon_ctx->watch_fd, &df->wd) != GS_SUCCESS) {
-                GS_LOG_RUN_WAR("[RMON]: failed to remove monitor of datafile %s", df->ctrl->name);
+            if (cm_rm_device_watch(df->ctrl->type, rmon_ctx->watch_fd, &df->wd) != CT_SUCCESS) {
+                CT_LOG_RUN_WAR("[RMON]: failed to remove monitor of datafile %s", df->ctrl->name);
             }
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_THROW_ERROR(ERR_OFFLINE_DATAFILE_NOT_EXIST, T2S(&def->name), space->ctrl->name);
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_OFFLINE_DATAFILE_NOT_EXIST, T2S(&def->name), space->ctrl->name);
+    return CT_ERROR;
 }
 
 status_t spc_offline_datafiles(knl_session_t *session, space_t *space, galist_t *datafiles)
@@ -632,32 +632,32 @@ status_t spc_offline_datafiles(knl_session_t *session, space_t *space, galist_t 
     knl_device_def_t *file = NULL;
 
     if (!cm_spin_try_lock(&session->kernel->lock)) {
-        GS_THROW_ERROR(ERR_DB_START_IN_PROGRESS);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DB_START_IN_PROGRESS);
+        return CT_ERROR;
     }
 
     if (session->kernel->db.status != DB_STATUS_MOUNT) {
         cm_spin_unlock(&session->kernel->lock);
-        GS_THROW_ERROR(ERR_DATABASE_NOT_MOUNT, "offline datafile");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATABASE_NOT_MOUNT, "offline datafile");
+        return CT_ERROR;
     }
 
     if (SPACE_IS_DEFAULT(space)) {
         cm_spin_unlock(&session->kernel->lock);
-        GS_THROW_ERROR(ERR_OFFLINE_WRONG_SPACE, space->ctrl->name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OFFLINE_WRONG_SPACE, space->ctrl->name);
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < datafiles->count; i++) {
         file = (knl_device_def_t *)cm_galist_get(datafiles, i);
-        if (spc_offline_datafile(session, space, file) != GS_SUCCESS) {
+        if (spc_offline_datafile(session, space, file) != CT_SUCCESS) {
             cm_spin_unlock(&session->kernel->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     cm_spin_unlock(&session->kernel->lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_drop_datafiles(knl_session_t *session, space_t *space, galist_t *datafiles)
@@ -665,49 +665,49 @@ status_t spc_drop_datafiles(knl_session_t *session, space_t *space, galist_t *da
     knl_device_def_t *file = NULL;
 
     if (session->kernel->db.status != DB_STATUS_OPEN) {
-        GS_THROW_ERROR(ERR_DATABASE_NOT_OPEN, "drop datafile");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATABASE_NOT_OPEN, "drop datafile");
+        return CT_ERROR;
     }
 
     if (!SPACE_IS_ONLINE(space)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "drop datafile failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "drop datafile failed");
+        return CT_ERROR;
     }
 
-    dcs_ckpt_trigger4drop(session, GS_TRUE, CKPT_TRIGGER_FULL);
+    dcs_ckpt_trigger4drop(session, CT_TRUE, CKPT_TRIGGER_FULL);
 
     dls_spin_lock(session, &space->lock, &session->stat->spin_stat.stat_space);
 
     for (uint32 i = 0; i < datafiles->count; i++) {
         file = (knl_device_def_t *)cm_galist_get(datafiles, i);
-        if (spc_drop_datafile(session, space, file) != GS_SUCCESS) {
+        if (spc_drop_datafile(session, space, file) != CT_SUCCESS) {
             dls_spin_unlock(session, &space->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     dls_spin_unlock(session, &space->lock);
 
-    dcs_ckpt_trigger4drop(session, GS_TRUE, CKPT_TRIGGER_FULL);
+    dcs_ckpt_trigger4drop(session, CT_TRUE, CKPT_TRIGGER_FULL);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline bool32 spc_datafile_exist(space_t *space, datafile_t *df, uint32 id)
 {
     if (!DATAFILE_IS_ONLINE(df)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (!df->ctrl->used) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (space->ctrl->file_hwm == 0 || (!DF_FILENO_IS_INVAILD(df) && space->ctrl->files[df->file_no] != id)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t spc_remove_mount_datafile(knl_session_t *session, space_t *space, uint32 id, uint32 options)
@@ -716,57 +716,65 @@ status_t spc_remove_mount_datafile(knl_session_t *session, space_t *space, uint3
 
     df = DATAFILE_GET(session, id);
     if (!DAAC_REPLAY_NODE(session) && !spc_datafile_exist(space, df, id)) {
-        GS_THROW_ERROR(ERR_DATAFILE_NUMBER_NOT_EXIST, id);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATAFILE_NUMBER_NOT_EXIST, id);
+        return CT_ERROR;
+    }
+    if (DAAC_REPLAY_NODE(session)) {
+        if (cm_exist_device(df->ctrl->type, df->ctrl->name)) {
+            CT_LOG_RUN_ERR("[SPACE] replay remove space %u failed, datafile %u still exist in space",
+                           space->ctrl->id, df->ctrl->id);
+            return CT_ERROR;
+        }
     }
 
     if (!DF_FILENO_IS_INVAILD(df)) {
-        space->ctrl->files[df->file_no] = GS_INVALID_ID32;
+        space->ctrl->files[df->file_no] = CT_INVALID_ID32;
     }
 
     if (DATAFILE_IS_ONLINE(df)) {
-        spc_invalidate_datafile(session, df, GS_FALSE);
+        spc_invalidate_datafile(session, df, CT_FALSE);
 
         if (!DAAC_REPLAY_NODE(session) && SPC_DROP_DATAFILE(options)) {
-            if (cm_remove_device(df->ctrl->type, df->ctrl->name) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_exist_device(df->ctrl->type, df->ctrl->name) &&
+                cm_remove_device(df->ctrl->type, df->ctrl->name) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     } else {
         if (SPC_DROP_DATAFILE(options)) {
-            GS_LOG_RUN_INF("[SPACE] datafile %s is offline, skip drop the file in disk", df->ctrl->name);
+            CT_LOG_RUN_INF("[SPACE] datafile %s is offline, skip drop the file in disk", df->ctrl->name);
         }
     }
 
     DATAFILE_UNSET_ONLINE(df);
-    df->space_id = GS_INVALID_ID32;
+    df->space_id = CT_INVALID_ID32;
     df->ctrl->size = 0;
     df->ctrl->name[0] = '\0';
-    df->ctrl->used = GS_FALSE;
-    df->file_no = GS_INVALID_ID32;
+    df->ctrl->used = CT_FALSE;
+    df->file_no = CT_INVALID_ID32;
     df->ctrl->flag = 0;
 
-    if (!DAAC_REPLAY_NODE(session) && db_save_datafile_ctrl(session, id) != GS_SUCCESS) {
+    if (!DAAC_REPLAY_NODE(session) && db_save_datafile_ctrl(session, id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save control file when remove datafiles");
     }
     session->kernel->db.ctrl.core.device_count--;
-    GS_LOG_RUN_INF("[SPACE] space %s remove mount datafile %s success", space->ctrl->name, df->ctrl->name);
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("[SPACE] space %s remove mount datafile %s success", space->ctrl->name, df->ctrl->name);
+    return CT_SUCCESS;
 }
 
 void spc_remove_datafile_device(knl_session_t *session, datafile_t *df)
 {
     errno_t ret;
     if (cm_file_exist(df->ctrl->name)) {
-        spc_invalidate_datafile(session, df, GS_TRUE);
-        if (GS_SUCCESS != cm_remove_device(df->ctrl->type, df->ctrl->name)) {
+        spc_invalidate_datafile(session, df, CT_TRUE);
+        if (CT_SUCCESS != cm_remove_device(df->ctrl->type, df->ctrl->name)) {
             CM_ABORT(0, "[SPACE] ABORT INFO: failed to remove device when remove datafile");
         }
     } else {
-        ret = sprintf_s(df->ctrl->name, GS_FILE_NAME_BUFFER_SIZE, "%s.delete", df->ctrl->name);
+        ret = sprintf_s(df->ctrl->name, CT_FILE_NAME_BUFFER_SIZE, "%s.delete", df->ctrl->name);
         knl_securec_check_ss(ret);
         if (cm_file_exist(df->ctrl->name)) {
-            if (GS_SUCCESS != cm_remove_device(df->ctrl->type, df->ctrl->name)) {
+            if (CT_SUCCESS != cm_remove_device(df->ctrl->type, df->ctrl->name)) {
                 CM_ABORT(0, "[SPACE] ABORT INFO: failed to remove device when remove datafile");
             }
         }
@@ -782,15 +790,15 @@ static void spc_wait_buffer_loaded(knl_session_t *session, space_t *space, buf_c
     if (df->space_id == space->ctrl->id) {
         /* wait for page to be released */
         while (ctrl->load_status == (uint8)BUF_NEED_LOAD) {
-            knl_try_begin_session_wait(session, READ_BY_OTHER_SESSION, GS_TRUE);
+            knl_begin_session_wait(session, READ_BY_OTHER_SESSION, CT_TRUE);
             times++;
-            if (times > GS_SPIN_COUNT) {
+            if (times > CT_SPIN_COUNT) {
                 times = 0;
                 SPIN_STAT_INC(&session->stat_page, r_sleeps);
                 cm_spin_sleep();
             }
         }
-        knl_try_end_session_wait(session, READ_BY_OTHER_SESSION);
+        knl_end_session_wait(session, READ_BY_OTHER_SESSION);
     }
 }
 
@@ -820,20 +828,20 @@ void spc_reset_space(knl_session_t *session, space_t *space)
 {
     errno_t ret;
     buf_expire_page(session, space->entry);
-    space->is_empty = GS_FALSE;
-    space->alarm_enabled = GS_FALSE;
-    space->allow_extend = GS_FALSE;
+    space->is_empty = CT_FALSE;
+    space->alarm_enabled = CT_FALSE;
+    space->allow_extend = CT_FALSE;
     space->entry = INVALID_PAGID;
-    space->swap_bitmap = GS_FALSE;
+    space->swap_bitmap = CT_FALSE;
     space->head = NULL;
     space->ctrl->file_hwm = 0;
     space->ctrl->name[0] = '\0';
-    space->ctrl->used = GS_FALSE;
-    space->ctrl->org_scn = GS_INVALID_ID64;
+    space->ctrl->used = CT_FALSE;
+    space->ctrl->org_scn = CT_INVALID_ID64;
     space->ctrl->flag = 0;
     space->ctrl->encrypt_version = NO_ENCRYPT;
     space->ctrl->cipher_reserve_size = 0;
-    ret = memset_sp(space->ctrl->files, GS_MAX_SPACE_FILES * sizeof(uint32), 0xFF, GS_MAX_SPACE_FILES * sizeof(uint32));
+    ret = memset_sp(space->ctrl->files, CT_MAX_SPACE_FILES * sizeof(uint32), 0xFF, CT_MAX_SPACE_FILES * sizeof(uint32));
     knl_securec_check(ret);
 }
 
@@ -848,14 +856,14 @@ status_t spc_remove_space(knl_session_t *session, space_t *space, uint32 options
     database_t *db = &session->kernel->db;
     uint32 i;
     
-    for (i = 0; i < GS_MAX_SPACE_FILES; i++) {
-        if (GS_INVALID_ID32 == space->ctrl->files[i]) {
+    for (i = 0; i < CT_MAX_SPACE_FILES; i++) {
+        if (CT_INVALID_ID32 == space->ctrl->files[i]) {
             continue;
         }
 
-        if (spc_remove_mount_datafile(session, space, space->ctrl->files[i], options) != GS_SUCCESS) {
+        if (spc_remove_mount_datafile(session, space, space->ctrl->files[i], options) != CT_SUCCESS) {
             if (!ignore_error) {
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
     }
@@ -867,18 +875,18 @@ status_t spc_remove_space(knl_session_t *session, space_t *space, uint32 options
         db->ctrl.core.space_count--;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-status_t spc_remove_space_online(knl_session_t *session, space_t *space, uint32 options)
+status_t spc_remove_space_online(knl_session_t *session, knl_handle_t stmt, space_t *space, uint32 options)
 {
     rd_remove_space_daac_t *daac_redo = NULL;
     rd_remove_space_t *redo = NULL;
 
-    space->is_empty = GS_TRUE;
+    space->is_empty = CT_TRUE;
 
     spc_wait_data_buffer(session, space);
-    dcs_ckpt_trigger4drop(session, GS_TRUE, CKPT_TRIGGER_FULL);
+    dcs_ckpt_trigger4drop(session, CT_TRUE, CKPT_TRIGGER_FULL);
 
     log_atomic_op_begin(session);
 
@@ -901,26 +909,29 @@ status_t spc_remove_space_online(knl_session_t *session, space_t *space, uint32 
 
     ckpt_disable(session);
     log_atomic_op_end(session);
+    if (stmt != NULL) {
+        log_add_lrep_ddl_info(session, stmt, LOGIC_OP_TABLESPACE, RD_SPC_REMOVE_SPACE_DAAC, NULL);
+    }
     log_commit(session);
 
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_DROP_SPACE_AFTER_LOGPUT_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
 
-    status_t status = GS_SUCCESS;
-    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_DROP_SPACE_FAIL, &status, GS_ERROR);
-    status = spc_remove_space(session, space, options, GS_FALSE);
+    status_t status = CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_DROP_SPACE_FAIL, &status, CT_ERROR);
+    status = spc_remove_space(session, space, options, CT_FALSE);
     SYNC_POINT_GLOBAL_END;
-    if (status != GS_SUCCESS) {
+    if (status != CT_SUCCESS) {
         ckpt_enable(session);
-        GS_LOG_RUN_ERR("[SPACE] failed to drop tablespace %s", space->ctrl->name);
+        CT_LOG_RUN_ERR("[SPACE] failed to drop tablespace %s", space->ctrl->name);
         return status;
     }
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_DROP_SPACE_BEFORE_WRITE_CTRL_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
-    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_DROP_SPACE_SAVE_CTRL_FAIL, &status, GS_ERROR);
+    SYNC_POINT_GLOBAL_START(CANTIAN_DDL_DROP_SPACE_SAVE_CTRL_FAIL, &status, CT_ERROR);
     status = db_save_space_ctrl(session, space->ctrl->id);
     SYNC_POINT_GLOBAL_END;
-    if (status != GS_SUCCESS) {
+    if (status != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file when drop tablespace");
     }
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_DROP_SPACE_AFTER_WRITE_CTRL_ABORT, NULL, 0);
@@ -928,7 +939,7 @@ status_t spc_remove_space_online(knl_session_t *session, space_t *space, uint32 
     if (DB_IS_CLUSTER(session)) {
         tx_copy_logic_log(session);
         if (session->logic_log_size > 0 || session->rm->logic_log_size > 0) {
-            if (db_write_ddl_op(session) != GS_SUCCESS) {
+            if (db_write_ddl_op(session) != CT_SUCCESS) {
                 knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
             }
             dtc_sync_ddl(session);
@@ -937,47 +948,46 @@ status_t spc_remove_space_online(knl_session_t *session, space_t *space, uint32 
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_DROP_SPACE_AFTER_SYNC_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
     ckpt_enable(session);
-    ckpt_trigger(session, GS_TRUE, CKPT_TRIGGER_FULL);
     return status;
 }
 
-status_t spc_drop_offlined_space(knl_session_t *session, space_t *space, uint32 options)
+status_t spc_drop_offlined_space(knl_session_t *session, knl_handle_t stmt, space_t *space, uint32 options)
 {
-    char spc_name[GS_NAME_BUFFER_SIZE];
-    uint32 name_len = GS_NAME_BUFFER_SIZE - 1;
+    char spc_name[CT_NAME_BUFFER_SIZE];
+    uint32 name_len = CT_NAME_BUFFER_SIZE - 1;
     errno_t ret;
 
-    ret = strncpy_s(spc_name, GS_NAME_BUFFER_SIZE, space->ctrl->name, name_len);
+    ret = strncpy_s(spc_name, CT_NAME_BUFFER_SIZE, space->ctrl->name, name_len);
     knl_securec_check(ret);
 
     dls_spin_lock(session, &space->lock, &session->stat->spin_stat.stat_space);
 
-    if (spc_check_object_exist(session, space) != GS_SUCCESS) {
+    if (spc_check_object_exist(session, space) != CT_SUCCESS) {
         dls_spin_unlock(session, &space->lock);
-        GS_THROW_ERROR(ERR_TABLESPACES_IS_NOT_EMPTY, space->ctrl->name,
+        CT_THROW_ERROR(ERR_TABLESPACES_IS_NOT_EMPTY, space->ctrl->name,
                        "failed to check if object exists for offlined tablespace.");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* clean garbage segment no matter contents */
-    if (db_clean_tablespace_garbage_seg(session, space->ctrl->id) != GS_SUCCESS) {
+    if (db_clean_tablespace_garbage_seg(session, space->ctrl->id) != CT_SUCCESS) {
         dls_spin_unlock(session, &space->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (spc_remove_space_online(session, space, options) != GS_SUCCESS) {
+    if (spc_remove_space_online(session, stmt, space, options) != CT_SUCCESS) {
         dls_spin_unlock(session, &space->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dls_spin_unlock(session, &space->lock);
 
-    if (db_save_space_ctrl(session, space->ctrl->id) != GS_SUCCESS) {
+    if (db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file when drop offlined space");
     }
 
-    GS_LOG_RUN_INF("[SPACE] succeed to drop offlined tablespace %s", spc_name);
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("[SPACE] succeed to drop offlined tablespace %s", spc_name);
+    return CT_SUCCESS;
 }
 
 /*
@@ -991,13 +1001,13 @@ bool32 spc_check_object_relation(knl_session_t *session, space_t *space, uint32 
     knl_cursor_t *cursor = knl_push_cursor(session);
 
     for (uint32 i = 0; i < SPC_OBJ_TYPE_COUNT; i++) {
-        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, g_spc_obj_fetch_list[i].sys_tbl_id, GS_INVALID_ID32);
+        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, g_spc_obj_fetch_list[i].sys_tbl_id, CT_INVALID_ID32);
         cursor->isolevel = ISOLATION_CURR_COMMITTED;
 
         for (;;) {
-            if (knl_fetch(session, cursor) != GS_SUCCESS) {
+            if (knl_fetch(session, cursor) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_FALSE;
+                return CT_FALSE;
             }
 
             if (cursor->eof) {
@@ -1008,15 +1018,15 @@ bool32 spc_check_object_relation(knl_session_t *session, space_t *space, uint32 
                 continue;
             }
 
-            if (g_spc_obj_fetch_list[i].check_func(session, cursor, space, options) != GS_SUCCESS) {
+            if (g_spc_obj_fetch_list[i].check_func(session, cursor, space, options) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_FALSE;
+                return CT_FALSE;
             }
         }
     }
     
     CM_RESTORE_STACK(session->stack);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /*
@@ -1031,13 +1041,13 @@ status_t spc_check_default_tablespace(knl_session_t *session, space_t *space)
     CM_SAVE_STACK(session->stack);
 
     cursor = knl_push_cursor(session);
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_USER_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_USER_ID, CT_INVALID_ID32);
     cursor->isolevel = ISOLATION_CURR_COMMITTED;
 
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -1047,19 +1057,19 @@ status_t spc_check_default_tablespace(knl_session_t *session, space_t *space)
         dc_convert_user_desc(cursor, &desc);
         if (desc.data_space_id == space->ctrl->id) {
             CM_RESTORE_STACK(session->stack);
-            GS_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name, "it's the default tablespace for user");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name, "it's the default tablespace for user");
+            return CT_ERROR;
         }
     }
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TENANTS_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TENANTS_ID, CT_INVALID_ID32);
     cursor->isolevel = ISOLATION_CURR_COMMITTED;
 
     CM_MAGIC_SET(&tenant_desc, knl_tenant_desc_t);
     while (!cursor->eof) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -1070,85 +1080,85 @@ status_t spc_check_default_tablespace(knl_session_t *session, space_t *space)
         if (tenant_desc.id != SYS_TENANTROOT_ID) {
             if (dc_get_tenant_tablespace_bitmap(&tenant_desc, space->ctrl->id)) {
                 CM_RESTORE_STACK(session->stack);
-                GS_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name, "it's the usable tablespace for tenant");
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_DROP_SPACE_CHECK_FAILED, space->ctrl->name, "it's the usable tablespace for tenant");
+                return CT_ERROR;
             }
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_drop_space_remove_objects(knl_session_t *session, space_t *space, uint32 options)
 {
-    if (spc_drop_sys_table_objects(session, space, options) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (spc_drop_sys_table_objects(session, space, options) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (spc_drop_sys_rb_objects(session, space) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (spc_drop_sys_rb_objects(session, space) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-status_t spc_drop_online_space(knl_session_t *session, space_t *space, uint32 options)
+status_t spc_drop_online_space(knl_session_t *session, knl_handle_t stmt, space_t *space, uint32 options)
 {
-    char spc_name[GS_NAME_BUFFER_SIZE];
+    char spc_name[CT_NAME_BUFFER_SIZE];
     errno_t ret;
 
-    ret = strncpy_s(spc_name, GS_NAME_BUFFER_SIZE, space->ctrl->name, strlen(space->ctrl->name) + 1);
+    ret = strncpy_s(spc_name, CT_NAME_BUFFER_SIZE, space->ctrl->name, strlen(space->ctrl->name) + 1);
     knl_securec_check(ret);
 
-    if (spc_check_default_tablespace(session, space) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (spc_check_default_tablespace(session, space) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* if with drop contents option, we need to check objects in space and remove them if possible */
     if (SPC_DROP_CONTENTS(options)) {
         if (!spc_check_object_relation(session, space, options)) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (spc_drop_space_remove_objects(session, space, options) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_TABLESPACES_IS_NOT_EMPTY, space->ctrl->name, "failed to drop object");
-            return GS_ERROR;
+        if (spc_drop_space_remove_objects(session, space, options) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_TABLESPACES_IS_NOT_EMPTY, space->ctrl->name, "failed to drop object");
+            return CT_ERROR;
         }
     }
 
     /* after dropping objects in space or without drop contents option, we must guaratee space to be dropped is empty */
-    if (spc_check_object_exist(session, space) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_TABLESPACES_IS_NOT_EMPTY, space->ctrl->name, "exists object");
-        return GS_ERROR;
+    if (spc_check_object_exist(session, space) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_TABLESPACES_IS_NOT_EMPTY, space->ctrl->name, "exists object");
+        return CT_ERROR;
     }
 
     dls_spin_lock(session, &space->lock, &session->stat->spin_stat.stat_space);
 
     /* clean garbage segment no matter contents */
-    if (db_clean_tablespace_garbage_seg(session, space->ctrl->id) != GS_SUCCESS) {
+    if (db_clean_tablespace_garbage_seg(session, space->ctrl->id) != CT_SUCCESS) {
         dls_spin_unlock(session, &space->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (spc_is_punching(session, space, "drop space")) {
         dls_spin_unlock(session, &space->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    GS_LOG_RUN_INF("[SPACE] drop online space, set space %s offline", space->ctrl->name);
+    CT_LOG_RUN_INF("[SPACE] drop online space, set space %s offline", space->ctrl->name);
     SPACE_UNSET_ONLINE(space);
     /* everything is ready up to now, remove it */
-    if (spc_remove_space_online(session, space, options) != GS_SUCCESS) {
+    if (spc_remove_space_online(session, stmt, space, options) != CT_SUCCESS) {
         dls_spin_unlock(session, &space->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dls_spin_unlock(session, &space->lock);
-    GS_LOG_RUN_INF("[SPACE] succeed to drop tablespace %s", spc_name);
+    CT_LOG_RUN_INF("[SPACE] succeed to drop tablespace %s", spc_name);
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_DROP_SPACE_BEFORE_SYNC_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1165,7 +1175,7 @@ static void spc_nologging_reset_head(knl_session_t *session, space_t *space)
     datafile_t *df = DATAFILE_GET(session, space->ctrl->files[0]);
 
     /* must be a nologging tablespace */
-    knl_panic(SPACE_IS_LOGGING(space) == GS_FALSE);
+    knl_panic(SPACE_IS_LOGGING(space) == CT_FALSE);
 
     /*
      * space->head is already loaded during db_load_tablespaces and it's resident, so change it directly,
@@ -1197,43 +1207,43 @@ status_t spc_drop_nologging_table(knl_session_t *session)
     space_t *space = NULL;
 
     if (DB_IS_READONLY(session) || DB_IS_MAINTENANCE(session)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /* drop table after undo complete, otherwise we cannot lock_table_directly when knl_internal_drop_table */
     while (DB_IN_BG_ROLLBACK(session)) {
         if (session->canceled) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            return CT_ERROR;
         }
 
         if (session->killed) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            return CT_ERROR;
         }
 
         cm_sleep(100);
     }
 
     /* skip built-in tablespace */
-    for (uint32 i = 0; i < GS_MAX_SPACES; i++) {
+    for (uint32 i = 0; i < CT_MAX_SPACES; i++) {
         space = SPACE_GET(session, i);
         if (!spc_need_clean(space)) {
             continue;
         }
 
         /* set bootstrap flag to pass dc_is_ready_for_access check */
-        session->bootstrap = GS_TRUE;
-        if (spc_drop_space_remove_objects(session, space, TABALESPACE_CASCADE) != GS_SUCCESS) {
-            session->bootstrap = GS_FALSE;
-            GS_THROW_ERROR(ERR_TABLESPACES_IS_NOT_EMPTY, space->ctrl->name, "failed to drop object");
-            return GS_ERROR;
+        session->bootstrap = CT_TRUE;
+        if (spc_drop_space_remove_objects(session, space, TABALESPACE_CASCADE) != CT_SUCCESS) {
+            session->bootstrap = CT_FALSE;
+            CT_THROW_ERROR(ERR_TABLESPACES_IS_NOT_EMPTY, space->ctrl->name, "failed to drop object");
+            return CT_ERROR;
         }
 
-        session->bootstrap = GS_FALSE;
+        session->bootstrap = CT_FALSE;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /* only called when db restart, no matter restart as primary or standby */
@@ -1242,7 +1252,7 @@ void spc_clean_nologging_data(knl_session_t *session)
     space_t *space = NULL;
 
     /* skip built-in tablespace */
-    for (uint32 i = 0; i < GS_MAX_SPACES; i++) {
+    for (uint32 i = 0; i < CT_MAX_SPACES; i++) {
         space = SPACE_GET(session, i);
         if (!spc_need_clean(space)) {
             continue;
@@ -1250,6 +1260,18 @@ void spc_clean_nologging_data(knl_session_t *session)
 
         spc_nologging_reset_head(session, space);
     }
+}
+
+void spc_rebuild_temp2_undo(knl_session_t *session, space_t *temp_undo_spc)
+{
+    if (temp_undo_spc == NULL) {
+        core_ctrl_t *core_ctrl = DB_CORE_CTRL(session);
+#ifdef LOG_DIAG
+        knl_panic_log(core_ctrl->temp_undo_space != 0, "The temp undo tablespace was not initialized.");
+#endif
+        temp_undo_spc = SPACE_GET(session, core_ctrl->temp_undo_space);
+    }
+    spc_nologging_reset_head(session, temp_undo_spc);
 }
 
 #ifdef __cplusplus

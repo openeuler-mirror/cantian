@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_replication_module.h"
 #include "repl_msg.h"
 #include "cm_log.h"
 #include "cs_protocol.h"
@@ -37,8 +38,8 @@ static uint32 g_ssl_ref = 0;
 
 typedef struct st_signature_info {
     text_t scramble_key;
-    uchar scram_buf[GS_MAX_CHALLENGE_LEN + GS_MAX_CHALLENGE_LEN + GS_KDF2SALTSIZE];
-    uchar salted_pwd[GS_SCRAM256KEYSIZE];
+    uchar scram_buf[CT_MAX_CHALLENGE_LEN + CT_MAX_CHALLENGE_LEN + CT_KDF2SALTSIZE];
+    uchar salted_pwd[CT_SCRAM256KEYSIZE];
     uint32 salted_pwd_len;
 } signature_info_t;
 
@@ -50,29 +51,29 @@ static status_t knl_get_cipher(knl_session_t *session, const char *c_key, cs_pip
 static status_t knl_check_auth_login_result(cs_pipe_t *pipe, cs_packet_t *pack, int32 *login_err)
 {
     if (pack->head->result == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (cs_get_int32(pack, login_err) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_get_int32(pack, login_err) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     char *buf = NULL;
     text_t msg_text;
 
     if (pipe->version >= CS_VERSION_23) {
-        if (cs_get_text(pack, &msg_text) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_get_text(pack, &msg_text) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         buf = T2S(&msg_text);
     } else {
-        if (cs_get_str(pack, &buf) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_get_str(pack, &buf) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    GS_LOG_DEBUG_ERR("[REPL] auth login failed: %s", buf);
-    return GS_ERROR;
+    CT_LOG_DEBUG_ERR("[REPL] auth login failed: %s", buf);
+    return CT_ERROR;
 }
 
 static status_t knl_do_login(cs_pipe_t *pipe, cs_packet_t *pack, const char *user, int32 *login_err)
@@ -87,12 +88,12 @@ static status_t knl_do_login(cs_pipe_t *pipe, cs_packet_t *pack, const char *use
 
     cm_str2text((char *)user, &text);
 
-    if (cs_put_text(pack, &text) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_put_text(pack, &text) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cs_call_ex(pipe, pack, pack) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_call_ex(pipe, pack, pack) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cs_init_get(pack);
@@ -100,25 +101,25 @@ static status_t knl_do_login(cs_pipe_t *pipe, cs_packet_t *pack, const char *use
         char *buf = NULL;
         text_t msg_text;
 
-        if (cs_get_int32(pack, login_err) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_get_int32(pack, login_err) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (pipe->version >= CS_VERSION_23) {
-            if (cs_get_text(pack, &msg_text) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cs_get_text(pack, &msg_text) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             buf = T2S(&msg_text);
         } else {
-            if (cs_get_str(pack, &buf) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cs_get_str(pack, &buf) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
-        GS_LOG_DEBUG_ERR("[REPL] login failed: %s", buf);
-        return GS_ERROR;
+        CT_LOG_DEBUG_ERR("[REPL] login failed: %s", buf);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t knl_do_auth_login(knl_session_t *session, const uchar *client_key, cs_pipe_t *pipe, cs_packet_t *pack,
@@ -126,17 +127,17 @@ static status_t knl_do_auth_login(knl_session_t *session, const uchar *client_ke
 {
     text_t text;
     text_t server_sign;
-    char cipher[GS_PASSWORD_BUFFER_SIZE];
+    char cipher[CT_PASSWORD_BUFFER_SIZE];
     signature_info_t signature_info;
 
     if (pipe->version < CS_VERSION_19 && session->kernel->attr.repl_scram_auth) {
-        GS_LOG_DEBUG_ERR("SCRAM authentication is required, but peer node does not support it");
-        return GS_ERROR;
+        CT_LOG_DEBUG_ERR("SCRAM authentication is required, but peer node does not support it");
+        return CT_ERROR;
     }
 
     if (knl_get_cipher(session, (const char *)client_key, pipe, pack, cipher, sizeof(cipher),
-                       &signature_info) != GS_SUCCESS) {
-        return GS_ERROR;
+                       &signature_info) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cs_init_packet(pack, pipe->options);
@@ -147,37 +148,37 @@ static status_t knl_do_auth_login(knl_session_t *session, const uchar *client_ke
 
     // user
     cm_str2text((char *)"sys", &text);
-    if (cs_put_text(pack, &text) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_put_text(pack, &text) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // pwd
     cm_str2text((char *)cipher, &text);
-    if (cs_put_text(pack, &text) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_put_text(pack, &text) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // repl type
     cm_str2text((char *)type, &text);
-    if (cs_put_text(pack, &text) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_put_text(pack, &text) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cs_call_ex(pipe, pack, pack) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_call_ex(pipe, pack, pack) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cs_init_get(pack);
-    if (knl_check_auth_login_result(pipe, pack, login_err) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_check_auth_login_result(pipe, pack, login_err) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (pipe->version < CS_VERSION_19) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (cs_get_text(pack, &server_sign) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_get_text(pack, &server_sign) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     return knl_verify_server_signature(&signature_info, &server_sign);
@@ -186,7 +187,7 @@ static status_t knl_do_auth_login(knl_session_t *session, const uchar *client_ke
 static status_t knl_check_repl_host(knl_session_t *session, cs_pipe_t *pipe, const char* local_host, int32 *login_err)
 {
     if (pipe->version < CS_VERSION_23) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     cs_packet_t pack;
@@ -200,20 +201,20 @@ static status_t knl_check_repl_host(knl_session_t *session, cs_pipe_t *pipe, con
 
     cm_str2text((char *)local_host, &text);
 
-    if (cs_put_text(&pack, &text) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_put_text(&pack, &text) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cs_call_ex(pipe, &pack, &pack) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_call_ex(pipe, &pack, &pack) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cs_init_get(&pack);
     if (pack.head->result != 0) {
         (void)cs_get_int32(&pack, login_err);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t knl_check_repl_auth(knl_session_t *session, cs_pipe_t *pipe)
@@ -226,16 +227,16 @@ static status_t knl_check_repl_auth(knl_session_t *session, cs_pipe_t *pipe)
     pack.head->flags = 0;
     pack.head->result = 0;
 
-    if (cs_put_int32(&pack, session->kernel->attr.repl_auth) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_put_int32(&pack, session->kernel->attr.repl_auth) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cs_call_ex(pipe, &pack, &pack) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_call_ex(pipe, &pack, &pack) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cs_init_get(&pack);
-    return (pack.head->result != 0) ? GS_ERROR : GS_SUCCESS;
+    return (pack.head->result != 0) ? CT_ERROR : CT_SUCCESS;
 }
 
 static inline void knl_fetch_signature_info(signature_info_t *info, text_t *scramble_key, salt_cipher_t *cipher)
@@ -253,9 +254,9 @@ static inline void knl_fetch_signature_info(signature_info_t *info, text_t *scra
 static status_t knl_get_cipher(knl_session_t *session, const char *c_key, cs_pipe_t *pipe,
                                cs_packet_t *pack, char *cipher, uint32 clen, signature_info_t *info)
 {
-    char pwd[GS_PASSWORD_BUFFER_SIZE];
+    SENSI_INFO char pwd[CT_PASSWORD_BUFFER_SIZE];
     text_t scramble_key;
-    uchar salted_pwd[GS_SCRAM256KEYSIZE];
+    uchar salted_pwd[CT_SCRAM256KEYSIZE];
     salt_cipher_t salt_cipher;
     uint32 iter_count;
     int32 capability;
@@ -263,47 +264,47 @@ static status_t knl_get_cipher(knl_session_t *session, const char *c_key, cs_pip
     errno_t err;
 
     /* server_capabilities */
-    if (cs_get_int32(pack, &capability) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_get_int32(pack, &capability) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* ssl between primary and standby should be same */
     if ((!g_knl_callback.have_ssl() && ((uint32)capability & CS_FLAG_CLIENT_SSL)) ||
         (g_knl_callback.have_ssl() && !((uint32)capability & CS_FLAG_CLIENT_SSL))) {
-        GS_LOG_DEBUG_ERR("SSL should be consistent between primary and standby");
-        return GS_ERROR;
+        CT_LOG_DEBUG_ERR("SSL should be consistent between primary and standby");
+        return CT_ERROR;
     }
 
     /* server version */
-    if (cs_get_int16(pack, &version) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_get_int16(pack, &version) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     /* scramble key */
-    if (cs_get_text(pack, &scramble_key) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_get_text(pack, &scramble_key) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     /* iteration */
-    if (cs_get_int32(pack, (int32 *)&iter_count) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_get_int32(pack, (int32 *)&iter_count) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (iter_count < GS_KDF2MINITERATION || iter_count > GS_KDF2MAXITERATION) {
-        GS_THROW_ERROR(ERR_INVALID_ENCRYPTION_ITERATION, GS_KDF2MINITERATION, GS_KDF2MAXITERATION);
-        return GS_ERROR;
+    if (iter_count < CT_KDF2MINITERATION || iter_count > CT_KDF2MAXITERATION) {
+        CT_THROW_ERROR(ERR_INVALID_ENCRYPTION_ITERATION, CT_KDF2MINITERATION, CT_KDF2MAXITERATION);
+        return CT_ERROR;
     }
 
     /* verify client key */
-    if (scramble_key.str == NULL || memcmp(scramble_key.str, c_key, GS_MAX_CHALLENGE_LEN) != 0) {
-        return GS_ERROR;
+    if (scramble_key.str == NULL || memcmp(scramble_key.str, c_key, CT_MAX_CHALLENGE_LEN) != 0) {
+        return CT_ERROR;
     }
 
     /* get plain passwd */
-    if (cm_pwd_fetch_plain(session->kernel->home, pwd, sizeof(pwd)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_pwd_fetch_plain(session->kernel->home, pwd, sizeof(pwd)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (knl_try_update_repl_cipher(session, pwd) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_try_update_repl_cipher(session, pwd) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* encrypt pwd with scramble_key */
@@ -311,10 +312,10 @@ static status_t knl_get_cipher(knl_session_t *session, const char *c_key, cs_pip
     salt_cipher.salted_pwd_len = sizeof(salted_pwd);
     salt_cipher.cipher = cipher;
     salt_cipher.cipher_len = clen;
-    if (knl_encrypt_login_passwd(pwd, &scramble_key, iter_count, &salt_cipher) != GS_SUCCESS) {
+    if (knl_encrypt_login_passwd(pwd, &scramble_key, iter_count, &salt_cipher) != CT_SUCCESS) {
         err = memset_sp(pwd, sizeof(pwd), 0, sizeof(pwd));
         knl_securec_check(err);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cipher[salt_cipher.cipher_len] = '\0';
@@ -322,14 +323,14 @@ static status_t knl_get_cipher(knl_session_t *session, const char *c_key, cs_pip
     knl_securec_check(err);
 
     knl_fetch_signature_info(info, &scramble_key, &salt_cipher);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static ssl_ctx_t *knl_init_ssl(config_t *config)
 {
     char *verify_peer = NULL;
     char *keypwd_cipher = NULL;
-    char keypwd_plain[GS_PASSWD_MAX_LEN + GS_AESBLOCKSIZE + 4]; /* 4 bytes for '\0' */
+    char keypwd_plain[CT_PASSWD_MAX_LEN + CT_AESBLOCKSIZE + 4]; /* 4 bytes for '\0' */
     errno_t err;
     ssl_config_t ssl_para;
 
@@ -350,18 +351,18 @@ static ssl_ctx_t *knl_init_ssl(config_t *config)
     ssl_para.verify_peer = cm_str_equal_ins(verify_peer, "TRUE");
 
     if (CM_IS_EMPTY_STR(ssl_para.ca_file)) {
-        ssl_para.verify_peer = GS_FALSE;
+        ssl_para.verify_peer = CT_FALSE;
     }
 
     if (!CM_IS_EMPTY_STR(keypwd_cipher) && !CM_IS_EMPTY_STR(ssl_para.key_file)) {
         aes_and_kmc_t aes_kmc = {0};
         cm_kmc_set_aes_key_with_config(&aes_kmc, config);
-        cm_kmc_set_kmc(&aes_kmc, GS_KMC_SERVER_DOMAIN, KMC_ALGID_AES256_CBC);
+        cm_kmc_set_kmc(&aes_kmc, CT_KMC_SERVER_DOMAIN, KMC_ALGID_AES256_CBC);
         cm_kmc_set_buf(&aes_kmc, keypwd_plain, sizeof(keypwd_plain) - 1,
             keypwd_cipher, (uint32)strlen(keypwd_cipher));
-        if (cm_decrypt_passwd_with_key_by_kmc(&aes_kmc) != GS_SUCCESS) {
+        if (cm_decrypt_passwd_with_key_by_kmc(&aes_kmc) != CT_SUCCESS) {
             cm_spin_unlock(&g_ssl_lock);
-            GS_LOG_DEBUG_ERR("[REPL] decrypt SSL key password failed");
+            CT_LOG_DEBUG_ERR("[REPL] decrypt SSL key password failed");
             return NULL;
         }
         keypwd_plain[aes_kmc.plain_len] = '\0';
@@ -374,13 +375,13 @@ static ssl_ctx_t *knl_init_ssl(config_t *config)
     g_ssl_fd = cs_ssl_create_connector_fd(&ssl_para);
     err = memset_sp(keypwd_plain, sizeof(keypwd_plain), 0, sizeof(keypwd_plain));
     if (err != EOK) {
-        GS_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err));
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err));
         cm_spin_unlock(&g_ssl_lock);
         return NULL;
     }
     if (g_ssl_fd == NULL) {
         cm_spin_unlock(&g_ssl_lock);
-        GS_LOG_DEBUG_ERR("[REPL] Unable to create SSL connector");
+        CT_LOG_DEBUG_ERR("[REPL] Unable to create SSL connector");
         return NULL;
     }
     g_ssl_ref = 1;
@@ -411,50 +412,50 @@ static status_t knl_send_auth_init(cs_pipe_t *pipe, cs_packet_t *pack, uint16 cl
         }
 
         // 1. write username
-        if (cs_put_text(pack, &user_text) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_put_text(pack, &user_text) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         // 2. write client_key
         cm_str2text_safe((char *)client_key, key_len, &text);
-        if (cs_put_text(pack, &text) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_put_text(pack, &text) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         // 3. tenant name
-        if (cs_put_text(pack, &tenant_text) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_put_text(pack, &tenant_text) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         // 1. write username
         cm_str2text((char *)user, &text);
-        if (cs_put_text(pack, &text) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_put_text(pack, &text) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         // 2. write client_key
         cm_str2text_safe((char *)client_key, key_len, &text);
-        if (cs_put_text(pack, &text) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_put_text(pack, &text) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     // send AUTH_INIT request
-    if (cs_write(pipe, pack) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_write(pipe, pack) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t knl_repl_wait(cs_pipe_t *pipe)
 {
-    bool32 ready = GS_FALSE;
+    bool32 ready = CT_FALSE;
 
-    if (cs_wait(pipe, CS_WAIT_FOR_READ, pipe->connect_timeout, &ready) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_wait(pipe, CS_WAIT_FOR_READ, pipe->connect_timeout, &ready) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     if (!ready) {
-        GS_LOG_DEBUG_ERR("[REPL] Socket wait for reply timeout: %dms", pipe->connect_timeout);
-        return GS_ERROR;
+        CT_LOG_DEBUG_ERR("[REPL] Socket wait for reply timeout: %dms", pipe->connect_timeout);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -464,45 +465,45 @@ static status_t knl_ssl_handshake_safe(cs_pipe_t *pipe, cs_packet_t *pack, ssl_c
     uint32 ssl_notify, size;
 
     // tell server whether SSL channel is required
-    if (cs_put_int32(pack, client_flag) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_put_int32(pack, client_flag) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (cs_write(pipe, pack) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_write(pipe, pack) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // if SSL supported, change to SSL layer
     if (client_flag & CS_FLAG_CLIENT_SSL) {
-        if (knl_repl_wait(pipe) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_repl_wait(pipe) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         // read SSL notify
-        if (cs_read_bytes(pipe, (char *)&ssl_notify, sizeof(uint32), (int32 *)&size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_read_bytes(pipe, (char *)&ssl_notify, sizeof(uint32), (int32 *)&size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (sizeof(ssl_notify) != size || ssl_notify == 0) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         /* connect to server using ssl layer */
-        if (cs_ssl_connect(ssl_fd, pipe) != GS_SUCCESS) {
-            GS_LOG_DEBUG_ERR("[REPL] Unable to establish SSL connection");
-            return GS_ERROR;
+        if (cs_ssl_connect(ssl_fd, pipe) != CT_SUCCESS) {
+            CT_LOG_DEBUG_ERR("[REPL] Unable to establish SSL connection");
+            return CT_ERROR;
         }
     }
     // wait for handshake reply
-    if (knl_repl_wait(pipe) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_repl_wait(pipe) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     // read handshake reply
-    if (cs_read(pipe, pack, GS_TRUE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_read(pipe, pack, CT_TRUE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     // check result
     cs_init_get(pack);
     if (pack->head->result != 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     // send AUTH_INIT request
@@ -517,75 +518,75 @@ static status_t knl_ssl_handshake(cs_pipe_t *pipe, cs_packet_t *pack, ssl_ctx_t 
 
     // 1. username
     cm_str2text((char *)user, &text);
-    if (cs_put_text(pack, &text) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_put_text(pack, &text) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // 2. write client_flag
-    if (cs_put_int32(pack, (uint32)client_flag) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_put_int32(pack, (uint32)client_flag) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // 3. write client_key
     text.str = (char *)client_key;
     text.len = key_len;
 
-    if (cs_put_text(pack, &text) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_put_text(pack, &text) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // write handshake packet
-    if (cs_write(pipe, pack) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_write(pipe, pack) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // if SSL supported, change to SSL layer
     if (client_flag & CS_FLAG_CLIENT_SSL) {
-        if (knl_repl_wait(pipe) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_repl_wait(pipe) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         // read SSL notify
-        if (cs_read_bytes(pipe, (char *)&ssl_notify, sizeof(uint32), (int32 *)&size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cs_read_bytes(pipe, (char *)&ssl_notify, sizeof(uint32), (int32 *)&size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (sizeof(ssl_notify) != size || ssl_notify == 0) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         /* connect to server using ssl layer */
-        if (cs_ssl_connect(ssl_fd, pipe) != GS_SUCCESS) {
-            GS_LOG_DEBUG_ERR("[REPL] Unable to establish SSL connection");
-            return GS_ERROR;
+        if (cs_ssl_connect(ssl_fd, pipe) != CT_SUCCESS) {
+            CT_LOG_DEBUG_ERR("[REPL] Unable to establish SSL connection");
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t knl_check_handshake_result(cs_pipe_t *pipe, cs_packet_t *pack, int32 *login_err)
 {
     // wait for handshake/auth_init ack
-    if (knl_repl_wait(pipe) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_repl_wait(pipe) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     // read handshake/auth_init ack
-    if (cs_read(pipe, pack, GS_FALSE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cs_read(pipe, pack, CT_FALSE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cs_init_get(pack);
     if (pack->head->result != 0) {
         (void)cs_get_int32(pack, login_err);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t knl_do_handshake(knl_session_t *session, cs_pipe_t *pipe, rep_login_type_t rep_type,
     const char* local_host, int32 *login_err)
 {
     cs_packet_t pack;
-    uchar client_key[GS_MAX_CHALLENGE_LEN];
+    uchar client_key[CT_MAX_CHALLENGE_LEN];
     uint16 client_flag = 0;
     ssl_ctx_t *ssl_fd = NULL;
     bool32 auth_enable = (bool32)(pipe->version >= CS_VERSION_11 && session->kernel->attr.repl_auth);
@@ -605,28 +606,28 @@ static status_t knl_do_handshake(knl_session_t *session, cs_pipe_t *pipe, rep_lo
     pack.head->cmd = CS_CMD_HANDSHAKE;
     pack.head->flags = client_flag;
 
-    if (cm_rand(client_key, GS_MAX_CHALLENGE_LEN) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_rand(client_key, CT_MAX_CHALLENGE_LEN) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (pipe->version >= CS_VERSION_9) {
         if (knl_ssl_handshake_safe(pipe, &pack, ssl_fd, client_flag, user,
-            client_key, GS_MAX_CHALLENGE_LEN) != GS_SUCCESS) {
-            return GS_ERROR;
+            client_key, CT_MAX_CHALLENGE_LEN) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         if (knl_ssl_handshake(pipe, &pack, ssl_fd, client_flag, user,
-            client_key, GS_MAX_CHALLENGE_LEN) != GS_SUCCESS) {
-            return GS_ERROR;
+            client_key, CT_MAX_CHALLENGE_LEN) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    if (knl_check_handshake_result(pipe, &pack, login_err) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_check_handshake_result(pipe, &pack, login_err) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (knl_check_repl_host(session, pipe, local_host, login_err) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_check_repl_host(session, pipe, local_host, login_err) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!auth_enable) {
@@ -646,39 +647,39 @@ status_t knl_login(knl_session_t *session, cs_pipe_t *pipe, rep_login_type_t rep
     }
 
     if (session == NULL || pipe == NULL) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "login session or pipe");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "login session or pipe");
+        return CT_ERROR;
     }
 
     if (rep_type > REP_LOGIN_BACKUP) {
-        GS_THROW_ERROR(ERR_CLT_INVALID_VALUE, "replication type", (uint32)rep_type);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CLT_INVALID_VALUE, "replication type", (uint32)rep_type);
+        return CT_ERROR;
     }
 
     pipe->link.ssl.ssl_ctx = NULL;
     pipe->link.ssl.ssl_sock = NULL;
 
     if (pipe->link.tcp.closed) {
-        GS_THROW_ERROR(ERR_PEER_CLOSED, "tcp");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PEER_CLOSED, "tcp");
+        return CT_ERROR;
     }
 
     /* REPL_AUTH should be same between primary and standby */
-    if (pipe->version >= CS_VERSION_11 && knl_check_repl_auth(session, pipe) != GS_SUCCESS) {
-        GS_LOG_DEBUG_ERR("parameter REPL_AUTH check failed, local and peer are different");
+    if (pipe->version >= CS_VERSION_11 && knl_check_repl_auth(session, pipe) != CT_SUCCESS) {
+        CT_LOG_DEBUG_ERR("parameter REPL_AUTH check failed, local and peer are different");
         knl_disconnect(pipe);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (knl_do_handshake(session, pipe, rep_type, local_host, &retcode) != GS_SUCCESS) {
+    if (knl_do_handshake(session, pipe, rep_type, local_host, &retcode) != CT_SUCCESS) {
         if (login_err != NULL) {
             (*login_err) = retcode;
         }
         knl_disconnect(pipe);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void knl_disconnect(cs_pipe_t *pipe)
@@ -702,93 +703,93 @@ void knl_disconnect(cs_pipe_t *pipe)
 status_t knl_encrypt_login_passwd(const char *plain_text, text_t *scramble_key, uint32 iter_count,
                                   salt_cipher_t *salt_cipher)
 {
-    uchar client_scram[GS_SCRAM256KEYSIZE + GS_HMAC256MAXSIZE];
-    uchar client_key[GS_HMAC256MAXSIZE];
-    uchar stored_key[GS_HMAC256MAXSIZE];
-    uchar client_sign[GS_HMAC256MAXSIZE];
+    uchar client_scram[CT_SCRAM256KEYSIZE + CT_HMAC256MAXSIZE];
+    uchar client_key[CT_HMAC256MAXSIZE];
+    uchar stored_key[CT_HMAC256MAXSIZE];
+    uchar client_sign[CT_HMAC256MAXSIZE];
     uint32 sign_key_len, key_len, stored_key_len;
     errno_t err;
 
     /* verify scramble data */
-    sign_key_len = GS_SCRAM256KEYSIZE;
-    if ((scramble_key->len != sign_key_len + GS_KDF2SALTSIZE) || (salt_cipher->salted_pwd_len < GS_KDF2KEYSIZE)) {
-        return GS_ERROR;
+    sign_key_len = CT_SCRAM256KEYSIZE;
+    if ((scramble_key->len != sign_key_len + CT_KDF2SALTSIZE) || (salt_cipher->salted_pwd_len < CT_KDF2KEYSIZE)) {
+        return CT_ERROR;
     }
-    err = memcpy_sp(client_scram, GS_SCRAM256KEYSIZE + GS_HMAC256MAXSIZE, scramble_key->str, sign_key_len);
+    err = memcpy_sp(client_scram, CT_SCRAM256KEYSIZE + CT_HMAC256MAXSIZE, scramble_key->str, sign_key_len);
     knl_securec_check(err);
 
     /* salted_pwd */
     if (cm_encrypt_KDF2((uchar *)plain_text, (uint32)strlen(plain_text), (uchar *)(scramble_key->str + sign_key_len),
-                        GS_KDF2SALTSIZE, iter_count, salt_cipher->salted_pwd, GS_KDF2KEYSIZE) != GS_SUCCESS) {
-        return GS_ERROR;
+                        CT_KDF2SALTSIZE, iter_count, salt_cipher->salted_pwd, CT_KDF2KEYSIZE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    salt_cipher->salted_pwd_len = GS_KDF2KEYSIZE;
+    salt_cipher->salted_pwd_len = CT_KDF2KEYSIZE;
 
     /* client_key */
-    key_len = GS_HMAC256MAXSIZE;
-    if (cm_encrypt_HMAC(salt_cipher->salted_pwd, GS_KDF2KEYSIZE, (uchar *)GS_CLIENT_KEY, (uint32)strlen(GS_CLIENT_KEY),
-                        client_key, &key_len) != GS_SUCCESS) {
-        return GS_ERROR;
+    key_len = CT_HMAC256MAXSIZE;
+    if (cm_encrypt_HMAC(salt_cipher->salted_pwd, CT_KDF2KEYSIZE, (uchar *)CT_CLIENT_KEY, (uint32)strlen(CT_CLIENT_KEY),
+                        client_key, &key_len) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* stored_key */
-    stored_key_len = GS_HMAC256MAXSIZE;
-    if (cm_generate_sha256(client_key, key_len, stored_key, &stored_key_len) != GS_SUCCESS) {
-        return GS_ERROR;
+    stored_key_len = CT_HMAC256MAXSIZE;
+    if (cm_generate_sha256(client_key, key_len, stored_key, &stored_key_len) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* signature */
-    key_len = GS_HMAC256MAXSIZE;
+    key_len = CT_HMAC256MAXSIZE;
     if (cm_encrypt_HMAC(stored_key, stored_key_len, (uchar *)scramble_key->str, sign_key_len, client_sign,
-                        &key_len) != GS_SUCCESS) {
-        return GS_ERROR;
+                        &key_len) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* generate client_proof */
-    for (uint32 i = 0; i < GS_HMAC256MAXSIZE; ++i) {
+    for (uint32 i = 0; i < CT_HMAC256MAXSIZE; ++i) {
         client_scram[i + sign_key_len] = (uchar)(client_key[i] ^ client_sign[i]);
     }
 
     /* encode client_proof with base64 */
     if (cm_base64_encode(client_scram, sizeof(client_scram), salt_cipher->cipher,
-        &salt_cipher->cipher_len) != GS_SUCCESS) {
-        return GS_ERROR;
+        &salt_cipher->cipher_len) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t knl_generate_repl_key_cipher(knl_session_t *session, const char *plain)
 {
-    char fkey[GS_AES256KEYSIZE] = { 0 };
-    char wkey[GS_MAX_LOCAL_KEY_STR_LEN_DOUBLE + 1] = { 0 };
-    char cipher[GS_PASSWORD_BUFFER_SIZE] = { 0 };
+    char fkey[CT_AES256KEYSIZE] = { 0 };
+    char wkey[CT_MAX_LOCAL_KEY_STR_LEN_DOUBLE + 1] = { 0 };
+    char cipher[CT_PASSWORD_BUFFER_SIZE] = { 0 };
 
     /* Generate factor key and worker key */
-    if (cm_generate_repl_key(fkey, sizeof(fkey), wkey, sizeof(wkey)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_generate_repl_key(fkey, sizeof(fkey), wkey, sizeof(wkey)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* Generate cipher */
-    if (cm_generate_repl_cipher(plain, fkey, wkey, cipher, sizeof(cipher)) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_generate_repl_cipher(plain, fkey, wkey, cipher, sizeof(cipher)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* Store keys and cipher */
-    if (cm_pwd_store_keys(session->kernel->home, cipher, fkey, wkey) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_pwd_store_keys(session->kernel->home, cipher, fkey, wkey) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t knl_try_update_repl_cipher(knl_session_t *session, const char *plain)
 {
     status_t st;
     errno_t err;
-    char pwd[GS_PASSWORD_BUFFER_SIZE];
+    char pwd[CT_PASSWORD_BUFFER_SIZE];
     uint32 len = (uint32)strlen(plain);
-    if (len >= GS_REPL_PASSWD_MIN_LEN) {
-        return GS_SUCCESS;
+    if (len >= CT_REPL_PASSWD_MIN_LEN) {
+        return CT_SUCCESS;
     }
 
     err = memset_s(pwd, sizeof(pwd), 0, sizeof(pwd));
@@ -804,43 +805,43 @@ status_t knl_try_update_repl_cipher(knl_session_t *session, const char *plain)
     err = memset_s(pwd, sizeof(pwd), 0, sizeof(pwd));
     knl_securec_check(err);
 
-    GS_LOG_RUN_INF("original password length for replication is %u, double it, status is %d", len, st);
+    CT_LOG_RUN_INF("original password length for replication is %u, double it, status is %d", len, st);
     return st;
 }
 
 static status_t knl_verify_server_signature(signature_info_t *info, text_t *server_sign)
 {
-    uchar server_key[GS_HMAC256MAXSIZE];
-    uchar c_server_sign[GS_HMAC256MAXSIZE];
+    uchar server_key[CT_HMAC256MAXSIZE];
+    uchar c_server_sign[CT_HMAC256MAXSIZE];
     uint32 server_key_len, sign_key_len, key_len;
 
-    sign_key_len = GS_MAX_CHALLENGE_LEN + GS_MAX_CHALLENGE_LEN;
+    sign_key_len = CT_MAX_CHALLENGE_LEN + CT_MAX_CHALLENGE_LEN;
     if (info->scramble_key.len < sign_key_len) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* server_key */
     server_key_len = sizeof(server_key);
-    if (cm_encrypt_HMAC(info->salted_pwd, info->salted_pwd_len, (uchar *)GS_SERVER_KEY, (uint32)strlen(GS_SERVER_KEY),
-        server_key, &server_key_len) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_encrypt_HMAC(info->salted_pwd, info->salted_pwd_len, (uchar *)CT_SERVER_KEY, (uint32)strlen(CT_SERVER_KEY),
+        server_key, &server_key_len) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* server_signature */
     key_len = sizeof(c_server_sign);
     if (cm_encrypt_HMAC(server_key, server_key_len, (uchar *)info->scramble_key.str, sign_key_len,
-        c_server_sign, &key_len) != GS_SUCCESS) {
-        return GS_ERROR;
+        c_server_sign, &key_len) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* check */
     if (key_len != server_sign->len || memcmp(c_server_sign, server_sign->str, key_len) != 0) {
-        GS_LOG_DEBUG_ERR("SCRAM authentication check server signature failed");
-        return GS_ERROR;
+        CT_LOG_DEBUG_ERR("SCRAM authentication check server signature failed");
+        return CT_ERROR;
     }
 
-    GS_LOG_DEBUG_INF("SCRAM authentication succeeded");
-    return GS_SUCCESS;
+    CT_LOG_DEBUG_INF("SCRAM authentication succeeded");
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "cm_common_module.h"
 #include "cm_disklock.h"
 #include <time.h>
 #include "cm_file.h"
@@ -35,10 +35,10 @@
 
 status_t cm_disk_lock_init(cm_disk_lock_t *lock, uint32 inst_id, uint32 uid)
 {
-    GS_LOG_DEBUG_INF("cm disk lock init, inst_id:%d", inst_id);
+    CT_LOG_DEBUG_INF("cm disk lock init, inst_id:%d", inst_id);
     uint32 temp_id = uid % CM_FILE_LOCK_CNT;
     const char *file_dev = "cm_disk";
-    char file_name[GS_FILE_NAME_BUFFER_SIZE] = { 0 };
+    char file_name[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
     cm_init_thread_lock(&lock->tlock);
     lock->flock.lock_time = time(NULL);
     lock->flock.magic = CM_LOCK_MAGIC;
@@ -52,30 +52,30 @@ status_t cm_disk_lock_init(cm_disk_lock_t *lock, uint32 inst_id, uint32 uid)
 
     char *dlock_home = getenv(CM_ENV_DISKLOCK_HOME);
     if (dlock_home == NULL) {
-        GS_LOG_RUN_ERR("env $CTDB_HOME not exists.");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("env $CTDB_HOME not exists.");
+        return CT_ERROR;
     }
-    errno_t ret = snprintf_s(file_name, GS_FILE_NAME_BUFFER_SIZE, GS_MAX_FILE_NAME_LEN, "%s/cm_disklock/", dlock_home);
+    errno_t ret = snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/cm_disklock/", dlock_home);
     PRTS_RETURN_IFERR(ret);
     if (!cm_dir_exist(file_name)) {
-        GS_RETURN_IFERR(cm_create_dir(file_name));
+        CT_RETURN_IFERR(cm_create_dir(file_name));
     }
-    ret = snprintf_s(file_name, GS_FILE_NAME_BUFFER_SIZE, GS_MAX_FILE_NAME_LEN, "%s/cm_disklock/%s_%u.lock", dlock_home,
+    ret = snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/cm_disklock/%s_%u.lock", dlock_home,
                      file_dev, temp_id);
     PRTS_RETURN_IFERR(ret);
 
-    ret = snprintf_s(lock->dev_name, GS_FILE_NAME_BUFFER_SIZE, GS_MAX_FILE_NAME_LEN, "%s_%u.lock", file_dev, temp_id);
+    ret = snprintf_s(lock->dev_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s_%u.lock", file_dev, temp_id);
     PRTS_RETURN_IFERR(ret);
 
-    GS_RETURN_IFERR(cm_open_file(file_name, O_CREAT | O_RDWR | O_BINARY | O_CLOEXEC, &lock->fd));
+    CT_RETURN_IFERR(cm_open_file(file_name, O_CREAT | O_RDWR | O_BINARY | O_CLOEXEC, &lock->fd));
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_destory_lock(cm_disk_lock_t *lock)
 {
-    if (cm_record_disk_unlock(lock) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("cm_destory_lock failed");
+    if (cm_record_disk_unlock(lock) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cm_destory_lock failed");
     }
     cm_close_file(lock->fd);
 }
@@ -84,70 +84,70 @@ status_t cm_disk_save_lockinfo(cm_disk_lock_t *lock)
 {
     if (cm_seek_file(lock->fd, 0, SEEK_SET) != 0) {
         (void)cm_unlock_record_fd(lock->fd, lock->id);
-        GS_LOG_RUN_ERR("file lock failed:%s,%d:%s", lock->dev_name, errno, strerror(errno));
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("file lock failed:%s,%d:%s", lock->dev_name, errno, strerror(errno));
+        return CT_ERROR;
     }
 
-    if (cm_write_file(lock->fd, &lock->flock, sizeof(cm_flock_t)) != GS_SUCCESS) {
+    if (cm_write_file(lock->fd, &lock->flock, sizeof(cm_flock_t)) != CT_SUCCESS) {
         (void)cm_unlock_record_fd(lock->fd, lock->id);
-        GS_LOG_RUN_ERR("file lock failed:%s,%d:%s", lock->dev_name, errno, strerror(errno));
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("file lock failed:%s,%d:%s", lock->dev_name, errno, strerror(errno));
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_disk_mutex_try_lock(cm_disk_lock_t *lock)
 {
     if (lock->lh_lock.stat == LATCH_STATUS_X) {
-        return GS_TIMEDOUT;
+        return CT_TIMEDOUT;
     }
     status_t ret;
     cm_latch_x(&lock->lh_lock, 0, NULL);
 
-    if (cm_lockw_record_fd(lock->fd, lock->id) != GS_SUCCESS) {
+    if (cm_lockw_record_fd(lock->fd, lock->id) != CT_SUCCESS) {
         if (errno == EAGAIN) {
             cm_unlatch(&lock->lh_lock, NULL);
-            return GS_TIMEDOUT;
+            return CT_TIMEDOUT;
         } else {
             cm_unlatch(&lock->lh_lock, NULL);
-            GS_LOG_RUN_ERR("mutex record lock failed:%s,%d:%s", lock->dev_name, errno, strerror(errno));
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("mutex record lock failed:%s,%d:%s", lock->dev_name, errno, strerror(errno));
+            return CT_ERROR;
         }
     }
     lock->flock.lock_time = time(NULL);
 
     ret = cm_disk_save_lockinfo(lock);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         cm_unlatch(&lock->lh_lock, NULL);
-        GS_LOG_DEBUG_ERR("try lock file failed:%s", lock->dev_name);
-        return GS_ERROR;
+        CT_LOG_DEBUG_ERR("try lock file failed:%s", lock->dev_name);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_disk_latchs_try_lock(cm_disk_lock_t *lock)
 {
     status_t ret;
-    cm_latch_s(&lock->lh_lock, 0, GS_FALSE, NULL);
-    if (cm_lockr_record_fd(lock->fd, lock->id) != GS_SUCCESS) {
+    cm_latch_s(&lock->lh_lock, 0, CT_FALSE, NULL);
+    if (cm_lockr_record_fd(lock->fd, lock->id) != CT_SUCCESS) {
         if (errno == EAGAIN) {
             cm_unlatch(&lock->lh_lock, NULL);
-            return GS_TIMEDOUT;
+            return CT_TIMEDOUT;
         } else {
             cm_unlatch(&lock->lh_lock, NULL);
-            GS_LOG_RUN_ERR("read record lock failed:%s,%d:%s", lock->dev_name, errno, strerror(errno));
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("read record lock failed:%s,%d:%s", lock->dev_name, errno, strerror(errno));
+            return CT_ERROR;
         }
     }
     lock->flock.lock_time = time(NULL);
 
     ret = cm_disk_save_lockinfo(lock);
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         cm_unlatch(&lock->lh_lock, NULL);
-        GS_LOG_DEBUG_ERR("try lock file failed:%s", lock->dev_name);
-        return GS_ERROR;
+        CT_LOG_DEBUG_ERR("try lock file failed:%s", lock->dev_name);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_disk_file_lock(cm_disk_lock_t *lock, uint8 lock_type)
@@ -165,16 +165,16 @@ status_t cm_disk_file_lock(cm_disk_lock_t *lock, uint8 lock_type)
                 ret = cm_disk_latchs_try_lock(lock);
                 break;
             default:
-                ret = GS_ERROR;
+                ret = CT_ERROR;
                 break;
         }
-        if (ret == GS_TIMEDOUT) {
+        if (ret == CT_TIMEDOUT) {
             cm_sleep(CM_LOCK_TRY_INTERVAL);
         } else {
             return ret;
         }
     }
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t cm_disk_timed_file_lock(cm_disk_lock_t *lock, uint32 timeout_ms, uint8 lock_type)
@@ -200,32 +200,32 @@ status_t cm_disk_timed_file_lock(cm_disk_lock_t *lock, uint32 timeout_ms, uint8 
                 ret = cm_disk_latchs_try_lock(lock);
                 break;
             default:
-                ret = GS_ERROR;
+                ret = CT_ERROR;
                 break;
         }
-        if (ret == GS_SUCCESS) {
+        if (ret == CT_SUCCESS) {
             return ret;
-        } else if (ret == GS_TIMEDOUT) {
+        } else if (ret == CT_TIMEDOUT) {
             end_time = cm_monotonic_now();
             if (end_time > start_time + timeout_ms * MICROSECS_PER_MILLISEC) {
-                GS_LOG_DEBUG_ERR("cm_disk_timed_file_lock timeout:%s.", lock->dev_name);
-                return GS_ERROR;
+                CT_LOG_DEBUG_ERR("cm_disk_timed_file_lock timeout:%s.", lock->dev_name);
+                return CT_ERROR;
             }
             cm_sleep(CM_LOCK_TRY_INTERVAL);
         } else {
-            GS_LOG_DEBUG_ERR("cm_disk_timed_file_lock failed:%s.", lock->dev_name);
+            CT_LOG_DEBUG_ERR("cm_disk_timed_file_lock failed:%s.", lock->dev_name);
             return ret;
         }
     }
 
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t cm_disk_mutex_lock(cm_disk_lock_t *lock, uint32 timeout_ms)
 {
     status_t ret = cm_disk_timed_file_lock(lock, timeout_ms, DISK_LOCK_MUTEX);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_DEBUG_ERR("cm_disk_mutex_lock failed");
+    if (ret != CT_SUCCESS) {
+        CT_LOG_DEBUG_ERR("cm_disk_mutex_lock failed");
         return ret;
     }
     return ret;
@@ -234,8 +234,8 @@ status_t cm_disk_mutex_lock(cm_disk_lock_t *lock, uint32 timeout_ms)
 status_t cm_disk_latchx_lock(cm_disk_lock_t *lock, uint32 timeout_ms)
 {
     status_t ret = cm_disk_timed_file_lock(lock, timeout_ms, DISK_LOCK_LATCHX);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_DEBUG_ERR("cm_disk_latchx_lock failed");
+    if (ret != CT_SUCCESS) {
+        CT_LOG_DEBUG_ERR("cm_disk_latchx_lock failed");
         return ret;
     }
     return ret;
@@ -244,8 +244,8 @@ status_t cm_disk_latchx_lock(cm_disk_lock_t *lock, uint32 timeout_ms)
 status_t cm_disk_latchs_lock(cm_disk_lock_t *lock, uint32 timeout_ms)
 {
     status_t ret = cm_disk_timed_file_lock(lock, timeout_ms, DISK_LOCK_LATCHS);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_DEBUG_ERR("cm_disk_latchs_lock failed");
+    if (ret != CT_SUCCESS) {
+        CT_LOG_DEBUG_ERR("cm_disk_latchs_lock failed");
         return ret;
     }
     return ret;
@@ -255,8 +255,8 @@ status_t cm_record_disk_unlock(cm_disk_lock_t *lock)
 {
     status_t ret;
     ret = cm_unlock_record_fd(lock->fd, lock->id);
-    if (ret != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("cm_record_disk_unlock failed:%s,%d:%s", lock->dev_name, errno, strerror(errno));
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cm_record_disk_unlock failed:%s,%d:%s", lock->dev_name, errno, strerror(errno));
     }
     cm_unlatch(&lock->lh_lock, NULL);
     return ret;

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -86,17 +86,18 @@ status_t buf_load_group(knl_session_t *session, buf_ctrl_t *ctrl);
 status_t buf_decompress_group(knl_session_t *session, char *dst, const char *src, uint32 *size);
 status_t buf_check_load_compress_group(knl_session_t *session, page_id_t head_page_id, const char *read_buf);
 bool32 buf_check_load_page(knl_session_t *session, page_head_t *page, page_id_t page_id, bool32 is_backup_process);
+bool32 buf_check_remote_root_page(knl_session_t *session, page_head_t *page);
 
 static inline void buf_enter_page(knl_session_t *session, page_id_t page_id, latch_mode_t mode, uint8 options)
 {
-    if (buf_read_page(session, page_id, mode, options) != GS_SUCCESS) {
+    if (buf_read_page(session, page_id, mode, options) != CT_SUCCESS) {
         CM_ABORT(0, "[BUFFER] ABORT INFO: failed to read page %u-%u", page_id.file, page_id.page);
     }
 }
 
 static inline void buf_enter_prefetch_page(knl_session_t *session, page_id_t page_id, latch_mode_t mode, uint8 options)
 {
-    if (buf_read_prefetch_page(session, page_id, mode, options) != GS_SUCCESS) {
+    if (buf_read_prefetch_page(session, page_id, mode, options) != CT_SUCCESS) {
         CM_ABORT(0, "[BUFFER] ABORT INFO: failed to read prefetch page %u-%u", page_id.file, page_id.page);
     }
 }
@@ -104,7 +105,7 @@ static inline void buf_enter_prefetch_page(knl_session_t *session, page_id_t pag
 static inline void buf_enter_prefetch_page_num(knl_session_t *session, page_id_t page_id, uint32 prefetch_num,
                                                latch_mode_t mode, uint8 options)
 {
-    if (buf_read_prefetch_page_num(session, page_id, prefetch_num, mode, options) != GS_SUCCESS) {
+    if (buf_read_prefetch_page_num(session, page_id, prefetch_num, mode, options) != CT_SUCCESS) {
         CM_ABORT(0, "[BUFFER] ABORT INFO: failed to read prefetch page %u-%u, prefetch_num %u",
                  page_id.file, page_id.page, prefetch_num);
     }

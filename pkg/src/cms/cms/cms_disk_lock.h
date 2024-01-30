@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,6 +34,7 @@
 #include "cms_detect_error.h"
 
 #define CMS_LOCK_TRY_INTERVAL 100
+#define CMS_MASTER_INFO_MAGIC         (*((uint64*)"CMS_MASTER_INFO"))
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,8 +48,11 @@ typedef union u_cms_file_lock_t {
         uint64      magic;
         uint8       node_id;
         time_t      lock_time;
-        char        data[DISK_LOCK_BODY_LEN];
+        uint64      l_start; // used for nas only
+        uint64      l_len; // used for nas only
+        bool32      is_write;
         char        file_name[CMS_FILE_NAME_BUFFER_SIZE];
+        char        data[DISK_LOCK_BODY_LEN];
     };
     char            lock_area[CMS_BLOCK_SIZE];
 }cms_flock_t;
@@ -74,6 +78,16 @@ typedef struct _st_cms_disk_lock_t {
     char                dev_name[CMS_FILE_NAME_BUFFER_SIZE];
 }cms_disk_lock_t;
 
+typedef union u_cms_master_info_t {
+    struct {
+        uint64      magic;
+        uint8       node_id;
+        time_t      lock_time;
+        char        data[DISK_LOCK_BODY_LEN];
+    };
+    char            lock_area[CMS_BLOCK_SIZE];
+}cms_master_info_t;
+
 #define CMS_DLOCK_THREAD   0x1
 #define CMS_DLOCK_PROCESS  0x2
 
@@ -83,9 +97,11 @@ typedef struct _st_cms_disk_lock_t {
 #define CMS_EXIT_COUNT_MAX 20
 
 extern cms_flock_t* g_invalid_lock;
+extern cms_master_info_t* g_master_info;
 extern spinlock_t g_exit_num_lock;
-status_t cms_disk_lock_init(cms_dev_type_t type, const char* dev, uint64 offset,
-                            int64 inst_id, cms_disk_lock_t* lock, active_func_t active_func, uint32 flag);
+status_t cms_disk_lock_init(cms_dev_type_t type, const char* dev, const char* file, uint64 offset,
+    uint64 l_start, uint64 l_len, int64 inst_id, cms_disk_lock_t* lock, active_func_t active_func,
+    uint32 flag, bool32 is_write);
 status_t cms_disk_lock(cms_disk_lock_t* lock, uint32 timeout_ms, uint8 lock_type);
 
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
@@ -103,9 +119,10 @@ status_t cms_disk_lock_get_inst(cms_disk_lock_t* lock, uint64* inst_id);
 status_t cms_disk_lock_get_data(cms_disk_lock_t* lock, char* data, uint32 size);
 status_t cms_disk_lock_set_data(cms_disk_lock_t* lock, char* data, uint32 size);
 status_t cms_disk_unlock_file(cms_disk_lock_t* lock);
+status_t cms_disk_unlock_nfs(cms_disk_lock_t* lock);
 status_t cms_get_exit_num(uint32 *exit_num);
 status_t cms_reopen_lock_file(cms_disk_lock_t* lock);
-void     cms_disk_lock_destroy(cms_disk_lock_t* lock);
+void cms_disk_lock_destroy(cms_disk_lock_t* lock);
 void cms_kill_self_by_exit(void);
 void cms_inc_exit_num(cms_res_t res);
 void cms_exec_exit_proc(void);

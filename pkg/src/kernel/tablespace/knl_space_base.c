@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "knl_space_module.h"
 #include "knl_space_base.h"
 #include "cm_log.h"
 #include "cm_file.h"
@@ -42,18 +42,18 @@ bool32 spc_try_lock_space(knl_session_t *session, space_t *space, uint32 wait_ti
 {
     for (;;) {
         if (SECUREC_UNLIKELY(session->canceled)) {
-            GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-            return GS_FALSE;
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            return CT_FALSE;
         }
 
         if (SECUREC_UNLIKELY(session->killed)) {
-            GS_THROW_ERROR(ERR_OPERATION_KILLED);
-            return GS_FALSE;
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            return CT_FALSE;
         }
 
         if (SECUREC_UNLIKELY(!SPACE_IS_ONLINE(space))) {
-            GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, operation);
-            return GS_FALSE;
+            CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, operation);
+            return CT_FALSE;
         }
 
         if (dls_spin_try_lock(session, &space->lock)) {
@@ -61,7 +61,7 @@ bool32 spc_try_lock_space(knl_session_t *session, space_t *space, uint32 wait_ti
         }
         cm_sleep(wait_time);
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 bool32 spc_view_try_lock_space(knl_session_t *session, space_t *space, const char *operation)
@@ -72,18 +72,18 @@ bool32 spc_view_try_lock_space(knl_session_t *session, space_t *space, const cha
 bool32 spc_try_lock_space_file(knl_session_t *session, space_t *space, datafile_t *df)
 {
     if (!spc_try_lock_space(session, space, SPACE_DDL_WAIT_INTERVAL, "punch space failed")) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    if (!DATAFILE_IS_ONLINE(df) || df->space_id >= GS_MAX_SPACES || DF_FILENO_IS_INVAILD(df) || space->is_empty ||
+    if (!DATAFILE_IS_ONLINE(df) || df->space_id >= CT_MAX_SPACES || DF_FILENO_IS_INVAILD(df) || space->is_empty ||
         !space->ctrl->used || !SPACE_IS_ONLINE(space)) {
-        char *space_name = (df->space_id >= GS_MAX_SPACES) ? "invalid space" : space->ctrl->name;
+        char *space_name = (df->space_id >= CT_MAX_SPACES) ? "invalid space" : space->ctrl->name;
         dls_spin_unlock(session, &space->lock);
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space_name, "punch space failed");
-        return GS_FALSE;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space_name, "punch space failed");
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /*
@@ -120,9 +120,9 @@ uint32 spc_pages_by_ext_cnt(space_t *space, uint32 extent_count, uint8 seg_page_
 bool32 spc_validate_datefile(datafile_t *df)
 {
     if (DF_FILENO_IS_INVAILD(df) || !df->ctrl->used || !DATAFILE_IS_ONLINE(df)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static inline bool32 spc_check_space_entry_pageid(space_head_t *space_head, page_id_t entry_page_id)
@@ -138,38 +138,38 @@ bool32 spc_validate_page_id(knl_session_t *session, page_id_t page_id)
     uint32 dw_file_id;
 
     if (IS_INVALID_PAGID(page_id) || page_id.page == 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     df = DATAFILE_GET(session, page_id.file);
     if (!spc_validate_datefile(df)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     space = SPACE_GET(session, df->space_id);
     if (!SPACE_IS_ONLINE(space)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (IS_SWAP_SPACE(space)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     dw_file_id = knl_get_dbwrite_file_id(session);
     if (DATAFILE_CONTAINS_DW(df, dw_file_id)) {
         if (page_id.page < DW_SPC_HWM_START && page_id.page > DW_DISTRICT_BEGIN(session->kernel->id)) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
     if (session->kernel->db.status == DB_STATUS_OPEN && !DB_ATTR_ENABLE_HWM_CHANGE(session)) {
         if (page_id.page < space->head->hwms[df->file_no] && spc_check_space_entry_pageid(space->head, space->entry)) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
     if (page_id.page >= SPACE_HEAD_RESIDENT(session, space)->hwms[df->file_no]) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
 #ifdef DB_DEBUG_VERSION
@@ -180,7 +180,7 @@ bool32 spc_validate_page_id(knl_session_t *session, page_id_t page_id)
     }
 #endif
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t space_head_dump(knl_session_t *session, page_head_t *page_head, cm_dump_t *dump)
@@ -195,7 +195,7 @@ status_t space_head_dump(knl_session_t *session, page_head_t *page_head, cm_dump
         space_head->free_extents.last.file, space_head->free_extents.last.page);
     cm_dump(dump, "datafile hwms information:");
     CM_DUMP_WRITE_FILE(dump);
-    for (uint32 slot = 0; slot < GS_MAX_SPACE_FILES; slot++) {
+    for (uint32 slot = 0; slot < CT_MAX_SPACE_FILES; slot++) {
         /* space files per line 80 */
         if (slot % SPACE_FILE_PER_LINE == 0) {
             cm_dump(dump, "\n\t");
@@ -205,15 +205,15 @@ status_t space_head_dump(knl_session_t *session, page_head_t *page_head, cm_dump
         CM_DUMP_WRITE_FILE(dump);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 uint32 spc_ext_cnt_by_pages(space_t *space, uint32 page_count)
 {
     uint32 extent_cnt;
 
-    if (page_count == 0 || page_count == GS_INVALID_ID32) {
-        return GS_INVALID_ID32;
+    if (page_count == 0 || page_count == CT_INVALID_ID32) {
+        return CT_INVALID_ID32;
     }
 
     if (SPACE_IS_AUTOALLOCATE(space)) {
@@ -246,7 +246,7 @@ page_id_t spc_get_size_next_ext(knl_session_t *session, space_t *space, page_id_
     *ext_size = spc_get_page_ext_size(space, last_page->ext_size);
 
     page_id_t next_extent = AS_PAGID(last_page->next_ext);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
     return next_extent;
 }
 
@@ -258,7 +258,7 @@ uint64 spc_count_pages_with_ext(knl_session_t *session, space_t *space, bool32 u
     CM_POINTER2(session, space);
     dls_spin_lock(session, &space->lock, &session->stat->spin_stat.stat_space);
     for (uint32 i = 0; i < space->ctrl->file_hwm; i++) {
-        if (GS_INVALID_ID32 == space->ctrl->files[i]) {
+        if (CT_INVALID_ID32 == space->ctrl->files[i]) {
             continue;
         }
 
@@ -292,7 +292,7 @@ uint64 spc_count_backup_pages(knl_session_t *session, space_t *space)
     dls_spin_lock(session, &space->lock, &session->stat->spin_stat.stat_space);
 
     for (uint32 i = 0; i < space->ctrl->file_hwm; i++) {
-        if (space->ctrl->files[i] == GS_INVALID_ID32) {
+        if (space->ctrl->files[i] == CT_INVALID_ID32) {
             continue;
         }
 
@@ -320,14 +320,14 @@ bool32 spc_valid_space_object(knl_session_t *session, uint32 space_id)
     space_t *space = SPACE_GET(session, space_id);
 
     if (SPACE_IS_DEFAULT(space)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (!space->ctrl->used || !SPACE_IS_ONLINE(space)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void spc_concat_extent(knl_session_t *session, page_id_t last_ext, page_id_t ext)
@@ -342,7 +342,7 @@ void spc_concat_extent(knl_session_t *session, page_id_t last_ext, page_id_t ext
     if (need_redo) {
         log_put(session, RD_SPC_CONCAT_EXTENT, &ext, sizeof(page_id_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 void spc_concat_extents(knl_session_t *session, page_list_t *extents, const page_list_t *next_exts)
@@ -359,34 +359,34 @@ void spc_concat_extents(knl_session_t *session, page_list_t *extents, const page
 status_t spc_clean_garbage_space(knl_session_t *session)
 {
     space_t *space = NULL;
-    char spc_name[GS_NAME_BUFFER_SIZE];
+    char spc_name[CT_NAME_BUFFER_SIZE];
     uint32 i;
     errno_t ret;
 
-    GS_LOG_RUN_INF("[SPACE] Clean garbage tablespace start");
-    for (i = 0; i < GS_MAX_SPACES; i++) {
+    CT_LOG_RUN_INF("[SPACE] Clean garbage tablespace start");
+    for (i = 0; i < CT_MAX_SPACES; i++) {
         space = SPACE_GET(session, i);
         if (!space->ctrl->used || space->ctrl->file_hwm != 0) {
             continue;
         }
 
-        ret = strncpy_s(spc_name, GS_NAME_BUFFER_SIZE, space->ctrl->name, sizeof(space->ctrl->name) - 1);
+        ret = strncpy_s(spc_name, CT_NAME_BUFFER_SIZE, space->ctrl->name, sizeof(space->ctrl->name) - 1);
         knl_securec_check(ret);
 
-        if (spc_remove_space(session, space, TABALESPACE_INCLUDE || TABALESPACE_DFS_AND, GS_TRUE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_remove_space(session, space, TABALESPACE_INCLUDE || TABALESPACE_DFS_AND, CT_TRUE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (db_save_space_ctrl(session, space->ctrl->id) != GS_SUCCESS) {
+        if (db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
             CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file when drop tablespace");
         }
 
-        GS_LOG_RUN_INF("[SPACE] succeed to clean garbage tablespace %s", spc_name);
+        CT_LOG_RUN_INF("[SPACE] succeed to clean garbage tablespace %s", spc_name);
     }
 
-    GS_LOG_RUN_INF("[SPACE] Clean garbage tablespace end");
+    CT_LOG_RUN_INF("[SPACE] Clean garbage tablespace end");
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 page_id_t spc_get_next_ext(knl_session_t *session, page_id_t extent)
@@ -394,7 +394,7 @@ page_id_t spc_get_next_ext(knl_session_t *session, page_id_t extent)
     buf_enter_page(session, extent, LATCH_MODE_S, ENTER_PAGE_NORMAL);
     page_head_t *last_page = (page_head_t *)session->curr_page;
     page_id_t next_extent = AS_PAGID(last_page->next_ext);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
     return next_extent;
 }
 
@@ -408,7 +408,7 @@ uint32 spc_get_df_used_pages(knl_session_t *session, space_t *space, uint32 file
     } else {
         buf_enter_page(session, space->entry, LATCH_MODE_S, ENTER_PAGE_RESIDENT);
         uint32 count = space->head->hwms[file_no];
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return count;
     }
 }
@@ -417,34 +417,34 @@ status_t spc_get_space_name(knl_session_t *session, uint32 space_id, text_t *spa
 {
     space_t *space = NULL;
 
-    if (space_id >= GS_MAX_SPACES) {
-        GS_THROW_ERROR(ERR_TOO_MANY_OBJECTS, GS_MAX_SPACES, "tablespace");
-        return GS_ERROR;
+    if (space_id >= CT_MAX_SPACES) {
+        CT_THROW_ERROR(ERR_TOO_MANY_OBJECTS, CT_MAX_SPACES, "tablespace");
+        return CT_ERROR;
     }
 
     space = SPACE_GET(session, space_id);
     if (!space->ctrl->used) {
-        GS_THROW_ERROR(ERR_OBJECT_ID_NOT_EXIST, "tablespace", space_id);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OBJECT_ID_NOT_EXIST, "tablespace", space_id);
+        return CT_ERROR;
     }
 
     cm_str2text(space->ctrl->name, space_name);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-status_t space_get_dev_type(knl_session_t *session, text_t *spc_name, device_type_t *type)
+status_t spc_get_device_type(knl_session_t *session, text_t *spc_name, device_type_t *type)
 {
     datafile_t *df = NULL;
     space_t *space = NULL;
     uint32 space_id;
-    if (GS_SUCCESS != spc_get_space_id(session, spc_name, GS_FALSE, &space_id)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != spc_get_space_id(session, spc_name, CT_FALSE, &space_id)) {
+        return CT_ERROR;
     }
 
     space = KNL_GET_SPACE(session, space_id);
     dls_spin_lock(session, &space->lock, &session->stat->spin_stat.stat_space);
-    for (uint32 i = 0; i < GS_MAX_SPACE_FILES; i++) {
-        if (GS_INVALID_ID32 == space->ctrl->files[i]) {
+    for (uint32 i = 0; i < CT_MAX_SPACE_FILES; i++) {
+        if (CT_INVALID_ID32 == space->ctrl->files[i]) {
             continue;
         }
 
@@ -454,11 +454,11 @@ status_t space_get_dev_type(knl_session_t *session, text_t *spc_name, device_typ
     dls_spin_unlock(session, &space->lock);
 
     if (df == NULL) {
-        GS_THROW_ERROR(ERR_SPACE_NO_DATAFILE);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_NO_DATAFILE);
+        return CT_ERROR;
     }
     *type = df->ctrl->type;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_get_space_id(knl_session_t *session, const text_t *name, bool32 is_for_create_db, uint32 *space_id)
@@ -467,7 +467,7 @@ status_t spc_get_space_id(knl_session_t *session, const text_t *name, bool32 is_
     uint32 i;
     CM_POINTER3(session, name, space_id);
 
-    for (i = 0; i < GS_MAX_SPACES; i++) {
+    for (i = 0; i < CT_MAX_SPACES; i++) {
         space = SPACE_GET(session, i);
         if (!space->ctrl->used) {
             continue;
@@ -478,13 +478,17 @@ status_t spc_get_space_id(knl_session_t *session, const text_t *name, bool32 is_
         }
     }
 
-    if (i >= GS_MAX_SPACES) {
-        GS_THROW_ERROR(ERR_SPACE_NOT_EXIST, T2S(name));
-        return GS_ERROR;
+    if (i >= CT_MAX_SPACES) {
+        CT_THROW_ERROR(ERR_SPACE_NOT_EXIST, T2S(name));
+        return CT_ERROR;
     }
 
+    if (space_id == NULL) {
+        CT_LOG_RUN_ERR("space_id is null pointer!");
+        return CT_ERROR;
+    }
     *space_id = i;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t spc_check_user_privs(knl_session_t *session, uint32 space_id)
@@ -492,15 +496,15 @@ status_t spc_check_user_privs(knl_session_t *session, uint32 space_id)
     space_t *space = SPACE_GET(session, space_id);
 
     if (!(IS_SYSTEM_SPACE(space) || IS_SYSAUX_SPACE(space))) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (knl_check_sys_priv_by_uid(session, session->uid, USE_ANY_TABLESPACE)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_THROW_ERROR(ERR_NO_SPACE_PRIV, space->ctrl->name);
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_NO_SPACE_PRIV, space->ctrl->name);
+    return CT_ERROR;
 }
 
 // get space id and check if space is usable in the tenant by user id
@@ -508,12 +512,12 @@ status_t spc_check_by_uid(knl_session_t *session, const text_t *name, uint32 spa
 {
     dc_user_t *user = NULL;
 
-    if (dc_open_user_by_id(session, uid, &user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_user_by_id(session, uid, &user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
-    if (spc_check_user_privs(session, space_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (spc_check_user_privs(session, space_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     return spc_check_by_tid(session, name, space_id, user->desc.tenant_id);
@@ -526,19 +530,19 @@ status_t spc_check_by_tid(knl_session_t *session, const text_t *name, uint32 spa
     bool32 flag;
 
     if (tid == SYS_TENANTROOT_ID) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
-    if (dc_open_tenant_by_id(session, tid, &tenant) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_tenant_by_id(session, tid, &tenant) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     flag = dc_get_tenant_tablespace_bitmap(&tenant->desc, space_id);
     dc_close_tenant(session, tid);
     if (!flag) {
-        GS_THROW_ERROR(ERR_SPACE_DISABLED, T2S(name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_DISABLED, T2S(name));
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 uint64 spc_count_pages(knl_session_t *session, space_t *space, bool32 used)
@@ -555,7 +559,7 @@ uint64 spc_count_pages(knl_session_t *session, space_t *space, bool32 used)
      * for other spaces, total pages is less than 2^30 * 1000
      */
     for (uint32 i = 0; i < space->ctrl->file_hwm; i++) {
-        if (GS_INVALID_ID32 == space->ctrl->files[i]) {
+        if (CT_INVALID_ID32 == space->ctrl->files[i]) {
             continue;
         }
 
@@ -579,7 +583,7 @@ void spc_set_space_id(knl_session_t *session)
     space_t *space = NULL;
     uint32 file_id;
 
-    for (uint32 spc_id = 0; spc_id < GS_MAX_SPACES; spc_id++) {
+    for (uint32 spc_id = 0; spc_id < CT_MAX_SPACES; spc_id++) {
         space = SPACE_GET(session, spc_id);
         if (!SPACE_IS_ONLINE(space) || !space->ctrl->used) {
             continue;
@@ -587,7 +591,7 @@ void spc_set_space_id(knl_session_t *session)
 
         for (uint32 i = 0; i < space->ctrl->file_hwm; i++) {
             file_id = space->ctrl->files[i];
-            if (file_id == GS_INVALID_ID32) {
+            if (file_id == CT_INVALID_ID32) {
                 continue;
             }
 
@@ -601,22 +605,26 @@ void spc_set_space_id(knl_session_t *session)
 bool32 spc_need_clean(space_t *space)
 {
     if (space->ctrl->file_hwm == 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (SPACE_IS_LOGGING(space)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (IS_SWAP_SPACE(space)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (!SPACE_IS_ONLINE(space)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    if (IS_TEMP2_UNDO_SPACE(space)) {
+        return CT_FALSE;
+    }
+
+    return CT_TRUE;
 }
 
 /*
@@ -679,7 +687,7 @@ status_t spc_find_extend_file(knl_session_t *session, space_t *space, uint32 ext
     int64 size = 0;
 
     for (id = 0; id < space->ctrl->file_hwm; id++) {
-        if (GS_INVALID_ID32 == space->ctrl->files[id]) {
+        if (CT_INVALID_ID32 == space->ctrl->files[id]) {
             continue;
         }
 
@@ -698,12 +706,12 @@ status_t spc_find_extend_file(knl_session_t *session, space_t *space, uint32 ext
         }
     }
 
-    if (*file_no == GS_INVALID_ID32) {
-        GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
-        return GS_ERROR;
+    if (*file_no == CT_INVALID_ID32) {
+        CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void spc_alloc_free_extent(knl_session_t *session, space_t *space, page_id_t *extent)
@@ -738,10 +746,10 @@ void spc_alloc_free_extent(knl_session_t *session, space_t *space, page_id_t *ex
     if (need_redo) {
         log_put(session, RD_SPC_ALLOC_EXTENT, &space->head->free_extents, sizeof(page_list_t), LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
-space_t *space_get_undo_spc(knl_session_t *session, uint8 inst_id)
+space_t *spc_get_undo_space(knl_session_t *session, uint8 inst_id)
 {
     uint32 space_id;
 
@@ -755,7 +763,7 @@ void spc_unlock_space(knl_session_t *session, space_t *space)
     dls_spin_unlock(session, &space->lock);
 }
 
-bool32 space_is_remote_swap_spc(knl_session_t *session, space_t *space)
+bool32 spc_is_remote_swap_space(knl_session_t *session, space_t *space)
 {
     return (IS_SWAP_SPACE(space) && space->ctrl->id != dtc_my_ctrl(session)->swap_space);
 }

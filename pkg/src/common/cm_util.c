@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -44,8 +44,8 @@ keyword_map_item_t g_key_pattern[] = {
     { "CREATE.*?\\s*.*?NODE[\\s\\S]*?PASSWORD",                        "SQL CONTAINS:CREATE NODE" },
     // alter node   pwd  = ''
     { "ALTER.*?\\s*.*?NODE[\\s\\S]*?PASSWORD",                         "SQL CONTAINS:ALTER NODE" },
-    // set CTCLIENT_SSL_KEY_PWD =
-    { "SET.*?\\s*.*?CTCLIENT_SSL_KEY_PASSWD",                              "SQL CONTAINS:SET CTCLIENT_SSL_KEY_PASSWD" },
+    // set CTSQL_SSL_KEY_PWD =
+    { "SET.*?\\s*.*?CTSQL_SSL_KEY_PASSWD",                              "SQL CONTAINS:SET CTSQL_SSL_KEY_PASSWD" },
     // conn user/pwd
     { "CONN.*?\\s*.*?/",                                               "SQL CONTAINS:CONN" },
     // connect user/pwd
@@ -83,12 +83,12 @@ void cm_text_reg_match(text_t *text, const char *pattern, int32 *pos, charset_ty
     regexp_substr_assist_t assist = { .code = code, .subject = *text, .offset = 0,
         .occur = 1, .subexpr = 0, .charset = charset };
 
-    if (GS_SUCCESS != cm_regexp_compile(&code, pattern, &match_param, charset)) {
+    if (CT_SUCCESS != cm_regexp_compile(&code, pattern, &match_param, charset)) {
         return;
     }
 
     assist.code = code;
-    if (GS_SUCCESS != cm_regexp_instr(pos, &assist, GS_TRUE)) {
+    if (CT_SUCCESS != cm_regexp_instr(pos, &assist, CT_TRUE)) {
         cm_regexp_free(code);
         return;
     }
@@ -106,12 +106,12 @@ static inline void cm_get_star_pos(text_t *text, bool32 end, uint32 *comm_pos, c
         .occur = 1, .subexpr = 0, .charset = charset };
 
     pos = 0;  // init pos
-    if (GS_SUCCESS != cm_regexp_compile(&code, pattern, &match_param, charset)) {
+    if (CT_SUCCESS != cm_regexp_compile(&code, pattern, &match_param, charset)) {
         return;
     }
 
     assist.code = code;
-    if (GS_SUCCESS != cm_regexp_instr(&pos, &assist, end)) {
+    if (CT_SUCCESS != cm_regexp_instr(&pos, &assist, end)) {
         cm_regexp_free(code);
         return;
     }
@@ -138,7 +138,7 @@ void cm_text_star_to_one(text_t *text)
             end = 0;
 
             // try get star end pos, use GBK without UTF check.
-            cm_get_star_pos(&left_text, GS_TRUE, &end, CHARSET_GBK);
+            cm_get_star_pos(&left_text, CT_TRUE, &end, CHARSET_GBK);
 
             // not find star,first find end pos,start pos may be at 0
             if (end == 0) {
@@ -146,7 +146,7 @@ void cm_text_star_to_one(text_t *text)
             }
 
             // get star start pos, use GBK without UTF check.
-            cm_get_star_pos(&left_text, GS_FALSE, &start, CHARSET_GBK);
+            cm_get_star_pos(&left_text, CT_FALSE, &start, CHARSET_GBK);
             len = (end - start);
 
             left_text.str = left_text.str + start;
@@ -177,7 +177,7 @@ void cm_text_try_map_key2type(const text_t *text, int32 *matched_pat_id, bool32 
         // use GBK to ignore UTF8 check.
         cm_text_reg_match(&left_text, g_key_pattern[i].keyword_pattern, &pos, CHARSET_GBK);
         if (pos != 0) {
-            *matched = GS_TRUE;
+            *matched = CT_TRUE;
             *matched_pat_id = i;
             break;
         }

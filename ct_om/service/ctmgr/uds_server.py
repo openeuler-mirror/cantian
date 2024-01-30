@@ -21,7 +21,7 @@ SOCKET_TYPE = socket.SOCK_STREAM
 
 KEEP_LISTEN = True
 RECEIVE_DATA_SIZE = 1024
-USER_UID = (6005, 6004)
+USER_UID = (6004,)
 
 
 def get_socket_msg(conn, client_addr):

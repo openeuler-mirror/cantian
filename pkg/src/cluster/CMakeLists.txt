@@ -1,16 +1,19 @@
 include_directories(
-	"${CTDB_SRC}/rc"
-	"${CTDB_SRC}/mec"
-    "${CTDB_SRC}/tse"
-	"${CTDB_SRC}/kernel/common"
-	"${CTDB_SRC}/cms/interface"
+	"${CANTIANDB_SRC}/rc"
+	"${CANTIANDB_SRC}/mec"
+    "${CANTIANDB_SRC}/tse"
+	"${CANTIANDB_SRC}/kernel/common"
+	"${CANTIANDB_SRC}/cms/interface"
+	"${CANTIANDB_SRC}/tms"
+	"${CANTIANDB_SRC}/fdsa"
+	"${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
 aux_source_directory(. CLUSTER_SRC)
-link_directories(${CTDB_LIB} "${CTDB_LIBRARY}/protobuf/lib")
+link_directories(${CANTIANDB_LIB} "${CANTIANDB_LIBRARY}/protobuf/lib")
 # generate static library
 add_library(zecluster STATIC ${CLUSTER_SRC})
 if (USE_FUZZASAN)
 	add_compile_options(-fsanitize-coverage=trace-pc)
 endif(USE_FUZZASAN)
-target_link_libraries(zecluster PRIVATE zerc zectc)
+target_link_libraries(zecluster PRIVATE zerc zectc zetms zefdsa)

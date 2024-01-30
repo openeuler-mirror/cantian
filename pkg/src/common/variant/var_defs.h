@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -37,7 +37,6 @@
 #include "cm_array.h"
 #include "cm_charset.h"
 #include <math.h>
-#include <float.h>
 #include "var_plsql.h"
 #include "var_column.h"
 #include "var_func.h"
@@ -50,7 +49,7 @@
 #define VAR_DOUBLE_IS_ZERO(var) (((var) >= -VAR_DOUBLE_EPSILON) && ((var) <= VAR_DOUBLE_EPSILON))
 #define VAR_FLOAT_IS_ZERO(var) (((var) >= -VAR_FLOAT_EPSILON) && ((var) <= VAR_FLOAT_EPSILON))
 
-#define VAR_TYPE_ARRAY_SIZE GS_MAX_DATATYPE_NUM
+#define VAR_TYPE_ARRAY_SIZE CT_MAX_DATATYPE_NUM
 
 typedef enum en_seq_val {
     SEQ_CURR_VALUE = 1,
@@ -174,7 +173,7 @@ typedef struct st_variant {
 
 #define VAR_SET_NULL(var, datatype) \
     do {                               \
-        (var)->is_null = GS_TRUE;      \
+        (var)->is_null = CT_TRUE;      \
         (var)->type = (datatype);      \
     } while (0)
 
@@ -191,16 +190,16 @@ typedef struct st_variant {
 /* var_copy(a, b)  ===>  *b = *a  */
 static inline void var_copy(variant_t *src, variant_t *dst)
 {
-    /* GS_TYPE_CURSOR type needs to copy its value even if it is null */
-    if (src->type <= GS_TYPE_REAL) {
+    /* CT_TYPE_CURSOR type needs to copy its value even if it is null */
+    if (src->type <= CT_TYPE_REAL) {
         dst->ctrl = src->ctrl;
         dst->v_real = src->v_real;
-    } else if (src->type <= GS_TYPE_DECIMAL || src->type == GS_TYPE_NUMBER2) {
+    } else if (src->type <= CT_TYPE_DECIMAL || src->type == CT_TYPE_NUMBER2) {
         dst->ctrl = src->ctrl;
         if (!src->is_null) {
             cm_dec_copy(&dst->v_dec, &src->v_dec);
         }
-    } else if (src->type <= GS_TYPE_VARBINARY) {
+    } else if (src->type <= CT_TYPE_VARBINARY) {
         dst->ctrl = src->ctrl;
         dst->v_bin = src->v_bin;
     } else {
@@ -239,9 +238,9 @@ static inline int32 cm_compare_double_prec16(double x, double y)
     int32 dexp_x, dexp_y;
 
     (void)frexp(x, &dexp_x);
-    dexp_x = (int32)((double)dexp_x * (double)GS_LOG10_2);
+    dexp_x = (int32)((double)dexp_x * (double)CT_LOG10_2);
     (void)frexp(y, &dexp_y);
-    dexp_y = (int32)((double)dexp_y * (double)GS_LOG10_2);
+    dexp_y = (int32)((double)dexp_y * (double)CT_LOG10_2);
     if (dexp_x > MAX_NUMERIC_EXPN || dexp_y > MAX_NUMERIC_EXPN) {
         // a positive number is greater than a negative number
         if (IS_DZERO(x, dexp_x) && !IS_DZERO(y, dexp_y)) {
@@ -273,8 +272,8 @@ static inline int32 cm_compare_double_prec16(double x, double y)
         tmp_y = y * pow(CARDINAL_NUMBER, -dexp_y);
     }
 
-    if (cm_real_to_dec8_prec16(tmp_x, &x_dec) == GS_SUCCESS &&
-        cm_real_to_dec8_prec16(tmp_y, &y_dec) == GS_SUCCESS) {
+    if (cm_real_to_dec8_prec16(tmp_x, &x_dec) == CT_SUCCESS &&
+        cm_real_to_dec8_prec16(tmp_y, &y_dec) == CT_SUCCESS) {
         return cm_dec8_cmp(&x_dec, &y_dec);
     }
 
@@ -287,8 +286,8 @@ static inline int32 cm_compare_double_prec16(double x, double y)
 
 
 uint32 var_get_size(variant_t *var);
-uint32 cm_get_datatype_strlen(gs_type_t type, uint32 strlen);
-bool32 cm_datatype_arrayable(gs_type_t type);
+uint32 cm_get_datatype_strlen(ct_type_t type, uint32 strlen);
+bool32 cm_datatype_arrayable(ct_type_t type);
 bool32 var_num_is_zero(variant_t *var);
 status_t var_as_clob(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
 status_t var_as_blob(variant_t *var, text_buf_t *buf);
@@ -300,11 +299,11 @@ bool32 var_is_negative(variant_t *var);
 bool32 var_is_zero(variant_t *var);
 
 
-#define GS_MAX_DATATYPE_STRLEN 64
+#define CT_MAX_DATATYPE_STRLEN 64
 
 #define NUM_DATA_CMP(T, data1, data2) ((*(T *)(data1) < *(T *)(data2)) ? -1 : (*(T *)(data1) > *(T *)(data2)) ? 1 : 0)
 
-static inline int32 var_compare_data_ex(void *data1, uint16 size1, void *data2, uint16 size2, gs_type_t type)
+static inline int32 var_compare_data_ex(void *data1, uint16 size1, void *data2, uint16 size2, ct_type_t type)
 {
     text_t text1, text2;
 
@@ -314,49 +313,58 @@ static inline int32 var_compare_data_ex(void *data1, uint16 size1, void *data2, 
 
     /* with same value types */
     switch (type) {
-        case GS_TYPE_UINT32:
+        case CT_TYPE_UINT32:
             return NUM_DATA_CMP(uint32, data1, data2);
-        case GS_TYPE_INTEGER:
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_INTEGER:
+        case CT_TYPE_INTERVAL_YM:
             return NUM_DATA_CMP(int32, data1, data2);
 
-        case GS_TYPE_BOOLEAN:
+        case CT_TYPE_BOOLEAN:
             return NUM_DATA_CMP(bool32, data1, data2);
 
-        case GS_TYPE_BIGINT:
+        case CT_TYPE_BIGINT:
             return NUM_DATA_CMP(int64, data1, data2);
-        case GS_TYPE_UINT64:
+        case CT_TYPE_UINT64:
             return NUM_DATA_CMP(uint64, data1, data2);
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_LTZ:
-        case GS_TYPE_INTERVAL_DS:
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_INTERVAL_DS:
             return NUM_DATA_CMP(int64, data1, data2);
 
-        case GS_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_DATETIME_MYSQL:
+            return cm_datetime_cmp_mysql(data1, data2);
+
+        case CT_TYPE_TIME_MYSQL:
+            return cm_time_cmp_mysql(data1, data2);
+
+        case CT_TYPE_DATE_MYSQL:
+            return cm_date_cmp_mysql(data1, data2);
+
+        case CT_TYPE_TIMESTAMP_TZ:
             return cm_tstz_cmp((timestamp_tz_t *)data1, (timestamp_tz_t *)data2);
 
-        case GS_TYPE_REAL:
+        case CT_TYPE_REAL:
             return NUM_DATA_CMP(double, data1, data2);
 
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_DECIMAL:
-        case GS_TYPE_NUMBER3:
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_DECIMAL:
+        case CT_TYPE_NUMBER3:
             return cm_dec4_cmp((dec4_t *)data1, (dec4_t *)data2);
 
-        case GS_TYPE_NUMBER2:
+        case CT_TYPE_NUMBER2:
             return cm_dec_cmp_payload(data1, (uint8)size1, data2, (uint8)size2);
 
-        case GS_TYPE_CHAR:
+        case CT_TYPE_CHAR:
             text1.str = (char *)data1;
             text1.len = size1;
             text2.str = (char *)data2;
             text2.len = size2;
             return cm_compare_text_rtrim(&text1, &text2);
 
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
         default:
         {
             text1.str = (char *)data1;

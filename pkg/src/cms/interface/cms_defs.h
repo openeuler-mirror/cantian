@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -39,26 +39,26 @@
 
 #define CMS_LOGFILE_SIZE                (10 * 1024 * 1024)
 #define CMS_LOG_LEVEL                   0xffffffff
-#define CMS_LOG_AUDIT                   GS_LOG_AUDIT
+#define CMS_LOG_AUDIT                   CT_LOG_AUDIT
 
 
 #define CMS_BLOCK_SIZE                  512
 #define CMS_RESERVED_BLOCKS_SIZE        (CMS_BLOCK_SIZE * 100)
-#define CMS_NAME_BUFFER_SIZE            GS_NAME_BUFFER_SIZE
-#define CMS_MAX_NAME_LEN                GS_MAX_NAME_LEN
-#define CMS_IP_BUFFER_SIZE              GS_NAME_BUFFER_SIZE
-#define CMS_MAX_IP_LEN                  GS_MAX_NAME_LEN
-#define CMS_INFO_BUFFER_SIZE            GS_NAME_BUFFER_SIZE
-#define CMS_MAX_INFO_LEN                GS_MAX_NAME_LEN
-#define CMS_FILE_NAME_BUFFER_SIZE       GS_FILE_NAME_BUFFER_SIZE
-#define CMS_MAX_FILE_NAME_LEN           GS_MAX_FILE_NAME_LEN
-#define CMS_PATH_BUFFER_SIZE            GS_MAX_PATH_BUFFER_SIZE
-#define CMS_MAX_PATH_LEN                GS_MAX_PATH_LEN
-#define CMS_CMD_BUFFER_SIZE             (CMS_FILE_NAME_BUFFER_SIZE + GS_MAX_CMD_LEN)
+#define CMS_NAME_BUFFER_SIZE            CT_NAME_BUFFER_SIZE
+#define CMS_MAX_NAME_LEN                CT_MAX_NAME_LEN
+#define CMS_IP_BUFFER_SIZE              CT_NAME_BUFFER_SIZE
+#define CMS_MAX_IP_LEN                  CT_MAX_NAME_LEN
+#define CMS_INFO_BUFFER_SIZE            CT_NAME_BUFFER_SIZE
+#define CMS_MAX_INFO_LEN                CT_MAX_NAME_LEN
+#define CMS_FILE_NAME_BUFFER_SIZE       CT_FILE_NAME_BUFFER_SIZE
+#define CMS_MAX_FILE_NAME_LEN           CT_MAX_FILE_NAME_LEN
+#define CMS_PATH_BUFFER_SIZE            CT_MAX_PATH_BUFFER_SIZE
+#define CMS_MAX_PATH_LEN                CT_MAX_PATH_LEN
+#define CMS_CMD_BUFFER_SIZE             (CMS_FILE_NAME_BUFFER_SIZE + CT_MAX_CMD_LEN)
 #define CMS_MAX_CMD_LEN                 (CMS_CMD_BUFFER_SIZE - 1)
-#define CMS_CMD_OUT_BUFFER_SIZE         (GS_MAX_CMD_LEN + 1)
-#define CMS_MAX_CMD_OUT_LEN             GS_MAX_CMD_LEN
-#define CMS_RES_ATTRS_BUFFER_SIZE       (CMS_FILE_NAME_BUFFER_SIZE + GS_MAX_NAME_LEN)
+#define CMS_CMD_OUT_BUFFER_SIZE         (CT_MAX_CMD_LEN + 1)
+#define CMS_MAX_CMD_OUT_LEN             CT_MAX_CMD_LEN
+#define CMS_RES_ATTRS_BUFFER_SIZE       (CMS_FILE_NAME_BUFFER_SIZE + CT_MAX_NAME_LEN)
 #define CMS_MAX_RES_ATTRS_LEN           (CMS_RES_ATTRS_BUFFER_SIZE - 1)
 
 #define CMS_MAX_WORKER_THREAD_COUNT     64
@@ -91,8 +91,8 @@
 #define CMS_GCC_BACKUP_NUM              6
 #define CMS_GCC_BACKUP_INTERVAL         (MICROSECS_PER_SECOND_LL * SECONDS_PER_HOUR * 4)
 
-#define CMS_RES_START_TIMEOUT           1000
-#define CMS_RES_STOP_TIMEOUT            1000
+#define CMS_RES_START_TIMEOUT           5000
+#define CMS_RES_STOP_TIMEOUT            5000
 #define CMS_RES_CHECK_TIMEOUT           1000
 #define CMS_RES_CHECK_INTERVAL          1000
 #define CMS_RES_RESTART_INTERVAL        45000
@@ -104,15 +104,17 @@
     ((uint64)(addr)) : ((((uint64)(addr)) + 0x1FFULL) & 0xFFFFFFFFFFFFFE00ULL))
 
 #define CMS_CMD_RECV_TMOUT_MS           5000
+#define CMS_CMD_STOP_RES_TMOUT_MS       10000
 #define CMS_CMD_START_ALL_TMOUT_MS      600000
 #define CMS_MAX_VOTE_SLOT_COUNT         4
 #define CMS_RES_RESTART_TIMES           3
 #define CMS_NODE_FAULT_THRESHOLD        5
-#define CMS_DISK_LOCK_FILE_REOPEN_NUM        1
+#define CMS_DISK_LOCK_FILE_REOPEN_NUM   1
 
 typedef enum en_cms_dev_type {
     CMS_DEV_TYPE_SD     = 1, // scsi device
-    CMS_DEV_TYPE_FILE        // normal file
+    CMS_DEV_TYPE_FILE   = 2, // normal file
+    CMS_DEV_TYPE_NFS    = 3  // nfs
 }cms_dev_type_t;
 
 typedef enum en_cms_split_brain_type {

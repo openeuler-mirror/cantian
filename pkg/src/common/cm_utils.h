@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -50,7 +50,7 @@ status_t cm_verify_password_check(const char *pText, uint32 i, uint32 *type_coun
 uint32 cm_random(uint32 range);
 uint32 cm_rand_int32(int64 *seed, uint32 range);
 void cm_rand_string(uint32 length, char mode, char *buf);
-void cm_calc_md5(const uchar *data, uint32 len, uchar *md);
+void cm_calc_md5(const uchar *data, uint32 len, uchar *md, uint32 *size);
 
 extern uint8 g_nonnaming_chars[];
 extern uint8 g_nonnaming_chars_ex[];
@@ -71,11 +71,11 @@ static inline bool32 contains_nonnaming_char(const char *str)
 
     while (*char_ptr) {
         if (is_nonnaming_char(*char_ptr)) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
         char_ptr++;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline bool32 contains_nonnaming_char_ex(const char *str)
@@ -84,19 +84,19 @@ static inline bool32 contains_nonnaming_char_ex(const char *str)
 
     while (*char_ptr) {
         if (is_nonnaming_char_ex(*char_ptr)) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
         char_ptr++;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline status_t realpath_file(const char *filename, char *realfile, uint32 real_path_len)
 {
 #ifdef WIN32
     if (!_fullpath(realfile, filename, real_path_len - 1)) {
-        GS_THROW_ERROR(ERR_OPEN_FILE, filename, errno);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OPEN_FILE, filename, errno);
+        return CT_ERROR;
     }
 #else
     errno_t errcode;
@@ -104,18 +104,18 @@ static inline status_t realpath_file(const char *filename, char *realfile, uint3
 
     if (!realpath(filename, resolved_path)) {
         if (errno != ENOENT && errno != EACCES) {
-            GS_THROW_ERROR(ERR_OPEN_FILE, filename, errno);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPEN_FILE, filename, errno);
+            return CT_ERROR;
         }
     }
 
     errcode = strncpy_s(realfile, real_path_len, resolved_path, strlen(resolved_path));
     if (errcode != EOK) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, (errcode));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, (errcode));
+        return CT_ERROR;
     }
 #endif
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 typedef struct st_aligned_buf {
@@ -126,7 +126,7 @@ typedef struct st_aligned_buf {
 
 static inline void *cm_aligned_buf(void *buf)
 {
-    return (char *)buf + (GS_MAX_ALIGN_SIZE_4K - ((uintptr_t)buf) % GS_MAX_ALIGN_SIZE_4K);
+    return (char *)buf + (CT_MAX_ALIGN_SIZE_4K - ((uintptr_t)buf) % CT_MAX_ALIGN_SIZE_4K);
 }
 
 status_t cm_aligned_malloc(int64 size, const char *name, aligned_buf_t *buf);

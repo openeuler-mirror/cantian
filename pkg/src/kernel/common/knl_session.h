@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,6 +32,7 @@
 #include "cm_thread.h"
 #include "knl_interface.h"
 #include "mtrl_defs.h"
+#include "knl_session_persistent.h"
 #ifdef DB_DEBUG_VERSION
 #include "knl_syncpoint.h"
 #endif /* DB_DEBUG_VERSION */
@@ -46,7 +47,8 @@ extern "C" {
 #define KNL_LOGIC_LOG_FLUSH_SIZE ((KNL_LOGIC_LOG_BUF_SIZE) / 2)
 #define KNL_INVALID_SERIAL_ID    0
 
-#define KNL_TEMP_MORE_MTRL_SEG_SIZE (sizeof(mtrl_segment_t) * (GS_MAX_TEMP_MTRL_SEGMENTS - GS_MAX_MATERIALS))
+#define KNL_TEMP_MORE_MTRL_SEG_SIZE (sizeof(mtrl_segment_t) * (GS_MAX_TEMP_MTRL_SEGMENTS - CT_MAX_MATERIALS))
+#define KNL_MAX_USER_LOCK ((1 << 4) - 1)
 
 typedef struct st_page_stack {
     uint32 depth;
@@ -61,24 +63,6 @@ typedef struct st_temp_page_stack {
     uint32 depth;
     vm_page_t *pages[KNL_MAX_PAGE_STACK_DEPTH];
 } temp_page_stack_t;
-
-#pragma pack(4)
-typedef union st_xmap {
-    uint32 value;
-    struct {
-        uint16 seg_id;
-        uint16 slot;
-    };
-} xmap_t;
-#pragma pack()
-
-typedef union un_xid {
-    uint64 value;
-    struct {
-        xmap_t xmap;
-        uint32 xnum;
-    };
-} xid_t;
 
 /* transaction item id */
 typedef union un_tx_id {
@@ -263,6 +247,7 @@ typedef struct st_knl_session_wait {
     uint64 usecs;
     uint64 pre_spin_usecs;  // total spin sleep usecs
     timeval_t begin_tv;
+    bool32 is_waiting;
 } knl_session_wait_t;
 
 typedef enum st_log_progress {
@@ -331,7 +316,7 @@ typedef struct st_knl_rm {
     cm_thread_cond_t cond;  // wait sem/cond, for false-sharing, do not put it in same cache-line with commit_cond
 
     lob_item_list_t lob_items;
-    knl_savepoint_t save_points[GS_MAX_SAVEPOINTS];
+    knl_savepoint_t save_points[CT_MAX_SAVEPOINTS];
 
     uint8 svpt_count;  // save point count for current transaction
     bool8 logging; // statement is doing logging insert nor not
@@ -344,6 +329,8 @@ typedef struct st_knl_rm {
     uint64 idx_conflicts; // current statement index conflicts
     bool8 txn_alarm_enable;
     bool8 nolog_insert;  // current rm has done nologging insert
+    bool8 temp_has_redo;
+    bool8 unused;
     nologing_type_t nolog_type;
 } knl_rm_t;
 
@@ -390,9 +377,9 @@ typedef struct st_knl_session {
     struct st_pcrp_ctrl *curr_pcrp_ctrl;
     cm_stack_t *stack;
     knl_match_cond_t match_cond;
-    int32 datafiles[GS_MAX_DATA_FILES];  // data file handles
+    int32 datafiles[CT_MAX_DATA_FILES];  // data file handles
     knl_stat_t *stat;
-    knl_session_wait_t wait;
+    knl_session_wait_t wait_pool[WAIT_EVENT_COUNT];
     knl_buf_wait_t buf_wait[WAITSTAT_COUNT];
 
     uint64 ssn; // sql sequence number used for temporary table visibility judgment
@@ -401,7 +388,6 @@ typedef struct st_knl_session {
     bool8 trace_on;
     bool8 commit_batch;
     bool8 commit_nowait;
-    bool8 is_waiting;
 
     void *log_entry;
     char *log_buf;
@@ -461,7 +447,7 @@ typedef struct st_knl_session {
     vm_pool_t *temp_pool;
     uint32 temp_table_count;
     uint32 temp_table_capacity;
-    knl_temp_cache_t *temp_table_cache;  // temp table is created on mtrl segment, refer to GS_MAX_MATERIALS
+    knl_temp_cache_t *temp_table_cache;  // temp table is created on mtrl segment, refer to CT_MAX_MATERIALS
     mtrl_context_t *temp_mtrl;
     knl_temp_dc_t *temp_dc;
     void *temp_dc_entries;
@@ -500,6 +486,7 @@ typedef struct st_knl_session {
     uint64 temp_version;
     uint32 stats_parall;
     bool32 user_locked_ddl;
+    uint32 *user_locked_lst;    // locked user lst: | lock user num | user_id_1 | user_id_2 | user_id_3 | ...
 } knl_session_t;
 
 #define KNL_SESSION_SET_CURR_THREADID(session, tid) \
@@ -514,42 +501,44 @@ typedef struct st_knl_session {
 
 static inline void knl_wait_for_tick(knl_session_t *session)
 {
-    timeval_t tv_begin, tv_end;
-    if (session->wait.usecs == 0) {
-        session->wait.begin_time = cm_now();
+    for (uint16 event = 0; event < WAIT_EVENT_COUNT; event++) {
+        timeval_t tv_begin, tv_end;
+        if (session->wait_pool[event].usecs == 0) {
+            session->wait_pool[event].begin_time = cm_now();
+        }
+        
+        (void)cm_gettimeofday(&tv_begin);
+        cm_spin_sleep();
+        (void)cm_gettimeofday(&tv_end);
+        session->wait_pool[event].usecs += (uint64)TIMEVAL_DIFF_US(&tv_begin, &tv_end);
     }
-
-    (void)cm_gettimeofday(&tv_begin);
-    cm_spin_sleep();
-    (void)cm_gettimeofday(&tv_end);
-    session->wait.usecs += (uint64)TIMEVAL_DIFF_US(&tv_begin, &tv_end);
 }
 
 static inline status_t knl_check_session_status(knl_session_t *session)
 {
     if (session->canceled) {
-        GS_THROW_ERROR(ERR_OPERATION_CANCELED);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+        return CT_ERROR;
     }
 
     if (session->killed) {
-        GS_THROW_ERROR(ERR_OPERATION_KILLED);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OPERATION_KILLED);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 extern uint32 g_local_inst_id;
 
 static inline uint32 knl_db_node_id(knl_session_t *session)
 {
-    CM_ASSERT(g_local_inst_id < GS_MAX_INSTANCES);  //
+    CM_ASSERT(g_local_inst_id < CT_MAX_INSTANCES);  //
     return g_local_inst_id;
 }
 
 #define KNL_NOW(session) ((session)->kernel->attr.timer->now)
-#define KNL_IS_AUTON_SE(session) (((session)->rm != NULL) && ((session)->rm->prev != GS_INVALID_ID16))
+#define KNL_IS_AUTON_SE(session) (((session)->rm != NULL) && ((session)->rm->prev != CT_INVALID_ID16))
 #define KNL_GBP_ENABLE(kernel)        ((kernel)->gbp_attr.use_gbp)
 #define KNL_GBP_OFF_TRIGGERED(kernel) ((kernel)->gbp_attr.gbp_off_triggered)
 #define KNL_GBP_FOR_RECOVERY(kernel)  ((kernel)->gbp_attr.gbp_for_recovery)
@@ -559,8 +548,10 @@ static inline uint32 knl_db_node_id(knl_session_t *session)
 
 #define MY_LOGFILE_SET(session) (&(session)->kernel->db.logfile_sets[(session)->kernel->id])
 #define MY_UNDO_SET(session) (&(session)->kernel->undo_ctx.undo_sets[(session)->kernel->id])
+#define MY_TEMP_UNDO_SET(session) (&(session)->kernel->undo_ctx.temp_undo_sets[(session)->kernel->id])
 
 #define UNDO_SET(session, id) (&(session)->kernel->undo_ctx.undo_sets[(id)])
+#define TEMP_UNDO_SET(session, id) (&(session)->kernel->undo_ctx.temp_undo_sets[(id)])
 #define LOGFILE_SET(session, id) (&(session)->kernel->db.logfile_sets[(id)])
 
 #define DAAC_REPLAY_NODE(session)               (DB_IS_CLUSTER(session) && ((session)->dtc_session_type == DTC_WORKER))

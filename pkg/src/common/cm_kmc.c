@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "cm_encrypt.h"
 #include "cm_file.h"
 #include "cm_binary.h"
@@ -30,11 +31,7 @@
 #include "cm_types.h"
 #include "cm_debug.h"
 #include "cm_device.h"
-#include <limits.h>
-#include <float.h>
 #include <stdlib.h>
-#include <stdarg.h>
-#include <stdint.h>
 #include "securec.h"
 #include "cm_system.h"
 
@@ -74,12 +71,12 @@
 #include <time.h>
 #endif
 
+#define VERSION1 "Cantian100-OLTP-V100R006C10"
 #define VERSION2 "CANTIAND"
-
 
 ulong get_random_numbers(uchar *buff, uint32 len)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_kmc_write_log(int32 nLevel, const char *module, const char *filename, int32 numline, const char *pszLog)
@@ -88,7 +85,7 @@ void cm_kmc_write_log(int32 nLevel, const char *module, const char *filename, in
 }
 void cm_kmc_recv_notify(uint32 eNtfCode, const void *data, size_t nDataSize)
 {
-    GS_LOG_DEBUG_WAR("kmc write notify eNtfCode:[%u]", eNtfCode);
+    CT_LOG_DEBUG_WAR("kmc write notify eNtfCode:[%u]", eNtfCode);
 }
 
 void cm_kmc_do_events(void)
@@ -98,7 +95,7 @@ void cm_kmc_do_events(void)
 
 int32 cm_kmc_create_thread_lock(void **phMutex)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_kmc_destroy_thread_lock(void *hMutex)
@@ -109,7 +106,7 @@ void cm_kmc_destroy_thread_lock(void *hMutex)
     pthread_mutex_t *css = (pthread_mutex_t *)hMutex;
 #endif
     if (css == NULL) {
-        GS_LOG_RUN_INF("Destroy Thread Lock hMutex is NULL");
+        CT_LOG_RUN_INF("Destroy Thread Lock hMutex is NULL");
         return;
     }
 #ifdef _WIN32
@@ -125,7 +122,6 @@ void cm_kmc_thread_lock(void *hMutex)
 {
     return;
 }
-
 void cm_kmc_thread_unlock(void *hMutex)
 {
     return;
@@ -162,7 +158,7 @@ int32 cm_kmc_close_file(void *stream)
 
 int32 cm_kmc_read_file(void *buffer, size_t count, void *stream)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 int32 cm_kmc_flush_file(void *stream)
@@ -185,7 +181,11 @@ int32 cm_kmc_eof_file(void *stream, int32 *endOfFile)
 }
 int32 cm_kmc_errno_file(void *stream)
 {
-    return 0;
+#ifndef _WIN32
+    return errno;
+#else
+    return GetLastError();
+#endif
 }
 
 int32 cm_kmc_exist_file(const char *filePathName)
@@ -205,89 +205,89 @@ status_t regkmcfuc(void)
 
 status_t cm_kmc_export_keyfile(char *dst_keyfile)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_kmc_init(bool32 is_server, char *key_file_a, char *key_file_b)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_kmc_finalize(void)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_kmc_create_masterkey(uint32 domain, uint32 *keyid)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_kmc_active_masterkey(uint32 domain, uint32 keyid)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_kmc_get_masterkey(uint32 domain, uint32 keyid, char *key_buf, uint32 *key_len)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_kmc_load_domain(uint32 domain)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_kmc_init_domain(uint32 domain)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_kmc_reset(void)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_get_cipher_len(uint32 plain_len, uint32 *cipher_len)
 {
     *cipher_len = plain_len;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_kmc_encrypt(uint32 domain, encrypt_version_t version, const void *plain_text, uint32 plain_len,
     void *cipher_text, uint32 *cipher_len)
 {
-    (void)memcpy_s(cipher_text, *cipher_len, plain_text, plain_len);
+    (void)memcpy_s(cipher_text,  *cipher_len, plain_text, plain_len);
     *cipher_len = plain_len;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_kmc_decrypt(uint32 domain, const void *cipher_text, uint32 cipher_len, void *plain_text, uint32 *plain_len)
 {
-    (void)memcpy_s(plain_text, *plain_len, cipher_text, cipher_len);
+    (void)memcpy_s(plain_text,  *plain_len, cipher_text, cipher_len);
     *plain_len = cipher_len;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_get_masterkey_count(uint32 *count)
 {
     *count = 0;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_get_masterkey_hash(uint32 domain, uint32 keyid, char *hash, uint32 *len)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_get_masterkey_byhash(const char *hash, uint32 len, char *key, uint32 *key_len)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_kmc_get_max_mkid(uint32 domain, uint32 *max_id)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_kmc_set_aes_key_with_config(aes_and_kmc_t *aes_kmc, config_t *config)
@@ -330,53 +330,46 @@ void cm_kmc_set_buf(aes_and_kmc_t *aes_kmc, char *plain, uint32 plain_len, char 
 
 status_t cm_kmc_encrypt_pwd(aes_and_kmc_t *aes_kmc)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline bool32 cm_kmc_check_encrypt_is_kmc(aes_and_kmc_t *aes_kmc)
 {
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t cm_kmc_decrypt_pwd(aes_and_kmc_t *aes_kmc)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // Set the old pwd to aes_kmc->plain, and get the new pwd in the aes_kmc->cipher
 status_t cm_aes_to_kmc(aes_and_kmc_t *aes_kmc)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // Set the old pwd to aes_kmc->plain, and get the new pwd in the aes_kmc->cipher
 status_t cm_aes_may_to_aes_new(aes_and_kmc_t *aes_kmc)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // Set the old pwd to aes_kmc->plain, and get the new pwd in the aes_kmc->cipher
 status_t cm_aes_may_to_kmc(aes_and_kmc_t *aes_kmc)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // Set the old pwd to aes_kmc->plain, and get the new pwd in the aes_kmc->cipher
 status_t cm_kmc_to_aes(aes_and_kmc_t *aes_kmc)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_encrypt_passwd_with_key(aes_and_kmc_t *aes_kmc)
 {
-    if (cm_encrypt_passwd(GS_TRUE, aes_kmc->plain, aes_kmc->plain_len, aes_kmc->cipher, &aes_kmc->cipher_len,
-        aes_kmc->local, aes_kmc->fator) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("Fail to encrypt aes data.\n");
-        GS_THROW_ERROR(ERR_ENCRYPTION_ERROR);
-        return GS_ERROR;
-    }
-
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -385,26 +378,25 @@ status_t cm_encrypt_passwd_with_key(aes_and_kmc_t *aes_kmc)
  */
 status_t cm_decrypt_passwd_with_key(aes_and_kmc_t *aes_kmc)
 {
-    if (cm_decrypt_passwd(GS_TRUE, aes_kmc->cipher, aes_kmc->cipher_len, aes_kmc->plain, &aes_kmc->plain_len,
-        aes_kmc->local, aes_kmc->fator) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("Fail to decrypt aes data.\n");
-        GS_THROW_ERROR(ERR_ENCRYPTION_ERROR);
-        return GS_ERROR;
+    if (cm_decrypt_passwd(CT_TRUE, aes_kmc->cipher, aes_kmc->cipher_len, aes_kmc->plain, &aes_kmc->plain_len,
+        aes_kmc->local, aes_kmc->fator) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("Fail to decrypt aes data.\n");
+        CT_THROW_ERROR(ERR_ENCRYPTION_ERROR);
+        return CT_ERROR;
     }
 
     // cm_decrypt_passwd may not set the 0x00 at the end, so set it
     aes_kmc->plain[aes_kmc->plain_len] = '\0';
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_encrypt_passwd_with_key_by_kmc(aes_and_kmc_t *aes_kmc)
 {
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_decrypt_passwd_with_key_by_kmc(aes_and_kmc_t *aes_kmc)
 {
-
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

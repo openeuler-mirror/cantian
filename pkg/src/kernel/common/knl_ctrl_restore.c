@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "knl_common_module.h"
 #include "knl_ctrl_restore.h"
 #include "knl_context.h"
 #include "dtc_database.h"
@@ -36,7 +36,7 @@ static void ctrl_restore_core_ctrl(knl_session_t *session, page_head_t *page, in
         sizeof(space_ctrl_bk_t);
 
     static_core_ctrl_items_t *static_core = (static_core_ctrl_items_t *)((char *)page + offset);
-    errno_t ret = memcpy_sp(core->name, GS_DB_NAME_LEN, static_core, GS_DB_NAME_LEN);
+    errno_t ret = memcpy_sp(core->name, CT_DB_NAME_LEN, static_core, CT_DB_NAME_LEN);
     knl_securec_check(ret);
     core->init_time = static_core->init_time;
 
@@ -51,8 +51,8 @@ static void ctrl_restore_logfile_ctrl(knl_session_t *session, log_file_ctrl_t *l
     log_file_ctrl_bk_t *logfile_ctrl_bk, bool32 need_restore_name)
 {
     if (need_restore_name) {
-        errno_t ret = memcpy_sp(logfile_ctrl->name, GS_FILE_NAME_BUFFER_SIZE,
-            logfile_ctrl_bk->name, GS_FILE_NAME_BUFFER_SIZE);
+        errno_t ret = memcpy_sp(logfile_ctrl->name, CT_FILE_NAME_BUFFER_SIZE,
+            logfile_ctrl_bk->name, CT_FILE_NAME_BUFFER_SIZE);
         knl_securec_check(ret);
     }
     logfile_ctrl->size = logfile_ctrl_bk->size;
@@ -71,33 +71,33 @@ static status_t ctrl_rebuild_parse_logfile(knl_session_t *session, knl_device_de
 {
     int32 handle = -1;
     uint32 asn = 0;
-    char file_name[GS_MAX_FILE_NAME_LEN] = { 0 };
+    char file_name[CT_MAX_FILE_NAME_LEN] = { 0 };
     database_t *db = &session->kernel->db;
     core_ctrl_t *core = &db->ctrl.core;
 
     CM_SAVE_STACK(session->stack);
-    char *page_buf = (char *)cm_push(session->stack, GS_DFLT_LOG_BLOCK_SIZE + (uint32)GS_MAX_ALIGN_SIZE_4K);
+    char *page_buf = (char *)cm_push(session->stack, CT_DFLT_LOG_BLOCK_SIZE + (uint32)CT_MAX_ALIGN_SIZE_4K);
     char *page = (char *)cm_aligned_buf(page_buf);
 
-    (void)cm_text2str(&device->name, file_name, GS_MAX_FILE_NAME_LEN);
+    (void)cm_text2str(&device->name, file_name, CT_MAX_FILE_NAME_LEN);
     device_type_t type = cm_device_type(file_name);
-    if (cm_open_device(file_name, type, knl_io_flag(session), &handle) != GS_SUCCESS) {
+    if (cm_open_device(file_name, type, knl_io_flag(session), &handle) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (cm_read_device(type, handle, 0, page, GS_DFLT_LOG_BLOCK_SIZE) != GS_SUCCESS) {
+    if (cm_read_device(type, handle, 0, page, CT_DFLT_LOG_BLOCK_SIZE) != CT_SUCCESS) {
         cm_close_device(type, &handle);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     log_file_head_t *log_head = (log_file_head_t *)page;
-    if (log_head->last != GS_INVALID_ID64 && log_head->last > (knl_scn_t)dtc_my_ctrl(session)->scn) {
+    if (log_head->last != CT_INVALID_ID64 && log_head->last > (knl_scn_t)dtc_my_ctrl(session)->scn) {
         cm_close_device(type, &handle);
         CM_RESTORE_STACK(session->stack);
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ", rebuild ctrlfile: the backup information on the datafile has expired");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ", rebuild ctrlfile: the backup information on the datafile has expired");
+        return CT_ERROR;
     }
 
     log_file_ctrl_bk_t *logfile_ctrl_bk = (log_file_ctrl_bk_t *)(page + sizeof(log_file_head_t));
@@ -105,14 +105,14 @@ static status_t ctrl_rebuild_parse_logfile(knl_session_t *session, knl_device_de
 
     /* the is no backup info */
     if (logfile_ctrl_bk->version < CTRL_BACKUP_VERSION_REBUILD_CTRL) {
-        GS_THROW_ERROR(ERR_NO_BKINFO_REBUILD_CTRL);
+        CT_THROW_ERROR(ERR_NO_BKINFO_REBUILD_CTRL);
         cm_close_device(type, &handle);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     log_file_t *logfile = &MY_LOGFILE_SET(session)->items[logfile_ctrl_bk->file_id];
-    ctrl_restore_logfile_ctrl(session, logfile->ctrl, logfile_ctrl_bk, GS_TRUE);
+    ctrl_restore_logfile_ctrl(session, logfile->ctrl, logfile_ctrl_bk, CT_TRUE);
     *file_id = logfile->ctrl->file_id;
 
     /* restore reset logs, the latest info the one whose rst_id is the biggest */
@@ -130,53 +130,53 @@ static status_t ctrl_rebuild_parse_logfile(knl_session_t *session, knl_device_de
     
     cm_close_device(type, &handle);
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-bool32 ctrl_formalize_logfile_ctrl(log_file_t *logfile)
+bool32 ctrl_validate_logfile_ctrl(log_file_t *logfile)
 {
     log_file_ctrl_t *ctrl = logfile->ctrl;
     if (((ctrl->type == DEV_TYPE_FILE && ctrl->size == cm_file_size(logfile->handle)) ||
         (ctrl->size == cm_device_size(cm_device_type(logfile->ctrl->name), logfile->handle))) &&
         (ctrl->block_size == FILE_BLOCK_SIZE_512 || ctrl->block_size == FILE_BLOCK_SIZE_4096)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t ctrl_init_logfile_ctrl(knl_session_t *session, log_file_t *logfile)
 {
     aligned_buf_t log_buf;
-    logfile->handle = GS_INVALID_HANDLE;
+    logfile->handle = CT_INVALID_HANDLE;
     device_type_t type = cm_device_type(logfile->ctrl->name);
 
-    if (cm_aligned_malloc((int64)GS_DFLT_LOG_BLOCK_SIZE, "log buffer", &log_buf) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)GS_DFLT_LOG_BLOCK_SIZE, "init logfile ctrl");
-        return GS_ERROR;
+    if (cm_aligned_malloc((int64)CT_DFLT_LOG_BLOCK_SIZE, "log buffer", &log_buf) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)CT_DFLT_LOG_BLOCK_SIZE, "init logfile ctrl");
+        return CT_ERROR;
     }
 
     /* cm_close_device in db_alter_archive_logfile */
-    if (cm_open_device(logfile->ctrl->name, type, knl_io_flag(session), &logfile->handle) != GS_SUCCESS) {
+    if (cm_open_device(logfile->ctrl->name, type, knl_io_flag(session), &logfile->handle) != CT_SUCCESS) {
         cm_aligned_free(&log_buf);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (cm_read_device(type, logfile->handle, 0, log_buf.aligned_buf, GS_DFLT_LOG_BLOCK_SIZE) != GS_SUCCESS) {
+    if (cm_read_device(type, logfile->handle, 0, log_buf.aligned_buf, CT_DFLT_LOG_BLOCK_SIZE) != CT_SUCCESS) {
         cm_close_device(type, &logfile->handle);
         cm_aligned_free(&log_buf);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     log_file_ctrl_bk_t *logfile_ctrl_bk = (log_file_ctrl_bk_t *)(log_buf.aligned_buf + sizeof(log_file_head_t));
-    ctrl_restore_logfile_ctrl(session, logfile->ctrl, logfile_ctrl_bk, GS_FALSE);
+    ctrl_restore_logfile_ctrl(session, logfile->ctrl, logfile_ctrl_bk, CT_FALSE);
     cm_aligned_free(&log_buf);
 
-    if (!ctrl_formalize_logfile_ctrl(logfile)) {
+    if (!ctrl_validate_logfile_ctrl(logfile)) {
         cm_close_device(type, &logfile->handle);
-        GS_THROW_ERROR_EX(ERR_INVALID_OPERATION, ", %s is not a redolog file", logfile->ctrl->name);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_INVALID_OPERATION, ", %s is not a redolog file", logfile->ctrl->name);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t ctrl_restore_space_ctrl(knl_session_t *session, char *page, int handle)
@@ -226,7 +226,7 @@ static status_t ctrl_restore_space_ctrl(knl_session_t *session, char *page, int 
         ctrl_restore_core_ctrl(session, (page_head_t *)page, handle);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void ctrl_rebuild_restore_corelog(knl_session_t *session, char *page)
@@ -273,24 +273,24 @@ static void ctrl_rebuild_restore_corelog(knl_session_t *session, char *page)
 static status_t ctrl_rebuild_parse_datafile(knl_session_t *session, knl_device_def_t *device)
 {
     int32 handle = -1;
-    char file_name[GS_MAX_FILE_NAME_LEN] = { 0 };
+    char file_name[CT_MAX_FILE_NAME_LEN] = { 0 };
     core_ctrl_t *core = &session->kernel->db.ctrl.core;
 
     CM_SAVE_STACK(session->stack);
-    char *page_buf = (char *)cm_push(session->stack, DEFAULT_PAGE_SIZE(session) + (uint32)GS_MAX_ALIGN_SIZE_4K);
+    char *page_buf = (char *)cm_push(session->stack, DEFAULT_PAGE_SIZE(session) + (uint32)CT_MAX_ALIGN_SIZE_4K);
     page_head_t *page = (page_head_t *)cm_aligned_buf(page_buf);
 
-    (void)cm_text2str(&device->name, file_name, GS_MAX_FILE_NAME_LEN);
+    (void)cm_text2str(&device->name, file_name, CT_MAX_FILE_NAME_LEN);
     device_type_t type = cm_device_type(file_name);
-    if (cm_open_device(file_name, type, knl_io_flag(session), &handle) != GS_SUCCESS) {
+    if (cm_open_device(file_name, type, knl_io_flag(session), &handle) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (cm_read_device(type, handle, 0, page, session->kernel->attr.page_size) != GS_SUCCESS) {
+    if (cm_read_device(type, handle, 0, page, session->kernel->attr.page_size) != CT_SUCCESS) {
         cm_close_device(type, &handle);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     datafile_ctrl_bk_t *datafile_ctrl_bk = (datafile_ctrl_bk_t *)((char *)page + sizeof(page_head_t) +
@@ -298,24 +298,24 @@ static status_t ctrl_rebuild_parse_datafile(knl_session_t *session, knl_device_d
 
     /* the is no backup info */
     if (datafile_ctrl_bk->version < CTRL_BACKUP_VERSION_REBUILD_CTRL) {
-        GS_THROW_ERROR(ERR_NO_BKINFO_REBUILD_CTRL);
+        CT_THROW_ERROR(ERR_NO_BKINFO_REBUILD_CTRL);
         cm_close_device(type, &handle);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (datafile_ctrl_bk->file_no == GS_INVALID_ID32) {    // datafile has been dropped
+    if (datafile_ctrl_bk->file_no == CT_INVALID_ID32) {    // datafile has been dropped
         cm_close_device(type, &handle);
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     ctrl_rebuild_restore_corelog(session, (char *)page);
     if (datafile_ctrl_bk->file_no == 0) {    // the file is the first one of space, restore space ctrl info.
-        if (ctrl_restore_space_ctrl(session, (char *)page, handle) != GS_SUCCESS) {
+        if (ctrl_restore_space_ctrl(session, (char *)page, handle) != CT_SUCCESS) {
             cm_close_device(type, &handle);
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         
         core->space_count++;
@@ -330,7 +330,7 @@ static status_t ctrl_rebuild_parse_datafile(knl_session_t *session, knl_device_d
     space->ctrl->files[datafile_ctrl_bk->file_no] = datafile_ctrl_bk->id;
     cm_close_device(type, &handle);
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void ctrl_rebuild_set_default(knl_session_t *session)
@@ -342,27 +342,25 @@ static void ctrl_rebuild_set_default(knl_session_t *session)
 
     core->page_size = kernel->attr.page_size;
     core->undo_segments = kernel->attr.undo_segments;
-    core->undo_segments_extended = GS_FALSE;
+    core->undo_segments_extended = CT_FALSE;
     core->max_column_count = kernel->attr.max_column_count;
     core->sysdata_version = CORE_SYSDATA_VERSION;
-    core->version.main = CORE_VERSION_MAIN;
-    core->version.major = CORE_VERSION_MAJOR;
-    core->version.revision = CORE_VERSION_REVISION;
+    db_get_cantiand_version(&(core->version));
     core->version.inner = CORE_VERSION_INNER;
     core->open_count = 1;    // cannot be set to zero, because it will rebuild systables if it equal to 0
     node->ckpt_id = 0;
     node->dw_start = DW_DISTRICT_BEGIN(session->kernel->id);
     node->dw_end = DW_DISTRICT_END(session->kernel->id);
-    core->build_completed = GS_TRUE;
-    errno_t ret = memset_sp(core->archived_log, sizeof(arch_log_id_t) * GS_MAX_ARCH_DEST, 0,
-        sizeof(arch_log_id_t) * GS_MAX_ARCH_DEST);
+    core->build_completed = CT_TRUE;
+    errno_t ret = memset_sp(core->archived_log, sizeof(arch_log_id_t) * CT_MAX_ARCH_DEST, 0,
+        sizeof(arch_log_id_t) * CT_MAX_ARCH_DEST);
     knl_securec_check(ret);
     core->db_role = REPL_ROLE_PRIMARY;
     core->protect_mode = MAXIMUM_AVAILABILITY;
     node->archived_start = 0;
     node->archived_end = 0;
-    node->shutdown_consistency = GS_FALSE;
-    node->open_inconsistency = GS_FALSE;
+    node->shutdown_consistency = CT_FALSE;
+    node->open_inconsistency = CT_FALSE;
     core->dw_file_id = 0;
     core->dw_area_pages = DOUBLE_WRITE_PAGES * core->node_count;
     core->resetlogs.rst_id = 0;
@@ -425,18 +423,18 @@ static status_t ctrl_restore_charset(knl_session_t *session, knl_rebuild_ctrlfil
 
     if (def->charset.len == 0) {
         core_ctrl->charset_id = CHARSET_UTF8; // default UTF8
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     
     uint16 charset_id = cm_get_charset_id_ex(&def->charset);
-    if (charset_id == GS_INVALID_ID16) {
+    if (charset_id == CT_INVALID_ID16) {
         core_ctrl->charset_id = CHARSET_UTF8;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     core_ctrl->charset_id = (uint32)charset_id;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ctrl_restore_ctrl_data(knl_session_t *session, knl_rebuild_ctrlfile_def_t *def)
@@ -454,22 +452,22 @@ status_t ctrl_restore_ctrl_data(knl_session_t *session, knl_rebuild_ctrlfile_def
     ctrl_rebuild_set_default(session);
 
     /* set charset for database */
-    if (ctrl_restore_charset(session, def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ctrl_restore_charset(session, def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     core->space_count = 0;
     for (uint32 i = 0; i < def->datafiles.count; i++) {
         device = (knl_device_def_t *)cm_galist_get(&def->datafiles, i);
-        if (ctrl_rebuild_parse_datafile(session, device) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctrl_rebuild_parse_datafile(session, device) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     for (uint32 i = 0; i < def->logfiles.count; i++) {
         device = (knl_device_def_t *)cm_galist_get(&def->logfiles, i);
-        if (ctrl_rebuild_parse_logfile(session, device, &logfile_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctrl_rebuild_parse_logfile(session, device, &logfile_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (max_logfile_id < logfile_id) {
@@ -493,7 +491,7 @@ status_t ctrl_restore_ctrl_data(knl_session_t *session, knl_rebuild_ctrlfile_def
     core->device_count = def->datafiles.count;
     ctrl_rebuild_init_doublewrite(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void ctrl_fetch_ctrlfile_name(text_t *file_names, text_t *filename)
@@ -523,22 +521,22 @@ static status_t ctrl_recreate_ctrl_files(knl_session_t *session)
 
     cm_str2text(param, &file_names);
     if (file_names.len == 0) {
-        GS_THROW_ERROR(ERR_LOAD_CONTROL_FILE, "CONTROL_FILES is not set!");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_LOAD_CONTROL_FILE, "CONTROL_FILES is not set!");
+        return CT_ERROR;
     }
 
     cm_remove_brackets(&file_names);
     ctrl_fetch_ctrlfile_name(&file_names, &file_name);
     while (file_name.len > 0) {
         ctrlfile = &db->ctrlfiles.items[count];
-        (void)cm_text2str(&file_name, ctrlfile->name, GS_FILE_NAME_BUFFER_SIZE);
+        (void)cm_text2str(&file_name, ctrlfile->name, CT_FILE_NAME_BUFFER_SIZE);
         ctrlfile->type = cm_device_type(ctrlfile->name);
         ctrlfile->blocks = CTRL_MAX_PAGES(session);
-        ctrlfile->block_size = GS_DFLT_CTRL_BLOCK_SIZE;
+        ctrlfile->block_size = CT_DFLT_CTRL_BLOCK_SIZE;
         if (cm_build_device(ctrlfile->name, ctrlfile->type, kernel->attr.xpurpose_buf,
-            GS_XPURPOSE_BUFFER_SIZE, (int64)ctrlfile->blocks * ctrlfile->block_size, knl_io_flag(session),
-            GS_FALSE, &ctrlfile->handle) != GS_SUCCESS) {
-            return GS_ERROR;
+            CT_XPURPOSE_BUFFER_SIZE, (int64)ctrlfile->blocks * ctrlfile->block_size, knl_io_flag(session),
+            CT_FALSE, &ctrlfile->handle) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         
         count++;
@@ -546,7 +544,7 @@ static status_t ctrl_recreate_ctrl_files(knl_session_t *session)
     }
 
     db->ctrlfiles.count = count;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void ctrl_init_ctrl_page(knl_session_t *session)
@@ -565,7 +563,7 @@ static void ctrl_init_ctrl_page(knl_session_t *session)
         head = (page_head_t *)(db->ctrl.pages + i);
         TO_PAGID_DATA(page_id, head->id);
         TO_PAGID_DATA(INVALID_PAGID, head->next_ext);
-        head->size_units = page_size_units(GS_DFLT_CTRL_BLOCK_SIZE);
+        head->size_units = page_size_units(CT_DFLT_CTRL_BLOCK_SIZE);
         head->type = PAGE_TYPE_CTRL;
         tail = PAGE_TAIL(head);
         tail->pcn = 0;
@@ -581,18 +579,18 @@ status_t ctrl_rebuild_ctrl_files(knl_session_t *session, knl_rebuild_ctrlfile_de
 
     /* rebuild control files can only be done in nomount status */
     if (db->status != DB_STATUS_NOMOUNT) {
-        GS_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "rebuild control files not in nomount status");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "rebuild control files not in nomount status");
+        return CT_ERROR;
     }
     
     /* create empty ctrl files */
-    if (ctrl_recreate_ctrl_files(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ctrl_recreate_ctrl_files(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* restore core data in memory */
-    if (ctrl_restore_ctrl_data(session, def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ctrl_restore_ctrl_data(session, def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     ctrl_init_ctrl_page(session);
@@ -601,25 +599,25 @@ status_t ctrl_rebuild_ctrl_files(knl_session_t *session, knl_rebuild_ctrlfile_de
     /* write ctrl data into ctrl files */
     for (uint32 i = 0; i < db->ctrlfiles.count; i++) {
         ctrlfile = &db->ctrlfiles.items[i];
-        if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (cm_write_device(ctrlfile->type, ctrlfile->handle, 0, db->ctrl.pages,
-            (int32)ctrlfile->blocks * ctrlfile->block_size) != GS_SUCCESS) {
+            (int32)ctrlfile->blocks * ctrlfile->block_size) != CT_SUCCESS) {
             cm_close_device(ctrlfile->type, &ctrlfile->handle);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (db_fdatasync_file(session, ctrlfile->handle) != GS_SUCCESS) {
+        if (db_fdatasync_file(session, ctrlfile->handle) != CT_SUCCESS) {
             cm_close_device(ctrlfile->type, &ctrlfile->handle);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         cm_close_device(ctrlfile->type, &ctrlfile->handle);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ctrl_backup_static_core_items(knl_session_t *session, static_core_ctrl_items_t *items)
@@ -630,20 +628,20 @@ status_t ctrl_backup_static_core_items(knl_session_t *session, static_core_ctrl_
     datafile_t *datafile = &db->datafiles[space->ctrl->files[0]];
     
     if (cm_open_device(datafile->ctrl->name, datafile->ctrl->type, knl_io_flag(session),
-        DATAFILE_FD(session, datafile->ctrl->id)) != GS_SUCCESS) {
-        return GS_ERROR;
+        DATAFILE_FD(session, datafile->ctrl->id)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
-    char *page_buf = (char *)cm_push(session->stack, (uint32)datafile->ctrl->block_size + (uint32)GS_MAX_ALIGN_SIZE_4K);
+    char *page_buf = (char *)cm_push(session->stack, (uint32)datafile->ctrl->block_size + (uint32)CT_MAX_ALIGN_SIZE_4K);
     page_head_t *page = (page_head_t *)cm_aligned_buf(page_buf);
     
     int64 offset = 0;
     if (cm_read_device(datafile->ctrl->type, session->datafiles[datafile->ctrl->id], offset, page,
-        datafile->ctrl->block_size) != GS_SUCCESS) {
+        datafile->ctrl->block_size) != CT_SUCCESS) {
         cm_close_device(datafile->ctrl->type, &session->datafiles[datafile->ctrl->id]);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     offset = sizeof(page_head_t) + sizeof(datafile_header_t) + sizeof(datafile_ctrl_bk_t) + sizeof(space_ctrl_bk_t);
@@ -653,21 +651,21 @@ status_t ctrl_backup_static_core_items(knl_session_t *session, static_core_ctrl_
 
     offset = 0;
     if (cm_write_device(datafile->ctrl->type, session->datafiles[datafile->ctrl->id], offset, page,
-        datafile->ctrl->block_size) != GS_SUCCESS) {
+        datafile->ctrl->block_size) != CT_SUCCESS) {
         cm_close_device(datafile->ctrl->type, &session->datafiles[datafile->ctrl->id]);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_fdatasync_file(session, session->datafiles[datafile->ctrl->id]) != GS_SUCCESS) {
+    if (db_fdatasync_file(session, session->datafiles[datafile->ctrl->id]) != CT_SUCCESS) {
         cm_close_device(datafile->ctrl->type, &session->datafiles[datafile->ctrl->id]);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_close_device(datafile->ctrl->type, &session->datafiles[datafile->ctrl->id]);
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ctrl_backup_sys_entries(knl_session_t *session, sys_table_entries_t *entries)
@@ -678,20 +676,20 @@ status_t ctrl_backup_sys_entries(knl_session_t *session, sys_table_entries_t *en
     datafile_t *datafile = &db->datafiles[space->ctrl->files[0]];
     
     if (cm_open_device(datafile->ctrl->name, datafile->ctrl->type, knl_io_flag(session),
-        DATAFILE_FD(session, datafile->ctrl->id)) != GS_SUCCESS) {
-        return GS_ERROR;
+        DATAFILE_FD(session, datafile->ctrl->id)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     CM_SAVE_STACK(session->stack);
-    char *page_buf = (char *)cm_push(session->stack, (uint32)datafile->ctrl->block_size + (uint32)GS_MAX_ALIGN_SIZE_4K);
+    char *page_buf = (char *)cm_push(session->stack, (uint32)datafile->ctrl->block_size + (uint32)CT_MAX_ALIGN_SIZE_4K);
     page_head_t *page = (page_head_t *)cm_aligned_buf(page_buf);
     
     int64 offset = 0;
     if (cm_read_device(datafile->ctrl->type, session->datafiles[datafile->ctrl->id], offset, page,
-        datafile->ctrl->block_size) != GS_SUCCESS) {
+        datafile->ctrl->block_size) != CT_SUCCESS) {
         cm_close_device(datafile->ctrl->type, &session->datafiles[datafile->ctrl->id]);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     
     offset = sizeof(page_head_t) + sizeof(datafile_header_t) + sizeof(datafile_ctrl_bk_t) + sizeof(space_ctrl_bk_t) +
@@ -701,28 +699,28 @@ status_t ctrl_backup_sys_entries(knl_session_t *session, sys_table_entries_t *en
     
     offset = 0;
     if (cm_write_device(datafile->ctrl->type, session->datafiles[datafile->ctrl->id], offset, page,
-        datafile->ctrl->block_size) != GS_SUCCESS) {
+        datafile->ctrl->block_size) != CT_SUCCESS) {
         cm_close_device(datafile->ctrl->type, &session->datafiles[datafile->ctrl->id]);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_fdatasync_file(session, session->datafiles[datafile->ctrl->id]) != GS_SUCCESS) {
+    if (db_fdatasync_file(session, session->datafiles[datafile->ctrl->id]) != CT_SUCCESS) {
         cm_close_device(datafile->ctrl->type, &session->datafiles[datafile->ctrl->id]);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     
     cm_close_device(datafile->ctrl->type, &session->datafiles[datafile->ctrl->id]);
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void ctrl_generate_logctrl_backup(knl_session_t *session, log_file_ctrl_t *ctrl_info,
     log_file_ctrl_bk_t *backup_info)
 {
     backup_info->version = CTRL_BACKUP_VERSION_REBUILD_CTRL;
-    errno_t ret = memcpy_sp(backup_info->name, GS_FILE_NAME_BUFFER_SIZE, ctrl_info->name, strlen(ctrl_info->name));
+    errno_t ret = memcpy_sp(backup_info->name, CT_FILE_NAME_BUFFER_SIZE, ctrl_info->name, strlen(ctrl_info->name));
     knl_securec_check(ret);
     
     backup_info->size = ctrl_info->size;
@@ -741,41 +739,41 @@ static status_t ctrl_backup_write_datafile(knl_session_t *session, datafile_t *d
     uint32 length)
 {
     CM_SAVE_STACK(session->stack);
-    char *page_buf = (char *)cm_push(session->stack, session->kernel->attr.page_size + (uint32)GS_MAX_ALIGN_SIZE_4K);
+    char *page_buf = (char *)cm_push(session->stack, session->kernel->attr.page_size + (uint32)CT_MAX_ALIGN_SIZE_4K);
     page_head_t *page = (page_head_t *)cm_aligned_buf(page_buf);
     
     if (cm_open_device(datafile->ctrl->name, datafile->ctrl->type, knl_io_flag(session),
-        DATAFILE_FD(session, datafile->ctrl->id)) != GS_SUCCESS) {
+        DATAFILE_FD(session, datafile->ctrl->id)) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cm_read_device(datafile->ctrl->type, session->datafiles[datafile->ctrl->id], 0, page,
-        datafile->ctrl->block_size) != GS_SUCCESS) {
+        datafile->ctrl->block_size) != CT_SUCCESS) {
         cm_close_device(datafile->ctrl->type, &session->datafiles[datafile->ctrl->id]);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     errno_t ret = memcpy_sp((char *)page + offset, length, buf, length);
     knl_securec_check(ret);
 
     if (cm_write_device(datafile->ctrl->type, session->datafiles[datafile->ctrl->id], 0, page,
-        datafile->ctrl->block_size) != GS_SUCCESS) {
+        datafile->ctrl->block_size) != CT_SUCCESS) {
         cm_close_device(datafile->ctrl->type, &session->datafiles[datafile->ctrl->id]);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_fdatasync_file(session, session->datafiles[datafile->ctrl->id]) != GS_SUCCESS) {
+    if (db_fdatasync_file(session, session->datafiles[datafile->ctrl->id]) != CT_SUCCESS) {
         cm_close_device(datafile->ctrl->type, &session->datafiles[datafile->ctrl->id]);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_close_device(datafile->ctrl->type, &session->datafiles[datafile->ctrl->id]);
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void ctrl_get_core_log_info(knl_session_t *session, core_ctrl_log_info_t *log_info)
@@ -797,7 +795,7 @@ status_t ctrl_backup_core_log_info(knl_session_t *session)
     core_ctrl_log_info_t log_info;
 
     if (DB_ATTR_CLUSTER(session) || CTRL_LOG_BACKUP_LEVEL(session) == CTRLLOG_BACKUP_LEVEL_NONE) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     ctrl_get_core_log_info(session, &log_info);
@@ -808,14 +806,14 @@ status_t ctrl_backup_core_log_info(knl_session_t *session)
         offset = sizeof(page_head_t) + sizeof(datafile_header_t) + sizeof(datafile_ctrl_bk_t) +
             sizeof(space_ctrl_bk_t) + sizeof(static_core_ctrl_items_t) + sizeof(sys_table_entries_t);
         if (ctrl_backup_write_datafile(session, datafile, offset, (const void *)&log_info,
-            sizeof(log_info)) != GS_SUCCESS) {
-            return GS_ERROR;
+            sizeof(log_info)) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     
-    for (uint32 i = 0; i < GS_MAX_DATA_FILES; i++) {
+    for (uint32 i = 0; i < CT_MAX_DATA_FILES; i++) {
         datafile = &db->datafiles[i];
     
         /* if datafile is not used or has been removed or is offline, handle next datafile */
@@ -838,12 +836,12 @@ status_t ctrl_backup_core_log_info(knl_session_t *session)
         }
 
         if (ctrl_backup_write_datafile(session, datafile, offset, (const void *)&log_info, sizeof(log_info)) !=
-            GS_SUCCESS) {
+            CT_SUCCESS) {
             continue;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ctrl_backup_log_ctrl(knl_session_t *session, uint32 id)
@@ -852,44 +850,44 @@ status_t ctrl_backup_log_ctrl(knl_session_t *session, uint32 id)
 
     /* if log file has been dropped, return success */
     if (LOG_IS_DROPPED(log_file->ctrl->flg)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     if (log_file->ctrl->type == DEV_TYPE_ULOG) {
-        GS_LOG_RUN_INF("logfile(%s) need NOT backup ctrl.", log_file->ctrl->name);
-        return GS_SUCCESS;
+        CT_LOG_RUN_INF("[BACKUP] logfile(%s) need NOT backup ctrl.", log_file->ctrl->name);
+        return CT_SUCCESS;
     }
     if (cm_open_device(log_file->ctrl->name, log_file->ctrl->type, knl_redo_io_flag(session),
-        &log_file->handle) != GS_SUCCESS) {
-        return GS_ERROR;
+        &log_file->handle) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     CM_SAVE_STACK(session->stack);
-    char *page_buf = (char *)cm_push(session->stack, (uint32)log_file->ctrl->block_size + (uint32)GS_MAX_ALIGN_SIZE_4K);
+    char *page_buf = (char *)cm_push(session->stack, (uint32)log_file->ctrl->block_size + (uint32)CT_MAX_ALIGN_SIZE_4K);
     char *page = (char *)cm_aligned_buf(page_buf);
     
-    if (cm_read_device(log_file->ctrl->type, log_file->handle, 0, page, log_file->ctrl->block_size) != GS_SUCCESS) {
+    if (cm_read_device(log_file->ctrl->type, log_file->handle, 0, page, log_file->ctrl->block_size) != CT_SUCCESS) {
         cm_close_device(log_file->ctrl->type, &log_file->handle);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     log_file_ctrl_bk_t *ctrl_bk = (log_file_ctrl_bk_t *)(page + sizeof(log_file_head_t));
     ctrl_generate_logctrl_backup(session, log_file->ctrl, ctrl_bk);
 
-    if (cm_write_device(log_file->ctrl->type, log_file->handle, 0, page, log_file->ctrl->block_size) != GS_SUCCESS) {
+    if (cm_write_device(log_file->ctrl->type, log_file->handle, 0, page, log_file->ctrl->block_size) != CT_SUCCESS) {
         cm_close_device(log_file->ctrl->type, &log_file->handle);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_fdatasync_file(session, log_file->handle) != GS_SUCCESS) {
+    if (db_fdatasync_file(session, log_file->handle) != CT_SUCCESS) {
         cm_close_device(log_file->ctrl->type, &log_file->handle);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ctrl_backup_reset_logs(knl_session_t *session)
@@ -901,18 +899,18 @@ status_t ctrl_backup_reset_logs(knl_session_t *session)
     log_file_t *log_file = &MY_LOGFILE_SET(session)->items[log->curr_file];
 
     if (cm_open_device(log_file->ctrl->name, log_file->ctrl->type, knl_redo_io_flag(session),
-        &log_file->handle) != GS_SUCCESS) {
-        return GS_ERROR;
+        &log_file->handle) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
-    char *page_buf = (char *)cm_push(session->stack, (uint32)log_file->ctrl->block_size + (uint32)GS_MAX_ALIGN_SIZE_4K);
+    char *page_buf = (char *)cm_push(session->stack, (uint32)log_file->ctrl->block_size + (uint32)CT_MAX_ALIGN_SIZE_4K);
     char *page = (char *)cm_aligned_buf(page_buf);
     
-    if (cm_read_device(log_file->ctrl->type, log_file->handle, 0, page, log_file->ctrl->block_size) != GS_SUCCESS) {
+    if (cm_read_device(log_file->ctrl->type, log_file->handle, 0, page, log_file->ctrl->block_size) != CT_SUCCESS) {
         cm_close_device(log_file->ctrl->type, &log_file->handle);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     int64 offset = sizeof(log_file_head_t) + sizeof(log_file_ctrl_bk_t);
@@ -921,20 +919,20 @@ status_t ctrl_backup_reset_logs(knl_session_t *session)
     reset_logs->last_asn = core->resetlogs.last_asn;
     reset_logs->last_lfn = core->resetlogs.last_lfn;
 
-    if (cm_write_device(log_file->ctrl->type, log_file->handle, 0, page, log_file->ctrl->block_size) != GS_SUCCESS) {
+    if (cm_write_device(log_file->ctrl->type, log_file->handle, 0, page, log_file->ctrl->block_size) != CT_SUCCESS) {
         cm_close_device(log_file->ctrl->type, &log_file->handle);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_fdatasync_file(session, log_file->handle) != GS_SUCCESS) {
+    if (db_fdatasync_file(session, log_file->handle) != CT_SUCCESS) {
         cm_close_device(log_file->ctrl->type, &log_file->handle);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ctrl_backup_space_ctrl(knl_session_t *session, uint32 space_id)
@@ -946,33 +944,33 @@ status_t ctrl_backup_space_ctrl(knl_session_t *session, uint32 space_id)
 
     /* when the primary node redo the rd_spc_create_space log entry, it's no need to backup sapce ctrl info. */
     if (db->ctrl.core.db_role == REPL_ROLE_PRIMARY && db->status == DB_STATUS_RECOVERY) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     
-    knl_panic(space_id < GS_MAX_SPACES);
+    knl_panic(space_id < CT_MAX_SPACES);
     space_t *space = SPACE_GET(session, space_id);
     if (!space->ctrl->used || !SPACE_IS_ONLINE(space)) {    // if space has been dropped, return success
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (space->ctrl->files[0] == GS_INVALID_ID32) {    // the datafile has not been created.
-        return GS_SUCCESS;
+    if (space->ctrl->files[0] == CT_INVALID_ID32) {    // the datafile has not been created.
+        return CT_SUCCESS;
     }
     
     datafile_t *datafile = &db->datafiles[space->ctrl->files[0]];
     
     /* if datafile is not used or has been removed or is offline, return success */
     if (!datafile->ctrl->used || DATAFILE_IS_ALARMED(datafile) || !DATAFILE_IS_ONLINE(datafile)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     
     int64 offset = sizeof(page_head_t) + sizeof(datafile_header_t) + sizeof(datafile_ctrl_bk_t);
     if (ctrl_backup_write_datafile(session, datafile, offset, (const void *)space->ctrl,
-        OFFSET_OF(space_ctrl_t, files)) != GS_SUCCESS) {
-        return GS_ERROR;
+        OFFSET_OF(space_ctrl_t, files)) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ctrl_backup_datafile_ctrl(knl_session_t *session, uint32 file_id)
@@ -983,15 +981,15 @@ status_t ctrl_backup_datafile_ctrl(knl_session_t *session, uint32 file_id)
 
     /* when the primary node redo the rd_spc_create_datafile log entry, it's no need to backup datafile ctrl info */
     if (db->ctrl.core.db_role == REPL_ROLE_PRIMARY && db->status == DB_STATUS_RECOVERY) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    knl_panic(file_id < GS_MAX_DATA_FILES);
+    knl_panic(file_id < CT_MAX_DATA_FILES);
     datafile_t *datafile = DATAFILE_GET(session, file_id);
 
     /* if datafile is not used or has been removed or is offline, return success */
     if (!datafile->ctrl->used || DATAFILE_IS_ALARMED(datafile) || !DATAFILE_IS_ONLINE(datafile)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     errno_t ret = memset_sp(&df_ctrl_bk, sizeof(datafile_ctrl_bk_t), 0, sizeof(datafile_ctrl_bk_t));
@@ -1005,11 +1003,11 @@ status_t ctrl_backup_datafile_ctrl(knl_session_t *session, uint32 file_id)
     
     int64 offset = sizeof(page_head_t) + sizeof(datafile_header_t);
     if (ctrl_backup_write_datafile(session, datafile, offset, (const void *)&df_ctrl_bk, sizeof(datafile_ctrl_bk_t)) !=
-        GS_SUCCESS) {
-        return GS_ERROR;
+        CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t ctrl_backup_ctrl_info(knl_session_t *session)
@@ -1020,15 +1018,15 @@ status_t ctrl_backup_ctrl_info(knl_session_t *session)
     /* backup static core info */
     static_core_ctrl_items_t *core_ctrl_backup = (static_core_ctrl_items_t *)((char *)&kernel->db.ctrl.core +
         OFFSET_OF(core_ctrl_t, name));
-    if (ctrl_backup_static_core_items(session, core_ctrl_backup) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ctrl_backup_static_core_items(session, core_ctrl_backup) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* backup system table entries of core ctrl */
     sys_table_entries_t *system_entry = (sys_table_entries_t *)((char *)&db->ctrl.core +
         OFFSET_OF(core_ctrl_t, sys_table_entry));
-    if (ctrl_backup_sys_entries(session, system_entry) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ctrl_backup_sys_entries(session, system_entry) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* backup log ctrl info */
@@ -1038,13 +1036,13 @@ status_t ctrl_backup_ctrl_info(knl_session_t *session)
             continue;
         }
 
-        if (ctrl_backup_log_ctrl(session, i) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctrl_backup_log_ctrl(session, i) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     /* backup space ctrl info */
-    for (uint32 i = 0; i < GS_MAX_SPACES; i++) {
+    for (uint32 i = 0; i < CT_MAX_SPACES; i++) {
         space_t *space = &db->spaces[i];
         if (space->ctrl->file_hwm == 0) {
             continue;
@@ -1054,22 +1052,22 @@ status_t ctrl_backup_ctrl_info(knl_session_t *session)
             continue;
         }
 
-        if (ctrl_backup_space_ctrl(session, space->ctrl->id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctrl_backup_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     /* backup datafile ctrl info */
-    for (uint32 i = 0; i < GS_MAX_DATA_FILES; i++) {
+    for (uint32 i = 0; i < CT_MAX_DATA_FILES; i++) {
         datafile_t *datafile = DATAFILE_GET(session, i);
         if (!datafile->ctrl->used || !DATAFILE_IS_ONLINE(datafile)) {
             continue;
         }
 
-        if (ctrl_backup_datafile_ctrl(session, i) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (ctrl_backup_datafile_ctrl(session, i) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,13 +34,13 @@ extern "C" {
 #endif
 
 #define PBL_FILENAME "pbl.conf"
-#define GS_MAX_PBL_FILE_SIZE        SIZE_M(100)
-#define GS_MIN_PBL_FILE_SIZE        SIZE_M(10)
-#define GS_MAX_PBL_LINE_SIZE        (GS_PBL_PASSWD_MAX_LEN + GS_MAX_NAME_LEN + 1)
+#define CT_MAX_PBL_FILE_SIZE        SIZE_M(100)
+#define CT_MIN_PBL_FILE_SIZE        SIZE_M(10)
+#define CT_MAX_PBL_LINE_SIZE        (CT_PBL_PASSWD_MAX_LEN + CT_MAX_NAME_LEN + 1)
 
 typedef struct st_pbl_entry {
-    char user[GS_NAME_BUFFER_SIZE];
-    char pwd[GS_PWD_BUFFER_SIZE];
+    char user[CT_NAME_BUFFER_SIZE];
+    SENSI_INFO char pwd[CT_PWD_BUFFER_SIZE];
 } pbl_entry_t;
 typedef struct st_black_context {
     spinlock_t lock;

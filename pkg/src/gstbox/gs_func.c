@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "gs_tbox_module.h"
 #include "gs_func.h"
 #include "gs_miner.h"
 #include "gs_tbox.h"
@@ -36,8 +37,8 @@
 #endif
 
 
-#define ZTBOX_REPAIR_OPT_NUM        3
-#define ZTBOX_BITMAP_EXT_BASE_SIZE  EXT_SIZE_8
+#define CTBOX_REPAIR_OPT_NUM        3
+#define CTBOX_BITMAP_EXT_BASE_SIZE  EXT_SIZE_8
 #define REPAIR_BLOCK_PAGES          1048576 // 8G // 524288 // 4G (4 * 1024 * 1024 * 1024 / 8192)
 #define REPAIR_PROCESS_NUM          32
 
@@ -131,7 +132,7 @@ static void func_date2scn_usage(void);
 static void func_repair_space_usage(void);
 static void func_decompress_extent_usage(void);
 
-static uint16 ztbox_df_map_bit_cnt(uint16 page_size)
+static uint16 ctbox_df_map_bit_cnt(uint16 page_size)
 {
     return (uint16)((page_size - sizeof(df_map_page_t) - sizeof(page_tail_t)) * DF_BYTE_TO_BITS);
 }
@@ -147,14 +148,7 @@ func_type_parse_t g_func_proc[] = {
     { "decompress_page", func_decompress_extent, func_decompress_extent_usage },
 };
 
-func_type_parse_t g_ztbox_func_proc[] = {
-    { "scn2time",        func_scn2time,        func_scn2time_usage },
-    { "date2time_t",     func_date2time_t,     func_date2time_t_usage },
-    { "date2scn",        func_date2scn,        func_date2scn_usage },
-};
-
 #define NUM_FUNC_TYPE (sizeof(g_func_proc) / sizeof(func_type_parse_t))
-#define ZTBOX_NUM_FUNC_TYPE (sizeof(g_ztbox_func_proc) / sizeof(func_type_parse_t))
 
 static status_t func_int2pageid(int argc, char *argv[])
 {
@@ -164,8 +158,8 @@ static status_t func_int2pageid(int argc, char *argv[])
     if (argc - g_gm_optind < need_opt_num) {
         printf("int2pageid must has input int parameter].");
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "int2pageid input parameter");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "int2pageid input parameter");
+        return CT_ERROR;
     }
 
     cm_str2bigint(argv[g_gm_optind++], &tmp_int64);
@@ -173,12 +167,12 @@ static status_t func_int2pageid(int argc, char *argv[])
 
     if (g_gm_optind < argc) {
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind]);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind]);
+        return CT_ERROR;
     }
 
     printf("%u-%u\n", tmp_id.file, tmp_id.page);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void func_int2pageid_usage(void)
@@ -189,14 +183,14 @@ static void func_int2pageid_usage(void)
 static status_t func_int2undo_pageid(int argc, char *argv[])
 {
     undo_page_id_t tmp_id;
-    uint32 tmp_int32 = GS_INVALID_ID32;
+    uint32 tmp_int32 = CT_INVALID_ID32;
     int32 need_opt_num = 1;
 
     if (argc - g_gm_optind < need_opt_num) {
         printf("int2undo_pageid must has input int parameter].");
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "int2undo_pageid input parameter");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "int2undo_pageid input parameter");
+        return CT_ERROR;
     }
 
     cm_str2uint32(argv[g_gm_optind++], &tmp_int32);
@@ -204,12 +198,12 @@ static status_t func_int2undo_pageid(int argc, char *argv[])
 
     if (g_gm_optind < argc) {
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind]);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind]);
+        return CT_ERROR;
     }
 
     printf("%u-%u\n", tmp_id.file, tmp_id.page);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void func_int2undo_usage(void)
@@ -225,14 +219,14 @@ static status_t func_scn2time(int argc, char *argv[])
     struct tm *today = NULL;
     timeval_t *time_val = &tv;
     knl_scn_t scn;
-    char timef[GS_MAX_NUMBER_LEN];
+    char timef[CT_MAX_NUMBER_LEN];
     int32 need_opt_num = 2;
 
     if (argc - g_gm_optind < need_opt_num) {
         printf("scn2time must has input init_time and scn value.");
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "scn2time input parameter");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "scn2time input parameter");
+        return CT_ERROR;
     }
 
     cm_str2uint64(argv[g_gm_optind++], (uint64 *)&init_time);
@@ -241,20 +235,20 @@ static status_t func_scn2time(int argc, char *argv[])
 
     if (g_gm_optind < argc) {
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind]);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind]);
+        return CT_ERROR;
     }
 
     t = tv.tv_sec;
     today = localtime(&t);
     if (today != NULL) {
-        (void)strftime(timef, GS_MAX_NUMBER_LEN, "%Y-%m-%d   %H:%M:%S ", today);
+        (void)strftime(timef, CT_MAX_NUMBER_LEN, "%Y-%m-%d   %H:%M:%S ", today);
         printf("%s\r\n ", timef);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_THROW_ERROR_EX(ERR_INVALID_PARAMETER, "invalid scn %llu and init time %llu", (uint64)scn, (uint64)init_time);
-    return GS_ERROR;
+    CT_THROW_ERROR_EX(ERR_INVALID_PARAMETER, "invalid scn %llu and init time %llu", (uint64)scn, (uint64)init_time);
+    return CT_ERROR;
 }
 
 static void func_scn2time_usage(void)
@@ -275,16 +269,16 @@ static void func_repair_space_usage(void)
 
 static status_t dump_extents(file_info_t *files, page_list_t *extents, uint32 page_size, uint32 filter_file)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     page_id_t page_id = extents->first;
-    if (page_size == 0 || page_size > UINT16_MAX || page_size % GS_PAGE_UNIT_SIZE != 0) {
-        return GS_ERROR;
+    if (page_size == 0 || page_size > UINT16_MAX || page_size % CT_PAGE_UNIT_SIZE != 0) {
+        return CT_ERROR;
     }
 
     char *buf = (char *)malloc(page_size);
     if (buf == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, page_size, "dump_extents");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, page_size, "dump_extents");
+        return CT_ERROR;
     }
 
     printf("%-5s %-10s %-5s\n", "file", "page", "idx");
@@ -292,25 +286,25 @@ static status_t dump_extents(file_info_t *files, page_list_t *extents, uint32 pa
     for (uint32 i = 0; i < extents->count; i++) {
         if (IS_INVALID_PAGID(page_id)) {
             printf("the %u extent is invalid page id %u-%u\n", i, (uint32)page_id.file, (uint32)page_id.page);
-            GS_THROW_ERROR(ERR_INVALID_PAGE_ID, "");
-            status = GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_PAGE_ID, "");
+            status = CT_ERROR;
             break;
         }
 
-        if (files[page_id.file].file_path == NULL || files[page_id.file].handle == GS_INVALID_ID32) {
+        if (files[page_id.file].file_path == NULL || files[page_id.file].handle == CT_INVALID_ID32) {
             printf("dump_extents need file path of file id %u].", page_id.file);
             printf("try use \"--help\" for more information.\n");
-            GS_THROW_ERROR(ERR_INVALID_PARAMETER, "dump_extents input parameter");
-            status = GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_PARAMETER, "dump_extents input parameter");
+            status = CT_ERROR;
             break;
         }
 
-        if (filter_file == GS_INVALID_ID32 || page_id.file == filter_file) {
+        if (filter_file == CT_INVALID_ID32 || page_id.file == filter_file) {
             printf("%-5u %-10u %-5u\n", page_id.file, page_id.page, i);
         }
 
-        if (miner_read_page(files[page_id.file].handle, buf, page_id.page * page_size, page_size) != GS_SUCCESS) {
-            status = GS_ERROR;
+        if (miner_read_page(files[page_id.file].handle, buf, page_id.page * page_size, page_size) != CT_SUCCESS) {
+            status = CT_ERROR;
             break;
         }
         page_head_t *page = (page_head_t *)buf;
@@ -347,64 +341,64 @@ static void func_dump_extents_init(char *argv[], uint32 *page_size, page_list_t 
 
 static status_t func_dump_extents(int argc, char *argv[])
 {
-    uint32 file_count = GS_INVALID_ID32;
+    uint32 file_count = CT_INVALID_ID32;
     int32 need_opt_num = 9;
-    file_info_t files[GS_MAX_DATA_FILES];
-    uint32 file_no[GS_MAX_DATA_FILES];
+    file_info_t files[CT_MAX_DATA_FILES];
+    uint32 file_no[CT_MAX_DATA_FILES];
     uint32 i, tmp, page_size;
 
     if (argc - g_gm_optind < need_opt_num) {
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "dump_extents input parameter");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "dump_extents input parameter");
+        return CT_ERROR;
     }
 
     cm_str2uint32(argv[g_gm_optind++], &file_count);
-    if (file_count > GS_MAX_DATA_FILES) {
+    if (file_count > CT_MAX_DATA_FILES) {
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "file count parameter is invalid");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "file count parameter is invalid");
+        return CT_ERROR;
     }
 
-    for (i = 0; i < GS_MAX_DATA_FILES; i++) {
-        files[i].handle = GS_INVALID_ID32;
+    for (i = 0; i < CT_MAX_DATA_FILES; i++) {
+        files[i].handle = CT_INVALID_ID32;
         files[i].file_path = NULL;
     }
     
     for (i = 0; i < file_count; i++) {
         cm_str2uint32(argv[g_gm_optind++], &tmp);
-        if (tmp >= GS_MAX_DATA_FILES) {
+        if (tmp >= CT_MAX_DATA_FILES) {
             printf("try use \"--help\" for more information.\n");
-            GS_THROW_ERROR(ERR_INVALID_PARAMETER, "file id parameter is invalid");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_PARAMETER, "file id parameter is invalid");
+            return CT_ERROR;
         }
         
         file_no[i] = tmp;
         files[tmp].file_path = argv[g_gm_optind++];
-        if (cm_open_file(files[tmp].file_path, O_RDONLY | O_BINARY, &files[tmp].handle) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_open_file(files[tmp].file_path, O_RDONLY | O_BINARY, &files[tmp].handle) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     page_list_t extents;
-    uint32 filter_file = GS_INVALID_ID32;
+    uint32 filter_file = CT_INVALID_ID32;
 
     func_dump_extents_init(argv, &page_size, &extents);
 
     if (g_gm_optind < argc) {
-        if (cm_str2uint32(argv[g_gm_optind++], &filter_file) != GS_SUCCESS) {
+        if (cm_str2uint32(argv[g_gm_optind++], &filter_file) != CT_SUCCESS) {
             func_close_files(file_count, file_no, files);
             printf("try use \"--help\" for more information.\n");
-            GS_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind - 1]);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind - 1]);
+            return CT_ERROR;
         }
     }
 
     if (g_gm_optind < argc) {
         func_close_files(file_count, file_no, files);
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind]);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind]);
+        return CT_ERROR;
     }
 
     status_t status = dump_extents(files, &extents, page_size, filter_file);
@@ -423,27 +417,27 @@ static status_t func_date2time_t(int argc, char *argv[])
     if (argc - g_gm_optind < need_opt_num) {
         printf("date2time_t must has input date parameter.");
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "date2time_t input parameter");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "date2time_t input parameter");
+        return CT_ERROR;
     }
     cm_str2text(argv[g_gm_optind++], &text);
     
     date_t date;
     text_t date_fmt1 = { "YYYY-MM-DD HH24:MI:SS", 21 };
-    if (cm_text2date(&text, &date_fmt1, &date) != GS_SUCCESS) {
+    if (cm_text2date(&text, &date_fmt1, &date) != CT_SUCCESS) {
         printf("param value \'%s\' is invalid.\n", (&text)->str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     tmp_time = cm_date2time(date);
     
     if (g_gm_optind < argc) {
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind]);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, argv[g_gm_optind]);
+        return CT_ERROR;
     }
 
     printf("%lld\r\n ", (int64)tmp_time);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void func_date2time_t_usage(void)
@@ -453,12 +447,12 @@ static void func_date2time_t_usage(void)
 
 static status_t func_init_input(func_input_def_t *input)
 {
-    input->page_sn = GS_INVALID_ID32;
+    input->page_sn = CT_INVALID_ID32;
     input->file_path = NULL;
     input->head_buf = NULL;
-    input->handle = GS_INVALID_INT32;
-    input->is_decompress_extent = GS_FALSE;
-    return GS_SUCCESS;
+    input->handle = CT_INVALID_INT32;
+    input->is_decompress_extent = CT_FALSE;
+    return CT_SUCCESS;
 }
 
 static status_t func_get_input(int argc, char *argv[], func_input_def_t *input)
@@ -470,55 +464,55 @@ static status_t func_get_input(int argc, char *argv[], func_input_def_t *input)
                 if (input->file_path == NULL && g_gm_optarg != NULL) {
                     input->file_path = (char *)cm_strdup(g_gm_optarg);
                 } else {
-                    printf("try use \"ztbox -T zfunc -f decompress_page --help/-h\" for more information.\n");
-                    return GS_ERROR;
+                    printf("try use \"ctbox -T cfunc -f decompress_page --help/-h\" for more information.\n");
+                    return CT_ERROR;
                 }
                 break;
             case 'P':
-                if (input->page_sn == GS_INVALID_ID32 && g_gm_optarg != NULL) {
+                if (input->page_sn == CT_INVALID_ID32 && g_gm_optarg != NULL) {
                     input->page_sn = (uint32)atoi(g_gm_optarg);
                 } else {
-                    printf("try use \"ztbox -T zfunc -f decompress_page --help/-h\" for more information.\n");
-                    return GS_ERROR;
+                    printf("try use \"ctbox -T cfunc -f decompress_page --help/-h\" for more information.\n");
+                    return CT_ERROR;
                 }
                 break;
             default:
-                printf("try use \"ztbox -T zfunc -f decompress_page --help/-h\" for more information.\n");
-                return GS_ERROR;
+                printf("try use \"ctbox -T cfunc -f decompress_page --help/-h\" for more information.\n");
+                return CT_ERROR;
         }
         c = miner_getopt(argc, argv, "F:P:");
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t func_check_input(int argc, char *argv[], func_input_def_t *input)
 {
     if (g_gm_optind > argc) {
         printf("invalid argument : \"%s\"", argv[g_gm_optind]);
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "zfunc input parameter");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "cfunc input parameter");
+        return CT_ERROR;
     }
     if (input->is_decompress_extent) {
         if (input->file_path == NULL) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
         if (!cm_file_exist(input->file_path)) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
-        if (input->page_sn == GS_INVALID_ID32) {
-            return GS_ERROR;
+        if (input->page_sn == CT_INVALID_ID32) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void func_free_input(func_input_def_t *input)
 {
     CM_FREE_PTR(input->file_path);
     CM_FREE_PTR(input->head_buf);
-    if (input->handle != GS_INVALID_INT32) {
+    if (input->handle != CT_INVALID_INT32) {
         cm_close_file(input->handle);
-        input->handle = GS_INVALID_INT32;
+        input->handle = CT_INVALID_INT32;
     }
 }
 
@@ -527,73 +521,73 @@ static status_t func_decompress_extent(int argc, char *argv[])
     func_input_def_t input;
     page_head_t *head = NULL;
     compress_page_head_t *group_head = NULL;
-    if (func_usage_ex(argc, argv) == GS_SUCCESS) {
-        return GS_SUCCESS;
+    if (func_usage_ex(argc, argv) == CT_SUCCESS) {
+        return CT_SUCCESS;
     }
-    if (func_init_input(&input) != GS_SUCCESS) {
+    if (func_init_input(&input) != CT_SUCCESS) {
         func_free_input(&input);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    if (func_get_input(argc, argv, &input) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "zfunc input parameter");
+    if (func_get_input(argc, argv, &input) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "cfunc input parameter");
         func_free_input(&input);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    input.is_decompress_extent = GS_TRUE;
-    if (func_check_input(argc, argv, &input) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "zfunc input parameter");
+    input.is_decompress_extent = CT_TRUE;
+    if (func_check_input(argc, argv, &input) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "cfunc input parameter");
         func_free_input(&input);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     const char *file_path = input.file_path;
-    if (cm_open_file(file_path, O_RDWR | O_BINARY | O_SYNC, &input.handle) != GS_SUCCESS) {
+    if (cm_open_file(file_path, O_RDWR | O_BINARY | O_SYNC, &input.handle) != CT_SUCCESS) {
         func_free_input(&input);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     input.head_buf = (char *)malloc(FUNC_DEF_PAGE_SIZE * PAGE_GROUP_COUNT);
     if (input.head_buf == NULL) {
         func_free_input(&input);
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, MINER_DEF_PAGE_SIZE, "zfunc decompress page");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, MINER_DEF_PAGE_SIZE, "cfunc decompress page");
+        return CT_ERROR;
     }
     if (miner_read_page(input.handle, input.head_buf, extent_begin_page_sn(input.page_sn) * FUNC_DEF_PAGE_SIZE,
-        FUNC_DEF_PAGE_SIZE * PAGE_GROUP_COUNT) != GS_SUCCESS) {
+        FUNC_DEF_PAGE_SIZE * PAGE_GROUP_COUNT) != CT_SUCCESS) {
         func_free_input(&input);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     head = (page_head_t *)input.head_buf;
     group_head = COMPRESS_PAGE_HEAD(head);
-    if (func_desc_compress_extent(head, group_head, input.page_sn) != GS_SUCCESS) {
+    if (func_desc_compress_extent(head, group_head, input.page_sn) != CT_SUCCESS) {
         func_free_input(&input);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     func_free_input(&input);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t func_desc_compress_extent(page_head_t *head, compress_page_head_t *group_head, uint32 page_sn)
 {
     if (!head->compressed) {
         printf("don't find compressed page with id:%u.\n ", extent_begin_page_sn(page_sn));
-        return GS_ERROR;
+        return CT_ERROR;
     }
     char *dst_buf = NULL;
     uint32 dst_buf_size = PAGE_GROUP_COUNT * PAGE_SIZE(*head);
     dst_buf = (char *)malloc(dst_buf_size);
     if (dst_buf == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, dst_buf_size, "zfunc decompress datafile");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, dst_buf_size, "cfunc decompress datafile");
+        return CT_ERROR;
     }
     switch (group_head->compress_algo) {
         case COMPRESS_ZSTD: {
-            if (func_zstd_decompress_extent(dst_buf, dst_buf_size, head, group_head) != GS_SUCCESS) {
+            if (func_zstd_decompress_extent(dst_buf, dst_buf_size, head, group_head) != CT_SUCCESS) {
                 printf("Error! ZSTD decompress extent fault");
                 CM_FREE_PTR(dst_buf);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             for (int i = 0; i < PAGE_GROUP_COUNT; ++i) {
                 miner_desc_page(extent_begin_page_sn(page_sn) + i, dst_buf + i * FUNC_DEF_PAGE_SIZE, FUNC_DEF_PAGE_SIZE,
-                    GS_FALSE, GS_FALSE);
+                    CT_FALSE, CT_FALSE);
             }
             break;
         }
@@ -611,7 +605,7 @@ static status_t func_desc_compress_extent(page_head_t *head, compress_page_head_
         }
     }
     CM_FREE_PTR(dst_buf);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t func_zstd_decompress_extent(char *dst_buf, uint32 dst_buf_size,
@@ -619,9 +613,9 @@ static status_t func_zstd_decompress_extent(char *dst_buf, uint32 dst_buf_size,
 {
     char *src_buf = (char *)malloc(group_head->compressed_size);
     if (src_buf == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, group_head->compressed_size, "zfunc decompress page");
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, group_head->compressed_size, "cfunc decompress page");
         CM_FREE_PTR(src_buf);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     uint32 count;
@@ -638,9 +632,9 @@ static status_t func_zstd_decompress_extent(char *dst_buf, uint32 dst_buf_size,
         }
         errno_t ret = memcpy_sp(src_buf + dst_moved_size, remain_size, (char *)head + src_moved_size, count);
         if (ret != EOK) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)GS_MAX_LOG_BUFFER_SIZE, "func ZSTD decompress extent block");
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)CT_MAX_LOG_BUFFER_SIZE, "func ZSTD decompress extent block");
             CM_FREE_PTR(src_buf);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         dst_moved_size += count;
         src_moved_size += FUNC_DEF_PAGE_SIZE;
@@ -650,41 +644,41 @@ static status_t func_zstd_decompress_extent(char *dst_buf, uint32 dst_buf_size,
     if (verify_size != dst_buf_size) {
         printf("Error! Impossible because zstd will check this condition!");
         CM_FREE_PTR(src_buf);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     CM_FREE_PTR(src_buf);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void func_decompress_extent_usage(void)
 {
     printf("decompress_page is an decompressing tool to decompress the entire extent.\n"
         "Usage:\n"
-        "ztbox -T zfunc -f decompress_page -F <filename> -P <page_id>\n"
+        "ctbox -T cfunc -f decompress_page -F <filename> -P <page_id>\n"
         "filename --the table compressed file to decompress.\n"
         "page_id -- the id of compressed page to decompress.\n"
-        "eg:ztbox -T zfunc -f decompress_page -F compress -P 193\n"
+        "eg:ctbox -T cfunc -f decompress_page -F compress -P 193\n"
     );
 }
 
 static status_t func_usage_ex(int argc, char *argv[])
 {
     if (argc < g_gm_optind) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (strcmp(argv[g_gm_optind], "--help") == 0 || strcmp(argv[g_gm_optind], "-h") == 0) {
         for (int i = 0; i < NUM_FUNC_TYPE; ++i) {
             if (strcmp(argv[g_gm_optind - 1], g_func_proc[i].func_name) == 0) {
                 g_func_proc[i].func_usage_proc();
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
         }
     }
     if (strcmp(argv[g_gm_optind], "--version") == 0 || strcmp(argv[g_gm_optind], "-V") == 0) {
         tbox_print_version();
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 static status_t func_date2scn(int argc, char *argv[])
@@ -696,8 +690,8 @@ static status_t func_date2scn(int argc, char *argv[])
     if (argc - g_gm_optind < need_opt_num) {
         printf("date2scn must has input init_time and date value.");
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "date2scn input parameter");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "date2scn input parameter");
+        return CT_ERROR;
     }
     cm_str2uint64(argv[g_gm_optind++], (uint64 *)&init_time);
     
@@ -707,13 +701,13 @@ static status_t func_date2scn(int argc, char *argv[])
     cm_str2time(argv[g_gm_optind++], &date_fmt1, &time.tv_sec);
 
     if (time.tv_sec < init_time) {
-        GS_THROW_ERROR(ERR_TOO_OLD_SCN, "no snapshot found based on specified time");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TOO_OLD_SCN, "no snapshot found based on specified time");
+        return CT_ERROR;
     }
 
     scn = KNL_TIME_TO_SCN(&time, init_time);
     printf("%llu\r\n ", (uint64)scn);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void func_date2scn_usage(void)
@@ -724,10 +718,10 @@ static void func_date2scn_usage(void)
 static void usage(void)
 {
     uint32 i;
-    printf("Zfunc contains common functions for Z-engine.\n"
+    printf("cfunc contains common functions for cantian.\n"
            "\n"
            "Usage:\n"
-           "  zfunc [OPTIONS]\n"
+           "  cfunc [OPTIONS]\n"
            "\nRequired options:\n"
            "  -f FUNCTIONNAME  the function name to use\n");
 
@@ -746,16 +740,16 @@ static status_t copy_map_pages(repair_src_info_t *info)
     uint32 maps_size;
     df_map_head_t *map_head = (df_map_head_t *)info->buf_map_head;
     int64 total_size = 0;
-    if (info->page_size == 0 || info->page_size > UINT16_MAX || info->page_size % GS_PAGE_UNIT_SIZE != 0) {
-        return GS_ERROR;
+    if (info->page_size == 0 || info->page_size > UINT16_MAX || info->page_size % CT_PAGE_UNIT_SIZE != 0) {
+        return CT_ERROR;
     }
     for (uint32 i = 0; i < map_head->group_count; i++) {
         df_map_group_t *map_group = &map_head->groups[i];
         maps_offset = (int64)(map_group->first_map.page) * info->page_size;
         maps_size = map_group->page_count * info->page_size;
         // read bitmap pages to src buf and output buf
-        if (miner_read_page(info->data_file.handle, info->buf_src_bt, maps_offset, maps_size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (miner_read_page(info->data_file.handle, info->buf_src_bt, maps_offset, maps_size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         knl_securec_check(memcpy_sp(info->buf_output_bt + total_size, maps_size, info->buf_src_bt, maps_size));
         total_size += maps_size;
@@ -834,10 +828,10 @@ static uint32 repair_locate_map_by_pageid(char *buf_bitmap_pages, df_map_head_t 
         map_page = (df_map_page_t *)(buf_bitmap_pages + start * page_size);
         page_start = map_page->first_page.page;
 
-        page_end = page_start + ztbox_df_map_bit_cnt(page_size) * map_head->bit_unit * map_group->page_count - 1;
+        page_end = page_start + ctbox_df_map_bit_cnt(page_size) * map_head->bit_unit * map_group->page_count - 1;
         if (page_id.page <= page_end) {
-            *map_id = (page_id.page - page_start) / map_head->bit_unit / ztbox_df_map_bit_cnt(page_size);
-            *bit_id = (page_id.page - page_start) / map_head->bit_unit % ztbox_df_map_bit_cnt(page_size);
+            *map_id = (page_id.page - page_start) / map_head->bit_unit / ctbox_df_map_bit_cnt(page_size);
+            *bit_id = (page_id.page - page_start) / map_head->bit_unit % ctbox_df_map_bit_cnt(page_size);
             break;
         }
         start += map_group->page_count;
@@ -865,7 +859,7 @@ static void repair_free_extent(char *bitmap_buf, df_map_head_t *map_head,
     cm_spin_lock(lock, NULL);
     df_unset_bitmap(map_page->bitmap, bit_id, bit_len);
     map_page->free_bits += bit_len;
-    knl_panic(map_page->free_bits <= ztbox_df_map_bit_cnt(page_size));
+    knl_panic(map_page->free_bits <= ctbox_df_map_bit_cnt(page_size));
     if (bit_id < map_page->free_begin) {
         map_page->free_begin = bit_id;
     }
@@ -876,7 +870,7 @@ static status_t repair_try_repair_one_extent(repair_thread_src_t *t_src, page_li
     uint32 ext_size, uint32 exp_ext_size)
 {
     if (!t_src->repair) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     uint32 page_size = t_src->p_size;
     file_info_t *date_file = &t_src->file;
@@ -886,9 +880,9 @@ static status_t repair_try_repair_one_extent(repair_thread_src_t *t_src, page_li
         page_calc_checksum(page_head, page_size);
         // WRITE to SOURCE DATA FILE
         if (repair_write_page(date_file->handle, t_src->buf_ext,
-            (int64)(extents->first.page) * page_size, page_size) != GS_SUCCESS) {
-            printf("[FATAL] ztbox repair error, write datafile %s.\n", date_file->file_path);
-            return GS_ERROR;
+            (int64)(extents->first.page) * page_size, page_size) != CT_SUCCESS) {
+            printf("[FATAL] ctbox repair error, write datafile %s.\n", date_file->file_path);
+            return CT_ERROR;
         }
         printf("Repair datafile %s page %u ext_size from %u to %u.\n",
             date_file->file_path, extents->first.page, ext_size, exp_ext_size);
@@ -897,7 +891,7 @@ static status_t repair_try_repair_one_extent(repair_thread_src_t *t_src, page_li
             "Because segment alloc has been degraded.\n",
             date_file->file_path, extents->first.page, ext_size, exp_ext_size);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t repair_free_extents(repair_thread_src_t *t_src, page_list_t *extents,
@@ -916,15 +910,15 @@ static status_t repair_free_extents(repair_thread_src_t *t_src, page_list_t *ext
         if (IS_INVALID_PAGID(extents->first)) {
             printf("the %u extent is invalid page id %u-%u\n",
                 extents->count, (uint32)extents->first.file, (uint32)extents->first.page);
-            GS_THROW_ERROR(ERR_INVALID_PAGE_ID, "");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_PAGE_ID, "");
+            return CT_ERROR;
         }
 
         if (miner_read_page(date_file->handle, t_src->buf_ext,
-            (int64)(extents->first.page) * page_size, page_size) != GS_SUCCESS) {
+            (int64)(extents->first.page) * page_size, page_size) != CT_SUCCESS) {
             printf("read datafile %s error, offset is %lld ,read size is %u", date_file->file_path,
                 (int64)(extents->first.page) * page_size, page_size);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         page_head = (page_head_t *)t_src->buf_ext;
@@ -932,15 +926,15 @@ static status_t repair_free_extents(repair_thread_src_t *t_src, page_list_t *ext
         exp_ext_size = repair_ext_size_by_cnt(idx);
         // only lob is not auto allocate
         if (!auto_alloc) {
-            if (ext_size != ZTBOX_BITMAP_EXT_BASE_SIZE) {
+            if (ext_size != CTBOX_BITMAP_EXT_BASE_SIZE) {
                 printf("[FATAL] extent size %u is not equal to expect extent size %u, "
                     "but it is not auto allocate segment.\n", ext_size, exp_ext_size);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         } else if (ext_size != exp_ext_size) {
             if (repair_try_repair_one_extent(t_src, extents, is_degrade, ext_size,
-                exp_ext_size) != GS_SUCCESS) {
-                return GS_ERROR;
+                exp_ext_size) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             (*leak_exts)++;
             (*leak_pages) += abs(exp_ext_size - ext_size);
@@ -955,7 +949,7 @@ static status_t repair_free_extents(repair_thread_src_t *t_src, page_list_t *ext
         idx++;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static uint32 repair_map_page_bits(df_map_page_t *output_map_page, df_map_page_t *df_map_page,
@@ -964,7 +958,7 @@ static uint32 repair_map_page_bits(df_map_page_t *output_map_page, df_map_page_t
     // use search result fix datafile bitmap
     uint32 bit_id = 0;
     uint32 fix_count = 0;
-    while (bit_id < ztbox_df_map_bit_cnt(page_size)) {
+    while (bit_id < ctbox_df_map_bit_cnt(page_size)) {
         if (DF_MAP_UNMATCH(output_map_page->bitmap, bit_id)) {
             DF_MAP_UNSET(df_map_page->bitmap, bit_id);
             df_map_page->free_bits++;
@@ -984,35 +978,35 @@ static status_t repair_map_page(file_info_t *data_file, df_map_page_t *output_ma
     uint32 page_size)
 {
     page_id_t *map_page_id = AS_PAGID_PTR(output_map_page->page_head.id);
-    if (output_map_page->free_bits < ztbox_df_map_bit_cnt(page_size)) {
+    if (output_map_page->free_bits < ctbox_df_map_bit_cnt(page_size)) {
         if (miner_read_page(data_file->handle, df_page_buf, (int64)(map_page_id->page) * page_size,
-            page_size) != GS_SUCCESS) {
+            page_size) != CT_SUCCESS) {
             printf("Can not read datafile %s, offset %u, read size %u.\n",
                 data_file->file_path, (map_page_id->page) * page_size, page_size);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         df_map_page_t *df_map_page = (df_map_page_t *)df_page_buf;
         // use search result fix datafile bitmap
         uint32 fix_count = repair_map_page_bits(output_map_page, df_map_page, map_page_id, page_size);
         if (fix_count > 0) {
-            printf("[SUMMARY]ztbox repair bitmap page %u-%u, fix %u bits, free bits %u, free begin %u.\n",
+            printf("[SUMMARY]ctbox repair bitmap page %u-%u, fix %u bits, free bits %u, free begin %u.\n",
                 map_page_id->file, map_page_id->page, fix_count, df_map_page->free_bits, df_map_page->free_begin);
-            if (df_map_page->free_bits > ztbox_df_map_bit_cnt(page_size)) {
-                printf("[FATAL]ztbox repair error, source bitmap page %u-%u free bits %u large than max bits %u.\n",
-                    map_page_id->file, map_page_id->page, df_map_page->free_bits, ztbox_df_map_bit_cnt(page_size));
-                return GS_ERROR;
+            if (df_map_page->free_bits > ctbox_df_map_bit_cnt(page_size)) {
+                printf("[FATAL]ctbox repair error, source bitmap page %u-%u free bits %u large than max bits %u.\n",
+                    map_page_id->file, map_page_id->page, df_map_page->free_bits, ctbox_df_map_bit_cnt(page_size));
+                return CT_ERROR;
             }
 
             // reset bitmap page on disk
             page_calc_checksum(&df_map_page->page_head, page_size);
             if (repair_write_page(data_file->handle, df_page_buf,
-                (int64)(map_page_id->page) * page_size, page_size) != GS_SUCCESS) {
-                printf("[FATAL]ztbox repair error, write datafile %s error.\n", data_file->file_path);
-                return GS_ERROR;
+                (int64)(map_page_id->page) * page_size, page_size) != CT_SUCCESS) {
+                printf("[FATAL]ctbox repair error, write datafile %s error.\n", data_file->file_path);
+                return CT_ERROR;
             }
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t repair_map_pages(repair_src_info_t *src_info, uint32 page_count)
@@ -1020,19 +1014,19 @@ static status_t repair_map_pages(repair_src_info_t *src_info, uint32 page_count)
     char *page_buf = (char *)malloc(src_info->page_size); // only for bitmap head
     if (page_buf == NULL) {
         printf("[ERROR]alloc page buf %u error.\n", src_info->page_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     df_map_page_t *map_page = NULL;
     for (uint32 i = 0; i < page_count; i++) {
         map_page = (df_map_page_t *)(src_info->buf_output_bt + i * src_info->page_size);
-        if (repair_map_page(&src_info->data_file, map_page, page_buf, src_info->page_size) != GS_SUCCESS) {
+        if (repair_map_page(&src_info->data_file, map_page, page_buf, src_info->page_size) != CT_SUCCESS) {
             CM_FREE_PTR(page_buf);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
     CM_FREE_PTR(page_buf);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static uint32 repair_calc_set_bits(repair_src_info_t *src_info, uint32 page_count)
@@ -1042,7 +1036,7 @@ static uint32 repair_calc_set_bits(repair_src_info_t *src_info, uint32 page_coun
     uint32 bits = 0;
     for (uint32 i = 0; i < page_count; i++) {
         map_page = (df_map_page_t *)(src_info->buf_output_bt + i * src_info->page_size);
-        bits += ztbox_df_map_bit_cnt(page_size) - map_page->free_bits;
+        bits += ctbox_df_map_bit_cnt(page_size) - map_page->free_bits;
     }
     return bits;
 }
@@ -1059,11 +1053,11 @@ static inline void repair_release_resource(repair_src_info_t *src_info)
 
 static void repair_init_src_info(repair_src_info_t *src_info)
 {
-    src_info->data_file.handle = GS_INVALID_HANDLE;
+    src_info->data_file.handle = CT_INVALID_HANDLE;
     src_info->data_file.file_path = NULL;
-    src_info->output_file.handle = GS_INVALID_HANDLE;
+    src_info->output_file.handle = CT_INVALID_HANDLE;
     src_info->data_file.file_path = NULL;
-    src_info->repair = GS_FALSE;
+    src_info->repair = CT_FALSE;
     src_info->buf_map_head = NULL;
     src_info->buf_src_bt = NULL;
     src_info->buf_output_bt = NULL;
@@ -1074,10 +1068,10 @@ static void repair_init_src_info(repair_src_info_t *src_info)
 
 status_t repair_get_input(int argc, char *argv[], repair_src_info_t *src_info, uint32 *bitmap_pages)
 {
-    if (argc - g_gm_optind < ZTBOX_REPAIR_OPT_NUM) {
+    if (argc - g_gm_optind < CTBOX_REPAIR_OPT_NUM) {
         printf("try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "dump_extents input parameter");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "dump_extents input parameter");
+        return CT_ERROR;
     }
 
     // first get data file path, open file by REPAIR.
@@ -1087,26 +1081,26 @@ status_t repair_get_input(int argc, char *argv[], repair_src_info_t *src_info, u
     cm_str2uint32(argv[g_gm_optind++], &(src_info->page_size));
     if (src_info->page_size == 0) {
         printf("page size must large then 0.\n");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (g_gm_optind < argc) {
         if (cm_strcmpi(argv[g_gm_optind++], "repair") == 0) {
-            src_info->repair = GS_TRUE;
+            src_info->repair = CT_TRUE;
         }
     }
 
     uint32 df_mode = O_BINARY | (src_info->repair ? O_RDWR : O_RDONLY);
-    if (cm_open_file(src_info->data_file.file_path, df_mode, &src_info->data_file.handle) != GS_SUCCESS) {
+    if (cm_open_file(src_info->data_file.file_path, df_mode, &src_info->data_file.handle) != CT_SUCCESS) {
         printf("Can not open datafile %s.\n", src_info->data_file.file_path);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cm_open_file(src_info->output_file.file_path, O_RDWR | O_BINARY | O_SYNC | O_CREAT | O_TRUNC,
-        &src_info->output_file.handle) != GS_SUCCESS) {
+        &src_info->output_file.handle) != CT_SUCCESS) {
         cm_close_file(src_info->data_file.handle);
         printf("Can not open output file %s.\n", src_info->output_file.file_path);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_get_filesize(src_info->data_file.file_path, &(src_info->file_size));
@@ -1114,13 +1108,13 @@ status_t repair_get_input(int argc, char *argv[], repair_src_info_t *src_info, u
     src_info->buf_map_head = (char *)malloc(src_info->page_size); // only for bitmap head
     if (src_info->buf_map_head == NULL) {
         printf("Alloc memory %u failed.\n", src_info->page_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (miner_read_page(src_info->data_file.handle, src_info->buf_map_head,
-        (int64)(src_info->page_size) * DF_MAP_HEAD_PAGE, src_info->page_size) != GS_SUCCESS) {
+        (int64)(src_info->page_size) * DF_MAP_HEAD_PAGE, src_info->page_size) != CT_SUCCESS) {
         printf("Read file %s error, fail to get bitmap head.", src_info->data_file.file_path);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     
     *bitmap_pages = repair_calc_bitmap_pages((df_map_head_t *)src_info->buf_map_head);
@@ -1129,10 +1123,10 @@ status_t repair_get_input(int argc, char *argv[], repair_src_info_t *src_info, u
     src_info->buf_output_bt = (char *)malloc(total_size);
     if (src_info->buf_src_bt == NULL || src_info->buf_output_bt == NULL) {
         printf("Alloc memory %lld failed.\n", total_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t repair_init_map_page_lock(repair_src_info_t *src_info)
@@ -1140,18 +1134,18 @@ status_t repair_init_map_page_lock(repair_src_info_t *src_info)
     df_map_head_t *map_head = (df_map_head_t *)src_info->buf_map_head;
     uint32 size = sizeof(map_group_lock_t) * map_head->group_count;
     if (size == 0) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
     src_info->group_locks = (map_group_lock_t *)malloc(size);
     if (src_info->group_locks == NULL) {
         printf("Alloc memory %u failed.\n", size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (memset_sp(src_info->group_locks, size, 0, size) != EOK) {
         printf("Memory set %u failed.\n", size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 /*
  * 1 check parameter
@@ -1161,33 +1155,33 @@ status_t repair_prepare(int argc, char *argv[], repair_src_info_t *src_info, uin
 {
     repair_init_src_info(src_info);
 
-    if (repair_get_input(argc, argv, src_info, bitmap_pages) != GS_SUCCESS) {
+    if (repair_get_input(argc, argv, src_info, bitmap_pages) != CT_SUCCESS) {
         repair_release_resource(src_info);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (repair_init_map_page_lock(src_info) != GS_SUCCESS) {
+    if (repair_init_map_page_lock(src_info) != CT_SUCCESS) {
         repair_release_resource(src_info);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     // copy all map pages to output file
-    if (copy_map_pages(src_info) != GS_SUCCESS) {
+    if (copy_map_pages(src_info) != CT_SUCCESS) {
         repair_release_resource(src_info);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t repair_write_file(file_info_t *data_file, char *buf_file, uint32 file_size)
 {
-    if (repair_write_page(data_file->handle, buf_file, 0, file_size) != GS_SUCCESS) {
-        printf("[FATAL]ztbox repair error, write datafile %s error, size %u.\n",
+    if (repair_write_page(data_file->handle, buf_file, 0, file_size) != CT_SUCCESS) {
+        printf("[FATAL]ctbox repair error, write datafile %s error, size %u.\n",
             data_file->file_path, file_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void repair_try_print_segment_info(uint32 leak_exts, uint32 leak_pages, page_head_t *page,
@@ -1204,9 +1198,9 @@ static inline void repair_try_print_segment_info(uint32 leak_exts, uint32 leak_p
 static inline void repair_init_segment_info(bool32 *is_degrade, bool32 *is_free_degrade, bool32 *auto_alloc,
     page_list_t *free_extents)
 {
-    *is_degrade = GS_FALSE;
-    *is_free_degrade = GS_FALSE;
-    *auto_alloc = GS_TRUE;
+    *is_degrade = CT_FALSE;
+    *is_free_degrade = CT_FALSE;
+    *auto_alloc = CT_TRUE;
     free_extents->count = 0;
 }
 
@@ -1216,15 +1210,15 @@ static inline void repair_init_segment_info(bool32 *is_degrade, bool32 *is_free_
  */
 static status_t repair_scan_one_block(repair_thread_src_t *t_src, uint32 start)
 {
-    bool32 auto_alloc = GS_TRUE;
+    bool32 auto_alloc = CT_TRUE;
     uint32 leak_exts, leak_pages;   // bit map page count
     page_head_t *page = NULL;
     page_list_t extents, free_extents;
-    bool32 is_degrade = GS_FALSE;
-    bool32 is_free_degrade = GS_FALSE;
-    for (int64 i = start; i < start + REPAIR_BLOCK_PAGES; i += ZTBOX_BITMAP_EXT_BASE_SIZE) {
-        if (miner_read_page(t_src->file.handle, t_src->buf_seg, i * t_src->p_size, t_src->p_size) != GS_SUCCESS) {
-            return GS_SUCCESS;
+    bool32 is_degrade = CT_FALSE;
+    bool32 is_free_degrade = CT_FALSE;
+    for (int64 i = start; i < start + REPAIR_BLOCK_PAGES; i += CTBOX_BITMAP_EXT_BASE_SIZE) {
+        if (miner_read_page(t_src->file.handle, t_src->buf_seg, i * t_src->p_size, t_src->p_size) != CT_SUCCESS) {
+            return CT_SUCCESS;
         }
 
         page = (page_head_t *)t_src->buf_seg;
@@ -1234,39 +1228,39 @@ static status_t repair_scan_one_block(repair_thread_src_t *t_src, uint32 start)
                     heap_segment_t *heap_seg = (heap_segment_t *)((char *)page + PAGE_HEAD_SIZE);
                     extents = heap_seg->extents;
                     free_extents = heap_seg->free_extents;
-                    is_degrade = (heap_seg->page_count == 0) ? GS_FALSE : GS_TRUE;
-                    is_free_degrade = (heap_seg->free_page_count == 0) ? GS_FALSE : GS_TRUE;
+                    is_degrade = (heap_seg->page_count == 0) ? CT_FALSE : CT_TRUE;
+                    is_free_degrade = (heap_seg->free_page_count == 0) ? CT_FALSE : CT_TRUE;
                 }
                 break;
             case PAGE_TYPE_BTREE_HEAD: {
                     btree_segment_t *btree_seg = (btree_segment_t *)((char *)page + CM_ALIGN8(sizeof(btree_page_t)));
                     extents = btree_seg->extents;
-                    is_degrade = (btree_seg->page_count == 0) ? GS_FALSE : GS_TRUE;
+                    is_degrade = (btree_seg->page_count == 0) ? CT_FALSE : CT_TRUE;
                 }
                 break;
             case PAGE_TYPE_LOB_HEAD: {
                     lob_segment_t *lob_seg = (lob_segment_t *)((char *)page + PAGE_HEAD_SIZE);
                     extents = lob_seg->extents;
-                    auto_alloc = GS_FALSE;
+                    auto_alloc = CT_FALSE;
                 }
                 break;
             default:
                 continue;
         }
 
-        if (repair_free_extents(t_src, &extents, auto_alloc, is_degrade, &leak_exts, &leak_pages) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (repair_free_extents(t_src, &extents, auto_alloc, is_degrade, &leak_exts, &leak_pages) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-        repair_try_print_segment_info(leak_exts, leak_pages, page, GS_FALSE);
+        repair_try_print_segment_info(leak_exts, leak_pages, page, CT_FALSE);
 
         if (repair_free_extents(t_src, &free_extents, auto_alloc, is_free_degrade, &leak_exts,
-            &leak_pages) != GS_SUCCESS) {
-            return GS_ERROR;
+            &leak_pages) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-        repair_try_print_segment_info(leak_exts, leak_pages, page, GS_TRUE);
+        repair_try_print_segment_info(leak_exts, leak_pages, page, CT_TRUE);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t repair_init_thread_source(repair_src_info_t *src_info, repair_thread_src_t *t_src)
@@ -1283,18 +1277,18 @@ static status_t repair_init_thread_source(repair_src_info_t *src_info, repair_th
         printf("alloc memory %u error.\n", t_src->p_size);
         CM_FREE_PTR(t_src->buf_ext);
         CM_FREE_PTR(t_src->buf_seg);
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)t_src->p_size, "repair space loss");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)t_src->p_size, "repair space loss");
+        return CT_ERROR;
     }
 
     t_src->file.file_path = src_info->data_file.file_path;
     uint32 df_mode = O_BINARY | (src_info->repair ? O_RDWR : O_RDONLY);
-    if (cm_open_file(t_src->file.file_path, df_mode, &t_src->file.handle) != GS_SUCCESS) {
+    if (cm_open_file(t_src->file.file_path, df_mode, &t_src->file.handle) != CT_SUCCESS) {
         printf("Can not open data file %s.\n", t_src->file.file_path);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void repair_release_thread_source(repair_thread_src_t *t_src)
@@ -1308,12 +1302,12 @@ static inline bool32 repair_paral_get_blocks(repair_src_info_t *src_info, uint32
     cm_spin_lock(&src_info->lock, NULL);
     if (src_info->file_size / src_info->page_size < src_info->next_page_id) {
         cm_spin_unlock(&src_info->lock);
-        return GS_FALSE;
+        return CT_FALSE;
     }
     *start_page = src_info->next_page_id;
     src_info->next_page_id += REPAIR_BLOCK_PAGES;
     cm_spin_unlock(&src_info->lock);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void repair_paral_task_proc(thread_t *thread)
@@ -1322,21 +1316,21 @@ void repair_paral_task_proc(thread_t *thread)
     repair_src_info_t *src_info = proc->src_info;
     repair_thread_src_t t_src;
 
-    if (repair_init_thread_source(src_info, &t_src) != GS_SUCCESS) {
+    if (repair_init_thread_source(src_info, &t_src) != CT_SUCCESS) {
         printf("[ERROR] init work thread resouce error.\n");
-        proc->finish = GS_TRUE;
+        proc->finish = CT_TRUE;
         return;
     }
 
     uint32 start_page;
     while (repair_paral_get_blocks(src_info, &start_page)) {
-        if (repair_scan_one_block(&t_src, start_page) != GS_SUCCESS) {
+        if (repair_scan_one_block(&t_src, start_page) != CT_SUCCESS) {
             printf("[ERROR] scan block error, start page %u, thread id %d\n", start_page, proc->idx);
             continue;
         }
     }
     repair_release_thread_source(&t_src);
-    proc->finish = GS_TRUE;
+    proc->finish = CT_TRUE;
 }
 
 static status_t repair_run(repair_src_info_t *src_info)
@@ -1346,7 +1340,7 @@ static status_t repair_run(repair_src_info_t *src_info)
     if (src_info->file_size <= 0) {
         printf("[ERROR] file \"%s\" size %lld is invaild.\n", src_info->data_file.file_path,
             src_info->file_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     // page number is uint32, file size is int64. there is correct
@@ -1357,12 +1351,12 @@ static status_t repair_run(repair_src_info_t *src_info)
     repair_process_t *proc = NULL;
     for (uint32 i = 0; i < run_thread; i++) {
         proc = &repair_proc[i];
-        proc->finish = GS_FALSE;
+        proc->finish = CT_FALSE;
         proc->idx = i;
         proc->src_info = src_info;
-        if (cm_create_thread(repair_paral_task_proc, 0, proc, &proc->thread) != GS_SUCCESS) {
+        if (cm_create_thread(repair_paral_task_proc, 0, proc, &proc->thread) != CT_SUCCESS) {
             printf("[ERROR] create thread %u error\n", i);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
@@ -1375,29 +1369,29 @@ static status_t repair_run(repair_src_info_t *src_info)
         cm_close_thread(&proc->thread);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t func_repair_execute(int argc, char *argv[])
 {
     repair_src_info_t src_info;
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
     uint32 page_count;      // bit map page count
 
-    if (repair_prepare(argc, argv, &src_info, &page_count) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (repair_prepare(argc, argv, &src_info, &page_count) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (repair_run(&src_info) == GS_SUCCESS) {
+    if (repair_run(&src_info) == CT_SUCCESS) {
         status = repair_write_file(&src_info.output_file, src_info.buf_output_bt,
             page_count * src_info.page_size);
     }
 
     uint32 leak_spc_pages = repair_calc_set_bits(&src_info, page_count) * DF_BYTE_TO_BITS;
-    printf("[SUMMARY space] ztbox find leak space: %llu KB(%u PAGEs). Parse file \"%s\" for details.\n",
+    printf("[SUMMARY space] ctbox find leak space: %llu KB(%u PAGEs). Parse file \"%s\" for details.\n",
         (uint64)(leak_spc_pages) * src_info.page_size / SIZE_K(1), leak_spc_pages, src_info.output_file.file_path);
     // repair map pages of bitmap file, will reopen data_file
-    if (status == GS_SUCCESS && src_info.repair) {
+    if (status == CT_SUCCESS && src_info.repair) {
         status = repair_map_pages(&src_info, page_count);
     }
 
@@ -1408,13 +1402,13 @@ static status_t func_repair_execute(int argc, char *argv[])
 static status_t func_repair_space(int argc, char *argv[])
 {
     date_t c_start = cm_now();
-    if (func_repair_execute(argc, argv) != GS_SUCCESS) {
-        printf("Ztbox zfunc repair_space_loss Error.\n");
-        return GS_ERROR;
+    if (func_repair_execute(argc, argv) != CT_SUCCESS) {
+        printf("Ctbox cfunc repair_space_loss Error.\n");
+        return CT_ERROR;
     }
     date_t c_end = cm_now();
-    printf("Ztbox zfunc repair_space_loss use time %f s\n", (double)(c_end - c_start) / MS_PER_SEC);
-    return GS_SUCCESS;
+    printf("Ctbox cfunc repair_space_loss use time %f s\n", (double)(c_end - c_start) / MS_PER_SEC);
+    return CT_SUCCESS;
 }
 
 static status_t func_execute_usage(int argc, char *argv[])
@@ -1423,15 +1417,15 @@ static status_t func_execute_usage(int argc, char *argv[])
         if (strcmp(argv[g_gm_optind], "--help") == 0 || strcmp(argv[g_gm_optind], "-?") == 0 ||
             strcmp(argv[g_gm_optind], "-h") == 0) {
             usage();
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         if (strcmp(argv[g_gm_optind], "--version") == 0 || strcmp(argv[g_gm_optind], "-V") == 0) {
             tbox_print_version();
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t func_execute(int argc, char *argv[])
@@ -1440,8 +1434,8 @@ status_t func_execute(int argc, char *argv[])
     int32 c;
     uint32 i;
 
-    if (func_execute_usage(argc, argv) == GS_SUCCESS) {
-        return GS_SUCCESS;
+    if (func_execute_usage(argc, argv) == CT_SUCCESS) {
+        return CT_SUCCESS;
     }
 
     c = miner_getopt(argc, argv, "f:");
@@ -1449,26 +1443,27 @@ status_t func_execute(int argc, char *argv[])
         if (c == 'f') {
             if (fname != NULL) {
                 printf("must secify one function to use\n");
-                GS_THROW_ERROR(ERR_INVALID_PARAMETER, "zfunc input parameter");
+                CT_THROW_ERROR(ERR_INVALID_PARAMETER, "cfunc input parameter");
                 CM_FREE_PTR(fname);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             fname = (char *)cm_strdup(g_gm_optarg);
             break;
         } else {
             printf("try use \"--help\" for more information.\n");
-            GS_THROW_ERROR(ERR_INVALID_PARAMETER, "zfunc input parameter");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_PARAMETER, "cfunc input parameter");
+            return CT_ERROR;
         }
     }
 
     if (fname == NULL) {
         printf("must have -f option.try use \"--help\" for more information.\n");
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "zfunc input parameter");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "cfunc input parameter");
+        return CT_ERROR;
     }
 
     cm_str_lower(fname);
+
     for (i = 0; i < NUM_FUNC_TYPE; i++) {
         if (strcmp(g_func_proc[i].func_name, fname) == 0) {
             CM_FREE_PTR(fname);
@@ -1477,7 +1472,7 @@ status_t func_execute(int argc, char *argv[])
     }
 
     printf("try use \"--help\" for more information.\n");
-    GS_THROW_ERROR(ERR_INVALID_PARAMETER, fname);
+    CT_THROW_ERROR(ERR_INVALID_PARAMETER, fname);
     CM_FREE_PTR(fname);
-    return GS_ERROR;
+    return CT_ERROR;
 }

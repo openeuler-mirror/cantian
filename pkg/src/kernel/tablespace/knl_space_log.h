@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -95,24 +95,24 @@ void print_spc_change_autoextend_daac(log_entry_t *log);
 
 void gbp_aly_spc_extend_datafile(knl_session_t *session, log_entry_t *log, uint64 lsn);
 bool32 format_page_redo_type(uint8 type);
-void punch_page_skip_recovery_log(knl_session_t *session, log_entry_t *log, bool32 *need_replay);
-void format_page_must_recovery_log(knl_session_t *session, log_entry_t *log, bool32 *need_replay);
+void punch_page_skip_rcy_log(knl_session_t *session, log_entry_t *log, bool32 *need_replay);
+void format_page_must_rcy_log(knl_session_t *session, log_entry_t *log, bool32 *need_replay);
 
-void rd_spc_create_space_ctdb(knl_session_t *session, log_entry_t *log);
-void rd_spc_remove_space_ctdb(knl_session_t *session, log_entry_t *log);
-void rd_spc_create_datafile_ctdb(knl_session_t *session, log_entry_t *log);
-void rd_spc_remove_datafile_ctdb(knl_session_t *session, log_entry_t *log);
-void rd_spc_set_autoextend_ctdb(knl_session_t *session, log_entry_t *log);
-void rd_spc_rename_space_ctdb(knl_session_t *session, log_entry_t *log);
-void rd_spc_set_flag_ctdb(knl_session_t *session, log_entry_t *log);
+void rd_spc_create_space_daac(knl_session_t *session, log_entry_t *log);
+void rd_spc_remove_space_daac(knl_session_t *session, log_entry_t *log);
+void rd_spc_create_datafile_daac(knl_session_t *session, log_entry_t *log);
+void rd_spc_remove_datafile_daac(knl_session_t *session, log_entry_t *log);
+void rd_spc_set_autoextend_daac(knl_session_t *session, log_entry_t *log);
+void rd_spc_rename_space_daac(knl_session_t *session, log_entry_t *log);
+void rd_spc_set_flag_daac(knl_session_t *session, log_entry_t *log);
 
-void print_spc_create_space_ctdb(log_entry_t *log);
-void print_spc_remove_space_ctdb(log_entry_t *log);
-void print_spc_create_datafile_ctdb(log_entry_t *log);
-void print_spc_remove_datafile_ctdb(log_entry_t *log);
-void print_spc_set_autoextend_ctdb(log_entry_t *log);
-void print_spc_set_flag_ctdb(log_entry_t *log);
-void print_spc_rename_space_ctdb(log_entry_t *log);
+void print_spc_create_space_daac(log_entry_t *log);
+void print_spc_remove_space_daac(log_entry_t *log);
+void print_spc_create_datafile_daac(log_entry_t *log);
+void print_spc_remove_datafile_daac(log_entry_t *log);
+void print_spc_set_autoextend_daac(log_entry_t *log);
+void print_spc_set_flag_daac(log_entry_t *log);
+void print_spc_rename_space_daac(log_entry_t *log);
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,10 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "srv_module.h"
 #include "srv_instance.h"
+#include "cbo_base.h"
+#include "pl_executor.h"
 #include "srv_param_common.h"
 #include "set_others.h"
 
@@ -42,8 +45,8 @@ status_t sql_verify_ip_address(lex_t *lex, char *ipstr, uint32 len)
      * but REPL_TRUST_HOST is ok.
      */
     if (len == 0 && cm_strnstri(lex->text.str, lex->text.len, "LSNR_ADDR", (uint32)strlen("LSNR_ADDR")) != NULL) {
-        GS_SRC_THROW_ERROR(LEX_LOC, ERR_TCP_INVALID_IPADDRESS, "");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(LEX_LOC, ERR_TCP_INVALID_IPADDRESS, "");
+        return CT_ERROR;
     }
     uint32 tmp_len = len;
     for (pos = ipstr; tmp_len > 0; tmp_len--) {
@@ -53,15 +56,15 @@ status_t sql_verify_ip_address(lex_t *lex, char *ipstr, uint32 len)
             continue;
         }
 
-        if (ip_count >= GS_MAX_LSNR_HOST_COUNT) {
-            GS_SRC_THROW_ERROR(LEX_LOC, ERR_IPADDRESS_NUM_EXCEED, (uint32)GS_MAX_LSNR_HOST_COUNT);
-            return GS_ERROR;
+        if (ip_count >= CT_MAX_LSNR_HOST_COUNT) {
+            CT_SRC_THROW_ERROR(LEX_LOC, ERR_IPADDRESS_NUM_EXCEED, (uint32)CT_MAX_LSNR_HOST_COUNT);
+            return CT_ERROR;
         }
 
         *pos = '\0';
         if (tmp_len == 1 || !cm_check_ip_valid(ip)) {
-            GS_SRC_THROW_ERROR(LEX_LOC, ERR_TCP_INVALID_IPADDRESS, (tmp_len == 1) ? "" : ip);
-            return GS_ERROR;
+            CT_SRC_THROW_ERROR(LEX_LOC, ERR_TCP_INVALID_IPADDRESS, (tmp_len == 1) ? "" : ip);
+            return CT_ERROR;
         }
 
         *pos = ',';
@@ -72,18 +75,18 @@ status_t sql_verify_ip_address(lex_t *lex, char *ipstr, uint32 len)
     }
 
     if (ip_len > 0) {
-        if (ip_count >= GS_MAX_LSNR_HOST_COUNT) {
-            GS_SRC_THROW_ERROR(LEX_LOC, ERR_IPADDRESS_NUM_EXCEED, (uint32)GS_MAX_LSNR_HOST_COUNT);
-            return GS_ERROR;
+        if (ip_count >= CT_MAX_LSNR_HOST_COUNT) {
+            CT_SRC_THROW_ERROR(LEX_LOC, ERR_IPADDRESS_NUM_EXCEED, (uint32)CT_MAX_LSNR_HOST_COUNT);
+            return CT_ERROR;
         }
 
         if (!cm_check_ip_valid(ip)) {
-            GS_SRC_THROW_ERROR(LEX_LOC, ERR_TCP_INVALID_IPADDRESS, ip);
-            return GS_ERROR;
+            CT_SRC_THROW_ERROR(LEX_LOC, ERR_TCP_INVALID_IPADDRESS, ip);
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_ip(void *se, void *lex, void *def)
@@ -91,8 +94,8 @@ status_t sql_verify_als_ip(void *se, void *lex, void *def)
     word_t word;
     knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
 
-    if (lex_expected_fetch((lex_t *)lex, &word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch((lex_t *)lex, &word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (word.type == WORD_TYPE_STRING) {
@@ -100,7 +103,7 @@ status_t sql_verify_als_ip(void *se, void *lex, void *def)
     }
 
     cm_trim_text((text_t *)&word.text);
-    GS_RETURN_IFERR(cm_text2str((text_t *)&word.text, sys_def->value, GS_PARAM_BUFFER_SIZE));
+    CT_RETURN_IFERR(cm_text2str((text_t *)&word.text, sys_def->value, CT_PARAM_BUFFER_SIZE));
 
     /* check if the ip address specified is valid */
     return sql_verify_ip_address((lex_t *)lex, sys_def->value, (uint32)strlen(sys_def->value));
@@ -111,8 +114,8 @@ status_t sql_verify_param_port(void *lex, void *def, const char *port_name)
     word_t word;
     uint16 port;
     knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
-    if (lex_expected_fetch((lex_t *)lex, &word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch((lex_t *)lex, &word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     if (word.type == WORD_TYPE_STRING) {
         CM_REMOVE_ENCLOSED_CHAR(&(word.text));
@@ -123,24 +126,24 @@ status_t sql_verify_param_port(void *lex, void *def, const char *port_name)
     }
 
     if (word.text.len == 0) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_EMPTY_STRING_NOT_ALLOWED);
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word.loc, ERR_EMPTY_STRING_NOT_ALLOWED);
+        return CT_ERROR;
     }
-    GS_RETURN_IFERR(cm_text2str((text_t *)&word.text, sys_def->value, GS_PARAM_BUFFER_SIZE));
+    CT_RETURN_IFERR(cm_text2str((text_t *)&word.text, sys_def->value, CT_PARAM_BUFFER_SIZE));
 
     /* check if the port specified is valid */
-    if (cm_str2uint16(sys_def->value, &port) != GS_SUCCESS) {
+    if (cm_str2uint16(sys_def->value, &port) != CT_SUCCESS) {
         cm_reset_error();
-        GS_SRC_THROW_ERROR(((lex_t *)lex)->loc, ERR_INVALID_PARAMETER, port_name);
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(((lex_t *)lex)->loc, ERR_INVALID_PARAMETER, port_name);
+        return CT_ERROR;
     }
 
-    if (port < GS_MIN_PORT) {
-        GS_SRC_THROW_ERROR(((lex_t *)lex)->loc, ERR_PARAMETER_TOO_SMALL, port_name, (int64)GS_MIN_PORT);
-        return GS_ERROR;
+    if (port < CT_MIN_PORT) {
+        CT_SRC_THROW_ERROR(((lex_t *)lex)->loc, ERR_PARAMETER_TOO_SMALL, port_name, (int64)CT_MIN_PORT);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_port(void *se, void *lex, void *def)
@@ -151,32 +154,32 @@ status_t sql_verify_als_port(void *se, void *lex, void *def)
 status_t sql_verify_als_worker_threads(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num < GS_MIN_WORKER_THREADS || num > GS_MAX_WORKER_THREADS) {
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "WORKER_THREADS");
-        return GS_ERROR;
+    if (num < CT_MIN_WORKER_THREADS || num > CT_MAX_WORKER_THREADS) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "WORKER_THREADS");
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_sql_compat(void *se, void *lex, void *def)
 {
     knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
     // match_id matched with sql_style_t
-    if (lex_expected_fetch_word((lex_t *)lex, "CTDB") != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch_word((lex_t *)lex, "CTDB") != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    sys_def->value[0] = (char)SQL_STYLE_GS;
-    return GS_SUCCESS;
+    sys_def->value[0] = (char)SQL_STYLE_CT;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_sql_compat(void *se, void *item, char *value)
 {
-    PRTS_RETURN_IFERR(snprintf_s(value, GS_PARAM_BUFFER_SIZE, GS_PARAM_BUFFER_SIZE - 1, "CTDB"));
-    return GS_SUCCESS;
+    PRTS_RETURN_IFERR(snprintf_s(value, CT_PARAM_BUFFER_SIZE, CT_PARAM_BUFFER_SIZE - 1, "CTDB"));
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_pma_buf_size(void *se, void *lex, void *def)
@@ -192,11 +195,11 @@ status_t sql_verify_als_hash_area_size(void *se, void *lex, void *def)
 status_t sql_notify_als_hash_area_size(void *se, void *item, char *value)
 {
     int64 hash_area_size;
-    if (cm_str2size(value, &hash_area_size) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2size(value, &hash_area_size) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     g_instance->sql.hash_area_size = CM_CALC_ALIGN((uint64)hash_area_size, PMA_PAGE_SIZE);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als__hint_force(void *se, void *item, char *value)
@@ -206,7 +209,7 @@ status_t sql_notify_als__hint_force(void *se, void *item, char *value)
 
 status_t sql_verify_als_stack_size(void *se, void *lex, void *def)
 {
-    return sql_verify_pool_size(lex, def, GS_MIN_STACK_SIZE, GS_INVALID_ID32);
+    return sql_verify_pool_size(lex, def, CT_MIN_STACK_SIZE, CT_INVALID_ID32);
 }
 
 status_t sql_verify_als_lob_max_exec_size(void *se, void *lex, void *def)
@@ -215,8 +218,8 @@ status_t sql_verify_als_lob_max_exec_size(void *se, void *lex, void *def)
     int64 size;
     int64 stack_size = 0;
     knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
-    if (lex_expected_fetch((lex_t *)lex, &word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch((lex_t *)lex, &word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (word.type == WORD_TYPE_STRING) {
@@ -229,120 +232,120 @@ status_t sql_verify_als_lob_max_exec_size(void *se, void *lex, void *def)
     }
 
     if (word.text.len == 0) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_EMPTY_STRING_NOT_ALLOWED);
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word.loc, ERR_EMPTY_STRING_NOT_ALLOWED);
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(lex_push(lex, &word.text));
-    char *value = server_get_param("_AGENT_STACK_SIZE");
-    if (cm_str2size(value, &stack_size) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "_AGENT_STACK_SIZE");
-        return GS_ERROR;
+    CT_RETURN_IFERR(lex_push(lex, &word.text));
+    char *value = srv_get_param("_AGENT_STACK_SIZE");
+    if (cm_str2size(value, &stack_size) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "_AGENT_STACK_SIZE");
+        return CT_ERROR;
     }
-    if (lex_expected_fetch_size(lex, &size, 0, stack_size) != GS_SUCCESS) {
+    if (lex_expected_fetch_size(lex, &size, 0, stack_size) != CT_SUCCESS) {
         lex_pop(lex);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     lex_pop(lex);
 
-    return cm_text2str((text_t *)&word.text, sys_def->value, GS_PARAM_BUFFER_SIZE);
+    return cm_text2str((text_t *)&word.text, sys_def->value, CT_PARAM_BUFFER_SIZE);
 }
 
 status_t sql_verify_als_variant_size(void *se, void *lex, void *def)
 {
-    return sql_verify_pool_size(lex, def, GS_MIN_VARIANT_SIZE, GS_MAX_VARIANT_SIZE);
+    return sql_verify_pool_size(lex, def, CT_MIN_VARIANT_SIZE, CT_MAX_VARIANT_SIZE);
 }
 
 status_t sql_verify_als_init_cursors(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num > GS_MAX_INIT_CURSORS) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "_INIT_CURSORS", (int64)GS_MAX_INIT_CURSORS);
-        return GS_ERROR;
+    if (num > CT_MAX_INIT_CURSORS) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "_INIT_CURSORS", (int64)CT_MAX_INIT_CURSORS);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_autonomous_sessions(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num > GS_MAX_AUTON_SESSIONS) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "AUTONOMOUS_SESSIONS", (int64)GS_MAX_AUTON_SESSIONS);
-        return GS_ERROR;
+    if (num > CT_MAX_AUTON_SESSIONS) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "AUTONOMOUS_SESSIONS", (int64)CT_MAX_AUTON_SESSIONS);
+        return CT_ERROR;
     }
     if (num < 1) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "AUTONOMOUS_SESSIONS", (int64)1);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "AUTONOMOUS_SESSIONS", (int64)1);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_open_curs(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (num < GS_MIN_OPEN_CURSORS) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "OPEN_CURSORS", (int64)GS_MIN_OPEN_CURSORS);
-        return GS_ERROR;
+    if (num < CT_MIN_OPEN_CURSORS) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "OPEN_CURSORS", (int64)CT_MIN_OPEN_CURSORS);
+        return CT_ERROR;
     }
-    if (num > GS_MAX_OPEN_CURSORS) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "OPEN_CURSORS", (int64)GS_MAX_OPEN_CURSORS);
-        return GS_ERROR;
+    if (num > CT_MAX_OPEN_CURSORS) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "OPEN_CURSORS", (int64)CT_MAX_OPEN_CURSORS);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_open_curs(void *se, void *item, char *value)
 {
     uint32 val;
-    if (cm_str2uint32(value, &val) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &val) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     g_instance->attr.open_cursors = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t sql_verify_als_log_archive_send_cfg(void *lex, bool32 *is_parse, bool32 *is_more)
 {
     if (*is_parse) {
-        GS_THROW_ERROR(ERR_LOG_ARCHIVE_CONFIG_TOO_MANY, "send");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_LOG_ARCHIVE_CONFIG_TOO_MANY, "send");
+        return CT_ERROR;
     }
 
-    *is_parse = GS_TRUE;
-    GS_RETURN_IFERR(lex_try_fetch_char(lex, ',', is_more));
-    if (*is_more == GS_FALSE) {
-        GS_RETURN_IFERR(lex_expected_end(lex));
+    *is_parse = CT_TRUE;
+    CT_RETURN_IFERR(lex_try_fetch_char(lex, ',', is_more));
+    if (*is_more == CT_FALSE) {
+        CT_RETURN_IFERR(lex_expected_end(lex));
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t sql_verify_als_log_archive_receive_cfg(void *lex, bool32 *is_parse, bool32 *is_more)
 {
     if (*is_parse) {
-        GS_THROW_ERROR(ERR_LOG_ARCHIVE_CONFIG_TOO_MANY, "receive");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_LOG_ARCHIVE_CONFIG_TOO_MANY, "receive");
+        return CT_ERROR;
     }
-    *is_parse = GS_TRUE;
+    *is_parse = CT_TRUE;
 
-    GS_RETURN_IFERR(lex_try_fetch_char(lex, ',', is_more));
-    if (*is_more == GS_FALSE) {
-        GS_RETURN_IFERR(lex_expected_end(lex));
+    CT_RETURN_IFERR(lex_try_fetch_char(lex, ',', is_more));
+    if (*is_more == CT_FALSE) {
+        CT_RETURN_IFERR(lex_expected_end(lex));
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t sql_verify_als_log_archive_db_cfg(void *lex, bool32 *is_parse, bool32 *is_more, uint32 matched_id)
@@ -350,83 +353,83 @@ static status_t sql_verify_als_log_archive_db_cfg(void *lex, bool32 *is_parse, b
     word_t word;
 
     if (*is_parse) {
-        GS_THROW_ERROR(ERR_LOG_ARCHIVE_CONFIG_TOO_MANY, "dg");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_LOG_ARCHIVE_CONFIG_TOO_MANY, "dg");
+        return CT_ERROR;
     }
-    *is_parse = GS_TRUE;
+    *is_parse = CT_TRUE;
 
     if (matched_id == 0) {
-        GS_RETURN_IFERR(lex_expected_fetch_word(lex, "="));
-        GS_RETURN_IFERR(lex_expected_fetch_bracket(lex, &word));
+        CT_RETURN_IFERR(lex_expected_fetch_word(lex, "="));
+        CT_RETURN_IFERR(lex_expected_fetch_bracket(lex, &word));
     }
-    GS_RETURN_IFERR(lex_try_fetch_char(lex, ',', is_more));
-    if (*is_more == GS_FALSE) {
-        GS_RETURN_IFERR(lex_expected_end(lex));
+    CT_RETURN_IFERR(lex_try_fetch_char(lex, ',', is_more));
+    if (*is_more == CT_FALSE) {
+        CT_RETURN_IFERR(lex_expected_end(lex));
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_log_archive_config(void *se, void *lex, void *def)
 {
-    bool32 is_receive = GS_FALSE;
-    bool32 is_dgcfg = GS_FALSE;
-    bool32 is_send = GS_FALSE;
+    bool32 is_receive = CT_FALSE;
+    bool32 is_dgcfg = CT_FALSE;
+    bool32 is_send = CT_FALSE;
     bool32 is_more;
     word_t word;
     uint32 matched_id;
     knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
 
-    GS_RETURN_IFERR(lex_expected_fetch_string((lex_t *)lex, &word));
-    GS_RETURN_IFERR(cm_text2str((text_t *)&word.text, sys_def->value, GS_PARAM_BUFFER_SIZE));
-    GS_RETURN_IFERR(lex_push(lex, &word.text));
+    CT_RETURN_IFERR(lex_expected_fetch_string((lex_t *)lex, &word));
+    CT_RETURN_IFERR(cm_text2str((text_t *)&word.text, sys_def->value, CT_PARAM_BUFFER_SIZE));
+    CT_RETURN_IFERR(lex_push(lex, &word.text));
 
     for (;;) {
-        is_more = GS_FALSE;
+        is_more = CT_FALSE;
         if (lex_expected_fetch_1ofn(lex, &matched_id, 6, "SEND", "NOSEND", "RECEIVE", "NORECIVE", "DG_CONFIG",
-            "NODG_CONFIG") != GS_SUCCESS) {
+            "NODG_CONFIG") != CT_SUCCESS) {
             lex_pop(lex);
-            return GS_ERROR;
+            return CT_ERROR;
         }
-        if (matched_id == GS_INVALID_ID32) {
+        if (matched_id == CT_INVALID_ID32) {
             lex_pop(lex);
-            GS_THROW_ERROR(ERR_INVALID_PARAMETER, "LOG_ARCHIVE_CONFIG");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_PARAMETER, "LOG_ARCHIVE_CONFIG");
+            return CT_ERROR;
         }
 
         if (matched_id < 2) {
-            if (sql_verify_als_log_archive_send_cfg(lex, &is_send, &is_more) != GS_SUCCESS) {
+            if (sql_verify_als_log_archive_send_cfg(lex, &is_send, &is_more) != CT_SUCCESS) {
                 lex_pop(lex);
-                return GS_ERROR;
+                return CT_ERROR;
             }
-            GS_BREAK_IF_TRUE(!is_more);
+            CT_BREAK_IF_TRUE(!is_more);
             continue;
         }
 
         if (matched_id < 4) {
-            if (sql_verify_als_log_archive_receive_cfg(lex, &is_receive, &is_more) != GS_SUCCESS) {
+            if (sql_verify_als_log_archive_receive_cfg(lex, &is_receive, &is_more) != CT_SUCCESS) {
                 lex_pop(lex);
-                return GS_ERROR;
+                return CT_ERROR;
             }
-            GS_BREAK_IF_TRUE(!is_more);
+            CT_BREAK_IF_TRUE(!is_more);
             continue;
         }
-        if (sql_verify_als_log_archive_db_cfg(lex, &is_dgcfg, &is_more, matched_id - 4) != GS_SUCCESS) {
+        if (sql_verify_als_log_archive_db_cfg(lex, &is_dgcfg, &is_more, matched_id - 4) != CT_SUCCESS) {
             lex_pop(lex);
-            return GS_ERROR;
+            return CT_ERROR;
         }
-        GS_BREAK_IF_TRUE(!is_more);
+        CT_BREAK_IF_TRUE(!is_more);
     }
     lex_pop(lex);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_log_archive_max_min(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_archive_max_processes(void *se, void *item, char *value)
@@ -453,28 +456,28 @@ status_t sql_verify_als_quorum_any(void *se, void *lex, void *def)
 {
     uint32 num;
 
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (num > g_instance->kernel.lsnd_ctx.standby_num) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "QUORUM_ANY", (int64)g_instance->kernel.lsnd_ctx.standby_num);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "QUORUM_ANY", (int64)g_instance->kernel.lsnd_ctx.standby_num);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_quorum_any(void *se, void *item, char *value)
 {
     uint32 val;
 
-    if (cm_str2uint32(value, &val) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &val) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     g_instance->kernel.attr.quorum_any = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_statistics_level(void *se, void *lex, void *def)
@@ -483,26 +486,26 @@ status_t sql_verify_als_statistics_level(void *se, void *lex, void *def)
     char *match_word[] = { "ALL", "TYPICAL", "BASIC" };
     knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
 
-    if (lex_expected_fetch_1of3(lex, match_word[0], match_word[1], match_word[2], &match_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch_1of3(lex, match_word[0], match_word[1], match_word[2], &match_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     PRTS_RETURN_IFERR(
-        snprintf_s(sys_def->value, GS_PARAM_BUFFER_SIZE, GS_PARAM_BUFFER_SIZE - 1, "%s", match_word[match_id]));
-    return GS_SUCCESS;
+        snprintf_s(sys_def->value, CT_PARAM_BUFFER_SIZE, CT_PARAM_BUFFER_SIZE - 1, "%s", match_word[match_id]));
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_stats_level(void *se, void *item, char *value)
 {
     if (cm_str_equal_ins(value, "ALL") || cm_str_equal_ins(value, "TYPICAL")) {
-        g_instance->kernel.attr.enable_table_stat = GS_TRUE;
+        g_instance->kernel.attr.enable_table_stat = CT_TRUE;
     } else if (cm_str_equal_ins(value, "BASIC")) {
-        g_instance->kernel.attr.enable_table_stat = GS_FALSE;
+        g_instance->kernel.attr.enable_table_stat = CT_FALSE;
     } else {
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER_ENUM, "STATS_LEVEL", value);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER_ENUM, "STATS_LEVEL", value);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_sql_stat(void *se, void *item, char *value)
@@ -518,8 +521,8 @@ status_t sql_verify_als_repl_port(void *se, void *lex, void *def)
     word_t word;
     uint16 port;
     knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
-    if (lex_expected_fetch((lex_t *)lex, &word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch((lex_t *)lex, &word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (word.type == WORD_TYPE_STRING) {
@@ -532,25 +535,25 @@ status_t sql_verify_als_repl_port(void *se, void *lex, void *def)
     }
 
     if (word.text.len == 0) {
-        GS_SRC_THROW_ERROR(word.loc, ERR_EMPTY_STRING_NOT_ALLOWED);
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(word.loc, ERR_EMPTY_STRING_NOT_ALLOWED);
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(cm_text2str((text_t *)&word.text, sys_def->value, GS_PARAM_BUFFER_SIZE));
+    CT_RETURN_IFERR(cm_text2str((text_t *)&word.text, sys_def->value, CT_PARAM_BUFFER_SIZE));
 
     /* check if the port specified is valid */
-    if (cm_str2uint16(sys_def->value, &port) != GS_SUCCESS) {
+    if (cm_str2uint16(sys_def->value, &port) != CT_SUCCESS) {
         cm_reset_error();
-        GS_SRC_THROW_ERROR(((lex_t *)lex)->loc, ERR_INVALID_PARAMETER, "port");
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR(((lex_t *)lex)->loc, ERR_INVALID_PARAMETER, "port");
+        return CT_ERROR;
     }
 
-    if ((port < GS_MIN_PORT) && (port != 0)) {
-        GS_SRC_THROW_ERROR(((lex_t *)lex)->loc, ERR_PARAMETER_TOO_SMALL, "port", (int64)GS_MIN_PORT);
-        return GS_ERROR;
+    if ((port < CT_MIN_PORT) && (port != 0)) {
+        CT_SRC_THROW_ERROR(((lex_t *)lex)->loc, ERR_PARAMETER_TOO_SMALL, "port", (int64)CT_MIN_PORT);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_restore_arch_compressed(void *se, void *item, char *value)
@@ -565,8 +568,8 @@ status_t sql_notify_als_enable_arch_compressed(void *se, void *item, char *value
     bool32 enabled = (bool32)value[0];
     if (g_instance->lsnr.tcp_replica.port != 0) {
         if (enabled) {
-            GS_THROW_ERROR(ERR_INVALID_OPERATION, ", forbid to set ENABLE_ARCH_COMPRESS to TRUE in HA mode");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_OPERATION, ", forbid to set ENABLE_ARCH_COMPRESS to TRUE in HA mode");
+            return CT_ERROR;
         }
     }
     g_instance->kernel.attr.enable_arch_compress = enabled;
@@ -578,10 +581,10 @@ status_t sql_notify_als_valid_node_checking(void *se, void *item, char *value)
     white_context_t *ctx = GET_WHITE_CTX;
     cm_spin_lock(&ctx->lock, NULL);
 
-    if (value[0] == GS_TRUE && ctx->ip_black_list.count == 0 && ctx->ip_white_list.count == 0) {
+    if (value[0] == CT_TRUE && ctx->ip_black_list.count == 0 && ctx->ip_white_list.count == 0) {
         cm_spin_unlock(&ctx->lock);
-        GS_THROW_ERROR(ERR_TCP_VALID_NODE_CHECKING);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TCP_VALID_NODE_CHECKING);
+        return CT_ERROR;
     }
 
     ctx->iwl_enabled = value[0];
@@ -600,11 +603,11 @@ static status_t sql_notify_als_ip_whitelist_core(const char *conf_name, char *va
 
     cm_str2text(value, &cidr_texts);
     cm_create_list(&new_list, sizeof(cidr_t));
-    if (cm_parse_cidrs(&cidr_texts, &new_list) != GS_SUCCESS) {
+    if (cm_parse_cidrs(&cidr_texts, &new_list) != CT_SUCCESS) {
         cm_destroy_list(&new_list);
 
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, conf_name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, conf_name);
+        return CT_ERROR;
     }
 
     if (cm_str_equal(conf_name, "TCP_INVITED_NODES")) {
@@ -616,16 +619,16 @@ static status_t sql_notify_als_ip_whitelist_core(const char *conf_name, char *va
     }
 
     cm_spin_lock(&ctx->lock, NULL);
-    if (ctx->iwl_enabled == GS_TRUE && rest_list->count == 0 && new_list.count == 0) {
+    if (ctx->iwl_enabled == CT_TRUE && rest_list->count == 0 && new_list.count == 0) {
         cm_spin_unlock(&ctx->lock);
-        GS_THROW_ERROR(ERR_TCP_NODE_EMPTY_CONFIG);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TCP_NODE_EMPTY_CONFIG);
+        return CT_ERROR;
     }
 
     cm_destroy_list(old_list);
     *old_list = new_list;
     cm_spin_unlock(&ctx->lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_invited_nodes(void *se, void *item, char *value)
@@ -641,15 +644,15 @@ status_t sql_notify_als_excluded_nodes(void *se, void *item, char *value)
 status_t sql_verify_als_merge_batch_size(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num < GS_MIN_MERGE_SORT_BATCH_SIZE) {
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "MERGE_SORT_BATCH_SIZE");
-        return GS_ERROR;
+    if (num < CT_MIN_MERGE_SORT_BATCH_SIZE) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "MERGE_SORT_BATCH_SIZE");
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_merge_sort_batch_size(void *se, void *item, char *value)
@@ -661,27 +664,27 @@ status_t sql_verify_als_convert(void *se, void *lex, void *def)
 {
     word_t word;
     knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
-    if (GS_SUCCESS != lex_expected_fetch_string((lex_t *)lex, &word)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != lex_expected_fetch_string((lex_t *)lex, &word)) {
+        return CT_ERROR;
     }
     if (word.type != WORD_TYPE_STRING) {
-        GS_SRC_THROW_ERROR_EX(word.text.loc, ERR_SQL_SYNTAX_ERROR, ", expected string type, but %s found", W2S(&word));
-        return GS_ERROR;
+        CT_SRC_THROW_ERROR_EX(word.text.loc, ERR_SQL_SYNTAX_ERROR, ", expected string type, but %s found", W2S(&word));
+        return CT_ERROR;
     }
 
-    if (word.text.len >= GS_PARAM_BUFFER_SIZE) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, sys_def->param, (int64)GS_PARAM_BUFFER_SIZE - 1);
-        return GS_ERROR;
+    if (word.text.len >= CT_PARAM_BUFFER_SIZE) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, sys_def->param, (int64)CT_PARAM_BUFFER_SIZE - 1);
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(cm_text2str((text_t *)&word.text, sys_def->value, GS_PARAM_BUFFER_SIZE));
+    CT_RETURN_IFERR(cm_text2str((text_t *)&word.text, sys_def->value, CT_PARAM_BUFFER_SIZE));
 
     if (cm_check_exist_special_char(sys_def->value, (uint32)strlen(sys_def->value))) {
-        GS_THROW_ERROR(ERR_INVALID_DIR, sys_def->value);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_DIR, sys_def->value);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_datefile_convert(void *se, void *item, char *value)
@@ -702,6 +705,11 @@ status_t sql_notify_als_logfile_convert(void *se, void *item, char *value)
 
     CM_POINTER(config_item);
     return knl_get_convert_params(config_item->name, value, &attr->log_file_convert, g_instance->home);
+}
+
+status_t sql_notify_als_func_index_scan(void *se, void *item, char *value)
+{
+    return sql_notify_als_bool(se, item, value);
 }
 
 status_t sql_notify_als_index_cond_pruning(void *se, void *item, char *value)
@@ -726,9 +734,9 @@ status_t sql_notify_als_predicate(void *se, void *item, char *value)
 {
     g_instance->sql.enable_predicate = (bool32)value[0];
     if (g_instance->sql.enable_predicate) {
-        GS_BIT_SET(g_instance->sql.plan_display_format, PLAN_FORMAT_PREDICATE);
+        CT_BIT_SET(g_instance->sql.plan_display_format, PLAN_FORMAT_PREDICATE);
     } else {
-        GS_BIT_RESET(g_instance->sql.plan_display_format, PLAN_FORMAT_PREDICATE);
+        CT_BIT_RESET(g_instance->sql.plan_display_format, PLAN_FORMAT_PREDICATE);
     }
     return sql_notify_als_bool(se, item, value);
 }
@@ -736,12 +744,12 @@ status_t sql_notify_als_predicate(void *se, void *item, char *value)
 status_t sql_notify_als_topn_threshold(void *se, void *item, char *value)
 {
     uint32 topn_threshold;
-    if (cm_str2uint32(value, &topn_threshold) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &topn_threshold) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     g_instance->sql.topn_threshold = topn_threshold;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_connect_by_mtrl(void *se, void *item, char *value)
@@ -759,41 +767,55 @@ status_t sql_notify_als_or_expansion(void *se, void *item, char *value)
 status_t sql_notify_als_hash_pages_hold(void *se, void *item, char *value)
 {
     uint32 hash_pages_hold;
-    if (cm_str2uint32(value, &hash_pages_hold) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &hash_pages_hold) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     g_instance->sql.hash_pages_hold = hash_pages_hold;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_seg_pages_hold(void *se, void *item, char *value)
 {
     uint32 seg_pages_hold;
-    if (cm_str2uint32(value, &seg_pages_hold) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &seg_pages_hold) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     g_instance->sql.segment_pages_hold = seg_pages_hold;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_parall_max_threads(void *se, void *item, char *value)
 {
     uint32 max_thread_num;
-    if (cm_str2uint32(value, &max_thread_num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &max_thread_num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     g_instance->sql_par_pool.max_sessions = max_thread_num;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
- 
+
 status_t sql_notify_als_timed_stat(void *se, void *item, char *value)
 {
     // match id specified by ddl_parser.c:sql_parse_alsys_set
     g_instance->kernel.attr.enable_timed_stat = (bool32)value[0];
     // restore value for alter config.
+    return sql_notify_als_bool(se, item, value);
+}
+
+status_t sql_notify_als_coverage_enable(void *se, void *item, char *value)
+{
+#if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
+    bool8 coverage_enable = (bool8)value[0];
+
+    if ((coverage_enable == CT_TRUE) && (ple_try_create_coverage_table(se) != CT_SUCCESS)) {
+        CT_LOG_RUN_ERR("create SYS.COVERAGE table fail when set COVERAGE_ENABLE = TRUE");
+        return CT_ERROR;
+    }
+    g_instance->sql.coverage_enable = coverage_enable;
+#endif
     return sql_notify_als_bool(se, item, value);
 }
 
@@ -944,55 +966,55 @@ status_t sql_notify_als_sample_size(void *se, void *item, char *value)
 {
     int64 val_int64;
 
-    if (cm_str2size(value, &val_int64) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2size(value, &val_int64) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     g_instance->kernel.attr.stats_sample_size = (uint64)val_int64;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_cost_limit(void *se, void *item, char *value)
 {
     uint32 val_int32;
 
-    if (cm_str2uint32(value, &val_int32) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &val_int32) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     g_instance->kernel.attr.stats_cost_limit = val_int32;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_bucket_size(void *se, void *item, char *value)
 {
     uint16 val_int16;
 
-    if (cm_str2uint16(value, &val_int16) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint16(value, &val_int16) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (val_int16 > STATS_HISTGRAM_MAX_SIZE || val_int16 < STATS_HISTGRAM_DEFAULT_SIZE) {
-        GS_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "STATS_MAX_BUCKET_SIZE", (int64)STATS_HISTGRAM_DEFAULT_SIZE,
+        CT_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "STATS_MAX_BUCKET_SIZE", (int64)STATS_HISTGRAM_DEFAULT_SIZE,
             (int64)STATS_HISTGRAM_MAX_SIZE);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     g_instance->kernel.attr.stats_max_buckets = val_int16;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_cost_delay(void *se, void *item, char *value)
 {
     uint32 val_int32;
 
-    if (cm_str2uint32(value, &val_int32) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &val_int32) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     g_instance->kernel.attr.stats_cost_delay = val_int32;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_enable_sample_limit(void *se, void *item, char *value)
@@ -1005,12 +1027,12 @@ status_t sql_notify_als_enable_sample_limit(void *se, void *item, char *value)
 status_t sql_notify_als_enable_raft(void *se, void *item, char *value)
 {
     if ((bool32)value[0]) {
-        PRTS_RETURN_IFERR(snprintf_s(value, GS_PARAM_BUFFER_SIZE, GS_PARAM_BUFFER_SIZE - 1, "TRUE"));
+        PRTS_RETURN_IFERR(snprintf_s(value, CT_PARAM_BUFFER_SIZE, CT_PARAM_BUFFER_SIZE - 1, "TRUE"));
     } else {
-        PRTS_RETURN_IFERR(snprintf_s(value, GS_PARAM_BUFFER_SIZE, GS_PARAM_BUFFER_SIZE - 1, "FALSE"));
+        PRTS_RETURN_IFERR(snprintf_s(value, CT_PARAM_BUFFER_SIZE, CT_PARAM_BUFFER_SIZE - 1, "FALSE"));
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_row_format(void *se, void *item, char *value)
@@ -1020,22 +1042,22 @@ status_t sql_notify_als_row_format(void *se, void *item, char *value)
     } else if (cm_str_equal_ins(value, "ASF")) {
         g_instance->kernel.attr.row_format = ROW_FORMAT_ASF;
     } else {
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER_ENUM, "ROW_FORMAT", value);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER_ENUM, "ROW_FORMAT", value);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_stats_parall_threads(void *se, void *item, char *value)
 {
     uint32 val_int32;
 
-    if (cm_str2uint32(value, &val_int32) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &val_int32) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     g_instance->kernel.attr.stats_paraller_threads = val_int32;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_stats_enable_parall(void *se, void *item, char *value)
@@ -1048,36 +1070,44 @@ status_t sql_notify_als_stats_enable_parall(void *se, void *item, char *value)
 status_t sql_notify_als_max_remote_params(void *se, void *item, char *value)
 {
     uint32 val;
-    if (cm_str2uint32(value, &val) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &val) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     g_instance->attr.max_remote_params = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_sql_cursors_each_sess(void *se, void *item, char *value)
 {
     uint32 val;
-    if (cm_str2uint32(value, &val) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &val) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     g_instance->attr.sql_cursors_each_sess = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_reserved_sql_cursors(void *se, void *item, char *value)
 {
     uint32 val;
-    if (cm_str2uint32(value, &val) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &val) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     g_instance->attr.reserved_sql_cursors = val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+status_t sql_notify_als_resource_plan(void *se, void *item, char *value)
+{
+    if (rsrc_reload_plan(se, value) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_undo_space(void *se, void *item, char *value)
 {
-    char buf[GS_NAME_BUFFER_SIZE] = { '\0' };
+    char buf[CT_NAME_BUFFER_SIZE] = { '\0' };
     text_t spc_name;
     spc_name.str = buf;
     spc_name.len = 0;
@@ -1085,11 +1115,41 @@ status_t sql_notify_als_undo_space(void *se, void *item, char *value)
     cm_str2text(value, &spc_name);
     cm_str_upper(spc_name.str);
 
-    if (knl_alter_switch_undo_space(se, &spc_name) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_alter_switch_undo_space(se, &spc_name) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+status_t sql_notify_als_cbo_index_caching(void *se, void *item, char *value)
+{
+    uint32 val;
+    if (cm_str2uint32(value, &val) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    g_instance->sql.cbo_index_caching = val;
+    return CT_SUCCESS;
+}
+
+status_t sql_notify_als_cbo_index_cost_adj(void *se, void *item, char *value)
+{
+    uint32 val;
+    if (cm_str2uint32(value, &val) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    g_instance->sql.cbo_index_cost_adj = val;
+    return CT_SUCCESS;
+}
+
+status_t sql_notify_als_cbo_path_caching(void *se, void *item, char *value)
+{
+    uint32 val;
+    if (cm_str2uint32(value, &val) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    g_instance->sql.cbo_path_caching = val;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_withas_subquery(void *se, void *item, char *value)
@@ -1101,64 +1161,64 @@ status_t sql_notify_als_withas_subquery(void *se, void *item, char *value)
     } else {
         g_instance->sql.withas_subquery = WITHAS_OPTIMIZER;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_multi_parts_scan(void *se, void *lex, void *def)
 {
     uint32 num;
 
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num > GS_MAX_MULTI_PARTS_NUM) {
-        GS_SRC_THROW_ERROR(((lex_t *)lex)->loc, ERR_PARAMETER_TOO_LARGE, "_OPTIM_INDEX_SCAN_MAX_PARTS",
-            (int64)GS_MAX_MULTI_PARTS_NUM);
-        return GS_ERROR;
+    if (num > CT_MAX_MULTI_PARTS_NUM) {
+        CT_SRC_THROW_ERROR(((lex_t *)lex)->loc, ERR_PARAMETER_TOO_LARGE, "_OPTIM_INDEX_SCAN_MAX_PARTS",
+            (int64)CT_MAX_MULTI_PARTS_NUM);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_agent_extend_step(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num > GS_MAX_OPTIMIZED_WORKER_COUNT) {
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, "WORKER_THREADS_EXTEND_STEP");
-        return GS_ERROR;
+    if (num > CT_MAX_OPTIMIZED_WORKER_COUNT) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "WORKER_THREADS_EXTEND_STEP");
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_ckpt_wait_timeout(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_max_remote_params(void *se, void *lex, void *def)
 {
     uint32 num;
 
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num > GS_MAX_SQL_PARAM_COUNT) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "MAX_REMOTE_PARAMS", (int64)GS_MAX_SQL_PARAM_COUNT);
-        return GS_ERROR;
+    if (num > CT_MAX_SQL_PARAM_COUNT) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "MAX_REMOTE_PARAMS", (int64)CT_MAX_SQL_PARAM_COUNT);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_mem_pool_init_size(void *se, void *lex, void *def)
@@ -1173,21 +1233,21 @@ status_t sql_verify_als_mem_pool_max_size(void *se, void *lex, void *def)
 
 status_t sql_verify_als_stats_sample_size(void *se, void *lex, void *def)
 {
-    return sql_verify_pool_size(lex, def, GS_MIN_SAMPLE_SIZE, GS_INVALID_ID32);
+    return sql_verify_pool_size(lex, def, CT_MIN_SAMPLE_SIZE, CT_INVALID_ID32);
 }
 
 status_t sql_verify_als_ssl_file(void *se, void *lex, void *def)
 {
-    status_t ret = GS_ERROR;
+    status_t ret = CT_ERROR;
     word_t word;
-    bool32 in_bracket = GS_FALSE;
+    bool32 in_bracket = CT_FALSE;
     bool32 in_home;
-    bool32 is_comma = GS_FALSE;
+    bool32 is_comma = CT_FALSE;
     uint32 size, home_len, len;
     text_t text, file_name;
-    char buf[GS_PARAM_BUFFER_SIZE];
-    char file_path[GS_FILE_NAME_BUFFER_SIZE];
-    char real_path[GS_FILE_NAME_BUFFER_SIZE];
+    char buf[CT_PARAM_BUFFER_SIZE];
+    char file_path[CT_FILE_NAME_BUFFER_SIZE];
+    char real_path[CT_FILE_NAME_BUFFER_SIZE];
 
     text.str = buf;
     text.len = 0;
@@ -1195,68 +1255,68 @@ status_t sql_verify_als_ssl_file(void *se, void *lex, void *def)
     lex_t *lexer = (lex_t *)lex;
     knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
 
-    if (lex_try_fetch_bracket(lexer, &word, &in_bracket) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_try_fetch_bracket(lexer, &word, &in_bracket) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (in_bracket) {
-        GS_RETURN_IFERR(lex_push(lexer, &word.text));
+        CT_RETURN_IFERR(lex_push(lexer, &word.text));
         CM_TEXT_APPEND(&text, '(');
     }
 
     home_len = (uint32)strlen(g_instance->home);
 
-    while (GS_TRUE) {
-        if (lex_expected_fetch_string(lexer, &word) != GS_SUCCESS) {
+    while (CT_TRUE) {
+        if (lex_expected_fetch_string(lexer, &word) != CT_SUCCESS) {
             break;
         }
         file_name = word.text.value;
         if (CM_TEXT_FIRST(&file_name) == '?') {
             CM_REMOVE_FIRST(&file_name);
             size = home_len + file_name.len;
-            in_home = GS_TRUE;
+            in_home = CT_TRUE;
         } else {
             size = file_name.len;
-            in_home = GS_FALSE;
+            in_home = CT_FALSE;
         }
 
-        if (size > GS_MAX_FILE_NAME_LEN) {
-            GS_THROW_ERROR(ERR_INVALID_FILE_NAME, "als ssl", (uint32)GS_MAX_FILE_NAME_LEN);
+        if (size > CT_MAX_FILE_NAME_LEN) {
+            CT_THROW_ERROR(ERR_INVALID_FILE_NAME, "als ssl", (uint32)CT_MAX_FILE_NAME_LEN);
             break;
         }
 
         len = text.len;
         if (in_home) {
-            GS_RETURN_IFERR(cm_concat_string(&text, GS_PARAM_BUFFER_SIZE, g_instance->home));
+            CT_RETURN_IFERR(cm_concat_string(&text, CT_PARAM_BUFFER_SIZE, g_instance->home));
         }
 
-        if (text.len + file_name.len >= GS_PARAM_BUFFER_SIZE) {
-            GS_THROW_ERROR(ERR_BUFFER_OVERFLOW, text.len + file_name.len, GS_PARAM_BUFFER_SIZE - 1);
-            return GS_ERROR;
+        if (text.len + file_name.len >= CT_PARAM_BUFFER_SIZE) {
+            CT_THROW_ERROR(ERR_BUFFER_OVERFLOW, text.len + file_name.len, CT_PARAM_BUFFER_SIZE - 1);
+            return CT_ERROR;
         }
-        cm_concat_text(&text, GS_PARAM_BUFFER_SIZE, &file_name);
+        cm_concat_text(&text, CT_PARAM_BUFFER_SIZE, &file_name);
 
         // verify file existence
         if (size != 0) {
-            MEMS_RETURN_IFERR(memcpy_s(file_path, GS_FILE_NAME_BUFFER_SIZE, text.str + len, size));
+            MEMS_RETURN_IFERR(memcpy_s(file_path, CT_FILE_NAME_BUFFER_SIZE, text.str + len, size));
             file_path[size] = '\0';
-            GS_RETURN_IFERR(realpath_file(file_path, real_path, GS_FILE_NAME_BUFFER_SIZE));
+            CT_RETURN_IFERR(realpath_file(file_path, real_path, CT_FILE_NAME_BUFFER_SIZE));
             if (!cm_file_exist(real_path)) {
-                GS_THROW_ERROR(ERR_FILE_NOT_EXIST, "certificate", file_path);
+                CT_THROW_ERROR(ERR_FILE_NOT_EXIST, "certificate", file_path);
                 break;
             }
 
-            if (cm_access_file(real_path, R_OK) != GS_SUCCESS) {
-                GS_THROW_ERROR(ERR_READ_FILE, file_path, cm_get_os_error());
+            if (cm_access_file(real_path, R_OK) != CT_SUCCESS) {
+                CT_THROW_ERROR(ERR_READ_FILE, file_path, cm_get_os_error());
                 break;
             }
         }
 
-        if (lex_try_fetch_char(lexer, ',', &is_comma) != GS_SUCCESS) {
+        if (lex_try_fetch_char(lexer, ',', &is_comma) != CT_SUCCESS) {
             break;
         }
         if (!is_comma) {
-            ret = GS_SUCCESS;
+            ret = CT_SUCCESS;
             break;
         }
         CM_TEXT_APPEND(&text, ',');
@@ -1265,10 +1325,10 @@ status_t sql_verify_als_ssl_file(void *se, void *lex, void *def)
         lex_pop(lexer);
         CM_TEXT_APPEND(&text, ')');
     }
-    if (ret == GS_SUCCESS) {
+    if (ret == CT_SUCCESS) {
         return cm_text2str(&text, sys_def->value, sizeof(sys_def->value));
     } else {
-        GS_THROW_ERROR(ERR_INVALID_PARAMETER, sys_def->param);
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, sys_def->param);
         return ret;
     }
 }
@@ -1277,54 +1337,54 @@ status_t sql_verify_ssl_alt_threshold(void *se, void *lex, void *def)
 {
     uint32 num;
     int32 detect_day;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (!(num >= GS_MIN_SSL_EXPIRE_THRESHOLD && num <= GS_MAX_SSL_EXPIRE_THRESHOLD)) {
-        GS_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "SSL_EXPIRE_ALERT_THRESHOLD", (int64)GS_MIN_SSL_EXPIRE_THRESHOLD,
-            (int64)GS_MAX_SSL_EXPIRE_THRESHOLD);
-        return GS_ERROR;
+    if (!(num >= CT_MIN_SSL_EXPIRE_THRESHOLD && num <= CT_MAX_SSL_EXPIRE_THRESHOLD)) {
+        CT_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "SSL_EXPIRE_ALERT_THRESHOLD", (int64)CT_MIN_SSL_EXPIRE_THRESHOLD,
+            (int64)CT_MAX_SSL_EXPIRE_THRESHOLD);
+        return CT_ERROR;
     }
 
-    if (GS_SUCCESS != cm_str2int(cm_get_config_value(&g_instance->config, "SSL_PERIOD_DETECTION"), &detect_day)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != cm_str2int(cm_get_config_value(&g_instance->config, "SSL_PERIOD_DETECTION"), &detect_day)) {
+        return CT_ERROR;
     }
 
     if (detect_day > (int32)num) {
-        GS_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "the value of SSL_EXPIRE_ALERT_THRESHOLD "
+        CT_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "the value of SSL_EXPIRE_ALERT_THRESHOLD "
             "should be bigger than the value of SSL_PERIOD_DETECTION");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_ssl_period_detection(void *se, void *lex, void *def)
 {
     uint32 num;
     int32 alert_day;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (!(num >= GS_MIN_SSL_PERIOD_DETECTION && num <= GS_MAX_SSL_PERIOD_DETECTION)) {
-        GS_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "SSL_PERIOD_DETECTION", (int64)GS_MIN_SSL_PERIOD_DETECTION,
-            (int64)GS_MAX_SSL_PERIOD_DETECTION);
-        return GS_ERROR;
+    if (!(num >= CT_MIN_SSL_PERIOD_DETECTION && num <= CT_MAX_SSL_PERIOD_DETECTION)) {
+        CT_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "SSL_PERIOD_DETECTION", (int64)CT_MIN_SSL_PERIOD_DETECTION,
+            (int64)CT_MAX_SSL_PERIOD_DETECTION);
+        return CT_ERROR;
     }
 
-    if (GS_SUCCESS != cm_str2int(cm_get_config_value(&g_instance->config, "SSL_EXPIRE_ALERT_THRESHOLD"), &alert_day)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != cm_str2int(cm_get_config_value(&g_instance->config, "SSL_EXPIRE_ALERT_THRESHOLD"), &alert_day)) {
+        return CT_ERROR;
     }
 
     if ((int32)num > alert_day) {
-        GS_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "the value of SSL_PERIOD_DETECTION "
+        CT_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "the value of SSL_PERIOD_DETECTION "
             "should not be bigger than the value of SSL_EXPIRE_ALERT_THRESHOLD");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_ssl_cipher(void *se, void *lex, void *def)
@@ -1335,8 +1395,8 @@ status_t sql_verify_als_ssl_cipher(void *se, void *lex, void *def)
     text_t text, left, right;
     word_t word;
     knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
-    if (lex_expected_fetch((lex_t *)lex, &word) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch((lex_t *)lex, &word) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (word.type == WORD_TYPE_STRING) {
@@ -1366,107 +1426,107 @@ status_t sql_verify_als_ssl_cipher(void *se, void *lex, void *def)
                 }
             }
             if (cipher_list_tls13[j] == NULL) {
-                GS_THROW_ERROR(ERR_CIPHER_NOT_SUPPORT, T2S(&left));
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_CIPHER_NOT_SUPPORT, T2S(&left));
+                return CT_ERROR;
             }
         }
     }
-    return cm_text2str((text_t *)&word.text, sys_def->value, GS_PARAM_BUFFER_SIZE);
+    return cm_text2str((text_t *)&word.text, sys_def->value, CT_PARAM_BUFFER_SIZE);
 }
 
 status_t sql_verify_als_have_ssl(void *se, void *lex, void *def)
 {
     knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
-    GS_THROW_ERROR(ERR_ALTER_READONLY_PARAMETER, sys_def->param);
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_ALTER_READONLY_PARAMETER, sys_def->param);
+    return CT_ERROR;
 }
 
 status_t sql_verify_als_topn_threshold(void *se, void *lex, void *def)
 {
     uint32 value;
-    if (sql_verify_uint32(lex, def, &value) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &value) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (value > GS_MAX_TOPN_THRESHOLD) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "_QUERY_TOPN_THRESHOLD", (int64)GS_MAX_TOPN_THRESHOLD);
-        return GS_ERROR;
+    if (value > CT_MAX_TOPN_THRESHOLD) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "_QUERY_TOPN_THRESHOLD", (int64)CT_MAX_TOPN_THRESHOLD);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_hash_pages_hold(void *se, void *lex, void *def)
 {
     uint32 value;
-    if (sql_verify_uint32(lex, def, &value) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &value) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (value > GS_MAX_HASH_PAGES_HOLD) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "HASH_TABLE_PAGES_HOLD", (int64)GS_MAX_HASH_PAGES_HOLD);
-        return GS_ERROR;
+    if (value > CT_MAX_HASH_PAGES_HOLD) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "HASH_TABLE_PAGES_HOLD", (int64)CT_MAX_HASH_PAGES_HOLD);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_seg_pages_hold(void *se, void *lex, void *def)
 {
     uint32 value;
-    if (sql_verify_uint32(lex, def, &value) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &value) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (value > GS_MAX_SEGMENT_PAGES_HOLD) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "SEGMENT_PAGES_HOLD", (int64)GS_MAX_SEGMENT_PAGES_HOLD);
-        return GS_ERROR;
+    if (value > CT_MAX_SEGMENT_PAGES_HOLD) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "SEGMENT_PAGES_HOLD", (int64)CT_MAX_SEGMENT_PAGES_HOLD);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_sql_cursors_each_sess(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num > GS_MAX_SQL_CURSORS_EACH_SESSION) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "_SQL_CURSORS_EACH_SESSION", (int64)GS_MAX_SQL_CURSORS_EACH_SESSION);
-        return GS_ERROR;
+    if (num > CT_MAX_SQL_CURSORS_EACH_SESSION) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "_SQL_CURSORS_EACH_SESSION", (int64)CT_MAX_SQL_CURSORS_EACH_SESSION);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_reserved_sql_cursors(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // can only expand, can't decrease
     if (num < g_instance->attr.reserved_sql_cursors) {
-        GS_THROW_ERROR(ERR_RESERV_SQL_CURSORS_DECREASE);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_RESERV_SQL_CURSORS_DECREASE);
+        return CT_ERROR;
     }
 
-    if (num > GS_MAX_RESERVED_SQL_CURSORS) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "_RESERVED_SQL_CURSORS", (int64)GS_MAX_RESERVED_SQL_CURSORS);
-        return GS_ERROR;
+    if (num > CT_MAX_RESERVED_SQL_CURSORS) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "_RESERVED_SQL_CURSORS", (int64)CT_MAX_RESERVED_SQL_CURSORS);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_parall_max_threads(void *se, void *lex, void *def)
 {
     uint32 value;
-    if (sql_verify_uint32(lex, def, &value) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &value) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (value > GS_PARALLEL_MAX_THREADS) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "PARALLEL_MAX_THREADS", (int64)GS_PARALLEL_MAX_THREADS);
-        return GS_ERROR;
+    if (value > CT_PARALLEL_MAX_THREADS) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "PARALLEL_MAX_THREADS", (int64)CT_PARALLEL_MAX_THREADS);
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_node_lock_status(void *se, void *lex, void *def)
@@ -1475,86 +1535,134 @@ status_t sql_verify_als_node_lock_status(void *se, void *lex, void *def)
     char *match_word[] = { "NOLOCK", "SHARE", "EXCLUSIVE" };
     knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
 
-    if (lex_expected_fetch_1of3(lex, match_word[0], match_word[1], match_word[2], &match_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch_1of3(lex, match_word[0], match_word[1], match_word[2], &match_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     PRTS_RETURN_IFERR(
-        snprintf_s(sys_def->value, GS_PARAM_BUFFER_SIZE, GS_PARAM_BUFFER_SIZE - 1, "%s", match_word[match_id]));
+        snprintf_s(sys_def->value, CT_PARAM_BUFFER_SIZE, CT_PARAM_BUFFER_SIZE - 1, "%s", match_word[match_id]));
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_ext_pool_size(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num < GS_MES_MIN_POOL_SIZE) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "EXT_PROC_POOL_SIZE", (int64)GS_MES_MIN_POOL_SIZE);
-        return GS_ERROR;
-    } else if (num > GS_MES_MAX_POOL_SIZE) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "EXT_PROC_POOL_SIZE", (int64)GS_MES_MAX_POOL_SIZE);
-        return GS_ERROR;
+    if (num < CT_MES_MIN_POOL_SIZE) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "EXT_PROC_POOL_SIZE", (int64)CT_MES_MIN_POOL_SIZE);
+        return CT_ERROR;
+    } else if (num > CT_MES_MAX_POOL_SIZE) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "EXT_PROC_POOL_SIZE", (int64)CT_MES_MAX_POOL_SIZE);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_ext_work_thread_num(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num < GS_MES_MIN_THREAD_NUM) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "EXT_PROC_WORK_THREAD_NUM", (int64)GS_MES_MIN_THREAD_NUM);
-        return GS_ERROR;
-    } else if (num > GS_MES_MAX_THREAD_NUM) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "EXT_PROC_WORK_THREAD_NUM", (int64)GS_MES_MAX_THREAD_NUM);
-        return GS_ERROR;
+    if (num < CT_MES_MIN_THREAD_NUM) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "EXT_PROC_WORK_THREAD_NUM", (int64)CT_MES_MIN_THREAD_NUM);
+        return CT_ERROR;
+    } else if (num > CT_MES_MAX_THREAD_NUM) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "EXT_PROC_WORK_THREAD_NUM", (int64)CT_MES_MAX_THREAD_NUM);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_ext_channel_num(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num < GS_MES_MIN_CHANNEL_NUM) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "EXT_PROC_CHANNEL_NUM", (int64)GS_MES_MIN_CHANNEL_NUM);
-        return GS_ERROR;
-    } else if (num > GS_MES_MAX_CHANNEL_NUM) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "EXT_PROC_CHANNEL_NUM", (int64)GS_MES_MAX_CHANNEL_NUM);
-        return GS_ERROR;
+    if (num < CT_MES_MIN_CHANNEL_NUM) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "EXT_PROC_CHANNEL_NUM", (int64)CT_MES_MIN_CHANNEL_NUM);
+        return CT_ERROR;
+    } else if (num > CT_MES_MAX_CHANNEL_NUM) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "EXT_PROC_CHANNEL_NUM", (int64)CT_MES_MAX_CHANNEL_NUM);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_stats_parall_threads(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num < GS_MIN_STATS_PARALL_THREADS) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "STATS_PARALL_THREADS", (int64)GS_MIN_STATS_PARALL_THREADS);
-        return GS_ERROR;
-    } else if (num > GS_MAX_STATS_PARALL_THREADS) {
-        GS_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "STATS_PARALL_THREADS", (int64)GS_MAX_STATS_PARALL_THREADS);
-        return GS_ERROR;
+    if (num < CT_MIN_STATS_PARALL_THREADS) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "STATS_PARALL_THREADS", (int64)CT_MIN_STATS_PARALL_THREADS);
+        return CT_ERROR;
+    } else if (num > CT_MAX_STATS_PARALL_THREADS) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "STATS_PARALL_THREADS", (int64)CT_MAX_STATS_PARALL_THREADS);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+status_t sql_verify_als_cbo_index_caching(void *se, void *lex, void *def)
+{
+    uint32 num;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (num > CBO_MAX_INDEX_CACHING) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "CBO_INDEX_CACHING", (int64)CBO_MAX_INDEX_CACHING);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t sql_verify_als_cbo_index_cost_adj(void *se, void *lex, void *def)
+{
+    uint32 num;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    if (num < CBO_MIN_INDEX_COST_ADJ) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "CBO_INDEX_COST_ADJ", (int64)CBO_MIN_INDEX_COST_ADJ);
+        return CT_ERROR;
+    } else if (num > CBO_MAX_INDEX_COST_ADJ) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "CBO_INDEX_COST_ADJ", (int64)CBO_MAX_INDEX_COST_ADJ);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t sql_verify_als_cbo_path_caching(void *se, void *lex, void *def)
+{
+    uint32 num;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    if (num < CBO_MIN_PATH_CACHING) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "CBO_PATH_CACHING", (int64)CBO_MIN_PATH_CACHING);
+        return CT_ERROR;
+    } else if (num > CBO_MAX_PATH_CACHING) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "CBO_PATH_CACHING", (int64)CBO_MIN_PATH_CACHING);
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_withas_subquery(void *se, void *lex, void *def)
@@ -1563,86 +1671,97 @@ status_t sql_verify_als_withas_subquery(void *se, void *lex, void *def)
     const char *match_word[] = { "OPTIMIZER", "MATERIALIZE", "INLINE" };
     knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
 
-    if (lex_expected_fetch_1of3(lex, match_word[0], match_word[1], match_word[2], &match_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (lex_expected_fetch_1of3(lex, match_word[0], match_word[1], match_word[2], &match_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    MEMS_RETURN_IFERR(strcpy_s(sys_def->value, GS_PARAM_BUFFER_SIZE, match_word[match_id]));
-    return GS_SUCCESS;
+    MEMS_RETURN_IFERR(strcpy_s(sys_def->value, CT_PARAM_BUFFER_SIZE, match_word[match_id]));
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_lrpl_res_logsize(void *se, void *lex, void *def)
 {
-    return sql_verify_pool_size(lex, def, 0, GS_MAX_SGA_BUF_SIZE);
+    return sql_verify_pool_size(lex, def, 0, CT_MAX_SGA_BUF_SIZE);
+}
+
+status_t sql_notify_als_lrpl_res_logsize(void *se, void *item, char *value)
+{
+    int64 val_int64;
+    if (cm_str2size(value, &val_int64) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    g_instance->kernel.gbp_attr.lrpl_res_logsize = (uint64)val_int64;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_arch_upper_limit(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num < GS_MIN_ARCH_CLEAN_UL_PERCENT || num > GS_MAX_ARCH_CLEAN_PERCENT) {
-        GS_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "ARCH_CLEAN_UPPER_LIMIT", (int64)GS_MIN_ARCH_CLEAN_UL_PERCENT,
-            (int64)GS_MAX_ARCH_CLEAN_PERCENT);
-        return GS_ERROR;
+    if (num < CT_MIN_ARCH_CLEAN_UL_PERCENT || num > CT_MAX_ARCH_CLEAN_PERCENT) {
+        CT_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "ARCH_CLEAN_UPPER_LIMIT", (int64)CT_MIN_ARCH_CLEAN_UL_PERCENT,
+            (int64)CT_MAX_ARCH_CLEAN_PERCENT);
+        return CT_ERROR;
     }
 
     if (num < g_instance->kernel.attr.arch_lower_limit) {
-        GS_THROW_ERROR_EX(ERR_INVALID_ARCHIVE_PARAMETER,
+        CT_THROW_ERROR_EX(ERR_INVALID_ARCHIVE_PARAMETER,
             "the value of ARCH_CLEAN_UPPER_LIMIT(%u) can not be "
             "smaller than the value of ARCH_CLEAN_LOWER_LIMIT(%u)",
             num, g_instance->kernel.attr.arch_lower_limit);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_als_arch_lower_limit(void *se, void *lex, void *def)
 {
     uint32 num;
-    if (sql_verify_uint32(lex, def, &num) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (num < GS_MIN_ARCH_CLEAN_LL_PERCENT || num > GS_MAX_ARCH_CLEAN_PERCENT) {
-        GS_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "ARCH_CELAN_LOWER_LIMIT", (int64)GS_MIN_ARCH_CLEAN_LL_PERCENT,
-            (int64)GS_MAX_ARCH_CLEAN_PERCENT);
-        return GS_ERROR;
+    if (num < CT_MIN_ARCH_CLEAN_LL_PERCENT || num > CT_MAX_ARCH_CLEAN_PERCENT) {
+        CT_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "ARCH_CELAN_LOWER_LIMIT", (int64)CT_MIN_ARCH_CLEAN_LL_PERCENT,
+            (int64)CT_MAX_ARCH_CLEAN_PERCENT);
+        return CT_ERROR;
     }
 
     if (num > g_instance->kernel.attr.arch_upper_limit) {
-        GS_THROW_ERROR_EX(ERR_INVALID_ARCHIVE_PARAMETER,
+        CT_THROW_ERROR_EX(ERR_INVALID_ARCHIVE_PARAMETER,
             "the value of ARCH_CLEAN_UPPER_LIMIT(%u) can not be "
             "smaller than the value of ARCH_CLEAN_LOWER_LIMIT(%u)",
             g_instance->kernel.attr.arch_upper_limit, num);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_arch_upper_limit(void *se, void *item, char *value)
 {
     uint32 val_int32;
-    if (cm_str2uint32(value, &val_int32) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &val_int32) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     g_instance->kernel.attr.arch_upper_limit = val_int32;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_arch_lower_limit(void *se, void *item, char *value)
 {
     uint32 val_int32;
-    if (cm_str2uint32(value, &val_int32) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2uint32(value, &val_int32) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     g_instance->kernel.attr.arch_lower_limit = val_int32;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_nl_full_opt(void *se, void *item, char *value)
@@ -1653,23 +1772,53 @@ status_t sql_notify_als_nl_full_opt(void *se, void *item, char *value)
 
 status_t sql_verify_als_backup_buf_size(void *se, void *lex, void *def)
 {
-    return sql_verify_pool_size(lex, def, GS_MIN_BACKUP_BUF_SIZE, GS_MAX_BACKUP_BUF_SIZE);
+    return sql_verify_pool_size(lex, def, CT_MIN_BACKUP_BUF_SIZE, CT_MAX_BACKUP_BUF_SIZE);
 }
 
 status_t sql_notify_als_backup_buf_size(void *se, void *item, char *value)
 {
     int64 val_int64;
 
-    if (cm_str2size(value, &val_int64) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_str2size(value, &val_int64) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     if (val_int64 % (uint32)SIZE_M(8) != 0) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "buffer size (%llu) is not an integral multiple of 8M.", val_int64);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "buffer size (%llu) is not an integral multiple of 8M.", val_int64);
+        return CT_ERROR;
     }
     g_instance->kernel.attr.backup_buf_size = (uint64)val_int64;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+status_t sql_notify_als_enable_cbo_hint(void *se, void *item, char *value)
+{
+    g_instance->sql.enable_cbo_hint = (bool32)value[0];
+    return sql_notify_als_bool(se, item, value);
+}
+
+status_t sql_verify_als_cbo_dyn_sampling(void *se, void *lex, void *def)
+{
+    uint32 value;
+    if (sql_verify_uint32(lex, def, &value) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (value > CBO_MAX_DYN_SAMPLING_LEVEL) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "CBO_DYNAMIC_SAMPLING", (int64)CBO_MAX_DYN_SAMPLING_LEVEL);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t sql_notify_als_cbo_dyn_sampling(void *se, void *item, char *value)
+{
+    uint32 level;
+    if (cm_str2uint32(value, &level) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    g_instance->sql.cbo_dyn_sampling = level;
+    return CT_SUCCESS;
 }
 
 status_t sql_notify_als_strict_case_datatype(void *se, void *item, char *value)

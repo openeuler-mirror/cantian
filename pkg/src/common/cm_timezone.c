@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "cm_log.h"
 #include "cm_text.h"
 #include "cm_timezone.h"
@@ -45,8 +46,8 @@ status_t cm_tzoffset2text(timezone_info_t tz, text_t *text)
 
     CM_POINTER2(text, text->str);
     if (!cm_validate_timezone(tz)) {
-        GS_THROW_ERROR(ERR_VALUE_ERROR, "an invalid timezone offset value");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_VALUE_ERROR, "an invalid timezone offset value");
+        return CT_ERROR;
     }
 
     hour = TIMEZONE_GET_HOUR(tz);
@@ -59,14 +60,14 @@ status_t cm_tzoffset2text(timezone_info_t tz, text_t *text)
 
     text->len = TIMEZONE_OFFSET_STRLEN - 1; /* '\0' should not be counted as the text length */
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static num_errno_t cm_text2tzoffset_core(text_t *text, timezone_info_t *tz)
 {
     char c;
-    bool32 is_neg = GS_FALSE;
-    bool32 colon_found = GS_FALSE;
+    bool32 is_neg = CT_FALSE;
+    bool32 colon_found = CT_FALSE;
     uint32 i = 0;
     int32 hour = 0;
     int32 min = 0;
@@ -92,7 +93,7 @@ static num_errno_t cm_text2tzoffset_core(text_t *text, timezone_info_t *tz)
         c = text->str[i];
         if (CM_IS_COLON(c)) {
             if (!colon_found) {
-                colon_found = GS_TRUE;
+                colon_found = CT_TRUE;
                 /* after colon, switch to min */
                 hour = *val_ptr;
                 val_ptr = &min;
@@ -128,7 +129,7 @@ static num_errno_t cm_text2tzoffset_core(text_t *text, timezone_info_t *tz)
 /*
  * the function to convert a timezone offset string("[+|-]TZH:TZM") into a timezone_info_t
  * if the input string is not valid(wrong format, invalid TZH or TZM, etc),
- * this function would return GS_ERROR and report an error
+ * this function would return CT_ERROR and report an error
  */
 status_t cm_text2tzoffset(text_t *text, timezone_info_t *tz)
 {
@@ -139,21 +140,21 @@ status_t cm_text2tzoffset(text_t *text, timezone_info_t *tz)
         case NERR_SUCCESS:
             break;
         case NERR_ERROR:
-            GS_THROW_ERROR(ERR_VALUE_ERROR, "string does not match the timezone offset format");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_VALUE_ERROR, "string does not match the timezone offset format");
+            return CT_ERROR;
         case NERR_UNEXPECTED_CHAR:
-            GS_THROW_ERROR(ERR_VALUE_ERROR, "unrecognized character in the specified timezone offset");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_VALUE_ERROR, "unrecognized character in the specified timezone offset");
+            return CT_ERROR;
         case NERR_OVERFLOW:
-            GS_THROW_ERROR(ERR_VALUE_ERROR,
+            CT_THROW_ERROR(ERR_VALUE_ERROR,
                 "invalid time zone offset. time zone offset must be between -12:00 and 14:00");
-            return GS_ERROR;
+            return CT_ERROR;
         default:
-            GS_THROW_ERROR(ERR_VALUE_ERROR, "unexpected return value");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_VALUE_ERROR, "unexpected return value");
+            return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -169,7 +170,7 @@ int16 cm_get_local_tzoffset(void)
     LONG tzoffset = 0;
     TIME_ZONE_INFORMATION tmp;
     if (GetTimeZoneInformation(&tmp) == TIME_ZONE_ID_INVALID) {
-        GS_LOG_RUN_WAR("error occurred during calling GetTimeZoneInformation(). errno: \"%lu\"", GetLastError());
+        CT_LOG_RUN_WAR("error occurred during calling GetTimeZoneInformation(). errno: \"%lu\"", GetLastError());
     } else {
         tzoffset = 0 - tmp.Bias; /* field "Bias" means west of GMT,
                                            just the opposite of the definition of our timezone offset */
@@ -185,7 +186,7 @@ int16 cm_get_local_tzoffset(void)
         retval = (int16)(result.tm_gmtoff / TIMEZONE_MINUTES_PER_HOUR); /* tm_gmtoff: seconds east of GMT */
     } else {
         /* when compiled with gcc on linux, errno is thread-safe. ref: http://www.unix.org/whitepapers/reentrant.html */
-        GS_LOG_RUN_WAR("error occurred during calling localtime_r(). errno: \"%d\"", errno);
+        CT_LOG_RUN_WAR("error occurred during calling localtime_r(). errno: \"%d\"", errno);
     }
 
     return (int16)retval;

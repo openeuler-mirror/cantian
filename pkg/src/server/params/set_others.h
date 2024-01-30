@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -55,6 +55,9 @@ status_t sql_verify_als_convert(void *se, void *lex, void *def);
 status_t sql_verify_als_ckpt_wait_timeout(void *se, void *lex, void *def);
 status_t sql_verify_als_mem_pool_init_size(void *se, void *lex, void *def);
 status_t sql_verify_als_mem_pool_max_size(void *se, void *lex, void *def);
+status_t sql_verify_als_gbp_ip(void *se, void *lex, void *def);
+status_t sql_verify_als_gbp_port(void *se, void *lex, void *def);
+status_t sql_verify_als_local_gbp_host(void *se, void *lex, void *def);
 status_t sql_verify_als_ssl_file(void *se, void *lex, void *def);
 status_t sql_verify_ssl_alt_threshold(void *se, void *lex, void *def);
 status_t sql_verify_ssl_period_detection(void *se, void *lex, void *def);
@@ -64,6 +67,7 @@ status_t sql_verify_als_stats_sample_size(void *se, void *lex, void *def);
 status_t sql_verify_als_sql_cursors_each_sess(void *se, void *lex, void *def);
 status_t sql_verify_als_reserved_sql_cursors(void *se, void *lex, void *def);
 status_t sql_verify_als_max_remote_params(void *se, void *lex, void *def);
+status_t sql_verify_als_gbp_trans_type(void *se, void *lex, void *def);
 status_t sql_verify_als_node_lock_status(void *se, void *lex, void *def);
 status_t sql_verify_als_ext_pool_size(void *se, void *lex, void *def);
 status_t sql_verify_als_ext_work_thread_num(void *se, void *lex, void *def);
@@ -106,6 +110,8 @@ status_t sql_notify_als_logfile_convert(void *se, void *item, char *value);
 status_t sql_notify_als_row_format(void *se, void *item, char *value);
 status_t sql_verify_als_agent_extend_step(void *se, void *lex, void *def);
 status_t sql_notify_als_timed_stat(void *se, void *item, char *value);
+status_t sql_notify_als_coverage_enable(void *se, void *item, char *value);
+status_t sql_notify_als_enable_raft(void *se, void *item, char *value);
 status_t sql_notify_shard_enable_read_sync_slave(void *se, void *item, char *value);
 status_t sql_notify_als_shard_max_replay_lag(void *se, void *item, char *value);
 status_t sql_notify_als_sql_cursors_each_sess(void *se, void *item, char *value);
@@ -118,6 +124,9 @@ status_t sql_notify_als_cost_delay(void *se, void *item, char *value);
 status_t sql_notify_als_enable_sample_limit(void *se, void *item, char *value);
 status_t sql_notify_als_master_backup_synctime(void *se, void *item, char *value);
 status_t sql_notify_als_resource_plan(void *se, void *item, char *value);
+status_t sql_notify_als_use_gbp(void *se, void *item, char *value);
+status_t sql_notify_als_gbp_rcy_check(void *se, void *item, char *value);
+status_t sql_notify_als_gbp_ip(void *se, void *item, char *value);
 status_t sql_notify_als_stats_parall_threads(void *se, void *item, char *value);
 status_t sql_notify_als_stats_enable_parall(void *se, void *item, char *value);
 status_t sql_notify_als_bucket_size(void *se, void *item, char *value);
@@ -168,6 +177,11 @@ status_t sql_notify_als_nl_full_opt(void *se, void *item, char *value);
 status_t sql_notify_als_enable_arch_compressed(void *se, void *item, char *value);
 status_t sql_notify_als_enable_cbo_hint(void *se, void *item, char *value);
 status_t sql_notify_als_strict_case_datatype(void *se, void *item, char *value);
+
+#ifdef Z_SHARDING
+status_t shd_verify_als_scn_interval_threshold(void *se, void *lex, void *def);
+status_t shd_notify_als_scn_interval_threshold(void *se, void *item, char *value);
+#endif
 
 #ifdef __cplusplus
 }

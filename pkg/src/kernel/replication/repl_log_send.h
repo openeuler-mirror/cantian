@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -48,15 +48,15 @@ typedef enum en_lsnd_status {
 typedef struct st_lsnd_arch_file {
     int32 handle;
     uint32 asn;
-    char file_name[GS_FILE_NAME_BUFFER_SIZE];
+    char file_name[CT_FILE_NAME_BUFFER_SIZE];
     uint32 block_size;
     uint64 write_pos;
 } lsnd_arch_file_t;
 
 typedef struct st_dest_info {
     uint32 attr_idx; // identify the index in all of LOG_ARCHIVE_DEST_n
-    char local_host[GS_HOST_NAME_BUFFER_SIZE];
-    char peer_host[GS_HOST_NAME_BUFFER_SIZE];
+    char local_host[CT_HOST_NAME_BUFFER_SIZE];
+    char peer_host[CT_HOST_NAME_BUFFER_SIZE];
     uint16 peer_port;
     net_trans_mode_t sync_mode;
     arch_affirm_t affirm_mode;
@@ -120,7 +120,7 @@ typedef struct st_lsnd {
     volatile bool32 tmp_async;
     time_t last_send_time;
     time_t last_recv_time;
-    int32 log_handle[GS_MAX_LOG_FILES];
+    int32 log_handle[CT_MAX_LOG_FILES];
     lsnd_arch_file_t arch_file;
     int32 last_read_file_id;
     uint32 last_read_asn;
@@ -143,7 +143,7 @@ typedef struct st_lsnd_context {
     uint16 affirm_standy_num; // all the standby set with sync & affirm
     uint16 est_affirm_standy_num; // established standby set with sync & affirm
     uint32 quorum_any;
-    lsnd_t *lsnd[GS_MAX_PHYSICAL_STANDBY];
+    lsnd_t *lsnd[CT_MAX_PHYSICAL_STANDBY];
     cm_thread_eventfd_t eventfd;
 } lsnd_context_t;
 

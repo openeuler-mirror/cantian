@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -27,5 +27,6 @@
 #include "srv_view.h"
 
 dynview_desc_t *vw_describe_session(uint32 id);
+dynview_desc_t *vw_describe_global_session(uint32 id);
 
 #endif

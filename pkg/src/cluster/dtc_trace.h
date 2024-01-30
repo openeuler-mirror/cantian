@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,102 +31,102 @@
 extern "C" {
 #endif
 #if defined(_CANTIAN_LCOV_TEST_) && !defined(_CANTIAN_FUZZ_TEST_)
-#define DTC_DCS_DEBUG_INF(format, ...)                                                                           \
+#define DTC_DCS_DEBUG_INF(format, ...)                                                                          \
+    do {                                                                                                        \
+        cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                            format, ##__VA_ARGS__);                                                             \
+    } while (0)
+
+#define DTC_DCS_DEBUG_ERR(format, ...)                                                                           \
     do {                                                                                                         \
-        cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE,     \
+        cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
                             format, ##__VA_ARGS__);                                                              \
     } while (0)
 
-#define DTC_DCS_DEBUG_ERR(format, ...)                                                                            \
-    do {                                                                                                          \
-        cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE,     \
-                            format, ##__VA_ARGS__);                                                               \
+#define DTC_DCS_DEBUG(status, format, ...)                                                                    \
+    do {                                                                                                      \
+        cm_write_normal_log(LOG_DEBUG, ((status) == CT_SUCCESS) ? LEVEL_INFO : LEVEL_ERROR, (char *)__FILE__, \
+                            (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, format, ##__VA_ARGS__);                \
     } while (0)
 
-#define DTC_DCS_DEBUG(status, format, ...)                                                                        \
-    do {                                                                                                          \
-        cm_write_normal_log(LOG_DEBUG, ((status) == GS_SUCCESS) ? LEVEL_INFO : LEVEL_ERROR, (char *)__FILE__,     \
-                            (uint32)__LINE__, MODULE_NAME, GS_TRUE, format, ##__VA_ARGS__);                       \
+#define DTC_DLS_DEBUG_INF(format, ...)                                                                          \
+    do {                                                                                                        \
+        cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                            format, ##__VA_ARGS__);                                                             \
     } while (0)
 
-#define DTC_DLS_DEBUG_INF(format, ...)                                                                           \
+#define DTC_DLS_DEBUG_ERR(format, ...)                                                                           \
     do {                                                                                                         \
-        cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE,     \
+        cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
                             format, ##__VA_ARGS__);                                                              \
     } while (0)
 
-#define DTC_DLS_DEBUG_ERR(format, ...)                                                                            \
-    do {                                                                                                          \
-        cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE,     \
-                            format, ##__VA_ARGS__);                                                               \
+#define DTC_DRC_DEBUG_INF(format, ...)                                                                          \
+    do {                                                                                                        \
+        cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                            format, ##__VA_ARGS__);                                                             \
     } while (0)
 
-#define DTC_DRC_DEBUG_INF(format, ...)                                                                           \
+#define DTC_DRC_DEBUG_ERR(format, ...)                                                                           \
     do {                                                                                                         \
-        cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE,     \
+        cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
                             format, ##__VA_ARGS__);                                                              \
-    } while (0)
-
-#define DTC_DRC_DEBUG_ERR(format, ...)                                                                            \
-    do {                                                                                                          \
-        cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE,     \
-                            format, ##__VA_ARGS__);                                                               \
     } while (0)
 #else
-#define DTC_DCS_DEBUG_INF(format, ...)                                                                           \
-    do {                                                                                                         \
-        if (DTC_DCS_LOG_INF_ON) {                                                                                \
-            cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE, \
-                                format, ##__VA_ARGS__);                                                          \
-        }                                                                                                        \
+#define DTC_DCS_DEBUG_INF(format, ...)                                                                              \
+    do {                                                                                                            \
+        if (DTC_DCS_LOG_INF_ON) {                                                                                   \
+            cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                                format, ##__VA_ARGS__);                                                             \
+        }                                                                                                           \
     } while (0)
 
-#define DTC_DCS_DEBUG_ERR(format, ...)                                                                            \
-    do {                                                                                                          \
-        if (DTC_DCS_LOG_ERR_ON) {                                                                                 \
-            cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE, \
-                                format, ##__VA_ARGS__);                                                           \
-        }                                                                                                         \
+#define DTC_DCS_DEBUG_ERR(format, ...)                                                                               \
+    do {                                                                                                             \
+        if (DTC_DCS_LOG_ERR_ON) {                                                                                    \
+            cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                                format, ##__VA_ARGS__);                                                              \
+        }                                                                                                            \
     } while (0)
 
 #define DTC_DCS_DEBUG(status, format, ...)                                                                        \
     do {                                                                                                          \
         if (DTC_DCS_LOG_INF_ON) {                                                                                 \
-            cm_write_normal_log(LOG_DEBUG, ((status) == GS_SUCCESS) ? LEVEL_INFO : LEVEL_ERROR, (char *)__FILE__, \
-                                (uint32)__LINE__, MODULE_NAME, GS_TRUE, format, ##__VA_ARGS__);                   \
+            cm_write_normal_log(LOG_DEBUG, ((status) == CT_SUCCESS) ? LEVEL_INFO : LEVEL_ERROR, (char *)__FILE__, \
+                                (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, format, ##__VA_ARGS__);                \
         }                                                                                                         \
     } while (0)
 
-#define DTC_DLS_DEBUG_INF(format, ...)                                                                           \
-    do {                                                                                                         \
-        if (DTC_DLS_LOG_INF_ON) {                                                                                \
-            cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE, \
-                                format, ##__VA_ARGS__);                                                          \
-        }                                                                                                        \
+#define DTC_DLS_DEBUG_INF(format, ...)                                                                              \
+    do {                                                                                                            \
+        if (DTC_DLS_LOG_INF_ON) {                                                                                   \
+            cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                                format, ##__VA_ARGS__);                                                             \
+        }                                                                                                           \
     } while (0)
 
-#define DTC_DLS_DEBUG_ERR(format, ...)                                                                            \
-    do {                                                                                                          \
-        if (DTC_DLS_LOG_ERR_ON) {                                                                                 \
-            cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE, \
-                                format, ##__VA_ARGS__);                                                           \
-        }                                                                                                         \
+#define DTC_DLS_DEBUG_ERR(format, ...)                                                                               \
+    do {                                                                                                             \
+        if (DTC_DLS_LOG_ERR_ON) {                                                                                    \
+            cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                                format, ##__VA_ARGS__);                                                              \
+        }                                                                                                            \
     } while (0)
 
-#define DTC_DRC_DEBUG_INF(format, ...)                                                                           \
-    do {                                                                                                         \
-        if (DTC_DRC_LOG_INF_ON) {                                                                                \
-            cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE, \
-                                format, ##__VA_ARGS__);                                                          \
-        }                                                                                                        \
+#define DTC_DRC_DEBUG_INF(format, ...)                                                                              \
+    do {                                                                                                            \
+        if (DTC_DRC_LOG_INF_ON) {                                                                                   \
+            cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                                format, ##__VA_ARGS__);                                                             \
+        }                                                                                                           \
     } while (0)
 
-#define DTC_DRC_DEBUG_ERR(format, ...)                                                                            \
-    do {                                                                                                          \
-        if (DTC_DRC_LOG_ERR_ON) {                                                                                 \
-            cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE, \
-                                format, ##__VA_ARGS__);                                                           \
-        }                                                                                                         \
+#define DTC_DRC_DEBUG_ERR(format, ...)                                                                               \
+    do {                                                                                                             \
+        if (DTC_DRC_LOG_ERR_ON) {                                                                                    \
+            cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                                format, ##__VA_ARGS__);                                                              \
+        }                                                                                                            \
     } while (0)
 #endif
 #ifdef __cplusplus

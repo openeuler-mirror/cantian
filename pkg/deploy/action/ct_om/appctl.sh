@@ -247,7 +247,6 @@ case "$ACTION" in
             exit 1
         fi
 
-        rm -rf /opt/cantian/ct_om
         rm_cgroup ${CT_ECPORTER_CGROUP}
         rm_cgroup ${CTMGR_CGROUP}
 

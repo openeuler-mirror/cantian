@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -36,6 +36,7 @@ extern "C" {
 typedef struct st_iof_info {
     uint32 nodeid;
     NameSpaceId nsid;   // dbstore name space id
+    char* nsName;
     uint32 termid;      // ctd process id
     uint64 sn;          // serial num for dbstor iof request
 }iof_info_t;

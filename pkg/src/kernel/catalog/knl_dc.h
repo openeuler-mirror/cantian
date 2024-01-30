@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,6 +34,7 @@
 #include "knl_privilege.h"
 #include "knl_profile.h"
 #include "cm_bilist.h"
+#include "knl_dc_persistent.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,13 +44,13 @@ extern "C" {
 #define DC_ENTRY(dc)                         ((dc_entry_t *)(DC_ENTITY(dc))->entry)
 #define DC_ENTRY_NAME(dc)                    (DC_ENTRY(dc)->name)
 #define DC_ENTRY_USER_NAME(dc)               (DC_ENTRY(dc)->user->desc.name)
-#define DC_GROUP_COUNT                       (GS_SHARED_PAGE_SIZE / sizeof(pointer_t))
-#define DC_GROUP_SIZE                        (GS_SHARED_PAGE_SIZE / sizeof(pointer_t))
-#define DC_GROUP_CURRVAL_COUNT               (GS_SHARED_PAGE_SIZE / sizeof(dc_currval_t))
-#define DC_SESSION_GROUP_COUNT               ((GS_MAX_SESSIONS + DC_GROUP_CURRVAL_COUNT - 1) / DC_GROUP_CURRVAL_COUNT)
+#define DC_GROUP_COUNT                       (CT_SHARED_PAGE_SIZE / sizeof(pointer_t))
+#define DC_GROUP_SIZE                        (CT_SHARED_PAGE_SIZE / sizeof(pointer_t))
+#define DC_GROUP_CURRVAL_COUNT               (CT_SHARED_PAGE_SIZE / sizeof(dc_currval_t))
+#define DC_SESSION_GROUP_COUNT               ((CT_MAX_SESSIONS + DC_GROUP_CURRVAL_COUNT - 1) / DC_GROUP_CURRVAL_COUNT)
 #define DC_CACHED_SERIAL_VALUE(value, start)                                \
-    (((value) - (start)) / GS_SERIAL_CACHE_COUNT * GS_SERIAL_CACHE_COUNT +  \
-    ((start) == 0 ? 1 : (start)) + GS_SERIAL_CACHE_COUNT)
+    (((value) - (start)) / CT_SERIAL_CACHE_COUNT * CT_SERIAL_CACHE_COUNT +  \
+    ((start) == 0 ? 1 : (start)) + CT_SERIAL_CACHE_COUNT)
 #define DC_COLUMN_GROUP_SIZE                 512
 #define DC_GET_SCH_LOCK(entry)               ((entry)->sch_lock)
 
@@ -68,7 +69,7 @@ extern "C" {
     do {                              \
         (dc)->handle = NULL;          \
         (dc)->syn_handle = NULL;      \
-        (dc)->is_sysnonym = GS_FALSE; \
+        (dc)->is_sysnonym = CT_FALSE; \
     } while (0)
 
 typedef struct st_dc_list_node {
@@ -95,7 +96,7 @@ typedef enum en_dblink_status {
 typedef struct st_sequence_desc {
     uint32 id;
     uint32 uid;
-    char name[GS_MAX_NAME_LEN + 1];
+    char name[CT_MAX_NAME_LEN + 1];
     char reserved[3];
     int64 minval;
     int64 maxval;
@@ -113,8 +114,8 @@ typedef struct st_sequence_desc {
 #endif
 } sequence_desc_t;
 
-#define DC_HASH_SIZE (GS_SHARED_PAGE_SIZE / sizeof(dc_bucket_t))
-#define USER_PRIV_GROUP_COUNT             (GS_MAX_USERS / DC_GROUP_SIZE + 1)
+#define DC_HASH_SIZE (CT_SHARED_PAGE_SIZE / sizeof(dc_bucket_t))
+#define USER_PRIV_GROUP_COUNT             (CT_MAX_USERS / DC_GROUP_SIZE + 1)
 
 typedef struct st_dc_currval {
     int64 data;
@@ -124,7 +125,7 @@ typedef struct st_dc_currval {
 typedef struct st_dc_sequence {
     uint32 id;
     uint32 uid;
-    char name[GS_MAX_NAME_LEN + 1];
+    char name[CT_MAX_NAME_LEN + 1];
     char reserved[3];
     uint16 is_cyclable : 1;
     uint16 is_order : 1;
@@ -154,7 +155,7 @@ typedef struct st_sequence_entry {
     uint32 id;
     struct st_dc_bucket *bucket;
     struct st_dc_user *user;
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
     uint32 uid;
     bool8 used;
     bool8 is_free;
@@ -199,7 +200,7 @@ typedef struct st_trig_item {
 } trig_item_t;
 
 typedef struct st_trig_set {
-    trig_item_t items[GS_MAX_TRIGGER_COUNT];
+    trig_item_t items[CT_MAX_TRIGGER_COUNT];
     uint32 trig_count;
 } trig_set_t;
 
@@ -245,8 +246,8 @@ typedef struct st_dc_lru_queue {
 
 typedef struct st_synonym_link {
     dc_list_node_t node;             // !!! must be the first memeber of structure
-    char user[GS_NAME_BUFFER_SIZE];  // link user
-    char name[GS_NAME_BUFFER_SIZE];  // link name
+    char user[CT_NAME_BUFFER_SIZE];  // link user
+    char name[CT_NAME_BUFFER_SIZE];  // link name
     object_type_t type;          // type of real object
 } synonym_link_t;
 
@@ -265,8 +266,8 @@ typedef struct st_dc_entry {
         struct st_dc_user *user;
         struct st_dc_dblink *dblink;
     };
-    char user_name[GS_NAME_BUFFER_SIZE]; /* table user name */
-    char name[GS_NAME_BUFFER_SIZE];      /* table name */
+    char user_name[CT_NAME_BUFFER_SIZE]; /* table user name */
+    char name[CT_NAME_BUFFER_SIZE];      /* table name */
     drlock_t serial_lock;
     uint64 serial_value;
     uint16 uid;
@@ -276,6 +277,7 @@ typedef struct st_dc_entry {
     volatile bool8 need_empty_entry; /* empty entry when nologging table is first loaded */
     bool8 used;
     bool8 is_free;
+    volatile bool8 is_loading; /* another session is loading the entity */
     knl_scn_t org_scn;
     knl_scn_t chg_scn;
     dc_entity_t *entity;
@@ -311,19 +313,19 @@ typedef struct st_sequence_context {
     volatile bool8 is_loaded;
 } sequence_set_t;
 
-#define GS_SYS_PRIVS_BYTES     (GS_SYS_PRIVS_COUNT / 8 + 1)
-#define DC_OBJ_PRIV_ENTRY_SIZE (GS_SHARED_PAGE_SIZE / sizeof(pointer_t))
+#define CT_SYS_PRIVS_BYTES     (CT_SYS_PRIVS_COUNT / 8 + 1)
+#define DC_OBJ_PRIV_ENTRY_SIZE (CT_SHARED_PAGE_SIZE / sizeof(pointer_t))
 
 typedef struct st_dc_obj_priv_item {
     uint32 objowner;                    /* object's owner user ID */
-    char objname[GS_NAME_BUFFER_SIZE];  /* object's name */
+    char objname[CT_NAME_BUFFER_SIZE];  /* object's name */
     uint32 objtype;                     /* table/view/procedure */
     uint32 privid_map;                  /* privilege join set : directly granted & inherits from all roles */
     uint32 direct_grant;                /* is the privilege directly granted ? */
     uint32 privopt_map;                 /* privilege option join set : directly granted & inherits from all roles */
     uint32 direct_opt;                  /* is the privilege directly granted with grant option ? */
-    uint32 grantor[GS_OBJ_PRIVS_COUNT]; /* grantor uid for each object privilege,
-                                           GS_INVALID_ID32 means the privilege is inherited from roles */
+    uint32 grantor[CT_OBJ_PRIVS_COUNT]; /* grantor uid for each object privilege,
+                                           CT_INVALID_ID32 means the privilege is inherited from roles */
 } dc_obj_priv_item;
                                            
 typedef struct st_dc_obj_privs_entry {
@@ -351,7 +353,7 @@ typedef struct st_dc_object_priv  {
 typedef struct st_dc_user_privs_item {
     uint32 grantee_id;                            /* grantee uid */
     uint32 privid_map;                            /* privilege bit set */
-    uint32 grantor[GS_USER_PRIVS_COUNT];           /* grantor uid for each user privilege */
+    uint32 grantor[CT_USER_PRIVS_COUNT];           /* grantor uid for each user privilege */
 } dc_user_priv_item_t;
 
 typedef struct st_dc_user_privs_entry {
@@ -379,8 +381,8 @@ typedef struct st_dc_user_priv {
 typedef struct st_knl_role_desc {
     uint32 id;                              /* role id */
     uint32 owner_uid;                       /* user id that create the role */
-    char name[GS_NAME_BUFFER_SIZE];         /* role name */
-    char password[GS_PASSWORD_BUFFER_SIZE]; /* role pwd */
+    char name[CT_NAME_BUFFER_SIZE];         /* role name */
+    char password[CT_PASSWORD_BUFFER_SIZE]; /* role pwd */
 } knl_role_desc_t;
 
 typedef struct st_dc_role {
@@ -389,9 +391,9 @@ typedef struct st_dc_role {
     uint32 entry_page_id;               /* bucket page id */
     knl_role_desc_t desc;               /* role description */
     memory_context_t *memory;           /* role memory context */
-    uint8 sys_privs[GS_SYS_PRIVS_BYTES]; /* system privileges directly granted to the role,
+    uint8 sys_privs[CT_SYS_PRIVS_BYTES]; /* system privileges directly granted to the role,
                                                            data source: SYS_PRIVS$, grantee_type = 1 */
-    uint8 admin_opt[GS_SYS_PRIVS_BYTES]; /* system privileges with admin option ? 1: yes, 0: no */
+    uint8 admin_opt[CT_SYS_PRIVS_BYTES]; /* system privileges with admin option ? 1: yes, 0: no */
     dc_obj_priv_t obj_privs;            /* object privileges directly granted to the role,
                                                            data source: OBJECT_PRIVS$, grantee_type = 1 */
     cm_list_head parent;                /* roles list that granted to the role: dc_granted_role */
@@ -411,8 +413,8 @@ typedef struct st_dc_role {
 
 typedef struct st_knl_user_desc {
     uint32 id;
-    char name[GS_NAME_BUFFER_SIZE];
-    char password[GS_PASSWORD_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
+    char password[CT_PASSWORD_BUFFER_SIZE];
     date_t ctime;       // user account creation time
     date_t ptime;       // pwd change time
     date_t exptime;     // actual pwd expiration time
@@ -435,11 +437,11 @@ typedef struct st_dc_user {
     dc_bucket_t *user_bucket;
     dc_bucket_t *tenant_bucket;
     sequence_set_t sequence_set;
-    uint8 sys_privs[GS_SYS_PRIVS_BYTES];     /* system privileges directly granted to the user,
+    uint8 sys_privs[CT_SYS_PRIVS_BYTES];     /* system privileges directly granted to the user,
                                                                data source: SYS_PRIVS$, grantee_type = 1 */
-    uint8 admin_opt[GS_SYS_PRIVS_BYTES];     /* system privileges with admin option ? 1: yes, 0: no */
-    uint8 all_sys_privs[GS_SYS_PRIVS_BYTES]; /* all system privileges merged from user and granted roles */
-    uint8 ter_admin_opt[GS_SYS_PRIVS_BYTES]; /* admin option for each privilege merged from user and roles */
+    uint8 admin_opt[CT_SYS_PRIVS_BYTES];     /* system privileges with admin option ? 1: yes, 0: no */
+    uint8 all_sys_privs[CT_SYS_PRIVS_BYTES]; /* all system privileges merged from user and granted roles */
+    uint8 ter_admin_opt[CT_SYS_PRIVS_BYTES]; /* admin option for each privilege merged from user and roles */
     cm_list_head parent;                    /* roles that granted to the user */
     cm_list_head parent_free;               /* roles that granted to the user */
     dc_obj_priv_t obj_privs;                /* object privilegs directly granted to the user */
@@ -464,11 +466,11 @@ typedef struct st_dc_user {
 
 typedef struct st_knl_tenant_desc {
     uint32 id;
-    char name[GS_TENANT_BUFFER_SIZE];
+    char name[CT_TENANT_BUFFER_SIZE];
     uint32 ts_id;
     date_t ctime;
     uint32 ts_num;
-    uint8 ts_bitmap[GS_SPACES_BITMAP_SIZE];
+    uint8 ts_bitmap[CT_SPACES_BITMAP_SIZE];
 
     CM_MAGIC_DECLARE
 } knl_tenant_desc_t;
@@ -506,11 +508,11 @@ typedef struct st_dc_context {
     memory_pool_t pool;
     memory_context_t *memory;
     dc_bucket_t *user_buckets;
-    dc_user_t *users[GS_MAX_USERS];
-    dc_role_t *roles[GS_MAX_ROLES];
+    dc_user_t *users[CT_MAX_USERS];
+    dc_role_t *roles[CT_MAX_ROLES];
     dc_bucket_t *tenant_buckets;
-    dc_tenant_t *tenants[GS_MAX_TENANTS];
-    dc_dblink_t *dblinks[GS_MAX_DBLINKS];
+    dc_tenant_t *tenants[CT_MAX_TENANTS];
+    dc_dblink_t *dblinks[CT_MAX_DBLINKS];
     struct st_dc_spm *dc_spm;
     profile_array_t profile_array;
     dc_lru_queue_t *lru_queue;
@@ -537,91 +539,26 @@ typedef struct st_dc_user_granted {
     dc_user_t *user_granted; /* user granted description */
 } dc_user_granted;
 
-typedef struct st_rd_table {
-    uint32 op_type;
-    uint32 uid;
-    uint32 oid;
-} rd_table_t;
-
-typedef struct st_create_heap_entry {
-    rd_table_t tab_op;
-    knl_part_locate_t part_loc;
-    page_id_t entry;
-} rd_create_heap_entry_t;
-
-typedef struct st_create_btree_entry {
-    rd_table_t tab_op;
-    knl_part_locate_t part_loc;
-    page_id_t entry;
-    uint8 index_id;
-    bool8 is_shadow;
-} rd_create_btree_entry_t;
-
-typedef struct st_create_lob_entry {
-    rd_table_t tab_op;
-    knl_part_locate_t part_loc;
-    uint32 column_id;
-    page_id_t entry;
-} rd_create_lob_entry_t;
-
-typedef struct st_rd_create_interval {
-    rd_table_t tab_op;
-    uint32 part_no;
-    uint32 part_cnt;
-} rd_create_interval_t;
-
-typedef struct st_rd_create_table {
-    uint32 op_type;
-    uint32 uid;
-    uint32 oid;
-    char obj_name[GS_NAME_BUFFER_SIZE];
-    knl_scn_t org_scn;
-    knl_scn_t chg_scn;
-    table_type_t type;
-} rd_create_table_t;
-
 typedef struct st_logic_col_info {
     uint32 id;        // column id
     uint32 datatype;  // column type
     uint32 size;      // column size
     int32 precision;  // precision, for number type
     int32 scale;      // scale, for number type
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
 } logic_col_info_t;
-
-typedef struct st_rd_create_segment {
-    uint32 op_type;
-    uint32 uid;
-    uint32 oid;
-} rd_create_segment_t;
-
-typedef struct st_rd_rename_table {
-    uint32 op_type;
-    uint32 uid;
-    uint32 oid;
-    char new_name[GS_NAME_BUFFER_SIZE];
-} rd_rename_table_t;
-
-typedef struct st_rd_drop_table {
-    uint32 op_type;
-    bool32 purge;
-    uint32 uid;
-    uint32 oid;
-    char name[GS_NAME_BUFFER_SIZE];
-    knl_scn_t org_scn;
-} rd_drop_table_t;
 
 static inline bool32 dc_is_reserved_entry(uint32 uid, uint32 entry_id)
 {
     if (uid != 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    if (entry_id < GS_RESERVED_SYSID || (entry_id >= GS_EX_SYSID_START && entry_id < GS_EX_SYSID_END)) {
-        return GS_TRUE;
+    if (entry_id < CT_RESERVED_SYSID || (entry_id >= CT_EX_SYSID_START && entry_id < CT_EX_SYSID_END)) {
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 #define DC_GET_ENTRY                    dc_get_entry
@@ -651,6 +588,7 @@ static inline bool32 dc_is_reserved_entry(uint32 uid, uint32 entry_id)
 #define DC_GET_COLUMN_INDEX(entity, id) \
     ((entity)->column_groups[(id) / DC_COLUMN_GROUP_SIZE].column_index[(id) % DC_COLUMN_GROUP_SIZE])
 
+#define DC_TABLE_IS_TEMP(type) (type == DICT_TYPE_TEMP_TABLE_SESSION || type == DICT_TYPE_TEMP_TABLE_TRANS)
 /* common function */
 void knl_open_core_cursor(knl_session_t *session, knl_cursor_t *cursor, knl_cursor_action_t action, uint32 id);
 void knl_open_sys_cursor(knl_session_t *session, knl_cursor_t *cursor, knl_cursor_action_t action, uint32 table_id,
@@ -670,6 +608,8 @@ status_t dc_preload(knl_session_t *session, db_status_t status);
 status_t dc_init(knl_session_t *session);
 status_t dc_init_all_entry_for_upgrade(knl_session_t *session);
 status_t dc_init_entries(knl_session_t *session, dc_context_t *ctx, uint32 uid);
+void dc_invalidate_internal(knl_session_t *session, dc_entity_t *entity);
+void dc_invalidate4mysql(knl_session_t *session, dc_entity_t *entity, bool32 flush_monitor);
 void dc_invalidate(knl_session_t *session, dc_entity_t *entity);
 void dc_invalidate_parents(knl_session_t *session, dc_entity_t *entity);
 void dc_invalidate_children(knl_session_t *session, dc_entity_t *entity);
@@ -695,6 +635,7 @@ void dc_close(knl_dictionary_t *dc);
 void dc_close_entity(knl_handle_t kernel, dc_entity_t *entity, bool32 need_lru_lock);
 void dc_close_table_private(knl_dictionary_t *dc);
 
+heap_t *dc_get_heap_by_entity(knl_session_t *session, knl_part_locate_t part_loc, dc_entity_t *entity);
 heap_t *dc_get_heap(knl_session_t *session, uint32 uid, uint32 oid, knl_part_locate_t part_loc, knl_dictionary_t *dc);
 bool32 dc_find_by_id(knl_session_t *session, dc_user_t *user, uint32 oid, bool32 ex_recycled);
 index_t *dc_find_index_by_id(dc_entity_t *dc_entity, uint32 index_id);
@@ -849,13 +790,6 @@ typedef struct st_distribute_strategy_desc {
     text_t dist_text;
     uint32  frozen_status;
 } distribute_strategy_t;
-
-typedef struct st_rd_distribute_rule {
-    uint32 op_type;
-    uint32 uid;
-    uint32 oid;
-    char name[GS_NAME_BUFFER_SIZE];
-} rd_distribute_rule_t;
 #endif
 
 #ifdef __cplusplus

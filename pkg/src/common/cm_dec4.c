@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -71,6 +71,7 @@ static const dec4_t DEC4_MIN_INT32 = {
  *        zeros, then the precision of u0 is re-counted by ignoring tailing zeros
  *        e.g. | u0 = 1000 | u1 = 0 | u2 = 0 |..., the precision 1 will be
  *        returned.
+
  */
 static int32 cm_dec4_calc_prec(const dec4_t *dec)
 {
@@ -144,15 +145,15 @@ status_t cm_dec4_finalise(dec4_t *dec, uint32 prec, bool32 allow_overflow)
     // underflow check
     if (sci_exp < MIN_NUMERIC_EXPN) {
         cm_zero_dec4(dec);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     if (!allow_overflow) {
         DEC_OVERFLOW_CHECK_BY_SCIEXP(sci_exp);
     }
 
-    GS_RETSUC_IFTRUE((uint32)dec->ncells <= (prec / DEC4_CELL_DIGIT));
+    CT_RETSUC_IFTRUE((uint32)dec->ncells <= (prec / DEC4_CELL_DIGIT));
 
-    GS_RETVALUE_IFTRUE(((uint32)cm_dec4_calc_prec(dec) <= prec), GS_SUCCESS);
+    CT_RETVALUE_IFTRUE(((uint32)cm_dec4_calc_prec(dec) <= prec), CT_SUCCESS);
 
     dpos = (uint32)DEC4_POS_N_BY_PREC0(prec, cm_count_u16digits(dec->cells[0]));
     cpos = dpos / (uint32)DEC4_CELL_DIGIT;
@@ -181,7 +182,7 @@ status_t cm_dec4_finalise(dec4_t *dec, uint32 prec, bool32 allow_overflow)
     }
 
     (void)cm_dec4_trim_zeros(dec);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -194,7 +195,7 @@ static inline bool32 cm_dec4_make_round(const dec4_t* dec, uint32 pos, dec4_t* d
 
     cm_dec4_copy(dx, dec);
     if (pos >= DEC4_MAX_ALLOWED_PREC) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     i = (int32)(pos / DEC4_CELL_DIGIT);
@@ -205,7 +206,7 @@ static inline bool32 cm_dec4_make_round(const dec4_t* dec, uint32 pos, dec4_t* d
         dx->cells[i] += carry;
         carry = (dx->cells[i] >= DEC4_CELL_MASK);
         if (!carry) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
         dx->cells[i] -= DEC4_CELL_MASK;
     }
@@ -220,6 +221,7 @@ static inline bool32 cm_dec4_make_round(const dec4_t* dec, uint32 pos, dec4_t* d
 /**
 * Convert the significant digits of cells into text with a maximal len
 * @note  The tailing zeros are removed when outputting
+
 */
 static void cm_cell4s_to_text(const cell4_t cells, uint32 ncell, text_t *text, int32 max_len)
 {
@@ -259,6 +261,7 @@ static void cm_cell4s_to_text(const cell4_t cells, uint32 ncell, text_t *text, i
 * decimal 99999.999 rounds to 7-precision decimal is 100000.00, and then
 * its actual precision is 8. The function will return the change. If
 * no change occurs, zero is returned.
+
 * @note
 * Performance sensitivity.CM_ASSERT should be guaranteed by caller, i.g. 1.max_len > 0    2.dec->cells[0] > 0
 */
@@ -328,6 +331,7 @@ static inline int32 cm_digitext_to_cell8s(digitext_t *dtext, cell4_t cells, int3
  * The digit text may be changed when adjust the scale of decimal to be
  * an integral multiple of DEC4_CELL_DIGIT, by appending zeros.
  * @return the precision of u0
+
  * @note
  * Performance sensitivity.CM_ASSERT should be guaranteed by caller,
  * i.g. dtext->len > 0 && dtext->len <= (uint32)DEC4_MAX_ALLOWED_PREC
@@ -365,11 +369,12 @@ static inline int32 cm_digitext_to_dec4(dec4_t *dec, digitext_t *dtext, int32 sc
 
 /**
 * Output a decimal type in scientific format, e.g., 2.34566E-20
+
 */
 static inline status_t cm_dec4_to_sci_text(text_t *text, const dec4_t *dec, int32 max_len)
 {
     int32 i;
-    char obuff[GS_NUMBER_BUFFER_SIZE]; /** output buff */
+    char obuff[CT_NUMBER_BUFFER_SIZE]; /** output buff */
     text_t cell_text = { .str = obuff, .len = 0 };
     char sci_buff[DEC_EXPN_BUFF_SZ] = { 0 };
     int32 sci_exp; /** The scientific scale of the dec */
@@ -381,7 +386,7 @@ static inline status_t cm_dec4_to_sci_text(text_t *text, const dec4_t *dec, int3
     placer = (int32)dec->sign + 3;
     placer += (int32)cm_count_u16digits((c4typ_t)abs(sci_exp));
     if (max_len <= placer) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* The round of a decimal may increase the precision by 1 */
@@ -412,7 +417,7 @@ static inline status_t cm_dec4_to_sci_text(text_t *text, const dec4_t *dec, int3
     errno_t ret = memcpy_sp(CM_GET_TAIL(text), max_len - text->len, sci_buff, placer);
     MEMS_RETURN_IFERR(ret);
     text->len += placer;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -423,7 +428,7 @@ static inline status_t cm_dec4_to_plain_text(text_t *text, const dec4_t *dec, in
                                              int32 prec)
 {
     int32 dot_pos;
-    char obuff[GS_NUMBER_BUFFER_SIZE]; /** output buff */
+    char obuff[CT_NUMBER_BUFFER_SIZE]; /** output buff */
     text_t cell_text;
     cell_text.str = obuff;
     cell_text.len = 0;
@@ -440,7 +445,7 @@ static inline status_t cm_dec4_to_plain_text(text_t *text, const dec4_t *dec, in
         (void)cm_dec4_round_to_text(dec, max_len - dec->sign, &cell_text);  // subtract sign
         cm_concat_text(text, max_len, &cell_text);
         cm_text_appendc(text, dot_pos - prec, '0');
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /* get the position of dot w.r.t. the first significant digit */
@@ -477,7 +482,7 @@ static inline status_t cm_dec4_to_plain_text(text_t *text, const dec4_t *dec, in
             cm_concat_text(text, max_len, &cell_text);
             cm_text_appendc(text, dot_pos - (int32)cell_text.len, '0');
         } else {
-            GS_RETURN_IFERR(cm_concat_ntext(text, &cell_text, dot_pos));
+            CT_RETURN_IFERR(cm_concat_ntext(text, &cell_text, dot_pos));
             CM_TEXT_APPEND(text, '.');
             // copy remaining digits
             cell_text.str += (uint32)dot_pos;
@@ -490,14 +495,15 @@ static inline status_t cm_dec4_to_plain_text(text_t *text, const dec4_t *dec, in
         dot_pos += cm_dec4_round_to_text(dec, max_len - dec->sign - 1 + dot_pos, &cell_text);
         CM_TEXT_APPEND(text, '.');
         cm_text_appendc(text, -dot_pos, '0');
-        GS_RETURN_IFERR(cm_concat_ntext(text, &cell_text, max_len - (int32)text->len));
+        CT_RETURN_IFERR(cm_concat_ntext(text, &cell_text, max_len - (int32)text->len));
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
 * Convert a decimal into a text with a given maximal precision
+
 * @note
 * Performance sensitivity.CM_ASSERT should be guaranteed by caller,
 * i.g. 1.dec->sign == DEC_SIGN_PLUS    2.dec->expn == 0    3.dec->cells[0] > 0
@@ -510,12 +516,12 @@ status_t cm_dec4_to_text(const dec4_t *dec, int32 max_length, text_t *text)
     int32 max_len = max_length;
 
     CM_POINTER2(dec, text);
-    max_len = MIN(max_length, (int32)(GS_NUMBER_BUFFER_SIZE - 1));
+    max_len = MIN(max_length, (int32)(CT_NUMBER_BUFFER_SIZE - 1));
 
     if (dec->ncells == 0) {
         text->str[0] = '0';
         text->len = 1;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // Compute the final scientific scale of the dec, i.e., format of d.xxxx , d > 0.
@@ -537,6 +543,7 @@ status_t cm_dec4_to_text(const dec4_t *dec, int32 max_length, text_t *text)
 
 /**
 * Convert a decimal into C-string, and return the ac
+
 * @note
 * Output is str and end with '\0' and max write size is max_len-1
 */
@@ -547,12 +554,12 @@ status_t cm_dec4_to_str(const dec4_t *dec, int max_len, char *str)
     text.len = 0;
 
     if (max_len <= 1) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(cm_dec4_to_text(dec, max_len - 1, &text));
+    CT_RETURN_IFERR(cm_dec4_to_text(dec, max_len - 1, &text));
     str[text.len] = '\0';
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_str_to_dec4(const char *str, dec4_t *dec)
@@ -616,6 +623,7 @@ static num_errno_t cm_numpart_to_dec4(num_part_t *np, dec4_t *dec)
 *               is found, the precision is set to 0, it means the merely
 *               significant digit is zero. precision > 0 represents the
 *               number of significant digits in the decimal text.
+
 */
 status_t cm_text_to_dec4(const text_t *dec_text, dec4_t *dec)
 {
@@ -625,17 +633,17 @@ status_t cm_text_to_dec4(const text_t *dec_text, dec4_t *dec)
 
     err_no = cm_split_num_text(dec_text, &np);
     if (err_no != NERR_SUCCESS) {
-        GS_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
+        return CT_ERROR;
     }
 
     err_no = cm_numpart_to_dec4(&np, dec);
     if (err_no != NERR_SUCCESS) {
-        GS_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(err_no));
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -674,6 +682,7 @@ static inline void cm_fill_uint32_to_dec4(uint32 u32_input, dec4_t *dec)
 
 /**
 * Convert an integer32 into a decimal
+
 */
 void cm_int32_to_dec4(int32 i_32, dec4_t *dec)
 {
@@ -681,7 +690,7 @@ void cm_int32_to_dec4(int32 i_32, dec4_t *dec)
     if (i32 > 0) {
         dec->sign = DEC_SIGN_PLUS;
     } else if (i32 < 0) {
-        if (i32 == GS_MIN_INT32) {
+        if (i32 == CT_MIN_INT32) {
             cm_dec4_copy(dec, &DEC4_MIN_INT32);
             return;
         }
@@ -768,6 +777,7 @@ static inline void cm_fill_uint64_to_dec4(uint64 u_64, dec4_t *dec)
 
 /**
 * Convert an integer64 into a decimal
+
 */
 void cm_int64_to_dec4(int64 i_64, dec4_t *dec)
 {
@@ -775,7 +785,7 @@ void cm_int64_to_dec4(int64 i_64, dec4_t *dec)
     if (i64 > 0) {
         dec->sign = DEC_SIGN_PLUS;
     } else if (i64 < 0) {
-        if (i64 == GS_MIN_INT64) {
+        if (i64 == CT_MIN_INT64) {
             cm_dec4_copy(dec, &DEC4_MIN_INT64);
             return;
         }
@@ -854,13 +864,13 @@ static status_t cm_real_to_dec4_inexac(double real, dec4_t *dec)
 {
     double r = real;
     if (!CM_DBL_IS_FINITE(r)) {
-        GS_THROW_ERROR(ERR_INVALID_NUMBER, "");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_NUMBER, "");
+        return CT_ERROR;
     }
 
     if (r == 0.0) {
         cm_zero_dec4(dec);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     double int_r;
@@ -873,7 +883,7 @@ static status_t cm_real_to_dec4_inexac(double real, dec4_t *dec)
 
     // compute an approximate scientific exponent
     (void)frexp(r, &dexp);
-    dexp = (int32)((double)dexp * (double)GS_LOG10_2);
+    dexp = (int32)((double)dexp * (double)CT_LOG10_2);
     dexp &= 0xFFFFFFFC;
 
     // Set a decimal
@@ -899,7 +909,7 @@ static status_t cm_real_to_dec4_inexac(double real, dec4_t *dec)
         dec->cells[dec->ncells++] = (c4typ_t)int_r;
     }
     cm_dec4_trim_zeros(dec);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -907,9 +917,9 @@ static status_t cm_real_to_dec4_inexac(double real, dec4_t *dec)
  */
 status_t cm_real_to_dec4(double real, dec4_t *dec)
 {
-    GS_RETURN_IFERR(cm_real_to_dec4_inexac(real, dec));
-    // reserving at most GS_MAX_REAL_PREC precisions
-    return cm_dec4_finalise(dec, GS_MAX_REAL_PREC, GS_FALSE);
+    CT_RETURN_IFERR(cm_real_to_dec4_inexac(real, dec));
+    // reserving at most CT_MAX_REAL_PREC precisions
+    return cm_dec4_finalise(dec, CT_MAX_REAL_PREC, CT_FALSE);
 }
 
 /**
@@ -958,6 +968,7 @@ double cm_dec4_to_real(const dec4_t *dec)
 /**
 * Get the carry of a decimal with negative expn when convert decimal into integer
 * @note Required: dec->expn < 0
+
 */
 static inline int32 dec4_make_negexpn_round_value(const dec4_t *dec, round_mode_t rnd_mode)
 {
@@ -1001,24 +1012,24 @@ static inline uint64 dec4_make_negexpn_round_value2(const dec4_t *dec, round_mod
 status_t cm_dec4_to_uint64(const dec4_t *dec, uint64 *u64, round_mode_t rnd_mode)
 {
     if (DEC_IS_NEGATIVE(dec)) {
-        GS_THROW_ERROR(ERR_VALUE_ERROR, "convert NUMBER into UINT64 failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_VALUE_ERROR, "convert NUMBER into UINT64 failed");
+        return CT_ERROR;
     }
 
     if (DECIMAL_IS_ZERO(dec)) {
         *u64 = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (dec->expn < 0) {
         *u64 = dec4_make_negexpn_round_value2(dec, rnd_mode);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // the maximal UINT64 is 1844 6744 0737 0955 1615
     if (dec->expn > 4 || (dec->expn == 4 && dec->cells[0] > 1844)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "UINT64");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "UINT64");
+        return CT_ERROR;
     }
 
     uint32 i;
@@ -1091,7 +1102,7 @@ static status_t cm_make_dec4_to_int(const dec4_t *dec, uint64 *u64, int8 expn, r
         }
     }
     *u64 = u64_val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_dec4_to_int64(const dec4_t *dec, int64 *val, round_mode_t rnd_mode)
@@ -1100,22 +1111,22 @@ status_t cm_dec4_to_int64(const dec4_t *dec, int64 *val, round_mode_t rnd_mode)
 
     if (DECIMAL_IS_ZERO(dec)) {
         *val = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (dec->expn < 0) {
         *val = dec4_make_negexpn_round_value(dec, rnd_mode);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // the maximal BIGINT is 922 3372 0368 5477 5807
     if (dec->expn > 4 || (dec->expn == 4 && dec->cells[0] > 922)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
+        return CT_ERROR;
     }
 
     uint64 u64;
-    GS_RETURN_IFERR(cm_make_dec4_to_int(dec, &u64, dec->expn, rnd_mode));
+    CT_RETURN_IFERR(cm_make_dec4_to_int(dec, &u64, dec->expn, rnd_mode));
     return cm_dec2int64_check_overflow(u64, DEC_IS_NEGATIVE(dec), val);
 }
 
@@ -1147,7 +1158,7 @@ static status_t cm_make_dec4_to_uint(const dec4_t *dec, uint64 *u64, int8 expn, 
     }
 
     *u64 = u64_val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -1158,26 +1169,26 @@ status_t cm_dec4_to_uint32(const dec4_t *dec, uint32 *i32, round_mode_t rnd_mode
 {
     if (DECIMAL_IS_ZERO(dec)) {
         *i32 = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // the maximal UINT32 42 9496 7295
     if (dec->expn > 2 || DEC_IS_NEGATIVE(dec)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED INTEGER");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED INTEGER");
+        return CT_ERROR;
     }
 
     if (dec->expn < 0) {
         *i32 = (uint32)dec4_make_negexpn_round_value(dec, rnd_mode);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint64 u64_val;
-    GS_RETURN_IFERR(cm_make_dec4_to_uint(dec, &u64_val, dec->expn, rnd_mode));
+    CT_RETURN_IFERR(cm_make_dec4_to_uint(dec, &u64_val, dec->expn, rnd_mode));
     TO_UINT32_OVERFLOW_CHECK(u64_val, uint64);
 
     *i32 = (uint32)u64_val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -1188,22 +1199,22 @@ status_t cm_dec4_to_int32(const dec4_t *dec, int32 *i32, round_mode_t rnd_mode)
 {
     if (DECIMAL_IS_ZERO(dec)) {
         *i32 = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (dec->expn < 0) {
         *i32 = dec4_make_negexpn_round_value(dec, rnd_mode);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // the maximal INTEGER 21 4748 3648
     if (dec->expn > 2) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTEGER");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTEGER");
+        return CT_ERROR;
     }
 
     int64 i64_val;
-    GS_RETURN_IFERR(cm_make_dec4_to_int(dec, (uint64 *)&i64_val, dec->expn, rnd_mode));
+    CT_RETURN_IFERR(cm_make_dec4_to_int(dec, (uint64 *)&i64_val, dec->expn, rnd_mode));
     if (DEC_IS_NEGATIVE(dec)) {
         i64_val = -i64_val;
     }
@@ -1211,7 +1222,7 @@ status_t cm_dec4_to_int32(const dec4_t *dec, int32 *i32, round_mode_t rnd_mode)
     INT32_OVERFLOW_CHECK(i64_val);
 
     *i32 = (int32)i64_val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1221,29 +1232,29 @@ status_t cm_dec4_to_uint16(const dec4_t *dec, uint16 *i16, round_mode_t rnd_mode
 {
     if (DECIMAL_IS_ZERO(dec)) {
         *i16 = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // the maximal UNSIGNED SHORT 6 5536
     if (dec->expn > 1 || DEC_IS_NEGATIVE(dec)) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED SHORT");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED SHORT");
+        return CT_ERROR;
     }
 
     if (dec->expn < 0) {
         *i16 = (uint16)dec4_make_negexpn_round_value(dec, rnd_mode);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     uint64 u64_val;
-    GS_RETURN_IFERR(cm_make_dec4_to_uint(dec, &u64_val, dec->expn, rnd_mode));
-    if ((uint64)u64_val < (uint64)GS_MIN_UINT16 || (uint64)u64_val > (uint64)GS_MAX_UINT16) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED SHORT");
-        return GS_ERROR;
+    CT_RETURN_IFERR(cm_make_dec4_to_uint(dec, &u64_val, dec->expn, rnd_mode));
+    if ((uint64)u64_val < (uint64)CT_MIN_UINT16 || (uint64)u64_val > (uint64)CT_MAX_UINT16) {
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "UNSIGNED SHORT");
+        return CT_ERROR;
     }
 
     *i16 = (uint16)u64_val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -1253,57 +1264,58 @@ status_t cm_dec4_to_int16(const dec4_t *dec, int16 *i16, round_mode_t rnd_mode)
 {
     if (DECIMAL_IS_ZERO(dec)) {
         *i16 = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (dec->expn < 0) {
         *i16 = (int16)dec4_make_negexpn_round_value(dec, rnd_mode);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // the maximal SHORT 3 2767
     if (dec->expn > 1) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "SHORT");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "SHORT");
+        return CT_ERROR;
     }
 
     int64 i64_val;
-    GS_RETURN_IFERR(cm_make_dec4_to_int(dec, (uint64 *)&i64_val, dec->expn, rnd_mode));
+    CT_RETURN_IFERR(cm_make_dec4_to_int(dec, (uint64 *)&i64_val, dec->expn, rnd_mode));
     if (DEC_IS_NEGATIVE(dec)) {
         i64_val = -i64_val;
     }
 
-    if (i64_val > GS_MAX_INT16 || i64_val < GS_MIN_INT16) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "SHORT");
-        return GS_ERROR;
+    if (i64_val > CT_MAX_INT16 || i64_val < CT_MIN_INT16) {
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "SHORT");
+        return CT_ERROR;
     }
 
     *i16 = (int16)i64_val;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
  * To decide whether a decimal is an integer
+
  */
 bool32 cm_dec4_is_integer(const dec4_t *dec)
 {
     uint32 i;
 
     if (DECIMAL_IS_ZERO(dec)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (dec->expn < 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     i = dec->expn + 1;
     for (; i < (uint32)dec->ncells; i++) {
         if (dec->cells[i] > 0) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 #ifdef __cplusplus

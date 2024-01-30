@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "knl_common_module.h"
 #include "knl_compress.h"
 
 static status_t zlib_init(knl_compress_t *ctx, bool32 is_compress)
@@ -41,18 +41,18 @@ static status_t zlib_init(knl_compress_t *ctx, bool32 is_compress)
         knl_panic(ctx->compress_level <= Z_BEST_COMPRESSION);
         ret = deflateInit(&ctx->stream, ctx->compress_level);
         if (ret != Z_OK) {
-            GS_THROW_ERROR(ERR_COMPRESS_INIT_ERROR, "zlib", ret, ctx->stream.msg);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_COMPRESS_INIT_ERROR, "zlib", ret, ctx->stream.msg);
+            return CT_ERROR;
         }
     } else {
         ret = inflateInit(&ctx->stream);
         if (ret != Z_OK) {
-            GS_THROW_ERROR(ERR_COMPRESS_INIT_ERROR, "zlib", ret, ctx->stream.msg);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_COMPRESS_INIT_ERROR, "zlib", ret, ctx->stream.msg);
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void zlib_set_input(knl_compress_t *zctx, char *read_buf, uint32 buf_len)
@@ -71,19 +71,19 @@ static status_t zlib_compress(knl_compress_t *zctx, bool32 stream_end, char *wri
 
     ret = deflate(&zctx->stream, flush);
     if (flush == Z_NO_FLUSH && ret != Z_OK) {
-        GS_THROW_ERROR(ERR_COMPRESS_ERROR, "zlib", ret, zctx->stream.msg);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_COMPRESS_ERROR, "zlib", ret, zctx->stream.msg);
+        return CT_ERROR;
     }
 
     if (flush == Z_FINISH && ret != Z_STREAM_END) {
-        GS_THROW_ERROR(ERR_COMPRESS_ERROR, "zlib", ret, zctx->stream.msg);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_COMPRESS_ERROR, "zlib", ret, zctx->stream.msg);
+        return CT_ERROR;
     }
 
     zctx->write_len = buf_len - zctx->stream.avail_out;
     zctx->finished = (zctx->stream.avail_out != 0);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t zlib_decompress(knl_compress_t *zctx, bool32 end_stream, char *write_buf, uint32 buf_len)
@@ -96,14 +96,14 @@ static status_t zlib_decompress(knl_compress_t *zctx, bool32 end_stream, char *w
 
     ret = inflate(&zctx->stream, flush);
     if (ret == Z_NEED_DICT || ret == Z_DATA_ERROR || ret == Z_MEM_ERROR) {
-        GS_THROW_ERROR(ERR_DECOMPRESS_ERROR, "zlib", ret, zctx->stream.msg);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DECOMPRESS_ERROR, "zlib", ret, zctx->stream.msg);
+        return CT_ERROR;
     }
 
     zctx->write_len = buf_len - zctx->stream.avail_out;
     zctx->finished = (zctx->stream.avail_out != 0);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void zlib_end(knl_compress_t *zctx, bool32 is_compress)
@@ -117,7 +117,7 @@ static void zlib_end(knl_compress_t *zctx, bool32 is_compress)
 
 static status_t zstd_alloc(knl_compress_t *ctx, bool32 is_compress)
 {
-    bool32 created = GS_FALSE;
+    bool32 created = CT_FALSE;
     if (is_compress) {
         ctx->zstd_cstream = ZSTD_createCStream();
         created = (ctx->zstd_cstream != NULL);
@@ -127,11 +127,11 @@ static status_t zstd_alloc(knl_compress_t *ctx, bool32 is_compress)
     }
 
     if (!created) {
-        GS_THROW_ERROR(ERR_COMPRESS_INIT_ERROR, "zstd", 0, "Create zstd stream failed.");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_COMPRESS_INIT_ERROR, "zstd", 0, "Create zstd stream failed.");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t zstd_init(knl_compress_t *ctx, bool32 is_compress)
@@ -145,11 +145,11 @@ static status_t zstd_init(knl_compress_t *ctx, bool32 is_compress)
     }
 
     if (ZSTD_isError(ret)) {
-        GS_THROW_ERROR(ERR_COMPRESS_INIT_ERROR, "zstd", ret, ZSTD_getErrorName(ret));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_COMPRESS_INIT_ERROR, "zstd", ret, ZSTD_getErrorName(ret));
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void zstd_set_input(knl_compress_t *ctx, char *read_buf, uint32 buf_len)
@@ -174,14 +174,14 @@ static status_t zstd_compress(knl_compress_t *ctx, bool32 stream_end, char *writ
         ret = ZSTD_endStream(ctx->zstd_cstream, &buf_out);
     }
     if (ZSTD_isError(ret)) {
-        GS_THROW_ERROR(ERR_COMPRESS_ERROR, "zstd", ret, ZSTD_getErrorName(ret));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_COMPRESS_ERROR, "zstd", ret, ZSTD_getErrorName(ret));
+        return CT_ERROR;
     }
 
     ctx->write_len = (uint32)buf_out.pos;
     ctx->finished = (buf_out.pos < buf_out.size);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t zstd_decompress(knl_compress_t *ctx, bool32 end_stream, char *write_buf, uint32 buf_len)
@@ -195,14 +195,14 @@ static status_t zstd_decompress(knl_compress_t *ctx, bool32 end_stream, char *wr
 
     ret = ZSTD_decompressStream(ctx->zstd_dstream, &buf_out, &(ctx->zstd_in_buf));
     if (ZSTD_isError(ret)) {
-        GS_THROW_ERROR(ERR_DECOMPRESS_ERROR, "zstd", ret, ZSTD_getErrorName(ret));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DECOMPRESS_ERROR, "zstd", ret, ZSTD_getErrorName(ret));
+        return CT_ERROR;
     }
 
     ctx->write_len = (uint32)buf_out.pos;
     ctx->finished = (buf_out.pos < buf_out.size);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void zstd_end(knl_compress_t *zctx, bool32 is_compress)
@@ -217,7 +217,7 @@ static void zstd_end(knl_compress_t *zctx, bool32 is_compress)
     zctx->zstd_cstream = NULL;
 
     if (ZSTD_isError(ret)) {
-        GS_THROW_ERROR(ERR_COMPRESS_FREE_ERROR, "ZSTD", ret, ZSTD_getErrorName(ret));
+        CT_THROW_ERROR(ERR_COMPRESS_FREE_ERROR, "ZSTD", ret, ZSTD_getErrorName(ret));
     }
 }
 
@@ -232,11 +232,11 @@ static status_t lz4f_alloc(knl_compress_t *ctx, bool32 is_compress)
     }
 
     if (LZ4F_isError(ret)) {
-        GS_THROW_ERROR(ERR_COMPRESS_INIT_ERROR, "lz4f", ret, LZ4F_getErrorName(ret));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_COMPRESS_INIT_ERROR, "lz4f", ret, LZ4F_getErrorName(ret));
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lz4f_init(knl_compress_t *ctx, bool32 is_compress)
@@ -247,7 +247,7 @@ static status_t lz4f_init(knl_compress_t *ctx, bool32 is_compress)
         LZ4F_resetDecompressionContext(ctx->lz4f_dstream);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void lz4f_set_input(knl_compress_t *ctx, char *read_buf, uint32 buf_len)
@@ -270,14 +270,14 @@ static status_t lz4f_compress(knl_compress_t *ctx, bool32 stream_end, char *writ
     }
 
     if (LZ4F_isError(res)) {
-        GS_THROW_ERROR(ERR_COMPRESS_ERROR, "lz4f", res, LZ4F_getErrorName(res));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_COMPRESS_ERROR, "lz4f", res, LZ4F_getErrorName(res));
+        return CT_ERROR;
     }
 
     ctx->write_len = (uint32)res;
     ctx->finished = (res < write_buf_len);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t lz4f_decompress(knl_compress_t *ctx, bool32 end_stream, char *write_buf, uint32 write_buf_len)
@@ -286,13 +286,13 @@ static status_t lz4f_decompress(knl_compress_t *ctx, bool32 end_stream, char *wr
     size_t res;
     size_t in_len = ctx->lz4f_in_buf.size - ctx->lz4f_in_buf.pos;
     size_t out_len = write_buf_len;
-    const LZ4F_decompressOptions_t option = {0, {0, 0, 0}};
+    const LZ4F_decompressOptions_t option = {0, 0, 0, 0};
 
     res = LZ4F_decompress(ctx->lz4f_dstream, write_buf, &out_len,
         ctx->lz4f_in_buf.src + ctx->lz4f_in_buf.pos, &in_len, &option);
     if (LZ4F_isError(res)) {
-        GS_THROW_ERROR(ERR_DECOMPRESS_ERROR, "lz4f", res, LZ4F_getErrorName(res));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DECOMPRESS_ERROR, "lz4f", res, LZ4F_getErrorName(res));
+        return CT_ERROR;
     }
 
     ctx->write_len = (uint32)out_len;
@@ -300,8 +300,8 @@ static status_t lz4f_decompress(knl_compress_t *ctx, bool32 end_stream, char *wr
 
     // res==0 means that lz4f has decompressed a frame completely
     if (res == 0) {
-        ctx->finished = GS_TRUE;
-        return GS_SUCCESS;
+        ctx->finished = CT_TRUE;
+        return CT_SUCCESS;
     }
 
     /*
@@ -313,18 +313,18 @@ static status_t lz4f_decompress(knl_compress_t *ctx, bool32 end_stream, char *wr
     */
     ctx->finished = (out_len == 0);
     if (!ctx->finished) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
         ctx->last_left_size = (uint32)(ctx->lz4f_in_buf.size - ctx->lz4f_in_buf.pos);
         if (ctx->last_left_size == 0) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
         ret = memmove_s(ctx->lz4f_in_buf.src, ctx->lz4f_in_buf.size,
             ctx->lz4f_in_buf.src + ctx->lz4f_in_buf.pos, ctx->last_left_size);
         knl_securec_check(ret);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void lz4f_end(knl_compress_t *zctx, bool32 is_compress)
@@ -339,7 +339,7 @@ static void lz4f_end(knl_compress_t *zctx, bool32 is_compress)
     zctx->lz4f_cstream = NULL;
 
     if (LZ4F_isError(ret)) {
-        GS_THROW_ERROR(ERR_COMPRESS_FREE_ERROR, "LZ4F", ret, LZ4F_getErrorName(ret));
+        CT_THROW_ERROR(ERR_COMPRESS_FREE_ERROR, "LZ4F", ret, LZ4F_getErrorName(ret));
     }
 }
 
@@ -349,8 +349,8 @@ static void lz4f_end(knl_compress_t *zctx, bool32 is_compress)
 * @param compress context
 * @param the action is backup or restore
 * @return
-* - GS_SUCCESS
-* _ GS_ERROR
+* - CT_SUCCESS
+* _ CT_ERROR
 * @note must call in the beginning of the backup or restore task
 */
 status_t knl_compress_alloc(compress_algo_e compress, knl_compress_t *ctx, bool32 is_compress)
@@ -361,7 +361,7 @@ status_t knl_compress_alloc(compress_algo_e compress, knl_compress_t *ctx, bool3
             * zlib's resource is allocated during initialization in knl_compress_init, because that the allocation
             * and initialization of zlib are coupled and it must be executed in the beginning of each subtask.
             */
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         case COMPRESS_ZSTD:
             return zstd_alloc(ctx, is_compress);
         case COMPRESS_LZ4:
@@ -370,7 +370,7 @@ status_t knl_compress_alloc(compress_algo_e compress, knl_compress_t *ctx, bool3
             break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -379,8 +379,8 @@ status_t knl_compress_alloc(compress_algo_e compress, knl_compress_t *ctx, bool3
 * @param compress context
 * @param the action is backup or restore
 * @return
-* - GS_SUCCESS
-* _ GS_ERROR
+* - CT_SUCCESS
+* _ CT_ERROR
 * @note must call in the beginning of each subtask
 */
 status_t knl_compress_init(compress_algo_e compress, knl_compress_t *ctx, bool32 is_compress)
@@ -396,7 +396,7 @@ status_t knl_compress_init(compress_algo_e compress, knl_compress_t *ctx, bool32
             break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void knl_compress_set_input(compress_algo_e compress, knl_compress_t *ctx, char *read_buf, uint32 buf_len)
@@ -430,7 +430,7 @@ status_t knl_compress(compress_algo_e compress, knl_compress_t *ctx, bool32 stre
             break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t knl_decompress(compress_algo_e compress, knl_compress_t *ctx, bool32 end_stream,
@@ -447,7 +447,7 @@ status_t knl_decompress(compress_algo_e compress, knl_compress_t *ctx, bool32 en
             break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -456,8 +456,8 @@ status_t knl_decompress(compress_algo_e compress, knl_compress_t *ctx, bool32 en
 * @param compress context
 * @param the action is backup or restore
 * @return
-* - GS_SUCCESS
-* _ GS_ERROR
+* - CT_SUCCESS
+* _ CT_ERROR
 * @note must call in the end of each subtask
 */
 void knl_compress_end(compress_algo_e compress, knl_compress_t *ctx, bool32 is_compress)
@@ -478,8 +478,8 @@ void knl_compress_end(compress_algo_e compress, knl_compress_t *ctx, bool32 is_c
 * @param compress context
 * @param the action is backup or restore
 * @return
-* - GS_SUCCESS
-* _ GS_ERROR
+* - CT_SUCCESS
+* _ CT_ERROR
 * @note must call in the end of the backup or restore task
 */
 void knl_compress_free(compress_algo_e compress, knl_compress_t *ctx, bool32 is_compress)

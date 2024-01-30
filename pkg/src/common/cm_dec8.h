@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -120,8 +120,8 @@ typedef struct st_dec8 {
 #define DEC8_OVERFLOW_CHECK_BY_SCIEXP(sciexp) \
     do {                                      \
         if ((sciexp) > DEC8_EXPN_UPPER) {     \
-            GS_THROW_ERROR(ERR_NUM_OVERFLOW); \
-            return GS_ERROR;                  \
+            CT_THROW_ERROR(ERR_NUM_OVERFLOW); \
+            return CT_ERROR;                  \
         }                                     \
     } while (0)
 
@@ -131,8 +131,8 @@ typedef struct st_dec8 {
 #define DEC8_HEAD_OVERFLOW_CHECK(sciexp)                                        \
     do {                                                                        \
         if ((sciexp) > DEC8_HEAD_EXPN_UPPER || (sciexp) < DEC8_HEAD_EXPN_LOW) { \
-            GS_THROW_ERROR(ERR_NUM_OVERFLOW);                                   \
-            return GS_ERROR;                                                    \
+            CT_THROW_ERROR(ERR_NUM_OVERFLOW);                                   \
+            return CT_ERROR;                                                    \
         }                                                                       \
     } while (0)
 
@@ -320,7 +320,7 @@ static inline void cm_dec8_abs(dec8_t *dec)
     }
 
     int expn = GET_DEC8_SCI_EXP(dec);
-    dec->head = CONVERT_D8EXPN(expn, GS_FALSE);
+    dec->head = CONVERT_D8EXPN(expn, CT_FALSE);
 }
 
 status_t cm_dec8_to_str(const dec8_t *dec, int max_len, char *str);
@@ -331,10 +331,10 @@ status_t cm_dec8_to_text(const dec8_t *dec, int32 max_length, text_t *text);
  */
 static inline status_t cm_dec8_to_text_all(const dec8_t *dec, text_buf_t *text)
 {
-    if (text->max_size <= GS_MAX_DEC_OUTPUT_ALL_PREC) {
-        return GS_ERROR;
+    if (text->max_size <= CT_MAX_DEC_OUTPUT_ALL_PREC) {
+        return CT_ERROR;
     }
-    return cm_dec8_to_text(dec, GS_MAX_DEC_OUTPUT_ALL_PREC, &text->value);
+    return cm_dec8_to_text(dec, CT_MAX_DEC_OUTPUT_ALL_PREC, &text->value);
 }
 
 static inline status_t cm_dec8_to_str_all(const dec8_t *dec, char *str, uint32 buffer_len)
@@ -344,9 +344,9 @@ static inline status_t cm_dec8_to_str_all(const dec8_t *dec, char *str, uint32 b
     text_buf.len = 0;
     text_buf.max_size = buffer_len;
 
-    GS_RETURN_IFERR(cm_dec8_to_text_all(dec, &text_buf));
+    CT_RETURN_IFERR(cm_dec8_to_text_all(dec, &text_buf));
     str[text_buf.len] = '\0';
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_str_to_dec8(const char *str, dec8_t *dec);
@@ -358,6 +358,7 @@ void cm_int32_to_dec8(int32 i_32, dec8_t *dec);
 void cm_int64_to_dec8(int64 i_64, dec8_t *dec);
 status_t cm_real_to_dec8(double real, dec8_t *dec);
 status_t cm_real_to_dec8_prec16(double real, dec8_t *dec);
+status_t cm_real_to_dec8_prec17(double real, dec8_t *dec);
 double cm_dec8_to_real(const dec8_t *dec);
 status_t cm_dec8_divide(const dec8_t *dec1, const dec8_t *dec2, dec8_t *result);
 status_t cm_adjust_dec8(dec8_t *dec, int32 precision, int32 scale);
@@ -404,7 +405,7 @@ void cm_dec8_mul_op(const dec8_t *d1, const dec8_t *d2, dec8_t *rs);
 static inline status_t cm_dec8_add(const dec8_t *dec1, const dec8_t *dec2, dec8_t *result)
 {
     cm_dec8_add_op(dec1, dec2, result);
-    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 /*
@@ -414,23 +415,24 @@ static inline status_t cm_dec8_add(const dec8_t *dec1, const dec8_t *dec2, dec8_
 static inline status_t cm_dec8_subtract(const dec8_t *dec1, const dec8_t *dec2, dec8_t *result)
 {
     cm_dec8_sub_op(dec1, dec2, result);
-    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 /*
  * multiplication of two decimal
+
  */
 static inline status_t cm_dec8_multiply(const dec8_t *dec1, const dec8_t *dec2, dec8_t *result)
 {
     cm_dec8_mul_op(dec1, dec2, result);
-    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(result, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 static inline status_t cm_dec8_asin(const dec8_t *d, dec8_t *rs)
 {
-    GS_RETURN_IFERR(cm_dec8_asin_op(d, rs));
+    CT_RETURN_IFERR(cm_dec8_asin_op(d, rs));
 
-    return cm_dec8_finalise(rs, MAX_NUMERIC_BUFF, GS_FALSE);
+    return cm_dec8_finalise(rs, MAX_NUMERIC_BUFF, CT_FALSE);
 }
 
 void cm_dec8_negate(dec8_t *dec);

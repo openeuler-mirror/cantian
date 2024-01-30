@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -66,12 +66,12 @@ typedef struct st_cidr {
 // user white list entry
 typedef struct st_uwl_entry {
     bool32 hostssl;
-    char user[GS_NAME_BUFFER_SIZE];
+    char user[CT_NAME_BUFFER_SIZE];
     list_t white_list;  // cidr_t
 } uwl_entry_t;
 
 typedef struct st_ip_login {
-    char ip[GS_HOST_NAME_BUFFER_SIZE];
+    char ip[CT_HOST_NAME_BUFFER_SIZE];
     uint32 malicious_ip_count;
     date_t start_time;
     date_t last_time;
@@ -91,7 +91,7 @@ typedef struct st_white_context {
     list_t ip_white_list;
     list_t ip_black_list;
 
-    // user white list(uwl) from zhba.conf
+    // user white list(uwl) from cthba.conf
     list_t user_white_list;  // uwl_entry_t
 } white_context_t;
 
@@ -110,7 +110,7 @@ static inline const char *cm_inet_ntop(struct sockaddr *addr, char *buffer, int 
     if (inet_ntop(addr->sa_family, sin_addr, buffer, (size_t)size) == NULL) {
         errcode = strncpy_s(buffer, size, "0.0.0.0", sizeof("0.0.0.0") - 1);
         if (SECUREC_UNLIKELY(errcode != EOK)) {
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
             return NULL;
         }
     }
@@ -123,9 +123,9 @@ static inline bool32 cm_is_lookback_ip(const char *client_ip)
     if (cm_str_equal(client_ip, "127.0.0.1") ||
         cm_str_equal(client_ip, "::1") ||
         cm_str_equal(client_ip, "::ffff:127.0.0.1")) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline bool32 cm_is_equal_ip(const char *client_ip, const char *local_ip)
@@ -136,9 +136,9 @@ static inline bool32 cm_is_equal_ip(const char *client_ip, const char *local_ip)
 #define HAS_IPV6_PREFIX(ip) ((strlen(ip) > IPV6_PREFIX_LEN) && memcmp((ip), IPV6_PREFIX, IPV6_PREFIX_LEN) == 0)
     if (cm_str_equal_ins(client_ip, local_ip) ||
         (HAS_IPV6_PREFIX(client_ip) && cm_str_equal_ins(client_ip + IPV6_PREFIX_LEN, local_ip))) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 #ifdef WIN32
@@ -154,13 +154,13 @@ static inline bool32 cm_is_localip_4win32(const char *client_ip)
     errno_t rc_memzero;
 
     if (cm_is_lookback_ip(client_ip)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     rc_memzero = memset_sp(&hints, sizeof(struct addrinfo), 0, sizeof(struct addrinfo));
     if (SECUREC_UNLIKELY(rc_memzero != EOK)) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
-        return GS_FALSE;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, rc_memzero);
+        return CT_FALSE;
     }
     hints.ai_family = AF_INET;
     hints.ai_flags = AI_PASSIVE;
@@ -168,8 +168,8 @@ static inline bool32 cm_is_localip_4win32(const char *client_ip)
     hints.ai_socktype = SOCK_STREAM;
     ret = getaddrinfo(host_name, NULL, &hints, &res);
     if (ret != 0) {
-        GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "ret(%d) == 0", ret);
-        return GS_FALSE;
+        CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "ret(%d) == 0", ret);
+        return CT_FALSE;
     }
 
     for (cur = res; cur != NULL; cur = cur->ai_next) {
@@ -178,11 +178,11 @@ static inline bool32 cm_is_localip_4win32(const char *client_ip)
 
         if (cm_is_equal_ip(client_ip, ipv4)) {
             freeaddrinfo(res);
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
     freeaddrinfo(res);
-    return GS_FALSE;
+    return CT_FALSE;
 }
 #endif
 
@@ -196,11 +196,11 @@ static inline bool32 cm_is_local_ip(const char *client_ip)
     struct ifaddrs *if_list = NULL;
 
     if (cm_is_lookback_ip(client_ip)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (getifaddrs(&if_list) == -1) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     for (ifa = if_list; ifa != NULL; ifa = ifa->ifa_next) {
@@ -215,7 +215,7 @@ static inline bool32 cm_is_local_ip(const char *client_ip)
             (void)cm_inet_ntop(ifa->ifa_addr, ipstr, CM_MAX_IP_LEN);
             if (cm_is_equal_ip(client_ip, ipstr)) {
                 freeifaddrs(if_list);
-                return GS_TRUE;
+                return CT_TRUE;
             }
         }
     }
@@ -223,7 +223,7 @@ static inline bool32 cm_is_local_ip(const char *client_ip)
     freeifaddrs(if_list);
 #endif
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t cm_ipport_to_sockaddr(const char *host, int port, sock_addr_t *sock_addr);
@@ -236,6 +236,8 @@ status_t cm_ip_in_cidr(const char *ip_str, cidr_t *cidr, bool32 *result);
 extern status_t cm_cidr_equals_cidr(cidr_t *cidr1, cidr_t *cidr2, bool32 *result);
 status_t cm_check_remote_ip(white_context_t *ctx, const char *ip_str, bool32 *check_res);
 status_t cm_verify_lsnr_addr(const char *ipaddrs, uint32 len, uint32 *ip_cnt);
+status_t cm_parse_lsnr_addr(const char *ipaddrs, uint32 len, uint32 *ip_cnt, char out[][CM_MAX_IP_LEN]);
+status_t cm_split_node_ip(char host[][CT_MAX_INST_IP_LEN], const char *value);
 status_t cm_split_host_ip(char host[][CM_MAX_IP_LEN], const char *value);
 status_t cm_split_host_port(uint16 ports[], const char *port_addr);
 bool32 cm_check_user(white_context_t *ctx, const char *ip_str, const char *user, bool32 *hostssl);

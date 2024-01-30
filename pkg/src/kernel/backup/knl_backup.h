@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -60,7 +60,7 @@ typedef enum en_bak_columns {
 } bak_columns_t;
 
 #define BAK_DEFAULT_SECTION_THRESHOLD (SIZE_M(128))
-#define BAK_MAX_RETRY_TIMES_FOR_REFORM 2
+#define BAK_MAX_RETRY_TIMES_FOR_REFORM 1
 #define WAIT_REFORM_START_TIMEOUT (15000)   // ms
 
 status_t bak_backup_database(knl_session_t *session, knl_backup_t *param);
@@ -88,9 +88,7 @@ status_t bak_load_log_batch(knl_session_t *session, log_point_t *point, uint32 *
 status_t bak_wait_write(bak_t *bak);
 status_t dtc_log_prepare_pitr(knl_session_t *se);
 status_t bak_init_reform_check(bak_t *bak);
-void bak_check_reform(thread_t *thread);
-void bak_close_check_reform_proc(knl_session_t *session);
-void *bak_malloc(uint32 size);
+void bak_free_check_reform(knl_session_t *session);
 status_t bak_wait_write_ctrl(bak_t *bak, uint32 page_count);
 bool8 bak_backup_database_need_retry(knl_session_t *session);
 status_t bak_delete_backupset_for_retry(knl_backup_t *param);
@@ -113,6 +111,19 @@ status_t bak_get_datafile_size(knl_session_t *session, datafile_ctrl_t *ctrl, da
     uint64_t *datafile_size);
 char *bak_get_ctrl_datafile_item(knl_session_t *session, ctrl_page_t *pages, uint32 id);
 status_t bak_update_datafile_size(knl_session_t *session, bak_t *bak);
+status_t bak_check_increment_type(knl_session_t *session, knl_backup_t *param);
+void bak_record_init(bak_t *bak, knl_backup_t *param);
+void bak_update_rcy_point(knl_session_t *session);
+void bak_update_lrp_point(knl_session_t *session);
+bool32 bak_point_need_archfile(knl_session_t *session, bak_t *bak, uint32 node_id);
+void bak_filter_pages(knl_session_t *session, bak_process_t *ctx, bak_buf_data_t *data_buf);
+status_t bak_write_datafile(bak_process_t *bak_proc, bak_context_t *bak_ctx, bool32 to_disk);
+void bak_write_datafile_wait(bak_process_t *bak_proc, bak_context_t *bak_ctx, bool32 to_disk);
+status_t bak_init_paral_proc_resource(bak_process_t *proc, bak_context_t *ctx, uint32 i);
+status_t bak_deal_datafile_pages_read(knl_session_t *session, bak_process_t *bak_proc, bool32 to_disk);
+status_t bak_write_to_write_buf(bak_context_t *ctx, const void *buf, int32 size);
+void bak_free_reform_veiw_buffer(bak_t *bak);
+status_t bak_read_end_check(knl_session_t *session, bak_process_t *bak_proc);
 
 #ifdef __cplusplus
 }

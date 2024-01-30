@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,11 +22,9 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cm_common_module.h"
 #include "knl_database.h"
 #include "cm_file.h"
-#ifdef Z_SHARDING
-#include "cm_gts_timestamp.h"
-#endif
 #include "knl_context.h"
 #include "knl_db_create.h"
 #include "index_common.h"
@@ -37,6 +35,7 @@
 #include "dtc_drc.h"
 #include "cm_dbs_intf.h"
 #include "cm_file_iofence.h"
+#include "srv_view.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,15 +46,16 @@ extern "C" {
 static status_t db_start_daemon(knl_session_t *session);
 static char *db_get_role(database_t *db);
 
-uint32 g_local_inst_id = GS_INVALID_ID32;
+uint32 g_local_inst_id = CT_INVALID_ID32;
 
 /*
  * Initialize member of database
  * @param    kernel handle of the open kernel
  * @return
- * - GS_SUCCESS
- * - GS_ERROR
+ * - CT_SUCCESS
+ * - CT_ERROR
  * @note must call after instance is startup
+
  * @since 2017/4/26
  */
 status_t db_init(knl_session_t *session)
@@ -63,24 +63,24 @@ status_t db_init(knl_session_t *session)
     uint32 i;
     knl_instance_t *kernel = (knl_instance_t *)session->kernel;
     database_t *db = &kernel->db;
-    uint32 size = CTRL_MAX_PAGES(session) * GS_DFLT_CTRL_BLOCK_SIZE;
-    uint32 offset = kernel->attr.clustered ? (GS_MAX_INSTANCES + CTRL_LOG_SEGMENT) : (1 + CTRL_LOG_SEGMENT);
+    uint32 size = CTRL_MAX_PAGES(session) * CT_DFLT_CTRL_BLOCK_SIZE;
+    uint32 offset = kernel->attr.clustered ? (CT_MAX_INSTANCES + CTRL_LOG_SEGMENT) : (1 + CTRL_LOG_SEGMENT);
     errno_t err;
 
     dls_init_spinlock(&(db->df_ctrl_lock), DR_TYPE_DATABASE, DR_ID_DATABASE_CTRL, 0);
     dls_init_latch(&(db->ddl_latch), DR_TYPE_DDL, DR_ID_DDL_OP, 0);
     dls_init_latch(&(db->ctrl_latch), DR_TYPE_DDL, DR_ID_DATABASE_CTRL, 0);
 
-    GS_LOG_RUN_INF("[DB INIT] db init start.");
-    if (cm_aligned_malloc((int64)size, "ctrl", &db->ctrl.buf) != GS_SUCCESS) {
-        return GS_ERROR;
+    CT_LOG_RUN_INF("[DB INIT] db init start.");
+    if (cm_aligned_malloc((int64)size, "ctrl", &db->ctrl.buf) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     db->ctrl.pages = (ctrl_page_t *)db->ctrl.buf.aligned_buf;
     err = memset_sp(db->ctrl.pages, size, 0, size);
     knl_securec_check(err);
 
-    for (i = 0; i < GS_MAX_CTRL_FILES; i++) {
-        db->ctrlfiles.items[i].handle = GS_INVALID_HANDLE;
+    for (i = 0; i < CT_MAX_CTRL_FILES; i++) {
+        db->ctrlfiles.items[i].handle = CT_INVALID_HANDLE;
     }
 
     db->ctrl.log_segment = offset;
@@ -94,28 +94,28 @@ status_t db_init(knl_session_t *session)
     err = memset_sp(&db->ctrl.core, sizeof(core_ctrl_t), 0, sizeof(core_ctrl_t));
     knl_securec_check(err);
 
-    if (buf_init(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (buf_init(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     pcrp_init(session);
-    GS_LOG_RUN_INF("[DB INIT] init buf & pcrp finish.");
+    CT_LOG_RUN_INF("[DB INIT] init buf & pcrp finish.");
 
-    if (pcb_init_ctx(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (pcb_init_ctx(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_start_daemon(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_start_daemon(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB INIT] start daemon finish.");
+    CT_LOG_RUN_INF("[DB INIT] start daemon finish.");
 
-    if (dc_preload(session, DB_STATUS_NOMOUNT) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_preload(session, DB_STATUS_NOMOUNT) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     lsnd_eventfd_init(&kernel->lsnd_ctx);
-    GS_LOG_RUN_INF("[DB INIT] db init finish.");
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("[DB INIT] db init finish.");
+    return CT_SUCCESS;
 }
 
 knl_scn_t db_inc_scn(knl_session_t *session)
@@ -135,9 +135,9 @@ knl_scn_t db_inc_scn(knl_session_t *session)
         status_t status = gts_get_lcl_timestamp(&gts_scn);
         KNL_SCN_TO_TIMESEQ(gts_scn, &now, seq, CM_GTS_BASETIME);
         seq++;
-        knl_panic(status == GS_SUCCESS);
-        CM_ABORT(status == GS_SUCCESS, "[DB] ABORT INFO: increase scn failed");
-    } else 
+        knl_panic(status == CT_SUCCESS);
+        CM_ABORT(status == CT_SUCCESS, "[DB] ABORT INFO: increase scn failed");
+    } else
 #endif
     {
         (void)cm_gettimeofday(&now);
@@ -167,8 +167,8 @@ knl_scn_t db_next_scn(knl_session_t *session)
         status_t status = gts_get_lcl_timestamp(&gts_scn);
         KNL_SCN_TO_TIMESEQ(gts_scn, &now, seq, CM_GTS_BASETIME);
         seq++;
-        knl_panic(status == GS_SUCCESS);
-        CM_ABORT(status == GS_SUCCESS, "[DB] ABORT INFO: get next scn failed");
+        knl_panic(status == CT_SUCCESS);
+        CM_ABORT(status == CT_SUCCESS, "[DB] ABORT INFO: get next scn failed");
     } else 
 #endif
     {
@@ -213,17 +213,17 @@ status_t db_load_logfiles(knl_session_t *session)
         if (LOG_IS_DROPPED(logfile->ctrl->flg)) {
             continue;
         }
-        SYNC_POINT_GLOBAL_START(CANTIAN_OPEN_DEVICE_FAIL, &ret, GS_ERROR);
+        SYNC_POINT_GLOBAL_START(CANTIAN_OPEN_DEVICE_FAIL, &ret, CT_ERROR);
         /* logfile can be opened for a long time, closed in db_close_log_files */
         ret = cm_open_device(logfile->ctrl->name, logfile->ctrl->type, knl_redo_io_flag(session), &logfile->handle);
         SYNC_POINT_GLOBAL_END;
-        if (ret != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[DB] failed to open %s ", logfile->ctrl->name);
-            return GS_ERROR;
+        if (ret != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DB] failed to open %s ", logfile->ctrl->name);
+            return CT_ERROR;
         }
     }
-    GS_LOG_RUN_INF("[DB] load logfiles finish");
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("[DB] load logfiles finish");
+    return CT_SUCCESS;
 }
 
 static void db_upgrade_original_space(core_ctrl_t *core_ctrl, dtc_node_ctrl_t *node_ctrl, space_t *space,
@@ -265,7 +265,7 @@ static void db_upgrade_original_space(core_ctrl_t *core_ctrl, dtc_node_ctrl_t *n
             }
     }
 
-    *is_upgrade = GS_FALSE;
+    *is_upgrade = CT_FALSE;
 }
 
 /*
@@ -276,11 +276,11 @@ static void db_try_upgrade_space(knl_session_t *session, space_t *space, bool32 
     core_ctrl_t *core_ctrl = DB_CORE_CTRL(session);
     dtc_node_ctrl_t *node_ctrl = dtc_my_ctrl(session);
 
-    *is_upgrade = GS_TRUE;
+    *is_upgrade = CT_TRUE;
 
     // if it is default space, need verify ****_space in core ctrl
     if (space->ctrl->type != SPACE_TYPE_UNDEFINED && !SPACE_IS_DEFAULT(space)) {
-        *is_upgrade = GS_FALSE;
+        *is_upgrade = CT_FALSE;
         return;
     }
 
@@ -316,41 +316,41 @@ static status_t db_save_tablespace_ctrl(knl_session_t *session, space_t *space, 
 {
     if (is_upgrade) {
         if (SPACE_IS_DEFAULT(space)) {
-            if (db_save_core_ctrl(session) != GS_SUCCESS) {
+            if (db_save_core_ctrl(session) != CT_SUCCESS) {
                 CM_ABORT(0, "[DB] ABORT INFO: failed to save core ctrl file when load tablespace");
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
 
-        if (db_save_space_ctrl(session, space->ctrl->id) != GS_SUCCESS) {
+        if (db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
             CM_ABORT(0, "[DB] ABORT INFO: failed to save space ctrl file when load tablespace %s",
                 space->ctrl->name);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else {
         if (!SPACE_IS_ONLINE(space)) {
-            if (db_save_space_ctrl(session, space->ctrl->id) != GS_SUCCESS) {
+            if (db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
                 CM_ABORT(0, "[DB] ABORT INFO: failed to save space ctrl file when load tablespace %s",
                     space->ctrl->name);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_load_tablespaces(knl_session_t *session, bool32 *has_offline)
 {
     space_t *space = NULL;
-    bool32 is_upgrade = GS_FALSE;
-    bool32 swap_encrypt = GS_FALSE;
+    bool32 is_upgrade = CT_FALSE;
+    bool32 swap_encrypt = CT_FALSE;
     uint32 i;
 
-    *has_offline = GS_FALSE;
+    *has_offline = CT_FALSE;
 
     // mount spaces
-    for (i = 0; i < GS_MAX_SPACES; i++) {
+    for (i = 0; i < CT_MAX_SPACES; i++) {
         space = SPACE_GET(session, i);
         if (space->ctrl->file_hwm == 0) {
             continue;
@@ -362,30 +362,30 @@ static status_t db_load_tablespaces(knl_session_t *session, bool32 *has_offline)
             continue;
         }
 
-        if (spc_mount_space(session, space, GS_TRUE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_mount_space(session, space, CT_TRUE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (SPACE_IS_ENCRYPT(space)) {
-            swap_encrypt = GS_TRUE;
+            swap_encrypt = CT_TRUE;
         }
 
         db_try_upgrade_space(session, space, &is_upgrade);
-        if (db_save_tablespace_ctrl(session, space, is_upgrade) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_save_tablespace_ctrl(session, space, is_upgrade) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!SPACE_IS_ONLINE(space)) {
-            *has_offline = GS_TRUE;
+            *has_offline = CT_TRUE;
         }
     }
 
     if (swap_encrypt) {
-        if (spc_active_swap_encrypt(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_active_swap_encrypt(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void db_close_ctrl_files(knl_session_t *session)
@@ -444,36 +444,36 @@ void db_close(knl_session_t *session, bool32 need_ckpt)
     synctimer_close(session);
 
     if (need_ckpt) {
-        GS_LOG_RUN_INF("begin to save table monitor stats");
+        CT_LOG_RUN_INF("begin to save table monitor stats");
         (void)knl_flush_table_monitor(session->kernel->sessions[SESSION_ID_STATS]);
-        GS_LOG_RUN_INF("finished to save table monitor stats");
+        CT_LOG_RUN_INF("finished to save table monitor stats");
     }
 
     if (DB_IS_RAFT_ENABLED(session->kernel)) {
-        if (log_flush(session, NULL, NULL, NULL) != GS_SUCCESS) {
+        if (log_flush(session, NULL, NULL, NULL) != CT_SUCCESS) {
             CM_ABORT(0, "[LOG] ABORT INFO: redo log task flush redo file failed.");
         }
         if (session->kernel->raft_ctx.status == RAFT_STATUS_INITED) {
             session->kernel->raft_ctx.status = RAFT_STATUS_CLOSING;
         }
-        GS_LOG_RUN_INF("commit_lfn : %llu, flushed_lfn : %llu",
+        CT_LOG_RUN_INF("commit_lfn : %llu, flushed_lfn : %llu",
             session->kernel->raft_ctx.commit_lfn, session->kernel->redo_ctx.flushed_lfn);
         raft_wait_for_log_flush(session, session->kernel->redo_ctx.flushed_lfn);
         cm_close_thread(&session->kernel->redo_ctx.async_thread);
-        GS_LOG_RUN_INF("commit_lfn : %llu, flushed_lfn : %llu",
+        CT_LOG_RUN_INF("commit_lfn : %llu, flushed_lfn : %llu",
             session->kernel->raft_ctx.commit_lfn, session->kernel->redo_ctx.flushed_lfn);
     }
 
     if (DB_TO_RECOVERY(session) && need_ckpt) {
-        GS_LOG_RUN_INF("begin full checkpoint");
-        ckpt_trigger(session, GS_TRUE, CKPT_TRIGGER_FULL);
-        GS_LOG_RUN_INF("full checkpoint completed: file:%u,point:%u,lfn:%llu", rcy_point->asn, rcy_point->block_id,
+        CT_LOG_RUN_INF("begin full checkpoint");
+        ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL);
+        CT_LOG_RUN_INF("full checkpoint completed: file:%u,point:%u,lfn:%llu", rcy_point->asn, rcy_point->block_id,
                        (uint64)rcy_point->lfn);
-        GS_LOG_RUN_INF("full checkpoint completed: file:%u,point:%u,lfn:%llu", lrp_point->asn, lrp_point->block_id,
+        CT_LOG_RUN_INF("full checkpoint completed: file:%u,point:%u,lfn:%llu", lrp_point->asn, lrp_point->block_id,
                        (uint64)lrp_point->lfn);
         knl_panic(log_cmp_point(rcy_point, lrp_point) == 0 && LOG_POINT_LFN_EQUAL(rcy_point, lrp_point));
-        dtc_my_ctrl(session)->shutdown_consistency = GS_TRUE;
-        if (db_save_core_ctrl(session) != GS_SUCCESS) {
+        dtc_my_ctrl(session)->shutdown_consistency = CT_TRUE;
+        if (db_save_core_ctrl(session) != CT_SUCCESS) {
             CM_ABORT(0, "[DB] ABORT INFO: save core control file failed when consistent shutdown");
         }
     }
@@ -525,7 +525,7 @@ static void db_load_systable(knl_session_t *session, uint32 table_id, page_id_t 
 
     buf_enter_page(session, table->heap.entry, LATCH_MODE_S, ENTER_PAGE_RESIDENT);
     table->heap.segment = HEAP_SEG_HEAD(session);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     table->desc.seg_scn = table->heap.segment->seg_scn;
 }
@@ -573,63 +573,63 @@ static status_t db_verify_systime(knl_session_t *session, bool32 ignore_systime)
     KNL_SCN_TO_TIME(curr_scn, &db_time, init_time);
 
     if (threshold == 0 || (int64)(sys_time.tv_sec - db_time.tv_sec) <= threshold) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!ignore_systime) {
-        GS_THROW_ERROR(ERR_SYSTEM_TIME, db_time.tv_sec, sys_time.tv_sec);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SYSTEM_TIME, db_time.tv_sec, sys_time.tv_sec);
+        return CT_ERROR;
     }
 
     curr_scn = KNL_TIMESEQ_TO_SCN(&sys_time, init_time, 0);
     KNL_SET_SCN(&session->kernel->scn, curr_scn);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_mount_ctrl(knl_session_t *session)
 {
     text_t ctrlfiles;
-    bool32 is_found = GS_FALSE;
+    bool32 is_found = CT_FALSE;
 
-    if (db_check(session, &ctrlfiles, &is_found) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_check(session, &ctrlfiles, &is_found) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!is_found) {
-        GS_THROW_ERROR(ERR_LOAD_CONTROL_FILE, "ctrl file does not exist!");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_LOAD_CONTROL_FILE, "ctrl file does not exist!");
+        return CT_ERROR;
     }
 
-    if (db_load_ctrlspace(session, &ctrlfiles) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_load_ctrlspace(session, &ctrlfiles) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("mount ctrl finish, memory usage=%lu", cm_print_memory_usage());
+    CT_LOG_RUN_INF("mount ctrl finish, memory usage=%lu", cm_print_memory_usage());
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_register_iof(knl_instance_t *kernel)
 {
     if (knl_dbs_is_enable_dbs()) {
-        if (cm_dbs_open_all_ns() != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("failed to open dbstore namespace.");
-            return GS_ERROR;
+        if (cm_dbs_open_all_ns() != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("failed to open dbstore namespace.");
+            return CT_ERROR;
         }
 
-        if (cm_dbs_iof_reg_all_ns(kernel->id) != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("failed to iof reg dbstore namespace, inst id %u", kernel->id);
-            return GS_ERROR;
+        if (cm_dbs_iof_reg_all_ns(kernel->id) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("failed to iof reg dbstore namespace, inst id %u", kernel->id);
+            return CT_ERROR;
         }
     } else {
         if (kernel->file_iof_thd.id == 0) {
-            if (cm_file_iof_register(kernel->id, &kernel->file_iof_thd) != GS_SUCCESS) {
-                GS_LOG_RUN_ERR("failed to iof reg file, inst id %u", kernel->id);
-                return GS_ERROR;
+            if (cm_file_iof_register(kernel->id, &kernel->file_iof_thd) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("failed to iof reg file, inst id %u", kernel->id);
+                return CT_ERROR;
             }
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_mount(knl_session_t *session)
@@ -637,61 +637,61 @@ status_t db_mount(knl_session_t *session)
     knl_instance_t *kernel = (knl_instance_t *)session->kernel;
     database_t *db = &kernel->db;
 
-    GS_LOG_RUN_INF("start to alter database MOUNT, memory usage=%lu", cm_print_memory_usage());
+    CT_LOG_RUN_INF("start to alter database MOUNT, memory usage=%lu", cm_print_memory_usage());
 
     if (!cm_spin_try_lock(&kernel->lock)) {
-        GS_THROW_ERROR(ERR_DB_START_IN_PROGRESS);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DB_START_IN_PROGRESS);
+        return CT_ERROR;
     }
 
     knl_panic(db->status == DB_STATUS_NOMOUNT || db->status == DB_STATUS_CREATING);
     kernel->undo_segid = 0;
 
-    if (db_register_iof(kernel) != GS_SUCCESS) {
+    if (db_register_iof(kernel) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_mount_ctrl(session) != GS_SUCCESS) {
+    if (db_mount_ctrl(session) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (DB_ATTR_CLUSTER(session)) {
-        if (dtc_startup() != GS_SUCCESS) {
+        if (dtc_startup() != CT_SUCCESS) {
             cm_spin_unlock(&kernel->lock);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    if (ckpt_recover_partial_write(session) != GS_SUCCESS) {
+    if (ckpt_recover_partial_write(session) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (arch_init(session) != GS_SUCCESS) {
+    if (arch_init(session) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_load_logfiles(session) != GS_SUCCESS) {
+    if (db_load_logfiles(session) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (dc_preload(session, DB_STATUS_MOUNT) != GS_SUCCESS) {
+    if (dc_preload(session, DB_STATUS_MOUNT) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (KNL_GBP_ENABLE(session->kernel) && (gbp_agent_start(session) != GS_SUCCESS)) {
+    if (KNL_GBP_ENABLE(session->kernel) && (gbp_agent_start(session) != CT_SUCCESS)) {
         cm_spin_unlock(&kernel->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (rcy_init(session) != GS_SUCCESS) {
+    if (rcy_init(session) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     rmon_load(session);
@@ -699,37 +699,37 @@ status_t db_mount(knl_session_t *session)
     db->status = DB_STATUS_MOUNT;
 
     cm_spin_unlock(&kernel->lock);
-    GS_LOG_RUN_INF("sucessfully alter database MOUNT, memory usage=%lu", cm_print_memory_usage());
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("sucessfully alter database MOUNT, memory usage=%lu", cm_print_memory_usage());
+    return CT_SUCCESS;
 }
 
 static status_t db_start_writer(knl_instance_t *kernel, ckpt_context_t *ckpt)
 {
     // start log writer thread
-    if (cm_create_thread(log_proc, 0, kernel->sessions[SESSION_ID_LOGWR], &kernel->redo_ctx.thread) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_create_thread(log_proc, 0, kernel->sessions[SESSION_ID_LOGWR], &kernel->redo_ctx.thread) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (DB_IS_RAFT_ENABLED(kernel)) {
         if (cm_create_thread(log_async_proc, 0, kernel->sessions[SESSION_ID_LOGWR_ASYNC],
-            &kernel->redo_ctx.async_thread) != GS_SUCCESS) {
-            return GS_ERROR;
+            &kernel->redo_ctx.async_thread) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     // start db writer threads
     for (uint32 i = 0; i < ckpt->dbwr_count; i++) {
-        if (cm_create_thread(dbwr_proc, 0, &ckpt->dbwr[i], &ckpt->dbwr[i].thread) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_create_thread(dbwr_proc, 0, &ckpt->dbwr[i], &ckpt->dbwr[i].thread) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     // start checkpoint thread
-    if (cm_create_thread(ckpt_proc, 0, kernel->sessions[SESSION_ID_DBWR], &kernel->ckpt_ctx.thread) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_create_thread(ckpt_proc, 0, kernel->sessions[SESSION_ID_DBWR], &kernel->ckpt_ctx.thread) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_start_daemon(knl_session_t *session)
@@ -737,67 +737,67 @@ static status_t db_start_daemon(knl_session_t *session)
     knl_instance_t *kernel = session->kernel;
     ckpt_context_t *ckpt = &kernel->ckpt_ctx;
 
-    if (log_init(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (log_init(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (ckpt_init(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ckpt_init(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     bak_init(session);
 
-    GS_LOG_RUN_INF("int log & ckpt & bak finish.");
-    if (db_start_writer(kernel, ckpt) != GS_SUCCESS) {
-        return GS_ERROR;
+    CT_LOG_RUN_INF("int log & ckpt & bak finish.");
+    if (db_start_writer(kernel, ckpt) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // start smon thread
-    if (cm_create_thread(smon_proc, 0, kernel->sessions[SESSION_ID_SMON], &kernel->smon_ctx.thread) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_create_thread(smon_proc, 0, kernel->sessions[SESSION_ID_SMON], &kernel->smon_ctx.thread) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // start stats thread
-    if (cm_create_thread(stats_proc, 0, kernel->sessions[SESSION_ID_STATS], &kernel->stats_ctx.thread) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_create_thread(stats_proc, 0, kernel->sessions[SESSION_ID_STATS], &kernel->stats_ctx.thread) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (cm_create_thread(idx_recycle_proc, 0, kernel->sessions[SESSION_ID_IDX_RECYCLE],
-        &kernel->index_ctx.recycle_ctx.thread) != GS_SUCCESS) {
-            return GS_ERROR;
+        &kernel->index_ctx.recycle_ctx.thread) != CT_SUCCESS) {
+            return CT_ERROR;
     }
 
     if (DB_IS_PRIMARY(&session->kernel->db) && !DB_IS_RAFT_ENABLED(kernel)) {
-        if (tx_rollback_start(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (tx_rollback_start(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (kernel->attr.enable_asynch) {
-        if (cm_create_thread(buf_aio_proc, 0, kernel, &kernel->buf_aio_ctx.thread) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_create_thread(buf_aio_proc, 0, kernel, &kernel->buf_aio_ctx.thread) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    if (cm_create_thread(rmon_proc, 0, kernel->sessions[SESSION_ID_RMON], &kernel->rmon_ctx.thread) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_create_thread(rmon_proc, 0, kernel->sessions[SESSION_ID_RMON], &kernel->rmon_ctx.thread) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (ashrink_init(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (ashrink_init(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     knl_session_t *ashrink_se = kernel->sessions[SESSION_ID_ASHRINK];
-    if (cm_create_thread(ashrink_proc, 0, ashrink_se, &kernel->ashrink_ctx.thread) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_create_thread(ashrink_proc, 0, ashrink_se, &kernel->ashrink_ctx.thread) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (cm_create_thread(idx_auto_rebuild_proc, 0, kernel->sessions[SESSION_ID_IDX_REBUILD],
-        &kernel->auto_rebuild_ctx.thread) != GS_SUCCESS) {
-        return GS_ERROR;
+        &kernel->auto_rebuild_ctx.thread) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_switchover_proc_init(knl_session_t *session)
@@ -807,24 +807,24 @@ static status_t db_switchover_proc_init(knl_session_t *session)
 
     if (!DB_IS_PRIMARY(db) || DB_IS_RAFT_ENABLED(kernel)) {
         if (KNL_GBP_ENABLE(kernel)) {
-            if (gbp_aly_init(session) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (gbp_aly_init(session) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
         rcy_init_proc(session);
-        if (lrpl_init(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lrpl_init(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (DB_IS_PRIMARY(db) || DB_IS_PHYSICAL_STANDBY(db)) {
-        if (lsnd_init(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lsnd_init(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    GS_LOG_RUN_INF("[DB]: db switchover proc init finish.");
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("[DB]: db switchover proc init finish.");
+    return CT_SUCCESS;
 }
 
 /**
@@ -839,35 +839,35 @@ static status_t db_reset_ignore_log(knl_session_t *session,  bool32 resetlogs, b
     uint64 consistent_lfn = dtc_my_ctrl(session)->consistent_lfn;
 
     if (!resetlogs && !force_ignore_logs && RCY_IGNORE_CORRUPTED_LOG(rcy)) {
-        GS_THROW_ERROR(ERR_CANNOT_OPEN_DATABASE, "after recover until cancel",
+        CT_THROW_ERROR(ERR_CANNOT_OPEN_DATABASE, "after recover until cancel",
                        "open resetlog or open force ignore log");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (consistent_lfn == 0) { // for database version downward compatibility
         consistent_lfn = lrp_point.lfn;
     }
 
-    GS_LOG_RUN_INF("[DB] db is recover until cancel, rcy point lfn %llu, consistent point %llu",
+    CT_LOG_RUN_INF("[DB] db is recover until cancel, rcy point lfn %llu, consistent point %llu",
                    (uint64)dtc_my_ctrl(session)->rcy_point.lfn, (uint64)consistent_lfn);
 
     if (dtc_my_ctrl(session)->rcy_point.lfn < consistent_lfn) {
         if (force_ignore_logs) {
-            dtc_my_ctrl(session)->open_inconsistency = GS_TRUE;
-            GS_LOG_RUN_WAR("[DB] force ignore redo log, database may not be in consistency");
+            dtc_my_ctrl(session)->open_inconsistency = CT_TRUE;
+            CT_LOG_RUN_WAR("[DB] force ignore redo log, database may not be in consistency");
         } else {
-            GS_THROW_ERROR(ERR_OPEN_RESETLOGS, dtc_my_ctrl(session)->rcy_point.lfn, consistent_lfn);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPEN_RESETLOGS, dtc_my_ctrl(session)->rcy_point.lfn, consistent_lfn);
+            return CT_ERROR;
         }
     }
 
-    db_reset_log(session, GS_INVALID_ASN, GS_TRUE, GS_TRUE);
+    db_reset_log(session, CT_INVALID_ASN, CT_TRUE, CT_TRUE);
 
-    if (db_save_core_ctrl(session) != GS_SUCCESS) {
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: save core control file failed when reset log.");
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_mode_set(knl_session_t *session, db_open_opt_t *options)
@@ -878,195 +878,207 @@ static status_t db_mode_set(knl_session_t *session, db_open_opt_t *options)
 
     if (options->open_status >= DB_OPEN_STATUS_RESTRICT) {
         if (session->uid != DB_SYS_USER_ID) {
-            GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "of opening for restrict or upgrade mode", "non-system user");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "of opening for restrict or upgrade mode", "non-system user");
+            return CT_ERROR;
         }
         db->open_status = options->open_status;
     }
     db->terminate_lfn = options->lfn;
-    db->has_load_role = GS_FALSE;
+    db->has_load_role = CT_FALSE;
 
     if (options->readonly || !DB_IS_PRIMARY(db)) {
-        db->is_readonly = GS_TRUE;
+        db->is_readonly = CT_TRUE;
         db->readonly_reason = DB_IS_PRIMARY(db) ? MANUALLY_SET : PHYSICAL_STANDBY_SET;
         //        tx_rollback_close(session);
     }
 
     if (options->resetlogs && !RCY_IGNORE_CORRUPTED_LOG(rcy)) {
         if (session->kernel->attr.clustered) {
-            if (dtc_reset_log(session, GS_TRUE, GS_TRUE) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (dtc_reset_log(session, CT_TRUE, CT_TRUE) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
             if (!LOG_POINT_LFN_EQUAL(&dtc_my_ctrl(session)->rcy_point, &dtc_my_ctrl(session)->lrp_point)) {
-                GS_THROW_ERROR(ERR_OPEN_RESETLOGS, dtc_my_ctrl(session)->rcy_point.lfn,
+                CT_THROW_ERROR(ERR_OPEN_RESETLOGS, dtc_my_ctrl(session)->rcy_point.lfn,
                                dtc_my_ctrl(session)->lrp_point.lfn);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
-            db_reset_log(session, GS_INVALID_ASN, GS_TRUE, GS_TRUE);
+            db_reset_log(session, CT_INVALID_ASN, CT_TRUE, CT_TRUE);
 
-            if (db_save_core_ctrl(session) != GS_SUCCESS) {
+            if (db_save_core_ctrl(session) != CT_SUCCESS) {
                 CM_ABORT(0, "[DB] ABORT INFO: save core control file failed when reset log.");
             }
         }
     }
 
     if (RCY_IGNORE_CORRUPTED_LOG(rcy)) {
-        if (db_reset_ignore_log(session, options->resetlogs, options->ignore_logs) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_reset_ignore_log(session, options->resetlogs, options->ignore_logs) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
     rcy->action = RECOVER_NORMAL;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_callback_function(knl_session_t *session)
 {
-    if (g_knl_callback.init_sql_maps(session) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[DB]: callback function init sql maps failed.");
-        return GS_ERROR;
+    if (g_knl_callback.pl_init(session) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DB]: callback function pl init failed.");
+        return CT_ERROR;
     }
 
-    if (g_knl_callback.init_resmgr(session) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[DB]: callback function init resmgr failed.");
-        return GS_ERROR;
+#ifdef Z_SHARDING
+    if (g_knl_callback.init_shard_resource(session) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DB]: callback function init shard resource failed.");
+        return CT_ERROR;
+    }
+#endif
+
+    if (g_knl_callback.init_sql_maps(session) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DB]: callback function init sql maps failed.");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    if (g_knl_callback.init_resmgr(session) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DB]: callback function init resmgr failed.");
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
 }
 
 static status_t db_mount_to_recovery(knl_session_t *session, db_open_opt_t *options, bool32 *has_offline)
 {
     core_ctrl_t *core_ctrl = DB_CORE_CTRL(session);
-    bool32 is_upgrade = (options->open_status >= DB_OPEN_STATUS_UPGRADE) ? GS_TRUE : GS_FALSE;
+    bool32 is_upgrade = (options->open_status >= DB_OPEN_STATUS_UPGRADE) ? CT_TRUE : CT_FALSE;
     drlatch_t *ctrl_latch = &session->kernel->db.ctrl_latch;
 
     mes_set_message_timeout_check_func(dtc_is_in_rcy);
     
-    if (log_load(session) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[DB OPEN] log_load failed");
-        return GS_ERROR;
+    if (log_load(session) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DB OPEN] log_load failed");
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] log_load finished");
+    CT_LOG_RUN_INF("[DB OPEN] log_load finished");
 
-    dtc_wait_reform_util(session, GS_FALSE, REFORM_RECOVER_DONE);
+    dtc_wait_reform_util(session, CT_FALSE, REFORM_RECOVER_DONE);
 
-    if (knl_ddl_latch_s(ctrl_latch, session, NULL) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[DB OPEN] latch ddl failed");
-        return GS_ERROR;
+    if (knl_ddl_latch_s(ctrl_latch, session, NULL) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DB OPEN] latch ddl failed");
+        return CT_ERROR;
     }
 
     if (DB_IS_CLUSTER(session)) {
         // full recovery do not need mount ctrl again
-        if (!rc_is_master() && db_mount_ctrl(session) != GS_SUCCESS) {
+        if (!rc_is_master() && db_mount_ctrl(session) != CT_SUCCESS) {
             dls_unlatch(session, ctrl_latch, NULL);
-            GS_LOG_RUN_ERR("[DB OPEN] mount ctrl failed");
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[DB OPEN] mount ctrl failed");
+            return CT_ERROR;
         }
         rc_allow_reform_finish();
         dtc_wait_reform();
-        GS_LOG_RUN_INF("[DB OPEN] dtc_wait_reform finished");
+        CT_LOG_RUN_INF("[DB OPEN] dtc_wait_reform finished");
     }
 
-    if (log_check_asn(session, options->ignore_logs) != GS_SUCCESS) {
+    if (log_check_asn(session, options->ignore_logs) != CT_SUCCESS) {
         dls_unlatch(session, ctrl_latch, NULL);
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ", check log asn failed when open database");
-        GS_LOG_RUN_ERR("[DB OPEN] log_check_asn failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ", check log asn failed when open database");
+        CT_LOG_RUN_ERR("[DB OPEN] log_check_asn failed");
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] log_check_asn finished");
+    CT_LOG_RUN_INF("[DB OPEN] log_check_asn finished");
 
     if (!db_sysdata_version_is_equal(session, is_upgrade)) {
         dls_unlatch(session, ctrl_latch, NULL);
-        GS_LOG_RUN_ERR("[DB OPEN] db_sysdata_version_is_equal failed");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[DB OPEN] db_sysdata_version_is_equal failed");
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] db_sysdata_version_is_equal finished");
+    CT_LOG_RUN_INF("[DB OPEN] db_sysdata_version_is_equal finished");
 
-    if (db_mode_set(session, options) != GS_SUCCESS) {
+    if (db_mode_set(session, options) != CT_SUCCESS) {
         dls_unlatch(session, ctrl_latch, NULL);
-        GS_LOG_RUN_ERR("[DB OPEN] db_mode_set failed");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[DB OPEN] db_mode_set failed");
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] db_mode_set finished");
+    CT_LOG_RUN_INF("[DB OPEN] db_mode_set finished");
 
-    if (raft_load(session) != GS_SUCCESS) {
+    if (raft_load(session) != CT_SUCCESS) {
         dls_unlatch(session, ctrl_latch, NULL);
-        GS_LOG_RUN_ERR("[DB OPEN] raft_load failed");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[DB OPEN] raft_load failed");
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] raft_load finished");
+    CT_LOG_RUN_INF("[DB OPEN] raft_load finished");
 
-    if (db_load_tablespaces(session, has_offline) != GS_SUCCESS) {
+    if (db_load_tablespaces(session, has_offline) != CT_SUCCESS) {
         knl_panic_log(0, "[DB OPEN] db_load_tablespaces failed");
         dls_unlatch(session, ctrl_latch, NULL);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] db_load_tablespaces finished");
+    CT_LOG_RUN_INF("[DB OPEN] db_load_tablespaces finished");
 
     db_load_systables(session);
-    GS_LOG_RUN_INF("[DB OPEN] db_load_systables finished");
+    CT_LOG_RUN_INF("[DB OPEN] db_load_systables finished");
 
     undo_init(session, 0, core_ctrl->undo_segments);
-    GS_LOG_RUN_INF("[DB OPEN] undo_init finished");
+    CT_LOG_RUN_INF("[DB OPEN] undo_init finished");
 
-    if (lock_area_init(session) != GS_SUCCESS) {
+    if (lock_area_init(session) != CT_SUCCESS) {
         knl_panic_log(0, "[DB OPEN] lock_area_init failed");
         dls_unlatch(session, ctrl_latch, NULL);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] lock_area_init finished");
+    CT_LOG_RUN_INF("[DB OPEN] lock_area_init finished");
 
     btree_area_init(session);
-    GS_LOG_RUN_INF("[DB OPEN] btree_area_init finished");
+    CT_LOG_RUN_INF("[DB OPEN] btree_area_init finished");
 
     lob_area_init(session);
-    GS_LOG_RUN_INF("[DB OPEN] lob_area_init finished");
+    CT_LOG_RUN_INF("[DB OPEN] lob_area_init finished");
 
-    if (tx_area_init(session, 0, core_ctrl->undo_segments) != GS_SUCCESS) {
+    if (tx_area_init(session, 0, core_ctrl->undo_segments) != CT_SUCCESS) {
         knl_panic_log(0, "[DB OPEN] tx_area_init failed");
         dls_unlatch(session, ctrl_latch, NULL);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] tx_area_init finished");
+    CT_LOG_RUN_INF("[DB OPEN] tx_area_init finished");
 
     ckpt_load(session);
-    GS_LOG_RUN_INF("[DB OPEN] ckpt_load finished");
+    CT_LOG_RUN_INF("[DB OPEN] ckpt_load finished");
 
-    if (arch_start(session) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[DB OPEN] arch_start failed");
+    if (arch_start(session) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DB OPEN] arch_start failed");
         dls_unlatch(session, ctrl_latch, NULL);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] arch_start finished");
+    CT_LOG_RUN_INF("[DB OPEN] arch_start finished");
     dls_unlatch(session, ctrl_latch, NULL);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_check_terminate_lfn(knl_session_t *session, uint64 lfn)
 {
     database_t *db = &session->kernel->db;
 
-    if (lfn == GS_INVALID_LFN) {
-        return GS_SUCCESS;
+    if (lfn == CT_INVALID_LFN) {
+        return CT_SUCCESS;
     }
 
     if (DB_IS_PRIMARY(db)) {
-        GS_LOG_RUN_ERR("[UPGRADE] The operation entering terminated lfn for primary role was not allowed");
-        GS_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "entering terminated lfn for primary role");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[UPGRADE] The operation entering terminated lfn for primary role was not allowed");
+        CT_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "entering terminated lfn for primary role");
+        return CT_ERROR;
     }
 
     if (lfn < (uint64)dtc_my_ctrl(session)->lrp_point.lfn) {
-        GS_LOG_RUN_ERR("[UPGRADE] terminated lfn [%llu] is less than lrp point's lfn [%llu]", lfn,
+        CT_LOG_RUN_ERR("[UPGRADE] terminated lfn [%llu] is less than lrp point's lfn [%llu]", lfn,
                        (uint64)dtc_my_ctrl(session)->lrp_point.lfn);
-        GS_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "entering terminated lfn less than lrp point");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "entering terminated lfn less than lrp point");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_recovery_to_initphase2(knl_session_t *session, bool32 has_offline)
@@ -1076,40 +1088,40 @@ static status_t db_recovery_to_initphase2(knl_session_t *session, bool32 has_off
     undo_set_t *undo_set = MY_UNDO_SET(session);
 
     if (dtc_my_ctrl(session)->shutdown_consistency) {
-        GS_LOG_RUN_INF("The last shutdown is consistent");
+        CT_LOG_RUN_INF("The last shutdown is consistent");
         if (!DB_IS_RAFT_ENABLED(kernel)) {
         knl_panic(log_cmp_point(&dtc_my_ctrl(session)->rcy_point, &dtc_my_ctrl(session)->lrp_point) == 0 &&
                   LOG_POINT_LFN_EQUAL(&dtc_my_ctrl(session)->rcy_point, &dtc_my_ctrl(session)->lrp_point));
         }
     } else {
-        GS_LOG_RUN_INF("The last shutdown is inconsistent");
+        CT_LOG_RUN_INF("The last shutdown is inconsistent");
     }
 
-    if (rcy_recover(session) != GS_SUCCESS) {
-        session->kernel->rcy_ctx.is_working = GS_FALSE;
-        return GS_ERROR;
+    if (rcy_recover(session) != CT_SUCCESS) {
+        session->kernel->rcy_ctx.is_working = CT_FALSE;
+        return CT_ERROR;
     }
 
     if (kernel->lrcv_ctx.is_building) {
-        if (rst_truncate_datafile(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (rst_truncate_datafile(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     ckpt_trigger(session, has_offline, CKPT_TRIGGER_FULL);
-    dtc_my_ctrl(session)->shutdown_consistency = GS_FALSE;
-    if (db_save_core_ctrl(session) != GS_SUCCESS) {
+    dtc_my_ctrl(session)->shutdown_consistency = CT_FALSE;
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: save core control file failed after ckpt is completed");
     }
     tx_area_release(session, undo_set);
 
     if (DB_IS_PRIMARY(db)) {
-        if (spc_clean_garbage_space(session) != GS_SUCCESS) {
-            GS_LOG_RUN_WAR("[SPACE] failed to clean garbage tablespace");
+        if (spc_clean_garbage_space(session) != CT_SUCCESS) {
+            CT_LOG_RUN_WAR("[SPACE] failed to clean garbage tablespace");
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_initphase2_to_open(knl_session_t *session)
@@ -1128,32 +1140,32 @@ static status_t db_initphase2_to_open(knl_session_t *session)
         dtc_wait_reform_open();
     }
 
-    if (dc_init(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_init(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB]: dc init finish.");
+    CT_LOG_RUN_INF("[DB]: dc init finish.");
 
     if (!DB_IS_UPGRADE(session)) {
-        if (db_callback_function(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_callback_function(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     db->ctrl.core.open_count++;
-    if (db_save_core_ctrl(session) != GS_SUCCESS) {
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: failed to save core control file when open database");
     }
 
-    if (db_switchover_proc_init(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_switchover_proc_init(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (raft_db_start_follower(session, old_role) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("RAFT: db start follower failed.");
-        return GS_ERROR;
+    if (raft_db_start_follower(session, old_role) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("RAFT: db start follower failed.");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_open_precheck(knl_session_t *session, db_open_opt_t *options)
@@ -1162,150 +1174,179 @@ status_t db_open_precheck(knl_session_t *session, db_open_opt_t *options)
     database_t *db = &kernel->db;
 
     if (!options->is_creating && !db->ctrl.core.build_completed) {
-        GS_THROW_ERROR(ERR_DATABASE_NOT_COMPLETED);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DATABASE_NOT_COMPLETED);
+        return CT_ERROR;
     }
 
-    if (db_check_terminate_lfn(session, options->lfn) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_check_terminate_lfn(session, options->lfn) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_verify_systime(session, options->ignore_systime) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[DB OPEN] db_verify_systime failed");
-        return GS_ERROR;
+    if (db_verify_systime(session, options->ignore_systime) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DB OPEN] db_verify_systime failed");
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_open_check_nolog(knl_session_t *session, db_open_opt_t *options)
 {
-    bool32 has_nolog = GS_FALSE;
+    bool32 has_nolog = CT_FALSE;
     knl_instance_t *kernel = (knl_instance_t *)session->kernel;
 
     if (!DB_IS_PRIMARY(&kernel->db)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (options->open_status >= DB_OPEN_STATUS_RESTRICT || options->is_creating) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     
-    if (knl_database_has_nolog_object(session, &has_nolog) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_database_has_nolog_object(session, &has_nolog) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!has_nolog) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     
     if (!DB_IS_SINGLE(session)) {
-        GS_LOG_RUN_ERR("[DB] can not open database in HA mode with nolog object exists.");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[DB] can not open database in HA mode with nolog object exists.");
+        return CT_ERROR;
     }
 
     if (kernel->db.ctrl.core.lrep_mode == LOG_REPLICATION_ON) {
-        GS_LOG_RUN_ERR("[DB] can not open database with replication on while nolog object exists.");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[DB] can not open database with replication on while nolog object exists.");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_open(knl_session_t *session, db_open_opt_t *options)
 {
     knl_instance_t *kernel = (knl_instance_t *)session->kernel;
     database_t *db = &kernel->db;
-    bool32 has_offline = GS_FALSE;
+    bool32 has_offline = CT_FALSE;
 
     mes_set_message_timeout_check_func(dtc_is_in_rcy);
 
-    GS_LOG_RUN_INF("[DB OPEN] start to alter database OPEN, memory usage=%lu", cm_print_memory_usage());
+    CT_LOG_RUN_INF("[DB OPEN] start to alter database OPEN, memory usage=%lu", cm_print_memory_usage());
     if (!cm_spin_try_lock(&kernel->lock)) {
-        GS_THROW_ERROR(ERR_DB_START_IN_PROGRESS);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DB_START_IN_PROGRESS);
+        return CT_ERROR;
     }
 
-    if (db_open_precheck(session, options) != GS_SUCCESS) {
+    if (db_open_precheck(session, options) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
-        GS_LOG_RUN_ERR("[DB OPEN] db_open_precheck failed");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[DB OPEN] db_open_precheck failed");
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] db_open_precheck finished");
+    CT_LOG_RUN_INF("[DB OPEN] db_open_precheck finished");
 
-    if (db_mount_to_recovery(session, options, &has_offline) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("[DB OPEN] db_mount_to_recovery failed");
+    if (db_mount_to_recovery(session, options, &has_offline) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DB OPEN] db_mount_to_recovery failed");
         cm_spin_unlock(&kernel->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] db_mount_to_recovery finished");
+    CT_LOG_RUN_INF("[DB OPEN] db_mount_to_recovery finished");
 
     db->status = DB_STATUS_RECOVERY;
-    GS_LOG_RUN_INF("[DB OPEN] db status is RECOVRY.");
-    if (db_recovery_to_initphase2(session, has_offline) != GS_SUCCESS) {
+    CT_LOG_RUN_INF("[DB OPEN] db status is RECOVRY.");
+    if (db_recovery_to_initphase2(session, has_offline) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
-        GS_LOG_RUN_ERR("[DB OPEN] db_recovery_to_initphase2 failed");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[DB OPEN] db_recovery_to_initphase2 failed");
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] db_recovery_to_initphase2 finished");
+    CT_LOG_RUN_INF("[DB OPEN] db_recovery_to_initphase2 finished");
 
     // temp space may extra replay create datafile after rebuild
     spc_init_swap_space(session, SPACE_GET(session, dtc_my_ctrl(session)->swap_space));
-    GS_LOG_RUN_INF("[DB OPEN] spc_init_swap_space finished");
+    CT_LOG_RUN_INF("[DB OPEN] spc_init_swap_space finished");
 
-    if (ctrl_backup_ctrl_info(session) != GS_SUCCESS) {
+    if (ctrl_backup_ctrl_info(session) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
-        GS_LOG_RUN_ERR("[DB OPEN] ctrl_backup_ctrl_info failed");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[DB OPEN] ctrl_backup_ctrl_info failed");
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] ctrl_backup_ctrl_info finished");
+    CT_LOG_RUN_INF("[DB OPEN] ctrl_backup_ctrl_info finished");
 
     db->status = DB_STATUS_INIT_PHASE2;
-    GS_LOG_RUN_INF("[DB OPEN] db status is INIT PHASE2.");
+    CT_LOG_RUN_INF("[DB OPEN] db status is INIT PHASE2.");
 
-    if (db_initphase2_to_open(session) != GS_SUCCESS) {
+    if (db_initphase2_to_open(session) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
-        GS_LOG_RUN_ERR("[DB OPEN] db_initphase2_to_open failed");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[DB OPEN] db_initphase2_to_open failed");
+        return CT_ERROR;
     }
-    GS_LOG_RUN_INF("[DB OPEN] db_initphase2_to_open finished");
+    CT_LOG_RUN_INF("[DB OPEN] db_initphase2_to_open finished");
 
-    if (db_open_check_nolog(session, options) != GS_SUCCESS) {
+    if (db_open_check_nolog(session, options) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: The database cannot be opened because of the nolog object.");
     }
-    GS_LOG_RUN_INF("[DB OPEN] db_open_check_nolog finished");
+    CT_LOG_RUN_INF("[DB OPEN] db_open_check_nolog finished");
 
     cm_spin_unlock(&kernel->lock);
     db->status = DB_STATUS_OPEN;
 
     if (DB_IS_PRIMARY(db) && db->ctrl.core.is_restored) {
-        db_set_ctrl_restored(session, GS_FALSE);
+        db_set_ctrl_restored(session, CT_FALSE);
     }
-    GS_LOG_RUN_INF("[DB OPEN] db status is OPEN, memory usage=%lu.", cm_print_memory_usage());
+    CT_LOG_RUN_INF("[DB OPEN] db status is OPEN, memory usage=%lu.", cm_print_memory_usage());
     
-    GS_LOG_RUN_INF("[DB OPEN] sse42 available %d", cm_crc32c_sse42_available());
-    GS_LOG_RUN_INF("[DB OPEN] successfully alter database OPEN, running as %s role", db_get_role(db));
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("[DB OPEN] sse42 available %d", cm_crc32c_sse42_available());
+    CT_LOG_RUN_INF("[DB OPEN] successfully alter database OPEN, running as %s role", db_get_role(db));
+    return CT_SUCCESS;
+}
+
+status_t db_clean_record_arch(knl_session_t *session)
+{
+    // This operation is performed only during recovery for restore.
+    uint32 archived_start;
+    uint32 archived_end;
+    arch_ctrl_t *arch_ctrl = NULL;
+    for (uint32 node_id = 0; node_id < g_dtc->profile.node_count; node_id++) {
+        archived_start = arch_get_arch_start(session, node_id);
+        archived_end = arch_get_arch_end(session, node_id);
+        if ((archived_end - archived_start + CT_MAX_ARCH_NUM) % CT_MAX_ARCH_NUM <= 0) {
+            continue;
+        }
+        for (uint32 arch_locator = archived_start; arch_locator < archived_end; arch_locator++) {
+            arch_ctrl = db_get_arch_ctrl(session, arch_locator, node_id);
+            arch_ctrl->recid = 0;
+            if (db_save_arch_ctrl(session, arch_locator, node_id) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+        }
+        arch_set_arch_start(session, 0, node_id);
+        arch_set_arch_end(session, 0, node_id);
+        if (arch_save_ctrl(session, node_id) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    }
+    CT_LOG_RUN_INF("[RECOVER] success to clean record archive files");
+    return CT_SUCCESS;
 }
 
 status_t db_recover(knl_session_t *session, knl_scn_t max_recover_scn, uint64 max_recover_lrp_lsn)
 {
     knl_instance_t *kernel = (knl_instance_t *)session->kernel;
     database_t *db = &kernel->db;
-    bool32 has_offline = GS_FALSE;
+    bool32 has_offline = CT_FALSE;
 
     if (!cm_spin_try_lock(&kernel->lock)) {
-        GS_THROW_ERROR(ERR_DB_START_IN_PROGRESS);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_DB_START_IN_PROGRESS);
+        return CT_ERROR;
     }
 
-    if (db_load_tablespaces(session, &has_offline) != GS_SUCCESS) {
+    if (db_load_tablespaces(session, &has_offline) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (log_load(session) != GS_SUCCESS) {
+    if (log_load(session) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     ckpt_load(session);
@@ -1313,24 +1354,30 @@ status_t db_recover(knl_session_t *session, knl_scn_t max_recover_scn, uint64 ma
     db->status = DB_STATUS_RECOVERY;
     session->kernel->rcy_ctx.max_scn = max_recover_scn;
     session->kernel->rcy_ctx.max_lrp_lsn = max_recover_lrp_lsn;
-    if (rcy_recover(session) != GS_SUCCESS) {
-        session->kernel->rcy_ctx.is_working = GS_FALSE;
+    if (rcy_recover(session) != CT_SUCCESS) {
+        session->kernel->rcy_ctx.is_working = CT_FALSE;
         cm_spin_unlock(&kernel->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    session->kernel->rcy_ctx.max_scn = GS_INVALID_ID64;
-    session->kernel->rcy_ctx.max_lrp_lsn = GS_INVALID_ID64;
-    ckpt_trigger(session, GS_TRUE, CKPT_TRIGGER_FULL);
-    db->ctrl.core.build_completed = GS_TRUE;
+    session->kernel->rcy_ctx.max_scn = CT_INVALID_ID64;
+    session->kernel->rcy_ctx.max_lrp_lsn = CT_INVALID_ID64;
+    ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL);
+    db->ctrl.core.build_completed = CT_TRUE;
 
-    if (db_save_core_ctrl(session) != GS_SUCCESS) {
+    if (db_clean_record_arch(session) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RECOVER] failed to clean record archive files");
         cm_spin_unlock(&kernel->lock);
-        return GS_ERROR;
+        return CT_ERROR;
+    }
+
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
+        cm_spin_unlock(&kernel->lock);
+        return CT_ERROR;
     }
     db->status = DB_STATUS_MOUNT;
     cm_spin_unlock(&kernel->lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 db_build_need_retry(knl_session_t *session, status_t status)
@@ -1339,23 +1386,23 @@ static bool32 db_build_need_retry(knl_session_t *session, status_t status)
     int32 err_code;
     const char *error_msg = NULL;
 
-    if (status == GS_SUCCESS) {
-        return GS_FALSE;
+    if (status == CT_SUCCESS) {
+        return CT_FALSE;
     }
 
     bak_get_error(session, &err_code, &error_msg);
-    GS_LOG_DEBUG_ERR("build failed, error code:%d, msg:%s", err_code, error_msg);
+    CT_LOG_DEBUG_ERR("build failed, error code:%d, msg:%s", err_code, error_msg);
     if (err_code == ERR_BUILD_CANCELLED) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
     if (err_code == ERR_BACKUP_IN_PROGRESS) {
         bak->build_retry_time = 0;
-        return GS_TRUE;
+        return CT_TRUE;
     }
     if (bak->need_retry) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static void db_build_set_role(database_t *db, build_type_t build_type)
@@ -1374,12 +1421,12 @@ static void db_build_set_role(database_t *db, build_type_t build_type)
 static bool32 db_build_check_peer_role(knl_session_t *session, build_type_t build_type)
 {
     lrcv_context_t *lrcv = &session->kernel->lrcv_ctx;
-    uint32 retry_count = GS_BACKUP_RETRY_COUNT;
+    uint32 retry_count = CT_BACKUP_RETRY_COUNT;
 
     while (lrcv->peer_role == PEER_UNKNOWN) {
         if (retry_count == 0) {
-            GS_THROW_ERROR(ERR_PRI_NOT_CONNECT, "peer role");
-            return GS_FALSE;
+            CT_THROW_ERROR(ERR_PRI_NOT_CONNECT, "peer role");
+            return CT_FALSE;
         }
 
         cm_sleep(5);
@@ -1390,11 +1437,11 @@ static bool32 db_build_check_peer_role(knl_session_t *session, build_type_t buil
     }
 
     if (lrcv->peer_role == PEER_STANDBY && build_type == BUILD_STANDBY) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, ",build standby not connect to primary database");
-        return GS_FALSE;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, ",build standby not connect to primary database");
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static status_t db_build_restore_precheck(knl_session_t *session, knl_build_def_t *def)
@@ -1402,114 +1449,114 @@ static status_t db_build_restore_precheck(knl_session_t *session, knl_build_def_
     knl_instance_t *kernel = (knl_instance_t *)session->kernel;
     database_t *db = &kernel->db;
     if (DB_IS_RAFT_ENABLED(session->kernel)) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION,
+        CT_THROW_ERROR(ERR_INVALID_OPERATION,
             ",RAFT: build not supported when raft is enabled, please use builddb.sh instead.");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (def->param_ctrl.is_increment || def->param_ctrl.is_repair) {
         if (db->status != DB_STATUS_MOUNT) {
-            GS_THROW_ERROR(ERR_INVALID_OPERATION, ",increment or repair build can only be executed on MOUNT status");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_OPERATION, ",increment or repair build can only be executed on MOUNT status");
+            return CT_ERROR;
         }
 
         if (!session->kernel->db.ctrl.core.build_completed) {
-            GS_THROW_ERROR(ERR_DATABASE_NOT_COMPLETED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_DATABASE_NOT_COMPLETED);
+            return CT_ERROR;
         }
     } else {
         if (db->status != DB_STATUS_NOMOUNT) {
-            GS_THROW_ERROR(ERR_INVALID_OPERATION, ",operation can only be executed on NOMOUNT status");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_OPERATION, ",operation can only be executed on NOMOUNT status");
+            return CT_ERROR;
         }
     }
 
     if (def->param_ctrl.is_repair) {
         if (DB_IS_PRIMARY(db)) {
-            GS_THROW_ERROR(ERR_INVALID_OPERATION, ",repair build can not be executed on primary");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_OPERATION, ",repair build can not be executed on primary");
+            return CT_ERROR;
         }
 
         if (!knl_brain_repair_check(session)) {
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     if (!db_build_check_peer_role(session, def->build_type)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_build_restore(knl_session_t *session, knl_build_def_t *def)
 {
     knl_instance_t *kernel = (knl_instance_t *)session->kernel;
     database_t *db = &kernel->db;
-    status_t status = GS_ERROR;
+    status_t status = CT_ERROR;
     bak_t *bak = &kernel->backup_ctx.bak;
 
-    if (db_build_restore_precheck(session, def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_build_restore_precheck(session, def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (def->build_type != BUILD_AUTO) {
-        session->kernel->lrcv_ctx.role_spec_building = GS_TRUE;
+        session->kernel->lrcv_ctx.role_spec_building = CT_TRUE;
     }
 
-    kernel->lrcv_ctx.is_building = GS_TRUE;
+    kernel->lrcv_ctx.is_building = CT_TRUE;
     db->status = def->param_ctrl.is_increment || def->param_ctrl.is_repair ? db->status : DB_STATUS_CREATING;
     db->ctrl.core.db_role = REPL_ROLE_PHYSICAL_STANDBY;
     bak->build_retry_time = BAK_BUILD_INIT_RETRY_TIME;
-    def->param_ctrl.base_lsn = GS_INVALID_LSN;
+    def->param_ctrl.base_lsn = CT_INVALID_LSN;
     do {
         cm_reset_error();
         status = bak_build_restore(session, &def->param_ctrl);
         cm_sleep(1000);
     } while (db_build_need_retry(session, status));
 
-    if (status != GS_SUCCESS) {
+    if (status != CT_SUCCESS) {
         db->status = DB_STATUS_NOMOUNT;
-        kernel->lrcv_ctx.is_building = GS_FALSE;
-        GS_LOG_RUN_ERR("[DB] failed to backup database");
-        return GS_ERROR;
+        kernel->lrcv_ctx.is_building = CT_FALSE;
+        CT_LOG_RUN_ERR("[DB] failed to backup database");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_build_baseline(knl_session_t *session, knl_build_def_t *def)
 {
     knl_instance_t *kernel = (knl_instance_t *)session->kernel;
     database_t *db = &kernel->db;
-    bool32 no_wait = GS_FALSE;
+    bool32 no_wait = CT_FALSE;
     errno_t err;
 
-    if (db_build_restore(session, def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_build_restore(session, def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    GS_LOG_RUN_INF("[DB] database backup successfully");
+    CT_LOG_RUN_INF("[DB] database backup successfully");
 
-    db->ctrl.core.build_completed = GS_TRUE;
-    err = memset_sp(db->ctrl.core.archived_log, sizeof(arch_log_id_t) * GS_MAX_ARCH_DEST, 0,
-                    sizeof(arch_log_id_t) * GS_MAX_ARCH_DEST);
+    db->ctrl.core.build_completed = CT_TRUE;
+    err = memset_sp(db->ctrl.core.archived_log, sizeof(arch_log_id_t) * CT_MAX_ARCH_DEST, 0,
+                    sizeof(arch_log_id_t) * CT_MAX_ARCH_DEST);
     knl_securec_check(err);
 
     db_build_set_role(db, def->build_type);
 
-    if (db_save_core_ctrl(session) != GS_SUCCESS) {
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: failed to save core control file when build baseline");
     }
 
     if (!def->param_ctrl.is_increment && !def->param_ctrl.is_repair) {
-        if (db_mount(session) != GS_SUCCESS) {
-            kernel->lrcv_ctx.is_building = GS_FALSE;
-            return GS_ERROR;
+        if (db_mount(session) != CT_SUCCESS) {
+            kernel->lrcv_ctx.is_building = CT_FALSE;
+            return CT_ERROR;
         }
     }
 
-    kernel->lrcv_ctx.reconnected = GS_FALSE;
+    kernel->lrcv_ctx.reconnected = CT_FALSE;
 
     /*
      * If one node connects to primary and wants to build a cascaded standby, the primary will disconnect
@@ -1519,20 +1566,20 @@ status_t db_build_baseline(knl_session_t *session, knl_build_def_t *def)
                        kernel->lrcv_ctx.peer_role == PEER_PRIMARY);
 
     db_open_opt_t open_options = {
-        GS_FALSE, GS_FALSE, GS_FALSE, GS_FALSE, GS_TRUE, DB_OPEN_STATUS_NORMAL, GS_INVALID_LFN
+        CT_FALSE, CT_FALSE, CT_FALSE, CT_FALSE, CT_TRUE, DB_OPEN_STATUS_NORMAL, CT_INVALID_LFN
     };
-    if (db_open(session, &open_options) != GS_SUCCESS) {
-        kernel->lrcv_ctx.is_building = GS_FALSE;
-        return GS_ERROR;
+    if (db_open(session, &open_options) != CT_SUCCESS) {
+        kernel->lrcv_ctx.is_building = CT_FALSE;
+        return CT_ERROR;
     }
 
     if (!no_wait) {
         lrcv_wait_status_prepared(session);
     }
 
-    kernel->lrcv_ctx.is_building = GS_FALSE;
-    GS_LOG_RUN_INF("database build successfully");
-    return GS_SUCCESS;
+    kernel->lrcv_ctx.is_building = CT_FALSE;
+    CT_LOG_RUN_INF("database build successfully");
+    return CT_SUCCESS;
 }
 
 static char *db_get_role(database_t *db)
@@ -1679,7 +1726,7 @@ char *db_get_status(knl_session_t *session)
         case DB_STATUS_OPEN:
             return "OPEN";
         default:
-            GS_LOG_RUN_ERR("[DB] unexpected database status %d", db->status);
+            CT_LOG_RUN_ERR("[DB] unexpected database status %d", db->status);
             return "INVALID STATUS";
     }
 }
@@ -1714,8 +1761,8 @@ void db_reset_log(knl_session_t *session, uint32 switch_asn, bool32 reset_recove
     uint32 last_asn;
     errno_t err;
 
-    last_asn = (switch_asn != GS_INVALID_ASN) ? (switch_asn - 1) : (logfile->head.asn - 1);
-    GS_LOG_RUN_INF("reset log from rst_id %u asn %u lfn %llu, reset_log_scn %llu, curr_scn %llu",
+    last_asn = (switch_asn != CT_INVALID_ASN) ? (switch_asn - 1) : (logfile->head.asn - 1);
+    CT_LOG_RUN_INF("reset log from rst_id %u asn %u lfn %llu, reset_log_scn %llu, curr_scn %llu",
                    log->curr_point.rst_id, last_asn, (uint64)log->curr_point.lfn, core->reset_log_scn, log->curr_scn);
 
     reset_log->last_asn = last_asn;
@@ -1725,7 +1772,7 @@ void db_reset_log(knl_session_t *session, uint32 switch_asn, bool32 reset_recove
     if (is_stor) {
         reset_log->last_lsn = log->curr_point.lsn;
     }
-    if (!GS_INVALID_SCN(log->curr_scn)) {
+    if (!CT_INVALID_SCN(log->curr_scn)) {
         core->reset_log_scn = log->curr_scn;
     }
 
@@ -1737,7 +1784,7 @@ void db_reset_log(knl_session_t *session, uint32 switch_asn, bool32 reset_recove
         point.asn = logfile->head.asn;
         point.rst_id = logfile->head.rst_id;
         point.lfn = dtc_my_ctrl(session)->rcy_point.lfn;
-        if (cm_dbs_is_enable_dbs() == GS_TRUE) {
+        if (cm_dbs_is_enable_dbs() == CT_TRUE) {
             (void)cm_dbs_ulog_get_maxLsn(logfile->ctrl->name, &point.lsn);
             point.block_id = 0;
         } else {
@@ -1751,12 +1798,12 @@ void db_reset_log(knl_session_t *session, uint32 switch_asn, bool32 reset_recove
     }
 
     if (reset_archive) {
-        err = memset_sp(core->archived_log, sizeof(arch_log_id_t) * GS_MAX_ARCH_DEST, 0,
-                        sizeof(arch_log_id_t) * GS_MAX_ARCH_DEST);
+        err = memset_sp(core->archived_log, sizeof(arch_log_id_t) * CT_MAX_ARCH_DEST, 0,
+                        sizeof(arch_log_id_t) * CT_MAX_ARCH_DEST);
         knl_securec_check(err);
     }
 
-    if (ctrl_backup_reset_logs(session) != GS_SUCCESS) {
+    if (ctrl_backup_reset_logs(session) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: Failed to backup reset logs when reset logs");
     }
 }
@@ -1767,28 +1814,28 @@ status_t db_change_storage_path(file_convert_t *convert, char *name, uint32 name
     text_t left;
     text_t right;
     text_t text;
-    char right_str[GS_FILE_NAME_BUFFER_SIZE];
+    char right_str[CT_FILE_NAME_BUFFER_SIZE];
     uint32 i;
     errno_t err;
 
     if (!convert->is_convert) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     cm_str2text(name, &text);
     (void)cm_split_rtext(&text, SLASH, '\0', &left, &right);
     cm_delete_text_end_slash(&left);
-    (void)cm_text2str(&right, right_str, GS_FILE_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&right, right_str, CT_FILE_NAME_BUFFER_SIZE);
 
     for (i = 0; i < convert->count; i++) {
         list = &convert->convert_list[i];
         if (cm_check_exist_special_char(list->primry_path, (uint32)strlen(list->primry_path))) {
-            GS_THROW_ERROR(ERR_INVALID_DIR, list->primry_path);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_DIR, list->primry_path);
+            return CT_ERROR;
         }
         if (cm_check_exist_special_char(list->standby_path, (uint32)strlen(list->standby_path))) {
-            GS_THROW_ERROR(ERR_INVALID_DIR, list->standby_path);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_INVALID_DIR, list->standby_path);
+            return CT_ERROR;
         }
     }
 
@@ -1801,11 +1848,11 @@ status_t db_change_storage_path(file_convert_t *convert, char *name, uint32 name
                              right_str);
             knl_securec_check_ss(err);
 
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 uint64 db_get_datafiles_used_size(knl_session_t *session)
@@ -1814,7 +1861,7 @@ uint64 db_get_datafiles_used_size(knl_session_t *session)
     uint64 total_pages = 0;
     uint32 i;
 
-    for (i = 0; i < GS_MAX_SPACES; i++) {
+    for (i = 0; i < CT_MAX_SPACES; i++) {
         space = SPACE_GET(session, i);
         if (!SPACE_IS_ONLINE(space) || !space->ctrl->used) {
             continue;
@@ -1826,7 +1873,7 @@ uint64 db_get_datafiles_used_size(knl_session_t *session)
             total_pages += spc_count_backup_pages(session, space);
         }
     }
-
+    cm_reset_error();
     return total_pages * DEFAULT_PAGE_SIZE(session);
 }
 
@@ -1836,7 +1883,7 @@ uint64 db_get_datafiles_size(knl_session_t *session)
     uint64 total_size = 0;
     uint32 i;
 
-    for (i = 0; i < GS_MAX_DATA_FILES; i++) {
+    for (i = 0; i < CT_MAX_DATA_FILES; i++) {
         ctrl = session->kernel->db.datafiles[i].ctrl;
         if (!ctrl->used) {
             continue;
@@ -1875,17 +1922,14 @@ uint64 db_get_logfiles_size(knl_session_t *session)
 static void db_clean_nologging_data(knl_session_t *session)
 {
     stats_clean_nologging_stats(session);
-    GS_LOG_RUN_INF("[DB] Clean nologging data start.");
+    CT_LOG_RUN_INF("[DB] Clean nologging data start.");
 
     /* 1. make in-memory nologging dc as empty */
     dc_invalidate_nologging(session);
 
-    /* 2. reinit undo->temp_free_page_list before reset tablepsace */
-    temp2_undo_init(session);
-
-    /* 3. make on-disk nologging space as empty */
+    /* 2. make on-disk nologging space as empty */
     spc_clean_nologging_data(session);
-    GS_LOG_RUN_INF("[DB] Clean nologging data end.");
+    CT_LOG_RUN_INF("[DB] Clean nologging data end.");
 }
 
 /*
@@ -1895,11 +1939,11 @@ static void db_clean_nologging_data(knl_session_t *session)
  */
 static status_t db_drop_nologging_table(knl_session_t *session)
 {
-    status_t status = GS_SUCCESS;
+    status_t status = CT_SUCCESS;
 
     if (session->kernel->attr.drop_nologging) {
         status = spc_drop_nologging_table(session);
-        GS_LOG_RUN_INF("[DB] Drop nologging table status:%d", status);
+        CT_LOG_RUN_INF("[DB] Drop nologging table status:%d", status);
     }
 
     return status;
@@ -1908,23 +1952,29 @@ static status_t db_drop_nologging_table(knl_session_t *session)
 status_t db_clean_nologging_all(knl_session_t *session)
 {
     if (DB_IS_CLUSTER(session) || DB_IS_MAINTENANCE(session)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_LOG_RUN_INF("[DB] Clean nologging tables start.");
+    CT_LOG_RUN_INF("[DB] Clean nologging tables start.");
     /* 1. clean nologging table data */
     db_clean_nologging_data(session);
 
     /* 2. drop nologging table if needed */
-    if (db_drop_nologging_table(session) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_drop_nologging_table(session) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* 3. make on-disk nologging space as empty again */
     spc_clean_nologging_data(session);
-    GS_LOG_RUN_INF("[DB] Clean nologging tables end.");
 
-    return GS_SUCCESS;
+    /* 4. reset nologging space head */
+    spc_rebuild_temp2_undo(session, NULL);
+
+    /* 5. init temp free page list */
+    temp2_undo_init(session);
+    CT_LOG_RUN_INF("[DB] Clean nologging tables end.");
+
+    return CT_SUCCESS;
 }
 
 void db_convert_temp_path(knl_session_t *session, const char* path)
@@ -1936,16 +1986,16 @@ void db_convert_temp_path(knl_session_t *session, const char* path)
     uint32 i;
     logfile_set_t *logfile_set = MY_LOGFILE_SET(session);
 
-    for (i = 0; i < GS_MAX_DATA_FILES; i++) {
+    for (i = 0; i < CT_MAX_DATA_FILES; i++) {
         datafile = kernel->db.datafiles[i].ctrl;
-        err = snprintf_s(datafile->name, GS_FILE_NAME_BUFFER_SIZE, GS_FILE_NAME_BUFFER_SIZE - 1, "%s/%s_%u",
+        err = snprintf_s(datafile->name, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1, "%s/%s_%u",
                          path, "data", i);
         knl_securec_check_ss(err);
     }
     bool32 is_dbstor = knl_dbs_is_enable_dbs();
     for (i = 0; i < logfile_set->logfile_hwm; i++) {
         logfile = logfile_set->items[i].ctrl;
-        err = snprintf_s(logfile->name, GS_FILE_NAME_BUFFER_SIZE, GS_FILE_NAME_BUFFER_SIZE - 1, "%s/%s_%u",
+        err = snprintf_s(logfile->name, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1, "%s/%s_%u",
                          path, "log", i);
         knl_securec_check_ss(err);
         if (is_dbstor) {
@@ -1965,7 +2015,7 @@ void db_set_with_switchctrl_lock(switch_ctrl_t *ctrl, volatile bool32 *working)
         return;
     }
 
-    *working = GS_TRUE;
+    *working = CT_TRUE;
     cm_spin_unlock(&ctrl->lock);
 }
 
@@ -2156,31 +2206,31 @@ static void db_record_runing_job(knl_session_t *session, bool32 demote, bool32 s
     knl_instance_t *kernel = session->kernel;
 
     if (kernel->stats_ctx.stats_gathering) {
-        GS_LOG_RUN_INF("[DB] [%s] Stats gather is working", demote ? "SWITCHOVER" : "RAEDONLY");
+        CT_LOG_RUN_INF("[DB] [%s] Stats gather is working", demote ? "SWITCHOVER" : "RAEDONLY");
     }
 
     if (kernel->smon_ctx.undo_shrinking) {
-        GS_LOG_RUN_INF("[DB] [%s] Smon undo shrink is working", demote ? "SWITCHOVER" : "RAEDONLY");
+        CT_LOG_RUN_INF("[DB] [%s] Smon undo shrink is working", demote ? "SWITCHOVER" : "RAEDONLY");
     }
 
     if (kernel->index_ctx.recycle_ctx.is_working) {
-        GS_LOG_RUN_INF("[DB] [%s] Index recycle is working", demote ? "SWITCHOVER" : "RAEDONLY");
+        CT_LOG_RUN_INF("[DB] [%s] Index recycle is working", demote ? "SWITCHOVER" : "RAEDONLY");
     }
 
     if (sync) {
-        GS_LOG_RUN_INF("[DB] [%s] Time sync is working", demote ? "SWITCHOVER" : "RAEDONLY");
+        CT_LOG_RUN_INF("[DB] [%s] Time sync is working", demote ? "SWITCHOVER" : "RAEDONLY");
     }
 
     if (kernel->rmon_ctx.working) {
-        GS_LOG_RUN_INF("[DB] [%s] Rmon thread is working", demote ? "SWITCHOVER" : "RAEDONLY");
+        CT_LOG_RUN_INF("[DB] [%s] Rmon thread is working", demote ? "SWITCHOVER" : "RAEDONLY");
     }
 
     if (kernel->ashrink_ctx.working) {
-        GS_LOG_RUN_INF("[DB] [%s] Ashrink thread is working", demote ? "SWITCHOVER" : "RAEDONLY");
+        CT_LOG_RUN_INF("[DB] [%s] Ashrink thread is working", demote ? "SWITCHOVER" : "RAEDONLY");
     }
 
     if (kernel->auto_rebuild_ctx.working) {
-        GS_LOG_RUN_INF("[DB] [%s] Auto rebuild thread is working", demote ? "SWITCHOVER" : "RAEDONLY");
+        CT_LOG_RUN_INF("[DB] [%s] Auto rebuild thread is working", demote ? "SWITCHOVER" : "RAEDONLY");
     }
 }
 
@@ -2192,21 +2242,21 @@ bool32 db_check_backgroud_blocked(knl_session_t *session, bool32 demote, bool32 
     if (!kernel->stats_ctx.stats_gathering && !kernel->smon_ctx.undo_shrinking &&
         !kernel->index_ctx.recycle_ctx.is_working && !sync && !kernel->rmon_ctx.working &&
         !kernel->ashrink_ctx.working && !kernel->auto_rebuild_ctx.working) {
-        ctrl->has_logged = GS_FALSE;
+        ctrl->has_logged = CT_FALSE;
         ctrl->last_log_time = 0;
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (ctrl->has_logged && (g_timer()->now - ctrl->last_log_time) / MICROSECS_PER_SECOND < BACKGROUD_LOG_INTERVAL) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     db_record_runing_job(session, demote, sync);
 
-    ctrl->has_logged = GS_TRUE;
+    ctrl->has_logged = CT_TRUE;
     ctrl->last_log_time = g_timer()->now;
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static status_t dump_ctrl_space_item(cm_dump_t *dump, space_ctrl_t *space, uint32 space_no)
@@ -2230,7 +2280,7 @@ static status_t dump_ctrl_space_item(cm_dump_t *dump, space_ctrl_t *space, uint3
     cm_dump(dump, "\n");
     CM_DUMP_WRITE_FILE(dump);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dump_ctrl_datafile_item(cm_dump_t *dump, datafile_ctrl_t *datafile, uint32 datfile_no)
@@ -2247,7 +2297,7 @@ static status_t dump_ctrl_datafile_item(cm_dump_t *dump, datafile_ctrl_t *datafi
     cm_dump(dump, "\t%lld\n", datafile->auto_extend_maxsize);
     CM_DUMP_WRITE_FILE(dump);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dump_ctrl_arch_item(cm_dump_t *dump, arch_ctrl_t *arch_ctrl, uint32 arch_no)
@@ -2261,14 +2311,14 @@ static status_t dump_ctrl_arch_item(cm_dump_t *dump, arch_ctrl_t *arch_ctrl, uin
     cm_dump(dump, "\t%d", arch_ctrl->blocks);
     cm_dump(dump, "\t%d", arch_ctrl->block_size);
     cm_dump(dump, "\t%lld", (int64)arch_ctrl->blocks * arch_ctrl->block_size);
-    cm_dump(dump, "\t%lld", ctarch_get_arch_ctrl_size(arch_ctrl));
+    cm_dump(dump, "\t%lld", arch_get_ctrl_real_size(arch_ctrl));
     cm_dump(dump, "\t%llu", arch_ctrl->first);
     cm_dump(dump, "\t%llu", arch_ctrl->last);
     cm_dump(dump, "\t%-*s\n",
         (int)strlen(arch_ctrl->name), NULL_2_STR(arch_ctrl->name));
     CM_DUMP_WRITE_FILE(dump);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dump_ctrl_internal_page(database_ctrl_t *page, cm_dump_t *dump)
@@ -2281,22 +2331,22 @@ status_t dump_ctrl_internal_page(database_ctrl_t *page, cm_dump_t *dump)
     cm_dump(dump, "\tspaces information:\n");
     cm_dump(dump, "\tid\tspaceid\tused\tname\tflg\tblock_size\textent_size\tfile_hwm\torg_scn\tfiles\n");
     CM_DUMP_WRITE_FILE(dump);
-    for (uint32 i = 0; i < GS_MAX_SPACES; i++) {
+    for (uint32 i = 0; i < CT_MAX_SPACES; i++) {
         space = (space_ctrl_t *)db_get_ctrl_item(ctrl->pages, i, sizeof(space_ctrl_t), ctrl->space_segment);
         if (space->name != NULL && (*(char *)(space->name)) != '\0') {
-            if (dump_ctrl_space_item(dump, space, i) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (dump_ctrl_space_item(dump, space, i) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
     cm_dump(dump, "\tdatafiles information:\n");
     cm_dump(dump, "\tid\tdfileid\tused\tname\tsize\tblock_size\tflg\ttype\tauto_extend_size\tauto_extend_maxsize\n");
     CM_DUMP_WRITE_FILE(dump);
-    for (uint32 i = 0; i < GS_MAX_DATA_FILES; i++) {
+    for (uint32 i = 0; i < CT_MAX_DATA_FILES; i++) {
         datafile = (datafile_ctrl_t *)db_get_ctrl_item(ctrl->pages, i, sizeof(datafile_ctrl_t), ctrl->datafile_segment);
         if (datafile->name != NULL && (*(char *)(datafile->name)) != '\0') {
-            if (dump_ctrl_datafile_item(dump, datafile, i) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (dump_ctrl_datafile_item(dump, datafile, i) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
@@ -2304,24 +2354,24 @@ status_t dump_ctrl_internal_page(database_ctrl_t *page, cm_dump_t *dump)
     cm_dump(dump, "\tid\trecid\tdest_id\trst_id\tasn\tstamp"
         "\tblocks\tblock_size\tlogic_size\treal_size\tfirst\tlast\tname\n");
     CM_DUMP_WRITE_FILE(dump);
-    for (uint32 i = 0; i < GS_MAX_ARCH_NUM; i++) {
+    for (uint32 i = 0; i < CT_MAX_ARCH_NUM; i++) {
         arch_ctrl = (arch_ctrl_t *)db_get_ctrl_item(ctrl->pages, i, sizeof(arch_ctrl_t), ctrl->arch_segment);
         if (arch_ctrl->name != NULL && (*(char *)(arch_ctrl->name)) != '\0') {
-            if (dump_ctrl_arch_item(dump, arch_ctrl, i) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (dump_ctrl_arch_item(dump, arch_ctrl, i) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t ctrl_time2str(time_t time, char *str, uint16 size)
 {
     text_t fmt_text, time_text;
     if (strlen("YYYY-MM-DD HH24:MI:SS") >= size) {
-        GS_THROW_ERROR(ERR_BUFFER_UNDERFLOW, size, strlen("YYYY-MM-DD HH24:MI:SS"));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_BUFFER_UNDERFLOW, size, strlen("YYYY-MM-DD HH24:MI:SS"));
+        return CT_ERROR;
     }
 
     cm_str2text("YYYY-MM-DD HH24:MI:SS", &fmt_text);
@@ -2340,13 +2390,13 @@ static status_t dump_db_core(database_ctrl_t *ctrl, cm_dump_t *dump, char *str, 
     cm_dump(dump, "\tstartup times:        %u\n", ctrl->core.open_count);
     cm_dump(dump, "\tdbid times:           %u\n", ctrl->core.dbid);
     cm_dump(dump, "\tdatabase name:        %s\n", NULL_2_STR(ctrl->core.name));
-    if (ctrl_time2str(ctrl->core.init_time, str, strlen) != GS_SUCCESS) {
+    if (ctrl_time2str(ctrl->core.init_time, str, strlen) != CT_SUCCESS) {
         cm_dump(dump, "\tinit time:            %s\n", "null");
     } else {
         cm_dump(dump, "\tinit time:            %s\n", NULL_2_STR(str));
     }
     CM_DUMP_WRITE_FILE(dump);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void dump_systable_core(database_ctrl_t *ctrl, cm_dump_t *dump)
@@ -2397,12 +2447,12 @@ static status_t dump_log_core(database_ctrl_t *ctrl, cm_dump_t *dump)
     cm_dump(dump, "\tarchive logs:         %llu", ctrl->core.archived_log[0].arch_log);
     CM_DUMP_WRITE_FILE(dump);
     
-    for (uint32 i = 1; i < GS_MAX_ARCH_DEST; i++) {
+    for (uint32 i = 1; i < CT_MAX_ARCH_DEST; i++) {
         cm_dump(dump, "-%llu", ctrl->core.archived_log[i].arch_log);
         CM_DUMP_WRITE_FILE(dump);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void dump_logfile_item(cm_dump_t *dump, log_file_ctrl_t *logfile, uint32 logfile_no)
@@ -2436,7 +2486,7 @@ static status_t dump_rebuild_ctrl_datafile_list(database_ctrl_t *ctrl, cm_dump_t
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dump_rebuild_ctrl_logfile_list(database_ctrl_t *ctrl, cm_dump_t *dump)
@@ -2458,7 +2508,7 @@ static status_t dump_rebuild_ctrl_logfile_list(database_ctrl_t *ctrl, cm_dump_t 
         }
     */
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -2488,7 +2538,7 @@ status_t dump_rebuild_ctrl_statement(database_ctrl_t *ctrl, cm_dump_t *dump)
     cm_dump(dump, "\n");
     
     CM_DUMP_WRITE_FILE(dump);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dump_ctrl_page(database_ctrl_t *page, cm_dump_t *dump)
@@ -2498,22 +2548,22 @@ status_t dump_ctrl_page(database_ctrl_t *page, cm_dump_t *dump)
     uint32 i;
     database_ctrl_t *ctrl = page;
     
-    str = (char *)malloc(GS_MAX_TIME_STRLEN);
+    str = (char *)malloc(CT_MAX_TIME_STRLEN);
     if (str == NULL) {
-        GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)GS_MAX_TIME_STRLEN, "core init time");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)CT_MAX_TIME_STRLEN, "core init time");
+        return CT_ERROR;
     }
     str[0] = '\0';
 
-    if (dump_db_core(ctrl, dump, str, GS_MAX_TIME_STRLEN) != GS_SUCCESS) {
+    if (dump_db_core(ctrl, dump, str, CT_MAX_TIME_STRLEN) != CT_SUCCESS) {
         free(str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     free(str);
     dump_systable_core(ctrl, dump);
-    if (dump_log_core(ctrl, dump) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dump_log_core(ctrl, dump) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cm_dump(dump, "\n");
@@ -2534,7 +2584,7 @@ status_t dump_ctrl_page(database_ctrl_t *page, cm_dump_t *dump)
     cm_dump(dump, "\tlogfiles information:\n");
     cm_dump(dump, "\tid\tname\tsize\thwm\tseq\tblock_size\tflg\ttype\tstatus\tforward\tbackward\n");
     CM_DUMP_WRITE_FILE(dump);
-    for (i = 0; i < GS_MAX_LOG_FILES; i++) {
+    for (i = 0; i < CT_MAX_LOG_FILES; i++) {
         logfile = (log_file_ctrl_t *)db_get_ctrl_item(ctrl->pages, i, sizeof(log_file_ctrl_t), ctrl->log_segment);
         if (logfile->name != NULL && (*(char *)(logfile->name)) != '\0') {
             dump_logfile_item(dump, logfile, i);
@@ -2556,19 +2606,40 @@ void db_save_corrupt_info(knl_session_t *session, page_id_t page_id, knl_corrupt
 
     info->page_id = page_id;
     datafile_t *df = DATAFILE_GET(session, page_id.file);
-    ret = strncpy_s(info->datafile_name, GS_FILE_NAME_BUFFER_SIZE, df->ctrl->name, GS_FILE_NAME_BUFFER_SIZE - 1);
+    ret = strncpy_s(info->datafile_name, CT_FILE_NAME_BUFFER_SIZE, df->ctrl->name, CT_FILE_NAME_BUFFER_SIZE - 1);
     knl_securec_check(ret);
     space_t *space = SPACE_GET(session, df->space_id);
-    ret = strncpy_s(info->space_name, GS_NAME_BUFFER_SIZE, space->ctrl->name, GS_NAME_BUFFER_SIZE - 1);
+    ret = strncpy_s(info->space_name, CT_NAME_BUFFER_SIZE, space->ctrl->name, CT_NAME_BUFFER_SIZE - 1);
     knl_securec_check(ret);
 }
 
 void db_set_ctrl_restored(knl_session_t *session, bool32 is_restored)
 {
     session->kernel->db.ctrl.core.is_restored = is_restored;
-    if (db_save_core_ctrl(session) != GS_SUCCESS) {
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT(0, "ABORT INFO: failed to save core ctrlfile");
     }
+}
+
+void db_get_cantiand_version(ctrl_version_t *cantiand_version)
+{
+    text_t db_version, left, right, right2, version_main, version_major, version_revision;
+    uint32 main_n, major_n, revision_n;
+    char *version = (char *)cantiand_get_dbversion();
+    cm_str2text(version, &db_version);
+    // for release package the dbversion is like "Cantian Release 2.0.0"
+    // for debug package the dbversion is like "Cantian Debug 2.0.0 c11fdca072"
+    (void)cm_split_text(&db_version, ' ', 0, &left, &right);
+    (void)cm_split_text(&right, ' ', 0, &left, &right2);
+    (void)cm_split_text(&right2, ' ', 0, &left, &right);
+    (void)cm_split_text(&left, '.', 0, &version_main, &right);
+    (void)cm_split_text(&right, '.', 0, &version_major, &version_revision);
+    (void)cm_text2int(&version_main, (int32 *)&main_n);
+    (void)cm_text2int(&version_major, (int32 *)&major_n);
+    (void)cm_text2int(&version_revision, (int32 *)&revision_n);
+    cantiand_version->main = (uint16)main_n;
+    cantiand_version->major = (uint16)major_n;
+    cantiand_version->revision = (uint16)revision_n;
 }
 
 #ifdef __cplusplus

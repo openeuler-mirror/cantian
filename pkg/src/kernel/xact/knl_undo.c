@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_xact_module.h"
 #include "knl_undo.h"
 #include "knl_buffer_access.h"
 #include "knl_context.h"
@@ -117,7 +118,7 @@ status_t undo_dump_page(knl_session_t *session, page_head_t *page_head, cm_dump_
 
         if (row->type == UNDO_BTREE_INSERT || row->type == UNDO_BTREE_DELETE) {
             seg_id.value = row->prev_page.value;
-            cm_dump(dump, "\t%u-%u\t%u", seg_id.file, seg_id.page, (row->index_id == GS_SHADOW_INDEX_ID ? 1 : 0));
+            cm_dump(dump, "\t%u-%u\t%u", seg_id.file, seg_id.page, (row->index_id == CT_SHADOW_INDEX_ID ? 1 : 0));
         } else if (row->type == UNDO_TEMP_BTREE_INSERT || row->type == UNDO_TEMP_BTREE_DELETE) {
             cm_dump(dump, "\t%u\t%u\t%u", row->user_id, (uint32)row->seg_page, (uint32)row->index_id);
         } else {
@@ -128,7 +129,7 @@ status_t undo_dump_page(knl_session_t *session, page_head_t *page_head, cm_dump_
 
         CM_DUMP_WRITE_FILE(dump);
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline bool32 undo_cipher_reserve_valid(knl_session_t *session, undo_page_t *page, uint8 cipher_reserve_size)
@@ -136,12 +137,12 @@ static inline bool32 undo_cipher_reserve_valid(knl_session_t *session, undo_page
     uint16 cipher_offset = sizeof(undo_page_t) + cipher_reserve_size;
 
     if (page->free_begin < cipher_offset) {
-        return GS_FALSE;
+        return CT_FALSE;
     } else if (page->rows > 0 && *UNDO_SLOT(session, page, 0) < cipher_offset) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static inline bool32 undo_is_formated_page(knl_session_t *session, undo_page_t *page)
@@ -149,17 +150,17 @@ static inline bool32 undo_is_formated_page(knl_session_t *session, undo_page_t *
     if (page->rows == 0 && page->begin_slot == 0 &&
         page->free_size == (uint16)(DEFAULT_PAGE_SIZE(session) - sizeof(undo_page_t) - sizeof(page_tail_t)) &&
         page->free_begin == sizeof(undo_page_t)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 bool32 undo_valid_encrypt(knl_session_t *session, page_head_t *page)
 {
     space_t *space = SPACE_GET(session, DATAFILE_GET(session, AS_PAGID_PTR(page->id)->file)->space_id);
     if (space->ctrl->cipher_reserve_size == 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
     return undo_cipher_reserve_valid(session, (undo_page_t *)page, space->ctrl->cipher_reserve_size);
 }
@@ -176,33 +177,73 @@ void temp2_undo_init(knl_session_t *session)
     }
 }
 
+void undo_init_proc(thread_t *thread)
+{
+    knl_session_t *session = NULL;
+    if (g_knl_callback.alloc_knl_session(CT_TRUE, (knl_handle_t *)&session) != CT_SUCCESS) {
+        knl_panic(0);
+    }
+    undo_init_worker_t *worker = (undo_init_worker_t *)thread->argument;
+    undo_init_ctx_t *undo_ctx = worker->undo_ctx;
+    undo_page_id_t *entry = worker->entry;
+    uint32 lseg_no = worker->lseg_no;
+    uint32 rseg_no = worker->rseg_no;
+    undo_set_t *undo_set = worker->undo_set;
+    CT_LOG_RUN_INF("prefetch start thread %u", lseg_no);
+    if (!thread->closed) {
+        for(uint32 i = lseg_no; i < rseg_no; i += UNDO_INIT_THREAD_NUMS) {
+            undo_set->undos[i].entry = entry[i];
+            
+            buf_enter_page(session, PAGID_U2N(entry[i]), LATCH_MODE_S, ENTER_PAGE_RESIDENT);
+            undo_set->undos[i].segment = (undo_segment_t *)(CURR_PAGE(session) + PAGE_HEAD_SIZE);
+            buf_leave_page(session, CT_FALSE);
+
+            for (uint32 j = 0; j < undo_set->undos[i].segment->txn_page_count; j++) {
+                buf_enter_page(session, PAGID_U2N(undo_set->undos[i].segment->txn_page[j]), LATCH_MODE_S,
+                            ENTER_PAGE_RESIDENT);
+                undo_set->undos[i].txn_pages[j] = (txn_page_t *)CURR_PAGE(session);
+                buf_leave_page(session, CT_FALSE);
+            }
+        }
+    }
+    thread->closed = CT_TRUE;
+    if (undo_ctx->undo_init_active_workers > 0) {
+        (void)cm_atomic_dec(&undo_ctx->undo_init_active_workers);
+    }
+    g_knl_callback.release_knl_session(session);
+    CT_LOG_RUN_INF("prefetch end thread %u", lseg_no);
+    return;    
+}
+
+
 void undo_init_impl(knl_session_t *session, undo_set_t *undo_set, uint32 lseg_no, uint32 rseg_no)
 {
     undo_page_id_t *entry = NULL;
-    uint32 i;
-    uint32 j;
+    undo_init_ctx_t undo_ctx = {0};
+    undo_ctx.undo_init_active_workers = UNDO_INIT_THREAD_NUMS;
 
-    undo_set->used = GS_TRUE;
-
+    undo_set->used = CT_TRUE;
     buf_enter_page(session, undo_set->space->entry, LATCH_MODE_S, ENTER_PAGE_RESIDENT);
     entry = (undo_page_id_t *)(CURR_PAGE(session) + PAGE_HEAD_SIZE + sizeof(space_head_t));
-
-    for (i = lseg_no; i < rseg_no; i++) {
-        undo_set->undos[i].entry = entry[i];
-
-        buf_enter_page(session, PAGID_U2N(entry[i]), LATCH_MODE_S, ENTER_PAGE_RESIDENT);
-        undo_set->undos[i].segment = (undo_segment_t *)(CURR_PAGE(session) + PAGE_HEAD_SIZE);
-        buf_leave_page(session, GS_FALSE);
-
-        for (j = 0; j < undo_set->undos[i].segment->txn_page_count; j++) {
-            buf_enter_page(session, PAGID_U2N(undo_set->undos[i].segment->txn_page[j]), LATCH_MODE_S,
-                           ENTER_PAGE_RESIDENT);
-            undo_set->undos[i].txn_pages[j] = (txn_page_t *)CURR_PAGE(session);
-            buf_leave_page(session, GS_FALSE);
+    for (int k = 0; k < UNDO_INIT_THREAD_NUMS; k++) {
+        undo_init_worker_t *undo_init_worker = &undo_ctx.workers[k];
+        undo_init_worker->entry = entry;
+        undo_init_worker->lseg_no = lseg_no + k;
+        undo_init_worker->rseg_no = rseg_no;
+        undo_init_worker->undo_ctx = &undo_ctx;
+        undo_init_worker->undo_set = undo_set;
+        if (cm_create_thread(undo_init_proc, 0, undo_init_worker, &undo_init_worker->thread) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("failed to create tx_rollback_proc %u", k);
+            return;
         }
     }
 
-    buf_leave_page(session, GS_FALSE);
+    while (undo_ctx.undo_init_active_workers > 0) {
+        CT_LOG_RUN_INF("wait for prefetch end");
+        cm_sleep(5);
+    }
+
+    buf_leave_page(session, CT_FALSE);
 }
 
 void undo_set_release(knl_session_t *session, undo_set_t *undo_set)
@@ -216,7 +257,7 @@ void undo_set_release(knl_session_t *session, undo_set_t *undo_set)
         for (uint32 j = 0; j < undo->segment->txn_page_count; j++) {
             buf_enter_page(session, PAGID_U2N(undo->segment->txn_page[j]), LATCH_MODE_S, ENTER_PAGE_RESIDENT);
             ctrl = session->curr_page_ctrl;
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
 
             buf_unreside(session, ctrl);
             undo->txn_pages[j] = NULL;
@@ -224,15 +265,15 @@ void undo_set_release(knl_session_t *session, undo_set_t *undo_set)
 
         buf_enter_page(session, PAGID_U2N(undo->entry), LATCH_MODE_S, ENTER_PAGE_RESIDENT);
         ctrl = session->curr_page_ctrl;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
         buf_unreside(session, ctrl);
         undo->segment = NULL;
     }
 
-    undo_set->inst_id = GS_INVALID_ID32;
+    undo_set->inst_id = CT_INVALID_ID32;
     undo_set->space = NULL;
-    undo_set->used = GS_FALSE;
+    undo_set->used = CT_FALSE;
 }
 
 /*
@@ -245,9 +286,9 @@ void undo_init(knl_session_t *session, uint32 lseg_no, uint32 rseg_no)
     undo_set_t *undo_set = MY_UNDO_SET(session);
 
     ctx->retention = session->kernel->attr.undo_retention_time;
-    ctx->space = space_get_undo_spc(session, session->kernel->id);
+    ctx->space = spc_get_undo_space(session, session->kernel->id);
     ctx->temp_space = SPACE_GET(session, core_ctrl->temp_undo_space);
-    ctx->is_switching = GS_FALSE;
+    ctx->is_switching = CT_FALSE;
     ctx->extend_segno = 0;
     ctx->extend_cnt = 0;
     ctx->undos = undo_set->undos;
@@ -311,10 +352,10 @@ static void undo_extend_txn_impl(knl_session_t *session, space_t *space, undo_t 
     rd.txn_extent = *extent;
     undo->segment->txn_page[undo->segment->txn_page_count++] = PAGID_N2U(*extent);
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_put(session, RD_UNDO_EXTEND_TXN, &rd, sizeof(rd_undo_alloc_txn_page_t), LOG_ENTRY_FLAG_NONE);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 /*
@@ -328,17 +369,17 @@ static status_t undo_extend_txn(knl_session_t *session, space_t *space, undo_t *
 
     log_atomic_op_begin(session);
 
-    if (GS_SUCCESS != spc_alloc_extent(session, space, space->ctrl->extent_size, &extent, GS_FALSE)) {
-        GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+    if (CT_SUCCESS != spc_alloc_extent(session, space, space->ctrl->extent_size, &extent, CT_FALSE)) {
+        CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     undo_extend_txn_impl(session, space, undo, &extent);
 
     log_atomic_op_end(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t undo_df_extend_txn(knl_session_t *session, space_t *space, undo_t *undo, datafile_t *df)
@@ -347,17 +388,17 @@ status_t undo_df_extend_txn(knl_session_t *session, space_t *space, undo_t *undo
 
     log_atomic_op_begin(session);
 
-    if (GS_SUCCESS != spc_df_alloc_extent(session, space, space->ctrl->extent_size, &extent, df)) {
-        GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+    if (CT_SUCCESS != spc_df_alloc_extent(session, space, space->ctrl->extent_size, &extent, df)) {
+        CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     undo_extend_txn_impl(session, space, undo, &extent);
 
     log_atomic_op_end(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void undo_create_segment_impl(knl_session_t *session, space_t *space, undo_t *undo, uint32 id, page_id_t *extent)
@@ -374,7 +415,7 @@ void undo_create_segment_impl(knl_session_t *session, space_t *space, undo_t *un
     redo.entry = undo->entry;
     redo.id = id;
     log_put(session, RD_UNDO_ALLOC_SEGMENT, &redo, sizeof(rd_undo_alloc_seg_t), LOG_ENTRY_FLAG_NONE);
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     buf_enter_page(session, PAGID_U2N(undo->entry), LATCH_MODE_X, ENTER_PAGE_RESIDENT | ENTER_PAGE_NO_READ);
     page_init(session, (page_head_t *)CURR_PAGE(session), PAGID_U2N(undo->entry), PAGE_TYPE_UNDO_HEAD);
@@ -387,7 +428,7 @@ void undo_create_segment_impl(knl_session_t *session, space_t *space, undo_t *un
 
     log_put(session, RD_UNDO_CREATE_SEGMENT, CURR_PAGE(session), sizeof(page_head_t), LOG_ENTRY_FLAG_NONE);
     log_append_data(session, undo->segment, sizeof(undo_segment_t));
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 /*
@@ -401,17 +442,17 @@ static status_t undo_create_segment(knl_session_t *session, space_t *space, undo
 
     log_atomic_op_begin(session);
 
-    if (GS_SUCCESS != spc_alloc_extent(session, space, space->ctrl->extent_size, &page_id, GS_FALSE)) {
-        GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+    if (CT_SUCCESS != spc_alloc_extent(session, space, space->ctrl->extent_size, &page_id, CT_FALSE)) {
+        CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     undo_create_segment_impl(session, space, undo, id, &page_id);
 
     log_atomic_op_end(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t undo_df_create_segment(knl_session_t *session, space_t *space, undo_t *undo, uint32 id, datafile_t *df)
@@ -420,17 +461,17 @@ static status_t undo_df_create_segment(knl_session_t *session, space_t *space, u
 
     log_atomic_op_begin(session);
 
-    if (GS_SUCCESS != spc_df_alloc_extent(session, space, space->ctrl->extent_size, &page_id, df)) {
-        GS_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
+    if (CT_SUCCESS != spc_df_alloc_extent(session, space, space->ctrl->extent_size, &page_id, df)) {
+        CT_THROW_ERROR(ERR_ALLOC_EXTENT, space->ctrl->name);
         log_atomic_op_end(session);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     undo_create_segment_impl(session, space, undo, id, &page_id);
 
     log_atomic_op_end(session);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void undo_get_stat_records(knl_session_t *session, undo_context_t *ctx, undo_stat_t *undo_stat)
@@ -439,12 +480,12 @@ static void undo_get_stat_records(knl_session_t *session, undo_context_t *ctx, u
     undo_t *undo = NULL;
     uint64 buf_busy_wait = 0;
     uint32 page_list_cnt = 0;
-    uint32 stat_cnt = ctx->stat_cnt % GS_MAX_UNDO_STAT_RECORDS;
+    uint32 stat_cnt = ctx->stat_cnt % CT_MAX_UNDO_STAT_RECORDS;
 
     if (ctx->stat_cnt == 0) {
         undo_stat->begin_time = cm_now();
     } else if (stat_cnt == 0) {
-        undo_stat->begin_time = ctx->stat[GS_MAX_UNDO_STAT_RECORDS - 1].end_time;
+        undo_stat->begin_time = ctx->stat[CT_MAX_UNDO_STAT_RECORDS - 1].end_time;
     } else {
         undo_stat->begin_time = ctx->stat[stat_cnt - 1].end_time;
     }
@@ -476,7 +517,7 @@ static void undo_get_stat_records(knl_session_t *session, undo_context_t *ctx, u
 
 static void undo_set_stat_records(undo_context_t *ctx, undo_stat_t undo_stat)
 {
-    uint32 stat_cnt = ctx->stat_cnt % GS_MAX_UNDO_STAT_RECORDS;
+    uint32 stat_cnt = ctx->stat_cnt % CT_MAX_UNDO_STAT_RECORDS;
 
     ctx->stat[stat_cnt].begin_time = undo_stat.begin_time;
     ctx->stat[stat_cnt].end_time = undo_stat.end_time;
@@ -493,8 +534,8 @@ static void undo_set_stat_records(undo_context_t *ctx, undo_stat_t undo_stat)
     ctx->stat[stat_cnt].busy_seg_pages = undo_stat.busy_seg_pages;
 
     ctx->stat_cnt++;
-    if (ctx->stat_cnt >= GS_MAX_UNDO_STAT_RECORDS) {
-        ctx->stat_cnt = ctx->stat_cnt % GS_MAX_UNDO_STAT_RECORDS + GS_MAX_UNDO_STAT_RECORDS;
+    if (ctx->stat_cnt >= CT_MAX_UNDO_STAT_RECORDS) {
+        ctx->stat_cnt = ctx->stat_cnt % CT_MAX_UNDO_STAT_RECORDS + CT_MAX_UNDO_STAT_RECORDS;
     }
 
     return;
@@ -504,7 +545,7 @@ void undo_timed_task(knl_session_t *session)
 {
     uint32 i;
     undo_context_t *ctx = &session->kernel->undo_ctx;
-    uint32 stat_cnt = ctx->stat_cnt % GS_MAX_UNDO_STAT_RECORDS;
+    uint32 stat_cnt = ctx->stat_cnt % CT_MAX_UNDO_STAT_RECORDS;
     undo_stat_t stat = {0};
 
     /* undo statistics snap every 10 minutes */
@@ -543,13 +584,13 @@ static void undo_init_segment(knl_session_t *session, uint32 id, uint32 init_pag
         buf_enter_page(session, PAGID_U2N(undo->entry), LATCH_MODE_X, ENTER_PAGE_RESIDENT);
 
         if (undo->segment->page_list.count >= init_pages) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
             return;
         }
 
         if (!spc_alloc_undo_extent(session, ctx->space, &page_id, &extent_size)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
             return;
         }
@@ -562,7 +603,7 @@ static void undo_init_segment(knl_session_t *session, uint32 id, uint32 init_pag
             redo.prev = g_invalid_undo_pagid;
             redo.next = undo->segment->page_list.first;
             log_put(session, RD_UNDO_FORMAT_PAGE, &redo, sizeof(rd_undo_fmt_page_t), LOG_ENTRY_FLAG_NONE);
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
 
             undo->segment->page_list.first = PAGID_N2U(page_id);
             if (undo->segment->page_list.count == 0) {
@@ -574,7 +615,7 @@ static void undo_init_segment(knl_session_t *session, uint32 id, uint32 init_pag
 
         log_put(session, RD_UNDO_CHANGE_SEGMENT, &undo->segment->page_list, sizeof(undo_page_list_t),
             LOG_ENTRY_FLAG_NONE);
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
 
         log_atomic_op_end(session);
     }
@@ -597,11 +638,11 @@ void undo_preload_proc(thread_t *thread)
     uint32 i;
 
     cm_set_thread_name("undo preload");
-    GS_LOG_RUN_INF("undo preload thread started");
+    CT_LOG_RUN_INF("undo preload thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
     knl_qos_begin(session);
 
-    total_pages = spc_count_pages(session, ctx->space, GS_FALSE);
+    total_pages = spc_count_pages(session, ctx->space, CT_FALSE);
     init_pages = UNDO_INIT_PAGES(session, total_pages);
 
     for (i = 0; i < UNDO_SEGMENT_COUNT(session); i++) {
@@ -610,7 +651,7 @@ void undo_preload_proc(thread_t *thread)
 
     knl_qos_end(session);
 
-    GS_LOG_RUN_INF("undo preload thread closed");
+    CT_LOG_RUN_INF("undo preload thread closed");
     KNL_SESSION_CLEAR_THREADID(session);
 }
 
@@ -623,11 +664,11 @@ status_t undo_preload(knl_session_t *session)
     knl_instance_t *kernel = session->kernel;
     undo_context_t *ctx = &kernel->undo_ctx;
 
-    if (GS_SUCCESS != cm_create_thread(undo_preload_proc, 0, kernel->sessions[SESSION_ID_UNDO], &ctx->thread)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != cm_create_thread(undo_preload_proc, 0, kernel->sessions[SESSION_ID_UNDO], &ctx->thread)) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -643,18 +684,42 @@ status_t undo_create(knl_session_t *session, uint32 inst_id, uint32 space_id, ui
 
     for (i = lseg_no; i < count; i++) {
         undo = &undo_set->undos[i];
-        if (GS_SUCCESS != undo_create_segment(session, space, undo, i)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != undo_create_segment(session, space, undo, i)) {
+            return CT_ERROR;
         }
 
         for (j = 0; j < UNDO_DEF_TXN_PAGE(session); j++) {
-            if (GS_SUCCESS != undo_extend_txn(session, space, undo)) {
-                return GS_ERROR;
+            if (CT_SUCCESS != undo_extend_txn(session, space, undo)) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
+}
+
+status_t temp_undo_create(knl_session_t *session, uint32 inst_id, uint32 space_id, uint32 lseg_no, uint32 count)
+{
+    undo_set_t *temp_undo_set = TEMP_UNDO_SET(session, inst_id);
+    undo_t *undo = NULL;
+    uint32 i;
+    uint32 j;
+    space_t *space = SPACE_GET(session, space_id);
+
+    for (i = lseg_no; i < count; i++) {
+        undo = &temp_undo_set->undos[i];
+        if (CT_SUCCESS != undo_create_segment(session, space, undo, i)) {
+            return CT_ERROR;
+        }
+
+        for (j = 0; j < UNDO_DEF_TXN_PAGE(session); j++) {
+            if (CT_SUCCESS != undo_extend_txn(session, space, undo)) {
+                return CT_ERROR;
+            }
+        }
+    }
+
+    return CT_SUCCESS;
 }
 
 status_t undo_df_create(knl_session_t *session, uint32 space_id, uint32 lseg_no, uint32 count, datafile_t *df)
@@ -667,18 +732,18 @@ status_t undo_df_create(knl_session_t *session, uint32 space_id, uint32 lseg_no,
 
     for (i = lseg_no; i < count; i++) {
         undo = &ctx->undos[i];
-        if (GS_SUCCESS != undo_df_create_segment(session, ctx->space, undo, i, df)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != undo_df_create_segment(session, ctx->space, undo, i, df)) {
+            return CT_ERROR;
         }
 
         for (j = 0; j < UNDO_DEF_TXN_PAGE(session); j++) {
-            if (GS_SUCCESS != undo_df_extend_txn(session, ctx->space, undo, df)) {
-                return GS_ERROR;
+            if (CT_SUCCESS != undo_df_extend_txn(session, ctx->space, undo, df)) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -696,12 +761,12 @@ static bool32 undo_extend_segment(knl_session_t *session, undo_page_list_t *page
 {
     uint32 i;
 
-    knl_begin_session_wait(session, UNDO_EXTEND_SEGMENT, GS_FALSE);
+    knl_begin_session_wait(session, UNDO_EXTEND_SEGMENT, CT_FALSE);
     if (!spc_alloc_undo_extent(session, space, page_id, extent_size)) {
-        knl_end_session_wait(session);
-        return GS_FALSE;
+        knl_end_session_wait(session, UNDO_EXTEND_SEGMENT);
+        return CT_FALSE;
     }
-    knl_end_session_wait(session);
+    knl_end_session_wait(session, UNDO_EXTEND_SEGMENT);
 
     for (i = 0; i < *extent_size - 1; i++) {
         buf_enter_page(session, *page_id, LATCH_MODE_X, ENTER_PAGE_NO_READ);
@@ -716,7 +781,7 @@ static bool32 undo_extend_segment(knl_session_t *session, undo_page_list_t *page
             log_put(session, RD_UNDO_FORMAT_PAGE, &redo, sizeof(rd_undo_fmt_page_t), LOG_ENTRY_FLAG_NONE);
         }
 
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
 
         page_list->first = PAGID_N2U(*page_id);
         if (page_list->count == 0) {
@@ -742,11 +807,11 @@ static bool32 undo_extend_segment(knl_session_t *session, undo_page_list_t *page
             buf_enter_page(session, *page_id, LATCH_MODE_X, ENTER_PAGE_NO_READ);
             page = (undo_page_t *)CURR_PAGE(session);
             undo_format_page(session, page, *page_id, INVALID_UNDO_PAGID, INVALID_UNDO_PAGID);
-            buf_leave_page(session, GS_TRUE);
+            buf_leave_page(session, CT_TRUE);
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static inline bool32 undo_shrink_need_suspend(knl_session_t *session)
@@ -791,7 +856,7 @@ void undo_shrink_segment(knl_session_t *session, undo_t *undo, bool32 need_redo,
         buf_enter_page(session, PAGID_U2N(undo->entry), LATCH_MODE_X, ENTER_PAGE_RESIDENT);
         page_list = UNDO_GET_FREE_PAGELIST(undo, need_redo);
         if (page_list->count <= reserve_pages) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
             return;
         }
@@ -801,14 +866,14 @@ void undo_shrink_segment(knl_session_t *session, undo_t *undo, bool32 need_redo,
         buf_enter_page(session, PAGID_U2N(first), LATCH_MODE_S, ENTER_PAGE_NORMAL);
         page = (undo_page_t *)CURR_PAGE(session);
         if (KNL_NOW(session) - page->ss_time < (date_t)ctx->retention * MICROSECS_PER_SECOND) {
-            buf_leave_page(session, GS_FALSE);  // release undo page
-            buf_leave_page(session, GS_FALSE);  // release entry page
+            buf_leave_page(session, CT_FALSE);  // release undo page
+            buf_leave_page(session, CT_FALSE);  // release entry page
             log_atomic_op_end(session);
             return;
         }
 
         next = PAGID_N2U(AS_PAGID(page->head.next_ext));
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
         page_list->count--;
         if (page_list->count > 0) {
@@ -821,7 +886,7 @@ void undo_shrink_segment(knl_session_t *session, undo_t *undo, bool32 need_redo,
             log_put(session, RD_UNDO_CHANGE_SEGMENT, page_list, sizeof(undo_page_list_t), LOG_ENTRY_FLAG_NONE);
         }
 
-        buf_leave_page(session, GS_TRUE && need_redo);
+        buf_leave_page(session, CT_TRUE && need_redo);
 
         spc_free_extent(session, space, PAGID_U2N(first));
 
@@ -850,7 +915,7 @@ void undo_shrink_inactive_segments(knl_session_t *session)
         buf_enter_page(session, PAGID_U2N(undo->entry), LATCH_MODE_X, ENTER_PAGE_RESIDENT);
 
         if (undo->segment->page_list.count == 0) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             log_atomic_op_end(session);
             continue;
         }
@@ -863,7 +928,7 @@ void undo_shrink_inactive_segments(knl_session_t *session)
 
         log_put(session, RD_UNDO_CHANGE_SEGMENT, &undo->segment->page_list,
             sizeof(undo_page_list_t), LOG_ENTRY_FLAG_NONE);
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
 
         log_atomic_op_end(session);
 
@@ -886,16 +951,16 @@ void undo_shrink_segments(knl_session_t *session)
     uint32 undo2_reserve_pages;
     uint32 i;
 
-    undo1_total_pages = spc_count_pages(session, ctx->space, GS_FALSE);
+    undo1_total_pages = spc_count_pages(session, ctx->space, CT_FALSE);
     undo1_reserve_pages = UNDO_RESERVE_PAGES(session, undo1_total_pages);
 
-    undo2_total_pages = (ctx->temp_space == NULL) ? 0 : spc_count_pages(session, ctx->temp_space, GS_FALSE);
+    undo2_total_pages = (ctx->temp_space == NULL) ? 0 : spc_count_pages(session, ctx->temp_space, CT_FALSE);
     undo2_reserve_pages = UNDO_RESERVE_TEMP_PAGES(session, undo2_total_pages);
 
     for (i = 0; i < UNDO_SEGMENT_COUNT(session); i++) {
         undo = &ctx->undos[i];
-        undo_shrink_segment(session, undo, GS_TRUE, undo1_reserve_pages);
-        undo_shrink_segment(session, undo, GS_FALSE, undo2_reserve_pages);
+        undo_shrink_segment(session, undo, CT_TRUE, undo1_reserve_pages);
+        undo_shrink_segment(session, undo, CT_FALSE, undo2_reserve_pages);
     }
 }
 
@@ -925,14 +990,14 @@ bool32 undo_find_free_segment(knl_session_t *session, bool32 need_redo, undo_t *
             *undo = curr;
         }
 
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 
     if (page_count == 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static void undo_force_shrink_pages(knl_session_t *session, undo_page_list_t *page_list,
@@ -946,7 +1011,7 @@ static void undo_force_shrink_pages(knl_session_t *session, undo_page_list_t *pa
     undo_context_t *ctx = &session->kernel->undo_ctx;
     undo_t *undo = UNDO_GET_SESSION_UNDO_SEGMENT(session);
 
-    page_count = MIN(page_list->count, GS_EXTENT_SIZE);
+    page_count = MIN(page_list->count, CT_EXTENT_SIZE);
     next = page_list->first;
     for (i = 0; i < page_count; i++) {
         last = next;
@@ -960,7 +1025,7 @@ static void undo_force_shrink_pages(knl_session_t *session, undo_page_list_t *pa
             undo_need_shrink->stat.stealed_expire_pages++;
         }
         next = PAGID_N2U(AS_PAGID(((page_head_t *)CURR_PAGE(session))->next_ext));
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 
     shrink_pages->count = page_count;
@@ -995,11 +1060,11 @@ static bool32 undo_force_shrink_segment(knl_session_t *session, undo_context_t *
 
     if (!undo_find_free_segment(session, need_redo, &undo_need_shrink)) {
         // All segments are busy, failed to force shrink.
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (!cm_latch_timed_x(&ctx->latch, session->id, 100, NULL)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     log_atomic_op_begin(session);
@@ -1009,15 +1074,15 @@ static bool32 undo_force_shrink_segment(knl_session_t *session, undo_context_t *
     page_list = UNDO_GET_FREE_PAGELIST(undo_need_shrink, need_redo);
     if (page_list->count == 0) {
         // All segments are busy, failed to force shrink.
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         log_atomic_op_end(session);
         cm_unlatch(&ctx->latch, NULL);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    page_count = MIN(page_list->count, GS_EXTENT_SIZE);
+    page_count = MIN(page_list->count, CT_EXTENT_SIZE);
     undo_force_shrink_pages(session, page_list, &shrink_pages, undo_need_shrink, need_redo);
-    buf_leave_page(session, GS_TRUE && need_redo);
+    buf_leave_page(session, CT_TRUE && need_redo);
 
     undo_release_pages(session, undo, &shrink_pages, need_redo);
     log_atomic_op_end(session);
@@ -1027,7 +1092,7 @@ static bool32 undo_force_shrink_segment(knl_session_t *session, undo_context_t *
     session->kernel->stat.undo_free_pages += page_count;
     session->kernel->stat.undo_shrink_times += (KNL_NOW(session) - begin_time);
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 bool32 undo_check_active_transaction(knl_session_t *session)
@@ -1040,11 +1105,11 @@ bool32 undo_check_active_transaction(knl_session_t *session)
         undo = &ctx->undos[seg_no];
 
         if (undo->free_items.count != TXN_PER_PAGE(session) * UNDO_DEF_TXN_PAGE(session)) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 void undo_get_txn_hwms(knl_session_t *session, space_t *space, uint32 *hwms)
@@ -1088,7 +1153,7 @@ void undo_clean_segment_pagelist(knl_session_t *session, space_t *space)
             log_put(session, RD_UNDO_CHANGE_SEGMENT, page_list, sizeof(undo_page_list_t), LOG_ENTRY_FLAG_NONE);
         }
 
-        buf_leave_page(session, GS_TRUE && need_redo);
+        buf_leave_page(session, CT_TRUE && need_redo);
         log_atomic_op_end(session);
     }
 }
@@ -1098,21 +1163,21 @@ static inline bool32 undo_need_alloc_from_space(knl_session_t *session, undo_con
 {
     if (page->free_size < reserved_size &&
         KNL_NOW(session) - page->ss_time < (date_t)ctx->retention * MICROSECS_PER_SECOND) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
      // if alloc normal undo page, cipher_reserve_size is 0,
      // if alloc undo page enable to encrypt, undo page should reserve cipher size behind undo_page_t,
     if (undo_cipher_reserve_valid(session, page, cipher_reserve_size)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     // if page has been formated, it still can be used for encryption, cipher reserve size will be added before use.
     if (undo_is_formated_page(session, page)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static void undo_alloc_from_free_list(knl_session_t *session, space_t *space, undo_page_list_t *page_list,
@@ -1160,7 +1225,7 @@ bool32 undo_alloc_page(knl_session_t *session, space_t *space, uint32 reserved_s
     undo_page_t *page = NULL;
     undo_page_id_t next_page;
     uint32 extent_size;
-    bool32 from_space = GS_FALSE;
+    bool32 from_space = CT_FALSE;
     undo_page_list_t *page_list = NULL;
     bool32 need_redo = SPACE_IS_LOGGING(space);
     uint64 buf_busy_waits = 0;
@@ -1173,22 +1238,22 @@ bool32 undo_alloc_page(knl_session_t *session, space_t *space, uint32 reserved_s
     buf_enter_page(session, PAGID_U2N(undo->entry), LATCH_MODE_X, ENTER_PAGE_RESIDENT);
     page_list = UNDO_GET_FREE_PAGELIST(undo, need_redo);
     if (page_list->count == 0) {
-        from_space = GS_TRUE;
+        from_space = CT_TRUE;
     } else {
         buf_enter_prefetch_page_num(session, PAGID_U2N(page_list->first), session->kernel->attr.undo_prefetch_page_num,
             LATCH_MODE_S, ENTER_PAGE_HIGH_AGE);
         page = (undo_page_t *)CURR_PAGE(session);
         next_page = PAGID_N2U(AS_PAGID(page->head.next_ext));
         from_space = undo_need_alloc_from_space(session, ctx, page, reserved_size, cipher_reserve_size);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 
     if (from_space) {
         if (undo_extend_segment(session, page_list, space, page_id, &extent_size)) {
-            *new_extent = extent_size > 1 ? GS_TRUE : GS_FALSE;
+            *new_extent = extent_size > 1 ? CT_TRUE : CT_FALSE;
             buf_leave_page(session, *new_extent && need_redo);
             undo->stat.use_space_pages++;
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
@@ -1198,15 +1263,15 @@ bool32 undo_alloc_page(knl_session_t *session, space_t *space, uint32 reserved_s
     }
 
     if (page_list->count == 0) {
-        buf_leave_page(session, GS_FALSE);
-        return GS_FALSE;
+        buf_leave_page(session, CT_FALSE);
+        return CT_FALSE;
     }
 
     *page_id = PAGID_U2N(page_list->first);
     undo_alloc_from_free_list(session, space, page_list, page, next_page);
-    buf_leave_page(session, GS_TRUE && need_redo);
+    buf_leave_page(session, CT_TRUE && need_redo);
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /*
@@ -1232,7 +1297,7 @@ void undo_release_pages(knl_session_t *session, undo_t *undo, undo_page_list_t *
         log_put(session, RD_UNDO_CHANGE_SEGMENT, page_list, sizeof(undo_page_list_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE && need_redo);
+    buf_leave_page(session, CT_TRUE && need_redo);
 }
 
 static inline void undo_page_encrypt_format(knl_session_t *session, undo_page_t *page, uint8 cipher_reserve_size,
@@ -1257,13 +1322,13 @@ static void trigger_undo_usage_alram_log(knl_session_t *session)
     CM_SAVE_STACK(session->stack);
     sql_text.str = (char *)cm_push(session->stack, RECORD_SQL_SIZE);
     sql_text.len = RECORD_SQL_SIZE;
-    if (sql_text.str == NULL || g_knl_callback.get_sql_text(session->id, &sql_text) != GS_SUCCESS) {
-        GS_LOG_RUN_WAR("[TxnUndospaceUsage] session-id: %u, rmid: %u, transaction-id: %u.%u.%u, txn-alarm-threshold: %u%%, sql-detail: [fail to record sql]",
+    if (sql_text.str == NULL || g_knl_callback.get_sql_text(session->id, &sql_text) != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("[TxnUndospaceUsage] session-id: %u, rmid: %u, transaction-id: %u.%u.%u, txn-alarm-threshold: %u%%, sql-detail: [fail to record sql]",
             session->id, session->rm->id, xid.xmap.seg_id, xid.xmap.slot, xid.xnum,
             session->kernel->attr.txn_undo_usage_alarm_threshold);
         cm_reset_error();
     } else {
-        GS_LOG_RUN_WAR("[TxnUndospaceUsage] session-id: %u, rmid: %u, transaction-id: %u.%u.%u, txn-alarm-threshold: %u%%, sql-detail: [%s]",
+        CT_LOG_RUN_WAR("[TxnUndospaceUsage] session-id: %u, rmid: %u, transaction-id: %u.%u.%u, txn-alarm-threshold: %u%%, sql-detail: [%s]",
             session->id, session->rm->id, xid.xmap.seg_id, xid.xmap.slot, xid.xnum,
             session->kernel->attr.txn_undo_usage_alarm_threshold, T2S(&sql_text));
     }
@@ -1272,10 +1337,10 @@ static void trigger_undo_usage_alram_log(knl_session_t *session)
 
 static inline void txn_undo_page_check(knl_session_t *session, uint32 undo_page_count)
 {
-    uint64 undo_total_pages = spc_count_pages_with_ext(session, session->kernel->undo_ctx.space, GS_FALSE);
-    if (undo_page_count >= undo_total_pages * session->kernel->attr.txn_undo_usage_alarm_threshold / GS_MAX_TXN_UNDO_ALARM_THRESHOLD) {
+    uint64 undo_total_pages = spc_count_pages_with_ext(session, session->kernel->undo_ctx.space, CT_FALSE);
+    if (undo_page_count >= undo_total_pages * session->kernel->attr.txn_undo_usage_alarm_threshold / CT_MAX_TXN_UNDO_ALARM_THRESHOLD) {
         trigger_undo_usage_alram_log(session);
-        session->rm->txn_alarm_enable = GS_FALSE;
+        session->rm->txn_alarm_enable = CT_FALSE;
     }
 }
 
@@ -1307,7 +1372,7 @@ status_t undo_alloc_page_for_txn(knl_session_t *session, txn_t *txn, uint32 rese
     rd_undo_fmt_page_t fmt_redo;
     rd_undo_chg_page_t chg_redo;
     rd_undo_chg_txn_t redo;
-    bool32 new_extent = GS_FALSE;
+    bool32 new_extent = CT_FALSE;
     space_t *space = need_redo ? ctx->space : ctx->temp_space;
 
     reserve_size = MAX(reserve_size, session->kernel->attr.undo_reserve_size);
@@ -1322,13 +1387,13 @@ status_t undo_alloc_page_for_txn(knl_session_t *session, txn_t *txn, uint32 rese
             break;
         }
 
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
 
         log_atomic_op_end(session);
 
         if (!undo_force_shrink_segment(session, ctx, need_redo)) {
-            GS_THROW_ERROR(ERR_NO_FREE_UNDO_PAGE);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_NO_FREE_UNDO_PAGE);
+            return CT_ERROR;
         }
 
         log_atomic_op_begin(session);
@@ -1378,7 +1443,7 @@ status_t undo_alloc_page_for_txn(knl_session_t *session, txn_t *txn, uint32 rese
     curr_undo_page->undo_fs = page->free_size;
     curr_undo_page->encrypt_enable = undo_valid_encrypt(session, (page_head_t *)page);
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     if (tx_undo_page_list->count == 0) {
         tx_undo_page_list->first = PAGID_N2U(page_id);
@@ -1396,7 +1461,7 @@ status_t undo_alloc_page_for_txn(knl_session_t *session, txn_t *txn, uint32 rese
         log_put(session, RD_UNDO_CHANGE_TXN, &redo, sizeof(rd_undo_chg_txn_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE && need_redo);
+    buf_leave_page(session, CT_TRUE && need_redo);
 
     log_atomic_op_end(session);
 
@@ -1404,7 +1469,7 @@ status_t undo_alloc_page_for_txn(knl_session_t *session, txn_t *txn, uint32 rese
         txn_undo_page_check(session, txn->undo_pages.count);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1420,31 +1485,31 @@ status_t undo_multi_prepare(knl_session_t *session, uint32 count, uint32 size, b
     uint32 cost_size;
     uint32 undo_freespace;
     space_t *space = need_redo ? ctx->space : ctx->temp_space;
-    bool32 encrypt_enable = GS_FALSE;
+    bool32 encrypt_enable = CT_FALSE;
     uint8 cipher_reserve_size = need_encrypt ? space->ctrl->cipher_reserve_size : 0;
 
     if (DB_NOT_READY(session)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!need_redo && ctx->temp_space == NULL) {
-        GS_THROW_ERROR(ERR_NOLOGGING_SPACE, "TEMP2_UNDO");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_NOLOGGING_SPACE, "TEMP2_UNDO");
+        return CT_ERROR;
     }
 
     knl_panic_log(!DB_IS_READONLY(session), "current DB is readonly!");
 
     if (rm->txn == NULL) {
-        if (tx_begin(session) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (tx_begin(session) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     cost_size = size + count * (UNDO_ROW_HEAD_SIZE + sizeof(uint16));
     if (cost_size > (uint32)(UNDO_PAGE_MAX_FREE_SIZE(session) - (uint16)cipher_reserve_size)) {
-        GS_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "undo cost", cost_size,
+        CT_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "undo cost", cost_size,
             UNDO_PAGE_MAX_FREE_SIZE(session) - cipher_reserve_size);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (need_redo) {
@@ -1454,12 +1519,12 @@ status_t undo_multi_prepare(knl_session_t *session, uint32 count, uint32 size, b
     } else {
         undo_freespace = rm->noredo_undo_page_info.undo_fs;
         encrypt_enable = rm->noredo_undo_page_info.encrypt_enable;
-        rm->noredo_undo_page_info.undo_log_encrypt = GS_FALSE;
+        rm->noredo_undo_page_info.undo_log_encrypt = CT_FALSE;
     }
 
     if (encrypt_enable || !need_encrypt) {
         if (undo_freespace >= cost_size) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
     knl_panic_log(rm->txn != NULL, "rm's txn is NULL.");
@@ -1487,7 +1552,7 @@ static void undo_check_log_encrypt(knl_session_t *session, undo_page_t *page, sp
 
     if (undo_info->undo_log_encrypt) {
         knl_panic_log(undo_info->encrypt_enable, "curr undo page must encryptable");
-        session->log_encrypt = GS_TRUE;
+        session->log_encrypt = CT_TRUE;
     }
 }
 
@@ -1542,10 +1607,10 @@ void undo_write(knl_session_t *session, undo_data_t *undo_data, bool32 need_redo
     row->is_xfirst = undo_data->snapshot.is_xfirst;
     row->is_cleaned = 0;
     if (undo_data->snapshot.contain_subpartno) {
-        row->contain_subpartno = GS_TRUE;
+        row->contain_subpartno = CT_TRUE;
     }
 
-    knl_panic_log(row->xid.value != GS_INVALID_ID64,
+    knl_panic_log(row->xid.value != CT_INVALID_ID64,
                   "the xid of row is invalid, panic info: page %u-%u type %u row xid %llu",
                   AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.type, row->xid.value);
     knl_panic_log(undo_rid.slot == page->rows, "the undo_rid's slot is not match to page's rows, panic info: "
@@ -1591,7 +1656,7 @@ void undo_write(knl_session_t *session, undo_data_t *undo_data, bool32 need_redo
         }
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 }
 
 status_t undo_segment_dump(knl_session_t *session, page_head_t *page_head, cm_dump_t *dump)
@@ -1614,7 +1679,7 @@ status_t undo_segment_dump(knl_session_t *session, page_head_t *page_head, cm_du
         CM_DUMP_WRITE_FILE(dump);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void undo_invalid_segments(knl_session_t *session)
@@ -1654,7 +1719,7 @@ void undo_move_txn(knl_session_t *session, undo_t *undo, uint32 id)
 
     log_put(session, RD_UNDO_MOVE_TXN, CURR_PAGE(session), sizeof(page_head_t), LOG_ENTRY_FLAG_NONE);
     log_append_data(session, new_txnpage->items, DEFAULT_PAGE_SIZE(session) - sizeof(page_head_t));
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     log_atomic_op_end(session);
 }
 
@@ -1666,14 +1731,14 @@ void undo_reload_segment(knl_session_t *session, page_id_t entry)
 
     buf_enter_page(session, entry, LATCH_MODE_S, ENTER_PAGE_RESIDENT);
     undo_entry = (undo_page_id_t *)(CURR_PAGE(session) + PAGE_HEAD_SIZE + sizeof(space_head_t));
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
 
     for (uint32 i = 0; i < UNDO_SEGMENT_COUNT(session); i++) {
         buf_enter_page(session, PAGID_U2N(undo_entry[i]), LATCH_MODE_S, ENTER_PAGE_RESIDENT | ENTER_PAGE_NO_READ);
         undo = &ctx->undos[i];
         undo->entry = undo_entry[i];
         undo->segment = UNDO_GET_SEGMENT(session);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 }
 
@@ -1693,13 +1758,13 @@ static status_t undo_switch(knl_session_t *session, uint32 space_id)
     uint32 j;
 
     for (i = 0; i < UNDO_SEGMENT_COUNT(session); i++) {
-        if (GS_SUCCESS != undo_create_segment(session, space, &undo, i)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != undo_create_segment(session, space, &undo, i)) {
+            return CT_ERROR;
         }
 
         for (j = 0; j < UNDO_DEF_TXN_PAGE(session); j++) {
-            if (GS_SUCCESS != undo_extend_txn(session, space, &undo)) {
-                return GS_ERROR;
+            if (CT_SUCCESS != undo_extend_txn(session, space, &undo)) {
+                return CT_ERROR;
             }
         }
     }
@@ -1713,7 +1778,7 @@ static status_t undo_switch(knl_session_t *session, uint32 space_id)
     }
     
     ctx->space = space;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t undo_switch_space(knl_session_t *session, uint32 space_id)
@@ -1727,22 +1792,22 @@ status_t undo_switch_space(knl_session_t *session, uint32 space_id)
 
     knl_panic(0);  // TODO: need to design
 
-    session->kernel->undo_ctx.is_switching = GS_TRUE;
+    session->kernel->undo_ctx.is_switching = CT_TRUE;
     undo_invalid_segments(session);
 
-    if (undo_switch(session, space_id) != GS_SUCCESS) {
+    if (undo_switch(session, space_id) != CT_SUCCESS) {
         session->kernel->undo_ctx.space = old_undo_space;
-        session->kernel->undo_ctx.is_switching = GS_FALSE;
-        return GS_ERROR;
+        session->kernel->undo_ctx.is_switching = CT_FALSE;
+        return CT_ERROR;
     }
 
     dtc_my_ctrl(session)->undo_space = space_id;
 
     undo_init(session, 0, core_ctrl->undo_segments);
 
-    if (tx_area_init(session, 0, core_ctrl->undo_segments) != GS_SUCCESS) {
-        session->kernel->undo_ctx.is_switching = GS_FALSE;
-        return GS_ERROR;
+    if (tx_area_init(session, 0, core_ctrl->undo_segments) != CT_SUCCESS) {
+        session->kernel->undo_ctx.is_switching = CT_FALSE;
+        return CT_ERROR;
     }
 
     tx_area_release(session, undo_set);
@@ -1754,31 +1819,31 @@ status_t undo_switch_space(knl_session_t *session, uint32 space_id)
     old_undo_space->ctrl->type = SPACE_TYPE_UNDO;
     new_undo_space->ctrl->cipher_reserve_size = old_undo_space->ctrl->cipher_reserve_size;
     new_undo_space->ctrl->encrypt_version = old_undo_space->ctrl->encrypt_version;
-    session->kernel->undo_ctx.is_switching = GS_FALSE;
+    session->kernel->undo_ctx.is_switching = CT_FALSE;
 
     rd.op_type = RD_SWITCH_UNDO_SPACE;
     rd.space_id = space_id;
     rd.space_entry = space->entry;
     log_put(session, RD_LOGIC_OPERATION, &rd, sizeof(rd_switch_undo_space_t), LOG_ENTRY_FLAG_NONE);
     knl_commit(session);
-    ckpt_trigger(session, GS_TRUE, CKPT_TRIGGER_FULL);
+    ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL);
 
-    if (db_save_space_ctrl(session, old_undo_space->ctrl->id) != GS_SUCCESS) {
+    if (db_save_space_ctrl(session, old_undo_space->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: failed to save space ctrl file when load tablespace %s",
                  old_undo_space->ctrl->name);
     }
 
-    if (db_save_space_ctrl(session, new_undo_space->ctrl->id) != GS_SUCCESS) {
+    if (db_save_space_ctrl(session, new_undo_space->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: failed to save space ctrl file when load tablespace %s",
                  new_undo_space->ctrl->name);
     }
 
-    if (db_save_core_ctrl(session) != GS_SUCCESS) {
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: failed to save core ctrl file when load tablespace");
     }
 
-    GS_LOG_RUN_INF("[UNDO] succeed to switch undo tablespace %s", new_undo_space->ctrl->name);
-    return GS_SUCCESS;
+    CT_LOG_RUN_INF("[UNDO] succeed to switch undo tablespace %s", new_undo_space->ctrl->name);
+    return CT_SUCCESS;
 }
 
 uint32 undo_max_prepare_size(knl_session_t *session, uint32 count)

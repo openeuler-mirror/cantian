@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
- 
+#include "knl_table_module.h"
 #include "knl_part_output.h"
 #include "cm_hash.h"
 #include "cm_log.h"
@@ -33,7 +33,7 @@
 #include "knl_heap.h"
 #include "knl_part_inner.h"
 
-static int32 part_compare_key_column(gs_type_t type, part_decode_key_t *key1,
+static int32 part_compare_key_column(ct_type_t type, part_decode_key_t *key1,
     part_decode_key_t *key2, uint16 col)
 {
     char *data1 = NULL;
@@ -119,19 +119,19 @@ static bool32 part_compare_list_key(knl_part_column_desc_t *desc, part_decode_ke
             continue;
         } else if (key1->lens[i] >= PART_KEY_NULL_LEN || key2->lens[i] >= PART_KEY_NULL_LEN) {
             if (key1->lens[i] != key2->lens[i]) {
-                return GS_FALSE;
+                return CT_FALSE;
             }
         } else {
             data1 = key1->buf + key1->offsets[i];
             data2 = key2->buf + key2->offsets[i];
 
-            if (var_compare_data_ex(data1, key1->lens[i], data2, key2->lens[i], (gs_type_t)desc[i].datatype) != 0) {
-                return GS_FALSE;
+            if (var_compare_data_ex(data1, key1->lens[i], data2, key2->lens[i], (ct_type_t)desc[i].datatype) != 0) {
+                return CT_FALSE;
             }
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /* hash algorithm for hash partition */
@@ -215,7 +215,7 @@ static uint32 part_locate_range_key(part_table_t *part_table, part_decode_key_t 
                       "table_part's groupcnt is abnormal, panic info: table_part %s groupcnt %u",
                       table_part->desc.name, table_part->desc.groupcnt);
         if (part_get_key_bits(part_key, 0) == PART_KEY_BITS_NULL) {
-            return GS_INVALID_ID32;
+            return CT_INVALID_ID32;
         }
 
         result = part_compare_range_key(part_table->keycols, decoder, table_part->desc.groups);
@@ -229,7 +229,7 @@ static uint32 part_locate_range_key(part_table_t *part_table, part_decode_key_t 
     }
 
     curr = begin = 0;
-    part_no = GS_INVALID_ID32;
+    part_no = CT_INVALID_ID32;
 
     while (begin <= end) {
         curr = ((uint32)(end + begin)) >> 1;
@@ -267,7 +267,7 @@ uint32 knl_locate_part_border(knl_handle_t session, knl_handle_t dc_entity, knl_
                   entity->table.desc.name, key->column_count, part_table->desc.partkeys);
 
     curr = begin = 0;
-    part_no = GS_INVALID_ID32;
+    part_no = CT_INVALID_ID32;
     knl_panic_log(part_table->desc.partcnt > 0, "part_table's partcnt is abnormal,  panic info: table %s partcnt %u",
                   entity->table.desc.name, part_table->desc.partcnt);
 
@@ -304,7 +304,7 @@ uint32 knl_locate_part_border(knl_handle_t session, knl_handle_t dc_entity, knl_
 
 uint32 part_locate_list_key(part_table_t *part_table, part_decode_key_t *decoder)
 {
-    text_t values[GS_MAX_PARTKEY_COLUMNS];
+    text_t values[CT_MAX_PARTKEY_COLUMNS];
     part_decode_key_t *curr = NULL;
     table_part_t *part = NULL;
     list_item_t *item = NULL;
@@ -329,7 +329,7 @@ uint32 part_locate_list_key(part_table_t *part_table, part_decode_key_t *decoder
     hash = dc_cal_list_value_hash(values, decoder->count);
     item = &part_table->lbuckets[hash].first;
 
-    while (item->id != GS_INVALID_ID32) {
+    while (item->id != CT_INVALID_ID32) {
         part = PART_GET_ENTITY(part_table, item->id);
         curr = &part->desc.groups[item->offset];
 
@@ -347,17 +347,17 @@ uint32 part_locate_list_key(part_table_t *part_table, part_decode_key_t *decoder
 
 static uint32 compute_hash(variant_t *value, bool32 *is_type_ok, uint32 version)
 {
-    *is_type_ok = GS_TRUE;
+    *is_type_ok = CT_TRUE;
 
     switch (value->type) {
-        case GS_TYPE_UINT32:
-        case GS_TYPE_INTEGER:
+        case CT_TYPE_UINT32:
+        case CT_TYPE_INTEGER:
             return cm_hash_uint32_shard((uint32)value->v_int);
 
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_NUMBER2:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_DECIMAL: {
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_NUMBER2:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_DECIMAL: {
             if (version >= TABLE_VERSION_NEW_HASH) {
                 return cm_hash_raw((uint8 *)value->v_bin.bytes, value->v_bin.size);
             } else {
@@ -370,35 +370,38 @@ static uint32 compute_hash(variant_t *value, bool32 *is_type_ok, uint32 version)
             }
         }
 
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_INTERVAL_YM:
             return cm_hash_uint32_shard((uint32)value->v_itvl_ym);
 
-        case GS_TYPE_INTERVAL_DS:
+        case CT_TYPE_INTERVAL_DS:
             return cm_hash_int64(value->v_itvl_ds);
 
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_DATE_MYSQL:
             return cm_hash_timestamp((uint64)value->v_bigint);
 
-        case GS_TYPE_UINT64:
+        case CT_TYPE_UINT64:
             return cm_hash_uint64((uint64)value->v_ubigint);
-        case GS_TYPE_BIGINT:
+        case CT_TYPE_BIGINT:
             return cm_hash_int64(value->v_bigint);
-        case GS_TYPE_REAL:
+        case CT_TYPE_REAL:
             return cm_hash_real(value->v_real);
 
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
             return cm_hash_raw((uint8 *)value->v_text.str, value->v_text.len);
 
-        case GS_TYPE_BINARY:
-        case GS_TYPE_RAW:
-        case GS_TYPE_VARBINARY:
+        case CT_TYPE_BINARY:
+        case CT_TYPE_RAW:
+        case CT_TYPE_VARBINARY:
             return cm_hash_bytes((uint8 *)value->v_bin.bytes, value->v_bin.size, INFINITE_HASH_RANGE);
 
         default:
-            *is_type_ok = GS_FALSE;
+            *is_type_ok = CT_FALSE;
             return 0;
     }
 }
@@ -408,7 +411,7 @@ uint32 part_hash_value_combination(uint32 idx, unsigned int hashValue, variant_t
 {
     unsigned int hashval = hashValue;
     if (value->is_null) {
-        *is_type_ok = GS_TRUE;
+        *is_type_ok = CT_TRUE;
         return hashval;
     }
 
@@ -422,61 +425,64 @@ uint32 part_hash_value_combination(uint32 idx, unsigned int hashValue, variant_t
     return hashval;
 }
 
-void part_get_hash_key_variant(gs_type_t datatype, text_t *value, variant_t *variant_value, uint32 version)
+void part_get_hash_key_variant(ct_type_t datatype, text_t *value, variant_t *variant_value, uint32 version)
 {
     variant_value->type = datatype;
-    variant_value->is_null = GS_FALSE;
+    variant_value->is_null = CT_FALSE;
 
     // the column is NULL
     if (value->len == 0) {
-        variant_value->is_null = GS_TRUE;
+        variant_value->is_null = CT_TRUE;
         return;
     }
 
     switch (datatype) {
-        case GS_TYPE_UINT32:
+        case CT_TYPE_UINT32:
             variant_value->v_uint32 = *(uint32 *)value->str;
             break;
-        case GS_TYPE_INTEGER:
+        case CT_TYPE_INTEGER:
             variant_value->v_int = *(int32 *)value->str;
             break;
 
-        case GS_TYPE_INTERVAL_DS:
+        case CT_TYPE_INTERVAL_DS:
             variant_value->v_itvl_ds = *(int64 *)value->str;
             break;
 
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_INTERVAL_YM:
             variant_value->v_itvl_ym = *(int32 *)value->str;
             break;
 
-        case GS_TYPE_BOOLEAN:
+        case CT_TYPE_BOOLEAN:
             variant_value->v_bool = *(uint32 *)value->str;
             break;
 
-        case GS_TYPE_UINT64:
+        case CT_TYPE_UINT64:
             variant_value->v_ubigint = *(uint64 *)value->str;
             break;
 
-        case GS_TYPE_BIGINT:
+        case CT_TYPE_BIGINT:
             variant_value->v_bigint = *(int64 *)value->str;
             break;
 
-        case GS_TYPE_DATE:
+        case CT_TYPE_DATE:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_DATE_MYSQL:
             variant_value->v_date = *(int64 *)value->str;
             break;
 
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_LTZ:
             variant_value->v_tstamp = *(int64 *)value->str;
             break;
 
-        case GS_TYPE_REAL:
+        case CT_TYPE_REAL:
             variant_value->v_real = *(double *)value->str;
             break;
 
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_DECIMAL:
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_DECIMAL:
             if (version >= TABLE_VERSION_NEW_HASH) {
                 variant_value->v_bin.bytes = (uint8 *)value->str;
                 variant_value->v_bin.size = value->len;
@@ -484,7 +490,7 @@ void part_get_hash_key_variant(gs_type_t datatype, text_t *value, variant_t *var
                 (void)cm_dec_4_to_8(&variant_value->v_dec, (dec4_t*)value->str, value->len);
             }
             break;
-        case GS_TYPE_NUMBER2:
+        case CT_TYPE_NUMBER2:
             if (version >= TABLE_VERSION_NEW_HASH) {
                 variant_value->v_bin.bytes = (uint8 *)value->str;
                 variant_value->v_bin.size = value->len;
@@ -493,16 +499,16 @@ void part_get_hash_key_variant(gs_type_t datatype, text_t *value, variant_t *var
             }
             break;
 
-        case GS_TYPE_BINARY:
-        case GS_TYPE_VARBINARY:
-        case GS_TYPE_RAW:
+        case CT_TYPE_BINARY:
+        case CT_TYPE_VARBINARY:
+        case CT_TYPE_RAW:
             variant_value->v_bin.bytes = (uint8 *)value->str;
             variant_value->v_bin.size = value->len;
             break;
 
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
         default:
             variant_value->v_text = *value;
             break;
@@ -517,11 +523,11 @@ static status_t part_get_hash_key(knl_handle_t dc_entity, text_t *value, knl_par
     
 #ifdef Z_SHARDING
     part_table_t *part_table = table->part_table;
-    if (part_table->desc.is_slice == GS_TRUE && table->desc.slice_count > 0) {
+    if (part_table->desc.is_slice == CT_TRUE && table->desc.slice_count > 0) {
         knl_column_t *knl_column = knl_get_column(entity, key_col->column_id);
         part_get_hash_key_variant(knl_column->datatype, value, variant_value, table->desc.version);
-        if (var_convert(GS_DEFALUT_SESSION_NLS_PARAMS, variant_value, key_col->datatype, NULL) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (var_convert(CT_DEFALUT_SESSION_NLS_PARAMS, variant_value, key_col->datatype, NULL) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
 #endif
@@ -529,17 +535,17 @@ static status_t part_get_hash_key(knl_handle_t dc_entity, text_t *value, knl_par
 #ifdef Z_SHARDING
     }
 #endif
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static uint32 part_locate_hash_key(dc_entity_t *entity, part_table_t *part_table, knl_part_key_t *part_key)
 {
-    text_t values[GS_MAX_PARTKEY_COLUMNS];
+    text_t values[CT_MAX_PARTKEY_COLUMNS];
     uint16 i;
     part_decode_key_t *decoder;
     part_key_t *key;
     variant_t variant_value;
-    bool32 is_type_ok = GS_FALSE;
+    bool32 is_type_ok = CT_FALSE;
     uint32 hash_value = 0;
     table_t *table = &entity->table;
 #ifdef Z_SHARDING
@@ -550,7 +556,7 @@ static uint32 part_locate_hash_key(dc_entity_t *entity, part_table_t *part_table
     key = part_key->key;
 
     CM_POINTER2(key, decoder);
-    knl_panic_log(key->column_count < GS_MAX_COLUMNS,
+    knl_panic_log(key->column_count < CT_MAX_COLUMNS,
                   "the column_count is more than the max limit, panic info: table %s column_count %u",
                   table->desc.name, key->column_count);
 
@@ -563,12 +569,12 @@ static uint32 part_locate_hash_key(dc_entity_t *entity, part_table_t *part_table
             values[i].len = (uint32)decoder->lens[i];
         }
 
-        if (part_get_hash_key(entity, &values[i], &part_table->keycols[i], &variant_value) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_INVALID_PART_TYPE, "key", "");
-            return GS_INVALID_ID32;
+        if (part_get_hash_key(entity, &values[i], &part_table->keycols[i], &variant_value) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_INVALID_PART_TYPE, "key", "");
+            return CT_INVALID_ID32;
         }
 #ifdef Z_SHARDING
-        if (part_table->desc.is_slice == GS_TRUE && table->desc.slice_count > 0 &&
+        if (part_table->desc.is_slice == CT_TRUE && table->desc.slice_count > 0 &&
             routing_info->type == distribute_hash_basic) {
             hash_value = hash_basic_value_combination(i, hash_value, &variant_value, &is_type_ok);
         } else
@@ -577,12 +583,12 @@ static uint32 part_locate_hash_key(dc_entity_t *entity, part_table_t *part_table
             hash_value = part_hash_value_combination(i, hash_value, &variant_value, &is_type_ok, table->desc.version);
         }
         if (!is_type_ok) {
-            GS_THROW_ERROR(ERR_INVALID_PART_TYPE, "key", "");
-            return GS_INVALID_ID32;
+            CT_THROW_ERROR(ERR_INVALID_PART_TYPE, "key", "");
+            return CT_INVALID_ID32;
         }
     }
 #ifdef Z_SHARDING
-    if (part_table->desc.is_slice == GS_TRUE && table->desc.slice_count > 0) {
+    if (part_table->desc.is_slice == CT_TRUE && table->desc.slice_count > 0) {
         uint32 modulo = abs(hash_value) % BUCKETDATALEN;
         uint32 slice_id = modulo % table->desc.slice_count;
         return part_hash_get_pno(part_table, slice_id);
@@ -595,12 +601,12 @@ static uint32 part_locate_hash_key(dc_entity_t *entity, part_table_t *part_table
 uint32 part_get_bucket_by_variant(variant_t *data, uint32 part_cnt)
 {
     uint32 hash_value;
-    bool32 is_type_ok = GS_FALSE;
+    bool32 is_type_ok = CT_FALSE;
 
     hash_value = compute_hash(data, &is_type_ok, TABLE_VERSION_NEW_HASH);
     if (!is_type_ok) {
-        GS_THROW_ERROR(ERR_INVALID_PART_TYPE, "key", "");
-        return GS_INVALID_ID32;
+        CT_THROW_ERROR(ERR_INVALID_PART_TYPE, "key", "");
+        return CT_INVALID_ID32;
     }
 
     if (part_cnt == 0) {
@@ -634,7 +640,7 @@ uint32 knl_locate_part_key(knl_handle_t dc_entity, part_key_t *key)
             return part_locate_hash_key(entity, part_table, &part_key);
 
         default:
-            return GS_INVALID_ID32;
+            return CT_INVALID_ID32;
     }
 }
 
@@ -643,7 +649,7 @@ static uint32 subpart_locate_range_key(part_table_t *part_table, table_part_t *c
     int32 result;
     int32 begin = 0;
     int32 curr = 0;
-    uint32 subpart_no = GS_INVALID_ID32;
+    uint32 subpart_no = CT_INVALID_ID32;
     int32 end = compart->desc.subpart_cnt - 1;
     table_part_t *table_part = NULL;
     knl_panic_log(compart->desc.subpart_cnt > 0, "subpart_cnt abnormal, panic info: compart_table %s subpart_cnt %u",
@@ -670,25 +676,25 @@ static uint32 subpart_locate_range_key(part_table_t *part_table, table_part_t *c
 
 uint32 subpart_locate_list_key(part_table_t *part_table, table_part_t *compart, part_decode_key_t *decoder)
 {
-    bool32 is_found = GS_FALSE;
-    text_t values[GS_MAX_PARTKEY_COLUMNS];
+    bool32 is_found = CT_FALSE;
+    text_t values[CT_MAX_PARTKEY_COLUMNS];
     part_decode_key_t *curr = NULL;
     table_part_t *part = NULL;
     list_item_t *item = NULL;
 
     if (decoder->lens[0] == PART_KEY_DEFAULT_LEN) {
         item = &part_table->sub_lbuckets[DEFAULT_PART_LIST].first;
-        while (item->id != GS_INVALID_ID32) {
+        while (item->id != CT_INVALID_ID32) {
             part = PART_GET_SUBENTITY(part_table, item->id);
             if (part->parent_partno == compart->part_no) {
-                is_found = GS_TRUE;
+                is_found = CT_TRUE;
                 break;
             }
 
             item = &part->lnext[item->offset];
         }
         
-        return (is_found ? part->part_no : GS_INVALID_ID32);
+        return (is_found ? part->part_no : CT_INVALID_ID32);
     }
 
     for (uint16 i = 0; i < decoder->count; i++) {
@@ -704,7 +710,7 @@ uint32 subpart_locate_list_key(part_table_t *part_table, table_part_t *compart, 
     uint32 hash = dc_cal_list_value_hash(values, decoder->count);
     item = &part_table->sub_lbuckets[hash].first;
 
-    while (item->id != GS_INVALID_ID32) {
+    while (item->id != CT_INVALID_ID32) {
         part = PART_GET_SUBENTITY(part_table, item->id);
         curr = &part->desc.groups[item->offset];
 
@@ -716,17 +722,17 @@ uint32 subpart_locate_list_key(part_table_t *part_table, table_part_t *compart, 
     }
 
     item = &part_table->sub_lbuckets[DEFAULT_PART_LIST].first;
-    while (item->id != GS_INVALID_ID32) {
+    while (item->id != CT_INVALID_ID32) {
         part = PART_GET_SUBENTITY(part_table, item->id);
         if (part->parent_partno == compart->part_no) {
-            is_found = GS_TRUE;
+            is_found = CT_TRUE;
             break;
         }
 
         item = &part->lnext[item->offset];
     }
 
-    return (is_found ? part->part_no : GS_INVALID_ID32);
+    return (is_found ? part->part_no : CT_INVALID_ID32);
 }
 
 static uint32 subpart_hash_get_pno(part_table_t *part_table, table_part_t *compart, uint32 hash_value)
@@ -753,10 +759,10 @@ static uint32 subpart_hash_get_pno(part_table_t *part_table, table_part_t *compa
 
 static uint32 subpart_locate_hash_key(dc_entity_t *entity, table_part_t *compart, knl_part_key_t *part_key)
 {
-    text_t values[GS_MAX_PARTKEY_COLUMNS];
+    text_t values[CT_MAX_PARTKEY_COLUMNS];
     variant_t variant_value;
     uint32 hash_value = 0;
-    bool32 is_type_ok = GS_FALSE;
+    bool32 is_type_ok = CT_FALSE;
     part_key_t *key = part_key->key;
     table_t *table = &entity->table;
     part_table_t *part_table = table->part_table;
@@ -765,7 +771,7 @@ static uint32 subpart_locate_hash_key(dc_entity_t *entity, table_part_t *compart
     routing_info_t *routing_info = knl_get_table_routing_info(entity);
 #endif
 
-    knl_panic_log(key->column_count < GS_MAX_COLUMNS, "column_count is abnormal, panic info: table %s column_count %u",
+    knl_panic_log(key->column_count < CT_MAX_COLUMNS, "column_count is abnormal, panic info: table %s column_count %u",
                   table->desc.name, key->column_count);
     for (uint16 i = 0; i < decoder->count; i++) {
         values[i].str = decoder->buf + decoder->offsets[i];
@@ -776,13 +782,13 @@ static uint32 subpart_locate_hash_key(dc_entity_t *entity, table_part_t *compart
             values[i].len = (uint32)decoder->lens[i];
         }
 
-        if (part_get_hash_key(entity, &values[i], &part_table->sub_keycols[i], &variant_value) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_INVALID_PART_TYPE, "key", "");
-            return GS_INVALID_ID32;
+        if (part_get_hash_key(entity, &values[i], &part_table->sub_keycols[i], &variant_value) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_INVALID_PART_TYPE, "key", "");
+            return CT_INVALID_ID32;
         }
         
 #ifdef Z_SHARDING
-        if (part_table->desc.is_slice == GS_TRUE && table->desc.slice_count > 0 &&
+        if (part_table->desc.is_slice == CT_TRUE && table->desc.slice_count > 0 &&
             routing_info->type == distribute_hash_basic) {
             hash_value = hash_basic_value_combination(i, hash_value, &variant_value, &is_type_ok);
         } else
@@ -792,13 +798,13 @@ static uint32 subpart_locate_hash_key(dc_entity_t *entity, table_part_t *compart
         }
         
         if (!is_type_ok) {
-            GS_THROW_ERROR(ERR_INVALID_PART_TYPE, "key", "");
-            return GS_INVALID_ID32;
+            CT_THROW_ERROR(ERR_INVALID_PART_TYPE, "key", "");
+            return CT_INVALID_ID32;
         }
     }
     
 #ifdef Z_SHARDING
-    if (part_table->desc.is_slice == GS_TRUE && table->desc.slice_count > 0) {
+    if (part_table->desc.is_slice == CT_TRUE && table->desc.slice_count > 0) {
         uint32 modulo = abs(hash_value) % BUCKETDATALEN;
         uint32 slice_id = modulo % table->desc.slice_count;
         return subpart_hash_get_pno(part_table, compart, slice_id);
@@ -827,7 +833,7 @@ uint32 knl_locate_subpart_key(knl_handle_t dc_entity, uint32 compart_no, part_ke
         case PART_TYPE_HASH:
             return subpart_locate_hash_key(entity, compart, &part_key);
         default:
-            return GS_INVALID_ID32;
+            return CT_INVALID_ID32;
     }
 }
 

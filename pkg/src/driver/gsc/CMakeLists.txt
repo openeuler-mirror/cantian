@@ -2,7 +2,7 @@ include_directories(
         "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
-link_directories(${CTDB_LIB} ${PCRE_LIB_PATH} ${VPP_LIB_PATH} ${Z_LIB_PATH})
+link_directories(${CANTIANDB_LIB} ${PCRE_LIB_PATH} ${VPP_LIB_PATH} ${Z_LIB_PATH})
 set(M_EXP_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/m.exp)
 
 aux_source_directory(. GSC_SRC)
@@ -14,8 +14,8 @@ set(CLIENT_SRC
         )
 
 # Precompiled options
-add_compile_definitions(GS_DRIVER_VERSION=${DD_GS_DRIVER_VERSION})
-add_compile_definitions(GET_DRIVER_VERSION=${DD_GS_LIB_VER_APINAME})
+add_compile_definitions(CT_DRIVER_VERSION=${DD_CT_DRIVER_VERSION})
+add_compile_definitions(GET_DRIVER_VERSION=${DD_CT_LIB_VER_APINAME})
 
 add_compile_options(-Wl,-z,now)
 
@@ -26,11 +26,11 @@ add_library(zeclient SHARED ${CLIENT_SRC})
 
 set_target_properties(zeclient PROPERTIES OUTPUT_NAME zeclient
         CLEAN_DIRECT_OUTPUT 1
-        ARCHIVE_OUTPUT_DIRECTORY ${CTDB_LIB}
+        ARCHIVE_OUTPUT_DIRECTORY ${CANTIANDB_LIB}
         )
 set_target_properties(zeclient_static PROPERTIES OUTPUT_NAME zeclient
         CLEAN_DIRECT_OUTPUT 1
-        ARCHIVE_OUTPUT_DIRECTORY ${CTDB_LIB}
+        ARCHIVE_OUTPUT_DIRECTORY ${CANTIANDB_LIB}
         )
 
 if (USE32BIT)
@@ -47,7 +47,7 @@ endif (USE32BIT)
 
 option(USE_FUZZASAN OFF)
 if (USE_FUZZASAN)
-    target_link_libraries(zeclient PRIVATE zecommon -Wl,--version-script=${M_EXP_SCRIPT} -Wl,--whole-archive ${vpp_libsecurec} ${vpp_libipsi_crypto} ${vpp_libipsi_ssl} -Wl,--no-whole-archive pthread dl m rt pcre2-8 Secodefuzz)
+    target_link_libraries(zeclient PRIVATE zecommon -Wl,--version-script=${M_EXP_SCRIPT} -Wl,--whole-archive ${vpp_libsecurec} ${vpp_libipsi_crypto} ${vpp_libipsi_ssl} ${hw_kmc_lib} ${hw_sdp_lib} -Wl,--no-whole-archive pthread dl m rt pcre2-8 Secodefuzz)
 else ()
-    target_link_libraries(zeclient PRIVATE zecommon -Wl,--version-script=${M_EXP_SCRIPT} -Wl,--whole-archive ${vpp_libsecurec} ${vpp_libipsi_crypto} ${vpp_libipsi_ssl} -Wl,--no-whole-archive pthread dl m rt pcre2-8)
+    target_link_libraries(zeclient PRIVATE zecommon -Wl,--version-script=${M_EXP_SCRIPT} -Wl,--whole-archive ${vpp_libsecurec} ${vpp_libipsi_crypto} ${vpp_libipsi_ssl} ${hw_kmc_lib} ${hw_sdp_lib} -Wl,--no-whole-archive pthread dl m rt pcre2-8)
 endif(USE_FUZZASAN)

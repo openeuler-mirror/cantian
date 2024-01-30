@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -28,6 +28,6 @@
 #include "var_opr.h"
 
 status_t opr_exec_sub(opr_operand_set_t *op_set);
-status_t opr_type_infer_sub(gs_type_t left, gs_type_t right, gs_type_t *result);
+status_t opr_type_infer_sub(ct_type_t left, ct_type_t right, ct_type_t *result);
 
 #endif

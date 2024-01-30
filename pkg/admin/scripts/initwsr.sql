@@ -1,0 +1,5928 @@
+--01
+DROP TABLE IF EXISTS WSR_EXCEPTION_LOG PURGE
+/
+
+CREATE TABLE WSR_EXCEPTION_LOG
+(
+    CTIME                   DATE                           NOT NULL,
+    PROCEDURENAME           VARCHAR(100)                   NOT NULL,
+    ERRORINFO               VARCHAR(8000)                  
+)
+TABLESPACE SYSAUX
+/
+
+CREATE INDEX IX_EXCEPTION_LOG ON WSR_EXCEPTION_LOG(CTIME) 
+TABLESPACE SYSAUX
+/
+
+CREATE OR REPLACE PROCEDURE WSR$INSERT_ERRORLOG
+(
+    STR_IN_PNAME           IN             VARCHAR,
+    STR_IN_ERRORINFO       IN             VARCHAR
+)
+AS
+BEGIN
+    INSERT INTO WSR_EXCEPTION_LOG
+              ( CTIME,
+                PROCEDURENAME,
+                ERRORINFO
+              )
+        VALUES( SYSDATE,
+                STR_IN_PNAME,
+                STR_IN_ERRORINFO
+              );
+    COMMIT;
+END;
+/
+
+DECLARE
+    I_L_COUNT   INT;
+    I_L_NUM     INT := 0;
+BEGIN
+    FOR ITEM IN (SELECT * FROM MY_JOBS WHERE WHAT IN ('WSR$CREATE_SNAPSHOT();', 'WSR$DROP_SNAPSHOT_TIME();', 'WSR$CREATE_SESSION_SNAPSHOT();')) LOOP
+        DBE_TASK.SUSPEND(ITEM.JOB, TRUE);
+    END LOOP;
+    COMMIT;
+    
+    LOOP
+        SELECT COUNT(*)
+          INTO I_L_COUNT
+          FROM MY_JOBS A, ADM_JOBS_RUNNING B
+         WHERE WHAT IN ('WSR$CREATE_SNAPSHOT();', 'WSR$DROP_SNAPSHOT_TIME();', 'WSR$CREATE_SESSION_SNAPSHOT();')
+           AND A.JOB = B.JOB;
+        
+        IF (I_L_COUNT > 0) THEN
+            SLEEP(1);
+            I_L_NUM := I_L_NUM + 1;
+            
+            IF (I_L_NUM > 15) THEN
+                THROW_EXCEPTION(-20000, 'CAN''T STOP WSR JOB!');
+            END IF;
+        ELSE
+            EXIT;
+        END IF;
+    END LOOP;
+END;
+/
+
+DROP TABLE IF EXISTS WSR_CONTROL_BK PURGE
+/
+
+DECLARE
+    I_L_COUNT          BINARY_INTEGER;
+BEGIN
+    SELECT COUNT(*)
+      INTO I_L_COUNT
+      FROM SYS_TABLES
+     WHERE NAME = 'WSR_CONTROL'
+       AND USER# = 0;
+    
+    IF (I_L_COUNT > 0) THEN
+        EXECUTE IMMEDIATE 'CREATE TABLE WSR_CONTROL_BK AS SELECT * FROM WSR_CONTROL';
+    END IF;
+END;
+/
+
+DROP TABLE IF EXISTS WRM$_WR_CONTROL PURGE
+/
+DROP TABLE IF EXISTS WSR_CONTROL PURGE
+/
+
+CREATE TABLE WSR_CONTROL
+(
+    DBID                    BINARY_INTEGER                          NOT NULL,
+    SNAP_INTERVAL           INTERVAL DAY(5) TO SECOND(1)            NOT NULL,
+    SNAPINT_NUM             BINARY_INTEGER                          NOT NULL,
+    RETENTION               INTERVAL DAY(5) TO SECOND(1)            NOT NULL,
+    RETENTION_NUM           BINARY_INTEGER                          NOT NULL,
+    MOST_RECENT_SNAP_ID     BINARY_INTEGER,
+    MOST_RECENT_SNAP_TIME   TIMESTAMP(3),
+    STATUS                  VARCHAR(3)                              NOT NULL,
+    MOST_RECENT_PURGE_TIME  TIMESTAMP(3),
+    TOPNSQL                 BINARY_INTEGER                          NOT NULL,
+    LOG_DAYS                BINARY_INTEGER    DEFAULT 30            NOT NULL,
+    SESSION_STATUS          VARCHAR(3)                              NOT NULL,
+    SESSION_INTERVAL        BINARY_INTEGER                          NOT NULL
+) 
+TABLESPACE SYSAUX
+/
+
+INSERT INTO WSR_CONTROL(DBID, SNAP_INTERVAL, SNAPINT_NUM, RETENTION, RETENTION_NUM, STATUS, TOPNSQL, LOG_DAYS, SESSION_STATUS, SESSION_INTERVAL)
+SELECT DBID, NUMTODSINTERVAL(30, 'MINUTE'), 1800, NUMTODSINTERVAL(2, 'DAY'), 2*86400, 'Y', 200, 30, 'Y', 30
+ FROM DV_DATABASE
+/
+
+CREATE OR REPLACE PROCEDURE WSR$CHECK_COLUMN
+(
+    STR_IN_COLUMNNAME    IN     VARCHAR
+)
+AS
+    I_L_COUNT INTEGER;
+BEGIN
+    SELECT COUNT(*)
+      INTO I_L_COUNT
+      FROM MY_TAB_COLUMNS
+     WHERE TABLE_NAME = 'WSR_CONTROL_BK'
+       AND COLUMN_NAME = UPPER(STR_IN_COLUMNNAME);
+    
+    IF (I_L_COUNT > 0) THEN
+        EXECUTE IMMEDIATE 'UPDATE WSR_CONTROL SET ' || STR_IN_COLUMNNAME || ' = NVL((SELECT ' || STR_IN_COLUMNNAME || ' FROM WSR_CONTROL_BK), ' || STR_IN_COLUMNNAME ||')';
+    END IF;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        WSR$INSERT_ERRORLOG('WSR$CHECK_COLUMN', SUBSTRB(SQL_ERR_MSG,1,2000));
+END;
+/
+
+CALL WSR$CHECK_COLUMN('SNAP_INTERVAL')
+/
+CALL WSR$CHECK_COLUMN('SNAPINT_NUM')
+/
+CALL WSR$CHECK_COLUMN('RETENTION')
+/
+CALL WSR$CHECK_COLUMN('RETENTION_NUM')
+/
+CALL WSR$CHECK_COLUMN('STATUS')
+/
+CALL WSR$CHECK_COLUMN('TOPNSQL')
+/
+CALL WSR$CHECK_COLUMN('LOG_DAYS')
+/
+CALL WSR$CHECK_COLUMN('SESSION_STATUS')
+/
+CALL WSR$CHECK_COLUMN('SESSION_INTERVAL')
+/
+
+DROP PROCEDURE WSR$CHECK_COLUMN
+/
+DROP TABLE IF EXISTS WSR_CONTROL_BK PURGE
+/
+DROP VIEW IF EXISTS DBA_HIST_WR_CONTROL
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_WR_CONTROL AS
+SELECT DBID, SNAP_INTERVAL, RETENTION, TOPNSQL, STATUS, LOG_DAYS, SESSION_STATUS, SESSION_INTERVAL
+FROM SYS.WSR_CONTROL
+/
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_WR_CONTROL FOR SYS.ADM_HIST_WR_CONTROL
+/
+
+--WSR_TRANSACTION
+DROP TABLE IF EXISTS WSR_TRANSACTION PURGE
+/
+
+CREATE TABLE WSR_TRANSACTION
+(
+    SNAP_TIME                           DATE                  NOT NULL,
+    SID                                 BINARY_INTEGER        NOT NULL,
+    UNDO_COUNT                          BINARY_INTEGER,
+    BEGIN_TIME                          DATE
+)
+PARTITION BY RANGE(SNAP_TIME) INTERVAL (NUMTODSINTERVAL(1,'DAY')) (PARTITION P_0 VALUES LESS THAN (TO_DATE('2009-02-01','YYYY-MM-DD')))
+TABLESPACE SYSAUX
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_TRANSACTION AS
+SELECT SNAP_TIME, SID, UNDO_COUNT, BEGIN_TIME
+FROM SYS.WSR_TRANSACTION
+/
+
+--WSR_LOCK
+DROP TABLE IF EXISTS WSR_LOCK_OBJECT PURGE
+/
+
+CREATE TABLE WSR_LOCK_OBJECT
+(
+    SNAP_TIME                           DATE                  NOT NULL,
+    SID                                 BINARY_INTEGER,
+    OBJECT_NAME                         CHAR(68 BYTE),
+    LMODE                               CHAR(10 BYTE)
+)
+PARTITION BY RANGE(SNAP_TIME) INTERVAL (NUMTODSINTERVAL(1,'DAY')) (PARTITION P_0 VALUES LESS THAN (TO_DATE('2009-02-01','YYYY-MM-DD')))
+TABLESPACE SYSAUX
+/
+
+CREATE INDEX IX_WSR_LOCK_OBJECT ON WSR_LOCK_OBJECT(SNAP_TIME, SID) LOCAL
+TABLESPACE SYSAUX
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_LOCK_OBJECT AS
+SELECT SNAP_TIME, SID, OBJECT_NAME, LMODE
+FROM SYS.WSR_LOCK_OBJECT
+/
+
+--WSR_SESSION_SUMMARY
+DROP TABLE IF EXISTS WSR_INSTANCE_SNAP PURGE
+/
+
+CREATE TABLE WSR_INSTANCE_SNAP
+(
+    SNAP_TIME                        DATE,
+    SESSION_NUM                      BINARY_INTEGER,
+    ACTIVE_SESS_NUM                  BINARY_INTEGER,
+    LOCK_NUM                         BINARY_INTEGER,
+    TRANSACTION_NUM                  BINARY_INTEGER,
+    TEMP_BUFFER_FREE                 BINARY_INTEGER,
+    DATA_BUFFER_PIN                  BINARY_INTEGER,
+    TS_SYSTEM_FREE                   BINARY_BIGINT,
+    TS_SYSWARE_FREE                  BINARY_BIGINT,       
+    TS_USER_FREE                     BINARY_BIGINT,     
+    TXN_PAGES                        BINARY_INTEGER, 
+    UNDO_PAGES                       BINARY_INTEGER,
+    WRITE_PAGES                      BINARY_INTEGER,
+    MASTER_LOCALITY                  BINARY_DOUBLE
+) 
+PARTITION BY RANGE(SNAP_TIME) INTERVAL (NUMTODSINTERVAL(1,'DAY')) (PARTITION P_0 VALUES LESS THAN (TO_DATE('2009-02-01','YYYY-MM-DD')))
+TABLESPACE SYSAUX
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_INSTANCE_SNAP AS
+SELECT SNAP_TIME, SESSION_NUM, ACTIVE_SESS_NUM, LOCK_NUM,
+       TRANSACTION_NUM, TEMP_BUFFER_FREE, DATA_BUFFER_PIN,  
+       TS_SYSTEM_FREE, TS_SYSWARE_FREE, TS_USER_FREE,     
+       TXN_PAGES, UNDO_PAGES, WRITE_PAGES       
+FROM SYS.WSR_INSTANCE_SNAP
+/
+
+CREATE INDEX IX_WSR_INSTANCE_SNAP ON WSR_INSTANCE_SNAP(SNAP_TIME) LOCAL
+TABLESPACE SYSAUX
+/
+
+--WSR_SESSION_SQL
+DROP TABLE IF EXISTS WSR_SESSION_SQL PURGE
+/
+
+CREATE TABLE WSR_SESSION_SQL
+(
+    SID                                 BINARY_INTEGER,
+    CTIME                               DATE,
+    SQL_ID                              VARCHAR(32 BYTE),
+    CURR_SCHEMA                         VARCHAR(64 BYTE),
+    CLIENT_IP                           VARCHAR(20 BYTE),
+    PROGRAM                             VARCHAR(256 BYTE),
+    AUTO_COMMIT                         BOOLEAN,
+    LOGON_TIME                          DATE,
+    WAIT_SID                            BINARY_INTEGER,
+    SQL_EXEC_START                      DATE,
+    MODULE                              VARCHAR(64 BYTE),
+    EVENT                               VARCHAR(64 BYTE)
+)
+PARTITION BY RANGE(CTIME) INTERVAL (NUMTODSINTERVAL(1,'DAY')) (PARTITION P_0 VALUES LESS THAN (TO_DATE('2009-02-01','YYYY-MM-DD')))
+TABLESPACE SYSAUX
+/
+
+CREATE INDEX IX_WSR_SESSION_SQL ON WSR_SESSION_SQL(CTIME) LOCAL
+TABLESPACE SYSAUX
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_SESSION_SQL AS
+SELECT SID, CTIME, SQL_ID, CURR_SCHEMA, CLIENT_IP, PROGRAM,       
+       AUTO_COMMIT, LOGON_TIME, WAIT_SID, SQL_EXEC_START,
+       MODULE, EVENT         
+FROM SYS.WSR_SESSION_SQL
+/
+
+DROP TABLE IF EXISTS WRM$_SNAPSHOT PURGE
+/
+
+DROP TABLE IF EXISTS WSR_SNAPSHOT PURGE
+/
+
+CREATE TABLE WSR_SNAPSHOT
+(
+    SNAP_ID         BINARY_INTEGER                        NOT NULL,
+    DBID            BINARY_INTEGER                        NOT NULL,
+    INSTANCE_ID     BINARY_INTEGER                        NOT NULL,
+    STARTUP_TIME    TIMESTAMP(3),
+    SNAP_TIME       TIMESTAMP(3)                          NOT NULL,
+    FLUSH_ELAPSED   INTERVAL DAY(5) TO SECOND(1)          NOT NULL,
+    SESSIONS        BINARY_INTEGER                        NOT NULL,
+    CURSORS         BINARY_INTEGER                        NOT NULL
+)
+TABLESPACE SYSAUX
+/
+
+ALTER TABLE WSR_SNAPSHOT
+  ADD CONSTRAINT WSR_SNAPSHOT_PK PRIMARY KEY (SNAP_ID, DBID, INSTANCE_ID)
+/  
+
+DECLARE
+    I_L_COUNT INT;
+BEGIN
+    SELECT COUNT(*) 
+      INTO I_L_COUNT
+      FROM MY_SEQUENCES
+     WHERE SEQUENCE_NAME = UPPER('SNAP_ID$');
+    
+    IF (I_L_COUNT > 0) THEN
+        EXECUTE IMMEDIATE 'DROP SEQUENCE SNAP_ID$';
+    END IF; 
+END;
+/
+
+CREATE SEQUENCE SNAP_ID$
+MINVALUE 1
+NOCACHE
+/
+
+DROP VIEW IF EXISTS DBA_HIST_SNAPSHOT
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_SNAPSHOT AS
+SELECT SNAP_ID, DBID, INSTANCE_ID, STARTUP_TIME,
+       SNAP_TIME,
+       FLUSH_ELAPSED, SESSIONS, CURSORS
+FROM SYS.WSR_SNAPSHOT
+/
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_SNAPSHOT FOR SYS.ADM_HIST_SNAPSHOT
+/
+
+DROP TABLE IF EXISTS WRH$_SYSSTAT PURGE
+/
+
+DROP TABLE IF EXISTS WSR_SYS_STAT PURGE
+/
+
+CREATE TABLE WSR_SYS_STAT
+(
+    SNAP_ID        BINARY_INTEGER       NOT NULL,
+    STAT_ID        BINARY_INTEGER       NOT NULL,
+    STAT_NAME      VARCHAR(64)  NOT NULL,
+    VALUE          BINARY_BIGINT
+)
+TABLESPACE SYSAUX
+/
+
+ALTER TABLE WSR_SYS_STAT
+  ADD CONSTRAINT WSR_SYS_STAT_PK PRIMARY KEY (SNAP_ID, STAT_NAME)
+/
+
+DROP TABLE IF EXISTS WSR_MES_STAT
+/
+
+CREATE TABLE WSR_MES_STAT
+(
+    SNAP_ID	       BINARY_INTEGER       NOT NULL,
+    DESCRIPTION	     VARCHAR(64)  NOT NULL,
+    SEND	         BINARY_BIGINT,
+	RECV_PROCESS     BINARY_BIGINT
+)
+TABLESPACE SYSTEM
+/
+
+ALTER TABLE WSR_MES_STAT
+  ADD CONSTRAINT WSR_MES_STAT_PK PRIMARY KEY (SNAP_ID, DESCRIPTION)
+/
+
+DROP VIEW IF EXISTS DBA_HIST_SYSSTAT
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_SYSSTAT AS
+SELECT S.SNAP_ID, S.STAT_ID, S.STAT_NAME, S.VALUE
+  FROM SYS.WSR_SYS_STAT S
+/
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_SYSSTAT FOR SYS.ADM_HIST_SYSSTAT
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_MESSTAT AS
+SELECT S.SNAP_ID, S.DESCRIPTION, S.SEND, S.RECV_PROCESS
+  FROM SYS.WSR_MES_STAT S
+/  
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_MESSTAT FOR SYS.ADM_HIST_MESSTAT
+/
+
+DROP TABLE IF EXISTS WRH$_SYSTEM PURGE
+/
+
+DROP TABLE IF EXISTS WSR_SYSTEM PURGE
+/
+
+CREATE TABLE WSR_SYSTEM
+(
+    SNAP_ID        BINARY_INTEGER       NOT NULL,
+    STAT_ID        BINARY_INTEGER       NOT NULL,
+    STAT_NAME      VARCHAR(64)          NOT NULL,
+    VALUE          VARCHAR(128)
+)
+TABLESPACE SYSAUX
+/
+
+ALTER TABLE WSR_SYSTEM
+  ADD CONSTRAINT WSR_SYSTEM_PK PRIMARY KEY (SNAP_ID, STAT_ID)
+/
+
+DROP VIEW IF EXISTS DBA_HIST_SYSTEM
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_SYSTEM AS
+SELECT S.SNAP_ID, S.STAT_ID, S.STAT_NAME, S.VALUE
+  FROM SYS.WSR_SYSTEM S
+/
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_SYSTEM FOR SYS.ADM_HIST_SYSTEM
+/
+
+DROP TABLE IF EXISTS WRH$_SYSTEM_EVENT PURGE
+/
+
+DROP TABLE IF EXISTS WSR_SYSTEM_EVENT PURGE
+/
+
+CREATE TABLE WSR_SYSTEM_EVENT
+(
+    SNAP_ID              BINARY_INTEGER       NOT NULL,
+    EVENT#               BINARY_INTEGER       NOT NULL,
+    EVENT                VARCHAR(64),
+    WAIT_CLASS           VARCHAR(64),
+    TOTAL_WAITS          VARCHAR(64),
+    TIME_WAITED          BINARY_BIGINT,
+    TIME_WAITED_MIRCO    BINARY_BIGINT,
+    AVERAGE_WAIT         BINARY_DOUBLE,
+    AVERAGE_WAIT_MIRCO   BINARY_BIGINT
+)
+TABLESPACE SYSAUX
+/
+
+ALTER TABLE WSR_SYSTEM_EVENT
+  ADD CONSTRAINT WSR_SYSTEM_EVENT_PK PRIMARY KEY (SNAP_ID, EVENT#)
+/
+
+DROP VIEW IF EXISTS DBA_HIST_SYSTEM_EVENT
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_SYSTEM_EVENT AS
+SELECT S.SNAP_ID, EVENT#, EVENT, WAIT_CLASS, TOTAL_WAITS, 
+       TIME_WAITED, TIME_WAITED_MIRCO, AVERAGE_WAIT, AVERAGE_WAIT_MIRCO
+  FROM SYS.WSR_SYSTEM_EVENT S
+/
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_SYSTEM_EVENT FOR SYS.ADM_HIST_SYSTEM_EVENT
+/
+
+DROP TABLE IF EXISTS WRH$_SQLAREA PURGE
+/
+
+DROP TABLE IF EXISTS WSR_SQLAREA PURGE
+/
+
+CREATE TABLE WSR_SQLAREA
+(
+    SNAP_ID              BINARY_INTEGER       NOT NULL,
+    SQL_ID               VARCHAR(10),
+    SQL_TEXT             VARCHAR(8000),
+    MODULE               VARCHAR(64),
+    EXECUTIONS           BINARY_BIGINT,
+    DISK_READS           BINARY_BIGINT,
+    BUFFER_GETS          BINARY_BIGINT,
+    SORTS                BINARY_BIGINT,
+    PARSE_CALLS          BINARY_BIGINT,
+    PROCESSED_ROWS       BINARY_BIGINT,
+    IO_WAIT_TIME         BINARY_BIGINT,
+    CON_WAIT_TIME        BINARY_BIGINT,
+	NET_WAIT_TIME	       BINARY_BIGINT,
+    CPU_TIME             BINARY_BIGINT,
+    ELAPSED_TIME         BINARY_BIGINT,
+    REF_COUNT            BINARY_BIGINT,
+    IS_FREE              BOOLEAN,
+    CLEANED              BOOLEAN,
+    CR_GETS              BINARY_BIGINT,
+    PARSE_TIME           BINARY_BIGINT,
+    PARSING_USER_NAME    VARCHAR(64),
+    PROGRAM_ID           BINARY_BIGINT,
+    PROGRAM_LINE#        BINARY_INTEGER,
+    VM_PAGES_USED        BINARY_BIGINT,
+    NETWORK_TIME         BINARY_BIGINT
+)
+PARTITION BY RANGE(SNAP_ID) INTERVAL(1) (PARTITION P_0 VALUES LESS THAN (1))
+TABLESPACE SYSAUX
+/
+
+DROP VIEW IF EXISTS DBA_HIST_SQLAREA
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_SQLAREA
+AS
+SELECT SNAP_ID, SQL_ID, SQL_TEXT, MODULE, EXECUTIONS, DISK_READS,     
+       BUFFER_GETS, SORTS, PARSE_CALLS, PROCESSED_ROWS, 
+       IO_WAIT_TIME, CON_WAIT_TIME, NET_WAIT_TIME, CPU_TIME, ELAPSED_TIME,	
+       REF_COUNT, IS_FREE, CLEANED, CR_GETS, PARSE_TIME, PARSING_USER_NAME, PROGRAM_ID, PROGRAM_LINE#, VM_PAGES_USED, NETWORK_TIME
+  FROM SYS.WSR_SQLAREA
+/       
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_SQLAREA FOR SYS.ADM_HIST_SQLAREA
+/
+
+DROP TABLE IF EXISTS WRH$_PARAMETER PURGE
+/
+
+DROP TABLE IF EXISTS WSR_PARAMETER PURGE
+/
+
+CREATE TABLE WSR_PARAMETER
+(
+    SNAP_ID              BINARY_INTEGER        NOT NULL,
+    NAME                 VARCHAR(64)   NOT NULL,
+    VALUE                VARCHAR(2048),
+    RUNTIME_VALUE        VARCHAR(2048),
+    DEFAULT_VALUE        VARCHAR(2048),
+    ISDEFAULT            VARCHAR(20),
+    MODIFIABLE           VARCHAR(20),
+    DESCRIPTION          VARCHAR(2048),
+    RANGE                VARCHAR(2048),
+    DATATYPE             VARCHAR(20),
+    EFFECTIVE            VARCHAR(20)
+)
+TABLESPACE SYSAUX
+/
+
+ALTER TABLE WSR_PARAMETER
+  ADD CONSTRAINT WSR_PARAMETER_PK PRIMARY KEY (SNAP_ID, NAME)
+/
+
+DROP VIEW IF EXISTS DBA_HIST_PARAMETER
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_PARAMETER
+AS
+SELECT SNAP_ID, NAME, VALUE, RUNTIME_VALUE,DEFAULT_VALUE, 
+       ISDEFAULT, MODIFIABLE, DESCRIPTION, RANGE 
+       DATATYPE, EFFECTIVE          
+  FROM SYS.WSR_PARAMETER
+/       
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_PARAMETER FOR SYS.ADM_HIST_PARAMETER
+/
+
+DROP TABLE IF EXISTS WSR$_WAITSTAT PURGE
+/
+
+DROP TABLE IF EXISTS WSR_WAITSTAT PURGE
+/
+CREATE TABLE WSR_WAITSTAT
+(
+    SNAP_ID                             BINARY_INTEGER        NOT NULL,
+    CLASS                               VARCHAR(64 BYTE),
+    COUNT                               BINARY_INTEGER,
+    TIME                                BINARY_INTEGER
+)
+TABLESPACE SYSAUX
+/
+
+CREATE INDEX IX_WSR_WAITSTAT ON WSR_WAITSTAT(SNAP_ID)
+/
+
+DROP TABLE IF EXISTS WSR$_LATCH PURGE
+/
+
+DROP TABLE IF EXISTS WSR_LATCH PURGE
+/
+
+DROP VIEW IF EXISTS DBA_HIST_WAITSTAT
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_WAITSTAT
+AS
+SELECT SNAP_ID, CLASS, COUNT, TIME          
+  FROM SYS.WSR_WAITSTAT
+/       
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_WAITSTAT FOR SYS.ADM_HIST_WAITSTAT
+/
+
+CREATE TABLE WSR_LATCH
+(
+    SNAP_ID                             BINARY_INTEGER        NOT NULL,
+    ID                                  BINARY_INTEGER,
+    NAME                                VARCHAR(64 BYTE),
+    GETS                                BINARY_INTEGER,
+    MISSES                              BINARY_INTEGER,
+    SPIN_GETS                           BINARY_INTEGER,
+    WAIT_TIME                           BINARY_INTEGER    
+)
+TABLESPACE SYSAUX
+/
+
+ALTER TABLE WSR_LATCH
+  ADD CONSTRAINT WSR_LATCH_PK PRIMARY KEY (SNAP_ID, ID)
+/
+
+DROP TABLE IF EXISTS WSR$_LIBRARYCACHE PURGE
+/
+
+DROP TABLE IF EXISTS WSR_LIBRARYCACHE PURGE
+/
+
+DROP VIEW IF EXISTS DBA_HIST_LATCH
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_LATCH
+AS
+SELECT SNAP_ID, ID, NAME, GETS, MISSES, SPIN_GETS, WAIT_TIME          
+  FROM SYS.WSR_LATCH
+/       
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_LATCH FOR SYS.ADM_HIST_LATCH
+/
+
+CREATE TABLE WSR_LIBRARYCACHE
+(
+    SNAP_ID                             BINARY_INTEGER        NOT NULL,
+    NAMESPACE                           VARCHAR(20 BYTE),
+    GETS                                BINARY_BIGINT,
+    GETHITS                             BINARY_BIGINT,
+    PINS                                BINARY_BIGINT,
+    PINHITS                             BINARY_BIGINT,
+    RELOADS                             BINARY_BIGINT,
+    INVLIDATIONS                        BINARY_BIGINT
+)
+TABLESPACE SYSAUX
+/
+
+CREATE INDEX IX_WSR_LIBRARYCACHE ON WSR_LIBRARYCACHE(SNAP_ID)
+/
+
+DROP VIEW IF EXISTS DBA_HIST_LIBRARYCACHE
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_LIBRARYCACHE
+AS
+SELECT SNAP_ID, NAMESPACE, GETS, GETHITS, PINS, PINHITS, RELOADS, INVLIDATIONS          
+  FROM SYS.WSR_LIBRARYCACHE
+/       
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_LIBRARYCACHE FOR SYS.ADM_HIST_LIBRARYCACHE
+/
+
+DROP TABLE IF EXISTS WSR$_SEGMENT PURGE
+/
+
+DROP TABLE IF EXISTS WSR_SEGMENT PURGE
+/
+
+CREATE TABLE WSR_SEGMENT 
+(
+    SNAP_ID                             BINARY_INTEGER        NOT NULL,
+    OWNER                               VARCHAR(64 BYTE),
+    OBJECT_NAME                         VARCHAR(64 BYTE),
+    SUBOBJECT_NAME                      VARCHAR(64 BYTE),
+    TS#                                 BINARY_INTEGER,
+    OBJECT_TYPE                         VARCHAR(64 BYTE),
+    STATISTIC_NAME                      VARCHAR(64 BYTE),
+    STATISTIC#                          BINARY_INTEGER,
+    VALUE                               BINARY_INTEGER    
+)
+PARTITION BY RANGE(SNAP_ID) INTERVAL(1) (PARTITION P_0 VALUES LESS THAN (1))
+TABLESPACE SYSAUX
+/
+
+CREATE INDEX IX_WSR_SEGMENT ON WSR_SEGMENT(STATISTIC#) LOCAL
+/      
+
+DROP VIEW IF EXISTS DBA_HIST_SEGMENT 
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_SEGMENT 
+AS
+SELECT SNAP_ID, OWNER, OBJECT_NAME, SUBOBJECT_NAME, TS#, OBJECT_TYPE, STATISTIC_NAME, STATISTIC#, VALUE          
+  FROM SYS.WSR_SEGMENT 
+/       
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_SEGMENT FOR SYS.ADM_HIST_SEGMENT
+/
+
+DROP TABLE IF EXISTS WSR$_DBA_SEGMENTS PURGE
+/
+
+DROP TABLE IF EXISTS WSR_DBA_SEGMENTS PURGE
+/
+
+CREATE TABLE WSR_DBA_SEGMENTS
+(
+    SNAP_ID                                      BINARY_INTEGER        NOT NULL,
+    OWNER                                        VARCHAR(64 BYTE),
+    SEGMENT_NAME                                 VARCHAR(133 BYTE),
+    PARTITION_NAME                               VARCHAR(145 BYTE),
+    SEGMENT_TYPE                                 CHAR(5 BYTE),
+    TABLESPACE_NAME                              VARCHAR(64 BYTE),
+    BYTES                                        BINARY_BIGINT,
+    PAGES                                        BINARY_BIGINT,
+    EXTENTS                                      BINARY_BIGINT
+)
+PARTITION BY RANGE(SNAP_ID) INTERVAL(1) (PARTITION P_0 VALUES LESS THAN (1))
+TABLESPACE SYSAUX
+/
+
+DROP VIEW IF EXISTS DBA_HIST_DBASEGMENTS
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_DBASEGMENTS 
+AS
+SELECT SNAP_ID, OWNER, SEGMENT_NAME, PARTITION_NAME, SEGMENT_TYPE, TABLESPACE_NAME, BYTES, PAGES, EXTENTS          
+  FROM SYS.WSR_DBA_SEGMENTS 
+/   
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_DBASEGMENTS FOR SYS.ADM_HIST_DBASEGMENTS
+/
+
+--WSR_SQLTEXT
+DROP TABLE IF EXISTS WSR_SQLTEXT PURGE
+/ 
+
+CREATE TABLE WSR_SQLTEXT
+(
+ CTIME                               DATE,
+ SQL_ID                              VARCHAR(32 BYTE),
+ SQL_TEXT                            VARCHAR(8000 BYTE),
+ FLAG                                BINARY_INTEGER   --1: from dv_sessions 2: from dv_sqlarea 3: from dv_longsql
+)
+PARTITION BY RANGE(CTIME) INTERVAL (NUMTODSINTERVAL(1,'DAY')) (PARTITION P_0 VALUES LESS THAN (TO_DATE('2009-02-01','YYYY-MM-DD')))
+TABLESPACE SYSAUX
+/
+
+CREATE INDEX IX_WSR_SQLTEXT ON WSR_SQLTEXT (SQL_ID) LOCAL
+TABLESPACE SYSAUX 
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_SQLTEXT AS
+SELECT CTIME, SQL_ID, SQL_TEXT       
+FROM SYS.WSR_SQLTEXT
+/
+
+--WSR_SQLPLAN
+DROP TABLE IF EXISTS WSR_SQLPLAN PURGE
+/ 
+
+CREATE TABLE WSR_SQLPLAN
+(
+ CTIME                               DATE,
+ SQL_ID                              VARCHAR(32 BYTE),
+ EXPLAIN_ID                          VARCHAR(32 BYTE),
+ EXPLAIN_TEXT                        VARCHAR(8000 BYTE),
+ VERSION                             VARCHAR(256 BYTE)
+)
+PARTITION BY RANGE(CTIME) INTERVAL (NUMTODSINTERVAL(1,'DAY')) (PARTITION P_0 VALUES LESS THAN (TO_DATE('2009-02-01','YYYY-MM-DD')))
+TABLESPACE SYSAUX
+/
+
+CREATE INDEX IX_WSR_SQLPLAN ON WSR_SQLPLAN (SQL_ID, EXPLAIN_ID) LOCAL
+TABLESPACE SYSAUX 
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_SQLPLAN AS
+SELECT CTIME, SQL_ID, EXPLAIN_ID, EXPLAIN_TEXT, VERSION       
+FROM SYS.WSR_SQLPLAN
+/
+
+--WSR_LONGSQL
+DROP TABLE IF EXISTS WSR$_LONGSQL PURGE
+/ 
+
+DROP TABLE IF EXISTS WSR_LONGSQL PURGE
+/ 
+
+CREATE TABLE WSR_LONGSQL
+(
+ SNAP_ID                             BINARY_INTEGER        NOT NULL,
+ CTIME                               DATE,
+ ELAPSED_TIME                        NUMBER(38, 2),
+ SQL_ID                              VARCHAR(32 BYTE),
+ EXPLAIN_ID                          VARCHAR(32 BYTE),
+ STAGE                               VARCHAR(12 BYTE),
+ SQL_TEXT                            VARCHAR(100)
+)
+PARTITION BY RANGE(SNAP_ID) INTERVAL(1) (PARTITION P_0 VALUES LESS THAN (1))
+TABLESPACE SYSAUX
+/
+
+CREATE INDEX IX_WSR_LONGSQL_SQLID ON WSR_LONGSQL(SQL_ID) LOCAL
+/
+
+DROP VIEW IF EXISTS DBA_HIST_LONGSQL
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_LONGSQL
+AS
+SELECT SNAP_ID, CTIME, ELAPSED_TIME, SQL_ID, STAGE, SQL_TEXT
+  FROM SYS.WSR_LONGSQL
+/   
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_LONGSQL FOR SYS.ADM_HIST_LONGSQL
+/
+
+DROP TABLE IF EXISTS WSR$SQL_LIST PURGE
+/      
+
+DROP TABLE IF EXISTS WSR_SQL_LIST PURGE
+/ 
+
+--WSR_SESSION_EVENTS
+DROP TABLE IF EXISTS WSR_SESSION_EVENTS PURGE
+/ 
+
+CREATE TABLE WSR_SESSION_EVENTS
+(
+ SNAP_ID                             BINARY_INTEGER        NOT NULL,
+ SID                                 BINARY_INTEGER,
+ EVENT#                              BINARY_INTEGER,
+ EVENT                               VARCHAR(64 BYTE),
+ P1                                  VARCHAR(64 BYTE),
+ WAIT_CLASS                          VARCHAR(64 BYTE),
+ TOTAL_WAITS                         BINARY_BIGINT,
+ TIME_WAITED_MIRCO                   BINARY_BIGINT
+)
+PARTITION BY RANGE(SNAP_ID) INTERVAL(1) (PARTITION P_0 VALUES LESS THAN (1))
+TABLESPACE SYSAUX
+/
+
+CREATE INDEX IX_WSR_SESSION_EVENTS_SID ON WSR_SESSION_EVENTS(SID) LOCAL
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_SESSION_EVENTS AS
+SELECT SNAP_ID, SID, EVENT#, EVENT, P1,               
+       WAIT_CLASS, TOTAL_WAITS, TIME_WAITED_MIRCO      
+FROM SYS.WSR_SESSION_EVENTS
+/
+
+CREATE GLOBAL TEMPORARY TABLE WSR_SQL_LIST
+(
+    SQL_ID                              VARCHAR(100) PRIMARY KEY,
+    PDOWN_SQL_ID                        VARCHAR(100),
+    SQL_TEXT                            CLOB
+)
+ON COMMIT DELETE ROWS
+/
+
+DROP TABLE IF EXISTS WSR$SQL_LIST_PLAN PURGE
+/      
+
+DROP TABLE IF EXISTS WSR_SQL_LIST_PLAN PURGE
+/ 
+
+CREATE GLOBAL TEMPORARY TABLE WSR_SQL_LIST_PLAN
+(
+    SQL_ID                              VARCHAR(100) PRIMARY KEY,
+    ELAPSED_TIME                        NUMBER(38, 2),
+    EXPLAIN_TEXT                        CLOB
+)
+ON COMMIT DELETE ROWS
+/
+
+CREATE OR REPLACE PROCEDURE WSR$INSERT_SQL_LIST
+(
+    STR_SQL_ID       IN VARCHAR,
+    STR_SQL_TEXT     IN VARCHAR,
+    I_IN_STARTSNAPID IN BINARY_INTEGER,
+    I_IN_ENDSNAPID   IN BINARY_INTEGER
+)
+AS
+    I_L_COUNT                NUMBER(3);
+    I_L_ELAPSED_TIME         NUMBER(38, 2);
+    STR_L_EXPLAIN_TEXT       VARCHAR(8000);
+    STR_EXPLAIN_ID           VARCHAR(32 BYTE);
+    STR_PDOWN_SQL_ID         VARCHAR(1000);
+BEGIN
+    SELECT COUNT(*)
+      INTO I_L_COUNT
+      FROM WSR_SQL_LIST
+     WHERE SQL_ID = STR_SQL_ID;
+    
+    IF (I_L_COUNT = 0) THEN
+
+        STR_PDOWN_SQL_ID := '';
+    
+        IF (STR_SQL_TEXT IS NOT NULL AND STR_SQL_TEXT <> '') THEN
+        
+            INSERT INTO WSR_SQL_LIST
+                  ( SQL_ID,
+                     PDOWN_SQL_ID,
+                    SQL_TEXT
+                  )
+            VALUES( STR_SQL_ID,
+                    STR_PDOWN_SQL_ID,
+                    STR_SQL_TEXT
+                  );
+        ELSE
+            INSERT INTO WSR_SQL_LIST
+                  ( SQL_ID,
+                    PDOWN_SQL_ID,
+                    SQL_TEXT
+                  )
+            SELECT /*+rule*/ SQL_ID, STR_PDOWN_SQL_ID,
+                   SUBSTRB(SQL_TEXT, 1, 7500)
+              FROM WSR_SQLTEXT
+             WHERE SQL_ID = STR_SQL_ID
+             LIMIT 1;
+        END IF;
+        
+        BEGIN
+       
+            BEGIN   
+                SELECT ELAPSED_TIME, EXPLAIN_ID
+                  INTO I_L_ELAPSED_TIME, STR_EXPLAIN_ID
+                  FROM WSR_LONGSQL
+                 WHERE SQL_ID = STR_SQL_ID
+                   AND SNAP_ID BETWEEN I_IN_STARTSNAPID AND I_IN_ENDSNAPID
+                 ORDER BY ELAPSED_TIME DESC
+                 LIMIT 1;              
+        
+                SELECT SUBSTRB(REPLACE(EXPLAIN_TEXT, '"'), 1, 7500)
+                  INTO STR_L_EXPLAIN_TEXT
+                  FROM WSR_SQLPLAN
+                 WHERE SQL_ID = STR_SQL_ID
+                   AND EXPLAIN_ID = STR_EXPLAIN_ID
+                 LIMIT 1;
+            EXCEPTION
+                WHEN OTHERS THEN
+                    SELECT SUBSTRB(REPLACE(EXPLAIN_TEXT, '"'), 1, 7500)
+                      INTO STR_L_EXPLAIN_TEXT
+                      FROM WSR_SQLPLAN
+                     WHERE SQL_ID = STR_SQL_ID
+                     LIMIT 1;  
+            END;                                   
+             
+            INSERT INTO WSR_SQL_LIST_PLAN
+                      ( SQL_ID,
+                        ELAPSED_TIME,
+                        EXPLAIN_TEXT
+                      )
+                VALUES( STR_SQL_ID,
+                        I_L_ELAPSED_TIME,
+                        SUBSTRB(STR_L_EXPLAIN_TEXT, 1, 7500)
+                      );              
+        EXCEPTION
+            WHEN OTHERS THEN
+                NULL;       
+        END;
+           
+    END IF;
+    
+END;
+/
+        
+CREATE OR REPLACE PROCEDURE WSR$CREATE_SNAPSHOT
+AS      
+    I_L_SNAP_ID        BINARY_INTEGER;
+    I_L_DBID           BINARY_INTEGER;
+    I_L_INSTANCE_ID    BINARY_INTEGER;
+    DT_L_STARTTIME     TIMESTAMP := SYSTIMESTAMP;
+    DT_L_SNAPDAY       DATE := TRUNC(SYSDATE);
+    I_L_COUNT          BINARY_INTEGER;
+    I_L_RET            BINARY_INTEGER;
+    I_L_FLAG           BINARY_INTEGER;
+    I_L_LENGTH         BINARY_INTEGER;
+BEGIN  
+    IF (GET_LOCK('SYS.WSR$CREATE_SNAPSHOT') <> 1) THEN
+        RETURN;
+    END IF;
+
+    SELECT SNAP_ID$.NEXTVAL
+      INTO I_L_SNAP_ID
+      FROM SYS_DUMMY;
+        
+    SELECT INSTANCE_ID
+      INTO I_L_INSTANCE_ID
+      FROM DV_INSTANCE;
+    
+    SELECT DBID
+      INTO I_L_DBID
+      FROM DV_DATABASE;
+
+    INSERT INTO WSR_SNAPSHOT
+          ( SNAP_ID,
+            DBID,
+            INSTANCE_ID,
+            STARTUP_TIME,
+            SNAP_TIME,
+            FLUSH_ELAPSED,
+            SESSIONS,
+            CURSORS
+          )
+    VALUES( I_L_SNAP_ID,
+            I_L_DBID,
+            I_L_INSTANCE_ID,
+            (SELECT STARTUP_TIME FROM DV_INSTANCE),
+            DT_L_STARTTIME,
+            NUMTODSINTERVAL((SYSDATE - CAST (DT_L_STARTTIME AS DATE)) * 86400, 'SECOND'),
+            (SELECT COUNT(*) FROM DV_SESSIONS),
+            (SELECT COUNT(*) FROM DV_OPEN_CURSORS)
+          );
+
+    INSERT INTO WSR_SYS_STAT
+              ( SNAP_ID,     
+                STAT_ID,     
+                STAT_NAME,
+                VALUE
+              )
+         SELECT I_L_SNAP_ID,
+                STATISTIC#,
+                NAME,
+                VALUE
+           FROM DV_SYS_STATS;	    
+	
+	INSERT INTO WSR_MES_STAT
+              ( SNAP_ID,	    
+                DESCRIPTION,	    
+                SEND,
+                RECV_PROCESS
+              )
+         SELECT I_L_SNAP_ID,
+                DESCRIPTION,
+                SEND,
+                RECV_PROCESS
+           FROM MES_STAT MES, DV_INSTANCE INST WHERE MES.INST_ID = INST.INSTANCE_ID ORDER BY SEND + RECV_PROCESS DESC;
+		   
+    INSERT INTO WSR_SYSTEM
+              ( SNAP_ID,     
+                STAT_ID,     
+                STAT_NAME,
+                VALUE
+              )
+         SELECT I_L_SNAP_ID,
+                ID,
+                NAME,
+                VALUE
+           FROM DV_SYSTEM;    
+    
+    INSERT INTO WSR_SYSTEM_EVENT
+              ( SNAP_ID,           
+                EVENT#,           
+                EVENT,           
+                WAIT_CLASS,       
+                TOTAL_WAITS,       
+                TIME_WAITED,       
+                TIME_WAITED_MIRCO, 
+                AVERAGE_WAIT,   
+                AVERAGE_WAIT_MIRCO
+              )  
+         SELECT I_L_SNAP_ID,
+                EVENT#,           
+                EVENT,           
+                WAIT_CLASS,       
+                TOTAL_WAITS,       
+                TIME_WAITED,       
+                TIME_WAITED_MIRCO, 
+                AVERAGE_WAIT,   
+                AVERAGE_WAIT_MIRCO
+           FROM DV_SYS_EVENTS;      
+    
+    INSERT INTO WSR_SYSTEM_EVENT  
+              ( SNAP_ID,           
+                EVENT#,           
+                EVENT,           
+                WAIT_CLASS,       
+                TOTAL_WAITS,       
+                TIME_WAITED,       
+                TIME_WAITED_MIRCO, 
+                AVERAGE_WAIT,   
+                AVERAGE_WAIT_MIRCO
+              )    
+         SELECT I_L_SNAP_ID,
+                -1,
+                'CPU',
+                '',
+                NULL,
+                VALUE/1000000,
+                VALUE,
+                NULL,
+                NULL
+           FROM WSR_SYS_STAT
+          WHERE SNAP_ID = I_L_SNAP_ID
+            AND STAT_ID = 2;    
+            
+    FOR ITEM IN (SELECT SQL_ID,         
+                        MIN(SQL_TEXT) SQL_TEXT,
+                        MIN(MODULE) MODULE,                
+                        SUM(EXECUTIONS) EXECUTIONS,     
+                        SUM(DISK_READS) DISK_READS,     
+                        SUM(BUFFER_GETS) BUFFER_GETS,     
+                        SUM(SORTS) SORTS,         
+                        SUM(PARSE_CALLS) PARSE_CALLS,     
+                        SUM(PROCESSED_ROWS) PROCESSED_ROWS, 
+                        SUM(IO_WAIT_TIME) IO_WAIT_TIME, 
+                        SUM(CON_WAIT_TIME) CON_WAIT_TIME, 
+                        SUM(DCS_NET_TIME) NET_WAIT_TIME,
+                        SUM(CPU_TIME) CPU_TIME, 
+                        SUM(NETWORK_TIME) NETWORK_TIME,
+                        SUM(ELAPSED_TIME) ELAPSED_TIME, 
+                        SUM(REF_COUNT) REF_COUNT,     
+                        SUM(CR_GETS) CR_GETS,
+                        SUM(PARSE_TIME) PARSE_TIME,
+                        MIN(PARSING_USER_NAME) PARSING_USER_NAME,  
+                        MIN(PROGRAM_ID) PROGRAM_ID,
+                        MIN(PROGRAM_LINE#) PROGRAM_LINE#,
+                        SUM(VM_FREE_PAGES) VM_PAGES_USED
+                   FROM DV_SQLS
+                  WHERE EXECUTIONS > 0
+                  GROUP BY SQL_ID) LOOP
+
+        
+        BEGIN
+            SELECT /*+RULE*/ FLAG, LENGTHB(SQL_TEXT)
+              INTO I_L_FLAG, I_L_LENGTH
+              FROM WSR_SQLTEXT
+             WHERE CTIME = DT_L_SNAPDAY
+               AND SQL_ID = ITEM.SQL_ID
+             LIMIT 1;   
+               
+            IF (I_L_FLAG = 1 AND I_L_LENGTH >= 1000) THEN
+
+                DELETE /*+RULE*/FROM WSR_SQLTEXT
+                 WHERE CTIME = DT_L_SNAPDAY
+                   AND SQL_ID = ITEM.SQL_ID
+                   AND FLAG = 1;                  
+            
+                INSERT INTO WSR_SQLTEXT
+                          ( CTIME,
+                            SQL_ID,
+                            SQL_TEXT,
+                            FLAG
+                          )
+                    VALUES( DT_L_SNAPDAY,
+                            ITEM.SQL_ID,
+                            ITEM.SQL_TEXT,
+                            2
+                          );            
+            END IF;
+               
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                INSERT INTO WSR_SQLTEXT
+                          ( CTIME,
+                            SQL_ID,
+                            SQL_TEXT,
+                            FLAG
+                          )
+                    VALUES( DT_L_SNAPDAY,
+                            ITEM.SQL_ID,
+                            ITEM.SQL_TEXT,
+                            2
+                          );                                 
+        END;             
+        
+        INSERT INTO WSR_SQLAREA
+                  ( SNAP_ID, 
+                    SQL_ID,  
+                    SQL_TEXT,             
+                    MODULE,                
+                    EXECUTIONS,     
+                    DISK_READS,     
+                    BUFFER_GETS,     
+                    SORTS,         
+                    PARSE_CALLS,     
+                    PROCESSED_ROWS, 
+                    IO_WAIT_TIME, 
+                    CON_WAIT_TIME, 
+                    NET_WAIT_TIME,
+                    CPU_TIME,
+                    ELAPSED_TIME, 
+                    REF_COUNT,     
+                    IS_FREE,         
+                    CLEANED,
+                    CR_GETS,
+                    PARSE_TIME,
+                    PARSING_USER_NAME,  
+                    PROGRAM_ID,
+                    PROGRAM_LINE#,
+                    VM_PAGES_USED,
+                    NETWORK_TIME
+                  )
+            VALUES( I_L_SNAP_ID,
+                    ITEM.SQL_ID,     
+                    SUBSTRB(ITEM.SQL_TEXT, 1, 30),    
+                    ITEM.MODULE,                
+                    ITEM.EXECUTIONS,     
+                    ITEM.DISK_READS,     
+                    ITEM.BUFFER_GETS,     
+                    ITEM.SORTS,         
+                    ITEM.PARSE_CALLS,     
+                    ITEM.PROCESSED_ROWS, 
+                    ITEM.IO_WAIT_TIME, 
+                    ITEM.CON_WAIT_TIME, 
+                    ITEM.NET_WAIT_TIME,	
+                    ITEM.CPU_TIME,
+                    ITEM.ELAPSED_TIME, 
+                    ITEM.REF_COUNT,     
+                    NULL,         
+                    NULL,
+                    ITEM.CR_GETS,
+                    ITEM.PARSE_TIME,
+                    ITEM.PARSING_USER_NAME,  
+                    ITEM.PROGRAM_ID,
+                    ITEM.PROGRAM_LINE#,
+                    ITEM.VM_PAGES_USED,
+                    ITEM.NETWORK_TIME);
+    
+    END LOOP;         
+    
+    INSERT INTO WSR_PARAMETER
+              ( SNAP_ID, NAME, VALUE, RUNTIME_VALUE, DEFAULT_VALUE,     
+                ISDEFAULT, MODIFIABLE, DESCRIPTION, RANGE, 
+                DATATYPE, EFFECTIVE
+              )
+         SELECT I_L_SNAP_ID, NAME, VALUE, RUNTIME_VALUE, DEFAULT_VALUE,     
+                ISDEFAULT, MODIFIABLE, DESCRIPTION, RANGE, 
+                DATATYPE, EFFECTIVE
+           FROM DV_PARAMETERS;  
+           
+    INSERT INTO WSR_LATCH
+              ( SNAP_ID,   
+                ID,        
+                NAME,      
+                GETS,      
+                MISSES,    
+                SPIN_GETS, 
+                WAIT_TIME
+              )
+         SELECT I_L_SNAP_ID,
+                ID,        
+                NAME,      
+                GETS,      
+                MISSES,    
+                SPIN_GETS, 
+                WAIT_TIME              
+           FROM DV_LATCHS;
+    
+    INSERT INTO WSR_WAITSTAT
+              ( SNAP_ID, 
+                CLASS,   
+                COUNT,   
+                TIME 
+              )
+         SELECT I_L_SNAP_ID,
+                CLASS,   
+                COUNT,   
+                TIME            
+           FROM DV_WAIT_STATS;   
+       
+    INSERT INTO WSR_LIBRARYCACHE
+              ( SNAP_ID,     
+                NAMESPACE,   
+                GETS,        
+                GETHITS,     
+                PINS,        
+                PINHITS,     
+                RELOADS,     
+                INVLIDATIONS
+              )
+         SELECT I_L_SNAP_ID,
+                NAMESPACE,   
+                GETS,        
+                GETHITS,     
+                PINS,        
+                PINHITS,     
+                RELOADS,     
+                INVLIDATIONS           
+           FROM DV_LIBRARY_CACHE;
+       
+    INSERT INTO WSR_SEGMENT
+              ( SNAP_ID,       
+                OWNER,         
+                OBJECT_NAME,   
+                SUBOBJECT_NAME,
+                TS#,           
+                OBJECT_TYPE,   
+                STATISTIC_NAME,
+                STATISTIC#,    
+                VALUE
+              )
+         SELECT I_L_SNAP_ID, 
+                OWNER,         
+                OBJECT_NAME,   
+                SUBOBJECT_NAME,
+                TS#,           
+                OBJECT_TYPE,   
+                STATISTIC_NAME,
+                STATISTIC#,    
+                VALUE
+           FROM DV_SEGMENT_STATS
+          WHERE VALUE > 0;    
+
+    INSERT INTO WSR_SESSION_EVENTS
+              ( SNAP_ID,
+                SID,
+                EVENT#,
+                EVENT,
+                P1,
+                WAIT_CLASS,
+                TOTAL_WAITS,
+                TIME_WAITED_MIRCO
+              )
+         SELECT I_L_SNAP_ID,
+                SID,
+                EVENT#,
+                EVENT,
+                P1,
+                WAIT_CLASS,
+                TOTAL_WAITS,
+                TIME_WAITED_MIRCO
+           FROM DV_SESSION_EVENTS
+          WHERE WAIT_CLASS <> 'IDLE';
+          
+    UPDATE WSR_CONTROL SET MOST_RECENT_SNAP_TIME = DT_L_STARTTIME, MOST_RECENT_SNAP_ID = I_L_SNAP_ID;      
+ 
+    COMMIT;                
+    
+    I_L_RET := RELEASE_LOCK('SYS.WSR$CREATE_SNAPSHOT');
+              
+EXCEPTION
+    WHEN OTHERS THEN
+        I_L_RET := RELEASE_LOCK('SYS.WSR$CREATE_SNAPSHOT');
+        WSR$INSERT_ERRORLOG('WSR$CREATE_SNAPSHOT', SUBSTRB(SQL_ERR_MSG,1,2000));
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$DROP_SNAPSHOT_PARTITION
+(
+    STR_IN_TABLENAME           IN           VARCHAR,
+    I_IN_SNAPID                IN           INTEGER
+)
+AS
+    STR_L_PARTITION         VARCHAR(200);
+BEGIN
+    SELECT PARTITION_NAME
+      INTO STR_L_PARTITION
+      FROM ADM_TAB_PARTITIONS
+     WHERE TABLE_OWNER = 'SYS'
+       AND TABLE_NAME = UPPER(STR_IN_TABLENAME)
+       AND HIGH_VALUE = TO_CHAR(I_IN_SNAPID + 1);
+    
+    EXECUTE IMMEDIATE 'ALTER TABLE ' || STR_IN_TABLENAME || ' DROP PARTITION ' || STR_L_PARTITION;   
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        NULL;
+    WHEN OTHERS THEN
+        WSR$INSERT_ERRORLOG('WSR$DROP_SNAPSHOT_PARTITION', SUBSTRB(SQL_ERR_MSG,1,2000));
+END WSR$DROP_SNAPSHOT_PARTITION;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$DROP_SNAPSHOT_RANGE
+(
+    LOW_SNAP_ID      IN BINARY_INTEGER,
+    HIGH_SNAP_ID     IN BINARY_INTEGER
+)
+AS
+BEGIN
+    IF (LOW_SNAP_ID IS NULL OR HIGH_SNAP_ID IS NULL) THEN
+        THROW_EXCEPTION(-20000, 'LOW_SNAP_ID & HIGH_SNAP_ID CAN''T BE NULL!');
+    END IF;
+    
+    FOR I IN LOW_SNAP_ID .. HIGH_SNAP_ID LOOP
+    
+        DELETE FROM WSR_SNAPSHOT
+         WHERE SNAP_ID = I;
+
+        DELETE FROM WSR_SYS_STAT
+         WHERE SNAP_ID = I; 
+
+		DELETE FROM WSR_MES_STAT
+         WHERE SNAP_ID = I;
+
+        DELETE FROM WSR_SYSTEM
+         WHERE SNAP_ID = I; 
+         
+        DELETE FROM WSR_SYSTEM_EVENT
+         WHERE SNAP_ID = I;                     
+        
+        DELETE FROM WSR_PARAMETER
+         WHERE SNAP_ID = I;      
+        
+        DELETE FROM WSR_LATCH
+         WHERE SNAP_ID = I;    
+         
+        DELETE FROM WSR_WAITSTAT
+         WHERE SNAP_ID = I;  
+         
+        DELETE FROM WSR_LIBRARYCACHE
+         WHERE SNAP_ID = I;   
+         
+        WSR$DROP_SNAPSHOT_PARTITION('WSR_SQLAREA', I); 
+        WSR$DROP_SNAPSHOT_PARTITION('WSR_SEGMENT', I); 
+        WSR$DROP_SNAPSHOT_PARTITION('WSR_DBA_SEGMENTS', I); 
+        WSR$DROP_SNAPSHOT_PARTITION('WSR_LONGSQL', I); 
+        WSR$DROP_SNAPSHOT_PARTITION('WSR_SESSION_EVENTS', I);
+         
+        COMMIT;
+    
+    END LOOP;  
+      
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$DROP_SNAPSHOT_FAILED_PARTITION
+(
+    STR_IN_TABLENAME           IN           VARCHAR
+)
+AS
+BEGIN
+    FOR ITEM IN (SELECT PARTITION_NAME FROM ADM_TAB_PARTITIONS 
+        WHERE TABLE_NAME = STR_IN_TABLENAME AND HIGH_VALUE != '1' AND
+            HIGH_VALUE NOT IN (SELECT TO_CHAR(SNAP_ID + 1) FROM ADM_HIST_SNAPSHOT)) LOOP
+        BEGIN
+            EXECUTE IMMEDIATE 'ALTER TABLE ' || STR_IN_TABLENAME || ' DROP PARTITION ' || ITEM.PARTITION_NAME;
+        EXCEPTION
+            WHEN OTHERS THEN
+                WSR$INSERT_ERRORLOG('WSR$DROP_SNAPSHOT_FAILED_PARTITION', SUBSTRB(SQL_ERR_MSG,1,2000));
+        END;
+ END LOOP;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        NULL;
+    WHEN OTHERS THEN
+        WSR$INSERT_ERRORLOG('WSR$DROP_SNAPSHOT_FAILED_PARTITION', SUBSTRB(SQL_ERR_MSG,1,2000));
+END WSR$DROP_SNAPSHOT_FAILED_PARTITION;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$DROP_FAILED_SNAPSHOT_RANGE
+AS
+BEGIN 
+    WSR$DROP_SNAPSHOT_FAILED_PARTITION('WSR_SQLAREA');
+    WSR$DROP_SNAPSHOT_FAILED_PARTITION('WSR_SEGMENT'); 
+    WSR$DROP_SNAPSHOT_FAILED_PARTITION('WSR_DBA_SEGMENTS'); 
+    WSR$DROP_SNAPSHOT_FAILED_PARTITION('WSR_LONGSQL'); 
+    WSR$DROP_SNAPSHOT_FAILED_PARTITION('WSR_SESSION_EVENTS');
+END WSR$DROP_FAILED_SNAPSHOT_RANGE;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$DROP_CTIME_PARTITION
+(
+    STR_IN_TABLENAME        IN VARCHAR,
+    I_IN_DAYS               IN BINARY_INTEGER
+)
+AS
+    DT_L_HIGHVALUE          DATE := TRUNC(SYSDATE - I_IN_DAYS);
+    STR_L_HIGHVALUE         VARCHAR(200);
+    I_L_COUNT               BINARY_INTEGER;
+BEGIN
+    FOR ITEM IN (
+        SELECT PARTITION_NAME, HIGH_VALUE
+          FROM ADM_TAB_PARTITIONS
+         WHERE TABLE_OWNER = 'SYS'
+           AND TABLE_NAME = UPPER(STR_IN_TABLENAME)
+           AND PARTITION_NAME <> 'P_0') LOOP
+        
+        EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM SYS_DUMMY WHERE TO_DATE(''' || ITEM.HIGH_VALUE || ''', ''YYYY-MM-DD HH24:MI:SS'') <= :1 ' INTO I_L_COUNT USING DT_L_HIGHVALUE;
+        
+        IF (I_L_COUNT > 0) THEN        
+            EXECUTE IMMEDIATE 'ALTER TABLE ' || STR_IN_TABLENAME || ' DROP PARTITION ' || ITEM.PARTITION_NAME; 
+        END IF;      
+    
+    END LOOP;
+EXCEPTION
+    WHEN OTHERS THEN
+        WSR$INSERT_ERRORLOG('WSR$DROP_CTIME_PARTITION', SUBSTRB(SQL_ERR_MSG,1,2000));
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$DROP_SNAPSHOT_TIME
+AS
+    I_L_DAYS      BINARY_INTEGER;
+    I_L_LOGDAYS   BINARY_INTEGER;
+BEGIN
+    SELECT RETENTION_NUM / 86400, LOG_DAYS
+      INTO I_L_DAYS, I_L_LOGDAYS
+      FROM WSR_CONTROL;
+
+    FOR ITEM IN (SELECT SNAP_ID FROM ADM_HIST_SNAPSHOT WHERE SNAP_TIME < SYSDATE - I_L_DAYS) LOOP
+        WSR$DROP_SNAPSHOT_RANGE(ITEM.SNAP_ID, ITEM.SNAP_ID);
+    END LOOP;
+    
+    WSR$DROP_CTIME_PARTITION('WSR_SQLTEXT', I_L_DAYS);
+    WSR$DROP_CTIME_PARTITION('WSR_SQLPLAN', I_L_DAYS);
+    WSR$DROP_CTIME_PARTITION('WSR_INSTANCE_SNAP', I_L_DAYS);
+    WSR$DROP_CTIME_PARTITION('WSR_SESSION_SQL', I_L_DAYS);
+    WSR$DROP_CTIME_PARTITION('WSR_TRANSACTION', I_L_DAYS);
+    WSR$DROP_CTIME_PARTITION('WSR_LOCK_OBJECT', I_L_DAYS);
+    
+    DELETE FROM WSR_EXCEPTION_LOG 
+     WHERE CTIME < SYSDATE - I_L_LOGDAYS;
+
+    UPDATE WSR_CONTROL SET MOST_RECENT_PURGE_TIME = CURRENT_TIMESTAMP;
+ 
+    COMMIT;
+    
+       WSR$DROP_FAILED_SNAPSHOT_RANGE();
+EXCEPTION
+    WHEN OTHERS THEN
+        WSR$INSERT_ERRORLOG('WSR$DROP_SNAPSHOT_TIME', SUBSTRB(SQL_ERR_MSG,1,2000));
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$MODIFIY_SETTING
+(
+    I_IN_INTERVAL_MINUTES         IN         BINARY_INTEGER      DEFAULT NULL,
+    I_IN_RETENTION_DAYS           IN         BINARY_INTEGER      DEFAULT NULL,
+    I_IN_TOPSQL                   IN         BINARY_INTEGER      DEFAULT NULL,
+    STR_IN_STATUS                 IN         VARCHAR             DEFAULT NULL,
+    STR_IN_SESSION_STATUS         IN         VARCHAR             DEFAULT NULL,
+    I_IN_SESSION_INTERVAL         IN         BINARY_INTEGER      DEFAULT NULL,
+    I_IN_LOG_DAYS                 IN         BINARY_INTEGER      DEFAULT NULL
+)
+AS
+    I_L_COUNT                 BINARY_INTEGER;
+    I_L_JOBNO                 BINARY_INTEGER;
+    STR_L_INTERVAL            VARCHAR(1000);
+    I_L_SNAPINT_NUM           BINARY_INTEGER; 
+    I_SESSION_INTERVAL        BINARY_INTEGER;
+BEGIN
+    IF (I_IN_INTERVAL_MINUTES < 5 OR I_IN_INTERVAL_MINUTES > 1440) THEN
+        THROW_EXCEPTION(-20000, 'I_IN_INTERVAL_MINUTES SHOULD BETWEEN 5 AND 1440!');
+    END IF;
+
+    IF (I_IN_RETENTION_DAYS < 1 OR I_IN_RETENTION_DAYS > 3000) THEN
+        THROW_EXCEPTION(-20000, 'I_IN_RETENTION_DAYS SHOULD BETWEEN 1 AND 3000!');
+    END IF;
+ 
+    IF (I_IN_TOPSQL < 1 OR I_IN_TOPSQL > 1000) THEN
+        THROW_EXCEPTION(-20000, 'I_IN_TOPSQL SHOULD BETWEEN 1 AND 1000!');
+    END IF;
+ 
+    IF (STR_IN_SESSION_STATUS NOT IN ('Y', 'N')) THEN
+        THROW_EXCEPTION(-20000, 'STR_IN_SESSION_STATUS SHOULD BE Y OR N!');
+    END IF;
+    
+    IF (I_IN_SESSION_INTERVAL < 1 OR I_IN_SESSION_INTERVAL > 1000) THEN
+        THROW_EXCEPTION(-20000, 'I_IN_TOPSQL SHOULD BETWEEN 1 AND 1000!');
+    END IF;
+    
+    IF (STR_IN_STATUS NOT IN ('Y', 'N')) THEN
+        THROW_EXCEPTION(-20000, 'STR_IN_STATUS SHOULD BE Y OR N!');
+    END IF;
+   
+    IF (I_IN_LOG_DAYS < 1 OR I_IN_LOG_DAYS > 1000) THEN
+        THROW_EXCEPTION(-20000, 'I_IN_LOG_DAYS SHOULD BETWEEN 1 AND 1000!');
+    END IF;    
+
+    UPDATE WSR_CONTROL
+       SET SNAP_INTERVAL = NVL(NUMTODSINTERVAL(I_IN_INTERVAL_MINUTES, 'MINUTE'), SNAP_INTERVAL),
+           SNAPINT_NUM = NVL(I_IN_INTERVAL_MINUTES * 60, SNAPINT_NUM),
+           RETENTION = NVL(NUMTODSINTERVAL(I_IN_RETENTION_DAYS, 'DAY'), RETENTION),
+           RETENTION_NUM = NVL(I_IN_RETENTION_DAYS * 86400, RETENTION_NUM), 
+           TOPNSQL = NVL(I_IN_TOPSQL, TOPNSQL),
+           STATUS = NVL(STR_IN_STATUS, STATUS),
+           SESSION_STATUS = NVL(STR_IN_SESSION_STATUS, SESSION_STATUS),
+           SESSION_INTERVAL = NVL(I_IN_SESSION_INTERVAL, SESSION_INTERVAL),
+           LOG_DAYS = NVL(I_IN_LOG_DAYS, LOG_DAYS);
+
+    IF (I_IN_SESSION_INTERVAL IS NOT NULL) THEN
+ 
+        BEGIN
+            SELECT JOB
+              INTO I_L_JOBNO
+              FROM MY_JOBS
+             WHERE WHAT = 'WSR$CREATE_SESSION_SNAPSHOT();'
+               AND ROWNUM <= 1;
+   
+            DBE_TASK.CANCEL(I_L_JOBNO);      
+        EXCEPTION  
+            WHEN NO_DATA_FOUND THEN
+                NULL; 
+        END;
+  
+        STR_L_INTERVAL := 'SYSDATE + ' || I_IN_SESSION_INTERVAL || '/86400';
+    
+        DBE_TASK.SUBMIT(I_L_JOBNO, 'WSR$CREATE_SESSION_SNAPSHOT();', SYSDATE, STR_L_INTERVAL);
+   
+     END IF;
+ 
+    IF (STR_IN_SESSION_STATUS IS NOT NULL) THEN
+ 
+        BEGIN
+            SELECT JOB
+              INTO I_L_JOBNO
+              FROM MY_JOBS
+             WHERE WHAT = 'WSR$CREATE_SESSION_SNAPSHOT();'
+               AND ROWNUM <= 1;     
+        EXCEPTION  
+            WHEN NO_DATA_FOUND THEN
+            
+                SELECT SESSION_INTERVAL
+                  INTO I_SESSION_INTERVAL 
+                  FROM WSR_CONTROL;
+             
+                DBE_TASK.SUBMIT(I_L_JOBNO, 'WSR$CREATE_SESSION_SNAPSHOT();', SYSDATE, 'SYSDATE + ' || TO_CHAR(I_SESSION_INTERVAL) || '/86400');
+        END;
+ 
+        IF (STR_IN_SESSION_STATUS = 'Y') THEN
+           DBE_TASK.SUSPEND(ID => I_L_JOBNO, BROKEN => FALSE);
+        ELSE
+           DBE_TASK.SUSPEND(ID => I_L_JOBNO, BROKEN => TRUE);  
+        END IF;
+ 
+    END IF;
+
+    IF (I_IN_INTERVAL_MINUTES IS NOT NULL) THEN
+ 
+        BEGIN
+            SELECT JOB
+              INTO I_L_JOBNO
+              FROM MY_JOBS
+             WHERE WHAT = 'WSR$CREATE_SNAPSHOT();'
+               AND ROWNUM <= 1;
+   
+            DBE_TASK.CANCEL(I_L_JOBNO);      
+        EXCEPTION  
+            WHEN NO_DATA_FOUND THEN
+                NULL; 
+        END;
+  
+        STR_L_INTERVAL := 'SYSDATE + ' || I_IN_INTERVAL_MINUTES || '/1440';
+    
+        DBE_TASK.SUBMIT(I_L_JOBNO, 'WSR$CREATE_SNAPSHOT();', SYSDATE, STR_L_INTERVAL);
+   
+     END IF;
+ 
+    IF (STR_IN_STATUS IS NOT NULL) THEN
+ 
+        BEGIN
+            SELECT JOB
+              INTO I_L_JOBNO
+              FROM MY_JOBS
+             WHERE WHAT = 'WSR$CREATE_SNAPSHOT();'
+               AND ROWNUM <= 1;     
+        EXCEPTION  
+            WHEN NO_DATA_FOUND THEN
+            
+                SELECT SNAPINT_NUM
+                  INTO I_L_SNAPINT_NUM
+                  FROM WSR_CONTROL;
+             
+                DBE_TASK.SUBMIT(I_L_JOBNO, 'WSR$CREATE_SNAPSHOT();', TRUNC(SYSDATE, 'HH') + 1/24, 'SYSDATE + ' || TO_CHAR(I_L_SNAPINT_NUM) || '/86400' );
+        END;
+ 
+        IF (STR_IN_STATUS = 'Y') THEN
+           DBE_TASK.SUSPEND(ID => I_L_JOBNO, BROKEN => FALSE);
+        ELSE
+           DBE_TASK.SUSPEND(ID => I_L_JOBNO, BROKEN => TRUE);  
+        END IF;
+ 
+    END IF;
+ 
+    COMMIT;
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$MODIFY_SETTING
+(
+    I_IN_INTERVAL_MINUTES         IN         BINARY_INTEGER      DEFAULT NULL,
+    I_IN_RETENTION_DAYS           IN         BINARY_INTEGER      DEFAULT NULL,
+    I_IN_TOPSQL                   IN         BINARY_INTEGER      DEFAULT NULL,
+    STR_IN_STATUS                 IN         VARCHAR             DEFAULT NULL,
+    STR_IN_SESSION_STATUS         IN         VARCHAR             DEFAULT NULL,
+    I_IN_SESSION_INTERVAL         IN         BINARY_INTEGER      DEFAULT NULL,
+    I_IN_LOG_DAYS                 IN         BINARY_INTEGER      DEFAULT NULL
+)
+AS
+BEGIN
+    WSR$MODIFIY_SETTING(I_IN_INTERVAL_MINUTES, I_IN_RETENTION_DAYS, I_IN_TOPSQL, STR_IN_STATUS, STR_IN_SESSION_STATUS, I_IN_SESSION_INTERVAL, I_IN_LOG_DAYS);
+END;
+/
+
+DECLARE
+    I_L_COUNT INT;
+BEGIN
+    SELECT COUNT(*)
+        INTO I_L_COUNT
+        FROM SYS_ROLES
+      WHERE NAME = 'STATISTICS';
+
+    IF (I_L_COUNT = 0) THEN
+        EXECUTE IMMEDIATE 'CREATE ROLE STATISTICS';
+    ELSE
+        SELECT COUNT(*) INTO I_L_COUNT FROM ADM_TAB_PRIVS WHERE GRANTEE = 'STATISTICS' AND OBJECT_NAME = 'DBE_TASK';
+        IF (I_L_COUNT > 0) THEN
+            EXECUTE IMMEDIATE 'REVOKE EXECUTE ON DBE_TASK FROM STATISTICS';
+        END IF;
+        
+        SELECT COUNT(*) INTO I_L_COUNT FROM ADM_TAB_PRIVS WHERE GRANTEE = 'STATISTICS' AND OBJECT_NAME = 'WSR$MODIFY_SETTING' AND OWNER = 'SYS';
+        IF (I_L_COUNT > 0) THEN
+            EXECUTE IMMEDIATE 'REVOKE EXECUTE ON WSR$MODIFY_SETTING FROM STATISTICS';
+        END IF;
+        
+        SELECT COUNT(*) INTO I_L_COUNT FROM ADM_TAB_PRIVS WHERE GRANTEE = 'STATISTICS' AND OBJECT_NAME = 'WSR$MODIFIY_SETTING' AND OWNER = 'SYS';
+        IF (I_L_COUNT > 0) THEN
+            EXECUTE IMMEDIATE 'REVOKE EXECUTE ON WSR$MODIFIY_SETTING FROM STATISTICS';
+        END IF;
+    END IF;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_ELAPSED_TIME
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               EXECUTIONS,
+               TO_CHAR(ELAPSED_TIME / EXECUTIONS / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, ELAPSED_TIME / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(NETWORK_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               '',
+               TO_CHAR(BUFFER_GETS / EXECUTIONS, 'FM99999999999999999990.000'),
+               TO_CHAR(DISK_READS / EXECUTIONS, 'FM99999999999999999990.000'),
+               TO_CHAR(PROCESSED_ROWS / EXECUTIONS, 'FM99999999999999999990.000'),
+               TO_CHAR(PARSE_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CR_GETS / EXECUTIONS, 'FM99999999999999999990.000'),
+               PARSING_USER_NAME,
+               PROGRAM_LINE#,
+               NVL((SELECT OBJECT_NAME FROM ADM_PROCEDURES WHERE OBJECT_ID = PROGRAM_ID LIMIT 1), '&nbsp'),
+               TO_CHAR(CON_WAIT_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(VM_PAGES_USED / EXECUTIONS, 'FM99999999999999999990.000')
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.NETWORK_TIME - NVL(A.NETWORK_TIME, 0) NETWORK_TIME,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.SQL_ID,
+                               B.MODULE,
+                               B.BUFFER_GETS - NVL(A.BUFFER_GETS, 0) BUFFER_GETS,
+                               B.DISK_READS - NVL(A.DISK_READS, 0) DISK_READS,
+                               B.PROCESSED_ROWS - NVL(A.PROCESSED_ROWS, 0) PROCESSED_ROWS,
+                               B.PARSE_TIME - NVL(A.PARSE_TIME, 0) PARSE_TIME,
+                               B.CON_WAIT_TIME - NVL(A.CON_WAIT_TIME, 0) CON_WAIT_TIME,
+                               B.CR_GETS - NVL(A.CR_GETS, 0) CR_GETS,
+                               B.PARSING_USER_NAME,
+                               B.PROGRAM_LINE#,
+                               B.PROGRAM_ID,
+                               B.SQL_TEXT,
+                               B.VM_PAGES_USED - NVL(A.VM_PAGES_USED, 0) VM_PAGES_USED
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID) 
+                 WHERE ELAPSED_TIME > 0
+                   AND EXECUTIONS > 0) B
+         ORDER BY ELAPSED_TIME DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE FUNCTION WSR$GET_SQL_ANALYSE_RESULT
+(
+    ELAPSED_TIME      IN           NUMBER,
+    EXECUTIONS        IN           NUMBER,
+    BUFFER_GETS       IN           NUMBER,
+    DISK_READS        IN           NUMBER,
+    PROCESSED_ROWS    IN           NUMBER,
+    PARSE_TIME        IN           NUMBER,
+    CON_WAIT_TIME     IN           NUMBER, 
+    VM_PAGES_USED     IN           NUMBER,
+    IO_TIME           IN           NUMBER
+)
+RETURN VARCHAR2
+AS
+    STR_RESULT     VARCHAR2(8000);
+    STR_CURRENT    VARCHAR2(2000);
+BEGIN
+    
+    --BUFFER_GETS
+    IF (BUFFER_GETS / DECODE(PROCESSED_ROWS, 0, 1, PROCESSED_ROWS) > 100) THEN    
+        STR_RESULT := 'Optimization point: The logical read rate of a single execution is high.  <br>'
+        || 'Suggestions: Analyze the SQL execution plan to check whether the full table of the large table is scanned or indexes with low efficiency are used.<br><br>';   
+    END IF; 
+    
+    --DISK_READS
+    IF (DISK_READS > 1000 and IO_TIME / ELAPSED_TIME * 100 > 15) THEN
+        STR_RESULT := STR_RESULT || 'Optimization point: The physical read rate is high. <br>' 
+        || 'Optimization suggestion: Analyze the SQL execution plan to check whether full tables of large tables are scanned or indexes with low efficiency are used, <br>'
+        || 'reduce the amount of data to be scanned, and set data_buffer_size to a proper value.<br><br>';
+    END IF;
+    
+    --PROCESSED_ROWS
+    IF (PROCESSED_ROWS / EXECUTIONS > 1000) THEN
+        STR_RESULT := STR_RESULT || 'Optimization point: A large amount of data is added, deleted, or modified at a time. <br>'
+        || 'Optimization suggestion: Optimize the service logic to reduce the amount of data added, deleted, or modified at a time.<br><br>';
+    END IF; 
+    
+    --PARSE_TIME
+    IF (PARSE_TIME / 1000000 > 1) THEN
+        STR_RESULT := STR_RESULT || 'Optimization point: The compilation of the SQL statement takes a long time. <br>'
+        || 'Suggestion: Check whether the SQL statement is too complex or whether the shared pool is too small.<br><br>';
+    END IF;   
+    
+    --CON_WAIT_TIME
+    IF (CON_WAIT_TIME / EXECUTIONS > 1000) THEN
+        STR_RESULT := STR_RESULT || 'Optimization point: The lock waiting time of the SQL statement is long. <br>'
+        || 'Optimization suggestion: Optimize the service logic to avoid a large number of lock conflicts.<br><br>';
+    END IF;    
+    
+    --VM_PAGES_USED
+    IF (VM_PAGES_USED / EXECUTIONS > 10) THEN
+        STR_RESULT := STR_RESULT || 'Optimization point: This SQL statement occupies a large TEMP buffer. <br>'
+        || 'Suggestion: Do not perform operations such as hash join, sort, and group by on large data sets.<br><br>';
+    END IF;     
+    
+    IF (STR_RESULT IS NULL) THEN
+        STR_RESULT := 'No optimization advice';    
+    END IF;
+    
+    RETURN STR_RESULT;
+
+EXCEPTION  
+    WHEN OTHERS THEN 
+        RETURN NULL;    
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_ANALYSE
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT WSR$GET_SQL_ANALYSE_RESULT(ELAPSED_TIME, EXECUTIONS, BUFFER_GETS, DISK_READS, PROCESSED_ROWS, PARSE_TIME, CON_WAIT_TIME, VM_PAGES_USED, IO_TIME),
+               TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               EXECUTIONS,
+               TO_CHAR(ELAPSED_TIME / EXECUTIONS / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, ELAPSED_TIME / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(NETWORK_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               TO_CHAR(BUFFER_GETS / EXECUTIONS, 'FM99999999999999999990.000'),
+               TO_CHAR(DISK_READS / EXECUTIONS, 'FM99999999999999999990.000'),
+               TO_CHAR(PROCESSED_ROWS / EXECUTIONS, 'FM99999999999999999990.000'),
+               TO_CHAR(PARSE_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CR_GETS / EXECUTIONS, 'FM99999999999999999990.000'),
+               PARSING_USER_NAME,
+               PROGRAM_LINE#,
+               NVL((SELECT OBJECT_NAME FROM ADM_PROCEDURES WHERE OBJECT_ID = PROGRAM_ID LIMIT 1), '&nbsp'),
+               TO_CHAR(CON_WAIT_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(VM_PAGES_USED / EXECUTIONS, 'FM99999999999999999990.000')
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.NETWORK_TIME - NVL(A.NETWORK_TIME, 0) NETWORK_TIME,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.SQL_ID,
+                               B.MODULE,
+                               B.BUFFER_GETS - NVL(A.BUFFER_GETS, 0) BUFFER_GETS,
+                               B.DISK_READS - NVL(A.DISK_READS, 0) DISK_READS,
+                               B.PROCESSED_ROWS - NVL(A.PROCESSED_ROWS, 0) PROCESSED_ROWS,
+                               B.PARSE_TIME - NVL(A.PARSE_TIME, 0) PARSE_TIME,
+                               B.CON_WAIT_TIME - NVL(A.CON_WAIT_TIME, 0) CON_WAIT_TIME,
+                               B.CR_GETS - NVL(A.CR_GETS, 0) CR_GETS,
+                               B.PARSING_USER_NAME,
+                               B.PROGRAM_LINE#,
+                               B.PROGRAM_ID,
+                               B.SQL_TEXT,
+                               B.VM_PAGES_USED - NVL(A.VM_PAGES_USED, 0) VM_PAGES_USED
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID) 
+                 WHERE ELAPSED_TIME > 0
+                   AND EXECUTIONS > 0
+                   AND DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, ELAPSED_TIME / I_IN_TOTAL * 100) > 5) B
+         ORDER BY ELAPSED_TIME DESC;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_LONGSQL_TIME
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT SUM(CASE WHEN STAGE IN ('EXECUTE', 'QUERY', 'PREP_EXEC') THEN 1 ELSE 0 END) EXECUTIONS,
+               TO_CHAR(SUM(ELAPSED_TIME) / 1000, 'FM99999999999999999990.000'),
+               TO_CHAR(MAX(CASE WHEN STAGE IN ('EXECUTE', 'QUERY', 'PREP_EXEC') THEN ELAPSED_TIME ELSE 0 END) / 1000, 'FM99999999999999999990.000') MAX_EXEC,
+               SUM(CASE WHEN STAGE = 'PARSE' THEN 1 ELSE 0 END) PARSES,
+               TO_CHAR(SUM(CASE WHEN STAGE = 'PARSE' THEN ELAPSED_TIME ELSE 0 END)/ 1000, 'FM99999999999999999990.000') PARSE_TIME,
+               SUM(CASE WHEN STAGE = 'FETCH' THEN 1 ELSE 0 END) FETCHS,
+               TO_CHAR(SUM(CASE WHEN STAGE = 'FETCH' THEN ELAPSED_TIME ELSE 0 END)/ 1000, 'FM99999999999999999990.000') FETCH_TIME,
+               SQL_ID,
+               MIN(SQL_TEXT) || '...',
+               ''
+          FROM ADM_HIST_LONGSQL A
+         WHERE SNAP_ID > I_IN_LOW_SNAP_ID AND SNAP_ID <= I_IN_HIGH_SNAP_ID 
+         GROUP BY SQL_ID
+         ORDER BY SUM(ELAPSED_TIME) DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_LONGSQL_TIME_PREFIX
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOPNUM           IN BINARY_INTEGER,
+    I_IN_LETTER_NUM       IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT SUM(CASE WHEN STAGE IN ('EXECUTE', 'QUERY', 'PREP_EXEC') THEN 1 ELSE 0 END) EXECUTIONS,
+               TO_CHAR(SUM(ELAPSED_TIME) / 1000, 'FM99999999999999999990.000'),
+               TO_CHAR(MAX(CASE WHEN STAGE IN ('EXECUTE', 'QUERY', 'PREP_EXEC') THEN ELAPSED_TIME ELSE 0 END) / 1000, 'FM99999999999999999990.000') MAX_EXEC,
+               SUM(CASE WHEN STAGE = 'PARSE' THEN 1 ELSE 0 END) PARSES,
+               TO_CHAR(SUM(CASE WHEN STAGE = 'PARSE' THEN ELAPSED_TIME ELSE 0 END)/ 1000, 'FM99999999999999999990.000') PARSE_TIME,
+               SUM(CASE WHEN STAGE = 'FETCH' THEN 1 ELSE 0 END) FETCHS,
+               TO_CHAR(SUM(CASE WHEN STAGE = 'FETCH' THEN ELAPSED_TIME ELSE 0 END)/ 1000, 'FM99999999999999999990.000') FETCH_TIME,
+               SQL_TEXT
+          FROM( SELECT SUBSTRB(SQL_TEXT, 1, I_IN_LETTER_NUM) SQL_TEXT, STAGE, ELAPSED_TIME
+                  FROM ADM_HIST_LONGSQL A
+                 WHERE SNAP_ID > I_IN_LOW_SNAP_ID AND SNAP_ID <= I_IN_HIGH_SNAP_ID
+               ) 
+         GROUP BY SQL_TEXT
+         ORDER BY SUM(ELAPSED_TIME) DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_CPU_TIME
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT TO_CHAR(CPU_TIME / 1000000, 'FM99999999999999999990.000'),
+               EXECUTIONS,
+               TO_CHAR(CPU_TIME / EXECUTIONS / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, CPU_TIME / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               ''
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.SQL_ID,
+                               B.SQL_TEXT,
+                               B.MODULE
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID)
+                 WHERE ELAPSED_TIME > 0
+                   AND EXECUTIONS > 0) B
+         ORDER BY CPU_TIME DESC, 5 DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_IO_WAIT
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT TO_CHAR(IO_TIME / 1000000, 'FM99999999999999999990.000'),
+               EXECUTIONS,
+               TO_CHAR(IO_TIME / EXECUTIONS / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, IO_TIME / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               ''
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.SQL_ID,
+                               B.SQL_TEXT,
+                               B.MODULE
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID)
+                 WHERE ELAPSED_TIME > 0
+                   AND EXECUTIONS > 0) B
+         ORDER BY IO_TIME DESC, 5 DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_NET_WAIT
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT TO_CHAR(NET_TIME / 1000000, 'FM99999999999999999990.000'),
+               EXECUTIONS,
+               TO_CHAR(NET_TIME / EXECUTIONS / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, NET_TIME / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(NET_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               REPLACE((SELECT SQL_TEXT FROM WSR_SQLTEXT WHERE SQL_ID = B.SQL_ID LIMIT 1), '''', '''''')
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.NET_WAIT_TIME - NVL(A.NET_WAIT_TIME, 0) NET_TIME,
+                               B.SQL_ID,
+                               B.SQL_TEXT,
+                               B.MODULE
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID)
+                 WHERE ELAPSED_TIME > 0
+                   AND EXECUTIONS > 0) B
+         ORDER BY NET_TIME DESC, 5 DESC LIMIT I_IN_TOPNUM;
+
+    DBMS_SQL.RETURN_RESULT(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_GETS
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT BUFFER_GETS,
+               EXECUTIONS,
+               TO_CHAR(BUFFER_GETS / EXECUTIONS, 'FM99999999999999999990.000'),
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, BUFFER_GETS / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               ''
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.BUFFER_GETS - NVL(A.BUFFER_GETS, 0) BUFFER_GETS,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.SQL_ID,
+                               B.SQL_TEXT,
+                               B.MODULE
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID)
+                 WHERE ELAPSED_TIME > 0
+                   AND EXECUTIONS > 0) B
+         ORDER BY 1 DESC, 5 DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_READS
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT DISK_READS,
+               EXECUTIONS,
+               TO_CHAR(DISK_READS / EXECUTIONS, 'FM99999999999999999990.000'),
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, DISK_READS / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               ''
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.BUFFER_GETS - NVL(A.BUFFER_GETS, 0) BUFFER_GETS,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.DISK_READS - NVL(A.DISK_READS, 0) DISK_READS,
+                               B.SQL_ID,
+                               B.SQL_TEXT,
+                               B.MODULE
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID)
+                 WHERE ELAPSED_TIME > 0
+                   AND EXECUTIONS > 0) B
+         ORDER BY 1 DESC, 5 DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_EXECUTIONS
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT EXECUTIONS,
+               PROCESSED_ROWS,
+               TO_CHAR(PROCESSED_ROWS / EXECUTIONS, 'FM99999999999999999990.000'),
+               TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               ''
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.BUFFER_GETS - NVL(A.BUFFER_GETS, 0) BUFFER_GETS,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.PROCESSED_ROWS - NVL(A.PROCESSED_ROWS, 0) PROCESSED_ROWS,
+                               B.SQL_TEXT,
+                               B.SQL_ID,
+                               B.MODULE
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID)
+                 WHERE ELAPSED_TIME > 0
+                   AND EXECUTIONS > 0)
+         ORDER BY 1 DESC, 4 DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_PARSES
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT PARSE_CALLS,
+               EXECUTIONS,
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, PARSE_CALLS / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               ''
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.BUFFER_GETS - NVL(A.BUFFER_GETS, 0) BUFFER_GETS,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.PARSE_CALLS - NVL(A.PARSE_CALLS, 0) PARSE_CALLS,
+                               B.SQL_TEXT,
+                               B.SQL_ID,
+                               B.MODULE
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID)
+                 WHERE ELAPSED_TIME > 0
+                   AND EXECUTIONS > 0)
+         ORDER BY 1 DESC, 2 DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSESSION_TOPEVENT
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOPNUM           IN BINARY_INTEGER,
+    I_IN_SID              IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    OPEN CUR_RESULT FOR
+        SELECT EVENT,
+               TO_CHAR(TIME_WAITED_MIRCO/1000000, 'FM99999999999999999990.000'),
+               TOTAL_WAITS,
+               TO_CHAR(TIME_WAITED_MIRCO/TOTAL_WAITS/1000, 'FM99999999999999999990.000')
+          FROM (SELECT *
+                  FROM (SELECT B.TOTAL_WAITS - NVL(A.TOTAL_WAITS, 0) TOTAL_WAITS,
+                               B.TIME_WAITED_MIRCO - NVL(A.TIME_WAITED_MIRCO, 0) TIME_WAITED_MIRCO,
+                               B.EVENT
+                          FROM (SELECT * FROM SYS.WSR_SESSION_EVENTS WHERE SNAP_ID = I_IN_HIGH_SNAP_ID AND SID = I_IN_SID) B
+                          LEFT JOIN (SELECT * FROM SYS.WSR_SESSION_EVENTS WHERE SNAP_ID = I_IN_LOW_SNAP_ID AND SID = I_IN_SID) A
+                            ON A.EVENT = B.EVENT)
+                 WHERE TOTAL_WAITS > 0
+                   AND TIME_WAITED_MIRCO > 0)
+         ORDER BY TIME_WAITED_MIRCO DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);    
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSESSION
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT SID,
+               TO_CHAR(TIME_WAITED_MIRCO/1000000, 'FM99999999999999999990.000'),
+               TOTAL_WAITS
+          FROM (SELECT *
+                  FROM (SELECT B.TOTAL_WAITS - NVL(A.TOTAL_WAITS, 0) TOTAL_WAITS,
+                               B.TIME_WAITED_MIRCO - NVL(A.TIME_WAITED_MIRCO, 0) TIME_WAITED_MIRCO,
+                               B.SID
+                          FROM (SELECT SID, SUM(TOTAL_WAITS) TOTAL_WAITS, SUM(TIME_WAITED_MIRCO) TIME_WAITED_MIRCO FROM SYS.WSR_SESSION_EVENTS WHERE SNAP_ID = I_IN_HIGH_SNAP_ID GROUP BY SID) B
+                          LEFT JOIN (SELECT SID, SUM(TOTAL_WAITS) TOTAL_WAITS, SUM(TIME_WAITED_MIRCO) TIME_WAITED_MIRCO FROM SYS.WSR_SESSION_EVENTS WHERE SNAP_ID = I_IN_LOW_SNAP_ID GROUP BY SID) A
+                            ON A.SID = B.SID)
+                 WHERE TOTAL_WAITS > 0
+                   AND TIME_WAITED_MIRCO > 0)
+         ORDER BY TIME_WAITED_MIRCO DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$QUERY_TOPSESSION_SQL
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT            SYS_REFCURSOR;
+    DT_L_STARTTIME        DATE;
+    DT_L_ENDTIME          DATE;
+BEGIN
+    
+    SELECT SNAP_TIME
+      INTO DT_L_STARTTIME
+      FROM ADM_HIST_SNAPSHOT
+     WHERE SNAP_ID = I_IN_LOW_SNAP_ID;
+     
+    SELECT SNAP_TIME
+      INTO DT_L_ENDTIME
+      FROM ADM_HIST_SNAPSHOT
+     WHERE SNAP_ID = I_IN_HIGH_SNAP_ID; 
+    
+    OPEN CUR_RESULT FOR
+        SELECT NVL(TO_CHAR((CTIME - SQL_EXEC_START) *86400, 'FM99999999999999999990'), '&nbsp'), 
+               SID,                          
+               NVL(TO_CHAR(SQL_ID), '&nbsp'),                              
+               CURR_SCHEMA,                         
+               CLIENT_IP,                           
+               NVL(TRIM(PROGRAM), '&nbsp'),                              
+               AUTO_COMMIT,                         
+               TO_CHAR(LOGON_TIME, 'YYYY-MM-DD HH24:MI:SS'),                         
+               NVL(TO_CHAR(WAIT_SID), '&nbsp'),                               
+               NVL(TO_CHAR(SQL_EXEC_START, 'YYYY-MM-DD HH24:MI:SS'), '&nbsp'),     
+               TO_CHAR(CTIME, 'YYYY-MM-DD HH24:MI:SS'),                 
+               MODULE,                              
+               EVENT, 
+               (SELECT /*+rule*/ SUBSTRB(SQL_TEXT, 1, 30) FROM WSR_SQLTEXT WHERE SQL_ID = A.SQL_ID LIMIT 1) || '...'
+          FROM (SELECT CTIME,
+                       SID,                          
+                       SQL_ID,                              
+                       CURR_SCHEMA,                         
+                       CLIENT_IP,                           
+                       PROGRAM,                             
+                       AUTO_COMMIT,                         
+                       LOGON_TIME,                         
+                       WAIT_SID,                            
+                       SQL_EXEC_START,                     
+                       MODULE,                              
+                       EVENT,                               
+                       ROW_NUMBER() OVER(PARTITION BY SID, SQL_ID, SQL_EXEC_START ORDER BY CTIME DESC) RK
+                  FROM WSR_SESSION_SQL
+                 WHERE CTIME BETWEEN DT_L_STARTTIME AND DT_L_ENDTIME
+                   AND SQL_EXEC_START IS NOT NULL) A
+         WHERE RK = 1
+         ORDER BY CTIME - SQL_EXEC_START DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$QUERY_TRANSACTION
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT            SYS_REFCURSOR;
+    DT_L_STARTTIME        DATE;
+    DT_L_ENDTIME          DATE;
+BEGIN
+    
+    SELECT SNAP_TIME
+      INTO DT_L_STARTTIME
+      FROM ADM_HIST_SNAPSHOT
+     WHERE SNAP_ID = I_IN_LOW_SNAP_ID;
+     
+    SELECT SNAP_TIME
+      INTO DT_L_ENDTIME
+      FROM ADM_HIST_SNAPSHOT
+     WHERE SNAP_ID = I_IN_HIGH_SNAP_ID; 
+    
+    OPEN CUR_RESULT FOR
+        SELECT NVL(TO_CHAR((SNAP_TIME - BEGIN_TIME) *86400, 'FM99999999999999999990.000'), '&nbsp'), 
+               SID,                          
+               UNDO_COUNT,                                                                           
+               TO_CHAR(BEGIN_TIME, 'YYYY-MM-DD HH24:MI:SS'),                                                     
+               NVL(TO_CHAR(SNAP_TIME, 'YYYY-MM-DD HH24:MI:SS'), '&nbsp'),
+               NVL(SQL_ID, '&nbsp'),
+               (SELECT /*+rule*/ SUBSTRB(SQL_TEXT, 1, 30) FROM WSR_SQLTEXT WHERE SQL_ID = A.SQL_ID LIMIT 1) || '...',
+               NVL((SELECT GROUP_CONCAT(OBJECT_NAME) FROM (SELECT OBJECT_NAME FROM WSR_LOCK_OBJECT WHERE SNAP_TIME = A.SNAP_TIME AND SID = A.SID LIMIT 20)), '&nbsp')
+         FROM( SELECT (SELECT SQL_ID FROM WSR_SESSION_SQL WHERE CTIME = SNAP_TIME LIMIT 1) SQL_ID,
+                      SNAP_TIME,
+                      SID,                          
+                      UNDO_COUNT,                              
+                      BEGIN_TIME
+                 FROM (SELECT SNAP_TIME,
+                              SID,                          
+                              UNDO_COUNT,                              
+                              BEGIN_TIME,                                                       
+                              ROW_NUMBER() OVER(PARTITION BY SID, BEGIN_TIME ORDER BY SNAP_TIME DESC) RK
+                         FROM WSR_TRANSACTION
+                        WHERE SNAP_TIME BETWEEN DT_L_STARTTIME AND DT_L_ENDTIME) A
+                WHERE RK = 1
+                ORDER BY SNAP_TIME - BEGIN_TIME DESC LIMIT I_IN_TOPNUM
+             ) A;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$QUERY_SUMMARY_HEAD
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT            SYS_REFCURSOR;
+    DT_L_STARTTIME        DATE;
+    DT_L_ENDTIME          DATE;
+BEGIN
+    
+    SELECT SNAP_TIME
+      INTO DT_L_STARTTIME
+      FROM ADM_HIST_SNAPSHOT
+     WHERE SNAP_ID = I_IN_LOW_SNAP_ID;
+     
+    SELECT SNAP_TIME
+      INTO DT_L_ENDTIME
+      FROM ADM_HIST_SNAPSHOT
+     WHERE SNAP_ID = I_IN_HIGH_SNAP_ID; 
+    
+    OPEN CUR_RESULT FOR
+        SELECT NVL(TO_CHAR((SNAP_TIME - BEGIN_TIME) *86400, 'FM99999999999999999990.000'), '&nbsp'), 
+               SID,                          
+               UNDO_COUNT,                                                                           
+               TO_CHAR(BEGIN_TIME, 'YYYY-MM-DD HH24:MI:SS'),                                                     
+               NVL(TO_CHAR(SNAP_TIME, 'YYYY-MM-DD HH24:MI:SS'), '&nbsp'),
+               NVL(SQL_ID, '&nbsp'),
+               (SELECT /*+rule*/ SUBSTRB(SQL_TEXT, 1, 30) FROM WSR_SQLTEXT WHERE SQL_ID = A.SQL_ID LIMIT 1) || '...',
+               NVL((SELECT GROUP_CONCAT(OBJECT_NAME) FROM (SELECT OBJECT_NAME FROM WSR_LOCK_OBJECT WHERE SNAP_TIME = A.SNAP_TIME AND SID = A.SID LIMIT 20)), '&nbsp')
+         FROM( SELECT (SELECT SQL_ID FROM WSR_SESSION_SQL WHERE CTIME = SNAP_TIME LIMIT 1) SQL_ID,
+                      SNAP_TIME,
+                      SID,                          
+                      UNDO_COUNT,                              
+                      BEGIN_TIME
+                 FROM (SELECT SNAP_TIME,
+                              SID,                          
+                              UNDO_COUNT,                              
+                              BEGIN_TIME,                                                       
+                              ROW_NUMBER() OVER(PARTITION BY SID, BEGIN_TIME ORDER BY SNAP_TIME DESC) RK
+                         FROM WSR_TRANSACTION
+                        WHERE SNAP_TIME BETWEEN DT_L_STARTTIME AND DT_L_ENDTIME) A
+                WHERE RK = 1
+                ORDER BY SNAP_TIME - BEGIN_TIME DESC LIMIT I_IN_TOPNUM
+             ) A;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$WRITE_INSTANCE_SNAP
+AS
+    I_L_SESSION_NUM       BINARY_INTEGER;
+    I_L_ACTIVE_SESS_NUM   BINARY_INTEGER;
+    I_L_TS_SYSTEM_FREE    BINARY_BIGINT;               
+    I_L_TS_SYSWARE_FREE   BINARY_BIGINT;                    
+    I_L_TS_USER_FREE      BINARY_BIGINT;
+    I_L_TXN_PAGES         BINARY_INTEGER;
+    I_L_UNDO_PAGES        BINARY_INTEGER;
+BEGIN
+    SELECT COUNT(*), COUNT(DECODE(STATUS, 'ACTIVE', 1, NULL))
+      INTO I_L_SESSION_NUM, I_L_ACTIVE_SESS_NUM
+      FROM DV_SESSIONS;
+    
+    SELECT SUM(DECODE(TABLESPACE_NAME, 'SYSTEM', TOTAL_SIZE - USED_SIZE, 0)), SUM(DECODE(TABLESPACE_NAME, 'SYSAUX', TOTAL_SIZE - USED_SIZE, 0)),
+           SUM(CASE WHEN TABLESPACE_NAME IN ('SYSTEM', 'SYSAUX', 'TEMP', 'UNDO', 'TEMP2', 'TEMP2_UNDO') THEN 0 ELSE TOTAL_SIZE - USED_SIZE END)  
+      INTO I_L_TS_SYSTEM_FREE, I_L_TS_SYSWARE_FREE, I_L_TS_USER_FREE
+      FROM ADM_TABLESPACES;
+    
+    SELECT SUM(TXN_PAGES), SUM(UNDO_PAGES)
+      INTO I_L_TXN_PAGES, I_L_UNDO_PAGES
+      FROM DV_UNDO_SEGMENTS;      
+  
+    INSERT INTO WSR_INSTANCE_SNAP
+              ( SNAP_TIME,                        
+                SESSION_NUM,                      
+                ACTIVE_SESS_NUM,                  
+                LOCK_NUM,                         
+                TRANSACTION_NUM,                  
+                TEMP_BUFFER_FREE,                 
+                DATA_BUFFER_PIN,                  
+                TS_SYSTEM_FREE,                   
+                TS_SYSWARE_FREE,                       
+                TS_USER_FREE,                        
+                TXN_PAGES,                        
+                UNDO_PAGES,
+                WRITE_PAGES,
+                MASTER_LOCALITY
+              )
+        VALUES( SYSDATE,
+                I_L_SESSION_NUM,
+                I_L_ACTIVE_SESS_NUM,
+                (SELECT COUNT(*) FROM DV_LOCKS),
+                (SELECT COUNT(*) FROM DV_TRANSACTIONS),
+                (SELECT SUM(FREE_PAGES) FROM DV_TEMP_POOLS),
+                (SELECT SUM(CNUM_PINNED) FROM DV_BUFFER_POOL_STATS),
+                I_L_TS_SYSTEM_FREE, 
+                I_L_TS_SYSWARE_FREE, 
+                I_L_TS_USER_FREE,
+                I_L_TXN_PAGES,
+                I_L_UNDO_PAGES,
+                (SELECT SUM(CNUM_WRITE) FROM DV_BUFFER_POOL_STATS),
+                (SELECT SUM(LOCAL_MASTER)/SUM(LOCAL_MASTER + REMOTE_MASTER) FROM DV_BUFFER_POOL_STATS)
+              );
+                
+    COMMIT;
+         
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$CREATE_SESSION_SNAPSHOT
+AS
+    DT_L_CURRENT DATE := SYSDATE;
+    DT_L_DAY DATE := TRUNC(SYSDATE);
+    I_L_COUNT    BINARY_INTEGER;
+    I_L_RET      BINARY_INTEGER;
+BEGIN
+    IF (GET_LOCK('SYS.WSR$CREATE_SNAPSHOT') <> 1) THEN
+        RETURN;
+    END IF;
+
+    SELECT COUNT(*) 
+      INTO I_L_COUNT
+      FROM WSR_CONTROL
+     WHERE STATUS = 'Y'
+       AND SESSION_STATUS = 'Y';
+    
+    IF (I_L_COUNT = 0) THEN
+        RETURN;
+    END IF;
+    
+    FOR ITEM IN (SELECT * FROM DV_SESSIONS WHERE STATUS = 'ACTIVE' AND (CLIENT_IP <> '0.0.0.0' OR EVENT <> 'idle wait')) LOOP
+    
+        INSERT INTO SYS.WSR_SESSION_SQL
+                  ( CTIME,
+                    SID,          
+                    SQL_ID,         
+                    CURR_SCHEMA,    
+                    CLIENT_IP,      
+                    PROGRAM,        
+                    AUTO_COMMIT,    
+                    LOGON_TIME,     
+                    WAIT_SID,       
+                    SQL_EXEC_START, 
+                    MODULE,         
+                    EVENT          
+                  )
+            VALUES( DT_L_CURRENT,
+                    ITEM.SID,
+                    ITEM.SQL_ID,
+                    ITEM.CURR_SCHEMA,
+                    ITEM.CLIENT_IP,      
+                    ITEM.PROGRAM,        
+                    ITEM.AUTO_COMMIT,    
+                    ITEM.LOGON_TIME,     
+                    ITEM.WAIT_SID,       
+                    ITEM.SQL_EXEC_START, 
+                    ITEM.MODULE,         
+                    ITEM.EVENT
+                   );
+        
+        IF (ITEM.SQL_ID IS NOT NULL) THEN
+        
+            SELECT /*+rule*/ COUNT(*)
+              INTO I_L_COUNT
+              FROM SYS.WSR_SQLTEXT
+             WHERE CTIME = DT_L_DAY
+               AND SQL_ID = ITEM.SQL_ID;   
+            
+            IF (I_L_COUNT = 0) THEN
+                
+                INSERT INTO SYS.WSR_SQLTEXT
+                          ( CTIME,
+                            SQL_ID,
+                            SQL_TEXT,
+                            FLAG
+                          )
+                    VALUES( DT_L_DAY,
+                            ITEM.SQL_ID,
+                            ITEM.CURRENT_SQL,
+                            1
+                          );
+            END IF;          
+        END IF;
+    END LOOP;
+    
+    INSERT INTO WSR_TRANSACTION
+              ( SNAP_TIME,
+                SID,
+                UNDO_COUNT,
+                BEGIN_TIME
+              )
+         SELECT DT_L_CURRENT,
+                SID,
+                UNDO_COUNT,
+                BEGIN_TIME
+           FROM DV_TRANSACTIONS;       
+           
+    INSERT INTO WSR_LOCK_OBJECT
+              ( SNAP_TIME,
+                SID,
+                OBJECT_NAME,
+                LMODE 
+              )
+         SELECT DT_L_CURRENT,
+                SESSION_ID,
+                OBJECT_NAME,
+                LMODE 
+           FROM DV_LOCKED_OBJECTS;                               
+    
+    WSR$WRITE_INSTANCE_SNAP;
+    I_L_RET := RELEASE_LOCK('SYS.WSR$CREATE_SNAPSHOT');
+EXCEPTION
+    WHEN OTHERS THEN
+        I_L_RET := RELEASE_LOCK('SYS.WSR$CREATE_SNAPSHOT');
+        WSR$INSERT_ERRORLOG('WSR$CREATE_SESSION_SNAPSHOT', SUBSTRB(SQL_ERR_MSG,1,2000));
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$INSTANCE_SNAP
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+    DT_L_STARTTIME        DATE;
+    DT_L_ENDTIME          DATE;
+BEGIN
+    
+    SELECT SNAP_TIME
+      INTO DT_L_STARTTIME
+      FROM ADM_HIST_SNAPSHOT
+     WHERE SNAP_ID = I_IN_LOW_SNAP_ID;
+     
+    SELECT SNAP_TIME
+      INTO DT_L_ENDTIME
+      FROM ADM_HIST_SNAPSHOT
+     WHERE SNAP_ID = I_IN_HIGH_SNAP_ID;     
+    
+    OPEN CUR_RESULT FOR
+        SELECT  TO_CHAR(SNAP_TIME, 'YYYY-MM-DD HH24:MI:SS'),                        
+                SESSION_NUM,                      
+                ACTIVE_SESS_NUM,                  
+                LOCK_NUM,                         
+                TRANSACTION_NUM,                  
+                TEMP_BUFFER_FREE,                 
+                DATA_BUFFER_PIN,                  
+                TS_SYSTEM_FREE,                   
+                TS_SYSWARE_FREE,                       
+                TS_USER_FREE,                        
+                TXN_PAGES,                        
+                UNDO_PAGES,
+                WRITE_PAGES,
+                MASTER_LOCALITY
+          FROM SYS.WSR_INSTANCE_SNAP
+         WHERE SNAP_TIME BETWEEN DT_L_STARTTIME AND DT_L_ENDTIME
+         ORDER BY SNAP_TIME LIMIT 1000;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+      
+END;
+/
+
+DECLARE
+    I_L_JOBNO           BINARY_INTEGER;
+    I_L_SNAPINT_NUM     BINARY_INTEGER;
+    STR_L_STATUS        VARCHAR(3);
+BEGIN
+    FOR ITEM IN (
+        SELECT JOB 
+          FROM MY_JOBS
+         WHERE WHAT = 'WSR$CREATE_SNAPSHOT();' ) LOOP
+     
+        DBE_TASK.CANCEL(ITEM.JOB);  
+    END LOOP;
+    
+    SELECT SNAPINT_NUM, STATUS
+      INTO I_L_SNAPINT_NUM, STR_L_STATUS
+      FROM WSR_CONTROL;
+
+    DBE_TASK.SUBMIT(I_L_JOBNO, 'WSR$CREATE_SNAPSHOT();', TRUNC(SYSDATE, 'HH') + 1/24, 'SYSDATE + ' || TO_CHAR(I_L_SNAPINT_NUM) || '/86400' );
+    
+    IF (STR_L_STATUS = 'N') THEN
+        DBE_TASK.SUSPEND(I_L_JOBNO, TRUE);
+    END IF; 
+    
+    COMMIT;
+END;
+/
+
+DECLARE
+    I_L_JOBNO BINARY_INTEGER;
+BEGIN
+    FOR ITEM IN (
+        SELECT JOB 
+          FROM MY_JOBS
+         WHERE WHAT = 'WSR$DROP_SNAPSHOT_TIME();' ) LOOP
+     
+        DBE_TASK.CANCEL(ITEM.JOB);  
+    END LOOP; 
+ 
+    DBE_TASK.SUBMIT(I_L_JOBNO, 'WSR$DROP_SNAPSHOT_TIME();', TRUNC(SYSDATE) + 1, 'TRUNC(SYSDATE) + 1');
+    COMMIT;
+
+END;
+/
+
+DECLARE
+    I_L_JOBNO BINARY_INTEGER;
+    I_SESSION_INTERVAL BINARY_INTEGER;
+    STR_L_SESSION_STATUS VARCHAR(3);
+BEGIN
+    FOR ITEM IN (
+        SELECT JOB 
+          FROM MY_JOBS
+         WHERE WHAT = 'WSR$CREATE_SESSION_SNAPSHOT();' ) LOOP
+     
+        DBE_TASK.CANCEL(ITEM.JOB);  
+    END LOOP;
+    
+    SELECT SESSION_INTERVAL, SESSION_STATUS
+      INTO I_SESSION_INTERVAL, STR_L_SESSION_STATUS 
+      FROM WSR_CONTROL
+     LIMIT 1;
+    
+    DBE_TASK.SUBMIT(I_L_JOBNO, 'WSR$CREATE_SESSION_SNAPSHOT();', SYSDATE, 'SYSDATE + ' || TO_CHAR(I_SESSION_INTERVAL) || '/86400');
+    
+    IF (STR_L_SESSION_STATUS = 'N') THEN
+        DBE_TASK.SUSPEND(I_L_JOBNO, TRUE);
+    END IF; 
+    
+    COMMIT;
+END;
+/
+
+
+GRANT EXECUTE ON SYS.WSR$CREATE_SNAPSHOT TO STATISTICS
+/
+GRANT SELECT ON SYS.SNAP_ID$ TO STATISTICS
+/
+GRANT SELECT ON SYS.DV_INSTANCE TO STATISTICS
+/
+GRANT SELECT ON SYS.DV_DATABASE TO STATISTICS
+/
+GRANT UPDATE, INSERT, SELECT ON SYS.WSR_CONTROL TO STATISTICS
+/
+GRANT INSERT, SELECT, DELETE ON SYS.WSR_SYS_STAT TO STATISTICS
+/
+GRANT INSERT, SELECT, DELETE ON SYS.WSR_MES_STAT TO STATISTICS
+/
+GRANT INSERT, SELECT, DELETE ON SYS.WSR_SYSTEM TO STATISTICS
+/
+GRANT INSERT, SELECT, DELETE ON SYS.WSR_SYSTEM_EVENT TO STATISTICS
+/
+GRANT SELECT ON SYS.DV_SYS_STATS TO STATISTICS
+/
+GRANT SELECT ON SYS.DV_SYSTEM TO STATISTICS
+/
+GRANT SELECT ON SYS.DV_SYS_EVENTS TO STATISTICS
+/
+GRANT INSERT, SELECT ON SYS.WSR_SQLAREA TO STATISTICS
+/
+GRANT SELECT ON SYS.DV_SQLS TO STATISTICS
+/
+GRANT INSERT, SELECT, DELETE ON SYS.WSR_PARAMETER TO STATISTICS
+/
+GRANT SELECT ON SYS.DV_PARAMETERS TO STATISTICS
+/
+GRANT INSERT, SELECT, DELETE ON SYS.WSR_LATCH TO STATISTICS
+/
+GRANT SELECT ON SYS.DV_LATCHS TO STATISTICS
+/
+GRANT INSERT, SELECT, DELETE ON SYS.WSR_WAITSTAT TO STATISTICS
+/
+GRANT SELECT ON SYS.DV_WAIT_STATS TO STATISTICS
+/
+GRANT INSERT, SELECT, DELETE ON SYS.WSR_LIBRARYCACHE TO STATISTICS
+/
+GRANT SELECT ON SYS.DV_LIBRARY_CACHE TO STATISTICS
+/
+GRANT INSERT, SELECT ON SYS.WSR_SEGMENT TO STATISTICS
+/
+GRANT SELECT ON SYS.DV_SEGMENT_STATS TO STATISTICS
+/
+GRANT INSERT, SELECT, DELETE ON SYS.WSR_SNAPSHOT TO STATISTICS
+/
+GRANT SELECT ON SYS.DV_SESSIONS TO STATISTICS
+/
+GRANT SELECT ON SYS.DV_OPEN_CURSORS TO STATISTICS
+/
+GRANT INSERT, SELECT ON SYS.WSR_DBA_SEGMENTS TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_SEGMENTS TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_SQLAREA TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_SNAPSHOT TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_WR_CONTROL TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_SYSSTAT TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_MESSTAT TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_SYSTEM_EVENT TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_SYSTEM TO STATISTICS
+/
+
+GRANT SELECT ON SYS.ADM_HIST_TRANSACTION TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_LOCK_OBJECT TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_INSTANCE_SNAP TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_SESSION_SQL TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_SQLTEXT TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_SQLPLAN TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_SESSION_EVENTS TO STATISTICS
+/
+
+GRANT EXECUTE ON SYS.WSR$INSERT_SQL_LIST TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_PARAMETER TO STATISTICS
+/
+GRANT INSERT, SELECT ON SYS.WSR_SQL_LIST TO STATISTICS
+/
+GRANT INSERT, SELECT ON SYS.WSR_SQL_LIST_PLAN TO STATISTICS
+/
+GRANT EXECUTE ON DBE_TASK TO STATISTICS
+/
+
+GRANT SELECT ON SYS.ADM_HIST_LONGSQL TO STATISTICS
+/
+GRANT INSERT, SELECT ON SYS.WSR_LONGSQL TO STATISTICS
+/
+GRANT INSERT, SELECT ON SYS.WSR_SQLTEXT TO STATISTICS
+/
+GRANT INSERT, SELECT ON SYS.WSR_SQLPLAN TO STATISTICS
+/
+GRANT EXECUTE ON WSR$TOPSQL_ELAPSED_TIME TO STATISTICS
+/
+GRANT EXECUTE ON WSR$TOPSQL_LONGSQL_TIME TO STATISTICS
+/
+GRANT EXECUTE ON WSR$TOPSQL_LONGSQL_TIME_PREFIX TO STATISTICS
+/
+GRANT EXECUTE ON WSR$TOPSQL_CPU_TIME TO STATISTICS
+/
+GRANT EXECUTE ON WSR$TOPSQL_IO_WAIT TO STATISTICS
+/
+GRANT EXECUTE ON WSR$TOPSQL_NET_WAIT TO STATISTICS
+/
+GRANT EXECUTE ON WSR$TOPSQL_GETS TO STATISTICS
+/
+GRANT EXECUTE ON WSR$TOPSQL_READS TO STATISTICS
+/
+GRANT EXECUTE ON WSR$TOPSQL_EXECUTIONS TO STATISTICS
+/
+GRANT EXECUTE ON WSR$TOPSQL_PARSES TO STATISTICS
+/
+GRANT EXECUTE ON WSR$GET_SQL_ANALYSE_RESULT TO STATISTICS
+/
+GRANT EXECUTE ON WSR$TOPSQL_ANALYSE TO STATISTICS
+/
+GRANT STATISTICS TO DBA
+/
+
+GRANT INSERT, SELECT ON SYS.WSR_INSTANCE_SNAP TO STATISTICS
+/
+GRANT INSERT, SELECT ON SYS.WSR_SESSION_SQL TO STATISTICS
+/
+GRANT INSERT, SELECT ON SYS.WSR_EXCEPTION_LOG TO STATISTICS
+/
+GRANT INSERT, SELECT ON SYS.WSR_SESSION_EVENTS TO STATISTICS
+/
+GRANT INSERT, SELECT ON SYS.WSR_TRANSACTION TO STATISTICS
+/
+GRANT EXECUTE ON WSR$INSERT_ERRORLOG TO STATISTICS
+/
+GRANT EXECUTE ON WSR$TOPSESSION_TOPEVENT TO STATISTICS
+/
+GRANT EXECUTE ON WSR$TOPSESSION TO STATISTICS
+/
+GRANT EXECUTE ON WSR$QUERY_TOPSESSION_SQL TO STATISTICS
+/
+GRANT EXECUTE ON WSR$WRITE_INSTANCE_SNAP TO STATISTICS
+/
+GRANT EXECUTE ON WSR$CREATE_SESSION_SNAPSHOT TO STATISTICS
+/
+GRANT EXECUTE ON WSR$INSTANCE_SNAP TO STATISTICS
+/
+
+GRANT EXECUTE ON WSR$QUERY_TRANSACTION TO STATISTICS
+/
+GRANT SELECT ON ADM_TABLESPACES TO STATISTICS
+/
+GRANT SELECT ON DV_UNDO_SEGMENTS TO STATISTICS
+/
+GRANT SELECT ON DV_LOCKS TO STATISTICS
+/
+GRANT SELECT ON DV_TRANSACTIONS TO STATISTICS
+/
+GRANT SELECT ON DV_TEMP_POOLS TO STATISTICS
+/
+GRANT SELECT ON DV_BUFFER_POOL_STATS TO STATISTICS
+/
+GRANT SELECT ON DV_SESSION_EVENTS TO STATISTICS
+/
+GRANT SELECT ON DV_LOCKED_OBJECTS TO STATISTICS
+/
+GRANT SELECT ON DV_TABLESPACES TO STATISTICS
+/
+GRANT SELECT ON WSR_LOCK_OBJECT TO STATISTICS
+/
+GRANT SELECT ON ADM_PROCEDURES TO STATISTICS
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'REVOKE EXECUTE ON SYS.WSR$DROP_SNAPSHOT_RANGE FROM STATISTICS';
+EXCEPTION
+    WHEN OTHERS THEN
+        NULL;
+END;
+/
+BEGIN
+    EXECUTE IMMEDIATE 'REVOKE EXECUTE ON SYS.WSR$DROP_SNAPSHOT_PARTITION FROM STATISTICS';
+EXCEPTION
+    WHEN OTHERS THEN
+        NULL;
+END;
+/
+BEGIN
+    EXECUTE IMMEDIATE 'REVOKE EXECUTE ON WSR$DROP_CTIME_PARTITION FROM STATISTICS';
+EXCEPTION
+    WHEN OTHERS THEN
+        NULL;
+END;
+/
+BEGIN
+    EXECUTE IMMEDIATE 'REVOKE EXECUTE ON WSR$DROP_SNAPSHOT_TIME FROM STATISTICS';
+EXCEPTION
+    WHEN OTHERS THEN
+        NULL;
+END;
+/
+
+--02
+GRANT SELECT ON SYS.DV_ANONYMOUS TO STATISTICS
+/
+
+drop TABLE if exists WSR_INSTANCE_SNAP
+/
+
+CREATE TABLE WSR_INSTANCE_SNAP
+(
+	   SNAP_TIME                        DATE,
+    SESSION_NUM                      BINARY_INTEGER,
+    ACTIVE_SESS_NUM                  BINARY_INTEGER,
+    LOCK_NUM                         BINARY_INTEGER,
+    TRANSACTION_NUM                  BINARY_INTEGER,
+    TEMP_BUFFER_FREE                 BINARY_INTEGER,
+    DATA_BUFFER_PIN                  BINARY_INTEGER,
+    TS_SYSTEM_FREE                   BINARY_BIGINT,
+    TS_SYSWARE_FREE                  BINARY_BIGINT,       
+    TS_USER_FREE                     BINARY_BIGINT,                                 
+    TXN_PAGES                        BINARY_INTEGER, 
+    UNDO_PAGES                       BINARY_INTEGER,
+    WRITE_PAGES                      BINARY_INTEGER,
+    ARCH_LOGS                        NUMBER,
+   	CPU_USER                         NUMBER,
+   	CPU_SYSTEM                       NUMBER,
+   	IOWAIT                           NUMBER,
+   	IDLE                             NUMBER,
+   	LONGEST_SQL                      NUMBER,
+   	LONGEST_TRANS                    NUMBER,
+   	DATABUFFER_FREE                  NUMBER,
+   	TEMPBUFFER_HWM                   NUMBER,
+   	TEMPBUFFER_SWAP                  NUMBER,
+   	LOGICAL_READ                     NUMBER,
+   	PHYSICAL_READ                    NUMBER,
+   	COMMIT_NUM                       NUMBER,
+   	ROLLBACK_NUM                     NUMBER,
+   	REDO_SIZE                        NUMBER,
+   	EXECUTE_NUM                      NUMBER,
+   	FETCH_ROW_NUM                    NUMBER,
+   	LOGIN_NUM                        NUMBER,
+   	HARDPARSE_NUM                    NUMBER,
+   	DBWR_PAGES                       NUMBER,
+   	DBWR_TIME                        NUMBER,
+   	MIN_HA_SYNC_SEND_LOG             NUMBER,
+   	MAX_HA_SYNC_SEND_LOG             NUMBER,
+   	MIN_HA_SYNC_REPLY_LOG            NUMBER,
+   	MAX_HA_SYNC_REPLY_LOG            NUMBER,
+   	MIN_LOGICAL_SYNC_REPLY_LOG       INTERVAL DAY TO SECOND,
+   	MAX_LOGICAL_SYNC_REPLY_LOG       INTERVAL DAY TO SECOND,
+   	EVENT_LATCH_BUFFER               NUMBER,
+   	EVENT_LOG_FILE_SYNC              NUMBER,
+   	EVENT_BUFFER_BUSY_WAITS          NUMBER,
+   	EVENT_TX_ROW_LOCK                NUMBER,
+   	EVENT_SCATTERED_READ             NUMBER,
+   	EVENT_SEQUENTIAL_READ            NUMBER,
+   	EVENT_READ_BY_OTHER_SESSION      NUMBER,
+   	EVENT_ARCHIVING_NEEDED           NUMBER,
+   	EVENT_ADVISORY_LOCK              NUMBER,
+   	EVENT_TABLE_LOCK                 NUMBER,
+   	EVENT_CHECKPOINT_INCOMPLETE      NUMBER,
+   	EVENT_ITL_ENTRY                  NUMBER,
+   	REDO_SWITCH_TIMES                NUMBER,
+   	PCR_CONSTRUCTS                   NUMBER,
+   	BCR_CONSTRUCTS                   NUMBER
+) 
+PARTITION BY RANGE(SNAP_TIME) INTERVAL (NUMTODSINTERVAL(1,'DAY')) (PARTITION P_0 VALUES LESS THAN (TO_DATE('2009-02-01','YYYY-MM-DD')))
+TABLESPACE SYSAUX
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_INSTANCE_SNAP AS
+SELECT SNAP_TIME, SESSION_NUM, ACTIVE_SESS_NUM, LOCK_NUM,
+       TRANSACTION_NUM, TEMP_BUFFER_FREE, DATA_BUFFER_PIN,  
+       TS_SYSTEM_FREE, TS_SYSWARE_FREE, TS_USER_FREE,     
+       TXN_PAGES, UNDO_PAGES, WRITE_PAGES, ARCH_LOGS,CPU_USER,
+       CPU_SYSTEM,IOWAIT,IDLE,LONGEST_SQL,LONGEST_TRANS,
+       DATABUFFER_FREE,TEMPBUFFER_HWM,TEMPBUFFER_SWAP,
+       LOGICAL_READ,PHYSICAL_READ,COMMIT_NUM,ROLLBACK_NUM,
+       REDO_SIZE,EXECUTE_NUM,FETCH_ROW_NUM,LOGIN_NUM,HARDPARSE_NUM,
+       DBWR_PAGES,DBWR_TIME,MIN_HA_SYNC_SEND_LOG,MAX_HA_SYNC_SEND_LOG,
+       MIN_HA_SYNC_REPLY_LOG,MAX_HA_SYNC_REPLY_LOG,MIN_LOGICAL_SYNC_REPLY_LOG,
+       MAX_LOGICAL_SYNC_REPLY_LOG,EVENT_LATCH_BUFFER,EVENT_LOG_FILE_SYNC,
+       EVENT_BUFFER_BUSY_WAITS,EVENT_TX_ROW_LOCK,EVENT_SCATTERED_READ,
+       EVENT_SEQUENTIAL_READ,EVENT_READ_BY_OTHER_SESSION,EVENT_ARCHIVING_NEEDED,
+       EVENT_ADVISORY_LOCK,EVENT_TABLE_LOCK,EVENT_CHECKPOINT_INCOMPLETE,EVENT_ITL_ENTRY,
+       REDO_SWITCH_TIMES,PCR_CONSTRUCTS,BCR_CONSTRUCTS
+FROM SYS.WSR_INSTANCE_SNAP
+/
+
+GRANT SELECT ON SYS.ADM_HIST_INSTANCE_SNAP TO STATISTICS
+/
+
+CREATE INDEX WSR_INSTANCE_SNAP_TIME ON WSR_INSTANCE_SNAP(SNAP_TIME) LOCAL 
+TABLESPACE SYSAUX
+/
+
+DROP TABLE IF EXISTS WSR_INSTANCE_SNAP_LAST
+/
+
+CREATE TABLE WSR_INSTANCE_SNAP_LAST
+(
+	   CPU_USER                         NUMBER,
+   	CPU_SYSTEM                       NUMBER,
+   	IOWAIT                           NUMBER,
+   	IDLE                             NUMBER,
+   	LOGICAL_READ                     NUMBER,
+   	PHYSICAL_READ                    NUMBER,
+   	COMMIT_NUM                       NUMBER,
+   	ROLLBACK_NUM                     NUMBER,
+   	REDO_SIZE                        NUMBER,
+   	EXECUTE_NUM                      NUMBER,
+   	FETCH_ROW_NUM                    NUMBER,
+   	LOGIN_NUM                        NUMBER,
+   	HARDPARSE_NUM                    NUMBER,   	
+   	DBWR_PAGES                       NUMBER,
+   	DBWR_TIME                        NUMBER,   	
+   	EVENT_LATCH_BUFFER               NUMBER,
+   	EVENT_LOG_FILE_SYNC              NUMBER,
+   	EVENT_BUFFER_BUSY_WAITS          NUMBER,
+   	EVENT_TX_ROW_LOCK                NUMBER,
+   	EVENT_SCATTERED_READ             NUMBER,
+   	EVENT_SEQUENTIAL_READ            NUMBER,
+   	EVENT_READ_BY_OTHER_SESSION      NUMBER,
+   	EVENT_ARCHIVING_NEEDED           NUMBER,
+   	EVENT_ADVISORY_LOCK              NUMBER,
+   	EVENT_TABLE_LOCK                 NUMBER,
+   	EVENT_CHECKPOINT_INCOMPLETE      NUMBER,
+   	EVENT_ITL_ENTRY                  NUMBER,
+   	REDO_SWITCH_TIMES                NUMBER,
+   	PCR_CONSTRUCTS                   NUMBER,
+   	BCR_CONSTRUCTS                   NUMBER
+) 
+TABLESPACE SYSAUX
+/
+
+CREATE OR REPLACE PROCEDURE WSR$WRITE_INSTANCE_SNAP
+AS
+    I_L_SESSION_NUM       BINARY_INTEGER;
+    I_L_ACTIVE_SESS_NUM   BINARY_INTEGER;
+    I_L_TS_SYSTEM_FREE    BINARY_BIGINT;               
+    I_L_TS_SYSWARE_FREE   BINARY_BIGINT;                    
+    I_L_TS_USER_FREE      BINARY_BIGINT;        
+    I_L_DATA_BUFFER_PIN   BINARY_BIGINT;      
+    I_L_WRITE_PAGES       BINARY_BIGINT; 
+    I_L_FREE_PAGES        BINARY_BIGINT; 
+   	I_L_CPU_USER                         NUMBER;
+   	I_L_CPU_SYSTEM                       NUMBER;
+   	I_L_IOWAIT                           NUMBER;
+   	I_L_IDLE                             NUMBER;
+   	I_L_DATABUFFER_FREE                  NUMBER;
+   	I_L_TEMPBUFFER_HWM                   NUMBER;
+   	I_L_TEMPBUFFER_SWAP                  NUMBER;
+   	I_L_LOGICAL_READ                     NUMBER;
+   	I_L_PHYSICAL_READ                    NUMBER;
+   	I_L_COMMIT_NUM                       NUMBER;
+   	I_L_ROLLBACK_NUM                     NUMBER;
+   	I_L_REDO_SIZE                        NUMBER;
+   	I_L_EXECUTE_NUM                      NUMBER;
+   	I_L_FETCH_ROW_NUM                    NUMBER;
+   	I_L_MIN_HA_SYNC_SEND_LOG             NUMBER;
+   	I_L_MAX_HA_SYNC_SEND_LOG             NUMBER;
+   	I_L_MIN_HA_SYNC_REPLY_LOG            NUMBER;
+   	I_L_MAX_HA_SYNC_REPLY_LOG            NUMBER;
+   	I_L_MIN_LOGICAL_SYNC_REPLY_LOG       INTERVAL DAY TO SECOND;
+   	I_L_MAX_LOGICAL_SYNC_REPLY_LOG       INTERVAL DAY TO SECOND;
+   	I_L_EVENT_LATCH_BUFFER               NUMBER;
+   	I_L_EVENT_LOG_FILE_SYNC              NUMBER;
+   	I_L_EVENT_BUFFER_BUSY_WAITS          NUMBER;
+   	I_L_EVENT_TX_ROW_LOCK                NUMBER;
+   	I_L_EVENT_SCATTERED_READ             NUMBER;
+   	I_L_EVENT_SEQUENTIAL_READ            NUMBER;
+   	I_L_EVENT_READ_BY_OTHER_SESSION      NUMBER;
+   	I_L_EVENT_ARCHIVING_NEEDED           NUMBER;
+   	I_L_EVENT_ADVISORY_LOCK              NUMBER;
+   	I_L_EVENT_TABLE_LOCK                 NUMBER;
+   	I_L_EVENT_CHECKPOINT_INCOMPLETE      NUMBER;
+   	I_L_EVENT_ITL_ENTRY                  NUMBER;  
+    I_L_VALID                            BINARY_INTEGER := 1;
+    ROW_L_LAST                           WSR_INSTANCE_SNAP_LAST%ROWTYPE;            
+    I_L_CPUTOTAL                         NUMBER;        
+    I_L_LOGIN_NUM                        NUMBER;
+    I_L_HARDPARSE_NUM                    NUMBER;    
+   	I_L_DBWR_PAGES                       NUMBER;
+   	I_L_DBWR_TIME                        NUMBER;    
+    I_L_LONGEST_SQL                      NUMBER; 
+    I_L_LONGEST_TRANS                    NUMBER; 
+    I_L_TRANS_NUM                        NUMBER; 
+    I_L_ARCH_LOGS                        NUMBER;
+    I_L_TXN_PAGES                        BINARY_INTEGER;
+    I_L_UNDO_PAGES                       BINARY_INTEGER;
+    I_L_REDO_SWITCH_TIMES                NUMBER;
+    I_L_PCR_CONSTRUCTS                   NUMBER;
+    I_L_BCR_CONSTRUCTS                   NUMBER;
+    STR_L_OWNER                          VARCHAR(100);
+BEGIN
+
+    BEGIN
+        SELECT *
+          INTO ROW_L_LAST
+          FROM WSR_INSTANCE_SNAP_LAST
+         LIMIT 1;
+        
+        DELETE FROM WSR_INSTANCE_SNAP_LAST;
+        COMMIT;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            I_L_VALID := 0;
+    END;  
+ 
+    SELECT COUNT(*), COUNT(DECODE(STATUS, 'ACTIVE', 1, NULL)), MAX(DECODE(STATUS, 'ACTIVE', (SYSDATE - SQL_EXEC_START) * 86400, 0))
+      INTO I_L_SESSION_NUM, I_L_ACTIVE_SESS_NUM, I_L_LONGEST_SQL
+      FROM DV_SESSIONS;
+      
+    SELECT SUM(TXN_PAGES), SUM(UNDO_PAGES)
+      INTO I_L_TXN_PAGES, I_L_UNDO_PAGES
+      FROM DV_UNDO_SEGMENTS;       
+    
+    SELECT SUM(DECODE(TABLESPACE_NAME, 'SYSTEM', TOTAL_SIZE - USED_SIZE, 0)), SUM(DECODE(TABLESPACE_NAME, 'SYSAUX', TOTAL_SIZE - USED_SIZE, 0)),
+           SUM(CASE WHEN TABLESPACE_NAME IN ('SYSTEM', 'SYSAUX', 'TEMP', 'UNDO', 'TEMP2', 'TEMP2_UNDO') THEN 0 ELSE TOTAL_SIZE - USED_SIZE END)  
+      INTO I_L_TS_SYSTEM_FREE, I_L_TS_SYSWARE_FREE, I_L_TS_USER_FREE
+      FROM ADM_TABLESPACES;
+    
+    SELECT NVL(SUM(BLOCKS * BLOCK_SIZE), 0)
+      INTO I_L_ARCH_LOGS
+      FROM DV_ARCHIVED_LOGS;
+      
+    SELECT COUNT(*), NVL(MAX(SYSDATE - BEGIN_TIME), 0) * 86400
+      INTO I_L_TRANS_NUM, I_L_LONGEST_TRANS
+      FROM DV_TRANSACTIONS;  
+      
+    SELECT SUM(DECODE(ID, 5, VALUE)), SUM(DECODE(ID, 6, VALUE)), SUM(DECODE(ID, 7, VALUE)), SUM(DECODE(ID, 3, VALUE))
+      INTO I_L_CPU_USER, I_L_CPU_SYSTEM, I_L_IOWAIT, I_L_IDLE
+      FROM DV_SYSTEM
+     WHERE ID IN (3, 5, 6, 7);
+      
+    SELECT SUM(CNUM_PINNED), SUM(CNUM_FREE), SUM(CNUM_WRITE)
+      INTO I_L_DATA_BUFFER_PIN, I_L_DATABUFFER_FREE, I_L_WRITE_PAGES
+      FROM DV_BUFFER_POOL_STATS;
+    
+    SELECT SUM(FREE_PAGES), SUM(PAGE_HWM), SUM(SWAP_COUNT) 
+      INTO I_L_FREE_PAGES, I_L_TEMPBUFFER_HWM, I_L_TEMPBUFFER_SWAP
+      FROM DV_TEMP_POOLS;
+    
+    select sum(decode(name, 'buffer gets', value)),
+           sum(decode(name, 'disk reads', value)),
+           sum(decode(name, 'commits', value)),
+           sum(decode(name, 'rollbacks', value)),
+           sum(decode(name, 'redo write size', value)),
+           sum(decode(name, 'sql executions', value)),
+           sum(decode(name, 'fetched rows', value)),
+           sum(decode(name, 'user logons cumulation', value)),
+           sum(decode(name, 'sql hard parses', value)),
+           sum(decode(name, 'DBWR disk writes', value)),
+           sum(decode(name, 'DBWR disk write time', value)),
+           sum(decode(name, 'redo log switch count', value)),
+           sum(decode(name, 'pcr construct count', value)),
+           sum(decode(name, 'bcr construct count', value))
+      INTO I_L_LOGICAL_READ, I_L_PHYSICAL_READ, I_L_COMMIT_NUM, I_L_ROLLBACK_NUM, I_L_REDO_SIZE, I_L_EXECUTE_NUM, I_L_FETCH_ROW_NUM, I_L_LOGIN_NUM, I_L_HARDPARSE_NUM,
+           I_L_DBWR_PAGES, I_L_DBWR_TIME, I_L_REDO_SWITCH_TIMES, I_L_PCR_CONSTRUCTS, I_L_BCR_CONSTRUCTS
+      FROM DV_SYS_STATS;
+    
+    SELECT MIN(FLUSH_LAG), MAX(FLUSH_LAG), MIN(REPLAY_LAG), MAX(REPLAY_LAG)
+      INTO I_L_MIN_HA_SYNC_SEND_LOG, I_L_MAX_HA_SYNC_SEND_LOG, I_L_MIN_HA_SYNC_REPLY_LOG, I_L_MAX_HA_SYNC_REPLY_LOG
+      FROM DV_HA_SYNC_INFO;
+    
+    BEGIN
+        SELECT /*+RULE*/OWNER
+          INTO STR_L_OWNER
+          FROM ADM_TAB_COLUMNS
+         WHERE TABLE_NAME = 'LOGICREP_PROGRESS'
+           AND COLUMN_NAME = 'COMMITTED_TX_TIME'
+         LIMIT 1;
+     
+        EXECUTE IMMEDIATE 'SELECT MIN(SYSTIMESTAMP - COMMITTED_TX_TIME), MAX(SYSTIMESTAMP - COMMITTED_TX_TIME) FROM ' || STR_L_OWNER || '.LOGICREP_PROGRESS' 
+           INTO I_L_MIN_LOGICAL_SYNC_REPLY_LOG, I_L_MAX_LOGICAL_SYNC_REPLY_LOG; 
+    EXCEPTION
+        WHEN OTHERS THEN
+            NULL;
+    END;  
+    
+    select sum(decode(EVENT, 'latch: data buffer pool', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'log file sync', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'buffer busy waits', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'enq: TX row lock contention', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'db file scattered read', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'db file sequential read', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'read by other session', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'log file switch(archiving needed)', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'advisory lock wait time', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'enq: TX table lock S', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'log file switch(checkpoint incomplete)', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'enq: TX alloc itl entry', TIME_WAITED_MIRCO))           
+      INTO I_L_EVENT_LATCH_BUFFER, I_L_EVENT_LOG_FILE_SYNC, I_L_EVENT_BUFFER_BUSY_WAITS, I_L_EVENT_TX_ROW_LOCK, I_L_EVENT_SCATTERED_READ,
+           I_L_EVENT_SEQUENTIAL_READ, I_L_EVENT_READ_BY_OTHER_SESSION, I_L_EVENT_ARCHIVING_NEEDED, I_L_EVENT_ADVISORY_LOCK, I_L_EVENT_TABLE_LOCK, I_L_EVENT_CHECKPOINT_INCOMPLETE, I_L_EVENT_ITL_ENTRY
+      FROM DV_SYS_EVENTS;        
+    
+    INSERT INTO WSR_INSTANCE_SNAP_LAST
+              (
+            	   CPU_USER                         ,
+               	CPU_SYSTEM                       ,
+               	IOWAIT                           ,
+               	IDLE                             ,
+               	LOGICAL_READ                     ,
+               	PHYSICAL_READ                    ,
+               	COMMIT_NUM                       ,
+               	ROLLBACK_NUM                     ,
+               	REDO_SIZE                        ,
+               	EXECUTE_NUM                      ,
+               	FETCH_ROW_NUM                    ,
+               	LOGIN_NUM                        ,
+               	HARDPARSE_NUM                    ,
+               	DBWR_PAGES                       ,
+               	DBWR_TIME                        ,
+               	EVENT_LATCH_BUFFER               ,
+               	EVENT_LOG_FILE_SYNC              ,
+               	EVENT_BUFFER_BUSY_WAITS          ,
+               	EVENT_TX_ROW_LOCK                ,
+               	EVENT_SCATTERED_READ             ,
+               	EVENT_SEQUENTIAL_READ            ,
+               	EVENT_READ_BY_OTHER_SESSION      ,
+               	EVENT_ARCHIVING_NEEDED           ,
+               	EVENT_ADVISORY_LOCK              ,
+               	EVENT_TABLE_LOCK                 ,
+               	EVENT_CHECKPOINT_INCOMPLETE      ,
+               	EVENT_ITL_ENTRY                  ,
+               	REDO_SWITCH_TIMES                ,
+               	PCR_CONSTRUCTS                   ,
+               	BCR_CONSTRUCTS                   
+              )
+        VALUES(
+            	   I_L_CPU_USER                         ,
+               	I_L_CPU_SYSTEM                       ,
+               	I_L_IOWAIT                           ,
+               	I_L_IDLE                             ,
+               	I_L_LOGICAL_READ                     ,
+               	I_L_PHYSICAL_READ                    ,
+               	I_L_COMMIT_NUM                       ,
+               	I_L_ROLLBACK_NUM                     ,
+               	I_L_REDO_SIZE                        ,
+               	I_L_EXECUTE_NUM                      ,
+               	I_L_FETCH_ROW_NUM                    ,
+               	I_L_LOGIN_NUM                        ,
+               	I_L_HARDPARSE_NUM                    ,
+               	I_L_DBWR_PAGES                       ,
+               	I_L_DBWR_TIME                        ,
+               	I_L_EVENT_LATCH_BUFFER               ,
+               	I_L_EVENT_LOG_FILE_SYNC              ,
+               	I_L_EVENT_BUFFER_BUSY_WAITS          ,
+               	I_L_EVENT_TX_ROW_LOCK                ,
+               	I_L_EVENT_SCATTERED_READ             ,
+               	I_L_EVENT_SEQUENTIAL_READ            ,
+               	I_L_EVENT_READ_BY_OTHER_SESSION      ,
+               	I_L_EVENT_ARCHIVING_NEEDED           ,
+               	I_L_EVENT_ADVISORY_LOCK              ,
+               	I_L_EVENT_TABLE_LOCK                 ,
+               	I_L_EVENT_CHECKPOINT_INCOMPLETE      ,
+               	I_L_EVENT_ITL_ENTRY                  ,
+               	I_L_REDO_SWITCH_TIMES                ,
+               	I_L_PCR_CONSTRUCTS                   ,
+               	I_L_BCR_CONSTRUCTS
+              );  
+    
+    IF (I_L_VALID = 0 OR I_L_EXECUTE_NUM <= ROW_L_LAST.EXECUTE_NUM) THEN
+        COMMIT;
+        RETURN;
+    END IF;
+    
+    I_L_CPUTOTAL := I_L_CPU_USER + I_L_CPU_SYSTEM + I_L_IOWAIT + I_L_IDLE - (ROW_L_LAST.CPU_USER + ROW_L_LAST.CPU_SYSTEM + ROW_L_LAST.IOWAIT + ROW_L_LAST.IDLE);
+    
+    IF (I_L_CPUTOTAL = 0) THEN
+        I_L_CPUTOTAL := 1;
+    END IF;
+     
+    INSERT INTO WSR_INSTANCE_SNAP
+              ( SNAP_TIME,                        
+                SESSION_NUM,                      
+                ACTIVE_SESS_NUM,                  
+                LOCK_NUM,                         
+                TRANSACTION_NUM,                  
+                TEMP_BUFFER_FREE,                 
+                DATA_BUFFER_PIN,                  
+                TS_SYSTEM_FREE,                   
+                TS_SYSWARE_FREE,                       
+                TS_USER_FREE,                        
+                TXN_PAGES,                        
+                UNDO_PAGES,
+                WRITE_PAGES,
+                ARCH_LOGS,
+               	CPU_USER                        ,
+               	CPU_SYSTEM                      ,
+               	IOWAIT                          ,
+               	IDLE                            ,
+               	LONGEST_SQL                     ,
+               	LONGEST_TRANS                   ,
+               	DATABUFFER_FREE                 ,
+               	TEMPBUFFER_HWM                  ,
+               	TEMPBUFFER_SWAP                 ,
+               	LOGICAL_READ                    ,
+               	PHYSICAL_READ                   ,
+               	COMMIT_NUM                      ,
+               	ROLLBACK_NUM                    ,
+               	REDO_SIZE                       ,
+               	EXECUTE_NUM                     ,
+               	FETCH_ROW_NUM                   ,
+               	LOGIN_NUM                       ,
+               	HARDPARSE_NUM                   ,
+               	DBWR_PAGES                      ,
+               	DBWR_TIME                       ,
+               	MIN_HA_SYNC_SEND_LOG            ,
+               	MAX_HA_SYNC_SEND_LOG            ,
+               	MIN_HA_SYNC_REPLY_LOG           ,
+               	MAX_HA_SYNC_REPLY_LOG           ,
+               	MIN_LOGICAL_SYNC_REPLY_LOG      ,
+               	MAX_LOGICAL_SYNC_REPLY_LOG      ,
+               	EVENT_LATCH_BUFFER              ,
+               	EVENT_LOG_FILE_SYNC             ,
+               	EVENT_BUFFER_BUSY_WAITS         ,
+               	EVENT_TX_ROW_LOCK               ,
+               	EVENT_SCATTERED_READ            ,
+               	EVENT_SEQUENTIAL_READ           ,
+               	EVENT_READ_BY_OTHER_SESSION     ,
+               	EVENT_ARCHIVING_NEEDED          ,
+               	EVENT_ADVISORY_LOCK             ,
+               	EVENT_TABLE_LOCK                ,
+               	EVENT_CHECKPOINT_INCOMPLETE,
+               	EVENT_ITL_ENTRY,
+               	REDO_SWITCH_TIMES,
+               	PCR_CONSTRUCTS,
+               	BCR_CONSTRUCTS
+              )
+        VALUES( SYSDATE,
+                I_L_SESSION_NUM,
+                I_L_ACTIVE_SESS_NUM,
+                NULL,
+                I_L_TRANS_NUM,
+                I_L_FREE_PAGES,
+                I_L_DATA_BUFFER_PIN,
+                I_L_TS_SYSTEM_FREE, 
+                I_L_TS_SYSWARE_FREE, 
+                I_L_TS_USER_FREE,
+                I_L_TXN_PAGES,
+                I_L_UNDO_PAGES,
+                I_L_WRITE_PAGES,
+                I_L_ARCH_LOGS,
+                ROUND((I_L_CPU_USER - ROW_L_LAST.CPU_USER) / I_L_CPUTOTAL * 100, 2),
+   	            ROUND((I_L_CPU_SYSTEM - ROW_L_LAST.CPU_SYSTEM) / I_L_CPUTOTAL * 100, 2),
+   	            ROUND((I_L_IOWAIT - ROW_L_LAST.IOWAIT) / I_L_CPUTOTAL * 100, 2),
+   	            ROUND((I_L_IDLE - ROW_L_LAST.IDLE) / I_L_CPUTOTAL * 100, 2),
+               	I_L_LONGEST_SQL                     ,
+                (CASE WHEN I_L_LONGEST_TRANS < 0 THEN 0 ELSE I_L_LONGEST_TRANS END),
+               	I_L_DATABUFFER_FREE                 ,
+               	I_L_TEMPBUFFER_HWM                  ,
+               	I_L_TEMPBUFFER_SWAP                 ,
+               	I_L_LOGICAL_READ - ROW_L_LAST.LOGICAL_READ,
+               	I_L_PHYSICAL_READ - ROW_L_LAST.PHYSICAL_READ,
+               	I_L_COMMIT_NUM - ROW_L_LAST.COMMIT_NUM,
+               	I_L_ROLLBACK_NUM - ROW_L_LAST.ROLLBACK_NUM,
+               	I_L_REDO_SIZE - ROW_L_LAST.REDO_SIZE,
+               	I_L_EXECUTE_NUM - ROW_L_LAST.EXECUTE_NUM,
+               	I_L_FETCH_ROW_NUM - ROW_L_LAST.FETCH_ROW_NUM,
+               	I_L_LOGIN_NUM - ROW_L_LAST.LOGIN_NUM,
+               	I_L_HARDPARSE_NUM - ROW_L_LAST.HARDPARSE_NUM,
+               	I_L_DBWR_PAGES - ROW_L_LAST.DBWR_PAGES,
+               	I_L_DBWR_TIME - ROW_L_LAST.DBWR_TIME,
+               	I_L_MIN_HA_SYNC_SEND_LOG            ,
+               	I_L_MAX_HA_SYNC_SEND_LOG            ,
+               	I_L_MIN_HA_SYNC_REPLY_LOG           ,
+               	I_L_MAX_HA_SYNC_REPLY_LOG           ,
+               	I_L_MIN_LOGICAL_SYNC_REPLY_LOG      ,
+               	I_L_MAX_LOGICAL_SYNC_REPLY_LOG      ,
+               	I_L_EVENT_LATCH_BUFFER - ROW_L_LAST.EVENT_LATCH_BUFFER,
+               	I_L_EVENT_LOG_FILE_SYNC - ROW_L_LAST.EVENT_LOG_FILE_SYNC,
+               	I_L_EVENT_BUFFER_BUSY_WAITS - ROW_L_LAST.EVENT_BUFFER_BUSY_WAITS,
+               	I_L_EVENT_TX_ROW_LOCK - ROW_L_LAST.EVENT_TX_ROW_LOCK,
+               	I_L_EVENT_SCATTERED_READ - ROW_L_LAST.EVENT_SCATTERED_READ,
+               	I_L_EVENT_SEQUENTIAL_READ - ROW_L_LAST.EVENT_SEQUENTIAL_READ,
+               	I_L_EVENT_READ_BY_OTHER_SESSION - ROW_L_LAST.EVENT_READ_BY_OTHER_SESSION,
+               	I_L_EVENT_ARCHIVING_NEEDED - ROW_L_LAST.EVENT_ARCHIVING_NEEDED,
+               	I_L_EVENT_ADVISORY_LOCK - ROW_L_LAST.EVENT_ADVISORY_LOCK,
+               	I_L_EVENT_TABLE_LOCK - ROW_L_LAST.EVENT_TABLE_LOCK,
+               	I_L_EVENT_CHECKPOINT_INCOMPLETE - ROW_L_LAST.EVENT_CHECKPOINT_INCOMPLETE,
+               	I_L_EVENT_ITL_ENTRY - ROW_L_LAST.EVENT_ITL_ENTRY,
+               	I_L_REDO_SWITCH_TIMES - ROW_L_LAST.REDO_SWITCH_TIMES,
+               	I_L_PCR_CONSTRUCTS - ROW_L_LAST.PCR_CONSTRUCTS,
+               	I_L_BCR_CONSTRUCTS - ROW_L_LAST.BCR_CONSTRUCTS
+              );
+                
+    COMMIT;
+         
+END;
+/
+
+CREATE OR REPLACE FUNCTION WSR$APPEND
+(
+    STR_VALUE        IN           VARCHAR2,
+    IN_LENGTH        IN           BINARY_INTEGER DEFAULT 13
+)
+RETURN VARCHAR2
+AS
+BEGIN
+    RETURN LPAD(NVL(STR_VALUE, ' '), IN_LENGTH, ' '); 
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$GETINTERVAL
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    OPEN CUR_RESULT FOR 
+        SELECT SESSION_INTERVAL
+          FROM WSR_CONTROL;
+    
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$GETCONTENT
+(
+    I_TYPE           IN           BINARY_INTEGER DEFAULT 0             --0:ALL 1:HOST 2:SESSION 3:MEMORY 4:APP 5:SYNC 6:TABLESPACE 7:EVENT
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+
+    CASE I_TYPE
+        WHEN 1 THEN
+            OPEN CUR_RESULT FOR 
+                SELECT /*+RULE*/CONCAT(TO_CHAR(SNAP_TIME, 'HH24:MI:SS'), ' ', WSR$APPEND(CPU_USER) , WSR$APPEND(CPU_SYSTEM) , WSR$APPEND(IOWAIT) , WSR$APPEND(IDLE))
+                  FROM WSR_INSTANCE_SNAP
+                 ORDER BY SNAP_TIME DESC
+                 LIMIT 1;
+        WHEN 2 THEN
+            OPEN CUR_RESULT FOR 
+                SELECT /*+RULE*/CONCAT(TO_CHAR(SNAP_TIME, 'HH24:MI:SS'), ' ', WSR$APPEND(SESSION_NUM) , WSR$APPEND(ACTIVE_SESS_NUM) , WSR$APPEND(TRANSACTION_NUM) , WSR$APPEND(LONGEST_SQL || 's') , WSR$APPEND(LONGEST_TRANS || 's'))
+                  FROM WSR_INSTANCE_SNAP
+                 ORDER BY SNAP_TIME DESC
+                 LIMIT 1; 
+        WHEN 3 THEN
+            OPEN CUR_RESULT FOR 
+                SELECT /*+RULE*/CONCAT(TO_CHAR(SNAP_TIME, 'HH24:MI:SS'), ' ', WSR$APPEND(WRITE_PAGES) , WSR$APPEND(DATA_BUFFER_PIN) , WSR$APPEND(DATABUFFER_FREE) , WSR$APPEND(TEMP_BUFFER_FREE) , WSR$APPEND(TEMPBUFFER_HWM) , WSR$APPEND(TEMPBUFFER_SWAP))
+                  FROM WSR_INSTANCE_SNAP
+                 ORDER BY SNAP_TIME DESC
+                 LIMIT 1;  
+        WHEN 4 THEN
+            OPEN CUR_RESULT FOR 
+                SELECT /*+RULE*/CONCAT(TO_CHAR(SNAP_TIME, 'HH24:MI:SS'), ' ', WSR$APPEND(PHYSICAL_READ) , WSR$APPEND(LOGICAL_READ) , WSR$APPEND(COMMIT_NUM) , WSR$APPEND(ROLLBACK_NUM) , WSR$APPEND(ROUND(REDO_SIZE/1024/1024, 2) || 'M') , WSR$APPEND(EXECUTE_NUM) , WSR$APPEND(FETCH_ROW_NUM)
+                       , WSR$APPEND(LOGIN_NUM) , WSR$APPEND(HARDPARSE_NUM), WSR$APPEND(DBWR_PAGES), WSR$APPEND(ROUND(DBWR_TIME/1000000, 2) || 's'))
+                  FROM WSR_INSTANCE_SNAP
+                 ORDER BY SNAP_TIME DESC
+                 LIMIT 1;
+        WHEN 5 THEN
+            OPEN CUR_RESULT FOR 
+                SELECT /*+RULE*/CONCAT(TO_CHAR(SNAP_TIME, 'HH24:MI:SS'), ' ', WSR$APPEND(NVL(MIN_HA_SYNC_SEND_LOG, 0) || 'ms') , WSR$APPEND(NVL(MIN_HA_SYNC_REPLY_LOG, 0) || 'ms'), WSR$APPEND(NVL(MAX_HA_SYNC_SEND_LOG, 0) || 'ms') , WSR$APPEND(NVL(MAX_HA_SYNC_REPLY_LOG, 0) || 'ms')
+                       , WSR$APPEND(MIN_LOGICAL_SYNC_REPLY_LOG, 23) , WSR$APPEND(MAX_LOGICAL_SYNC_REPLY_LOG, 23))
+                  FROM WSR_INSTANCE_SNAP
+                 ORDER BY SNAP_TIME DESC
+                 LIMIT 1;
+        WHEN 6 THEN
+            OPEN CUR_RESULT FOR 
+                SELECT /*+RULE*/CONCAT(TO_CHAR(SNAP_TIME, 'HH24:MI:SS'), ' ', WSR$APPEND(TXN_PAGES), WSR$APPEND(UNDO_PAGES), WSR$APPEND(ROUND(TS_SYSTEM_FREE/1024/1024) || 'M') , WSR$APPEND(ROUND(TS_SYSWARE_FREE/1024/1024) || 'M') , WSR$APPEND(ROUND(TS_USER_FREE/1024/1024) || 'M')
+                       , WSR$APPEND(ROUND(ARCH_LOGS/1024/1024) || 'M'))
+                  FROM WSR_INSTANCE_SNAP
+                 ORDER BY SNAP_TIME DESC
+                 LIMIT 1;
+        WHEN 7 THEN
+            OPEN CUR_RESULT FOR 
+                SELECT /*+RULE*/CONCAT(TO_CHAR(SNAP_TIME, 'HH24:MI:SS'), ' ', WSR$APPEND(ROUND(EVENT_LATCH_BUFFER/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_LOG_FILE_SYNC/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_BUFFER_BUSY_WAITS/1000000, 2) || 's') 
+                       , WSR$APPEND(ROUND(EVENT_TX_ROW_LOCK/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_SCATTERED_READ/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_SEQUENTIAL_READ/1000000, 2) || 's')
+                       , WSR$APPEND(ROUND(EVENT_READ_BY_OTHER_SESSION/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_ARCHIVING_NEEDED/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_ADVISORY_LOCK/1000000, 2) || 's') 
+                       , WSR$APPEND(ROUND(EVENT_TABLE_LOCK/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_CHECKPOINT_INCOMPLETE/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_ITL_ENTRY/1000000, 2) || 's'))
+                  FROM WSR_INSTANCE_SNAP
+                 ORDER BY SNAP_TIME DESC
+                 LIMIT 1;
+        ELSE
+            OPEN CUR_RESULT FOR 
+                SELECT /*+RULE*/CONCAT(TO_CHAR(SNAP_TIME, 'HH24:MI:SS'), ' ', WSR$APPEND(CPU_USER) , WSR$APPEND(CPU_SYSTEM) , WSR$APPEND(IOWAIT) , WSR$APPEND(IDLE)
+                       , WSR$APPEND(SESSION_NUM) , WSR$APPEND(ACTIVE_SESS_NUM) , WSR$APPEND(TRANSACTION_NUM) , WSR$APPEND(LONGEST_SQL || 's') , WSR$APPEND(LONGEST_TRANS || 's')
+                       , WSR$APPEND(WRITE_PAGES) , WSR$APPEND(DATA_BUFFER_PIN) , WSR$APPEND(DATABUFFER_FREE) , WSR$APPEND(TEMP_BUFFER_FREE) , WSR$APPEND(TEMPBUFFER_HWM) , WSR$APPEND(TEMPBUFFER_SWAP)
+                       , WSR$APPEND(PHYSICAL_READ) , WSR$APPEND(LOGICAL_READ) , WSR$APPEND(COMMIT_NUM) , WSR$APPEND(ROLLBACK_NUM) , WSR$APPEND(REDO_SIZE) , WSR$APPEND(EXECUTE_NUM) , WSR$APPEND(FETCH_ROW_NUM) 
+                       , WSR$APPEND(LOGIN_NUM) , WSR$APPEND(HARDPARSE_NUM), WSR$APPEND(DBWR_PAGES), WSR$APPEND(ROUND(DBWR_TIME/1000000, 2) || 's')
+                       , WSR$APPEND(NVL(MIN_HA_SYNC_SEND_LOG, 0) || 'ms') , WSR$APPEND(NVL(MIN_HA_SYNC_REPLY_LOG, 0) || 'ms'), WSR$APPEND(NVL(MAX_HA_SYNC_SEND_LOG, 0) || 'ms') 
+                       , WSR$APPEND(NVL(MAX_HA_SYNC_REPLY_LOG, 0) || 'ms'), WSR$APPEND(MIN_LOGICAL_SYNC_REPLY_LOG, 23) , WSR$APPEND(MAX_LOGICAL_SYNC_REPLY_LOG, 23)
+                       , WSR$APPEND(TXN_PAGES) , WSR$APPEND(UNDO_PAGES) , WSR$APPEND(ROUND(TS_SYSTEM_FREE/1024/1024) || 'M') , WSR$APPEND(ROUND(TS_SYSWARE_FREE/1024/1024) || 'M') 
+                       , WSR$APPEND(ROUND(TS_USER_FREE/1024/1024) || 'M'), WSR$APPEND(ROUND(ARCH_LOGS/1024/1024) || 'M')
+                       , WSR$APPEND(ROUND(EVENT_LATCH_BUFFER/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_LOG_FILE_SYNC/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_BUFFER_BUSY_WAITS/1000000, 2) || 's') 
+                       , WSR$APPEND(ROUND(EVENT_TX_ROW_LOCK/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_SCATTERED_READ/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_SEQUENTIAL_READ/1000000, 2) || 's')
+                       , WSR$APPEND(ROUND(EVENT_READ_BY_OTHER_SESSION/1000000, 3) || 's') , WSR$APPEND(ROUND(EVENT_ARCHIVING_NEEDED/1000000, 3) || 's') , WSR$APPEND(ROUND(EVENT_ADVISORY_LOCK/1000000, 2) || 's') 
+                       , WSR$APPEND(ROUND(EVENT_TABLE_LOCK/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_CHECKPOINT_INCOMPLETE/1000000, 2) || 's') , WSR$APPEND(ROUND(EVENT_ITL_ENTRY/1000000, 2) || 's'))
+                  FROM WSR_INSTANCE_SNAP
+                 ORDER BY SNAP_TIME DESC
+                 LIMIT 1;                                                                                      
+    END CASE;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+ 
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$INSTANCE_SNAP
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+    DT_L_STARTTIME        DATE;
+    DT_L_ENDTIME          DATE;
+BEGIN
+    
+    SELECT SNAP_TIME
+      INTO DT_L_STARTTIME
+      FROM ADM_HIST_SNAPSHOT
+     WHERE SNAP_ID = I_IN_LOW_SNAP_ID;
+     
+    SELECT SNAP_TIME
+      INTO DT_L_ENDTIME
+      FROM ADM_HIST_SNAPSHOT
+     WHERE SNAP_ID = I_IN_HIGH_SNAP_ID;     
+    
+    OPEN CUR_RESULT FOR
+        SELECT  TO_CHAR(SNAP_TIME, 'HH24:MI:SS'), CPU_USER, CPU_SYSTEM, IOWAIT, IDLE
+                , SESSION_NUM, ACTIVE_SESS_NUM, TRANSACTION_NUM, LONGEST_SQL || 's', LONGEST_TRANS || 's'
+                , WRITE_PAGES, DATA_BUFFER_PIN, DATABUFFER_FREE, TEMP_BUFFER_FREE, TEMPBUFFER_HWM, TEMPBUFFER_SWAP
+                , PHYSICAL_READ, LOGICAL_READ, COMMIT_NUM, ROLLBACK_NUM, REDO_SIZE, EXECUTE_NUM, FETCH_ROW_NUM, LOGIN_NUM, HARDPARSE_NUM, DBWR_PAGES, ROUND(DBWR_TIME/1000000, 2) || 's'
+                , REDO_SWITCH_TIMES, PCR_CONSTRUCTS, BCR_CONSTRUCTS
+                , NVL(MIN_HA_SYNC_SEND_LOG, 0) || 'ms', NVL(MIN_HA_SYNC_REPLY_LOG, 0) || 'ms', NVL(MAX_HA_SYNC_SEND_LOG, 0) || 'ms', NVL(MAX_HA_SYNC_REPLY_LOG, 0) || 'ms', MIN_LOGICAL_SYNC_REPLY_LOG, MAX_LOGICAL_SYNC_REPLY_LOG
+                , TXN_PAGES, UNDO_PAGES, ROUND(TS_SYSTEM_FREE/1024/1024, 2) || 'M', ROUND(TS_SYSWARE_FREE/1024/1024, 2) || 'M', ROUND(TS_USER_FREE/1024/1024, 2) || 'M', ROUND(ARCH_LOGS/1024/1024, 2) || 'M'
+                , ROUND(EVENT_LATCH_BUFFER/1000000, 2) || 's', ROUND(EVENT_LOG_FILE_SYNC/1000000, 2) || 's', ROUND(EVENT_BUFFER_BUSY_WAITS/1000000, 2) || 's'
+                , ROUND(EVENT_TX_ROW_LOCK/1000000, 2) || 's', ROUND(EVENT_SCATTERED_READ/1000000, 2) || 's', ROUND(EVENT_SEQUENTIAL_READ/1000000, 2) || 's'
+                , ROUND(EVENT_READ_BY_OTHER_SESSION/1000000, 2) || 's', ROUND(EVENT_ARCHIVING_NEEDED/1000000, 2) || 's', ROUND(EVENT_ADVISORY_LOCK/1000000, 2) || 's' 
+                , ROUND(EVENT_TABLE_LOCK/1000000, 2) || 's', ROUND(EVENT_CHECKPOINT_INCOMPLETE/1000000, 2) || 's', ROUND(EVENT_ITL_ENTRY/1000000, 2) || 's'
+          FROM SYS.WSR_INSTANCE_SNAP
+         WHERE SNAP_TIME BETWEEN DT_L_STARTTIME AND DT_L_ENDTIME
+         ORDER BY SNAP_TIME LIMIT 1000;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+      
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$CREATE_SESSION_SNAPSHOT
+AS
+    DT_L_CURRENT DATE := SYSDATE;
+    DT_L_DAY DATE := TRUNC(SYSDATE);
+    I_L_COUNT    BINARY_INTEGER;
+    I_L_RET      BINARY_INTEGER;
+BEGIN
+    IF (GET_LOCK('SYS.WSR$CREATE_SESSION_SNAPSHOT') <> 1) THEN
+        RETURN;
+    END IF;
+
+    SELECT COUNT(*) 
+      INTO I_L_COUNT
+      FROM WSR_CONTROL
+     WHERE STATUS = 'Y'
+       AND SESSION_STATUS = 'Y';
+    
+    IF (I_L_COUNT = 0) THEN
+        RETURN;
+    END IF;
+    
+    FOR ITEM IN (SELECT * FROM DV_SESSIONS WHERE STATUS = 'ACTIVE' AND (CLIENT_IP <> '0.0.0.0' OR EVENT <> 'idle wait')) LOOP
+    
+        INSERT INTO SYS.WSR_SESSION_SQL
+                  ( CTIME,
+                    SID,          
+                    SQL_ID,         
+                    CURR_SCHEMA,    
+                    CLIENT_IP,      
+                    PROGRAM,        
+                    AUTO_COMMIT,    
+                    LOGON_TIME,     
+                    WAIT_SID,       
+                    SQL_EXEC_START, 
+                    MODULE,         
+                    EVENT          
+                  )
+            VALUES( DT_L_CURRENT,
+                    ITEM.SID,
+                    ITEM.SQL_ID,
+                    ITEM.CURR_SCHEMA,
+                    ITEM.CLIENT_IP,      
+                    ITEM.PROGRAM,        
+                    ITEM.AUTO_COMMIT,    
+                    ITEM.LOGON_TIME,     
+                    ITEM.WAIT_SID,       
+                    ITEM.SQL_EXEC_START, 
+                    ITEM.MODULE,         
+                    ITEM.EVENT
+                   );
+        
+        IF (ITEM.SQL_ID IS NOT NULL) THEN
+        
+            SELECT /*+RULE*/ COUNT(*)
+              INTO I_L_COUNT
+              FROM SYS.WSR_SQLTEXT
+             WHERE CTIME = DT_L_DAY
+               AND SQL_ID = ITEM.SQL_ID;   
+            
+            IF (I_L_COUNT = 0) THEN
+                
+                INSERT INTO SYS.WSR_SQLTEXT
+                          ( CTIME,
+                            SQL_ID,
+                            SQL_TEXT,
+                            FLAG
+                          )
+                    VALUES( DT_L_DAY,
+                            ITEM.SQL_ID,
+                            ITEM.CURRENT_SQL,
+                            1
+                          );
+            END IF;          
+        END IF;
+    END LOOP;
+    
+    INSERT INTO WSR_TRANSACTION
+              ( SNAP_TIME,
+                SID,
+                UNDO_COUNT,
+                BEGIN_TIME
+              )
+         SELECT DT_L_CURRENT,
+                SID,
+                UNDO_COUNT,
+                BEGIN_TIME
+           FROM DV_TRANSACTIONS;       
+           
+    INSERT INTO WSR_LOCK_OBJECT
+              ( SNAP_TIME,
+                SID,
+                OBJECT_NAME,
+                LMODE 
+              )
+         SELECT DT_L_CURRENT,
+                SESSION_ID,
+                OBJECT_NAME,
+                LMODE 
+           FROM DV_LOCKED_OBJECTS;                               
+    
+    WSR$WRITE_INSTANCE_SNAP;
+    I_L_RET := RELEASE_LOCK('SYS.WSR$CREATE_SESSION_SNAPSHOT');
+EXCEPTION
+    WHEN OTHERS THEN
+        I_L_RET := RELEASE_LOCK('SYS.WSR$CREATE_SESSION_SNAPSHOT');
+        WSR$INSERT_ERRORLOG('WSR$CREATE_SESSION_SNAPSHOT', SUBSTRB(SQL_ERR_MSG,1,2000));
+END;
+/
+BEGIN
+    EXECUTE IMMEDIATE 'ALTER TABLE WSR_SESSION_SQL MODIFY CLIENT_IP VARCHAR(64 BYTE)';
+EXCEPTION
+    WHEN OTHERS THEN
+        NULL;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$MODIFIY_SETTING
+(
+    I_IN_INTERVAL_MINUTES         IN         BINARY_INTEGER      DEFAULT NULL,
+    I_IN_RETENTION_DAYS           IN         BINARY_INTEGER      DEFAULT NULL,
+    I_IN_TOPSQL                   IN         BINARY_INTEGER      DEFAULT NULL,
+    STR_IN_STATUS                 IN         VARCHAR             DEFAULT NULL,
+    STR_IN_SESSION_STATUS         IN         VARCHAR             DEFAULT NULL,
+    I_IN_SESSION_INTERVAL         IN         BINARY_INTEGER      DEFAULT NULL,
+    I_IN_LOG_DAYS                 IN         BINARY_INTEGER      DEFAULT NULL
+)
+AS
+    I_L_COUNT                 BINARY_INTEGER;
+    I_L_JOBNO                 BINARY_INTEGER;
+    STR_L_INTERVAL            VARCHAR(1000);
+    I_L_SNAPINT_NUM           BINARY_INTEGER; 
+    I_SESSION_INTERVAL        BINARY_INTEGER;
+BEGIN
+    IF (I_IN_INTERVAL_MINUTES < 5 OR I_IN_INTERVAL_MINUTES > 1440) THEN
+        THROW_EXCEPTION(-20000, 'I_IN_INTERVAL_MINUTES SHOULD BETWEEN 5 AND 1440!');
+    END IF;
+
+    IF (I_IN_RETENTION_DAYS < 1 OR I_IN_RETENTION_DAYS > 3000) THEN
+        THROW_EXCEPTION(-20000, 'I_IN_RETENTION_DAYS SHOULD BETWEEN 1 AND 3000!');
+    END IF;
+ 
+    IF (I_IN_TOPSQL < 1 OR I_IN_TOPSQL > 1000) THEN
+        THROW_EXCEPTION(-20000, 'I_IN_TOPSQL SHOULD BETWEEN 1 AND 1000!');
+    END IF;
+ 
+    IF (STR_IN_SESSION_STATUS NOT IN ('Y', 'N')) THEN
+        THROW_EXCEPTION(-20000, 'STR_IN_SESSION_STATUS SHOULD BE Y OR N!');
+    END IF;
+    
+    IF (I_IN_SESSION_INTERVAL < 1 OR I_IN_SESSION_INTERVAL > 1000) THEN
+        THROW_EXCEPTION(-20000, 'I_IN_SESSION_INTERVAL SHOULD BETWEEN 1 AND 1000!');
+    END IF;
+    
+    IF (STR_IN_STATUS NOT IN ('Y', 'N')) THEN
+        THROW_EXCEPTION(-20000, 'STR_IN_STATUS SHOULD BE Y OR N!');
+    END IF;
+   
+    IF (I_IN_LOG_DAYS < 1 OR I_IN_LOG_DAYS > 1000) THEN
+        THROW_EXCEPTION(-20000, 'I_IN_LOG_DAYS SHOULD BETWEEN 1 AND 1000!');
+    END IF;    
+
+    UPDATE WSR_CONTROL
+       SET SNAP_INTERVAL = NVL(NUMTODSINTERVAL(I_IN_INTERVAL_MINUTES, 'MINUTE'), SNAP_INTERVAL),
+           SNAPINT_NUM = NVL(I_IN_INTERVAL_MINUTES * 60, SNAPINT_NUM),
+           RETENTION = NVL(NUMTODSINTERVAL(I_IN_RETENTION_DAYS, 'DAY'), RETENTION),
+           RETENTION_NUM = NVL(I_IN_RETENTION_DAYS * 86400, RETENTION_NUM), 
+           TOPNSQL = NVL(I_IN_TOPSQL, TOPNSQL),
+           STATUS = NVL(STR_IN_STATUS, STATUS),
+           SESSION_STATUS = NVL(STR_IN_SESSION_STATUS, SESSION_STATUS),
+           SESSION_INTERVAL = NVL(I_IN_SESSION_INTERVAL, SESSION_INTERVAL),
+           LOG_DAYS = NVL(I_IN_LOG_DAYS, LOG_DAYS);
+
+    IF (I_IN_SESSION_INTERVAL IS NOT NULL) THEN
+ 
+        BEGIN
+            SELECT JOB
+              INTO I_L_JOBNO
+              FROM MY_JOBS
+             WHERE WHAT = 'WSR$CREATE_SESSION_SNAPSHOT();'
+               AND ROWNUM <= 1;
+   
+            DBE_TASK.CANCEL(I_L_JOBNO);      
+        EXCEPTION  
+            WHEN NO_DATA_FOUND THEN
+                NULL; 
+        END;
+  
+        STR_L_INTERVAL := 'SYSDATE + ' || I_IN_SESSION_INTERVAL || '/86400';
+    
+        DBE_TASK.SUBMIT(I_L_JOBNO, 'WSR$CREATE_SESSION_SNAPSHOT();', SYSDATE, STR_L_INTERVAL);
+   
+     END IF;
+ 
+    IF (STR_IN_SESSION_STATUS IS NOT NULL) THEN
+ 
+        BEGIN
+            SELECT JOB
+              INTO I_L_JOBNO
+              FROM MY_JOBS
+             WHERE WHAT = 'WSR$CREATE_SESSION_SNAPSHOT();'
+               AND ROWNUM <= 1;     
+        EXCEPTION  
+            WHEN NO_DATA_FOUND THEN
+            
+                SELECT SESSION_INTERVAL
+                  INTO I_SESSION_INTERVAL 
+                  FROM WSR_CONTROL;
+             
+                DBE_TASK.SUBMIT(I_L_JOBNO, 'WSR$CREATE_SESSION_SNAPSHOT();', SYSDATE, 'SYSDATE + ' || TO_CHAR(I_SESSION_INTERVAL) || '/86400');
+        END;
+ 
+        IF (STR_IN_SESSION_STATUS = 'Y') THEN
+           DBE_TASK.SUSPEND(ID => I_L_JOBNO, BROKEN => FALSE);
+        ELSE
+           DBE_TASK.SUSPEND(ID => I_L_JOBNO, BROKEN => TRUE);  
+        END IF;
+ 
+    END IF;
+
+    IF (I_IN_INTERVAL_MINUTES IS NOT NULL) THEN
+ 
+        BEGIN
+            SELECT JOB
+              INTO I_L_JOBNO
+              FROM MY_JOBS
+             WHERE WHAT = 'WSR$CREATE_SNAPSHOT();'
+               AND ROWNUM <= 1;
+   
+            DBE_TASK.CANCEL(I_L_JOBNO);      
+        EXCEPTION  
+            WHEN NO_DATA_FOUND THEN
+                NULL; 
+        END;
+  
+        STR_L_INTERVAL := 'SYSDATE + ' || I_IN_INTERVAL_MINUTES || '/1440';
+    
+        DBE_TASK.SUBMIT(I_L_JOBNO, 'WSR$CREATE_SNAPSHOT();', SYSDATE, STR_L_INTERVAL);
+   
+     END IF;
+ 
+    IF (STR_IN_STATUS IS NOT NULL) THEN
+ 
+        BEGIN
+            SELECT JOB
+              INTO I_L_JOBNO
+              FROM MY_JOBS
+             WHERE WHAT = 'WSR$CREATE_SNAPSHOT();'
+               AND ROWNUM <= 1;     
+        EXCEPTION  
+            WHEN NO_DATA_FOUND THEN
+            
+                SELECT SNAPINT_NUM
+                  INTO I_L_SNAPINT_NUM
+                  FROM WSR_CONTROL;
+             
+                DBE_TASK.SUBMIT(I_L_JOBNO, 'WSR$CREATE_SNAPSHOT();', TRUNC(SYSDATE, 'HH') + 1/24, 'SYSDATE + ' || TO_CHAR(I_L_SNAPINT_NUM) || '/86400' );
+        END;
+ 
+        IF (STR_IN_STATUS = 'Y') THEN
+           DBE_TASK.SUSPEND(ID => I_L_JOBNO, BROKEN => FALSE);
+        ELSE
+           DBE_TASK.SUSPEND(ID => I_L_JOBNO, BROKEN => TRUE);  
+        END IF;
+ 
+    END IF;
+ 
+    COMMIT;
+
+END;
+/
+
+GRANT EXECUTE ON WSR$INSTANCE_SNAP TO STATISTICS
+/
+GRANT EXECUTE ON WSR$GETCONTENT TO STATISTICS
+/
+GRANT EXECUTE ON WSR$WRITE_INSTANCE_SNAP TO STATISTICS
+/
+GRANT EXECUTE ON WSR$GETINTERVAL TO STATISTICS
+/
+GRANT EXECUTE ON WSR$APPEND TO STATISTICS
+/
+GRANT EXECUTE ON WSR$CREATE_SESSION_SNAPSHOT TO STATISTICS
+/
+GRANT INSERT, SELECT, DELETE ON WSR_INSTANCE_SNAP_LAST TO STATISTICS
+/
+GRANT INSERT, SELECT ON WSR_INSTANCE_SNAP TO STATISTICS
+/
+GRANT SELECT ON ADM_HIST_INSTANCE_SNAP TO STATISTICS
+/
+GRANT SELECT ON DV_ARCHIVED_LOGS TO STATISTICS
+/
+GRANT SELECT ON DV_HA_SYNC_INFO TO STATISTICS
+/
+GRANT INSERT, SELECT ON WSR_LOCK_OBJECT TO STATISTICS
+/
+GRANT SELECT ON ADM_TAB_COLUMNS TO STATISTICS
+/
+GRANT DELETE ON SYS.WSR_SQLTEXT TO STATISTICS
+/
+GRANT INSERT ON WSR_LOCK_OBJECT TO STATISTICS
+/
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_INSTANCE_SNAP FOR SYS.ADM_HIST_INSTANCE_SNAP
+/
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_LOCK_OBJECT FOR SYS.ADM_HIST_LOCK_OBJECT
+/
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_SESSION_EVENTS FOR SYS.ADM_HIST_SESSION_EVENTS
+/
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_SESSION_SQL FOR SYS.ADM_HIST_SESSION_SQL
+/
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_SQLPLAN FOR SYS.ADM_HIST_SQLPLAN
+/
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_SQLTEXT FOR SYS.ADM_HIST_SQLTEXT
+/
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_TRANSACTION FOR SYS.ADM_HIST_TRANSACTION
+/
+
+CREATE OR REPLACE FUNCTION CHECK_WSR$DROP_CTIME_PARTITION_PARAM(STR_IN_TABLENAME IN VARCHAR) RETURN BOOLEAN 
+is
+name varchar(8000);
+result boolean := false;
+begin
+    name := upper(STR_IN_TABLENAME);
+    CASE name
+    WHEN 'WSR_SQLTEXT'          then result := true;
+    WHEN 'WSR_SQLPLAN'          then result := true;
+    WHEN 'WSR_INSTANCE_SNAP'    then result := true;
+    WHEN 'WSR_SESSION_SQL'      then result := true;
+    WHEN 'WSR_TRANSACTION'      then result := true;
+    WHEN 'WSR_LOCK_OBJECT'      then result := true;
+    ELSE result := false;
+    END CASE;
+    RETURN result;
+EXCEPTION
+    WHEN OTHERS THEN
+        WSR$INSERT_ERRORLOG('CHECK WSR$DROP CTIME PARTITION PARAM FAILED', SUBSTRB(SQL_ERR_MSG,1,2000));
+end;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$DROP_CTIME_PARTITION
+(
+    STR_IN_TABLENAME        IN VARCHAR,
+    I_IN_DAYS               IN BINARY_INTEGER
+)
+AS
+    DT_L_HIGHVALUE          DATE := TRUNC(SYSDATE - I_IN_DAYS);
+    STR_L_HIGHVALUE         VARCHAR(200);
+    I_L_COUNT               BINARY_INTEGER;
+    param_err               EXCEPTION;
+BEGIN
+    if CHECK_WSR$DROP_CTIME_PARTITION_PARAM(STR_IN_TABLENAME) != true then
+    RAISE param_err;
+    end if;
+    FOR ITEM IN (
+        SELECT PARTITION_NAME, HIGH_VALUE
+          FROM ADM_TAB_PARTITIONS
+         WHERE TABLE_OWNER = 'SYS'
+           AND TABLE_NAME = UPPER(STR_IN_TABLENAME)
+           AND PARTITION_NAME <> 'P_0') LOOP
+        
+        EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM SYS_DUMMY WHERE TO_DATE(''' || ITEM.HIGH_VALUE || ''', ''YYYY-MM-DD HH24:MI:SS'') <= :1 ' INTO I_L_COUNT USING DT_L_HIGHVALUE;
+        
+        IF (I_L_COUNT > 0) THEN        
+            EXECUTE IMMEDIATE 'ALTER TABLE ' || STR_IN_TABLENAME || ' DROP PARTITION ' || ITEM.PARTITION_NAME; 
+        END IF;      
+    
+    END LOOP;
+EXCEPTION
+    WHEN param_err THEN
+        WSR$INSERT_ERRORLOG('WSR$DROP_CTIME_PARTITION FAILED DUE TO WRONG INPUT PARAMETER', STR_IN_TABLENAME);
+    WHEN OTHERS THEN
+        WSR$INSERT_ERRORLOG('WSR$DROP_CTIME_PARTITION', SUBSTRB(SQL_ERR_MSG,1,2000));
+END;
+/
+
+CREATE OR  REPLACE FUNCTION CHECK_WSR$DROP_SNAPSHOT_PARTITION_PARAM(STR_IN_TABLENAME IN VARCHAR) RETURN BOOLEAN 
+is
+name varchar(8000);
+result boolean;
+begin
+    name := upper(STR_IN_TABLENAME);
+    CASE name
+    WHEN 'WSR_SQLAREA'          then result := true;
+    WHEN 'WSR_SEGMENT'          then result := true;
+    WHEN 'WSR_DBA_SEGMENTS'     then result := true;
+    WHEN 'WSR_LONGSQL'          then result := true;
+    WHEN 'WSR_SESSION_EVENTS'   then result := true;
+    WHEN 'WSR_OPEN_CURSORS'     then result := true;
+    ELSE result := false;
+    END CASE;
+    RETURN result;
+exception
+     when others then
+     WSR$INSERT_ERRORLOG('CHECK_WSR$DROP_SNAPSHOT_PARTITION_PARAM', SUBSTRB(SQL_ERR_MSG,1,2000));
+end;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$DROP_SNAPSHOT_PARTITION
+(
+    STR_IN_TABLENAME           IN           VARCHAR,
+    I_IN_SNAPID                IN           INTEGER
+)
+AS
+    STR_L_PARTITION         VARCHAR(200);
+    param_err               EXCEPTION;
+BEGIN
+    if CHECK_WSR$DROP_SNAPSHOT_PARTITION_PARAM(STR_IN_TABLENAME) != true then
+    RAISE param_err;
+    end if;
+    SELECT PARTITION_NAME
+      INTO STR_L_PARTITION
+      FROM ADM_TAB_PARTITIONS
+     WHERE TABLE_OWNER = 'SYS'
+       AND TABLE_NAME = UPPER(STR_IN_TABLENAME)
+       AND HIGH_VALUE = TO_CHAR(I_IN_SNAPID + 1);
+    
+    EXECUTE IMMEDIATE 'ALTER TABLE ' || STR_IN_TABLENAME || ' DROP PARTITION ' || STR_L_PARTITION;   
+EXCEPTION
+    WHEN param_err THEN
+        WSR$INSERT_ERRORLOG('WSR$DROP_SNAPSHOT_PARTITION FAILED DUE TO WRONG INPUT PARAMETER', STR_IN_TABLENAME);
+    WHEN NO_DATA_FOUND THEN
+        NULL;
+    WHEN OTHERS THEN
+        WSR$INSERT_ERRORLOG('WSR$DROP_SNAPSHOT_PARTITION', SUBSTRB(SQL_ERR_MSG,1,2000));
+END WSR$DROP_SNAPSHOT_PARTITION;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$DROP_SNAPSHOT_FAILED_PARTITION
+(
+    STR_IN_TABLENAME           IN           VARCHAR
+)
+AS
+param_err               EXCEPTION;
+BEGIN
+    if CHECK_WSR$DROP_SNAPSHOT_PARTITION_PARAM(STR_IN_TABLENAME) != true then
+    RAISE param_err;
+    end if;
+    FOR ITEM IN (SELECT PARTITION_NAME FROM ADM_TAB_PARTITIONS 
+        WHERE TABLE_NAME = STR_IN_TABLENAME AND HIGH_VALUE != '1' AND
+            HIGH_VALUE NOT IN (SELECT TO_CHAR(SNAP_ID + 1) FROM ADM_HIST_SNAPSHOT)) LOOP
+        BEGIN
+            EXECUTE IMMEDIATE 'ALTER TABLE ' || STR_IN_TABLENAME || ' DROP PARTITION ' || ITEM.PARTITION_NAME;
+        EXCEPTION
+            WHEN OTHERS THEN
+                WSR$INSERT_ERRORLOG('WSR$DROP_SNAPSHOT_FAILED_PARTITION', SUBSTRB(SQL_ERR_MSG,1,2000));
+        END;
+ END LOOP;
+EXCEPTION
+    WHEN param_err THEN
+        WSR$INSERT_ERRORLOG('WSR$DROP_SNAPSHOT_FAILED_PARTITION FAILED DUE TO WRONG INPUT PARAMETER', STR_IN_TABLENAME);
+    WHEN NO_DATA_FOUND THEN
+        NULL;
+    WHEN OTHERS THEN
+        WSR$INSERT_ERRORLOG('WSR$DROP_SNAPSHOT_FAILED_PARTITION', SUBSTRB(SQL_ERR_MSG,1,2000));
+END WSR$DROP_SNAPSHOT_FAILED_PARTITION;
+/
+--03
+DECLARE 
+    I_COUNT BINARY_INTEGER;
+BEGIN
+    SELECT COUNT(*)
+	  INTO I_COUNT
+	  FROM ADM_TAB_COLUMNS
+	 WHERE TABLE_NAME = 'WSR_SESSION_SQL'
+	   AND COLUMN_NAME = 'PREV_SQL_ID';
+	
+	IF (I_COUNT = 0) THEN
+	    EXECUTE IMMEDIATE 'ALTER TABLE WSR_SESSION_SQL ADD PREV_SQL_ID VARCHAR(32 BYTE)';
+	END IF;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$CREATE_SESSION_SNAPSHOT
+AS
+    DT_L_CURRENT DATE := SYSDATE;
+    DT_L_DAY DATE := TRUNC(SYSDATE);
+    I_L_COUNT    BINARY_INTEGER;
+    I_L_RET      BINARY_INTEGER;
+BEGIN
+    IF (GET_LOCK('SYS.WSR$CREATE_SESSION_SNAPSHOT') <> 1) THEN
+        RETURN;
+    END IF;
+
+    SELECT COUNT(*) 
+      INTO I_L_COUNT
+      FROM WSR_CONTROL
+     WHERE STATUS = 'Y'
+       AND SESSION_STATUS = 'Y';
+    
+    IF (I_L_COUNT = 0) THEN
+        RETURN;
+    END IF;
+    
+    FOR ITEM IN (SELECT * FROM DV_SESSIONS WHERE STATUS = 'ACTIVE' AND (CLIENT_IP <> '0.0.0.0' OR EVENT <> 'idle wait')) LOOP
+    
+        INSERT INTO SYS.WSR_SESSION_SQL
+                  ( CTIME,
+                    SID,          
+                    SQL_ID,         
+                    PREV_SQL_ID,
+                    CURR_SCHEMA,    
+                    CLIENT_IP,      
+                    PROGRAM,        
+                    AUTO_COMMIT,    
+                    LOGON_TIME,     
+                    WAIT_SID,       
+                    SQL_EXEC_START, 
+                    MODULE,         
+                    EVENT          
+                  )
+            VALUES( DT_L_CURRENT,
+                    ITEM.SID,
+                    ITEM.SQL_ID,
+                    ITEM.PREV_SQL_ID,
+                    ITEM.CURR_SCHEMA,
+                    ITEM.CLIENT_IP,      
+                    ITEM.PROGRAM,        
+                    ITEM.AUTO_COMMIT,    
+                    ITEM.LOGON_TIME,     
+                    ITEM.WAIT_SID,       
+                    ITEM.SQL_EXEC_START, 
+                    ITEM.MODULE,         
+                    ITEM.EVENT
+                   );
+        
+        IF (ITEM.SQL_ID IS NOT NULL) THEN
+        
+            SELECT /*+RULE*/ COUNT(*)
+              INTO I_L_COUNT
+              FROM SYS.WSR_SQLTEXT
+             WHERE CTIME = DT_L_DAY
+               AND SQL_ID = ITEM.SQL_ID;   
+            
+            IF (I_L_COUNT = 0) THEN
+                
+                INSERT INTO SYS.WSR_SQLTEXT
+                          ( CTIME,
+                            SQL_ID,
+                            SQL_TEXT,
+                            FLAG
+                          )
+                    VALUES( DT_L_DAY,
+                            ITEM.SQL_ID,
+                            ITEM.CURRENT_SQL,
+                            1
+                          );
+            END IF;          
+        END IF;
+    END LOOP;
+    
+    INSERT INTO WSR_TRANSACTION
+              ( SNAP_TIME,
+                SID,
+                UNDO_COUNT,
+                BEGIN_TIME
+              )
+         SELECT DT_L_CURRENT,
+                SID,
+                UNDO_COUNT,
+                BEGIN_TIME
+           FROM DV_TRANSACTIONS;       
+           
+    INSERT INTO WSR_LOCK_OBJECT
+              ( SNAP_TIME,
+                SID,
+                OBJECT_NAME,
+                LMODE 
+              )
+         SELECT DT_L_CURRENT,
+                SESSION_ID,
+                OBJECT_NAME,
+                LMODE 
+           FROM DV_LOCKED_OBJECTS;                               
+    
+    WSR$WRITE_INSTANCE_SNAP;
+    I_L_RET := RELEASE_LOCK('SYS.WSR$CREATE_SESSION_SNAPSHOT');
+EXCEPTION
+    WHEN OTHERS THEN
+        I_L_RET := RELEASE_LOCK('SYS.WSR$CREATE_SESSION_SNAPSHOT');
+        WSR$INSERT_ERRORLOG('WSR$CREATE_SESSION_SNAPSHOT', SUBSTRB(SQL_ERR_MSG,1,2000));
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$INSTANCE_SNAP_CHECKPARA
+(
+    STR_IN_STARTTIME      IN VARCHAR2,
+	STR_IN_ENDTIME        IN VARCHAR2,
+	I_O_RESULT            OUT BINARY_INTEGER --0: SUCCESS 1:INVALD TIME FORMAT 2:STARTTIME > ENDTIME  
+)
+AS
+    DT_L_STARTTIME        DATE;
+    DT_L_ENDTIME          DATE;
+BEGIN
+    
+	I_O_RESULT := 0;
+	    
+	BEGIN
+		DT_L_STARTTIME := TO_DATE(STR_IN_STARTTIME, 'YYYY-MM-DD HH24:MI:SS');
+		DT_L_ENDTIME := TO_DATE(STR_IN_ENDTIME, 'YYYY-MM-DD HH24:MI:SS');
+	EXCEPTION 
+		WHEN OTHERS THEN
+			I_O_RESULT := 1;
+			RETURN;
+	END;
+	
+	IF (DT_L_STARTTIME > DT_L_ENDTIME) THEN
+		I_O_RESULT := 2;
+		RETURN;		    
+	END IF;
+	
+	RETURN;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$INSTANCE_SNAP
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+	STR_IN_STARTTIME      IN VARCHAR2,
+	STR_IN_ENDTIME        IN VARCHAR2
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+    DT_L_STARTTIME        DATE;
+    DT_L_ENDTIME          DATE;
+BEGIN
+    
+	IF (I_IN_LOW_SNAP_ID = 0) THEN
+		DT_L_STARTTIME := TO_DATE(STR_IN_STARTTIME, 'YYYY-MM-DD HH24:MI:SS');
+		DT_L_ENDTIME := TO_DATE(STR_IN_ENDTIME, 'YYYY-MM-DD HH24:MI:SS');
+	ELSE
+		SELECT SNAP_TIME
+		  INTO DT_L_STARTTIME
+		  FROM ADM_HIST_SNAPSHOT
+		 WHERE SNAP_ID = I_IN_LOW_SNAP_ID;
+		 
+		SELECT SNAP_TIME
+		  INTO DT_L_ENDTIME
+		  FROM ADM_HIST_SNAPSHOT
+		 WHERE SNAP_ID = I_IN_HIGH_SNAP_ID; 	
+	END IF;  
+    
+    OPEN CUR_RESULT FOR
+        SELECT  TO_CHAR(SNAP_TIME, 'HH24:MI:SS'), CPU_USER, CPU_SYSTEM, IOWAIT, IDLE
+                , SESSION_NUM, ACTIVE_SESS_NUM, TRANSACTION_NUM, LONGEST_SQL || 's', LONGEST_TRANS || 's'
+                , PHYSICAL_READ, LOGICAL_READ, COMMIT_NUM, ROLLBACK_NUM, REDO_SIZE, EXECUTE_NUM, FETCH_ROW_NUM, LOGIN_NUM, HARDPARSE_NUM, DBWR_PAGES, ROUND(DBWR_TIME/1000000, 2) || 's'
+                , REDO_SWITCH_TIMES, PCR_CONSTRUCTS, BCR_CONSTRUCTS
+                , NVL(MIN_HA_SYNC_SEND_LOG, 0) || 'ms', NVL(MIN_HA_SYNC_REPLY_LOG, 0) || 'ms', NVL(MAX_HA_SYNC_SEND_LOG, 0) || 'ms', NVL(MAX_HA_SYNC_REPLY_LOG, 0) || 'ms', MIN_LOGICAL_SYNC_REPLY_LOG, MAX_LOGICAL_SYNC_REPLY_LOG
+                , TXN_PAGES, UNDO_PAGES, ROUND(TS_SYSTEM_FREE/1024/1024, 2) || 'M', ROUND(TS_SYSWARE_FREE/1024/1024, 2) || 'M', ROUND(TS_USER_FREE/1024/1024, 2) || 'M', ROUND(ARCH_LOGS/1024/1024, 2) || 'M'
+                , ROUND(EVENT_LATCH_BUFFER/1000000, 2) || 's', ROUND(EVENT_LOG_FILE_SYNC/1000000, 2) || 's', ROUND(EVENT_BUFFER_BUSY_WAITS/1000000, 2) || 's'
+                , ROUND(EVENT_TX_ROW_LOCK/1000000, 2) || 's', ROUND(EVENT_SCATTERED_READ/1000000, 2) || 's', ROUND(EVENT_SEQUENTIAL_READ/1000000, 2) || 's'
+                , ROUND(EVENT_READ_BY_OTHER_SESSION/1000000, 2) || 's', ROUND(EVENT_ARCHIVING_NEEDED/1000000, 2) || 's', ROUND(EVENT_ADVISORY_LOCK/1000000, 2) || 's' 
+                , ROUND(EVENT_TABLE_LOCK/1000000, 2) || 's', ROUND(EVENT_CHECKPOINT_INCOMPLETE/1000000, 2) || 's', ROUND(EVENT_ITL_ENTRY/1000000, 2) || 's'
+          FROM SYS.WSR_INSTANCE_SNAP
+         WHERE SNAP_TIME BETWEEN DT_L_STARTTIME AND DT_L_ENDTIME
+         ORDER BY SNAP_TIME LIMIT 1000;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+      
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$QUERY_TOPSESSION_SQL
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOPNUM           IN BINARY_INTEGER,
+    STR_IN_STARTTIME      IN VARCHAR2,
+	STR_IN_ENDTIME        IN VARCHAR2
+)
+AS
+    CUR_RESULT            SYS_REFCURSOR;
+    DT_L_STARTTIME        DATE;
+    DT_L_ENDTIME          DATE;
+BEGIN
+    
+	IF (I_IN_LOW_SNAP_ID = 0) THEN
+		DT_L_STARTTIME := TO_DATE(STR_IN_STARTTIME, 'YYYY-MM-DD HH24:MI:SS');
+		DT_L_ENDTIME := TO_DATE(STR_IN_ENDTIME, 'YYYY-MM-DD HH24:MI:SS');
+	ELSE	
+		SELECT SNAP_TIME
+		  INTO DT_L_STARTTIME
+		  FROM ADM_HIST_SNAPSHOT
+		 WHERE SNAP_ID = I_IN_LOW_SNAP_ID;
+		 
+		SELECT SNAP_TIME
+		  INTO DT_L_ENDTIME
+		  FROM ADM_HIST_SNAPSHOT
+		 WHERE SNAP_ID = I_IN_HIGH_SNAP_ID; 
+	END IF;  
+    
+    OPEN CUR_RESULT FOR
+        SELECT NVL(TO_CHAR((CTIME - SQL_EXEC_START) *86400, 'FM99999999999999999990'), '&nbsp'), 
+               SID,                          
+               NVL(TO_CHAR(SQL_ID), '&nbsp'),                              
+               NVL(TO_CHAR(PREV_SQL_ID), '&nbsp'),
+               CURR_SCHEMA,                         
+               CLIENT_IP,                           
+               NVL(TRIM(PROGRAM), '&nbsp'),                              
+               AUTO_COMMIT,                         
+               TO_CHAR(LOGON_TIME, 'YYYY-MM-DD HH24:MI:SS'),                         
+               NVL(TO_CHAR(WAIT_SID), '&nbsp'),                               
+               NVL(TO_CHAR(SQL_EXEC_START, 'YYYY-MM-DD HH24:MI:SS'), '&nbsp'),     
+               TO_CHAR(CTIME, 'YYYY-MM-DD HH24:MI:SS'),                 
+               MODULE,                              
+               EVENT, 
+               (SELECT /*+rule*/ SUBSTRB(SQL_TEXT, 1, 30) FROM WSR_SQLTEXT WHERE SQL_ID = A.SQL_ID LIMIT 1) || '...'
+          FROM (SELECT CTIME,
+                       SID,                          
+                       SQL_ID,                              
+                       PREV_SQL_ID,
+                       CURR_SCHEMA,                         
+                       CLIENT_IP,                           
+                       PROGRAM,                             
+                       AUTO_COMMIT,                         
+                       LOGON_TIME,                         
+                       WAIT_SID,                            
+                       SQL_EXEC_START,                     
+                       MODULE,                              
+                       EVENT,                               
+                       ROW_NUMBER() OVER(PARTITION BY SID, SQL_ID, SQL_EXEC_START ORDER BY CTIME DESC) RK
+                  FROM WSR_SESSION_SQL
+                 WHERE CTIME BETWEEN DT_L_STARTTIME AND DT_L_ENDTIME
+                   AND SQL_EXEC_START IS NOT NULL) A
+         WHERE RK = 1
+         ORDER BY CTIME - SQL_EXEC_START DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+DROP INDEX IF EXISTS IX_WSR_SESSION_SQL ON WSR_SESSION_SQL
+/
+
+CREATE INDEX IX_WSR_SESSION_SQL ON WSR_SESSION_SQL(CTIME, SID) LOCAL
+TABLESPACE SYSAUX
+/
+
+CREATE OR REPLACE PROCEDURE WSR$QUERY_TRANSACTION
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOPNUM           IN BINARY_INTEGER,
+	STR_IN_STARTTIME      IN VARCHAR2,
+	STR_IN_ENDTIME        IN VARCHAR2
+)
+AS
+    CUR_RESULT            SYS_REFCURSOR;
+    DT_L_STARTTIME        DATE;
+    DT_L_ENDTIME          DATE;
+BEGIN
+    
+	IF (I_IN_LOW_SNAP_ID = 0) THEN
+		DT_L_STARTTIME := TO_DATE(STR_IN_STARTTIME, 'YYYY-MM-DD HH24:MI:SS');
+		DT_L_ENDTIME := TO_DATE(STR_IN_ENDTIME, 'YYYY-MM-DD HH24:MI:SS');
+	ELSE	
+		SELECT SNAP_TIME
+		  INTO DT_L_STARTTIME
+		  FROM ADM_HIST_SNAPSHOT
+		 WHERE SNAP_ID = I_IN_LOW_SNAP_ID;
+		 
+		SELECT SNAP_TIME
+		  INTO DT_L_ENDTIME
+		  FROM ADM_HIST_SNAPSHOT
+		 WHERE SNAP_ID = I_IN_HIGH_SNAP_ID; 
+	END IF;  
+    
+    OPEN CUR_RESULT FOR
+        SELECT NVL(TO_CHAR((SNAP_TIME - BEGIN_TIME) *86400, 'FM99999999999999999990.000'), '&nbsp'), 
+               SID,                          
+               UNDO_COUNT,                                                                           
+               TO_CHAR(BEGIN_TIME, 'YYYY-MM-DD HH24:MI:SS'),                                                     
+               NVL(TO_CHAR(SNAP_TIME, 'YYYY-MM-DD HH24:MI:SS'), '&nbsp'),
+               NVL(SQL_ID, '&nbsp'),
+               (SELECT /*+rule*/ SUBSTRB(SQL_TEXT, 1, 30) FROM WSR_SQLTEXT WHERE SQL_ID = A.SQL_ID LIMIT 1) || '...',
+               NVL((SELECT GROUP_CONCAT(OBJECT_NAME) FROM (SELECT OBJECT_NAME FROM WSR_LOCK_OBJECT WHERE SNAP_TIME = A.SNAP_TIME AND SID = A.SID LIMIT 20)), '&nbsp')
+         FROM( SELECT (SELECT SQL_ID FROM WSR_SESSION_SQL WHERE CTIME = SNAP_TIME AND SID = A.SID LIMIT 1) SQL_ID,
+                      SNAP_TIME,
+                      SID,                          
+                      UNDO_COUNT,                              
+                      BEGIN_TIME
+                 FROM (SELECT SNAP_TIME,
+                              SID,                          
+                              UNDO_COUNT,                              
+                              BEGIN_TIME,                                                       
+                              ROW_NUMBER() OVER(PARTITION BY SID, BEGIN_TIME ORDER BY SNAP_TIME DESC) RK
+                         FROM WSR_TRANSACTION
+                        WHERE SNAP_TIME BETWEEN DT_L_STARTTIME AND DT_L_ENDTIME) A
+                WHERE RK = 1
+                ORDER BY SNAP_TIME - BEGIN_TIME DESC LIMIT I_IN_TOPNUM
+             ) A;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+DROP TABLE IF EXISTS WSR_OPEN_CURSORS PURGE
+/
+
+CREATE TABLE WSR_OPEN_CURSORS
+(
+    SNAP_ID                             BINARY_INTEGER        NOT NULL,
+	   SESSION_ID                          BINARY_INTEGER,
+	   STMT_ID                             BINARY_INTEGER,
+	   USER_NAME                           VARCHAR(64 BYTE),
+	   SQL_TEXT                            VARCHAR(64 BYTE),
+	   SQL_TYPE                            BINARY_INTEGER,
+	   SQL_ID                              VARCHAR(10 BYTE),
+    STATUS                              VARCHAR(64 BYTE),
+    CURSOR_TYPE                         VARCHAR(64 BYTE),
+    VM_OPEN_PAGES                       BINARY_BIGINT,
+    VM_CLOSE_PAGES                      BINARY_BIGINT,
+    VM_SWAPIN_PAGES                     BINARY_BIGINT,
+    VM_FREE_PAGES                       BINARY_BIGINT,
+    QUERY_SCN                           BINARY_BIGINT,
+    LAST_SQL_ACTIVE_TIME                DATE
+)
+PARTITION BY RANGE(SNAP_ID) INTERVAL(1) (PARTITION P_0 VALUES LESS THAN (1))
+TABLESPACE SYSAUX
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_OPEN_CURSORS AS
+SELECT SNAP_ID, SESSION_ID, STMT_ID, USER_NAME, SQL_TEXT, SQL_TYPE, SQL_ID, STATUS, CURSOR_TYPE, VM_OPEN_PAGES, 
+       VM_CLOSE_PAGES, VM_SWAPIN_PAGES, VM_FREE_PAGES, QUERY_SCN, LAST_SQL_ACTIVE_TIME
+  FROM SYS.WSR_OPEN_CURSORS
+/
+
+DECLARE 
+    I_COUNT BINARY_INTEGER;
+BEGIN
+    SELECT COUNT(*)
+	  INTO I_COUNT
+	  FROM ADM_TAB_COLUMNS
+	 WHERE TABLE_NAME = 'WSR_CONTROL'
+	   AND COLUMN_NAME = 'PLANFLAG';
+	
+	IF (I_COUNT = 0) THEN
+	    EXECUTE IMMEDIATE 'ALTER TABLE WSR_CONTROL ADD PLANFLAG INT DEFAULT 0';
+	END IF;
+END;
+/
+
+DECLARE 
+    I_COUNT BINARY_INTEGER;
+BEGIN
+    SELECT COUNT(*)
+	  INTO I_COUNT
+	  FROM ADM_TAB_COLUMNS
+	 WHERE TABLE_NAME = 'WSR_SQLAREA'
+	   AND COLUMN_NAME = 'EXECUTINGS';
+	
+	IF (I_COUNT = 0) THEN
+	    EXECUTE IMMEDIATE 'ALTER TABLE WSR_SQLAREA ADD EXECUTINGS BINARY_BIGINT';
+	END IF;
+END;
+/
+
+
+CREATE OR REPLACE PROCEDURE WSR$CREATE_SNAPSHOT
+AS      
+    I_L_SNAP_ID        BINARY_INTEGER;
+    I_L_DBID           BINARY_INTEGER;
+    I_L_INSTANCE_ID    BINARY_INTEGER;
+    DT_L_STARTTIME     TIMESTAMP := SYSTIMESTAMP;
+    DT_L_SNAPDAY       DATE := TRUNC(SYSDATE);
+    I_L_COUNT          BINARY_INTEGER;
+    I_L_RET            BINARY_INTEGER;
+    I_L_FLAG           BINARY_INTEGER;
+    I_L_LENGTH         BINARY_INTEGER;
+    I_L_PLANFLAG       BINARY_INTEGER; 
+BEGIN  
+    IF (GET_LOCK('SYS.WSR$CREATE_SNAPSHOT') <> 1) THEN
+        RETURN;
+    END IF;
+
+    SELECT SNAP_ID$.NEXTVAL
+      INTO I_L_SNAP_ID
+      FROM SYS_DUMMY;
+        
+    SELECT INSTANCE_ID
+      INTO I_L_INSTANCE_ID
+      FROM DV_INSTANCE;
+    
+    SELECT DBID
+      INTO I_L_DBID
+      FROM DV_DATABASE;
+
+    INSERT INTO WSR_SNAPSHOT
+          ( SNAP_ID,
+            DBID,
+            INSTANCE_ID,
+            STARTUP_TIME,
+            SNAP_TIME,
+            FLUSH_ELAPSED,
+            SESSIONS,
+            CURSORS
+          )
+    VALUES( I_L_SNAP_ID,
+            I_L_DBID,
+            I_L_INSTANCE_ID,
+            (SELECT STARTUP_TIME FROM DV_INSTANCE),
+            DT_L_STARTTIME,
+            NUMTODSINTERVAL((SYSDATE - CAST (DT_L_STARTTIME AS DATE)) * 86400, 'SECOND'),
+            (SELECT COUNT(*) FROM DV_SESSIONS),
+            (SELECT COUNT(*) FROM DV_OPEN_CURSORS)
+          );
+
+    INSERT INTO WSR_SYS_STAT
+              ( SNAP_ID,     
+                STAT_ID,     
+                STAT_NAME,
+                VALUE
+              )
+         SELECT I_L_SNAP_ID,
+                STATISTIC#,
+                NAME,
+                VALUE
+           FROM DV_SYS_STATS;     
+
+    INSERT INTO WSR_SYSTEM
+              ( SNAP_ID,     
+                STAT_ID,     
+                STAT_NAME,
+                VALUE
+              )
+         SELECT I_L_SNAP_ID,
+                ID,
+                NAME,
+                VALUE
+           FROM DV_SYSTEM;    
+    
+    INSERT INTO WSR_SYSTEM_EVENT
+              ( SNAP_ID,           
+                EVENT#,           
+                EVENT,           
+                WAIT_CLASS,       
+                TOTAL_WAITS,       
+                TIME_WAITED,       
+                TIME_WAITED_MIRCO, 
+                AVERAGE_WAIT,   
+                AVERAGE_WAIT_MIRCO
+              )  
+         SELECT I_L_SNAP_ID,
+                EVENT#,           
+                EVENT,           
+                WAIT_CLASS,       
+                TOTAL_WAITS,       
+                TIME_WAITED,       
+                TIME_WAITED_MIRCO, 
+                AVERAGE_WAIT,   
+                AVERAGE_WAIT_MIRCO
+           FROM DV_SYS_EVENTS;      
+    
+    INSERT INTO WSR_SYSTEM_EVENT  
+              ( SNAP_ID,           
+                EVENT#,           
+                EVENT,           
+                WAIT_CLASS,       
+                TOTAL_WAITS,       
+                TIME_WAITED,       
+                TIME_WAITED_MIRCO, 
+                AVERAGE_WAIT,   
+                AVERAGE_WAIT_MIRCO
+              )    
+         SELECT I_L_SNAP_ID,
+                -1,
+                'CPU',
+                '',
+                NULL,
+                VALUE/1000000,
+                VALUE,
+                NULL,
+                NULL
+           FROM WSR_SYS_STAT
+          WHERE SNAP_ID = I_L_SNAP_ID
+            AND STAT_ID = 2;    
+            
+    FOR ITEM IN (SELECT SQL_ID,         
+                        MAX(SQL_TEXT) SQL_TEXT,
+                        MIN(MODULE) MODULE,                
+                        SUM(EXECUTIONS) EXECUTIONS,
+                        SUM(EXECUTINGS) EXECUTINGS,
+                        SUM(DISK_READS) DISK_READS,     
+                        SUM(BUFFER_GETS) BUFFER_GETS,     
+                        SUM(SORTS) SORTS,         
+                        SUM(PARSE_CALLS) PARSE_CALLS,     
+                        SUM(PROCESSED_ROWS) PROCESSED_ROWS, 
+                        SUM(IO_WAIT_TIME) IO_WAIT_TIME, 
+                        SUM(CON_WAIT_TIME) CON_WAIT_TIME, 
+                        SUM(CPU_TIME) CPU_TIME, 
+                        SUM(NETWORK_TIME) NETWORK_TIME,
+                        SUM(ELAPSED_TIME) ELAPSED_TIME, 
+                        SUM(REF_COUNT) REF_COUNT,     
+                        SUM(CR_GETS) CR_GETS,
+                        SUM(PARSE_TIME) PARSE_TIME,
+                        MIN(PARSING_USER_NAME) PARSING_USER_NAME,  
+                        MIN(PROGRAM_ID) PROGRAM_ID,
+                        MIN(PROGRAM_LINE#) PROGRAM_LINE#,
+                        SUM(VM_PAGES_USED) VM_PAGES_USED
+                 FROM (SELECT SQL_ID,         
+                              SQL_TEXT,
+                              MODULE,                
+                              EXECUTIONS,
+                              0 EXECUTINGS,							  
+                              DISK_READS,							  
+                              BUFFER_GETS,     
+                              SORTS,         
+                              PARSE_CALLS,     
+                              PROCESSED_ROWS, 
+                              IO_WAIT_TIME, 
+                              CON_WAIT_TIME, 
+                              CPU_TIME, 
+                              NETWORK_TIME,
+                              ELAPSED_TIME, 
+                              REF_COUNT,     
+                              CR_GETS,
+                              PARSE_TIME,
+                              PARSING_USER_NAME,  
+                              PROGRAM_ID,
+                              PROGRAM_LINE#,
+                              VM_ALLOC_PAGES VM_PAGES_USED
+                       FROM DV_SQLS
+                       UNION ALL
+                       SELECT SQL_ID,         
+                              SQL_TEXT,
+                              MODULE,                
+                              EXECUTIONS,
+                              0 EXECUTINGS,							  
+                              DISK_READS,							  
+                              BUFFER_GETS,     
+                              SORTS,         
+                              PARSE_CALLS,     
+                              PROCESSED_ROWS, 
+                              IO_WAIT_TIME, 
+                              CON_WAIT_TIME, 
+                              CPU_TIME, 
+                              NETWORK_TIME,
+                              ELAPSED_TIME, 
+                              REF_COUNT,     
+                              CR_GETS,
+                              PARSE_TIME,
+                              PARSING_USER_NAME,  
+                              PROGRAM_ID,
+                              PROGRAM_LINE#,
+                              VM_ALLOC_PAGES VM_PAGES_USED
+                       FROM DV_ANONYMOUS
+                       UNION ALL
+                       SELECT SQL_ID,
+                              SQL_TEXT,
+                              null MODULE,                
+                              0 EXECUTIONS, 
+                              1 EXECUTINGS,
+                              DISK_READS,     
+                              BUFFER_GETS,     
+                              null SORTS,         
+                              null PARSE_CALLS,     
+                              null PROCESSED_ROWS, 
+                              IO_WAIT_TIME, 
+                              CON_WAIT_TIME, 
+                              CPU_TIME, 
+                              null NETWORK_TIME,
+                              ELAPSED_TIME, 
+                              null REF_COUNT,     
+                              CR_GETS,
+                              null PARSE_TIME,
+                              null PARSING_USER_NAME,  
+                              null PROGRAM_ID,
+                              null PROGRAM_LINE#,
+                              VM_ALLOC_PAGES VM_PAGES_USED
+                       FROM DV_OPEN_CURSORS WHERE STATUS IN ('STMT_STATUS_EXECUTING', 'STMT_STATUS_FETCHING')) 			
+                  GROUP BY SQL_ID) LOOP
+
+        
+        BEGIN
+            SELECT /*+RULE*/ FLAG, LENGTHB(SQL_TEXT)
+              INTO I_L_FLAG, I_L_LENGTH
+              FROM WSR_SQLTEXT
+             WHERE CTIME = DT_L_SNAPDAY
+               AND SQL_ID = ITEM.SQL_ID
+             LIMIT 1;   
+               
+            IF (I_L_FLAG in (1, 4) AND I_L_LENGTH >= 1000) THEN
+
+                DELETE /*+RULE*/FROM WSR_SQLTEXT
+                 WHERE CTIME = DT_L_SNAPDAY
+                   AND SQL_ID = ITEM.SQL_ID
+                   AND FLAG = 1;                  
+            
+                INSERT INTO WSR_SQLTEXT
+                          ( CTIME,
+                            SQL_ID,
+                            SQL_TEXT,
+                            FLAG
+                          )
+                    VALUES( DT_L_SNAPDAY,
+                            ITEM.SQL_ID,
+                            ITEM.SQL_TEXT,
+                            2
+                          );            
+            END IF;
+               
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                INSERT INTO WSR_SQLTEXT
+                          ( CTIME,
+                            SQL_ID,
+                            SQL_TEXT,
+                            FLAG
+                          )
+                    VALUES( DT_L_SNAPDAY,
+                            ITEM.SQL_ID,
+                            ITEM.SQL_TEXT,
+                            2
+                          );                                 
+        END;             
+        
+        INSERT INTO WSR_SQLAREA
+                  ( SNAP_ID, 
+                    SQL_ID,  
+                    SQL_TEXT,             
+                    MODULE,                
+                    EXECUTIONS,
+                    EXECUTINGS,					
+                    DISK_READS,     
+                    BUFFER_GETS,     
+                    SORTS,         
+                    PARSE_CALLS,     
+                    PROCESSED_ROWS, 
+                    IO_WAIT_TIME, 
+                    CON_WAIT_TIME, 
+                    CPU_TIME,
+                    ELAPSED_TIME, 
+                    REF_COUNT,     
+                    IS_FREE,         
+                    CLEANED,
+                    CR_GETS,
+                    PARSE_TIME,
+                    PARSING_USER_NAME,  
+                    PROGRAM_ID,
+                    PROGRAM_LINE#,
+                    VM_PAGES_USED,
+                    NETWORK_TIME
+                  )
+            VALUES( I_L_SNAP_ID,
+                    ITEM.SQL_ID,     
+                    SUBSTRB(ITEM.SQL_TEXT, 1, 30),    
+                    ITEM.MODULE,                
+                    ITEM.EXECUTIONS,
+                    ITEM.EXECUTINGS,					
+                    ITEM.DISK_READS,     
+                    ITEM.BUFFER_GETS,     
+                    ITEM.SORTS,         
+                    ITEM.PARSE_CALLS,     
+                    ITEM.PROCESSED_ROWS, 
+                    ITEM.IO_WAIT_TIME, 
+                    ITEM.CON_WAIT_TIME, 
+                    ITEM.CPU_TIME,
+                    ITEM.ELAPSED_TIME, 
+                    ITEM.REF_COUNT,     
+                    NULL,         
+                    NULL,
+                    ITEM.CR_GETS,
+                    ITEM.PARSE_TIME,
+                    ITEM.PARSING_USER_NAME,  
+                    ITEM.PROGRAM_ID,
+                    ITEM.PROGRAM_LINE#,
+                    ITEM.VM_PAGES_USED,
+                    ITEM.NETWORK_TIME);
+    
+    END LOOP;         
+    
+ SELECT PLANFLAG
+   INTO I_L_PLANFLAG
+   FROM WSR_CONTROL;
+ 
+    INSERT INTO WSR_PARAMETER
+              ( SNAP_ID, NAME, VALUE, RUNTIME_VALUE, DEFAULT_VALUE,     
+                ISDEFAULT, MODIFIABLE, DESCRIPTION, RANGE, 
+                DATATYPE, EFFECTIVE
+              )
+         SELECT I_L_SNAP_ID, NAME, VALUE, RUNTIME_VALUE, DEFAULT_VALUE,     
+                ISDEFAULT, MODIFIABLE, DESCRIPTION, RANGE, 
+                DATATYPE, EFFECTIVE
+           FROM DV_PARAMETERS;  
+           
+    INSERT INTO WSR_LATCH
+              ( SNAP_ID,   
+                ID,        
+                NAME,      
+                GETS,      
+                MISSES,    
+                SPIN_GETS, 
+                WAIT_TIME
+              )
+         SELECT I_L_SNAP_ID,
+                ID,        
+                NAME,      
+                GETS,      
+                MISSES,    
+                SPIN_GETS, 
+                WAIT_TIME              
+           FROM DV_LATCHS;
+    
+    INSERT INTO WSR_WAITSTAT
+              ( SNAP_ID, 
+                CLASS,   
+                COUNT,   
+                TIME 
+              )
+         SELECT I_L_SNAP_ID,
+                CLASS,   
+                COUNT,   
+                TIME            
+           FROM DV_WAIT_STATS;   
+       
+    INSERT INTO WSR_LIBRARYCACHE
+              ( SNAP_ID,     
+                NAMESPACE,   
+                GETS,        
+                GETHITS,     
+                PINS,        
+                PINHITS,     
+                RELOADS,     
+                INVLIDATIONS
+              )
+         SELECT I_L_SNAP_ID,
+                NAMESPACE,   
+                GETS,        
+                GETHITS,     
+                PINS,        
+                PINHITS,     
+                RELOADS,     
+                INVLIDATIONS           
+           FROM DV_LIBRARY_CACHE;
+       
+    INSERT INTO WSR_SEGMENT
+              ( SNAP_ID,       
+                OWNER,         
+                OBJECT_NAME,   
+                SUBOBJECT_NAME,
+                TS#,           
+                OBJECT_TYPE,   
+                STATISTIC_NAME,
+                STATISTIC#,    
+                VALUE
+              )
+         SELECT I_L_SNAP_ID, 
+                OWNER,         
+                OBJECT_NAME,   
+                SUBOBJECT_NAME,
+                TS#,           
+                OBJECT_TYPE,   
+                STATISTIC_NAME,
+                STATISTIC#,    
+                VALUE
+           FROM DV_SEGMENT_STATS
+          WHERE VALUE > 0;    
+
+    INSERT INTO WSR_SESSION_EVENTS
+              ( SNAP_ID,
+                SID,
+                EVENT#,
+                EVENT,
+                P1,
+                WAIT_CLASS,
+                TOTAL_WAITS,
+                TIME_WAITED_MIRCO
+              )
+         SELECT I_L_SNAP_ID,
+                SID,
+                EVENT#,
+                EVENT,
+                P1,
+                WAIT_CLASS,
+                TOTAL_WAITS,
+                TIME_WAITED_MIRCO
+           FROM DV_SESSION_EVENTS
+          WHERE WAIT_CLASS <> 'IDLE';
+          
+    FOR ITEM IN (SELECT * FROM DV_OPEN_CURSORS) LOOP
+    
+        INSERT INTO WSR_OPEN_CURSORS
+                  (SNAP_ID,
+                   SESSION_ID,
+                   STMT_ID,
+                   USER_NAME,
+                   SQL_TEXT,
+                   SQL_TYPE,
+                   SQL_ID,
+                   STATUS,
+                   CURSOR_TYPE,
+                   VM_OPEN_PAGES,
+                   VM_CLOSE_PAGES,
+                   VM_SWAPIN_PAGES,
+                   VM_FREE_PAGES,
+                   QUERY_SCN,
+                   LAST_SQL_ACTIVE_TIME
+                  )
+            VALUES(I_L_SNAP_ID,
+                   ITEM.SESSION_ID,
+                   ITEM.STMT_ID,
+                   ITEM.USER_NAME,
+                   SUBSTRB(ITEM.SQL_TEXT, 1, 30),  
+                   ITEM.SQL_TYPE,
+                   ITEM.SQL_ID,
+                   ITEM.STATUS,
+                   ITEM.CURSOR_TYPE,
+                   ITEM.VM_OPEN_PAGES,
+                   ITEM.VM_CLOSE_PAGES,
+                   ITEM.VM_SWAPIN_PAGES,
+                   ITEM.VM_FREE_PAGES,
+                   ITEM.QUERY_SCN,
+                   ITEM.LAST_SQL_ACTIVE_TIME
+                   );
+        
+        IF (ITEM.SQL_ID IS NOT NULL) THEN
+        
+            SELECT /*+RULE*/ COUNT(*)
+              INTO I_L_COUNT
+              FROM SYS.WSR_SQLTEXT
+             WHERE CTIME = DT_L_SNAPDAY
+               AND SQL_ID = ITEM.SQL_ID;   
+            
+            IF (I_L_COUNT = 0) THEN
+                
+                INSERT INTO WSR_SQLTEXT
+                          ( CTIME,
+                            SQL_ID,
+                            SQL_TEXT,
+                            FLAG
+                          )
+                    VALUES( DT_L_SNAPDAY,
+                            ITEM.SQL_ID,
+                            ITEM.SQL_TEXT,
+                            4
+                          );
+            END IF;          
+        END IF;
+    END LOOP;          
+          
+    UPDATE WSR_CONTROL SET MOST_RECENT_SNAP_TIME = DT_L_STARTTIME, MOST_RECENT_SNAP_ID = I_L_SNAP_ID;      
+ 
+    COMMIT;                
+    
+    I_L_RET := RELEASE_LOCK('SYS.WSR$CREATE_SNAPSHOT');
+              
+EXCEPTION
+    WHEN OTHERS THEN
+        I_L_RET := RELEASE_LOCK('SYS.WSR$CREATE_SNAPSHOT');
+        WSR$INSERT_ERRORLOG('WSR$CREATE_SNAPSHOT', SUBSTRB(SQL_ERR_MSG,1,2000));
+END;
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_SQLAREA
+AS
+SELECT SNAP_ID, SQL_ID, SQL_TEXT, MODULE, EXECUTIONS, EXECUTINGS, DISK_READS,     
+       BUFFER_GETS, SORTS, PARSE_CALLS, PROCESSED_ROWS, 
+       IO_WAIT_TIME, CON_WAIT_TIME, CPU_TIME, ELAPSED_TIME, 
+       REF_COUNT, IS_FREE, CLEANED, CR_GETS, PARSE_TIME, PARSING_USER_NAME, PROGRAM_ID, PROGRAM_LINE#, VM_PAGES_USED, NETWORK_TIME
+  FROM SYS.WSR_SQLAREA
+/       
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_SQLAREA FOR SYS.ADM_HIST_SQLAREA
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_ELAPSED_TIME
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               EXECUTIONS,
+               EXECUTINGS,
+               TO_CHAR(ELAPSED_TIME / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS) / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, ELAPSED_TIME / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(NETWORK_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               '',
+               TO_CHAR(BUFFER_GETS / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS), 'FM99999999999999999990.000'),
+               TO_CHAR(DISK_READS / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS), 'FM99999999999999999990.000'),
+               TO_CHAR(PROCESSED_ROWS / DECODE(EXECUTIONS, 0, 1, EXECUTIONS), 'FM99999999999999999990.000'),
+               TO_CHAR(PARSE_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CR_GETS / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS), 'FM99999999999999999990.000'),
+               PARSING_USER_NAME,
+               PROGRAM_LINE#,
+               NVL((SELECT OBJECT_NAME FROM ADM_PROCEDURES WHERE OBJECT_ID = PROGRAM_ID LIMIT 1), '&nbsp'),
+               TO_CHAR(CON_WAIT_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(VM_PAGES_USED / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS), 'FM99999999999999999990.000')
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.EXECUTINGS EXECUTINGS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.NETWORK_TIME - NVL(A.NETWORK_TIME, 0) NETWORK_TIME,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.SQL_ID,
+                               B.MODULE,
+                               B.BUFFER_GETS - NVL(A.BUFFER_GETS, 0) BUFFER_GETS,
+                               B.DISK_READS - NVL(A.DISK_READS, 0) DISK_READS,
+                               B.PROCESSED_ROWS - NVL(A.PROCESSED_ROWS, 0) PROCESSED_ROWS,
+                               B.PARSE_TIME - NVL(A.PARSE_TIME, 0) PARSE_TIME,
+                               B.CON_WAIT_TIME - NVL(A.CON_WAIT_TIME, 0) CON_WAIT_TIME,
+                               B.CR_GETS - NVL(A.CR_GETS, 0) CR_GETS,
+                               B.PARSING_USER_NAME,
+                               B.PROGRAM_LINE#,
+                               B.PROGRAM_ID,
+                               B.SQL_TEXT,
+                               B.VM_PAGES_USED - NVL(A.VM_PAGES_USED, 0) VM_PAGES_USED
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID) 
+                 WHERE ELAPSED_TIME > 0) B
+         ORDER BY ELAPSED_TIME DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_CPU_TIME
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT TO_CHAR(CPU_TIME / 1000000, 'FM99999999999999999990.000'),
+               EXECUTIONS,
+               EXECUTINGS,
+               TO_CHAR(CPU_TIME / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS) / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, CPU_TIME / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               ''
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.EXECUTINGS EXECUTINGS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.SQL_ID,
+                               B.SQL_TEXT,
+                               B.MODULE
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID)
+                 WHERE ELAPSED_TIME > 0) B
+         ORDER BY CPU_TIME DESC, 5 DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_IO_WAIT
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT TO_CHAR(IO_TIME / 1000000, 'FM99999999999999999990.000'),
+               EXECUTIONS,
+               EXECUTINGS,
+               TO_CHAR(IO_TIME / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS) / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, IO_TIME / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               ''
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.EXECUTINGS EXECUTINGS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.SQL_ID,
+                               B.SQL_TEXT,
+                               B.MODULE
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID)
+                 WHERE ELAPSED_TIME > 0) B
+         ORDER BY IO_TIME DESC, 5 DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_GETS
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT BUFFER_GETS,
+               EXECUTIONS,
+               EXECUTINGS,
+               TO_CHAR(BUFFER_GETS / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS), 'FM99999999999999999990.000'),
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, BUFFER_GETS / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               ''
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.EXECUTINGS EXECUTINGS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.BUFFER_GETS - NVL(A.BUFFER_GETS, 0) BUFFER_GETS,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.SQL_ID,
+                               B.SQL_TEXT,
+                               B.MODULE
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID)
+                 WHERE ELAPSED_TIME > 0) B
+         ORDER BY 1 DESC, 5 DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_READS
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT DISK_READS,
+               EXECUTIONS,
+               EXECUTINGS,
+               TO_CHAR(DISK_READS / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS), 'FM99999999999999999990.000'),
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, DISK_READS / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               ''
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.EXECUTINGS EXECUTINGS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.BUFFER_GETS - NVL(A.BUFFER_GETS, 0) BUFFER_GETS,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.DISK_READS - NVL(A.DISK_READS, 0) DISK_READS,
+                               B.SQL_ID,
+                               B.SQL_TEXT,
+                               B.MODULE
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID)
+                 WHERE ELAPSED_TIME > 0) B
+         ORDER BY 1 DESC, 5 DESC LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$TOPSQL_ANALYSE
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+    I_IN_TOTAL            IN BINARY_BIGINT
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT WSR$GET_SQL_ANALYSE_RESULT(ELAPSED_TIME, DECODE(EXECUTIONS, 0, 1, EXECUTIONS), BUFFER_GETS, DISK_READS, PROCESSED_ROWS, PARSE_TIME, CON_WAIT_TIME, VM_PAGES_USED, IO_TIME),
+               TO_CHAR(ELAPSED_TIME / 1000000, 'FM99999999999999999990.000'),
+               EXECUTIONS,
+               EXECUTINGS,
+               TO_CHAR(ELAPSED_TIME / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS) / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, ELAPSED_TIME / I_IN_TOTAL * 100), 'FM99999999999999999990.000'),
+               TO_CHAR(CPU_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(NETWORK_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               TO_CHAR(IO_TIME / ELAPSED_TIME * 100, 'FM99999999999999999990.000'),
+               SQL_TEXT || '...',
+               SQL_ID,
+               MODULE,
+               TO_CHAR(BUFFER_GETS / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS), 'FM99999999999999999990.000'),
+               TO_CHAR(DISK_READS / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS), 'FM99999999999999999990.000'),
+               TO_CHAR(PROCESSED_ROWS / DECODE(EXECUTIONS, 0, 1, EXECUTIONS), 'FM99999999999999999990.000'),
+               TO_CHAR(PARSE_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(CR_GETS / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS), 'FM99999999999999999990.000'),
+               PARSING_USER_NAME,
+               PROGRAM_LINE#,
+               NVL((SELECT OBJECT_NAME FROM ADM_PROCEDURES WHERE OBJECT_ID = PROGRAM_ID LIMIT 1), '&nbsp'),
+               TO_CHAR(CON_WAIT_TIME / 1000000, 'FM99999999999999999990.000'),
+               TO_CHAR(VM_PAGES_USED / DECODE(EXECUTIONS + EXECUTINGS, 0, 1, EXECUTIONS + EXECUTINGS), 'FM99999999999999999990.000')
+          FROM (SELECT *
+                  FROM (SELECT B.ELAPSED_TIME - NVL(A.ELAPSED_TIME, 0) ELAPSED_TIME,
+                               B.EXECUTIONS - NVL(A.EXECUTIONS, 0) EXECUTIONS,
+                               B.EXECUTINGS EXECUTINGS,
+                               B.CPU_TIME - NVL(A.CPU_TIME, 0) CPU_TIME,
+                               B.NETWORK_TIME - NVL(A.NETWORK_TIME, 0) NETWORK_TIME,
+                               B.IO_WAIT_TIME - NVL(A.IO_WAIT_TIME, 0) IO_TIME,
+                               B.SQL_ID,
+                               B.MODULE,
+                               B.BUFFER_GETS - NVL(A.BUFFER_GETS, 0) BUFFER_GETS,
+                               B.DISK_READS - NVL(A.DISK_READS, 0) DISK_READS,
+                               B.PROCESSED_ROWS - NVL(A.PROCESSED_ROWS, 0) PROCESSED_ROWS,
+                               B.PARSE_TIME - NVL(A.PARSE_TIME, 0) PARSE_TIME,
+                               B.CON_WAIT_TIME - NVL(A.CON_WAIT_TIME, 0) CON_WAIT_TIME,
+                               B.CR_GETS - NVL(A.CR_GETS, 0) CR_GETS,
+                               B.PARSING_USER_NAME,
+                               B.PROGRAM_LINE#,
+                               B.PROGRAM_ID,
+                               B.SQL_TEXT,
+                               B.VM_PAGES_USED - NVL(A.VM_PAGES_USED, 0) VM_PAGES_USED
+                          FROM (SELECT * FROM ADM_HIST_SQLAREA WHERE SNAP_ID = I_IN_HIGH_SNAP_ID) B
+                          LEFT JOIN ADM_HIST_SQLAREA A
+                            ON A.SNAP_ID = I_IN_LOW_SNAP_ID
+                           AND A.SQL_ID = B.SQL_ID) 
+                 WHERE ELAPSED_TIME > 0
+                   AND DECODE(I_IN_TOTAL, 0, 0 :: BINARY_BIGINT, ELAPSED_TIME / I_IN_TOTAL * 100) > 5) B
+         ORDER BY ELAPSED_TIME DESC;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$DROP_SNAPSHOT_RANGE
+(
+    LOW_SNAP_ID      IN BINARY_INTEGER,
+    HIGH_SNAP_ID     IN BINARY_INTEGER
+)
+AS
+BEGIN
+    IF (LOW_SNAP_ID IS NULL OR HIGH_SNAP_ID IS NULL) THEN
+        THROW_EXCEPTION(-20000, 'LOW_SNAP_ID & HIGH_SNAP_ID CAN''T BE NULL!');
+    END IF;
+    
+    FOR I IN LOW_SNAP_ID .. HIGH_SNAP_ID LOOP
+    
+        DELETE FROM WSR_SNAPSHOT
+         WHERE SNAP_ID = I;
+
+        DELETE FROM WSR_SYS_STAT
+         WHERE SNAP_ID = I;        
+
+        DELETE FROM WSR_SYSTEM
+         WHERE SNAP_ID = I; 
+         
+        DELETE FROM WSR_SYSTEM_EVENT
+         WHERE SNAP_ID = I;                     
+        
+        DELETE FROM WSR_PARAMETER
+         WHERE SNAP_ID = I;      
+        
+        DELETE FROM WSR_LATCH
+         WHERE SNAP_ID = I;    
+         
+        DELETE FROM WSR_WAITSTAT
+         WHERE SNAP_ID = I;  
+         
+        DELETE FROM WSR_LIBRARYCACHE
+         WHERE SNAP_ID = I;   
+         
+        WSR$DROP_SNAPSHOT_PARTITION('WSR_SQLAREA', I); 
+        WSR$DROP_SNAPSHOT_PARTITION('WSR_SEGMENT', I); 
+        WSR$DROP_SNAPSHOT_PARTITION('WSR_DBA_SEGMENTS', I); 
+        WSR$DROP_SNAPSHOT_PARTITION('WSR_LONGSQL', I); 
+        WSR$DROP_SNAPSHOT_PARTITION('WSR_SESSION_EVENTS', I);
+        WSR$DROP_SNAPSHOT_PARTITION('WSR_OPEN_CURSORS', I);
+         
+        COMMIT;
+    
+    END LOOP;  
+      
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$DROP_FAILED_SNAPSHOT_RANGE
+AS
+BEGIN 
+    WSR$DROP_SNAPSHOT_FAILED_PARTITION('WSR_SQLAREA');
+    WSR$DROP_SNAPSHOT_FAILED_PARTITION('WSR_SEGMENT'); 
+    WSR$DROP_SNAPSHOT_FAILED_PARTITION('WSR_DBA_SEGMENTS'); 
+    WSR$DROP_SNAPSHOT_FAILED_PARTITION('WSR_LONGSQL'); 
+    WSR$DROP_SNAPSHOT_FAILED_PARTITION('WSR_SESSION_EVENTS');
+    WSR$DROP_SNAPSHOT_FAILED_PARTITION('WSR_OPEN_CURSORS');
+END WSR$DROP_FAILED_SNAPSHOT_RANGE;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$QUERY_LONG_CURSOR
+(
+    I_IN_SNAP_ID          IN BINARY_INTEGER,
+    I_IN_TOPNUM           IN BINARY_INTEGER
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+BEGIN
+    
+    OPEN CUR_RESULT FOR
+        SELECT SESSION_ID,
+               STMT_ID,
+               USER_NAME,
+               SQL_TEXT || '...',
+               SQL_TYPE,
+               SQL_ID,
+               STATUS,
+               CURSOR_TYPE,
+               VM_OPEN_PAGES,
+               VM_CLOSE_PAGES,
+               VM_SWAPIN_PAGES,
+               VM_FREE_PAGES,
+               QUERY_SCN,
+               TO_CHAR(LAST_SQL_ACTIVE_TIME, 'YYYY-MM-DD HH24:MI:SS')
+          FROM WSR_OPEN_CURSORS
+         WHERE SNAP_ID = I_IN_SNAP_ID
+         ORDER BY LAST_SQL_ACTIVE_TIME 
+         LIMIT I_IN_TOPNUM;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+
+END;
+/
+
+DECLARE 
+    I_COUNT BINARY_INTEGER;
+BEGIN
+    SELECT COUNT(*)
+	  INTO I_COUNT
+	  FROM ADM_TAB_COLUMNS
+	 WHERE TABLE_NAME = 'WSR_INSTANCE_SNAP'
+	   AND COLUMN_NAME = 'BUFFER_DETAIL';
+	
+	IF (I_COUNT = 0) THEN
+	    EXECUTE IMMEDIATE 'ALTER TABLE WSR_INSTANCE_SNAP ADD BUFFER_DETAIL VARCHAR2(8000)';
+	END IF;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$WRITE_INSTANCE_SNAP
+AS
+    I_L_SESSION_NUM       BINARY_INTEGER;
+    I_L_ACTIVE_SESS_NUM   BINARY_INTEGER;
+    I_L_TS_SYSTEM_FREE    BINARY_BIGINT;               
+    I_L_TS_SYSWARE_FREE   BINARY_BIGINT;                    
+    I_L_TS_USER_FREE      BINARY_BIGINT;        
+    I_L_DATA_BUFFER_PIN   BINARY_BIGINT;      
+    I_L_WRITE_PAGES       BINARY_BIGINT; 
+    I_L_FREE_PAGES        BINARY_BIGINT; 
+   	I_L_CPU_USER                         NUMBER;
+   	I_L_CPU_SYSTEM                       NUMBER;
+   	I_L_IOWAIT                           NUMBER;
+   	I_L_IDLE                             NUMBER;
+   	I_L_DATABUFFER_FREE                  NUMBER;
+   	I_L_TEMPBUFFER_HWM                   NUMBER;
+   	I_L_TEMPBUFFER_SWAP                  NUMBER;
+   	I_L_LOGICAL_READ                     NUMBER;
+   	I_L_PHYSICAL_READ                    NUMBER;
+   	I_L_COMMIT_NUM                       NUMBER;
+   	I_L_ROLLBACK_NUM                     NUMBER;
+   	I_L_REDO_SIZE                        NUMBER;
+   	I_L_EXECUTE_NUM                      NUMBER;
+   	I_L_FETCH_ROW_NUM                    NUMBER;
+   	I_L_MIN_HA_SYNC_SEND_LOG             NUMBER;
+   	I_L_MAX_HA_SYNC_SEND_LOG             NUMBER;
+   	I_L_MIN_HA_SYNC_REPLY_LOG            NUMBER;
+   	I_L_MAX_HA_SYNC_REPLY_LOG            NUMBER;
+   	I_L_MIN_LOGICAL_SYNC_REPLY_LOG       INTERVAL DAY TO SECOND;
+   	I_L_MAX_LOGICAL_SYNC_REPLY_LOG       INTERVAL DAY TO SECOND;
+   	I_L_EVENT_LATCH_BUFFER               NUMBER;
+   	I_L_EVENT_LOG_FILE_SYNC              NUMBER;
+   	I_L_EVENT_BUFFER_BUSY_WAITS          NUMBER;
+   	I_L_EVENT_TX_ROW_LOCK                NUMBER;
+   	I_L_EVENT_SCATTERED_READ             NUMBER;
+   	I_L_EVENT_SEQUENTIAL_READ            NUMBER;
+   	I_L_EVENT_READ_BY_OTHER_SESSION      NUMBER;
+   	I_L_EVENT_ARCHIVING_NEEDED           NUMBER;
+   	I_L_EVENT_ADVISORY_LOCK              NUMBER;
+   	I_L_EVENT_TABLE_LOCK                 NUMBER;
+   	I_L_EVENT_CHECKPOINT_INCOMPLETE      NUMBER;
+   	I_L_EVENT_ITL_ENTRY                  NUMBER;  
+    I_L_VALID                            BINARY_INTEGER := 1;
+    ROW_L_LAST                           WSR_INSTANCE_SNAP_LAST%ROWTYPE;            
+    I_L_CPUTOTAL                         NUMBER;        
+    I_L_LOGIN_NUM                        NUMBER;
+    I_L_HARDPARSE_NUM                    NUMBER;    
+   	I_L_DBWR_PAGES                       NUMBER;
+   	I_L_DBWR_TIME                        NUMBER;    
+    I_L_LONGEST_SQL                      NUMBER; 
+    I_L_LONGEST_TRANS                    NUMBER; 
+    I_L_TRANS_NUM                        NUMBER; 
+    I_L_ARCH_LOGS                        NUMBER;
+    I_L_TXN_PAGES                        BINARY_INTEGER;
+    I_L_UNDO_PAGES                       BINARY_INTEGER;
+    I_L_REDO_SWITCH_TIMES                NUMBER;
+    I_L_PCR_CONSTRUCTS                   NUMBER;
+    I_L_BCR_CONSTRUCTS                   NUMBER;
+    STR_L_OWNER                          VARCHAR(100);
+    STR_L_BUFFER_DETAIL                  VARCHAR(8000);
+BEGIN
+
+    BEGIN
+        SELECT *
+          INTO ROW_L_LAST
+          FROM WSR_INSTANCE_SNAP_LAST
+         LIMIT 1;
+        
+        DELETE FROM WSR_INSTANCE_SNAP_LAST;
+        COMMIT;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            I_L_VALID := 0;
+    END;  
+ 
+    SELECT COUNT(*), COUNT(DECODE(STATUS, 'ACTIVE', 1, NULL)), MAX(DECODE(STATUS, 'ACTIVE', (SYSDATE - SQL_EXEC_START) * 86400, 0))
+      INTO I_L_SESSION_NUM, I_L_ACTIVE_SESS_NUM, I_L_LONGEST_SQL
+      FROM DV_SESSIONS;
+      
+    SELECT SUM(TXN_PAGES), SUM(UNDO_PAGES)
+      INTO I_L_TXN_PAGES, I_L_UNDO_PAGES
+      FROM DV_UNDO_SEGMENTS;       
+    
+    SELECT SUM(DECODE(TABLESPACE_NAME, 'SYSTEM', TOTAL_SIZE - USED_SIZE, 0)), SUM(DECODE(TABLESPACE_NAME, 'SYSAUX', TOTAL_SIZE - USED_SIZE, 0)),
+           SUM(CASE WHEN TABLESPACE_NAME IN ('SYSTEM', 'SYSAUX', 'TEMP', 'UNDO', 'TEMP2', 'TEMP2_UNDO') THEN 0 ELSE TOTAL_SIZE - USED_SIZE END)  
+      INTO I_L_TS_SYSTEM_FREE, I_L_TS_SYSWARE_FREE, I_L_TS_USER_FREE
+      FROM ADM_TABLESPACES;
+    
+    SELECT NVL(SUM(BLOCKS * BLOCK_SIZE), 0)
+      INTO I_L_ARCH_LOGS
+      FROM DV_ARCHIVED_LOGS;
+      
+    SELECT COUNT(*), NVL(MAX(SYSDATE - BEGIN_TIME), 0) * 86400
+      INTO I_L_TRANS_NUM, I_L_LONGEST_TRANS
+      FROM DV_TRANSACTIONS;  
+      
+    SELECT SUM(DECODE(ID, 5, VALUE)), SUM(DECODE(ID, 6, VALUE)), SUM(DECODE(ID, 7, VALUE)), SUM(DECODE(ID, 3, VALUE))
+      INTO I_L_CPU_USER, I_L_CPU_SYSTEM, I_L_IOWAIT, I_L_IDLE
+      FROM DV_SYSTEM
+     WHERE ID IN (3, 5, 6, 7);
+      
+    SELECT SUM(CNUM_PINNED), SUM(CNUM_FREE), SUM(CNUM_WRITE)
+      INTO I_L_DATA_BUFFER_PIN, I_L_DATABUFFER_FREE, I_L_WRITE_PAGES
+      FROM DV_BUFFER_POOL_STATS;
+
+/*     
+   	SELECT GROUP_CONCAT(TYPE || ' ' || TOTAL || ':' || DIRTY)
+   	  INTO STR_L_BUFFER_DETAIL
+   	  FROM (
+   			SELECT TYPE, SUM(CNUM_TOTAL) TOTAL, SUM(CNUM_DIRTY) DIRTY
+   			  FROM DV_BUFFER_PAGE_STATS
+   			 GROUP BY TYPE
+   			 ORDER BY 2 DESC
+   			 LIMIT 20	  
+   	  );
+*/     
+    
+    SELECT SUM(FREE_PAGES), SUM(PAGE_HWM), SUM(SWAP_COUNT) 
+      INTO I_L_FREE_PAGES, I_L_TEMPBUFFER_HWM, I_L_TEMPBUFFER_SWAP
+      FROM DV_TEMP_POOLS;
+    
+    select sum(decode(NAME, 'buffer gets', VALUE)),
+           sum(decode(NAME, 'disk reads', VALUE)),
+           sum(decode(NAME, 'commits', VALUE)),
+           sum(decode(NAME, 'rollbacks', VALUE)),
+           sum(decode(NAME, 'redo write size', VALUE)),
+           sum(decode(NAME, 'sql executions', VALUE)),
+           sum(decode(NAME, 'fetched rows', VALUE)),
+           sum(decode(NAME, 'user logons cumulation', VALUE)),
+           sum(decode(NAME, 'sql hard parses', VALUE)),
+           sum(decode(NAME, 'DBWR disk writes', VALUE)),
+           sum(decode(NAME, 'DBWR disk write time', VALUE)),
+           sum(decode(NAME, 'redo log switch count', VALUE)),
+           sum(decode(NAME, 'pcr construct count', VALUE)),
+           sum(decode(NAME, 'bcr construct count', VALUE))
+      INTO I_L_LOGICAL_READ, I_L_PHYSICAL_READ, I_L_COMMIT_NUM, I_L_ROLLBACK_NUM, I_L_REDO_SIZE, I_L_EXECUTE_NUM, I_L_FETCH_ROW_NUM, I_L_LOGIN_NUM, I_L_HARDPARSE_NUM,
+           I_L_DBWR_PAGES, I_L_DBWR_TIME, I_L_REDO_SWITCH_TIMES, I_L_PCR_CONSTRUCTS, I_L_BCR_CONSTRUCTS
+      FROM DV_SYS_STATS;
+    
+    SELECT MIN(FLUSH_LAG), MAX(FLUSH_LAG), MIN(REPLAY_LAG), MAX(REPLAY_LAG)
+      INTO I_L_MIN_HA_SYNC_SEND_LOG, I_L_MAX_HA_SYNC_SEND_LOG, I_L_MIN_HA_SYNC_REPLY_LOG, I_L_MAX_HA_SYNC_REPLY_LOG
+      FROM DV_HA_SYNC_INFO;
+    
+    BEGIN
+        SELECT /*+RULE*/OWNER
+          INTO STR_L_OWNER
+          FROM ADM_TAB_COLUMNS
+         WHERE TABLE_NAME = 'LOGICREP_PROGRESS'
+           AND COLUMN_NAME = 'COMMITTED_TX_TIME'
+         LIMIT 1;
+     
+        EXECUTE IMMEDIATE 'SELECT MIN(SYSTIMESTAMP - COMMITTED_TX_TIME), MAX(SYSTIMESTAMP - COMMITTED_TX_TIME) FROM ' || STR_L_OWNER || '.LOGICREP_PROGRESS' 
+           INTO I_L_MIN_LOGICAL_SYNC_REPLY_LOG, I_L_MAX_LOGICAL_SYNC_REPLY_LOG; 
+    EXCEPTION
+        WHEN OTHERS THEN
+            NULL;
+    END;  
+    
+    select sum(decode(EVENT, 'latch: data buffer pool', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'log file sync', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'buffer busy waits', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'enq: TX row lock contention', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'db file scattered read', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'db file sequential read', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'read by other session', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'log file switch(archiving needed)', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'advisory lock wait time', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'enq: TX table lock S', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'log file switch(checkpoint incomplete)', TIME_WAITED_MIRCO)),
+           sum(decode(EVENT, 'enq: TX alloc itl entry', TIME_WAITED_MIRCO))           
+      INTO I_L_EVENT_LATCH_BUFFER, I_L_EVENT_LOG_FILE_SYNC, I_L_EVENT_BUFFER_BUSY_WAITS, I_L_EVENT_TX_ROW_LOCK, I_L_EVENT_SCATTERED_READ,
+           I_L_EVENT_SEQUENTIAL_READ, I_L_EVENT_READ_BY_OTHER_SESSION, I_L_EVENT_ARCHIVING_NEEDED, I_L_EVENT_ADVISORY_LOCK, I_L_EVENT_TABLE_LOCK, I_L_EVENT_CHECKPOINT_INCOMPLETE, I_L_EVENT_ITL_ENTRY
+      FROM DV_SYS_EVENTS;        
+    
+    INSERT INTO WSR_INSTANCE_SNAP_LAST
+              (
+            	   CPU_USER                         ,
+               	CPU_SYSTEM                       ,
+               	IOWAIT                           ,
+               	IDLE                             ,
+               	LOGICAL_READ                     ,
+               	PHYSICAL_READ                    ,
+               	COMMIT_NUM                       ,
+               	ROLLBACK_NUM                     ,
+               	REDO_SIZE                        ,
+               	EXECUTE_NUM                      ,
+               	FETCH_ROW_NUM                    ,
+               	LOGIN_NUM                        ,
+               	HARDPARSE_NUM                    ,
+               	DBWR_PAGES                       ,
+               	DBWR_TIME                        ,
+               	EVENT_LATCH_BUFFER               ,
+               	EVENT_LOG_FILE_SYNC              ,
+               	EVENT_BUFFER_BUSY_WAITS          ,
+               	EVENT_TX_ROW_LOCK                ,
+               	EVENT_SCATTERED_READ             ,
+               	EVENT_SEQUENTIAL_READ            ,
+               	EVENT_READ_BY_OTHER_SESSION      ,
+               	EVENT_ARCHIVING_NEEDED           ,
+               	EVENT_ADVISORY_LOCK              ,
+               	EVENT_TABLE_LOCK                 ,
+               	EVENT_CHECKPOINT_INCOMPLETE      ,
+               	EVENT_ITL_ENTRY                  ,
+               	REDO_SWITCH_TIMES                ,
+               	PCR_CONSTRUCTS                   ,
+               	BCR_CONSTRUCTS                   
+              )
+        VALUES(
+            	   I_L_CPU_USER                         ,
+               	I_L_CPU_SYSTEM                       ,
+               	I_L_IOWAIT                           ,
+               	I_L_IDLE                             ,
+               	I_L_LOGICAL_READ                     ,
+               	I_L_PHYSICAL_READ                    ,
+               	I_L_COMMIT_NUM                       ,
+               	I_L_ROLLBACK_NUM                     ,
+               	I_L_REDO_SIZE                        ,
+               	I_L_EXECUTE_NUM                      ,
+               	I_L_FETCH_ROW_NUM                    ,
+               	I_L_LOGIN_NUM                        ,
+               	I_L_HARDPARSE_NUM                    ,
+               	I_L_DBWR_PAGES                       ,
+               	I_L_DBWR_TIME                        ,
+               	I_L_EVENT_LATCH_BUFFER               ,
+               	I_L_EVENT_LOG_FILE_SYNC              ,
+               	I_L_EVENT_BUFFER_BUSY_WAITS          ,
+               	I_L_EVENT_TX_ROW_LOCK                ,
+               	I_L_EVENT_SCATTERED_READ             ,
+               	I_L_EVENT_SEQUENTIAL_READ            ,
+               	I_L_EVENT_READ_BY_OTHER_SESSION      ,
+               	I_L_EVENT_ARCHIVING_NEEDED           ,
+               	I_L_EVENT_ADVISORY_LOCK              ,
+               	I_L_EVENT_TABLE_LOCK                 ,
+               	I_L_EVENT_CHECKPOINT_INCOMPLETE      ,
+               	I_L_EVENT_ITL_ENTRY                  ,
+               	I_L_REDO_SWITCH_TIMES                ,
+               	I_L_PCR_CONSTRUCTS                   ,
+               	I_L_BCR_CONSTRUCTS
+              );  
+    
+    IF (I_L_VALID = 0 OR I_L_EXECUTE_NUM <= ROW_L_LAST.EXECUTE_NUM) THEN
+        COMMIT;
+        RETURN;
+    END IF;
+    
+    I_L_CPUTOTAL := I_L_CPU_USER + I_L_CPU_SYSTEM + I_L_IOWAIT + I_L_IDLE - (ROW_L_LAST.CPU_USER + ROW_L_LAST.CPU_SYSTEM + ROW_L_LAST.IOWAIT + ROW_L_LAST.IDLE);
+    
+    IF (I_L_CPUTOTAL = 0) THEN
+        I_L_CPUTOTAL := 1;
+    END IF;
+     
+    INSERT INTO WSR_INSTANCE_SNAP
+              ( SNAP_TIME,                        
+                SESSION_NUM,                      
+                ACTIVE_SESS_NUM,                  
+                LOCK_NUM,                         
+                TRANSACTION_NUM,                  
+                TEMP_BUFFER_FREE,                 
+                DATA_BUFFER_PIN,                  
+                TS_SYSTEM_FREE,                   
+                TS_SYSWARE_FREE,                       
+                TS_USER_FREE,                        
+                TXN_PAGES,                        
+                UNDO_PAGES,
+                WRITE_PAGES,
+                ARCH_LOGS,
+               	CPU_USER                        ,
+               	CPU_SYSTEM                      ,
+               	IOWAIT                          ,
+               	IDLE                            ,
+               	LONGEST_SQL                     ,
+               	LONGEST_TRANS                   ,
+               	DATABUFFER_FREE                 ,
+               	TEMPBUFFER_HWM                  ,
+               	TEMPBUFFER_SWAP                 ,
+               	LOGICAL_READ                    ,
+               	PHYSICAL_READ                   ,
+               	COMMIT_NUM                      ,
+               	ROLLBACK_NUM                    ,
+               	REDO_SIZE                       ,
+               	EXECUTE_NUM                     ,
+               	FETCH_ROW_NUM                   ,
+               	LOGIN_NUM                       ,
+               	HARDPARSE_NUM                   ,
+               	DBWR_PAGES                      ,
+               	DBWR_TIME                       ,
+               	MIN_HA_SYNC_SEND_LOG            ,
+               	MAX_HA_SYNC_SEND_LOG            ,
+               	MIN_HA_SYNC_REPLY_LOG           ,
+               	MAX_HA_SYNC_REPLY_LOG           ,
+               	MIN_LOGICAL_SYNC_REPLY_LOG      ,
+               	MAX_LOGICAL_SYNC_REPLY_LOG      ,
+               	EVENT_LATCH_BUFFER              ,
+               	EVENT_LOG_FILE_SYNC             ,
+               	EVENT_BUFFER_BUSY_WAITS         ,
+               	EVENT_TX_ROW_LOCK               ,
+               	EVENT_SCATTERED_READ            ,
+               	EVENT_SEQUENTIAL_READ           ,
+               	EVENT_READ_BY_OTHER_SESSION     ,
+               	EVENT_ARCHIVING_NEEDED          ,
+               	EVENT_ADVISORY_LOCK             ,
+               	EVENT_TABLE_LOCK                ,
+               	EVENT_CHECKPOINT_INCOMPLETE,
+               	EVENT_ITL_ENTRY,
+               	REDO_SWITCH_TIMES,
+               	PCR_CONSTRUCTS,
+               	BCR_CONSTRUCTS,
+               	BUFFER_DETAIL
+              )
+        VALUES( SYSDATE,
+                I_L_SESSION_NUM,
+                I_L_ACTIVE_SESS_NUM,
+                NULL,
+                I_L_TRANS_NUM,
+                I_L_FREE_PAGES,
+                I_L_DATA_BUFFER_PIN,
+                I_L_TS_SYSTEM_FREE, 
+                I_L_TS_SYSWARE_FREE, 
+                I_L_TS_USER_FREE,
+                I_L_TXN_PAGES,
+                I_L_UNDO_PAGES,
+                I_L_WRITE_PAGES,
+                I_L_ARCH_LOGS,
+                ROUND((I_L_CPU_USER - ROW_L_LAST.CPU_USER) / I_L_CPUTOTAL * 100, 2),
+   	            ROUND((I_L_CPU_SYSTEM - ROW_L_LAST.CPU_SYSTEM) / I_L_CPUTOTAL * 100, 2),
+   	            ROUND((I_L_IOWAIT - ROW_L_LAST.IOWAIT) / I_L_CPUTOTAL * 100, 2),
+   	            ROUND((I_L_IDLE - ROW_L_LAST.IDLE) / I_L_CPUTOTAL * 100, 2),
+               	I_L_LONGEST_SQL                     ,
+                (CASE WHEN I_L_LONGEST_TRANS < 0 THEN 0 ELSE I_L_LONGEST_TRANS END),
+               	I_L_DATABUFFER_FREE                 ,
+               	I_L_TEMPBUFFER_HWM                  ,
+               	I_L_TEMPBUFFER_SWAP                 ,
+               	I_L_LOGICAL_READ - ROW_L_LAST.LOGICAL_READ,
+               	I_L_PHYSICAL_READ - ROW_L_LAST.PHYSICAL_READ,
+               	I_L_COMMIT_NUM - ROW_L_LAST.COMMIT_NUM,
+               	I_L_ROLLBACK_NUM - ROW_L_LAST.ROLLBACK_NUM,
+               	I_L_REDO_SIZE - ROW_L_LAST.REDO_SIZE,
+               	I_L_EXECUTE_NUM - ROW_L_LAST.EXECUTE_NUM,
+               	I_L_FETCH_ROW_NUM - ROW_L_LAST.FETCH_ROW_NUM,
+               	I_L_LOGIN_NUM - ROW_L_LAST.LOGIN_NUM,
+               	I_L_HARDPARSE_NUM - ROW_L_LAST.HARDPARSE_NUM,
+               	I_L_DBWR_PAGES - ROW_L_LAST.DBWR_PAGES,
+               	I_L_DBWR_TIME - ROW_L_LAST.DBWR_TIME,
+               	I_L_MIN_HA_SYNC_SEND_LOG            ,
+               	I_L_MAX_HA_SYNC_SEND_LOG            ,
+               	I_L_MIN_HA_SYNC_REPLY_LOG           ,
+               	I_L_MAX_HA_SYNC_REPLY_LOG           ,
+               	I_L_MIN_LOGICAL_SYNC_REPLY_LOG      ,
+               	I_L_MAX_LOGICAL_SYNC_REPLY_LOG      ,
+               	I_L_EVENT_LATCH_BUFFER - ROW_L_LAST.EVENT_LATCH_BUFFER,
+               	I_L_EVENT_LOG_FILE_SYNC - ROW_L_LAST.EVENT_LOG_FILE_SYNC,
+               	I_L_EVENT_BUFFER_BUSY_WAITS - ROW_L_LAST.EVENT_BUFFER_BUSY_WAITS,
+               	I_L_EVENT_TX_ROW_LOCK - ROW_L_LAST.EVENT_TX_ROW_LOCK,
+               	I_L_EVENT_SCATTERED_READ - ROW_L_LAST.EVENT_SCATTERED_READ,
+               	I_L_EVENT_SEQUENTIAL_READ - ROW_L_LAST.EVENT_SEQUENTIAL_READ,
+               	I_L_EVENT_READ_BY_OTHER_SESSION - ROW_L_LAST.EVENT_READ_BY_OTHER_SESSION,
+               	I_L_EVENT_ARCHIVING_NEEDED - ROW_L_LAST.EVENT_ARCHIVING_NEEDED,
+               	I_L_EVENT_ADVISORY_LOCK - ROW_L_LAST.EVENT_ADVISORY_LOCK,
+               	I_L_EVENT_TABLE_LOCK - ROW_L_LAST.EVENT_TABLE_LOCK,
+               	I_L_EVENT_CHECKPOINT_INCOMPLETE - ROW_L_LAST.EVENT_CHECKPOINT_INCOMPLETE,
+               	I_L_EVENT_ITL_ENTRY - ROW_L_LAST.EVENT_ITL_ENTRY,
+               	I_L_REDO_SWITCH_TIMES - ROW_L_LAST.REDO_SWITCH_TIMES,
+               	I_L_PCR_CONSTRUCTS - ROW_L_LAST.PCR_CONSTRUCTS,
+               	I_L_BCR_CONSTRUCTS - ROW_L_LAST.BCR_CONSTRUCTS,
+               	STR_L_BUFFER_DETAIL
+              );
+                
+    COMMIT;
+         
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$INSTANCE_BUFFER
+(
+    I_IN_LOW_SNAP_ID      IN BINARY_INTEGER,
+    I_IN_HIGH_SNAP_ID     IN BINARY_INTEGER,
+	   STR_IN_STARTTIME      IN VARCHAR2,
+	   STR_IN_ENDTIME        IN VARCHAR2
+)
+AS
+    CUR_RESULT SYS_REFCURSOR;
+    DT_L_STARTTIME        DATE;
+    DT_L_ENDTIME          DATE;
+BEGIN
+    
+	  IF (I_IN_LOW_SNAP_ID = 0) THEN
+		     DT_L_STARTTIME := TO_DATE(STR_IN_STARTTIME, 'YYYY-MM-DD HH24:MI:SS');
+		     DT_L_ENDTIME := TO_DATE(STR_IN_ENDTIME, 'YYYY-MM-DD HH24:MI:SS');
+	  ELSE
+		     SELECT SNAP_TIME
+		       INTO DT_L_STARTTIME
+		       FROM ADM_HIST_SNAPSHOT
+		      WHERE SNAP_ID = I_IN_LOW_SNAP_ID;
+		 
+     		SELECT SNAP_TIME
+     		  INTO DT_L_ENDTIME
+     		  FROM ADM_HIST_SNAPSHOT
+     		 WHERE SNAP_ID = I_IN_HIGH_SNAP_ID; 	
+   	END IF;  
+    
+    OPEN CUR_RESULT FOR
+        SELECT TO_CHAR(SNAP_TIME, 'HH24:MI:SS'), WRITE_PAGES, DATA_BUFFER_PIN, DATABUFFER_FREE, TEMP_BUFFER_FREE, TEMPBUFFER_HWM, TEMPBUFFER_SWAP, BUFFER_DETAIL
+          FROM SYS.WSR_INSTANCE_SNAP
+         WHERE SNAP_TIME BETWEEN DT_L_STARTTIME AND DT_L_ENDTIME
+         ORDER BY SNAP_TIME LIMIT 1000;
+
+    DBE_SQL.RETURN_CURSOR(CUR_RESULT);
+      
+END;
+/
+
+CREATE OR REPLACE PROCEDURE WSR$INSERT_ERRORLOG
+(
+    STR_IN_PNAME           IN             VARCHAR,
+    STR_IN_ERRORINFO       IN             VARCHAR
+)
+AS
+BEGIN
+    INSERT INTO WSR_EXCEPTION_LOG
+              ( CTIME,
+                PROCEDURENAME,
+                ERRORINFO
+              )
+        VALUES( SYSDATE,
+                STR_IN_PNAME,
+                STR_IN_ERRORINFO
+              );
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+END;
+/
+
+DROP TABLE IF EXISTS WSR_SEGMENT PURGE
+/
+
+CREATE TABLE WSR_SEGMENT 
+(
+    SNAP_ID                             BINARY_INTEGER        NOT NULL,
+    OWNER                               VARCHAR(64 BYTE),
+    OBJECT_NAME                         VARCHAR(64 BYTE),
+    SUBOBJECT_NAME                      VARCHAR(64 BYTE),
+    TS#                                 BINARY_INTEGER,
+    OBJECT_TYPE                         VARCHAR(64 BYTE),
+    STATISTIC_NAME                      VARCHAR(64 BYTE),
+    STATISTIC#                          BINARY_INTEGER,
+    VALUE                               BINARY_BIGINT    
+)
+PARTITION BY RANGE(SNAP_ID) INTERVAL(1) (PARTITION P_0 VALUES LESS THAN (1))
+TABLESPACE SYSAUX
+/
+
+CREATE INDEX IX_WSR_SEGMENT ON WSR_SEGMENT(STATISTIC#) LOCAL
+/      
+
+DROP VIEW IF EXISTS DBA_HIST_SEGMENT 
+/
+
+CREATE OR REPLACE VIEW ADM_HIST_SEGMENT 
+AS
+SELECT SNAP_ID, OWNER, OBJECT_NAME, SUBOBJECT_NAME, TS#, OBJECT_TYPE, STATISTIC_NAME, STATISTIC#, VALUE          
+  FROM SYS.WSR_SEGMENT 
+/       
+
+CREATE OR REPLACE PUBLIC SYNONYM ADM_HIST_SEGMENT FOR SYS.ADM_HIST_SEGMENT
+/
+
+GRANT EXECUTE ON WSR$INSTANCE_BUFFER TO STATISTICS
+/
+GRANT SELECT, INSERT ON WSR_OPEN_CURSORS TO STATISTICS
+/
+GRANT SELECT ON ADM_HIST_OPEN_CURSORS TO STATISTICS
+/
+GRANT EXECUTE ON WSR$INSTANCE_SNAP_CHECKPARA TO STATISTICS
+/
+GRANT EXECUTE ON WSR$QUERY_LONG_CURSOR TO STATISTICS
+/
+GRANT INSERT, SELECT ON WSR_INSTANCE_SNAP TO STATISTICS
+/
+GRANT SELECT ON SYS.ADM_HIST_SQLAREA TO STATISTICS
+/
+GRANT INSERT, SELECT ON SYS.WSR_SEGMENT TO STATISTICS
+/
+GRANT SELECT ON ADM_HIST_SEGMENT TO STATISTICS
+/

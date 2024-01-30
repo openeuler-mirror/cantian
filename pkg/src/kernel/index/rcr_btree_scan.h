@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,7 +34,7 @@ extern "C" {
 status_t btree_fetch(knl_handle_t handle, knl_cursor_t *cursor);
 status_t btree_fetch_depended(knl_session_t *session, knl_cursor_t *cursor);
 
-int32 btree_cmp_column_data(void *col1, void *col2, gs_type_t type, uint16 *offset, bool32 is_pcr);
+int32 btree_cmp_column_data(void *col1, void *col2, ct_type_t type, uint16 *offset, bool32 is_pcr, uint16 collate_id);
 int32 btree_cmp_column(knl_column_t *column, knl_scan_key_t *scan_key, uint32 idx_col_id, btree_key_t *key,
     uint16 *offset);
 int32 btree_compare_key(index_t *index, knl_scan_key_t *scan_key, btree_key_t *key, bool32 cmp_rowid,
@@ -46,20 +46,20 @@ void btree_binary_search(index_t *index, btree_page_t *page, knl_scan_key_t *sca
 static inline bool8 btree_is_full_scan(knl_scan_range_t *range)
 {
     if (range->is_equal) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (range->l_key.flags[0] == SCAN_KEY_LEFT_INFINITE && range->r_key.flags[0] == SCAN_KEY_RIGHT_INFINITE) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static inline void btree_set_cmp_endpoint(knl_cursor_t *cursor)
 {
     if (cursor->scan_range.is_equal || cursor->index_dsc || cursor->index_ss) {
-        cursor->key_loc.cmp_end = GS_TRUE;
+        cursor->key_loc.cmp_end = CT_TRUE;
         return;
     }
 
@@ -69,13 +69,13 @@ static inline void btree_set_cmp_endpoint(knl_cursor_t *cursor)
 
 static inline void btree_init_key_loc(key_locator_t *key_loc)
 {
-    key_loc->is_initialized = GS_TRUE;
-    key_loc->is_located = GS_FALSE;
-    key_loc->is_last_key = GS_FALSE;
-    key_loc->match_left = GS_FALSE;
-    key_loc->match_right = GS_FALSE;
-    key_loc->cmp_end = GS_FALSE;
-    key_loc->skip_cache = GS_FALSE;
+    key_loc->is_initialized = CT_TRUE;
+    key_loc->is_located = CT_FALSE;
+    key_loc->is_last_key = CT_FALSE;
+    key_loc->match_left = CT_FALSE;
+    key_loc->match_right = CT_FALSE;
+    key_loc->cmp_end = CT_FALSE;
+    key_loc->skip_cache = CT_FALSE;
 }
 
 #ifdef __cplusplus

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -52,6 +52,7 @@ extern "C" {
 #define FIXED_USER_SPACE_ID 3
 
 #define SYS_GARBAGE_SEGMENT_COLS 15
+#define SYS_GARBAGE_TABLE_COLS 2
 
 #define SYS_TABLE_SERIAL_START 22
 
@@ -139,6 +140,9 @@ typedef enum en_sys_table_id {
     SYS_PROMOTE_RECORD_ID = 1041,
     SYS_SPM_ID = 1042,
     SYS_SPM_SQLS_ID = 1043,
+    SYS_GARBAGE_TABLE_ID = 1044, // for mysql, record the grabage table when use alter with copy or create as select
+    SYS_TABLEMETA_DIFF_ID = 1045,
+    SYS_COLUMNMETA_HIS_ID = 1046,
     SYS_TABLE_COUNT
 } sys_table_id_t;
 
@@ -159,10 +163,15 @@ typedef struct st_seg_executor {
     seg_exec_proc proc;
 } seg_executor_t;
 
+typedef struct st_rd_alter_db_logicrep {
+    logic_op_t op_type;
+    lrep_mode_t logic_mode;
+} rd_alter_db_logicrep_t;
+
 #define CORE_SYS_TABLE_CEIL        SYS_USER_ID
 #define IS_CORE_SYS_TABLE(uid, id) ((uid) == (uint32)DB_SYS_USER_ID && (id) <= (uint32)CORE_SYS_TABLE_CEIL)
 /* max system table,view and dynamic views */
-#define MAX_SYS_OBJECTS (GS_SHARED_PAGE_SIZE / sizeof(pointer_t))
+#define MAX_SYS_OBJECTS (CT_SHARED_PAGE_SIZE / sizeof(pointer_t))
 
 #define IX_SYS_TABLE1_ID 0
 #define IX_SYS_TABLE2_ID 1
@@ -193,9 +202,9 @@ typedef struct st_database {
     drlatch_t ctrl_latch;
     db_status_t status;
     ctrlfile_set_t ctrlfiles;  // ctrl/log/space/device info should been moved to ctrl space, should not been here
-    logfile_set_t logfile_sets[GS_MAX_INSTANCES];
-    space_t spaces[GS_MAX_SPACES];
-    datafile_t datafiles[GS_MAX_DATA_FILES];
+    logfile_set_t logfile_sets[CT_MAX_INSTANCES];
+    space_t spaces[CT_MAX_SPACES];
+    datafile_t datafiles[CT_MAX_DATA_FILES];
     database_ctrl_t ctrl;
     charset_t *charset;
     uint32 charset_id;
@@ -215,13 +224,13 @@ typedef struct st_database {
 
 typedef struct st_proc_name_node {
     uint16 name_len;
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
     uint16 pack_len;
-    char pack[GS_NAME_BUFFER_SIZE];
+    char pack[CT_NAME_BUFFER_SIZE];
     uint16 trig_tab_len;
-    char trig_tab[GS_NAME_BUFFER_SIZE];
+    char trig_tab[CT_NAME_BUFFER_SIZE];
     uint16 trig_tab_user_len;
-    char trig_tab_user[GS_NAME_BUFFER_SIZE];
+    char trig_tab_user[CT_NAME_BUFFER_SIZE];
     uint32 uid;
     int64 oid;
     char pl_type;
@@ -229,7 +238,7 @@ typedef struct st_proc_name_node {
 
 typedef struct st_trig_name_list {
     uint32 count;
-    proc_name_node_t item[GS_MAX_TRIGGER_COUNT];
+    proc_name_node_t item[CT_MAX_TRIGGER_COUNT];
 } trig_name_list_t;
 
 #define DB_CURR_SCN(session) KNL_GET_SCN(&(session)->kernel->scn)
@@ -265,6 +274,7 @@ knl_scn_t db_time_scn(knl_session_t *session, uint32 second, uint32 msecond);
 #define DB_SET_LFN(p_lfn, lfn) (*(p_lfn) = (lfn))
 
 #define DB_IS_READONLY(session)             ((session)->kernel->db.is_readonly)
+#define DB_IS_MAXFIX(session)               ((session)->kernel->db.open_status == DB_OPEN_STATUS_MAX_FIX)
 #define DB_IS_RESTRICT(session)             ((session)->kernel->db.open_status == DB_OPEN_STATUS_RESTRICT)
 #define DB_IS_UPGRADE(session)              ((session)->kernel->db.open_status >= DB_OPEN_STATUS_UPGRADE)
 #define DB_IS_MAINTENANCE(session)          ((session)->kernel->db.open_status >= DB_OPEN_STATUS_RESTRICT)
@@ -277,7 +287,7 @@ knl_scn_t db_time_scn(knl_session_t *session, uint32 second, uint32 msecond);
 #define DB_IS_CASCADED_PHYSICAL_STANDBY(db) ((db)->ctrl.core.db_role == REPL_ROLE_CASCADED_PHYSICAL_STANDBY)
 #define DB_IN_BG_ROLLBACK(session)          ((session)->kernel->undo_ctx.active_workers > 0)
 /*#define DB_IS_BG_ROLLBACK_SE(session)       ((session)->id >= SESSION_ID_ROLLBACK && \
-                                             (session)->id < SESSION_ID_ROLLBACK + GS_MAX_ROLLBACK_PROC)
+                                             (session)->id < SESSION_ID_ROLLBACK + CT_MAX_ROLLBACK_PROC)
 */
 #define DB_IS_BG_ROLLBACK_SE(session) ((session)->bg_rollback)
 #define SESSION_IS_LOG_ANALYZE(session)     ((session)->id > 0 && (session)->id == (session)->kernel->gbp_aly_ctx.sid)
@@ -299,6 +309,8 @@ knl_scn_t db_time_scn(knl_session_t *session, uint32 second, uint32 msecond);
 
 #define DB_ATTR_COMPATIBLE_MYSQL(session) ((session)->kernel->attr.compatible_mysql)
 #define DB_ATTR_ENABLE_HWM_CHANGE(session) ((session)->kernel->attr.enable_hwm_change)
+#define DB_ATTR_MYSQL_META_IN_DACC(session) ((session)->kernel->attr.mysql_metadata_in_cantian)
+#define DB_SQL_SERVER_INITIALIZING(session) ((session)->kernel->is_sql_server_initializing)
 
 status_t db_init(knl_session_t *session);
 status_t db_mount_ctrl(knl_session_t *session);
@@ -372,6 +384,8 @@ status_t db_build_systables(knl_session_t *session);
 status_t db_save_ctrl_page(knl_session_t *session, ctrlfile_t *ctrlfile, uint32 page_id);
 status_t db_read_ctrl_page(knl_session_t *session, ctrlfile_t *ctrlfile, uint32 page_id);
 status_t db_read_log_page(knl_session_t *session, ctrlfile_t *ctrlfile, uint32 start, uint32 end);
+void db_get_cantiand_version(ctrl_version_t *cantiand_version);
+status_t db_clean_record_arch(knl_session_t *session);
 
 #define DB_CORE_CTRL(session) (&(session)->kernel->db.ctrl.core)
 

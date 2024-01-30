@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -181,6 +181,11 @@ typedef enum en_ckpt_type {
     CKPT_TYPE_GLOBAL,
 } ckpt_type_t;
 
+typedef enum en_arch_set_type {
+    ARCH_SET_TYPE_LOCAL,
+    ARCH_SET_TYPE_GLOBAL,
+} arch_set_type_t;
+
 typedef enum en_dc_dump_type {
     DC_DUMP_TABLE,
     DC_DUMP_USER,
@@ -196,31 +201,32 @@ typedef struct st_dc_dump_info {
 
 // alter system action type enumeration
 typedef enum en_alsys_action {
-    ALSYS_SWITCHLOG = 0,
-    ALSYS_SET_PARAM,
-    ALSYS_LOAD_DC,
-    ALSYS_INIT_ENTRY,
-    ALSYS_DUMP_PAGE,
-    ALSYS_FLUSH_BUFFER,
-    ALSYS_FLUSH_SQLPOOL,
-    ALSYS_KILL_SESSION,
-    ALSYS_RESET_STATISTIC,
-    ALSYS_CHECKPOINT,
-    ALSYS_RELOAD_HBA,
-    ALSYS_REFRESH_SYSDBA,
-    ALSYS_ADD_LSNR_ADDR,
-    ALSYS_DELETE_LSNR_ADDR,
-    ALSYS_ADD_HBA_ENTRY,
-    ALSYS_DEL_HBA_ENTRY,
-    ALSYS_DUMP_CTRLPAGE,
-    ALSYS_DEBUG_MODE,
-    ALSYS_MODIFY_REPLICA,
-    ALSYS_STOP_REPLICA,
-    ALSYS_STOP_BUILD,
-    ALSYS_RELOAD_PBL,
-    ALSYS_DUMP_DC,
-    ALSYS_RECYCLE_SHAREDPOOL,
-    ALSYS_REPAIR_CATALOG
+    ALTER_SYS_SWITCHLOG = 0,
+    ALTER_SYS_SET_PARAM,
+    ALTER_SYS_LOAD_DC,
+    ALTER_SYS_INIT_ENTRY,
+    ALTER_SYS_DUMP_PAGE,
+    ALTER_SYS_FLUSH_BUFFER,
+    ALTER_SYS_FLUSH_SQLPOOL,
+    ALTER_SYS_KILL_SESSION,
+    ALTER_SYS_RESET_STATISTIC,
+    ALTER_SYS_CHECKPOINT,
+    ALTER_SYS_RELOAD_HBA,
+    ALTER_SYS_REFRESH_SYSDBA,
+    ALTER_SYS_ADD_LSNR_ADDR,
+    ALTER_SYS_DELETE_LSNR_ADDR,
+    ALTER_SYS_ADD_HBA_ENTRY,
+    ALTER_SYS_DEL_HBA_ENTRY,
+    ALTER_SYS_DUMP_CTRLPAGE,
+    ALTER_SYS_DEBUG_MODE,
+    ALTER_SYS_MODIFY_REPLICA,
+    ALTER_SYS_STOP_REPLICA,
+    ALTER_SYS_STOP_BUILD,
+    ALTER_SYS_RELOAD_PBL,
+    ALTER_SYS_DUMP_DC,
+    ALTER_SYS_RECYCLE_SHAREDPOOL,
+    ALTER_SYS_REPAIR_CATALOG,
+    ALTER_SYS_ARCHIVE_SET
 } alsys_action_e;
 
 // ctrl log backup level
@@ -239,8 +245,9 @@ typedef struct st_knl_alter_sys_def {  // alter table
             bool32 in_shard;
             bool32 is_coord_conn;
             uint32 param_id;
-            char param[GS_NAME_BUFFER_SIZE];
-            char value[GS_PARAM_BUFFER_SIZE];
+            char param[CT_NAME_BUFFER_SIZE];
+            char value[CT_PARAM_BUFFER_SIZE];
+            arch_set_type_t arch_set_type; // archive set type: local or global
         };
 
         // alter system kill session

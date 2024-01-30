@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -48,19 +48,19 @@ enum en_array_format_type {
 /* 1) array element doesn't contain single quote
    2) 8K + 2(single quotes)
    3) for example: '1234567890abcdefghijklmnopqrstu' */
-#define CLT_MAX_LEN_WITH_SINGLE_QUOTE_MARK (GS_MAX_COLUMN_SIZE + 2)
+#define CLT_MAX_LEN_WITH_SINGLE_QUOTE_MARK (CT_MAX_COLUMN_SIZE + 2)
 /* 1) array element contains single quote which is more than 0,
       and these single quote should be use another single quote as escape character
    2) 2 * 8K + 2(single quotes)
    3) for example: '''123''456''7890abcdefghijklmnopqrstu', there are three single quotes in it */
-#define CLT_MAX_LEN_WITH_SINGLE_QUOTE_MARK2 (2 * GS_MAX_COLUMN_SIZE + 2)
+#define CLT_MAX_LEN_WITH_SINGLE_QUOTE_MARK2 (2 * CT_MAX_COLUMN_SIZE + 2)
 
 void gsc_get_error_position(gsc_conn_t pconn, uint16 *line, uint16 *column)
 {
     clt_conn_t *conn = (clt_conn_t *)pconn;
 
     if (SECUREC_UNLIKELY(line == NULL || column == NULL)) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "line or column");
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "line or column");
         return;
     }
 
@@ -78,12 +78,12 @@ void gsc_get_error(gsc_conn_t pconn, int32 *code, const char **message)
     clt_conn_t *conn = (clt_conn_t *)pconn;
 
     if (SECUREC_UNLIKELY(code == NULL)) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "error code");
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "error code");
         return;
     }
 
     if (SECUREC_UNLIKELY(message == NULL)) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "message");
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "message");
         return;
     }
 
@@ -104,7 +104,7 @@ char *gsc_get_message(gsc_conn_t pconn)
     clt_conn_t *conn = (clt_conn_t *)pconn;
 
     if (SECUREC_UNLIKELY(conn == NULL)) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "connection");
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "connection");
         return NULL;
     }
 
@@ -118,7 +118,7 @@ char *gsc_get_message(gsc_conn_t pconn)
 uint32 gsc_get_sid(gsc_conn_t pconn)
 {
     clt_conn_t *conn = (clt_conn_t *)pconn;
-    return (conn != NULL) ? conn->sid : GS_INVALID_ID32;
+    return (conn != NULL) ? conn->sid : CT_INVALID_ID32;
 }
 
 void gsc_set_paramset_size(gsc_stmt_t pstmt, uint32 sz)
@@ -126,7 +126,7 @@ void gsc_set_paramset_size(gsc_stmt_t pstmt, uint32 sz)
     clt_stmt_t *stmt = (clt_stmt_t *)pstmt;
 
     if (SECUREC_UNLIKELY(stmt == NULL)) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "statement");
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "statement");
         return;
     }
 
@@ -151,37 +151,37 @@ status_t gsc_datetime_construct(gsc_stmt_t pstmt, gsc_datetime_t datetime, int32
 
     if (!CM_IS_VALID_YEAR(year)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "input year", (uint32)year);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!CM_IS_VALID_MONTH(mon)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "input month", (uint32)mon);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!CM_IS_VALID_DAY(day)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "input day", (uint32)day);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!CM_IS_VALID_HOUR(hour)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "input hour", (uint32)hour);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!CM_IS_VALID_MINUTE(min)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "input minute", (uint32)min);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!CM_IS_VALID_SECOND(sec)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "input second", (uint32)sec);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!CM_IS_VALID_FRAC_SEC(fsec)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "input nano second", (uint32)fsec);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     date_detail.year = year;
@@ -210,17 +210,17 @@ status_t gsc_datetime_construct(gsc_stmt_t pstmt, gsc_datetime_t datetime, int32
 
         case GSC_TYPE_TIMESTAMP_TZ:
             GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, timezone, "timezone");
-            GS_RETURN_IFERR(cm_text2tzoffset(&timezone_txt, &date_detail.tz_offset));
+            CT_RETURN_IFERR(cm_text2tzoffset(&timezone_txt, &date_detail.tz_offset));
             ((timestamp_tz_t *)datetime)->tstamp = encode_date;
             ((timestamp_tz_t *)datetime)->tz_offset = date_detail.tz_offset;
             break;
 
         default:
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "timestamp type", (uint32)datatype);
-            return GS_ERROR;
+            return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_datetime_deconstruct(gsc_stmt_t pstmt, gsc_datetime_t datetime, int32 datatype, uint16 *year, uint8 *mon,
@@ -254,7 +254,7 @@ status_t gsc_datetime_deconstruct(gsc_stmt_t pstmt, gsc_datetime_t datetime, int
 
         default:
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "timestamp type", (uint32)datatype);
-            return GS_ERROR;
+            return CT_ERROR;
     }
 
     cm_decode_date(timeinfo, &date_detail);
@@ -267,7 +267,7 @@ status_t gsc_datetime_deconstruct(gsc_stmt_t pstmt, gsc_datetime_t datetime, int
     *fsec = date_detail.millisec * NANOSECS_PER_MILLISEC + date_detail.microsec * NANOSECS_PER_MICROSEC +
         date_detail.nanosec;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_datetime_get_timezone_name(gsc_stmt_t pstmt, gsc_datetime_t datetime, int32 datatype, char *buf,
@@ -295,17 +295,17 @@ status_t gsc_datetime_get_timezone_name(gsc_stmt_t pstmt, gsc_datetime_t datetim
             break;
         default:
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "timestamp type", (uint32)datatype);
-            return GS_ERROR;
+            return CT_ERROR;
     }
 
     if (*buf_len < TIMEZONE_OFFSET_STRLEN) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_STRING_BUF_TOO_SMALL, "time zone buffer", *buf_len);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    GS_RETURN_IFERR(cm_tzoffset2text(timezone_info, &timezone_txt));
+    CT_RETURN_IFERR(cm_tzoffset2text(timezone_info, &timezone_txt));
     *buf_len = timezone_txt.len;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_datetime_get_timezone_offset(gsc_stmt_t pstmt, gsc_datetime_t datetime, int32 datatype, int8 *hour,
@@ -329,13 +329,13 @@ status_t gsc_datetime_get_timezone_offset(gsc_stmt_t pstmt, gsc_datetime_t datet
             break;
         default:
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "timestamp type", (uint32)datatype);
-            return GS_ERROR;
+            return CT_ERROR;
     }
 
     *hour = (int8)TIMEZONE_GET_HOUR(timezone_info);
     *min = (int8)TIMEZONE_GET_SIGN_MINUTE(timezone_info);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t clt_per_bind_info(clt_stmt_t *stmt, int type, const void *data, int32 *size)
@@ -399,10 +399,10 @@ static inline status_t clt_per_bind_info(clt_stmt_t *stmt, int type, const void 
 
         default:
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_BIND, "bind type not supports");
-            return GS_ERROR;
+            return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_bind_by_pos2(clt_stmt_t *stmt, uint32 pos, int type, const void *data, int32 size, uint16 *ind,
@@ -412,25 +412,25 @@ static status_t clt_bind_by_pos2(clt_stmt_t *stmt, uint32 pos, int type, const v
 
     if (SECUREC_UNLIKELY(stmt->status < CLI_STMT_PREPARED)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_API_SEQUENCE, "sql is not prepared");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (SECUREC_UNLIKELY(pos >= stmt->param_count || pos >= stmt->params.count)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_INDEX, "parameter");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (SECUREC_UNLIKELY(!GSC_IS_DATABASE_DATATYPE(type))) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "data type", (uint32)type);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (SECUREC_UNLIKELY(direction < GSC_INPUT || direction > GSC_INOUT)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_BIND, "direction only supports GSC_INPUT/GSC_OUT/GSC_INOUT");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(clt_per_bind_info(stmt, type, data, &size));
+    CT_RETURN_IFERR(clt_per_bind_info(stmt, type, data, &size));
 
     param = (clt_param_t *)cm_list_get(&stmt->params, pos);
     param->direction = direction;
@@ -439,9 +439,9 @@ static status_t clt_bind_by_pos2(clt_stmt_t *stmt, uint32 pos, int type, const v
     param->bnd_ptr = (char *)data;
     param->ind_ptr = ind;
     param->curr_ptr = NULL;
-    param->is_W_CType = GS_FALSE;
+    param->is_W_CType = CT_FALSE;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_bind_by_pos2(gsc_stmt_t pstmt, uint32 pos, int type, const void *data, int32 size, uint16 *ind,
@@ -453,7 +453,7 @@ status_t gsc_bind_by_pos2(gsc_stmt_t pstmt, uint32 pos, int type, const void *da
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_bind_by_pos2(stmt, pos, type, data, size, ind, direction);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -473,7 +473,7 @@ status_t gsc_bind_value_len_by_pos(gsc_stmt_t pstmt, uint32 pos, const void *dat
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
 
     param = (clt_param_t *)cm_list_get(&stmt->params, pos);
     if (is_trans) {
@@ -484,7 +484,7 @@ status_t gsc_bind_value_len_by_pos(gsc_stmt_t pstmt, uint32 pos, const void *dat
     }
 
     clt_unlock_conn(stmt->conn);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_sql_set_param_c_type(gsc_stmt_t pstmt, uint32 pos, bool32 ctype)
@@ -495,12 +495,12 @@ status_t gsc_sql_set_param_c_type(gsc_stmt_t pstmt, uint32 pos, bool32 ctype)
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
 
     param = (clt_param_t *)cm_list_get(&stmt->params, pos);
     param->is_W_CType = ctype;
     clt_unlock_conn(stmt->conn);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 clt_is_bind_name_equal_ins(const char *name1, const char *name2)
@@ -519,11 +519,11 @@ static bool32 clt_is_bind_name_equal_ins(const char *name1, const char *name2)
     return cm_str_equal_ins(str1, str2);
 }
 
-status_t gsc_get_paramid_by_name(gsc_stmt_t pstmt, const char *name, unsigned int offset, unsigned int *pos)
+status_t gsc_get_paramid_by_name(gsc_stmt_t pstmt, const char *name, unsigned int offset1, unsigned int *pos)
 {
     clt_param_t *param = NULL;
     clt_stmt_t *stmt = (clt_stmt_t *)pstmt;
-
+    unsigned int offset = offset1;
     GSC_CHECK_OBJECT_NULL_GS(pos, "position pointer");
 
     for (uint32 i = 0; i < stmt->param_count && i < stmt->params.count; i++) {
@@ -538,10 +538,10 @@ status_t gsc_get_paramid_by_name(gsc_stmt_t pstmt, const char *name, unsigned in
         }
 
         *pos = i;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_ATTR, "parameter name", name);
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 static status_t clt_bind_by_name2(clt_stmt_t *stmt, const char *name, int32 type, const void *data, int32 size,
@@ -553,7 +553,7 @@ static status_t clt_bind_by_name2(clt_stmt_t *stmt, const char *name, int32 type
 
     if (SECUREC_UNLIKELY(stmt->status < CLI_STMT_PREPARED)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_API_SEQUENCE, "sql is not prepared");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     for (i = 0; i < stmt->param_count && i < stmt->params.count; i++) {
@@ -562,20 +562,20 @@ static status_t clt_bind_by_name2(clt_stmt_t *stmt, const char *name, int32 type
             continue;
         }
 
-        GS_RETURN_IFERR(clt_bind_by_pos2(stmt, i, type, data, size, ind, direction));
+        CT_RETURN_IFERR(clt_bind_by_pos2(stmt, i, type, data, size, ind, direction));
         bnd_count++;
     }
 
     if (bnd_count == 0) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_ATTR, "parameter name", name);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_bind_by_name2(gsc_stmt_t pstmt, const char *name, int type, const void *data, int32 size, uint16 *ind,
-    int32 direction)
+                           int32 direction)
 {
     status_t status;
     clt_stmt_t *stmt = (clt_stmt_t *)pstmt;
@@ -584,7 +584,7 @@ status_t gsc_bind_by_name2(gsc_stmt_t pstmt, const char *name, int type, const v
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, name, "name");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_bind_by_name2(stmt, name, type, data, size, ind, direction);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -603,7 +603,7 @@ status_t gsc_desc_column_by_id(gsc_stmt_t pstmt, uint32 id, gsc_column_desc_t *d
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_desc_column_by_id(stmt, id, desc);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -615,7 +615,7 @@ static status_t clt_desc_inner_column_by_id(clt_stmt_t *stmt, uint32 id, gsc_inn
 
     if (SECUREC_UNLIKELY(id >= stmt->column_count)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_INDEX, "column");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (desc != NULL) {
@@ -632,7 +632,7 @@ static status_t clt_desc_inner_column_by_id(clt_stmt_t *stmt, uint32 id, gsc_inn
         desc->is_jsonb = column->def.is_jsonb;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_desc_inner_column_by_id(gsc_stmt_t pstmt, uint32 id, gsc_inner_column_desc_t *desc)
@@ -643,7 +643,7 @@ status_t gsc_desc_inner_column_by_id(gsc_stmt_t pstmt, uint32 id, gsc_inner_colu
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_desc_inner_column_by_id(stmt, id, desc);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -667,12 +667,12 @@ static status_t clt_desc_column_by_name(clt_stmt_t *stmt, const char *col_name, 
                 desc->nullable = column->def.nullable;
                 desc->is_character = column->def.is_character;
             }
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
     CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_ATTR, "column name", col_name);
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t gsc_desc_column_by_name(gsc_stmt_t pstmt, const char *col_name, gsc_column_desc_t *desc)
@@ -684,7 +684,7 @@ status_t gsc_desc_column_by_name(gsc_stmt_t pstmt, const char *col_name, gsc_col
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, col_name, "column name");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_desc_column_by_name(stmt, col_name, desc);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -697,7 +697,7 @@ static status_t clt_get_desc_attr(clt_stmt_t *stmt, uint32 id, int32 attr, void 
 
     if (SECUREC_UNLIKELY(id >= stmt->column_count)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_INDEX, "column");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     column = (clt_column_t *)cm_list_get(&stmt->columns, id);
@@ -744,15 +744,15 @@ static status_t clt_get_desc_attr(clt_stmt_t *stmt, uint32 id, int32 attr, void 
             break;
 
         default:
-            GS_THROW_ERROR(ERR_CLT_INVALID_VALUE, "describe attribute id", (uint32)attr);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_CLT_INVALID_VALUE, "describe attribute id", (uint32)attr);
+            return CT_ERROR;
     }
 
     if (len != NULL) {
         *len = attr_len;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_get_desc_attr(gsc_stmt_t pstmt, uint32 id, int32 attr, void *data, uint32 *len)
@@ -764,7 +764,7 @@ status_t gsc_get_desc_attr(gsc_stmt_t pstmt, uint32 id, int32 attr, void *data, 
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, data, "value of statement attribute to get");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_get_desc_attr(stmt, id, attr, data, len);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -780,7 +780,7 @@ status_t gsc_get_column_count(gsc_stmt_t pstmt, uint32 *column_count)
         *column_count = stmt->column_count;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_get_column_by_id(gsc_stmt_t pstmt, unsigned int id, void **data, unsigned int *size, bool32 *is_null)
@@ -791,7 +791,7 @@ status_t gsc_get_column_by_id(gsc_stmt_t pstmt, unsigned int id, void **data, un
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_get_column_by_id(stmt, id, data, size, is_null);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -805,7 +805,7 @@ static status_t clt_get_column_by_name(clt_stmt_t *stmt, const char *col_name, v
 
     if (SECUREC_UNLIKELY(stmt->status < CLI_STMT_FETCHING)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_API_SEQUENCE, "statement is not fetched");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     for (i = 0; i < stmt->column_count && i < stmt->columns.count; i++) {
@@ -821,12 +821,12 @@ static status_t clt_get_column_by_name(clt_stmt_t *stmt, const char *col_name, v
             if (SECUREC_LIKELY(data != NULL)) {
                 *data = (column->size == GSC_NULL) ? NULL : ((column->bnd_ptr == NULL) ? column->ptr : column->bnd_ptr);
             }
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
     CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_ATTR, "column name", col_name);
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t gsc_get_column_by_name(gsc_stmt_t pstmt, const char *col_name, void **data, uint32 *size, uint32 *is_null)
@@ -838,7 +838,7 @@ status_t gsc_get_column_by_name(gsc_stmt_t pstmt, const char *col_name, void **d
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, col_name, "column name");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_get_column_by_name(stmt, col_name, data, size, is_null);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -855,14 +855,16 @@ uint32 gsc_get_affected_rows(gsc_stmt_t pstmt)
         if ((buf_size) < (need_size)) {                                                                            \
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_COL_SIZE_TOO_SMALL, (uint32)(id), "as string", (uint32)(buf_size), \
                 (uint32)(need_size));                                                                              \
-            return GS_ERROR;                                                                                       \
+            return CT_ERROR;                                                                                       \
         }                                                                                                          \
     }
 
 status_t gsc_column_as_string_get_data(clt_stmt_t *stmt, const clt_column_t *column, char *str, uint32 buf_size,
-    uint32 size, void *data)
+    uint32 tsize, void *data)
 {
     int32 int_value;
+    uint32 uint_value;
+    uint32 size = tsize;
     int64 bigint_value;
     double real_value;
     uint32 num_width;
@@ -880,9 +882,9 @@ status_t gsc_column_as_string_get_data(clt_stmt_t *stmt, const clt_column_t *col
             PRTS_RETURN_IFERR(snprintf_s(str, buf_size, buf_size - 1, PRINT_FMT_INTEGER, int_value));
             break;
         case GSC_TYPE_UINT32:
-            int_value =
+            uint_value =
                 CS_DIFFERENT_ENDIAN(stmt->conn->pack.options) ? cs_reverse_uint32(*(uint32 *)data) : *(uint32 *)data;
-            PRTS_RETURN_IFERR(snprintf_s(str, buf_size, buf_size - 1, PRINT_FMT_UINT32, int_value));
+            PRTS_RETURN_IFERR(snprintf_s(str, buf_size, buf_size - 1, PRINT_FMT_UINT32, uint_value));
             break;
 
         case GSC_TYPE_BIGINT:
@@ -900,7 +902,7 @@ status_t gsc_column_as_string_get_data(clt_stmt_t *stmt, const clt_column_t *col
         case GSC_TYPE_NUMBER2:
             num_width = MIN(stmt->conn->num_width + 1, buf_size);
             cm_dec2_copy_ex(&dec2, (const payload_t *)data, (uint8)size);
-            if (cm_dec2_to_str(&dec2, num_width, str) != GS_SUCCESS) {
+            if (cm_dec2_to_str(&dec2, num_width, str) != CT_SUCCESS) {
                 if (num_width > 1) {
                     MEMS_RETURN_IFERR(memset_s(str, num_width - 1, '#', num_width - 1));
                 }
@@ -915,7 +917,7 @@ status_t gsc_column_as_string_get_data(clt_stmt_t *stmt, const clt_column_t *col
                 dec4 = *(dec4_t *)data;
             }
             num_width = MIN(stmt->conn->num_width + 1, buf_size);
-            if (cm_dec4_to_str(&dec4, num_width, str) != GS_SUCCESS) {
+            if (cm_dec4_to_str(&dec4, num_width, str) != CT_SUCCESS) {
                 if (num_width > 1) {
                     MEMS_RETURN_IFERR(memset_s(str, num_width - 1, '#', num_width - 1));
                 }
@@ -993,7 +995,7 @@ status_t gsc_column_as_string_get_data(clt_stmt_t *stmt, const clt_column_t *col
         case GSC_TYPE_RAW:
             bin.bytes = (uint8 *)data;
             bin.size = size;
-            return cm_bin2str(&bin, GS_FALSE, str, buf_size);
+            return cm_bin2str(&bin, CT_FALSE, str, buf_size);
 
         case GSC_TYPE_CLOB:
             return clt_clob_as_string(stmt, data, str, buf_size, &read_size);
@@ -1009,7 +1011,7 @@ status_t gsc_column_as_string_get_data(clt_stmt_t *stmt, const clt_column_t *col
             break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_element_as_string(clt_stmt_t *stmt, clt_array_assist_t *aa, const char *data, uint32 data_len,
@@ -1022,30 +1024,30 @@ static status_t clt_element_as_string(clt_stmt_t *stmt, clt_array_assist_t *aa, 
     free = aa->dst_len - aa->dst_offset;
     /* retain enough buffer size for the last */
     if (free <= data_len + strlen(last_str)) {
-        *full = GS_TRUE;
+        *full = CT_TRUE;
         if (array_format == ARRAY_USE_SQUARE_BRACKET) {
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_BUF_SIZE_TOO_SMALL,
                 "to export Array data with \'filetype=txt\', Please use \'filetype=bin\'");
-            return GS_ERROR;
+            return CT_ERROR;
         } else {
             ret = strncpy_sp(aa->dst + aa->dst_offset, free, last_str, strlen(last_str));
             if (ret != EOK) {
                 CLT_THROW_ERROR(stmt->conn, ERR_SYSTEM_CALL, ret);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     ret = strncpy_sp(aa->dst + aa->dst_offset, free, data, data_len);
     if (ret != EOK) {
         CLT_THROW_ERROR(stmt->conn, ERR_SYSTEM_CALL, ret);
-        *full = GS_TRUE;
-        return GS_ERROR;
+        *full = CT_TRUE;
+        return CT_ERROR;
     }
 
     aa->dst_offset += data_len;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_gen_array_prefix(clt_stmt_t *stmt, clt_array_assist_t *aa, uint32 *full, uint32 subscript,
@@ -1057,49 +1059,49 @@ static status_t clt_gen_array_prefix(clt_stmt_t *stmt, clt_array_assist_t *aa, u
         int ret = strncpy_sp(aa->dst + aa->dst_offset, free, CLT_ARRAY_PRE_FOR_EXP, len);
         if (ret != EOK) {
             CLT_THROW_ERROR(stmt->conn, ERR_SYSTEM_CALL, ret);
-            *full = GS_TRUE;
-            return GS_ERROR;
+            *full = CT_TRUE;
+            return CT_ERROR;
         }
         aa->dst_offset += len;
     } else {
         aa->dst[aa->dst_offset++] = CLT_ARRAY_PRE_FOR_DISPLAY;
     }
     aa->expect_subscript = subscript + 1;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_gen_null_or_empty_ele(char *col_value, uint32 offset, uint32 array_format)
 {
     if (offset == ELEMENT_NULL_OFFSET) {
         /* null elements */
-        if (strncpy_sp(col_value, GS_MAX_COLUMN_SIZE, "NULL", strlen("NULL")) != EOK) {
-            return GS_ERROR;
+        if (strncpy_sp(col_value, CT_MAX_COLUMN_SIZE, "NULL", strlen("NULL")) != EOK) {
+            return CT_ERROR;
         }
     } else {
         /* empty string */
         if (array_format == ARRAY_USE_SQUARE_BRACKET) {
-            if (strncpy_sp(col_value, GS_MAX_COLUMN_SIZE, "'\"\"'", strlen("'\"\"'")) != EOK) {
-                return GS_ERROR;
+            if (strncpy_sp(col_value, CT_MAX_COLUMN_SIZE, "'\"\"'", strlen("'\"\"'")) != EOK) {
+                return CT_ERROR;
             }
         } else {
-            if (strncpy_sp(col_value, GS_MAX_COLUMN_SIZE, "\"\"", strlen("\"\"")) != EOK) {
-                return GS_ERROR;
+            if (strncpy_sp(col_value, CT_MAX_COLUMN_SIZE, "\"\"", strlen("\"\"")) != EOK) {
+                return CT_ERROR;
             }
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_gen_ele_with_single_quote(clt_stmt_t *stmt, char **elem, char *local_buf)
 {
-    bool32 exist_flag = GS_FALSE;
-    uint32 max_len = GS_MAX_COLUMN_SIZE + 1;
+    bool32 exist_flag = CT_FALSE;
+    uint32 max_len = CT_MAX_COLUMN_SIZE + 1;
     uint32 len;
 
     /* 1) if elem has single quote as element, elem will be rewrittened into local_buf
        2) elem[0] or local_buf[0] is reversed for single quote which is used for mark border
        3) the max buf len of 'local_buf + 1' should be  CLT_MAX_LEN_WITH_SINGLE_QUOTE_MARK2 */
-    GS_RETURN_IFERR(cm_replace_quotation(*elem + 1, local_buf + 1, CLT_MAX_LEN_WITH_SINGLE_QUOTE_MARK2, &exist_flag));
+    CT_RETURN_IFERR(cm_replace_quotation(*elem + 1, local_buf + 1, CLT_MAX_LEN_WITH_SINGLE_QUOTE_MARK2, &exist_flag));
 
     if (exist_flag) {
         *elem = local_buf;
@@ -1110,19 +1112,19 @@ static status_t clt_gen_ele_with_single_quote(clt_stmt_t *stmt, char **elem, cha
     len = strlen(*elem);
     if (len > max_len) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "array element size", len);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     (*elem)[len] = '\'';
     (*elem)[len + 1] = '\0';
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_elements_as_string(clt_stmt_t *stmt, const clt_column_t *column, elem_dir_t *dir,
     clt_array_assist_t *aa, uint32 *full, uint32 array_format)
 {
     uint32 nbytes, subscript, size, offset;
-    bool32 eof = GS_FALSE;
+    bool32 eof = CT_FALSE;
     bool32 need_convert = CS_DIFFERENT_ENDIAN(stmt->conn->pack.options);
     char col_value[CLT_MAX_LEN_WITH_SINGLE_QUOTE_MARK + 1] = { 0 };
     char local_buf[CLT_MAX_LEN_WITH_SINGLE_QUOTE_MARK2 + 1] = { 0 };
@@ -1132,18 +1134,18 @@ static status_t clt_elements_as_string(clt_stmt_t *stmt, const clt_column_t *col
     subscript = need_convert ? cs_reverse_uint32(dir->subscript) : dir->subscript;
     offset = need_convert ? cs_reverse_uint32(dir->offset) : dir->offset;
 
-    if (aa->expect_subscript == GS_INVALID_ID32) {
+    if (aa->expect_subscript == CT_INVALID_ID32) {
         /* the first element of the array */
-        GS_RETURN_IFERR(clt_gen_array_prefix(stmt, aa, full, subscript, array_format));
+        CT_RETURN_IFERR(clt_gen_array_prefix(stmt, aa, full, subscript, array_format));
     } else {
         /* 1) For display: array output format : {val1,val2,...}
            2) For export: array output format : array['val1','val2',...] */
         while (subscript > aa->expect_subscript) {
             /* fill with null */
-            GS_RETURN_IFERR(clt_element_as_string(stmt, aa, ",NULL", (uint32)strlen(",NULL"), full, array_format));
+            CT_RETURN_IFERR(clt_element_as_string(stmt, aa, ",NULL", (uint32)strlen(",NULL"), full, array_format));
 
-            if (*full == GS_TRUE) {
-                return GS_SUCCESS;
+            if (*full == CT_TRUE) {
+                return CT_SUCCESS;
             }
 
             aa->expect_subscript++;
@@ -1153,24 +1155,24 @@ static status_t clt_elements_as_string(clt_stmt_t *stmt, const clt_column_t *col
     }
 
     if (size == 0) {
-        GS_RETURN_IFERR(clt_gen_null_or_empty_ele(elem, offset, array_format));
+        CT_RETURN_IFERR(clt_gen_null_or_empty_ele(elem, offset, array_format));
     } else {
         /* get the element's value */
-        GS_RETURN_IFERR(clt_read_blob(stmt, aa->locator, offset, aa->ele_val, size, &nbytes, &eof));
+        CT_RETURN_IFERR(clt_read_blob(stmt, aa->locator, offset, aa->ele_val, size, &nbytes, &eof));
 
         if (nbytes != size) {
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "array element size", size);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (array_format == ARRAY_USE_SQUARE_BRACKET) {
             /* elem[0] is reversed for single quote which is used to mark left border of array element */
-            GS_RETURN_IFERR(
-                gsc_column_as_string_get_data(stmt, column, elem + 1, GS_MAX_COLUMN_SIZE + 1, size, aa->ele_val));
-            GS_RETURN_IFERR(clt_gen_ele_with_single_quote(stmt, &elem, local_buf));
+            CT_RETURN_IFERR(
+                gsc_column_as_string_get_data(stmt, column, elem + 1, CT_MAX_COLUMN_SIZE + 1, size, aa->ele_val));
+            CT_RETURN_IFERR(clt_gen_ele_with_single_quote(stmt, &elem, local_buf));
         } else {
-            GS_RETURN_IFERR(
-                gsc_column_as_string_get_data(stmt, column, elem, GS_MAX_COLUMN_SIZE + 1, size, aa->ele_val));
+            CT_RETURN_IFERR(
+                gsc_column_as_string_get_data(stmt, column, elem, CT_MAX_COLUMN_SIZE + 1, size, aa->ele_val));
         }
     }
 
@@ -1185,24 +1187,24 @@ static status_t clt_get_dir(clt_stmt_t *stmt, void *locator, elem_dir_t *dir, ui
     uint32 remain = dir_size;
     while (remain > 0) {
         if (clt_read_blob(stmt, locator, offset, (char *)dir + (dir_size - remain), remain, &nbytes, &eof) !=
-            GS_SUCCESS) {
+            CT_SUCCESS) {
             free(dir);
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "array elements' size", dir_size);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         remain -= nbytes;
         offset += nbytes;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_array_as_string_inner(clt_stmt_t *stmt, void *locator, const clt_column_t *column, char *str,
     uint32 buf_size, uint32 array_format)
 {
     uint32 i, nbytes, dir_size;
-    uint32 eof = GS_FALSE;
-    uint32 full = GS_FALSE;
-    char data[GS_MAX_COLUMN_SIZE + 1] = { 0 };
+    uint32 eof = CT_FALSE;
+    uint32 full = CT_FALSE;
+    char data[CT_MAX_COLUMN_SIZE + 1] = { 0 };
     char *end_array = ((array_format == ARRAY_USE_BRACE) ? CLT_ARRAY_END_FOR_DISPLAY : CLT_ARRAY_END_FOR_EXP);
     char *null_array = ((array_format == ARRAY_USE_BRACE) ? CLT_ARRAY_NULL_FOR_DISPLAY : CLT_ARRAY_NULL_FOR_EXP);
     clt_array_assist_t aa;
@@ -1211,12 +1213,12 @@ static status_t clt_array_as_string_inner(clt_stmt_t *stmt, void *locator, const
     array_head_t head;
 
     /* get the array head information */
-    GS_RETURN_IFERR(clt_read_blob(stmt, locator, 0, (void *)&head, sizeof(head), &nbytes, &eof));
+    CT_RETURN_IFERR(clt_read_blob(stmt, locator, 0, (void *)&head, sizeof(head), &nbytes, &eof));
 
     /* no elements in array */
     if (head.count == 0) {
         MEMS_RETURN_IFERR(memcpy_sp(str, buf_size, null_array, strlen(null_array) + 1));
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /* get elements' directory */
@@ -1224,38 +1226,38 @@ static status_t clt_array_as_string_inner(clt_stmt_t *stmt, void *locator, const
     dir = (elem_dir_t *)malloc(dir_size);
     if (dir == NULL) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_TOO_MANY_ELEMENTS);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(clt_get_dir(stmt, locator, dir, dir_size));
+    CT_RETURN_IFERR(clt_get_dir(stmt, locator, dir, dir_size));
 
     aa.ele_val = data;
     aa.dst = str;
     aa.dst_len = buf_size;
     aa.dst_offset = 0;
-    aa.expect_subscript = GS_INVALID_ID32;
+    aa.expect_subscript = CT_INVALID_ID32;
     aa.locator = locator;
     for (i = 0; i < head.count; i++) {
-        if (clt_elements_as_string(stmt, column, dir + i, &aa, &full, array_format) != GS_SUCCESS) {
+        if (clt_elements_as_string(stmt, column, dir + i, &aa, &full, array_format) != CT_SUCCESS) {
             free(dir);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        GS_BREAK_IF_TRUE(full);
+        CT_BREAK_IF_TRUE(full);
 
         if (i == head.count - 1) {
             errcode = strncpy_s(aa.dst + aa.dst_offset, (uint32)(aa.dst_len - aa.dst_offset), end_array, 1);
             if (errcode != EOK) {
                 free(dir);
-                GS_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
+                return CT_ERROR;
             }
             aa.dst[++aa.dst_offset] = '\0';
         }
     }
 
     free(dir);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_array_as_string(clt_stmt_t *stmt, void *locator, const clt_column_t *column, char *str,
@@ -1265,17 +1267,17 @@ static status_t clt_array_as_string(clt_stmt_t *stmt, void *locator, const clt_c
 
     if (buf_size < strlen(null_array) + 1) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_COL_SIZE_TOO_SMALL, column->id, "as string", buf_size, strlen(null_array));
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (stmt->conn->autotrace) {
         *(uint32 *)str = CLT_ARRAY_MORE;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (column->size == 0) {
         MEMS_RETURN_IFERR(memcpy_sp(str, buf_size, null_array, strlen(null_array) + 1));
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return clt_array_as_string_inner(stmt, locator, column, str, buf_size, array_format);
@@ -1289,17 +1291,17 @@ static status_t clt_column_as_string(clt_stmt_t *stmt, uint32 id, char *str, uin
 
     if (SECUREC_UNLIKELY(stmt->status < CLI_STMT_FETCHING)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_API_SEQUENCE, "statement is not fetched");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (SECUREC_UNLIKELY(id >= stmt->column_count || id >= stmt->columns.count)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_INDEX, "column");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (SECUREC_UNLIKELY(str == NULL || buf_size <= 1)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_STRING_BUF_TOO_SMALL, "column", id);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     str[0] = '\0';
 
@@ -1312,10 +1314,10 @@ static status_t clt_column_as_string(clt_stmt_t *stmt, uint32 id, char *str, uin
         if (column->def.datatype == GSC_TYPE_CURSOR) {
             PRTS_RETURN_IFERR(snprintf_s(str, buf_size, buf_size - 1, "CURSOR STATEMENT"));
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (column->def.is_array == GS_TRUE) {
+    if (column->def.is_array == CT_TRUE) {
         return clt_array_as_string(stmt, data, column, str, buf_size, array_format);
     }
 
@@ -1330,7 +1332,7 @@ status_t gsc_column_as_string(gsc_stmt_t pstmt, uint32 id, char *str, uint32 buf
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_column_as_string(stmt, id, str, buf_size, ARRAY_USE_BRACE);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -1344,7 +1346,7 @@ status_t gsc_column_as_array(gsc_stmt_t pstmt, uint32 id, char *str, uint32 buf_
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_column_as_string(stmt, id, str, buf_size, ARRAY_USE_SQUARE_BRACKET);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -1357,12 +1359,12 @@ static status_t clt_bind_column(clt_stmt_t *stmt, uint32 id, uint16 bind_type, u
 
     if (SECUREC_UNLIKELY(stmt->status < CLI_STMT_PREPARED)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_API_SEQUENCE, "statement is not prepared");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (SECUREC_UNLIKELY(id >= stmt->column_count || id >= stmt->columns.count)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_INDEX, "column");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     column = (clt_column_t *)cm_list_get(&stmt->columns, id);
@@ -1372,14 +1374,14 @@ static status_t clt_bind_column(clt_stmt_t *stmt, uint32 id, uint16 bind_type, u
         (GSC_IS_NUMBER_TYPE(bind_type) &&
         (GSC_IS_NUMBER_TYPE(column->def.datatype) || GSC_IS_STRING_TYPE(column->def.datatype))))) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_BIND, "bind type do not match with column type");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     column->bnd_type = (uint8)bind_type;
     column->bnd_size = bind_size;
     column->bnd_ptr = (char *)bind_ptr;
     column->ind_ptr = ind_ptr;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 status_t gsc_bind_column(gsc_stmt_t pstmt, uint32 id, uint16 bind_type, uint16 bind_size, void *bind_ptr,
     uint16 *ind_ptr)
@@ -1390,7 +1392,7 @@ status_t gsc_bind_column(gsc_stmt_t pstmt, uint32 id, uint16 bind_type, uint16 b
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_bind_column(stmt, id, bind_type, bind_size, bind_ptr, ind_ptr);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -1411,30 +1413,30 @@ static status_t clt_get_implicit_resultset(clt_stmt_t *stmt, gsc_stmt_t *results
     *resultset = NULL;
 
     if (stmt->resultset.pos + 1 > stmt->resultset.stmt_ids.count) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_RETURN_IFERR(clt_alloc_stmt(stmt->conn, &sub_stmt));
+    CT_RETURN_IFERR(clt_alloc_stmt(stmt->conn, &sub_stmt));
     rs_stmt = (clt_rs_stmt_t *)cm_list_get(&stmt->resultset.stmt_ids, stmt->resultset.pos);
     sub_stmt->stmt_id = rs_stmt->stmt_id;
     sub_stmt->fetch_mode = rs_stmt->fetch_mode;
 
-    if (clt_prepare_stmt_pack(sub_stmt) != GS_SUCCESS || clt_remote_fetch(sub_stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(sub_stmt) != CT_SUCCESS || clt_remote_fetch(sub_stmt) != CT_SUCCESS) {
         clt_free_stmt(sub_stmt);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     sub_stmt->status = CLI_STMT_EXECUTED;
     sub_stmt->fetch_mode = 0;
 
-    if (cm_list_new(&stmt->resultset.ids, (void **)&id) != GS_SUCCESS) {
+    if (cm_list_new(&stmt->resultset.ids, (void **)&id) != CT_SUCCESS) {
         clt_free_stmt(sub_stmt);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     *id = (uint32)sub_stmt->id;
 
     *resultset = (gsc_stmt_t)sub_stmt;
     stmt->resultset.pos++;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 status_t gsc_get_implicit_resultset(gsc_stmt_t pstmt, gsc_stmt_t *resultset)
 {
@@ -1445,7 +1447,7 @@ status_t gsc_get_implicit_resultset(gsc_stmt_t pstmt, gsc_stmt_t *resultset)
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, resultset, "resultset");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_get_implicit_resultset(stmt, resultset);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -1457,12 +1459,12 @@ static status_t clt_desc_outparam_by_id(clt_stmt_t *stmt, uint32 id, gsc_outpara
 
     if (SECUREC_UNLIKELY(stmt->status < CLI_STMT_PREPARED)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_API_SEQUENCE, "sql is not prepared");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (SECUREC_UNLIKELY(id >= stmt->outparam_count || id >= stmt->outparams.count)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_INDEX, "outparam");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     outparam = (clt_outparam_t *)cm_list_get(&stmt->outparams, id);
@@ -1470,7 +1472,7 @@ static status_t clt_desc_outparam_by_id(clt_stmt_t *stmt, uint32 id, gsc_outpara
     desc->size = outparam->def.size;
     desc->direction = outparam->def.direction;
     desc->type = outparam->def.datatype;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 status_t gsc_desc_outparam_by_id(gsc_stmt_t pstmt, uint32 id, gsc_outparam_desc_t *desc)
 {
@@ -1481,7 +1483,7 @@ status_t gsc_desc_outparam_by_id(gsc_stmt_t pstmt, uint32 id, gsc_outparam_desc_
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, desc, "desc");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_desc_outparam_by_id(stmt, id, desc);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -1494,7 +1496,7 @@ static status_t clt_desc_outparam_by_name(clt_stmt_t *stmt, const char *name, gs
 
     if (SECUREC_UNLIKELY(stmt->status < CLI_STMT_PREPARED)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_API_SEQUENCE, "sql is not prepared");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     for (i = 0; i < stmt->outparam_count && i < stmt->outparams.count; i++) {
@@ -1505,12 +1507,12 @@ static status_t clt_desc_outparam_by_name(clt_stmt_t *stmt, const char *name, gs
             desc->size = outparam->def.size;
             desc->direction = outparam->def.direction;
             desc->type = outparam->def.datatype;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
     CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_ATTR, "outparam name", name);
-    return GS_ERROR;
+    return CT_ERROR;
 }
 status_t gsc_desc_outparam_by_name(gsc_stmt_t pstmt, const char *name, gsc_outparam_desc_t *desc)
 {
@@ -1522,14 +1524,14 @@ status_t gsc_desc_outparam_by_name(gsc_stmt_t pstmt, const char *name, gsc_outpa
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, name, "name");
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, desc, "desc");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_desc_outparam_by_name(stmt, name, desc);
     clt_unlock_conn(stmt->conn);
     return status;
 }
 
 status_t gsc_outparam_as_string_get_data(clt_stmt_t *stmt, uint32 id, char *str, uint32 buf_size,
-    const clt_outparam_t *outparam, uint32 size, void *data)
+    const clt_outparam_t *outparam, uint32 tsize, void *data)
 {
     int32 int_value;
     int64 bigint_value;
@@ -1537,6 +1539,7 @@ status_t gsc_outparam_as_string_get_data(clt_stmt_t *stmt, uint32 id, char *str,
     uint32 num_width;
     timestamp_tz_t tstz;
     uint32 read_size;
+    uint32 size = tsize;
     text_t fmt_text;
     binary_t bin;
     int32 iret_snprintf;
@@ -1570,7 +1573,7 @@ status_t gsc_outparam_as_string_get_data(clt_stmt_t *stmt, uint32 id, char *str,
         case GSC_TYPE_NUMBER2:
             num_width = MIN(stmt->conn->num_width + 1, buf_size);
             cm_dec2_copy_ex(&dec2, (const payload_t *)data, (uint8)size);
-            if (cm_dec2_to_str(&dec2, num_width, str) != GS_SUCCESS) {
+            if (cm_dec2_to_str(&dec2, num_width, str) != CT_SUCCESS) {
                 if (num_width != 0) {
                     MEMS_RETURN_IFERR(memset_s(str, num_width, '#', num_width));
                 }
@@ -1580,7 +1583,7 @@ status_t gsc_outparam_as_string_get_data(clt_stmt_t *stmt, uint32 id, char *str,
         case GSC_TYPE_NUMBER:
         case GSC_TYPE_DECIMAL: {
             num_width = MIN(stmt->conn->num_width, buf_size - 1);
-            if (cm_dec4_to_str((dec4_t *)data, num_width, str) != GS_SUCCESS) {
+            if (cm_dec4_to_str((dec4_t *)data, num_width, str) != CT_SUCCESS) {
                 if (num_width != 0) {
                     MEMS_RETURN_IFERR(memset_s(str, num_width, '#', num_width));
                 }
@@ -1612,7 +1615,7 @@ status_t gsc_outparam_as_string_get_data(clt_stmt_t *stmt, uint32 id, char *str,
             CLT_CHECK_AS_STR_SIZE(id, buf_size, fmt_text.len + 7);
             bigint_value =
                 CS_DIFFERENT_ENDIAN(stmt->conn->pack.options) ? cs_reverse_int64(*(int64 *)data) : *(int64 *)data;
-            return cm_timestamp2str_ex((timestamp_t)bigint_value, &fmt_text, GS_DEFAULT_DATETIME_PRECISION, str,
+            return cm_timestamp2str_ex((timestamp_t)bigint_value, &fmt_text, CT_DEFAULT_DATETIME_PRECISION, str,
                 buf_size);
 
         case GSC_TYPE_TIMESTAMP_TZ:
@@ -1627,7 +1630,7 @@ status_t gsc_outparam_as_string_get_data(clt_stmt_t *stmt, uint32 id, char *str,
                 cs_reverse_int16(((timestamp_tz_t *)data)->tz_offset) :
                 ((timestamp_tz_t *)data)->tz_offset;
 
-            return cm_timestamp_tz2str_ex(&tstz, &fmt_text, GS_DEFAULT_DATETIME_PRECISION, str, buf_size);
+            return cm_timestamp_tz2str_ex(&tstz, &fmt_text, CT_DEFAULT_DATETIME_PRECISION, str, buf_size);
 
         case GSC_TYPE_INTERVAL_YM:
             CLT_CHECK_AS_STR_SIZE(id, buf_size, GSC_YM_INTERVAL_BOUND_SIZE);
@@ -1658,7 +1661,7 @@ status_t gsc_outparam_as_string_get_data(clt_stmt_t *stmt, uint32 id, char *str,
         case GSC_TYPE_RAW:
             bin.bytes = (uint8 *)data;
             bin.size = size;
-            return cm_bin2str(&bin, GS_FALSE, str, buf_size);
+            return cm_bin2str(&bin, CT_FALSE, str, buf_size);
 
         case GSC_TYPE_CLOB:
             return clt_clob_as_string(stmt, data, str, buf_size, &read_size);
@@ -1678,7 +1681,7 @@ status_t gsc_outparam_as_string_get_data(clt_stmt_t *stmt, uint32 id, char *str,
             break;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_outparam_as_string_by_id(clt_stmt_t *stmt, uint32 id, char *str, uint32 buf_size)
@@ -1690,19 +1693,19 @@ static status_t clt_outparam_as_string_by_id(clt_stmt_t *stmt, uint32 id, char *
 
     if (SECUREC_UNLIKELY(str == NULL || buf_size <= 1)) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_STRING_BUF_TOO_SMALL, "outparam", id);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     str[0] = '\0';
 
     // will check correct of stmt inside
-    GS_RETURN_IFERR(clt_get_outparam_by_id(stmt, id, &data, &size, &is_null));
+    CT_RETURN_IFERR(clt_get_outparam_by_id(stmt, id, &data, &size, &is_null));
     outparam = (clt_outparam_t *)cm_list_get(&stmt->outparams, id);
 
     if (is_null) {
         if (outparam->def.datatype == GSC_TYPE_CURSOR) {
             PRTS_RETURN_IFERR(snprintf_s(str, buf_size, buf_size - 1, "CURSOR STATEMENT"));
         }
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return gsc_outparam_as_string_get_data(stmt, id, str, buf_size, outparam, size, data);
@@ -1715,7 +1718,7 @@ status_t gsc_outparam_as_string_by_id(gsc_stmt_t pstmt, uint32 id, char *str, ui
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_outparam_as_string_by_id(stmt, id, str, buf_size);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -1735,7 +1738,7 @@ static status_t clt_outparam_as_string_by_name(clt_stmt_t *stmt, const char *nam
     }
 
     CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_ATTR, "outparam name", name);
-    return GS_ERROR;
+    return CT_ERROR;
 }
 status_t gsc_outparam_as_string_by_name(gsc_stmt_t pstmt, const char *name, char *str, uint32 buf_size)
 {
@@ -1746,7 +1749,7 @@ status_t gsc_outparam_as_string_by_name(gsc_stmt_t pstmt, const char *name, char
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, name, "name");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_outparam_as_string_by_name(stmt, name, str, buf_size);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -1759,9 +1762,9 @@ static status_t clt_desc_tbl_vw_syn(clt_stmt_t *stmt, const char *obj_name)
     char desc_sql[MAX_SET_NLS_SQL];
     text_t sql_text;
 
-    if (strlen(obj_name) > GS_MAX_NAME_LEN * 2) {
+    if (strlen(obj_name) > CT_MAX_NAME_LEN * 2) {
         CLT_SET_ERROR(stmt->conn, ERR_INVALID_PARAMETER, "the object name is too long");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     PRTS_RETURN_IFERR(sprintf_s(desc_sql, MAX_SET_NLS_SQL, "select * from %s", obj_name));
@@ -1769,9 +1772,9 @@ static status_t clt_desc_tbl_vw_syn(clt_stmt_t *stmt, const char *obj_name)
     sql_text.str = desc_sql;
     sql_text.len = (uint32)strlen(desc_sql);
 
-    GS_RETURN_IFERR(clt_prepare(stmt, &sql_text));
+    CT_RETURN_IFERR(clt_prepare(stmt, &sql_text));
     stmt->status = CLI_STMT_DESCRIBLE;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t clt_desc_query(clt_stmt_t *stmt, char *query)
@@ -1795,16 +1798,17 @@ static status_t clt_desc_query(clt_stmt_t *stmt, char *query)
     if ((cm_strcmpni(sql_text.str, word_select.str, word_select.len) != 0) &&
         (cm_strcmpni(sql_text.str, word_with.str, word_with.len) != 0)) {
         CLT_SET_ERROR(stmt->conn, ERR_INVALID_PARAMETER, "a query is expected");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(clt_prepare(stmt, &sql_text));
+    CT_RETURN_IFERR(clt_prepare(stmt, &sql_text));
     stmt->status = CLI_STMT_DESCRIBLE;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-static status_t clt_describle(clt_stmt_t *stmt, char *objptr, gsc_desc_type_t dtype)
+static status_t clt_describle(clt_stmt_t *stmt, char *objptr, gsc_desc_type_t desc_type)
 {
+    gsc_desc_type_t dtype = desc_type;
     if (dtype == GSC_DESC_OBJ) { // get the right type of objptr, now, we merely support table/view/syn object
         dtype = GSC_DESC_TABLE;
     }
@@ -1820,23 +1824,23 @@ static status_t clt_describle(clt_stmt_t *stmt, char *objptr, gsc_desc_type_t dt
 
         case GSC_DESC_PROC:
             CLT_SET_ERROR(stmt->conn, ERR_INVALID_PARAMETER, "describle procedure is unsupported");
-            return GS_ERROR;
+            return CT_ERROR;
 
         case GSC_DESC_FUNC:
             CLT_SET_ERROR(stmt->conn, ERR_INVALID_PARAMETER, "describle function is unsupported");
-            return GS_ERROR;
+            return CT_ERROR;
 
         case GSC_DESC_PKG:
             CLT_SET_ERROR(stmt->conn, ERR_INVALID_PARAMETER, "describle package is unsupported");
-            return GS_ERROR;
+            return CT_ERROR;
 
         case GSC_DESC_SEQ:
             CLT_SET_ERROR(stmt->conn, ERR_INVALID_PARAMETER, "describle sequence is unsupported");
-            return GS_ERROR;
+            return CT_ERROR;
 
         default:
             CLT_SET_ERROR(stmt->conn, ERR_INVALID_PARAMETER, "unsupported describing type");
-            return GS_ERROR;
+            return CT_ERROR;
     }
 }
 status_t gsc_describle(gsc_stmt_t pstmt, char *objptr, gsc_desc_type_t dtype)
@@ -1848,11 +1852,11 @@ status_t gsc_describle(gsc_stmt_t pstmt, char *objptr, gsc_desc_type_t dtype)
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, objptr, "describle object");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
 
-    if (clt_prepare_stmt_pack(stmt) != GS_SUCCESS) {
+    if (clt_prepare_stmt_pack(stmt) != CT_SUCCESS) {
         clt_unlock_conn(stmt->conn);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     status = clt_describle(stmt, objptr, dtype);
@@ -1867,8 +1871,8 @@ status_t clt_get_batch_error2(clt_stmt_t *stmt, uint32 *line, int *code, char **
     clt_batch_error_t *batch_error = NULL;
 
     if (SECUREC_UNLIKELY(line == NULL || err_message == NULL || rows == NULL)) {
-        GS_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "line or err_message or rows");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CLT_OBJECT_IS_NULL, "line or err_message or rows");
+        return CT_ERROR;
     }
 
     if (stmt->batch_errs.pos >= stmt->batch_errs.actual_count) {
@@ -1884,7 +1888,7 @@ status_t clt_get_batch_error2(clt_stmt_t *stmt, uint32 *line, int *code, char **
         stmt->batch_errs.pos++;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_get_batch_error(gsc_stmt_t pstmt, uint32 *line, char **err_message, uint32 *rows)
@@ -1895,7 +1899,7 @@ status_t gsc_get_batch_error(gsc_stmt_t pstmt, uint32 *line, char **err_message,
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_get_batch_error2(stmt, line, NULL, err_message, rows);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -1909,7 +1913,7 @@ status_t gsc_get_batch_error2(gsc_stmt_t pstmt, unsigned int *line, int *code, c
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_get_batch_error2(stmt, line, code, err_message, rows);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -1928,7 +1932,7 @@ static status_t clt_get_query_resultset(clt_conn_t *conn, clt_stmt_t **resultset
         query->pos++;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 status_t gsc_get_query_resultset(gsc_conn_t pconn, gsc_stmt_t *resultset)
 {
@@ -1938,7 +1942,7 @@ status_t gsc_get_query_resultset(gsc_conn_t pconn, gsc_stmt_t *resultset)
     GSC_CHECK_OBJECT_NULL_GS(conn, "connection");
     GSC_CHECK_OBJECT_NULL_CLT(conn, resultset, "resultset");
 
-    GS_RETURN_IFERR(clt_lock_conn(conn));
+    CT_RETURN_IFERR(clt_lock_conn(conn));
     status = clt_get_query_resultset(conn, (clt_stmt_t **)resultset);
     clt_unlock_conn(conn);
     return status;
@@ -1948,7 +1952,7 @@ int clt_read_ori_row(clt_stmt_t *stmt, void **ori_row, unsigned int *size)
 {
     if (stmt->status < CLI_STMT_FETCHING) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_OUT_OF_API_SEQUENCE, "statement is not fetched");
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, stmt->ori_row, "ori row");
@@ -1961,7 +1965,7 @@ int clt_read_ori_row(clt_stmt_t *stmt, void **ori_row, unsigned int *size)
         *size = *(uint16 *)stmt->ori_row;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 int gsc_read_ori_row(gsc_stmt_t pstmt, void **ori_row, unsigned int *size)
@@ -1972,7 +1976,7 @@ int gsc_read_ori_row(gsc_stmt_t pstmt, void **ori_row, unsigned int *size)
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
 
-    GS_RETURN_IFERR(clt_lock_conn(stmt->conn));
+    CT_RETURN_IFERR(clt_lock_conn(stmt->conn));
     status = clt_read_ori_row(stmt, ori_row, size);
     clt_unlock_conn(stmt->conn);
     return status;
@@ -1993,7 +1997,7 @@ status_t gsc_number_to_int(gsc_stmt_t pstmt, void *number, unsigned int sign_fla
 
     if (sign_flag != GSC_NUMBER_SIGNED && sign_flag != GSC_NUMBER_UNSIGNED) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "sign_flag", sign_flag);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     switch (rsl_length) {
         case sizeof(int16):
@@ -2022,9 +2026,9 @@ status_t gsc_number_to_int(gsc_stmt_t pstmt, void *number, unsigned int sign_fla
             break;
         default:
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "result length", rsl_length);
-            return GS_ERROR;
+            return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_number_to_real(gsc_stmt_t pstmt, void *number, unsigned int rsl_length, void *rsl)
@@ -2044,7 +2048,7 @@ status_t gsc_number_to_real(gsc_stmt_t pstmt, void *number, unsigned int rsl_len
             if (val != 0 && ((dec->sign == 0 && (val > FLT_MAX || val < FLT_MIN)) ||
                 (dec->sign == 1 && (val < -FLT_MAX || val > -FLT_MIN)))) {
                 CLT_THROW_ERROR(stmt->conn, ERR_TYPE_OVERFLOW, "FLOAT");
-                return GS_ERROR;
+                return CT_ERROR;
             }
             *(float *)rsl = (float)val;
             break;
@@ -2053,16 +2057,16 @@ status_t gsc_number_to_real(gsc_stmt_t pstmt, void *number, unsigned int rsl_len
             break;
         default:
             CLT_THROW_ERROR(stmt->conn, ERR_CLT_INVALID_VALUE, "result length", rsl_length);
-            return GS_ERROR;
+            return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t gsc_number_to_string(gsc_stmt_t pstmt, void *number, char *buf, unsigned int buf_size)
 {
     clt_stmt_t *stmt = (clt_stmt_t *)pstmt;
     dec4_t *dec = (dec4_t *)number;
-    int max_size = MIN(buf_size, GS_NUMBER_BUFFER_SIZE);
+    int max_size = MIN(buf_size, CT_NUMBER_BUFFER_SIZE);
 
     GSC_CHECK_OBJECT_NULL_GS(stmt, "statement");
     GSC_CHECK_OBJECT_NULL_GS(stmt->conn, "connection");
@@ -2070,11 +2074,11 @@ status_t gsc_number_to_string(gsc_stmt_t pstmt, void *number, char *buf, unsigne
     GSC_CHECK_OBJECT_NULL_CLT(stmt->conn, buf, "buf");
 
     /* max write size of buf is max_size-1 */
-    if (cm_dec4_to_str(dec, max_size, buf) != GS_SUCCESS) {
+    if (cm_dec4_to_str(dec, max_size, buf) != CT_SUCCESS) {
         CLT_THROW_ERROR(stmt->conn, ERR_CLT_BUF_SIZE_TOO_SMALL, "convert to string");
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef WIN32
@@ -2083,10 +2087,10 @@ const char *gsc_get_dbversion()
     return "NONE";
 }
 #else
-extern const char *gsc_get_dbversion();
+extern const char *gsc_get_dbversion(void);
 #endif
 
-const char *gsc_get_version()
+const char *gsc_get_version(void)
 {
     return gsc_get_dbversion();
 }

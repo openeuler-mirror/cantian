@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,6 +31,7 @@
 #include <errno.h>
 #include <sys/mman.h>
 #endif
+#include "cm_common_module.h"
 #include "cm_log.h"
 #include "cm_shm.h"
 #include "cm_malloc.h"
@@ -45,7 +46,7 @@ uint32 g_instance_id = 0;
 /* shared memory mapping */
 cm_shm_map_t g_shm_map;
 static thread_lock_t g_shm_map_lock;
-static bool32 g_shm_inited = GS_FALSE;
+static bool32 g_shm_inited = CT_FALSE;
 
 #define CM_INVALID_SHM_KEY (0)
 
@@ -60,29 +61,29 @@ uint32 cm_shm_idx_of(cm_shm_type_e type, uint32 id)
 
     if (SHM_TYPE_FIXED == type) {
         if (id > CM_FIXED_SHM_MAX_ID) {
-            GS_LOG_DEBUG_ERR("Fixed shared memory ID is out of  range : %u", id);
+            CT_LOG_DEBUG_ERR("Fixed shared memory ID is out of  range : %u", id);
             return CM_INVALID_SHM_IDX;
         }
         result = id;
     } else if (SHM_TYPE_HASH == type) {
         if (id > CM_HASH_SHM_MAX_ID) {
-            GS_LOG_DEBUG_ERR("GA shared memory ID is out of range : %u", id);
+            CT_LOG_DEBUG_ERR("GA shared memory ID is out of range : %u", id);
             return CM_INVALID_SHM_IDX;
         }
         result = CM_FIXED_SHM_MAX_ID + 1 + id;
     } else if (SHM_TYPE_GA == type) {
         if (id > CM_GA_SHM_MAX_ID) {
-            GS_LOG_DEBUG_ERR("GA shared memory ID is out of range : %u", id);
+            CT_LOG_DEBUG_ERR("GA shared memory ID is out of range : %u", id);
             return CM_INVALID_SHM_IDX;
         }
         result = CM_FIXED_SHM_MAX_ID + CM_HASH_SHM_MAX_ID + 1 + id;
     } else {
-        GS_LOG_DEBUG_ERR("invalid type, type: %d", type);
+        CT_LOG_DEBUG_ERR("invalid type, type: %d", type);
         return CM_INVALID_SHM_IDX;
     }
 
     if (result >= CM_SHM_MAX_BLOCK) {
-        GS_LOG_DEBUG_ERR("Shared memory ID is out of range:%u, type: %d, ID: %u", CM_SHM_MAX_BLOCK, type, result);
+        CT_LOG_DEBUG_ERR("Shared memory ID is out of range:%u, type: %d, ID: %u", CM_SHM_MAX_BLOCK, type, result);
         return CM_INVALID_SHM_IDX;
     }
 
@@ -103,7 +104,7 @@ cm_shm_key_t cm_shm_key_of(cm_shm_type_e type, uint32 id)
 static bool32 cm_lock_shm_map(void)
 {
     cm_thread_lock(&g_shm_map_lock);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static void cm_unlock_shm_map(void)
@@ -115,7 +116,7 @@ static void cm_unlock_shm_map(void)
 static void cm_fill_shm_name(char *name, cm_shm_key_t key)
 {
     errno_t err;
-    err = snprintf_s(name, GS_FILE_NAME_BUFFER_SIZE, "gmdb_0x%08x", key);
+    err = snprintf_s(name, CT_FILE_NAME_BUFFER_SIZE, "gmdb_0x%08x", key);
     PRTS_RETURN_IFERR(err);
 }
 #endif
@@ -123,7 +124,7 @@ static void cm_fill_shm_name(char *name, cm_shm_key_t key)
 cm_shm_handle_t cm_native_create_shm(cm_shm_key_t key, uint64 size, uint32 permission)
 {
 #ifdef WIN32
-    char name[GS_FILE_NAME_BUFFER_SIZE];
+    char name[CT_FILE_NAME_BUFFER_SIZE];
     uint32 high = (uint32)(size >> 32);
     uint32 low = (uint32)(size & 0xFFFFFFFF);
     (void)permission;
@@ -133,7 +134,6 @@ cm_shm_handle_t cm_native_create_shm(cm_shm_key_t key, uint64 size, uint32 permi
     return CreateFileMapping(CM_INVALID_SHM_HANDLE, NULL, PAGE_READWRITE, high, low, name);
 #else
     /*lint -save -e712 */
-    /*PL/MDE:qinchaoli 00150442 712:Loss of precision (Context) (Type to Type)*/
     return shmget((key_t)key, size, (int32)(IPC_CREAT | IPC_EXCL | permission));
 /*lint -restore */
 #endif
@@ -162,12 +162,12 @@ void *cm_native_attach_shm(cm_shm_handle_t handle, uint32 flag)
         if (-1 == (int64)result) {
             return NULL;
         } else {
-            offset = ((uint64)result) % GS_GSS_ALIGN_SIZE;
+            offset = ((uint64)result) % CT_CTSTORE_ALIGN_SIZE;
             if (offset == 0) {
                 return result;
             } else {
                 shmdt(result);
-                result = (char *)result + (GS_GSS_ALIGN_SIZE - offset) + GS_GSS_ALIGN_SIZE * retry_num;
+                result = (char *)result + (CT_CTSTORE_ALIGN_SIZE - offset) + CT_CTSTORE_ALIGN_SIZE * retry_num;
             }
         }
     }
@@ -181,7 +181,7 @@ static void *cm_create_shm(cm_shm_key_t key, uint64 size, uint32 flag, uint32 pe
     errno_t ret;
     entry->handle = cm_native_create_shm(key, size, permission);
     if (CM_INVALID_SHM_HANDLE == entry->handle) {
-        GS_LOG_WITH_OS_MSG(
+        CT_LOG_WITH_OS_MSG(
             "Failed to create shared memory, key=0x%08x, size=%llu. The system memory may be insufficient, please check it firstly. Or there may be existent shared memory which is created by other process or last existed gmdb instance, please delete it manually and retry again",
             key, size);
         return NULL;
@@ -189,7 +189,7 @@ static void *cm_create_shm(cm_shm_key_t key, uint64 size, uint32 flag, uint32 pe
 
     entry->addr = cm_native_attach_shm(entry->handle, flag);
     if (NULL == entry->addr) {
-        GS_LOG_WITH_OS_MSG(
+        CT_LOG_WITH_OS_MSG(
             "Failed to attach shared memory, handle=%d, key=0x%08x, size=%llu. The existent shared memory may be created by other process or last existed gmdb instance, please delete it manually and retry again",
             entry->handle, key, size);
         (void)cm_native_del_shm(entry->handle);
@@ -202,14 +202,14 @@ static void *cm_create_shm(cm_shm_key_t key, uint64 size, uint32 flag, uint32 pe
          */
         ret = memset_s(entry->addr, (uint32)size, 0, (uint32)size);
         if (SECUREC_UNLIKELY(ret != EOK)) {
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
             return NULL;
         }
 #else
         /*lint -save -e712 */
         ret = memset_s(entry->addr, size, 0, size);
         if (SECUREC_UNLIKELY(ret != EOK)) {
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
             return NULL;
         }
 /*lint -restore */
@@ -222,11 +222,11 @@ static void *cm_create_shm(cm_shm_key_t key, uint64 size, uint32 flag, uint32 pe
 cm_shm_handle_t cm_native_open_shm(uint32 key)
 {
 #ifdef WIN32
-    char name[GS_FILE_NAME_BUFFER_SIZE];
+    char name[CT_FILE_NAME_BUFFER_SIZE];
     cm_shm_handle_t result;
 
     cm_fill_shm_name(name, key);
-    result = OpenFileMapping(FILE_MAP_ALL_ACCESS, GS_FALSE, name);
+    result = OpenFileMapping(FILE_MAP_ALL_ACCESS, CT_FALSE, name);
 
     return (NULL == result) ? CM_INVALID_SHM_HANDLE : result;
 #else
@@ -272,14 +272,14 @@ bool32 cm_shm_check_size(cm_shm_type_e type, uint32 id, uint64 size)
     uint64 shm_size;
     cm_shm_key_t key = cm_shm_key_of(type, id);
     if (CM_INVALID_SHM_KEY == key) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     shm_size = cm_native_shm_size(key);
     if (size == shm_size) {
-        return GS_TRUE;
+        return CT_TRUE;
     } else {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 }
 
@@ -304,8 +304,8 @@ db_pid cm_get_pid(void)
 
 bool32 cm_lock_shm_ctrl(void)
 {
-    // return cm_try_pid_lock(SHM_CTRL_LOCK, 10) == GS_SUCCESS;
-    return GS_SUCCESS;
+    // return cm_try_pid_lock(SHM_CTRL_LOCK, 10) == CT_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_unlock_shm_ctrl(void)
@@ -322,7 +322,7 @@ static void do_reg_attached_shm_block(cm_shm_key_t key, uint64 size)
     }
 
     cm_attach_pid_to_ctrl(key);
-    cm_shm_block(key)->used = GS_TRUE;
+    cm_shm_block(key)->used = CT_TRUE;
     */
 }
 
@@ -339,7 +339,7 @@ static void *cm_attach_to_existing_shm(cm_shm_key_t key, cm_shm_handle_t handle,
     void *result = cm_native_attach_shm(handle, flag);
 
     if (result == NULL) {
-        GS_LOG_WITH_OS_MSG(
+        CT_LOG_WITH_OS_MSG(
             "Failed to attach shared memory, handle=%d, key=0x%08x, size=%llu. The existent shared memory may be created by other process or last existed gmdb instance, please delete it manually and retry again.",
             handle, key, size);
     }
@@ -347,7 +347,7 @@ static void *cm_attach_to_existing_shm(cm_shm_key_t key, cm_shm_handle_t handle,
 #ifndef WIN32
     if ((result != NULL) && (size != 0)) {
         if (cm_native_shm_size(key) != size) {
-            GS_LOG_DEBUG_ERR(
+            CT_LOG_DEBUG_ERR(
                 "Failed to attach shared memory, key=0x%08x, reason=expected size %llu can not match actual size %llu. The existent shared memory may be created by other process or last existed gmdb instance, please delete it manually and retry again.",
                 key, size, cm_native_shm_size(key));
             (void)cm_native_detach_shm(result);
@@ -377,7 +377,7 @@ void *cm_do_attach_shm_without_register(cm_shm_key_t key, uint64 size, uint32 fl
 
     if (CM_INVALID_SHM_HANDLE == entry->handle) {
         if (logging_open_err) {
-            GS_LOG_WITH_OS_MSG("Failed to open shared memory, key=0x%08x, size=%llu", key, size);
+            CT_LOG_WITH_OS_MSG("Failed to open shared memory, key=0x%08x, size=%llu", key, size);
         }
         return NULL;
     } else {
@@ -411,18 +411,18 @@ static void cm_register_new_shm_block(cm_shm_key_t key, uint64 size)
 static status_t cm_create_shm_ctrl(void)
 {
     if (cm_create_shm(CM_SHM_CTRL_KEY, CM_SHM_SIZE_OF_CTRL, CM_SHM_ATTACH_RW, 0660) == NULL) {
-        GS_THROW_ERROR(ERR_GSS_SHM_CREATE, CM_SHM_SIZE_OF_CTRL, CM_SHM_ATTACH_RW);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CTSTORE_SHM_CREATE, CM_SHM_SIZE_OF_CTRL, CM_SHM_ATTACH_RW);
+        return CT_ERROR;
     }
 
-    GS_INIT_SPIN_LOCK(SHM_CTRL_LOCK);
+    CT_INIT_SPIN_LOCK(SHM_CTRL_LOCK);
     memcpy_s(cm_shm_ctrl()->magic, sizeof(cm_shm_ctrl()->magic), CM_SHM_MAGIC, sizeof(cm_shm_ctrl()->magic));
     cm_shm_ctrl()->self_version = CM_SHM_CTRL_CURRENT_VERSION;
     cm_shm_ctrl()->instance_id = CM_SHM_KEY2INSTANCE(CM_SHM_CTRL_KEY);
 
     cm_register_new_shm_block(CM_SHM_CTRL_KEY, CM_SHM_SIZE_OF_CTRL);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void *cm_create_shm_block(cm_shm_key_t key, uint64 size, uint32 flag, uint32 permission)
@@ -461,25 +461,25 @@ static status_t cm_check_shm_ctrl(void)
 {
 #ifndef WIN32
     if (CM_SHM_SIZE_OF_CTRL != cm_native_shm_size(CM_SHM_CTRL_KEY)) {
-        GS_THROW_ERROR(ERR_GSS_SHM_CHECK, CM_SHM_CTRL_KEY, "mismatched size");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CTSTORE_SHM_CHECK, CM_SHM_CTRL_KEY, "mismatched size");
+        return CT_ERROR;
     }
 #endif
 
     if (0 != memcmp(cm_shm_ctrl()->magic, CM_SHM_MAGIC, sizeof(cm_shm_ctrl()->magic))) {
-        GS_THROW_ERROR(ERR_GSS_SHM_CHECK, CM_SHM_CTRL_KEY, "mismatched magic number");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CTSTORE_SHM_CHECK, CM_SHM_CTRL_KEY, "mismatched magic number");
+        return CT_ERROR;
     }
 
     if (cm_shm_ctrl()->self_version != CM_SHM_CTRL_CURRENT_VERSION) {
-        GS_LOG_DEBUG_ERR(
+        CT_LOG_DEBUG_ERR(
             "Failed to check shared memory ctrl ,key=0x%08x, reason=expected version %u can not match actual version %u.",
             CM_SHM_CTRL_KEY, CM_SHM_CTRL_CURRENT_VERSION, cm_shm_ctrl()->self_version);
-        GS_THROW_ERROR(ERR_GSS_SHM_CHECK, CM_SHM_CTRL_KEY, "expected version can not match actual version");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_CTSTORE_SHM_CHECK, CM_SHM_CTRL_KEY, "expected version can not match actual version");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void cm_do_detach_pid_from_ctrl(cm_shm_key_t key)
@@ -511,7 +511,7 @@ static bool32 cm_do_detach_shm(cm_shm_key_t key, bool32 unregistering, bool32 lo
     void *addr = SHM_ADDR_OF(key);
 
     if (NULL == addr) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (cm_native_detach_shm(addr)) {
@@ -522,12 +522,12 @@ static bool32 cm_do_detach_shm(cm_shm_key_t key, bool32 unregistering, bool32 lo
             cm_detach_pid_from_ctrl(key);
         }
 
-        return GS_TRUE;
+        return CT_TRUE;
     } else {
         if (logging_err) {
-            GS_LOG_WITH_OS_MSG("Failed to detach shared memory,key=0x%08x", key);
+            CT_LOG_WITH_OS_MSG("Failed to detach shared memory,key=0x%08x", key);
         }
-        return GS_FALSE;
+        return CT_FALSE;
     }
 }
 
@@ -535,14 +535,14 @@ static status_t cm_init_shm_ctrl()
 {
     cm_shm_key_t key = CM_SHM_CTRL_KEY;
     // int32 idx = SHM_ID_MNG_CTRL;
-    if (cm_do_attach_shm_without_register(key, 0, CM_SHM_ATTACH_RW, GS_TRUE) == NULL) {
+    if (cm_do_attach_shm_without_register(key, 0, CM_SHM_ATTACH_RW, CT_TRUE) == NULL) {
         return cm_create_shm_ctrl();
     } else {
         status_t result = cm_check_shm_ctrl();
-        if (result == GS_SUCCESS) {
+        if (result == CT_SUCCESS) {
             cm_register_attached_shm_block(CM_SHM_CTRL_KEY, CM_SHM_SIZE_OF_CTRL);
         } else {
-            (void)cm_do_detach_shm(CM_SHM_CTRL_KEY, GS_FALSE, GS_FALSE);
+            (void)cm_do_detach_shm(CM_SHM_CTRL_KEY, CT_FALSE, CT_FALSE);
         }
 
         return result;
@@ -559,7 +559,7 @@ status_t cm_do_init_shm(uint32 instance_id)
     cm_init_thread_lock(&g_shm_map_lock);
 
     result = cm_init_shm_ctrl();
-    if (result != GS_SUCCESS) {
+    if (result != CT_SUCCESS) {
         (void)cm_destroy_thread_lock(&g_shm_map_lock);
     }
 
@@ -569,11 +569,11 @@ status_t cm_do_init_shm(uint32 instance_id)
 status_t cm_init_shm(uint32 instance_id)
 {
     if (g_shm_inited) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
         status_t result = cm_do_init_shm(instance_id);
-        if (GS_SUCCESS == result) {
-            g_shm_inited = GS_TRUE;
+        if (CT_SUCCESS == result) {
+            g_shm_inited = CT_TRUE;
         }
 
         return result;
@@ -587,7 +587,7 @@ bool32 cm_is_shm_block_used(cm_shm_key_t key)
 
 static void *cm_do_get_shm(cm_shm_key_t key, uint64 size, uint32 flag, uint32 permission)
 {
-    void *result = cm_do_attach_shm(key, size, flag, GS_FALSE);
+    void *result = cm_do_attach_shm(key, size, flag, CT_FALSE);
 
     return result != NULL ? result : cm_create_shm_block(key, size, flag, permission);
 }
@@ -626,7 +626,7 @@ void *cm_attach_shm(cm_shm_type_e type, uint32 id, uint64 size, uint32 flag)
     }
 
     if (cm_lock_shm_map()) {
-        void *result = cm_do_attach_shm(key, size, flag, GS_TRUE);
+        void *result = cm_do_attach_shm(key, size, flag, CT_TRUE);
         cm_unlock_shm_map();
 
         return result;
@@ -642,7 +642,7 @@ void *cm_attach_shm_directly(cm_shm_type_e type, uint32 id, uint64 size, uint32 
         return NULL;
     }
 
-    return cm_do_attach_shm_without_register(key, size, flag, GS_TRUE);
+    return cm_do_attach_shm_without_register(key, size, flag, CT_TRUE);
 }
 
 bool32 cm_native_shm_exists(cm_shm_key_t key)
@@ -651,9 +651,9 @@ bool32 cm_native_shm_exists(cm_shm_key_t key)
     if (handle != CM_INVALID_SHM_HANDLE) {
         cm_native_close_shm(handle);
 
-        return GS_TRUE;
+        return CT_TRUE;
     } else {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 }
 
@@ -661,7 +661,7 @@ bool32 cm_shm_exists(cm_shm_type_e type, uint32 id)
 {
     cm_shm_key_t key = cm_shm_key_of(type, id);
 
-    return (CM_INVALID_SHM_KEY == key) ? GS_FALSE : cm_native_shm_exists(key);
+    return (CM_INVALID_SHM_KEY == key) ? CT_FALSE : cm_native_shm_exists(key);
 }
 
 bool32 cm_shm_exists_by_idx(uint32 idx)
@@ -691,7 +691,7 @@ bool32 do_del_shm_directly(cm_shm_key_t key)
     handle = cm_native_open_shm(key);
 #endif
     if (CM_INVALID_SHM_HANDLE == handle) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     return cm_native_del_shm(handle);
@@ -702,7 +702,7 @@ static void cm_unregister_shm_block(cm_shm_key_t key)
     /*
     if(cm_shm_ctrl_exists() && cm_lock_shm_ctrl())
     {
-        cm_shm_block(key)->used = GS_FALSE;
+        cm_shm_block(key)->used = CT_FALSE;
         cm_unlock_shm_ctrl();
     }
     */
@@ -711,20 +711,20 @@ static void cm_unregister_shm_block(cm_shm_key_t key)
 static bool32 cm_del_shm_block(cm_shm_key_t key)
 {
     if (!do_del_shm_directly(key)) {
-        GS_LOG_WITH_OS_MSG("Failed to delete shared memory,key=0x%08x", key);
-        return GS_FALSE;
+        CT_LOG_WITH_OS_MSG("Failed to delete shared memory,key=0x%08x", key);
+        return CT_FALSE;
     }
 
     CM_SHM_HANDLE_OF(key) = CM_INVALID_SHM_HANDLE;
 
     cm_unregister_shm_block(key);
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static bool32 cm_do_del_shm(cm_shm_key_t key)
 {
-    return cm_do_detach_shm(key, GS_TRUE, GS_TRUE) ? cm_del_shm_block(key) : GS_FALSE;
+    return cm_do_detach_shm(key, CT_TRUE, CT_TRUE) ? cm_del_shm_block(key) : CT_FALSE;
 }
 
 static bool32 del_shm_by_key(cm_shm_key_t key)
@@ -735,7 +735,7 @@ static bool32 del_shm_by_key(cm_shm_key_t key)
 
         return result;
     } else {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 }
 
@@ -743,7 +743,7 @@ bool32 cm_del_shm(cm_shm_type_e type, uint32 id)
 {
     cm_shm_key_t key = cm_shm_key_of(type, id);
     if (CM_INVALID_SHM_KEY == key) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     return del_shm_by_key(key);
@@ -753,7 +753,7 @@ bool32 cm_del_shm_directly(cm_shm_type_e type, uint32 id)
 {
     cm_shm_key_t key = cm_shm_key_of(type, id);
     if (CM_INVALID_SHM_KEY == key) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     return do_del_shm_directly(key);
@@ -761,36 +761,36 @@ bool32 cm_del_shm_directly(cm_shm_type_e type, uint32 id)
 
 bool32 cm_detach_all_shms(void)
 {
-    int i = 0;
+    uint32 i = 0;
     for (; i < CM_SHM_MAX_BLOCK; i++) {
-        if (!cm_do_detach_shm(CM_SHM_IDX_TO_KEY(i), GS_TRUE, GS_FALSE)) {
-            return GS_FALSE;
+        if (!cm_do_detach_shm(CM_SHM_IDX_TO_KEY(i), CT_TRUE, CT_FALSE)) {
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 bool32 cm_detach_all_shms_except_log(void)
 {
     uint32 i = 0;
     for (; i < CM_SHM_MAX_BLOCK; i++) {
-        if (!cm_do_detach_shm(CM_SHM_IDX_TO_KEY(i), GS_TRUE, GS_FALSE)) {
-            return GS_FALSE;
+        if (!cm_do_detach_shm(CM_SHM_IDX_TO_KEY(i), CT_TRUE, CT_FALSE)) {
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 bool32 cm_detach_all_shms_forcibly(void)
 {
-    bool32 result = GS_TRUE;
+    bool32 result = CT_TRUE;
 
-    int i = 0;
+    uint32 i = 0;
     for (; i < CM_SHM_MAX_BLOCK; i++) {
-        if (!cm_do_detach_shm(CM_SHM_IDX_TO_KEY(i), GS_TRUE, GS_FALSE)) {
-            result = GS_FALSE;
+        if (!cm_do_detach_shm(CM_SHM_IDX_TO_KEY(i), CT_TRUE, CT_FALSE)) {
+            result = CT_FALSE;
         }
     }
 
@@ -799,24 +799,24 @@ bool32 cm_detach_all_shms_forcibly(void)
 
 bool32 cm_clear_shm_space(void)
 {
-    int i = 0;
+    uint32 i = 0;
     for (; i < CM_SHM_MAX_BLOCK; i++) {
         if (!cm_do_del_shm(CM_SHM_IDX_TO_KEY(i))) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 bool32 cm_clear_shm_space_forcibly(uint32 instance_id)
 {
-    bool32 result = GS_TRUE;
+    bool32 result = CT_TRUE;
 
-    int i = 0;
+    uint32 i = 0;
     for (; i < CM_SHM_MAX_BLOCK; i++) {
         if (!do_del_shm_directly(CM_SHM_MAKE_KEY(instance_id, i))) {
-            result = GS_FALSE;
+            result = CT_FALSE;
         }
     }
 
@@ -825,12 +825,12 @@ bool32 cm_clear_shm_space_forcibly(uint32 instance_id)
 
 bool32 cm_del_all_existing_shms_directly(void)
 {
-    bool32 result = GS_TRUE;
+    bool32 result = CT_TRUE;
 
-    int i = 0;
+    uint32 i = 0;
     for (; i < CM_SHM_MAX_BLOCK; i++) {
         if (cm_native_shm_exists(CM_SHM_IDX_TO_KEY(i)) && !do_del_shm_directly(CM_SHM_IDX_TO_KEY(i))) {
-            result = GS_FALSE;
+            result = CT_FALSE;
         }
     }
 
@@ -846,11 +846,11 @@ bool32 cm_del_all_shms_except_common(void)
         }
 
         if (!del_shm_by_key(CM_SHM_IDX_TO_KEY(i))) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void *cm_shm_addr_in_map(cm_shm_type_e type, uint32 id)
@@ -885,16 +885,16 @@ bool32 cm_detach_shm(cm_shm_type_e type, uint32 id)
 {
     cm_shm_key_t key = cm_shm_key_of(type, id);
     if (CM_INVALID_SHM_KEY == key) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (cm_lock_shm_map()) {
-        bool32 result = cm_do_detach_shm(key, GS_TRUE, GS_TRUE);
+        bool32 result = cm_do_detach_shm(key, CT_TRUE, CT_TRUE);
         cm_unlock_shm_map();
 
         return result;
     } else {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 }
 
@@ -902,10 +902,10 @@ bool32 cm_detach_shm_directly(cm_shm_type_e type, uint32 id)
 {
     cm_shm_key_t key = cm_shm_key_of(type, id);
     if (CM_INVALID_SHM_KEY == key) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
-    return cm_do_detach_shm(key, GS_FALSE, GS_TRUE);
+    return cm_do_detach_shm(key, CT_FALSE, CT_TRUE);
 }
 
 int32 cm_do_destroy_shm(void)
@@ -914,20 +914,20 @@ int32 cm_do_destroy_shm(void)
 
     memset_s(&g_shm_map_lock, sizeof(g_shm_map_lock), 0, sizeof(g_shm_map_lock));
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 int32 cm_destroy_shm(void)
 {
     if (g_shm_inited) {
         int32 result = cm_do_destroy_shm();
-        if (GS_SUCCESS == result) {
-            g_shm_inited = GS_FALSE;
+        if (CT_SUCCESS == result) {
+            g_shm_inited = CT_FALSE;
         }
 
         return result;
     } else {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 }
 

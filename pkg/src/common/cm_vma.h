@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -65,18 +65,18 @@ status_t vmc_alloc(void *owner, uint32 size, void **buf);
 
 static inline status_t vmc_alloc_mem(void *owner, uint32 size, void **buf)
 {
-    GS_RETURN_IFERR(vmc_alloc(owner, size, buf));
+    CT_RETURN_IFERR(vmc_alloc(owner, size, buf));
     if (size != 0) {
         MEMS_RETURN_IFERR(memset_sp(*buf, (size_t)size, 0, (size_t)size));
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
 static inline status_t vmc_reset_mem(memory_context_t *context)
 {
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
-    if (GS_TRUE) {
+    if (CT_TRUE) {
 #else
     if (g_vma_mem_check) {
 #endif
@@ -84,7 +84,7 @@ static inline status_t vmc_reset_mem(memory_context_t *context)
         memory_pool_t *pool = context->pool;
 
         if (context->pages.count == 0) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         for (page_id = context->pages.first; page_id != context->pages.last;) {
@@ -98,7 +98,7 @@ static inline status_t vmc_reset_mem(memory_context_t *context)
 #else
     }
 #endif
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void vmc_free(vmc_t *context)
@@ -121,17 +121,17 @@ static inline void vmc_free(vmc_t *context)
 
 static inline status_t vmp_create(vma_t *area, uint32 init_pages, vmp_t *pool)
 {
-    if (mpool_create(&area->marea, "variant memory pool", init_pages, area->marea.page_count, &pool->mpool) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (mpool_create(&area->marea, "variant memory pool", init_pages, area->marea.page_count, &pool->mpool) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     if (mpool_create(&area->large_marea, "large variant memory pool", 0,
-                     area->large_marea.page_count, &pool->large_mpool) != GS_SUCCESS) {
+                     area->large_marea.page_count, &pool->large_mpool) != CT_SUCCESS) {
         mpool_destory(&pool->mpool);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline void vmp_destory(vmp_t *pool)

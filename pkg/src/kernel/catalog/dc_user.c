@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_dc_module.h"
 #include "dc_user.h"
 #include "cm_log.h"
 #include "knl_context.h"
@@ -45,9 +46,9 @@ void dc_insert_into_user_index(dc_context_t *ctx, dc_user_t *user)
     cm_spin_lock(&user_bucket->lock, NULL);
     user->user_bucket = user_bucket;
     user->next = user_bucket->first;
-    user->prev = GS_INVALID_ID32;
+    user->prev = CT_INVALID_ID32;
 
-    if (user_bucket->first != GS_INVALID_ID32) {
+    if (user_bucket->first != CT_INVALID_ID32) {
         first_user = ctx->users[user_bucket->first];
         first_user->prev = user->desc.id;
     }
@@ -55,15 +56,15 @@ void dc_insert_into_user_index(dc_context_t *ctx, dc_user_t *user)
     user_bucket->first = user->desc.id;
     cm_spin_unlock(&user_bucket->lock);
 
-    CM_ASSERT(user->desc.tenant_id < GS_MAX_TENANTS);
+    CM_ASSERT(user->desc.tenant_id < CT_MAX_TENANTS);
     tenant_bucket = &ctx->tenant_buckets[user->desc.tenant_id];
 
     cm_spin_lock(&tenant_bucket->lock, NULL);
     user->tenant_bucket = tenant_bucket;
     user->next1 = tenant_bucket->first;
-    user->prev1 = GS_INVALID_ID32;
+    user->prev1 = CT_INVALID_ID32;
 
-    if (tenant_bucket->first != GS_INVALID_ID32) {
+    if (tenant_bucket->first != CT_INVALID_ID32) {
         first_user = ctx->users[tenant_bucket->first];
         first_user->prev1 = user->desc.id;
     }
@@ -95,29 +96,29 @@ static status_t dc_init_obj_priv(dc_context_t *ctx, dc_user_t *user)
     errno_t err;
 
     // alloc priv buckets
-    if (dc_alloc_memory_page(ctx, &page_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_memory_page(ctx, &page_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     user->obj_privs.buckets = (dc_bucket_t *)mpool_page_addr(&ctx->pool, page_id);
     for (i = 0; i < DC_HASH_SIZE; i++) {
         user->obj_privs.buckets[i].lock = 0;
-        user->obj_privs.buckets[i].first = GS_INVALID_ID32;
+        user->obj_privs.buckets[i].first = CT_INVALID_ID32;
     }
 
     // alloc priv entries
-    if (dc_alloc_memory_page(ctx, &page_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_memory_page(ctx, &page_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     user->obj_privs.groups = (object_priv_group_t **)mpool_page_addr(&ctx->pool, page_id);
-    err = memset_sp(user->obj_privs.groups, GS_SHARED_PAGE_SIZE, 0, GS_SHARED_PAGE_SIZE);
+    err = memset_sp(user->obj_privs.groups, CT_SHARED_PAGE_SIZE, 0, CT_SHARED_PAGE_SIZE);
     knl_securec_check(err);
     user->obj_privs.lock = 0;
     cm_list_init(&user->parent);
     cm_list_init(&user->parent_free);
     cm_list_init(&user->grant_obj_privs);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dc_init_user_privs(dc_context_t *ctx, dc_user_t *user)
@@ -125,14 +126,14 @@ static status_t dc_init_user_privs(dc_context_t *ctx, dc_user_t *user)
     uint32 i, page_id;
 
     // alloc priv buckets
-    if (dc_alloc_memory_page(ctx, &page_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_memory_page(ctx, &page_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     user->user_privs.buckets = (dc_bucket_t *)mpool_page_addr(&ctx->pool, page_id);
     for (i = 0; i < DC_HASH_SIZE; i++) {
         user->user_privs.buckets[i].lock = 0;
-        user->user_privs.buckets[i].first = GS_INVALID_ID32;
+        user->user_privs.buckets[i].first = CT_INVALID_ID32;
     }
 
     for (int j = 0; j < USER_PRIV_GROUP_COUNT; j++) {
@@ -141,7 +142,7 @@ static status_t dc_init_user_privs(dc_context_t *ctx, dc_user_t *user)
     
     user->user_privs.lock = 0;
     user->user_privs.hwm = 0;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -155,19 +156,19 @@ status_t dc_init_user(dc_context_t *ctx, dc_user_t *user)
     err = memset_sp(user, sizeof(dc_user_t), 0, sizeof(dc_user_t));
     knl_securec_check(err);
 
-    if (dc_create_memory_context(ctx, &user->memory) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_create_memory_context(ctx, &user->memory) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (dc_init_obj_priv(ctx, user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_init_obj_priv(ctx, user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (dc_init_user_privs(ctx, user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_init_user_privs(ctx, user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -183,30 +184,30 @@ status_t dc_init_table_context(dc_context_t *ctx, dc_user_t *user)
     errno_t err;
 
     // alloc group array
-    if (dc_alloc_memory_page(ctx, &page_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_memory_page(ctx, &page_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     user->groups = (dc_group_t **)mpool_page_addr(&ctx->pool, page_id);
-    err = memset_sp(user->groups, GS_SHARED_PAGE_SIZE, 0, GS_SHARED_PAGE_SIZE);
+    err = memset_sp(user->groups, CT_SHARED_PAGE_SIZE, 0, CT_SHARED_PAGE_SIZE);
     knl_securec_check(err);
 
     // alloc buckets
-    if (dc_alloc_memory_page(ctx, &page_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_memory_page(ctx, &page_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     user->buckets = (dc_bucket_t *)mpool_page_addr(&ctx->pool, page_id);
 
     for (i = 0; i < DC_HASH_SIZE; i++) {
         user->buckets[i].lock = 0;
-        user->buckets[i].first = GS_INVALID_ID32;
+        user->buckets[i].first = CT_INVALID_ID32;
     }
 
-    user->entry_hwm = (user->desc.id == 0) ? GS_EX_SYSID_END : 0;
+    user->entry_hwm = (user->desc.id == 0) ? CT_EX_SYSID_END : 0;
     user->entry_lwm = user->entry_hwm;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t dc_init_user_context(knl_session_t *session, dc_context_t *ctx, dc_user_t *user, bool32 is_replay)
@@ -215,23 +216,23 @@ static status_t dc_init_user_context(knl_session_t *session, dc_context_t *ctx, 
         cm_spin_lock(&user->load_lock, NULL);
         if (!user->is_loaded) {
             if (user->buckets == NULL) {
-                if (dc_init_table_context(ctx, user) != GS_SUCCESS) {
+                if (dc_init_table_context(ctx, user) != CT_SUCCESS) {
                     cm_spin_unlock(&user->load_lock);
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
             }
 
-            if (!is_replay && dc_init_entries(session, ctx, user->desc.id) != GS_SUCCESS) {
+            if (!is_replay && dc_init_entries(session, ctx, user->desc.id) != CT_SUCCESS) {
                 cm_spin_unlock(&user->load_lock);
-                return GS_ERROR;
+                return CT_ERROR;
             }
-            user->is_loaded = GS_TRUE;
+            user->is_loaded = CT_TRUE;
         }
 
         cm_spin_unlock(&user->load_lock);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_open_user(knl_session_t *session, text_t *username, dc_user_t **user)
@@ -247,7 +248,7 @@ status_t dc_open_user(knl_session_t *session, text_t *username, dc_user_t **user
     cm_spin_lock(&bucket->lock, NULL);
     uid = bucket->first;
 
-    while (uid != GS_INVALID_ID32) {
+    while (uid != CT_INVALID_ID32) {
         user_entry = ctx->users[uid];
         if (cm_text_str_equal(username, user_entry->desc.name)) {
             break;
@@ -256,23 +257,23 @@ status_t dc_open_user(knl_session_t *session, text_t *username, dc_user_t **user
         uid = user_entry->next;
     }
 
-    if (uid == GS_INVALID_ID32) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(username));
+    if (uid == CT_INVALID_ID32) {
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(username));
         cm_spin_unlock(&bucket->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (session->drop_uid == uid) {
         *user = ctx->users[uid];
         cm_spin_unlock(&bucket->lock);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     cm_spin_unlock(&bucket->lock);
 
     if (session->kernel->attr.clustered && ctx->users[uid]->status == USER_STATUS_LOCKED) {
-        if (dtc_try_clean_user_lock(session, ctx->users[uid]) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dtc_try_clean_user_lock(session, ctx->users[uid]) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -281,20 +282,20 @@ status_t dc_open_user(knl_session_t *session, text_t *username, dc_user_t **user
 
         if (uid > DB_PUB_USER_ID) {
             if (!ctx->ready && !session->bootstrap) {
-                GS_THROW_ERROR(ERR_DATABASE_NOT_AVAILABLE);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_DATABASE_NOT_AVAILABLE);
+                return CT_ERROR;
             }
 
-            if (dc_init_user_context(session, ctx, *user, GS_FALSE) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (dc_init_user_context(session, ctx, *user, CT_FALSE) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(username));
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(username));
+    return CT_ERROR;
 }
 
 status_t dc_open_user_direct(knl_session_t *session, text_t *username, dc_user_t **user)
@@ -310,7 +311,7 @@ status_t dc_open_user_direct(knl_session_t *session, text_t *username, dc_user_t
     cm_spin_lock(&bucket->lock, NULL);
     uid = bucket->first;
 
-    while (uid != GS_INVALID_ID32) {
+    while (uid != CT_INVALID_ID32) {
         user_entry = ctx->users[uid];
         if (cm_text_str_equal(username, user_entry->desc.name)) {
             break;
@@ -319,25 +320,25 @@ status_t dc_open_user_direct(knl_session_t *session, text_t *username, dc_user_t
         uid = user_entry->next;
     }
 
-    if (uid == GS_INVALID_ID32) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(username));
+    if (uid == CT_INVALID_ID32) {
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(username));
         cm_spin_unlock(&bucket->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *user = ctx->users[uid];
     cm_spin_unlock(&bucket->lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_open_user_by_id(knl_session_t *session, uint32 uid, dc_user_t **user)
 {
     dc_context_t *ctx = &session->kernel->dc_ctx;
 
-    if (uid >= GS_MAX_USERS) {
-        GS_LOG_RUN_ERR("dc_open_user_by_id failed, invalid uid %u", uid);
-        GS_THROW_ERROR(ERR_USER_ID_NOT_EXIST, uid);
-        return GS_ERROR;
+    if (uid >= CT_MAX_USERS) {
+        CT_LOG_RUN_ERR("dc_open_user_by_id failed, invalid uid %u", uid);
+        CT_THROW_ERROR(ERR_USER_ID_NOT_EXIST, uid);
+        return CT_ERROR;
     }
 
     if (ctx->users[uid]) {
@@ -345,33 +346,33 @@ status_t dc_open_user_by_id(knl_session_t *session, uint32 uid, dc_user_t **user
             *user = ctx->users[uid];
         } else {
             if (ctx->users[uid]->status != USER_STATUS_NORMAL) {
-                GS_THROW_ERROR(ERR_USER_ID_NOT_EXIST, uid);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_USER_ID_NOT_EXIST, uid);
+                return CT_ERROR;
             }
             *user = ctx->users[uid];
         }
 
         if (uid > DB_PUB_USER_ID) {
-            if (dc_init_user_context(session, ctx, *user, GS_FALSE) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (dc_init_user_context(session, ctx, *user, CT_FALSE) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_THROW_ERROR(ERR_USER_ID_NOT_EXIST, uid);
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_USER_ID_NOT_EXIST, uid);
+    return CT_ERROR;
 }
 
 status_t dc_open_user_by_id_for_replay(knl_session_t *session, uint32 uid, dc_user_t **user)
 {
     dc_context_t *ctx = &session->kernel->dc_ctx;
 
-    if (uid >= GS_MAX_USERS) {
-        GS_LOG_RUN_ERR("dc_open_user_by_id failed, invalid uid %u", uid);
-        GS_THROW_ERROR(ERR_USER_ID_NOT_EXIST, uid);
-        return GS_ERROR;
+    if (uid >= CT_MAX_USERS) {
+        CT_LOG_RUN_ERR("dc_open_user_by_id failed, invalid uid %u", uid);
+        CT_THROW_ERROR(ERR_USER_ID_NOT_EXIST, uid);
+        return CT_ERROR;
     }
 
     if (ctx->users[uid]) {
@@ -379,23 +380,23 @@ status_t dc_open_user_by_id_for_replay(knl_session_t *session, uint32 uid, dc_us
             *user = ctx->users[uid];
         } else {
             if (ctx->users[uid]->status != USER_STATUS_NORMAL) {
-                GS_THROW_ERROR(ERR_USER_ID_NOT_EXIST, uid);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_USER_ID_NOT_EXIST, uid);
+                return CT_ERROR;
             }
             *user = ctx->users[uid];
         }
 
         if (uid > DB_PUB_USER_ID) {
-            if (dc_init_user_context(session, ctx, *user, GS_TRUE) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (dc_init_user_context(session, ctx, *user, CT_TRUE) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    GS_THROW_ERROR(ERR_USER_ID_NOT_EXIST, uid);
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_USER_ID_NOT_EXIST, uid);
+    return CT_ERROR;
 }
 
 bool32 dc_get_user_id(knl_session_t *session, const text_t *user, uint32 *uid)
@@ -403,7 +404,7 @@ bool32 dc_get_user_id(knl_session_t *session, const text_t *user, uint32 *uid)
     uint32 i;
     dc_context_t *ctx = &session->kernel->dc_ctx;
 
-    for (i = 0; i < GS_MAX_USERS; i++) {
+    for (i = 0; i < CT_MAX_USERS; i++) {
         if (!ctx->users[i]) {
             continue;
         }
@@ -413,15 +414,15 @@ bool32 dc_get_user_id(knl_session_t *session, const text_t *user, uint32 *uid)
             }
             if (ctx->users[i]->status == USER_STATUS_NORMAL) {
                 *uid = i;
-                return GS_TRUE;
+                return CT_TRUE;
             } else if (session->drop_uid == i) {
                 *uid = i;
-                return GS_TRUE;
+                return CT_TRUE;
             }
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 bool32 dc_get_role_id(knl_session_t *session, const text_t *role, uint32 *rid)
@@ -430,20 +431,20 @@ bool32 dc_get_role_id(knl_session_t *session, const text_t *role, uint32 *rid)
     dc_context_t *ctx = &session->kernel->dc_ctx;
 
     if (role == NULL || role->len == 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     cm_spin_lock(&ctx->lock, NULL);
-    for (i = 0; i < GS_MAX_ROLES; i++) {
+    for (i = 0; i < CT_MAX_ROLES; i++) {
         if (ctx->roles[i] != NULL && cm_text_str_equal_ins(role, ctx->roles[i]->desc.name)) {
             *rid = i;
             cm_spin_unlock(&ctx->lock);
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
     cm_spin_unlock(&ctx->lock);
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 /*
@@ -453,8 +454,8 @@ bool32 dc_get_role_id(knl_session_t *session, const text_t *role, uint32 *rid)
 * - username: user name
 * - status: user status to set
 * @return
-* - GS_SUCCESS
-* - GS_ERROR
+* - CT_SUCCESS
+* - CT_ERROR
 * @note null
 * @see null
 */
@@ -465,7 +466,7 @@ status_t dc_set_user_status(knl_session_t *session, text_t *username, uint32 sta
     dc_context_t *ctx = &session->kernel->dc_ctx;
     dc_user_t *user = NULL;
 
-    for (i = 0; i < GS_MAX_USERS; i++) {
+    for (i = 0; i < CT_MAX_USERS; i++) {
         cm_spin_lock(&ctx->lock, NULL);
         user = ctx->users[i];
 
@@ -481,7 +482,7 @@ status_t dc_set_user_status(knl_session_t *session, text_t *username, uint32 sta
             if (status == USER_STATUS_LOCKED) {
                 user->user_locked_owner = session->kernel->id;
             } else {
-                user->user_locked_owner = GS_INVALID_ID32;
+                user->user_locked_owner = CT_INVALID_ID32;
             }
 
             SYNC_POINT_GLOBAL_START(CANTIAN_DROP_USER_REVERT_NORMAL_BEFORE_BCAST_ABORT, NULL, 0);
@@ -490,14 +491,14 @@ status_t dc_set_user_status(knl_session_t *session, text_t *username, uint32 sta
             dtc_broadcast_user_status(session, user->desc.id, user->status);
             dls_spin_unlock(session, &user->s_lock);
             cm_spin_unlock(&ctx->lock);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
         cm_spin_unlock(&ctx->lock);
     }
 
-    GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(username));
+    CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(username));
 
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 static status_t dc_init_role(dc_context_t *ctx, dc_role_t *role)
@@ -508,8 +509,8 @@ static status_t dc_init_role(dc_context_t *ctx, dc_role_t *role)
 
     err = memset_sp(role, sizeof(dc_role_t), 0, sizeof(dc_role_t));
     knl_securec_check(err);
-    if (dc_create_memory_context(ctx, &role->memory) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_create_memory_context(ctx, &role->memory) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     cm_list_init(&role->parent_free);
     cm_list_init(&role->child_roles_free);
@@ -517,33 +518,33 @@ static status_t dc_init_role(dc_context_t *ctx, dc_role_t *role)
     cm_list_init(&role->parent);
     cm_list_init(&role->child_roles);
     cm_list_init(&role->child_users);
-    role->bucket_page_id = GS_INVALID_ID32;
-    role->entry_page_id = GS_INVALID_ID32;
+    role->bucket_page_id = CT_INVALID_ID32;
+    role->entry_page_id = CT_INVALID_ID32;
 
-    if (dc_alloc_memory_page(ctx, &page_id) != GS_SUCCESS) {
+    if (dc_alloc_memory_page(ctx, &page_id) != CT_SUCCESS) {
         mctx_destroy(role->memory);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     role->bucket_page_id = page_id;
     role->obj_privs.buckets = (dc_bucket_t *)mpool_page_addr(&ctx->pool, page_id);
     for (i = 0; i < DC_HASH_SIZE; i++) {
         role->obj_privs.buckets[i].lock = 0;
-        role->obj_privs.buckets[i].first = GS_INVALID_ID32;
+        role->obj_privs.buckets[i].first = CT_INVALID_ID32;
     }
 
-    if (dc_alloc_memory_page(ctx, &page_id) != GS_SUCCESS) {
+    if (dc_alloc_memory_page(ctx, &page_id) != CT_SUCCESS) {
         mpool_free_page(&ctx->pool, role->bucket_page_id);
         mctx_destroy(role->memory);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     role->entry_page_id = page_id;
     role->obj_privs.groups = (object_priv_group_t **)mpool_page_addr(&ctx->pool, page_id);
-    err = memset_sp(role->obj_privs.groups, GS_SHARED_PAGE_SIZE, 0, GS_SHARED_PAGE_SIZE);
+    err = memset_sp(role->obj_privs.groups, CT_SHARED_PAGE_SIZE, 0, CT_SHARED_PAGE_SIZE);
     knl_securec_check(err);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void inline dc_set_user_hwm(dc_context_t *ctx, uint32 id)
@@ -560,11 +561,11 @@ void dc_convert_user_desc(knl_cursor_t *cursor, knl_user_desc_t *desc)
     desc->id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_USER_COL_ID);
     text.str = CURSOR_COLUMN_DATA(cursor, SYS_USER_COL_NAME);
     text.len = CURSOR_COLUMN_SIZE(cursor, SYS_USER_COL_NAME);
-    (void)cm_text2str(&text, desc->name, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&text, desc->name, CT_NAME_BUFFER_SIZE);
 
     text.str = CURSOR_COLUMN_DATA(cursor, SYS_USER_COL_PASSWORD);
     text.len = CURSOR_COLUMN_SIZE(cursor, SYS_USER_COL_PASSWORD);
-    (void)cm_text2str(&text, desc->password, GS_PASSWORD_BUFFER_SIZE);
+    (void)cm_text2str(&text, desc->password, CT_PASSWORD_BUFFER_SIZE);
 
     desc->data_space_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_USER_COL_DATA_SPACE_ID);
     desc->temp_space_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_USER_COL_TEMP_SPACE_ID);
@@ -589,13 +590,13 @@ void dc_convert_user_desc(knl_cursor_t *cursor, knl_user_desc_t *desc)
     1.user created before upgrade, has not been updated after upgrade:
         column_count < SYS_USER_COLUMN_COUNT;
     2.user created before upgrade, but has been updated after upgrade:
-        tenant_id size = GS_NULL_VALUE_LEN;
+        tenant_id size = CT_NULL_VALUE_LEN;
     3.user created after upgrade:
         column_count = SYS_USER_COLUMN_COUNT && tenant_id size = 4;
     */
     uint16 column_count = ROW_COLUMN_COUNT((cursor)->row);
     uint32 column_size = CURSOR_COLUMN_SIZE(cursor, SYS_USER_COL_TENANT_ID);
-    if (column_count < SYS_USER_COLUMN_COUNT || column_size == GS_NULL_VALUE_LEN) {
+    if (column_count < SYS_USER_COLUMN_COUNT || column_size == CT_NULL_VALUE_LEN) {
         desc->tenant_id = SYS_TENANTROOT_ID;
     } else {
         desc->tenant_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_USER_COL_TENANT_ID);
@@ -613,9 +614,9 @@ status_t dc_init_users(knl_session_t *session, dc_context_t *ctx)
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_core_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_USER_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {  // assert?
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {  // assert?
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -623,29 +624,29 @@ status_t dc_init_users(knl_session_t *session, dc_context_t *ctx)
 
         dc_set_user_hwm(ctx, uid);
 
-        if (uid >= GS_MAX_USERS) { // invalid user id, assert?
+        if (uid >= CT_MAX_USERS) { // invalid user id, assert?
             break;
         }
 
         if (uid != DB_SYS_USER_ID) {
-            if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_user_t), (void **)&user) != GS_SUCCESS) {
+            if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_user_t), (void **)&user) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             err = memset_sp(user, sizeof(dc_user_t), 0, sizeof(dc_user_t));
             knl_securec_check(err);
             ctx->users[uid] = user;
 
-            if (dc_init_user(ctx, user) != GS_SUCCESS) {
+            if (dc_init_user(ctx, user) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             if (uid == DB_PUB_USER_ID) {
-                if (dc_init_table_context(ctx, user) != GS_SUCCESS) {
+                if (dc_init_table_context(ctx, user) != CT_SUCCESS) {
                     CM_RESTORE_STACK(session->stack);
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
             }
 
@@ -663,14 +664,14 @@ status_t dc_init_users(knl_session_t *session, dc_context_t *ctx)
             user->status = USER_STATUS_NORMAL;
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {  // assert?
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {  // assert?
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_init_roles(knl_session_t *session, dc_context_t *ctx)
@@ -684,22 +685,22 @@ status_t dc_init_roles(knl_session_t *session, dc_context_t *ctx)
 
     cursor = knl_push_cursor(session);
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_ROLES_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_ROLES_ID, CT_INVALID_ID32);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_role_t), (void **)&role) != GS_SUCCESS) {
+        if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_role_t), (void **)&role) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (dc_init_role(ctx, role) != GS_SUCCESS) {
+        if (dc_init_role(ctx, role) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         role->desc.id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_ROLES_COL_ID);
@@ -709,26 +710,26 @@ status_t dc_init_roles(knl_session_t *session, dc_context_t *ctx)
         password.str = CURSOR_COLUMN_DATA(cursor, SYS_ROLES_COL_PASSWORD);
         password.len = CURSOR_COLUMN_SIZE(cursor, SYS_ROLES_COL_PASSWORD);
 
-        (void)cm_text2str(&rolename, role->desc.name, GS_NAME_BUFFER_SIZE);
-        (void)cm_text2str(&password, role->desc.password, GS_NAME_BUFFER_SIZE);
+        (void)cm_text2str(&rolename, role->desc.name, CT_NAME_BUFFER_SIZE);
+        (void)cm_text2str(&password, role->desc.password, CT_NAME_BUFFER_SIZE);
         ctx->roles[role->desc.id] = role;
         dls_init_spinlock(&role->lock, DR_TYPE_ROLE, role->desc.id, (uint16)role->desc.owner_uid);
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void dc_init_sys_user_privs(dc_user_t *user)
 {
     uint32 priv_id;
 
-    for (priv_id = 1; priv_id < GS_SYS_PRIVS_COUNT; priv_id++) {
+    for (priv_id = 1; priv_id < CT_SYS_PRIVS_COUNT; priv_id++) {
         DC_SET_PRIV_INFO(user->sys_privs, user->admin_opt, priv_id, 1);
         DC_SET_PRIV_INFO(user->all_sys_privs, user->ter_admin_opt, priv_id, 1);
     }
@@ -742,32 +743,32 @@ status_t dc_init_sys_user(knl_session_t *session, dc_context_t *ctx)
     errno_t err;
 
     if (ctx->users[DB_SYS_USER_ID] != NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_user_t), (void **)&user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_user_t), (void **)&user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     err = memset_sp(user, sizeof(dc_user_t), 0, sizeof(dc_user_t));
     knl_securec_check(err);
     ctx->users[DB_SYS_USER_ID] = user;
 
-    if (dc_init_user(ctx, user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_init_user(ctx, user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (dc_init_table_context(ctx, user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_init_table_context(ctx, user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     dc_init_sys_user_privs(user);
 
-    err = strcpy_sp(user->desc.name, GS_NAME_BUFFER_SIZE, "SYS");
+    err = strcpy_sp(user->desc.name, CT_NAME_BUFFER_SIZE, "SYS");
     knl_securec_check(err);
     user->desc.id = DB_SYS_USER_ID;
-    password_len = GS_PASSWORD_BUFFER_SIZE - 1;
-    err = strncpy_s(user->desc.password, GS_PASSWORD_BUFFER_SIZE, session->kernel->attr.sys_pwd,
+    password_len = CT_PASSWORD_BUFFER_SIZE - 1;
+    err = strncpy_s(user->desc.password, CT_PASSWORD_BUFFER_SIZE, session->kernel->attr.sys_pwd,
         password_len);
     knl_securec_check(err);
 
@@ -775,8 +776,8 @@ status_t dc_init_sys_user(knl_session_t *session, dc_context_t *ctx)
     user->desc.ptime = now;
     user->desc.astatus = ACCOUNT_STATUS_OPEN;
     user->status = USER_STATUS_NORMAL;
-    user->entry_hwm = GS_RESERVED_SYSID;
-    user->entry_lwm = GS_RESERVED_SYSID;
+    user->entry_hwm = CT_RESERVED_SYSID;
+    user->entry_lwm = CT_RESERVED_SYSID;
     dls_init_spinlock(&user->lock, DR_TYPE_USER, 0, (uint16)user->desc.id);
     dls_init_spinlock(&user->s_lock, DR_TYPE_USER, 1, (uint16)user->desc.id);
     dls_init_latch(&user->user_latch, DR_TYPE_USER, 2, (uint16)user->desc.id);
@@ -784,14 +785,14 @@ status_t dc_init_sys_user(knl_session_t *session, dc_context_t *ctx)
 
     dc_insert_into_user_index(ctx, user);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 /*
 * add new user to dc
 * @param    dc context, user id, user description structure
 * @return
-* - GS_SUCCESS
-* - GS_ERROR
+* - CT_SUCCESS
+* - CT_ERROR
 * @note null
 * @see null
 */
@@ -800,14 +801,14 @@ status_t dc_add_user(dc_context_t *ctx, knl_user_desc_t *desc)
     dc_user_t *user = NULL;
 
     cm_spin_lock(&ctx->lock, NULL);
-    if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_user_t), (void **)&user) != GS_SUCCESS) {
+    if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_user_t), (void **)&user) != CT_SUCCESS) {
         cm_spin_unlock(&ctx->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_spin_unlock(&ctx->lock);
-    if (dc_init_user(ctx, user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_init_user(ctx, user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     user->desc = *desc;
@@ -822,7 +823,7 @@ status_t dc_add_user(dc_context_t *ctx, knl_user_desc_t *desc)
 
     dc_set_user_hwm(ctx, desc->id);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void dc_reuse_user(knl_session_t *session, knl_user_desc_t *desc)
@@ -852,12 +853,12 @@ static void dc_clear_user_buckets(dc_user_t *user)
     }
 
     for (i = 0; i < DC_HASH_SIZE; i++) {
-        if (user->buckets[i].first != GS_INVALID_ID32) {
+        if (user->buckets[i].first != CT_INVALID_ID32) {
             /*
             * this function is supposed to be called when the user->s_lock.
             * so there is no need to lock user->buckets[i].lock
             */
-            user->buckets[i].first = GS_INVALID_ID32;
+            user->buckets[i].first = CT_INVALID_ID32;
         }
     }
 }
@@ -871,12 +872,12 @@ static void dc_remove_user_bucket(knl_session_t *session, dc_user_t *user)
 
     cm_spin_lock(&bucket->lock, NULL);
 
-    if (user->next != GS_INVALID_ID32) {
+    if (user->next != CT_INVALID_ID32) {
         next = ctx->users[user->next];
         next->prev = user->prev;
     }
 
-    if (user->prev != GS_INVALID_ID32) {
+    if (user->prev != CT_INVALID_ID32) {
         prev = ctx->users[user->prev];
         prev->next = user->next;
     }
@@ -887,8 +888,8 @@ static void dc_remove_user_bucket(knl_session_t *session, dc_user_t *user)
 
     dls_spin_lock(session, &user->lock, NULL);
     user->user_bucket = NULL;
-    user->prev = GS_INVALID_ID32;
-    user->next = GS_INVALID_ID32;
+    user->prev = CT_INVALID_ID32;
+    user->next = CT_INVALID_ID32;
     dls_spin_unlock(session, &user->lock);
 
     cm_spin_unlock(&bucket->lock);
@@ -897,12 +898,12 @@ static void dc_remove_user_bucket(knl_session_t *session, dc_user_t *user)
 
     cm_spin_lock(&bucket->lock, NULL);
 
-    if (user->next1 != GS_INVALID_ID32) {
+    if (user->next1 != CT_INVALID_ID32) {
         next = ctx->users[user->next1];
         next->prev1 = user->prev1;
     }
 
-    if (user->prev1 != GS_INVALID_ID32) {
+    if (user->prev1 != CT_INVALID_ID32) {
         prev = ctx->users[user->prev1];
         prev->next1 = user->next1;
     }
@@ -913,8 +914,8 @@ static void dc_remove_user_bucket(knl_session_t *session, dc_user_t *user)
 
     dls_spin_lock(session, &user->lock, NULL);
     user->tenant_bucket = NULL;
-    user->prev1 = GS_INVALID_ID32;
-    user->next1 = GS_INVALID_ID32;
+    user->prev1 = CT_INVALID_ID32;
+    user->next1 = CT_INVALID_ID32;
     dls_spin_unlock(session, &user->lock);
 
     cm_spin_unlock(&bucket->lock);
@@ -924,8 +925,8 @@ static void dc_remove_user_bucket(knl_session_t *session, dc_user_t *user)
 * drop user from dc
 * @param    dc context, user id
 * @return
-* - GS_SUCCESS
-* - GS_ERROR
+* - CT_SUCCESS
+* - CT_ERROR
 * @note null
 * @see null
 */
@@ -934,7 +935,7 @@ void dc_drop_user(knl_session_t *session, uint32 uid)
     dc_user_t *user = NULL;
     dc_context_t *ctx = NULL;
 
-    if (uid >= GS_MAX_USERS) {
+    if (uid >= CT_MAX_USERS) {
         return;
     }
 
@@ -961,18 +962,18 @@ status_t dc_check_user_lock(knl_session_t *session, text_t *username)
     dc_user_t *user = NULL;
 
     if (CM_IS_EMPTY(username)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (dc_open_user_direct(session, username, &user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_user_direct(session, username, &user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (GS_BIT_TEST(user->desc.astatus, ACCOUNT_STATUS_LOCK)) {
-        return GS_ERROR;
+    if (CT_BIT_TEST(user->desc.astatus, ACCOUNT_STATUS_LOCK)) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_check_user_lock_timed(knl_session_t *session, text_t *username, bool32 *p_lock_unlock)
@@ -985,43 +986,43 @@ status_t dc_check_user_lock_timed(knl_session_t *session, text_t *username, bool
     errno_t err;
 
     if (CM_IS_EMPTY(username)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (dc_open_user_direct(session, username, &user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_user_direct(session, username, &user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     err = memset_sp(&def, sizeof(knl_user_def_t), 0, sizeof(knl_user_def_t));
     knl_securec_check(err);
 
-    (void)cm_text2str(username, def.name, GS_NAME_BUFFER_SIZE);
-    if (GS_BIT_TEST(user->desc.astatus, ACCOUNT_STATUS_LOCK_TIMED)) {
+    (void)cm_text2str(username, def.name, CT_NAME_BUFFER_SIZE);
+    if (CT_BIT_TEST(user->desc.astatus, ACCOUNT_STATUS_LOCK_TIMED)) {
         /* if the time exceed the pwd lock time, unlock account */
-        if (GS_SUCCESS != profile_get_param_limit(session, user->desc.profile_id, PASSWORD_LOCK_TIME, &limit)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != profile_get_param_limit(session, user->desc.profile_id, PASSWORD_LOCK_TIME, &limit)) {
+            return CT_ERROR;
         }
 
         if (PARAM_UNLIMITED != limit) {
-            if (GS_SUCCESS != cm_date_add_seconds(user->desc.ltime, limit, &unlock_dt)) {
-                return GS_ERROR;
+            if (CT_SUCCESS != cm_date_add_seconds(user->desc.ltime, limit, &unlock_dt)) {
+                return CT_ERROR;
             }
 
             if (now > unlock_dt) {
-                def.is_lock_timed = GS_FALSE;
+                def.is_lock_timed = CT_FALSE;
                 def.mask |= USER_LOCK_TIMED_MASK;
-                *p_lock_unlock = GS_TRUE;
+                *p_lock_unlock = CT_TRUE;
                 return user_alter(session, &def);
             }
         }
 
-        return GS_ERROR;
+        return CT_ERROR;
     } else if (user->desc.lcount > 0) {
-        def.is_lcount_clear = GS_TRUE;
+        def.is_lcount_clear = CT_TRUE;
         def.mask |= USER_LCOUNT_MASK;
         return user_alter(session, &def);
     } else {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 }
 
@@ -1040,40 +1041,40 @@ status_t dc_check_user_expire(knl_session_t *session, text_t *username, char *me
     knl_securec_check(err);
 
     if (CM_IS_EMPTY(username)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (dc_open_user_direct(session, username, &user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_user_direct(session, username, &user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (GS_BIT_TEST(user->desc.astatus, ACCOUNT_STATUS_EXPIRED)) {
+    if (CT_BIT_TEST(user->desc.astatus, ACCOUNT_STATUS_EXPIRED)) {
         err = snprintf_s(message, message_len, message_len - 1, "The current user has be in the expired status.");
         knl_securec_check_ss(err);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (GS_SUCCESS != profile_get_param_limit(session, user->desc.profile_id, PASSWORD_LIFE_TIME, &limit1)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != profile_get_param_limit(session, user->desc.profile_id, PASSWORD_LIFE_TIME, &limit1)) {
+        return CT_ERROR;
     }
 
-    if (GS_SUCCESS != profile_get_param_limit(session, user->desc.profile_id, PASSWORD_GRACE_TIME, &limit2)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != profile_get_param_limit(session, user->desc.profile_id, PASSWORD_GRACE_TIME, &limit2)) {
+        return CT_ERROR;
     }
 
     if (PARAM_UNLIMITED != limit1) {
-        if (GS_SUCCESS != cm_date_add_seconds(user->desc.ptime, limit1, &expire_dt)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != cm_date_add_seconds(user->desc.ptime, limit1, &expire_dt)) {
+            return CT_ERROR;
         }
     }
 
     if (PARAM_UNLIMITED == limit1 || now < expire_dt) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (PARAM_UNLIMITED != limit2) {
-        if (GS_SUCCESS != cm_date_add_seconds(user->desc.ptime, limit1 + limit2, &expire_dt)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != cm_date_add_seconds(user->desc.ptime, limit1 + limit2, &expire_dt)) {
+            return CT_ERROR;
         }
 
         if (now < expire_dt) {
@@ -1081,26 +1082,26 @@ status_t dc_check_user_expire(knl_session_t *session, text_t *username, char *me
             err = snprintf_s(message, message_len, message_len - 1, "Warnning:password will expire within %d days",
                 remain_days);
             knl_securec_check_ss(err);
-            (void)cm_text2str(username, def.name, GS_NAME_BUFFER_SIZE);
+            (void)cm_text2str(username, def.name, CT_NAME_BUFFER_SIZE);
             def.mask |= USER_EXPIRE_GRACE_MASK;
-            def.is_expire_grace = GS_TRUE;
+            def.is_expire_grace = CT_TRUE;
             return user_alter(session, &def);
         }
     } else {
         err = snprintf_s(message, message_len, message_len - 1,
             "Warnning:the account will expire soon; change your password now");
         knl_securec_check_ss(err);
-        (void)cm_text2str(username, def.name, GS_NAME_BUFFER_SIZE);
+        (void)cm_text2str(username, def.name, CT_NAME_BUFFER_SIZE);
         def.mask |= USER_EXPIRE_GRACE_MASK;
-        def.is_expire_grace = GS_TRUE;
+        def.is_expire_grace = CT_TRUE;
         return user_alter(session, &def);
     }
-    (void)cm_text2str(username, def.name, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(username, def.name, CT_NAME_BUFFER_SIZE);
     def.mask |= USER_EXPIRE_MASK;
-    def.is_expire = GS_TRUE;
+    def.is_expire = CT_TRUE;
     (void)user_alter(session, &def);
 
-    return GS_ERROR;
+    return CT_ERROR;
 }
 
 status_t dc_process_failed_login(knl_session_t *session, text_t *username, uint32 *p_lock_unlock)
@@ -1116,52 +1117,52 @@ status_t dc_process_failed_login(knl_session_t *session, text_t *username, uint3
     err = memset_sp(&def, sizeof(knl_user_def_t), 0, sizeof(knl_user_def_t));
     knl_securec_check(err);
 
-    if (dc_open_user_direct(session, username, &user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_user_direct(session, username, &user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     desc = &user->desc;
-    if (GS_BIT_TEST(desc->astatus, ACCOUNT_STATUS_LOCK_TIMED)) {
+    if (CT_BIT_TEST(desc->astatus, ACCOUNT_STATUS_LOCK_TIMED)) {
         /* if the time exceed the pwd lock time, unlock account */
-        if (GS_SUCCESS != profile_get_param_limit(session, desc->profile_id, PASSWORD_LOCK_TIME, &limit)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != profile_get_param_limit(session, desc->profile_id, PASSWORD_LOCK_TIME, &limit)) {
+            return CT_ERROR;
         }
 
         if (PARAM_UNLIMITED != limit) {
-            if (GS_SUCCESS != cm_date_add_seconds(desc->ltime, limit, &unlock_dt)) {
-                return GS_ERROR;
+            if (CT_SUCCESS != cm_date_add_seconds(desc->ltime, limit, &unlock_dt)) {
+                return CT_ERROR;
             }
 
             if (now > unlock_dt) {
                 knl_user_def_t defunlock;
                 err = memset_sp(&defunlock, sizeof(knl_user_def_t), 0, sizeof(knl_user_def_t));
                 knl_securec_check(err);
-                (void)cm_text2str(username, defunlock.name, GS_NAME_BUFFER_SIZE);
-                defunlock.is_lock_timed = GS_FALSE;
+                (void)cm_text2str(username, defunlock.name, CT_NAME_BUFFER_SIZE);
+                defunlock.is_lock_timed = CT_FALSE;
                 defunlock.mask |= USER_LOCK_TIMED_MASK;
                 *p_lock_unlock = USER_UNLOCK;
-                if (GS_SUCCESS != user_alter(session, &defunlock)) {
-                    return GS_ERROR;
+                if (CT_SUCCESS != user_alter(session, &defunlock)) {
+                    return CT_ERROR;
                 }
             }
         }
     }
 
-    if (GS_SUCCESS != profile_get_param_limit(session, desc->profile_id, FAILED_LOGIN_ATTEMPTS, &limit)) {
-        return GS_ERROR;
+    if (CT_SUCCESS != profile_get_param_limit(session, desc->profile_id, FAILED_LOGIN_ATTEMPTS, &limit)) {
+        return CT_ERROR;
     }
-    (void)cm_text2str(username, def.name, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(username, def.name, CT_NAME_BUFFER_SIZE);
     def.mask |= USER_LCOUNT_MASK;
-    def.is_lcount_clear = GS_FALSE;
+    def.is_lcount_clear = CT_FALSE;
     if (PARAM_UNLIMITED != limit && desc->lcount >= (uint32)limit) {
         /* set account status */
         def.mask |= USER_LOCK_TIMED_MASK;
-        def.is_lock_timed = GS_TRUE;
+        def.is_lock_timed = CT_TRUE;
         desc->astatus |= ACCOUNT_STATUS_LOCK_TIMED;
         (void)user_alter(session, &def);
         if (desc->lcount == limit + 1) {
             *p_lock_unlock = USER_LOCKED;
         }
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     return user_alter(session, &def);
@@ -1173,11 +1174,11 @@ static void dc_fill_user(knl_cursor_t *cursor, dc_user_t *user, uint32 uid)
 
     text.str = CURSOR_COLUMN_DATA(cursor, SYS_USER_COL_NAME);
     text.len = CURSOR_COLUMN_SIZE(cursor, SYS_USER_COL_NAME);
-    (void)cm_text2str(&text, user->desc.name, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&text, user->desc.name, CT_NAME_BUFFER_SIZE);
 
     text.str = CURSOR_COLUMN_DATA(cursor, SYS_USER_COL_PASSWORD);
     text.len = CURSOR_COLUMN_SIZE(cursor, SYS_USER_COL_PASSWORD);
-    (void)cm_text2str(&text, user->desc.password, GS_PASSWORD_BUFFER_SIZE);
+    (void)cm_text2str(&text, user->desc.password, CT_PASSWORD_BUFFER_SIZE);
 
     user->desc.id = uid;
     user->status = USER_STATUS_NORMAL;
@@ -1204,13 +1205,13 @@ static void dc_fill_user(knl_cursor_t *cursor, dc_user_t *user, uint32 uid)
     1.user created before upgrade, has not been updated after upgrade:
         column_count < SYS_USER_COLUMN_COUNT;
     2.user created before upgrade, but has been updated after upgrade:
-        tenant_id size = GS_NULL_VALUE_LEN;
+        tenant_id size = CT_NULL_VALUE_LEN;
     3.user created after upgrade:
         column_count = SYS_USER_COLUMN_COUNT && tenant_id size = 4;
     */
     uint16 column_count = ROW_COLUMN_COUNT((cursor)->row);
     uint32 column_size = CURSOR_COLUMN_SIZE(cursor, SYS_USER_COL_TENANT_ID);
-    if (column_count < SYS_USER_COLUMN_COUNT || column_size == GS_NULL_VALUE_LEN) {
+    if (column_count < SYS_USER_COLUMN_COUNT || column_size == CT_NULL_VALUE_LEN) {
         user->desc.tenant_id = SYS_TENANTROOT_ID;
     } else {
         user->desc.tenant_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_USER_COL_TENANT_ID);
@@ -1230,29 +1231,29 @@ status_t dc_try_create_user(knl_session_t *session, const char *user_name)
     cursor = knl_push_cursor(session);
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_USER_ID, IX_SYS_USER_002_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, user_name,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, user_name,
         (uint16)strlen(user_name), IX_COL_SYS_USER_001_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!cursor->eof) {
         uid = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_USER_COL_ID);
         if (!ctx->users[uid]) {
-            if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_user_t), (void **)&user) != GS_SUCCESS) {
+            if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_user_t), (void **)&user) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             err = memset_sp(user, sizeof(dc_user_t), 0, sizeof(dc_user_t));
             knl_securec_check(err);
             ctx->users[uid] = user;
 
-            if (dc_init_user(ctx, user) != GS_SUCCESS) {
+            if (dc_init_user(ctx, user) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             dls_init_spinlock(&user->lock, DR_TYPE_USER, 0, (uint16)uid);
@@ -1260,9 +1261,9 @@ status_t dc_try_create_user(knl_session_t *session, const char *user_name)
             dls_init_latch(&user->user_latch, DR_TYPE_USER, 2, (uint16)uid);
             dls_init_latch(&user->lib_latch, DR_TYPE_USER, 3, (uint16)uid);
 
-            if (dc_init_table_context(ctx, user) != GS_SUCCESS) {
+            if (dc_init_table_context(ctx, user) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         } else {
             user = ctx->users[uid];
@@ -1272,11 +1273,11 @@ status_t dc_try_create_user(knl_session_t *session, const char *user_name)
         dc_insert_into_user_index(ctx, user);
         dc_set_user_hwm(ctx, uid);
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_update_user(knl_session_t *session, const char *user_name, bool32 *is_found)
@@ -1286,47 +1287,47 @@ status_t dc_update_user(knl_session_t *session, const char *user_name, bool32 *i
     uint32 uid;
     dc_user_t *user = NULL;
 
-    *is_found = GS_FALSE;
+    *is_found = CT_FALSE;
 
     CM_SAVE_STACK(session->stack);
 
     cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_USER_ID, IX_SYS_USER_002_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, user_name,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, user_name,
         (uint16)strlen(user_name), IX_COL_SYS_USER_001_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!cursor->eof) {
         uid = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_USER_COL_ID);
         if (ctx->users[uid] == NULL || ctx->users[uid]->status != USER_STATUS_NORMAL) {
             CM_RESTORE_STACK(session->stack);
-            GS_LOG_RUN_ERR("[DC] failed to load uid:%u", uid);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[DC] failed to load uid:%u", uid);
+            return CT_ERROR;
         }
         user = ctx->users[uid];
 
         dc_fill_user(cursor, user, uid);
         if (uid == 0) { // refresh sys pwd into param
             if (cm_alter_config(session->kernel->attr.config, "_SYS_PASSWORD",
-                user->desc.password, CONFIG_SCOPE_DISK, GS_TRUE) != GS_SUCCESS) {
+                user->desc.password, CONFIG_SCOPE_DISK, CT_TRUE) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                GS_LOG_RUN_ERR("[DC] failed to refresh sys pwd param");
-                return GS_ERROR;
+                CT_LOG_RUN_ERR("[DC] failed to refresh sys pwd param");
+                return CT_ERROR;
             }
         }
-        *is_found = GS_TRUE;
+        *is_found = CT_TRUE;
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    *is_found = GS_FALSE;
+    *is_found = CT_FALSE;
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_try_lock_user_tables(knl_session_t *session, dc_user_t *user)
@@ -1344,23 +1345,23 @@ status_t dc_try_lock_user_tables(knl_session_t *session, dc_user_t *user)
             continue;
         }
 
-        if (dc_try_lock_table_ux(session, entry) != GS_SUCCESS) {
+        if (dc_try_lock_table_ux(session, entry) != CT_SUCCESS) {
             unlock_tables_directly(session);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_lock_user(knl_session_t *session, dc_user_t *user)
 {
     dls_spin_lock(session, &user->lock, NULL);
 
-    if (dc_try_lock_user_tables(session, user) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_USER_IS_REFERENCED, "user", user->desc.name, "being used");
+    if (dc_try_lock_user_tables(session, user) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_USER_IS_REFERENCED, "user", user->desc.name, "being used");
         dls_spin_unlock(session, &user->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dls_spin_lock(session, &user->s_lock, NULL);
@@ -1374,15 +1375,15 @@ status_t dc_lock_user(knl_session_t *session, dc_user_t *user)
     SYNC_POINT_GLOBAL_START(CANTIAN_DROP_USER_LOCK_AFTER_BCAST_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
 * add new role to dc
 * @param    dc context, role id, role description structure
 * @return
-* - GS_SUCCESS
-* - GS_ERROR
+* - CT_SUCCESS
+* - CT_ERROR
 * @note null
 * @see null
 */
@@ -1392,9 +1393,9 @@ status_t dc_add_role(dc_context_t *ctx, knl_role_desc_t *desc)
     errno_t ret;
 
     cm_spin_lock(&ctx->lock, NULL);
-    if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_role_t), (void **)&role) != GS_SUCCESS) {
+    if (dc_alloc_mem(ctx, ctx->memory, sizeof(dc_role_t), (void **)&role) != CT_SUCCESS) {
         cm_spin_unlock(&ctx->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_spin_unlock(&ctx->lock);
@@ -1405,12 +1406,12 @@ status_t dc_add_role(dc_context_t *ctx, knl_role_desc_t *desc)
 
     if (ctx->roles[desc->id] != NULL) {
         cm_spin_unlock(&ctx->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (dc_init_role(ctx, role) != GS_SUCCESS) {
+    if (dc_init_role(ctx, role) != CT_SUCCESS) {
         cm_spin_unlock(&ctx->lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dls_init_spinlock(&role->lock, DR_TYPE_ROLE, desc->id, (uint16)desc->owner_uid);
@@ -1418,15 +1419,15 @@ status_t dc_add_role(dc_context_t *ctx, knl_role_desc_t *desc)
     ctx->roles[desc->id] = role;
     role->desc = *desc;
     cm_spin_unlock(&ctx->lock);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
 * drop role from dc, and revoke the role from all the roles/users granted
 * @param    dc context, role id
 * @return
-* - GS_SUCCESS
-* - GS_ERROR
+* - CT_SUCCESS
+* - CT_ERROR
 * @note null
 * @see null
 */
@@ -1435,7 +1436,7 @@ status_t dc_drop_role(knl_session_t *session, uint32 rid)
     dc_role_t *role = NULL;
     dc_context_t *ctx = &session->kernel->dc_ctx;
 
-    knl_panic(rid < GS_MAX_ROLES);
+    knl_panic(rid < CT_MAX_ROLES);
 
     cm_spin_lock(&ctx->lock, NULL);
 
@@ -1443,11 +1444,11 @@ status_t dc_drop_role(knl_session_t *session, uint32 rid)
     dc_clear_role_priv(session, role);
 
     /* free pages */
-    if (role->bucket_page_id != GS_INVALID_ID32) {
+    if (role->bucket_page_id != CT_INVALID_ID32) {
         mpool_free_page(&ctx->pool, role->bucket_page_id);
     }
 
-    if (role->entry_page_id != GS_INVALID_ID32) {
+    if (role->entry_page_id != CT_INVALID_ID32) {
         mpool_free_page(&ctx->pool, role->entry_page_id);
     }
 
@@ -1455,7 +1456,7 @@ status_t dc_drop_role(knl_session_t *session, uint32 rid)
     ctx->roles[rid] = NULL;
     cm_spin_unlock(&ctx->lock);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_try_create_role(knl_session_t *session, uint32 id, const char *user_name)
@@ -1470,15 +1471,15 @@ status_t dc_try_create_role(knl_session_t *session, uint32 id, const char *user_
     cursor = knl_push_cursor(session);
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_ROLES_ID, IX_SYS_ROLES_001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&id,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&id,
         sizeof(uint32), IX_COL_SYS_ROLES_001_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, (void *)user_name,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, (void *)user_name,
         (uint16)strlen(user_name), IX_COL_SYS_ROLES_001_NAME);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!cursor->eof) {
@@ -1486,50 +1487,50 @@ status_t dc_try_create_role(knl_session_t *session, uint32 id, const char *user_
         desc.owner_uid = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_ROLES_COL_OWNER_UID);
         text.str = CURSOR_COLUMN_DATA(cursor, SYS_ROLES_COL_NAME);
         text.len = CURSOR_COLUMN_SIZE(cursor, SYS_ROLES_COL_NAME);
-        (void)cm_text2str(&text, desc.name, GS_NAME_BUFFER_SIZE);
+        (void)cm_text2str(&text, desc.name, CT_NAME_BUFFER_SIZE);
 
         text.str = CURSOR_COLUMN_DATA(cursor, SYS_ROLES_COL_PASSWORD);
         text.len = CURSOR_COLUMN_SIZE(cursor, SYS_ROLES_COL_PASSWORD);
-        (void)cm_text2str(&text, desc.password, GS_NAME_BUFFER_SIZE);
+        (void)cm_text2str(&text, desc.password, CT_NAME_BUFFER_SIZE);
 
-        if (dc_add_role(ctx, &desc) != GS_SUCCESS) {
+        if (dc_add_role(ctx, &desc) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_get_user_default_spc(knl_session_t *session, uint32 uid, uint32 *spc_id)
 {
     dc_user_t *user = NULL;
 
-    knl_panic(uid < GS_MAX_USERS);
-    if (GS_SUCCESS != dc_open_user_by_id(session, uid, &user)) {
-        return GS_ERROR;
+    knl_panic(uid < CT_MAX_USERS);
+    if (CT_SUCCESS != dc_open_user_by_id(session, uid, &user)) {
+        return CT_ERROR;
     }
 
     *spc_id = user->desc.data_space_id;
 
-    knl_panic(*spc_id != GS_INVALID_ID32);
-    return GS_SUCCESS;
+    knl_panic(*spc_id != CT_INVALID_ID32);
+    return CT_SUCCESS;
 }
 
 status_t dc_get_user_temp_spc(knl_session_t *session, uint32 uid, uint32 *spc_id)
 {
     dc_user_t *user = NULL;
 
-    knl_panic(uid < GS_MAX_USERS);
-    if (dc_open_user_by_id(session, uid, &user) != GS_SUCCESS) {
-        return GS_ERROR;
+    knl_panic(uid < CT_MAX_USERS);
+    if (dc_open_user_by_id(session, uid, &user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     *spc_id = user->desc.temp_space_id;
 
-    knl_panic(*spc_id != GS_INVALID_ID32);
-    return GS_SUCCESS;
+    knl_panic(*spc_id != CT_INVALID_ID32);
+    return CT_SUCCESS;
 }
 
 status_t knl_get_user_name(knl_handle_t session, uint32 id, text_t *name)
@@ -1537,25 +1538,25 @@ status_t knl_get_user_name(knl_handle_t session, uint32 id, text_t *name)
     knl_session_t *se = (knl_session_t *)session;
     dc_context_t *ctx = &se->kernel->dc_ctx;
 
-    if (id >= GS_MAX_USERS ||
+    if (id >= CT_MAX_USERS ||
         ctx->users[id] == NULL ||
         (se->drop_uid != id && ctx->users[id]->status != USER_STATUS_NORMAL)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, "");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, "");
+        return CT_ERROR;
     }
 
     cm_str2text(ctx->users[id]->desc.name, name);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool32 knl_chk_user_status(knl_handle_t session, uint32 id)
 {
     knl_session_t *se = (knl_session_t *)session;
     dc_context_t *ctx = &se->kernel->dc_ctx;
-    if (id >= GS_MAX_USERS || ctx->users[id] == NULL || ctx->users[id]->status != USER_STATUS_NORMAL) {
-        return GS_FALSE;
+    if (id >= CT_MAX_USERS || ctx->users[id] == NULL || ctx->users[id]->status != USER_STATUS_NORMAL) {
+        return CT_FALSE;
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 bool32 knl_get_user_id(knl_handle_t session, text_t *name, uint32 *uid)
@@ -1573,9 +1574,9 @@ status_t knl_check_user_tables(knl_handle_t session, uint32 uid, bool32 *isfound
     knl_session_t *se = (knl_session_t *)session;
     dc_user_t *user = NULL;
 
-    knl_panic(uid < GS_MAX_USERS);
-    if (dc_open_user_by_id(se, uid, &user) != GS_SUCCESS) {
-        return GS_ERROR;
+    knl_panic(uid < CT_MAX_USERS);
+    if (dc_open_user_by_id(se, uid, &user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     uint32 eid = 0;
@@ -1583,12 +1584,14 @@ status_t knl_check_user_tables(knl_handle_t session, uint32 uid, bool32 *isfound
 
     for (eid = 0; eid < user->entry_hwm; eid++) {
         entry = DC_GET_ENTRY(user, eid);
-        if (entry != NULL) {
-            *isfound = GS_TRUE;
-            return GS_SUCCESS;
+        if (entry != NULL && entry->used && !entry->recycled) {
+            CT_LOG_RUN_ERR("[CREATE DB] user %u is not empty, entry is not null, entry: type %u, used %u, recycled %u",
+                           uid, entry->type, entry->used, entry->recycled);
+            *isfound = CT_TRUE;
+            return CT_SUCCESS;
         }
     }
 
-    *isfound = GS_FALSE;
-    return GS_SUCCESS;
+    *isfound = CT_FALSE;
+    return CT_SUCCESS;
 }

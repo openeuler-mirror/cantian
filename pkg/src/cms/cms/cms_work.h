@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -30,6 +30,7 @@
 #include "cms_syncpoint_inject.h"
 #include "cm_io_record.h"
 #include "cms_msg_def.h"
+#include "cms_interface.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,42 +48,48 @@ void cmd_handle_entry(thread_t* thread);
 void cms_uds_worker_entry(thread_t* thread);
 void cms_uds_hb_entry(thread_t* thread);
 
-void cms_uds_proc_msg(cms_packet_head_t* msg);
-void cms_uds_proc_cli_msg(cms_packet_head_t* msg);
-void cms_uds_proc_tool_edit_msg(cms_packet_head_t* msg);
-void cms_uds_proc_tool_oper_msg(cms_packet_head_t* msg);
-void cms_proc_msg_req_set_work_stat(cms_packet_head_t* msg);
-void cms_proc_msg_req_get_cluster_res_stat(cms_packet_head_t* msg);
-void cms_proc_msg_req_get_res_data(cms_packet_head_t* msg);
-void cms_proc_msg_req_set_res_data(cms_packet_head_t* msg);
-void cms_proc_msg_res_client_iof_kick(cms_packet_head_t* msg);
-void cms_proc_msg_req_cli_hb(cms_packet_head_t* msg);
-void cms_proc_msg_req_dis_conn(cms_packet_head_t* msg);
-void cms_proc_uds_msg_req_add_node(cms_packet_head_t* msg);
-void cms_proc_uds_msg_req_del_node(cms_packet_head_t* msg);
-void cms_proc_uds_msg_req_add_grp(cms_packet_head_t* msg);
-void cms_proc_uds_msg_req_del_grp(cms_packet_head_t* msg);
-void cms_proc_uds_msg_req_add_res(cms_packet_head_t* msg);
-void cms_proc_uds_msg_req_edit_res(cms_packet_head_t* msg);
-void cms_proc_uds_msg_req_del_res(cms_packet_head_t* msg);
-void cms_proc_msg_req_get_iostat(cms_packet_head_t* msg);
-void cms_proc_msg_req_reset_iostat(cms_packet_head_t* msg);
-void cms_proc_uds_msg_req_start_res(cms_packet_head_t* msg);
-void cms_proc_uds_msg_req_stop_res(cms_packet_head_t* msg);
-void cms_proc_uds_msg_req_stop_srv(cms_packet_head_t* msg);
-void cms_proc_uds_msg_req_get_srv_stat(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_uds_proc_msg(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_uds_proc_cli_msg(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_uds_proc_tool_edit_msg(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_uds_proc_tool_oper_msg(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_set_work_stat(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_get_cluster_res_stat(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_get_res_data(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_set_res_data(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_res_client_iof_kick(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_cli_hb(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_dis_conn(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_uds_msg_req_add_node(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_uds_msg_req_del_node(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_uds_msg_req_add_grp(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_uds_msg_req_del_grp(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_uds_msg_req_add_res(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_uds_msg_req_edit_res(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_uds_msg_req_del_res(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_get_iostat(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_reset_iostat(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_uds_msg_req_start_res(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_uds_msg_req_stop_res(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_uds_msg_req_stop_srv(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_uds_msg_req_get_srv_stat(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_uds_msg_req_version(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_res_client_upgrade(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_uds_msg_req_upgrade(cms_packet_head_t* msg);
 
 EXTER_ATTACK void cms_proc_msg(cms_packet_head_t* msg);
-void cms_proc_msg_req_hb(cms_packet_head_t* msg);
-void cms_proc_msg_res_hb(cms_packet_head_t* msg);
-void cms_proc_msg_req_start_res(cms_packet_head_t* msg);
-void cms_proc_msg_req_stop_res(cms_packet_head_t* msg);
-void cms_proc_msg_req_stat_chg(cms_packet_head_t* msg);
-void cms_proc_uds_msg_req_stop_srv(cms_packet_head_t* msg);
-void cms_proc_msg_req_get_srv_stat(cms_packet_head_t* msg);
-void cms_proc_msg_req_update_local_gcc(cms_packet_head_t* msg);
-void cms_proc_msg_req_iof_kick(cms_packet_head_t* msg);
-void cmd_proc_msg(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_hb(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_res_hb(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_start_res(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_stop_res(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_stat_chg(cms_packet_head_t* msg);
+#ifdef DB_DEBUG_VERSION
+EXTER_ATTACK void cms_proc_msg_req_stat_chg_new(cms_packet_head_t* msg);
+#endif
+EXTER_ATTACK void cms_proc_uds_msg_req_stop_srv(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_get_srv_stat(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_update_local_gcc(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_iof_kick(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_upgrade_local_version(cms_packet_head_t* msg);
 
 void cms_reply_msg_iof_kick_res(cms_packet_head_t *req_msg, status_t ret, const char *info);
 void cms_get_error_info(char *info);
@@ -143,19 +150,25 @@ status_t cms_init_del_res_req_to_master(cms_tool_msg_req_del_res_t* tool_req, cm
 status_t cms_exec_stop_res(char* name, cms_msg_scope_t scope, uint16 targe_node, char* err_info, uint32 err_info_len);
 status_t cms_exec_start_res(char* name, cms_msg_scope_t scope, uint16 targe_node, uint32 timeout,
     char* err_info);
-void cms_proc_msg_req_edit_res(cms_packet_head_t* msg);
 void cms_broadcast_update_local_gcc(void);
-void cms_proc_msg_req_add_res(cms_packet_head_t* msg);
-void cms_proc_msg_req_del_node(cms_packet_head_t* msg);
-void cms_proc_msg_req_del_res(cms_packet_head_t* msg);
-void cms_proc_msg_req_add_grp(cms_packet_head_t* msg);
-void cms_proc_msg_req_del_grp(cms_packet_head_t* msg);
-void cms_proc_msg_req_add_node(cms_packet_head_t* msg);
+EXTER_ATTACK void cmd_proc_msg(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_add_res(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_edit_res(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_del_node(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_del_res(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_add_grp(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_del_grp(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_add_node(cms_packet_head_t* msg);
+EXTER_ATTACK void cms_proc_msg_req_version_upgrade(cms_packet_head_t* msg);
 
 #ifdef DB_DEBUG_VERSION
 void cms_proc_msg_req_enable_inject(cms_packet_head_t *msg);
 void cms_reply_msg_res_enable_inject(cms_packet_head_t *req_msg, status_t ret);
 #endif
+
+bool32 cms_dbversion_cmp(const upgrade_version_t *cms_version, const cms_gcc_t* gcc_version);
+status_t cms_exec_upgrade_version(cms_packet_head_t* msg, char* info, uint32 info_len);
+status_t cms_exec_upgrade_version_on_master(cms_packet_head_t* msg, char* err_info);
 
 #ifdef __cplusplus
 }

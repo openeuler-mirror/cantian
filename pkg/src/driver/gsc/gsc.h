@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -27,6 +27,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "cm_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -180,7 +181,7 @@ typedef enum en_gsc_shd_rw_split {
     (int)101 /* specifies auto commit after execute, default is auto commit off , Attribute Datatype: unsigned int */
 #define GSC_ATTR_XACT_STATUS (int)102 /* currently not enabled */
 #define GSC_ATTR_EXIT_COMMIT                                                                                      \
-    (int)103 /* enable for zsql, for whether do commit when zsql is quit, default is enable , Attribute Datatype: \
+    (int)103 /* enable for ctsql, for whether do commit when ctsql is quit, default is enable , Attribute Datatype: \
                 unsigned int */
 #define GSC_ATTR_SERVEROUTPUT                                                                                      \
     (int)104 /* whether enable returns dbe_output.print_line in procedure, default is disable, Attribute Datatype: \
@@ -188,7 +189,7 @@ typedef enum en_gsc_shd_rw_split {
 #define GSC_ATTR_CHARSET_TYPE                                                                                     \
     (int)105 /* set charset type of client, currently supports UTF8 or GBK, default is UTF8 , Attribute Datatype: \
                 char*, Length: unsigned int */
-#define GSC_ATTR_NUM_WIDTH (int)106 /* enable for zsql, for display numeric value , Attribute Datatype: unsigned int \
+#define GSC_ATTR_NUM_WIDTH (int)106 /* enable for ctsql, for display numeric value , Attribute Datatype: unsigned int \
                                      */
 #define GSC_ATTR_INTERACTIVE_MODE                                                                    \
     (int)107 /* whether enable interactive timeout, default is disable. timeout depends on parameter \
@@ -310,7 +311,7 @@ typedef enum en_gsc_shd_rw_split {
         !=0: failed
     Description: Creates a connection object and use it to invoke gsc_connect to connect to the database
 */
-int gsc_alloc_conn(gsc_conn_t *conn);
+int gsc_alloc_conn(gsc_conn_t *pconn);
 
 /*
     Definition: release the connection object
@@ -320,7 +321,7 @@ int gsc_alloc_conn(gsc_conn_t *conn);
     Description: Releases a connection object. This API is invoked after the gsc_disconnect (database disconnection)
    operation is performed
 */
-void gsc_free_conn(gsc_conn_t conn);
+void gsc_free_conn(gsc_conn_t pconn);
 
 /*
     Definition: set connection attributes
@@ -336,7 +337,7 @@ void gsc_free_conn(gsc_conn_t conn);
                  such as: GSC_ATTR_AUTO_COMMIT-transaction commit method (1 means automatic commit, 0 means manual
    commit)
 */
-int gsc_set_conn_attr(gsc_conn_t conn, int attr, const void *data, unsigned int len);
+int gsc_set_conn_attr(gsc_conn_t pconn, int32 attr, const void *data, uint32 len);
 
 /*
     Definition: get connection attributes
@@ -353,7 +354,7 @@ int gsc_set_conn_attr(gsc_conn_t conn, int attr, const void *data, unsigned int 
                  such as: GSC_ATTR_AUTO_COMMIT-transaction commit method (1 indicates automatic commit, 0 indicates
    manual commit)
 */
-int gsc_get_conn_attr(gsc_conn_t conn, int attr, void *data, unsigned int len, unsigned int *attr_len);
+int gsc_get_conn_attr(gsc_conn_t pconn, int32 attr, void *data, uint32 len, uint32 *attr_len);
 
 /*
     Definition: Get error code and error message through connection
@@ -365,7 +366,7 @@ int gsc_get_conn_attr(gsc_conn_t conn, int attr, void *data, unsigned int len, u
     Return value:
     Description: Interface used to obtain error codes and error messages by the connection
 */
-void gsc_get_error(gsc_conn_t conn, int *code, const char **message);
+void gsc_get_error(gsc_conn_t pconn, int32 *code, const char **message);
 
 /*
     Definition: Get the location and column information of an error in the execution SQL through a connection
@@ -378,7 +379,7 @@ void gsc_get_error(gsc_conn_t conn, int *code, const char **message);
     Description: interface is used to obtain the location and column information of the error in the execution SQL
    through the connection, used to locate the reason of the SQL error
 */
-void gsc_get_error_position(gsc_conn_t conn, unsigned short *line, unsigned short *column);
+void gsc_get_error_position(gsc_conn_t pconn, unsigned short *line, unsigned short *column);
 
 /*
     Definition: get error message through connection
@@ -389,7 +390,7 @@ void gsc_get_error_position(gsc_conn_t conn, unsigned short *line, unsigned shor
     Description: interface is used to obtain the error message by conn. If the passed conn is NULL, the returned message
    is NULL.
 */
-char *gsc_get_message(gsc_conn_t conn);
+char *gsc_get_message(gsc_conn_t pconn);
 
 /*
     Definition: Connect to the database
@@ -403,7 +404,7 @@ char *gsc_get_message(gsc_conn_t conn);
         !=0: failed
     Description: Connects to the database. The URL format is ip:port and only supports TCP connections
 */
-int gsc_connect(gsc_conn_t conn, const char *url, const char *user, const char *password);
+int gsc_connect(gsc_conn_t pconn, const char *url, const char *user, const char *password);
 
 /*
     Definition: disconnect the database
@@ -412,7 +413,7 @@ int gsc_connect(gsc_conn_t conn, const char *url, const char *user, const char *
     Return value:
     Description: Interface used to disconnect the database
 */
-void gsc_disconnect(gsc_conn_t conn);
+void gsc_disconnect(gsc_conn_t pconn);
 
 /*
     Definition: get session ID
@@ -422,7 +423,7 @@ void gsc_disconnect(gsc_conn_t conn);
     Description: interface is used to obtain the session ID which uniquely identifies a connection. If the conn is NULL,
    returns invalid sid
 */
-unsigned int gsc_get_sid(gsc_conn_t conn);
+unsigned int gsc_get_sid(gsc_conn_t pconn);
 
 /*
     Definition: cancel the statement being executed
@@ -434,7 +435,7 @@ unsigned int gsc_get_sid(gsc_conn_t conn);
         !=0 failed
     Description: interface is used to cancel operations on the connection for the specified session ID
 */
-int gsc_cancel(gsc_conn_t conn, unsigned int sid);
+int gsc_cancel(gsc_conn_t pconn, uint32 sid);
 
 /*
     Definition: apply handle object
@@ -447,7 +448,7 @@ int gsc_cancel(gsc_conn_t conn, unsigned int sid);
         !=0: failed
     Description: interface is used to create a handle object, and then use the handle object to execute SQL.
 */
-int gsc_alloc_stmt(gsc_conn_t conn, gsc_stmt_t *stmt);
+int gsc_alloc_stmt(gsc_conn_t pconn, gsc_stmt_t *pstmt);
 
 /*
     Definition: release handle object
@@ -456,7 +457,7 @@ int gsc_alloc_stmt(gsc_conn_t conn, gsc_stmt_t *stmt);
     Return value:
     Description: interface is used to release the handle object
 */
-void gsc_free_stmt(gsc_stmt_t stmt);
+void gsc_free_stmt(gsc_stmt_t pstmt);
 
 /*
     Definition: Set the handle attribute
@@ -473,7 +474,7 @@ void gsc_free_stmt(gsc_stmt_t stmt);
                           GSC_ATTR_PREFETCH_BUFFER--->prefetch record size,
                           GSC_ATTR_PARAMSET_SIZE--->Batch Parameter Bindings
 */
-int gsc_set_stmt_attr(gsc_stmt_t stmt, int attr, const void *data, unsigned int len);
+int gsc_set_stmt_attr(gsc_stmt_t pstmt, int attr, const void *data, uint32 len);
 
 /*
     Definition: get the handle attribute
@@ -490,7 +491,7 @@ int gsc_set_stmt_attr(gsc_stmt_t stmt, int attr, const void *data, unsigned int 
                           GSC_ATTR_PREFETCH_BUFFER--->prefetch record size,
                           GSC_ATTR_PARAMSET_SIZE--->Batch Parameter Bindings
 */
-int gsc_get_stmt_attr(gsc_stmt_t stmt, int attr, const void *data, unsigned int buf_len, unsigned int *len);
+int gsc_get_stmt_attr(gsc_stmt_t pstmt, int attr, const void *data, uint32 buf_len, uint32 *len);
 
 /*
     Definition: Preprocessing SQL statements
@@ -502,7 +503,7 @@ int gsc_get_stmt_attr(gsc_stmt_t stmt, int attr, const void *data, unsigned int 
         !=0: failed
     Description: Interface for preprocessing SQL statements
 */
-int gsc_prepare(gsc_stmt_t stmt, const char *sql);
+int gsc_prepare(gsc_stmt_t pstmt, const char *sql);
 
 /*
      Definition: parameter binding by parameter position
@@ -523,9 +524,9 @@ int gsc_prepare(gsc_stmt_t stmt, const char *sql);
    default direction is 1(input parameter). If need bind parameter with direction, need use gsc_bind_by_pos2. Value of
    direction can be 1(input parameter), 2(outut parameter) or 3(inout parameter).
 */
-int gsc_bind_by_pos(gsc_stmt_t stmt, unsigned int pos, int type, const void *data, int size, unsigned short *ind);
-int gsc_bind_by_pos2(gsc_stmt_t stmt, unsigned int pos, int type, const void *data, int size, unsigned short *ind,
-    int direction);
+int gsc_bind_by_pos(gsc_stmt_t pstmt, uint32 pos, int type, const void *data, int32 size, uint16 *ind);
+int gsc_bind_by_pos2(gsc_stmt_t pstmt, uint32 pos, int type, const void *data, int32 size, uint16 *ind,
+                     int32 direction);
 
 /*
      Definition: parameter binding by parameter position
@@ -543,9 +544,9 @@ int gsc_bind_by_pos2(gsc_stmt_t stmt, unsigned int pos, int type, const void *da
     Description: interface is used for parameter binding by parameter name. If NULL is bound, the corresponding ind[i]
    of the data needs to be set to GSC_NULL.
 */
-int gsc_bind_by_name(gsc_stmt_t stmt, const char *name, int type, const void *data, int size, unsigned short *ind);
-int gsc_bind_by_name2(gsc_stmt_t stmt, const char *name, int type, const void *data, int size, unsigned short *ind,
-    int direction);
+int gsc_bind_by_name(gsc_stmt_t pstmt, const char *name, int type, const void *data, int32 size, uint16 *ind);
+int gsc_bind_by_name2(gsc_stmt_t pstmt, const char *name, int type, const void *data, int32 size, uint16 *ind,
+                      int32 direction);
 
 /*
     Definition: Get the number of query columns
@@ -558,7 +559,7 @@ int gsc_bind_by_name2(gsc_stmt_t stmt, const char *name, int type, const void *d
         !=0: failed
     Description: interface is used to get the number of query columns, only valid for the query
 */
-int gsc_get_column_count(gsc_stmt_t stmt, unsigned int *column_count);
+int gsc_get_column_count(gsc_stmt_t pstmt, uint32 *column_count);
 
 /*
     Definition: Get query column description information according to query column serial number
@@ -573,7 +574,7 @@ int gsc_get_column_count(gsc_stmt_t stmt, unsigned int *column_count);
     Description: interface is used to obtain query column description information (column name, column data type, column
    size, etc.) based on the query column ordinal number, valid only for the query.
 */
-int gsc_desc_column_by_id(gsc_stmt_t stmt, unsigned int id, gsc_column_desc_t *desc);
+int gsc_desc_column_by_id(gsc_stmt_t pstmt, uint32 id, gsc_column_desc_t *desc);
 
 /*
     Definition: Get the query column description based on the query name
@@ -588,7 +589,7 @@ int gsc_desc_column_by_id(gsc_stmt_t stmt, unsigned int id, gsc_column_desc_t *d
     Description: interface is used to obtain query column description information (column name, column data type, column
    size, etc.) based on the query name, only valid for the query.
 */
-int gsc_desc_column_by_name(gsc_stmt_t stmt, const char *col_name, gsc_column_desc_t *desc);
+int gsc_desc_column_by_name(gsc_stmt_t pstmt, const char *col_name, gsc_column_desc_t *desc);
 
 /*
     Definition: Get the query column description based on the query attribute
@@ -606,7 +607,7 @@ int gsc_desc_column_by_name(gsc_stmt_t stmt, const char *col_name, gsc_column_de
         (column name, column data type, column size, etc.) based on the query attribute,
         only valid for the query.
 */
-int gsc_get_desc_attr(gsc_stmt_t stmt, unsigned int id, int attr, void *data, unsigned int *len);
+int gsc_get_desc_attr(gsc_stmt_t pstmt, uint32 id, int32 attr, void *data, uint32 *len);
 
 /*
     Definition: Get the value of a specific query column based on the query column ordinal
@@ -624,7 +625,7 @@ int gsc_get_desc_attr(gsc_stmt_t stmt, unsigned int id, int attr, void *data, un
    is valid only for queries. Size is determined by the column data type. For example, int is 4 bytes, bigint is 8
    bytes, and string is variable length.
 */
-int gsc_get_column_by_id(gsc_stmt_t stmt, unsigned int id, void **data, unsigned int *size, unsigned int *is_null);
+int gsc_get_column_by_id(gsc_stmt_t pstmt, unsigned int id, void **data, unsigned int *size, bool32 *is_null);
 
 /*
     Definition: Get the value of a specific query column based on the query column name
@@ -641,7 +642,7 @@ int gsc_get_column_by_id(gsc_stmt_t stmt, unsigned int id, void **data, unsigned
     Description: interface is used to obtain the value of a specific query column based on the query column ordinal. It
    is valid only for queries.
 */
-int gsc_get_column_by_name(gsc_stmt_t stmt, const char *name, void **data, unsigned int *size, unsigned int *is_null);
+int gsc_get_column_by_name(gsc_stmt_t pstmt, const char *col_name, void **data, uint32 *size, uint32 *is_null);
 
 /*
     Definition: Get the number of rows affected
@@ -653,7 +654,7 @@ int gsc_get_column_by_name(gsc_stmt_t stmt, const char *name, void **data, unsig
    indicates the number of rows inserted, deleted, and updated. For select and explain plan statements, affect_rows
    indicates the number of rows in the current fetch, not the number of rows that can eventually be fetched.
 */
-unsigned int gsc_get_affected_rows(gsc_stmt_t stmt);
+unsigned int gsc_get_affected_rows(gsc_stmt_t pstmt);
 
 /*
     Definition: Get the query column value obtained from the query column serial number as a string
@@ -670,7 +671,7 @@ unsigned int gsc_get_affected_rows(gsc_stmt_t stmt);
    string manner. For the date and time type column, the output format can also be executed. If not specified, the
    default date_format="YYYY-MM-DD HH24:MI:SS",timestamp_format="YYYY-MM-DD HH24:MI:SS.FF"
 */
-int gsc_column_as_string(gsc_stmt_t stmt, unsigned int id, char *str, unsigned int buf_size);
+int gsc_column_as_string(gsc_stmt_t pstmt, uint32 id, char *str, uint32 buf_size);
 
 /*
     Definition: This call specifies additional attributes necessary for a static array define, used in an array of
@@ -682,8 +683,8 @@ int gsc_column_as_string(gsc_stmt_t stmt, unsigned int id, char *str, unsigned i
    attr GSC_ATTR_FETCH_SIZE. Bind_type can be same with data type of column definition or likely, such as number or date
    or string.
 */
-int gsc_bind_column(gsc_stmt_t stmt, unsigned int id, unsigned short bind_type, unsigned short bind_size,
-    void *bind_ptr, unsigned short *ind_ptr);
+int gsc_bind_column(gsc_stmt_t pstmt, uint32 id, uint16 bind_type, uint16 bind_size, void *bind_ptr,
+                    uint16 *ind_ptr);
 
 /*
     Definition: Execute SQL statement
@@ -696,7 +697,7 @@ int gsc_bind_column(gsc_stmt_t stmt, unsigned int id, unsigned short bind_type, 
    transaction is committed or rolled back immediately after the operations of inserting, deleting, and updating are
    performed. No need to commit or rollback manually.
 */
-int gsc_execute(gsc_stmt_t stmt);
+int gsc_execute(gsc_stmt_t pstmt);
 
 /*
     Definition: Get a query record row
@@ -709,7 +710,7 @@ int gsc_execute(gsc_stmt_t stmt);
         !=0: failed
     Description: interface is used to obtain a query record row, rows value is>=0
 */
-int gsc_fetch(gsc_stmt_t stmt, unsigned int *rows);
+int gsc_fetch(gsc_stmt_t pstmt, uint32 *rows);
 
 /*
     Definition: Submit a transaction that has not ended
@@ -720,7 +721,7 @@ int gsc_fetch(gsc_stmt_t stmt, unsigned int *rows);
         !=0: failed
     Description: Interface used to commit transactions that have not yet ended
 */
-int gsc_commit(gsc_conn_t conn);
+int gsc_commit(gsc_conn_t pconn);
 
 /*
     Definition: rollback a transaction that has not ended
@@ -731,7 +732,7 @@ int gsc_commit(gsc_conn_t conn);
         !=0: failed
     Description: Interface used to rollback transactions that have not yet ended
 */
-int gsc_rollback(gsc_conn_t conn);
+int gsc_rollback(gsc_conn_t pconn);
 
 /*
     Definition: Set whether to automatically commit the transaction after the current operation
@@ -742,7 +743,7 @@ int gsc_rollback(gsc_conn_t conn);
     Description: interface is used to set whether the transaction is committed automatically after the current
    operation. Usage is equivalent to gsc_set_conn_attr setting GSC_ATTR_AUTO_COMMIT
 */
-void gsc_set_autocommit(gsc_conn_t conn, unsigned int auto_commit);
+void gsc_set_autocommit(gsc_conn_t pconn, bool32 auto_commit);
 
 /*
     Definition: Set batch parameter binding number
@@ -753,7 +754,7 @@ void gsc_set_autocommit(gsc_conn_t conn, unsigned int auto_commit);
     Description: interface is used to set the number of batch parameter bindings, usage is equivalent to
    gsc_set_stmt_attr set GSC_ATTR_PARAMSET_SIZE
 */
-void gsc_set_paramset_size(gsc_stmt_t stmt, unsigned int sz);
+void gsc_set_paramset_size(gsc_stmt_t pstmt, uint32 sz);
 
 /*
     Definition: Query series interface
@@ -762,13 +763,13 @@ void gsc_set_paramset_size(gsc_stmt_t stmt, unsigned int sz);
     Description: interface is used to use connection handle object to execute sql, can use gsc_get_query_stmt to get
    stmt and get more result
 */
-int gsc_query(gsc_conn_t conn, const char *sql);
-unsigned int gsc_query_get_affected_rows(gsc_conn_t conn);
-unsigned int gsc_query_get_column_count(gsc_conn_t conn);
-int gsc_query_fetch(gsc_conn_t conn, unsigned int *rows);
-int gsc_query_describe_column(gsc_conn_t conn, unsigned int id, gsc_column_desc_t *desc);
-int gsc_query_get_column(gsc_conn_t conn, unsigned int id, void **data, unsigned int *size, unsigned int *is_null);
-gsc_stmt_t gsc_get_query_stmt(gsc_conn_t conn);
+int gsc_query(gsc_conn_t pconn, const char *sql);
+unsigned int gsc_query_get_affected_rows(gsc_conn_t pconn);
+unsigned int gsc_query_get_column_count(gsc_conn_t pconn);
+int gsc_query_fetch(gsc_conn_t pconn, uint32 *rows);
+int gsc_query_describe_column(gsc_conn_t pconn, uint32 id, gsc_column_desc_t *desc);
+int gsc_query_get_column(gsc_conn_t pconn, uint32 id, void **data, uint32 *size, uint32 *is_null);
+gsc_stmt_t gsc_get_query_stmt(gsc_conn_t pconn);
 
 /*
     Definition: blob or clob or image read and write series interface
@@ -776,22 +777,21 @@ gsc_stmt_t gsc_get_query_stmt(gsc_conn_t conn);
     Return value:
     Description: interface is used to read and write blob or clob or image data
 */
-int gsc_write_blob(gsc_stmt_t stmt, unsigned int id, const void *data, unsigned int size);
-int gsc_write_clob(gsc_stmt_t stmt, unsigned int id, const void *data, unsigned int size, unsigned int *nchars);
+int gsc_write_blob(gsc_stmt_t pstmt, uint32 id, const void *data, uint32 size);
+int gsc_write_clob(gsc_stmt_t pstmt, uint32 id, const void *data, uint32 size, uint32 *nchars);
 
-int gsc_write_batch_blob(gsc_stmt_t stmt, unsigned int id, unsigned int piece, const void *data, unsigned int size);
-int gsc_write_batch_clob(gsc_stmt_t stmt, unsigned int id, unsigned int piece, const void *data, unsigned int size,
-    unsigned int *nchars);
+int gsc_write_batch_blob(gsc_stmt_t pstmt, uint32 id, uint32 piece, const void *data, uint32 size);
+int gsc_write_batch_clob(gsc_stmt_t pstmt, uint32 id, uint32 piece, const void *data, uint32 size, uint32 *nchars);
 
-int gsc_read_blob_by_id(gsc_stmt_t stmt, unsigned int id, unsigned int offset, void *buffer, unsigned int size,
-    unsigned int *nbytes, unsigned int *eof);
-int gsc_read_blob(gsc_stmt_t stmt, void *locator, unsigned int offset, void *buffer, unsigned int size,
-    unsigned int *nbytes, unsigned int *eof);
+int gsc_read_blob_by_id(gsc_stmt_t pstmt, uint32 id, uint32 offset, void *buffer, uint32 size, uint32 *nbytes,
+                        uint32 *eof);
+int gsc_read_blob(gsc_stmt_t pstmt, void *locator, uint32 offset, void *buffer, uint32 size, uint32 *nbytes,
+                  uint32 *eof);
 
-int gsc_read_clob_by_id(gsc_stmt_t stmt, unsigned int id, unsigned int offset, void *buffer, unsigned int size,
-    unsigned int *nchars, unsigned int *nbytes, unsigned int *eof);
-int gsc_read_clob(gsc_stmt_t stmt, void *locator, unsigned int offset, void *buffer, unsigned int size,
-    unsigned int *nchars, unsigned int *nbytes, unsigned int *eof);
+int gsc_read_clob_by_id(gsc_stmt_t pstmt, uint32 id, uint32 offset, void *buffer, uint32 size, uint32 *nchars,
+                        uint32 *nbytes, uint32 *eof);
+int gsc_read_clob(gsc_stmt_t pstmt, void *locator, uint32 offset, void *buffer, uint32 size, uint32 *nchars,
+                  uint32 *nbytes, uint32 *eof);
 
 /*
     Definition: Get serveroutput information
@@ -806,7 +806,7 @@ int gsc_read_clob(gsc_stmt_t stmt, void *locator, unsigned int offset, void *buf
     Description: interface is used to obtain the serveroutput information. If and only if the client sets the server
    output switch and the server has serveroutput content output, it will obtain the content.
 */
-int gsc_fetch_serveroutput(gsc_stmt_t stmt, char **data, unsigned int *len);
+int gsc_fetch_serveroutput(gsc_stmt_t pstmt, char **data, uint32 *len);
 
 /*
     Definition: Get implicit resultset of procedure
@@ -820,7 +820,7 @@ int gsc_fetch_serveroutput(gsc_stmt_t stmt, char **data, unsigned int *len);
     Description: interface is used to get implicit resultset of procedure with one by one mode. If resultset is null
    means has no more return result.
 */
-int gsc_get_implicit_resultset(gsc_stmt_t stmt, gsc_stmt_t *resultset);
+int gsc_get_implicit_resultset(gsc_stmt_t pstmt, gsc_stmt_t *resultset);
 
 /*
     Definition: Get the outparam column description information according to outparam column serial number
@@ -835,7 +835,7 @@ int gsc_get_implicit_resultset(gsc_stmt_t stmt, gsc_stmt_t *resultset);
     Description: interface is used to obtain outparam column description information (outparam name, outparam data type,
    outparam size, etc.) based on the outparam column ordinal number, valid only for the procedure.
 */
-int gsc_desc_outparam_by_id(gsc_stmt_t stmt, unsigned int id, gsc_outparam_desc_t *desc);
+int gsc_desc_outparam_by_id(gsc_stmt_t pstmt, uint32 id, gsc_outparam_desc_t *desc);
 
 /*
     Definition: Get the outparam column description based on the outparam name
@@ -850,7 +850,7 @@ int gsc_desc_outparam_by_id(gsc_stmt_t stmt, unsigned int id, gsc_outparam_desc_
     Description: interface is used to obtain outparam column description information (outparam name, outparam data type,
    outparam size, etc.) based on the outparam name, only valid for the procedure.
 */
-int gsc_desc_outparam_by_name(gsc_stmt_t stmt, const char *name, gsc_outparam_desc_t *desc);
+int gsc_desc_outparam_by_name(gsc_stmt_t pstmt, const char *name, gsc_outparam_desc_t *desc);
 
 /*
     Definition: Get an outparam record row
@@ -863,7 +863,7 @@ int gsc_desc_outparam_by_name(gsc_stmt_t stmt, const char *name, gsc_outparam_de
         !=0: failed
     Description: interface is used to obtain a outparam record row, rows value is>=0
 */
-int gsc_fetch_outparam(gsc_stmt_t stmt, unsigned int *rows);
+int gsc_fetch_outparam(gsc_stmt_t pstmt, uint32 *rows);
 
 /*
     Definition: Get the value of a specific outparam column based on the outparam column ordinal
@@ -882,7 +882,7 @@ int gsc_fetch_outparam(gsc_stmt_t stmt, unsigned int *rows);
    sys_refcursor. Size is determined by the column data type. For example, int is 4 bytes, bigint is 8 bytes, and string
    is variable length.
 */
-int gsc_get_outparam_by_id(gsc_stmt_t stmt, unsigned int id, void **data, unsigned int *size, unsigned int *is_null);
+int gsc_get_outparam_by_id(gsc_stmt_t pstmt, uint32 id, void **data, uint32 *size, bool32 *is_null);
 
 /*
     Definition: Get the value of a specific outparam column based on the outparam column name
@@ -899,7 +899,7 @@ int gsc_get_outparam_by_id(gsc_stmt_t stmt, unsigned int id, void **data, unsign
     Description: interface is used to obtain the value of a specific outparam column based on the outparam column
    ordinal. It is valid only for procedure.
 */
-int gsc_get_outparam_by_name(gsc_stmt_t stmt, const char *name, void **data, unsigned int *size, unsigned int *is_null);
+int gsc_get_outparam_by_name(gsc_stmt_t pstmt, const char *name, void **data, uint32 *size, uint32 *is_null);
 
 /*
     Definition: Get the outparam column value obtained from the outparam column serial number as a string
@@ -915,7 +915,7 @@ int gsc_get_outparam_by_name(gsc_stmt_t stmt, const char *name, void **data, uns
    in a string manner. If datatype of desc is GSC_TYPE_CURSOR, must use gsc_get_outparam_by_id or
    gsc_get_outparam_by_name to obtain;
 */
-int gsc_outparam_as_string_by_id(gsc_stmt_t stmt, unsigned int id, char *str, unsigned int buf_size);
+int gsc_outparam_as_string_by_id(gsc_stmt_t pstmt, uint32 id, char *str, uint32 buf_size);
 
 /*
     Definition: Get the outparam column value obtained from the outparam column based on the outparam name as a string
@@ -931,7 +931,7 @@ int gsc_outparam_as_string_by_id(gsc_stmt_t stmt, unsigned int id, char *str, un
    in a string manner. If datatype of desc is GSC_TYPE_CURSOR, must use gsc_get_outparam_by_id or
    gsc_get_outparam_by_name to obtain;
 */
-int gsc_outparam_as_string_by_name(gsc_stmt_t stmt, const char *name, char *str, unsigned int buf_size);
+int gsc_outparam_as_string_by_name(gsc_stmt_t pstmt, const char *name, char *str, uint32 buf_size);
 
 /*
     Definition: Convert time information to gsc_datetime_t construct
@@ -954,9 +954,8 @@ int gsc_outparam_as_string_by_name(gsc_stmt_t stmt, const char *name, char *str,
         !=0: failed
     Description: interface is used to convert time information to gsc_datetime_t construct.
 */
-int gsc_datetime_construct(gsc_stmt_t stmt, gsc_datetime_t datetime, int datatype, unsigned short year,
-    unsigned char mon, unsigned char day, unsigned char hour, unsigned char min, unsigned char sec, unsigned int fsec,
-    char *timezone, unsigned int timezone_len);
+status_t gsc_datetime_construct(gsc_stmt_t pstmt, gsc_datetime_t datetime, int32 datatype, uint16 year, uint8 mon,
+    uint8 day, uint8 hour, uint8 min, uint8 sec, uint32 fsec, char *timezone, uint32 timezone_len);
 
 /*
     Definition: Get time information from gsc_datetime_t construct
@@ -977,9 +976,8 @@ int gsc_datetime_construct(gsc_stmt_t stmt, gsc_datetime_t datetime, int datatyp
         !=0: failed
     Description: interface is used to get time information from gsc_datetime_t construct.
 */
-int gsc_datetime_deconstruct(gsc_stmt_t stmt, gsc_datetime_t datetime, int datatype, unsigned short *year,
-    unsigned char *mon, unsigned char *day, unsigned char *hour, unsigned char *min, unsigned char *sec,
-    unsigned int *fsec);
+int gsc_datetime_deconstruct(gsc_stmt_t pstmt, gsc_datetime_t datetime, int32 datatype, uint16 *year, uint8 *mon,
+                             uint8 *day, uint8 *hour, uint8 *min, uint8 *sec, uint32 *fsec);
 
 /*
     Definition: Get string timezone information from gsc_datetime_t construct
@@ -996,8 +994,8 @@ int gsc_datetime_deconstruct(gsc_stmt_t stmt, gsc_datetime_t datetime, int datat
         !=0: failed
     Description: interface is used to get string timezone information from gsc_datetime_t construct.
 */
-int gsc_datetime_get_timezone_name(gsc_stmt_t stmt, gsc_datetime_t datetime, int datatype, char *timezone,
-    unsigned int *timezone_len);
+int gsc_datetime_get_timezone_name(gsc_stmt_t pstmt, gsc_datetime_t datetime, int32 datatype, char *buf,
+                                   uint32 *buf_len);
 
 /*
     Definition: Get timezone information from gsc_datetime_t construct
@@ -1013,7 +1011,8 @@ int gsc_datetime_get_timezone_name(gsc_stmt_t stmt, gsc_datetime_t datetime, int
         !=0: failed
     Description: interface is used to get timezone information from gsc_datetime_t construct.
 */
-int gsc_datetime_get_timezone_offset(gsc_stmt_t stmt, gsc_datetime_t datetime, int datatype, char *hour, char *min);
+int gsc_datetime_get_timezone_offset(gsc_stmt_t pstmt, gsc_datetime_t datetime, int32 datatype, int8 *hour,
+                                     int8 *min);
 
 /*
     Definition: Get the description of object
@@ -1026,7 +1025,7 @@ int gsc_datetime_get_timezone_offset(gsc_stmt_t stmt, gsc_datetime_t datetime, i
         !=0: failed
     Description: interface is used to desc object, such as table, view, synonym, query, etc.
 */
-int gsc_describle(gsc_stmt_t stmt, char *object, gsc_desc_type_t desc_type);
+int gsc_describle(gsc_stmt_t pstmt, char *objptr, gsc_desc_type_t dtype);
 
 /*
     Definition: Get batch error info
@@ -1042,7 +1041,7 @@ int gsc_describle(gsc_stmt_t stmt, char *object, gsc_desc_type_t desc_type);
     Description: interface is used to get batch error info one by one mode. If rows = 0 means has no more batch error to
    get.
 */
-int gsc_get_batch_error(gsc_stmt_t stmt, unsigned int *line, char **err_message, unsigned int *rows);
+int gsc_get_batch_error(gsc_stmt_t pstmt, uint32 *line, char **err_message, uint32 *rows);
 
 /*
     Definition: Get batch error info
@@ -1059,7 +1058,7 @@ int gsc_get_batch_error(gsc_stmt_t stmt, unsigned int *line, char **err_message,
     Description: interface is used to get batch error info one by one mode. If rows = 0 means has no more batch error to
    get.
 */
-int gsc_get_batch_error2(gsc_stmt_t stmt, unsigned int *line, int *code, char **err_message, unsigned int *rows);
+int gsc_get_batch_error2(gsc_stmt_t pstmt, unsigned int *line, int *code, char **err_message, unsigned int *rows);
 
 /*
     Definition: Execute multiple sql
@@ -1073,7 +1072,7 @@ int gsc_get_batch_error2(gsc_stmt_t stmt, unsigned int *line, int *code, char **
     Description: interface is used to execute multiple sql. Do not supports procedure yet and need use comma between
    every sql
 */
-int gsc_query_multiple(gsc_conn_t conn, const char *sql);
+int gsc_query_multiple(gsc_conn_t pconn, const char *sql);
 
 /*
     Definition: Get multiple resultset of query
@@ -1087,7 +1086,7 @@ int gsc_query_multiple(gsc_conn_t conn, const char *sql);
     Description: interface is used to get multiple resultset of query with one by one mode. If resultset is null means
    has no more resultset.
 */
-int gsc_get_query_resultset(gsc_conn_t conn, gsc_stmt_t *resultset);
+int gsc_get_query_resultset(gsc_conn_t pconn, gsc_stmt_t *resultset);
 
 /* sign flag of number */
 #define GSC_NUMBER_SIGNED 0
@@ -1107,7 +1106,7 @@ int gsc_get_query_resultset(gsc_conn_t conn, gsc_stmt_t *resultset);
         !=0: failed
     Description: interface is used to convert NUMBER to short(len = 2),int(len = 4),bigint(len = 8).
 */
-int gsc_number_to_int(gsc_stmt_t stmt, void *number, unsigned int sign_flag, unsigned int rsl_length, void *rsl);
+int gsc_number_to_int(gsc_stmt_t pstmt, void *number, unsigned int sign_flag, unsigned int rsl_length, void *rsl);
 
 /*
     Definition: Convert an dec4_t NUMBER type value to real
@@ -1122,7 +1121,7 @@ int gsc_number_to_int(gsc_stmt_t stmt, void *number, unsigned int sign_flag, uns
         !=0: failed
     Description: interface is used to convert NUMBER to float(len = 4) or double(len = 8).
 */
-int gsc_number_to_real(gsc_stmt_t stmt, void *number, unsigned int rsl_length, void *rsl);
+int gsc_number_to_real(gsc_stmt_t pstmt, void *number, unsigned int rsl_length, void *rsl);
 
 /*
     Definition: Convert an dec4_t NUMBER type value to string
@@ -1137,7 +1136,7 @@ int gsc_number_to_real(gsc_stmt_t stmt, void *number, unsigned int rsl_length, v
         !=0: failed
     Description: interface is used to convert NUMBER to string.
 */
-int gsc_number_to_string(gsc_stmt_t stmt, void *number, char *buf, unsigned int buf_size);
+int gsc_number_to_string(gsc_stmt_t pstmt, void *number, char *buf, unsigned int buf_size);
 
 
 typedef struct st_gsc_xid {
@@ -1189,7 +1188,7 @@ typedef enum en_gsc_xact_status {
 #ifdef WIN32
 int gsc_xa_start(gsc_conn_t conn, gsc_xid_t *xid, unsigned __int64 timeout, unsigned __int64 flags);
 #else
-int gsc_xa_start(gsc_conn_t conn, gsc_xid_t *xid, unsigned long long timeout, unsigned long long flags);
+int gsc_xa_start(gsc_conn_t conn, gsc_xid_t *xid, uint64 timeout, uint64 flags);
 #endif
 
 /*
@@ -1207,7 +1206,7 @@ int gsc_xa_start(gsc_conn_t conn, gsc_xid_t *xid, unsigned long long timeout, un
 #ifdef WIN32
 int gsc_xa_end(gsc_conn_t conn, unsigned __int64 flags);
 #else
-int gsc_xa_end(gsc_conn_t conn, unsigned long long flags);
+int gsc_xa_end(gsc_conn_t conn, uint64 flags);
 #endif
 
 /*
@@ -1230,7 +1229,7 @@ int gsc_xa_end(gsc_conn_t conn, unsigned long long flags);
 #ifdef WIN32
 int gsc_xa_prepare(gsc_conn_t conn, gsc_xid_t *xid, unsigned __int64 flags, struct timeval *timestamp);
 #else
-int gsc_xa_prepare(gsc_conn_t conn, gsc_xid_t *xid, unsigned long long flags, struct timeval *timestamp);
+int gsc_xa_prepare(gsc_conn_t conn, gsc_xid_t *xid, uint64 flags, struct timeval *ts);
 #endif
 
 /*
@@ -1257,7 +1256,7 @@ Description: NA
 #ifdef WIN32
 int gsc_xa_commit(gsc_conn_t conn, gsc_xid_t *xid, unsigned __int64 flags, struct timeval *timestamp);
 #else
-int gsc_xa_commit(gsc_conn_t conn, gsc_xid_t *xid, unsigned long long flags, struct timeval *timestamp);
+int gsc_xa_commit(gsc_conn_t conn, gsc_xid_t *xid, uint64 flags, struct timeval *ts);
 #endif
 
 /*
@@ -1275,7 +1274,7 @@ int gsc_xa_commit(gsc_conn_t conn, gsc_xid_t *xid, unsigned long long flags, str
 #ifdef WIN32
 int gsc_xa_rollback(gsc_conn_t conn, gsc_xid_t *xid, unsigned __int64 flags);
 #else
-int gsc_xa_rollback(gsc_conn_t conn, gsc_xid_t *xid, unsigned long long flags);
+int gsc_xa_rollback(gsc_conn_t conn, gsc_xid_t *xid, uint64 flags);
 #endif
 
 /*

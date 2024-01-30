@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -44,7 +44,7 @@ extern "C" {
 #define CMS_VOTE_RESULT_OFFSET  (OFFSET_OF(vote_result_ctx_t, vote_round))
 #define CMS_VOTE_VALID_PERIOD 5000
 // reserve 100 blocks
-#define CMS_VOTE_DATA_GCC_OFFSET (CMS_RES_LOCK_OFFSET + sizeof(cms_cluster_res_lock_t) + CMS_RESERVED_BLOCKS_SIZE)
+#define CMS_VOTE_DATA_GCC_OFFSET (CMS_MES_CHANNEL_OFFSET + sizeof(cms_mes_channel_t) + CMS_RESERVED_BLOCKS_SIZE)
 
 #define CMS_VOTE_INFO 0 // slot id, persist the vote_ctx info
 #define CMS_VOTE_TRIGGER_ROUND 1 // slot id, persist the new vote_round

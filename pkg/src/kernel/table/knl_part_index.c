@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "knl_table_module.h"
 #include "knl_part_output.h"
 #include "cm_hash.h"
 #include "cm_log.h"
@@ -37,7 +37,7 @@
 bool32 subpart_idx_find_by_name(part_index_t *part_index, text_t *name, index_part_t **idx_subpart)
 {
     if (!IS_COMPART_INDEX(part_index)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
     
     index_part_t *entity = NULL;
@@ -45,7 +45,7 @@ bool32 subpart_idx_find_by_name(part_index_t *part_index, text_t *name, index_pa
     part_bucket_t *bucket = &part_index->sub_pbuckets[hash];
     uint32 part_no = bucket->first;
 
-    while (part_no != GS_INVALID_ID32) {
+    while (part_no != CT_INVALID_ID32) {
         entity = PART_GET_SUBENTITY(part_index, part_no);
         if (cm_text_str_equal(name, entity->desc.name)) {
             break;
@@ -55,11 +55,11 @@ bool32 subpart_idx_find_by_name(part_index_t *part_index, text_t *name, index_pa
     }
     
     *idx_subpart = entity;
-    if (part_no == GS_INVALID_ID32) {
-        return GS_FALSE;
+    if (part_no == CT_INVALID_ID32) {
+        return CT_FALSE;
     }
     
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 bool32 part_idx_find_by_name(part_index_t *part_index, text_t *name, index_part_t **idx_part)
@@ -69,7 +69,7 @@ bool32 part_idx_find_by_name(part_index_t *part_index, text_t *name, index_part_
     part_bucket_t *bucket = &part_index->pbuckets[hash];
     uint32 part_no = bucket->first;
 
-    while (part_no != GS_INVALID_ID32) {
+    while (part_no != CT_INVALID_ID32) {
         entity = PART_GET_ENTITY(part_index, part_no);
         if (cm_text_str_equal(name, entity->desc.name)) {
             break;
@@ -79,11 +79,11 @@ bool32 part_idx_find_by_name(part_index_t *part_index, text_t *name, index_part_
     }
     
     *idx_part = entity;
-    if (part_no == GS_INVALID_ID32) {
-        return GS_FALSE;
+    if (part_no == CT_INVALID_ID32) {
+        return CT_FALSE;
     }
     
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t db_upd_idx_part(knl_session_t *session, knl_index_part_desc_t *desc)
@@ -98,19 +98,19 @@ status_t db_upd_idx_part(knl_session_t *session, knl_index_part_desc_t *desc)
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_INDEXPART_ID, IX_SYS_INDEXPART001_ID);
 
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->uid,
                      sizeof(uint32), IX_COL_SYS_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->table_id,
                      sizeof(uint32), IX_COL_SYS_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->index_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->index_id,
                      sizeof(uint32), IX_COL_SYS_INDEXPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->part_id,
                      sizeof(uint32), IX_COL_SYS_INDEXPART001_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s", cursor->rowid.file,
@@ -133,14 +133,14 @@ status_t db_upd_idx_part(knl_session_t *session, knl_index_part_desc_t *desc)
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_upd_idx_part_entry(knl_session_t *session, knl_index_part_desc_t *desc, page_id_t entry)
@@ -155,19 +155,19 @@ status_t db_upd_idx_part_entry(knl_session_t *session, knl_index_part_desc_t *de
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_INDEXPART_ID, IX_SYS_INDEXPART001_ID);
 
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->uid,
                      sizeof(uint32), IX_COL_SYS_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->table_id,
                      sizeof(uint32), IX_COL_SYS_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->index_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->index_id,
                      sizeof(uint32), IX_COL_SYS_INDEXPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->part_id,
                      sizeof(uint32), IX_COL_SYS_INDEXPART001_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s", cursor->rowid.file,
@@ -181,13 +181,13 @@ status_t db_upd_idx_part_entry(knl_session_t *session, knl_index_part_desc_t *de
     cursor->update_info.columns[1] = SYS_INDEXPART_COL_ENTRY;  // index part entry
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_upd_shadow_idx_part_entry(knl_session_t *session, knl_index_part_desc_t *desc, page_id_t entry,
@@ -201,21 +201,21 @@ status_t db_upd_shadow_idx_part_entry(knl_session_t *session, knl_index_part_des
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_SHADOW_INDEXPART_ID, IX_SYS_SHW_INDEXPART001_ID);
 
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->uid,
         sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->table_id,
         sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->index_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->index_id,
         sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->part_id,
         sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&parent_partid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&parent_partid,
         sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_PARENTPART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!cursor->eof) {
@@ -225,14 +225,14 @@ status_t db_upd_shadow_idx_part_entry(knl_session_t *session, knl_index_part_des
         cursor->update_info.columns[0] = SYS_SHADOW_INDEXPART_COL_ENTRY;  // index part entry
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_switch_shadow_idx_partition(knl_session_t *session, knl_cursor_t *cursor,
@@ -249,16 +249,16 @@ status_t db_switch_shadow_idx_partition(knl_session_t *session, knl_cursor_t *cu
     part_desc->subpart_cnt = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_SHADOW_INDEXPART_COL_SUBPART_CNT);
     
     if (IS_SUB_IDXPART(part_desc)) {
-        if (db_upd_idx_subpart(session, part_desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_upd_idx_subpart(session, part_desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (db_upd_idx_part(session, part_desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_upd_idx_part(session, part_desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_switch_shadow_idx_partitions(knl_session_t *session, knl_cursor_t *cursor, index_t *index)
@@ -267,20 +267,20 @@ status_t db_switch_shadow_idx_partitions(knl_session_t *session, knl_cursor_t *c
     knl_index_part_desc_t part_desc;
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SHADOW_INDEXPART_ID, IX_SYS_SHW_INDEXPART001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &idesc->uid,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &idesc->uid,
                      sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &idesc->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &idesc->table_id,
                      sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &idesc->id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &idesc->id, sizeof(uint32),
                      IX_COL_SYS_SHW_INDEXPART001_INDEX_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_SHW_INDEXPART001_PART_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_SHW_INDEXPART001_PARENTPART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &idesc->uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &idesc->uid,
                      sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &idesc->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &idesc->table_id,
                      sizeof(uint32), IX_COL_SYS_SHW_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &idesc->id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &idesc->id, sizeof(uint32),
                      IX_COL_SYS_SHW_INDEXPART001_INDEX_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_SHW_INDEXPART001_PART_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_SHW_INDEXPART001_PARENTPART_ID);
@@ -289,26 +289,26 @@ status_t db_switch_shadow_idx_partitions(knl_session_t *session, knl_cursor_t *c
     part_desc.table_id = idesc->table_id;
     part_desc.index_id = idesc->id;
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (db_switch_shadow_idx_partition(session, cursor, &part_desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_switch_shadow_idx_partition(session, cursor, &part_desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (db_delete_from_shadow_sysindexpart(session, cursor, index->desc.uid, index->desc.table_id,
-        index->desc.id) != GS_SUCCESS) {
-        return GS_ERROR;
+        index->desc.id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_upd_idx_part_initrans(knl_session_t *session, knl_index_part_desc_t *desc, uint32 initrans)
@@ -321,19 +321,19 @@ status_t db_upd_idx_part_initrans(knl_session_t *session, knl_index_part_desc_t 
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_INDEXPART_ID, IX_SYS_INDEXPART001_ID);
 
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&desc->uid, sizeof(uint32), IX_COL_SYS_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&desc->table_id, sizeof(uint32), IX_COL_SYS_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&desc->index_id, sizeof(uint32), IX_COL_SYS_INDEXPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&desc->part_id, sizeof(uint32), IX_COL_SYS_INDEXPART001_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s", cursor->rowid.file,
@@ -344,13 +344,13 @@ status_t db_upd_idx_part_initrans(knl_session_t *session, knl_index_part_desc_t 
     cursor->update_info.count = UPDATE_COLUMN_COUNT_ONE;
     cursor->update_info.columns[0] = SYS_INDEXPART_COL_INITRANS;  // index part initrans
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_upd_idx_subpart_initrans(knl_session_t *session, knl_index_part_desc_t *desc, uint32 initrans)
@@ -363,21 +363,21 @@ status_t db_upd_idx_subpart_initrans(knl_session_t *session, knl_index_part_desc
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_SUB_INDEX_PARTS_ID, IX_SYS_INDEXSUBPART001_ID);
 
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&desc->uid, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&desc->table_id, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&desc->index_id, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&desc->parent_partid, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_PARENT_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&desc->part_id, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s", cursor->rowid.file,
@@ -387,13 +387,13 @@ status_t db_upd_idx_subpart_initrans(knl_session_t *session, knl_index_part_desc
     cursor->update_info.count = UPDATE_COLUMN_COUNT_ONE;
     cursor->update_info.columns[0] = SYS_INDEXSUBPART_COL_INITRANS;  // index subpart initrans
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t part_get_btree_sub_seg_size(knl_session_t *session, knl_handle_t index, index_part_t *index_part,
@@ -419,8 +419,8 @@ status_t part_get_btree_sub_seg_size(knl_session_t *session, knl_handle_t index,
         if (index_subpart->btree.segment == NULL) {
             table_part_t *table_part = TABLE_GET_PART(table, index_part->part_no);
             table_part_t *table_subpart = PART_GET_SUBENTITY(table->part_table, table_part->subparts[i]);
-            if (dc_load_table_part_segment(session, entity, (table_part_t *)table_subpart) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (dc_load_table_part_segment(session, entity, (table_part_t *)table_subpart) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
@@ -429,15 +429,15 @@ status_t part_get_btree_sub_seg_size(knl_session_t *session, knl_handle_t index,
         }
 
         entry = BTREE_SEGMENT(session, index_subpart->btree.entry, index_subpart->btree.segment)->extents.first;
-        if (knl_get_segment_size(session, entry, &extents, &pages, &page_size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_get_segment_size(session, entry, &extents, &pages, &page_size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         knl_calc_seg_size(part_segment_desc.type, pages, page_size, extents, &segment_size);
         part_size += segment_size;
     }
     *result = part_size;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t part_get_btree_seg_size(knl_session_t *session, knl_handle_t index, index_part_t *index_part,
@@ -453,24 +453,24 @@ status_t part_get_btree_seg_size(knl_session_t *session, knl_handle_t index, ind
     if (!IS_PARENT_IDXPART(&index_part->desc)) {
         if (index_part->btree.segment == NULL) {
             table_part_t *table_part = TABLE_GET_PART(table, index_part->part_no);
-            if (dc_load_table_part_segment(session, entity, table_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (dc_load_table_part_segment(session, entity, table_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
         if (index_part->btree.segment == NULL) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
         entry = BTREE_SEGMENT(session, index_part->btree.entry, index_part->btree.segment)->extents.first;
-        if (knl_get_segment_size(session, entry, &extents, &pages, &page_size) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_get_segment_size(session, entry, &extents, &pages, &page_size) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         knl_calc_seg_size(type, pages, page_size, extents, &segment_size);
         *part_size += segment_size;
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     part_segment_desc_t part_segment_desc = {
@@ -485,7 +485,7 @@ status_t part_get_btree_seg_size(knl_session_t *session, knl_handle_t index, ind
 bool32 db_idx_part_has_seg(part_index_t *part_index, index_part_t *index_part)
 {
     if (!IS_PARENT_IDXPART(&index_part->desc)) {
-        bool32 has_segment = ((index_part->btree.segment == NULL) ? GS_FALSE : GS_TRUE);
+        bool32 has_segment = ((index_part->btree.segment == NULL) ? CT_FALSE : CT_TRUE);
         return has_segment;
     } else {
         index_part_t *index_subpart = NULL;
@@ -496,12 +496,12 @@ bool32 db_idx_part_has_seg(part_index_t *part_index, index_part_t *index_part)
             }
 
             if (index_subpart->btree.segment != NULL) {
-                return GS_TRUE;
+                return CT_TRUE;
             }
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t db_upd_sub_idx_part_entry(knl_session_t *session, knl_index_part_desc_t *desc, page_id_t entry)
@@ -512,21 +512,21 @@ status_t db_upd_sub_idx_part_entry(knl_session_t *session, knl_index_part_desc_t
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_SUB_INDEX_PARTS_ID, IX_SYS_INDEXSUBPART001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->uid,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->table_id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->index_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->index_id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&desc->parent_partid, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_PARENT_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->part_id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s", cursor->rowid.file,
@@ -540,13 +540,13 @@ status_t db_upd_sub_idx_part_entry(knl_session_t *session, knl_index_part_desc_t
     cursor->update_info.columns[1] = SYS_INDEXSUBPART_COL_ENTRY;  // index subpart entry
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_upd_idx_subpart(knl_session_t *session, knl_index_part_desc_t *desc)
@@ -557,21 +557,21 @@ status_t db_upd_idx_subpart(knl_session_t *session, knl_index_part_desc_t *desc)
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_SUB_INDEX_PARTS_ID, IX_SYS_INDEXSUBPART001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->uid,
                      sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->table_id,
                      sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->index_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->index_id,
                      sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&desc->parent_partid, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_PARENT_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->part_id,
                      sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s", cursor->rowid.file,
@@ -593,13 +593,13 @@ status_t db_upd_idx_subpart(knl_session_t *session, knl_index_part_desc_t *desc)
     cursor->update_info.columns[5] = SYS_INDEXSUBPART_COL_FLAGS;
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_upd_parent_idx_partid(knl_session_t *session, knl_index_desc_t *desc, uint32 old_partid,
@@ -610,30 +610,30 @@ status_t db_upd_parent_idx_partid(knl_session_t *session, knl_index_desc_t *desc
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_SUB_INDEX_PARTS_ID, IX_SYS_INDEXSUBPART001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->uid,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->uid,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->table_id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&desc->id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&desc->id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&old_partid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&old_partid,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_PARENT_PART_ID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_INDEXSUBPART001_SUB_PART_ID);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&desc->uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&desc->uid,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&desc->table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&desc->table_id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&desc->id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&desc->id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&old_partid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&old_partid,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_PARENT_PART_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_INDEXSUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -643,19 +643,19 @@ status_t db_upd_parent_idx_partid(knl_session_t *session, knl_index_desc_t *desc
         cursor->update_info.columns[0] = SYS_INDEXSUBPART_COL_PPART_ID;  // parent part id
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, NULL);
 
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_upd_idx_part_id(knl_session_t *session, knl_cursor_t *cursor, table_part_t *table_part,
@@ -665,19 +665,19 @@ status_t db_upd_idx_part_id(knl_session_t *session, knl_cursor_t *cursor, table_
     row_assist_t ra;
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_INDEXPART_ID, IX_SYS_INDEXPART001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
     knl_scan_key_t *key = &cursor->scan_range.l_key;
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table_part->desc.uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table_part->desc.uid,
                      sizeof(uint32), IX_COL_SYS_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table_part->desc.table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table_part->desc.table_id,
                      sizeof(uint32), IX_COL_SYS_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &index_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &index_id,
                      sizeof(uint32), IX_COL_SYS_INDEXPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), key, GS_TYPE_INTEGER, &table_part->desc.part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), key, CT_TYPE_INTEGER, &table_part->desc.part_id,
                      sizeof(uint32), IX_COL_SYS_INDEXPART001_PART_ID);
     
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s", cursor->rowid.file,
@@ -688,11 +688,11 @@ status_t db_upd_idx_part_id(knl_session_t *session, knl_cursor_t *cursor, table_
     cursor->update_info.count = UPDATE_COLUMN_COUNT_ONE;
     cursor->update_info.columns[0] = SYS_INDEXPART_COL_PART_ID;
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_upd_idx_part_ids(knl_session_t *session, knl_cursor_t *cursor, table_part_t *table_part,
@@ -707,18 +707,18 @@ status_t db_upd_idx_part_ids(knl_session_t *session, knl_cursor_t *cursor, table
             continue;
         }
 
-        if (db_upd_idx_part_id(session, cursor, table_part, index->desc.id, new_partid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_upd_idx_part_id(session, cursor, table_part, index->desc.id, new_partid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (IS_PARENT_TABPART(&table_part->desc)) {
-            if (db_upd_parent_idx_partid(session, &index->desc, table_part->desc.part_id, new_partid) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_upd_parent_idx_partid(session, &index->desc, table_part->desc.part_id, new_partid) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 index_part_t* subpart_get_parent_idx_part(knl_handle_t idx, uint32 parent_partid)
@@ -752,13 +752,13 @@ status_t subpart_delete_sub_idx_part(knl_session_t *session, knl_dictionary_t *d
     index_t *index = NULL;
     index_part_t *index_part = NULL;
     index_part_t *index_subpart = NULL;
-    bool32 is_changed = GS_FALSE;
-    bool32 invalidate_index = GS_FALSE;
+    bool32 is_changed = CT_FALSE;
+    bool32 invalidate_index = CT_FALSE;
 
     table_part_t *table_part = TABLE_GET_PART(table, compart_no);
     table_part_t *table_subpart = PART_GET_SUBENTITY(table->part_table, table_part->subparts[subpart_no]);
-    if (db_need_invalidate_index(session, dc, table, (table_part_t *)table_subpart, &invalidate_index) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_need_invalidate_index(session, dc, table, (table_part_t *)table_subpart, &invalidate_index) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     
     for (uint32 i = 0; i < table->index_set.total_count; i++) {
@@ -766,27 +766,27 @@ status_t subpart_delete_sub_idx_part(knl_session_t *session, knl_dictionary_t *d
         if (index->desc.parted) {
             index_part = INDEX_GET_PART(index, compart_no);
             index_subpart = PART_GET_SUBENTITY(index->part_index, index_part->subparts[subpart_no]);
-            if (db_update_sub_idxpart_status(session, index_subpart, GS_FALSE, &is_changed) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_update_sub_idxpart_status(session, index_subpart, CT_FALSE, &is_changed) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             if (btree_part_segment_prepare(session, (index_part_t *)index_subpart, reuse_storage,
-                BTREE_TRUNCATE_PART_SEGMENT) != GS_SUCCESS) {
-                return GS_ERROR;
+                BTREE_TRUNCATE_PART_SEGMENT) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
             if (!invalidate_index) {
                 continue;
             }
             
-            if (db_update_index_status(session, index, GS_TRUE, &is_changed) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_update_index_status(session, index, CT_TRUE, &is_changed) != CT_SUCCESS) {
+                return CT_ERROR;
             }
-            if (btree_segment_prepare(session, index, GS_INVALID_ID32, BTREE_DROP_SEGMENT) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (btree_segment_prepare(session, index, CT_INVALID_ID32, BTREE_DROP_SEGMENT) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

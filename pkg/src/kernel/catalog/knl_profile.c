@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_db_module.h"
 #include "knl_profile.h"
 #include "knl_context.h"
 #include "knl_user.h"
@@ -86,9 +87,9 @@ static void profile_insert_into_buckets(knl_session_t *session, profile_array_t 
 
     profile->bucket = bucket;
     profile->next = bucket->first;
-    profile->prev = GS_INVALID_ID32;
+    profile->prev = CT_INVALID_ID32;
 
-    if (bucket->first != GS_INVALID_ID32) {
+    if (bucket->first != CT_INVALID_ID32) {
         first = KNL_GET_PROFILE(profile_array, bucket->first);
         dls_spin_lock(session, &first->lock, NULL);
         first->prev = profile->id;
@@ -103,7 +104,7 @@ static void profile_fill_paramters(knl_profile_def_t *def, profile_t *profile)
 {
     profile->mask |= def->mask;
     for (uint32 i = FAILED_LOGIN_ATTEMPTS; i < RESOURCE_PARAM_END; i++) {
-        if (GS_BIT_TEST(def->mask, GS_GET_MASK(i))) {
+        if (CT_BIT_TEST(def->mask, CT_GET_MASK(i))) {
             switch (def->limit[i].type) {
                 case VALUE_DEFAULT:
                     profile->limit[i] = g_resource_map[i].default_value;
@@ -130,8 +131,8 @@ static status_t profile_alloc(knl_session_t *session, knl_profile_def_t *def, pr
     for (i = 0; i < MAX_PROFILE_SIZE; i++) {
         profile = profile_array->profiles[i];
         if (profile == NULL) {
-            if (dc_alloc_mem(dc_ctx, dc_ctx->memory, sizeof(profile_t), (void **)&profile) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (dc_alloc_mem(dc_ctx, dc_ctx->memory, sizeof(profile_t), (void **)&profile) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             ret = memset_sp(profile, sizeof(profile_t), 0, sizeof(profile_t));
             knl_securec_check(ret);
@@ -140,40 +141,40 @@ static status_t profile_alloc(knl_session_t *session, knl_profile_def_t *def, pr
 
             dls_spin_lock(session, &profile->lock, NULL);
             profile->id = i;
-            (void)cm_text2str(&def->name, profile->name, GS_NAME_BUFFER_SIZE);
+            (void)cm_text2str(&def->name, profile->name, CT_NAME_BUFFER_SIZE);
             profile_fill_paramters(def, profile);
-            profile->used = GS_TRUE;
+            profile->used = CT_TRUE;
             dls_spin_unlock(session, &profile->lock);
             break;
         } else if (!profile->used && !profile->valid) {
             dls_spin_lock(session, &profile->lock, NULL);
-            (void)cm_text2str(&def->name, profile->name, GS_NAME_BUFFER_SIZE);
+            (void)cm_text2str(&def->name, profile->name, CT_NAME_BUFFER_SIZE);
             profile_fill_paramters(def, profile);
-            profile->used = GS_TRUE;
+            profile->used = CT_TRUE;
             dls_spin_unlock(session, &profile->lock);
             break;
         }
     }
 
     if (i == MAX_PROFILE_SIZE) {
-        GS_THROW_ERROR(ERR_TOO_MANY_OBJECTS, MAX_PROFILE_SIZE, "profiles");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TOO_MANY_OBJECTS, MAX_PROFILE_SIZE, "profiles");
+        return CT_ERROR;
     }
     *r_profile = profile;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t profile_alloc_and_insert_bucket(knl_session_t *session, knl_profile_def_t *def, bucket_t *bucket,
                                          profile_t **r_profile)
 {
     profile_array_t *profile_array = &session->kernel->dc_ctx.profile_array;
-    if (profile_alloc(session, def, r_profile) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (profile_alloc(session, def, r_profile) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     profile_insert_into_buckets(session, profile_array, bucket, *r_profile);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bucket_t *profile_get_bucket(knl_session_t *session, text_t *name)
@@ -190,17 +191,17 @@ bool32 profile_find_by_name(knl_session_t *session, text_t *name, bucket_t *buck
     dc_context_t *dc_ctx = &session->kernel->dc_ctx;
     profile_array_t *profile_array = &dc_ctx->profile_array;
     profile_t *profile = NULL;
-    bool32 bucket_used = GS_FALSE;
+    bool32 bucket_used = CT_FALSE;
 
     // parallel operation may cause different bucket ??
     if (bucket == NULL) {
         bucket = profile_get_bucket(session, name);
-        cm_latch_s(&bucket->latch, session->id, GS_FALSE, NULL);
-        bucket_used = GS_TRUE;
+        cm_latch_s(&bucket->latch, session->id, CT_FALSE, NULL);
+        bucket_used = CT_TRUE;
     }
     eid = bucket->first;
 
-    while (eid != GS_INVALID_ID32) {
+    while (eid != CT_INVALID_ID32) {
         profile = KNL_GET_PROFILE(profile_array, eid);
         dls_spin_lock(session, &profile->lock, NULL);
         if (!cm_compare_text_str(name, profile->name) && profile->valid) {
@@ -212,11 +213,11 @@ bool32 profile_find_by_name(knl_session_t *session, text_t *name, bucket_t *buck
         dls_spin_unlock(session, &profile->lock);
     }
 
-    if (bucket_used == GS_TRUE) {
+    if (bucket_used == CT_TRUE) {
         cm_unlatch(&bucket->latch, NULL);
     }
 
-    return (eid != GS_INVALID_ID32);
+    return (eid != CT_INVALID_ID32);
 }
 
 bool32 profile_find_by_id(knl_session_t *session, uint32 id, profile_t **r_profile)
@@ -225,20 +226,20 @@ bool32 profile_find_by_id(knl_session_t *session, uint32 id, profile_t **r_profi
     profile_array_t *profile_array = &dc_ctx->profile_array;
     profile_t *profile = NULL;
 
-    knl_panic(id < MAX_PROFILE_SIZE);
+    CM_ASSERT(id < MAX_PROFILE_SIZE);
     *r_profile = NULL;
     profile = KNL_GET_PROFILE(profile_array, id);
     if (profile == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
     dls_spin_lock(session, &profile->lock, NULL);
     if (profile->used) {
         *r_profile = profile;
         dls_spin_unlock(session, &profile->lock);
-        return GS_TRUE;
+        return CT_TRUE;
     }
     dls_spin_unlock(session, &profile->lock);
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t profile_get_param_limit(knl_session_t *session, uint32 profile_id, resource_param_t param_id,
@@ -247,24 +248,24 @@ status_t profile_get_param_limit(knl_session_t *session, uint32 profile_id, reso
     profile_t *profile = NULL;
     if ((session->kernel->db.status < DB_STATUS_OPEN) || (DB_IS_UPGRADE(session))) {
         *limit = g_resource_map[param_id].default_value;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (!profile_find_by_id(session, profile_id, &profile)) {
         if (profile_id == DEFAULT_PROFILE_ID) {
             *limit = g_resource_map[param_id].default_value;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        GS_THROW_ERROR(ERR_PROFILE_ID_NOT_EXIST, profile_id);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PROFILE_ID_NOT_EXIST, profile_id);
+        return CT_ERROR;
     }
 
     dls_spin_lock(session, &profile->lock, NULL);
     *limit = profile->limit[param_id];
     dls_spin_unlock(session, &profile->lock);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t profile_write_sysprofiles(knl_session_t *session, knl_cursor_t *cursor, profile_t *profile)
@@ -278,34 +279,34 @@ static status_t profile_write_sysprofiles(knl_session_t *session, knl_cursor_t *
     table = (table_t *)cursor->table;
 
     for (uint32 i = FAILED_LOGIN_ATTEMPTS; i < RESOURCE_PARAM_END; i++) {
-        if (GS_BIT_TEST(profile->mask, (uint32)GS_GET_MASK(i))) {
+        if (CT_BIT_TEST(profile->mask, (uint32)CT_GET_MASK(i))) {
             row_init(&ra, (char *)cursor->row, max_size, table->desc.column_count);
 
-            if (row_put_str(&ra, profile->name) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (row_put_str(&ra, profile->name) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (row_put_int32(&ra, profile->id) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (row_put_int32(&ra, profile->id) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (row_put_int32(&ra, i) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (row_put_int32(&ra, i) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (row_put_int64(&ra, profile->limit[i]) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (row_put_int64(&ra, profile->limit[i]) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PROFILE_ID, 0);
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void profile_set_reuse(knl_session_t *session, profile_t *profile)
@@ -316,18 +317,18 @@ static void profile_set_reuse(knl_session_t *session, profile_t *profile)
     profile_array_t *profile_array = &dc_ctx->profile_array;
 
     if (profile == NULL) {
-        GS_LOG_RUN_ERR("profile_set_reuse expect profile, but not exist");
+        CT_LOG_RUN_ERR("profile_set_reuse expect profile, but not exist");
         return;
     }
 
     dls_spin_lock(session, &profile->lock, NULL);
 
-    if (profile->next != GS_INVALID_ID32) {
+    if (profile->next != CT_INVALID_ID32) {
         next = KNL_GET_PROFILE(profile_array, profile->next);
         next->prev = profile->prev;
     }
 
-    if (profile->prev != GS_INVALID_ID32) {
+    if (profile->prev != CT_INVALID_ID32) {
         prev = KNL_GET_PROFILE(profile_array, profile->prev);
         prev->next = profile->next;
     }
@@ -336,10 +337,10 @@ static void profile_set_reuse(knl_session_t *session, profile_t *profile)
         profile->bucket->first = profile->next;
     }
 
-    profile->used = GS_FALSE;
-    profile->valid = GS_FALSE;
-    profile->prev = GS_INVALID_ID32;
-    profile->next = GS_INVALID_ID32;
+    profile->used = CT_FALSE;
+    profile->valid = CT_FALSE;
+    profile->prev = CT_INVALID_ID32;
+    profile->next = CT_INVALID_ID32;
 
     profile->bucket->count--;
     dls_spin_unlock(session, &profile->lock);
@@ -356,15 +357,15 @@ status_t profile_create(knl_session_t *session, profile_t *profile)
     cursor = knl_push_cursor(session);
     cursor->row = (row_head_t *)cursor->buf;
 
-    if (profile_write_sysprofiles(session, cursor, profile) != GS_SUCCESS) {
+    if (profile_write_sysprofiles(session, cursor, profile) != CT_SUCCESS) {
         profile_set_reuse(session, profile);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     redo.op_type = RD_CREATE_PROFILE;
     redo.id = profile->id;
-    ret = strcpy_sp(redo.obj_name, GS_NAME_BUFFER_SIZE, profile->name);
+    ret = strcpy_sp(redo.obj_name, CT_NAME_BUFFER_SIZE, profile->name);
     knl_securec_check(ret);
     log_put(session, RD_LOGIC_OPERATION, &redo, sizeof(rd_profile_t), LOG_ENTRY_FLAG_NONE);
 
@@ -372,10 +373,10 @@ status_t profile_create(knl_session_t *session, profile_t *profile)
     CM_RESTORE_STACK(session->stack);
 
     dls_spin_lock(session, &profile->lock, NULL);
-    profile->valid = GS_TRUE;
+    profile->valid = CT_TRUE;
     dls_spin_unlock(session, &profile->lock);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 profile_check_user(knl_session_t *session, uint32 profile_id)
@@ -384,7 +385,7 @@ static bool32 profile_check_user(knl_session_t *session, uint32 profile_id)
     dc_context_t *ctx = &session->kernel->dc_ctx;
     dc_user_t *user = NULL;
 
-    for (i = 0; i < GS_MAX_USERS; i++) {
+    for (i = 0; i < CT_MAX_USERS; i++) {
         if (!ctx->users[i]) {
             continue;
         }
@@ -393,12 +394,12 @@ static bool32 profile_check_user(knl_session_t *session, uint32 profile_id)
         dls_spin_lock(session, &user->s_lock, NULL);
         if (user->status == USER_STATUS_NORMAL && profile_id == user->desc.profile_id) {
             dls_spin_unlock(session, &user->s_lock);
-            return GS_TRUE;
+            return CT_TRUE;
         }
         dls_spin_unlock(session, &user->s_lock);
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static status_t profile_reset_user(knl_session_t *session, uint32 profile_id)
@@ -406,10 +407,10 @@ static status_t profile_reset_user(knl_session_t *session, uint32 profile_id)
     uint32 i = 0;
     dc_context_t *ctx = &session->kernel->dc_ctx;
     dc_user_t *user = NULL;
-    uint32 name_len = GS_NAME_BUFFER_SIZE - 1;
+    uint32 name_len = CT_NAME_BUFFER_SIZE - 1;
     errno_t ret;
 
-    for (i = 0; i < GS_MAX_USERS; i++) {
+    for (i = 0; i < CT_MAX_USERS; i++) {
         if (!ctx->users[i]) {
             continue;
         }
@@ -419,17 +420,17 @@ static status_t profile_reset_user(knl_session_t *session, uint32 profile_id)
             knl_user_def_t def;
             ret = memset_sp(&def, sizeof(knl_user_def_t), 0, sizeof(knl_user_def_t));
             knl_securec_check(ret);
-            ret = strncpy_s(def.name, GS_NAME_BUFFER_SIZE, user->desc.name, name_len);
+            ret = strncpy_s(def.name, CT_NAME_BUFFER_SIZE, user->desc.name, name_len);
             knl_securec_check(ret);
             def.mask |= USER_PROFILE_MASK;
 
-            if (user_alter(session, &def) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (user_alter(session, &def) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t profile_drop(knl_session_t *session, knl_drop_def_t *def, profile_t *profile)
@@ -440,11 +441,11 @@ status_t profile_drop(knl_session_t *session, knl_drop_def_t *def, profile_t *pr
 
     if (profile_check_user(session, profile->id)) {
         if (!(def->options & DROP_CASCADE_CONS)) {
-            GS_THROW_ERROR(ERR_PROFILE_HAS_USED);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PROFILE_HAS_USED);
+            return CT_ERROR;
         } else {
-            if (GS_SUCCESS != profile_reset_user(session, profile->id)) {
-                return GS_ERROR;
+            if (CT_SUCCESS != profile_reset_user(session, profile->id)) {
+                return CT_ERROR;
             }
         }
     }
@@ -454,40 +455,40 @@ status_t profile_drop(knl_session_t *session, knl_drop_def_t *def, profile_t *pr
     cursor = knl_push_cursor(session);
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_DELETE, SYS_PROFILE_ID, IX_SYS_PROFILE_001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &profile->id,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &profile->id,
                      sizeof(uint32), 0);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, 1);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &profile->id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &profile->id,
                      sizeof(uint32), 0);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, 1);
 
-    if (GS_SUCCESS != knl_fetch(session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(session, cursor)) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     redo.op_type = RD_DROP_PROFILE;
     redo.id = profile->id;
-    ret = strcpy_sp(redo.obj_name, GS_NAME_BUFFER_SIZE, profile->name);
+    ret = strcpy_sp(redo.obj_name, CT_NAME_BUFFER_SIZE, profile->name);
     knl_securec_check(ret);
     log_put(session, RD_LOGIC_OPERATION, &redo, sizeof(rd_profile_t), LOG_ENTRY_FLAG_NONE);
 
@@ -495,7 +496,7 @@ status_t profile_drop(knl_session_t *session, knl_drop_def_t *def, profile_t *pr
     CM_RESTORE_STACK(session->stack);
     profile_set_reuse(session, profile);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t profile_update_sysprofile(knl_session_t *session, knl_cursor_t *cursor, resource_param_t id,
@@ -506,8 +507,8 @@ static status_t profile_update_sysprofile(knl_session_t *session, knl_cursor_t *
 
     row_init(&ra, ua->data, HEAP_MAX_ROW_SIZE(session), 1);
 
-    if (row_put_int64(&ra, profile->limit[id]) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (row_put_int64(&ra, profile->limit[id]) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     ua->count = 1;
@@ -525,10 +526,10 @@ status_t profile_alter(knl_session_t *session, knl_profile_def_t *def)
     bucket_t *bucket = profile_get_bucket(session, &def->name);
     cm_latch_x(&bucket->latch, session->id, NULL);
     bool32 is_exists = profile_find_by_name(session, &def->name, bucket, &profile);
-    if (is_exists == GS_FALSE) {
+    if (is_exists == CT_FALSE) {
         cm_unlatch(&bucket->latch, NULL);
-        GS_THROW_ERROR(ERR_PROFILE_NOT_EXIST, T2S(&def->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PROFILE_NOT_EXIST, T2S(&def->name));
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
@@ -536,28 +537,28 @@ status_t profile_alter(knl_session_t *session, knl_profile_def_t *def)
     knl_cursor_t *cursor = knl_push_cursor(session);
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_PROFILE_ID, 0);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &profile->id,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &profile->id,
                      sizeof(uint32), 0);
 
     dls_spin_lock(session, &profile->lock, NULL);
     profile_fill_paramters(def, profile);
     dls_spin_unlock(session, &profile->lock);
     for (uint32 i = FAILED_LOGIN_ATTEMPTS; i < RESOURCE_PARAM_END; i++) {
-        if (GS_BIT_TEST(def->mask, GS_GET_MASK(i))) {
+        if (CT_BIT_TEST(def->mask, CT_GET_MASK(i))) {
             knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key,
-                             GS_TYPE_INTEGER, &i, sizeof(uint32), 1);
-            if (GS_SUCCESS != knl_fetch(session, cursor)) {
+                             CT_TYPE_INTEGER, &i, sizeof(uint32), 1);
+            if (CT_SUCCESS != knl_fetch(session, cursor)) {
                 CM_RESTORE_STACK(session->stack);
                 cm_unlatch(&bucket->latch, NULL);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             if (!cursor->eof) {
-                if (GS_SUCCESS != profile_update_sysprofile(session, cursor, i, profile)) {
+                if (CT_SUCCESS != profile_update_sysprofile(session, cursor, i, profile)) {
                     CM_RESTORE_STACK(session->stack);
                     cm_unlatch(&bucket->latch, NULL);
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
             }
             knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_PROFILE_ID, IX_SYS_PROFILE_001_ID);
@@ -566,7 +567,7 @@ status_t profile_alter(knl_session_t *session, knl_profile_def_t *def)
 
     redo.op_type = RD_ALTER_PROFILE;
     redo.id = profile->id;
-    errno_t ret = strcpy_sp(redo.obj_name, GS_NAME_BUFFER_SIZE, profile->name);
+    errno_t ret = strcpy_sp(redo.obj_name, CT_NAME_BUFFER_SIZE, profile->name);
     knl_securec_check(ret);
     log_put(session, RD_LOGIC_OPERATION, &redo, sizeof(rd_profile_t), LOG_ENTRY_FLAG_NONE);
 
@@ -574,7 +575,7 @@ status_t profile_alter(knl_session_t *session, knl_profile_def_t *def)
     CM_RESTORE_STACK(session->stack);
     cm_unlatch(&bucket->latch, NULL);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t profile_load(knl_session_t *session)
@@ -595,11 +596,11 @@ status_t profile_load(knl_session_t *session)
 
     cursor = knl_push_cursor(session);
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_PROFILE_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_PROFILE_ID, CT_INVALID_ID32);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) { // assert?
+    if (knl_fetch(session, cursor) != CT_SUCCESS) { // assert?
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -620,16 +621,16 @@ status_t profile_load(knl_session_t *session)
 
         profile = KNL_GET_PROFILE(profile_array, profile_id);
         if (profile == NULL) {
-            if (dc_alloc_mem(ctx, ctx->memory, sizeof(profile_t), (void **)&profile) != GS_SUCCESS) {
+            if (dc_alloc_mem(ctx, ctx->memory, sizeof(profile_t), (void **)&profile) != CT_SUCCESS) {
                 CM_RESTORE_STACK(session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             ret = memset_sp(profile, sizeof(profile_t), 0, sizeof(profile_t));
             knl_securec_check(ret);
-            profile->used = GS_TRUE;
-            profile->valid = GS_TRUE;
+            profile->used = CT_TRUE;
+            profile->valid = CT_TRUE;
             profile->id = profile_id;
-            (void)cm_text2str(&text, profile->name, GS_NAME_BUFFER_SIZE);
+            (void)cm_text2str(&text, profile->name, CT_NAME_BUFFER_SIZE);
             KNL_SET_PROFILE(profile_array, profile_id, profile);
             dls_init_spinlock(&profile->lock, DR_TYPE_PROFILE, profile_id, 0);
 
@@ -640,17 +641,17 @@ status_t profile_load(knl_session_t *session)
             cm_unlatch(&bucket->latch, NULL);
         }
 
-        GS_BIT_SET(profile->mask, GS_GET_MASK(resource_id));
+        CT_BIT_SET(profile->mask, CT_GET_MASK(resource_id));
         profile->limit[resource_id] = threshold;
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) { // assert?
+        if (knl_fetch(session, cursor) != CT_SUCCESS) { // assert?
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t profile_build_sysprofile(knl_session_t *session, knl_cursor_t *cursor)
@@ -660,35 +661,35 @@ status_t profile_build_sysprofile(knl_session_t *session, knl_cursor_t *cursor)
     row_assist_t ra;
 
     max_size = session->kernel->attr.max_row_size;
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PROFILE_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PROFILE_ID, CT_INVALID_ID32);
 
     for (i = FAILED_LOGIN_ATTEMPTS; i < RESOURCE_PARAM_END; i++) {
         row_init(&ra, cursor->buf, max_size, PROFILE_COLUMN_NUM);
 
-        if (row_put_str(&ra, DEFAULT_PROFILE_NAME) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (row_put_str(&ra, DEFAULT_PROFILE_NAME) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (row_put_int32(&ra, DEFAULT_PROFILE_ID) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (row_put_int32(&ra, DEFAULT_PROFILE_ID) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (row_put_int32(&ra, i) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (row_put_int32(&ra, i) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (row_put_int64(&ra, g_resource_map[i].default_value) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (row_put_int64(&ra, g_resource_map[i].default_value) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PROFILE_ID, GS_INVALID_ID32);
+        knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PROFILE_ID, CT_INVALID_ID32);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void profile_convert_def(knl_cursor_t *cursor, knl_profile_def_t *def)
@@ -700,14 +701,14 @@ void profile_convert_def(knl_cursor_t *cursor, knl_profile_def_t *def)
 
     resource_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_PROFILE_COL_RESOURCE_ID);
     threshold = *(uint64 *)CURSOR_COLUMN_DATA(cursor, SYS_PROFILE_COL_THRESHOLD);
-    GS_BIT_SET(def->mask, GS_GET_MASK(resource_id));
+    CT_BIT_SET(def->mask, CT_GET_MASK(resource_id));
     def->limit[resource_id].type = VALUE_NORMAL;
     def->limit[resource_id].value = threshold;
 }
 
 static status_t profile_try_create(knl_session_t *session, uint32 id)
 {
-    knl_profile_def_t def = {{ .str = "", .len = 0 }, .mask = 0, .is_replace = GS_FALSE, {{ .type = 0, .value = 0 }}};
+    knl_profile_def_t def = {{ .str = "", .len = 0 }, .mask = 0, .is_replace = CT_FALSE, {{ .type = 0, .value = 0 }}};
     knl_cursor_t *cursor = NULL;
     profile_t *profile = NULL;
     bucket_t *bucket = NULL;
@@ -717,109 +718,119 @@ static status_t profile_try_create(knl_session_t *session, uint32 id)
     cursor = knl_push_cursor(session);
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_PROFILE_ID, IX_SYS_PROFILE_001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &id, sizeof(uint32), 0);
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &id, sizeof(uint32), 0);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, 1);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &id, sizeof(uint32), 0);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &id, sizeof(uint32), 0);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, 1);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
-        GS_LOG_RUN_ERR("[PROF] failed to find profile in PROFILE$");
+        CT_LOG_RUN_ERR("[PROF] failed to find profile in PROFILE$");
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
         profile_convert_def(cursor, &def);
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     bucket = profile_get_bucket(session, &def.name);
     cm_latch_x(&bucket->latch, session->id, NULL);
     bool32 is_exists = profile_find_by_name(session, &def.name, bucket, &profile);
-    if (is_exists == GS_TRUE) {
+    if (is_exists == CT_TRUE) {
         cm_unlatch(&bucket->latch, NULL);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (profile_alloc_and_insert_bucket(session, &def, bucket, &profile) != GS_SUCCESS) {
+    if (profile_alloc_and_insert_bucket(session, &def, bucket, &profile) != CT_SUCCESS) {
         cm_unlatch(&bucket->latch, NULL);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     cm_unlatch(&bucket->latch, NULL);
-    profile->valid = GS_TRUE;
+    profile->valid = CT_TRUE;
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void rd_create_profile(knl_session_t *session, log_entry_t *log)
 {
+    if (log->size != CM_ALIGN4(sizeof(rd_profile_t)) + LOG_ENTRY_SIZE) {
+        CT_LOG_RUN_ERR("[SPACE] no need to replay create profile, log size %u is wrong", log->size);
+        return;
+    }
     text_t name;
     rd_profile_t *rd = (rd_profile_t *)log->data;
+    rd->obj_name[CT_NAME_BUFFER_SIZE - 1] = 0;
     profile_t *profile = NULL;
 
     cm_str2text(rd->obj_name, &name);
 
     // find_by_name will do in profile_try_create, no need to check here ??
     if (profile_find_by_name(session, &name, NULL, &profile)) {
-        GS_LOG_RUN_ERR("rd_create_profile failed: profile [%s] exist", name.str);
+        CT_LOG_RUN_ERR("rd_create_profile failed: profile [%s] exist", name.str);
         rd_check_dc_replay_err(session);
         return;
     }
 
-    if (profile_try_create(session, rd->id) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("rd_create_profile failed");
+    if (profile_try_create(session, rd->id) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("rd_create_profile failed");
         rd_check_dc_replay_err(session);
     }
 }
 
 void rd_alter_profile(knl_session_t *session, log_entry_t *log)
 {
+    if (log->size != CM_ALIGN4(sizeof(rd_profile_t)) + LOG_ENTRY_SIZE) {
+        CT_LOG_RUN_ERR("[SPACE] no need to replay alter profile, log size %u is wrong", log->size);
+        return;
+    }
     rd_profile_t *rd = (rd_profile_t *)log->data;
+    rd->obj_name[CT_NAME_BUFFER_SIZE - 1] = 0;
     knl_cursor_t *cursor = NULL;
     profile_t *profile = NULL;
-    knl_profile_def_t def = {{ .str = "", .len = 0 }, .mask = 0, .is_replace = GS_FALSE, {{ .type = 0, .value = 0 }}};
+    knl_profile_def_t def = {{ .str = "", .len = 0 }, .mask = 0, .is_replace = CT_FALSE, {{ .type = 0, .value = 0 }}};
 
     CM_SAVE_STACK(session->stack);
 
     cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_PROFILE_ID, IX_SYS_PROFILE_001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &rd->id, sizeof(uint32),
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &rd->id, sizeof(uint32),
                      0);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, 1);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, &rd->id, sizeof(uint32),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, &rd->id, sizeof(uint32),
                      0);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, 1);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
         return;
     }
 
     if (cursor->eof) {
-        GS_LOG_RUN_ERR("rd_alter_profile expect profile %s, but not exist", rd->obj_name);
+        CT_LOG_RUN_ERR("rd_alter_profile expect profile %s, but not exist", rd->obj_name);
         CM_RESTORE_STACK(session->stack);
         return;
     }
 
     while (!cursor->eof) {
         profile_convert_def(cursor, &def);
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
             return;
         }
@@ -827,7 +838,7 @@ void rd_alter_profile(knl_session_t *session, log_entry_t *log)
 
     if (!profile_find_by_name(session, &def.name, NULL, &profile)) {
         CM_RESTORE_STACK(session->stack);
-        GS_LOG_RUN_ERR("rd_alter_profile expect profile %s, but not exist", rd->obj_name);
+        CT_LOG_RUN_ERR("rd_alter_profile expect profile %s, but not exist", rd->obj_name);
         return;
     }
 
@@ -841,11 +852,20 @@ void rd_alter_profile(knl_session_t *session, log_entry_t *log)
 
 void rd_drop_profile(knl_session_t *session, log_entry_t *log)
 {
+    if (log->size != CM_ALIGN4(sizeof(rd_profile_t)) + LOG_ENTRY_SIZE) {
+        CT_LOG_RUN_ERR("[SPACE] no need to replay drop profile, log size %u is wrong", log->size);
+        return;
+    }
     rd_profile_t *rd = (rd_profile_t *)log->data;
+    if (rd->id >= MAX_PROFILE_SIZE) {
+        CT_LOG_RUN_ERR("[SPACE] no need to replay drop profile, profile size %u is wrong", rd->id);
+        CM_ASSERT(0);
+        return;
+    }
     profile_t *profile = NULL;
     bucket_t *bucket = NULL;
     if (!profile_find_by_id(session, rd->id, &profile)) {
-        GS_THROW_ERROR(ERR_PROFILE_ID_NOT_EXIST, rd->id);
+        CT_THROW_ERROR(ERR_PROFILE_ID_NOT_EXIST, rd->id);
         return;
     }
     bucket = profile->bucket;

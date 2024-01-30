@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,6 +34,7 @@ extern "C" {
 #endif
 
 void rd_create_table(knl_session_t *session, log_entry_t *log);
+void rd_create_view(knl_session_t *session, log_entry_t *log);
 void rd_alter_table(knl_session_t *session, log_entry_t *log);
 void rd_rename_table(knl_session_t *session, log_entry_t *log);
 void rd_drop_table(knl_session_t *session, log_entry_t *log);
@@ -49,17 +50,19 @@ void rd_drop_role(knl_session_t *session, log_entry_t *log);
 void rd_create_tenant(knl_session_t *session, log_entry_t *log);
 void rd_alter_tenant(knl_session_t *session, log_entry_t *log);
 void rd_drop_tenant(knl_session_t *session, log_entry_t *log);
-#ifdef Z_SHARDING
 void rd_create_distribute_rule(knl_session_t *session, log_entry_t *log);
 void rd_drop_distribute_rule(knl_session_t *session, log_entry_t *log);
-#endif
 void rd_create_mk_begin(knl_session_t *session, log_entry_t *log);
 void rd_create_mk_data(knl_session_t *session, log_entry_t *log);
 void rd_create_mk_end(knl_session_t *session, log_entry_t *log);
 void rd_alter_server_mk(knl_session_t *session, log_entry_t *log);
+void rd_alter_db_logicrep(knl_session_t *session, log_entry_t *log);
 dc_entity_t *rd_invalid_entity(knl_session_t *session, dc_entry_t *entry);
+void rd_refresh_dc(knl_session_t *session, log_entry_t *log);
+
 
 void print_create_table(log_entry_t *log);
+void print_create_view(log_entry_t *log);
 void print_alter_table(log_entry_t *log);
 void print_rename_table(log_entry_t *log);
 void print_drop_table(log_entry_t *log);
@@ -74,14 +77,15 @@ void print_drop_role(log_entry_t *log);
 void print_create_tenant(log_entry_t *log);
 void print_alter_tenant(log_entry_t *log);
 void print_drop_tenant(log_entry_t *log);
-#ifdef Z_SHARDING
 void print_create_distribute_rule(log_entry_t *log);
 void print_drop_distribute_rule(log_entry_t *log);
-#endif
 void print_alter_server_mk(log_entry_t *log);
 void print_create_mk_begin(log_entry_t *log);
 void print_create_mk_data(log_entry_t *log);
 void print_create_mk_end(log_entry_t *log);
+void print_alter_db_logicrep(log_entry_t *log);
+void print_refresh_dc(log_entry_t *log);
+
 
 /* handle errors that must be abort during replay */
 static inline void rd_check_dc_replay_err(knl_session_t *session)

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -60,6 +60,7 @@ typedef struct st_dtc_node_ctrl {
     uint32      last_asn;
     uint32      last_lfn;
     uint32      temp_undo_space;
+    log_point_t lrep_point;  // log point when logic replication is turned on.
 } dtc_node_ctrl_t;
 
 typedef struct st_dtc_node_def {
@@ -79,8 +80,8 @@ status_t dtc_save_ctrl(knl_session_t *session, uint32 id);
 status_t dtc_build_completed(knl_session_t *session);
 status_t dtc_read_node_ctrl(knl_session_t *session, uint8 node_id);
 
-void dtc_update_scn(knl_session_t *session, knl_scn_t lamport_scn);
-void dtc_update_lsn(knl_session_t *session, atomic_t lamport_lsn);
+EXTER_ATTACK void dtc_update_scn(knl_session_t *session, knl_scn_t lamport_scn);
+EXTER_ATTACK void dtc_update_lsn(knl_session_t *session, atomic_t lamport_lsn);
 void dtc_wait_reform_util(knl_session_t *session, bool8 is_master, reform_status_t stat);
 void dtc_wait_reform(void);
 void dtc_wait_reform_open(void);

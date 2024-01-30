@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -109,38 +109,38 @@ bool32 cm_buf_append_fmt(text_buf_t *tbuf, const char *fmt, ...)
     size_t sz;
     int32 len;
     if (tbuf->max_size < tbuf->len) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     sz = tbuf->max_size - tbuf->len;
     va_start(var_list, fmt);
     len = vsnprintf_s(CM_GET_TAIL(tbuf), sz, sz - 1, fmt, var_list);
     if (SECUREC_UNLIKELY(len == -1)) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, len);
-        return GS_FALSE;
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, len);
+        return CT_FALSE;
     }
     va_end(var_list);
 
     if (len < 0) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     tbuf->len += (uint32)len;
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 status_t cm_text2str_with_quato(const text_t *text, char *buf, uint32 buf_size)
 {
     uint32 copy_size;
-    CM_ASSERT(buf_size > GS_QUATO_LEN + 1);
-    copy_size = (text->len + GS_QUATO_LEN >= buf_size) ? buf_size - GS_QUATO_LEN - 1 : text->len;
+    CM_ASSERT(buf_size > CT_QUATO_LEN + 1);
+    copy_size = (text->len + CT_QUATO_LEN >= buf_size) ? buf_size - CT_QUATO_LEN - 1 : text->len;
     buf[0] = '\'';
     if (copy_size > 0) {
         MEMS_RETURN_IFERR(memcpy_sp(buf + 1, copy_size, text->str, copy_size));
     }
     buf[copy_size + 1] = '\'';
-    buf[copy_size + GS_QUATO_LEN] = '\0';
-    return GS_SUCCESS;
+    buf[copy_size + CT_QUATO_LEN] = '\0';
+    return CT_SUCCESS;
 }
 
 status_t cm_text2str(const text_t *text, char *buf, uint32 buf_size)
@@ -153,7 +153,7 @@ status_t cm_text2str(const text_t *text, char *buf, uint32 buf_size)
     }
 
     buf[copy_size] = '\0';
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_text2str_with_upper(const text_t *text, char *buf, uint32 buf_size)
@@ -169,36 +169,36 @@ void cm_text2str_with_upper(const text_t *text, char *buf, uint32 buf_size)
 
 status_t cm_text2uint16(const text_t *text_src, uint16 *value)
 {
-    char buf[GS_MAX_NUMBER_LEN + 1] = {0};
+    char buf[CT_MAX_NUMBER_LEN + 1] = {0};
     text_t text = *text_src;
 
     cm_trim_text(&text);
 
-    if (text.len > GS_MAX_NUMBER_LEN) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+    if (text.len > CT_MAX_NUMBER_LEN) {
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
             "Convert uint16 failed, the length of text can't be larger than %u, text = %s",
-            GS_MAX_NUMBER_LEN, T2S(&text));
-        return GS_ERROR;
+            CT_MAX_NUMBER_LEN, T2S(&text));
+        return CT_ERROR;
     }
-    GS_RETURN_IFERR(cm_text2str(&text, buf, GS_MAX_NUMBER_LEN + 1));
+    CT_RETURN_IFERR(cm_text2str(&text, buf, CT_MAX_NUMBER_LEN + 1));
 
     return cm_str2uint16(buf, value);
 }
 
 status_t cm_text2int(const text_t *text_src, int32 *value)
 {
-    char buf[GS_MAX_NUMBER_LEN + 1] = {0};
+    char buf[CT_MAX_NUMBER_LEN + 1] = {0};
     text_t text = *text_src;
 
     cm_trim_text(&text);
 
-    if (text.len > GS_MAX_NUMBER_LEN) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+    if (text.len > CT_MAX_NUMBER_LEN) {
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
             "Convert int32 failed, the length of text can't be larger than %u, text = %s",
-            GS_MAX_NUMBER_LEN, T2S(&text));
-        return GS_ERROR;
+            CT_MAX_NUMBER_LEN, T2S(&text));
+        return CT_ERROR;
     }
-    GS_RETURN_IFERR(cm_text2str(&text, buf, GS_MAX_NUMBER_LEN + 1));
+    CT_RETURN_IFERR(cm_text2str(&text, buf, CT_MAX_NUMBER_LEN + 1));
 
     return cm_str2int(buf, value);
 }
@@ -210,18 +210,18 @@ num_errno_t cm_numpart2int(num_part_t *np, int32 *value)
         return NERR_SUCCESS;
     }
 
-    if (np->digit_text.len > GS_MAX_INT32_PREC ||
+    if (np->digit_text.len > CT_MAX_INT32_PREC ||
         np->has_dot || np->has_expn) {
         return NERR_ERROR;
     }
 
-    if (np->digit_text.len == GS_MAX_INT32_PREC) {
+    if (np->digit_text.len == CT_MAX_INT32_PREC) {
         int32 cmp_ret = cm_compare_digitext(&np->digit_text,
                                             np->is_neg ? &g_neg_int32_ceil : &g_pos_int32_ceil);
         if (cmp_ret > 0) {
             return NERR_OVERFLOW;
         } else if (cmp_ret == 0) {
-            *value = np->is_neg ? GS_MIN_INT32 : GS_MAX_INT32;
+            *value = np->is_neg ? CT_MIN_INT32 : CT_MAX_INT32;
             return NERR_SUCCESS;
         }
     }
@@ -238,7 +238,7 @@ num_errno_t cm_numpart2int(num_part_t *np, int32 *value)
 /**
 * Try to parse an int32 from text, if the conversion is failed, FALSE
 * will be returned
-* @author 2018/03/12
+
 */
 num_errno_t cm_text2int_ex(const text_t *text_src, int32 *value)
 {
@@ -266,40 +266,40 @@ status_t cm_text2bool(const text_t *bool_text, bool32 *val)
     text_t text;
 
     if (bool_text == NULL) {
-        GS_THROW_ERROR(ERR_ASSERT_ERROR, "bool_text != NULL");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ASSERT_ERROR, "bool_text != NULL");
+        return CT_ERROR;
     }
 
     text = *bool_text;
     cm_trim_text(&text);
 
     do {
-        GS_BREAK_IF_TRUE(CM_IS_EMPTY(&text));  // empty text is not allowed
+        CT_BREAK_IF_TRUE(CM_IS_EMPTY(&text));  // empty text is not allowed
 
         if (text.len == 1) {
             if (CM_IS_ZERO(text.str[0]) || UPPER(text.str[0]) == 'F') {
-                *val = GS_FALSE;
-                return GS_SUCCESS;
+                *val = CT_FALSE;
+                return CT_SUCCESS;
             } else if (text.str[0] == '1' || UPPER(text.str[0]) == 'T') {
-                *val = GS_TRUE;
-                return GS_SUCCESS;
+                *val = CT_TRUE;
+                return CT_SUCCESS;
             }
             break;
         }
 
-        GS_BREAK_IF_TRUE(text.len < GS_MIN_BOOL_STRLEN || text.len > GS_MAX_BOOL_STRLEN);
+        CT_BREAK_IF_TRUE(text.len < CT_MIN_BOOL_STRLEN || text.len > CT_MAX_BOOL_STRLEN);
 
         if (cm_compare_text_str_ins(&text, "TRUE") == 0) {
-            *val = GS_TRUE;
-            return GS_SUCCESS;
+            *val = CT_TRUE;
+            return CT_SUCCESS;
         } else if (cm_compare_text_str_ins(&text, "FALSE") == 0) {
-            *val = GS_FALSE;
-            return GS_SUCCESS;
+            *val = CT_FALSE;
+            return CT_SUCCESS;
         }
-    } while (GS_FALSE);
+    } while (CT_FALSE);
 
-    GS_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "invalid BOOLEAN text");
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "invalid BOOLEAN text");
+    return CT_ERROR;
 }
 
 status_t cm_str2bool(const char *bool_str, bool32 *val)
@@ -311,36 +311,36 @@ status_t cm_str2bool(const char *bool_str, bool32 *val)
 
 status_t cm_text2uint32(const text_t *text_src, uint32 *value)
 {
-    char buf[GS_MAX_NUMBER_LEN + 1] = {0};  // '00000000000000000000001'
+    char buf[CT_MAX_NUMBER_LEN + 1] = {0};  // '00000000000000000000001'
     text_t text = *text_src;
 
     cm_trim_text(&text);
 
-    if (text.len > GS_MAX_NUMBER_LEN) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+    if (text.len > CT_MAX_NUMBER_LEN) {
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
             "Convert uint32 failed, the length of text can't be larger than %u, text = %s",
-            GS_MAX_NUMBER_LEN, T2S(&text));
-        return GS_ERROR;
+            CT_MAX_NUMBER_LEN, T2S(&text));
+        return CT_ERROR;
     }
-    GS_RETURN_IFERR(cm_text2str(&text, buf, GS_MAX_NUMBER_LEN + 1));
+    CT_RETURN_IFERR(cm_text2str(&text, buf, CT_MAX_NUMBER_LEN + 1));
 
     return cm_str2uint32(buf, value);
 }
 
 status_t cm_text2uint64(const text_t *text_src, uint64 *value)
 {
-    char buf[GS_MAX_NUMBER_LEN + 1] = { 0 };  // '00000000000000000000001'
+    char buf[CT_MAX_NUMBER_LEN + 1] = { 0 };  // '00000000000000000000001'
     text_t text = *text_src;
 
     cm_trim_text(&text);
 
-    if (text.len > GS_MAX_NUMBER_LEN) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+    if (text.len > CT_MAX_NUMBER_LEN) {
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
             "Convert uint64 failed, the length of text can't be larger than %u, text = %s",
-            GS_MAX_NUMBER_LEN, T2S(&text));
-        return GS_ERROR;
+            CT_MAX_NUMBER_LEN, T2S(&text));
+        return CT_ERROR;
     }
-    GS_RETURN_IFERR(cm_text2str(&text, buf, GS_MAX_NUMBER_LEN + 1));
+    CT_RETURN_IFERR(cm_text2str(&text, buf, CT_MAX_NUMBER_LEN + 1));
 
     return cm_str2uint64(buf, value);
 }
@@ -353,17 +353,17 @@ num_errno_t cm_numpart2uint32(const num_part_t *np, uint32 *value)
         return NERR_SUCCESS;
     }
 
-    if (np->digit_text.len > GS_MAX_UINT32_PREC ||
+    if (np->digit_text.len > CT_MAX_UINT32_PREC ||
         np->has_dot || np->has_expn || np->is_neg) {
         return NERR_ERROR;
     }
 
-    if (np->digit_text.len == GS_MAX_UINT32_PREC) {
+    if (np->digit_text.len == CT_MAX_UINT32_PREC) {
         int32 cmp_ret = cm_compare_digitext(&np->digit_text, &g_uint32_ceil);
         if (cmp_ret > 0) {
             return NERR_OVERFLOW;
         } else if (cmp_ret == 0) {
-            *value = GS_MAX_UINT32;
+            *value = CT_MAX_UINT32;
             return NERR_SUCCESS;
         }
     }
@@ -379,7 +379,7 @@ num_errno_t cm_numpart2uint32(const num_part_t *np, uint32 *value)
 /**
 * Try to parse an uint32 from text, if the conversion is failed, FALSE
 * will be returned
-* @author 2018/03/12
+
 */
 num_errno_t cm_text2uint32_ex(const text_t *text_src, uint32 *value)
 {
@@ -395,19 +395,19 @@ num_errno_t cm_text2uint32_ex(const text_t *text_src, uint32 *value)
 
 status_t cm_text2bigint(const text_t *text_src, int64 *value)
 {
-    char buf[GS_MAX_NUMBER_LEN + 1] = {0};  // '00000000000000000000000000000001'
+    char buf[CT_MAX_NUMBER_LEN + 1] = {0};  // '00000000000000000000000000000001'
     text_t text = *text_src;
 
     cm_trim_text(&text);
 
-    if (text.len > GS_MAX_NUMBER_LEN) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+    if (text.len > CT_MAX_NUMBER_LEN) {
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
             "Convert int64 failed, the length of text can't be larger than %u, text = %s",
-            GS_MAX_NUMBER_LEN, T2S(&text));
-        return GS_ERROR;
+            CT_MAX_NUMBER_LEN, T2S(&text));
+        return CT_ERROR;
     }
 
-    GS_RETURN_IFERR(cm_text2str(&text, buf, GS_MAX_NUMBER_LEN + 1));
+    CT_RETURN_IFERR(cm_text2str(&text, buf, CT_MAX_NUMBER_LEN + 1));
 
     return cm_str2bigint(buf, value);
 }
@@ -419,15 +419,15 @@ num_errno_t cm_numpart2bigint(const num_part_t *np, int64 *value)
         return NERR_SUCCESS;
     }
 
-    GS_RETVALUE_IFTRUE((np->digit_text.len > GS_MAX_INT64_PREC || np->has_dot || np->has_expn), NERR_ERROR);
+    CT_RETVALUE_IFTRUE((np->digit_text.len > CT_MAX_INT64_PREC || np->has_dot || np->has_expn), NERR_ERROR);
 
-    if (np->digit_text.len == GS_MAX_INT64_PREC) {
+    if (np->digit_text.len == CT_MAX_INT64_PREC) {
         int32 cmp_ret = cm_compare_digitext(&np->digit_text,
                                             np->is_neg ? &g_neg_bigint_ceil : &g_pos_bigint_ceil);
         if (cmp_ret > 0) {
             return NERR_OVERFLOW;
         } else if (cmp_ret == 0) {
-            *value = np->is_neg ? GS_MIN_INT64 : GS_MAX_INT64;
+            *value = np->is_neg ? CT_MIN_INT64 : CT_MAX_INT64;
             return NERR_SUCCESS;
         }
     }
@@ -435,7 +435,7 @@ num_errno_t cm_numpart2bigint(const num_part_t *np, int64 *value)
     int64 val = 0;
     for (uint32 i = 0; i < np->digit_text.len; ++i) {
         if (!CM_IS_DIGIT(np->digit_text.str[i])) {
-            GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "np->digit_text.str(%c) should be a digit", np->digit_text.str[i]);
+            CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "np->digit_text.str(%c) should be a digit", np->digit_text.str[i]);
             return NERR_ERROR;
         }
         val = val * CM_DEFAULT_DIGIT_RADIX + CM_C2D(np->digit_text.str[i]);
@@ -448,7 +448,7 @@ num_errno_t cm_numpart2bigint(const num_part_t *np, int64 *value)
 /**
 * Try to parse a BIGINT from text, if the conversion is failed, FALSE
 * will be returned
-* @author 2018/03/14
+
 */
 num_errno_t cm_text2bigint_ex(const text_t *num_text, int64 *value)
 {
@@ -464,17 +464,17 @@ num_errno_t cm_text2bigint_ex(const text_t *num_text, int64 *value)
 
 num_errno_t cm_numpart2uint64(const num_part_t *np, uint64 *value)
 {
-    if (np->digit_text.len > GS_MAX_UINT64_PREC ||
+    if (np->digit_text.len > CT_MAX_UINT64_PREC ||
         np->has_dot || np->is_neg || np->has_expn) {
         return NERR_ERROR;
     }
 
-    if (np->digit_text.len == GS_MAX_UINT64_PREC) {
+    if (np->digit_text.len == CT_MAX_UINT64_PREC) {
         int32 cmp_ret = cm_compare_digitext(&np->digit_text, &g_uint64_ceil);
         if (cmp_ret > 0) {
             return NERR_OVERFLOW;
         } else if (cmp_ret == 0) {
-            *value = GS_MAX_UINT64;
+            *value = CT_MAX_UINT64;
             return NERR_SUCCESS;
         }
     }
@@ -482,7 +482,7 @@ num_errno_t cm_numpart2uint64(const num_part_t *np, uint64 *value)
     *value = 0;
     for (uint32 i = 0; i < np->digit_text.len; ++i) {
         if (!CM_IS_DIGIT(np->digit_text.str[i])) {
-            GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "np->digit_text.str(%c) should be a digit", np->digit_text.str[i]);
+            CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "np->digit_text.str(%c) should be a digit", np->digit_text.str[i]);
             return NERR_ERROR;
         }
         *value = (*value) * CM_DEFAULT_DIGIT_RADIX + CM_C2D(np->digit_text.str[i]);
@@ -494,7 +494,7 @@ num_errno_t cm_numpart2uint64(const num_part_t *np, uint64 *value)
 /**
 * Try to parse a UINT64 from text, if the conversion is failed, FALSE
 * will be returned
-* @author 2018/03/14
+
 */
 num_errno_t cm_text2uint64_ex(const text_t *num_text, uint64 *value)
 {
@@ -512,17 +512,17 @@ num_errno_t cm_text2uint64_ex(const text_t *num_text, uint64 *value)
 static bool32 cm_is_err(const char *err)
 {
     if (err == NULL) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     while (*err != '\0') {
         if (*err != ' ') {
-            return GS_TRUE;
+            return CT_TRUE;
         }
         err++;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t cm_str2int(const char *str, int32 *value)
@@ -530,18 +530,18 @@ status_t cm_str2int(const char *str, int32 *value)
     char *err = NULL;
     int64 val_int64 = strtol(str, &err, CM_DEFAULT_DIGIT_RADIX);
     if (cm_is_err(err)) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "Convert int32 failed, text = %s", str);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "Convert int32 failed, text = %s", str);
+        return CT_ERROR;
     }
 
     if (val_int64 > INT_MAX || val_int64 < INT_MIN) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
                           "Convert int32 failed, the number text is not in the range of int32, text = %s", str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *value = (int32)val_int64;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_str2uint16(const char *str, uint16 *value)
@@ -549,18 +549,18 @@ status_t cm_str2uint16(const char *str, uint16 *value)
     char *err = NULL;
     int64 val_int64 = strtol(str, &err, CM_DEFAULT_DIGIT_RADIX);
     if (cm_is_err(err)) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "Convert uint16 failed, text = %s", str);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "Convert uint16 failed, text = %s", str);
+        return CT_ERROR;
     }
 
     if (val_int64 > USHRT_MAX || val_int64 < 0) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
                           "Convert uint16 failed, the number text is not in the range of uint16, text = %s", str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *value = (uint16)val_int64;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_str2uint32(const char *str, uint32 *value)
@@ -568,18 +568,18 @@ status_t cm_str2uint32(const char *str, uint32 *value)
     char *err = NULL;
     int64 val_int64 = strtoll(str, &err, CM_DEFAULT_DIGIT_RADIX);
     if (cm_is_err(err)) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "Convert uint32 failed, text = %s", str);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "Convert uint32 failed, text = %s", str);
+        return CT_ERROR;
     }
 
     if (val_int64 > UINT_MAX || val_int64 < 0) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
                           "Convert uint32 failed, the number text is not in the range of uint32, text = %s", str);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     *value = (uint32)val_int64;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_str2bigint(const char *str, int64 *value)
@@ -587,20 +587,20 @@ status_t cm_str2bigint(const char *str, int64 *value)
     char *err = NULL;
     *value = strtoll(str, &err, CM_DEFAULT_DIGIT_RADIX);
     if (cm_is_err(err)) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "Convert int64 failed, text = %s", str);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "Convert int64 failed, text = %s", str);
+        return CT_ERROR;
     }
     // if str = "9223372036854775808", *value will be LLONG_MAX
     if (*value == LLONG_MAX || *value == LLONG_MIN) {
         if (cm_compare_str(str, (const char *)SIGNED_LLONG_MIN) != 0 &&
             cm_compare_str(str, (const char *)SIGNED_LLONG_MAX) != 0) {
-            GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+            CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
                 "Convert int64 failed, the number text is not in the range of signed long long, text = %s", str);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_str2uint64(const char *str, uint64 *value)
@@ -608,35 +608,35 @@ status_t cm_str2uint64(const char *str, uint64 *value)
     char *err = NULL;
     *value = strtoull(str, &err, CM_DEFAULT_DIGIT_RADIX);
     if (cm_is_err(err)) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "Convert uint64 failed, text = %s", str);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "Convert uint64 failed, text = %s", str);
+        return CT_ERROR;
     }
 
     if (*value == ULLONG_MAX) {  // if str = "18446744073709551616", *value will be ULLONG_MAX
         if (cm_compare_str(str, (const char *)UNSIGNED_LLONG_MAX) != 0) {
-            GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+            CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
                 "Convert int64 failed, the number text is not in the range of unsigned long long, text = %s", str);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_text2real(const text_t *text_src, double *value)
 {
-    char buf[GS_MAX_REAL_INPUT_STRLEN + 1] = {0};
+    char buf[CT_MAX_REAL_INPUT_STRLEN + 1] = {0};
     text_t text = *text_src;
 
     cm_trim_text(&text);
 
-    if (text.len > GS_MAX_REAL_INPUT_STRLEN) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+    if (text.len > CT_MAX_REAL_INPUT_STRLEN) {
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
                           "Convert double failed, the length(%u) of text can't be larger than %u, text = %s", text.len,
-                          GS_MAX_REAL_INPUT_STRLEN, T2S(&text));
-        return GS_ERROR;
+                          CT_MAX_REAL_INPUT_STRLEN, T2S(&text));
+        return CT_ERROR;
     }
-    GS_RETURN_IFERR(cm_text2str(&text, buf, GS_MAX_REAL_INPUT_STRLEN + 1));
+    CT_RETURN_IFERR(cm_text2str(&text, buf, CT_MAX_REAL_INPUT_STRLEN + 1));
 
     return cm_str2real(buf, value);
 }
@@ -645,25 +645,25 @@ num_errno_t cm_numpart2real(num_part_t *np, double *value)
 {
     int32 expn;
 
-    if (np->sci_expn > GS_MAX_REAL_EXPN) {
+    if (np->sci_expn > CT_MAX_REAL_EXPN) {
         return NERR_OVERFLOW;
     }
 
-    if (np->sci_expn == GS_MAX_REAL_EXPN) {
+    if (np->sci_expn == CT_MAX_REAL_EXPN) {
         if (cm_compare_digitext(&np->digit_text, &g_double_ceil) > 0) {
             return NERR_OVERFLOW;
         }
-    } else if (np->sci_expn < GS_MIN_REAL_EXPN) {
+    } else if (np->sci_expn < CT_MIN_REAL_EXPN) {
         *value = 0.0;
         return NERR_SUCCESS;
     }
 
     expn = np->sci_expn - (int32)(np->digit_text.len) + 1 + (int32)np->do_round;
 
-    int32 code = snprintf_s(CM_GET_TAIL(&np->digit_text), GS_MAX_NUM_PART_BUFF - np->digit_text.len,
-        GS_MAX_NUM_PART_BUFF - np->digit_text.len - 1, "E%d", expn);
+    int32 code = snprintf_s(CM_GET_TAIL(&np->digit_text), CT_MAX_NUM_PART_BUFF - np->digit_text.len,
+        CT_MAX_NUM_PART_BUFF - np->digit_text.len - 1, "E%d", expn);
     if (SECUREC_UNLIKELY(code == -1)) {
-        GS_THROW_ERROR(ERR_SYSTEM_CALL, code);
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, code);
         return NERR_ERROR;
     }
 
@@ -687,21 +687,33 @@ num_errno_t cm_text2real_ex(const text_t *text_src, double *value)
     return cm_numpart2real(&np, value);
 }
 
+num_errno_t cm_text2real_ex_no_check_err(const text_t *text_src, double *value)
+{
+    num_part_t np;
+    num_errno_t err_no;
+
+    np.excl_flag = NF_NONE;
+    err_no = cm_split_num_text(text_src, &np);
+    CM_NO_CHECK_NUM_ERRNO(err_no);
+
+    return cm_numpart2real(&np, value);
+}
+
 status_t cm_str2real(const char *str, double *value)
 {
     char *err = NULL;
     *value = strtod(str, &err);
     if (cm_is_err(err)) {
-        GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "Convert double failed, text = %s", str);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "Convert double failed, text = %s", str);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
  * try to convert any c-string into double. If the conversion is success,
- * the return value is GS_TRUE and val is the converted value; else GS_FALSE
+ * the return value is CT_TRUE and val is the converted value; else CT_FALSE
  * is returned.
  * @note the c-string is formed by an optional sign character (+ or -),
  * followed by a sequence of digits, optionally containing a decimal-point
@@ -714,6 +726,7 @@ status_t cm_str2real(const char *str, double *value)
  * the following is not allowed:
  * '1234erewr', '23423.123.23423', 'E3254345', '123E123.232'
  *
+
  */
 bool32 cm_str2real_ex(const char *str, double *val)
 {
@@ -728,7 +741,7 @@ bool32 cm_str2real_ex(const char *str, double *val)
 num_errno_t cm_text2int16_ex(const text_t *text, int32 *val)
 {
     char c;
-    bool32 is_neg = GS_FALSE;
+    bool32 is_neg = CT_FALSE;
     uint32 i = 0;
 
     // handle the sign
@@ -739,7 +752,7 @@ num_errno_t cm_text2int16_ex(const text_t *text, int32 *val)
     }
 
     /* if no digits, return error  */
-    GS_RETVALUE_IFTRUE((i >= text->len), NERR_NO_DIGIT);
+    CT_RETVALUE_IFTRUE((i >= text->len), NERR_NO_DIGIT);
 
     *val = 0;
     // skip leading zeros
@@ -755,19 +768,19 @@ num_errno_t cm_text2int16_ex(const text_t *text, int32 *val)
     // found the first non-zero digit
     // too many nonzero exponent digits, the number of significant digits
     // must be no less than 5
-    GS_RETVALUE_IFTRUE((text->len >= (6 + i)), NERR_INVALID_LEN);
+    CT_RETVALUE_IFTRUE((text->len >= (6 + i)), NERR_INVALID_LEN);
 
     for (;;) {
         // invalid number text with unexpected characters
-        GS_RETVALUE_IFTRUE((!CM_IS_DIGIT(c)), NERR_UNEXPECTED_CHAR);
+        CT_RETVALUE_IFTRUE((!CM_IS_DIGIT(c)), NERR_UNEXPECTED_CHAR);
         *val = (*val) * CM_DEFAULT_DIGIT_RADIX + CM_C2D(c);
 
         ++i;
-        GS_BREAK_IF_TRUE(i >= text->len);
+        CT_BREAK_IF_TRUE(i >= text->len);
         c = text->str[i];
     }
     // overflow
-    GS_RETVALUE_IFTRUE((*val != (int16)(*val)), NERR_OVERFLOW);
+    CT_RETVALUE_IFTRUE((*val != (int16)(*val)), NERR_OVERFLOW);
 
     if (is_neg) {
         *val = -(*val);
@@ -790,12 +803,12 @@ uint32 cm_bool2str(bool32 value, char *str)
 static bool32 cm_diag_int(const text_t *text, const digitext_t *dtext, num_part_t *np)
 {
     uint32 i;
-    bool32 is_neg = GS_FALSE;
+    bool32 is_neg = CT_FALSE;
     text_t num_text = *text;
 
     cm_trim_text(&num_text);
 
-    GS_RETVALUE_IFTRUE((num_text.len == 0), GS_FALSE);
+    CT_RETVALUE_IFTRUE((num_text.len == 0), CT_FALSE);
 
     if (CM_IS_SIGN_CHAR(num_text.str[0])) {
         is_neg = ('-' == num_text.str[0]);
@@ -807,22 +820,22 @@ static bool32 cm_diag_int(const text_t *text, const digitext_t *dtext, num_part_
 
     for (i = 0; i < num_text.len; i++) {
         if (i >= dtext->len || !CM_IS_DIGIT(num_text.str[i])) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
     text_t num_dtext = { .str = (char *)dtext->str, .len = dtext->len };
-    GS_RETVALUE_IFTRUE((num_text.len == dtext->len && cm_compare_text(&num_text, &num_dtext) > 0), GS_FALSE);
+    CT_RETVALUE_IFTRUE((num_text.len == dtext->len && cm_compare_text(&num_text, &num_dtext) > 0), CT_FALSE);
 
     if (np != NULL) {
         cm_text2digitext(&num_text, &np->digit_text);
         np->digit_text.len = num_text.len;
-        np->has_dot = GS_FALSE;
-        np->has_expn = GS_FALSE;
+        np->has_dot = CT_FALSE;
+        np->has_expn = CT_FALSE;
         np->is_neg = is_neg;
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 bool32 cm_is_short(const text_t *text)
@@ -842,92 +855,92 @@ bool32 cm_is_bigint(const text_t *text, num_part_t *np)
 
 /* Decide whether the num_part is REAL or DECIMAL type, if overflow,
  * return false. */
-static inline num_errno_t cm_decide_decimal_type(const num_part_t *np, gs_type_t *type)
+static inline num_errno_t cm_decide_decimal_type(const num_part_t *np, ct_type_t *type)
 {
-    if (np->sci_expn < GS_MAX_REAL_EXPN) {
+    if (np->sci_expn < CT_MAX_REAL_EXPN) {
         // Rule 2.1: if sci_exp > MAX_NUMERIC_EXPN, then it is a double type
         // Rule 2.2: if sci_exp < MIN_NUMERIC_EXPN, then it is a double zero
         // Rule 2.3: used as decimal type
-        *type = (np->sci_expn > MAX_NUMERIC_EXPN || np->sci_expn < MIN_NUMERIC_EXPN) ? GS_TYPE_REAL : GS_TYPE_NUMBER;
+        *type = (np->sci_expn > MAX_NUMERIC_EXPN || np->sci_expn < MIN_NUMERIC_EXPN) ? CT_TYPE_REAL : CT_TYPE_NUMBER;
         return NERR_SUCCESS;
-    } else if (np->sci_expn == GS_MAX_REAL_EXPN) {
-        GS_RETVALUE_IFTRUE((cm_compare_digitext(&np->digit_text, &g_double_ceil) > 0), NERR_OVERFLOW);
+    } else if (np->sci_expn == CT_MAX_REAL_EXPN) {
+        CT_RETVALUE_IFTRUE((cm_compare_digitext(&np->digit_text, &g_double_ceil) > 0), NERR_OVERFLOW);
         // less than the maximal representable double
-        *type = GS_TYPE_REAL;
+        *type = CT_TYPE_REAL;
         return NERR_SUCCESS;
     }
 
-    // sci_exp > GS_MAX_REAL_EXPN
+    // sci_exp > CT_MAX_REAL_EXPN
     return NERR_OVERFLOW;
 }
 
 /* Decide type of an integer num_part, if the num_part is
- * + in the range of an int32, type = GS_TYPE_INTEGER;
- * + in the range of an bigint, type = GS_TYPE_BIGINT;
+ * + in the range of an int32, type = CT_TYPE_INTEGER;
+ * + in the range of an bigint, type = CT_TYPE_BIGINT;
  * + else, return number type */
-static inline num_errno_t cm_decide_integer_type(const num_part_t *np, gs_type_t *type)
+static inline num_errno_t cm_decide_integer_type(const num_part_t *np, ct_type_t *type)
 {
     const digitext_t *cmp_text = NULL;
     /* Rule 4: no dot and no expn */
     /* Rule 4.1: the precision less than the maximal length of an int32 */
-    if (np->digit_text.len < GS_MAX_INT32_PREC) {
-        *type = GS_TYPE_INTEGER;
+    if (np->digit_text.len < CT_MAX_INT32_PREC) {
+        *type = CT_TYPE_INTEGER;
         return NERR_SUCCESS;
     }
     /* Rule 4.2: the precision equal to the maximal length of an int32/ uint32 */
-    if (np->digit_text.len == GS_MAX_INT32_PREC) {
-        *type = GS_TYPE_INTEGER;
+    if (np->digit_text.len == CT_MAX_INT32_PREC) {
+        *type = CT_TYPE_INTEGER;
         if (np->is_neg) {
             if (cm_compare_digitext(&np->digit_text, &g_neg_int32_ceil) > 0) {
-                *type = GS_TYPE_BIGINT;
+                *type = CT_TYPE_BIGINT;
             }
         } else {
             if (cm_compare_digitext(&np->digit_text, &g_pos_int32_ceil) > 0) {
-                *type = (cm_compare_digitext(&np->digit_text, &g_uint32_ceil) <= 0) ? GS_TYPE_UINT32 : GS_TYPE_BIGINT;
+                *type = (cm_compare_digitext(&np->digit_text, &g_uint32_ceil) <= 0) ? CT_TYPE_UINT32 : CT_TYPE_BIGINT;
             }
         }
 
         return NERR_SUCCESS;
     }
     /* Rule 4.3: the precision less than the maximal length of an int64 */
-    if (np->digit_text.len < GS_MAX_INT64_PREC) {
-        *type = GS_TYPE_BIGINT;
+    if (np->digit_text.len < CT_MAX_INT64_PREC) {
+        *type = CT_TYPE_BIGINT;
         return NERR_SUCCESS;
     }
 
-    if (np->digit_text.len == GS_MAX_INT64_PREC) {
+    if (np->digit_text.len == CT_MAX_INT64_PREC) {
         cmp_text = np->is_neg ? &g_neg_bigint_ceil : &g_pos_bigint_ceil;
-        *type = (cm_compare_digitext(&np->digit_text, cmp_text) > 0) ? GS_TYPE_NUMBER : GS_TYPE_BIGINT;
+        *type = (cm_compare_digitext(&np->digit_text, cmp_text) > 0) ? CT_TYPE_NUMBER : CT_TYPE_BIGINT;
         return NERR_SUCCESS;
     }
     
-    if (np->digit_text.len == GS_MAX_UINT64_PREC) {
+    if (np->digit_text.len == CT_MAX_UINT64_PREC) {
         if (np->is_neg) {
-            *type = GS_TYPE_NUMBER;
+            *type = CT_TYPE_NUMBER;
         } else {
-            *type = (cm_compare_digitext(&np->digit_text, &g_uint64_ceil) > 0) ? GS_TYPE_NUMBER : GS_TYPE_UINT64;
+            *type = (cm_compare_digitext(&np->digit_text, &g_uint64_ceil) > 0) ? CT_TYPE_NUMBER : CT_TYPE_UINT64;
         }
         return NERR_SUCCESS;
     }
 
-    if (np->digit_text.len <= GS_MAX_NUM_PRECISION) {
-        *type = GS_TYPE_NUMBER;
+    if (np->digit_text.len <= CT_MAX_NUM_PRECISION) {
+        *type = CT_TYPE_NUMBER;
         return NERR_SUCCESS;
     }
     return NERR_ERROR;
 }
 
-num_errno_t cm_decide_numtype(const num_part_t *np, gs_type_t *type)
+num_errno_t cm_decide_numtype(const num_part_t *np, ct_type_t *type)
 {
     // Decide the datatype of numeric text
     // Rule 1: if the base part is zero(s), return integer 0
     if (NUMPART_IS_ZERO(np) && !np->has_dot && !np->has_expn) {
-        *type = GS_TYPE_INTEGER;
+        *type = CT_TYPE_INTEGER;
         return NERR_SUCCESS;
     }
 
     // Rule 2: if expn or dot exist, or the text is too long
-    if (np->has_expn || np->has_dot || np->digit_text.len > GS_MAX_INT64_PREC) {
+    if (np->has_expn || np->has_dot || np->digit_text.len > CT_MAX_INT64_PREC) {
         return cm_decide_decimal_type(np, type);
     }
 
@@ -945,8 +958,9 @@ num_errno_t cm_decide_numtype(const num_part_t *np, gs_type_t *type)
 * @see  cm_text2dec
 * @note the maximal possible exponent of the numeric text is restricted in the
 *       range of int16
+
 */
-num_errno_t cm_is_number_with_sign(const text_t *text, gs_type_t *type)
+num_errno_t cm_is_number_with_sign(const text_t *text, ct_type_t *type)
 {
     num_part_t np;
     num_errno_t err_no;
@@ -958,7 +972,7 @@ num_errno_t cm_is_number_with_sign(const text_t *text, gs_type_t *type)
     return cm_decide_numtype(&np, type);
 }
 
-num_errno_t cm_is_number(const text_t *text, gs_type_t *type)
+num_errno_t cm_is_number(const text_t *text, ct_type_t *type)
 {
     return cm_is_number_with_sign(text, type);
 }
@@ -1014,12 +1028,13 @@ static inline void cm_calc_significand_expn(int32 dot_offset, int32 prec_offset,
 * Parse an exponent from the numeric text *dec_text*, i is the offset
 * of exponent. When unexpected character occur or the exponent overflow,
 * an error will be returned.
+
 */
 static inline num_errno_t cm_parse_num_expn(text_t *expn_text, int32 *expn)
 {
     char c;
     int32 tmp_exp;
-    bool32 is_negexp = GS_FALSE;
+    bool32 is_negexp = CT_FALSE;
     uint32 i = 0;
 
     // handle the sign of exponent
@@ -1029,7 +1044,7 @@ static inline num_errno_t cm_parse_num_expn(text_t *expn_text, int32 *expn)
         c = expn_text->str[++i];  // move to next character
     }
     if (i >= expn_text->len) { /* if no exponent digits, return error  */
-        GS_RETVALUE_IFTRUE((i >= expn_text->len), NERR_NO_EXPN_DIGIT);
+        CT_RETVALUE_IFTRUE((i >= expn_text->len), NERR_NO_EXPN_DIGIT);
     }
 
     // skip leading zeros in the exponent
@@ -1045,7 +1060,7 @@ static inline num_errno_t cm_parse_num_expn(text_t *expn_text, int32 *expn)
     // too many nonzero exponent digits
     tmp_exp = 0;
     for (;;) {
-        GS_RETVALUE_IFTRUE((!CM_IS_DIGIT(c)), NERR_EXPN_WITH_NCHAR);
+        CT_RETVALUE_IFTRUE((!CM_IS_DIGIT(c)), NERR_EXPN_WITH_NCHAR);
 
         if (tmp_exp < CM_MAX_EXPN) {  // to avoid int32 overflow
             tmp_exp = tmp_exp * CM_DEFAULT_DIGIT_RADIX + CM_C2D(c);
@@ -1059,7 +1074,7 @@ static inline num_errno_t cm_parse_num_expn(text_t *expn_text, int32 *expn)
     }
 
     // check exponent overflow on positive integer
-    GS_RETVALUE_IFTRUE((!is_negexp && tmp_exp > CM_MAX_EXPN), NERR_OVERFLOW);
+    CT_RETVALUE_IFTRUE((!is_negexp && tmp_exp > CM_MAX_EXPN), NERR_OVERFLOW);
 
     *expn = is_negexp ? -tmp_exp : tmp_exp;
 
@@ -1074,37 +1089,37 @@ num_errno_t cm_split_num_text(const text_t *num_text, num_part_t *np)
     int32 dot_offset = -1;         /** '.' offset, -1 if none */
     int32 prec_offset = -1;        /** the offset of the first significant digit, -1 if none */
     int32 precision = -1;          /* see comments of the function */
-    bool32 leading_flag = GS_TRUE; /** used to ignore leading zeros */
+    bool32 leading_flag = CT_TRUE; /** used to ignore leading zeros */
 
     /* When the number of significant digits exceeds the dight_buf
                                      * Then, a round happens when the MAX_NUMERIC_BUFF+1 significant
                                      * digit is equal and greater than '5' */
     CM_POINTER2(num_text, np);
     np->digit_text.len = 0;
-    np->has_dot = GS_FALSE;
-    np->has_expn = GS_FALSE;
-    np->do_round = GS_FALSE;
-    np->is_neg = GS_FALSE;
+    np->has_dot = CT_FALSE;
+    np->has_expn = CT_FALSE;
+    np->do_round = CT_FALSE;
+    np->is_neg = CT_FALSE;
     np->sci_expn = 0;
 
     text = *num_text;
     cm_trim_text(&text);
 
-    GS_RETVALUE_IFTRUE((text.len == 0 || text.len >= SIZE_M(1)), NERR_INVALID_LEN);  // text.len > 2^15
+    CT_RETVALUE_IFTRUE((text.len == 0 || text.len >= SIZE_M(1)), NERR_INVALID_LEN);  // text.len > 2^15
 
     i = 0;
     /* Step 1. fetch the sign of the decimal */
     if (text.str[i] == '-') {  // leading minus means negative
         // if negative sign is not allowed
-        GS_RETVALUE_IFTRUE((np->excl_flag & NF_NEGATIVE_SIGN), NERR_UNALLOWED_NEG);
-        np->is_neg = GS_TRUE;
+        CT_RETVALUE_IFTRUE((np->excl_flag & NF_NEGATIVE_SIGN), NERR_UNALLOWED_NEG);
+        np->is_neg = CT_TRUE;
         i++;
     } else if (text.str[i] == '+') {  // leading + allowed
         i++;
     }
 
     /* check again */
-    GS_RETVALUE_IFTRUE((i >= (int32)text.len), NERR_NO_DIGIT);
+    CT_RETVALUE_IFTRUE((i >= (int32)text.len), NERR_NO_DIGIT);
 
     /* Step 2. parse the scale, exponent, precision, Significant value of the decimal */
     for (; i < (int32)text.len; ++i) {
@@ -1114,7 +1129,7 @@ num_errno_t cm_split_num_text(const text_t *num_text, num_part_t *np)
                 precision = 0;
                 continue;
             } else if (c != '.') {
-                leading_flag = GS_FALSE;
+                leading_flag = CT_FALSE;
             }
         }
 
@@ -1124,32 +1139,32 @@ num_errno_t cm_split_num_text(const text_t *num_text, num_part_t *np)
         }
 
         if (CM_IS_DOT(c)) {
-            GS_RETVALUE_IFTRUE((np->excl_flag & NF_DOT), NERR_UNALLOWED_DOT);
+            CT_RETVALUE_IFTRUE((np->excl_flag & NF_DOT), NERR_UNALLOWED_DOT);
 
-            GS_RETVALUE_IFTRUE((dot_offset >= 0), NERR_MULTIPLE_DOTS);
+            CT_RETVALUE_IFTRUE((dot_offset >= 0), NERR_MULTIPLE_DOTS);
 
             dot_offset = i;  //
-            np->has_dot = GS_TRUE;
+            np->has_dot = CT_TRUE;
             continue;
         }
 
         // begin to handle and fetch exponent
-        GS_RETVALUE_IFTRUE((!CM_IS_EXPN_CHAR(c)), NERR_UNEXPECTED_CHAR);
+        CT_RETVALUE_IFTRUE((!CM_IS_EXPN_CHAR(c)), NERR_UNEXPECTED_CHAR);
 
         // Exclude: 'E0012', '.E0012', '-E0012', '+.E0012', .etc
-        GS_RETVALUE_IFTRUE((precision < 0), NERR_UNEXPECTED_CHAR);
-        GS_RETVALUE_IFTRUE((np->excl_flag & NF_EXPN), NERR_UNALLOWED_EXPN);
+        CT_RETVALUE_IFTRUE((precision < 0), NERR_UNEXPECTED_CHAR);
+        CT_RETVALUE_IFTRUE((np->excl_flag & NF_EXPN), NERR_UNALLOWED_EXPN);
 
         // redirect text pointing to expn part
         text.str += (i + 1);
         text.len -= (i + 1);
         num_errno_t nerr = cm_parse_num_expn(&text, &np->sci_expn);
-        GS_RETVALUE_IFTRUE((nerr != NERR_SUCCESS), nerr);
-        np->has_expn = GS_TRUE;
+        CT_RETVALUE_IFTRUE((nerr != NERR_SUCCESS), nerr);
+        np->has_expn = CT_TRUE;
         break;
     }  // end for
 
-    GS_RETVALUE_IFTRUE((precision < 0), NERR_NO_DIGIT);
+    CT_RETVALUE_IFTRUE((precision < 0), NERR_NO_DIGIT);
 
     if (precision == 0) {
         CM_ZERO_NUMPART(np);
@@ -1159,10 +1174,10 @@ num_errno_t cm_split_num_text(const text_t *num_text, num_part_t *np)
     // Step 3: Calculate the scale of the total number text
     cm_calc_significand_expn(dot_offset, prec_offset, precision, np);
     
-    if (np->digit_text.len > num_text->len || np->digit_text.len >= GS_MAX_NUM_PART_BUFF) {
-        GS_THROW_ERROR_EX(ERR_ASSERT_ERROR,
-            "np->digit_text.len(%u) <= num_text->len(%u) and np->digit_text.len(%u) < GS_MAX_NUM_PART_BUFF(%d)",
-            np->digit_text.len, num_text->len, np->digit_text.len, GS_MAX_NUM_PART_BUFF);
+    if (np->digit_text.len > num_text->len || np->digit_text.len >= CT_MAX_NUM_PART_BUFF) {
+        CT_THROW_ERROR_EX(ERR_ASSERT_ERROR,
+            "np->digit_text.len(%u) <= num_text->len(%u) and np->digit_text.len(%u) < CT_MAX_NUM_PART_BUFF(%d)",
+            np->digit_text.len, num_text->len, np->digit_text.len, CT_MAX_NUM_PART_BUFF);
         return NERR_ERROR;
     }
     return NERR_SUCCESS;
@@ -1175,12 +1190,12 @@ num_errno_t cm_split_num_text(const text_t *num_text, num_part_t *np)
  *
  * If no split_char is found, the left = text, and the right = empty_text
  * @see cm_split_rtext
- * @author Comment Added, 2018/04/11
+
  */
 void cm_split_text(const text_t *text, char split_char, char enclose_char, text_t *left, text_t *right)
 {
     uint32 i;
-    bool32 is_enclosed = GS_FALSE;
+    bool32 is_enclosed = CT_FALSE;
 
     left->str = text->str;
 
@@ -1213,12 +1228,12 @@ void cm_split_text(const text_t *text, char split_char, char enclose_char, text_
  * @note enclose_char = 0 means no enclose_char.
  * @note If no split_char is found, the left = text, and the right = empty_text
  * @see cm_split_text
- * @author Added, 2018/04/10
+
  */
 bool32 cm_split_rtext(const text_t *text, char split_char, char enclose_char, text_t *left, text_t *right)
 {
     int32 i;
-    bool32 is_enclosed = GS_FALSE;
+    bool32 is_enclosed = CT_FALSE;
 
     left->str = text->str;
     for (i = (int32)text->len; i-- > 0;) {
@@ -1235,7 +1250,7 @@ bool32 cm_split_rtext(const text_t *text, char split_char, char enclose_char, te
             left->len = (uint32)i;
             right->str = text->str + i + 1;
             right->len = text->len - (i + 1);
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
@@ -1243,14 +1258,14 @@ bool32 cm_split_rtext(const text_t *text, char split_char, char enclose_char, te
     left->len = text->len;
     right->len = 0;
     right->str = NULL;
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 void cm_trim_number(text_t *text, bool32 has_dot)
 {
     int32 i;
 
-    GS_RETVOID_IFTRUE(text->len <= 1);
+    CT_RETVOID_IFTRUE(text->len <= 1);
 
     uint32 trim_count = 0;
     // remove leading zeros to
@@ -1265,7 +1280,7 @@ void cm_trim_number(text_t *text, bool32 has_dot)
     text->len -= trim_count;
     text->str += trim_count;
 
-    GS_RETVOID_IFTRUE(!has_dot);
+    CT_RETVOID_IFTRUE(!has_dot);
 
     trim_count = 0;
     for (i = (int32)(text->len - 1); i > 0; i--) {
@@ -1327,10 +1342,10 @@ status_t cm_text2size(const text_t *text, int64 *value)
         num.len--;
     }
 
-    GS_RETURN_IFERR(cm_text2real(&num, &size));
+    CT_RETURN_IFERR(cm_text2real(&num, &size));
 
     *value = (int64)(size * unit);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_text2microsecond(const text_t *text, uint64 *value)
@@ -1358,24 +1373,24 @@ status_t cm_text2microsecond(const text_t *text, uint64 *value)
     }
 
     if (displace == 1 || displace == 0) {
-        if (cm_text2uint32(&num, &second) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_text2uint32(&num, &second) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         *value = (uint64)second * MICROSECS_PER_SECOND;
     }
 
     if (displace == 2) {
-        if (cm_text2uint64(&num, &microsecond) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cm_text2uint64(&num, &microsecond) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         if (microsecond > MAX_MILLISECOND) {
-            GS_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+            CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
                 "Convert millisecond failed, the number text is not in the range, text = %llu", microsecond);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         *value = microsecond * MICROSECS_PER_MILLISEC;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_str2size(const char *str, int64 *value)
@@ -1398,7 +1413,7 @@ num_errno_t cm_numpart2size(const num_part_t *np, int64 *value)
     num_errno_t err_no = cm_numpart2bigint(np, value);
     CM_CHECK_NUM_ERRNO(err_no);
 
-    GS_RETVALUE_IFTRUE((*value < 0), NERR_EXPECTED_POS_INT);
+    CT_RETVALUE_IFTRUE((*value < 0), NERR_EXPECTED_POS_INT);
 
     unit = 0;
     switch (np->sz_indicator) {
@@ -1439,7 +1454,7 @@ num_errno_t cm_numpart2size(const num_part_t *np, int64 *value)
     }
 
     // overflow
-    GS_RETVALUE_IFTRUE((*value > (GS_MAX_INT64 >> unit)), NERR_OVERFLOW);
+    CT_RETVALUE_IFTRUE((*value > (CT_MAX_INT64 >> unit)), NERR_OVERFLOW);
 
     *value = *value << unit;
     return NERR_SUCCESS;
@@ -1455,14 +1470,14 @@ bool32 cm_fetch_text(text_t *text, char split_char, char enclose_char, text_t *s
     text_t remain;
     if (text->len == 0) {
         CM_TEXT_CLEAR(sub);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     cm_split_text(text, split_char, enclose_char, sub, &remain);
 
     text->len = remain.len;
     text->str = remain.str;
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /* Reversely fetch a text starting from its end, if the *split_char* is
@@ -1474,7 +1489,7 @@ bool32 cm_fetch_rtext(text_t *text, char split_char, char enclose_char, text_t *
 {
     if (text->len == 0) {
         CM_TEXT_CLEAR(sub);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     return cm_split_rtext(text, split_char, enclose_char, sub, text);
@@ -1483,13 +1498,13 @@ bool32 cm_fetch_rtext(text_t *text, char split_char, char enclose_char, text_t *
 bool32 cm_is_enclosed(const text_t *text, char enclosed_char)
 {
     if (text->len < 2) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (enclosed_char == (CM_TEXT_BEGIN(text)) && (enclosed_char == CM_TEXT_END(text))) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 bool32 cm_fetch_line(text_t *text, text_t *line, bool32 eof)
@@ -1497,7 +1512,7 @@ bool32 cm_fetch_line(text_t *text, text_t *line, bool32 eof)
     text_t remain;
     if (text->len == 0) {
         CM_TEXT_CLEAR(line);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     cm_split_text(text, '\n', '\0', line, &remain);
@@ -1505,18 +1520,18 @@ bool32 cm_fetch_line(text_t *text, text_t *line, bool32 eof)
     if (remain.len == text->len) { /* no spilting char found */
         if (!eof) {
             CM_TEXT_CLEAR(line);
-            return GS_FALSE;
+            return CT_FALSE;
         }
 
         line->len = remain.len;
         line->str = remain.str;
         CM_TEXT_CLEAR(text);
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     text->len = remain.len;
     text->str = remain.str;
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 uint32 cm_instrb(const text_t *str, const text_t *substr, int32 pos, uint32 nth)
@@ -1609,7 +1624,7 @@ void cm_str_reverse(char *dst, const char *src, uint32 dst_len)
     uint32 i;
     size_t len = strlen(src);
     if (len >= dst_len) {
-        GS_THROW_ERROR_EX(ERR_ASSERT_ERROR, "len(%lu) < dst_len(%u)", len, dst_len);
+        CT_THROW_ERROR_EX(ERR_ASSERT_ERROR, "len(%lu) < dst_len(%u)", len, dst_len);
         return;
     }
 
@@ -1648,29 +1663,30 @@ bool32 cm_is_unsigned_int(const char *num)
 {
     uint32 i = 0;
     size_t len = strlen(num);
-    if (len > GS_MAX_INT32_STRLEN) {
-        GS_THROW_ERROR_EX(ERR_GENERIC_INTERNAL_ERROR, "'%s' is too long for unsigned int", num);
-        return GS_FALSE;
+    if (len > CT_MAX_INT32_STRLEN) {
+        CT_THROW_ERROR_EX(ERR_GENERIC_INTERNAL_ERROR, "'%s' is too long for unsigned int", num);
+        return CT_FALSE;
     }
 
     for (i = 0; i < len; i++) {
         if (!(num[i] >= '0' && num[i] <= '9')) {
-            GS_THROW_ERROR_EX(ERR_GENERIC_INTERNAL_ERROR, "character '%c' is invalid for unsigned int", num[i]);
-            return GS_FALSE;
+            CT_THROW_ERROR_EX(ERR_GENERIC_INTERNAL_ERROR, "character '%c' is invalid for unsigned int", num[i]);
+            return CT_FALSE;
         }
     }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 /**
  * Truncate a text from tailing to the maximal. If the text is too long
  * '...' is appended.
+
  */
 void cm_truncate_text(text_t *text, uint32 max_len)
 {
     if (text == NULL || text->str == NULL) {
-        GS_THROW_ERROR(ERR_ASSERT_ERROR, "text != NULL and text->str != NULL");
+        CT_THROW_ERROR(ERR_ASSERT_ERROR, "text != NULL and text->str != NULL");
         return;
     }
     if (text->len > max_len && max_len > 3) {
@@ -1688,7 +1704,7 @@ status_t cm_substrb(const text_t *src, int32 start, uint32 size, text_t *dst)
     int32 start_internal = start;
     if ((uint32)abs(start_internal) > src->len) {
         dst->len = 0;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     if (start_internal > 0) {
         start_internal--;
@@ -1701,14 +1717,14 @@ status_t cm_substrb(const text_t *src, int32 start, uint32 size, text_t *dst)
         MEMS_RETURN_IFERR(memcpy_sp(dst->str, copy_size, src->str + start_internal, copy_size));
     }
     dst->len = copy_size;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cm_replace_quotation(char *src, char *dest, uint32 dest_len, bool32 *exist_flag)
 {
     char *src_tmp = NULL;
     char *dest_tmp = NULL;
-    *exist_flag = GS_FALSE;
+    *exist_flag = CT_FALSE;
 
     CM_POINTER(src);
 
@@ -1716,7 +1732,7 @@ status_t cm_replace_quotation(char *src, char *dest, uint32 dest_len, bool32 *ex
 
     while (*src_tmp != '\0') {
         if (*src_tmp == '\'') {
-            *exist_flag = GS_TRUE;
+            *exist_flag = CT_TRUE;
             break;
         }
         src_tmp++;
@@ -1728,8 +1744,8 @@ status_t cm_replace_quotation(char *src, char *dest, uint32 dest_len, bool32 *ex
         uint32 count = 0;
         while (*src_tmp != '\0') {
             if (count >= dest_len - 1) {
-                GS_THROW_ERROR(ERR_OUT_OF_INDEX, "dest_tmp", dest_len);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_OUT_OF_INDEX, "dest_tmp", dest_len);
+                return CT_ERROR;
             }
             count++;
             *dest_tmp = *src_tmp;
@@ -1745,7 +1761,7 @@ status_t cm_replace_quotation(char *src, char *dest, uint32 dest_len, bool32 *ex
         *dest_tmp = '\0';
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #define CM_IS_SPACE(c)         ((c) == ' ')
@@ -1809,11 +1825,11 @@ static inline bool32 cm_if_sql_ignore_oper(cm_ignore_oper_t *ignore_oper, char c
                 if (CM_IS_ENCLOSED_CHAR(c)) {
                     ignore_oper->oper_no = 0;
                     ignore_oper->expected_enclosed_char = (uint32)c;
-                    return GS_TRUE;
+                    return CT_TRUE;
                 } else if (CM_IS_NOTE(c)) {
                     ignore_oper->oper_no = 1;
                     ignore_oper->expected_note_no = 1;
-                    return GS_TRUE;
+                    return CT_TRUE;
                 } else {
                     ignore_oper->oper_no = -1;
                     ignore_oper->expected_label_no = 0;
@@ -1822,7 +1838,7 @@ static inline bool32 cm_if_sql_ignore_oper(cm_ignore_oper_t *ignore_oper, char c
             break;
         }
 
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static inline bool32 cm_if_sql_ignore(text_t *sql, uint32 cur_pos, cm_ignore_oper_t *ignore_oper)
@@ -1834,21 +1850,21 @@ static inline bool32 cm_if_sql_ignore(text_t *sql, uint32 cur_pos, cm_ignore_ope
         if (CM_IS_ENCLOSED_CHAR(c)) {
             ignore_oper->oper_no = 0;
             ignore_oper->expected_enclosed_char = (uint32)c;
-            return GS_TRUE;
+            return CT_TRUE;
         } else if (CM_IS_NOTE(c)) {
             ignore_oper->oper_no = 1;
             ignore_oper->expected_note_no = 1;
-            return GS_TRUE;
+            return CT_TRUE;
         } else if (CM_IS_LINE(c) && (cur_pos < sql->len - 1) && CM_IS_LINE(sql->str[cur_pos + 1])) {
             ignore_oper->oper_no = 2;
-            return GS_TRUE;
+            return CT_TRUE;
         } else if (CM_IS_LABEL(c)) {
             ignore_oper->oper_no = 3;
             ignore_oper->expected_label_no = 1;
-            return GS_TRUE;
+            return CT_TRUE;
         }
 
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     return cm_if_sql_ignore_oper(ignore_oper, c);
@@ -1865,19 +1881,19 @@ static inline bool32 cm_if_sql_block(text_t *sql)
 
     // less len is 5, keyword "BEGIN"
     if (sql->len < cm_begin_str.len) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     if (cm_text_str_contain_equal_ins(sql, cm_declare_str.str, cm_declare_str.len)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (cm_text_str_contain_equal_ins(sql, cm_begin_str.str, cm_begin_str.len)) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     if (!cm_text_str_contain_equal_ins(sql, cm_create_str.str, cm_create_str.len)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     sql->str += cm_create_str.len;
@@ -1885,7 +1901,7 @@ static inline bool32 cm_if_sql_block(text_t *sql)
 
     cm_trim_text(sql);
     if (CM_IS_EMPTY(sql)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     for (i = 0; i < 2; i++) {
@@ -1898,17 +1914,17 @@ static inline bool32 cm_if_sql_block(text_t *sql)
 
         cm_trim_text(sql);
         if (CM_IS_EMPTY(sql)) {
-            return GS_FALSE;
+            return CT_FALSE;
         }
     }
 
     for (i = 0; i < cm_begin_str.len; i++) {
         if (cm_text_str_contain_equal_ins(sql, cm_block_str[i].str, cm_block_str[i].len)) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 bool32 cm_is_multiple_sql(text_t *sql)
@@ -1921,11 +1937,11 @@ bool32 cm_is_multiple_sql(text_t *sql)
 
     cm_trim_text(sql);
     if (CM_IS_EMPTY(sql)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
     pos = cm_get_first_pos(sql, ';');
-    if (pos == GS_INVALID_ID32 || (pos == sql->len - 1)) {
-        return GS_FALSE;
+    if (pos == CT_INVALID_ID32 || (pos == sql->len - 1)) {
+        return CT_FALSE;
     }
 
     for (i = 0; i < sql->len; i++) {
@@ -1949,11 +1965,11 @@ bool32 cm_is_multiple_sql(text_t *sql)
                 break;
             }
 
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 bool32 cm_fetch_subsql(text_t *sql, text_t *sub_sql)
@@ -1966,7 +1982,7 @@ bool32 cm_fetch_subsql(text_t *sql, text_t *sub_sql)
 
     if (CM_IS_EMPTY(sql)) {
         CM_TEXT_CLEAR(sub_sql);
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     sub_sql->str = sql->str;
@@ -2012,21 +2028,21 @@ status_t cm_replace_regexp_spec_chars(text_t *regexp, char *ret, uint32 ret_size
     uint32 j = 0;
     uint32 chars = 0;
     uint32 dep = 0;
-    bool32 in_char_class = GS_FALSE;
+    bool32 in_char_class = CT_FALSE;
     char *pre = NULL;
-    bool32 is_escape = GS_FALSE;
-    bool32 pre_is_escape = GS_FALSE;
+    bool32 is_escape = CT_FALSE;
+    bool32 pre_is_escape = CT_FALSE;
 
     for (i = 0; i < regexp->len; i++) {
         if (j >= ret_size) {
-            GS_THROW_ERROR(ERR_BUFFER_OVERFLOW, j + 1, ret_size);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_BUFFER_OVERFLOW, j + 1, ret_size);
+            return CT_ERROR;
         }
-        is_escape = GS_FALSE;
+        is_escape = CT_FALSE;
         if (regexp->str[i] == '[') {
             if (!in_char_class) {
                 if (pre == NULL || !pre_is_escape) {
-                    in_char_class = GS_TRUE;
+                    in_char_class = CT_TRUE;
                 }
             } else {
                 if (i + 1 < regexp->len && regexp->str[i + 1] == ':') {
@@ -2042,7 +2058,7 @@ status_t cm_replace_regexp_spec_chars(text_t *regexp, char *ret, uint32 ret_size
                     chars++;
                 } else {
                     chars = 0;
-                    in_char_class = GS_FALSE;
+                    in_char_class = CT_FALSE;
                 }
             }
         } else if (regexp->str[i] == '\\') {
@@ -2065,7 +2081,7 @@ status_t cm_replace_regexp_spec_chars(text_t *regexp, char *ret, uint32 ret_size
     }
     ret[j] = '\0';
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cm_extract_content(text_t *text, text_t *content)
@@ -2160,7 +2176,7 @@ bool32 cm_text_split(text_t *text, text_t *sub_text, text_t *left_text, text_t *
     text_t tmp_sub_text;
 
     if (CM_IS_EMPTY(text) || CM_IS_EMPTY(sub_text)) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 
     while (tmp_text.len >= sub_text->len) {
@@ -2170,13 +2186,18 @@ bool32 cm_text_split(text_t *text, text_t *sub_text, text_t *left_text, text_t *
             *right_text = tmp_text;
             left_text->str = text->str;
             left_text->len = text->len - right_text->len;
-            return GS_TRUE;
+            return CT_TRUE;
         }
         tmp_text.str++;
         tmp_text.len--;
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
+}
+
+int32 cm_mysql_compare(const CHARSET_COLLATION *cc, const text_t *text1, const text_t *text2)
+{
+    return (cc->collsp(cc, (text_t *)text1, (text_t *)text2));
 }
 
 #ifdef __cplusplus

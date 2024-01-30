@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -79,6 +79,12 @@ typedef enum {
     CMS_DISK_GET_DATA_FILE_SEEK_FAIL,
     CMS_DISK_GET_DATA_FILE_READ_FAIL,
     CMS_DISK_REOPEN_SLEEP,
+    CMS_UPGRADE_CTD_VERSION_FAIL,
+    CMS_UPGRADE_VERSION_ABORT,
+    CMS_UPGRADE_VERSION_WRITE_GCC_FAIL,
+    CMS_UPGRADE_VERSION_WRITE_GCC_ABORT,
+    CMS_UPGRADE_VERSION_SEND_SYNC_FAIL,
+    CMS_DISK_LOCK_FILE_RANGE_LOCK_FAIL,
     CMS_SYNCPOINT_COUNT,
 } cms_syncpoint_id;
 

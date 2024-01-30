@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -50,9 +50,9 @@ static inline void buf_latch_ix2x(knl_session_t *session, buf_latch_t *latch, sp
     do {
         session->stat_page.misses++;
         while (latch->shared_count > 0) {
-            knl_try_begin_session_wait(session, event, GS_TRUE);
+            knl_begin_session_wait(session, event, CT_TRUE);
             count++;
-            if (count >= GS_SPIN_COUNT) {
+            if (count >= CT_SPIN_COUNT) {
                 SPIN_STAT_INC(&session->stat_page, ix_sleeps);
                 cm_spin_sleep();
                 count = 0;
@@ -65,7 +65,7 @@ static inline void buf_latch_ix2x(knl_session_t *session, buf_latch_t *latch, sp
             latch->stat = LATCH_STATUS_X;
             cm_spin_unlock(lock);
             buf_stat_page_inc(session, count);
-            knl_try_end_session_wait(session, event);
+            knl_end_session_wait(session, event);
             return;
         }
         cm_spin_unlock(lock);
@@ -91,7 +91,7 @@ static inline void buf_latch_x(knl_session_t *session, buf_ctrl_t *ctrl, bool32 
             latch->stat = LATCH_STATUS_X;
             cm_spin_unlock(&bucket->lock);
             buf_stat_page_inc(session, count);
-            knl_try_end_session_wait(session, event);
+            knl_end_session_wait(session, event);
             return;
         } else if (latch->stat == LATCH_STATUS_S) {
             latch->stat = LATCH_STATUS_IX;
@@ -102,9 +102,9 @@ static inline void buf_latch_x(knl_session_t *session, buf_ctrl_t *ctrl, bool32 
             cm_spin_unlock(&bucket->lock);
             session->stat_page.misses++;
             while (latch->stat != LATCH_STATUS_IDLE && latch->stat != LATCH_STATUS_S) {
-                knl_try_begin_session_wait(session, event, GS_TRUE);
+                knl_begin_session_wait(session, event, CT_TRUE);
                 count++;
-                if (count >= GS_SPIN_COUNT) {
+                if (count >= CT_SPIN_COUNT) {
                     SPIN_STAT_INC(&session->stat_page, x_sleeps);
                     cm_spin_sleep();
                     count = 0;
@@ -135,21 +135,21 @@ static inline void buf_latch_s(knl_session_t *session, buf_ctrl_t *ctrl, bool32 
             latch->sid = session->id;
             cm_spin_unlock(&bucket->lock);
             buf_stat_page_inc(session, count);
-            knl_try_end_session_wait(session, event);
+            knl_end_session_wait(session, event);
             return;
         } else if ((latch->stat == LATCH_STATUS_S) || (latch->stat == LATCH_STATUS_IX && is_force)) {
             latch->shared_count++;
             cm_spin_unlock(&bucket->lock);
             buf_stat_page_inc(session, count);
-            knl_try_end_session_wait(session, event);
+            knl_end_session_wait(session, event);
             return;
         } else {
             cm_spin_unlock(&bucket->lock);
             session->stat_page.misses++;
             while (latch->stat != LATCH_STATUS_IDLE && latch->stat != LATCH_STATUS_S) {
-                knl_try_begin_session_wait(session, event, GS_TRUE);
+                knl_begin_session_wait(session, event, CT_TRUE);
                 count++;
-                if (count >= GS_SPIN_COUNT) {
+                if (count >= CT_SPIN_COUNT) {
                     SPIN_STAT_INC(&session->stat_page, s_sleeps);
                     cm_spin_sleep();
                     count = 0;
@@ -184,20 +184,20 @@ static inline bool32 buf_latch_timed_s(knl_session_t *session, buf_ctrl_t *ctrl,
             latch->shared_count = 1;
             latch->sid = session->id;
             cm_spin_unlock(&bucket->lock);
-            return GS_TRUE;
+            return CT_TRUE;
         } else if ((latch->stat == LATCH_STATUS_S) || (latch->stat == LATCH_STATUS_IX && is_force)) {
             latch->shared_count++;
             cm_spin_unlock(&bucket->lock);
-            return GS_TRUE;
+            return CT_TRUE;
         } else {
             cm_spin_unlock(&bucket->lock);
             while (latch->stat != LATCH_STATUS_IDLE && latch->stat != LATCH_STATUS_S) {
                 if (ticks >= wait_ticks) {
-                    return GS_FALSE;
+                    return CT_FALSE;
                 }
 
                 count++;
-                if (count >= GS_SPIN_COUNT) {
+                if (count >= CT_SPIN_COUNT) {
                     SPIN_STAT_INC(&session->stat_page, s_sleeps);
                     cm_spin_sleep();
                     count = 0;

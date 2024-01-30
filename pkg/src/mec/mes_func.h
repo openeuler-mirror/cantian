@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -26,6 +26,7 @@
 #ifndef DTC_MEC_MES_H__
 #define DTC_MEC_MES_H__
 
+#include "mes_log_module.h"
 #include "cm_defs.h"
 #include "cm_thread.h"
 #include "cm_timer.h"
@@ -34,9 +35,7 @@
 #include "cm_checksum.h"
 #include "knl_common.h"
 #include "mes_queue.h"
-#include "mes_tcp.h"
 #include "mes_config.h"
-#include "mes_uc.h"
 #include "mes_msg_pool.h"
 
 #ifdef __cplusplus
@@ -49,7 +48,7 @@ extern "C" {
 #define MES_INSTANCE_ID(id) (uint8)((id) >> 8)
 #define MES_CHANNEL_ID(id) (uint8)((id) & 0x00FF)
 
-#define MES_URL_BUFFER_SIZE (GS_HOST_NAME_BUFFER_SIZE + 16)
+#define MES_URL_BUFFER_SIZE (CT_HOST_NAME_BUFFER_SIZE + 16)
 #define MSE_MESSAGE_SHORT_BUFFER_SIZE (64)
 #define MES_SHORT_POOL_SIZE_PARA (512)
 #define MES_MESSAGE_TINY_SIZE (64) /* buf_id 4 + head 12 + body 48 */
@@ -57,6 +56,8 @@ extern "C" {
     (uint32)(SIZE_K(32) + MES_MESSAGE_TINY_SIZE) /* biggest: pcr page ack: head + ack + page */
 #define MES_128K_MESSAGE_BUFFER_SIZE (uint32)SIZE_K(128)
 #define MES_LOGGING_INTERVAL (60000)             // ms
+#define MES_CMD_LOGGING_INTERVAL (60000)         // ms
+#define MES_GROUP_LOGGING_INTERVAL (60000)       // ms
 #define MES_WAIT_TIMEOUT (5)                     // ms
 #define MES_WAIT_MAX_TIME (0xFFFFFFFF)           // ms
 #define MES_MSG_RETRY_TIME (100)                 // ms
@@ -77,10 +78,26 @@ extern "C" {
 typedef bool32 (*message_timeout_check_func)(void);
 void mes_set_message_timeout_check_func(message_timeout_check_func func);
 
+#define MES_CMD_LOGGING(id, fmt, ...)                                                                \
+    do {                                                                                             \
+        if (g_mes.mes_ctx.cmd_logging_time[id] + MES_CMD_LOGGING_INTERVAL * 1000 < g_timer()->now) { \
+            CT_LOG_RUN_ERR(fmt, ##__VA_ARGS__);                                                      \
+            g_mes.mes_ctx.cmd_logging_time[id] = g_timer()->now;                                     \
+        }                                                                                            \
+    } while (0)
+
+#define MES_GROUP_LOGGING(id, fmt, ...)                                                                \
+    do {                                                                                             \
+        if (g_mes.mes_ctx.group_logging_time[id] + MES_GROUP_LOGGING_INTERVAL * 1000 < g_timer()->now) { \
+            CT_LOG_RUN_ERR(fmt, ##__VA_ARGS__);                                                      \
+            g_mes.mes_ctx.group_logging_time[id] = g_timer()->now;                                     \
+        }                                                                                            \
+    } while (0)
+
 #define MES_LOGGING(id, fmt, ...)                                                            \
     do {                                                                                     \
         if (g_mes.mes_ctx.logging_time[id] + MES_LOGGING_INTERVAL * 1000 < g_timer()->now) { \
-            GS_LOG_RUN_ERR(fmt, ##__VA_ARGS__);                                              \
+            CT_LOG_RUN_ERR(fmt, ##__VA_ARGS__);                                              \
             g_mes.mes_ctx.logging_time[id] = g_timer()->now;                                 \
         }                                                                                    \
     } while (0)
@@ -89,26 +106,25 @@ void mes_set_message_timeout_check_func(message_timeout_check_func func);
 #define MES_LOGGING_WAR(id, fmt, ...)                                                        \
     do {                                                                                     \
         if (g_mes.mes_ctx.logging_time[id] + MES_LOGGING_INTERVAL * 1000 < g_timer()->now) { \
-            GS_LOG_RUN_WAR(fmt, ##__VA_ARGS__);                                              \
+            CT_LOG_RUN_WAR(fmt, ##__VA_ARGS__);                                              \
             g_mes.mes_ctx.logging_time[id] = g_timer()->now;                                 \
         }                                                                                    \
     } while (0)
 
-
-#define DTC_MES_LOG_INF(format, ...)                                                                             \
-    do {                                                                                                         \
-        if (DTC_MES_LOG_INF_ON) {                                                                                \
-            cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE, \
-                                format, ##__VA_ARGS__);                                                          \
-        }                                                                                                        \
+#define DTC_MES_LOG_INF(format, ...)                                                                                \
+    do {                                                                                                            \
+        if (DTC_MES_LOG_INF_ON) {                                                                                   \
+            cm_write_normal_log(LOG_DEBUG, LEVEL_INFO, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                                format, ##__VA_ARGS__);                                                             \
+        }                                                                                                           \
     } while (0)
 
-#define DTC_MES_LOG_ERR(format, ...)                                                                              \
-    do {                                                                                                          \
-        if (DTC_MES_LOG_ERR_ON) {                                                                                 \
-            cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, MODULE_NAME, GS_TRUE, \
-                                format, ##__VA_ARGS__);                                                           \
-        }                                                                                                         \
+#define DTC_MES_LOG_ERR(format, ...)                                                                                 \
+    do {                                                                                                             \
+        if (DTC_MES_LOG_ERR_ON) {                                                                                    \
+            cm_write_normal_log(LOG_DEBUG, LEVEL_ERROR, (char *)__FILE__, (uint32)__LINE__, (int)MODULE_ID, CT_TRUE, \
+                                format, ##__VA_ARGS__);                                                              \
+        }                                                                                                            \
     } while (0)
 
 #define MES_LOG_DEBUG(cmd, fmt, ...)             \
@@ -161,17 +177,9 @@ void mes_set_message_timeout_check_func(message_timeout_check_func func);
             (head)->head_cks, (head)->body_cks);                                                                    \
     } while (0);
 
-#define MES_LOG_HEAD_EX(head, message)                                                                               \
-    do {                                                                                                             \
-        MES_LOG_DEBUG((head)->cmd, "[mes]%s: %s. cmd=%u, rsn=%u, src_inst=%u, dst_inst=%u, src_sid=%u, dst_sid=%u, " \
-            "ext_size=%u, head_cks=%u, body_cks=%u.", (char *)__func__, message, (head)->cmd, (head)->rsn,           \
-            (head)->src_inst, (head)->dst_inst, (head)->src_sid, (head)->dst_sid, (head)->extend_size,               \
-            (head)->head_cks, (head)->body_cks);                                                                     \
-    } while (0);
-
 #define MES_LOG_WAR_HEAD_EX(head, message)                                                                           \
     do {                                                                                                             \
-        GS_LOG_RUN_WAR("[mes]%s: %s. cmd=%u, rsn=%u, src_inst=%u, dst_inst=%u, src_sid=%u, dst_sid=%u, "             \
+        CT_LOG_RUN_WAR("[mes]%s: %s. cmd=%u, rsn=%u, src_inst=%u, dst_inst=%u, src_sid=%u, dst_sid=%u, "             \
             "ext_size=%u, head_cks=%u, body_cks=%u.", (char *)__func__, message, (head)->cmd, (head)->rsn,           \
             (head)->src_inst, (head)->dst_inst, (head)->src_sid, (head)->dst_sid, (head)->extend_size,               \
             (head)->head_cks, (head)->body_cks);                                                                     \
@@ -179,7 +187,7 @@ void mes_set_message_timeout_check_func(message_timeout_check_func func);
 
 #define MES_LOG_ERR_HEAD_EX(head, message)                                                                           \
     do {                                                                                                             \
-        GS_LOG_RUN_ERR("[mes]%s: %s. cmd=%u, rsn=%u, src_inst=%u, dst_inst=%u, src_sid=%u, dst_sid=%u, "             \
+        CT_LOG_RUN_ERR("[mes]%s: %s. cmd=%u, rsn=%u, src_inst=%u, dst_inst=%u, src_sid=%u, dst_sid=%u, "             \
             "ext_size=%u, head_cks=%u, body_cks=%u.", (char *)__func__, message, (head)->cmd, (head)->rsn,           \
             (head)->src_inst, (head)->dst_inst, (head)->src_sid, (head)->dst_sid, (head)->extend_size,               \
             (head)->head_cks, (head)->body_cks);                                                                     \
@@ -207,6 +215,13 @@ typedef enum en_mes_time_stat {
     MES_TIME_TEST_CHECK,
     MES_TIME_CEIL
 } mes_time_stat_t;
+
+typedef enum en_mes_channel_stat {
+    MES_CHANNEL_UNCONNECTED = 0,
+    MES_CHANNEL_CONNECTED,
+    MES_CHANNEL_SUBHEALTH,
+    MES_CHANNEL_CEIL
+} mes_channel_stat_t;
 
 typedef struct st_mes_time_consume {
     uint32 cmd;  // command
@@ -244,6 +259,11 @@ typedef struct st_mes_task_queue_t {
     uint32 queue_len;
     bool8 non_empty;
 } mes_task_queue_t;
+
+typedef struct st_mes_channel_view_t {
+    mes_channel_stat_t channel_state; // used by dtc view, 0-unconnected, 1-connected, 2-subhealth
+    bool8 non_empty; // inst belong to cluster
+} mes_channel_view_t;
 
 typedef enum en_mes_logging_id {
     MES_LOGGING_CONNECT = 0,
@@ -321,23 +341,50 @@ typedef struct st_mes_conn {
     bool8 is_connect;
 } mes_conn_t;
 
+typedef struct st_mes_tcp_channel {
+    thread_lock_t lock;
+    thread_lock_t recv_pipe_lock;
+    cs_pipe_t send_pipe;
+    cs_pipe_t recv_pipe;
+    thread_t thread;
+    uint16 id;
+    bool32 sync_stop;
+    volatile bool8 recv_pipe_active;
+    volatile bool8 send_pipe_active;
+    atomic_t send_count;
+    atomic_t recv_count;
+    dtc_msgqueue_t msg_queue;
+    bool32 is_disconnct;  // true means has been disconnected async before.
+    bool32 is_send_msg;
+    ssl_ctx_t *send_ctx;
+} mes_channel_t;
+
 typedef struct st_mes_context {
     mes_lsnr_t lsnr;
     mes_channel_t **channels;
     mes_pool_t msg_pool;
-    mes_conn_t conn_arr[GS_MAX_INSTANCES];
-    mes_waiting_room_t waiting_rooms[GS_MAX_MES_ROOMS];
+    mes_conn_t conn_arr[CT_MAX_INSTANCES];
+    mes_waiting_room_t waiting_rooms[CT_MAX_MES_ROOMS];
     date_t logging_time[MES_LOGGING_CEIL];
-    uint32 work_thread_idx[GS_DTC_MAX_TASK_NUM];
-    ssl_ctx_t *send_ctx;
+    date_t cmd_logging_time[MES_CMD_CEIL];
+    date_t group_logging_time[MES_TASK_GROUP_ALL];
+    uint32 work_thread_idx[CT_DTC_MAX_TASK_NUM];
     ssl_ctx_t *recv_ctx;
 } mes_context_t;
 
 typedef struct st_mes_addr {
-    char ip[CM_MAX_IP_LEN];
+    char ip[CT_MAX_INST_IP_LEN];
     uint16 port;
     uint8 reserved[2];
 } mes_addr_t;
+
+typedef struct st_ssl_auth_file {
+    char ca_file[CT_FILE_NAME_BUFFER_SIZE];
+    char cert_file[CT_FILE_NAME_BUFFER_SIZE];
+    char key_file[CT_FILE_NAME_BUFFER_SIZE];
+    char crl_file[CT_FILE_NAME_BUFFER_SIZE];
+    char key_pwd[CT_PASSWORD_BUFFER_SIZE]; // encrypted data
+} ssl_auth_file_t;
 
 typedef struct st_mes_profile {
     bool32 is_init;
@@ -349,14 +396,16 @@ typedef struct st_mes_profile {
     mes_buffer_pool_attr_t buffer_pool_attr;
     uint32 work_thread_num;
     uint32 reactor_thread_num;
-    mes_addr_t inst_arr[GS_MAX_INSTANCES];
-    uint32 inst_lsid[GS_MAX_INSTANCES];
+    mes_addr_t inst_arr[CT_MAX_INSTANCES];
+    uint32 inst_lsid[CT_MAX_INSTANCES];
+    uint32 upgrade_time_ms;
+    uint32 degrade_time_ms;
     mes_message_proc_t proc;  // to compile extproc
-    char dpumm_config_path[GS_FILE_NAME_BUFFER_SIZE];
+    char dpumm_config_path[CT_FILE_NAME_BUFFER_SIZE];
     uint64 channel_version;   // used by UC
     bool32 conn_by_profile;
+    bool32 ssl_verify_peer;
     bool8 need_mq_thread;     // to compile extproc
-    ssl_config_t ssl_config;
     bool8 use_ssl;
     uint8 unused[2];          // reserved 3 bytes
 } mes_profile_t;
@@ -378,18 +427,6 @@ typedef struct st_mes_error_msg {
 
 typedef struct timeval cm_timeval;
 
-static __inline uint64 db_rdtsc(void)
-{
-#ifdef WIN32
-    return __rdtsc();
-#else
-    /*lint -save -e530 */
-    uint32 lo, hi;
-    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
-    return (((uint64)hi << 32) | lo);
-#endif
-}
-
 extern mes_time_consume_t g_elapsed_stat[];
 extern uint64 g_start_time;
 extern mes_elapsed_stat_t g_mes_elapsed_stat;
@@ -400,17 +437,6 @@ extern mes_stat_t g_mes_stat[MES_CMD_CEIL];
 extern bool32 g_enable_dbstor;
 
 uint64 cm_get_time_usec(void);
-
-static inline void mes_consume_time(mes_command_t cmd, mes_time_stat_t type)
-{
-    if (g_mes_elapsed_stat.mes_elapsed_switch) {
-        g_mes_elapsed_stat.time_consume_stat[cmd].time[type] += cm_get_time_usec() - g_start_time;
-        // g_elapsed_stat[type].count++;
-        cm_atomic_inc(&(g_mes_elapsed_stat.time_consume_stat[cmd].count[type]));
-    }
-    return;
-}
-
 static inline void mes_get_consume_time_start(uint64 *stat_time)
 {
     if (g_mes_elapsed_stat.mes_elapsed_switch) {
@@ -441,8 +467,8 @@ static inline void mes_elapsed_stat(mes_command_t cmd, mes_time_stat_t type)
 }
 static inline void mes_check_sid(uint32 sid)
 {
-    if (SECUREC_UNLIKELY(sid >= GS_MAX_MES_ROOMS)) {
-        GS_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes][%s]: sid %u is illegal.", (char *)__func__, sid);
+    if (SECUREC_UNLIKELY(sid >= CT_MAX_MES_ROOMS)) {
+        CT_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes][%s]: sid %u is illegal.", (char *)__func__, sid);
         knl_panic_log(0, "[mes][%s]: sid %u is illegal.", (char *)__func__, sid);
     }
     return;
@@ -490,12 +516,14 @@ status_t mes_wait_acks_new(uint32 sid, uint32 timeout, uint64 *resend_bits);
 
 void mes_broadcast(uint32 sid, uint64 inst_bits, const void *msg_data, uint64 *success_inst);
 
-void mes_broadcast_data_with_retry(uint32 sid, uint64 target_bits, const void *msg_data);
+void mes_broadcast_data_with_retry(uint32 sid, uint64 target_bits, const void *msg_data, bool8 allow_send_fail);
 
 status_t mes_broadcast_and_wait(uint32 sid, uint64 inst_bits, const void *msg_data,
     uint32 timeout, uint64 *success_inst);
 
 status_t mes_broadcast_data_and_wait_with_retry(uint32 sid, uint64 target_bits,
+    const void *msg_data, uint32 timeout, uint32 retry_threshold);
+status_t mes_broadcast_data_and_wait_with_retry_allow_send_fail(uint32 sid, uint64 target_bits,
     const void *msg_data, uint32 timeout, uint32 retry_threshold);
 
 void mes_broadcast_bufflist_with_retry(uint32 sid, uint64 target_bits, mes_message_head_t *head,
@@ -532,10 +560,10 @@ bool8 mes_get_elapsed_switch(void);
 void mes_set_elapsed_switch(bool8 elapsed_switch);
 void mes_set_crc_check_switch(bool8 crc_check_switch);
 void mes_set_ssl_switch(bool8 use_ssl);
-status_t mes_set_ssl_crt_file(const char *ca_file, const char *cert_file, const char *key_file);
-char *mes_get_ssl_key_pwd(void);
+status_t mes_set_ssl_crt_file(const char *ca_file, const char *cert_file, const char *key_file, const char* crl_file);
+void mes_set_ssl_verify_peer(bool32 verify_peer);
+ssl_auth_file_t *mes_get_ssl_auth_file(void);
 status_t mes_set_ssl_key_pwd(const char *enc_pwd);
-void mes_set_ssl_verify_peer(bool32 verify_peer, bool8 is_client);
 void mes_set_dbstor_enable(bool32 enable);
 status_t mes_set_process_lsid(mes_profile_t *profile);
 
@@ -550,6 +578,7 @@ void mes_process_message(dtc_msgqueue_t *my_queue, uint32 recv_idx, mes_message_
 
 uint8 mes_get_cmd_group(mes_command_t cmd);
 uint32 mes_get_msg_queue_length(uint8 group_id);
+mes_channel_stat_t mes_get_channel_state(uint8 inst_id);
 uint32 mes_get_msg_task_queue_length(uint32 task_index);
 thread_t* mes_get_msg_task_thread(uint32 task_index);
 
@@ -557,6 +586,7 @@ status_t mes_check_msg_head(mes_message_head_t *head);
 status_t mes_message_vertify_cks(mes_message_t *msg);
 void mes_init_mq_local_queue(void);
 status_t mes_message_vertify_cks(mes_message_t *msg);
+status_t mes_set_process_config(void);
 
 static inline void mes_init_send_head(mes_message_head_t *head, uint8 cmd, uint32 size, uint32 rsn, uint8 src_inst,
                                       uint8 dst_inst, uint16 src_sid, uint16 dst_sid)
@@ -568,7 +598,7 @@ static inline void mes_init_send_head(mes_message_head_t *head, uint8 cmd, uint3
     head->dst_inst = dst_inst;
     head->src_sid = src_sid;
     head->dst_sid = dst_sid;
-    head->rsn = (rsn != GS_INVALID_ID32) ? rsn : mes_get_rsn(src_sid);
+    head->rsn = (rsn != CT_INVALID_ID32) ? rsn : mes_get_rsn(src_sid);
     head->req_start_time = g_timer()->now;
     head->flags = 0;
     head->unused = 0;
@@ -595,13 +625,6 @@ static inline void mes_init_ack_head(mes_message_head_t *req_head, mes_message_h
     ack_head->body_cks = 0;
     ack_head->head_cks = 0;
 }
-
-typedef struct st_create_obj_info {
-    uint32 uid;
-    uint32 name_len;
-    bool32 is_creating;
-} create_obj_info_t;
-
 #ifdef __cplusplus
 }
 #endif

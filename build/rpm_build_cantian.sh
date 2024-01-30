@@ -26,12 +26,12 @@ function build_cantian_rpm()
     local RPM_TOP_DIR="${CURRENT_PATH}/rpm"
 
     echo "Begin to mkdir ${RPM_TOP_DIR}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-    if [ -d ${RPM_TOP_DIR} ]; then 
+    if [ -d ${RPM_TOP_DIR} ]; then
         rm -rf ${RPM_TOP_DIR} >> ${LOG_PATH} 2>&1
-    fi 
+    fi
 
     mkdir -p ${RPM_TOP_DIR}/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
-    if [ $? -ne 0 ]; then  
+    if [ $? -ne 0 ]; then
         echo "Failed to mkdir ${RPM_TOP_DIR}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 1
     fi
@@ -93,7 +93,3 @@ else
     echo "Failed to build oam-console rpm. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 fi
 exit $ret
-
-
-
-

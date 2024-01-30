@@ -34,19 +34,17 @@ function check_port() {
 function mountNfs()
 {
     # 获取要创建路径的路径名 /opt/cantian/common/script
-    storage_share_fs=$(python3 "${CURRENT_PATH}"/../../action/get_config_info.py "storage_share_fs")
-    storage_archive_fs=$(python3 "${CURRENT_PATH}"/../../action/get_config_info.py "storage_archive_fs")
-    storage_metadata_fs=$(python3 "${CURRENT_PATH}"/../../action/get_config_info.py "storage_metadata_fs")
-    storage_dbstore_fs=$(python3 "${CURRENT_PATH}"/../../action/get_config_info.py "storage_dbstore_fs")
-    kerberos_type=$(python3 "${CURRENT_PATH}"/../../action/get_config_info.py  "kerberos_key")
-    deploy_mode=$(python3 "${CURRENT_PATH}"/../../action/get_config_info.py  "deploy_mode")
+    storage_share_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_share_fs"`
+    storage_archive_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_archive_fs"`
+    storage_metadata_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_metadata_fs"`
+    kerberos_type=`python3 ${CURRENT_PATH}/../../action/get_config_info.py  "kerberos_key"`
 
     if [[ ${storage_archive_fs} != '' ]]; then
-        mountpoint /mnt/dbdata/remote/archive_"${storage_archive_fs}" > /dev/null 2>&1
+        mountpoint /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
         if [ $? -ne 0 ]; then
             logAndEchoInfo "/mnt/dbdata/remote/share_${storage_archive_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            archive_logic_ip=$(python3 "${CURRENT_PATH}"/../../action/get_config_info.py "archive_logic_ip")
-            mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev "${archive_logic_ip}:/${storage_archive_fs}" /mnt/dbdata/remote/archive_"${storage_archive_fs}"
+            archive_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "archive_logic_ip"`
+            mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
             if [ $? -ne 0 ]; then
                 logAndEchoError "mount /mnt/dbdata/remote/share_${storage_archive_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
                 exit 1
@@ -55,31 +53,17 @@ function mountNfs()
             fi
         fi
     fi
-    if [[ x"${deploy_mode}" == x"--nas" ]];then
-        mountpoint /mnt/dbdata/remote/storage_"${storage_dbstore_fs}" > /dev/null 2>&1
-        if [ $? -ne 0 ]; then
-            logAndEchoInfo "/mnt/dbdata/remote/storage_${storage_dbstore_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            storage_logic_ip=$(python3 "${CURRENT_PATH}"/../../action/get_config_info.py "storage_logic_ip")
-            mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}:/${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-            if [ $? -ne 0 ]; then
-                logAndEchoError "mount /mnt/dbdata/remote/storage_${storage_dbstore_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-                exit 1
-            else
-                logAndEchoInfo "mount /mnt/dbdata/remote/storage_${storage_dbstore_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            fi
-        fi
-    fi
 
     mountpoint /mnt/dbdata/remote/metadata_${storage_metadata_fs} > /dev/null 2>&1
     if [ $? -ne 0 ]; then
-        logAndEchoInfo "/mnt/dbdata/remote/share_${storage_metadata_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        logAndEchoInfo "/mnt/dbdata/remote/metadata_${storage_metadata_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         metadata_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "metadata_logic_ip"`
         mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
         if [ $? -ne 0 ]; then
-            logAndEchoError "mount /mnt/dbdata/remote/share_${storage_metadata_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "mount /mnt/dbdata/remote/metadata_${storage_metadata_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
         else
-            logAndEchoInfo "mount /mnt/dbdata/remote/share_${storage_metadata_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoInfo "mount /mnt/dbdata/remote/metadata_${storage_metadata_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         fi
     fi
     # 防止日志输出到/var/log/messages中
@@ -93,7 +77,7 @@ function mountNfs()
             logAndEchoError "Sysctl service is not ready.[Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
         fi
-        mount -t nfs -o sec="${kerberos_type}",vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+        mount -t nfs -o vers=4.0,sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
         if [ $? -ne 0 ]; then
             logAndEchoError "mount /mnt/dbdata/remote/share_${storage_share_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1

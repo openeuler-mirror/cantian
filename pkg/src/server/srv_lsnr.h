@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -43,11 +43,11 @@ typedef struct st_lsnr {
     uds_lsnr_t uds_service;
 } lsnr_t;
 
-status_t server_start_replica_lsnr(void);
-status_t server_start_lsnr(void);
-void server_stop_lsnr(lsnr_type_t type);
-void server_pause_lsnr(lsnr_type_t type);
-void server_resume_lsnr(lsnr_type_t type);
+status_t srv_start_replica_lsnr(void);
+status_t srv_start_lsnr(void);
+void srv_stop_lsnr(lsnr_type_t type);
+void srv_pause_lsnr(lsnr_type_t type);
+void srv_resume_lsnr(lsnr_type_t type);
 
 #ifdef __cplusplus
 }

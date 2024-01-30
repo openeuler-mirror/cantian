@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,15 +31,17 @@
 extern "C" {
 #endif
 
-status_t server_load_params(void);
-status_t server_load_agent_params(void);
-status_t server_load_stat_params(void);
-status_t server_load_arch_params(void);
-status_t server_load_lsnr_params(void);
-status_t server_load_exet_params(void);
-status_t server_load_file_transf_params(void);
-status_t server_load_optimum_params(void);
-status_t server_load_other_params(void);
+status_t srv_load_params(void);
+status_t srv_load_agent_params(void);
+status_t srv_load_stat_params(void);
+status_t srv_load_arch_params(void);
+status_t srv_load_lsnr_params(void);
+status_t srv_load_executor_params(void);
+status_t srv_load_file_convert_params(void);
+status_t srv_load_gbp_params(void);
+status_t srv_load_ext_proc_params(void);
+status_t srv_load_optim_params(void);
+status_t srv_load_other_params(void);
 
 extern char *cantiand_get_dbversion(void);
 #ifdef __cplusplus

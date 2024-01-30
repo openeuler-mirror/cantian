@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -37,11 +37,11 @@ static inline status_t mul_binary_anytype(opr_operand_set_t *op_set)
 static inline status_t opr_bigint_mul(int64 a, int64 b, int64 *res)
 {
     if (SECUREC_UNLIKELY(opr_int64mul_overflow(a, b, res))) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /**
@@ -50,10 +50,10 @@ static inline status_t opr_bigint_mul(int64 a, int64 b, int64 *res)
 static inline status_t opr_int32_mul(int32 a, int32 b, int32 *res)
 {
     if (SECUREC_UNLIKELY(opr_int32mul_overflow(a, b, res))) {
-        GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTEGER");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTEGER");
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t opr_double_mul(double a, double b, double *res)
@@ -61,26 +61,26 @@ static inline status_t opr_double_mul(double a, double b, double *res)
     bool32 inf_is_valid = isinf(a) || isinf(b);
     *res = (VAR_DOUBLE_IS_ZERO(a) || VAR_DOUBLE_IS_ZERO(b)) ? 0 : (a * b);
     CHECK_REAL_OVERFLOW(*res, inf_is_valid, (VAR_DOUBLE_IS_ZERO(a) || VAR_DOUBLE_IS_ZERO(b)));
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static inline status_t opr_ymitvl_mul_real(interval_ym_t ymitvl, double num, interval_ym_t *res)
 {
     double mul_res;
     do {
-        if (ymitvl != 0 && fabs(num) > GS_MAX_YMINTERVAL) {
+        if (ymitvl != 0 && fabs(num) > CT_MAX_YMINTERVAL) {
             break;
         }
         mul_res = ymitvl * num;
-        if (fabs(mul_res) > GS_MAX_YMINTERVAL) {
+        if (fabs(mul_res) > CT_MAX_YMINTERVAL) {
             break;
         }
         *res = (interval_ym_t)mul_res;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } while (0);
 
-    GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTERVAL YEAR TO MONTH");
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTERVAL YEAR TO MONTH");
+    return CT_ERROR;
 }
 
 static inline status_t opr_real_mul_ymitvl(double num, interval_ym_t ymitvl, interval_ym_t *res)
@@ -92,19 +92,19 @@ static inline status_t opr_dsitvl_mul_real(interval_ds_t dsitvl, double num, int
 {
     double mul_res;
     do {
-        if (dsitvl != 0 && fabs(num) > GS_MAX_DSINTERVAL) {
+        if (dsitvl != 0 && fabs(num) > CT_MAX_DSINTERVAL) {
             break;
         }
         mul_res = dsitvl * num;
-        if (fabs(mul_res) > GS_MAX_DSINTERVAL) {
+        if (fabs(mul_res) > CT_MAX_DSINTERVAL) {
             break;
         }
         *res = (interval_ds_t)mul_res;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } while (0);
 
-    GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTERVAL DAY TO SECOND");
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "INTERVAL DAY TO SECOND");
+    return CT_ERROR;
 }
 
 static inline status_t opr_real_mul_dsitvl(double num, interval_ds_t dsitvl, interval_ds_t *res)
@@ -137,39 +137,39 @@ static inline status_t opr_ymitvl_mul_dec(interval_ym_t ymitvl, const dec8_t *de
 
 static inline status_t mul_uint_uint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_BIGINT;
+    OP_RESULT(op_set)->type = CT_TYPE_BIGINT;
     return opr_bigint_mul((int64)OP_LEFT(op_set)->v_uint32, (int64)OP_RIGHT(op_set)->v_uint32,
         &OP_RESULT(op_set)->v_bigint);
 }
 
 static inline status_t mul_uint_int(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_BIGINT;
+    OP_RESULT(op_set)->type = CT_TYPE_BIGINT;
     return opr_bigint_mul((int64)OP_LEFT(op_set)->v_uint32, (int64)OP_RIGHT(op_set)->v_int,
         &OP_RESULT(op_set)->v_bigint);
 }
 
 static inline status_t mul_uint_bigint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_BIGINT;
+    OP_RESULT(op_set)->type = CT_TYPE_BIGINT;
     return opr_bigint_mul((int64)OP_LEFT(op_set)->v_uint32, OP_RIGHT(op_set)->v_bigint, &OP_RESULT(op_set)->v_bigint);
 }
 
 static inline status_t mul_uint_real(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_REAL;
+    OP_RESULT(op_set)->type = CT_TYPE_REAL;
     return opr_double_mul((double)OP_LEFT(op_set)->v_uint32, OP_RIGHT(op_set)->v_real, &OP_RESULT(op_set)->v_real);
 }
 
 static inline status_t mul_uint_number(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER;
     return cm_int64_mul_dec((int64)OP_LEFT(op_set)->v_uint32, &OP_RIGHT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
 static inline status_t mul_uint_number2(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER2;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER2;
     return cm_int64_mul_dec((int64)OP_LEFT(op_set)->v_uint32, &OP_RIGHT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
@@ -179,7 +179,7 @@ static inline status_t mul_anytype_string(opr_operand_set_t *op_set)
 {
     variant_t var = *OP_RIGHT(op_set);
     variant_t *old_right = OP_RIGHT(op_set);
-    GS_RETURN_IFERR(var_as_num(&var));
+    CT_RETURN_IFERR(var_as_num(&var));
     OP_RIGHT(op_set) = &var;
     status_t status = opr_exec_mul(op_set);
     OP_RIGHT(op_set) = old_right;
@@ -194,68 +194,68 @@ static inline status_t mul_anytype_string(opr_operand_set_t *op_set)
 
 static inline status_t mul_uint_interval_ds(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_DS;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_DS;
     return opr_real_mul_dsitvl((double)OP_LEFT(op_set)->v_uint32, OP_RIGHT(op_set)->v_itvl_ds,
         &OP_RESULT(op_set)->v_itvl_ds);
 }
 
 static inline status_t mul_uint_interval_ym(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_YM;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_YM;
     return opr_real_mul_ymitvl((double)OP_LEFT(op_set)->v_uint32, OP_RIGHT(op_set)->v_itvl_ym,
         &OP_RESULT(op_set)->v_itvl_ym);
 }
 
-OPR_DECL(mul_uint_uint, GS_TYPE_BIGINT, GS_TYPE_BIGINT, GS_TYPE_BIGINT);
-OPR_DECL(mul_uint_int, GS_TYPE_BIGINT, GS_TYPE_BIGINT, GS_TYPE_BIGINT);
-OPR_DECL(mul_uint_bigint, GS_TYPE_BIGINT, GS_TYPE_BIGINT, GS_TYPE_BIGINT);
-OPR_DECL(mul_uint_real, GS_TYPE_REAL, GS_TYPE_REAL, GS_TYPE_REAL);
-OPR_DECL(mul_uint_number, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_uint_number2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_uint_decimal, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL);
-OPR_DECL(mul_uint_char, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_uint_varchar, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_uint_string, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_uint_interval_ym, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_uint_interval_ds, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_uint_binary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_uint_varbinary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
+OPR_DECL(mul_uint_uint, CT_TYPE_BIGINT, CT_TYPE_BIGINT, CT_TYPE_BIGINT);
+OPR_DECL(mul_uint_int, CT_TYPE_BIGINT, CT_TYPE_BIGINT, CT_TYPE_BIGINT);
+OPR_DECL(mul_uint_bigint, CT_TYPE_BIGINT, CT_TYPE_BIGINT, CT_TYPE_BIGINT);
+OPR_DECL(mul_uint_real, CT_TYPE_REAL, CT_TYPE_REAL, CT_TYPE_REAL);
+OPR_DECL(mul_uint_number, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_uint_number2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_uint_decimal, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL);
+OPR_DECL(mul_uint_char, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_uint_varchar, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_uint_string, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_uint_interval_ym, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_uint_interval_ds, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_uint_binary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_uint_varbinary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
 
 static inline status_t mul_int_uint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_BIGINT;
+    OP_RESULT(op_set)->type = CT_TYPE_BIGINT;
     return opr_bigint_mul((int64)OP_LEFT(op_set)->v_int, (int64)OP_RIGHT(op_set)->v_uint32,
         &OP_RESULT(op_set)->v_bigint);
 }
 
 static inline status_t mul_int_int(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_BIGINT;
+    OP_RESULT(op_set)->type = CT_TYPE_BIGINT;
     return opr_bigint_mul((int64)OP_LEFT(op_set)->v_int, (int64)OP_RIGHT(op_set)->v_int,
         &OP_RESULT(op_set)->v_bigint);
 }
 
 static inline status_t mul_int_bigint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_BIGINT;
+    OP_RESULT(op_set)->type = CT_TYPE_BIGINT;
     return opr_bigint_mul((int64)OP_LEFT(op_set)->v_int, OP_RIGHT(op_set)->v_bigint, &OP_RESULT(op_set)->v_bigint);
 }
 
 static inline status_t mul_int_real(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_REAL;
+    OP_RESULT(op_set)->type = CT_TYPE_REAL;
     return opr_double_mul((double)OP_LEFT(op_set)->v_int, OP_RIGHT(op_set)->v_real, &OP_RESULT(op_set)->v_real);
 }
 
 static inline status_t mul_int_number(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER;
     return cm_int64_mul_dec((int64)OP_LEFT(op_set)->v_int, &OP_RIGHT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
 static inline status_t mul_int_number2(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER2;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER2;
     return cm_int64_mul_dec((int64)OP_LEFT(op_set)->v_int, &OP_RIGHT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
@@ -269,66 +269,66 @@ static inline status_t mul_int_number2(opr_operand_set_t *op_set)
 
 static inline status_t mul_int_interval_ds(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_DS;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_DS;
     return opr_real_mul_dsitvl((double)OP_LEFT(op_set)->v_int, OP_RIGHT(op_set)->v_itvl_ds,
         &OP_RESULT(op_set)->v_itvl_ds);
 }
 
 static inline status_t mul_int_interval_ym(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_YM;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_YM;
     return opr_real_mul_ymitvl((double)OP_LEFT(op_set)->v_int, OP_RIGHT(op_set)->v_itvl_ym,
         &OP_RESULT(op_set)->v_itvl_ym);
 }
 
-OPR_DECL(mul_int_uint, GS_TYPE_BIGINT, GS_TYPE_BIGINT, GS_TYPE_BIGINT);
-OPR_DECL(mul_int_int, GS_TYPE_BIGINT, GS_TYPE_BIGINT, GS_TYPE_BIGINT);
-OPR_DECL(mul_int_bigint, GS_TYPE_BIGINT, GS_TYPE_BIGINT, GS_TYPE_BIGINT);
-OPR_DECL(mul_int_real, GS_TYPE_REAL, GS_TYPE_REAL, GS_TYPE_REAL);
-OPR_DECL(mul_int_number, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_int_number2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_int_decimal, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL);
-OPR_DECL(mul_int_char, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_int_varchar, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_int_string, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_int_interval_ym, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_int_interval_ds, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_int_binary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_int_varbinary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
+OPR_DECL(mul_int_uint, CT_TYPE_BIGINT, CT_TYPE_BIGINT, CT_TYPE_BIGINT);
+OPR_DECL(mul_int_int, CT_TYPE_BIGINT, CT_TYPE_BIGINT, CT_TYPE_BIGINT);
+OPR_DECL(mul_int_bigint, CT_TYPE_BIGINT, CT_TYPE_BIGINT, CT_TYPE_BIGINT);
+OPR_DECL(mul_int_real, CT_TYPE_REAL, CT_TYPE_REAL, CT_TYPE_REAL);
+OPR_DECL(mul_int_number, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_int_number2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_int_decimal, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL);
+OPR_DECL(mul_int_char, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_int_varchar, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_int_string, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_int_interval_ym, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_int_interval_ds, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_int_binary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_int_varbinary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
 
 static inline status_t mul_bigint_uint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_BIGINT;
+    OP_RESULT(op_set)->type = CT_TYPE_BIGINT;
     return opr_bigint_mul(OP_LEFT(op_set)->v_bigint, (int64)OP_RIGHT(op_set)->v_uint32, &OP_RESULT(op_set)->v_bigint);
 }
 
 static inline status_t mul_bigint_int(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_BIGINT;
+    OP_RESULT(op_set)->type = CT_TYPE_BIGINT;
     return opr_bigint_mul(OP_LEFT(op_set)->v_bigint, (int64)OP_RIGHT(op_set)->v_int, &OP_RESULT(op_set)->v_bigint);
 }
 
 static inline status_t mul_bigint_bigint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_BIGINT;
+    OP_RESULT(op_set)->type = CT_TYPE_BIGINT;
     return opr_bigint_mul(OP_LEFT(op_set)->v_bigint, OP_RIGHT(op_set)->v_bigint, &OP_RESULT(op_set)->v_bigint);
 }
 
 static inline status_t mul_bigint_real(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_REAL;
+    OP_RESULT(op_set)->type = CT_TYPE_REAL;
     return opr_double_mul((double)OP_LEFT(op_set)->v_bigint, OP_RIGHT(op_set)->v_real, &OP_RESULT(op_set)->v_real);
 }
 
 static inline status_t mul_bigint_number(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER;
     return cm_int64_mul_dec(OP_LEFT(op_set)->v_bigint, &OP_RIGHT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
 static inline status_t mul_bigint_number2(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER2;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER2;
     return cm_int64_mul_dec(OP_LEFT(op_set)->v_bigint, &OP_RIGHT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
@@ -342,66 +342,66 @@ static inline status_t mul_bigint_number2(opr_operand_set_t *op_set)
 
 static inline status_t mul_bigint_interval_ds(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_DS;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_DS;
     return opr_real_mul_dsitvl((double)OP_LEFT(op_set)->v_bigint, OP_RIGHT(op_set)->v_itvl_ds,
         &OP_RESULT(op_set)->v_itvl_ds);
 }
 
 static inline status_t mul_bigint_interval_ym(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_YM;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_YM;
     return opr_real_mul_ymitvl((double)OP_LEFT(op_set)->v_bigint, OP_RIGHT(op_set)->v_itvl_ym,
         &OP_RESULT(op_set)->v_itvl_ym);
 }
 
-OPR_DECL(mul_bigint_uint, GS_TYPE_BIGINT, GS_TYPE_BIGINT, GS_TYPE_BIGINT);
-OPR_DECL(mul_bigint_int, GS_TYPE_BIGINT, GS_TYPE_BIGINT, GS_TYPE_BIGINT);
-OPR_DECL(mul_bigint_bigint, GS_TYPE_BIGINT, GS_TYPE_BIGINT, GS_TYPE_BIGINT);
-OPR_DECL(mul_bigint_real, GS_TYPE_REAL, GS_TYPE_REAL, GS_TYPE_REAL);
-OPR_DECL(mul_bigint_number, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_bigint_number2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_bigint_decimal, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL);
-OPR_DECL(mul_bigint_char, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_bigint_varchar, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_bigint_string, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_bigint_interval_ym, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_bigint_interval_ds, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_bigint_binary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_bigint_varbinary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
+OPR_DECL(mul_bigint_uint, CT_TYPE_BIGINT, CT_TYPE_BIGINT, CT_TYPE_BIGINT);
+OPR_DECL(mul_bigint_int, CT_TYPE_BIGINT, CT_TYPE_BIGINT, CT_TYPE_BIGINT);
+OPR_DECL(mul_bigint_bigint, CT_TYPE_BIGINT, CT_TYPE_BIGINT, CT_TYPE_BIGINT);
+OPR_DECL(mul_bigint_real, CT_TYPE_REAL, CT_TYPE_REAL, CT_TYPE_REAL);
+OPR_DECL(mul_bigint_number, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_bigint_number2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_bigint_decimal, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL);
+OPR_DECL(mul_bigint_char, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_bigint_varchar, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_bigint_string, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_bigint_interval_ym, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_bigint_interval_ds, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_bigint_binary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_bigint_varbinary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
 
 static inline status_t mul_real_uint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_REAL;
+    OP_RESULT(op_set)->type = CT_TYPE_REAL;
     return opr_double_mul(OP_LEFT(op_set)->v_real, OP_RIGHT(op_set)->v_uint32, &OP_RESULT(op_set)->v_real);
 }
 
 static inline status_t mul_real_int(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_REAL;
+    OP_RESULT(op_set)->type = CT_TYPE_REAL;
     return opr_double_mul(OP_LEFT(op_set)->v_real, OP_RIGHT(op_set)->v_int, &OP_RESULT(op_set)->v_real);
 }
 
 static inline status_t mul_real_bigint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_REAL;
+    OP_RESULT(op_set)->type = CT_TYPE_REAL;
     return opr_double_mul(OP_LEFT(op_set)->v_real, (double)OP_RIGHT(op_set)->v_bigint, &OP_RESULT(op_set)->v_real);
 }
 
 static inline status_t mul_real_real(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_REAL;
+    OP_RESULT(op_set)->type = CT_TYPE_REAL;
     return opr_double_mul(OP_LEFT(op_set)->v_real, OP_RIGHT(op_set)->v_real, &OP_RESULT(op_set)->v_real);
 }
 
 static inline status_t mul_real_number(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER;
     return cm_real_mul_dec(OP_LEFT(op_set)->v_real, &OP_RIGHT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
 static inline status_t mul_real_number2(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER2;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER2;
     return cm_real_mul_dec(OP_LEFT(op_set)->v_real, &OP_RIGHT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
@@ -415,58 +415,58 @@ static inline status_t mul_real_number2(opr_operand_set_t *op_set)
 
 static inline status_t mul_real_interval_ds(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_DS;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_DS;
     return opr_real_mul_dsitvl(OP_LEFT(op_set)->v_real, OP_RIGHT(op_set)->v_itvl_ds, &OP_RESULT(op_set)->v_itvl_ds);
 }
 
 static inline status_t mul_real_interval_ym(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_YM;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_YM;
     return opr_real_mul_ymitvl(OP_LEFT(op_set)->v_real, OP_RIGHT(op_set)->v_itvl_ym, &OP_RESULT(op_set)->v_itvl_ym);
 }
 
-OPR_DECL(mul_real_uint, GS_TYPE_REAL, GS_TYPE_REAL, GS_TYPE_REAL);
-OPR_DECL(mul_real_int, GS_TYPE_REAL, GS_TYPE_REAL, GS_TYPE_REAL);
-OPR_DECL(mul_real_bigint, GS_TYPE_REAL, GS_TYPE_REAL, GS_TYPE_REAL);
-OPR_DECL(mul_real_real, GS_TYPE_REAL, GS_TYPE_REAL, GS_TYPE_REAL);
-OPR_DECL(mul_real_number, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_real_number2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_real_decimal, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL);
-OPR_DECL(mul_real_char, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_real_varchar, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_real_string, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_real_interval_ym, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_real_interval_ds, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_real_binary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_real_varbinary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
+OPR_DECL(mul_real_uint, CT_TYPE_REAL, CT_TYPE_REAL, CT_TYPE_REAL);
+OPR_DECL(mul_real_int, CT_TYPE_REAL, CT_TYPE_REAL, CT_TYPE_REAL);
+OPR_DECL(mul_real_bigint, CT_TYPE_REAL, CT_TYPE_REAL, CT_TYPE_REAL);
+OPR_DECL(mul_real_real, CT_TYPE_REAL, CT_TYPE_REAL, CT_TYPE_REAL);
+OPR_DECL(mul_real_number, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_real_number2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_real_decimal, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL);
+OPR_DECL(mul_real_char, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_real_varchar, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_real_string, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_real_interval_ym, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_real_interval_ds, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_real_binary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_real_varbinary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
 
 static inline status_t mul_number_uint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER;
     return cm_int64_mul_dec((int64)OP_RIGHT(op_set)->v_uint32, &OP_LEFT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
 static inline status_t mul_number_int(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER;
     return cm_int64_mul_dec((int64)OP_RIGHT(op_set)->v_int, &OP_LEFT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
 static inline status_t mul_number_bigint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER;
     return cm_int64_mul_dec(OP_RIGHT(op_set)->v_bigint, &OP_LEFT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
 static inline status_t mul_number_real(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER;
     return cm_real_mul_dec(OP_RIGHT(op_set)->v_real, &OP_LEFT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
 static inline status_t mul_number_number(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER;
     return cm_dec_mul(&OP_LEFT(op_set)->v_dec, &OP_RIGHT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
@@ -474,7 +474,7 @@ static inline status_t mul_number_number(opr_operand_set_t *op_set)
 
 static inline status_t mul_number_number2(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER2;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER2;
     return cm_dec_mul(&OP_LEFT(op_set)->v_dec, &OP_RIGHT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
@@ -486,58 +486,58 @@ static inline status_t mul_number_number2(opr_operand_set_t *op_set)
 
 static inline status_t mul_number_interval_ds(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_DS;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_DS;
     return opr_dec_mul_dsitvl(&OP_LEFT(op_set)->v_dec, OP_RIGHT(op_set)->v_itvl_ds, &OP_RESULT(op_set)->v_itvl_ds);
 }
 
 static inline status_t mul_number_interval_ym(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_YM;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_YM;
     return opr_dec_mul_ymitvl(&OP_LEFT(op_set)->v_dec, OP_RIGHT(op_set)->v_itvl_ym, &OP_RESULT(op_set)->v_itvl_ym);
 }
 
-OPR_DECL(mul_number_uint, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_number_int, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_number_bigint, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_number_real, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_number_number, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_number_number2, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER2);
-OPR_DECL(mul_number_decimal, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL);
-OPR_DECL(mul_number_char, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_number_varchar, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_number_string, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_number_interval_ym, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_number_interval_ds, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_number_binary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_number_varbinary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
+OPR_DECL(mul_number_uint, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_number_int, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_number_bigint, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_number_real, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_number_number, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_number_number2, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER2);
+OPR_DECL(mul_number_decimal, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL);
+OPR_DECL(mul_number_char, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_number_varchar, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_number_string, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_number_interval_ym, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_number_interval_ds, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_number_binary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_number_varbinary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
 
 static inline status_t mul_number2_uint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER2;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER2;
     return cm_int64_mul_dec((int64)OP_RIGHT(op_set)->v_uint32, &OP_LEFT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
 static inline status_t mul_number2_int(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER2;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER2;
     return cm_int64_mul_dec((int64)OP_RIGHT(op_set)->v_int, &OP_LEFT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
 static inline status_t mul_number2_bigint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER2;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER2;
     return cm_int64_mul_dec(OP_RIGHT(op_set)->v_bigint, &OP_LEFT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
 static inline status_t mul_number2_real(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER2;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER2;
     return cm_real_mul_dec(OP_RIGHT(op_set)->v_real, &OP_LEFT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
 static inline status_t mul_number2_number(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_NUMBER2;
+    OP_RESULT(op_set)->type = CT_TYPE_NUMBER2;
     return cm_dec_mul(&OP_LEFT(op_set)->v_dec, &OP_RIGHT(op_set)->v_dec, &OP_RESULT(op_set)->v_dec);
 }
 
@@ -552,36 +552,36 @@ static inline status_t mul_number2_number(opr_operand_set_t *op_set)
 
 static inline status_t mul_number2_interval_ds(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_DS;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_DS;
     return opr_dec_mul_dsitvl(&OP_LEFT(op_set)->v_dec, OP_RIGHT(op_set)->v_itvl_ds, &OP_RESULT(op_set)->v_itvl_ds);
 }
 
 static inline status_t mul_number2_interval_ym(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_YM;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_YM;
     return opr_dec_mul_ymitvl(&OP_LEFT(op_set)->v_dec, OP_RIGHT(op_set)->v_itvl_ym, &OP_RESULT(op_set)->v_itvl_ym);
 }
 
-OPR_DECL(mul_number2_uint, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_number2_int, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_number2_bigint, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_number2_real, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_number2_number, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_number2_number2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_number2_decimal, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_number2_char, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_number2_varchar, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_number2_string, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_number2_interval_ym, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_number2_interval_ds, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_number2_binary, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_number2_varbinary, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
+OPR_DECL(mul_number2_uint, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_number2_int, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_number2_bigint, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_number2_real, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_number2_number, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_number2_number2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_number2_decimal, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_number2_char, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_number2_varchar, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_number2_string, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_number2_interval_ym, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_number2_interval_ds, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_number2_binary, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_number2_varbinary, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
 
 static inline status_t mul_string_anytype(opr_operand_set_t *op_set)
 {
     variant_t var;
     variant_t *old_left = OP_LEFT(op_set);
-    GS_RETURN_IFERR(opr_text2dec(OP_LEFT(op_set), &var));
+    CT_RETURN_IFERR(opr_text2dec(OP_LEFT(op_set), &var));
     OP_LEFT(op_set) = &var;
     status_t status = opr_exec_mul(op_set);
     OP_LEFT(op_set) = old_left;
@@ -603,20 +603,20 @@ static inline status_t mul_string_anytype(opr_operand_set_t *op_set)
 #define mul_string_binary           mul_anytype_binary
 #define mul_string_varbinary        mul_string_anytype
 
-OPR_DECL(mul_string_uint, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_string_int, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_string_bigint, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_string_real, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_string_number, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_string_number2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_string_decimal, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL);
-OPR_DECL(mul_string_char, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_string_varchar, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_string_string, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_string_interval_ym, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_string_interval_ds, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_string_binary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_string_varbinary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
+OPR_DECL(mul_string_uint, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_string_int, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_string_bigint, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_string_real, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_string_number, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_string_number2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_string_decimal, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL);
+OPR_DECL(mul_string_char, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_string_varchar, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_string_string, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_string_interval_ym, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_string_interval_ds, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_string_binary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_string_varbinary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
 
 #define mul_binary_uint             mul_binary_anytype
 #define mul_binary_int              mul_binary_anytype
@@ -633,51 +633,51 @@ OPR_DECL(mul_string_varbinary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
 #define mul_binary_binary           mul_binary_anytype
 #define mul_binary_varbinary        mul_binary_anytype
 
-OPR_DECL(mul_binary_uint, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_binary_int, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_binary_bigint, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_binary_real, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_binary_number, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_binary_number2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2, GS_TYPE_NUMBER2);
-OPR_DECL(mul_binary_decimal, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL, GS_TYPE_DECIMAL);
-OPR_DECL(mul_binary_char, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_binary_varchar, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_binary_string, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_binary_interval_ym, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_binary_interval_ds, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_binary_binary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
-OPR_DECL(mul_binary_varbinary, GS_TYPE_NUMBER, GS_TYPE_NUMBER, GS_TYPE_NUMBER);
+OPR_DECL(mul_binary_uint, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_binary_int, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_binary_bigint, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_binary_real, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_binary_number, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_binary_number2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2, CT_TYPE_NUMBER2);
+OPR_DECL(mul_binary_decimal, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL, CT_TYPE_DECIMAL);
+OPR_DECL(mul_binary_char, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_binary_varchar, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_binary_string, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_binary_interval_ym, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_binary_interval_ds, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_binary_binary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
+OPR_DECL(mul_binary_varbinary, CT_TYPE_NUMBER, CT_TYPE_NUMBER, CT_TYPE_NUMBER);
 
 static inline status_t mul_interval_ds_uint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_DS;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_DS;
     return opr_dsitvl_mul_real(OP_LEFT(op_set)->v_itvl_ds, (double)OP_RIGHT(op_set)->v_uint32,
         &OP_RESULT(op_set)->v_itvl_ds);
 }
 
 static inline status_t mul_interval_ds_int(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_DS;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_DS;
     return opr_dsitvl_mul_real(OP_LEFT(op_set)->v_itvl_ds, (double)OP_RIGHT(op_set)->v_int,
         &OP_RESULT(op_set)->v_itvl_ds);
 }
 
 static inline status_t mul_interval_ds_bigint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_DS;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_DS;
     return opr_dsitvl_mul_real(OP_LEFT(op_set)->v_itvl_ds, (double)OP_RIGHT(op_set)->v_bigint,
         &OP_RESULT(op_set)->v_itvl_ds);
 }
 
 static inline status_t mul_interval_ds_real(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_DS;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_DS;
     return opr_dsitvl_mul_real(OP_LEFT(op_set)->v_itvl_ds, OP_RIGHT(op_set)->v_real, &OP_RESULT(op_set)->v_itvl_ds);
 }
 
 static inline status_t mul_interval_ds_number(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_DS;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_DS;
     return opr_dsitvl_mul_dec(OP_LEFT(op_set)->v_itvl_ds, &OP_RIGHT(op_set)->v_dec, &OP_RESULT(op_set)->v_itvl_ds);
 }
 
@@ -689,50 +689,50 @@ static inline status_t mul_interval_ds_number(opr_operand_set_t *op_set)
 #define mul_interval_ds_binary       mul_anytype_binary
 #define mul_interval_ds_varbinary    mul_anytype_string
 
-OPR_DECL(mul_interval_ds_uint, GS_TYPE_INTERVAL_DS, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_interval_ds_int, GS_TYPE_INTERVAL_DS, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_interval_ds_bigint, GS_TYPE_INTERVAL_DS, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_interval_ds_real, GS_TYPE_INTERVAL_DS, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_interval_ds_number, GS_TYPE_INTERVAL_DS, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_interval_ds_number2, GS_TYPE_INTERVAL_DS, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_interval_ds_decimal, GS_TYPE_INTERVAL_DS, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_interval_ds_char, GS_TYPE_INTERVAL_DS, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_interval_ds_varchar, GS_TYPE_INTERVAL_DS, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_interval_ds_string, GS_TYPE_INTERVAL_DS, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_interval_ds_binary, GS_TYPE_INTERVAL_DS, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS);
-OPR_DECL(mul_interval_ds_varbinary, GS_TYPE_INTERVAL_DS, GS_TYPE_REAL, GS_TYPE_INTERVAL_DS);
+OPR_DECL(mul_interval_ds_uint, CT_TYPE_INTERVAL_DS, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_interval_ds_int, CT_TYPE_INTERVAL_DS, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_interval_ds_bigint, CT_TYPE_INTERVAL_DS, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_interval_ds_real, CT_TYPE_INTERVAL_DS, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_interval_ds_number, CT_TYPE_INTERVAL_DS, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_interval_ds_number2, CT_TYPE_INTERVAL_DS, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_interval_ds_decimal, CT_TYPE_INTERVAL_DS, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_interval_ds_char, CT_TYPE_INTERVAL_DS, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_interval_ds_varchar, CT_TYPE_INTERVAL_DS, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_interval_ds_string, CT_TYPE_INTERVAL_DS, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_interval_ds_binary, CT_TYPE_INTERVAL_DS, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS);
+OPR_DECL(mul_interval_ds_varbinary, CT_TYPE_INTERVAL_DS, CT_TYPE_REAL, CT_TYPE_INTERVAL_DS);
 
 
 static inline status_t mul_interval_ym_uint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_YM;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_YM;
     return opr_ymitvl_mul_real(OP_LEFT(op_set)->v_itvl_ym, (double)OP_RIGHT(op_set)->v_uint32,
         &OP_RESULT(op_set)->v_itvl_ym);
 }
 
 static inline status_t mul_interval_ym_int(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_YM;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_YM;
     return opr_ymitvl_mul_real(OP_LEFT(op_set)->v_itvl_ym, (double)OP_RIGHT(op_set)->v_int,
         &OP_RESULT(op_set)->v_itvl_ym);
 }
 
 static inline status_t mul_interval_ym_bigint(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_YM;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_YM;
     return opr_ymitvl_mul_real(OP_LEFT(op_set)->v_itvl_ym, (double)OP_RIGHT(op_set)->v_bigint,
         &OP_RESULT(op_set)->v_itvl_ym);
 }
 
 static inline status_t mul_interval_ym_real(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_YM;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_YM;
     return opr_ymitvl_mul_real(OP_LEFT(op_set)->v_itvl_ym, OP_RIGHT(op_set)->v_real, &OP_RESULT(op_set)->v_itvl_ym);
 }
 
 static inline status_t mul_interval_ym_number(opr_operand_set_t *op_set)
 {
-    OP_RESULT(op_set)->type = GS_TYPE_INTERVAL_YM;
+    OP_RESULT(op_set)->type = CT_TYPE_INTERVAL_YM;
     return opr_ymitvl_mul_dec(OP_LEFT(op_set)->v_itvl_ym, &OP_RIGHT(op_set)->v_dec, &OP_RESULT(op_set)->v_itvl_ym);
 }
 
@@ -744,248 +744,248 @@ static inline status_t mul_interval_ym_number(opr_operand_set_t *op_set)
 #define mul_interval_ym_binary       mul_anytype_binary
 #define mul_interval_ym_varbinary    mul_anytype_string
 
-OPR_DECL(mul_interval_ym_uint, GS_TYPE_INTERVAL_YM, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_interval_ym_int, GS_TYPE_INTERVAL_YM, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_interval_ym_bigint, GS_TYPE_INTERVAL_YM, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_interval_ym_real, GS_TYPE_INTERVAL_YM, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_interval_ym_number, GS_TYPE_INTERVAL_YM, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_interval_ym_number2, GS_TYPE_INTERVAL_YM, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_interval_ym_decimal, GS_TYPE_INTERVAL_YM, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_interval_ym_char, GS_TYPE_INTERVAL_YM, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_interval_ym_varchar, GS_TYPE_INTERVAL_YM, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_interval_ym_string, GS_TYPE_INTERVAL_YM, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_interval_ym_binary, GS_TYPE_INTERVAL_YM, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM);
-OPR_DECL(mul_interval_ym_varbinary, GS_TYPE_INTERVAL_YM, GS_TYPE_REAL, GS_TYPE_INTERVAL_YM);
+OPR_DECL(mul_interval_ym_uint, CT_TYPE_INTERVAL_YM, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_interval_ym_int, CT_TYPE_INTERVAL_YM, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_interval_ym_bigint, CT_TYPE_INTERVAL_YM, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_interval_ym_real, CT_TYPE_INTERVAL_YM, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_interval_ym_number, CT_TYPE_INTERVAL_YM, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_interval_ym_number2, CT_TYPE_INTERVAL_YM, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_interval_ym_decimal, CT_TYPE_INTERVAL_YM, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_interval_ym_char, CT_TYPE_INTERVAL_YM, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_interval_ym_varchar, CT_TYPE_INTERVAL_YM, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_interval_ym_string, CT_TYPE_INTERVAL_YM, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_interval_ym_binary, CT_TYPE_INTERVAL_YM, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM);
+OPR_DECL(mul_interval_ym_varbinary, CT_TYPE_INTERVAL_YM, CT_TYPE_REAL, CT_TYPE_INTERVAL_YM);
 
 static opr_rule_t *g_mul_oprs[VAR_TYPE_ARRAY_SIZE][VAR_TYPE_ARRAY_SIZE] = {
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_UINT32,             mul_uint_uint),
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_INTEGER,            mul_uint_int),
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_BIGINT,             mul_uint_bigint),
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_REAL,               mul_uint_real),
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_NUMBER,             mul_uint_number),
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_NUMBER2,            mul_uint_number2),
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_DECIMAL,            mul_uint_decimal),
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_CHAR,               mul_uint_char),
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_VARCHAR,            mul_uint_varchar),
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_STRING,             mul_uint_string),
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_INTERVAL_YM,        mul_uint_interval_ym),
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_INTERVAL_DS,        mul_uint_interval_ds),
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_BINARY,             mul_uint_binary),
-    __OPR_DEF(GS_TYPE_UINT32, GS_TYPE_VARBINARY,          mul_uint_varbinary),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_UINT32,             mul_uint_uint),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_INTEGER,            mul_uint_int),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_BIGINT,             mul_uint_bigint),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_REAL,               mul_uint_real),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_NUMBER,             mul_uint_number),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_NUMBER2,            mul_uint_number2),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_DECIMAL,            mul_uint_decimal),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_CHAR,               mul_uint_char),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_VARCHAR,            mul_uint_varchar),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_STRING,             mul_uint_string),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_INTERVAL_YM,        mul_uint_interval_ym),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_INTERVAL_DS,        mul_uint_interval_ds),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_BINARY,             mul_uint_binary),
+    __OPR_DEF(CT_TYPE_UINT32, CT_TYPE_VARBINARY,          mul_uint_varbinary),
 
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_UINT32,             mul_int_uint),
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_INTEGER,            mul_int_int),
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_BIGINT,             mul_int_bigint),
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_REAL,               mul_int_real),
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_NUMBER,             mul_int_number),
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_NUMBER2,            mul_int_number2),
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_DECIMAL,            mul_int_decimal),
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_CHAR,               mul_int_char),
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_VARCHAR,            mul_int_varchar),
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_STRING,             mul_int_string),
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_INTERVAL_YM,        mul_int_interval_ym),
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_INTERVAL_DS,        mul_int_interval_ds),
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_BINARY,             mul_int_binary),
-    __OPR_DEF(GS_TYPE_INTEGER, GS_TYPE_VARBINARY,          mul_int_varbinary),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_UINT32,             mul_int_uint),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_INTEGER,            mul_int_int),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_BIGINT,             mul_int_bigint),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_REAL,               mul_int_real),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_NUMBER,             mul_int_number),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_NUMBER2,            mul_int_number2),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_DECIMAL,            mul_int_decimal),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_CHAR,               mul_int_char),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_VARCHAR,            mul_int_varchar),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_STRING,             mul_int_string),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_INTERVAL_YM,        mul_int_interval_ym),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_INTERVAL_DS,        mul_int_interval_ds),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_BINARY,             mul_int_binary),
+    __OPR_DEF(CT_TYPE_INTEGER, CT_TYPE_VARBINARY,          mul_int_varbinary),
 
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_UINT32,            mul_bigint_uint),
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_INTEGER,           mul_bigint_int),
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_BIGINT,            mul_bigint_bigint),
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_REAL,              mul_bigint_real),
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_NUMBER,            mul_bigint_number),
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_NUMBER2,           mul_bigint_number2),
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_DECIMAL,           mul_bigint_decimal),
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_CHAR,              mul_bigint_char),
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_VARCHAR,           mul_bigint_varchar),
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_STRING,            mul_bigint_string),
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_INTERVAL_YM,       mul_bigint_interval_ym),
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_INTERVAL_DS,       mul_bigint_interval_ds),
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_BINARY,            mul_bigint_binary),
-    __OPR_DEF(GS_TYPE_BIGINT, GS_TYPE_VARBINARY,         mul_bigint_varbinary),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_UINT32,            mul_bigint_uint),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_INTEGER,           mul_bigint_int),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_BIGINT,            mul_bigint_bigint),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_REAL,              mul_bigint_real),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_NUMBER,            mul_bigint_number),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_NUMBER2,           mul_bigint_number2),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_DECIMAL,           mul_bigint_decimal),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_CHAR,              mul_bigint_char),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_VARCHAR,           mul_bigint_varchar),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_STRING,            mul_bigint_string),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_INTERVAL_YM,       mul_bigint_interval_ym),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_INTERVAL_DS,       mul_bigint_interval_ds),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_BINARY,            mul_bigint_binary),
+    __OPR_DEF(CT_TYPE_BIGINT, CT_TYPE_VARBINARY,         mul_bigint_varbinary),
 
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_UINT32,                  mul_real_uint),
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_INTEGER,                 mul_real_int),
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_BIGINT,                  mul_real_bigint),
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_REAL,                    mul_real_real),
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_NUMBER,                  mul_real_number),
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_NUMBER2,                 mul_real_number2),
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_DECIMAL,                 mul_real_decimal),
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_CHAR,                    mul_real_char),
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_VARCHAR,                 mul_real_varchar),
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_STRING,                  mul_real_string),
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_INTERVAL_YM,             mul_real_interval_ym),
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_INTERVAL_DS,             mul_real_interval_ds),
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_BINARY,                  mul_real_binary),
-    __OPR_DEF(GS_TYPE_REAL, GS_TYPE_VARBINARY,               mul_real_varbinary),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_UINT32,                  mul_real_uint),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_INTEGER,                 mul_real_int),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_BIGINT,                  mul_real_bigint),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_REAL,                    mul_real_real),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_NUMBER,                  mul_real_number),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_NUMBER2,                 mul_real_number2),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_DECIMAL,                 mul_real_decimal),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_CHAR,                    mul_real_char),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_VARCHAR,                 mul_real_varchar),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_STRING,                  mul_real_string),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_INTERVAL_YM,             mul_real_interval_ym),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_INTERVAL_DS,             mul_real_interval_ds),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_BINARY,                  mul_real_binary),
+    __OPR_DEF(CT_TYPE_REAL, CT_TYPE_VARBINARY,               mul_real_varbinary),
 
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_UINT32,              mul_number_uint),
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_INTEGER,             mul_number_int),
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_BIGINT,              mul_number_bigint),
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_REAL,                mul_number_real),
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_NUMBER,              mul_number_number),
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_NUMBER2,             mul_number_number2),
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_DECIMAL,             mul_number_decimal),
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_CHAR,                mul_number_char),
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_VARCHAR,             mul_number_varchar),
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_STRING,              mul_number_string),
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_INTERVAL_YM,         mul_number_interval_ym),
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_INTERVAL_DS,         mul_number_interval_ds),
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_BINARY,              mul_number_binary),
-    __OPR_DEF(GS_TYPE_NUMBER, GS_TYPE_VARBINARY,           mul_number_varbinary),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_UINT32,              mul_number_uint),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_INTEGER,             mul_number_int),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_BIGINT,              mul_number_bigint),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_REAL,                mul_number_real),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_NUMBER,              mul_number_number),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_NUMBER2,             mul_number_number2),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_DECIMAL,             mul_number_decimal),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_CHAR,                mul_number_char),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_VARCHAR,             mul_number_varchar),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_STRING,              mul_number_string),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_INTERVAL_YM,         mul_number_interval_ym),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_INTERVAL_DS,         mul_number_interval_ds),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_BINARY,              mul_number_binary),
+    __OPR_DEF(CT_TYPE_NUMBER, CT_TYPE_VARBINARY,           mul_number_varbinary),
 
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_UINT32,              mul_number2_uint),
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_INTEGER,             mul_number2_int),
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_BIGINT,              mul_number2_bigint),
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_REAL,                mul_number2_real),
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_NUMBER,              mul_number2_number),
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_DECIMAL,             mul_number2_decimal),
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_CHAR,                mul_number2_char),
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_VARCHAR,             mul_number2_varchar),
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_STRING,              mul_number2_string),
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_INTERVAL_YM,         mul_number2_interval_ym),
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_INTERVAL_DS,         mul_number2_interval_ds),
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_BINARY,              mul_number2_binary),
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_VARBINARY,           mul_number2_varbinary),
-    __OPR_DEF(GS_TYPE_NUMBER2, GS_TYPE_NUMBER2,             mul_number2_number2),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_UINT32,              mul_number2_uint),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_INTEGER,             mul_number2_int),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_BIGINT,              mul_number2_bigint),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_REAL,                mul_number2_real),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_NUMBER,              mul_number2_number),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_DECIMAL,             mul_number2_decimal),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_CHAR,                mul_number2_char),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_VARCHAR,             mul_number2_varchar),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_STRING,              mul_number2_string),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_INTERVAL_YM,         mul_number2_interval_ym),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_INTERVAL_DS,         mul_number2_interval_ds),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_BINARY,              mul_number2_binary),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_VARBINARY,           mul_number2_varbinary),
+    __OPR_DEF(CT_TYPE_NUMBER2, CT_TYPE_NUMBER2,             mul_number2_number2),
 
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_UINT32,              mul_number_uint),
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_INTEGER,             mul_number_int),
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_BIGINT,              mul_number_bigint),
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_REAL,                mul_number_real),
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_NUMBER,              mul_number_number),
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_NUMBER2,             mul_number_number2),
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_DECIMAL,             mul_number_decimal),
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_CHAR,                mul_number_char),
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_VARCHAR,             mul_number_varchar),
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_STRING,              mul_number_string),
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_INTERVAL_YM,         mul_number_interval_ym),
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_INTERVAL_DS,         mul_number_interval_ds),
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_BINARY,              mul_number_binary),
-    __OPR_DEF(GS_TYPE_DECIMAL, GS_TYPE_VARBINARY,           mul_number_varbinary),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_UINT32,              mul_number_uint),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_INTEGER,             mul_number_int),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_BIGINT,              mul_number_bigint),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_REAL,                mul_number_real),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_NUMBER,              mul_number_number),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_NUMBER2,             mul_number_number2),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_DECIMAL,             mul_number_decimal),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_CHAR,                mul_number_char),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_VARCHAR,             mul_number_varchar),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_STRING,              mul_number_string),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_INTERVAL_YM,         mul_number_interval_ym),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_INTERVAL_DS,         mul_number_interval_ds),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_BINARY,              mul_number_binary),
+    __OPR_DEF(CT_TYPE_DECIMAL, CT_TYPE_VARBINARY,           mul_number_varbinary),
 
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_UINT32,            mul_string_uint),
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_INTEGER,           mul_string_int),
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_BIGINT,            mul_string_bigint),
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_REAL,              mul_string_real),
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_NUMBER,            mul_string_number),
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_NUMBER2,           mul_string_number2),
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_DECIMAL,           mul_string_decimal),
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_CHAR,              mul_string_char),
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_VARCHAR,           mul_string_varchar),
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_STRING,            mul_string_string),
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_INTERVAL_YM,       mul_string_interval_ym),
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_INTERVAL_DS,       mul_string_interval_ds),
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_BINARY,            mul_string_binary),
-    __OPR_DEF(GS_TYPE_CHAR, GS_TYPE_VARBINARY,         mul_string_varbinary),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_UINT32,            mul_string_uint),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_INTEGER,           mul_string_int),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_BIGINT,            mul_string_bigint),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_REAL,              mul_string_real),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_NUMBER,            mul_string_number),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_NUMBER2,           mul_string_number2),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_DECIMAL,           mul_string_decimal),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_CHAR,              mul_string_char),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_VARCHAR,           mul_string_varchar),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_STRING,            mul_string_string),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_INTERVAL_YM,       mul_string_interval_ym),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_INTERVAL_DS,       mul_string_interval_ds),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_BINARY,            mul_string_binary),
+    __OPR_DEF(CT_TYPE_CHAR, CT_TYPE_VARBINARY,         mul_string_varbinary),
 
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_UINT32,            mul_string_uint),
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_INTEGER,           mul_string_int),
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_BIGINT,            mul_string_bigint),
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_REAL,              mul_string_real),
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_NUMBER,            mul_string_number),
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_NUMBER2,           mul_string_number2),
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_DECIMAL,           mul_string_decimal),
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_CHAR,              mul_string_char),
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_VARCHAR,           mul_string_varchar),
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_STRING,            mul_string_string),
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_INTERVAL_YM,       mul_string_interval_ym),
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_INTERVAL_DS,       mul_string_interval_ds),
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_BINARY,            mul_string_binary),
-    __OPR_DEF(GS_TYPE_VARCHAR, GS_TYPE_VARBINARY,         mul_string_varbinary),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_UINT32,            mul_string_uint),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_INTEGER,           mul_string_int),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_BIGINT,            mul_string_bigint),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_REAL,              mul_string_real),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_NUMBER,            mul_string_number),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_NUMBER2,           mul_string_number2),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_DECIMAL,           mul_string_decimal),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_CHAR,              mul_string_char),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_VARCHAR,           mul_string_varchar),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_STRING,            mul_string_string),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_INTERVAL_YM,       mul_string_interval_ym),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_INTERVAL_DS,       mul_string_interval_ds),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_BINARY,            mul_string_binary),
+    __OPR_DEF(CT_TYPE_VARCHAR, CT_TYPE_VARBINARY,         mul_string_varbinary),
 
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_UINT32,            mul_string_uint),
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_INTEGER,           mul_string_int),
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_BIGINT,            mul_string_bigint),
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_REAL,              mul_string_real),
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_NUMBER,            mul_string_number),
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_NUMBER2,           mul_string_number2),
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_DECIMAL,           mul_string_decimal),
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_CHAR,              mul_string_char),
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_VARCHAR,           mul_string_varchar),
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_STRING,            mul_string_string),
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_INTERVAL_YM,       mul_string_interval_ym),
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_INTERVAL_DS,       mul_string_interval_ds),
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_BINARY,            mul_string_binary),
-    __OPR_DEF(GS_TYPE_STRING, GS_TYPE_VARBINARY,         mul_string_varbinary),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_UINT32,            mul_string_uint),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_INTEGER,           mul_string_int),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_BIGINT,            mul_string_bigint),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_REAL,              mul_string_real),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_NUMBER,            mul_string_number),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_NUMBER2,           mul_string_number2),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_DECIMAL,           mul_string_decimal),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_CHAR,              mul_string_char),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_VARCHAR,           mul_string_varchar),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_STRING,            mul_string_string),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_INTERVAL_YM,       mul_string_interval_ym),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_INTERVAL_DS,       mul_string_interval_ds),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_BINARY,            mul_string_binary),
+    __OPR_DEF(CT_TYPE_STRING, CT_TYPE_VARBINARY,         mul_string_varbinary),
 
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_UINT32,            mul_binary_uint),
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_INTEGER,           mul_binary_int),
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_BIGINT,            mul_binary_bigint),
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_REAL,              mul_binary_real),
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_NUMBER,            mul_binary_number),
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_NUMBER2,           mul_binary_number2),
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_DECIMAL,           mul_binary_decimal),
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_CHAR,              mul_binary_char),
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_VARCHAR,           mul_binary_varchar),
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_STRING,            mul_binary_string),
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_INTERVAL_YM,       mul_binary_interval_ym),
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_INTERVAL_DS,       mul_binary_interval_ds),
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_BINARY,            mul_binary_binary),
-    __OPR_DEF(GS_TYPE_BINARY, GS_TYPE_VARBINARY,         mul_binary_varbinary),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_UINT32,            mul_binary_uint),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_INTEGER,           mul_binary_int),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_BIGINT,            mul_binary_bigint),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_REAL,              mul_binary_real),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_NUMBER,            mul_binary_number),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_NUMBER2,           mul_binary_number2),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_DECIMAL,           mul_binary_decimal),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_CHAR,              mul_binary_char),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_VARCHAR,           mul_binary_varchar),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_STRING,            mul_binary_string),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_INTERVAL_YM,       mul_binary_interval_ym),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_INTERVAL_DS,       mul_binary_interval_ds),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_BINARY,            mul_binary_binary),
+    __OPR_DEF(CT_TYPE_BINARY, CT_TYPE_VARBINARY,         mul_binary_varbinary),
 
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_UINT32,            mul_string_uint),
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_INTEGER,           mul_string_int),
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_BIGINT,            mul_string_bigint),
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_REAL,              mul_string_real),
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_NUMBER,            mul_string_number),
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_NUMBER2,           mul_string_number2),
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_DECIMAL,           mul_string_decimal),
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_CHAR,              mul_string_char),
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_VARCHAR,           mul_string_varchar),
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_STRING,            mul_string_string),
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_INTERVAL_YM,       mul_string_interval_ym),
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_INTERVAL_DS,       mul_string_interval_ds),
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_BINARY,            mul_string_binary),
-    __OPR_DEF(GS_TYPE_VARBINARY, GS_TYPE_VARBINARY,         mul_string_varbinary),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_UINT32,            mul_string_uint),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_INTEGER,           mul_string_int),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_BIGINT,            mul_string_bigint),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_REAL,              mul_string_real),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_NUMBER,            mul_string_number),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_NUMBER2,           mul_string_number2),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_DECIMAL,           mul_string_decimal),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_CHAR,              mul_string_char),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_VARCHAR,           mul_string_varchar),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_STRING,            mul_string_string),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_INTERVAL_YM,       mul_string_interval_ym),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_INTERVAL_DS,       mul_string_interval_ds),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_BINARY,            mul_string_binary),
+    __OPR_DEF(CT_TYPE_VARBINARY, CT_TYPE_VARBINARY,         mul_string_varbinary),
 
-    __OPR_DEF(GS_TYPE_INTERVAL_YM, GS_TYPE_UINT32,         mul_interval_ym_uint),
-    __OPR_DEF(GS_TYPE_INTERVAL_YM, GS_TYPE_INTEGER,        mul_interval_ym_int),
-    __OPR_DEF(GS_TYPE_INTERVAL_YM, GS_TYPE_BIGINT,         mul_interval_ym_bigint),
-    __OPR_DEF(GS_TYPE_INTERVAL_YM, GS_TYPE_REAL,           mul_interval_ym_real),
-    __OPR_DEF(GS_TYPE_INTERVAL_YM, GS_TYPE_NUMBER,         mul_interval_ym_number),
-    __OPR_DEF(GS_TYPE_INTERVAL_YM, GS_TYPE_NUMBER2,        mul_interval_ym_number2),
-    __OPR_DEF(GS_TYPE_INTERVAL_YM, GS_TYPE_DECIMAL,        mul_interval_ym_decimal),
-    __OPR_DEF(GS_TYPE_INTERVAL_YM, GS_TYPE_CHAR,           mul_interval_ym_char),
-    __OPR_DEF(GS_TYPE_INTERVAL_YM, GS_TYPE_VARCHAR,        mul_interval_ym_varchar),
-    __OPR_DEF(GS_TYPE_INTERVAL_YM, GS_TYPE_STRING,         mul_interval_ym_string),
-    __OPR_DEF(GS_TYPE_INTERVAL_YM, GS_TYPE_BINARY,         mul_interval_ym_binary),
-    __OPR_DEF(GS_TYPE_INTERVAL_YM, GS_TYPE_VARBINARY,      mul_interval_ym_varbinary),
+    __OPR_DEF(CT_TYPE_INTERVAL_YM, CT_TYPE_UINT32,         mul_interval_ym_uint),
+    __OPR_DEF(CT_TYPE_INTERVAL_YM, CT_TYPE_INTEGER,        mul_interval_ym_int),
+    __OPR_DEF(CT_TYPE_INTERVAL_YM, CT_TYPE_BIGINT,         mul_interval_ym_bigint),
+    __OPR_DEF(CT_TYPE_INTERVAL_YM, CT_TYPE_REAL,           mul_interval_ym_real),
+    __OPR_DEF(CT_TYPE_INTERVAL_YM, CT_TYPE_NUMBER,         mul_interval_ym_number),
+    __OPR_DEF(CT_TYPE_INTERVAL_YM, CT_TYPE_NUMBER2,        mul_interval_ym_number2),
+    __OPR_DEF(CT_TYPE_INTERVAL_YM, CT_TYPE_DECIMAL,        mul_interval_ym_decimal),
+    __OPR_DEF(CT_TYPE_INTERVAL_YM, CT_TYPE_CHAR,           mul_interval_ym_char),
+    __OPR_DEF(CT_TYPE_INTERVAL_YM, CT_TYPE_VARCHAR,        mul_interval_ym_varchar),
+    __OPR_DEF(CT_TYPE_INTERVAL_YM, CT_TYPE_STRING,         mul_interval_ym_string),
+    __OPR_DEF(CT_TYPE_INTERVAL_YM, CT_TYPE_BINARY,         mul_interval_ym_binary),
+    __OPR_DEF(CT_TYPE_INTERVAL_YM, CT_TYPE_VARBINARY,      mul_interval_ym_varbinary),
 
-    __OPR_DEF(GS_TYPE_INTERVAL_DS, GS_TYPE_UINT32,        mul_interval_ds_uint),
-    __OPR_DEF(GS_TYPE_INTERVAL_DS, GS_TYPE_INTEGER,       mul_interval_ds_int),
-    __OPR_DEF(GS_TYPE_INTERVAL_DS, GS_TYPE_BIGINT,        mul_interval_ds_bigint),
-    __OPR_DEF(GS_TYPE_INTERVAL_DS, GS_TYPE_REAL,          mul_interval_ds_real),
-    __OPR_DEF(GS_TYPE_INTERVAL_DS, GS_TYPE_NUMBER,        mul_interval_ds_number),
-    __OPR_DEF(GS_TYPE_INTERVAL_DS, GS_TYPE_NUMBER2,       mul_interval_ds_number2),
-    __OPR_DEF(GS_TYPE_INTERVAL_DS, GS_TYPE_DECIMAL,       mul_interval_ds_decimal),
-    __OPR_DEF(GS_TYPE_INTERVAL_DS, GS_TYPE_CHAR,          mul_interval_ds_char),
-    __OPR_DEF(GS_TYPE_INTERVAL_DS, GS_TYPE_VARCHAR,       mul_interval_ds_varchar),
-    __OPR_DEF(GS_TYPE_INTERVAL_DS, GS_TYPE_STRING,        mul_interval_ds_string),
-    __OPR_DEF(GS_TYPE_INTERVAL_DS, GS_TYPE_BINARY,        mul_interval_ds_binary),
-    __OPR_DEF(GS_TYPE_INTERVAL_DS, GS_TYPE_VARBINARY,     mul_interval_ds_varbinary),
+    __OPR_DEF(CT_TYPE_INTERVAL_DS, CT_TYPE_UINT32,        mul_interval_ds_uint),
+    __OPR_DEF(CT_TYPE_INTERVAL_DS, CT_TYPE_INTEGER,       mul_interval_ds_int),
+    __OPR_DEF(CT_TYPE_INTERVAL_DS, CT_TYPE_BIGINT,        mul_interval_ds_bigint),
+    __OPR_DEF(CT_TYPE_INTERVAL_DS, CT_TYPE_REAL,          mul_interval_ds_real),
+    __OPR_DEF(CT_TYPE_INTERVAL_DS, CT_TYPE_NUMBER,        mul_interval_ds_number),
+    __OPR_DEF(CT_TYPE_INTERVAL_DS, CT_TYPE_NUMBER2,       mul_interval_ds_number2),
+    __OPR_DEF(CT_TYPE_INTERVAL_DS, CT_TYPE_DECIMAL,       mul_interval_ds_decimal),
+    __OPR_DEF(CT_TYPE_INTERVAL_DS, CT_TYPE_CHAR,          mul_interval_ds_char),
+    __OPR_DEF(CT_TYPE_INTERVAL_DS, CT_TYPE_VARCHAR,       mul_interval_ds_varchar),
+    __OPR_DEF(CT_TYPE_INTERVAL_DS, CT_TYPE_STRING,        mul_interval_ds_string),
+    __OPR_DEF(CT_TYPE_INTERVAL_DS, CT_TYPE_BINARY,        mul_interval_ds_binary),
+    __OPR_DEF(CT_TYPE_INTERVAL_DS, CT_TYPE_VARBINARY,     mul_interval_ds_varbinary),
 };  // end g_multiplication_rules
 
 status_t opr_exec_mul(opr_operand_set_t *op_set)
 {
-    opr_rule_t *rule = g_mul_oprs[GS_TYPE_I(OP_LEFT(op_set)->type)][GS_TYPE_I(OP_RIGHT(op_set)->type)];
+    opr_rule_t *rule = g_mul_oprs[CT_TYPE_I(OP_LEFT(op_set)->type)][CT_TYPE_I(OP_RIGHT(op_set)->type)];
 
     if (SECUREC_UNLIKELY(rule == NULL)) {
         OPR_THROW_ERROR("*", OP_LEFT(op_set)->type, OP_RIGHT(op_set)->type);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     return rule->exec(op_set);
 }
 
-status_t opr_type_infer_mul(gs_type_t left, gs_type_t right, gs_type_t *result)
+status_t opr_type_infer_mul(ct_type_t left, ct_type_t right, ct_type_t *result)
 {
-    opr_rule_t *rule = g_mul_oprs[GS_TYPE_I(left)][GS_TYPE_I(right)];
+    opr_rule_t *rule = g_mul_oprs[CT_TYPE_I(left)][CT_TYPE_I(right)];
 
     if (rule != NULL) {
         *result = rule->rs_type;
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     OPR_THROW_ERROR("*", left, right);
-    return GS_ERROR;
+    return CT_ERROR;
 }

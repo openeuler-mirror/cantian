@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -276,8 +276,8 @@ extern int g_current_seg_num;
 
 int *get_client_id_list(void);
 int *get_clean_up_flag(int seg_id, int proc_id);
-void set_shm_master_pre_clean_up(int (*pre_clean_up_func)(int));
-void set_shm_master_clean_up(int (*clean_up)(int));
+void set_shm_master_pre_clean_up(int (*pre_clean_up_func)(int, int*));
+void set_shm_master_clean_up(int (*clean_up)(int, int *));
 void remove_bad_client(int proc_id);
 int shm_detach_mmap(void *addr, unsigned long total_size);
 
@@ -305,6 +305,7 @@ int shm_delete_seg_key_item(shm_key_t key);
 
 int sysv_is_shm(struct shm_seg_s *_seg, void *addr);
 int _shm_send_msg(struct shm_seg_sysv_s *seg, int proc_id, dsw_message_block_t *msg);
+void shm_sysv_seg_stop(struct shm_seg_s *_seg);
 void shm_sysv_and_mmap_seg_exit(struct shm_seg_s *_seg);
 void *shm_sysv_alloc(struct shm_seg_s *_seg, size_t size);
 void shm_sysv_free(struct shm_seg_s *_seg, void *blk);
@@ -316,7 +317,8 @@ int shm_sysv_proc_alive(struct shm_seg_s *_seg, int proc_id);
 void get_alive_proc(struct shm_seg_sysv_s *seg, uint64_t *alive_bits);
 int shm_sysv_master_exit(struct shm_seg_s *_seg);
 struct shm_seg_s *shm_sysv_init(shm_key_t *shm_key, int is_server, void **addr);
-struct shm_seg_s *shm_sysv_master_init(shm_key_t *shm_key, shm_mem_class_t mem_class[], int nr_mem_class);
+struct shm_seg_s *shm_sysv_master_init(shm_key_t *shm_key, shm_mem_class_t mem_class[],
+                                       int nr_mem_class, int start_lsnr);
 void *shm_thd_scheduler_func(void *arg);
 void shm_walk_all_block(struct shm_seg_sysv_s *seg,
     void (*cb)(struct shm_seg_sysv_s*, int, int, mem_blk_hdr_t *, uint64_t), uint64_t arg);

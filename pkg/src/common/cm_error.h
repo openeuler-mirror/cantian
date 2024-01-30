@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -766,16 +766,17 @@ typedef enum en_errno {
     ERR_INVALID_REBUILD_PART_RANGE = 1121,
     ERR_PAGE_SOFT_DAMAGED = 1122,
     ERR_ROW_IS_REFERENCED = 1123,
-    ERR_INVALID_LOGICAL_INDEX = 1124,
-    ERR_CONSTRAINT_VIOLATED_NO_FOUND = 1125,
-    ERR_CONSTRAINT_VIOLATED_CHECK_FAILED = 1126,
-    ERR_REFERENCED_BY_LOGICAL_LOG = 1127,
-    ERR_TABLE_NOT_HEAP = 1128,
+    ERR_REFERENCED_BY_LOGICAL_LOG = 1124,
+    ERR_DB_ROLE_MISMATCH = 1125,
+    ERR_INVALID_LOGICAL_INDEX = 1126,
+    ERR_CONSTRAINT_VIOLATED_CHECK_FAILED = 1127,
+    ERR_CONSTRAINT_VIOLATED_NO_FOUND = 1128,
     ERR_DROP_LOGICAL_LOG = 1129,
     ERR_FLASHBACK_NO_SUPPORT = 1130,
-    ERR_SELECT_ROWNODEID = 1131,
-    ERR_DB_ROLE_MISMATCH = 1132,
-    ERR_INVALID_SEQUENCE_CACHE = 1133,
+    ERR_INVALID_SEQUENCE_CACHE = 1131,
+    ERR_TABLE_NOT_HEAP = 1132,
+    ERR_EXCEED_MAX_CASCADE_DEPTH = 1133,
+    ERR_CHILD_ROW_CANNOT_ADD_OR_UPDATE = 1134,
 
 /* sharding error: 1200 - 1299 */
 #ifdef Z_SHARDING
@@ -808,7 +809,15 @@ typedef enum en_errno {
     ERR_START_NOT_FINISHED = 1221,
 
     /* other reserve error in sharding_part: 1222 - 1225 */
+    ERR_CONSTRAINT_VIOLATED_CHECK_FAILED = 1222,
+    ERR_CONSTRAINT_VIOLATED_NO_FOUND = 1223,
+    ERR_DROP_LOGICAL_LOG = 1224,
+    ERR_FLASHBACK_NO_SUPPORT = 1225,
+    ERR_INVALID_SEQUENCE_CACHE = 1226,
     ERR_SHARD_REFUSESQL = 1227,
+    ERR_REFERENCED_BY_LOGICAL_LOG = 1228,
+    ERR_DB_ROLE_MISMATCH = 1229,
+    ERR_INVALID_LOGICAL_INDEX = 1237,
 
     // re-balance error
     ERR_TABLE_NOT_CONS_HASH_OR_REP = 1230,
@@ -816,6 +825,7 @@ typedef enum en_errno {
     ERR_CALC_REBALANCE_TASK = 1232,
     ERR_ONLY_ROLLBACK_ACCEPTABLE = 1233,
     ERR_NO_REBALANCE_TASK_FOUND = 1235,
+    ERR_TABLE_NOT_HEAP = 1236,
 
     // other error.
     ERR_GET_LOGIN_UID = 1234,
@@ -825,6 +835,7 @@ typedef enum en_errno {
     ERR_STMT_ID_NOT_EXISTS = 1241,
     ERR_DML_FAIL_RB_FAIL = 1242,
 
+    ERR_SELECT_ROWNODEID = 1243,
 
 #endif  // Z_SHARDING
 
@@ -981,47 +992,47 @@ typedef enum en_errno {
     ERR_SPACE_NO_DATAFILE = 1950,
 
     // cantian File System, range [2000, 2500]
-    ERR_GSS_OPEN_VOLUME = 2000,
-    ERR_GSS_READ_VOLUME = 2001,
-    ERR_GSS_WRITE_VOLUME = 2002,
-    ERR_GSS_SEEK_VOLUME = 2003,
-    ERR_GSS_INVALID_PARAM = 2004,
+    ERR_CTSTORE_OPEN_VOLUME = 2000,
+    ERR_CTSTORE_READ_VOLUME = 2001,
+    ERR_CTSTORE_WRITE_VOLUME = 2002,
+    ERR_CTSTORE_SEEK_VOLUME = 2003,
+    ERR_CTSTORE_INVALID_PARAM = 2004,
     ERR_ZFS_CREATE_SESSION = 2005,
-    ERR_GSS_DUPLICATED_DIR = 2006,
-    ERR_GSS_NO_SPACE = 2007,
+    ERR_CTSTORE_DUPLICATED_DIR = 2006,
+    ERR_CTSTORE_NO_SPACE = 2007,
     ERR_OAMAP_DUP_KEY_ERROR = 2008,
     ERR_OAMAP_INSERTION_FAILED = 2009,
     ERR_OAMAP_FETCH_FAILED = 2010,
-    ERR_GSS_VG_NOT_INITIALIZED = 2011,
-    ERR_GSS_ENV_NOT_INITIALIZED = 2012,
-    ERR_GSS_DIR_NOT_EMPTY = 2013,
-    ERR_GSS_DIR_NOT_EXISTED = 2014,
-    ERR_GSS_CLI_EXEC_FAIL = 2015,
-    ERR_GSS_VG_OPEN = 2016,
-    ERR_GSS_VG_LOCK = 2017,
-    ERR_GSS_VG_REMOVE = 2018,
-    ERR_GSS_ADD_EXISTED_VOLUME = 2019,
-    ERR_GSS_REMOVE_NOEXIST_VOLUME = 2020,
-    ERR_GSS_REMOVE_NONEMPTY_VOLUME = 2021,
-    ERR_GSS_REMOVE_SUPER_BLOCK = 2022,
-    ERR_GSS_LOCK_OCCUPIED = 2023,
-    ERR_GSS_PATH_ILL = 2024,
-    ERR_GSS_VG_CHECK = 2028,
-    ERR_GSS_REDO_ILL = 2029,
-    ERR_GSS_FNODE_CHECK = 2030,
-    ERR_GSS_GA_INIT = 2031,
-    ERR_GSS_SHM_CREATE = 2032,
-    ERR_GSS_SHM_CHECK = 2033,
-    ERR_GSS_VG_CREATE = 2034,
-    ERR_GSS_REG_CONFLICT = 2035,
-    ERR_GSS_INVALID_SESSION = 2036,
-    ERR_GSS_VG_CONF = 2037,
-    ERR_GSS_CHECK_RENAME = 2038,
-    ERR_GSS_LOCK_TIMEOUT = 2039,
-    ERR_GSS_SERVER_IS_DOWN = 2040,
-    ERR_GSS_CHECK_SIZE = 2041,
-    ERR_GSS_FILE_IS_OPEN = 2042,
-    ERR_GSS_MES_ILL = 2043,
+    ERR_CTSTORE_VG_NOT_INITIALIZED = 2011,
+    ERR_CTSTORE_ENV_NOT_INITIALIZED = 2012,
+    ERR_CTSTORE_DIR_NOT_EMPTY = 2013,
+    ERR_CTSTORE_DIR_NOT_EXISTED = 2014,
+    ERR_CTSTORE_CLI_EXEC_FAIL = 2015,
+    ERR_CTSTORE_VG_OPEN = 2016,
+    ERR_CTSTORE_VG_LOCK = 2017,
+    ERR_CTSTORE_VG_REMOVE = 2018,
+    ERR_CTSTORE_ADD_EXISTED_VOLUME = 2019,
+    ERR_CTSTORE_REMOVE_NOEXIST_VOLUME = 2020,
+    ERR_CTSTORE_REMOVE_NONEMPTY_VOLUME = 2021,
+    ERR_CTSTORE_REMOVE_SUPER_BLOCK = 2022,
+    ERR_CTSTORE_LOCK_OCCUPIED = 2023,
+    ERR_CTSTORE_PATH_ILL = 2024,
+    ERR_CTSTORE_VG_CHECK = 2028,
+    ERR_CTSTORE_REDO_ILL = 2029,
+    ERR_CTSTORE_FNODE_CHECK = 2030,
+    ERR_CTSTORE_GA_INIT = 2031,
+    ERR_CTSTORE_SHM_CREATE = 2032,
+    ERR_CTSTORE_SHM_CHECK = 2033,
+    ERR_CTSTORE_VG_CREATE = 2034,
+    ERR_CTSTORE_REG_CONFLICT = 2035,
+    ERR_CTSTORE_INVALID_SESSION = 2036,
+    ERR_CTSTORE_VG_CONF = 2037,
+    ERR_CTSTORE_CHECK_RENAME = 2038,
+    ERR_CTSTORE_LOCK_TIMEOUT = 2039,
+    ERR_CTSTORE_SERVER_IS_DOWN = 2040,
+    ERR_CTSTORE_CHECK_SIZE = 2041,
+    ERR_CTSTORE_FILE_IS_OPEN = 2042,
+    ERR_CTSTORE_MES_ILL = 2043,
 
     // JSON, range [2501, 2599]
     ERR_JSON_INVLID_CLAUSE = 2501,
@@ -1056,6 +1067,7 @@ typedef enum en_errno {
     ERR_MES_ILEGAL_MESSAGE = 2706,
     ERR_MES_PARAMETER = 2707,
     ERR_MES_ALREADY_CONNECT = 2708,
+    ERR_MES_SEND_DATA_FAIL = 2709,
 
     ERR_MES_XNET_INIT = 2750,
     ERR_MES_XNET_QUEUE = 2751,
@@ -1109,6 +1121,13 @@ typedef enum en_errno {
     ERR_CM_SEEK_DISK = 3601,
     ERR_CM_READ_DISK = 3602,
     ERR_CM_WRITE_DISK = 3603,
+
+    // ARCH
+    ERR_FORCE_ARCH_FAILED = 3700,
+
+    // BADBLOCK
+    ERR_CHECKSUM_FAILED_WITH_PAGE = 3710,
+
     // The max error number defined in g_error_desc[]
     ERR_ERRNO_CEIL = 3999,
 
@@ -1127,7 +1146,7 @@ typedef enum en_errno {
 
     // The max error number can be used in raise exception, it not need to defined in g_error_desc[]
     ERR_CODE_CEIL = 100000,
-} gs_errno_t;
+} ct_errno_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -1136,11 +1155,11 @@ extern "C" {
 typedef struct st_error_info_t {
     int32 code;
     source_location_t loc;
-    char t2s_buf1[GS_T2S_LARGER_BUFFER_SIZE];
-    char t2s_buf2[GS_T2S_BUFFER_SIZE];
-    char message[GS_MESSAGE_BUFFER_SIZE];
+    char t2s_buf1[CT_T2S_LARGER_BUFFER_SIZE];
+    char t2s_buf2[CT_T2S_BUFFER_SIZE];
+    char message[CT_MESSAGE_BUFFER_SIZE];
     struct { // first position of err occurs
-        char err_file[GS_MAX_NAME_LEN];
+        char err_file[CT_MAX_NAME_LEN];
         uint32 err_line;
     };
     bool8 is_ignored;
@@ -1149,7 +1168,7 @@ typedef struct st_error_info_t {
     bool8 reserved;
 } error_info_t;
 
-#define GS_MAX_PLC_CNT 32
+#define CT_MAX_PLC_CNT 32
 
 typedef enum en_err_object {
     ERR_TYPE_SEQUENCE = 1,
@@ -1166,17 +1185,17 @@ typedef struct st_tls_plc_error_t {
     uint8 plc_cnt; // Count the number of consecutive entering plc_do_compile
     uint16 last_head; // The header of the last line of g_tls_error.message
     uint16 last_head_bak; // backup last_head if last_head will be changed
-    uint16 start_pos[GS_MAX_PLC_CNT]; // Store the start position of g_tls_error.message when entering plc_do_compile.
+    uint16 start_pos[CT_MAX_PLC_CNT]; // Store the start position of g_tls_error.message when entering plc_do_compile.
 } tls_plc_error_t;
 
-typedef status_t (*cm_error_handler)(const char *file, uint32 line, gs_errno_t code, const char *format,
+typedef status_t (*cm_error_handler)(const char *file, uint32 line, ct_errno_t code, const char *format,
     va_list args);
 void cm_init_error_handler(cm_error_handler handler);
-status_t cm_set_srv_error(const char *file, uint32 line, gs_errno_t code, const char *format, va_list args);
-status_t cm_set_clt_error(const char *file, uint32 line, gs_errno_t code, const char *format, va_list args);
-status_t cm_set_sql_error(const char *file, uint32 line, gs_errno_t code, const char *format, va_list args);
-status_t cm_inherit_gss_error(const char *file, uint32 line, gs_errno_t code, const char *errmsg);
-status_t cm_set_plc_error(const char *file, uint32 line, gs_errno_t code, const char *format, va_list args);
+status_t cm_set_srv_error(const char *file, uint32 line, ct_errno_t code, const char *format, va_list args);
+status_t cm_set_clt_error(const char *file, uint32 line, ct_errno_t code, const char *format, va_list args);
+status_t cm_set_sql_error(const char *file, uint32 line, ct_errno_t code, const char *format, va_list args);
+status_t cm_inherit_ctstore_error(const char *file, uint32 line, ct_errno_t code, const char *errmsg);
+status_t cm_set_plc_error(const char *file, uint32 line, ct_errno_t code, const char *format, va_list args);
 void cm_reset_error_user(int err_no, char *user, char *name, err_object_t type);
 void cm_set_error_loc(source_location_t loc);
 int32 cm_get_error_code(void);
@@ -1226,9 +1245,9 @@ const char *cm_get_errormsg(int32 code);
 
 extern bool32 g_enable_err_superposed;
 
-#define GS_ERRNO g_tls_error.code
+#define CT_ERRNO g_tls_error.code
 
-#define GS_TRACE_ON
+#define CT_TRACE_ON
 
 #define T2S(text)            cm_t2s((text)->str, (text)->len)
 #define T2S_EX(text)         cm_t2s_ex((text)->str, (text)->len)
@@ -1237,13 +1256,13 @@ extern bool32 g_enable_err_superposed;
 
 static inline void reset_tls_plc_error(void)
 {
-    g_tls_plc_error.plc_flag = GS_FALSE;
+    g_tls_plc_error.plc_flag = CT_FALSE;
     g_tls_error.code = 0;
 }
 
 static inline void init_tls_error(void)
 {
-    g_tls_plc_error.plc_flag = GS_FALSE;
+    g_tls_plc_error.plc_flag = CT_FALSE;
     g_tls_plc_error.plc_cnt = 0;
     g_tls_plc_error.last_head = 0;
     g_tls_plc_error.last_head_bak = 0;
@@ -1256,7 +1275,7 @@ static inline void init_tls_error(void)
 
 static inline void set_tls_plc_error(void)
 {
-    g_tls_plc_error.plc_flag = GS_TRUE;
+    g_tls_plc_error.plc_flag = CT_TRUE;
 }
 
 static inline void reset_inter_plc_cnt(void)
@@ -1269,18 +1288,18 @@ static inline void set_inter_plc_cnt(void)
     g_tls_plc_error.plc_cnt++;
 }
 
-#define GS_SET_HINT(format, ...)            \
+#define CT_SET_HINT(format, ...)            \
     do {                                    \
         cm_set_hint(format, ##__VA_ARGS__); \
     } while (0)
 
 extern const char *g_error_desc[];
-#define GS_THROW_ERROR(err_no, ...)                                                                    \
+#define CT_THROW_ERROR(err_no, ...)                                                                    \
     do {                                                                                               \
         cm_set_error((char *)__FILE__, (uint32)__LINE__, err_no, g_error_desc[err_no], ##__VA_ARGS__); \
     } while (0)
 
-#define GS_SRC_THROW_ERROR(loc, err_no, ...)                                                           \
+#define CT_SRC_THROW_ERROR(loc, err_no, ...)                                                           \
     do {                                                                                               \
         if (g_tls_plc_error.plc_flag) {                                                                    \
             cm_set_error_loc(loc);                                                                         \
@@ -1291,7 +1310,7 @@ extern const char *g_error_desc[];
         }                                                                                                  \
     } while (0)
 
-#define GS_THROW_ERROR_TRY_SRC(loc, err_no, ...)                                                           \
+#define CT_THROW_ERROR_TRY_SRC(loc, err_no, ...)                                                           \
     do {                                                                                                     \
         cm_set_error((char *)__FILE__, (uint32)__LINE__, err_no, g_error_desc[err_no], ##__VA_ARGS__);       \
         if (loc != NULL) {                                                                                 \
@@ -1300,12 +1319,12 @@ extern const char *g_error_desc[];
     } while (0)
 
 
-#define GS_THROW_ERROR_EX(err_no, format, ...)                                              \
+#define CT_THROW_ERROR_EX(err_no, format, ...)                                              \
     do {                                                                                    \
         cm_set_error_ex((char *)__FILE__, (uint32)__LINE__, err_no, format, ##__VA_ARGS__); \
     } while (0)
 
-#define GS_SRC_THROW_ERROR_EX(loc, err_no, format, ...)                                     \
+#define CT_SRC_THROW_ERROR_EX(loc, err_no, format, ...)                                     \
     do {                                                                                    \
         if (g_tls_plc_error.plc_flag) {                                                                    \
             cm_set_error_loc(loc);                                                                         \
@@ -1328,8 +1347,8 @@ extern const char *g_error_desc[];
         cm_set_error_loc(loc);                                                           \
     } while (0)
 
-//CAUTION: only for db inherit error from gss instance in gss_interface.c
-#define GS_THROW_GSS_ERROR(err_no, ...)                                                  \
+//CAUTION: only for db inherit error from ctstore instance in ctstore_interface.c
+#define CT_THROW_CTSTORE_ERROR(err_no, ...)                                                  \
     do {                                                                                 \
         cm_set_error((char *)__FILE__, (uint32)__LINE__, err_no, " %s ", ##__VA_ARGS__); \
     } while (0)
@@ -1337,15 +1356,15 @@ extern const char *g_error_desc[];
 #define CM_SECUREC_SS_RETURN_IF_ERROR(err, ret)     \
     {                                               \
         if ((err) == -1) {                          \
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, (err)); \
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, (err)); \
             return ret;                             \
         }                                           \
     }
     
-void cm_set_error(const char *file, uint32 line, gs_errno_t code, const char *format, ...) GS_CHECK_FMT(4, 5);
-void cm_set_hint(const char *format, ...) GS_CHECK_FMT(1, 2);
-void cm_set_error_ex(const char *file, uint32 line, gs_errno_t code, const char *format, ...) GS_CHECK_FMT(4, 5);
-status_t cm_set_superposed_plc_loc(source_location_t loc, gs_errno_t code, const char *log_msg);
+void cm_set_error(const char *file, uint32 line, ct_errno_t code, const char *format, ...) CT_CHECK_FMT(4, 5);
+void cm_set_hint(const char *format, ...) CT_CHECK_FMT(1, 2);
+void cm_set_error_ex(const char *file, uint32 line, ct_errno_t code, const char *format, ...) CT_CHECK_FMT(4, 5);
+status_t cm_set_superposed_plc_loc(source_location_t loc, ct_errno_t code, const char *log_msg);
 void cm_reset_error_loc(void);
 void cm_log_protocol_error(void);
 #ifdef __cplusplus

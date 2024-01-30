@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
- 
+#include "knl_table_module.h"
 #include "knl_part_output.h"
 #include "cm_hash.h"
 #include "cm_log.h"
@@ -54,19 +54,19 @@ typedef struct st_part_table_compatible_arr {
  */
 part_table_compatible_arr_t g_compatible_arr[][COMPATIBLE_TABLESPACE_COUNT] = {
     {
-        {GS_TRUE, NULL, NULL},
-        {GS_FALSE, "add logging partition", "temp tablespace"},
-        {GS_FALSE, "add logging partition", "nologging tablespace"}
+        {CT_TRUE, NULL, NULL},
+        {CT_FALSE, "add logging partition", "temp tablespace"},
+        {CT_FALSE, "add logging partition", "nologging tablespace"}
     },
     {
-        {GS_TRUE, NULL, NULL},
-        {GS_TRUE, NULL, NULL},
-        {GS_FALSE, "add partition with nologging tablespace", "temp table"}
+        {CT_TRUE, NULL, NULL},
+        {CT_TRUE, NULL, NULL},
+        {CT_FALSE, "add partition with nologging tablespace", "temp table"}
     },
     {
-        {GS_FALSE, "add nologging partition", "logging tablespace"},
-        {GS_FALSE, "add nologging partition", "temp tablespace"},
-        {GS_TRUE, NULL, NULL}
+        {CT_FALSE, "add nologging partition", "logging tablespace"},
+        {CT_FALSE, "add nologging partition", "temp tablespace"},
+        {CT_TRUE, NULL, NULL}
     }
 };
 
@@ -74,7 +74,7 @@ static void part_init_table_desc(table_t *table, knl_part_obj_def_t *def, knl_pa
 {
     desc->uid = table->desc.uid;
     desc->table_id = table->desc.id;
-    desc->index_id = GS_INVALID_ID32;
+    desc->index_id = CT_INVALID_ID32;
     desc->parttype = def->part_type;
     desc->partcnt = def->parts.count;
     desc->partkeys = def->part_keys.count;
@@ -96,7 +96,7 @@ status_t db_write_sys_partobject(knl_session_t *session, knl_cursor_t *cursor, k
     table_t *table = NULL;
     row_assist_t ra;
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PARTOBJECT_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PARTOBJECT_ID, CT_INVALID_ID32);
     table = (table_t *)cursor->table;
 
     row_init(&ra, (char *)cursor->row, HEAP_MAX_ROW_SIZE(session), table->desc.column_count);
@@ -113,11 +113,11 @@ status_t db_write_sys_partobject(knl_session_t *session, knl_cursor_t *cursor, k
     (void)row_put_int32(&ra, desc->subparttype);
     (void)row_put_int32(&ra, desc->is_slice);
 
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t part_init_table_part_desc(knl_session_t *session, table_t *table, knl_part_def_t *def,
@@ -127,22 +127,22 @@ status_t part_init_table_part_desc(knl_session_t *session, table_t *table, knl_p
     desc->table_id = table->desc.id;
     desc->part_id = part_id;
     desc->subpart_cnt = 0;
-    (void)cm_text2str(&def->name, desc->name, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&def->name, desc->name, CT_NAME_BUFFER_SIZE);
     desc->entry = INVALID_PAGID;
     desc->org_scn = db_inc_scn(session);
     desc->seg_scn = desc->org_scn;
     desc->initrans = (def->initrans == 0) ? table->desc.initrans : def->initrans;
-    desc->pctfree = (def->pctfree == GS_INVALID_ID32) ? table->desc.pctfree : def->pctfree;
+    desc->pctfree = (def->pctfree == CT_INVALID_ID32) ? table->desc.pctfree : def->pctfree;
     desc->flags = 0;
-    desc->is_csf = (def->is_csf == GS_INVALID_ID8) ? table->desc.is_csf : def->is_csf;
+    desc->is_csf = (def->is_csf == CT_INVALID_ID8) ? table->desc.is_csf : def->is_csf;
     if (def->space.len == 0) {
         desc->space_id = table->desc.space_id;
     } else {
-        if (GS_SUCCESS != spc_get_space_id(session, &def->space, def->is_for_create_db, &desc->space_id)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != spc_get_space_id(session, &def->space, def->is_for_create_db, &desc->space_id)) {
+            return CT_ERROR;
         }
-        if (spc_check_by_uid(session, &def->space, desc->space_id, desc->uid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_check_by_uid(session, &def->space, desc->space_id, desc->uid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
     space_t *space = SPACE_GET(session, desc->space_id);
@@ -154,19 +154,19 @@ status_t part_init_table_part_desc(knl_session_t *session, table_t *table, knl_p
     }
     if (desc->compress_algo > COMPRESS_NONE) {
         if (!IS_SPACE_COMPRESSIBLE(space)) {
-            GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create or add compress part table",
+            CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create or add compress part table",
                 "non user bitmap tablespace");
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
-    desc->compress = (desc->compress_algo > COMPRESS_NONE) ? GS_TRUE : GS_FALSE;
+    desc->compress = (desc->compress_algo > COMPRESS_NONE) ? CT_TRUE : CT_FALSE;
 
     if (def->is_parent) {
-        desc->is_parent = GS_TRUE;
+        desc->is_parent = CT_TRUE;
     }
     
     if (not_ready) {
-        desc->not_ready = GS_TRUE;
+        desc->not_ready = CT_TRUE;
     }
     
     errno_t err = memset_sp(&desc->storage_desc, sizeof(knl_storage_desc_t), 0, sizeof(knl_storage_desc_t));
@@ -174,7 +174,7 @@ status_t part_init_table_part_desc(knl_session_t *session, table_t *table, knl_p
 
     if (def->storage_def.initial > 0) {
         if (!dc_is_reserved_entry(table->desc.uid, table->desc.id)) {
-            desc->storaged = GS_TRUE;
+            desc->storaged = CT_TRUE;
         }
         desc->storage_desc.initial = CM_CALC_ALIGN((uint64)def->storage_def.initial, space->ctrl->block_size) /
             space->ctrl->block_size;
@@ -182,7 +182,7 @@ status_t part_init_table_part_desc(knl_session_t *session, table_t *table, knl_p
 
     // storage maxsize clause will not take effect to sys tables
     if (def->storage_def.maxsize > 0 && !dc_is_reserved_entry(table->desc.uid, table->desc.id)) {
-        desc->storaged = GS_TRUE;
+        desc->storaged = CT_TRUE;
         desc->storage_desc.max_pages = CM_CALC_ALIGN((uint64)def->storage_def.maxsize, space->ctrl->block_size) /
             space->ctrl->block_size;
     }
@@ -193,7 +193,7 @@ status_t part_init_table_part_desc(knl_session_t *session, table_t *table, knl_p
 
     desc->cr_mode = table->desc.cr_mode;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_write_sys_tablepart(knl_session_t *session, knl_cursor_t *cursor, knl_table_desc_t *table_desc,
@@ -202,8 +202,8 @@ status_t db_write_sys_tablepart(knl_session_t *session, knl_cursor_t *cursor, kn
     row_assist_t ra;
     space_t *part_space = SPACE_GET(session, desc->space_id);
     if (!SPACE_IS_ONLINE(part_space)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, part_space->ctrl->name, "space offline and write to tablepart$ failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, part_space->ctrl->name, "space offline and write to tablepart$ failed");
+        return CT_ERROR;
     }
 
     bool32 is_nologging = table_desc->type == TABLE_TYPE_NOLOGGING;
@@ -220,18 +220,18 @@ status_t db_write_sys_tablepart(knl_session_t *session, knl_cursor_t *cursor, kn
 
     part_table_compatible_arr_t *item = &g_compatible_arr[table_space_attr][part_space_attr];
     if (!item->is_compatible) {
-        GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, item->err_str_part1, item->err_str_part2);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, item->err_str_part1, item->err_str_part2);
+        return CT_ERROR;
     }
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_TABLEPART_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_TABLEPART_ID, CT_INVALID_ID32);
     table_t *table = (table_t *)cursor->table;
 
     row_init(&ra, (char *)cursor->row, HEAP_MAX_ROW_SIZE(session), table->desc.column_count);
 
     if (desc->hiboundval.len > PART_HIBOUND_VALUE_LENGTH || desc->bhiboundval.size > PART_HIBOUND_VALUE_LENGTH) {
-        GS_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
+        return CT_ERROR;
     }
 
     (void)row_put_int32(&ra, desc->uid);
@@ -275,7 +275,7 @@ status_t db_write_sys_partcolumn(knl_session_t *session, knl_cursor_t *cursor, k
     table_t *table = NULL;
     row_assist_t ra;
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PARTCOLUMN_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PARTCOLUMN_ID, CT_INVALID_ID32);
     table = (table_t *)cursor->table;
 
     row_init(&ra, (char *)cursor->row, HEAP_MAX_ROW_SIZE(session), table->desc.column_count);
@@ -285,11 +285,11 @@ status_t db_write_sys_partcolumn(knl_session_t *session, knl_cursor_t *cursor, k
     (void)row_put_int32(&ra, desc->pos_id);
     (void)row_put_int32(&ra, desc->datatype);
 
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void part_init_part_store_desc(knl_part_desc_t *object_desc, knl_part_store_desc_t *desc, uint32 pos_id,
@@ -311,11 +311,11 @@ status_t db_write_sys_partstore(knl_session_t *session, knl_cursor_t *cursor, kn
 
     space = SPACE_GET(session, store_desc->space_id);
     if (!SPACE_IS_ONLINE(space)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to partstore$ failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to partstore$ failed");
+        return CT_ERROR;
     }
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PARTSTORE_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_PARTSTORE_ID, CT_INVALID_ID32);
     table = (table_t *)cursor->table;
 
     row_init(&ra, cursor->buf, HEAP_MAX_ROW_SIZE(session), table->desc.column_count);
@@ -349,7 +349,7 @@ static status_t db_verify_interval_part_key(knl_part_obj_def_t *def)
 
     // check interval high bounds for date,
     // it is not permitted to set 29,30,31 day as transition part date bound(eg:2018-7-29 is high bounds)
-    if (GS_IS_DATETIME_TYPE(column->datatype)) {
+    if (CT_IS_DATETIME_TYPE(column->datatype)) {
         knl_decode_part_key(key, &part_key);
         bound = (date_t *)PART_GET_INTERVAL_KEY(&part_key.decoder);
 
@@ -357,17 +357,17 @@ static status_t db_verify_interval_part_key(knl_part_obj_def_t *def)
 
         // interval is month and day > 28
         if (bits == PART_KEY_BITS_4 && detail.day > PART_INTERVAL_DAY_HIGH_BOUND) {
-            GS_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "specify this interval with existing high bounds");
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "specify this interval with existing high bounds");
+            return CT_ERROR;
         }
     }
 
-    if (part_check_interval_valid((part_key_t *)def->binterval.bytes) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "interval is zero or less zero");
-        return GS_ERROR;
+    if (part_check_interval_valid((part_key_t *)def->binterval.bytes) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "interval is zero or less zero");
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_check_subpart_count_valid(knl_part_obj_def_t *def)
@@ -377,46 +377,46 @@ static status_t db_check_subpart_count_valid(knl_part_obj_def_t *def)
 
     for (uint32 i = 0; i < def->parts.count; i++) {
         part_def = (knl_part_def_t *)cm_galist_get(&def->parts, i);
-        if (part_def->subparts.count > GS_MAX_SUBPART_COUNT) {
-            GS_THROW_ERROR(ERR_EXCEED_MAX_SUBPARTCNT, (uint32)GS_MAX_SUBPART_COUNT);
-            return GS_ERROR;
+        if (part_def->subparts.count > CT_MAX_SUBPART_COUNT) {
+            CT_THROW_ERROR(ERR_EXCEED_MAX_SUBPARTCNT, (uint32)CT_MAX_SUBPART_COUNT);
+            return CT_ERROR;
         }
 
-        if (def->subpart_type == PART_TYPE_HASH && part_def->subparts.count > GS_MAX_HASH_SUBPART_COUNT) {
-            GS_THROW_ERROR(ERR_EXCEED_MAX_SUBPARTCNT, (uint32)GS_MAX_HASH_SUBPART_COUNT);
-            return GS_ERROR;
+        if (def->subpart_type == PART_TYPE_HASH && part_def->subparts.count > CT_MAX_HASH_SUBPART_COUNT) {
+            CT_THROW_ERROR(ERR_EXCEED_MAX_SUBPARTCNT, (uint32)CT_MAX_HASH_SUBPART_COUNT);
+            return CT_ERROR;
         }
         
         total_subparts += part_def->subparts.count;
     }
 
-    if (def->subpart_type == PART_TYPE_HASH && total_subparts > GS_MAX_HASH_PART_COUNT) {
-        GS_THROW_ERROR(ERR_EXCEED_MAX_PARTCNT, (uint32)GS_MAX_HASH_PART_COUNT);
-        return GS_ERROR;
-    } else if (total_subparts > GS_MAX_PART_COUNT) {
-        GS_THROW_ERROR(ERR_EXCEED_MAX_PARTCNT, (uint32)GS_MAX_PART_COUNT);
-        return GS_ERROR;
+    if (def->subpart_type == PART_TYPE_HASH && total_subparts > CT_MAX_HASH_PART_COUNT) {
+        CT_THROW_ERROR(ERR_EXCEED_MAX_PARTCNT, (uint32)CT_MAX_HASH_PART_COUNT);
+        return CT_ERROR;
+    } else if (total_subparts > CT_MAX_PART_COUNT) {
+        CT_THROW_ERROR(ERR_EXCEED_MAX_PARTCNT, (uint32)CT_MAX_PART_COUNT);
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_check_part_count_valid(knl_part_obj_def_t *def)
 {
-    // for hash partition, the total partition count should less than GS_MAX_PART_COUNT / 2
-    if (def->part_type == PART_TYPE_HASH && def->parts.count > GS_MAX_HASH_PART_COUNT) {
-        GS_THROW_ERROR(ERR_EXCEED_MAX_PARTCNT, (uint32)GS_MAX_HASH_PART_COUNT);
-        return GS_ERROR;
-    } else if (def->parts.count > GS_MAX_PART_COUNT) {
-        GS_THROW_ERROR(ERR_EXCEED_MAX_PARTCNT, (uint32)GS_MAX_PART_COUNT);
-        return GS_ERROR;
+    // for hash partition, the total partition count should less than CT_MAX_PART_COUNT / 2
+    if (def->part_type == PART_TYPE_HASH && def->parts.count > CT_MAX_HASH_PART_COUNT) {
+        CT_THROW_ERROR(ERR_EXCEED_MAX_PARTCNT, (uint32)CT_MAX_HASH_PART_COUNT);
+        return CT_ERROR;
+    } else if (def->parts.count > CT_MAX_PART_COUNT) {
+        CT_THROW_ERROR(ERR_EXCEED_MAX_PARTCNT, (uint32)CT_MAX_PART_COUNT);
+        return CT_ERROR;
     } else {
-        if (db_check_subpart_count_valid(def) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_check_subpart_count_valid(def) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 db_compare_subpart_name(knl_part_obj_def_t *def, knl_part_def_t *subpart_def, uint32 com_idx,
@@ -438,12 +438,12 @@ static bool32 db_compare_subpart_name(knl_part_obj_def_t *def, knl_part_def_t *s
 
             sub_cmp_def = (knl_part_def_t *)cm_galist_get(&cmp_def->subparts, n);
             if (cm_compare_text(&subpart_def->name, &sub_cmp_def->name) == 0) {
-                return GS_TRUE;
+                return CT_TRUE;
             }
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t db_check_subpart_name_duplicate(knl_part_obj_def_t *def)
@@ -461,13 +461,13 @@ status_t db_check_subpart_name_duplicate(knl_part_obj_def_t *def)
         for (uint32 j = 0; j < part_def->subparts.count; j++) {
             sub_part_def = (knl_part_def_t *)cm_galist_get(&part_def->subparts, j);
             if (db_compare_subpart_name(def, sub_part_def, i, j)) {
-                GS_THROW_ERROR(ERR_DUPLICATE_SUBPART_NAME);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_DUPLICATE_SUBPART_NAME);
+                return CT_ERROR;
             }
         }
     }
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_check_part_name_duplicate(knl_part_obj_def_t *def)
@@ -484,8 +484,8 @@ static status_t db_check_part_name_duplicate(knl_part_obj_def_t *def)
             cmp_def = (knl_part_def_t *)cm_galist_get(&def->parts, j);
             if (j > i) {
                 if (cm_compare_text(&part_def->name, &cmp_def->name) == 0) {
-                    GS_THROW_ERROR(ERR_DUPLICATE_PART_NAME);
-                    return GS_ERROR;
+                    CT_THROW_ERROR(ERR_DUPLICATE_PART_NAME);
+                    return CT_ERROR;
                 }
             }
             
@@ -496,8 +496,8 @@ static status_t db_check_part_name_duplicate(knl_part_obj_def_t *def)
             for (uint32 m = 0; m < cmp_def->subparts.count; m++) {
                 sub_part_def = (knl_part_def_t *)cm_galist_get(&cmp_def->subparts, m);
                 if (cm_compare_text(&part_def->name, &sub_part_def->name) == 0) {
-                    GS_THROW_ERROR(ERR_DUPLICATE_PART_NAME);
-                    return GS_ERROR;
+                    CT_THROW_ERROR(ERR_DUPLICATE_PART_NAME);
+                    return CT_ERROR;
                 }
             }
         }
@@ -507,7 +507,7 @@ static status_t db_check_part_name_duplicate(knl_part_obj_def_t *def)
         return db_check_subpart_name_duplicate(def);
     }
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -520,16 +520,16 @@ static status_t db_verify_part_table_def(knl_session_t *session, knl_table_def_t
     knl_part_column_def_t *part_column_def = NULL;
     knl_column_def_t *col_def = NULL;
 
-    if (db_check_part_count_valid(def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_check_part_count_valid(def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < def->part_keys.count; i++) {
         part_column_def = (knl_part_column_def_t *)cm_galist_get(&def->part_keys, i);
         col_def = (knl_column_def_t *)cm_galist_get(&table_def->columns, part_column_def->column_id);
-        if (GS_IS_LOB_TYPE(col_def->datatype) || col_def->typmod.is_array) {
-            GS_THROW_ERROR(ERR_LOB_PART_COLUMN);
-            return GS_ERROR;
+        if (CT_IS_LOB_TYPE(col_def->datatype) || col_def->typmod.is_array) {
+            CT_THROW_ERROR(ERR_LOB_PART_COLUMN);
+            return CT_ERROR;
         }
     }
 
@@ -538,24 +538,24 @@ static status_t db_verify_part_table_def(knl_session_t *session, knl_table_def_t
         for (uint32 i = 0; i < def->subpart_keys.count; i++) {
             part_column_def = (knl_part_column_def_t *)cm_galist_get(&def->subpart_keys, i);
             col_def = (knl_column_def_t *)cm_galist_get(&table_def->columns, part_column_def->column_id);
-            if (GS_IS_LOB_TYPE(col_def->datatype) || col_def->typmod.is_array) {
-                GS_THROW_ERROR(ERR_LOB_PART_COLUMN);
-                return GS_ERROR;
+            if (CT_IS_LOB_TYPE(col_def->datatype) || col_def->typmod.is_array) {
+                CT_THROW_ERROR(ERR_LOB_PART_COLUMN);
+                return CT_ERROR;
             }
         }
     }
     
-    if (db_check_part_name_duplicate(def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_check_part_name_duplicate(def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (def->is_interval) {
-        if (db_verify_interval_part_key(def) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_verify_interval_part_key(def) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool32 check_part_encrypt_allowed(knl_session_t *session, bool32 is_encrypt_table, uint32 space_id)
@@ -563,9 +563,9 @@ bool32 check_part_encrypt_allowed(knl_session_t *session, bool32 is_encrypt_tabl
     space_t *space = SPACE_GET(session, space_id);
     bool32 is_encrypt_part = SPACE_IS_ENCRYPT(space);
     if (is_encrypt_part != is_encrypt_table) {
-        return GS_FALSE;
+        return CT_FALSE;
     }
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 static status_t db_write_table_subparts(knl_session_t *session, knl_cursor_t *cursor, knl_table_part_desc_t *comdesc,
@@ -579,33 +579,33 @@ static status_t db_write_table_subparts(knl_session_t *session, knl_cursor_t *cu
     for (uint32 i = 0; i < compart_def->subparts.count; i++) {
         part_def = (knl_part_def_t *)cm_galist_get(&compart_def->subparts, i);
         subpart_id = subpart_generate_partid(NULL, NULL, i);
-        if (subpart_init_table_part_desc(session, comdesc, part_def, subpart_id, &table_subpart.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (subpart_init_table_part_desc(session, comdesc, part_def, subpart_id, &table_subpart.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         
         if (!check_part_encrypt_allowed(session, is_encrypt_table, table_subpart.desc.space_id)) {
-            GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create partition", "cases: create encrypt partition on \
+            CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create partition", "cases: create encrypt partition on \
 non-encrypt part table or create non-encrypt partition on encrypt part table.");
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (IS_SWAP_SPACE(SPACE_GET(session, table_subpart.desc.space_id))) {
-            GS_THROW_ERROR(ERR_PERMANENTOBJ_IN_TEMPSPACE);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PERMANENTOBJ_IN_TEMPSPACE);
+            return CT_ERROR;
         }
 
         if (dc_is_reserved_entry(comdesc->uid, comdesc->table_id)) {
-            if (heap_create_part_segment(session, &table_subpart) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (heap_create_part_segment(session, &table_subpart) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
-        if (db_write_sys_tablesubpart(session, cursor, &table_subpart.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sys_tablesubpart(session, cursor, &table_subpart.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_write_table_parts(knl_session_t *session, knl_cursor_t *cursor, table_t *table,
@@ -619,8 +619,8 @@ static status_t db_write_table_parts(knl_session_t *session, knl_cursor_t *curso
     for (i = 0; i < def->parts.count; i++) {
         part_def = (knl_part_def_t *)cm_galist_get(&def->parts, i);
         part_id = part_generate_part_id(table, i);
-        if (part_init_table_part_desc(session, table, part_def, part_id, &table_part.desc, GS_FALSE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (part_init_table_part_desc(session, table, part_def, part_id, &table_part.desc, CT_FALSE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (part_def->is_parent) {
@@ -628,46 +628,46 @@ static status_t db_write_table_parts(knl_session_t *session, knl_cursor_t *curso
         }
         
         if (!check_part_encrypt_allowed(session, is_encrypt_table, table_part.desc.space_id)) {
-            GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create partition", "cases: create encrypt partition on \
+            CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create partition", "cases: create encrypt partition on \
 non-encrypt part table or create non-encrypt partition on encrypt part table.");
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (IS_SWAP_SPACE(SPACE_GET(session, table_part.desc.space_id))) {
-            GS_THROW_ERROR(ERR_PERMANENTOBJ_IN_TEMPSPACE);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PERMANENTOBJ_IN_TEMPSPACE);
+            return CT_ERROR;
         }
 
         if (IS_SYS_TABLE(table) && !part_def->is_parent) {
-            if (heap_create_part_segment(session, &table_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (heap_create_part_segment(session, &table_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
-        if (db_write_sys_tablepart(session, cursor, &table->desc, &table_part.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sys_tablepart(session, cursor, &table->desc, &table_part.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (table_part.desc.storaged && db_write_sysstorage(session, cursor, table_part.desc.org_scn,
-            &table_part.desc.storage_desc) != GS_SUCCESS) {
-            return GS_ERROR;
+            &table_part.desc.storage_desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (table_part.desc.compress) {
             if (db_write_syscompress(session, cursor, table_part.desc.space_id, table_part.desc.org_scn,
-                table_part.desc.compress_algo, COMPRESS_OBJ_TYPE_TABLE_PART) != GS_SUCCESS) {
-                return GS_ERROR;
+                table_part.desc.compress_algo, COMPRESS_OBJ_TYPE_TABLE_PART) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
         if (part_def->is_parent) {
-            if (db_write_table_subparts(session, cursor, &table_part.desc, part_def) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_write_table_subparts(session, cursor, &table_part.desc, part_def) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_write_sys_subpartcolumn(knl_session_t *session, knl_cursor_t *cursor, knl_part_column_desc_t *desc)
@@ -675,7 +675,7 @@ static status_t db_write_sys_subpartcolumn(knl_session_t *session, knl_cursor_t 
     table_t *table = NULL;
     row_assist_t ra;
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_SUB_PARTCOLUMN_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_SUB_PARTCOLUMN_ID, CT_INVALID_ID32);
     table = (table_t *)cursor->table;
 
     row_init(&ra, (char *)cursor->row, HEAP_MAX_ROW_SIZE(session), table->desc.column_count);
@@ -685,11 +685,11 @@ static status_t db_write_sys_subpartcolumn(knl_session_t *session, knl_cursor_t 
     (void)row_put_int32(&ra, desc->pos_id);
     (void)row_put_int32(&ra, desc->datatype);
 
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_create_part_table(knl_session_t *session, knl_cursor_t *cursor, table_t *table, knl_table_def_t *table_def)
@@ -700,32 +700,32 @@ status_t db_create_part_table(knl_session_t *session, knl_cursor_t *cursor, tabl
     knl_part_store_desc_t store_desc;
     knl_part_obj_def_t *def = table_def->part_def;
 
-    if (db_verify_part_table_def(session, table_def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_verify_part_table_def(session, table_def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     errno_t ret = memset_sp(&object_desc, sizeof(knl_part_desc_t), 0, sizeof(knl_part_desc_t));
     knl_securec_check(ret);
     part_init_table_desc(table, def, &object_desc);
 
-    if (db_write_sys_partobject(session, cursor, &object_desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_write_sys_partobject(session, cursor, &object_desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (def->is_interval) {
         for (uint32 i = 0; i < def->part_store_in.space_list.count; i++) {
             text_t *name = (text_t *)cm_galist_get(&def->part_store_in.space_list, i);
-            if (GS_SUCCESS != spc_get_space_id(session, name, def->is_for_create_db, &space_id)) {
-                return GS_ERROR;
+            if (CT_SUCCESS != spc_get_space_id(session, name, def->is_for_create_db, &space_id)) {
+                return CT_ERROR;
             }
-            if (spc_check_by_uid(session, name, space_id, table->desc.uid) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (spc_check_by_uid(session, name, space_id, table->desc.uid) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             part_init_part_store_desc(&object_desc, &store_desc, i, space_id);
 
-            if (db_write_sys_partstore(session, cursor, &store_desc) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_write_sys_partstore(session, cursor, &store_desc) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
@@ -734,8 +734,8 @@ status_t db_create_part_table(knl_session_t *session, knl_cursor_t *cursor, tabl
         knl_part_column_def_t *column_def = (knl_part_column_def_t *)cm_galist_get(&def->part_keys, i);
         part_init_column_desc(i, table, column_def, &column_desc);
 
-        if (db_write_sys_partcolumn(session, cursor, &column_desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sys_partcolumn(session, cursor, &column_desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -744,17 +744,17 @@ status_t db_create_part_table(knl_session_t *session, knl_cursor_t *cursor, tabl
             knl_part_column_def_t *column_def = (knl_part_column_def_t *)cm_galist_get(&def->subpart_keys, i);
             part_init_column_desc(i, table, column_def, &column_desc);
 
-            if (db_write_sys_subpartcolumn(session, cursor, &column_desc) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_write_sys_subpartcolumn(session, cursor, &column_desc) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    if (db_write_table_parts(session, cursor, table, def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_write_table_parts(session, cursor, table, def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void part_init_index_desc(index_t *index, knl_part_desc_t *part_desc, knl_part_desc_t *desc)
@@ -811,7 +811,7 @@ void part_generate_index_part_desc(knl_session_t *session, knl_handle_t knl_inde
     desc->index_id = index->desc.id;
     desc->part_id = part_desc->part_id;
     desc->parent_partid = part_desc->parent_partid;
-    ret = memcpy_sp(desc->name, GS_NAME_BUFFER_SIZE, part_desc->name, GS_NAME_BUFFER_SIZE);
+    ret = memcpy_sp(desc->name, CT_NAME_BUFFER_SIZE, part_desc->name, CT_NAME_BUFFER_SIZE);
     knl_securec_check(ret);
     desc->entry = INVALID_PAGID;
     desc->org_scn = db_inc_scn(session);
@@ -825,7 +825,7 @@ void part_generate_index_part_desc(knl_session_t *session, knl_handle_t knl_inde
     desc->is_stored = index->desc.is_stored;
     desc->is_encode = index->desc.is_encode;
     desc->is_func = index->desc.is_func;
-    desc->is_parent = IS_PARENT_TABPART(part_desc) ? GS_TRUE : GS_FALSE;
+    desc->is_parent = IS_PARENT_TABPART(part_desc) ? CT_TRUE : CT_FALSE;
     desc->is_not_ready = part_desc->not_ready;
     
     desc->hiboundval = part_desc->hiboundval;
@@ -842,23 +842,23 @@ static status_t part_init_index_part_desc(knl_session_t *session, knl_handle_t k
     desc->index_id = index->desc.id;
     desc->part_id = tablepart_desc->part_id;
     desc->subpart_cnt = tablepart_desc->subpart_cnt;
-    (void)cm_text2str(&def->name, desc->name, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&def->name, desc->name, CT_NAME_BUFFER_SIZE);
 
     if (def->space.len == 0) {
         desc->space_id = (index->desc.is_stored) ? index->desc.space_id : tablepart_desc->space_id;
     } else {
-        if (GS_SUCCESS != spc_get_space_id(session, &def->space, def->is_for_create_db, &desc->space_id)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != spc_get_space_id(session, &def->space, def->is_for_create_db, &desc->space_id)) {
+            return CT_ERROR;
         }
-        if (spc_check_by_uid(session, &def->space, desc->space_id, index->desc.uid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_check_by_uid(session, &def->space, desc->space_id, index->desc.uid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     desc->entry = INVALID_PAGID;
     desc->org_scn = db_inc_scn(session);
     desc->initrans = (def->initrans == 0) ? index->desc.initrans : def->initrans;
-    desc->pctfree = (def->pctfree == GS_INVALID_ID32) ? index->desc.pctfree : def->pctfree;
+    desc->pctfree = (def->pctfree == CT_INVALID_ID32) ? index->desc.pctfree : def->pctfree;
     desc->flags = index->desc.flags;
     desc->is_cons = index->desc.is_cons;
     desc->is_disabled = index->desc.is_disabled;
@@ -866,13 +866,13 @@ static status_t part_init_index_part_desc(knl_session_t *session, knl_handle_t k
     desc->is_stored = def->space.len != 0;
     desc->is_encode = index->desc.is_encode;
     desc->is_func = index->desc.is_func;
-    desc->is_parent = IS_PARENT_TABPART(tablepart_desc) ? GS_TRUE : GS_FALSE;
+    desc->is_parent = IS_PARENT_TABPART(tablepart_desc) ? CT_TRUE : CT_FALSE;
         
     desc->hiboundval = tablepart_desc->hiboundval;
     desc->bhiboundval = tablepart_desc->bhiboundval;
     desc->cr_mode = index->desc.cr_mode;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_write_sys_indexpart(knl_session_t *session, knl_cursor_t *cursor, knl_index_part_desc_t *desc)
@@ -881,21 +881,21 @@ status_t db_write_sys_indexpart(knl_session_t *session, knl_cursor_t *cursor, kn
 
     space_t *space = SPACE_GET(session, desc->space_id);
     if (!SPACE_IS_ONLINE(space)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to indexpart$ failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to indexpart$ failed");
+        return CT_ERROR;
     }
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_INDEXPART_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_INDEXPART_ID, CT_INVALID_ID32);
     table_t *table = (table_t *)cursor->table;
 
     row_init(&ra, (char *)cursor->row, HEAP_MAX_ROW_SIZE(session), table->desc.column_count);
     if (desc->hiboundval.len > PART_HIBOUND_VALUE_LENGTH) {
-        GS_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
+        return CT_ERROR;
     }
     if (desc->bhiboundval.size > PART_HIBOUND_VALUE_LENGTH) {
-        GS_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
+        return CT_ERROR;
     }
     (void)row_put_int32(&ra, desc->uid);
     (void)row_put_int32(&ra, desc->table_id);
@@ -940,15 +940,15 @@ status_t part_write_sys_shadowindex_part(knl_session_t *session, knl_index_part_
 
     space = SPACE_GET(session, desc->space_id);
     if (!SPACE_IS_ONLINE(space)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to shadow_indexpart$ failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to shadow_indexpart$ failed");
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
 
     cursor = knl_push_cursor(session);
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_SHADOW_INDEXPART_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_SHADOW_INDEXPART_ID, CT_INVALID_ID32);
     table = (table_t *)cursor->table;
 
     row_init(&ra, (char *)cursor->row, HEAP_MAX_ROW_SIZE(session), table->desc.column_count);
@@ -979,22 +979,22 @@ status_t part_write_shadowindex_part(knl_session_t *session, knl_dictionary_t *d
     index_part_t *index_part, bool32 create_segment)
 {
     if (create_segment && !IS_PARENT_IDXPART(&index_part->desc)) {
-        if (btree_create_part_segment(session, index_part) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (btree_create_part_segment(session, index_part) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (btree_generate_create_undo(session, index_part->desc.entry, index_part->desc.space_id,
-            IS_LOGGING_TABLE_BY_TYPE(dc->type)) != GS_SUCCESS) {
+            IS_LOGGING_TABLE_BY_TYPE(dc->type)) != CT_SUCCESS) {
             btree_drop_part_segment(session, index_part);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
-    if (part_write_sys_shadowindex_part(session, &index_part->desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (part_write_sys_shadowindex_part(session, &index_part->desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t subpart_create_shadowind_default(knl_session_t *session, knl_dictionary_t *dc, knl_handle_t knl_index,
@@ -1012,7 +1012,7 @@ static status_t subpart_create_shadowind_default(knl_session_t *session, knl_dic
     for (uint32 i = 0; i < table_compart->desc.subpart_cnt; i++) {
         part_loc.part_no = compart_no;
         part_loc.subpart_no = i;
-        bool32 remain = !is_idx_part_existed(&part_loc, rebuild_info.parts_loc, GS_TRUE);
+        bool32 remain = !is_idx_part_existed(&part_loc, rebuild_info.parts_loc, CT_TRUE);
         if (remain || rebuild_info.is_alter) {
             index_compart = INDEX_GET_PART(index, compart_no);
             old_index_subpart = PART_GET_SUBENTITY(index->part_index, index_compart->subparts[i]);
@@ -1027,14 +1027,14 @@ static status_t subpart_create_shadowind_default(knl_session_t *session, knl_dic
             if (!remain) {
                 index_subpart.desc.entry = INVALID_PAGID;
                 index_subpart.desc.pctfree = index->desc.pctfree;
-                index_subpart.desc.is_invalid = GS_FALSE;
+                index_subpart.desc.is_invalid = CT_FALSE;
             }
-            if (!remain && rebuild_info.spc_id != GS_INVALID_ID32) {
+            if (!remain && rebuild_info.spc_id != CT_INVALID_ID32) {
                 index_subpart.desc.space_id = rebuild_info.spc_id;
-                index_subpart.desc.is_stored = GS_TRUE;
+                index_subpart.desc.is_stored = CT_TRUE;
             }
-            if (db_allow_indexpart_rebuild(session, index_subpart.desc.space_id, old_index_subpart) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_allow_indexpart_rebuild(session, index_subpart.desc.space_id, old_index_subpart) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
             table_compart = PART_GET_ENTITY(part_table, compart_no);
@@ -1046,12 +1046,12 @@ static status_t subpart_create_shadowind_default(knl_session_t *session, knl_dic
             part_generate_index_part_desc(session, index, &table_subpart->desc, &index_subpart.desc);
         }
 
-        if (part_write_shadowindex_part(session, dc, (index_part_t *)&index_subpart, !remain) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (part_write_shadowindex_part(session, dc, (index_part_t *)&index_subpart, !remain) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t part_create_shadowindex_default(knl_session_t *session, knl_dictionary_t *dc,
@@ -1070,8 +1070,8 @@ static status_t part_create_shadowindex_default(knl_session_t *session, knl_dict
         }
         
         part_loc.part_no = i;
-        part_loc.subpart_no = GS_INVALID_ID32;
-        bool32 remain = !is_idx_part_existed(&part_loc, rebuild_info.parts_loc, GS_FALSE);
+        part_loc.subpart_no = CT_INVALID_ID32;
+        bool32 remain = !is_idx_part_existed(&part_loc, rebuild_info.parts_loc, CT_FALSE);
         if (remain || rebuild_info.is_alter) {
             index_part_t *old_index_part = INDEX_GET_PART(index, i);
 
@@ -1085,16 +1085,16 @@ static status_t part_create_shadowindex_default(knl_session_t *session, knl_dict
             if (!remain) {
                 index_part.desc.entry = INVALID_PAGID;
                 index_part.desc.pctfree = index->desc.pctfree;
-                index_part.desc.is_invalid = GS_FALSE;
+                index_part.desc.is_invalid = CT_FALSE;
             }
 
-            if (!remain && rebuild_info.spc_id != GS_INVALID_ID32 &&
+            if (!remain && rebuild_info.spc_id != CT_INVALID_ID32 &&
                 rebuild_info.alter_index_type != ALINDEX_TYPE_REBUILD_SUBPART) {
                 index_part.desc.space_id = rebuild_info.spc_id;
-                index_part.desc.is_stored = GS_TRUE;
+                index_part.desc.is_stored = CT_TRUE;
             }
-            if (db_allow_indexpart_rebuild(session, index_part.desc.space_id, old_index_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_allow_indexpart_rebuild(session, index_part.desc.space_id, old_index_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
             part_generate_index_part_desc(session, index, &table_part->desc, &index_part.desc);
@@ -1102,17 +1102,17 @@ static status_t part_create_shadowindex_default(knl_session_t *session, knl_dict
 
         if (IS_PARENT_TABPART(&table_part->desc)) {
             if (subpart_create_shadowind_default(session, dc, index, table_part->part_no,
-                rebuild_info) != GS_SUCCESS) {
-                return GS_ERROR;
+                rebuild_info) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
-        if (part_write_shadowindex_part(session, dc, &index_part, !remain) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (part_write_shadowindex_part(session, dc, &index_part, !remain) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t subpart_create_shwidx_with_def(knl_session_t *session, knl_dictionary_t *dc, knl_handle_t knl_index,
@@ -1129,8 +1129,8 @@ static status_t subpart_create_shwidx_with_def(knl_session_t *session, knl_dicti
 
     table_part_t *table_compart = PART_GET_ENTITY(part_table, compart_no);
     if (def->subparts.count != table_compart->desc.subpart_cnt) {
-        GS_THROW_ERROR(ERR_PARTCNT_NOT_MATCH);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PARTCNT_NOT_MATCH);
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < def->subparts.count; i++) {
@@ -1141,8 +1141,8 @@ static status_t subpart_create_shwidx_with_def(knl_session_t *session, knl_dicti
         }
 
         if (part_init_index_part_desc(session, index, part_def, &table_subpart->desc,
-            &index_subpart.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+            &index_subpart.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (is_alter) {
@@ -1151,12 +1151,12 @@ static status_t subpart_create_shwidx_with_def(knl_session_t *session, knl_dicti
             index_subpart.desc.org_scn = old_index_subpart->desc.org_scn;
         }
 
-        if (part_write_shadowindex_part(session, dc, (index_part_t *)&index_subpart, GS_TRUE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (part_write_shadowindex_part(session, dc, (index_part_t *)&index_subpart, CT_TRUE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t part_create_shadowindex_with_def(knl_session_t *session, knl_dictionary_t *dc,
@@ -1170,8 +1170,8 @@ static status_t part_create_shadowindex_with_def(knl_session_t *session, knl_dic
     part_table_t *part_table = entity->table.part_table;
 
     if (def->parts.count != part_table->desc.partcnt) {
-        GS_THROW_ERROR(ERR_PARTCNT_NOT_MATCH);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PARTCNT_NOT_MATCH);
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < def->parts.count; i++) {
@@ -1181,8 +1181,8 @@ static status_t part_create_shadowindex_with_def(knl_session_t *session, knl_dic
             continue;
         }
 
-        if (part_init_index_part_desc(session, index, part_def, &table_part->desc, &index_part.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (part_init_index_part_desc(session, index, part_def, &table_part->desc, &index_part.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (is_alter) {
@@ -1192,17 +1192,17 @@ static status_t part_create_shadowindex_with_def(knl_session_t *session, knl_dic
 
         if (IS_PARENT_TABPART(&table_part->desc)) {
             if (subpart_create_shwidx_with_def(session, dc, index, part_def, table_part->part_no,
-                is_alter) != GS_SUCCESS) {
-                return GS_ERROR;
+                is_alter) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         
-        if (part_write_shadowindex_part(session, dc, &index_part, GS_TRUE) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (part_write_shadowindex_part(session, dc, &index_part, CT_TRUE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_create_part_shadow_index(knl_session_t *session, knl_dictionary_t *dc, index_t *index,
@@ -1227,8 +1227,8 @@ status_t db_write_partindex(knl_session_t *session, knl_cursor_t *cursor, index_
     part_table_t *part_table = entity->table.part_table;
 
     part_init_index_desc(index, &part_table->desc, &object_desc);
-    if (db_write_sys_partobject(session, cursor, &object_desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_write_sys_partobject(session, cursor, &object_desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < part_table->desc.partcnt; i++) {
@@ -1238,8 +1238,8 @@ status_t db_write_partindex(knl_session_t *session, knl_cursor_t *cursor, index_
             continue;
         }
 
-        if (db_write_sys_indexpart(session, cursor, &index_part->desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sys_indexpart(session, cursor, &index_part->desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         
         if (!IS_PARENT_IDXPART(&index_part->desc)) {
@@ -1248,13 +1248,13 @@ status_t db_write_partindex(knl_session_t *session, knl_cursor_t *cursor, index_
 
         for (uint32 j = 0; j < index_part->desc.subpart_cnt; j++) {
             subpart = PART_GET_SUBENTITY(index->part_index, index_part->subparts[j]);
-            if (db_write_sys_indsubpart(session, cursor, &subpart->desc) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_write_sys_indsubpart(session, cursor, &subpart->desc) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_update_sub_idxpart_status(knl_session_t *session, index_part_t *index_part,
@@ -1268,21 +1268,21 @@ status_t db_update_sub_idxpart_status(knl_session_t *session, index_part_t *inde
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_SUB_INDEX_PARTS_ID, IX_SYS_INDEXSUBPART001_ID);
 
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&index_part->desc.uid, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&index_part->desc.table_id, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&index_part->desc.index_id, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&index_part->desc.parent_partid, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_PARENT_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&index_part->desc.part_id, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s index %s index_part %s",
@@ -1311,13 +1311,13 @@ status_t db_update_sub_idxpart_status(knl_session_t *session, index_part_t *inde
     }
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, NULL);
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_update_idxpart_status(knl_session_t *session, index_part_t *index_part,
@@ -1331,19 +1331,19 @@ status_t db_update_idxpart_status(knl_session_t *session, index_part_t *index_pa
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_UPDATE, SYS_INDEXPART_ID, IX_SYS_INDEXPART001_ID);
 
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&index_part->desc.uid, sizeof(uint32), IX_COL_SYS_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&index_part->desc.table_id, sizeof(uint32), IX_COL_SYS_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&index_part->desc.index_id, sizeof(uint32), IX_COL_SYS_INDEXPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         (void *)&index_part->desc.part_id, sizeof(uint32), IX_COL_SYS_INDEXPART001_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(!cursor->eof, "data is not found, panic info: page %u-%u type %u table %s index %s index_part %s",
@@ -1373,13 +1373,13 @@ status_t db_update_idxpart_status(knl_session_t *session, index_part_t *index_pa
     }
 
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, NULL);
-    if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_update(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1394,24 +1394,24 @@ static status_t db_verify_part_index_def(knl_session_t *session, part_table_t *p
     knl_part_def_t *sub_part_def = NULL;
 
     if (def->parts.count != part_table->desc.partcnt) {
-        GS_THROW_ERROR(ERR_PARTCNT_NOT_MATCH);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_PARTCNT_NOT_MATCH);
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < def->parts.count - 1; i++) {
         part_def = (knl_part_def_t *)cm_galist_get(&def->parts, i);
         table_part = PART_GET_ENTITY(part_table, i);
         if (IS_PARENT_TABPART(&table_part->desc) && part_def->subparts.count != table_part->desc.subpart_cnt) {
-            GS_THROW_ERROR(ERR_PARTCNT_NOT_MATCH);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_PARTCNT_NOT_MATCH);
+            return CT_ERROR;
         }
 
         for (uint32 j = 0; j < def->parts.count; j++) {
             cmp_def = (knl_part_def_t *)cm_galist_get(&def->parts, j);
             if (j > i) {
                 if (cm_compare_text(&part_def->name, &cmp_def->name) == 0) {
-                    GS_THROW_ERROR(ERR_DUPLICATE_PART_NAME);
-                    return GS_ERROR;
+                    CT_THROW_ERROR(ERR_DUPLICATE_PART_NAME);
+                    return CT_ERROR;
                 }
             }
             
@@ -1421,8 +1421,8 @@ static status_t db_verify_part_index_def(knl_session_t *session, part_table_t *p
             for (uint32 m = 0; m < cmp_def->subparts.count; m++) {
                 sub_part_def = (knl_part_def_t *)cm_galist_get(&cmp_def->subparts, m);
                 if (cm_compare_text(&part_def->name, &sub_part_def->name) == 0) {
-                    GS_THROW_ERROR(ERR_DUPLICATE_PART_NAME);
-                    return GS_ERROR;
+                    CT_THROW_ERROR(ERR_DUPLICATE_PART_NAME);
+                    return CT_ERROR;
                 }
             }
         }
@@ -1432,7 +1432,7 @@ static status_t db_verify_part_index_def(knl_session_t *session, part_table_t *p
         return db_check_subpart_name_duplicate(def);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t subpart_create_index_default(knl_session_t *session, knl_cursor_t *cursor, knl_handle_t knl_index,
@@ -1454,23 +1454,23 @@ static status_t subpart_create_index_default(knl_session_t *session, knl_cursor_
         part_generate_index_part_desc(session, index, &table_subpart->desc, &index_subpart.desc);
     
         if (!check_part_encrypt_allowed(session, is_encrypt_table, index_subpart.desc.space_id)) {
-            GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create part index", "cases: create encrypt part index on \
+            CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create part index", "cases: create encrypt part index on \
     non-encrypt part table or create non-encrypt part index on encrypt part table.");
-            return GS_ERROR;
+            return CT_ERROR;
         }
     
         if (IS_SYS_TABLE(&entity->table)) {
-            if (btree_create_part_segment(session, &index_subpart) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (btree_create_part_segment(session, &index_subpart) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         
-        if (db_write_sys_indsubpart(session, cursor, &index_subpart.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sys_indsubpart(session, cursor, &index_subpart.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t part_create_partindex_default(knl_session_t *session, knl_cursor_t *cursor, index_t *index,
@@ -1490,29 +1490,29 @@ static status_t part_create_partindex_default(knl_session_t *session, knl_cursor
         part_generate_index_part_desc(session, index, &table_part->desc, &index_part.desc);
 
         if (!check_part_encrypt_allowed(session, is_encrypt_table, index_part.desc.space_id)) {
-            GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create part index", "cases: create encrypt part index on \
+            CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create part index", "cases: create encrypt part index on \
 non-encrypt part table or create non-encrypt part index on encrypt part table.");
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (IS_SYS_TABLE(&entity->table) && !IS_PARENT_TABPART(&table_part->desc)) {
-            if (btree_create_part_segment(session, &index_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (btree_create_part_segment(session, &index_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
         if (IS_PARENT_TABPART(&table_part->desc)) {
-            if (subpart_create_index_default(session, cursor, index, table_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (subpart_create_index_default(session, cursor, index, table_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         
-        if (db_write_sys_indexpart(session, cursor, &index_part.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sys_indexpart(session, cursor, &index_part.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
     
 static status_t subpart_create_index_with_def(knl_session_t *session, knl_cursor_t *cursor, knl_handle_t knl_index,
@@ -1533,39 +1533,39 @@ static status_t subpart_create_index_with_def(knl_session_t *session, knl_cursor
             continue;
         }
 
-        if (part_init_index_part_desc(session, index, subpart_def, &table_subpart->desc, &subpart.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (part_init_index_part_desc(session, index, subpart_def, &table_subpart->desc, &subpart.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (subpart_def->space.len == 0 && part_def->space.len != 0) {
             if (spc_get_space_id(session, &part_def->space,
-                                 part_def->is_for_create_db, &subpart.desc.space_id) != GS_SUCCESS) {
-                return GS_ERROR;
+                                 part_def->is_for_create_db, &subpart.desc.space_id) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (spc_check_by_uid(session, &part_def->space, subpart.desc.space_id, index->desc.uid) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (spc_check_by_uid(session, &part_def->space, subpart.desc.space_id, index->desc.uid) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
         if (!check_part_encrypt_allowed(session, is_encrypt_table, subpart.desc.space_id)) {
-            GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create part index", "cases: create encrypt part index on \
+            CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create part index", "cases: create encrypt part index on \
 non-encrypt part table or create non-encrypt part index on encrypt part table.");
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (IS_SYS_TABLE(&entity->table)) {
-            if (btree_create_part_segment(session, &subpart) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (btree_create_part_segment(session, &subpart) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         
-        if (db_write_sys_indsubpart(session, cursor, &subpart.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sys_indsubpart(session, cursor, &subpart.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 static status_t part_create_partindex_with_def(knl_session_t *session, knl_cursor_t *cursor, index_t *index,
     part_table_t *part_table, knl_part_obj_def_t *def)
@@ -1576,8 +1576,8 @@ static status_t part_create_partindex_with_def(knl_session_t *session, knl_curso
     dc_entity_t *entity = index->entity;
     uint32 is_encrypt_table = SPACE_IS_ENCRYPT(SPACE_GET(session, entity->table.desc.space_id));
 
-    if (db_verify_part_index_def(session, part_table, def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_verify_part_index_def(session, part_table, def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < def->parts.count; i++) {
@@ -1587,39 +1587,39 @@ static status_t part_create_partindex_with_def(knl_session_t *session, knl_curso
             continue;
         }
 
-        if (part_init_index_part_desc(session, index, part_def, &table_part->desc, &index_part.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (part_init_index_part_desc(session, index, part_def, &table_part->desc, &index_part.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!check_part_encrypt_allowed(session, is_encrypt_table, index_part.desc.space_id)) {
-            GS_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create part index", "cases: create encrypt part index on \
+            CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create part index", "cases: create encrypt part index on \
 non-encrypt part table or create non-encrypt part index on encrypt part table.");
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (IS_SYS_TABLE(&entity->table) && !IS_PARENT_TABPART(&table_part->desc)) {
-            if (btree_create_part_segment(session, &index_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (btree_create_part_segment(session, &index_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
         if (IS_PARENT_TABPART(&table_part->desc)) {
             if (part_def->subparts.count != table_part->desc.subpart_cnt) {
-                GS_THROW_ERROR(ERR_PARTCNT_NOT_MATCH);
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_PARTCNT_NOT_MATCH);
+                return CT_ERROR;
             }
             
-            if (subpart_create_index_with_def(session, cursor, index, table_part, part_def) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (subpart_create_index_with_def(session, cursor, index, table_part, part_def) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         
-        if (db_write_sys_indexpart(session, cursor, &index_part.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_write_sys_indexpart(session, cursor, &index_part.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_create_part_index(knl_session_t *session, knl_cursor_t *cursor, index_t *index,
@@ -1631,8 +1631,8 @@ status_t db_create_part_index(knl_session_t *session, knl_cursor_t *cursor, inde
 
     part_init_index_desc(index, &part_table->desc, &object_desc);
 
-    if (db_write_sys_partobject(session, cursor, &object_desc) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_write_sys_partobject(session, cursor, &object_desc) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (def == NULL) {
@@ -1655,7 +1655,7 @@ void part_init_lob_part_desc(knl_session_t *session, knl_handle_t knl_desc, uint
     desc->org_scn = db_inc_scn(session);
     desc->entry = INVALID_PAGID;
     desc->flags = 0;
-    desc->is_parent = GS_FALSE;
+    desc->is_parent = CT_FALSE;
 }
 
 status_t part_write_sys_lobpart(knl_session_t *session, knl_cursor_t *cursor, knl_lob_part_desc_t *desc)
@@ -1667,11 +1667,11 @@ status_t part_write_sys_lobpart(knl_session_t *session, knl_cursor_t *cursor, kn
 
     space = SPACE_GET(session, desc->space_id);
     if (!SPACE_IS_ONLINE(space)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to lobpart$ failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to lobpart$ failed");
+        return CT_ERROR;
     }
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_LOBPART_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_LOBPART_ID, CT_INVALID_ID32);
     table = (table_t *)cursor->table;
 
     row_init(&ra, (char *)cursor->row, HEAP_MAX_ROW_SIZE(session), table->desc.column_count);
@@ -1695,15 +1695,15 @@ status_t part_lob_get_space_id(knl_session_t *session, lob_t *lob, knl_part_def_
     if (lob->desc.is_stored || def->space.len == 0) {
         *space_id = lob->desc.space_id;
     } else {
-        if (spc_get_space_id(session, &def->space, def->is_for_create_db, space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_space_id(session, &def->space, def->is_for_create_db, space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
-        if (spc_check_by_uid(session, &def->space, *space_id, lob->desc.uid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_check_by_uid(session, &def->space, *space_id, lob->desc.uid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t subpart_create_lob_with_def(knl_session_t *session, knl_handle_t knl_lob, knl_part_def_t *compart_def,
@@ -1717,25 +1717,25 @@ static status_t subpart_create_lob_with_def(knl_session_t *session, knl_handle_t
     for (uint32 i = 0; i < compart_def->subparts.count; i++) {
         subpart_def = (knl_part_def_t *)cm_galist_get(&compart_def->subparts, i);
         subpart_id = subpart_generate_partid(NULL, NULL, i);
-        if (subpart_lob_get_space_id(session, lob, subpart_def, &space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (subpart_lob_get_space_id(session, lob, subpart_def, &space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         part_init_lob_part_desc(session, &lob->desc, subpart_id, space_id, &lob_subpart.desc);
         lob_subpart.desc.parent_partid = compart_id;
         
         if (dc_is_reserved_entry(lob->desc.uid, lob->desc.table_id)) {
-            if (lob_create_part_segment(session, (lob_part_t *)&lob_subpart) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (lob_create_part_segment(session, (lob_part_t *)&lob_subpart) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
-        if (subpart_write_syslob(session, &lob_subpart.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (subpart_write_syslob(session, &lob_subpart.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t part_create_lob_with_def(knl_session_t *session, knl_cursor_t *cursor, table_t *table,
@@ -1750,35 +1750,35 @@ static status_t part_create_lob_with_def(knl_session_t *session, knl_cursor_t *c
     for (uint32 i = 0; i < def->part_def->parts.count; i++) {
         part_def = (knl_part_def_t *)cm_galist_get(&def->part_def->parts, i);
         part_id = part_generate_part_id(table, i);
-        if (part_lob_get_space_id(session, lob, part_def, &space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (part_lob_get_space_id(session, lob, part_def, &space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (lob_check_space(session, table, space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lob_check_space(session, table, space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         
         part_init_lob_part_desc(session, &lob->desc, part_id, space_id, &lob_part.desc);
         lob_part.desc.is_parent = part_def->is_parent;
         
         if (IS_SYS_TABLE(table) && !part_def->is_parent) {
-            if (lob_create_part_segment(session, &lob_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (lob_create_part_segment(session, &lob_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
         if (part_def->is_parent) {
-            if (subpart_create_lob_with_def(session, lob, part_def, part_id) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (subpart_create_lob_with_def(session, lob, part_def, part_id) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         
-        if (part_write_sys_lobpart(session, cursor, &lob_part.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (part_write_sys_lobpart(session, cursor, &lob_part.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t subpart_create_lob_default(knl_session_t *session, part_table_t *part_table, knl_handle_t knl_lob,
@@ -1800,17 +1800,17 @@ status_t subpart_create_lob_default(knl_session_t *session, part_table_t *part_t
         lob_subpart.desc.parent_partid = compart->desc.part_id;
 
         if (dc_is_reserved_entry(lob->desc.uid, lob->desc.table_id)) {
-            if (lob_create_part_segment(session, (lob_part_t *)&lob_subpart) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (lob_create_part_segment(session, (lob_part_t *)&lob_subpart) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
-        if (subpart_write_syslob(session, &lob_subpart.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (subpart_write_syslob(session, &lob_subpart.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t part_create_lob_default(knl_session_t *session, knl_cursor_t *cursor, table_t *table,
@@ -1835,44 +1835,44 @@ static status_t part_create_lob_default(knl_session_t *session, knl_cursor_t *cu
         part_init_lob_part_desc(session, &lob->desc, part_id, space_id, &lob_part.desc);
         lob_part.desc.is_parent = table_part->desc.is_parent;
 
-        if (lob_check_space(session, table, lob_part.desc.space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (lob_check_space(session, table, lob_part.desc.space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         
         if (IS_SYS_TABLE(table) && !IS_PARENT_TABPART(&table_part->desc)) {
-            if (lob_create_part_segment(session, &lob_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (lob_create_part_segment(session, &lob_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
         if (IS_PARENT_TABPART(&table_part->desc)) {
-            if (subpart_create_lob_default(session, part_table, lob, table_part) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (subpart_create_lob_default(session, part_table, lob, table_part) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
         
-        if (part_write_sys_lobpart(session, cursor, &lob_part.desc) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (part_write_sys_lobpart(session, cursor, &lob_part.desc) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_create_part_lob(knl_session_t *session, knl_cursor_t *cursor, table_t *table, knl_table_def_t *def,
                             lob_t *lob)
 {
     if (def != NULL) {
-        if (part_create_lob_with_def(session, cursor, table, def, lob) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (part_create_lob_with_def(session, cursor, table, def, lob) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (part_create_lob_default(session, cursor, table, def, lob) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (part_create_lob_default(session, cursor, table, def, lob) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 uint32 subpart_generate_partid(part_table_t *part_table, table_part_t *compart, uint32 number)
@@ -1883,12 +1883,12 @@ uint32 subpart_generate_partid(part_table_t *part_table, table_part_t *compart, 
     if (compart != NULL && part_table != NULL) {
         table_subpart = PART_GET_SUBENTITY(part_table, compart->subparts[compart->desc.subpart_cnt - 1]);
         num = table_subpart->desc.part_id;
-        num /= GS_DFT_PARTID_STEP;
+        num /= CT_DFT_PARTID_STEP;
     } else {
-        knl_panic_log(num != GS_INVALID_ID32, "the num is invalid when the compart or part_table is NULL.");
+        knl_panic_log(num != CT_INVALID_ID32, "the num is invalid when the compart or part_table is NULL.");
     }
 
-    return GS_DFT_PARTID_STEP * (num + 1);
+    return CT_DFT_PARTID_STEP * (num + 1);
 }
 
 status_t subpart_init_table_part_desc(knl_session_t *session, knl_table_part_desc_t *comdesc,
@@ -1898,27 +1898,27 @@ status_t subpart_init_table_part_desc(knl_session_t *session, knl_table_part_des
     desc->table_id = comdesc->table_id;
     desc->parent_partid = comdesc->part_id;
     desc->part_id = subpart_id;
-    (void)cm_text2str(&def->name, desc->name, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&def->name, desc->name, CT_NAME_BUFFER_SIZE);
     desc->entry = INVALID_PAGID;
     desc->org_scn = db_inc_scn(session);
     desc->seg_scn = desc->org_scn;
     desc->initrans = (def->initrans == 0) ? comdesc->initrans : def->initrans;
-    desc->pctfree = (def->pctfree == GS_INVALID_ID32) ? comdesc->pctfree : def->pctfree;
+    desc->pctfree = (def->pctfree == CT_INVALID_ID32) ? comdesc->pctfree : def->pctfree;
     desc->flags = 0;
     desc->not_ready = comdesc->not_ready;
     desc->compress_algo = COMPRESS_NONE;
-    desc->compress = GS_FALSE;
+    desc->compress = CT_FALSE;
     desc->is_csf = comdesc->is_csf;
 
     if (def->space.len == 0) {
         desc->space_id = comdesc->space_id;
     } else {
-        if (GS_SUCCESS != spc_get_space_id(session, &def->space, def->is_for_create_db, &desc->space_id)) {
-            return GS_ERROR;
+        if (CT_SUCCESS != spc_get_space_id(session, &def->space, def->is_for_create_db, &desc->space_id)) {
+            return CT_ERROR;
         }
 
-        if (spc_check_by_uid(session, &def->space, desc->space_id, desc->uid) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_check_by_uid(session, &def->space, desc->space_id, desc->uid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -1929,7 +1929,7 @@ status_t subpart_init_table_part_desc(knl_session_t *session, knl_table_part_des
 
     if (def->storage_def.initial > 0) {
         if (!dc_is_reserved_entry(comdesc->uid, comdesc->table_id)) {
-            desc->storaged = GS_TRUE;
+            desc->storaged = CT_TRUE;
         }
         desc->storage_desc.initial = CM_CALC_ALIGN((uint64)def->storage_def.initial, space->ctrl->block_size) /
             space->ctrl->block_size;
@@ -1937,7 +1937,7 @@ status_t subpart_init_table_part_desc(knl_session_t *session, knl_table_part_des
 
     // storage maxsize clause will not take effect to sys tables
     if (def->storage_def.maxsize > 0 && !dc_is_reserved_entry(comdesc->uid, comdesc->table_id)) {
-        desc->storaged = GS_TRUE;
+        desc->storaged = CT_TRUE;
         desc->storage_desc.max_pages = CM_CALC_ALIGN((uint64)def->storage_def.maxsize, space->ctrl->block_size) /
             space->ctrl->block_size;
     }
@@ -1948,7 +1948,7 @@ status_t subpart_init_table_part_desc(knl_session_t *session, knl_table_part_des
 
     desc->cr_mode = comdesc->cr_mode;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_write_sys_tablesubpart(knl_session_t *session, knl_cursor_t *cursor, knl_table_part_desc_t *subpart_desc)
@@ -1960,23 +1960,23 @@ status_t db_write_sys_tablesubpart(knl_session_t *session, knl_cursor_t *cursor,
 
     part_space = SPACE_GET(session, subpart_desc->space_id);
     if (!SPACE_IS_ONLINE(part_space)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, part_space->ctrl->name, "space offline and write to tablepart$ failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, part_space->ctrl->name, "space offline and write to tablepart$ failed");
+        return CT_ERROR;
     }
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_SUB_TABLE_PARTS_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_SUB_TABLE_PARTS_ID, CT_INVALID_ID32);
     table = (table_t *)cursor->table;
 
     row_init(&ra, (char *)cursor->row, HEAP_MAX_ROW_SIZE(session), table->desc.column_count);
 
     if (subpart_desc->hiboundval.len > PART_HIBOUND_VALUE_LENGTH) {
-        GS_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
+        return CT_ERROR;
     }
     
     if (subpart_desc->bhiboundval.size > PART_HIBOUND_VALUE_LENGTH) {
-        GS_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
+        return CT_ERROR;
     }
     
     (void)row_put_int32(&ra, subpart_desc->uid);
@@ -2013,21 +2013,21 @@ status_t db_write_sys_indsubpart(knl_session_t *session, knl_cursor_t *cursor, k
 
     space_t *space = SPACE_GET(session, desc->space_id);
     if (!SPACE_IS_ONLINE(space)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to indexpart$ failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to indexpart$ failed");
+        return CT_ERROR;
     }
 
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_SUB_INDEX_PARTS_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_SUB_INDEX_PARTS_ID, CT_INVALID_ID32);
     table = (table_t *)cursor->table;
 
     row_init(&ra, (char *)cursor->row, HEAP_MAX_ROW_SIZE(session), table->desc.column_count);
     if (desc->hiboundval.len > PART_HIBOUND_VALUE_LENGTH) {
-        GS_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
+        return CT_ERROR;
     }
     if (desc->bhiboundval.size > PART_HIBOUND_VALUE_LENGTH) {
-        GS_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROW_SIZE_TOO_LARGE, ra.max_size);
+        return CT_ERROR;
     }
     (void)row_put_int32(&ra, desc->uid);
     (void)row_put_int32(&ra, desc->table_id);
@@ -2066,13 +2066,13 @@ status_t subpart_write_syslob(knl_session_t *session, knl_lob_part_desc_t *desc)
 
     space_t *space = SPACE_GET(session, desc->space_id);
     if (!SPACE_IS_ONLINE(space)) {
-        GS_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to lobpart$ failed");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_SPACE_OFFLINE, space->ctrl->name, "space offline and write to lobpart$ failed");
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
-    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_SUB_LOB_PARTS_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_SUB_LOB_PARTS_ID, CT_INVALID_ID32);
     table_t *table = (table_t *)cursor->table;
 
     row_init(&ra, (char *)cursor->row, HEAP_MAX_ROW_SIZE(session), table->desc.column_count);
@@ -2086,13 +2086,13 @@ status_t subpart_write_syslob(knl_session_t *session, knl_lob_part_desc_t *desc)
     (void)row_put_int32(&ra, desc->flags);
     (void)row_put_int32(&ra, desc->parent_partid);
 
-    if (knl_internal_insert(session, cursor) != GS_SUCCESS) {
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t subpart_lob_get_space_id(knl_session_t *session, lob_t *lob, knl_part_def_t *def, uint32 *space_id)
@@ -2100,10 +2100,10 @@ status_t subpart_lob_get_space_id(knl_session_t *session, lob_t *lob, knl_part_d
     if (lob->desc.is_stored || def->space.len == 0) {
         *space_id = lob->desc.space_id;
     } else {
-        if (spc_get_space_id(session, &def->space, def->is_for_create_db, space_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (spc_get_space_id(session, &def->space, def->is_for_create_db, space_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }

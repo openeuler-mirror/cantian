@@ -8,8 +8,9 @@ LINK_NAME=files
 source ${CURRENT_PATH}/env.sh
 source ${CURRENT_PATH}/log4sh.sh
 source ${CURRENT_PATH}/../config/backup_list.sh
-deploy_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
-deploy_group=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_group"`
+deploy_user=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_user")
+deploy_group=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_group")
+
 
 function cleanDir() {
     # 清理备份文件夹，只保留最新的5个
@@ -27,7 +28,7 @@ function backFile() {
     mkdir -p ${CURRENT_BACKUP_DIR_PATH}
     chmod 750 "${BACKUP_ROOT_DIR}"
     chmod 750 "${CURRENT_BACKUP_DIR_PATH}"
-    chown "${deploy_user}":"${deploy_group}" "${CURRENT_BACKUP_DIR_PATH}"
+    chown "${cantian_user}":"${cantian_group}" "${CURRENT_BACKUP_DIR_PATH}"
     if [ $? -ne 0 ]; then
         logAndEchoError "mkdir back dir ${CURRENT_BACKUP_DIR_PATH} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         exit 1
@@ -43,9 +44,9 @@ function backFile() {
     logAndEchoInfo "create soft link to ${CURRENT_BACKUP_DIR_PATH} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 
     # 修改备份根目录属主属组，防止备份失败
-    chown "${deploy_user}":"${deploy_group}" -R ${BACKUP_ROOT_DIR}
+    chown "${cantian_user}":"${cantian_group}" -hR ${BACKUP_ROOT_DIR}
     if [ $? -ne 0 ]; then
-        logAndEchoError "change mod of ${BACKUP_ROOT_DIR} to ${deploy_user}:${deploy_group} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        logAndEchoError "change mod of ${BACKUP_ROOT_DIR} to ${cantian_user}:${cantian_group} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         exit 1
     fi
 
@@ -69,7 +70,7 @@ backFile
 for lib_name in "${BACKUP_ORDER[@]}"
 do
     logAndEchoInfo "backup ${lib_name} . [Line:${LINENO}, File:${SCRIPT_NAME}]"
-    sh ${CURRENT_PATH}/${lib_name}/appctl.sh backup >> ${OM_DEPLOY_LOG_FILE} 2>&1
+    sh ${CURRENT_PATH}/${lib_name}/appctl.sh backup
     if [ $? -ne 0 ]; then
         logAndEchoError "copy ${lib_name} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         exit 1

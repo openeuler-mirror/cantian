@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -159,33 +159,33 @@ typedef enum en_sys_privs_id_def {
     ALTER_DATABASE_LINK,
     DROP_DATABASE_LINK,
     USE_ANY_TABLESPACE,
-    /* GS_SYS_PRIVS_COUNT must placed at the bottom */
-    GS_SYS_PRIVS_COUNT
+    /* CT_SYS_PRIVS_COUNT must placed at the bottom */
+    CT_SYS_PRIVS_COUNT
 } sys_privs_id;
 
 // new object privilege item should be add at the bottom for compitable!!!
 typedef enum en_obj_privs_id_def {
-    GS_PRIV_ALTER,
-    GS_PRIV_DELETE,
-    GS_PRIV_EXECUTE,
-    GS_PRIV_INDEX,
-    GS_PRIV_INSERT,
-    GS_PRIV_READ,
-    GS_PRIV_REFERENCES,
-    GS_PRIV_SELECT,
-    GS_PRIV_UPDATE,
-    GS_PRIV_DIRE_READ,
-    GS_PRIV_DIRE_WRITE,
-    GS_PRIV_DIRE_EXECUTE,
-    /* GS_OBJ_PRIVS_COUNT must placed at the bottom */
-    GS_OBJ_PRIVS_COUNT
+    CT_PRIV_ALTER,
+    CT_PRIV_DELETE,
+    CT_PRIV_EXECUTE,
+    CT_PRIV_INDEX,
+    CT_PRIV_INSERT,
+    CT_PRIV_READ,
+    CT_PRIV_REFERENCES,
+    CT_PRIV_SELECT,
+    CT_PRIV_UPDATE,
+    CT_PRIV_DIRE_READ,
+    CT_PRIV_DIRE_WRITE,
+    CT_PRIV_DIRE_EXECUTE,
+    /* CT_OBJ_PRIVS_COUNT must placed at the bottom */
+    CT_OBJ_PRIVS_COUNT
 } obj_privs_id;
 
 // new user privilege item should be add at the bottom for compitable!!!
 typedef enum en_user_privs_id_def {
-    GS_PRIV_INHERIT_PRIVILEGES,
-    /* GS_USER_PRIVS_COUNT must placed at the bottom */
-    GS_USER_PRIVS_COUNT
+    CT_PRIV_INHERIT_PRIVILEGES,
+    /* CT_USER_PRIVS_COUNT must placed at the bottom */
+    CT_USER_PRIVS_COUNT
 } user_privs_id;
 
 typedef enum en_priv_type_def {
@@ -235,7 +235,7 @@ typedef struct st_assist_obj_priv_item {
     uint32 objowner;                    /* object's owner user ID */
     uint32 objtype;                     /* table/view/procedure */
     uint32 privid;
-    char objname[GS_NAME_BUFFER_SIZE];  /* object's name */
+    char objname[CT_NAME_BUFFER_SIZE];  /* object's name */
 } assist_obj_priv_item_t;
 
 typedef struct st_knl_revoke_def {
@@ -275,10 +275,10 @@ status_t knl_exec_grant_privs(knl_handle_t session, knl_grant_def_t *def);
 status_t knl_exec_revoke_privs(knl_handle_t session, knl_revoke_def_t *def);
 
 typedef struct st_knl_user_def {
-    char name[GS_NAME_BUFFER_SIZE];          // username
-    char password[GS_PASSWORD_BUFFER_SIZE];  // if it comes from sql engine ,it's pwd string before encrypt.
+    char name[CT_NAME_BUFFER_SIZE];          // username
+    SENSI_INFO char password[CT_PASSWORD_BUFFER_SIZE];  // if it comes from sql engine ,it's pwd string before encrypt.
     // if it comes from kernel, it's pwd string after encrypt.
-    char old_password[GS_PASSWORD_BUFFER_SIZE];
+    SENSI_INFO char old_password[CT_PASSWORD_BUFFER_SIZE];
     bool32 is_sys;
     bool32 is_readonly;
     bool32 is_permanent;
@@ -292,8 +292,8 @@ typedef struct st_knl_user_def {
         bool32 unused : 26;
     };
     uint32 mask;
-    char temp_space[GS_NAME_BUFFER_SIZE];
-    char default_space[GS_NAME_BUFFER_SIZE];
+    char temp_space[CT_NAME_BUFFER_SIZE];
+    char default_space[CT_NAME_BUFFER_SIZE];
     text_t profile;
     uint32 pwd_len;
     uint32 pwd_loc;
@@ -318,8 +318,8 @@ typedef struct st_knl_drop_tenant_def {
 
 typedef struct st_knl_role_def {
     uint32 owner_uid;                       /* user id that create the role */
-    char name[GS_NAME_BUFFER_SIZE];         /* role name */
-    char password[GS_PASSWORD_BUFFER_SIZE]; /* role pwd */
+    char name[CT_NAME_BUFFER_SIZE];         /* role name */
+    SENSI_INFO char password[CT_PASSWORD_BUFFER_SIZE]; /* role pwd */
     text_t owner;                           /* user that created the role */
     uint32 pwd_len;
     uint32 pwd_loc;
@@ -332,8 +332,8 @@ typedef enum en_alter_tenant_sub_type {
 } alter_tenant_sub_type_t;
 
 typedef struct st_knl_tenant_def {
-    char name[GS_TENANT_BUFFER_SIZE];             /* tenant name */
-    char default_tablespace[GS_NAME_BUFFER_SIZE]; /* default tablespace */
+    char name[CT_TENANT_BUFFER_SIZE];             /* tenant name */
+    char default_tablespace[CT_NAME_BUFFER_SIZE]; /* default tablespace */
     galist_t space_lst;                           /* usable tablespace for current tenant */
     uint32 sub_type;                              /* ALTER_TENANT_TYPE_ADD_SPACE/ALTER_TENANT_TYPE_MODEIFY_DEFAULT */
 

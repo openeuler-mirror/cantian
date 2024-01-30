@@ -21,13 +21,6 @@
     "py_input": "-p ${log_dir} -t ${type}",
     "description": ""
   },
-  "show cantian status": {
-    "handler": "audit_py",
-    "checkFunc": "",
-    "filePath": "/opt/cantian/cantian/server/admin/scripts/fetch_cls_stat.py",
-    "py_input": "",
-    "description": ""
-  },
   "inspection": {
     "handler": "inspection_py",
     "checkFunc": "",

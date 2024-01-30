@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -38,10 +38,10 @@ extern "C" {
 #define CBO_INVALID_COLUMN_ID          (uint32)0xFFFFFFFF
 
 #define CBO_GET_GROUP_NO(object, id) ((object)->part_group.group_id[(id) / PART_GROUP_SIZE])
-#define CBO_TABLE_PART_IS_INIT(object, id) (((CBO_GET_GROUP_NO(object, id)) != GS_INVALID_ID32) && \
+#define CBO_TABLE_PART_IS_INIT(object, id) (((CBO_GET_GROUP_NO(object, id)) != CT_INVALID_ID32) && \
     ((object)->part_group.group_ready[CBO_GET_GROUP_NO(object, id)]) && \
     ((object)->part_groups[CBO_GET_GROUP_NO(object, id)] != NULL))
-#define CBO_INDEX_PART_IS_INIT(object, id) (((CBO_GET_GROUP_NO(object, id)) != GS_INVALID_ID32) && \
+#define CBO_INDEX_PART_IS_INIT(object, id) (((CBO_GET_GROUP_NO(object, id)) != CT_INVALID_ID32) && \
     ((object)->part_group.group_ready[CBO_GET_GROUP_NO(object, id)]) && \
     ((object)->part_index_groups[CBO_GET_GROUP_NO(object, id)] != NULL))
 #define CBO_GET_SUBTABLE_PART(object, id) \
@@ -49,7 +49,7 @@ extern "C" {
 #define CBO_GET_SUBINDEX_PART(object, id) \
     ((object)->subpart_index_groups[(id) / PART_GROUP_SIZE]->entity[(id) % PART_GROUP_SIZE])
 #define CBO_NEED_LOAD_PART(part_id, scan_part_id) \
-        ((part_id) == GS_INVALID_ID32 || (part_id) == (scan_part_id))
+        ((part_id) == CT_INVALID_ID32 || (part_id) == (scan_part_id))
 #define CBO_GET_TABLE_NORMAL_PART(object, id) \
     ((object)->part_groups[(id) / PART_GROUP_SIZE]->entity[(id) % PART_GROUP_SIZE])
 #define CBO_GET_TABLE_INTERVAL_PART(object, id) (!(CBO_TABLE_PART_IS_INIT(object, id)) ? (NULL) : \

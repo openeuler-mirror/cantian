@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -30,20 +30,22 @@
 #include "knl_heap.h"
 #include "knl_interface.h"
 #include "rb_purge.h"
+#include "knl_lob_persistent.h"
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define LOB_MAX_INLIINE_SIZE (GS_LOB_LOCATOR_BUF_SIZE - OFFSET_OF(lob_locator_t, data))
+#define LOB_MAX_INLIINE_SIZE (CT_LOB_LOCATOR_BUF_SIZE - OFFSET_OF(lob_locator_t, data))
 #define COLUMN_IS_LOB(c) \
-    (((c)->datatype == GS_TYPE_CLOB) || ((c)->datatype == GS_TYPE_BLOB) || \
-    ((c)->datatype == GS_TYPE_IMAGE) || KNL_COLUMN_IS_ARRAY(c))
+    (((c)->datatype == CT_TYPE_CLOB) || ((c)->datatype == CT_TYPE_BLOB) || \
+    ((c)->datatype == CT_TYPE_IMAGE) || KNL_COLUMN_IS_ARRAY(c))
 
 #define LOB_SEG_HEAD(session)         (lob_segment_t *)((session)->curr_page + PAGE_HEAD_SIZE)
 
 #define MAX_LOB_ITEMS_PAGES                 1024
-#define LOB_ITEM_PAGE_CAPACITY              (GS_SHARED_PAGE_SIZE / sizeof(lob_item_t))
+#define LOB_ITEM_PAGE_CAPACITY              (CT_SHARED_PAGE_SIZE / sizeof(lob_item_t))
 #define MAX_LOB_ITEMS                       (MAX_LOB_ITEMS_PAGES * LOB_ITEM_PAGE_CAPACITY)
 #define KNL_LOB_LOCATOR_SIZE                sizeof(lob_locator_t)
 #define LOB_CHECK_ORG_SCN(locator, data) \
@@ -67,97 +69,10 @@ extern "C" {
 #define LOB_SEGMENT(session, pageid, segment) \
     ((buf_check_resident_page_version((session), (pageid))) ? \
         ((lob_segment_t *)(segment)) : ((lob_segment_t *)(segment)))
-
-#pragma pack(4)
-typedef struct st_lob_head {
-    /* size + type must be defined first!!! */
-    uint32 size;
-    uint32 type;
-    uint32 is_outline : 1;
-    uint32 node_id : 9;
-    uint32 unused : 22;
-} lob_head_t;
-
-typedef struct st_lob_locator {
-    lob_head_t head;
-    union {
-        struct {
-            xid_t xid;
-            knl_scn_t org_scn;
-            page_id_t first;
-            page_id_t last;
-        };
-
-        uint8 data[0];
-    };
-} lob_locator_t;
-
-typedef struct st_lob_chunk {
-    xid_t ins_xid;  // xid of session when insert lob data
-    xid_t del_xid;  // xid of session when delete lob data
-    knl_scn_t org_scn;
-    uint32 size;
-    page_id_t next;
-    page_id_t free_next;
-    bool32 is_recycled;
-    char data[4];
-} lob_chunk_t;
-
-typedef struct st_lob_data_page {
-    page_head_t head;
-    page_id_t pre_free_page;  // pre free page of segment's free_list
-    uint8 reserved[8];  // reserved for future use
-    lob_chunk_t chunk;
-} lob_data_page_t;
-
-typedef struct st_lob_undo {
-    uint32 part_no;
-    lob_locator_t locator;
-} lob_undo_t;
-
-typedef struct st_lob_del_undo {
-    page_id_t prev_page;
-    page_id_t first_page;
-    page_id_t last_page;
-    uint32 chunk_count;
-} lob_del_undo_t;
-
-typedef struct st_lob_seg_undo {
-    uint32 part_no;
-    page_list_t free_list;
-    page_id_t entry;
-} lob_seg_undo_t;
-
-typedef struct st_lob_seg_recycle_undo {
-    uint32 part_no;
-    page_list_t free_list;
-    page_id_t pre_free_last;
-    page_id_t entry;
-} lob_seg_recycle_undo_t;
-
-typedef struct st_lob_segment {
-    knl_scn_t org_scn;
-    knl_scn_t seg_scn;
-    uint32 table_id;
-    uint16 uid;
-    uint16 space_id;
-    uint16 column_id;
-    uint16 aligned;
-
-    page_list_t extents;
-    page_list_t free_list; /* << lob recycle page */
-    uint32 ufp_count;      /* free pages left on current free extent */
-    page_id_t ufp_first;   /* first free page */
-    page_id_t ufp_extent;  /* first unused extent */
-    knl_scn_t shrink_scn; /* lob shrink timestamp scn */
-} lob_segment_t;
-
-typedef struct st_lob_undo_alloc_page {
-    page_id_t first_page;
-    knl_scn_t ori_scn;
-} lob_undo_alloc_page_t;
-#pragma pack()
-
+#define LOB_TEMP_MAX_CHUNK_SIZE         (TEMP_PAGE_SIZE - sizeof(lob_data_page_t) - sizeof(page_tail_t))
+#define LOB_TEMP_GET_CHUNK_COUNT(locator) (((locator)->head.size + LOB_TEMP_MAX_CHUNK_SIZE - 1) / LOB_TEMP_MAX_CHUNK_SIZE)
+#define LOB_TEMP_GET_CHUNK(session)              (&((lob_data_page_t *)(buf_curr_temp_page(session)->data))->chunk)
+#define LOB_TEMP_NEXT_DATA_PAGE(session)         (((lob_data_page_t *)(buf_curr_temp_page(session)->data))->chunk.next)
 typedef struct st_lob_shrink_assist {
     knl_scn_t min_scn;
     page_id_t last_extent;
@@ -266,7 +181,7 @@ void lob_undo_insert(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud
 void lob_undo_delete_commit_recycle(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot);
 void lob_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot);
 void lob_undo_delete_commit(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot);
-void lob_undo_write_page(knl_session_t *session, undo_row_t *ud_row);
+void lob_undo_write_page(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot);
 
 status_t lob_write_2pc_buff(knl_session_t *session, binary_t *buf, uint32 max_size);
 status_t lob_create_2pc_items(knl_session_t *session, uint8 *buf, uint32 buf_size, lob_item_list_t *item_list);
@@ -347,7 +262,9 @@ void lob_clean_all_default_segments(knl_session_t *session, knl_handle_t entity,
 
 status_t lob_generate_create_undo(knl_session_t *session, page_id_t entry, uint32 space_id, bool32 need_redo);
 void lob_undo_create_part(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot);
-
+void lob_temp_undo_write_page(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot);
+void lob_temp_undo_delete(knl_session_t *session, undo_row_t *ud_row, undo_page_t *ud_page, int32 ud_slot);
+status_t lob_temp_create_segment(knl_session_t *session, knl_temp_cache_t *temp_table_ptr);
 #ifdef __cplusplus
 }
 #endif

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -25,6 +25,7 @@
 #ifndef __PCR_BTREE_H__
 #define __PCR_BTREE_H__
 
+#include "knl_index_module.h"
 #include "cm_defs.h"
 #include "knl_interface.h"
 #include "knl_session.h"
@@ -34,94 +35,11 @@
 #include "knl_undo.h"
 #include "rb_purge.h"
 #include "rcr_btree.h"
+#include "pcr_btree_persistent.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#pragma pack(4)
-/* PCR btree key structure */
-typedef struct st_pcrb_key {
-    union {
-        rowid_t rowid;
-        struct {
-            uint64 aligned : ROWID_VALUE_BITS;
-            uint64 size : ROWID_UNUSED_BITS;
-        };
-    };
-
-    uint8 is_deleted : 1;
-    uint8 is_infinite : 1;
-    uint8 is_cleaned : 1;
-    uint8 unused : 5;
-    uint8 itl_id;
-    uint16 bitmap;
-    /* === following is key data === */
-    /* === child(branch) or part_no(global index)=== */
-} pcrb_key_t;
-
-typedef struct st_rd_pcrb_insert {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint16 slot : 15;
-    uint16 is_reuse : 1;
-    char key[4];
-} rd_pcrb_insert_t;
-
-typedef struct st_rd_pcrb_delete {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot;
-    uint16 slot;
-    uint8 itl_id;
-    uint8 unused1;
-    uint16 unused2;
-} rd_pcrb_delete_t;
-
-typedef struct st_rd_pcrb_clean_itl {
-    knl_scn_t scn;
-    uint8 itl_id;
-    uint8 is_owscn;
-    uint8 is_copied;
-    uint8 aligned;
-} rd_pcrb_clean_itl_t;
-
-typedef struct st_rd_pcrb_new_itl {
-    uint32 ssn;
-    xid_t xid;
-    undo_rowid_t undo_rid;
-} rd_pcrb_new_itl_t;
-
-typedef struct st_rd_pcrb_reuse_itl {
-    knl_scn_t min_scn;
-    uint32 ssn;
-    xid_t xid;
-    union {
-        undo_rowid_t undo_rid;
-        struct {
-            undo_page_id_t page_id;
-            uint16 slot;
-            uint16 itl_id;
-        };
-    };
-} rd_pcrb_reuse_itl_t;
-
-typedef struct st_rd_pcrb_undo {
-    uint32 ssn;
-    undo_page_id_t undo_page;
-    uint16 undo_slot : 15;
-    uint16 is_xfirst : 1;
-    uint16 slot;
-} rd_pcrb_undo_t;
-
-typedef struct st_pcrb_undo_batch_insert {
-    knl_part_locate_t part_loc;
-    uint16 count;
-    uint16 aligned;
-    char keys[0];
-}pcrb_undo_batch_insert_t;
-#pragma pack()
 
 typedef uint16 pcrb_dir_t;
 
@@ -222,7 +140,7 @@ void pcrb_insert_minimum_key(knl_session_t *session);
 status_t pcrb_construct(btree_mt_context_t *ctx);
 
 void pcrb_init_key(pcrb_key_t *key, rowid_t *rid);
-void pcrb_put_key_data(char *key_buf, gs_type_t type, const char *data, uint16 len, uint16 id);
+void pcrb_put_key_data(char *key_buf, ct_type_t type, const char *data, uint16 len, uint16 id);
 void pcrb_decode_key(index_profile_t *profile, pcrb_key_t *key, knl_scan_key_t *scan_key);
 int32 pcrb_compare_key(index_profile_t *profile, knl_scan_key_t *scan_key, pcrb_key_t *key, bool32 cmp_rowid,
                        bool32 *is_same);
@@ -248,7 +166,8 @@ void pcrb_insert_into_page(knl_session_t *session, btree_page_t *page, pcrb_key_
 void pcrb_compact_page(knl_session_t *session, btree_page_t *page, knl_scn_t min_scn);
 uint8 pcrb_copy_itl(knl_session_t *session, pcr_itl_t *src_itl, btree_page_t *dst_page);
 status_t pcrb_compare_mtrl_key(mtrl_segment_t *segment, char *data1, char *data2, int32 *result);
-int32 pcrb_cmp_mtrl_column_data(knl_handle_t col1, knl_handle_t col2, gs_type_t type, uint16 *offset1, uint16 *offset2);
+int32 pcrb_cmp_mtrl_column_data(knl_handle_t col1, knl_handle_t col2, ct_type_t type, uint16 *offset1,
+                                uint16 *offset2, uint16 collate_id);
 void pcrb_clean_key(knl_session_t *session, btree_page_t *page, uint16 slot);
 void pcrb_get_txn_info(knl_session_t *session, btree_page_t *page, pcrb_key_t *key, txn_info_t *txn_info);
 

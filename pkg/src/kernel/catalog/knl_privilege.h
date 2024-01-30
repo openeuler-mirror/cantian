@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -29,6 +29,7 @@
 #include "cm_memory.h"
 #include "knl_interface.h"
 #include "knl_log.h"
+#include "knl_privilege_persistent.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,14 +46,14 @@ extern "C" {
 #define DC_CLR_SYS_OPT(option, id) ((option)[(id) / 8] &= ~(uint32)(0x1 << ((id) % 8)))
 #define DC_HAS_SYS_OPT(option, id) (1 == (((option)[(id) / 8] >> ((id) % 8)) & 0x01))
 
-#define DC_SET_OBJ_PRIV(privs, id) GS_BIT_SET((privs), GS_GET_MASK(id))
-#define DC_GET_OBJ_PRIV(privs, id) GS_BIT_TEST((privs), GS_GET_MASK(id))
-#define DC_CLR_OBJ_PRIV(privs, id) GS_BIT_RESET(privs, GS_GET_MASK(id))
+#define DC_SET_OBJ_PRIV(privs, id) CT_BIT_SET((privs), CT_GET_MASK(id))
+#define DC_GET_OBJ_PRIV(privs, id) CT_BIT_TEST((privs), CT_GET_MASK(id))
+#define DC_CLR_OBJ_PRIV(privs, id) CT_BIT_RESET(privs, CT_GET_MASK(id))
 #define DC_HAS_OBJ_PRIV(privs, id) (DC_GET_OBJ_PRIV(privs, id) != 0)
 
-#define DC_SET_OBJ_OPT(option, id) GS_BIT_SET((option), GS_GET_MASK(id))
-#define DC_GET_OBJ_OPT(option, id) GS_BIT_TEST((option), GS_GET_MASK(id))
-#define DC_CLR_OBJ_OPT(option, id) GS_BIT_RESET(option, GS_GET_MASK(id))
+#define DC_SET_OBJ_OPT(option, id) CT_BIT_SET((option), CT_GET_MASK(id))
+#define DC_GET_OBJ_OPT(option, id) CT_BIT_TEST((option), CT_GET_MASK(id))
+#define DC_CLR_OBJ_OPT(option, id) CT_BIT_RESET(option, CT_GET_MASK(id))
 #define DC_HAS_OBJ_OPT(option, id) (DC_GET_OBJ_PRIV(option, id) != 0)
 #define DC_GET_OBJPRIV_ENTRY(obj_privs, oid) (obj_privs)->groups[(oid) / DC_GROUP_SIZE]->entries[(oid) % DC_GROUP_SIZE]
 
@@ -117,13 +118,7 @@ typedef struct st_knl_dc_update_proc_tab {
     dc_update_proc_func proc_func;
 } knl_dc_update_proc_tab;
 
-typedef struct st_rd_privs {
-    logic_op_t op_type; /* shoud be the first attribution */
-    uint16 id;          /* user or role id */
-    uint16 type;        /* user or role type */
-} rd_privs_t;
-
-#define GS_MAX_GRANT_USERS ((KNL_LOGIC_LOG_BUF_SIZE - LOG_ENTRY_SIZE) / sizeof(rd_privs_t))
+#define CT_MAX_GRANT_USERS ((KNL_LOGIC_LOG_BUF_SIZE - LOG_ENTRY_SIZE) / sizeof(rd_privs_t))
 
 #define DC_CLR_PRIV_INFO(privs, option, id) \
     do {                                    \

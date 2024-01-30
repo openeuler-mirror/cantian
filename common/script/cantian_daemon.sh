@@ -6,20 +6,28 @@ set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
 CMS_ENABLE_FLAG=/opt/cantian/cms/cfg/cms_enable
-DEPLOY_USER=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "deploy_user"`
-MYSQL_IN_CONTAINER=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "mysql_in_container"`
+DEPLOY_USER=$(python3 "${CURRENT_PATH}"/../../action/get_config_info.py "deploy_user")
+MYSQL_IN_CONTAINER=$(python3 ${CURRENT_PATH}/../../action/get_config_info.py "mysql_in_container")
+node_count=$(python3 ${CURRENT_PATH}/../../action/get_config_info.py "cluster_scale")
+LOGICREP_START_FLAG=/opt/software/tools/logicrep/start.success
 CMS_CGROUP=/sys/fs/cgroup/memory/cms
 CANTIAND_CGROUP=/sys/fs/cgroup/memory/cantiand
 CTMGR_CGROUP=/sys/fs/cgroup/memory/ctmgr
 CANTIAN_EXPORTER_CGROUP=/sys/fs/cgroup/memory/cantian_exporter
 CANTIAND_CGROUP_CALCULATE=${CURRENT_PATH}/../../action/cantian/cantiand_cgroup_calculate.sh
-KUBE_CGROUP=/sys/fs/cgroup/cpu/kubepods.slice
+ARCH=$(uname -p)
+KUBE_CGROUP=/sys/fs/cgroup/cpu/kubepods
+if [[ x"${ARCH}" == x"x86_64" ]];then
+    KUBE_CGROUP=/sys/fs/cgroup/cpu/kubepods.slice
+fi
+CMS_MEM_LIMIT=95
 
 source ${CURRENT_PATH}/log4sh.sh
 source ${CANTIAND_CGROUP_CALCULATE}
+source "${CURRENT_PATH}"/../../action/env.sh
 
 cantiand_cgroup_config
-declare -A CGROUP_SIZE_MAP=(['cms']=10 ['cantian_exporter']=2 ['ctmgr']=2 ['cantiand']=${DEFAULT_MEM_SIZE})
+declare -A CGROUP_SIZE_MAP=(['cms']=10240 ['cantian_exporter']=2048 ['ctmgr']=2048 ['cantiand']=${DEFAULT_MEM_SIZE})
 
 function create_cgroup() {
     local cgroup_path=$1
@@ -30,7 +38,7 @@ function create_cgroup() {
     mkdir -p "${cgroup_path}"
     local cgroup_model_path_lis=($(echo ${cgroup_path} | tr '/' ' '))
     local cgroup_memory=${CGROUP_SIZE_MAP[${cgroup_model_path_lis[-1]}]}
-    sh -c "echo ${cgroup_memory}G > ${cgroup_path}/memory.limit_in_bytes"
+    sh -c "echo ${cgroup_memory}M > ${cgroup_path}/memory.limit_in_bytes"
     if [ $? -eq 0 ]; then
         logAndEchoInfo "limited ${cgroup_model_path_lis[-1]} memory ${cgroup_memory} to ${cgroup_path}/memory.limit_in_bytes success"
     else
@@ -80,7 +88,7 @@ function memory_monitoring() {
     if [[ -n ${procs_pid} && -n ${mem_limit} ]]; then
         mem_usage=$(cat /proc/${procs_pid}/status | awk '/VmRSS/{print $2}')
         procs_name=$(cat /proc/${procs_pid}/status | awk '/Name/{print $2}')
-        mem_limit_k=$(expr "${mem_limit}" \* 1024 \* 1024)
+        mem_limit_k=$(expr "${mem_limit}" \* 1024)
         if [[ ${mem_usage} -gt ${mem_limit_k} ]];then
             kill -9 ${procs_pid}
             logAndEchoError "Process ${procs_name}[${procs_pid}] oom, current use ${mem_usage}K, memory limit ${mem_limit_k}K"
@@ -88,8 +96,18 @@ function memory_monitoring() {
     fi
 }
 
-# 循环间隔 1s
-LOOP_TIME=1
+# 监控系统内存占用百分比
+function system_memory_used_percent() {
+    # 获取当前系统内存使用情况
+    total_mem=$(free -m | grep Mem | awk '{print $2}')
+    used_mem=$(free -m | grep Mem | awk '{print $3}')
+    
+    # 计算内存使用占比
+    mem_usage=$(echo "scale=2; $used_mem / $total_mem * 100" | bc)
+}
+
+# 循环间隔 0.8s
+LOOP_TIME=0.8
 # cms后台重拉计数，最大10次，避免cms start卡死后，后台进程过多导致节点资源耗尽
 CMS_COUNT=0
 while :
@@ -110,31 +128,43 @@ do
         logAndEchoInfo "[cantian daemon] ct_om is check_status return 1, begin to start ct_om. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         sh /opt/cantian/action/ct_om/appctl.sh start
         logAndEchoInfo "[cantian daemon] start ct_om result: $?. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        sleep ${LOOP_TIME}
     fi
     # 创建ctmgr cgroup
     ctmgr_pid=$(ps -ef | grep "python3 /opt/cantian/ct_om/service/ctmgr/uds_server.py" | grep -v grep | awk '{print $2}')
     memory_monitoring "${ctmgr_pid}" "${CGROUP_SIZE_MAP['ctmgr']}"
     cgroup_add_pid ${ctmgr_pid} ${CTMGR_CGROUP}
 
-    su -s /bin/bash ${DEPLOY_USER} -c "sh /opt/cantian/action/cantian_exporter/check_status.sh"
+    su -s /bin/bash ${cantian_user} -c "sh /opt/cantian/action/cantian_exporter/check_status.sh"
     if [ $? -ne 0 ];then
         logAndEchoInfo "[cantian daemon] cantian_exporter is check_status return 1, begin to start ct_om. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         sh /opt/cantian/action/cantian_exporter/appctl.sh start
         logAndEchoInfo "[cantian daemon] start cantian_exporter result: $?. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        sleep ${LOOP_TIME}
     fi
     # 创建cantian_exporter cgroup
     cantian_exporter_pid=$(ps -ef | grep "python3 /opt/cantian/ct_om/service/cantian_exporter/exporter/execute.py" | grep -v grep | awk '{print $2}')
     memory_monitoring "${cantian_exporter_pid}" "${CGROUP_SIZE_MAP['cantian_exporter']}"
     cgroup_add_pid ${cantian_exporter_pid} ${CANTIAN_EXPORTER_CGROUP}
 
+    # CCB结论：内存阈值主动故障倒换
+    system_memory_used_percent
+    if [[ -n ${cms_pid} ]] && [[ $(echo "$mem_usage > ${CMS_MEM_LIMIT}" | bc) -eq 1 ]]; then
+        su -s /bin/bash - "${cantian_user}" -c "sh /opt/cantian/action/cms/cms_reg.sh disable"
+        kill -9 ${cms_pid}
+        logAndEchoError "[cantian daemon] CMS ABORT !!! cause system memory problem, Current usage: ${mem_usage}%."
+    fi
+    
     if [ ! -f ${CMS_ENABLE_FLAG} ]; then
         sleep ${LOOP_TIME}
         continue
     fi
+    if [ -f ${LOGICREP_START_FLAG} ];then
+        logicrep_pid=$(ps -ef | grep "/opt/software/tools/logicrep/watchdog_logicrep.sh -n logicrep -N" | grep -v grep | awk '{print $2}')
+        if [[ -z ${logicrep_pid} ]];then
+            su -s /bin/bash - ${cantian_user} -c "nohup sh /opt/software/tools/logicrep/watchdog_logicrep.sh -n logicrep -N ${node_count} &" >> /opt/cantian/deploy/deploy_daemon.log 2>&1
+        fi
+    fi
 
-    cms_process_info=$(ps -fu ${DEPLOY_USER} | grep "cms server -start" | grep -vE '(grep|defunct)')
+    cms_process_info=$(ps -fu ${cantian_user} | grep "cms server -start" | grep -vE '(grep|defunct)')
     if [ -z ${cms_process_info} ]; then
       cms_process_count=0
     else
@@ -157,11 +187,14 @@ do
                 iptables -I INPUT -p udp --sport 14587 -j ACCEPT
                 iptables -I FORWARD -p udp --sport 14587 -j ACCEPT
                 iptables -I OUTPUT -p udp --sport 14587 -j ACCEPT
-                logAndEchoInfo "[cantian daemon] begin to start cms use ${DEPLOY_USER}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-                su - ${DEPLOY_USER} -c "sh /opt/cantian/action/cms/cms_start2.sh -start" >> /opt/cantian/cms/log/CmsStatus.log 2>&1 &
+                logAndEchoInfo "[cantian daemon] begin to start cms use ${cantian_user}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+                # 防止重拉cms时，僵尸进程占用文件锁
+                if [ -f "/opt/cantian/cms/cms_server.lck" ]; then
+                    rm -rf /opt/cantian/cms/cms_server.lck
+                fi
+                su -s /bin/bash - ${cantian_user} -c "sh /opt/cantian/action/cms/cms_start2.sh -start" >> /opt/cantian/deploy/deploy_daemon.log 2>&1 &
                 logAndEchoInfo "[cantian daemon] starting cms in backstage ${CMS_COUNT} times. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             fi
-
         fi
         sleep ${LOOP_TIME}
     else

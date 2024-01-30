@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_db_module.h"
 #include "knl_privilege.h"
 #include "knl_context.h"
 #include "dc_priv.h"
@@ -156,71 +157,71 @@ sys_priv_name_id g_sys_privs_def[] = {
 
 // new object privilege item should be add at the bottom for compitable!!!
 obj_priv_name_id g_obj_privs_def[] = {
-    { GS_PRIV_ALTER,        "ALTER" },
-    { GS_PRIV_DELETE,       "DELETE" },
-    { GS_PRIV_EXECUTE,      "EXECUTE" },
-    { GS_PRIV_INDEX,        "INDEX" },
-    { GS_PRIV_INSERT,       "INSERT" },
-    { GS_PRIV_READ,         "READ" },
-    { GS_PRIV_REFERENCES,   "REFERENCES" },
-    { GS_PRIV_SELECT,       "SELECT" },
-    { GS_PRIV_UPDATE,       "UPDATE" },
-    { GS_PRIV_DIRE_READ,    "READ ON DIRECTORY" },
-    { GS_PRIV_DIRE_WRITE,   "WRITE ON DIRECTORY" },
-    { GS_PRIV_DIRE_EXECUTE, "EXECUTE ON DIRECTORY" },
+    { CT_PRIV_ALTER,        "ALTER" },
+    { CT_PRIV_DELETE,       "DELETE" },
+    { CT_PRIV_EXECUTE,      "EXECUTE" },
+    { CT_PRIV_INDEX,        "INDEX" },
+    { CT_PRIV_INSERT,       "INSERT" },
+    { CT_PRIV_READ,         "READ" },
+    { CT_PRIV_REFERENCES,   "REFERENCES" },
+    { CT_PRIV_SELECT,       "SELECT" },
+    { CT_PRIV_UPDATE,       "UPDATE" },
+    { CT_PRIV_DIRE_READ,    "READ ON DIRECTORY" },
+    { CT_PRIV_DIRE_WRITE,   "WRITE ON DIRECTORY" },
+    { CT_PRIV_DIRE_EXECUTE, "EXECUTE ON DIRECTORY" },
 };
 
 // new user privilege item should be add at the bottom for compitable!!!
 user_priv_name_id g_user_privs_def[] = {
-    { GS_PRIV_INHERIT_PRIVILEGES, "INHERIT PRIVILEGES" },
+    { CT_PRIV_INHERIT_PRIVILEGES, "INHERIT PRIVILEGES" },
 };
 
 /* table privilege's scope */
 obj_privs_id g_tab_priv[] = {
-    GS_PRIV_ALTER,
-    GS_PRIV_DELETE,
-    GS_PRIV_INDEX,
-    GS_PRIV_INSERT,
-    GS_PRIV_READ,
-    GS_PRIV_REFERENCES,
-    GS_PRIV_SELECT,
-    GS_PRIV_UPDATE
+    CT_PRIV_ALTER,
+    CT_PRIV_DELETE,
+    CT_PRIV_INDEX,
+    CT_PRIV_INSERT,
+    CT_PRIV_READ,
+    CT_PRIV_REFERENCES,
+    CT_PRIV_SELECT,
+    CT_PRIV_UPDATE
 };
 
 /* table privilege's scope */
 obj_privs_id g_view_priv[] = {
-    GS_PRIV_DELETE,
-    GS_PRIV_INSERT,
-    GS_PRIV_READ,
-    GS_PRIV_REFERENCES,
-    GS_PRIV_SELECT,
-    GS_PRIV_UPDATE
+    CT_PRIV_DELETE,
+    CT_PRIV_INSERT,
+    CT_PRIV_READ,
+    CT_PRIV_REFERENCES,
+    CT_PRIV_SELECT,
+    CT_PRIV_UPDATE
 };
 
 /* procedure/function privilege's scope */
 obj_privs_id g_proc_priv[] = {
-    GS_PRIV_EXECUTE
+    CT_PRIV_EXECUTE
 };
 
 /* library privilege's scope */
 obj_privs_id g_lib_priv[] = {
-    GS_PRIV_EXECUTE,
+    CT_PRIV_EXECUTE,
 };
 
 /* sequence privilege's scope */
 obj_privs_id g_seq_priv[] = {
-    GS_PRIV_ALTER,
-    GS_PRIV_SELECT
+    CT_PRIV_ALTER,
+    CT_PRIV_SELECT
 };
 
 obj_privs_id g_dire_priv[] = {
-    GS_PRIV_DIRE_READ,
-    GS_PRIV_DIRE_WRITE,
-    GS_PRIV_DIRE_EXECUTE
+    CT_PRIV_DIRE_READ,
+    CT_PRIV_DIRE_WRITE,
+    CT_PRIV_DIRE_EXECUTE
 };
 
 user_privs_id g_user_priv[] = {
-    GS_PRIV_INHERIT_PRIVILEGES
+    CT_PRIV_INHERIT_PRIVILEGES
 };
 
 bool32 knl_priv_in_scope(uint32 priv_id, obj_privs_id *priv_scope, uint32 count)
@@ -230,11 +231,11 @@ bool32 knl_priv_in_scope(uint32 priv_id, obj_privs_id *priv_scope, uint32 count)
     for (i = 0; i < count; i++) {
         /* the largest priv_scope is not larger than uint32 */
         if (priv_id == (uint32)priv_scope[i]) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 void knl_get_objprivs_set(object_type_t objtype, obj_privs_id **set, uint32 *count)
@@ -278,15 +279,15 @@ status_t knl_check_obj_priv_scope(uint32 priv_id, object_type_t objtype)
 
     knl_get_objprivs_set(objtype, &set, &count);
     if (set == NULL || count == 0) {
-        GS_LOG_RUN_ERR("[PRIV] failed to get objprivs set");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[PRIV] failed to get objprivs set");
+        return CT_ERROR;
     }
 
     if (knl_priv_in_scope(priv_id, set, count)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     } else {
-        GS_LOG_RUN_ERR("[PRIV] priv not in scope");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[PRIV] priv not in scope");
+        return CT_ERROR;
     }
 }
 
@@ -296,7 +297,7 @@ bool32 knl_sys_priv_match(text_t *priv_name, sys_privs_id *spid)
     char *cmp_priv = NULL;
 
     begin_pos = 0;
-    end_pos = GS_SYS_PRIVS_COUNT - 1;
+    end_pos = CT_SYS_PRIVS_COUNT - 1;
 
     while (end_pos >= begin_pos) {
         /* mid_pos is the average of begin_pos and end_pos */
@@ -306,7 +307,7 @@ bool32 knl_sys_priv_match(text_t *priv_name, sys_privs_id *spid)
         cmp_result = cm_compare_str_ins(T2S(priv_name), cmp_priv);
         if (cmp_result == 0) {
             *spid = g_sys_privs_def[mid_pos].spid;
-            return GS_TRUE;
+            return CT_TRUE;
         } else if (cmp_result < 0) {
             end_pos = mid_pos - 1;
         } else {
@@ -314,7 +315,7 @@ bool32 knl_sys_priv_match(text_t *priv_name, sys_privs_id *spid)
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 bool32 knl_obj_priv_match(text_t *priv_name, obj_privs_id *opid)
@@ -322,25 +323,25 @@ bool32 knl_obj_priv_match(text_t *priv_name, obj_privs_id *opid)
     uint32 i;
 
     /* find by object type */
-    for (i = 0; i < GS_OBJ_PRIVS_COUNT; i++) {
+    for (i = 0; i < CT_OBJ_PRIVS_COUNT; i++) {
         if (cm_text_str_equal(priv_name, g_obj_privs_def[i].name)) {
             *opid = (obj_privs_id)i;
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 bool32 knl_user_priv_match(text_t *priv_name, user_privs_id *upid)
 {
-    for (uint32 i = 0; i < GS_USER_PRIVS_COUNT; i++) {
+    for (uint32 i = 0; i < CT_USER_PRIVS_COUNT; i++) {
         if (cm_text_str_equal(priv_name, g_user_privs_def[i].name)) {
             *upid = (user_privs_id)i;
-            return GS_TRUE;
+            return CT_TRUE;
         }
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 bool32 db_check_role_circle_grant(dc_role_t *role1, dc_role_t *role2)
@@ -349,20 +350,20 @@ bool32 db_check_role_circle_grant(dc_role_t *role1, dc_role_t *role2)
     dc_granted_role *child_role = NULL;
 
     if (role1 == role2) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     cm_list_for_each(item, &role2->child_roles)
     {
         child_role = cm_list_entry(item, dc_granted_role, node);
         if (role1 == child_role->granted_role) {
-            return GS_TRUE;
+            return CT_TRUE;
         } else {
             return db_check_role_circle_grant(role1, child_role->granted_role);
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 status_t db_insert_sys_priv(knl_handle_t session, uint32 id, uint32 grantee_type, uint32 priv_id,
@@ -386,15 +387,15 @@ status_t db_insert_sys_priv(knl_handle_t session, uint32 id, uint32 grantee_type
     (void)row_put_int32(&ra, priv_id);
     (void)row_put_int32(&ra, admin_opt);
 
-    knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_INSERT, SYS_PRIVS_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_INSERT, SYS_PRIVS_ID, CT_INVALID_ID32);
 
-    if (GS_SUCCESS != knl_internal_insert(session, cursor)) {
+    if (CT_SUCCESS != knl_internal_insert(session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_sys_priv(knl_handle_t session, uint32 uid, uint32 type, uint32 priv_id)
@@ -407,34 +408,34 @@ status_t db_delete_sys_priv(knl_handle_t session, uint32 uid, uint32 type, uint3
     cursor = knl_push_cursor(session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, SYS_PRIVS_ID, IX_SYS_SYS_PRIVS_001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&uid, sizeof(uid),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&uid, sizeof(uid),
                      IX_COL_SYS_PRIVS_001_GRANTEE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&type,
                      sizeof(type), IX_COL_SYS_PRIVS_001_GRANTEE_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&priv_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&priv_id,
                      sizeof(priv_id), IX_COL_SYS_PRIVS_001_RIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_update_sys_priv(knl_handle_t session, uint32 grantee_id, uint32 grantee_type,
@@ -452,26 +453,26 @@ status_t db_update_sys_priv(knl_handle_t session, uint32 grantee_id, uint32 gran
     cursor->row = (row_head_t *)cursor->buf;
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_UPDATE, SYS_PRIVS_ID, IX_SYS_SYS_PRIVS_001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
 
     /* find the tuple by uid & priv_id */
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee_id,
                      sizeof(uint32), IX_COL_SYS_PRIVS_001_GRANTEE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee_type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee_type,
                      sizeof(uint32), IX_COL_SYS_PRIVS_001_GRANTEE_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&priv_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&priv_id,
                      sizeof(uint32), IX_COL_SYS_PRIVS_001_RIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!cursor->eof) {
         admin_opt = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_PRIVS_COL_ADMIN_OPTION);
         if (admin_value == admin_opt) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         } else if (admin_value == 1) {
             /* update admin option */
             row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), 1);
@@ -479,18 +480,18 @@ status_t db_update_sys_priv(knl_handle_t session, uint32 grantee_id, uint32 gran
             cursor->update_info.count = 1;
             cursor->update_info.columns[0] = SYS_PRIVS_COL_ADMIN_OPTION;
             cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, NULL);
-            if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+            if (knl_internal_update(session, cursor) != CT_SUCCESS) {
                 CM_RESTORE_STACK(knl_session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
 
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_update_user_roles(knl_handle_t session, uint32 uid, uint32 grantee_type,
@@ -505,19 +506,19 @@ static status_t db_update_user_roles(knl_handle_t session, uint32 uid, uint32 gr
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_UPDATE, SYS_USER_ROLES_ID, IX_SYS_USER_ROLES_001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
 
     /* find the tuple by uid, rid, type */
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&uid,
                      sizeof(uint32), IX_COL_SYS_USER_ROLES_001_GRANTEE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee_type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee_type,
                      sizeof(uint32), IX_COL_SYS_USER_ROLES_001_GRANTEE_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&rid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&rid,
                      sizeof(uint32), IX_COL_SYS_USER_ROLES_001_GRANTED_ROLE_ID);
 
-    if (GS_SUCCESS != knl_fetch(session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!cursor->eof) {
@@ -527,14 +528,14 @@ static status_t db_update_user_roles(knl_handle_t session, uint32 uid, uint32 gr
         cursor->update_info.count = 1;
         cursor->update_info.columns[0] = SYS_USER_ROLES_COL_ADMIN_OPTION;
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, NULL);
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_insert_object_privs(knl_handle_t session, uint32 grantee, uint32 grantee_type, uint32 privid,
@@ -563,15 +564,15 @@ status_t db_insert_object_privs(knl_handle_t session, uint32 grantee, uint32 gra
     (void)row_put_int32(&ra, grant_opt);
     (void)row_put_int32(&ra, grant_uid);
 
-    knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_INSERT, OBJECT_PRIVS_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_INSERT, OBJECT_PRIVS_ID, CT_INVALID_ID32);
 
-    if (GS_SUCCESS != knl_internal_insert(session, cursor)) {
+    if (CT_SUCCESS != knl_internal_insert(session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_insert_user_privs(knl_handle_t session, uint32 uid, uint32 grantor_id, uint32 grantee_id,
@@ -596,16 +597,16 @@ status_t db_insert_user_privs(knl_handle_t session, uint32 uid, uint32 grantor_i
     (void)row_put_int32(&ra, priv_type);
     (void)row_put_int32(&ra, 0);
 
-    knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_INSERT, SYS_USER_PRIVS_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_INSERT, SYS_USER_PRIVS_ID, CT_INVALID_ID32);
 
-    if (GS_SUCCESS != knl_internal_insert(session, cursor)) {
+    if (CT_SUCCESS != knl_internal_insert(session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(knl_session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -619,20 +620,20 @@ status_t db_update_objname_for_priv(knl_handle_t session, uint32 uid, const char
     CM_SAVE_STACK(knl_session->stack);
     cursor = knl_push_cursor(knl_session);
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_UPDATE, OBJECT_PRIVS_ID, IX_SYS_OBJECT_PRIVS_002_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
 
     /* find the tuple by uid, object name & type */
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&uid,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_002_OBJECT_OWNER);
     /* the length of objname is 68, and is not larger than uint16 */
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, (void *)oldname,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, (void *)oldname,
                      (uint16)strlen(oldname), IX_COL_SYS_OBJECT_PRIVS_002_OBJECT_NAME);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&type,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_002_OBJECT_TYPE);
 
-    if (GS_SUCCESS != knl_fetch(session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -642,19 +643,19 @@ status_t db_update_objname_for_priv(knl_handle_t session, uint32 uid, const char
         cursor->update_info.count = 1;
         cursor->update_info.columns[0] = OBJECT_PRIVS_COL_OBJECT_NAME;
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, NULL);
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 status_t db_update_object_privs(knl_handle_t session, uint32 grantee, uint32 grantee_type, uint32 privid,
                                 dc_obj_priv_item *item, uint32 grant_opt)
@@ -668,26 +669,26 @@ status_t db_update_object_privs(knl_handle_t session, uint32 grantee, uint32 gra
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_UPDATE, OBJECT_PRIVS_ID, IX_SYS_OBJECT_PRIVS_001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
 
     /* find the tuple by uid, rid, type */
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee_type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee_type,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->objowner,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->objowner,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_OWNER);
     /* the length of objname is 68, and is not larger than uint16 */
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, (void *)item->objname,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, (void *)item->objname,
                      (uint16)strlen(item->objname), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_NAME);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->objtype,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->objtype,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&privid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&privid,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_PRIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!cursor->eof) {
@@ -697,14 +698,14 @@ status_t db_update_object_privs(knl_handle_t session, uint32 grantee, uint32 gra
         cursor->update_info.count = 1;
         cursor->update_info.columns[0] = OBJECT_PRIVS_COL_GRANTABLE;
         cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, NULL);
-        if (knl_internal_update(session, cursor) != GS_SUCCESS) {
+        if (knl_internal_update(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_obj_priv(knl_handle_t session, uint32 grantee, uint32 grantee_type, assist_obj_priv_item_t *item)
@@ -717,40 +718,40 @@ status_t db_delete_obj_priv(knl_handle_t session, uint32 grantee, uint32 grantee
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, OBJECT_PRIVS_ID, IX_SYS_OBJECT_PRIVS_001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee_type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee_type,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->objowner,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->objowner,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_OWNER);
     /* the length of objname is 68, and is not larger than uint16 */
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, (void *)&item->objname,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, (void *)&item->objname,
                      (uint16)strlen(item->objname), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_NAME);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->objtype,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->objtype,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->privid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->privid,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_PRIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -764,38 +765,38 @@ status_t db_delete_all_sysprivs(knl_handle_t session, uint32 uid, uint32 type)
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, SYS_PRIVS_ID, IX_SYS_SYS_PRIVS_001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&uid, sizeof(uid),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&uid, sizeof(uid),
                      IX_COL_SYS_PRIVS_001_GRANTEE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&uid, sizeof(uid),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&uid, sizeof(uid),
                      IX_COL_SYS_PRIVS_001_GRANTEE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&type,
                      sizeof(type), IX_COL_SYS_PRIVS_001_GRANTEE_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&type,
                      sizeof(type), IX_COL_SYS_PRIVS_001_GRANTEE_TYPE);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_PRIVS_001_RIVILEGE);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_PRIVS_001_RIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_all_objprivs(knl_handle_t session, uint32 grantee, uint32 grantee_type, dc_obj_priv_item *item)
@@ -808,55 +809,55 @@ status_t db_delete_all_objprivs(knl_handle_t session, uint32 grantee, uint32 gra
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, OBJECT_PRIVS_ID, IX_SYS_OBJECT_PRIVS_001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&grantee,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&grantee,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee_type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee_type,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&grantee_type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&grantee_type,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE_TYPE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->objowner,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->objowner,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_OWNER);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&item->objowner,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&item->objowner,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_OWNER);
     /* the length of objname is 68, and is not larger than uint16 */
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, (void *)&item->objname,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, (void *)&item->objname,
                      (uint16)strlen(item->objname), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_NAME);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_STRING, (void *)&item->objname,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_STRING, (void *)&item->objname,
                      (uint16)strlen(item->objname), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_NAME);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->objtype,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->objtype,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&item->objtype,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&item->objtype,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_TYPE);
 
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_001_PRIVILEGE);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_001_PRIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_insert_user_roles(knl_handle_t session, uint32 grantee_id, uint32 type, uint32 rid,
@@ -882,15 +883,15 @@ static status_t db_insert_user_roles(knl_handle_t session, uint32 grantee_id, ui
     (void)row_put_int32(&ra, admin_opt);
     (void)row_put_int32(&ra, 0);
 
-    knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_INSERT, SYS_USER_ROLES_ID, GS_INVALID_ID32);
+    knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_INSERT, SYS_USER_ROLES_ID, CT_INVALID_ID32);
 
-    if (GS_SUCCESS != knl_internal_insert(session, cursor)) {
+    if (CT_SUCCESS != knl_internal_insert(session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_user_roles(knl_handle_t session, uint32 grantee_id, uint32 type, uint32 rid)
@@ -903,34 +904,34 @@ status_t db_delete_user_roles(knl_handle_t session, uint32 grantee_id, uint32 ty
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, SYS_USER_ROLES_ID, IX_SYS_USER_ROLES_001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee_id,
                      sizeof(grantee_id), IX_COL_SYS_USER_ROLES_001_GRANTEE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&type,
                      sizeof(type), IX_COL_SYS_USER_ROLES_001_GRANTEE_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&rid, sizeof(rid),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&rid, sizeof(rid),
                      IX_COL_SYS_USER_ROLES_001_GRANTED_ROLE_ID);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_privs_by_id(knl_session_t *session, uint32 id, uint32 type)
@@ -943,38 +944,38 @@ status_t db_delete_privs_by_id(knl_session_t *session, uint32 id, uint32 type)
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, SYS_PRIVS_ID, IX_SYS_SYS_PRIVS_001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&id, sizeof(id),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&id, sizeof(id),
                      IX_COL_SYS_PRIVS_001_GRANTEE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&id, sizeof(id),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&id, sizeof(id),
                      IX_COL_SYS_PRIVS_001_GRANTEE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&type,
                      sizeof(type), IX_COL_SYS_PRIVS_001_GRANTEE_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&type,
                      sizeof(type), IX_COL_SYS_PRIVS_001_GRANTEE_TYPE);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_PRIVS_001_RIVILEGE);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_PRIVS_001_RIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_priv_as_grantee(knl_session_t *session, uint32 id, uint32 type)
@@ -987,38 +988,38 @@ status_t db_delete_priv_as_grantee(knl_session_t *session, uint32 id, uint32 typ
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, SYS_USER_ROLES_ID, IX_SYS_USER_ROLES_001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&id, sizeof(id),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&id, sizeof(id),
                      IX_COL_SYS_USER_ROLES_001_GRANTEE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&id, sizeof(id),
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&id, sizeof(id),
                      IX_COL_SYS_USER_ROLES_001_GRANTEE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&type,
                      sizeof(type), IX_COL_SYS_USER_ROLES_001_GRANTEE_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&type,
                      sizeof(type), IX_COL_SYS_USER_ROLES_001_GRANTEE_TYPE);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_USER_ROLES_001_GRANTED_ROLE_ID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_USER_ROLES_001_GRANTED_ROLE_ID);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_role_as_granted(knl_session_t *session, uint32 id)
@@ -1031,44 +1032,44 @@ status_t db_delete_role_as_granted(knl_session_t *session, uint32 id)
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, SYS_USER_ROLES_ID, IX_SYS_USER_ROLES_002_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&id, sizeof(id),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&id, sizeof(id),
                      IX_COL_SYS_USER_ROLES_002_GRANTED_ROLE_ID);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_priv_grant_by_id(knl_session_t *session, uint32 id, uint32 type)
 {
-    if (db_delete_priv_as_grantee(session, id, type) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_delete_priv_as_grantee(session, id, type) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (type == 1) {
-        if (db_delete_role_as_granted(session, id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_delete_role_as_granted(session, id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_drop_object_privs(knl_session_t *session, uint32 uid, const char *objname, uint32 type)
@@ -1081,34 +1082,34 @@ status_t db_drop_object_privs(knl_session_t *session, uint32 uid, const char *ob
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, OBJECT_PRIVS_ID, IX_SYS_OBJECT_PRIVS_002_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&uid, sizeof(uid),
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&uid, sizeof(uid),
                      IX_COL_SYS_OBJECT_PRIVS_002_OBJECT_OWNER);
     /* the length of objname is 68, and is not larger than uint16 */
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, (void *)objname,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, (void *)objname,
                      (uint16)strlen(objname), IX_COL_SYS_OBJECT_PRIVS_002_OBJECT_NAME);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&type,
                      sizeof(type), IX_COL_SYS_OBJECT_PRIVS_002_OBJECT_TYPE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_obj_privs_by_grantee(knl_session_t *session, uint32 grantee, uint32 type)
@@ -1121,15 +1122,15 @@ status_t db_delete_obj_privs_by_grantee(knl_session_t *session, uint32 grantee, 
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, OBJECT_PRIVS_ID, IX_SYS_OBJECT_PRIVS_001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&grantee,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&grantee,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&type,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&type,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE_TYPE);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_OWNER);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_OWNER);
@@ -1140,25 +1141,25 @@ status_t db_delete_obj_privs_by_grantee(knl_session_t *session, uint32 grantee, 
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_001_PRIVILEGE);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_001_PRIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_obj_privs_by_owner(knl_session_t *session, uint32 owner)
@@ -1171,35 +1172,35 @@ status_t db_delete_obj_privs_by_owner(knl_session_t *session, uint32 owner)
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, OBJECT_PRIVS_ID, IX_SYS_OBJECT_PRIVS_002_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&owner,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&owner,
                      sizeof(owner), IX_COL_SYS_OBJECT_PRIVS_002_OBJECT_OWNER);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&owner,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&owner,
                      sizeof(owner), IX_COL_SYS_OBJECT_PRIVS_002_OBJECT_OWNER);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_002_OBJECT_NAME);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_002_OBJECT_NAME);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_002_OBJECT_TYPE);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_002_OBJECT_TYPE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 status_t db_delete_obj_priv_single(knl_handle_t session, uint32 grantee, uint32 grantee_type,
     assist_obj_priv_item_t *item, uint32 *tmp_grantor)
@@ -1214,32 +1215,32 @@ status_t db_delete_obj_priv_single(knl_handle_t session, uint32 grantee, uint32 
     CM_SAVE_STACK(knl_session->stack);
     cursor = knl_push_cursor(knl_session);
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, OBJECT_PRIVS_ID, IX_SYS_OBJECT_PRIVS_001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee,
         sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee_type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee_type,
         sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->objowner,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->objowner,
         sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_OWNER);
     /* the length of objname is 68, and is not larger than uint16 */
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, (void *)&item->objname,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, (void *)&item->objname,
         (uint16)strlen(item->objname), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_NAME);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->objtype,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->objtype,
         sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->privid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->privid,
         sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_PRIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (!cursor->eof) {
         *tmp_grantor = *(uint32 *)CURSOR_COLUMN_DATA(cursor, OBJECT_PRIVS_COL_GRANTOR);
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else {
         CM_RESTORE_STACK(knl_session->stack);
@@ -1250,11 +1251,11 @@ status_t db_delete_obj_priv_single(knl_handle_t session, uint32 grantee, uint32 
             role = ctx->roles[grantee];
             name = role->desc.name;
         }
-        GS_THROW_ERROR(ERR_INVALID_REVOKEE, name);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_REVOKEE, name);
+        return CT_ERROR;
     }
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 status_t db_delete_obj_priv_by_grantor(knl_handle_t session, uint32 root_grantor,
     uint32 grantor_input, uint32 grantor_type, assist_obj_priv_item_t *item)
@@ -1265,32 +1266,32 @@ status_t db_delete_obj_priv_by_grantor(knl_handle_t session, uint32 root_grantor
     uint32 tmp_grantor, next_grantee, next_grantee_type;
     CM_SAVE_STACK(knl_session->stack);
     cursor = knl_push_cursor(knl_session);
-    while (GS_TRUE) {
+    while (CT_TRUE) {
         knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_SELECT, OBJECT_PRIVS_ID, IX_SYS_OBJECT_PRIVS_004_ID);
-        knl_init_index_scan(cursor, GS_TRUE);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantor,
+        knl_init_index_scan(cursor, CT_TRUE);
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantor,
             sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_004_GRANTOR);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->objowner,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->objowner,
             sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_004_OBJECT_OWNER);
         /* the length of objname is 68, and is not larger than uint16 */
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, (void *)&item->objname,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, (void *)&item->objname,
             (uint16)strlen(item->objname), IX_COL_SYS_OBJECT_PRIVS_004_OBJECT_NAME);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->objtype,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->objtype,
             sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_004_OBJECT_TYPE);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->privid,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->privid,
             sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_004_PRIVILEGE);
-        if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         if (cursor->eof) {
-            if (db_delete_obj_priv_single(knl_session, grantor, grantor_type, item, &tmp_grantor) != GS_SUCCESS) {
+            if (db_delete_obj_priv_single(knl_session, grantor, grantor_type, item, &tmp_grantor) != CT_SUCCESS) {
                 CM_RESTORE_STACK(knl_session->stack);
-                return GS_ERROR;
+                return CT_ERROR;
             }
             if (tmp_grantor == root_grantor) {
                 CM_RESTORE_STACK(knl_session->stack);
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             } else {
                 grantor = tmp_grantor;
                 continue;
@@ -1299,13 +1300,13 @@ status_t db_delete_obj_priv_by_grantor(knl_handle_t session, uint32 root_grantor
             next_grantee = *(uint32 *)CURSOR_COLUMN_DATA(cursor, OBJECT_PRIVS_COL_GRANTEE);
             next_grantee_type = *(uint32 *)CURSOR_COLUMN_DATA(cursor, OBJECT_PRIVS_COL_GRANTEE_TYPE);
             if (next_grantee_type == TYPE_ROLE) {
-                if (db_delete_obj_priv_single(knl_session, next_grantee, TYPE_ROLE, item, &tmp_grantor) != GS_SUCCESS) {
+                if (db_delete_obj_priv_single(knl_session, next_grantee, TYPE_ROLE, item, &tmp_grantor) != CT_SUCCESS) {
                     CM_RESTORE_STACK(knl_session->stack);
-                    return GS_ERROR;
+                    return CT_ERROR;
                 }
                 if (tmp_grantor == root_grantor) {
                     CM_RESTORE_STACK(knl_session->stack);
-                    return GS_SUCCESS;
+                    return CT_SUCCESS;
                 } else {
                     grantor = tmp_grantor;
                     continue;
@@ -1317,7 +1318,7 @@ status_t db_delete_obj_priv_by_grantor(knl_handle_t session, uint32 root_grantor
         }
     }
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_obj_privs_by_grantor(knl_session_t *session, uint32 grantor)
@@ -1327,7 +1328,7 @@ status_t db_delete_obj_privs_by_grantor(knl_session_t *session, uint32 grantor)
     assist_obj_priv_item_t obj_item;
     uint32 grantee, grantee_type;
     char *column_data = NULL;
-    uint32 name_len = GS_NAME_BUFFER_SIZE - 1;
+    uint32 name_len = CT_NAME_BUFFER_SIZE - 1;
     errno_t ret;
 
     CM_SAVE_STACK(knl_session->stack);
@@ -1335,24 +1336,24 @@ status_t db_delete_obj_privs_by_grantor(knl_session_t *session, uint32 grantor)
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_SELECT, OBJECT_PRIVS_ID, IX_SYS_OBJECT_PRIVS_004_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantor,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantor,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_004_GRANTOR);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_004_OBJECT_OWNER);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_004_OBJECT_NAME);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_004_OBJECT_TYPE);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_004_PRIVILEGE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&grantor,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&grantor,
         sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_004_GRANTOR);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_004_OBJECT_OWNER);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_004_OBJECT_NAME);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_004_OBJECT_TYPE);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_OBJECT_PRIVS_004_PRIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
@@ -1360,25 +1361,25 @@ status_t db_delete_obj_privs_by_grantor(knl_session_t *session, uint32 grantor)
         grantee_type = *(uint32 *)CURSOR_COLUMN_DATA(cursor, OBJECT_PRIVS_COL_GRANTEE_TYPE);
         obj_item.objowner = *(uint32 *)CURSOR_COLUMN_DATA(cursor, OBJECT_PRIVS_COL_OBJECT_OWNER);
         column_data = CURSOR_COLUMN_DATA(cursor, OBJECT_PRIVS_COL_OBJECT_NAME);
-        ret = strncpy_s(obj_item.objname, GS_NAME_BUFFER_SIZE, column_data, name_len);
+        ret = strncpy_s(obj_item.objname, CT_NAME_BUFFER_SIZE, column_data, name_len);
         obj_item.objtype = *(uint32 *)CURSOR_COLUMN_DATA(cursor, OBJECT_PRIVS_COL_OBJECT_TYPE);
         obj_item.privid = *(uint32 *)CURSOR_COLUMN_DATA(cursor, OBJECT_PRIVS_COL_PRIVILEGE);
 
         knl_securec_check(ret);
 
-        if (db_delete_obj_priv_by_grantor(knl_session, grantor, grantee, grantee_type, &obj_item) != GS_SUCCESS) {
+        if (db_delete_obj_priv_by_grantor(knl_session, grantor, grantee, grantee_type, &obj_item) != CT_SUCCESS) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         
-        if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_user_privs_single(knl_session_t *session, uint32 uid, uint32 grantee_id, user_privs_id priv_type)
@@ -1389,33 +1390,33 @@ status_t db_delete_user_privs_single(knl_session_t *session, uint32 uid, uint32 
     CM_SAVE_STACK(knl_session->stack);
     cursor = knl_push_cursor(knl_session);
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, SYS_USER_PRIVS_ID, IX_USER_PRIVS_001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&uid,
         sizeof(uint32), IX_COL_SYS_USER_PRIVS_001_UID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee_id,
         sizeof(uint32), IX_COL_SYS_USER_PRIVS_001_GRANTEE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&priv_type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&priv_type,
         sizeof(uint32), IX_COL_SYS_USER_PRIVS_001_RIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_user_privs_by_uid(knl_session_t *session, uint32 uid)
@@ -1428,36 +1429,36 @@ status_t db_delete_user_privs_by_uid(knl_session_t *session, uint32 uid)
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, SYS_USER_PRIVS_ID, IX_USER_PRIVS_001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&uid,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&uid,
         sizeof(uint32), IX_COL_SYS_USER_PRIVS_001_UID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&uid,
         sizeof(uint32), IX_COL_SYS_USER_PRIVS_001_UID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_USER_PRIVS_001_GRANTEE);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_USER_PRIVS_001_GRANTEE);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_USER_PRIVS_001_RIVILEGE);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_USER_PRIVS_001_RIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t dc_delect_user_privs_by_grantee(knl_session_t *session, dc_context_t *ctx, knl_cursor_t *cursor)
@@ -1473,7 +1474,7 @@ status_t dc_delect_user_privs_by_grantee(knl_session_t *session, dc_context_t *c
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -1488,73 +1489,73 @@ status_t db_delete_user_privs_by_grantee(knl_session_t *session, uint32 grantee_
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_DELETE, SYS_USER_PRIVS_ID, IX_USER_PRIVS_001_ID);
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee_id,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee_id,
         sizeof(uint32), IX_COL_SYS_USER_PRIVS_001_GRANTEE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, GS_TYPE_INTEGER, (void *)&grantee_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, CT_TYPE_INTEGER, (void *)&grantee_id,
         sizeof(uint32), IX_COL_SYS_USER_PRIVS_001_GRANTEE);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_USER_PRIVS_001_UID);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_USER_PRIVS_001_UID);
     knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_USER_PRIVS_001_RIVILEGE);
     knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_USER_PRIVS_001_RIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     while (!cursor->eof) {
-        if (dc_delect_user_privs_by_grantee(session, ctx, cursor) != GS_SUCCESS) {
+        if (dc_delect_user_privs_by_grantee(session, ctx, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_internal_delete(session, cursor)) {
+        if (CT_SUCCESS != knl_internal_delete(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        if (GS_SUCCESS != knl_fetch(session, cursor)) {
+        if (CT_SUCCESS != knl_fetch(session, cursor)) {
             CM_RESTORE_STACK(knl_session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
     }
 
     CM_RESTORE_STACK(knl_session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_obj_privs_by_id(knl_session_t *session, uint32 id, uint32 type)
 {
-    if (db_delete_obj_privs_by_grantee(session, id, type) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_delete_obj_privs_by_grantee(session, id, type) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (type == 0) {
-        if (db_delete_obj_privs_by_owner(session, id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_delete_obj_privs_by_owner(session, id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (db_delete_obj_privs_by_grantor(session, id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_delete_obj_privs_by_grantor(session, id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_delete_user_privs_by_id(knl_session_t *session, uint32 id)
 {
-    if (db_delete_user_privs_by_grantee(session, id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_delete_user_privs_by_grantee(session, id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_delete_user_privs_by_uid(session, id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_delete_user_privs_by_uid(session, id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -1562,28 +1563,28 @@ status_t db_delete_user_privs_by_id(knl_session_t *session, uint32 id)
 status_t db_delete_all_privs_by_id(knl_session_t *session, uint32 id, uint32 type)
 {
     /* SYS_PRIVS$ */
-    if (db_delete_privs_by_id(session, id, type) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_delete_privs_by_id(session, id, type) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* USER_ROLES$ */
-    if (db_delete_priv_grant_by_id(session, id, type) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_delete_priv_grant_by_id(session, id, type) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* OBJECT_PRIVS$ */
-    if (db_delete_obj_privs_by_id(session, id, type) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_delete_obj_privs_by_id(session, id, type) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* USER_PRIVS$ */
     if (type == 0) {
-        if (db_delete_user_privs_by_id(session, id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (db_delete_user_privs_by_id(session, id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 /*
@@ -1614,8 +1615,8 @@ status_t db_grant_syspriv_to_user(knl_handle_t session, void *def, knl_holders_d
     knl_grant_def_t *grant_def = (knl_grant_def_t *)def;
 
     if (!dc_get_user_id(knl_session, &grantee->name, &uid)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&grantee->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&grantee->name));
+        return CT_ERROR;
     }
 
     dc_ctx = &knl_session->kernel->dc_ctx;
@@ -1627,7 +1628,7 @@ status_t db_grant_syspriv_to_user(knl_handle_t session, void *def, knl_holders_d
             return db_update_sys_priv(session, uid, grantee->type, priv->priv_id, grant_def->admin_opt);
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /* insert a record into SYS_PRIVS$ */
@@ -1644,8 +1645,8 @@ status_t db_grant_syspriv_to_role(knl_handle_t session, void *def, knl_holders_d
     knl_grant_def_t *grant_def = (knl_grant_def_t *)def;
 
     if (!dc_get_role_id(knl_session, &grantee->name, &rid)) {
-        GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&grantee->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&grantee->name));
+        return CT_ERROR;
     }
 
     dc_ctx = &knl_session->kernel->dc_ctx;
@@ -1656,7 +1657,7 @@ status_t db_grant_syspriv_to_role(knl_handle_t session, void *def, knl_holders_d
             return db_update_sys_priv(knl_session, rid, grantee->type, priv->priv_id, grant_def->admin_opt);
         }
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     /* insert a record into SYS_PRIVS$ */
@@ -1673,18 +1674,18 @@ status_t db_grant_objpriv_to_user(knl_handle_t session, void *def, knl_holders_d
     dc_obj_priv_item priv_item;
     dc_user_t *grant_user = NULL;
 
-    if (dc_open_user((knl_session_t *)session, &grantee->name, &user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_user((knl_session_t *)session, &grantee->name, &user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!dc_get_user_id((knl_session_t *)session, &grant_def->schema, &owner_uid)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&grant_def->schema));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&grant_def->schema));
+        return CT_ERROR;
     }
     /* owner has all object privileges, no need grant to self */
     if (owner_uid == user->desc.id ||
         (user->desc.id == DB_SYS_USER_ID && grant_def->priv_type != PRIV_TYPE_OBJ_PRIV)) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     // the largest objtype is not larger than uint32
     if (dc_find_objpriv_entry(&user->obj_privs, owner_uid, &grant_def->objname, (uint32)grant_def->objtype, &entry)) {
@@ -1695,37 +1696,37 @@ status_t db_grant_objpriv_to_user(knl_handle_t session, void *def, knl_holders_d
                                               grant_def->grant_opt);
             }
 
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     } else {
         /* is there enough entry for current privilege item ? */
         if (!dc_has_objpriv_entry(&user->obj_privs)) {
-            GS_THROW_ERROR(ERR_GRANT_OBJ_EXCEED_MAX, DC_GROUP_SIZE * DC_GROUP_SIZE);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_GRANT_OBJ_EXCEED_MAX, DC_GROUP_SIZE * DC_GROUP_SIZE);
+            return CT_ERROR;
         }
     }
     
     /* not granted the privilege to the user yet */
     priv_item.objowner = owner_uid;
-    (void)cm_text2str(&grant_def->objname, priv_item.objname, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&grant_def->objname, priv_item.objname, CT_NAME_BUFFER_SIZE);
     // the largest objtype is not larger than uint32
     priv_item.objtype = (uint32)grant_def->objtype;
 
     if (db_insert_object_privs(session, user->desc.id, grantee->type, priv->priv_id,
-                               &priv_item, grant_def->grant_opt, grant_def->grant_uid) != GS_SUCCESS) {
-        return GS_ERROR;
+                               &priv_item, grant_def->grant_opt, grant_def->grant_uid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (dc_open_user_by_id((knl_session_t *)session, grant_def->grant_uid, &grant_user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_user_by_id((knl_session_t *)session, grant_def->grant_uid, &grant_user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (dc_add_user_grant_objpriv((knl_session_t *)session, grant_user, grantee->type, user->desc.id, &priv_item,
-                                  priv->priv_id) != GS_SUCCESS) {
-        return GS_ERROR;
+                                  priv->priv_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_grant_userpriv_to_user(knl_handle_t session, void *def, knl_holders_def_t *grantee,
@@ -1736,34 +1737,34 @@ status_t db_grant_userpriv_to_user(knl_handle_t session, void *def, knl_holders_
     knl_grant_def_t *grant_def = (knl_grant_def_t *)def;
     dc_user_priv_entry_t *entry = NULL;
 
-    if (dc_open_user((knl_session_t *)session, &grant_def->objname, &user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_user((knl_session_t *)session, &grant_def->objname, &user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!dc_get_user_id((knl_session_t *)session, &grantee->name, &grantee_id)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&grantee->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&grantee->name));
+        return CT_ERROR;
     }
     
     if (dc_find_user_priv_entry(&user->user_privs, grantee_id, &entry)) {
         if (DC_HAS_OBJ_PRIV(entry->user_priv_item.privid_map, priv->priv_id)) {
             /* not support grant option */
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     } else {
         /* is there enough entry for current privilege item ? */
         if (!dc_has_userpriv_entry(&user->user_privs)) {
-            GS_THROW_ERROR(ERR_GRANT_OBJ_EXCEED_MAX, USER_PRIV_GROUP_COUNT * DC_GROUP_SIZE);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_GRANT_OBJ_EXCEED_MAX, USER_PRIV_GROUP_COUNT * DC_GROUP_SIZE);
+            return CT_ERROR;
         }
     }
 
     if (db_insert_user_privs(session, user->desc.id, grant_def->grant_uid, grantee_id,
-        priv->priv_id) != GS_SUCCESS) {
-        return GS_ERROR;
+        priv->priv_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 
@@ -1781,13 +1782,13 @@ status_t db_grant_objpriv_to_role(knl_handle_t session, void *def, knl_holders_d
     dc_user_t *grant_user = NULL;
 
     if (!dc_get_role_id(knl_session, &grantee->name, &rid)) {
-        GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&grantee->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&grantee->name));
+        return CT_ERROR;
     }
 
     if (!dc_get_user_id(knl_session, &grant_def->schema, &owner_uid)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&grant_def->schema));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&grant_def->schema));
+        return CT_ERROR;
     }
 
     dc_ctx = &knl_session->kernel->dc_ctx;
@@ -1796,44 +1797,44 @@ status_t db_grant_objpriv_to_role(knl_handle_t session, void *def, knl_holders_d
     /* the largest objtype is not larger than uint32 */
     if (dc_find_objpriv_entry(&role->obj_privs, owner_uid, &grant_def->objname, (uint32)grant_def->objtype, &entry)) {
         if (DC_HAS_OBJ_PRIV(entry->priv_item.direct_grant, priv->priv_id)) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     } else {
         /* is there enough entry for current privilege item ? */
         if (!dc_has_objpriv_entry(&role->obj_privs)) {
-            GS_THROW_ERROR(ERR_GRANT_OBJ_EXCEED_MAX, DC_GROUP_SIZE * DC_GROUP_SIZE);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_GRANT_OBJ_EXCEED_MAX, DC_GROUP_SIZE * DC_GROUP_SIZE);
+            return CT_ERROR;
         }
     }
 
     /* not granted the privilege to the role yet */
     priv_item.objowner = owner_uid;
-    cm_text2str_with_upper(&grant_def->objname, priv_item.objname, GS_NAME_BUFFER_SIZE);
+    cm_text2str_with_upper(&grant_def->objname, priv_item.objname, CT_NAME_BUFFER_SIZE);
     /* the largest objtype is not larger than uint32 */
     priv_item.objtype = (uint32)grant_def->objtype;
 
     if (db_insert_object_privs(session, role->desc.id, grantee->type, priv->priv_id,
-                               &priv_item, grant_def->grant_opt, grant_def->grant_uid) != GS_SUCCESS) {
-        return GS_ERROR;
+                               &priv_item, grant_def->grant_opt, grant_def->grant_uid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (dc_open_user_by_id(knl_session, grant_def->grant_uid, &grant_user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_user_by_id(knl_session, grant_def->grant_uid, &grant_user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (dc_add_user_grant_objpriv(knl_session, grant_user, grantee->type, role->desc.id, &priv_item,
-                                  priv->priv_id) != GS_SUCCESS) {
-        return GS_ERROR;
+                                  priv->priv_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_grant_userpriv_to_role(knl_handle_t session, void *def, knl_holders_def_t *grantee,
     knl_priv_def_t *priv)
 {
-    GS_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "user privileges can't be granted to role");
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "user privileges can't be granted to role");
+    return CT_ERROR;
 }
 
 status_t db_grant_role_to_user(knl_handle_t session, void *def, knl_holders_def_t *grantee, knl_priv_def_t *priv)
@@ -1849,16 +1850,16 @@ status_t db_grant_role_to_user(knl_handle_t session, void *def, knl_holders_def_
 
     dc_ctx = &knl_session->kernel->dc_ctx;
     if (!dc_get_user_id(knl_session, &grantee->name, &uid)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&grantee->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&grantee->name));
+        return CT_ERROR;
     }
 
     /* the user may dropped by others, it is not safe */
     user = dc_ctx->users[uid];
 
     if (!dc_get_role_id(knl_session, &priv->priv_name, &rid)) {
-        GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&priv->priv_name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&priv->priv_name));
+        return CT_ERROR;
     }
 
     role = dc_ctx->roles[rid];
@@ -1874,7 +1875,7 @@ status_t db_grant_role_to_user(knl_handle_t session, void *def, knl_holders_def_
                 return db_update_user_roles(knl_session, uid, grantee->type, rid, grant_def->admin_opt);
             }
 
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
@@ -1893,13 +1894,13 @@ status_t db_grant_role_to_role(knl_handle_t session, void *def, knl_holders_def_
     knl_grant_def_t *grant_def = (knl_grant_def_t *)def;
 
     if (!dc_get_role_id((knl_session_t *)session, &priv->priv_name, &rid1)) {
-        GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&priv->priv_name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&priv->priv_name));
+        return CT_ERROR;
     }
 
     if (!dc_get_role_id((knl_session_t *)session, &grantee->name, &rid2)) {
-        GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&grantee->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&grantee->name));
+        return CT_ERROR;
     }
     role1 = ctx->roles[rid1];
     role2 = ctx->roles[rid2];
@@ -1914,14 +1915,14 @@ status_t db_grant_role_to_role(knl_handle_t session, void *def, knl_holders_def_
                                             role1->desc.id, grant_def->admin_opt);
             }
 
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
 
     /* check if granted in a circle */
     if (db_check_role_circle_grant(role1, role2)) {
-        GS_THROW_ERROR(ERR_ROLE_CIRCLE_GRANT);
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROLE_CIRCLE_GRANT);
+        return CT_ERROR;
     }
 
     /* add tuple for USER_ROLES$ */
@@ -1937,17 +1938,17 @@ status_t db_grant_objprivs(knl_handle_t session, void *def, knl_holders_def_t *g
     for (i = 0; i < count; i++) {
         priv_item.priv_id = privset[i];
         if (grantee->type == TYPE_USER) {
-            if (db_grant_objpriv_to_user(session, def, grantee, &priv_item) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_grant_objpriv_to_user(session, def, grantee, &priv_item) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         } else {
-            if (db_grant_objpriv_to_role(session, def, grantee, &priv_item) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_grant_objpriv_to_role(session, def, grantee, &priv_item) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_grant_allobjprivs(knl_handle_t session, void *def, knl_holders_def_t *grantee, knl_priv_def_t *priv)
@@ -1958,8 +1959,8 @@ status_t db_grant_allobjprivs(knl_handle_t session, void *def, knl_holders_def_t
 
     knl_get_objprivs_set(grant_def->objtype, &set, &count);
     if (set == NULL || count == 0) {
-        GS_LOG_RUN_ERR("[PRIV] failed to get objprivs set");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[PRIV] failed to get objprivs set");
+        return CT_ERROR;
     }
 
     return db_grant_objprivs(session, def, grantee, set, count);
@@ -1973,17 +1974,17 @@ status_t db_grant_allprivs_to_user(knl_handle_t session, void *def, knl_holders_
     knl_grant_def_t *grant_def = (knl_grant_def_t *)def;
 
     if (PRIV_TYPE_SYS_PRIV == grant_def->priv_type) {
-        for (priv_id = ALL_PRIVILEGES + 1; priv_id < GS_SYS_PRIVS_COUNT; priv_id++) {
+        for (priv_id = ALL_PRIVILEGES + 1; priv_id < CT_SYS_PRIVS_COUNT; priv_id++) {
             priv_item.priv_id = priv_id;
-            if (db_grant_syspriv_to_user(session, def, grantee, &priv_item) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_grant_syspriv_to_user(session, def, grantee, &priv_item) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     } else { /* object privilege */
         return db_grant_allobjprivs(session, def, grantee, priv);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_grant_allprivs_to_role(knl_handle_t session, void *def, knl_holders_def_t *grantee,
@@ -1994,20 +1995,20 @@ status_t db_grant_allprivs_to_role(knl_handle_t session, void *def, knl_holders_
     knl_grant_def_t *grant_def = (knl_grant_def_t *)def;
 
     if (PRIV_TYPE_SYS_PRIV == grant_def->priv_type) {
-        for (priv_id = ALL_PRIVILEGES + 1; priv_id < GS_SYS_PRIVS_COUNT; priv_id++) {
+        for (priv_id = ALL_PRIVILEGES + 1; priv_id < CT_SYS_PRIVS_COUNT; priv_id++) {
             priv_item.priv_id = priv_id;
             priv_item.priv_name.str = g_sys_privs_def[priv_id].name;
             priv_item.priv_name.len = (uint32)strlen(g_sys_privs_def[priv_id].name);
 
-            if (db_grant_syspriv_to_role(session, def, grantee, &priv_item) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (db_grant_syspriv_to_role(session, def, grantee, &priv_item) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     } else {
         return db_grant_allobjprivs(session, def, grantee, priv);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_revoke_syspriv_from_user(knl_handle_t session, void *def, knl_holders_def_t *revokee,
@@ -2020,15 +2021,15 @@ status_t db_revoke_syspriv_from_user(knl_handle_t session, void *def, knl_holder
 
     /* check: if the revokee had been granted the privilege directly before */
     if (!dc_get_user_id(knl_session, &revokee->name, &uid)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&revokee->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&revokee->name));
+        return CT_ERROR;
     }
 
     user = ctx->users[uid];
     if (!DC_HAS_SYS_PRIV(user->sys_privs, priv->priv_id)) {
-        GS_THROW_ERROR(ERR_PRIVS_NOT_GRANT,
+        CT_THROW_ERROR(ERR_PRIVS_NOT_GRANT,
                        T2S(&priv->priv_name), T2S_EX(&revokee->name));
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* delete the tuple from sys_privs$ table */
@@ -2044,16 +2045,16 @@ status_t db_revoke_syspriv_from_role(knl_handle_t session, void *def, knl_holder
     dc_context_t *ctx = &knl_session->kernel->dc_ctx;
 
     if (!dc_get_role_id(knl_session, &revokee->name, &rid)) {
-        GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&revokee->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&revokee->name));
+        return CT_ERROR;
     }
 
     role = ctx->roles[rid];
     /* check if granted the system privilege to the role before */
     if (!DC_HAS_SYS_PRIV(role->sys_privs, priv->priv_id)) {
-        GS_THROW_ERROR(ERR_PRIVS_NOT_GRANT,
+        CT_THROW_ERROR(ERR_PRIVS_NOT_GRANT,
                        T2S(&priv->priv_name), T2S_EX(&revokee->name));
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     /* drop the tuple */
@@ -2068,32 +2069,32 @@ status_t db_get_grantor_id(knl_handle_t session, uint32 grantee, uint32 grantee_
     cursor = knl_push_cursor(knl_session);
 
     knl_open_sys_cursor(knl_session, cursor, CURSOR_ACTION_SELECT, OBJECT_PRIVS_ID, IX_SYS_OBJECT_PRIVS_001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
+    knl_init_index_scan(cursor, CT_TRUE);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&grantee_type,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&grantee_type,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_GRANTEE_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->objowner,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->objowner,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_OWNER);
     /* the length of objname is 68, and is not larger than uint16 */
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_STRING, (void *)&item->objname,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_STRING, (void *)&item->objname,
                      (uint16)strlen(item->objname), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_NAME);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->objtype,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->objtype,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_OBJECT_TYPE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&item->privid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&item->privid,
                      sizeof(uint32), IX_COL_SYS_OBJECT_PRIVS_001_PRIVILEGE);
 
-    if (GS_SUCCESS != knl_fetch(knl_session, cursor)) {
+    if (CT_SUCCESS != knl_fetch(knl_session, cursor)) {
         CM_RESTORE_STACK(knl_session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    *up_grantor = GS_INVALID_ID32;
+    *up_grantor = CT_INVALID_ID32;
     if (!cursor->eof) {
         *up_grantor = *(uint32 *)CURSOR_COLUMN_DATA(cursor, OBJECT_PRIVS_COL_GRANTOR);
     }
     CM_RESTORE_STACK(knl_session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_revoke_objpriv_from_user(knl_handle_t session, void *def, knl_holders_def_t *revokee,
@@ -2106,37 +2107,37 @@ status_t db_revoke_objpriv_from_user(knl_handle_t session, void *def, knl_holder
     dc_obj_priv_entry_t *entry = NULL;
     knl_revoke_def_t *re_def = (knl_revoke_def_t *)def;
 
-    if (dc_open_user((knl_session_t *)session, &revokee->name, &user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_user((knl_session_t *)session, &revokee->name, &user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!dc_get_user_id((knl_session_t *)session, &re_def->schema, &objowner)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&re_def->schema));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&re_def->schema));
+        return CT_ERROR;
     }
     /* the largest objtype is not larger than uint32 */
     if (dc_find_objpriv_entry(&user->obj_privs, objowner, &re_def->objname, (uint32)re_def->objtype, &entry)) {
         if (!DC_HAS_OBJ_PRIV(entry->priv_item.direct_grant, priv->priv_id)) {
-            GS_THROW_ERROR(ERR_PRIVS_NOT_GRANT, T2S(&priv->priv_name),
+            CT_THROW_ERROR(ERR_PRIVS_NOT_GRANT, T2S(&priv->priv_name),
                            T2S_EX(&revokee->name));
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else {
-        GS_THROW_ERROR(ERR_PRIVS_NOT_GRANT, T2S(&priv->priv_name),
+        CT_THROW_ERROR(ERR_PRIVS_NOT_GRANT, T2S(&priv->priv_name),
                        T2S_EX(&revokee->name));
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     item.objowner = objowner;
     item.objtype = re_def->objtype;
-    (void)cm_text2str(&re_def->objname, item.objname, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&re_def->objname, item.objname, CT_NAME_BUFFER_SIZE);
     item.privid = priv->priv_id;
-    if (db_get_grantor_id(session, user->desc.id, revokee->type, &item, &grantorid) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_get_grantor_id(session, user->desc.id, revokee->type, &item, &grantorid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
-    if (grantorid == GS_INVALID_ID32) {
-        GS_THROW_ERROR(ERR_USER_ID_NOT_EXIST, grantorid);
-        return GS_ERROR;
+    if (grantorid == CT_INVALID_ID32) {
+        CT_THROW_ERROR(ERR_USER_ID_NOT_EXIST, grantorid);
+        return CT_ERROR;
     }
     return db_delete_obj_priv_by_grantor(session, grantorid, user->desc.id, revokee->type, &item);
 }
@@ -2149,28 +2150,28 @@ status_t db_revoke_userpriv_from_user(knl_handle_t session, void *def, knl_holde
     dc_user_priv_entry_t *entry = NULL;
     knl_revoke_def_t *re_def = (knl_revoke_def_t *)def;
 
-    if (dc_open_user((knl_session_t *)session, &re_def->objname, &user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_user((knl_session_t *)session, &re_def->objname, &user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (!dc_get_user_id((knl_session_t *)session, &revokee->name, &grantee_id)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&re_def->schema));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&re_def->schema));
+        return CT_ERROR;
     }
 
     if (dc_find_user_priv_entry(&user->user_privs, grantee_id, &entry)) {
         if (!DC_HAS_OBJ_PRIV(entry->user_priv_item.privid_map, priv->priv_id)) {
-            GS_THROW_ERROR(ERR_PRIVS_NOT_GRANT, T2S(&priv->priv_name),
+            CT_THROW_ERROR(ERR_PRIVS_NOT_GRANT, T2S(&priv->priv_name),
                 T2S_EX(&revokee->name));
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else {
-        GS_THROW_ERROR(ERR_PRIVS_NOT_GRANT, T2S(&priv->priv_name),
+        CT_THROW_ERROR(ERR_PRIVS_NOT_GRANT, T2S(&priv->priv_name),
             T2S_EX(&revokee->name));
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return db_delete_user_privs_single(session, user->desc.id, grantee_id, GS_PRIV_INHERIT_PRIVILEGES);
+    return db_delete_user_privs_single(session, user->desc.id, grantee_id, CT_PRIV_INHERIT_PRIVILEGES);
 }
 
 status_t db_revoke_objpriv_from_role(knl_handle_t session, void *def, knl_holders_def_t *revokee,
@@ -2184,32 +2185,32 @@ status_t db_revoke_objpriv_from_role(knl_handle_t session, void *def, knl_holder
     assist_obj_priv_item_t item;
 
     if (!dc_get_role_id((knl_session_t *)session, &revokee->name, &rid)) {
-        GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&revokee->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&revokee->name));
+        return CT_ERROR;
     }
 
     if (!dc_get_user_id((knl_session_t *)session, &re_def->schema, &objowner)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&re_def->schema));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&re_def->schema));
+        return CT_ERROR;
     }
 
     role = ctx->roles[rid];
     /* the largest objtype is not larger than uint32 */
     if (dc_find_objpriv_entry(&role->obj_privs, objowner, &re_def->objname, (uint32)re_def->objtype, &entry)) {
         if (!DC_HAS_OBJ_PRIV(entry->priv_item.direct_grant, priv->priv_id)) {
-            GS_THROW_ERROR(ERR_PRIVS_NOT_GRANT, T2S(&priv->priv_name),
+            CT_THROW_ERROR(ERR_PRIVS_NOT_GRANT, T2S(&priv->priv_name),
                            T2S_EX(&revokee->name));
-            return GS_ERROR;
+            return CT_ERROR;
         }
     } else {
-        GS_THROW_ERROR(ERR_PRIVS_NOT_GRANT, T2S(&priv->priv_name),
+        CT_THROW_ERROR(ERR_PRIVS_NOT_GRANT, T2S(&priv->priv_name),
                        T2S_EX(&revokee->name));
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     item.objowner = objowner;
     item.objtype = re_def->objtype;
-    (void)cm_text2str(&re_def->objname, item.objname, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&re_def->objname, item.objname, CT_NAME_BUFFER_SIZE);
     item.privid = priv->priv_id;
     return db_delete_obj_priv(session, role->desc.id, revokee->type, &item);
 }
@@ -2217,8 +2218,8 @@ status_t db_revoke_objpriv_from_role(knl_handle_t session, void *def, knl_holder
 status_t db_revoke_userpriv_from_role(knl_handle_t session, void *def, knl_holders_def_t *revokee,
     knl_priv_def_t *priv)
 {
-    GS_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "invalid privilege on role");
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "invalid privilege on role");
+    return CT_ERROR;
 }
 
 status_t db_revoke_role_from_user(knl_handle_t session, void *def, knl_holders_def_t *revokee,
@@ -2226,7 +2227,7 @@ status_t db_revoke_role_from_user(knl_handle_t session, void *def, knl_holders_d
 {
     uint32 uid;
     uint32 rid;
-    bool32 granted = GS_FALSE;
+    bool32 granted = CT_FALSE;
     dc_context_t *dc_ctx;
     dc_user_t *user = NULL;
     dc_role_t *role = NULL;
@@ -2235,16 +2236,16 @@ status_t db_revoke_role_from_user(knl_handle_t session, void *def, knl_holders_d
 
     dc_ctx = &knl_session->kernel->dc_ctx;
     if (!dc_get_user_id(knl_session, &revokee->name, &uid)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&revokee->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&revokee->name));
+        return CT_ERROR;
     }
 
     /* the user may dropped by others, it is not safe */
     user = dc_ctx->users[uid];
 
     if (!dc_get_role_id(knl_session, &priv->priv_name, &rid)) {
-        GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&priv->priv_name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&priv->priv_name));
+        return CT_ERROR;
     }
 
     role = dc_ctx->roles[rid];
@@ -2256,14 +2257,14 @@ status_t db_revoke_role_from_user(knl_handle_t session, void *def, knl_holders_d
         /* the role has been granted to the user already */
         child_user = cm_list_entry(item, dc_user_granted, node);
         if (user == child_user->user_granted) {
-            granted = GS_TRUE;
+            granted = CT_TRUE;
             break;
         }
     }
 
     if (!granted) {
-        GS_THROW_ERROR(ERR_ROLE_NOT_GRANT, role->desc.name, T2S(&revokee->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROLE_NOT_GRANT, role->desc.name, T2S(&revokee->name));
+        return CT_ERROR;
     }
 
     /* drop the tuple from USER_ROLES$ */
@@ -2273,7 +2274,7 @@ status_t db_revoke_role_from_user(knl_handle_t session, void *def, knl_holders_d
 status_t db_revoke_role_from_role(knl_handle_t session, void *def, knl_holders_def_t *revokee,
                                   knl_priv_def_t *priv)
 {
-    bool32 granted = GS_FALSE;
+    bool32 granted = CT_FALSE;
     uint32 rid1, rid2;
     cm_list_head *item = NULL;
     dc_role_t *role1 = NULL;
@@ -2283,13 +2284,13 @@ status_t db_revoke_role_from_role(knl_handle_t session, void *def, knl_holders_d
     dc_context_t *ctx = &knl_session->kernel->dc_ctx;
 
     if (!dc_get_role_id(knl_session, &priv->priv_name, &rid1)) {
-        GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&priv->priv_name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&priv->priv_name));
+        return CT_ERROR;
     }
 
     if (!dc_get_role_id(knl_session, &revokee->name, &rid2)) {
-        GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&revokee->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&revokee->name));
+        return CT_ERROR;
     }
 
     role1 = ctx->roles[rid1];
@@ -2299,14 +2300,14 @@ status_t db_revoke_role_from_role(knl_handle_t session, void *def, knl_holders_d
     {
         child = cm_list_entry(item, dc_granted_role, node);
         if (child->granted_role == role2) {
-            granted = GS_TRUE;
+            granted = CT_TRUE;
             break;
         }
     }
 
     if (!granted) {
-        GS_THROW_ERROR(ERR_ROLE_NOT_GRANT, role1->desc.name, T2S(&revokee->name));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_ROLE_NOT_GRANT, role1->desc.name, T2S(&revokee->name));
+        return CT_ERROR;
     }
 
     /* drop the tupe from USER_ROLES$ */
@@ -2322,14 +2323,14 @@ status_t db_revoke_all_sysprivs(knl_handle_t session, void *def, knl_holders_def
     dc_context_t *ctx = &((knl_session_t *)session)->kernel->dc_ctx;
 
     if (revokee->type == TYPE_USER) {
-        if (dc_open_user((knl_session_t *)session, &revokee->name, &user) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_open_user((knl_session_t *)session, &revokee->name, &user) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         grantee = user->desc.id;
     } else {
         if (!dc_get_role_id((knl_session_t *)session, &revokee->name, &rid)) {
-            GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&revokee->name));
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&revokee->name));
+            return CT_ERROR;
         }
         role = ctx->roles[rid];
         grantee = role->desc.id;
@@ -2349,27 +2350,27 @@ status_t db_revoke_all_objprivs(knl_handle_t session, void *def, knl_holders_def
     dc_context_t *ctx = &((knl_session_t *)session)->kernel->dc_ctx;
 
     if (revokee->type == TYPE_USER) {
-        if (dc_open_user((knl_session_t *)session, &revokee->name, &user) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_open_user((knl_session_t *)session, &revokee->name, &user) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         grantee = user->desc.id;
     } else {
         if (!dc_get_role_id((knl_session_t *)session, &revokee->name, &rid)) {
-            GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&revokee->name));
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&revokee->name));
+            return CT_ERROR;
         }
         role = ctx->roles[rid];
         grantee = role->desc.id;
     }
 
     if (!dc_get_user_id((knl_session_t *)session, &re_def->schema, &uid)) {
-        GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&re_def->schema));
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&re_def->schema));
+        return CT_ERROR;
     }
 
     priv_item.objowner = uid;
     priv_item.objtype = re_def->objtype;
-    (void)cm_text2str(&re_def->objname, priv_item.objname, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&re_def->objname, priv_item.objname, CT_NAME_BUFFER_SIZE);
     /* the largest objtype is not larger than uint32 */
     return db_delete_all_objprivs(session, grantee, (uint32)revokee->type, &priv_item);
 }
@@ -2517,7 +2518,7 @@ void dc_grant_objpriv_to_user(knl_handle_t session, void *def, void *privs, hold
         }
     } else {
         /* add a entry for the object */
-        GS_RETVOID_IFERR(dc_alloc_objpriv_entry(ctx, &user->obj_privs, user->memory, grant_def->objowner,
+        CT_RETVOID_IFERR(dc_alloc_objpriv_entry(ctx, &user->obj_privs, user->memory, grant_def->objowner,
                                                 &grant_def->objname, grant_def->objtype, &entry));
     }
 
@@ -2545,7 +2546,7 @@ void dc_grant_userpriv_to_user(knl_handle_t session, void *def, void *privs, hol
 
     grantee = (dc_user_t *)h->handle;
 
-    if (dc_open_user((knl_session_t *)session, &grant_def->objname, &user) != GS_SUCCESS) {
+    if (dc_open_user((knl_session_t *)session, &grant_def->objname, &user) != CT_SUCCESS) {
         return;
     }
 
@@ -2554,7 +2555,7 @@ void dc_grant_userpriv_to_user(knl_handle_t session, void *def, void *privs, hol
             return;
         }
     } else {
-        GS_RETVOID_IFERR(dc_alloc_user_priv_entry(ctx, &user->user_privs, user->memory,
+        CT_RETVOID_IFERR(dc_alloc_user_priv_entry(ctx, &user->user_privs, user->memory,
             grantee->desc.id, &entry));
     }
 
@@ -2585,7 +2586,7 @@ void dc_grant_objpriv_to_role(knl_handle_t session, void *def, void *privs, hold
         }
     } else {
         /* alloc an entry for the object */
-        GS_RETVOID_IFERR(dc_alloc_objpriv_entry(ctx, &role->obj_privs, role->memory, grant_def->objowner,
+        CT_RETVOID_IFERR(dc_alloc_objpriv_entry(ctx, &role->obj_privs, role->memory, grant_def->objowner,
                                                 &grant_def->objname, grant_def->objtype, &entry));
     }
 
@@ -2606,8 +2607,8 @@ bool32 dc_rela_role_to_user(knl_session_t *sess, dc_user_t *user,
 
     if (cm_list_is_empty(&role->child_users_free)) {
         if (dc_alloc_mem(&sess->kernel->dc_ctx, role->memory, sizeof(dc_user_granted),
-            (void **)&user_grant) != GS_SUCCESS) {
-            return GS_FALSE;
+            (void **)&user_grant) != CT_SUCCESS) {
+            return CT_FALSE;
         }
     } else {
         item = role->child_users_free.next;
@@ -2618,8 +2619,8 @@ bool32 dc_rela_role_to_user(knl_session_t *sess, dc_user_t *user,
     user_grant->user_granted = user;
     if (cm_list_is_empty(&user->parent_free)) {
         if (dc_alloc_mem(&sess->kernel->dc_ctx, user->memory, sizeof(dc_granted_role),
-            (void **)&grant_role) != GS_SUCCESS) {
-            return GS_FALSE;
+            (void **)&grant_role) != CT_SUCCESS) {
+            return CT_FALSE;
         }
     } else {
         item = user->parent_free.next;
@@ -2631,7 +2632,7 @@ bool32 dc_rela_role_to_user(knl_session_t *sess, dc_user_t *user,
     /* add the user to the list of the role */
     cm_list_add(&user_grant->node, &role->child_users);
     cm_list_add(&grant_role->node, &user->parent);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 
@@ -2669,7 +2670,7 @@ void dc_grant_role_to_user(knl_handle_t session, void *def, void *privs, hold_t 
             return;
         }
     }
-    if (dc_rela_role_to_user(sess, user, role, grant_def) == GS_FALSE) {
+    if (dc_rela_role_to_user(sess, user, role, grant_def) == CT_FALSE) {
         dls_spin_unlock(session, &user->lock);
         dls_spin_unlock(session, &role->lock);
         return;
@@ -2690,8 +2691,8 @@ bool32 dc_rela_role_to_role(knl_session_t *sess,
 
     if (cm_list_is_empty(&role1->child_roles_free)) {
         if (dc_alloc_mem(&sess->kernel->dc_ctx, role1->memory, sizeof(dc_granted_role),
-            (void **)&child) != GS_SUCCESS) {
-            return GS_FALSE;
+            (void **)&child) != CT_SUCCESS) {
+            return CT_FALSE;
         }
     } else {
         item = role1->child_roles_free.next;
@@ -2704,8 +2705,8 @@ bool32 dc_rela_role_to_role(knl_session_t *sess,
 
     if (cm_list_is_empty(&role2->parent_free)) {
         if (dc_alloc_mem(&sess->kernel->dc_ctx, role2->memory, sizeof(dc_granted_role),
-            (void **)&parent) != GS_SUCCESS) {
-            return GS_FALSE;
+            (void **)&parent) != CT_SUCCESS) {
+            return CT_FALSE;
         }
     } else {
         item = role2->parent_free.next;
@@ -2716,12 +2717,12 @@ bool32 dc_rela_role_to_role(knl_session_t *sess,
     parent->granted_role = role1;
     cm_list_add(&child->node, &role1->child_roles);
     cm_list_add(&parent->node, &role2->parent);
-    return GS_TRUE;
+    return CT_TRUE;
 }
 
 void dc_grant_role_to_role(knl_handle_t session, void *def, void *privs, hold_t *h)
 {
-    bool32 granted = GS_FALSE;
+    bool32 granted = CT_FALSE;
     cm_list_head *item = NULL;
     dc_role_t *role1, *role2;
     dc_granted_role *child = NULL;
@@ -2739,14 +2740,14 @@ void dc_grant_role_to_role(knl_handle_t session, void *def, void *privs, hold_t 
     {
         child = cm_list_entry(item, dc_granted_role, node);
         if (child->granted_role == role2) {
-            granted = GS_TRUE;
+            granted = CT_TRUE;
             if (grant_def->admin_opt == 1 && child->admin_opt == 0) {
                 child->admin_opt = 1;
             }
         }
     }
     if (!granted) {
-        if (dc_rela_role_to_role(sess, role1, role2, grant_def) == GS_FALSE) {
+        if (dc_rela_role_to_role(sess, role1, role2, grant_def) == CT_FALSE) {
             dls_spin_unlock(sess, &role1->lock);
             dls_spin_unlock(sess, &role2->lock);
             return;
@@ -2798,7 +2799,7 @@ void dc_grant_allprivs_to_user(knl_handle_t session, void *def, void *privs, hol
     knl_grant_def_t *grant_def = (knl_grant_def_t *)def;
 
     if (grant_def->priv_type == PRIV_TYPE_SYS_PRIV) {
-        for (priv_id = ALL_PRIVILEGES + 1; priv_id < GS_SYS_PRIVS_COUNT; priv_id++) {
+        for (priv_id = ALL_PRIVILEGES + 1; priv_id < CT_SYS_PRIVS_COUNT; priv_id++) {
             priv_item.id = priv_id;
             priv_item.type = PRIV_TYPE_SYS_PRIV;
             dc_grant_syspriv_to_user(session, def, &priv_item, h);
@@ -2815,7 +2816,7 @@ void dc_grant_allprivs_to_role(knl_handle_t session, void *def, void *privs, hol
     knl_grant_def_t *grant_def = (knl_grant_def_t *)def;
 
     if (grant_def->priv_type == PRIV_TYPE_SYS_PRIV) {
-        for (priv_id = ALL_PRIVILEGES + 1; priv_id < GS_SYS_PRIVS_COUNT; priv_id++) {
+        for (priv_id = ALL_PRIVILEGES + 1; priv_id < CT_SYS_PRIVS_COUNT; priv_id++) {
             priv_item.id = priv_id;
             priv_item.type = PRIV_TYPE_SYS_PRIV;
             dc_grant_syspriv_to_role(session, def, &priv_item, h);
@@ -2861,7 +2862,7 @@ void dc_revoke_objpriv_from_user(knl_handle_t session, void *def, void *privs, h
     dc_user_t *user = (dc_user_t *)h->handle;
     item.objowner = re_def->objowner;
     item.objtype = re_def->objtype;
-    (void)cm_text2str(&re_def->objname, item.objname, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&re_def->objname, item.objname, CT_NAME_BUFFER_SIZE);
     dc_revoke_objpriv_from_user_by_id(&knl_session->kernel->dc_ctx, user, &item, p->id);
 }
 
@@ -2873,7 +2874,7 @@ void dc_revoke_userpriv_from_user(knl_handle_t session, void *def, void *privs, 
     knl_revoke_def_t *re_def = (knl_revoke_def_t *)def;
     knl_session_t *knl_session = (knl_session_t *)session;
 
-    if (dc_open_user(session, &re_def->objname, &user) != GS_SUCCESS) {
+    if (dc_open_user(session, &re_def->objname, &user) != CT_SUCCESS) {
         return;
     }
 
@@ -2892,13 +2893,13 @@ void dc_revoke_objpriv_from_role(knl_handle_t session, void *def, void *privs, h
     role = (dc_role_t *)h->handle;
     item.objowner = re_def->objowner;
     item.objtype = re_def->objtype;
-    (void)cm_text2str(&re_def->objname, item.objname, GS_NAME_BUFFER_SIZE);
+    (void)cm_text2str(&re_def->objname, item.objname, CT_NAME_BUFFER_SIZE);
     dc_revoke_objpriv_from_role_by_id(&knl_session->kernel->dc_ctx, role, &item, p->id);
 }
 
 void dc_revoke_role_from_user(knl_handle_t session, void *def, void *privs, hold_t *h)
 {
-    bool32 granted = GS_FALSE;
+    bool32 granted = CT_FALSE;
     dc_granted_role *parent_role = NULL;
     dc_user_granted *child_user = NULL;
     grant_role_t *g = (grant_role_t *)privs;
@@ -2917,7 +2918,7 @@ void dc_revoke_role_from_user(knl_handle_t session, void *def, void *privs, hold
         /* the role has been granted to the user already */
         child_user = cm_list_entry(item, dc_user_granted, node);
         if (user == child_user->user_granted) {
-            granted = GS_TRUE;
+            granted = CT_TRUE;
             cm_list_remove(item);
             cm_list_add(&child_user->node, &role->child_users_free);
             break;
@@ -2952,7 +2953,7 @@ void dc_revoke_role_from_user(knl_handle_t session, void *def, void *privs, hold
 
 void dc_revoke_role_from_role(knl_handle_t session, void *def, void *privs, hold_t *h)
 {
-    bool32 granted = GS_FALSE;
+    bool32 granted = CT_FALSE;
     cm_list_head *temp = NULL;
     cm_list_head *item = NULL;
     dc_role_t *role1, *role2;
@@ -2970,7 +2971,7 @@ void dc_revoke_role_from_role(knl_handle_t session, void *def, void *privs, hold
     {
         child = cm_list_entry(item, dc_granted_role, node);
         if (child->granted_role == role2) {
-            granted = GS_TRUE;
+            granted = CT_TRUE;
             cm_list_remove(item);
             cm_list_add(&child->node, &role1->child_roles_free);
             break;
@@ -3007,16 +3008,16 @@ void dc_revoke_all_sysprivs(knl_handle_t session, void *def, hold_t *h)
 
     if (h->type == TYPE_USER) {
         user = (dc_user_t *)h->handle;
-        ret = memset_sp(user->sys_privs, GS_SYS_PRIVS_BYTES, 0, GS_SYS_PRIVS_BYTES);
+        ret = memset_sp(user->sys_privs, CT_SYS_PRIVS_BYTES, 0, CT_SYS_PRIVS_BYTES);
         knl_securec_check(ret);
-        ret = memset_sp(user->admin_opt, GS_SYS_PRIVS_BYTES, 0, GS_SYS_PRIVS_BYTES);
+        ret = memset_sp(user->admin_opt, CT_SYS_PRIVS_BYTES, 0, CT_SYS_PRIVS_BYTES);
         knl_securec_check(ret);
         dc_update_user_syspriv_info(user);
     } else {
         role = (dc_role_t *)h->handle;
-        ret = memset_sp(role->sys_privs, GS_SYS_PRIVS_BYTES, 0, GS_SYS_PRIVS_BYTES);
+        ret = memset_sp(role->sys_privs, CT_SYS_PRIVS_BYTES, 0, CT_SYS_PRIVS_BYTES);
         knl_securec_check(ret);
-        ret = memset_sp(role->admin_opt, GS_SYS_PRIVS_BYTES, 0, GS_SYS_PRIVS_BYTES);
+        ret = memset_sp(role->admin_opt, CT_SYS_PRIVS_BYTES, 0, CT_SYS_PRIVS_BYTES);
         knl_securec_check(ret);
         dc_update_user_syspriv_by_role(role);
     }
@@ -3139,42 +3140,42 @@ status_t db_exec_grant_write_table(knl_handle_t session, knl_grant_def_t *def)
     for (i = 0; i < def->grantees.count; i++) {
         grantee = (knl_holders_def_t *)cm_galist_get(&def->grantees, i);
         if (grantee == NULL) {
-            GS_LOG_RUN_ERR("[PRIV] failed to load grantee:%u", i);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[PRIV] failed to load grantee:%u", i);
+            return CT_ERROR;
         }
 
         for (j = 0; j < def->privs.count; j++) {
             priv = (knl_priv_def_t *)cm_galist_get(&def->privs, j);
             if (def->objtype == OBJ_TYPE_DIRECTORY) {
-                bool32 dire_exists = GS_FALSE;
-                if (db_fetch_directory_path(session, T2S(&def->objname), NULL, 0, &dire_exists) != GS_SUCCESS) {
-                    return GS_ERROR;
+                bool32 dire_exists = CT_FALSE;
+                if (db_fetch_directory_path(session, T2S(&def->objname), NULL, 0, &dire_exists) != CT_SUCCESS) {
+                    return CT_ERROR;
                 }
 
                 if (!dire_exists) {
-                    GS_THROW_ERROR(ERR_OBJECT_NOT_EXISTS, "directory", T2S(&def->objname));
-                    return GS_ERROR;
+                    CT_THROW_ERROR(ERR_OBJECT_NOT_EXISTS, "directory", T2S(&def->objname));
+                    return CT_ERROR;
                 }
 
-                if (priv->priv_id != GS_PRIV_DIRE_READ) {
-                    GS_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "grant write/excute privilege on directory");
-                    return GS_ERROR;
+                if (priv->priv_id != CT_PRIV_DIRE_READ) {
+                    CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "grant write/excute privilege on directory");
+                    return CT_ERROR;
                 }
             }
             
             proc_func = find_priv_proc_function(g_grant_proc_func, PRIV_GRANT_PROC_FUNC_COUNT,
                                                 priv->priv_type, grantee->type);
             if (proc_func == NULL) {
-                GS_LOG_RUN_ERR("[PRIV] failed to find priv proc function");
-                return GS_ERROR;
+                CT_LOG_RUN_ERR("[PRIV] failed to find priv proc function");
+                return CT_ERROR;
             }
 
-            if (proc_func(session, def, grantee, priv) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (proc_func(session, def, grantee, priv) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_check_privs_before_grant(knl_session_t *session, knl_grant_def_t *def)
@@ -3190,24 +3191,24 @@ static status_t db_check_privs_before_grant(knl_session_t *session, knl_grant_de
         priv = (knl_priv_def_t *)cm_galist_get(&def->privs, i);
         if (priv->priv_type == PRIV_TYPE_ROLE) {
             if (!dc_get_role_id(session, &priv->priv_name, &rid)) {
-                GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&priv->priv_name));
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&priv->priv_name));
+                return CT_ERROR;
             }
-            if (cm_galist_new(&def->privs_list, sizeof(grant_role_t), (void **)&g) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_galist_new(&def->privs_list, sizeof(grant_role_t), (void **)&g) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             g->type = PRIV_TYPE_ROLE;
             g->handle = ctx->roles[rid];
         } else {
-            if (cm_galist_new(&def->privs_list, sizeof(priv_t), (void **)&p) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_galist_new(&def->privs_list, sizeof(priv_t), (void **)&p) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             p->type = priv->priv_type;
             p->id = priv->priv_id;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_check_grantees_before_grant(knl_session_t *session, knl_grant_def_t *def)
@@ -3222,45 +3223,45 @@ static status_t db_check_grantees_before_grant(knl_session_t *session, knl_grant
         grantee = (knl_holders_def_t *)cm_galist_get(&def->grantees, i);
         if (grantee->type == TYPE_ROLE) {
             if (!dc_get_role_id(session, &grantee->name, &rid)) {
-                GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&grantee->name));
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&grantee->name));
+                return CT_ERROR;
             }
-            if (cm_galist_new(&def->grantee_list, sizeof(hold_t), (void **)&h) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_galist_new(&def->grantee_list, sizeof(hold_t), (void **)&h) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             h->type = TYPE_ROLE;
             h->handle = ctx->roles[rid];
         } else {
             if (!dc_get_user_id(session, &grantee->name, &uid)) {
-                GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&grantee->name));
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&grantee->name));
+                return CT_ERROR;
             }
-            if (cm_galist_new(&def->grantee_list, sizeof(hold_t), (void **)&h) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_galist_new(&def->grantee_list, sizeof(hold_t), (void **)&h) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             h->type = TYPE_USER;
             h->handle = ctx->users[uid];
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_exec_grant_check(knl_session_t *session, knl_grant_def_t *def)
 {
     /* check privs */
-    if (db_check_privs_before_grant(session, def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_check_privs_before_grant(session, def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     /* check grantees */
-    if (db_check_grantees_before_grant(session, def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_check_grantees_before_grant(session, def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     /* check object user */
     if (def->schema.len != 0 && !dc_get_user_id(session, &def->schema, &def->objowner)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void db_grant_update_dc(knl_session_t *session, knl_grant_def_t *def)
@@ -3288,8 +3289,8 @@ void db_grant_update_dc(knl_session_t *session, knl_grant_def_t *def)
 
 status_t db_exec_grant_update_dc(knl_session_t *session, knl_grant_def_t *def)
 {
-    if (db_exec_grant_check(session, def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_exec_grant_check(session, def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     cm_reset_error();
     db_grant_update_dc(session, def);
@@ -3297,9 +3298,9 @@ status_t db_exec_grant_update_dc(knl_session_t *session, knl_grant_def_t *def)
         (g_tls_error.code == ERR_DC_BUFFER_FULL) ||
         (g_tls_error.code == ERR_ALLOC_GA_MEMORY)) {
         knl_rollback(session, NULL);
-        return GS_ERROR;
+        return CT_ERROR;
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void priv_log_put(knl_session_t *session, galist_t *holders)
@@ -3362,50 +3363,50 @@ status_t db_exec_grant_privs(knl_session_t *session, knl_grant_def_t *def)
     dc_context_t *ctx = &session->kernel->dc_ctx;
 
     if (def->grantees.count == 0 || def->privs.count == 0) {
-        GS_LOG_RUN_ERR("[PRIV] failed to exec grant privs");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[PRIV] failed to exec grant privs");
+        return CT_ERROR;
     }
 
-    if (def->grantees.count > GS_MAX_GRANT_USERS) {
-        GS_THROW_ERROR(ERR_GRANTEE_EXCEED_MAX, "grantee", GS_MAX_GRANT_USERS);
-        return GS_ERROR;
+    if (def->grantees.count > CT_MAX_GRANT_USERS) {
+        CT_THROW_ERROR(ERR_GRANTEE_EXCEED_MAX, "grantee", CT_MAX_GRANT_USERS);
+        return CT_ERROR;
     }
 
     dls_spin_lock(session, &ctx->paral_lock, NULL);
-    if (db_exec_grant_write_table(session, def) != GS_SUCCESS) {
+    if (db_exec_grant_write_table(session, def) != CT_SUCCESS) {
         dls_spin_unlock(session, &ctx->paral_lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_exec_grant_update_dc(session, def) != GS_SUCCESS) {
+    if (db_exec_grant_update_dc(session, def) != CT_SUCCESS) {
         dls_spin_unlock(session, &ctx->paral_lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dls_spin_unlock(session, &ctx->paral_lock);
     grant_log_put(session, def);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void rd_load_privileges(knl_session_t *session, uint32 id, uint32 type)
 {
-    if (dc_load_sys_privs_by_id(session, id, type) != GS_SUCCESS) {
-        GS_LOG_RUN_WAR("[DC] load system privilege faild(id: %u, type: %u)", id, type);
+    if (dc_load_sys_privs_by_id(session, id, type) != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("[DC] load system privilege faild(id: %u, type: %u)", id, type);
         return;
     }
 
-    if (dc_load_role_privs_by_id(session, id, type) != GS_SUCCESS) {
-        GS_LOG_RUN_WAR("[DC] load role privilege faild(id: %u, type: %u)", id, type);
+    if (dc_load_role_privs_by_id(session, id, type) != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("[DC] load role privilege faild(id: %u, type: %u)", id, type);
         return;
     }
 
-    if (dc_load_obj_privs_by_id(session, id, type) != GS_SUCCESS) {
-        GS_LOG_RUN_WAR("[DC] load object privilege faild(id: %u, type: %u)", id, type);
+    if (dc_load_obj_privs_by_id(session, id, type) != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("[DC] load object privilege faild(id: %u, type: %u)", id, type);
         return;
     }
 
-    if (dc_load_user_privs_by_id(session, id) != GS_SUCCESS) {
-        GS_LOG_RUN_WAR("[DC] load user privilege faild(id: %u)", id);
+    if (dc_load_user_privs_by_id(session, id) != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("[DC] load user privilege faild(id: %u)", id);
         return;
     }
 }
@@ -3417,14 +3418,18 @@ void redo_refresh_sys_user_privs(knl_session_t *session)
 
     dc_clear_all_userprivs(&sys_user->user_privs);
 
-    if (dc_load_user_privs_by_id(session, DB_SYS_USER_ID) != GS_SUCCESS) {
-        GS_LOG_RUN_WAR("[DC] load user privilege faild(id: %u)", DB_SYS_USER_ID);
+    if (dc_load_user_privs_by_id(session, DB_SYS_USER_ID) != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("[DC] load user privilege faild(id: %u)", DB_SYS_USER_ID);
         return;
     }
 }
 
 void rd_alter_privs(knl_session_t *session, log_entry_t *log)
 {
+    if (log->size != CM_ALIGN4(sizeof(rd_privs_t)) + LOG_ENTRY_SIZE) {
+        CT_LOG_RUN_ERR("[DC] no need to replay alter privs, log size %u is wrong", log->size);
+        return;
+    }
     rd_privs_t *rd = (rd_privs_t *)log->data;
     dc_context_t *ctx = &session->kernel->dc_ctx;
 
@@ -3434,8 +3439,16 @@ void rd_alter_privs(knl_session_t *session, log_entry_t *log)
             return;
         }
 
+        if (rd->id >= CT_MAX_USERS) {
+            CT_LOG_RUN_ERR("[DC] no need to replay alter privs, invalid user id %u", rd->id);
+            return;
+        }
         rd_clear_user_priv(ctx, ctx->users[rd->id]);
     } else {
+        if (rd->id >= CT_MAX_ROLES) {
+            CT_LOG_RUN_ERR("[DC] no need to replay alter privs, invalid role id %u", rd->id);
+            return;
+        }
         dc_clear_role_priv(session, ctx->roles[rd->id]);
     }
 
@@ -3462,8 +3475,8 @@ status_t db_exec_revoke_write_table(knl_session_t *session, knl_revoke_def_t *de
     for (i = 0; i < def->revokees.count; i++) {
         revokee = (knl_holders_def_t *)cm_galist_get(&def->revokees, i);
         if (revokee == NULL) {
-            GS_LOG_RUN_ERR("[PRIV] failed to load revokee:%u", i);
-            return GS_ERROR;
+            CT_LOG_RUN_ERR("[PRIV] failed to load revokee:%u", i);
+            return CT_ERROR;
         }
 
         for (j = 0; j < def->privs.count; j++) {
@@ -3472,17 +3485,17 @@ status_t db_exec_revoke_write_table(knl_session_t *session, knl_revoke_def_t *de
             proc_func = find_priv_proc_function(g_revoke_proc_func, PRIV_REVOKE_PROC_FUNC_COUNT,
                                                 priv->priv_type, revokee->type);
             if (proc_func == NULL) {
-                GS_LOG_RUN_ERR("[PRIV] failed to find priv proc function");
-                return GS_ERROR;
+                CT_LOG_RUN_ERR("[PRIV] failed to find priv proc function");
+                return CT_ERROR;
             }
 
-            if (proc_func(session, def, revokee, priv) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (proc_func(session, def, revokee, priv) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_check_privs_before_revoke(knl_session_t *session, knl_revoke_def_t *def)
@@ -3498,24 +3511,24 @@ static status_t db_check_privs_before_revoke(knl_session_t *session, knl_revoke_
         priv = (knl_priv_def_t *)cm_galist_get(&def->privs, i);
         if (priv->priv_type == PRIV_TYPE_ROLE) {
             if (!dc_get_role_id(session, &priv->priv_name, &rid)) {
-                GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&priv->priv_name));
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&priv->priv_name));
+                return CT_ERROR;
             }
-            if (cm_galist_new(&def->privs_list, sizeof(grant_role_t), (void **)&g) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_galist_new(&def->privs_list, sizeof(grant_role_t), (void **)&g) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             g->type = PRIV_TYPE_ROLE;
             g->handle = ctx->roles[rid];
         } else {
-            if (cm_galist_new(&def->privs_list, sizeof(priv_t), (void **)&p) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_galist_new(&def->privs_list, sizeof(priv_t), (void **)&p) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             p->type = priv->priv_type;
             p->id = priv->priv_id;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_check_grantees_before_revoke(knl_session_t *session, knl_revoke_def_t *def)
@@ -3530,47 +3543,47 @@ static status_t db_check_grantees_before_revoke(knl_session_t *session, knl_revo
         revokee = (knl_holders_def_t *)cm_galist_get(&def->revokees, i);
         if (revokee->type == TYPE_ROLE) {
             if (!dc_get_role_id(session, &revokee->name, &rid)) {
-                GS_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&revokee->name));
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_ROLE_NOT_EXIST, T2S(&revokee->name));
+                return CT_ERROR;
             }
-            if (cm_galist_new(&def->revokee_list, sizeof(hold_t), (void **)&h) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_galist_new(&def->revokee_list, sizeof(hold_t), (void **)&h) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             h->type = TYPE_ROLE;
             h->handle = ctx->roles[rid];
         } else {
             if (!dc_get_user_id(session, &revokee->name, &uid)) {
-                GS_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&revokee->name));
-                return GS_ERROR;
+                CT_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(&revokee->name));
+                return CT_ERROR;
             }
-            if (cm_galist_new(&def->revokee_list, sizeof(hold_t), (void **)&h) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cm_galist_new(&def->revokee_list, sizeof(hold_t), (void **)&h) != CT_SUCCESS) {
+                return CT_ERROR;
             }
             h->type = TYPE_USER;
             h->handle = ctx->users[uid];
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_exec_revoke_check(knl_session_t *session, knl_revoke_def_t *def)
 {
     /* check privs */
-    if (db_check_privs_before_revoke(session, def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_check_privs_before_revoke(session, def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     /* check grantees */
-    if (db_check_grantees_before_revoke(session, def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_check_grantees_before_revoke(session, def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     /* check object user */
     if (def->schema.len != 0 && !dc_get_user_id(session, &def->schema, &def->objowner)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void db_revoke_update_dc(knl_session_t *session, knl_revoke_def_t *def)
@@ -3599,12 +3612,12 @@ void db_revoke_update_dc(knl_session_t *session, knl_revoke_def_t *def)
 
 status_t db_exec_revoke_update_dc(knl_session_t *session, knl_revoke_def_t *def)
 {
-    if (db_exec_revoke_check(session, def) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_exec_revoke_check(session, def) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     db_revoke_update_dc(session, def);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_exec_revoke_privs(knl_session_t *session, knl_revoke_def_t *def)
@@ -3612,29 +3625,29 @@ status_t db_exec_revoke_privs(knl_session_t *session, knl_revoke_def_t *def)
     dc_context_t *ctx = &session->kernel->dc_ctx;
     
     if (def->revokees.count == 0 || def->privs.count == 0) {
-        GS_LOG_RUN_ERR("[PRIV] failed to exec revoke privs");
-        return GS_ERROR;
+        CT_LOG_RUN_ERR("[PRIV] failed to exec revoke privs");
+        return CT_ERROR;
     }
 
-    if (def->revokees.count > GS_MAX_GRANT_USERS) {
-        GS_THROW_ERROR(ERR_GRANTEE_EXCEED_MAX, "revokee", GS_MAX_GRANT_USERS);
-        return GS_ERROR;
+    if (def->revokees.count > CT_MAX_GRANT_USERS) {
+        CT_THROW_ERROR(ERR_GRANTEE_EXCEED_MAX, "revokee", CT_MAX_GRANT_USERS);
+        return CT_ERROR;
     }
 
     dls_spin_lock(session, &ctx->paral_lock, NULL);
-    if (db_exec_revoke_write_table(session, def) != GS_SUCCESS) {
+    if (db_exec_revoke_write_table(session, def) != CT_SUCCESS) {
         dls_spin_unlock(session, &ctx->paral_lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (db_exec_revoke_update_dc(session, def) != GS_SUCCESS) {
+    if (db_exec_revoke_update_dc(session, def) != CT_SUCCESS) {
         dls_spin_unlock(session, &ctx->paral_lock);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     dls_spin_unlock(session, &ctx->paral_lock);
     revoke_log_put(session, def);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_grant_dirpriv_insert_objpriv(knl_session_t *session, text_t *dir_name, dc_user_t *user,
@@ -3643,33 +3656,33 @@ static status_t db_grant_dirpriv_insert_objpriv(knl_session_t *session, text_t *
     dc_obj_priv_item priv_item;
     dc_obj_priv_entry_t *entry = NULL;
 
-    /* if the user already has the privilege, return gs_success */
+    /* if the user already has the privilege, return ct_success */
     if (dc_find_objpriv_entry(&user->obj_privs, DB_SYS_USER_ID, dir_name, OBJ_TYPE_DIRECTORY, &entry)) {
         if (DC_HAS_OBJ_PRIV(entry->priv_item.direct_grant, priv_id)) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     } else {
         /* judge if there is enough entry for current privilege item  */
         if (!dc_has_objpriv_entry(&user->obj_privs)) {
-            GS_THROW_ERROR(ERR_GRANT_OBJ_EXCEED_MAX, DC_GROUP_SIZE * DC_GROUP_SIZE);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_GRANT_OBJ_EXCEED_MAX, DC_GROUP_SIZE * DC_GROUP_SIZE);
+            return CT_ERROR;
         }
     }
 
     priv_item.objowner = DB_SYS_USER_ID;
-    if (cm_text2str(dir_name, priv_item.objname, GS_NAME_BUFFER_SIZE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_text2str(dir_name, priv_item.objname, CT_NAME_BUFFER_SIZE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     priv_item.objtype = OBJ_TYPE_DIRECTORY;
 
     /* write system table SYS_SYS_OBJECT_PRIVS */
     if (db_insert_object_privs(session, user->desc.id, TYPE_USER, priv_id, &priv_item, 0,
-                               DB_SYS_USER_ID) != GS_SUCCESS) {
-        return GS_ERROR;
+                               DB_SYS_USER_ID) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_revoke_dirpriv_delete_objpriv(knl_session_t *session, uint32 grantor_id, uint32 grantee_id,
@@ -3682,26 +3695,26 @@ static status_t db_revoke_dirpriv_delete_objpriv(knl_session_t *session, uint32 
 
     cm_str2text(item->objname, &dirname);
     if (grantee_type == TYPE_USER) {
-        if (dc_open_user_by_id(session, grantee_id, &user) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_open_user_by_id(session, grantee_id, &user) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         
-        /* if the user do not have the privilege, return gs_success */
+        /* if the user do not have the privilege, return ct_success */
         if (dc_find_objpriv_entry(&user->obj_privs, DB_SYS_USER_ID, &dirname, (uint32)OBJ_TYPE_DIRECTORY, &entry)) {
             if (!DC_HAS_OBJ_PRIV(entry->priv_item.direct_grant, item->privid)) {
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
         } else {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     } else if (grantee_type == TYPE_ROLE) {
         role = session->kernel->dc_ctx.roles[grantee_id];
         if (dc_find_objpriv_entry(&role->obj_privs, DB_SYS_USER_ID, &dirname, (uint32)OBJ_TYPE_DIRECTORY, &entry)) {
             if (!DC_HAS_OBJ_PRIV(entry->priv_item.direct_grant, item->privid)) {
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             }
         } else {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     }
     return db_delete_obj_priv_by_grantor(session, grantor_id, grantee_id, grantee_type, item);
@@ -3714,13 +3727,13 @@ static status_t db_grant_dirpriv_update_dc(knl_session_t *session, text_t *dir_n
     
     if (dc_find_objpriv_entry(&user->obj_privs, DB_SYS_USER_ID, dir_name, OBJ_TYPE_DIRECTORY, &entry)) {
         if (DC_HAS_OBJ_PRIV(entry->priv_item.direct_grant, priv_id)) {
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
     } else {
         /* add a entry for the object */
         if (dc_alloc_objpriv_entry(ctx, &user->obj_privs, user->memory, DB_SYS_USER_ID, dir_name,
-                                   OBJ_TYPE_DIRECTORY, &entry) != GS_SUCCESS) {
-            return GS_ERROR;
+                                   OBJ_TYPE_DIRECTORY, &entry) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -3731,7 +3744,7 @@ static status_t db_grant_dirpriv_update_dc(knl_session_t *session, text_t *dir_n
     entry->priv_item.grantor[priv_id] = DB_SYS_USER_ID;
     cm_spin_unlock(&entry->bucket->lock);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t db_revoke_dirpriv_update_dc(knl_session_t *session, text_t *dir_name, uint32 grantee_id,
@@ -3743,13 +3756,13 @@ static status_t db_revoke_dirpriv_update_dc(knl_session_t *session, text_t *dir_
     
     item.objowner = DB_SYS_USER_ID;
     item.objtype = OBJ_TYPE_DIRECTORY;
-    if (cm_text2str(dir_name, item.objname, GS_NAME_BUFFER_SIZE) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cm_text2str(dir_name, item.objname, CT_NAME_BUFFER_SIZE) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (grantee_type == TYPE_USER) {
-        if (dc_open_user_by_id(session, grantee_id, &user) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_open_user_by_id(session, grantee_id, &user) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         
         dc_revoke_objpriv_from_user_by_id(&session->kernel->dc_ctx, user, &item, priv_id);
@@ -3758,7 +3771,7 @@ static status_t db_revoke_dirpriv_update_dc(knl_session_t *session, text_t *dir_
         dc_revoke_objpriv_from_role_by_id(&session->kernel->dc_ctx, role, &item, priv_id);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_grant_dirpriv_to_user(knl_session_t *session, char *dir_name, uint32 uid, uint32 priv_id)
@@ -3767,21 +3780,21 @@ status_t db_grant_dirpriv_to_user(knl_session_t *session, char *dir_name, uint32
     rd_privs_t redo;
     dc_user_t *user = NULL;
 
-    if (dc_open_user_by_id(session, uid, &user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_user_by_id(session, uid, &user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (uid == DB_SYS_USER_ID) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     
     cm_str2text(dir_name, &dirname);
-    if (db_grant_dirpriv_insert_objpriv(session, &dirname, user, priv_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_grant_dirpriv_insert_objpriv(session, &dirname, user, priv_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_grant_dirpriv_update_dc(session, &dirname, user, priv_id) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_grant_dirpriv_update_dc(session, &dirname, user, priv_id) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     redo.op_type = RD_GRANT_PRIVS;
@@ -3789,7 +3802,7 @@ status_t db_grant_dirpriv_to_user(knl_session_t *session, char *dir_name, uint32
     redo.id = user->desc.id;
     log_put(session, RD_LOGIC_OPERATION, &redo, sizeof(rd_privs_t), LOG_ENTRY_FLAG_NONE);
     
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t db_revoke_dirpriv_from_grantee(knl_session_t *session, uint32 grantor_id, uint32 grantee_id,
@@ -3799,12 +3812,12 @@ status_t db_revoke_dirpriv_from_grantee(knl_session_t *session, uint32 grantor_i
     rd_privs_t redo;
 
     cm_str2text(item->objname, &dirname);
-    if (db_revoke_dirpriv_delete_objpriv(session, grantor_id, grantee_id, grantee_type, item) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_revoke_dirpriv_delete_objpriv(session, grantor_id, grantee_id, grantee_type, item) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (db_revoke_dirpriv_update_dc(session, &dirname, grantee_id, grantee_type, item->privid) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (db_revoke_dirpriv_update_dc(session, &dirname, grantee_id, grantee_type, item->privid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     redo.op_type = RD_GRANT_PRIVS;
@@ -3812,54 +3825,54 @@ status_t db_revoke_dirpriv_from_grantee(knl_session_t *session, uint32 grantor_i
     redo.id = grantee_id;
     log_put(session, RD_LOGIC_OPERATION, &redo, sizeof(rd_privs_t), LOG_ENTRY_FLAG_NONE);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 bool32 db_check_dirpriv_by_uid(knl_session_t *session, char *objname, uint32 uid, uint32 priv_id)
 {
     text_t dir_name;
     dc_user_t *user = NULL;
-    bool32 user_has = GS_FALSE;
-    bool32 public_has = GS_FALSE;
+    bool32 user_has = CT_FALSE;
+    bool32 public_has = CT_FALSE;
     dc_obj_priv_entry_t *entry = NULL;
 
     /* sys user has all priv on the directory */
     if (uid == DB_SYS_USER_ID) {
-        return GS_TRUE;
+        return CT_TRUE;
     }
 
     /* check current user if has read priv on the directory */
-    if (dc_open_user_by_id(session, uid, &user) != GS_SUCCESS) {
-        return GS_FALSE;
+    if (dc_open_user_by_id(session, uid, &user) != CT_SUCCESS) {
+        return CT_FALSE;
     }
     
     cm_str2text(objname, &dir_name);
     if (dc_find_objpriv_entry(&user->obj_privs, DB_SYS_USER_ID, &dir_name, OBJ_TYPE_DIRECTORY, &entry)) {
         cm_spin_lock(&entry->bucket->lock, NULL);
-        if (DC_HAS_OBJ_PRIV(entry->priv_item.privid_map, GS_PRIV_DIRE_READ)) {
-            user_has = GS_TRUE;
+        if (DC_HAS_OBJ_PRIV(entry->priv_item.privid_map, CT_PRIV_DIRE_READ)) {
+            user_has = CT_TRUE;
         }
         cm_spin_unlock(&entry->bucket->lock);
     }
 
     /* check public user if has read priv on the directory */
-    if (dc_open_user_by_id(session, DB_PUB_USER_ID, &user) != GS_SUCCESS) {
-        return GS_FALSE;
+    if (dc_open_user_by_id(session, DB_PUB_USER_ID, &user) != CT_SUCCESS) {
+        return CT_FALSE;
     }
     
     cm_str2text(objname, &dir_name);
     if (dc_find_objpriv_entry(&user->obj_privs, DB_SYS_USER_ID, &dir_name, OBJ_TYPE_DIRECTORY, &entry)) {
         cm_spin_lock(&entry->bucket->lock, NULL);
-        if (DC_HAS_OBJ_PRIV(entry->priv_item.privid_map, GS_PRIV_DIRE_READ)) {
-            public_has = GS_TRUE;
+        if (DC_HAS_OBJ_PRIV(entry->priv_item.privid_map, CT_PRIV_DIRE_READ)) {
+            public_has = CT_TRUE;
         }
         cm_spin_unlock(&entry->bucket->lock);
     }
 
     if (user_has || public_has) {
-        return GS_TRUE;
+        return CT_TRUE;
     } else {
-        return GS_FALSE;
+        return CT_FALSE;
     }
 }
 

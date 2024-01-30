@@ -85,7 +85,7 @@ class CheckException(Exception):
     '''
     def __init__(self, content):
         super(CheckException, self).__init__(self)
-        self.code = "GAUSS-53000"
+        self.code = "CANTIAN-53000"
         self.content = content
 
     def __str__(self):
@@ -98,7 +98,7 @@ class CheckNAException(CheckException):
     '''
     def __init__(self, item):
         super(CheckNAException, self).__init__(self.__class__.__name__)
-        self.code = "GAUSS-53033"
+        self.code = "CANTIAN-53033"
         self.content = "Check item %s are not needed" % item
         self.content += " at the current node"
 
@@ -109,7 +109,7 @@ class TimeoutException(CheckException):
     '''
     def __init__(self, second):
         super(TimeoutException, self).__init__(self.__class__.__name__)
-        self.code = "GAUSS-53028"
+        self.code = "CANTIAN-53028"
         self.content = "Execute timeout. The timeout has been"
         self.content += " set to %d second." % second
 
@@ -166,7 +166,7 @@ class SharedFuncs:
         cmd = cmd + "; echo ${PIPESTATUS[*]}"
         # change user but can not be root user
         if (user and user != get_current_user()):
-            cmd = "su - %s -c 'source ~/.bashrc; %s'" % (user, cmd)
+            cmd = "su -s /bin/bash - %s -c 'source ~/.bashrc; %s'" % (user, cmd)
 
         # execute cmd
         p = subprocess.Popen(['bash', '-c', cmd],
@@ -220,10 +220,10 @@ class SharedFuncs:
         output : String
         """
         if not db_passwd:
-            return 1, "CANTIAN V300R001"
+            return 1, "CantianDB 100 V300R001"
 
-        zsql_path = os.path.join(app_path, "bin")
-        sql_cmd = "%s/ctclient %s@%s:%s -q -c \"%s\"" % (zsql_path,
+        ctsql_path = os.path.join(app_path, "bin")
+        sql_cmd = "source ~/.bashrc && %s/ctsql %s@%s:%s -q -c \"%s\"" % (ctsql_path,
                                                     db_user,
                                                     db_addr,
                                                     port,

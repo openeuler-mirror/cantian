@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -39,7 +39,7 @@ typedef struct st_repair_page_def {
     input_data_t head_input;
     input_data_t tail_input;
     input_data_t ctrl_input;
-    char log_path[GS_FILE_NAME_BUFFER_SIZE];
+    char log_path[CT_FILE_NAME_BUFFER_SIZE];
     bool32 is_force;
     bool32 is_checksum;
 } repair_page_def_t;

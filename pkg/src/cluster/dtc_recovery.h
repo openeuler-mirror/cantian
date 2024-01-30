@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -36,8 +36,12 @@
 #include "knl_recovery.h"
 #include "cm_types.h"
 
-#define GS_RCY_SET_SIZE                 SIZE_M(64)
-#define GS_RCY_SET_BUCKET               1048573
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define CT_RCY_SET_SIZE                 SIZE_M(64)
+#define CT_RCY_SET_BUCKET               1048573
 #define RCY_SET_BUCKET_TIMES            3 // the times of buckets against buffer ctrl
 #define DTC_RCY_PARAL_BUF_LIST_SIZE     256 // must is power of 2
 #define DTC_RCY_PARAL_BUF_LIST_MASK     (DTC_RCY_PARAL_BUF_LIST_SIZE - 1)
@@ -117,8 +121,8 @@ typedef struct st_rcy_set {
     rcy_set_bucket_t *buckets;
     rcy_set_item_pool_t *item_pools;
     rcy_set_item_pool_t *curr_item_pools;
-    page_id_t *pages[GS_MAX_INSTANCES];
-    uint32 page_count[GS_MAX_INSTANCES];
+    page_id_t *pages[CT_MAX_INSTANCES];
+    uint32 page_count[CT_MAX_INSTANCES];
 } rcy_set_t;
 
 typedef enum en_dtc_rcy_phase {
@@ -141,7 +145,7 @@ typedef struct st_dtc_rcy_node {
     uint32 write_pos;
     uint64 curr_file_length;
     arch_file_t arch_file; // archive logfile
-    int32 handle[GS_MAX_LOG_FILES];  // online logfile handle
+    int32 handle[CT_MAX_LOG_FILES];  // online logfile handle
     log_point_t analysis_read_end_point;
     log_point_t recovery_read_end_point;
 } dtc_rcy_node_t;
@@ -166,7 +170,7 @@ typedef struct st_dtc_rcy_stat {
     uint64 last_rcy_logic_log_elapsed;      // replay logic log time consuming
     uint64 latc_rcy_logic_log_wait_time;    // wait time before replay logic log group
     instance_list_t last_rcy_inst_list;     // recovery instance list
-    rcy_node_stat_t rcy_log_points[GS_MAX_INSTANCES];  // rcy&lrp point of each recovery inst
+    rcy_node_stat_t rcy_log_points[CT_MAX_INSTANCES];  // rcy&lrp point of each recovery inst
 
     // accumulate recovery stat
     uint64 accum_rcy_log_size;              // accumulate redo log size
@@ -186,7 +190,7 @@ typedef enum st_dtc_recovery_status {
 } dtc_recovery_status_e;
 
 typedef struct st_dtc_rcy_context {
-    rcy_bucket_t bucket[GS_MAX_PARAL_RCY];
+    rcy_bucket_t bucket[CT_MAX_PARAL_RCY];
     spinlock_t lock;
     thread_t thread;
     bool32 full_recovery;
@@ -200,7 +204,7 @@ typedef struct st_dtc_rcy_context {
     dtc_rcy_phase_e phase;
     rcy_set_t rcy_set;
     dtc_rcy_node_t *rcy_nodes;
-    reform_rcy_node_t rcy_log_points[GS_MAX_INSTANCES];
+    reform_rcy_node_t rcy_log_points[CT_MAX_INSTANCES];
     uint8 curr_node_idx;
     uint8 curr_node;
     uint8 replay_thread_num;
@@ -235,8 +239,8 @@ rcy_set_item_t *dtc_rcy_get_item_internal(page_id_t page_id);
 EXTER_ATTACK void dtc_process_rcy_set_ack(void *sess, mes_message_t *msg);
 EXTER_ATTACK void dtc_process_rcy_set_err_ack(void *sess, mes_message_t *msg);
 EXTER_ATTACK void dtc_process_rcy_set(void *sess, mes_message_t *receive_msg);
-status_t dtc_send_page_back_to_node(knl_session_t *session, page_id_t *pages, uint32 count, bool32 finished,
-    uint8 node_id, uint8 cmd);
+EXTER_ATTACK status_t dtc_send_page_back_to_node(knl_session_t *session, page_id_t *pages,
+    uint32 count, bool32 finished, uint8 node_id, uint8 cmd);
 status_t dtc_send_page_to_node(knl_session_t *session, page_id_t *pages, uint32 count, bool32 finished,
     uint8 node_id, uint8 cmd);
 bool32 dtc_prcy_ckpt_in_progress(knl_session_t *session);
@@ -256,7 +260,8 @@ status_t dtc_rcy_process_batch(knl_session_t *session, log_batch_t *batch);
 bool32 dtc_rcy_validate_batch(log_batch_t *batch);
 status_t dtc_add_dirtypage_for_recovery(knl_session_t *session, page_id_t page_id);
 status_t dtc_update_ckpt_log_point(void);
-status_t dtc_rcy_set_update_no_need_replay_batch(rcy_set_t *rcy_set, page_id_t *no_rcy_pages, uint32 count);
+EXTER_ATTACK status_t dtc_rcy_set_update_no_need_replay_batch(rcy_set_t *rcy_set,
+    page_id_t *no_rcy_pages, uint32 count);
 status_t dtc_rcy_set_item_update_need_replay(rcy_set_bucket_t *bucket, page_id_t page_id, bool8 need_replay);
 status_t dtc_rcy_verify_analysis_and_recovery_log_point(log_point_t analysis_read_end_point,
     log_point_t recovery_read_end_point);
@@ -268,6 +273,12 @@ void dtc_rcy_inc_need_analysis_leave_page_cnt(bool32 recover_flag);
 void dtc_rcy_dec_need_analysis_leave_page_cnt(bool32 recover_flag);
 void dtc_rcy_reset_need_analysis_leave_page_cnt(bool32 recover_flag);
 bool8 dtc_rcy_is_need_analysis_leave_page(bool32 recover_flag);
+status_t dtc_update_batch(knl_session_t *session, uint32 node_id);
+status_t dtc_skip_damage_batch(knl_session_t *session, log_batch_t **batch, uint32 node_id);
+status_t dtc_skip_batch(knl_session_t *session, log_batch_t **batch, uint32 node_id);
+status_t dtc_find_next_batch(knl_session_t *session, log_batch_t **batch, uint32 cur_block_id, uint64 cur_lsn, uint32 node_id);
+void dtc_rcy_next_file(knl_session_t *session, uint32 idx, bool32 *need_more_log);
+status_t dtc_rcy_read_node_log(knl_session_t *session, uint32 idx, uint32 *size_read);
 
 #define DTC_RCY_CONTEXT                         (&g_dtc->dtc_rcy_ctx)
 #define DTC_RCY_GET_CURR_BATCH(dtc_rcy, idx) \
@@ -280,4 +291,7 @@ bool8 dtc_rcy_is_need_analysis_leave_page(bool32 recover_flag);
     ((session)->dtc_session_type == DTC_PART_RCY || (session)->dtc_session_type == DTC_PART_RCY_PARAL)
 #define DAAC_SESSION_IN_RECOVERY(session)       (DAAC_FULL_RECOVER_SESSION(session) || DAAC_PARTIAL_RECOVER_SESSION(session))
 
+#ifdef __cplusplus
+}
+#endif
 #endif

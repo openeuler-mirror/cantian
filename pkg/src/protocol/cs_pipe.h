@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -51,6 +51,7 @@ typedef enum en_cs_pipe_type {
     CS_TYPE_RSOCKET = 7,  /* rdma socket mode with rdma_cm library */
     CS_TYPE_RDMA   = 8,   /* direct mode, reserved */
     CS_TYPE_UC   = 9,
+    CS_TYPE_UC_RDMA = 10,
     CS_TYPE_CEIL
 } cs_pipe_type_t;
 
@@ -149,7 +150,7 @@ typedef status_t (*send_column_cursor_t)(void *stmt, cursor_t *v);
 typedef status_t (*send_column_struct_t)(void *stmt, var_record_t *v);
 typedef void (*send_column_def_t)(void *stmt, void *cursor);
 typedef status_t (*send_column_array_t)(void *stmt, var_array_t *v);
-typedef status_t (*send_return_value_t)(void *stmt, gs_type_t type, typmode_t *typmod, variant_t *v);
+typedef status_t (*send_return_value_t)(void *stmt, ct_type_t type, typmode_t *typmod, variant_t *v);
 typedef status_t (*send_import_rows_t)(void *stmt);
 typedef status_t (*send_nls_feedback_t)(void *stmt, nlsparam_id_t id, text_t *value);
 typedef status_t (*send_session_tz_feedback_t)(void *stmt, timezone_info_t client_timezone);

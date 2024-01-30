@@ -1,8 +1,10 @@
 include_directories(
-	"${CTDB_SRC}/cluster"
-	"${CTDB_SRC}/cms/interface"
-	"${CTDB_SRC}/rc"
-        "${CTDB_SRC}/zenfs"
+	"${CANTIANDB_SRC}/cluster"
+	"${CANTIANDB_SRC}/cms/interface"
+	"${CANTIANDB_SRC}/rc"
+        "${CANTIANDB_SRC}/zenfs"
+        "${CANTIANDB_SRC}/fdsa"
+        "${CANTIANDB_SRC}/common"
         "${CMAKE_CURRENT_SOURCE_DIR}"
         "${CMAKE_CURRENT_SOURCE_DIR}/backup"
         "${CMAKE_CURRENT_SOURCE_DIR}/buffer"
@@ -46,7 +48,7 @@ set(KERNEL_TOTAL_SRC ${KERNEL_BAK_SRC} ${KERNEL_BUF_SRC} ${KERNEL_CATA_SRC} ${KE
         ${KERNEL_FLASH_SRC} ${KERNEL_INCLUDE_SRC} ${KERNEL_IDX_SRC} ${KERNEL_LOB_SRC} ${KERNEL_PER_SRC} ${KERNEL_REP_SRC}
         ${KERNEL_SEQ_SRC} ${KERNEL_STAT_SRC} ${KERNEL_TBL_SRC} ${KERNEL_TBLSP_SRC} ${KERNEL_XACT_SRC} ${KERNEL_SRC})
 
-link_directories(${CTDB_LIB})
+link_directories(${CANTIANDB_LIB})
 
 add_library(zekernel STATIC ${KERNEL_TOTAL_SRC})
-
+target_link_libraries(zekernel PRIVATE zefdsa)

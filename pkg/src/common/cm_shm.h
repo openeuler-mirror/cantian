@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -56,7 +56,7 @@ extern uint32 g_instance_id;
 #define CM_HASH_SHM_MAX_ID (16)
 #define CM_GA_SHM_MAX_ID (20480)
 /* share memory manager control block magic string, must be 8Bytes aligned, now 48Bytes */
-#define CM_SHM_MAGIC "Huawei Tech. Co., Ltd. cantian DB GSS Software"
+#define CM_SHM_MAGIC "Huawei Tech. Co., Ltd. cantian100 DB CTSTORE Software"
 
 /* share memory control block reserved for future use */
 #define CM_SHM_CTRL_RESERVED 1020
@@ -189,7 +189,7 @@ extern cm_shm_map_t g_shm_map;
 #define OFFSET_TO_ADDR(offset_ptr)                                                                                  \
     ((g_shm_map.entries[((sh_mem_t *)(void *)&(offset_ptr))->seg].addr == NULL                                      \
           ? (uint8_t *)cm_do_attach_shm_without_register((cm_shm_key_t)((sh_mem_t *)(void *)&(offset_ptr))->seg, 0, \
-                                                         CM_SHM_ATTACH_RW, GS_FALSE) +                              \
+                                                         CM_SHM_ATTACH_RW, CT_FALSE) +                              \
                 ((sh_mem_t *)(void *)&(offset_ptr))->offset                                                         \
           : (uint8_t *)g_shm_map.entries[((sh_mem_t *)(void *)&(offset_ptr))->seg].addr +                           \
                 ((sh_mem_t *)(void *)&(offset_ptr))->offset))

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_common_module.h"
 #include "lob_log.h"
 #include "knl_lob.h"
 #include "knl_context.h"
@@ -50,7 +51,7 @@ void rd_lob_page_init(knl_session_t *session, log_entry_t *log)
     knl_securec_check(ret);
     tail = PAGE_TAIL(curr_head);
     tail->pcn = curr_head->pcn;
-    lob_init_page(session, AS_PAGID(head->id), head->type, GS_FALSE);
+    lob_init_page(session, AS_PAGID(head->id), head->type, CT_FALSE);
 }
 
 void rd_lob_page_ext_init(knl_session_t *session, log_entry_t *log)
@@ -64,7 +65,7 @@ void rd_lob_page_ext_init(knl_session_t *session, log_entry_t *log)
     knl_securec_check(ret);
     tail = PAGE_TAIL(curr_head);
     tail->pcn = curr_head->pcn;
-    lob_init_page(session, AS_PAGID(head->id), head->type, GS_FALSE);
+    lob_init_page(session, AS_PAGID(head->id), head->type, CT_FALSE);
 }
 
 void rd_lob_change_seg(knl_session_t *session, log_entry_t *log)
@@ -87,9 +88,9 @@ void rd_lob_change_chunk(knl_session_t *session, log_entry_t *log)
     knl_securec_check(ret);
 }
 
-void redo_lob_change_page_free(knl_session_t *session, log_entry_t *log_entry)
+void rd_lob_change_page_free(knl_session_t *session, log_entry_t *log)
 {
-    page_id_t *page_id = (page_id_t *)log_entry->data;
+    page_id_t *page_id = (page_id_t *)log->data;
     lob_data_page_t *dst_data = LOB_CURR_DATA_PAGE(session);
 
     dst_data->pre_free_page = *page_id;
@@ -145,7 +146,7 @@ void print_lob_change_chunk(log_entry_t *log)
     printf("is_recycled: %u\n", (uint32)chunk->is_recycled);
 }
 
-void print_lob_changed_page_unused(log_entry_t *log)
+void print_lob_change_page_free(log_entry_t *log)
 {
     page_id_t *page_id = (page_id_t *)log->data;
     printf("pre_free page: %u-%u\n", page_id->file, page_id->page);

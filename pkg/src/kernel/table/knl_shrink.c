@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "knl_table_module.h"
 #include "knl_table.h"
 #include "temp_btree.h"
 #include "knl_map.h"
@@ -33,9 +33,9 @@ static inline bool32 heap_try_reset_seg_page_cnt(heap_segment_t *segment)
     // if only 1 extent left, recover calc logic (now, free extent also empty)
     if (segment->extents.count <= 1 && segment->free_extents.count == 0) {
         heap_reset_page_count(segment);
-        return GS_TRUE;
+        return CT_TRUE;
     }
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static void heap_try_shrink_seg_page_cnt(space_t *space, heap_segment_t *segment,
@@ -179,7 +179,7 @@ void heap_fetch_shrink_hwm(knl_session_t *session, page_id_t cmp_hwm, page_id_t 
         }
 
         page_id = AS_PAGID(page->next);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 }
 
@@ -201,17 +201,17 @@ static void heap_get_extent_range(knl_session_t *session, heap_segment_t *segmen
         extent_size = spc_ext_size_by_id((uint8)page->ext_size);
 
         if (IS_SAME_PAGID(extent, segment->extents.last)) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             break;
         }
 
         if (page_id.file == extent.file && page_id.page >= extent.page && page_id.page < extent.page + extent_size) {
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             break;
         }
 
         extent = AS_PAGID(page->next_ext);
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
     }
 
     *first = extent;
@@ -224,7 +224,7 @@ static uint32 heap_get_page_extent_size(knl_session_t *session, space_t *space, 
     buf_enter_page(session, extent, LATCH_MODE_S, ENTER_PAGE_NORMAL);
     page_head_t *page = (page_head_t *)session->curr_page;
     uint32 ext_size = spc_get_page_ext_size(space, page->ext_size);
-    buf_leave_page(session, GS_FALSE);
+    buf_leave_page(session, CT_FALSE);
     return ext_size;
 }
 
@@ -271,7 +271,7 @@ static void heap_replace_map_root(knl_session_t *session, heap_segment_t *segmen
         log_put(session, RD_HEAP_SET_MAP, &page->map, sizeof(map_index_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
     tree_info.level = new_level;
     AS_PAGID_PTR(tree_info.root)->file = page_id.file;
     AS_PAGID_PTR(tree_info.root)->page = page_id.page;
@@ -324,7 +324,7 @@ static void heap_shrink_map_tree(knl_session_t *session, heap_segment_t *segment
             buf_enter_page(session, page_id, LATCH_MODE_X, ENTER_PAGE_NORMAL);
             page = (map_page_t *)CURR_PAGE(session);
             if (slot + 1 == page->hwm) {
-                buf_leave_page(session, GS_FALSE);
+                buf_leave_page(session, CT_FALSE);
             } else {
                 // Remove map node from map page
                 heap_shrink_mappage(page, slot);
@@ -339,7 +339,7 @@ static void heap_shrink_map_tree(knl_session_t *session, heap_segment_t *segment
                     heap_change_map(session, segment, &page->map, last_lid, i + 1);
                 }
 
-                buf_leave_page(session, GS_TRUE);
+                buf_leave_page(session, CT_TRUE);
             }
         }
 
@@ -392,12 +392,12 @@ void heap_shrink_hwm(knl_session_t *session, knl_handle_t heap_handle, bool32 as
 
     if (async_shrink && !IS_SAME_PAGID(segment->cmp_hwm, hwm)) {
 #ifdef LOG_DIAG
-        knl_panic_log(GS_FALSE, "asyn shrink compcat hwm is not credible.curr hwm %u-%u, new hwm %u-%u, "
+        knl_panic_log(CT_FALSE, "asyn shrink compcat hwm is not credible.curr hwm %u-%u, new hwm %u-%u, "
             "uid %u, oid %u, entry %u-%u", segment->cmp_hwm.file,
             segment->cmp_hwm.page, hwm.file, hwm.page, segment->uid,
             segment->oid, heap->entry.file, heap->entry.page);
 #endif
-        GS_LOG_RUN_WAR("asyn shrink compcat hwm is not credible.curr hwm %u-%u, "
+        CT_LOG_RUN_WAR("asyn shrink compcat hwm is not credible.curr hwm %u-%u, "
             "new hwm %u-%u, uid %u, oid %u, entry %u-%u", segment->cmp_hwm.file,
             segment->cmp_hwm.page, hwm.file, hwm.page, segment->uid,
             segment->oid, heap->entry.file, heap->entry.page);
@@ -437,7 +437,7 @@ void heap_shrink_hwm(knl_session_t *session, knl_handle_t heap_handle, bool32 as
         if (SPACE_IS_LOGGING(space)) {
             log_put(session, RD_HEAP_CONCAT_PAGE, &INVALID_PAGID, sizeof(page_id_t), LOG_ENTRY_FLAG_NONE);
         }
-        buf_leave_page(session, GS_TRUE);
+        buf_leave_page(session, CT_TRUE);
     }
 
     buf_enter_page(session, heap->entry, LATCH_MODE_X, ENTER_PAGE_RESIDENT);
@@ -488,14 +488,14 @@ void heap_shrink_hwm(knl_session_t *session, knl_handle_t heap_handle, bool32 as
     if (extents.count > 0) {
         spc_free_extents(session, space, &extents);
     } else {
-        GS_LOG_RUN_INF("no extents be shrinked. uid %u oid %u ashrink %u",
+        CT_LOG_RUN_INF("no extents be shrinked. uid %u oid %u ashrink %u",
             segment->uid, segment->oid, (uint32)async_shrink);
     }
 
     if (SPACE_IS_LOGGING(space)) {
         log_put(session, RD_HEAP_CHANGE_SEG, segment, HEAP_SEG_SIZE, LOG_ENTRY_FLAG_NONE);
     }
-    buf_leave_page(session, GS_TRUE);
+    buf_leave_page(session, CT_TRUE);
 
     log_atomic_op_end(session);
 }
@@ -540,7 +540,7 @@ void heap_traversal_map_for_shrink(knl_session_t *session, map_path_t *path, pag
         // there is no heap page on map page, scan previous map of the same layer
         if (page->hwm == 0) {
             level++;
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             continue;
         }
 
@@ -556,14 +556,14 @@ void heap_traversal_map_for_shrink(knl_session_t *session, map_path_t *path, pag
             index->file = node->file;
             index->page = node->page;
             index->slot = INVALID_SLOT;
-            buf_leave_page(session, GS_FALSE);
+            buf_leave_page(session, CT_FALSE);
             continue;
         }
 
         page_id->file = (uint16)node->file;
         page_id->page = (uint32)node->page;
         page_id->aligned = 0;
-        buf_leave_page(session, GS_FALSE);
+        buf_leave_page(session, CT_FALSE);
         return;
     }
 }

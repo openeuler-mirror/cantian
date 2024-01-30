@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -28,7 +28,6 @@
 #include "cm_defs.h"
 #include "cm_text.h"
 
-#ifdef Z_SHARDING
 typedef struct st_column_info {
     /* col project id, for example, create table t1(f1, f2), select f2 from t1, col of f2 = 1, col_pro_id of f2 = 0 */
     uint32 col_pro_id;         /* column project id */
@@ -42,19 +41,16 @@ typedef struct st_column_info {
     bool8 tab_name_has_quote;  /* origin tab_name wrapped by double quotation or not */
     bool8 reserved[2];
 } column_info_t;
-#endif
 
 typedef struct st_var_column {
-    gs_type_t datatype;
+    ct_type_t datatype;
     uint16 tab;
     uint16 col; /* it is observed that "col" means the column index
                 in the original table definition(starts from 0)
                 of the "v_col" value appeared in rs_column_t */
-#ifdef Z_SHARDING
     column_info_t *col_info_ptr;
     uint32 adjusted : 1;     // if col is adjusted, can't adjust again, see func: shd_walk_column_adjust_project
     uint32 has_adjusted : 1; // for subquery pullup
-#endif
     uint32 is_ddm_col : 1;
     uint32 is_rowid : 1;
     uint32 is_rownodeid : 1;
@@ -66,9 +62,9 @@ typedef struct st_var_column {
     int32 ss_end;      // end subscript of array
 } var_column_t;
 
-#define VAR_COL_IS_ARRAY_ELEMENT(col)   ((col)->ss_start > 0 && (col)->ss_end == (int32)GS_INVALID_ID32)
-#define VAR_COL_IS_ARRAY_ALL(col)       ((col)->ss_start == (int32)GS_INVALID_ID32 && (col)->ss_end == (int32)GS_INVALID_ID32)
-#define QUERY_FIELD_IS_ELEMENT(query_field)  ((query_field)->start > 0 && (query_field)->end == (int32)GS_INVALID_ID32)
+#define VAR_COL_IS_ARRAY_ELEMENT(col)   ((col)->ss_start > 0 && (col)->ss_end == (int32)CT_INVALID_ID32)
+#define VAR_COL_IS_ARRAY_ALL(col)       ((col)->ss_start == (int32)CT_INVALID_ID32 && (col)->ss_end == (int32)CT_INVALID_ID32)
+#define QUERY_FIELD_IS_ELEMENT(query_field)  ((query_field)->start > 0 && (query_field)->end == (int32)CT_INVALID_ID32)
 
 typedef struct st_var_vm_col {
     uint16 id;

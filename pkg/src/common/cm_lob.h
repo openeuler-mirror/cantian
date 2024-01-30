@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,7 +34,7 @@ extern "C" {
 #endif
 
 /* lob value can from kernel(lob_locator_t) or vm_pool(vm_lob_t)
-  * vm_cli_lob_t is same with gsc_lob_t to preserve lob info in order to transform to client */
+  * vm_cli_lob_t is same with ctconn_lob_t to preserve lob info in order to transform to client */
 typedef struct st_vm_cli_lob_t {
     /* size + type must be defined first!!! */
     uint32 size;  // data length
@@ -69,24 +69,24 @@ typedef struct st_vm_lob_id_t {
 } vm_lob_id_t;
 
 #define VM_LOB_LOCATOR_SIZE        sizeof(vm_lob_t)
-#define GS_LOB_FROM_KERNEL         0
-#define GS_LOB_FROM_VMPOOL         1
-#define GS_LOB_FROM_NORMAL         2
-#define GS_IS_VALID_LOB_TYPE(type)                                                                                     \
-    ((type) == GS_LOB_FROM_KERNEL || (type) == GS_LOB_FROM_VMPOOL || (type) == GS_LOB_FROM_NORMAL)
+#define CT_LOB_FROM_KERNEL         0
+#define CT_LOB_FROM_VMPOOL         1
+#define CT_LOB_FROM_NORMAL         2
+#define CT_IS_VALID_LOB_TYPE(type)                                                                                     \
+    ((type) == CT_LOB_FROM_KERNEL || (type) == CT_LOB_FROM_VMPOOL || (type) == CT_LOB_FROM_NORMAL)
 
 static inline void cm_reset_vm_lob(vm_lob_t *vlob)
 {
     vlob->size = 0;
-    vlob->type = GS_LOB_FROM_VMPOOL;
-    vlob->entry_vmid = GS_INVALID_ID32;
-    vlob->last_vmid = GS_INVALID_ID32;
+    vlob->type = CT_LOB_FROM_VMPOOL;
+    vlob->entry_vmid = CT_INVALID_ID32;
+    vlob->last_vmid = CT_INVALID_ID32;
 }
 
 static inline void cm_reset_normal_lob(normal_lob_t *nlob)
 {
     nlob->size = 0;
-    nlob->type = GS_LOB_FROM_NORMAL;
+    nlob->type = CT_LOB_FROM_NORMAL;
     nlob->value.len = 0;
     nlob->value.str = NULL;
 }

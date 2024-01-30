@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -128,7 +128,7 @@ typedef struct st_knl_alttrig_def {
 typedef struct st_trigger_set {
     void *next;      // !!! must be the first memeber of structure
     uint8 *count;    // which points to entry->trig_count
-    void *items[GS_MAX_TRIGGER_COUNT];
+    void *items[CT_MAX_TRIGGER_COUNT];
 } trigger_set_t;
 
 
@@ -186,14 +186,14 @@ status_t knl_refresh_sql_map_hash(knl_handle_t session, knl_cursor_t *cursor, ui
 typedef struct st_knl_rsrc_plan {
     uint32 oid;
     uint32 num_rules;
-    char name[GS_NAME_BUFFER_SIZE];
-    char description[GS_COMMENT_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
+    char description[CT_COMMENT_BUFFER_SIZE];
     uint32 type;
 }knl_rsrc_plan_t;
 
 typedef struct st_knl_rsrc_plan_rule {
-    char plan_name[GS_NAME_BUFFER_SIZE];
-    char group_name[GS_NAME_BUFFER_SIZE];
+    char plan_name[CT_NAME_BUFFER_SIZE];
+    char group_name[CT_NAME_BUFFER_SIZE];
     uint32 max_cpu_limit;
     uint32 max_sessions;
     uint32 max_active_sess;
@@ -202,19 +202,19 @@ typedef struct st_knl_rsrc_plan_rule {
     uint32 max_temp_pool;
     uint32 max_iops;
     uint32 max_commits;
-    char description[GS_COMMENT_BUFFER_SIZE];
+    char description[CT_COMMENT_BUFFER_SIZE];
 }knl_rsrc_plan_rule_t;
 
 typedef struct st_knl_rsrc_group {
     uint32 oid;
-    char name[GS_NAME_BUFFER_SIZE];
-    char description[GS_COMMENT_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
+    char description[CT_COMMENT_BUFFER_SIZE];
 }knl_rsrc_group_t;
 
 typedef struct st_knl_rsrc_group_mapping {
-    char attribute[GS_NAME_BUFFER_SIZE];
-    char value[GS_VALUE_BUFFER_SIZE];
-    char group_name[GS_NAME_BUFFER_SIZE];
+    char attribute[CT_NAME_BUFFER_SIZE];
+    char value[CT_VALUE_BUFFER_SIZE];
+    char group_name[CT_NAME_BUFFER_SIZE];
 }knl_rsrc_group_mapping_t;
 
 typedef struct st_knl_rsrc_plan_rule_def {
@@ -254,7 +254,7 @@ typedef struct st_object_address {
     uint32 uid;                     /* owner user id */
     uint64 oid;                     /* ID of the object */
     knl_scn_t scn;                  /* last scn of this object */
-    char name[GS_NAME_BUFFER_SIZE]; /* object name */
+    char name[CT_NAME_BUFFER_SIZE]; /* object name */
 } object_address_t;
 
 status_t knl_insert_dependency_list(knl_handle_t session, object_address_t *depender, galist_t *referenced_list);

@@ -31,7 +31,7 @@ def parse_node_stat(node_stat):
 
 def fetch_cms_stat(logger):
     logger.info("cms stat check start!")
-    cmd = 'cms stat | tail -n +2'
+    cmd = 'source ~/.bashrc && cms stat | tail -n +2'
     ret_code, output, stderr = _exec_popen(cmd)
     output = output.split('\n')
     if ret_code:
@@ -59,7 +59,9 @@ def fetch_cms_stat(logger):
     if online_cnt == len(output) and refomer_stat is True:
         result_json['data']['RESULT'] = 'CLUSTER STAT NORMAL'
     else:
-        result_json['data']['RESULT'] = '[WAR] CLUSTER STAT ABNORMAL'
+        result_json["error"]["code"] = 1
+        result_json["error"]["description"] = detail_json
+        return result_json
     detail_json.append(cluster_stat)
     result_json['data']['DETAIL'] = detail_json
     logger.info("cms stat check succ!")

@@ -18,14 +18,14 @@ def parse_cmd_result(cmd_res):
     for (idx, key) in enumerate(keys):
         stat_json[key] = values[idx]
     res = True
-    if stat_json.get('HB_TIMEOUT(ms)') > '10000':
+    if stat_json.get('HB_TIMEOUT(ms)') != '10000':
         res = False 
     return (res)
 
 
 def fetch_cms_hbtime(logger):
     logger.info("cms res check start!")
-    cmd = 'cms res -list | tail -n +2'
+    cmd = 'source ~/.bashrc && cms res -list | tail -n +2'
     ret_code, output, stderr = _exec_popen(cmd)
     output = output.split('\n')
     if ret_code:
@@ -37,6 +37,7 @@ def fetch_cms_hbtime(logger):
     result_json["error"]["description"] = ""
     if len(output) < 1:
         result_json["error"]["code"] = -1
+        result_json["error"]["description"] = "cms res check error!"
         logger.error("cms res check error!")
         return (result_json)
     for cmd_res in output:
@@ -44,8 +45,9 @@ def fetch_cms_hbtime(logger):
     if res:
         result_json['data']["RESULT"] = 'HB_TIMEOUT is 10 seconds'
     else:
-        result_json['data']["RESULT"] = '[WAR]: HB_TIMEOUT  greater than 10 seconds'
-        result_json['data']["SUGGEST"] = 'suggested less than or equal to 10 seconds'
+        result_json["error"]["code"] = -1
+        result_json['error']["description"] = '[WAR]: HB_TIMEOUT  greater than 10 seconds'
+        result_json['data']["RESULT"] = output
     logger.info("cms res check succ!")
     return (result_json)
 

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,7 +31,7 @@
 #include "opr_cat.h"
 #include "opr_bits.h"
 
-opr_options_t g_opr_options = { GS_FALSE };
+opr_options_t g_opr_options = { CT_FALSE };
 
 opr_exec_t g_opr_execs[OPER_TYPE_CEIL] = {
     [OPER_TYPE_ADD]    = opr_exec_add,
@@ -71,116 +71,116 @@ uint32 g_opr_priority[OPER_TYPE_CEIL] = {
     [OPER_TYPE_CAT]    = 4
 };
 
-status_t opr_infer_type_sum(gs_type_t sum_type, typmode_t *typmod)
+status_t opr_infer_type_sum(ct_type_t sum_type, typmode_t *typmod)
 {
     switch (sum_type) {
-        case GS_TYPE_UINT32:
-        case GS_TYPE_INTEGER:
-            typmod->datatype = GS_TYPE_BIGINT;
+        case CT_TYPE_UINT32:
+        case CT_TYPE_INTEGER:
+            typmod->datatype = CT_TYPE_BIGINT;
             typmod->size = 8;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
-        case GS_TYPE_BIGINT:
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_DECIMAL:
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
-        case GS_TYPE_UNKNOWN:
-            typmod->datatype = GS_TYPE_NUMBER;
+        case CT_TYPE_BIGINT:
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_DECIMAL:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
+        case CT_TYPE_UNKNOWN:
+            typmod->datatype = CT_TYPE_NUMBER;
             typmod->size = MAX_DEC_BYTE_SZ;
-            return GS_SUCCESS;
-        case GS_TYPE_NUMBER2:
-            typmod->datatype = GS_TYPE_NUMBER2;
+            return CT_SUCCESS;
+        case CT_TYPE_NUMBER2:
+            typmod->datatype = CT_TYPE_NUMBER2;
             typmod->size = MAX_DEC2_BYTE_SZ;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
-        case GS_TYPE_REAL:
-            typmod->datatype = GS_TYPE_REAL;
+        case CT_TYPE_REAL:
+            typmod->datatype = CT_TYPE_REAL;
             typmod->size = 8;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
         default:
-            GS_THROW_ERROR(ERR_TYPE_MISMATCH, "NUMERIC", get_datatype_name_str(sum_type));
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_TYPE_MISMATCH, "NUMERIC", get_datatype_name_str(sum_type));
+            return CT_ERROR;
     }
 }
 
 status_t opr_unary(variant_t *right, variant_t *result)
 {
     switch (right->type) {
-        case GS_TYPE_UINT32:
+        case CT_TYPE_UINT32:
             result->v_bigint = -(int64)right->v_uint32;
-            result->type = GS_TYPE_BIGINT;
-            return GS_SUCCESS;
+            result->type = CT_TYPE_BIGINT;
+            return CT_SUCCESS;
 
-        case GS_TYPE_INTEGER:
+        case CT_TYPE_INTEGER:
             result->v_bigint = -(int64)right->v_int;
-            result->type = GS_TYPE_BIGINT;
-            return GS_SUCCESS;
+            result->type = CT_TYPE_BIGINT;
+            return CT_SUCCESS;
 
-        case GS_TYPE_BIGINT:
-            if (right->v_bigint == GS_MIN_INT64) {
-                GS_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
-                return GS_ERROR;
+        case CT_TYPE_BIGINT:
+            if (right->v_bigint == CT_MIN_INT64) {
+                CT_THROW_ERROR(ERR_TYPE_OVERFLOW, "BIGINT");
+                return CT_ERROR;
             }
-            result->type = GS_TYPE_BIGINT;
+            result->type = CT_TYPE_BIGINT;
             result->v_bigint = -right->v_bigint;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
-        case GS_TYPE_REAL:
-            result->type = GS_TYPE_REAL;
+        case CT_TYPE_REAL:
+            result->type = CT_TYPE_REAL;
             result->v_real = -right->v_real;
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_DECIMAL:
-            result->type = GS_TYPE_NUMBER;
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_DECIMAL:
+            result->type = CT_TYPE_NUMBER;
             cm_dec_negate2(&right->v_dec, &result->v_dec);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
-        case GS_TYPE_NUMBER2:
-            result->type = GS_TYPE_NUMBER2;
+        case CT_TYPE_NUMBER2:
+            result->type = CT_TYPE_NUMBER2;
             cm_dec_negate2(&right->v_dec, &result->v_dec);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
 
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
-        case GS_TYPE_BINARY:
-        case GS_TYPE_VARBINARY: {
-            GS_RETURN_IFERR(cm_text_to_dec8(VALUE_PTR(text_t, right), &result->v_dec));
-            result->type = GS_TYPE_NUMBER;
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
+        case CT_TYPE_BINARY:
+        case CT_TYPE_VARBINARY: {
+            CT_RETURN_IFERR(cm_text_to_dec8(VALUE_PTR(text_t, right), &result->v_dec));
+            result->type = CT_TYPE_NUMBER;
             cm_dec_negate(&result->v_dec);
-            return GS_SUCCESS;
+            return CT_SUCCESS;
         }
 
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_INTERVAL_DS:
-        case GS_TYPE_INTERVAL_YM:
-        case GS_TYPE_RAW:
-        case GS_TYPE_CLOB:
-        case GS_TYPE_BLOB:
-        case GS_TYPE_IMAGE:
-        case GS_TYPE_CURSOR:
-        case GS_TYPE_COLUMN:
-        case GS_TYPE_BOOLEAN:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_TZ:
-        case GS_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_INTERVAL_DS:
+        case CT_TYPE_INTERVAL_YM:
+        case CT_TYPE_RAW:
+        case CT_TYPE_CLOB:
+        case CT_TYPE_BLOB:
+        case CT_TYPE_IMAGE:
+        case CT_TYPE_CURSOR:
+        case CT_TYPE_COLUMN:
+        case CT_TYPE_BOOLEAN:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIMESTAMP_LTZ:
         default:
             break;
     }
 
-    GS_THROW_ERROR(ERR_UNDEFINED_OPER, "", "-", get_datatype_name_str((int32)(right->type)));
-    return GS_ERROR;
+    CT_THROW_ERROR(ERR_UNDEFINED_OPER, "", "-", get_datatype_name_str((int32)(right->type)));
+    return CT_ERROR;
 }
 
-static inline bool32 is_valid_operand_type(gs_type_t l_type, gs_type_t r_type)
+static inline bool32 is_valid_operand_type(ct_type_t l_type, ct_type_t r_type)
 {
-    return (l_type > GS_TYPE_BASE && l_type < GS_TYPE__DO_NOT_USE) &&
-        (r_type > GS_TYPE_BASE && r_type < GS_TYPE__DO_NOT_USE);
+    return (l_type > CT_TYPE_BASE && l_type < CT_TYPE__DO_NOT_USE) &&
+        (r_type > CT_TYPE_BASE && r_type < CT_TYPE__DO_NOT_USE);
 }
 
 status_t opr_exec(operator_type_t oper,
@@ -188,59 +188,59 @@ status_t opr_exec(operator_type_t oper,
 {
     if (SECUREC_UNLIKELY(left->is_null || right->is_null)) {
         if (oper != OPER_TYPE_CAT) {
-            result->type = GS_DATATYPE_OF_NULL;
-            result->is_null = GS_TRUE;
-            return GS_SUCCESS;
+            result->type = CT_DATATYPE_OF_NULL;
+            result->is_null = CT_TRUE;
+            return CT_SUCCESS;
         }
 
         if (left->is_null) {
-            left->type = GS_DATATYPE_OF_NULL;
+            left->type = CT_DATATYPE_OF_NULL;
         }
 
         if (right->is_null) {
-            right->type = GS_DATATYPE_OF_NULL;
+            right->type = CT_DATATYPE_OF_NULL;
         }
     }
 
     if (SECUREC_UNLIKELY(!is_valid_operand_type(left->type, right->type))) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, " illegal operand datatype");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, " illegal operand datatype");
+        return CT_ERROR;
     }
 
     if (SECUREC_UNLIKELY(oper >= OPER_TYPE_CEIL || g_opr_execs[oper] == NULL)) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, " illegal operator");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, " illegal operator");
+        return CT_ERROR;
     }
 
     opr_exec_t exec = g_opr_execs[oper];
     opr_operand_set_t op_set = { (nlsparams_t *)nls, left, right, result };
-    result->is_null = GS_FALSE;
+    result->is_null = CT_FALSE;
     return exec(&op_set);
 }
 
 
-status_t opr_infer_type(operator_type_t oper, gs_type_t left, gs_type_t right, gs_type_t *result)
+status_t opr_infer_type(operator_type_t oper, ct_type_t left, ct_type_t right, ct_type_t *result)
 {
     if (SECUREC_UNLIKELY(oper >= OPER_TYPE_CEIL)) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, "illegal operator");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, "illegal operator");
+        return CT_ERROR;
     }
 
-    if (GS_IS_UNKNOWN_TYPE(left) || GS_IS_UNKNOWN_TYPE(right)) {
-        *result = GS_TYPE_UNKNOWN;
-        return GS_SUCCESS;
+    if (CT_IS_UNKNOWN_TYPE(left) || CT_IS_UNKNOWN_TYPE(right)) {
+        *result = CT_TYPE_UNKNOWN;
+        return CT_SUCCESS;
     }
 
     if (SECUREC_UNLIKELY(!is_valid_operand_type(left, right))) {
-        GS_THROW_ERROR(ERR_INVALID_OPERATION, "illegal operand datatype");
-        return GS_ERROR;
+        CT_THROW_ERROR(ERR_INVALID_OPERATION, "illegal operand datatype");
+        return CT_ERROR;
     }
 
     opr_infer_t infer = g_opr_infers[oper];
 
     if (SECUREC_UNLIKELY(infer == NULL)) {
-        *result = GS_TYPE_UNKNOWN;
-        return GS_SUCCESS;
+        *result = CT_TYPE_UNKNOWN;
+        return CT_SUCCESS;
     }
 
     return infer(left, right, result);

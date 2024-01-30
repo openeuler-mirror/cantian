@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_buffer_module.h"
 #include "knl_page.h"
 #include "cm_file.h"
 #include "cm_kmc.h"
@@ -76,9 +77,9 @@ status_t page_cipher_reserve_size(knl_session_t *session, encrypt_version_t vers
     uint32 page_cost_size = DEFAULT_PAGE_SIZE(session) - sizeof(page_head_t) - sizeof(page_tail_t);
     uint32 max_cipher_len;
 
-    if (cm_get_cipher_len(page_cost_size, &max_cipher_len) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("get cipher len failed");
-        return GS_ERROR;
+    if (cm_get_cipher_len(page_cost_size, &max_cipher_len) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("get cipher len failed");
+        return CT_ERROR;
     }
 
     uint32 max_size = CM_ALIGN4(max_cipher_len - page_cost_size + sizeof(cipher_ctrl_t));
@@ -92,25 +93,25 @@ status_t page_cipher_reserve_size(knl_session_t *session, encrypt_version_t vers
     char *cipher_buf = (char *)cm_push(session->stack, DEFAULT_PAGE_SIZE(session));
     uint32 cipher_len = DEFAULT_PAGE_SIZE(session);
 
-    status_t status = cm_kmc_encrypt(GS_KMC_KERNEL_DOMAIN, version, plain_buf,
+    status_t status = cm_kmc_encrypt(CT_KMC_KERNEL_DOMAIN, version, plain_buf,
         plain_len, cipher_buf, &cipher_len);
-    if (status != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("fail to try encrypt");
+    if (status != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("fail to try encrypt");
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     uint32 real_size = cipher_len - plain_len;
     TO_UINT8_OVERFLOW_CHECK(real_size, uint32);
 
     if ((uint32)(real_size + sizeof(cipher_ctrl_t)) > max_size) {
-        GS_LOG_RUN_ERR("real size %u more than max_size %u.", (uint32)(real_size + sizeof(cipher_ctrl_t)), max_size);
+        CT_LOG_RUN_ERR("real size %u more than max_size %u.", (uint32)(real_size + sizeof(cipher_ctrl_t)), max_size);
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static cipher_ctrl_t *page_cipher_ctrl(page_head_t *page)
@@ -132,7 +133,7 @@ static cipher_ctrl_t *page_cipher_ctrl(page_head_t *page)
             ctrl_offset = PAGE_SIZE(*page) - sizeof(page_tail_t) - sizeof(cipher_ctrl_t);
             break;
         default:
-            GS_LOG_RUN_ERR("page type %d not support encrypt.", page->type);
+            CT_LOG_RUN_ERR("page type %d not support encrypt.", page->type);
             return NULL;
     }
     return (cipher_ctrl_t *)((char *)page + ctrl_offset);
@@ -157,7 +158,7 @@ static uint8 page_cipher_offset(page_head_t *page)
             cipher_offset = sizeof(undo_page_t) + sizeof(cipher_ctrl_t);
             break;
         default:
-            GS_LOG_RUN_ERR("[GET CIPHER OFFSET ERROR]page type %d not support.", page->type);
+            CT_LOG_RUN_ERR("[GET CIPHER OFFSET ERROR]page type %d not support.", page->type);
             break;
     }
 
@@ -188,7 +189,7 @@ static char *page_plain_buf(page_head_t *page, uint8 cipher_reserve_size, uint32
             *offset_len = sizeof(undo_page_t) + cipher_reserve_size;
             break;
         default:
-            GS_LOG_RUN_ERR("page type %d not support encrypt.", page->type);
+            CT_LOG_RUN_ERR("page type %d not support encrypt.", page->type);
             break;
     }
 
@@ -218,7 +219,7 @@ static uint32 page_plain_len(knl_session_t *session, page_head_t *page, uint8 ci
             page_meta_size = sizeof(undo_page_t);
             break;
         default:
-            GS_LOG_RUN_ERR("page type %d not support encrypt.", page->type);
+            CT_LOG_RUN_ERR("page type %d not support encrypt.", page->type);
             break;
     }
 
@@ -257,7 +258,7 @@ static void check_ctrl_befor_encrypt(cipher_ctrl_t *cipher_ctrl, page_head_t *pa
         cipher_ctrl->encrypt_version != 0 ||
         cipher_ctrl->offset != 0 ||
         cipher_ctrl->reserved != 0) {
-        knl_panic_log(GS_FALSE, "invalid cipher ctrl before encrypt: "
+        knl_panic_log(CT_FALSE, "invalid cipher ctrl before encrypt: "
             "page_info: page %u, file %u, page_type %u,"
             "cipher_ctrl: encrypted: %u, encrypt_version: %u, cipher_expanded_size: %u, offset: %u, plain_cks: %u, "
             "space->ctrl->cipher_reserve_size: %u ",
@@ -272,7 +273,7 @@ static void check_ctrl_after_encrypt(cipher_ctrl_t *cipher_ctrl, page_head_t *pa
 {
     if (cipher_ctrl->cipher_expanded_size + sizeof(cipher_ctrl_t) > cipher_reserve_size ||
         cipher_len + sizeof(cipher_ctrl_t) > plain_len + cipher_reserve_size) {
-        knl_panic_log(GS_FALSE, "invalid cipher ctrl after encrypt :"
+        knl_panic_log(CT_FALSE, "invalid cipher ctrl after encrypt :"
             "page_info: page %u, file %u, page_type %u, "
             "cipher_ctrl: encrypted: %u, encrypt_version: %u, cipher_expanded_size: %u, offset: %u, plain_cks: %u, "
             "space->ctrl->cipher_reserve_size: %u ",
@@ -311,7 +312,7 @@ static void check_ctrl_before_decrypt(space_t *space, cipher_ctrl_t *cipher_ctrl
         cipher_ctrl->encrypt_version == NO_ENCRYPT ||
         cipher_ctrl->cipher_expanded_size + sizeof(cipher_ctrl_t) > space->ctrl->cipher_reserve_size ||
         cipher_len > org_plain_len + space->ctrl->cipher_reserve_size) {
-        knl_panic_log(GS_FALSE, "invalid cipher ctrl before decrypt : "
+        knl_panic_log(CT_FALSE, "invalid cipher ctrl before decrypt : "
             "page_info: page %u, file %u, page_type %u,"
             "cipher_ctrl: encrypted: %u, encrypt_version: %u, cipher_expanded_size: %u, offset: %u, plain_cks: %u, "
             "space->ctrl->cipher_reserve_size: %u ",
@@ -346,15 +347,15 @@ status_t page_encrypt(knl_session_t *session, page_head_t *page, uint8 encrypt_v
     char *plain_buf = page_plain_buf(page, cipher_reserve_size, &offset_len);
     uint32 plain_len = page_plain_len(session, page, cipher_reserve_size);
 
-    status_t status = cm_kmc_encrypt(GS_KMC_KERNEL_DOMAIN, encrypt_version,
+    status_t status = cm_kmc_encrypt(CT_KMC_KERNEL_DOMAIN, encrypt_version,
         plain_buf, plain_len, cipher_buf, &cipher_len);
-    if (status != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("page encrypt failed.");
+    if (status != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("page encrypt failed.");
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    page->encrypted = GS_TRUE;
+    page->encrypted = CT_TRUE;
     cipher_ctrl->cipher_expanded_size = cipher_len - plain_len;
     cipher_ctrl->offset = page_cipher_offset(page);
     cipher_ctrl->encrypt_version = encrypt_version;
@@ -372,7 +373,7 @@ status_t page_encrypt(knl_session_t *session, page_head_t *page, uint8 encrypt_v
         page_calc_checksum(page, DEFAULT_PAGE_SIZE(session));
     }
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef LOG_DIAG
@@ -383,7 +384,7 @@ static void page_checksum_after_decrypt(knl_session_t *session, page_head_t *pag
     PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)) = cipher_ctrl->plain_cks;
     cipher_ctrl->plain_cks = 0;
     if (!page_verify_checksum(page, DEFAULT_PAGE_SIZE(session))) {
-        knl_panic_log(GS_FALSE, "invaid page plain data: "
+        knl_panic_log(CT_FALSE, "invaid page plain data: "
             "page_info: page %u, file %u, page_type %u, "
             "cipher_ctrl: encrypted: %u, encrypt_version: %u, cipher_expanded_size: %u, offset: %u, plain_cks: %u, "
             "space->ctrl->cipher_reserve_size: %u ",
@@ -419,11 +420,11 @@ status_t page_decrypt(knl_session_t *session, page_head_t *page)
     CM_SAVE_STACK(session->stack);
     char *plain_buf = (char *)cm_push(session->stack, DEFAULT_PAGE_SIZE(session));
     uint32 plain_len = DEFAULT_PAGE_SIZE(session);
-    if (cm_kmc_decrypt(GS_KMC_KERNEL_DOMAIN, (char *)page + cipher_ctrl->offset, cipher_len,
-        plain_buf, &plain_len) != GS_SUCCESS) {
-        GS_LOG_RUN_ERR("page decrypt failed");
+    if (cm_kmc_decrypt(CT_KMC_KERNEL_DOMAIN, (char *)page + cipher_ctrl->offset, cipher_len,
+        plain_buf, &plain_len) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("page decrypt failed");
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     knl_panic_log(plain_len == org_plain_len, "the plain_len is not equal org_plain_len, panic info: "
@@ -441,7 +442,7 @@ status_t page_decrypt(knl_session_t *session, page_head_t *page)
 #endif
 
     cipher_ctrl->cipher_expanded_size = 0;
-    page->encrypted = GS_FALSE;
+    page->encrypted = CT_FALSE;
     cipher_ctrl->encrypt_version = 0;
     cipher_ctrl->offset = 0;
     cipher_ctrl->reserved = 0;
@@ -455,7 +456,7 @@ status_t page_decrypt(knl_session_t *session, page_head_t *page)
         page_calc_checksum(page, DEFAULT_PAGE_SIZE(session));
     }
     CM_RESTORE_STACK(session->stack);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

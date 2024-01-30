@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -38,7 +38,7 @@ status_t cms_check_addr_dev_stat(struct sockaddr_in* addr)
     int32 family;
 
     if (getifaddrs(&ifaddr) == -1) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     for (struct ifaddrs* ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
@@ -51,14 +51,14 @@ status_t cms_check_addr_dev_stat(struct sockaddr_in* addr)
             memcmp(&addr->sin_addr, &((struct sockaddr_in*)ifa->ifa_addr)->sin_addr, sizeof(struct in_addr)) == 0) {
             if (ifa->ifa_flags & IFF_UP) {
                 freeifaddrs(ifaddr);
-                return GS_SUCCESS;
+                return CT_SUCCESS;
             } else {
                 freeifaddrs(ifaddr);
-                return GS_ERROR;
+                return CT_ERROR;
             }
         }
     }
     
     freeifaddrs(ifaddr);
-    return GS_ERROR;
+    return CT_ERROR;
 }

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -48,7 +48,7 @@ static void cm_pooling_thread_entry(thread_t *obj)
             pooling_thread->status = THREAD_STATUS_ENDED;
         }
 
-        if (ret == GS_SUCCESS && pooling_thread->task != NULL) {
+        if (ret == CT_SUCCESS && pooling_thread->task != NULL) {
             cm_reset_error();
             pooling_thread->task->action(pooling_thread->task->param);
             pooling_thread->task = NULL;
@@ -74,11 +74,11 @@ status_t cm_create_thread_pool(cm_thread_pool_t *pool, uint32 thread_stack_size,
 {
     pooling_thread_t *threads = NULL;
     uint32 size, i;
-    status_t ret = GS_SUCCESS;
+    status_t ret = CT_SUCCESS;
     errno_t err;
 
     if (pool->starts > 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     cm_thread_lock(&pool->lock);
@@ -93,14 +93,14 @@ status_t cm_create_thread_pool(cm_thread_pool_t *pool, uint32 thread_stack_size,
         size = count * sizeof(pooling_thread_t);
         threads = (pooling_thread_t *)malloc(size);
         if (threads == NULL) {
-            GS_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, "threads pool");
-            ret = GS_ERROR;
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)size, "threads pool");
+            ret = CT_ERROR;
             break;
         }
         err = memset_s(threads, size, 0, size);
         if (err != EOK) {
-            GS_THROW_ERROR(ERR_SYSTEM_CALL, err);
-            ret = GS_ERROR;
+            CT_THROW_ERROR(ERR_SYSTEM_CALL, err);
+            ret = CT_ERROR;
             break;
         }
         pool->threads = threads;
@@ -108,10 +108,10 @@ status_t cm_create_thread_pool(cm_thread_pool_t *pool, uint32 thread_stack_size,
 
         for (i = 0; i < count; ++i) {
             ret = cm_event_init(&threads[i].event);
-            GS_BREAK_IF_ERROR(ret);
+            CT_BREAK_IF_ERROR(ret);
 
             ret = cm_start_pooling_thread(&threads[i], thread_stack_size);
-            GS_BREAK_IF_ERROR(ret);
+            CT_BREAK_IF_ERROR(ret);
         }
         
         pool->starts = i;
@@ -119,7 +119,7 @@ status_t cm_create_thread_pool(cm_thread_pool_t *pool, uint32 thread_stack_size,
 
     cm_thread_unlock(&pool->lock);
 
-    if (ret != GS_SUCCESS) {
+    if (ret != CT_SUCCESS) {
         CM_FREE_PTR(threads);
         pool->threads = NULL;
     }
@@ -171,7 +171,7 @@ status_t cm_get_idle_pooling_thread(cm_thread_pool_t *pool, pooling_thread_t **o
         cm_thread_unlock(&pool->lock);
     }
 
-    return (*obj == NULL) ?  GS_ERROR : GS_SUCCESS;
+    return (*obj == NULL) ?  CT_ERROR : CT_SUCCESS;
 }
 
 void cm_dispatch_pooling_thread(pooling_thread_t *thread, void* task)

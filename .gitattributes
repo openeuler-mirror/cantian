@@ -35,11 +35,11 @@ makefile    text eol=lf
 *.in         text eol=lf
 
 #other
-pkg/test/gsql_test/testcase/dds/*/*.all   		text
-pkg/test/gsql_test/.classpath   text
-pkg/test/gsql_test/.project   text
-pkg/test/gsql_test/.settings/org.eclipse.core.resources.prefs   text
-pkg/test/gsql_test/.settings/org.eclipse.jdt.core.prefs   text
-pkg/test/gsql_test/src/log4j.properties.bak   text
-pkg/test/gsql_test/testcase/dds/test/.syntaxSelect.sql.coredump   text
+pkg/test/ctsql_test/testcase/dds/*/*.all   		text
+pkg/test/ctsql_test/.classpath   text
+pkg/test/ctsql_test/.project   text
+pkg/test/ctsql_test/.settings/org.eclipse.core.resources.prefs   text
+pkg/test/ctsql_test/.settings/org.eclipse.jdt.core.prefs   text
+pkg/test/ctsql_test/src/log4j.properties.bak   text
+pkg/test/ctsql_test/testcase/dds/test/.syntaxSelect.sql.coredump   text
 pkg/test/sharding_regress/.gitignore   text

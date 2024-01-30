@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -57,11 +57,11 @@ extern "C" {
 #define RDMA_HOST_PREFIX                "RDMA@"
 #define RDMA_HOST_PREFIX_LEN            5
 /* rscoket ping is very low and gbp start at most 16 rsocket connections, so set buffer size small */
-#define GS_RSOCKET_DEFAULT_BUFFER_SIZE  SIZE_K(128)
+#define CT_RSOCKET_DEFAULT_BUFFER_SIZE  SIZE_K(128)
 /* RSOCKET link cannot closed by system when process exit, so set keep idle short and reset peer state early */
-#define GS_RSOCKET_KEEP_IDLE            (uint32)2
-#define GS_RSOCKET_KEEP_INTERVAL        (uint32)1
-#define GS_RSOCKET_KEEP_COUNT           (uint32)2
+#define CT_RSOCKET_KEEP_IDLE            (uint32)2
+#define CT_RSOCKET_KEEP_INTERVAL        (uint32)1
+#define CT_RSOCKET_KEEP_COUNT           (uint32)2
 
 typedef struct st_rdma_link {
     socket_t sock; // need to be first!

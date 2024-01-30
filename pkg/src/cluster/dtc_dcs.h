@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,6 +32,7 @@
 #include "knl_tran.h"
 #include "mes_func.h"
 #include "dtc_drc.h"
+#include "cm_config.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,10 +58,17 @@ typedef struct st_msg_page_req {
     bool8 is_retry;
 } msg_page_req_t;
 
+typedef struct st_msg_page_req_batch {
+    mes_message_head_t head;
+    uint32 count;
+    page_id_t page_ids[BUF_MAX_PREFETCH_NUM];
+    uint64 req_version;
+} msg_page_req_batch_t;
+
 typedef struct st_msg_owner_req {
     mes_message_head_t head;
-    page_id_t page_id;
-    drc_req_owner_result_t result;
+    uint16 count;
+    drc_req_owner_result_t result[BUF_MAX_PREFETCH_NUM];
 } msg_owner_req_t;
 
 typedef enum en_cr_type {
@@ -141,6 +149,13 @@ typedef struct st_msg_claim_owner {
     uint64 req_version;
 } msg_claim_owner_t;
 
+typedef struct st_msg_claim_owner_batch {
+    mes_message_head_t head;
+    uint32 count;
+    page_id_t page_ids[BUF_MAX_PREFETCH_NUM];
+    uint64 req_version;
+} msg_claim_owner_batch_t;
+
 typedef struct st_msg_ack_owner {
     mes_message_head_t head;
     uint32 owner_id;
@@ -202,8 +217,8 @@ typedef struct st_dtc_page_req {
 
 /*
 typedef struct st_page_map {
-    page_id_t pages[GS_MAX_INSTANCES][DCS_RLS_OWNER_BATCH_SIZE];
-    uint32 count[GS_MAX_INSTANCES];
+    page_id_t pages[CT_MAX_INSTANCES][DCS_RLS_OWNER_BATCH_SIZE];
+    uint32 count[CT_MAX_INSTANCES];
     uint32 max_count;
 } dcs_page_map_t;
 */
@@ -215,18 +230,24 @@ typedef struct st_msg_page_batch_op {
     knl_scn_t scn;
 } msg_page_batch_op_t;
 
+typedef struct st_msg_arch_set_request {
+    mes_message_head_t head;
+    uint32 scope;
+    char value[CT_PARAM_BUFFER_SIZE];
+} msg_arch_set_request_t;
+
 #define DCS_RESEND_MSG_INTERVAL (5)  //unit: ms
 #define DCS_WAIT_MSG_TIMEOUT (3600000)   //unit: ms
 #define DCS_CR_REQ_TIMEOUT (10000) //ms
 #define DCS_RESEND_MSG_TIMES (200) // resend times in 1s
 #define DCS_GET_BITMAP_TIME_INTERVAL (1000)
 
-#define DCS_INSTID_VALID(instid) ((instid) != GS_INVALID_ID8)
+#define DCS_INSTID_VALID(instid) ((instid) != CT_INVALID_ID8)
 #define DCS_SELF_INSTID(session) ((session)->kernel->id)
 #define DCS_SELF_SID(session) ((session)->id)
 
-#define DCS_ACK_PG_IS_DIRTY(msg)        (((msg)->head->flags & MES_FLAG_DIRTY_PAGE) ? GS_TRUE : GS_FALSE)
-#define DCS_ACK_PG_IS_REMOTE_DIRTY(msg) (((msg)->head->flags & MES_FLAG_REMOTE_DIRTY_PAGE) ? GS_TRUE : GS_FALSE)
+#define DCS_ACK_PG_IS_DIRTY(msg)        (((msg)->head->flags & MES_FLAG_DIRTY_PAGE) ? CT_TRUE : CT_FALSE)
+#define DCS_ACK_PG_IS_REMOTE_DIRTY(msg) (((msg)->head->flags & MES_FLAG_REMOTE_DIRTY_PAGE) ? CT_TRUE : CT_FALSE)
 #define DCS_BUF_CTRL_NOT_OWNER(session, ctrl) \
     (((ctrl)->lock_mode == DRC_LOCK_NULL) || ((ctrl)->lock_mode == DRC_LOCK_SHARE))
 #define DCS_BUF_CTRL_IS_OWNER(session, ctrl) \
@@ -251,6 +272,7 @@ EXTER_ATTACK void dcs_process_ask_master_for_page(void *sess, mes_message_t *rec
 void dcs_process_try_ask_master_for_page(void *sess, mes_message_t *receive_msg);
 EXTER_ATTACK void dcs_process_ask_owner_for_page(void *sess, mes_message_t *receive_msg);
 EXTER_ATTACK void dcs_process_claim_ownership_req(void *sess, mes_message_t *receive_msg);
+EXTER_ATTACK void dcs_process_claim_ownership_req_batch(void *sess, mes_message_t *receive_msg);
 void dcs_process_release_owner(void *sess, mes_message_t *receive_msg);
 EXTER_ATTACK void dcs_process_recycle_owner(void *sess, mes_message_t *receive_msg);
 void dcs_process_notify_change_lock(void *sess, mes_message_t *receive_msg);
@@ -259,11 +281,13 @@ EXTER_ATTACK void dcs_process_notify_master_clean_edp_req(void *sess, mes_messag
 EXTER_ATTACK void dcs_process_clean_edp_req(void *sess, mes_message_t *receive_msg);
 EXTER_ATTACK void dcs_process_edpinfo_req(void *sess, mes_message_t *receive_msg);
 EXTER_ATTACK status_t dcs_master_clean_edp(knl_session_t *session, edp_page_info_t *pages, uint32 start, uint32 end,
-    uint32 count);
+    uint32 length);
 EXTER_ATTACK void dcs_process_page_req(void *sess, mes_message_t *msg);
 EXTER_ATTACK void dcs_process_invld_req(void *sess, mes_message_t *msg);
-status_t dcs_try_get_page_owner(knl_session_t *session, buf_ctrl_t *ctrl, drc_lock_mode_e req_mode, uint8 *owner_id);
+status_t dcs_try_get_page_share_owner(knl_session_t *session, buf_ctrl_t **ctrl_array, page_id_t *page_ids,
+                                      uint32 count, uint8 master_id, uint32 *valid_count);
 EXTER_ATTACK void dcs_process_ddl_broadcast(void *sess, mes_message_t *msg);
+status_t dcs_claim_page_share_owners(knl_session_t *session, page_id_t *page_ids, uint32 count, uint8 master_id);
 
 status_t dcs_heap_request_cr_page(knl_session_t *session, cr_cursor_t *cursor, char *page, uint8 dst_id);
 status_t dcs_btree_request_cr_page(knl_session_t *session, cr_cursor_t *cursor, char *page, uint8 dst_id);
@@ -296,6 +320,8 @@ status_t dcs_send_data3_retry(mes_message_head_t *head, uint32 head_size, const 
 
 void dcs_clean_local_ctrl(knl_session_t *session, buf_ctrl_t *ctrl, drc_res_action_e action, uint64 clean_lsn);
 status_t dcs_send_txn_wait(knl_session_t *session, msg_pcr_request_t *request, xid_t wxid);
+status_t dcs_alter_set_param(knl_session_t *session, const char *value, config_scope_t scope);
+EXTER_ATTACK void dcs_process_arch_set_request(void *sess, mes_message_t *msg);
 #ifdef __cplusplus
 }
 #endif

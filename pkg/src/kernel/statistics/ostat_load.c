@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_common_module.h"
 #include "ostat_load.h"
 #include "cm_decimal.h"
 #include "ostat_common.h"
@@ -39,20 +40,20 @@ status_t cbo_load_table_part_stats(knl_session_t *session, dc_entity_t *entity, 
 status_t cbo_load_interval_table_part(knl_session_t *session, dc_entity_t *entity, uint32 part_no)
 {
     if (!entity->stat_exists) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     cbo_stats_table_t *table_stats = entity->cbo_table_stats;
 
     if (table_stats == NULL || table_stats->part_groups == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (cbo_alloc_table_part_default(session, entity, table_stats, part_no) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_table_part_default(session, entity, table_stats, part_no) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cbo_load_table_defaut_stats(knl_session_t *session, knl_cursor_t *cursor, dc_entity_t *entity,
@@ -65,9 +66,9 @@ static status_t cbo_load_table_defaut_stats(knl_session_t *session, knl_cursor_t
 
     stats = entity->cbo_table_stats;
     if (stats == NULL) {
-        if (dc_alloc_mem(&session->kernel->dc_ctx, memory, sizeof(cbo_stats_table_t), (void **)&stats) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(&session->kernel->dc_ctx, memory, sizeof(cbo_stats_table_t), (void **)&stats) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(stats, sizeof(cbo_stats_table_t), 0, sizeof(cbo_stats_table_t));
@@ -79,48 +80,48 @@ static status_t cbo_load_table_defaut_stats(knl_session_t *session, knl_cursor_t
         stats->empty_blocks = 0;
         stats->rows = 0;
         stats->sample_size = 0;
-        stats->max_col_id = GS_INVALID_ID32;
-        stats->global_stats_exist = GS_FALSE;
+        stats->max_col_id = CT_INVALID_ID32;
+        stats->global_stats_exist = CT_FALSE;
     }
 
     stats->table_id = entity->table.desc.id;
-    stats->part_id = GS_INVALID_ID32;
+    stats->part_id = CT_INVALID_ID32;
     entity->cbo_table_stats = stats;
 
     if (IS_PART_TABLE(table)) {
-        if (cbo_load_part_table_stats(session, entity, load_info) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_load_part_table_stats(session, entity, load_info) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
     // load table indexs statistics info
-    if (cbo_load_table_indexs_stats(session, cursor, entity) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_load_table_indexs_stats(session, cursor, entity) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    entity->stat_exists = GS_TRUE;
-    entity->stats_locked = GS_FALSE;
-    return GS_SUCCESS;
+    entity->stat_exists = CT_TRUE;
+    entity->stats_locked = CT_FALSE;
+    return CT_SUCCESS;
 }
 
 status_t cbo_load_interval_index_part(knl_session_t *session, dc_entity_t *entity, uint32 idx_slot,
                                       uint32 part_no)
 {
     if (!entity->stat_exists) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     cbo_stats_table_t *table_stats = entity->cbo_table_stats;
     if (table_stats == NULL || table_stats->indexs == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     cbo_stats_index_t *index_stats = table_stats->indexs[idx_slot];
 
-    if (cbo_alloc_index_part_default(session, entity, index_stats, part_no) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_index_part_default(session, entity, index_stats, part_no) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cbo_load_index_defaut(knl_session_t *session, knl_cursor_t *cursor, dc_entity_t *entity, uint32 pos)
@@ -131,16 +132,16 @@ static status_t cbo_load_index_defaut(knl_session_t *session, knl_cursor_t *curs
     bool32 is_part = *(bool32 *)CURSOR_COLUMN_DATA(cursor, INDEX_PARTED);
 
     if (stats == NULL) {
-        if (dc_alloc_mem(&session->kernel->dc_ctx, memory, sizeof(cbo_stats_index_t), (void **)&stats) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(&session->kernel->dc_ctx, memory, sizeof(cbo_stats_index_t), (void **)&stats) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(stats, sizeof(cbo_stats_index_t), 0, sizeof(cbo_stats_index_t));
         knl_securec_check(ret);
     } else {
         stats->is_part = *(bool8 *)CURSOR_COLUMN_DATA(cursor, INDEX_PARTED);
-        stats->part_id = GS_INVALID_ID32;
+        stats->part_id = CT_INVALID_ID32;
         stats->blevel = 0;
         stats->avg_data_key = 0;
         stats->avg_leaf_key = 0;
@@ -158,9 +159,9 @@ static status_t cbo_load_index_defaut(knl_session_t *session, knl_cursor_t *curs
 
     if (is_part && stats->idx_part_default == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, memory, sizeof(cbo_stats_index_t),
-                         (void **)&stats->idx_part_default) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+                         (void **)&stats->idx_part_default) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(stats->idx_part_default, sizeof(cbo_stats_index_t), 0, sizeof(cbo_stats_index_t));
@@ -170,41 +171,41 @@ static status_t cbo_load_index_defaut(knl_session_t *session, knl_cursor_t *curs
     entity->cbo_table_stats->indexs[pos] = stats;
    
     if (is_part) {
-        if (cbo_alloc_part_index_stats(session, entity, stats, pos) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_part_index_stats(session, entity, stats, pos) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
-static status_t cbo_alloc_inr_part_gr(knl_session_t *session, dc_entity_t *enty,
+static status_t cbo_alloc_interval_part_group(knl_session_t *session, dc_entity_t *entity,
     part_group_t *part_group)
 {
     dc_context_t *dc_ctx = &session->kernel->dc_ctx;
     errno_t ret;
 
     if (part_group->group_id == NULL) {
-        if (dc_alloc_mem(dc_ctx, enty->memory, INTERVAL_PART_GROUP_SIZE,
-            (void **)&part_group->group_id) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(dc_ctx, entity->memory, INTERVAL_PART_GROUP_SIZE,
+            (void **)&part_group->group_id) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
         ret = memset_sp(part_group->group_id, INTERVAL_PART_GROUP_SIZE, 0XFF, INTERVAL_PART_GROUP_SIZE);
         knl_securec_check(ret);
     }
 
     if (part_group->group_ready == NULL) {
-        if (dc_alloc_mem(dc_ctx, enty->memory, INTERVAL_PART_GROUP_SIZE,
-            (void **)&part_group->group_ready) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(dc_ctx, entity->memory, INTERVAL_PART_GROUP_SIZE,
+            (void **)&part_group->group_ready) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
         ret = memset_sp(part_group->group_ready, INTERVAL_PART_GROUP_SIZE, 0, INTERVAL_PART_GROUP_SIZE);
         knl_securec_check(ret);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cbo_alloc_part_index_stats(knl_session_t *session, dc_entity_t *entity, cbo_stats_index_t *stats,
@@ -224,17 +225,17 @@ static status_t cbo_alloc_part_index_stats(knl_session_t *session, dc_entity_t *
 
     // for interval partiiton
     if (part_table->desc.interval_key != NULL) {
-        memsize = GS_SHARED_PAGE_SIZE;
-        if (cbo_alloc_inr_part_gr(session, entity, &stats->part_group) != GS_SUCCESS) {
-            return GS_ERROR;
+        memsize = CT_SHARED_PAGE_SIZE;
+        if (cbo_alloc_interval_part_group(session, entity, &stats->part_group) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (stats->part_index_groups == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, memsize,
-            (void **)&stats->part_index_groups) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            (void **)&stats->part_index_groups) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(stats->part_index_groups, memsize, 0, memsize);
@@ -247,19 +248,19 @@ static status_t cbo_alloc_part_index_stats(knl_session_t *session, dc_entity_t *
             continue;
         }
 
-        if (cbo_alloc_index_part_stats(session, entity, stats, i) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_index_part_stats(session, entity, stats, i) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!IS_PARENT_IDXPART(&idx_part->desc)) {
             continue;
         }
 
-        if (cbo_alloc_index_subpart_stats(session, entity, idx, stats, idx_part) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_index_subpart_stats(session, entity, idx, stats, idx_part) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void cbo_set_subpart_index_stats(cbo_stats_index_t *idx_stats, knl_cursor_t *cursor)
@@ -293,13 +294,13 @@ status_t cbo_load_index_subpart_stats(knl_session_t *session, dc_entity_t *entit
     }
 
     if (idx == NULL) {
-        GS_LOG_RUN_INF("Load %s.%s the %d index stats falied,it is not existed ",
+        CT_LOG_RUN_INF("Load %s.%s the %d index stats falied,it is not existed ",
                        entity->entry->user->desc.name, entity->table.desc.name, index_id);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (cbo_precheck_index_subpart(session, entity, part_no, idx, subpart_no) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_precheck_index_subpart(session, entity, part_no, idx, subpart_no) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     index_part_t *index_part = INDEX_GET_PART(idx, part_no);
@@ -311,48 +312,48 @@ status_t cbo_load_index_subpart_stats(knl_session_t *session, dc_entity_t *entit
     knl_cursor_t *cursor = knl_push_cursor(session);
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_INDEX_PARTS_ID, IX_SYS_INDEXSUBPART001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index_sub->desc.uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index_sub->desc.uid,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index_sub->desc.table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index_sub->desc.table_id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index_sub->desc.index_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index_sub->desc.index_id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         &index_sub->desc.parent_partid, sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_PARENT_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index_sub->desc.part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index_sub->desc.part_id,
         sizeof(uint32), IX_COL_SYS_INDEXSUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (cbo_alloc_index_subpart_stats(session, entity, idx, index_stats, index_part) != GS_SUCCESS) {
+    if (cbo_alloc_index_subpart_stats(session, entity, idx, index_stats, index_part) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
-    if (CURSOR_COLUMN_SIZE(cursor, INDEX_PART_ANALYZE_TIME) == GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, INDEX_PART_ANALYZE_TIME) == CT_NULL_VALUE_LEN) {
         CM_RESTORE_STACK(session->stack);
-        GS_LOG_RUN_INF("Load %s.%s the %d-%d-%d index part stats falied,it is not analyzed",
+        CT_LOG_RUN_INF("Load %s.%s the %d-%d-%d index part stats falied,it is not analyzed",
                        entity->entry->user->desc.name, entity->table.desc.name, index_id, part_no, subpart_no);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // load index statistics info
     cbo_stats_index_t *subpart_stats = CBO_GET_SUBINDEX_PART(index_stats, index_part->subparts[subpart_no]);
     cbo_set_subpart_index_stats(subpart_stats, cursor);
    
-    subpart_stats->is_ready = GS_TRUE;
+    subpart_stats->is_ready = CT_TRUE;
     subpart_stats->stats_version = table_stats->stats_version;
 
-    parent_stats->is_ready = GS_TRUE;
+    parent_stats->is_ready = CT_TRUE;
     parent_stats->stats_version = table_stats->stats_version;
 
     CM_RESTORE_STACK(session->stack);
@@ -360,13 +361,13 @@ status_t cbo_load_index_subpart_stats(knl_session_t *session, dc_entity_t *entit
     part_loc.part_no = part_no;
     part_loc.subpart_no = subpart_no;
     dc_calc_index_empty_size(session, entity, idx->desc.slot, part_loc, subpart_stats->empty_leaf_blocks);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void cbo_set_index_stats(cbo_stats_index_t *stats, knl_cursor_t *cursor)
 {
     stats->id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, INDEX_IDX_ID);
-    stats->part_id = GS_INVALID_ID32;
+    stats->part_id = CT_INVALID_ID32;
     stats->is_part = *(bool8 *)CURSOR_COLUMN_DATA(cursor, INDEX_PARTED);
     stats->blevel = *(uint32 *)CURSOR_COLUMN_DATA(cursor, INDEX_BLEVEL);
     stats->leaf_blocks = *(uint32 *)CURSOR_COLUMN_DATA(cursor, INDEX_LEVEL_BLOCKS);
@@ -376,7 +377,7 @@ static void cbo_set_index_stats(cbo_stats_index_t *stats, knl_cursor_t *cursor)
     stats->empty_leaf_blocks = *(uint32 *)CURSOR_COLUMN_DATA(cursor, INDEX_EMPTY_LEAF_BLOCKS);
     stats->clustering_factor = *(uint32 *)CURSOR_COLUMN_DATA(cursor, INDEX_CLUSTER_FACTOR);
 
-    if (CURSOR_COLUMN_SIZE(cursor, INDEX_COMB_2_NDV) == GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, INDEX_COMB_2_NDV) == CT_NULL_VALUE_LEN) {
         stats->comb_cols_2_ndv = 0;
         stats->comb_cols_3_ndv = 0;
         stats->comb_cols_4_ndv = 0;
@@ -396,7 +397,7 @@ static status_t cbo_load_table_one_index(knl_session_t *session, knl_cursor_t *c
     errno_t ret;
     bool32 is_part = *(bool32 *)CURSOR_COLUMN_DATA(cursor, INDEX_PARTED);
 
-    if (CURSOR_COLUMN_SIZE(cursor, INDEX_IDX_ANALYZE_TIME) == GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, INDEX_IDX_ANALYZE_TIME) == CT_NULL_VALUE_LEN) {
         return cbo_load_index_defaut(session, cursor, entity, pos);
     }
 
@@ -407,9 +408,9 @@ static status_t cbo_load_table_one_index(knl_session_t *session, knl_cursor_t *c
 
     if (stats == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_stats_index_t),
-                         (void **)&stats) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+                         (void **)&stats) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(stats, sizeof(cbo_stats_index_t), 0, sizeof(cbo_stats_index_t));
@@ -419,9 +420,9 @@ static status_t cbo_load_table_one_index(knl_session_t *session, knl_cursor_t *c
 
     if (is_part && stats->idx_part_default == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_stats_index_t),
-                         (void **)&stats->idx_part_default) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+                         (void **)&stats->idx_part_default) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(stats->idx_part_default, sizeof(cbo_stats_index_t), 0, sizeof(cbo_stats_index_t));
@@ -432,18 +433,18 @@ static status_t cbo_load_table_one_index(knl_session_t *session, knl_cursor_t *c
     cbo_set_index_stats(stats, cursor);
 
     if (is_part) {
-        if (cbo_alloc_part_index_stats(session, entity, stats, pos) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_part_index_stats(session, entity, stats, pos) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
         knl_part_locate_t part_loc;
-        part_loc.part_no = GS_INVALID_ID32;
-        part_loc.subpart_no = GS_INVALID_ID32;
+        part_loc.part_no = CT_INVALID_ID32;
+        part_loc.subpart_no = CT_INVALID_ID32;
         dc_calc_index_empty_size(session, entity, pos, part_loc, stats->empty_leaf_blocks);
-        stats->is_ready = GS_TRUE;
+        stats->is_ready = CT_TRUE;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cbo_load_table_indexs_stats(knl_session_t *session, knl_cursor_t *cursor, dc_entity_t *entity)
@@ -457,15 +458,15 @@ static status_t cbo_load_table_indexs_stats(knl_session_t *session, knl_cursor_t
     errno_t ret;
 
     if (valid_count == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (cbo_stats->indexs == NULL || cbo_stats->index_count < valid_count) {
         // valid_count <= 32, so sizeof(cbo_stats_index_t *) * valid_count is smaller than max uint32 value
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_stats_index_t *) * valid_count,
-                         (void **)&cbo_stats->indexs) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+                         (void **)&cbo_stats->indexs) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(cbo_stats->indexs, sizeof(cbo_stats_index_t *) * valid_count, 0,
@@ -477,22 +478,22 @@ static status_t cbo_load_table_indexs_stats(knl_session_t *session, knl_cursor_t
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_INDEX_ID, IX_SYS_INDEX_001_ID);
     l_border = &cursor->scan_range.l_key;
     r_border = &cursor->scan_range.r_key;
-    knl_init_index_scan(cursor, GS_FALSE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), l_border, GS_TYPE_INTEGER, (char *)&entity->table.desc.uid,
+    knl_init_index_scan(cursor, CT_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), l_border, CT_TYPE_INTEGER, (char *)&entity->table.desc.uid,
                      sizeof(uint32), IX_COL_SYS_INDEX_001_USER);
-    knl_set_scan_key(INDEX_DESC(cursor->index), l_border, GS_TYPE_INTEGER, (char *)&entity->table.desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), l_border, CT_TYPE_INTEGER, (char *)&entity->table.desc.id,
                      sizeof(uint32), IX_COL_SYS_INDEX_001_TABLE);
     knl_set_key_flag(l_border, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_INDEX_001_ID);
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), r_border, GS_TYPE_INTEGER, (char *)&entity->table.desc.uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), r_border, CT_TYPE_INTEGER, (char *)&entity->table.desc.uid,
                      sizeof(uint32), IX_COL_SYS_INDEX_001_USER);
-    knl_set_scan_key(INDEX_DESC(cursor->index), r_border, GS_TYPE_INTEGER, (char *)&entity->table.desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), r_border, CT_TYPE_INTEGER, (char *)&entity->table.desc.id,
                      sizeof(uint32), IX_COL_SYS_INDEX_001_TABLE);
     knl_set_key_flag(r_border, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_INDEX_001_ID);
 
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (cursor->eof || pos >= valid_count) {
@@ -505,12 +506,12 @@ static status_t cbo_load_table_indexs_stats(knl_session_t *session, knl_cursor_t
             continue;
         }
 
-        if (cbo_load_table_one_index(session, cursor, entity, pos++) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_load_table_one_index(session, cursor, entity, pos++) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // load_column_one_histgram
@@ -523,9 +524,9 @@ static status_t cbo_load_column_one_histgram(knl_session_t *session, knl_cursor_
 
     if (hist == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_column_hist_t),
-                         (void **)&hist) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+                         (void **)&hist) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(hist, sizeof(cbo_column_hist_t), 0, sizeof(cbo_column_hist_t));
@@ -537,17 +538,17 @@ static status_t cbo_load_column_one_histgram(knl_session_t *session, knl_cursor_
     ep_value.str = CURSOR_COLUMN_DATA(cursor, HIST_EP_VALUE);
     ep_value.len = CURSOR_COLUMN_SIZE(cursor, HIST_EP_VALUE);
 
-    if (cbo_alloc_value_mem(session, entity->memory, column, &hist->ep_value.str) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_value_mem(session, entity->memory, column, &hist->ep_value.str) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (cbo_get_stats_values(entity, column, &ep_value, &hist->ep_value)) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     hist->ep_number = *(uint32 *)CURSOR_COLUMN_DATA(cursor, HIST_EP_NUM);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static bool32 cbo_exist_same_endpoint(uint32 *endpints, uint32 curr_endpoint)
@@ -555,16 +556,16 @@ static bool32 cbo_exist_same_endpoint(uint32 *endpints, uint32 curr_endpoint)
     for (uint32 i = 0; i < STATS_HISTGRAM_MAX_SIZE; i++) {
         uint32 endpoint = endpints[i];
         if (curr_endpoint == endpoint) {
-            return GS_TRUE;
+            return CT_TRUE;
         }
 
-        if (endpoint == GS_INVALID_ID32) {
+        if (endpoint == CT_INVALID_ID32) {
             endpints[i] = curr_endpoint;
             break;
         }
     }
 
-    return GS_FALSE;
+    return CT_FALSE;
 }
 
 static status_t cbo_verify_vaild_histgram(dc_entity_t *entity, cbo_stats_column_t *stats, knl_cursor_t *cursor,
@@ -580,45 +581,45 @@ static status_t cbo_verify_vaild_histgram(dc_entity_t *entity, cbo_stats_column_
     ret_bucket.str = buf;
     ret_bucket.len = 0;
     
-    if (cbo_get_stats_values(entity, column, &curr_bucket, &ret_bucket) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_get_stats_values(entity, column, &curr_bucket, &ret_bucket) != CT_SUCCESS) {
+        return CT_ERROR;
     }
    
     int32 result = stats_compare_data_ex(ret_bucket.str, ret_bucket.len, stats->low_value.str,
         stats->low_value.len, column);
     // value is less low value
     if (result == -1) {
-        *valid = GS_FALSE;
+        *valid = CT_FALSE;
     }
 
     result = stats_compare_data_ex(ret_bucket.str, ret_bucket.len,
         stats->high_value.str, stats->high_value.len, column);
     // value is bigger high value
     if (result == 1) {
-        *valid = GS_FALSE;
+        *valid = CT_FALSE;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cbo_alloc_hist_memory(knl_session_t *session, dc_entity_t *entity, cbo_stats_column_t *stats)
 {
     if (stats->column_hist != NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory,
         sizeof(cbo_column_hist_t *) * STATS_HISTGRAM_MAX_SIZE,
-        (void **)&stats->column_hist) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-        return GS_ERROR;
+        (void **)&stats->column_hist) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+        return CT_ERROR;
     }
 
     errno_t ret = memset_sp(stats->column_hist, sizeof(cbo_column_hist_t *) * STATS_HISTGRAM_MAX_SIZE, 0,
         sizeof(cbo_column_hist_t *) * STATS_HISTGRAM_MAX_SIZE);
     knl_securec_check(ret);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // load column histogram info
@@ -639,38 +640,38 @@ static status_t cbo_load_column_sub_histgrams(knl_session_t *session, knl_cursor
     knl_securec_check(ret);
 
     if (stats->num_distinct == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (cbo_alloc_hist_memory(session, entity, stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_hist_memory(session, entity, stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     uint32 cid = stats->column_id;
     stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_SELECT, IX_HIST_003_ID,
         IS_NOLOGGING_BY_TABLE_TYPE(table->desc.type));
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
     cbo_set_histgram_scan_key(cursor, table, cid, part_stats->part_id);
 
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
             break;
         }
 
-        if (CURSOR_COLUMN_SIZE(cursor, HIST_SUBPART_ID) != GS_NULL_VALUE_LEN &&
+        if (CURSOR_COLUMN_SIZE(cursor, HIST_SUBPART_ID) != CT_NULL_VALUE_LEN &&
             subpart_id == *(uint64*)CURSOR_COLUMN_DATA(cursor, HIST_SUBPART_ID)) {
             uint32 endpoint = *(uint32 *)CURSOR_COLUMN_DATA(cursor, HIST_EP_NUM);
             if (cbo_exist_same_endpoint(endpoints, endpoint)) {
                 continue;
             }
 
-            bool32 valid = GS_TRUE;
-            if (cbo_verify_vaild_histgram(entity, stats, cursor, &valid) != GS_SUCCESS) {
-                return GS_ERROR;
+            bool32 valid = CT_TRUE;
+            if (cbo_verify_vaild_histgram(entity, stats, cursor, &valid) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
             if (!valid || count >= stats->num_buckets) {
@@ -693,11 +694,11 @@ static status_t cbo_load_column_sub_histgrams(knl_session_t *session, knl_cursor
     stats->hist_count = count;
     cbo_hists_sort(cbo_hists, count);
 
-    if (cbo_set_sub_histgrams(session, entity, count, stats, cbo_hists) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_set_sub_histgrams(session, entity, count, stats, cbo_hists) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 // load column histogram info
 static status_t cbo_load_column_histgrams(knl_session_t *session, knl_cursor_t *cursor, dc_entity_t *entity,
@@ -710,11 +711,11 @@ static status_t cbo_load_column_histgrams(knl_session_t *session, knl_cursor_t *
     uint32 count = 0;
     
     if (stats->num_distinct == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (cbo_alloc_hist_memory(session, entity, stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_hist_memory(session, entity, stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
    
     uint32 endpoints[STATS_HISTGRAM_MAX_SIZE];
@@ -725,12 +726,12 @@ static status_t cbo_load_column_histgrams(knl_session_t *session, knl_cursor_t *
     cid = stats->column_id;
     stats_open_histgram_cursor(session, cursor, CURSOR_ACTION_SELECT, IX_HIST_003_ID,
         IS_NOLOGGING_BY_TABLE_TYPE(table->desc.type));
-    knl_init_index_scan(cursor, GS_FALSE);
+    knl_init_index_scan(cursor, CT_FALSE);
     cbo_set_histgram_scan_key(cursor, table, cid, part_id);
 
     for (;;) {
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -742,24 +743,24 @@ static status_t cbo_load_column_histgrams(knl_session_t *session, knl_cursor_t *
             continue;
         }
 
-        bool32 valid = GS_TRUE;
-        if (cbo_verify_vaild_histgram(entity, stats, cursor, &valid) != GS_SUCCESS) {
-            return GS_ERROR;
+        bool32 valid = CT_TRUE;
+        if (cbo_verify_vaild_histgram(entity, stats, cursor, &valid) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (!valid || count >= stats->num_buckets) {
             continue;
         }
 
-        if (cbo_load_column_one_histgram(session, cursor, entity, column, stats, count) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_load_column_one_histgram(session, cursor, entity, column, stats, count) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         count++;
     }
 
     stats->hist_count = count;
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // load_table_one_column
@@ -773,20 +774,20 @@ static status_t cbo_load_table_one_column(knl_session_t *session, knl_cursor_t *
     text_t high_value;
     errno_t ret;
 
-    if (CURSOR_COLUMN_SIZE(cursor, HIST_HEAD_ANALYZE_TIME) == GS_NULL_VALUE_LEN) {
-        return GS_SUCCESS;
+    if (CURSOR_COLUMN_SIZE(cursor, HIST_HEAD_ANALYZE_TIME) == CT_NULL_VALUE_LEN) {
+        return CT_SUCCESS;
     }
 
     analyze_time = *(date_t *)CURSOR_COLUMN_DATA(cursor, HIST_HEAD_ANALYZE_TIME);
     if (analyze_time == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (stats == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_stats_column_t),
-                         (void **)&stats) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+                         (void **)&stats) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(stats, sizeof(cbo_stats_column_t), 0, sizeof(cbo_stats_column_t));
@@ -805,25 +806,25 @@ static status_t cbo_load_table_one_column(knl_session_t *session, knl_cursor_t *
     high_value.str = CURSOR_COLUMN_DATA(cursor, HIST_HEAD_HIGH_VALUE);
     high_value.len = CURSOR_COLUMN_SIZE(cursor, HIST_HEAD_HIGH_VALUE);
 
-    if (cbo_alloc_value_mem(session, entity->memory, column, &stats->low_value.str) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_value_mem(session, entity->memory, column, &stats->low_value.str) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cbo_get_stats_values(entity, column, &low_value, &stats->low_value) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_get_stats_values(entity, column, &low_value, &stats->low_value) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cbo_alloc_value_mem(session, entity->memory, column, &stats->high_value.str) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_value_mem(session, entity->memory, column, &stats->high_value.str) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cbo_get_stats_values(entity, column, &high_value, &stats->high_value) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_get_stats_values(entity, column, &high_value, &stats->high_value) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (stats->num_buckets > STATS_HISTGRAM_MAX_SIZE) {
         stats->num_buckets = STATS_HISTGRAM_MAX_SIZE;
-        GS_LOG_RUN_INF("Number of Histgram %d is exceed max number of histgram 254, "
+        CT_LOG_RUN_INF("Number of Histgram %d is exceed max number of histgram 254, "
                        "it may impact on execution plan, please analyze table again",
                        stats->num_buckets);
     }
@@ -833,16 +834,16 @@ static status_t cbo_load_table_one_column(knl_session_t *session, knl_cursor_t *
     stats->hist_type = (stats->num_distinct <= stats->num_buckets) ? FREQUENCY : HEIGHT_BALANCED;
 
     if (is_subpart) {
-        if (cbo_load_column_sub_histgrams(session, cursor, entity, stats, cbo_stats) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_load_column_sub_histgrams(session, cursor, entity, stats, cbo_stats) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     } else {
-        if (cbo_load_column_histgrams(session, cursor, entity, stats, cbo_stats->part_id) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_load_column_histgrams(session, cursor, entity, stats, cbo_stats->part_id) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void cbo_set_global_column_scan_key(knl_cursor_t *cursor, table_t *table, knl_column_t *column)
@@ -850,23 +851,23 @@ void cbo_set_global_column_scan_key(knl_cursor_t *cursor, table_t *table, knl_co
     uint32 uid = table->desc.uid;
     uint32 tid = table->desc.id;
     uint32 cid = column->id;
-    uint64 part_id = GS_INVALID_ID32;
+    uint64 part_id = CT_INVALID_ID32;
 
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&uid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&uid,
         sizeof(uint32), IX_COL_HIST_HEAD_003_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&tid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&tid,
         sizeof(uint32), IX_COL_HIST_HEAD_003_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&cid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&cid,
         sizeof(uint32), IX_COL_HIST_HEAD_003_COL_ID);
     if (IS_PART_TABLE(table)) {
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_BIGINT, (void *)&part_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_BIGINT, (void *)&part_id,
             sizeof(uint64), IX_COL_HIST_HEAD_003_SPARE1);
     } else {
         knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_IS_NULL, IX_COL_HIST_HEAD_003_SPARE1);
     }
 
     if (IS_PART_TABLE(table) && IS_COMPART_TABLE(table->part_table)) {
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_BIGINT, (void *)&part_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_BIGINT, (void *)&part_id,
             sizeof(uint64), IX_COL_HIST_HEAD_003_SPARE2);
     } else {
         knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_IS_NULL, IX_COL_HIST_HEAD_003_SPARE2);
@@ -879,23 +880,23 @@ static status_t cbo_load_table_columns_stats(knl_session_t *session, knl_cursor_
     cbo_stats_table_t *cbo_stats = entity->cbo_table_stats;
     uint32 max_col_id = 0;
   
-    if (cbo_prepare_load_columns(session, entity, cbo_stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_prepare_load_columns(session, entity, cbo_stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cbo_stats->column_count = entity->column_count;
 
-    cbo_stats->col_loading = GS_TRUE;
+    cbo_stats->col_loading = CT_TRUE;
     for (uint32 pos = 0; pos < entity->column_count; pos++) {
         knl_column_t *column = dc_get_column(entity, pos);
         uint32 cid = column->id;
         stats_open_hist_abstr_cursor(session, cursor, CURSOR_ACTION_SELECT, IX_HIST_HEAD_003_ID,
             IS_NOLOGGING_BY_TABLE_TYPE(entity->table.desc.type));
-        knl_init_index_scan(cursor, GS_TRUE);
+        knl_init_index_scan(cursor, CT_TRUE);
         cbo_set_global_column_scan_key(cursor, table, column);
        
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -907,26 +908,26 @@ static status_t cbo_load_table_columns_stats(knl_session_t *session, knl_cursor_
         }
 
         cm_latch_x(&column->cbo_col_latch, session->id, NULL);
-        if (cbo_load_table_one_column(session, cursor, entity, cbo_stats, pos, GS_FALSE) != GS_SUCCESS) {
+        if (cbo_load_table_one_column(session, cursor, entity, cbo_stats, pos, CT_FALSE) != CT_SUCCESS) {
             cm_unlatch(&column->cbo_col_latch, NULL);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         cm_unlatch(&column->cbo_col_latch, NULL);
     }
 
-    if (cbo_set_columns_stats(session, entity, cbo_stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_set_columns_stats(session, entity, cbo_stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cbo_stats->max_col_id = entity->column_count - 1;
-    cbo_stats->col_loading = GS_FALSE;
-    return GS_SUCCESS;
+    cbo_stats->col_loading = CT_FALSE;
+    return CT_SUCCESS;
 }
 
 static status_t cbo_load_table_subpart_columns(knl_session_t *session, dc_entity_t *entity, cbo_stats_table_t *part_stats)
 {
-    if (cbo_prepare_load_columns(session, entity, part_stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_prepare_load_columns(session, entity, part_stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     part_stats->column_count = entity->column_count;
@@ -938,28 +939,28 @@ static status_t cbo_load_table_subpart_columns(knl_session_t *session, dc_entity
     knl_cursor_t *cursor = knl_push_cursor(session);
     uint64 part_id = part_stats->part_id;
     uint64 subpart_id = part_stats->subpart_id;
-    part_stats->col_loading = GS_TRUE;
+    part_stats->col_loading = CT_TRUE;
 
     for (uint32 pos = 0; pos < entity->column_count; pos++) {
         knl_column_t *column = dc_get_column(entity, pos);
 
         stats_open_hist_abstr_cursor(session, cursor, CURSOR_ACTION_SELECT, IX_HIST_HEAD_003_ID,
             IS_NOLOGGING_BY_TABLE_TYPE(entity->table.desc.type));
-        knl_init_index_scan(cursor, GS_TRUE);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&uid,
+        knl_init_index_scan(cursor, CT_TRUE);
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&uid,
             sizeof(uint32), IX_COL_HIST_HEAD_003_USER_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&tid,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&tid,
             sizeof(uint32), IX_COL_HIST_HEAD_003_TABLE_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&column->id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&column->id,
             sizeof(uint32), IX_COL_HIST_HEAD_003_COL_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_BIGINT, (void *)&part_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_BIGINT, (void *)&part_id,
             sizeof(uint64), IX_COL_HIST_HEAD_003_SPARE1);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_BIGINT, (void *)&subpart_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_BIGINT, (void *)&subpart_id,
             sizeof(uint64), IX_COL_HIST_HEAD_003_SPARE2);
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -971,23 +972,23 @@ static status_t cbo_load_table_subpart_columns(knl_session_t *session, dc_entity
         }
 
         cm_latch_x(&column->cbo_col_latch, session->id, NULL);
-        if (cbo_load_table_one_column(session, cursor, entity, part_stats, pos, GS_TRUE) != GS_SUCCESS) {
+        if (cbo_load_table_one_column(session, cursor, entity, part_stats, pos, CT_TRUE) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
             cm_unlatch(&column->cbo_col_latch, NULL);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         cm_unlatch(&column->cbo_col_latch, NULL);
     }
 
     CM_RESTORE_STACK(session->stack);
 
-    if (cbo_set_columns_stats(session, entity, part_stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_set_columns_stats(session, entity, part_stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     part_stats->max_col_id = max_col_id;
-    part_stats->col_loading = GS_FALSE;
-    return GS_SUCCESS;
+    part_stats->col_loading = CT_FALSE;
+    return CT_SUCCESS;
 }
 
 static status_t cbo_load_table_part_columns(knl_session_t *session, dc_entity_t *entity, cbo_stats_table_t *part_stats,
@@ -998,8 +999,8 @@ static status_t cbo_load_table_part_columns(knl_session_t *session, dc_entity_t 
    
     col_count = entity->column_count;
    
-    if (cbo_prepare_load_columns(session, entity, part_stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_prepare_load_columns(session, entity, part_stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     part_stats->column_count = col_count;
@@ -1011,32 +1012,32 @@ static status_t cbo_load_table_part_columns(knl_session_t *session, dc_entity_t 
     subpart_id = part_stats->subpart_id;
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
-    part_stats->col_loading = GS_TRUE;
+    part_stats->col_loading = CT_TRUE;
 
     for (uint32 pos = 0; pos < entity->column_count; pos++) {
         knl_column_t *column = dc_get_column(entity, pos);
         cid = column->id;
         stats_open_hist_abstr_cursor(session, cursor, CURSOR_ACTION_SELECT, IX_HIST_HEAD_003_ID,
             IS_NOLOGGING_BY_TABLE_TYPE(entity->table.desc.type));
-        knl_init_index_scan(cursor, GS_TRUE);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&uid,
+        knl_init_index_scan(cursor, CT_TRUE);
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&uid,
                          sizeof(uint32), IX_COL_HIST_HEAD_003_USER_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&tid,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&tid,
                          sizeof(uint32), IX_COL_HIST_HEAD_003_TABLE_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&cid,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&cid,
                          sizeof(uint32), IX_COL_HIST_HEAD_003_COL_ID);
-        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_BIGINT, (void *)&part_id,
+        knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_BIGINT, (void *)&part_id,
                          sizeof(uint64), IX_COL_HIST_HEAD_003_SPARE1);
         if (!is_subpart) {
             knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_IS_NULL, IX_COL_HIST_HEAD_003_SPARE2);
         } else {
-            knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_BIGINT, (void *)&subpart_id,
+            knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_BIGINT, (void *)&subpart_id,
                 sizeof(uint64), IX_COL_HIST_HEAD_003_SPARE2);
         }
 
-        if (knl_fetch(session, cursor) != GS_SUCCESS) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         if (cursor->eof) {
@@ -1048,23 +1049,23 @@ static status_t cbo_load_table_part_columns(knl_session_t *session, dc_entity_t 
         }
 
         cm_latch_x(&column->cbo_col_latch, session->id, NULL);
-        if (cbo_load_table_one_column(session, cursor, entity, part_stats, pos, is_subpart) != GS_SUCCESS) {
+        if (cbo_load_table_one_column(session, cursor, entity, part_stats, pos, is_subpart) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
             cm_unlatch(&column->cbo_col_latch, NULL);
-            return GS_ERROR;
+            return CT_ERROR;
         }
         cm_unlatch(&column->cbo_col_latch, NULL);
     }
 
     CM_RESTORE_STACK(session->stack);
     
-    if (cbo_set_columns_stats(session, entity, part_stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_set_columns_stats(session, entity, part_stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
    
     part_stats->max_col_id = max_col_id;
-    part_stats->col_loading = GS_FALSE;
-    return GS_SUCCESS;
+    part_stats->col_loading = CT_FALSE;
+    return CT_SUCCESS;
 }
 
 static status_t cbo_alloc_part_table_stats(knl_session_t *session, dc_entity_t *entity)
@@ -1077,17 +1078,17 @@ static status_t cbo_alloc_part_table_stats(knl_session_t *session, dc_entity_t *
     uint32 memsize = group_count * sizeof(cbo_stats_table_t *);
 
     if (part_table->desc.interval_key != NULL) {
-        memsize = GS_SHARED_PAGE_SIZE;
-        if (cbo_alloc_inr_part_gr(session, entity, &cbo_stats->part_group) != GS_SUCCESS) {
-            return GS_ERROR;
+        memsize = CT_SHARED_PAGE_SIZE;
+        if (cbo_alloc_interval_part_group(session, entity, &cbo_stats->part_group) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (cbo_stats->part_groups == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, memsize,
-            (void **)&cbo_stats->part_groups) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            (void **)&cbo_stats->part_groups) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(cbo_stats->part_groups, memsize, 0, memsize);
@@ -1096,9 +1097,9 @@ static status_t cbo_alloc_part_table_stats(knl_session_t *session, dc_entity_t *
 
     if (cbo_stats->tab_part_default == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_stats_table_t),
-            (void **)&cbo_stats->tab_part_default) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            (void **)&cbo_stats->tab_part_default) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(cbo_stats->tab_part_default, sizeof(cbo_stats_table_t), 0, sizeof(cbo_stats_table_t));
@@ -1106,17 +1107,17 @@ static status_t cbo_alloc_part_table_stats(knl_session_t *session, dc_entity_t *
     }
 
     if (part_table->desc.flags & PART_TABLE_SUBPARTED && cbo_stats->subpart_groups == NULL) {
-        if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, GS_SHARED_PAGE_SIZE,
-            (void **)&cbo_stats->subpart_groups) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+        if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, CT_SHARED_PAGE_SIZE,
+            (void **)&cbo_stats->subpart_groups) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
-        ret = memset_sp(cbo_stats->subpart_groups, GS_SHARED_PAGE_SIZE, 0, GS_SHARED_PAGE_SIZE);
+        ret = memset_sp(cbo_stats->subpart_groups, CT_SHARED_PAGE_SIZE, 0, CT_SHARED_PAGE_SIZE);
         knl_securec_check(ret);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cbo_load_part_table_stats(knl_session_t *session, dc_entity_t *entity, stats_load_info_t load_info)
@@ -1125,8 +1126,8 @@ static status_t cbo_load_part_table_stats(knl_session_t *session, dc_entity_t *e
     part_table_t *part_table = entity->table.part_table;
     table_part_t *table_part = NULL;
     
-    if (cbo_alloc_part_table_stats(session, entity) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_part_table_stats(session, entity) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < part_table->desc.partcnt; i++) {
@@ -1136,13 +1137,13 @@ static status_t cbo_load_part_table_stats(knl_session_t *session, dc_entity_t *e
         }
 
         if (CBO_NEED_LOAD_PART(load_info.parent_part_id, table_part->desc.part_id)) {
-            if (cbo_load_table_part_stats(session, entity, i, load_info, GS_FALSE) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cbo_load_table_part_stats(session, entity, i, load_info, CT_FALSE) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 cbo_stats_column_t *cbo_get_column_stats(cbo_stats_table_t *table_stats, uint32 col_id)
@@ -1157,15 +1158,15 @@ cbo_stats_column_t *cbo_get_column_stats(cbo_stats_table_t *table_stats, uint32 
 
 static status_t cbo_alloc_mem(knl_session_t *session, memory_context_t *memory, void **stats, uint32 size)
 {
-    if (dc_alloc_mem(&session->kernel->dc_ctx, memory, size, stats) != GS_SUCCESS) {
-        GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-        return GS_ERROR;
+    if (dc_alloc_mem(&session->kernel->dc_ctx, memory, size, stats) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+        return CT_ERROR;
     }
 
     errno_t ret = memset_sp(*stats, size, 0, size);
     knl_securec_check(ret);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_load_tmptab_histgram(knl_session_t *session, dc_entity_t *entity, cbo_stats_table_t *stats,
@@ -1175,7 +1176,7 @@ status_t cbo_load_tmptab_histgram(knl_session_t *session, dc_entity_t *entity, c
     cbo_stats_column_t *column_stats = get_cbo_stats_column(stats, stats_col->column->id);
     cbo_column_hist_t *hist = NULL;
     mtrl_cursor_t *mtrl_cur = &stats_col->mtrl.mtrl_cur;
-    bool32 is_frenquency = stats_col->hist_info.bucket_num > STATS_HISTGRAM_MAX_SIZE ? GS_FALSE : GS_TRUE;
+    bool32 is_frenquency = stats_col->hist_info.bucket_num > STATS_HISTGRAM_MAX_SIZE ? CT_FALSE : CT_TRUE;
     errno_t ret;
     uint32 size;
 
@@ -1185,29 +1186,29 @@ status_t cbo_load_tmptab_histgram(knl_session_t *session, dc_entity_t *entity, c
         table_t *table = &entity->table;
         knl_temp_cache_t *temp_cache = knl_get_temp_cache((knl_handle_t)session, table->desc.uid, table->desc.id);
         if (temp_cache == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
         }
         memory = temp_cache->memory;
     }
 
     if (column_stats->column_hist == NULL) {
         if (cbo_alloc_mem(session, memory, (void **)&column_stats->column_hist,
-            sizeof(cbo_column_hist_t *) * STATS_HISTGRAM_MAX_SIZE) != GS_SUCCESS) {
-            return GS_ERROR;
+            sizeof(cbo_column_hist_t *) * STATS_HISTGRAM_MAX_SIZE) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     hist = column_stats->column_hist[stats_col->hist_info.bucket_num];
 
     if (hist == NULL) {
-        if (cbo_alloc_mem(session, memory, (void **)&hist, sizeof(cbo_column_hist_t)) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_mem(session, memory, (void **)&hist, sizeof(cbo_column_hist_t)) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         column_stats->column_hist[stats_col->hist_info.bucket_num] = hist;
     }
 
-    if (cbo_alloc_value_mem(session, memory, stats_col->column, &hist->ep_value.str) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_value_mem(session, memory, stats_col->column, &hist->ep_value.str) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     hist->ep_value.len = STATS_GET_ROW_SIZE(mtrl_cur);
@@ -1217,13 +1218,13 @@ status_t cbo_load_tmptab_histgram(knl_session_t *session, dc_entity_t *entity, c
         knl_securec_check(ret);
     }
 
-    if (is_frenquency && stats_col->simple_ratio > GS_REAL_PRECISION) {
+    if (is_frenquency && stats_col->simple_ratio > CT_REAL_PRECISION) {
         hist->ep_number = (uint32)(int32)(stats_col->hist_info.endpoint / stats_col->simple_ratio);
     } else {
         hist->ep_number = stats_col->hist_info.endpoint;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_load_tmptab_column_stats(knl_session_t *session, dc_entity_t *entity, cbo_stats_table_t *stats,
@@ -1232,7 +1233,7 @@ status_t cbo_load_tmptab_column_stats(knl_session_t *session, dc_entity_t *entit
     cbo_stats_column_t *column_stats = get_cbo_stats_column(stats, stats_col->column->id);
     double density;
     errno_t ret;
-    uint32 copy_size = GS_NULL_VALUE_LEN;
+    uint32 copy_size = CT_NULL_VALUE_LEN;
 
     column_stats->column_id = stats_col->column->id;
     column_stats->num_null = stats_col->null_num;
@@ -1243,7 +1244,7 @@ status_t cbo_load_tmptab_column_stats(knl_session_t *session, dc_entity_t *entit
     memory_context_t *memory = NULL;
     knl_temp_cache_t *temp_cache = knl_get_temp_cache((knl_handle_t)session, table->desc.uid, table->desc.id);
     if (temp_cache == NULL) {
-        return GS_ERROR;
+        return CT_ERROR;
     }
     if (!IS_LTT_BY_ID(table->desc.id)) {
         memory = temp_cache->memory;
@@ -1257,12 +1258,12 @@ status_t cbo_load_tmptab_column_stats(knl_session_t *session, dc_entity_t *entit
         density = (double)(1) / (double)(stats_col->dist_num);
     }
     
-    if (cbo_alloc_value_mem(session, memory, stats_col->column, &column_stats->low_value.str) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_value_mem(session, memory, stats_col->column, &column_stats->low_value.str) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    if (cbo_alloc_value_mem(session, memory, stats_col->column, &column_stats->high_value.str) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_value_mem(session, memory, stats_col->column, &column_stats->high_value.str) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     uint32 size = cbo_get_column_alloc_size(stats_col->column);
@@ -1271,14 +1272,14 @@ status_t cbo_load_tmptab_column_stats(knl_session_t *session, dc_entity_t *entit
         ret = memcpy_sp(column_stats->low_value.str, size, stats_col->min_value.str, copy_size);
         knl_securec_check(ret);
     }
-    column_stats->low_value.len = stats_col->min_value.len == 0 ? GS_NULL_VALUE_LEN : copy_size;
+    column_stats->low_value.len = stats_col->min_value.len == 0 ? CT_NULL_VALUE_LEN : copy_size;
     
     if (stats_col->max_value.len > 0) {
         copy_size = MIN(size, stats_col->max_value.len);
         ret = memcpy_sp(column_stats->high_value.str, size, stats_col->max_value.str, copy_size);
         knl_securec_check(ret);
     }
-    column_stats->high_value.len = stats_col->max_value.len == 0 ? GS_NULL_VALUE_LEN : copy_size;
+    column_stats->high_value.len = stats_col->max_value.len == 0 ? CT_NULL_VALUE_LEN : copy_size;
     column_stats->density = density;
     column_stats->analyse_time = cm_now();
     column_stats->column_type = stats_col->column->datatype;
@@ -1287,8 +1288,8 @@ status_t cbo_load_tmptab_column_stats(knl_session_t *session, dc_entity_t *entit
     column_stats->hist_count = stats_col->hist_info.bucket_num;
 
     set_cbo_col_map(stats, column_stats->column_id, stats_col->column->id);
-    stats->col_stats_allowed = GS_TRUE;
-    return GS_SUCCESS;
+    stats->col_stats_allowed = CT_TRUE;
+    return CT_SUCCESS;
 }
 
 void cbo_load_tmptab_index_stats(cbo_stats_table_t *stats, stats_index_t *stats_idx)
@@ -1307,7 +1308,7 @@ void cbo_load_tmptab_index_stats(cbo_stats_table_t *stats, stats_index_t *stats_
     index_stats->comb_cols_2_ndv = stats_idx->info.comb_cols_2_ndv;
     index_stats->comb_cols_3_ndv = stats_idx->info.comb_cols_3_ndv;
     index_stats->comb_cols_4_ndv = stats_idx->info.comb_cols_4_ndv;
-    index_stats->is_part = GS_FALSE;
+    index_stats->is_part = CT_FALSE;
 }
 
 void cbo_load_tmptab_table_stats(cbo_stats_table_t *stats, stats_table_t *stats_table, knl_dictionary_t *dc)
@@ -1322,7 +1323,7 @@ void cbo_load_tmptab_table_stats(cbo_stats_table_t *stats, stats_table_t *stats_
     stats->sample_size = (uint32)stats_table->tab_info.sample_size;
     stats->avg_row_len = stats_table->tab_info.avg_row_len;
     stats->analyse_time = cm_now();
-    stats->is_ready = GS_TRUE;
+    stats->is_ready = CT_TRUE;
     stats->column_count = entity->table.desc.column_count;
     stats->index_count = entity->table.desc.index_count;
 }
@@ -1335,7 +1336,7 @@ static status_t cbo_alloc_temp_index_stats(knl_session_t *session, dc_entity_t *
     cbo_stats_index_t **prev_indexes = NULL;
 
     if (valid_count == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (stats->index_count < valid_count) {
@@ -1343,8 +1344,8 @@ static status_t cbo_alloc_temp_index_stats(knl_session_t *session, dc_entity_t *
 
         // valid_count <= 32, so sizeof(cbo_stats_index_t *) * valid_count is smaller than max uint32 value
         if (cbo_alloc_mem(session, memory, (void **)&stats->indexs, sizeof(cbo_stats_index_t *) * valid_count) !=
-            GS_SUCCESS) {
-            return GS_ERROR;
+            CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         for (pos = 0; pos < stats->index_count; pos++) {
@@ -1352,13 +1353,13 @@ static status_t cbo_alloc_temp_index_stats(knl_session_t *session, dc_entity_t *
         }
 
         for (pos = stats->index_count; pos < valid_count; pos++) {
-            if (cbo_alloc_mem(session, memory, (void **)&stats->indexs[pos], sizeof(cbo_stats_index_t)) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cbo_alloc_mem(session, memory, (void **)&stats->indexs[pos], sizeof(cbo_stats_index_t)) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cbo_alloc_temp_one_column(knl_session_t *se, memory_context_t *memory, cbo_stats_table_t *stats,
@@ -1367,14 +1368,14 @@ static status_t cbo_alloc_temp_one_column(knl_session_t *se, memory_context_t *m
     cbo_stats_column_t *column_stats = get_cbo_stats_column(stats, pos);
 
     if (column_stats == NULL) {
-        if (cbo_alloc_mem(se, memory, (void **)&column_stats, sizeof(cbo_stats_column_t)) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_mem(se, memory, (void **)&column_stats, sizeof(cbo_stats_column_t)) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         set_cbo_stats_column(stats, column_stats, pos);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cbo_alloc_temp_columns_stats(knl_session_t *session, dc_entity_t *entity, memory_context_t *memory,
@@ -1385,7 +1386,7 @@ static status_t cbo_alloc_temp_columns_stats(knl_session_t *session, dc_entity_t
     errno_t ret;
 
     if (col_count == 0) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     // when is wide table, col_count = 4096, sizeof(cbo_stats_column_t*)*col_count > page_size
@@ -1394,8 +1395,8 @@ static status_t cbo_alloc_temp_columns_stats(knl_session_t *session, dc_entity_t
     knl_panic_log(ext_count <= CBO_EXTENT_COUNT, "extent count is more than the limit, panic info: "
                   "ext_count %u table %s", ext_count, entity->table.desc.name);
     if (stats->columns == NULL) {
-        if (cbo_alloc_mem(session, memory, (void **)&stats->columns, sizeof(void *) * ext_count) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_mem(session, memory, (void **)&stats->columns, sizeof(void *) * ext_count) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -1408,20 +1409,20 @@ static status_t cbo_alloc_temp_columns_stats(knl_session_t *session, dc_entity_t
         }
 
         if (cbo_alloc_mem(session, memory, (void **)&stats->columns[i], sizeof(void *) * CBO_LIST_COUNT) !=
-                          GS_SUCCESS) {
-            return GS_ERROR;
+                          CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     for (uint32 pos = 0; pos < entity->column_count; pos++) {
-        if (cbo_alloc_temp_one_column(session, memory, stats, pos) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_temp_one_column(session, memory, stats, pos) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     if (stats->col_map == NULL) {
-        if (cbo_alloc_mem(session, memory, (void **)&stats->col_map, sizeof(void *) * ext_count) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_mem(session, memory, (void **)&stats->col_map, sizeof(void *) * ext_count) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
@@ -1432,15 +1433,15 @@ static status_t cbo_alloc_temp_columns_stats(knl_session_t *session, dc_entity_t
 
         if (dc_alloc_mem(&session->kernel->dc_ctx, memory, sizeof(uint32) * CBO_LIST_COUNT,
             (void **)&stats->col_map[i])) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(stats->col_map[i], sizeof(uint32) * CBO_LIST_COUNT, 0xFF, sizeof(uint32) * CBO_LIST_COUNT);
         knl_securec_check(ret);
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 // just for  dynamic sampling global session level temp table and local temporary table alloc stats
@@ -1453,8 +1454,8 @@ static status_t cbo_alloc_gst_dynamic_stats(knl_session_t *session, dc_entity_t 
     }
 
     if (temp_cache->memory == NULL) {
-        if (dc_create_memory_context(&session->kernel->dc_ctx, &temp_cache->memory) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (dc_create_memory_context(&session->kernel->dc_ctx, &temp_cache->memory) != CT_SUCCESS) {
+            return CT_ERROR;
         }
         
         temp_cache->mem_chg_scn = entity->table.desc.chg_scn;
@@ -1464,20 +1465,20 @@ static status_t cbo_alloc_gst_dynamic_stats(knl_session_t *session, dc_entity_t 
 
     if (temp_cache->cbo_stats == NULL) {
         if (cbo_alloc_mem(session, memory, (void **)&temp_cache->cbo_stats,
-            sizeof(cbo_stats_table_t)) != GS_SUCCESS) {
-            return GS_ERROR;
+            sizeof(cbo_stats_table_t)) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
-        if (cbo_alloc_temp_columns_stats(session, entity, memory, temp_cache->cbo_stats) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_temp_columns_stats(session, entity, memory, temp_cache->cbo_stats) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    if (cbo_alloc_temp_index_stats(session, entity, memory, temp_cache->cbo_stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_temp_index_stats(session, entity, memory, temp_cache->cbo_stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_alloc_temp_table_stats(knl_session_t *session, dc_entity_t *entity, knl_temp_cache_t *temp_cache,
@@ -1492,22 +1493,22 @@ status_t cbo_alloc_temp_table_stats(knl_session_t *session, dc_entity_t *entity,
 
         if (entity->cbo_table_stats == NULL) {
             if (cbo_alloc_mem(session, memory, (void **)&entity->cbo_table_stats,
-                sizeof(cbo_stats_table_t)) != GS_SUCCESS) {
-                return GS_ERROR;
+                sizeof(cbo_stats_table_t)) != CT_SUCCESS) {
+                return CT_ERROR;
             }
 
-            if (cbo_alloc_temp_columns_stats(session, entity, memory, entity->cbo_table_stats) != GS_SUCCESS) {
-                return GS_ERROR;
+            if (cbo_alloc_temp_columns_stats(session, entity, memory, entity->cbo_table_stats) != CT_SUCCESS) {
+                return CT_ERROR;
             }
         }
 
-        if (cbo_alloc_temp_index_stats(session, entity, memory, entity->cbo_table_stats) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_alloc_temp_index_stats(session, entity, memory, entity->cbo_table_stats) != CT_SUCCESS) {
+            return CT_ERROR;
         }
 
         temp_cache->cbo_stats = entity->cbo_table_stats;
 
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     return cbo_alloc_gst_dynamic_stats(session, entity, temp_cache);
@@ -1521,7 +1522,7 @@ void cbo_set_table_stats(cbo_stats_table_t *stats, knl_cursor_t *cursor)
     stats->avg_row_len = *(int64 *)CURSOR_COLUMN_DATA(cursor, TABLE_AVG_ROW_LEN);
     stats->sample_size = *(uint32 *)CURSOR_COLUMN_DATA(cursor, TABLE_SAMPLE_SIZE);
     stats->analyse_time = *(date_t *)CURSOR_COLUMN_DATA(cursor, TABLE_ANALYZE_TIME);
-    stats->part_id = GS_INVALID_ID32;
+    stats->part_id = CT_INVALID_ID32;
 }
 
 static status_t cbo_load_table_stats(knl_session_t *session, knl_cursor_t *cursor, dc_entity_t *entity,
@@ -1534,21 +1535,21 @@ static status_t cbo_load_table_stats(knl_session_t *session, knl_cursor_t *curso
     errno_t ret;
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLE_ID, IX_SYS_TABLE_002_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&uid,
                      sizeof(uint32), IX_COL_SYS_TABLE_002_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, (void *)&tid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, (void *)&tid,
                      sizeof(uint32), IX_COL_SYS_TABLE_002_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (CURSOR_COLUMN_SIZE(cursor, TABLE_ANALYZE_TIME) == GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, TABLE_ANALYZE_TIME) == CT_NULL_VALUE_LEN) {
         return cbo_load_table_defaut_stats(session, cursor, entity, load_info);
     }
 
@@ -1561,15 +1562,15 @@ static status_t cbo_load_table_stats(knl_session_t *session, knl_cursor_t *curso
 
     if (stats == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_stats_table_t),
-                         (void **)&stats) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+                         (void **)&stats) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         ret = memset_sp(stats, sizeof(cbo_stats_table_t), 0, sizeof(cbo_stats_table_t));
         knl_securec_check(ret);
-        stats->max_col_id = GS_INVALID_ID32;
-        stats->is_ready = GS_FALSE;
+        stats->max_col_id = CT_INVALID_ID32;
+        stats->is_ready = CT_FALSE;
         entity->cbo_table_stats = stats;
     }
 
@@ -1578,33 +1579,33 @@ static status_t cbo_load_table_stats(knl_session_t *session, knl_cursor_t *curso
     cbo_set_table_stats(stats, cursor);
 
     if (is_part) {
-        if (cbo_load_part_table_stats(session, entity, load_info) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_load_part_table_stats(session, entity, load_info) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
     // load table indexs statistics info
-    if (cbo_load_table_indexs_stats(session, cursor, entity) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_load_table_indexs_stats(session, cursor, entity) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     // load table columns statistics info,
     // for part table columns statistics storage in every part stats(cbo_stats_table_part_t)
-    if (cbo_load_table_columns_stats(session, cursor, entity) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_load_table_columns_stats(session, cursor, entity) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    stats->is_ready = GS_TRUE;
-    stats->global_stats_exist = GS_TRUE;
-    entity->stat_exists = GS_TRUE;
+    stats->is_ready = CT_TRUE;
+    stats->global_stats_exist = CT_TRUE;
+    entity->stat_exists = CT_TRUE;
 
-    if (analyse_time == GS_INVALID_ID64) {
-        entity->stats_locked = GS_TRUE;
+    if (analyse_time == CT_INVALID_ID64) {
+        entity->stats_locked = CT_TRUE;
     } else {
-        entity->stats_locked = GS_FALSE;
+        entity->stats_locked = CT_FALSE;
     }
    
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static status_t cbo_alloc_table_subpart_stats(knl_session_t *session, dc_entity_t *entity, uint32 part_pos)
@@ -1614,27 +1615,27 @@ static status_t cbo_alloc_table_subpart_stats(knl_session_t *session, dc_entity_
     uint32 gid = part_pos / PART_GROUP_SIZE;
     uint32 eid = part_pos % PART_GROUP_SIZE;
 
-    if (cbo_alloc_subpart_table_group(session, entity, global_stats, gid) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_subpart_table_group(session, entity, global_stats, gid) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cbo_table_part_group_t *part_group = global_stats->subpart_groups[gid];
 
     if (part_group->entity[eid] == NULL) {
         if (dc_alloc_mem(&session->kernel->dc_ctx, entity->memory, sizeof(cbo_stats_table_t),
-            (void **)&subpart_stats) != GS_SUCCESS) {
-            GS_THROW_ERROR(ERR_DC_BUFFER_FULL);
-            return GS_ERROR;
+            (void **)&subpart_stats) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_DC_BUFFER_FULL);
+            return CT_ERROR;
         }
 
         uint32 table_size = sizeof(cbo_stats_table_t);
         errno_t ret = memset_sp(subpart_stats, table_size, 0, table_size);
         knl_securec_check(ret);
-        subpart_stats->is_ready = GS_FALSE;
+        subpart_stats->is_ready = CT_FALSE;
         part_group->entity[eid] = subpart_stats;
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void cbo_set_subpart_table_stats(cbo_stats_table_t *subpart_stats, knl_cursor_t *cursor)
@@ -1656,40 +1657,40 @@ status_t cbo_load_subpart_table_stats(knl_session_t *session, dc_entity_t *entit
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_TABLE_PARTS_ID, IX_SYS_TABLEPART001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table_subpart->desc.uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table_subpart->desc.uid,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         &table_subpart->desc.table_id, sizeof(uint32), IX_COL_SYS_TABLESUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         &table_subpart->desc.parent_partid, sizeof(uint32), IX_COL_SYS_TABLESUBPART001_PARENT_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER,
         &table_subpart->desc.part_id, sizeof(uint32), IX_COL_SYS_TABLESUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     CM_RESTORE_STACK(session->stack);
 
-    if (CURSOR_COLUMN_SIZE(cursor, SYS_TABLESUBPART_COL_ANALYZETIME) == GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, SYS_TABLESUBPART_COL_ANALYZETIME) == CT_NULL_VALUE_LEN) {
         return cbo_alloc_table_subpart_stats(session, entity, part_pos);
     }
 
-    if (cbo_alloc_table_subpart_stats(session, entity, part_pos) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_alloc_table_subpart_stats(session, entity, part_pos) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     cbo_stats_table_t *subpart_stats = CBO_GET_SUBTABLE_PART(entity->cbo_table_stats, part_pos);
 
     cbo_set_subpart_table_stats(subpart_stats, cursor);
     cbo_find_max_subpart(entity);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_delay_load_subpart_stats(knl_session_t *session, dc_entity_t *entity, table_part_t *table_subpart, uint32 part_pos)
@@ -1697,48 +1698,48 @@ status_t cbo_delay_load_subpart_stats(knl_session_t *session, dc_entity_t *entit
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_SUB_TABLE_PARTS_ID, IX_SYS_TABLEPART001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table_subpart->desc.uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table_subpart->desc.uid,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table_subpart->desc.table_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table_subpart->desc.table_id,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table_subpart->desc.parent_partid,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table_subpart->desc.parent_partid,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_PARENT_PART_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table_subpart->desc.part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table_subpart->desc.part_id,
         sizeof(uint32), IX_COL_SYS_TABLESUBPART001_SUB_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (CURSOR_COLUMN_SIZE(cursor, SYS_TABLESUBPART_COL_ANALYZETIME) == GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, SYS_TABLESUBPART_COL_ANALYZETIME) == CT_NULL_VALUE_LEN) {
         CM_RESTORE_STACK(session->stack);
         return cbo_alloc_table_subpart_stats(session, entity, part_pos);
     }
 
-    if (cbo_alloc_table_subpart_stats(session, entity, part_pos) != GS_SUCCESS) {
+    if (cbo_alloc_table_subpart_stats(session, entity, part_pos) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
     CM_RESTORE_STACK(session->stack);
     cbo_stats_table_t *subpart_stats = CBO_GET_SUBTABLE_PART(entity->cbo_table_stats, part_pos);
 
     cbo_set_subpart_table_stats(subpart_stats, cursor);
 
-    if (cbo_load_table_subpart_columns(session, entity, subpart_stats) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (cbo_load_table_subpart_columns(session, entity, subpart_stats) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
-    subpart_stats->is_ready = GS_TRUE;
+    subpart_stats->is_ready = CT_TRUE;
     subpart_stats->stats_version = entity->cbo_table_stats->stats_version;
     cbo_find_max_subpart(entity);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_direct_load_subparts_stats(knl_session_t *session, dc_entity_t *entity, cbo_stats_table_t *part_stats,
@@ -1753,12 +1754,12 @@ status_t cbo_direct_load_subparts_stats(knl_session_t *session, dc_entity_t *ent
             continue;
         }
         uint32 part_pos = table_compart->subparts[i];
-        if (cbo_load_subpart_table_stats(session, entity, table_subpart, part_pos) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_load_subpart_table_stats(session, entity, table_subpart, part_pos) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 #define dc_has_cbo_by_type(type) ((type) >= DICT_TYPE_TABLE && (type) <= DICT_TYPE_TABLE_NOLOGGING)
@@ -1773,10 +1774,10 @@ status_t cbo_load_entity_statistics(knl_session_t *session, dc_entity_t *entity,
 
         cursor = knl_push_cursor(session);
         // load table statistics info
-        if (cbo_load_table_stats(session, cursor, entity, load_info) != GS_SUCCESS) {
+        if (cbo_load_table_stats(session, cursor, entity, load_info) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
             cm_unlatch(&entity->cbo_latch, NULL);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
         entity->stats_version = 0;
@@ -1784,7 +1785,7 @@ status_t cbo_load_entity_statistics(knl_session_t *session, dc_entity_t *entity,
         CM_RESTORE_STACK(session->stack);
     }
     cm_unlatch(&entity->cbo_latch, NULL);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 status_t cbo_refresh_statistics(knl_session_t *session, dc_entity_t *entity, stats_load_info_t load_info)
@@ -1793,28 +1794,28 @@ status_t cbo_refresh_statistics(knl_session_t *session, dc_entity_t *entity, sta
     dc_entry_t    *entry = entity->entry;
     dc_user_t     *user = NULL;
 
-    if (dc_open_user_by_id(session, entry->uid, &user) != GS_SUCCESS) {
-        return GS_ERROR;
+    if (dc_open_user_by_id(session, entry->uid, &user) != CT_SUCCESS) {
+        return CT_ERROR;
     }
 
     CM_SAVE_STACK(session->stack);
     cm_latch_x(&entity->cbo_latch, session->id, NULL);
     cursor = knl_push_cursor(session);
-    if (cbo_load_table_stats(session, cursor, entity, load_info) != GS_SUCCESS) {
+    if (cbo_load_table_stats(session, cursor, entity, load_info) != CT_SUCCESS) {
         if (entity->stat_exists) {
-            entity->stat_exists = GS_FALSE;
+            entity->stat_exists = CT_FALSE;
         }
-        GS_LOG_RUN_WAR("[DC] could not load table statistics %s.%s.",
+        CT_LOG_RUN_WAR("[DC] could not load table statistics %s.%s.",
                        user->desc.name, entry->name);
         cm_unlatch(&entity->cbo_latch, NULL);
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     if (entity->stat_exists) {
         entity->stats_version++;
     } else {
-        entity->stat_exists = GS_TRUE;
+        entity->stat_exists = CT_TRUE;
         entity->stats_version = 0;
     }
 
@@ -1822,7 +1823,7 @@ status_t cbo_refresh_statistics(knl_session_t *session, dc_entity_t *entity, sta
     cm_unlatch(&entity->cbo_latch, NULL);
     CM_RESTORE_STACK(session->stack);
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 cbo_stats_table_t *knl_get_cbo_table(knl_handle_t session, dc_entity_t *entity)
@@ -1861,7 +1862,7 @@ cbo_stats_column_t *knl_get_cbo_column(knl_handle_t session, dc_entity_t *entity
         return NULL;
     }
 
-    if (cbo_stats->max_col_id != GS_INVALID_ID32 && cbo_stats->max_col_id < col_id) {
+    if (cbo_stats->max_col_id != CT_INVALID_ID32 && cbo_stats->max_col_id < col_id) {
         return NULL;
     }
 
@@ -1872,7 +1873,7 @@ cbo_stats_column_t *knl_get_cbo_column(knl_handle_t session, dc_entity_t *entity
         if (!cbo_stats->col_loading) {
             cbo_column = cbo_get_column_stats(cbo_stats, col_id);
         } else {
-            cm_latch_s(&dc_column->cbo_col_latch, 0, GS_FALSE, NULL);
+            cm_latch_s(&dc_column->cbo_col_latch, 0, CT_FALSE, NULL);
             cbo_column = cbo_get_column_stats(cbo_stats, col_id);
             cm_unlatch(&dc_column->cbo_col_latch, NULL);
         }
@@ -1904,7 +1905,7 @@ cbo_stats_table_t *knl_get_cbo_subpart_table(knl_handle_t handle, dc_entity_t *e
     cbo_stats_table_t *parent_stats = NULL;
     cbo_stats_table_t *sub_stats = NULL;
 
-    if (global_stats != NULL && part_no < GS_INVALID_ID32) {
+    if (global_stats != NULL && part_no < CT_INVALID_ID32) {
         parent_stats = cbo_get_table_part_stats(global_stats, part_no);
         if (parent_stats == NULL) {
             return global_stats->tab_part_default;
@@ -1933,7 +1934,7 @@ cbo_stats_table_t *knl_get_cbo_subpart_table(knl_handle_t handle, dc_entity_t *e
         table_part_t *sub_part = PART_GET_SUBENTITY(entity->table.part_table, parent_part->subparts[subpart_no]);
 
         if (cbo_delay_load_subpart_stats((knl_session_t *)handle, entity, sub_part,
-            parent_part->subparts[subpart_no]) != GS_SUCCESS) {
+            parent_part->subparts[subpart_no]) != CT_SUCCESS) {
             cm_unlatch(&entity->cbo_latch, NULL);
             return NULL;
         }
@@ -1950,7 +1951,7 @@ cbo_stats_table_t *knl_get_cbo_part_table(knl_handle_t handle, dc_entity_t *enti
     cbo_stats_table_t *part_table = NULL;
     stats_load_info_t load_info;
 
-    if (cbo_stats != NULL && part_no < GS_INVALID_ID32) {
+    if (cbo_stats != NULL && part_no < CT_INVALID_ID32) {
         part_table = cbo_get_table_part_stats(cbo_stats, part_no);
         if (part_table == NULL) {
             return cbo_stats->tab_part_default;
@@ -1970,8 +1971,8 @@ cbo_stats_table_t *knl_get_cbo_part_table(knl_handle_t handle, dc_entity_t *enti
             return part_table;
         }
         
-        stats_set_load_info(&load_info, entity, GS_FALSE, GS_INVALID_ID32);
-        if (cbo_load_table_part_stats((knl_session_t *)handle, entity, part_no, load_info, GS_TRUE) != GS_SUCCESS) {
+        stats_set_load_info(&load_info, entity, CT_FALSE, CT_INVALID_ID32);
+        if (cbo_load_table_part_stats((knl_session_t *)handle, entity, part_no, load_info, CT_TRUE) != CT_SUCCESS) {
             cm_unlatch(&entity->cbo_latch, NULL);
             return NULL;
         }
@@ -1990,7 +1991,7 @@ cbo_stats_column_t *knl_get_cbo_subpart_column(knl_handle_t handle, dc_entity_t 
     cbo_stats_table_t *sub_stats = NULL;
     cbo_stats_column_t *cbo_column = NULL;
 
-    if (global_cbo_stats != NULL && part_no < GS_INVALID_ID32) {
+    if (global_cbo_stats != NULL && part_no < CT_INVALID_ID32) {
         parent_stats = cbo_get_table_part_stats(global_cbo_stats, part_no);
         if (parent_stats == NULL) {
             // run log
@@ -2007,7 +2008,7 @@ cbo_stats_column_t *knl_get_cbo_subpart_column(knl_handle_t handle, dc_entity_t 
                     return cbo_column;
                 }
                 knl_column_t *dc_column = dc_get_column(entity, col_id);
-                cm_latch_s(&dc_column->cbo_col_latch, 0, GS_FALSE, NULL);
+                cm_latch_s(&dc_column->cbo_col_latch, 0, CT_FALSE, NULL);
                 cbo_column = cbo_get_column_stats(sub_stats, col_id);
                 cm_unlatch(&dc_column->cbo_col_latch, NULL);
                 return cbo_column;
@@ -2024,7 +2025,7 @@ cbo_stats_column_t *knl_get_cbo_subpart_column(knl_handle_t handle, dc_entity_t 
 
             table_part_t *sub_part = PART_GET_SUBENTITY(entity->table.part_table, parent_part->subparts[subpart_no]);
             if (cbo_delay_load_subpart_stats((knl_session_t *)handle, entity, sub_part,
-                parent_part->subparts[subpart_no]) != GS_SUCCESS) {
+                parent_part->subparts[subpart_no]) != CT_SUCCESS) {
                 cm_unlatch(&entity->cbo_latch, NULL);
                 return NULL;
             }
@@ -2045,7 +2046,7 @@ cbo_stats_column_t *knl_get_cbo_part_column(knl_handle_t handle, dc_entity_t *en
     cbo_stats_column_t *cbo_column = NULL;
     stats_load_info_t load_info;
     
-    if (global_cbo_stats != NULL && part_no < GS_INVALID_ID32) {
+    if (global_cbo_stats != NULL && part_no < CT_INVALID_ID32) {
         part_stats = cbo_get_table_part_stats(global_cbo_stats, part_no);
         if (part_stats != NULL && part_stats->max_col_id >= col_id) {
             if (part_stats->is_ready && part_stats->stats_version == global_cbo_stats->stats_version &&
@@ -2056,7 +2057,7 @@ cbo_stats_column_t *knl_get_cbo_part_column(knl_handle_t handle, dc_entity_t *en
                 }
 
                 knl_column_t *dc_column = dc_get_column(entity, col_id);
-                cm_latch_s(&dc_column->cbo_col_latch, 0, GS_FALSE, NULL);
+                cm_latch_s(&dc_column->cbo_col_latch, 0, CT_FALSE, NULL);
                 cbo_column = cbo_get_column_stats(part_stats, col_id);
                 cm_unlatch(&dc_column->cbo_col_latch, NULL);
                 return cbo_column;
@@ -2071,8 +2072,8 @@ cbo_stats_column_t *knl_get_cbo_part_column(knl_handle_t handle, dc_entity_t *en
                 cm_unlatch(&entity->cbo_latch, NULL);
                 return cbo_column;
             }
-            stats_set_load_info(&load_info, entity, GS_FALSE, GS_INVALID_ID32);
-            if (cbo_load_table_part_stats((knl_session_t *)handle, entity, part_no, load_info, GS_TRUE) != GS_SUCCESS) {
+            stats_set_load_info(&load_info, entity, CT_FALSE, CT_INVALID_ID32);
+            if (cbo_load_table_part_stats((knl_session_t *)handle, entity, part_no, load_info, CT_TRUE) != CT_SUCCESS) {
                 cm_unlatch(&entity->cbo_latch, NULL);
                 return NULL;
             }
@@ -2091,9 +2092,9 @@ cbo_stats_index_t *knl_get_cbo_subpart_index(knl_handle_t handle, dc_entity_t *e
 {
     cbo_stats_index_t *sub_part_index = NULL;
     cbo_stats_table_t *global_stats = entity->cbo_table_stats;
-    bool32 need_load = GS_FALSE;
+    bool32 need_load = CT_FALSE;
 
-    if (global_stats != NULL && part_no < GS_INVALID_ID32) {
+    if (global_stats != NULL && part_no < CT_INVALID_ID32) {
         sub_part_index = cbo_find_sub_index_stats(entity, index_id, part_no, sub_part_no, &need_load);
         if (sub_part_index == NULL || !need_load) {
             return sub_part_index;
@@ -2112,7 +2113,7 @@ cbo_stats_index_t *knl_get_cbo_subpart_index(knl_handle_t handle, dc_entity_t *e
         /*
         * to load index part statistics , when part_index is not ready or its version is not newest.
         */
-        if (cbo_load_index_subpart_stats((knl_session_t *)handle, entity, part_no, index_id, sub_part_no) != GS_SUCCESS) {
+        if (cbo_load_index_subpart_stats((knl_session_t *)handle, entity, part_no, index_id, sub_part_no) != CT_SUCCESS) {
             cm_unlatch(&entity->cbo_latch, NULL);
             return NULL;
         }
@@ -2126,9 +2127,9 @@ cbo_stats_index_t *knl_get_cbo_part_index(knl_handle_t handle, dc_entity_t *enti
 {
     cbo_stats_index_t *part_index = NULL;
     cbo_stats_table_t *cbo_stats = entity->cbo_table_stats;
-    bool32 need_load = GS_FALSE;
+    bool32 need_load = CT_FALSE;
 
-    if (cbo_stats != NULL && part_no < GS_INVALID_ID32) {
+    if (cbo_stats != NULL && part_no < CT_INVALID_ID32) {
         part_index = cbo_find_indexpart_stats(cbo_stats, index_id, part_no, &need_load);
         if (!need_load) {
             return part_index;
@@ -2143,7 +2144,7 @@ cbo_stats_index_t *knl_get_cbo_part_index(knl_handle_t handle, dc_entity_t *enti
         /*
         * to load index part statistics , when part_index is not ready or its version is not newest.
         */
-        if (cbo_load_index_part_stats((knl_session_t *)handle, entity, part_no, index_id) != GS_SUCCESS) {
+        if (cbo_load_index_part_stats((knl_session_t *)handle, entity, part_no, index_id) != CT_SUCCESS) {
             cm_unlatch(&entity->cbo_latch, NULL);
             return NULL;
         }
@@ -2160,95 +2161,98 @@ void knl_cbo_text2variant(dc_entity_t *entity, uint32 col_id, text_t *column, va
     uint32 len;
     knl_column_t *dc_column = dc_get_column(entity, col_id);
 
-    ret_val->is_null = GS_FALSE;
+    ret_val->is_null = CT_FALSE;
     ret_val->type = dc_column->datatype;
 
-    if (column->len == GS_NULL_VALUE_LEN) {
-        ret_val->is_null = GS_TRUE;
+    if (column->len == CT_NULL_VALUE_LEN) {
+        ret_val->is_null = CT_TRUE;
         return;
     }
 
     switch (dc_column->datatype) {
-        case GS_TYPE_BOOLEAN:
+        case CT_TYPE_BOOLEAN:
             ret_val->v_bool = *(bool32 *)column->str;
             break;
-        case GS_TYPE_UINT32:
+        case CT_TYPE_UINT32:
             ret_val->v_uint32 = *(uint32 *)column->str;
-            ret_val->type     = GS_TYPE_UINT32;
+            ret_val->type     = CT_TYPE_UINT32;
             break;
-        case GS_TYPE_SMALLINT:
-        case GS_TYPE_INTEGER:
-        case GS_TYPE_USMALLINT:
-        case GS_TYPE_TINYINT:
-        case GS_TYPE_UTINYINT:
+        case CT_TYPE_SMALLINT:
+        case CT_TYPE_INTEGER:
+        case CT_TYPE_USMALLINT:
+        case CT_TYPE_TINYINT:
+        case CT_TYPE_UTINYINT:
             ret_val->v_int = *(int32 *)column->str;
-            ret_val->type = GS_TYPE_INTEGER;
+            ret_val->type = CT_TYPE_INTEGER;
             break;
-        case GS_TYPE_BIGINT:
+        case CT_TYPE_BIGINT:
             ret_val->v_bigint = *(int64 *)column->str;
-            ret_val->type = GS_TYPE_BIGINT;
+            ret_val->type = CT_TYPE_BIGINT;
             break;
-        case GS_TYPE_FLOAT:
-        case GS_TYPE_REAL:
+        case CT_TYPE_FLOAT:
+        case CT_TYPE_REAL:
             ret_val->v_real = *(double *)column->str;
-            ret_val->type = GS_TYPE_REAL;
+            ret_val->type = CT_TYPE_REAL;
             break;
-        case GS_TYPE_UINT64:
-        case GS_TYPE_NUMBER:
-        case GS_TYPE_NUMBER3:
-        case GS_TYPE_DECIMAL:
+        case CT_TYPE_UINT64:
+        case CT_TYPE_NUMBER:
+        case CT_TYPE_NUMBER3:
+        case CT_TYPE_DECIMAL:
             dec = *(dec4_t*)column->str;
             len = column->len;
             if ((uint32)(cm_dec4_stor_sz(&dec)) > len) {
-                cm_latch_s(&dc_column->cbo_col_latch, 0, GS_FALSE, NULL);
+                cm_latch_s(&dc_column->cbo_col_latch, 0, CT_FALSE, NULL);
                 dec = *(dec4_t*)column->str;
                 len = column->len;
                 cm_unlatch(&dc_column->cbo_col_latch, NULL);
             }
 
             (void)cm_dec_4_to_8(&ret_val->v_dec, &dec, len);
-            ret_val->type = GS_TYPE_NUMBER;
+            ret_val->type = CT_TYPE_NUMBER;
             break;
-        case GS_TYPE_NUMBER2:
+        case CT_TYPE_NUMBER2:
             d2 = *(payload_t *)column->str;
             len = column->len;
             if (len > sizeof(payload_t)) {
-                cm_latch_s(&dc_column->cbo_col_latch, 0, GS_FALSE, NULL);
+                cm_latch_s(&dc_column->cbo_col_latch, 0, CT_FALSE, NULL);
                 d2 = *(payload_t *)column->str;
                 len = column->len;
                 cm_unlatch(&dc_column->cbo_col_latch, NULL);
             }
             (void)cm_dec_2_to_8(&ret_val->v_dec, &d2, len);
-            ret_val->type = GS_TYPE_NUMBER2;
+            ret_val->type = CT_TYPE_NUMBER2;
             break;
-        case GS_TYPE_DATE:
-        case GS_TYPE_TIMESTAMP:
-        case GS_TYPE_TIMESTAMP_TZ_FAKE:
-        case GS_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_TIMESTAMP_TZ_FAKE:
+        case CT_TYPE_TIMESTAMP_LTZ:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_DATE_MYSQL:
             ret_val->v_date = *(date_t *)column->str;
             break;
-        case GS_TYPE_TIMESTAMP_TZ:
+        case CT_TYPE_TIMESTAMP_TZ:
             ret_val->v_tstamp_tz = *(timestamp_tz_t *)column->str;
             break;
-        case GS_TYPE_INTERVAL_DS:
+        case CT_TYPE_INTERVAL_DS:
             ret_val->v_itvl_ds = *(interval_ds_t *)column->str;
             break;
-        case GS_TYPE_INTERVAL_YM:
+        case CT_TYPE_INTERVAL_YM:
             ret_val->v_itvl_ym = *(interval_ym_t *)column->str;
             break;
-        case GS_TYPE_CHAR:
-        case GS_TYPE_VARCHAR:
-        case GS_TYPE_STRING:
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
             ret_val->v_text = *column;
             break;
-        case GS_TYPE_BINARY:
-        case GS_TYPE_VARBINARY:
-        case GS_TYPE_RAW:
+        case CT_TYPE_BINARY:
+        case CT_TYPE_VARBINARY:
+        case CT_TYPE_RAW:
             ret_val->v_bin.bytes = (uint8*)column->str;
             ret_val->v_bin.size = column->len;
             break;
         default:
-            ret_val->is_null = GS_TRUE;
+            ret_val->is_null = CT_TRUE;
             break;
     }
 }
@@ -2257,45 +2261,45 @@ void knl_cache_cbo_text2variant(dc_entity_t *entity, uint32 col_id, text_t *colu
 {
     knl_column_t *dc_column = dc_get_column(entity, col_id);
 
-    ret_val->is_null = GS_FALSE;
+    ret_val->is_null = CT_FALSE;
     ret_val->type = dc_column->datatype;
 
-    if (column->len == GS_NULL_VALUE_LEN) {
-        ret_val->is_null = GS_TRUE;
+    if (column->len == CT_NULL_VALUE_LEN) {
+        ret_val->is_null = CT_TRUE;
         return;
     }
 
     switch (dc_column->datatype) {
-        case GS_TYPE_BOOLEAN:
+        case CT_TYPE_BOOLEAN:
             ret_val->v_bool = *(bool32 *)column->str;
             break;
-        case GS_TYPE_UINT32:
+        case CT_TYPE_UINT32:
             ret_val->v_uint32 = *(uint32 *)column->str;
-            ret_val->type     = GS_TYPE_UINT32;
+            ret_val->type     = CT_TYPE_UINT32;
             break;
-        case GS_TYPE_SMALLINT:
-        case GS_TYPE_INTEGER:
-        case GS_TYPE_USMALLINT:
-        case GS_TYPE_TINYINT:
-        case GS_TYPE_UTINYINT:
+        case CT_TYPE_SMALLINT:
+        case CT_TYPE_INTEGER:
+        case CT_TYPE_USMALLINT:
+        case CT_TYPE_TINYINT:
+        case CT_TYPE_UTINYINT:
             ret_val->v_int = *(int32 *)column->str;
-            ret_val->type = GS_TYPE_INTEGER;
+            ret_val->type = CT_TYPE_INTEGER;
             break;
-        case GS_TYPE_UINT64:
+        case CT_TYPE_UINT64:
             ret_val->v_ubigint = *(uint64 *)column->str;
-            ret_val->type = GS_TYPE_UINT64;
+            ret_val->type = CT_TYPE_UINT64;
             break;
-        case GS_TYPE_BIGINT:
+        case CT_TYPE_BIGINT:
             ret_val->v_bigint = *(int64 *)column->str;
-            ret_val->type = GS_TYPE_BIGINT;
+            ret_val->type = CT_TYPE_BIGINT;
             break;
-        case GS_TYPE_FLOAT:
-        case GS_TYPE_REAL:
+        case CT_TYPE_FLOAT:
+        case CT_TYPE_REAL:
             ret_val->v_real = *(double *)column->str;
-            ret_val->type = GS_TYPE_REAL;
+            ret_val->type = CT_TYPE_REAL;
             break;
         default:
-            ret_val->is_null = GS_TRUE;
+            ret_val->is_null = CT_TRUE;
             break;
     }
 }
@@ -2304,7 +2308,7 @@ static void cbo_set_part_table_stats(cbo_stats_table_t *part_stats, knl_cursor_t
 {
     part_stats->table_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, TABLE_PART_TABLE_ID);
     part_stats->part_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, TABLE_PART_ID);
-    part_stats->subpart_id = GS_INVALID_ID32;
+    part_stats->subpart_id = CT_INVALID_ID32;
     part_stats->rows = *(uint32 *)CURSOR_COLUMN_DATA(cursor, TABLE_PART_ROWS);
     part_stats->blocks = *(uint32 *)CURSOR_COLUMN_DATA(cursor, TABLE_PART_BLOCKS);
     part_stats->empty_blocks = *(uint32 *)CURSOR_COLUMN_DATA(cursor, TABLE_PART_EMPTY_BLOCK);
@@ -2325,35 +2329,35 @@ status_t cbo_load_table_part_stats(knl_session_t *session, dc_entity_t *entity, 
     bool32 is_subpart;
 
     if (table_part == NULL) {
-        GS_LOG_RUN_INF("Load %s.%s the %d table part stats falied, it is not existed ",
+        CT_LOG_RUN_INF("Load %s.%s the %d table part stats falied, it is not existed ",
                        entity->entry->user->desc.name, entity->table.desc.name, part_no);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
     CM_SAVE_STACK(session->stack);
     cursor =  knl_push_cursor(session);
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_TABLEPART_ID, IX_SYS_TABLEPART001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table->desc.uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table->desc.uid,
         sizeof(uint32), IX_COL_SYS_TABLEPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table->desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table->desc.id,
         sizeof(uint32), IX_COL_SYS_TABLEPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table_part->desc.part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table_part->desc.part_id,
         sizeof(uint32), IX_COL_SYS_TABLEPART001_PART_ID);
 
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        GS_LOG_RUN_INF("Load %s.%s the %d table part stats falied, it is not existed ",
+        CT_LOG_RUN_INF("Load %s.%s the %d table part stats falied, it is not existed ",
                        entity->entry->user->desc.name, entity->table.desc.name, part_no);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     
-    if (CURSOR_COLUMN_SIZE(cursor, TABLE_PART_ANALYZE_TIME) == GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, TABLE_PART_ANALYZE_TIME) == CT_NULL_VALUE_LEN) {
         CM_RESTORE_STACK(session->stack);
         return cbo_alloc_table_part_default(session, entity, table_stats, part_no);
     }
@@ -2364,9 +2368,9 @@ status_t cbo_load_table_part_stats(knl_session_t *session, dc_entity_t *entity, 
         return cbo_alloc_table_part_default(session, entity, table_stats, part_no);
     }
 
-    if (cbo_alloc_table_part_stats(session, entity, table_stats, part_no) != GS_SUCCESS) {
+    if (cbo_alloc_table_part_stats(session, entity, table_stats, part_no) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     part_stats = CBO_GET_TABLE_PART(table_stats, part_no);
@@ -2376,14 +2380,14 @@ status_t cbo_load_table_part_stats(knl_session_t *session, dc_entity_t *entity, 
     is_subpart = IS_PARENT_TABPART(&table_part->desc);
    
     if (load_columns) {
-        if (cbo_load_table_part_columns(session, entity, part_stats, is_subpart) != GS_SUCCESS) {
+        if (cbo_load_table_part_columns(session, entity, part_stats, is_subpart) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
-            GS_LOG_RUN_INF("Load %s.%s the %d table part columns stats falied",
+            CT_LOG_RUN_INF("Load %s.%s the %d table part columns stats falied",
                            entity->entry->user->desc.name, entity->table.desc.name, part_no);
-            return GS_ERROR;
+            return CT_ERROR;
         }
 
-        part_stats->is_ready = GS_TRUE;
+        part_stats->is_ready = CT_TRUE;
         part_stats->stats_version = table_stats->stats_version;
     }
    
@@ -2392,12 +2396,12 @@ status_t cbo_load_table_part_stats(knl_session_t *session, dc_entity_t *entity, 
     cbo_set_max_row_part(table_stats, part_stats, part_no);
 
     if (is_subpart && load_info.load_subpart) {
-        if (cbo_direct_load_subparts_stats(session, entity, part_stats, table_part) != GS_SUCCESS) {
-            return GS_ERROR;
+        if (cbo_direct_load_subparts_stats(session, entity, part_stats, table_part) != CT_SUCCESS) {
+            return CT_ERROR;
         }
     }
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 static void cbo_set_part_index_stats(cbo_stats_index_t *part_stats, knl_cursor_t *cursor)
@@ -2436,7 +2440,7 @@ status_t cbo_load_index_part_stats(knl_session_t *session, dc_entity_t *entity, 
 
     index_part = INDEX_GET_PART(idx, part_no);
     if (index_part == NULL) {
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
     index_stats = entity->cbo_table_stats->indexs[idx->desc.slot];
     CM_SAVE_STACK(session->stack);
@@ -2444,27 +2448,27 @@ status_t cbo_load_index_part_stats(knl_session_t *session, dc_entity_t *entity, 
     cursor = knl_push_cursor(session);
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_INDEXPART_ID, IX_SYS_INDEXPART001_ID);
-    knl_init_index_scan(cursor, GS_TRUE);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table->desc.uid,
+    knl_init_index_scan(cursor, CT_TRUE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table->desc.uid,
         sizeof(uint32), IX_COL_SYS_INDEXPART001_USER_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &table->desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &table->desc.id,
         sizeof(uint32), IX_COL_SYS_INDEXPART001_TABLE_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &idx->desc.id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &idx->desc.id,
         sizeof(uint32), IX_COL_SYS_INDEXPART001_INDEX_ID);
-    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, GS_TYPE_INTEGER, &index_part->desc.part_id,
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, CT_TYPE_INTEGER, &index_part->desc.part_id,
         sizeof(uint32), IX_COL_SYS_INDEXPART001_PART_ID);
     
-    if (knl_fetch(session, cursor) != GS_SUCCESS) {
+    if (knl_fetch(session, cursor) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
-        return GS_SUCCESS;
+        return CT_SUCCESS;
     }
 
-    if (CURSOR_COLUMN_SIZE(cursor, INDEX_PART_ANALYZE_TIME) == GS_NULL_VALUE_LEN) {
+    if (CURSOR_COLUMN_SIZE(cursor, INDEX_PART_ANALYZE_TIME) == CT_NULL_VALUE_LEN) {
         CM_RESTORE_STACK(session->stack);
         return cbo_alloc_index_part_default(session, entity, index_stats, part_no);
     }
@@ -2475,9 +2479,9 @@ status_t cbo_load_index_part_stats(knl_session_t *session, dc_entity_t *entity, 
         return cbo_alloc_index_part_default(session, entity, index_stats, part_no);
     }
 
-    if (cbo_alloc_index_part_stats(session, entity, index_stats, part_no) != GS_SUCCESS) {
+    if (cbo_alloc_index_part_stats(session, entity, index_stats, part_no) != CT_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     // load index statistics info
@@ -2485,15 +2489,15 @@ status_t cbo_load_index_part_stats(knl_session_t *session, dc_entity_t *entity, 
 
     cbo_set_part_index_stats(part_stats, cursor);
 
-    part_stats->is_ready = GS_TRUE;
+    part_stats->is_ready = CT_TRUE;
     part_stats->stats_version = table_stats->stats_version;
 
     CM_RESTORE_STACK(session->stack);
     knl_part_locate_t part_loc;
     part_loc.part_no = part_no;
-    part_loc.subpart_no = GS_INVALID_ID32;
+    part_loc.subpart_no = CT_INVALID_ID32;
     dc_calc_index_empty_size(session, entity, idx->desc.slot, part_loc, part_stats->empty_leaf_blocks);
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 stats_table_mon_t *knl_cbo_get_table_mon(knl_handle_t session, dc_entity_t *entity)

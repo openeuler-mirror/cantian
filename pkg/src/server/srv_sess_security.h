@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -28,21 +28,21 @@
 #pragma once
 #include "srv_session.h"
 
-status_t server_process_handshake(session_t *session);
-status_t server_process_auth_init(session_t *session);
-uint32 server_get_user_sessions_count(text_t *username);
-status_t server_process_login(session_t *session);
-void server_judge_login(session_t *session);
-void server_judge_login_success(char *os_host);
-status_t server_check_authenticate_sysdba(session_t *session, text_t *password, cs_packet_t *send_pack, char *privilege);
+EXTER_ATTACK status_t srv_process_handshake(session_t *session);
+EXTER_ATTACK status_t srv_process_auth_init(session_t *session);
+uint32 srv_get_user_sessions_count(text_t *username);
+EXTER_ATTACK status_t srv_process_login(session_t *session);
+void srv_judge_login(session_t *session);
+void srv_judge_login_success(char *os_host);
+status_t srv_check_authenticate_sysdba(session_t *session, text_t *password, cs_packet_t *send_pack, char *privilege);
 
-bool32 server_match_restricted_status(session_t *session);
-status_t server_auth_and_check_privs(session_t *session, text_t *password, bool32 is_coord);
+bool32 srv_match_restricted_status(session_t *session);
+status_t srv_auth_and_check_privs(session_t *session, text_t *password, bool32 is_coord);
 
-status_t server_init_sysdba_privilege(void);
-status_t server_store_sysdba_privilege(const char *privilege, uint32 priv_len, const char *name);
-status_t server_remove_sysdba_privilege(void);
-status_t server_refresh_sysdba_privilege(void);
-status_t server_load_hba(bool32 allow_not_exists);
-status_t server_load_pbl(bool32 allow_not_exists);
+status_t srv_init_sysdba_privilege(void);
+status_t srv_store_sysdba_privilege(const char *privilege, uint32 priv_len, const char *name);
+status_t srv_remove_sysdba_privilege(void);
+status_t srv_refresh_sysdba_privilege(void);
+status_t srv_load_hba(bool32 allow_not_exists);
+status_t srv_load_pbl(bool32 allow_not_exists);
 #endif

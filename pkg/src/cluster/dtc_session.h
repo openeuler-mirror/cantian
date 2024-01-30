@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,7 +34,7 @@ extern "C" {
 #endif
 
 #define DTC_SQL_SESSION_NUM (2)
-#define DTC_KNL_SESSION_NUM (GS_DTC_MAX_TASK_NUM + GS_MES_MAX_CHANNEL_NUM) // GS_MES_MAX_CHANNEL_NUM is used for message receive thread session.
+#define DTC_KNL_SESSION_NUM (CT_DTC_MAX_TASK_NUM + CT_MES_MAX_CHANNEL_NUM) // CT_MES_MAX_CHANNEL_NUM is used for message receive thread session.
 
 typedef struct st_dtc_session_pool {
     spinlock_t lock;

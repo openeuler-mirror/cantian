@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -90,6 +90,7 @@ EXTER_ATTACK int32 cms_res_start_cmd(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_res_start_with_node(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_res_stop_cmd(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_res_stop_with_node(int32 argc, char* argv[]);
+EXTER_ATTACK int32 cms_res_stop_with_node_force(int32 argc, char* argv[]);
 
 EXTER_ATTACK int32 cms_stat_cluster(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_stat_res(int32 argc, char* argv[]);

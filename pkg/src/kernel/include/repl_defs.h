@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,14 +32,14 @@ extern "C" {
 #endif
    
 typedef struct st_file_name_convert {
-    char primry_path[GS_FILE_NAME_BUFFER_SIZE];
-    char standby_path[GS_FILE_NAME_BUFFER_SIZE];
+    char primry_path[CT_FILE_NAME_BUFFER_SIZE];
+    char standby_path[CT_FILE_NAME_BUFFER_SIZE];
 } file_name_convert_t;
 
 typedef struct st_file_convert {
     bool32 is_convert;
     uint32 count;
-    file_name_convert_t convert_list[GS_MAX_FILE_CONVERT_NUM];
+    file_name_convert_t convert_list[CT_MAX_FILE_CONVERT_NUM];
 } file_convert_t;
 
 typedef enum e_repl_mode {
@@ -104,7 +104,7 @@ typedef enum en_encrypt_algorithm {
 } encrypt_algorithm_t;
 
 typedef struct st_knl_backup_cryptinfo {
-    char password[GS_PASSWORD_BUFFER_SIZE];
+    SENSI_INFO char password[CT_PASSWORD_BUFFER_SIZE];
     encrypt_algorithm_t encrypt_alg;
 } knl_backup_cryptinfo_t;
 
@@ -125,6 +125,7 @@ typedef enum en_backup_type {
     BACKUP_MODE_FINISH_LOG = 3,
     BACKUP_MODE_ARCHIVELOG = 4,
     BACKUP_MODE_TABLESPACE = 5,
+    BACKUP_MODE_INCREMENTAL_CUMULATIVE = 6,
 } backup_type_t;
 
 typedef enum en_restore_type {
@@ -135,6 +136,12 @@ typedef enum en_restore_type {
     RESTORE_BLOCK_RECOVER,  // repair page using backup
     RESTORE_DATAFILE_RECOVER,
 } restore_type_t;
+
+typedef enum en_restore_repair_type {
+    RESTORE_REPAIR_TYPE_NULL = 0,
+    RESTORE_REPAIR_REPLACE_CHECKSUN,
+    RESTORE_REPAIR_DISCARD_BADBLOCK,
+} restore_repair_type_t;
 
 typedef enum st_knl_backup_target {
     TARGET_ALL = 0,
@@ -161,7 +168,7 @@ typedef struct st_knl_backup {
     text_t policy;
     uint32 level;
     bool32 cumulative;
-    char tag[GS_NAME_BUFFER_SIZE];
+    char tag[CT_NAME_BUFFER_SIZE];
     uint64 finish_scn;
     bool32 prepare;
     uint32 compress_algo;
@@ -175,6 +182,7 @@ typedef struct st_knl_backup {
     bool32 force_cancel;
     uint32 buffer_size;
     bool32 log_serial;
+    bool32 skip_badblock; // only for datafile
 } knl_backup_t;
 
 typedef enum en_rst_file_type {
@@ -200,6 +208,7 @@ typedef struct st_knl_restore {
     rst_file_type_t file_type;
     knl_backup_cryptinfo_t crypt_info;
     uint32 buffer_size;
+    restore_repair_type_t repair_type;
 } knl_restore_t;
 
 typedef enum en_recover_action {
@@ -233,25 +242,25 @@ typedef struct st_knl_validate {
 } knl_validate_t;
 
 typedef struct st_sync_info {
-    char status[GS_DYNVIEW_NORMAL_LEN];
-    char local_host[GS_HOST_NAME_BUFFER_SIZE];
-    char role_valid[GS_MAX_ROLE_VALID_LEN];
-    char net_mode[GS_MAX_NET_MODE_LEN];
-    char peer_host[GS_HOST_NAME_BUFFER_SIZE];
+    char status[CT_DYNVIEW_NORMAL_LEN];
+    char local_host[CT_HOST_NAME_BUFFER_SIZE];
+    char role_valid[CT_MAX_ROLE_VALID_LEN];
+    char net_mode[CT_MAX_NET_MODE_LEN];
+    char peer_host[CT_HOST_NAME_BUFFER_SIZE];
     uint32 peer_port;
-    char local_point[GS_MAX_NUMBER_LEN];
-    char peer_point[GS_MAX_NUMBER_LEN];
-    char peer_cont_point[GS_MAX_NUMBER_LEN];
-    char peer_building[GS_MAX_PEER_BUILDING_LEN];
+    char local_point[CT_MAX_NUMBER_LEN];
+    char peer_point[CT_MAX_NUMBER_LEN];
+    char peer_cont_point[CT_MAX_NUMBER_LEN];
+    char peer_building[CT_MAX_PEER_BUILDING_LEN];
     uint64 local_lfn;
     uint64 local_lsn;
     uint64 peer_lfn;
     uint64 peer_lsn;
     int64 flush_lag;
     uint64 replay_lag;
-    char build_type[GS_DYNVIEW_NORMAL_LEN];
+    char build_type[CT_DYNVIEW_NORMAL_LEN];
     uint32 build_progress;
-    char build_stage[GS_DYNVIEW_NORMAL_LEN];
+    char build_stage[CT_DYNVIEW_NORMAL_LEN];
     uint64 build_synced_stage_size;
     uint64 build_total_stage_size;
     uint64 build_time;
@@ -259,7 +268,7 @@ typedef struct st_sync_info {
 
 typedef struct st_ha_sync_info {
     uint32 count;
-    sync_info_t sync_info[GS_MAX_PHYSICAL_STANDBY];
+    sync_info_t sync_info[CT_MAX_PHYSICAL_STANDBY];
 } ha_sync_info_t;
 
 status_t knl_build(knl_handle_t session, knl_build_def_t *param);

@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -37,8 +37,8 @@
 extern "C" {
 #endif
 
-#define PART_GROUP_COUNT (GS_SHARED_PAGE_SIZE / sizeof(pointer_t))
-#define PART_GROUP_SIZE  (GS_SHARED_PAGE_SIZE / sizeof(pointer_t))
+#define PART_GROUP_COUNT (CT_SHARED_PAGE_SIZE / sizeof(pointer_t))
+#define PART_GROUP_SIZE  (CT_SHARED_PAGE_SIZE / sizeof(pointer_t))
 #define INTERVAL_PART_GROUP_SIZE (uint32)(sizeof(uint32) * PART_GROUP_SIZE)
 
 typedef struct st_part_bucket {
@@ -55,8 +55,8 @@ typedef struct st_list_bucket {
 } list_bucket_t;
 
 #define COMPATIBLE_TABLESPACE_COUNT                          3
-#define PART_NAME_HASH_SIZE                                  (GS_SHARED_PAGE_SIZE / sizeof(part_bucket_t))
-#define LIST_PART_HASH_SIZE                                  (GS_SHARED_PAGE_SIZE / sizeof(list_bucket_t))
+#define PART_NAME_HASH_SIZE                                  (CT_SHARED_PAGE_SIZE / sizeof(part_bucket_t))
+#define LIST_PART_HASH_SIZE                                  (CT_SHARED_PAGE_SIZE / sizeof(list_bucket_t))
 #define DEFAULT_PART_LIST                                    (LIST_PART_HASH_SIZE - 1)
 #define PARTITON_NOT_READY                                   1
 #define PARTITION_IS_READY                                   0
@@ -94,7 +94,7 @@ typedef struct st_list_bucket {
 #define PART_KEY_THIRD 2
 #define PART_KEY_FOURTH 3
 #define COALESCE_MIN_PART_COUNT 2
-#define GS_SPLIT_PART_COUNT 2
+#define CT_SPLIT_PART_COUNT 2
 #define HASH_PART_BUCKET_BASE 2
 #define UPDATE_COLUMN_COUNT_ONE 1
 #define UPDATE_COLUMN_COUNT_TWO 2
@@ -140,7 +140,7 @@ typedef struct st_knl_part_column_desc {
     uint32 table_id;
     uint32 column_id;
     uint32 pos_id;
-    gs_type_t datatype;
+    ct_type_t datatype;
 } knl_part_column_desc_t;
 
 /* partition store(for interval) description */
@@ -167,7 +167,7 @@ typedef struct st_knl_table_part_desc {
         uint32 subpart_cnt;
         uint32 parent_partid;
     };
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
     page_id_t entry;
     knl_scn_t org_scn;
     knl_scn_t seg_scn;
@@ -206,7 +206,7 @@ typedef struct st_knl_index_part_desc {
         uint32 parent_partid;
     };
     uint32 space_id;
-    char name[GS_NAME_BUFFER_SIZE];
+    char name[CT_NAME_BUFFER_SIZE];
     page_id_t entry;
     knl_scn_t org_scn;
     knl_scn_t seg_scn;
@@ -400,7 +400,7 @@ typedef struct st_part_segment_desc {
 } part_segment_desc_t;
 
 #define PART_GET_GROUP_NO(object, id) ((object)->part_group.group_id[(id) / PART_GROUP_SIZE])
-#define PART_IS_INIT(object, id) ((PART_GET_GROUP_NO(object, id) != GS_INVALID_ID32) && \
+#define PART_IS_INIT(object, id) ((PART_GET_GROUP_NO(object, id) != CT_INVALID_ID32) && \
         ((object)->part_group.group_ready[PART_GET_GROUP_NO(object, id)]) && \
         ((object)->groups[PART_GET_GROUP_NO(object, id)] != NULL))
 #define PART_GET_NORMAL_ENTITY(object, id) ((object)->groups[(id) / PART_GROUP_SIZE]->entity[(id) % PART_GROUP_SIZE])

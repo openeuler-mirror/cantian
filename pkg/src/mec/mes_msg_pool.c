@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
-
+#include "mes_log_module.h"
 #include "mes_func.h"
 
 message_pool_t *g_send_pool;
@@ -34,22 +34,22 @@ status_t mes_init_message_pool(void)
 
     if ((g_mes.profile.buffer_pool_attr.pool_count == 0) ||
         (g_mes.profile.buffer_pool_attr.pool_count > MES_MAX_BUFFER_STEP_NUM)) {
-        GS_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes] pool_count %u is invalid, legal scope is [1, %u].",
+        CT_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes] pool_count %u is invalid, legal scope is [1, %u].",
                           g_mes.profile.buffer_pool_attr.pool_count, MES_MAX_BUFFER_STEP_NUM);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     for (uint32 i = 0; i < g_mes.profile.buffer_pool_attr.pool_count; i++) {
         ret = mes_create_buffer_chunk(&g_mes.mes_ctx.msg_pool.chunk[i], i, &g_mes.profile.buffer_pool_attr.buf_attr[i]);
-        if (ret != GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[mes]: create buf chunk failed.");
-            return GS_ERROR;
+        if (ret != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[mes]: create buf chunk failed.");
+            return CT_ERROR;
         }
     }
 
     g_mes.mes_ctx.msg_pool.count = g_mes.profile.buffer_pool_attr.pool_count;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void mes_destory_message_pool(void)
@@ -81,8 +81,8 @@ status_t mes_create_buffer_queue(mes_buf_queue_t *queue, uint8 chunk_no, uint8 q
     char *temp_buffer;
 
     if (buf_count == 0) {
-        GS_THROW_ERROR_EX(ERR_MES_CREATE_AREA, "mes_pool_size should greater than 0.");
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_MES_CREATE_AREA, "mes_pool_size should greater than 0.");
+        return CT_ERROR;
     }
 
     // init queue
@@ -97,8 +97,8 @@ status_t mes_create_buffer_queue(mes_buf_queue_t *queue, uint8 chunk_no, uint8 q
     mem_size = (uint64)buf_count * (uint64)buf_item_size;
     queue->addr = malloc(mem_size);
     if (queue->addr == NULL) {
-        GS_THROW_ERROR_EX(ERR_MES_CREATE_AREA, "allocate memory size %llu for MES msg pool failed", mem_size);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_MES_CREATE_AREA, "allocate memory size %llu for MES msg pool failed", mem_size);
+        return CT_ERROR;
     }
 
     // init queue list
@@ -118,7 +118,7 @@ status_t mes_create_buffer_queue(mes_buf_queue_t *queue, uint8 chunk_no, uint8 q
     buf_node->next = NULL;
     queue->last = buf_node;
 
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void mes_destory_buffer_queue(mes_buf_queue_t *queue)
@@ -160,16 +160,16 @@ status_t mes_create_buffer_chunk(mes_buf_chunk_t *chunk, uint32 chunk_no, mes_bu
     uint32 queue_num = buf_attr->queue_count;
 
     if (queue_num == 0 || queue_num > MES_MAX_BUFFER_QUEUE_NUM) {
-        GS_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes] pool_count %u is invalid, legal scope is [1, %u].", queue_num,
+        CT_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes] pool_count %u is invalid, legal scope is [1, %u].", queue_num,
                           MES_MAX_BUFFER_STEP_NUM);
-        return GS_ERROR;
+        return CT_ERROR;
     }
 
     queues_size = queue_num * sizeof(mes_buf_queue_t);
     chunk->queues = (mes_buf_queue_t *)malloc(queues_size);
     if (chunk->queues == NULL) {
-        GS_THROW_ERROR_EX(ERR_MES_CREATE_AREA, "allocate memory queue_num %u failed", queue_num);
-        return GS_ERROR;
+        CT_THROW_ERROR_EX(ERR_MES_CREATE_AREA, "allocate memory queue_num %u failed", queue_num);
+        return CT_ERROR;
     }
     ret = memset_sp(chunk->queues, queues_size, 0, queues_size);
     MEMS_RETURN_IFERR(ret);
@@ -183,12 +183,12 @@ status_t mes_create_buffer_chunk(mes_buf_chunk_t *chunk, uint32 chunk_no, mes_bu
 
     for (uint32 i = 0; i < queue_num; i++) {
         if (mes_create_buffer_queue(&chunk->queues[i], chunk_no, i, buf_attr->size, chunk->queues[i].count) !=
-            GS_SUCCESS) {
-            GS_LOG_RUN_ERR("[mes]: create buf queue failed.");
-            return GS_ERROR;
+            CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[mes]: create buf queue failed.");
+            return CT_ERROR;
         }
     }
-    return GS_SUCCESS;
+    return CT_SUCCESS;
 }
 
 void mes_destory_buffer_chunk(mes_buf_chunk_t *chunk)
@@ -218,7 +218,7 @@ static inline mes_buf_chunk_t *mes_get_buffer_chunk(uint32 len)
         }
     }
 
-    GS_LOG_RUN_ERR("[mes]: There is not long enough buffer pool for %u.", len);
+    CT_LOG_RUN_ERR("[mes]: There is not long enough buffer pool for %u.", len);
 
     return NULL;
 }
@@ -233,6 +233,27 @@ static inline mes_buf_queue_t *mes_get_buffer_queue(mes_buf_chunk_t *chunk)
     return queue;
 }
 
+void print_no_buffer_log(void)
+{
+    int32 deal_count = 0;
+    uint32 queue_len = 0;
+    MES_LOGGING(MES_LOGGING_GET_BUF, "[mes]: There is no buffer, sleep and try again.");
+    // 查看哪条消息占用了buffer
+    for (uint32 cmd_loop = 1; cmd_loop < MES_CMD_CEIL; cmd_loop++) {
+        deal_count = mes_get_stat_dealing_count(cmd_loop);
+        if (deal_count > 0) {
+            MES_CMD_LOGGING(cmd_loop, "There is no buffer, cmd = %u, deal_count = %d", cmd_loop, deal_count);
+        }
+    }
+    // 查看group队列的长度
+    for (uint32 group_id = 0; group_id < MES_TASK_GROUP_ALL; group_id++) {
+        queue_len = mes_get_msg_queue_length(group_id);
+        if (queue_len > 0) {
+            MES_GROUP_LOGGING(group_id, "There is no buffer, group = %u, queue_len = %d", group_id, queue_len);
+        }
+    }
+}
+
 char *mes_alloc_buf_item(uint32 len)
 {
     mes_buf_chunk_t *chunk = NULL;
@@ -242,7 +263,7 @@ char *mes_alloc_buf_item(uint32 len)
 
     chunk = mes_get_buffer_chunk(len);
     if (chunk == NULL  || chunk->queues == NULL) {
-        GS_LOG_RUN_ERR("[mes]: Get buffer failed.");
+        CT_LOG_RUN_ERR("[mes]: Get buffer failed.");
         return NULL;
     }
 
@@ -260,7 +281,7 @@ char *mes_alloc_buf_item(uint32 len)
             cm_spin_unlock(&queue->lock);
             find_times++;
             if ((find_times % chunk->queue_num) == 0) {
-                MES_LOGGING(MES_LOGGING_GET_BUF, "[mes]: There is no buffer, sleep and try again.");
+                print_no_buffer_log();
                 cm_sleep(1);
             }
         }
@@ -341,11 +362,11 @@ void mes_init_send_recv_buf_pool(void)
     if (g_mes.profile.pipe_type == CS_TYPE_TCP) {
         g_send_pool = &g_mes.mes_ctx.msg_pool.big_pool;
         g_recv_pool = &g_mes.mes_ctx.msg_pool.big_pool;
-    } else if (g_mes.profile.pipe_type == CS_TYPE_UC) {
+    } else if (g_mes.profile.pipe_type == CS_TYPE_UC || g_mes.profile.pipe_type == CS_TYPE_UC_RDMA) {
         g_send_pool = &g_mes.mes_ctx.msg_pool.big_pool;
         g_recv_pool = &g_mes.mes_ctx.msg_pool.big_pool;
     } else {
-        GS_THROW_ERROR_EX(ERR_MES_PARAMETER, "pipe_type %u is invalid", g_mes.profile.pipe_type);
+        CT_THROW_ERROR_EX(ERR_MES_PARAMETER, "pipe_type %u is invalid", g_mes.profile.pipe_type);
         return;
     }
 

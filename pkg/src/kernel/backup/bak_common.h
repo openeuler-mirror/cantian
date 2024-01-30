@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *  This file is part of the Cantian project.
- * Copyright (c) 2023 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
  *
  * Cantian is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -94,18 +94,12 @@ extern "C" {
 #define BAK_DTC_LSN_LENGTH (782)
 #define BAK_IS_DBSOTR(bak) (((bak_t *)(bak))->record.data_type == DATA_TYPE_DBSTOR)
 #define BAK_IS_DBSTOR_BY_TYPE(type) ((type) == DATA_TYPE_DBSTOR)
-
-#define CT_SUCCESS 0
-#define CT_ERROR -1
-#define CT_MAX_NAME_LEN (uint32)64
-#define CT_NAME_BUFFER_SIZE (uint32)CM_ALIGN4(CT_MAX_NAME_LEN + 1)
-#ifndef TRUE
-#define TRUE 1
-#endif
-
-#ifndef FALSE
-#define FALSE 0
-#endif
+#define BAK_MODE_IS_INCREMENTAL(bak_type) ((bak_type) == BACKUP_MODE_INCREMENTAL || (bak_type) == BACKUP_MODE_INCREMENTAL_CUMULATIVE)
+#define BAK_WAIT_WRITE_FINISH_TIME 200
+#define BAK_WAIT_READ_START_TIME 100
+#define BAK_CHECKSUM_RETRY_TIMES 3
+#define BAK_WAIT_RW_BUF_TIME 10
+#define BAK_WAIT_CALL_TIME 10
 
 /*
  * backup/restore
@@ -155,13 +149,28 @@ typedef struct st_bak_agent_head {
 #define BAK_MSG_TYPE_LOG   (uint32)4
 #define BAK_MSG_TYPE_HEAD  (uint32)5
 
+typedef struct st_bak_buf_data {
+    char *data_addr;
+    int32 data_size;
+    uint64 curr_offset;
+    bool32 write_deal;
+} bak_buf_data_t;
+typedef struct st_bak_rw_buf {
+    aligned_buf_t aligned_buf;
+    bak_buf_data_t buf_data[2];
+    // stat false for read from device, true for write to device, there is only one read thread and one write thread.
+    volatile uint8 buf_stat[2];
+    // keep the order of writing.
+    volatile uint8 read_index;
+    volatile uint8 write_index;
+} bak_rw_buf_t;
 typedef struct st_bak_start_msg {
     uint32 type;
     uint32 file_id;
     uint32 frag_id;
     uint32 curr_file_index;
-    char policy[GS_BACKUP_PARAM_SIZE];
-    char path[GS_FILE_NAME_BUFFER_SIZE];
+    char policy[CT_BACKUP_PARAM_SIZE];
+    char path[CT_FILE_NAME_BUFFER_SIZE];
 } bak_start_msg_t;
 
 typedef struct st_bak_read_cursor {
@@ -245,8 +254,8 @@ typedef struct st_rst_file_info {
 
 typedef struct st_bak_dependence {
     backup_device_t device;
-    char policy[GS_BACKUP_PARAM_SIZE];
-    char file_dest[GS_FILE_NAME_BUFFER_SIZE];
+    char policy[CT_BACKUP_PARAM_SIZE];
+    char file_dest[CT_FILE_NAME_BUFFER_SIZE];
 } bak_dependence_t;
 
 typedef struct st_bak_version {
@@ -256,24 +265,24 @@ typedef struct st_bak_version {
 } bak_version_t;
 
 typedef struct st_bak_attr {
-    char tag[GS_NAME_BUFFER_SIZE];
+    char tag[CT_NAME_BUFFER_SIZE];
     uint64 base_lsn;  // for incremental backup
-    char base_tag[GS_NAME_BUFFER_SIZE];
+    char base_tag[CT_NAME_BUFFER_SIZE];
     backup_type_t backup_type;
     uint32 level;
     compress_algo_e compress;
     uint16 head_checksum;
     uint16 file_checksum;
-    char compress_func[GS_NAME_BUFFER_SIZE];
+    char compress_func[CT_NAME_BUFFER_SIZE];
     uint32 base_buffer_size;
-    char db_version[GS_DB_NAME_LEN];
+    char db_version[CT_DB_NAME_LEN];
 } bak_attr_t;
 
 typedef struct st_bak_ctrlinfo {
     log_point_t rcy_point;
     log_point_t lrp_point;
-    log_point_t dtc_rcy_point[GS_MAX_INSTANCES];
-    log_point_t dtc_lrp_point[GS_MAX_INSTANCES];
+    log_point_t dtc_rcy_point[CT_MAX_INSTANCES];
+    log_point_t dtc_lrp_point[CT_MAX_INSTANCES];
     knl_scn_t scn;
     uint64 lsn;
     uint64 max_rcy_lsn;
@@ -281,7 +290,7 @@ typedef struct st_bak_ctrlinfo {
 
 typedef struct st_bak_encrypt {
     encrypt_algorithm_t encrypt_alg;
-    char salt[GS_KDF2SALTSIZE];
+    char salt[CT_KDF2SALTSIZE];
 } bak_encrypt_t;
 
 typedef struct st_bak_head {
@@ -292,12 +301,12 @@ typedef struct st_bak_head {
     uint32 file_count;
     uint32 depend_num;
 
-    char control_files[GS_MAX_CONFIG_LINE_SIZE];
+    char control_files[CT_MAX_CONFIG_LINE_SIZE];
     uint64 start_time;
     uint64 completion_time;
 
     // encryption version add
-    char sys_pwd[GS_PASSWORD_BUFFER_SIZE];
+    char sys_pwd[CT_PASSWORD_BUFFER_SIZE];
     bak_encrypt_t encrypt_info;
     uint32 log_fisrt_slot; // first log slot after restore in raft mode
 
@@ -305,8 +314,8 @@ typedef struct st_bak_head {
     uint32 db_id;
     time_t db_init_time;
     repl_role_t db_role;
-    char db_name[GS_DB_NAME_LEN];
-    char db_version[GS_DB_NAME_LEN];
+    char db_name[CT_DB_NAME_LEN];
+    char db_version[CT_DB_NAME_LEN];
     uint32 df_struc_version;
     uint32 max_buffer_size;
     uint64 ddl_pitr_lsn;
@@ -322,26 +331,26 @@ typedef struct st_bak_old_version_head {
     uint32 file_count;
     uint32 depend_num;
 
-    char control_files[GS_MAX_CONFIG_LINE_SIZE];
+    char control_files[CT_MAX_CONFIG_LINE_SIZE];
     uint64 start_time;
     uint64 completion_time;
 
     // encryption version add
-    char sys_pwd[GS_PASSWORD_BUFFER_SIZE];
+    char sys_pwd[CT_PASSWORD_BUFFER_SIZE];
     bak_encrypt_t encrypt_info;
     uint32 log_fisrt_slot;  // first log slot after restore in raft mode
     uint32 unused;
 } bak_old_version_head_t;
 
 typedef struct st_bak_local {
-    char name[GS_FILE_NAME_BUFFER_SIZE];  // backup file name
+    char name[CT_FILE_NAME_BUFFER_SIZE];  // backup file name
     int32 handle;                         // backup file handle
     int64 size;                           // uncomprss backup file size
     device_type_t type;
 } bak_local_t;
 
 typedef struct st_bak_ctrl {
-    char name[GS_FILE_NAME_BUFFER_SIZE];  // database file name
+    char name[CT_FILE_NAME_BUFFER_SIZE];  // database file name
     volatile uint64 offset;               // database file read/write pos
     int32 handle;                         // database file handle
     device_type_t type;
@@ -406,9 +415,11 @@ typedef struct st_bak_table_compress_ctx {
 
 typedef struct st_bak_process {
     thread_t thread;
+    thread_t write_thread;
     knl_session_t *session;
     uint32 proc_id;
     aligned_buf_t backup_buf;
+    bak_rw_buf_t backup_rw_buf;
     char *fill_buf;  // for fill gap or extend file
     knl_compress_t compress_ctx;
     bak_encrypt_ctx_t encrypt_ctx;
@@ -423,13 +434,27 @@ typedef struct st_bak_process {
     volatile uint64 uncompressed_offset; // current read uncompressed offset in disk restore
     volatile bool32 is_free;
 
-    char datafile_name[GS_MAX_DATA_FILES][GS_FILE_NAME_BUFFER_SIZE];
-    device_type_t file_type[GS_MAX_DATA_FILES];
-    int32 datafiles[GS_MAX_DATA_FILES];
-    int64 datafile_size[GS_MAX_DATA_FILES];
-    uint32 datafile_version[GS_MAX_DATA_FILES];
-    char logfile_name[GS_MAX_LOG_FILES][GS_FILE_NAME_BUFFER_SIZE];
-    device_type_t log_type[GS_MAX_LOG_FILES];
+    volatile bool8 read_failed;
+    volatile bool8 write_failed;
+
+    bak_buf_data_t *read_buf;
+    bak_buf_data_t *write_buf;
+    volatile bool8 read_execute;
+    bool8 write_deal;
+    uint32 start_loc;
+    uint32 blk_size;
+    bool32 arch_compress;
+
+    uint64 total_read_size;
+    uint64 page_filter_num;
+
+    char datafile_name[CT_MAX_DATA_FILES][CT_FILE_NAME_BUFFER_SIZE];
+    device_type_t file_type[CT_MAX_DATA_FILES];
+    int32 datafiles[CT_MAX_DATA_FILES];
+    int64 datafile_size[CT_MAX_DATA_FILES];
+    uint32 datafile_version[CT_MAX_DATA_FILES];
+    char logfile_name[CT_MAX_LOG_FILES][CT_FILE_NAME_BUFFER_SIZE];
+    device_type_t log_type[CT_MAX_LOG_FILES];
     bak_process_stat_t stat;
 } bak_process_t;
 
@@ -450,7 +475,7 @@ typedef struct st_bak_remote {
 typedef struct st_bak_error {
     spinlock_t err_lock;
     int32 err_code;
-    char err_msg[GS_MESSAGE_BUFFER_SIZE];
+    char err_msg[CT_MESSAGE_BUFFER_SIZE];
 } bak_error_t;
 
 typedef struct st_bak_progress {
@@ -480,12 +505,13 @@ typedef struct st_bak_file {
     uint64 size;
     uint64 sec_start;
     uint64 sec_end;
-    char spc_name[GS_NAME_BUFFER_SIZE];
+    char spc_name[CT_NAME_BUFFER_SIZE];
     unsigned char gcm_iv[BAK_DEFAULT_GCM_IV_LENGTH];
     char gcm_tag[EVP_GCM_TLS_TAG_LEN];
     uint32 inst_id;
     uint32 rst_id;
-    char unused[8];  // reserved field
+    bool8 skipped;
+    char unused[7];  // reserved field
 } bak_file_t;
 
 typedef struct st_bak_stat {
@@ -503,8 +529,8 @@ typedef struct st_bak_record {
     volatile bak_status_t status;
     backup_device_t device;
     backup_data_type_t data_type;
-    char path[GS_FILE_NAME_BUFFER_SIZE];
-    char policy[GS_BACKUP_PARAM_SIZE];
+    char path[CT_FILE_NAME_BUFFER_SIZE];
+    char policy[CT_BACKUP_PARAM_SIZE];
 
     bak_ctrlinfo_t ctrlinfo;
     knl_scn_t finish_scn;
@@ -528,7 +554,7 @@ typedef struct st_build_analyse_bucket {
 } build_analyse_bucket_t;
 
 typedef struct st_bak_datafile {
-    char name[GS_FILE_NAME_BUFFER_SIZE];
+    char name[CT_FILE_NAME_BUFFER_SIZE];
     uint64 file_size;
     uint32 hwm_start;
     uint32 id;
@@ -543,9 +569,7 @@ typedef struct st_bak_device {
 
 typedef struct st_bak_reform_check {
     void *view;
-    thread_t thread;
-    bool8 running;
-    bool8 is_reforming;
+    bool8 is_reformed;
 } bak_reform_check_t;
 
 typedef struct st_bak {
@@ -559,7 +583,7 @@ typedef struct st_bak {
     volatile bool32 is_first_link; // used for recording : break-point building has occured
     volatile bool32 need_check; // used for start_stage check : if break-point at the end of the file
     uint32 build_retry_time;
-    char peer_host[GS_HOST_NAME_BUFFER_SIZE];
+    char peer_host[CT_HOST_NAME_BUFFER_SIZE];
     char *ctrl_data_buf;
     bak_error_t error_info;
     bak_progress_t progress;
@@ -570,10 +594,10 @@ typedef struct st_bak {
     char *backup_buf;
     char *ctrl_backup_buf;
     char *ctrl_backup_bak_buf;
-    char spc_name[GS_NAME_BUFFER_SIZE];
+    char spc_name[CT_NAME_BUFFER_SIZE];
     knl_backup_targetinfo_t target_info;
-    bool32 exclude_spcs[GS_MAX_SPACES];
-    bool32 include_spcs[GS_MAX_SPACES];
+    bool32 exclude_spcs[CT_MAX_SPACES];
+    bool32 include_spcs[CT_MAX_SPACES];
     uint32 backup_buf_size;
 
     // for head
@@ -609,6 +633,9 @@ typedef struct st_bak {
     uint32 curr_file_index;
     uint64 section_threshold;
     uint64 max_lrp_lsn;
+    bool32 skip_badblock; // only for datafile
+    bool32 has_badblock; // for backup and restore
+    uint64 rcy_lsn[CT_MAX_INSTANCES]; // record after the second ckpt
 
     // for restore
     bool32 restored;  // has performed restore database
@@ -622,14 +649,16 @@ typedef struct st_bak {
     uint64 lfn; // for repair page using backup, the replay end point lfn
     rst_file_info_t rst_file;
     uint64 ddl_pitr_lsn;
+    bool32 prefer_bak_set;
     // for stat
     bak_stat_t stat;
+    restore_repair_type_t repair_type;
 
     // for encroption
     bak_encrypt_t encrypt_info;
-    char key[GS_AES256KEYSIZE];
-    char password[GS_PASSWORD_BUFFER_SIZE]; // for restore, before encryption
-    char sys_pwd[GS_PASSWORD_BUFFER_SIZE]; // for backup, after encryption
+    char key[CT_AES256KEYSIZE];
+    SENSI_INFO char password[CT_PASSWORD_BUFFER_SIZE]; // for restore, before encryption
+    char sys_pwd[CT_PASSWORD_BUFFER_SIZE]; // for backup, after encryption
 
     bak_read_cursor_t read_cursor;
     bak_stream_buf_t send_stream;
@@ -646,7 +675,7 @@ typedef struct st_bak {
     bool32 arch_keep_compressed;
 
     // for rcy_stop_backup
-    char unsafe_redo[GS_NAME_BUFFER_SIZE];
+    char unsafe_redo[CT_NAME_BUFFER_SIZE];
     volatile bool32 rcy_stop_backup;  // used for stop standby backup when replaying unsupported redo
 
     // for dtc
@@ -666,13 +695,13 @@ typedef struct st_bak_context {
     bak_condition_t bak_condition;
     time_t keep_live_start_time;
     bool32 block_repairing;
-    bak_process_t process[GS_MAX_BACKUP_PROCESS];
+    bak_process_t process[CT_MAX_BACKUP_PROCESS];
     bak_t bak;
     uint32 stage_weight[BACKUP_MAX_STAGE_NUM];
 } bak_context_t;
 
 #define BAK_MAX_DEPEND_NUM \
-    ((GS_BACKUP_BUFFER_SIZE - sizeof(bak_head_t) - BAK_MAX_FILE_NUM * sizeof(bak_file_t)) / sizeof(bak_dependence_t))
+    ((CT_BACKUP_BUFFER_SIZE - sizeof(bak_head_t) - BAK_MAX_FILE_NUM * sizeof(bak_file_t)) / sizeof(bak_dependence_t))
 typedef struct st_bak_page_search {
     int32 handle;
     uint32 page_size;
@@ -691,7 +720,7 @@ typedef struct st_bak_record_lsn_info {
 
 void bak_init(knl_session_t *session);
 bool32 bak_paral_task_enable(knl_session_t *session);
-bool32 ctbak_paral_logfile_enable(bak_t *ct_bak);
+bool32 bak_log_paral_enable(bak_t *bak);
 status_t bak_check_session_status(knl_session_t *session);
 status_t rst_restore_database(knl_session_t *session, knl_restore_t *param);
 status_t bak_validate_backupset(knl_session_t *session, knl_validate_t *param);
@@ -711,7 +740,8 @@ status_t bak_delete_backup_set(knl_session_t *session, knl_alterdb_backupset_t *
 void bak_calc_head_checksum(bak_head_t *head, uint32 size);
 void bak_calc_ctrlfile_checksum(knl_session_t *session, char *ctrl_buf, uint32 count);
 status_t rst_verify_ctrlfile_checksum(knl_session_t *session, const char *name);
-status_t bak_verify_datafile_checksum(knl_session_t *session, bak_process_t *ctx, uint64 offset, const char *name);
+status_t bak_verify_datafile_checksum(knl_session_t *session, bak_process_t *ctx, uint64 offset, const char *name,
+    bak_buf_data_t *data_buf);
 status_t rst_verify_datafile_checksum(knl_session_t *session, bak_process_t *ctx, char *buf, uint32 page_count,
                                       const char *name);
 status_t rst_truncate_datafile(knl_session_t *session);
@@ -774,19 +804,20 @@ bool32 bak_datafile_contains_dw(knl_session_t *session, bak_assignment_t *assign
 uint64 bak_set_datafile_read_size(knl_session_t *session, uint64 offset, bool32 contains_dw,
     uint64 file_size, uint32 hwm_start);
 bool32 bak_need_decompress(knl_session_t *session, bak_process_t *bak_proc);
-status_t bak_decompress_and_verify_datafile(knl_session_t *session, bak_process_t *bak_proc);
+status_t bak_decompress_and_verify_datafile(knl_session_t *session, bak_process_t *bak_proc, bak_buf_data_t *data_buf);
 status_t bak_construct_decompress_group(knl_session_t *session, char *first_page);
 page_id_t bak_first_compress_group_id(knl_session_t *session, page_id_t page_id);
-uint32 ctbak_get_datafile_sec_cnt(knl_session_t *ct_se, uint64 file_size, uint32 hwm_start,
-    uint64 *sec_size, bool32 *diveded);
-bool32 ctbak_wait_log_arch_finish(knl_session_t *ct_se);
-void ctbak_support_log_entry(knl_session_t *ct_se, log_entry_t *redo_log, bool32 *unblock_bak);
-void ctbak_unsupport_log_entry(knl_session_t *ct_se, log_entry_t *redo_log, bool32 *unblock_bak);
+uint32 bak_datafile_section_count(knl_session_t *session, uint64 file_size_input, uint32 hwm_start, uint64 *sec_size,
+    bool32 *diveded);
+bool32 bak_need_wait_arch(knl_session_t *session);
 void backup_safe_entry(knl_session_t *session, log_entry_t *log, bool32 *need_unblock_backup);
+void backup_unsafe_entry(knl_session_t *session, log_entry_t *log, bool32 *need_unblock_backup);
 status_t bak_set_process_running(knl_session_t *session);
 void bak_unset_process_running(knl_session_t *session);
 status_t knl_check_db_status(knl_session_t *se, knl_backup_t *param);
 void bak_reset_params(knl_session_t *session, bool32 restore);
+void check_page_structure(page_head_t *pre_page, page_head_t *page, bool32 pre_page_id_damage,
+                          bool32 *page_struct_damage, bool32 *page_id_damage);
 
 static inline const char *bak_compress_algorithm_name(compress_algo_e compress)
 {
@@ -821,7 +852,14 @@ static inline uint32 bak_get_align_size2(device_type_t type, uint32 src_size1, u
 }
 
 uint32 bak_get_rst_id(bak_t *bak, uint32 asn, reset_log_t *rst_log);
-uint32 bak_log_get_id(knl_session_t *session, backup_data_type_t backup_type, uint32 rst_id, uint32 asn);
+EXTER_ATTACK uint32 bak_log_get_id(knl_session_t *session, backup_data_type_t backup_type, uint32 rst_id, uint32 asn);
+void bak_check_node_status(knl_session_t *session, bool32 *running);
+status_t bak_init_rw_buf(bak_process_t *proc, uint32 buf_size, const char *task);
+status_t bak_get_read_buf(bak_rw_buf_t *rw_buf, bak_buf_data_t **read_buf);
+void bak_set_read_done(bak_rw_buf_t *rw_buf);
+status_t bak_get_write_buf(bak_rw_buf_t *rw_buf, bak_buf_data_t **write_buf);
+void bak_set_write_done(bak_rw_buf_t *rw_buf);
+void bak_wait_write_finish(bak_rw_buf_t *rw_buf, bak_process_t *proc);
 
 #ifdef __cplusplus
 }

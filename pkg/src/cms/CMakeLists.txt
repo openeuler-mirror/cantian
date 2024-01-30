@@ -1,9 +1,9 @@
 include_directories(
         "${CMAKE_CURRENT_SOURCE_DIR}/interface"
-        "${CTDB_LIBRARY}/dbstor"
-        "${CTDB_LIBRARY}/xnet/include"
-        "${CTDB_SRC}/upgrade_check"
-        "${CTDB_SRC}/cms/cms"
+        "${CANTIANDB_LIBRARY}/dbstor"
+        "${CANTIANDB_LIBRARY}/xnet/include"
+        "${CANTIANDB_SRC}/upgrade_check"
+        "${CANTIANDB_SRC}/cms/cms"
 )
 
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/interface INTERFACE_SRC)
@@ -22,5 +22,5 @@ if (USE_FUZZASAN)
 else()
     target_link_libraries(cms PRIVATE zemes zecms zeprotocol zecommon m rt pthread dl z)
 endif(USE_FUZZASAN)
-target_compile_definitions(cms PRIVATE -DGS_LIB_VERSION=${DD_GS_LIB_VERSION})
+target_compile_definitions(cms PRIVATE -DCT_LIB_VERSION=${DD_CT_LIB_VERSION})
 target_compile_definitions(cms PRIVATE -DGETDBVERSION=${DD_GETDBVERSION})
