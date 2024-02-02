@@ -1596,7 +1596,7 @@ EXTER_ATTACK int tse_trx_begin(tianchi_handler_t *tch, tianchi_trx_context_t trx
     CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
     tse_set_no_use_other_sess4thd(session);
     knl_session_t *knl_session = &session->knl_session;
-    // mysql-server侧通过is_tse_trx_begin标记，保证一个事务只会调用一次tse_trx_begin，且调进来时参天侧事务未开启
+    // cantian-connector-mysql侧通过is_tse_trx_begin标记，保证一个事务只会调用一次tse_trx_begin，且调进来时参天侧事务未开启
     if (knl_session->rm->txn != NULL) {
         CT_LOG_DEBUG_INF("tse_trx_begin: knl_session->rm->txn is not NULL, thd_id=%u, session_id=%u, "
             "isolation level=%u, current_scn=%llu, rm_query_scn=%llu, lock_wait_timeout=%u, rmid=%u",

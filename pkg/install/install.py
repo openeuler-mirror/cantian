@@ -71,13 +71,13 @@ VERSION_ENV_META = 2
 VERSION_ENV_NOMETA = 3
 
 if os.path.exists("/.dockerenv"):
-    MYSQL_CODE_DIR = os.path.join(PKG_DIR, "mysql-server/mysql-source")
+    MYSQL_CODE_DIR = os.path.join(PKG_DIR, "cantian-connector-mysql/mysql-source")
     is_mysql_metadata_in_cantian = (DefaultConfigValue.CANTIAND_CONFIG["MYSQL_METADATA_IN_CANTIAN"] == "TRUE")
     MYSQL_VERSION = VERSION_DOCKER_META if is_mysql_metadata_in_cantian else VERSION_DOCKER_NOMETA
     MYSQL_DATA_DIR = "/data/data"
     MYSQL_BIN_DIR = "/usr/local/mysql"
 else:
-    MYSQL_CODE_DIR = os.path.join(PKG_DIR, "mysql-server")
+    MYSQL_CODE_DIR = os.path.join(PKG_DIR, "cantian-connector-mysql")
     CONFIG_FILE = "/opt/cantian/config/deploy_param.json"
     with open(CONFIG_FILE, "r") as conf:
         _tmp = conf.read()
