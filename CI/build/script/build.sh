@@ -10,26 +10,26 @@ BUILD_MYSQL_SO=${BUILD_MYSQL_SO:-"YES"}
 if [ "${WORKSPACE}" != "" ]; then
     HOME_PATH=${WORKSPACE}
     CTDB_CODE_PATH=${HOME_PATH}/daac
-    MYSQL_CODE_PATH=${HOME_PATH}/mysql-server/mysql-source
+    MYSQL_CODE_PATH=${HOME_PATH}/cantian-connector-mysql/mysql-source
     sed  -i 's/CantianKernel/daac/g' ${CTDB_CODE_PATH}/CI/CMC/mysql_server_tse_dependency.xml
-    #mysql-server门禁使用的py脚本写死路径，需要增加一个软链接
+    #cantian-connector-mysql门禁使用的py脚本写死路径，需要增加一个软链接
     ln -s ${CTDB_CODE_PATH} /home/regress/CantianKernel
  
 else
     HOME_PATH="/home/regress"
     CTDB_CODE_PATH=${HOME_PATH}/CantianKernel
-    MYSQL_CODE_PATH=${HOME_PATH}/mysql-server
+    MYSQL_CODE_PATH=${HOME_PATH}/cantian-connector-mysql
 fi
 CI_PACKAGE_PATH=${CTDB_CODE_PATH}/package_out
 BUILD_TARGET_NAME="cantian_connector"
-BUILD_PACK_NAME="Cantian_Database_Storage_Engine_3.0.0"
+BUILD_PACK_NAME="Cantian_24.03"
 SYMBOL_TARGET_NAME="Cantian_connector_symbol"
 MYSQL_SOURCE_BIN_TARGET_NAME="Cantian_connector_mysql"
 MYSQL_SOURCE_BIN_TARGET_PATH=${CI_PACKAGE_PATH}/${MYSQL_SOURCE_BIN_TARGET_NAME}
 BUILD_TARGET_PATH=${CI_PACKAGE_PATH}/${BUILD_TARGET_NAME}
 BUILD_SYMBOL_PATH=${CI_PACKAGE_PATH}/${SYMBOL_TARGET_NAME}
 CTDB_TARGET_PATH=${BUILD_TARGET_PATH}/CantianKernel
-MYSQL_TARGET_PATH=${BUILD_TARGET_PATH}/mysql-server
+MYSQL_TARGET_PATH=${BUILD_TARGET_PATH}/cantian-connector-mysql
 MYSQL_BINARY_CODE_PATH=${CTDB_CODE_PATH}/library/mysql_pkg
 XNET_LIB_PATH=${CTDB_CODE_PATH}/library/xnet/lib
 BOOST_PATH=/tools/boost_1_73_0
@@ -115,17 +115,17 @@ function collectMysqlTarget() {
   if [ "${BUILD_TYPE}" == "RELEASE" ] && [ "${COMPILE_TYPE}" != "ASAN" ]; then
     rm -rf ${BUILD_SYMBOL_PATH}
     mkdir -p ${BUILD_SYMBOL_PATH}
-    mkdir -p ${BUILD_SYMBOL_PATH}/mysql-server-symbol
-    mkdir -p ${BUILD_SYMBOL_PATH}/mysql-server-symbol/meta
-    mkdir -p ${BUILD_SYMBOL_PATH}/mysql-server-symbol/nometa
-    cp -arf ${MYSQL_CODE_PATH}/mysql_bin/symbol ${BUILD_SYMBOL_PATH}/mysql-server-symbol 2>/dev/null || :
+    mkdir -p ${BUILD_SYMBOL_PATH}/cantian-connector-mysql-symbol
+    mkdir -p ${BUILD_SYMBOL_PATH}/cantian-connector-mysql-symbol/meta
+    mkdir -p ${BUILD_SYMBOL_PATH}/cantian-connector-mysql-symbol/nometa
+    cp -arf ${MYSQL_CODE_PATH}/mysql_bin/symbol ${BUILD_SYMBOL_PATH}/cantian-connector-mysql-symbol 2>/dev/null || :
     sh ${CTDB_CODE_PATH}/build/seperate_dbg_symbol.sh ${MYSQL_TARGET_PATH}/mysql_bin/mysql/lib/plugin/meta/ha_ctc.so
     sh ${CTDB_CODE_PATH}/build/seperate_dbg_symbol.sh ${MYSQL_TARGET_PATH}/mysql_bin/mysql/lib/plugin/nometa/ha_ctc.so
-    mv -f ${MYSQL_TARGET_PATH}/mysql_bin/mysql/lib/plugin/meta/ha_ctc.so.symbol ${BUILD_SYMBOL_PATH}/mysql-server-symbol/meta
-    mv -f ${MYSQL_TARGET_PATH}/mysql_bin/mysql/lib/plugin/nometa/ha_ctc.so.symbol ${BUILD_SYMBOL_PATH}/mysql-server-symbol/nometa
+    mv -f ${MYSQL_TARGET_PATH}/mysql_bin/mysql/lib/plugin/meta/ha_ctc.so.symbol ${BUILD_SYMBOL_PATH}/cantian-connector-mysql-symbol/meta
+    mv -f ${MYSQL_TARGET_PATH}/mysql_bin/mysql/lib/plugin/nometa/ha_ctc.so.symbol ${BUILD_SYMBOL_PATH}/cantian-connector-mysql-symbol/nometa
     cd ${MYSQL_CODE_PATH}/daac_lib/
     sh ${CTDB_CODE_PATH}/build/seperate_dbg_symbol.sh libctc_proxy.so
-    mv -f libctc_proxy.so.symbol ${BUILD_SYMBOL_PATH}/mysql-server-symbol
+    mv -f libctc_proxy.so.symbol ${BUILD_SYMBOL_PATH}/cantian-connector-mysql-symbol
   fi
 
   md5sum ${MYSQL_TARGET_PATH}/mysql_bin/mysql/lib/plugin/meta/ha_ctc.so
@@ -207,7 +207,7 @@ function generateScmFile() {
   local daac_commit_id=$(git rev-parse HEAD)
   cd -
   echo "Commit Id:" >>${scm_file_name}
-  echo "    mysql-server: ${mysql_commit_id}" >>${scm_file_name}
+  echo "    cantian-connector-mysql: ${mysql_commit_id}" >>${scm_file_name}
   echo "    daac: ${daac_commit_id}" >>${scm_file_name}
   echo "scm info："
   cat ${scm_file_name}
@@ -684,15 +684,15 @@ function prepare() {
   ln -s -f ${code_home}/daac ${CTDB_CODE_PATH}
   rm -rf ${BUILD_TARGET_PATH}
   mkdir -p ${BUILD_TARGET_PATH}
-  generateScmFile ${code_home}/mysql-server
+  generateScmFile ${code_home}/cantian-connector-mysql
 
   echo "[METADATA_TEST]: cd mysql-source"
-  cd ${code_home}/mysql-server/mysql-source
+  cd ${code_home}/cantian-connector-mysql/mysql-source
   pwd
   echo "[METADATA_TEST]: git branch"
 
-  sync_mysql_code ${code_home}/mysql-server/ ${code_home}/mysql-server/mysql-source
-  [[ "${WORKSPACE}" == "" ]] && ln -s -f ${code_home}/mysql-server/mysql-source ${MYSQL_CODE_PATH}
+  sync_mysql_code ${code_home}/cantian-connector-mysql/ ${code_home}/cantian-connector-mysql/mysql-source
+  [[ "${WORKSPACE}" == "" ]] && ln -s -f ${code_home}/cantian-connector-mysql/mysql-source ${MYSQL_CODE_PATH}
   local xml_path=/etc/maven/settings.xml
   local GCC_VERSION=`gcc --version |head -1 |awk '{print $NF}'`
   if [[ ${OS_ARCH} =~ "aarch64" ]] && [[ ${GCC_VERSION} == "10.3.1" ]]; then
@@ -705,7 +705,7 @@ function prepare() {
   fi
   rm -f ${xml_path}
   cp ${CTDB_CODE_PATH}/CI/maven/settings.xml ${xml_path}
-  cd ${code_home}/mysql-server
+  cd ${code_home}/cantian-connector-mysql
   MYSQL_BIN_COMMIT_ID=($(git submodule status))
   echo " mysql binary commit id : ${MYSQL_BIN_COMMIT_ID}"
 }

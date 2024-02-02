@@ -8,10 +8,12 @@ MYSQL_SERVER_PATH="${CTDB_CODE_PATH}"/../cantian-connector-mysql
 BUILD_TARGET_NAME="cantian_connector"
 BUILD_PACK_NAME="Cantian_24.03"
 ENV_TYPE=$(uname -p)
-TMP_PKG_PATH=/tmp/cantian_output
+TMP_PKG_PATH=${CTDB_CODE_PATH}/package
 CTDB_TARGET_PATH=${CURRENT_PATH}/${BUILD_TARGET_NAME}/CantianKernel
 MYSQL_CODE_PATH=${MYSQL_SERVER_PATH}/mysql-source
+MYSQL_BIN_NAME="Cantian_connector_mysql"
 
+mkdir -p ${TMP_PKG_PATH}
 source "${CURRENT_PATH}"/common.sh
 
 function packageTarget() {
@@ -41,6 +43,7 @@ function newPackageTarget() {
   local pkg_dir_name="${BUILD_TARGET_NAME}"
   local build_type_upper=$(echo "${BUILD_TYPE}" | tr [:lower:] [:upper:])
   local pkg_name="${BUILD_PACK_NAME}_${ENV_TYPE}_${build_type_upper}.tgz"
+  local mysql_pkg_name="${MYSQL_BIN_NAME}_${ENV_TYPE}_${build_type_upper}.tgz"
   local pkg_real_path=${TMP_PKG_PATH}/${pkg_dir_name}
   rm -rf ${TMP_PKG_PATH}/*
 
@@ -52,6 +55,8 @@ function newPackageTarget() {
   cp -arf "${CTDB_CODE_PATH}"/pkg/deploy/action/* ${pkg_real_path}/action/
   cp -arf "${CTDB_CODE_PATH}"/pkg/deploy/config/* ${pkg_real_path}/config/
   cp -arf "${CTDB_CODE_PATH}"/common/* ${pkg_real_path}/common/
+  sed -i "s/#MYSQL_PKG_PREFIX_NAME#/${mysql_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
+  sed -i "s/## BUILD_TYPE ENV_TYPE ##/${build_type_upper} ${ENV_TYPE}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
   cp -arf "${CTDB_CODE_PATH}"/CI/script/for_mysql_official ${pkg_real_path}
 
   sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE}" ${pkg_real_path}/action/dbstor/check_usr_pwd.sh
@@ -60,6 +65,12 @@ function newPackageTarget() {
   echo "Start pkg ${pkg_dir_name}.tgz..."
   cd ${TMP_PKG_PATH}
   tar -zcf "${pkg_name}" ${pkg_dir_name}
+  mkdir -p ${MYSQL_BIN_NAME}
+  cp -arf /usr/local/mysql ${MYSQL_BIN_NAME}
+  echo "Start pkg ${mysql_pkg_name}..."
+  tar -zcf "${mysql_pkg_name}" ${MYSQL_BIN_NAME}
+  rm -rf ${MYSQL_BIN_NAME}
+  rm -rf ${pkg_dir_name}
   echo "Packing ${pkg_name} success"
 }
 
@@ -86,6 +97,7 @@ function collectMysqlTarget() {
   cp "${MYSQL_CODE_PATH}"/daac_lib/libctc_proxy.so  "${CURRENT_PATH}"/cantian-connector-mysql/daac_lib
   cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.a "${CURRENT_PATH}"/cantian-connector-mysql/daac_lib
   cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.so "${CURRENT_PATH}"/cantian-connector-mysql/daac_lib
+  cp "${MYSQL_SERVER_PATH}"/scripts/my.cnf "${CURRENT_PATH}"/cantian-connector-mysql/scripts
 }
 
 function buildMysql() {

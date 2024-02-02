@@ -6,15 +6,15 @@ CTDB_CODE_PATH=${HOME_PATH}/CantianKernel
 if [ "${WORKSPACE}" != "" ]; then
     HOME_PATH=${WORKSPACE}
     CTDB_CODE_PATH=${HOME_PATH}/daac
-    MYSQL_CODE_PATH=${HOME_PATH}/mysql-server/mysql-source
+    MYSQL_CODE_PATH=${HOME_PATH}/cantian-connector-mysql/mysql-source
     CTC_CODE_PATH=/hactc_libctcproxy_dir/mysql-source
 else
     HOME_PATH="/home/regress"
     CTDB_CODE_PATH=${HOME_PATH}/CantianKernel
-    MYSQL_CODE_PATH=${HOME_PATH}/mysql-server
+    MYSQL_CODE_PATH=${HOME_PATH}/cantian-connector-mysql
     CTC_CODE_PATH=/hactc_libctcproxy_dir
 fi
-MYSQL_LCOV_OUT_PATH=${WORKSPACE}/mysql-server/lcovout
+MYSQL_LCOV_OUT_PATH=${WORKSPACE}/cantian-connector-mysql/lcovout
 LLT_TEST_TYPE=${1}
 LLT_CFG_FILE="enableCases_gcov.list"
 if [ "${LLT_TEST_TYPE}" == "ASAN" ]; then

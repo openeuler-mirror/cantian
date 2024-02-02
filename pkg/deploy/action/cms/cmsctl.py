@@ -75,7 +75,7 @@ VALID_SINGLE_MYSQL_RUNNING_MODE = {CANTIAND_WITH_MYSQL_IN_CLUSTER, CANTIAND_WITH
 CLUSTER_SIZE = 2  # default to 2, 4 node cluster mode need add parameter to specify this
 
 PKG_DIR = "/opt/cantian/image/cantian_connector"  # no use
-MYSQL_CODE_DIR = os.path.join(PKG_DIR, "mysql-server")
+MYSQL_CODE_DIR = os.path.join(PKG_DIR, "cantian-connector-mysql")
 MYSQL_BIN_DIR = "/opt/cantian/mysql/install/mysql"
 MYSQL_DATA_DIR = ""
 MYSQL_LOG_FILE = ""

@@ -212,8 +212,8 @@ install plugin CTC soname 'ha_ctc.so'
 ```
 方法二：
 ```
-/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/mysql-server/scripts/my.cnf --initialize-insecure --datadir=/data/data
-/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/mysql-server/scripts/my.cnf --datadir=/data/data --plugin-dir=/usr/local/mysql/lib/plugin --plugin_load="ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so;" --
+/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/cantian-connector-mysql/scripts/my.cnf --initialize-insecure --datadir=/data/data
+/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/cantian-connector-mysql/scripts/my.cnf --datadir=/data/data --plugin-dir=/usr/local/mysql/lib/plugin --plugin_load="ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so;" --
 check_proxy_users=ON --mysql_native_password_proxy_users=ON --default-storage-engine=CTC
 ```
 #### 六、注意事项
