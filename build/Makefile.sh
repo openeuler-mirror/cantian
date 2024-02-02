@@ -372,11 +372,24 @@ func_pkg_symbol()
     sha256sum ${CANTIANDB_BIN}/${SYMBOL_PACK_DIR_NAME}.tar.gz | cut -c1-64 > ${CANTIANDB_BIN}/${SYMBOL_PACK_DIR_NAME}.sha256
 }
 
+function prepare_kmc()
+{
+    echo "prepare kmc"
+    mkdir -p "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared
+    mkdir -p "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared_temp
+    local build_mode=$1
+    tar -zxvf "${WORKSPACE}"/*${OS_ARCH}*${build_mode}* -C "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared_temp
+    cp -arf "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared_temp/lib/* "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared
+    chmod 500 "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared/*
+    rm -rf "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared_temp
+}
+
 func_make_debug()
 {
     echo "make debug"
     func_all Debug
     func_prepare_pkg_name
+    prepare_kmc "debug"
     func_pkg_run
 }
 
@@ -385,9 +398,11 @@ func_make_release()
     echo "make release"
     func_all Release
     func_prepare_pkg_name
-    func_release_symbol   
+    func_release_symbol
+    prepare_kmc "release"
     func_pkg_run
 }
+
 
 func_collect_mysql_target()
 {
@@ -512,7 +527,7 @@ func_test()
     func_all Debug
     strip -N main ${CANTIANDB_LIB}/libzeserver.a
     cd ${CT_TEST_BUILD_DIR}
-    make -sj 8 
+    make -sj 8
 
     if [[ -e "${CANTIANDB_BIN}"/cantiand ]]; then
         cd ${CANTIANDB_BIN}
@@ -566,7 +581,7 @@ func_clean()
     fi
 
     echo ${CANTIANDB_OUTPUT}
-    
+
     rm -rf ${CANTIANDB_OUTPUT}/*
     rm -rf ${CANTIANDB_HOME}/../${ALL_PACK_DIR_NAME}
 
@@ -596,7 +611,7 @@ func_pkg_ctsql()
     cp -d ${CANTIANDB_LIB}/libzeclient.so ${CANTIANDB_BIN}/${CTSQL_PACK_DIR_NAME}/lib/
     cp -d ${CANTIANDB_LIB}/libzecommon.so ${CANTIANDB_BIN}/${CTSQL_PACK_DIR_NAME}/lib/
     cp -d ${CANTIANDB_LIB}/libzeprotocol.so ${CANTIANDB_BIN}/${CTSQL_PACK_DIR_NAME}/lib/
-    
+
     cp -d ${Z_LIB_PATH}/libz.so* ${CANTIANDB_BIN}/${CTSQL_PACK_DIR_NAME}/add-ons/
     cp -d ${PCRE_LIB_PATH}/libpcre2-8.so* ${CANTIANDB_BIN}/${CTSQL_PACK_DIR_NAME}/add-ons/
 
@@ -624,11 +639,12 @@ func_making_package()
     else
         echo "make release"
         func_all Release
-        func_prepare_pkg_name        
+        func_prepare_pkg_name
     fi
-    
+
     if [[ "${build_package_mode}" = 'Release' ]] || [[ "${build_package_mode}" = 'Shard_Release' ]]; then
         func_release_symbol
+        prepare_kmc "release"
         func_pkg_run
     fi
 
@@ -651,7 +667,7 @@ func_making_package()
     cd ${CANTIANDB_BIN} && tar --owner=root --group=root -zcf ${ALL_PACK_DIR_NAME}.tar.gz ${ALL_PACK_DIR_NAME}
     sha256sum ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}.tar.gz | cut -c1-64 > ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}.sha256
     func_pkg_ctsql
-    
+
     find ${CANTIANDB_BIN} -name "*.sha256" -exec chmod 400 {} \;
     cp -arf ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME} ${CANTIANDB_HOME}/../${ALL_PACK_DIR_NAME}
 }
@@ -675,7 +691,7 @@ func_download_3rdparty()
     cd -
 
     lib_name_list=("huawei_security" "lz4" "openssl" "pcre" "protobuf" "protobuf-c" "zlib" "Zstandard")
-    
+
     mkdir -p ${DOWNLOAD_PATH}/platform
 
     for lib_name in ${lib_name_list[@]}; do
@@ -683,7 +699,7 @@ func_download_3rdparty()
     mkdir -p ${DOWNLOAD_PATH}/open_source/${lib_name}/include
     mkdir -p ${DOWNLOAD_PATH}/library/${lib_name}/lib
     done
- 
+
     cp -f ${WORKSPACE}/3rdPartyPkg/pcre2-10.40.tar.gz ${DOWNLOAD_PATH}/open_source/pcre/
     cp -f ${WORKSPACE}/3rdPartyPkg/lz4-1.9.4.tar.gz ${DOWNLOAD_PATH}/open_source/lz4/
     cp -f ${WORKSPACE}/3rdPartyPkg/zstd-1.5.2.tar.gz ${DOWNLOAD_PATH}/open_source/Zstandard/
@@ -696,7 +712,7 @@ func_download_3rdparty()
     echo "start compile 3rdparty : "
     sh compile_opensource_new.sh
 }
- 
+
 ## download 3rd-party lib and platform lib
 func_prepare_dependency()
 {
@@ -725,7 +741,7 @@ func_prepare_dependency()
         echo "mysql binary code dir not exist"
         mkdir -p ${MYSQL_BINARY_CODE_PATH}
     fi
-    
+
     #下载三方库并编译
     if [[ -z ${WITHOUT_DEPS} ]]; then
         func_download_3rdparty
@@ -786,13 +802,13 @@ func_prepare_LLT_dependency()
         exit 1
     else
         echo "dependency download succeed"
-    fi 
+    fi
 
     chmod 755 ${CANTIANDB_HOME}/../library/protobuf/lib/libprotobuf-c.a
 }
 
 #获取最新包地址
-function expect_ssh_get_latest_tar_file_path() {   
+function expect_ssh_get_latest_tar_file_path() {
 	local ip=$1
     local file_path=$2
     /usr/bin/expect << EOF
@@ -827,7 +843,7 @@ func_make_raft()
     func_prepare_dependency
 
     echo "make raft"
-    
+
     raft_build_mode=$1
     if [[ -z "${raft_build_mode}" ]]; then
         raft_build_mode='Debug'
@@ -856,8 +872,8 @@ func_regress_test()
         ls -al /home/regress
         ls -al /home/regress/CantianKernel/build
         exit 1
-    fi 
-    set -e 
+    fi
+    set -e
 
     if [[ -e "${CANTIANDB_BIN}"/cantiand ]]; then
         cd ${CANTIANDB_BIN}
@@ -882,8 +898,8 @@ func_make_test_debug()
         ls -al /home/regress
         ls -al /home/regress/CantianKernel/build
         exit 1
-    fi 
-    set -e 
+    fi
+    set -e
 
     if [[ -e "${CANTIANDB_BIN}"/cantiand ]]; then
         cd ${CANTIANDB_BIN}
@@ -893,6 +909,7 @@ func_make_test_debug()
         ln cantiand ${CANTIAND_BIN}
     fi
     func_prepare_pkg_name
+    prepare_kmc "debug"
     func_pkg_run_basic
     chmod 400 ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/admin/scripts/*
     #chmod 700 ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/admin/scripts/upgrade
