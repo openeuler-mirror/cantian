@@ -38,7 +38,7 @@ cp -arf "${MYSQL_OFFICIAL_DIR}"/docker/mf_connector_init.sh "${MF_CONNECTOR_MOUN
 
 rm -rf "${MF_CONNECTOR_MOUNT_DIR}"/cantian_lib
 mkdir "${MF_CONNECTOR_MOUNT_DIR}"/cantian_lib
-cp -arf "${MF_CONNECTOR_ROOT}"/mysql-server/daac_lib/* "${MF_CONNECTOR_MOUNT_DIR}"/cantian_lib
+cp -arf "${MF_CONNECTOR_ROOT}"/cantian-connector-mysql/daac_lib/* "${MF_CONNECTOR_MOUNT_DIR}"/cantian_lib
 cp -arf "${MYSQL_OFFICIAL_DIR}"/docker/internals/install_cantian_lib.sh "${MF_CONNECTOR_MOUNT_DIR}"/cantian_lib
 
 # install_mysql.sh still used this dir
@@ -49,21 +49,21 @@ rm -rf "${MF_CONNECTOR_MOUNT_DIR}"/plugin
 mkdir "${MF_CONNECTOR_MOUNT_DIR}"/plugin
 
 if [ "$MYSQL_METADATA_IN_CANTIAN" = "TRUE" ]; then
-  echo "copy meta ha_ctc.so from ${MF_CONNECTOR_ROOT}/mysql-server/mysql_bin/mysql/lib/plugin/meta/ha_ctc.so  to ${MF_CONNECTOR_MOUNT_DIR}/plugin"
+  echo "copy meta ha_ctc.so from ${MF_CONNECTOR_ROOT}/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/meta/ha_ctc.so  to ${MF_CONNECTOR_MOUNT_DIR}/plugin"
 
-  cp -arf "${MF_CONNECTOR_ROOT}"/mysql-server/mysql_bin/mysql/lib/plugin/meta/ha_ctc.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin
+  cp -arf "${MF_CONNECTOR_ROOT}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/meta/ha_ctc.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin
   cp -arf "${MYSQL_OFFICIAL_DIR}"/docker/internals/install_mf_connector_plugin.sh "${MF_CONNECTOR_MOUNT_DIR}"/plugin
 
   mkdir -p "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
-  cp -arf "${MF_CONNECTOR_ROOT}"/mysql-server/mysql_bin/mysql/lib/plugin/meta/ha_ctc.so "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
+  cp -arf "${MF_CONNECTOR_ROOT}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/meta/ha_ctc.so "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
 else
-  echo "copy nometa ha_ctc.so from ${MF_CONNECTOR_ROOT}/mysql-server/mysql_bin/mysql/lib/plugin/nometa/ha_ctc.so  to ${MF_CONNECTOR_MOUNT_DIR}/plugin"
+  echo "copy nometa ha_ctc.so from ${MF_CONNECTOR_ROOT}/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/nometa/ha_ctc.so  to ${MF_CONNECTOR_MOUNT_DIR}/plugin"
 
-  cp -arf "${MF_CONNECTOR_ROOT}"/mysql-server/mysql_bin/mysql/lib/plugin/nometa/ha_ctc.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin
+  cp -arf "${MF_CONNECTOR_ROOT}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/nometa/ha_ctc.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin
   cp -arf "${MYSQL_OFFICIAL_DIR}"/docker/internals/install_mf_connector_plugin.sh "${MF_CONNECTOR_MOUNT_DIR}"/plugin
 
   mkdir -p "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
-  cp -arf "${MF_CONNECTOR_ROOT}"/mysql-server/mysql_bin/mysql/lib/plugin/nometa/ha_ctc.so "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
+  cp -arf "${MF_CONNECTOR_ROOT}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/nometa/ha_ctc.so "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
 fi
 
 chmod a+rx -R "${MF_CONNECTOR_MOUNT_DIR}"

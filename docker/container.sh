@@ -158,10 +158,7 @@ function sync_mysql_code()
     mysql_dir=$1
     echo "sync_mysql_code mysql_dir:${mysql_dir}"
     cp -arf ${mysql_dir}/mysql-test ${mysql_dir}/mysql-source
-    cp -arf ${mysql_dir}/include ${mysql_dir}/mysql-source
     cp -arf ${mysql_dir}/storage ${mysql_dir}/mysql-source
-    cp -arf ${mysql_dir}/docker ${mysql_dir}/mysql-source
-    cp -arf ${mysql_dir}/scripts ${mysql_dir}/mysql-source
     cp -arf ${mysql_dir}/mysql-test/*.patch ${mysql_dir}/mysql-source
 }
 
@@ -180,7 +177,7 @@ function init()
     regress_dir="/home/regress"
     sync_mysql_code ${mysql_dir}
     mounts="-v ${cantian_dir}:${regress_dir}/CantianKernel -v ${data_dir}:${regress_dir}/cantian_data -v ${mysql_dir}:${regress_dir}/cantian-connector-mysql \
-	-v ${core_dir}:${core_dir} -v ${project_dir}/cantian_om:${regress_dir}/cantian_om"
+	-v ${core_dir}:${core_dir}"
 
     echo "cantian_dir: ${cantian_dir}"
     echo "data_dir: ${data_dir}"

@@ -17,7 +17,6 @@ sed -i '/source \/etc\/profile/d' /root/.bashrc
 echo "export MYSQL_COMMIT_ID=$commitID" >> /etc/profile
 echo "source /etc/profile" >> /root/.bashrc
 echo "alias ll='ls -alrt'" >> /etc/profile
-echo "source /home/regress/mysql-server/docker/mysql8_exports" >> /etc/profile
 echo "${user} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 

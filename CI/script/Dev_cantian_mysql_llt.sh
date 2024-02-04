@@ -10,7 +10,7 @@
 DIR_PATH=$(cd `dirname $0`;pwd)
 ROOT_PATH=$(cd ${DIR_PATH}/../../;pwd)
 REGRESS_PATH=${ROOT_PATH}/pkg/test/gs_regress
-MYSQL_PATH=/home/regress/mysql-server
+MYSQL_PATH=/home/regress/cantian-connector-mysql
 MYSQL_USER_PATH=/usr/local/mysql
 MYSQL_LCOV_PATH=${MYSQL_PATH}/bld_debug/storage/tianchi/CMakeFiles/ctc.dir
 
