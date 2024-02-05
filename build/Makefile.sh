@@ -374,6 +374,11 @@ func_pkg_symbol()
 
 function prepare_kmc()
 {
+    local pkg_list
+    pkg_list=$(ls "${WORKSPACE}"/*kmc_${OS_ARCH}* | wc -l)
+    if [[ ${pkg_list} -eq 0 ]];then
+        return
+    fi
     echo "prepare kmc"
     mkdir -p "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared
     mkdir -p "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared_temp
