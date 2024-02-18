@@ -316,23 +316,6 @@ function install_dbstor(){
     tar -zxf "${dbstor_client_file}" -C "${dbstor_file_path}"/client
     cp -arf "${dbstor_file_path}"/client/lib/* "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/add-ons/
     cp -arf "${dbstor_file_path}"/client_test "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit
-    if [ ! -d "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/kmc_shared ];then
-      mkdir -p "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/kmc_shared
-      cd "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/kmc_shared || exit 1
-      so_name=("libkmc.so.23.0.0" "libkmcext.so.23.0.0" "libsdp.so.23.0.0" "libsecurec.so" "libcrypto.so.1.1")
-      link_name1=("libkmc.so.23" "libkmcext.so.23" "libsdp.so.23" "libcrypto.so.1.1")
-      link_name2=("libkmc.so" "libkmcext.so" "libsdp.so" "libcrypto.so")
-      ls -l "${dbstor_file_path}"/client/lib/kmc_shared
-      for i in {0..2};do
-        cp -f "${dbstor_file_path}"/client/lib/kmc_shared/"${so_name[$i]}" "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/kmc_shared
-        ln -s "${so_name[$i]}" "${link_name1[$i]}"
-        ln -s "${link_name1[$i]}" "${link_name2[$i]}"
-      done
-      cp -f "${dbstor_file_path}"/client/lib/kmc_shared/"${so_name[4]}" "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/kmc_shared
-      ln -s "${link_name1[3]}" "${link_name2[3]}"
-      cp -f "${dbstor_file_path}"/client/lib/kmc_shared/libsecurec.so "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/kmc_shared
-      cd - || exit 1
-    fi
     rm -rf "${dbstor_file_path}"
     return 0
 }
@@ -407,7 +390,7 @@ function update_random_seed() {
 
 # 容器内无需检查ntp服务
 if [ ! -f /.dockerenv ]; then
-  check_ntp_active
+    check_ntp_active
 fi
 
 python3 ${PRE_INSTALL_PY_PATH} ${INSTALL_TYPE} ${CONFIG_FILE}
@@ -510,6 +493,7 @@ chown "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/obtains_lsid.py
 chown "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/implement/update_cantian_passwd.py
 chown "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/implement/check_deploy_param.py
 chown "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/update_config.py
+chown -hR "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/cantian_common
 
 
 # 预安装各模块，有一个模块失败pass_check设为false
@@ -734,6 +718,7 @@ cp -fp ${CURRENT_PATH}/../config/cantian_logs_handler.timer /etc/systemd/system/
 cp -fp ${CURRENT_PATH}/* /opt/cantian/action > /dev/null 2>&1
 cp -rfp ${CURRENT_PATH}/inspection /opt/cantian/action
 cp -rfp ${CURRENT_PATH}/implement /opt/cantian/action
+cp -rfp ${CURRENT_PATH}/cantian_common /opt/cantian/action
 cp -rfp ${CURRENT_PATH}/logic /opt/cantian/action
 cp -rfp ${CURRENT_PATH}/storage_operate /opt/cantian/action
 cp -rfp ${CURRENT_PATH}/utils /opt/cantian/action
@@ -803,7 +788,7 @@ if [[ x"${deploy_mode}" != x"nas" ]];then
     su -s /bin/bash - "${cantian_user}" -c "sh ${CURRENT_PATH}/dbstor/check_usr_pwd.sh"
     install_result=$?
     if [ ${install_result} -ne 0 ]; then
-        logAndEchoError "check failed, possible reasons:
+        logAndEchoError "check dbstor passwd failed, possible reasons:
             1 username or password of dbstor storage service is incorrect.
             2 cgw create link failed.
             3 ip address of dbstor storage service is incorrect.

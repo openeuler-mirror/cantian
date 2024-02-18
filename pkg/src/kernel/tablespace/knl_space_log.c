@@ -212,6 +212,10 @@ void rd_spc_remove_space_internal(knl_session_t *session, rd_remove_space_t *red
         spc_wait_data_buffer(session, space);
         (void)spc_remove_space(session, space, redo->options, CT_TRUE);
     } else {
+        if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master()) {
+            ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL);
+        }
+        spc_wait_data_buffer(session, space);
         CT_LOG_RUN_INF("logic to remove space id is %d.", space_id);
         if (spc_remove_space(session, space, redo->options, CT_FALSE) != CT_SUCCESS && DAAC_REPLAY_NODE(session)) {
             if (!space->ctrl->used) {

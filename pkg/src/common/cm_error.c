@@ -983,6 +983,7 @@ const char *g_error_desc[] = {
 
     // other error
     [ERR_SPACE_NO_DATAFILE] = "Space has no datafile",
+    [ERR_DC_LOAD_CONFLICT] = "loading conflict, entity is null",
 
     // cantian File System, range [2000, 2500]
     [ERR_CTSTORE_OPEN_VOLUME] = "Open volume '%s' failed, reason %d",

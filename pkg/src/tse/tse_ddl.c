@@ -1695,7 +1695,7 @@ static status_t tse_get_partition_real_name(knl_session_t *session, uint32_t idx
     text_t table_name = {0};
     proto_str2text(req->user, &user);
     proto_str2text(req->table_name, &table_name);
-    CT_RETURN_IFERR(dc_open(session, &user, &table_name, &dc));
+    CT_RETURN_IFERR(knl_open_dc(session, &user, &table_name, &dc));
     table_t *table = DC_TABLE(&dc);
     if (req->is_subpart) {
         if (table->part_table->desc.subparttype != PART_TYPE_HASH) {

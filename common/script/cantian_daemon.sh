@@ -15,10 +15,9 @@ CANTIAND_CGROUP=/sys/fs/cgroup/memory/cantiand
 CTMGR_CGROUP=/sys/fs/cgroup/memory/ctmgr
 CANTIAN_EXPORTER_CGROUP=/sys/fs/cgroup/memory/cantian_exporter
 CANTIAND_CGROUP_CALCULATE=${CURRENT_PATH}/../../action/cantian/cantiand_cgroup_calculate.sh
-ARCH=$(uname -p)
-KUBE_CGROUP=/sys/fs/cgroup/cpu/kubepods
-if [[ x"${ARCH}" == x"x86_64" ]];then
-    KUBE_CGROUP=/sys/fs/cgroup/cpu/kubepods.slice
+KUBE_CGROUP=/sys/fs/cgroup/cpu/kubepods.slice
+if [[ ! -d ${KUBE_CGROUP} ]];then
+    KUBE_CGROUP=/sys/fs/cgroup/cpu/kubepods
 fi
 CMS_MEM_LIMIT=95
 

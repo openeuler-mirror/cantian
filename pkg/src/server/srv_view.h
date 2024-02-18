@@ -160,6 +160,7 @@ typedef enum en_dynview_id {
     DYN_VIEW_SELF,
     DYN_VIEW_CTRL_VERSION,
     DYN_VIEW_LFN,
+    DYN_VIEW_LRPL_DETAIL,
 } dynview_id_t;
 
 #define VW_DECL static dynview_desc_t
@@ -198,6 +199,7 @@ void srv_regist_global_dynamic_views(void);
 #endif
 typedef status_t (*vw_fetch_func)(knl_handle_t session, knl_cursor_t *cursor);
 status_t vw_fetch_for_tenant(vw_fetch_func func, knl_handle_t session, knl_cursor_t *cursor);
+status_t vw_lrpl_detail_fetch(knl_handle_t session, knl_cursor_t *cursor);
 
 #define CURSOR_SET_TENANT_ID_BY_USER(func, cursor, user)  \
     do {                                                  \

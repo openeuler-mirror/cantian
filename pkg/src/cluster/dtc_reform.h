@@ -71,6 +71,7 @@ status_t rc_master_wait_ckpt_finish(reform_mode_t mode);
 //TODO: multi node
 void rc_save_prcy_nodes_info(reform_rcy_node_t *rcy_node);
 bool32 rc_reform_cancled(void);
+status_t rc_promote_role(knl_session_t *session);
 
 // force arch redo log for offline node
 status_t rc_arch_handle_tmp_file(arch_proc_context_t *proc_ctx, uint32 node_id);

@@ -29,6 +29,9 @@
 #include "load_kernel.h"
 #include "srv_view.h"
 #include "cm_signal.h"
+#include "wsecv2_itf.h"
+#include "wsecv2_errorcode.h"
+#include "wsecv2_config.h"
 #include "cm_license.h"
 #include "pl_ext_proc.h"
 #ifndef WIN32

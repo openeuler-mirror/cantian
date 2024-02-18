@@ -3,6 +3,7 @@
   "deploy_user": "ctdba:ctdba",
   "cluster_id": "0",
   "cluster_name": "cluster123",
+  "remote_cluster_name": "cluster123",
   "node_id": "0",
   "cantian_vlan_ip": "10.77.77.100;10.77.77.101",
   "storage_vlan_ip": "10.77.77.102",
@@ -26,5 +27,19 @@
   "MAX_ARCH_FILES_SIZE": "300G",
   "ca_path": "/opt/certificate/ca.crt",
   "crt_path": "/opt/certificate/mes.crt",
-  "key_path": "/opt/certificate/mes.key"
+  "key_path": "/opt/certificate/mes.key",
+  "dr_deploy": {
+    "active": {
+      "dm_ip": "",
+      "dm_user": "",
+      "esn": ""
+    },
+    "standby": {
+      "dm_ip": "",
+      "dm_user": "",
+      "esn": "",
+      "pool_id": "",
+      "dbstore_fs_vstore_id": ""
+    }
+  }
 }

@@ -167,7 +167,7 @@ class StorageFileSystemSplit(StorageInf):
 
     def pre_upgrade(self):
         LOGGER.info("Begin to check dbstore page fs info")
-        page_file_system_info = self.query_file_system_info(self.storage_dbstore_page_fs, vstore_id=self.vstore_id)
+        page_file_system_info = self.query_filesystem_info(self.storage_dbstore_page_fs, vstore_id=self.vstore_id)
         if page_file_system_info:
             err_msg = "File system [%s] is exist." % self.storage_dbstore_page_fs
             LOGGER.error(err_msg)
@@ -190,10 +190,10 @@ class StorageFileSystemSplit(StorageInf):
            10、删除共享
         :return:
         """
-        fs_info = self.query_file_system_info(self.storage_dbstore_fs, vstore_id=self.vstore_id)
+        fs_info = self.query_filesystem_info(self.storage_dbstore_fs, vstore_id=self.vstore_id)
         fs_id = fs_info.get("ID")
 
-        clone_fs_info = self.query_file_system_info(self.storage_dbstore_page_fs, vstore_id=self.vstore_id)
+        clone_fs_info = self.query_filesystem_info(self.storage_dbstore_page_fs, vstore_id=self.vstore_id)
         if not clone_fs_info:
             clone_fs_info = self.create_clone_file_system(fs_id, self.storage_dbstore_page_fs, vstore_id=self.vstore_id)
 
@@ -216,7 +216,7 @@ class StorageFileSystemSplit(StorageInf):
         self.clear_dbstore_nfs_share(_fs_id, clone_fs_id)
 
     def rollback(self):
-        page_fs_info = self.query_file_system_info(self.storage_dbstore_page_fs, vstore_id=self.vstore_id)
+        page_fs_info = self.query_filesystem_info(self.storage_dbstore_page_fs, vstore_id=self.vstore_id)
         if not page_fs_info:
             return
         file_system_id = page_fs_info.get("ID")

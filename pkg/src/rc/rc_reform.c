@@ -960,6 +960,11 @@ void rc_check_finished(thread_t *thread)
     knl_session_t *session = (knl_session_t *)thread->argument;
     rc_sync_cluster_view(session);
     rc_current_stat_step_forward();
+
+    if (!DB_IS_PRIMARY(&session->kernel->db) && g_rc_callback.rc_promote_role != NULL) {
+        g_rc_callback.rc_promote_role(session);
+    }
+
     g_rc_ctx->status = REFORM_DONE;
     g_rc_ctx->mode = REFORM_MODE_NONE;
     g_rc_ctx->info.master_changed = CT_FALSE;
@@ -1329,8 +1334,11 @@ status_t rc_notify_reform_status(knl_session_t *session, reform_info_t *rc_info,
     return ret;
 }
 
-status_t rc_set_redo_replay_done(knl_session_t *session, reform_info_t *rc_info)
+status_t rc_set_redo_replay_done(knl_session_t *session, reform_info_t *rc_info, bool32 full_recovery)
 {
+    if (!DB_IS_PRIMARY(&session->kernel->db) && full_recovery && !DB_NOT_READY(session)) {
+        return CT_SUCCESS;
+    }
     knl_panic(g_rc_ctx->status < REFORM_RECOVER_DONE);
     g_rc_ctx->status = REFORM_RECOVER_DONE;
     return rc_notify_reform_status(session, rc_info, REFORM_RECOVER_DONE);
