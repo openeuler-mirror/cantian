@@ -103,7 +103,7 @@ typedef struct st_trigger_task {
 typedef struct st_ckpt_queue {
     spinlock_t lock;
     volatile uint32 count;
-
+    uint32 curr_node_idx;
     log_point_t trunc_point;
     buf_ctrl_t *first;
     buf_ctrl_t *last;
@@ -207,6 +207,7 @@ typedef struct st_ckpt_ctx {
     cm_thread_cond_t ckpt_cond;
 
     uint32 dbwr_count;
+    uint32 curr_node_idx;
     log_point_t trunc_point_snapshot; // used only for (cascaded) standby node
     log_point_t lrp_point;  // least recovery point
     knl_scn_t lrp_scn;
@@ -239,6 +240,7 @@ typedef struct st_ckpt_ctx {
     spinlock_t disable_lock;
 } ckpt_context_t;
 
+void ckpt_update_log_point_slave_role(knl_session_t *session);
 status_t ckpt_init(knl_session_t *session);
 void ckpt_load(knl_session_t *session);
 void ckpt_close(knl_session_t *session);
@@ -252,7 +254,9 @@ EXTER_ATTACK void ckpt_trigger(knl_session_t *session, bool32 wait, ckpt_mode_t 
 void ckpt_enque_page(knl_session_t *session);
 void ckpt_enque_one_page(knl_session_t *session, buf_ctrl_t *ctrl);
 void ckpt_get_trunc_point(knl_session_t *session, log_point_t *point);
+void ckpt_get_trunc_point_slave_role(knl_session_t *session, log_point_t *point, uint32 *curr_node_idx);
 void ckpt_set_trunc_point(knl_session_t *session, log_point_t *point);
+void ckpt_set_trunc_point_slave_role(knl_session_t *session, log_point_t *point, uint32 curr_node_idx);
 status_t ckpt_recover_partial_write(knl_session_t *session);
 bool32 ckpt_check(knl_session_t *session);
 void ckpt_reset_point(knl_session_t *session, log_point_t *point);

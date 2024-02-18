@@ -43,32 +43,33 @@ class DefaultLogFilter(logging.Filter):
         return True
 
 
-def setup(project_name):
+def setup(project_name, console_info=True):
     """
     init log config
+    :param console_info:设置屏显是否打印info日志
     :param project_name:
     """
+    set_info = logging.INFO if console_info else logging.ERROR
     console = logging.StreamHandler()
-    console.setLevel(logging.ERROR)
+    console.setLevel(set_info)
+    console_formatter = logging.Formatter('[%(levelname)s ] %(message)s')
+    console.setFormatter(console_formatter)
 
     log_root = logging.getLogger(project_name)
     for handler in list(log_root.handlers):
         log_root.removeHandler(handler)
 
     log_path = _get_log_file_path(project_name)
-    if log_path:
-        file_log = handlers.RotatingFileHandler(
-            log_path, maxBytes=log_config.get("log_file_max_size"),
-            backupCount=log_config.get("log_file_backup_count"))
-        log_root.addHandler(file_log)
-        log_root.addHandler(console)
-        log_root.addFilter(DefaultLogFilter())
-
-    for handler in log_root.handlers:
-        handler.setFormatter(
-            logging.Formatter(
-                fmt=log_config.get("logging_context_format_string"),
-                datefmt=log_config.get("log_date_format")))
+    file_log = handlers.RotatingFileHandler(
+        log_path, maxBytes=log_config.get("log_file_max_size"),
+        backupCount=log_config.get("log_file_backup_count"))
+    file_log.setFormatter(
+        logging.Formatter(
+            fmt=log_config.get("logging_context_format_string"),
+            datefmt=log_config.get("log_date_format")))
+    log_root.addHandler(file_log)
+    log_root.addHandler(console)
+    log_root.addFilter(DefaultLogFilter())
 
     if log_config.get("debug"):
         log_root.setLevel(logging.DEBUG)
@@ -78,8 +79,10 @@ def setup(project_name):
 
 
 LOGGER = setup("om_deploy")
-REST_LOG = setup("rest_request")
+REST_LOG = setup("rest_request", console_info=False)
+DR_DEPLOY_LOG = setup("dr_deploy", console_info=False)
 log_directory = log_config.get("log_dir")
 os.chmod(log_directory, 0o750)
 os.chmod(f'{str(Path(log_directory, "om_deploy.log"))}', 0o640)
 os.chmod(f'{str(Path(log_directory, "rest_request.log"))}', 0o640)
+os.chmod(f'{str(Path(log_directory, "dr_deploy.log"))}', 0o640)

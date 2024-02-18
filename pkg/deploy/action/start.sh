@@ -7,6 +7,7 @@ open_file_num=102400
 node_count=$(python3 ${CURRENT_PATH}/get_config_info.py "cluster_scale")
 source ${CURRENT_PATH}/env.sh
 source ${CURRENT_PATH}/log4sh.sh
+START_MODE=$1
 
 function initLimitsConfig() {
     nr_open=`cat /proc/sys/fs/nr_open`
@@ -74,7 +75,7 @@ logAndEchoInfo "Begin to start. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 for lib_name in "${START_ORDER[@]}"
 do
     logAndEchoInfo "start ${lib_name} . [Line:${LINENO}, File:${SCRIPT_NAME}]"
-    sh ${CURRENT_PATH}/${lib_name}/appctl.sh start >> ${OM_DEPLOY_LOG_FILE} 2>&1
+    sh ${CURRENT_PATH}/${lib_name}/appctl.sh start ${START_MODE} >> ${OM_DEPLOY_LOG_FILE} 2>&1
     if [ $? -ne 0 ]; then
         logAndEchoError "start ${lib_name} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         logAndEchoError "For details, see the /opt/cantian/${lib_name}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -112,5 +113,5 @@ done
 
 chmod 660 /dev/shm/cantian*
 chown -hR "${cantian_user}":"${deploy_group}" /dev/shm/cantian*
-
+logAndEchoInfo "start success"
 exit 0

@@ -172,6 +172,7 @@ typedef struct __attribute__((aligned(128))) st_buf_ctrl
     page_id_t page_id;
     date_t access_time;             // last access time
 
+    uint32 curr_node_idx;
     log_point_t trunc_point;
     uint64 lastest_lfn;
 

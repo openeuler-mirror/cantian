@@ -8,7 +8,7 @@ execute_process(
         OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 if (OS_ARCH STREQUAL "aarch64")
-    add_compile_options(-march=armv8.2-a+crc+lse -mno-outline-atomics)
+    add_compile_options(-march=armv8.2-a+crc+lse)
 endif()
 
 include_directories(

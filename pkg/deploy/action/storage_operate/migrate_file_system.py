@@ -118,8 +118,8 @@ class MigrateFileSystem(StorageInf):
             err_msg = "Logic port info[%s] is not exist" % clone_file_system_share_logic_ip
             LOGGER.error(err_msg)
             raise Exception(err_msg)
-        clone_file_system_info = self.query_file_system_info(clone_file_system_name,
-                                                             vstore_id=clone_share_file_system_vstore_id)
+        clone_file_system_info = self.query_filesystem_info(clone_file_system_name,
+                                                            vstore_id=clone_share_file_system_vstore_id)
         if clone_file_system_info:
             err_msg = "Clone share file system[%s] is exist, details: %s " % (clone_file_system_name,
                                                                               clone_file_system_info)
@@ -145,11 +145,11 @@ class MigrateFileSystem(StorageInf):
         for fs_type_key, logic_ip_key in file_system_conf_key:
             file_system_name = self.old_config_info.get(fs_type_key)
             clone_file_system_name = self.new_config_info.get(fs_type_key)
-            file_system_info = self.query_file_system_info(file_system_name, vstore_id=0)
+            file_system_info = self.query_filesystem_info(file_system_name, vstore_id=0)
             file_system_id = file_system_info.get("ID")
 
-            clone_file_system_info = self.query_file_system_info(file_system_name,
-                                                                 vstore_id=clone_file_system_vstore_id)
+            clone_file_system_info = self.query_filesystem_info(file_system_name,
+                                                                vstore_id=clone_file_system_vstore_id)
             if not clone_file_system_info:
                 clone_file_system_info = self.create_clone_file_system(file_system_id,
                                                                        file_system_name,
@@ -205,8 +205,8 @@ class MigrateFileSystem(StorageInf):
             self.umount_share_file_system(clone_file_system_name)
             time.sleep(2)
             self.mount_share_file_system(file_system_name, file_system_logic_ip)
-            clone_file_system_info = self.query_file_system_info(clone_file_system_name,
-                                                                 vstore_id=clone_share_file_system_vstore_id)
+            clone_file_system_info = self.query_filesystem_info(clone_file_system_name,
+                                                                vstore_id=clone_share_file_system_vstore_id)
             if not clone_file_system_info:
                 return
             clone_file_system_id = clone_file_system_info.get("ID")

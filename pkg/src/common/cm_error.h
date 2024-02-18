@@ -990,6 +990,7 @@ typedef enum en_errno {
     
     // other error
     ERR_SPACE_NO_DATAFILE = 1950,
+    ERR_DC_LOAD_CONFLICT = 1951,
 
     // cantian File System, range [2000, 2500]
     ERR_CTSTORE_OPEN_VOLUME = 2000,

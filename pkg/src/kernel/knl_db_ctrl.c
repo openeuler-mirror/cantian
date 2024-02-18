@@ -362,7 +362,27 @@ status_t db_load_ctrlspace(knl_session_t *session, text_t *files)
         return CT_ERROR;
     }
 
+    bool is_slave = !DB_IS_PRIMARY(db);
     db_load_core(db);
+    if (is_slave) {
+        CT_LOG_RUN_INF("Manually set to STANDBY.");
+        db->ctrl.core.db_role = REPL_ROLE_PHYSICAL_STANDBY;
+    } else {
+        if (db->ctrl.core.db_role == REPL_ROLE_PHYSICAL_STANDBY) {
+            CT_LOG_RUN_INF("[INST] [SWITCHOVER] db role is PHYSICAL_STANDBY, need promote role");
+            tx_rollback_close(session);
+            lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
+            status_t status = cm_create_thread(db_promote_cluster_role, 0, NULL, &lrpl->promote_thread);
+            if (status != CT_SUCCESS) {
+                CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] promote cm_create_thread failed");
+                return CT_ERROR;
+            }
+        } else {
+            CT_LOG_RUN_INF("Manually set to PRIMARY.");
+            db->ctrl.core.db_role = REPL_ROLE_PRIMARY;
+        }
+    }
+
     if (db_check_ctrl_attr(kernel, db) != CT_SUCCESS) {
         return CT_ERROR;
     }

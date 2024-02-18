@@ -55,6 +55,7 @@ extern "C" {
 #endif
 #define DTC_RCY_WAIT_STOP_SLEEP_TIME    100
 #define DTC_RCY_WAIT_REF_NUM_CLEAN_SLEEP_TIME 10
+#define DTC_RCY_STANDBY_WAIT_SLEEP_TIME 1000
 #define DTC_RCY_SET_SEND_MSG_MAX_PAGE_NUM ((MES_MESSAGE_BUFFER_SIZE - sizeof(dtc_rcy_set_msg_t)) / sizeof(page_id_t))
 
 typedef struct st_dtc_rcy_atomic_list_node {
@@ -79,6 +80,9 @@ typedef struct st_dtc_rcy_replay_paral_node {
     aligned_buf_t buf_list[DTC_RCY_PARAL_BUF_LIST_SIZE];
     aligned_buf_t group_list[DTC_RCY_PARAL_BUF_LIST_SIZE];
     atomic32_t group_num[DTC_RCY_PARAL_BUF_LIST_SIZE];
+    knl_scn_t batch_scn[DTC_RCY_PARAL_BUF_LIST_SIZE];
+    uint32 node_id[DTC_RCY_PARAL_BUF_LIST_SIZE];
+    date_t batch_rpl_start_time[DTC_RCY_PARAL_BUF_LIST_SIZE];
     dtc_rcy_atomic_list free_list;
 } dtc_rcy_replay_paral_node_t;
 
@@ -195,6 +199,7 @@ typedef struct st_dtc_rcy_context {
     thread_t thread;
     bool32 full_recovery;
     bool32 paral_rcy;
+    bool32 lrpl_rcy;
     volatile bool32 in_progress;
     volatile bool32 canceled;
     volatile bool32 failed;
@@ -232,7 +237,7 @@ void dtc_stop_recovery(void);
 bool32 dtc_recovery_need_stop(void);
 bool32 dtc_recovery_in_progress(void);
 bool32 dtc_recovery_failed(void);
-void dtc_rcy_atomic_dec_group_num(uint32 idx, int32 val);
+void dtc_rcy_atomic_dec_group_num(knl_session_t *session, uint32 idx, int32 val);
 bool8 dtc_rcy_page_in_rcyset(page_id_t page_id);
 void dtc_rcy_page_update_need_replay(page_id_t page_id);
 rcy_set_item_t *dtc_rcy_get_item_internal(page_id_t page_id);
@@ -279,7 +284,14 @@ status_t dtc_skip_batch(knl_session_t *session, log_batch_t **batch, uint32 node
 status_t dtc_find_next_batch(knl_session_t *session, log_batch_t **batch, uint32 cur_block_id, uint64 cur_lsn, uint32 node_id);
 void dtc_rcy_next_file(knl_session_t *session, uint32 idx, bool32 *need_more_log);
 status_t dtc_rcy_read_node_log(knl_session_t *session, uint32 idx, uint32 *size_read);
+void dtc_standby_reset_recovery_stat(knl_session_t *session);
+status_t dtc_lrpl_load_log_batch(knl_session_t *session, log_batch_t **batch, uint32 *curr_node_idx);
+bool32 dtc_rcy_need_continue(knl_session_t *session, log_batch_t **batch, uint32 *curr_node_idx);
+bool32 dtc_log_need_reload(knl_session_t *session, uint32 node_id);
+void dtc_update_standby_cluster_scn(knl_session_t *session, uint32 idx);
+uint32 dtc_rcy_get_logfile_by_node(knl_session_t *session, uint32 idx);
 
+extern dtc_rcy_replay_paral_node_t g_replay_paral_mgr;;
 #define DTC_RCY_CONTEXT                         (&g_dtc->dtc_rcy_ctx)
 #define DTC_RCY_GET_CURR_BATCH(dtc_rcy, idx) \
     ((log_batch_t *)((dtc_rcy)->rcy_nodes[(idx)].read_buf.aligned_buf + (dtc_rcy)->rcy_nodes[(idx)].read_pos))

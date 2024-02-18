@@ -426,7 +426,7 @@ int shm_get_shm_type_and_addr(char *tokens[], struct key_map_s *key_map, int n, 
     }
 
     if (!strcmp(tokens[0], "sysv")) {
-        unsigned long sysv_key;
+        unsigned long sysv_key = 0;
         key_map[n].key.type = SHM_KEY_SYSV;
         r = hex2n(tokens[1], &sysv_key);
         key_map[n].key.sysv_key = (key_t)sysv_key;

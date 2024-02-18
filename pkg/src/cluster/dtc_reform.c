@@ -58,6 +58,7 @@ status_t init_dtc_rc(void)
     init_st.callback.finished = (rc_cb_finished)rc_finished;
     init_st.callback.stop_cur_reform = (rc_cb_stop_cur_reform)rc_stop_cur_reform;
     init_st.callback.rc_reform_cancled = (rc_cb_reform_canceled)rc_reform_cancled;
+    init_st.callback.rc_promote_role = (rc_cb_promote_role)rc_promote_role;
 
     return init_cms_rc(&g_dtc->rf_ctx, &init_st);
 }
@@ -424,7 +425,8 @@ status_t rc_master_start_remaster(reform_detail_t *detail)
 status_t rc_master_partial_recovery(reform_mode_t mode, reform_detail_t *detail)
 {
     RC_STEP_BEGIN(detail->recovery_elapsed);
-    if (mode == REFORM_MODE_OUT_OF_PLAN) {
+    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+    if (mode == REFORM_MODE_OUT_OF_PLAN && DB_IS_PRIMARY(&session->kernel->db)) {
         if (dtc_partial_recovery() != CT_SUCCESS) {
             g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
             g_rc_ctx->status = REFORM_PREPARE;
@@ -434,7 +436,7 @@ status_t rc_master_partial_recovery(reform_mode_t mode, reform_detail_t *detail)
             return CT_ERROR;
         }
     } else {
-        if (rc_set_redo_replay_done(g_rc_ctx->session, &(g_rc_ctx->info)) != CT_SUCCESS) {
+        if (rc_set_redo_replay_done(g_rc_ctx->session, &(g_rc_ctx->info), CT_FALSE) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[RC][partial restart] failed to broadcast reform status g_rc_ctx->status=%u",
                            g_rc_ctx->status);
             g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
@@ -450,6 +452,11 @@ status_t rc_master_partial_recovery(reform_mode_t mode, reform_detail_t *detail)
 
 status_t rc_master_rollback_node(reform_detail_t *detail)
 {
+    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        CT_LOG_RUN_INF("standby cluster no need rollback");
+        return CT_SUCCESS;
+    }
     RC_STEP_BEGIN(detail->deposit_elapsed);
     if (dtc_rollback_node() != CT_SUCCESS) {
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
@@ -465,7 +472,8 @@ status_t rc_master_rollback_node(reform_detail_t *detail)
 
 status_t rc_master_wait_ckpt_finish(reform_mode_t mode)
 {
-    if (mode == REFORM_MODE_OUT_OF_PLAN && dtc_update_ckpt_log_point()) {
+    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+    if (mode == REFORM_MODE_OUT_OF_PLAN && DB_IS_PRIMARY(&session->kernel->db) && dtc_update_ckpt_log_point()) {
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
         g_rc_ctx->status = REFORM_PREPARE;
         CT_LOG_RUN_ERR("[RC] failed to do ckpt in reform");
@@ -770,11 +778,6 @@ status_t rc_master_reform(reform_mode_t mode, reform_detail_t *detail)
     if (rc_wait_archive_log_finish(arch_proc_ctx) != CT_SUCCESS) {
         return CT_ERROR;
     }
-    if (!is_full_restart) {
-        if (rc_master_clean_ddl_op(detail) != CT_SUCCESS) {
-            return CT_ERROR;
-        }
-    }
     return CT_SUCCESS;
 }
 
@@ -995,6 +998,12 @@ bool32 rc_finished(void)
         return CT_FALSE;
     }
 
+    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        CT_LOG_RUN_INF("standby cluster no need check recovery");
+        return CT_TRUE;
+    }
+
     if (dtc_recovery_in_progress()) {
         return CT_FALSE;
     }
@@ -1028,4 +1037,21 @@ bool32 rc_reform_cancled(void)
         return CT_TRUE;
     }
     return CT_FALSE;
+}
+
+status_t rc_promote_role(knl_session_t *session)
+{
+    lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
+    status_t status = CT_SUCCESS;
+
+    if (g_rc_ctx->info.master_changed && rc_is_master() && lrpl->is_promoting) {
+        DbsRoleInfo info;
+        info.lastRole = DBS_DISASTER_RECOVERY_SLAVE;
+        info.curRole = DBS_DISASTER_RECOVERY_MASTER;
+        status_t status = db_switch_role(info);
+        if (status != CT_SUCCESS) {
+            CM_ABORT_REASONABLE(0, "[RC] refomer promote failed");
+        }
+    }
+    return status;
 }
