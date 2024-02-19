@@ -39,7 +39,7 @@ cd ${CTDB_CODE_PATH}/build/
 sh Makefile.sh clean
 sh Makefile.sh make_regress_test lcov=1 >> ${GTEST_RUN_LOG} 2>&1
 cd ${CTDB_CODE_PATH}/build/pkg/test/unit_test/ut/
-make -sj 8 2>&1 
+make -sj 8 >> ${GTEST_RUN_LOG} 2>&1 
 
 if [ "$?" != "0" ]; then
     cat ${GTEST_RUN_LOG}

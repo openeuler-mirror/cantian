@@ -25,9 +25,7 @@
 #include "srv_module.h"
 #include "srv_sess_security.h"
 #include "srv_instance.h"
-#include "wsecv2_type.h"
 #include "cm_license.h"
-#include "sdpv1_itf.h"
 #include "knl_user.h"
 #include "dc_tenant.h"
 
