@@ -26,6 +26,8 @@
 #define __KNL_PCR_HEAP_LOG_H__
 
 #include "pcr_heap.h"
+#include "tse_srv.h"
+#include "srv_mq_msg.h"
 
 #ifdef __cplusplus
 extern "C" {

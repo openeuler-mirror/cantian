@@ -38,10 +38,13 @@
 #include "knl_backup.h"
 #include "knl_core_table_defs.h"
 #include "knl_db_ctrl.h"
+#include "cm_dbs_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+extern bool32 g_get_role_from_dbs;
 
 #define DB_SYS_USER_ID       0
 #define DB_PUB_USER_ID       1
@@ -56,6 +59,7 @@ extern "C" {
 
 #define SYS_TABLE_SERIAL_START 22
 
+#define BROADCAST_PROMOTE_WAIT_INTERVEL 5000  // in milliseconds
 typedef enum en_sys_table_id {
     SYS_TABLE_ID = 0,
     SYS_COLUMN_ID,
@@ -168,6 +172,11 @@ typedef struct st_rd_alter_db_logicrep {
     lrep_mode_t logic_mode;
 } rd_alter_db_logicrep_t;
 
+typedef struct st_msg_cluster_role_request {
+    mes_message_head_t head;
+    DbsRoleInfo role_info;
+} msg_cluster_role_request;
+
 #define CORE_SYS_TABLE_CEIL        SYS_USER_ID
 #define IS_CORE_SYS_TABLE(uid, id) ((uid) == (uint32)DB_SYS_USER_ID && (id) <= (uint32)CORE_SYS_TABLE_CEIL)
 /* max system table,view and dynamic views */
@@ -182,6 +191,7 @@ typedef struct st_rd_alter_db_logicrep {
 #define IX_SYS_USER2_ID  6
 
 #define STAT_TABLES_PER_TIME 1000
+#define STANDBY_WAIT_SLEEP_TIME 5
 
 #define DBA_ROLE_ID        0
 #define RESOURCE_ROLE_ID   1
@@ -333,6 +343,10 @@ static inline void db_load_core(database_t *db)
     db->ctrl.core = *(core_ctrl_t *)&db->ctrl.pages[CORE_CTRL_PAGE_ID].buf[0];
 }
 
+static inline repl_role_t db_load_role(database_t *db)
+{
+    return ((core_ctrl_t *)&db->ctrl.pages[CORE_CTRL_PAGE_ID].buf[0])->db_role;
+}
 
 status_t db_build_baseline(knl_session_t *session, knl_build_def_t *def);
 static inline bool32 db_in_switch(switch_ctrl_t *ctrl)
@@ -385,7 +399,12 @@ status_t db_save_ctrl_page(knl_session_t *session, ctrlfile_t *ctrlfile, uint32 
 status_t db_read_ctrl_page(knl_session_t *session, ctrlfile_t *ctrlfile, uint32 page_id);
 status_t db_read_log_page(knl_session_t *session, ctrlfile_t *ctrlfile, uint32 start, uint32 end);
 void db_get_cantiand_version(ctrl_version_t *cantiand_version);
+int32_t set_disaster_cluster_role(DbsRoleInfo info);
 status_t db_clean_record_arch(knl_session_t *session);
+EXTER_ATTACK void db_process_broadcast_cluster_role(void *sess, mes_message_t *msg);
+int32_t  db_switch_role(DbsRoleInfo role_info);
+void db_promote_cluster_role(thread_t* thread);
+int32_t set_disaster_cluster_role(DbsRoleInfo info);
 
 #define DB_CORE_CTRL(session) (&(session)->kernel->db.ctrl.core)
 

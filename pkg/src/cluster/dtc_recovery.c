@@ -1408,7 +1408,7 @@ status_t dtc_rcy_read_online_log(knl_session_t *session, uint32 file_id, uint32 
         offset = point->lsn + 1;   // read redo data after rcy_point.
         size_need_read = buf_size; // read as much data as possible.
     }
-    CT_LOG_RUN_INF("[DTC RCY] start read online redo log point %u/%u from %s", point->asn, point->block_id, file->ctrl->name);
+    CT_LOG_RUN_INF("[DTC RCY] start read online redo log point %u/%u/%lld from %s", point->asn, point->block_id, offset, file->ctrl->name);
     return dtc_rcy_read_log(session, handle, file->ctrl->name, offset, buf, buf_size, size_need_read, size_read);
 }
 
@@ -1819,8 +1819,28 @@ status_t dtc_update_batch(knl_session_t *session, uint32 node_id)
 {
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
     dtc_rcy_node_t *rcy_node = &dtc_rcy->rcy_nodes[node_id];
+    reform_rcy_node_t* rcy_log_point = &dtc_rcy->rcy_log_points[node_id];
+    dtc_node_ctrl_t* ctrl = dtc_get_ctrl(session, node_id);
     log_batch_t *batch = NULL;
     uint32 left_size;
+    if (!DB_IS_PRIMARY(&session->kernel->db) && DB_NOT_READY(session) && (rcy_log_point->rcy_point.lfn >= ctrl->lrp_point.lfn)) {
+        rcy_node->recover_done = CT_TRUE;
+        if (dtc_rcy->phase == PHASE_ANALYSIS) {
+            CT_LOG_RUN_INF(
+                "[DTC RCY] analysis read end point[asn(%u)-block_id(%u)-rst_id(%llu)-lfn(%llu)-lsn(%llu)]",
+                rcy_node->analysis_read_end_point.asn, rcy_node->analysis_read_end_point.block_id,
+                (uint64)rcy_node->analysis_read_end_point.rst_id, (uint64)rcy_node->analysis_read_end_point.lfn,
+                rcy_node->analysis_read_end_point.lsn);
+        }
+        if (dtc_rcy->phase == PHASE_RECOVERY) {
+            CT_LOG_RUN_INF(
+                "[DTC RCY] recovery read end point[asn(%u)-block_id(%u)-rst_id(%llu)-lfn(%llu)-lsn(%llu)]",
+                rcy_node->recovery_read_end_point.asn, rcy_node->recovery_read_end_point.block_id,
+                (uint64)rcy_node->recovery_read_end_point.rst_id, (uint64)rcy_node->recovery_read_end_point.lfn,
+                rcy_node->recovery_read_end_point.lsn);
+        }
+        return CT_SUCCESS;
+    }
     batch = DTC_RCY_GET_CURR_BATCH(dtc_rcy, node_id);
     left_size = rcy_node->write_pos - rcy_node->read_pos;
     if (left_size < sizeof(log_batch_t) || left_size < batch->space_size) {
@@ -1866,15 +1886,40 @@ status_t dtc_update_batch(knl_session_t *session, uint32 node_id)
     return CT_SUCCESS;
 }
 
-status_t dtc_rcy_fetch_log_batch(knl_session_t *session, log_batch_t **batch_out)
+bool32 dtc_log_need_reload(knl_session_t *session, uint32 node_id)
 {
+    //TODO:multi node
+    lrpl_context_t *lrpl_ctx = &session->kernel->lrpl_ctx;
+    if (DB_IS_PRIMARY(&session->kernel->db) || DB_NOT_READY(session) || node_id == 0) {
+        lrpl_ctx->redo_is_reload = CT_FALSE;
+        return CT_FALSE;
+    }
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+    dtc_rcy_node_t *rcy_node = &dtc_rcy->rcy_nodes[0];
+    if (rcy_node->recover_done == CT_FALSE) {
+        lrpl_ctx->redo_is_reload = CT_FALSE;
+        return CT_FALSE;
+    }
+    CT_LOG_DEBUG_INF("[DTC LRPL] lrpl_ctx->redo_is_reload = %u, node_id = %u", lrpl_ctx->redo_is_reload, node_id);
+    if (lrpl_ctx->redo_is_reload) {
+        lrpl_ctx->redo_is_reload = CT_FALSE;
+        CT_LOG_RUN_INF("[DTC LRPL] redo no need reload");
+        return CT_FALSE;
+    }
+    lrpl_ctx->redo_is_reload = CT_TRUE;
+    CT_LOG_RUN_INF("[DTC LRPL] redo need reload");
+    return CT_TRUE;
+}
+
+status_t dtc_rcy_fetch_log_batch(knl_session_t *session, log_batch_t **batch_out, uint32 *curr_node_idx)
+{
+    dtc_standby_reset_recovery_stat(session);
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
     log_batch_t *batch = NULL;
     bool32 batch_loaded = CT_FALSE;
     dtc_rcy_node_t *rcy_node = NULL;
     reform_rcy_node_t *rcy_log_point = NULL;
     uint64 curr_batch_lsn = CT_INVALID_ID64;
-    uint32 curr_node_idx;
     uint8 curr_node;
 
     *batch_out = NULL;
@@ -1956,9 +2001,12 @@ status_t dtc_rcy_fetch_log_batch(knl_session_t *session, log_batch_t **batch_out
                 return CT_ERROR;
             }
         }
+        if (dtc_log_need_reload(session, i)) {
+            break;
+        }
 
         if (batch->lsn < curr_batch_lsn) {
-            curr_node_idx = (uint8)i;
+            *curr_node_idx = (uint8)i;
             curr_node = rcy_node->node_id;
             curr_batch_lsn = batch->lsn;
             batch_loaded = CT_TRUE;
@@ -1966,13 +2014,13 @@ status_t dtc_rcy_fetch_log_batch(knl_session_t *session, log_batch_t **batch_out
     }
 
     if (batch_loaded) {
-        *batch_out = DTC_RCY_GET_CURR_BATCH(dtc_rcy, curr_node_idx);
+        *batch_out = DTC_RCY_GET_CURR_BATCH(dtc_rcy, *curr_node_idx);
         dtc_print_batch(*batch_out, curr_node);
-        dtc_rcy->curr_node_idx = curr_node_idx;
+        dtc_rcy->curr_node_idx = *curr_node_idx;
         dtc_rcy->curr_node = curr_node;
         dtc_rcy->curr_batch_lsn = curr_batch_lsn;
-        rcy_node = &dtc_rcy->rcy_nodes[curr_node_idx];
-        rcy_log_point = &dtc_rcy->rcy_log_points[curr_node_idx];
+        rcy_node = &dtc_rcy->rcy_nodes[*curr_node_idx];
+        rcy_log_point = &dtc_rcy->rcy_log_points[*curr_node_idx];
 
         // move rcy point to log point of read batch
         rcy_log_point->lsn = curr_batch_lsn;
@@ -1988,7 +2036,7 @@ status_t dtc_rcy_fetch_log_batch(knl_session_t *session, log_batch_t **batch_out
             rcy_node->ddl_lsn_pitr = dtc_rcy_get_ddl_pitr_lsn(session, curr_batch_lsn);
             CT_LOG_RUN_INF("[DTC RCY] batch lfn %llu, pitr_lfn %llu, rcy ddl lsn pitr[core %llu/curr %llu], node id %u",
                            (uint64)(*batch_out)->head.point.lfn, rcy_node->pitr_lfn,
-                           session->kernel->db.ctrl.core.ddl_pitr_lsn, rcy_node->ddl_lsn_pitr, curr_node_idx);
+                           session->kernel->db.ctrl.core.ddl_pitr_lsn, rcy_node->ddl_lsn_pitr, *curr_node_idx);
         }
         if (dtc_rcy->phase == PHASE_ANALYSIS) {
             rcy_node->analysis_read_end_point = (*batch_out)->head.point;
@@ -2111,8 +2159,8 @@ status_t dtc_rcy_update_node_info(knl_session_t *session, reform_rcy_node_t *rcy
     ctrl->lsn = rcy_log_point->lsn;
     ctrl->lfn = rcy_log_point->rcy_point.lfn;
 
-    CT_LOG_RUN_INF("[DTC RCY] Update ctrl rcy point to [%u-%u/%u/%llu] for instance %u", ctrl->rcy_point.rst_id,
-                   ctrl->rcy_point.asn, ctrl->rcy_point.block_id, (uint64)ctrl->rcy_point.lfn, rcy_log_point->node_id);
+    CT_LOG_RUN_INF("[DTC RCY] Update ctrl rcy point to [%u-%u/%u/%llu/%llu] for instance %u", ctrl->rcy_point.rst_id,
+                   ctrl->rcy_point.asn, ctrl->rcy_point.block_id, (uint64)ctrl->rcy_point.lfn, ctrl->rcy_point.lsn, rcy_log_point->node_id);
 
     if (dtc_save_ctrl(session, rcy_log_point->node_id) != CT_SUCCESS) {
         return CT_ERROR;
@@ -2242,6 +2290,7 @@ status_t dtc_rcy_process_batches(knl_session_t *session)
     uint64 used_time;
     uint64 fetch_log_time = 0;
     uint64 replay_log_time = 0;
+    uint32 curr_node_idx = 0;
 
     ELAPSED_BEGIN(elapsed_begin);
     if (dtc_read_all_logs(session) != CT_SUCCESS) {
@@ -2252,7 +2301,7 @@ status_t dtc_rcy_process_batches(knl_session_t *session)
     CT_LOG_RUN_INF("[DTC RCY] dtc_read_all_logs used %llu", used_time);
 
     ELAPSED_BEGIN(elapsed_begin);
-    if (dtc_rcy_fetch_log_batch(session, &batch) != CT_SUCCESS) {
+    if (dtc_rcy_fetch_log_batch(session, &batch, &curr_node_idx) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DTC RCY] failed to extract log batch");
         return CT_ERROR;
     }
@@ -2299,7 +2348,7 @@ status_t dtc_rcy_process_batches(knl_session_t *session)
         if (dtc_rcy_check_is_end_restore_recovery()) {
             break;
         }
-        if (dtc_rcy_fetch_log_batch(session, &batch) != CT_SUCCESS) {
+        if (dtc_rcy_fetch_log_batch(session, &batch, &curr_node_idx) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DTC RCY] failed to extract log batch");
             status = CT_ERROR;
             break;
@@ -2416,10 +2465,46 @@ static void dtc_rcy_analyze_paral_proc(thread_t *thread)
     CT_LOG_RUN_INF("[DTC RCY] dtc_rcy_analyze_paral_proc finish, rcy_set ref num=%u", dtc_rcy->rcy_set_ref_num);
 }
 
-void dtc_rcy_atomic_dec_group_num(uint32 idx, int32 val)
+void dtc_update_standby_cluster_scn(knl_session_t *session, uint32 idx)
+{
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        return;
+    }
+    lrpl_context_t *lrpl_ctx = &session->kernel->lrpl_ctx;
+    log_batch_t *batch = (log_batch_t *)g_replay_paral_mgr.buf_list[idx].aligned_buf;
+    lrpl_ctx->curr_point.lsn = batch->lsn;
+    date_t rcy_time = cm_now() - g_replay_paral_mgr.batch_rpl_start_time[idx];
+    if (rcy_time != 0) {
+        lrpl_ctx->lrpl_speed = (double)(batch->space_size) * MICROSECS_PER_SECOND / SIZE_M(1)
+                                         / ((double)rcy_time);
+    }
+    knl_scn_t batch_scn = MAX(session->kernel->scn, g_replay_paral_mgr.batch_scn[idx]);
+    CT_LOG_DEBUG_INF("update scn, old scn %llu, new scn %llu, batch_scn %llu", session->kernel->scn, batch_scn, g_replay_paral_mgr.batch_scn[idx]);
+    if (batch_scn > session->kernel->scn) {
+        KNL_SET_SCN(&session->kernel->scn, batch_scn);
+        if (session->kernel->attr.enable_boc) {
+            tx_scn_broadcast(session);
+        }
+    }
+
+    dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, g_replay_paral_mgr.node_id[idx]);
+    ctrl->lrp_point = batch->head.point;
+    ctrl->scn = DB_CURR_SCN(session);
+    ctrl->lsn = batch->head.point.lsn;
+    ctrl->lfn = batch->head.point.lfn;
+    if (dtc_save_ctrl(session, g_replay_paral_mgr.node_id[idx]) != CT_SUCCESS) {
+        CM_ABORT_REASONABLE(0, "ABORT INFO: save core control file failed when update standby cluster ctrl");
+    }
+    ckpt_set_trunc_point_slave_role(session, &batch->head.point, g_replay_paral_mgr.node_id[idx]);
+
+    return;
+}
+
+void dtc_rcy_atomic_dec_group_num(knl_session_t *session, uint32 idx, int32 val)
 {
     status_t ret;
     if (cm_atomic32_add(&g_replay_paral_mgr.group_num[idx], -val) == 0) {
+        dtc_update_standby_cluster_scn(session, idx);
         ret = dtc_rcy_atomic_list_push(&g_replay_paral_mgr.free_list, idx);
         knl_panic_log(ret == CT_TRUE, "[DTC RCY] push into free list error");
     }
@@ -2439,6 +2524,8 @@ static void dtc_rcy_paral_replay_batch(knl_session_t *session, log_cursor_t *cur
 
     rcy->curr_group = (rcy_paral_group_t *)g_replay_paral_mgr.group_list[idx].aligned_buf;
     g_replay_paral_mgr.group_num[idx] = DTC_RCY_GROUP_NUM_BASE;
+    g_replay_paral_mgr.batch_scn[idx] = 0;
+    g_replay_paral_mgr.batch_rpl_start_time[idx] = cm_now();
     for (;;) {
         group = log_fetch_group(ctx, cursor);
         if (group == NULL) {
@@ -2455,6 +2542,7 @@ static void dtc_rcy_paral_replay_batch(knl_session_t *session, log_cursor_t *cur
         // because redo_curr_lsn must >= page lsn during lrpl, if gbp_page_lsn > redo_curr_lsn, means gbp page can used
         redo_ssesion->curr_lsn = group->lsn;
         rcy_add_pages(rcy->curr_group, group, group_slot, rcy, &logic, &next_paral_group);
+        g_replay_paral_mgr.batch_scn[idx] = MAX(g_replay_paral_mgr.batch_scn[idx], rcy->curr_group->group_scn);
         group_slot++;
         rcy->curr_group_id = group_slot;
         cm_atomic_set(&rcy->preload_hwm, (int64)rcy->page_list_count);
@@ -2479,7 +2567,7 @@ static void dtc_rcy_paral_replay_batch(knl_session_t *session, log_cursor_t *cur
         rcy->curr_group = next_paral_group;
     }
 
-    dtc_rcy_atomic_dec_group_num(idx, DTC_RCY_GROUP_NUM_BASE);
+    dtc_rcy_atomic_dec_group_num(session, idx, DTC_RCY_GROUP_NUM_BASE);
     CT_LOG_DEBUG_INF("[DTC RCY] finish paral redo replay of log batch=%u", idx);
     return;
 }
@@ -2494,6 +2582,7 @@ static status_t dtc_rcy_analyze_batches_paral(knl_session_t *session)
     status_t status = CT_SUCCESS;
     errno_t ret;
     uint32 idx;
+    uint32 curr_node_idx = 0;
     g_analyze_paral_mgr.killed_flag         = CT_FALSE;
     g_analyze_paral_mgr.read_log_end_flag     = CT_FALSE;
     g_analyze_paral_mgr.running_thread_num  = 0;
@@ -2527,7 +2616,7 @@ static status_t dtc_rcy_analyze_batches_paral(knl_session_t *session)
         return CT_ERROR;
     }
 
-    if (dtc_rcy_fetch_log_batch(session, &batch) != CT_SUCCESS) {
+    if (dtc_rcy_fetch_log_batch(session, &batch, &curr_node_idx) != CT_SUCCESS) {
         dtc_rcy_free_list_in_analyze_paral(g_analyze_paral_mgr.buf_list, DTC_RCY_PARAL_BUF_LIST_SIZE);
         CT_LOG_RUN_ERR("[DTC RCY] failed to extract first log batch in paral analyze, dtc_rcy->failed=%u. "
             "session->canceled=%u", dtc_rcy->failed, session->canceled);
@@ -2586,7 +2675,7 @@ static status_t dtc_rcy_analyze_batches_paral(knl_session_t *session)
                       "[DTC RCY] push buffer of idx %u from free list into used list error", idx);
         CT_LOG_DEBUG_INF("log batch [%llu/%llu/%u] push to idx=%u", batch->lsn, (uint64)batch->head.point.lfn,
             batch->head.point.block_id, idx);
-        if (dtc_rcy_fetch_log_batch(session, &batch) != CT_SUCCESS) {
+        if (dtc_rcy_fetch_log_batch(session, &batch, &curr_node_idx) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DTC RCY] failed to extract log batch in paral analyze");
             status = CT_ERROR;
             g_analyze_paral_mgr.killed_flag = CT_TRUE;
@@ -2608,6 +2697,65 @@ static status_t dtc_rcy_analyze_batches_paral(knl_session_t *session)
     return status;
 }
 
+status_t dtc_lrpl_load_log_batch(knl_session_t *session, log_batch_t **batch, uint32 *curr_node_idx)
+{
+    lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
+
+    while (*batch == NULL) {
+        cm_sleep(DTC_RCY_STANDBY_WAIT_SLEEP_TIME);
+        if (dtc_rcy_fetch_log_batch(session, batch, curr_node_idx) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DTC LRPL] failed to extract log batch in paral replay");
+            return CT_ERROR;
+        }
+
+        if (lrpl->is_closing && (*batch == NULL)) {
+            CT_LOG_RUN_INF("[DTC LRPL] lrpl will be closed and cur log batch is null, retry fetch log batch");
+            if (dtc_rcy_fetch_log_batch(session, batch, curr_node_idx) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[DTC LRPL] failed to extract log batch in paral replay");
+                return CT_ERROR;
+            }
+            if (*batch == NULL) {
+                CT_LOG_RUN_INF("[DTC LRPL] lrpl replay end");
+                return CT_SUCCESS;
+            }
+        }
+    }
+    return CT_SUCCESS;
+}
+
+void dtc_standby_reset_recovery_stat(knl_session_t *session)
+{
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        return;
+    }
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+    dtc_rcy_node_t *rcy_node = NULL;
+
+    for (uint32 i = 0; i < dtc_rcy->node_count; i++) {
+        rcy_node = &dtc_rcy->rcy_nodes[i];
+        rcy_node->recover_done = CT_FALSE;
+        if (cm_dbs_is_enable_dbs() == CT_TRUE) {
+            rcy_node->ulog_exist_data = CT_TRUE;
+        }
+    }
+    CT_LOG_DEBUG_INF("[DTC LRPL] reset node recovery_done info to false");
+    return;
+}
+
+bool32 dtc_rcy_need_continue(knl_session_t *session, log_batch_t **batch, uint32 *curr_node_idx)
+{
+    if (*batch != NULL) {
+        return CT_TRUE;
+    }
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        if (dtc_lrpl_load_log_batch(session, batch, curr_node_idx) != CT_SUCCESS) {
+            CM_ABORT_REASONABLE(0, "[DTC RCY] ABORT INFO:lrpl failed to load log batch in paral replay");
+            return CT_FALSE;
+        }
+    }
+    return (*batch != NULL);
+}
+
 static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
 {
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
@@ -2621,6 +2769,7 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
     uint32 idx;
     uint64 used_time;
     uint64 fetch_log_time = 0;
+    uint32 curr_node_idx = 0;
 
     CT_LOG_RUN_INF("[DTC RCY] start paral redo replay, dtc_rcy->phase=%u, session->kernel->lsn=%llu",
         dtc_rcy->phase, session->kernel->lsn);
@@ -2661,7 +2810,7 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
     CT_LOG_RUN_INF("[DTC RCY] read redo logs in paral replay used=%llu", used_time);
 
     ELAPSED_BEGIN(elapsed_begin);
-    if (dtc_rcy_fetch_log_batch(session, &batch) != CT_SUCCESS) {
+    if (dtc_rcy_fetch_log_batch(session, &batch, &curr_node_idx) != CT_SUCCESS) {
         dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.buf_list, DTC_RCY_PARAL_BUF_LIST_SIZE);
         dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.group_list, DTC_RCY_PARAL_BUF_LIST_SIZE);
         CT_LOG_RUN_ERR("[DTC RCY] failed to extract log batch in paral replay");
@@ -2669,7 +2818,7 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
     }
     ELAPSED_END(elapsed_begin, fetch_log_time);
     ELAPSED_BEGIN(rcy->paral_rcy_thread_start_work_time);
-    while (batch != NULL) {
+    while (dtc_rcy_need_continue(session, &batch, &curr_node_idx)) {
         if (session->canceled) {
             CT_LOG_RUN_ERR("[DTC RCY] session is canceled, session->id=%u", session->id);
             CT_THROW_ERROR(ERR_OPERATION_CANCELED);
@@ -2685,7 +2834,7 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
         }
 
         // check whether need to cancel this task
-        if (dtc_rcy->canceled) {
+        if (DB_IS_PRIMARY(&session->kernel->db) && dtc_rcy->canceled) {
             CT_LOG_RUN_ERR("[DTC RCY] required to cancel this dtc recovery task");
             break;
         }
@@ -2694,7 +2843,7 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
             break;
         }
 
-        if (dtc_rcy_full_recovery_replay_end(rcy, batch)) {
+        if (DB_IS_PRIMARY(&session->kernel->db) && dtc_rcy_full_recovery_replay_end(rcy, batch)) {
             break;
         }
 
@@ -2706,6 +2855,7 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
 
         ret = memcpy_sp(g_replay_paral_mgr.buf_list[idx].aligned_buf, lgwr_buf_size, (char*)batch, batch->space_size);
         knl_securec_check(ret);
+        g_replay_paral_mgr.node_id[idx] = curr_node_idx;
 
         // call batch process function
         rcy_init_log_cursor(&cursor, (log_batch_t *)g_replay_paral_mgr.buf_list[idx].aligned_buf);
@@ -2721,7 +2871,7 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
         if (dtc_rcy_check_is_end_restore_recovery()) {
             break;
         }
-        if (dtc_rcy_fetch_log_batch(session, &batch) != CT_SUCCESS) {
+        if (dtc_rcy_fetch_log_batch(session, &batch, &curr_node_idx) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DTC RCY] failed to extract log batch in paral replay");
             status = CT_ERROR;
             break;
@@ -2822,7 +2972,7 @@ static status_t dtc_rcy_full_recovery(knl_session_t *session)
     RC_STEP_END(rf_detail->recovery_replay_elapsed, RC_STEP_FINISH);
 
     CT_LOG_RUN_INF("[DTC RCY] finish redo replay, session lsn=%llu", ((knl_session_t *)g_rc_ctx->session)->kernel->lsn);
-    if (rc_set_redo_replay_done(g_rc_ctx->session, &(g_rc_ctx->info)) != CT_SUCCESS) {
+    if (rc_set_redo_replay_done(g_rc_ctx->session, &(g_rc_ctx->info), CT_TRUE) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DTC RCY] failed to broadcast reform status g_rc_ctx->status=%u", g_rc_ctx->status);
     }
 
@@ -2946,7 +3096,7 @@ static status_t dtc_rcy_partial_recovery(knl_session_t *session)
 
     CT_LOG_RUN_INF("[DTC RCY] finish redo replay, session lsn=%llu", ((knl_session_t *)g_rc_ctx->session)->kernel->lsn);
 
-    if (rc_set_redo_replay_done(g_rc_ctx->session, &(g_rc_ctx->info)) != CT_SUCCESS) {
+    if (rc_set_redo_replay_done(g_rc_ctx->session, &(g_rc_ctx->info), CT_FALSE) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DTC RCY] failed to broadcast reform status g_rc_ctx->status=%u", g_rc_ctx->status);
     }
 
@@ -2987,6 +3137,12 @@ status_t dtc_rcy_proc(knl_session_t *session)
     dtc_rcy->failed = (bool32)(status == CT_ERROR);
     dtc_rcy->recovery_status = status == CT_ERROR ? dtc_rcy->recovery_status : RECOVERY_FINISH;
     dtc_rcy->ss->canceled = dtc_rcy->failed ? CT_TRUE : CT_FALSE;
+
+    if (!DB_IS_PRIMARY(&session->kernel->db) && dtc_rcy->full_recovery && status == CT_SUCCESS) {
+        lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
+        lrpl->is_done = CT_TRUE;
+    }
+
     dtc_recovery_close(session);
     CT_LOG_RUN_INF("[DTC RCY] dtc_rcy_proc, dtc_rcy->failed=%u, dtc_rcy->ss->canceled=%u, dtc_rcy->recovery_status=%u,"
         "memory usage in bytes=%lu", dtc_rcy->failed, dtc_rcy->ss->canceled, dtc_rcy->recovery_status,
@@ -3396,7 +3552,9 @@ status_t dtc_recover(knl_session_t *session)
 
     if (rc_is_master() == CT_TRUE) {
         // only master node is allowed to execute dtc recovery
-        g_rc_ctx->status = REFORM_RECOVERING;
+        if (DB_IS_PRIMARY(&session->kernel->db) || DB_NOT_READY(session)) {
+            g_rc_ctx->status = REFORM_RECOVERING;
+        }
         instance_list_t *rcy_list = (instance_list_t *)cm_push(session->stack, sizeof(instance_list_t));
         rcy_list->inst_id_count = session->kernel->db.ctrl.core.node_count;
         for (uint8 i = 0; i < rcy_list->inst_id_count; i++) {

@@ -137,6 +137,7 @@ if [[ ${uninstall_type} = 'override' ]]; then
     if [[ ${storage_archive_fs} != '' ]] && [[ -d /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf ]] && [[ "${node_id}" == "0" ]]; then
       rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf
     fi
+  rm -rf /mnt/dbdata/remote/share_"${storage_share_fs}"/node"${node_id}"_install_record.json > /dev/null 2>&1
   sysctl fs.nfs.nfs_callback_tcpport=0
   # 取消nfs挂载
   umount -f -l /mnt/dbdata/remote/share_${storage_share_fs}
@@ -299,12 +300,15 @@ if [[ ${uninstall_type} = 'override' ]]; then
           exit 1
       fi
   fi
+  if [ -f /etc/uid_list ];then
+      sed -i '/6004/d' /etc/uid_list
+      sed -i '/6000/d' /etc/uid_list
+  fi
 
   rm -f /etc/systemd/system/cantian.timer /etc/systemd/system/cantian.service
   rm -f /etc/systemd/system/cantian_logs_handler.timer /etc/systemd/system/cantian_logs_handler.service
   rm -rf /opt/cantian/image /opt/cantian/action /opt/cantian/config
   rm -rf /usr/local/bin/show
-
 fi
 
 logAndEchoInfo "uninstall finished"

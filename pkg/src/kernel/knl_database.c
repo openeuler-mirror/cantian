@@ -48,6 +48,8 @@ static char *db_get_role(database_t *db);
 
 uint32 g_local_inst_id = CT_INVALID_ID32;
 
+bool32 g_get_role_from_dbs = CT_FALSE;
+
 /*
  * Initialize member of database
  * @param    kernel handle of the open kernel
@@ -145,7 +147,6 @@ knl_scn_t db_inc_scn(knl_session_t *session)
 
     cm_spin_lock(&area->scn_lock, &session->stat->spin_stat.stat_inc_scn);
     scn = knl_inc_scn(init_time, &now, seq, &session->kernel->scn, session->kernel->attr.systime_inc_threshold);
-    knl_panic(DB_IS_PRIMARY(&session->kernel->db));
     cm_spin_unlock(&area->scn_lock);
 
     return scn;
@@ -806,6 +807,12 @@ static status_t db_switchover_proc_init(knl_session_t *session)
     database_t *db = &kernel->db;
 
     if (!DB_IS_PRIMARY(db) || DB_IS_RAFT_ENABLED(kernel)) {
+        if (DB_IS_CLUSTER(session)) {
+            if (lrpl_init(session) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+            return CT_SUCCESS;
+        }
         if (KNL_GBP_ENABLE(kernel)) {
             if (gbp_aly_init(session) != CT_SUCCESS) {
                 return CT_ERROR;
@@ -816,6 +823,7 @@ static status_t db_switchover_proc_init(knl_session_t *session)
         if (lrpl_init(session) != CT_SUCCESS) {
             return CT_ERROR;
         }
+        CT_LOG_RUN_INF("The lrpl has been initialized.");
     }
 
     if (DB_IS_PRIMARY(db) || DB_IS_PHYSICAL_STANDBY(db)) {
@@ -887,6 +895,7 @@ static status_t db_mode_set(knl_session_t *session, db_open_opt_t *options)
     db->has_load_role = CT_FALSE;
 
     if (options->readonly || !DB_IS_PRIMARY(db)) {
+        CT_LOG_RUN_INF("The db is set as readonly");
         db->is_readonly = CT_TRUE;
         db->readonly_reason = DB_IS_PRIMARY(db) ? MANUALLY_SET : PHYSICAL_STANDBY_SET;
         //        tx_rollback_close(session);
@@ -2640,6 +2649,212 @@ void db_get_cantiand_version(ctrl_version_t *cantiand_version)
     cantiand_version->main = (uint16)main_n;
     cantiand_version->major = (uint16)major_n;
     cantiand_version->revision = (uint16)revision_n;
+}
+
+static status_t db_slave_undo_rollback(knl_session_t *session)
+{
+    if (tx_rollback_start(session) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[INST] [SWITCHOVER] failed to do undo rollback");
+        return CT_ERROR;
+    }
+    undo_context_t *ctx = &session->kernel->undo_ctx;
+    while (ctx->active_workers > 0) {
+        cm_sleep(STANDBY_WAIT_SLEEP_TIME);
+    }
+    CT_LOG_RUN_INF("[INST] [SWITCHOVER] undo rollback is done");
+    return CT_SUCCESS;
+}
+
+static status_t db_slave_update_ctrl_file(knl_session_t *session)
+{
+    knl_instance_t *kernel = session->kernel;
+
+    kernel->db.is_readonly = CT_FALSE;
+    kernel->db.readonly_reason = PRIMARY_SET;
+    kernel->db.ctrl.core.db_role = REPL_ROLE_PRIMARY;
+
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[INST] [SWITCHOVER] ABORT INFO: save core control file failed when switch role");
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+
+void db_process_broadcast_cluster_role(void *sess, mes_message_t *msg)
+{
+    knl_session_t *session = (knl_session_t *)sess;
+    knl_instance_t *kernel = session->kernel;
+    lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
+
+    if (sizeof(msg_cluster_role_request) != msg->head->size) {
+        CT_LOG_RUN_ERR("[INST] [SWITCHOVER] msg is invalid, msg size %u.", msg->head->size);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
+    msg_cluster_role_request *req = (msg_cluster_role_request*)msg->buffer;
+    mes_message_head_t head = {0};
+    DbsDisasterRecoveryRole last_role = req->role_info.lastRole;
+    DbsDisasterRecoveryRole cur_role =  req->role_info.curRole;
+
+    if (last_role == DBS_DISASTER_RECOVERY_SLAVE && cur_role == DBS_DISASTER_RECOVERY_MASTER) {
+        if (kernel->db.ctrl.core.db_role == REPL_ROLE_PRIMARY) {
+            CT_LOG_RUN_ERR("[INST] [SWITCHOVER] db_role is invalid:%u.", kernel->db.ctrl.core.db_role);
+            mes_release_message_buf(msg->buffer);
+            return;
+        }
+
+        // undo rollback
+        if (db_slave_undo_rollback(session) != CT_SUCCESS) {
+            mes_release_message_buf(msg->buffer);
+            return;
+        }
+        CT_LOG_RUN_INF("[INST] [SWITCHOVER] undo rollback is done");
+
+        if (dtc_read_node_ctrl(session, session->kernel->id) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[INST] [SWITCHOVER] failed to read ctrl page for node=%u", session->kernel->id);
+            mes_release_message_buf(msg->buffer);
+            return;
+        }
+
+        // set disaster cluster role, readonly -> readwrite
+        kernel->db.is_readonly = CT_FALSE;
+        kernel->db.readonly_reason = PRIMARY_SET;
+        kernel->db.ctrl.core.db_role = REPL_ROLE_PRIMARY;
+
+        // cloese lrpl
+        lrpl_close(session);
+
+        CT_LOG_RUN_INF("[INST] [SWITCHOVER] promote completed, running as primary");
+
+        mes_init_ack_head(msg->head, &head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), CT_INVALID_ID16);
+        mes_release_message_buf(msg->buffer);
+        if (mes_send_data(&head) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[INST] [SWITCHOVER] mes send ack failed.");
+            return;
+        }
+        lrpl->is_promoting = CT_FALSE;
+    }
+}
+
+static void db_wait_lrpl_done(knl_session_t *session)
+{
+    lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
+    if (lrpl->is_closing) {
+        CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] lrpl is closing");
+    } else {
+        lrpl_close(session);
+        lrpl->is_closing = CT_TRUE;
+        while (lrpl->is_done != CT_TRUE) {
+            cm_sleep(STANDBY_WAIT_SLEEP_TIME);
+        }
+        CT_LOG_RUN_INF("[INST] [SWITCHOVER] lrpl is done");
+    }
+}
+
+void db_promote_cluster_role(thread_t* thread)
+{
+    knl_instance_t *kernel = &g_instance->kernel;
+    knl_session_t *session = kernel->sessions[SESSION_ID_KERNEL];
+    lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
+    DbsRoleInfo role_info;
+    role_info.lastRole = DBS_DISASTER_RECOVERY_SLAVE;
+    role_info.curRole = DBS_DISASTER_RECOVERY_MASTER;
+
+    while (!DB_IS_OPEN(session)) {
+        cm_sleep(RC_WAIT_DB_OPEN_TIME);
+    }
+    if (!rc_is_master()) {
+        lrpl->is_promoting = CT_TRUE;
+        CT_LOG_RUN_INF("[INST] [SWITCHOVER] follower inst start promote");
+        return;
+    }
+    
+    lrpl->is_promoting = CT_TRUE;
+    CT_LOG_RUN_INF("[INST] [SWITCHOVER] reformer inst start promote");
+
+    if (kernel->db.ctrl.core.db_role == REPL_ROLE_PRIMARY) {
+        CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] db_role is invalid: %u.", kernel->db.ctrl.core.db_role);
+    }
+
+    // step1 wait redo replay
+    db_wait_lrpl_done(session);
+
+    // step2 undo rollback
+    if (db_slave_undo_rollback(session) != CT_SUCCESS) {
+        CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] failed to do undo rollback");
+    }
+
+    // step3 set disaster cluster role, readonly -> readwrite
+    if (db_slave_update_ctrl_file(session) != CT_SUCCESS) {
+        CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] update control file failed when switch role");
+    }
+
+    // step4 broadcast to other nodes
+    msg_cluster_role_request req;
+    req.role_info = role_info;
+    mes_init_send_head(&req.head, MES_CMD_BROADCAST_CLUSTER_ROLE, sizeof(msg_cluster_role_request), CT_INVALID_ID32,
+        session->kernel->id, 0, session->id, CT_INVALID_ID16);
+    status_t ret = mes_broadcast_and_wait(session->id, MES_BROADCAST_ALL_INST, (void *)&req, BROADCAST_PROMOTE_WAIT_INTERVEL, NULL);
+    if (ret == CT_ERROR) {
+        CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] broadcast cluster role failed, switch primary failed.");
+    }
+    CT_LOG_RUN_INF("[INST] [SWITCHOVER] MES_CMD_BROADCAST_CLUSTER_ROLE succ");
+
+    lrpl->is_promoting = CT_FALSE;
+    CT_LOG_RUN_INF("[INST] [SWITCHOVER] promote completed, running as primary");
+}
+
+status_t db_switch_role(DbsRoleInfo role_info)
+{
+    knl_instance_t *kernel = &g_instance->kernel;
+    knl_session_t *session = kernel->sessions[SESSION_ID_KERNEL];
+    DbsDisasterRecoveryRole last_role = role_info.lastRole;
+    DbsDisasterRecoveryRole cur_role =  role_info.curRole;
+    lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
+    database_t *db = &g_instance->kernel.db;
+
+    if (last_role == DBS_DISASTER_RECOVERY_SLAVE && cur_role == DBS_DISASTER_RECOVERY_MASTER) {
+        status_t status = cm_create_thread(db_promote_cluster_role, 0, NULL, &lrpl->promote_thread);
+        if (status != CT_SUCCESS) {
+            CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] promote cm_create_thread failed");
+            return CT_ERROR;
+        }
+    } else if (last_role == DBS_DISASTER_RECOVERY_MASTER && cur_role == DBS_DISASTER_RECOVERY_SLAVE) {
+        // 主降备退出
+        if (kernel->db.ctrl.core.db_role == REPL_ROLE_PHYSICAL_STANDBY) {
+            CT_LOG_RUN_ERR("[INST] [SWITCHOVER] db_role is invalid:%u.", kernel->db.ctrl.core.db_role);
+            return CT_ERROR;
+        }
+        kernel->db.ctrl.core.db_role = REPL_ROLE_PHYSICAL_STANDBY;
+
+        if (db_save_core_ctrl(session) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[INST] [SWITCHOVER] ABORT INFO: save core control file failed when switch role");
+            return CT_ERROR;
+        }
+        CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] demote completed");
+    } else if (last_role == DBS_DISASTER_RECOVERY_INVAILD && cur_role == DBS_DISASTER_RECOVERY_SLAVE) {
+        db->ctrl.core.db_role = REPL_ROLE_PHYSICAL_STANDBY;
+    } else if (last_role == DBS_DISASTER_RECOVERY_INVAILD && cur_role == DBS_DISASTER_RECOVERY_MASTER) {
+        db->ctrl.core.db_role = REPL_ROLE_PRIMARY;
+    } else {
+        CT_LOG_RUN_ERR("The disaster cluster role is invalid.");
+        return CT_ERROR;
+    }
+    g_get_role_from_dbs = CT_TRUE;
+    return CT_SUCCESS;
+}
+
+int32_t set_disaster_cluster_role(DbsRoleInfo info)
+{
+    CT_LOG_RUN_INF("Trying to start set_disaster_cluster_role, the input lastStatus is %d, curStatus is %d.",
+        info.lastRole, info.curRole);
+    status_t ret = db_switch_role(info);
+    if (ret == CT_ERROR) {
+        CM_ABORT_REASONABLE(0, "switch role failed");
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus

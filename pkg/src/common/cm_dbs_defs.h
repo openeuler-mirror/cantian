@@ -134,6 +134,7 @@ typedef enum {
     ULOG_READ_RETURN_REACH_MAX_AGG_COUNT,
     ULOG_READ_RETURN_REACH_MAX_BUF_LEN,
     ULOG_READ_RETURN_LSN_NOT_EXIST, // lsn not found in ulog
+    ULOG_READ_RETURN_LSN_NOT_EXIST_SMALL,
     // fence error
     ULOG_RETURN_OP_DENIED_ERROR,
 } UlogReturnCode;
@@ -450,6 +451,18 @@ typedef struct {
     uint32_t view;
     uint32_t num;
 } PartitionOption;
+
+typedef enum {
+    DBS_DISASTER_RECOVERY_INVAILD = 0,
+    DBS_DISASTER_RECOVERY_MASTER,
+    DBS_DISASTER_RECOVERY_SLAVE,
+} DbsDisasterRecoveryRole;
+typedef struct {
+    DbsDisasterRecoveryRole lastRole;
+    DbsDisasterRecoveryRole curRole;
+} DbsRoleInfo;
+ 
+typedef int32_t (*regCallback)(DbsRoleInfo curRole);
 
 #ifdef __cplusplus
 }

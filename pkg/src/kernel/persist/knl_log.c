@@ -1452,7 +1452,7 @@ void log_recycle_file(knl_session_t *session, log_point_t *point)
     }
     log_lock_logfile(session);
     uint32 file_id = ctx->active_file;
-    while (LOG_POINT_FILE_LT(ctx->files[file_id].head, *point) || !DB_IS_PRIMARY(&session->kernel->db)) {
+    while (LOG_POINT_FILE_LT(ctx->files[file_id].head, *point) || (!DB_IS_CLUSTER(session) && !DB_IS_PRIMARY(&session->kernel->db))) {
         file = &ctx->files[file_id];
         if ((file_id == ctx->curr_file) || (!log_can_recycle(session, file, &last_arch_log))) {
             break;

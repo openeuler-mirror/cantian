@@ -43,6 +43,7 @@ typedef int (*dbs_client_set_uuid_lsid_t)(const char *, uint32_t);
 typedef int (*dbs_client_lib_init_t)(const char *);
 typedef int (*dbs_client_flush_log_t)(void);
 typedef int (*dbs_link_down_event_reg_t)(void (*dbs_link_down_exit)(void));
+typedef int (*reg_role_info_callback_t)(regCallback);
 
 //pagepool
 typedef int (*create_pagepool_t)(char *, PagePoolAttr *, PagePoolId *);
@@ -82,6 +83,7 @@ typedef struct st_dbs_interface {
     dbs_client_set_uuid_lsid_t dbs_client_set_uuid_lsid;
     dbs_client_lib_init_t dbs_client_lib_init;
     dbs_client_flush_log_t dbs_client_flush_log;
+    reg_role_info_callback_t reg_role_info_callback;
     dbs_link_down_event_reg_t dbs_link_down_event_reg;
 
     // pagepool

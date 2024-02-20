@@ -190,6 +190,10 @@ typedef enum en_mes_command {
     MES_CMD_SEND_RCY_SET_ERR_ACK,
     MES_CMD_INVALID_DD_REQ,
     MES_CMD_INVALID_DD_RSP,
+    MES_CMD_INVALID_ALL_DD_REQ,
+    MES_CMD_INVALID_ALL_DD_RSP,
+    MES_CMD_UPDATE_DD_REQ,
+    MES_CMD_UPDATE_DD_RSP,
     MES_CMD_BROADCAST_INVALIDATE_DC,
 
     // dummy, to compile extproc
@@ -213,6 +217,7 @@ typedef enum en_mes_command {
     MES_CMD_UPGRADE_CTRL_VERSION_ACK,
     MES_CMD_ARCH_SET_REQ,
     MES_CMD_TIME_BROADCAST,
+    MES_CMD_BROADCAST_CLUSTER_ROLE,
 
     MES_CMD_CEIL
 } mes_command_t;

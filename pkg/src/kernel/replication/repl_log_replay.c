@@ -26,6 +26,7 @@
 #include "repl_log_replay.h"
 #include "cm_log.h"
 #include "cm_file.h"
+#include "cm_dbs_ulog.h"
 #include "knl_context.h"
 #include "dtc_database.h"
 #include "dtc_dls.h"
@@ -402,7 +403,7 @@ bool32 lrpl_need_replay(knl_session_t *session, log_point_t *point)
         }
     } else {  // Else need to use the latest log point on current log file to check
         // If status is LOG_FILE_INACTIVE, the asn is 0
-        if (file->ctrl->status == LOG_FILE_CURRENT || file->ctrl->status == LOG_FILE_ACTIVE) {
+        if (file != NULL && (file->ctrl->status == LOG_FILE_CURRENT || file->ctrl->status == LOG_FILE_ACTIVE)) {
             return !log_point_equal(point, redo_ctx);
         }
 
@@ -790,11 +791,32 @@ static void lrpl_update_resetlog_scn(knl_session_t *session)
     }
 }
 
+void dtc_lrpl_proc_loop(thread_t *thread)
+{
+    knl_session_t *session = (knl_session_t *)thread->argument;
+    lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
+
+    while (!thread->closed) {
+        if (rc_is_master() == CT_TRUE && lrpl->is_done == CT_FALSE) {
+            CT_LOG_RUN_INF("[DTC LRPL]cantian master start lrpl replay");
+            lrpl->is_replaying = CT_TRUE;
+            if (dtc_recover(session) != CT_SUCCESS) {
+                CM_ABORT_REASONABLE(0, "ABORT INFO: [DTC LRPL]dtc lrpl recovery failed");
+                return;
+            }
+            lrpl->is_replaying = CT_FALSE;
+        }
+        cm_sleep(STANDBY_LRPL_WAIT_SLEEP_TIME);
+    }
+    
+    return;
+}
+
 /*
  * lrpl thread global apply routine, include real time apply and archive apply
  * @param thread
  */
-static void lrpl_proc(thread_t *thread)
+void lrpl_proc(thread_t *thread)
 {
     knl_session_t *session = (knl_session_t *)thread->argument;
     lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
@@ -808,8 +830,14 @@ static void lrpl_proc(thread_t *thread)
     lrpl->begin_point = lrpl->curr_point;
     rcy->last_lrpl_time = cm_now();
 
-    lrpl_proc_loop(thread);
+    if (DB_IS_CLUSTER(session)) {
+        dtc_lrpl_proc_loop(thread);
+        CT_LOG_RUN_INF("log replayer thread closed");
+        KNL_SESSION_CLEAR_THREADID(session);
+        return;
+    }
 
+    lrpl_proc_loop(thread);
     CT_LOG_RUN_INF("[Log Replayer] recovery end with log point: rst_id %u asn %u lfn %llu offset %u",
         lrpl->curr_point.rst_id, lrpl->curr_point.asn, (uint64)lrpl->curr_point.lfn, lrpl->curr_point.block_id);
 
@@ -846,6 +874,7 @@ status_t lrpl_init(knl_session_t *session)
         lrpl->read_buf = &session->kernel->rcy_ctx.read_buf;
     }
     lrpl->is_closing = CT_FALSE;
+    lrpl->is_promoting = CT_FALSE;
     lrpl->is_done = CT_FALSE;
     lrpl->curr_point.asn = CT_INVALID_ASN;
     lrpl->begin_point.asn = CT_INVALID_ASN;
@@ -888,4 +917,64 @@ bool32 lrpl_replay_blocked(knl_session_t *session)
     }
 
     return CT_FALSE;
+}
+
+char* dtc_get_lrpl_status(knl_session_t *session)
+{
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        return "STOP_REPLAY";
+    }
+    if (cm_dbs_log_recycled()) {
+        return "LOG_RECYCLED";
+    }
+    lrpl_context_t *lrpl_ctx = &session->kernel->lrpl_ctx;
+    if (lrpl_ctx->is_replaying) {
+        return "START_REPLAY";
+    }
+    return "STOP_REPLAY";
+}
+
+status_t dtc_cal_redo_size_by_node_id(knl_session_t *session, uint32 node_id, uint32* redo_recovery_size)
+{
+    logfile_set_t *log_set = LOGFILE_SET(session, node_id);
+    lrpl_context_t *lrpl_ctx = &session->kernel->lrpl_ctx;
+    log_file_t *log_file = &log_set->items[0];
+    device_type_t type = cm_device_type(log_file->ctrl->name);
+    int32 handle;
+    if (cm_open_device(log_file->ctrl->name, type, knl_io_flag(session), &handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DB] failed to open redo log file %s ", log_file->ctrl->name);
+        return CT_ERROR;
+    }
+    if (cm_device_get_used_cap(log_file->ctrl->type, handle, lrpl_ctx->curr_point.lsn + 1, redo_recovery_size) !=
+        CT_SUCCESS) {
+        CT_LOG_RUN_ERR("failed to fetch rcy redo log size of rcy point lsn(%llu) from DBStor",
+            lrpl_ctx->curr_point.lsn + 1);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t dtc_cal_lrpl_redo_size(knl_session_t *session, uint32* redo_recovery_size, double* redo_recovery_time)
+{
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        return CT_SUCCESS;
+    }
+    lrpl_context_t *lrpl_ctx = &session->kernel->lrpl_ctx;
+    if (lrpl_ctx->is_replaying == CT_FALSE) {
+        return CT_SUCCESS;
+    }
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+    uint32 rcy_log_size = 0;
+    for (uint32 node_id = 0; node_id < dtc_rcy->node_count; node_id++) {
+        if (dtc_cal_redo_size_by_node_id(session, node_id, &rcy_log_size) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("failed to fetch rcy redo log size of node %u", node_id);
+            return CT_ERROR;
+        }
+        *redo_recovery_size += rcy_log_size / SIZE_M(1);
+    }
+
+    if (lrpl_ctx->lrpl_speed != 0) {
+        *redo_recovery_time = ((double)(*redo_recovery_size) / lrpl_ctx->lrpl_speed) / MICROSECS_PER_SECOND;
+    }
+    return CT_SUCCESS;
 }

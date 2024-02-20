@@ -38,6 +38,7 @@
 #define CM_DBS_ULOG_FRAGMENT_RESERVATION SIZE_M(256)
 #define CM_DBS_ULOG_UNSUPPORTED(op) CT_LOG_RUN_WAR("Unsupported operation(%s) for dbstor object(ulog).", op)
 #define CM_DBS_ULOG_HEAD_SIZE 512
+bool32 g_ulog_recycled = CT_FALSE;
 
 int64 cm_dbs_ulog_seek(int32 handle, int64 offset, int32 origin)
 {
@@ -270,6 +271,21 @@ status_t cm_dbs_ulog_batch_read(int32 handle, uint64 startLsn, uint64 endLsn, vo
     return CT_SUCCESS;
 }
 
+void cm_dbs_set_log_recycled()
+{
+    g_ulog_recycled = CT_TRUE;
+    CT_LOG_RUN_ERR("ulog has been recycled, wait for sync log");
+    for (;;) {
+        cm_sleep(CT_INVALID_ID32);
+    }
+    return;
+}
+
+bool32 cm_dbs_log_recycled()
+{
+    return g_ulog_recycled;
+}
+
 status_t cm_dbs_ulog_read(int32 handle, int64 startLsn, void *buf, int32 size, int32 *r_size)
 {
     int32 ret;
@@ -305,6 +321,10 @@ status_t cm_dbs_ulog_read(int32 handle, int64 startLsn, void *buf, int32 size, i
         } else if (ret == ULOG_READ_RETURN_REACH_MAX_BUF_LEN) {
             CT_LOG_DEBUG_WAR("The buffer capacity is insufficient for LSN(%llu).", startLsn);
             ret = CT_SUCCESS;
+        } else if (ret == ULOG_READ_RETURN_LSN_NOT_EXIST_SMALL) {
+            CT_LOG_RUN_ERR("LSN(%llu) not found, redo logs have been recycled", startLsn);
+            cm_dbs_set_log_recycled();
+            ret = CT_ERROR;
         } else {
             CT_LOG_RUN_ERR("Failed to read ulog ret:%u", ret);
             ret = CT_ERROR;

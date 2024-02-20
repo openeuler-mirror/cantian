@@ -1,7 +1,11 @@
+import json
 import os
 import signal
+import stat
 import subprocess
-from om_log import LOGGER as LOG
+import time
+from functools import wraps
+
 
 FAIL = 1
 TIME_OUT = 5
@@ -20,7 +24,27 @@ def close_child_process(proc):
     return 'success'
 
 
-def exec_popen(cmd):
+def retry(retry_times, log, task, wait_times):
+    def decorate(func):
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            err = ""
+            for i in range(retry_times):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as _err:
+                    log.info("Execute task[%s] %s/%s times", task, i + 1, retry_times)
+                    err = _err
+                    time.sleep(wait_times)
+                    continue
+            else:
+                raise err
+        return wrapper
+    return decorate
+
+
+def exec_popen(cmd, timeout=TIME_OUT):
     """
     subprocess.Popen in python3.
     param cmd: commands need to execute
@@ -32,7 +56,7 @@ def exec_popen(cmd):
     pobj.stdin.write(cmd.encode())
     pobj.stdin.write(os.linesep.encode())
     try:
-        stdout, stderr = pobj.communicate(timeout=TIME_OUT)
+        stdout, stderr = pobj.communicate(timeout=timeout)
     except Exception as err:
         return pobj.returncode, "", str(err)
     finally:
@@ -46,3 +70,27 @@ def exec_popen(cmd):
         stderr = stderr[:-1]
 
     return return_code, stdout, stderr
+
+
+def read_json_config(file_path):
+    with open(file_path, "r") as f:
+        return json.loads(f.read())
+
+
+def write_json_config(file_path, data):
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    modes = stat.S_IWUSR | stat.S_IRUSR
+    with os.fdopen(os.open(file_path, flags, modes), 'w') as fp:
+        json.dump(data, fp, indent=4)
+
+
+def file_reader(file_path):
+    with open(file_path, 'r') as file:
+        return file.read()
+
+
+def get_status(status: str, status_class: object) -> str:
+    for key, value in status_class.__dict__.items():
+        if value == status:
+            return key
+    return status

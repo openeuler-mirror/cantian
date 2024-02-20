@@ -45,6 +45,7 @@ int32 cm_dbs_ulog_align_size(int32 space_size);
 status_t cm_dbs_ulog_batch_read(int32 handle, uint64 startLsn, uint64 endLsn, void *buf,
                                 int32 size, int32 *r_size, uint64 *outLsn);
 bool32 cm_dbs_ulog_is_lsn_valid(int32 handle, uint64 lsn);
+bool32 cm_dbs_log_recycled(void);
 
 #ifdef __cplusplus
 }

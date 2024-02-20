@@ -118,7 +118,7 @@ class USEREXIST(Exception):
 
 
 class Logicrep:
-    def __init__(self):
+    def __init__(self, mode="active"):
         self.logicrep_user = ""
         self.storage_archive_fs = ""
         self.storage_share_fs = ""
@@ -132,6 +132,7 @@ class Logicrep:
         self.cmsip = []
         self.lsnr_port = "1611"
         self.passwd = ""
+        self.mode = mode
 
     @staticmethod
     def kmc_resovle_password(mode, plain_text, key1=PRIMARY_KEYSTORE, key2=STANDBY_KEYSTORE):
@@ -203,6 +204,9 @@ class Logicrep:
             raise Exception("get password failed")
 
     def execute_sql(self, sql, message):
+        if self.mode == "standby":
+            LOG.info("Current mode is standby, not allowed to log in to zsql to perform operations.")
+            return ""
         for i in range(RETRY_TIMES):
             cmd = "source ~/.bashrc && echo -e '%s' | ctsql sys@%s:%s -q -c \"%s\"" % (
                 self.passwd,
@@ -310,6 +314,8 @@ class Logicrep:
     def start(self):
         LOG.info("begin create logicrep user")
         self.set_cantian_conf()
+        if self.mode == "standby":
+            return
         self.create_db_user()
         LOG.info("create logicrep user success")
 
@@ -355,10 +361,12 @@ def main():
     ctl_parse = argparse.ArgumentParser()
     ctl_parse.add_argument("--act", type=str,
                            choices=["install", "start", "startup", "stop", "shutdown", "pre_upgrade",
-                           "set_resource_limit"])
+                                    "set_resource_limit"])
+    ctl_parse.add_argument("--mode", required=False, dest="mode")
     arg = ctl_parse.parse_args()
     act = arg.act
-    logicrep = Logicrep()
+    mode = arg.mode
+    logicrep = Logicrep(mode)
     func_dict = {
         "install": logicrep.install,
         "start": logicrep.start,

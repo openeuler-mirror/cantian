@@ -19,6 +19,7 @@ sys.path.append('/opt/cantian/action/dbstor')
 from kmc_adapter import CApiWrapper
 
 cur_abs_path, _ = os.path.split(os.path.abspath(__file__))
+DR_DEPLOY_PARAM = "/opt/cantian/config/dr_deploy_param.json"
 OLD_CANTIAND_DATA_SAVE_PATH = Path(cur_abs_path, 'cantiand_report_data_saves.json')
 DEPLOY_PARAM_PATH = '/opt/cantian/config/deploy_param.json'
 CANTIAND_INI_PATH = '/mnt/dbdata/local/cantian/tmp/data/cfg/cantiand.ini'
@@ -75,6 +76,7 @@ class GetNodesInfo:
         self.decrypt_pwd = None
         self.ctsql_decrypt_error_flag = False
         self.storage_archive_fs = None
+        self.dm_pwd = None
 
         self.sh_cmd = {'top -bn 1 -i': self.update_cpu_mem_info,
                        'source ~/.bashrc&&cms stat': self.update_cms_status_info,
@@ -485,7 +487,8 @@ class GetNodesInfo:
         report_key = [
             "SYS_BACKUP_SETS", "CHECKPOINT_PAGE",
             "CHECKPOINT_PERIOD", "GLOBAL_LOCK",
-            "LOCAL_LOCK", "LOCAL_TXN", "GLOBAL_TXN"
+            "LOCAL_LOCK", "LOCAL_TXN", "GLOBAL_TXN",
+            "DV_LRPL_DETAIL"
         ]
         return_code, sql_res = self.sql.query(self.sql_file)
         if not return_code and sql_res:
@@ -628,6 +631,20 @@ class GetNodesInfo:
 
         return {}
 
+    def get_dr_info(self, res: dict) -> None:
+        """
+        获取容灾上报指标
+        :param res:
+        :return:
+        """
+        execute_file = os.path.join(cur_abs_path, "../query_storage_info/get_dr_info.py")
+        cmd = "source ~/.bashrc && echo -e %s | python3 -B %s" % (self.dm_pwd, execute_file)
+        return_code, output, stderr = _exec_popen(cmd)
+        if return_code:
+            return
+        data = json.loads(output)
+        res.update(data)
+
     def get_export_data(self, res):
         """公共方法，从获取途径上统一管理各指标获取方法
 
@@ -639,6 +656,8 @@ class GetNodesInfo:
         if self.decrypt_pwd:
             self.get_info_from_sql(res)
             self.get_logicrep_info(res)
+        if self.dm_pwd and os.path.exists(DR_DEPLOY_PARAM):
+            self.get_dr_info(res)
         self.get_pitr_data_from_external_exec_cmd(res)
         self.get_cms_lock_failed_info(res)
         if self.mes_type == "TCP":
@@ -688,6 +707,15 @@ class GetNodesInfo:
             if not self.ctsql_decrypt_error_flag:
                 LOG.error('[result] decrypt ctsql passwd failed, [err_msg] {}'.format(str(err)))
                 self.ctsql_decrypt_error_flag = True
+
+        if os.path.exists(DR_DEPLOY_PARAM):
+            dr_deploy_params = json.loads(file_reader(DR_DEPLOY_PARAM))
+            dm_pwd = dr_deploy_params.get("dm_pwd")
+            try:
+                self.dm_pwd = self.kmc_decrypt.decrypt(dm_pwd)
+            except Exception as err:
+                LOG.error('[result] decrypt dm passwd failed, [err_msg] {}'.format(str(err)))
+                self.dm_pwd = None
 
         self.ctsql_decrypt_error_flag = False
         self.sql.update_sys_data(self.node_id, self.decrypt_pwd)

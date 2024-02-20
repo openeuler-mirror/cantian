@@ -676,7 +676,7 @@ function main_deploy() {
     case "$ACTION" in
         start)
             create_cgroup_path
-            do_deploy ${START_NAME}
+            do_deploy ${START_NAME} ${INSTALL_TYPE}
             if [[ $? -ne 0 ]]; then
                 exit 1
             fi

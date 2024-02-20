@@ -961,6 +961,8 @@ status_t dc_load_entity(knl_session_t *session, dc_user_t *user, uint32 oid, dc_
     knl_panic(entry->is_loading);
     entry->is_loading = CT_FALSE;
     if (ret != CT_ERROR && entry->entity == NULL) {
+        cm_reset_error();
+        CT_THROW_ERROR(ERR_DC_LOAD_CONFLICT);
         // loading conflict with dc invalidation from ddl redo in partial recovery
         CT_LOG_RUN_ERR("loading conflict, entity is null");
         ret = CT_ERROR;

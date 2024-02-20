@@ -103,6 +103,7 @@ typedef struct st_rcy_paral_group {
     uint8 unused[3];
     uint32 group_list_idx;
     uint64 ddl_lsn_pitr;
+    knl_scn_t group_scn;
     rcy_paral_item_t items[];
 } rcy_paral_group_t;
 
@@ -284,7 +285,7 @@ status_t rcy_init_context(knl_session_t *session);
 void print_rcy_skip_page_limit(knl_session_t *session);
 void rcy_page_set_damage(knl_session_t *session, pcn_verify_t *log_pcns);
 void rcy_replay_pcn_verify(knl_session_t *session, log_entry_t *log, pcn_verify_t *log_pcns, uint32 log_pcns_size);
-
+void rcy_record_batch_scn(log_entry_t *log, rcy_paral_group_t *paral_group);
 /*
  * Version       : v 1.0
  * Created       : 2017-04-25

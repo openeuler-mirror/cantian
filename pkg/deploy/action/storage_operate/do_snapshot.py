@@ -10,6 +10,7 @@ CUR_PATH, _ = os.path.split(os.path.abspath(__file__))
 sys.path.append(str(pathlib.Path(CUR_PATH).parent))
 
 from logic.storage_operate import StorageInf
+from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from utils.client.rest_client import get_cur_timestamp, read_helper, write_helper
 from om_log import REST_LOG as LOG
 
@@ -34,10 +35,35 @@ class SnapShotRestClient(object):
         LOG.error(err_info)
         raise Exception(err_info)
 
+    def check_dr_site(self):
+        """
+        判断当前是否为备端，不执行打快照和回滚快照
+        :return:
+        """
+        if not self.storage_operate.rest_client.token:
+            self.storage_operate.login()
+        config_params = json.loads(read_helper(DEPLOY_PARAM_PATH))
+        storage_dbstore_page_fs = config_params.get("storage_dbstore_page_fs")
+        page_fs_info = self.storage_operate.query_filesystem_info(storage_dbstore_page_fs)
+        page_fs_id = page_fs_info.get("ID")
+        ulog_fs_info = self.storage_operate.query_filesystem_info(storage_dbstore_page_fs)
+        ulog_fs_id = ulog_fs_info.get("ID")
+        dr_deploy_opt = DRDeployCommon(self.storage_operate)
+        page_pair_info = dr_deploy_opt.query_remote_replication_pair_info(page_fs_id)
+        ulog_pair_info = dr_deploy_opt.query_hyper_metro_filesystem_pair_info(ulog_fs_id)
+        if page_pair_info:
+            secondary = page_pair_info[0].get("ISPRIMARY")
+            return secondary == "false"
+        if ulog_pair_info:
+            secondary = ulog_pair_info[0].get("ISPRIMARY")
+            return secondary == "false"
+        LOG.info("Current node is not dr or is primary")
+        return False
+
     def create_snapshots(self, fs_name, vstore_id=0):
         if self.processed_fs.get(fs_name):
             return NORMAL_STATE
-        fs_info = self.storage_operate.query_file_system_info(fs_name, vstore_id=vstore_id)
+        fs_info = self.storage_operate.query_filesystem_info(fs_name, vstore_id=vstore_id)
         if not fs_info:
             err_msg = "file system [%s] is not exist, please check." % fs_name
             self.exception_handler(err_msg=err_msg, cur_mode='create')
@@ -119,6 +145,9 @@ def main(mode, ip_address, main_path):
 
     login_data = (ip_address, user_name, passwd)
     rest_client_obj = SnapShotRestClient(login_data, fs_processed_data)
+    # 检查当前是否为备端，是不打快照
+    if rest_client_obj.check_dr_site():
+        return NORMAL_STATE
     for fs_name, _, _vstore_id in fs_names_type:
         LOG.info("do %s for fs[%s] start", mode, fs_name)
         try:

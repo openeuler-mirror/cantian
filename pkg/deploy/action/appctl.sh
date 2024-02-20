@@ -85,7 +85,11 @@ function gen_pre_check_flag() {
 
 function usage()
 {
-    logAndEchoInfo "Usage: ${0##*/} {start|stop|install|uninstall|pre_install|pre_upgrade|check_status|upgrade}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    logAndEchoInfo "Usage: ${0##*/} {
+    start|stop|install|uninstall|pre_install|pre_upgrade|
+    check_status|upgrade|backup|restore|upgrade_commit|check_point|
+    rollback|clear_upgrade_backup|certificate|update_pwd|dr_operate}.
+    [Line:${LINENO}, File:${SCRIPT_NAME}]"
     exit 1
 }
 
@@ -184,13 +188,100 @@ function upgrade_lock() {
     fi
 }
 
+function dr_deploy() {
+    dr_action=$2
+    dr_site=$3
+    if [ $# -ge 3 ];then
+        shift 3
+    elif [ $# -ge 2 ];then
+        shift 2
+    fi
+    export PYTHONPATH="${CURRENT_PATH}"
+    dm_pwd=""
+    dbstor_user=""
+    dbstor_pwd_first=""
+    unix_sys_pwd_first=""
+    unix_sys_pwd_second=""
+    declare -A action_opt
+    declare -A action_opt
+    action_opt=([deploy]=1 [pre_check]=1 [undeploy]=1 [full_sync]=1 [progress_query]=1 [switch_over]=1 [recover]=1 [cancel_res_pro]=1)
+    if [[ ! "${action_opt[$dr_action]}" ]];then
+        dr_action="help"
+    fi
+    if [[ x"${dr_action}" != x"help" ]] && [[ x"${dr_action}" != x"progress_query" ]];then
+        read -s -p "Please input device manager login passwd:" dm_pwd
+        echo ""
+    fi
+    if [[ x"${dr_action}" == x"undeploy" ]];then
+        read -p "This action will delete dr deploy, yes will start to delete, Please enter yes or no:" dbstor_user
+        echo ""
+        if [[ x${dbstor_user} != x"yes" ]] && [[ x${dbstor_user} != x"no" ]];then
+            echo "Invalid input and exit"
+            exit 1
+        fi
+        if [[ x"${dbstor_user}" != x"yes" ]];then
+            exit 0
+        fi
+        if [[ x"${dr_site}" == x"standby" ]];then
+            read -p "This action will stop and delete Cantian Engine，Please enter yes or no, yes will start to delete:" dbstor_pwd_first
+            echo ""
+            if [[ x"${dbstor_pwd_first}" != x"yes" ]] && [[ x"${dbstor_pwd_first}" != x"no" ]];then
+                echo "Invalid input and exit"
+                exit 1
+            fi
+        fi
+    fi
+    if [[ x"${dr_action}" == x"deploy" && x"${dr_site}" == x"standby" ]];then
+        read -p "please enter dbstor_user: " dbstor_user
+        echo "Enter dbstor_user is ${dbstor_user}"
+        read -s -p "please enter dbstor_pwd: " dbstor_pwd_first
+        echo ""
+        read -s -p "please enter cantian_sys_pwd: " unix_sys_pwd_first
+        echo ""
+        read -s -p "please enter cantian_sys_pwd again: " unix_sys_pwd_second
+        echo ""
+    fi
+    if [[ x"${dr_site}" == x"active" ]] && [[ x"${dr_action}" == x"deploy" || "${dr_action}" == "full_sync" ]];then
+        read -s -p "Please input mysql login passwd:" dbstor_user
+    fi
+    if [[ "${dr_action}" == "deploy" ]] || [[ "${dr_action}" == "full_sync" ]];then
+        _pid=$(ps -ef | grep "storage_operate/dr_operate_interface.py ${dr_action}" | grep -v grep | awk '{print $2}')
+        if [[ -z $_pid ]];then
+            echo -e "${dm_pwd}\n${dbstor_user}\n" | python3 -B "${CURRENT_PATH}/storage_operate/dr_operate_interface.py" param_check --action="${dr_action}" --site="${dr_site}" "$@"
+            if [ $? -ne 0 ];then
+                logAndEchoError "Passwd check failed."
+                exit 1
+            fi
+            echo -e "${dm_pwd}\n${dbstor_user}\n${dbstor_pwd_first}\n${unix_sys_pwd_first}\n${unix_sys_pwd_second}" | \
+            nohup python3 -B "${CURRENT_PATH}/storage_operate/dr_operate_interface.py" "${dr_action}" --site="${dr_site}" "$@" \
+            >> /opt/cantian/deploy/deploy.log 2>&1 &
+        else
+            logAndEchoInfo "dr ${dr_action} is started."
+        fi
+        _pid=$(ps -ef | grep "storage_operate/dr_operate_interface.py ${dr_action}" | grep -v grep | awk '{print $2}')
+        if [[ -z $_pid ]];then
+            logAndEchoError "dr ${dr_action} execute failed."
+            exit 1
+        fi
+        logAndEchoInfo "dr ${dr_action} execute success, process id[${_pid}].\n        please use conmmad[sh appctl.sh dr_operate progress_query --action=deploy/full_sync --display=table\json] to query progress."
+    elif [[ "${dr_action}" == "progress_query" ]]; then
+        if [[ -z ${dr_site} ]];then
+            dr_site="--action=deploy"
+        fi
+        echo -e "${dm_pwd}" | python3 -B "${CURRENT_PATH}/storage_operate/dr_operate_interface.py" "${dr_action}" "${dr_site}" "$@"
+    else
+        echo -e "${dm_pwd}\n${dbstor_user}\n${dbstor_pwd_first}\n${unix_sys_pwd_first}\n${unix_sys_pwd_second}" | \
+        python3 -B "${CURRENT_PATH}/storage_operate/dr_operate_interface.py" "${dr_action}" --site="${dr_site}" "$@"
+    fi
+}
+
 ##################################### main #####################################
 ACTION=$1
 INSTALL_TYPE=$2
 case "$ACTION" in
     start)
         lock_file=${START_NAME}
-        do_deploy ${START_NAME}
+        do_deploy ${START_NAME} ${INSTALL_TYPE}
         exit $?
         ;;
     stop)
@@ -333,6 +424,10 @@ case "$ACTION" in
             exit 1
         fi
         logAndEchoInfo "update ctsql sys user login passwd success."
+        ;;
+    dr_operate)
+        dr_deploy "$@"
+        exit $?
         ;;
     *)
         usage

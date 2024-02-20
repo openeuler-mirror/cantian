@@ -690,8 +690,12 @@ EXTER_ATTACK int tse_mq_bulk_write(dsw_message_block_t *message_block)
 EXTER_ATTACK int tse_mq_update_row(dsw_message_block_t *message_block)
 {
     struct update_row_request *req = message_block->seg_buf[0];
+    database_t *db = &g_instance->kernel.db;
+    if (req->is_mysqld_starting && DB_IS_PHYSICAL_STANDBY(db)) {
+        return CT_SUCCESS;
+    }
     req->result = tse_update_row(&req->tch, req->new_record_len, req->new_record,
-        req->upd_cols, req->col_num, req->flag);
+        req->upd_cols, req->col_num, req->flag, &req->is_mysqld_starting);
     return req->result;
 }
 
@@ -883,6 +887,10 @@ EXTER_ATTACK int tse_mq_index_read(dsw_message_block_t *message_block)
     MEMS_RETURN_IFERR(result);
     index_key_info.find_flag = req->find_flag;
     index_key_info.action = req->action;
+    database_t *db = &g_instance->kernel.db;
+    if (req->is_mysqld_starting && DB_IS_PHYSICAL_STANDBY(db)) {
+        index_key_info.action = 0;
+    }
     index_key_info.sorted = req->sorted;
     index_key_info.need_init = req->need_init;
     index_key_info.key_num = req->key_num;
@@ -1279,8 +1287,15 @@ EXTER_ATTACK int ctc_mq_record_sql_for_cantian(dsw_message_block_t *message_bloc
 {
     int result;
     struct execute_mysql_ddl_sql_request *req = message_block->seg_buf[0];
-    result = ctc_record_sql_for_cantian(&req->tch, &req->broadcast_req, req->allow_fail);
-    req->result = result;
+    database_t *db = &g_instance->kernel.db;
+    if (DB_IS_PHYSICAL_STANDBY(db)) {
+        CT_LOG_RUN_ERR("[Disaster Recovery] Do not allow to record sql for cantian in slave cluster.");
+        CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
+        result = CT_ERROR;
+    } else {
+        result = ctc_record_sql_for_cantian(&req->tch, &req->broadcast_req, req->allow_fail);
+        req->result = result;
+    }
     return req->result;
 }
 
@@ -1302,6 +1317,13 @@ EXTER_ATTACK int tse_mq_search_metadata_switch(dsw_message_block_t *message_bloc
 {
     struct search_metadata_status_request *req = message_block->seg_buf[0];
     req->result = tse_search_metadata_status(&req->metadata_switch, &req->cluster_ready);
+    return req->result;
+}
+
+EXTER_ATTACK int tse_mq_query_cluster_role(dsw_message_block_t *message_block)
+{
+    struct query_cluster_role_request *req = message_block->seg_buf[0];
+    req->result = tse_query_cluster_role(&req->is_slave, &req->cluster_ready);
     return req->result;
 }
 
@@ -1395,6 +1417,8 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {TSE_FUNC_UNLOCK_INSTANCE,                    tse_mq_unlock_instance},
     {TSE_FUNC_CHECK_TABLE_EXIST,                  tse_mq_check_db_table_exists},
     {TSE_FUNC_SEARCH_METADATA_SWITCH,             tse_mq_search_metadata_switch},
+    {TSE_FUNC_QUERY_CLUSTER_ROLE,                 tse_mq_query_cluster_role},
+    {TSE_FUNC_SET_CLUSTER_ROLE_BY_CANTIAN,        tse_set_cluster_role_by_cantian},
     {TSE_FUNC_PRE_CREATE_DB,                      tse_mq_pre_create_db},
     {TSE_FUNC_TYPE_DROP_TABLESPACE_AND_USER,      tse_mq_drop_tablespace_and_user},
     {TSE_FUNC_DROP_DB_PRE_CHECK,                  tse_mq_drop_db_pre_check},
@@ -1616,6 +1640,8 @@ static int tse_send_msg_to_one_client(void *shm_inst, enum TSE_FUNC_TYPE func_ty
                                       dsw_message_block_t *msg, int client_id, bool *is_continue_broadcast)
 {
     int *client_id_list = get_client_id_list();
+    // This flag is to make sure the msg has been successfully received by a client.
+    int is_succeed = CT_ERROR;
     if (client_id_list[client_id] == SHM_CLIENT_STATUS_WORKING) {
         int ret = shm_send_msg(shm_inst, client_id, msg);
         if (ret != CT_SUCCESS) {
@@ -1647,6 +1673,7 @@ static int tse_send_msg_to_one_client(void *shm_inst, enum TSE_FUNC_TYPE func_ty
         }
         mq_sub_client_upstream_msg_cnt(client_id);
         mq_send_msg_callback(func_type, client_id, msg->seg_buf[0], is_continue_broadcast);
+        is_succeed = CT_SUCCESS;
     }
     if (client_id_list[client_id] != SHM_CLIENT_STATUS_WORKING && client_id_list[client_id] != SHM_CLIENT_STATUS_DOWN) {
         CT_LOG_RUN_WAR("skip client, inst_id(%d), client_stat(%d)", client_id, client_id_list[client_id]);
@@ -1656,12 +1683,18 @@ static int tse_send_msg_to_one_client(void *shm_inst, enum TSE_FUNC_TYPE func_ty
             remove_bad_client(client_id);
         }
     }
+    database_t *db = &g_instance->kernel.db;
+    if (!DB_IS_PRIMARY(db)) {
+        return is_succeed;
+    }
     return 0;
 }
 
 int tse_mq_deal_func(void *shm_inst, enum TSE_FUNC_TYPE func_type, void *request)
 {
     dsw_message_block_t *msg = (dsw_message_block_t *)shm_alloc(shm_inst, sizeof(dsw_message_block_t));
+    database_t *db = &g_instance->kernel.db;
+    bool is_slave_cluster = !DB_IS_PRIMARY(db);
     if (msg == NULL) {
         CT_LOG_RUN_ERR("[TSE_SHM]:msg init failed, msg_type(%d)", func_type);
         return -1;
@@ -1680,9 +1713,14 @@ int tse_mq_deal_func(void *shm_inst, enum TSE_FUNC_TYPE func_type, void *request
     msg->seg_buf[0] = request;
 
     bool is_continue_broadcast = true;
+    int at_least_one_succeed = CT_ERROR;
     for (int i = MYSQL_PROC_START; i < MAX_SHM_PROC; i++) {
-        if (tse_send_msg_to_one_client(shm_inst, func_type, msg, i, &is_continue_broadcast) != 0) {
+        int send_ret = tse_send_msg_to_one_client(shm_inst, func_type, msg, i, &is_continue_broadcast);
+        if (!is_slave_cluster && send_ret != 0) {
             CT_LOG_RUN_ERR("[TSE_SHM]:failed to sent msg to a client, client_id(%d), msg_type(%d)", i, func_type);
+        }
+        if (send_ret == CT_SUCCESS) {
+            at_least_one_succeed = CT_SUCCESS;
         }
         if (!is_continue_broadcast) {
             break;
@@ -1694,7 +1732,16 @@ int tse_mq_deal_func(void *shm_inst, enum TSE_FUNC_TYPE func_type, void *request
         CT_LOG_RUN_ERR("[TSE_SHM]:sem destory failed, ret:%d, func_type:%d.", ret, func_type);
     }
     shm_free(shm_inst, msg);
-    return ret;
+    if (is_slave_cluster) {
+        // At least one mysql should execute succeed in slave cluster.
+        if (at_least_one_succeed == CT_SUCCESS) {
+            return ret;
+        } else {
+            return CT_ERROR;
+        }
+    } else {
+        return ret;
+    }
 }
 
 void *get_upstream_shm_inst(void)

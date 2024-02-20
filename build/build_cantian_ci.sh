@@ -48,7 +48,7 @@ function newPackageTarget() {
   rm -rf ${TMP_PKG_PATH}/*
 
   mkdir -p ${pkg_real_path}/{action,repo,config,common,zlogicrep}
-
+  mkdir -p ${pkg_real_path}/zlogicrep/build/Cantian_PKG/file
   cp -arf "${CURRENT_PATH}"/versions.yml ${pkg_real_path}/
   cp -arf "${CURRENT_PATH}"/rpm/RPMS/"${ENV_TYPE}"/cantian*.rpm ${pkg_real_path}/repo/
   cp -arf "${CTDB_CODE_PATH}"/temp/ct_om/rpm/RPMS/"${ENV_TYPE}"/ct_om*.rpm ${pkg_real_path}/repo
@@ -58,7 +58,7 @@ function newPackageTarget() {
   sed -i "s/#MYSQL_PKG_PREFIX_NAME#/${mysql_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
   sed -i "s/## BUILD_TYPE ENV_TYPE ##/${build_type_upper} ${ENV_TYPE}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
   cp -arf "${CTDB_CODE_PATH}"/CI/script/for_mysql_official ${pkg_real_path}
-
+  cp -rf ${CTDB_CODE_PATH}/pkg/src/zlogicrep/build/Cantian_PKG/file/* ${pkg_real_path}/zlogicrep/build/Cantian_PKG/file/
   sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE}" ${pkg_real_path}/action/dbstor/check_usr_pwd.sh
   sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE}" ${pkg_real_path}/action/inspection/inspection_scripts/kernal/check_link_cnt.sh
 
@@ -105,7 +105,7 @@ function buildMysql() {
   mkdir -p "${CURRENT_PATH}"/cantian-connector-mysql/{daac_lib,mysql_bin,scripts}
   mkdir -p "${CURRENT_PATH}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/{meta,nometa}
 
-  sh "${CURRENT_PATH}"/Makefile.sh "${MYSQL_BUILD_TYPE}"
+  sh "${CURRENT_PATH}"/Makefile_ci.sh "${MYSQL_BUILD_TYPE}"
   cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CURRENT_PATH}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/nometa
 
   echo "patching MysqlCode for mysql source"
@@ -116,14 +116,14 @@ function buildMysql() {
   fi
 
   cd "${CURRENT_PATH}"
-  sh "${CURRENT_PATH}"/Makefile.sh "${MYSQL_BUILD_TYPE}"
+  sh "${CURRENT_PATH}"/Makefile_ci.sh "${MYSQL_BUILD_TYPE}"
   revertPatching
   cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CURRENT_PATH}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/meta
   collectMysqlTarget
 }
 
 function prepare() {
-  sh "${CURRENT_PATH}"/Makefile.sh "${CT_BUILD_TYPE}"
+  sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE}"
   buildMysql
   if [ ! -d "${CTDB_TARGET_PATH}" ];then
     mkdir -p "${CTDB_TARGET_PATH}"

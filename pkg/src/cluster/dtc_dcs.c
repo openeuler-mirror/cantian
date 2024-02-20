@@ -2300,7 +2300,7 @@ void dcs_process_ddl_broadcast(void *sess, mes_message_t * msg)
 #ifdef LOG_DIAG
     knl_panic(!session->atomic_op);
 #endif
-    knl_panic(!DB_IS_READONLY(session));
+    knl_panic(!DB_IS_PRIMARY(&session->kernel->db) || !DB_IS_READONLY(session));
     knl_panic(session->page_stack.depth == 0);
     knl_panic(session->dirty_count == 0);
     knl_panic(session->changed_count == 0);
