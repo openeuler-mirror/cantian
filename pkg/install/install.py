@@ -4084,7 +4084,7 @@ class Installer:
 
         if MYSQL_VERSION == VERSION_DOCKER_META:
             print("mysql_meta: going to start docker mysql in meta.")
-            self.start_mysql_with_metadata_in_cantian()
+            self.start_mysql_with_metadata_in_cantian(g_opts.slave_cluster)
         elif MYSQL_VERSION == VERSION_DOCKER_NOMETA:
             print("mysql_nometa: developer docker deploy.")
             self.start_mysql()
@@ -4097,7 +4097,7 @@ class Installer:
             ctc_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin/nometa/ha_ctc.so")
             shutil.copy(ctc_path, mysql_plugin_path)
             print("mysql_nometa: copy ha_ctc.so from %s to %s" % (ctc_path, mysql_plugin_path))
-            self.start_mysql()
+            self.start_mysql(g_opts.slave_cluster)
 
         # Don't set the core_dump_filter with -O option.
         # if self.option == INS_ALL:
