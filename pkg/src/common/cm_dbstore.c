@@ -79,6 +79,7 @@ status_t dbs_init_lib(void)
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsClientSetUuidLsid",           (void **)(&intf->dbs_client_set_uuid_lsid)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsClientLibInit",               (void **)(&intf->dbs_client_lib_init)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsClientFlushLog",              (void **)(&intf->dbs_client_flush_log)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "RegisterRoleInfoCallBack",       (void **)(&intf->reg_role_info_callback)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsLinkDownEventReg",            (void **)(&intf->dbs_link_down_event_reg)));
 
     // pagepool

@@ -139,6 +139,9 @@ class Options(object):
         # path of mysql config file
         self.mysql_config_file_path = "unset"
 
+        # In slave cluster:
+        self.slave_cluster = False
+
 
 g_opts = Options()
 
@@ -484,6 +487,7 @@ def parse_parameter():
     -G: gss parameter
     -W: cthba white list
     -O: don't create database
+    -S: In slave cluster
     -P: Compatibility parameter
     -l: log file
     -g: no-root user to install
@@ -495,7 +499,7 @@ def parse_parameter():
         # Parameters are passed into argv. After parsing, they are stored
         # in opts as binary tuples. Unresolved parameters are stored in args.
         opts, args = getopt.getopt(sys.argv[1:],
-                                   "U:R:M:N:OD:Z:C:G:W:cg:sdl:Ppf:m:", ["help", "dbstor", "linktype="])
+                                   "U:R:M:N:OD:Z:C:G:W:cg:sdl:Ppf:m:S", ["help", "dbstor", "linktype="])
         if args:
             print("Parameter input error: " + str(args[0]))
             exit(1)
@@ -1138,6 +1142,10 @@ def skip_execute_in_node_1():
         return True
     return False
 
+def skip_execute_in_slave_cluster():
+    if g_opts.slave_cluster:
+        return True
+    return False
 
 def create_dir_if_needed(condition, dir):
     if condition:
@@ -1554,6 +1562,9 @@ class Installer:
             elif key == "-O":
                 self.option = self.INS_PROGRAM
                 self.flagOption = 1
+            # Start the cluster as slave.
+            elif key == "-S":
+                g_opts.slave_cluster = True
             # Get the datadir
             elif key == "-D":
                 self.data = value.strip()
@@ -1871,7 +1882,11 @@ class Installer:
         # check install path is empty or not.
         self.prepareGivenPath(self.installPath)
         # check data dir is empty or not.
-        self.prepareGivenPath(self.data)
+        if g_opts.slave_cluster:
+            # Allow the data dir not empty in slave_cluster.
+            self.prepareGivenPath(self.data, False)
+        else:   
+            self.prepareGivenPath(self.data)
         # check install path
         vfs = os.statvfs(self.installPath)
         availableSize = vfs.f_bavail * vfs.f_bsize / (1024*1024)
@@ -3109,7 +3124,9 @@ class Installer:
             # create data, cfg, log dir, trc
             data_dir = "%s/data" % self.data
             if g_opts.in_container:
-                create_dir_if_needed(skip_execute_in_node_1(), CommonValue.DOCKER_DATA_DIR)
+                # Do not create the data dir in slave cluster.
+                if not g_opts.slave_cluster:
+                    create_dir_if_needed(skip_execute_in_node_1(), CommonValue.DOCKER_DATA_DIR)
                 cmd = "ln -s %s %s;" % (CommonValue.DOCKER_DATA_DIR, data_dir)
                 ret_code, _, stderr = _exec_popen(cmd)
                 if ret_code:
@@ -3216,6 +3233,9 @@ class Installer:
         self.chownDataDir()
         status_success = False
         start_mode = self.NOMOUNT_MODE
+        # Start the slave_cluster in OPEN_MODE.
+        if g_opts.slave_cluster == True:
+            start_mode = self.OPEN_MODE
         if g_opts.node_id == 1:
             start_mode = self.OPEN_MODE
         
@@ -3327,7 +3347,8 @@ class Installer:
         # 2 root execute install.py and disable sysdba
         # 3 normal user execute install.py and enable sysdba
         # 4 normal user execute install.py and disable sysdba
-        if skip_execute_in_node_1():
+        # Do not execute the create db sql in slave cluster.
+        if skip_execute_in_node_1() or skip_execute_in_slave_cluster():
             return
         if g_opts.install_user_privilege == "withoutroot":
             if self.enableSysdbaLogin:
@@ -3909,7 +3930,9 @@ class Installer:
         if self.option == self.INS_ALL:
             self.createDb()
         self.securityAudit()
-        self.set_core_dump_filter()
+        # Don't set the core_dump_filter with -O option.
+        if self.option == self.INS_ALL:
+            self.set_core_dump_filter()
         log("Successfully install %s instance." % self.instance_name)
 
     def check_parameter_mysql(self):
@@ -3963,20 +3986,22 @@ class Installer:
         if ret_code:
             logExit("Can not link mysql lib, command: %s, output: %s" % (cmd, stderr))
 
-    def start_mysql(self):
+    def start_mysql(self, is_slave_cluster):
         log("Starting mysqld...", True)
         if os.path.exists(MYSQL_LOG_FILE) and os.path.isfile(MYSQL_LOG_FILE):
             log("Warning: the mysql log file %s should empty for mysqld start" % MYSQL_LOG_FILE, True)
         # mysql init
-        cmd = "%s --defaults-file=%s --initialize-insecure --datadir=%s" % (os.path.join(MYSQL_BIN_DIR, "bin/mysqld"),
+        # Do not init mysql in slave cluster.
+        if not is_slave_cluster:
+            cmd = "%s --defaults-file=%s --initialize-insecure --datadir=%s" % (os.path.join(MYSQL_BIN_DIR, "bin/mysqld"),
                                                                             g_opts.mysql_config_file_path,
                                                                             MYSQL_DATA_DIR)
-        if os.getuid() == 0:
-            cmd = "su %s -c '" % self.user + cmd + "'"
-        status, stdout, stderr = _exec_popen(cmd)
-        if status != 0:
-            output = stdout + stderr
-            raise Exception("Can not init mysqld %s.\nStart cmd: %s.\nOutput: %s" % (self.data, cmd, output))
+            if os.getuid() == 0:
+                cmd = "su %s -c '" % self.user + cmd + "'"
+            status, stdout, stderr = _exec_popen(cmd)
+            if status != 0:
+                output = stdout + stderr
+                raise Exception("Can not init mysqld %s.\nStart cmd: %s.\nOutput: %s" % (self.data, cmd, output))
 
         # start mysqld
         cmd = """%s %s --defaults-file=%s --datadir=%s --plugin-dir=%s \
@@ -4052,6 +4077,7 @@ class Installer:
 
     def install_mysql(self):
         self.check_parameter_mysql()
+        # If it is not normalized, do not prepare_mysql_data_dir in slave cluster.
         self.prepare_mysql_data_dir()
         self.prepare_mysql_bin_dir()
         self.set_mysql_env()
@@ -4073,7 +4099,9 @@ class Installer:
             print("mysql_nometa: copy ha_ctc.so from %s to %s" % (ctc_path, mysql_plugin_path))
             self.start_mysql()
 
-        self.set_core_dump_filter_mysql()
+        # Don't set the core_dump_filter with -O option.
+        # if self.option == INS_ALL:
+        #     self.set_core_dump_filter_mysql()
 
 
 def main():

@@ -129,4 +129,9 @@ status_t init_ddl_session(session_t *session);
 status_t tse_ddl_lock_table(session_t *session, knl_dictionary_t *dc, dc_user_t *user, bool32 is_alter_copy);
 void tse_ddl_unlock_table(knl_session_t *knl_session, bool unlock_tables);
 bool32 tse_command_type_read(sql_command_filter_op_t cmd);
+int tse_ddl_execute_and_broadcast(tianchi_handler_t *tch, tse_ddl_broadcast_request *broadcast_req,
+    bool allow_fail, knl_session_t *knl_session);
+int tse_update_mysql_ddcache_and_broadcast(char *sql_str, knl_session_t *knl_session);
+int tse_invalidate_all_ddcache_and_broadcast(knl_session_t *knl_sess);
+int tse_query_cluster_role(bool *is_slave, bool *cantian_cluster_ready);
 #endif //__TSE_DDL_H__

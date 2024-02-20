@@ -999,7 +999,7 @@ int tse_get_and_reset_err(void)
     int ret = cm_get_error_code();
     CM_ASSERT(ret != ERR_ERRNO_BASE);
     cm_reset_error();
-    return ret;
+    return (ret == ERR_ERRNO_BASE) ? CT_ERROR : ret;
 }
 
 void tse_pre_set_cursor_for_scan(uint32 index_set_count, knl_cursor_t *cursor, uint16_t active_index)

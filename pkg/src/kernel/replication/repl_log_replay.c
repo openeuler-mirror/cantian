@@ -403,7 +403,7 @@ bool32 lrpl_need_replay(knl_session_t *session, log_point_t *point)
         }
     } else {  // Else need to use the latest log point on current log file to check
         // If status is LOG_FILE_INACTIVE, the asn is 0
-        if (file->ctrl->status == LOG_FILE_CURRENT || file->ctrl->status == LOG_FILE_ACTIVE) {
+        if (file != NULL && (file->ctrl->status == LOG_FILE_CURRENT || file->ctrl->status == LOG_FILE_ACTIVE)) {
             return !log_point_equal(point, redo_ctx);
         }
 

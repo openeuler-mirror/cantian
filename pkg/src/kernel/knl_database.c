@@ -147,7 +147,6 @@ knl_scn_t db_inc_scn(knl_session_t *session)
 
     cm_spin_lock(&area->scn_lock, &session->stat->spin_stat.stat_inc_scn);
     scn = knl_inc_scn(init_time, &now, seq, &session->kernel->scn, session->kernel->attr.systime_inc_threshold);
-    knl_panic(DB_IS_PRIMARY(&session->kernel->db));
     cm_spin_unlock(&area->scn_lock);
 
     return scn;
@@ -824,6 +823,7 @@ static status_t db_switchover_proc_init(knl_session_t *session)
         if (lrpl_init(session) != CT_SUCCESS) {
             return CT_ERROR;
         }
+        CT_LOG_RUN_INF("The lrpl has been initialized.");
     }
 
     if (DB_IS_PRIMARY(db) || DB_IS_PHYSICAL_STANDBY(db)) {
@@ -895,6 +895,7 @@ static status_t db_mode_set(knl_session_t *session, db_open_opt_t *options)
     db->has_load_role = CT_FALSE;
 
     if (options->readonly || !DB_IS_PRIMARY(db)) {
+        CT_LOG_RUN_INF("The db is set as readonly");
         db->is_readonly = CT_TRUE;
         db->readonly_reason = DB_IS_PRIMARY(db) ? MANUALLY_SET : PHYSICAL_STANDBY_SET;
         //        tx_rollback_close(session);

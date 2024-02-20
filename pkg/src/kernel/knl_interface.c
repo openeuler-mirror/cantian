@@ -15555,6 +15555,7 @@ status_t knl_is_daac_cluster_ready(bool32 *is_ready)
 
 void knl_set_db_status_4mysql_init(bool32 open)
 {
+    //Do not set readonly = false here in standby, it may cause to write ckpt unexpectedlly.
     if (g_instance->kernel.db.open_status != DB_OPEN_STATUS_MAX_FIX) {
         return;
     }

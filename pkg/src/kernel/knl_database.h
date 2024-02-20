@@ -399,6 +399,7 @@ status_t db_save_ctrl_page(knl_session_t *session, ctrlfile_t *ctrlfile, uint32 
 status_t db_read_ctrl_page(knl_session_t *session, ctrlfile_t *ctrlfile, uint32 page_id);
 status_t db_read_log_page(knl_session_t *session, ctrlfile_t *ctrlfile, uint32 start, uint32 end);
 void db_get_cantiand_version(ctrl_version_t *cantiand_version);
+int32_t set_disaster_cluster_role(DbsRoleInfo info);
 status_t db_clean_record_arch(knl_session_t *session);
 EXTER_ATTACK void db_process_broadcast_cluster_role(void *sess, mes_message_t *msg);
 int32_t  db_switch_role(DbsRoleInfo role_info);
