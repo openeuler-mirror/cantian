@@ -5,6 +5,7 @@ CURRENT_PATH=$(dirname $(readlink -f $0))
 CANTIAN_START_PY_NAME="cantian_start.py"
 CANTIAN_STOP_SH_NAME="stop.sh"
 CANTIAN_INSTALL_LOG_FILE=/opt/cantian/cantian/log/cantian_deploy.log
+START_MODE=$1
 
 function log() {
   printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1" >> ${CANTIAN_INSTALL_LOG_FILE}
@@ -32,7 +33,10 @@ function cantian_start()
         log "${CANTIAN_START_PY_NAME} is not exist.]"
         return 1
     fi
-
+    # 容灾备站点拉起时，无需创库。设置创库状态为done
+    if [[ x"${START_MODE}" == x"standby" ]];then
+        sed -i 's/"db_create_status": "default"/"db_create_status": "done"/g'  /opt/cantian/cantian/cfg/start_status.json
+    fi
     export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH}
     python3 ${CURRENT_PATH}/${CANTIAN_START_PY_NAME}
     ret=$?

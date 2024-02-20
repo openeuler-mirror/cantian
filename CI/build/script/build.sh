@@ -43,7 +43,7 @@ if [[ ${OS_ARCH} =~ "x86_64" ]]; then
     export CPU_CORES_NUM=`cat /proc/cpuinfo |grep "cores" |wc -l`
     LIB_OS_ARCH="lib_x86"
 elif [[ ${OS_ARCH} =~ "aarch64" ]]; then 
-    export C_INCLUDE_PATH=:/usr/include/python3.9/
+    export C_INCLUDE_PATH=:/usr/include/python3.7m/
     CPU_CORES_NUM=`cat /proc/cpuinfo |grep "architecture" |wc -l`
     LIB_OS_ARCH="lib_arm"
 else 
@@ -370,14 +370,14 @@ function compileReleaseMysql() {
       cmake .. -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DCMAKE_C_COMPILER=/usr/bin/gcc -DWITH_ASAN=ON -DWITH_ASAN_SCOPE=ON -DENABLE_GCOV=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
     else
       if  [[ ${OS_ARCH} =~ "aarch64" ]]; then
-        cmake .. -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse -mno-outline-atomics" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse -mno-outline-atomics" -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
+        cmake .. -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
       else
         cmake .. -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
       fi
     fi
   elif [ "${BUILD_MODE}" == "single" ]; then
     if  [[ ${OS_ARCH} =~ "aarch64" ]]; then
-      cmake .. -DWITH_DAAC=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse -mno-outline-atomics" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse -mno-outline-atomics" -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
+      cmake .. -DWITH_DAAC=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
     else
       cmake .. -DWITH_DAAC=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
     fi
@@ -695,7 +695,7 @@ function prepare() {
   [[ "${WORKSPACE}" == "" ]] && ln -s -f ${code_home}/cantian-connector-mysql/mysql-source ${MYSQL_CODE_PATH}
   local xml_path=/etc/maven/settings.xml
   local GCC_VERSION=`gcc --version |head -1 |awk '{print $NF}'`
-  if [[ ${OS_ARCH} =~ "aarch64" ]] && [[ ${GCC_VERSION} == "10.3.1" ]]; then
+  if [[ ${OS_ARCH} =~ "aarch64" ]] && ([[ ${GCC_VERSION} == "10.3.1" ]] || [[ ${GCC_VERSION} == "7.3.0" ]]); then
       xml_path=$MAVEN_HOME/conf/settings.xml
   fi
   rm -f ${xml_path}

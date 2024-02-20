@@ -98,6 +98,7 @@ struct update_row_request {
     uint16_t col_num;
     int result;
     dml_flag_t flag;
+    bool is_mysqld_starting;
 };
 
 struct delete_row_request {
@@ -251,6 +252,7 @@ struct index_read_request {
     tse_select_mode_t mode;
     tse_conds *cond;
     bool is_replace;
+    bool is_mysqld_starting;
 };
 
 struct index_end_request {
@@ -389,6 +391,17 @@ struct search_metadata_status_request {
     int result;
 };
 
+struct query_cluster_role_request {
+    bool is_slave;
+    bool cluster_ready;
+    int result;
+};
+ 
+struct set_cluster_role_by_cantian_request {
+    bool is_slave;
+    int result;
+};
+
 struct execute_ddl_mysql_sql_request {
     tse_ddl_broadcast_request broadcast_req;
     uint32_t thd_id;
@@ -420,6 +433,17 @@ struct invalidate_mysql_dd_request {
     tse_invalidate_broadcast_request broadcast_req;
     tianchi_handler_t tch;
     int err_code;
+    int result;
+};
+
+struct invalidate_all_dd_cache_request {
+    int result;
+};
+ 
+struct update_mysql_dd_cache_request {
+    char sql_str[MAX_DDL_SQL_LEN];
+    uint32_t inst_id;
+    uint32_t thd_id;
     int result;
 };
 

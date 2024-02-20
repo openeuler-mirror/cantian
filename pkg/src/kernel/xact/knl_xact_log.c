@@ -270,7 +270,7 @@ void rd_tx_begin(knl_session_t *session, log_entry_t *log)
     if (XID_INST_ID(*xid) != session->kernel->id) {
         return;
     }
-    if (!DB_IS_PRIMARY(&session->kernel->db) && !DB_NOT_READY(session)) {
+    if (!DB_IS_CLUSTER(session) && !DB_IS_PRIMARY(&session->kernel->db) && !DB_NOT_READY(session)) {
         cm_spin_lock(&tx_item->lock, &session->stat->spin_stat.stat_txn);
         tx_item->rmid = session->kernel->sessions[SESSION_ID_ROLLBACK]->rmid;
         cm_spin_unlock(&tx_item->lock);
@@ -346,7 +346,8 @@ void rd_tx_end(knl_session_t *session, log_entry_t *log)
         txn->status = (uint8)XACT_END;
     }
 
-    if (redo->scn > DB_CURR_SCN(session) && !SESSION_IS_LOG_ANALYZE(session)) {
+    // standby cluster update scn after replaying a log_batch
+    if ((!DB_IS_CLUSTER(session) || DB_IS_PRIMARY(&session->kernel->db)) && redo->scn > DB_CURR_SCN(session) && !SESSION_IS_LOG_ANALYZE(session)) {
         KNL_SET_SCN(&session->kernel->scn, redo->scn);
     }
 

@@ -71,10 +71,17 @@ static inline void cm_assert(bool32 condition)
 /* Assert that this command is never executed. */
 #define CM_NEVER CM_ASSERT(CT_FALSE)
 
+#ifndef CMS_UT_TEST
 static inline void cm_exit(int32 exitcode)
 {
     _exit(exitcode);
 }
+#else
+static inline void cm_exit(int32 exitcode)
+{
+    return;
+}
+#endif
 
 #ifndef CMS_UT_TEST
 static inline void cm_panic(bool32 condition)

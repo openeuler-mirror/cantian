@@ -417,7 +417,9 @@ void tx_area_rollback(knl_session_t *session, thread_t *thread, undo_set_t *undo
     tx_area_t *area = &session->kernel->tran_ctx;
     uint32 seg_no;
 
-    if ((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session)) && DB_IS_BG_ROLLBACK_SE(session) && DB_IN_BG_ROLLBACK(session)) {
+    if ((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session) ||
+        (!DB_IS_PRIMARY(&session->kernel->db) && session->kernel->lrpl_ctx.is_promoting == CT_TRUE)) &&
+        DB_IS_BG_ROLLBACK_SE(session) && DB_IN_BG_ROLLBACK(session)) {
         for (seg_no = 0; seg_no < UNDO_SEGMENT_COUNT(session); seg_no++) {
             if (thread->closed) {
                 break;
@@ -1543,6 +1545,9 @@ void tx_rollback_proc(thread_t *thread)
                 break;
             }
             if (!DB_IS_READONLY(session) && !DB_IS_MAINTENANCE(session)) {
+                break;
+            }
+            if (!DB_IS_PRIMARY(&session->kernel->db) && session->kernel->lrpl_ctx.is_promoting == CT_TRUE) {
                 break;
             }
         }

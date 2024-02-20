@@ -30,6 +30,8 @@
 #include "cm_file.h"
 #include "knl_context.h"
 #include "knl_ctlg.h"
+#include "knl_xa_persist.h"
+#include "dtc_dc.h"
 
 void log_get_manager(log_manager_t **lmgr, uint32 *count)
 {
@@ -523,6 +525,14 @@ static status_t rcy_paral_replay_group(knl_session_t *session, rcy_bucket_t *buc
             session->rm->nolog_type = LOGGING_LEVEL;
             return CT_ERROR;
         }
+        if (!DB_IS_PRIMARY(&session->kernel->db) && DB_IS_CLUSTER(session) && log->type == RD_LOGIC_OPERATION) {
+            if (dtc_sync_ddl_redo(session, log->data, log->size - LOG_ENTRY_SIZE) != CT_SUCCESS) {
+                logic_op_t *op_type = (logic_op_t *)log->data;
+                CT_LOG_RUN_ERR("dtc sync ddl failed, type=%d, op_type=%d, size=%u", log->type, *op_type,
+                    log->size);
+                knl_panic(0);
+            }
+        }
         offset += log->size;
     }
     session->rm->nolog_type = LOGGING_LEVEL;
@@ -676,6 +686,22 @@ void rcy_add_page(rcy_page_t **pages, rcy_paral_group_t *paral_group, rd_enter_p
     }
 }
 
+void rcy_record_batch_scn(log_entry_t *log, rcy_paral_group_t *paral_group)
+{
+    if (log->type == RD_TX_END) {
+        rd_tx_end_t *rd_tx = (rd_tx_end_t *)log->data;
+        paral_group->group_scn = MAX(paral_group->group_scn, rd_tx->scn);
+        CT_LOG_DEBUG_INF("update scn %llu, rd_tx->scn %llu", paral_group->group_scn, rd_tx->scn);
+    }
+
+    if (log->type == RD_XA_PHASE1) {
+        rd_xa_phase1_t *rd_xa = (rd_xa_phase1_t *)log->data;
+        paral_group->group_scn = MAX(paral_group->group_scn, rd_xa->scn);
+        CT_LOG_DEBUG_INF("update scn %llu, rd_tx->scn %llu", paral_group->group_scn, rd_xa->scn);
+    }
+    return;
+}
+
 void rcy_add_pages(rcy_paral_group_t *paral_group, log_group_t *group, uint32 group_slot, rcy_context_t *rcy,
                    bool32 *logic, rcy_paral_group_t **next_group)
 {
@@ -690,6 +716,7 @@ void rcy_add_pages(rcy_paral_group_t *paral_group, log_group_t *group, uint32 gr
     paral_group->enter_count = 0;
     paral_group->tx_id = 0;
     paral_group->id = group_slot;
+    paral_group->group_scn = 0;
     *logic = CT_FALSE;
 
     while (offset < group->size) {
@@ -703,6 +730,7 @@ void rcy_add_pages(rcy_paral_group_t *paral_group, log_group_t *group, uint32 gr
             paral_group->tx_id = rcy->tx_end_count;
             paral_group->tx_next_bid = CT_INVALID_ID8;
             rcy->tx_end_count++;
+            rcy_record_batch_scn(log, paral_group);
 
             // TODO in cluster mode, this will cause invalid write;
             // if (paral_group->tx_id > 0) {
@@ -1688,7 +1716,7 @@ void rcy_perform(knl_session_t *session, rcy_bucket_t *bucket, uint64 *rcy_perfo
     rcy_release_lock_pages(session, ctrl);
 
     if (session->kernel->attr.clustered) {
-        dtc_rcy_atomic_dec_group_num(ctrl->group_list_idx, 1);
+        dtc_rcy_atomic_dec_group_num(session, ctrl->group_list_idx, 1);
     }
 
     if (bucket->head != bucket->tail) {

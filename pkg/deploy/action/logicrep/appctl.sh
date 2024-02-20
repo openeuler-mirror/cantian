@@ -77,17 +77,14 @@ function log() {
 function do_deploy()
 {
     local action=$1
-    local type=""
-    if [ $# -gt 1 ]; then
-        type="--type $2"
-    fi
+    local mode=$2
 
     if [ ! -f  "${CURRENT_PATH}"/logicrep_ctl.py ]; then
         echo "${COMPONENTNAME} logicrep_ctl.py is not exist. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 1
     fi
 
-    su -s /bin/bash - "${cantian_user}" -c "export LD_LIBRARY_PATH=${LOGICREP_HOME}/lib:${LD_LIBRARY_PATH} && cd ${CURRENT_PATH} && python3 -B ${CURRENT_PATH}/logicrep_ctl.py ${action} ${type}"
+    su -s /bin/bash - "${cantian_user}" -c "export LD_LIBRARY_PATH=${LOGICREP_HOME}/lib:${LD_LIBRARY_PATH} && cd ${CURRENT_PATH} && python3 -B ${CURRENT_PATH}/logicrep_ctl.py ${action} ${mode}"
     ret=$?
     if [ $ret -ne 0 ]; then
         echo "Execute ${COMPONENTNAME} logicrep_ctl.py return ${ret}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -258,9 +255,11 @@ ACTION=$1
 SUP_ACTION="set_resource_limit"
 BACKUP_UPGRADE_PATH=""
 BIN_PATH=""
+START_MODE="active"
 if [ $# -gt 1 ]; then
     BACKUP_UPGRADE_PATH=$2
     BIN_PATH=$2
+    START_MODE=$2
 fi
 if [ $# -gt 2 ]; then
     BACKUP_UPGRADE_PATH=$3
@@ -271,7 +270,7 @@ function main_deploy()
     case "$ACTION" in
         start)
             if [[ -f ${USER_FILE} ]] && [[ x"${install_type}" == x"override" ]];then
-                do_deploy "--act ${ACTION}"
+                do_deploy "--act ${ACTION}" "--mode ${START_MODE}"
                 ret=$?
                 if [ $ret -eq 0 ]; then
                     rm -f ${USER_FILE}
@@ -279,7 +278,7 @@ function main_deploy()
                     exit $ret
                 fi
             fi
-            do_deploy "--act ${SUP_ACTION}"
+            do_deploy "--act ${SUP_ACTION}" "--mode ${START_MODE}"
             ret=$?
             exit ${ret}
             ;;

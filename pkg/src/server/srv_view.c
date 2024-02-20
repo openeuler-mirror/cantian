@@ -817,6 +817,13 @@ static knl_column_t g_lfn_nodes[] = {
     { 1,  "LFN",                   0, 0, CT_TYPE_BIGINT,  sizeof(uint64),           0, 0, CT_FALSE, 0, { 0 } },
 };
 
+static knl_column_t g_lrpl_detail_columns[] = {
+    { 0, "DATABASE_ROLE",           0, 0, CT_TYPE_STRING, 30, 0, 0, CT_FALSE, 0, { 0 } },
+    { 1, "LRPL_STATUS",             0, 0, CT_TYPE_STRING, 16, 0, 0, CT_FALSE, 0, { 0 } },
+    { 2, "REDO_RECOVERY_SIZE_MB",   0, 0, CT_TYPE_INTEGER, sizeof(uint32), 0, 0, CT_FALSE, 0, {0}},
+    { 3, "REDO_RECOVERY_TIME_S",    0, 0, CT_TYPE_REAL,    sizeof(double), 0, 0, CT_FALSE, 0, {0}},
+};
+
 #define DATAFILE_COLS (ELEMENT_COUNT(g_datafile_columns))
 #define LOGFILE_COLS (ELEMENT_COUNT(g_logfile_columns))
 #define LIBRARYCACHE_COLS (ELEMENT_COUNT(g_library_cache))
@@ -884,6 +891,7 @@ static knl_column_t g_lfn_nodes[] = {
 #define DV_USERS_COLS (ELEMENT_COUNT(g_users_columns))
 #define DV_CKPT_PART_COLS (ELEMENT_COUNT(g_ckpt_part_stats_columns))
 #define LFN_NODES (ELEMENT_COUNT(g_lfn_nodes))
+#define LRPL_DETAIL_COLS (ELEMENT_COUNT(g_lrpl_detail_columns))
 
 #define VM_REPL_STATUS_ROWS 1
 #define VM_DATABASE_ROWS 1
@@ -2736,6 +2744,33 @@ static status_t vw_lfn_fetch(knl_handle_t session, knl_cursor_t *cursor)
 
     CT_RETURN_IFERR(row_put_int64(&ra, cursor->rowid.vmid));
     CT_RETURN_IFERR(row_put_int64(&ra, lfn));
+    cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, &cursor->data_size);
+    cursor->rowid.vmid++;
+    return CT_SUCCESS;
+}
+
+status_t vw_lrpl_detail_fetch(knl_handle_t session, knl_cursor_t *cursor)
+{
+    uint64 id;
+    row_assist_t ra;
+    database_t *db = &((knl_session_t *)session)->kernel->db;
+
+    id = cursor->rowid.vmid;
+    if (id > 0) {
+        cursor->eof = CT_TRUE;
+        return CT_SUCCESS;
+    }
+    
+    uint32 redo_recovery_size = 0;
+    double redo_recovery_time = 0;
+    CT_RETURN_IFERR(dtc_cal_lrpl_redo_size(session, &redo_recovery_size, &redo_recovery_time));
+
+    row_init(&ra, (char *)cursor->row, CT_MAX_ROW_SIZE, LRPL_DETAIL_COLS);
+    vw_row_set_database_role(&ra, db->ctrl.core.db_role);
+    CT_RETURN_IFERR(row_put_str(&ra, dtc_get_lrpl_status(session)));
+    CT_RETURN_IFERR(row_put_uint32(&ra, redo_recovery_size));
+    CT_RETURN_IFERR(row_put_real(&ra, redo_recovery_time));
+
     cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, &cursor->data_size);
     cursor->rowid.vmid++;
     return CT_SUCCESS;
@@ -6316,6 +6351,8 @@ VW_DECL dv_users = { "SYS", "DV_USERS", DV_USERS_COLS, g_users_columns, vw_commo
 VW_DECL dv_ckpt_part_stats = { "SYS",          "DV_CKPT_PART_STATS",   DV_CKPT_PART_COLS, g_ckpt_part_stats_columns,
                                vw_common_open, vw_ckpt_part_stat_fetch };
 VW_DECL dv_lfns = { "SYS", "DV_LFNS", LFN_NODES, g_lfn_nodes, vw_common_open, vw_lfn_fetch };
+VW_DECL dv_lrpl_detail = { "SYS",          "DV_LRPL_DETAIL",    LRPL_DETAIL_COLS, g_lrpl_detail_columns,
+                           vw_common_open, vw_lrpl_detail_fetch };
 
 dynview_desc_t *vw_describe_local(uint32 id)
 {
@@ -6511,6 +6548,8 @@ dynview_desc_t *vw_describe_local(uint32 id)
 
         case DYN_VIEW_LFN:
             return &dv_lfns;
+        case DYN_VIEW_LRPL_DETAIL:
+            return &dv_lrpl_detail;
         default:
             return NULL;
     }
@@ -6649,6 +6688,7 @@ knl_dynview_t g_dynamic_views[] = {
     { DYN_VIEW_SELF, vw_describe_local },
     { DYN_VIEW_CTRL_VERSION, vw_describe_local },
     { DYN_VIEW_LFN, vw_describe_local },
+    { DYN_VIEW_LRPL_DETAIL, vw_describe_local },
 };
 
 knl_dynview_t g_dynamic_views_nomount[] = {

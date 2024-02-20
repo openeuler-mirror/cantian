@@ -367,6 +367,14 @@ static inline msg_prepare_ddl_req_t tse_init_ddl_req(tianchi_handler_t *tch, tse
     return req;
 }
 
+static inline void tse_fill_update_dd_cache_req(msg_update_dd_cache_req_t *req, char *sql_str)
+{
+    req->sql_str = sql_str;
+    req->inst_id = CT_INVALID_ID32 - 1;
+    req->thd_id = CT_INVALID_ID32 - 1;
+    req->msg_num = cm_random(CT_INVALID_ID32);
+}
+
 static inline void tse_fill_execute_ddl_req(msg_execute_ddl_req_t *req, uint32_t thd_id,
     tse_ddl_broadcast_request *broadcast_req, bool allow_fail)
 {
@@ -437,6 +445,32 @@ EXTER_ATTACK int tse_lock_table(tianchi_handler_t *tch, const char *db_name, tse
     }
     SYNC_POINT_GLOBAL_START(TSE_LOCK_TABLE_SUCC_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
+    return CT_SUCCESS;
+}
+
+int tse_invalidate_all_ddcache_and_broadcast(knl_session_t *knl_sess) {
+    //失效本端mysql的缓存。
+    CT_LOG_RUN_INF("[zzh debug] begin tse_invalidate_all_ddcache_and_broadcast.");
+    int result = tse_invalidate_all_dd_cache();
+    CT_LOG_RUN_INF("[zzh debug] after tse_invalidate_all_ddcache_and_broadcast.");
+    if (result != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("tse_invalidate_all_dd_cache error. result: %d", result);
+    }
+    //失效远端Mysql的缓存。
+    msg_invalid_all_dd_cache_req_t req;
+    req.msg_num = cm_random(CT_INVALID_ID32);
+    mes_init_send_head(&req.head, MES_CMD_INVALID_ALL_DD_REQ, sizeof(msg_invalid_all_dd_cache_req_t),
+        CT_INVALID_ID32, DCS_SELF_INSTID(knl_sess), 0, knl_sess->id, CT_INVALID_ID16);
+    knl_panic(sizeof(msg_invalid_all_dd_cache_req_t) < MES_128K_MESSAGE_BUFFER_SIZE);
+ 
+    SYNC_POINT_GLOBAL_START(TSE_BEFORE_INVALID_MYSQL_CACHE_ABORT, NULL, 0);
+    SYNC_POINT_GLOBAL_END;
+    CT_LOG_RUN_INF("[zzh debug] begin to broadcast. msg_num:%d", req.msg_num);
+    (void)tse_broadcast_and_recv(knl_sess, MES_BROADCAST_ALL_INST, &req, NULL);
+    CT_LOG_RUN_INF("[zzh debug] After broadcast. msg_num:%d", req.msg_num);
+    SYNC_POINT_GLOBAL_START(TSE_AFTER_INVALID_MYSQL_CACHE_ABORT, NULL, 0);
+    SYNC_POINT_GLOBAL_END;
+ 
     return CT_SUCCESS;
 }
 
@@ -515,7 +549,8 @@ int tse_put_ddl_sql_2_stmt(session_t *session, const char *db_name, const char *
         return CT_ERROR;
     }
     if (strlen(db_name) > 0) {
-        ret = sprintf_s(sql.str, sql.len, "use %s\n%s", db_name, my_sql_str);
+        // keep a semicolon after use db, for keey synatx correct in disaster recovery in slave cluster.
+        ret = sprintf_s(sql.str, sql.len, "use %s;\n%s", db_name, my_sql_str);
     } else {
         ret = sprintf_s(sql.str, sql.len, "%s", my_sql_str);
     }
@@ -579,10 +614,48 @@ int tse_put_ddl_sql_2_stmt_not_cantian_exe(session_t *session, tse_ddl_broadcast
     return ret;
 }
 
+int tse_update_mysql_ddcache_and_broadcast(char *sql_str, knl_session_t *knl_session)
+{
+    // 通知本地mysql更新缓存, params:tch, sql_str, err_
+    int result = tse_update_mysql_dd_cache(sql_str);
+    while (result != CT_SUCCESS) {
+        result = tse_update_mysql_dd_cache(sql_str);
+        CT_LOG_RUN_ERR("Failed to update mysql dd cache on current node.");
+        cm_sleep(1000);
+    }
+    // 广播远端参天
+    msg_update_dd_cache_req_t req;
+    tse_fill_update_dd_cache_req(&req, sql_str);
+    mes_init_send_head(&req.head, MES_CMD_UPDATE_DD_REQ, sizeof(msg_update_dd_cache_req_t), CT_INVALID_ID32, DCS_SELF_INSTID(knl_session), 0, knl_session->id,
+        CT_INVALID_ID16);
+    knl_panic(sizeof(msg_update_dd_cache_req_t) < MES_128K_MESSAGE_BUFFER_SIZE);
+ 
+    int error_code = tse_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, NULL);
+    if (error_code != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[Disaster Recovery] Failed to update mysql dd cache on remote node. sql_str:%s, error_code:%d", sql_str, error_code);
+    }
+    return CT_SUCCESS;
+}
+
 int tse_ddl_execute_and_broadcast(tianchi_handler_t *tch, tse_ddl_broadcast_request *broadcast_req,
     bool allow_fail, knl_session_t *knl_session)
 {
     status_t ret = mysql_execute_ddl_sql(tch->thd_id, broadcast_req, &allow_fail);
+
+    if (!knl_db_is_primary(knl_session)) {
+        // Repeatedlly try to execute on current node.
+        while (ret != CT_SUCCESS) {
+            CT_LOG_RUN_INF("[Disaster Recovery] Failed to reform ddl at mysqld on current node, "
+                    "sql_str:%s, user_name:%s, sql_command:%u, err_code:%d, err_msg:%s, conn_id:%u, tse_instance_id:%u, allow_fail:%d",
+                    broadcast_req->sql_str, broadcast_req->user_name, broadcast_req->sql_command, broadcast_req->err_code, 
+                    broadcast_req->err_msg, tch->thd_id, tch->inst_id, allow_fail);
+            cm_sleep(1000);
+            CT_LOG_RUN_INF("Retrying to reform this ddl......");
+            ret = mysql_execute_ddl_sql(tch->thd_id, broadcast_req, &allow_fail);
+        }
+    }
+    CT_LOG_RUN_INF("[Disaster Recovery] In tse_ddl_execute_and_broadcast, knl_is_primary: %d, ret: %d, ddl:%s", knl_db_is_primary(knl_session), (int)ret, broadcast_req->sql_str);
+
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[TSE_DDL]:execute failed at other mysqld on current node, ret:%d, sql_str:%s,"
             "user_name:%s, sql_command:%u, err_code:%d, err_msg:%s, conn_id:%u, tse_instance_id:%u, allow_fail:%d",
@@ -600,6 +673,19 @@ int tse_ddl_execute_and_broadcast(tianchi_handler_t *tch, tse_ddl_broadcast_requ
     knl_panic(sizeof(msg_execute_ddl_req_t) < MES_128K_MESSAGE_BUFFER_SIZE);
 
     int error_code = tse_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, &broadcast_req->err_msg);
+    if (!knl_db_is_primary(knl_session)) {
+        // Repeatedlly try to execute on current node.
+        while (error_code != CT_SUCCESS) {
+            CT_LOG_RUN_INF("[Disaster Recovery] Failed to reform ddl at mysqld on remote node, "
+                    "sql_str:%s, user_name:%s, sql_command:%u, err_code:%d, err_msg:%s, conn_id:%u, tse_instance_id:%u, allow_fail:%d",
+                    broadcast_req->sql_str, broadcast_req->user_name, broadcast_req->sql_command, broadcast_req->err_code, 
+                    broadcast_req->err_msg, tch->thd_id, tch->inst_id, allow_fail);
+            cm_sleep(1000);
+            CT_LOG_RUN_INF("Retrying to reform this ddl on remote node......");
+            error_code = tse_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, &broadcast_req->err_msg);
+        }
+    }
+    CT_LOG_RUN_INF("[Disaster Recovery] In tse_ddl_execute_and_broadcast, broadcast err_code: %d, ddl:%s", error_code, broadcast_req->sql_str);
     if (error_code != CT_SUCCESS && allow_fail == true) {
         broadcast_req->err_code = error_code;
         CT_LOG_RUN_ERR("[TSE_DDL_REWRITE]:execute on other mysqld fail. error_code:%d", error_code);
@@ -1695,7 +1781,7 @@ static status_t tse_get_partition_real_name(knl_session_t *session, uint32_t idx
     text_t table_name = {0};
     proto_str2text(req->user, &user);
     proto_str2text(req->table_name, &table_name);
-    CT_RETURN_IFERR(dc_open(session, &user, &table_name, &dc));
+    CT_RETURN_IFERR(knl_open_dc(session, &user, &table_name, &dc));
     table_t *table = DC_TABLE(&dc);
     if (req->is_subpart) {
         if (table->part_table->desc.subparttype != PART_TYPE_HASH) {
@@ -4048,6 +4134,27 @@ EXTER_ATTACK int tse_check_db_table_exists(const char *db, const char *name, boo
     return ret;
 }
  
+EXTER_ATTACK int tse_query_cluster_role(bool *is_slave, bool *cantian_cluster_ready)
+{
+    database_t *db = &g_instance->kernel.db;
+    for (int i = 0; i < META_SEARCH_TIMES; i++) {
+        CT_RETURN_IFERR(knl_is_daac_cluster_ready(cantian_cluster_ready));
+        if (*cantian_cluster_ready) {
+            CT_LOG_RUN_INF("[Disaster Recovery]: cantian_cluster_ready: %d.", *cantian_cluster_ready);
+            if(DB_IS_PHYSICAL_STANDBY(db)) {
+                *is_slave = true;
+            } else {
+                *is_slave = false;
+            }
+            return CT_SUCCESS;
+        }
+        cm_sleep(META_SEARCH_WAITING_TIME_IN_MS);
+    }
+    CT_LOG_RUN_ERR("[Disaster Recovery]: cantian_cluster_cluster_read: %d.", *cantian_cluster_ready);
+ 
+    return CT_ERROR;
+}
+
 EXTER_ATTACK int tse_search_metadata_status(bool *cantian_metadata_switch, bool *cantian_cluster_ready)
 {
     CT_RETURN_IFERR(srv_get_param_bool32("MYSQL_METADATA_IN_CANTIAN", cantian_metadata_switch));

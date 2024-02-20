@@ -256,6 +256,33 @@ static void ckpt_update_log_point(knl_session_t *session)
     }
 }
 
+void ckpt_update_log_point_slave_role(knl_session_t *session)
+{
+    ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
+    uint32 curr_node_idx = 0;
+ 
+    /*
+     * when recovering file in mount status, ckpt can't update log point because there are only dirty pages
+     * of the file to recover in queue.
+     */
+    if (IS_FILE_RECOVER(session)) {
+        return;
+    }
+ 
+    if (ctx->queue.count != 0) {
+        cm_spin_lock(&ctx->queue.lock, &session->stat->spin_stat.stat_ckpt_queue);
+        curr_node_idx = ctx->queue.first->curr_node_idx;
+        dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, curr_node_idx);
+        ctrl->rcy_point = ctx->queue.first->trunc_point;
+        cm_spin_unlock(&ctx->queue.lock);
+
+        if (dtc_save_ctrl(session, curr_node_idx) != CT_SUCCESS) {
+            KNL_SESSION_CLEAR_THREADID(session);
+            CM_ABORT(0, "ABORT INFO: save core control file failed when ckpt update log point");
+        }
+    }
+}
+
 void ckpt_reset_point(knl_session_t *session, log_point_t *point)
 {
     knl_instance_t *kernel = session->kernel;
@@ -320,12 +347,17 @@ static void ckpt_full_checkpoint(knl_session_t *session)
 
         ckpt_block_and_wait_enable(ctx);
 
-        ckpt_update_log_point(session);
-        // Save log point
-        if (ckpt_save_ctrl(session) != CT_SUCCESS) {
-            KNL_SESSION_CLEAR_THREADID(session);
-            CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
+        if (!DB_IS_PRIMARY(&session->kernel->db)) {
+            ckpt_update_log_point_slave_role(session);
+        } else {
+            ckpt_update_log_point(session);
+            // Save log point
+            if (ckpt_save_ctrl(session) != CT_SUCCESS) {
+                KNL_SESSION_CLEAR_THREADID(session);
+                CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
+            }
         }
+        
         log_recycle_file(session, &dtc_my_ctrl(session)->rcy_point);
         CT_LOG_DEBUG_INF("[CKPT] Set rcy point to [%u-%u/%u/%llu] in ctrl for instance %u",
                          dtc_my_ctrl(session)->rcy_point.rst_id, dtc_my_ctrl(session)->rcy_point.asn,
@@ -378,12 +410,17 @@ static void ckpt_inc_checkpoint(knl_session_t *session)
 
     ckpt_block_and_wait_enable(ctx);
 
-    ckpt_update_log_point(session);
-    // save log point first
-    if (ckpt_save_ctrl(session) != CT_SUCCESS) {
-        KNL_SESSION_CLEAR_THREADID(session);
-        CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        ckpt_update_log_point_slave_role(session);
+    } else {
+        ckpt_update_log_point(session);
+        // save log point first
+        if (ckpt_save_ctrl(session) != CT_SUCCESS) {
+            KNL_SESSION_CLEAR_THREADID(session);
+            CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
+        }
     }
+    
     log_recycle_file(session, &dtc_my_ctrl(session)->rcy_point);
     CT_LOG_DEBUG_INF("[CKPT] Set rcy point to [%u-%u/%u/%llu] in ctrl for instance %u",
                      dtc_my_ctrl(session)->rcy_point.rst_id, dtc_my_ctrl(session)->rcy_point.asn,
@@ -634,6 +671,9 @@ void ckpt_proc(thread_t *thread)
     }
 
     while (!thread->closed) {
+        if (!DB_IS_PRIMARY(&session->kernel->db) && !rc_is_master()) {
+            continue;
+        }
         ckpt_do_trigger_task(session, ctx, &clean_time, &ckpt_time);
         ckpt_do_timed_task(session, ctx, &clean_time, &ckpt_time);
 
@@ -1935,38 +1975,40 @@ static status_t ckpt_flush_prepare(knl_session_t *session, ckpt_context_t *ctx)
         }
     }
 
-    dtc_node_ctrl_t *ctrl = dtc_my_ctrl(session);
-    ctrl->lrp_point = ctx->lrp_point;
-    ctrl->scn = ctx->lrp_scn;
-    ctrl->lsn = DB_CURR_LSN(session);
-    ctrl->lfn = session->kernel->lfn;
-    if (ctrl->consistent_lfn < ctx->consistent_lfn) {
-        ctrl->consistent_lfn = ctx->consistent_lfn;
-    }
-
-    if (DB_IS_RAFT_ENABLED(session->kernel) && (session->kernel->raft_ctx.status >= RAFT_STATUS_INITED)) {
-        raft_context_t *raft_ctx = &session->kernel->raft_ctx;
-        cm_spin_lock(&raft_ctx->raft_write_disk_lock, NULL);
-        core->raft_flush_point = raft_ctx->raft_flush_point;
-        cm_spin_unlock(&raft_ctx->raft_write_disk_lock);
-
-        if (db_save_core_ctrl(session) != CT_SUCCESS) {
-            return CT_ERROR;
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        dtc_node_ctrl_t *ctrl = dtc_my_ctrl(session);
+        ctrl->lrp_point = ctx->lrp_point;
+        ctrl->scn = ctx->lrp_scn;
+        ctrl->lsn = DB_CURR_LSN(session);
+        ctrl->lfn = session->kernel->lfn;
+        if (ctrl->consistent_lfn < ctx->consistent_lfn) {
+            ctrl->consistent_lfn = ctx->consistent_lfn;
         }
 
-        knl_panic(session->kernel->raft_ctx.saved_raft_flush_point.lfn <= core->raft_flush_point.lfn &&
-                  session->kernel->raft_ctx.saved_raft_flush_point.raft_index <= core->raft_flush_point.raft_index);
-        session->kernel->raft_ctx.saved_raft_flush_point = core->raft_flush_point;
-    } else {
-        if (dtc_save_ctrl(session, session->kernel->id) != CT_SUCCESS) {
-            return CT_ERROR;
-        }
-    }
+        if (DB_IS_RAFT_ENABLED(session->kernel) && (session->kernel->raft_ctx.status >= RAFT_STATUS_INITED)) {
+            raft_context_t *raft_ctx = &session->kernel->raft_ctx;
+            cm_spin_lock(&raft_ctx->raft_write_disk_lock, NULL);
+            core->raft_flush_point = raft_ctx->raft_flush_point;
+            cm_spin_unlock(&raft_ctx->raft_write_disk_lock);
 
-    /* backup some core info on datafile head: only back up core log info for full ckpt & timed task */
-    if (NEED_SYNC_LOG_INFO(ctx) && ctrl_backup_core_log_info(session) != CT_SUCCESS) {
-        KNL_SESSION_CLEAR_THREADID(session);
-        CM_ABORT(0, "[CKPT] ABORT INFO: backup core control info failed when perform checkpoint");
+            if (db_save_core_ctrl(session) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+
+            knl_panic(session->kernel->raft_ctx.saved_raft_flush_point.lfn <= core->raft_flush_point.lfn &&
+                session->kernel->raft_ctx.saved_raft_flush_point.raft_index <= core->raft_flush_point.raft_index);
+                session->kernel->raft_ctx.saved_raft_flush_point = core->raft_flush_point;
+        } else {
+            if (dtc_save_ctrl(session, session->kernel->id) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+        }
+
+        /* backup some core info on datafile head: only back up core log info for full ckpt & timed task */
+        if (NEED_SYNC_LOG_INFO(ctx) && ctrl_backup_core_log_info(session) != CT_SUCCESS) {
+            KNL_SESSION_CLEAR_THREADID(session);
+            CM_ABORT(0, "[CKPT] ABORT INFO: backup core control info failed when perform checkpoint");
+        }
     }
     
     return CT_SUCCESS;
@@ -1994,7 +2036,11 @@ static status_t ckpt_perform(knl_session_t *session)
         ctx->stat.flush_pages[ctx->timed_task] += ctx->group.count;
     }
 
-    ckpt_get_trunc_point(session, &ctx->trunc_point_snapshot);
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        ckpt_get_trunc_point(session, &ctx->trunc_point_snapshot);
+    } else {
+        ckpt_get_trunc_point_slave_role(session, &ctx->trunc_point_snapshot, &ctx->curr_node_idx);
+    }
 
     if ((ctx->group.count == 0) && !dtc_need_empty_ckpt(session)) {
         dcs_clean_edp(session, ctx);
@@ -2049,6 +2095,9 @@ void ckpt_enque_page(knl_session_t *session)
     /** set log truncate point for every dirty page in current session */
     for (i = 0; i < session->dirty_count; i++) {
         knl_panic(session->dirty_pages[i]->in_ckpt == CT_FALSE);
+        if (!DB_IS_PRIMARY(&session->kernel->db)) {
+            session->dirty_pages[i]->curr_node_idx = queue->curr_node_idx;
+        }
         session->dirty_pages[i]->trunc_point = queue->trunc_point;
         session->dirty_pages[i]->in_ckpt = CT_TRUE;
     }
@@ -2078,6 +2127,9 @@ void ckpt_enque_one_page(knl_session_t *session, buf_ctrl_t *ctrl)
     queue->last->ckpt_next = NULL;
     queue->count++;
 
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        ctrl->curr_node_idx = queue->curr_node_idx;
+    }
     ctrl->trunc_point = queue->trunc_point;
     ctrl->in_ckpt = CT_TRUE;
     cm_spin_unlock(&queue->lock);
@@ -2107,12 +2159,36 @@ void ckpt_set_trunc_point(knl_session_t *session, log_point_t *point)
     cm_spin_unlock(&ctx->queue.lock);
 }
 
+void ckpt_set_trunc_point_slave_role(knl_session_t *session, log_point_t *point, uint32 curr_node_idx)
+{
+    ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
+ 
+    /* do not move forward trunc point if GBP_RECOVERY is not completed */
+    if (KNL_RECOVERY_WITH_GBP(session->kernel)) {
+        return;
+    }
+    cm_spin_lock(&ctx->queue.lock, &session->stat->spin_stat.stat_ckpt_queue);
+    ctx->queue.trunc_point = *point;
+    ctx->queue.curr_node_idx = curr_node_idx;
+    cm_spin_unlock(&ctx->queue.lock);
+}
+
 void ckpt_get_trunc_point(knl_session_t *session, log_point_t *point)
 {
     ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
 
     cm_spin_lock(&ctx->queue.lock, &session->stat->spin_stat.stat_ckpt_queue);
     *point = ctx->queue.trunc_point;
+    cm_spin_unlock(&ctx->queue.lock);
+}
+
+void ckpt_get_trunc_point_slave_role(knl_session_t *session, log_point_t *point, uint32 *curr_node_idx)
+{
+    ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
+ 
+    cm_spin_lock(&ctx->queue.lock, &session->stat->spin_stat.stat_ckpt_queue);
+    *point = ctx->queue.trunc_point;
+    *curr_node_idx = ctx->queue.curr_node_idx;
     cm_spin_unlock(&ctx->queue.lock);
 }
 

@@ -752,6 +752,7 @@ status_t drc_check_migrate_buf_res_info(drc_buf_res_t *buf_res, drc_buf_res_msg_
 bool32 drc_claim_info_is_invalid(claim_info_t *claim_info, drc_buf_res_t *buf_res);
 status_t drc_lock_local_lock_res_by_id_for_recycle(knl_session_t *session, drid_t *lock_id, uint64 req_version, bool8 *is_found);
 void drc_release_local_lock_res_by_id(knl_session_t *session, drid_t *lock_id);
+void drc_set_deposit_id(uint8 inst_id, uint8 deposit_id);
 #ifdef __cplusplus
 }
 #endif

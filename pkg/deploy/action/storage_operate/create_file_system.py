@@ -163,7 +163,7 @@ class CreateFS(object):
                 vstore_id = self.fs_info.get(fs_type).get("vstoreId")
                 LOG.info("Begin to create fs [%s] name: %s, vstore id:[%s]",
                          fs_type, _fs_name, vstore_id)
-                _fs_info = self.storage_opt.query_file_system_info(_fs_name, vstore_id)
+                _fs_info = self.storage_opt.query_filesystem_info(_fs_name, vstore_id)
                 if _fs_info:
                     err_msg = "The file system[%s] already exists." % _fs_name
                     self.handle_error_msg(err_msg)
@@ -203,7 +203,7 @@ class CreateFS(object):
                 _fs_name = _fs_info.get("NAME")
                 LOG.info("Begin to del fs [%s] name: %s", fs_type, _fs_name)
                 vstore_id = self.fs_info.get(fs_type).get("vstoreId")
-                fs_info = self.storage_opt.query_file_system_info(_fs_name, vstore_id)
+                fs_info = self.storage_opt.query_filesystem_info(_fs_name, vstore_id)
                 if not fs_info:
                     LOG.info("fs [%s] name %s is not exist", fs_type, _fs_name)
                     continue
@@ -299,7 +299,7 @@ class CreateFS(object):
         for fs_type in FS_TYPE_LIST:
             _fs_name = self.fs_info.get(fs_type).get("NAME")
             vstore_id = self.fs_info.get(fs_type).get("vstoreId")
-            _fs_info = self.storage_opt.query_file_system_info(_fs_name, vstore_id)
+            _fs_info = self.storage_opt.query_filesystem_info(_fs_name, vstore_id)
             if _fs_info:
                 check_fail.append(_fs_name)
         if check_fail:
@@ -332,7 +332,7 @@ class CreateFS(object):
                 err_msg = "Vstore id[%s] not exists" % vstore_id
                 check_fail.append(err_msg)
         if check_fail:
-            err_msg = "Vstore_id %s is not exists" % check_fail
+            err_msg = "Check vstore failed: %s" % check_fail
             self.handle_error_msg(err_msg)
 
     def _get_fs_info(self, fs_type):

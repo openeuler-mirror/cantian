@@ -846,8 +846,13 @@ void knl_destroy_session(knl_handle_t kernel, uint32 sid)
 
 status_t knl_open_dc(knl_handle_t session, text_t *user, text_t *name, knl_dictionary_t *dc)
 {
-    if (dc_open((knl_session_t *)session, user, name, dc) != CT_SUCCESS) {
-        return CT_ERROR;
+    status_t ret = dc_open((knl_session_t *)session, user, name, dc);
+    while (ret != CT_SUCCESS) {
+        if (cm_get_error_code() != ERR_DC_LOAD_CONFLICT) {
+            return CT_ERROR;
+        }
+        cm_reset_error();
+        ret = dc_open((knl_session_t *)session, user, name, dc);
     }
     return CT_SUCCESS;
 }
@@ -15550,6 +15555,7 @@ status_t knl_is_daac_cluster_ready(bool32 *is_ready)
 
 void knl_set_db_status_4mysql_init(bool32 open)
 {
+    //Do not set readonly = false here in standby, it may cause to write ckpt unexpectedlly.
     if (g_instance->kernel.db.open_status != DB_OPEN_STATUS_MAX_FIX) {
         return;
     }
