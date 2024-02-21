@@ -1,6 +1,5 @@
-git_id=27167a505b
-gitVersion=27167a505b16a8e7706782715acec9f2516d78d3
-merge_time=Wed May 11 10:09:34 2022 +0800
-driver_commit_id=ac305cf18f
-logicrep_commit_id=1cc01b5990
-ctsql_commit_id=7120eeaa19
+git_id=0d24758
+gitVersion=0d2475835d8f619cc36c5deeddd62df24d71104e
+merge_time=Wed Feb 21 10:17:26 2024 +0800
+driver_commit_id=c2755f6
+ctsql_commit_id=d4238c4
