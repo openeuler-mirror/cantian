@@ -7,7 +7,7 @@ MODULE_NAME=cantian
 cantian_component_path="/opt/cantian/image"
 SPEC_FILE="${CURRENT_PATH}/${MODULE_NAME}.spec"
 
-source "${CURRENT_PATH}"/common.sh
+CANTIANDB_BIN=$(echo $(dirname $(pwd)))/output/bin
 
 
 #构建cantian rpm包
