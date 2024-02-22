@@ -49,6 +49,12 @@ function newPackageTarget() {
 
   mkdir -p ${pkg_real_path}/{action,repo,config,common,zlogicrep}
   mkdir -p ${pkg_real_path}/zlogicrep/build/Cantian_PKG/file
+  B_VERSION=$(grep -oP '<Bversion>\K[^<]+' "${CTDB_CODE_PATH}"/../ProductComm_DoradoAA/CI/conf/cmc/dbstore/archive_cmc_versions.xml | sed 's/Cantian //g')
+  echo "B_VERSION: ${B_VERSION}"
+  if [[ x"${B_VERSION}" != x"" ]];then
+      sed -i "s/Version: [^ ]*/Version: ${B_VERSION}/" "${CURRENT_PATH}"/versions.yml
+  fi
+  sed -i 's#ChangeVersionTime: .*#ChangeVersionTime: '"$(date +%Y/%m/%d\ %H:%M)"'#' "${CURRENT_PATH}"/versions.yml
   cp -arf "${CURRENT_PATH}"/versions.yml ${pkg_real_path}/
   cp -arf "${CANTIANDB_BIN}"/rpm/RPMS/"${ENV_TYPE}"/cantian*.rpm ${pkg_real_path}/repo/
   cp -arf "${CTDB_CODE_PATH}"/temp/ct_om/rpm/RPMS/"${ENV_TYPE}"/ct_om*.rpm ${pkg_real_path}/repo
