@@ -222,8 +222,7 @@ def read_file_path():
         g_opts.note_id = json_data.get('node_id', "").strip()
         g_opts.share_logic_ip = json_data.get('share_logic_ip', "").strip()
         g_opts.cluster_name = json_data.get('cluster_name', "").strip()
-        g_opts.ini_file = os.path.join(g_opts.ini_file + json_data.get('storage_share_fs'),
-                                       "node" + g_opts.note_id, "dbstor_config.ini")
+        g_opts.ini_file = "/opt/cantian/dbstor/tools/dbstor_config.ini"
         g_opts.backup_ini_file = os.path.join(g_opts.conf_file_path, "dbstor_config.ini")
 
 

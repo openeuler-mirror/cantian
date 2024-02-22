@@ -94,6 +94,9 @@ extern "C" {
 #define IS_TEMP_SPACE(space) (((space)->ctrl->type & SPACE_TYPE_TEMP) != 0)
 #define IS_SWAP_SPACE(space) (((space)->ctrl->type & SPACE_TYPE_SWAP) != 0)
 #define IS_USER_SPACE(space) (((space)->ctrl->type & SPACE_TYPE_USERS) != 0)
+// only accept for restore 2 node space ctrl
+#define IS_NODE0_SPACE(space) (((space)->ctrl->type & SPACE_TYPE_NODE0) != 0)
+#define IS_NODE1_SPACE(space) (((space)->ctrl->type & SPACE_TYPE_NODE1) != 0)
 #define IS_TEMP2_UNDO_SPACE(space) ((((space)->ctrl->type & SPACE_TYPE_UNDO) != 0) && \
     ((space)->ctrl->type & SPACE_TYPE_TEMP) != 0)
 
@@ -170,6 +173,7 @@ typedef struct st_space {
     bool8 swap_bitmap;
     volatile bool8 punching;
     uint8 reserved[2];
+    drlock_t ctrl_bak_lock;
 } space_t;
 
 typedef enum st_ext_size {

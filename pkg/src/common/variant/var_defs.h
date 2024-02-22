@@ -226,6 +226,35 @@ static inline int32 cm_compare_double(double x_input, double y_input)
     return (diff > 0) ? 1 : -1;
 }
 
+static inline double cm_get_double_val(unsigned char *x_input)
+{
+    double x;
+    unsigned char *x_ptr = (unsigned char *)&x;
+
+    // little-endian
+    for (uint32 i = 0; i < sizeof(double); i++) {
+        x_ptr[i] = x_input[i];
+    }
+
+    return x;
+}
+ 
+static inline int32 cm_compare_double_by_byte(double x_input, double y_input)
+{
+    double x;
+    double y;
+    x = cm_get_double_val((unsigned char *)&x_input);
+    y = cm_get_double_val((unsigned char *)&y_input);
+
+    if (x > y) {
+        return 1;
+    } else if (y > x) {
+        return -1;
+    }
+
+    return 0;
+}
+
 #define CARDINAL_NUMBER 10
 
 #define IS_DZERO(d, dep) (((d) == 0.0) && ((dep) == 0))

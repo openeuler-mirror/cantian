@@ -1656,7 +1656,7 @@ status_t rst_extend_file(knl_session_t *session, const char *name, device_type_t
     }
 
     if (size > file_size) {
-        CT_LOG_RUN_INF("[RESTORE] extend file from %lld to %lld, name %s", file_size, size, name);
+        CT_LOG_RUN_INF("[RESTORE] extend file from %lld to %lld, name %s, handle %u", file_size, size, name, handle);
         if (cm_dbs_is_enable_dbs() == CT_TRUE) {
             if (cm_extend_device(type, handle, buf, buf_size, size - file_size,
                 session->kernel->attr.build_datafile_prealloc) != CT_SUCCESS) {
@@ -2723,6 +2723,7 @@ uint32 bak_get_rst_id(bak_t *bak, uint32 asn, reset_log_t *rst_log)
         // rst_id = bak->record.ctrlinfo.rcy_point.lsn <= rst_log->last_lsn ? (rst_log->rst_id - 1) : rst_log->rst_id;
         return rst_log->rst_id;
     } else {
+        CT_LOG_DEBUG_INF("[BACKUP] last_asn %u, rst_id %u, asn %u.", rst_log->last_asn, rst_log->rst_id, asn);
         return asn <= rst_log->last_asn ? (rst_log->rst_id - 1) : rst_log->rst_id;
     }
 }

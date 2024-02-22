@@ -264,7 +264,6 @@ status_t db_alter_add_logfile(knl_session_t *session, knl_alterdb_def_t *def)
         ctx->files = logfile_set->items;
         log_add_freesize(session, slot);
         log_unlock_logfile(session);
-
         if (db_save_log_ctrl(session, slot, dev_def->node_id) != CT_SUCCESS) {
             cm_remove_device(logfile->ctrl->type, logfile->ctrl->name);
             CM_ABORT(0, "[DB] ABORT INFO: failed to save whole control file when alter database");
@@ -453,7 +452,6 @@ void rd_alter_add_logfile(knl_session_t *session, log_entry_t *log)
     ctx->files = logfile_set->items;
     log_add_freesize(session, rd->slot);
     log_unlock_logfile(session);
-
     if (db_save_log_ctrl(session, rd->slot, rd->node_id) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: failed to save whole control file");
     }
@@ -558,7 +556,6 @@ void rd_alter_drop_logfile(knl_session_t *session, log_entry_t *log)
     logfile_set->log_count--;
     dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, session->kernel->id);
     ctrl->log_count--;
-
     if (db_save_log_ctrl(session, inx, logfile->ctrl->node_id) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: failed to save whole control file");
     }

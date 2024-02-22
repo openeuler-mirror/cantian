@@ -239,14 +239,15 @@ void cm_set_dbs_uuid_lsid(const char* uuid, uint32 lsid)
     return;
 }
 
-status_t cm_dbs_init(const char* home_path)
+status_t cm_dbs_init(const char *home_path, char *cfg_name, dbs_init_mode init_mode)
 {
 #ifndef DB_DEBUG_VERSION
-    atexit(exit_panic);
+    if (init_mode == DBS_RUN_CMS_SERVER) {
+        atexit(exit_panic);
+    }
 #endif
     int32 ret;
     cm_dbs_cfg_s *cfg = cm_dbs_get_cfg();
-
     if (!cfg->enable) {
         CT_LOG_RUN_INF("DBStor is not enabled");
         return CT_SUCCESS;
@@ -257,7 +258,9 @@ status_t cm_dbs_init(const char* home_path)
         CT_LOG_RUN_ERR("Failed to assemble the dbstor work path by instance home(%s).", home_path);
         return CT_ERROR;
     }
-    ret = dbs_global_handle()->dbs_client_lib_init(dbstor_work_path);
+    dbs_global_handle()->dbs_set_init_mode(init_mode);
+
+    ret = dbs_global_handle()->dbs_client_lib_init(dbstor_work_path, cfg_name);
     if (ret != 0) {
         CT_LOG_RUN_ERR("Failed(%d) to init dbstor client at %s.", ret, dbstor_work_path);
         return CT_ERROR;

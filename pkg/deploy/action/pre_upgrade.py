@@ -30,7 +30,7 @@ if __name__ == '__main__':
     if len(sys.argv[:]) == 1:
         deploy_config = read_install_config(DEPLOY_CONFIG)
         deploy_mode = deploy_config.get("deploy_mode", "dbstore")
-        if deploy_mode != "dbstore":
+        if deploy_mode == "nas":
             NEW_CONFIG_PATH = NEW_FILE_CONFIG_PATH
             if os.path.exists(SOURCE_FILE_CONFIG_PATH):
                 SOURCE_CONFIG_PATH = SOURCE_FILE_CONFIG_PATH

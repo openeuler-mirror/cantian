@@ -1,6 +1,8 @@
 #!/bin/bash
 set +x
 
+CURRENT_PATH=$(dirname $(readlink -f $0))
+
 function log() {
   printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1"
 }
@@ -64,10 +66,18 @@ function prepare_cms_gcc() {
   fi
 
   if [ "${NODE_ID}" == 0 ]; then
-    rm -rf ${GCC_HOME}*
-    log "zeroing ${GCC_HOME} on node ${NODE_ID}"
-    dd if=/dev/zero of=${GCC_HOME} bs=1M count=1024
-    chmod 600 ${GCC_HOME}
+    if [[ ${DEPLOY_MODE} != "dbstore_unify" ]]; then
+      rm -rf ${GCC_HOME}*
+      log "zeroing ${GCC_HOME} on node ${NODE_ID}"
+      dd if=/dev/zero of=${GCC_HOME} bs=1M count=1024
+      chmod 600 ${GCC_HOME}
+    else
+      cms gcc -del
+      cms gcc -create
+      if [ $? -ne 0 ]; then
+        err "GCC CREATE FAILED"
+      fi
+    fi
     set +e
     ${CMS_INSTALL_PATH}/bin/cms gcc -reset -f
     if [ $? -ne 0 ]; then
@@ -184,6 +194,7 @@ function main() {
   (cat ${CLUSTER_CONFIG} | sed 's/ *= */=/g') > $TMPCFG
   source $TMPCFG
   CMS_INSTALL_PATH="${CMS_HOME}/service"
+  DEPLOY_MODE=$(python3 "${CURRENT_PATH}"/get_config_info.py "deploy_mode")
 
   if [ ${PROCESS} == install_cms ]; then
     install_cms

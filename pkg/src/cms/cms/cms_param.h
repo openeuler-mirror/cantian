@@ -52,10 +52,14 @@ typedef struct st_cms_params {
     uint32          cms_mes_msg_channel_num;
     char            cms_home[CMS_PATH_BUFFER_SIZE];
     char            gcc_home[CMS_FILE_NAME_BUFFER_SIZE];
+    char            gcc_dir[CMS_FILE_NAME_BUFFER_SIZE];
     char            cms_gcc_bak[CMS_FILE_NAME_BUFFER_SIZE];
     char            wait_detect_file[CMS_MAX_DISK_DETECT_FILE][CMS_MAX_DETECT_FILE_NAME];
     char            stop_rerun_script[CMS_FILE_NAME_BUFFER_SIZE];
     char            exit_num_file[CMS_FILE_NAME_BUFFER_SIZE];
+    char            fs_name[CMS_FILE_NAME_BUFFER_SIZE];
+    char            cluster_name[CMS_FILE_NAME_BUFFER_SIZE];
+    char            detect_file[CMS_FILE_NAME_BUFFER_SIZE];
     cms_split_brain_type_t split_brain;
     cms_dev_type_t  gcc_type;
     uint32          cms_mes_pipe_type;

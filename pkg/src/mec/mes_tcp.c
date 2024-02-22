@@ -421,7 +421,7 @@ status_t mes_init_ssl(void)
         ssl_config.key_file = auth_file->key_file;
         ssl_config.crl_file = auth_file->crl_file;
         ssl_config.verify_peer = g_mes.profile.ssl_verify_peer;
-        char plain_pwd[CT_PASSWD_MAX_LEN];
+        char plain_pwd[CT_PASSWD_MAX_LEN] = {0};
         if (g_enable_dbstor) {
             char plain[CT_PASSWD_MAX_LEN + CT_AESBLOCKSIZE + 4];
             CT_RETURN_IFERR(mes_ssl_decode_kmc_pwd(plain, sizeof(plain)));

@@ -80,7 +80,11 @@ status_t cm_lock_range_fd(int32 fd, uint64 l_start, uint64 l_len, uint8 type);
 status_t cm_lockw_range_fd(int32 fd, uint64 l_start, uint64 l_len);
 status_t cm_lockr_range_fd(int32 fd, uint64 l_start, uint64 l_len);
 status_t cm_unlock_range_fd(int32 fd, uint64 l_start, uint64 l_len);
-
+status_t cm_dbs_lock_init(char *fileName, uint32 offset, uint32 len, int32* lockId);
+status_t cm_lock_range_dbs(int32 fd, uint8 lock_type);
+status_t cm_unlock_range_dbs(int32 fd, uint8 lock_type);
+status_t cm_unlock_range_dbs_force(int32 fd, uint8 lock_type);
+bool32 cm_check_dbs_beat(uint32 timeout);
 #ifdef __cplusplus
 }
 #endif

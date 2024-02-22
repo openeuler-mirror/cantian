@@ -35,6 +35,7 @@
 #include "dtc_ckpt.h"
 
 #define BAK_GET_CTRL_RETRY_TIMES 3
+#define ARCH_FORCE_ARCH_CHECK_INTERVAL_MS 1000
 
 static status_t dtc_load_archive(list_t *arch_dir_list)
 {
@@ -244,24 +245,115 @@ status_t dtc_bak_fetch_last_log(knl_session_t *session, bak_t *bak, uint32 *last
     return dtc_bak_switch_logfile(session, *last_asn, inst_id);
 }
 
-status_t dtc_bak_get_arch_start_and_end_point(knl_session_t *session, uint32 inst_id,
-                                              uint32 *start_asn, uint32 *end_asn)
+status_t bak_get_arch_file_head(knl_session_t *session, const char *arch_path, char *arch_name, log_file_head_t *head)
+{
+    char tmp_buf[CT_FILE_NAME_BUFFER_SIZE] = {0};
+    status_t ret = memset_s(tmp_buf, CT_FILE_NAME_BUFFER_SIZE, 0, CT_FILE_NAME_BUFFER_SIZE);
+    knl_securec_check(ret);
+    bak_set_file_name(tmp_buf, arch_path, arch_name);
+    int32 handle = CT_INVALID_HANDLE;
+    device_type_t type = cm_device_type(tmp_buf);
+    if (cm_open_device(tmp_buf, type, O_BINARY | O_SYNC | O_RDWR, &handle) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (cm_read_device(type, handle, 0, head, sizeof(log_file_head_t)) != CT_SUCCESS) {
+        cm_close_device(type, &handle);
+        return CT_ERROR;
+    }
+    cm_close_device(type, &handle);
+    if (head->dbid == session->kernel->db.ctrl.core.dbid) {
+    } else {
+        CT_LOG_RUN_WAR("[BACKUP] the dbid %u of archive logfile %s is different from the bak dbid %u",
+            head->dbid, tmp_buf, session->kernel->db.ctrl.core.dbid);
+    }
+    return CT_SUCCESS;
+}
+
+status_t bak_get_arch_asn_file(knl_session_t *session, log_start_end_info_t arch_info, uint32 inst_id,
+                               bak_arch_files_t *arch_file_buf)
+{
+    uint32 rst_id = session->kernel->db.ctrl.core.resetlogs.rst_id;
+    local_arch_file_info_t file_info;
+    DIR *arch_dir;
+    struct dirent *arch_dirent;
+    arch_attr_t *arch_attr = &session->kernel->attr.arch_attr[0];
+    char *arch_path = arch_attr->local_path;
+    log_file_head_t head;
+    char tmp_file_name[CT_FILE_NAME_BUFFER_SIZE];
+    if ((arch_dir = opendir(arch_path)) == NULL) {
+        CT_LOG_RUN_ERR("[BACKUP] can not open arch_dir %s.", arch_path);
+        return CT_ERROR;
+    }
+    while ((arch_dirent = readdir(arch_dir)) != NULL) {
+        if (bak_convert_archfile_name(arch_dirent->d_name, &file_info, inst_id, rst_id,
+                                      BAK_IS_DBSOTR(&session->kernel->backup_ctx.bak)) == CT_FALSE) {
+            continue;
+        }
+        if (bak_get_arch_file_head(session, arch_path, arch_dirent->d_name, &head) != CT_SUCCESS) {
+            closedir(arch_dir);
+            return CT_ERROR;
+        }
+
+        if (head.dbid != session->kernel->db.ctrl.core.dbid) {
+            CT_LOG_RUN_WAR("[BACKUP] the dbid %u of archive logfile %s is different from the bak dbid %u",
+                head.dbid, arch_dirent->d_name, session->kernel->db.ctrl.core.dbid);
+            continue;
+        }
+        arch_info.result_asn->max_asn = MAX(arch_info.result_asn->max_asn, file_info.local_asn);
+        bak_set_file_name(tmp_file_name, arch_path, arch_dirent->d_name);
+        if (bak_set_archfile_info_file(arch_info, file_info, arch_file_buf, tmp_file_name, &head) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    }
+    closedir(arch_dir);
+    return CT_SUCCESS;
+}
+
+status_t dtc_bak_get_arch_start_and_end_point(knl_session_t *session, uint32 inst_id, bak_arch_files_t *arch_file_buf,
+                                              log_start_end_asn_t *local_arch_file_asn, log_start_end_asn_t *target_asn)
 {
     knl_instance_t *kernel = session->kernel;
     bak_context_t *ctx = &kernel->backup_ctx;
     bak_t *bak = &ctx->bak;
     bak_ctrlinfo_t *ctrlinfo = &bak->record.ctrlinfo;
-
-    *start_asn = ctrlinfo->dtc_rcy_point[inst_id].asn;
-    if (dtc_bak_fetch_last_log(session, bak, end_asn, inst_id) != CT_SUCCESS) {
+    log_start_end_lsn_t lsn = {0, 0, 0};
+    target_asn->start_asn = ctrlinfo->dtc_rcy_point[inst_id].asn;
+    target_asn->end_asn = ctrlinfo->dtc_lrp_point[inst_id].asn;
+    uint64 end_lsn = 0;
+    uint32 arch_num = 0;
+    log_start_end_info_t arch_info = {local_arch_file_asn, target_asn, &lsn, &end_lsn, &arch_num};
+    if (dtc_bak_fetch_last_log(session, bak, &target_asn->end_asn, inst_id) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] dtc fetch last log failed");
+    }
+    if (bak_get_arch_asn_file(session, arch_info, inst_id, arch_file_buf) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] dtc fetch start and end arch log file asn failed");
         return CT_ERROR;
     }
-    if (*end_asn < ctrlinfo->dtc_lrp_point[inst_id].asn) {
-        CT_LOG_RUN_ERR("[BACKUP] dtc fetch last log asn is invalid");
+    if (arch_info.result_asn->start_asn > target_asn->start_asn) {
+        CT_LOG_RUN_ERR("[BACKUP] dtc fetch log fail, can not fetch start_asn %u, local_start_asn %u.",
+                       target_asn->start_asn, arch_info.result_asn->start_asn);
         return CT_ERROR;
     }
-
+    if (arch_info.result_asn->end_asn < target_asn->end_asn) {
+        CT_LOG_RUN_ERR("[BACKUP] dtc fetch log fail, can not fetch end_asn %u, local_end_asn %u.",
+                       target_asn->end_asn, arch_info.result_asn->end_asn);
+    }
+    if (arch_num != 0) {
+        if (arch_num != local_arch_file_asn->end_asn - local_arch_file_asn->start_asn + 1) {
+            CT_LOG_RUN_ERR("[BACKUP] start or end arch log file asn invalid, "
+                           "arch num %u, start asn %u, end asn %u, max asn %u",
+                           arch_num, local_arch_file_asn->start_asn, local_arch_file_asn->end_asn,
+                           local_arch_file_asn->max_asn);
+            CT_LOG_RUN_WAR("[BACKUP] check whether the lastest archive files are lost before backup task");
+        }
+        for (int i = local_arch_file_asn->start_asn; i <= local_arch_file_asn->end_asn; i++) {
+            bak_arch_files_t *arch_file = (bak_arch_files_t *)(arch_file_buf + (i - local_arch_file_asn->start_asn));
+            CT_LOG_RUN_INF("[BACKUP] arch file name %s, start lsn %llu, end lsn %llu",
+                arch_file->arch_file_name, arch_file->start_lsn, arch_file->end_lsn);
+        }
+    }
+    CT_LOG_RUN_INF("[BACKUP] get arch log files in dir, start asn %u end asn %u instid %u.",
+                   local_arch_file_asn->start_asn, local_arch_file_asn->end_asn, inst_id);
     return CT_SUCCESS;
 }
 
@@ -319,6 +411,34 @@ status_t dtc_bak_read_logfile_data(knl_session_t *session, bak_process_t *proc, 
     return CT_SUCCESS;
 }
 
+status_t dtc_bak_get_arch_file(knl_session_t *session, uint32 inst_id, bak_arch_files_t *arch_file_buf, log_start_end_asn_t *local_arch_file_asn)
+{
+    knl_instance_t *kernel = session->kernel;
+    bak_context_t *ctx = &kernel->backup_ctx;
+    bak_process_t *proc = &ctx->process[BAK_COMMON_PROC];
+    uint32 block_size;
+    uint32 local_last_asn = local_arch_file_asn->end_asn;
+    uint32 local_start_asn = local_arch_file_asn->start_asn;
+    uint32 curr_asn = local_start_asn;
+    for (; curr_asn <= local_last_asn; curr_asn++) {
+        if (bak_paral_task_enable(session)) {
+            if (bak_get_free_proc(session, &proc, CT_FALSE) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+        }
+        bak_arch_files_t *arch_file = bak_get_arch_by_index(arch_file_buf, curr_asn, *local_arch_file_asn);
+        if (dtc_bak_get_arch_ctrl(session, proc, curr_asn, &block_size, arch_file) != CT_SUCCESS) {
+            dtc_bak_unlatch_logfile(session, proc, inst_id);
+            return CT_ERROR;
+        }
+        proc->assign_ctrl.log_block_size = block_size;
+        if (dtc_bak_read_logfile_data(session, proc, block_size, inst_id) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    }
+    return CT_SUCCESS;
+}
+
 status_t dtc_bak_read_logfiles(knl_session_t *session, uint32 inst_id)
 {
     knl_instance_t *kernel = session->kernel;
@@ -326,50 +446,38 @@ status_t dtc_bak_read_logfiles(knl_session_t *session, uint32 inst_id)
     bak_t *bak = &ctx->bak;
     bak_ctrlinfo_t *ctrlinfo = &bak->record.ctrlinfo;
     uint32 curr_asn = (uint32)ctrlinfo->dtc_rcy_point[inst_id].asn;
-    bak_process_t *proc = &ctx->process[BAK_COMMON_PROC];
-    uint32 last_asn;
-    uint64 data_size;
-    uint32 block_size;
-    int64 curr_size;
+    uint64 data_size  = 0;
+    int64 curr_size = 0;
 
     bak->inst_id = inst_id;
 
     if (dtc_bak_read_log_check_param(session, &curr_asn, inst_id) == CT_FALSE) {
         return CT_SUCCESS;
     }
+    bak_arch_files_t *arch_file_buf = (bak_arch_files_t *)malloc(sizeof(bak_arch_files_t) * BAK_ARCH_FILE_MAX_NUM);
+    errno_t ret = memset_sp(arch_file_buf, sizeof(bak_arch_files_t) * BAK_ARCH_FILE_MAX_NUM, 0, sizeof(bak_arch_files_t) * BAK_ARCH_FILE_MAX_NUM);
+    knl_securec_check(ret);
+    log_start_end_asn_t local_arch_file_asn = {0, 0, 0};
+    log_start_end_asn_t target_arch_file_asn = {0, 0, 0};
 
-    if (dtc_bak_get_arch_start_and_end_point(session, inst_id, &curr_asn, &last_asn) != CT_SUCCESS) {
+    if (dtc_bak_get_arch_start_and_end_point(session, inst_id, arch_file_buf, &local_arch_file_asn, &target_arch_file_asn) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] dtc get log start and end log failed");
         return CT_ERROR;
     }
 
     if (dtc_get_log_curr_size(session, inst_id, &curr_size) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] dtc curr_size failed");
+    }
+    data_size = (uint64)curr_size * (local_arch_file_asn.end_asn - local_arch_file_asn.start_asn + 1);
+    bak_set_progress(session, BACKUP_LOG_STAGE, data_size);
+    CT_LOG_RUN_ERR("[BACKUP] curr_size %llu.", (uint64)data_size);
+    uint32 target_end_asn = target_arch_file_asn.end_asn;
+    if (local_arch_file_asn.end_asn < target_end_asn &&
+        dtc_bak_get_logfile_by_asn_file(session, arch_file_buf, local_arch_file_asn, inst_id, &target_arch_file_asn) != CT_SUCCESS) {
         return CT_ERROR;
     }
-    data_size = (uint64)curr_size * (last_asn - curr_asn + 1);
-    bak_set_progress(session, BACKUP_LOG_STAGE, data_size);
-
-    for (; curr_asn <= last_asn; curr_asn++) {
-        if (curr_asn == last_asn && !BAK_IS_DBSOTR(bak)) {
-            if (dtc_bak_switch_logfile(session, last_asn, inst_id) != CT_SUCCESS) {
-                return CT_ERROR;
-            }
-        }
-
-        if (bak_paral_task_enable(session)) {
-            if (bak_get_free_proc(session, &proc, CT_FALSE) != CT_SUCCESS) {
-                return CT_ERROR;
-            }
-        }
-
-        if (dtc_bak_set_log_ctrl(session, proc, curr_asn, &block_size, inst_id) != CT_SUCCESS) {
-            dtc_bak_unlatch_logfile(session, proc, inst_id);
-            return CT_ERROR;
-        }
-
-        proc->assign_ctrl.log_block_size = block_size;
-
-        if (dtc_bak_read_logfile_data(session, proc, block_size, inst_id) != CT_SUCCESS) {
+    if (local_arch_file_asn.start_asn != 0) {
+        if (dtc_bak_get_arch_file(session, inst_id, arch_file_buf, &local_arch_file_asn) != CT_SUCCESS) {
             return CT_ERROR;
         }
     }
@@ -490,6 +598,36 @@ status_t dtc_bak_set_log_ctrl_dbstor(knl_session_t *session, bak_process_t *proc
         return CT_ERROR;
     }
     process->assign_ctrl.file_size = cm_device_size(process->ctrl.type, process->ctrl.handle);
+    return CT_SUCCESS;
+}
+
+status_t dtc_bak_get_arch_ctrl(knl_session_t *session, bak_process_t *process, uint32 asn, uint32 *block_size, bak_arch_files_t *arch_file)
+{
+    bak_context_t *ctx = &session->kernel->backup_ctx;
+    database_t *db = &session->kernel->db;
+    bak_t *bak = &ctx->bak;
+    if (arch_file == NULL) {
+        CT_LOG_RUN_ERR("[BACKUP] invalid archive file addr!");
+        return CT_ERROR;
+    }
+    CT_LOG_RUN_INF("[BACKUP] arch file name %s, start lsn %llu, end lsn %llu, asn %u, block_size %u, file_size %llu.",
+                   arch_file->arch_file_name, arch_file->start_lsn, arch_file->end_lsn, arch_file->asn,
+                   arch_file->block_size, arch_file->file_size);
+    uint32 rst_id = bak_get_rst_id(bak, asn, &(db->ctrl.core.resetlogs));
+    errno_t ret;
+    process->assign_ctrl.file_size = arch_file->file_size;
+    ret = strcpy_sp(process->ctrl.name, CT_FILE_NAME_BUFFER_SIZE, arch_file->arch_file_name);
+    knl_securec_check(ret);
+    process->ctrl.type = cm_device_type(process->ctrl.name);
+    *block_size = arch_file->block_size;
+    bak_record_new_file(bak, BACKUP_ARCH_FILE, asn, 0, rst_id, CT_FALSE, arch_file->start_lsn, arch_file->end_lsn);
+
+    if (cm_open_device(process->ctrl.name, process->ctrl.type, knl_io_flag(session), &process->ctrl.handle) !=
+        CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] failed to open %s", process->ctrl.name);
+        return CT_ERROR;
+    }
+
     return CT_SUCCESS;
 }
 
@@ -1078,6 +1216,24 @@ uint64 dtc_bak_get_max_lrp_lsn(bak_ctrlinfo_t *ctrlinfo)
     return lsn;
 }
 
+status_t dtc_bak_force_arch_local_file(knl_session_t *session)
+{
+    arch_context_t *arch_ctx = &session->kernel->arch_ctx;
+    if (log_switch_logfile(session, CT_INVALID_FILEID, CT_INVALID_ASN, NULL) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    cm_spin_lock(&arch_ctx->dest_lock, NULL);
+    arch_ctx->force_archive_param.force_archive = CT_TRUE;
+    cm_spin_unlock(&arch_ctx->dest_lock);
+    while (arch_ctx->force_archive_param.force_archive == CT_TRUE) {
+        cm_sleep(ARCH_FORCE_ARCH_CHECK_INTERVAL_MS);
+    }
+    if (arch_ctx->force_archive_param.failed) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
 status_t dtc_bak_force_arch_local(knl_session_t *session, uint64 lsn)
 {
     if (arch_force_archive_trigger(session, lsn, CT_TRUE) != CT_SUCCESS) {
@@ -1106,7 +1262,11 @@ status_t dtc_bak_force_arch(knl_session_t *session, bak_ctrlinfo_t *ctrlinfo, ui
     for (uint32 i = 0; i < g_dtc->profile.node_count; i++) {
         rc_get_cluster_view(&view, CT_FALSE);
         if (i == g_dtc->profile.inst_id) {
-            status = dtc_bak_force_arch_local(session, lsn);
+            if (cm_dbs_is_enable_dbs() == CT_TRUE) {
+                status = dtc_bak_force_arch_local(session, lsn);
+            } else {
+                status = dtc_bak_force_arch_local_file(session);
+            }
             if (status != CT_SUCCESS) {
                 return status;
             }
@@ -1153,12 +1313,21 @@ status_t dtc_bak_handle_log_switch(knl_session_t *session)
     status_t status;
     for (uint32 i = 0; i < g_dtc->profile.node_count; i++) {
         if (i == g_dtc->profile.inst_id) {
-            status = dtc_bak_force_arch_local(session, CT_INVALID_ID64);
+            if (cm_dbs_is_enable_dbs() == CT_TRUE) {
+                status = dtc_bak_force_arch_local(session, CT_INVALID_ID64);
+            } else {
+                status = dtc_bak_force_arch_local_file(session);
+            }
+            
             if (status != CT_SUCCESS) {
                 return status;
             }
         } else {
-            status = dtc_bak_force_arch_by_instid(session, CT_INVALID_ID64, i);
+            if (cm_dbs_is_enable_dbs() == CT_TRUE) {
+                status = dtc_bak_force_arch_by_instid(session, CT_INVALID_ID64, i);
+            } else {
+                status = dtc_bak_force_arch_by_instid(session, 0, i);
+            }
             if (status != CT_SUCCESS) {
                 return status;
             }
@@ -1496,7 +1665,6 @@ static status_t dtc_bak_reset_logfile(knl_session_t *session, uint32 asn, uint32
         } else {
             logfile->status = LOG_FILE_INACTIVE;
         }
-
         if (db_save_log_ctrl(session, i, logfile->node_id) != CT_SUCCESS) {
             CM_ABORT(0, "[BACKUP] ABORT INFO: save core control file failed when restore log files");
         }
@@ -1642,9 +1810,9 @@ status_t dtc_rst_regist_archive_asn_by_dbstor(knl_session_t *session, uint32 *la
         char file_name[CT_FILE_NAME_BUFFER_SIZE] = {0};
         file_name_info.buf = file_name;
         if (*archive_asn == 1) {
-            status = arch_find_first_archfile_rst(session, &file_name_info);
+            status = arch_find_first_archfile_rst(session, session->kernel->attr.arch_attr[0].local_path, session->kernel->db.ctrl.core.bak_dbid, &file_name_info);
         } else {
-            status = arch_find_archive_asn_log_name(session, &file_name_info);
+            status = arch_find_archive_asn_log_name(session, session->kernel->attr.arch_attr[0].local_path, session->kernel->db.ctrl.core.bak_dbid, &file_name_info);
         }
         if (status != CT_SUCCESS) {
             break;
@@ -1753,6 +1921,12 @@ status_t dtc_rst_regist_archive(knl_session_t *session, uint32 *last_archived_as
                 break;
             }
         }
+        arch_file_name_info_t file_name_info = {rst_id, archive_asn, inst_id,
+                                                CT_FILE_NAME_BUFFER_SIZE, 0, 0, file_name};
+        if (arch_validate_archive_file(session, &file_name_info) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[ARCH] failed to load archive file");
+            break;
+        }
         if (dtc_rst_arch_regist_archive(session, file_name, inst_id) != CT_SUCCESS) {
             return CT_ERROR;
         }
@@ -1833,16 +2007,27 @@ status_t dtc_rst_amend_files(knl_session_t *session, int32 file_index)
 
     bak_set_progress(session, BACKUP_BUILD_STAGE, data_size);
     dtc_rst_update_process_data_size(session, ctx);
-
-    if (dtc_rst_amend_ctrlinfo(session, last_archived_asn, file_id, session->kernel->id) != CT_SUCCESS) {
-        return CT_ERROR;
+    uint32 inst_id;
+    bak_ctrlinfo_t *ctrlinfo = &bak->record.ctrlinfo;
+    uint32 node_count = session->kernel->db.ctrl.core.node_count;
+    if (!is_dbstor) {
+        for (uint32 i = 0; i < node_count; i++) {
+            last_archived_asn = ctrlinfo->dtc_lrp_point[i].asn;
+            if (dtc_rst_amend_ctrlinfo(session, last_archived_asn + 1, file_id, i) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+        }
+    } else {
+        if (dtc_rst_amend_ctrlinfo(session, last_archived_asn, file_id, session->kernel->id) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
     }
 
     for (int32 i = file_index; i >= 0; i--) {
         if (bak->files[i].type != BACKUP_ARCH_FILE && bak->files[i].type != BACKUP_LOG_FILE) {
             break;
         }
-        uint32 inst_id = bak->files[i].inst_id;
+        inst_id = bak->files[i].inst_id;
         // processes only the last archive file to each node
         if (prev_inst_id == inst_id) {
             continue;
@@ -1919,8 +2104,9 @@ status_t dtc_rst_create_logfiles(knl_session_t *session)
             if (LOG_IS_DROPPED(logfile->flg)) {
                 continue;
             }
-
-            if (cm_create_device(logfile->name, logfile->type, knl_io_flag(session), &handle) != CT_SUCCESS) {
+            if (cm_build_device(logfile->name, logfile->type, session->kernel->attr.xpurpose_buf,
+                CT_XPURPOSE_BUFFER_SIZE, logfile->size,
+                knl_io_flag(session), CT_FALSE, &handle) != CT_SUCCESS) {
                 CT_LOG_RUN_ERR("[RESTORE] failed to create %s ", logfile->name);
                 return CT_ERROR;
             }
@@ -2160,6 +2346,123 @@ status_t bak_get_logfile_by_lsn_dbstor(knl_session_t *session, bak_arch_files_t 
     return CT_SUCCESS;
 }
 
+uint32 log_get_id_from_fileset_by_asn_node_id(logfile_set_t *file_set, uint32 rst_id, uint32 asn)
+{
+    if (asn == CT_INVALID_ASN) {
+        return CT_INVALID_ID32;
+    }
+
+    for (uint32 i = 0; i < file_set->logfile_hwm; i++) {
+        log_file_t *file = &file_set->items[i];
+
+        if (LOG_IS_DROPPED(file->ctrl->flg)) {
+            continue;
+        }
+
+        if (file->head.rst_id != rst_id || file->head.asn != asn) {
+            continue;
+        }
+
+        return i;
+    }
+
+    return CT_INVALID_ID32;
+}
+
+status_t bak_get_arch_from_redo_prepare(knl_session_t *session, knl_session_t *session_bak,
+                                        arch_file_info_t *file_info, dtc_rcy_node_t *rcy_node, logfile_set_t *local_file_set)
+{
+    errno_t ret;
+    ret = memcpy_s((char*)session_bak, sizeof(knl_session_t), (char*)session, sizeof(knl_session_t));
+    knl_securec_check(ret);
+    session_bak->kernel = (knl_instance_t *)malloc(sizeof(knl_instance_t));
+    ret = memcpy_s((char*)session_bak->kernel, sizeof(knl_instance_t), (char*)session->kernel, sizeof(knl_instance_t));
+    knl_securec_check(ret);
+    session_bak->kernel->attr.xpurpose_buf = cm_aligned_buf(g_instance->xpurpose_buf);
+    session_bak->kernel->db.status = DB_STATUS_CLOSED;
+    if (cm_aligned_malloc(CT_MAX_BATCH_SIZE, "bak log batch buffer", &file_info->read_buf) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    int64 size = (int64)LOG_LGWR_BUF_SIZE(session);
+    if (cm_aligned_malloc(size, "bak rcy read buffer", &rcy_node->read_buf) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    logfile_set_t *file_set = LOGFILE_SET(session, rcy_node->node_id);
+    local_file_set->log_count = file_set->log_count;
+    local_file_set->logfile_hwm = file_set->logfile_hwm;
+    if (dtc_init_node_logset_for_backup(session, rcy_node->node_id, rcy_node, local_file_set) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+void bak_get_arch_from_redo_free(knl_compress_t *compress_ctx, knl_session_t *session, arch_file_info_t *file_info,
+                                 dtc_rcy_node_t *rcy_node, logfile_set_t *local_file_set)
+{
+    CM_FREE_PTR(session->kernel);
+    cm_aligned_free(&file_info->read_buf);
+    cm_aligned_free(&rcy_node->read_buf);
+    for (uint32 i = 0; i <  local_file_set->logfile_hwm; i++) {
+        if (rcy_node->handle[i] != CT_INVALID_HANDLE) {
+            cm_close_device(local_file_set->items[i].ctrl->type, &rcy_node->handle[i]);
+        }
+    }
+    cm_aligned_free(&rcy_node->read_buf);
+}
+
+status_t dtc_bak_get_logfile_by_asn_file(knl_session_t *session, bak_arch_files_t *arch_file_buf,
+                                         log_start_end_asn_t asn, uint32 inst_id, log_start_end_asn_t *target_asn)
+{
+    bak_t *bak = &session->kernel->backup_ctx.bak;
+    dtc_rcy_node_t rcy_node;
+    rcy_node.node_id = inst_id;
+    logfile_set_t local_file_set;
+    arch_file_info_t file_info;
+    knl_compress_t compress_ctx;
+    knl_session_t session_bak;
+    status_t status = CT_SUCCESS;
+    if (knl_compress_alloc(DEFAULT_ARCH_COMPRESS_ALGO, &compress_ctx, CT_TRUE) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] Failed to alloc compress context");
+        return CT_ERROR;
+    }
+    if (bak_get_arch_from_redo_prepare(session, &session_bak, &file_info, &rcy_node, &local_file_set) != CT_SUCCESS) {
+        knl_compress_free(DEFAULT_ARCH_COMPRESS_ALGO, &compress_ctx, CT_TRUE);
+        return CT_ERROR;
+    }
+    uint32 rst_id = session->kernel->db.ctrl.core.resetlogs.rst_id;
+    dtc_node_ctrl_t *node_ctrl = dtc_get_ctrl(session, inst_id);
+    log_file_t *curr_logfile = &local_file_set.items[node_ctrl->log_last];
+    uint32 tmp_asn = asn.end_asn == 0 ? target_asn->start_asn - 1 : asn.end_asn;
+    CT_LOG_RUN_INF("[BACKUP] log_first %llu, log_last %llu, last_asn %llu, curr_asn %llu, asn.end_asn %u, tmp_asn %u.",
+                   (uint64)node_ctrl->log_first, (uint64)node_ctrl->log_last, (uint64)node_ctrl->last_asn, (uint64)curr_logfile->head.asn, asn.end_asn, target_asn->start_asn);
+    while (tmp_asn < target_asn->end_asn && tmp_asn + 1 <= curr_logfile->head.asn) {
+        uint32 file_id = log_get_id_from_fileset_by_asn_node_id(&local_file_set, rst_id, tmp_asn + 1);
+        if (file_id == CT_INVALID_ID32) {
+            status = CT_ERROR;
+            break;
+        }
+        CT_LOG_RUN_INF("[BACKUP] get next_file_id %u.", file_id);
+        log_file_t *logfile = &local_file_set.items[file_id];
+        if (logfile->head.write_pos == CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size)) {
+            tmp_asn += 1;
+            continue;
+        }
+        file_info.logfile.ctrl = logfile->ctrl;
+        file_info.inst_id = inst_id;
+        file_info.asn = tmp_asn + 1;
+        file_info.arch_file_type = cm_device_type(bak->record.path);
+        if (bak_get_logfile_file(session, &file_info, logfile, &compress_ctx) != CT_SUCCESS) {
+            status = CT_ERROR;
+            break;
+        }
+        tmp_asn += 1;
+    }
+    knl_compress_free(DEFAULT_ARCH_COMPRESS_ALGO, &compress_ctx, CT_TRUE);
+    bak_get_arch_from_redo_free(&compress_ctx, &session_bak, &file_info, &rcy_node, &local_file_set);
+    CT_LOG_RUN_INF("[BACKUP] backup logfile from file finished, status %u, end_asn %u.", status, tmp_asn);
+    return CT_SUCCESS;
+}
+
 void bak_set_archfile_info(knl_session_t *session, log_start_end_info_t arch_info,
                            local_arch_file_info_t file_info, bak_arch_files_t *arch_file_buf, char *file_name)
 {
@@ -2199,6 +2502,43 @@ void bak_set_archfile_info(knl_session_t *session, log_start_end_info_t arch_inf
     }
 }
 
+status_t bak_set_archfile_info_file(log_start_end_info_t arch_info, local_arch_file_info_t file_info,
+                                    bak_arch_files_t *arch_file_buf, char *file_name, log_file_head_t *head)
+{
+    bak_arch_files_t *arch_file;
+    bool32 arch_need = CT_FALSE;
+    uint32 arch_num = *(arch_info.arch_num);
+
+    if (file_info.local_asn >= arch_info.target_asn->start_asn &&
+        file_info.local_asn <= arch_info.target_asn->end_asn) {
+        if (arch_info.result_asn->start_asn ==  0) {
+            arch_info.result_asn->start_asn = file_info.local_asn;
+        } else {
+            arch_info.result_asn->start_asn = MIN(arch_info.result_asn->start_asn, file_info.local_asn);
+        }
+        arch_info.result_asn->end_asn = MAX(arch_info.result_asn->end_asn, file_info.local_asn);
+        arch_need = CT_TRUE;
+    }
+
+    if (arch_need) {
+        arch_file = (bak_arch_files_t *)(arch_file_buf + arch_num);
+        errno_t ret = memcpy_sp(arch_file->arch_file_name, BAK_ARCH_FILE_NAME_MAX_LENGTH, file_name, strlen(file_name));
+        knl_securec_check(ret);
+        arch_file->asn = file_info.local_asn;
+        arch_file->block_size = head->block_size;
+        int64 real_file_size;
+        if (arch_get_real_size(arch_file->arch_file_name, &real_file_size) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[BACKUP] Failed to get arch file size for %s.", arch_file->arch_file_name);
+            return CT_ERROR;
+        }
+        arch_file->file_size = real_file_size;
+        *(arch_info.arch_num) += 1;
+        CT_LOG_RUN_INF("[BACKUP] get archived file %s succ, asn %u.",
+            arch_file->arch_file_name, file_info.local_asn);
+    }
+    return CT_SUCCESS;
+}
+
 status_t bak_get_arch_asn(knl_session_t *session, log_start_end_info_t arch_info, uint32 inst_id,
                           bak_arch_files_t *arch_file_buf)
 {
@@ -2213,7 +2553,8 @@ status_t bak_get_arch_asn(knl_session_t *session, log_start_end_info_t arch_info
         return CT_ERROR;
     }
     while ((arch_dirent = readdir(arch_dir)) != NULL) {
-        if (bak_convert_archfile_name(arch_dirent->d_name, &file_info, inst_id, rst_id) == CT_FALSE) {
+        if (bak_convert_archfile_name(arch_dirent->d_name, &file_info, inst_id, rst_id,
+                                      BAK_IS_DBSOTR(&session->kernel->backup_ctx.bak) == CT_FALSE)) {
             continue;
         }
         if (bak_check_archfile_dbid(session, arch_path, arch_dirent->d_name, &dbid_equal) != CT_SUCCESS) {
@@ -2263,10 +2604,16 @@ status_t bak_flush_archfile_head(knl_session_t *session, arch_file_info_t *file_
     knl_securec_check(ret);
 
     log_calc_head_checksum(session, head);
+    file_info->tmp_file_handle = -1;
+    if (cm_open_device(file_info->tmp_file_name, file_info->arch_file_type, O_BINARY | O_SYNC | O_RDWR, &file_info->tmp_file_handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] open %s failed.", file_info->tmp_file_name);
+        return CT_ERROR;
+    }
     if (cm_write_device(file_info->arch_file_type, file_info->tmp_file_handle, 0, head, head_size) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] flush log file head failed.");
         return CT_ERROR;
     }
+    cm_close_device(file_info->arch_file_type, &file_info->tmp_file_handle);
     CT_LOG_RUN_INF("[BACKUP] Flush head start[%llu] end[%llu] asn[%u] rst[%u] fscn[%llu], "
                    "write_pos[%llu] head[%d] dbid[%u]",
                    head->first_lsn, head->last_lsn, head->asn, head->rst_id, head->first, head->write_pos,
@@ -2370,6 +2717,33 @@ status_t bak_generate_archfile_dbstor(knl_session_t *session, arch_file_info_t *
     return CT_SUCCESS;
 }
 
+status_t bak_generate_archfile_file(knl_session_t *session, arch_file_info_t *file_info)
+{
+    if (file_info->offset == CM_CALC_ALIGN(sizeof(log_file_head_t), file_info->logfile.ctrl->block_size)) {
+        CT_LOG_RUN_INF("[BACKUP] there is no need to generate new archive file for backup");
+        return CT_SUCCESS;
+    }
+    bak_t *bak = &session->kernel->backup_ctx.bak;
+    uint32 rst_id = session->kernel->db.ctrl.core.resetlogs.rst_id;
+    char bak_arch_name[CT_FILE_NAME_BUFFER_SIZE] = {0};
+    char *bak_path = session->kernel->backup_ctx.bak.record.path;
+    bak_record_new_file(bak, BACKUP_ARCH_FILE, file_info->asn, 0, rst_id, CT_FALSE,
+                        file_info->start_lsn, file_info->end_lsn);
+
+    uint32 file_index = bak->file_count - 1;
+    bak_generate_bak_file(session, bak_path, bak->files[file_index].type, file_index, bak->files[file_index].id, 0,
+                          bak_arch_name);
+    bak->files[file_index].size = cm_device_size(cm_device_type(file_info->tmp_file_name), file_info->tmp_file_handle);
+    status_t status = cm_rename_device(file_info->arch_file_type, file_info->tmp_file_name, bak_arch_name);
+    if (status != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] rename tmp file %s to %s failed", file_info->tmp_file_name, bak_arch_name);
+        return CT_ERROR;
+    }
+    CT_LOG_DEBUG_INF("[BACKUP] rename tmp file %s to %s succ.", file_info->tmp_file_name, bak_arch_name);
+    CT_LOG_RUN_INF("[BACKUP] backup logfile %s from file succ", bak_arch_name);
+    return CT_SUCCESS;
+}
+
 void bak_free_res_for_get_logfile(arch_file_info_t *file_info)
 {
     cm_close_device(file_info->logfile.ctrl->type, &file_info->logfile.handle);
@@ -2419,6 +2793,21 @@ status_t bak_get_logfile_dbstor(knl_session_t *session, arch_file_info_t *file_i
     return CT_SUCCESS;
 }
 
+status_t bak_get_logfile_file(knl_session_t *session, arch_file_info_t *file_info,
+                              log_file_t *logfile, knl_compress_t *compress_ctx)
+{
+    bak_set_tmp_archfile_name(session, file_info->tmp_file_name);
+    CT_LOG_DEBUG_INF("[BACKUP] set tmp_archfile_name %s.", file_info->tmp_file_name);
+    if (arch_archive_file(session, file_info->read_buf, logfile, file_info->tmp_file_name, compress_ctx) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (bak_generate_archfile_file(session, file_info) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] generate log file failed");
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
 status_t bak_get_arch_start_and_end_point_dbstor(knl_session_t *session, uint32 inst_id,
                                                  log_start_end_asn_t *asn, bak_arch_files_t *arch_file_buf)
 {
@@ -2434,7 +2823,8 @@ status_t bak_get_arch_start_and_end_point_dbstor(knl_session_t *session, uint32 
                                dtc_bak_get_max_lrp_lsn(ctrlinfo)};
     CT_LOG_RUN_INF("[BACKUP] backup logfile, dtc_rcy_point lsn %llu, dtc_lrp_point %llu, max_lrp_lsn %llu",
         lsn.start_lsn, lsn.end_lsn, lsn.max_lsn);
-    log_start_end_info_t arch_info = {asn, &lsn, &end_lsn, &arch_num};
+    log_start_end_asn_t target_asn = {0};
+    log_start_end_info_t arch_info = {asn, &target_asn, &lsn, &end_lsn, &arch_num};
     if (bak_get_arch_asn(session, arch_info, inst_id, arch_file_buf) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] dtc fetch start and end arch log file asn failed");
         return CT_ERROR;
@@ -2638,8 +3028,8 @@ status_t rst_find_first_archfile_with_lsn(knl_session_t *session, arch_info_t fi
         return CT_ERROR;
     }
     while ((arch_dirent = readdir(arch_dir)) != NULL) {
-        if (bak_convert_archfile_name(arch_dirent->d_name, &file_info,
-                                      first_arch_info.inst_id, first_arch_info.rst_id) == CT_FALSE) {
+        if (bak_convert_archfile_name(arch_dirent->d_name, &file_info, first_arch_info.inst_id, first_arch_info.rst_id,
+                                      BAK_IS_DBSOTR(&session->kernel->backup_ctx.bak) == CT_FALSE)) {
             continue;
         }
         if (bak_check_archfile_dbid(session, arch_path, arch_dirent->d_name, &dbid_equal) != CT_SUCCESS) {
@@ -2723,8 +3113,8 @@ status_t rst_find_archfile_name_with_lsn(knl_session_t *session, uint64 lsn, arc
         return CT_ERROR;
     }
     while ((arch_dirent = readdir(arch_dir)) != NULL) {
-        if (bak_convert_archfile_name(arch_dirent->d_name, &file_info,
-                                      arch_info.inst_id, arch_info.rst_id) == CT_FALSE) {
+        if (bak_convert_archfile_name(arch_dirent->d_name, &file_info, arch_info.inst_id, arch_info.rst_id,
+                                      BAK_IS_DBSOTR(&session->kernel->backup_ctx.bak)) == CT_FALSE) {
             continue;
         }
         if (lsn > file_info.local_start_lsn && lsn <= file_info.local_end_lsn) {
@@ -2777,7 +3167,7 @@ void rst_release_modify_resource(device_type_t type, int32 *arch_handle,
     }
 }
 bool32 bak_convert_archfile_name(char *arch_file_name, local_arch_file_info_t *file_info,
-                                 uint32 inst_id, uint32 rst_id)
+                                 uint32 inst_id, uint32 rst_id, bool32 is_dbstor)
 {
     char *file_name = arch_file_name;
     char *pos;
@@ -2794,13 +3184,21 @@ bool32 bak_convert_archfile_name(char *arch_file_name, local_arch_file_info_t *f
                                       &file_info->local_node_id, &file_info->local_rst_id) != CT_SUCCESS) {
         return CT_FALSE;
     }
+    CT_LOG_DEBUG_INF("[lBACKUP] name %s, rst_id %u-%u, node_id %u-%u.", file_name, rst_id, file_info->local_rst_id,
+                     inst_id, file_info->local_node_id);
     if (inst_id != file_info->local_node_id || rst_id != file_info->local_rst_id) {
         return CT_FALSE;
     }
     file_name = pos + 1;
-    if (arch_convert_file_name(file_name, &file_info->local_asn,
-                               &file_info->local_start_lsn, &file_info->local_end_lsn) != CT_SUCCESS) {
-        return CT_FALSE;
+    if (is_dbstor) {
+        if (arch_convert_file_name(file_name, &file_info->local_asn,
+                                   &file_info->local_start_lsn, &file_info->local_end_lsn) != CT_SUCCESS) {
+            return CT_FALSE;
+        }
+    } else {
+        if (arch_convert_file_name_asn(file_name, &file_info->local_asn) != CT_SUCCESS) {
+            return CT_FALSE;
+        }
     }
     return CT_TRUE;
 }

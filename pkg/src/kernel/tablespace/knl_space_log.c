@@ -483,7 +483,7 @@ void rd_spc_extend_undo_segments(knl_session_t *session, log_entry_t *log)
             uint16 extend_cnt = redo->undo_segments - redo->old_undo_segments;
             CM_ABORT(0, "[SPACE] ABORT INFO: failed to allocate memory for extend %u undo segments", extend_cnt);
         }
-        tx_area_release_impl(session, redo->old_undo_segments, redo->undo_segments);
+        tx_area_release_impl(session, redo->old_undo_segments, redo->undo_segments, session->kernel->id);
         ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL);
     }
 

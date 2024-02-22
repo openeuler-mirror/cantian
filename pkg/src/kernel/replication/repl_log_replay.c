@@ -885,7 +885,7 @@ status_t lrpl_init(knl_session_t *session)
         lrpl->log_handle[i] = -1;
     }
 
-    if (CT_SUCCESS != cm_create_thread(lrpl_proc, 0, replay_session, &lrpl->thread)) {
+    if (rc_is_master() == CT_TRUE && CT_SUCCESS != cm_create_thread(lrpl_proc, 0, replay_session, &lrpl->thread)) {
         CT_LOG_RUN_INF("[Log Replayer] failed to start log replayer thread");
         return CT_ERROR;
     }

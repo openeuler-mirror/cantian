@@ -145,28 +145,77 @@ static status_t cms_create_uds_threads(void)
     return CT_SUCCESS;
 }
 
-status_t cms_init_dbs_client(void)
+status_t cms_get_uuid_lsid_from_config(char* cfg_name, uint32* lsid, char* uuid)
 {
+    char file_path[CMS_FILE_NAME_BUFFER_SIZE];
+    char line[CMS_DBS_CONFIG_MAX_PARAM];
+    errno_t ret = sprintf_s(file_path, CMS_FILE_NAME_BUFFER_SIZE, "%s/dbstor/conf/dbs/%s",
+                            g_cms_param->cms_home, cfg_name);
+    PRTS_RETURN_IFERR(ret);
+    FILE* fp = fopen(file_path, "r");
+    if (fp == NULL) {
+        CT_LOG_RUN_ERR("Failed to open file %s\n", file_path);
+        return CT_ERROR;
+    }
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        char *context = NULL;
+        if (strstr(line, "INST_ID") != NULL) {
+            text_t lsid_t;
+            lsid_t.str = strtok_s(line, "=", &context);
+            lsid_t.str = strtok_s(NULL, "\n", &context);
+            lsid_t.len = strlen(lsid_t.str);
+            cm_trim_text(&lsid_t);
+            CT_RETURN_IFERR(cm_str2uint32((const char *)lsid_t.str, lsid));
+        } else if (strstr(line, "CMS_TOOL_UUID") != NULL) {
+            text_t uuid_t;
+            uuid_t.str = strtok_s(line, "=", &context);
+            uuid_t.str = strtok_s(NULL, "\n", &context);
+            uuid_t.len = strlen(uuid_t.str);
+            cm_trim_text(&uuid_t);
+            MEMS_RETURN_IFERR(strcpy_s(uuid, CMS_CLUSTER_UUID_LEN, uuid_t.str));
+        }
+    }
+    fclose(fp);
+    return CT_SUCCESS;
+}
+
+status_t cms_init_dbs_client(char* cfg_name, dbs_init_mode init_mode)
+{
+    int64_t start_time = cm_now();
     CT_RETURN_IFERR(dbs_init_lib());
     cm_dbs_cfg_s *cfg = cm_dbs_get_cfg();
     if (!cfg->enable) {
         CT_LOG_RUN_INF("dbstore is not enabled");
         return CT_SUCCESS;
     }
- 
-    const char* uuid = get_config_uuid(g_cms_param->node_id);
-    uint32 lsid = get_config_lsid(g_cms_param->node_id);
-    cm_set_dbs_uuid_lsid(uuid, lsid);
- 
-    CT_RETURN_IFERR(cm_dbs_init(g_cms_param->cms_home));
+
+    uint32 lsid;
+    char uuid[CMS_CLUSTER_UUID_LEN] = { 0 };
+
+    CT_LOG_RUN_INF("dbstor client is inited by config file %s", cfg_name);
+    if (strstr(cfg_name, "tool") != NULL) {
+        if (cms_get_uuid_lsid_from_config(cfg_name, &lsid, uuid) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("cms get uuid lsid from config(%s) failed.\n", cfg_name);
+            return CT_ERROR;
+        }
+    } else {
+        MEMS_RETURN_IFERR(strcpy_s(uuid, CMS_CLUSTER_UUID_LEN, get_config_uuid(g_cms_param->node_id)));
+        lsid = get_config_lsid(g_cms_param->node_id);
+    }
+
+    cm_set_dbs_uuid_lsid((const char*)uuid, lsid);
+    CT_RETURN_IFERR(cm_dbs_init(g_cms_param->cms_home, cfg_name, init_mode));
     g_cms_inst->is_dbstor_cli_init = CT_TRUE;
+    int64_t end_time = cm_now();
+    CT_LOG_RUN_INF("dbstor client init time %ld (ns)", end_time - start_time);
     return CT_SUCCESS;
 }
 
 static status_t cms_create_voting_threads(void)
 {
-    if (cm_dbs_is_enable_dbs() == CT_TRUE) {
-        CT_RETURN_IFERR(cms_init_dbs_client());
+    if (cm_dbs_is_enable_dbs() == CT_TRUE && g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        CT_RETURN_IFERR(cms_init_dbs_client(DBS_CONFIG_NAME, DBS_RUN_CMS_SERVER_NFS));
     }
     CT_RETURN_IFERR(cms_vote_disk_init());
     if (g_cms_param->split_brain == CMS_OPEN_WITH_SPLIT_BRAIN) {
@@ -320,7 +369,7 @@ static status_t cms_close_threads(void)
     return CT_SUCCESS;
 }
 
-static status_t cms_lock_server(void)
+status_t cms_lock_server(void)
 {
     char file_name[CMS_FILE_NAME_BUFFER_SIZE] = { 0 };
     int32 ret;
@@ -335,6 +384,15 @@ static status_t cms_lock_server(void)
     }
 
     return cm_lockw_file_fd(g_cms_inst->server_lock_fd);
+}
+
+status_t cms_force_unlock_server(void)
+{
+    if (cm_unlock_file_fd(g_cms_inst->server_lock_fd) != CT_SUCCESS) {
+        CMS_LOG_ERR("cms unlock server fd failed.");
+    }
+    cm_close_file(g_cms_inst->server_lock_fd);
+    return CT_SUCCESS;
 }
 
 static status_t cms_server_loop(void)
@@ -456,7 +514,7 @@ status_t cms_update_version(void)
 
 status_t cms_startup(void)
 {
-    if (cms_lock_server() != CT_SUCCESS) {
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS && cms_lock_server() != CT_SUCCESS) {
         cm_reset_error();
         CMS_LOG_ERR("Another cms server is running");
         CT_THROW_ERROR(ERR_CMS_SERVER_RUNNING);
@@ -527,13 +585,19 @@ status_t cms_get_local_ctx(cms_local_ctx_t** ctx)
         }
 
         _ctx->gcc_handle = -1;
+        _ctx->handle_valid = -1;
         (void)pthread_setspecific(g_inst_local_var, _ctx);
     }
 
-    if (_ctx->gcc_handle == -1) {
-        CT_RETURN_IFERR(cm_open_disk(g_cms_param->gcc_home, &_ctx->gcc_handle));
-        CT_LOG_DEBUG_INF("thread id %u, gcc handle %d, gcc %s", cm_get_current_thread_id(),
-            _ctx->gcc_handle, g_cms_param->gcc_home);
+    if (_ctx->handle_valid == -1) {
+        if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
+            CT_RETURN_IFERR(cm_get_dbs_last_dir_handle(g_cms_param->gcc_dir, &_ctx->gcc_dbs_handle));
+        } else {
+            CT_RETURN_IFERR(cm_open_disk(g_cms_param->gcc_home, &_ctx->gcc_handle));
+            CT_LOG_DEBUG_INF("thread id %u, gcc handle %d, gcc %s", cm_get_current_thread_id(),
+                _ctx->gcc_handle, g_cms_param->gcc_home);
+        }
+        _ctx->handle_valid = 1;
     }
 
     *ctx = _ctx;

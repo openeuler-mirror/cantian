@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "repl_log_replay.h"
 #include "rc_module.h"
 #include "rc_reform.h"
 #include "cm_log.h"
@@ -961,15 +962,19 @@ void rc_check_finished(thread_t *thread)
     rc_sync_cluster_view(session);
     rc_current_stat_step_forward();
 
+    if (!DB_IS_PRIMARY(&session->kernel->db) && g_rc_callback.rc_start_lrpl_proc != NULL) {
+        g_rc_callback.rc_start_lrpl_proc(session);
+    }
+
     if (!DB_IS_PRIMARY(&session->kernel->db) && g_rc_callback.rc_promote_role != NULL) {
         g_rc_callback.rc_promote_role(session);
     }
 
     g_rc_ctx->status = REFORM_DONE;
+    CT_LOG_RUN_INF("[RC] finish reform, reform status:%u, mode:%u, master_changed:%u,", g_rc_ctx->status,
+        g_rc_ctx->mode, g_rc_ctx->info.master_changed);
     g_rc_ctx->mode = REFORM_MODE_NONE;
     g_rc_ctx->info.master_changed = CT_FALSE;
-    CT_LOG_RUN_INF("[RC] finish reform, reform status:%u, mode:%u, master_changed:%u,", g_rc_ctx->status,
-                   g_rc_ctx->mode, g_rc_ctx->info.master_changed);
 }
 
 void rc_wait_cms_notify(void)

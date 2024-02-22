@@ -284,6 +284,7 @@ status_t dtc_skip_batch(knl_session_t *session, log_batch_t **batch, uint32 node
 status_t dtc_find_next_batch(knl_session_t *session, log_batch_t **batch, uint32 cur_block_id, uint64 cur_lsn, uint32 node_id);
 void dtc_rcy_next_file(knl_session_t *session, uint32 idx, bool32 *need_more_log);
 status_t dtc_rcy_read_node_log(knl_session_t *session, uint32 idx, uint32 *size_read);
+status_t dtc_init_node_logset_for_backup(knl_session_t *session, uint32 node_id, dtc_rcy_node_t *rcy_node, logfile_set_t *file_set);
 void dtc_standby_reset_recovery_stat(knl_session_t *session);
 status_t dtc_lrpl_load_log_batch(knl_session_t *session, log_batch_t **batch, uint32 *curr_node_idx);
 bool32 dtc_rcy_need_continue(knl_session_t *session, log_batch_t **batch, uint32 *curr_node_idx);

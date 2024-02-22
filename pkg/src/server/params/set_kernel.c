@@ -33,6 +33,7 @@
 extern "C" {
 #endif
 
+extern bool32 g_crc_verify;
 status_t sql_verify_als_page_size(void *se, void *lex, void *def)
 {
     uint32 match_id;
@@ -2289,6 +2290,14 @@ status_t sql_notify_enable_enable_check_security_log(void *se, void *item, char 
     // restore value for alter config.
     return sql_notify_als_bool(se, item, value);
 }
+
+status_t sql_notify_enable_crc_check(void *se, void *item, char *value)
+{
+    g_crc_verify = (bool32)value[0];
+    // restore value for alter config.
+    return sql_notify_als_bool(se, item, value);
+}
+
 
 status_t sql_verify_als_ckpt_group_size(void *se, void *lex, void *def)
 {

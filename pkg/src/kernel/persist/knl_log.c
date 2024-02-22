@@ -41,6 +41,8 @@
 #include "dtc_database.h"
 #include "dtc_context.h"
 
+extern bool32 g_crc_verify;
+
 // log_buf_init: init log buffer
 static inline void log_buf_init(knl_session_t *session)
 {
@@ -322,12 +324,10 @@ status_t log_switch_file(knl_session_t *session)
     log_flush_head(session, next_file);
 
     dtc_my_ctrl(session)->log_last = ctx->curr_file;
-
     if (db_save_log_ctrl(session, ctx->curr_file, session->kernel->id) != CT_SUCCESS) {
         CM_ABORT(0, "[LOG] ABORT INFO: save control space file failed when switch log file");
     }
-
-    if (ctrl_backup_log_ctrl(session, curr_file->ctrl->file_id) != CT_SUCCESS) {
+    if (ctrl_backup_log_ctrl(session, curr_file->ctrl->file_id, session->kernel->id) != CT_SUCCESS) {
         CM_ABORT(0, "[LOG] ABORT INFO: backup log control info failed when switch log file");
     }
     ctx->stat.switch_count++;
@@ -933,6 +933,14 @@ static inline void log_calc_checksum(knl_session_t *session, page_head_t *page, 
 {
     if (checksum_level == (uint32)CKS_FULL) {
         page_calc_checksum(page, DEFAULT_PAGE_SIZE(session));
+        return;
+    }
+    if (g_crc_verify == CT_TRUE && checksum_level == (uint32)CKS_TYPICAL) {
+        datafile_t *df = DATAFILE_GET(session, AS_PAGID(page->id).file);
+        space_t *space = SPACE_GET(session, df->space_id);
+        if (IS_SYSTEM_SPACE(space) || IS_SYSAUX_SPACE(space)) {
+            page_calc_checksum(page, DEFAULT_PAGE_SIZE(session));
+        }
     }
 }
 
@@ -1446,7 +1454,16 @@ void log_recycle_file(knl_session_t *session, log_point_t *point)
     CT_LOG_DEBUG_INF("try to recycle log file with last_arch_log [%u-%u] active[%d] file [%u-%u]",
                      last_arch_log.rst_id, last_arch_log.asn, ctx->active_file, file->head.rst_id, file->head.asn);
     if (cm_dbs_is_enable_dbs() == CT_TRUE) {
-        recycle_point = log_recycle_get_arch_point(session, point);
+        if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master() == CT_FALSE) {
+            if (dtc_read_node_ctrl(session, session->kernel->id) != CT_SUCCESS) {
+                return;
+            }
+            dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, session->kernel->id);
+            *point = ctrl->rcy_point;
+            recycle_point = log_recycle_get_arch_point(session, &ctrl->rcy_point);
+        } else {
+            recycle_point = log_recycle_get_arch_point(session, point);
+        }
         log_recycle_ulog_space(session, &recycle_point);
         return;
     }
@@ -1475,7 +1492,6 @@ void log_recycle_file(knl_session_t *session, log_point_t *point)
 
         ctx->active_file = file_id;
         dtc_my_ctrl(session)->log_first = file_id;
-
         if (db_save_log_ctrl(session, file_id, session->kernel->id) != CT_SUCCESS) {
             CM_ABORT(0, "[LOG] ABORT INFO: save core control file failed when recycling log file");
         }
@@ -1630,7 +1646,7 @@ void log_atomic_op_begin(knl_session_t *session)
         return;
     }
 
-    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session)), "current DB is readonly.");
+    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session) || !DB_IS_PRIMARY(&session->kernel->db)), "current DB is readonly.");
 
     wait_event_t wait_event = log_get_switch_wait_event(session);
     for (;;) {
@@ -2581,7 +2597,6 @@ status_t log_reset_logfile(knl_session_t *session, uint32 asn, uint32 log_first)
         } else {
             logfile_ctrl->status = LOG_FILE_INACTIVE;
         }
-
         logfile_ctrl->archived = CT_FALSE;
         if (db_save_log_ctrl(session, i, session->kernel->id) != CT_SUCCESS) {
             CM_ABORT(0, "[BACKUP] ABORT INFO: save core control file failed when restore log files");

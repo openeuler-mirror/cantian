@@ -647,8 +647,7 @@ class DBStor:
             self.cluster_id = json_data.get('cluster_id', "").strip()
             self.share_logic_ip = json_data.get('share_logic_ip', "").strip()
             self.dbstore_fs_vstore_id = json_data.get('dbstore_fs_vstore_id', "0").strip()
-            self.conf_file_path = os.path.join(
-                DBSTOR_CONF_FILE + json_data.get('storage_share_fs'), "node" + self.note_id)
+            self.conf_file_path = "/opt/cantian/dbstor/tools"
             self.backup_conf_file = os.path.join(BACKUP_CONF_FILE, "dbstor_config.ini")
             self.cluster_name = json_data.get("cluster_name", '')
 
@@ -662,7 +661,6 @@ class DBStor:
             self.read_dbstor_para()
             self.check_dbstor_para()
             self.generate_db_config()
-        self.cp_ini_to_client_test()
     
      
     def cp_ini_to_client_test(self):

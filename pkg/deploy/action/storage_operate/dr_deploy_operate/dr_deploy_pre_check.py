@@ -19,6 +19,7 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_PARAM_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
 DR_PROCESS_RECORD_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_process_record.json")
 DEPLOY_PARAM_FILE = "/opt/cantian/config/deploy_param.json"
+DOMAIN_LIMITS = 4
 
 
 class DRDeployPreCheck(object):
@@ -43,7 +44,7 @@ class DRDeployPreCheck(object):
         """
         err_msg = []
         cmd = "su -s /bin/bash - cantian -c \"cms stat | " \
-              "grep -v NODE_ID | awk '{print \$6,\$9}'\""
+              "grep -v NODE_ID | awk '{print \$3,\$6,\$9}'\""
         return_code, output, stderr = exec_popen(cmd)
         if return_code == 1:
             err_msg = ["Execute command[cms stat] failed, details:%s" % stderr]
@@ -51,9 +52,11 @@ class DRDeployPreCheck(object):
             cms_stat = [re.split(r"\s+", item.strip()) for item in output.strip().split("\n")]
             reformer_status = False
             for index, item in enumerate(cms_stat):
-                if item[0] != "1":
+                if item[0].strip(" ") != "ONLINE":
+                    err_msg.append("Node[%s] status is not ONLINE." % index)
+                if item[1] != "1":
                     err_msg.append("Node[%s] status is not normal." % index)
-                if item[1] == "REFORMER":
+                if item[2] == "REFORMER":
                     reformer_status = True
             if not reformer_status:
                 err_msg.append("Current cluster reformer status is not normal.")
@@ -69,6 +72,31 @@ class DRDeployPreCheck(object):
         for file in file_list:
             if os.path.exists(file):
                 os.remove(file)
+
+    @staticmethod
+    def check_dr_process():
+        """
+        检查当前环境是否在进行容灾搭建、全量同步、容灾拆除操作。存在报错退出
+        :return:
+        """
+        deploy_proc_name = "/storage_operate/dr_operate_interface.py deploy"
+        check_deploy_cmd = "ps -ef | grep -v grep | grep '%s'" % deploy_proc_name
+        undeploy_proc_name = "/storage_operate/dr_operate_interface.py undeploy"
+        check_undeploy_cmd = "ps -ef | grep -v grep | grep '%s'" % undeploy_proc_name
+        sync_proc_name = "/storage_operate/dr_operate_interface.py full_sync"
+        check_sync_cmd = "ps -ef | grep -v grep | grep '%s'" % sync_proc_name
+        _, deploy_proc, _ = exec_popen(check_deploy_cmd)
+        _, undeploy_proc, _ = exec_popen(check_undeploy_cmd)
+        _, sync_proc, _ = exec_popen(check_sync_cmd)
+        err_msg = ""
+        if deploy_proc:
+            err_msg += "Dr deploy is executing, please check, details:\n%s" % deploy_proc
+        if undeploy_proc:
+            err_msg += "Dr undeploy is executing, please check, details:\n%s" % undeploy_proc
+        if sync_proc:
+            err_msg += "Dr full sync is executing, please check, details:\n%s" % sync_proc
+        if err_msg:
+            raise Exception(err_msg)
 
     def check_storage_system_info(self) -> list:
         """
@@ -281,6 +309,8 @@ class DRDeployPreCheck(object):
             if domain_info.get("NAME") == domain_name:
                 err_msg.append("Domain name[%s] is exist." % domain_name)
                 break
+        if len(domain_infos) >= DOMAIN_LIMITS:
+            err_msg.append("The number of HyperMetro domains has reached the upper limit %s." % DOMAIN_LIMITS)
         page_pair_info = self.deploy_operate.query_remote_replication_pair_info(page_fs_id)
         if page_pair_info:
             err_msg.append("Filesystem[%s] replication pair is exist." % dbstore_page_fs)
@@ -302,7 +332,7 @@ class DRDeployPreCheck(object):
         LOG.info("Check license effectivity success.")
         return err_msg
 
-    def check_active_params(self):
+    def check_active_exist_params(self):
         """
         主端检查配置文件与安装部署文件信息是否一致
         :return:
@@ -338,10 +368,11 @@ class DRDeployPreCheck(object):
            2、检查配置文件中cluster name是否一致
         :return:
         """
-        LOG.info("Check config params start.")
-        err_msg = []
+        LOG.info("Parse config params start.")
         if not os.path.isfile(self.conf):
-            err_msg.append("Active config file[%s] is not exist." % self.conf)
+            err_msg = "Config file[%s] is not exist." % self.conf
+            LOG.error(err_msg)
+            raise Exception(err_msg)
         conf_params = read_json_config(self.conf)
         local_site = self.site
         remote_site = ({"standby", "active"} - {self.site}).pop()
@@ -359,11 +390,7 @@ class DRDeployPreCheck(object):
             })
         self.remote_conf_params = copy.deepcopy(conf_params)
         self.remote_conf_params.update(remote_dr_deploy_param)
-        if err_msg:
-            _err = "Check config params failed, details:%s" % err_msg
-            LOG.error(_err)
-            raise Exception(_err)
-        LOG.info("Check config params end.")
+        LOG.info("Parse config params end.")
 
     def record_config(self):
         """
@@ -398,9 +425,12 @@ class DRDeployPreCheck(object):
         self.conf = args.conf
         self.dm_login_passwd = input()
 
-    def active_check(self):
+    def check_active_params(self):
         check_result = []
         if self.site == "standby":
+            return check_result
+        if not os.path.exists(os.path.join(CURRENT_PATH, "../../../config/deploy_param.json")):
+            shutil.copy("/opt/cantian/config/deploy_param.json", os.path.join(CURRENT_PATH, "../../../config"))
             return check_result
         check_result.extend(self.check_master_cantian_status())
         check_result.extend(self.check_file_system_status(
@@ -409,55 +439,111 @@ class DRDeployPreCheck(object):
         check_result.extend(self.check_file_system_status(
             fs_name=self.local_conf_params.get("storage_dbstore_fs"),
             vstore_id=self.local_conf_params.get("dbstore_fs_vstore_id")))
-        check_result.extend(self.check_active_params())
+        check_result.extend(self.check_active_exist_params())
         if not self.local_conf_params.get("mysql_metadata_in_cantian"):
             check_result.extend(self.check_file_system_status(
                 fs_name=self.local_conf_params.get("storage_metadata_fs"), vstore_id="0"))
         return check_result
 
-    def standby_check(self):
+    def check_nfs_lif_info(self):
+        """检查share、archive、meta文件系统是否存在，逻辑端口是否存在, 检查nfs协议是否开启"""
+        check_result = []
+        share_vstore_id = None
+        err_msg = "Param [%s: %s] is incorrect."
+        db_type = self.local_conf_params.get("db_type")
+        storage_share_fs = self.local_conf_params.get("storage_share_fs")
+        storage_archive_fs = self.local_conf_params.get("storage_archive_fs")
+        storage_metadata_fs = self.local_conf_params.get("storage_metadata_fs")
+        share_logic_ip = self.local_conf_params.get("share_logic_ip")
+        archive_logic_ip = self.local_conf_params.get("archive_logic_ip")
+        metadata_logic_ip = self.local_conf_params.get("metadata_logic_ip")
+        mysql_metadata_in_cantian = self.local_conf_params.get("mysql_metadata_in_cantian")
+        share_lif_info = self.storage_opt.query_logical_port_info(share_logic_ip)
+        if not share_lif_info:
+            check_result.append(err_msg % ("share_logic_ip", share_logic_ip))
+        else:
+            share_vstore_id = share_lif_info[0].get("vstoreId")
+            share_fs_info = self.storage_opt.query_filesystem_info(storage_share_fs, vstore_id=share_vstore_id)
+            if not share_fs_info:
+                check_result.append(err_msg % ("storage_share_fs", storage_share_fs) +
+                                    "Please confirm share_logic_ip and storage_share_fs is in the same vstore")
+        meta_lif_info = self.storage_opt.query_logical_port_info(metadata_logic_ip, vstore_id="0")
+        if not meta_lif_info:
+            check_result.append(err_msg % ("metadata_logic_ip", metadata_logic_ip))
+        meta_fs_info = self.storage_opt.query_filesystem_info(storage_metadata_fs, vstore_id="0")
+        if mysql_metadata_in_cantian and not meta_fs_info:
+            check_result.append(err_msg % ("storage_metadata_fs", storage_metadata_fs))
+        if db_type == "1":
+            archive_lif_info = self.storage_opt.query_logical_port_info(archive_logic_ip, vstore_id="0")
+            if not archive_lif_info:
+                check_result.append(err_msg % ("archive_logic_ip", archive_logic_ip))
+            archive_fs_info = self.storage_opt.query_filesystem_info(storage_archive_fs, vstore_id="0")
+            if not archive_fs_info:
+                check_result.append(err_msg % ("storage_archive_fs", storage_archive_fs))
+        if share_vstore_id:
+            share_vstore_nfs_service = self.storage_opt.query_nfs_service(vstore_id=share_vstore_id)
+            support_v4 = share_vstore_nfs_service.get("SUPPORTV4")
+            if support_v4 == "false":
+                check_result.append("Share vstore[%s] nfs service[v4.0] is not support." % share_vstore_id)
+        system_nfs_service = self.storage_opt.query_nfs_service(vstore_id="0")
+        support_v41 = system_nfs_service.get("SUPPORTV41")
+        if support_v41 == "false":
+            check_result.append("System vstore nfs service[v4.1] is not support.")
+        return check_result
+
+    def check_standby_params(self):
+        """
+        备端搭建前检查参数：
+            1、检查dbstor ulog文件系统所在租户id是否一致。租户是否存在
+            2、检查share、archive、meta文件系统是否存在
+            3、检查逻辑端口是否存在
+            4、检查文件系统与逻辑端口是否在同一租户
+            5、检查share租户是否开启nfs服务
+            6、storage_vlan_ip连通性检查
+        :return:
+        """
         check_result = []
         if self.site == "active":
-            shutil.copy("/opt/cantian/config/deploy_param.json", os.path.join(CURRENT_PATH, "../../../config"))
             return check_result
         pre_install = PreInstall(install_model="override", config_path=self.conf)
         if pre_install.check_main() == 1:
             check_result.append("Params check failed")
+        conf_params = read_json_config(self.conf)
+        dbstore_fs_vstore_id = conf_params.get("dbstore_fs_vstore_id")
+        remote_dbstore_fs_vstore_id = conf_params.get("dr_deploy").get("standby").get("dbstore_fs_vstore_id")
+        if dbstore_fs_vstore_id != remote_dbstore_fs_vstore_id:
+            check_result.append("Inconsistent dbstor fs vstore id, %s and %s" % (dbstore_fs_vstore_id,
+                                                                                 remote_dbstore_fs_vstore_id))
+            return check_result
+        try:
+            self.deploy_operate.storage_opt.query_vstore_info(dbstore_fs_vstore_id)
+        except Exception as err:
+            check_result.append("Vstore[%s] is not exist, details: %s" % (dbstore_fs_vstore_id, str(err)))
+            return check_result
+        check_result.extend(self.check_nfs_lif_info())
         LOG.info("Param check success")
         return check_result
 
-    def check_params(self):
+    def check_common_params(self):
         check_result = []
         remote_cluster_name = self.local_conf_params.get("remote_cluster_name")
         cluster_name = self.local_conf_params.get("cluster_name")
         if cluster_name != remote_cluster_name:
             check_result.append("Inconsistent cluster names, remote[%s], local[%s]."
                                 % (remote_cluster_name, cluster_name))
-        if self.site == "standby":
-            conf_params = read_json_config(self.conf)
-            dbstore_fs_vstore_id = conf_params.get("dbstore_fs_vstore_id")
-            remote_dbstore_fs_vstore_id = conf_params.get("dr_deploy").get("standby").get("dbstore_fs_vstore_id")
-            if dbstore_fs_vstore_id != remote_dbstore_fs_vstore_id:
-                check_result.append("Inconsistent dbstor fs vstore id, %s and %s" % (dbstore_fs_vstore_id,
-                                                                                     remote_dbstore_fs_vstore_id))
-                return check_result
-            try:
-                self.deploy_operate.storage_opt.query_vstore_info(dbstore_fs_vstore_id)
-            except Exception as err:
-                check_result.append("Vstore[%s] is not exist, details: %s" % (dbstore_fs_vstore_id, str(err)))
         return check_result
 
     def execute(self):
-        self.clean_env()
-        self.parse_input_params()
         LOG.info("Start to dr pre check.")
+        self.check_dr_process()
+        self.parse_input_params()
         check_result = []
         self.params_parse()
         self.init_opt()
         try:
-            check_result.extend(self.check_params())
-            check_result.extend(self.active_check())
-            check_result.extend(self.standby_check())
+            check_result.extend(self.check_common_params())
+            check_result.extend(self.check_active_params())
+            check_result.extend(self.check_standby_params())
             check_result.extend(self.check_storage_system_info())
             check_result.extend(self.check_remote_device_info())
             check_result.extend(self.check_license_effectivity())
@@ -470,6 +556,7 @@ class DRDeployPreCheck(object):
                 raise Exception(str(_err))
         finally:
             self.storage_opt.logout()
+        self.clean_env()
         self.record_config()
         LOG.info("DR deploy pre check success.")
 
@@ -483,6 +570,9 @@ class ParamCheck(object):
         self.dr_deploy_params = read_json_config(DR_DEPLOY_PARAM_FILE)
 
     def check_dm_pwd(self, dm_pwd: str) -> None:
+        """
+        检查DM密码是否正确，登录成功后退出
+        """
         local_login_ip = self.dr_deploy_params.get("dm_ip")
         local_login_user = self.dr_deploy_params.get("dm_user")
         storage_operate = StorageInf((local_login_ip, local_login_user, dm_pwd))
@@ -494,7 +584,10 @@ class ParamCheck(object):
         storage_operate.logout()
 
     def check_mysql_pwd(self, mysql_pwd: str) -> None:
-        mysql_check_cmd = "%s -u%s -p%s -e \"show engines;\"" % (self.mysql_cmd, self.mysql_user, mysql_pwd)
+        """
+        执行查询命令检查mysql密码是否正确
+        """
+        mysql_check_cmd = "%s -u'%s' -p'%s' -e \"show engines;\"" % (self.mysql_cmd, self.mysql_user, mysql_pwd)
         return_code, output, stderr = exec_popen(mysql_check_cmd)
         if return_code:
             stderr = str(stderr).replace(mysql_pwd, "***")

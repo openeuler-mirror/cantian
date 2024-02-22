@@ -59,10 +59,11 @@ status_t rc_rollback_close(instance_list_t *list);
 status_t rc_start_new_reform(reform_mode_t mode);
 bool32 rc_finished(void);
 void rc_stop_cur_reform(void);
+status_t dtc_slave_load_my_undo(void);
 status_t dtc_rollback_node(void);
 status_t rc_master_clean_ddl_op(reform_detail_t *detail);
 status_t rc_master_partial_recovery(reform_mode_t mode, reform_detail_t *detail);
-status_t dtc_partial_recovery(void);
+status_t dtc_partial_recovery(instance_list_t *recover_list);
 status_t rc_master_start_remaster(reform_detail_t *detail);
 status_t rc_master_rollback_node(reform_detail_t *detail);
 status_t rc_master_reform(reform_mode_t mode, reform_detail_t *detail);
@@ -72,6 +73,7 @@ status_t rc_master_wait_ckpt_finish(reform_mode_t mode);
 void rc_save_prcy_nodes_info(reform_rcy_node_t *rcy_node);
 bool32 rc_reform_cancled(void);
 status_t rc_promote_role(knl_session_t *session);
+status_t rc_start_lrpl_proc(knl_session_t *session);
 
 // force arch redo log for offline node
 status_t rc_arch_handle_tmp_file(arch_proc_context_t *proc_ctx, uint32 node_id);
@@ -82,6 +84,7 @@ bool32 rc_need_archive_log(void);
 status_t rc_archive_log(arch_proc_context_t *arch_proc_ctx);
 void rc_end_archive_log(arch_proc_context_t *arch_proc_ctx);
 status_t rc_wait_archive_log_finish(arch_proc_context_t *arch_proc_ctx);
+status_t rc_tx_area_load(instance_list_t *list);
 
 #ifdef __cplusplus
 }

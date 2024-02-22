@@ -63,6 +63,7 @@ typedef struct st_lrpl_context {
 
 #define STANDBY_LRPL_WAIT_SLEEP_TIME 1000
 
+void lrpl_proc(thread_t *thread);
 status_t lrpl_init(knl_session_t *session);
 void lrpl_close(knl_session_t *session);
 status_t lrpl_prepare_archfile(knl_session_t *session, log_point_t *point, bool32 *reset);

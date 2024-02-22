@@ -251,8 +251,9 @@ typedef struct st_cms_mes_channel_t {
 extern thread_lock_t g_node_lock[CMS_MAX_NODE_COUNT];
 extern cms_res_session_t g_res_session[CMS_MAX_UDS_SESSION_COUNT];
 status_t cms_init_stat(void);
+status_t cms_init_stat_for_dbs(void);
 status_t cms_lock_stat(uint8 lock_type);
-status_t cms_unlock_stat(void);
+status_t cms_unlock_stat(uint8 lock_type);
 
 status_t cms_res_init(uint32 res_id, uint32 timeout_ms);
 status_t cms_res_start(uint32 res_id, uint32 timeout_ms);
@@ -322,6 +323,8 @@ status_t cms_check_res_running(uint32 res_id);
 
 status_t cms_init_mes_channel_version(void);
 status_t cms_get_mes_channel_version(uint64* version);
+status_t cms_get_cluster_res_list_4tool(uint32 res_id, cms_tool_res_stat_list_t *res_list);
+status_t cms_get_gcc_info_4tool(cms_tool_msg_res_get_gcc_t* gcc_info);
 #ifdef __cplusplus
 }
 #endif

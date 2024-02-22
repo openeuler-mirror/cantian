@@ -10515,7 +10515,7 @@ static status_t db_modify_column_index(knl_session_t *session, knl_dictionary_t 
 static bool32 db_modify_column_null_only(knl_column_t *old_column, knl_column_t *new_column)
 {
     if (old_column->id == new_column->id &&
-        cm_str_equal(old_column->name, new_column->name) &&
+        cm_str_equal_ins(old_column->name, new_column->name) &&
         old_column->uid == new_column->uid &&
         old_column->table_id == new_column->table_id &&
         old_column->datatype == new_column->datatype &&

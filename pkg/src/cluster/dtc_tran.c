@@ -275,8 +275,40 @@ void dtc_process_txn_snapshot_req(void *sess, mes_message_t *msg)
     }
 }
 
+void dtc_standby_get_txn_info(knl_session_t *session, bool32 is_scan, xid_t xid, txn_info_t *txn_info)
+{
+    uint8 inst_id, curr_id;
+    inst_id = XID_INST_ID(xid);
+    for (;;) {
+        curr_id = xid_get_inst_id(session, xid);
+        if (curr_id == session->kernel->id) {
+            if (g_rc_ctx->status >= REFORM_OPEN) {
+                tx_get_info(session, is_scan, xid, txn_info);
+            } else {
+                cm_sleep(MES_MSG_RETRY_TIME);
+                continue;
+            }
+        } else {
+            if (curr_id >= g_dtc->profile.node_count) {
+                CT_LOG_RUN_WAR("inst_id is %d, curr_id is %d, seg_id is %d", inst_id, curr_id, xid.xmap.seg_id);
+                knl_panic(0);
+            }
+            if (dtc_get_remote_txn_info(session, is_scan, xid, curr_id, txn_info) != CT_SUCCESS) {
+                cm_reset_error();
+                cm_sleep(MES_MSG_RETRY_TIME);
+                continue;
+            }
+        }
+        return;
+    }
+}
+
 void dtc_get_txn_info(knl_session_t *session, bool32 is_scan, xid_t xid, txn_info_t *txn_info)
 {
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        dtc_standby_get_txn_info(session, is_scan, xid, txn_info);
+        return;
+    }
     uint8 inst_id, curr_id;
 
     inst_id = XID_INST_ID(xid);
@@ -365,7 +397,7 @@ status_t dtc_tx_rollback_start(knl_session_t *session, uint8 inst_id)
 {
     undo_set_t *undo_set = UNDO_SET(session, inst_id);
 
-    if (inst_id == session->kernel->id) {
+    if (DB_IS_PRIMARY(&session->kernel->db) && inst_id == session->kernel->id) {
         return CT_SUCCESS;
     }
 
@@ -381,7 +413,7 @@ status_t dtc_tx_rollback_start(knl_session_t *session, uint8 inst_id)
 
 status_t dtc_tx_area_load(knl_session_t *session, uint8 inst_id)
 {
-    if (inst_id == session->kernel->id) {
+    if (DB_IS_PRIMARY(&session->kernel->db) && inst_id == session->kernel->id) {
         return CT_SUCCESS;
     }
 

@@ -54,9 +54,15 @@ typedef struct st_cms_msg_iostat_contrast_t {
 #define PARAM_IOF_UNREG_RESNAME_IDX     3
 #define PARAM_IOF_UNREG_NODEID_IDX      5
 
+#define CM_DBS_CONFIG_FILE_NAME_LEN 32
+#define CM_WAIT_CONFIG_INTERVAL_TIME 2000
+#define CM_WAIT_CONFIG_RETRY_NUM 2
+
 EXTER_ATTACK int32 cms_server_start(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_server_stop(int32 argc, char* argv[]);
 
+EXTER_ATTACK int32 cms_gcc_create(int32 argc, char* argv[]);
+EXTER_ATTACK int32 cms_gcc_delete(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_gcc_list(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_gcc_reset(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_gcc_reset_force(int32 argc, char* argv[]);
@@ -101,6 +107,7 @@ EXTER_ATTACK void cms_date2str(date_t date, char* str, uint32 max_size);
 
 EXTER_ATTACK int32 cms_iostat(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_iostat_reset(int32 argc, char *argv[]);
+status_t cm_alloc_conf_file_retry(char *config_name);
 int32 cms_local_disk_iostat(int32 argc, char* argv[]);
 void cms_print_iostat_inner(cms_tool_msg_res_iostat_t *res, char *msg_name, uint8 msg_type);
 void cms_print_iostat(cms_tool_msg_res_iostat_t *res_msg, uint8 msg_type);
@@ -120,6 +127,7 @@ int32 cms_enable_inject(int32 argc, char* argv[]);
 status_t cms_send_to_server(cms_packet_head_t *req, cms_packet_head_t *res, uint32 res_size, int32 timeout_ms,
     char* err_info);
 void cms_print_online_node_info(uint64 *cms_online_bitmap);
+status_t cms_instance_init_with_dbs(dbs_init_mode init_mode);
 
 #ifdef __cplusplus
 }

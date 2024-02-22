@@ -213,7 +213,7 @@ void dtc_process_ckpt_trigger(void *sess, mes_message_t * receive_msg)
     status_t s = CT_SUCCESS;
     uint32 ret = DTC_BAK_SUCCESS;
     dtc_update_lsn(session, ckpt->lsn);
-    if (ckpt->force_switch) {
+    if ((cm_dbs_is_enable_dbs() == CT_TRUE) && ckpt->force_switch) {
         SYNC_POINT_GLOBAL_START(CANTIAN_BACKUP_TRIGGER_FORCH_ARCH_ABORT, NULL, 0);
         SYNC_POINT_GLOBAL_END;
         s = arch_switch_archfile_trigger(session, CT_FALSE);

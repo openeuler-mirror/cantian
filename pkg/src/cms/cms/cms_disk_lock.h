@@ -76,6 +76,9 @@ typedef struct _st_cms_disk_lock_t {
     thread_lock_t       slock; // protect seek&read(reopen) or seek&write(reopen) as atomic operation
     uint32              flag;
     char                dev_name[CMS_FILE_NAME_BUFFER_SIZE];
+    object_id_t*        dbs_fd; // only used when type is CMS_DEV_TYPE_DBSTORE
+    int                 fd_len; // only used when type is CMS_DEV_TYPE_DBSTORE
+    char                file_name[CMS_MAX_NAME_LEN]; // only used when type is CMS_DEV_TYPE_DBSTORE
 }cms_disk_lock_t;
 
 typedef union u_cms_master_info_t {
@@ -96,6 +99,9 @@ typedef union u_cms_master_info_t {
 #define CMS_EXIT_NUM 128
 #define CMS_EXIT_COUNT_MAX 20
 
+#define CMS_DBS_LAST_FILE_HANDLE_IDX 1
+#define CMS_DBS_LAST_DIR_HANDLE_IDX 2
+
 extern cms_flock_t* g_invalid_lock;
 extern cms_master_info_t* g_master_info;
 extern spinlock_t g_exit_num_lock;
@@ -106,14 +112,14 @@ status_t cms_disk_lock(cms_disk_lock_t* lock, uint32 timeout_ms, uint8 lock_type
 
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
 status_t _cms_disk_try_lock(cms_disk_lock_t* lock, uint8 lock_type, const char* file, int32 line);
-status_t _cms_disk_unlock(cms_disk_lock_t* lock, const char* file, int32 line);
+status_t _cms_disk_unlock(cms_disk_lock_t* lock, uint8 lock_type, const char* file, int32 line);
 status_t _cms_disk_lock_get_inst(cms_disk_lock_t* lock, uint64* inst_id, const char* file, int32 line);
 #define cms_disk_try_lock(lock, lock_type) _cms_disk_try_lock((lock), (lock_type), __FILE__, __LINE__)
-#define cms_disk_unlock(lock) _cms_disk_unlock((lock), __FILE__, __LINE__)
+#define cms_disk_unlock(lock, lock_type) _cms_disk_unlock((lock), (lock_type), __FILE__, __LINE__)
 #define cms_disk_lock_get_inst(lock, inst_id) _cms_disk_lock_get_inst((lock), (inst_id), __FILE__, __LINE__)
 #else
 status_t cms_disk_try_lock(cms_disk_lock_t* lock, uint8 lock_type);
-status_t cms_disk_unlock(cms_disk_lock_t* lock);
+status_t cms_disk_unlock(cms_disk_lock_t* lock, uint8 lock_type);
 status_t cms_disk_lock_get_inst(cms_disk_lock_t* lock, uint64* inst_id);
 #endif
 status_t cms_disk_lock_get_data(cms_disk_lock_t* lock, char* data, uint32 size);

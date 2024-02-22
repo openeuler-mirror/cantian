@@ -641,10 +641,11 @@ status_t db_save_log_ctrl(knl_session_t *session, uint32 id, uint32 node_id)
             return CT_ERROR;
         }
     }
-
-    if (ctrl_backup_log_ctrl(session, id) != CT_SUCCESS) {
-        cm_spin_unlock(&db->ctrl_lock);
-        return CT_ERROR;
+    if (db->status >= DB_STATUS_MOUNT) {
+        if (ctrl_backup_log_ctrl(session, id, session->kernel->id) != CT_SUCCESS) {
+            cm_spin_unlock(&db->ctrl_lock);
+            return CT_ERROR;
+        }
     }
 
     cm_spin_unlock(&db->ctrl_lock);

@@ -43,6 +43,8 @@ typedef status_t(*cms_uds_cli_conn_req)(cms_packet_head_t* req, cms_packet_head_
 status_t cms_uds_cli_init(uint16 node_id, const char* cms_home);
 void cms_uds_cli_destory(void);
 status_t cms_uds_cli_connect(cms_uds_cli_info_t* cms_uds_cli_info, res_init_info_t *res_info);
+status_t cms_uds_cli_check_server_online(void);
+status_t cms_uds_cli_get_server_master_id(uint64* inst_id);
 void cms_uds_cli_disconnect(void);
 status_t cms_uds_cli_recv(cms_packet_head_t* msg, int32 size, int32 timeout_ms);
 status_t cms_uds_cli_send(cms_packet_head_t* msg, int32 timeout_ms);

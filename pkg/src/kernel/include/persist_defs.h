@@ -94,6 +94,7 @@ typedef struct st_knl_altspace_def {
     text_t rename_space;
     uint16 undo_segments;
     int64 punch_size;
+    uint8 is_for_create_db;
 } knl_altspace_def_t;
 
 // TableSpace contains name [including contents [and/keep datafiles] [cascade constraints]]
@@ -133,6 +134,8 @@ typedef struct st_knl_drop_space_def {
 #define SPACE_TYPE_DEFAULT      0x00000010  // default tablespace, defined by database creating
 #define SPACE_TYPE_USERS        0x00000020  // default users tablespace or user defined tablespace
 #define SPACE_TYPE_SWAP         0x00000040  // temporary tablespace for VM
+#define SPACE_TYPE_NODE0        0x00000080  // tablespace for node 0 (undo/temp/temp undo space) only support 2 node. 4node need adapte
+#define SPACE_TYPE_NODE1        0x00000100  // tablespace for node 1 (undo/temp/temp undo space)
 
 // table space definition
 typedef struct st_knl_space_def {

@@ -38,6 +38,7 @@
 #include "tse_srv_util.h"
 #include "rc_reform.h"
 #include "dtc_backup.h"
+#include "repl_log_replay.h"
 
 status_t init_dtc_rc(void)
 {
@@ -59,6 +60,7 @@ status_t init_dtc_rc(void)
     init_st.callback.stop_cur_reform = (rc_cb_stop_cur_reform)rc_stop_cur_reform;
     init_st.callback.rc_reform_cancled = (rc_cb_reform_canceled)rc_reform_cancled;
     init_st.callback.rc_promote_role = (rc_cb_promote_role)rc_promote_role;
+    init_st.callback.rc_start_lrpl_proc = (rc_cb_start_lrpl_proc)rc_start_lrpl_proc;
 
     return init_cms_rc(&g_dtc->rf_ctx, &init_st);
 }
@@ -230,12 +232,12 @@ void rc_release_tse_resources(reform_info_t * info)
     return;
 }
 
-status_t dtc_partial_recovery(void)
+status_t dtc_partial_recovery(instance_list_t *recover_list)
 {
     CT_LOG_RUN_INF("[RC][partial restart] start redo replay, session->kernel->lsn=%llu,"
                    " g_rc_ctx->status=%u",
                    ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
-    if (dtc_start_recovery(g_rc_ctx->session, &g_rc_ctx->info.reform_list[REFORM_LIST_ABORT], CT_FALSE) != CT_SUCCESS) {
+    if (dtc_start_recovery(g_rc_ctx->session, recover_list, CT_FALSE) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[RC][partial restart] failed to start dtc recovery, session->kernel->lsn=%llu,"
                        "g_rc_ctx->status=%u",
                        ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
@@ -260,11 +262,53 @@ status_t dtc_partial_recovery(void)
     return CT_SUCCESS;
 }
 
+status_t dtc_slave_load_my_undo(void)
+{
+    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+    core_ctrl_t *core_ctrl = DB_CORE_CTRL(session);
+    undo_set_t *undo_set = MY_UNDO_SET(session);
+    undo_init_impl(session, undo_set, 0, core_ctrl->undo_segments);
+
+    if (tx_area_init_impl(session, undo_set, 0, core_ctrl->undo_segments, CT_FALSE) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC][partial restart] failed to do tx area init, g_rc_ctx->status=%u", g_rc_ctx->status);
+        return CT_ERROR;
+    }
+
+    tx_area_release_impl(session, 0, core_ctrl->undo_segments, session->kernel->id);
+
+    return CT_SUCCESS;
+}
+
+status_t dtc_standby_partial_recovery(void)
+{
+    if (g_rc_ctx->info.master_changed) {
+        knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+        instance_list_t *rcy_list = (instance_list_t *)cm_push(session->stack, sizeof(instance_list_t));
+        rcy_list->inst_id_count = session->kernel->db.ctrl.core.node_count;
+        for (uint8 i = 0; i < rcy_list->inst_id_count; i++) {
+            rcy_list->inst_id_list[i] = i;
+        }
+        CT_LOG_RUN_INF("standby start to partial recovery");
+        if (dtc_partial_recovery(rcy_list) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RC] failed to do partial recovery");
+            return CT_ERROR;
+        }
+    } else {
+        if (rc_set_redo_replay_done(g_rc_ctx->session, &(g_rc_ctx->info), CT_FALSE) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RC][partial restart] failed to broadcast reform status g_rc_ctx->status=%u",
+                           g_rc_ctx->status);
+            return CT_ERROR;
+        }
+    }
+    return CT_SUCCESS;
+}
+
 status_t dtc_rollback_node(void)
 {
     // init deposit undo && transaction for abort or leave instances
+    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
     CT_LOG_RUN_INF("[RC] start process undo, session->kernel->lsn=%llu, g_rc_ctx->status=%u",
-                   ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
+        session->kernel->lsn, g_rc_ctx->status);
 
     // init deposit transaction for abort or leave instances
     instance_list_t deposit_list;
@@ -281,6 +325,15 @@ status_t dtc_rollback_node(void)
     if (rc_tx_area_init(&deposit_list) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[RC][partial restart] failed to do tx area init, g_rc_ctx->status=%u", g_rc_ctx->status);
         return CT_ERROR;
+    }
+
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        core_ctrl_t *core_ctrl = DB_CORE_CTRL(session);
+        for (uint8 i = 0; i < deposit_list.inst_id_count; i++) {
+            tx_area_release_impl(session, 0, core_ctrl->undo_segments, deposit_list.inst_id_list[i]);
+        }
+        g_rc_ctx->status = REFORM_OPEN;
+        return CT_SUCCESS;
     }
 
     if (g_instance->kernel.db.open_status == DB_OPEN_STATUS_MAX_FIX) {
@@ -357,11 +410,11 @@ status_t rc_follower_reform(reform_mode_t mode, reform_detail_t *detail)
     arch_proc_context_t arch_proc_ctx[DTC_MAX_NODE_COUNT] = { 0 };
     if (rc_archive_log(arch_proc_ctx) != CT_SUCCESS) {
         rc_end_archive_log(arch_proc_ctx);
-        return CT_ERROR;
+        CT_LOG_RUN_WAR("[RC][partial restart] arch in reform failed");
+        return CT_SUCCESS;
     }
     if (rc_wait_archive_log_finish(arch_proc_ctx) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[RC][partial restart] arch in reform failed");
-        return CT_ERROR;
+        CT_LOG_RUN_WAR("[RC][partial restart] wait arch finish in reform failed");
     }
     return CT_SUCCESS;
 }
@@ -426,8 +479,19 @@ status_t rc_master_partial_recovery(reform_mode_t mode, reform_detail_t *detail)
 {
     RC_STEP_BEGIN(detail->recovery_elapsed);
     knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
-    if (mode == REFORM_MODE_OUT_OF_PLAN && DB_IS_PRIMARY(&session->kernel->db)) {
-        if (dtc_partial_recovery() != CT_SUCCESS) {
+    if (mode == REFORM_MODE_OUT_OF_PLAN) {
+        if (!DB_IS_PRIMARY(&session->kernel->db)) {
+            if (dtc_standby_partial_recovery() != CT_SUCCESS) {
+                g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
+                g_rc_ctx->status = REFORM_PREPARE;
+                RC_STEP_END(detail->recovery_elapsed, RC_STEP_FAILED);
+                CT_LOG_RUN_ERR("[RC][partial restart] recovery failed");
+                return CT_ERROR;
+            }
+            RC_STEP_END(detail->recovery_elapsed, RC_STEP_FINISH);
+            return CT_SUCCESS;
+        }
+        if (dtc_partial_recovery(&g_rc_ctx->info.reform_list[REFORM_LIST_ABORT]) != CT_SUCCESS) {
             g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
             g_rc_ctx->status = REFORM_PREPARE;
             RC_STEP_END(detail->recovery_elapsed, RC_STEP_FAILED);
@@ -452,12 +516,20 @@ status_t rc_master_partial_recovery(reform_mode_t mode, reform_detail_t *detail)
 
 status_t rc_master_rollback_node(reform_detail_t *detail)
 {
-    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
-    if (!DB_IS_PRIMARY(&session->kernel->db)) {
-        CT_LOG_RUN_INF("standby cluster no need rollback");
+    RC_STEP_BEGIN(detail->deposit_elapsed);
+    reform_mode_t mode = rc_get_change_mode();
+    if (!DB_IS_PRIMARY(&((knl_session_t*)g_rc_ctx->session)->kernel->db) && mode == REFORM_MODE_OUT_OF_PLAN &&
+        g_rc_ctx->info.master_changed == CT_FALSE) {
+        RC_STEP_END(detail->deposit_elapsed, RC_STEP_FINISH);
         return CT_SUCCESS;
     }
-    RC_STEP_BEGIN(detail->deposit_elapsed);
+    if (!DB_IS_PRIMARY(&((knl_session_t*)g_rc_ctx->session)->kernel->db) && mode == REFORM_MODE_OUT_OF_PLAN &&
+        g_rc_ctx->info.master_changed) {
+        if (dtc_slave_load_my_undo() != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RC] slave load undo failed g_rc_ctx->status=%u", g_rc_ctx->status);
+            return CT_ERROR;
+        }
+    }
     if (dtc_rollback_node() != CT_SUCCESS) {
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
         g_rc_ctx->status = REFORM_PREPARE;
@@ -521,29 +593,81 @@ status_t rc_arch_handle_tmp_file(arch_proc_context_t *proc_ctx, uint32 node_id)
         CT_LOG_RUN_ERR("[RC_ARCH] failed to create temp archive log file %s", proc_ctx->tmp_file_name);
         return CT_ERROR;
     }
-    if (arch_tmp_flush_head(arch_file_type, proc_ctx->tmp_file_name,
-                            proc_ctx, logfile, proc_ctx->tmp_file_handle) != CT_SUCCESS) {
-        return CT_ERROR;
+
+    if (cm_dbs_is_enable_dbs() == true) {
+        if (arch_tmp_flush_head(arch_file_type, proc_ctx->tmp_file_name,
+                                proc_ctx, logfile, proc_ctx->tmp_file_handle) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
     }
     return CT_SUCCESS;
 }
 
-status_t rc_arch_init_proc_ctx(arch_proc_context_t *proc_ctx, uint32 node_id)
+void rc_init_redo_ctx(arch_proc_context_t *proc_ctx, dtc_node_ctrl_t *node_ctrl, log_file_t *logfile, uint32 node_id)
 {
-    CT_LOG_RUN_INF("[RC_ARCH] rc init arch proc ctx params and resource, node id %u", node_id);
-    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
-    dtc_node_ctrl_t *node_ctrl = dtc_get_ctrl(session, node_id);
-    arch_ctrl_t *arch_ctrl = NULL;
-    log_file_t *logfile = &proc_ctx->logfile;
-    logfile->handle = CT_INVALID_HANDLE;
-    if (bak_open_logfile_dbstor(session, logfile, node_id) != CT_SUCCESS) {
-        return CT_ERROR;
+    logfile_set_t *file_set = LOGFILE_SET(proc_ctx->session, node_id);
+    log_context_t *redo_ctx = &proc_ctx->session->kernel->redo_ctx;
+    redo_ctx->logfile_hwm = file_set->logfile_hwm;
+    redo_ctx->files = &file_set->items[0];
+    redo_ctx->curr_file = node_ctrl->log_last;
+    redo_ctx->active_file = node_ctrl->log_first;
+
+    int32 size = CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size);
+    redo_ctx->logwr_head_buf = (char *)cm_malloc(size);
+    if (redo_ctx->logwr_head_buf == NULL) {
+        CM_ABORT(0, "[LOG] ABORT INFO: flush redo file:%s, offset:%u, size:%lu failed.", logfile->ctrl->name, 0,
+            sizeof(log_file_head_t));
     }
-    uint32 arch_num = (node_ctrl->archived_end - node_ctrl->archived_start + CT_MAX_ARCH_NUM) % CT_MAX_ARCH_NUM;
-    int ret = strcpy_s(proc_ctx->arch_dest, CT_FILE_NAME_BUFFER_SIZE,
-                       session->kernel->arch_ctx.arch_proc[ARCH_DEFAULT_DEST - 1].arch_dest);
+
+    errno_t ret = memset_sp(redo_ctx->logwr_head_buf, logfile->ctrl->block_size, 0, logfile->ctrl->block_size);
     knl_securec_check(ret);
-    proc_ctx->session = session;
+
+    for (int i = 0; i < file_set->log_count; ++i) {
+        file_set->items[i].handle = CT_INVALID_HANDLE;
+        status_t ret = cm_open_device(file_set->items[i].ctrl->name, file_set->items[i].ctrl->type,
+                                      knl_redo_io_flag(proc_ctx->session), &file_set->items[i].handle);
+        if (ret != CT_SUCCESS || file_set->items[i].handle == -1) {
+            CT_LOG_RUN_ERR("[BACKUP] failed to open %s ", logfile->ctrl->name);
+            return;
+        }
+    }
+    CT_LOG_RUN_INF("[RC_ARCH] arch init redo ctx success");
+}
+
+status_t rc_arch_init_session(arch_proc_context_t *proc_ctx, knl_session_t *session, uint32 node_id)
+{
+    errno_t ret;
+    proc_ctx->session = (knl_session_t *)cm_malloc(sizeof(knl_session_t));
+    ret = memcpy_s((char*)proc_ctx->session, sizeof(knl_session_t), (char*)session, sizeof(knl_session_t));
+    knl_securec_check(ret);
+
+    proc_ctx->session->kernel = (knl_instance_t *)cm_malloc(sizeof(knl_instance_t));
+    ret = memcpy_s((char*)proc_ctx->session->kernel, sizeof(knl_instance_t), (char*)session->kernel,
+                   sizeof(knl_instance_t));
+    knl_securec_check(ret);
+
+    proc_ctx->session->kernel->id = node_id;
+    return CT_SUCCESS;
+}
+
+void rc_arch_set_last_file_id(arch_proc_context_t *proc_ctx, uint32 node_id)
+{
+    logfile_set_t *file_set = LOGFILE_SET(proc_ctx->session, node_id);
+    log_context_t *redo_ctx = &proc_ctx->session->kernel->redo_ctx;
+    uint32 last_file_id = CT_INVALID_ID32;
+    if (redo_ctx->active_file == 0) {
+        last_file_id = file_set->log_count - 1;
+    } else {
+        last_file_id = redo_ctx->active_file - 1;
+    }
+    proc_ctx->last_file_id = last_file_id;
+}
+
+void rc_init_arch_proc_ctx(arch_proc_context_t *proc_ctx, log_file_t *logfile, dtc_node_ctrl_t *node_ctrl,
+                           uint32 arch_num, uint32 node_id)
+{
+    knl_session_t *session = proc_ctx->session;
+    log_context_t *ctx = &proc_ctx->session->kernel->redo_ctx;
     proc_ctx->arch_id = node_id;
     proc_ctx->last_archived_log_record.rst_id = session->kernel->db.ctrl.core.resetlogs.rst_id;
     proc_ctx->last_archived_log_record.offset = CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size);
@@ -551,6 +675,16 @@ status_t rc_arch_init_proc_ctx(arch_proc_context_t *proc_ctx, uint32 node_id)
     proc_ctx->read_failed = CT_FALSE;
     proc_ctx->enabled = CT_TRUE;
     proc_ctx->tmp_file_handle = CT_INVALID_HANDLE;
+    proc_ctx->data_type = cm_dbs_is_enable_dbs() == CT_TRUE ? ARCH_DATA_TYPE_DBSTOR : ARCH_DATA_TYPE_FILE;
+    
+    if (cm_dbs_is_enable_dbs() != CT_TRUE) {
+        rc_init_redo_ctx(proc_ctx, node_ctrl, logfile, node_id);
+        log_switch_file(proc_ctx->session);
+        free(ctx->logwr_head_buf);
+    }
+
+    rc_arch_set_last_file_id(proc_ctx, node_id);
+    arch_ctrl_t *arch_ctrl = NULL;
 
     if (arch_num != 0) {
         arch_ctrl = db_get_arch_ctrl(session, node_ctrl->archived_end - 1, node_id);
@@ -561,17 +695,46 @@ status_t rc_arch_init_proc_ctx(arch_proc_context_t *proc_ctx, uint32 node_id)
     } else {
         proc_ctx->last_archived_log_record.asn = 1;
     }
+}
+
+status_t rc_arch_init_proc_ctx(arch_proc_context_t *proc_ctx, uint32 node_id)
+{
+    CT_LOG_RUN_INF("[RC_ARCH] rc init arch proc ctx params and resource, node id %u", node_id);
+    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+    dtc_node_ctrl_t *node_ctrl = dtc_get_ctrl(session, node_id);
+    log_file_t *logfile = &proc_ctx->logfile;
+    logfile->handle = CT_INVALID_HANDLE;
+    status_t ret = CT_ERROR;
+    SYNC_POINT_GLOBAL_START(CANTIAN_REFORM_ARCHIVE_INIT_ARCH_CTX_FAIL, &ret, CT_ERROR);
+    ret = bak_open_logfile_dbstor(session, logfile, node_id);
+    SYNC_POINT_GLOBAL_END;
+    if (ret != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    uint32 arch_num = (node_ctrl->archived_end - node_ctrl->archived_start + CT_MAX_ARCH_NUM) % CT_MAX_ARCH_NUM;
+    ret = strcpy_s(proc_ctx->arch_dest, CT_FILE_NAME_BUFFER_SIZE,
+                   session->kernel->arch_ctx.arch_proc[ARCH_DEFAULT_DEST - 1].arch_dest);
+    knl_securec_check(ret);
+
+    if (rc_arch_init_session(proc_ctx, session, node_id) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    rc_init_arch_proc_ctx(proc_ctx, logfile, node_ctrl, arch_num, node_id);
     CT_LOG_RUN_INF("[RC_ARCH] cur arch num %u, next asn %u, next start lsn %llu", arch_num,
                    proc_ctx->last_archived_log_record.asn, proc_ctx->last_archived_log_record.end_lsn);
 
     uint32 redo_log_filesize = 0;
-    status_t status = cm_device_get_used_cap(logfile->ctrl->type, logfile->handle,
-                                             proc_ctx->last_archived_log_record.start_lsn + 1, &redo_log_filesize);
-    if (status != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[RC_ARCH] failed to fetch redolog size from DBStor");
-        return CT_ERROR;
+    if (cm_dbs_is_enable_dbs() == CT_TRUE) {
+        status_t status = cm_device_get_used_cap(logfile->ctrl->type, logfile->handle,
+                                                 proc_ctx->last_archived_log_record.start_lsn + 1, &redo_log_filesize);
+        if (status != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RC_ARCH] failed to fetch redolog size from DBStor");
+            return CT_ERROR;
+        }
+        proc_ctx->redo_log_filesize = SIZE_K_U64(redo_log_filesize);
     }
-    proc_ctx->redo_log_filesize = SIZE_K_U64(redo_log_filesize);
+   
     CT_LOG_RUN_INF("[RC_ARCH] finish to init proc ctx, redo left size %llu", proc_ctx->redo_log_filesize);
     return CT_SUCCESS;
 }
@@ -618,23 +781,31 @@ status_t rc_archive_log_offline_node(arch_proc_context_t *proc_ctx, uint32 node_
     if (rc_arch_init_proc_ctx(proc_ctx, node_id) != CT_SUCCESS) {
         return CT_ERROR;
     }
-    if (proc_ctx->redo_log_filesize == 0) {
+    if (cm_dbs_is_enable_dbs() == CT_TRUE && proc_ctx->redo_log_filesize == 0) {
         CT_LOG_RUN_INF("[RC_ARCH] no left redo log to fetch from DBStor, node id %u", node_id);
         return CT_SUCCESS;
     }
 
     uint32 buffer_size = proc_ctx->session->kernel->attr.lgwr_buf_size;
-    if (arch_init_rw_buf(&proc_ctx->arch_rw_buf, buffer_size * ARCH_RW_BUF_NUM, "ARCH") != CT_SUCCESS) {
+    uint32 arch_rw_buf_num = cm_dbs_is_enable_dbs() == true ? DBSTOR_ARCH_RW_BUF_NUM : ARCH_RW_BUF_NUM;
+    if (arch_init_rw_buf(&proc_ctx->arch_rw_buf, buffer_size * arch_rw_buf_num, "ARCH") != CT_SUCCESS) {
         return CT_ERROR;
     }
-    if (rc_arch_handle_tmp_file(proc_ctx, node_id) != CT_SUCCESS) {
-        return CT_ERROR;
-    }
-    if (cm_create_thread(rc_arch_dbstor_read_proc, 0, proc_ctx, &proc_ctx->read_thread) != CT_SUCCESS) {
-        return CT_ERROR;
-    }
-    if (cm_create_thread(arch_dbstor_write_proc, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
-        return CT_ERROR;
+
+    if (cm_dbs_is_enable_dbs() == true) {
+        if (rc_arch_handle_tmp_file(proc_ctx, node_id) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+        if (cm_create_thread(rc_arch_dbstor_read_proc, 0, proc_ctx, &proc_ctx->read_thread) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+        if (cm_create_thread(arch_write_proc_dbstor, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    } else {
+        if (cm_create_thread(rc_arch_proc, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
     }
     return CT_SUCCESS;
 }
@@ -643,9 +814,6 @@ bool32 rc_need_archive_log(void)
 {
     knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
     if (session->kernel->db.ctrl.core.log_mode != ARCHIVE_LOG_ON) {
-        return CT_FALSE;
-    }
-    if (cm_dbs_is_enable_dbs() != CT_TRUE) {
         return CT_FALSE;
     }
     knl_panic_log(g_dtc->profile.node_count < DTC_MAX_NODE_COUNT, "not support node count");
@@ -679,8 +847,10 @@ void rc_end_archive_log(arch_proc_context_t *arch_proc_ctx)
     }
     CT_LOG_RUN_INF("[RC_ARCH] release all arch proc ctx resource");
     for (uint32 i = 0; i < DTC_MAX_NODE_COUNT; i++) {
-        cm_close_thread(&arch_proc_ctx[i].read_thread);
         cm_close_thread(&arch_proc_ctx[i].write_thread);
+        if (cm_dbs_is_enable_dbs() == CT_TRUE) {
+            cm_close_thread(&arch_proc_ctx[i].read_thread);
+        }
 
         if (arch_proc_ctx[i].arch_rw_buf.aligned_buf.alloc_buf != NULL) {
             arch_release_rw_buf(&arch_proc_ctx[i].arch_rw_buf, "RC_ARCH");
@@ -692,6 +862,8 @@ void rc_end_archive_log(arch_proc_context_t *arch_proc_ctx)
         if (arch_proc_ctx[i].logfile.ctrl != NULL && arch_proc_ctx[i].logfile.handle != CT_INVALID_HANDLE) {
             cm_close_device(arch_proc_ctx[i].logfile.ctrl->type, &arch_proc_ctx[i].logfile.handle);
         }
+
+        cm_free(arch_proc_ctx->session);
     }
 }
 
@@ -1054,4 +1226,15 @@ status_t rc_promote_role(knl_session_t *session)
         }
     }
     return status;
+}
+
+status_t rc_start_lrpl_proc(knl_session_t *session)
+{
+    lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
+    if (g_rc_ctx->mode == REFORM_MODE_OUT_OF_PLAN && g_rc_ctx->info.master_changed && rc_is_master()) {
+        if (cm_create_thread(lrpl_proc, 0, session, &lrpl->thread) != CT_SUCCESS) {
+            CM_ABORT_REASONABLE(0, "[RC] refomer start lrpl proc failed");
+        }
+    }
+    return CT_SUCCESS;
 }

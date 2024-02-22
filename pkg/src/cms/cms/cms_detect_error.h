@@ -58,6 +58,7 @@ status_t cms_daemon_stop_pull(void);
 status_t cms_judge_disk_error(void);
 status_t cms_detect_disk(void);
 status_t cms_detect_file_stat(const char *read_file, disk_handle_t* gcc_handle);
+status_t cms_detect_dbs_file_stat(const char *read_file, object_id_t* handle);
 status_t cms_exec_stop_rerun_script(const char *script, const char *arg, uint32 timeout_ms, status_t *result);
 status_t cms_exec_script_inner(cms_res_t res, char *type);
 status_t cms_get_script_from_memory(cms_res_t *res);

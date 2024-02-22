@@ -90,7 +90,7 @@ class ConfigChecker:
 
     @staticmethod
     def deploy_mode(value):
-        deploy_mode_enum = {"nas", "dbstore"}
+        deploy_mode_enum = {"nas", "dbstore", "dbstore_unify"}
         if value not in deploy_mode_enum:
             return False
 
@@ -133,7 +133,8 @@ class ConfigChecker:
     @staticmethod
     def redo_num(value):
         try:
-            int(value)
+            if int(value) <= 0:
+                return False
         except Exception as error:
             LOG.error('redo_num type must be int : %s', str(error))
             return False
@@ -145,7 +146,8 @@ class ConfigChecker:
             return False
         int_value = value.strip("G")
         try:
-            int(int_value)
+            if int(int_value) <= 0:
+                return False
         except Exception as error:
             LOG.error('redo_size type must be int : %s', str(error))
             return False
@@ -429,7 +431,7 @@ class CheckInstallConfig(CheckBase):
         if install_config_params.get("storage_archive_fs") == "":
             ping_check_element.remove("archive_logic_ip")
 
-        if install_config_params['deploy_mode'] == "dbstore":
+        if install_config_params['deploy_mode'] != "nas":
             self.config_key.remove("storage_logic_ip")
             self.config_key.update(self.dbstore_config_key)
             ping_check_element.remove("storage_logic_ip")

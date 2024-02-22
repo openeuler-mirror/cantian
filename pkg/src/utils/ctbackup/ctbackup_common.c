@@ -406,10 +406,24 @@ status_t ctback_read_output_from_pipe_cmd(ctbak_child_info_t child_info, char *c
 {
     errno_t ret;
     close(child_info.to_child);
-    int32 read_size = read(child_info.from_child, cmd_out, CTSQL_CMD_OUT_BUFFER_SIZE);
-    if (read_size == -1) {
-        printf("[ctbackup]read ctsql output failed\n");
-        return CT_ERROR;
+    uint32 read_count = 0;
+    uint32 read_once = CTSQL_CMD_OUT_BUFFER_SIZE;
+    char *cmd_buf = cmd_out;
+    while (read_count < CTSQL_CMD_OUT_BUFFER_SIZE) {
+        int32 read_size = read(child_info.from_child, cmd_buf, read_once);
+        if (read_size == -1) {
+            printf("[ctbackup]read ctsql output failed\n");
+            close(child_info.from_child);
+            return CT_ERROR;
+        }
+
+        if (read_size == 0) {
+            break;
+        }
+
+        read_count = read_count + read_size;
+        cmd_buf = cmd_buf + read_size;
+        read_once = read_once - read_size;
     }
     close(child_info.from_child);
     int32 wait = waitpid(child_info.child_pid, &ret, 0);
@@ -438,7 +452,9 @@ status_t ctbak_decrypt_password_custom(SENSI_INFO char *cipherText, SENSI_INFO c
         return CT_ERROR;
     }
     // remove '\n' from read pipe
-    cmd_out_passwd[strlen(cmd_out_passwd) - 1] = '\0';
+    if (cmd_out_passwd[strlen(cmd_out_passwd) - 1] == '\n') {
+        cmd_out_passwd[strlen(cmd_out_passwd) - 1] = '\0';
+    }
     return CT_SUCCESS;
 }
 

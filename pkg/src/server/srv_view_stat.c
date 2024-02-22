@@ -2470,7 +2470,7 @@ static status_t vw_undo_stat_fetch_core(knl_handle_t handle, knl_cursor_t *curso
     (void)row_put_int64(&ra, MIN(CT_MAX_INT64, (int64)undo_stat.total_buf_busy_waits));
     (void)row_put_int32(&ra, (int32)undo_stat.busy_wait_segment);
     (void)row_put_int32(&ra, (int32)undo_stat.busy_seg_pages);
-    (void)row_put_int32(&ra, (int32)session->kernel->attr.undo_retention_time);
+    (void)row_put_int32(&ra, (int32)ctx->retention);
     cm_spin_unlock(&undo_stat.lock);
 
     cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, &cursor->data_size);

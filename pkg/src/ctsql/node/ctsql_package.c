@@ -3203,7 +3203,7 @@ static status_t sql_collect_table_stats(sql_stmt_t *stmt, expr_node_t *func, var
          * User name must be upper case.
          * Table name uses upper case or original mode depending on system setting.
          */
-        cm_text_upper(&def->owner);
+        process_name_case_sensitive(&def->owner);
         process_name_case_sensitive(&def->name);
         process_name_case_sensitive(&def->part_name);
 
@@ -4344,7 +4344,7 @@ static status_t sql_func_return_cursor(sql_stmt_t *stmt, expr_node_t *func, vari
                 return CT_ERROR;
             }
             if (var_to_client.v_bool == CT_FALSE) {
-                CT_SRC_THROW_ERROR(func->argument->root->loc, ERR_CAPABILITY_NOT_SUPPORT, "client flag gs_false");
+                CT_SRC_THROW_ERROR(func->argument->root->loc, ERR_CAPABILITY_NOT_SUPPORT, "client flag ct_false");
                 return CT_ERROR;
             }
         }

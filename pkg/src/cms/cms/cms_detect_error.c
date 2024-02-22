@@ -31,6 +31,7 @@ cms_disk_check_t g_check_disk = { 0 };
 
 cms_disk_check_stat_t g_local_disk_stat = { 0 };
 disk_handle_t g_detect_file_fd[CMS_MAX_DISK_DETECT_FILE];
+object_id_t g_detect_dbs_file; // only used in dbs type
 
 status_t cms_detect_disk(void)
 {
@@ -45,6 +46,18 @@ status_t cms_detect_disk(void)
         if (cms_detect_file_stat(g_cms_param->gcc_home, &g_detect_file_fd[0]) != CT_SUCCESS) {
             CMS_LOG_ERR("cms detect file failed, file is %s.", g_cms_param->gcc_home);
             return CT_ERROR;
+        }
+    } else if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
+        char file_name[CMS_MAX_NAME_LEN] = {0};
+        for (int i = 0; i < g_cms_param->wait_detect_file_num; i++) {
+            if (cm_get_path_file_name(g_cms_param->wait_detect_file[i], file_name, CMS_MAX_NAME_LEN) != CT_SUCCESS) {
+                CMS_LOG_ERR("get path last file name failed, file %s.", g_cms_param->wait_detect_file[i]);
+                return CT_ERROR;
+            }
+            if (cms_detect_dbs_file_stat(file_name, &g_detect_dbs_file) != CT_SUCCESS) {
+                CMS_LOG_ERR("cms detect file %s failed.", g_cms_param->wait_detect_file[i]);
+                return CT_ERROR;
+            }
         }
     } else {
         CMS_LOG_ERR("invalid device type:%d", g_cms_param->gcc_type);
@@ -147,6 +160,42 @@ status_t cms_detect_file_stat(const char *read_file, disk_handle_t* gcc_handle)
     cms_refresh_last_check_time(start_time);
     if (end_time - start_time > (int64)g_cms_param->detect_disk_timeout * CMS_SECOND_TRANS_MICROSECOND) {
         CMS_LOG_ERR("cms read file %s timeout, spend time is %lld.", read_file, (end_time - start_time));
+        g_check_disk.read_timeout = CT_TRUE;
+        return CT_ERROR;
+    }
+    // Synchronously update the heartbeat to ensure that the process exits when the disk heartbeat expires.
+    if (cms_update_disk_hb() == CT_SUCCESS) {
+        cms_refresh_last_check_time(start_time);
+    }
+    cms_try_init_exit_num();
+    return CT_SUCCESS;
+}
+
+status_t cms_detect_dbs_file_stat(const char *read_file, object_id_t* handle)
+{
+    status_t ret = CT_SUCCESS;
+    cms_gcc_t *new_gcc = (cms_gcc_t *)cm_malloc_align(CMS_BLOCK_SIZE, sizeof(cms_gcc_t));
+    if (new_gcc == NULL) {
+        CMS_LOG_ERR("cms allocate memory failed.");
+        return CT_ERROR;
+    }
+    date_t start_time = cm_now();
+    CMS_LOG_DEBUG_INF("cms detect dbs file name is %s", read_file);
+    // TODO：if this file new create，but file size is zero
+    ret = cm_read_dbs_file(handle, (char *)read_file, CMS_ERROR_DETECT_START, new_gcc, sizeof(cms_gcc_t));
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("cms read dbs file %s failed.", read_file);
+        CM_FREE_PTR(new_gcc);
+        return CT_ERROR;
+    }
+
+    date_t end_time = cm_now();
+    CM_FREE_PTR(new_gcc);
+    CMS_SYNC_POINT_GLOBAL_START(CMS_MEMORY_LEAK, NULL, 0);
+    CMS_SYNC_POINT_GLOBAL_END;
+    cms_refresh_last_check_time(start_time);
+    if (end_time - start_time > (int64)g_cms_param->detect_disk_timeout * CMS_SECOND_TRANS_MICROSECOND) {
+        CMS_LOG_ERR("cms read dbs file %s timeout, spend time is %lld.", read_file, (end_time - start_time));
         g_check_disk.read_timeout = CT_TRUE;
         return CT_ERROR;
     }
@@ -292,6 +341,26 @@ status_t cms_open_detect_file(void)
         if (ret != CT_SUCCESS) {
             CMS_LOG_ERR("open file failed, file %s, ret %d", g_cms_param->gcc_home, ret);
             return ret;
+        }
+    } else if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
+        char file_name[CMS_MAX_NAME_LEN] = {0};
+        object_id_t file_handle = {0};
+        ret = cm_get_dbs_last_dir_handle(g_cms_param->gcc_dir, &g_detect_dbs_file);
+        if (ret != CT_SUCCESS) {
+            CMS_LOG_ERR("open dbs gcc dir failed, path %s, ret %d", g_cms_param->gcc_dir, ret);
+            return ret;
+        }
+        for (int i = 0; i < g_cms_param->wait_detect_file_num; i++) {
+            ret = cm_get_path_file_name(g_cms_param->wait_detect_file[i], file_name, CMS_MAX_NAME_LEN);
+            if (ret != CT_SUCCESS) {
+                CMS_LOG_ERR("get path last file name failed, file %s, ret %d", g_cms_param->wait_detect_file[i], ret);
+                return ret;
+            }
+            ret = cm_get_dbs_file_handle(&g_detect_dbs_file, file_name, &file_handle);
+            if (ret != CT_SUCCESS) {
+                CMS_LOG_ERR("open dbs file %s failed %d", file_name, ret);
+                return ret;
+            }
         }
     } else {
         CMS_LOG_ERR("invalid device type:%d", g_cms_param->gcc_type);

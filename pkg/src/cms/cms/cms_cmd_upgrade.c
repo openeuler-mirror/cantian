@@ -165,6 +165,12 @@ int32 cms_get_version(int32 argc, char* argv[])
 
     CMS_LOG_INF("cms get master lock id = %lld.", master_lock.inst_id);
     if (master_lock.inst_id == -1) {
+        if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+            cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+            printf("cms instance init with dbs, get version failed.\n");
+            cms_disk_lock_destroy(&master_lock);
+            return CT_ERROR;
+        }
         ret = cms_get_version_local();
     } else {
         ret = cms_get_version_server();

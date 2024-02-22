@@ -202,7 +202,7 @@ class CApiWrapper(object):
         self.primary_keystore = primary_keystore
         self.standby_keystore = standby_keystore
         self.get_dbstor_para()
-        if self.deploy_mode == "dbstore":
+        if self.deploy_mode != "nas":
             self.kmc_ext = ctypes.cdll.LoadLibrary(self.KMC_EXT_LIB_PATH)
 
     def get_dbstor_para(self):
@@ -282,7 +282,7 @@ class CApiWrapper(object):
         return encoded.decode('utf-8')
 
     def encrypt(self, plain):
-        if self.deploy_mode == "dbstore":
+        if self.deploy_mode != "nas":
             return self.encrypt_by_kmc(plain)
         elif self.deploy_mode == "nas":
             return self.encrypt_by_base64(plain)
@@ -311,7 +311,7 @@ class CApiWrapper(object):
         return decoded.decode('utf-8')
 
     def decrypt(self, cipher):
-        if self.deploy_mode == "dbstore":
+        if self.deploy_mode != "nas":
             return self.decrypt_by_kmc(cipher)
         elif self.deploy_mode == "nas":
             return self.decrypt_by_base64(cipher)

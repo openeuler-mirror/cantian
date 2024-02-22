@@ -486,8 +486,7 @@ def read_file_path():
             as file_obj:
         json_data = json.load(file_obj)
         db_opts.note_id = json_data.get('node_id', "").strip()
-        db_opts.inipath = os.path.join(db_opts.inipath + json_data['storage_share_fs'].strip(),
-                                       "node" + db_opts.note_id, "dbstor_config.ini")
+        db_opts.inipath = "/opt/cantian/dbstor/tools/dbstor_config.ini"
         db_opts.share_logic_ip = json_data.get('share_logic_ip', "").strip()
         db_opts.cluster_name = json_data.get('cluster_name', "").strip()
 
