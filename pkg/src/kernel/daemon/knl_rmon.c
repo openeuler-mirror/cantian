@@ -110,9 +110,9 @@ static void rmon_watch_files(knl_session_t *session)
             CT_LOG_RUN_ERR("[RMON]: logfile %s has been removed, moved or modified on disk unexpectedly",
                            logfile->ctrl->name);
             CT_LOG_ALARM(WARN_FILEMONITOR, "'file-name':'%s'}", logfile->ctrl->name);
-
             LOG_SET_ALARMED(logfile->ctrl->flg);
-            if (db_save_log_ctrl(session, (uint32)logfile->ctrl->file_id, logfile->ctrl->node_id) != CT_SUCCESS) {
+            if (db_save_log_ctrl(session, (uint32)logfile->ctrl->file_id,
+                                 logfile->ctrl->node_id) != CT_SUCCESS) {
                 CM_ABORT(0, "[DB] ABORT INFO: failed to save whole control file when set logfile flag");
             }
 

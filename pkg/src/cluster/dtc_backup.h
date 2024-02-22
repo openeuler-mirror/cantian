@@ -95,8 +95,10 @@ typedef struct st_arch_file_info {
 typedef struct st_bak_arch_files {
     char arch_file_name[BAK_ARCH_FILE_NAME_MAX_LENGTH];
     uint32 asn;
+    uint32 block_size;
     uint64 start_lsn;
     uint64 end_lsn;
+    uint64 file_size;
 } bak_arch_files_t;
 
 uint32 dtc_get_mes_sent_success_cnt(uint64 success_inst_left);
@@ -167,8 +169,8 @@ status_t dtc_bak_log_ckpt_trigger_local(knl_session_t *session, bak_ctrlinfo_t *
 status_t dtc_bak_read_logfiles_dbstor(knl_session_t *session, uint32 inst_id);
 status_t dtc_bak_set_log_ctrl_dbstor(knl_session_t *session, bak_process_t *process,
                                      uint32 *block_size, uint32 target_id, bak_arch_files_t *arch_file);
-status_t dtc_bak_get_arch_start_and_end_point(knl_session_t *session, uint32 inst_id,
-                                              uint32 *start_asn, uint32 *end_asn);
+status_t dtc_bak_get_arch_start_and_end_point(knl_session_t *session, uint32 inst_id, bak_arch_files_t *arch_file_buf,
+                                              log_start_end_asn_t *local_arch_file_asn, log_start_end_asn_t *target_asn);
 void bak_set_archfile_info(knl_session_t *session, log_start_end_info_t arch_info,
                            local_arch_file_info_t file_info, bak_arch_files_t *arch_file_buf, char *file_name);
 status_t bak_open_logfile_dbstor(knl_session_t *session, log_file_t *logfile, uint32 inst_id);
@@ -210,7 +212,7 @@ status_t rst_prepare_modify_archfile(char *arch_file_name, int32 *arch_file_hand
 void rst_release_modify_resource(device_type_t type, int32 *arch_handle,
                                  char *tmp_arch_name, int32 *tmp_arch_handle, aligned_buf_t *read_buf);
 bool32 bak_convert_archfile_name(char *arch_file_name, local_arch_file_info_t *file_info,
-                                 uint32 inst_id, uint32 rst_id);
+                                 uint32 inst_id, uint32 rst_id, bool32 is_dbstor);
 status_t bak_check_archfile_dbid(knl_session_t *session, const char *arch_path, char *arch_name, bool32 *dbid_equal);
 void bak_set_file_name(char *buf, const char *arch_path, const char *file_name);
 void bak_set_arch_name_format(local_arch_file_info_t file_info, char *cur_pos, size_t offset, int32 *print_num,
@@ -225,6 +227,15 @@ EXTER_ATTACK uint32 dtc_bak_get_rst_id(uint32 data_type, uint32 asn, reset_log_t
 status_t bak_cpy_file_name(log_file_t *file, msg_log_ctrl_t *log_ctrl);
 status_t bak_check_log_file(bak_log_file_info_t *log_file);
 void bak_update_ctrlinfo_lsn(knl_session_t *session);
+status_t dtc_bak_force_arch_local_file(knl_session_t *session);
+status_t bak_set_archfile_info_file(log_start_end_info_t arch_info, local_arch_file_info_t file_info,
+                                    bak_arch_files_t *arch_file_buf, char *file_name, log_file_head_t *head);
+status_t dtc_bak_get_logfile_by_asn_file(knl_session_t *session, bak_arch_files_t *arch_file_buf,
+                                         log_start_end_asn_t asn, uint32 inst_id, log_start_end_asn_t *target_asn);
+status_t bak_get_logfile_file(knl_session_t *session, arch_file_info_t *file_info, log_file_t *logfile, knl_compress_t *compress_ctx);
+status_t dtc_bak_get_arch_ctrl(knl_session_t *session, bak_process_t *process, uint32 asn, uint32 *block_size, bak_arch_files_t *arch_file);
+status_t bak_get_arch_asn_file(knl_session_t *session, log_start_end_info_t arch_info, uint32 inst_id,
+                               bak_arch_files_t *arch_file_buf);
 
 #ifdef __cplusplus
 }

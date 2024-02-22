@@ -19,7 +19,6 @@ include_directories(
         "${PROJECT_SOURCE_DIR}/open_source/Zstandard/include"
 
         "${PROJECT_SOURCE_DIR}/platform/huawei_security/include"
-        "${PROJECT_SOURCE_DIR}/library/kmc"
 
         "${PROJECT_SOURCE_DIR}/build_dependence/unixODBC/include"
         "${PROJECT_SOURCE_DIR}/build_dependence/libaio/include" 
@@ -103,6 +102,10 @@ if (UNIX)
             OUTPUT_VARIABLE OS_ARCH
             OUTPUT_STRIP_TRAILING_WHITESPACE
     )
+    if (OS_ARCH STREQUAL "x86_64")
+        set(CMAKE_C_COMPILER "/usr/local/bin/gcc")
+        set(CMAKE_CXX_COMPILER "/usr/local/bin/g++")
+    endif()
 
     message(${CMAKE_BUILD_TYPE})
     if (${CMAKE_BUILD_TYPE} STREQUAL "Debug"
@@ -293,7 +296,6 @@ set(Z_LIB_PATH "${CANTIANDB_LIBRARY}/zlib/lib")
 set(ODBC_LIB_PATH "${CANTIANDB_LIBRARY}/odbc/lib")
 set(LZ4_LIB_PATH "${CANTIANDB_LIBRARY}/lz4/lib")
 set(ZSTD_LIB_PATH "${CANTIANDB_LIBRARY}/Zstandard/lib")
-set(KMC_LIB_PATH "${CANTIANDB_LIBRARY}/kmc/lib")
 
 set(VPP_LIB_PATH "${SECUREC_LIB_PATH}")
 
@@ -376,8 +378,6 @@ if (UNIX)
     elseif (EXISTS "/etc/neokylin-release")
         add_compile_definitions(RED_HAT)
         message("KYLIN Release")
-    elseif (EXISTS "/etc/openEuler-release")
-	    message("OpenEuler Release")
     endif ()
 
     ## unzip 3rdparty lib
@@ -405,13 +405,10 @@ set(vpp_libsecurec "libsecurec.a")
 set(vpp_libipsi_crypto "libcrypto.a")
 set(vpp_libipsi_ssl "libssl.a")
 
-set(hw_kmc_lib "")
-set(hw_sdp_lib "")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -g -ldl -pthread")
 add_compile_options(-fno-common)
 add_compile_options(-Wtrampolines)
-add_compile_options(-Wno-address)
 add_compile_options(-freg-struct-return)
 add_compile_options(-pipe)
 add_link_options(-Wl,-Bsymbolic)
@@ -420,7 +417,7 @@ if (UNIX)
 endif()
 
 link_directories(${CANTIANDB_LIB} "${CANTIANDB_LIBRARY}/protobuf/lib" ${CANTIANDB_LIBRARY} ${OPENSSL_LIB_PATH} ${PCRE_LIB_PATH} ${Z_LIB_PATH} ${ODBC_LIB_PATH} ${VPP_LIB_PATH}
-         ${ZSTD_LIB_PATH} ${KMC_LIB_PATH} ${LZ4_LIB_PATH} ${AES_LIB_PATH})
+         ${ZSTD_LIB_PATH} ${LZ4_LIB_PATH} ${AES_LIB_PATH})
 
 # add subdir, this should be the last line!!
 add_subdirectory(pkg)

@@ -77,7 +77,7 @@ status_t knl_init_dbs_client(knl_instance_t *ctx)
     const char* uuid = get_config_uuid(session->kernel->id);
     uint32 lsid = get_config_lsid(session->kernel->id);
     cm_set_dbs_uuid_lsid(uuid, lsid);
-    if (cm_dbs_init(ctx->home) != CT_SUCCESS) {
+    if (cm_dbs_init(ctx->home, DBS_CONFIG_NAME, DBS_RUN_CANTIAND_SERVER) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("DBSTOR: init failed.");
         return CT_ERROR;
     }
@@ -123,7 +123,7 @@ status_t knl_startup(knl_handle_t kernel)
                 CT_LOG_RUN_INF("Failed to register RoleInfoCallBack.");
                 return CT_ERROR;
             }
-            if (cm_dbs_init(ctx->home) != CT_SUCCESS) {
+            if (cm_dbs_init(ctx->home, DBS_CONFIG_NAME, DBS_RUN_CANTIAND_SERVER) != CT_SUCCESS) {
                 CT_LOG_RUN_INF("DBSTOR: init failed.");
                 return CT_ERROR;
             }

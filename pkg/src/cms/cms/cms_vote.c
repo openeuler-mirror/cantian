@@ -46,6 +46,22 @@ static uint64 cms_get_vote_data_offset(uint16 node_id, uint32 slot_id)
     return (uint64)(&(((cms_cluster_vote_data_t *)NULL)->vote_data[node_id][slot_id]));
 }
 
+static status_t vote_data_read(uint64 offset, char* data, uint32 size)
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        return cm_read_disk(g_cms_inst->vote_file_fd, offset, data, size);
+    }
+    return cm_read_dbs_file(&g_cms_inst->vote_file_handle, CMS_VOTE_FILE_NAME, offset, data, size);
+}
+ 
+static status_t vote_data_write(uint64 offset, char* data, uint32 size)
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        return cm_write_disk(g_cms_inst->vote_file_fd, offset, data, size);
+    }
+    return cm_write_dbs_file(&g_cms_inst->vote_file_handle, CMS_VOTE_FILE_NAME, offset, data, size);
+}
+
 static status_t cms_set_vote_data_inner(uint16 node_id, uint32 slot_id, char *data, uint32 data_size,
     uint64 old_version)
 {
@@ -67,7 +83,7 @@ static status_t cms_set_vote_data_inner(uint16 node_id, uint32 slot_id, char *da
     }
     CMS_LOG_DEBUG_INF("begin to read disk, offset = %llu, write_size = %u", offset, write_size);
 
-    if (cm_read_disk(g_cms_inst->vote_file_fd, offset, (char *)vote_data, CMS_BLOCK_SIZE) != CT_SUCCESS) {
+    if (vote_data_read(offset, (char *)vote_data, CMS_BLOCK_SIZE) != CT_SUCCESS) {
         CMS_LOG_ERR("failed to read disk, offset = %llu, write_size = %u", offset, write_size);
         CM_FREE_PTR(vote_data);
         return CT_ERROR;
@@ -94,7 +110,7 @@ static status_t cms_set_vote_data_inner(uint16 node_id, uint32 slot_id, char *da
         return CT_ERROR;
     }
 
-    if (cm_write_disk(g_cms_inst->vote_file_fd, offset, vote_data, align_size) != CT_SUCCESS) {
+    if (vote_data_write(offset, (char *)vote_data, align_size) != CT_SUCCESS) {
         CMS_LOG_ERR("set voting data cm_write_disk failed: offset = %llu, align_size = %u.", offset, align_size);
         CM_FREE_PTR(vote_data);
         return CT_ERROR;
@@ -106,7 +122,7 @@ static status_t cms_set_vote_data_inner(uint16 node_id, uint32 slot_id, char *da
 
 status_t cms_read_vote_data(cms_vote_data_t *vote_data, uint16 node_id, uint64 offset)
 {
-    if (cm_read_disk(g_cms_inst->vote_file_fd, offset, (char *)vote_data, sizeof(cms_vote_data_t)) != CT_SUCCESS) {
+    if (vote_data_read(offset, (char *)vote_data, sizeof(cms_vote_data_t)) != CT_SUCCESS) {
         CMS_LOG_ERR("cm_read_disk failed: offset = %llu", offset);
         return CT_ERROR;
     }
@@ -168,11 +184,11 @@ status_t cms_set_vote_data(uint16 node_id, uint32 slot_id, char *data, uint32 da
     }
 
     if (cms_set_vote_data_inner(node_id, slot_id, data, data_size, old_version) != CT_SUCCESS) {
-        cms_disk_unlock(&g_cms_inst->vote_data_lock[node_id][slot_id]);
+        cms_disk_unlock(&g_cms_inst->vote_data_lock[node_id][slot_id], DISK_LOCK_WRITE);
         return CT_ERROR;
     }
 
-    cms_disk_unlock(&g_cms_inst->vote_data_lock[node_id][slot_id]);
+    cms_disk_unlock(&g_cms_inst->vote_data_lock[node_id][slot_id], DISK_LOCK_WRITE);
 
     return CT_SUCCESS;
 }
@@ -186,11 +202,11 @@ status_t cms_get_vote_data(uint16 node_id, uint32 slot_id, char *data, uint32 ma
     }
 
     if (cms_get_vote_data_inner(node_id, slot_id, data, max_size, data_size) != CT_SUCCESS) {
-        cms_disk_unlock(&g_cms_inst->vote_data_lock[node_id][slot_id]);
+        cms_disk_unlock(&g_cms_inst->vote_data_lock[node_id][slot_id], DISK_LOCK_READ);
         return CT_ERROR;
     }
 
-    cms_disk_unlock(&g_cms_inst->vote_data_lock[node_id][slot_id]);
+    cms_disk_unlock(&g_cms_inst->vote_data_lock[node_id][slot_id], DISK_LOCK_READ);
 
     return CT_SUCCESS;
 }
@@ -209,35 +225,35 @@ status_t cms_set_vote_result(vote_result_ctx_t *vote_result)
     vote_result_ctx_t *new_vote_result =
         (vote_result_ctx_t *)cm_malloc_align(CMS_BLOCK_SIZE, sizeof(vote_result_ctx_t));
     if (new_vote_result == NULL) {
-        cms_disk_unlock(&g_cms_inst->vote_result_lock);
+        cms_disk_unlock(&g_cms_inst->vote_result_lock, DISK_LOCK_WRITE);
         CMS_LOG_ERR("cms set vote result malloc err, size %lu, error code:%d,%s", sizeof(vote_result_ctx_t), errno,
             strerror(errno));
         return CT_ERROR;
     }
 
     if (vote_result->magic != CMS_VOTE_RES_MAGIC) {
-        cms_disk_unlock(&g_cms_inst->vote_result_lock);
+        cms_disk_unlock(&g_cms_inst->vote_result_lock, DISK_LOCK_WRITE);
         CM_FREE_PTR(new_vote_result);
         CMS_LOG_ERR("vote_result magic err");
         return CT_ERROR;
     }
     status_t ret = memcpy_sp(new_vote_result, sizeof(vote_result_ctx_t), vote_result, sizeof(vote_result_ctx_t));
     if (ret != CT_SUCCESS) {
-        cms_disk_unlock(&g_cms_inst->vote_result_lock);
+        cms_disk_unlock(&g_cms_inst->vote_result_lock, DISK_LOCK_WRITE);
         CM_FREE_PTR(new_vote_result);
         CMS_LOG_ERR("memset vote result err, error code:%d,%s", errno, strerror(errno));
         return ret;
     }
 
-    if (cm_write_disk(g_cms_inst->vote_file_fd, offset, (char *)new_vote_result, CMS_BLOCK_SIZE) != CT_SUCCESS) {
-        cms_disk_unlock(&g_cms_inst->vote_result_lock);
+    if (vote_data_write(offset, (char *)new_vote_result, CMS_BLOCK_SIZE) != CT_SUCCESS) {
+        cms_disk_unlock(&g_cms_inst->vote_result_lock, DISK_LOCK_WRITE);
         CM_FREE_PTR(new_vote_result);
         CMS_LOG_ERR("write vote result failed");
         return CT_ERROR;
     }
 
     CM_FREE_PTR(new_vote_result);
-    cms_disk_unlock(&g_cms_inst->vote_result_lock);
+    cms_disk_unlock(&g_cms_inst->vote_result_lock, DISK_LOCK_WRITE);
     return CT_SUCCESS;
 }
 
@@ -251,7 +267,7 @@ status_t cms_get_vote_result(vote_result_ctx_t *vote_result)
     vote_result_ctx_t *new_vote_result =
         (vote_result_ctx_t *)cm_malloc_align(CMS_BLOCK_SIZE, sizeof(vote_result_ctx_t));
     if (new_vote_result == NULL) {
-        cms_disk_unlock(&g_cms_inst->vote_result_lock);
+        cms_disk_unlock(&g_cms_inst->vote_result_lock, DISK_LOCK_READ);
         CMS_LOG_ERR("cms get vote result malloc err, size %lu", sizeof(vote_result_ctx_t));
         return CT_ERROR;
     }
@@ -262,15 +278,14 @@ status_t cms_get_vote_result(vote_result_ctx_t *vote_result)
     }
     CMS_LOG_DEBUG_INF("cms result offset = %llu, sizeof(result) = %lu", offset, sizeof(vote_result_ctx_t));
 
-    if (cm_read_disk(g_cms_inst->vote_file_fd, offset, (char *)new_vote_result, sizeof(vote_result_ctx_t)) !=
-        CT_SUCCESS) {
-        cms_disk_unlock(&g_cms_inst->vote_result_lock);
+    if (vote_data_read(offset, (char *)new_vote_result, sizeof(vote_result_ctx_t)) != CT_SUCCESS) {
+        cms_disk_unlock(&g_cms_inst->vote_result_lock, DISK_LOCK_READ);
         CM_FREE_PTR(new_vote_result);
         CMS_LOG_ERR("read vote result failed");
         return CT_ERROR;
     }
 
-    cms_disk_unlock(&g_cms_inst->vote_result_lock);
+    cms_disk_unlock(&g_cms_inst->vote_result_lock, DISK_LOCK_READ);
     if (new_vote_result->magic != CMS_VOTE_RES_MAGIC) {
         CMS_LOG_ERR("vote result not exists: magic(%llu) err", new_vote_result->magic);
         CM_FREE_PTR(new_vote_result);
@@ -839,7 +854,7 @@ void cms_kill_self_by_vote_result(vote_result_ctx_t *vote_result)
     status_t ret;
     if (!cms_bitmap64_exist(vote_result, g_cms_param->node_id)) {
         if (is_master) {
-            cms_disk_unlock(&g_cms_inst->master_lock);
+            cms_disk_unlock(&g_cms_inst->master_lock, DISK_LOCK_WRITE);
         }
         CMS_SYNC_POINT_GLOBAL_START(CMS_DEAMON_STOP_PULL_FAIL, &ret, CT_ERROR);
         ret = cms_daemon_stop_pull();
@@ -1074,8 +1089,8 @@ status_t cms_init_cluster_vote_info(void)
             }
         }
     }
-    if (cm_write_disk(g_cms_inst->vote_file_fd, offset, (char *)cluster_vote_data, sizeof(cms_cluster_vote_data_t)) !=
-        CT_SUCCESS) {
+    
+    if (vote_data_write(offset, (char *)cluster_vote_data, sizeof(cms_cluster_vote_data_t)) != CT_SUCCESS) {
         CM_FREE_PTR(cluster_vote_data);
         CMS_LOG_ERR("write disk failed");
         return CT_ERROR;

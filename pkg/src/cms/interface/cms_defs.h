@@ -41,7 +41,6 @@
 #define CMS_LOG_LEVEL                   0xffffffff
 #define CMS_LOG_AUDIT                   CT_LOG_AUDIT
 
-
 #define CMS_BLOCK_SIZE                  512
 #define CMS_RESERVED_BLOCKS_SIZE        (CMS_BLOCK_SIZE * 100)
 #define CMS_NAME_BUFFER_SIZE            CT_NAME_BUFFER_SIZE
@@ -66,6 +65,8 @@
 #define CMS_MAX_NODES                   64
 #define CMS_PAGE_SIZE                   8192
 #define CMS_MAX_DETECT_FILE_NAME        256
+#define CMS_DBS_CONFIG_MAX_PARAM        256
+#define CMS_CLUSTER_UUID_LEN            37
 
 #define CMS_MAX_VOTEDISK_COUNT          11
 #define CMS_MAX_NODE_COUNT              64
@@ -114,7 +115,9 @@
 typedef enum en_cms_dev_type {
     CMS_DEV_TYPE_SD     = 1, // scsi device
     CMS_DEV_TYPE_FILE   = 2, // normal file
-    CMS_DEV_TYPE_NFS    = 3  // nfs
+    CMS_DEV_TYPE_NFS    = 3,  // nfs
+    CMS_DEV_TYPE_DBS    = 4,  // dbstor
+    CMS_DEV_TYPE_BUTT
 }cms_dev_type_t;
 
 typedef enum en_cms_split_brain_type {

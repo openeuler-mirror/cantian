@@ -125,6 +125,7 @@ typedef enum en_key_wid {
     KEY_WORD_DATA,
     KEY_WORD_DATABASE,
     KEY_WORD_DATAFILE,
+    KEY_WORD_DB,   /* for mysql db add datafile */
     KEY_WORD_DEBUG,
     KEY_WORD_DECLARE,
     KEY_WORD_DEFERRABLE, /* for constraint state */

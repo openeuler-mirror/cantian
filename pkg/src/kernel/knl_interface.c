@@ -2527,40 +2527,6 @@ status_t knl_delete_or_update_set_null(knl_session_t *session, knl_cursor_t *cur
     return CT_SUCCESS;
 }
 
-status_t knl_get_ref_ix(dc_entity_t *entity, dc_entity_t *parent_entity, uint32 *ref_ix_val, cons_dep_t *dep)
-{
-    uint32_t ref_uid;
-    uint32_t ref_oid;
-    uint32 ref_col_count;
-    uint16 ref_val = CT_INVALID_ID16;
-    for (uint32 i = 0; i < entity->table.cons_set.ref_count; i++) {
-        ref_uid = entity->table.cons_set.ref_cons[i]->ref_uid;
-        ref_oid = entity->table.cons_set.ref_cons[i]->ref_oid;
-        ref_col_count = entity->table.cons_set.ref_cons[i]->col_count;
-        if (ref_uid != parent_entity->table.desc.uid || ref_oid != parent_entity->table.desc.id ||
-            ref_col_count != dep->col_count) {
-            continue;
-        }
-
-        ref_val = i;
-        for (int j = 0; j < dep->col_count; j++) {
-            if (entity->table.cons_set.ref_cons[i]->cols[j] != dep->cols[j]) {
-                ref_val = CT_INVALID_ID16;
-                break;
-            }
-        }
-        if (ref_val != CT_INVALID_ID16) {
-            break;
-        }
-    }
-    if (ref_val == CT_INVALID_ID16) {
-        CT_LOG_RUN_ERR("[knl_get_ref_ix]: can not find ref ix");
-        return CT_ERROR;
-    }
-    *ref_ix_val = ref_val;
-    return CT_SUCCESS;
-}
-
 void knl_get_bits_by_len(uint8 *bits, uint16 len)
 {
     switch (len) {
@@ -2625,8 +2591,8 @@ status_t knl_update_cascade_process(knl_cursor_t *parent_cursor, uint8 count, ch
 // 1. type char: the maximum length of ref column is greater than that of child column
 // 2. type varchar: the update char size is greater than the maximum length of child column
 // 3. update cascade fk columns are affected by other foreign keys
-status_t knl_update_cascade_precheck(uint16 col_id, uint32 ref_ix_val, dc_entity_t *entity,
-                                     knl_column_t *ref_column, knl_cursor_t *parent_cursor, int32 data_offset)
+status_t knl_update_cascade_precheck(uint16 col_id, dc_entity_t *entity, knl_column_t *ref_column,
+                                     knl_cursor_t *parent_cursor, int32 data_offset)
 {
     ref_cons_t *ref_cons = NULL;
     uint16 loop_fk_column_id;
@@ -2636,6 +2602,7 @@ status_t knl_update_cascade_precheck(uint16 col_id, uint32 ref_ix_val, dc_entity
     CHARSET_COLLATION *cs = NULL;
     char *data;
     uint16 offset, len;
+    uint16 count = 0;
 
     if (child_column->datatype == CT_TYPE_STRING && ref_column->size > child_column->size) {
         CT_THROW_ERROR(ERR_ROW_IS_REFERENCED);
@@ -2655,37 +2622,34 @@ status_t knl_update_cascade_precheck(uint16 col_id, uint32 ref_ix_val, dc_entity
     }
 
     for (uint32 i = 0; i < ref_count; i++) {
-        if (i == ref_ix_val) {
-            continue;
-        }
-
         ref_cons = entity->table.cons_set.ref_cons[i];
         col_count = ref_cons->col_count;
         for (uint32 j = 0; j < col_count; j++) {
             loop_fk_column_id = ref_cons->cols[j];
             if (loop_fk_column_id == col_id) {
-                CT_THROW_ERROR(ERR_CHILD_ROW_CANNOT_ADD_OR_UPDATE);
-                return CT_ERROR;
+                count++;
+                break;
             }
+        }
+        if (count > 1) {
+            CT_THROW_ERROR(ERR_CHILD_ROW_CANNOT_ADD_OR_UPDATE);
+            return CT_ERROR;
         }
     }
     return CT_SUCCESS;
 }
 
-status_t knl_update_cascade(knl_session_t *session, knl_cursor_t *cursor, knl_cursor_t *parent_cursor, cons_dep_t *dep)
+status_t knl_update_cascade(knl_session_t *session, knl_cursor_t *cursor, knl_cursor_t *parent_cursor,
+                            cons_dep_t *dep, index_t *parent_index)
 {
     dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
     dc_entity_t *parent_entity = (dc_entity_t *)parent_cursor->dc_entity;
-    index_t *ref_dc_index = NULL;
     knl_column_t *ref_fk_column = NULL;
     char *loc = NULL;
-    uint32 ref_ix_val = CT_INVALID_ID16;
     uint16 col_id;
-    uint16 ref_index;
     uint16 len;
     uint8 bits;
     uint64 pre_conflicts = session->rm->idx_conflicts;
-    CT_RETURN_IFERR(knl_get_ref_ix(entity, parent_entity, &ref_ix_val, dep));
     
     row_head_t *row_head = (row_head_t *)cursor->update_info.data;
     uint16 ex_maps = col_bitmap_ex_size(entity->column_count);
@@ -2694,15 +2658,12 @@ status_t knl_update_cascade(knl_session_t *session, knl_cursor_t *cursor, knl_cu
     row_head->column_count = 0;
     cursor->update_info.count = 0;
     loc = cursor->update_info.data + sizeof(row_head_t);
-    ref_index = entity->table.cons_set.ref_cons[ref_ix_val]->ref_ix;
-    ref_dc_index = parent_entity->table.index_set.items[ref_index];
     for (int32 i = 0; i < dep->col_count; i++) {
         col_id = dep->cols[i];
-        ref_fk_column = dc_get_column(parent_entity, ref_dc_index->desc.columns[i]);
+        ref_fk_column = dc_get_column(parent_entity, parent_index->desc.columns[i]);
         for (int32 j = 0; j < parent_cursor->update_info.count; j++) {
             if (parent_cursor->update_info.columns[j] == ref_fk_column->id) {
-                CT_RETURN_IFERR(knl_update_cascade_precheck(col_id, ref_ix_val, entity,
-                                                            ref_fk_column, parent_cursor, j));
+                CT_RETURN_IFERR(knl_update_cascade_precheck(col_id, entity, ref_fk_column, parent_cursor, j));
                 len = idx_get_col_size(ref_fk_column->datatype, parent_cursor->update_info.lens[j], CT_TRUE);
                 row_head->size += len;
                 row_head->column_count++;
@@ -2833,7 +2794,7 @@ void knl_init_child_cursor_update(knl_dictionary_t *dc, cons_dep_t *dep, knl_cur
 }
 
 status_t knl_update_or_set_null_cascade(knl_session_t *session, cons_dep_t *cons_dep,
-                                        knl_cursor_t *child_cursor, knl_cursor_t *parent_cursor)
+                                        knl_cursor_t *child_cursor, knl_cursor_t *parent_cursor, index_t *parent_index)
 {
     child_cursor->is_cascade = CT_TRUE;
     if (cons_dep->refactor & REF_UPDATE_SET_NULL) {
@@ -2842,7 +2803,7 @@ status_t knl_update_or_set_null_cascade(knl_session_t *session, cons_dep_t *cons
             return CT_ERROR;
         }
     } else {
-        if (knl_update_cascade(session, child_cursor, parent_cursor, cons_dep) != CT_SUCCESS) {
+        if (knl_update_cascade(session, child_cursor, parent_cursor, cons_dep, parent_index) != CT_SUCCESS) {
             child_cursor->is_cascade = CT_FALSE;
             return CT_ERROR;
         }
@@ -2870,7 +2831,7 @@ status_t knl_delete_or_set_null_cascade(knl_session_t *session, cons_dep_t *cons
 }
 
 status_t knl_verify_dep_by_row_update(knl_session_t *session, dep_condition_t *dep_cond, knl_cursor_t *parent_cursor,
-                                      knl_dictionary_t *child_dc, bool32 *depended, uint8 depth)
+                                      knl_dictionary_t *child_dc, bool32 *depended, uint8 depth, index_t *parent_index)
 {
     status_t ret = CT_ERROR;
     knl_cursor_t *child_cursor = dep_cond->child_cursor;
@@ -2913,13 +2874,14 @@ status_t knl_verify_dep_by_row_update(knl_session_t *session, dep_condition_t *d
 
         child_cursor->stmt = child_cursor_stmt;
 
-        if (knl_update_or_set_null_cascade(session, cons_dep, child_cursor, parent_cursor) != CT_SUCCESS) {
+        if (knl_update_or_set_null_cascade(session, cons_dep, child_cursor,
+                                           parent_cursor, parent_index) != CT_SUCCESS) {
             ret = CT_ERROR;
             break;
         }
 
         if (child_cursor->is_found) {
-            if (knl_verify_children_dependency(session, child_cursor, true, depth + 1) != CT_SUCCESS) {
+            if (knl_verify_children_dependency(session, child_cursor, CT_TRUE, depth + 1, CT_FALSE) != CT_SUCCESS) {
                 ret = CT_ERROR;
                 break;
             }
@@ -2942,6 +2904,8 @@ status_t knl_verify_dep_by_row_delete(knl_session_t *session, dep_condition_t *d
     knl_handle_t child_cursor_stmt = child_cursor->stmt;
 
     dc_entity_t *child_entity = (dc_entity_t *)child_dc->handle;
+    table_t *child_table = &child_entity->table;
+    table_t *parent_table = (table_t *)parent_cursor->table;
     session->wtid.is_locking = CT_TRUE;
     session->wtid.oid = child_entity->entry->id;
     session->wtid.uid = child_entity->entry->uid;
@@ -2965,6 +2929,11 @@ status_t knl_verify_dep_by_row_delete(knl_session_t *session, dep_condition_t *d
         }
 
         if (child_cursor->eof) {
+            // self-referenced delete
+            if (child_table->desc.id == parent_table->desc.id && child_table->desc.uid == parent_table->desc.uid &&
+                !(cons_dep->refactor & REF_DEL_CASCADE || cons_dep->refactor & REF_DEL_SET_NULL)) {
+                *depended = CT_TRUE;
+            }
             ret = CT_SUCCESS;
             break;
         }
@@ -2983,7 +2952,7 @@ status_t knl_verify_dep_by_row_delete(knl_session_t *session, dep_condition_t *d
         }
 
         if (child_cursor->is_found) {
-            if (knl_verify_children_dependency(session, child_cursor, false, depth + 1) != CT_SUCCESS) {
+            if (knl_verify_children_dependency(session, child_cursor, false, depth + 1, CT_FALSE) != CT_SUCCESS) {
                 break;
             }
         }
@@ -3015,7 +2984,7 @@ status_t knl_fetch_depended(knl_session_t *session, knl_cursor_t *child_cursor,
 }
 
 status_t knl_verify_dep_by_key_update(knl_session_t *session, dep_condition_t *dep_cond, knl_cursor_t *parent_cursor,
-                                      knl_dictionary_t *child_dc, bool32 *depended, uint8 depth)
+                                      knl_dictionary_t *child_dc, bool32 *depended, uint8 depth, index_t *parent_index)
 {
     index_t *index = NULL;
     status_t ret = CT_ERROR;
@@ -3051,13 +3020,14 @@ status_t knl_verify_dep_by_key_update(knl_session_t *session, dep_condition_t *d
 
         child_cursor->stmt = child_cursor_stmt;
 
-        if (knl_update_or_set_null_cascade(session, cons_dep, child_cursor, parent_cursor) != CT_SUCCESS) {
+        if (knl_update_or_set_null_cascade(session, cons_dep, child_cursor,
+                                           parent_cursor, parent_index) != CT_SUCCESS) {
             ret = CT_ERROR;
             break;
         }
 
         if (child_cursor->is_found) {
-            if (knl_verify_children_dependency(session, child_cursor, true, depth + 1) != CT_SUCCESS) {
+            if (knl_verify_children_dependency(session, child_cursor, true, depth + 1, CT_FALSE) != CT_SUCCESS) {
                 ret = CT_ERROR;
                 break;
             }
@@ -3078,6 +3048,7 @@ status_t knl_verify_dep_by_key_delete(knl_session_t *session, dep_condition_t *d
 
     dc_entity_t *child_entity = (dc_entity_t *)child_dc->handle;
     table_t *child_table = &child_entity->table;
+    table_t *parent_table = (table_t *)parent_cursor->table;
 
     for (uint32 i = 0; i < child_table->index_set.count; i++) {
         index = child_table->index_set.items[i];
@@ -3092,6 +3063,11 @@ status_t knl_verify_dep_by_key_delete(knl_session_t *session, dep_condition_t *d
         }
 
         if (child_cursor->eof) {
+            // self-referenced delete
+            if (child_table->desc.id == parent_table->desc.id && child_table->desc.uid == parent_table->desc.uid &&
+                !(cons_dep->refactor & REF_DEL_CASCADE || cons_dep->refactor & REF_DEL_SET_NULL)) {
+                *depended = CT_TRUE;
+            }
             ret = CT_SUCCESS;
             break;
         }
@@ -3110,7 +3086,7 @@ status_t knl_verify_dep_by_key_delete(knl_session_t *session, dep_condition_t *d
         }
 
         if (child_cursor->is_found) {
-            if (knl_verify_children_dependency(session, child_cursor, false, depth + 1) != CT_SUCCESS) {
+            if (knl_verify_children_dependency(session, child_cursor, false, depth + 1, CT_FALSE) != CT_SUCCESS) {
                 break;
             }
         }
@@ -3120,14 +3096,16 @@ status_t knl_verify_dep_by_key_delete(knl_session_t *session, dep_condition_t *d
 }
 
 status_t knl_verify_ref_entity_update(knl_session_t *session, dep_condition_t *dep_cond, knl_dictionary_t *child_dc,
-                                      knl_cursor_t *parent_cursor, bool32 *depended, uint8 depth)
+                                      knl_cursor_t *parent_cursor, bool32 *depended, uint8 depth, index_t *parent_index)
 {
     if (dep_cond->dep->scan_mode != DEP_SCAN_TABLE_FULL) {
-        if (knl_verify_dep_by_key_update(session, dep_cond, parent_cursor, child_dc, depended, depth) != CT_SUCCESS) {
+        if (knl_verify_dep_by_key_update(session, dep_cond, parent_cursor, child_dc,
+                                         depended, depth, parent_index) != CT_SUCCESS) {
             return CT_ERROR;
         }
     } else {
-        if (knl_verify_dep_by_row_update(session, dep_cond, parent_cursor, child_dc, depended, depth) != CT_SUCCESS) {
+        if (knl_verify_dep_by_row_update(session, dep_cond, parent_cursor, child_dc,
+                                         depended, depth, parent_index) != CT_SUCCESS) {
             return CT_ERROR;
         }
     }
@@ -3150,7 +3128,8 @@ status_t knl_verify_ref_entity_delete(knl_session_t *session, dep_condition_t *d
 }
 
 status_t knl_verify_dep_part_table_update(knl_session_t *session, dep_condition_t *dep_cond, bool32 *depended,
-                                          knl_cursor_t *parent_cursor, knl_dictionary_t *child_dc, uint8 depth)
+                                          knl_cursor_t *parent_cursor, knl_dictionary_t *child_dc,
+                                          uint8 depth, index_t *parent_index)
 {
     uint32 lpart_no, rpart_no;
     uint32 lsubpart_no, rsubpart_no;
@@ -3181,7 +3160,7 @@ status_t knl_verify_dep_part_table_update(knl_session_t *session, dep_condition_
             }
 
             if (knl_verify_ref_entity_update(session, dep_cond, child_dc, parent_cursor,
-                                             depended, depth) != CT_SUCCESS) {
+                                             depended, depth, parent_index) != CT_SUCCESS) {
                 return CT_ERROR;
             }
 
@@ -3203,8 +3182,8 @@ status_t knl_verify_dep_part_table_update(knl_session_t *session, dep_condition_
                 return CT_ERROR;
             }
 
-            if (knl_verify_ref_entity_update(session, dep_cond, child_dc,
-                                             parent_cursor, depended, depth) != CT_SUCCESS) {
+            if (knl_verify_ref_entity_update(session, dep_cond, child_dc, parent_cursor,
+                                             depended, depth, parent_index) != CT_SUCCESS) {
                 return CT_ERROR;
             }
 
@@ -3286,22 +3265,24 @@ status_t knl_verify_dep_part_table_delete(knl_session_t *session, dep_condition_
 }
 
 status_t knl_verify_dep_update(knl_session_t *session, dep_condition_t *dep_cond, knl_dictionary_t *child_dc,
-                               knl_cursor_t *parent_cursor, bool32 *depended, uint8 depth)
+                               knl_cursor_t *parent_cursor, bool32 *depended, uint8 depth, index_t *parent_index)
 {
     knl_cursor_t *cursor = dep_cond->child_cursor;
 
     if (!IS_PART_TABLE(cursor->table)) {
-        if (knl_verify_ref_entity_update(session, dep_cond, child_dc, parent_cursor, depended, depth) != CT_SUCCESS) {
+        if (knl_verify_ref_entity_update(session, dep_cond, child_dc, parent_cursor,
+                                         depended, depth, parent_index) != CT_SUCCESS) {
             return CT_ERROR;
         }
     } else {
         /* global index scan in part table is equal to normal table using index scan */
         if (dep_cond->dep->scan_mode != DEP_SCAN_TABLE_FULL && !IS_PART_INDEX(cursor->index)) {
-            return knl_verify_ref_entity_update(session, dep_cond, child_dc, parent_cursor, depended, depth);
+            return knl_verify_ref_entity_update(session, dep_cond, child_dc, parent_cursor,
+                                                depended, depth, parent_index);
         }
 
         if (knl_verify_dep_part_table_update(session, dep_cond, depended, parent_cursor,
-                                             child_dc, depth) != CT_SUCCESS) {
+                                             child_dc, depth, parent_index) != CT_SUCCESS) {
             return CT_ERROR;
         }
     }
@@ -3347,18 +3328,12 @@ void knl_set_cursor_when_verify_ref_dep(knl_session_t *session, knl_cursor_t *ch
 }
 
 // if the precision or the scale of parent column and child column do not match, do not cascade child
-status_t knl_check_precision_and_scale(cons_dep_t *dep, dc_entity_t *parent_entity,
+status_t knl_check_precision_and_scale(cons_dep_t *dep, dc_entity_t *parent_entity, index_t *ref_dc_index,
                                        dc_entity_t *child_entity, bool32 *is_precision_scale_match)
 {
-    uint16 ref_index;;
-    uint32 ref_ix_val = CT_INVALID_ID16;
     knl_column_t *ref_fk_column = NULL;
     knl_column_t *child_column = NULL;
-    index_t *ref_dc_index = NULL;
-    CT_RETURN_IFERR(knl_get_ref_ix(child_entity, parent_entity, &ref_ix_val, dep));
     for (uint32 i = 0; i < dep->col_count; i++) {
-        ref_index = child_entity->table.cons_set.ref_cons[ref_ix_val]->ref_ix;
-        ref_dc_index = parent_entity->table.index_set.items[ref_index];
         ref_fk_column = dc_get_column(parent_entity, ref_dc_index->desc.columns[i]);
         child_column = dc_get_column(child_entity, dep->cols[i]);
         knl_check_precision_and_scale_match(child_column, ref_fk_column, is_precision_scale_match);
@@ -3385,7 +3360,7 @@ status_t knl_verify_ref_dep_update(knl_session_t *session, knl_cursor_t *parent_
         dc_load_child_entity(session, cons_dep, &child_dc);
     }
 
-    if (knl_check_precision_and_scale(cons_dep, (dc_entity_t *)(parent_cursor->dc_entity),
+    if (knl_check_precision_and_scale(cons_dep, (dc_entity_t *)(parent_cursor->dc_entity), parent_index,
                                       (dc_entity_t *)(child_dc.handle), &is_precision_scale_match) != CT_SUCCESS) {
         return CT_ERROR;
     }
@@ -3411,7 +3386,7 @@ status_t knl_verify_ref_dep_update(knl_session_t *session, knl_cursor_t *parent_
     child_cursor->no_logic_logging = parent_cursor->no_logic_logging;
     knl_set_cursor_when_verify_ref_dep(session, child_cursor);
 
-    ret = knl_verify_dep_update(session, dep_cond, &child_dc, parent_cursor, depended, depth);
+    ret = knl_verify_dep_update(session, dep_cond, &child_dc, parent_cursor, depended, depth, parent_index);
 
     knl_close_cursor(session, child_cursor);
     session->match_cond = org_match_cond;
@@ -3438,7 +3413,7 @@ status_t knl_verify_ref_dep_delete(knl_session_t *session, knl_cursor_t *parent_
         dc_load_child_entity(session, cons_dep, &child_dc);
     }
 
-    if (knl_check_precision_and_scale(cons_dep, (dc_entity_t *)(parent_cursor->dc_entity),
+    if (knl_check_precision_and_scale(cons_dep, (dc_entity_t *)(parent_cursor->dc_entity), parent_index,
                                       (dc_entity_t *)(child_dc.handle), &is_precision_scale_match) != CT_SUCCESS) {
         return CT_ERROR;
     }
@@ -3558,7 +3533,8 @@ status_t knl_verify_ref_depend(knl_session_t *session, knl_cursor_t *cursor, ind
  * @param handle pointer for kernel session
  * @note called when delete or update
  */
-status_t knl_verify_children_dependency(knl_handle_t session, knl_cursor_t *cursor, bool32 is_update, uint8 depth)
+status_t knl_verify_children_dependency(knl_handle_t session, knl_cursor_t *cursor, bool32 is_update,
+                                        uint8 depth, bool32 is_dd_table)
 {
     table_t *table = &((dc_entity_t *)cursor->dc_entity)->table;
     index_t *index = NULL;
@@ -3593,7 +3569,7 @@ status_t knl_verify_children_dependency(knl_handle_t session, knl_cursor_t *curs
             return CT_ERROR;
         }
 
-        if (depended) {
+        if (depended && !is_dd_table) {
             if (cursor->action == CURSOR_ACTION_DELETE || knl_check_index_key_changed(cursor, index, map)) {
                 CT_THROW_ERROR(ERR_ROW_IS_REFERENCED);
                 cm_pop(se->stack);
@@ -5465,7 +5441,7 @@ status_t knl_alter_space(knl_handle_t session, knl_handle_t stmt, knl_altspace_d
         return CT_ERROR;
     }
 
-    if (CT_SUCCESS != spc_get_space_id(se, &def->name, CT_FALSE, &space_id)) {
+    if (CT_SUCCESS != spc_get_space_id(se, &def->name, def->is_for_create_db, &space_id)) {
         knl_ddl_unlatch_x(session);
         cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_SPACE, &tv_begin, IO_STAT_FAILED);
         return CT_ERROR;
@@ -8976,14 +8952,8 @@ status_t knl_switch_log(knl_handle_t session)
     }
 
     CT_LOG_RUN_INF("knl switch log file");
-    if (cm_dbs_is_enable_dbs() == CT_TRUE) {
-        if (dtc_bak_handle_log_switch(se) != CT_SUCCESS) {
-            return CT_ERROR;
-        }
-    } else {
-        if (log_switch_logfile(se, CT_INVALID_FILEID, CT_INVALID_ASN, NULL) != CT_SUCCESS) {
-            return CT_ERROR;
-        }
+    if (dtc_bak_handle_log_switch(se) != CT_SUCCESS) {
+        return CT_ERROR;
     }
     return CT_SUCCESS;
 }
@@ -9480,7 +9450,7 @@ status_t knl_check_db_status(knl_session_t *se, knl_backup_t *param)
         return CT_ERROR;
     }
  
-    if ((!DB_IS_PRIMARY(&se->kernel->db) && !DB_IS_PHYSICAL_STANDBY(&se->kernel->db)) ||
+    if ((!DB_IS_PRIMARY(&se->kernel->db)) ||
         (DB_IS_RAFT_ENABLED(se->kernel) && !DB_IS_PRIMARY(&se->kernel->db) && param->type != BACKUP_MODE_FULL)) {
         CT_THROW_ERROR(ERR_INVALID_OPERATION, ", can not do backup on current database role");
         cm_spin_unlock(&se->kernel->lock);
@@ -10936,7 +10906,7 @@ status_t knl_analyze_table(knl_handle_t session, knl_analyze_tab_def_t *def)
     }
 
     if (def->part_name.len > 0 ||
-       (DB_ATTR_COMPATIBLE_MYSQL(se) && (def->part_no != CT_INVALID_ID32))) {
+       (((session_t *)session)->is_tse && (def->part_no != CT_INVALID_ID32))) {
         return db_analyze_table_part(se, def, CT_FALSE);
     } else {
         return db_analyze_table(se, def, CT_FALSE);

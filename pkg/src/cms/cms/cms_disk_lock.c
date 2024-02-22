@@ -34,6 +34,7 @@
 #include "cms_stat.h"
 #include "cm_utils.h"
 #include "cms_log.h"
+#include "cm_disklock.h"
 
 static active_func_t  g_active_func = NULL;
 cms_flock_t* g_invalid_lock = NULL;
@@ -136,6 +137,100 @@ status_t cms_disk_lock_init_nfs(cms_disk_lock_t* lock, const char* dev, const ch
     return CT_SUCCESS;
 }
 
+status_t cms_dbstore_lock_init(cms_disk_lock_t* lock, uint64 l_start, uint64 l_len)
+{
+    status_t ret = CT_SUCCESS;
+    char file_name[CMS_MAX_NAME_LEN] = {0};
+    if (lock->flock == NULL) {
+        CMS_LOG_ERR("get file name from path(%s), invalid para.", lock->dev_name);
+        return CT_ERROR;
+    }
+    ret = cm_get_path_file_name(lock->flock->file_name, file_name, CMS_MAX_NAME_LEN);
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("get file name from path(%s) failed,", lock->flock->file_name);
+        return CT_ERROR;
+    }
+    errno_t err = snprintf_s(lock->file_name, CMS_MAX_NAME_LEN, CMS_MAX_NAME_LEN - 1, "%s", file_name);
+    if (err == -1) {
+        CMS_LOG_ERR("snprintf_s file name failed, err %d, errno %d[%s]", err, errno, strerror(errno));
+        return CT_ERROR;
+    }
+    if (cm_dbs_lock_init(file_name, l_start, l_len, &lock->fd) != CT_SUCCESS) {
+        CMS_LOG_ERR("init dbstore lock(%s) start(%llu) len(%llu) failed.", file_name, l_start, l_len);
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+ 
+/* 生成当前加锁路径文件的dbstore lock锁句柄 */
+status_t cms_gen_dbstore_lock_obj(cms_disk_lock_t* lock, uint64 l_start, uint64 l_len)
+{
+    int path_depth = 0;
+    status_t ret = cm_get_file_path_depth(lock->flock->file_name, "/", &path_depth);
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("get file path depth failed, file %s, ret %d", lock->flock->file_name, ret);
+        return ret;
+    }
+    if (lock->dbs_fd == NULL) {
+        lock->dbs_fd = (object_id_t *)cm_malloc_align(CMS_BLOCK_SIZE, sizeof(object_id_t) * (path_depth + 1));
+        CT_RETVALUE_IFTRUE((lock->dbs_fd == NULL), CT_ERROR);
+        lock->fd_len = path_depth;
+    }
+    
+    ret = cm_get_dbs_file_path_handle(lock->flock->file_name, "/", lock->dbs_fd, path_depth);
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("get dbstore file path fd failed, file %s, ret %d", lock->flock->file_name, ret);
+        CM_FREE_PTR(lock->dbs_fd);
+        return ret;
+    }
+    ret = cms_dbstore_lock_init(lock, l_start, l_len);
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("dbstore lock init name:%s offset:%lld len:%lld failed.", lock->flock->file_name, l_start, l_len);
+        CM_FREE_PTR(lock->dbs_fd);
+        return ret;
+    }
+    return CT_SUCCESS;
+}
+ 
+status_t cms_disk_lock_init_dbs(cms_disk_lock_t* lock, const char* dev, const char* file, uint64 l_start,
+    uint64 l_len, int64 inst_id, bool32 is_write)
+{
+    status_t ret = CT_SUCCESS;
+    errno_t err = EOK;
+    if (lock->flock == NULL) {
+        lock->flock = (cms_flock_t*)cm_malloc_align(CMS_BLOCK_SIZE, sizeof(cms_flock_t));
+        CT_RETVALUE_IFTRUE((lock->flock == NULL), CT_ERROR);
+    }
+    err = memset_sp(lock->flock->file_name, CMS_FILE_NAME_BUFFER_SIZE, 0, CMS_FILE_NAME_BUFFER_SIZE);
+    if (err != EOK) {
+        CMS_LOG_ERR("memset_sp failed, err %d, errno %d[%s].", err, errno, strerror(errno));
+        CM_FREE_PTR(lock->flock);
+        return CT_ERROR;
+    }
+    err = snprintf_s(lock->flock->file_name, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN,
+        "%s%s", dev, file);
+    if (err == -1) {
+        CMS_LOG_ERR("snprintf_s failed, err %d, errno %d[%s]", err, errno, strerror(errno));
+        CM_FREE_PTR(lock->flock);
+        return CT_ERROR;
+    }
+    ret = cms_gen_dbstore_lock_obj(lock, l_start, l_len);
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("gen dbstore lock obj failed, file %s, ret %d", lock->flock->file_name, ret);
+        CM_FREE_PTR(lock->flock);
+        return ret;
+    }
+    
+    lock->flock->magic = CMS_STAT_LOCK_MAGIC;
+    lock->flock->node_id = inst_id;
+    lock->flock->lock_time = time(NULL);
+    lock->flock->is_write = is_write;
+    lock->flock->l_start = l_start;
+    lock->flock->l_len = l_len;
+    return CT_SUCCESS;
+}
+
 status_t cms_disk_lock_init(cms_dev_type_t type, const char* dev, const char* file, uint64 offset,
     uint64 l_start, uint64 l_len, int64 inst_id, cms_disk_lock_t* lock, active_func_t active_func,
     uint32 flag, bool32 is_write)
@@ -172,6 +267,13 @@ status_t cms_disk_lock_init(cms_dev_type_t type, const char* dev, const char* fi
         if (ret != CT_SUCCESS) {
             CMS_LOG_ERR("cms disk lock init sd failed, ret %d, dev %s, offset %llu, inst_id %lld, flag %u",
                 ret, dev, offset, inst_id, flag);
+            return ret;
+        }
+    } else if (type == CMS_DEV_TYPE_DBS) {
+        ret = cms_disk_lock_init_dbs(lock, dev, file, l_start, l_len, inst_id, is_write);
+        if (ret != CT_SUCCESS) {
+            CMS_LOG_ERR("cms disk lock init dbstore failed, ret %d, dev %s, file %s, l_start %llu, l_len %llu, "
+                " inst_id %lld", ret, dev, file, l_start, l_len, inst_id);
             return ret;
         }
     } else {
@@ -435,6 +537,29 @@ status_t cms_seek_write_master_lock(cms_disk_lock_t* lock, cms_flock_t* lock_inf
     return CT_SUCCESS;
 }
 
+status_t cms_write_master_lock_with_dbs(cms_disk_lock_t* lock, cms_flock_t* lock_info, uint8 lock_type)
+{
+    if (lock->fd_len < CMS_DBS_LAST_DIR_HANDLE_IDX) {
+        CMS_LOG_ERR("cms write master info dbs fd len(%d) invalid.", lock->fd_len);
+        return CT_ERROR;
+    }
+    uint64 offset = lock->flock->l_start;
+    object_id_t* dbs_fd = &lock->dbs_fd[lock->fd_len - CMS_DBS_LAST_DIR_HANDLE_IDX];
+    status_t ret = cm_write_dbs_file(dbs_fd, lock->file_name, offset, lock_info, sizeof(cms_flock_t));
+    CMS_SYNC_POINT_GLOBAL_START(CMS_DISK_UNLOCK_FILE_WRITE_FAIL, &ret, CT_ERROR);
+    CMS_SYNC_POINT_GLOBAL_END;
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("dbs write failed:%s:%llu,%d:%s",
+            lock->flock->file_name, lock->flock->l_start, errno, strerror(errno));
+        if (cm_unlock_range_dbs(lock->fd, lock_type) != 0) {
+            CMS_LOG_ERR("cms unlock(%s) type(%d) start(%llu) len(%llu) failed.",
+                lock->file_name, lock_type, lock->flock->l_start, lock->flock->l_len);
+        }
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
 status_t cms_seek_write_master_info(cms_disk_lock_t* lock, cms_master_info_t* data_info, uint64 offset)
 {
     status_t ret;
@@ -455,6 +580,27 @@ status_t cms_seek_write_master_info(cms_disk_lock_t* lock, cms_master_info_t* da
         if (cm_unlock_range_fd(lock->fd, lock->flock->l_start, lock->flock->l_len) != CT_SUCCESS) {
             CMS_LOG_ERR("cms unlock file failed:%s:%llu-%llu", lock->flock->file_name, lock->flock->l_start,
                 lock->flock->l_len);
+        }
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t cms_write_master_info_with_dbs(cms_disk_lock_t* lock, cms_master_info_t* data_info, uint64 offset, uint8 type)
+{
+    if (lock->fd_len < CMS_DBS_LAST_DIR_HANDLE_IDX) {
+        CMS_LOG_ERR("cms write master info dbs fd len(%d) invalid.", lock->fd_len);
+        return CT_ERROR;
+    }
+    object_id_t* dbs_fd = &lock->dbs_fd[lock->fd_len - CMS_DBS_LAST_DIR_HANDLE_IDX];
+    status_t ret = cm_write_dbs_file(dbs_fd, lock->file_name, offset, data_info, sizeof(cms_master_info_t));
+    CMS_SYNC_POINT_GLOBAL_START(CMS_DISK_UNLOCK_FILE_WRITE_FAIL, &ret, CT_ERROR);
+    CMS_SYNC_POINT_GLOBAL_END;
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("file write failed:%s: %llu", lock->flock->file_name, offset);
+        if (cm_unlock_range_dbs(lock->fd, type) != 0) {
+            CMS_LOG_ERR("cms unlock(%s) type(%d) start(%llu) len(%llu) failed.",
+                lock->file_name, type, lock->flock->l_start, lock->flock->l_len);
         }
         return CT_ERROR;
     }
@@ -524,6 +670,59 @@ static status_t cms_disk_lock_try_lock_nfs(cms_disk_lock_t* lock, uint8 lock_typ
     return ret;
 }
 
+static status_t cms_disk_lock_try_lock_dbs(cms_disk_lock_t* lock, uint8 lock_type)
+{
+    if (lock_type != DISK_LOCK_WRITE && lock_type != DISK_LOCK_READ) {
+        CMS_LOG_ERR("invalid lock type(%u),dbs lock file name:%s", lock_type, lock->file_name);
+        return CT_ERROR;
+    }
+    status_t ret = CT_ERROR;
+    int cnt = 0;
+    cm_thread_lock(&lock->slock);
+    do {
+        ++cnt;
+        ret = cm_lock_range_dbs(lock->fd, lock_type);
+        CMS_SYNC_POINT_GLOBAL_START(CMS_DISK_LOCK_FILE_LOCK_FAIL, &ret, CT_ERROR);
+        CMS_SYNC_POINT_GLOBAL_END;
+        if (ret != CT_SUCCESS) {
+            if (ret == CT_EAGAIN) {
+                cm_thread_unlock(&lock->slock);
+                return CT_EAGAIN;
+            }
+            CMS_LOG_ERR("cms dbs lock(lock type(%u)) name(%s) start(%llu) len(%llu) failed(%d).",
+                        lock_type, lock->file_name, lock->flock->l_start, lock->flock->l_len, ret);
+            cm_sleep(CM_LOCK_DBS_TRY_INTERVAL);
+            continue;
+        }
+        // 只有master锁的is_write为true，表示是否需要将master锁信息落盘
+        if (lock->flock->is_write == CT_TRUE && lock_type == DISK_LOCK_WRITE) {
+            lock->flock->lock_time = time(NULL);
+            date_t start_time = cm_now();
+            // 写lock信息，失败会解锁
+            ret = cms_write_master_lock_with_dbs(lock, lock->flock, lock_type);
+            if (ret != CT_SUCCESS) {
+                cm_sleep(CM_LOCK_DBS_TRY_INTERVAL);
+                continue;
+            }
+            g_master_info->magic = CMS_MASTER_INFO_MAGIC;
+            g_master_info->node_id = lock->flock->node_id;
+            g_master_info->lock_time = lock->flock->lock_time;
+            // 写master信息，失败会解锁
+            ret = cms_write_master_info_with_dbs(lock, g_master_info, CMS_BLOCK_SIZE, lock_type);
+            if (ret != CT_SUCCESS) {
+                cm_sleep(CM_LOCK_DBS_TRY_INTERVAL);
+                continue;
+            }
+            cms_refresh_last_check_time(start_time);
+        }
+        cm_thread_unlock(&lock->slock);
+        return CT_SUCCESS;
+    } while (cnt <= 1);
+    cm_thread_unlock(&lock->slock);
+    cms_exec_exit_proc();
+    return ret;
+}
+
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
 status_t _cms_disk_try_lock(cms_disk_lock_t* lock, uint8 lock_type, const char* file, int32 line)
 {
@@ -554,6 +753,8 @@ status_t cms_disk_try_lock(cms_disk_lock_t* lock, uint8 lock_type)
         ret = cms_disk_lock_try_lock_nfs(lock, lock_type);
     } else if (lock->type == CMS_DEV_TYPE_FILE) {
         ret = cms_disk_lock_try_lock_file(lock, lock_type);
+    } else if (lock->type == CMS_DEV_TYPE_DBS) {
+        ret = cms_disk_lock_try_lock_dbs(lock, lock_type);
     } else {
         CMS_LOG_ERR("invalid device type, type %d", lock->type);
         ret = CT_ERROR;
@@ -696,12 +897,62 @@ status_t cms_disk_unlock_nfs(cms_disk_lock_t* lock)
     return CT_ERROR;
 }
 
+status_t cms_disk_unlock_dbs(cms_disk_lock_t* lock, uint8_t lock_type)
+{
+    int32 cnt = 0;
+    status_t ret;
+    bool32 is_force = CT_FALSE;
+    cm_thread_lock(&lock->slock);
+    do {
+        ++cnt;
+        // 只有master锁的is_write才会为true
+        if (lock->flock->is_write == CT_TRUE && cm_lock_range_dbs(lock->fd, DISK_LOCK_WRITE) == CT_SUCCESS) {
+            date_t start_time = cm_now();
+            is_force = CT_TRUE;
+            ret = cms_write_master_lock_with_dbs(lock, g_invalid_lock, lock_type);
+            if (ret != CT_SUCCESS) {
+                continue;
+            }
+            g_master_info->magic = CMS_MASTER_INFO_MAGIC;
+            g_master_info->node_id = g_invalid_lock->node_id;
+            g_master_info->lock_time = g_invalid_lock->lock_time;
+            ret = cms_write_master_info_with_dbs(lock, g_master_info, CMS_BLOCK_SIZE, lock_type);
+            if (ret != CT_SUCCESS) {
+                continue;
+            }
+            // ret = cms_unlock_dbs_fd(lock, DISK_LOCK_WRITE); // 解master锁？
+            if (ret != CT_SUCCESS) {
+                continue;
+            }
+            cms_refresh_last_check_time(start_time);
+        }
+        if (is_force == CT_FALSE) {
+            ret = cm_unlock_range_dbs(lock->fd, lock_type);
+        } else {
+            ret = cm_unlock_range_dbs_force(lock->fd, lock_type);
+        }
+        CMS_SYNC_POINT_GLOBAL_START(CMS_DISK_UNLOCK_FILE_UNLOCK_FAIL, &ret, CT_ERROR);
+        CMS_SYNC_POINT_GLOBAL_END;
+        if (ret != CT_SUCCESS) {
+            CMS_LOG_ERR("dbs unlock failed(%d) file name:%s start:%llu, len:%llu lock type:%d is_force:%d.",
+                ret, lock->file_name, lock->flock->l_start, lock->flock->l_len, lock_type, is_force);
+            cm_sleep(CMS_LOCK_TRY_INTERVAL);
+            continue;
+        }
+        cm_thread_unlock(&lock->slock);
+        return CT_SUCCESS;
+    } while (cnt <= 1);
+    cm_thread_unlock(&lock->slock);
+    cms_exec_exit_proc();
+    return CT_ERROR;
+}
+
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
-status_t _cms_disk_unlock(cms_disk_lock_t* lock, const char* file, int32 line)
+status_t _cms_disk_unlock(cms_disk_lock_t* lock, uint8 lock_type, const char* file, int32 line)
 {
     CMS_LOG_DEBUG_INF("cms_disk_unlock:%s:%d", file, line);
 #else
-status_t cms_disk_unlock(cms_disk_lock_t* lock)
+status_t cms_disk_unlock(cms_disk_lock_t* lock, uint8_t lock_type)
 {
 #endif
     status_t ret = CT_ERROR;
@@ -714,6 +965,8 @@ status_t cms_disk_unlock(cms_disk_lock_t* lock)
         ret = cms_disk_unlock_nfs(lock);
     } else if (lock->type == CMS_DEV_TYPE_FILE) {
         ret = cms_disk_unlock_file(lock);
+    } else if (lock->type == CMS_DEV_TYPE_DBS) {
+        ret = cms_disk_unlock_dbs(lock, lock_type);
     } else {
         CMS_LOG_ERR("invalid device type, type %d", lock->type);
         return CT_ERROR;
@@ -728,7 +981,10 @@ status_t cms_disk_unlock(cms_disk_lock_t* lock)
 
 void cms_disk_lock_destroy(cms_disk_lock_t* lock)
 {
-    cms_disk_unlock(lock);
+    if (lock->type == CMS_DEV_TYPE_DBS) {
+        return;
+    }
+    cms_disk_unlock(lock, DISK_LOCK_READ);
     cm_destroy_thread_lock(&lock->tlock);
     if (lock->type == CMS_DEV_TYPE_SD) {
         cm_destory_dlock(&lock->dlock);
@@ -736,9 +992,11 @@ void cms_disk_lock_destroy(cms_disk_lock_t* lock)
         if (lock->flag & CMS_DLOCK_PROCESS) {
             cm_close_file(lock->fd);
         }
-    } else {
+    } else if (lock->type == CMS_DEV_TYPE_FILE || lock->type == CMS_DEV_TYPE_NFS) {
         cm_close_file(lock->fd);
         CM_FREE_PTR(lock->flock);
+    } else {
+        CMS_LOG_ERR("lock destory invalid device type %d", lock->type);
     }
 }
 
@@ -794,6 +1052,35 @@ static status_t cms_seek_read_master_info(cms_disk_lock_t* lock, cms_master_info
     return ret;
 }
 
+static status_t cms_read_dbs_master_info(cms_disk_lock_t* lock, cms_master_info_t* master_info, uint64 offset)
+{
+    status_t ret = CT_ERROR;
+    int32 cnt = 0;
+    object_id_t* dbs_dir_handle = NULL;
+    object_id_t* dbs_file_handle = NULL;
+    do {
+        ++cnt;
+        int fd_len = lock->fd_len;
+        if (fd_len <= CMS_DBS_LAST_DIR_HANDLE_IDX || lock->dbs_fd == NULL || lock->flock == NULL) {
+            CMS_LOG_ERR("cms read dbs master file error, file(%s) not open.", lock->dev_name);
+            break;
+        }
+        dbs_dir_handle = &lock->dbs_fd[fd_len - CMS_DBS_LAST_DIR_HANDLE_IDX];
+        ret = cm_read_dbs_file(dbs_dir_handle, lock->file_name, offset, master_info, sizeof(cms_master_info_t));
+        CMS_SYNC_POINT_GLOBAL_START(CMS_DISK_GET_INST_FILE_READ_FAIL, &ret, CT_ERROR);
+        CMS_SYNC_POINT_GLOBAL_END;
+        if (ret != CT_SUCCESS) {
+            CMS_LOG_ERR("cm read dbs file %s offset %llu failed", lock->file_name, offset);
+            dbs_file_handle = &lock->dbs_fd[fd_len - CMS_DBS_LAST_FILE_HANDLE_IDX];
+            cm_open_dbs_file(dbs_dir_handle, lock->file_name, dbs_file_handle);
+            continue;
+        }
+        return CT_SUCCESS;
+    } while (cnt <= 1);
+    cms_exec_exit_proc();
+    return ret;
+}
+
 static status_t cms_disk_lock_get_data_sd(cms_disk_lock_t* lock, char* data, uint32 size)
 {
 #ifndef _WIN32
@@ -820,6 +1107,27 @@ static status_t cms_disk_lock_get_data_sd(cms_disk_lock_t* lock, char* data, uin
 
     cm_destory_dlock(&dlock);
 #endif
+    return CT_SUCCESS;
+}
+
+static status_t cms_copy_master_data(uint64 magic, uint64 magic_check, char* out_buf, uint32 size, char* in_buf)
+{
+    errno_t err = EOK;
+    date_t start_time = cm_now();
+    if (out_buf == NULL || in_buf == NULL || size == 0) {
+        CMS_LOG_ERR("cms lock get data param invalid.");
+        return CT_ERROR;
+    }
+    if (magic != magic_check) {
+        CMS_LOG_WAR("cms lock_info magic is invalid");
+        err = memset_s(out_buf, size, 0, size);
+        MEMS_RETURN_IFERR(err);
+    }
+    cms_refresh_last_check_time(start_time);
+    if (memcpy_s(out_buf, size, in_buf, MIN(size, DISK_LOCK_BODY_LEN)) != EOK) {
+        CMS_LOG_ERR("cms lock get data memcpy failed.");
+        return CT_ERROR;
+    }
     return CT_SUCCESS;
 }
 
@@ -889,6 +1197,32 @@ static status_t cms_disk_lock_get_data_nfs(cms_disk_lock_t* lock, char* data, ui
     return ret;
 }
 
+static status_t cms_disk_lock_get_data_dbs(cms_disk_lock_t* lock, char* data, uint32 size)
+{
+    cms_master_info_t* master_info = cm_malloc_align(CMS_BLOCK_SIZE, sizeof(cms_master_info_t));
+    if (master_info == NULL) {
+        CMS_LOG_ERR("cms malloc master_info failed, %s %llu", lock->dev_name, lock->offset);
+        return CT_ERROR;
+    }
+    status_t ret = CT_SUCCESS;
+    do {
+        cm_thread_lock(&lock->slock);
+        ret = cms_read_dbs_master_info(lock, master_info, CMS_BLOCK_SIZE);
+        cm_thread_unlock(&lock->slock);
+        if (ret != CT_SUCCESS) {
+            CMS_LOG_ERR("cms read dbs file failed, %s %llu", lock->dev_name, lock->offset);
+            break;
+        }
+        ret = cms_copy_master_data(master_info->magic, CMS_MASTER_INFO_MAGIC, data, size, master_info->data);
+        if (ret != CT_SUCCESS) {
+            CMS_LOG_ERR("cms lock get data failed, %s %llu", lock->dev_name, lock->offset);
+            break;
+        }
+    } while (0);
+    CM_FREE_PTR(master_info);
+    return ret;
+}
+
 status_t cms_disk_lock_get_data(cms_disk_lock_t* lock, char* data, uint32 size)
 {
     if (lock->type == CMS_DEV_TYPE_SD) {
@@ -897,6 +1231,8 @@ status_t cms_disk_lock_get_data(cms_disk_lock_t* lock, char* data, uint32 size)
         return cms_disk_lock_get_data_file(lock, data, size);
     } else if (lock->type == CMS_DEV_TYPE_NFS) {
         return cms_disk_lock_get_data_nfs(lock, data, size);
+    } else if (lock->type == CMS_DEV_TYPE_DBS) {
+        return cms_disk_lock_get_data_dbs(lock, data, size);
     } else {
         CMS_LOG_ERR("invalid device type, type %d", lock->type);
         return CT_ERROR;
@@ -976,6 +1312,26 @@ static status_t cms_disk_lock_get_inst_file(cms_disk_lock_t* lock, uint64* inst_
     return CT_SUCCESS;
 }
 
+static void cms_get_inst_id_from_master_info(cms_disk_lock_t* lock, cms_master_info_t* master_info, uint64* inst_id)
+{
+    if (master_info->magic == CMS_MASTER_INFO_MAGIC) {
+        time_t lock_time = master_info->lock_time;
+        time_t now_time = time(NULL);
+        time_t diff_time = now_time - lock_time;
+        if (diff_time <= CMS_DISK_LOCK_TIMEOUT) {
+            *inst_id = master_info->node_id;
+        } else if (lock->active_func != NULL && lock->active_func(lock, master_info->node_id)) {
+            CMS_LOG_WAR("lock[%s,%llu] hold by %d time out, diff_time %lu", lock->dev_name, lock->offset,
+                master_info->node_id, diff_time);
+            *inst_id = CT_INVALID_ID64;
+        }
+    } else {
+        CMS_LOG_WAR("lock info is invalid, lock_info magic is %llu", master_info->magic);
+        *inst_id = CT_INVALID_ID64;
+    }
+    return;
+}
+
 static status_t cms_disk_lock_get_inst_nfs(cms_disk_lock_t* lock, uint64* inst_id)
 {
     cms_master_info_t* master_info = cm_malloc_align(CMS_BLOCK_SIZE, sizeof(cms_master_info_t));
@@ -992,21 +1348,29 @@ static status_t cms_disk_lock_get_inst_nfs(cms_disk_lock_t* lock, uint64* inst_i
         CM_FREE_PTR(master_info);
         return ret;
     }
-    if (master_info->magic == CMS_MASTER_INFO_MAGIC) {
-        time_t lock_time = master_info->lock_time;
-        time_t now_time = time(NULL);
-        time_t diff_time = now_time - lock_time;
-        if (diff_time <= CMS_DISK_LOCK_TIMEOUT) {
-            *inst_id = master_info->node_id;
-        } else if (lock->active_func != NULL && lock->active_func(lock, master_info->node_id)) {
-            CMS_LOG_WAR("lock[%s,%llu] hold by %d time out, diff_time %lu", lock->dev_name, lock->offset,
-                master_info->node_id, diff_time);
-            *inst_id = CT_INVALID_ID64;
-        }
-    } else {
-        CMS_LOG_WAR("lock info is invalid, lock_info magic is %llu", master_info->magic);
-        *inst_id = CT_INVALID_ID64;
+    cms_get_inst_id_from_master_info(lock, master_info, inst_id);
+    cms_refresh_last_check_time(start_time);
+    CM_FREE_PTR(master_info);
+    return CT_SUCCESS;
+}
+
+static status_t cms_disk_lock_get_inst_dbs(cms_disk_lock_t* lock, uint64* inst_id)
+{
+    cms_master_info_t* master_info = cm_malloc_align(CMS_BLOCK_SIZE, sizeof(cms_master_info_t));
+    date_t start_time = cm_now();
+    status_t ret;
+    if (master_info == NULL) {
+        CMS_LOG_ERR("cms malloc master_info failed, %s %llu", lock->dev_name, lock->offset);
+        return CT_ERROR;
     }
+    cm_thread_lock(&lock->slock);
+    ret = cms_read_dbs_master_info(lock, master_info, CMS_BLOCK_SIZE);
+    cm_thread_unlock(&lock->slock);
+    if (ret != CT_SUCCESS) {
+        CM_FREE_PTR(master_info);
+        return ret;
+    }
+    cms_get_inst_id_from_master_info(lock, master_info, inst_id);
     cms_refresh_last_check_time(start_time);
     CM_FREE_PTR(master_info);
     return CT_SUCCESS;
@@ -1026,6 +1390,8 @@ status_t cms_disk_lock_get_inst(cms_disk_lock_t* lock, uint64* inst_id)
         return cms_disk_lock_get_inst_file(lock, inst_id);
     } else if (lock->type == CMS_DEV_TYPE_NFS) {
         return cms_disk_lock_get_inst_nfs(lock, inst_id);
+    } else if (lock->type == CMS_DEV_TYPE_DBS) {
+        return cms_disk_lock_get_inst_dbs(lock, inst_id);
     } else {
         CMS_LOG_ERR("invalid device type, type %d", lock->type);
         return CT_ERROR;
@@ -1064,6 +1430,8 @@ status_t cms_disk_lock_set_data(cms_disk_lock_t* lock, char* data, uint32 size)
     } else if (lock->type == CMS_DEV_TYPE_FILE) {
         return cms_disk_lock_set_data_file(lock, data, size);
     } else if (lock->type == CMS_DEV_TYPE_NFS) {
+        return cms_disk_lock_set_data_nfs(lock, data, size);
+    } else if (lock->type == CMS_DEV_TYPE_DBS) {
         return cms_disk_lock_set_data_nfs(lock, data, size);
     } else {
         CMS_LOG_ERR("invalid device type, type %d", lock->type);

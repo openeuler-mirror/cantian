@@ -122,11 +122,8 @@ def update_dbstore_conf(action, key, value=None):
         "/opt/cantian/dbstor/tools/dbstor_config.ini",
         "/opt/cantian/cms/dbstor/conf/dbs/dbstor_config.ini"
     ]
-    deploy_config = read_deploy_conf()
-    storage_share_fs = deploy_config.get("storage_share_fs")
-    node_id = deploy_config.get("node_id")
-    share_dbstore_config = "/mnt/dbdata/remote/share_{}/node{}/dbstor_config.ini".format(storage_share_fs, node_id)
-    file_list.append(share_dbstore_config)
+    opt_dbstore_config = "/opt/cantian/dbstor/tools/dbstor_config.ini"
+    file_list.append(opt_dbstore_config)
     for file_path in file_list:
         if not os.path.exists(file_path):
             continue
@@ -204,12 +201,18 @@ def update_cms_ini_conf(action, key, value):
     file_path = "/opt/cantian/cms/cfg/cms.ini"
     with open(file_path, "r", encoding="utf-8") as fp:
         config = fp.readlines()
-    for i, item in enumerate(config):
-        if key in item:
-            if action == "update":
+    if action == "add":
+        for i, item in enumerate(config):
+            if key in item:
+                config.pop(i)
+        config.append(f"{key} = {value}\n")
+    elif action == "update":
+        for i, item in enumerate(config):
+            if key in item:
                 config[i] = f"{key} = {value}\n"
-            break
-    flags = os.O_CREAT | os.O_RDWR
+                break
+
+    flags = os.O_CREAT | os.O_RDWR | os.O_TRUNC
     modes = stat.S_IWUSR | stat.S_IRUSR
     with os.fdopen(os.open(file_path, flags, modes), "w") as file_obj:
         file_obj.writelines(config)

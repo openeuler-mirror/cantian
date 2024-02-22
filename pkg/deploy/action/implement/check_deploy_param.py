@@ -28,12 +28,12 @@ def read_file(file_path):
 
 def check_deploy_param():
     local_deploy_params = read_file(DEPLOY_PARAM_FILE)
-    storage_share_fs = local_deploy_params.get("storage_share_fs")
-    remote_deploy_file = f"/mnt/dbdata/remote/share_{storage_share_fs}/deploy_param.json"
+    storage_metadata_fs = local_deploy_params.get("storage_metadata_fs")
+    remote_deploy_file = f"/mnt/dbdata/remote/metadata_{storage_metadata_fs}/deploy_param.json"
     if not os.path.exists(remote_deploy_file):
         err_msg = "%s is not exists, please check:\n" \
                   "\t1、node 0 has been successfully installed.\n" \
-                  "\t2、storage_share_fs field in the configuration file same as node 0." % remote_deploy_file
+                  "\t2、storage_metadata_fs field in the configuration file same as node 0." % remote_deploy_file
         raise Exception(err_msg)
     remote_deploy_params = read_file(remote_deploy_file)
     check_failed_list = []

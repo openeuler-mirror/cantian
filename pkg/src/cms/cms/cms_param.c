@@ -49,6 +49,9 @@ config_item_t g_cms_params[] = {
     { "NODE_ID",                CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_INTEGER", NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
     { "GCC_TYPE",               CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
     { "GCC_HOME",               CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
+    { "GCC_DIR",                CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
+    { "FS_NAME",                CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
+    { "CLUSTER_NAME",           CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
     { "_IP",                    CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
     { "_PORT",                  CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
     {"_LOG_BACKUP_FILE_COUNT",  CT_TRUE,  ATTR_NONE, "10",        NULL, NULL,          "-",       "[0,128]",  "CT_TYPE_INTEGER", NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
@@ -512,12 +515,36 @@ status_t cms_load_param(void)
 
     g_param.node_id = (uint16)size;
 
+    value = cm_get_config_value(&cfg, "FS_NAME");
+    if (value == NULL) {
+        CT_THROW_ERROR(ERR_CTSTORE_INVALID_PARAM, "invalid parameter value of 'FS_NAME'");
+        return CT_ERROR;
+    }
+    ret = strncpy_sp(g_param.fs_name, CMS_FILE_NAME_BUFFER_SIZE, value, CMS_MAX_FILE_NAME_LEN);
+    MEMS_RETURN_IFERR(ret);
+
     value = cm_get_config_value(&cfg, "GCC_HOME");
     if (value == NULL) {
         CT_THROW_ERROR(ERR_CTSTORE_INVALID_PARAM, "invalid parameter value of 'GCC_HOME'");
         return CT_ERROR;
     }
     ret = strncpy_sp(g_param.gcc_home, CMS_FILE_NAME_BUFFER_SIZE, value, CMS_MAX_FILE_NAME_LEN);
+    MEMS_RETURN_IFERR(ret);
+
+    value = cm_get_config_value(&cfg, "GCC_DIR");
+    if (value == NULL) {
+        CT_THROW_ERROR(ERR_CTSTORE_INVALID_PARAM, "invalid parameter value of 'GCC_DIR'");
+        return CT_ERROR;
+    }
+    ret = strncpy_sp(g_param.gcc_dir, CMS_FILE_NAME_BUFFER_SIZE, value, CMS_MAX_FILE_NAME_LEN);
+    MEMS_RETURN_IFERR(ret);
+
+    value = cm_get_config_value(&cfg, "CLUSTER_NAME");
+    if (value == NULL) {
+        CT_THROW_ERROR(ERR_CTSTORE_INVALID_PARAM, "invalid parameter value of 'CLUSTER_NAME'");
+        return CT_ERROR;
+    }
+    ret = strncpy_sp(g_param.cluster_name, CMS_FILE_NAME_BUFFER_SIZE, value, CMS_MAX_FILE_NAME_LEN);
     MEMS_RETURN_IFERR(ret);
 
     value = cm_get_config_value(&cfg, "GCC_TYPE");
@@ -531,6 +558,8 @@ status_t cms_load_param(void)
             g_param.gcc_type = CMS_DEV_TYPE_FILE;
         } else if (cm_strcmpi(value, "NFS") == 0) {
             g_param.gcc_type = CMS_DEV_TYPE_NFS;
+        } else if (cm_strcmpi(value, "DBS") == 0) {
+            g_param.gcc_type = CMS_DEV_TYPE_DBS;
         } else {
             CMS_LOG_ERR("invalid parameter value of 'GCC_TYPE':%s", value);
             CT_THROW_ERROR(ERR_CTSTORE_INVALID_PARAM, "invalid parameter value of 'GCC_TYPE':%s", value);
@@ -621,10 +650,8 @@ status_t cms_load_param(void)
     if (value == NULL) {
         CMS_LOG_INF("cms disk detect file is NULL.");
     }
-    if (cms_init_detect_file(value) != CT_SUCCESS) {
-        CT_THROW_ERROR(ERR_CTSTORE_INVALID_PARAM, "invalid parameter value of '_DISK_DETECT_FILE':%s", value);
-        return CT_ERROR;
-    }
+    ret = strncpy_sp(g_param.detect_file, CMS_FILE_NAME_BUFFER_SIZE, value, CMS_MAX_FILE_NAME_LEN);
+    MEMS_RETURN_IFERR(ret);
 
     value = cm_get_config_value(&cfg, "_STOP_RERUN_CMS_SCRIPT");
     if (value != NULL) {

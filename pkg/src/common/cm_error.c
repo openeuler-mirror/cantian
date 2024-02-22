@@ -1114,6 +1114,9 @@ const char *g_error_desc[] = {
 
     // BADBLOCK
     [ERR_CHECKSUM_FAILED_WITH_PAGE] = "Checksum failed with page %u-%u when read data from file %s",
+
+    // REBUILD
+    [ERR_REBUILD_WITH_STORAGE] = "The current storage does not support restoring control files.",
     /*
      * NOTICE: the error code defined should be smaller than ERR_ERRNO_CEIL.
      */

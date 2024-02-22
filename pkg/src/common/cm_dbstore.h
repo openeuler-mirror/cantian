@@ -32,6 +32,9 @@
 extern "C" {
 #endif
 
+#define DBS_CONFIG_NAME "dbstor_config.ini"
+#define DBS_CONFIG_NAME_WITHOUT_SUFFIX "dbstor_config"
+
 // libdbstoreClient.so
 // namespace
 typedef int (*create_namespace_t)(char *, NameSpaceAttr *);
@@ -40,10 +43,22 @@ typedef int (*set_term_access_mode_for_ns_t)(char *, TermAccessAttr *);
 
 // dbs
 typedef int (*dbs_client_set_uuid_lsid_t)(const char *, uint32_t);
-typedef int (*dbs_client_lib_init_t)(const char *);
+typedef int (*dbs_client_lib_init_t)(const char *, char *);
+typedef void (*dbs_set_init_mode_t)(uint32_t);
 typedef int (*dbs_client_flush_log_t)(void);
 typedef int (*dbs_link_down_event_reg_t)(void (*dbs_link_down_exit)(void));
 typedef int (*reg_role_info_callback_t)(regCallback);
+typedef int (*dbs_init_lock_t)(char *, uint32_t, uint32_t, int32_t *);
+typedef int (*dbs_inst_lock_t)(uint32_t, uint32_t);
+typedef int (*dbs_inst_unlock_t)(uint32_t, uint32_t);
+typedef int (*dbs_inst_unlock_force_t)(uint32_t, uint32_t);
+typedef bool (*dbs_check_inst_heart_beat_is_normal_t)(uint32_t);
+typedef int (*dbs_file_open_root_t)(char *, object_id_t *);
+typedef int (*dbs_file_create_t)(object_id_t *, char *, uint32_t, object_id_t *);
+typedef int (*dbs_file_open_t)(object_id_t *, char *, uint32_t, object_id_t *);
+typedef int (*dbs_file_write_t)(object_id_t *, uint32_t, char *, uint32_t);
+typedef int (*dbs_file_read_t)(object_id_t *, uint32_t, char *, uint32_t);
+typedef int (*dbs_file_remove_t)(object_id_t *, char *);
 
 //pagepool
 typedef int (*create_pagepool_t)(char *, PagePoolAttr *, PagePoolId *);
@@ -82,9 +97,21 @@ typedef struct st_dbs_interface {
     // dbs
     dbs_client_set_uuid_lsid_t dbs_client_set_uuid_lsid;
     dbs_client_lib_init_t dbs_client_lib_init;
+    dbs_set_init_mode_t dbs_set_init_mode;
     dbs_client_flush_log_t dbs_client_flush_log;
     reg_role_info_callback_t reg_role_info_callback;
     dbs_link_down_event_reg_t dbs_link_down_event_reg;
+    dbs_init_lock_t dbs_init_lock;
+    dbs_inst_lock_t dbs_inst_lock;
+    dbs_inst_unlock_t dbs_inst_unlock;
+    dbs_inst_unlock_force_t dbs_inst_unlock_force;
+    dbs_check_inst_heart_beat_is_normal_t dbs_check_inst_heart_beat_is_normal;
+    dbs_file_open_root_t dbs_file_open_root;
+    dbs_file_create_t dbs_file_create;
+    dbs_file_open_t dbs_file_open;
+    dbs_file_write_t dbs_file_write;
+    dbs_file_read_t dbs_file_read;
+    dbs_file_remove_t dbs_file_remove;
 
     // pagepool
     create_pagepool_t create_pagepool;

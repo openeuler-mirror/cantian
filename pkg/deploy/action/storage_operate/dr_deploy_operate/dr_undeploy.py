@@ -21,17 +21,20 @@ UNINSTALL_TIMEOUT = 900
 
 class UNDeploy(object):
     def __init__(self):
+        self.dr_deploy = None
+        self.dr_deploy_opt = None
+        self.storage_opt = None
         self.site = None
         self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
+        
+    def init_storage_opt(self):
         dm_ip = self.dr_deploy_info.get("dm_ip")
         dm_user = self.dr_deploy_info.get("dm_user")
         dm_passwd = input()
         self.storage_opt = StorageInf((dm_ip, dm_user, dm_passwd))
+        self.storage_opt.login()
         self.dr_deploy_opt = DRDeployCommon(self.storage_opt)
         self.dr_deploy = DRDeploy()
-
-    def init_storage_opt(self):
-        self.storage_opt.login()
 
     def delete_replication_filesystem_pair(self, page_id):
         try:
@@ -53,36 +56,19 @@ class UNDeploy(object):
         if self.site == "active":
             return
         else:
-            dbstore_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(fs_name,
+            fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(fs_name,
                                                                                    vstore_id)
-            if not dbstore_fs_info:
-                LOG.info("Filesystem[%s] is not exist.", fs_name)
-                return
-            dbstore_fs_id = dbstore_fs_info.get("ID")
-            self.storage_opt.delete_file_system(dbstore_fs_id)
-            LOG.info("Delete file system %s success!", fs_name)
-
-    def delete_metadata_filesystem(self):
-        if self.site == "active":
-            return
-        else:
-            mysql_metadata_in_cantian = self.dr_deploy_info("mysql_metadata_in_cantian")
-            metadata_fs = self.dr_deploy_info.get("storage_metadata_fs")
-            if not mysql_metadata_in_cantian:
-                return
-            fs_info = self.storage_opt.query_filesystem_info(fs_name=metadata_fs, vstore_id=0)
             if not fs_info:
-                LOG.info("Metadata filesystem info %s is not exist", metadata_fs)
+                LOG.info("Filesystem[%s] is not exist.", fs_name)
                 return
             fs_id = fs_info.get("ID")
             nfs_share_info = self.storage_opt.query_nfs_info(fs_id=fs_id, vstore_id=0)
             if nfs_share_info:
                 nfs_share_id = nfs_share_info[0].get("ID")
                 self.storage_opt.delete_nfs_share(nfs_share_id=nfs_share_id, vstore_id=0)
-            else:
-                LOG.info("The nfs share of metadata filesystem %s is not exist", metadata_fs)
+                LOG.info("Delete file system %s nfs share success!", fs_name)
             self.storage_opt.delete_file_system(fs_id)
-            LOG.info("Delete metadata filesystem success!")
+            LOG.info("Delete file system %s success!", fs_name)
 
     def delete_hyper_metro_filesystem(self):
         """
@@ -161,16 +147,14 @@ class UNDeploy(object):
         args = action_parse.parse_args()
         self.site = args.site
         page_fs_pair_id = self.dr_deploy_info.get("page_fs_pair_id")
-        if not page_fs_pair_id:
-            return
+        if page_fs_pair_id:
+            self.delete_replication_filesystem_pair(page_fs_pair_id)
+            LOG.info("Successfully delete metadata pair id %s.", page_fs_pair_id)
         meta_fs_pair_id = self.dr_deploy_info.get("meta_fs_pair_id")
-        if not meta_fs_pair_id:
-            return
-        metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
-        if not metadata_in_cantian:
+        metadata_in_cantian = self.dr_deploy_info.get("metadata_in_cantian")
+        if meta_fs_pair_id and not metadata_in_cantian:
             self.delete_replication_filesystem_pair(meta_fs_pair_id)
             LOG.info("Successfully delete metadata pair id %s.", meta_fs_pair_id)
-        self.delete_replication_filesystem_pair(page_fs_pair_id)
 
     def delete_hyper(self):
         action_parse = argparse.ArgumentParser()
@@ -205,7 +189,8 @@ class UNDeploy(object):
         if "uninstall finished" not in output:
             err_msg = "Failed to execute uninstall, stderr:%s, output:%s" % (stderr, output)
             raise Exception(err_msg)
-        shutil.rmtree('opt/cantian')
+        if os.path.exists("/opt/cantian"):
+            shutil.rmtree("/opt/cantian")
 
     def site_uninstall(self):
         node_id = self.dr_deploy_info.get("node_id")
@@ -235,6 +220,14 @@ class UNDeploy(object):
             else:
                 continue
 
+    def check_process(self):
+        process_name = "/storage_operate/dr_operate_interface.py deploy"
+        cmd = "ps -ef | grep -v grep | grep '%s'" % process_name
+        return_code, output, stderr = exec_popen(cmd)
+        if return_code or not output:
+            return False
+        return True
+
     def standby_uninstall(self, node_id, uninstall_cantian_flag):
         if self.site == "standby" and os.path.exists(CANTIAN_DEPLOY_CONFIG) and uninstall_cantian_flag:
             self.do_stop()
@@ -242,9 +235,12 @@ class UNDeploy(object):
         if node_id == "0":
             LOG.info("Start to delete dr deploy!")
             rep_fs_name = self.dr_deploy_info.get("storage_dbstore_page_fs")
+            mysql_metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
+            metadata_fs = self.dr_deploy_info.get("storage_metadata_fs")
             self.delete_replication()
             self.delete_filesystem(vstore_id="0", fs_name=rep_fs_name)
-            self.delete_metadata_filesystem()
+            if not mysql_metadata_in_cantian:
+                self.delete_filesystem(vstore_id="0", fs_name=metadata_fs)
             fs_name = self.dr_deploy_info.get("storage_dbstore_fs")
             dbstor_fs_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
             self.delete_hyper()
@@ -261,6 +257,9 @@ class UNDeploy(object):
     def execute(self):
         if not os.path.exists(DR_DEPLOY_CONFIG):
             LOG.info("No dr deploy set up.")
+            return
+        if self.check_process():
+            LOG.info("Deploy process exist.")
             return
         self.init_storage_opt()
         node_id = self.dr_deploy_info.get("node_id")

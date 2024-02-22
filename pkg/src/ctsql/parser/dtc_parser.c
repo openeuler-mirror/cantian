@@ -44,7 +44,11 @@ static status_t dtc_parse_undo_space(sql_stmt_t *stmt, dtc_node_def_t *node, wor
 
     node->undo_space.name.str = name;
     node->undo_space.name.len = (uint32)strlen(name);
-    node->undo_space.type = SPACE_TYPE_UNDO | SPACE_TYPE_DEFAULT;
+    if (node->id == 0) {
+        node->undo_space.type = SPACE_TYPE_UNDO | SPACE_TYPE_DEFAULT | SPACE_TYPE_NODE0;
+    } else {
+        node->undo_space.type = SPACE_TYPE_UNDO | SPACE_TYPE_DEFAULT | SPACE_TYPE_NODE1;
+    }
 
     if (lex_expected_fetch_word(lex, "datafile") != CT_SUCCESS) {
         return CT_ERROR;
@@ -76,7 +80,11 @@ static status_t dtc_parse_temp_undo_space(sql_stmt_t *stmt, dtc_node_def_t *node
 
     node->temp_undo_space.name.str = name;
     node->temp_undo_space.name.len = (uint32)strlen(name);
-    node->temp_undo_space.type = SPACE_TYPE_UNDO | SPACE_TYPE_DEFAULT | SPACE_TYPE_TEMP;
+    if (node->id == 0) {
+        node->temp_undo_space.type = SPACE_TYPE_UNDO | SPACE_TYPE_DEFAULT | SPACE_TYPE_TEMP | SPACE_TYPE_NODE0;
+    } else {
+        node->temp_undo_space.type = SPACE_TYPE_UNDO | SPACE_TYPE_DEFAULT | SPACE_TYPE_TEMP | SPACE_TYPE_NODE1;
+    }
 
     if (lex_expected_fetch_word(lex, "TEMPFILE") != CT_SUCCESS) {
         return CT_ERROR;
@@ -104,7 +112,11 @@ static status_t dtc_parse_swap_space(sql_stmt_t *stmt, dtc_node_def_t *node, wor
 
     node->swap_space.name.str = name;
     node->swap_space.name.len = (uint32)strlen(name);
-    node->swap_space.type = SPACE_TYPE_TEMP | SPACE_TYPE_SWAP | SPACE_TYPE_DEFAULT;
+    if (node->id == 0) {
+        node->swap_space.type = SPACE_TYPE_TEMP | SPACE_TYPE_SWAP | SPACE_TYPE_DEFAULT | SPACE_TYPE_NODE0;
+    } else {
+        node->swap_space.type = SPACE_TYPE_TEMP | SPACE_TYPE_SWAP | SPACE_TYPE_DEFAULT | SPACE_TYPE_NODE1;
+    }
 
     if (lex_expected_fetch_word(lex, "TEMPFILE") != CT_SUCCESS) {
         return CT_ERROR;

@@ -19,6 +19,19 @@ else:
         "random_seed": "1"
     }
 
+SHARE_INSTALL_FILE = str(Path(os.path.join("/mnt/dbdata/remote/metadata_%s" % info.get("storage_metadata_fs"),
+                                            "deploy_param.json")))
+
+if os.path.exists(SHARE_INSTALL_FILE):
+    with open(SHARE_INSTALL_FILE, encoding="utf-8") as f:
+        _tmp = f.read()
+        share_info = json.loads(_tmp)
+else:
+    share_info = {
+        "cluster_id": "1",
+        "random_seed": "1"
+    }
+
 
 class LSIDGenerate(object):
     def __init__(self, n_type, c_id, p_id, n_id):
@@ -47,7 +60,7 @@ class LSIDGenerate(object):
         return secrets_generator.randint(0, 2 ** 8 - 1)
 
     def execute(self):
-        tmp_seed = info.get("random_seed")
+        tmp_seed = share_info.get("random_seed")
         if not tmp_seed:
             raise Exception("invalid random seed!")
         else:

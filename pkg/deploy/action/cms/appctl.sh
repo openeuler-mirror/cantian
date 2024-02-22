@@ -48,6 +48,7 @@ ROLLBACK_NAME="rollback.sh"
 #cgroup预留cms内存隔离值，单位G
 DEFAULT_MEM_SIZE=10
 cms_home=/opt/cantian/cms
+cantian_home=/opt/cantian/cantian
 cms_scripts=/opt/cantian/action/cms
 cms_tmp_file="${cms_home}/cms_server.lck ${cms_home}/local ${cms_home}/gcc_backup ${cms_home}/cantian.ctd.cms*"
 shm_home=/dev/shm
@@ -419,10 +420,15 @@ function update_cms_service() {
     RPM_PACK_ORG_PATH=/opt/cantian/image
     cms_pkg_file=${RPM_PACK_ORG_PATH}/Cantian-RUN-CENTOS-64bit
     rm -rf ${cms_home}/service/*
+    rm -rf ${cantian_home}/server/*
     cp -arf ${cms_pkg_file}/add-ons ${cms_pkg_file}/admin ${cms_pkg_file}/bin \
        ${cms_pkg_file}/cfg ${cms_pkg_file}/lib ${cms_pkg_file}/package.xml ${cms_home}/service
 
+    cp -arf ${cms_pkg_file}/add-ons ${cms_pkg_file}/admin ${cms_pkg_file}/bin \
+       ${cms_pkg_file}/cfg ${cms_pkg_file}/lib ${cms_pkg_file}/package.xml ${cantian_home}/server
+
     deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
+    deploy_mode_opt=$(python3 /opt/cantian/action/get_config_info.py "deploy_mode")
     if [[ x"${deploy_mode}" == x"nas" ]]; then
         return 0
     fi
@@ -444,13 +450,23 @@ function chown_mod_cms_service()
 {
     echo "chown and chmod the files in ${cms_home}/service"
     chown -hR ${cantian_user_and_group} ${cms_home}
+    chown -hR ${cantian_user_and_group} ${cantian_home}
     chmod -R 700 ${cms_home}/service
+    chmod -R 700 ${cantian_home}/server
     find ${cms_home}/service/add-ons -type f | xargs chmod 500
     find ${cms_home}/service/admin -type f | xargs chmod 400
     find ${cms_home}/service/bin -type f | xargs chmod 500
     find ${cms_home}/service/lib -type f | xargs chmod 500
     find ${cms_home}/service/cfg -type f | xargs chmod 400
+
+    find ${cantian_home}/server/add-ons -type f | xargs chmod 500
+    find ${cantian_home}/server/admin -type f | xargs chmod 400
+    find ${cantian_home}/server/bin -type f | xargs chmod 500
+    find ${cantian_home}/server/lib -type f | xargs chmod 500
+    find ${cantian_home}/server/cfg -type f | xargs chmod 400
+
     chmod 400 ${cms_home}/service/package.xml
+    chmod 400 ${cantian_home}/server/package.xml
     return 0
 }
 
@@ -459,6 +475,28 @@ function update_cms_scripts() {
     rm -rf ${cms_scripts}/*
     cp -arf ${CURRENT_PATH}/* ${cms_scripts}
     return 0
+}
+
+function update_cms_config() {
+    echo "update the cms ini in ${cms_home}/cfg"
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]  || [[ x"${deploy_mode_opt}" == x"dbstore_unify" ]]; then
+        return 0
+    fi
+
+    su -s /bin/bash - ${cantian_user} -c "cd ${CURRENT_PATH} && python3 ${CURRENT_PATH}/cmsctl.py upgrade"
+    su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py --component=cms_ini --action=update --key=GCC_TYPE --value=DBS"
+    su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py --component=cms_ini --action=update --key=GCC_HOME --value=/${storage_share_fs}/${cluster_name}_cms/gcc_home/gcc_file"
+    su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py --component=cms_ini --action=add --key=GCC_DIR --value=/${storage_share_fs}/${cluster_name}_cms/gcc_home"
+    su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py --component=cms_ini --action=add --key=CLUSTER_NAME --value=${cluster_name}"
+    su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py --component=cms_ini --action=add --key=FS_NAME --value=${storage_share_fs}"
+}
+
+function update_cms_gcc_file() {
+    echo "update the cms gcc file in share fs"
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]] || [[ x"${deploy_mode_opt}" == x"dbstore_unify" ]]; then
+        return 0
+    fi
+    su -s /bin/bash - ${cantian_user} -c "sh ${CURRENT_PATH}/start_cms.sh -P install_cms"
 }
 
 function safety_upgrade()
@@ -473,7 +511,11 @@ function safety_upgrade()
 
     chown_mod_cms_service
 
+    update_cms_config
+
     update_cms_scripts
+
+    update_cms_gcc_file
 
     echo "clean the old tmp files in cms home"
     rm -rf ${cms_tmp_file}
@@ -581,6 +623,10 @@ deploy_user=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
 d_user=$(echo ${deploy_user} | awk -F ':' '{print $2}')
 storage_share_fs=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
               awk -F ',' '{for(i=1;i<=NF;i++){if($i~"storage_share_fs"){print $i}}}' |
+              sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
+              awk -F '=' '{print $2}')
+cluster_name=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
+              awk -F ',' '{for(i=1;i<=NF;i++){if($i~"cluster_name"){print $i}}}' |
               sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
               awk -F '=' '{print $2}')
 

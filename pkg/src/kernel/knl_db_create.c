@@ -301,7 +301,6 @@ status_t dbc_build_logfiles(knl_session_t *session, galist_t *logfiles, uint8 no
 
         log_flush_head(session, &logfile);
         cm_close_device(logfile.ctrl->type, &logfile.handle);
-
         if (db_save_log_ctrl(session, logfile.ctrl->file_id, node_id) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DB] failed to save ctrl when create logfile : %s ", logfile.ctrl->name);
             return CT_ERROR;

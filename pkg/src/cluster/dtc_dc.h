@@ -65,6 +65,7 @@ typedef enum st_broadcast_op {
     HEAP_EXTEND_STATUS,
     BTREE_SPLIT_STATUS,
     USER_LOCK_STATUS,
+    REMOVE_DF_WATCH,
     BROADCAST_END,
 } broadcast_op_t;
 
@@ -173,6 +174,8 @@ void dtc_broadcast_data_send_ack(knl_session_t *session, mes_message_t *msg, sta
 status_t dtc_sync_ddl_internal(knl_handle_t knl_session, char *logic_log_buf, uint32 logic_log_size);
 status_t dtc_sync_upgrade_ctrl_version(knl_handle_t knl_session);
 void dtc_process_upgrade_ctrl_version(void *sess, mes_message_t *msg);
+status_t dtc_remove_df_watch(knl_session_t *session, uint32 df_id);
+status_t dtc_process_remove_df_watch(knl_session_t* session, char* data);
 #ifdef __cplusplus
 }
 #endif

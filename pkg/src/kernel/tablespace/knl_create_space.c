@@ -671,6 +671,9 @@ static status_t spc_init_space_ctrl(knl_session_t *session, knl_space_def_t *def
 
     errno_t ret = memset_sp(&space->lock, sizeof(space->lock), 0, sizeof(space->lock));
     knl_securec_check(ret);
+    ret = memset_sp(&space->ctrl_bak_lock, sizeof(space->ctrl_bak_lock), 0, sizeof(space->ctrl_bak_lock));
+    knl_securec_check(ret);
+    dls_init_spinlock(&space->ctrl_bak_lock, DR_TYPE_SPACE, DR_ID_SPACE_CTRL_BAKUP, space->ctrl->id);
     space->alarm_enabled = CT_TRUE;
     space->purging = CT_FALSE;
     space->swap_bitmap = CT_FALSE;

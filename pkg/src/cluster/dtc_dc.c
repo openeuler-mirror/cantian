@@ -740,6 +740,38 @@ void dtc_process_invalidate_dc(knl_session_t* session, char* data)
     dc_close(&dc);
 }
 
+status_t dtc_remove_df_watch(knl_session_t *session, uint32 df_id)
+{
+    status_t ret = CT_SUCCESS;
+    msg_broadcast_data_t bcast;
+
+    uint16 msg_size = sizeof(msg_broadcast_data_t) + sizeof(uint32);
+    mes_init_send_head(&bcast.head, MES_CMD_BROADCAST_DATA, msg_size, CT_INVALID_ID32, session->kernel->id,
+                       CT_INVALID_ID8, session->id, CT_INVALID_ID16);
+    bcast.type = REMOVE_DF_WATCH;
+
+    ret = mes_broadcast_bufflist_and_wait_with_retry(session->id, MES_BROADCAST_ALL_INST, &bcast.head,
+        sizeof(msg_broadcast_data_t), (char *)&df_id,
+        DTC_WAIT_MES_TIMEOUT, DTC_MAX_RETRY_TIEMS);
+    CT_LOG_RUN_INF("[DTC][dtc_remove_df_watch]: the other node returns ret: %u", ret);
+    return ret;
+}
+
+status_t dtc_process_remove_df_watch(knl_session_t* session, char* data)
+{
+    uint32* df_id = (uint32*)data;
+    CT_LOG_RUN_INF("[DTC][dtc_process_remove_df_watch]: remove device watch for df %u", *df_id);
+    rmon_t *rmon_ctx = &(session->kernel->rmon_ctx);
+    datafile_t *df = DATAFILE_GET(session, *df_id);
+    if (cm_exist_device(df->ctrl->type, df->ctrl->name)) {
+        if (cm_rm_device_watch(df->ctrl->type, rmon_ctx->watch_fd, &df->wd) != CT_SUCCESS) {
+            CT_LOG_RUN_WAR("[RMON]: failed to remove monitor of datafile %s on remote node", df->ctrl->name);
+            return CT_ERROR;
+        }
+    }
+    return CT_SUCCESS;
+}
+
 void dtc_broadcast_data_send_ack(knl_session_t *session, mes_message_t *msg, status_t process_ret)
 {
     mes_message_head_t ack_head = {0};
@@ -827,6 +859,13 @@ void dtc_process_broadcast_data(void *sess, mes_message_t * msg)
             }
             dtc_process_get_user_lock_status(session, msg, (char*)bcast + sizeof(msg_broadcast_data_t));
             return;
+        case REMOVE_DF_WATCH:
+            if (sizeof(msg_broadcast_data_t) + sizeof(uint32) != msg->head->size) {
+                CT_LOG_RUN_ERR("[DTC] remove datafile device watch, msg size is invalid, size=%u", msg->head->size);
+                return;
+            }
+            ret = dtc_process_remove_df_watch(session, (char*)bcast + sizeof(msg_broadcast_data_t));
+            break;
         default:
             CT_LOG_RUN_ERR("[DTC] process broadcast data, type is invalid, type=%d", bcast->type);
             return;

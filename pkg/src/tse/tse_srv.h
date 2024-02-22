@@ -91,18 +91,19 @@ typedef struct {
     uint32_t thd_id;
     uint32_t part_id;
     uint32_t subpart_id;
+    int64_t query_id;
     uint64_t sess_addr;
     uint64_t ctx_addr;
     uint64_t cursor_addr;
+    uint64_t pre_sess_addr;
     int32_t cursor_ref;
-    bool cursor_valid;
     uint16_t bind_core;
     uint8_t sql_command;
-    int64_t query_id;
     uint8_t sql_stat_start;
     uint8_t change_data_capture;
+    bool cursor_valid;
     bool is_broadcast;
-    uint64_t pre_sess_addr;
+    bool read_only_in_ct;
     void* msg_buf;
 } tianchi_handler_t;
 

@@ -280,6 +280,7 @@ status_t tse_ddl_lock_table(session_t *session, knl_dictionary_t *dc, dc_user_t 
             knl_session->user_locked_ddl = DDL_ATOMIC_TABLE_LOCKED;
         }
         
+        // The phase of the Alter COPY is DROP, is_alter_copy is true
         if (dc != NULL && !is_alter_copy && knl_lock_table_self_parent_child_directly(knl_session, dc) != CT_SUCCESS) {
             status = CT_ERROR;
             CT_LOG_RUN_ERR("[TSE_DDL_LOCK_TABLE] lock table failed");
@@ -550,7 +551,7 @@ int tse_put_ddl_sql_2_stmt(session_t *session, const char *db_name, const char *
     }
     if (strlen(db_name) > 0) {
         // keep a semicolon after use db, for keey synatx correct in disaster recovery in slave cluster.
-        ret = sprintf_s(sql.str, sql.len, "use %s;\n%s", db_name, my_sql_str);
+        ret = sprintf_s(sql.str, sql.len, "use %s\n%s", db_name, my_sql_str);
     } else {
         ret = sprintf_s(sql.str, sql.len, "%s", my_sql_str);
     }
@@ -1736,6 +1737,7 @@ int tse_truncate_table_impl(TcDb__TseDDLTruncateTableDef *req, ddl_ctrl_t *ddl_c
         CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, " %s not find", T2S(&(def->name)));
         return CT_ERROR;
     }
+    RETURN_IF_OPERATION_UNSUPPORTED(&dc, "truncate table");
 
     int status = knl_truncate_table_lock_table(&session->knl_session, &dc);
     if (status != CT_SUCCESS) {
@@ -1856,6 +1858,8 @@ static int tse_truncate_partition_impl(TcDb__TseDDLTruncateTablePartitionDef *re
         CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, " %s not find", T2S(&(def_arrays->name)));
         return CT_ERROR;
     }
+    RETURN_IF_OPERATION_UNSUPPORTED(&dc, "truncate partition");
+
     status = tse_ddl_lock_table(session, &dc, NULL, CT_FALSE);
     if (status != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[TSE_LOCK_ALTER_TABLE]:alter table to lock table failed, ret:%d,"
@@ -1924,10 +1928,7 @@ static int tse_create_tmp_table_for_copy(session_t *session, tse_ddl_def_node_t 
     SYNC_POINT_GLOBAL_START(TSE_CREATE_TABLE_4MYSQL_FAIL, &status, CT_ERROR);
     status = knl_create_table4mysql(knl_session, stmt, create_def);
     SYNC_POINT_GLOBAL_END;
-    if (knl_lock_table_self_parent_child_directly(knl_session, &dc) != CT_SUCCESS) {
-        knl_close_dc(&dc);
-        CT_RETURN_IFERR_NOCLEAR(CT_ERROR, ddl_ctrl);
-    }
+
     knl_close_dc(&dc);
     CT_RETURN_IFERR_NOCLEAR(status, ddl_ctrl);
     
@@ -2098,6 +2099,7 @@ static int tse_create_table_impl(TcDb__TseDDLCreateTableDef *req, ddl_ctrl_t *dd
         CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, " %s not find", T2S(&(def->name)));
         CT_RETURN_IFERR_NOCLEAR(CT_ERROR, ddl_ctrl);
     }
+    RETURN_IF_OPERATION_UNSUPPORTED(&dc, "create table");
     def_node->uid = dc.uid;
     def_node->oid = dc.oid;
 
@@ -2870,6 +2872,11 @@ static int tse_alter_table_atomic_impl(TcDb__TseDDLAlterTableDef *req, ddl_ctrl_
     tse_context_t *tse_context = tse_get_ctx_by_addr(ddl_ctrl->tch.ctx_addr);
     TSE_LOG_RET_VAL_IF_NUL(tse_context, ERR_INVALID_DC, "get_ha_context failed");
 
+    if (ddl_ctrl->tch.read_only_in_ct) {
+        CT_LOG_RUN_ERR("Operation alter table is not supported on view, func, join table, "
+                       "json table, subqueries or system table");
+        return CT_ERROR;
+    }
     CT_RETURN_IFERR(sql_alloc_mem(stmt->context, sizeof(tse_ddl_def_node_t), (void **)&def_node));
     status = tse_ddl_lock_table(session, tse_context->dc, NULL, CT_FALSE);
     if (status != CT_SUCCESS) {
@@ -3649,6 +3656,7 @@ static status_t tse_rename_table_cross_database_impl(TcDb__TseDDLRenameTableDef 
     CT_RETURN_IFERR(sql_alloc_mem(stmt->context, sizeof(tse_ddl_def_node_t), (void **)&def_node));
     CT_RETURN_IFERR(knl_open_dc((knl_handle_t)&stmt->session->knl_session, (text_t *)&alter_user,
                                 (text_t *)&alter_name, &old_dc));
+    RETURN_IF_OPERATION_UNSUPPORTED(&old_dc, "rename table");
     CT_RETURN_IFERR(sql_alloc_mem(stmt->context, sizeof(knl_table_def_t), (pointer_t *)&table_def));
     do {
         ret = tse_fill_def_from_dc(req, table_def, &old_dc, stmt, knl_session);
@@ -3663,7 +3671,7 @@ static status_t tse_rename_table_cross_database_impl(TcDb__TseDDLRenameTableDef 
         }
 
         ret = tse_open_new_dc4rename(knl_session, stmt, table_def, &new_dc, def_node);
-        if (ret != CT_SUCCESS) {
+        if (ret != CT_SUCCESS || check_if_operation_unsupported(&new_dc, "rename table")) {
             break;
         }
         is_open_new_dc = CT_TRUE;
@@ -3727,12 +3735,14 @@ static int tse_rename_table_impl(TcDb__TseDDLRenameTableDef *req, ddl_ctrl_t *dd
         CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, " %s not find", T2S(&(def_arrays->name)));
         CT_RETURN_IFERR_EX(status, stmt, ddl_ctrl);
     }
+    RETURN_IF_OPERATION_UNSUPPORTED(&dc, "rename table");
 
     if (sql_alloc_mem(stmt->context, sizeof(tse_ddl_def_node_t), (void **)&def_rename_node) != CT_SUCCESS) {
         knl_close_dc(&dc);
         CT_RETURN_IFERR_EX(status, stmt, ddl_ctrl);
     }
-    status = tse_ddl_lock_table(session, &dc, NULL, ddl_ctrl->is_alter_copy);
+
+    status = tse_ddl_lock_table(session, &dc, NULL, CT_FALSE);
     if (status != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[TSE_LOCK_ALTER_TABLE]:rename table to lock table failed, ret:%d,"
                        "conn_id:%u, tse_instance_id:%u", (int)status, ddl_ctrl->tch.thd_id, ddl_ctrl->tch.inst_id);
@@ -3824,6 +3834,7 @@ static int tse_drop_table_impl(TcDb__TseDDLDropTableDef *req, ddl_ctrl_t *ddl_ct
         CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, " %s not find", T2S(&(def->name)));
         return CT_ERROR;
     }
+    RETURN_IF_OPERATION_UNSUPPORTED(&dc, "drop table");
 
     if (ddl_ctrl->is_alter_copy) {
         bilist_node_t *node = cm_bilist_tail(&stmt->ddl_def_list);
@@ -3857,6 +3868,7 @@ static int tse_drop_table_impl(TcDb__TseDDLDropTableDef *req, ddl_ctrl_t *ddl_ct
         knl_close_dc(&dc);
         CT_RETURN_IFERR_EX(status, stmt, ddl_ctrl);
     }
+
     status = tse_ddl_lock_table(session, &dc, user, ddl_ctrl->is_alter_copy);
     if (status != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[TSE_LOCK_DROP_TABLE]:drop table to lock table failed, ret:%d,"

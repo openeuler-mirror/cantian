@@ -50,7 +50,7 @@ source ${CURRENT_PATH}/env.sh
 
 function rpm_check(){
     local count=2
-    if [ x"${deploy_mode}" == x"dbstore" ];then
+    if [ x"${deploy_mode}" != x"nas" ];then
       count=3
     fi
     rpm_pkg_count=$(ls "${CURRENT_PATH}"/../repo | wc -l)
@@ -394,7 +394,7 @@ function install_rpm()
     rpm -ivh --replacepkgs ${RPM_PATH} --nodeps --force
 
     tar -zxf ${RPM_UNPACK_PATH_FILE}/Cantian-RUN-CENTOS-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
-    if [ x"${deploy_mode}" == x"dbstore" ];then
+    if [ x"${deploy_mode}" != x"nas" ];then
         echo  "start replace rpm package"
         install_dbstore
         if [ $? -ne 0 ];then

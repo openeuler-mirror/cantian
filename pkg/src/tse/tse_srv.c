@@ -60,6 +60,7 @@ EXTER_ATTACK int tse_open_table(tianchi_handler_t *tch, const char *table_name, 
         return error_code == 0 ? ERR_GENERIC_INTERNAL_ERROR : error_code;
     };
     tch->ctx_addr = (uint64)tse_context;
+    tch->read_only_in_ct = IS_CANTIAN_SYS_DC(tse_context->dc);
     CT_LOG_DEBUG_INF("tse_open_table: tbl=%s, thd_id=%d, session_id=%u",
         tse_context->table.str, tch->thd_id, session->knl_session.id);
 
@@ -548,6 +549,7 @@ EXTER_ATTACK int tse_bulk_write(tianchi_handler_t *tch, const record_info_t *rec
     knl_session_t *knl_session = &session->knl_session;
     tse_context_t *tse_context = tse_get_ctx_by_addr(tch->ctx_addr);
     TSE_LOG_RET_VAL_IF_NUL(tse_context, ERR_INVALID_DC, "get_ha_context failed");
+    TSE_LOG_RET_NOT_SUPPORT(tch->read_only_in_ct, "bulk insert", ERR_OPERATIONS_NOT_SUPPORT);
 
     CM_SAVE_STACK(knl_session->stack);
     knl_cursor_t *cursor = tse_push_cursor(knl_session);
@@ -661,6 +663,7 @@ EXTER_ATTACK int tse_write_row(tianchi_handler_t *tch, const record_info_t *reco
     knl_session_t *knl_session = &session->knl_session;
     tse_context_t *tse_context = tse_get_ctx_by_addr(tch->ctx_addr);
     TSE_LOG_RET_VAL_IF_NUL(tse_context, ERR_INVALID_DC, "get_ha_context failed");
+    TSE_LOG_RET_NOT_SUPPORT(tch->read_only_in_ct, "insert", ERR_OPERATIONS_NOT_SUPPORT);
     CM_SAVE_STACK(knl_session->stack);
     cm_reset_error();
     knl_cursor_t *cursor = tse_push_cursor(knl_session);
@@ -715,7 +718,7 @@ int tse_check_update_constraint(knl_session_t *knl_session, knl_cursor_t *cursor
     do {
         if (!flag.no_foreign_key_check) {
             cursor->no_cascade_check = flag.no_cascade_check;
-            status = knl_verify_children_dependency(knl_session, cursor, true, 0);
+            status = knl_verify_children_dependency(knl_session, cursor, CT_TRUE, 0, flag.dd_update);
             if (status != CT_SUCCESS) {
                 ret = tse_get_and_reset_err();
                 CT_LOG_RUN_ERR("tse_check_update_constraint failed to knl_verify_children_dependency with ret %d", ret);
@@ -833,6 +836,7 @@ EXTER_ATTACK int tse_update_row(tianchi_handler_t *tch, uint16_t new_record_len,
     knl_session_t *knl_session = &session->knl_session;
     tse_context_t *tse_context = tse_get_ctx_by_addr(tch->ctx_addr);
     TSE_LOG_RET_VAL_IF_NUL(tse_context, ERR_INVALID_DC, "get_ha_context failed");
+    TSE_LOG_RET_NOT_SUPPORT(tch->read_only_in_ct, "update", ERR_OPERATIONS_NOT_SUPPORT);
     cm_reset_error();
 
     int ret = CT_SUCCESS;
@@ -896,7 +900,7 @@ int delete_and_check_constraint(knl_session_t *knl_session, knl_cursor_t *cursor
 
     if (!flag.no_foreign_key_check) {
         cursor->no_cascade_check = flag.no_cascade_check;
-        if (knl_verify_children_dependency(knl_session, cursor, false, 0) != CT_SUCCESS) {
+        if (knl_verify_children_dependency(knl_session, cursor, false, 0, flag.dd_update) != CT_SUCCESS) {
             ret = tse_get_and_reset_err();
             CT_LOG_RUN_ERR("tse_delete_row: knl_verify_children_dependency FAIL. ret:%d.", ret);
             if ((flag.ignore || (!flag.no_cascade_check)) && ret == ERR_ROW_IS_REFERENCED) {
@@ -916,6 +920,7 @@ EXTER_ATTACK int tse_delete_row(tianchi_handler_t *tch, uint16_t record_len, dml
     knl_session_t *knl_session = &session->knl_session;
     tse_context_t *tse_context = tse_get_ctx_by_addr(tch->ctx_addr);
     TSE_LOG_RET_VAL_IF_NUL(tse_context, ERR_INVALID_DC, "get_ha_context failed");
+    TSE_LOG_RET_NOT_SUPPORT(tch->read_only_in_ct, "delete", ERR_OPERATIONS_NOT_SUPPORT);
     int ret = CT_SUCCESS;
     cm_reset_error();
 
@@ -929,8 +934,7 @@ EXTER_ATTACK int tse_delete_row(tianchi_handler_t *tch, uint16_t record_len, dml
             return ERR_GENERIC_INTERNAL_ERROR;
         }
         CT_LOG_DEBUG_INF("tse_delete_row: tbl=%s, thd_id=%u", tse_context->table.str, tch->thd_id);
-        ret = delete_and_check_constraint(knl_session, prev_cursor, flag);
-        return ret;
+        return delete_and_check_constraint(knl_session, prev_cursor, flag);
     }
 
     // for replace into
@@ -1596,7 +1600,7 @@ EXTER_ATTACK int tse_trx_begin(tianchi_handler_t *tch, tianchi_trx_context_t trx
     CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
     tse_set_no_use_other_sess4thd(session);
     knl_session_t *knl_session = &session->knl_session;
-    // cantian-connector-mysql侧通过is_tse_trx_begin标记，保证一个事务只会调用一次tse_trx_begin，且调进来时参天侧事务未开启
+    // mysql-server侧通过is_tse_trx_begin标记，保证一个事务只会调用一次tse_trx_begin，且调进来时参天侧事务未开启
     if (knl_session->rm->txn != NULL) {
         CT_LOG_DEBUG_INF("tse_trx_begin: knl_session->rm->txn is not NULL, thd_id=%u, session_id=%u, "
             "isolation level=%u, current_scn=%llu, rm_query_scn=%llu, lock_wait_timeout=%u, rmid=%u",

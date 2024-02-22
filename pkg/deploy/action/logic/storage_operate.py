@@ -250,7 +250,7 @@ class StorageInf(object):
         err_msg = f"Failed to query nfs share auth client, nfs_share_id:%s" % nfs_share_id
         return self.result_parse(err_msg, res)
 
-    def query_logical_port_info(self, ip_addr, vstore_id):
+    def query_logical_port_info(self, ip_addr, vstore_id=None):
         """
         批量查询逻辑端口信息
         :param ip_addr: ip地址
@@ -258,7 +258,10 @@ class StorageInf(object):
         :return:
         """
         query_url = Constant.QUERY_LOGIC_PORT_INFO.format(deviceId=self.rest_client.device_id)
-        url = query_url + f"?filter=IPV4ADDR:{ip_addr}&range=[0-100]&vstoreId={vstore_id}"
+        if vstore_id:
+            url = query_url + f"?filter=IPV4ADDR:{ip_addr}&range=[0-100]&vstoreId={vstore_id}"
+        else:
+            url = query_url + f"?filter=IPV4ADDR:{ip_addr}&range=[0-100]"
         res = self.rest_client.normal_request(url, "get")
         err_msg = f"Failed to query lf info"
         return self.result_parse(err_msg, res)
@@ -439,6 +442,25 @@ class StorageInf(object):
         self.result_parse(err_msg, res)
         LOG.info("Open nfs 4.0 and 4.1 configer success.")
 
+    def query_nfs_service(self, vstore_id="0"):
+        """
+        查询租户对应nfs 4.0和4.1协议
+        传参说明：
+            vstoreId： 租户ID
+            SUPPORTV4 返回string(bool) 是否开启NFSv4服务。
+            SUPPORTV41 返回string(bool) 是否开启NFSv4.1服务。
+        :param vstore_id: 租户id
+        :return:
+        """
+        LOG.info("Begin to query nfs 4.0 and 4.1 configer of vstore[%s]", vstore_id)
+        url = Constant.NFS_SERVICE.format(deviceId=self.rest_client.device_id)
+        url += f"?vstoreId={vstore_id}"
+        res = self.rest_client.normal_request(url, "get")
+        err_msg = f"Query to open vstore{vstore_id} nfs service"
+        data = self.result_parse(err_msg, res)
+        LOG.info("Query nfs 4.0 and 4.1 configer success.")
+        return data
+
     def delete_nfs_share(self, nfs_share_id, vstore_id=0):
         """
         delete nfs share
@@ -465,6 +487,6 @@ class StorageInf(object):
         url = Constant.DELETE_FS.\
             format(deviceId=self.rest_client.device_id, id=fs_id)
         res = self.rest_client.normal_request(url, "delete")
-        err_msg = f"Failed to delete {fs_id} nfs"
+        err_msg = f"Failed to delete {fs_id} fs"
         self.result_parse(err_msg, res)
         LOG.info("Delete id[%s] fs success", fs_id)

@@ -846,8 +846,20 @@ status_t sql_parse_alter_space(sql_stmt_t *stmt)
 
     stmt->context->entry = altspace_def;
 
-    status = lex_expected_fetch_variant(lex, &word);
+    status = lex_expected_fetch(lex, &word);
     CT_RETURN_IFERR(status);
+
+    if (word.id == KEY_WORD_DB) {
+        altspace_def->is_for_create_db = CT_TRUE;
+        status = lex_expected_fetch_variant(lex, &word);
+        CT_RETURN_IFERR(status);
+    } else if (IS_VARIANT(&word)) {
+        altspace_def->is_for_create_db = CT_FALSE;
+    } else{
+        CT_SRC_THROW_ERROR(word.text.loc, ERR_SQL_SYNTAX_ERROR, "invalid variant/object name was found");
+        return CT_ERROR;
+    }
+ 
 
     status = sql_copy_object_name(stmt->context, word.type, (text_t *)&word.text, &altspace_def->name);
     CT_RETURN_IFERR(status);
@@ -1128,7 +1140,10 @@ status_t sql_parse_create_ctrlfiles(sql_stmt_t *stmt)
 
     cm_galist_init(&ctrlfile_def->logfiles, stmt->context, sql_alloc_mem);
     cm_galist_init(&ctrlfile_def->datafiles, stmt->context, sql_alloc_mem);
-
+    if (cm_dbs_is_enable_dbs() != CT_TRUE) {
+        CT_THROW_ERROR(ERR_REBUILD_WITH_STORAGE);
+        return CT_ERROR;
+    }
     /* parse create ctrlfile sql statement */
     status = sql_rebuild_ctrlfile_parse_database(stmt, ctrlfile_def);
     CT_RETURN_IFERR(status);

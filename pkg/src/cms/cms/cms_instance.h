@@ -59,6 +59,7 @@ extern char *cantiand_get_dbversion(void);
 typedef struct st_cms_instance {
     int32                   server_lock_fd;
     disk_handle_t           vote_file_fd;
+    object_id_t             vote_file_handle; // only used for gcc_type is CMS_DEV_TYPE_DBS
     date_t                  time_gap;
     thread_t                send_thread;
     thread_t                work_thread[CMS_MAX_WORKER_THREAD_COUNT];
@@ -105,6 +106,8 @@ typedef struct st_cms_instance {
 
 typedef struct st_cms_local_ctx_t {
     disk_handle_t   gcc_handle;
+    object_id_t     gcc_dbs_handle;
+    int             handle_valid;
 }cms_local_ctx_t;
 
 extern cms_instance_t* g_cms_inst;
@@ -116,8 +119,9 @@ void    cms_do_try_master(void);
 void cms_shutdown(void);
 status_t cms_create_aync_write_thread(void);
 status_t cms_broadcast_srv_msg(cms_packet_head_t* msg);
-status_t cms_init_dbs_client(void);
-
+status_t cms_init_dbs_client(char* cfg_name, dbs_init_mode init_mode);
+status_t cms_lock_server(void);
+status_t cms_force_unlock_server(void);
 #ifdef __cplusplus
 }
 #endif

@@ -1,4 +1,4 @@
-create database clustered cantian
+create database clustered cantian archivelog
     character set utf8
     controlfile('dbfiles1/ctrl1', 'dbfiles1/ctrl2', 'dbfiles1/ctrl3')
     system     tablespace      datafile 'dbfiles1/sys.dat' size 128M autoextend on next 32M

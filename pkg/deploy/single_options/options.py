@@ -46,7 +46,7 @@ class Options(object):
         self.ignore_pkg_check = False
 
         # path of mysql config file
-        self.mysql_config_file_path = "/opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts/my.cnf"
+        self.mysql_config_file_path = "/opt/cantian/image/cantian_connector/mysql-server/scripts/my.cnf"
 
         self.install_type = ""
 

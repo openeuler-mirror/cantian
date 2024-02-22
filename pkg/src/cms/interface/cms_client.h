@@ -146,6 +146,7 @@ typedef struct st_cms_cli_msg_res_conn {
     uint64                  session_id;  // uds server alloc session id for each cli
     status_t                result;
     res_init_info_t         res_init_info;
+    uint64                  master_id;
 }cms_cli_msg_res_conn_t;
 
 typedef struct st_cms_cli_msg_req_dis_conn_t {

@@ -27,6 +27,7 @@
 #include "cm_log.h"
 #include "cm_system.h"
 #include "cm_date.h"
+#include "cm_dbstore.h"
 
 #ifdef WIN32
 #else
@@ -137,6 +138,311 @@ status_t cm_reopen_file(int fd, const char* file_name, int* out_fd)
     return CT_SUCCESS;
 }
 
+/* 获取文件名file_name的层级数，delim为层级的分割符.例如：file_name为"/a/b/c/d"， 分割数为"/"， 层级数为4级 */
+status_t cm_get_file_path_depth(const char* file_name, const char* delim, int* depth)
+{
+    if (file_name == NULL || delim == NULL || depth == NULL) {
+        CT_LOG_RUN_ERR("get file path depth failed, invalid param.");
+        return CT_ERROR;
+    }
+    if (strlen(file_name) == 0 || strlen(delim) == 0) {
+        CT_LOG_RUN_ERR("get file path depth failed, file name or delim is invalid.");
+        return CT_ERROR;
+    }
+    char file[CT_FILE_NAME_BUFFER_SIZE] = {0};
+    char* token = NULL;
+    char* context = NULL;
+    errno_t err = strcpy_sp(file, CT_MAX_FILE_NAME_LEN, file_name);
+    if (err != EOK) {
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, err);
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err));
+        return CT_ERROR;
+    }
+    *depth = 0;
+    token = strtok_s(file, delim, &context);
+    while (token != NULL) {
+        (*depth)++;
+        token = strtok_s(NULL, delim, &context);
+    }
+    return CT_SUCCESS;
+}
+
+/* 获取路径中最后一层的文件名，delim为层级的分割符.例如：file_name为"/a/b/c/d"， 分割数为'/'， 层级数为4级 */
+status_t cm_get_path_file_name(const char* path, char* file_name, uint32 name_len)
+{
+    if (path == NULL || file_name == NULL) {
+        CT_LOG_RUN_ERR("get path file name failed, invalid param.");
+        return CT_ERROR;
+    }
+    char* p = strrchr(path, '/');
+    const char* s = (p == NULL ? path : p + 1); // p == NULL说明path就是name
+    errno_t err = strcpy_sp(file_name, name_len, s);
+    if (err != EOK) {
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, err);
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err));
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+/* root目录是新建在fs目录下 */
+status_t cm_get_dbs_root_dir_handle(char* fs_name, object_id_t* root_handle)
+{
+    int ret = 0;
+    if (fs_name == NULL || root_handle == NULL) {
+        CT_LOG_RUN_ERR("get dbstore root dir fd failed, invalid param.");
+        return CT_ERROR;
+    }
+
+    // 先尝试打开再创建根目录
+    ret = dbs_global_handle()->dbs_file_open_root(fs_name, root_handle);
+    if (ret != 0) {
+        CT_LOG_RUN_ERR("Failed(%d) open fs (%s) root dir.", ret, fs_name);
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+
+/* 目录是新建在root目录下 */
+status_t cm_get_dbs_dir_handle(object_id_t* phandle, char* dir_name, object_id_t* handle)
+{
+    int ret = 0;
+    if (phandle == NULL || dir_name == NULL || handle == NULL) {
+        CT_LOG_RUN_ERR("get dbstore dir handle failed, invalid param.");
+        return CT_ERROR;
+    }
+    ret = dbs_global_handle()->dbs_file_open(phandle, dir_name, DIR_TYPE, handle);
+    if (ret != 0) {
+        ret = dbs_global_handle()->dbs_file_create(phandle, dir_name, DIR_TYPE, handle);
+        CT_LOG_RUN_INF("dir(%s) not exist, new create.", dir_name);
+    }
+
+    return (ret == 0 ? CT_SUCCESS : CT_ERROR);
+}
+
+status_t cm_open_dbs_dir_handle(object_id_t* phandle, char* dir_name, object_id_t* handle)
+{
+    int ret = 0;
+    if (phandle == NULL || dir_name == NULL || handle == NULL) {
+        CT_LOG_RUN_ERR("get dbstore dir handle failed, invalid param.");
+        return CT_ERROR;
+    }
+    ret = dbs_global_handle()->dbs_file_open(phandle, dir_name, DIR_TYPE, handle);
+    return (ret == 0 ? CT_SUCCESS : CT_ERROR);
+}
+
+/* 文件是新建在目录下 */
+status_t cm_get_dbs_file_handle(object_id_t* phandle, char* file_name, object_id_t* handle)
+{
+    int ret = 0;
+    if (phandle == NULL || file_name == NULL || handle == NULL) {
+        CT_LOG_RUN_ERR("get dbstore file handle failed, invalid param.");
+        return CT_ERROR;
+    }
+
+    // 先打开再创建文件
+    ret = dbs_global_handle()->dbs_file_open(phandle, file_name, FILE_TYPE, handle);
+    if (ret != 0) {
+        ret = dbs_global_handle()->dbs_file_create(phandle, file_name, FILE_TYPE, handle);
+        CT_LOG_RUN_INF("file_name(%s) not exist, new create.", file_name);
+    }
+
+    return (ret == 0 ? CT_SUCCESS : CT_ERROR);
+}
+
+/* 重新打开文件获取句柄信息 */
+status_t cm_open_dbs_file(object_id_t* pHandle, char* file, object_id_t* handle)
+{
+    status_t ret;
+    char file_name[CT_FILE_NAME_BUFFER_SIZE] = {0};
+    if (pHandle == NULL || file == NULL || handle == NULL) {
+        CT_LOG_RUN_ERR("get dbstore file fd failed, invalid param.");
+        return CT_ERROR;
+    }
+    ret = cm_get_path_file_name(file, file_name, CT_FILE_NAME_BUFFER_SIZE);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("get path from file(%s) failed.", file);
+        return CT_ERROR;
+    }
+
+    // 打开文件
+    int err = dbs_global_handle()->dbs_file_open(pHandle, file_name, FILE_TYPE, handle);
+    if (err != 0) {
+        CT_LOG_RUN_ERR("dbs open file_name(%s) failed.", file_name);
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+
+/* 获取文件路径上各级目录和文件的句柄 path格式：/fs_name/cluster_name_cms/gcc_home/file_name; 它是一个文件的全路径名. */
+status_t cm_get_dbs_file_path_handle(const char* path, const char* delim, object_id_t* handle_ids, int handle_len)
+{
+    if (path == NULL || handle_ids == NULL || handle_len == 0) {
+        CT_LOG_RUN_ERR("get dbstore file path fd failed, invalid param.");
+        return CT_ERROR;
+    }
+    char* token = NULL;
+    char* context = NULL;
+    char file[CT_FILE_NAME_BUFFER_SIZE] = {0};
+    char fs_name[CT_FILE_NAME_BUFFER_SIZE] = {0};
+    int cur_depth = 0;
+    errno_t err = strcpy_sp(file, CT_MAX_FILE_NAME_LEN, path);
+    if (err != EOK) {
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, err);
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err));
+        return CT_ERROR;
+    }
+    token = strtok_s(file, delim, &context);
+    while (token != NULL) {
+        if (cur_depth >= handle_len) {
+            CT_LOG_RUN_ERR("get dbs file(%s) fd failed, fd len exceed (%d - %d).", path, handle_len, cur_depth);
+            return CT_ERROR;
+        }
+        if (cur_depth == 0) { // token中保存的是根目录名
+            MEMS_RETURN_IFERR(strcpy_sp(fs_name, CT_MAX_FILE_NAME_LEN, token));
+            if (cm_get_dbs_root_dir_handle(fs_name, &handle_ids[cur_depth]) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("get dbstore fs(%s) root dir(%s) fd failed.", fs_name, token);
+                return CT_ERROR;
+            }
+        } else if (cur_depth < handle_len - 1) { // token中保存的是目录名
+            if (cm_get_dbs_dir_handle(&handle_ids[cur_depth - 1], token, &handle_ids[cur_depth]) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("get dbstore fs(%s) dir(%s) fd failed.", fs_name, token);
+                return CT_ERROR;
+            }
+        } else if (cur_depth == handle_len - 1) { // token中保存的是文件名
+            if (cm_get_dbs_file_handle(&handle_ids[cur_depth - 1], token, &handle_ids[cur_depth]) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("get dbstore fs(%s) file(%s) fd failed.", fs_name, token);
+                return CT_ERROR;
+            }
+        }
+        cur_depth++;
+        token = strtok_s(NULL, delim, &context);
+    }
+    return CT_SUCCESS;
+}
+
+/* 获取dbs文件路径中最后一级文件(xxx_file)对应的句柄, file格式:/fs_name/cluster_name_cms/gcc_home/xxx_file */
+status_t cm_get_dbs_last_file_handle(const char* file, object_id_t* last_handle)
+{
+    errno_t ret = 0;
+    int path_depth = 0;
+    if (cm_get_file_path_depth(file, "/", &path_depth) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("get dbstore file(%s) path depth failed.", file);
+        return CT_ERROR;
+    }
+    object_id_t* handle = (object_id_t *)malloc((path_depth + 1) * sizeof(object_id_t));
+    if (handle == NULL) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)((path_depth + 1) * sizeof(object_id_t)), "dbs file fd");
+        return CT_ERROR;
+    }
+    if (cm_get_dbs_file_path_handle(file, "/", handle, path_depth) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("get dbstore file path fd failed, file %s, ret %d", file, ret);
+        CM_FREE_PTR(handle);
+        return CT_ERROR;
+    }
+    ret = memcpy_s((void *)last_handle, sizeof(object_id_t), (void *)&handle[path_depth - 1], sizeof(object_id_t));
+    if (ret != EOK) {
+        CM_FREE_PTR(handle);
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error %d", ret);
+        return CT_ERROR;
+    }
+    CM_FREE_PTR(handle);
+    return CT_SUCCESS;
+}
+
+/* 获取全目录路径的句柄.path格式：/fs_name/cluster_name_cms/gcc_home; 它是一个目录的全路径名，其中fs_name为文件系统名 */
+status_t cm_get_dbs_full_dir_handle(const char* path, const char* delim, object_id_t* handle_ids, int handle_len)
+{
+    if (path == NULL || handle_ids == NULL || handle_len == 0) {
+        CT_LOG_RUN_ERR("get dbstore file path fd failed, invalid param.");
+        return CT_ERROR;
+    }
+    char* token = NULL;
+    char* context = NULL;
+    char file[CT_FILE_NAME_BUFFER_SIZE] = {0};
+    char fs_name[CT_FILE_NAME_BUFFER_SIZE] = {0};
+    int cur_depth = 0;
+    errno_t err = strcpy_sp(file, CT_MAX_FILE_NAME_LEN, path);
+    if (err != EOK) {
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, err);
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error %d", (err));
+        return CT_ERROR;
+    }
+    token = strtok_s(file, delim, &context);
+    while (token != NULL) {
+        if (cur_depth >= handle_len) {
+            CT_LOG_RUN_ERR("get dbstore file(%s) fd failed, fd len exceed (%d - %d).", path, handle_len, cur_depth);
+            return CT_ERROR;
+        }
+        if (cur_depth == 0) {
+            MEMS_RETURN_IFERR(strcpy_sp(fs_name, CT_MAX_FILE_NAME_LEN, token));
+            if (cm_get_dbs_root_dir_handle(fs_name, &handle_ids[cur_depth]) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("get dbstore fs(%s) root dir(%s) fd failed.", fs_name, token);
+                return CT_ERROR;
+            }
+        } else if (cur_depth <= handle_len - 1) { // token中保存的是目录名
+            if (cm_get_dbs_dir_handle(&handle_ids[cur_depth - 1], token, &handle_ids[cur_depth]) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("get dbstore fs(%s) dir(%s) fd failed.", fs_name, token);
+                return CT_ERROR;
+            }
+        }
+        cur_depth++;
+        token = strtok_s(NULL, delim, &context);
+    }
+    return CT_SUCCESS;
+}
+
+/* 获取dbs文件路径中最后一级目录对应的句柄, file格式:/fs_name/cluster_name_cms/gcc_home */
+status_t cm_get_dbs_last_dir_handle(const char* file, object_id_t* last_handle)
+{
+    errno_t ret = 0;
+    int path_depth = 0;
+    if (cm_get_file_path_depth(file, "/", &path_depth) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("get dbstore file(%s) path depth failed.", file);
+        return CT_ERROR;
+    }
+    object_id_t* handle = (object_id_t *)malloc((path_depth + 1) * sizeof(object_id_t));
+    if (handle == NULL) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)((path_depth + 1) * sizeof(object_id_t)), "dbs file fd");
+        return CT_ERROR;
+    }
+    if (cm_get_dbs_full_dir_handle(file, "/", handle, path_depth) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("get dbstore file path fd failed, file %s, ret %d", file, ret);
+        CM_FREE_PTR(handle);
+        return CT_ERROR;
+    }
+    ret = memcpy_s((void *)last_handle, sizeof(object_id_t), (void *)&handle[path_depth - 1], sizeof(object_id_t));
+    if (ret != EOK) {
+        CM_FREE_PTR(handle);
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+        CT_LOG_RUN_ERR("Secure C lib has thrown an error %d", ret);
+        return CT_ERROR;
+    }
+    CM_FREE_PTR(handle);
+    return CT_SUCCESS;
+}
+
+status_t cm_rm_dbs_dir_file(object_id_t* phandle, char* name)
+{
+    int ret = 0;
+    if (phandle == NULL || name == NULL) {
+        CT_LOG_RUN_ERR("delete dbstore file or dir failed, invalid param.");
+        return CT_ERROR;
+    }
+
+    // 先打开再创建文件
+    ret = dbs_global_handle()->dbs_file_remove(phandle, name);
+    if (ret != 0) {
+        CT_LOG_RUN_ERR("Failed(%d) delete file or dir(%s).", ret, name);
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+
 status_t cm_chmod_file(uint32 perm, int32 fd)
 {
 #ifndef WIN32
@@ -229,6 +535,55 @@ status_t cm_read_file(int32 file, void *buf, int32 len, int32 *read_size)
         *read_size = total_size;
     }
 
+    return CT_SUCCESS;
+}
+
+status_t cm_read_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, void* buf, uint32 length)
+{
+    int64 start = cm_now();
+    object_id_t handle;
+    int32 ret =  dbs_global_handle()->dbs_file_open(phandle, file_name, FILE_TYPE, &handle);
+    if (ret != 0) {
+        CT_THROW_ERROR(ERR_WRITE_FILE, ret);
+        CT_LOG_RUN_ERR("cm_read_dbs_file get file %s handle failed.", file_name);
+        return CT_ERROR;
+    }
+
+    ret = dbs_global_handle()->dbs_file_read(&handle, offset, (char *)buf, length);
+    if (ret != 0) {
+        CT_THROW_ERROR(ERR_READ_FILE, ret);
+        CT_LOG_RUN_ERR("cm_read_dbs_file file %s offset:%u len:%u failed.", file_name, offset, length);
+        return CT_ERROR;
+    }
+
+    int64 end = cm_now();
+    if (end - start > 50 * MICROSECS_PER_MILLISEC) {
+        CT_LOG_RUN_WAR("cm_read_dbs_file %u elapsed:%lld(ms)", length, (end - start) / MICROSECS_PER_MILLISEC);
+    }
+    return CT_SUCCESS;
+}
+
+status_t cm_write_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, void* buf, uint32 length)
+{
+    int64 start = cm_now();
+    object_id_t handle;
+    int32 ret =  dbs_global_handle()->dbs_file_open(phandle, file_name, FILE_TYPE, &handle);
+    if (ret != 0) {
+        CT_THROW_ERROR(ERR_WRITE_FILE, ret);
+        CT_LOG_RUN_ERR("cm_write_dbs_file get file %s handle failed.", file_name);
+        return CT_ERROR;
+    }
+    ret = dbs_global_handle()->dbs_file_write(&handle, offset, (char *)buf, length);
+    if (ret != 0) {
+        CT_THROW_ERROR(ERR_WRITE_FILE, ret);
+        CT_LOG_RUN_ERR("cm_write_dbs_file write file %s offset:%u len:%u failed.", file_name, offset, length);
+        return CT_ERROR;
+    }
+
+    int64 end = cm_now();
+    if (end - start > 50 * MICROSECS_PER_MILLISEC) {
+        CT_LOG_RUN_WAR("cm_write_dbs_file %u elapsed:%lld(ms)", length, (end - start) / MICROSECS_PER_MILLISEC);
+    }
     return CT_SUCCESS;
 }
 

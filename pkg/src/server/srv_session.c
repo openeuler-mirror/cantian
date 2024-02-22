@@ -23,6 +23,9 @@
  * -------------------------------------------------------------------------
  */
 #include "srv_module.h"
+#include "wsecv2_itf.h"
+#include "wsecv2_errorcode.h"
+#include "wsecv2_config.h"
 #include "cm_kmc.h"
 #include "cm_log.h"
 #include "cm_ip.h"
@@ -1693,6 +1696,11 @@ void get_session_min_local_scn(knl_session_t *knl_sess, knl_scn_t *local_scn)
             min_local_scn = MIN(knl_sess->query_scn, min_local_scn);
         }
     } else if (sess->active_stmts_cnt > 0) {
+        if (sess->type == SESSION_TYPE_JOB && knl_sess->temp_table_count > 0) {
+            *local_scn = DB_CURR_SCN(knl_sess);
+            cm_spin_unlock(&sess->sess_lock);
+            return;
+        }
         if (!CT_INVALID_SCN(knl_sess->query_scn)) {
             min_local_scn = MIN(knl_sess->query_scn, min_local_scn);
         }
@@ -1706,6 +1714,7 @@ void get_session_min_local_scn(knl_session_t *knl_sess, knl_scn_t *local_scn)
             cm_spin_unlock(&stmt->stmt_lock);
             continue;
         }
+ 
         if (!CT_INVALID_SCN(stmt->query_scn)) {
             min_local_scn = MIN(stmt->query_scn, min_local_scn);
         }

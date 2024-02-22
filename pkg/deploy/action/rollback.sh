@@ -280,7 +280,7 @@ function install_rpm()
     rpm -ivh --replacepkgs ${RPM_PATH} --nodeps --force
 
     tar -zxf ${RPM_UNPACK_PATH_FILE}/Cantian-RUN-CENTOS-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
-    if [ x"${deploy_mode}" == x"dbstore" ];then
+    if [ x"${deploy_mode}" != x"nas" ];then
         echo "start rollback rpm package"
         install_dbstore
         if [ $? -ne 0 ];then

@@ -386,6 +386,12 @@ status_t tse_open_cursor(knl_session_t *knl_session, knl_cursor_t *cursor,
     }
     tse_set_session_ssn_scn(knl_session, sql_stat_start);
 
+    if (cursor->action != CURSOR_ACTION_SELECT &&
+        (check_if_operation_unsupported(tse_context->dc, "write operation"))) {
+        CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "write operation",
+                       "view, func, join table, json table, subqueries or system table");
+        return CT_ERROR;
+    }
     if (knl_open_cursor(knl_session, cursor, tse_context->dc) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("ctc open cursor failed.");
         return CT_ERROR;
@@ -438,7 +444,7 @@ tse_context_t* tse_get_ctx_by_addr(uint64_t addr)
 {
     if (addr == INVALID_VALUE64 || !(tse_context_t*)addr || ((tse_context_t*)addr)->tse_magic_num != TSE_MAGIC_NUM) {
         CT_LOG_RUN_ERR("invalid handler context address %llu", (long long unsigned int)addr);
-        CM_ASSERT(0);
+        // CM_ASSERT(0);
         return NULL;
     }
     return (tse_context_t*)addr;
@@ -725,7 +731,7 @@ int fetch_and_delete_all_rows(knl_session_t *knl_session, knl_cursor_t *cursor, 
         CT_RETURN_IFERR(knl_delete(knl_session, cursor));
         if (!flag.no_foreign_key_check) {
             cursor->no_cascade_check = flag.no_cascade_check;
-            if (knl_verify_children_dependency(knl_session, cursor, false, 0) != CT_SUCCESS) {
+            if (knl_verify_children_dependency(knl_session, cursor, false, 0, flag.dd_update) != CT_SUCCESS) {
                 // reset error code at the outer layer
                 ret = cm_get_error_code();
                 if ((flag.ignore || (!flag.no_cascade_check)) && ret == ERR_ROW_IS_REFERENCED) {
@@ -1371,4 +1377,15 @@ void tse_get_index_from_name(knl_dictionary_t *dc, char *index_name, uint16_t *a
         }
     }
     CT_LOG_RUN_ERR("tse_get_index_from_name FAIL");
+}
+
+bool check_if_operation_unsupported(knl_dictionary_t *dc, char *operation)
+{
+    if (IS_CANTIAN_SYS_DC(dc)) {
+        CT_LOG_RUN_ERR("Operation %s is not supported on view, func, join table, "
+                       "json table, subqueries or system table", operation);
+        return true;
+    } else {
+        return false;
+    }
 }

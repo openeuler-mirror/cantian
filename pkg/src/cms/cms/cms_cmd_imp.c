@@ -22,6 +22,10 @@
  *
  * -------------------------------------------------------------------------
  */
+#include <stdio.h>
+#include <dirent.h>
+#include <sys/file.h>
+#include <string.h>
 #include "cms_log_module.h"
 #include "cms_cmd_imp.h"
 #include "cms_instance.h"
@@ -38,6 +42,7 @@
 #include "cm_defs.h"
 #include "cms_vote.h"
 #include "cms_log.h"
+#include "cms_uds_client.h"
 
 static const char *g_cms_lock_file = "cms_server.lck";
 
@@ -53,6 +58,115 @@ cms_msg_iostat_contrast_t g_cms_iostat_type[CMS_IO_COUNT] = {
     {"CMS_STATISTIC_DETECT_DISK"},
     {"CMS_STATISTIC_HB_AYNC_TIME_GAP"},
 };
+
+int32 g_lockConfigHandle = CT_INVALID_HANDLE; // TODO???
+
+status_t cm_get_and_flock_conf_file(char *config_name)
+{
+    char dbs_conf_dir_path[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
+    int32_t ret = sprintf_s(dbs_conf_dir_path, CT_FILE_NAME_BUFFER_SIZE, "%s/dbstor/conf/dbs", g_cms_param->cms_home);
+    if (ret == -1) {
+        printf("Failed to assemble the dbstor conf dir path by instance home(%s).", g_cms_param->cms_home);
+        return CT_ERROR;
+    }
+    DIR *dir_ptr;
+    struct dirent *entry;
+
+    dir_ptr = opendir(dbs_conf_dir_path);
+    if (dir_ptr == NULL) {
+        printf("open dbs_conf_dir_path failed!");
+        return CT_ERROR;
+    }
+
+    char dbs_conf_file_path[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
+    while ((entry = readdir(dir_ptr)) != NULL) {
+        if (strstr(entry->d_name, "tool") == NULL) {
+            continue;
+        }
+        ret = memset_s(dbs_conf_file_path, CT_FILE_NAME_BUFFER_SIZE, 0, CT_FILE_NAME_BUFFER_SIZE);
+        if (ret != EOK) {
+            printf("memset_s dbs_conf_file_path failed!");
+            break;
+        }
+        ret = sprintf_s(dbs_conf_file_path, CT_FILE_NAME_BUFFER_SIZE, "%s/%s", dbs_conf_dir_path, entry->d_name);
+        if (ret == -1) {
+            printf("Failed to assemble the dbstor conf file path by instance home(%s).", g_cms_param->cms_home);
+            break;
+        }
+        if (cm_open_file(dbs_conf_file_path, O_RDWR, &g_lockConfigHandle) != CT_SUCCESS) {
+            printf("open dbs_conf_file failed!");
+            break;
+        }
+        if (flock(g_lockConfigHandle, LOCK_EX | LOCK_NB) == 0) {
+            ret = strcpy_s(config_name, CM_DBS_CONFIG_FILE_NAME_LEN, entry->d_name);
+            if (ret != EOK) {
+                printf("strcpy_s config_name failed!");
+                return CT_ERROR;
+            }
+            closedir(dir_ptr);
+            return CT_SUCCESS;
+        }
+        cm_close_file(g_lockConfigHandle);
+    }
+
+    closedir(dir_ptr);
+    return CT_ERROR;
+}
+
+status_t cm_alloc_conf_file_retry(char *config_name)
+{
+    uint32_t retry_num = CM_WAIT_CONFIG_RETRY_NUM;
+    do {
+        int32_t ret = memset_s(config_name, CM_DBS_CONFIG_FILE_NAME_LEN, 0, CM_DBS_CONFIG_FILE_NAME_LEN);
+        if (ret != EOK) {
+            printf("memset_s config_name failed!");
+            return CT_ERROR;
+        }
+        if (cm_get_and_flock_conf_file(config_name) == CT_SUCCESS) {
+            return CT_SUCCESS;
+        }
+        retry_num--;
+        cm_sleep(CM_WAIT_CONFIG_INTERVAL_TIME);
+    } while (retry_num > 0);
+
+    printf("cm get free dbstor config file timeout, please wait a while and try again.");
+    return CT_ERROR;
+}
+
+void cm_release_conf_file(void)
+{
+    (void)flock(g_lockConfigHandle, LOCK_UN);
+    cm_close_file(g_lockConfigHandle);
+}
+
+status_t cms_cmd_init_dbs(dbs_init_mode init_mode)
+{
+    char dbs_cfg_name[CM_DBS_CONFIG_FILE_NAME_LEN] = { "dbstor_config.ini" };
+    if (init_mode != DBS_RUN_CMS_SERVER) {
+        if (cm_alloc_conf_file_retry(dbs_cfg_name) != CT_SUCCESS) {
+            CMS_LOG_INF("cms cmd init dbs havn't dbs chain.");
+            return CT_ERROR;
+        }
+    }
+    if (cms_init_dbs_client(dbs_cfg_name, init_mode) != CT_SUCCESS) {
+        CMS_LOG_INF("cms cmd init dbs failed, init mode:%d.", init_mode);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t cms_instance_init_with_dbs(dbs_init_mode init_mode)
+{
+    if (cms_cmd_init_dbs(init_mode) != CT_SUCCESS) {
+        CMS_LOG_ERR("cms_cmd_init_dbs init failed.");
+        return CT_ERROR;
+    }
+    if (cms_init_gcc_disk_lock() != CT_SUCCESS) {
+        CMS_LOG_ERR("cms_init_gcc_disk_lock init failed.");
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
 
 static status_t cms_check_server_status(bool32 *is_start)
 {
@@ -83,12 +197,12 @@ static status_t cms_check_server_status(bool32 *is_start)
 int32 cms_server_start(int32 argc, char* argv[])
 {
     int32 err_code = 0;
+    char dev_type[CMS_DEV_TYPE_BUTT][CMS_MAX_INFO_LEN] = {{"SD"}, {"FILE"}, {"NFS"}, {"DBS"}};
     const char *err_msg = NULL;
     printf("NODE_ID     = %hu\n", g_cms_param->node_id);
     printf("CMS_HOME    = %s\n", g_cms_param->cms_home);
     printf("GCC_HOME    = %s\n", g_cms_param->gcc_home);
-    printf("CMS GCC_TYPPE:%s", g_cms_param->gcc_type == CMS_DEV_TYPE_SD ? "SD" :
-        (g_cms_param->gcc_type == CMS_DEV_TYPE_FILE ? "FILE" : "NFS"));
+    printf("CMS GCC_TYPE:%s", dev_type[g_cms_param->gcc_type - 1]);
 #ifndef _WIN32
     printf("VERSION     = %s\n", cantiand_get_dbversion());
 #endif
@@ -102,6 +216,48 @@ int32 cms_server_start(int32 argc, char* argv[])
     return CT_SUCCESS;
 }
 
+int32 cms_gcc_delete(int32 argc, char* argv[])
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        printf("invalid gcc type.\n");
+        return CT_ERROR;
+    }
+
+    if (cms_cmd_init_dbs(DBS_RUN_DEL_CMS_GCC) != CT_SUCCESS) {
+        printf("init dbs failed, delete gcc failed.\n");
+        return CT_ERROR;
+    }
+
+    if (cms_delete_gcc() != CT_SUCCESS) {
+        printf("delete gcc failed.\n");
+        return CT_ERROR;
+    }
+
+    printf("delete gcc succeed.\n");
+    return CT_SUCCESS;
+}
+
+int32 cms_gcc_create(int32 argc, char* argv[])
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        printf("invalid gcc type.\n");
+        return CT_ERROR;
+    }
+
+    if (cms_cmd_init_dbs(DBS_RUN_CREATE_CMS_GCC) != CT_SUCCESS) {
+        printf("init dbs failed, create gcc failed.\n");
+        return CT_ERROR;
+    }
+
+    if (cms_create_gcc() != CT_SUCCESS) {
+        printf("create gcc failed.\n");
+        return CT_ERROR;
+    }
+
+    printf("create gcc succeed.\n");
+    return CT_SUCCESS;
+}
+
 
 int32 cms_gcc_list(int32 argc, char* argv[])
 {
@@ -112,28 +268,100 @@ int32 cms_gcc_list(int32 argc, char* argv[])
 
 int32 cms_gcc_reset_force(int32 argc, char* argv[])
 {
-    if (cms_reset_gcc() == CT_SUCCESS) {
-        printf("reset gcc succeed.\n");
-    } else {
-        printf("reset gcc failed.\n");
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+        cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+        printf("init dbs resource failed, reset gcc force failed.\n");
+        CMS_LOG_ERR("init dbs resource failed, reset gcc force failed.");
+        return -1;
     }
 
-    return CT_SUCCESS;
+    if (cms_reset_gcc() != CT_SUCCESS) {
+        printf("reset gcc failed.\n");
+        return -1;
+    }
+    printf("reset gcc succeed.\n");
+    return 0;
 }
 
 int32 cms_gcc_reset(int32 argc, char* argv[])
 {
     printf("The operation will reset all data on gcc, are you sure?(y/n)\n");
     char confirm = getc(stdin);
-    if (confirm == 'Y' || confirm == 'y') {
-        if (cms_reset_gcc() == CT_SUCCESS) {
-            printf("reset gcc succeed.\n");
-        } else {
-            printf("reset gcc failed.\n");
-        }
+    if (confirm != 'Y' && confirm != 'y') {
+        printf("You have cancel reset gcc file.");
+        return 0;
     }
 
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+        cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+        printf("init dbs resource failed, reset gcc failed.\n");
+        CMS_LOG_ERR("init dbs resource failed, reset gcc failed.");
+        return -1;
+    }
+
+    if (cms_reset_gcc() != CT_SUCCESS) {
+        printf("reset gcc failed.\n");
+        return -1;
+    }
+    printf("reset gcc succeed.\n");
     return 0;
+}
+
+void cms_tool_req_common_init(cms_packet_head_t* req, uint8 type, uint32 size)
+{
+    req->msg_type = type;
+    req->msg_size = size;
+    req->msg_version = CMS_MSG_VERSION;
+    req->msg_seq = cms_uds_cli_get_msg_seq();
+    req->src_msg_seq = 0;
+    return;
+}
+
+status_t cms_gcc_export_server(char* path, char* err_info, uint32 err_len)
+{
+    cms_tool_msg_req_gcc_export_t req = {0};
+    cms_tool_msg_res_gcc_export_t res = {0};
+    errno_t err = strcpy_sp(req.path, CMS_MAX_PATH_LEN, path);
+    if (err != EOK) {
+        err = strcpy_sp(err_info, err_len, "strcpy path failed");
+        cms_securec_check(err);
+        return CT_ERROR;
+    }
+    cms_tool_req_common_init(&req.head, CMS_TOOL_MSG_REQ_GCC_EXPORT, sizeof(cms_tool_msg_req_gcc_export_t));
+    status_t ret = cms_send_to_server(&req.head, &res.head, sizeof(cms_tool_msg_res_gcc_export_t),
+        CMS_CLIENT_REQUEST_TIMEOUT, err_info);
+    if (ret == CT_SUCCESS && res.result != CT_SUCCESS) {
+        err = strcpy_sp(err_info, CMS_INFO_BUFFER_SIZE, res.info);
+        cms_securec_check(err);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t cms_tool_gcc_export_adapte_dbs(char *path)
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        return CT_SUCCESS;
+    }
+
+    if (cms_uds_cli_check_server_online() == CT_SUCCESS) {
+        CMS_LOG_INF("cms srv online, export gcc cmd send to srv exec.");
+        char err_info[CMS_INFO_BUFFER_SIZE] = {0};
+        if (cms_gcc_export_server(path, err_info, CMS_INFO_BUFFER_SIZE) != CT_SUCCESS) {
+            printf("%s, export gcc to file %s failed.\n", err_info, path);
+            CMS_LOG_ERR("%s, export gcc to file %s failed.", err_info, path);
+            return CT_ERROR;
+        }
+        printf("export gcc to file %s succeed.\n", path);
+        CMS_LOG_INF("export gcc to file %s succeed.", path);
+        return CT_EAGAIN; // indicate cms tool cmd already proc
+    } else {
+        CMS_LOG_INF("cms srv not online, export gcc cmd local exec.");
+        if (cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    }
+    return CT_SUCCESS;
 }
 
 int32 cms_gcc_export(int32 argc, char* argv[])
@@ -151,6 +379,13 @@ int32 cms_gcc_export(int32 argc, char* argv[])
     } else {
         cm_reset_error();
     }
+    status_t ret = cms_tool_gcc_export_adapte_dbs(path);
+    if (ret == CT_ERROR) {
+        CMS_LOG_ERR("dbs init failed, export gcc to file %s failed.", path);
+        return -1;
+    } else if (ret == CT_EAGAIN) {
+        return 0;
+    }
 
     if (cms_export_gcc(path) == CT_SUCCESS) {
         printf("export gcc to file %s succeed.\n", path);
@@ -159,6 +394,53 @@ int32 cms_gcc_export(int32 argc, char* argv[])
         cm_get_error(&err_code, &err_msg, NULL);
         printf("%s, export gcc to file %s failed.\n", err_msg, path);
         CMS_LOG_ERR("%s, export gcc to file %s failed.", err_msg, path);
+    }
+    return CT_SUCCESS;
+}
+
+status_t cms_gcc_import_server(const char* path, char* err_info, uint32 err_len)
+{
+    cms_tool_msg_req_gcc_import_t req = {0};
+    cms_tool_msg_res_gcc_import_t res = {0};
+    errno_t err = strcpy_sp(req.path, CMS_MAX_PATH_LEN, path);
+    if (err != EOK) {
+        err = strcpy_sp(err_info, err_len, "strcpy path failed");
+        cms_securec_check(err);
+        return CT_ERROR;
+    }
+    cms_tool_req_common_init(&req.head, CMS_TOOL_MSG_REQ_GCC_IMPORT, sizeof(cms_tool_msg_req_gcc_import_t));
+    status_t ret = cms_send_to_server(&req.head, &res.head, sizeof(cms_tool_msg_res_gcc_import_t),
+        CMS_CLIENT_REQUEST_TIMEOUT, err_info);
+    if (ret == CT_SUCCESS && res.result != CT_SUCCESS) {
+        err = strcpy_sp(err_info, CMS_INFO_BUFFER_SIZE, res.info);
+        cms_securec_check(err);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t cms_tool_gcc_import_adapte_dbs(const char *path)
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        return CT_SUCCESS;
+    }
+
+    if (cms_uds_cli_check_server_online() == CT_SUCCESS) {
+        CMS_LOG_INF("cms srv online, import gcc cmd send to srv exec.");
+        char err_info[CMS_INFO_BUFFER_SIZE] = {0};
+        if (cms_gcc_import_server(path, err_info, CMS_INFO_BUFFER_SIZE) != CT_SUCCESS) {
+            printf("%s, import gcc to file %s failed.\n", err_info, path);
+            CMS_LOG_ERR("%s, import gcc to file %s failed.", err_info, path);
+            return CT_ERROR;
+        }
+        printf("import gcc to file %s succeed.\n", path);
+        CMS_LOG_INF("import gcc to file %s succeed.", path);
+        return CT_EAGAIN; // indicate cms tool cmd already proc
+    } else {
+        CMS_LOG_INF("cms srv not online, import gcc cmd local exec.");
+        if (cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
     }
     return CT_SUCCESS;
 }
@@ -172,20 +454,31 @@ int32 cms_gcc_import(int32 argc, char* argv[])
     char confirm = getc(stdin);
     const char* file_name = argv[3];
     CMS_LOG_INF("input is %c.", confirm);
-    if (confirm == 'Y' || confirm == 'y') {
-        if (cms_import_gcc(file_name) == CT_SUCCESS) {
-            printf("import gcc from file %s succeed.\n", file_name);
-            CMS_LOG_INF("import gcc from file %s succeed.", file_name);
+    if (confirm != 'Y' && confirm != 'y') {
+        printf("You have cancel gcc import operation.");
+        return 0;
+    }
+
+    status_t ret = cms_tool_gcc_import_adapte_dbs(file_name);
+    if (ret == CT_ERROR) {
+        CMS_LOG_ERR("import gcc from file %s failed.", file_name);
+        return -1;
+    } else if (ret == CT_EAGAIN) {
+        return 0;
+    }
+
+    if (cms_import_gcc(file_name) == CT_SUCCESS) {
+        printf("import gcc from file %s succeed.\n", file_name);
+        CMS_LOG_INF("import gcc from file %s succeed.", file_name);
+    } else {
+        cm_get_error(&err_code, &err_msg, &loc);
+        if (loc.line > 0) {
+            printf("%s (file row:%u), import gcc from file %s failed.\n", err_msg,
+                (uint32)loc.line, file_name);
         } else {
-            cm_get_error(&err_code, &err_msg, &loc);
-            if (loc.line > 0) {
-                printf("%s (file row:%u), import gcc from file %s failed.\n", err_msg,
-                    (uint32)loc.line, file_name);
-            } else {
-                printf("%s, import gcc from file %s failed.\n", err_msg, file_name);
-            }
-            CMS_LOG_ERR("%s, import gcc from file %s failed.", err_msg, file_name);
+            printf("%s, import gcc from file %s failed.\n", err_msg, file_name);
         }
+        CMS_LOG_ERR("%s, import gcc from file %s failed.", err_msg, file_name);
     }
     return 0;
 }
@@ -194,6 +487,13 @@ int32 cms_gcc_backup(int32 argc, char* argv[])
 {
     int32 err_code = 0;
     const char *err_msg = NULL;
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+        cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+        printf("init dbs resource failed, gcc backup failed.\n");
+        CMS_LOG_ERR("init dbs resource failed, gcc backup failed.");
+        return 0;
+    }
+
     if (cms_backup_gcc() == CT_SUCCESS) {
         printf("backup gcc succeed.\n");
     } else {
@@ -214,10 +514,55 @@ status_t cms_tool_init(void)
     return CT_SUCCESS;
 }
 
+int32 cms_gcc_restore_adapter_dbs(const char* file_name)
+{
+    if (cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+        printf("dbs init failed, restore gcc failed.\n");
+        return 0;
+    }
+
+    if (cms_load_gcc() != CT_SUCCESS) {
+        printf("cms load gcc failed, restore gcc failed\n");
+        return 0;
+    }
+    cms_init_stat_for_dbs();
+    uint64 cms_online_bitmap = 0;
+    cms_get_node_view(&cms_online_bitmap);
+    if (cms_online_bitmap !=0) {
+        cms_print_online_node_info(&cms_online_bitmap);
+        printf("node online: %llu, restore gcc failed.\n", cms_online_bitmap);
+        return 0;
+    }
+    printf("cms check server status finish, please ensure all nodes in the cluster are stopped, are you sure?(y/n)\n");
+    char ack = getc(stdin);
+    CMS_LOG_INF("input is %c.", ack);
+    if (ack != 'Y' && ack != 'y') {
+        return 0;
+    }
+    printf("The operation will replace all data on gcc and can not rollback, are you sure?(y/n)\n");
+    char confirm = getc(stdin);
+    CMS_LOG_INF("input is %c.", confirm);
+    if (confirm != 'Y' && confirm != 'y') {
+        return 0;
+    }
+    if (cms_restore_gcc(file_name) == CT_SUCCESS) {
+        printf("restore gcc from file %s succeed.\n", file_name);
+        CMS_LOG_INF("restore gcc from file %s succeed.", file_name);
+    } else {
+        printf("restore gcc from file %s failed.\n", file_name);
+        CMS_LOG_ERR("restore gcc from file %s failed.", file_name);
+    }
+    return 0;
+}
+
 int32 cms_gcc_restore(int32 argc, char* argv[])
 {
     uint64 cms_online_bitmap = 0;
     const char* file_name = argv[3];
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
+        return cms_gcc_restore_adapter_dbs(file_name);
+    }
+
     if (cms_tool_init() == CT_SUCCESS && (cms_get_node_view(&cms_online_bitmap) == CT_SUCCESS)) {
         if (cms_online_bitmap != 0) {
             cms_print_online_node_info(&cms_online_bitmap);
@@ -256,9 +601,53 @@ int32 cms_gcc_restore(int32 argc, char* argv[])
     return CT_SUCCESS;
 }
 
+status_t cms_node_list_server(char* err_info, uint32 err_len)
+{
+    cms_tool_msg_req_node_list_t req = {0};
+    cms_tool_msg_res_node_list_t res = {0};
+    cms_tool_req_common_init(&req.head, CMS_TOOL_MSG_REQ_NODE_LIST, sizeof(cms_tool_msg_req_node_list_t));
+    status_t ret = cms_send_to_server(&req.head, &res.head, sizeof(cms_tool_msg_res_node_list_t),
+        CMS_CLIENT_REQUEST_TIMEOUT, err_info);
+    if (ret == CT_SUCCESS && res.result != CT_SUCCESS) {
+        errno_t err = strcpy_sp(err_info, CMS_INFO_BUFFER_SIZE, res.info);
+        cms_securec_check(err);
+        return CT_ERROR;
+    }
+    printf("%-12s%-40s%-40s%-5s\n", "NODE_ID", "NODE NAME", "IP", "PORT");
+    for (uint32 i = 0; i < res.node_count; i++) {
+        printf("%7u     %-40s%-39s%5u\n", i, res.node_info[i].name, res.node_info[i].ip, res.node_info[i].port);
+    }
+    return CT_SUCCESS;
+}
+
+status_t cms_tool_node_list_adapte_dbs(void)
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        return CT_SUCCESS;
+    }
+    if (cms_uds_cli_check_server_online() == CT_SUCCESS) {
+        CMS_LOG_INF("cms srv online, node list cmd send to srv exec.");
+        char err_info[CMS_INFO_BUFFER_SIZE] = {0};
+        if (cms_node_list_server(err_info, CMS_INFO_BUFFER_SIZE) != CT_SUCCESS) {
+            CMS_LOG_ERR("%s, cms node list failed.", err_info);
+        } else {
+            CMS_LOG_INF("cms node list succeed.");
+        }
+        return CT_EAGAIN; // indicate cms tool cmd already proc
+    } else {
+        CMS_LOG_INF("cms srv not online, node list cmd exec local.");
+        if (cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    }
+    return CT_SUCCESS;
+}
 
 int32 cms_node_list(int32 argc, char* argv[])
 {
+    if (cms_tool_node_list_adapte_dbs() != CT_SUCCESS) {
+        return CT_SUCCESS;
+    }
     if (cms_load_gcc() != CT_SUCCESS) {
         printf("cms load gcc failed.\n");
         CT_LOG_RUN_ERR("cms load gcc failed.");
@@ -286,24 +675,6 @@ int32 cms_node_list(int32 argc, char* argv[])
     return CT_SUCCESS;
 }
 
-status_t cms_get_server_vote_result(uint64* cluster_bitmap, bool32* cluster_is_voting, char* err_info)
-{
-    status_t ret = CT_SUCCESS;
-    cms_tool_msg_req_vote_result_t req = {0};
-    cms_tool_msg_res_vote_result_t res = {0};
-
-    req.head.msg_type = CMS_TOOL_MSG_REQ_VOTE_RESULT;
-    req.head.msg_size = sizeof(cms_tool_msg_req_vote_result_t);
-    req.head.msg_version = CMS_MSG_VERSION;
-    req.head.msg_seq = cms_uds_cli_get_msg_seq();
-    req.head.src_msg_seq = 0;
-    ret = cms_send_to_server(&req.head, &res.head, sizeof(cms_tool_msg_res_vote_result_t),
-        CMS_CLIENT_REQUEST_TIMEOUT, err_info);
-    *cluster_bitmap = res.cluster_bitmap;
-    *cluster_is_voting = res.cluster_is_voting;
-    return ret;
-}
-
 static inline bool32 cm_bitmap64_exist(uint64 *bitmap, uint8 num)
 {
     uint64 position;
@@ -318,44 +689,91 @@ static inline bool32 cm_bitmap64_exist(uint64 *bitmap, uint8 num)
 
 int32 cms_node_connected(int32 argc, char *argv[])
 {
+    status_t ret = CT_SUCCESS;
+    cms_tool_msg_req_node_connected_t req = {0};
+    cms_tool_msg_res_node_connected_t res = {0};
     char err_info[CMS_INFO_BUFFER_SIZE] = {0};
+    req.head.msg_type = CMS_TOOL_MSG_REQ_NODE_CONNECTED;
+    req.head.msg_size = sizeof(cms_tool_msg_req_node_connected_t);
+    req.head.msg_version = CMS_MSG_VERSION;
+    req.head.msg_seq = cms_uds_cli_get_msg_seq();
+    req.head.src_msg_seq = 0;
+    ret = cms_send_to_server(&req.head, &res.head, sizeof(cms_tool_msg_res_node_connected_t),
+        CMS_CLIENT_REQUEST_TIMEOUT, err_info);
+    if (ret != CT_SUCCESS) {
+        printf("%s, cms node -connected send msg failed.", err_info);
+        CT_LOG_RUN_ERR("%s, cms node -connected send msg failed.", err_info);
+        return 0;
+    }
+    if (res.result != CT_SUCCESS) {
+        printf("%s, cms node -connected msg proc failed.", res.info);
+        CT_LOG_RUN_INF("%s, cms node -connected msg proc failed.", res.info);
+        return 0;
+    }
     uint64 cluster_bitmap = 0;
     bool32 cluster_is_voting = CT_FALSE;
-    if (cms_get_server_vote_result(&cluster_bitmap, &cluster_is_voting, err_info) != CT_SUCCESS) {
-        printf("%s, cms get vote result failed.\n", err_info);
-        return CT_ERROR;
-    }
-
-    if (cms_load_gcc() != CT_SUCCESS) {
-        printf("cms load gcc failed.\n");
-        return CT_ERROR;
-    }
-    const cms_gcc_t *gcc = cms_get_read_gcc();
-    if (gcc->head.magic != CMS_GCC_HEAD_MAGIC) {
-        printf("gcc is invalid.\n");
-        cms_release_gcc(&gcc);
-        return CT_ERROR;
-    }
-
+    cluster_bitmap = res.cluster_bitmap;
+    cluster_is_voting = res.cluster_is_voting;
     printf("%-12s%-40s%-40s%-12s%-5s\n", "NODE_ID", "NODE_NAME", "IP", "PORT", "VOTING");
-    for (uint32 i = 0; i < gcc->head.node_count; i++) {
-        const cms_node_def_t *node_def = &gcc->node_def[i];
-        if (node_def->magic != CMS_GCC_NODE_MAGIC) {
-            continue;
-        }
+    for (uint32 i = 0; i < res.node_count; i++) {
         if (!cm_bitmap64_exist(&cluster_bitmap, i)) {
             continue;
         }
-        printf("%7u     %-40s%-40s%-12u%-5s\n", i, node_def->name, node_def->ip, node_def->port,
+        printf("%7u     %-40s%-40s%-12u%-5s\n", i, res.node_info[i].name, res.node_info[i].ip, res.node_info[i].port,
             cluster_is_voting == CT_TRUE ? "TRUE" : "FALSE");
     }
 
-    cms_release_gcc(&gcc);
+    return CT_SUCCESS;
+}
+
+status_t cms_resgrp_list_server(char* err_info, uint32 err_len)
+{
+    cms_tool_msg_req_resgrp_list_t req = {0};
+    cms_tool_msg_res_resgrp_list_t res = {0};
+    cms_tool_req_common_init(&req.head, CMS_TOOL_MSG_REQ_RESGRP_LIST, sizeof(cms_tool_msg_req_resgrp_list_t));
+    status_t ret = cms_send_to_server(&req.head, &res.head, sizeof(cms_tool_msg_res_resgrp_list_t),
+        CMS_CLIENT_REQUEST_TIMEOUT, err_info);
+    if (ret == CT_SUCCESS && res.result != CT_SUCCESS) {
+        errno_t err = strcpy_sp(err_info, CMS_INFO_BUFFER_SIZE, res.info);
+        cms_securec_check(err);
+        return CT_ERROR;
+    }
+    printf("RESOURCE_GROUP\n");
+    for (uint32 i = 0; i < res.resgrp_cnt; i++) {
+        printf("%s\n", res.resgrp_name[i]);
+    }
+    return CT_SUCCESS;
+}
+
+status_t cms_tool_resgrp_list_adapte_dbs(void)
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        return CT_SUCCESS;
+    }
+    if (cms_uds_cli_check_server_online() == CT_SUCCESS) {
+        CMS_LOG_INF("cms srv online, node list cmd send to srv exec.");
+        char err_info[CMS_INFO_BUFFER_SIZE] = {0};
+        if (cms_resgrp_list_server(err_info, CMS_INFO_BUFFER_SIZE) != CT_SUCCESS) {
+            CMS_LOG_ERR("%s, cms resgrp list failed.", err_info);
+        } else {
+            CMS_LOG_INF("cms resgrp list succeed.");
+        }
+        return CT_EAGAIN; // indicate cms tool cmd already proc
+    } else {
+        CMS_LOG_INF("cms srv not online, node list cmd exec local.");
+        if (cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    }
     return CT_SUCCESS;
 }
 
 int32 cms_resgrp_list(int32 argc, char* argv[])
 {
+    if (cms_tool_resgrp_list_adapte_dbs() != CT_SUCCESS) {
+        return CT_SUCCESS;
+    }
+
     if (cms_load_gcc() != CT_SUCCESS) {
         printf("cms load gcc failed.\n");
         return CT_SUCCESS;
@@ -380,8 +798,62 @@ int32 cms_resgrp_list(int32 argc, char* argv[])
     return CT_SUCCESS;
 }
 
+status_t cms_res_list_server(int argc, char* grp_name, char* err_info, uint32 err_len)
+{
+    cms_tool_msg_req_res_list_t req = {0};
+    cms_tool_msg_res_res_list_t res = {0};
+    cms_tool_req_common_init(&req.head, CMS_TOOL_MSG_REQ_RES_LIST, sizeof(cms_tool_msg_req_res_list_t));
+    status_t ret = cms_send_to_server(&req.head, &res.head, sizeof(cms_tool_msg_res_res_list_t),
+        CMS_CLIENT_REQUEST_TIMEOUT, err_info);
+    if (ret == CT_SUCCESS && res.result != CT_SUCCESS) {
+        errno_t err = strcpy_sp(err_info, CMS_INFO_BUFFER_SIZE, res.info);
+        cms_securec_check(err);
+        return CT_ERROR;
+    }
+    printf("%-20s%-20s%-24s%-20s%-20s%-20s%-20s%-20s%-20s%-20s%s\n",
+        "RESOURCE_NAME", "RESOURCE_TYPE", "RESOURCE_GROUP_NAME", "START_TIMEOUT(ms)", "STOP_TIMEOUT(ms)",
+        "CHECK_TIMEOUT(ms)", "CHECK_INTERVAL(ms)", "HB_TIMEOUT(ms)", "RESTART_TIMES", "RESTART_INTERVAL", "SCRIPT");
+    for (uint32 i = 0; i < res.res_count; i++) {
+        if (argc == 4 && (strcmp(res.res_info[i].grp_name, grp_name) != 0)) {
+            continue;
+        }
+        printf("%-20s%-20s%-24s%17u   %16u    %17u   %18u  %14u  %13d  %16u      %s\n",
+            res.res_info[i].name, res.res_info[i].type, res.res_info[i].grp_name, res.res_info[i].start_timeout,
+            res.res_info[i].stop_timeout, res.res_info[i].check_timeout, res.res_info[i].check_interval,
+            res.res_info[i].hb_timeout, res.res_info[i].restart_times, res.res_info[i].restart_interval,
+            res.res_info[i].script);
+    }
+    return CT_SUCCESS;
+}
+
+status_t cms_tool_res_list_adapte_dbs(int argc, char* grp_name)
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        return CT_SUCCESS;
+    }
+    if (cms_uds_cli_check_server_online() == CT_SUCCESS) {
+        CMS_LOG_INF("cms srv online, res list cmd send to srv exec.");
+        char err_info[CMS_INFO_BUFFER_SIZE] = {0};
+        if (cms_res_list_server(argc, grp_name, err_info, CMS_INFO_BUFFER_SIZE) != CT_SUCCESS) {
+            CMS_LOG_ERR("%s, cms res list failed.", err_info);
+        } else {
+            CMS_LOG_INF("cms res list succeed.");
+        }
+        return CT_EAGAIN; // indicate cms tool cmd already proc
+    } else {
+        CMS_LOG_INF("cms srv not online, res list cmd exec local.");
+        if (cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    }
+    return CT_SUCCESS;
+}
+
 int32 cms_res_list(int32 argc, char* argv[])
 {
+    if (cms_tool_res_list_adapte_dbs(argc, argv[3]) != CT_SUCCESS) {
+        return CT_SUCCESS;
+    }
     if (cms_load_gcc() != CT_SUCCESS) {
         printf("cms load gcc failed.\n");
         CT_LOG_RUN_ERR("cms load gcc failed.");
@@ -396,17 +868,8 @@ int32 cms_res_list(int32 argc, char* argv[])
     }
 
     printf("%-20s%-20s%-24s%-20s%-20s%-20s%-20s%-20s%-20s%-20s%s\n",
-        "RESOURCE_NAME",
-        "RESOURCE_TYPE",
-        "RESOURCE_GROUP_NAME",
-        "START_TIMEOUT(ms)",
-        "STOP_TIMEOUT(ms)",
-        "CHECK_TIMEOUT(ms)",
-        "CHECK_INTERVAL(ms)",
-        "HB_TIMEOUT(ms)",
-        "RESTART_TIMES",
-        "RESTART_INTERVAL",
-        "SCRIPT");
+        "RESOURCE_NAME", "RESOURCE_TYPE", "RESOURCE_GROUP_NAME", "START_TIMEOUT(ms)", "STOP_TIMEOUT(ms)",
+        "CHECK_TIMEOUT(ms)", "CHECK_INTERVAL(ms)", "HB_TIMEOUT(ms)", "RESTART_TIMES", "RESTART_INTERVAL", "SCRIPT");
 
     for (uint32 i = 0; i < CMS_MAX_RESOURCE_COUNT; i++) {
         const cms_res_t* res = &gcc->res[i];
@@ -419,16 +882,8 @@ int32 cms_res_list(int32 argc, char* argv[])
         }
 
         printf("%-20s%-20s%-24s%17u   %16u    %17u   %18u  %14u  %13d  %16u      %s\n",
-            res->name,
-            res->type,
-            gcc->resgrp[res->grp_id].name,
-            res->start_timeout,
-            res->stop_timeout,
-            res->check_timeout,
-            res->check_interval,
-            res->hb_timeout,
-            res->restart_times,
-            res->restart_interval,
+            res->name, res->type, gcc->resgrp[res->grp_id].name, res->start_timeout, res->stop_timeout,
+            res->check_timeout, res->check_interval, res->hb_timeout, res->restart_times, res->restart_interval,
             res->script);
     }
 
@@ -437,8 +892,105 @@ int32 cms_res_list(int32 argc, char* argv[])
     return CT_SUCCESS;
 }
 
+status_t cms_tool_get_res_stat_list(uint32 res_id, cms_tool_res_stat_list_t* res_list)
+{
+    cms_tool_msg_req_get_res_stat_t req = {0};
+    cms_tool_msg_res_get_res_stat_t res = {0};
+    char err_info[CMS_INFO_BUFFER_SIZE] = {0};
+    req.head.msg_size = sizeof(cms_tool_msg_req_get_res_stat_t);
+    req.head.msg_type = CMS_TOOL_MSG_REQ_GET_RES_STAT;
+    req.head.msg_version = CMS_MSG_VERSION;
+    req.res_id = res_id;
+
+    status_t ret = cms_send_to_server(&req.head, &res.head, sizeof(cms_tool_msg_res_get_res_stat_t),
+        CMS_CLIENT_REQUEST_TIMEOUT, err_info);
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("%s, cms send to server failed, try again.\n", err_info);
+        return CT_ERROR;
+    }
+
+    if (res.result != CT_SUCCESS) {
+        CMS_LOG_ERR("cms server get res stat failed, ret %u.\n", res.result);
+        return CT_ERROR;
+    }
+
+    errno_t err = memcpy_s(res_list, sizeof(cms_tool_res_stat_list_t), &res.stat, sizeof(cms_tool_res_stat_list_t));
+    MEMS_RETURN_IFERR(err);
+
+    CT_LOG_DEBUG_INF("get res stat succ, inst count %d", res_list->inst_count);
+    return CT_SUCCESS;
+}
+
+status_t cms_tool_get_gcc_info(cms_tool_msg_res_get_gcc_t* res)
+{
+    cms_tool_msg_req_get_gcc_t req = {0};
+    char err_info[CMS_INFO_BUFFER_SIZE] = {0};
+    req.head.msg_size = sizeof(cms_tool_msg_req_get_gcc_t);
+    req.head.msg_type = CMS_TOOL_MSG_REQ_GET_GCC_INFO;
+    req.head.msg_version = CMS_MSG_VERSION;
+
+    status_t ret = cms_send_to_server(&req.head, &res->head, sizeof(cms_tool_msg_res_get_gcc_t),
+        CMS_CLIENT_REQUEST_TIMEOUT, err_info);
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("%s, cms send to server failed, try again.\n", err_info);
+        return CT_ERROR;
+    }
+
+    if (res->result != CT_SUCCESS) {
+        CMS_LOG_ERR("cms server get res stat failed, ret %u.\n", res->result);
+        return CT_ERROR;
+    }
+    CT_LOG_DEBUG_INF("get gcc info succ");
+    return CT_SUCCESS;
+}
+
+status_t cms_stat_from_server()
+{
+    cms_tool_msg_res_get_gcc_t res_gcc = {0};
+    CT_RETURN_IFERR(cms_tool_get_gcc_info(&res_gcc));
+    printf("%-9s%-10s%-8s%-12s%-14s%-12s%-13s%-14s%-9s%-24s%-24s%s\n",
+           "NODE_ID", "NAME", "STAT", "PRE_STAT", "TARGET_STAT", "WORK_STAT", "SESSION_ID", "INSTANCE_ID",
+           "ROLE", "LAST_CHECK", "HB_TIME", "STAT_CHANGE");
+    uint8 master_node_id = -1;
+    for (uint32 res_id = 0; res_id < res_gcc.res_count; res_id++) {
+        const cms_msg_res_t* res = &res_gcc.res_list[res_id];
+        if (res->magic != CMS_GCC_RES_MAGIC) {
+            continue;
+        }
+        cms_tool_res_stat_list_t res_list;
+        CT_RETURN_IFERR(cms_tool_get_res_stat_list(res_id, &res_list));
+        master_node_id = res_list.master_inst_id;
+
+        for (uint32 node_id = 0; node_id < res_list.inst_count; node_id++) {
+            cms_msg_res_stat_t* res_stat = &res_list.stat_list[node_id];
+            if (cm_now() > res_stat->last_check + res->hb_timeout * MICROSECS_PER_MILLISEC) {
+                res_stat->cur_stat = CMS_RES_UNKNOWN;
+            }
+
+            char last_check[32], stat_change[32], hb_time[32];
+            cms_date2str(res_stat->last_check, last_check, sizeof(last_check));
+            cms_date2str(res_stat->last_stat_change, stat_change, sizeof(stat_change));
+            cms_date2str(res_stat->hb_time, hb_time, sizeof(hb_time));
+            printf("%7u  %-10s%-8s%-12s%-14s%9d   %10llu   %11llu   %-9s%-24s%-24s%s\n",
+                   node_id, res->name, cms_stat_str(res_stat->cur_stat), cms_stat_str(res_stat->pre_stat),
+                   cms_stat_str(res_stat->target_stat), (int32)res_stat->work_stat, res_stat->session_id,
+                   res_stat->inst_id, master_node_id == node_id ? "REFORMER" : "",
+                   last_check, hb_time, stat_change);
+        }
+    }
+    return CT_SUCCESS;
+}
+
 int32 cms_stat_cluster(int32 argc, char* argv[])
 {
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
+        if (cms_stat_from_server() == CT_SUCCESS) {
+            return CT_SUCCESS;
+        } else {
+            CT_RETURN_IFERR(cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL));
+        }
+    }
+
     cms_res_stat_t res_stat;
     if (cms_load_gcc() != CT_SUCCESS) {
         printf("cms load gcc failed.\n");
@@ -446,9 +998,8 @@ int32 cms_stat_cluster(int32 argc, char* argv[])
     }
     CT_RETURN_IFERR(cms_instance_init());
 
-    printf("%-9s%-10s%-8s%-12s%-14s%-12s%-13s%-14s%-9s%-24s%-24s%s\n",
-           "NODE_ID", "NAME", "STAT", "PRE_STAT", "TARGET_STAT", "WORK_STAT", "SESSION_ID", "INSTANCE_ID",
-           "ROLE", "LAST_CHECK", "HB_TIME", "STAT_CHANGE");
+    printf("%-9s%-10s%-8s%-12s%-14s%-12s%-13s%-14s%-9s%-24s%-24s%s\n", "NODE_ID", "NAME", "STAT", "PRE_STAT",
+           "TARGET_STAT", "WORK_STAT", "SESSION_ID", "INSTANCE_ID", "ROLE", "LAST_CHECK", "HB_TIME", "STAT_CHANGE");
     const cms_gcc_t* gcc = cms_get_read_gcc();
     for (uint32 res_id = 0; res_id < CMS_MAX_RESOURCE_COUNT; res_id++) {
         const cms_res_t* res = &gcc->res[res_id];
@@ -481,8 +1032,7 @@ int32 cms_stat_cluster(int32 argc, char* argv[])
             printf("%7u  %-10s%-8s%-12s%-14s%9d   %10llu   %11llu   %-9s%-24s%-24s%s\n",
                    node_id, res->name, cms_stat_str(res_stat.cur_stat), cms_stat_str(res_stat.pre_stat),
                    cms_stat_str(res_stat.target_stat), (int32)res_stat.work_stat, res_stat.session_id, res_stat.inst_id,
-                   master_node_id == node_id ? "REFORMER" : "",
-                   last_check, hb_time, stat_change);
+                   master_node_id == node_id ? "REFORMER" : "", last_check, hb_time, stat_change);
         }
     }
 
@@ -490,40 +1040,108 @@ int32 cms_stat_cluster(int32 argc, char* argv[])
     return CT_SUCCESS;
 }
 
-int32 cms_stat_res(int32 argc, char* argv[])
+const cms_msg_res_t* cms_find_from_gcc_info(const cms_tool_msg_res_get_gcc_t* res_gcc, const char* name)
 {
-    char last_check[32], stat_change[32];
-    cms_res_stat_t res_stat;
-
-    if (cms_load_gcc() != CT_SUCCESS) {
-        printf("cms load gcc failed.\n");
-        return CT_SUCCESS;
+    const cms_msg_res_t* res = NULL;
+    for (uint32 res_id = 0; res_id < res_gcc->res_count; res_id++) {
+        if (res_gcc->res_list[res_id].magic == CMS_GCC_RES_MAGIC &&
+            cm_strcmpi(res_gcc->res_list[res_id].name, name) == 0) {
+            res = &res_gcc->res_list[res_id];
+            break;
+        }
     }
-    CT_RETURN_IFERR(cms_instance_init());
+    return res;
+}
 
-    char* name = NULL;
-    if (argc == 4) {
-        name = argv[3];
-    }
-
-    const cms_gcc_t* gcc = cms_get_read_gcc();
+status_t cms_stat_res_from_server(char* name)
+{
+    cms_tool_msg_res_get_gcc_t res_gcc = {0};
+    CT_RETURN_IFERR(cms_tool_get_gcc_info(&res_gcc));
     uint32 res_id = CMS_MAX_RESOURCE_COUNT;
     if (name != NULL) {
-        const cms_res_t* res = cms_find_res(gcc, name);
+        const cms_msg_res_t* res = cms_find_from_gcc_info(&res_gcc, name);
         if (res == NULL) {
             printf("resource [%s] not found.\n", name);
-            cms_release_gcc(&gcc);
             return CT_ERROR;
         }
         res_id = res->res_id;
+    }
+
+    char last_check[32], stat_change[32];
+    printf("%-10s%-32s%-12s%-12s%-14s%-12s%-27s%s\n",
+           "NODE_ID", "RESOURCE_NAME", "STAT", "PRE_STAT", "TARGET_STAT", "WORK_STAT", "LAST_CHECK", "STAT_CHANGE");
+
+    for (uint32 id = 0; id < res_gcc.res_count; id++) {
+        if (res_gcc.res_list[id].magic != CMS_GCC_RES_MAGIC ||
+            (res_id != CMS_MAX_RESOURCE_COUNT && res_id != id)) {
+            continue;
+        }
+        const cms_msg_res_t* res = &res_gcc.res_list[id];
+        cms_tool_res_stat_list_t res_list;
+        CT_RETURN_IFERR(cms_tool_get_res_stat_list(id, &res_list));
+
+        for (uint32 node_id = 0; node_id < res_gcc.node_count; node_id++) {
+            const cms_msg_node_def_t *node_def = &res_gcc.node_def_list[node_id];
+            if (node_def->magic != CMS_GCC_NODE_MAGIC) {
+                continue;
+            }
+            
+            cms_msg_res_stat_t* res_stat = &res_list.stat_list[node_id];
+            if (res_stat->cur_stat != CMS_RES_OFFLINE &&
+                cm_now() > res_stat->last_check + res->hb_timeout * MICROSECS_PER_MILLISEC) {
+                res_stat->cur_stat = CMS_RES_UNKNOWN;
+            }
+
+            cms_date2str(res_stat->last_check, last_check, sizeof(last_check));
+            cms_date2str(res_stat->last_stat_change, stat_change, sizeof(stat_change));
+            printf("%-10u%-32s%-12s%-12s%-14s%-12d%-27s%s\n",
+                   node_id, res->name, cms_stat_str(res_stat->cur_stat), cms_stat_str(res_stat->pre_stat),
+                   cms_stat_str(res_stat->target_stat), (int32)res_stat->work_stat, last_check, stat_change);
+        }
+    }
+    return CT_SUCCESS;
+}
+
+status_t cms_get_res_id_with_name(const cms_gcc_t* gcc, char* name, uint32* res_id)
+{
+    if (name == NULL) {
+        return CT_SUCCESS;
+    }
+    const cms_res_t* res = cms_find_res(gcc, name);
+    if (res == NULL) {
+        CMS_LOG_ERR("resource [%s] not found.\n", name);
+        return CT_ERROR;
+    }
+    *res_id = res->res_id;
+    return CT_SUCCESS;
+}
+
+int32 cms_stat_res(int32 argc, char* argv[])
+{
+    char* name = (argc == 4 ? argv[3] : NULL);
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
+        CT_RETURN_IFSUC(cms_stat_res_from_server(name)); // if success, return.
+        CT_RETURN_IFERR(cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL));
+    }
+
+    char last_check[32], stat_change[32];
+    cms_res_stat_t res_stat;
+
+    CT_RETURN_IFERR(cms_tool_init());
+    
+    const cms_gcc_t* gcc = cms_get_read_gcc();
+    uint32 res_id = CMS_MAX_RESOURCE_COUNT;
+    if (cms_get_res_id_with_name(gcc, name, &res_id) != CT_SUCCESS) {
+        printf("resource [%s] not found.\n", name);
+        cms_release_gcc(&gcc);
+        return CT_ERROR;
     }
 
     printf("%-10s%-32s%-12s%-12s%-14s%-12s%-27s%s\n",
            "NODE_ID", "RESOURCE_NAME", "STAT", "PRE_STAT", "TARGET_STAT", "WORK_STAT", "LAST_CHECK", "STAT_CHANGE");
 
     for (uint32 id = 0; id < CMS_MAX_RESOURCE_COUNT; id++) {
-        if (gcc->res[id].magic != CMS_GCC_RES_MAGIC ||
-            (res_id != CMS_MAX_RESOURCE_COUNT && res_id != id)) {
+        if (gcc->res[id].magic != CMS_GCC_RES_MAGIC || (res_id != CMS_MAX_RESOURCE_COUNT && res_id != id)) {
             continue;
         }
 
@@ -540,7 +1158,8 @@ int32 cms_stat_res(int32 argc, char* argv[])
                 return CT_ERROR;
             }
 
-            if (res_stat.cur_stat != CMS_RES_OFFLINE && cm_now() > res_stat.last_check + res->hb_timeout * MICROSECS_PER_MILLISEC) {
+            if (res_stat.cur_stat != CMS_RES_OFFLINE &&
+                cm_now() > res_stat.last_check + res->hb_timeout * MICROSECS_PER_MILLISEC) {
                 res_stat.cur_stat = CMS_RES_UNKNOWN;
             }
 
@@ -556,17 +1175,45 @@ int32 cms_stat_res(int32 argc, char* argv[])
     return CT_SUCCESS;
 }
 
+status_t cms_stat_node_from_server(uint32 sp_node_id)
+{
+    cms_tool_msg_res_get_gcc_t res_gcc = {0};
+    CT_RETURN_IFERR(cms_tool_get_gcc_info(&res_gcc));
+    uint16 master = res_gcc.master_node_id;
+    printf("%-10s%-32s%-14s\n",
+           "NODE_ID", "NODE_NAME", "ROLE");
+    for (uint32 node_id = 0; node_id < res_gcc.node_count; node_id++) {
+        const cms_msg_node_def_t* node_def = &res_gcc.node_def_list[node_id];
+        if (node_def->magic != CMS_GCC_NODE_MAGIC ||
+           (sp_node_id != CMS_MAX_NODE_COUNT && node_id != sp_node_id)) {
+            continue;
+        }
+        printf("%7u   %-32s%-14s\n",
+            node_id, node_def->name, master == node_id ? "server" : "agent");
+    }
+
+    return CT_SUCCESS;
+}
+
 int32 cms_stat_node(int32 argc, char* argv[])
 {
+    uint32 sp_node_id = CMS_MAX_NODE_COUNT;
+    if (argc == 4) {
+        sp_node_id = atoi(argv[3]);
+    }
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
+        if (cms_stat_node_from_server(sp_node_id) == CT_SUCCESS) {
+            return CT_SUCCESS;
+        } else {
+            CT_RETURN_IFERR(cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL));
+        }
+    }
+
     if (cms_load_gcc() != CT_SUCCESS) {
         printf("cms load gcc failed.\n");
         return CT_SUCCESS;
     }
     CT_RETURN_IFERR(cms_instance_init());
-    uint32 sp_node_id = CMS_MAX_NODE_COUNT;
-    if (argc == 4) {
-        sp_node_id = atoi(argv[3]);
-    }
 
     printf("%-10s%-32s%-14s\n",
            "NODE_ID", "NODE_NAME", "ROLE");
@@ -591,11 +1238,38 @@ int32 cms_stat_node(int32 argc, char* argv[])
     return CT_SUCCESS;
 }
 
-int32 cms_stat_server(int32 argc, char* argv[])
+status_t cms_stat_server_from_server(uint16 sp_node_id)
 {
+    cms_tool_msg_res_get_gcc_t res_gcc = {0};
+    CT_RETURN_IFERR(cms_tool_get_gcc_info(&res_gcc));
     cms_tool_msg_req_get_srv_stat_t req = {0};
     cms_tool_msg_res_get_srv_stat_t res = {0};
     char err_info[CMS_INFO_BUFFER_SIZE] = {0};
+    req.head.msg_type = CMS_TOOL_MSG_REQ_GET_SRV_STAT;
+    req.head.msg_size = sizeof(cms_tool_msg_req_get_srv_stat_t);
+    req.head.msg_version = CMS_MSG_VERSION;
+
+    printf("%-10s%-10s%-10s%-10s%-12s\n", "NODE_ID", "SRV_READY", "SEND_QUE", "RECV_QUE", "TIME_GAP(ms)");
+    for (uint32 node_id = 0; node_id < res_gcc.node_count; node_id++) {
+        if (res_gcc.node_def_list[node_id].magic != CMS_GCC_NODE_MAGIC ||
+            (sp_node_id != CMS_MAX_NODE_COUNT && node_id != sp_node_id)) {
+            continue;
+        }
+        req.target_node = node_id;
+        if (cms_send_to_server(&req.head, &res.head, sizeof(cms_tool_msg_res_get_srv_stat_t),
+            CMS_CLIENT_REQUEST_TIMEOUT, err_info) != CT_SUCCESS || res.result != CT_SUCCESS) {
+            CMS_LOG_ERR("cms stat server node(%u) failed, ret %d, err_info(%s).\n", node_id, res.result, err_info);
+            continue;
+        }
+
+        printf("%-10u%-10s%-10llu%-10llu%-12lld\n", node_id, res.server_stat_ready == CT_TRUE ? "TRUE" : "FALSE",
+            res.send_que_count, res.recv_que_count, res.cluster_gap / 1000);
+    }
+    return CT_SUCCESS;
+}
+
+int32 cms_stat_server(int32 argc, char* argv[])
+{
     uint16 sp_node_id = CMS_MAX_NODE_COUNT;
     if (argc == 4) {
         if (cm_str2uint16(argv[3], &sp_node_id) != CT_SUCCESS) {
@@ -607,6 +1281,16 @@ int32 cms_stat_server(int32 argc, char* argv[])
             return CT_SUCCESS;
         }
     }
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
+        if (cms_stat_server_from_server(sp_node_id) == CT_SUCCESS) {
+            return CT_SUCCESS;
+        } else {
+            CT_RETURN_IFERR(cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL));
+        }
+    }
+    cms_tool_msg_req_get_srv_stat_t req = {0};
+    cms_tool_msg_res_get_srv_stat_t res = {0};
+    char err_info[CMS_INFO_BUFFER_SIZE] = {0};
 
     CT_RETURN_IFERR(cms_load_gcc());
     const cms_gcc_t* gcc = cms_get_read_gcc();
@@ -820,14 +1504,16 @@ int32 cms_res_start_cmd(int32 argc, char *argv[])
         }
     }
 
-    if (cms_load_gcc() != CT_SUCCESS) {
-        printf("cms load gcc failed.\n");
-        CMS_LOG_INF("cms load gcc failed.");
-        return CT_ERROR;
-    }
-    if (cms_get_res_by_name(name, &res) != CT_SUCCESS) {
-        printf("resource does not exist.\n");
-        return CT_ERROR;
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        if (cms_load_gcc() != CT_SUCCESS) {
+            printf("cms load gcc failed.\n");
+            CMS_LOG_INF("cms load gcc failed.");
+            return CT_ERROR;
+        }
+        if (cms_get_res_by_name(name, &res) != CT_SUCCESS) {
+            printf("resource does not exist.\n");
+            return CT_ERROR;
+        }
     }
 
     status_t ret = cms_cmd_proc_start_res(name, CMS_MSG_SCOPE_CLUSTER, CT_MAX_UINT16, timeout);
@@ -860,33 +1546,34 @@ int32 cms_res_start_with_node(int32 argc, char* argv[])
         return CT_ERROR;
     }
 
-    if (cms_load_gcc() != CT_SUCCESS) {
-        printf("cms load gcc failed.\n");
-        return CT_ERROR;
-    }
-
-    if (cms_get_res_by_name(name, &res) != CT_SUCCESS) {
-        printf("resource does not exist.\n");
-        return CT_ERROR;
-    }
-    
-    CT_RETURN_IFERR(cms_instance_init());
-    if (get_res_stat(node_id, res.res_id, &res_stat) != CT_SUCCESS) {
-        printf("get resource stat failed.\n");
-        return CT_ERROR;
-    }
-    
-    if (res_stat.cur_stat == CMS_RES_ONLINE) {
-        if (res_stat.work_stat == RC_JOINING) {
-            printf("resource is being started.\n");
-            return CT_SUCCESS;
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        if (cms_load_gcc() != CT_SUCCESS) {
+            printf("cms load gcc failed.\n");
+            return CT_ERROR;
         }
-        if (res_stat.work_stat == RC_JOINED) {
-            printf("resource has been started already.\n");
-            return CT_SUCCESS;
+
+        if (cms_get_res_by_name(name, &res) != CT_SUCCESS) {
+            printf("resource does not exist.\n");
+            return CT_ERROR;
+        }
+        
+        CT_RETURN_IFERR(cms_instance_init());
+        if (get_res_stat(node_id, res.res_id, &res_stat) != CT_SUCCESS) {
+            printf("get resource stat failed.\n");
+            return CT_ERROR;
+        }
+        
+        if (res_stat.cur_stat == CMS_RES_ONLINE) {
+            if (res_stat.work_stat == RC_JOINING) {
+                printf("resource is being started.\n");
+                return CT_SUCCESS;
+            }
+            if (res_stat.work_stat == RC_JOINED) {
+                printf("resource has been started already.\n");
+                return CT_SUCCESS;
+            }
         }
     }
-
     return cms_cmd_proc_start_res(name, CMS_MSG_SCOPE_NODE, node_id, CMS_CMD_START_ALL_TMOUT_MS);
 }
 
@@ -944,15 +1631,16 @@ int32 cms_res_stop_cmd(int32 argc, char* argv[])
         return CT_SUCCESS;
     }
 
-    if (cms_load_gcc() != CT_SUCCESS) {
-        printf("cms load gcc failed.\n");
-        return CT_SUCCESS;
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        if (cms_load_gcc() != CT_SUCCESS) {
+            printf("cms load gcc failed.\n");
+            return CT_SUCCESS;
+        }
+        if (cms_get_res_by_name(name, &res) != CT_SUCCESS) {
+            printf("resource does not exist.\n");
+            return CT_ERROR;
+        }
     }
-    if (cms_get_res_by_name(name, &res) != CT_SUCCESS) {
-        printf("resource does not exist.\n");
-        return CT_ERROR;
-    }
-    
     return cms_cmd_proc_stop_res(name, CMS_MSG_SCOPE_CLUSTER, CT_MAX_UINT16);
 }
 
@@ -979,25 +1667,27 @@ int32 cms_res_stop_with_node(int32 argc, char* argv[])
         return CT_ERROR;
     }
 
-    if (cms_load_gcc() != CT_SUCCESS) {
-        printf("cms load gcc failed.\n");
-        return CT_ERROR;
-    }
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        if (cms_load_gcc() != CT_SUCCESS) {
+            printf("cms load gcc failed.\n");
+            return CT_ERROR;
+        }
 
-    if (cms_get_res_by_name(name, &res) != CT_SUCCESS) {
-        printf("resource does not exist.\n");
-        return CT_ERROR;
-    }
+        if (cms_get_res_by_name(name, &res) != CT_SUCCESS) {
+            printf("resource does not exist.\n");
+            return CT_ERROR;
+        }
 
-    CT_RETURN_IFERR(cms_instance_init());
-    if (get_res_stat(node_id, res.res_id, &res_stat) != CT_SUCCESS) {
-        printf("get resource stat failed.\n");
-        return CT_ERROR;
-    }
-    
-    if (res_stat.cur_stat == CMS_RES_OFFLINE && res_stat.work_stat == RC_JOINING) {
-        printf("resource has been already stopped.\n");
-        return CT_SUCCESS;
+        CT_RETURN_IFERR(cms_instance_init());
+        if (get_res_stat(node_id, res.res_id, &res_stat) != CT_SUCCESS) {
+            printf("get resource stat failed.\n");
+            return CT_ERROR;
+        }
+        
+        if (res_stat.cur_stat == CMS_RES_OFFLINE && res_stat.work_stat == RC_JOINING) {
+            printf("resource has been already stopped.\n");
+            return CT_SUCCESS;
+        }
     }
 
     return cms_cmd_proc_stop_res(name, CMS_MSG_SCOPE_NODE, node_id);
@@ -1026,14 +1716,16 @@ int32 cms_res_stop_with_node_force(int32 argc, char* argv[])
         return CT_ERROR;
     }
 
-    if (cms_load_gcc() != CT_SUCCESS) {
-        printf("cms load gcc failed.\n");
-        return CT_ERROR;
-    }
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        if (cms_load_gcc() != CT_SUCCESS) {
+            printf("cms load gcc failed.\n");
+            return CT_ERROR;
+        }
 
-    if (cms_get_res_by_name(name, &res) != CT_SUCCESS) {
-        printf("resource does not exist.\n");
-        return CT_ERROR;
+        if (cms_get_res_by_name(name, &res) != CT_SUCCESS) {
+            printf("resource does not exist.\n");
+            return CT_ERROR;
+        }
     }
 
     return cms_cmd_proc_stop_res(name, CMS_MSG_SCOPE_NODE_FORCE, node_id);
@@ -1173,6 +1865,12 @@ int32 cms_cmd_proc_add_res(char* name, char* type, char* group, char* attrs)
     // inst_id equals -1 means that no master is currently aviliable
     // when the master is faulty, inst_id equals old_master_id util new master emerges
     if (master_lock.inst_id == -1) {
+        if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+            cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+            printf("cms instance init with dbs, add resource failed.\n");
+            cms_disk_lock_destroy(&master_lock);
+            return ret;
+        }
         cms_res_desc_t cms_res_desc = { name, type, group, attrs, err_info };
         ret = cms_add_res_local(&cms_res_desc);
         if (ret != CT_SUCCESS) {
@@ -1418,6 +2116,12 @@ int32 cms_cmd_proc_edit_res(char* name, char* attrs)
     }
 
     if (master_lock.inst_id == -1) {
+        if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+            cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+            printf("cms instance init with dbs, modify resource failed.\n");
+            cms_disk_lock_destroy(&master_lock);
+            return CT_ERROR;
+        }
         ret = cms_edit_res_local(name, attrs, err_info, CMS_INFO_BUFFER_SIZE);
         if (ret != CT_SUCCESS) {
             cms_disk_lock_destroy(&master_lock);
@@ -1526,6 +2230,12 @@ static int32 cms_cmd_proc_del_res(char* name)
     }
 
     if (master_lock.inst_id == -1) {
+        if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+            cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+            printf("cms instance init with dbs, delete resource failed.\n");
+            cms_disk_lock_destroy(&master_lock);
+            return CT_ERROR;
+        }
         ret = cms_del_res_local(name, err_info, CMS_INFO_BUFFER_SIZE);
         if (ret != CT_SUCCESS) {
             cms_disk_lock_destroy(&master_lock);
@@ -1627,6 +2337,12 @@ int32 cms_cmd_proc_add_resgrp(char* group)
     }
 
     if (master_lock.inst_id == -1) {
+        if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+            cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+            printf("cms instance init with dbs, add resource group failed.\n");
+            cms_disk_lock_destroy(&master_lock);
+            return ret;
+        }
         ret = cms_add_resgrp_local(group, err_info, CMS_INFO_BUFFER_SIZE);
         if (ret != CT_SUCCESS) {
             printf("%s, add resource group failed.\n", err_info);
@@ -1734,6 +2450,12 @@ int32 cms_cmd_proc_del_resgrp(char* group, bool32 force)
     }
 
     if (master_lock.inst_id == -1) {
+        if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+            cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+            printf("cms instance init with dbs, delete resource group failed.\n");
+            cms_disk_lock_destroy(&master_lock);
+            return ret;
+        }
         ret = cms_del_resgrp_local(group, force, err_info, CMS_INFO_BUFFER_SIZE);
         if (ret != CT_SUCCESS) {
             cms_disk_lock_destroy(&master_lock);
@@ -1799,31 +2521,32 @@ int32 cms_resgrp_recursive_del(int32 argc, char* argv[])
         printf("the resource group 'default' can't be deleted, delete resource group failed.\n");
         return CT_SUCCESS;
     }
-
-    const cms_gcc_t* gcc = cms_get_read_gcc();
-    const cms_resgrp_t* resgrp = cms_find_resgrp(gcc, group);
-    if (resgrp == NULL) {
-        printf("the resource group is not find, delete resource group failed.\n");
-        cms_release_gcc(&gcc);
-        return CT_SUCCESS;
-    }
-
-    if (strcmp(resgrp->name, "default") == 0) {
-        printf("the resource group 'default' can't be deleted, delete resource group failed.\n");
-        cms_release_gcc(&gcc);
-        return CT_SUCCESS;
-    }
-
-    char confirm;
-    if (cms_check_resgrp_has_res(gcc, group)) {
-        printf("the resource group has resource(s), delete anyway? (y/n):\n");
-        confirm = getc(stdin);
-        if (confirm != 'Y' && confirm != 'y') {
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        const cms_gcc_t* gcc = cms_get_read_gcc();
+        const cms_resgrp_t* resgrp = cms_find_resgrp(gcc, group);
+        if (resgrp == NULL) {
+            printf("the resource group is not find, delete resource group failed.\n");
             cms_release_gcc(&gcc);
             return CT_SUCCESS;
         }
+
+        if (strcmp(resgrp->name, "default") == 0) {
+            printf("the resource group 'default' can't be deleted, delete resource group failed.\n");
+            cms_release_gcc(&gcc);
+            return CT_SUCCESS;
+        }
+
+        char confirm;
+        if (cms_check_resgrp_has_res(gcc, group)) {
+            printf("the resource group has resource(s), delete anyway? (y/n):\n");
+            confirm = getc(stdin);
+            if (confirm != 'Y' && confirm != 'y') {
+                cms_release_gcc(&gcc);
+                return CT_SUCCESS;
+            }
+        }
+        cms_release_gcc(&gcc);
     }
-    cms_release_gcc(&gcc);
     return cms_cmd_proc_del_resgrp(group, CT_TRUE);
 }
 
@@ -1905,6 +2628,12 @@ status_t cms_cmd_proc_add_node(uint32 node_id, const char* name, const char* ip,
     }
 
     if (master_lock.inst_id == -1) {
+        if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+            cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+            printf("cms instance init with dbs, add node failed.\n");
+            cms_disk_lock_destroy(&master_lock);
+            return ret;
+        }
         ret = cms_add_node_local(node_id, name, ip, port, err_info);
         if (ret != CT_SUCCESS) {
             printf("%s, add node failed.\n", err_info);
@@ -2065,6 +2794,12 @@ status_t cms_cmd_proc_del_node(uint32 node_id)
     }
 
     if (master_lock.inst_id == -1) {
+        if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+            cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
+            printf("cms instance init with dbs, delete node failed.\n");
+            cms_disk_lock_destroy(&master_lock);
+            return ret;
+        }
         ret = cms_del_node_local(node_id, err_info);
         if (ret != CT_SUCCESS) {
             printf("%s, delete node failed.\n", err_info);

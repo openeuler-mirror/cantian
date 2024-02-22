@@ -167,6 +167,33 @@ BEGIN
 END;
 /
 
+CREATE GLOBAL TEMPORARY TABLE IF NOT EXISTS ltt_analyze_job1(
+    OWNER          VARCHAR(64) NOT NULL,
+    TABLE_NAME     VARCHAR(64) NOT NULL
+) on commit preserve rows
+/
+
+CREATE GLOBAL TEMPORARY TABLE IF NOT EXISTS ltt_analyze_job2(
+    OWNER          VARCHAR(64) NOT NULL,
+    TABLE_NAME     VARCHAR(64) NOT NULL,
+    PARTITION_NAME VARCHAR(64) NOT NULL
+) on commit preserve rows
+/
+
+CREATE GLOBAL TEMPORARY TABLE IF NOT EXISTS ltt_analyze_job3(
+    OWNER          VARCHAR(64) NOT NULL,
+    TABLE_NAME     VARCHAR(64) NOT NULL,
+    PARTITION_NAME VARCHAR(64) NOT NULL,
+    ANALYZETIME    DATE
+) on commit preserve rows
+/
+
+CREATE GLOBAL TEMPORARY TABLE IF NOT EXISTS ltt_analyze_job4(
+    OWNER          VARCHAR(64) NOT NULL,
+    TABLE_NAME     VARCHAR(64) NOT NULL,
+    ANALYZETIME    TIMESTAMP(6)
+) on commit preserve rows
+/
 
 CREATE OR  REPLACE PROCEDURE GATHER_CHANGE_STATS(
     estimate_percent NUMBER DEFAULT 10,
@@ -185,6 +212,7 @@ IS
     snapshot_too_old  EXCEPTION;                    -- declare exception
     v_table      VARCHAR(130);
     v_part       VARCHAR(130);
+    v_owner      VARCHAR(130);
     PRAGMA EXCEPTION_INIT (snapshot_too_old, 715);  -- assign error code to exception
 BEGIN
     IF max_minutes < 1 OR max_minutes > 1440 THEN
@@ -202,16 +230,12 @@ BEGIN
     start_time := SYSDATE;
     --flush modification to table
     DBE_STATS.FLUSH_DB_STATS_INFO();
-    
-    
-    --(1)gather the new partition 
+    --(1)gather the new table
+    insert into ltt_analyze_job1 SELECT OWNER, TABLE_NAME FROM ADM_TABLES WHERE TABLE_TYPE in ('HEAP', 'NOLOGGING') AND LAST_ANALYZED is NULL AND OWNER != 'SYS';
     LOOP
         is_finish := false;
-        
         BEGIN
-        FOR ITEM IN (SELECT U.NAME AS OWNER, T.NAME AS TABLE_NAME, TP.NAME AS PARTITION_NAME
-           FROM SYS.SYS_USERS U JOIN SYS.SYS_TABLES T ON U.ID = T.USER# 
-           JOIN SYS.SYS_TABLE_PARTS TP ON T.USER# = TP.USER# AND T.ID = TP.TABLE# AND TP.ANALYZETIME IS NULL)
+        FOR ITEM IN (SELECT * FROM ltt_analyze_job1)
         LOOP    
             curr_time := SYSDATE;
             IF curr_time > (start_time + max_minutes/1440) THEN
@@ -220,8 +244,8 @@ BEGIN
                         
             BEGIN
                 v_table := '"'||ITEM.TABLE_NAME||'"';
-                v_part  := '"'||ITEM.PARTITION_NAME||'"';
-                DBE_STATS.COLLECT_TABLE_STATS(ITEM.OWNER, v_table, v_part, estimate_percent, TRUE, method_opt);
+                v_owner := '"'||ITEM.OWNER||'"';
+                DBE_STATS.COLLECT_TABLE_STATS(ITEM.OWNER, v_table, NULL, estimate_percent, TRUE, method_opt);
             EXCEPTION
                 WHEN OTHERS THEN
                   NULL;
@@ -229,7 +253,7 @@ BEGIN
         END LOOP;
         
         is_finish := true;
-        
+
         EXCEPTION
             WHEN snapshot_too_old THEN                         -- handle exception
             NULL;
@@ -239,19 +263,60 @@ BEGIN
             EXIT; 
         END IF;
     END LOOP;
-    
-    --(2)gather the partition changed 
+
+    execute immediate 'truncate table ltt_analyze_job1';
+    --(2)gather the new partition
+    insert into ltt_analyze_job2 SELECT U.NAME AS OWNER, T.NAME AS TABLE_NAME, TP.NAME AS PARTITION_NAME
+           FROM SYS.SYS_USERS U JOIN SYS.SYS_TABLES T ON U.ID = T.USER# 
+           JOIN SYS.SYS_TABLE_PARTS TP ON T.USER# = TP.USER# AND T.ID = TP.TABLE# AND TP.ANALYZETIME IS NULL AND U.NAME != 'SYS';
     LOOP
         is_finish := false;
         
         BEGIN
-        FOR ITEM IN (SELECT U.NAME AS OWNER, T.NAME AS TABLE_NAME, TP.NAME AS PARTITION_NAME, TP.ANALYZETIME
-           FROM SYS.SYS_USERS U JOIN SYS.SYS_TABLES T ON U.ID = T.USER# 
+        FOR ITEM IN (SELECT * FROM ltt_analyze_job2)
+        LOOP    
+            curr_time := SYSDATE;
+            IF curr_time > (start_time + max_minutes/1440) THEN
+                RETURN;
+            END IF;
+                        
+            BEGIN
+                v_table := '"'||ITEM.TABLE_NAME||'"';
+                v_part  := '"'||ITEM.PARTITION_NAME||'"';
+                v_owner := '"'||ITEM.OWNER||'"';
+                DBE_STATS.COLLECT_TABLE_STATS(ITEM.OWNER, v_table, v_part, estimate_percent, TRUE, method_opt);
+            EXCEPTION
+                WHEN OTHERS THEN
+                  NULL;
+            END;
+        END LOOP;
+
+        is_finish := true;
+
+        EXCEPTION
+            WHEN snapshot_too_old THEN                         -- handle exception
+            NULL;
+        END;
+        
+        IF is_finish = true THEN
+            EXIT; 
+        END IF;
+    END LOOP;
+
+    execute immediate 'truncate table ltt_analyze_job2';
+    --(3)gather the partition changed
+    insert into ltt_analyze_job3 SELECT U.NAME AS OWNER, T.NAME AS TABLE_NAME, TP.NAME AS PARTITION_NAME, TP.ANALYZETIME
+           FROM SYS.SYS_USERS U JOIN SYS.SYS_TABLES T ON U.ID = T.USER#
            JOIN SYS.SYS_TABLE_PARTS TP ON T.USER# = TP.USER# AND T.ID = TP.TABLE#
            JOIN SYS.SYS_DML_STATS MO ON T.USER# = MO.USER# AND T.ID = MO.TABLE# AND MO.PART# = TP.PART# 
-           WHERE MO.PARTED = 1 AND MO.PART# <> -1 AND TP.ANALYZETIME < start_time AND
+           WHERE MO.PARTED = 1 AND MO.PART# <> -1 AND TP.ANALYZETIME < start_time AND U.NAME != 'SYS' AND
            ((NVL(MO.INSERTS, 0) + NVL(MO.UPDATES, 0) + NVL(MO.DELETES, 0))>= (CHANGE_PERCENT * TP.ROWCNT/100))
-           ORDER BY TP.ANALYZETIME) 
+           ORDER BY TP.ANALYZETIME;
+    LOOP
+        is_finish := false;
+        
+        BEGIN
+        FOR ITEM IN (select * from ltt_analyze_job3)
         LOOP    
             curr_time := SYSDATE;
             IF curr_time > (start_time + max_minutes/1440) THEN
@@ -261,6 +326,7 @@ BEGIN
             BEGIN
                 v_table := '"'||ITEM.TABLE_NAME||'"';
                 v_part  := '"'||ITEM.PARTITION_NAME||'"';
+                v_owner := '"'||ITEM.OWNER||'"';
                 DBE_STATS.COLLECT_TABLE_STATS(ITEM.OWNER, v_table, v_part, estimate_percent, TRUE, method_opt);
             EXCEPTION
                 WHEN OTHERS THEN
@@ -269,7 +335,7 @@ BEGIN
         END LOOP;
         
         is_finish := true;
-        
+
         EXCEPTION
             WHEN snapshot_too_old THEN                         -- handle exception
             NULL;
@@ -279,14 +345,19 @@ BEGIN
             EXIT; 
         END IF;
     END LOOP;
-    
-    
-    --(3)gather the new table
+
+    execute immediate 'truncate table ltt_analyze_job3';
+    --(4)gather the table changed
+    insert into ltt_analyze_job4 SELECT U.NAME AS OWNER, T.NAME AS TABLE_NAME, T.ANALYZETIME FROM SYS.SYS_USERS U join SYS.SYS_TABLES T on T.USER# = U.ID
+            JOIN SYS.SYS_DML_STATS MO ON T.USER# = MO.USER# AND T.ID = MO.TABLE# where T.RECYCLED = 0 AND T.type = 0 AND
+            (MO.PARTED = 0 OR (MO.PARTED = 1 AND MO.PART#=-1)) AND T.ANALYZETIME < start_time AND U.NAME != 'SYS' AND
+            ((NVL(MO.INSERTS, 0) + NVL(MO.UPDATES, 0) + NVL(MO.DELETES, 0))>= (CHANGE_PERCENT * T.NUM_ROWS/100))
+            ORDER BY T.ANALYZETIME;
     LOOP
         is_finish := false;
         
         BEGIN
-        FOR ITEM IN (SELECT OWNER, TABLE_NAME FROM ADM_TABLES WHERE TABLE_TYPE in ('HEAP', 'NOLOGGING') AND LAST_ANALYZED is NULL) 
+        FOR ITEM IN (select * from ltt_analyze_job4)
         LOOP    
             curr_time := SYSDATE;
             IF curr_time > (start_time + max_minutes/1440) THEN
@@ -295,52 +366,16 @@ BEGIN
                         
             BEGIN
                 v_table := '"'||ITEM.TABLE_NAME||'"';
+                v_owner := '"'||ITEM.OWNER||'"';
                 DBE_STATS.COLLECT_TABLE_STATS(ITEM.OWNER, v_table, NULL, estimate_percent, TRUE, method_opt);
             EXCEPTION
                 WHEN OTHERS THEN
                   NULL;
             END;
         END LOOP;
-        
-        is_finish := true;
-        
-        EXCEPTION
-            WHEN snapshot_too_old THEN                         -- handle exception
-            NULL;
-        END;
-        
-        IF is_finish = true THEN
-            EXIT; 
-        END IF;
-    END LOOP;
     
-    --(4)gather the table changed 
-    LOOP
-        is_finish := false;
-        
-        BEGIN
-        FOR ITEM IN (SELECT A.OWNER, A.TABLE_NAME, A.LAST_ANALYZED FROM ADM_TABLES A, ADM_TAB_MODIFICATIONS B 
-        WHERE A.TABLE_TYPE in ('HEAP', 'NOLOGGING') AND A.OWNER = B.TABLE_OWNER AND A.TABLE_NAME=B.TABLE_NAME 
-        AND B.PARTITION_NAME IS NULL AND A.LAST_ANALYZED < start_time AND
-            ((NVL(B.INSERTS, 0) + NVL(B.UPDATES, 0) + NVL(B.DELETES, 0))>= (CHANGE_PERCENT * A.NUM_ROWS/100))
-            ORDER BY A.LAST_ANALYZED) 
-        LOOP    
-            curr_time := SYSDATE;
-            IF curr_time > (start_time + max_minutes/1440) THEN
-                RETURN;
-            END IF;
-                        
-            BEGIN
-                v_table := '"'||ITEM.TABLE_NAME||'"';
-                DBE_STATS.COLLECT_TABLE_STATS(ITEM.OWNER, v_table, NULL, estimate_percent, TRUE, method_opt);
-            EXCEPTION
-                WHEN OTHERS THEN
-                  NULL;
-            END;
-        END LOOP;
-        
         is_finish := true;
-        
+
         EXCEPTION
             WHEN snapshot_too_old THEN                         -- handle exception
             NULL;
@@ -350,6 +385,7 @@ BEGIN
             EXIT; 
         END IF;
     END LOOP;
+    execute immediate 'truncate table ltt_analyze_job4';
 END;
 /
 

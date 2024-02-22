@@ -32,6 +32,8 @@
 #include "cm_latch.h"
 
 #define CM_LOCK_TRY_INTERVAL 200
+#define CM_LOCK_DBS_TRY_INTERVAL 1000 // ms
+#define CM_DETECT_DBS_CONNECT_TIMOUT 2000 // ms
 
 typedef enum en_cm_disklock_mode {
     DISK_LOCK_MUTEX = 0,

@@ -38,6 +38,7 @@
 #include "cm_defs.h"
 #include "cm_text.h"
 #include <stdio.h>
+#include "cm_dbs_defs.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -130,6 +131,8 @@ status_t cm_reopen_file(int fd, const char* file_name, int* out_fd);
 #define FILE_WAIT_FOR_READ   1
 #define FILE_WAIT_FOR_WRITE  2
 #define FILE_POLL_TIMEOUT_MS 3000
+#define DIR_TYPE             0
+#define FILE_TYPE            1
 
 static inline status_t cm_fchmod(uint32 perm, FILE *fp)
 {
@@ -173,6 +176,20 @@ void cm_trim_home_path(char *home_path, uint32 len);
 status_t cm_access_file(const char *file_name, uint32 mode);
 status_t cm_file_punch_hole(int32 handle, uint64 offset, int len);
 status_t cm_file_get_status(const char *path, struct stat *stat_info);
+status_t cm_get_file_path_depth(const char* file_name, const char* delim, int* depth);
+status_t cm_get_path_file_name(const char* path, char* file_name, uint32 name_len);
+status_t cm_get_dbs_root_dir_handle(char* fs_name, object_id_t* root_handle);
+status_t cm_get_dbs_dir_handle(object_id_t* phandle, char* dir_name, object_id_t* handle);
+status_t cm_get_dbs_file_handle(object_id_t* phandle, char* file_name, object_id_t* handle);
+status_t cm_open_dbs_file(object_id_t* pHandle, char* file, object_id_t* handle);
+status_t cm_get_dbs_file_path_handle(const char* path, const char* delim, object_id_t* handle_ids, int handle_len);
+status_t cm_get_dbs_full_dir_handle(const char* path, const char* delim, object_id_t* handle_ids, int handle_len);
+status_t cm_get_dbs_last_file_handle(const char* file, object_id_t* last_handle);
+status_t cm_get_dbs_last_dir_handle(const char* file, object_id_t* last_handle);
+status_t cm_rm_dbs_dir_file(object_id_t* phandle, char* name);
+status_t cm_read_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, void* buf, uint32 length);
+status_t cm_write_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, void* buf, uint32 length);
+
 
 #ifndef WIN32
 status_t cm_verify_file_host(char *realfile);

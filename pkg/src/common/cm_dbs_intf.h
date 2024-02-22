@@ -28,6 +28,7 @@
 #include "cm_types.h"
 #include "cm_defs.h"
 #include "cm_device.h"
+#include "cm_dbs_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,7 +54,7 @@ status_t cm_dbs_open_all_ns(void);
 bool32 cm_dbs_is_enable_dbs(void);
 uint64 cm_dbs_ulog_recycle(int32 handle, uint64 lsn);
 status_t cm_dbs_ulog_get_maxLsn(const char *name, uint64 *lsn);
-status_t cm_dbs_init(const char *home_path);
+status_t cm_dbs_init(const char *home_path, char *cfg_name, dbs_init_mode init_mode);
 status_t cm_dbs_iof_reg_all_ns(uint32 inst_id);
 uint32 cm_dbs_get_part_num(void);
 bool32 cm_dbs_is_enable_batch_flush(void);

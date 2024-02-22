@@ -74,7 +74,7 @@ void dtc_process_log_switch(void *sess, mes_message_t * receive_msg)
     }
 
     if (lsn == 0) {
-        ret = log_switch_logfile(session, CT_INVALID_FILEID, CT_INVALID_ASN, NULL);
+        ret = dtc_bak_force_arch_local_file(session);
     } else {
         ret = dtc_bak_force_arch_local(session, lsn);
     }

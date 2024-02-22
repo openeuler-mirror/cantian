@@ -38,6 +38,7 @@
 #include "cm_file_iofence.h"
 
 extern bool32 g_enable_fdsa;
+extern bool32 g_crc_verify;
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -1111,6 +1112,8 @@ status_t srv_load_cluster_params(void)
     CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_BROADCAST_ON_COMMIT", &attr->enable_boc));
 
     CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_CHECK_SECURITY_LOG", &g_filter_enable));
+
+    CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_SYS_CRC_CHECK", &g_crc_verify));
 
     CT_RETURN_IFERR(srv_get_param_uint32("MES_CHANNEL_UPGRADE_TIME_MS", &g_dtc->profile.upgrade_time_ms));
 

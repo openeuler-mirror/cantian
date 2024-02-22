@@ -107,6 +107,7 @@ typedef enum en_dr_persistent_id {
     DR_ID_DATABASE_SWITCH_CTRL = 1,
     DR_ID_DATABASE_BAKUP = 2,
     DR_ID_DATABASE_LINK = 3,
+    DR_ID_SPACE_CTRL_BAKUP = 4,
     DR_ID_SPACE_OP = 10,
     DR_ID_SPACE_BLOCK = 11,
     DR_ID_DDL_OP = 20,

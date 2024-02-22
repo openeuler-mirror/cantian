@@ -22,6 +22,10 @@
  *
  * -------------------------------------------------------------------------
  */
+#include <stdio.h>
+#include <dirent.h>
+#include <sys/file.h>
+#include <string.h>
 #include "cms_log_module.h"
 #include "cm_defs.h"
 #include "cms_instance.h"
@@ -33,7 +37,6 @@
 #include "cms_interface.h"
 #include "cms_persistent.h"
 #include "cms_log.h"
-
 typedef enum e_proc_type_t {
     CMS_SERVER,
     CMS_TOOLS,
@@ -123,6 +126,8 @@ cms_cmd_def_t    g_cms_cmd_defs[] = {
     {{"-help"}, cms_cmd_help, "print cms command parameters"},
     {{"server", "-start"}, cms_server_start, "start cms server"},
     {{"server", "-stop"}, cms_server_stop, "stop cms server"},
+    {{"gcc",   "-create"}, cms_gcc_create, "create gcc file"},
+    {{"gcc",   "-del"}, cms_gcc_delete, "delete gcc file"},
     {{"gcc",   "-list"}, cms_gcc_list, "list gcc path"},
     {{"gcc",   "-reset"}, cms_gcc_reset, "reset gcc's data"},
     {{"gcc",   "-reset", "-f"}, cms_gcc_reset_force, "reset gcc's data"},
@@ -238,12 +243,25 @@ static void cms_info_log_print(cms_cmd_def_t* cmd_def)
     if (cmd_def->cmd_pro_func == cms_local_disk_iostat || cmd_def->cmd_pro_func == cms_node_connected) {
         return;
     }
+    char dev_type[CMS_DEV_TYPE_BUTT][CMS_MAX_INFO_LEN] = {{"SD"}, {"FILE"}, {"NFS"}, {"DBS"}};
     CT_LOG_RUN_INF("CMS NODE_ID:%d", (int32)g_cms_param->node_id);
     CT_LOG_RUN_INF("CMS CMS_HOME:%s", g_cms_param->cms_home);
     CT_LOG_RUN_INF("CMS GCC_HOME:%s", g_cms_param->gcc_home);
-    CT_LOG_RUN_INF("CMS GCC_TYPPE:%s", g_cms_param->gcc_type == CMS_DEV_TYPE_SD ? "SD" :
-        (g_cms_param->gcc_type == CMS_DEV_TYPE_FILE ? "FILE" : "NFS"));
+    CT_LOG_RUN_INF("CMS GCC_TYPE:%s", dev_type[g_cms_param->gcc_type - 1]);
     CT_LOG_RUN_INF("CMS CMD: %s", cmd_def->desc);
+}
+
+status_t cm_get_gcc_file_handle()
+{
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
+        // 去nas时cms tool命令没有初始化dbstor，tool命令内部有去加载dbstor，若g_cms_param->gcc_home文件不存在，正常报错即可。
+        return CT_SUCCESS;
+    } else {
+        if (cm_file_exist(g_cms_param->gcc_home) == CT_FALSE) {
+            return CT_ERROR;
+        }
+    }
+    return CT_SUCCESS;
 }
 
 EXTER_ATTACK int32 main(int32 argc, char *argv[])
@@ -283,11 +301,40 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
     } else {
         CT_RETURN_IFERR(cms_init_loggers(CMS_TOOLS));
     }
-
     cms_info_log_print(cmd_def);
+
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+        cmd_def->cmd_pro_func == cms_server_start) {
+        if (cms_lock_server() != CT_SUCCESS) {
+            printf("cms server is already running.\n");
+            CMS_LOG_ERR("cms server is already running.");
+            return CT_ERROR;
+        }
+        if (cms_instance_init_with_dbs(DBS_RUN_CMS_SERVER) != CT_SUCCESS) {
+            cms_force_unlock_server();
+            printf("cms server init dbstor failed.\n");
+            CMS_LOG_ERR("cms server init dbstor failed.");
+            return CT_ERROR;
+        }
+    }
+
     int32 ret = CT_ERROR;
+    if (cmd_def->cmd_pro_func == cms_gcc_create || cmd_def->cmd_pro_func == cms_gcc_delete) {
+        ret = cmd_def->cmd_pro_func(argc, argv);
+        printf("cms cmd gcc create or delete ret(%d).\n", ret);
+        CMS_LOG_INF("%s, ret is %d", cmd_def->desc, ret);
+        return ret;
+    }
+
+    if (cmd_def->cmd_pro_func == cms_server_start &&
+        cms_init_detect_file((char *)g_cms_param->detect_file) != CT_SUCCESS) {
+        printf("cms server start init detect file failed.\n");
+        CMS_LOG_ERR("cms server start init detect file(%s) failed.", g_cms_param->detect_file);
+        return CT_ERROR;
+    }
+
     do {
-        if (cm_file_exist(g_cms_param->gcc_home) != CT_TRUE) {
+        if (cm_get_gcc_file_handle() != CT_SUCCESS) {
             printf("gcc file is not exist.\n");
             CMS_LOG_ERR("gcc file is not exist.");
             break;
@@ -305,7 +352,8 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
             break;
         }
 
-        if (cms_init_gcc_disk_lock() != CT_SUCCESS) {
+        if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS &&
+            cms_init_gcc_disk_lock() != CT_SUCCESS) {
             printf("initialize gcc disk lock failed.\n");
             CMS_LOG_ERR("initialize gcc disk lock failed.");
             break;

@@ -596,8 +596,7 @@ void rd_logic_rep_head_log(knl_session_t *session, log_entry_t *log)
     /*
         In the meta_normalized mode, the ddl should also be replayed for sync the dd cache in MySQL.
     */
-    if (!knl_db_is_primary(session))
-    {
+    if (!knl_db_is_primary(session)) {
         // If the metadata is in mysql and the cantian is in slave cluster.
         tianchi_handler_t *tch = (tianchi_handler_t*)malloc(sizeof(tianchi_handler_t));
         memset_s(tch, sizeof(tianchi_handler_t), 0, sizeof(tianchi_handler_t));
