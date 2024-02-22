@@ -17,14 +17,15 @@ source "${CURRENT_PATH}"/common.sh
 
 function packageTarget() {
   echo "Start packageTarget..."
+  cd "${CANTIANDB_BIN}"
   tar -zcf cantian.tar.gz ${BUILD_TARGET_NAME}/
   if [ -d /opt/cantian/image ]; then
     rm -rf /opt/cantian/image
   fi
   mkdir -p /opt/cantian/image
   mv -f cantian.tar.gz /opt/cantian/image/
+  cd ${CURRENT_PATH}
   bash "${CURRENT_PATH}"/rpm_build_cantian.sh
-  cd -
 }
 
 function buildCtOmPackage() {
@@ -32,13 +33,13 @@ function buildCtOmPackage() {
   bash "${CURRENT_PATH}"/rpm_build_ct_om.sh
   if [ $? -ne 0 ]; then
       echo "build ct_om fail"
-      retrun 1
+      return 1
   fi
 }
 
 function packageSymbol() {
   if [[ ${BUILD_TYPE} != "release" ]]; then
-    retrun
+    return
   fi
 
   echo "Start package symbol"
@@ -146,7 +147,7 @@ function buildMysql() {
     seperateSymbol ${MYSQL_CODE_PATH}/bld_debug/plugin_output_directory/ha_ctc.so
     mv ${MYSQL_CODE_PATH}/bld_debug/plugin_output_directory/ha_ctc.so.symbol ${CANTIANDB_BIN}/mysql-server-symbol/meta
   fi
-  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CURRENT_PATH}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/meta
+  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/meta
   collectMysqlTarget
 }
 
