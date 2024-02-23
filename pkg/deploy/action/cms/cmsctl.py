@@ -79,7 +79,7 @@ CLUSTER_SIZE = 2  # default to 2, 4 node cluster mode need add parameter to spec
 CMS_TOOL_CONFIG_COUNT = 4
 
 PKG_DIR = "/opt/cantian/image/cantian_connector"  # no use
-MYSQL_CODE_DIR = os.path.join(PKG_DIR, "mysql-server")
+MYSQL_CODE_DIR = os.path.join(PKG_DIR, "cantian-connector-mysql")
 MYSQL_BIN_DIR = "/opt/cantian/mysql/install/mysql"
 MYSQL_DATA_DIR = ""
 MYSQL_LOG_FILE = ""
