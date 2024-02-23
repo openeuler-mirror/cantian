@@ -635,7 +635,8 @@ EXTER_ATTACK int tse_mq_close_table(dsw_message_block_t *message_block)
 EXTER_ATTACK int tse_mq_close_session(dsw_message_block_t *message_block)
 {
     struct close_session_request *req = message_block->seg_buf[0];
-    req->result = tse_close_session(&req->tch);
+    CT_RETURN_IFERR(tse_check_cursor_num(req->csize));
+    req->result = tse_close_session(&req->tch, req->cursors, req->csize);
     return req->result;
 }
 

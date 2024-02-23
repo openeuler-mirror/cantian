@@ -88,10 +88,18 @@ EXTER_ATTACK int tse_close_table(tianchi_handler_t *tch)
     return CT_SUCCESS;
 }
 
-EXTER_ATTACK int tse_close_session(tianchi_handler_t *tch)
+EXTER_ATTACK int tse_close_session(tianchi_handler_t *tch, uint64_t *cursors, int32_t csize)
 {
     tse_set_no_use_other_sess4thd(NULL);
     (void)tse_unlock_instance(NULL, tch);
+    bool is_new_session = CT_FALSE;
+    session_t *session = NULL;
+    CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
+    if (is_new_session) {
+        tch->sess_addr = INVALID_VALUE64;
+    }
+    knl_panic(((csize == 0) ^ (cursors != NULL)) || is_new_session == CT_FALSE);
+    tse_free_cursors(session, cursors, csize);
     int ret = tse_close_mysql_connection(tch);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[TSE_CLOSE_SESSION]:close mysql connection failed, ret:%d, conn_id:%u, tse_instance_id:%u",
@@ -110,6 +118,7 @@ EXTER_ATTACK void tse_kill_session(tianchi_handler_t *tch)
     }
     CT_LOG_DEBUG_INF("[TSE_KILL_SESSION]:conn_id=%u, tse_inst_id:%u, session_id=%u",
         tch->thd_id, tch->inst_id, session->knl_session.id);
+    tse_free_handler_cursor(session, tch);
     tse_set_no_use_other_sess4thd(session);
     session->knl_session.canceled = CT_TRUE;
 }
@@ -988,7 +997,9 @@ int tse_set_cursor_action(knl_cursor_t *cursor, expected_cursor_action_t action)
 EXTER_ATTACK int tse_rnd_init(tianchi_handler_t *tch, expected_cursor_action_t action,
                               tse_select_mode_t mode, tse_conds *cond)
 {
-    session_t *session = tse_get_session_by_addr(tch->sess_addr);
+    bool is_new_session = CT_FALSE;
+    session_t *session = NULL;
+    CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     tse_set_no_use_other_sess4thd(session);
     tse_context_t *tse_context = tse_get_ctx_by_addr(tch->ctx_addr);
@@ -1113,7 +1124,9 @@ EXTER_ATTACK int tse_rnd_next(tianchi_handler_t *tch, record_info_t *record_info
 EXTER_ATTACK int tse_scan_records(tianchi_handler_t *tch, uint64_t *num_rows, char *index_name)
 {
     uint64_t rows = 0;
-    session_t *session = tse_get_session_by_addr(tch->sess_addr);
+    bool is_new_session = CT_FALSE;
+    session_t *session = NULL;
+    CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     tse_set_no_use_other_sess4thd(session);
     tse_context_t *tse_context = tse_get_ctx_by_addr(tch->ctx_addr);
@@ -1216,7 +1229,9 @@ int tse_rnd_prefetch(tianchi_handler_t *tch, uint8_t *records, uint16_t *record_
 
 EXTER_ATTACK int tse_position(tianchi_handler_t *tch, uint8_t *position, uint16_t pos_length)
 {
-    session_t *session = tse_get_session_by_addr(tch->sess_addr);
+    bool is_new_session = CT_FALSE;
+    session_t *session = NULL;
+    CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     tse_set_no_use_other_sess4thd(session);
     tse_context_t *tse_context = tse_get_ctx_by_addr(tch->ctx_addr);
@@ -1235,7 +1250,9 @@ EXTER_ATTACK int tse_position(tianchi_handler_t *tch, uint8_t *position, uint16_
 
 EXTER_ATTACK int tse_rnd_pos(tianchi_handler_t *tch, uint16_t pos_length, uint8_t *position, record_info_t *record_info)
 {
-    session_t *session = tse_get_session_by_addr(tch->sess_addr);
+    bool is_new_session = CT_FALSE;
+    session_t *session = NULL;
+    CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     tse_set_no_use_other_sess4thd(session);
     knl_session_t *knl_session = &session->knl_session;
@@ -1612,14 +1629,8 @@ EXTER_ATTACK int tse_trx_begin(tianchi_handler_t *tch, tianchi_trx_context_t trx
         CT_LOG_RUN_INF("tse_trx_begin: operation on read only mode while ctc_ddl_local_enabled is true.");
         return CT_SUCCESS;
     }
-    bool is_select = (tse_command_type_read(tch->sql_command) && !trx_context.use_exclusive_lock) ||
-        tch->sql_command == SQLCOM_END;
-    if (is_select && !knl_db_is_primary(knl_session)) {
-        CT_LOG_RUN_INF("tse_trx_begin: select operation on read only mode.");
-        return CT_SUCCESS;
-    }
-    
-    if (knl_set_session_trans(knl_session, (isolation_level_t)trx_context.isolation_level, is_select) != CT_SUCCESS) {
+
+    if (knl_set_session_trans(knl_session, (isolation_level_t)trx_context.isolation_level) != CT_SUCCESS) {
         int err = tse_get_and_reset_err();
         CT_LOG_RUN_ERR("tse_trx begin: knl_set_session_trans failed, thd_id=%u, err=%d",
             tch->thd_id, err);
@@ -1958,8 +1969,9 @@ EXTER_ATTACK int tse_trx_rollback(tianchi_handler_t *tch, uint64_t *cursors, int
 
 EXTER_ATTACK int tse_srv_set_savepoint(tianchi_handler_t *tch, const char *name)
 {
-    session_t *session = tse_get_session_by_addr(tch->sess_addr);
-    TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    bool is_new_session = CT_FALSE;
+    session_t *session = NULL;
+    CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
     tse_set_no_use_other_sess4thd(session);
     CT_LOG_DEBUG_INF("tse_trx set savepoint with thd_id=%u, session_id=%u", tch->thd_id, session->knl_session.id);
     knl_session_t *knl_session = &session->knl_session;
@@ -2165,8 +2177,9 @@ EXTER_ATTACK int tse_knl_write_lob(tianchi_handler_t *tch, char *locator, uint32
 int tse_knl_read_lob(tianchi_handler_t *tch, char* loc, uint32_t offset,
     void *buf, uint32_t size, uint32_t *read_size)
 {
-    session_t *session = tse_get_session_by_addr(tch->sess_addr);
-    TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    bool is_new_session = CT_FALSE;
+    session_t *session = NULL;
+    CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
     tse_set_no_use_other_sess4thd(session);
     CT_LOG_DEBUG_INF("tse_knl_read_lob: thd_id=%u", tch->thd_id);
 
@@ -2177,8 +2190,9 @@ int tse_knl_read_lob(tianchi_handler_t *tch, char* loc, uint32_t offset,
 EXTER_ATTACK int tse_analyze_table(tianchi_handler_t *tch, const char *db_name,
                                    const char *table_name, double sampling_ratio)
 {
-    session_t *session = tse_get_session_by_addr(tch->sess_addr);
-    TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    bool is_new_session = CT_FALSE;
+    session_t *session = NULL;
+    CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
     tse_set_no_use_other_sess4thd(session);
     CT_LOG_DEBUG_INF("tse_analyze_table: analyze table %s.%s, thd_id=%u", db_name, table_name, tch->thd_id);
     knl_session_t *knl_session = &session->knl_session;
@@ -2218,8 +2232,9 @@ EXTER_ATTACK int tse_analyze_table(tianchi_handler_t *tch, const char *db_name,
 
 EXTER_ATTACK int tse_get_cbo_stats(tianchi_handler_t *tch, tianchi_cbo_stats_t *stats)
 {
-    session_t *session = tse_get_session_by_addr(tch->sess_addr);
-    TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    bool is_new_session = CT_FALSE;
+    session_t *session = NULL;
+    CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
     tse_set_no_use_other_sess4thd(session);
     tse_context_t *tse_context = tse_get_ctx_by_addr(tch->ctx_addr);
     TSE_LOG_RET_VAL_IF_NUL(tse_context, ERR_INVALID_DC, "get_ha_context failed");
@@ -2238,8 +2253,9 @@ EXTER_ATTACK int tse_get_index_name(tianchi_handler_t *tch, char *index_name)
 {
     tse_context_t *tse_context = tse_get_ctx_by_addr(tch->ctx_addr);
     TSE_LOG_RET_VAL_IF_NUL(tse_context, ERR_INVALID_DC, "session lookup failed");
-    session_t *session = tse_get_session_by_addr(tch->sess_addr);
-    TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    bool is_new_session = CT_FALSE;
+    session_t *session = NULL;
+    CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
     if (tse_context->dup_key_slot < 0 || tse_context->dup_key_slot >= CT_MAX_TABLE_INDEXES) {
         CT_LOG_RUN_ERR("tse_context->dup_key_slot(%u) is out of range.", tse_context->dup_key_slot);
         return CT_ERROR;
@@ -2256,8 +2272,9 @@ EXTER_ATTACK int tse_get_index_name(tianchi_handler_t *tch, char *index_name)
 
 EXTER_ATTACK int tse_get_serial_value(tianchi_handler_t *tch, uint64_t *value, dml_flag_t flag)
 {
-    session_t *session = tse_get_session_by_addr(tch->sess_addr);
-    TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    bool is_new_session = CT_FALSE;
+    session_t *session = NULL;
+    CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
     
     if (tch->ctx_addr == INVALID_VALUE64 || ((tse_context_t *)tch->ctx_addr) == NULL) {
         CT_LOG_RUN_ERR("ctx_addr(0x%llx) is invalid.", tch->ctx_addr);
