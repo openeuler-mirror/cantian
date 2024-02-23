@@ -455,7 +455,7 @@ function start_cantiand_by_cms() {
 
 # 启动参天后触发一次全量ckpt
 function upgrade_checkpoint() {
-    su -s /bin/bash -c "${user}" "echo ${ctsql_pwd} | sh ${CHECK_POINT_FILE} ${node_ip}"
+    su -s /bin/bash - "${user}" -c "echo ${ctsql_pwd} | sh ${CHECK_POINT_FILE} ${node_ip}"
     if [ $? -ne 0 ];then
         logAndEchoError "Execute cantian check point failed."
         exit 1

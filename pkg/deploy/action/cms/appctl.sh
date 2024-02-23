@@ -269,8 +269,8 @@ function check_cms_node_and_res_list()
     fi
 
     echo "check cms res status: cms res -list"
-    su -s /bin/bash ${cantian_user} -c "source ~/.bashrc && cms res -list"
-    res=$(su -s /bin/bash ${cantian_user} -c "source ~/.bashrc && cms res -list" | grep 'db' | wc -l)
+    su -s /bin/bash - ${cantian_user} -c "source ~/.bashrc && cms res -list"
+    res=$(su -s /bin/bash - ${cantian_user} -c "source ~/.bashrc && cms res -list" | grep 'db' | wc -l)
     if [ ${res} == 0 ];then
         echo "Error: the resource information cannot be found"
         return 1
@@ -298,7 +298,7 @@ function pre_upgrade()
     fi
 
     echo "check cms server processes: cms stat -server"
-    su -s /bin/bash ${cantian_user} -c "source ~/.bashrc && cms stat -server"
+    su -s /bin/bash - ${cantian_user} -c "source ~/.bashrc && cms stat -server"
     cms_count=`ps -fu ${cantian_user} | grep 'cms server -start' | grep -vE '(grep|defunct)' | wc -l`
     if [ ${cms_count} -ne 1 ];then
         echo "Error: start cms process before pre_upgrade!"
@@ -338,7 +338,7 @@ function post_upgrade()
     ls -l /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home
 
     echo "check cms server processes: cms stat -server"
-    su -s /bin/bash ${cantian_user} -c "source ~/.bashrc && cms stat -server"
+    su -s /bin/bash - ${cantian_user} -c "source ~/.bashrc && cms stat -server"
     cms_count=`ps -fu ${cantian_user} | grep "cms server -start" | grep -vE '(grep|defunct)' | wc -l`
     if [ ${cms_count} -ne 1 ];then
         echo "cms process is not running, upgrade is abnormal"

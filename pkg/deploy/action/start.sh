@@ -90,7 +90,7 @@ if [[ -f /opt/software/tools/logicrep/start.success ]] && [[ -z ${logicrep_pid} 
 fi
 
 # 全部启动成功后，拉起守护进程 自动拉起cms和ct_om
-su -s /bin/bash "${cantian_user}" -c "sh /opt/cantian/action/cms/cms_reg.sh enable"
+su -s /bin/bash - "${cantian_user}" -c "sh /opt/cantian/action/cms/cms_reg.sh enable"
 sh /opt/cantian/common/script/cantian_service.sh start
 if [ $? -eq 0 ];then
     logAndEchoInfo "start cantian_service success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
