@@ -81,7 +81,7 @@ CANTIAN_INSTALL_LOG_FILE = "/opt/cantian/cantian/log/cantian_deploy.log"
 CANTIAND_INI_FILE = "/mnt/dbdata/local/cantian/tmp/data/cfg/cantiand.ini"
 CTSQL_INI_FILE = '/mnt/dbdata/local/cantian/tmp/data/cfg/*sql.ini'
 
-MYSQL_CODE_DIR = "/opt/cantian/image/cantian_connector/mysql-server"
+MYSQL_CODE_DIR = "/opt/cantian/image/cantian_connector/cantian-connector-mysql"
 MYSQL_BIN_DIR = "/opt/cantian/mysql/install/mysql"
 MYSQL_DATA_DIR = ""
 MYSQL_LOG_FILE = ""
