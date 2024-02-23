@@ -184,9 +184,9 @@ static status_t cms_export_res_attrs(int32 file)
 
 status_t cms_export_gcc(const char* path)
 {
-    CT_RETURN_IFERR(cms_load_gcc());
     int32 file;
-
+    CT_RETURN_IFERR(cms_load_gcc());
+    
     if (cm_create_file(path, O_RDWR | O_TRUNC | O_BINARY | O_CREAT, &(file)) != CT_SUCCESS) {
         CMS_LOG_ERR("failed to create file %s", path);
         return CT_ERROR;

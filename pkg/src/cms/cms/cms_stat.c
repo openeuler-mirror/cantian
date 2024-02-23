@@ -34,6 +34,7 @@
 #include "cms_instance.h"
 #include "cms_msg_def.h"
 #include "cms_uds_server.h"
+#include "cms_uds_client.h"
 #include "cm_dlock.h"
 #include "cm_file.h"
 #include "cms_comm.h"
@@ -95,14 +96,36 @@ static inline status_t stat_read(uint64 offset, char* data, uint32 size)
 {
     cms_local_ctx_t* ctx;
     CT_RETURN_IFERR(cms_get_local_ctx(&ctx));
-    return cm_read_disk(ctx->gcc_handle, offset, data, size);
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        return cm_read_disk(ctx->gcc_handle, offset, data, size);
+    }
+    return cm_read_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size);
 }
 
 static inline status_t stat_write(uint64 offset, char* data, uint32 size)
 {
     cms_local_ctx_t* ctx;
     CT_RETURN_IFERR(cms_get_local_ctx(&ctx));
-    return cm_write_disk(ctx->gcc_handle, offset, data, size);
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        return cm_write_disk(ctx->gcc_handle, offset, data, size);
+    }
+    return cm_write_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size);
+}
+
+static status_t res_data_read(cms_local_ctx_t* ctx, uint64 offset, char* data, uint32 size)
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        return cm_read_disk(ctx->gcc_handle, offset, data, size);
+    }
+    return cm_read_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size);
+}
+ 
+static status_t res_data_write(cms_local_ctx_t* ctx, uint64 offset, char* data, uint32 size)
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        return cm_write_disk(ctx->gcc_handle, offset, data, size);
+    }
+    return cm_write_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size);
 }
 
 static bool32 res_is_active(cms_disk_lock_t* lock, uint64 inst_id)
@@ -146,11 +169,11 @@ status_t cms_sync_cur_res_stat(uint32 res_id, cms_res_stat_t* res_stat)
     if (stat_write(CMS_RES_STAT_POS(g_cms_param->node_id, (res_id)), (char*)(res_stat),
         sizeof(cms_res_stat_t)) != CT_SUCCESS) {
         CMS_LOG_ERR("sync cur res stat failed. node_id = %u, res_id = %u.", g_cms_param->node_id, res_id);
-        cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id]);
+        cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id], DISK_LOCK_WRITE);
         return CT_ERROR;
     }
 
-    cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id]);
+    cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id], DISK_LOCK_WRITE);
     return CT_SUCCESS;
 }
 
@@ -249,6 +272,14 @@ status_t cms_vote_file_init(void)
         }
     } else if (g_cms_param->gcc_type == CMS_DEV_TYPE_SD) {
         CT_RETURN_IFERR(cm_open_disk(g_cms_param->gcc_home, &g_cms_inst->vote_file_fd));
+    } else if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
+        char file_name[CMS_FILE_NAME_BUFFER_SIZE] = { 0 };
+        object_id_t file_handle = {0};
+        int ret = snprintf_s(file_name, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN, "%s_vote_file",
+            g_cms_param->gcc_home);
+        PRTS_RETURN_IFERR(ret);
+        CT_RETURN_IFERR(cm_get_dbs_last_dir_handle(g_cms_param->gcc_dir, &g_cms_inst->vote_file_handle));
+        CT_RETURN_IFERR(cm_get_dbs_last_file_handle(file_name, &file_handle)); // create file
     } else {
         CMS_LOG_ERR("invalid device type:%d", g_cms_param->gcc_type);
         return CT_ERROR;
@@ -269,7 +300,7 @@ status_t cms_vote_file_init(void)
                 CMS_VOTE_DATA_LOCK_POS(node_id, slot_id), CMS_RLOCK_VOTE_DATA_LOCK_START(node_id, slot_id),
                 CMS_RLOCK_VOTE_DATA_LOCK_LEN, g_cms_param->node_id,
                 &g_cms_inst->vote_data_lock[node_id][slot_id], NULL, 0, CT_FALSE));
-            cms_disk_unlock(&g_cms_inst->vote_data_lock[node_id][slot_id]);
+            cms_disk_unlock(&g_cms_inst->vote_data_lock[node_id][slot_id], DISK_LOCK_READ);
         }
     }
     return CT_SUCCESS;
@@ -294,15 +325,18 @@ status_t cms_res_lock_init(void)
     CT_RETURN_IFERR(cms_disk_lock_init(g_cms_param->gcc_type, g_cms_param->gcc_home, "", CMS_RES_START_LOCK_POS,
         CMS_RLOCK_RES_START_LOCK_START, CMS_RLOCK_RES_START_LOCK_LEN, g_cms_param->node_id,
         &g_cms_inst->res_start_lock, NULL, 0, CT_FALSE));
-    cms_disk_unlock(&g_cms_inst->res_start_lock);
+    cms_disk_unlock(&g_cms_inst->res_start_lock, DISK_LOCK_READ);
     // init res stat lock
     for (int32 node_id = 0; node_id < CMS_MAX_NODE_COUNT; node_id++) {
+        if (cms_node_is_invalid(node_id)) {
+            continue;
+        }
         for (int32 res_id = 0; res_id < CMS_RES_STAT_MAX_RESOURCE_COUNT; res_id++) {
             CT_RETURN_IFERR(cms_disk_lock_init(g_cms_param->gcc_type, g_cms_param->gcc_home, "",
                 CMS_RES_STAT_LOCK_POS(node_id, res_id), CMS_RLOCK_RES_STAT_LOCK_START(node_id, res_id),
                 CMS_RLOCK_RES_STAT_LOCK_LEN, g_cms_param->node_id,
                 &g_cms_inst->res_stat_lock[node_id][res_id], NULL, 0, CT_FALSE));
-            cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id]);
+            cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_READ);
         }
         cm_init_thread_lock(&g_node_lock[node_id]);
     }
@@ -320,9 +354,16 @@ status_t cms_res_lock_init(void)
                 CMS_RLOCK_RES_DATA_LOCK_LEN, g_cms_param->node_id, &g_cms_inst->res_data_lock[res_id][slot_id],
                 res_is_active, 0, CT_FALSE));
             g_cms_inst->res_data_lock[res_id][slot_id].int64_param1 = res_id;
-            cms_disk_unlock(&g_cms_inst->res_data_lock[res_id][slot_id]);
+            cms_disk_unlock(&g_cms_inst->res_data_lock[res_id][slot_id], DISK_LOCK_READ);
         }
     }
+    return CT_SUCCESS;
+}
+
+status_t cms_init_stat_for_dbs(void)
+{
+    g_stat = (cms_cluster_stat_t*)(CMS_ALIGN_ADDR_512(&g_cms_stat_buff));
+    CM_ASSERT((char*)g_stat + sizeof(cms_cluster_stat_t) < (char*)(&g_cms_stat_buff) + sizeof(cms_stat_buff_t));
     return CT_SUCCESS;
 }
 
@@ -339,7 +380,7 @@ status_t cms_init_stat(void)
     CT_RETURN_IFERR(cms_disk_lock_init(g_cms_param->gcc_type, g_cms_param->gcc_home, "", CMS_STAT_LOCK_POS,
         CMS_RLOCK_STAT_LOCK_START, CMS_RLOCK_STAT_LOCK_LEN, g_cms_param->node_id, &g_cms_inst->stat_lock,
         NULL, CMS_DLOCK_THREAD, CT_FALSE));
-    cms_disk_unlock(&g_cms_inst->stat_lock);
+    cms_disk_unlock(&g_cms_inst->stat_lock, DISK_LOCK_READ);
 
     CT_RETURN_IFERR(cms_res_lock_init());
 
@@ -362,9 +403,9 @@ status_t cms_lock_stat(uint8 lock_type)
     return CT_SUCCESS;
 }
 
-status_t cms_unlock_stat(void)
+status_t cms_unlock_stat(uint8 lock_type)
 {
-    return cms_disk_unlock(&g_cms_inst->stat_lock);
+    return cms_disk_unlock(&g_cms_inst->stat_lock, lock_type);
 }
 
 status_t inc_stat_version(void)
@@ -375,7 +416,7 @@ status_t inc_stat_version(void)
     ret = stat_read(CMS_STAT_HEAD_POS, (char*)(&g_stat->head), sizeof(cms_cluster_stat_head_t));
     if (ret != CT_SUCCESS) {
         CMS_LOG_ERR("cms read g_stat head failed, g_stat->head.stat_ver = %llu", g_stat->head.stat_ver);
-        (void)cms_unlock_stat();
+        (void)cms_unlock_stat(DISK_LOCK_WRITE);
         return CT_ERROR;
     }
 
@@ -386,11 +427,11 @@ status_t inc_stat_version(void)
     ret = stat_write(CMS_STAT_HEAD_POS, (char*)(&g_stat->head), sizeof(cms_cluster_stat_head_t));
     if (ret != CT_SUCCESS) {
         CMS_LOG_ERR("cms write g_stat head failed, g_stat->head.stat_ver = %llu", g_stat->head.stat_ver);
-        (void)cms_unlock_stat();
+        (void)cms_unlock_stat(DISK_LOCK_WRITE);
         return CT_ERROR;
     }
 
-    (void)cms_unlock_stat();
+    (void)cms_unlock_stat(DISK_LOCK_WRITE);
     return ret;
 }
 
@@ -707,7 +748,7 @@ status_t cms_get_res_start_lock(uint32 res_id)
 
 void cms_release_res_start_lock(uint32 res_id)
 {
-    cms_disk_unlock(&g_cms_inst->res_start_lock);
+    cms_disk_unlock(&g_cms_inst->res_start_lock, DISK_LOCK_WRITE);
 }
 
 status_t cms_clear_restart_count(uint32 res_id)
@@ -1234,7 +1275,7 @@ status_t get_res_stat(uint32 node_id, uint32 res_id, cms_res_stat_t* res_stat)
     }
 
     ret = stat_read(CMS_RES_STAT_POS(node_id, res_id), (char *)res_stat_new, sizeof(cms_res_stat_t));
-    cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id]);
+    cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_READ);
     if (ret != CT_SUCCESS) {
         CM_FREE_PTR(res_cur_stat);
         CMS_LOG_ERR("stat read failed");
@@ -1432,6 +1473,7 @@ status_t cms_tool_connect(socket_t sock, cms_cli_msg_req_conn_t *req, cms_cli_ms
             res->head.msg_seq = cm_now();
             res->head.src_msg_seq = req->head.msg_seq;
             res->session_id = i;
+            res->master_id = (g_cms_inst->is_dbstor_cli_init == CT_FALSE ? CT_INVALID_ID64 : 0);
             res->result = CT_SUCCESS;
             g_tool_session_count++;
             cm_thread_unlock(&g_session_lock);
@@ -1609,11 +1651,11 @@ status_t cms_get_stat_version_ex(uint64 version, cms_res_status_list_t* stat)
     ret = stat_read(CMS_STAT_HEAD_POS, (char*)(&g_stat->head), sizeof(cms_cluster_stat_head_t));
     if (ret != CT_SUCCESS) {
         CMS_LOG_ERR("stat read failed");
-        (void)cms_unlock_stat();
+        (void)cms_unlock_stat(DISK_LOCK_READ);
         return CT_ERROR;
     }
     stat->version = g_stat->head.stat_ver;
-    (void)cms_unlock_stat();
+    (void)cms_unlock_stat(DISK_LOCK_READ);
 
     return CT_SUCCESS;
 }
@@ -1699,7 +1741,7 @@ static status_t cms_stat_set_res_data_inner(uint32 res_id, uint32 slot_id, char*
         return CT_ERROR;
     }
 
-    if (cm_read_disk(ctx->gcc_handle, offset, (char *)res_data, CMS_BLOCK_SIZE) != CT_SUCCESS) {
+    if (res_data_read(ctx, offset, (char *)res_data, CMS_BLOCK_SIZE) != CT_SUCCESS) {
         CM_FREE_PTR(res_data);
         return CT_ERROR;
     }
@@ -1724,7 +1766,7 @@ static status_t cms_stat_set_res_data_inner(uint32 res_id, uint32 slot_id, char*
         return CT_ERROR;
     }
 
-    if (cm_write_disk(ctx->gcc_handle, offset, res_data, align_size) != CT_SUCCESS) {
+    if (res_data_write(ctx, offset, (char *)res_data, align_size) != CT_SUCCESS) {
         CM_FREE_PTR(res_data);
         return CT_ERROR;
     }
@@ -1751,16 +1793,16 @@ status_t cms_stat_set_res_data(const char* res_type, uint32 slot_id, char* data,
 
     if (data_size > CMS_MAX_RES_DATA_SIZE) {
         CMS_LOG_ERR("invalid data size, data size = %u", data_size);
-        cms_disk_unlock(&g_cms_inst->res_data_lock[res_id][slot_id]);
+        cms_disk_unlock(&g_cms_inst->res_data_lock[res_id][slot_id], DISK_LOCK_WRITE);
         return CT_ERROR;
     }
 
     if (cms_stat_set_res_data_inner(res_id, slot_id, data, data_size, old_version) != CT_SUCCESS) {
-        cms_disk_unlock(&g_cms_inst->res_data_lock[res_id][slot_id]);
+        cms_disk_unlock(&g_cms_inst->res_data_lock[res_id][slot_id], DISK_LOCK_WRITE);
         return CT_ERROR;
     }
 
-    cms_disk_unlock(&g_cms_inst->res_data_lock[res_id][slot_id]);
+    cms_disk_unlock(&g_cms_inst->res_data_lock[res_id][slot_id], DISK_LOCK_WRITE);
 
     CMS_LOG_DEBUG_INF("resource set data succeed, notify to all instances, slot=%u, old_version=%lld",
         slot_id, old_version);
@@ -1791,7 +1833,7 @@ static status_t cms_stat_get_res_data_inner(uint32 res_id, uint32 slot_id, char*
     }
 
     uint64 offset = CMS_RES_DATA_GCC_OFFSET(res_id, slot_id);
-    if (cm_read_disk(ctx->gcc_handle, offset, (char *)res_data, CMS_BLOCK_SIZE) != CT_SUCCESS) {
+    if (res_data_read(ctx, offset, (char *)res_data, CMS_BLOCK_SIZE) != CT_SUCCESS) {
         CM_FREE_PTR(res_data);
         return CT_ERROR;
     }
@@ -1805,8 +1847,8 @@ static status_t cms_stat_get_res_data_inner(uint32 res_id, uint32 slot_id, char*
     uint32 total_size = res_data->data_size + OFFSET_OF(cms_res_data_t, data);
     total_size = CM_ALIGN_512(total_size);
     if (total_size > CMS_BLOCK_SIZE) {
-        if (cm_read_disk(ctx->gcc_handle, offset + CMS_BLOCK_SIZE, (char *)res_data + CMS_BLOCK_SIZE,
-                         total_size - CMS_BLOCK_SIZE) != CT_SUCCESS) {
+        if (res_data_read(ctx, offset + CMS_BLOCK_SIZE, (char *)res_data + CMS_BLOCK_SIZE,
+                          total_size - CMS_BLOCK_SIZE) != CT_SUCCESS) {
             CM_FREE_PTR(res_data);
             return CT_ERROR;
         }
@@ -1839,11 +1881,11 @@ status_t cms_stat_get_res_data(const char* res_type, uint32 slot_id, char* data,
     }
 
     if (cms_stat_get_res_data_inner(res_id, slot_id, data, max_size, data_size, data_version) != CT_SUCCESS) {
-        cms_disk_unlock(&g_cms_inst->res_data_lock[res_id][slot_id]);
+        cms_disk_unlock(&g_cms_inst->res_data_lock[res_id][slot_id], DISK_LOCK_READ);
         return CT_ERROR;
     }
 
-    cms_disk_unlock(&g_cms_inst->res_data_lock[res_id][slot_id]);
+    cms_disk_unlock(&g_cms_inst->res_data_lock[res_id][slot_id], DISK_LOCK_READ);
 
     return CT_SUCCESS;
 }
@@ -1942,8 +1984,24 @@ status_t cms_try_be_master(void)
     return CT_SUCCESS;
 }
 
+status_t cms_get_master_id_with_dbs(cms_disk_lock_t* master_lock)
+{
+    uint64 inst_id = CT_INVALID_ID64;
+    if (cms_uds_cli_get_server_master_id(&inst_id) != CT_SUCCESS) {
+        CMS_LOG_INF("check master status: srv not exist.");
+        master_lock->inst_id = -1;
+    } else {
+        master_lock->inst_id = (int64)inst_id;
+    }
+    master_lock->type = CMS_DEV_TYPE_DBS;
+    return  CT_SUCCESS;
+}
+
 status_t cms_check_master_lock_status(cms_disk_lock_t* master_lock)
 {
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
+        return cms_get_master_id_with_dbs(master_lock);
+    }
     CT_RETURN_IFERR(cms_disk_lock_init(g_cms_param->gcc_type, g_cms_param->gcc_home, "", CMS_MASTER_LOCK_POS,
         CMS_RLOCK_MASTER_LOCK_START, CMS_RLOCK_MASTER_LOCK_LEN, g_cms_param->node_id, master_lock, NULL, 0, CT_FALSE));
     uint64 inst_id = CT_INVALID_ID64;
@@ -2030,7 +2088,7 @@ status_t cms_aync_update_res_hb(cms_res_stat_t *res_stat_disk, uint32 res_id)
     }
     if (stat_read(CMS_CUR_RES_STAT_POS(res_id), (char *)res_stat_disk, sizeof(cms_res_stat_t)) != CT_SUCCESS) {
         CMS_LOG_ERR("read state fail, node_id=%u, res_id=%u", g_cms_param->node_id, res_id);
-        cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id]);
+        cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id], DISK_LOCK_WRITE);
         cm_thread_unlock(&g_res_session[res_id].lock);
         cms_record_io_aync_hb_gap_end(node_hb_aync, IO_STAT_FAILED);
         return CT_ERROR;
@@ -2040,12 +2098,12 @@ status_t cms_aync_update_res_hb(cms_res_stat_t *res_stat_disk, uint32 res_id)
     // In this function, we simply update the hb_time and last_check.
     if (stat_write(CMS_CUR_RES_STAT_POS(res_id), (char *)res_stat_disk, sizeof(cms_res_stat_t)) != CT_SUCCESS) {
         CMS_LOG_ERR("aync_write res failed, res_id=%u", res_id);
-        cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id]);
+        cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id], DISK_LOCK_WRITE);
         cm_thread_unlock(&g_res_session[res_id].lock);
         cms_record_io_aync_hb_gap_end(node_hb_aync, IO_STAT_FAILED);
         return CT_ERROR;
     }
-    cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id]);
+    cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id], DISK_LOCK_WRITE);
     cm_thread_unlock(&g_res_session[res_id].lock);
     cms_record_io_aync_hb_gap_end(node_hb_aync, IO_STAT_SUCCESS);
     return CT_SUCCESS;
@@ -2112,7 +2170,7 @@ status_t cms_update_disk_hb(void)
         return CT_ERROR;
     }
     if (node_stat->vote_info_status == CMS_INITING_VOTE_INFO) {
-        cms_disk_unlock(&g_cms_inst->vote_info_lock);
+        cms_disk_unlock(&g_cms_inst->vote_info_lock, DISK_LOCK_WRITE);
         node_stat->vote_info_status = CMS_INIT_VOTE_INFO_DONE;
     }
     return CT_SUCCESS;
@@ -2166,7 +2224,7 @@ status_t cms_init_mes_channel_version(void)
         return CT_ERROR;
     }
     CT_RETURN_IFERR(cms_get_local_ctx(&ctx));
-    ret = cm_read_disk(ctx->gcc_handle, CMS_MES_CHANNEL_POS, (char*)g_channel_info, sizeof(cms_channel_info_t));
+    ret = res_data_read(ctx, CMS_MES_CHANNEL_POS, (char*)g_channel_info, sizeof(cms_channel_info_t));
     if (ret != CT_SUCCESS) {
         CMS_LOG_ERR("cms read mes channel info failed, ret %d.", ret);
         return CT_ERROR;
@@ -2174,7 +2232,7 @@ status_t cms_init_mes_channel_version(void)
     g_channel_info->channel_version++;
     g_channel_info->magic = CMS_CHANNEL_VERSION_MAGIC;
 
-    ret = cm_write_disk(ctx->gcc_handle, CMS_MES_CHANNEL_POS, (char*)g_channel_info, sizeof(cms_channel_info_t));
+    ret = res_data_write(ctx, CMS_MES_CHANNEL_POS, (char*)g_channel_info, sizeof(cms_channel_info_t));
     if (ret != CT_SUCCESS) {
         CMS_LOG_ERR("cms write mes channel info failed, ret %d.", ret);
         return CT_ERROR;
@@ -2186,5 +2244,105 @@ status_t cms_init_mes_channel_version(void)
 status_t cms_get_mes_channel_version(uint64* version)
 {
     *version = g_channel_info->channel_version;
+    return CT_SUCCESS;
+}
+
+status_t cms_get_cluster_res_list_4tool(uint32 res_id, cms_tool_res_stat_list_t *res_stat_list)
+{
+    status_t ret = CT_SUCCESS;
+    CMS_LOG_DEBUG_INF("begin get cluster stat by type");
+    uint8 master_node_id;
+    ret = cms_get_res_master(res_id, &master_node_id);
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("get res master failed, ret %d, res_id %u", ret, res_id);
+        return ret;
+    }
+    res_stat_list->master_inst_id = master_node_id;
+    uint32 node_count = cms_get_gcc_node_count();
+    res_stat_list->inst_count = node_count;
+    for (uint32 node_id = 0; node_id < node_count; node_id++) {
+        cms_res_stat_t res_stat;
+        if (get_res_stat(node_id, res_id, &res_stat) != CT_SUCCESS) {
+            CMS_LOG_ERR("get res stat failed, node_id %d, res_id %u", node_id, res_id);
+            return CT_ERROR;
+        }
+
+        res_stat_list->stat_list[node_id].session_id = res_stat.session_id;
+        res_stat_list->stat_list[node_id].inst_id = res_stat.inst_id;
+        res_stat_list->stat_list[node_id].hb_time = res_stat.hb_time;
+        res_stat_list->stat_list[node_id].last_check = res_stat.last_check;
+        res_stat_list->stat_list[node_id].last_stat_change = res_stat.last_stat_change;
+        res_stat_list->stat_list[node_id].pre_stat = res_stat.pre_stat;
+        res_stat_list->stat_list[node_id].cur_stat = res_stat.cur_stat;
+        res_stat_list->stat_list[node_id].target_stat = res_stat.target_stat;
+        res_stat_list->stat_list[node_id].work_stat = res_stat.work_stat;
+    }
+
+    CMS_LOG_DEBUG_INF("get cluster stat by type succ, reformer %u", res_stat_list->master_inst_id);
+    return CT_SUCCESS;
+}
+
+status_t cms_res_list_info_copy(const cms_gcc_t* gcc, cms_tool_msg_res_get_gcc_t* gcc_info)
+{
+    errno_t err = EOK;
+    uint32 res_cnt = 0;
+    for (uint32 res_id = 0; res_id < CMS_MAX_RESOURCE_COUNT; res_id++) {
+        const cms_res_t* gcc_res = &gcc->res[res_id];
+        if (gcc_res->magic != CMS_GCC_RES_MAGIC) {
+            continue;
+        }
+        gcc_info->res_list[res_cnt].magic = gcc_res->magic;
+        gcc_info->res_list[res_cnt].hb_timeout = gcc_res->hb_timeout;
+        gcc_info->res_list[res_cnt].res_id = res_id;
+        err = strncpy_sp(gcc_info->res_list[res_cnt].name, CMS_NAME_BUFFER_SIZE, gcc_res->name, CMS_NAME_BUFFER_SIZE);
+        if (err != EOK) {
+            CMS_LOG_ERR("cms get gcc info 4tool res strncpy_sp res name failed.");
+            return CT_ERROR;
+        }
+        if ((++res_cnt) >= CMS_RESOURCE_COUNT) {
+            CMS_LOG_WAR("cms get gcc info 4tool res number(%u) over max number.", res_cnt);
+            break;
+        }
+    }
+    gcc_info->res_count = res_cnt;
+    return CT_SUCCESS;
+}
+
+status_t cms_get_gcc_info_4tool(cms_tool_msg_res_get_gcc_t* gcc_info)
+{
+    uint16 master_node_id;
+    if (cms_get_master_node(&master_node_id) != CT_SUCCESS) {
+        CMS_LOG_ERR("cms get master node failed");
+        return CT_ERROR;
+    }
+    gcc_info->master_node_id = master_node_id;
+    
+    const cms_gcc_t* gcc = cms_get_read_gcc();
+    if (cms_res_list_info_copy(gcc, gcc_info) != CT_SUCCESS) {
+        cms_release_gcc(&gcc);
+        return CT_ERROR;
+    }
+    uint32 node_count = 0;
+    errno_t err = EOK;
+    for (uint32 node_id = 0; node_id < gcc->head.node_count; node_id++) {
+        const cms_node_def_t* node_def = &gcc->node_def[node_id];
+        if (node_def->magic != CMS_GCC_NODE_MAGIC) {
+            continue;
+        }
+        gcc_info->node_def_list[node_count].magic = CMS_GCC_NODE_MAGIC;
+        err = strncpy_sp(gcc_info->node_def_list[node_count].name, CMS_NAME_BUFFER_SIZE,
+                         node_def->name, CMS_NAME_BUFFER_SIZE);
+        if (err != EOK) {
+            CMS_LOG_ERR("cms get gcc info 4tool res strncpy_sp node name failed.");
+            cms_release_gcc(&gcc);
+            return CT_ERROR;
+        }
+        if ((++node_count) >= CMS_NODES_COUNT) {
+            CMS_LOG_WAR("cms get gcc info 4tool node number(%u) over max number.", node_count);
+            break;
+        }
+    }
+    gcc_info->node_count = node_count;
+    cms_release_gcc(&gcc);
     return CT_SUCCESS;
 }

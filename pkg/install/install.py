@@ -25,6 +25,7 @@ try:
     import copy
     import json
     from funclib import CommonValue, SingleNodeConfig, ClusterNode0Config, ClusterNode1Config, DefaultConfigValue
+    import argparse
 
     PYTHON242 = "2.4.2"
     PYTHON25 = "2.5"
@@ -1142,6 +1143,7 @@ def skip_execute_in_node_1():
         return True
     return False
 
+
 def skip_execute_in_slave_cluster():
     if g_opts.slave_cluster:
         return True
@@ -1249,6 +1251,8 @@ class Installer:
         # create database sql that user specify
         self.create_db_file = ""
 
+        self.create_cantian_defs_file = ""
+
         # user profile
         self.userProfile = ""
         # flag for creating program dir
@@ -1283,7 +1287,7 @@ class Installer:
         self.numactl_str = ""
         if self.os_type == 'aarch64' and self.have_numactl == True:
             last_cpu_core = os.cpu_count() - 1
-            self.numactl_str = "numactl -C 0-1,6-11,16-" + str(last_cpu_core) + " "        
+            self.numactl_str = "numactl -C  0-1,6-11,16-" + str(last_cpu_core) + " "        
 
         log("End init")
 
@@ -3393,6 +3397,29 @@ class Installer:
         if re.match(".*CT-\d{5}.*", result) or re.match(".*ZS-\d{5}.*", result):
             raise Exception("Failed to execute sql file %s, output:%s" % (sql_file, output))
 
+    def execute_mysql_update(self, sql_file):
+        is_need_update = False
+        if is_need_update:
+            print("update cantian sys table and views...")
+            action_parse = argparse.ArgumentParser()
+            action_parse.add_argument("--mysql_cmd", dest="mysql_cmd", required=True) # /usr/local/mysql/bin/mysql
+            action_parse.add_argument("--mysql_user", dest="mysql_user", required=True)
+            args = action_parse.parse_args()
+            mysql_cmd = args.mysql_cmd
+            mysql_user = args.mysql_user
+            if mysql_user == "root":
+                cmd = "%s -u%s < %s" % (mysql_cmd, mysql_user, sql_file)
+            else:
+                mysql_pwd = getpass.getpass()
+                cmd = "%s -u%s -p%s < %s" % (mysql_cmd, mysql_user, mysql_pwd, sql_file)
+
+
+            return_code, stdout_data, stderr_data = _exec_popen(cmd)
+            if return_code and MYSQL_VERSION != VERSION_DOCKER_META:
+                output = "%s%s" % (str(stdout_data), str(stderr_data))
+                raise Exception("Failed to execute mysql file %s, output:%s, return_code:%s"
+                                % (sql_file, output, return_code))
+
     def execute_sql(self, sql, message):
         """
         function: execute sql string
@@ -3993,9 +4020,13 @@ class Installer:
         # mysql init
         # Do not init mysql in slave cluster.
         if not is_slave_cluster:
-            cmd = "%s --defaults-file=%s --initialize-insecure --datadir=%s" % (os.path.join(MYSQL_BIN_DIR, "bin/mysqld"),
-                                                                            g_opts.mysql_config_file_path,
-                                                                            MYSQL_DATA_DIR)
+            cmd = "%s --defaults-file=%s --initialize-insecure --datadir=%s \
+                --early-plugin-load=\"ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so;\" \
+                --core-file --log-error=%s" % (
+                os.path.join(MYSQL_BIN_DIR, "bin/mysqld"),
+                g_opts.mysql_config_file_path,
+                MYSQL_DATA_DIR,
+                MYSQL_LOG_FILE)
             if os.getuid() == 0:
                 cmd = "su %s -c '" % self.user + cmd + "'"
             status, stdout, stderr = _exec_popen(cmd)
@@ -4024,10 +4055,13 @@ class Installer:
         log("Starting mysqld...", True)
         if os.path.exists(MYSQL_LOG_FILE) and os.path.isfile(MYSQL_LOG_FILE):
             log("Warning: the mysql log file %s should empty for mysqld start" % MYSQL_LOG_FILE, True)
-        cmd_init_metadata_in_cantian = "%s --defaults-file=%s --initialize-insecure --datadir=%s --early-plugin-load=\"ha_ctc.so\" --core-file --log-error=%s" % (os.path.join(MYSQL_BIN_DIR, "bin/mysqld"),
-                                                                                    g_opts.mysql_config_file_path,
-                                                                                    MYSQL_DATA_DIR,
-                                                                                    MYSQL_LOG_FILE)
+        mysql_view_file = self.get_cantian_defs_file()
+        cmd_init_metadata_in_cantian = "%s --defaults-file=%s --initialize-insecure --datadir=%s \
+                                       --early-plugin-load=\"ha_ctc.so\" --core-file --log-error=%s" % (
+                                       os.path.join(MYSQL_BIN_DIR, "bin/mysqld"),
+                                       g_opts.mysql_config_file_path,
+                                       MYSQL_DATA_DIR,
+                                       MYSQL_LOG_FILE)
         if os.path.exists("/.dockerenv"):
             cmd_start_mysqld = """ %s --defaults-file=%s --datadir=%s --user=root --skip-innodb \
             --early-plugin-load="ha_ctc.so" --core-file >> %s 2>&1 &
@@ -4084,25 +4118,76 @@ class Installer:
 
         if MYSQL_VERSION == VERSION_DOCKER_META:
             print("mysql_meta: going to start docker mysql in meta.")
-            self.start_mysql_with_metadata_in_cantian(g_opts.slave_cluster)
+            self.start_mysql_with_metadata_in_cantian()
+            self.execute_mysql_update(self.get_cantian_defs_file())
         elif MYSQL_VERSION == VERSION_DOCKER_NOMETA:
             print("mysql_nometa: developer docker deploy.")
-            self.start_mysql()
+            self.start_mysql(g_opts.slave_cluster)
+            self.execute_mysql_update(self.get_cantian_defs_file())
         elif MYSQL_VERSION == VERSION_ENV_META:
             mysql_plugin_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin")
             print("mysql_meta: going to start mysql in meta. bin_dir:%s" % mysql_plugin_path)
             self.start_mysql_with_metadata_in_cantian()
+            if g_opts.node_id == 0:
+                self.execute_mysql_update(self.get_cantian_defs_file())
         elif MYSQL_VERSION == VERSION_ENV_NOMETA:
             mysql_plugin_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin")
             ctc_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin/nometa/ha_ctc.so")
             shutil.copy(ctc_path, mysql_plugin_path)
             print("mysql_nometa: copy ha_ctc.so from %s to %s" % (ctc_path, mysql_plugin_path))
             self.start_mysql(g_opts.slave_cluster)
+            self.execute_mysql_update(self.get_cantian_defs_file())
 
         # Don't set the core_dump_filter with -O option.
         # if self.option == INS_ALL:
         #     self.set_core_dump_filter_mysql()
 
+    def checkCreatecantiandefsFile(self):
+        '''
+        check it is a file; user has read permission,
+        :return:
+        '''
+        # check it is a file
+        if not os.path.isfile(self.create_cantian_defs_file):
+            raise Exception("Error: %s does not exists or is not a file"
+                            " or permission is not right."
+                            % self.create_cantian_defs_file)
+        if not checkPath(self.create_cantian_defs_file):
+            raise Exception("Error: %s file path invalid: "
+                            % self.create_cantian_defs_file)
+        # if execute user is root, check common user has read permission
+        file_path = os.path.dirname(self.create_cantian_defs_file)
+
+        # check path of cantian defs sql file that user can cd
+        permission_ok, _ = self.checkPermission(file_path, True)
+        if not permission_ok:
+            raise Exception("Error: %s can not access %s"
+                            % (self.user, file_path))
+
+        # check cantian defs file is readable for user
+        if not self.is_readable(self.create_cantian_defs_file, self.user):
+            raise Exception("Error: %s is not readable for user %s"
+                            % (self.create_cantian_defs_file, self.user))
+        # change file to a realpath file
+        self.create_cantian_defs_file = os.path.realpath(self.create_cantian_defs_file)
+
+    def get_cantian_defs_file(self):
+        if self.create_cantian_defs_file:
+            # execute customized sql file, check -f parameter
+            self.checkCreatecantiandefsFile()
+            return self.create_cantian_defs_file
+        if os.path.exists("/.dockerenv"):
+            sql_file_path = "/home/regress/CantianKernel/pkg/admin/scripts"
+        else:
+            install_config_path = "/opt/cantian/action/cantian/install_config.json"
+            os.chmod(install_config_path, stat.S_IRWXU+stat.S_IRWXG+stat.S_IRWXO)
+            with open(install_config_path, 'r', encoding='utf-8') as file:
+                info = file.read()
+                install_path = json.loads(info).get("R_INSTALL_PATH")
+            sql_file_path = "%s/admin/scripts" % install_path
+        file_name = "cantian_defs.sql"
+        create_cantian_defs_file = os.path.join(sql_file_path, file_name)
+        return create_cantian_defs_file
 
 def main():
     """

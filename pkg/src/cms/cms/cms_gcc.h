@@ -40,6 +40,10 @@ extern "C" {
 #define CMS_GCC_VOTEDISK_MAGIC   (*((uint64*)"VOTEDISK"))
 #define CMS_GCC_UPGRADE_MAGIC    (*((uint64*)"UPGRADE"))
 
+#define CMS_GCC_DIR_NAME         "gcc_home"
+#define CMS_GCC_FILE_NAME        "gcc_file"
+#define CMS_MASTER_FILE_NAME     "gcc_file_master_lock"
+#define CMS_VOTE_FILE_NAME       "gcc_file_vote_file"
 typedef union un_cms_res_t {
     struct {
         uint64          magic;
@@ -199,6 +203,8 @@ status_t cms_text2uint32(const text_t* text_src, uint32* value);
 
 status_t cms_update_gcc_ver(uint16 main_ver, uint16 major_ver, uint16 revision, uint16 inner);
 status_t cms_get_gcc_ver(uint16* main_ver, uint16* major_ver, uint16* revision, uint16* inner);
+status_t cms_create_gcc(void);
+status_t cms_delete_gcc(void);
 #ifdef __cplusplus
 }
 #endif

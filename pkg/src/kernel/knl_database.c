@@ -1122,12 +1122,15 @@ static status_t db_recovery_to_initphase2(knl_session_t *session, bool32 has_off
     if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: save core control file failed after ckpt is completed");
     }
-    tx_area_release(session, undo_set);
 
     if (DB_IS_PRIMARY(db)) {
+        tx_area_release(session, undo_set);
         if (spc_clean_garbage_space(session) != CT_SUCCESS) {
             CT_LOG_RUN_WAR("[SPACE] failed to clean garbage tablespace");
         }
+    } else {
+        core_ctrl_t *core_ctrl = DB_CORE_CTRL(session);
+        tx_area_release_impl(session, 0, core_ctrl->undo_segments, session->kernel->id);
     }
 
     return CT_SUCCESS;
@@ -1272,13 +1275,14 @@ status_t db_open(knl_session_t *session, db_open_opt_t *options)
     // temp space may extra replay create datafile after rebuild
     spc_init_swap_space(session, SPACE_GET(session, dtc_my_ctrl(session)->swap_space));
     CT_LOG_RUN_INF("[DB OPEN] spc_init_swap_space finished");
-
-    if (ctrl_backup_ctrl_info(session) != CT_SUCCESS) {
-        cm_spin_unlock(&kernel->lock);
-        CT_LOG_RUN_ERR("[DB OPEN] ctrl_backup_ctrl_info failed");
-        return CT_ERROR;
+    if (cm_dbs_is_enable_dbs() == CT_TRUE && CTRL_LOG_BACKUP_LEVEL(session) != CTRLLOG_BACKUP_LEVEL_NONE) {
+        if (ctrl_backup_ctrl_info(session) != CT_SUCCESS) {
+            cm_spin_unlock(&kernel->lock);
+            CT_LOG_RUN_ERR("[DB OPEN] ctrl_backup_ctrl_info failed");
+            return CT_ERROR;
+        }
+        CT_LOG_RUN_INF("[DB OPEN] ctrl_backup_ctrl_info finished");
     }
-    CT_LOG_RUN_INF("[DB OPEN] ctrl_backup_ctrl_info finished");
 
     db->status = DB_STATUS_INIT_PHASE2;
     CT_LOG_RUN_INF("[DB OPEN] db status is INIT PHASE2.");
@@ -1811,9 +1815,15 @@ void db_reset_log(knl_session_t *session, uint32 switch_asn, bool32 reset_recove
                         sizeof(arch_log_id_t) * CT_MAX_ARCH_DEST);
         knl_securec_check(err);
     }
-
-    if (ctrl_backup_reset_logs(session) != CT_SUCCESS) {
-        CM_ABORT(0, "[DB] ABORT INFO: Failed to backup reset logs when reset logs");
+    if (DB_ATTR_CLUSTER(session) && CTRL_LOG_BACKUP_LEVEL(session) != CTRLLOG_BACKUP_LEVEL_NONE &&
+        cm_dbs_is_enable_dbs() == CT_TRUE) {
+        if (dbs_ctrl_backup_reset_logs(session) != CT_SUCCESS) {
+            CM_ABORT(0, "[DB] ABORT INFO: Failed to backup reset logs when reset logs");
+        }
+    } else if (!DB_ATTR_CLUSTER(session)){
+        if (ctrl_backup_reset_logs(session) != CT_SUCCESS) {
+            CM_ABORT(0, "[DB] ABORT INFO: Failed to backup reset logs when reset logs");
+        }
     }
 }
 
@@ -2651,20 +2661,6 @@ void db_get_cantiand_version(ctrl_version_t *cantiand_version)
     cantiand_version->revision = (uint16)revision_n;
 }
 
-static status_t db_slave_undo_rollback(knl_session_t *session)
-{
-    if (tx_rollback_start(session) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[INST] [SWITCHOVER] failed to do undo rollback");
-        return CT_ERROR;
-    }
-    undo_context_t *ctx = &session->kernel->undo_ctx;
-    while (ctx->active_workers > 0) {
-        cm_sleep(STANDBY_WAIT_SLEEP_TIME);
-    }
-    CT_LOG_RUN_INF("[INST] [SWITCHOVER] undo rollback is done");
-    return CT_SUCCESS;
-}
-
 static status_t db_slave_update_ctrl_file(knl_session_t *session)
 {
     knl_instance_t *kernel = session->kernel;
@@ -2679,6 +2675,44 @@ static status_t db_slave_update_ctrl_file(knl_session_t *session)
     }
 
     return CT_SUCCESS;
+}
+
+static status_t db_promote_undo_rollback(knl_session_t *session)
+{
+    instance_list_t rollback_list = {0};
+    rc_init_inst_list(&rollback_list);
+
+    uint64 inst_count = session->kernel->db.ctrl.core.node_count;
+    for (uint8 i = 0; i < inst_count; i++) {
+        add_id_to_list(i, &rollback_list);
+    }
+    
+    if (rc_tx_area_load(&rollback_list) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[INST] [SWITCHOVER] failed to do tx area load");
+        return CT_ERROR;
+    }
+
+    while (DB_IN_BG_ROLLBACK(session)) {
+        cm_sleep(DTC_REFORM_WAIT_TIME);
+    }
+    CT_LOG_RUN_INF("[INST] [SWITCHOVER]finish undo_rollback");
+
+    if (rc_rollback_close(&rollback_list) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC][partial restart] failed to rc_rollback_close");
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+static void db_promote_update_deposit_map(knl_session_t *session)
+{
+    uint64 inst_count = session->kernel->db.ctrl.core.node_count;
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    for (uint32 inst_id = 0; inst_id < inst_count; inst_id++) {
+        cm_spin_lock(&ctx->drc_deposit_map[inst_id].lock, NULL);
+        ctx->drc_deposit_map[inst_id].deposit_id = inst_id;
+        cm_spin_unlock(&ctx->drc_deposit_map[inst_id].lock);
+    }
 }
 
 void db_process_broadcast_cluster_role(void *sess, mes_message_t *msg)
@@ -2704,12 +2738,14 @@ void db_process_broadcast_cluster_role(void *sess, mes_message_t *msg)
             return;
         }
 
-        // undo rollback
-        if (db_slave_undo_rollback(session) != CT_SUCCESS) {
+        // update undo set
+        if (dtc_slave_load_my_undo() != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[INST] [SWITCHOVER] failed to update undo");
             mes_release_message_buf(msg->buffer);
             return;
         }
-        CT_LOG_RUN_INF("[INST] [SWITCHOVER] undo rollback is done");
+        db_promote_update_deposit_map(session);
+        CT_LOG_RUN_INF("[INST] [SWITCHOVER] update undo is done");
 
         if (dtc_read_node_ctrl(session, session->kernel->id) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[INST] [SWITCHOVER] failed to read ctrl page for node=%u", session->kernel->id);
@@ -2721,6 +2757,12 @@ void db_process_broadcast_cluster_role(void *sess, mes_message_t *msg)
         kernel->db.is_readonly = CT_FALSE;
         kernel->db.readonly_reason = PRIMARY_SET;
         kernel->db.ctrl.core.db_role = REPL_ROLE_PRIMARY;
+
+        log_context_t *redo_ctx = &session->kernel->redo_ctx;
+        dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, session->kernel->id);
+        DB_SET_LFN(&redo_ctx->lfn, ctrl->rcy_point.lfn);
+        redo_ctx->buf_lfn[0] = redo_ctx->lfn + 1;
+        redo_ctx->buf_lfn[1] = redo_ctx->lfn + 2;
 
         // cloese lrpl
         lrpl_close(session);
@@ -2781,9 +2823,10 @@ void db_promote_cluster_role(thread_t* thread)
     db_wait_lrpl_done(session);
 
     // step2 undo rollback
-    if (db_slave_undo_rollback(session) != CT_SUCCESS) {
+    if (db_promote_undo_rollback(session) != CT_SUCCESS) {
         CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] failed to do undo rollback");
     }
+    CT_LOG_RUN_INF("[INST] [SWITCHOVER] undo rollback is done");
 
     // step3 set disaster cluster role, readonly -> readwrite
     if (db_slave_update_ctrl_file(session) != CT_SUCCESS) {
@@ -2801,6 +2844,8 @@ void db_promote_cluster_role(thread_t* thread)
     }
     CT_LOG_RUN_INF("[INST] [SWITCHOVER] MES_CMD_BROADCAST_CLUSTER_ROLE succ");
 
+    // step5 cloese lrpl
+    db_promote_update_deposit_map(session);
     lrpl->is_promoting = CT_FALSE;
     CT_LOG_RUN_INF("[INST] [SWITCHOVER] promote completed, running as primary");
 }

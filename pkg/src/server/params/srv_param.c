@@ -965,8 +965,8 @@ config_item_t g_parameters[] = {
       PARAM_OPTIM_SIMPLIFY_EXISTS_SUBQ, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool,
       sql_notify_als_simplify_exists_subq, sql_notify_als_bool, NULL },
     // ctrl info backup parameter
-    { "CTRLLOG_BACKUP_LEVEL", CT_TRUE, ATTR_NONE, "TYPICAL", NULL, NULL, "-", "NONE,TYPICAL,FULL", "CT_TYPE_VARCHAR",
-      NULL, PARAM_CTRLLOG_BACKUP_LEVEL, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_ctrllog_backup_level,
+    { "CTRLLOG_BACKUP_LEVEL", CT_TRUE, ATTR_NONE, "NONE", NULL, NULL, "-", "NONE,TYPICAL,FULL", "CT_TYPE_VARCHAR",
+      NULL, PARAM_CTRLLOG_BACKUP_LEVEL, EFFECT_REBOOT, CFG_INS, sql_verify_als_ctrllog_backup_level,
       sql_notify_ctrllog_backup_level, NULL, NULL },
     { "_OPTIM_FUNC_INDEX_SCAN_ONLY", CT_TRUE, ATTR_NONE, "TRUE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
       PARAM_ENABLE_FUNC_INDEX_SCAN_ONLY, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool,
@@ -1130,6 +1130,9 @@ config_item_t g_parameters[] = {
       sql_notify_enable_enable_check_security_log, sql_notify_als_bool, NULL },
     { "MYSQL_DEPLOY_GROUP_ID", CT_TRUE, ATTR_NONE, "5000", NULL, NULL, "-", NULL, "GS_TYPE_VARCHAR", NULL,
       PARAM_MYSQL_DEPLOY_GROUP_ID, EFFECT_REBOOT, CFG_INS, sql_verify_als_uint32, NULL, NULL, NULL },
+    { "ENABLE_SYS_CRC_CHECK", CT_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "GS_TYPE_BOOLEAN", NULL,
+      PARAM_ENABLE_CHECK_SECURITY_LOG, EFFECT_REBOOT, CFG_INS, sql_verify_als_bool,
+      sql_notify_enable_crc_check, sql_notify_als_bool, NULL },
 };
 
 void srv_get_config_info(config_item_t **params, uint32 *count)

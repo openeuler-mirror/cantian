@@ -205,6 +205,7 @@ status_t sql_notify_io_record(void *se, void *item, char *value);
 status_t sql_notify_als_page_clean_mode(void *se, void *item, char *value);
 status_t sql_notify_enable_broadcast_on_commit(void *se, void *item, char *value);
 status_t sql_notify_enable_enable_check_security_log(void *se, void *item, char *value);
+status_t sql_notify_enable_crc_check(void *se, void *item, char *value);
 #ifdef __cplusplus
 }
 #endif

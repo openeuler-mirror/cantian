@@ -127,7 +127,7 @@ LABEL_TSTZ:
 
 LABEL_REAL:
     *offset += sizeof(double);
-    return cm_compare_double_prec16(*(double*)col1, *(double*)col2);
+    return cm_compare_double_by_byte(*(double*)col1, *(double*)col2);
 
 LABEL_NUMBER:
     if (is_pcr) {
@@ -218,7 +218,7 @@ int32 btree_cmp_column_data(void *col1, void *col2, ct_type_t type, uint16 *offs
 
         case CT_TYPE_REAL:
             *offset += sizeof(double);
-            return cm_compare_double_prec16(*(double*)col1, *(double*)col2);
+            return cm_compare_double_by_byte(*(double*)col1, *(double*)col2);
 
         case CT_TYPE_NUMBER:
         case CT_TYPE_NUMBER3:

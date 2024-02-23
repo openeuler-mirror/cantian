@@ -62,7 +62,7 @@ wait_for_cms_start() {
 
 start_cms() {
 	log "=========== start cms ${NODE_ID} ================"
-	wait_for_node_in_cluster
+#	wait_for_node_in_cluster
 
   nohup cms server -start >> ${STATUS_LOG} 2>&1 &
   if [ $? -ne 0 ]

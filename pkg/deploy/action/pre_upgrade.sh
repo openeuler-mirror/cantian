@@ -51,8 +51,8 @@ function initUserAndGroup()
 }
 
 function update_share_config() {
-    cp -arf ${CONFIG_PATH}/deploy_param.json /mnt/dbdata/remote/share_"${storage_share_fs}"
-    chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/share_"${storage_share_fs}"/deploy_param.json
+    cp -arf ${CONFIG_PATH}/deploy_param.json /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"
+    chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
 }
 
 function prepare_env() {
@@ -81,6 +81,7 @@ function prepare_env() {
     deploy_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
     deploy_group=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_group"`
     storage_share_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_share_fs")
+    storage_metadata_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs")
     node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
     random_seed=$(python3 ${CURRENT_PATH}/get_config_info.py "share_random_seed")
     if [[ x"${random_seed}" == x"None" ]] || [[ x"${random_seed}" == x"" ]]; then
@@ -226,7 +227,6 @@ function gen_upgrade_plan() {
     # 生成更新系统表标志文件
     weather_change_system=$(echo ${white_list_check_res} | awk '{print $3}')
     if [ "${weather_change_system}" == "true" ]; then
-        storage_metadata_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs")
         source_version=$(python3 ${CURRENT_PATH}/implement/get_source_version.py)
         storage_share_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/${UPGRADE_MODE}_bak_${source_version}"
         # 提前创建避免报错

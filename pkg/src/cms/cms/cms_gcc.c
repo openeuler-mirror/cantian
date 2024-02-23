@@ -32,6 +32,7 @@
 #include "cm_malloc.h"
 #include "cm_utils.h"
 #include "cms_log.h"
+#include "cm_dbs_defs.h"
 
 typedef struct st_gcc_buffer {
     uint64      buff[CMS_BLOCK_SIZE / sizeof(uint64)][(sizeof(cms_gcc_t) / CMS_BLOCK_SIZE + 1)];
@@ -47,9 +48,12 @@ static cms_sync_t  gcc_loader_sync;
 #define CMS_VALID_GCC_OFFSET(gcc_id)    ((size_t)&(((cms_gcc_storage_t*)NULL)->gcc[gcc_id]))
 #define CMS_GCC_READ_OFFSET(gcc_id)     (CMS_VALID_GCC_OFFSET(gcc_id))
 #define CMS_GCC_WRITE_OFFSET(gcc_id)    (CMS_VALID_GCC_OFFSET(((gcc_id) == 1) ? 0 : 1))
+#define CMS_GCC_FILE_SIZE               (1024 * 1024 * 1024)
+#define CMS_WRITE_GCC_PER_SIZE          (1024 * 1024)
 
 #define CMS_LOCK_RETRY_INTERVAL 100
 #define GCC_LOCK_WAIT_TIMEOUT   5000
+
 void cms_rdlock_gcc(void)
 {
     if (!g_cms_inst->is_server) {
@@ -125,10 +129,26 @@ status_t cms_lock_gcc_disk(void)
 
 status_t cms_unlock_gcc_disk(void)
 {
-    return cms_disk_unlock(&g_cms_inst->gcc_lock);
+    return cms_disk_unlock(&g_cms_inst->gcc_lock, DISK_LOCK_WRITE);
 }
 
-static status_t cms_get_valid_gcc_id(disk_handle_t handle, uint32 *gcc_id)
+static status_t cms_read_gcc_info(cms_local_ctx_t *ctx, uint64 offset, char* data, uint32 size)
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        return cm_read_disk(ctx->gcc_handle, offset, data, size);
+    }
+    return cm_read_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size);
+}
+
+static status_t cms_write_gcc_info(cms_local_ctx_t *ctx, uint64 offset, char* data, uint32 size)
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        return cm_write_disk(ctx->gcc_handle, offset, data, size);
+    }
+    return cm_write_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size);
+}
+
+static status_t cms_get_valid_gcc_id(cms_local_ctx_t *ctx, uint32 *gcc_id)
 {
     uint32 *gcc_id_align = (uint32*)cm_malloc_align(CMS_BLOCK_SIZE, CMS_BLOCK_SIZE);
     if (gcc_id_align == NULL) {
@@ -148,14 +168,13 @@ static status_t cms_get_valid_gcc_id(disk_handle_t handle, uint32 *gcc_id)
         CM_FREE_PTR(gcc_id_align);
         return CT_ERROR;
     }
-    
-    if (cm_read_disk(handle, 0, (char *)gcc_id_align, CMS_BLOCK_SIZE) != CT_SUCCESS) {
+
+    if (cms_read_gcc_info(ctx, 0, (char *)gcc_id_align, CMS_BLOCK_SIZE) != CT_SUCCESS) {
         cms_unlock_gcc_disk();
         CM_FREE_PTR(gcc_id_align);
         CMS_LOG_ERR("read disk failed, gcc_id(%u)", *gcc_id);
         return CT_ERROR;
     }
-
     cms_unlock_gcc_disk();
     *gcc_id = *gcc_id_align;
 
@@ -170,7 +189,7 @@ static status_t cms_get_valid_gcc_id(disk_handle_t handle, uint32 *gcc_id)
     return CT_SUCCESS;
 }
 
-static status_t cms_set_valid_gcc_id(disk_handle_t handle, uint32 gcc_id)
+static status_t cms_set_valid_gcc_id(cms_local_ctx_t *ctx, uint32 gcc_id)
 {
     uint32 *gcc_id_align = (uint32*)cm_malloc_align(CMS_BLOCK_SIZE, CMS_BLOCK_SIZE);
     if (gcc_id_align == NULL) {
@@ -192,13 +211,12 @@ static status_t cms_set_valid_gcc_id(disk_handle_t handle, uint32 gcc_id)
         return CT_ERROR;
     }
 
-    if (cm_write_disk(handle, 0, (char *)gcc_id_align, CMS_BLOCK_SIZE) != CT_SUCCESS) {
+    if (cms_write_gcc_info(ctx, 0, (char *)gcc_id_align, CMS_BLOCK_SIZE) != CT_SUCCESS) {
         cms_unlock_gcc_disk();
         CM_FREE_PTR(gcc_id_align);
         CMS_LOG_ERR("write disk failed, gcc_id(%u)", gcc_id);
         return CT_ERROR;
     }
-
     cms_unlock_gcc_disk();
     CM_FREE_PTR(gcc_id_align);
 
@@ -212,13 +230,14 @@ static status_t cms_gcc_read_disk(cms_gcc_t* gcc, bool32* stop_reading)
     *stop_reading = CT_FALSE;
     cms_local_ctx_t *ctx = NULL;
     CT_RETURN_IFERR(cms_get_local_ctx(&ctx));
-    CT_RETURN_IFERR(cms_get_valid_gcc_id(ctx->gcc_handle, &gcc_id));
-    
+    CT_RETURN_IFERR(cms_get_valid_gcc_id(ctx, &gcc_id));
+
     if (cms_lock_gcc_disk() != CT_SUCCESS) {
         CMS_LOG_ERR("cms lock gcc disk failed");
         return CT_ERROR;
     }
-    ret = cm_read_disk(ctx->gcc_handle, CMS_GCC_READ_OFFSET(gcc_id), (char *)gcc, sizeof(cms_gcc_t));
+
+    ret = cms_read_gcc_info(ctx, CMS_GCC_READ_OFFSET(gcc_id), (char *)gcc, sizeof(cms_gcc_t));
     cms_unlock_gcc_disk();
     if (ret != CT_SUCCESS) {
         CMS_LOG_ERR("read gcc failed.");
@@ -247,13 +266,72 @@ status_t cms_gcc_write_disk(cms_gcc_t* gcc)
     uint32 gcc_id = CT_INVALID_ID32;
     cms_local_ctx_t *ctx = NULL;
     CT_RETURN_IFERR(cms_get_local_ctx(&ctx));
+    CT_RETURN_IFERR(cms_get_valid_gcc_id(ctx, &gcc_id));
 
-    CT_RETURN_IFERR(cms_get_valid_gcc_id(ctx->gcc_handle, &gcc_id));
-    CT_RETURN_IFERR(cm_write_disk(ctx->gcc_handle, CMS_GCC_WRITE_OFFSET(gcc_id), (char *)gcc, sizeof(cms_gcc_t)));
+    CT_RETURN_IFERR(cms_write_gcc_info(ctx, CMS_GCC_WRITE_OFFSET(gcc_id), (char *)gcc, sizeof(cms_gcc_t)));
 
     gcc_id = gcc_id == 0 ? 1 : 0;
-    CT_RETURN_IFERR(cms_set_valid_gcc_id(ctx->gcc_handle, gcc_id));
+    CT_RETURN_IFERR(cms_set_valid_gcc_id(ctx, gcc_id));
 
+    return CT_SUCCESS;
+}
+
+status_t cms_delete_gcc(void)
+{
+    object_id_t root_handle = { 0 };
+    object_id_t cluster_name_dir_handle = { 0 };
+    char cluster_dir_name[CMS_PATH_BUFFER_SIZE] = { 0 };
+    int32 ret = sprintf_s(cluster_dir_name, CMS_PATH_BUFFER_SIZE, "%s_cms", (char *)g_cms_param->cluster_name);
+    PRTS_RETURN_IFERR(ret);
+
+    if (cm_get_dbs_root_dir_handle((char *)g_cms_param->fs_name, &root_handle) != CT_SUCCESS) {
+        printf("Failed to open root dir\n");
+        return CT_ERROR;
+    }
+
+    if (cm_get_dbs_dir_handle(&root_handle, cluster_dir_name, &cluster_name_dir_handle) != CT_SUCCESS) {
+        printf("Failed to open cluster dir\n");
+        return CT_ERROR;
+    }
+
+    if (cm_rm_dbs_dir_file(&cluster_name_dir_handle, CMS_GCC_DIR_NAME) != CT_SUCCESS) {
+        printf("Failed to delete gcc dir\n");
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+
+status_t cms_create_gcc(void)
+{
+    // object_id_t root_handle = { 0 };
+    // object_id_t gcc_file_handle = { 0 };
+
+    object_id_t gcc_home_handle = { 0 };
+    object_id_t gcc_dir_handle = { 0 };
+    if (cm_get_dbs_last_file_handle(g_cms_param->gcc_home, &gcc_home_handle)) {
+        printf("Failed to get gcc file handle\n");
+        return CT_ERROR;
+    }
+    if (cm_get_dbs_last_dir_handle(g_cms_param->gcc_dir, &gcc_dir_handle)) {
+        printf("Failed to get gcc dir handle\n");
+        return CT_ERROR;
+    }
+
+    int32_t times = CMS_GCC_FILE_SIZE / (CMS_WRITE_GCC_PER_SIZE);
+    char buffer[CMS_WRITE_GCC_PER_SIZE];
+    errno_t ret = memset_sp(buffer, CMS_WRITE_GCC_PER_SIZE, 0, CMS_WRITE_GCC_PER_SIZE);
+    if (ret != EOK) {
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+        return CT_ERROR;
+    }
+    for (int32_t i = 0 ; i < times; i++) {
+        if (cm_write_dbs_file(&gcc_dir_handle, CMS_GCC_FILE_NAME, i * CMS_WRITE_GCC_PER_SIZE, buffer,
+            sizeof(buffer)) != CT_SUCCESS) {
+            printf("Failed to init gcc file\n");
+            return CT_ERROR;
+        }
+    }
     return CT_SUCCESS;
 }
 
@@ -401,14 +479,13 @@ status_t cms_reset_gcc(void)
         CM_FREE_PTR(gcc_stor);
         return CT_ERROR;
     }
-
+ 
     if (cms_lock_gcc_disk() != CT_SUCCESS) {
         CM_FREE_PTR(gcc_stor);
         return CT_ERROR;
     }
-
-    if (cm_write_disk(ctx->gcc_handle, 0, (char *)gcc_stor,
-        sizeof(cms_gcc_storage_t) - CMS_BLOCK_SIZE) != CT_SUCCESS) {
+ 
+    if (cms_write_gcc_info(ctx, 0, (char *)gcc_stor, sizeof(cms_gcc_storage_t) - CMS_BLOCK_SIZE) != CT_SUCCESS) {
         cms_unlock_gcc_disk();
         CM_FREE_PTR(gcc_stor);
         return CT_ERROR;
@@ -1756,21 +1833,22 @@ status_t cms_get_gcc_ver(uint16* main_ver, uint16* major_ver, uint16* revision, 
 
 status_t cms_gcc_read_disk_direct(cms_gcc_t* gcc)
 {
-    status_t ret;
     uint32 gcc_id = CT_INVALID_ID32;
     cms_local_ctx_t *ctx = NULL;
     CT_RETURN_IFERR(cms_get_local_ctx(&ctx));
-    CT_RETURN_IFERR(cms_get_valid_gcc_id(ctx->gcc_handle, &gcc_id));
+    CT_RETURN_IFERR(cms_get_valid_gcc_id(ctx, &gcc_id));
+
     if (cms_lock_gcc_disk() != CT_SUCCESS) {
         CMS_LOG_ERR("cms lock gcc disk failed");
         return CT_ERROR;
     }
-    ret = cm_read_disk(ctx->gcc_handle, CMS_GCC_READ_OFFSET(gcc_id), (char *)gcc, sizeof(cms_gcc_t));
-    cms_unlock_gcc_disk();
-    if (ret != CT_SUCCESS) {
-        CMS_LOG_ERR("read gcc failed.");
+
+    if (cms_read_gcc_info(ctx, CMS_GCC_READ_OFFSET(gcc_id), (char *)gcc, sizeof(cms_gcc_t)) != CT_SUCCESS) {
+        CMS_LOG_ERR("cms lock gcc cms read gcc info failed.");
         return CT_ERROR;
     }
+
+    cms_unlock_gcc_disk();
 
     if (gcc->head.magic != CMS_GCC_HEAD_MAGIC) {
         CMS_LOG_ERR("gcc head is invalid, load gcc failed, magic %llu.", gcc->head.magic);

@@ -112,6 +112,7 @@ static key_word_t g_key_words[] = {
     { (uint32)KEY_WORD_DATA, CT_TRUE, { (char *)"data" } },
     { (uint32)KEY_WORD_DATABASE, CT_TRUE, { (char *)"database" } },
     { (uint32)KEY_WORD_DATAFILE, CT_TRUE, { (char *)"datafile" } },
+    { (uint32)KEY_WORD_DB, CT_FALSE, { (char *)"db" } },
     { (uint32)KEY_WORD_DEBUG, CT_TRUE, { (char *)"debug" } },
     { (uint32)KEY_WORD_DECLARE, CT_TRUE, { (char *)"declare" } },
     { (uint32)KEY_WORD_DEFERRABLE, CT_TRUE, { (char *)"deferrable" } },

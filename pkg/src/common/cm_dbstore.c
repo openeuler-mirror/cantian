@@ -63,8 +63,7 @@ status_t dbs_init_lib(void)
 {
     dbs_interface_t *intf = dbs_global_handle();
     intf->dbs_handle = dlopen("libdbstoreClient.so", RTLD_LAZY);
-    const char *dlopen_err = NULL;
-    dlopen_err = dlerror();
+    const char *dlopen_err = dlerror();
     if (intf->dbs_handle == NULL) {
         CT_LOG_RUN_WAR("failed to load libdbstoreClient.so, maybe lib path error, errno %s", dlopen_err);
         return CT_ERROR;
@@ -78,9 +77,21 @@ status_t dbs_init_lib(void)
     // dbs
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsClientSetUuidLsid",           (void **)(&intf->dbs_client_set_uuid_lsid)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsClientLibInit",               (void **)(&intf->dbs_client_lib_init)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsSetInitMode",                 (void **)(&intf->dbs_set_init_mode)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsClientFlushLog",              (void **)(&intf->dbs_client_flush_log)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "RegisterRoleInfoCallBack",       (void **)(&intf->reg_role_info_callback)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsLinkDownEventReg",            (void **)(&intf->dbs_link_down_event_reg)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsInitLock",                    (void **)(&intf->dbs_init_lock)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsInstLock",                    (void **)(&intf->dbs_inst_lock)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsInstUnlock",                  (void **)(&intf->dbs_inst_unlock)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsInstUnlockForce",             (void **)(&intf->dbs_inst_unlock_force)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsCheckInstHeartBeatIsNormal",  (void **)(&intf->dbs_check_inst_heart_beat_is_normal)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileOpenRoot",                (void **)(&intf->dbs_file_open_root)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileCreate",                  (void **)(&intf->dbs_file_create)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileOpen",                    (void **)(&intf->dbs_file_open)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileWrite",                   (void **)(&intf->dbs_file_write)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileRead",                    (void **)(&intf->dbs_file_read)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileRemove",                  (void **)(&intf->dbs_file_remove)));
 
     // pagepool
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "CreatePagePool",                 (void **)(&intf->create_pagepool)));

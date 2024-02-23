@@ -560,6 +560,8 @@ void spc_invalidate_datafile(knl_session_t *session, datafile_t *df, bool32 ckpt
         if (cm_rm_device_watch(df->ctrl->type, rmon_ctx->watch_fd, &df->wd) != CT_SUCCESS) {
             CT_LOG_RUN_WAR("[RMON]: failed to remove monitor of datafile %s", df->ctrl->name);
         }
+        // remove the device watch on remote node
+        (void)dtc_remove_df_watch(session, df->ctrl->id);
 
         if (CT_DROP_DATAFILE_FORMAT_NAME_LEN(name_len) < CT_FILE_NAME_BUFFER_SIZE - 1 && !DAAC_REPLAY_NODE(session)) {
             ret = sprintf_s(delete_name, CT_FILE_NAME_BUFFER_SIZE, "%s.delete", df->ctrl->name);

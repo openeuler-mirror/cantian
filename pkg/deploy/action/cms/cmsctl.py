@@ -15,8 +15,11 @@ import subprocess
 import time
 import copy
 import json
+import glob
 from log import LOGGER
 from get_config_info import get_value
+sys.path.append('../')
+from obtains_lsid import LSIDGenerate
 
 PYTHON242 = "2.4.2"
 PYTHON25 = "2.5"
@@ -73,6 +76,7 @@ VALID_RUNNING_MODE = {CANTIAND, CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST, CAN
 VALID_SINGLE_MYSQL_RUNNING_MODE = {CANTIAND_WITH_MYSQL_IN_CLUSTER, CANTIAND_WITH_MYSQL_ST, CANTIAND_WITH_MYSQL}
 
 CLUSTER_SIZE = 2  # default to 2, 4 node cluster mode need add parameter to specify this
+CMS_TOOL_CONFIG_COUNT = 4
 
 PKG_DIR = "/opt/cantian/image/cantian_connector"  # no use
 MYSQL_CODE_DIR = os.path.join(PKG_DIR, "cantian-connector-mysql")
@@ -306,14 +310,15 @@ def genreg_string(text):
     return reg_string
 
 deploy_mode = get_value("deploy_mode")
-mes_type = get_value("mes_type") if deploy_mode == "dbstore" else "TCP"
+mes_type = get_value("mes_type") if deploy_mode != "nas" else "TCP"
 node_id = get_value("node_id")
 storage_share_fs = get_value("storage_share_fs")
 
 CMS_CONFIG = {
     "NODE_ID": 0,
     "GCC_HOME": "",  # generate by installer
-    "GCC_TYPE": "",  # generate by installer
+    "GCC_DIR": "",  # generate by installer
+    "GCC_TYPE": "",
     "_PORT": 14587,
     "_IP": "",  # input by user in command line parameter, same as CANTIAND_CONFIG#LSNR_ADDR
     "_LOG_LEVEL": 7,
@@ -374,7 +379,8 @@ class CmsCtl(object):
     cluster_config = "cluster.ini"
 
     gcc_home = ""
-    gcc_type = "NFS"
+    gcc_dir = ""
+    gcc_type = "NFS" if deploy_mode != "dbstore_unify" else "DBS"
     running_mode = "cantiand_in_cluster"
     install_config_file = "/root/tmp/install_ct_node0/config/deploy_param.json"
     link_type = "RDMA"
@@ -392,8 +398,9 @@ class CmsCtl(object):
     cms_scripts = "/opt/cantian/action/cms"
     user_home = ""
     use_gss = False
-    use_dbstor = True if deploy_mode == "dbstore" else False
+    use_dbstor = True if deploy_mode != "nas" else False
     mes_type = ""
+    cluster_uuid = ""
 
     def __init__(self):
         install_config = "../../config/deploy_param.json"
@@ -525,6 +532,7 @@ class CmsCtl(object):
         conf_dict["node_id"] = self.node_id
         conf_dict["cluster_id"] = self.cluster_id
         conf_dict["gcc_home"] = self.gcc_home
+        conf_dict["gcc_dir"] = self.gcc_dir
         conf_dict["gcc_type"] = self.gcc_type
         conf_dict["port"] = self.port
         conf_dict["ip_addr"] = self.ip_addr
@@ -575,6 +583,9 @@ class CmsCtl(object):
         config["NODE_ID"] = self.node_id
         config["_CLUSTER_ID"] = self.cluster_id
         config["GCC_HOME"] = self.gcc_home  # generate by installer
+        config["GCC_DIR"] = self.gcc_dir
+        config["FS_NAME"] = self.storage_share_fs
+        config["CLUSTER_NAME"] = self.cluster_name
         config["GCC_TYPE"] = self.gcc_type
         config["_CMS_GCC_BAK"] = self.cms_gcc_bak
         config["_USE_DBSTOR"] = self.use_dbstor
@@ -582,9 +593,8 @@ class CmsCtl(object):
 
         common_parameters = copy.deepcopy(config)
 
-        if "GCC_TYPE" in common_parameters and \
-                (common_parameters["GCC_TYPE"] == "FILE" or
-                 common_parameters["GCC_TYPE"] == "NFS"):
+        if "GCC_TYPE" in common_parameters:
+            common_parameters["GCC_DIR"] = common_parameters["GCC_HOME"]
             common_parameters["GCC_HOME"] = os.path.join(common_parameters["GCC_HOME"], "gcc_file")
         self.clean_old_conf(list(common_parameters.keys()), conf_file)
         self.set_new_conf(common_parameters, conf_file)
@@ -604,7 +614,9 @@ class CmsCtl(object):
         if len(node_ip) == 1:
             node_ip.append("127.0.0.1")
         gcc_home = self.gcc_home
-        if self.gcc_type == "FILE" or self.gcc_type == "NFS":
+        gcc_dir = self.gcc_dir
+        if self.gcc_type == "DBS" or self.gcc_type == "NFS":
+            gcc_dir = gcc_home
             gcc_home = os.path.join(gcc_home, "gcc_file")
         if 'LD_LIBRARY_PATH' in os.environ:
             ld_library_path = ("%s:%s:%s" % (os.path.join(self.install_path, "lib"), os.path.join(
@@ -796,8 +808,8 @@ class CmsCtl(object):
 
         log("change app permission cmd: %s" % str_cmd)
         run_cmd(str_cmd, "failed to chmod %s" % CommonValue.KEY_DIRECTORY_MODE)
-
-        self.chown_gcc_dirs()
+        if deploy_mode != "dbstore_unify":
+            self.chown_gcc_dirs()
 
     def export_user_env(self):
         """
@@ -896,7 +908,7 @@ class CmsCtl(object):
         log("prepare gcc home dir")
         self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
         log("if blocked here, please check if the network is normal")
-        if not os.path.exists(self.gcc_home):
+        if deploy_mode != "dbstore_unify" and not os.path.exists(self.gcc_home):
             os.makedirs(self.gcc_home, CommonValue.KEY_DIRECTORY_PERMISSION)
             log("makedir for gcc_home %s" % (self.gcc_home))
 
@@ -999,7 +1011,7 @@ class CmsCtl(object):
         log("copy install files cmd: " + str_cmd)
         run_cmd(str_cmd, "failed to install cms lib files")
 
-        if deploy_mode == "dbstore":
+        if deploy_mode != "nas":
             self.install_xnet_lib()
 
     def pre_install(self):
@@ -1016,13 +1028,17 @@ class CmsCtl(object):
         else:
             log("check install type : override cms")
             self.parse_parameters(self.install_config_file)
-            self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
+            if deploy_mode == "dbstore_unify":
+                self.gcc_home = os.path.join("/", self.storage_share_fs, str(self.cluster_name) + "_cms", "gcc_home")
+            else:
+                self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
+            self.gcc_dir = self.gcc_home
             self.cms_gcc_bak = os.path.join("/mnt/dbdata/remote", "archive_" + self.storage_archive_fs)
 
         log("======================== begin to pre_install cms configs ========================")
 
         check_user(self.user, self.group)
-        if not check_path(self.gcc_home):
+        if deploy_mode != "dbstore_unify" and not check_path(self.gcc_home):
             log_exit("the gcc home directory is invalid.")
 
         self.check_parameter_install()
@@ -1030,6 +1046,32 @@ class CmsCtl(object):
         self.install_step = 1
         self.set_cms_conf()
         log("======================== pre_install cms configs successfully ========================")
+
+    def prepare_cms_tool_dbstor_config(self):
+        for i in range(10, CMS_TOOL_CONFIG_COUNT + 10):
+            file_num = i - 9
+            uuid_generate = LSIDGenerate(2, self.cluster_id, i, self.node_id)
+            inst_id, cms_tool_uuid = uuid_generate.execute()
+            str_cmd = ("cp -raf /opt/cantian/dbstor/tools/dbstor_config.ini"
+                       "%s/dbstor/conf/dbs/dbstor_config_tool_%s.ini" % (self.cms_home, str(file_num)))
+            str_cmd += " && echo 'DBSTOR_OWNER_NAME = cms' >> %s/dbstor/conf/dbs/dbstor_config_tool_%s.ini" % (
+                self.cms_home, str(file_num))
+            str_cmd += " && echo 'CLUSTER_NAME = %s' >> %s/dbstor/conf/dbs/dbstor_config_tool_%s.ini" % (
+                self.cluster_name, self.cms_home, str(file_num))
+            str_cmd += " && echo 'CLUSTER_UUID = %s' >> %s/dbstor/conf/dbs/dbstor_config_tool_%s.ini" % (
+                self.cluster_uuid, self.cms_home, str(file_num))
+            str_cmd += (" && echo 'INST_ID = %s' >> %s/dbstor/conf/dbs/dbstor_config_tool_%s.ini"
+                        % (inst_id, self.cms_home, str(file_num)))
+            str_cmd += " && echo 'CMS_TOOL_UUID = %s' >> %s/dbstor/conf/dbs/dbstor_config_tool_%s.ini" % (
+                cms_tool_uuid, self.cms_home, str(file_num))
+            str_cmd += (" && sed -i '/^\s*$/d' %s/dbstor/conf/dbs/dbstor_config_tool_%s.ini"
+                        % (self.cms_home, str(file_num)))
+            str_cmd += " && chown -R %s:%s %s/dbstor" % (self.user, self.group, self.cms_home)
+            str_cmd += " && chmod 640 %s/dbstor/conf/dbs/dbstor_config_tool_%s.ini" % (self.cms_home, str(file_num))
+            ret_code, stdout, stderr = _exec_popen(str_cmd)
+            if ret_code:
+                log_exit("prepare cms tool dbstor config file failed, return: " +
+                         str(ret_code) + os.linesep + stdout + os.linesep + stderr)
 
     def copy_dbstor_config(self):
         if os.path.exists(os.path.join(self.cms_home, "dbstor")):
@@ -1046,10 +1088,18 @@ class CmsCtl(object):
             str_cmd = "cp -raf %s/cfg/node_config_tcp_cms.xml %s/dbstor/conf/infra/config/node_config.xml" % (
                 self.install_path, self.cms_home)
 
+        generate_cluster_uuid = LSIDGenerate(0, self.cluster_id, 0, 0)
+        generate_inst_id = LSIDGenerate(2, self.cluster_id, 0, self.node_id)
+        _, self.cluster_uuid = generate_cluster_uuid.execute()
+        inst_id, _ = generate_inst_id.execute()
         str_cmd += " && cp -raf %s/cfg/osd.cfg %s/dbstor/conf/infra/config/osd.cfg" % (self.install_path, self.cms_home)
-        str_cmd += " && cp -raf /mnt/dbdata/remote/share_%s/node%s/dbstor_config.ini %s/dbstor/conf/dbs/" % (
-            self.storage_share_fs, self.node_id, self.cms_home)
+        str_cmd += " && cp -raf /opt/cantian/dbstor/tools/dbstor_config.ini %s/dbstor/conf/dbs/" % (self.cms_home)
         str_cmd += " && echo 'DBSTOR_OWNER_NAME = cms' >> %s/dbstor/conf/dbs/dbstor_config.ini" % (self.cms_home)
+        str_cmd += (" && echo 'CLUSTER_NAME = %s' >> %s/dbstor/conf/dbs/dbstor_config.ini"
+                    % (self.cluster_name, self.cms_home))
+        str_cmd += (" && echo 'CLUSTER_UUID = %s' >> %s/dbstor/conf/dbs/dbstor_config.ini"
+                    % (self.cluster_uuid, self.cms_home))
+        str_cmd += " && echo 'INST_ID = %s' >> %s/dbstor/conf/dbs/dbstor_config.ini" % (inst_id, self.cms_home)
         str_cmd += " && sed -i '/^\s*$/d' %s/dbstor/conf/dbs/dbstor_config.ini" % (self.cms_home)
         str_cmd += " && chown -R %s:%s %s/dbstor" % (self.user, self.group, self.cms_home)
         str_cmd += " && chmod 640 %s/dbstor/conf/dbs/dbstor_config.ini" % (self.cms_home)
@@ -1081,8 +1131,10 @@ class CmsCtl(object):
 
         self.set_cluster_conf()
         self.set_conf(CMS_CONFIG, "cms.ini")
-        if deploy_mode == "dbstore":
+        if deploy_mode != "nas":
             self.copy_dbstor_config()
+        if deploy_mode == "dbstore_unify":
+            self.prepare_cms_tool_dbstor_config()
 
         cmd = "sh %s -P install_cms >> %s 2>&1" % (os.path.join(self.cms_scripts, "start_cms.sh"), LOG_FILE)
         run_cmd(cmd, "failed to set cms node information")
@@ -1191,6 +1243,8 @@ class CmsCtl(object):
         删除gcc_home失败时，打印出当前暂用文件的进程
         :return:
         """
+        if deploy_mode == "dbstore_unify":
+            return
         gcc_home_path = "/mnt/dbdata/remote/share_%s/gcc_home/" % self.storage_share_fs
         remain_files = os.listdir(gcc_home_path)
         for file in remain_files:
@@ -1210,20 +1264,17 @@ class CmsCtl(object):
         """
         log("======================== begin to uninstall cms module ========================")
 
-        self.clean_environment()
-        self.clean_install_path()
-
-        str_cmd = "rm -rf {0}/cms_server.lck {0}/local {0}/gcc_backup {0}/cantian.ctd.cms*".format(
-            self.cms_home)
-        run_cmd(str_cmd, "failed to remove running files in cms home")
-
-        if self.gcc_home == "":
+        if deploy_mode != "dbstore_unify" and self.gcc_home == "":
             self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
         if self.node_id == 0:
-            str_cmd = "rm -rf %s" % (self.gcc_home)
             self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
             log("if blocked here, please check if the network is normal")
-            ret_code, stdout, stderr = _exec_popen("timeout 10 ls %s" % self.gcc_home)
+            if deploy_mode != "dbstore_unify":
+                str_cmd = "rm -rf %s" % (self.gcc_home)
+                ret_code, stdout, stderr = _exec_popen("timeout 10 ls %s" % self.gcc_home)
+            else:
+                str_cmd = "cms gcc -del"
+                ret_code = 0
             if ret_code == 0:
                 log("clean gcc home cmd : %s" % str_cmd)
                 ret_code, stdout, stderr = _exec_popen(str_cmd)
@@ -1238,6 +1289,13 @@ class CmsCtl(object):
             elif FORCE_UNINSTALL != "force" and ret_code != 2:
                 log_exit("can not connect to remote %s"
                          "ret_code : %s, stdout : %s, stderr : %s" % (self.gcc_home, ret_code, stdout, stderr))
+
+        self.clean_environment()
+        self.clean_install_path()
+
+        str_cmd = "rm -rf {0}/cms_server.lck {0}/local {0}/gcc_backup {0}/cantian.ctd.cms*".format(
+            self.cms_home)
+        run_cmd(str_cmd, "failed to remove running files in cms home")
         log("======================== uninstall cms module successfully ========================")
 
     def backup(self):
@@ -1253,6 +1311,14 @@ class CmsCtl(object):
         else:
             log_exit("the file does not exist : %s" % config_json)
         log("======================== backup config files successfully ========================")
+
+    def upgrade(self):
+        log("======================== begin to upgrade cms dbstor config ========================")
+        if deploy_mode == "dbstore_unify" and not glob.glob("%s/dbstor/conf/dbs/dbstor_config_tool*" % self.cms_home):
+            self.copy_dbstor_config()
+            self.prepare_cms_tool_dbstor_config()
+
+        log("======================== upgrade cms dbstor config successfully ========================")
 
     def kill_process(self, process_name):
         """
@@ -1287,7 +1353,7 @@ class CmsCtl(object):
         output: NA
         """
         for i in range(CHECK_MAX_TIMES):
-            pid = self.get_pid(process_name)        
+            pid = self.get_pid(process_name)
             if pid:
                 log("checked %s times, %s pid is %s" % (i + 1, process_name, pid))
                 if i != CHECK_MAX_TIMES - 1:
@@ -1350,7 +1416,7 @@ def main():
             cms.parse_parameters(cms.cms_new_config)
             cms.install()
 
-        if arg in {"start", "check_status", "stop", "uninstall", "backup"}:
+        if arg in {"start", "check_status", "stop", "uninstall", "backup", "upgrade"}:
 
             if os.path.exists("/opt/cantian/cms/cfg/cms.json"):
                 install_cms_cfg = "/opt/cantian/cms/cfg/cms.json"
@@ -1368,6 +1434,8 @@ def main():
                 cms.backup()
             if arg == "uninstall":
                 cms.uninstall()
+            if arg == "upgrade":
+                cms.upgrade()
 
 
 if __name__ == "__main__":

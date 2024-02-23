@@ -307,7 +307,7 @@ static void txn_release(knl_session_t *session, undo_set_t *undo_set, tx_id_t tx
     cm_spin_unlock(&undo->lock);
 }
 
-void tx_area_release_impl(knl_session_t *session, uint32 lseg_no, uint32 rseg_no)
+void tx_area_release_impl(knl_session_t *session, uint32 lseg_no, uint32 rseg_no, uint32 inst_id)
 {
     undo_context_t *ctx = &session->kernel->undo_ctx;
     tx_item_t *item = NULL;
@@ -315,7 +315,7 @@ void tx_area_release_impl(knl_session_t *session, uint32 lseg_no, uint32 rseg_no
     txn_t *txn = NULL;
     uint32 i, seg_no;
     tx_id_t tx_id;
-    undo_set_t *undo_set = MY_UNDO_SET(session);
+    undo_set_t *undo_set = UNDO_SET(session, inst_id);
 
     for (seg_no = lseg_no; seg_no < rseg_no; seg_no++) {
         undo = &ctx->undos[seg_no];

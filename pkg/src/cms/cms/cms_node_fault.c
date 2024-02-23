@@ -92,19 +92,19 @@ status_t cms_node_all_res_offline(uint32 node_id, bool32 *stat_changed)
             return CT_ERROR;
         }
         if (cms_stat_read_from_disk(node_id, res_id, &stat) != CT_SUCCESS) {
-            cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id]);
+            cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_WRITE);
             CMS_LOG_ERR("cms_stat_read_from_disk failed.");
             cm_thread_unlock(&g_node_lock[node_id]);
             return CT_ERROR;
         }
         cms_stat_set(stat, CMS_RES_OFFLINE, &is_changed);
         if (cms_stat_write_to_disk(node_id, res_id, stat) != CT_SUCCESS) {
-            cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id]);
+            cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_WRITE);
             CMS_LOG_ERR("cms_stat_write_to_disk failed.");
             cm_thread_unlock(&g_node_lock[node_id]);
             return CT_ERROR;
         }
-        cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id]);
+        cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_WRITE);
         *stat_changed |= is_changed;
         cm_thread_unlock(&g_node_lock[node_id]);
     }

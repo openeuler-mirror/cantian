@@ -520,7 +520,8 @@ status_t knl_fetch(knl_handle_t session, knl_cursor_t *cursor);
 status_t knl_fetch_by_rowid(knl_handle_t session, knl_cursor_t *cursor, bool32 *is_found);
 status_t knl_copy_row(knl_handle_t handle, knl_cursor_t *src, knl_cursor_t *dest);
 status_t knl_lock_row(knl_handle_t session, knl_cursor_t *cursor, bool32 *is_found);
-status_t knl_verify_children_dependency(knl_handle_t session, knl_cursor_t *cursor, bool32 is_update, uint8 depth);
+status_t knl_verify_children_dependency(knl_handle_t session, knl_cursor_t *cursor, bool32 is_update,
+                                        uint8 depth, bool32 is_dd_table);
 status_t knl_verify_ref_integrities(knl_handle_t session, knl_cursor_t *cursor);
 
 knl_column_t *knl_find_column(text_t *col_name, knl_dictionary_t *dc);

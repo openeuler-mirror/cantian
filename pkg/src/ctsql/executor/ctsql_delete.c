@@ -118,7 +118,7 @@ static inline status_t sql_execute_delete_table(sql_stmt_t *stmt, sql_cursor_t *
     /* if row is not found while delete, do not execute after trigger and foreign key check */
     if (tab_cur->knl_cur->is_found) {
         CT_RETURN_IFERR(sql_execute_delete_triggers(stmt, tab_cur->table, TRIG_AFTER_EACH_ROW, tab_cur->knl_cur));
-        CT_RETURN_IFERR(knl_verify_children_dependency(&stmt->session->knl_session, tab_cur->knl_cur, false, 0));
+        CT_RETURN_IFERR(knl_verify_children_dependency(&stmt->session->knl_session, tab_cur->knl_cur, false, 0, false));
         cursor->total_rows++;
     }
 

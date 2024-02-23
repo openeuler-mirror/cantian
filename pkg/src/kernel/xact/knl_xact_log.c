@@ -254,10 +254,6 @@ void rd_tx_begin(knl_session_t *session, log_entry_t *log)
     }
     txn_page_t *txn_page = (txn_page_t *)CURR_PAGE(session);
     txn_t *txn = &txn_page->items[xid->xmap.slot % TXN_PER_PAGE(session)];
-    tx_id_t tx_id = tx_xmap_get_txid(session, xid->xmap);
-    undo_t *undo = &session->kernel->undo_ctx.undos[tx_id.seg_id];
-    tx_item_t *tx_item = &undo->items[tx_id.item_id];
-    tx_area_t *area = &session->kernel->tran_ctx;
 
     txn->xnum = xid->xnum;
     txn->status = (uint8)XACT_BEGIN;
@@ -270,7 +266,11 @@ void rd_tx_begin(knl_session_t *session, log_entry_t *log)
     if (XID_INST_ID(*xid) != session->kernel->id) {
         return;
     }
-    if (!DB_IS_CLUSTER(session) && !DB_IS_PRIMARY(&session->kernel->db) && !DB_NOT_READY(session)) {
+    if (!DB_IS_PRIMARY(&session->kernel->db) && !DB_NOT_READY(session)) {
+        tx_id_t tx_id = tx_xmap_get_txid(session, xid->xmap);
+        undo_t *undo = &session->kernel->undo_ctx.undos[tx_id.seg_id];
+        tx_item_t *tx_item = &undo->items[tx_id.item_id];
+        tx_area_t *area = &session->kernel->tran_ctx;
         cm_spin_lock(&tx_item->lock, &session->stat->spin_stat.stat_txn);
         tx_item->rmid = session->kernel->sessions[SESSION_ID_ROLLBACK]->rmid;
         cm_spin_unlock(&tx_item->lock);
@@ -292,11 +292,6 @@ void rd_tx_begin(knl_session_t *session, log_entry_t *log)
             undo->free_items.last = tx_item->prev;
         }
         cm_spin_unlock(&undo->lock);
-
-        undo_set_t *undo_set = MY_UNDO_SET(session);
-        undo_context_t *ctx = &session->kernel->undo_ctx;
-        CT_LOG_RUN_INF("[rd_tx_begin] update undo_ctx active_workers");
-        update_undo_ctx_active_workers(ctx, undo_set);
     }
 }
 

@@ -38,7 +38,7 @@ then
     getdir ${MYSQL_FILE_MODE_MAP[3]} 770
 fi
 chown -hR "${deploy_user}":"${deploy_group}" ${MYSQL_FILE_MODE_MAP[0]} ${MYSQL_FILE_MODE_MAP[1]} ${MYSQL_FILE_MODE_MAP[2]}
-chmod 600 /opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts/my.cnf
+chmod 600 /opt/cantian/image/cantian_connector/mysql-server/scripts/my.cnf
 chown root:root -h /opt/cantian/image/cantian_connector /opt/cantian/image/cantian_connector/for_mysql_official /opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir
 chmod 755 /opt/cantian/image/cantian_connector /opt/cantian/image/cantian_connector/for_mysql_official /opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir
 if [ -f /opt/cantian/mysql/install/mysql/bin/mysql ]

@@ -149,11 +149,11 @@ function uninstall_rpm()
 
 function chown_install_set()
 {
-    chown -h ${cantian_user_and_group} /mnt/dbdata/remote/share_${share_name}
-    if [ -d /mnt/dbdata/remote/share_${share_name}/node${node_id} ]; then
-        chmod 750 /mnt/dbdata/remote/share_${share_name}/node${node_id}
-        chown -hR ${cantian_user_and_group} /mnt/dbdata/remote/share_${share_name}/node${node_id}
-    fi
+#    chown -h ${cantian_user_and_group} /mnt/dbdata/remote/share_${share_name}
+#    if [ -d /mnt/dbdata/remote/share_${share_name}/node${node_id} ]; then
+#        chmod 750 /mnt/dbdata/remote/share_${share_name}/node${node_id}
+#        chown -hR ${cantian_user_and_group} /mnt/dbdata/remote/share_${share_name}/node${node_id}
+#    fi
     if [ ! -d  /opt/cantian/dbstor/tools ]; then
         mkdir  -m 750 -p /opt/cantian/dbstor/tools
         cp -rf ${RPM_UNPACK_PATH}/client_test/* ${CILENT_TEST_PATH}/
@@ -301,10 +301,9 @@ function backup_dbstor_config_ini() {
     mkdir -m 750 -p ${backup_dir}/dbstor/conf/tool_cnf
     cp -arf /opt/cantian/cms/dbstor/conf/dbs/* ${backup_dir}/dbstor/conf/cms_cnf
     cp -arf /mnt/dbdata/local/cantian/tmp/data/dbstor/conf/dbs/* ${backup_dir}/dbstor/conf/cantiand_cnf
-    cp -arf /mnt/dbdata/remote/share_${share_name}/node${node_id}/* ${backup_dir}/dbstor/conf/share_cnf
     cp -arf ${dbstor_home}/tools/* ${backup_dir}/dbstor/conf/tool_cnf
     if [[ ! -f ${backup_dir}/dbstor/conf/tool_cnf/dbstor_config.ini ]];then
-        cp -arf /mnt/dbdata/remote/share_${share_name}/node${node_id}/dbstor_config.ini  ${backup_dir}/dbstor/conf/tool_cnf
+        cp -arf /opt/cantian/dbstor/tools/dbstor_config.ini  ${backup_dir}/dbstor/conf/tool_cnf
     fi
     set +e
 }
@@ -417,7 +416,6 @@ function rollback_dbstor_config_ini() {
     echo "rollback dbstor config ini"
     cp -arf ${backup_dir}/dbstor/conf/cms_cnf/* /opt/cantian/cms/dbstor/conf/dbs/
     cp -arf ${backup_dir}/dbstor/conf/cantiand_cnf/* /mnt/dbdata/local/cantian/tmp/data/dbstor/conf/dbs/
-    cp -arf ${backup_dir}/dbstor/conf/share_cnf/* /mnt/dbdata/remote/share_${share_name}/node${node_id}/
     cp -arf ${backup_dir}/dbstor/conf/tool_cnf/* ${dbstor_home}/tools/
     set +e
 }
@@ -470,10 +468,10 @@ deploy_user=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
               awk -F '=' '{print $2}')
 d_user=$(echo ${deploy_user} | awk -F ':' '{print $2}')
 owner=$(stat -c %U ${CURRENT_PATH})
-share_name=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
-              awk -F ',' '{for(i=1;i<=NF;i++){if($i~"storage_share_fs"){print $i}}}' |
-              sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
-              awk -F '=' '{print $2}')
+#share_name=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
+#              awk -F ',' '{for(i=1;i<=NF;i++){if($i~"storage_share_fs"){print $i}}}' |
+#              sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
+#              awk -F '=' '{print $2}')
 node_id=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
               awk -F ',' '{for(i=1;i<=NF;i++){if($i~"node_id"){print $i}}}' |
               sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |

@@ -23,7 +23,7 @@ class SwitchOver(object):
         self.metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
 
     @staticmethod
-    def check_cluster_status():
+    def check_cluster_status(target_node=None):
         """
         cms 命令拉起参天后检查集群状态
         :return:
@@ -31,7 +31,7 @@ class SwitchOver(object):
         check_time = 100
         LOG.info("Check cantian status.")
         cmd = "su -s /bin/bash - cantian -c \"cms stat | " \
-              "grep -v STAT | awk '{print \$3, \$6}'\""
+              "grep -v STAT | awk '{print \$1, \$3, \$6}'\""
         while check_time:
             time.sleep(10)
             check_time -= 10
@@ -47,8 +47,11 @@ class SwitchOver(object):
                 raise Exception(err_msg)
             online = True
             for node_stat in cms_stat:
-                online, work_stat = node_stat.split(" ")
-                if online != "ONLINE" or work_stat != "1":
+                node_id, online, work_stat = node_stat.split(" ")
+                if (online != "ONLINE" or work_stat != "1") and node_id is None:
+                    online = False
+                # 只检查当前节点，不影响容灾切换
+                if (online != "ONLINE" or work_stat != "1") and node_id == target_node:
                     online = False
             if not online:
                 LOG.info("Current cluster status is abnormal, output:%s, stderr:%s", output, stderr)
@@ -67,7 +70,7 @@ class SwitchOver(object):
         return_code, output, stderr = exec_popen(cmd, timeout=600)
         if return_code:
             err_msg = "Cantian stop failed, error:%s." % output + stderr
-            LOG.error(err_msg)
+            LOG.info(err_msg)
         LOG.info("Stop cantian by cms command success.")
         time.sleep(10)
         LOG.info("Standby start by cms command.")
@@ -105,6 +108,8 @@ class SwitchOver(object):
         :return:
         """
         LOG.info("Active/standby switchover start.")
+        node_id = self.dr_deploy_info.get("node_id")
+        self.check_cluster_status(node_id)
         self.init_storage_opt()
         domain_info = self.dr_deploy_opt.query_hyper_metro_domain_info(self.hyper_domain_id)
         config_role = domain_info.get("CONFIGROLE")

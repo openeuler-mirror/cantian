@@ -74,8 +74,7 @@ status_t rst_create_datafiles(knl_session_t *session, bak_process_t *ctx);
 status_t rst_create_logfiles(knl_session_t *session);
 status_t rst_db_version_check(knl_session_t *session, bak_t *bak, bak_head_t *head);
 status_t rst_process_existed_datafile(bak_process_t *ctx, datafile_ctrl_t *df, uint32 i);
-status_t rst_find_duplicative_archfile(knl_session_t *session, bak_file_t *file,
-                                       bool32 *found_start_lsn, bool32 *found_end_lsn);
+status_t rst_find_duplicative_archfile(knl_session_t *session, bak_file_t *file, bool32 *found_duplicate);
 bool32 rst_skip_for_duplicative_archfile(knl_session_t *session, bak_file_t *cur_file, bak_file_t *next_file);
 status_t rst_init_paral_proc_resource(bak_process_t *common_proc, bak_process_t *proc, bak_context_t *ctx, uint32 i);
 

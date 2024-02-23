@@ -202,34 +202,43 @@ function dr_deploy() {
     dbstor_pwd_first=""
     unix_sys_pwd_first=""
     unix_sys_pwd_second=""
-    declare -A action_opt
+    comfirm=""
     declare -A action_opt
     action_opt=([deploy]=1 [pre_check]=1 [undeploy]=1 [full_sync]=1 [progress_query]=1 [switch_over]=1 [recover]=1 [cancel_res_pro]=1)
     if [[ ! "${action_opt[$dr_action]}" ]];then
         dr_action="help"
     fi
+    if [[ x"${dr_action}" == x"undeploy" ]];then
+        dbstor_user="yes"
+        dbstor_pwd_first="no"
+        if [[ x"${dr_site}" == x"standby" ]];then
+            echo "Select an uninstallation mode.
+    if you want to remove the DR, select 1.
+    if you want to remove the DR and uninstall the cantian, select 2.
+    Other inputs exit directly.
+      1、Only Uninstall DR.
+      2、Uninstall DR and Cantian Engine."
+            read -p "What's your choice, please input [1|2]:" choice
+            if [[ x"${choice}" != x"1" ]] && [[ x"${choice}" != x"2" ]];then
+                exit 0
+            fi
+            if [[ x"${choice}" == x"1" ]];then
+                dbstor_user="yes"
+                dbstor_pwd_first="no"
+            fi
+            if [[ x"${choice}" == x"2" ]];then
+                dbstor_user="yes"
+                dbstor_pwd_first="yes"
+            fi
+        fi
+        read -p "To confirm the operation, enter yes. Otherwise, exit:" comfirm
+        if [[ x"${comfirm}" != x"yes" ]];then
+            exit 0
+        fi
+    fi
     if [[ x"${dr_action}" != x"help" ]] && [[ x"${dr_action}" != x"progress_query" ]];then
         read -s -p "Please input device manager login passwd:" dm_pwd
         echo ""
-    fi
-    if [[ x"${dr_action}" == x"undeploy" ]];then
-        read -p "This action will delete dr deploy, yes will start to delete, Please enter yes or no:" dbstor_user
-        echo ""
-        if [[ x${dbstor_user} != x"yes" ]] && [[ x${dbstor_user} != x"no" ]];then
-            echo "Invalid input and exit"
-            exit 1
-        fi
-        if [[ x"${dbstor_user}" != x"yes" ]];then
-            exit 0
-        fi
-        if [[ x"${dr_site}" == x"standby" ]];then
-            read -p "This action will stop and delete Cantian Engine，Please enter yes or no, yes will start to delete:" dbstor_pwd_first
-            echo ""
-            if [[ x"${dbstor_pwd_first}" != x"yes" ]] && [[ x"${dbstor_pwd_first}" != x"no" ]];then
-                echo "Invalid input and exit"
-                exit 1
-            fi
-        fi
     fi
     if [[ x"${dr_action}" == x"deploy" && x"${dr_site}" == x"standby" ]];then
         read -p "please enter dbstor_user: " dbstor_user
@@ -258,6 +267,7 @@ function dr_deploy() {
         else
             logAndEchoInfo "dr ${dr_action} is started."
         fi
+        sleep 2
         _pid=$(ps -ef | grep "storage_operate/dr_operate_interface.py ${dr_action}" | grep -v grep | awk '{print $2}')
         if [[ -z $_pid ]];then
             logAndEchoError "dr ${dr_action} execute failed."
@@ -281,6 +291,10 @@ INSTALL_TYPE=$2
 case "$ACTION" in
     start)
         lock_file=${START_NAME}
+        if [[ x"${INSTALL_TYPE}" != x"" ]] && [[ x"${INSTALL_TYPE}" != x"standby" ]];then
+            logAndEchoError "Input errors, please check."
+            exit 1
+        fi
         do_deploy ${START_NAME} ${INSTALL_TYPE}
         exit $?
         ;;

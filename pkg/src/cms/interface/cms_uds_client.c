@@ -432,6 +432,72 @@ static status_t cms_uds_cli_exec_conn_req(socket_t uds_sock, cms_cli_msg_res_con
     return CT_SUCCESS;
 }
 
+status_t cms_uds_cli_check_server_online(void)
+{
+    char uds_server_path[CT_MAX_NAME_LEN] = {0};
+    cms_cli_msg_res_conn_t res = {0};
+    socket_t uds_sock = CMS_IO_INVALID_SOCKET;
+    status_t ret = CT_SUCCESS;
+    errno_t err = EOK;
+    char CMS_TOOL_RES_TYPE[CMS_MAX_RES_TYPE_LEN] = "TOOL";
+    cms_uds_cli_info_t cms_uds_cli_info = { CMS_TOOL_RES_TYPE, CMS_TOOL_INST_ID, CT_FALSE, CMS_CLI_TOOL };
+    CT_LOG_RUN_INF("cms uds cli check server online begain.");
+    err = sprintf_s(uds_server_path, sizeof(uds_server_path), "%s/" CMS_UDS_PATH "_%d", g_cli_cms_home,
+        (int32)g_cli_node_id);
+    PRTS_RETURN_IFERR(err);
+ 
+    ret = cms_uds_connect(uds_server_path, &uds_sock);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cms connect to server by uds failed, uds path:%s", uds_server_path);
+        return CT_ERROR;
+    }
+ 
+    ret = cms_uds_cli_exec_conn_req(uds_sock, &res, &cms_uds_cli_info);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cms cli conn request to server failed, ret %d, uds path %s, uds sock %d",
+            ret, uds_server_path, uds_sock);
+        cms_socket_close(uds_sock);
+        return CT_ERROR;
+    }
+ 
+    cms_socket_close(uds_sock);
+    CT_LOG_RUN_INF("cms uds cli check server online success.");
+    return CT_SUCCESS;
+}
+
+status_t cms_uds_cli_get_server_master_id(uint64* inst_id)
+{
+    char uds_server_path[CT_MAX_NAME_LEN] = {0};
+    cms_cli_msg_res_conn_t res = {0};
+    socket_t uds_sock = CMS_IO_INVALID_SOCKET;
+    status_t ret = CT_SUCCESS;
+    errno_t err = EOK;
+    char CMS_TOOL_RES_TYPE[CMS_MAX_RES_TYPE_LEN] = "TOOL";
+    cms_uds_cli_info_t cms_uds_cli_info = { CMS_TOOL_RES_TYPE, CMS_TOOL_INST_ID, CT_FALSE, CMS_CLI_TOOL };
+    CT_LOG_RUN_INF("cms_uds_cli_get_server_master_id begain.");
+    err = sprintf_s(uds_server_path, sizeof(uds_server_path), "%s/" CMS_UDS_PATH "_%d", g_cli_cms_home,
+        (int32)g_cli_node_id);
+    PRTS_RETURN_IFERR(err);
+ 
+    ret = cms_uds_connect(uds_server_path, &uds_sock);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cms connect to server by uds failed, uds path:%s", uds_server_path);
+        return CT_ERROR;
+    }
+ 
+    ret = cms_uds_cli_exec_conn_req(uds_sock, &res, &cms_uds_cli_info);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("cms cli conn request to server failed, ret %d, uds path %s, uds sock %d",
+            ret, uds_server_path, uds_sock);
+        cms_socket_close(uds_sock);
+        return CT_ERROR;
+    }
+    *inst_id = res.master_id;
+    cms_socket_close(uds_sock);
+    CT_LOG_RUN_INF("cms_uds_cli_get_server_master_id success, id=%lld.", *inst_id);
+    return CT_SUCCESS;
+}
+
 status_t cms_uds_cli_connect(cms_uds_cli_info_t* cms_uds_cli_info, res_init_info_t *res_info)
 {
     char uds_server_path[CT_FILE_NAME_BUFFER_SIZE] = {0};

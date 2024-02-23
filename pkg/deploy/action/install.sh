@@ -222,7 +222,7 @@ function check_port() {
 
 function rpm_check(){
     local count=2
-    if [ x"${deploy_mode}" == x"dbstore" ];then
+    if [ x"${deploy_mode}" != x"nas" ];then
       count=3
     fi
     rpm_pkg_count=$(ls "${CURRENT_PATH}"/../repo | wc -l)
@@ -270,9 +270,9 @@ function uninstall() {
 
 function check_deploy_param() {
     if [[ x"${node_id}" == x"0" ]];then
-        cp -rf "${CONFIG_PATH}"/deploy_param.json /mnt/dbdata/remote/share_"${storage_share_fs}"/
-        chmod 600 /mnt/dbdata/remote/share_"${storage_share_fs}"/deploy_param.json
-        chown "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_"${storage_share_fs}"/deploy_param.json
+        cp -rf "${CONFIG_PATH}"/deploy_param.json /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/
+        chmod 600 /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
+        chown "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
     else
         su -s /bin/bash - "${cantian_user}" -c "python3 -B ${CURRENT_PATH}/implement/check_deploy_param.py"
         if [ $? -ne 0 ];then
@@ -334,7 +334,7 @@ function install_rpm()
     rpm -ivh --replacepkgs ${RPM_PATH} --nodeps --force
 
     tar -zxf ${RPM_UNPACK_PATH_FILE}/Cantian-RUN-CENTOS-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
-    if [ x"${deploy_mode}" == x"dbstore" ];then
+    if [ x"${deploy_mode}" != x"nas" ];then
         install_dbstor
         if [ $? -ne 0 ];then
             sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
@@ -619,7 +619,7 @@ if [[ ${config_install_type} = 'override' ]]; then
   fi
   metadata_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "metadata_logic_ip"`
 
-  if [[ x"${deploy_mode}" == x"dbstore" ]]; then
+  if [[ x"${deploy_mode}" != x"nas" ]]; then
       kerberos_type=`python3 ${CURRENT_PATH}/get_config_info.py "kerberos_key"`
       mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
   else
@@ -628,7 +628,7 @@ if [[ ${config_install_type} = 'override' ]]; then
 
   metadata_result=$?
   if [ ${metadata_result} -ne 0 ]; then
-      logAndEchoError "mount matedata nfs failed"
+      logAndEchoError "mount metadata nfs failed"
   fi
   # 检查36729~36728是否有可用端口
   check_port
@@ -646,7 +646,7 @@ if [[ ${config_install_type} = 'override' ]]; then
   chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
   checkMountNFS ${share_result}
   if [[ ${storage_archive_fs} != '' ]]; then
-      if [[ x"${deploy_mode}" == x"dbstore" ]]; then
+      if [[ x"${deploy_mode}" != x"nas" ]]; then
           mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
       else
           mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}

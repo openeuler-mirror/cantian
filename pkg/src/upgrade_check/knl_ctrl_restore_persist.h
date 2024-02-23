@@ -28,6 +28,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define BACKUP_NODE_COUNT 2
+#define NODE_SPACE_COUNT 6
 typedef struct st_static_core_ctrl_items {
     char name[CT_DB_NAME_LEN];
     time_t init_time;
@@ -57,32 +60,12 @@ typedef struct st_core_ctrl_log_info {
 
 typedef struct st_log_file_ctrl_bk {
     uint32 version;
-    char name[CT_FILE_NAME_BUFFER_SIZE];
-    int64 size;
-    int64 hwm;
-    int32 file_id;
-    uint32 seq;
-    uint16 block_size;
-    uint16 flg;
-    device_type_t type;
-    logfile_status_t status;
-    uint16 forward;
-    uint16 backward;
-    uint8 unused[CT_RESERVED_BYTES_32];
+    log_file_ctrl_t log_ctrl_bk;
 } log_file_ctrl_bk_t;
 
 typedef struct st_datafile_ctrl_bk {
     uint32 version;
-    uint32 id;
-    bool32 used;
-    char name[CT_FILE_NAME_BUFFER_SIZE];
-    int64 size;
-    uint16 block_size;
-    uint16 flg;
-    device_type_t type;
-    int64 auto_extend_size;
-    int64 auto_extend_maxsize;
-    uint8 unused[CT_RESERVED_BYTES_32];
+    datafile_ctrl_t df_ctrl;
     uint32 file_no;
     uint32 space_id;
 } datafile_ctrl_bk_t;
@@ -99,8 +82,22 @@ typedef struct st_space_ctrl_bk {
     knl_scn_t org_scn;
     uint8 encrypt_version;
     uint8 cipher_reserve_size;
-    uint8 unused[CT_RESERVED_BYTES_14];
+    uint8 is_for_create_db;
+    uint8 unused[CT_SPACE_CTRL_RESERVED_BYTES_13];
 } space_ctrl_bk_t;
+
+typedef struct st_backup_ctrl_bk {
+    page_head_t page_head;
+    datafile_header_t df_head;
+    datafile_ctrl_bk_t df_ctrl;
+    space_ctrl_bk_t space_ctrl;
+    static_core_ctrl_items_t static_ctrl;
+    sys_table_entries_t sys_entries;
+    core_ctrl_log_info_t core_ctrl[BACKUP_NODE_COUNT];
+    log_file_ctrl_bk_t log_ctrl[BACKUP_NODE_COUNT];
+    reset_log_t reset_log;
+    uint32 dbid;
+} backup_ctrl_bk_t;
 #ifdef __cplusplus
 }
 #endif

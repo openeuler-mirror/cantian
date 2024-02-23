@@ -79,6 +79,8 @@ typedef enum en_cms_msg_type {
      (msg_type) == CMS_CLI_MSG_REQ_GET_RES_STAT || (msg_type) == CMS_CLI_MSG_RES_GET_RES_STAT || \
      (msg_type) == CMS_CLI_MSG_REQ_HB            || (msg_type) == CMS_CLI_MSG_RES_HB)
 
+#define CMS_NODES_COUNT 8
+#define CMS_RESOURCE_COUNT 4
 
 typedef struct st_cms_msg_req_hb {
     cms_packet_head_t       head;
@@ -326,16 +328,30 @@ typedef enum en_cms_tool_msg_type {
     CMS_TOOL_MSG_RES_STOP_RES,
     CMS_TOOL_MSG_REQ_STOP_SRV,
     CMS_TOOL_MSG_RES_STOP_SRV,
-    CMS_TOOL_MSG_REQ_VOTE_RESULT,
-    CMS_TOOL_MSG_RES_VOTE_RESULT,
+    CMS_TOOL_MSG_REQ_NODE_CONNECTED,
+    CMS_TOOL_MSG_RES_NODE_CONNECTED,
     CMS_TOOL_MSG_REQ_GET_SRV_STAT,
     CMS_TOOL_MSG_RES_GET_SRV_STAT,
+    CMS_TOOL_MSG_REQ_GET_RES_STAT,
+    CMS_TOOL_MSG_RES_GET_RES_STAT,
+    CMS_TOOL_MSG_REQ_GET_GCC_INFO,
+    CMS_TOOL_MSG_RES_GET_GCC_INFO,
     CMS_TOOL_MSG_REQ_GET_DISK_IOSTAT,
     CMS_TOOL_MSG_RES_GET_DISK_IOSTAT,
 #ifdef DB_DEBUG_VERSION
     CMS_TOOL_MSG_REQ_ENABLE_REJECT,
     CMS_TOOL_MSG_RES_ENABLE_REJECT,
 #endif
+    CMS_TOOL_MSG_REQ_GCC_EXPORT,
+    CMS_TOOL_MSG_RES_GCC_EXPORT,
+    CMS_TOOL_MSG_REQ_GCC_IMPORT,
+    CMS_TOOL_MSG_RES_GCC_IMPORT,
+    CMS_TOOL_MSG_REQ_NODE_LIST,
+    CMS_TOOL_MSG_RES_NODE_LIST,
+    CMS_TOOL_MSG_REQ_RESGRP_LIST,
+    CMS_TOOL_MSG_RES_RESGRP_LIST,
+    CMS_TOOL_MSG_REQ_RES_LIST,
+    CMS_TOOL_MSG_RES_RES_LIST,
 }cms_tool_msg_type_t;
 
 typedef struct st_cms_tool_msg_req_add_node {
@@ -535,16 +551,26 @@ typedef struct st_cms_tool_msg_res_get_srv_stat {
     status_t                result;
 }cms_tool_msg_res_get_srv_stat_t;
 
-typedef struct st_cms_tool_msg_req_vote_result {
+typedef struct st_cms_tool_msg_req_node_connected {
     cms_packet_head_t       head;
-}cms_tool_msg_req_vote_result_t;
+}cms_tool_msg_req_node_connected_t;
 
-typedef struct st_cms_tool_msg_res_vote_result {
+typedef struct st_cms_node_info_t {
+    uint32                  node_id;
+    char                    name[CMS_NAME_BUFFER_SIZE];
+    char                    ip[CT_MAX_INST_IP_LEN];
+    uint32                  port;
+} cms_node_info_t;
+
+typedef struct st_cms_tool_msg_res_node_connected {
     cms_packet_head_t       head;
     uint64                  cluster_bitmap;
     bool32                  cluster_is_voting;
+    cms_node_info_t         node_info[CMS_NODES_COUNT];
+    uint32                  node_count;
+    char                    info[CMS_INFO_BUFFER_SIZE];
     status_t                result;
-}cms_tool_msg_res_vote_result_t;
+}cms_tool_msg_res_node_connected_t;
 
 #ifdef DB_DEBUG_VERSION
 typedef struct st_cms_tool_msg_req_enable_inject_t {
@@ -558,5 +584,130 @@ typedef struct st_cms_tool_msg_res_enable_inject_t {
     status_t result;
 } cms_tool_msg_res_enable_inject_t;
 #endif
+typedef struct st_cms_msg_res_stat {
+    uint64                  session_id;
+    uint64                  inst_id;
+    int64                   hb_time;
+    int64                   last_check;
+    int64                   last_stat_change;
+    cms_stat_t              pre_stat;
+    cms_stat_t              cur_stat;
+    cms_stat_t              target_stat;
+    uint8                   work_stat;
+}cms_msg_res_stat_t;
+
+typedef struct st_cms_msg_res {
+    uint64          magic;
+    uint32          hb_timeout;
+    uint32          res_id;
+    char            name[CMS_NAME_BUFFER_SIZE];
+}cms_msg_res_t;
+
+typedef struct st_cms_msg_node_def {
+    uint64          magic;
+    char            name[CMS_NAME_BUFFER_SIZE];
+}cms_msg_node_def_t;
+
+typedef struct st_cms_tool_res_stat_list {
+    cms_msg_res_stat_t stat_list[CMS_MAX_NODE_COUNT];
+    uint8 inst_count;
+    uint8 master_inst_id;
+} cms_tool_res_stat_list_t;
+
+typedef struct st_cms_tool_msg_req_get_res_stat {
+    cms_packet_head_t head;
+    uint32 res_id;
+} cms_tool_msg_req_get_res_stat_t;
+
+typedef struct st_cms_tool_msg_res_get_res_stat {
+    cms_packet_head_t head;
+    cms_tool_res_stat_list_t stat;
+    status_t result;
+} cms_tool_msg_res_get_res_stat_t;
+
+typedef struct st_cms_tool_msg_req_get_gcc {
+    cms_packet_head_t head;
+} cms_tool_msg_req_get_gcc_t;
+
+typedef struct st_cms_tool_msg_res_get_gcc {
+    cms_packet_head_t head;
+    cms_msg_res_t res_list[CMS_RESOURCE_COUNT];
+    cms_msg_node_def_t node_def_list[CMS_NODES_COUNT];
+    uint32 node_count;
+    uint32 res_count;
+    uint16 master_node_id;
+    status_t result;
+} cms_tool_msg_res_get_gcc_t;
+
+typedef struct st_cms_tool_msg_req_gcc_export_t {
+    cms_packet_head_t   head;
+    uint16              target_node;
+    char                path[CMS_MAX_PATH_LEN];
+} cms_tool_msg_req_gcc_export_t;
+
+typedef struct st_cms_tool_msg_res_gcc_export_t {
+    cms_packet_head_t   head;
+    status_t            result;
+    char                info[CMS_INFO_BUFFER_SIZE];
+} cms_tool_msg_res_gcc_export_t;
+
+typedef struct st_cms_tool_msg_req_gcc_import_t {
+    cms_packet_head_t   head;
+    char                path[CMS_MAX_PATH_LEN];
+} cms_tool_msg_req_gcc_import_t;
+
+typedef struct st_cms_tool_msg_res_gcc_import_t {
+    cms_packet_head_t   head;
+    status_t            result;
+    char                info[CMS_INFO_BUFFER_SIZE];
+} cms_tool_msg_res_gcc_import_t;
+
+typedef struct st_cms_tool_msg_req_node_list_t {
+    cms_packet_head_t   head;
+} cms_tool_msg_req_node_list_t;
+typedef struct st_cms_tool_msg_res_node_list_t {
+    cms_packet_head_t   head;
+    status_t            result;
+    uint32              node_count;
+    cms_node_info_t     node_info[CMS_NODES_COUNT];
+    char                info[CMS_INFO_BUFFER_SIZE];
+} cms_tool_msg_res_node_list_t;
+
+typedef struct st_cms_tool_msg_req_resgrp_list_t {
+    cms_packet_head_t   head;
+} cms_tool_msg_req_resgrp_list_t;
+
+typedef struct st_cms_tool_msg_res_resgrp_list_t {
+    cms_packet_head_t   head;
+    status_t            result;
+    uint32              resgrp_cnt;
+    char                resgrp_name[CMS_MAX_RESOURCE_GRP_COUNT][CMS_NAME_BUFFER_SIZE];
+    char                info[CMS_INFO_BUFFER_SIZE];
+} cms_tool_msg_res_resgrp_list_t;
+
+typedef struct st_cms_tool_msg_req_res_list_t {
+    cms_packet_head_t   head;
+} cms_tool_msg_req_res_list_t;
+
+typedef struct st_cms_res_info_t {
+    uint32              start_timeout;
+    uint32              stop_timeout;
+    uint32              check_timeout;
+    uint32              hb_timeout;
+    uint32              check_interval;
+    int32               restart_times;
+    uint32              restart_interval;
+    char                name[CMS_NAME_BUFFER_SIZE];
+    char                type[CMS_NAME_BUFFER_SIZE];
+    char                grp_name[CMS_NAME_BUFFER_SIZE];
+    char                script[CMS_FILE_NAME_BUFFER_SIZE];
+} cms_res_info_t;
+typedef struct st_cms_tool_msg_res_res_list_t {
+    cms_packet_head_t   head;
+    cms_res_info_t      res_info[CMS_RESOURCE_COUNT];
+    uint32              res_count;
+    status_t            result;
+    char                info[CMS_INFO_BUFFER_SIZE];
+} cms_tool_msg_res_res_list_t;
 
 #endif

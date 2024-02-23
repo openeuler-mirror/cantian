@@ -517,6 +517,10 @@ knl_global_syncpoint_def g_knl_syncpoint[] = {
         knl_syncpoint_inject_errcode, 0},
     {CANTIAN_ARCH_RENAME_TMP_FILE_FAIL, CT_FALSE, "CANTIAN_ARCH_RENAME_TMP_FILE_FAIL", 0,
         knl_syncpoint_inject_errcode, 0},
+    {CANTIAN_REFORM_ARCHIVE_INIT_ARCH_CTX_FAIL, CT_FALSE, "CANTIAN_REFORM_ARCHIVE_INIT_ARCH_CTX_FAIL", 0,
+        knl_syncpoint_inject_errcode, 0},
+    {CANTIAN_REFORM_ARCHIVE_READ_REDO_LOG_FAIL, CT_FALSE, "CANTIAN_REFORM_ARCHIVE_READ_REDO_LOG_FAIL", 0,
+        knl_syncpoint_inject_errcode, 0},
     {CANTIAN_RST_OPEN_NAMESPACE_FAIL, CT_FALSE, "CANTIAN_RST_OPEN_NAMESPACE_FAIL", 0,
         knl_syncpoint_inject_errcode, 0},
     {CANTIAN_SPC_OPEN_DATAFILE_FAIL, CT_FALSE, "CANTIAN_SPC_OPEN_DATAFILE_FAIL", 0,
@@ -594,6 +598,12 @@ knl_global_syncpoint_def g_knl_syncpoint[] = {
       knl_syncpoint_inject_delay, 0},
     { CANTIAN_REFORM_BUILD_CHANNEL_ABORT, CT_FALSE, "CANTIAN_REFORM_BUILD_CHANNEL_ABORT", 0,
       knl_syncpoint_inject_abort, 0},
+    { CANTIAN_BACKUP_DBS_IOF_FAIL, CT_FALSE, "CANTIAN_BACKUP_DBS_IOF_FAIL", 0,
+      knl_syncpoint_inject_errcode, 0 },
+    { CANTIAN_BACKUP_CORE_LOG_INFO_FAIL, CT_FALSE, "CANTIAN_BACKUP_CORE_LOG_INFO_FAIL", 0,
+      knl_syncpoint_inject_errcode, 0 },
+    { CANTIAN_CKPT_CHECKSUM_VERIFY_FAIL, CT_FALSE, "CANTIAN_CKPT_CHECKSUM_VERIFY_FAIL", 0,
+      knl_syncpoint_inject_errcode, 0 },
 };
 
 #define KNL_SYNCPOINT_COUNT (sizeof(g_knl_syncpoint) / sizeof(g_knl_syncpoint[0]))

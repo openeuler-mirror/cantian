@@ -1129,6 +1129,9 @@ typedef enum en_errno {
     // BADBLOCK
     ERR_CHECKSUM_FAILED_WITH_PAGE = 3710,
 
+    // REBUILD
+    ERR_REBUILD_WITH_STORAGE = 3720,
+
     // The max error number defined in g_error_desc[]
     ERR_ERRNO_CEIL = 3999,
 

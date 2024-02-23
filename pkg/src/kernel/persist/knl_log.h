@@ -85,7 +85,7 @@ typedef struct st_lsn_offset {
 } lsn_offset;
 
 #define MAX_LSN_OFFSET_MAP 16
-#define CT_LOG_HEAD_RESERVED_BYTES 448
+#define CT_LOG_HEAD_RESERVED_BYTES 424
 // log_file_ctrl_bk_t is behind it.
 typedef struct st_log_file_head {
     knl_scn_t first;
@@ -100,6 +100,10 @@ typedef struct st_log_file_head {
     uint64 first_lsn;
     uint64 last_lsn;
     uint32 dbid;
+    uint32 recid;
+    int64 arch_ctrl_stamp;
+    int64 real_size;
+    uint32 dest_id;
     uint8 pad[4];
     uint8 unused[CT_LOG_HEAD_RESERVED_BYTES]; // padded log_file_head_t to 512 bytes
 } log_file_head_t;

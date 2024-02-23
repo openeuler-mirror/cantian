@@ -3,19 +3,11 @@ set +x
 umask 0022
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${CURRENT_PATH}/$(basename $0)
-
-SCRIPT_TOP_DIR=$(cd ${CURRENT_PATH}; pwd)
-CI_TOP_DIR=$(cd ${SCRIPT_TOP_DIR}/..; pwd)
-
-
 MODULE_NAME=cantian
-
-
 cantian_component_path="/opt/cantian/image"
-
-RPM_TMP_PATH="${CI_TOP_DIR}/temp/${MODULE_NAME}"
-RPM_PKG_PATH="${RPM_TMP_PATH}/package"
 SPEC_FILE="${CURRENT_PATH}/${MODULE_NAME}.spec"
+
+CANTIANDB_BIN=$(echo $(dirname $(pwd)))/output/bin
 
 
 #构建cantian rpm包
@@ -23,11 +15,11 @@ function build_cantian_rpm()
 {
     echo "Begin to build rpm ${MODULE_NAME}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     local name="$(getSpecParamVal "${SPEC_FILE}" Name)"
-    local RPM_TOP_DIR="${CURRENT_PATH}/rpm"
+    local RPM_TOP_DIR="${CANTIANDB_BIN}/rpm"
 
     echo "Begin to mkdir ${RPM_TOP_DIR}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     if [ -d ${RPM_TOP_DIR} ]; then
-        rm -rf ${RPM_TOP_DIR} >> ${LOG_PATH} 2>&1
+        rm -rf ${RPM_TOP_DIR}
     fi
 
     mkdir -p ${RPM_TOP_DIR}/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}

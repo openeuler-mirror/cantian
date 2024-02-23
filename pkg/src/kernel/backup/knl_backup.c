@@ -2721,10 +2721,24 @@ status_t bak_get_arch_start_and_end_point(knl_session_t *session, uint32 *start_
     return CT_SUCCESS;
 }
 
+bool32 bak_point_need_archfile_file(knl_session_t *session, bak_t *bak, uint32 node_id)
+{
+    bak_ctrlinfo_t *ctrlinfo = &bak->record.ctrlinfo;
+    if (!session->kernel->attr.clustered) {
+        return log_cmp_point(&ctrlinfo->rcy_point, &ctrlinfo->lrp_point) != 0;
+    }
+    log_point_t lrp_point = ctrlinfo->dtc_lrp_point[node_id];
+    log_point_t rcy_point = ctrlinfo->dtc_rcy_point[node_id];
+    if (log_cmp_point(&rcy_point, &lrp_point) != 0) {
+        return CT_TRUE;
+    }
+    return CT_FALSE;
+}
+
 bool32 bak_point_need_archfile(knl_session_t *session, bak_t *bak, uint32 node_id)
 {
     if (!BAK_IS_DBSOTR(bak)) {
-        return CT_TRUE;
+        return bak_point_need_archfile_file(session, bak, node_id);
     }
     bak_ctrlinfo_t *ctrlinfo = &bak->record.ctrlinfo;
     if (!session->kernel->attr.clustered) {

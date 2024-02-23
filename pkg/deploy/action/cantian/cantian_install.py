@@ -312,7 +312,7 @@ def load_config_param(json_data):
     MYSQL_LOG_FILE = os.path.join(MYSQL_DATA_DIR, "mysql.log")
     g_opts.max_arch_files_size = json_data['MAX_ARCH_FILES_SIZE'].strip()
     g_opts.cluster_id = json_data['cluster_id'].strip()
-    g_opts.use_dbstor = True if json_data.get("deploy_mode", "").strip() == "dbstore" else False
+    g_opts.use_dbstor = True if json_data.get("deploy_mode", "").strip() != "nas" else False
 
 
 def parse_parameter():
@@ -1028,8 +1028,9 @@ class Installer:
             self.cantiand_configs["ENABLE_DBSTOR"] = "TRUE"
             self.cantiand_configs["DBSTOR_NAMESPACE"] = g_opts.namespace
         else:
-            self.cantiand_configs["SHARED_PATH"] = '/mnt/dbdata/remote/storage_{}/data'.format(
-                g_opts.storage_dbstore_fs)
+            self.cantiand_configs["ENABLE_DBSTOR"] = "FALSE"
+            self.cantiand_configs["SHARED_PATH"] = \
+                '/mnt/dbdata/remote/storage_{}/data'.format(g_opts.storage_dbstore_fs)
 
     def parse_key_and_value(self):
         flags = os.O_RDONLY
@@ -1769,8 +1770,7 @@ class Installer:
                     self.install_path, self.data)
 
             str_cmd += " && cp %s/cfg/osd.cfg %s/dbstor/conf/infra/config/osd.cfg" % (self.install_path, self.data)
-            str_cmd += " && cp /mnt/dbdata/remote/share_%s/node%s/dbstor_config.ini %s/dbstor/conf/dbs/" % (
-                g_opts.storage_share_fs, g_opts.node_id, self.data)
+            str_cmd += " && cp /opt/cantian/dbstor/tools/dbstor_config.ini %s/dbstor/conf/dbs/" % (self.data)
             str_cmd += " && echo 'DBSTOR_OWNER_NAME = cantian' >> %s/dbstor/conf/dbs/dbstor_config.ini" % (self.data)
             str_cmd += " && sed -i '/^\s*$/d' %s/dbstor/conf/dbs/dbstor_config.ini" % (self.data)
             str_cmd += " && chown -R %s:%s %s/dbstor" % (self.user, self.group, self.data)
@@ -2045,9 +2045,9 @@ class Installer:
         if g_opts.use_dbstor:
             common_parameters["CONTROL_FILES"] = self.cantiand_configs["CONTROL_FILES"]
             common_parameters["SHARED_PATH"] = self.cantiand_configs["SHARED_PATH"],
-            common_parameters["ENABLE_DBSTOR"] = self.cantiand_configs["ENABLE_DBSTOR"]
             common_parameters["DBSTOR_NAMESPACE"] = self.cantiand_configs["DBSTOR_NAMESPACE"]
 
+        common_parameters["ENABLE_DBSTOR"] = self.cantiand_configs["ENABLE_DBSTOR"]
         cantian_config_data = common_parameters
         flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
         modes = stat.S_IWUSR | stat.S_IRUSR
@@ -2547,10 +2547,10 @@ class Installer:
             self.install_path = json_data['INSTALL_PATH'].strip()
             g_opts.running_mode = json_data['RUNNING_MODE'].strip()
             self.cantiand_configs["LOG_HOME"] = json_data.get('LOG_HOME', '').strip()
+            self.cantiand_configs["ENABLE_DBSTOR"] = json_data.get('ENABLE_DBSTOR', '').strip()
             if g_opts.use_dbstor:
                 self.cantiand_configs["SHARED_PATH"] = json_data.get('SHARED_PATH', '')
                 self.cantiand_configs["CONTROL_FILES"] = json_data.get('CONTROL_FILES', '').strip()
-                self.cantiand_configs["ENABLE_DBSTOR"] = json_data.get('ENABLE_DBSTOR', '').strip()
                 self.cantiand_configs["DBSTOR_NAMESPACE"] = json_data.get('DBSTOR_NAMESPACE', '').strip()
             else:
                 self.cantiand_configs["SHARED_PATH"] = '/mnt/dbdata/remote/storage_{}/data'.format(
@@ -2681,6 +2681,17 @@ class Installer:
                 create_database_sql_dic['2'] = file_name_2
                 create_database_sql = os.path.join(sql_file_path, create_database_sql_dic.get(g_opts.db_type))
         else:
+            create_database_sql = os.path.join(sql_file_path, file_name)
+            file_name_0 = "create_cluster_database.lun.sql"
+            file_name_1 = "create_cluster_database.sample.sql"
+            file_name_2 = "create_database.sample.sql"
+            if g_opts.db_type in ['0', '1', '2']:
+                create_database_sql_dic = {}
+                create_database_sql_dic['0'] = file_name_0
+                create_database_sql_dic['1'] = file_name_1
+                create_database_sql_dic['2'] = file_name_2
+                create_database_sql = os.path.join(sql_file_path, create_database_sql_dic.get(g_opts.db_type))
+
             db_data_path = os.path.join(self.data, "data").replace('/', '\/')
             self.set_sql_redo_size_and_num(db_data_path, create_database_sql)
             self._sed_file("dbfiles1", db_data_path, create_database_sql)

@@ -41,6 +41,7 @@
 #define CKPT_FLUSH_WAIT_MS 10
 
 static uint8 g_page_clean_finish_flag[PAGE_CLEAN_MAX_BYTES] = {0};
+bool32 g_crc_verify = 0;
 
 void ckpt_proc(thread_t *thread);
 void dbwr_proc(thread_t *thread);
@@ -331,7 +332,7 @@ static void ckpt_full_checkpoint(knl_session_t *session)
     uint64 curr_clean_edp_count = ctx->stat.clean_edp_count[ctx->trigger_task];
     uint64 task_begin = KNL_NOW(session);
     for (;;) {
-        if (ctx->thread.closed) {
+        if (ctx->thread.closed || (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master() == CT_FALSE)) {
             break;
         }
 
@@ -402,7 +403,9 @@ static void ckpt_full_checkpoint(knl_session_t *session)
 static void ckpt_inc_checkpoint(knl_session_t *session)
 {
     ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
-    
+    if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master() == CT_FALSE) {
+        return;
+    }
     if (ckpt_perform(session) != CT_SUCCESS) {
         KNL_SESSION_CLEAR_THREADID(session);
         CM_ABORT(0, "[CKPT] ABORT INFO: redo log task flush redo file failed.");
@@ -608,6 +611,9 @@ static void ckpt_do_trigger_task(knl_session_t *session, ckpt_context_t *ctx, da
 
 static void ckpt_do_timed_task(knl_session_t *session, ckpt_context_t *ctx, date_t *clean_time, date_t *ckpt_time)
 {
+    if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master() == CT_FALSE) {
+        return;
+    }
     knl_attr_t *attr = &session->kernel->attr;
 
     if (attr->page_clean_period != 0 &&
@@ -671,9 +677,6 @@ void ckpt_proc(thread_t *thread)
     }
 
     while (!thread->closed) {
-        if (!DB_IS_PRIMARY(&session->kernel->db) && !rc_is_master()) {
-            continue;
-        }
         ckpt_do_trigger_task(session, ctx, &clean_time, &ckpt_time);
         ckpt_do_timed_task(session, ctx, &clean_time, &ckpt_time);
 
@@ -767,6 +770,19 @@ status_t ckpt_checksum(knl_session_t *session, ckpt_context_t *ctx)
         }
     } else if (cks_level == (uint32)CKS_OFF) {
         PAGE_CHECKSUM(page, DEFAULT_PAGE_SIZE(session)) = CT_INVALID_CHECKSUM;
+    } else if (g_crc_verify == CT_TRUE && cks_level == (uint32)CKS_TYPICAL) {
+        datafile_t *df = DATAFILE_GET(session, AS_PAGID(page->id).file);
+        space_t *space = SPACE_GET(session, df->space_id);
+        if (IS_SYSTEM_SPACE(space) || IS_SYSAUX_SPACE(space)) {
+            status_t ret = CT_SUCCESS;
+            SYNC_POINT_GLOBAL_START(CANTIAN_CKPT_CHECKSUM_VERIFY_FAIL, &ret, CT_ERROR);
+            ret = !page_verify_checksum(page, DEFAULT_PAGE_SIZE(session));
+            SYNC_POINT_GLOBAL_END;
+            if (ret != CT_SUCCESS) {
+                knl_panic_log(0, "sys or sysaux page checksum verify invalid, panic info: page %u-%u type %u",
+                              AS_PAGID(page->id).file, AS_PAGID(page->id).page, page->type);
+            }
+        }
     } else {
         page_calc_checksum(page, DEFAULT_PAGE_SIZE(session));
     }
@@ -3366,6 +3382,9 @@ static void ckpt_page_clean(knl_session_t *session)
     buf_context_t *buf_ctx = &session->kernel->buf_ctx;
     ckpt_context_t *ckpt_ctx = &session->kernel->ckpt_ctx;
     page_clean_t clean_mode = session->kernel->attr.page_clean_mode;
+    if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master() == CT_FALSE) {
+        return;
+    }
 
     if (clean_mode == PAGE_CLEAN_MODE_ALLSET) {
         ckpt_block_and_wait_enable(&session->kernel->ckpt_ctx);

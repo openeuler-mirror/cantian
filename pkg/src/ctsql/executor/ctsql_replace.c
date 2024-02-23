@@ -86,7 +86,7 @@ static status_t sql_execute_replace_delete(sql_stmt_t *stmt, sql_cursor_t *curso
     /* if row is not found while delete, do not execute after trigger and foreign key check */
     if (*is_found && status == CT_SUCCESS) {
         CT_RETURN_IFERR(sql_execute_delete_triggers(stmt, insert_ctx->table, TRIG_AFTER_EACH_ROW, delete_knl_cur));
-        CT_RETURN_IFERR(knl_verify_children_dependency(&stmt->session->knl_session, delete_knl_cur, false, 0));
+        CT_RETURN_IFERR(knl_verify_children_dependency(&stmt->session->knl_session, delete_knl_cur, false, 0, false));
     }
 
     CTSQL_POP(stmt);

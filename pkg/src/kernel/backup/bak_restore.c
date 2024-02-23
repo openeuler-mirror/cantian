@@ -50,6 +50,8 @@ extern "C" {
                                         (bak)->rst_file.file_type == RESTORE_ARCHFILE)
 #define ESTIMATE_VALID_DATA_PERCENT 0.5
 
+#define BAK_WAIT_FILE_EXTEND_MS 1000
+
 static void rst_wait_logfiles_created(bak_t *bak);
 
 void rst_close_ctrl_file(ctrlfile_set_t *ctrlfiles)
@@ -327,12 +329,14 @@ status_t rst_create_datafiles(knl_session_t *session, bak_process_t *ctx)
             if (rst_create_datafile_device(session, df, ctx, i) != CT_SUCCESS) {
                 return CT_ERROR;
             }
+            bak->extended[i] = 0;
             CT_LOG_DEBUG_INF("[RESTORE] build file %s size %llu block size %u ", df->ctrl->name,
                              (uint64)(df->ctrl->size), df->ctrl->block_size);
         } else {
             if (rst_extend_database_file(session, bak_ctx, df->ctrl->name, df->ctrl->type, df->ctrl->size) != CT_SUCCESS) {
                 return CT_ERROR;
             }
+            bak->extended[i] = 1;
             CT_LOG_RUN_INF("[RESTORE] extend file %s, file size: %lld", df->ctrl->name, df->ctrl->size);
         }
 
@@ -1484,6 +1488,10 @@ status_t rst_restore_datafile(knl_session_t *session, bak_t *bak, bak_process_t 
         rst_assist.file_offset = (int64)rst_assist.page_id.page * DEFAULT_PAGE_SIZE(session);
         rst_assist.page_count = rst_calc_ordered_pages(buf + data_offset, (uint32)ctx->read_size - data_offset,
             DEFAULT_PAGE_SIZE(session));
+        while (bak->extended[rst_assist.page_id.file] == 0) {
+            CT_LOG_RUN_ERR("[RESTORE] page_file %u has not been extend.", rst_assist.page_id.file);
+            cm_sleep(BAK_WAIT_FILE_EXTEND_MS);
+        }
         if (rst_save_pages(session, ctx, (page_head_t *)(buf + data_offset), rst_assist) != CT_SUCCESS) {
             return CT_ERROR;
         }
@@ -2821,20 +2829,22 @@ static bool32 rst_skip_file(knl_session_t *session, bak_file_t *file)
     return (bool32)((BAK_IS_TABLESPCE_RESTORE(bak) && !DATAFILE_IS_ONLINE(df)));
 }
 
-status_t rst_find_duplicative_archfile(knl_session_t *session, bak_file_t *file,
-                                       bool32 *found_start_lsn, bool32 *found_end_lsn)
+status_t rst_find_duplicative_archfile(knl_session_t *session, bak_file_t *file, bool32 *found_duplicate)
 {
+    bool32 found_start_lsn = CT_FALSE;
+    bool32 found_end_lsn = CT_FALSE;
     local_arch_file_info_t file_info;
     DIR *arch_dir;
     struct dirent *arch_dirent;
     char *arch_path = session->kernel->attr.arch_attr[0].local_path;
+    bool32 is_dbstor = BAK_IS_DBSOTR(&session->kernel->backup_ctx.bak);
     bool32 dbid_equal = CT_FALSE;
     if ((arch_dir = opendir(arch_path)) == NULL) {
         return CT_ERROR;
     }
-    while ((arch_dirent = readdir(arch_dir)) != NULL && (*found_start_lsn != CT_TRUE || *found_end_lsn != CT_TRUE)) {
+    while ((arch_dirent = readdir(arch_dir)) != NULL) {
         if (bak_convert_archfile_name(arch_dirent->d_name, &file_info,
-                                      file->inst_id, file->rst_id) == CT_FALSE) {
+                                      file->inst_id, file->rst_id, is_dbstor) == CT_FALSE) {
             continue;
         }
         if (bak_check_archfile_dbid(session, arch_path, arch_dirent->d_name, &dbid_equal) != CT_SUCCESS) {
@@ -2844,11 +2854,22 @@ status_t rst_find_duplicative_archfile(knl_session_t *session, bak_file_t *file,
         if (dbid_equal != CT_TRUE) {
             continue;
         }
-        if (file_info.local_end_lsn >= file->end_lsn && file_info.local_start_lsn < file->end_lsn) {
-            *found_end_lsn = CT_TRUE;
-        }
-        if (file_info.local_end_lsn >= file->start_lsn + 1 && file_info.local_start_lsn < file->start_lsn + 1) {
-            *found_start_lsn = CT_TRUE;
+        if (is_dbstor) {
+            if (file_info.local_end_lsn >= file->end_lsn && file_info.local_start_lsn < file->end_lsn) {
+                found_end_lsn = CT_TRUE;
+            }
+            if (file_info.local_end_lsn >= file->start_lsn + 1 && file_info.local_start_lsn < file->start_lsn + 1) {
+                found_start_lsn = CT_TRUE;
+            }
+            if (found_end_lsn && found_start_lsn) {
+                *found_duplicate = CT_TRUE;
+                break;
+            }
+        } else {
+            if (file_info.local_asn == file->id) {
+                *found_duplicate = CT_TRUE;
+                break;
+            }
         }
     }
     closedir(arch_dir);
@@ -2863,12 +2884,11 @@ bool32 rst_skip_for_duplicative_archfile(knl_session_t *session, bak_file_t *cur
             return CT_FALSE;
         }
         if (next_file->type != BACKUP_ARCH_FILE || next_file->inst_id != cur_file->inst_id) {
-            bool32 found_start_lsn = CT_FALSE;
-            bool32 found_end_lsn = CT_FALSE;
-            if (rst_find_duplicative_archfile(session, cur_file, &found_start_lsn, &found_end_lsn) != CT_SUCCESS) {
+            bool32 found_duplicate = CT_FALSE;
+            if (rst_find_duplicative_archfile(session, cur_file, &found_duplicate) != CT_SUCCESS) {
                 return CT_FALSE;
             }
-            if (found_start_lsn && found_end_lsn) {
+            if (found_duplicate) {
                 cur_file->skipped = CT_TRUE;
                 CT_LOG_RUN_INF("[RESTORE] restore logfile %u from arch dir", cur_file->id);
                 return CT_TRUE;
@@ -3307,9 +3327,11 @@ status_t dtc_log_prepare_for_pitr(knl_session_t *se)
     for (uint32 i = 0; i < kernel->db.ctrl.core.node_count; i++) {
         arch_ctrl_t *last = arch_dtc_get_last_log(se, i);
         uint32 archive_asn = last->asn + 1;
+        CT_LOG_DEBUG_INF("[RESTORE] archive_asn %llu.", (uint64)archive_asn);
         if (dtc_rst_regist_archive(se, &archive_asn, rst_id, i) != CT_SUCCESS) {
             return CT_ERROR;
         }
+        CT_LOG_DEBUG_INF("[RESTORE] after register, archive_asn %llu.", (uint64)archive_asn);
         if (se->kernel->id != i) {
             continue;
         }
@@ -3317,10 +3339,12 @@ status_t dtc_log_prepare_for_pitr(knl_session_t *se)
         if (arch_try_arch_redo(se, &max_asn) != CT_SUCCESS) {
             return CT_ERROR;
         }
+        CT_LOG_DEBUG_INF("[RESTORE] find redo max_asn %llu.", (uint64)max_asn);
 
-        if (max_asn >= archive_asn) {
-            archive_asn = max_asn + 1;
-        }
+        archive_asn = MAX(archive_asn, max_asn);
+        archive_asn += 1;
+        
+        CT_LOG_DEBUG_INF("[RESTORE] set redo asn %llu.", (uint64)archive_asn);
 
         if (log_reset_logfile(se, archive_asn, CT_INVALID_ID32) != CT_SUCCESS) {
             return CT_ERROR;

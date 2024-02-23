@@ -130,7 +130,7 @@ status_t tx_area_init_impl(knl_session_t *session, undo_set_t *undo_set, uint32 
                            bool32 is_extend);
 void tx_extend_deinit(knl_session_t *session);
 void tx_area_release(knl_session_t *session, undo_set_t *undo_set);
-void tx_area_release_impl(knl_session_t *session, uint32 lseg_no, uint32 rseg_no);
+void tx_area_release_impl(knl_session_t *session, uint32 lseg_no, uint32 rseg_no, uint32 inst_id);
 void tx_area_rollback(knl_session_t *session, thread_t *thread, undo_set_t *undo_set);
 
 void tx_shutdown(knl_session_t *session);

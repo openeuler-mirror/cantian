@@ -59,6 +59,7 @@ CMD_RESOURCE_LIMIT = f"ALTER SYSTEM SET RESOURCE_LIMIT=TRUE;"
 CMD_OPEN = "ALTER DATABASE ENABLE_LOGIC_REPLICATION ON;"
 CMD_CLOSE = "ALTER DATABASE ENABLE_LOGIC_REPLICATION OFF;"
 CMD_CHECK_OPEN = "SELECT LREP_MODE FROM SYS.DV_DATABASE;"
+DV_LRPL_DETAIL = "select * from DV_LRPL_DETAIL;"
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 CTSQL_INI_PATH = r'/mnt/dbdata/local/cantian/tmp/data/cfg/*sql.ini'
 PRIMARY_KEYSTORE = r"/opt/cantian/common/config/primary_keystore_bak.ks"
@@ -204,9 +205,30 @@ class Logicrep:
             raise Exception("get password failed")
 
     def execute_sql(self, sql, message):
-        if self.mode == "standby":
-            LOG.info("Current mode is standby, not allowed to log in to zsql to perform operations.")
-            return ""
+        if self.pre_execute_sql():
+            return self.execute(sql, message)
+        else:
+            return "LREP_MODE--------------------ON "
+
+    def pre_execute_sql(self):
+        """
+        容灾场景检查当前版本是否为主站点
+        :return:
+        """
+        try:
+            stdout_data = self.execute(DV_LRPL_DETAIL, "Check lrpl role")
+        except Exception as _err:
+            if "The table or view SYS.DV_LRPL_DETAIL does not exist." in str(_err):
+                return True
+            else:
+                raise _err
+        if "PRIMARY" in stdout_data:
+            LOG.info("Current mode is primary")
+            return True
+        LOG.info("Current mode is standby, not allowed to log in to zsql to perform operations.")
+        return False
+
+    def execute(self, sql, message):
         for i in range(RETRY_TIMES):
             cmd = "source ~/.bashrc && echo -e '%s' | ctsql sys@%s:%s -q -c \"%s\"" % (
                 self.passwd,

@@ -3076,6 +3076,48 @@ void cms_proc_msg_req_get_disk_iostat(cms_packet_head_t *msg)
     cms_enque(&g_cms_inst->cli_send_que, node);
 }
 
+void cms_proc_msg_req_get_res_stat(cms_packet_head_t *msg)
+{
+    cms_tool_msg_req_get_res_stat_t *req = (cms_tool_msg_req_get_res_stat_t *)msg;
+    biqueue_node_t *node = cms_que_alloc_node(sizeof(cms_tool_msg_res_get_res_stat_t));
+    if (node == NULL) {
+        CMS_LOG_ERR("cms malloc msg cms_tool_msg_res_get_res_stat_t buf failed.");
+        return;
+    }
+    cms_tool_msg_res_get_res_stat_t *res = (cms_tool_msg_res_get_res_stat_t *)cms_que_node_data(node);
+    res->head.dest_node = msg->src_node;
+    res->head.src_node = g_cms_param->node_id;
+    res->head.msg_size = sizeof(cms_tool_msg_res_get_res_stat_t);
+    res->head.msg_type = CMS_TOOL_MSG_RES_GET_RES_STAT;
+    res->head.msg_version = CMS_MSG_VERSION;
+    res->head.msg_seq = cm_now();
+    res->head.src_msg_seq = req->head.msg_seq;
+    res->head.uds_sid = msg->uds_sid;
+    res->result = cms_get_cluster_res_list_4tool(req->res_id, &res->stat);
+    cms_enque(&g_cms_inst->cli_send_que, node);
+}
+
+void cms_proc_msg_req_get_gcc_info(cms_packet_head_t *msg)
+{
+    cms_tool_msg_req_get_gcc_t *req = (cms_tool_msg_req_get_gcc_t *)msg;
+    biqueue_node_t *node = cms_que_alloc_node(sizeof(cms_tool_msg_res_get_gcc_t));
+    if (node == NULL) {
+        CMS_LOG_ERR("cms malloc msg cms_tool_msg_res_get_gcc_t buf failed.");
+        return;
+    }
+    cms_tool_msg_res_get_gcc_t *res = (cms_tool_msg_res_get_gcc_t *)cms_que_node_data(node);
+    res->head.dest_node = msg->src_node;
+    res->head.src_node = g_cms_param->node_id;
+    res->head.msg_size = sizeof(cms_tool_msg_res_get_gcc_t);
+    res->head.msg_type = CMS_TOOL_MSG_RES_GET_GCC_INFO;
+    res->head.msg_version = CMS_MSG_VERSION;
+    res->head.msg_seq = cm_now();
+    res->head.src_msg_seq = req->head.msg_seq;
+    res->head.uds_sid = msg->uds_sid;
+    res->result = cms_get_gcc_info_4tool(res);
+    cms_enque(&g_cms_inst->cli_send_que, node);
+}
+
 status_t cms_exec_start_res(char* name, cms_msg_scope_t scope, uint16 targe_node, uint32 timeout,
     char* err_info)
 {
@@ -3251,30 +3293,283 @@ void cms_proc_uds_msg_req_get_srv_stat(cms_packet_head_t* msg)
     cms_enque(&g_cms_inst->cli_send_que, node);
 }
 
-void cms_proc_uds_msg_req_vote_result(cms_packet_head_t *msg)
+void cms_proc_uds_res_msg_init(cms_packet_head_t* req, cms_packet_head_t* res, uint32 res_size, uint32 res_type)
 {
-    status_t ret = CT_SUCCESS;
-    cms_tool_msg_req_vote_result_t *req = (cms_tool_msg_req_vote_result_t *)msg;
-    biqueue_node_t *node = cms_que_alloc_node(sizeof(cms_tool_msg_res_get_srv_stat_t));
-    if (node == NULL) {
-        CMS_LOG_ERR("cms malloc msg cms_tool_msg_res_get_srv_stat_t buf failed.");
+    res->msg_size = res_size;
+    res->msg_type = res_type;
+    res->msg_version = CMS_MSG_VERSION;
+    res->src_msg_seq = req->msg_seq;
+    res->msg_seq = cm_now();
+    res->uds_sid = req->uds_sid;
+    res->src_node = req->dest_node;
+    res->dest_node = req->src_node;
+    return;
+}
+status_t cms_copy_node_info(const cms_node_def_t* src, cms_node_info_t* dst, char* err_info)
+{
+    errno_t err = strcpy_sp(dst->ip, CT_MAX_INST_IP_LEN, src->ip);
+    if (err != EOK) {
+        (void)strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "strcpy_sp ip failed");
+        return CT_ERROR;
+    }
+    err = strcpy_sp(dst->name, CMS_NAME_BUFFER_SIZE, src->name);
+    if (err != EOK) {
+        (void)strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "strcpy_sp name failed");
+        return CT_ERROR;
+    }
+    dst->port = src->port;
+    return CT_SUCCESS;
+}
+
+void cms_proc_uds_msg_req_node_connected(cms_packet_head_t *msg)
+{
+    cms_tool_msg_req_node_connected_t *req = (cms_tool_msg_req_node_connected_t *)msg;
+    if (msg->msg_size != sizeof(cms_tool_msg_req_node_connected_t)) {
+        CMS_LOG_ERR("cms_proc_uds_msg_req_node_connected req size(%u) check failed.", req->head.msg_size);
         return;
     }
-    cms_tool_msg_res_vote_result_t *res = (cms_tool_msg_res_vote_result_t *)cms_que_node_data(node);
-    res->head.msg_size = sizeof(cms_tool_msg_res_vote_result_t);
-    res->head.msg_type = CMS_TOOL_MSG_RES_VOTE_RESULT;
-    res->head.msg_version = CMS_MSG_VERSION;
-    res->head.src_msg_seq = msg->msg_seq;
-    res->head.msg_seq = cm_now();
-    res->head.uds_sid = msg->uds_sid;
-    res->head.src_node = req->head.dest_node;
-    res->head.dest_node = req->head.src_node;
+    biqueue_node_t *node = cms_que_alloc_node(sizeof(cms_tool_msg_res_node_connected_t));
+    if (node == NULL) {
+        CMS_LOG_ERR("cms malloc msg cms_proc_uds_msg_req_node_connected buf failed.");
+        return;
+    }
+    cms_tool_msg_res_node_connected_t *res = (cms_tool_msg_res_node_connected_t *)cms_que_node_data(node);
+    uint32 res_msg_size = sizeof(cms_tool_msg_res_node_connected_t);
+    cms_proc_uds_res_msg_init(msg, &res->head, res_msg_size, CMS_TOOL_MSG_RES_NODE_CONNECTED);
     vote_result_ctx_t* vote_result = get_current_vote_result();
     res->cluster_bitmap = vote_result->new_cluster_bitmap;
     res->cluster_is_voting = cms_cluster_is_voting();
+    const cms_gcc_t* gcc = cms_get_read_gcc();
+    if (gcc->head.magic != CMS_GCC_HEAD_MAGIC) {
+        CT_LOG_RUN_ERR("cms_proc_uds_msg_req_node_connected gcc is invalid.");
+        cms_release_gcc(&gcc);
+        cms_que_free_node(node);
+        return;
+    }
+    status_t ret = CT_SUCCESS;
+    uint32 node_count = 0;
+    for (uint32 i = 0; i < gcc->head.node_count; i++) {
+        const cms_node_def_t* node_def = &gcc->node_def[i];
+        if (node_def->magic != CMS_GCC_NODE_MAGIC) {
+            continue;
+        }
+        if (cms_copy_node_info(node_def, &res->node_info[node_count], res->info) != CT_SUCCESS) {
+            ret = CT_ERROR;
+            break;
+        }
+        if ((++node_count) >= CMS_NODES_COUNT) {
+            break;
+        }
+    }
+    res->node_count = node_count;
     res->result = ret;
+    cms_release_gcc(&gcc);
     cms_enque(&g_cms_inst->cli_send_que, node);
     CMS_LOG_DEBUG_INF("end proc req vote result, ret %d, msg type %u, msg req %llu", ret, msg->msg_type, msg->msg_seq);
+}
+
+void cms_proc_msg_req_gcc_export(cms_packet_head_t *msg)
+{
+    status_t ret = CT_SUCCESS;
+    cms_tool_msg_req_gcc_export_t *req = (cms_tool_msg_req_gcc_export_t *)msg;
+    if (msg->msg_size != sizeof(cms_tool_msg_req_gcc_export_t)) {
+        CMS_LOG_ERR("cms srv proc tool cmd gcc export, req size check failed.");
+        return;
+    }
+    biqueue_node_t *node = cms_que_alloc_node(sizeof(cms_tool_msg_res_gcc_export_t));
+    if (node == NULL) {
+        CMS_LOG_ERR("cms malloc msg cms_proc_msg_req_gcc_export buf failed.");
+        return;
+    }
+    cms_tool_msg_res_gcc_export_t *res = (cms_tool_msg_res_gcc_export_t *)cms_que_node_data(node);
+    cms_proc_uds_res_msg_init(msg, &res->head, sizeof(cms_tool_msg_res_gcc_export_t), CMS_TOOL_MSG_RES_GCC_EXPORT);
+    ret = cms_export_gcc(req->path);
+    res->result = ret;
+    cms_enque(&g_cms_inst->cli_send_que, node);
+    CMS_LOG_DEBUG_INF("end proc req gcc export, ret %d, msg type %u, msg req %llu", ret, msg->msg_type, msg->msg_seq);
+}
+
+void cms_proc_msg_req_gcc_import(cms_packet_head_t *msg)
+{
+    status_t ret = CT_SUCCESS;
+    cms_tool_msg_req_gcc_import_t *req = (cms_tool_msg_req_gcc_import_t *)msg;
+    if (msg->msg_size != sizeof(cms_tool_msg_req_gcc_import_t)) {
+        CMS_LOG_ERR("cms srv proc tool cmd gcc import, req size check failed.");
+        return;
+    }
+    biqueue_node_t *node = cms_que_alloc_node(sizeof(cms_tool_msg_res_gcc_import_t));
+    if (node == NULL) {
+        CMS_LOG_ERR("cms malloc msg cms_proc_msg_req_gcc_import buf failed.");
+        return;
+    }
+    cms_tool_msg_res_gcc_import_t *res = (cms_tool_msg_res_gcc_import_t *)cms_que_node_data(node);
+    cms_proc_uds_res_msg_init(msg, &res->head, sizeof(cms_tool_msg_res_gcc_import_t), CMS_TOOL_MSG_RES_GCC_IMPORT);
+    ret = cms_import_gcc(req->path);
+    res->result = ret;
+    cms_enque(&g_cms_inst->cli_send_que, node);
+    CMS_LOG_DEBUG_INF("end proc req gcc import, ret %d, msg type %u, msg req %llu", ret, msg->msg_type, msg->msg_seq);
+}
+
+void cms_proc_msg_req_node_list(cms_packet_head_t *msg)
+{
+    cms_tool_msg_req_node_list_t *req = (cms_tool_msg_req_node_list_t *)msg;
+    if (msg->msg_size != sizeof(cms_tool_msg_req_node_list_t)) {
+        CMS_LOG_ERR("cms srv proc tool cmd node list, req size(%u) check failed.", req->head.msg_size);
+        return;
+    }
+    biqueue_node_t *node = cms_que_alloc_node(sizeof(cms_tool_msg_res_node_list_t));
+    if (node == NULL) {
+        CMS_LOG_ERR("cms malloc msg cms_proc_msg_req_node_list buf failed.");
+        return;
+    }
+    cms_tool_msg_res_node_list_t *res = (cms_tool_msg_res_node_list_t *)cms_que_node_data(node);
+    cms_proc_uds_res_msg_init(msg, &res->head, sizeof(cms_tool_msg_res_node_list_t), CMS_TOOL_MSG_RES_NODE_LIST);
+    const cms_gcc_t* gcc = cms_get_read_gcc();
+    if (gcc->head.magic != CMS_GCC_HEAD_MAGIC) {
+        CT_LOG_RUN_ERR("cms_proc_msg_req_node_list gcc is invalid.");
+        cms_release_gcc(&gcc);
+        cms_que_free_node(node);
+        return;
+    }
+    status_t ret = CT_SUCCESS;
+    uint32 node_count = 0;
+    for (uint32 i = 0; i < gcc->head.node_count; i++) {
+        const cms_node_def_t* node_def = &gcc->node_def[i];
+        if (node_def->magic != CMS_GCC_NODE_MAGIC) {
+            continue;
+        }
+        if (cms_copy_node_info(node_def, &res->node_info[node_count], res->info) != CT_SUCCESS) {
+            ret = CT_ERROR;
+            break;
+        }
+        if ((++node_count) >= CMS_NODES_COUNT) {
+            break;
+        }
+    }
+    cms_release_gcc(&gcc);
+    res->node_count = node_count;
+    res->result = ret;
+    cms_enque(&g_cms_inst->cli_send_que, node);
+    CMS_LOG_DEBUG_INF("end proc req node list, ret %d, msg type %u, msg req %llu", ret, msg->msg_type, msg->msg_seq);
+}
+
+void cms_proc_msg_req_resgrp_list(cms_packet_head_t *msg)
+{
+    cms_tool_msg_req_resgrp_list_t *req = (cms_tool_msg_req_resgrp_list_t *)msg;
+    if (msg->msg_size != sizeof(cms_tool_msg_req_resgrp_list_t)) {
+        CMS_LOG_ERR("cms srv proc tool cmd resgrp list, req size(%u) check failed.", req->head.msg_size);
+        return;
+    }
+    biqueue_node_t *node = cms_que_alloc_node(sizeof(cms_tool_msg_res_resgrp_list_t));
+    if (node == NULL) {
+        CMS_LOG_ERR("cms malloc msg resgrp list res buf failed.");
+        return;
+    }
+    cms_tool_msg_res_resgrp_list_t *res = (cms_tool_msg_res_resgrp_list_t *)cms_que_node_data(node);
+    cms_proc_uds_res_msg_init(msg, &res->head, sizeof(cms_tool_msg_res_resgrp_list_t), CMS_TOOL_MSG_RES_RESGRP_LIST);
+    status_t ret = CT_SUCCESS;
+    errno_t err = EOK;
+    const cms_gcc_t* gcc = cms_get_read_gcc();
+    if (gcc->head.magic != CMS_GCC_HEAD_MAGIC) {
+        CT_LOG_RUN_ERR("cms_proc_msg_req_resgrp_list gcc is invalid.");
+        cms_release_gcc(&gcc);
+        cms_que_free_node(node);
+        return;
+    }
+    uint32 resgrp_cnt = 0;
+    for (uint32 i = 0; i < CMS_MAX_RESOURCE_GRP_COUNT; i++) {
+        const cms_resgrp_t* resgrp = &gcc->resgrp[i];
+        if (resgrp->magic != CMS_GCC_RES_GRP_MAGIC) {
+            continue;
+        }
+        err = strcpy_sp(res->resgrp_name[resgrp_cnt], CT_MAX_INST_IP_LEN, resgrp->name);
+        if (err != EOK) {
+            (void)strcpy_s(res->info, CMS_INFO_BUFFER_SIZE, "strcpy_sp name failed");
+            ret = CT_ERROR;
+            break;
+        }
+        resgrp_cnt++;
+    }
+    cms_release_gcc(&gcc);
+    res->resgrp_cnt = resgrp_cnt;
+    res->result = ret;
+    cms_enque(&g_cms_inst->cli_send_que, node);
+    CMS_LOG_DEBUG_INF("end proc req resgrp list, ret %d msg type %u msg req %llu", ret, msg->msg_type, msg->msg_seq);
+}
+
+status_t cms_proc_msg_res_list_res_copy(const cms_gcc_t* gcc, const cms_res_t* src, cms_res_info_t *res, char* err_inf)
+{
+    errno_t err = strcpy_sp(res->name, CMS_NAME_BUFFER_SIZE, src->name);
+    if (err != EOK) {
+        (void)strcpy_s(err_inf, CMS_INFO_BUFFER_SIZE, "strcpy_sp name failed");
+        return CT_ERROR;
+    }
+    err = strcpy_sp(res->type, CMS_NAME_BUFFER_SIZE, src->type);
+    if (err != EOK) {
+        (void)strcpy_s(err_inf, CMS_INFO_BUFFER_SIZE, "strcpy_sp type failed");
+        return CT_ERROR;
+    }
+    err = strcpy_sp(res->grp_name, CMS_NAME_BUFFER_SIZE, gcc->resgrp[src->grp_id].name);
+    if (err != EOK) {
+        (void)strcpy_s(err_inf, CMS_INFO_BUFFER_SIZE, "strcpy_sp grp name failed");
+        return CT_ERROR;
+    }
+    err = strcpy_sp(res->script, CMS_FILE_NAME_BUFFER_SIZE, src->script);
+    if (err != EOK) {
+        (void)strcpy_s(err_inf, CMS_INFO_BUFFER_SIZE, "strcpy_sp script failed");
+        return CT_ERROR;
+    }
+    res->start_timeout = src->start_timeout;
+    res->stop_timeout = src->stop_timeout;
+    res->check_timeout = src->check_timeout;
+    res->check_interval = src->check_interval;
+    res->hb_timeout = src->hb_timeout;
+    res->restart_times = src->restart_times;
+    res->restart_interval = src->restart_interval;
+    return CT_SUCCESS;
+}
+
+void cms_proc_msg_req_res_list(cms_packet_head_t *msg)
+{
+    cms_tool_msg_req_res_list_t *req = (cms_tool_msg_req_res_list_t *)msg;
+    if (msg->msg_size != sizeof(cms_tool_msg_req_res_list_t)) {
+        CMS_LOG_ERR("cms srv proc tool cmd res list, req size(%u) check failed.", req->head.msg_size);
+        return;
+    }
+    biqueue_node_t *node = cms_que_alloc_node(sizeof(cms_tool_msg_res_res_list_t));
+    if (node == NULL) {
+        CMS_LOG_ERR("cms malloc msg res list res buf failed.");
+        return;
+    }
+    cms_tool_msg_res_res_list_t *res = (cms_tool_msg_res_res_list_t *)cms_que_node_data(node);
+    cms_proc_uds_res_msg_init(msg, &res->head, sizeof(cms_tool_msg_res_res_list_t), CMS_TOOL_MSG_RES_RES_LIST);
+    status_t ret = CT_SUCCESS;
+    const cms_gcc_t* gcc = cms_get_read_gcc();
+    if (gcc->head.magic != CMS_GCC_HEAD_MAGIC) {
+        CT_LOG_RUN_ERR("cms_proc_msg_req_res_list gcc is invalid.");
+        cms_release_gcc(&gcc);
+        cms_que_free_node(node);
+        return;
+    }
+    uint32 res_count = 0;
+    for (uint32 i = 0; i < CMS_MAX_RESOURCE_COUNT; i++) {
+        const cms_res_t* res_db = &gcc->res[i];
+        if (res_db->magic != CMS_GCC_RES_MAGIC) {
+            continue;
+        }
+        if (cms_proc_msg_res_list_res_copy(gcc, res_db, &res->res_info[res_count], res->info) != CT_SUCCESS) {
+            ret = CT_ERROR;
+            break;
+        }
+        if ((++res_count) >= CMS_RESOURCE_COUNT) {
+            break;
+        }
+    }
+    res->res_count = res_count;
+    res->result = ret;
+    cms_release_gcc(&gcc);
+    cms_enque(&g_cms_inst->cli_send_que, node);
+    CMS_LOG_DEBUG_INF("end proc req res list, ret %d msg type %u msg req %llu", ret, msg->msg_type, msg->msg_seq);
 }
 
 void cms_proc_msg(cms_packet_head_t* msg)
@@ -3336,7 +3631,6 @@ void cms_worker_entry(thread_t* thread)
         } else {
             node = cms_deque(&g_cms_inst->recv_que);
         }
-        
         if (node == NULL) {
             continue;
         }
@@ -3601,11 +3895,40 @@ void cms_uds_proc_tool_oper_msg(cms_packet_head_t* msg)
         case CMS_TOOL_MSG_REQ_GET_SRV_STAT:
             cms_proc_uds_msg_req_get_srv_stat(msg);
             break;
-        case CMS_TOOL_MSG_REQ_VOTE_RESULT:
-            cms_proc_uds_msg_req_vote_result(msg);
+        case CMS_TOOL_MSG_REQ_NODE_CONNECTED:
+            cms_proc_uds_msg_req_node_connected(msg);
+            break;
+        case CMS_TOOL_MSG_REQ_GET_RES_STAT:
+            cms_proc_msg_req_get_res_stat(msg);
+            break;
+        case CMS_TOOL_MSG_REQ_GET_GCC_INFO:
+            cms_proc_msg_req_get_gcc_info(msg);
             break;
         case CMS_TOOL_MSG_REQ_GET_DISK_IOSTAT:
             cms_proc_msg_req_get_disk_iostat(msg);
+            break;
+        default:
+            CMS_LOG_ERR("unknown msg_type:%d", msg->msg_type);
+    }
+}
+
+void cms_uds_proc_tool_gcc_res_msg(cms_packet_head_t* msg)
+{
+    switch (msg->msg_type) {
+        case CMS_TOOL_MSG_REQ_GCC_EXPORT:
+            cms_proc_msg_req_gcc_export(msg);
+            break;
+        case CMS_TOOL_MSG_REQ_GCC_IMPORT:
+            cms_proc_msg_req_gcc_import(msg);
+            break;
+        case CMS_TOOL_MSG_REQ_NODE_LIST:
+            cms_proc_msg_req_node_list(msg);
+            break;
+        case CMS_TOOL_MSG_REQ_RESGRP_LIST:
+            cms_proc_msg_req_resgrp_list(msg);
+            break;
+        case CMS_TOOL_MSG_REQ_RES_LIST:
+            cms_proc_msg_req_res_list(msg);
             break;
         default:
             CMS_LOG_ERR("unknown msg_type:%d", msg->msg_type);
@@ -3623,6 +3946,9 @@ void cms_uds_proc_msg(cms_packet_head_t* msg)
     } else if (msg->msg_type >= CMS_TOOL_MSG_REQ_GET_IOSTAT && msg->msg_type <= CMS_TOOL_MSG_RES_GET_DISK_IOSTAT) {
         cms_uds_proc_tool_oper_msg(msg);
         return;
+    } else if (msg->msg_type >= CMS_TOOL_MSG_REQ_GCC_EXPORT && msg->msg_type <= CMS_TOOL_MSG_RES_RES_LIST) {
+        cms_uds_proc_tool_gcc_res_msg(msg);
+        return;
     }
 
 #ifdef DB_DEBUG_VERSION
@@ -3631,7 +3957,6 @@ void cms_uds_proc_msg(cms_packet_head_t* msg)
         return;
     }
 #endif
-
     CMS_LOG_ERR("unknown msg_type:%d", msg->msg_type);
 }
 

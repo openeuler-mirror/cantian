@@ -1489,7 +1489,7 @@ static inline status_t sql_try_execute_update_table(sql_stmt_t *stmt, sql_cursor
     SQL_CURSOR_POP(stmt);
     CT_RETURN_IFERR(sql_execute_update_triggers(stmt, TRIG_AFTER_EACH_ROW, knl_cur, object));
     CT_RETURN_IFERR(knl_verify_ref_integrities(&stmt->session->knl_session, knl_cur));
-    CT_RETURN_IFERR(knl_verify_children_dependency(&stmt->session->knl_session, knl_cur, false, 0));
+    CT_RETURN_IFERR(knl_verify_children_dependency(&stmt->session->knl_session, knl_cur, false, 0, false));
     return CT_SUCCESS;
 }
 

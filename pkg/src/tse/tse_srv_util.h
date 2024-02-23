@@ -85,6 +85,26 @@ typedef struct {
         TSE_POP_CURSOR(knl_session);                         \
     } while (0)
 
+#define IS_CANTIAN_SYS_DC(dc) ((((dc)->type) > DICT_TYPE_TABLE_EXTERNAL) || IS_SYS_DC(dc))
+bool check_if_operation_unsupported(knl_dictionary_t *dc, char *operation);
+
+#define RETURN_IF_OPERATION_UNSUPPORTED(dc, operation)                                                            \
+    do {                                                                                                          \
+        if (check_if_operation_unsupported(dc, operation)) {                                                      \
+            knl_close_dc(dc);                                                                                     \
+            return CT_ERROR;                                                                                      \
+        }                                                                                                         \
+    } while (0)
+
+#define TSE_LOG_RET_NOT_SUPPORT(condition, operation, ret)                                                        \
+    do {                                                                                                          \
+        if (condition) {                                                                                          \
+            CT_LOG_RUN_ERR("Operation %s is not supported on view, func, join table, "                            \
+                           "json table, subqueries or system table", operation);                                  \
+            return ret;                                                                                           \
+        }                                                                                                         \
+    } while (0)
+
 /*
 define flag Enumerated type according to mysql 'ha_rkey_function' Enumerated type
 */

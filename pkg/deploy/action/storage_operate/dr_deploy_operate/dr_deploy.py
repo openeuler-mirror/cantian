@@ -192,7 +192,7 @@ class DRDeploy(object):
         :return:
         """
         LOG.info("Start to do lock instance for backup.")
-        cmd = "%s -u%s -p%s -e \"%s;\"" % (self.mysql_cmd,
+        cmd = "%s -u'%s' -p'%s' -e \"%s;\"" % (self.mysql_cmd,
                                            self.mysql_user,
                                            self.mysql_pwd,
                                            LOCK_INSTANCE)
@@ -218,7 +218,7 @@ class DRDeploy(object):
         :return:
         """
         LOG.info("Start to do unlock instance for backup.")
-        cmd = "%s -u%s -p%s -e \"%s;\"" % (self.mysql_cmd,
+        cmd = "%s -u'%s' -p'%s' -e \"%s;\"" % (self.mysql_cmd,
                                            self.mysql_user,
                                            self.mysql_pwd,
                                            UNLOCK_TABLE)
@@ -241,7 +241,7 @@ class DRDeploy(object):
         :return:
         """
         LOG.info("Start to do flush table with read lock.")
-        cmd = "%s -u%s -p%s -e \"%s;\"" % (self.mysql_cmd,
+        cmd = "%s -u'%s' -p'%s' -e \"%s;\"" % (self.mysql_cmd,
                                            self.mysql_user,
                                            self.mysql_pwd,
                                            FLUSH_TABLE)
@@ -256,7 +256,7 @@ class DRDeploy(object):
             raise Exception(err_msg)
         LOG.info("Success to do flush table with read lock.")
         LOG.info("Start to do unlock table with read lock.")
-        cmd = "%s -u%s -p%s -e \"%s;\"" % (self.mysql_cmd,
+        cmd = "%s -u'%s' -p'%s' -e \"%s;\"" % (self.mysql_cmd,
                                            self.mysql_user,
                                            self.mysql_pwd,
                                            UNLOCK_TABLE)
@@ -434,7 +434,10 @@ class DRDeploy(object):
                  sync_progress,
                  get_status(running_status, FilesystemPairRunningStatus),
                  get_status(health_status, HealthStatus))
-        self.record_deploy_process("sync_metro_fs_pair", sync_progress + "%")
+        if running_status == FilesystemPairRunningStatus.Paused:
+            self.record_deploy_process("sync_metro_fs_pair", get_status(running_status, FilesystemPairRunningStatus))
+        else:
+            self.record_deploy_process("sync_metro_fs_pair", sync_progress + "%")
         return False
 
     def do_create_remote_replication_filesystem_pair(self, dbstore_page_fs_id):
@@ -818,7 +821,11 @@ class DRDeploy(object):
                 health_status = ulog_fs_pair_info[0].get("HEALTHSTATUS")
                 hyper_domain_id = ulog_fs_pair_info[0].get("DOMAINID")
                 vstore_pair_id = ulog_fs_pair_info[0].get("VSTOREPAIRID")
-                self.record_deploy_process("sync_metro_fs_pair", sync_progress + "%")
+                if running_status == FilesystemPairRunningStatus.Paused:
+                    self.record_deploy_process("sync_metro_fs_pair",
+                                               get_status(running_status, FilesystemPairRunningStatus))
+                else:
+                    self.record_deploy_process("sync_metro_fs_pair", sync_progress + "%")
                 if running_status == FilesystemPairRunningStatus.Normal \
                         and health_status == HealthStatus.Normal \
                         and sync_progress == "100":
