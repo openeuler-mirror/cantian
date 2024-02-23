@@ -4058,12 +4058,11 @@ class Installer:
         if os.path.exists(MYSQL_LOG_FILE) and os.path.isfile(MYSQL_LOG_FILE):
             log("Warning: the mysql log file %s should empty for mysqld start" % MYSQL_LOG_FILE, True)
         mysql_view_file = self.get_cantian_defs_file()
-        cmd_init_metadata_in_cantian = "%s --defaults-file=%s --initialize-insecure --datadir=%s --init-file=%s \
+        cmd_init_metadata_in_cantian = "%s --defaults-file=%s --initialize-insecure --datadir=%s \
                                        --early-plugin-load=\"ha_ctc.so\" --core-file --log-error=%s" % (
                                        os.path.join(MYSQL_BIN_DIR, "bin/mysqld"),
                                        g_opts.mysql_config_file_path,
                                        MYSQL_DATA_DIR,
-                                       mysql_view_file,
                                        MYSQL_LOG_FILE)
         if os.path.exists("/.dockerenv"):
             cmd_start_mysqld = """ %s --defaults-file=%s --datadir=%s --user=root --skip-innodb \
@@ -4183,7 +4182,7 @@ class Installer:
             sql_file_path = "/home/regress/CantianKernel/pkg/admin/scripts"
         else:
             install_config_path = "/opt/cantian/action/cantian/install_config.json"
-            with open(install_path, 'r', encoding='utf-8') as file:
+            with open(install_config_path, 'r', encoding='utf-8') as file:
                 info = file.read()
                 install_path = json.loads(info).get("R_INSTALL_PATH")
             sql_file_path = "%s/admin/scripts" % install_path
