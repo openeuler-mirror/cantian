@@ -4020,14 +4020,12 @@ class Installer:
         # mysql init
         # Do not init mysql in slave cluster.
         if not is_slave_cluster:
-            mysql_view_file = self.get_cantian_defs_file()
             cmd = "%s --defaults-file=%s --initialize-insecure --datadir=%s \
                 --early-plugin-load=\"ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so;\" \
-                --init-file=%s  --core-file --log-error=%s" % (
+                --core-file --log-error=%s" % (
                 os.path.join(MYSQL_BIN_DIR, "bin/mysqld"),
                 g_opts.mysql_config_file_path,
                 MYSQL_DATA_DIR,
-                mysql_view_file,
                 MYSQL_LOG_FILE)
             if os.getuid() == 0:
                 cmd = "su %s -c '" % self.user + cmd + "'"
