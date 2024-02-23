@@ -3,6 +3,8 @@
 set -e
 
 CURRENT_PATH=$(dirname $(readlink -f $0))
+source "${CURRENT_PATH}"/common.sh
+
 CTDB_CODE_PATH="${CURRENT_PATH}"/..
 MYSQL_SERVER_PATH="${CTDB_CODE_PATH}"/../cantian-connector-mysql
 BUILD_TARGET_NAME="cantian_connector"
@@ -15,7 +17,6 @@ MYSQL_CODE_PATH=${MYSQL_SERVER_PATH}/mysql-source
 MYSQL_BIN_NAME="Cantian_connector_mysql"
 
 mkdir -p ${TMP_PKG_PATH}
-source "${CURRENT_PATH}"/common.sh
 
 function packageTarget() {
   echo "Start packageTarget..."
