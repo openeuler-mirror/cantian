@@ -4180,6 +4180,7 @@ class Installer:
             sql_file_path = "/home/regress/CantianKernel/pkg/admin/scripts"
         else:
             install_config_path = "/opt/cantian/action/cantian/install_config.json"
+            os.chmod(install_config_path, stat.S_IRWXU+stat.S_IRWXG+stat.S_IRWXO)
             with open(install_config_path, 'r', encoding='utf-8') as file:
                 info = file.read()
                 install_path = json.loads(info).get("R_INSTALL_PATH")
