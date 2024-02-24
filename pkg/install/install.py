@@ -4055,7 +4055,7 @@ class Installer:
         log("Starting mysqld...", True)
         if os.path.exists(MYSQL_LOG_FILE) and os.path.isfile(MYSQL_LOG_FILE):
             log("Warning: the mysql log file %s should empty for mysqld start" % MYSQL_LOG_FILE, True)
-        mysql_view_file = self.get_cantian_defs_file()
+        #mysql_view_file = self.get_cantian_defs_file()
         cmd_init_metadata_in_cantian = "%s --defaults-file=%s --initialize-insecure --datadir=%s \
                                        --early-plugin-load=\"ha_ctc.so\" --core-file --log-error=%s" % (
                                        os.path.join(MYSQL_BIN_DIR, "bin/mysqld"),
@@ -4119,24 +4119,24 @@ class Installer:
         if MYSQL_VERSION == VERSION_DOCKER_META:
             print("mysql_meta: going to start docker mysql in meta.")
             self.start_mysql_with_metadata_in_cantian()
-            self.execute_mysql_update(self.get_cantian_defs_file())
+            #self.execute_mysql_update(self.get_cantian_defs_file())
         elif MYSQL_VERSION == VERSION_DOCKER_NOMETA:
             print("mysql_nometa: developer docker deploy.")
             self.start_mysql(g_opts.slave_cluster)
-            self.execute_mysql_update(self.get_cantian_defs_file())
+            #self.execute_mysql_update(self.get_cantian_defs_file())
         elif MYSQL_VERSION == VERSION_ENV_META:
             mysql_plugin_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin")
             print("mysql_meta: going to start mysql in meta. bin_dir:%s" % mysql_plugin_path)
             self.start_mysql_with_metadata_in_cantian()
-            if g_opts.node_id == 0:
-                self.execute_mysql_update(self.get_cantian_defs_file())
+            #if g_opts.node_id == 0:
+            #self.execute_mysql_update(self.get_cantian_defs_file())
         elif MYSQL_VERSION == VERSION_ENV_NOMETA:
             mysql_plugin_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin")
             ctc_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin/nometa/ha_ctc.so")
             shutil.copy(ctc_path, mysql_plugin_path)
             print("mysql_nometa: copy ha_ctc.so from %s to %s" % (ctc_path, mysql_plugin_path))
             self.start_mysql(g_opts.slave_cluster)
-            self.execute_mysql_update(self.get_cantian_defs_file())
+            # self.execute_mysql_update(self.get_cantian_defs_file())
 
         # Don't set the core_dump_filter with -O option.
         # if self.option == INS_ALL:
@@ -4180,7 +4180,6 @@ class Installer:
             sql_file_path = "/home/regress/CantianKernel/pkg/admin/scripts"
         else:
             install_config_path = "/opt/cantian/action/cantian/install_config.json"
-            os.chmod(install_config_path, stat.S_IRWXU+stat.S_IRWXG+stat.S_IRWXO)
             with open(install_config_path, 'r', encoding='utf-8') as file:
                 info = file.read()
                 install_path = json.loads(info).get("R_INSTALL_PATH")
