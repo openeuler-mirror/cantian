@@ -19,8 +19,8 @@ else:
         "random_seed": "1"
     }
 
-SHARE_INSTALL_FILE = str(Path(os.path.join("/mnt/dbdata/remote/metadata_%s" % info.get("storage_metadata_fs"),
-                                            "deploy_param.json")))
+SHARE_INSTALL_FILE = os.path.join("/mnt/dbdata/remote/metadata_%s" % info.get("storage_metadata_fs"),
+                                            "deploy_param.json")
 
 if os.path.exists(SHARE_INSTALL_FILE):
     with open(SHARE_INSTALL_FILE, encoding="utf-8") as f:
