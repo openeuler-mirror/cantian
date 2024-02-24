@@ -19,7 +19,10 @@ import glob
 from log import LOGGER
 from get_config_info import get_value
 sys.path.append('../')
-from obtains_lsid import LSIDGenerate
+try:
+    from obtains_lsid import LSIDGenerate
+except Exception as err:
+    pass
 
 PYTHON242 = "2.4.2"
 PYTHON25 = "2.5"
