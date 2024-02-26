@@ -667,7 +667,6 @@ void rc_init_arch_proc_ctx(arch_proc_context_t *proc_ctx, log_file_t *logfile, d
                            uint32 arch_num, uint32 node_id)
 {
     knl_session_t *session = proc_ctx->session;
-    log_context_t *ctx = &proc_ctx->session->kernel->redo_ctx;
     proc_ctx->arch_id = node_id;
     proc_ctx->last_archived_log_record.rst_id = session->kernel->db.ctrl.core.resetlogs.rst_id;
     proc_ctx->last_archived_log_record.offset = CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size);
@@ -678,14 +677,14 @@ void rc_init_arch_proc_ctx(arch_proc_context_t *proc_ctx, log_file_t *logfile, d
     proc_ctx->data_type = cm_dbs_is_enable_dbs() == CT_TRUE ? ARCH_DATA_TYPE_DBSTOR : ARCH_DATA_TYPE_FILE;
     
     if (cm_dbs_is_enable_dbs() != CT_TRUE) {
+        log_context_t *ctx = &proc_ctx->session->kernel->redo_ctx;
         rc_init_redo_ctx(proc_ctx, node_ctrl, logfile, node_id);
         log_switch_file(proc_ctx->session);
         free(ctx->logwr_head_buf);
+        rc_arch_set_last_file_id(proc_ctx, node_id);
     }
 
-    rc_arch_set_last_file_id(proc_ctx, node_id);
     arch_ctrl_t *arch_ctrl = NULL;
-
     if (arch_num != 0) {
         arch_ctrl = db_get_arch_ctrl(session, node_ctrl->archived_end - 1, node_id);
         proc_ctx->last_archived_log_record.asn = arch_ctrl->asn + 1;
@@ -716,10 +715,12 @@ status_t rc_arch_init_proc_ctx(arch_proc_context_t *proc_ctx, uint32 node_id)
     ret = strcpy_s(proc_ctx->arch_dest, CT_FILE_NAME_BUFFER_SIZE,
                    session->kernel->arch_ctx.arch_proc[ARCH_DEFAULT_DEST - 1].arch_dest);
     knl_securec_check(ret);
-
-    if (rc_arch_init_session(proc_ctx, session, node_id) != CT_SUCCESS) {
+ 
+    proc_ctx->session = session;
+    if (cm_dbs_is_enable_dbs() != CT_TRUE && rc_arch_init_session(proc_ctx, session, node_id) != CT_SUCCESS) {
         return CT_ERROR;
     }
+
     rc_init_arch_proc_ctx(proc_ctx, logfile, node_ctrl, arch_num, node_id);
     CT_LOG_RUN_INF("[RC_ARCH] cur arch num %u, next asn %u, next start lsn %llu", arch_num,
                    proc_ctx->last_archived_log_record.asn, proc_ctx->last_archived_log_record.end_lsn);
@@ -862,8 +863,6 @@ void rc_end_archive_log(arch_proc_context_t *arch_proc_ctx)
         if (arch_proc_ctx[i].logfile.ctrl != NULL && arch_proc_ctx[i].logfile.handle != CT_INVALID_HANDLE) {
             cm_close_device(arch_proc_ctx[i].logfile.ctrl->type, &arch_proc_ctx[i].logfile.handle);
         }
-
-        cm_free(arch_proc_ctx->session);
     }
 }
 
