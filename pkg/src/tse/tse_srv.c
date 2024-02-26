@@ -828,7 +828,7 @@ int tse_open_cursor_and_fetch_by_rowid(knl_session_t *knl_session, knl_cursor_t 
 }
 
 EXTER_ATTACK int tse_update_row(tianchi_handler_t *tch, uint16_t new_record_len, const uint8_t *new_record,
-                                const uint16_t *upd_cols, uint16_t col_num, dml_flag_t flag, bool *is_mysqld_starting)
+                                const uint16_t *upd_cols, uint16_t col_num, dml_flag_t flag)
 {
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
@@ -1612,7 +1612,8 @@ EXTER_ATTACK int tse_trx_begin(tianchi_handler_t *tch, tianchi_trx_context_t trx
         CT_LOG_RUN_INF("tse_trx_begin: operation on read only mode while ctc_ddl_local_enabled is true.");
         return CT_SUCCESS;
     }
-        bool is_select = (tse_command_type_read(tch->sql_command) && !trx_context.use_exclusive_lock) || tch->sql_command == SQLCOM_END;
+    bool is_select = (tse_command_type_read(tch->sql_command) && !trx_context.use_exclusive_lock) ||
+        tch->sql_command == SQLCOM_END;
     if (is_select && !knl_db_is_primary(knl_session)) {
         CT_LOG_RUN_INF("tse_trx_begin: select operation on read only mode.");
         return CT_SUCCESS;

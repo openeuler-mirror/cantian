@@ -98,7 +98,6 @@ struct update_row_request {
     uint16_t col_num;
     int result;
     dml_flag_t flag;
-    bool is_mysqld_starting;
 };
 
 struct delete_row_request {
@@ -252,7 +251,6 @@ struct index_read_request {
     tse_select_mode_t mode;
     tse_conds *cond;
     bool is_replace;
-    bool is_mysqld_starting;
 };
 
 struct index_end_request {
