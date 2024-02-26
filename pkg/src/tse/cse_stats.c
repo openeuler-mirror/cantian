@@ -68,7 +68,6 @@ io_record_event_desc_t g_tse_io_record_event_desc[TSE_FUNC_TYPE_NUMBER] = {
     {"TSE_FUNC_TYPE_POSITION", ""},
     {"TSE_FUNC_TYPE_DELETE_ALL_ROWS", ""},
     {"TSE_FUNC_TYPE_GET_CBO_STATS", ""},
-    {"TSE_FUNC_TYPE_GET_HUGE_PART_TABLE_CBO_STATS", ""},
     {"TSE_FUNC_TYPE_WRITE_LOB", ""},
     {"TSE_FUNC_TYPE_READ_LOB", ""},
     {"TSE_FUNC_TYPE_CREATE_TABLE", ""},
