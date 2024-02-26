@@ -719,7 +719,7 @@ status_t rc_arch_init_proc_ctx(arch_proc_context_t *proc_ctx, uint32 node_id)
     proc_ctx->session = session;
     if (cm_dbs_is_enable_dbs() != CT_TRUE && rc_arch_init_session(proc_ctx, session, node_id) != CT_SUCCESS) {
         return CT_ERROR;
-    } 
+    }
 
     rc_init_arch_proc_ctx(proc_ctx, logfile, node_ctrl, arch_num, node_id);
     CT_LOG_RUN_INF("[RC_ARCH] cur arch num %u, next asn %u, next start lsn %llu", arch_num,
