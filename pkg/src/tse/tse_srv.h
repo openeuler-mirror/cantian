@@ -534,7 +534,7 @@ int tse_write_through_row(tianchi_handler_t *tch, const record_info_t *record_in
 int tse_bulk_write(tianchi_handler_t *tch, const record_info_t *record_info, uint64_t rec_num,
                    uint32_t *err_pos, dml_flag_t flag, ctc_part_t *part_ids);
 int tse_update_row(tianchi_handler_t *tch, uint16_t new_record_len, const uint8_t *new_record,
-                   const uint16_t *upd_cols, uint16_t col_num, dml_flag_t flag, bool *is_mysqld_starting);
+                   const uint16_t *upd_cols, uint16_t col_num, dml_flag_t flag);
 int tse_delete_row(tianchi_handler_t *tch, uint16_t record_len, dml_flag_t flag);
 int tse_rnd_init(tianchi_handler_t *tch, expected_cursor_action_t action,
                  tse_select_mode_t mode, tse_conds *cond);
@@ -624,6 +624,7 @@ int tse_update_mysql_dd_cache(char *sql_str);
 int tse_set_cluster_role_by_cantian(bool is_slave);
 
 int ctc_record_sql_for_cantian(tianchi_handler_t *tch, tse_ddl_broadcast_request *broadcast_req, bool allow_fail);
+int tse_query_cluster_role(bool *is_slave, bool *cantian_cluster_ready);
 #ifdef __cplusplus
 }
 #endif

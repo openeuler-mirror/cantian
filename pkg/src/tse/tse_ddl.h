@@ -89,6 +89,7 @@ typedef enum sql_command_filter_op {
     SQLCOM_SET_OPTION = 31,
     SQLCOM_CREATE_DB = 36,
     SQLCOM_DROP_DB = 37,
+    SQLCOM_CHECK = 46,
     SQLCOM_RENAME_TABLE = 64,
     SQLCOM_SHOW_BINLOGS = 68,
     SQLCOM_SHOW_OPEN_TABLES = 69,

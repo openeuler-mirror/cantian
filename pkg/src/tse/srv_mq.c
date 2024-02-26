@@ -691,11 +691,8 @@ EXTER_ATTACK int tse_mq_update_row(dsw_message_block_t *message_block)
 {
     struct update_row_request *req = message_block->seg_buf[0];
     database_t *db = &g_instance->kernel.db;
-    if (req->is_mysqld_starting && DB_IS_PHYSICAL_STANDBY(db)) {
-        return CT_SUCCESS;
-    }
     req->result = tse_update_row(&req->tch, req->new_record_len, req->new_record,
-        req->upd_cols, req->col_num, req->flag, &req->is_mysqld_starting);
+        req->upd_cols, req->col_num, req->flag);
     return req->result;
 }
 
@@ -888,9 +885,6 @@ EXTER_ATTACK int tse_mq_index_read(dsw_message_block_t *message_block)
     index_key_info.find_flag = req->find_flag;
     index_key_info.action = req->action;
     database_t *db = &g_instance->kernel.db;
-    if (req->is_mysqld_starting && DB_IS_PHYSICAL_STANDBY(db)) {
-        index_key_info.action = 0;
-    }
     index_key_info.sorted = req->sorted;
     index_key_info.need_init = req->need_init;
     index_key_info.key_num = req->key_num;
@@ -1287,15 +1281,8 @@ EXTER_ATTACK int ctc_mq_record_sql_for_cantian(dsw_message_block_t *message_bloc
 {
     int result;
     struct execute_mysql_ddl_sql_request *req = message_block->seg_buf[0];
-    database_t *db = &g_instance->kernel.db;
-    if (DB_IS_PHYSICAL_STANDBY(db)) {
-        CT_LOG_RUN_ERR("[Disaster Recovery] Do not allow to record sql for cantian in slave cluster.");
-        CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
-        result = CT_ERROR;
-    } else {
-        result = ctc_record_sql_for_cantian(&req->tch, &req->broadcast_req, req->allow_fail);
-        req->result = result;
-    }
+    result = ctc_record_sql_for_cantian(&req->tch, &req->broadcast_req, req->allow_fail);
+    req->result = result;
     return req->result;
 }
 
