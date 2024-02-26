@@ -122,7 +122,7 @@ do
     if [[ -z ${cms_start_pid} && -n ${cms_pid} && -n ${cantiand_pid} ]];then
         cgroup_add_pid ${cms_pid} ${CMS_CGROUP}
     fi
-    su -s /bin/bash ctmgruser -c "sh /opt/cantian/action/ct_om/check_status.sh"
+    su -s /bin/bash - ctmgruser -c "sh /opt/cantian/action/ct_om/check_status.sh"
     if [ $? -ne 0 ];then
         logAndEchoInfo "[cantian daemon] ct_om is check_status return 1, begin to start ct_om. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         sh /opt/cantian/action/ct_om/appctl.sh start
@@ -133,7 +133,7 @@ do
     memory_monitoring "${ctmgr_pid}" "${CGROUP_SIZE_MAP['ctmgr']}"
     cgroup_add_pid ${ctmgr_pid} ${CTMGR_CGROUP}
 
-    su -s /bin/bash ${cantian_user} -c "sh /opt/cantian/action/cantian_exporter/check_status.sh"
+    su -s /bin/bash - ${cantian_user} -c "sh /opt/cantian/action/cantian_exporter/check_status.sh"
     if [ $? -ne 0 ];then
         logAndEchoInfo "[cantian daemon] cantian_exporter is check_status return 1, begin to start ct_om. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         sh /opt/cantian/action/cantian_exporter/appctl.sh start

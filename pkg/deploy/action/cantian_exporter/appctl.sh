@@ -57,7 +57,7 @@ function do_deploy()
         logAndEchoError "${COMPONENT_NAME} ${script_name_param} is not exist. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 1
     fi
-    su -s /bin/bash ${cantian_user} -c "sh ${CURRENT_PATH}/${script_name_param}"
+    su -s /bin/bash - ${cantian_user} -c "sh ${CURRENT_PATH}/${script_name_param}"
     ret=$?
 
     if [ $ret -ne 0 ]; then

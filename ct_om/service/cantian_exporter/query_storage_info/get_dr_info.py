@@ -2,9 +2,14 @@
 import json
 import os
 import sys
-from rest_client import RestClient, read_helper
-from response_parse import ResponseParse
-from rest_constant import Constant, MetroDomainRunningStatus, VstorePairRunningStatus, HealthStatus
+from query_storage_info.rest_client import RestClient, read_helper
+from query_storage_info.response_parse import ResponseParse
+from query_storage_info.rest_constant import Constant, \
+    MetroDomainRunningStatus, VstorePairRunningStatus, HealthStatus
+from exporter.log import EXPORTER_LOG as LOG
+
+sys.path.append('/opt/cantian/action/dbstor')
+from kmc_adapter import CApiWrapper
 
 
 DR_DEPLOY_PARAM = "/opt/cantian/config/dr_deploy_param.json"
@@ -21,6 +26,7 @@ def get_status(status: str, status_class: object) -> str:
 
 class DRStatusCheck(object):
     def __init__(self):
+        self.kmc_decrypt = None
         self.rest_client = None
         self.device_id = None
         self.decrypt_pwd = None
@@ -60,11 +66,26 @@ class DRStatusCheck(object):
         return rsp_data
 
     def opt_init(self):
+        if not os.path.exists(DR_DEPLOY_PARAM):
+            return
         self.dr_deploy_params = json.loads(read_helper(DR_DEPLOY_PARAM))
         self.dm_ip = self.dr_deploy_params.get("dm_ip")
         self.dm_user = self.dr_deploy_params.get("dm_user")
-        self.dm_pwd = self.dr_deploy_params.get("dm_pwd")
-        self.decrypt_pwd = input()
+        dm_pwd = self.dr_deploy_params.get("dm_pwd")
+        if os.path.exists(DR_DEPLOY_PARAM):
+            self.kmc_decrypt = CApiWrapper(primary_keystore=PRIMARY_KEYSTORE, standby_keystore=STANDBY_KEYSTORE)
+            self.kmc_decrypt.initialize()
+            try:
+                self.dm_pwd = self.kmc_decrypt.decrypt(dm_pwd)
+            except Exception as err:
+                LOG.error("Failed to decrypt dm passwd")
+                return
+        self.kmc_decrypt.finalize()
+        # 恢复环境变量，避免cms命令执行失败
+        split_env = os.environ['LD_LIBRARY_PATH'].split(":")
+        filtered_env = [single_env for single_env in split_env if "/opt/cantian/dbstor/lib" not in single_env]
+        os.environ['LD_LIBRARY_PATH'] = ":".join(filtered_env)
+
         self.rest_client = RestClient((self.dm_ip, self.dm_user, self.decrypt_pwd))
         self.rest_client.login()
         self.device_id = self.rest_client.device_id
@@ -174,17 +195,15 @@ class DRStatusCheck(object):
     def execute(self):
         result = dict()
         if not os.path.exists(DR_DEPLOY_PARAM):
-            return json.dumps(result)
-        try:
-            self.opt_init()
-        except Exception as _err:
+            return result
+        if self.rest_client.token is None:
             res = {"local_con": "Abnormal"}
             result["dr_status"] = res
-            return json.dumps(result)
+            return result
         data = self.query_dr_status()
         result["dr_status"] = data
         self.rest_client.logout()
-        return json.dumps(result)
+        return result
 
     def query_dr_status(self):
         self.remote_device_id = self.dr_deploy_params.get("remote_device_id")
@@ -227,8 +246,3 @@ class DRStatusCheck(object):
             "metro_vstore_status": metro_vstore_status
         }
         return data
-
-
-if __name__ == "__main__":
-    dr_check = DRStatusCheck()
-    print(dr_check.execute())

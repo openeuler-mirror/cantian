@@ -70,7 +70,7 @@ function do_deploy()
         echo "${COMPONENTNAME} ${script_name_param} is not exist. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 1
     fi
-    su -s /bin/bash -c "cd ${CURRENT_PATH} && sh ${CURRENT_PATH}/${script_name_param} ${uninstall_type} ${force_uninstall}" ${user}
+    su -s /bin/bash - ${user} -c "cd ${CURRENT_PATH} && sh ${CURRENT_PATH}/${script_name_param} ${uninstall_type} ${force_uninstall}"
 
     ret=$?
     if [ $ret -ne 0 ]; then
@@ -212,14 +212,14 @@ function check_cantian_status() {
         user=${d_user}
     fi
     echo "check cantian cluster status processes: cms stat"
-    su -s /bin/bash ${user} -c "source ~/.bashrc && cms stat"
+    su -s /bin/bash - ${user} -c "source ~/.bashrc && cms stat"
 
     if [ X$node_id == X0 ];then
-        online_stat_count=$(su -s /bin/bash ${user} -c "source ~/.bashrc && cms stat" | grep 'db' | awk '{if($1==0){print $3}}' | grep 'ONLINE' | wc -l)
-        work_stat_count=$(su -s /bin/bash ${user} -c "source ~/.bashrc && cms stat" | grep 'db' | awk '{if($1==0){print $6}}' | grep '1' | wc -l)
+        online_stat_count=$(su -s /bin/bash - ${user} -c "source ~/.bashrc && cms stat" | grep 'db' | awk '{if($1==0){print $3}}' | grep 'ONLINE' | wc -l)
+        work_stat_count=$(su -s /bin/bash - ${user} -c "source ~/.bashrc && cms stat" | grep 'db' | awk '{if($1==0){print $6}}' | grep '1' | wc -l)
     else
-        online_stat_count=$(su -s /bin/bash ${user} -c "source ~/.bashrc && cms stat" | grep 'db' | awk '{if($1==1){print $3}}' | grep 'ONLINE' | wc -l)
-        work_stat_count=$(su -s /bin/bash ${user} -c "source ~/.bashrc && cms stat" | grep 'db' | awk '{if($1==1){print $6}}' | grep '1' | wc -l)
+        online_stat_count=$(su -s /bin/bash - ${user} -c "source ~/.bashrc && cms stat" | grep 'db' | awk '{if($1==1){print $3}}' | grep 'ONLINE' | wc -l)
+        work_stat_count=$(su -s /bin/bash - ${user} -c "source ~/.bashrc && cms stat" | grep 'db' | awk '{if($1==1){print $6}}' | grep '1' | wc -l)
     fi
     if [ ${online_stat_count} -ne 1 ];then
         echo "Error: the online status of the database is abnormal"
@@ -240,7 +240,7 @@ function check_cantian_status() {
     if [[ ${version_first_number} -eq 2 ]];then
         return 0
     fi
-    su -s /bin/bash "${user}" -c "source ~/.bashrc && export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && python3 -B ${CURRENT_PATH}/cantian_post_upgrade.py"
+    su -s /bin/bash - "${user}" -c "source ~/.bashrc && export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && python3 -B ${CURRENT_PATH}/cantian_post_upgrade.py"
     if [ $? -ne 0 ]; then
         echo "Error: db status check failed."
         return 1
