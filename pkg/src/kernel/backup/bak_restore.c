@@ -3325,7 +3325,7 @@ status_t dtc_log_prepare_for_pitr(knl_session_t *se)
     knl_instance_t *kernel = se->kernel;
     uint32 rst_id = kernel->db.ctrl.core.resetlogs.rst_id;
     for (uint32 i = 0; i < kernel->db.ctrl.core.node_count; i++) {
-        uint32 archive_asn = dtc_get_ctrl(se,i)->rcy_point.asn;
+        uint32 archive_asn = dtc_get_ctrl(se, i)->rcy_point.asn;
         CT_LOG_DEBUG_INF("[RESTORE] archive_asn %llu.", (uint64)archive_asn);
         if (dtc_rst_regist_archive(se, &archive_asn, rst_id, i) != CT_SUCCESS) {
             return CT_ERROR;
