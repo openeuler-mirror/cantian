@@ -1011,7 +1011,7 @@ int tse_get_and_reset_err(void)
 void tse_pre_set_cursor_for_scan(uint32 index_set_count, knl_cursor_t *cursor, uint16_t active_index)
 {
     cursor->action = CURSOR_ACTION_SELECT;
-    if (index_set_count == 0) {
+    if (index_set_count == 0 || active_index == MAX_INDEXES) {
         cursor->scan_mode = SCAN_MODE_TABLE_FULL;
     } else {
         cursor->scan_mode = SCAN_MODE_INDEX;
@@ -1027,7 +1027,7 @@ int tse_count_rows(session_t *session, knl_dictionary_t *dc, knl_session_t *knl_
 {
     int ret = CT_SUCCESS;
     table_t *table = DC_TABLE(dc);
-    if (table->index_set.total_count > 0) {
+    if (table->index_set.total_count > 0 && cursor->scan_mode == SCAN_MODE_INDEX) {
         index_t *index = DC_INDEX(dc, cursor->index_slot);
         knl_index_desc_t *desc = INDEX_DESC(index);
         for (int col_id = 0; col_id < desc->column_count; col_id++) {
