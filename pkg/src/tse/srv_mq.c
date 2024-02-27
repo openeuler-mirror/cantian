@@ -43,7 +43,7 @@
 #include "srv_instance.h"
 #include "tse_srv_util.h"
 
-#define MEM_CLASS_NUM 26
+#define MEM_CLASS_NUM 27
 #define SHM_MSG_TIMEOUT_SEC 1
 #define MQ_RESERVED_THD_NUM (10)
 
@@ -121,12 +121,13 @@ mem_class_cfg_t g_mem_class_cfg[MEM_CLASS_NUM] = {
     {41008,  400},
     {41144,  400},
     {49200,  400},
-    {65536,  20000},
+    {65536,  15000},
     {65544,  10000},
     {82224,  400},
     {102400, 2000},
-    {204800, 2000},
-    {491520, 2000},
+    {204800, 1000},
+    {491520, 1000},
+    {52428800, 20},
 };
 
 uint32_t g_support_ctc_client[] = {
@@ -691,11 +692,8 @@ EXTER_ATTACK int tse_mq_update_row(dsw_message_block_t *message_block)
 {
     struct update_row_request *req = message_block->seg_buf[0];
     database_t *db = &g_instance->kernel.db;
-    if (req->is_mysqld_starting && DB_IS_PHYSICAL_STANDBY(db)) {
-        return CT_SUCCESS;
-    }
     req->result = tse_update_row(&req->tch, req->new_record_len, req->new_record,
-        req->upd_cols, req->col_num, req->flag, &req->is_mysqld_starting);
+        req->upd_cols, req->col_num, req->flag);
     return req->result;
 }
 
@@ -888,9 +886,6 @@ EXTER_ATTACK int tse_mq_index_read(dsw_message_block_t *message_block)
     index_key_info.find_flag = req->find_flag;
     index_key_info.action = req->action;
     database_t *db = &g_instance->kernel.db;
-    if (req->is_mysqld_starting && DB_IS_PHYSICAL_STANDBY(db)) {
-        index_key_info.action = 0;
-    }
     index_key_info.sorted = req->sorted;
     index_key_info.need_init = req->need_init;
     index_key_info.key_num = req->key_num;
@@ -970,54 +965,6 @@ EXTER_ATTACK int tse_mq_get_cbo_stats(dsw_message_block_t *message_block)
     struct get_cbo_stats_request *req = message_block->seg_buf[0];
     req->result = tse_get_cbo_stats(&req->tch, req->stats);
     return req->result;
-}
-
-EXTER_ATTACK int tse_mq_get_huge_part_table_cbo_stats(dsw_message_block_t *message_block)
-{
-    int result = CT_ERROR;
-    struct get_cbo_stats_request *request_buf = message_block->seg_buf[0];
-    uint8_t *offset = (uint8_t *)request_buf + sizeof(struct get_cbo_stats_request);
-    request_buf->stats = (tianchi_cbo_stats_t *)offset;
-    uint32_t request_size = sizeof(struct get_cbo_stats_request) + sizeof(tianchi_cbo_stats_t) +
-                            request_buf->stats->part_table_info.rows_and_blocks_size;
- 
-    /* 共享内存只发送信息头request，mysql需要的数据由参天申请内存，获取信息后，将数据返回到mysql */
-    uint32_t req_size = request_size + request_buf->stats->part_table_info.num_distinct_size +
-                        request_buf->stats->part_table_info.low_value_size +
-                        request_buf->stats->part_table_info.high_value_size;
-    CT_RETURN_IFERR(tse_check_ddl_msg_len(req_size));
-    uint8_t *req_buf = (uint8_t *)malloc(req_size);
-    if (req_buf == NULL) {
-        CT_LOG_RUN_ERR("tse_get_huge_part_table_cbo_stats apply for req_buf failed.");
-        request_buf->result = ERR_ALLOC_MEMORY;
-        return ERR_ALLOC_MEMORY;
-    }
-    int ret = memcpy_s(req_buf, req_size, request_buf, request_size);
-    if (ret != EOK) {
-        CT_LOG_RUN_ERR("memcpy_s request_buf failed.");
-        request_buf->result = CT_ERROR;
-        CM_FREE_PTR(req_buf);
-        return CT_ERROR;
-    }
-
-    struct get_cbo_stats_request *req = (struct get_cbo_stats_request *)req_buf;
-    offset = req_buf + sizeof(struct get_cbo_stats_request);
-    req->stats = (tianchi_cbo_stats_t *)offset;
- 
-    /* 此时req中的指针指向mysql侧的内存区域，需要将其指向reqBuf中的数据区 */
-    offset = req_buf + request_size;
-    req->stats->tse_cbo_stats_table.part_table_num_distincts = (uint32_t *)offset;
-    offset += req->stats->part_table_info.num_distinct_size;
-    req->stats->tse_cbo_stats_table.part_table_low_values = (cache_variant_t *)offset;
-    offset += req->stats->part_table_info.low_value_size;
-    req->stats->tse_cbo_stats_table.part_table_high_values = (cache_variant_t *)offset;
-    result = tse_get_cbo_stats(&req->tch, req->stats);
-    req->result = result;
-    if (result == CT_SUCCESS) {
-        result = tse_mq_set_batch_data(message_block, req_buf, req_size);
-    }
-    CM_FREE_PTR(req_buf);
-    return result;
 }
 
 EXTER_ATTACK int tse_mq_write_lob(dsw_message_block_t *message_block)
@@ -1287,15 +1234,8 @@ EXTER_ATTACK int ctc_mq_record_sql_for_cantian(dsw_message_block_t *message_bloc
 {
     int result;
     struct execute_mysql_ddl_sql_request *req = message_block->seg_buf[0];
-    database_t *db = &g_instance->kernel.db;
-    if (DB_IS_PHYSICAL_STANDBY(db)) {
-        CT_LOG_RUN_ERR("[Disaster Recovery] Do not allow to record sql for cantian in slave cluster.");
-        CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
-        result = CT_ERROR;
-    } else {
-        result = ctc_record_sql_for_cantian(&req->tch, &req->broadcast_req, req->allow_fail);
-        req->result = result;
-    }
+    result = ctc_record_sql_for_cantian(&req->tch, &req->broadcast_req, req->allow_fail);
+    req->result = result;
     return req->result;
 }
 
@@ -1395,7 +1335,6 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {TSE_FUNC_TYPE_POSITION,                      tse_mq_position},
     {TSE_FUNC_TYPE_DELETE_ALL_ROWS,               tse_mq_delete_all_rows},
     {TSE_FUNC_TYPE_GET_CBO_STATS,                 tse_mq_get_cbo_stats},
-    {TSE_FUNC_TYPE_GET_HUGE_PART_TABLE_CBO_STATS, tse_mq_get_huge_part_table_cbo_stats},
     {TSE_FUNC_TYPE_WRITE_LOB,                     tse_mq_write_lob},
     {TSE_FUNC_TYPE_READ_LOB,                      tse_mq_read_lob},
     {TSE_FUNC_TYPE_CREATE_TABLE,                  tse_mq_create_table},

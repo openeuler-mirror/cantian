@@ -940,7 +940,7 @@ status_t dtc_cal_redo_size_by_node_id(knl_session_t *session, uint32 node_id, ui
     lrpl_context_t *lrpl_ctx = &session->kernel->lrpl_ctx;
     log_file_t *log_file = &log_set->items[0];
     device_type_t type = cm_device_type(log_file->ctrl->name);
-    int32 handle;
+    int32 handle = -1;
     if (cm_open_device(log_file->ctrl->name, type, knl_io_flag(session), &handle) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DB] failed to open redo log file %s ", log_file->ctrl->name);
         return CT_ERROR;
@@ -970,7 +970,7 @@ status_t dtc_cal_lrpl_redo_size(knl_session_t *session, uint32* redo_recovery_si
             CT_LOG_RUN_ERR("failed to fetch rcy redo log size of node %u", node_id);
             return CT_ERROR;
         }
-        *redo_recovery_size += rcy_log_size / SIZE_M(1);
+        *redo_recovery_size += rcy_log_size / SIZE_K(1);
     }
 
     if (lrpl_ctx->lrpl_speed != 0) {

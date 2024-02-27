@@ -134,7 +134,16 @@ function start_cantiand() {
       fi
     fi
     set -e
-    nohup ${numactl_str} ${CTDB_HOME}/bin/cantiand ${START_MODE} -D ${CTDB_DATA} >> ${STATUS_LOG} 2>&1 &
+    if [ "${ever_started}" == "True" ]; then
+      cms res -start db -node "${NODE_ID}"
+      if [ $? -eq 0 ]; then
+        echo "instance started" >> /mnt/dbdata/local/cantian/tmp/data/log/cantianstatus.log
+      else
+        echo "instance startup failed" >> /mnt/dbdata/local/cantian/tmp/data/log/cantianstatus.log
+      fi
+    else
+      nohup ${numactl_str} ${CTDB_HOME}/bin/cantiand ${START_MODE} -D ${CTDB_DATA} >> ${STATUS_LOG} 2>&1 &
+    fi
   fi
   
   if [ $? != 0 ]; then err "failed to start cantiand"; fi

@@ -604,7 +604,10 @@ int tse_put_ddl_sql_2_stmt_not_cantian_exe(session_t *session, tse_ddl_broadcast
     sql_alloc_context(session->current_stmt);
     sql_stmt_t *stmt = session->current_stmt;
     int ret = tse_put_ddl_sql_2_stmt(session, broadcast_req->db_name, broadcast_req->sql_str);
-    (void)knl_put_ddl_sql(knl_session, stmt);
+    // Do not record ddl log for standby cluster.
+    if (knl_db_is_primary(session)) {
+        (void)knl_put_ddl_sql(knl_session, stmt);
+    }
 
     sql_release_context(session->current_stmt);
 
@@ -4213,6 +4216,7 @@ bool32 tse_command_type_read(sql_command_filter_op_t cmd)
         case SQLCOM_SHOW_CREATE_DB:
         case SQLCOM_SHOW_TABLE_STATUS:
         case SQLCOM_SHOW_TRIGGERS:
+        case SQLCOM_CHECK:
         case SQLCOM_SHOW_BINLOGS:
         case SQLCOM_SHOW_OPEN_TABLES:
         case SQLCOM_SHOW_SLAVE_HOSTS:

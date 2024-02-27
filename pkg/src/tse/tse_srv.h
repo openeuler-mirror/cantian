@@ -48,7 +48,8 @@ extern "C" {
 #ifndef SENSI_INFO
 #define SENSI_INFO
 #endif
-
+#define CBO_PART_MEM_RESIDUAL 1000
+#define STATS_HISTGRAM_MAX_SIZE 254
 #define SMALL_RECORD_SIZE 128  // 表名、库名等长度不会特别大，取128
 #define ERROR_MESSAGE_LEN 512
 #define MAX_DDL_SQL_LEN_CONTEXT (129024)  // 126kb, 预留2kb
@@ -71,6 +72,7 @@ extern "C" {
 #define IS_TSE_PART(part_id) ((part_id) < (PART_CURSOR_NUM))
 #define MAX_BULK_INSERT_PART_ROWS 128
 #define SESSION_CURSOR_NUM (8192 * 2)
+#define MAX_MESSAGE_SIZE 52428800  // 共享内存最大可申请空间大小
 
 // for broadcast_req.options
 #define TSE_SET_VARIABLE_PERSIST (0x1 << 8)
@@ -138,39 +140,50 @@ typedef struct cache_st_variant {
     };
 } cache_variant_t;
 
+typedef enum {
+    FREQUENCY_HIST = 0,
+    HEIGHT_BALANCED_HIST = 1,
+} tse_cbo_hist_type_t;
+
+typedef struct {
+    cache_variant_t ep_value;
+    int ep_number;
+} tse_cbo_column_hist_t;
+
+typedef struct {
+    uint32_t total_rows;
+    uint32_t num_buckets;
+    uint32_t num_distinct;
+    uint32_t num_null;
+    double density;
+    tse_cbo_hist_type_t hist_type;
+    uint32_t hist_count;
+    tse_cbo_column_hist_t column_hist[STATS_HISTGRAM_MAX_SIZE];  // Column histogram statistics (array)
+    cache_variant_t low_value;
+    cache_variant_t high_value;
+} tse_cbo_stats_column_t;
+
 /**
  * cache info that can expand this struct
  * if need more cbo stats cache
  */
 typedef struct {
-    uint32_t max_col_id;
-    uint32_t *num_distincts;
-    cache_variant_t *low_values;
-    cache_variant_t *high_values;
-    uint32_t max_part_no;  // the part no of max rows num part
-    uint32_t *part_table_num_distincts;
-    cache_variant_t *part_table_low_values;
-    cache_variant_t *part_table_high_values;
+    uint32_t estimate_rows;
+    tse_cbo_stats_column_t *columns;
 } tse_cbo_stats_table_t;
-
-typedef struct {
-    uint32_t rows_and_blocks_size;
-    uint32_t num_distinct_size;
-    uint32_t low_value_size;
-    uint32_t high_value_size;
-} tianchi_part_table_cbo_info_t;
 
 /*
  * statistics information that mysql optimizer need
  * expand this struct if need more cbo stats
  */
 typedef struct {
-    uint32_t estimate_rows;
-    uint32_t estimate_blocks;
+    uint16_t first_partid;
+    uint16_t num_part_fetch;
+    uint32_t part_cnt;
+    uint32_t msg_len;
     bool is_updated;
     tse_cbo_stats_table_t tse_cbo_stats_table;
-    tianchi_part_table_cbo_info_t part_table_info;
-    uint32_t estimate_part_rows_and_blocks[0];
+    tse_cbo_stats_table_t *tse_cbo_stats_part_table;
 } tianchi_cbo_stats_t;
 #pragma pack()
 
@@ -238,12 +251,12 @@ typedef union {
         uint32_t primary : 1;            // if it is a primary key (主键)
         uint32_t unique : 1;             // 是否唯一
         uint32_t is_serial : 1;          // 自增
-        uint32_t is_check : 1;           // 检查列(取值范围)约束
+        uint32_t is_check : 1;           // 检查列(取值范围)约束  http://c.biancheng.net/view/2446.html
         uint32_t is_ref : 1;             // 指定外键 参考sql_parse_column_ref
         uint32_t is_default : 1;         // 是否有默认值 通过is_default_null default_text来设置默认值
         uint32_t is_update_default : 1;  // sql_parse_column_default
         uint32_t is_comment : 1;         // 是否有注释  sql_parse_column_comment 通过 column->comment 存储注释
-        uint32_t is_collate : 1;         // sql_parse_collate 字符串排序用的 跟字符集有关系
+        uint32_t is_collate : 1;         // sql_parse_collate 字符串排序用的 跟字符集有关系 https://www.cnblogs.com/jpfss/p/11548826.html
         uint32_t has_null : 1;           // not null sql_parse_column_not_null
         uint32_t has_quote : 1;          // if column name wrapped with double quotation 如果列名用双引号括起来
         uint32_t is_dummy : 1;           // if it is a dummy column for index  目前在daac代码中暂未使用
@@ -305,7 +318,6 @@ enum TSE_FUNC_TYPE {
     TSE_FUNC_TYPE_POSITION,
     TSE_FUNC_TYPE_DELETE_ALL_ROWS,
     TSE_FUNC_TYPE_GET_CBO_STATS,
-    TSE_FUNC_TYPE_GET_HUGE_PART_TABLE_CBO_STATS,
     TSE_FUNC_TYPE_WRITE_LOB,
     TSE_FUNC_TYPE_READ_LOB,
     TSE_FUNC_TYPE_CREATE_TABLE,
@@ -534,7 +546,7 @@ int tse_write_through_row(tianchi_handler_t *tch, const record_info_t *record_in
 int tse_bulk_write(tianchi_handler_t *tch, const record_info_t *record_info, uint64_t rec_num,
                    uint32_t *err_pos, dml_flag_t flag, ctc_part_t *part_ids);
 int tse_update_row(tianchi_handler_t *tch, uint16_t new_record_len, const uint8_t *new_record,
-                   const uint16_t *upd_cols, uint16_t col_num, dml_flag_t flag, bool *is_mysqld_starting);
+                   const uint16_t *upd_cols, uint16_t col_num, dml_flag_t flag);
 int tse_delete_row(tianchi_handler_t *tch, uint16_t record_len, dml_flag_t flag);
 int tse_rnd_init(tianchi_handler_t *tch, expected_cursor_action_t action,
                  tse_select_mode_t mode, tse_conds *cond);
@@ -624,6 +636,7 @@ int tse_update_mysql_dd_cache(char *sql_str);
 int tse_set_cluster_role_by_cantian(bool is_slave);
 
 int ctc_record_sql_for_cantian(tianchi_handler_t *tch, tse_ddl_broadcast_request *broadcast_req, bool allow_fail);
+int tse_query_cluster_role(bool *is_slave, bool *cantian_cluster_ready);
 #ifdef __cplusplus
 }
 #endif

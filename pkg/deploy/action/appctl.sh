@@ -273,7 +273,7 @@ function dr_deploy() {
             logAndEchoError "dr ${dr_action} execute failed."
             exit 1
         fi
-        logAndEchoInfo "dr ${dr_action} execute success, process id[${_pid}].\n        please use conmmad[sh appctl.sh dr_operate progress_query --action=deploy/full_sync --display=table\json] to query progress."
+        logAndEchoInfo "dr ${dr_action} execute success, process id[${_pid}].\n        please use command[sh appctl.sh dr_operate progress_query --action=deploy/full_sync --display=table\json] to query progress."
     elif [[ "${dr_action}" == "progress_query" ]]; then
         if [[ -z ${dr_site} ]];then
             dr_site="--action=deploy"

@@ -1058,7 +1058,7 @@ void new_tx_process_scn_broadcast(void *sess, mes_message_t *msg)
 {
     new_mes_scn_bcast_t *new_bcast = (new_mes_scn_bcast_t *)msg->buffer;
     if (new_bcast->fakeFlag) {
-        CT_LOG_RUN_INF("The SCN receiver is receiving the latest the message from the sender.");
+        CT_LOG_DEBUG_INF("The SCN receiver is receiving the latest the message from the sender.");
     }
     knl_scn_t latest_scn = new_bcast->scn;
     mes_message_head_t ack_head = {0};
@@ -1084,15 +1084,14 @@ status_t tx_scn_broadcast(knl_session_t *session)
 #ifdef _DEBUG
     ctrl_version_t fake_local_version = { 1, 0, 0, 1 };
     ctrl_version_t cluster_version = DB_CORE_CTRL(session)->version;
-    CT_LOG_RUN_INF("Testing the rolling update function...");
-    CT_LOG_RUN_INF("The cluster version is %d.%d.%d.%d",
+    CT_LOG_DEBUG_INF("Testing the rolling update function...");
+    CT_LOG_DEBUG_INF("The cluster version is %d.%d.%d.%d", 
         cluster_version.main, cluster_version.major, cluster_version.revision, cluster_version.inner);
     
     if (db_cur_ctrl_version_is_higher(session, fake_local_version) ||
         db_equal_to_cur_ctrl_version(session, fake_local_version)) {
         // The cluster version is higher than (or equal to) the local version. It could send the latest version.
-        CT_LOG_RUN_INF(
-            "The broadcast sender will send the NEW_MES_CMD_TXN_SCN_BROADCAST, the sender version is %d.%d.%d.%d",
+        CT_LOG_DEBUG_INF("The broadcast sender will send the NEW_MES_CMD_TXN_SCN_BROADCAST, the sender version is %d.%d.%d.%d",
             fake_local_version.main, fake_local_version.major, fake_local_version.revision, fake_local_version.inner);
         drc_remaster_mngr_t *remaster_mngr = &g_drc_res_ctx.part_mngr.remaster_mngr;
         new_mes_scn_bcast_t new_bcast;
@@ -1105,13 +1104,13 @@ status_t tx_scn_broadcast(knl_session_t *session)
         uint64 alive_bitmap = get_alive_bitmap_by_reform_info(&(remaster_mngr->reform_info));
         rc_bitmap64_clear(&alive_bitmap, session->kernel->id);
         CT_LOG_DEBUG_INF("tx scn broadcast, latest scn: %llu, alive_bitmap: %llu", new_bcast.scn, alive_bitmap);
-        CT_LOG_RUN_INF("The broadcast sender is trying to send the NEW_MES_CMD_TXN_SCN_BROADCAST.");
+        CT_LOG_DEBUG_INF("The broadcast sender is trying to send the NEW_MES_CMD_TXN_SCN_BROADCAST.");
         ret = mes_broadcast_data_and_wait_with_retry(session->id, alive_bitmap, (const void *)&new_bcast,
             BROADCAST_SCN_WAIT_INTERVEL, BROADCAST_SCN_SEND_MSG_RETRY_TIMES);
         if (ret == CT_ERROR) {
             CT_LOG_RUN_ERR("tx scn broadcast failed");
         }
-        CT_LOG_RUN_INF("The broadcast sender sends the NEW_MES_CMD_TXN_SCN_BROADCAST successfully.");
+        CT_LOG_DEBUG_INF("The broadcast sender sends the NEW_MES_CMD_TXN_SCN_BROADCAST successfully.");
         return ret;
     }
 #endif

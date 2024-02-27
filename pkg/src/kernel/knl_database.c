@@ -1117,7 +1117,9 @@ static status_t db_recovery_to_initphase2(knl_session_t *session, bool32 has_off
         }
     }
 
-    ckpt_trigger(session, has_offline, CKPT_TRIGGER_FULL);
+    if (DB_IS_PRIMARY(db)) {
+        ckpt_trigger(session, has_offline, CKPT_TRIGGER_FULL);
+    }
     dtc_my_ctrl(session)->shutdown_consistency = CT_FALSE;
     if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT(0, "[DB] ABORT INFO: save core control file failed after ckpt is completed");
@@ -2767,6 +2769,7 @@ void db_process_broadcast_cluster_role(void *sess, mes_message_t *msg)
         // cloese lrpl
         lrpl_close(session);
 
+        ckpt_enable(session);
         CT_LOG_RUN_INF("[INST] [SWITCHOVER] promote completed, running as primary");
 
         mes_init_ack_head(msg->head, &head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), CT_INVALID_ID16);

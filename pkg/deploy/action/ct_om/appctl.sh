@@ -87,7 +87,7 @@ function correct_ctom_files_mod() {
 
 function ctmgr_execute() {
     if id -u ctmgruser > /dev/null 2>&1; then
-        su -s /bin/bash ctmgruser -c "$1"
+        su -s /bin/bash - ctmgruser -c "$1"
         return $?
     else
         logAndEchoError "user: ctmgruser not exist, change user failed"

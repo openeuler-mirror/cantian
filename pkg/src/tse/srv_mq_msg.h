@@ -40,7 +40,6 @@ extern "C" {
 #define TSE_MQ_MESSAGE_SLICE_LEN 102400
 
 #define MAX_LOB_LOCATOR_SIZE 4000  // 存储引擎存储blob对象结构体最大长度
-#define MAX_MESSAGE_SIZE 491520  // 共享内存最大可申请空间大小
 
 #define REG_MISMATCH_CTC_VERSION   501
 #define REG_ALLOC_INST_ID_FAILED   502
@@ -98,7 +97,6 @@ struct update_row_request {
     uint16_t col_num;
     int result;
     dml_flag_t flag;
-    bool is_mysqld_starting;
 };
 
 struct delete_row_request {
@@ -252,7 +250,6 @@ struct index_read_request {
     tse_select_mode_t mode;
     tse_conds *cond;
     bool is_replace;
-    bool is_mysqld_starting;
 };
 
 struct index_end_request {
