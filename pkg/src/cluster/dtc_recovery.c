@@ -1815,15 +1815,26 @@ status_t dtc_skip_damage_batch(knl_session_t *session, log_batch_t **batch, uint
     return CT_SUCCESS;
 }
 
+bool32 dtc_standby_rcy_end(knl_session_t *session)
+{
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+    for (uint32 node_id = 0; node_id < session->kernel->db.ctrl.core.node_count; node_id++) {
+        reform_rcy_node_t* rcy_log_point = &dtc_rcy->rcy_log_points[node_id];
+        dtc_node_ctrl_t* ctrl = dtc_get_ctrl(session, node_id);
+        if (rcy_log_point->rcy_point.lfn < ctrl->lrp_point.lfn) {
+            return CT_FALSE;
+        }
+    }
+    return CT_TRUE;
+}
+
 status_t dtc_update_batch(knl_session_t *session, uint32 node_id)
 {
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
     dtc_rcy_node_t *rcy_node = &dtc_rcy->rcy_nodes[node_id];
-    reform_rcy_node_t* rcy_log_point = &dtc_rcy->rcy_log_points[node_id];
-    dtc_node_ctrl_t* ctrl = dtc_get_ctrl(session, node_id);
     log_batch_t *batch = NULL;
     uint32 left_size;
-    if (!DB_IS_PRIMARY(&session->kernel->db) && (DB_NOT_READY(session) || !dtc_rcy->full_recovery) && (rcy_log_point->rcy_point.lfn >= ctrl->lrp_point.lfn)) {
+    if (!DB_IS_PRIMARY(&session->kernel->db) && (DB_NOT_READY(session) || !dtc_rcy->full_recovery) && dtc_standby_rcy_end(session)) {
         rcy_node->recover_done = CT_TRUE;
         if (dtc_rcy->phase == PHASE_ANALYSIS) {
             CT_LOG_RUN_INF(
@@ -3472,6 +3483,10 @@ status_t dtc_recover_crashed_nodes(knl_session_t *session, instance_list_t *reco
         CT_LOG_RUN_ERR("[DTC RCY] failed to init dtc recovery. dtc_rcy->recovery_status=%u, dtc_rcy->failed=%u, "
             "dtc_rcy->in_progress=%u", dtc_rcy->recovery_status, dtc_rcy->failed, dtc_rcy->in_progress);
         return CT_ERROR;
+    }
+    if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master()) {
+        ckpt_enable(session);
+        CT_LOG_RUN_INF("ckpt enabled");
     }
 
     if (dtc_rcy->canceled) {

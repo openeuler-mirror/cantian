@@ -276,8 +276,8 @@ static void pcrh_revert_upd(knl_session_t *session, heap_page_t *cr_page, pcr_it
         cr_page->free_begin += ori_row->size;
         cr_page->free_size -= inc_size;
         knl_panic_log(cr_page->free_begin <= cr_page->free_end, "cr_page's free size begin is bigger than end, panic "
-                      "info: free_begin %u free_end %u page %u-%u type %u", cr_page->free_begin, cr_page->free_end,
-                      AS_PAGID(cr_page->head.id).file, AS_PAGID(cr_page->head.id).page, cr_page->head.type);
+                      "info: free_begin %u free_end %u page %u-%u type %u, ori_row->size %u, row->size %u, inc_size %u", cr_page->free_begin, cr_page->free_end,
+                      AS_PAGID(cr_page->head.id).file, AS_PAGID(cr_page->head.id).page, cr_page->head.type, ori_row->size, row->size, inc_size);
 
         /* relocate the row position */
         row = PCRH_GET_ROW(cr_page, dir);
