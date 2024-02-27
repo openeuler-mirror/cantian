@@ -1056,7 +1056,7 @@ class CmsCtl(object):
             uuid_generate = LSIDGenerate(2, self.cluster_id, i, self.node_id)
             inst_id, cms_tool_uuid = uuid_generate.execute()
             str_cmd = ("cp -raf /opt/cantian/dbstor/tools/dbstor_config.ini"
-                       "%s/dbstor/conf/dbs/dbstor_config_tool_%s.ini" % (self.cms_home, str(file_num)))
+                       " %s/dbstor/conf/dbs/dbstor_config_tool_%s.ini" % (self.cms_home, str(file_num)))
             str_cmd += " && echo 'DBSTOR_OWNER_NAME = cms' >> %s/dbstor/conf/dbs/dbstor_config_tool_%s.ini" % (
                 self.cms_home, str(file_num))
             str_cmd += " && echo 'CLUSTER_NAME = %s' >> %s/dbstor/conf/dbs/dbstor_config_tool_%s.ini" % (
