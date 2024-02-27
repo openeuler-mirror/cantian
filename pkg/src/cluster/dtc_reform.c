@@ -379,6 +379,10 @@ void rc_reform_init(reform_info_t *reform_info)
 status_t rc_follower_reform(reform_mode_t mode, reform_detail_t *detail)
 {
     CT_LOG_RUN_INF("[RC] reform for partial restart as follower.");
+    if (!DB_IS_PRIMARY(&g_instance->kernel.db)) {
+        ckpt_disable(g_rc_ctx->session);
+        CT_LOG_RUN_INF("ckpt disabled");
+    }
 
     // step 2 drc_remaster
     RC_STEP_BEGIN(detail->remaster_elapsed);

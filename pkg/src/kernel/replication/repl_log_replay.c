@@ -970,7 +970,7 @@ status_t dtc_cal_lrpl_redo_size(knl_session_t *session, uint32* redo_recovery_si
             CT_LOG_RUN_ERR("failed to fetch rcy redo log size of node %u", node_id);
             return CT_ERROR;
         }
-        *redo_recovery_size += rcy_log_size / SIZE_M(1);
+        *redo_recovery_size += rcy_log_size / SIZE_K(1);
     }
 
     if (lrpl_ctx->lrpl_speed != 0) {
