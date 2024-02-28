@@ -664,8 +664,6 @@ class DRDeploy(object):
                 if return_code:
                     err_msg = "Execute check cantian disaster recovery command failed, " \
                               "oupout:%s, stderr:%s" % (output, stderr)
-                    err_msg.replace(self.ctsql_passwd, "****")
-                    err_msg.replace("password", "****")
                     self.record_deploy_process("cantian_disaster_recovery_status", "failed",
                                                code=-1, description=err_msg)
 
@@ -673,8 +671,6 @@ class DRDeploy(object):
                     raise Exception(err_msg)
                 if "START_REPLAY" not in output:
                     err_msg = "Cantian lrpl status is abnormal, details: %s" % output.split("SQL>")[1:]
-                    err_msg.replace(self.ctsql_passwd, "****")
-                    err_msg.replace("password", "****")
                     self.record_deploy_process("cantian_disaster_recovery_status", "failed", code=-1,
                                                description=err_msg)
                     LOG.info("Check cantian replay failed.")
