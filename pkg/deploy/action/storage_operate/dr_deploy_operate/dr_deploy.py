@@ -283,10 +283,9 @@ class DRDeploy(object):
         """
         LOG.info("Start do full checkpoint.")
         self.record_deploy_process("do_full_check_point", "start")
-        _, output, stderr = exec_popen(FULL_CHECK_POINT_CMD, timeout=100)
-        if "last_cmd=0" not in output:
+        return_code, output, stderr = exec_popen(FULL_CHECK_POINT_CMD, timeout=100)
+        if return_code:
             err_msg = "Do full checkpoint failed, output: %s, stderr:%s" % (output, stderr)
-            err_msg.replace(self.ctsql_passwd, "***")
             LOG.error(err_msg)
             self.record_deploy_process("do_full_check_point", "failed", code=-1, description=err_msg)
             raise Exception(err_msg)

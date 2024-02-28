@@ -1,3 +1,7 @@
+import sys
+import os
+CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(CURRENT_PATH, "../"))
 from logic.common_func import exec_popen, file_reader
 from cantian_common.crypte_adapter import KmcResolve
 
