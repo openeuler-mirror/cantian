@@ -47,7 +47,7 @@ extern "C" {
 #define CKPT_LATCH_TIMEOUT 3
 #define CKPT_PAGE_CLEAN_RATIO(session)  ((session)->kernel->attr.page_clean_ratio)
 #define CKPT_IS_TRIGGER(mode) ((mode) == CKPT_TRIGGER_INC || (mode) == CKPT_TRIGGER_FULL || \
-                               (mode) == CKPT_TRIGGER_CLEAN)
+                               (mode) == CKPT_TRIGGER_CLEAN || (mode) == CKPT_TRIGGER_FULL_STANDBY)
 #define CKPT_WAIT_MS 200
 #define CKPT_BITS_PER_BYTE 8
 
@@ -81,7 +81,7 @@ typedef enum e_ckpt_mode {
     /* Types of timed_task action */
     CKPT_TIMED_INC,
     CKPT_TIMED_CLEAN,
-
+    CKPT_TRIGGER_FULL_STANDBY,
     /* For counting */
     CKPT_MODE_NUM,
 } ckpt_mode_t;
