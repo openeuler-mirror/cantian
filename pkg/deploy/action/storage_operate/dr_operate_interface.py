@@ -95,7 +95,6 @@ def main():
     except AttributeError as _err:
         raise Exception(err_msg) from _err
     except Exception as _err:
-        LOG.error("details:%s, traceback:%s", str(_err), traceback.format_exc())
         raise _err
 
 
