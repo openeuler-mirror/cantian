@@ -96,7 +96,10 @@ class LogsHandler:
             files_names = os.listdir(log_content)
             log_name_pre = log_name.split(".")[0]
             for file_name in files_names:
-                if log_name_pre in file_name and not file_name.endswith("tar.gz") and len(file_name) > len(log_name):
+                conditions = log_name_pre in file_name and not file_name.endswith("tar.gz") \
+                             and not file_name.endswith("swp") and not file_name.endswith("swo") \
+                             and len(file_name) > len(log_name)
+                if conditions:
                     # 判断当前是否新新产生的归档日志，有就退出循环进行打包操作
                     break
             else:

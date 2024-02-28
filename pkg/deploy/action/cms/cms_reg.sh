@@ -1,7 +1,7 @@
 #!/bin/bash
 set +x
 
-source ~/.bashrc
+source ~/.bashrc > /dev/null 2>&1
 CURRENT_PATH=$(dirname $(readlink -f $0))
 CMS_ENABLE_FLAG=/opt/cantian/cms/cfg/cms_enable
 CMS_DEPLOY_LOG_FILE=/opt/cantian/cms/log/cms_deploy.log

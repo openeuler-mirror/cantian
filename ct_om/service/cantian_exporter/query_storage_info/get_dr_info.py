@@ -86,7 +86,7 @@ class DRStatusCheck(object):
         filtered_env = [single_env for single_env in split_env if "/opt/cantian/dbstor/lib" not in single_env]
         os.environ['LD_LIBRARY_PATH'] = ":".join(filtered_env)
 
-        self.rest_client = RestClient((self.dm_ip, self.dm_user, self.decrypt_pwd))
+        self.rest_client = RestClient((self.dm_ip, self.dm_user, self.dm_pwd))
         self.rest_client.login()
         self.device_id = self.rest_client.device_id
 
@@ -202,7 +202,6 @@ class DRStatusCheck(object):
             return result
         data = self.query_dr_status()
         result["dr_status"] = data
-        self.rest_client.logout()
         return result
 
     def query_dr_status(self):
