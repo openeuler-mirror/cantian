@@ -26,12 +26,16 @@ from om_log import DR_DEPLOY_LOG as LOG
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
 DEPLOY_PARAM_FILE = "/opt/cantian/config/deploy_param.json"
-CRYPTE_ADAPTER = os.path.join(CURRENT_PATH, "../../cantian_common/crypte_adapter.py")
+EXEC_SQL = os.path.join(CURRENT_PATH, "../../cantian_common/exec_sql.py")
 LOCAL_PROCESS_RECORD_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_process_record.json")
-FULL_CHECK_POINT_CMD = 'echo -e %s | su -s /bin/bash - cantian -c \'source ~/.bashrc && ' \
-                       'ctsql sys@127.0.0.1:1611 -q -c "alter system checkpoint global;"\''
-CANTIAN_DISASTER_RECOVERY_STATUS_CHECK = 'echo -e %s | su -s /bin/bash - cantian -c \'source ~/.bashrc && ' \
-                       'ctsql sys@127.0.0.1:1611 -q -c "select * from DV_LRPL_DETAIL;"\''
+FULL_CHECK_POINT_CMD = 'echo -e "alter system checkpoint global;" | '\
+                       'su -s /bin/bash - cantian -c \'source ~/.bashrc && '\
+                       'export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && '\
+                       'python3 -B %s\'' % EXEC_SQL
+CANTIAN_DISASTER_RECOVERY_STATUS_CHECK = 'echo -e "select * from DV_LRPL_DETAIL;" | '\
+                                         'su -s /bin/bash - cantian -c \'source ~/.bashrc && '\
+                                         'export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && '\
+                                         'python3 -B %s\'' % EXEC_SQL
 ZSQL_INI_PATH = '/mnt/dbdata/local/cantian/tmp/data/cfg/ctsql.ini'
 LOCK_INSTANCE = "lock instance for backup;"
 UNLOCK_INSTANCE = "unlock instance;"
@@ -279,15 +283,9 @@ class DRDeploy(object):
         """
         LOG.info("Start do full checkpoint.")
         self.record_deploy_process("do_full_check_point", "start")
-        ctsql_ini_data = file_reader(ZSQL_INI_PATH)
-        encrypt_pwd = ctsql_ini_data[ctsql_ini_data.find('=') + 1:].strip()
-        self.ctsql_passwd = KmcResolve.kmc_resolve_password("decrypted", encrypt_pwd)
-        cmd = FULL_CHECK_POINT_CMD % self.ctsql_passwd
-        cmd += ";echo last_cmd=$?"
-        _, output, stderr = exec_popen(cmd, timeout=100)
-        if "last_cmd=0" not in output:
+        return_code, output, stderr = exec_popen(FULL_CHECK_POINT_CMD, timeout=100)
+        if return_code:
             err_msg = "Do full checkpoint failed, output: %s, stderr:%s" % (output, stderr)
-            err_msg.replace(self.ctsql_passwd, "***")
             LOG.error(err_msg)
             self.record_deploy_process("do_full_check_point", "failed", code=-1, description=err_msg)
             raise Exception(err_msg)
@@ -662,16 +660,10 @@ class DRDeploy(object):
         self.record_deploy_process("cantian_disaster_recovery_status", "running")
         for node_stat in cms_stat:
             if "REFORMER" in node_stat and node_id == node_stat.split(" ")[0].strip(" "):
-                ctsql_ini_data = file_reader(ZSQL_INI_PATH)
-                encrypt_pwd = ctsql_ini_data[ctsql_ini_data.find('=') + 1:].strip()
-                self.ctsql_passwd = KmcResolve.kmc_resolve_password("decrypted", encrypt_pwd)
-                cmd = CANTIAN_DISASTER_RECOVERY_STATUS_CHECK % self.ctsql_passwd
-                return_code, output, stderr = exec_popen(cmd)
+                return_code, output, stderr = exec_popen(CANTIAN_DISASTER_RECOVERY_STATUS_CHECK, timeout=20)
                 if return_code:
                     err_msg = "Execute check cantian disaster recovery command failed, " \
                               "oupout:%s, stderr:%s" % (output, stderr)
-                    err_msg.replace(self.ctsql_passwd, "****")
-                    err_msg.replace("password", "****")
                     self.record_deploy_process("cantian_disaster_recovery_status", "failed",
                                                code=-1, description=err_msg)
 
@@ -679,8 +671,6 @@ class DRDeploy(object):
                     raise Exception(err_msg)
                 if "START_REPLAY" not in output:
                     err_msg = "Cantian lrpl status is abnormal, details: %s" % output.split("SQL>")[1:]
-                    err_msg.replace(self.ctsql_passwd, "****")
-                    err_msg.replace("password", "****")
                     self.record_deploy_process("cantian_disaster_recovery_status", "failed", code=-1,
                                                description=err_msg)
                     LOG.info("Check cantian replay failed.")

@@ -1,5 +1,4 @@
 import os
-import ctypes
 import sys
 
 
@@ -14,8 +13,6 @@ STANDBY_KEYSTORE = "/opt/cantian/common/config/standby_keystore_bak.ks"
 
 
 class KmcResolve(object):
-    def __init__(self, pwd):
-        self.pwd = pwd
 
     @staticmethod
     def kmc_resolve_password(mode, plain_text):
@@ -41,18 +38,3 @@ class KmcResolve(object):
         filtered_env = [single_env for single_env in split_env if "/opt/cantian/dbstor/lib" not in single_env]
         os.environ['LD_LIBRARY_PATH'] = ":".join(filtered_env)
         return ret_pwd
-
-    def encrypted(self):
-        ret_pwd = self.kmc_resolve_password("encrypted", self.pwd)
-        return ret_pwd
-
-    def decrypted(self):
-        ret_pwd = self.kmc_resolve_password("decrypted", self.pwd)
-        return ret_pwd
-
-
-if __name__ == "__main__":
-    kmc_resolve = KmcResolve(input().strip())
-    action = sys.argv[1]
-    print(getattr(kmc_resolve, action)())
-
