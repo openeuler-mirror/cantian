@@ -143,9 +143,9 @@ typedef enum {
     ULOG_READ_RETURN_REACH_MAX_AGG_COUNT,
     ULOG_READ_RETURN_REACH_MAX_BUF_LEN,
     ULOG_READ_RETURN_LSN_NOT_EXIST, // lsn not found in ulog
-    ULOG_READ_RETURN_LSN_NOT_EXIST_SMALL,
     // fence error
     ULOG_RETURN_OP_DENIED_ERROR,
+    ULOG_READ_RETURN_LSN_NOT_EXIST_SMALL,
 } UlogReturnCode;
 
 typedef enum {
