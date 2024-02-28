@@ -490,3 +490,25 @@ class StorageInf(object):
         err_msg = f"Failed to delete {fs_id} fs"
         self.result_parse(err_msg, res)
         LOG.info("Delete id[%s] fs success", fs_id)
+
+    def delete_fs_cdp_schedule(self, fs_id, cdp_id, cdp_name, vstore_id):
+        """
+        del fs cdp schedule
+        :param fs_id:
+        :param cdp_id:
+        :param cdp_name:
+        :param vstore_id:
+        :return:
+        """
+        LOG.info("Begin to delete cdp schedule by id[%s]", cdp_id)
+        url = Constant.DELETE_FS_CDP_SCHEDULE.format(deviceId=self.rest_client.device_id)
+        data = {
+         "ID": fs_id,
+         "TIMINGSNAPSHOTSCHEDULEID": cdp_id,
+         "scheduleName": cdp_name,
+         "vstoreId": vstore_id
+        }
+        res = self.rest_client.normal_request(url, "delete", data=data)
+        err_msg = f"Failed to delete {cdp_id} cdp schedule"
+        self.result_parse(err_msg, res)
+        LOG.info("Delete id[%s] cdp schedule success", cdp_id)
