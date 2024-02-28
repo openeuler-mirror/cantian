@@ -28,13 +28,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#define MES_TIME_STAMP_NUM 10
 
+extern int64 g_mes_config_time[MES_TIME_STAMP_NUM];
 void mes_set_cluster_id(uint16 cluster_id);
 uint32 get_config_cluster_id(void);
 uint32 get_config_lsid(uint32 inst_id);
 char* get_config_uuid(uint32 inst_id);
 status_t set_all_inst_lsid(uint16 cluster_id, uint16 pid);
-status_t mes_set_inst_lsid(uint16 cluster_id, uint16 pid, uint32 inst_id);
+status_t mes_set_inst_lsid(uint16 cluster_id, uint16 pid, uint32 inst_id, int64* time_stamp);
 
 #ifdef __cplusplus
 }
