@@ -33,7 +33,11 @@ def compress_bak_files(main_path, file_names):
 
 def reg_handler(log_name_prefix, log_name_tail, log_name, match_string):
     """匹配出待压缩的文件"""
-    if 'tar.gz' in match_string or len(match_string) <= len(log_name):
+    match_condition = 'tar.gz' in match_string or \
+                      len(match_string) <= len(log_name) \
+                      or match_string.endswith("swp") or \
+                      match_string.endswith("swo")
+    if match_condition:
         return False
     if log_name_prefix in match_string and log_name_tail in match_string:
         return True
