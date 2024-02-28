@@ -23,9 +23,6 @@
  * -------------------------------------------------------------------------
  */
 #include "srv_module.h"
-#include "wsecv2_itf.h"
-#include "wsecv2_errorcode.h"
-#include "wsecv2_config.h"
 #include "cm_kmc.h"
 #include "cm_log.h"
 #include "cm_ip.h"

@@ -32,16 +32,13 @@
 #include "cm_debug.h"
 #include "cm_device.h"
 #include <stdlib.h>
-#include "wsecv2_itf.h"
 #include "wsecv2_errorcode.h"
-#include "kmcv2_itf.h"
 #include "wsecv2_type.h"
-#include "sdpv2_itf.h"
 #include "securec.h"
 #include "cm_system.h"
 #include "wsecv2_util.h"
 #include "wsecv2_datetime.h"
-#include "sdpv1_itf.h"
+#include "kmc_init.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -81,6 +78,7 @@
 
 #define VERSION1 "Cantian100-OLTP-V100R006C10"
 #define VERSION2 "CANTIAND"
+
 
 static encrypt_manager_t g_encrypt_mgrs[] = {
     { NO_ENCRYPT, WSEC_ALGID_UNKNOWN, WSEC_ALGID_UNKNOWN },
@@ -506,7 +504,7 @@ status_t regkmcfuc(void)
     stMandatoryFun.rngCallbacks.cleanupEntropy = cm_kmc_clean_entropy;
     stMandatoryFun.timeCallbacks.gmTimeSafe = cm_kmc_utc_time;
 
-    returnValue = WsecRegFuncEx(&stMandatoryFun);
+    returnValue = kmc_global_handle()->WsecRegFuncEx(&stMandatoryFun);
     if (returnValue != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Registered Kmc functions return Value=%u", returnValue);
         return CT_ERROR;
@@ -517,7 +515,7 @@ status_t regkmcfuc(void)
 status_t cm_kmc_export_keyfile(char *dst_keyfile)
 {
     int32 handle = CT_INVALID_HANDLE;
-    ulong ret = KmcGenerateKsfAll(dst_keyfile);
+    ulong ret = kmc_global_handle()->KmcGenerateKsfAll(dst_keyfile);
     device_type_t type = cm_device_type((const char *)dst_keyfile);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("fail to import keyfile to %s.returnValue=%lu", dst_keyfile, ret);
@@ -562,7 +560,7 @@ status_t cm_kmc_init(bool32 is_server, char *key_file_a, char *key_file_b)
         return CT_ERROR;
     }
 
-    ret = WsecInitializeEx(is_server, &ksfile, CT_FALSE, NULL);
+    ret = kmc_global_handle()->WsecInitializeEx(is_server, &ksfile, CT_FALSE, NULL);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Init Kmc return Value=%lu", ret);
         return CT_ERROR;
@@ -590,7 +588,7 @@ status_t cm_kmc_init(bool32 is_server, char *key_file_a, char *key_file_b)
 
 status_t cm_kmc_finalize(void)
 {
-    ulong ret = WsecFinalizeEx();
+    ulong ret = kmc_global_handle()->WsecFinalizeEx();
     if (ret != 0) {
         CT_LOG_RUN_ERR("Finalize Kmc error %lu", ret);
         return CT_ERROR;
@@ -601,7 +599,7 @@ status_t cm_kmc_finalize(void)
 
 status_t cm_kmc_create_masterkey(uint32 domain, uint32 *keyid)
 {
-    ulong ret = KmcCreateMkEx(domain, keyid);
+    ulong ret = kmc_global_handle()->KmcCreateMkEx(domain, keyid);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Create Mk Ex failed.returnValue = %lu", ret);
         return CT_ERROR;
@@ -612,7 +610,7 @@ status_t cm_kmc_create_masterkey(uint32 domain, uint32 *keyid)
 
 status_t cm_kmc_active_masterkey(uint32 domain, uint32 keyid)
 {
-    ulong ret = KmcActivateMk(domain, keyid);
+    ulong ret = kmc_global_handle()->KmcActivateMk(domain, keyid);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Activate Mk failed.returnValue = %lu", ret);
         return CT_ERROR;
@@ -622,7 +620,7 @@ status_t cm_kmc_active_masterkey(uint32 domain, uint32 keyid)
 
 status_t cm_kmc_get_masterkey(uint32 domain, uint32 keyid, char *key_buf, uint32 *key_len)
 {
-    ulong ret = KmcGetMkDetail(domain, keyid, NULL, (uchar *)key_buf, key_len);
+    ulong ret = kmc_global_handle()->KmcGetMkDetail(domain, keyid, NULL, (uchar *)key_buf, key_len);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Get Mk failed.returnValue = %lu", ret);
         return CT_ERROR;
@@ -635,12 +633,12 @@ status_t cm_kmc_load_domain(uint32 domain)
     const KmcCfgKeyType keyTypeCfg = { KMC_KEY_TYPE_ENCRPT_INTEGRITY, CT_KMC_MK_LEN, CT_KMC_MK_EXPIRE, { 0 } };
     KmcCfgDomainInfo domainInfo = { domain, KMC_MK_GEN_BY_INNER, "this mk is added", 0, { 0 } };
 
-    ulong ret = KmcAddDomainEx(&domainInfo);
+    ulong ret = kmc_global_handle()->KmcAddDomainEx(&domainInfo);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Add DomainEx failed.returnValue = %lu", ret);
         return CT_ERROR;
     }
-    ret = KmcAddDomainKeyTypeEx(domain, &keyTypeCfg);
+    ret = kmc_global_handle()->KmcAddDomainKeyTypeEx(domain, &keyTypeCfg);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Add Domain Key TypeEx failed.returnValue = %lu", ret);
         return CT_ERROR;
@@ -661,7 +659,8 @@ status_t cm_kmc_init_domain(uint32 domain)
     }
 
     /* success means curr domain have active master key */
-    if (KmcGetActiveMk(domain, &activeMkInfo, activeMkBuf, &activeMkLen) == CT_SUCCESS) {
+    if (kmc_global_handle()->KmcGetActiveMk(domain, &activeMkInfo, activeMkBuf,
+                                            &activeMkLen) == CT_SUCCESS) {
         CT_LOG_DEBUG_INF("Domain %u have active master key.", domain);
         MEMS_RETURN_IFERR(memset_s(activeMkBuf, sizeof(activeMkBuf), 0x00, sizeof(activeMkBuf)));
         return CT_SUCCESS;
@@ -681,7 +680,7 @@ status_t cm_kmc_init_domain(uint32 domain)
 status_t cm_kmc_reset(void)
 {
     uint32 domain;
-    ulong ret = WsecResetEx();
+    ulong ret = kmc_global_handle()->WsecResetEx();
     if (ret != 0) {
         CT_LOG_RUN_ERR("Reset Kmc error %lu", ret);
         return CT_ERROR;
@@ -698,13 +697,13 @@ status_t cm_kmc_reset(void)
 
 status_t cm_get_cipher_len(uint32 plain_len, uint32 *cipher_len)
 {
-    return SdpGetCipherDataLenEx((WsecUint32)plain_len, (WsecUint32 *)cipher_len);
+    return kmc_global_handle()->SdpGetCipherDataLenEx((WsecUint32)plain_len, (WsecUint32 *)cipher_len);
 }
 
 status_t cm_kmc_encrypt(uint32 domain, encrypt_version_t version, const void *plain_text, uint32 plain_len,
     void *cipher_text, uint32 *cipher_len)
 {
-    ulong ret = SdpEncryptEx((int)domain, g_encrypt_mgrs[version].cipher_alg_type, (uchar *)plain_text,
+    ulong ret = kmc_global_handle()->SdpEncryptEx((int)domain, g_encrypt_mgrs[version].cipher_alg_type, (uchar *)plain_text,
         (WsecUint32)plain_len, (uchar *)cipher_text, (WsecUint32 *)cipher_len);
     if (ret != 0) {
         CT_LOG_RUN_ERR("fail to encrypt.returnValue=%lu", ret);
@@ -716,7 +715,7 @@ status_t cm_kmc_encrypt(uint32 domain, encrypt_version_t version, const void *pl
 
 status_t cm_kmc_decrypt(uint32 domain, const void *cipher_text, uint32 cipher_len, void *plain_text, uint32 *plain_len)
 {
-    ulong ret = SdpDecryptEx((int)domain, (const uchar *)cipher_text, (WsecUint32)cipher_len, (uchar *)plain_text,
+    ulong ret = kmc_global_handle()->SdpDecryptEx((int)domain, (const uchar *)cipher_text, (WsecUint32)cipher_len, (uchar *)plain_text,
         (WsecUint32 *)plain_len);
     if (ret != 0) {
         CT_LOG_RUN_ERR("fail to decrypt.returnValue=%lu", ret);
@@ -728,7 +727,7 @@ status_t cm_kmc_decrypt(uint32 domain, const void *cipher_text, uint32 cipher_le
 
 status_t cm_get_masterkey_count(uint32 *count)
 {
-    int32 ret = KmcGetMkCount();
+    int32 ret = kmc_global_handle()->KmcGetMkCount();
     if (ret < 0) {
         CT_LOG_RUN_ERR("fail to get master key count.returnValue=%d", ret);
         return CT_ERROR;
@@ -741,7 +740,7 @@ status_t cm_get_masterkey_count(uint32 *count)
 
 status_t cm_get_masterkey_hash(uint32 domain, uint32 keyid, char *hash, uint32 *len)
 {
-    ulong ret = KmcGetMkHash(domain, keyid, (uchar *)hash, len);
+    ulong ret = kmc_global_handle()->KmcGetMkHash(domain, keyid, (uchar *)hash, len);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("fail to get keyid %u hash.returnValue=%lu", keyid, ret);
         return CT_ERROR;
@@ -752,7 +751,7 @@ status_t cm_get_masterkey_hash(uint32 domain, uint32 keyid, char *hash, uint32 *
 
 status_t cm_get_masterkey_byhash(const char *hash, uint32 len, char *key, uint32 *key_len)
 {
-    ulong ret = KmcGetMkDetailByHash((const uchar *)hash, len, NULL, (uchar *)key, key_len);
+    ulong ret = kmc_global_handle()->KmcGetMkDetailByHash((const uchar *)hash, len, NULL, (uchar *)key, key_len);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("fail to get masterkey by hash.returnValue=%lu", ret);
         return CT_ERROR;
@@ -763,7 +762,7 @@ status_t cm_get_masterkey_byhash(const char *hash, uint32 len, char *key, uint32
 
 status_t cm_kmc_get_max_mkid(uint32 domain, uint32 *max_id)
 {
-    ulong ret = KmcGetMaxMkId(domain, max_id);
+    ulong ret = kmc_global_handle()->KmcGetMaxMkId(domain, max_id);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("fail to get domain %u max keyid.returnValue = %lu", domain, ret);
         return CT_ERROR;
@@ -823,7 +822,7 @@ status_t cm_kmc_encrypt_pwd(aes_and_kmc_t *aes_kmc)
         return CT_ERROR;
     }
 
-    ret = SdpEncryptEx((int)aes_kmc->kmc_domain, g_encrypt_mgrs[aes_kmc->kmc_ver].cipher_alg_type,
+    ret = kmc_global_handle()->SdpEncryptEx((int)aes_kmc->kmc_domain, g_encrypt_mgrs[aes_kmc->kmc_ver].cipher_alg_type,
         (uchar *)aes_kmc->plain, (WsecUint32)aes_kmc->plain_len, (uchar *)buff, (WsecUint32 *)&buff_len);
     if (ret != WSEC_SUCCESS) {
         CT_LOG_RUN_ERR("Fail to encode kmc data, kmc error [%u].\n", ret);
@@ -885,7 +884,7 @@ status_t cm_kmc_decrypt_pwd(aes_and_kmc_t *aes_kmc)
     }
     buff[de_len] = 0x00;
 
-    ret = SdpDecryptEx((int)aes_kmc->kmc_domain, (const uchar *)buff, (WsecUint32)de_len, (uchar *)aes_kmc->plain,
+    ret = kmc_global_handle()->SdpDecryptEx((int)aes_kmc->kmc_domain, (const uchar *)buff, (WsecUint32)de_len, (uchar *)aes_kmc->plain,
         (WsecUint32 *)&aes_kmc->plain_len);
     if (ret != WSEC_SUCCESS) {
         CT_LOG_RUN_ERR("Fail to decrypt kmc data, kmc error[%u].\n", ret);

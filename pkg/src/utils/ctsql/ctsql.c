@@ -24,12 +24,6 @@
  */
 #include <locale.h>
 #include "cm_kmc.h"
-#include "wsecv2_itf.h"
-#include "wsecv2_errorcode.h"
-#include "wsecv2_config.h"
-#include "wsecv2_file.h"
-#include "wsecv2_type.h"
-#include "sdpv1_itf.h"
 #include "cm_base.h"
 #include "cm_encrypt.h"
 #include "ctsql_common.h"
