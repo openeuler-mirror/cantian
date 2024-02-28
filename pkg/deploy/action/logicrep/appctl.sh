@@ -57,9 +57,7 @@ install_type=$(python3 "${CURRENT_PATH}"/../get_config_info.py "install_type")
 startup_lock="/mnt/dbdata/remote/share_${storage_share_fs_name}/logicre_startup.lock"
 startup_status="/mnt/dbdata/remote/share_${storage_share_fs_name}/logicrep_status"
 
-
-so_name_all=("libssl.so" "libcrypto.so" "libstdc++.so" "libsql2bl.so")
-so_name=("" "" "" "")
+so_name=("libssl.so.1.0.0" "libcrypto.so.1.0.0" "libstdc++.so.6.0.29" "libsql2bl.so.0.1.1")
 link_name=("libssl.so.10" "libcrypto.so.10" "libstdc++.so.6" "libsql2bl.so")
 driver_name="com.huawei.cantian.jdbc.CantianDriver-Cantian.jar"
 
@@ -106,7 +104,7 @@ function chown_mod_scripts() {
     find "${CURRENT_PATH}/../../zlogicrep/" -type d -print0 | xargs -0 chmod 700
 }
 
-# 复制logicrep主体和部署脚本
+#复制logicrep主体和部署脚本
 function copy_logicrep()
 {
     if [ ! -d /opt/software/tools ]
@@ -150,7 +148,7 @@ function copy_logicrep()
     chown -hR "${cantian_user}":"${cantian_group}" /opt/software/tools
 }
 
-# 替换升级文件，升级模式使用
+#替换升级文件，升级模式使用
 function safe_update()
 {
     version_first_number=$(cat /opt/cantian/versions.yml |sed 's/ //g' | grep 'Version:' | awk -F ':' '{print $2}' | awk -F '.' '{print $1}')
@@ -164,8 +162,6 @@ function safe_update()
         cp -arf "${LOGICREP_PKG}"/repconf_db_confige.py "${LOGICREP_HOME}"/
         cp -arf "${LOGICREP_PKG}"/shutdown_all_logicrep.sh "${LOGICREP_HOME}"/
         cp -arf "${LOGICREP_PKG}"/shutdown.sh "${LOGICREP_HOME}"/
-        # startup前进行依赖文件拷贝操作
-        copy_bin "${SO_PATH}"
         cp -arf "${LOGICREP_PKG}"/startup.sh "${LOGICREP_HOME}"/
         cp -arf "${LOGICREP_PKG}"/watchdog_logicrep.sh "${LOGICREP_HOME}"/
         cp -arf "${LOGICREP_PKG}"/watchdog_shutdown.sh "${LOGICREP_HOME}"/
@@ -193,25 +189,7 @@ function check_and_create_home()
     chown "${cantian_user}":"${cantian_group}" -hR ${tools_home}/log
 }
 
-# 检查获取最新so
-function get_newest_filelist() {
-    local path=$1
-    for i in {0..3};do
-        for data in `ls -r $path`;do
-            # 如果是文件夹则跳过
-            if [ -d $path"/"$data ];then
-                continue
-            fi
-            # 正则匹配，取最新版依赖名称
-            if [ `echo $data|grep ^${so_name_all[$i]}` ];then
-                so_name[i]=$data
-                break
-            fi
-        done
-    done
-}
-
-# 复制电信的so文件
+#复制电信的so文件
 function copy_bin()
 {
     local path=$1
@@ -222,16 +200,7 @@ function copy_bin()
         echo "error bin path"
         exit 1
     fi
-    if [ -d "${path}"/"${driver_name}" ]; then
-        echo "error: jar not found"
-        exit 1
-    fi
     cp -f "${path}"/"${driver_name}" "${LOGICREP_HOME}"/lib
-    get_newest_filelist "${path}"
-    if [ $? -ne 0 ]; then
-        echo "error: no enough so files"
-        exit 1
-    fi
     for i in {0..3};do
         rm -f  ${LOGICREP_HOME}/lib/"${so_name[$i]}"
         rm -f  ${LOGICREP_HOME}/lib/"${link_name[$i]}"
@@ -287,7 +256,6 @@ SUP_ACTION="set_resource_limit"
 BACKUP_UPGRADE_PATH=""
 BIN_PATH=""
 START_MODE="active"
-SO_PATH=""
 if [ $# -gt 1 ]; then
     BACKUP_UPGRADE_PATH=$2
     BIN_PATH=$2
@@ -295,9 +263,6 @@ if [ $# -gt 1 ]; then
 fi
 if [ $# -gt 2 ]; then
     BACKUP_UPGRADE_PATH=$3
-fi
-if [ $# -gt 3 ]; then
-    SO_PATH=$4
 fi
 
 function main_deploy()
