@@ -54,6 +54,8 @@ struct register_instance_request {
 struct close_session_request {
     tianchi_handler_t tch;
     int result;
+    int32_t csize;
+    uint64_t *cursors;
 };
 
 struct open_table_request {
