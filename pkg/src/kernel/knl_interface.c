@@ -314,6 +314,21 @@ status_t knl_ddl_latch_x_inner(drlatch_t *latch, knl_handle_t session, latch_sta
     } while (1);
 }
 
+status_t knl_ddl_latch_sx(knl_handle_t session, latch_statis_t *stat)
+{
+    knl_session_t *se = (knl_session_t *)session;
+    drlatch_t *ddl_latch = &se->kernel->db.ddl_latch;
+    drlatch_t *ctrl_latch = &se->kernel->db.ctrl_latch;
+    if (knl_ddl_latch_x_inner(ctrl_latch, session, stat) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (knl_ddl_latch_s(ddl_latch, session, stat) != CT_SUCCESS) {
+        dls_unlatch(session, ctrl_latch, NULL);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
 status_t knl_ddl_latch_x(knl_handle_t session, latch_statis_t *stat)
 {
     knl_session_t *se = (knl_session_t *)session;
@@ -5388,7 +5403,7 @@ status_t knl_create_space(knl_handle_t session, knl_handle_t stmt, knl_space_def
 {
     status_t status;
 
-    if (knl_ddl_latch_x(session, NULL) != CT_SUCCESS) {
+    if (knl_ddl_latch_sx(session, NULL) != CT_SUCCESS) {
         return CT_ERROR;
     }
     status = knl_create_space_internal(session, stmt, def);
@@ -5614,7 +5629,7 @@ status_t knl_drop_space(knl_handle_t session, knl_handle_t stmt, knl_drop_space_
 {
     status_t status;
 
-    if (knl_ddl_latch_x(session, NULL) != CT_SUCCESS) {
+    if (knl_ddl_latch_sx(session, NULL) != CT_SUCCESS) {
         return CT_ERROR;
     }
     status = knl_drop_space_internal(session, stmt, def);
@@ -5840,7 +5855,7 @@ status_t knl_create_database4mysql(knl_handle_t session, knl_handle_t stmt, knl_
     status_t ret = CT_SUCCESS;
 
     SYNC_POINT_GLOBAL_START(CANTIAN_CREATE_DB_4MYSQL_LOCK_FAIL, &ret, CT_ERROR);
-    ret = knl_ddl_latch_x(se, NULL);
+    ret = knl_ddl_latch_sx(se, NULL);
     SYNC_POINT_GLOBAL_END;
     if (ret != CT_SUCCESS) {
         return CT_ERROR;
@@ -5878,6 +5893,9 @@ status_t knl_create_database4mysql(knl_handle_t session, knl_handle_t stmt, knl_
     SYNC_POINT_GLOBAL_START(CANTIAN_CREATE_DB_4MYSQL_BEFORE_CREATE_USER_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
 
+    SYNC_POINT_GLOBAL_START(CANTIAN_CREATE_DB_4MYSQL_BEFORE_CREATE_USER_DELAY, NULL, 50000); // delay 50s
+    SYNC_POINT_GLOBAL_END;
+
     SYNC_POINT_GLOBAL_START(CANTIAN_CREATE_DB_4MYSQL_CREATE_USER_FAIL, &ret, CT_ERROR);
     ret = knl_create_user4mysql(session, stmt, user_def);
     SYNC_POINT_GLOBAL_END;
@@ -5913,7 +5931,7 @@ status_t knl_drop_database4mysql(knl_handle_t session, knl_handle_t stmt, knl_dr
     }
 
     SYNC_POINT_GLOBAL_START(CANTIAN_DROP_DB_4MYSQL_LOCK_FAIL, &ret, CT_ERROR);
-    ret = knl_ddl_latch_x(se, NULL);
+    ret = knl_ddl_latch_sx(se, NULL);
     SYNC_POINT_GLOBAL_END;
     if (ret != CT_SUCCESS) {
         if (user_exist) {
@@ -5931,6 +5949,9 @@ status_t knl_drop_database4mysql(knl_handle_t session, knl_handle_t stmt, knl_dr
         CT_LOG_RUN_ERR("[for mysql] faild to drop user %s when dropping db for mysql", user_def->owner.str);
         return CT_ERROR;
     }
+
+    SYNC_POINT_GLOBAL_START(CANTIAN_DROP_DB_4MYSQL_AFTER_DROP_USER_DELAY, NULL, 50000); // delay 50s
+    SYNC_POINT_GLOBAL_END;
 
     ret = knl_drop_space4mysql(session, stmt, space_def);
 
