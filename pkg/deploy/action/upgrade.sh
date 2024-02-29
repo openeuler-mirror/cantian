@@ -21,7 +21,7 @@ node_id=""
 upgrade_module_correct=false
 # 滚动升级
 CLUSTER_COMMIT_STATUS=("prepared" "commit")
-storage_share_fs_path=""
+storage_metadata_fs_path=""
 cluster_and_node_status_path=""
 cluster_status_flag=""
 local_node_status_flag=""
@@ -106,6 +106,7 @@ function get_user_input() {
 
 # 获取当前节点
 function get_config_info() {
+    deploy_mode=$(python3 "${CURRENT_PATH}"/get_config_info.py "deploy_mode")
     node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
     if [[ ${node} == 'None' ]]; then
         logAndEchoError "obtain current node id error, please check file: config/deploy_param.json"
@@ -118,7 +119,7 @@ function get_config_info() {
         logAndEchoError "failed to obtain source version"
         exit 1
     fi
-    storage_share_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/${UPGRADE_MODE}_bak_${source_version}"
+    storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/${UPGRADE_MODE}_bak_${source_version}"
 }
 
 ######################################################################
@@ -513,10 +514,12 @@ function change_new_owner() {
     logAndEchoInfo "begin to correct files owner"
     chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/common/config
     chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/common/data
-    chown -h "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs}
-    chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home > /dev/null 2>&1
-    chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs}/node0 > /dev/null 2>&1
-    chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs}/node1 > /dev/null 2>&1
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+        chown -h "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs}
+        chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home > /dev/null 2>&1
+        chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs}/node0 > /dev/null 2>&1
+        chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs}/node1 > /dev/null 2>&1
+    fi
     chown -hR "${cantian_user}":"${deploy_group}" /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
     chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/local/cantian
     chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/cantian/server
@@ -645,9 +648,9 @@ function check_local_nodes() {
 
 # 修改系统表
 function modify_sys_tables() {
-    modify_sys_table_flag="${storage_share_fs_path}/updatesys.true"
-    modify_sys_tables_success="${storage_share_fs_path}/updatesys.success"
-    modify_sys_tables_failed="${storage_share_fs_path}/updatesys.failed"
+    modify_sys_table_flag="${storage_metadata_fs_path}/updatesys.true"
+    modify_sys_tables_success="${storage_metadata_fs_path}/updatesys.success"
+    modify_sys_tables_failed="${storage_metadata_fs_path}/updatesys.failed"
     systable_home="/opt/cantian/cantian/server/admin/scripts/rollUpgrade"
     bak_initdb_sql="${dircetory_path}/cantian/cantian_home/server/admin/scripts/initdb.sql"
     old_initdb_sql="${dircetory_path}/initdb.sql"
@@ -719,7 +722,7 @@ function modify_cluster_or_node_status() {
 
 # 滚动升级，升级准备步骤：初始化节点/集群状态标记文件名
 function init_cluster_or_node_status_flag() {
-    cluster_and_node_status_path="${storage_share_fs_path}/cluster_and_node_status"
+    cluster_and_node_status_path="${storage_metadata_fs_path}/cluster_and_node_status"
     # 支持重入
     if [ ! -d "${cluster_and_node_status_path}" ]; then
         mkdir -m 755 -p "${cluster_and_node_status_path}"
@@ -816,7 +819,7 @@ function clear_sem_id() {
 function call_ctbackup_tool() {
     logAndEchoInfo ">>>>> begin to call ctbackup tool <<<<<"
     # 支持参天进程停止后，重入
-    if [ -e "${storage_share_fs_path}/call_ctback_tool.success" ]; then
+    if [ -e "${storage_metadata_fs_path}/call_ctback_tool.success" ]; then
         logAndEchoInfo "the ctbackup tool has backed up the data successfully, no need to call it again"
         return 0
     fi
@@ -890,7 +893,7 @@ function do_rollup_upgrade() {
     stop_cantian
 
     # 生成调用ct_backup成功的标记文件，避免重入调用时失败
-    touch "${storage_share_fs_path}/call_ctback_tool.success" && chmod 400 "${storage_share_fs_path}/call_ctback_tool.success"
+    touch "${storage_metadata_fs_path}/call_ctback_tool.success" && chmod 400 "${storage_metadata_fs_path}/call_ctback_tool.success"
     if [ $? -ne 0 ]; then
         logAndEchoError "create call_ctback_tool.success failed" && exit 1
     fi
@@ -997,10 +1000,8 @@ function get_back_version() {
 function offline_upgrade() {
     cantian_status_check
     do_backup
-    if [[ ${node_id} == '0' ]]; then
+    if [[ ${node_id} == '0' ]] && [[ ${deploy_mode} != "nas" ]]; then
         creat_snapshot
-        split_dbstore_file_system
-        migrate_file_system
     fi
     get_back_version
     if [[ ${node_id} == '1' && "$back_version" == "2.0.0"* ]]; then
@@ -1009,7 +1010,12 @@ function offline_upgrade() {
         storage_share_fs=$(python3 "${CURRENT_PATH}"/get_config_info.py "storage_share_fs")
         umount /mnt/dbdata/remote/share_"${storage_share_fs}"
         sleep 2
-        mount -t nfs -o sec="${kerberos_type}",timeo="${NFS_TIMEO}",nosuid,nodev "${share_logic_ip}":/"${storage_share_fs}" /mnt/dbdata/remote/share_"${storage_share_fs}"
+        if [[ x"${deploy_mode}" == x"dbstore_unify" ]]; then
+            mount -t nfs -o sec="${kerberos_type}",timeo="${NFS_TIMEO}",nosuid,nodev "${share_logic_ip}":/"${storage_share_fs}" /mnt/dbdata/remote/share_"${storage_share_fs}"
+        fi
+    elif [[ x"${deploy_mode}" == x"dbstore_unify" ]]; then
+        umount /mnt/dbdata/remote/share_"${storage_share_fs}"
+        rm -rf /mnt/dbdata/remote/share_"${storage_share_fs}"
     fi
     do_upgrade
 
@@ -1030,7 +1036,6 @@ function offline_upgrade() {
     if [ -f ${UPGRADE_SUCCESS_FLAG} ]; then
         rm -f ${UPGRADE_SUCCESS_FLAG}
     fi
-
 }
 
 function rollup_upgrade() {

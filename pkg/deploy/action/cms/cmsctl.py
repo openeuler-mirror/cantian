@@ -1281,7 +1281,9 @@ class CmsCtl(object):
             if ret_code == 0:
                 log("clean gcc home cmd : %s" % str_cmd)
                 ret_code, stdout, stderr = _exec_popen(str_cmd)
-                if ret_code:
+                if ret_code and deploy_mode == "dbstore_unify":
+                    log("warning: failed to remove gcc home, please clean the dir manually")
+                elif ret_code:
                     output = stdout + stderr
                     self.check_gcc_home_process()
                     log_exit("failed to remove gcc home.\ncommand: %s.\noutput: %s \

@@ -11,7 +11,7 @@ CONFIG_PATH=${CURRENT_PATH}/../config
 ENV_FILE=${CURRENT_PATH}/env.sh
 MYSQL_MOUNT_PATH=/opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir
 UPDATE_CONFIG_FILE_PATH="${CURRENT_PATH}"/update_config.py
-DBSTORE_CHECK_FILE=/opt/cantian/dbstor/tools/cs_check_version.sh
+DBSTORE_CHECK_FILE=${CURRENT_PATH}/dbstor/check_dbstor_compat.sh
 config_install_type="override"
 pass_check='true'
 add_group_user_ceck='true'
@@ -160,11 +160,12 @@ function initUserAndGroup()
 
 # 检查ntp服务示范开启
 function check_ntp_active() {
-    ntp_status=`systemctl is-active chronyd`
-    logAndEchoInfo "ntp status is: ${ntp_status}"
-    if [[ ${ntp_status} != "active" ]]; then
-        echo "ntp service is inactive, please active it before install"
-        logAndEchoError "ntp service is inactive"
+    chrony_status=`systemctl is-active chronyd`
+    ntp_status=`systemctl is-active ntpd`
+    logAndEchoInfo "ntp status is: ${ntp_status}, chrony status is: ${chrony_status}"
+    if [[ ${ntp_status} != "active" ]] && [[ ${chrony_status} != "active" ]]; then
+        echo "ntp and chrony service is inactive, please active it before install"
+        logAndEchoError "ntp and chrony service is inactive"
         exit 1
     fi
 }
@@ -357,6 +358,26 @@ function show_cantian_version() {
     echo Product Model               : Cantian
     echo Product Version             : ${version}' > /usr/local/bin/show
     chmod 550 /usr/local/bin/show
+}
+
+# 检查dbstor的user与pwd是否正确
+function check_dbstor_usr_passwd() {
+    if [[ x"${deploy_mode}" != x"nas" ]];then
+        logAndEchoInfo "check username and password of dbstor. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        su -s /bin/bash - "${cantian_user}" -c "sh ${CURRENT_PATH}/dbstor/check_usr_pwd.sh"
+        install_result=$?
+        if [ ${install_result} -ne 0 ]; then
+            logAndEchoError "check dbstor passwd failed, possible reasons:
+                1 username or password of dbstor storage service is incorrect.
+                2 cgw create link failed.
+                3 ip address of dbstor storage service is incorrect.
+                please contact the engineer to solve. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            uninstall
+            exit 1
+        else
+            logAndEchoInfo "user and password of dbstor check pass. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        fi
+    fi
 }
 
 function check_dbstore_client_compatibility() {
@@ -579,14 +600,19 @@ if [[ ${config_install_type} = 'override' ]]; then
   mkdir -m 750 -p /opt/cantian/common/data
   mkdir -m 755 -p /opt/cantian/common/socket
   mkdir -m 755 -p /opt/cantian/common/config # 秘钥配置文件
-  mkdir -m 750 -p /mnt/dbdata/remote/share_${storage_share_fs}
+  if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+      mkdir -m 750 -p /mnt/dbdata/remote/share_${storage_share_fs}
+  fi
   mkdir -m 755 -p /mnt/dbdata/local
   chmod 755 /mnt/dbdata /mnt/dbdata/remote /mnt/dbdata/local
   if [[ ${storage_archive_fs} != '' ]]; then
       mkdir -m 750 -p /mnt/dbdata/remote/archive_${storage_archive_fs}
       chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/archive_${storage_archive_fs}
   fi
-  chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/share_${storage_share_fs}
+
+  if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+      chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/share_${storage_share_fs}
+  fi
   mkdir -m 755 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}
 
   chown ${cantian_user}:${cantian_group} /opt/cantian/common/data
@@ -633,18 +659,20 @@ if [[ ${config_install_type} = 'override' ]]; then
   # 检查36729~36728是否有可用端口
   check_port
   sysctl fs.nfs.nfs_callback_tcpport="${NFS_PORT}" > /dev/null 2>&1
-  # 挂载nfs
-  if [[ x"${deploy_mode}" == x"dbstore" ]]; then
-      mount -t nfs -o sec="${kerberos_type}",vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
-  else
-      mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+  # 挂载share nfs
+  if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+      if [[ x"${deploy_mode}" == x"dbstore" ]]; then
+          mount -t nfs -o sec="${kerberos_type}",vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+      else
+          mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+      fi
+      share_result=$?
+      if [ ${share_result} -ne 0 ]; then
+          logAndEchoError "mount share nfs failed"
+      fi
+      chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
+      checkMountNFS ${share_result}
   fi
-  share_result=$?
-  if [ ${share_result} -ne 0 ]; then
-      logAndEchoError "mount share nfs failed"
-  fi
-  chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
-  checkMountNFS ${share_result}
   if [[ ${storage_archive_fs} != '' ]]; then
       if [[ x"${deploy_mode}" != x"nas" ]]; then
           mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
@@ -686,7 +714,9 @@ if [[ ${config_install_type} = 'override' ]]; then
   remoteInfo=`ls -l /mnt/dbdata/remote`
   logAndEchoInfo "/mnt/dbdata/remote detail is: ${remoteInfo}"
   # 目录权限最小化
-  chmod 750 /mnt/dbdata/remote/share_${storage_share_fs}
+  if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+      chmod 750 /mnt/dbdata/remote/share_${storage_share_fs}
+  fi
   chmod 755 /mnt/dbdata/remote/metadata_${storage_metadata_fs}
   node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
   if [ -d /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id} ];then
@@ -697,7 +727,7 @@ if [[ ${config_install_type} = 'override' ]]; then
   update_random_seed
   # 挂载后，0节点拷贝配置文件至文件系统下，1节点检查对应配置文件参数
   check_deploy_param
-  if [[ x"${mes_type}" == x"TCP" ]];then
+  if [[ x"${mes_type}" == x"TCP" ]] && [[ x"${deploy_mode}" != x"dbstore_unify" ]];then
       copy_certificate
   fi
 fi
@@ -705,7 +735,9 @@ fi
 # 修改ks权限和存放ks的目录的权限
 chmod 700 /opt/cantian/common/config
 chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/common/config
-chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
+if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+    chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
+fi
 chown -hR "${cantian_user}":"${deploy_group}" /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
 # 修改日志定期清理执行脚本权限
 chown -h "${cantian_user}":"${cantian_group}" ${CURRENT_PATH}/../common/script/logs_handler/do_compress_and_archive.py
@@ -729,6 +761,9 @@ cp -rfp ${CURRENT_PATH}/dbstor /opt/cantian/action
 
 # 适配开源场景，使用file，不使用dbstore，提前安装参天rpm包
 install_rpm
+
+# 增UUID至参天、cms、dostore配置文件
+system_uuid=$(dmidecode -s system-uuid)
 
 # 调用各模块安装脚本，如果有模块安装失败直接退出，不继续安装接下来的模块
 logAndEchoInfo "Begin to install. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -759,6 +794,10 @@ do
                 exit 1
             fi
         fi
+        su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=dbstore --action=add --key=SYSTEM_UUID --value=${system_uuid}"
+        check_dbstor_usr_passwd
+        # 检查dbstore client 与server端是否兼容
+        check_dbstore_client_compatibility
     else
         sh ${CURRENT_PATH}/${lib_name}/appctl.sh install >> ${OM_DEPLOY_LOG_FILE} 2>&1
         install_result=$?
@@ -777,30 +816,7 @@ cp -rfp ${CURRENT_PATH}/../repo /opt/cantian/
 cp -rfp ${CURRENT_PATH}/../versions.yml /opt/cantian/
 
 config_security_limits > /dev/null 2>&1
-
-# 增UUID至参天、cms、dostore配置文件
-system_uuid=$(dmidecode -s system-uuid)
 su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=dbstore --action=add --key=SYSTEM_UUID --value=${system_uuid}"
-
-# 等各模块安装好后检查dbstor的user与pwd是否正确
-if [[ x"${deploy_mode}" != x"nas" ]];then
-    logAndEchoInfo "check username and password of dbstor. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-    su -s /bin/bash - "${cantian_user}" -c "sh ${CURRENT_PATH}/dbstor/check_usr_pwd.sh"
-    install_result=$?
-    if [ ${install_result} -ne 0 ]; then
-        logAndEchoError "check dbstor passwd failed, possible reasons:
-            1 username or password of dbstor storage service is incorrect.
-            2 cgw create link failed.
-            3 ip address of dbstor storage service is incorrect.
-            please contact the engineer to solve. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        uninstall
-        exit 1
-    else
-        logAndEchoInfo "user and password of dbstor check pass. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-    fi
-fi
-# 检查dbstore client 与server端是否兼容
-check_dbstore_client_compatibility
 
 # 修改/home/regress/action目录下cantian, cantian_exporter, cms, dbstor, mysql权限，防止复写造成提权
 for module in "${INSTALL_ORDER[@]}"

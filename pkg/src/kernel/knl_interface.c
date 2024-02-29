@@ -533,11 +533,11 @@ void knl_set_repl_timeout(knl_handle_t handle, uint32 val)
     }
 }
 
-status_t knl_set_session_trans(knl_handle_t session, isolation_level_t level, bool32 is_select)
+status_t knl_set_session_trans(knl_handle_t session, isolation_level_t level)
 {
     knl_session_t *se = (knl_session_t *)session;
 
-    if (DB_IS_READONLY(se) && (is_select == CT_FALSE)) {
+    if (DB_IS_READONLY(se)) {
         CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
         return CT_ERROR;
     }

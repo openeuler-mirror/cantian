@@ -38,6 +38,7 @@ function mountNfs()
     storage_archive_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_archive_fs"`
     storage_metadata_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_metadata_fs"`
     kerberos_type=`python3 ${CURRENT_PATH}/../../action/get_config_info.py  "kerberos_key"`
+    deploy_mode=`python3 ${CURRENT_PATH}/../../action/get_config_info.py  "deploy_mode"`
 
     if [[ ${storage_archive_fs} != '' ]]; then
         mountpoint /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
@@ -67,22 +68,25 @@ function mountNfs()
         fi
     fi
     # 防止日志输出到/var/log/messages中
-    mountpoint /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
-    if [ $? -ne 0 ]; then
-        logAndEchoInfo "/mnt/dbdata/remote/share_${storage_share_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        share_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "share_logic_ip"`
-        check_port
-        sysctl fs.nfs.nfs_callback_tcpport="${NFS_PORT}" > /dev/null 2>&1
-        if [ $? -ne 0 ];then
-            logAndEchoError "Sysctl service is not ready.[Line:${LINENO}, File:${SCRIPT_NAME}]"
-            exit 1
-        fi
-        mount -t nfs -o vers=4.0,sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+        mountpoint /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
         if [ $? -ne 0 ]; then
-            logAndEchoError "mount /mnt/dbdata/remote/share_${storage_share_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            exit 1
-        else
-            logAndEchoInfo "mount /mnt/dbdata/remote/share_${storage_share_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoInfo "/mnt/dbdata/remote/share_${storage_share_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            share_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "share_logic_ip"`
+            check_port
+            sysctl fs.nfs.nfs_callback_tcpport="${NFS_PORT}" > /dev/null 2>&1
+            if [ $? -ne 0 ];then
+                logAndEchoError "Sysctl service is not ready.[Line:${LINENO}, File:${SCRIPT_NAME}]"
+                exit 1
+            fi
+            mount -t nfs -o vers=4.0,sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+            if [ $? -ne 0 ]; then
+                logAndEchoError "mount /mnt/dbdata/remote/share_${storage_share_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+                exit 1
+            else
+                logAndEchoInfo "mount /mnt/dbdata/remote/share_${storage_share_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            fi
         fi
     fi
 }

@@ -228,14 +228,14 @@ function gen_upgrade_plan() {
     weather_change_system=$(echo ${white_list_check_res} | awk '{print $3}')
     if [ "${weather_change_system}" == "true" ]; then
         source_version=$(python3 ${CURRENT_PATH}/implement/get_source_version.py)
-        storage_share_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/${UPGRADE_MODE}_bak_${source_version}"
+        storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/${UPGRADE_MODE}_bak_${source_version}"
         # 提前创建避免报错
-        if [ ! -d "${storage_share_fs_path}" ]; then
-            mkdir -p -m 755 "${storage_share_fs_path}"
+        if [ ! -d "${storage_metadata_fs_path}" ]; then
+            mkdir -p -m 755 "${storage_metadata_fs_path}"
         fi
-        UPDATESYS_FLAG="${storage_share_fs_path}/updatesys.true"
+        UPDATESYS_FLAG="${storage_metadata_fs_path}/updatesys.true"
         # 避免多次创建更新系统表标记文件
-        if [ -f "${UPDATESYS_FLAG}" ] || [ -f "${storage_share_fs_path}/updatesys.success" ]; then
+        if [ -f "${UPDATESYS_FLAG}" ] || [ -f "${storage_metadata_fs_path}/updatesys.success" ]; then
             logAndEchoInfo "detected that the system tables file flag already exists"
             return 0
         fi

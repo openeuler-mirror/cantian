@@ -9,8 +9,10 @@ DEL_DATABASE_SH='del_databasealldata.sh'
 function kill_process()
 {
     local processName=${1}
-    kill -9 `pidof ${processName}`
-
+    local testId=$(ps -elf | grep ${processName} | grep -v grep | head -n 1 | awk '{print $4}')
+    if [[ -n ${testId} ]]; then
+        kill -9 ${testId}
+    fi
 }
 
 # 拉起 cstool 进程，查询CGW建链情况
@@ -18,7 +20,7 @@ function use_cstool_query_connection()
 {
     local cstoolCmd="cstool"
     local setType=""
-    export LD_LIBRARY_PATH=/opt/cantian/cantian/server/add-ons
+    export LD_LIBRARY_PATH=/opt/cantian/dbstor/add-ons
     
     # 默认使用 --set-debug 类型的命令。如果打包时指定了 CSTOOL_TYPE=release 变量，则添加 --set-cli 参数，使用 release 的命令
     if [ ${CSTOOL_TYPE} == release ] || [ ${CSTOOL_TYPE} == asan ]; then
@@ -60,8 +62,17 @@ function use_cstool_query_connection()
 
 function main()
 {
+    link_type=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "link_type")
     rm -rf ${DBSTOOL_PATH}/conf/
-    cp -r /mnt/dbdata/local/cantian/tmp/data/dbstor/conf/ ${DBSTOOL_PATH}/
+    mkdir -p ${DBSTOOL_PATH}/conf/{dbs,infra/config}
+    if [ ${link_type} == 1 ];then
+        cp -arf /opt/cantian/image/Cantian-RUN-CENTOS-64bit/cfg/node_config_rdma.xml ${DBSTOOL_PATH}/conf/infra/config/node_config.xml
+        cp -arf /opt/cantian/dbstor/add-ons/mlnx/* /opt/cantian/dbstor/add-ons/
+    else
+        cp -arf /opt/cantian/image/Cantian-RUN-CENTOS-64bit/cfg/node_config_tcp.xml ${DBSTOOL_PATH}/conf/infra/config/node_config.xml
+        cp -arf /opt/cantian/dbstor/add-ons/nomlnx/* /opt/cantian/dbstor/add-ons/
+    fi
+    cp -arf /opt/cantian/image/Cantian-RUN-CENTOS-64bit/cfg/osd.cfg ${DBSTOOL_PATH}/conf/infra/config/
     cp -r ${DBSTOOL_PATH}/tools/dbstor_config.ini ${DBSTOOL_PATH}/conf/dbs/dbstor_config.ini
     chmod 640 ${DBSTOOL_PATH}/conf/infra/config/*
     chmod 640 ${DBSTOOL_PATH}/conf/dbs/*

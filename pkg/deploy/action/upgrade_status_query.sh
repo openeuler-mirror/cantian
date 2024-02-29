@@ -5,7 +5,7 @@ CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
 
 cluster_or_node=$1
-storage_share_fs_path=""
+storage_metadata_fs_path=""
 cluster_and_node_status_path=""
 cluster_status_flag=""
 node_status_flag=""
@@ -32,11 +32,11 @@ function init_cluster_status_flag() {
 
     storage_metadata_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs")
     if [[ ${storage_metadata_fs} == 'None' ]]; then
-        echo "[error] obtain current node storage_share_fs_name error, please check file: config/deploy_param.json" && exit 1
+        echo "[error] obtain current node storage_metadata_fs_name error, please check file: config/deploy_param.json" && exit 1
     fi
 
-    storage_share_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/rollup_bak_${source_version}"
-    cluster_and_node_status_path="${storage_share_fs_path}/cluster_and_node_status"
+    storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/rollup_bak_${source_version}"
+    cluster_and_node_status_path="${storage_metadata_fs_path}/cluster_and_node_status"
     cluster_status_flag="${cluster_and_node_status_path}/cluster_status.txt"
     node_status_flag="${cluster_and_node_status_path}/${cluster_or_node}_status.txt"
 }

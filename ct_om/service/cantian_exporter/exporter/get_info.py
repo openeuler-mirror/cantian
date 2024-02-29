@@ -515,7 +515,7 @@ class GetNodesInfo:
         """
         res = {}
         sql_res_list = sql_res.split("SQL>")
-        for index, sql_res in enumerate(sql_res_list[1:-1]):
+        for index, sql_res in enumerate(sql_res_list[1:len(report_key) + 1]):
             res.update(
                 {
                     report_key[index].lower(): dict(self.ctsql_result_parse(sql_res))

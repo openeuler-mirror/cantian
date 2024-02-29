@@ -9,7 +9,7 @@ BACKUP_NOTE=/opt/backup_note
 CLUSTER_COMMIT_STATUS=("prepared" "commit")
 UPGRADE_MODE_LIS=("offline" "rollup")
 WAIT_TIME=10
-storage_share_fs_path=""
+storage_metadata_fs_path=""
 cluster_and_node_status_path=""
 cluster_status_flag=""
 business_code_backup_path=""
@@ -39,17 +39,17 @@ function init_cluster_status_flag() {
     fi
 
     storage_metadata_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs")
-    if [[ ${storage_share_fs_name} == 'None' ]]; then
-        logAndEchoError "obtain current node  storage_share_fs_name error, please check file: config/deploy_param.json"
+    if [[ ${storage_metadata_fs} == 'None' ]]; then
+        logAndEchoError "obtain current node  storage_metadata_fs error, please check file: config/deploy_param.json"
         exit 1
     fi
     business_code_backup_path="/opt/cantian/upgrade_backup/cantian_upgrade_bak_${source_version}"
 
     if [ "${UPGRADE_MODE}" == "rollup" ]; then
-        storage_share_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/rollup_bak_${source_version}"
-        cluster_and_node_status_path="${storage_share_fs_path}/cluster_and_node_status"
+        storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/rollup_bak_${source_version}"
+        cluster_and_node_status_path="${storage_metadata_fs_path}/cluster_and_node_status"
         cluster_status_flag="${cluster_and_node_status_path}/cluster_status.txt"
-        modify_sys_table_success_flag="${storage_share_fs_path}/updatesys.success"
+        modify_sys_table_success_flag="${storage_metadata_fs_path}/updatesys.success"
     fi
 
     cluster_commit_flag="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/cantian_${UPGRADE_MODE}_upgrade_commit_${source_version}.success"
@@ -151,10 +151,10 @@ function clear_upgrade_residual_data() {
     logAndEchoInfo "begin to clear residual data"
     target_version=$(python3 ${CURRENT_PATH}/implement/get_source_version.py)
     upgrade_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade"
-    storage_share_fs_path="${upgrade_path}/rollup_bak_${source_version}"
-    cluster_and_node_status_path="${storage_share_fs_path}/cluster_and_node_status"
-    modify_sys_table_success_flag="${storage_share_fs_path}/updatesys.success"
-    modify_sys_tables_failed="${storage_share_fs_path}/updatesys.failed"
+    storage_metadata_fs_path="${upgrade_path}/rollup_bak_${source_version}"
+    cluster_and_node_status_path="${storage_metadata_fs_path}/cluster_and_node_status"
+    modify_sys_table_success_flag="${storage_metadata_fs_path}/updatesys.success"
+    modify_sys_tables_failed="${storage_metadata_fs_path}/updatesys.failed"
     # 清除升级前预检查标记文件
     if [ -e ${PRE_UPGRADE_SUCCESS_FLAG} ]; then
         rm -f ${PRE_UPGRADE_SUCCESS_FLAG}
@@ -164,8 +164,8 @@ function clear_upgrade_residual_data() {
         rm -rf ${cluster_and_node_status_path}
     fi
     # 删除调用ctback工具执行成功的标记文件
-    if [ -f "${storage_share_fs_path}/call_ctback_tool.success" ]; then
-        rm -f "${storage_share_fs_path}/call_ctback_tool.success"
+    if [ -f "${storage_metadata_fs_path}/call_ctback_tool.success" ]; then
+        rm -f "${storage_metadata_fs_path}/call_ctback_tool.success"
     fi
     # 删除修改系统表成功的标记文件
     if [ -f "${modify_sys_table_success_flag}" ]; then

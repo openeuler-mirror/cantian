@@ -70,10 +70,10 @@ class UNDeploy(object):
                                                                       fs_info.get("vstoreId"))
                 LOG.info("Delete schedule[%s] success!", fs_info.get("scheduleName"))
             fs_id = fs_info.get("ID")
-            nfs_share_info = self.storage_opt.query_nfs_info(fs_id=fs_id, vstore_id=0)
+            nfs_share_info = self.storage_opt.query_nfs_info(fs_id=fs_id, vstore_id=vstore_id)
             if nfs_share_info:
                 nfs_share_id = nfs_share_info[0].get("ID")
-                self.storage_opt.delete_nfs_share(nfs_share_id=nfs_share_id, vstore_id=0)
+                self.storage_opt.delete_nfs_share(nfs_share_id=nfs_share_id, vstore_id=vstore_id)
                 LOG.info("Delete file system %s nfs share success!", fs_name)
             self.storage_opt.delete_file_system(fs_id)
             LOG.info("Delete file system %s success!", fs_name)
