@@ -30,7 +30,7 @@ deploy_group=$(python3 "${CURRENT_PATH}"/get_config_info.py "deploy_group")
 # 滚动回滚
 CLUSTER_COMMIT_STATUS=("commit" "normal")
 NODE_NOT_ROLLBACK_STATUS=("rollup" "rolldown")
-storage_share_fs_path=""
+storage_metadata_fs_path=""
 cluster_and_node_status_path=""
 cluster_status_flag=""
 local_node_status_flag=""
@@ -71,9 +71,9 @@ function get_user_input() {
 
 # 防呆功能，在滚动升级或回滚时执行离线回滚会再次询问:滚动升级提交、提交成功，滚动升级修改系统表成功或者失败场景只支持离线回退
 function mode_check(){
-    local storage_share_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/rollup_bak_${back_version}"
-    local modify_sys_tables_success="${storage_share_fs_path}/updatesys.success"
-    local modify_sys_tables_failed="${storage_share_fs_path}/updatesys.failed"
+    local storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/rollup_bak_${back_version}"
+    local modify_sys_tables_success="${storage_metadata_fs_path}/updatesys.success"
+    local modify_sys_tables_failed="${storage_metadata_fs_path}/updatesys.failed"
     local upgrade_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade"
     local node_flag_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/rollup_bak_${back_version}/cluster_and_node_status"
     if ls "${node_flag_path}"/node*_status.txt >/dev/null 2>&1; then
@@ -310,14 +310,24 @@ function uninstall_rpm()
 function do_rollback() {
     logAndEchoInfo "begin to rollback on local node"
     backup_path="/opt/cantian/upgrade_backup/cantian_upgrade_bak_${back_version}"
+    back_config_path="${backup_path}"/config/deploy_param.json
+    deploy_mode_back=$(cat "${back_config_path}" | grep 'deploy_mode' | awk -F'"' '{print $4}')
     if [[ ${node_id} == '1' && ! -f ${CHECK_POINT_FLAG} && ${ROLLBACK_MODE} == "offline" && ${back_version} == "2.0.0"* ]]; then
         logAndEchoInfo "Mount share file system."
-        back_config_path="${backup_path}"/config/deploy_param.json
         kerberos_type=$(python3 "${CURRENT_PATH}"/get_config_info.py "kerberos_key")
         share_logic_ip=$(cat "${back_config_path}" | grep 'share_logic_ip' | awk -F'"' '{print $4}')
         storage_share_fs=$(python3 "${CURRENT_PATH}"/get_config_info.py "storage_share_fs")
         umount /mnt/dbdata/remote/share_"${storage_share_fs}"
         sleep 2
+        mount -t nfs -o sec="${kerberos_type}",vers=4.0,timeo="${NFS_TIMEO}",nosuid,nodev "${share_logic_ip}":/"${storage_share_fs}" /mnt/dbdata/remote/share_"${storage_share_fs}"
+    elif [[ x"${deploy_mode_back}" == x"dbstore" ]]; then
+        kerberos_type=$(cat "${back_config_path}" | grep 'kerberos_key' | awk -F'"' '{print $4}')
+        share_logic_ip=$(cat "${back_config_path}" | grep 'share_logic_ip' | awk -F'"' '{print $4}')
+        storage_share_fs=$(cat "${back_config_path}" | grep 'storage_share_fs' | awk -F'"' '{print $4}')
+        if [[ ! -d "/mnt/dbdata/remote/share_${storage_share_fs}" ]]; then
+            mkdir -m 750 -p /mnt/dbdata/remote/share_${storage_share_fs}
+            chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
+        fi
         mount -t nfs -o sec="${kerberos_type}",vers=4.0,timeo="${NFS_TIMEO}",nosuid,nodev "${share_logic_ip}":/"${storage_share_fs}" /mnt/dbdata/remote/share_"${storage_share_fs}"
     fi
 
@@ -357,10 +367,9 @@ function do_rollback() {
     cp -f ${backup_path}/config/cantian*.timer /etc/systemd/system/
     # 回滚完快照再执行拷贝操作，避免回滚快照使用的是旧脚本
 
-    if [[ ${node_id} == '0' && ! -f ${CHECK_POINT_FLAG} && ${ROLLBACK_MODE} == "offline" && x"${choose}" != x"yes" ]]; then
+    if [[ ${node_id} == '0' && ! -f ${CHECK_POINT_FLAG} && ${ROLLBACK_MODE} == "offline" && x"${choose}" != x"yes" && ${deploy_mode} != "nas" ]]; then
         clear_mem
         rollback_snapshot
-        rollback_file_system
     fi
     logAndEchoInfo "om rollback finished"
 }
@@ -585,9 +594,9 @@ function init_cluster_or_node_status_flag() {
         logAndEchoError "obtain current node  storage_share_fs_name error, please check file: config/deploy_param.json"
         exit 1
     fi
-    storage_share_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/rollup_bak_${source_version}"
+    storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/rollup_bak_${source_version}"
 
-    cluster_and_node_status_path="${storage_share_fs_path}/cluster_and_node_status"
+    cluster_and_node_status_path="${storage_metadata_fs_path}/cluster_and_node_status"
     # 支持重入
     if [ ! -d "${cluster_and_node_status_path}" ]; then
         mkdir -p "${cluster_and_node_status_path}"
@@ -655,8 +664,8 @@ function support_rollback_judgement() {
     modify_cluster_or_node_status "${cluster_status_flag}" "rolldown" "cluster"
 
     # step2: 若修改了系统表，则不允许回退
-    modify_sys_tables_success="${storage_share_fs_path}/updatesys.success"
-    modify_sys_tables_failed="${storage_share_fs_path}/updatesys.failed"
+    modify_sys_tables_success="${storage_metadata_fs_path}/updatesys.success"
+    modify_sys_tables_failed="${storage_metadata_fs_path}/updatesys.failed"
     if [ -f "${modify_sys_tables_success}" ] || [ -f "${modify_sys_tables_failed}" ]; then
         logAndEchoError "it is detected that the system table has been modified, please rollback offline" && exit 1
     fi

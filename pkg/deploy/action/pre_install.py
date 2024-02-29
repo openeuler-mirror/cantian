@@ -435,6 +435,9 @@ class CheckInstallConfig(CheckBase):
             self.config_key.remove("storage_logic_ip")
             self.config_key.update(self.dbstore_config_key)
             ping_check_element.remove("storage_logic_ip")
+            if install_config_params['deploy_mode'] == "dbstore_unify":
+                ping_check_element.remove("share_logic_ip")
+                install_config_params['share_logic_ip'] = "127.0.0.1"
         else:
             self.config_params['cluster_id'] = "0"
             self.config_params['mes_type'] = "TCP"

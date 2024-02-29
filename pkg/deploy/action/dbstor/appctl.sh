@@ -170,8 +170,10 @@ function chown_install_set()
         mkdir -m 750 -p /opt/cantian/dbstor/lib
     fi
     cp -rf ${RPM_UNPACK_PATH}/kmc_shared/* /opt/cantian/dbstor/lib
+    cp -rf ${RPM_UNPACK_PATH}/add-ons/ /opt/cantian/dbstor/
     chmod 550 ${CILENT_TEST_PATH}/*
     chmod 550 /opt/cantian/dbstor/lib/*
+    chmod 550 /opt/cantian/dbstor/add-ons/*
     chmod 500 /opt/cantian/dbstor/lib/libcrypto.so
     chmod 500 /opt/cantian/dbstor/lib/libcrypto.so.1.1
     chmod 500 /opt/cantian/dbstor/lib/libkmc.so

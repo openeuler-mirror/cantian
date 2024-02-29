@@ -137,10 +137,14 @@ if [[ ${uninstall_type} = 'override' ]]; then
     if [[ ${storage_archive_fs} != '' ]] && [[ -d /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf ]] && [[ "${node_id}" == "0" ]]; then
       rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf
     fi
-  rm -rf /mnt/dbdata/remote/share_"${storage_share_fs}"/node"${node_id}"_install_record.json > /dev/null 2>&1
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+      rm -rf /mnt/dbdata/remote/share_"${storage_share_fs}"/node"${node_id}"_install_record.json > /dev/null 2>&1
+    fi
   sysctl fs.nfs.nfs_callback_tcpport=0
   # 取消nfs挂载
-  umount -f -l /mnt/dbdata/remote/share_${storage_share_fs}
+  if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+      umount -f -l /mnt/dbdata/remote/share_${storage_share_fs}
+  fi
   if [[ ${storage_archive_fs} != '' ]]; then
       umount -f -l /mnt/dbdata/remote/archive_${storage_archive_fs}
   fi
@@ -158,7 +162,9 @@ if [[ ${uninstall_type} = 'override' ]]; then
   rm -rf /opt/cantian/common/data
   rm -rf /opt/cantian/common/socket
   rm -rf /opt/cantian/common/config
-  rm -rf /mnt/dbdata/remote/share_${storage_share_fs}
+  if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+      rm -rf /mnt/dbdata/remote/share_${storage_share_fs}
+  fi
   if [[ ${storage_archive_fs} != '' ]]; then
       rm -rf /mnt/dbdata/remote/archive_${storage_archive_fs}
   fi
