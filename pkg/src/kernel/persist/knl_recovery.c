@@ -2575,12 +2575,6 @@ static bool32 need_replay_in_partial_restart(knl_session_t *session, log_entry_t
 void rcy_replay_logic(knl_session_t *session, log_entry_t *log)
 {
     logic_op_t *op_type = (logic_op_t *)log->data;
-    if (DB_IS_PRIMARY(&session->kernel->db) &&
-        (*op_type == RD_LOCK_TABLE_FOR_MYSQL_DDL ||
-        *op_type == RD_UNLOCK_TABLE_FOR_MYSQL_DDL ||
-        *op_type == RD_INVALID_DD_FOR_MYSQL_DDL)) {
-        return;
-    }
 
     if (DB_NOT_READY(session) || (DB_IS_PRIMARY(&session->kernel->db)) || DB_IS_UPGRADE(session)) {
         if (*op_type != RD_CREATE_MK_BEGIN &&

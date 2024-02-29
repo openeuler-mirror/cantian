@@ -368,6 +368,14 @@ static inline msg_prepare_ddl_req_t tse_init_ddl_req(tianchi_handler_t *tch, tse
     return req;
 }
 
+static inline void tse_fill_update_dd_cache_req(msg_update_dd_cache_req_t *req, char *sql_str)
+{
+    req->sql_str = sql_str;
+    req->inst_id = CT_INVALID_ID32 - 1;
+    req->thd_id = CT_INVALID_ID32 - 1;
+    req->msg_num = cm_random(CT_INVALID_ID32);
+}
+
 static inline void tse_fill_execute_ddl_req(msg_execute_ddl_req_t *req, uint32_t thd_id,
     tse_ddl_broadcast_request *broadcast_req, bool allow_fail)
 {
@@ -386,69 +394,6 @@ static inline msg_invalid_dd_req_t tse_fill_invalid_dd_req(tianchi_handler_t *tc
     return req;
 }
 
-static void ctc_write_lock_info_into_rd(rd_lock_info_4mysql_ddl *rd_lock_info, tse_lock_table_info *lock_info)
-{
-    rd_lock_info->sql_type = lock_info->sql_type;
-    rd_lock_info->mdl_namespace = lock_info->mdl_namespace;
-    memcpy_sp(rd_lock_info->buff, rd_lock_info->db_name_len, lock_info->db_name, rd_lock_info->db_name_len);
-    memcpy_sp(rd_lock_info->buff + rd_lock_info->db_name_len, rd_lock_info->table_name_len, lock_info->table_name, rd_lock_info->table_name_len);
-}
-
-int tse_lock_table_impl(tianchi_handler_t *tch, knl_handle_t knl_session, const char *db_name,
-                        tse_lock_table_info *lock_info, int *error_code)
-{
-    char *broadcast_db_name = tse_check_db_exists((knl_session_t *)knl_session, db_name) ? db_name : NULL;
-    // 广播 mysqld
-    int ret = tse_ddl_execute_lock_tables(tch, broadcast_db_name, lock_info, error_code);
-    if (ret != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[TSE_LOCK_TABLE]:execute failed at other mysqld on current node, error_code:%d"
-                       "lock_info(db:%s, table:%s), conn_id:%u, tse_instance_id:%u", *error_code,
-                       lock_info->db_name, lock_info->table_name, tch->thd_id, tch->inst_id);
-        return CT_ERROR;
-    }
-
-    // 广播 其他daac节点
-    msg_prepare_ddl_req_t req = tse_init_ddl_req(tch, lock_info);
-    if (!CM_IS_EMPTY_STR(broadcast_db_name) &&
-        copy_broadcast_dbname_to_req(req.db_name, MES_DB_NAME_BUFFER_SIZE, broadcast_db_name) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[TSE_LOCK_TABLE]: strcpy failed, db_name=%s", broadcast_db_name);
-        return CT_ERROR;
-    }
-
-    mes_init_send_head(&req.head, MES_CMD_PREPARE_DDL_REQ, sizeof(msg_prepare_ddl_req_t), CT_INVALID_ID32,
-        DCS_SELF_INSTID((knl_session_t *)knl_session), 0, ((knl_session_t *)knl_session)->id, CT_INVALID_ID16);
-    knl_panic(sizeof(msg_prepare_ddl_req_t) < MES_MESSAGE_BUFFER_SIZE);
-
-    *error_code = tse_broadcast_and_recv((knl_session_t *)knl_session, MES_BROADCAST_ALL_INST, &req, NULL);
-    if (*error_code != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[TSE_LOCK_TABLE]:execute failed on remote node, err_code:%d, db_name %s,"
-                       "lock_info(db:%s, table:%s), conn_id:%u, tse_instance_id:%u", *error_code,
-                       db_name, lock_info->db_name, lock_info->table_name, tch->thd_id, tch->inst_id);
-        return CT_ERROR;
-    }
-    return CT_SUCCESS;
-}
-
-static void tse_write_rd_lock_info_4mysql_ddl(knl_session_t *knl_session, tse_lock_table_info *lock_info, uint32 op_type)
-{
-    if (knl_db_is_primary(knl_session) && DB_ATTR_MYSQL_META_IN_DACC(knl_session)) {
-        uint32_t db_name_size = strlen(lock_info->db_name);
-        uint32_t table_name_size = strlen(lock_info->table_name);
-        uint32_t rd_size = sizeof(rd_lock_info_4mysql_ddl) + db_name_size + table_name_size;
-        rd_lock_info_4mysql_ddl *redo = (rd_lock_info_4mysql_ddl *)cm_malloc(rd_size);
-        redo->op_type = op_type;
-        redo->db_name_len = db_name_size;
-        redo->table_name_len = table_name_size;
-        ctc_write_lock_info_into_rd(redo, lock_info);
-        CT_LOG_DEBUG_INF("[tse_write_rd_lock_info_4mysql_ddl] redo op_type = %d, db_name = %s, db_name_len = %d, "
-                         "table_name = %s, table_name_len = %d, mdl_namespace = %d, sql_type = %d",
-                         op_type, lock_info->db_name, db_name_size, lock_info->table_name, table_name_size,
-                         lock_info->mdl_namespace, lock_info->sql_type);
-        knl_lock_info_log_put4mysql(knl_session, redo);
-        cm_free(redo);
-    }
-}
-
 EXTER_ATTACK int tse_lock_table(tianchi_handler_t *tch, const char *db_name, tse_lock_table_info *lock_info,
                                 int *error_code)
 {
@@ -465,9 +410,35 @@ EXTER_ATTACK int tse_lock_table(tianchi_handler_t *tch, const char *db_name, tse
         return CT_ERROR;
     }
 
-    CT_RETURN_IFERR(tse_lock_table_impl(tch, knl_session, db_name, lock_info, error_code));
+    char *broadcast_db_name = tse_check_db_exists(knl_session, db_name) ? db_name : NULL;
+    // 本节点的其他mysqld
+    int ret = tse_ddl_execute_lock_tables(tch, broadcast_db_name, lock_info, error_code);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[TSE_LOCK_TABLE]:execute failed at other mysqld on current node, error_code:%d"
+                       "lock_info(db:%s, table:%s), conn_id:%u, tse_instance_id:%u", *error_code,
+                       lock_info->db_name, lock_info->table_name, tch->thd_id, tch->inst_id);
+        return CT_ERROR;
+    }
 
-    tse_write_rd_lock_info_4mysql_ddl(knl_session, lock_info, RD_LOCK_TABLE_FOR_MYSQL_DDL);
+    // 广播 其他daac节点
+    msg_prepare_ddl_req_t req = tse_init_ddl_req(tch, lock_info);
+    if (!CM_IS_EMPTY_STR(broadcast_db_name) &&
+        copy_broadcast_dbname_to_req(req.db_name, MES_DB_NAME_BUFFER_SIZE, broadcast_db_name) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[TSE_LOCK_TABLE]: strcpy failed, db_name=%s", broadcast_db_name);
+        return CT_ERROR;
+    }
+
+    mes_init_send_head(&req.head, MES_CMD_PREPARE_DDL_REQ, sizeof(msg_prepare_ddl_req_t),
+        CT_INVALID_ID32, DCS_SELF_INSTID(knl_session), 0, knl_session->id, CT_INVALID_ID16);
+    knl_panic(sizeof(msg_prepare_ddl_req_t) < MES_MESSAGE_BUFFER_SIZE);
+
+    *error_code = tse_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, NULL);
+    if (*error_code != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[TSE_LOCK_TABLE]:execute failed on remote node, err_code:%d, db_name %s,"
+                       "lock_info(db:%s, table:%s), conn_id:%u, tse_instance_id:%u", *error_code,
+                       db_name, lock_info->db_name, lock_info->table_name, tch->thd_id, tch->inst_id);
+        return CT_ERROR;
+    }
 
     if (tch->sql_command == SQLCOM_LOCK_INSTANCE) {
         CT_LOG_RUN_INF("[TSE_LOCK_INSTANCE]:tse_inst_id:%u, conn_id:%u, "
@@ -478,47 +449,30 @@ EXTER_ATTACK int tse_lock_table(tianchi_handler_t *tch, const char *db_name, tse
     return CT_SUCCESS;
 }
 
-int tse_broadcast_mysql_dd_invalidate_impl(tianchi_handler_t *tch, knl_handle_t knl_session,
-                                           tse_invalidate_broadcast_request *broadcast_req)
-{
-    // 本节点的其他mysqld
-    int error_code;
-    status_t ret = tse_invalidate_mysql_dd_cache(tch, broadcast_req, &error_code);
-    if (ret != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[TSE_DD_INVALID]:execute failed at other mysqld on current node, error_code:%d"
-                       "conn_id:%u, tse_instance_id:%u", error_code, tch->thd_id, tch->inst_id);
-        return CT_ERROR;
+int tse_invalidate_all_ddcache_and_broadcast(knl_session_t *knl_sess) {
+    //失效本端mysql的缓存。
+    CT_LOG_RUN_INF("[zzh debug] begin tse_invalidate_all_ddcache_and_broadcast.");
+    int result = tse_invalidate_all_dd_cache();
+    CT_LOG_RUN_INF("[zzh debug] after tse_invalidate_all_ddcache_and_broadcast.");
+    if (result != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("tse_invalidate_all_dd_cache error. result: %d", result);
     }
- 
-    // 广播 其他daac节点
-    msg_invalid_dd_req_t req = tse_fill_invalid_dd_req(tch, broadcast_req);
-    mes_init_send_head(&req.head, MES_CMD_INVALID_DD_REQ, sizeof(msg_invalid_dd_req_t), CT_INVALID_ID32,
-        DCS_SELF_INSTID((knl_session_t *)knl_session), 0, ((knl_session_t *)knl_session)->id, CT_INVALID_ID16);
-    knl_panic(sizeof(msg_invalid_dd_req_t) < MES_128K_MESSAGE_BUFFER_SIZE);
+    //失效远端Mysql的缓存。
+    msg_invalid_all_dd_cache_req_t req;
+    req.msg_num = cm_random(CT_INVALID_ID32);
+    mes_init_send_head(&req.head, MES_CMD_INVALID_ALL_DD_REQ, sizeof(msg_invalid_all_dd_cache_req_t),
+        CT_INVALID_ID32, DCS_SELF_INSTID(knl_sess), 0, knl_sess->id, CT_INVALID_ID16);
+    knl_panic(sizeof(msg_invalid_all_dd_cache_req_t) < MES_128K_MESSAGE_BUFFER_SIZE);
  
     SYNC_POINT_GLOBAL_START(TSE_BEFORE_INVALID_MYSQL_CACHE_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
-    (void)tse_broadcast_and_recv((knl_session_t *)knl_session, MES_BROADCAST_ALL_INST, &req, NULL);
+    CT_LOG_RUN_INF("[zzh debug] begin to broadcast. msg_num:%d", req.msg_num);
+    (void)tse_broadcast_and_recv(knl_sess, MES_BROADCAST_ALL_INST, &req, NULL);
+    CT_LOG_RUN_INF("[zzh debug] After broadcast. msg_num:%d", req.msg_num);
     SYNC_POINT_GLOBAL_START(TSE_AFTER_INVALID_MYSQL_CACHE_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
+ 
     return CT_SUCCESS;
-}
-
-static void tse_write_rd_invalid_dd_4mysql_ddl(knl_session_t *knl_session, tse_invalidate_broadcast_request *broadcast_req)
-{
-    if (knl_db_is_primary(knl_session) && DB_ATTR_MYSQL_META_IN_DACC(knl_session)) {
-        uint32_t rd_size = sizeof(rd_invalid_dd_4mysql_ddl) + broadcast_req->buff_len;
-        rd_invalid_dd_4mysql_ddl *redo = (rd_invalid_dd_4mysql_ddl *)cm_malloc(rd_size);
-        redo->op_type = RD_INVALID_DD_FOR_MYSQL_DDL;
-        redo->buff_len = broadcast_req->buff_len;
-        redo->is_dcl = broadcast_req->is_dcl;
-        memcpy_sp(redo->buff, broadcast_req->buff_len, broadcast_req->buff, broadcast_req->buff_len);
-        CT_LOG_DEBUG_INF("[tse_write_rd_invalid_dd_4mysql_ddl] redo op_type = %d, redo buff = %s, "
-                         "buff_len = %d, is_dcl = %u",
-                         redo->op_type, broadcast_req->buff, broadcast_req->buff_len, broadcast_req->is_dcl);
-        knl_invalid_dd_log_put4mysql(knl_session, redo);
-        cm_free(redo);
-    }
 }
 
 EXTER_ATTACK int tse_broadcast_mysql_dd_invalidate(tianchi_handler_t *tch, tse_invalidate_broadcast_request *broadcast_req)
@@ -537,10 +491,28 @@ EXTER_ATTACK int tse_broadcast_mysql_dd_invalidate(tianchi_handler_t *tch, tse_i
     }
     tse_set_no_use_other_sess4thd(session);
     knl_session_t *knl_session = &session->knl_session;
-
-    CT_RETURN_IFERR(tse_broadcast_mysql_dd_invalidate_impl(tch, knl_session, broadcast_req));
-    tse_write_rd_invalid_dd_4mysql_ddl(knl_session, broadcast_req);
-
+ 
+    // 本节点的其他mysqld
+    int error_code;
+    status_t ret = tse_invalidate_mysql_dd_cache(tch, broadcast_req, &error_code);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[TSE_DD_INVALID]:execute failed at other mysqld on current node, error_code:%d"
+                       "conn_id:%u, tse_instance_id:%u", error_code, tch->thd_id, tch->inst_id);
+        return CT_ERROR;
+    }
+ 
+    // 广播 其他daac节点
+    msg_invalid_dd_req_t req = tse_fill_invalid_dd_req(tch, broadcast_req);
+    mes_init_send_head(&req.head, MES_CMD_INVALID_DD_REQ, sizeof(msg_invalid_dd_req_t),
+        CT_INVALID_ID32, DCS_SELF_INSTID(knl_session), 0, knl_session->id, CT_INVALID_ID16);
+    knl_panic(sizeof(msg_invalid_dd_req_t) < MES_128K_MESSAGE_BUFFER_SIZE);
+ 
+    SYNC_POINT_GLOBAL_START(TSE_BEFORE_INVALID_MYSQL_CACHE_ABORT, NULL, 0);
+    SYNC_POINT_GLOBAL_END;
+    (void)tse_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, NULL);
+    SYNC_POINT_GLOBAL_START(TSE_AFTER_INVALID_MYSQL_CACHE_ABORT, NULL, 0);
+    SYNC_POINT_GLOBAL_END;
+ 
     return CT_SUCCESS;
 }
 
@@ -644,6 +616,29 @@ int tse_put_ddl_sql_2_stmt_not_cantian_exe(session_t *session, tse_ddl_broadcast
         session->current_stmt = NULL;
     }
     return ret;
+}
+
+int tse_update_mysql_ddcache_and_broadcast(char *sql_str, knl_session_t *knl_session)
+{
+    // 通知本地mysql更新缓存, params:tch, sql_str, err_
+    int result = tse_update_mysql_dd_cache(sql_str);
+    while (result != CT_SUCCESS) {
+        result = tse_update_mysql_dd_cache(sql_str);
+        CT_LOG_RUN_ERR("Failed to update mysql dd cache on current node.");
+        cm_sleep(1000);
+    }
+    // 广播远端参天
+    msg_update_dd_cache_req_t req;
+    tse_fill_update_dd_cache_req(&req, sql_str);
+    mes_init_send_head(&req.head, MES_CMD_UPDATE_DD_REQ, sizeof(msg_update_dd_cache_req_t), CT_INVALID_ID32, DCS_SELF_INSTID(knl_session), 0, knl_session->id,
+        CT_INVALID_ID16);
+    knl_panic(sizeof(msg_update_dd_cache_req_t) < MES_128K_MESSAGE_BUFFER_SIZE);
+ 
+    int error_code = tse_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, NULL);
+    if (error_code != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[Disaster Recovery] Failed to update mysql dd cache on remote node. sql_str:%s, error_code:%d", sql_str, error_code);
+    }
+    return CT_SUCCESS;
 }
 
 int tse_ddl_execute_and_broadcast(tianchi_handler_t *tch, tse_ddl_broadcast_request *broadcast_req,
@@ -859,7 +854,7 @@ EXTER_ATTACK int ctc_record_sql_for_cantian(tianchi_handler_t *tch, tse_ddl_broa
 int tse_close_mysql_connection(tianchi_handler_t *tch)
 {
     int ret;
-    // 广播 mysqld
+    // 本节点的其他mysqld
     if (tch->is_broadcast == true) {
         ret = close_mysql_connection(tch->thd_id, tch->inst_id);
         if (ret != CT_SUCCESS) {
@@ -1167,11 +1162,15 @@ EXTER_ATTACK int tse_drop_tablespace_and_user(tianchi_handler_t *tch, const char
     return CT_SUCCESS;
 }
 
-int tse_unlock_table_impl(tianchi_handler_t *tch, knl_handle_t knl_session, uint32_t mysql_inst_id,
-                          tse_lock_table_info *lock_info)
-
+EXTER_ATTACK int tse_unlock_table(tianchi_handler_t *tch, uint32_t mysql_inst_id, tse_lock_table_info *lock_info)
 {
-    // 广播 mysqld
+    bool is_new_session = CT_FALSE;
+    session_t *session = NULL;
+    CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
+    tse_set_no_use_other_sess4thd(session);
+    knl_session_t *knl_session = &session->knl_session;
+
+    // 本节点的其他mysql
     int ret = tse_ddl_execute_unlock_tables(tch, mysql_inst_id, lock_info);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[TSE_UNLOCK_TABLE]:execute failed at other mysqld on current node conn_id:%u", tch->thd_id);
@@ -1184,26 +1183,12 @@ int tse_unlock_table_impl(tianchi_handler_t *tch, knl_handle_t knl_session, uint
 
     req.msg_num = cm_random(CT_INVALID_ID32);
     req.mysql_inst_id = mysql_inst_id;
-    mes_init_send_head(&req.head, MES_CMD_COMMIT_DDL_REQ, sizeof(msg_commit_ddl_req_t), CT_INVALID_ID32,
-        DCS_SELF_INSTID((knl_session_t *)knl_session), 0, ((knl_session_t *)knl_session)->id, CT_INVALID_ID16);
+    mes_init_send_head(&req.head, MES_CMD_COMMIT_DDL_REQ, sizeof(msg_commit_ddl_req_t), CT_INVALID_ID32, DCS_SELF_INSTID(knl_session), 0, knl_session->id,
+        CT_INVALID_ID16);
     knl_panic(sizeof(msg_commit_ddl_req_t) < MES_MESSAGE_BUFFER_SIZE);
 
-    (void)tse_broadcast_and_recv((knl_session_t *)knl_session, MES_BROADCAST_ALL_INST, &req, NULL);
-    return CT_SUCCESS;
-}
-
-EXTER_ATTACK int tse_unlock_table(tianchi_handler_t *tch, uint32_t mysql_inst_id, tse_lock_table_info *lock_info)
-{
-    bool is_new_session = CT_FALSE;
-    session_t *session = NULL;
-    CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
-    tse_set_no_use_other_sess4thd(session);
-    knl_session_t *knl_session = &session->knl_session;
-
-    CT_RETURN_IFERR(tse_unlock_table_impl(tch, knl_session, mysql_inst_id, lock_info));
-
-    tse_write_rd_lock_info_4mysql_ddl(knl_session, lock_info, RD_UNLOCK_TABLE_FOR_MYSQL_DDL);
-
+    (void)tse_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, NULL);
+    
     if (is_new_session) {
         tch->sess_addr = INVALID_VALUE64;
         (void)tse_free_session(session);

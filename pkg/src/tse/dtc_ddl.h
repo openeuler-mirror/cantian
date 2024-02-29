@@ -116,6 +116,7 @@ EXTER_ATTACK void dtc_proc_msg_tse_commit_ddl_req(void *sess, mes_message_t *msg
 EXTER_ATTACK void dtc_proc_msg_tse_close_mysql_conn_req(void *sess, mes_message_t *msg);
 EXTER_ATTACK void dtc_proc_msg_tse_execute_rewrite_open_conn_req(void *sess, mes_message_t *msg);
 EXTER_ATTACK void dtc_proc_msg_tse_invalidate_dd_req(void *sess, mes_message_t *msg);
+EXTER_ATTACK void dtc_proc_msg_tse_invalidate_all_dd_cache_req(void *sess, mes_message_t *msg);
 status_t tse_is_inst_alive(uint8 dst_inst);
 status_t tse_send_data_retry(const void *msg_data, uint8 dst_inst);
 msg_rsp_res_pair *get_tse_msg_result_arr(void);
