@@ -287,10 +287,12 @@ function pre_upgrade()
         return 1
     fi
 
-    echo "check gcc home: /mnt/dbdata/remote/share_${storage_share_fs}"
-    if [ ! -d /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home ];then
-        echo "Error: gcc home does not exist!"
-        return 1
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+        echo "check gcc home: /mnt/dbdata/remote/share_${storage_share_fs}"
+        if [ ! -d /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home ];then
+            echo "Error: gcc home does not exist!"
+            return 1
+        fi
     fi
 
     if [[ ${version_first_number} -eq 2 ]];then
@@ -330,12 +332,14 @@ function post_upgrade()
     fi
     ls -l ${cms_scripts}
 
-    echo "check gcc home: /mnt/dbdata/remote/share_${storage_share_fs}"
-    if [ ! -d /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home ];then
-        echo "Error: gcc home does not exist!"
-        return 1
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+        echo "check gcc home: /mnt/dbdata/remote/share_${storage_share_fs}"
+        if [ ! -d /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home ];then
+            echo "Error: gcc home does not exist!"
+            return 1
+        fi
+        ls -l /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home
     fi
-    ls -l /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home
 
     echo "check cms server processes: cms stat -server"
     su -s /bin/bash - ${cantian_user} -c "source ~/.bashrc && cms stat -server"
@@ -428,7 +432,6 @@ function update_cms_service() {
        ${cms_pkg_file}/cfg ${cms_pkg_file}/lib ${cms_pkg_file}/package.xml ${cantian_home}/server
 
     deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
-    deploy_mode_opt=$(python3 /opt/cantian/action/get_config_info.py "deploy_mode")
     if [[ x"${deploy_mode}" == x"nas" ]]; then
         return 0
     fi
@@ -479,7 +482,7 @@ function update_cms_scripts() {
 
 function update_cms_config() {
     echo "update the cms ini in ${cms_home}/cfg"
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]  || [[ x"${deploy_mode_opt}" == x"dbstore_unify" ]]; then
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
         return 0
     fi
 
@@ -493,7 +496,7 @@ function update_cms_config() {
 
 function update_cms_gcc_file() {
     echo "update the cms gcc file in share fs"
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]] || [[ x"${deploy_mode_opt}" == x"dbstore_unify" ]]; then
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
         return 0
     fi
     su -s /bin/bash - ${cantian_user} -c "sh ${CURRENT_PATH}/start_cms.sh -P install_cms"
@@ -629,6 +632,10 @@ cluster_name=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
               awk -F ',' '{for(i=1;i<=NF;i++){if($i~"cluster_name"){print $i}}}' |
               sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
               awk -F '=' '{print $2}')
+deploy_mode=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |
+              awk -F ',' '{for(i=1;i<=NF;i++){if($i~"deploy_mode"){print $i}}}' |
+              sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
+              awk -F '=' '{print $2}')
 
 check_and_create_cms_home
 
@@ -679,7 +686,9 @@ function main_deploy()
             exit $?
             ;;
         install)
-            chown ${cantian_user_and_group} /mnt/dbdata/remote/share_${storage_share_fs}
+            if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+                chown ${cantian_user_and_group} /mnt/dbdata/remote/share_${storage_share_fs}
+            fi
             copy_cms_scripts
             do_deploy ${INSTALL_NAME}
             if [ $? -ne 0 ];then

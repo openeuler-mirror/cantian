@@ -282,9 +282,11 @@ function newPackageTarget() {
   # 在脚本中调用 main 函数之前添加变量，区分 debug release asan版本
   if [ "${COMPILE_TYPE}" == "ASAN" ]; then
       sed -i "/main \$@/i CSTOOL_TYPE=${COMPILE_TYPE,,}" ${pkg_real_path}/action/dbstor/check_usr_pwd.sh
+      sed -i "/main \$@/i CSTOOL_TYPE=${COMPILE_TYPE,,}" ${pkg_real_path}/action/dbstor/check_dbstor_compat.sh
       sed -i "/main \$@/i CSTOOL_TYPE=${COMPILE_TYPE,,}" ${pkg_real_path}/action/inspection/inspection_scripts/kernal/check_link_cnt.sh
   else
       sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE,,}" ${pkg_real_path}/action/dbstor/check_usr_pwd.sh
+      sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE,,}" ${pkg_real_path}/action/dbstor/check_dbstor_compat.sh
       sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE,,}" ${pkg_real_path}/action/inspection/inspection_scripts/kernal/check_link_cnt.sh
   fi
 

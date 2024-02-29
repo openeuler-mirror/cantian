@@ -50,12 +50,12 @@ USER_FILE="${LOGICREP_HOME}/create_user.json"
 deploy_group=$(python3 "${CURRENT_PATH}"/../get_config_info.py "deploy_group")
 node_id=$(python3 "${CURRENT_PATH}"/../get_config_info.py "node_id")
 node_count=$(python3 "${CURRENT_PATH}"/../get_config_info.py "cluster_scale")
-storage_share_fs_name=$(python3 "${CURRENT_PATH}"/../get_config_info.py "storage_share_fs")
+storage_metadata_fs_name=$(python3 "${CURRENT_PATH}"/../get_config_info.py "storage_metadata_fs")
 storage_archive_fs_name=$(python3 "${CURRENT_PATH}"/../get_config_info.py "storage_archive_fs")
 storage_archive_fs_path="/mnt/dbdata/remote/archive_${storage_archive_fs_name}"
 install_type=$(python3 "${CURRENT_PATH}"/../get_config_info.py "install_type")
-startup_lock="/mnt/dbdata/remote/share_${storage_share_fs_name}/logicre_startup.lock"
-startup_status="/mnt/dbdata/remote/share_${storage_share_fs_name}/logicrep_status"
+startup_lock="/mnt/dbdata/remote/metadata_${storage_metadata_fs_name}/logicre_startup.lock"
+startup_status="/mnt/dbdata/remote/metadata_${storage_metadata_fs_name}/logicrep_status"
 
 so_name=("libssl.so.1.0.0" "libcrypto.so.1.0.0" "libstdc++.so.6.0.29" "libsql2bl.so.0.1.1")
 link_name=("libssl.so.10" "libcrypto.so.10" "libstdc++.so.6" "libsql2bl.so")
@@ -234,10 +234,10 @@ function check_startup_status() {
   while (( timeout > 0 )); do
     sleep 1
     ((timeout--))
-    if [ ! -f "/mnt/dbdata/remote/share_${storage_share_fs_name}/logicrep_status" ]; then
+    if [ ! -f "/mnt/dbdata/remote/metadata_${storage_metadata_fs_name}/logicrep_status" ]; then
       continue
     fi
-    startup_status=$(cat "/mnt/dbdata/remote/share_${storage_share_fs_name}/logicrep_status")
+    startup_status=$(cat "/mnt/dbdata/remote/metadata_${storage_metadata_fs_name}/logicrep_status")
     if [[ x${startup_status} == x"started" ]]; then
       log "--------logicrep startup success--------"
       return 0
