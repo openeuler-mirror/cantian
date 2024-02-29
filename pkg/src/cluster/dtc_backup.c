@@ -1641,7 +1641,7 @@ status_t dtc_log_set_file_asn(knl_session_t *session, uint32 asn, uint32 inst_id
     return CT_SUCCESS;
 }
 
-static status_t dtc_bak_reset_logfile(knl_session_t *session, uint32 asn, uint32 file_id, uint32 inst_id)
+status_t dtc_bak_reset_logfile(knl_session_t *session, uint32 asn, uint32 file_id, uint32 inst_id)
 {
     knl_instance_t *kernel = (knl_instance_t *)session->kernel;
     dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, inst_id);

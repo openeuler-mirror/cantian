@@ -3809,7 +3809,7 @@ status_t arch_redo_alloc_resource(knl_session_t *session, aligned_buf_t *log_buf
     return CT_SUCCESS;
 }
 
-status_t arch_try_arch_redo(knl_session_t *session, uint32 *max_asn)
+status_t arch_try_arch_redo_by_nodeid(knl_session_t *session, uint32 *max_asn, uint32 node_id)
 {
     log_file_t *logfile = NULL;
     aligned_buf_t log_buf;
@@ -3821,8 +3821,8 @@ status_t arch_try_arch_redo(knl_session_t *session, uint32 *max_asn)
     }
 
     *max_asn = 0;
-    for (uint32 i = 0; i < dtc_my_ctrl(session)->log_hwm; i++) {
-        logfile = &MY_LOGFILE_SET(session)->items[i];
+    for (uint32 i = 0; i < dtc_get_ctrl(session,node_id)->log_hwm; i++) {
+        logfile = &LOGFILE_SET(session, node_id)->items[i];
         if (LOG_IS_DROPPED(logfile->ctrl->flg)) {
             continue;
         }
