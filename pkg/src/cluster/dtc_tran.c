@@ -125,9 +125,7 @@ void dtc_process_txn_info_req(void *sess, mes_message_t *msg)
 
     /* try update local scn to keep read consistent */
     dtc_update_scn(session, request->curr_scn);
-
-    inst_id = XID_INST_ID(request->xid);
-    if (inst_id == session->kernel->id) {
+    if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master()) {
         if (session->kernel->db.status >= DB_STATUS_INIT_PHASE2) {
             tx_get_info(session, is_scan, request->xid, &txn_info);
         } else {
@@ -136,15 +134,31 @@ void dtc_process_txn_info_req(void *sess, mes_message_t *msg)
             mes_release_message_buf(msg->buffer);
             return;
         }
+    } else if (!DB_IS_PRIMARY(&session->kernel->db) && !rc_is_master()) {
+        mes_send_error_msg(msg->head);
+        mes_release_message_buf(msg->buffer);
+        return;
     } else {
-        curr_id = xid_get_inst_id(session, request->xid);
-        if (curr_id == session->kernel->id && rc_instance_accessible(inst_id)) {
-            tx_get_info(session, is_scan, request->xid, &txn_info);
+        inst_id = XID_INST_ID(request->xid);
+        if (inst_id == session->kernel->id) {
+            if (session->kernel->db.status >= DB_STATUS_INIT_PHASE2) {
+                tx_get_info(session, is_scan, request->xid, &txn_info);
+            } else {
+                CT_THROW_ERROR(ERR_DATABASE_NOT_OPEN, "request txn info");
+                mes_send_error_msg(msg->head);
+                mes_release_message_buf(msg->buffer);
+                return;
+            }
         } else {
-            CT_THROW_ERROR(ERR_ACCESS_DEPOSIT_INST, inst_id, curr_id);
-            mes_send_error_msg(msg->head);
-            mes_release_message_buf(msg->buffer);
-            return;
+            curr_id = xid_get_inst_id(session, request->xid);
+            if (curr_id == session->kernel->id && rc_instance_accessible(inst_id)) {
+                tx_get_info(session, is_scan, request->xid, &txn_info);
+            } else {
+                CT_THROW_ERROR(ERR_ACCESS_DEPOSIT_INST, inst_id, curr_id);
+                mes_send_error_msg(msg->head);
+                mes_release_message_buf(msg->buffer);
+                return;
+            }
         }
     }
 
@@ -277,11 +291,8 @@ void dtc_process_txn_snapshot_req(void *sess, mes_message_t *msg)
 
 void dtc_standby_get_txn_info(knl_session_t *session, bool32 is_scan, xid_t xid, txn_info_t *txn_info)
 {
-    uint8 inst_id, curr_id;
-    inst_id = XID_INST_ID(xid);
     for (;;) {
-        curr_id = xid_get_inst_id(session, xid);
-        if (curr_id == session->kernel->id) {
+        if (rc_is_master()) {
             if (g_rc_ctx->status >= REFORM_OPEN) {
                 tx_get_info(session, is_scan, xid, txn_info);
             } else {
@@ -289,11 +300,10 @@ void dtc_standby_get_txn_info(knl_session_t *session, bool32 is_scan, xid_t xid,
                 continue;
             }
         } else {
-            if (curr_id >= g_dtc->profile.node_count) {
-                CT_LOG_RUN_WAR("inst_id is %d, curr_id is %d, seg_id is %d", inst_id, curr_id, xid.xmap.seg_id);
-                knl_panic(0);
+            while (CT_INVALID_ID8 == g_rc_ctx->info.master_id) {
+                cm_sleep(10);
             }
-            if (dtc_get_remote_txn_info(session, is_scan, xid, curr_id, txn_info) != CT_SUCCESS) {
+            if (dtc_get_remote_txn_info(session, is_scan, xid, g_rc_ctx->info.master_id, txn_info) != CT_SUCCESS) {
                 cm_reset_error();
                 cm_sleep(MES_MSG_RETRY_TIME);
                 continue;
