@@ -58,11 +58,13 @@ class DrDeployQuery(object):
             process_data = read_json_config(self.record_file)
             data = process_data.get("data")
             error = process_data.get("error")
+            description = process_data.get("description")
             if data.get("dr_deploy") != "success" and not process_status:
                 data["dr_deploy"] = "failed"
                 error["code"] = -1
-                error["description"] = "The process exits abnormally," \
-                                       "see /opt/cantian/deploy/om_deploy/dr_deploy.log for more details."
+                if description == "":
+                    error["description"] = "The process exits abnormally," \
+                                           "see /opt/cantian/deploy/om_deploy/dr_deploy.log for more details."
             table_data = self.table_format(process_data)
             json_data = json.dumps(process_data, indent=4)
             return json_data if is_json_display else table_data

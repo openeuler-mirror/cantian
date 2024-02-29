@@ -2,7 +2,11 @@
 import json
 import os
 import sys
-from query_storage_info.rest_client import RestClient, read_helper
+try:
+    from query_storage_info.rest_client import RestClient, read_helper
+except ImportError:
+    # 非容灾场景不依赖requests库
+    pass
 from query_storage_info.response_parse import ResponseParse
 from query_storage_info.rest_constant import Constant, \
     MetroDomainRunningStatus, VstorePairRunningStatus, HealthStatus

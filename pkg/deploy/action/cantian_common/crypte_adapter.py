@@ -38,3 +38,13 @@ class KmcResolve(object):
         filtered_env = [single_env for single_env in split_env if "/opt/cantian/dbstor/lib" not in single_env]
         os.environ['LD_LIBRARY_PATH'] = ":".join(filtered_env)
         return ret_pwd
+
+    def encrypted(self, pwd):
+        ret_pwd = self.kmc_resolve_password("encrypted", pwd)
+        print(ret_pwd)
+
+
+if __name__ == "__main__":
+    kmc_resolve = KmcResolve()
+    action = sys.argv[1]
+    getattr(kmc_resolve, action)(input().strip())
