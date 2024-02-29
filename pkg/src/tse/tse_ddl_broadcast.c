@@ -103,9 +103,11 @@ int tse_broadcast_and_recv(knl_session_t *knl_session, uint64 target_bits, const
         // 接受消息
         mes_message_t recv_msg = {0};
         SYNC_POINT_GLOBAL_START(TSE_MES_OVERVIEW_RECV_FAIL, &status, CT_ERROR);
-        CT_LOG_RUN_INF("[zzh debug] wait for recv rsp. target_inst:%d, total: %d", target_inst, mes_inst->profile.inst_count);
+        CT_LOG_DEBUG_INF("[Disaster Recovery] wait for recv rsp. target_inst:%d, total: %d",
+                         target_inst, mes_inst->profile.inst_count);
         status = mes_recv(sid, &recv_msg, CT_FALSE, head->rsn, TSE_BROADCAST_WAIT_TIMEOUT);
-        CT_LOG_RUN_INF("[zzh debug] after recv rsp. status: %d, arget_inst:%d, total: %d", status, target_inst, mes_inst->profile.inst_count);
+        CT_LOG_DEBUG_INF("[Disaster Recovery] after recv rsp. status: %d, arget_inst:%d, total: %d",
+                         status, target_inst, mes_inst->profile.inst_count);
         SYNC_POINT_GLOBAL_END;
         if (status != CT_SUCCESS) {
             // recv失败重发
