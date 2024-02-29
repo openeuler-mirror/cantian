@@ -1080,6 +1080,19 @@ static inline void mes_protect_when_timeout(mes_waiting_room_t *room)
     cm_spin_unlock(&room->lock);
 }
 
+status_t mes_check_connect_ready(void)
+{
+    for (uint32 idx = 0; idx < g_mes.profile.inst_count; idx++) {
+        if (idx == g_mes.profile.inst_id) {
+            continue;
+        }
+        if (!MES_CONNETION_READY(idx)) {
+            return CT_ERROR;
+        }
+    }
+    return CT_SUCCESS;
+}
+
 status_t mes_recv_impl(uint32 sid, mes_message_t *msg, bool32 check_rsn, uint32 expect_rsn, uint32 timeout,
                        bool8 quick_stop_check)
 {
@@ -1094,6 +1107,12 @@ status_t mes_recv_impl(uint32 sid, mes_message_t *msg, bool32 check_rsn, uint32 
     cm_spin_unlock(&room->lock);
 
     for (;;) {
+        if (mes_check_connect_ready() != CT_SUCCESS) {
+            MES_LOGGING_WAR(MES_LOGGING_UNMATCH_MSG, "[mes]%s:sid %u receive unmatch msg, rsn=%u, room rsn=%u, cmd=%u.",
+                            (char *)__func__, sid, msg->head->rsn, room->rsn, msg->head->cmd);
+            break;
+        }
+
         if (!mes_mutex_timed_lock(&room->mutex, MES_WAIT_TIMEOUT)) {
             timeout_time = (uint32)cm_atomic_get(&room->timeout);
             if ((timeout_time == 0) || ((quick_stop_check == CT_TRUE) && (mes_message_need_timeout()))) {
