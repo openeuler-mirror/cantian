@@ -27,9 +27,15 @@
 
 #include "dtc_ddl.h"
 #include "mes_queue.h"
+#include "tse_inst.h"
 
 int tse_broadcast_and_recv(knl_session_t *knl_session, uint64 inst_bits, const void *req_data, char *err_msg);
 void tse_process_broadcast_ack_ex(void *session, mes_message_t *msg);
 bool ctc_handle_recv_error(mes_message_t *recv_msg, char *err_msg);
+
+status_t ctc_lock_table_in_slave_node(knl_handle_t session, void *buff);
+status_t ctc_unlock_table_in_slave_node(knl_handle_t session, void *buff);
+status_t ctc_invalid_dd_in_slave_node(knl_handle_t session, void *buff);
+status_t ctc_execute_ddl_in_slave_node(knl_handle_t session, char *sql_text, uint32 sql_len);
 
 #endif
