@@ -28,7 +28,6 @@
 
 #include "tse_list.h"
 #include "srv_session.h"
-#include "knl_dc.h"
 #define CTC_CTX_LIST_CNT (1)  // 每个mysql节点1个list，减少锁冲突
 
 typedef struct mysql_inst_info {

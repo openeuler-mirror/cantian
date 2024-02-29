@@ -110,24 +110,6 @@ typedef struct st_rd_refresh_dc {
     uint32 parent_part_id;
 } rd_refresh_dc_t;
 
-typedef struct st_rd_lock_info_4mysql_ddl {
-    uint32 op_type;
-    uint32 sql_type;
-    uint32 mdl_namespace;
-    uint8 db_name_len;
-    uint8 table_name_len;
-    uint16 reserved;
-    char buff[];
-} rd_lock_info_4mysql_ddl;
-
-typedef struct st_rd_invalid_dd_4mysql_ddl {
-    uint32 op_type;
-    uint32_t buff_len : 24;
-    uint32_t is_dcl : 8;
-    char buff[];
-} rd_invalid_dd_4mysql_ddl;
-
-
 #ifdef Z_SHARDING
 typedef struct st_rd_distribute_rule {
     uint32 op_type;
