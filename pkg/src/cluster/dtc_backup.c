@@ -2554,7 +2554,7 @@ status_t bak_get_arch_asn(knl_session_t *session, log_start_end_info_t arch_info
     }
     while ((arch_dirent = readdir(arch_dir)) != NULL) {
         if (bak_convert_archfile_name(arch_dirent->d_name, &file_info, inst_id, rst_id,
-                                      BAK_IS_DBSOTR(&session->kernel->backup_ctx.bak) == CT_FALSE)) {
+                                      BAK_IS_DBSOTR(&session->kernel->backup_ctx.bak)) == CT_FALSE) {
             continue;
         }
         if (bak_check_archfile_dbid(session, arch_path, arch_dirent->d_name, &dbid_equal) != CT_SUCCESS) {
@@ -3029,7 +3029,7 @@ status_t rst_find_first_archfile_with_lsn(knl_session_t *session, arch_info_t fi
     }
     while ((arch_dirent = readdir(arch_dir)) != NULL) {
         if (bak_convert_archfile_name(arch_dirent->d_name, &file_info, first_arch_info.inst_id, first_arch_info.rst_id,
-                                      BAK_IS_DBSOTR(&session->kernel->backup_ctx.bak) == CT_FALSE)) {
+                                      BAK_IS_DBSOTR(&session->kernel->backup_ctx.bak)) == CT_FALSE) {
             continue;
         }
         if (bak_check_archfile_dbid(session, arch_path, arch_dirent->d_name, &dbid_equal) != CT_SUCCESS) {
