@@ -26,11 +26,11 @@ fi
 
 # 修改/opt/cantian/ct_om/log/日志文件归属
 if [ -d ${CT_OM_LOG_PATH} ]; then
-    chmod 640 ${CT_OM_LOG_PATH}/ct_om_deploy.logs
+    chmod 640 ${CT_OM_LOG_PATH}/om_deploy.log
     if [ $? -eq 0 ]; then
-        logAndEchoInfo "change mod of ${CT_OM_LOG_PATH}/ct_om_deploy.logs success"
+        logAndEchoInfo "change mod of ${CT_OM_LOG_PATH}/om_deploy.log success"
     else
-        logAndEchoError "change mod of ${CT_OM_LOG_PATH}/ct_om_deploy.logs failed"
+        logAndEchoError "change mod of ${CT_OM_LOG_PATH}/om_deploy.log failed"
         exit 1
     fi
 

@@ -246,7 +246,7 @@ function split_dbstore_file_system() {
     logAndEchoInfo "Begin to split dbstore file system."
     echo -e "${DORADO_IP}\n${dorado_user}\n${dorado_pwd}\n" | python3 "${CURRENT_PATH}"/storage_operate/split_dbstore_fs.py "upgrade" "${CURRENT_PATH}"/../config/deploy_param.json
     if [ $? -ne 0 ]; then
-        logAndEchoError "Split dbstore file system failed, details see /opt/cantian/deploy/om_deploy/om_deploy.log"
+        logAndEchoError "Split dbstore file system failed, details see /opt/cantian/ct_om/log/om_deploy.log"
         exit 1
     fi
 
@@ -257,7 +257,7 @@ function migrate_file_system() {
     logAndEchoInfo "Begin to split cms share file system."
     echo -e "${DORADO_IP}\n${dorado_user}\n${dorado_pwd}\n" | python3 "${CURRENT_PATH}"/storage_operate/migrate_file_system.py "upgrade" "${CURRENT_PATH}"/../config/deploy_param.json "${dircetory_path}"/config/deploy_param.json
     if [ $? -ne 0 ]; then
-        logAndEchoError "Split cms file system failed, details see /opt/cantian/deploy/om_deploy/om_deploy.log"
+        logAndEchoError "Split cms file system failed, details see /opt/cantian/ct_om/log/om_deploy.log"
         exit 1
     fi
 

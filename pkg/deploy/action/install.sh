@@ -148,6 +148,10 @@ function config_sudo() {
 # 创建用户用户组
 function initUserAndGroup()
 {
+    # 删除残留用户和用户组
+    userdel cantian
+    userdel ctmgruser
+    groupdel cantiangroup
     # 创建用户组
     groupadd cantiangroup -g 1100
     useradd cantian -s /sbin/nologin -G cantiangroup -u 6000
@@ -416,7 +420,7 @@ fi
 
 python3 ${PRE_INSTALL_PY_PATH} ${INSTALL_TYPE} ${CONFIG_FILE}
 if [ $? -ne 0 ]; then
-  logAndEchoError "over all pre_install failed. For details, see the /opt/cantian/deploy/om_deploy/om_deploy.log"
+  logAndEchoError "over all pre_install failed. For details, see the /opt/cantian/ct_om/log/om_deploy.log"
   exit 1
 fi
 
