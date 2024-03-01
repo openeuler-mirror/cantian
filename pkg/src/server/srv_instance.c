@@ -61,7 +61,7 @@
 #include "dtc_dls.h"
 #include "dtc_database.h"
 #include "srv_mq.h"
-#include "tse_inst.h"
+#include "tse_ddl_broadcast.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -1609,6 +1609,10 @@ static void srv_set_kernel_callback_ex(void)
     g_knl_callback.get_ddl_sql = sql_get_ddl_sql;
     g_knl_callback.convert_char = sql_convert_char_cb;
     g_knl_callback.device_init = ctstore_raw_device_op_init_null;
+    g_knl_callback.cc_execute_replay_lock_table = ctc_lock_table_in_slave_node;
+    g_knl_callback.cc_execute_replay_unlock_table = ctc_unlock_table_in_slave_node;
+    g_knl_callback.cc_execute_replay_invalid_dd = ctc_invalid_dd_in_slave_node;
+    g_knl_callback.cc_execute_replay_ddl = ctc_execute_ddl_in_slave_node;
 }
 
 static void srv_set_kernel_callback(void)
