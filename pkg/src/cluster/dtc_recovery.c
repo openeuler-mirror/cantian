@@ -38,6 +38,7 @@
 #include "knl_undo.h"
 #include "knl_punch_space.h"
 #include "cm_io_record.h"
+#include "dtc_backup.h"
 
 dtc_rcy_analyze_paral_node_t g_analyze_paral_mgr;
 dtc_rcy_replay_paral_node_t g_replay_paral_mgr = {0};
@@ -3616,7 +3617,18 @@ status_t dtc_recover(knl_session_t *session)
         status = dtc_start_recovery(session, rcy_list, CT_TRUE);
         RC_STEP_END(rf_detail->recovery_elapsed, RC_STEP_FINISH);
     }
-
+    if (!cm_dbs_is_enable_dbs() && session->kernel->db.recover_for_restore) {
+        dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+        for (uint32_t i = 0; i < session->kernel->db.ctrl.core.node_count; i++) {
+            reform_rcy_node_t *rcy_log_point = &dtc_rcy->rcy_log_points[i];
+            log_point_t *point = &rcy_log_point->rcy_point;
+            CT_LOG_RUN_ERR("[DTC RCY] set first redo asn %u for node %u.", point->asn + 1, i);
+            if (dtc_bak_reset_logfile(session, point->asn + 1, CT_INVALID_ID32, i) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[DTC RCY] set first redo asn %u for node %u failed.", point->asn + 1, i);
+                return CT_ERROR;
+            }
+        }
+    }
     /* update current trunc point and current point */
     log_reset_point(session, &curr_ctrl->rcy_point);
     ckpt_set_trunc_point(session, &curr_ctrl->rcy_point);

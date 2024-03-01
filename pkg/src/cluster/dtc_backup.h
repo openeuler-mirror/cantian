@@ -236,6 +236,7 @@ status_t bak_get_logfile_file(knl_session_t *session, arch_file_info_t *file_inf
 status_t dtc_bak_get_arch_ctrl(knl_session_t *session, bak_process_t *process, uint32 asn, uint32 *block_size, bak_arch_files_t *arch_file);
 status_t bak_get_arch_asn_file(knl_session_t *session, log_start_end_info_t arch_info, uint32 inst_id,
                                bak_arch_files_t *arch_file_buf);
+status_t dtc_bak_reset_logfile(knl_session_t *session, uint32 asn, uint32 file_id, uint32 inst_id);
 
 #ifdef __cplusplus
 }

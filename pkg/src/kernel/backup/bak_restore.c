@@ -3335,7 +3335,7 @@ status_t dtc_log_prepare_for_pitr(knl_session_t *se)
             continue;
         }
         uint32 max_asn;
-        if (arch_try_arch_redo(se, &max_asn) != CT_SUCCESS) {
+        if (arch_try_arch_redo_by_nodeid(se, &max_asn, i) != CT_SUCCESS) {
             return CT_ERROR;
         }
         CT_LOG_DEBUG_INF("[RESTORE] find redo max_asn %llu.", (uint64)max_asn);
@@ -3345,7 +3345,7 @@ status_t dtc_log_prepare_for_pitr(knl_session_t *se)
         
         CT_LOG_DEBUG_INF("[RESTORE] set redo asn %llu.", (uint64)archive_asn);
 
-        if (log_reset_logfile(se, archive_asn, CT_INVALID_ID32) != CT_SUCCESS) {
+        if (dtc_bak_reset_logfile(se, archive_asn, CT_INVALID_ID32, i) != CT_SUCCESS) {
             return CT_ERROR;
         }
         log_reset_inactive_head(se);

@@ -2639,7 +2639,7 @@ status_t log_prepare_for_pitr(knl_session_t *se)
     }
 
     uint32 max_asn;
-    if (arch_try_arch_redo(se, &max_asn) != CT_SUCCESS) {
+    if (arch_try_arch_redo_by_nodeid(se, &max_asn, se->kernel->id) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
