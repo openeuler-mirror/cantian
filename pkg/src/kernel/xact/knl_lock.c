@@ -466,6 +466,13 @@ status_t lock_table_shared(knl_session_t *session, knl_handle_t dc_entity, uint3
     lock_item_t *item = NULL;
     dc_entity_t *entity = NULL;
 
+    if (!DB_IS_PRIMARY(&session->kernel->db) &&
+        (((dc_entity_t *)dc_entity)->type == DICT_TYPE_TEMP_TABLE_SESSION ||
+        ((dc_entity_t *)dc_entity)->type == DICT_TYPE_TEMP_TABLE_TRANS)) {
+        CT_LOG_RUN_INF_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, "Do not lock temp table in slave mode");
+        return CT_SUCCESS;
+    }
+
     if (DB_IS_READONLY(session)) {
         CT_THROW_ERROR(ERR_DATABASE_ROLE, "locking table shared", "in read only mode");
         return CT_ERROR;

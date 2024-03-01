@@ -1735,8 +1735,11 @@ status_t knl_open_cursor(knl_handle_t handle, knl_cursor_t *cursor, knl_dictiona
     dc_entity_t *entity = DC_ENTITY(dc);
 
     if (DB_IS_READONLY(session) && cursor->action > CURSOR_ACTION_SELECT) {
-        CT_THROW_ERROR(ERR_DATABASE_ROLE, "operation", "in readonly mode");
-        return CT_ERROR;
+        if (DB_IS_PRIMARY(&session->kernel->db) ||
+            (dc->type != DICT_TYPE_TEMP_TABLE_SESSION && dc->type != DICT_TYPE_TEMP_TABLE_TRANS)) {
+            CT_THROW_ERROR(ERR_DATABASE_ROLE, "operation", "in readonly mode");
+            return CT_ERROR;
+        }
     }
 
     if (cursor->action != CURSOR_ACTION_SELECT && !cursor->skip_lock) {
@@ -10461,7 +10464,7 @@ status_t knl_create_ltt(knl_handle_t session, knl_table_def_t *def, bool32 *is_e
     dc_user_t *user = NULL;
     *is_existed = CT_FALSE;
 
-    if (knl_ddl_enabled(session, CT_FALSE) != CT_SUCCESS) {
+    if (knl_ddl_enabled4ltt(session, CT_FALSE) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -10544,7 +10547,7 @@ status_t knl_drop_ltt(knl_handle_t session, knl_drop_def_t *def)
     bool32 found = CT_FALSE;
     knl_session_t *se = (knl_session_t *)session;
 
-    if (knl_ddl_enabled(session, CT_FALSE) != CT_SUCCESS) {
+    if (knl_ddl_enabled4ltt(session, CT_FALSE) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -12639,13 +12642,9 @@ status_t knl_ddl_enabled(knl_handle_t session, bool32 forbid_in_rollback)
     return knl_ddl_execute_status(session, forbid_in_rollback, &ddl_exec_stat);
 }
 
-status_t knl_ddl_execute_status(knl_handle_t sess, bool32 forbid_in_rollback, ddl_exec_status_t *ddl_exec_stat)
+status_t knl_ddl_execute_status_internal(knl_handle_t sess, bool32 forbid_in_rollback, ddl_exec_status_t *ddl_exec_stat)
 {
     knl_session_t *se = (knl_session_t *)sess;
-
-    if (chk_ddl_enable_rd_only(sess, ddl_exec_stat) == CT_ERROR) {
-        return CT_ERROR;
-    }
 
     if (DB_IS_UPGRADE(se) || se->bootstrap) {
         *ddl_exec_stat = DDL_ENABLE;
@@ -12679,6 +12678,26 @@ status_t knl_ddl_execute_status(knl_handle_t sess, bool32 forbid_in_rollback, dd
     }
     CT_THROW_ERROR(ERR_DATABASE_NOT_AVAILABLE);
     return CT_ERROR;
+}
+
+status_t knl_ddl_execute_status(knl_handle_t sess, bool32 forbid_in_rollback, ddl_exec_status_t *ddl_exec_stat)
+{
+    if (chk_ddl_enable_rd_only(sess, ddl_exec_stat) == CT_ERROR) {
+        return CT_ERROR;
+    }
+    return knl_ddl_execute_status_internal(sess, forbid_in_rollback, ddl_exec_stat);
+}
+
+status_t knl_ddl_enabled4ltt(knl_handle_t session, bool32 forbid_in_rollback)
+{
+    ddl_exec_status_t ddl_exec_stat;
+    if (DB_IS_CLUSTER((knl_session_t*)session) && RC_REFORM_IN_PROGRESS) {
+        CT_LOG_RUN_WAR("reform is preparing, refuse to ddl operation");
+        CT_THROW_ERROR(ERR_CLUSTER_DDL_DISABLED, "reform is preparing");
+        return CT_ERROR;
+    }
+    // do not check read only for ltt ddls
+    return knl_ddl_execute_status_internal(session, forbid_in_rollback, &ddl_exec_stat);
 }
 
 status_t knl_convert_path_format(text_t *src, char *dst, uint32 dst_size, const char *home)
