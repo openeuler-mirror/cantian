@@ -345,7 +345,7 @@ status_t arch_redo_alloc_resource(knl_session_t *session, aligned_buf_t *log_buf
     knl_compress_t *compress_ctx);
 status_t arch_archive_redo(knl_session_t *session, log_file_t *logfile, aligned_buf_t arch_buf,
     aligned_buf_t log_buf, bool32 *is_continue, knl_compress_t *compress_ctx);
-status_t arch_try_arch_redo(knl_session_t *session, uint32 *max_asn);
+status_t arch_try_arch_redo_by_nodeid(knl_session_t *session, uint32 *max_asn, uint32 node_id);
 status_t arch_try_arch_one_redo(knl_session_t *session, uint32 rst_id, uint32 asn);
 int64 arch_get_ctrl_real_size(arch_ctrl_t *arch_ctrl);
 bool32 arch_is_compressed(arch_ctrl_t *arch_ctrl);

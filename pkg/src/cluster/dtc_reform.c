@@ -59,7 +59,6 @@ status_t init_dtc_rc(void)
     init_st.callback.finished = (rc_cb_finished)rc_finished;
     init_st.callback.stop_cur_reform = (rc_cb_stop_cur_reform)rc_stop_cur_reform;
     init_st.callback.rc_reform_cancled = (rc_cb_reform_canceled)rc_reform_cancled;
-    init_st.callback.rc_promote_role = (rc_cb_promote_role)rc_promote_role;
     init_st.callback.rc_start_lrpl_proc = (rc_cb_start_lrpl_proc)rc_start_lrpl_proc;
 
     return init_cms_rc(&g_dtc->rf_ctx, &init_st);
@@ -548,8 +547,7 @@ status_t rc_master_rollback_node(reform_detail_t *detail)
 
 status_t rc_master_wait_ckpt_finish(reform_mode_t mode)
 {
-    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
-    if (mode == REFORM_MODE_OUT_OF_PLAN && DB_IS_PRIMARY(&session->kernel->db) && dtc_update_ckpt_log_point()) {
+    if (mode == REFORM_MODE_OUT_OF_PLAN && dtc_update_ckpt_log_point()) {
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
         g_rc_ctx->status = REFORM_PREPARE;
         CT_LOG_RUN_ERR("[RC] failed to do ckpt in reform");
@@ -1212,23 +1210,6 @@ bool32 rc_reform_cancled(void)
         return CT_TRUE;
     }
     return CT_FALSE;
-}
-
-status_t rc_promote_role(knl_session_t *session)
-{
-    lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
-    status_t status = CT_SUCCESS;
-
-    if (g_rc_ctx->info.master_changed && rc_is_master() && lrpl->is_promoting) {
-        DbsRoleInfo info;
-        info.lastRole = DBS_DISASTER_RECOVERY_SLAVE;
-        info.curRole = DBS_DISASTER_RECOVERY_MASTER;
-        status_t status = db_switch_role(info);
-        if (status != CT_SUCCESS) {
-            CM_ABORT_REASONABLE(0, "[RC] refomer promote failed");
-        }
-    }
-    return status;
 }
 
 status_t rc_start_lrpl_proc(knl_session_t *session)

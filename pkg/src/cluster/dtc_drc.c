@@ -178,16 +178,6 @@ void drc_set_deposit_id(uint8 inst_id, uint8 deposit_id)
 void drc_remaster_inst_list(reform_info_t *reform_info)
 {
     uint32 id;
-    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
-    if (!DB_IS_PRIMARY(&session->kernel->db)) {
-        uint64 inst_count = session->kernel->db.ctrl.core.node_count;
-        CM_ASSERT(inst_count <= CT_MAX_INSTANCES);
-        for (id = 0; id < inst_count; id++) {
-            drc_set_deposit_id(id, reform_info->master_id);
-            CT_LOG_RUN_INF("[STANDBY CLUSTER] set deposit_id=%u for inst_id=%u", reform_info->master_id, id);
-        }
-        return;
-    }
     // set deposit instance id
     for (id = 0; id < reform_info->reform_list[REFORM_LIST_LEAVE].inst_id_count; id++) {
         drc_set_deposit_id(reform_info->reform_list[REFORM_LIST_LEAVE].inst_id_list[id], reform_info->master_id);

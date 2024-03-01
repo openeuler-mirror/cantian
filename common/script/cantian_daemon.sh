@@ -105,6 +105,9 @@ function system_memory_used_percent() {
     mem_usage=$(echo "scale=2; $used_mem / $total_mem * 100" | bc)
 }
 
+# 守护进程启动时，默认开启enable cms_reg
+su -s /bin/bash - "${cantian_user}" -c "sh /opt/cantian/action/cms/cms_reg.sh enable"
+
 # 循环间隔 0.8s
 LOOP_TIME=0.8
 # cms后台重拉计数，最大10次，避免cms start卡死后，后台进程过多导致节点资源耗尽
@@ -129,7 +132,7 @@ do
         logAndEchoInfo "[cantian daemon] start ct_om result: $?. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     fi
     # 创建ctmgr cgroup
-    ctmgr_pid=$(ps -ef | grep "python3 /opt/cantian/ct_om/service/ctmgr/uds_server.py" | grep -v grep | awk '{print $2}')
+    ctmgr_pid=$(ps -ef | grep "python3 /opt/cantian/ct_om/service/ctmgr/uds_server.py" | grep -v grep | awk ' NR==1 {print $2}')
     memory_monitoring "${ctmgr_pid}" "${CGROUP_SIZE_MAP['ctmgr']}"
     cgroup_add_pid ${ctmgr_pid} ${CTMGR_CGROUP}
 
@@ -140,7 +143,7 @@ do
         logAndEchoInfo "[cantian daemon] start cantian_exporter result: $?. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     fi
     # 创建cantian_exporter cgroup
-    cantian_exporter_pid=$(ps -ef | grep "python3 /opt/cantian/ct_om/service/cantian_exporter/exporter/execute.py" | grep -v grep | awk '{print $2}')
+    cantian_exporter_pid=$(ps -ef | grep "python3 /opt/cantian/ct_om/service/cantian_exporter/exporter/execute.py" | grep -v grep | awk 'NR==1 {print $2}')
     memory_monitoring "${cantian_exporter_pid}" "${CGROUP_SIZE_MAP['cantian_exporter']}"
     cgroup_add_pid ${cantian_exporter_pid} ${CANTIAN_EXPORTER_CGROUP}
 
@@ -157,7 +160,7 @@ do
         continue
     fi
     if [ -f ${LOGICREP_START_FLAG} ];then
-        logicrep_pid=$(ps -ef | grep "/opt/software/tools/logicrep/watchdog_logicrep.sh -n logicrep -N" | grep -v grep | awk '{print $2}')
+        logicrep_pid=$(ps -ef | grep "/opt/software/tools/logicrep/watchdog_logicrep.sh -n logicrep -N" | grep -v grep | awk 'NR==1 {print $2}')
         if [[ -z ${logicrep_pid} ]];then
             su -s /bin/bash - ${cantian_user} -c "nohup sh /opt/software/tools/logicrep/watchdog_logicrep.sh -n logicrep -N ${node_count} &" >> /opt/cantian/deploy/deploy_daemon.log 2>&1
         fi

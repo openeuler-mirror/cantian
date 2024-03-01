@@ -79,6 +79,7 @@ status_t dtc_save_all_ctrls(knl_session_t *session, uint32 count);
 status_t dtc_save_ctrl(knl_session_t *session, uint32 id);
 status_t dtc_build_completed(knl_session_t *session);
 status_t dtc_read_node_ctrl(knl_session_t *session, uint8 node_id);
+status_t dtc_read_core_ctrl(knl_session_t *session, ctrl_page_t *page);
 
 EXTER_ATTACK void dtc_update_scn(knl_session_t *session, knl_scn_t lamport_scn);
 EXTER_ATTACK void dtc_update_lsn(knl_session_t *session, atomic_t lamport_lsn);

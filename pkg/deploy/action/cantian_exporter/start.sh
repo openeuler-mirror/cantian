@@ -3,7 +3,7 @@ set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${CURRENT_PATH}/$(basename $0)
 SERVICE_SCRIPT_PATH=/opt/cantian/ct_om/service/cantian_exporter/scripts
-cantian_exporter_log=/opt/cantian/deploy/logs/cantian_exporter/cantian_exporter.logs
+cantian_exporter_log=/opt/cantian/cantian_exporter/cantian_exporter.log
 WAIT_TIME=3
 
 source ${CURRENT_PATH}/cantian_exporter_log.sh

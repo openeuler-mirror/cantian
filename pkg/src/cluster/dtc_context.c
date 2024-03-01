@@ -372,11 +372,6 @@ status_t dtc_register_proc(void)
                                              "MES_CMD_INVALID_DD_REQ"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_INVALID_DD_RSP, tse_process_broadcast_ack_ex, CT_FALSE,
                                              "MES_CMD_INVALID_DD_RSP"));
-    knl_securec_check(dtc_register_proc_func(MES_CMD_INVALID_ALL_DD_REQ, dtc_proc_msg_tse_invalidate_all_dd_cache_req,
-                                             CT_TRUE, "MES_CMD_INVALID_ALL_DD_REQ"));
-    knl_securec_check(dtc_register_proc_func(MES_CMD_INVALID_ALL_DD_RSP, tse_process_broadcast_ack_ex,
-                                             CT_FALSE, "MES_CMD_INVALID_ALL_DD_RSP"));
-
     knl_securec_check(
         dtc_register_proc_func(MES_CMD_RECOVERY_LOCK_RES, drc_process_recovery_lock_res, CT_TRUE, "send page info"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_RECOVERY_LOCK_RES_ACK, drc_process_remaster_recovery_task_ack,
@@ -408,8 +403,6 @@ status_t dtc_register_proc(void)
         dtc_register_proc_func(MES_CMD_ARCH_SET_REQ, dcs_process_arch_set_request, CT_TRUE, "arch set req"));
     knl_securec_check(
         dtc_register_proc_func(MES_CMD_TIME_BROADCAST, dtc_process_time_broadcast, CT_FALSE, "TIME broadcast"));
-    knl_securec_check(dtc_register_proc_func(MES_CMD_BROADCAST_CLUSTER_ROLE, db_process_broadcast_cluster_role, CT_TRUE,
-        "broadcast cluster role"));
     for (uint32 i = 0; i < MES_CMD_CEIL; i++) {
         mes_set_msg_enqueue(i, g_processors[i].is_enqueue);
     }

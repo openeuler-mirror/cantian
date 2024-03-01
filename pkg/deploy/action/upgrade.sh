@@ -5,6 +5,7 @@ CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
 UPGRADE_MODE=$1
 DORADO_IP=$2
+SO_PATH=""
 FILE_MOD_FILE=${CURRENT_PATH}/file_mod.sh
 CMS_CHECK_FILE=${CURRENT_PATH}/fetch_cls_stat.py
 MYSQL_MOUNT_PATH=/opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir
@@ -84,6 +85,22 @@ function input_params_check() {
         if [ $? -ne 0 ]; then
             logAndEchoError "try to ping storage array ip '${DORADO_IP}', but failed"
             exit 1
+        fi
+    fi
+
+    # 若使用入湖，需校验so依赖文件路径进行文件拷贝
+    chmod 400 ${CURRENT_PATH}/logicrep/check_logicrep_status.sh
+    sh ${CURRENT_PATH}/logicrep/check_logicrep_status.sh
+    if [ $? -eq 0 ]; then
+        read -p "please input the so rely path of logicrep: " SO_PATH
+        if [ ! -d "${SO_PATH}" ]; then
+            logAndEchoInfo "pass upgrade mode check, current upgrade mode: ${UPGRADE_MODE}"
+            exit 1
+        else
+            if [ -z "$(ls -A "${SO_PATH}")" ]; then
+                logAndEchoInfo "pass upgrade mode check, current upgrade mode: ${UPGRADE_MODE}"
+                exit 1
+            fi
         fi
     fi
     logAndEchoInfo ">>>>> pass input params check <<<<<"
@@ -229,7 +246,7 @@ function split_dbstore_file_system() {
     logAndEchoInfo "Begin to split dbstore file system."
     echo -e "${DORADO_IP}\n${dorado_user}\n${dorado_pwd}\n" | python3 "${CURRENT_PATH}"/storage_operate/split_dbstore_fs.py "upgrade" "${CURRENT_PATH}"/../config/deploy_param.json
     if [ $? -ne 0 ]; then
-        logAndEchoError "Split dbstore file system failed, details see /opt/cantian/deploy/om_deploy/om_deploy.log"
+        logAndEchoError "Split dbstore file system failed, details see /opt/cantian/ct_om/log/om_deploy.log"
         exit 1
     fi
 
@@ -240,7 +257,7 @@ function migrate_file_system() {
     logAndEchoInfo "Begin to split cms share file system."
     echo -e "${DORADO_IP}\n${dorado_user}\n${dorado_pwd}\n" | python3 "${CURRENT_PATH}"/storage_operate/migrate_file_system.py "upgrade" "${CURRENT_PATH}"/../config/deploy_param.json "${dircetory_path}"/config/deploy_param.json
     if [ $? -ne 0 ]; then
-        logAndEchoError "Split cms file system failed, details see /opt/cantian/deploy/om_deploy/om_deploy.log"
+        logAndEchoError "Split cms file system failed, details see /opt/cantian/ct_om/log/om_deploy.log"
         exit 1
     fi
 
@@ -462,7 +479,7 @@ function do_upgrade() {
     for upgrade_module in "${UPGRADE_ORDER[@]}";
     do
         logAndEchoInfo "begin to upgrade ${upgrade_module}"
-        sh "${CURRENT_PATH}/${upgrade_module}/appctl.sh" upgrade ${UPGRADE_MODE} ${dircetory_path}
+        sh "${CURRENT_PATH}/${upgrade_module}/appctl.sh" upgrade ${UPGRADE_MODE} ${dircetory_path} ${SO_PATH}
         if [ $? -ne 0 ]; then
             logAndEchoError "${upgrade_module} upgrade failed"
             logAndEchoError "For details, see the /opt/cantian/${upgrade_module}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -671,7 +688,7 @@ function modify_sys_tables() {
     diff "${old_initdb_sql}" "${new_initdb_sql}" > /dev/null
     if [[ $? != 0 ]];then
         logAndEchoInfo "modify sys tables start"
-        # 2.0升级3.0场景，更新配置文件时已经输入了zsql密码，此处不需要在重复输入，3.0需要单独输入
+        # 2.0升级3.0场景，更新配置文件时已经输入了ctsql密码，此处不需要在重复输入，3.0需要单独输入
         if [[ "$back_version" != "2.0.0"* ]];then
             read -s -p "please enter cantian sys pwd: " cantian_sys_pwd
         fi

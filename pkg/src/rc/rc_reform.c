@@ -966,10 +966,6 @@ void rc_check_finished(thread_t *thread)
         g_rc_callback.rc_start_lrpl_proc(session);
     }
 
-    if (!DB_IS_PRIMARY(&session->kernel->db) && g_rc_callback.rc_promote_role != NULL) {
-        g_rc_callback.rc_promote_role(session);
-    }
-
     g_rc_ctx->status = REFORM_DONE;
     CT_LOG_RUN_INF("[RC] finish reform, reform status:%u, mode:%u, master_changed:%u,", g_rc_ctx->status,
         g_rc_ctx->mode, g_rc_ctx->info.master_changed);

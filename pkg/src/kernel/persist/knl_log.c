@@ -1202,7 +1202,7 @@ void log_commit(knl_session_t *session)
         return;
     }
 
-    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session)), "current DB is readonly.");
+    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session) || !DB_IS_PRIMARY(&session->kernel->db)), "current DB is readonly.");
 
     if (session->commit_nowait) {
         session->stat->nowait_commits++;
@@ -1294,7 +1294,7 @@ static void log_write(knl_session_t *session)
     if (SECUREC_UNLIKELY(DB_NOT_READY(session))) {
         return;
     }
-    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session)), "current DB is readonly.");
+    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session) || !DB_IS_PRIMARY(&session->kernel->db)), "current DB is readonly.");
 
     log_group_t *group = (log_group_t *)session->log_buf;
     uint32 log_size = (!session->rm->need_copy_logic_log) ?
@@ -1779,7 +1779,7 @@ void log_put(knl_session_t *session, log_type_t type, const void *data, uint32 s
         return;
     }
 
-    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session)), "current DB is readonly.");
+    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session) || !DB_IS_PRIMARY(&session->kernel->db)), "current DB is readonly.");
 
     if (type == RD_LOGIC_OPERATION) {
         log_put_logic_data(session, data, size, flag);
@@ -1823,7 +1823,7 @@ void log_append_data(knl_session_t *session, const void *data, uint32 size)
         return;
     }
 
-    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session)), "current DB is readonly.");
+    knl_panic_log((!DB_IS_READONLY(session) || DB_IS_MAXFIX(session) || !DB_IS_PRIMARY(&session->kernel->db)), "current DB is readonly.");
 
 #ifdef LOG_DIAG
     if (session->log_diag) {
@@ -2639,7 +2639,7 @@ status_t log_prepare_for_pitr(knl_session_t *se)
     }
 
     uint32 max_asn;
-    if (arch_try_arch_redo(se, &max_asn) != CT_SUCCESS) {
+    if (arch_try_arch_redo_by_nodeid(se, &max_asn, se->kernel->id) != CT_SUCCESS) {
         return CT_ERROR;
     }
 

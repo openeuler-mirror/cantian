@@ -231,6 +231,37 @@ status_t dtc_read_node_ctrl(knl_session_t *session, uint8 node_id)
     return CT_ERROR;
 }
 
+status_t dtc_read_core_ctrl(knl_session_t *session, ctrl_page_t *page)
+{
+    ctrlfile_t *ctrlfile = NULL;
+    knl_instance_t *kernel = (knl_instance_t *)session->kernel;
+    database_t *db = &kernel->db;
+
+    cm_spin_lock(&db->ctrl_lock, NULL);
+
+    for (uint32 i = 0; i < db->ctrlfiles.count; i++) {
+        ctrlfile = &db->ctrlfiles.items[i];
+
+        /* ctrlfile can be opened for a long time, closed in db_close_ctrl_files */
+        if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DB] failed to open %s ", ctrlfile->name);
+            continue;
+        }
+        if (cm_read_device(ctrlfile->type, ctrlfile->handle, (int64)CORE_CTRL_PAGE_ID * ctrlfile->block_size,
+                        page, ctrlfile->block_size) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DB] failed to read %s offset %lld", ctrlfile->name, (int64)CORE_CTRL_PAGE_ID * ctrlfile->block_size);
+            return CT_ERROR;
+        }
+        // read ctrl successfully
+        cm_spin_unlock(&db->ctrl_lock);
+        return CT_SUCCESS;
+    }
+
+    cm_spin_unlock(&db->ctrl_lock);
+    CT_LOG_RUN_ERR("[DB] failed to read core ctrl");
+    return CT_ERROR;
+}
+
 void dtc_update_scn(knl_session_t *session, knl_scn_t lamport_scn)
 {
     tx_area_t *area = &session->kernel->tran_ctx;
