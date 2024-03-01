@@ -592,7 +592,7 @@ void rd_logic_rep_head_log(knl_session_t *session, log_entry_t *log)
     logic_rep_ddl_head_t *redo = (logic_rep_ddl_head_t *)log->data;
     uint32 sql_len = *(uint32 *)(log->data + sizeof(logic_rep_ddl_head_t));
     char *sql_text = (char *)(log->data + sizeof(logic_rep_ddl_head_t) + sizeof(uint32));
-    CT_LOG_RUN_INF("[Disaster Recovery] In the rd_logic_rep_head_log, len:%d, ddl:%s", sql_len, sql_text);
+    CT_LOG_DEBUG_INF("[Disaster Recovery] In the rd_logic_rep_head_log, len:%d, ddl:%s", sql_len, sql_text);
     /*
         In the meta_normalized mode, the ddl should also be replayed for sync the dd cache in MySQL.
     */

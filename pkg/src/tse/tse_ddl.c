@@ -649,7 +649,7 @@ int tse_ddl_execute_and_broadcast(tianchi_handler_t *tch, tse_ddl_broadcast_requ
     if (!knl_db_is_primary(knl_session)) {
         // Repeatedlly try to execute on current node.
         while (ret != CT_SUCCESS) {
-            CT_LOG_RUN_INF("[Disaster Recovery] Failed to reform ddl at mysqld on current node, "
+            CT_LOG_DEBUG_INF("[Disaster Recovery] Failed to reform ddl at mysqld on current node, "
                     "sql_str:%s, user_name:%s, sql_command:%u, err_code:%d, err_msg:%s, conn_id:%u, tse_instance_id:%u, allow_fail:%d",
                     broadcast_req->sql_str, broadcast_req->user_name, broadcast_req->sql_command, broadcast_req->err_code, 
                     broadcast_req->err_msg, tch->thd_id, tch->inst_id, allow_fail);
@@ -658,7 +658,7 @@ int tse_ddl_execute_and_broadcast(tianchi_handler_t *tch, tse_ddl_broadcast_requ
             ret = mysql_execute_ddl_sql(tch->thd_id, broadcast_req, &allow_fail);
         }
     }
-    CT_LOG_RUN_INF("[Disaster Recovery] In tse_ddl_execute_and_broadcast, knl_is_primary: %d, ret: %d, ddl:%s", knl_db_is_primary(knl_session), (int)ret, broadcast_req->sql_str);
+    CT_LOG_DEBUG_INF("[Disaster Recovery] In tse_ddl_execute_and_broadcast, knl_is_primary: %d, ret: %d, ddl:%s", knl_db_is_primary(knl_session), (int)ret, broadcast_req->sql_str);
 
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[TSE_DDL]:execute failed at other mysqld on current node, ret:%d, sql_str:%s,"
@@ -680,7 +680,7 @@ int tse_ddl_execute_and_broadcast(tianchi_handler_t *tch, tse_ddl_broadcast_requ
     if (!knl_db_is_primary(knl_session)) {
         // Repeatedlly try to execute on current node.
         while (error_code != CT_SUCCESS) {
-            CT_LOG_RUN_INF("[Disaster Recovery] Failed to reform ddl at mysqld on remote node, "
+            CT_LOG_DEBUG_INF("[Disaster Recovery] Failed to reform ddl at mysqld on remote node, "
                     "sql_str:%s, user_name:%s, sql_command:%u, err_code:%d, err_msg:%s, conn_id:%u, tse_instance_id:%u, allow_fail:%d",
                     broadcast_req->sql_str, broadcast_req->user_name, broadcast_req->sql_command, broadcast_req->err_code, 
                     broadcast_req->err_msg, tch->thd_id, tch->inst_id, allow_fail);
@@ -689,7 +689,8 @@ int tse_ddl_execute_and_broadcast(tianchi_handler_t *tch, tse_ddl_broadcast_requ
             error_code = tse_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, &broadcast_req->err_msg);
         }
     }
-    CT_LOG_RUN_INF("[Disaster Recovery] In tse_ddl_execute_and_broadcast, broadcast err_code: %d, ddl:%s", error_code, broadcast_req->sql_str);
+    CT_LOG_DEBUG_INF("[Disaster Recovery] In tse_ddl_execute_and_broadcast, broadcast err_code: %d, ddl:%s",
+                     error_code, broadcast_req->sql_str);
     if (error_code != CT_SUCCESS && allow_fail == true) {
         broadcast_req->err_code = error_code;
         CT_LOG_RUN_ERR("[TSE_DDL_REWRITE]:execute on other mysqld fail. error_code:%d", error_code);
@@ -4155,7 +4156,7 @@ EXTER_ATTACK int tse_query_cluster_role(bool *is_slave, bool *cantian_cluster_re
     for (int i = 0; i < META_SEARCH_TIMES; i++) {
         CT_RETURN_IFERR(knl_is_daac_cluster_ready(cantian_cluster_ready));
         if (*cantian_cluster_ready) {
-            CT_LOG_RUN_INF("[Disaster Recovery]: cantian_cluster_ready: %d.", *cantian_cluster_ready);
+            CT_LOG_DEBUG_INF("[Disaster Recovery]: cantian_cluster_ready: %d.", *cantian_cluster_ready);
             if(DB_IS_PHYSICAL_STANDBY(db)) {
                 *is_slave = true;
             } else {
