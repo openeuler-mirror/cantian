@@ -4179,11 +4179,7 @@ class Installer:
         if os.path.exists("/.dockerenv"):
             sql_file_path = "/home/regress/CantianKernel/pkg/admin/scripts"
         else:
-            install_config_path = "/opt/cantian/action/cantian/install_config.json"
-            with open(install_config_path, 'r', encoding='utf-8') as file:
-                info = file.read()
-                install_path = json.loads(info).get("R_INSTALL_PATH")
-            sql_file_path = "%s/admin/scripts" % install_path
+            sql_file_path = "/opt/cantian/mysql/scripts/"
         file_name = "cantian_defs.sql"
         create_cantian_defs_file = os.path.join(sql_file_path, file_name)
         return create_cantian_defs_file
