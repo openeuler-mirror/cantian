@@ -2763,8 +2763,7 @@ void db_promote_cluster_role(thread_t* thread)
         lrpl->is_promoting = CT_TRUE;
         ctrl_page_t *page = (ctrl_page_t *)cm_push(session->stack, kernel->db.ctrlfiles.items[0].block_size);
         while (dtc_read_core_ctrl(session, page) == CT_SUCCESS) {
-            core_ctrl_t core = *(core_ctrl_t *)&page->buf[0];
-            if (core.db_role == REPL_ROLE_PRIMARY) {
+            if (((core_ctrl_t *)&page->buf[0])->db_role == REPL_ROLE_PRIMARY) {
                 db_promote_cluster_role_follower(session, role_info);
                 cm_pop(session->stack);
                 return;
