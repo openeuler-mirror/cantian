@@ -167,7 +167,7 @@ function init()
     script_dir=$(dirname "$(readlink -f "$0")")
     local cantian_dir=$(dirname $script_dir)
     local project_dir=$(dirname $script_dir)/..
-    data_dir="$(dirname $daac_dir)/cantian_data/"
+    data_dir="$(dirname $cantian_dir)/cantian_data/"
     if [[ ! -d ${data_dir} ]]; then
         echo "cantian_data folder not exists, try to create"
         mkdir ${data_dir}
