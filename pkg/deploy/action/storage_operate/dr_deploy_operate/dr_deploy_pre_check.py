@@ -533,6 +533,25 @@ class DRDeployPreCheck(object):
                                 % (remote_cluster_name, cluster_name))
         return check_result
 
+    def check_standby_install(self):
+        """
+        Check if the cantian standby has been installed.
+        :return:
+        """
+        check_result = []
+        install_flag = True
+        check_cantain_cmd = "rpm -qa |grep cantian"
+        check_ctom_cmd = "rpm -qa |grep ct_om"
+        result_code, stout, sterr = exec_popen(check_cantain_cmd)
+        if result_code:
+            install_flag = False
+        result_code, stout, sterr = exec_popen(check_ctom_cmd)
+        if result_code:
+            install_flag = False
+        if install_flag:
+            check_result.append("Cantian standby has been installed, please check!")
+        return check_result
+
     def execute(self):
         LOG.info("Start to dr pre check.")
         self.check_dr_process()
@@ -544,6 +563,7 @@ class DRDeployPreCheck(object):
             check_result.extend(self.check_common_params())
             check_result.extend(self.check_active_params())
             check_result.extend(self.check_standby_params())
+            check_result.extend(self.check_standby_install())
             check_result.extend(self.check_storage_system_info())
             check_result.extend(self.check_remote_device_info())
             check_result.extend(self.check_license_effectivity())
