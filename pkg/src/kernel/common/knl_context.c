@@ -34,6 +34,8 @@
 extern "C" {
 #endif
 
+extern bool8 g_local_set_disaster_cluster_role;
+
 void knl_init_attr(knl_handle_t kernel)
 {
     knl_instance_t *inst = (knl_instance_t *)kernel;
@@ -126,6 +128,13 @@ status_t knl_startup(knl_handle_t kernel)
             if (cm_dbs_init(ctx->home, DBS_CONFIG_NAME, DBS_RUN_CANTIAND_SERVER) != CT_SUCCESS) {
                 CT_LOG_RUN_INF("DBSTOR: init failed.");
                 return CT_ERROR;
+            }
+            while (CT_TRUE) {
+                if (g_local_set_disaster_cluster_role) {
+                    g_local_set_disaster_cluster_role = CT_FALSE;
+                    break;
+                }
+                cm_sleep(1);
             }
         }
     }

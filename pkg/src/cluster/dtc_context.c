@@ -408,8 +408,6 @@ status_t dtc_register_proc(void)
         dtc_register_proc_func(MES_CMD_ARCH_SET_REQ, dcs_process_arch_set_request, CT_TRUE, "arch set req"));
     knl_securec_check(
         dtc_register_proc_func(MES_CMD_TIME_BROADCAST, dtc_process_time_broadcast, CT_FALSE, "TIME broadcast"));
-    knl_securec_check(dtc_register_proc_func(MES_CMD_BROADCAST_CLUSTER_ROLE, db_process_broadcast_cluster_role, CT_TRUE,
-        "broadcast cluster role"));
     for (uint32 i = 0; i < MES_CMD_CEIL; i++) {
         mes_set_msg_enqueue(i, g_processors[i].is_enqueue);
     }

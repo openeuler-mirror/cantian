@@ -270,7 +270,6 @@ typedef struct st_reform_callback {
     rc_cb_finished finished;
     rc_cb_stop_cur_reform stop_cur_reform;
     rc_cb_reform_canceled rc_reform_cancled;
-    rc_cb_promote_role rc_promote_role;
     rc_cb_start_lrpl_proc rc_start_lrpl_proc;
 } reform_callback_t;
 

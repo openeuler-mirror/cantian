@@ -40,7 +40,7 @@
 #include "cm_io_record.h"
 
 dtc_rcy_analyze_paral_node_t g_analyze_paral_mgr;
-dtc_rcy_replay_paral_node_t g_replay_paral_mgr;
+dtc_rcy_replay_paral_node_t g_replay_paral_mgr = {0};
 
 page_stack_t g_dtc_rcy_page_id_stack;
 

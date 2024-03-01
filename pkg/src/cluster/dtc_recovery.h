@@ -84,6 +84,7 @@ typedef struct st_dtc_rcy_replay_paral_node {
     uint32 node_id[DTC_RCY_PARAL_BUF_LIST_SIZE];
     date_t batch_rpl_start_time[DTC_RCY_PARAL_BUF_LIST_SIZE];
     dtc_rcy_atomic_list free_list;
+    log_point_t rcy_point[CT_MAX_INSTANCES];
 } dtc_rcy_replay_paral_node_t;
 
 typedef struct st_dtc_rcy_set_req {

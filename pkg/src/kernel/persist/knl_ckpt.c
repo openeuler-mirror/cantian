@@ -39,7 +39,7 @@
 
 #define CKPT_WAIT_ENABLE_MS 2
 #define CKPT_FLUSH_WAIT_MS 10
-
+extern dtc_rcy_replay_paral_node_t g_replay_paral_mgr;
 static uint8 g_page_clean_finish_flag[PAGE_CLEAN_MAX_BYTES] = {0};
 bool32 g_crc_verify = 0;
 
@@ -269,7 +269,23 @@ void ckpt_update_log_point_slave_role(knl_session_t *session)
     if (IS_FILE_RECOVER(session)) {
         return;
     }
- 
+
+    if (ctx->trigger_task == CKPT_TRIGGER_FULL_STANDBY) {
+        for (uint32 i = 0; i < g_dtc->profile.node_count; i++) {
+            dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, i);
+            if (DB_IS_CLUSTER(session) && log_cmp_point(&g_replay_paral_mgr.rcy_point[i], &ctrl->rcy_point) > 0) {
+                ctrl->rcy_point = g_replay_paral_mgr.rcy_point[i];
+                if (dtc_save_ctrl(session, i) != CT_SUCCESS) {
+                    KNL_SESSION_CLEAR_THREADID(session);
+                    CM_ABORT(0, "ABORT INFO: save core control file failed when ckpt update log point");
+                }
+            }
+            CT_LOG_RUN_INF("[CKPT_TRIGGER_FULL_STANDBY] node: %d, ctrl->lfn: %llu, ctrl->lsn: %llu, g_replay_paral_mgr.lfn: %llu, g_replay_paral_mgr.lsn: %llu",
+                           i, (uint64)ctrl->rcy_point.lfn, ctrl->rcy_point.lsn, (uint64)g_replay_paral_mgr.rcy_point[i].lfn, g_replay_paral_mgr.rcy_point[i].lsn);
+        }
+        return;
+    }
+
     if (ctx->queue.count != 0) {
         cm_spin_lock(&ctx->queue.lock, &session->stat->spin_stat.stat_ckpt_queue);
         curr_node_idx = ctx->queue.first->curr_node_idx;
@@ -558,7 +574,7 @@ void ckpt_trigger(knl_session_t *session, bool32 wait, ckpt_mode_t mode)
     task.join = CT_TRUE;
     task.wait = wait;
 
-    if (mode == CKPT_TRIGGER_FULL) {
+    if (mode == CKPT_TRIGGER_FULL || mode == CKPT_TRIGGER_FULL_STANDBY) {
         task.guarantee = CT_TRUE;
         task.join = CT_FALSE;
         (void)cm_atomic_inc(&ctx->full_trigger_active_num);
@@ -580,6 +596,12 @@ static void ckpt_do_trigger_task(knl_session_t *session, ckpt_context_t *ctx, da
     
     switch (ctx->trigger_task) {
         case CKPT_TRIGGER_FULL:
+            ckpt_full_checkpoint(session);
+
+            (void)cm_atomic_dec(&ctx->full_trigger_active_num);
+            *ckpt_time = KNL_NOW(session);
+            break;
+        case CKPT_TRIGGER_FULL_STANDBY:
             ckpt_full_checkpoint(session);
 
             (void)cm_atomic_dec(&ctx->full_trigger_active_num);
@@ -2186,6 +2208,10 @@ void ckpt_set_trunc_point_slave_role(knl_session_t *session, log_point_t *point,
     cm_spin_lock(&ctx->queue.lock, &session->stat->spin_stat.stat_ckpt_queue);
     ctx->queue.trunc_point = *point;
     ctx->queue.curr_node_idx = curr_node_idx;
+    g_replay_paral_mgr.rcy_point[curr_node_idx] =
+        log_cmp_point(&g_replay_paral_mgr.rcy_point[curr_node_idx], point) > 0 ?
+        g_replay_paral_mgr.rcy_point[curr_node_idx] :
+        *point;
     cm_spin_unlock(&ctx->queue.lock);
 }
 

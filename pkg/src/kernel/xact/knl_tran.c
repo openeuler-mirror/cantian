@@ -436,7 +436,7 @@ inline txn_t *txn_addr(knl_session_t *session, xmap_t xmap)
 {
     uint32 page_capacity = TXN_PER_PAGE(session);
     uint8 deposit_id = xmap_get_inst_id(session, xmap);
-    knl_panic(deposit_id == (uint8)session->kernel->id);
+    knl_panic(deposit_id == (uint8)session->kernel->id || (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master()));
 
     undo_set_t *undo_set = UNDO_SET(session, XMAP_INST_ID(xmap));
     undo_t *undo = &undo_set->undos[XMAP_SEG_ID(xmap)];

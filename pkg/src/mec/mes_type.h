@@ -217,7 +217,6 @@ typedef enum en_mes_command {
     MES_CMD_UPGRADE_CTRL_VERSION_ACK,
     MES_CMD_ARCH_SET_REQ,
     MES_CMD_TIME_BROADCAST,
-    MES_CMD_BROADCAST_CLUSTER_ROLE,
 
     MES_CMD_CEIL
 } mes_command_t;

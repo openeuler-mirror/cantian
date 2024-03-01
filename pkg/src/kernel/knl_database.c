@@ -47,7 +47,7 @@ static status_t db_start_daemon(knl_session_t *session);
 static char *db_get_role(database_t *db);
 
 uint32 g_local_inst_id = CT_INVALID_ID32;
-
+bool8 g_local_set_disaster_cluster_role = CT_FALSE;
 bool32 g_get_role_from_dbs = CT_FALSE;
 
 /*
@@ -2663,22 +2663,6 @@ void db_get_cantiand_version(ctrl_version_t *cantiand_version)
     cantiand_version->revision = (uint16)revision_n;
 }
 
-static status_t db_slave_update_ctrl_file(knl_session_t *session)
-{
-    knl_instance_t *kernel = session->kernel;
-
-    kernel->db.is_readonly = CT_FALSE;
-    kernel->db.readonly_reason = PRIMARY_SET;
-    kernel->db.ctrl.core.db_role = REPL_ROLE_PRIMARY;
-
-    if (db_save_core_ctrl(session) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[INST] [SWITCHOVER] ABORT INFO: save core control file failed when switch role");
-        return CT_ERROR;
-    }
-
-    return CT_SUCCESS;
-}
-
 static status_t db_promote_undo_rollback(knl_session_t *session)
 {
     instance_list_t rollback_list = {0};
@@ -2706,59 +2690,28 @@ static status_t db_promote_undo_rollback(knl_session_t *session)
     return CT_SUCCESS;
 }
 
-static void db_promote_update_deposit_map(knl_session_t *session)
+void db_promote_cluster_role_follower(knl_session_t *session, DbsRoleInfo role_info)
 {
-    uint64 inst_count = session->kernel->db.ctrl.core.node_count;
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    for (uint32 inst_id = 0; inst_id < inst_count; inst_id++) {
-        cm_spin_lock(&ctx->drc_deposit_map[inst_id].lock, NULL);
-        ctx->drc_deposit_map[inst_id].deposit_id = inst_id;
-        cm_spin_unlock(&ctx->drc_deposit_map[inst_id].lock);
-    }
-}
-
-void db_process_broadcast_cluster_role(void *sess, mes_message_t *msg)
-{
-    knl_session_t *session = (knl_session_t *)sess;
     knl_instance_t *kernel = session->kernel;
     lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
 
-    if (sizeof(msg_cluster_role_request) != msg->head->size) {
-        CT_LOG_RUN_ERR("[INST] [SWITCHOVER] msg is invalid, msg size %u.", msg->head->size);
-        mes_release_message_buf(msg->buffer);
-        return;
-    }
-    msg_cluster_role_request *req = (msg_cluster_role_request*)msg->buffer;
-    mes_message_head_t head = {0};
-    DbsDisasterRecoveryRole last_role = req->role_info.lastRole;
-    DbsDisasterRecoveryRole cur_role =  req->role_info.curRole;
+    DbsDisasterRecoveryRole last_role = role_info.lastRole;
+    DbsDisasterRecoveryRole cur_role =  role_info.curRole;
 
     if (last_role == DBS_DISASTER_RECOVERY_SLAVE && cur_role == DBS_DISASTER_RECOVERY_MASTER) {
-        if (kernel->db.ctrl.core.db_role == REPL_ROLE_PRIMARY) {
-            CT_LOG_RUN_ERR("[INST] [SWITCHOVER] db_role is invalid:%u.", kernel->db.ctrl.core.db_role);
-            mes_release_message_buf(msg->buffer);
-            return;
-        }
-
         // update undo set
         if (dtc_slave_load_my_undo() != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[INST] [SWITCHOVER] failed to update undo");
-            mes_release_message_buf(msg->buffer);
+            knl_panic(0);
             return;
         }
-        db_promote_update_deposit_map(session);
         CT_LOG_RUN_INF("[INST] [SWITCHOVER] update undo is done");
 
         if (dtc_read_node_ctrl(session, session->kernel->id) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[INST] [SWITCHOVER] failed to read ctrl page for node=%u", session->kernel->id);
-            mes_release_message_buf(msg->buffer);
+            knl_panic(0);
             return;
         }
-
-        // set disaster cluster role, readonly -> readwrite
-        kernel->db.is_readonly = CT_FALSE;
-        kernel->db.readonly_reason = PRIMARY_SET;
-        kernel->db.ctrl.core.db_role = REPL_ROLE_PRIMARY;
 
         log_context_t *redo_ctx = &session->kernel->redo_ctx;
         dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, session->kernel->id);
@@ -2768,17 +2721,14 @@ void db_process_broadcast_cluster_role(void *sess, mes_message_t *msg)
 
         // cloese lrpl
         lrpl_close(session);
-
+        // set disaster cluster role, readonly -> readwrite
+        kernel->db.ctrl.core.db_role = REPL_ROLE_PRIMARY;
+        kernel->db.is_readonly = CT_FALSE;
+        kernel->db.readonly_reason = PRIMARY_SET;
+        kernel->db.ctrl.core.db_role = REPL_ROLE_PRIMARY;
         ckpt_enable(session);
-        CT_LOG_RUN_INF("[INST] [SWITCHOVER] promote completed, running as primary");
-
-        mes_init_ack_head(msg->head, &head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), CT_INVALID_ID16);
-        mes_release_message_buf(msg->buffer);
-        if (mes_send_data(&head) != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[INST] [SWITCHOVER] mes send ack failed.");
-            return;
-        }
         lrpl->is_promoting = CT_FALSE;
+        CT_LOG_RUN_INF("[INST] [SWITCHOVER] promote completed, running as primary");
     }
 }
 
@@ -2811,13 +2761,31 @@ void db_promote_cluster_role(thread_t* thread)
     }
     if (!rc_is_master()) {
         lrpl->is_promoting = CT_TRUE;
-        CT_LOG_RUN_INF("[INST] [SWITCHOVER] follower inst start promote");
+        ctrl_page_t *page = (ctrl_page_t *)cm_push(session->stack, kernel->db.ctrlfiles.items[0].block_size);
+        while (dtc_read_core_ctrl(session, page) == CT_SUCCESS) {
+            core_ctrl_t core = *(core_ctrl_t *)&page->buf[0];
+            if (core.db_role == REPL_ROLE_PRIMARY) {
+                db_promote_cluster_role_follower(session, role_info);
+                cm_pop(session->stack);
+                return;
+            }
+            if (rc_is_master()) {
+                cm_pop(session->stack);
+                CT_LOG_RUN_WAR("[INST] [SWITCHOVER] follower become reformer, go reformer promote");
+                goto reformerpromote;
+            }
+            cm_sleep(RC_RETRY_SLEEP);
+        }
+        cm_pop(session->stack);
+        CT_LOG_RUN_ERR("[INST] [SWITCHOVER] follower inst start promote failed");
+        knl_panic(0);
         return;
     }
     
     lrpl->is_promoting = CT_TRUE;
     CT_LOG_RUN_INF("[INST] [SWITCHOVER] reformer inst start promote");
 
+reformerpromote:
     if (kernel->db.ctrl.core.db_role == REPL_ROLE_PRIMARY) {
         CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] db_role is invalid: %u.", kernel->db.ctrl.core.db_role);
     }
@@ -2831,25 +2799,20 @@ void db_promote_cluster_role(thread_t* thread)
     }
     CT_LOG_RUN_INF("[INST] [SWITCHOVER] undo rollback is done");
 
-    // step3 set disaster cluster role, readonly -> readwrite
-    if (db_slave_update_ctrl_file(session) != CT_SUCCESS) {
-        CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] update control file failed when switch role");
+    // step3 ckpt all node rcy_point
+    ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL_STANDBY);
+    CT_LOG_RUN_INF("[INST] [SWITCHOVER] CKPT_TRIGGER_FULL_STANDBY is done");
+
+    // step4 set disaster cluster role, save ctrl
+    kernel->db.ctrl.core.db_role = REPL_ROLE_PRIMARY;
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
+        CM_ABORT_REASONABLE(0,"[INST] [SWITCHOVER] ABORT INFO: save core control file failed when switch role");
     }
 
-    // step4 broadcast to other nodes
-    msg_cluster_role_request req;
-    req.role_info = role_info;
-    mes_init_send_head(&req.head, MES_CMD_BROADCAST_CLUSTER_ROLE, sizeof(msg_cluster_role_request), CT_INVALID_ID32,
-        session->kernel->id, 0, session->id, CT_INVALID_ID16);
-    status_t ret = mes_broadcast_and_wait(session->id, MES_BROADCAST_ALL_INST, (void *)&req, BROADCAST_PROMOTE_WAIT_INTERVEL, NULL);
-    if (ret == CT_ERROR) {
-        CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] broadcast cluster role failed, switch primary failed.");
-    }
-    CT_LOG_RUN_INF("[INST] [SWITCHOVER] MES_CMD_BROADCAST_CLUSTER_ROLE succ");
-
-    // step5 cloese lrpl
-    db_promote_update_deposit_map(session);
+    // step5 cloese lrpl, modify readonly
     lrpl->is_promoting = CT_FALSE;
+    kernel->db.is_readonly = CT_FALSE;
+    kernel->db.readonly_reason = PRIMARY_SET;
     CT_LOG_RUN_INF("[INST] [SWITCHOVER] promote completed, running as primary");
 }
 
@@ -2902,6 +2865,7 @@ int32_t set_disaster_cluster_role(DbsRoleInfo info)
         CM_ABORT_REASONABLE(0, "switch role failed");
         return CT_ERROR;
     }
+    g_local_set_disaster_cluster_role = CT_TRUE;
     return CT_SUCCESS;
 }
 

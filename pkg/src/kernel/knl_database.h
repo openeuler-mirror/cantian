@@ -59,7 +59,6 @@ extern bool32 g_get_role_from_dbs;
 
 #define SYS_TABLE_SERIAL_START 22
 
-#define BROADCAST_PROMOTE_WAIT_INTERVEL 5000  // in milliseconds
 typedef enum en_sys_table_id {
     SYS_TABLE_ID = 0,
     SYS_COLUMN_ID,
@@ -401,7 +400,6 @@ status_t db_read_log_page(knl_session_t *session, ctrlfile_t *ctrlfile, uint32 s
 void db_get_cantiand_version(ctrl_version_t *cantiand_version);
 int32_t set_disaster_cluster_role(DbsRoleInfo info);
 status_t db_clean_record_arch(knl_session_t *session);
-EXTER_ATTACK void db_process_broadcast_cluster_role(void *sess, mes_message_t *msg);
 int32_t  db_switch_role(DbsRoleInfo role_info);
 void db_promote_cluster_role(thread_t* thread);
 int32_t set_disaster_cluster_role(DbsRoleInfo info);
