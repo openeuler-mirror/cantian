@@ -2,8 +2,8 @@
 set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 CANTIAN_EXPORTER_PATH=/opt/cantian/action/cantian_exporter
-CANTIAN_EXPORTER_LOG_PATH=/opt/cantian/deploy/logs/cantian_exporter
-CANTIAN_EXPORTER_LOG_FILE=/opt/cantian/deploy/logs/cantian_exporter/cantian_exporter.logs
+CANTIAN_EXPORTER_LOG_PATH=/opt/cantian/cantian_exporter/log
+CANTIAN_EXPORTER_LOG_FILE=/opt/cantian/cantian_exporter/log/cantian_exporter.log
 ACTION_TYPE=$1
 
 source ${CURRENT_PATH}/../log4sh.sh
@@ -61,54 +61,54 @@ if [ -d /opt/cantian/deploy/logs ];then
     chmod 755 /opt/cantian/deploy/logs
 fi
 
-if [ -d /opt/cantian/deploy/logs/cantian_exporter ]; then
-    # 修改/opt/cantian/deploy/logs/cantian_exporter日志文件属性
-    chmod -Rf ${LOG_MOD} /opt/cantian/deploy/logs/cantian_exporter
+if [ -d /opt/cantian/cantian_exporter/log ]; then
+    # 修改/opt/cantian/cantian_exporter/log日志文件属性
+    chmod -Rf ${LOG_MOD} /opt/cantian/cantian_exporter/log
     if [ $? -eq 0 ]; then
-        logAndEchoInfo "change mod of /opt/cantian/deploy/logs/cantian_exporter success"
+        logAndEchoInfo "change mod of /opt/cantian/cantian_exporter/log success"
     else
-        logAndEchoError "change mod of /opt/cantian/deploy/logs/cantian_exporter failed"
+        logAndEchoError "change mod of /opt/cantian/cantian_exporter/log failed"
         exit 1
     fi
-    # 修改/opt/cantian/deploy/logs/cantian_exporter/cantian_exporter.logs日志文件权限
-    chmod 640 /opt/cantian/deploy/logs/cantian_exporter/cantian_exporter.logs
+    # 修改/opt/cantian/cantian_exporter/log/cantian_exporter.log日志文件权限
+    chmod 640 /opt/cantian/cantian_exporter/log/cantian_exporter.log
     if [ $? -eq 0 ]; then
-        logAndEchoInfo "change mod of /opt/cantian/deploy/logs/cantian_exporter/cantian_exporter.logs success"
+        logAndEchoInfo "change mod of /opt/cantian/cantian_exporter/log/cantian_exporter.log success"
     else
-        logAndEchoError "change mod of /opt/cantian/deploy/logs/cantian_exporter/cantian_exporter.logs failed"
+        logAndEchoError "change mod of /opt/cantian/cantian_exporter/log/cantian_exporter.log failed"
         exit 1
     fi
-    # 修改/opt/cantian/deploy/logs/cantian_exporter日志文件归属
-    chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/deploy/logs/cantian_exporter
+    # 修改/opt/cantian/cantian_exporter 文件归属
+    chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/cantian_exporter
     if [ $? -eq 0 ]; then
-        logAndEchoInfo "change owner of /opt/cantian/deploy/logs/cantian_exporter success"
+        logAndEchoInfo "change owner of /opt/cantian/cantian_exporter success"
     else
-        logAndEchoError "change owner of /opt/cantian/deploy/logs/cantian_exporter failed"
+        logAndEchoError "change owner of /opt/cantian/cantian_exporter failed"
         exit 1
     fi
 fi
 
-if [ -d /opt/cantian/ct_om/logs ]; then
-    chmod -Rf 640 /opt/cantian/ct_om/logs
+if [ -d /opt/cantian/ct_om/log ]; then
+    chmod -Rf 640 /opt/cantian/ct_om/log
     if [ $? -eq 0 ]; then
-        logAndEchoInfo "recursively change mod of /opt/cantian/ct_om/logs"
+        logAndEchoInfo "recursively change mod of /opt/cantian/ct_om/log"
     else
-        logAndEchoError "recursively change mod of /opt/cantian/ct_om/logs"
+        logAndEchoError "recursively change mod of /opt/cantian/ct_om/log"
         exit 1
     fi
 
-    chmod -f 750 /opt/cantian/ct_om/logs
+    chmod -f 750 /opt/cantian/ct_om/log
     if [ $? -eq 0 ]; then
-        logAndEchoInfo "change mod of /opt/cantian/ct_om/logs"
+        logAndEchoInfo "change mod of /opt/cantian/ct_om/log"
     else
-        logAndEchoError "change mod of /opt/cantian/ct_om/logs"
+        logAndEchoError "change mod of /opt/cantian/ct_om/log"
         exit 1
     fi
-    chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/ct_om/logs
+    chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/ct_om/log
     if [ $? -eq 0 ]; then
-        logAndEchoInfo "change owner of /opt/cantian/ct_om/logs"
+        logAndEchoInfo "change owner of /opt/cantian/ct_om/log"
     else
-        logAndEchoError "change owner of /opt/cantian/ct_om/logs"
+        logAndEchoError "change owner of /opt/cantian/ct_om/log"
         exit 1
     fi
 fi

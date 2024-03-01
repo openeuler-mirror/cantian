@@ -3,7 +3,7 @@ set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${CURRENT_PATH}/$(basename $0)
 MODULE_NAME=ct_om
-ct_om_log=/opt/cantian/deploy/logs/ct_om/ct_om.logs
+ct_om_log=/opt/cantian/ct_om/log/ct_om.log
 VERSION_YML_PATH="${CURRENT_PATH}/../.."
 SOURCE_PATH='/opt/cantian/ct_om/service/cantian_exporter/exporter_data'
 TARGET_RPM_PACKAGE_NAME=""

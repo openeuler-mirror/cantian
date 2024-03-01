@@ -51,8 +51,12 @@ function initUserAndGroup()
 }
 
 function update_share_config() {
-    cp -arf ${CONFIG_PATH}/deploy_param.json /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"
-    chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
+    if [[ -f /mnt/dbdata/remote/share_"${storage_share_fs}"/deploy_param.json ]] && [[ ! -f /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json ]]; then
+        cp -arf /mnt/dbdata/remote/share_"${storage_share_fs}"/deploy_param.json /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/
+    elif [[ ! -f /mnt/dbdata/remote/share_"${storage_share_fs}"/deploy_param.json ]] && [[ ! -f /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json ]]; then
+      cp -arf ${CONFIG_PATH}/deploy_param.json /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"
+      chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
+    fi
 }
 
 function prepare_env() {
@@ -60,7 +64,7 @@ function prepare_env() {
     if [ -f ${CONFIG_FILE_PATH} ] && [ -n "${CONFIG_FILE_PATH}" ]; then
         python3 ${CURRENT_PATH}/pre_upgrade.py ${CONFIG_FILE_PATH}
         if [ $? -ne 0 ]; then
-            logAndEchoError "config check failed, please check /opt/cantian/deploy/om_deploy/om_deploy.log for detail"
+            logAndEchoError "config check failed, please check /opt/cantian/ct_om/log/om_deploy.log for detail"
             exit 1
         else
             mv -f ${CURRENT_PATH}/deploy_param.json ${CONFIG_PATH}
@@ -88,7 +92,9 @@ function prepare_env() {
         random_seed=$(python3 -c 'import secrets; secrets_generator = secrets.SystemRandom(); print(secrets_generator.randint(0, 255))')
     fi
     python3 ${CURRENT_PATH}/write_config.py "random_seed" "${random_seed}"
-    update_share_config
+    if [[ ${node_id} == '0' ]]; then
+        update_share_config
+    fi
 }
 
 # 检查集群状态
