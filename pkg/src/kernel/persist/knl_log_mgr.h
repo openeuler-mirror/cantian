@@ -445,6 +445,9 @@ static logic_log_manager_t g_logic_lmgrs[] = {
     { RD_ALTER_DB_LOGICREP, "alter_db_logicrep", rd_alter_db_logicrep, print_alter_db_logicrep, backup_safe_entry },
     { RD_CREATE_VIEW, "create_view", rd_create_view, print_create_view, backup_safe_entry },
     { RD_REFRESH_DC, "refresh dc", rd_refresh_dc, print_refresh_dc, backup_safe_entry },
+    { RD_LOCK_TABLE_FOR_MYSQL_DDL, "lock table for mysql ddl", rd_lock_table_for_mysql_ddl, print_lock_table_for_mysql_ddl, backup_safe_entry },
+    { RD_UNLOCK_TABLE_FOR_MYSQL_DDL, "unlock table for mysql ddl", rd_unlock_table_for_mysql_ddl, print_unlock_table_for_mysql_ddl, backup_safe_entry },
+    { RD_INVALID_DD_FOR_MYSQL_DDL, "invalid dd cache for mysql ddl", rd_invalid_dd_for_mysql_ddl, print_invalid_dd_for_mysql_ddl, backup_safe_entry },
 };
 
 #define LMGR_COUNT (uint32)(sizeof(g_lmgrs) / sizeof(log_manager_t))

@@ -2382,3 +2382,44 @@ void print_refresh_dc(log_entry_t *log)
     rd_refresh_dc_t *rd = (rd_refresh_dc_t *)log->data;
     (void)printf("refresh table stats uid : %u, oid : %u\n", rd->uid, rd->oid);
 }
+
+void rd_lock_table_for_mysql_ddl(knl_session_t *session, log_entry_t *log)
+{
+    if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master()) {
+        g_knl_callback.cc_execute_replay_lock_table(session, (void *)log->data);
+    }
+}
+
+void rd_unlock_table_for_mysql_ddl(knl_session_t *session, log_entry_t *log)
+{
+    if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master()) {
+        g_knl_callback.cc_execute_replay_unlock_table(session, (void *)log->data);
+    }
+}
+
+void rd_invalid_dd_for_mysql_ddl(knl_session_t *session, log_entry_t *log)
+{
+    if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master()) {
+        g_knl_callback.cc_execute_replay_invalid_dd(session, (void *)log->data);
+    }
+}
+
+void print_lock_table_for_mysql_ddl(log_entry_t *log)
+{
+    rd_lock_info_4mysql_ddl *rd = (rd_lock_info_4mysql_ddl*)log->data;
+    (void)printf("lock table for mysql ddl sql_type : %u, mdl_namespace : %u, db_name_len : %u, "
+                 "table_name_len : %u\n", rd->sql_type, rd->mdl_namespace, rd->db_name_len, rd->table_name_len);
+}
+
+void print_unlock_table_for_mysql_ddl(log_entry_t *log)
+{
+    rd_lock_info_4mysql_ddl *rd = (rd_lock_info_4mysql_ddl*)log->data;
+    (void)printf("unlock table for mysql ddl sql_type : %u, mdl_namespace : %u, db_name_len : %u, "
+                 "table_name_len : %u\n", rd->sql_type, rd->mdl_namespace, rd->db_name_len, rd->table_name_len);
+}
+
+void print_invalid_dd_for_mysql_ddl(log_entry_t *log)
+{
+    rd_invalid_dd_4mysql_ddl *rd = (rd_invalid_dd_4mysql_ddl*)log->data;
+    (void)printf("invalid dd for mysql ddl buf_len : %u, is_dcl : %u\n", rd->buff_len, rd->is_dcl);
+}

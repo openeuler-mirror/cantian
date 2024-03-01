@@ -584,9 +584,6 @@ void rd_pcrh_reset_self_change(knl_session_t *session, log_entry_t *log)
     pcrh_reset_self_changed(session, page, itl_id);
 }
 
-extern int tse_ddl_execute_and_broadcast(tianchi_handler_t *tch, tse_ddl_broadcast_request *broadcast_req,
-                                         bool allow_fail, knl_session_t *knl_session);
-extern int tse_invalidate_all_ddcache_and_broadcast(knl_session_t *knl_sess);
 void rd_logic_rep_head_log(knl_session_t *session, log_entry_t *log)
 {
     logic_rep_ddl_head_t *redo = (logic_rep_ddl_head_t *)log->data;
@@ -594,49 +591,10 @@ void rd_logic_rep_head_log(knl_session_t *session, log_entry_t *log)
     char *sql_text = (char *)(log->data + sizeof(logic_rep_ddl_head_t) + sizeof(uint32));
     CT_LOG_DEBUG_INF("[Disaster Recovery] In the rd_logic_rep_head_log, len:%d, ddl:%s", sql_len, sql_text);
     /*
-        In the meta_normalized mode, the ddl should also be replayed for sync the dd cache in MySQL.
+        In the no_meta_normalized mode, the ddl should also be replayed for sync the dd cache in MySQL.
     */
-    if (!knl_db_is_primary(session)) {
-        // If the metadata is in mysql and the cantian is in slave cluster.
-        tianchi_handler_t *tch = (tianchi_handler_t*)malloc(sizeof(tianchi_handler_t));
-        memset_s(tch, sizeof(tianchi_handler_t), 0, sizeof(tianchi_handler_t));
-        // Do not use 0xFFFFFFFF, or mysql will close all the connections.
-        tch->thd_id = CT_INVALID_ID32 - 1;
-        tch->inst_id = CT_INVALID_ID32 - 1;
- 
-        if (!DB_ATTR_MYSQL_META_IN_DACC(session)) {
-            tse_ddl_broadcast_request *broadcast_req = (tse_ddl_broadcast_request*)malloc(sizeof(tse_ddl_broadcast_request));
-            memset_s(broadcast_req, sizeof(tse_ddl_broadcast_request), 0, sizeof(tse_ddl_broadcast_request));
-            strncpy_s(broadcast_req->db_name, SMALL_RECORD_SIZE -1 , "mysql", strlen("mysql"));
-            // Caution: use sql_len, do not use strlen(sql_text).
-            memcpy_sp(broadcast_req->sql_str, sql_len, sql_text, sql_len);
-            memcpy_sp(broadcast_req->sql_str + sql_len, REFORM_LOG_DDL_TERM_SIZE, REFORM_LOG_DDL_TERM_DATA, REFORM_LOG_DDL_TERM_SIZE);
-            CT_LOG_RUN_INF("[Disaster Recovery] In the rd_logic_rep_head_log, broadcast_req->sql_str:%s",broadcast_req->sql_str); 
-            
-            strncpy_s(broadcast_req->user_name, SMALL_RECORD_SIZE - 1, "fake_user_name_in_disaster_recovery", strlen("fake_user_name_in_disaster_recovery"));
-            strncpy_s(broadcast_req->user_ip, SMALL_RECORD_SIZE - 1, "fake_user_ip_in_disaster_recovery", strlen("fake_user_ip_in_disaster_recovery"));
-            strncpy_s(broadcast_req->err_msg, ERROR_MESSAGE_LEN - 1, "Init err msg in disaster recovery.", strlen("Init err msg in disaster recovery."));
-            
-            // Do not use 0xFFFFFFFF, or mysql will close all the connections.
-            broadcast_req->mysql_inst_id = CT_INVALID_ID32 - 1;
-            broadcast_req->err_code = CT_INVALID_ID32 - 1;
-    
-            int ret = tse_ddl_execute_and_broadcast(tch, broadcast_req, false, session); 
-            if (ret != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("[TSE_DDL]:tse_ddl_execute_and_broadcast failed in disaster-recovery. sql_str:%s, user_name:%s,"
-                "sql_command:%u, err_code:%d, conn_id:%u, tse_instance_id:%u, allow_fail:%d",
-                broadcast_req->sql_str, broadcast_req->user_name,
-                broadcast_req->sql_command, broadcast_req->err_code,
-                tch->thd_id, tch->inst_id, true);
-            }
-        } else {
-            CT_LOG_RUN_INF("[zzh debug] begin to deal the metadata. sql_text:%s", sql_text);
-            int ret = tse_invalidate_all_ddcache_and_broadcast(session);
-            CT_LOG_RUN_INF("[zzh debug] After dealing the metadata. sql_text:%s, ret:%d", sql_text, ret);
-            if (ret != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("[Disaster Recovery] ERR to do tse_invalidate_all_ddcache_and_broadcast");
-            }
-        }
+    if (!knl_db_is_primary(session) && !DB_ATTR_MYSQL_META_IN_DACC(session)) {
+        g_knl_callback.cc_execute_replay_ddl((knl_handle_t)session, sql_text, sql_len);
         return;
     }
     log_ddl_write_file(session, redo, sql_text, sql_len);
