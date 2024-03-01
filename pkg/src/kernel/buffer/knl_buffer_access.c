@@ -1388,8 +1388,8 @@ void buf_log_enter_page(knl_session_t *session, buf_ctrl_t *ctrl, latch_mode_t m
                     DEFAULT_PAGE_SIZE(session));
     knl_securec_check(ret);
 #endif
-
-    if (DB_IS_READONLY(session) || DAAC_SESSION_IN_RECOVERY(session)) {
+    lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
+    if ((DB_IS_READONLY(session) && !lrpl->is_promoting) || DAAC_SESSION_IN_RECOVERY(session)) {
         return;
     }
 
@@ -1413,8 +1413,9 @@ void buf_log_enter_page(knl_session_t *session, buf_ctrl_t *ctrl, latch_mode_t m
 static void buf_log_leave_page(knl_session_t *session, buf_ctrl_t *ctrl, bool32 changed)
 {
     log_group_t *group = NULL;
+    lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
 
-    if (SECUREC_UNLIKELY(DB_NOT_READY(session) || DB_IS_READONLY(session) || DAAC_SESSION_IN_RECOVERY(session))) {
+    if (SECUREC_UNLIKELY(DB_NOT_READY(session) || (DB_IS_READONLY(session) && !lrpl->is_promoting) || DAAC_SESSION_IN_RECOVERY(session))) {
         return;
     }
 
