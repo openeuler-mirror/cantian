@@ -531,7 +531,7 @@ int tse_release_inst_id(uint32_t inst_id);
 int tse_open_table(tianchi_handler_t *tch, const char *table_name, const char *user_name);
 int tse_close_table(tianchi_handler_t *tch);
 
-int tse_close_session(tianchi_handler_t *tch, uint64_t *cursors, int32_t csize);
+int tse_close_session(tianchi_handler_t *tch);
 void tse_kill_session(tianchi_handler_t *tch);
 
 uint8_t *tse_alloc_buf(tianchi_handler_t *tch, uint32_t buf_size);

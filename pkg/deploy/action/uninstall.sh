@@ -33,6 +33,9 @@ function clear_residual_files() {
     if [[ -f /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json ]] && [[ "${node_id}" == "0" ]];then
         rm -rf /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
     fi
+    if [[ -d /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/node"${node_id}" ]] && [[ "${node_id}" == "0" ]];then
+        rm -rf /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/node"${node_id}"
+    fi
 }
 
 # 为支持卸载重入，增加创建用户

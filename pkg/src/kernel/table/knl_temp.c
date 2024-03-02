@@ -954,6 +954,9 @@ static status_t temp_heap_try_batch_insert(knl_session_t *session, knl_cursor_t 
     uint32 vmid = CT_INVALID_ID32;
     undo_data_t undo = { 0 };
     bool32 need_redo = IS_TEMPTABLE_HAS_REDO(session);
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        need_redo = CT_FALSE;
+    }
 
     if (row->size > TEMP_CT_MAX_ROW_SIZE) {
         CT_THROW_ERROR(ERR_RECORD_SIZE_OVERFLOW, "insert row", row->size, TEMP_CT_MAX_ROW_SIZE);
@@ -963,7 +966,8 @@ static status_t temp_heap_try_batch_insert(knl_session_t *session, knl_cursor_t 
     knl_panic_log(cursor->rowid_no <= cursor->rowid_count, "invalid temp heap batch insert rowid no %u, rowid count %u",
                   (uint32)cursor->rowid_no, (uint32)cursor->rowid_count);
     undo.size = sizeof(temp_heap_undo_binsert_t);
-    if (undo_prepare(session, undo.size, need_redo, CT_FALSE) != CT_SUCCESS) {
+    if (DB_IS_PRIMARY(&session->kernel->db) &&
+        undo_prepare(session, undo.size, need_redo, CT_FALSE) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -982,9 +986,11 @@ static status_t temp_heap_try_batch_insert(knl_session_t *session, knl_cursor_t 
 
     temp_batch_insert_rows(session, cursor, &undo, rows_size);
 
-    log_atomic_op_begin(session);
-    undo_write(session, &undo, need_redo, CT_FALSE);
-    log_atomic_op_end(session);
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        log_atomic_op_begin(session);
+        undo_write(session, &undo, need_redo, CT_FALSE);
+        log_atomic_op_end(session);
+    }
     CM_RESTORE_STACK(session->stack);
 
     buf_leave_temp_page_nolock(session, CT_TRUE);
@@ -1019,11 +1025,16 @@ static status_t temp_simple_insert(knl_session_t *session, knl_cursor_t *cursor)
     uint16 vm_slot;
     undo_data_t undo = { 0 };
     bool32 need_redo = IS_TEMPTABLE_HAS_REDO(session);
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        need_redo = CT_FALSE;
+    }
+
     undo_page_info_t *undo_page_info = UNDO_GET_PAGE_INFO(session, need_redo);
 
     undo.size = sizeof(temp_heap_extra_undo_t);
 
-    if (undo_prepare(session, undo.size, need_redo, CT_FALSE) != CT_SUCCESS) {
+    if (DB_IS_PRIMARY(&session->kernel->db) &&
+        undo_prepare(session, undo.size, need_redo, CT_FALSE) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -1067,9 +1078,11 @@ static status_t temp_simple_insert(knl_session_t *session, knl_cursor_t *cursor)
     extra_undo->table_id = CURSOR_TEMP_CACHE(cursor)->table_id;
     extra_undo->seg_scn = CURSOR_TEMP_CACHE(cursor)->seg_scn;
 
-    log_atomic_op_begin(session);
-    undo_write(session, &undo, need_redo, CT_FALSE);
-    log_atomic_op_end(session);
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        log_atomic_op_begin(session);
+        undo_write(session, &undo, need_redo, CT_FALSE);
+        log_atomic_op_end(session);
+    }
     cm_pop(session->stack);
 
     buf_leave_temp_page_nolock(session, CT_TRUE);
@@ -1310,6 +1323,9 @@ status_t temp_heap_delete(knl_session_t *session, knl_cursor_t *cursor)
     errno_t ret;
     dc_entity_t *entity = NULL;
     bool32 need_redo = IS_TEMPTABLE_HAS_REDO(session);
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        need_redo = CT_FALSE;
+    }
     undo_page_info_t *undo_page_info = UNDO_GET_PAGE_INFO(session, need_redo);
 
     knl_panic_log(cursor->is_valid, "current cursor is invalid, panic info: page %u-%u type %u table %s",
@@ -1328,7 +1344,8 @@ status_t temp_heap_delete(knl_session_t *session, knl_cursor_t *cursor)
     }
 
     undo.size = cursor->row->size + sizeof(temp_heap_extra_undo_t);
-    if (CT_SUCCESS != undo_prepare(session, undo.size, need_redo, CT_FALSE)) {
+    if (DB_IS_PRIMARY(&session->kernel->db) &&
+        CT_SUCCESS != undo_prepare(session, undo.size, need_redo, CT_FALSE)) {
         return CT_ERROR;
     }
 
@@ -1371,9 +1388,11 @@ status_t temp_heap_delete(knl_session_t *session, knl_cursor_t *cursor)
 
     row = (row_head_t *)TEMP_HEAP_GET_ROW(page, dir);
 
-    log_atomic_op_begin(session);
-    undo_write(session, &undo, need_redo, CT_FALSE);
-    log_atomic_op_end(session);
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        log_atomic_op_begin(session);
+        undo_write(session, &undo, need_redo, CT_FALSE);
+        log_atomic_op_end(session);
+    }
     cm_pop(session->stack);
 
     knl_panic_log(!row->is_deleted, "row is deleted, panic info: page %u-%u type %u table %s",
@@ -1693,9 +1712,11 @@ static void temp_heap_generate_undo_for_update(knl_session_t *session, knl_curso
     extra_undo->table_id = CURSOR_TEMP_CACHE(cursor)->table_id;
     extra_undo->seg_scn = CURSOR_TEMP_CACHE(cursor)->seg_scn;
 
-    log_atomic_op_begin(session);
-    undo_write(session, undo, need_redo, CT_FALSE);
-    log_atomic_op_end(session);
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        log_atomic_op_begin(session);
+        undo_write(session, undo, need_redo, CT_FALSE);
+        log_atomic_op_end(session);
+    }
 }
 
 static status_t temp_heap_update_link_row(knl_session_t *session, knl_cursor_t *cursor, heap_update_assist_t *ua,
@@ -1802,7 +1823,8 @@ status_t temp_heap_update(knl_session_t *session, knl_cursor_t *cursor)
     }
 
     undo.size += sizeof(temp_heap_extra_undo_t);
-    if (undo_prepare(session, undo.size, IS_TEMPTABLE_HAS_REDO(session), CT_FALSE) != CT_SUCCESS) {
+    if (DB_IS_PRIMARY(&session->kernel->db) &&
+        undo_prepare(session, undo.size, IS_TEMPTABLE_HAS_REDO(session), CT_FALSE) != CT_SUCCESS) {
         cm_pop(session->stack);
         return CT_ERROR;
     }

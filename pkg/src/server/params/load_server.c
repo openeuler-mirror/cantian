@@ -36,6 +36,7 @@
 #include "cm_kmc.h"
 #include "cm_log.h"
 #include "cm_file_iofence.h"
+#include "kmc_init.h"
 
 extern bool32 g_enable_fdsa;
 extern bool32 g_crc_verify;
@@ -448,6 +449,8 @@ static status_t srv_update_keyfiles_config(knl_attr_t *attr)
 static status_t srv_init_kmc(void)
 {
     uint32 domain;
+    CT_RETURN_IFERR(kmc_init_lib());
+    CT_RETURN_IFERR(sdp_init_lib());
     knl_attr_t *attr = &g_instance->kernel.attr;
     if (cm_kmc_init(CT_SERVER, attr->kmc_key_files[0].name, attr->kmc_key_files[1].name) != CT_SUCCESS) {
         return CT_ERROR;
@@ -960,7 +963,12 @@ status_t srv_load_server_params(void)
     CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_HWN_CHANGE", &g_instance->kernel.attr.enable_hwm_change));
     temp_set_compative_config(g_instance->kernel.attr.compatible_mysql == 1 ? CT_TRUE : CT_FALSE);
 
-    CT_RETURN_IFERR(srv_load_keyfiles());
+    bool32 enable_dbstor = CT_FALSE;
+    CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_DBSTOR", &enable_dbstor));
+    if (enable_dbstor) {
+        CT_RETURN_IFERR(srv_load_keyfiles());
+    }
+
     CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_LOCAL_INFILE", &g_instance->attr.enable_local_infile));
     CT_RETURN_IFERR(srv_get_param_bool32("_STRICT_CASE_DATATYPE", &g_instance->sql.strict_case_datatype));
     return CT_SUCCESS;

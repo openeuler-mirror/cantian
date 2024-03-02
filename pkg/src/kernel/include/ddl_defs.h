@@ -544,6 +544,7 @@ status_t knl_create_table_as_select(knl_handle_t session, knl_handle_t stmt, knl
 bool32 knl_create_table_check_exist(knl_handle_t session, knl_table_def_t *def, bool32 has_auton_rm);
 EXTER_ATTACK status_t knl_ddl_execute_status(knl_handle_t sess, bool32 forbid_in_rollback, ddl_exec_status_t *ddl_exec_stat);
 status_t knl_ddl_enabled(knl_handle_t session, bool32 forbid_in_rollback);
+status_t knl_ddl_enabled4ltt(knl_handle_t session, bool32 forbid_in_rollback);
 status_t knl_insert_ddl_loginfo(knl_handle_t knl_session, knl_dist_ddl_loginfo_t *info);
 status_t knl_query_ddl_loginfo(knl_handle_t knl_session, text_t *ddl_id, text_t *ddl_info, uint32 *used_encrypt);
 status_t knl_delete_ddl_loginfo(knl_handle_t knl_session, text_t *ddl_id);

@@ -865,7 +865,7 @@ static status_t sql_execute_set_trans(sql_stmt_t *ctsql_stmt)
         return CT_ERROR;
     }
 
-    ret = knl_set_session_trans(&ctsql_stmt->session->knl_session, isolevel);
+    ret = knl_set_session_trans(&ctsql_stmt->session->knl_session, isolevel, CT_FALSE);
     return ret;
 }
 

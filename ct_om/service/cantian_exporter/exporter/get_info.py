@@ -484,7 +484,7 @@ class GetNodesInfo:
         """
         res = {}
         report_key = [
-            "SYS_BACKUP_SETS", "CHECKPOINT_PAGE",
+            "SYS_BACKUP_SETS", "CHECKPOINT_PAGES",
             "CHECKPOINT_PERIOD", "GLOBAL_LOCK",
             "LOCAL_LOCK", "LOCAL_TXN", "GLOBAL_TXN",
             "DV_LRPL_DETAIL"

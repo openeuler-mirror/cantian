@@ -40,6 +40,7 @@
 #include "cm_kmc.h"
 #include "cm_encrypt.h"
 #include "cm_file_iofence.h"
+#include "kmc_init.h"
 
 config_item_t g_cms_params[] = {
     // name (30B)               isdefault readonly  defaultvalue value runtime_value description range        datatype
@@ -90,6 +91,7 @@ config_item_t g_cms_params[] = {
 
 cms_param_t  g_param;
 const cms_param_t* g_cms_param = &g_param;
+bool32 g_cms_dbstor_enable = CT_FALSE;
 
 keyfile_item_t g_kmc_key_files[CT_KMC_MAX_KEYFILE_NUM];
 
@@ -263,6 +265,9 @@ status_t cms_update_keyfiles_config(config_t *cfg)
 status_t cms_init_kmc(void)
 {
     uint32 domain;
+    CT_RETURN_IFERR(kmc_init_lib());
+    CT_RETURN_IFERR(sdp_init_lib());
+
     if (cm_kmc_init(CT_SERVER, g_kmc_key_files[0].name, g_kmc_key_files[1].name) != CT_SUCCESS) {
         return CT_ERROR;
     }
@@ -298,6 +303,9 @@ status_t cms_load_keyfiles(void)
 {
     char file_name[CMS_FILE_NAME_BUFFER_SIZE];
     // get config info
+    if (!g_cms_dbstor_enable){
+        return CT_SUCCESS;
+    }
     int ret = snprintf_s(file_name, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN, "%s/cfg/%s", g_param.cms_home,
         CMS_CFG_FILENAME);
     PRTS_RETURN_IFERR(ret);
@@ -689,6 +697,7 @@ status_t cms_load_param(void)
     } else if (cm_strcmpi(value, "TRUE") == 0) {
         enable = CT_TRUE;
         cms_set_recv_timeout();
+        g_cms_dbstor_enable = CT_TRUE;
     } else {
         CMS_LOG_ERR("invalid parameter value of '_USE_DBSTOR':%s", value);
         return CT_ERROR;

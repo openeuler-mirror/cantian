@@ -129,7 +129,7 @@ void get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, tianchi_cbo_stats_t
             }
         }
     } else {
-        uint32 subpart_cnt = entity->table.part_table->desc.subpart_cnt;
+        uint32 subpart_cnt = knl_subpart_count((handle_t)entity, 0);
         for (uint32 i = 0; i < stats->num_part_fetch; i++) {
             uint32 part_id = (i + stats->first_partid) / subpart_cnt;
             uint32 subpart_id = (i + stats->first_partid) % subpart_cnt;
