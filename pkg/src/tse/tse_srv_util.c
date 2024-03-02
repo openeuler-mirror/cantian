@@ -380,7 +380,10 @@ status_t tse_open_cursor(knl_session_t *knl_session, knl_cursor_t *cursor,
     // must put before tse_set_session_ssn_scn
     text_t start_sv = { (char *)TSE_SQL_START_INTERNAL_SAVEPOINT, strlen(TSE_SQL_START_INTERNAL_SAVEPOINT) };
     if (sql_stat_start && *sql_stat_start == 1 &&
-        (!DB_IS_READONLY(knl_session) || !is_select) && knl_set_savepoint(knl_session, &start_sv) != CT_SUCCESS) {
+        (!DB_IS_READONLY(knl_session) || !is_select) && 
+        (DB_IS_PRIMARY(&knl_session->kernel->db) || !(tse_context->dc->type == DICT_TYPE_TEMP_TABLE_SESSION ||
+                                                  tse_context->dc->type == DICT_TYPE_TEMP_TABLE_TRANS)) &&
+        knl_set_savepoint(knl_session, &start_sv) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("tse_open_cursor: set sql start sys savepoint failed");
         return CT_ERROR;
     }
