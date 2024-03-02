@@ -122,7 +122,7 @@ class Logicrep:
     def __init__(self, mode="active"):
         self.logicrep_user = ""
         self.storage_archive_fs = ""
-        self.storage_share_fs = ""
+        self.storage_metadata_fs = ""
         self.deploy_mode = "nas"
         self.home = r"/opt/software/tools/logicrep"
         self.init_conf_file = os.path.join(self.home, "conf", "init.properties")
@@ -184,7 +184,7 @@ class Logicrep:
         self.node_id = info.get("node_id")
         if mode == "install":
             self.storage_archive_fs = info.get("storage_archive_fs")
-            self.storage_share_fs = info.get("storage_share_fs")
+            self.storage_metadata_fs = info.get("storage_metadata_fs")
             self.deploy_mode = info.get("deploy_mode")
             ctsql_file = glob.glob(CTSQL_INI_PATH)[0]
             ctsql_ini_data = file_reader(ctsql_file)
@@ -283,8 +283,8 @@ class Logicrep:
         for i, line in enumerate(info_list):
             if "binlog.path=" in line:
                 info_list[i] = f"binlog.path=/mnt/dbdata/remote/archive_{self.storage_archive_fs}/\n"
-            if "share.path" in line:
-                info_list[i] = f"share.path=/mnt/dbdata/remote/share_{self.storage_share_fs}/\n"
+            if "metadata.path" in line:
+                info_list[i] = f"metadata.path=/mnt/dbdata/remote/metadata_{self.storage_metadata_fs}/\n"
             if "deploy.mode" in line:
                 info_list[i] = f"deploy.mode={self.deploy_mode}\n"
         with os.fdopen(os.open(self.init_conf_file, flags, modes), 'w') as fs:
