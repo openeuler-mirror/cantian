@@ -50,6 +50,9 @@ function packageSymbol() {
   local build_type_upper=$(echo "${BUILD_TYPE}" | tr [:lower:] [:upper:])
   local current_time=$(date "+%Y%m%d%H%M%S")
   local symbol_pkg_name="${symbol_dir_name}_${ENV_TYPE}_${build_type_upper}_${current_time}.tgz"
+  if [[ ${BUILD_MODE} == "single" ]]; then
+    symbol_pkg_name="${symbol_dir_name}_${BUILD_MODE}_${ENV_TYPE}_${build_type_upper}_${current_time}.tgz"
+  fi
   local symbol_real_path=${TMP_PKG_PATH}/${symbol_dir_name}
 
   mkdir -p ${symbol_real_path}
@@ -69,6 +72,10 @@ function newPackageTarget() {
   local build_type_upper=$(echo "${BUILD_TYPE}" | tr [:lower:] [:upper:])
   local pkg_name="${BUILD_PACK_NAME}_${ENV_TYPE}_${build_type_upper}.tgz"
   local mysql_pkg_name="${MYSQL_BIN_NAME}_${ENV_TYPE}_${build_type_upper}.tgz"
+  if [[ ${BUILD_MODE} == "single" ]]; then
+    pkg_name="${BUILD_PACK_NAME}_${BUILD_MODE}_${ENV_TYPE}_${build_type_upper}.tgz"
+    mysql_pkg_name="${MYSQL_BIN_NAME}_${BUILD_MODE}_${ENV_TYPE}_${build_type_upper}.tgz"
+  fi
   local pkg_real_path=${TMP_PKG_PATH}/${pkg_dir_name}
   rm -rf ${TMP_PKG_PATH}/*
 
@@ -86,6 +93,9 @@ function newPackageTarget() {
   cp -arf "${CTDB_CODE_PATH}"/pkg/deploy/action/* ${pkg_real_path}/action/
   cp -arf "${CTDB_CODE_PATH}"/pkg/deploy/config/* ${pkg_real_path}/config/
   cp -arf "${CTDB_CODE_PATH}"/common/* ${pkg_real_path}/common/
+  if [[ ${BUILD_MODE} == "single" ]]; then
+    cp -rf  "${CTDB_CODE_PATH}"/pkg/deploy/single_options/* ${pkg_real_path}/action/cantian
+  fi
   sed -i "s/#MYSQL_PKG_PREFIX_NAME#/${mysql_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
   sed -i "s/## BUILD_TYPE ENV_TYPE ##/${build_type_upper} ${ENV_TYPE}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
   cp -arf "${CTDB_CODE_PATH}"/CI/script/for_mysql_official ${pkg_real_path}
@@ -100,8 +110,10 @@ function newPackageTarget() {
   rm -rf ${TMP_PKG_PATH}/${pkg_dir_name}
   mkdir -p ${MYSQL_BIN_NAME}
   cp -arf /usr/local/mysql ${MYSQL_BIN_NAME}
-  echo "Start pkg ${mysql_pkg_name}..."
-  tar -zcf "${mysql_pkg_name}" ${MYSQL_BIN_NAME}
+  if [[ ${BUILD_MODE} == "multiple" ]] || [[ -z ${BUILD_MODE} ]]; then
+    echo "Start pkg ${mysql_pkg_name}..."
+    tar -zcf "${mysql_pkg_name}" ${MYSQL_BIN_NAME}
+  fi
   rm -rf ${MYSQL_BIN_NAME}
   rm -rf ${pkg_dir_name}
   echo "Packing ${pkg_name} success"
@@ -143,7 +155,17 @@ function buildMysql() {
   mkdir -p "${CANTIANDB_BIN}"/cantian-connector-mysql/{daac_lib,mysql_bin,scripts}
   mkdir -p "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/{meta,nometa}
 
-  sh "${CURRENT_PATH}"/Makefile_ci.sh "${MYSQL_BUILD_TYPE}"
+  if [[ ${BUILD_MODE} == "multiple" ]] || [[ -z ${BUILD_MODE} ]]; then
+    echo "compile multiple mysql process"
+    sh "${CURRENT_PATH}"/Makefile_ci.sh "${MYSQL_BUILD_TYPE}"
+  elif [[ ${BUILD_MODE} == "single" ]]; then
+    echo "compile single mysql process"
+    sh "${CURRENT_PATH}"/Makefile_ci.sh "${MYSQL_BUILD_TYPE} no_shm=1"
+  else
+    echo "unsupported build mode"
+    exit 1
+  fi
+
   if [[ ${BUILD_TYPE} == "release" ]]; then
     mkdir -p "${CANTIANDB_BIN}"/mysql-server-symbol/{nometa,meta}
     seperateSymbol ${MYSQL_CODE_PATH}/bld_debug/plugin_output_directory/ha_ctc.so
@@ -152,6 +174,11 @@ function buildMysql() {
     mv ${MYSQL_CODE_PATH}/daac_lib/libctc_proxy.so.symbol ${CANTIANDB_BIN}/mysql-server-symbol
   fi
   cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/nometa
+
+  if [[ ${BUILD_MODE} == "single" ]]; then
+    collectMysqlTarget
+    return 0
+  fi
 
   echo "patching MysqlCode for mysql source"
   patchingMysqlCode
@@ -172,7 +199,17 @@ function buildMysql() {
 }
 
 function prepare() {
-  sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE}"
+  if [[ ${BUILD_MODE} == "multiple" ]] || [[ -z ${BUILD_MODE} ]]; then
+    echo "compiling multiple process"
+    sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE}"
+  elif [[ ${BUILD_MODE} == "single" ]]; then
+    echo "compiling single process"
+    sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} no_shm=1"
+  else
+    echo "unsupported build mode"
+    exit 1
+  fi
+  
   buildMysql
   if [ ! -d "${CTDB_TARGET_PATH}" ];then
     mkdir -p "${CTDB_TARGET_PATH}"
