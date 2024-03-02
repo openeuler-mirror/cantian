@@ -629,7 +629,7 @@ void rc_init_redo_ctx(arch_proc_context_t *proc_ctx, dtc_node_ctrl_t *node_ctrl,
         status_t ret = cm_open_device(file_set->items[i].ctrl->name, file_set->items[i].ctrl->type,
                                       knl_redo_io_flag(proc_ctx->session), &file_set->items[i].handle);
         if (ret != CT_SUCCESS || file_set->items[i].handle == -1) {
-            CT_LOG_RUN_ERR("[BACKUP] failed to open %s ", logfile->ctrl->name);
+            CT_LOG_RUN_ERR("[BACKUP] failed to open %s ", file_set->items[i].ctrl->name);
             return;
         }
     }
@@ -665,7 +665,53 @@ void rc_arch_set_last_file_id(arch_proc_context_t *proc_ctx, uint32 node_id)
     proc_ctx->last_file_id = last_file_id;
 }
 
-void rc_init_arch_proc_ctx(arch_proc_context_t *proc_ctx, log_file_t *logfile, dtc_node_ctrl_t *node_ctrl,
+status_t flush_curr_file_head(arch_proc_context_t *proc_ctx, dtc_node_ctrl_t *node_ctrl, uint32 node_id)
+{
+    log_file_head_t head;
+    log_context_t *ctx = &proc_ctx->session->kernel->redo_ctx;
+    logfile_set_t *file_set = LOGFILE_SET(proc_ctx->session, node_id);
+    log_file_t *file = &file_set->items[ctx->curr_file];
+    log_point_t *lrp_point = &node_ctrl->lrp_point;
+
+    if (cm_read_device(file->ctrl->type, file->handle, 0, &head, sizeof(log_file_head_t)) != CT_SUCCESS) {
+        cm_close_device(file->ctrl->type, &file->handle);
+        CT_LOG_RUN_ERR("[RC_ARCH] failed to read %s", file->ctrl->name);
+        return CT_ERROR;
+    }
+
+    head.write_pos = lrp_point->block_id * file->ctrl->block_size;
+    head.last = node_ctrl->scn;
+    log_calc_head_checksum(proc_ctx->session, &head);
+
+    *(log_file_head_t *)ctx->logwr_head_buf = head;
+    int32 size = CM_CALC_ALIGN(sizeof(log_file_head_t), file->ctrl->block_size);
+    if (cm_write_device(file->ctrl->type, file->handle, 0, ctx->logwr_head_buf, size) != CT_SUCCESS) {
+        CT_LOG_ALARM(WARN_FLUSHREDO, "'file-name':'%s'}", file->ctrl->name);
+        CM_ABORT(0, "[RC_ARCH] ABORT INFO: flush redo file:%s, offset:%u, size:%lu failed.", file->ctrl->name, 0,
+                 sizeof(log_file_head_t));
+    }
+    CT_LOG_DEBUG_INF("[RC_ARCH] Flush log[%u] head with asn %u status %d", file->ctrl->file_id, file->head.asn,
+                     file->ctrl->status);
+    return CT_SUCCESS;
+}
+
+uint64 get_curr_file_size(arch_proc_context_t *proc_ctx, uint32 node_id)
+{
+    log_file_head_t head;
+    log_context_t *ctx = &proc_ctx->session->kernel->redo_ctx;
+    logfile_set_t *file_set = LOGFILE_SET(proc_ctx->session, node_id);
+    log_file_t *file = &file_set->items[ctx->curr_file];
+
+    if (cm_read_device(file->ctrl->type, file->handle, 0, &head, sizeof(log_file_head_t)) != CT_SUCCESS) {
+        cm_close_device(file->ctrl->type, &file->handle);
+        CT_LOG_RUN_ERR("[RC_ARCH] failed to read %s", file->ctrl->name);
+        return CT_ERROR;
+    }
+
+    return head.write_pos;
+}
+
+status_t rc_init_arch_proc_ctx(arch_proc_context_t *proc_ctx, log_file_t *logfile, dtc_node_ctrl_t *node_ctrl,
                            uint32 arch_num, uint32 node_id)
 {
     knl_session_t *session = proc_ctx->session;
@@ -681,7 +727,13 @@ void rc_init_arch_proc_ctx(arch_proc_context_t *proc_ctx, log_file_t *logfile, d
     if (cm_dbs_is_enable_dbs() != CT_TRUE) {
         log_context_t *ctx = &proc_ctx->session->kernel->redo_ctx;
         rc_init_redo_ctx(proc_ctx, node_ctrl, logfile, node_id);
-        log_switch_file(proc_ctx->session);
+        if (get_curr_file_size(proc_ctx, node_id) > CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size)) {
+            if (flush_curr_file_head(proc_ctx, node_ctrl, node_id) != CT_SUCCESS) {
+                free(ctx->logwr_head_buf);
+                return CT_ERROR;
+            }
+            log_switch_file(proc_ctx->session);
+        }
         free(ctx->logwr_head_buf);
         rc_arch_set_last_file_id(proc_ctx, node_id);
     }
@@ -696,6 +748,7 @@ void rc_init_arch_proc_ctx(arch_proc_context_t *proc_ctx, log_file_t *logfile, d
     } else {
         proc_ctx->last_archived_log_record.asn = 1;
     }
+    return CT_SUCCESS;
 }
 
 status_t rc_arch_init_proc_ctx(arch_proc_context_t *proc_ctx, uint32 node_id)
@@ -723,7 +776,10 @@ status_t rc_arch_init_proc_ctx(arch_proc_context_t *proc_ctx, uint32 node_id)
         return CT_ERROR;
     }
 
-    rc_init_arch_proc_ctx(proc_ctx, logfile, node_ctrl, arch_num, node_id);
+    if (rc_init_arch_proc_ctx(proc_ctx, logfile, node_ctrl, arch_num, node_id) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    
     CT_LOG_RUN_INF("[RC_ARCH] cur arch num %u, next asn %u, next start lsn %llu", arch_num,
                    proc_ctx->last_archived_log_record.asn, proc_ctx->last_archived_log_record.end_lsn);
 

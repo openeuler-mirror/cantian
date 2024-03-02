@@ -2483,10 +2483,15 @@ status_t rc_arch_generate_file(arch_proc_context_t *proc_ctx)
 void rc_arch_proc(thread_t *thread)
 {
     arch_proc_context_t *proc_ctx = (arch_proc_context_t *)thread->argument;
+    arch_proc_context_t *rc_proc_ctx = &proc_ctx->session->kernel->arch_ctx.arch_proc[0];
+    errno_t ret = memcpy_s((char*)rc_proc_ctx, sizeof(arch_proc_context_t), (char*)proc_ctx,
+                           sizeof(arch_proc_context_t));
+    knl_securec_check(ret);
+    proc_ctx = rc_proc_ctx;
     knl_session_t *session = proc_ctx->session;
     log_context_t *redo_ctx = &session->kernel->redo_ctx;
 
-    cm_set_thread_name("arch_proc");
+    cm_set_thread_name("rc_arch_proc");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
     proc_ctx->arch_execute = CT_TRUE;
     while (!thread->closed) {
@@ -2508,9 +2513,9 @@ void rc_arch_proc(thread_t *thread)
         cm_close_device(file_set->items[i].ctrl->type, &file_set->items[i].handle);
     }
 
-    free(proc_ctx->session->kernel);
+    free(session->kernel);
     KNL_SESSION_CLEAR_THREADID(session);
-    free(proc_ctx->session);
+    free(session);
     CT_LOG_RUN_INF("[ARCH] arch proc thread exit.");
 }
 
