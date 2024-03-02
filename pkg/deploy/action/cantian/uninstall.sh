@@ -32,11 +32,6 @@ function cantian_uninstall()
     fi
     log "shell uninstall step 4 $(date)"
     storage_metadata_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs"`
-    node_id=`python3 ${CURRENT_PATH}/get_config_info.py "node_id"`
-    mysql_data_dir="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}"
-    if [ -d ${mysql_data_dir} ]; then
-        chmod -R 750 ${mysql_data_dir}/*
-    fi
     python3 ${CURRENT_PATH}/cantian_uninstall.py ${uninstall_type} ${force_uninstall}
 
     ret=$?

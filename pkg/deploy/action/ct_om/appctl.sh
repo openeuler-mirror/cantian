@@ -239,6 +239,7 @@ case "$ACTION" in
         correct_ctom_files_mod  # 修改action/ct_om路径下文件权限
         mod_prepare  # 预安装：修改owner，进行文件cp
         do_deploy ${INSTALL_NAME} ${INSTALL_TYPE}
+        chmod 600 /opt/cantian/ct_om/service/cantian_exporter/config/get_logicrep_info.sql
         exit $?
         ;;
     uninstall)
