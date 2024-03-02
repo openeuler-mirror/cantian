@@ -1570,6 +1570,9 @@ static status_t temp_btree_internal_insert(knl_session_t *session, knl_cursor_t 
     uint32 count;
     errno_t ret;
     bool32 need_redo = IS_TEMPTABLE_HAS_REDO(session);
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        need_redo = CT_FALSE;
+    }
     undo_page_info_t *undo_page_info = UNDO_GET_PAGE_INFO(session, need_redo);
 
     temp_table = cursor->temp_cache;
@@ -1594,7 +1597,8 @@ static status_t temp_btree_internal_insert(knl_session_t *session, knl_cursor_t 
     path_info.sibling_key = NULL;
 
     // prepare undo which contains btree key and seg_scn
-    if (undo_prepare(session, (uint32)key->size + TEMP_KEY_EXTRA_UNDO, need_redo, CT_FALSE) != CT_SUCCESS) {
+    if (DB_IS_PRIMARY(&session->kernel->db) &&
+        undo_prepare(session, (uint32)key->size + TEMP_KEY_EXTRA_UNDO, need_redo, CT_FALSE) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -1619,7 +1623,9 @@ static status_t temp_btree_internal_insert(knl_session_t *session, knl_cursor_t 
                   "page type is abnormal, panic info: page %u-%u type %u table %s",
                   cursor->rowid.file, cursor->rowid.page, page->head.type, ((table_t *)cursor->table)->desc.name);
 
-    temp_btree_generate_undo(session, cursor, &path_info, is_same, UNDO_TEMP_BTREE_INSERT);
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        temp_btree_generate_undo(session, cursor, &path_info, is_same, UNDO_TEMP_BTREE_INSERT);
+    }
 
     temp_btree_insert_into_page(session, page, key, &redo);
 
@@ -1800,6 +1806,9 @@ static uint32 temp_batch_insert_keys(knl_session_t *session, knl_cursor_t *curso
     temp_btree_page_t *page = TEMP_BTREE_CURR_PAGE(session);
     rd_btree_insert_t redo;
     bool32 need_redo = IS_TEMPTABLE_HAS_REDO(session);
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        need_redo = CT_FALSE;
+    }
     undo_page_info_t *undo_page_info = UNDO_GET_PAGE_INFO(session, need_redo);
     uint16 key_size = 0;
     uint32 keys = 0;
@@ -2042,7 +2051,8 @@ status_t temp_btree_delete(knl_session_t *session, knl_cursor_t *cursor)
     }
 
     // prepare undo for btree key and seg_scn
-    if (undo_prepare(session, (uint32)key->size + TEMP_KEY_EXTRA_UNDO, need_redo, CT_FALSE) != CT_SUCCESS) {
+    if (DB_IS_PRIMARY(&session->kernel->db) &&
+        undo_prepare(session, (uint32)key->size + TEMP_KEY_EXTRA_UNDO, need_redo, CT_FALSE) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -2084,7 +2094,9 @@ status_t temp_btree_delete(knl_session_t *session, knl_cursor_t *cursor)
     redo.ssn = cursor->ssn;
     redo.itl_id = CT_INVALID_ID8;
 
-    temp_btree_generate_undo(session, cursor, &path_info, CT_TRUE, UNDO_TEMP_BTREE_DELETE);
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        temp_btree_generate_undo(session, cursor, &path_info, CT_TRUE, UNDO_TEMP_BTREE_DELETE);
+    }
 
     temp_btree_delete_key(session, page, &redo);
     buf_leave_temp_page_nolock(session, CT_TRUE);

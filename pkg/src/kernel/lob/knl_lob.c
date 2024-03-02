@@ -2959,7 +2959,8 @@ static status_t lob_temp_internal_delete(knl_session_t *session, knl_cursor_t *c
         lob_item_add(item_list, lob_item);
     }
 
-    if (undo_prepare(session, sizeof(lob_del_undo_t), IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type),
+    if (DB_IS_PRIMARY(&session->kernel->db) &&
+        undo_prepare(session, sizeof(lob_del_undo_t), IS_LOGGING_TABLE_BY_TYPE(cursor->dc_type),
         CT_FALSE) != CT_SUCCESS) {
         return CT_ERROR;
     }
@@ -3023,11 +3024,15 @@ static status_t lob_temp_internal_delete(knl_session_t *session, knl_cursor_t *c
     lob_del_undo.last_page = last_page;
     lob_del_undo.chunk_count = chunk_count;
 
-    log_atomic_op_begin(session);
-    lob_generate_undo_delete(session, cursor, lob_entity, lob_del_undo);
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        log_atomic_op_begin(session);
+        lob_generate_undo_delete(session, cursor, lob_entity, lob_del_undo);
 
-    cm_spin_unlock(&lob_item->lock);
-    log_atomic_op_end(session);
+        cm_spin_unlock(&lob_item->lock);
+        log_atomic_op_end(session);
+    } else {
+        cm_spin_unlock(&lob_item->lock);
+    }
 
     return CT_SUCCESS;
 }
