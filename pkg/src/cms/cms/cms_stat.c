@@ -324,7 +324,7 @@ status_t cms_res_lock_init(void)
     // init res start lock
     CT_RETURN_IFERR(cms_disk_lock_init(g_cms_param->gcc_type, g_cms_param->gcc_home, "", CMS_RES_START_LOCK_POS,
         CMS_RLOCK_RES_START_LOCK_START, CMS_RLOCK_RES_START_LOCK_LEN, g_cms_param->node_id,
-        &g_cms_inst->res_start_lock, NULL, 0, CT_FALSE));
+        &g_cms_inst->res_start_lock, NULL, CMS_DLOCK_THREAD, CT_FALSE));
     cms_disk_unlock(&g_cms_inst->res_start_lock, DISK_LOCK_READ);
     // init res stat lock
     for (int32 node_id = 0; node_id < CMS_MAX_NODE_COUNT; node_id++) {
