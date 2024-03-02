@@ -24,10 +24,12 @@
  */
 #include <sys/wait.h>
 #include "dpax_typedef.h"
+#include "cm_common_module.h"
 #include "cm_utils.h"
 #include "cm_error.h"
 #include "kmc_init.h"
- 
+#include "cm_log.h"
+
 #define MAX_TIER_NUM 10000
 #define MIN_PRO_PERMIT 0600
 #define DEFAULT_SEM_KEY 0x20161227
@@ -101,27 +103,62 @@ static status_t kmc_load_symbol(void *lib_handle, char *symbol, void **sym_lib_h
 
 status_t kmc_init_lib(void)
 {
-    kmc_interface_t *intf = kmc_global_handle();
-    intf->kmc_handle = dlopen("libdbstoreClient.so", RTLD_LAZY);
+    kmc_interface_t *intf = &g_kmc_interface;
+    intf->kmc_handle = dlopen("libkmcext.so", RTLD_LAZY);
     const char *dlopen_err = NULL;
     dlopen_err = dlerror();
     if (intf->kmc_handle == NULL) {
-        printf("[ctbackup]failed to load libdbstoreClient.so, maybe lib path error, errno %s.\n",
-               dlopen_err);
+        CT_LOG_RUN_ERR("failed to load libkmcext.so, maybe lib path error, errno %s.", dlopen_err);
         return CT_ERROR;
     }
     CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KeInitializeEx", (void **)(&intf->KeInitializeEx)));
     CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KeDecryptByDomainEx", (void **)(&intf->KeDecryptByDomainEx)));
     CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KeFinalizeEx", (void **)(&intf->KeFinalizeEx)));
-    printf("[ctbackup]load libdbstoreClient.so done.\n");
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KmcAddDomainEx", (void **)(&intf->KmcAddDomainEx)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KmcAddDomainKeyTypeEx", (void **)(&intf->KmcAddDomainKeyTypeEx)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "WsecFinalizeEx", (void **)(&intf->WsecFinalizeEx)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KmcCreateMkEx", (void **)(&intf->KmcCreateMkEx)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KmcActivateMk", (void **)(&intf->KmcActivateMk)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KmcGetMkDetail", (void **)(&intf->KmcGetMkDetail)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KmcGetMkDetailByHash", (void **)(&intf->KmcGetMkDetailByHash)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "WsecInitializeEx", (void **)(&intf->WsecInitializeEx)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KmcGetActiveMk", (void **)(&intf->KmcGetActiveMk)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "WsecResetEx", (void **)(&intf->WsecResetEx)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KmcGetMkCount", (void **)(&intf->KmcGetMkCount)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KmcGetMkHash", (void **)(&intf->KmcGetMkHash)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KmcGetMaxMkId", (void **)(&intf->KmcGetMaxMkId)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "KmcGenerateKsfAll", (void **)(&intf->KmcGenerateKsfAll)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "WsecRegFuncEx", (void **)(&intf->WsecRegFuncEx)));
+
+    CT_LOG_RUN_INF("load libkmcext.so done.");
     return CT_SUCCESS;
 }
 
+status_t sdp_init_lib(void)
+{
+    kmc_interface_t *intf = &g_kmc_interface;
+    intf->sdp_handle = dlopen("libsdp.so", RTLD_LAZY);
+    const char *dlopen_err = NULL;
+    dlopen_err = dlerror();
+    if (intf->sdp_handle == NULL) {
+        CT_LOG_RUN_ERR("failed to load libsdp.so, maybe lib path error, errno %s.", dlopen_err);
+        return CT_ERROR;
+    }
+    CT_RETURN_IFERR(kmc_load_symbol(intf->sdp_handle, "SdpGetCipherDataLenEx", (void **)(&intf->SdpGetCipherDataLenEx)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->sdp_handle, "SdpEncryptEx", (void **)(&intf->SdpEncryptEx)));
+    CT_RETURN_IFERR(kmc_load_symbol(intf->sdp_handle, "SdpDecryptEx", (void **)(&intf->SdpDecryptEx)));
+
+    CT_LOG_RUN_INF("load libsdp.so done.");
+    return CT_SUCCESS;
+}
 void kmc_close_lib(void)
 {
-    kmc_interface_t *intf = kmc_global_handle();
+    kmc_interface_t *intf = &g_kmc_interface;
     if (intf->kmc_handle != NULL) {
         (void)dlclose(intf->kmc_handle);
+    }
+    if (intf->sdp_handle != NULL) {
+        (void)dlclose(intf->sdp_handle);
     }
 }
 

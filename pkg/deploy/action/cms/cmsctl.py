@@ -926,6 +926,11 @@ class CmsCtl(object):
         log("install xnet lib cmd: " + str_cmd)
         run_cmd(str_cmd, "failed to install xnet lib")
 
+    def install_kmc_lib(self):
+        str_cmd = "cp -arf %s/add-ons/kmc_shared/lib* %s/add-ons/" % (self.install_path, self.install_path)
+        log("install kmc lib cmd: " + str_cmd)
+        run_cmd(str_cmd, "failed to install kmc lib")
+
     def is_mlnx(self):
         """
         is_mlnx
@@ -1016,6 +1021,7 @@ class CmsCtl(object):
 
         if deploy_mode != "nas":
             self.install_xnet_lib()
+            self.install_kmc_lib()
 
     def pre_install(self):
 

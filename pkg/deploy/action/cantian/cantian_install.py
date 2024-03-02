@@ -1743,6 +1743,13 @@ class Installer:
         if ret_code:
             log_exit("Install xnet lib return: " + str(ret_code) + os.linesep + stderr)
 
+    def install_kmc_lib(self):
+        str_cmd = "cp -rf %s/add-ons/kmc_shared/lib* %s/add-ons/" % (self.install_path, self.install_path)
+        log("install kmc lib cmd:" + str_cmd)
+        ret_code, _, stderr = _exec_popen(str_cmd)
+        if ret_code:
+            log_exit("Install kmc lib return: " + str(ret_code) + os.linesep + stderr)
+
     #########################################################################
     # Unzip the installation files to the installation directory.
     #########################################################################
@@ -1785,6 +1792,7 @@ class Installer:
 
         if g_opts.use_dbstor:
             self.install_xnet_lib()
+            self.install_kmc_lib()
         # change app permission
         self.change_app_permission()
 
