@@ -46,6 +46,7 @@ static uint32_t MY_PID = 400;
 #define DPUC_DATA_MSG_RESERVE 1024
 #define DPUC_DATA_MSG_MAX 2048
 #define NS_PER_MS 1000000
+#define MES_UC_XNET_TIMEOUT_TIMES 11 // s
 
 #ifndef RETURN_OK
  #define RETURN_OK 0
@@ -1024,6 +1025,8 @@ status_t mes_uc_create_link(uint32 inst_id, dpuc_addr *client_eid_addr, dpuc_add
     con_param.recovery_pri = DPUC_CONN_RECVOERY_L;
     con_param.pSrcAddr = client_eid_addr;
     con_param.pDstAddr = server_eid_addr;
+    con_param.kaInterval = 1; // xnet heart beat judge interval, 0: use default values 10s;
+    con_param.kaTimeoutTimes = MES_UC_XNET_TIMEOUT_TIMES; // xnet heart beat timeout disconnect.
     for (uint32 i = 0; i < g_mes.profile.channel_num; i++) {
         ret = mes_global_handle()->dpuc_link_create_with_addr(g_mes_uc_config.eid_obj, 
             g_mes_uc_config.dst_eid[inst_id], &con_param, __FUNCTION__);
