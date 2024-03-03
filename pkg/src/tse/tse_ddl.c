@@ -262,6 +262,11 @@ status_t tse_ddl_lock_table(session_t *session, knl_dictionary_t *dc, dc_user_t 
     bool32 is_lock_ddl = (!is_alter_copy) && (knl_session->user_locked_ddl != DDL_ATOMIC_TABLE_LOCKED);
     drlatch_t *ddl_latch = &(knl_session->kernel->db.ddl_latch);
 
+    if (!DB_IS_PRIMARY(&knl_session->kernel->db)) {
+        CT_LOG_RUN_ERR("[TSE_DDL_LOCK_TABLE] DDL cannot be executed at the standby point.");
+        return CT_ERROR;
+    }
+
     CT_RETURN_IFERR(tse_ddl_reentrant_lock_user(session, user, CT_INVALID_ID32));
 
     do {
