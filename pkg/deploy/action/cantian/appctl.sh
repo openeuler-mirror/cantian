@@ -459,6 +459,7 @@ function update_cantian_server()
         cp -arf ${cantian_home}/server/add-ons/1823/lib* ${cantian_home}/server/add-ons/
         echo "link_type is rdma_1823"
     fi
+    cp -arf ${cantian_home}/server/add-ons/kmc_shared/lib* ${cantian_home}/server/add-ons/
     return 0
 }
 
