@@ -2493,7 +2493,6 @@ void rc_arch_proc(thread_t *thread)
 
     cm_set_thread_name("rc_arch_proc");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
-    proc_ctx->arch_execute = CT_TRUE;
     while (!thread->closed) {
         if (!proc_ctx->arch_execute || !proc_ctx->enabled) {
             cm_sleep(200);
@@ -2530,7 +2529,6 @@ void rc_arch_dbstor_read_proc(thread_t *thread)
     uint64 last_lsn = proc_ctx->last_archived_log_record.cur_lsn;
     CT_LOG_RUN_INF("[RC_ARCH] start to read redo %s, start lsn %llu", logfile->ctrl->name, start_lsn);
 
-    proc_ctx->arch_execute = CT_TRUE;
     while (proc_ctx->redo_log_filesize > 0 && !proc_ctx->write_failed) {
         if (arch_get_read_buf(&proc_ctx->arch_rw_buf, &read_buf) != CT_SUCCESS) {
             cm_sleep(1);

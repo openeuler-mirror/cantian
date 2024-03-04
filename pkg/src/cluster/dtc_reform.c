@@ -851,6 +851,7 @@ status_t rc_archive_log_offline_node(arch_proc_context_t *proc_ctx, uint32 node_
         return CT_ERROR;
     }
 
+    proc_ctx->arch_execute = CT_TRUE;
     if (cm_dbs_is_enable_dbs() == true) {
         if (rc_arch_handle_tmp_file(proc_ctx, node_id) != CT_SUCCESS) {
             return CT_ERROR;
