@@ -64,5 +64,4 @@ void tse_ddl_def_list_clear(bilist_t *list);
 #ifdef __cplusplus
 }
 #endif
-
 #endif  // #ifndef __TSE_LIST_H__
