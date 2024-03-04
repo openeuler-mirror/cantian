@@ -538,7 +538,7 @@ status_t knl_set_session_trans(knl_handle_t session, isolation_level_t level, bo
     knl_session_t *se = (knl_session_t *)session;
 
     if (DB_IS_READONLY(se) && (is_select == CT_FALSE)) {
-        CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
+        CT_THROW_ERROR(ERR_WRITE_OPT_IN_READONLY, "operation on read only mode");
         return CT_ERROR;
     }
 
