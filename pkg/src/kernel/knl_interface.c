@@ -15592,6 +15592,10 @@ void knl_lock_info_log_put4mysql(knl_handle_t session, void *lock_info)
     log_append_data(se, info->buff, total_buf_len);
     if (info->op_type == RD_UNLOCK_TABLE_FOR_MYSQL_DDL) {
         tx_copy_logic_log(se);
+        if (se->rm->large_page_id != CT_INVALID_ID32) {
+            mpool_free_page(se->kernel->attr.large_pool, se->rm->large_page_id);
+            se->rm->large_page_id = CT_INVALID_ID32;
+        }
         se->logic_log_size = 0;
     }
 }
