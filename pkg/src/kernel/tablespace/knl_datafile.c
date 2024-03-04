@@ -39,7 +39,7 @@ extern "C" {
 
 void df_build_proc(thread_t *thread);
 
-status_t spc_open_datafile(knl_session_t *session, datafile_t *df, int32 *handle)
+status_t spc_open_datafile_common(knl_session_t *session, datafile_t *df, int32 *handle, uint8 is_retry)
 {
     uint32 io_flag;
     dtc_node_ctrl_t *node_ctrl = dtc_my_ctrl(session);
@@ -51,7 +51,21 @@ status_t spc_open_datafile(knl_session_t *session, datafile_t *df, int32 *handle
     }
 
     /* datafile can be opened for a long time, closed in spc_close_datafile */
-    return cm_open_device(df->ctrl->name, df->ctrl->type, io_flag, handle);
+    if (is_retry) {
+        return cm_open_device(df->ctrl->name, df->ctrl->type, io_flag, handle);
+    } else {
+        return cm_open_device_no_retry(df->ctrl->name, df->ctrl->type, io_flag, handle);
+    }
+}
+
+status_t spc_open_datafile(knl_session_t *session, datafile_t *df, int32 *handle)
+{
+    return spc_open_datafile_common(session, df, handle, CT_TRUE);
+}
+
+status_t spc_open_datafile_no_retry(knl_session_t *session, datafile_t *df, int32 *handle)
+{
+    return spc_open_datafile_common(session, df, handle, CT_FALSE);
 }
 
 void spc_close_datafile(datafile_t *df, int32 *handle)

@@ -941,11 +941,11 @@ status_t dtc_cal_redo_size_by_node_id(knl_session_t *session, uint32 node_id, ui
     log_file_t *log_file = &log_set->items[0];
     device_type_t type = cm_device_type(log_file->ctrl->name);
     int32 handle = -1;
-    if (cm_open_device(log_file->ctrl->name, type, knl_io_flag(session), &handle) != CT_SUCCESS) {
+    if (cm_open_device_no_retry(log_file->ctrl->name, type, knl_io_flag(session), &handle) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DB] failed to open redo log file %s ", log_file->ctrl->name);
         return CT_ERROR;
     }
-    if (cm_device_get_used_cap(log_file->ctrl->type, handle, lrpl_ctx->curr_point.lsn + 1, redo_recovery_size) !=
+    if (cm_device_get_used_cap_no_retry(log_file->ctrl->type, handle, lrpl_ctx->curr_point.lsn + 1, redo_recovery_size) !=
         CT_SUCCESS) {
         CT_LOG_RUN_ERR("failed to fetch rcy redo log size of rcy point lsn(%llu) from DBStor",
             lrpl_ctx->curr_point.lsn + 1);

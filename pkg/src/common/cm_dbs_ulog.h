@@ -35,11 +35,11 @@ extern "C" {
 int64 cm_dbs_ulog_seek(int32 handle, int64 offset, int32 origin);
 status_t cm_dbs_ulog_create(const char *name, int64 size, uint32 flags, int32 *handle);
 status_t cm_dbs_ulog_destroy(const char *name);
-status_t cm_dbs_ulog_open(const char *name, int32 *handle);
+status_t cm_dbs_ulog_open(const char *name, int32 *handle, uint8 is_retry);
 void cm_dbs_ulog_close(int32 handle);
 status_t cm_dbs_ulog_read(int32 handle, int64 startLsn, void *buf, int32 size, int32 *r_size);
 status_t cm_dbs_ulog_write(int32 handle, int64 lsn, const void *buf, int32 size, uint64 *free_size);
-status_t cm_dbs_get_used_cap(int32 handle, uint64_t startLsn, uint32_t *sizeKb);
+status_t cm_dbs_get_used_cap(int32 handle, uint64_t startLsn, uint32_t *sizeKb, uint8 is_retry);
 status_t cm_dbs_ulog_capacity(int64 *capacity);
 int32 cm_dbs_ulog_align_size(int32 space_size);
 status_t cm_dbs_ulog_batch_read(int32 handle, uint64 startLsn, uint64 endLsn, void *buf,

@@ -97,7 +97,7 @@ status_t cm_dbs_ulog_destroy(const char *name)
     return CT_SUCCESS;
 }
 
-status_t cm_dbs_ulog_open(const char *name, int32 *handle)
+status_t cm_dbs_ulog_open(const char *name, int32 *handle, uint8 is_retry)
 {
     int32 ret;
     cm_dbs_map_item_s obj = { 0 };
@@ -110,6 +110,8 @@ status_t cm_dbs_ulog_open(const char *name, int32 *handle)
     }
 
     attr.appMode = ULOG_APP_WITH_LSN_MODE;
+    attr.isRetry = is_retry;
+
     ret = dbs_global_handle()->open_ulog((char *)name, &attr, &obj.obj_id);
     if (ret != 0) {
         CT_LOG_RUN_ERR("Failed to open ulog");
@@ -154,7 +156,7 @@ static void cm_dbs_ulog_readpartopt_init(ReadBatchLogOption *option, char* nsNam
     return;
 }
  
-status_t cm_dbs_get_used_cap(int32 handle, uint64_t startLsn, uint32_t *sizeKb)
+status_t cm_dbs_get_used_cap(int32 handle, uint64_t startLsn, uint32_t *sizeKb, uint8 is_retry)
 {
     status_t ret;
     cm_dbs_map_item_s obj = { 0 };
@@ -172,8 +174,9 @@ status_t cm_dbs_get_used_cap(int32 handle, uint64_t startLsn, uint32_t *sizeKb)
     }
  
     attr.appMode = ULOG_APP_WITH_LSN_MODE;
+    attr.isRetry = is_retry;
     lsn.startLsn = startLsn;
- 
+
     ret = dbs_global_handle()->get_ulog_used_cap(&obj.obj_id, &attr, lsn, ULOG_VIEW_ONLINE, sizeKb);
     if (ret != 0) {
         CT_LOG_RUN_ERR("Failed to get GetUlogUsedCap");
