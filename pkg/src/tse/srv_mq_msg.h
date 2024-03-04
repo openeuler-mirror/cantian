@@ -433,17 +433,6 @@ struct invalidate_mysql_dd_request {
     int result;
 };
 
-struct invalidate_all_dd_cache_request {
-    int result;
-};
- 
-struct update_mysql_dd_cache_request {
-    char sql_str[MAX_DDL_SQL_LEN];
-    uint32_t inst_id;
-    uint32_t thd_id;
-    int result;
-};
-
 void* alloc_share_mem(void* shm_inst, uint32_t mem_size);
 
 void free_share_mem(void* shm_inst, void* shm_mem);

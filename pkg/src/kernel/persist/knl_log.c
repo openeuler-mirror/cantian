@@ -1846,16 +1846,17 @@ void log_append_data(knl_session_t *session, const void *data, uint32 size)
                     cm_spin_sleep_and_stat2(1);
                 }
                 knl_end_session_wait(session, LARGE_POOL_ALLOC);
-            }
-
-            logic_log_buf = mpool_page_addr(session->kernel->attr.large_pool, rm->large_page_id);
-            if (rm->logic_log_size > 0) {
-                ret = memcpy_sp(logic_log_buf, CT_LARGE_PAGE_SIZE, rm->logic_log_buf, rm->logic_log_size);
-                knl_securec_check(ret);
+                logic_log_buf = mpool_page_addr(session->kernel->attr.large_pool, rm->large_page_id);
+                if (rm->logic_log_size > 0) {
+                    ret = memcpy_sp(logic_log_buf, CT_LARGE_PAGE_SIZE, rm->logic_log_buf, rm->logic_log_size);
+                    knl_securec_check(ret);
+                }
+                entry = (log_entry_t *)(logic_log_buf + rm->logic_log_size - entry->size);
+                session->log_entry = entry;
+            } else {
+                logic_log_buf = mpool_page_addr(session->kernel->attr.large_pool, rm->large_page_id);
             }
             max_buf_len = CT_LARGE_PAGE_SIZE;
-            entry = (log_entry_t *)logic_log_buf;
-            session->log_entry = entry;
         }
 
         ret = memcpy_sp(logic_log_buf + rm->logic_log_size, max_buf_len - rm->logic_log_size, data, size);
