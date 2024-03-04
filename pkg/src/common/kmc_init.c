@@ -82,6 +82,7 @@ typedef enum KMC_ROLE {
  
 static void *g_kmc_ctx = NULL;
 static kmc_interface_t g_kmc_interface = { .kmc_handle = NULL };
+bool32 kmc_lib_load_flag = CT_FALSE;
 
 kmc_interface_t *kmc_global_handle(void)
 {
@@ -131,6 +132,7 @@ status_t kmc_init_lib(void)
     CT_RETURN_IFERR(kmc_load_symbol(intf->kmc_handle, "WsecRegFuncEx", (void **)(&intf->WsecRegFuncEx)));
 
     CT_LOG_RUN_INF("load libkmcext.so done.");
+    kmc_lib_load_flag = CT_TRUE;
     return CT_SUCCESS;
 }
 
@@ -149,8 +151,10 @@ status_t sdp_init_lib(void)
     CT_RETURN_IFERR(kmc_load_symbol(intf->sdp_handle, "SdpDecryptEx", (void **)(&intf->SdpDecryptEx)));
 
     CT_LOG_RUN_INF("load libsdp.so done.");
+    kmc_lib_load_flag = CT_TRUE;
     return CT_SUCCESS;
 }
+
 void kmc_close_lib(void)
 {
     kmc_interface_t *intf = &g_kmc_interface;

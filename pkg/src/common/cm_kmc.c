@@ -89,11 +89,17 @@ static encrypt_manager_t g_encrypt_mgrs[] = {
 
 ulong get_random_numbers(uchar *buff, uint32 len)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     return cm_rand(buff, len);
 }
 
 void cm_kmc_write_log(int32 nLevel, const char *module, const char *filename, int32 numline, const char *pszLog)
 {
+    if (!kmc_lib_load_flag) {
+        return;
+    }
     if (nLevel == WSEC_LOG_ERR) {
         CT_LOG_DEBUG_ERR("kmc write log module:[%s] filename:[%s] nLevel:[%d] pszLog:[%s] numline[%d]", module,
             filename, nLevel, pszLog, numline);
@@ -112,6 +118,9 @@ void cm_kmc_do_events(void)
 
 int32 cm_kmc_create_thread_lock(void **phMutex)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     int32 RetVal = WSEC_FALSE;
     errno_t err;
     if (phMutex == NULL) {
@@ -176,6 +185,9 @@ void cm_kmc_destroy_thread_lock(void *hMutex)
 
 void cm_kmc_thread_lock(void *hMutex)
 {
+    if (!kmc_lib_load_flag) {
+        return;
+    }
 #ifdef _WIN32
     CRITICAL_SECTION *css = (CRITICAL_SECTION *)hMutex;
 #else
@@ -194,6 +206,9 @@ void cm_kmc_thread_lock(void *hMutex)
 
 void cm_kmc_thread_unlock(void *hMutex)
 {
+    if (!kmc_lib_load_flag) {
+        return;
+    }
 #ifdef _WIN32
     CRITICAL_SECTION *css = (CRITICAL_SECTION *)hMutex;
 #else
@@ -212,6 +227,9 @@ void cm_kmc_thread_unlock(void *hMutex)
 
 int32 cm_kmc_create_proc_lock(void **CProcLock)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     return WSEC_TRUE;
 }
 
@@ -231,6 +249,9 @@ void cm_kmc_proc_unlock(void *ProcUnlock)
 
 int32 cm_kmc_get_entropy(uchar **ppEnt, size_t buffLen)
 {
+    if (!kmc_lib_load_flag) {
+        return 0;
+    }
     int32 bre = WSEC_FALSE;
     errno_t errcode;
     if (buffLen == 0) {
@@ -256,6 +277,9 @@ int32 cm_kmc_get_entropy(uchar **ppEnt, size_t buffLen)
 
 void cm_kmc_clean_entropy(uchar *pEnt, size_t buffLen)
 {
+    if (!kmc_lib_load_flag) {
+        return;
+    }
     errno_t errcode;
     errcode = memset_s(pEnt, buffLen, 0, buffLen);
     if (errcode != EOK) {
@@ -267,9 +291,12 @@ void cm_kmc_clean_entropy(uchar *pEnt, size_t buffLen)
 
 void *cm_kmc_open_file(const char *filePathName, const KmcFileOpenMode mode)
 {
+    int32 *ret = NULL;
+    if (!kmc_lib_load_flag) {
+        return ret;
+    }
     int32 flag = 0;
     int32 retFd;
-    int32 *ret = NULL;
 #ifndef _WIN32
     if (mode == KMC_FILE_READ_BINARY) {
         flag = O_RDONLY;
@@ -306,6 +333,9 @@ void *cm_kmc_open_file(const char *filePathName, const KmcFileOpenMode mode)
 
 int32 cm_kmc_close_file(void *stream)
 {
+    if (!kmc_lib_load_flag) {
+        return 0;
+    }
     int32 fd = *(int32 *)stream;
     int32 ret;
 #ifndef _WIN32
@@ -320,6 +350,9 @@ int32 cm_kmc_close_file(void *stream)
 
 int32 cm_kmc_read_file(void *buffer, size_t count, void *stream)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     int32 fd = *(int32 *)stream;
     int32 ret;
 
@@ -330,8 +363,12 @@ int32 cm_kmc_read_file(void *buffer, size_t count, void *stream)
 #endif
     return (count != (size_t)ret || ret == -1) ? WSEC_FALSE : WSEC_TRUE;
 }
+
 int32 cm_kmc_write_file(const void *buffer, size_t count, void *stream)
 {
+    if (!kmc_lib_load_flag) {
+        return 0;
+    }
     int32 fd = *(int32 *)stream;
     int32 ret;
 
@@ -351,6 +388,9 @@ int32 cm_kmc_write_file(const void *buffer, size_t count, void *stream)
 
 int32 cm_kmc_flush_file(void *stream)
 {
+    if (!kmc_lib_load_flag) {
+        return 0;
+    }
     int32 fd = *(int32 *)stream;
     int32 ret;
 #ifndef _WIN32
@@ -367,6 +407,9 @@ int32 cm_kmc_remove_file(const char *path)
 }
 long cm_kmc_tell_file(void *stream)
 {
+    if (!kmc_lib_load_flag) {
+        return 0;
+    }
     int32 fd = *(int32 *)stream;
     long ret;
 #ifndef _WIN32
@@ -379,6 +422,9 @@ long cm_kmc_tell_file(void *stream)
 
 long cm_kmc_seek_file(void *stream, long offset, KmcFileSeekPos origin)
 {
+    if (!kmc_lib_load_flag) {
+        return 0;
+    }
     int32 realOri = 0;
     int32 fd = *(int32 *)stream;
     int32 ret;
@@ -400,6 +446,9 @@ long cm_kmc_seek_file(void *stream, long offset, KmcFileSeekPos origin)
 }
 int32 cm_kmc_eof_file(void *stream, int32 *endOfFile)
 {
+    if (!kmc_lib_load_flag) {
+        return 0;
+    }
     int32 fd = *(int32 *)stream;
     long len = 0;
 
@@ -447,6 +496,9 @@ int32 cm_kmc_errno_file(void *stream)
 
 int32 cm_kmc_exist_file(const char *filePathName)
 {
+    if (!kmc_lib_load_flag) {
+        return 0;
+    }
     int32 ret;
 #ifndef _WIN32
     ret = access(filePathName, F_OK);
@@ -458,6 +510,9 @@ int32 cm_kmc_exist_file(const char *filePathName)
 
 int32 cm_kmc_utc_time(const time_t *curTime, struct tm *curTm)
 {
+    if (!kmc_lib_load_flag) {
+        return 0;
+    }
     int32 ret;
 #ifndef _WIN32
     ret = gmtime_r(curTime, curTm) == NULL ? WSEC_FALSE : WSEC_TRUE;
@@ -469,6 +524,9 @@ int32 cm_kmc_utc_time(const time_t *curTime, struct tm *curTm)
 
 status_t regkmcfuc(void)
 {
+    if (!kmc_lib_load_flag) {
+        return 0;
+    }
     uint32 returnValue;
     WsecCallbacks stMandatoryFun = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
 
@@ -514,6 +572,9 @@ status_t regkmcfuc(void)
 
 status_t cm_kmc_export_keyfile(char *dst_keyfile)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     int32 handle = CT_INVALID_HANDLE;
     ulong ret = kmc_global_handle()->KmcGenerateKsfAll(dst_keyfile);
     device_type_t type = cm_device_type((const char *)dst_keyfile);
@@ -532,6 +593,9 @@ status_t cm_kmc_export_keyfile(char *dst_keyfile)
 
 status_t cm_kmc_init(bool32 is_server, char *key_file_a, char *key_file_b)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     int32 handle = CT_INVALID_HANDLE;
     KmcKsfName ksfile;
     ksfile.keyStoreFile[0] = key_file_a;
@@ -588,6 +652,9 @@ status_t cm_kmc_init(bool32 is_server, char *key_file_a, char *key_file_b)
 
 status_t cm_kmc_finalize(void)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     ulong ret = kmc_global_handle()->WsecFinalizeEx();
     if (ret != 0) {
         CT_LOG_RUN_ERR("Finalize Kmc error %lu", ret);
@@ -599,6 +666,9 @@ status_t cm_kmc_finalize(void)
 
 status_t cm_kmc_create_masterkey(uint32 domain, uint32 *keyid)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     ulong ret = kmc_global_handle()->KmcCreateMkEx(domain, keyid);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Create Mk Ex failed.returnValue = %lu", ret);
@@ -610,6 +680,9 @@ status_t cm_kmc_create_masterkey(uint32 domain, uint32 *keyid)
 
 status_t cm_kmc_active_masterkey(uint32 domain, uint32 keyid)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     ulong ret = kmc_global_handle()->KmcActivateMk(domain, keyid);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Activate Mk failed.returnValue = %lu", ret);
@@ -620,6 +693,9 @@ status_t cm_kmc_active_masterkey(uint32 domain, uint32 keyid)
 
 status_t cm_kmc_get_masterkey(uint32 domain, uint32 keyid, char *key_buf, uint32 *key_len)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     ulong ret = kmc_global_handle()->KmcGetMkDetail(domain, keyid, NULL, (uchar *)key_buf, key_len);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Get Mk failed.returnValue = %lu", ret);
@@ -630,6 +706,9 @@ status_t cm_kmc_get_masterkey(uint32 domain, uint32 keyid, char *key_buf, uint32
 
 status_t cm_kmc_load_domain(uint32 domain)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     const KmcCfgKeyType keyTypeCfg = { KMC_KEY_TYPE_ENCRPT_INTEGRITY, CT_KMC_MK_LEN, CT_KMC_MK_EXPIRE, { 0 } };
     KmcCfgDomainInfo domainInfo = { domain, KMC_MK_GEN_BY_INNER, "this mk is added", 0, { 0 } };
 
@@ -649,6 +728,9 @@ status_t cm_kmc_load_domain(uint32 domain)
 
 status_t cm_kmc_init_domain(uint32 domain)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     KmcMkInfo activeMkInfo;
     uchar activeMkBuf[CT_KMC_ACTIVE_MK_LEN] = { 0 };
     WsecUint32 activeMkLen = CT_KMC_ACTIVE_MK_LEN;
@@ -679,6 +761,9 @@ status_t cm_kmc_init_domain(uint32 domain)
 
 status_t cm_kmc_reset(void)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     uint32 domain;
     ulong ret = kmc_global_handle()->WsecResetEx();
     if (ret != 0) {
@@ -697,12 +782,21 @@ status_t cm_kmc_reset(void)
 
 status_t cm_get_cipher_len(uint32 plain_len, uint32 *cipher_len)
 {
+    if (!kmc_lib_load_flag) {
+        *cipher_len = plain_len;
+        return CT_SUCCESS;
+    }
     return kmc_global_handle()->SdpGetCipherDataLenEx((WsecUint32)plain_len, (WsecUint32 *)cipher_len);
 }
 
 status_t cm_kmc_encrypt(uint32 domain, encrypt_version_t version, const void *plain_text, uint32 plain_len,
     void *cipher_text, uint32 *cipher_len)
 {
+    if (!kmc_lib_load_flag) {
+        (void)memcpy_s(cipher_text, *cipher_len, plain_text, plain_len);
+        *cipher_len = plain_len;
+        return CT_SUCCESS;
+    }
     ulong ret = kmc_global_handle()->SdpEncryptEx((int)domain, g_encrypt_mgrs[version].cipher_alg_type, (uchar *)plain_text,
         (WsecUint32)plain_len, (uchar *)cipher_text, (WsecUint32 *)cipher_len);
     if (ret != 0) {
@@ -715,6 +809,11 @@ status_t cm_kmc_encrypt(uint32 domain, encrypt_version_t version, const void *pl
 
 status_t cm_kmc_decrypt(uint32 domain, const void *cipher_text, uint32 cipher_len, void *plain_text, uint32 *plain_len)
 {
+    if (!kmc_lib_load_flag) {
+        (void)memcpy_s(plain_text, *plain_len, cipher_text, cipher_len);
+        *plain_len = cipher_len;
+        return CT_SUCCESS;
+    }
     ulong ret = kmc_global_handle()->SdpDecryptEx((int)domain, (const uchar *)cipher_text, (WsecUint32)cipher_len, (uchar *)plain_text,
         (WsecUint32 *)plain_len);
     if (ret != 0) {
@@ -727,6 +826,10 @@ status_t cm_kmc_decrypt(uint32 domain, const void *cipher_text, uint32 cipher_le
 
 status_t cm_get_masterkey_count(uint32 *count)
 {
+    if (!kmc_lib_load_flag) {
+        *count = 0;
+        return CT_SUCCESS;
+    }
     int32 ret = kmc_global_handle()->KmcGetMkCount();
     if (ret < 0) {
         CT_LOG_RUN_ERR("fail to get master key count.returnValue=%d", ret);
@@ -740,6 +843,9 @@ status_t cm_get_masterkey_count(uint32 *count)
 
 status_t cm_get_masterkey_hash(uint32 domain, uint32 keyid, char *hash, uint32 *len)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     ulong ret = kmc_global_handle()->KmcGetMkHash(domain, keyid, (uchar *)hash, len);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("fail to get keyid %u hash.returnValue=%lu", keyid, ret);
@@ -751,6 +857,9 @@ status_t cm_get_masterkey_hash(uint32 domain, uint32 keyid, char *hash, uint32 *
 
 status_t cm_get_masterkey_byhash(const char *hash, uint32 len, char *key, uint32 *key_len)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     ulong ret = kmc_global_handle()->KmcGetMkDetailByHash((const uchar *)hash, len, NULL, (uchar *)key, key_len);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("fail to get masterkey by hash.returnValue=%lu", ret);
@@ -762,6 +871,9 @@ status_t cm_get_masterkey_byhash(const char *hash, uint32 len, char *key, uint32
 
 status_t cm_kmc_get_max_mkid(uint32 domain, uint32 *max_id)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     ulong ret = kmc_global_handle()->KmcGetMaxMkId(domain, max_id);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("fail to get domain %u max keyid.returnValue = %lu", domain, ret);
@@ -811,6 +923,9 @@ void cm_kmc_set_buf(aes_and_kmc_t *aes_kmc, char *plain, uint32 plain_len, char 
 
 status_t cm_kmc_encrypt_pwd(aes_and_kmc_t *aes_kmc)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     char buff[CT_ENCRYPTION_SIZE + 1];
     uint32 buff_len = CT_ENCRYPTION_SIZE;
     uint32 ret = 0;
@@ -850,6 +965,9 @@ status_t cm_kmc_encrypt_pwd(aes_and_kmc_t *aes_kmc)
 
 static inline bool32 cm_kmc_check_encrypt_is_kmc(aes_and_kmc_t *aes_kmc)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_FALSE;
+    }
     if (memcmp(aes_kmc->cipher, CT_ENCRYPT_VER, CT_ENCRYPT_VER_LEN) == 0 ||
         memcmp(aes_kmc->cipher, CT_ENCRYPT_KMC_LIKE, CT_ENCRYPT_KMC_LIKE_LEN) == 0) {
         return CT_TRUE;
@@ -859,6 +977,9 @@ static inline bool32 cm_kmc_check_encrypt_is_kmc(aes_and_kmc_t *aes_kmc)
 
 status_t cm_kmc_decrypt_pwd(aes_and_kmc_t *aes_kmc)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     char buff[CT_ENCRYPTION_SIZE + 1];
     uint32 buff_len = CT_ENCRYPTION_SIZE;
     uint32 ret = 0;
@@ -899,6 +1020,9 @@ status_t cm_kmc_decrypt_pwd(aes_and_kmc_t *aes_kmc)
 // Set the old pwd to aes_kmc->plain, and get the new pwd in the aes_kmc->cipher
 status_t cm_aes_to_kmc(aes_and_kmc_t *aes_kmc)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     char plain[CT_ENCRYPTION_SIZE + 1];
     uint32 plain_len = CT_ENCRYPTION_SIZE;
 
@@ -931,6 +1055,9 @@ status_t cm_aes_to_kmc(aes_and_kmc_t *aes_kmc)
 // Set the old pwd to aes_kmc->plain, and get the new pwd in the aes_kmc->cipher
 status_t cm_aes_may_to_aes_new(aes_and_kmc_t *aes_kmc)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     char plain[CT_ENCRYPTION_SIZE + 1];
     uint32 plain_len = CT_ENCRYPTION_SIZE;
 
@@ -960,6 +1087,9 @@ status_t cm_aes_may_to_aes_new(aes_and_kmc_t *aes_kmc)
 // Set the old pwd to aes_kmc->plain, and get the new pwd in the aes_kmc->cipher
 status_t cm_aes_may_to_kmc(aes_and_kmc_t *aes_kmc)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     char plain[CT_ENCRYPTION_SIZE + 1];
     uint32 plain_len = CT_ENCRYPTION_SIZE;
 
@@ -990,6 +1120,9 @@ status_t cm_aes_may_to_kmc(aes_and_kmc_t *aes_kmc)
 // Set the old pwd to aes_kmc->plain, and get the new pwd in the aes_kmc->cipher
 status_t cm_kmc_to_aes(aes_and_kmc_t *aes_kmc)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     char plain[CT_ENCRYPTION_SIZE + 1];
     uint32 plain_len = CT_ENCRYPTION_SIZE;
 
@@ -1019,6 +1152,9 @@ status_t cm_kmc_to_aes(aes_and_kmc_t *aes_kmc)
 
 status_t cm_encrypt_passwd_with_key(aes_and_kmc_t *aes_kmc)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     if (cm_encrypt_passwd(CT_TRUE, aes_kmc->plain, aes_kmc->plain_len, aes_kmc->cipher, &aes_kmc->cipher_len,
         aes_kmc->local, aes_kmc->fator) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Fail to encrypt aes data.\n");
@@ -1050,6 +1186,9 @@ status_t cm_decrypt_passwd_with_key(aes_and_kmc_t *aes_kmc)
 
 status_t cm_encrypt_passwd_with_key_by_kmc(aes_and_kmc_t *aes_kmc)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     if (cm_kmc_encrypt_pwd(aes_kmc) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Fail to encrypt kmc data.\n");
         CT_THROW_ERROR(ERR_ENCRYPTION_ERROR);
@@ -1061,6 +1200,9 @@ status_t cm_encrypt_passwd_with_key_by_kmc(aes_and_kmc_t *aes_kmc)
 
 status_t cm_decrypt_passwd_with_key_by_kmc(aes_and_kmc_t *aes_kmc)
 {
+    if (!kmc_lib_load_flag) {
+        return CT_SUCCESS;
+    }
     uint32 buff_len = aes_kmc->plain_len;
     bool32 kmc_disable_ver = aes_kmc->kmc_disable_ver;
 

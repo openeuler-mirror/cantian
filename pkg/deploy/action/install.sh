@@ -152,6 +152,10 @@ function initUserAndGroup()
     userdel cantian
     userdel ctmgruser
     groupdel cantiangroup
+    if [ -f /etc/uid_list ];then
+        sed -i '/6004/d' /etc/uid_list
+        sed -i '/6000/d' /etc/uid_list
+    fi
     # 创建用户组
     groupadd cantiangroup -g 1100
     useradd cantian -s /sbin/nologin -G cantiangroup -u 6000

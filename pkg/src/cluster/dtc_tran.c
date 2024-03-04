@@ -289,35 +289,34 @@ void dtc_process_txn_snapshot_req(void *sess, mes_message_t *msg)
     }
 }
 
-void dtc_standby_get_txn_info(knl_session_t *session, bool32 is_scan, xid_t xid, txn_info_t *txn_info)
+status_t dtc_standby_get_txn_info(knl_session_t *session, bool32 is_scan, xid_t xid, txn_info_t *txn_info)
 {
-    for (;;) {
-        if (rc_is_master()) {
-            if (g_rc_ctx->status >= REFORM_OPEN) {
-                tx_get_info(session, is_scan, xid, txn_info);
-            } else {
-                cm_sleep(MES_MSG_RETRY_TIME);
-                continue;
-            }
+    if (rc_is_master()) {
+        if (g_rc_ctx->status >= REFORM_OPEN) {
+            tx_get_info(session, is_scan, xid, txn_info);
         } else {
-            while (CT_INVALID_ID8 == g_rc_ctx->info.master_id) {
-                cm_sleep(10);
-            }
-            if (dtc_get_remote_txn_info(session, is_scan, xid, g_rc_ctx->info.master_id, txn_info) != CT_SUCCESS) {
-                cm_reset_error();
-                cm_sleep(MES_MSG_RETRY_TIME);
-                continue;
-            }
+            cm_sleep(MES_MSG_RETRY_TIME);
+            return CT_ERROR;
         }
-        return;
+    } else {
+        while (CT_INVALID_ID8 == g_rc_ctx->info.master_id) {
+            cm_sleep(MES_MSG_RETRY_TIME);
+        }
+        if (dtc_get_remote_txn_info(session, is_scan, xid, g_rc_ctx->info.master_id, txn_info) != CT_SUCCESS) {
+            cm_reset_error();
+            cm_sleep(MES_MSG_RETRY_TIME);
+            return CT_ERROR;
+        }
     }
+    return CT_SUCCESS;
 }
 
 void dtc_get_txn_info(knl_session_t *session, bool32 is_scan, xid_t xid, txn_info_t *txn_info)
 {
-    if (!DB_IS_PRIMARY(&session->kernel->db)) {
-        dtc_standby_get_txn_info(session, is_scan, xid, txn_info);
-        return;
+    while (!DB_IS_PRIMARY(&session->kernel->db)) {
+        if (dtc_standby_get_txn_info(session, is_scan, xid, txn_info) == CT_SUCCESS) {
+            return;
+        }
     }
     uint8 inst_id, curr_id;
 

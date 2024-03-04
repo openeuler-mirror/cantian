@@ -447,6 +447,7 @@ function update_cms_service() {
         cp -arf ${cms_home}/service/add-ons/1823/lib* ${cms_home}/service/add-ons/
         echo "link_type is rdma_1823"
     fi
+    cp -arf ${cms_home}/service/add-ons/kmc_shared/lib* ${cms_home}/service/add-ons/
 }
 
 function chown_mod_cms_service()
