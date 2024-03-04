@@ -84,12 +84,6 @@ function do_install2chown4mysql()
     fi
     set -e
     cp -arfp ${CURRENT_PATH} /opt/cantian/action/
-    if [ -f /opt/cantian/cantian/server/admin/scripts/cantian_defs.sql ];then
-        mkdir -p -m 700 /opt/cantian/mysql/scripts
-        cp /opt/cantian/cantian/server/admin/scripts/cantian_defs.sql /opt/cantian/mysql/scripts/
-        chmod 600 /opt/cantian/mysql/scripts/cantian_defs.sql
-        chown -hR cantiandba:cantiandba /opt/cantian/mysql/scripts/
-    fi
     do_deploy ${INSTALL_NAME}
     set +e
     if [ -f "${BACKUP_UPGRADE_PATH}"/mysql/mysqld ];then
@@ -112,12 +106,6 @@ function do_install2chown4mysqlrollback()
     fi
     set -e
     cp -arfp ${backup_dir}/action/mysql /opt/cantian/action/
-    if [ -f /opt/cantian/cantian/server/admin/scripts/cantian_defs.sql ];then
-        mkdir -p -m 700 /opt/cantian/mysql/scripts
-        cp /opt/cantian/cantian/server/admin/scripts/cantian_defs.sql /opt/cantian/mysql/scripts/
-        chmod 600 /opt/cantian/mysql/scripts/cantian_defs.sql
-        chown -hR cantiandba:cantiandba /opt/cantian/mysql/scripts/
-    fi
     do_deploy ${INSTALL_NAME}
     set +e
     if [ -f ${backup_dir}/mysql/mysqld ];then

@@ -502,11 +502,6 @@ typedef void (*knl_mtrl_init_vmc_t)(knl_handle_t *mtrl);
 typedef status_t(*knl_load_lnk_tab_dc_t)(knl_handle_t se, knl_lnk_dc_callback_t *callback_data);
 typedef status_t(*knl_convert_char_t)(knl_handle_t session, text_t *text, uint32 def_size, bool32 is_char);
 typedef status_t (*knl_raw_device_init)(const char *conn_path);
-typedef status_t (*cc_execute_replay_lock_table_t)(knl_handle_t session, void *lock_info);
-typedef status_t (*cc_execute_replay_unlock_table_t)(knl_handle_t session, void *lock_info);
-typedef status_t (*cc_execute_replay_invalid_dd_t)(knl_handle_t session, void *invalid_info);
-typedef status_t (*cc_execute_replay_ddl_t)(knl_handle_t knl_session, char *sql_text, uint32 sql_len);
-
 
 typedef struct st_knl_callback {
     knl_set_vm_lob_to_knl_t set_vm_lob_to_knl;
@@ -579,10 +574,6 @@ typedef struct st_knl_callback {
     knl_get_ddl_sql_t get_ddl_sql;
     knl_convert_char_t convert_char;
     knl_raw_device_init device_init;
-    cc_execute_replay_lock_table_t cc_execute_replay_lock_table;
-    cc_execute_replay_unlock_table_t cc_execute_replay_unlock_table;
-    cc_execute_replay_invalid_dd_t cc_execute_replay_invalid_dd;
-    cc_execute_replay_ddl_t cc_execute_replay_ddl;
 } knl_callback_t;
 
 extern knl_callback_t g_knl_callback;
@@ -919,9 +910,6 @@ status_t knl_get_serial_value_tmp_table(knl_handle_t se, knl_handle_t dc_entity,
 status_t knl_set_arch_param(knl_handle_t handle, knl_alter_sys_def_t *def);
 uint8 knl_get_initrans(void);
 void knl_set_sql_server_initializing_status(knl_handle_t session, bool32 status);
-
-void knl_lock_info_log_put4mysql(knl_handle_t session, void *lock_info);
-void knl_invalid_dd_log_put4mysql(knl_handle_t session, void *invalid_info);
 /* @} */
 #ifdef __cplusplus
 }

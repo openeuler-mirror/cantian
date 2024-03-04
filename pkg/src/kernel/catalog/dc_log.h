@@ -59,9 +59,7 @@ void rd_alter_server_mk(knl_session_t *session, log_entry_t *log);
 void rd_alter_db_logicrep(knl_session_t *session, log_entry_t *log);
 dc_entity_t *rd_invalid_entity(knl_session_t *session, dc_entry_t *entry);
 void rd_refresh_dc(knl_session_t *session, log_entry_t *log);
-void rd_lock_table_for_mysql_ddl(knl_session_t *session, log_entry_t *log);
-void rd_unlock_table_for_mysql_ddl(knl_session_t *session, log_entry_t *log);
-void rd_invalid_dd_for_mysql_ddl(knl_session_t *session, log_entry_t *log);
+
 
 void print_create_table(log_entry_t *log);
 void print_create_view(log_entry_t *log);
@@ -87,9 +85,6 @@ void print_create_mk_data(log_entry_t *log);
 void print_create_mk_end(log_entry_t *log);
 void print_alter_db_logicrep(log_entry_t *log);
 void print_refresh_dc(log_entry_t *log);
-void print_lock_table_for_mysql_ddl(log_entry_t *log);
-void print_unlock_table_for_mysql_ddl(log_entry_t *log);
-void print_invalid_dd_for_mysql_ddl(log_entry_t *log);
 
 
 /* handle errors that must be abort during replay */

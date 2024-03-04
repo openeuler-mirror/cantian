@@ -334,6 +334,41 @@ void dtc_proc_msg_tse_close_mysql_conn_req(void *sess, mes_message_t *msg)
     mes_release_message_buf(msg->buffer);
 }
 
+void dtc_proc_msg_tse_invalidate_all_dd_cache_req(void *sess, mes_message_t *msg)
+{
+    msg_invalid_all_dd_cache_req_t *req = (msg_invalid_all_dd_cache_req_t *)msg->buffer;
+    msg_invalid_all_dd_cache_rsp_t rsp = {0};
+    knl_session_t *session = (knl_session_t *)sess;
+ 
+    if (sizeof(msg_invalid_all_dd_cache_req_t) != msg->head->size) {
+        CT_LOG_RUN_ERR("proc msg tse invalidate all dd cache req msg size is invalid, expected size: %u, actual msg size %u.",
+                        sizeof(msg_invalid_all_dd_cache_req_t), msg->head->size);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
+ 
+    if (is_exist_repeat_msg(&(req->head), session, MES_CMD_INVALID_DD_RSP, req->msg_num)) {
+        CT_LOG_RUN_ERR("[TSE_INVALID_DD]: repeat msg");
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
+    mes_init_ack_head(&(req->head), &(rsp.head), MES_CMD_INVALID_ALL_DD_RSP, sizeof(msg_invalid_all_dd_cache_rsp_t), session->id);
+    CT_LOG_RUN_INF("[zzh debug] begin to tse_invalidate_all_dd_cache, msg->num:%d", req->msg_num);
+    int ret = tse_invalidate_all_dd_cache();
+    CT_LOG_RUN_INF("[zzh debug] AFTER tse_invalidate_all_dd_cache, ret: %d, msg->num:%d", ret, req->msg_num);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[Disaster Recovery]: remote node execute invalid dd failed.");
+    }
+    cm_atomic_set(&g_tse_msg_result_arr[req->head.src_inst].err_code, rsp.error_code);
+    CT_LOG_RUN_INF("[zzh debug] begin to send rsp, req->msg_num:%d", req->msg_num);
+    if (mes_send_data(&rsp) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[Disaster Recovery]: mes_send_data failed.");
+    }
+    CT_LOG_RUN_INF("[zzh debug] after sending rsp, req->msg_num:%d", req->msg_num);
+ 
+    mes_release_message_buf(msg->buffer);
+}
+
 void dtc_proc_msg_tse_invalidate_dd_req(void *sess, mes_message_t *msg)
 {
     msg_invalid_dd_req_t *req = (msg_invalid_dd_req_t *)msg->buffer;
@@ -365,6 +400,38 @@ void dtc_proc_msg_tse_invalidate_dd_req(void *sess, mes_message_t *msg)
     
     if (mes_send_data(&rsp) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[TSE_INVALID_DD]: mes_send_data failed, conn_id=%u, tse_instance_id=%u", req->tch.thd_id, req->tch.inst_id);
+    }
+ 
+    mes_release_message_buf(msg->buffer);
+}
+
+void dtc_proc_msg_tse_update_dd_cache_req(void *sess, mes_message_t *msg)
+{
+    msg_update_dd_cache_req_t *req = (msg_update_dd_cache_req_t *)msg->buffer;
+    msg_ddl_rsp_t rsp = {0};
+    knl_session_t *session = (knl_session_t *)sess;
+    
+    if (sizeof(msg_update_dd_cache_req_t) != msg->head->size) {
+        CT_LOG_RUN_ERR("proc msg tse update dd cache req msg size is invalid, msg size %u.", msg->head->size);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
+    
+    if (is_exist_repeat_msg(&(req->head), session, MES_CMD_INVALID_DD_RSP, req->msg_num)) {
+        CT_LOG_RUN_ERR("[TSE_INVALID_DD]: repeat msg, conn_id=%u, tse_instance_id=%u",
+                       req->thd_id, req->inst_id);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
+ 
+    mes_init_ack_head(&(req->head), &(rsp.head), MES_CMD_UPDATE_DD_RSP, sizeof(msg_ddl_rsp_t), session->id);
+    int ret = tse_update_mysql_dd_cache(&req->sql_str);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[Disaster Recovery]: remote node execute updata dd cache failed, sql_str: %s, ret: %d", &req->sql_str, ret);
+    }
+ 
+    if (mes_send_data(&rsp) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[Disaster Recovery]: Failed to send the rsp in dtc_proc_msg_tse_update_dd_cache_req.");
     }
  
     mes_release_message_buf(msg->buffer);
