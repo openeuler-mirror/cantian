@@ -2487,23 +2487,25 @@ void rc_arch_proc(thread_t *thread)
     errno_t ret = memcpy_s((char*)rc_proc_ctx, sizeof(arch_proc_context_t), (char*)proc_ctx,
                            sizeof(arch_proc_context_t));
     knl_securec_check(ret);
-    proc_ctx = rc_proc_ctx;
-    knl_session_t *session = proc_ctx->session;
+    knl_session_t *session = rc_proc_ctx->session;
     log_context_t *redo_ctx = &session->kernel->redo_ctx;
 
     cm_set_thread_name("rc_arch_proc");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
     while (!thread->closed) {
-        if (!proc_ctx->arch_execute || !proc_ctx->enabled) {
+        if (!rc_proc_ctx->arch_execute || !rc_proc_ctx->enabled) {
             cm_sleep(200);
             continue;
         }
 
-        if (arch_need_archive_file(proc_ctx, redo_ctx)) {
+        if (arch_need_archive_file(rc_proc_ctx, redo_ctx)) {
             // Try to archive log file
-            arch_file_archive(session, proc_ctx);
+            arch_file_archive(session, rc_proc_ctx);
         } else {
-            proc_ctx->arch_execute = CT_FALSE;
+            rc_proc_ctx->arch_execute = CT_FALSE;
+            ret = memcpy_s((char*)proc_ctx, sizeof(arch_proc_context_t), (char*)rc_proc_ctx,
+                           sizeof(arch_proc_context_t));
+            knl_securec_check(ret);
         }
     }
 
