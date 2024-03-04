@@ -136,6 +136,7 @@ typedef struct st_kmc_interface {
     WsecRegFuncEx_t WsecRegFuncEx;
 } kmc_interface_t;
 
+extern bool32 kmc_lib_load_flag;
 int32_t init_KMC(void);
 int32_t KMC_decrypt(uint32_t domianId, char *cipherText, int32_t length, char **plainText, int32_t *plainTextLength);
 int32_t KMC_finalize(void);
