@@ -664,7 +664,6 @@ if [[ ${config_install_type} = 'override' ]]; then
   if [ ${metadata_result} -ne 0 ]; then
       logAndEchoError "mount metadata nfs failed"
   fi
-  chown -hR "${cantian_user}":"${deploy_group}" /mnt/dbdata/remote/metadata_${storage_metadata_fs} > /dev/null 2>&1
   # 检查36729~36728是否有可用端口
   check_port
   sysctl fs.nfs.nfs_callback_tcpport="${NFS_PORT}" > /dev/null 2>&1
