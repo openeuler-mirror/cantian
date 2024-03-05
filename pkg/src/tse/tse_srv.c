@@ -1615,7 +1615,7 @@ EXTER_ATTACK int tse_trx_begin(tianchi_handler_t *tch, tianchi_trx_context_t trx
     bool is_select = (tse_command_type_read(tch->sql_command) && !trx_context.use_exclusive_lock) ||
         tch->sql_command == SQLCOM_END;
     if (is_select && !knl_db_is_primary(knl_session)) {
-        CT_LOG_RUN_INF("tse_trx_begin: select operation on read only mode.");
+        CT_LOG_RUN_INF_LIMIT("tse_trx_begin: select operation on read only mode in slave node.");
         return CT_SUCCESS;
     }
     
