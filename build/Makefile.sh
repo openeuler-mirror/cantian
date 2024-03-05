@@ -423,12 +423,32 @@ func_collect_mysql_target()
   fi
 }
 
+func_prepare_header_files()
+{
+    if [[ ! -e "${MYSQL_DIR}/include/protobuf-c" ]]; then
+      mkdir -p ${MYSQL_DIR}/3rdPratyPkg
+      cd ${MYSQL_DIR}/3rdPratyPkg
+      wget --no-check-certificate https://gitee.com/solid-yang/cantian-test/repository/archive/cantian3.0.0.zip
+      unzip cantian3.0.0.zip
+      mv cantian-test-cantian3.0.0/* ./
+      rm -rf cantian-test-cantian3.0.0
+      tar -zxvf protobuf-c-1.4.1.tar.gz
+      mkdir -p ${MYSQL_DIR}/include/protobuf-c
+      cp ${MYSQL_DIR}/3rdPratyPkg/protobuf-c-1.4.1/protobuf-c/protobuf-c.h ${MYSQL_DIR}/include/protobuf-c/
+      cd -
+      rm -rf ${MYSQL_DIR}/3rdPratyPkg
+    fi
+}
+
 func_make_mysql_debug()
 {
   echo "Start build Mysql Debug..."
-  rm -rf ${MYSQL_CODE_PATH}/daac_lib
-  mkdir -p ${MYSQL_CODE_PATH}/daac_lib
-  cp -arf ${DAAC_LIB_DIR}/* ${MYSQL_CODE_PATH}/daac_lib/
+  func_prepare_header_files
+  if [[ -z ${WITHOUT_DEPS} ]]; then
+    rm -rf ${MYSQL_CODE_PATH}/daac_lib
+    mkdir -p ${MYSQL_CODE_PATH}/daac_lib
+    cp -arf ${DAAC_LIB_DIR}/* ${MYSQL_CODE_PATH}/daac_lib/
+  fi
   mkdir -p ${MYSQL_CODE_PATH}/bld_debug
   local LLT_TEST_TYPE="NORMAL"
   if [ "${ENABLE_LLT_GCOV}" == "YES" ]; then
@@ -439,7 +459,9 @@ func_make_mysql_debug()
   prepareGetMysqlClientStaticLibToDaaclib ${MYSQL_CODE_PATH} "DEBUG" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${MYSQL_CODE_PATH}/bld_debug
 
   cd ${MYSQL_CODE_PATH}/bld_debug
-  cp -arf "${CANTIANDB_LIBRARY}"/shared_lib/lib/libsecurec.so /usr/lib64/
+  if [[ -z ${WITHOUT_DEPS} ]]; then
+    cp -arf "${CANTIANDB_LIBRARY}"/shared_lib/lib/libsecurec.so /usr/lib64/
+  fi
   if [ "${MYSQL_BUILD_MODE}" == "multiple" ]; then
     if [ "${ENABLE_LLT_GCOV}" == "YES" ]; then
       cmake .. -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DENABLE_GCOV=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
@@ -489,6 +511,7 @@ func_separate_mysql_symbol()
 func_make_mysql_release()
 {
   echo "Start build Mysql Release..."
+  func_prepare_header_files
   rm -rf ${MYSQL_CODE_PATH}/daac_lib
   mkdir -p ${MYSQL_CODE_PATH}/daac_lib
   cp -arf ${DAAC_LIB_DIR}/* ${MYSQL_CODE_PATH}/daac_lib/
@@ -688,7 +711,7 @@ func_download_3rdparty()
     mkdir -p ${WORKSPACE}/3rdPartyPkg
     cd ${WORKSPACE}/3rdPartyPkg
     if [[ ! -e "cantian3.0.0.zip" ]]; then
-        wget https://gitee.com/solid-yang/cantian-test/repository/archive/cantian3.0.0.zip
+        wget --no-check-certificate https://gitee.com/solid-yang/cantian-test/repository/archive/cantian3.0.0.zip
         unzip cantian3.0.0.zip
         mv cantian-test-cantian3.0.0/* ./
         rm -rf cantian-test-cantian3.0.0
@@ -700,9 +723,9 @@ func_download_3rdparty()
     mkdir -p ${DOWNLOAD_PATH}/platform
 
     for lib_name in ${lib_name_list[@]}; do
-    echo ${lib_name}
-    mkdir -p ${DOWNLOAD_PATH}/open_source/${lib_name}/include
-    mkdir -p ${DOWNLOAD_PATH}/library/${lib_name}/lib
+      echo ${lib_name}
+      mkdir -p ${DOWNLOAD_PATH}/open_source/${lib_name}/include
+      mkdir -p ${DOWNLOAD_PATH}/library/${lib_name}/lib
     done
 
     cp -f ${WORKSPACE}/3rdPartyPkg/pcre2-10.40.tar.gz ${DOWNLOAD_PATH}/open_source/pcre/
