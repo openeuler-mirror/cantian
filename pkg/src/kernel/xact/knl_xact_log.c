@@ -177,8 +177,6 @@ void rd_undo_write(knl_session_t *session, log_entry_t *log)
     page->free_size -= (uint16)(actual_size + sizeof(uint16));
     page->ss_time = redo->time;
     page->rows++;
-    CT_LOG_RUN_INF("rd_undo_write page %u-%u pcn %u, free_begin %u, free_size %u, actual_size %u, row %u, ss_time %llu",
-        AS_PAGID(page->head.id).file, AS_PAGID(page->head.id).page, page->head.pcn, page->free_begin, page->free_size, actual_size, page->rows, page->ss_time);
 }
 
 void print_undo_write(log_entry_t *log)
