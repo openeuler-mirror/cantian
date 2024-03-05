@@ -1108,9 +1108,8 @@ status_t mes_recv_impl(uint32 sid, mes_message_t *msg, bool32 check_rsn, uint32 
 
     for (;;) {
         if (mes_check_connect_ready() != CT_SUCCESS) {
-            MES_LOGGING_WAR(MES_LOGGING_UNMATCH_MSG, "[mes]%s:sid %u receive unmatch msg, rsn=%u, room rsn=%u, cmd=%u.",
-                            (char *)__func__, sid, msg->head->rsn, room->rsn, msg->head->cmd);
-            break;
+            MES_LOGGING_WAR(MES_LOGGING_UNMATCH_MSG, "[mes]%s:Network connection interrupted.", (char *)__func__);
+            return CT_ERROR;
         }
 
         if (!mes_mutex_timed_lock(&room->mutex, MES_WAIT_TIMEOUT)) {
