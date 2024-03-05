@@ -2,7 +2,7 @@
 set +x
 
 function check_logicrep_status() {
-    active_service=$(ps -ef | grep ZlogCatcherMain | grep logicrep)
+    active_service=$(ps -ef | grep watchdog | grep logicrep)
     if [[ ${active_service} != "" ]]; then
         return 0
     else
