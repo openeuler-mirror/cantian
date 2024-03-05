@@ -88,7 +88,7 @@ function do_install2chown4mysql()
         mkdir -p -m 700 /opt/cantian/mysql/scripts
         cp /opt/cantian/cantian/server/admin/scripts/cantian_defs.sql /opt/cantian/mysql/scripts/
         chmod 600 /opt/cantian/mysql/scripts/cantian_defs.sql
-        chown -hR cantiandba:cantiandba /opt/cantian/mysql/scripts/
+        chown -hR ${deploy_user}:${deploy_group} /opt/cantian/mysql/scripts/
     fi
     do_deploy ${INSTALL_NAME}
     set +e
@@ -116,7 +116,7 @@ function do_install2chown4mysqlrollback()
         mkdir -p -m 700 /opt/cantian/mysql/scripts
         cp /opt/cantian/cantian/server/admin/scripts/cantian_defs.sql /opt/cantian/mysql/scripts/
         chmod 600 /opt/cantian/mysql/scripts/cantian_defs.sql
-        chown -hR cantiandba:cantiandba /opt/cantian/mysql/scripts/
+        chown -hR ${deploy_user}:${deploy_group} /opt/cantian/mysql/scripts/
     fi
     do_deploy ${INSTALL_NAME}
     set +e

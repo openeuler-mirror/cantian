@@ -53,6 +53,7 @@ BOOST_PATH=/tools/boost_1_73_0
 ENABLE_LLT_GCOV="NO"
 ENABLE_LLT_ASAN="NO"
 BUILD_MYSQL_SO=${BUILD_MYSQL_SO:-"YES"}
+OS_ARCH=$(uname -i)
 if [[ ${OS_ARCH} =~ "x86_64" ]]; then
     export CPU_CORES_NUM=`cat /proc/cpuinfo |grep "cores" |wc -l`
     LIB_OS_ARCH="lib_x86"
@@ -423,12 +424,32 @@ func_collect_mysql_target()
   fi
 }
 
+func_prepare_header_files()
+{
+    if [[ ! -e "${MYSQL_DIR}/include/protobuf-c" ]]; then
+      mkdir -p ${MYSQL_DIR}/3rdPratyPkg
+      cd ${MYSQL_DIR}/3rdPratyPkg
+      wget --no-check-certificate https://gitee.com/solid-yang/cantian-test/repository/archive/cantian3.0.0.zip
+      unzip cantian3.0.0.zip
+      mv cantian-test-cantian3.0.0/* ./
+      rm -rf cantian-test-cantian3.0.0
+      tar -zxvf protobuf-c-1.4.1.tar.gz
+      mkdir -p ${MYSQL_DIR}/include/protobuf-c
+      cp ${MYSQL_DIR}/3rdPratyPkg/protobuf-c-1.4.1/protobuf-c/protobuf-c.h ${MYSQL_DIR}/include/protobuf-c/
+      cd -
+      rm -rf ${MYSQL_DIR}/3rdPratyPkg
+    fi
+}
+
 func_make_mysql_debug()
 {
   echo "Start build Mysql Debug..."
-  rm -rf ${MYSQL_CODE_PATH}/daac_lib
-  mkdir -p ${MYSQL_CODE_PATH}/daac_lib
-  cp -arf ${DAAC_LIB_DIR}/* ${MYSQL_CODE_PATH}/daac_lib/
+  func_prepare_header_files
+  if [[ -z ${WITHOUT_DEPS} ]]; then
+    rm -rf ${MYSQL_CODE_PATH}/daac_lib
+    mkdir -p ${MYSQL_CODE_PATH}/daac_lib
+    cp -arf ${DAAC_LIB_DIR}/* ${MYSQL_CODE_PATH}/daac_lib/
+  fi
   mkdir -p ${MYSQL_CODE_PATH}/bld_debug
   local LLT_TEST_TYPE="NORMAL"
   if [ "${ENABLE_LLT_GCOV}" == "YES" ]; then
@@ -439,7 +460,9 @@ func_make_mysql_debug()
   prepareGetMysqlClientStaticLibToDaaclib ${MYSQL_CODE_PATH} "DEBUG" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${MYSQL_CODE_PATH}/bld_debug
 
   cd ${MYSQL_CODE_PATH}/bld_debug
-  cp -arf "${CANTIANDB_LIBRARY}"/shared_lib/lib/libsecurec.so /usr/lib64/
+  if [[ -z ${WITHOUT_DEPS} ]]; then
+    cp -arf "${CANTIANDB_LIBRARY}"/shared_lib/lib/libsecurec.so /usr/lib64/
+  fi
   if [ "${MYSQL_BUILD_MODE}" == "multiple" ]; then
     if [ "${ENABLE_LLT_GCOV}" == "YES" ]; then
       cmake .. -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DENABLE_GCOV=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
@@ -489,6 +512,7 @@ func_separate_mysql_symbol()
 func_make_mysql_release()
 {
   echo "Start build Mysql Release..."
+  func_prepare_header_files
   rm -rf ${MYSQL_CODE_PATH}/daac_lib
   mkdir -p ${MYSQL_CODE_PATH}/daac_lib
   cp -arf ${DAAC_LIB_DIR}/* ${MYSQL_CODE_PATH}/daac_lib/
@@ -503,10 +527,19 @@ func_make_mysql_release()
 
   cd ${MYSQL_CODE_PATH}/bld_debug
   cp -arf "${CANTIANDB_LIBRARY}"/shared_lib/lib/libsecurec.so /usr/lib64/
+
   if [ "${MYSQL_BUILD_MODE}" == "multiple" ]; then
-    cmake .. -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+    if [[ ${OS_ARCH} =~ "aarch64" ]]; then
+        cmake .. -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+    else
+        cmake .. -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+    fi
   elif [ "${MYSQL_BUILD_MODE}" == "single" ]; then
-    cmake .. -DWITH_DAAC=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+    if [[ ${OS_ARCH} =~ "aarch64" ]]; then
+        cmake .. -DWITH_DAAC=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+    else
+        cmake .. -DWITH_DAAC=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+    fi  
   fi
 
   MYSQL_BUILD_TYPE="release"
@@ -688,7 +721,7 @@ func_download_3rdparty()
     mkdir -p ${WORKSPACE}/3rdPartyPkg
     cd ${WORKSPACE}/3rdPartyPkg
     if [[ ! -e "cantian3.0.0.zip" ]]; then
-        wget https://gitee.com/solid-yang/cantian-test/repository/archive/cantian3.0.0.zip
+        wget --no-check-certificate https://gitee.com/solid-yang/cantian-test/repository/archive/cantian3.0.0.zip
         unzip cantian3.0.0.zip
         mv cantian-test-cantian3.0.0/* ./
         rm -rf cantian-test-cantian3.0.0
@@ -700,9 +733,9 @@ func_download_3rdparty()
     mkdir -p ${DOWNLOAD_PATH}/platform
 
     for lib_name in ${lib_name_list[@]}; do
-    echo ${lib_name}
-    mkdir -p ${DOWNLOAD_PATH}/open_source/${lib_name}/include
-    mkdir -p ${DOWNLOAD_PATH}/library/${lib_name}/lib
+      echo ${lib_name}
+      mkdir -p ${DOWNLOAD_PATH}/open_source/${lib_name}/include
+      mkdir -p ${DOWNLOAD_PATH}/library/${lib_name}/lib
     done
 
     cp -f ${WORKSPACE}/3rdPartyPkg/pcre2-10.40.tar.gz ${DOWNLOAD_PATH}/open_source/pcre/
