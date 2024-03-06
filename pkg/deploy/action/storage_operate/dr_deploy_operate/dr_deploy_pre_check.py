@@ -539,16 +539,11 @@ class DRDeployPreCheck(object):
         :return:
         """
         check_result = []
-        install_flag = True
         check_cantain_cmd = "rpm -qa |grep cantian"
         check_ctom_cmd = "rpm -qa |grep ct_om"
-        result_code, stout, sterr = exec_popen(check_cantain_cmd)
-        if result_code:
-            install_flag = False
-        result_code, stout, sterr = exec_popen(check_ctom_cmd)
-        if result_code:
-            install_flag = False
-        if install_flag:
+        cantain_result_code, _, _ = exec_popen(check_cantain_cmd)
+        ctom_result_code, _, _ = exec_popen(check_ctom_cmd)
+        if not cantain_result_code and not ctom_result_code:
             check_result.append("Cantian standby has been installed, please check!")
         return check_result
 
