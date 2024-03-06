@@ -465,6 +465,7 @@ function do_upgrade() {
     cp -rfp ${CURRENT_PATH}/implement /opt/cantian/action
     cp -rfp ${CURRENT_PATH}/logic /opt/cantian/action
     cp -rfp ${CURRENT_PATH}/storage_operate /opt/cantian/action
+    cp -rfp ${CURRENT_PATH}/cantian_common /opt/cantian/action
     cp -rfp ${CURRENT_PATH}/utils /opt/cantian/action
     cp -rfp ${CURRENT_PATH}/../config /opt/cantian/
     cp -rfp ${CURRENT_PATH}/../common /opt/cantian/
