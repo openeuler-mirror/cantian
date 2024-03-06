@@ -404,10 +404,30 @@ function check_dbstore_client_compatibility() {
     logAndEchoInfo "dbstore client compatibility check success."
 }
 
+function wait_for_node0_install() {
+    logAndEchoInfo "if block here, this node is wait for node 0 to install. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    random_seed=$(python3 ${CURRENT_PATH}/get_config_info.py "share_random_seed")
+    try_times=180
+    while [ ${try_times} -gt 0 ]
+    do
+        try_times=$(expr "${try_times}" - 1)
+        if [[ "${random_seed}" != "" ]] && [[ "${random_seed}" != "None" ]]; then
+            return 0
+        else
+            sleep 1s
+            random_seed=$(python3 ${CURRENT_PATH}/get_config_info.py "share_random_seed")
+        fi
+    done
+    logAndEchoError "deploy config file is not detected, please check node 0 weather is installed"
+    uninstall
+    exit 1
+}
+
 function update_random_seed() {
     if [[ x"${node_id}" == x"0" ]];then
         random_seed=$(python3 -c 'import secrets; secrets_generator = secrets.SystemRandom(); print(secrets_generator.randint(0, 255))')
     else
+        wait_for_node0_install
         random_seed=$(python3 ${CURRENT_PATH}/get_config_info.py "share_random_seed")
     fi
     python3 ${CURRENT_PATH}/write_config.py "random_seed" "${random_seed}"

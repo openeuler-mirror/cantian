@@ -2,7 +2,7 @@ CONSOLE_CONF = {
     "log": {
         "use_syslog": False,
         "debug": False,
-        "log_dir": "/opt/cantian/ct_om/logs",
+        "log_dir": "/opt/cantian/ct_om/log",
         "log_file_max_size": 1048576,
         "log_file_backup_count": 5,
         "log_date_format": "%Y-%m-%d %H:%M:%S",

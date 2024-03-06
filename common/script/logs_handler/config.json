@@ -24,7 +24,7 @@
   },
 
   {
-    "log_file_dir": "/opt/cantian/ct_om/logs/exporter.log",
+    "log_file_dir": "/opt/cantian/ct_om/log/exporter.log",
     "max_log_vol": "2",
     "userandgroup": "deploy_user"
   },

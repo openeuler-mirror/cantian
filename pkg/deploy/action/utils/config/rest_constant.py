@@ -60,6 +60,8 @@ class Constant:
     # cdp操作
     DELETE_FS_CDP_SCHEDULE = '/deviceManager/rest/{deviceId}/filesystem/remove_associate'
 
+    FULL_SYNC_MAX_TIME = 1500
+
 
 SUPPORT_VERSION = ["6.1.8RC1"]
 CANTIAN_DOMAIN_PREFIX = "CantianDomain_%s%s"
@@ -154,3 +156,8 @@ class PoolHealth:
 class DomainAccess:
     ReadAndWrite = "3"  # 读写
     ReadOnly = "1"      # 只读
+
+
+class ConfigRole:
+    Secondary = "0"     # 从端
+    Primary = "1"       # 主端

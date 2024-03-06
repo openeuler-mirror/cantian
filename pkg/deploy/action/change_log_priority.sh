@@ -15,7 +15,7 @@ su - "${cantian_user}" -s /bin/bash -c "chmod 640 /mnt/dbdata/local/cantian/tmp/
 su - "${cantian_user}" -s /bin/bash -c "chmod 640 /opt/cantian/cms/log/run/*"
 
 su - "${deploy_user}" -s /bin/bash -c "chgrp ${cantian_common_group} /mnt/dbdata/remote/metadata_*/*/mysql/*.log" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chown -hR ${cantian_user}:${cantian_common_group} /opt/cantian/ct_om/logs"
+su - "${cantian_user}" -s /bin/bash -c "chown -hR ${cantian_user}:${cantian_common_group} /opt/cantian/ct_om/log"
 su - "${cantian_user}" -s /bin/bash -c "chown ${cantian_user}:${cantian_common_group} /opt/cantian/dbstor/"
 su - "${cantian_user}" -s /bin/bash -c "chown -hR ${cantian_user}:${cantian_common_group} /opt/cantian/dbstor/log"
 su - "${cantian_user}" -s /bin/bash -c "chown ${cantian_user}:${cantian_common_group} /opt/cantian/cantian/"
