@@ -543,7 +543,7 @@ class DRDeployPreCheck(object):
         check_ctom_cmd = "rpm -qa |grep ct_om"
         cantain_result_code, _, _ = exec_popen(check_cantain_cmd)
         ctom_result_code, _, _ = exec_popen(check_ctom_cmd)
-        if not cantain_result_code and not ctom_result_code:
+        if not cantain_result_code or not ctom_result_code:
             check_result.append("Cantian standby has been installed, please check!")
         return check_result
 
