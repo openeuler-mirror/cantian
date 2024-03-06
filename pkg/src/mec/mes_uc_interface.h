@@ -59,6 +59,7 @@ typedef dpuc_comm_mgr *(*dpuc_all_init_t)(dpuc_comm_mgr_param *, const char *);
 typedef int32_t (*dpuc_regist_link_event_t)(dpuc_eid_t, const dpucLinkEventOps*, const char *);
 typedef int32_t (*dpuc_link_create_with_addr_t)(dpuc_eid_obj*, dpuc_eid_t, const dpuc_conn_params_t*, const char *);
 typedef int32_t (*dpuc_qlink_close_t)(uint32_t, dpuc_disConn_type, dpuc_plane_type_e, const char *);
+typedef int32_t (*dpuc_set_security_cert_info_t)(dpuc_security_cert_info_t *, const char *, uint32_t);
 //dsw
 typedef int32_t (*dsw_core_init_t)(dsw_dpmm_pool_t *, int32_t, char *);
 //umm
@@ -101,6 +102,7 @@ typedef struct st_mes_interface {
     dpuc_regist_link_event_t dpuc_regist_link_event;
     dpuc_link_create_with_addr_t dpuc_link_create_with_addr;
     dpuc_qlink_close_t dpuc_qlink_close;
+    dpuc_set_security_cert_info_t dpuc_set_security_cert_info;
 
     //dsw
     dsw_core_init_t dsw_core_init;

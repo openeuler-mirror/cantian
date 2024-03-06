@@ -3,6 +3,7 @@ import sys
 import os
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.join(CUR_PATH, "../"))
+from logic.common_func import exec_popen
 from om_log import LOGGER as LOG
 
 PWD_LEN = 8
@@ -12,6 +13,42 @@ class PassWordChecker:
     def __init__(self, pwd):
         self.pwd = pwd
         self.user = 'ctcliuser'
+
+    @staticmethod
+    def check_key_passwd(key_file_path, passwd):
+        """
+        校验私钥key和密码
+        """
+        cmd = f"openssl rsa -in '{key_file_path}' -check -noout -passin pass:'{passwd}'"
+        ret_code, _, stderr = exec_popen(cmd)
+        stderr = str(stderr)
+        stderr.replace(passwd, "****")
+        if ret_code:
+            raise Exception("The password is incorrect.")
+    
+    @staticmethod
+    def get_crt_modulus(cert_file_path):
+        """
+        获取crt证书的模数
+        """
+        cmd = f"openssl x509 -noout -modulus -in '{cert_file_path}' | openssl md5"
+        ret_code, stdout, stderr = exec_popen(cmd)
+        if ret_code:
+            raise Exception("Failed to get crt modulus, output:%s" % str(stderr))
+        return str(stdout)
+    
+    @staticmethod
+    def get_key_modulus(key_file_path, passwd):
+        """
+        获取私钥key的模数
+        """
+        cmd = f"echo -e '{passwd}' | openssl rsa -noout -modulus -in '{key_file_path}' | openssl md5"
+        ret_code, stdout, stderr = exec_popen(cmd)
+        stderr = str(stderr)
+        stderr.replace(passwd, "****")
+        if ret_code:
+            raise Exception("Failed to get key modulus, output:%s" % str(stderr))
+        return str(stdout)
 
     def verify_new_passwd(self, shortest_len=PWD_LEN):
         """
@@ -48,37 +85,22 @@ class PassWordChecker:
         return 0
 
     def check_cert_passwd(self):
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.backends import default_backend
-        from OpenSSL import crypto
-        deploy_config = os.path.join(CUR_PATH, "../../config/deploy_param.json")
-        with open(deploy_config, "r") as f:
-            config_json = json.loads(f.read())
-        storage_share_fs = config_json.get("storage_share_fs")
-        node_id = config_json.get("node_id")
-        certificate_dir = f"/mnt/dbdata/remote/share_{storage_share_fs}/certificates/node{node_id}"
+        if len(self.pwd) > 32:
+            raise Exception("cert pwd is too long. The length should not exceed 32.")
+        certificate_dir = "/opt/cantian/common/config/certificates"
         cert_file = os.path.join(certificate_dir, "mes.crt")
         key_file = os.path.join(certificate_dir, "mes.key")
-         # 加载证书
-        with open(cert_file, 'rb') as f:
-            cert_data = f.read()
-        cert = crypto.load_certificate(crypto.FILETYPE_PEM, cert_data)
 
-        # 加载私钥
-        with open(key_file, 'rb') as f:
-            key_data = f.read()
-        private_key = serialization.load_pem_private_key(key_data, self.pwd.encode("utf-8"), default_backend())
+        self.check_key_passwd(key_file, self.pwd)
+        # 提取证书和私钥的模数
+        certificate_modulus = self.get_crt_modulus(cert_file)
+        private_key_modulus = self.get_key_modulus(key_file, self.pwd)
 
-        # 获取证书的公钥
-        cert_public_key = cert.get_pubkey().to_cryptography_key()
-        # 校验证书和私钥是否匹配
-        # 比较证书的公钥和私钥的公钥是否匹配
-        if cert_public_key.public_numbers() == private_key.public_key().public_numbers():
-            LOG.info("Certificate and private key are valid.")
-            return 0
+        # 检查模数是否匹配
+        if certificate_modulus == private_key_modulus:
+            LOG.info("The certificate matches the private key.")
         else:
-            LOG.error("Certificate or private key is invalid.")
-            return 1
+            raise Exception("The certificate and private key do not match.")
 
 
 if __name__ == '__main__':

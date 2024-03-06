@@ -71,6 +71,7 @@ class DefaultConfigValue(object):
     PRIMARY_KEYSTORE = "/opt/cantian/common/config/primary_keystore_bak.ks"
     STANDBY_KEYSTORE = "/opt/cantian/common/config/standby_keystore_bak.ks"
     mes_type = get_value("mes_type")
+    mes_ssl_switch = get_value("mes_ssl_switch")
     node_id = get_value("node_id")
     mysql_group = get_value("mysql_group")
     mysql_group_id = grp.getgrnam(mysql_group).gr_gid
@@ -238,15 +239,15 @@ class DefaultConfigValue(object):
         "KMC_KEY_FILES": None,
         "MYSQL_DEPLOY_GROUP_ID": mysql_group_id
     }
-    MES_TCP_CONFIG = {
-        "MES_SSL_SWITCH": "TRUE",
+    MES_CONFIG = {
+        "MES_SSL_SWITCH": mes_ssl_switch,
         "MES_SSL_KEY_PWD": None,
-        "MES_SSL_CRT_KEY_PATH": f"/mnt/dbdata/remote/share_{storage_share_fs}/certificates/node{node_id}",
+        "MES_SSL_CRT_KEY_PATH": "/opt/cantian/common/config/certificates",
         "KMC_KEY_FILES": f"({PRIMARY_KEYSTORE}, {STANDBY_KEYSTORE})"
     }
-    if mes_type == "TCP":
-        CANTIAND_CONFIG.update(MES_TCP_CONFIG)
-        CANTIAND_DBG_CONFIG.update(MES_TCP_CONFIG)
+    
+    CANTIAND_CONFIG.update(MES_CONFIG)
+    CANTIAND_DBG_CONFIG.update(MES_CONFIG)
 
 
 class SingleNodeConfig(object):

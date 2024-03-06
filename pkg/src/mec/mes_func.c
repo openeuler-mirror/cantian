@@ -57,7 +57,7 @@ mes_alloc_msgitem_t g_alloc_msgitem_func;
 
 bool32 g_enable_dbstor = CT_FALSE;
 
-ssl_auth_file_t g_mes_ssl_auth_file;
+ssl_auth_file_t g_mes_ssl_auth_file = {0};
 
 #define MES_CONNECT(inst_id) g_connect_func(inst_id)
 #define MES_DISCONNECT(inst_id) g_disconnect_func(inst_id)
@@ -1947,28 +1947,22 @@ void mes_set_ssl_switch(bool8 use_ssl)
     CT_LOG_RUN_INF("[mes] ssl switch = %d.", g_mes.profile.use_ssl);
 }
 
-status_t mes_set_ssl_crt_file(const char *ca_file, const char *cert_file, const char *key_file, const char* crl_file)
+status_t mes_set_ssl_crt_file(const char *cert_dir, const char *ca_file, const char *cert_file, const char *key_file, const char* crl_file, const char* pass_file)
 {
-    if (ca_file != NULL && cm_file_exist(ca_file)) {
-        MEMS_RETURN_IFERR(memcpy_sp(g_mes_ssl_auth_file.ca_file, CT_FILE_NAME_BUFFER_SIZE, ca_file, CT_FILE_NAME_BUFFER_SIZE));
-    } else {
+    if (cert_dir == NULL || ca_file == NULL || cert_dir == NULL || key_file == NULL || crl_file == NULL || pass_file == NULL) {
         return CT_ERROR;
     }
-    if (cert_file != NULL && cm_file_exist(cert_file)) {
-        MEMS_RETURN_IFERR(memcpy_sp(g_mes_ssl_auth_file.cert_file, CT_FILE_NAME_BUFFER_SIZE, cert_file, CT_FILE_NAME_BUFFER_SIZE));
-    } else {
-        return CT_ERROR;
-    }
-    if (key_file != NULL && cm_file_exist(key_file)) {
-        MEMS_RETURN_IFERR(memcpy_sp(g_mes_ssl_auth_file.key_file, CT_FILE_NAME_BUFFER_SIZE, key_file, CT_FILE_NAME_BUFFER_SIZE));
-    } else {
-        return CT_ERROR;
-    }
-    if (crl_file != NULL && cm_file_exist(crl_file)) {
+    MEMS_RETURN_IFERR(memcpy_sp(g_mes_ssl_auth_file.cert_dir, CT_FILE_NAME_BUFFER_SIZE, cert_dir, CT_FILE_NAME_BUFFER_SIZE));
+    MEMS_RETURN_IFERR(memcpy_sp(g_mes_ssl_auth_file.ca_file, CT_FILE_NAME_BUFFER_SIZE, ca_file, CT_FILE_NAME_BUFFER_SIZE));
+    MEMS_RETURN_IFERR(memcpy_sp(g_mes_ssl_auth_file.cert_file, CT_FILE_NAME_BUFFER_SIZE, cert_file, CT_FILE_NAME_BUFFER_SIZE));
+    MEMS_RETURN_IFERR(memcpy_sp(g_mes_ssl_auth_file.key_file, CT_FILE_NAME_BUFFER_SIZE, key_file, CT_FILE_NAME_BUFFER_SIZE));
+    MEMS_RETURN_IFERR(memcpy_sp(g_mes_ssl_auth_file.pass_file, CT_FILE_NAME_BUFFER_SIZE, pass_file, CT_FILE_NAME_BUFFER_SIZE));
+    if (cm_file_exist(crl_file)) {
         MEMS_RETURN_IFERR(memcpy_sp(g_mes_ssl_auth_file.crl_file, CT_FILE_NAME_BUFFER_SIZE, crl_file, CT_FILE_NAME_BUFFER_SIZE));
     } else {
         MEMS_RETURN_IFERR(memset_sp(g_mes_ssl_auth_file.crl_file, CT_FILE_NAME_BUFFER_SIZE, 0, CT_FILE_NAME_BUFFER_SIZE));
     }
+    
     return CT_SUCCESS;
 }
 

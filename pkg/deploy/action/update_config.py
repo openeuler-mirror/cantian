@@ -155,67 +155,30 @@ def update_cms_conf(action, key, value):
     write_config_file(file_path, config)
 
 
-def update_cantian_ini_conf(action, key, value):
-    deploy_config = read_deploy_conf()
-    node_id = deploy_config.get("node_id")
-    cms_ip = deploy_config.get("cms_ip").split(";")[int(node_id)]
-    deploy_config = read_deploy_conf()
-    mysql_group = deploy_config.get('deploy_user').split(':')[1]
-    mysql_group_id = grp.getgrnam(mysql_group).gr_gid
-    file_path = "/mnt/dbdata/local/cantian/tmp/data/cfg/cantiand.ini"
-    ctencrypt_passwd = ""
-    if key == "cantian":
-        cantian_sys_pwd = input()
-        ctencrypt_passwd = get_ctencrypt_passwd(cantian_sys_pwd)
+def update_ini_conf(file_path, action, key, value):
     with open(file_path, "r", encoding="utf-8") as fp:
         config = fp.readlines()
-    for i, conf in enumerate(config):
-        params = [cms_ip, conf, config, i, key, ctencrypt_passwd]
-        sub_update_cantian_ini_value(params)
-    if action == "add" and "MYSQL_DEPLOY_GROUP_ID " not in str(config):
-        config.append(f"MYSQL_DEPLOY_GROUP_ID = {mysql_group_id}\n")
-    flags = os.O_RDWR | os.O_CREAT | os.O_TRUNC
-    modes = stat.S_IRWXU | stat.S_IROTH | stat.S_IRGRP
-    with os.fdopen(os.open(file_path, flags, modes), "w") as file_obj:
-        file_obj.writelines(config)
-
-
-def sub_update_cantian_ini_value(params: list):
-    cms_ip, conf, config, i, key, ctencrypt_passwd = params
-    if key == "cantian" and "LSNR_ADDR" in conf:
-        config[i] = f"LSNR_ADDR = 127.0.0.1,{cms_ip}\n"
-    if key == "cantian" and "_SYS_PASSWORD" in conf:
-        config[i] = f"_SYS_PASSWORD = {ctencrypt_passwd}\n"
-    if key == "_MAX_OPEN_FILES" and "_MAX_OPEN_FILES" in conf:
-        temp = config[i]
-        old_value = temp.split("=")[1].strip(" ")
-        config[i] = f"CTSTORE_MAX_OPEN_FILES = {old_value}"
-    if key == "INTERCONNECT_ADDR" and "INTERCONNECT_ADDR" in conf:
-        temp = config[i]
-        old_value = temp.split("=")[1].strip(" ")
-        if ";" not in old_value:
-            config[i] = f"{key} = {old_value.replace(',', ';')}"
-
-
-def update_cms_ini_conf(action, key, value):
-    file_path = "/opt/cantian/cms/cfg/cms.ini"
-    with open(file_path, "r", encoding="utf-8") as fp:
-        config = fp.readlines()
-    if action == "add":
-        for i, item in enumerate(config):
-            if key in item:
-                config.pop(i)
-        config.append(f"{key} = {value}\n")
-    elif action == "update":
-        for i, item in enumerate(config):
-            if key in item:
+    for i, item in enumerate(config):
+        if key in item:
+            if action == "update":
                 config[i] = f"{key} = {value}\n"
-                break
-
+            break
+    if action == "add" and key not in str(config):
+        config.append(f"{key} = {value}\n")
     flags = os.O_CREAT | os.O_RDWR | os.O_TRUNC
     modes = stat.S_IWUSR | stat.S_IRUSR
     with os.fdopen(os.open(file_path, flags, modes), "w") as file_obj:
         file_obj.writelines(config)
+
+
+def update_cantian_ini_conf(action, key, value):
+    file_path = "/mnt/dbdata/local/cantian/tmp/data/cfg/cantiand.ini"
+    update_ini_conf(file_path, action, key, value)
+
+
+def update_cms_ini_conf(action, key, value):
+    file_path = "/opt/cantian/cms/cfg/cms.ini"
+    update_ini_conf(file_path, action, key, value)
 
 
 def update_ctsql_config(action, key, value):

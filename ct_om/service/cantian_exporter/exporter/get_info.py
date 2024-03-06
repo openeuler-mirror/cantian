@@ -70,7 +70,7 @@ class GetNodesInfo:
         self.kmc_decrypt = CApiWrapper(primary_keystore=PRIMARY_KEYSTORE, standby_keystore=STANDBY_KEYSTORE)
         self.kmc_decrypt.initialize()
         self.deploy_param = None
-        self.mes_type = "UC"
+        self.mes_ssl_switch = False
         self.node_id = None
         self.decrypt_pwd = None
         self.ctsql_decrypt_error_flag = False
@@ -643,7 +643,7 @@ class GetNodesInfo:
             self.get_logicrep_info(res)
         self.get_pitr_data_from_external_exec_cmd(res)
         self.get_cms_lock_failed_info(res)
-        if self.mes_type == "TCP":
+        if self.mes_ssl_switch:
             self.get_certificate_status(res)
 
     def execute(self):
@@ -658,7 +658,7 @@ class GetNodesInfo:
                 return res
 
             self.node_id = int(self.deploy_param.get('node_id'))
-            self.mes_type = self.deploy_param.get("mes_type")
+            self.mes_ssl_switch = self.deploy_param.get("mes_ssl_switch")
             self.storage_archive_fs = self.deploy_param.get("storage_archive_fs")
 
         if not self.decrypt_pwd:

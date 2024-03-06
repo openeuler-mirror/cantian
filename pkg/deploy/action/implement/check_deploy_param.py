@@ -13,6 +13,7 @@ CHECK_LIST = [
     "storage_archive_fs",
     "storage_metadata_fs",
     "mes_type",
+    "mes_ssl_switch",
     "link_type",
     "db_type",
     "mysql_metadata_in_cantian",

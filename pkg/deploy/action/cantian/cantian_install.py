@@ -303,6 +303,7 @@ def load_config_param(json_data):
     g_opts.share_logic_ip = json_data.get('share_logic_ip', '').strip()
     g_opts.archive_logic_ip = json_data.get('archive_logic_ip', '').strip()
     g_opts.mes_type = json_data.get("mes_type", "UC").strip()
+    g_opts.mes_ssl_switch = json_data.get("mes_ssl_switch", False)
     g_opts.archive_location = "location=/mnt/dbdata/remote/archive_" + json_data['storage_archive_fs'].strip()
     metadata_str = "metadata_" + json_data.get('storage_metadata_fs', '').strip()
     node_str = "node" + str(g_opts.node_id)
@@ -1043,6 +1044,8 @@ class Installer:
             self.cantiand_configs['LSNR_ADDR'] += "," + node_addr
             _value = json_data.get('mysql_metadata_in_cantian', 'True')
             self.cantiand_configs['MYSQL_METADATA_IN_CANTIAN'] = str(_value).upper()
+            _value = json_data.get('mes_ssl_switch', 'False')
+            self.cantiand_configs['MES_SSL_SWITCH'] = str(_value).upper()
 
         flags = os.O_RDONLY
         modes = stat.S_IWUSR | stat.S_IRUSR
@@ -1524,6 +1527,14 @@ class Installer:
         ret_code, _, stderr = _exec_popen(str_cmd)
         if ret_code:
             log_exit("update cms.ini failed: " + str(ret_code) + os.linesep + stderr)
+    
+    @staticmethod
+    def set_mes_passwd(passwd):
+        file_path = "/opt/cantian/common/config/certificates/mes.pass"
+        flags = os.O_RDWR | os.O_CREAT | os.O_TRUNC
+        modes = stat.S_IRWXU | stat.S_IROTH | stat.S_IRGRP
+        with os.fdopen(os.open(file_path, flags, modes), "w") as file_obj:
+            file_obj.writelines(passwd)
 
     def init_specify_kernel_para(self, key, value):
         """get the value of some kernel parameters."""
@@ -1965,10 +1976,10 @@ class Installer:
             mode = "encrypted"
             self.ctsql_conf["SYS_PASSWORD"] = Installer.kmc_resovle_password(mode, common_parameters["_SYS_PASSWORD"])
             common_parameters["_SYS_PASSWORD"] = self.generate_nomount_passwd(common_parameters["_SYS_PASSWORD"])
-            if g_opts.mes_type == "TCP":
+            if g_opts.mes_ssl_switch == True:
                 common_parameters["MES_SSL_KEY_PWD"] = Installer.kmc_resovle_password(mode, g_opts.cert_encrypt_pwd)
-
                 self.set_cms_ini(common_parameters["MES_SSL_KEY_PWD"])
+                self.set_mes_passwd(common_parameters["MES_SSL_KEY_PWD"])
             g_opts.password = common_parameters["_SYS_PASSWORD"]
         else:
             self.ctsql_conf["SYS_PASSWORD"] = common_parameters["_SYS_PASSWORD"]

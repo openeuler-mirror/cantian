@@ -72,7 +72,6 @@ function prepare_cms_gcc() {
       dd if=/dev/zero of=${GCC_HOME} bs=1M count=1024
       chmod 600 ${GCC_HOME}
     else
-      cms gcc -del
       cms gcc -create
       if [ $? -ne 0 ]; then
         err "GCC CREATE FAILED"
@@ -130,7 +129,7 @@ function wait_for_node1_in_cluster() {
   function is_node1_joined_cluster() {
     ${CMS_INSTALL_PATH}/bin/cms node -list | grep -q node1
   }
-  wait_for_success 60 is_node1_joined_cluster
+  wait_for_success 180 is_node1_joined_cluster
 }
 
 function set_cms() {
