@@ -939,6 +939,18 @@ int32_t dpuc_set_subhealth_threshold(dpuc_subhealth_threshold threshold, const c
 void dpuc_query_queue_subhealth_info(dpuc_eid_t src_eid, dpuc_eid_t dst_eid, dpuc_plane_type_e plane,
     dpuc_conn_share_type_e conn_type, dpuc_xnet_queue_subhealth_status_t *queue_subhealth_status, const char *func_name);
 
+#define DPUC_MAX_FILE_NAME_LEN 512
+typedef struct {
+    bool security_cert_switch;
+    uint32_t user_id;
+    char pri_key_file[DPUC_MAX_FILE_NAME_LEN];
+    char pub_key_file[DPUC_MAX_FILE_NAME_LEN];
+    char pri_key_pass_file[DPUC_MAX_FILE_NAME_LEN];
+    int32_t (*get_pub_key_func)(uint32_t user_id, char *pub_key_file, uint32_t *pub_key_file_len);
+    int32_t (*kmca_decrypt_func)(char *pass_key, uint32_t pass_key_len, char *plain_key, uint32_t max_key_len, uint32_t *plain_key_len);
+} dpuc_security_cert_info_t;
+
+int32_t dpuc_set_security_cert_info(dpuc_security_cert_info_t *security_cert_info, const char *func_name, uint32_t pid);
 
 #ifdef __cplusplus
 #if __cplusplus

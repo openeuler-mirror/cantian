@@ -150,6 +150,7 @@ status_t uc_init_lib(void)
     CT_RETURN_IFERR(mes_load_symbol(intf->uc_handle, "dpuc_regist_link_event", (void **)(&intf->dpuc_regist_link_event)));
     CT_RETURN_IFERR(mes_load_symbol(intf->uc_handle, "dpuc_link_create_with_addr", (void **)(&intf->dpuc_link_create_with_addr)));
     CT_RETURN_IFERR(mes_load_symbol(intf->uc_handle, "dpuc_qlink_close", (void **)(&intf->dpuc_qlink_close)));
+    CT_RETURN_IFERR(mes_load_symbol(intf->uc_handle, "dpuc_set_security_cert_info", (void **)(&intf->dpuc_set_security_cert_info)));
     CT_LOG_RUN_INF("load uc from libdbstoreClient.so done");
 
     return CT_SUCCESS;
@@ -901,6 +902,31 @@ status_t mes_uc_set_process_config(void)
     return CT_SUCCESS;
 }
 
+int32_t mes_uc_decode_kmc_pwd(char *pass, uint32 pass_len, char *plain, uint32_t max_key_len, uint32 *plain_len)
+{
+    aes_and_kmc_t aes_kmc = { 0 };
+    cm_kmc_set_kmc(&aes_kmc, CT_KMC_SERVER_DOMAIN, KMC_ALGID_AES256_CBC);
+    cm_kmc_set_buf(&aes_kmc, plain, max_key_len - 1, pass, pass_len);
+    if (cm_kmc_decrypt_pwd(&aes_kmc) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    plain[aes_kmc.plain_len] = '\0';
+    *plain_len = aes_kmc.plain_len;
+    return CT_SUCCESS;
+}
+
+int32_t mes_uc_get_crt_file_path(uint32_t inst_id, char *pub_key_file, uint32_t *pub_key_file_len)
+{
+    if (inst_id >= CT_MAX_INSTANCES) {
+        CT_LOG_RUN_ERR("[mes]: crt inst_id is invalid %u", inst_id);
+        return CT_ERROR;
+    }
+    PRTS_RETURN_IFERR(snprintf_s(pub_key_file, DPUC_MAX_FILE_NAME_LEN, DPUC_MAX_FILE_NAME_LEN, "%s/mes.crt",
+        mes_get_ssl_auth_file()->cert_dir));
+    *pub_key_file_len = DPUC_MAX_FILE_NAME_LEN;
+    return CT_SUCCESS;
+}
+
 // initialize function
 int32_t init_xnet_dpuc(mes_uc_config_t *uc_config)
 {
@@ -937,6 +963,20 @@ int32_t init_xnet_dpuc(mes_uc_config_t *uc_config)
         (void)mes_global_handle()->dpuc_xnet_set_process_ver(g_mes.profile.channel_version);
         CT_LOG_RUN_INF("mes set channel version=%lld.", g_mes.profile.channel_version);
     }
+
+    // UC鉴权认证初始化设置
+    dpuc_security_cert_info_t dpuc_link_cert_info;
+    dpuc_link_cert_info.security_cert_switch = g_mes.profile.use_ssl;
+    dpuc_link_cert_info.user_id = (uint32_t)g_mes.profile.inst_id;
+    PRTS_RETURN_IFERR(snprintf_s(dpuc_link_cert_info.pri_key_file, DPUC_MAX_FILE_NAME_LEN, DPUC_MAX_FILE_NAME_LEN,
+        mes_get_ssl_auth_file()->key_file));
+    PRTS_RETURN_IFERR(snprintf_s(dpuc_link_cert_info.pub_key_file, DPUC_MAX_FILE_NAME_LEN, DPUC_MAX_FILE_NAME_LEN,
+        mes_get_ssl_auth_file()->cert_file));
+    PRTS_RETURN_IFERR(snprintf_s(dpuc_link_cert_info.pri_key_pass_file, DPUC_MAX_FILE_NAME_LEN, DPUC_MAX_FILE_NAME_LEN,
+        mes_get_ssl_auth_file()->pass_file));
+    dpuc_link_cert_info.get_pub_key_func = mes_uc_get_crt_file_path;
+    dpuc_link_cert_info.kmca_decrypt_func = mes_uc_decode_kmc_pwd;
+    mes_global_handle()->dpuc_set_security_cert_info(&dpuc_link_cert_info, __FUNCTION__, MY_PID);
 
     // 初始化通信模块
     uc_config->com_mgr = mes_global_handle()->dpuc_all_init(&commMgrParam, __FUNCTION__);

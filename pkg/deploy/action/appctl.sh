@@ -443,6 +443,10 @@ case "$ACTION" in
         dr_deploy "$@"
         exit $?
         ;;
+    config_opt)
+        shift
+        python3 -B "${CURRENT_PATH}/implement/config_opt.py" $@
+        ;;
     *)
         usage
         ;;
