@@ -2726,6 +2726,13 @@ void db_promote_cluster_role_follower(knl_session_t *session, DbsRoleInfo role_i
         kernel->db.is_readonly = CT_FALSE;
         kernel->db.readonly_reason = PRIMARY_SET;
         kernel->db.ctrl.core.db_role = REPL_ROLE_PRIMARY;
+        if (kernel->db.ctrl.core.db_role == REPL_ROLE_PRIMARY) {
+            tse_set_cluster_role_by_cantian(false);
+            CT_LOG_RUN_INF("[Disaster Recovery] in db_switch_role, set mysql role, is slave: false");
+        } else {
+            tse_set_cluster_role_by_cantian(true);
+            CT_LOG_RUN_INF("[Disaster Recovery] in db_switch_role, set mysql role, is slave: true");
+        }
         ckpt_enable(session);
         lrpl->is_promoting = CT_FALSE;
         CT_LOG_RUN_INF("[INST] [SWITCHOVER] promote completed, running as primary");
@@ -2812,6 +2819,13 @@ reformerpromote:
     lrpl->is_promoting = CT_FALSE;
     kernel->db.is_readonly = CT_FALSE;
     kernel->db.readonly_reason = PRIMARY_SET;
+    if (kernel->db.ctrl.core.db_role == REPL_ROLE_PRIMARY) {
+        tse_set_cluster_role_by_cantian(false);
+        CT_LOG_RUN_INF("[Disaster Recovery] in db_switch_role, set mysql role, is slave: false");
+    } else {
+        tse_set_cluster_role_by_cantian(true);
+        CT_LOG_RUN_INF("[Disaster Recovery] in db_switch_role, set mysql role, is slave: true");
+    }
     CT_LOG_RUN_INF("[INST] [SWITCHOVER] promote completed, running as primary");
 }
 

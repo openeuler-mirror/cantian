@@ -296,7 +296,7 @@ status_t tse_ddl_lock_table(session_t *session, knl_dictionary_t *dc, dc_user_t 
     } while (0);
 
     if (status != CT_SUCCESS && user != NULL) {
-        dls_unlatch(knl_session, &user->user_latch, NULL);
+        knl_unlock_users4mysql(knl_session);
     }
     return status;
 }

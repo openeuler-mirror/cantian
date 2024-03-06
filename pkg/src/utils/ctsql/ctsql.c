@@ -55,6 +55,7 @@
 extern char **environ;
 #endif
 #include "cm_lex.h"
+#include "kmc_init.h"
 
 static const ctsql_cmd_def_t g_cmd_defs[] = {
     { CMD_EXEC,     MODE_SINGLE_LINE, "/" },
@@ -1028,6 +1029,8 @@ status_t ctsql_get_local_server_kmc_ksf(char *home)
         }
     }
 
+    kmc_init_lib();
+    sdp_init_lib();
     if (cm_kmc_init(CT_CLIENT, (char *)file_name_ksfa, (char *)file_name_ksfb) != CT_SUCCESS) {
         CTSQL_PRINTF(ZSERR_CTSQL, "sysdba login failed, init key management failed.first keyfile %s, second keyfile %s",
             file_name_ksfa, file_name_ksfb);
