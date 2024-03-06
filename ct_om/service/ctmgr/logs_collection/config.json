@@ -2,7 +2,7 @@
   {
     "type": "file",
     "size": "2",
-    "dir": "/opt/cantian/ct_om/logs/exporter.log",
+    "dir": "/opt/cantian/ct_om/log/exporter.log",
     "tar_name": "cantian_exporter.log.tar.gz",
     "generate_type": "task generated"
   },

@@ -7,7 +7,8 @@ import os
 import stat
 import time
 
-from utils.config.rest_constant import SecresAccess, HealthStatus, ReplicationRunningStatus
+from utils.config.rest_constant import SecresAccess, HealthStatus, ReplicationRunningStatus, MetroDomainRunningStatus, \
+    ConfigRole, Constant
 from storage_operate.dr_deploy_operate.dr_deploy import DRDeploy
 from logic.common_func import get_status
 from logic.common_func import exec_popen
@@ -185,6 +186,11 @@ class FullSyncRepPair(DRDeploy):
             LOG.info("Success to sync remote replication filesystem pair[%s], end time[%s]",
                      pair_id,
                      datetime.datetime.fromtimestamp(int(end_time)))
+            if int(start_time) - int(end_time) > Constant.FULL_SYNC_MAX_TIME:
+                LOG.info("Do sync remote replication filesystem[%s] pair of full copy." % pair_id)
+                self.dr_deploy_opt.sync_remote_replication_filesystem_pair(pair_id=pair_id, vstore_id=0,
+                                                                           is_full_copy=False)
+                return False, replication_progress, secres_access
             return True, replication_progress, secres_access
         return False, replication_progress, secres_access
 
@@ -244,14 +250,25 @@ class FullSyncRepPair(DRDeploy):
         """
         触发全量同步
         主端：
-            1、加备份锁
-            2、flush table
-            3、full check point
-            4、全量同步
-            5、全量同步时间过长，触发增量同步
-            6、解备份锁
+            1、检查运行状态和角色
+            2、加备份锁
+            3、flush table
+            4、full check point
+            5、全量同步
+            6、全量同步时间过长，触发增量同步
+            7、解备份锁
         :return:
         """
+        domain_id = self.dr_deploy_info.get("hyper_domain_id")
+        domain_info = self.dr_deploy_opt.query_hyper_metro_domain_info(domain_id=domain_id)
+        running_status = domain_info.get("RUNNINGSTATUS")
+        if running_status != MetroDomainRunningStatus.Normal:
+            LOG.error("metro domain is not normal, can not exec full sync.")
+            raise Exception("metro domain is not normal, can not exec full sync.")
+        config_role = domain_info.get("CONFIGROLE")
+        if config_role != ConfigRole.Primary:
+            LOG.error("config role is not primary, can not exec full sync.")
+            raise Exception("config role is not primary, can not exec full sync.")
         self.do_lock_instance_for_backup()
         self.do_full_check_point()
         self.do_flush_table_with_read_lock()
@@ -284,11 +301,22 @@ class FullSyncRepPair(DRDeploy):
     def full_sync_standby(self):
         """
         备端：
-            1、查看cms状态，最后状态变化时间
-            2、查询恢复状态，如果是在线并且最后状态变化时间大于同步完成的时间，直接返回
-            3、启动参天
+            1、检查运行状态和角色
+            2、查看cms状态，最后状态变化时间
+            3、查询恢复状态，如果是在线并且最后状态变化时间大于同步完成的时间，直接返回
+            4、启动参天
         :return:
         """
+        domain_id = self.dr_deploy_info.get("hyper_domain_id")
+        domain_info = self.dr_deploy_opt.query_hyper_metro_domain_info(domain_id=domain_id)
+        running_status = domain_info.get("RUNNINGSTATUS")
+        if running_status != MetroDomainRunningStatus.Normal:
+            LOG.error("metro domain is not normal, can not exec full sync.")
+            raise Exception("metro domain is not normal, can not exec full sync.")
+        config_role = domain_info.get("CONFIGROLE")
+        if config_role != ConfigRole.Secondary:
+            LOG.error("config role is not secondary, can not exec full sync.")
+            raise Exception("config role is not secondary, can not exec full sync.")
         ready_flag = False
         cantian_online, stat_change_time = self.standby_check_status()
         meta_access = SecresAccess.ReadAndWrite if self.metadata_in_cantian else SecresAccess.ReadOnly

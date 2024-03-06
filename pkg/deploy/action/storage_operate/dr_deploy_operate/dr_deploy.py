@@ -13,7 +13,7 @@ import traceback
 from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from storage_operate.dr_deploy_operate.dr_deploy_common import KmcResolve
 from utils.config.rest_constant import HealthStatus, MetroDomainRunningStatus, SecresAccess, VstorePairRunningStatus, \
-    FilesystemPairRunningStatus, ReplicationRunningStatus, CANTIAN_DOMAIN_PREFIX
+    FilesystemPairRunningStatus, ReplicationRunningStatus, CANTIAN_DOMAIN_PREFIX, Constant
 from logic.storage_operate import StorageInf
 from logic.common_func import read_json_config
 from logic.common_func import write_json_config
@@ -503,6 +503,11 @@ class DRDeploy(object):
             LOG.info("Success to sync remote replication filesystem pair[%s], end time[%s]",
                      replication_pair_id,
                      datetime.datetime.fromtimestamp(int(end_time)))
+            if int(start_time) - int(end_time) > Constant.FULL_SYNC_MAX_TIME:
+                LOG.info("Do sync remote replication filesystem[%s] pair of full copy." % replication_pair_id)
+                self.dr_deploy_opt.sync_remote_replication_filesystem_pair(pair_id=replication_pair_id, vstore_id=0,
+                                                                           is_full_copy=False)
+                return False
             self.record_deploy_process(exec_step, "success")
             return True
         if replication_pair_health_status != ReplicationRunningStatus.Normal or \

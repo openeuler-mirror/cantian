@@ -1287,8 +1287,8 @@ class CmsCtl(object):
             if ret_code == 0:
                 log("clean gcc home cmd : %s" % str_cmd)
                 ret_code, stdout, stderr = _exec_popen(str_cmd)
-                if ret_code and deploy_mode == "dbstore_unify":
-                    log("warning: failed to remove gcc home, please clean the dir manually")
+                if ret_code and deploy_mode == "dbstore_unify" and self.install_step < 2:
+                    log("cms install failed, no need to clean gcc file")
                 elif ret_code:
                     output = stdout + stderr
                     self.check_gcc_home_process()
@@ -1296,7 +1296,8 @@ class CmsCtl(object):
                               \npossible reasons: \
                               \n1. user was using cms tool when uninstall. \
                               \n2. cms has not stopped. \
-                              \n3. others, please contact the engineer to solve." % (str_cmd, output))
+                              \n3. dbstor link was error. \
+                              \n4. others, please contact the engineer to solve." % (str_cmd, output))
             elif FORCE_UNINSTALL != "force" and ret_code != 2:
                 log_exit("can not connect to remote %s"
                          "ret_code : %s, stdout : %s, stderr : %s" % (self.gcc_home, ret_code, stdout, stderr))
