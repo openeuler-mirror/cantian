@@ -15,6 +15,8 @@ VERSION_FILE=/opt/cantian/versions.yml
 CANTIAN_STATUS=/opt/cantian/cantian/cfg/start_status.json
 CONFIG_PATH=/opt/cantian/config
 UPGRADE_SUCCESS_FLAG=/opt/cantian/pre_upgrade_${UPGRADE_MODE}.success
+EXEC_SQL_FILE="${CURRENT_PATH}/cantian_common/exec_sql.py"
+DV_LRPL_DETAIL="select DATABASE_ROLE from DV_LRPL_DETAIL;"
 UPGRADE_MODE_LIS=("offline" "rollup")
 dorado_user=""
 dorado_pwd=""
@@ -35,7 +37,6 @@ CLUSTER_PREPARED=3
 NFS_TIMEO=50
 
 source ${CURRENT_PATH}/log4sh.sh
-source ${FILE_MOD_FILE}
 
 # export此环境变量，方便调用ctbackup
 export PATH=/opt/cantian/mysql/install/mysql/bin/:$PATH
@@ -457,7 +458,7 @@ function do_upgrade() {
 #  修改公共文件mod
 function correct_files_mod() {
     logAndEchoInfo "begin to correct files mod"
-
+    source ${FILE_MOD_FILE}
     for file_path in ${!FILE_MODE_MAP[@]}; do
         if [ ! -f ${file_path} ]; then
             continue
@@ -788,9 +789,25 @@ function clear_sem_id() {
     fi
 }
 
+# 容灾场景备端不需要进行备份
+function check_dr_role() {
+    role=$(echo -e "${DV_LRPL_DETAIL}" | su -s /bin/bash - ${cantian_user} -c \
+    "source ~/.bashrc && export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} \
+    &&  python3 -B ${EXEC_SQL_FILE}" | grep "PHYSICAL_STANDBY")
+    if [[ x"${role}" != x"" ]];then
+        return 1
+    fi
+    return 0
+}
+
 # 滚动升级， 升级准备步骤：调用ctback工具备份数据
 function call_ctbackup_tool() {
     logAndEchoInfo ">>>>> begin to call ctbackup tool <<<<<"
+    check_dr_role
+    if [ $? -ne 0 ];then
+        logAndEchoInfo ">>>>> Current site is standby, no need to call ctbackup tool <<<<<"
+        return 0
+    fi
     # 支持参天进程停止后，重入
     if [ -e "${storage_metadata_fs_path}/call_ctback_tool.success" ]; then
         logAndEchoInfo "the ctbackup tool has backed up the data successfully, no need to call it again"
