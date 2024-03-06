@@ -1050,32 +1050,13 @@ status_t cm_remove_dir(const char *path)
 
 bool32 cm_file_exist(const char *file_path)
 {
-    int32 ret;
-#ifdef WIN32
-    struct _stat stat_buf;
-#else
-    struct stat stat_buf;
-#endif
-
-#ifdef WIN32
-    ret = _stat(file_path, &stat_buf);
-#else
-    ret = stat(file_path, &stat_buf);
-#endif
-    if (ret != 0) {
+    int32 fd = open(file_path, O_RDONLY);
+    if (fd == -1) {
         return CT_FALSE;
     }
 
-#ifdef WIN32
-    if (_S_IFREG == (stat_buf.st_mode & _S_IFREG)) {
-#else
-    /* S_ISREG: judge whether it's a regular file or not by the flag */
-    if (S_ISREG(stat_buf.st_mode)) {
-#endif
-        return CT_TRUE;
-    }
-
-    return CT_FALSE;
+    close(fd);
+    return CT_TRUE;
 }
 
 bool32 cm_dir_exist(const char *dir_path)

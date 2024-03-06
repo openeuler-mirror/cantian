@@ -379,10 +379,12 @@ typedef struct st_mes_addr {
 } mes_addr_t;
 
 typedef struct st_ssl_auth_file {
+    char cert_dir[CT_FILE_NAME_BUFFER_SIZE];
     char ca_file[CT_FILE_NAME_BUFFER_SIZE];
     char cert_file[CT_FILE_NAME_BUFFER_SIZE];
     char key_file[CT_FILE_NAME_BUFFER_SIZE];
     char crl_file[CT_FILE_NAME_BUFFER_SIZE];
+    char pass_file[CT_FILE_NAME_BUFFER_SIZE];
     char key_pwd[CT_PASSWORD_BUFFER_SIZE]; // encrypted data
 } ssl_auth_file_t;
 
@@ -560,7 +562,7 @@ bool8 mes_get_elapsed_switch(void);
 void mes_set_elapsed_switch(bool8 elapsed_switch);
 void mes_set_crc_check_switch(bool8 crc_check_switch);
 void mes_set_ssl_switch(bool8 use_ssl);
-status_t mes_set_ssl_crt_file(const char *ca_file, const char *cert_file, const char *key_file, const char* crl_file);
+status_t mes_set_ssl_crt_file(const char *cert_dir, const char *ca_file, const char *cert_file, const char *key_file, const char* crl_file, const char* pass_file);
 void mes_set_ssl_verify_peer(bool32 verify_peer);
 ssl_auth_file_t *mes_get_ssl_auth_file(void);
 status_t mes_set_ssl_key_pwd(const char *enc_pwd);

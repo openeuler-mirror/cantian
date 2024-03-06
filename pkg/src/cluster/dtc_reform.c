@@ -613,6 +613,7 @@ void rc_init_redo_ctx(arch_proc_context_t *proc_ctx, dtc_node_ctrl_t *node_ctrl,
     redo_ctx->files = &file_set->items[0];
     redo_ctx->curr_file = node_ctrl->log_last;
     redo_ctx->active_file = node_ctrl->log_first;
+    redo_ctx->flush_lock = 0;
 
     int32 size = CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size);
     redo_ctx->logwr_head_buf = (char *)cm_malloc(size);
@@ -682,6 +683,10 @@ status_t flush_curr_file_head(arch_proc_context_t *proc_ctx, dtc_node_ctrl_t *no
     head.write_pos = lrp_point->block_id * file->ctrl->block_size;
     head.last = node_ctrl->scn;
     log_calc_head_checksum(proc_ctx->session, &head);
+
+    file->head.write_pos = head.write_pos;
+    file->head.last = head.last;
+    file->head.checksum = head.checksum;
 
     *(log_file_head_t *)ctx->logwr_head_buf = head;
     int32 size = CM_CALC_ALIGN(sizeof(log_file_head_t), file->ctrl->block_size);
@@ -851,6 +856,7 @@ status_t rc_archive_log_offline_node(arch_proc_context_t *proc_ctx, uint32 node_
         return CT_ERROR;
     }
 
+    proc_ctx->arch_execute = CT_TRUE;
     if (cm_dbs_is_enable_dbs() == true) {
         if (rc_arch_handle_tmp_file(proc_ctx, node_id) != CT_SUCCESS) {
             return CT_ERROR;

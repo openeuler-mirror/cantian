@@ -48,7 +48,6 @@ extern "C" {
 #ifndef SENSI_INFO
 #define SENSI_INFO
 #endif
-#define CBO_PART_MEM_RESIDUAL 1000
 #define STATS_HISTGRAM_MAX_SIZE 254
 #define SMALL_RECORD_SIZE 128  // 表名、库名等长度不会特别大，取128
 #define ERROR_MESSAGE_LEN 512
@@ -72,7 +71,7 @@ extern "C" {
 #define IS_TSE_PART(part_id) ((part_id) < (PART_CURSOR_NUM))
 #define MAX_BULK_INSERT_PART_ROWS 128
 #define SESSION_CURSOR_NUM (8192 * 2)
-#define MAX_MESSAGE_SIZE 52428800  // 共享内存最大可申请空间大小
+#define MAX_MESSAGE_SIZE 8200000  // 共享内存最大可申请空间大小
 
 // for broadcast_req.options
 #define TSE_SET_VARIABLE_PERSIST (0x1 << 8)

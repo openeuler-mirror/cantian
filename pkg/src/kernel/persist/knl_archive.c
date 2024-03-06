@@ -2487,24 +2487,25 @@ void rc_arch_proc(thread_t *thread)
     errno_t ret = memcpy_s((char*)rc_proc_ctx, sizeof(arch_proc_context_t), (char*)proc_ctx,
                            sizeof(arch_proc_context_t));
     knl_securec_check(ret);
-    proc_ctx = rc_proc_ctx;
-    knl_session_t *session = proc_ctx->session;
+    knl_session_t *session = rc_proc_ctx->session;
     log_context_t *redo_ctx = &session->kernel->redo_ctx;
 
     cm_set_thread_name("rc_arch_proc");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
-    proc_ctx->arch_execute = CT_TRUE;
     while (!thread->closed) {
-        if (!proc_ctx->arch_execute || !proc_ctx->enabled) {
+        if (!rc_proc_ctx->arch_execute || !rc_proc_ctx->enabled) {
             cm_sleep(200);
             continue;
         }
 
-        if (arch_need_archive_file(proc_ctx, redo_ctx)) {
+        if (arch_need_archive_file(rc_proc_ctx, redo_ctx)) {
             // Try to archive log file
-            arch_file_archive(session, proc_ctx);
+            arch_file_archive(session, rc_proc_ctx);
         } else {
-            proc_ctx->arch_execute = CT_FALSE;
+            rc_proc_ctx->arch_execute = CT_FALSE;
+            ret = memcpy_s((char*)proc_ctx, sizeof(arch_proc_context_t), (char*)rc_proc_ctx,
+                           sizeof(arch_proc_context_t));
+            knl_securec_check(ret);
         }
     }
 
@@ -2530,7 +2531,6 @@ void rc_arch_dbstor_read_proc(thread_t *thread)
     uint64 last_lsn = proc_ctx->last_archived_log_record.cur_lsn;
     CT_LOG_RUN_INF("[RC_ARCH] start to read redo %s, start lsn %llu", logfile->ctrl->name, start_lsn);
 
-    proc_ctx->arch_execute = CT_TRUE;
     while (proc_ctx->redo_log_filesize > 0 && !proc_ctx->write_failed) {
         if (arch_get_read_buf(&proc_ctx->arch_rw_buf, &read_buf) != CT_SUCCESS) {
             cm_sleep(1);

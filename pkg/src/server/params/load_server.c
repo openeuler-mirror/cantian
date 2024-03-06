@@ -1097,15 +1097,19 @@ status_t srv_load_cluster_params(void)
         if (mes_ssl_crt_path == NULL) {
             return CT_ERROR;
         }
+        char cert_dir_path[CT_FILE_NAME_BUFFER_SIZE];
+        PRTS_RETURN_IFERR(snprintf_s(cert_dir_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, mes_ssl_crt_path));
         char ca_file_path[CT_FILE_NAME_BUFFER_SIZE];
-        PRTS_RETURN_IFERR(snprintf_s(ca_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/ca.crt",  mes_ssl_crt_path));
+        PRTS_RETURN_IFERR(snprintf_s(ca_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/ca.crt", mes_ssl_crt_path));
         char cert_file_path[CT_FILE_NAME_BUFFER_SIZE];
-        PRTS_RETURN_IFERR(snprintf_s(cert_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.crt",  mes_ssl_crt_path));
+        PRTS_RETURN_IFERR(snprintf_s(cert_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.crt", mes_ssl_crt_path));
         char key_file_path[CT_FILE_NAME_BUFFER_SIZE];
-        PRTS_RETURN_IFERR(snprintf_s(key_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.key",  mes_ssl_crt_path));
+        PRTS_RETURN_IFERR(snprintf_s(key_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.key", mes_ssl_crt_path));
         char crl_file_path[CT_FILE_NAME_BUFFER_SIZE];
         PRTS_RETURN_IFERR(snprintf_s(crl_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.crl", mes_ssl_crt_path));
-        CT_RETURN_IFERR(mes_set_ssl_crt_file(ca_file_path, cert_file_path, key_file_path, crl_file_path));
+        char mes_pass_path[CT_FILE_NAME_BUFFER_SIZE];
+        PRTS_RETURN_IFERR(snprintf_s(mes_pass_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.pass", mes_ssl_crt_path));
+        CT_RETURN_IFERR(mes_set_ssl_crt_file(cert_dir_path, ca_file_path, cert_file_path, key_file_path, crl_file_path, mes_pass_path));
         mes_set_ssl_verify_peer(CT_TRUE);
         char *enc_pwd = srv_get_param("MES_SSL_KEY_PWD");
         CT_RETURN_IFERR(mes_set_ssl_key_pwd(enc_pwd));

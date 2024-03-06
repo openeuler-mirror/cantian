@@ -20,14 +20,14 @@ function cantian_install()
     node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
     cantian_use=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_user")
     cantian_group=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_group")
-    mes_type=$(python3 ${CURRENT_PATH}/get_config_info.py "mes_type")
+    mes_ssl_switch=$(python3 ${CURRENT_PATH}/get_config_info.py "mes_ssl_switch")
     cert_encrypt_pwd=""
     user_pwd=""
 
     if [[ ${install_type} = "override" ]]; then
         is_encrept=0
         read -s -p "Please Input SYS_PassWord: " user_pwd
-        if [[ x"${mes_type}" == x"TCP" ]];then
+        if [[ ${mes_ssl_switch} == "True" ]];then
             read -s -p "Please Input cert passwd: " cert_encrypt_pwd
         fi
     else

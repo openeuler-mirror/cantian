@@ -122,6 +122,12 @@ class ConfigChecker:
         if value not in ["UC", "TCP"]:
             return False
         return True
+    
+    @staticmethod
+    def mes_ssl_switch(value):
+        if not isinstance(value, bool):
+            return False
+        return True
 
     @staticmethod
     def mysql_metadata_in_cantian(value):
@@ -284,7 +290,8 @@ class CheckInstallConfig(CheckBase):
         self.config_key = {
             'deploy_user', 'node_id', 'cms_ip', 'storage_dbstore_fs', 'storage_share_fs', 'storage_archive_fs',
             'storage_metadata_fs', 'share_logic_ip', 'archive_logic_ip', 'metadata_logic_ip', 'db_type',
-            'MAX_ARCH_FILES_SIZE', 'mysql_in_container', 'mysql_metadata_in_cantian', 'storage_logic_ip', 'deploy_mode'
+            'MAX_ARCH_FILES_SIZE', 'mysql_in_container', 'mysql_metadata_in_cantian', 'storage_logic_ip', 'deploy_mode',
+            'mes_ssl_switch'
         }
         self.dbstore_config_key = {
             'cluster_name', 'cantian_vlan_ip', 'storage_vlan_ip', 'link_type', 'storage_dbstore_page_fs',
@@ -489,11 +496,13 @@ class CheckInstallConfig(CheckBase):
             install_config_params['archive_logic_ip'] = ''
         if 'mes_type' not in install_config_params.keys():
             install_config_params['mes_type'] = 'UC'
+        if 'mes_ssl_switch' not in install_config_params.keys():
+            install_config_params['mes_ssl_switch'] = False
         if 'deploy_mode' not in install_config_params.keys():
             install_config_params['deploy_mode'] = "dbstore"
         if 'dbstore_fs_vstore_id' not in install_config_params.keys():
             install_config_params['dbstore_fs_vstore_id'] = "0"
-        if install_config_params.get("mes_type") == "TCP" or install_config_params.get("deploy_mode") == "nas":
+        if install_config_params.get("mes_ssl_switch") == True:
             self.config_key.update(self.mes_type_key)
         if 'db_type' not in install_config_params.keys():
             install_config_params['db_type'] = '0'

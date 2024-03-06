@@ -282,6 +282,8 @@ extern "C"{
 #define DPUC_QUERY_QUEUE_SUBHEALTH_INFO(src_eid, dst_eid, plane, conn_type, queue_subhealth_status) \
     dpuc_query_queue_subhealth_info((src_eid), (dst_eid), (plane), (conn_type), (queue_subhealth_status), __FUNCTION__)
 
+#define DPUC_SET_SECURITY_CERT_INFO(param) dpuc_set_security_cert_info((param), __FUNCTION__, MY_PID)
+
 #ifdef __cplusplus
 #if __cplusplus
 }

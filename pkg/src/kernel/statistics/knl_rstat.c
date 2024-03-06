@@ -11639,7 +11639,7 @@ void stats_flush_logic_log(knl_session_t *session, knl_dictionary_t *dc, stats_l
     rd_ref.oid = dc->oid;
     rd_ref.load_subpart = load_info->load_subpart;
     rd_ref.parent_part_id = load_info->parent_part_id;
-    log_put(session, RD_LOGIC_OPERATION, &rd_ref, sizeof(rd_table_t), LOG_ENTRY_FLAG_NONE);
+    log_put(session, RD_LOGIC_OPERATION, &rd_ref, sizeof(rd_refresh_dc_t), LOG_ENTRY_FLAG_NONE);
 
     knl_end_auton_rm(session, CT_SUCCESS);
 }

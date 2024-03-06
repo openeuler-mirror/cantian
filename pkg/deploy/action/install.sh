@@ -105,7 +105,7 @@ function enter_pwd()
         logAndEchoError "two cantian_sys_pwd are different"
         exit 1
     fi
-    if [ x"${mes_type}" == x"TCP" ];then
+    if [[ ${mes_ssl_switch} == "True" ]];then
         read -s -p "please enter private key encryption password:" cert_encrypt_pwd
         echo ''
     fi
@@ -244,22 +244,21 @@ function rpm_check(){
 }
 
 function copy_certificate() {
-    local certificate_dir="/mnt/dbdata/remote/share_${storage_share_fs}/certificates"
-    local certificate_dir_node="${certificate_dir}/node${node_id}"
-    if [ -d "${certificate_dir_node}" ];then
-        rm -rf "${certificate_dir_node}"
+    local certificate_dir="/opt/cantian/common/config/certificates"
+    if [ -d "${certificate_dir}" ];then
+        rm -rf "${certificate_dir}"
     fi
-    mkdir -m 700 -p  "${certificate_dir_node}"
+    mkdir -m 700 -p  "${certificate_dir}"
     local ca_path
     ca_path=$(python3 "${CURRENT_PATH}"/get_config_info.py "ca_path")
     local crt_path
     crt_path=$(python3 "${CURRENT_PATH}"/get_config_info.py "crt_path")
     local key_path
     key_path=$(python3 "${CURRENT_PATH}"/get_config_info.py "key_path")
-    cp -arf "${ca_path}" "${certificate_dir_node}"/ca.crt
-    cp -arf "${crt_path}" "${certificate_dir_node}"/mes.crt
-    cp -arf "${key_path}" "${certificate_dir_node}"/mes.key
-    chmod 600 "${certificate_dir_node}"/*
+    cp -arf "${ca_path}" "${certificate_dir}"/ca.crt
+    cp -arf "${crt_path}" "${certificate_dir}"/mes.crt
+    cp -arf "${key_path}" "${certificate_dir}"/mes.key
+    chmod 600 "${certificate_dir}"/*
     chown -hR "${deploy_user}":"${deploy_group}" "${certificate_dir}"
     echo -e "${cert_encrypt_pwd}" | python3 -B "${CURRENT_PATH}"/implement/check_pwd.py "check_cert_pwd"
     if [ $? -ne 0 ];then
@@ -408,10 +407,30 @@ function check_dbstore_client_compatibility() {
     logAndEchoInfo "dbstore client compatibility check success."
 }
 
+function wait_for_node0_install() {
+    logAndEchoInfo "if block here, this node is wait for node 0 to install. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    random_seed=$(python3 ${CURRENT_PATH}/get_config_info.py "share_random_seed")
+    try_times=180
+    while [ ${try_times} -gt 0 ]
+    do
+        try_times=$(expr "${try_times}" - 1)
+        if [[ "${random_seed}" != "" ]] && [[ "${random_seed}" != "None" ]]; then
+            return 0
+        else
+            sleep 1s
+            random_seed=$(python3 ${CURRENT_PATH}/get_config_info.py "share_random_seed")
+        fi
+    done
+    logAndEchoError "deploy config file is not detected, please check node 0 weather is installed"
+    uninstall
+    exit 1
+}
+
 function update_random_seed() {
     if [[ x"${node_id}" == x"0" ]];then
         random_seed=$(python3 -c 'import secrets; secrets_generator = secrets.SystemRandom(); print(secrets_generator.randint(0, 255))')
     else
+        wait_for_node0_install
         random_seed=$(python3 ${CURRENT_PATH}/get_config_info.py "share_random_seed")
     fi
     python3 ${CURRENT_PATH}/write_config.py "random_seed" "${random_seed}"
@@ -547,7 +566,7 @@ if [[ ${pass_check} = 'false' ]]; then
 fi
 
 # 获取install_type 如果install_type为override 执行以下操作
-mes_type=$(python3 ${CURRENT_PATH}/get_config_info.py "mes_type")
+mes_ssl_switch=$(python3 ${CURRENT_PATH}/get_config_info.py "mes_ssl_switch")
 config_install_type=$(python3 ${CURRENT_PATH}/get_config_info.py "install_type")
 node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
 echo "install_type in deploy_param.json is: ${config_install_type}"
@@ -735,7 +754,7 @@ if [[ ${config_install_type} = 'override' ]]; then
   update_random_seed
   # 挂载后，0节点拷贝配置文件至文件系统下，1节点检查对应配置文件参数
   check_deploy_param
-  if [[ x"${mes_type}" == x"TCP" ]] && [[ x"${deploy_mode}" != x"dbstore_unify" ]];then
+  if [[ ${mes_ssl_switch} == "True" ]];then
       copy_certificate
   fi
 fi

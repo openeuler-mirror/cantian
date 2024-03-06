@@ -15,6 +15,8 @@ VERSION_FILE=/opt/cantian/versions.yml
 CANTIAN_STATUS=/opt/cantian/cantian/cfg/start_status.json
 CONFIG_PATH=/opt/cantian/config
 UPGRADE_SUCCESS_FLAG=/opt/cantian/pre_upgrade_${UPGRADE_MODE}.success
+EXEC_SQL_FILE="${CURRENT_PATH}/cantian_common/exec_sql.py"
+DV_LRPL_DETAIL="select DATABASE_ROLE from DV_LRPL_DETAIL;"
 UPGRADE_MODE_LIS=("offline" "rollup")
 dorado_user=""
 dorado_pwd=""
@@ -35,7 +37,6 @@ CLUSTER_PREPARED=3
 NFS_TIMEO=50
 
 source ${CURRENT_PATH}/log4sh.sh
-source ${FILE_MOD_FILE}
 
 # export此环境变量，方便调用ctbackup
 export PATH=/opt/cantian/mysql/install/mysql/bin/:$PATH
@@ -295,70 +296,14 @@ function do_backup() {
 }
 
 function update_config() {
-    # 适配冗余链路
-    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=update --key=INTERCONNECT_ADDR"
-     if [ $? -ne 0 ];then
-        logAndEchoError "Update cantiand.ini config file INTERCONNECT_ADDR failed"
-        exit 1
-    fi
-    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=update --key=_MAX_OPEN_FILES"
-    # 更新log fs id
-    log_vstor_id=$(python3 "${CURRENT_PATH}"/get_config_info.py "dbstore_fs_vstore_id")
-    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=dbstore --action=add --key=LOG_VSTOR --value=${log_vstor_id}"
-     if [ $? -ne 0 ];then
-        logAndEchoError "Update cantiand.ini config file INTERCONNECT_ADDR failed"
-        exit 1
-    fi
-    #  更新page fs id，当前默认为0，后续如果新增再修改
-    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=dbstore --action=add --key=PAGE_VSTOR --value=0"
-    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=add --key=MYSQL_DEPLOY_GROUP_ID"
-    if [[ x"${source_version}" != x"2.0.0"* ]];then
-        logAndEchoInfo "Current upgrade source version is ${source_version}, no need update config"
-        return
-    fi
-    logAndEchoInfo "Update dbstore config file"
-    storage_dbstore_page_fs=$(python3 "${CURRENT_PATH}"/get_config_info.py "storage_dbstore_page_fs")
-    su -s /bin/bash - cantian -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=dbstore --action=add --key=NAMESPACE_PAGE_FSNAME --value=${storage_dbstore_page_fs}"
-    if [ $? -ne 0 ];then
-        logAndEchoError "Update dbstore config file failed"
-        exit 1
-    fi
-    # 增UUID至参天、cms、dostore配置文件
-    system_uuid=$(dmidecode -s system-uuid)
-    su -s /bin/bash - ${cantian_user} -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=dbstore --action=add --key=SYSTEM_UUID --value=${system_uuid}"
-    if [ $? -ne 0 ];then
-        logAndEchoError "Update dbstore config file failed"
-        exit 1
-    fi
-    logAndEchoInfo "Update config file cantiand.ini"
-    read -s -p "please enter cantian sys pwd: " cantian_sys_pwd
-    echo ''
-    echo -e "${cantian_sys_pwd}" | su -s /bin/bash - ${cantian_user} -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=update --key=cantian"
-    if [ $? -ne 0 ];then
-        logAndEchoError "Update cantiand.ini config file failed"
-        exit 1
-    fi
-
-    logAndEchoInfo "Update config file cms.ini"
-    su -s /bin/bash - ${cantian_user} -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cms_ini --action=update --key=GCC_TYPE  --value=NFS"
-    if [ $? -ne 0 ];then
-        logAndEchoError "Update cms config file failed"
-        exit 1
-    fi
-
-    logAndEchoInfo "Update config file cantian_config.json"
-    su -s /bin/bash - ${cantian_user} -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian --action=add --key=cantian --value=cantian"
-    if [ $? -ne 0 ];then
-        logAndEchoError "Update cantian config file failed"
-        exit 1
-    fi
-
-    logAndEchoInfo "Update config file cms.json"
-    su -s /bin/bash - ${cantian_user} -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cms --action=add --key=cms --value=cms"
-    if [ $? -ne 0 ];then
-        logAndEchoError "Update cantian config file failed"
-        exit 1
-    fi
+    # 更新认证开关参数
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=add --key=MES_SSL_SWITCH --value=FALSE"
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cms_ini --action=add --key=_CMS_MES_SSL_SWITCH --value=False"
+    # 更新证书路径
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=add --key=MES_SSL_CRT_KEY_PATH --value=/opt/cantian/common/config/certificates"
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cms_ini --action=add --key=_CMS_MES_SSL_CRT_KEY_PATH --value=/opt/cantian/common/config/certificates"
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=update --key=MES_SSL_CRT_KEY_PATH --value=/opt/cantian/common/config/certificates"
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cms_ini --action=update --key=_CMS_MES_SSL_CRT_KEY_PATH --value=/opt/cantian/common/config/certificates"
 }
 
 function install_dbstore(){
@@ -465,6 +410,7 @@ function do_upgrade() {
     cp -rfp ${CURRENT_PATH}/implement /opt/cantian/action
     cp -rfp ${CURRENT_PATH}/logic /opt/cantian/action
     cp -rfp ${CURRENT_PATH}/storage_operate /opt/cantian/action
+    cp -rfp ${CURRENT_PATH}/cantian_common /opt/cantian/action
     cp -rfp ${CURRENT_PATH}/utils /opt/cantian/action
     cp -rfp ${CURRENT_PATH}/../config /opt/cantian/
     cp -rfp ${CURRENT_PATH}/../common /opt/cantian/
@@ -493,6 +439,17 @@ function do_upgrade() {
     # 更新配置文件
     update_user_env
     update_config
+    local certificate_dir="/opt/cantian/common/config/certificates"
+    local certificate_remote_dir="/mnt/dbdata/remote/share_${storage_share_fs}/certificates/node${node_id}"
+    if [[ -d "${certificate_remote_dir}" ]];then
+        if [ ! -d "${certificate_dir}" ];then
+            mkdir -m 700 -p "${certificate_dir}"
+            cp -arf "${certificate_remote_dir}"/ca.crt "${certificate_dir}"/ca.crt
+            cp -arf "${certificate_remote_dir}"/mes.crt "${certificate_dir}"/mes.crt
+            cp -arf "${certificate_remote_dir}"/mes.key "${certificate_dir}"/mes.key
+            chown -hR "${deploy_user}":"${deploy_group}" "${certificate_dir}"
+        fi
+    fi
     if [[ -f /mnt/dbdata/local/cantian/tmp/data/cfg/zsql.ini ]];then
         mv /mnt/dbdata/local/cantian/tmp/data/cfg/zsql.ini /mnt/dbdata/local/cantian/tmp/data/cfg/ctsql.ini
     fi
@@ -501,7 +458,7 @@ function do_upgrade() {
 #  修改公共文件mod
 function correct_files_mod() {
     logAndEchoInfo "begin to correct files mod"
-
+    source ${FILE_MOD_FILE}
     for file_path in ${!FILE_MODE_MAP[@]}; do
         if [ ! -f ${file_path} ]; then
             continue
@@ -832,9 +789,25 @@ function clear_sem_id() {
     fi
 }
 
+# 容灾场景备端不需要进行备份
+function check_dr_role() {
+    role=$(echo -e "${DV_LRPL_DETAIL}" | su -s /bin/bash - ${cantian_user} -c \
+    "source ~/.bashrc && export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} \
+    &&  python3 -B ${EXEC_SQL_FILE}" | grep "PHYSICAL_STANDBY")
+    if [[ x"${role}" != x"" ]];then
+        return 1
+    fi
+    return 0
+}
+
 # 滚动升级， 升级准备步骤：调用ctback工具备份数据
 function call_ctbackup_tool() {
     logAndEchoInfo ">>>>> begin to call ctbackup tool <<<<<"
+    check_dr_role
+    if [ $? -ne 0 ];then
+        logAndEchoInfo ">>>>> Current site is standby, no need to call ctbackup tool <<<<<"
+        return 0
+    fi
     # 支持参天进程停止后，重入
     if [ -e "${storage_metadata_fs_path}/call_ctback_tool.success" ]; then
         logAndEchoInfo "the ctbackup tool has backed up the data successfully, no need to call it again"

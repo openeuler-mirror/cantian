@@ -3326,11 +3326,11 @@ status_t dtc_log_prepare_for_pitr(knl_session_t *se)
     uint32 rst_id = kernel->db.ctrl.core.resetlogs.rst_id;
     for (uint32 i = 0; i < kernel->db.ctrl.core.node_count; i++) {
         uint32 archive_asn = dtc_get_ctrl(se, i)->rcy_point.asn;
-        CT_LOG_DEBUG_INF("[RESTORE] archive_asn %llu.", (uint64)archive_asn);
+        CT_LOG_RUN_INF("[RESTORE] archive_asn %llu.", (uint64)archive_asn);
         if (dtc_rst_regist_archive(se, &archive_asn, rst_id, i) != CT_SUCCESS) {
             return CT_ERROR;
         }
-        CT_LOG_DEBUG_INF("[RESTORE] after register, archive_asn %llu.", (uint64)archive_asn);
+        CT_LOG_RUN_INF("[RESTORE] after register, archive_asn %llu.", (uint64)archive_asn);
         if (se->kernel->id != i) {
             continue;
         }
@@ -3338,12 +3338,12 @@ status_t dtc_log_prepare_for_pitr(knl_session_t *se)
         if (arch_try_arch_redo_by_nodeid(se, &max_asn, i) != CT_SUCCESS) {
             return CT_ERROR;
         }
-        CT_LOG_DEBUG_INF("[RESTORE] find redo max_asn %llu.", (uint64)max_asn);
+        CT_LOG_RUN_INF("[RESTORE] find redo max_asn %llu.", (uint64)max_asn);
 
         archive_asn = MAX(archive_asn, max_asn);
         archive_asn += 1;
         
-        CT_LOG_DEBUG_INF("[RESTORE] set redo asn %llu.", (uint64)archive_asn);
+        CT_LOG_RUN_INF("[RESTORE] set redo asn %llu.", (uint64)archive_asn);
 
         if (dtc_bak_reset_logfile(se, archive_asn, CT_INVALID_ID32, i) != CT_SUCCESS) {
             return CT_ERROR;

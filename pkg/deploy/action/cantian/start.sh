@@ -69,27 +69,18 @@ function check_cantian_db_create_status()
 function check_cantian_start_status()
 {
     CANTIAN_START_STATUS=`python3 ${CURRENT_PATH}/get_config_info.py "CANTIAN_START_STATUS"`
-    # 1.参天拉起状态为default
-    #（1.1）参天进程在，强制stop后进入拉起流程
-    #（1.2）参天进程不在，直接进入启动流程
-    if [ ${CANTIAN_START_STATUS} == "default" ]; then
-        check_cantian_exporter_daemon_status
-        if [ $? -eq 0 ]; then
-            log "Cantian has not started, but process cantiand was detected, trying to stop and restart it."
-            sh ${CURRENT_PATH}/${CANTIAN_STOP_SH_NAME}
-        fi
-    fi
 
-    # 2.参天拉起状态为starting，此时正在拉起参天，但异常退出了。需要强制stop，重新拉起参天
+    # 1.参天拉起状态为starting，即参天拉起过程中异常退出了。此时，若参天进程不存在，stop后重新拉起参天
     # 在database的创建流程之外参天被异常退出时，参天还可以再次被拉起
-    if [ ${CANTIAN_START_STATUS} == "starting" ]; then
+    ret=check_cantian_exporter_daemon_status
+    if [[ ${CANTIAN_START_STATUS} == "starting" && ${ret} -ne 0 ]]; then
         log "Last startup process was interrupted, trying to stop existing cantian process and restart it."
         sh ${CURRENT_PATH}/${CANTIAN_STOP_SH_NAME}
     fi
 
-    # 3.参天拉起状态为started
-    #（3.1）参天进程在，直接返回0（成功）
-    #（3.2）参天进程不在，先强制stop，再重新拉起参天
+    # 2.参天拉起状态为started
+    #（2.1）参天进程在，直接返回0（成功）
+    #（2.2）参天进程不在，先强制stop，再重新拉起参天
     if [ ${CANTIAN_START_STATUS} == "started" ]; then
         check_cantian_exporter_daemon_status
         if [ $? -eq 0 ]; then
@@ -104,7 +95,4 @@ function check_cantian_start_status()
 
 check_cantian_db_create_status
 check_cantian_start_status
-check_cantian_exporter_daemon_status
-if [ $? -ne 0 ]; then 
-    cantian_start
-fi
+cantian_start

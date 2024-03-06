@@ -885,6 +885,46 @@ status_t bak_paral_backup(knl_session_t *session, bak_process_t *proc)
     return CT_SUCCESS;
 }
 
+status_t bak_check_direct_mode_for_archfile(bak_assignment_t *assign_ctrl, bak_t *bak, uint32 mode, bool32 *can_direct)
+{
+    if (bak->record.attr.compress != COMPRESS_NONE) {
+        *can_direct = CT_FALSE;
+        return CT_SUCCESS;
+    }
+    if (assign_ctrl->type == BACKUP_DATA_FILE) {
+        *can_direct = CT_TRUE;
+        return CT_SUCCESS;
+    }
+    bak_local_t *bak_file = &assign_ctrl->bak_file;
+    char *buf = (char *)malloc(sizeof(log_file_head_t));
+    errno_t err = memset_sp(buf, sizeof(log_file_head_t), 0, sizeof(log_file_head_t));
+    knl_securec_check(err);
+    mode = mode | O_DIRECT;
+    int32 handle = -1;
+    if (cm_open_file(bak_file->name, mode, &handle) == CT_SUCCESS) {
+        if (cm_write_file(handle, buf, sizeof(log_file_head_t)) == CT_SUCCESS) {
+            *can_direct = CT_TRUE;
+            CT_LOG_RUN_INF("[BACKUP] write 512 to file succ, mode |= O_DIRECT");
+        } else {
+            if (errno != EINVAL) {
+                cm_close_file(handle);
+                CM_FREE_PTR(buf);
+                CT_LOG_RUN_ERR("[BACKUP] write 512 to file fail, errno %u.", errno);
+                return CT_ERROR;
+            }
+            cm_reset_error();
+            *can_direct = CT_FALSE;
+            CT_LOG_RUN_INF("[BACKUP] write 512 to file fail.");
+        }
+    } else {
+        CT_LOG_RUN_ERR("[BACKUP] open file failed.");
+        return CT_ERROR;
+    }
+    cm_close_file(handle);
+    CM_FREE_PTR(buf);
+    return CT_SUCCESS;
+}
+
 void bak_paral_backup_task(knl_session_t *session, bak_process_t *proc)
 {
     bak_context_t *ctx = &session->kernel->backup_ctx;
@@ -895,12 +935,19 @@ void bak_paral_backup_task(knl_session_t *session, bak_process_t *proc)
     timeval_t tv_begin;
     status_t status;
     uint32 mode = O_BINARY | O_RDWR;
-    mode = (bak->record.attr.compress != COMPRESS_NONE ? mode : (mode | O_DIRECT));
+    bool32 can_direct = CT_FALSE;
+    if (bak_check_direct_mode_for_archfile(assign_ctrl, bak, mode, &can_direct) != CT_SUCCESS) {
+        bak->failed = CT_TRUE;
+        CT_LOG_RUN_ERR("[BACKUP] check dircet mode failed, proc id %u, file id %u, backup index %u, name %s",
+                       proc->proc_id, assign_ctrl->file_id, assign_ctrl->bak_index, proc->ctrl.name);
+    } else {
+        mode = (can_direct != CT_TRUE ? mode : mode | O_DIRECT);
+    }
     knl_panic(!bak->restore);
     CT_LOG_DEBUG_INF("[BACKUP] start backup, proc id %u, file id %u, backup id %u, file name %s, file size %llu",
         proc->proc_id, assign_ctrl->file_id, assign_ctrl->bak_index, proc->ctrl.name, assign_ctrl->file_size);
 
-    if (cm_open_file(bak_file->name, mode, &bak_file->handle) == CT_SUCCESS) {
+    if (bak->failed != CT_TRUE && cm_open_file(bak_file->name, mode, &bak_file->handle) == CT_SUCCESS) {
         if (bak_paral_backup(session, proc) != CT_SUCCESS) {
             bak->failed = CT_TRUE;
             CT_LOG_RUN_ERR("[BACKUP] backup task failed, proc id %u, file id %u, backup index %u, name %s",
