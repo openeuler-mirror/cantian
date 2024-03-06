@@ -5,21 +5,14 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
 
-DEPLOY_PARAM_PATH = '/opt/cantian/config/deploy_param.json'
-
-
 def file_reader(file_path):
     with open(file_path, 'r') as file:
         return file.read()
 
 
 def get_certificate_status():
-    deploy_param = json.loads(file_reader(DEPLOY_PARAM_PATH))
-
-    storage_share_fs = deploy_param.get("storage_share_fs")
-    node_id = deploy_param.get("node_id")
-    cert_file_path = f"/mnt/dbdata/remote/share_{storage_share_fs}/certificates/node{node_id}/mes.crt"
-    crl_file_path = f"/mnt/dbdata/remote/share_{storage_share_fs}/certificates/node{node_id}/mes.crl"
+    cert_file_path = "/opt/cantian/common/config/certficates/mes.crt"
+    crl_file_path = "/opt/cantian/common/config/certficates/mes.crl"
     with open(cert_file_path, "rb") as cert_file:
         cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
     current_time = datetime.now(tz=timezone.utc)
@@ -35,7 +28,7 @@ def get_certificate_status():
             cert_status = "revoked"
     not_before = cert.not_valid_before
     not_after = cert.not_valid_after
-    if not_before <= current_time <= not_after:
+    if not not_before.replace(tzinfo=timezone.utc) <= current_time <= not_after.replace(tzinfo=timezone.utc):
         cert_status = "expired"
     return crl_status, cert_status
 

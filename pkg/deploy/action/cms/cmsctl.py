@@ -314,6 +314,7 @@ def genreg_string(text):
 
 deploy_mode = get_value("deploy_mode")
 mes_type = get_value("mes_type") if deploy_mode != "nas" else "TCP"
+mes_ssl_switch = get_value("mes_ssl_switch")
 node_id = get_value("node_id")
 storage_share_fs = get_value("storage_share_fs")
 
@@ -347,15 +348,14 @@ CMS_CONFIG = {
 PRIMARY_KEYSTORE = "/opt/cantian/common/config/primary_keystore_bak.ks"
 STANDBY_KEYSTORE = "/opt/cantian/common/config/standby_keystore_bak.ks"
 
-MES_TCP_CONFIG = {
-        "_CMS_MES_SSL_SWITCH": "TRUE",
+MES_CONFIG = {
+        "_CMS_MES_SSL_SWITCH": mes_ssl_switch,
         "_CMS_MES_SSL_KEY_PWD": None,
-        "_CMS_MES_SSL_CRT_KEY_PATH": f"/mnt/dbdata/remote/share_{storage_share_fs}/certificates/node{node_id}",
+        "_CMS_MES_SSL_CRT_KEY_PATH": "/opt/cantian/common/config/certificates",
         "KMC_KEY_FILES": f"({PRIMARY_KEYSTORE}, {STANDBY_KEYSTORE})"
 }
 
-if mes_type == "TCP":
-    CMS_CONFIG.update(MES_TCP_CONFIG)
+CMS_CONFIG.update(MES_CONFIG)
 
 
 class NormalException(Exception):
