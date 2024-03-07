@@ -1242,11 +1242,11 @@ static void log_copy(knl_session_t *session, log_buffer_t *buf, uint32 start_pos
 {
     knl_rm_t *rm = session->rm;
     log_group_t *group = (log_group_t *)session->log_buf;
-    uint32 ori_group_size = group->size;
+    uint32 ori_group_size = LOG_GROUP_ACTUAL_SIZE(group);
 
     // Update group size if having logic log before flushing log
     if (rm->need_copy_logic_log) {
-        group->size += rm->logic_log_size;
+        log_add_group_size(group, rm->logic_log_size);
     }
 
     uint32 remain_buf_size = buf->size - start_pos;
@@ -1298,7 +1298,7 @@ static void log_write(knl_session_t *session)
 
     log_group_t *group = (log_group_t *)session->log_buf;
     uint32 log_size = (!session->rm->need_copy_logic_log) ?
-        group->size : (group->size + session->rm->logic_log_size);
+        LOG_GROUP_ACTUAL_SIZE(group) : (LOG_GROUP_ACTUAL_SIZE(group) + session->rm->logic_log_size);
 
     if (log_size <= sizeof(log_group_t)) {
         if (session->changed_count > 0) {
@@ -1314,9 +1314,9 @@ static void log_write(knl_session_t *session)
     group->rmid = session->rmid;
     group->opr_uid = (uint16)session->uid;
     uint32 total_size = (!session->rm->need_copy_logic_log) ?
-                 group->size : (group->size + session->rm->logic_log_size);
+                 LOG_GROUP_ACTUAL_SIZE(group) : (LOG_GROUP_ACTUAL_SIZE(group) + session->rm->logic_log_size);
     session->stat->atomic_opers++;
-    session->stat->redo_bytes += group->size;
+    session->stat->redo_bytes += LOG_GROUP_ACTUAL_SIZE(group);
 
     if (SECUREC_UNLIKELY(session->kernel->switch_ctrl.request == SWITCH_REQ_DEMOTE)) {
         knl_panic(DB_IS_PRIMARY(&session->kernel->db) && session->kernel->switch_ctrl.state < SWITCH_WAIT_LOG_SYNC);
@@ -1638,6 +1638,7 @@ void log_atomic_op_begin(knl_session_t *session)
     group->rmid = session->rmid;
     group->opr_uid = (uint16)session->uid;
     group->size = sizeof(log_group_t);
+    group->extend = 0;
     group->nologging_insert = CT_FALSE;
 
     if (DB_NOT_READY(session)) {
@@ -1671,7 +1672,8 @@ void log_atomic_op_end(knl_session_t *session)
 {
     log_group_t *group = (log_group_t *)session->log_buf;
 
-    knl_panic_log(group->size > 0, "the group's size is abnormal, panic info: group size %u", group->size);
+    knl_panic_log(LOG_GROUP_ACTUAL_SIZE(group) > 0, "the group's size is abnormal, panic info: group size %u",
+        LOG_GROUP_ACTUAL_SIZE(group));
     knl_panic_log(session->atomic_op, "the session's atomic_op is false.");
 
     if (session->dirty_count > 0) {
@@ -1688,6 +1690,7 @@ void log_atomic_op_end(knl_session_t *session)
     }
 
     group->size = 0;
+    group->extend = 0;
     group->nologging_insert = CT_FALSE;
     session->log_encrypt = CT_FALSE;
     session->atomic_op = CT_FALSE;
@@ -1771,7 +1774,7 @@ void log_copy_logic_data(knl_session_t *session, log_buffer_t *buf, uint32 start
 void log_put(knl_session_t *session, log_type_t type, const void *data, uint32 size, uint8 flag)
 {
     log_group_t *group = (log_group_t *)(session->log_buf);
-    log_entry_t *entry = (log_entry_t *)(session->log_buf + group->size);
+    log_entry_t *entry = (log_entry_t *)(session->log_buf + LOG_GROUP_ACTUAL_SIZE(group));
 
     if (DB_NOT_READY(session)) {
         knl_panic_log(!session->kernel->db.ctrl.core.build_completed,
@@ -1793,20 +1796,21 @@ void log_put(knl_session_t *session, log_type_t type, const void *data, uint32 s
     }
 #endif
 
-    knl_panic_log(size + group->size + LOG_ENTRY_SIZE <= DEFAULT_PAGE_SIZE(session) * CT_PLOG_PAGES,
-                  "the log size is abnormal, panic info: size %u group size %u", size, group->size);
+    knl_panic_log(size + LOG_GROUP_ACTUAL_SIZE(group) + LOG_ENTRY_SIZE <= DEFAULT_PAGE_SIZE(session) * CT_PLOG_PAGES,
+                  "the log size is abnormal, panic info: size %u group size %u", size, LOG_GROUP_ACTUAL_SIZE(group));
 
     entry->type = type;
     entry->flag = flag;
     entry->size = (uint16)LOG_ENTRY_SIZE;
-    group->size += (uint16)LOG_ENTRY_SIZE;
+    log_add_group_size(group, (uint16)LOG_ENTRY_SIZE);
+
 
     if (size > 0) {
-        uint32 remain_buf_size = DEFAULT_PAGE_SIZE(session) * CT_PLOG_PAGES - group->size;
+        uint32 remain_buf_size = DEFAULT_PAGE_SIZE(session) * CT_PLOG_PAGES - LOG_GROUP_ACTUAL_SIZE(group);
         errno_t ret = memcpy_sp(entry->data, remain_buf_size, data, size);
         knl_securec_check(ret);
         entry->size += CM_ALIGN4(size);
-        group->size += CM_ALIGN4(size);
+        log_add_group_size(group, CM_ALIGN4(size));
     }
 
     session->log_entry = entry;
@@ -1864,14 +1868,15 @@ void log_append_data(knl_session_t *session, const void *data, uint32 size)
         entry->size += CM_ALIGN4(size);
         rm->logic_log_size += CM_ALIGN4(size);
     } else {
-        knl_panic_log(size + group->size <= DEFAULT_PAGE_SIZE(session) * CT_PLOG_PAGES,
-                      "the log size is abnormal, panic info: size %u group size %u", size, group->size);
+        knl_panic_log(size + LOG_GROUP_ACTUAL_SIZE(group) <= DEFAULT_PAGE_SIZE(session) * CT_PLOG_PAGES,
+                      "the log size is abnormal, panic info: size %u group size %u",
+                      size, LOG_GROUP_ACTUAL_SIZE(group));
 
-        uint32 remain_buf_size = DEFAULT_PAGE_SIZE(session) * CT_PLOG_PAGES - group->size;
-        ret = memcpy_sp(session->log_buf + group->size, remain_buf_size, data, size);
+        uint32 remain_buf_size = DEFAULT_PAGE_SIZE(session) * CT_PLOG_PAGES - LOG_GROUP_ACTUAL_SIZE(group);
+        ret = memcpy_sp(session->log_buf + LOG_GROUP_ACTUAL_SIZE(group), remain_buf_size, data, size);
         knl_securec_check(ret);
         entry->size += CM_ALIGN4(size);
-        group->size += CM_ALIGN4(size);
+        log_add_group_size(group, CM_ALIGN4(size));
     }
 }
 
@@ -1931,7 +1936,8 @@ void log_append_lrep_ddl_info(knl_session_t *session, knl_handle_t stmt, logic_r
     vmc_t vmc;
     bool8 need_free = CT_FALSE;
     status_t status = g_knl_callback.get_ddl_sql(stmt, &sql, &vmc, &need_free);
-    uint32 remain_len = group->size + (uint16)LOG_ENTRY_SIZE + sizeof(logic_rep_ddl_head_t) + sizeof(uint32);
+    uint32 remain_len = LOG_GROUP_ACTUAL_SIZE(group) + (uint16)LOG_ENTRY_SIZE +
+        sizeof(logic_rep_ddl_head_t) + sizeof(uint32);
     if (status != CT_SUCCESS || sql.len >= (uint32)((DEFAULT_PAGE_SIZE(session)) * (CT_PLOG_PAGES)) - remain_len) {
         CT_LOG_RUN_ERR("[LREP_DDL]: get ddl sql status[%u] failed or sql length[%u] is oversized.", status, sql.len);
         if (need_free) {
@@ -2821,7 +2827,7 @@ log_group_t *log_fetch_group(log_context_t *ctx, log_cursor_t *cursor)
         return NULL;
     }
 
-    cursor->offsets[id] += group->size;
+    cursor->offsets[id] += LOG_GROUP_ACTUAL_SIZE(group);
     return group;
 }
 

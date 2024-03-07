@@ -126,11 +126,57 @@ typedef struct st_log_queue {
 typedef struct st_log_group {
     uint64 lsn;
     uint16 rmid;
-    uint16 size;
+    uint16 size; // ! not acture size when extend != 0, the acturre size is LOG_GROUP_ACTUAL_SIZE
     uint16 opr_uid;  // operator user id
     uint16 nologging_insert : 1;
-    uint16 reserved : 15;
+    uint16 extend : 4; // used for group_size > 64k
+    uint16 reserved : 11;
 } log_group_t;
+
+#define CT_MAX_LOG_GROUP_SIZE (uint32)((uint32)CT_MAX_UINT16 * (uint32)0x1111 + (uint32)CT_MAX_UINT16)
+#define LOG_GROUP_ACTUAL_SIZE(group)  \
+    ((group)->extend == 0 ? (uint32)(group)->size : (uint32)((group)->size + (group)->extend * (uint32)CT_MAX_UINT16))
+
+static inline void log_reduce_group_size(log_group_t *group, uint32 size)
+{
+    if(SECUREC_LIKELY((uint32)group->size >= size)) {
+        group->size -= size;
+    } else {
+        knl_panic_log(group->extend, "log buf reduce error, group size: %u, size: %u", LOG_GROUP_ACTUAL_SIZE(group),
+            size);
+        knl_panic_log(LOG_GROUP_ACTUAL_SIZE(group) >= size, "log buf reduce error, group size: %u, size: %u",
+            LOG_GROUP_ACTUAL_SIZE(group), size);
+        uint32 temp_size = (uint32)LOG_GROUP_ACTUAL_SIZE(group) - size;
+        group->extend = 0;
+        while (temp_size >= (uint32)CT_MAX_UINT16) {
+            group->extend++;
+            temp_size -= (uint32)CT_MAX_UINT16;
+        }
+        group->size = temp_size;
+    }
+}
+static inline void log_add_group_size(log_group_t *group, uint32 size)
+{
+    if (size + LOG_GROUP_ACTUAL_SIZE(group) > CT_MAX_LOG_GROUP_SIZE) {
+        CT_LOG_RUN_ERR("log buf append error, group size: %u, extend %u, size: %u", LOG_GROUP_ACTUAL_SIZE(group), group->extend,
+            size);
+#ifdef LOG_DIAG
+        knl_panic(0);
+#endif
+    }
+    if (SECUREC_LIKELY(size < (uint32)CT_MAX_UINT16 && (uint32)CT_MAX_UINT16 - size > group->size)) {
+        group->size += size;
+    } else {
+        uint32 temp_size = (uint32)group->size + size;
+        while (temp_size >= (uint32)CT_MAX_UINT16) {
+            group->extend++;
+            temp_size -= (uint32)CT_MAX_UINT16;
+        }
+        group->size = temp_size;
+        CT_LOG_RUN_INF("group size has been extend, group size: %u, extend %u, size: %u",
+            LOG_GROUP_ACTUAL_SIZE(group), group->extend, size);
+    }
+}
 
 typedef struct st_log_part {
     uint32 size;

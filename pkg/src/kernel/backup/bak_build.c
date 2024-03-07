@@ -878,7 +878,7 @@ static status_t build_analyze_group(knl_session_t *session, log_group_t *group)
     uint32 offset = sizeof(log_group_t);
     log_entry_t *log = NULL;
 
-    while (offset < group->size) {
+    while (offset < LOG_GROUP_ACTUAL_SIZE(group)) {
         log = (log_entry_t *)((char *)group + offset);
         if (build_analyze_entry(session, log) != CT_SUCCESS) {
             return CT_ERROR;

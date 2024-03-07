@@ -504,7 +504,7 @@ status_t dtc_rcy_analyze_group(knl_session_t *session, log_group_t *group)
     bool32 is_create_df = CT_FALSE;
     dtc_rcy_init_page_id_stack(session->kernel->db.recover_for_restore);
     dtc_rcy_reset_need_analysis_leave_page_cnt(session->kernel->db.recover_for_restore);
-    while (offset < group->size) {
+    while (offset < LOG_GROUP_ACTUAL_SIZE(group)) {
         log = (log_entry_t *)((char *)group + offset);
         knl_panic(log->size > 0);
         if (!is_create_df && log->type == RD_SPC_CREATE_DATAFILE) {
