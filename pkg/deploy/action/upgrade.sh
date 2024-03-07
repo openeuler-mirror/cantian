@@ -445,7 +445,7 @@ function do_upgrade() {
             cp -arf "${certificate_remote_dir}"/ca.crt "${certificate_dir}"/ca.crt
             cp -arf "${certificate_remote_dir}"/mes.crt "${certificate_dir}"/mes.crt
             cp -arf "${certificate_remote_dir}"/mes.key "${certificate_dir}"/mes.key
-            chown -hR "${deploy_user}":"${deploy_group}" "${certificate_dir}"
+            chown -hR "${cantian_user}":"${cantian_group}" "${certificate_dir}"
         fi
     fi
     if [[ -f /mnt/dbdata/local/cantian/tmp/data/cfg/zsql.ini ]];then
