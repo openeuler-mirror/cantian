@@ -28,6 +28,7 @@
 #include "dtc_ddl.h"
 #include "mes_queue.h"
 #include "tse_inst.h"
+#include "cm_malloc.h"
 
 int tse_broadcast_and_recv(knl_session_t *knl_session, uint64 inst_bits, const void *req_data, char *err_msg);
 void tse_process_broadcast_ack_ex(void *session, mes_message_t *msg);
