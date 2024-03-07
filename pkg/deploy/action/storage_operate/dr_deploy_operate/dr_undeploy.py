@@ -180,18 +180,22 @@ class UNDeploy(object):
         self.delete_hyper_metro_domain()
 
     def do_stop(self):
-        node_id = self.dr_deploy_info.get("node_id")
-        share_fs_name = self.dr_deploy_info.get("storage_share_fs")
-        install_record_file = f"/mnt/dbdata/remote/share_{share_fs_name}/node{node_id}_install_record.json"
-        ctl_file_path = os.path.join(CURRENT_PATH, "../../")
-        cmd = "sh %s/stop.sh;last_cmd=$?" % ctl_file_path
-        _, output, stderr = exec_popen(cmd, timeout=3600)
-        if "Stop Cantian Engine success." not in output:
-            err_msg = "Failed to execute stop, stderr:%s, output:%s" % (stderr, output)
-            raise Exception(err_msg)
-        if not os.path.exists(install_record_file):
-            return
-        self.dr_deploy.update_install_status(node_id, "stop", "success")
+        stop_flag_file = f"/opt/cantian/.stop_success"
+        if not os.path.exists(stop_flag_file):
+            node_id = self.dr_deploy_info.get("node_id")
+            share_fs_name = self.dr_deploy_info.get("storage_share_fs")
+            install_record_file = f"/mnt/dbdata/remote/share_{share_fs_name}/node{node_id}_install_record.json"
+            ctl_file_path = os.path.join(CURRENT_PATH, "../../")
+            cmd = "sh %s/stop.sh;last_cmd=$?" % ctl_file_path
+            _, output, stderr = exec_popen(cmd, timeout=3600)
+            if "Stop Cantian Engine success." not in output:
+                err_msg = "Failed to execute stop, stderr:%s, output:%s" % (stderr, output)
+                raise Exception(err_msg)
+            if not os.path.exists(install_record_file):
+                return
+            self.dr_deploy.update_install_status(node_id, "stop", "success")
+            with open(stop_flag_file, "w") as f:
+                f.write("")
 
     def do_uninstall(self):
         ctl_file_path = os.path.join(CURRENT_PATH, "../../")
