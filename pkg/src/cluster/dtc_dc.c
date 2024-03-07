@@ -66,6 +66,25 @@ static status_t dtc_get_alive_bitmap(uint64 *target_bits)
     return CT_SUCCESS;
 }
 
+status_t dtc_send_sync_ddl_msg(knl_handle_t knl_session, char *logic_log_buf, uint32 logic_log_size)
+{
+    knl_session_t *session = (knl_session_t *)knl_session;
+    msg_ddl_info_t info;
+    info.scn = KNL_GET_SCN(&session->kernel->scn);
+    info.log_len = logic_log_size;
+    mes_init_send_head(&info.head, MES_CMD_DDL_BROADCAST, (uint16)(sizeof(msg_ddl_info_t) + logic_log_size),
+        CT_INVALID_ID32, session->kernel->dtc_attr.inst_id, 0, session->id, CT_INVALID_ID16);
+    uint64 target_bits = 0;
+    status_t status = dtc_get_alive_bitmap(&target_bits);
+    if (status != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("dtc sync ddl get alive bitmap failed");
+        return status;
+    }
+    status = mes_broadcast_bufflist_and_wait_with_retry(session->id, target_bits, &info.head, sizeof(msg_ddl_info_t),
+        logic_log_buf, DTC_WAIT_MES_TIMEOUT_HIGH, DTC_MAX_RETRY_TIEMS);
+    return status;
+}
+
 status_t dtc_sync_ddl_internal(knl_handle_t knl_session, char * logic_log_buf, uint32 logic_log_size)
 {
     knl_session_t *session = (knl_session_t *)knl_session;
@@ -91,10 +110,8 @@ status_t dtc_sync_ddl_internal(knl_handle_t knl_session, char * logic_log_buf, u
     if (should_ignore) {
         return CT_SUCCESS;
     }
-
-    msg_ddl_info_t info;
-    info.scn = KNL_GET_SCN(&session->kernel->scn);
-    info.log_len = logic_log_size;
+    char *syn_log_buf = (char *)cm_push(session->stack, (uint32)CT_DFLT_CTRL_BLOCK_SIZE);
+    uint32 syn_log_size = 0;
     uint32_t offset = 0;
     uint32_t total_log_size = 0;
     while (offset < logic_log_size) {
@@ -105,19 +122,38 @@ status_t dtc_sync_ddl_internal(knl_handle_t knl_session, char * logic_log_buf, u
         CT_LOG_DEBUG_INF("dtc sync ddl log type=%d op_type=%d, size=%d , total size %dcan ignore=%d", tmplog->type,
             *(logic_op_t *)tmplog->data, tmplog->size, total_log_size, can_ignore(tmplog->type));
         knl_panic(total_log_size <= logic_log_size);
+        logic_op_t tmp_op_type = *(logic_op_t *)tmplog->data;
+        if (DB_IS_PRIMARY(&session->kernel->db) && (tmp_op_type == RD_LOCK_TABLE_FOR_MYSQL_DDL ||
+            tmp_op_type == RD_UNLOCK_TABLE_FOR_MYSQL_DDL || tmp_op_type == RD_INVALID_DD_FOR_MYSQL_DDL)) {
+            continue;
+        }
+        if (tmplog->size + syn_log_size > CT_DFLT_CTRL_BLOCK_SIZE) {
+            status_t status = dtc_send_sync_ddl_msg(knl_session, syn_log_buf, syn_log_size);
+            if (status != CT_SUCCESS) {
+                cm_pop(session->stack);
+                CT_LOG_RUN_ERR("dtc sync ddl failed, log type=%d op_type=%d, size=%d , logic_log_size size %d sync size %u can ignore=%d",
+                    log->type, *op_type, log->size, logic_log_size, syn_log_size, should_ignore);
+                return status;
+            }
+            syn_log_size = 0;
+        }
+        int32 ret = memcpy_sp(syn_log_buf + syn_log_size, CT_DFLT_CTRL_BLOCK_SIZE - syn_log_size, tmplog, tmplog->size);
+        knl_securec_check(ret);
+        syn_log_size += tmplog->size;
     }
 
-    mes_init_send_head(&info.head, MES_CMD_DDL_BROADCAST, (uint16)(sizeof(msg_ddl_info_t) + logic_log_size),
-        CT_INVALID_ID32, session->kernel->dtc_attr.inst_id, 0, session->id, CT_INVALID_ID16);
-    uint64 target_bits = 0;
-    status_t status = dtc_get_alive_bitmap(&target_bits);
+    if (syn_log_size == 0) {
+        cm_pop(session->stack);
+        return CT_SUCCESS;
+    }
+    status_t status = dtc_send_sync_ddl_msg(knl_session, syn_log_buf, syn_log_size);
     if (status != CT_SUCCESS) {
-        CT_LOG_RUN_INF("dtc sync ddl failed, log type=%d op_type=%d, size=%d , logic_log_size size %d can ignore=%d",
-            log->type, *op_type, log->size, logic_log_size, should_ignore);
+        cm_pop(session->stack);
+        CT_LOG_RUN_ERR("dtc sync ddl failed, log type=%d op_type=%d, size=%d , logic_log_size size %d sync size %u can ignore=%d",
+            log->type, *op_type, log->size, logic_log_size, syn_log_size, should_ignore);
         return status;
     }
-    status = mes_broadcast_bufflist_and_wait_with_retry(session->id, target_bits, &info.head, sizeof(msg_ddl_info_t),
-        log, DTC_WAIT_MES_TIMEOUT_HIGH, DTC_MAX_RETRY_TIEMS);
+    cm_pop(session->stack);
     return status;
 }
 
