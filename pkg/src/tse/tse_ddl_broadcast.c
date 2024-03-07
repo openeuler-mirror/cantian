@@ -156,7 +156,8 @@ status_t ctc_lock_table_in_slave_node(knl_handle_t session, void *buff)
 {
     rd_lock_info_4mysql_ddl *rd_lock_info = (rd_lock_info_4mysql_ddl *)buff;
     tianchi_handler_t tch;
-    memset_s(&tch, sizeof(tianchi_handler_t), 0, sizeof(tianchi_handler_t));
+    status_t ret = memset_s(&tch, sizeof(tianchi_handler_t), 0, sizeof(tianchi_handler_t));
+    knl_securec_check(ret);
     tch.thd_id = CT_INVALID_ID32 - 1;
     tch.inst_id = CT_INVALID_ID32 - 1;
     tch.sess_addr = (uint64_t)session;
@@ -169,7 +170,7 @@ status_t ctc_lock_table_in_slave_node(knl_handle_t session, void *buff)
                      rd_lock_info->table_name_len, rd_lock_info->mdl_namespace, rd_lock_info->sql_type);
     int error_code = 0;
 
-    int ret = tse_lock_table_impl(&tch, session, db_name, &lock_info, &error_code);
+    ret = tse_lock_table_impl(&tch, session, db_name, &lock_info, &error_code);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[ctc_lock_table_in_slave_node] ret: %d, error_code: %d", ret, error_code);
     }
@@ -180,7 +181,8 @@ status_t ctc_unlock_table_in_slave_node(knl_handle_t session, void *buff)
 {
     rd_lock_info_4mysql_ddl *rd_lock_info = (rd_lock_info_4mysql_ddl *)buff;
     tianchi_handler_t tch;
-    memset_s(&tch, sizeof(tianchi_handler_t), 0, sizeof(tianchi_handler_t));
+    status_t ret = memset_s(&tch, sizeof(tianchi_handler_t), 0, sizeof(tianchi_handler_t));
+    knl_securec_check(ret);
     tch.thd_id = CT_INVALID_ID32 - 1;
     tch.inst_id = CT_INVALID_ID32 - 1;
     tch.sess_addr = (uint64_t)session;
@@ -192,7 +194,7 @@ status_t ctc_unlock_table_in_slave_node(knl_handle_t session, void *buff)
                      rd_lock_info->op_type, lock_info.db_name, rd_lock_info->db_name_len, lock_info.table_name,
                      rd_lock_info->table_name_len, rd_lock_info->mdl_namespace, rd_lock_info->sql_type);
 
-    int ret = tse_unlock_table_impl(&tch, session, mysql_inst_id, &lock_info);
+    ret = tse_unlock_table_impl(&tch, session, mysql_inst_id, &lock_info);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[ctc_unlock_table_in_slave_node] ret: %d", ret);
     }
@@ -203,7 +205,8 @@ status_t ctc_invalid_dd_in_slave_node(knl_handle_t session, void *buff)
 {
     rd_invalid_dd_4mysql_ddl *invalid_info = (rd_invalid_dd_4mysql_ddl *)buff;
     tianchi_handler_t tch;
-    memset_s(&tch, sizeof(tianchi_handler_t), 0, sizeof(tianchi_handler_t));
+    status_t ret = memset_s(&tch, sizeof(tianchi_handler_t), 0, sizeof(tianchi_handler_t));
+    knl_securec_check(ret);
     // Do not use 0 or 0xFFFFFFFF, or mysql will close all the connections.
     tch.thd_id = CT_INVALID_ID32 - 1;
     tch.inst_id = CT_INVALID_ID32 - 1;
@@ -219,7 +222,7 @@ status_t ctc_invalid_dd_in_slave_node(knl_handle_t session, void *buff)
     CT_LOG_DEBUG_INF("[ctc_invalid_dd_in_slave_node] redo op_type = %d, buff = %s, buff_len = %d, is_dcl = %u",
                      invalid_info->op_type, broadcast_req.buff, broadcast_req.buff_len, broadcast_req.is_dcl);
 
-    int ret = tse_broadcast_mysql_dd_invalidate_impl(&tch, session, &broadcast_req);
+    ret = tse_broadcast_mysql_dd_invalidate_impl(&tch, session, &broadcast_req);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[ctc_invalid_dd_in_slave_node] ret: %d", ret);
     }
@@ -229,24 +232,36 @@ status_t ctc_invalid_dd_in_slave_node(knl_handle_t session, void *buff)
 status_t ctc_execute_ddl_in_slave_node(knl_handle_t session, char *sql_text, uint32 sql_len)
 {
     tianchi_handler_t tch;
-    memset_s(&tch, sizeof(tianchi_handler_t), 0, sizeof(tianchi_handler_t));
+    status_t ret;
+    ret = memset_s(&tch, sizeof(tianchi_handler_t), 0, sizeof(tianchi_handler_t));
+    knl_securec_check(ret);
     // Do not use 0 or 0xFFFFFFFF, or mysql will close all the connections.
     tch.thd_id = CT_INVALID_ID32 - 1;
     tch.inst_id = CT_INVALID_ID32 - 1;
     tch.sess_addr = (uint64_t)session;
 
-    tse_ddl_broadcast_request broadcast_req;
-    memset_s(&broadcast_req, sizeof(tse_ddl_broadcast_request), 0, sizeof(tse_ddl_broadcast_request));
-    memcpy_s(broadcast_req.sql_str, sql_len, sql_text, sql_len);
-    broadcast_req.sql_str[sql_len] = '\0';
-    broadcast_req.mysql_inst_id = CT_INVALID_ID32 - 1;
+    tse_ddl_broadcast_request *broadcast_req = (tse_ddl_broadcast_request *)cm_malloc(sizeof(tse_ddl_broadcast_request));
+    if (broadcast_req == NULL) {
+        CT_LOG_RUN_ERR("[ctc_execute_ddl_in_slave_node] malloc broadcast_req failed!");
+        return CT_ERROR;
+    }
 
-    int ret = tse_ddl_execute_and_broadcast(&tch, &broadcast_req, false, (knl_session_t *)session); 
+    ret = memset_s(broadcast_req, sizeof(tse_ddl_broadcast_request), 0, sizeof(tse_ddl_broadcast_request));
+    knl_securec_check(ret);
+    ret = memcpy_s(broadcast_req->sql_str, sql_len, sql_text, sql_len);
+    knl_securec_check(ret);
+    broadcast_req->sql_str[sql_len] = '\0';
+    broadcast_req->mysql_inst_id = CT_INVALID_ID32 - 1;
+
+    ret = tse_ddl_execute_and_broadcast(&tch, broadcast_req, false, (knl_session_t *)session); 
+
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[TSE_DDL]:tse_ddl_execute_and_broadcast failed in disaster-recovery. sql_str:%s",
-        broadcast_req.sql_str);
+        broadcast_req->sql_str);
+        cm_free(broadcast_req);
         return ret;
     }
+    cm_free(broadcast_req);
 
     return CT_SUCCESS;
 }

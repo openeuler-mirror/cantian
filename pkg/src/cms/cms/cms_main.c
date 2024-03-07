@@ -59,6 +59,8 @@ cms_log_def_t g_cms_log[] = {
     { LOG_DEBUG, CMS_TOOLS, "run/cms_adm.dlog" },
 };
 
+#define CMS_MAIN_TIME_STAMP_NUM 15
+
 status_t cms_init_loggers(proc_type_t proc_type)
 {
     int32 iret_snprintf = 0;
@@ -267,6 +269,7 @@ status_t cm_get_gcc_file_handle()
 EXTER_ATTACK int32 main(int32 argc, char *argv[])
 {
     int32 cmd_count = sizeof(g_cms_cmd_defs) / sizeof(cms_cmd_def_t);
+    int64 begain = cm_now();
     cms_cmd_def_t* cmd_def = NULL;
     int32 i = 0;
     for (; i < cmd_count; i++) {
@@ -290,19 +293,33 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
             break;
         }
     }
-
     if (i == cmd_count) {
         printf("invalid argument\n");
         return CT_ERROR;
     }
-    CT_RETURN_IFERR(cms_load_param());
-    if (cmd_def->cmd_pro_func == cms_server_start) {
-        CT_RETURN_IFERR(cms_init_loggers(CMS_SERVER));
-    } else {
-        CT_RETURN_IFERR(cms_init_loggers(CMS_TOOLS));
+    int64 parse_end = cm_now();
+    int64 time_stamp[CMS_MAIN_TIME_STAMP_NUM] = {0};
+    if (cms_load_param(time_stamp) != CT_SUCCESS) {
+        printf("cms load param failed.\n");
+        return CT_ERROR;
     }
+    int64 load_end = cm_now();
+    proc_type_t type = (cmd_def->cmd_pro_func == cms_server_start ? CMS_SERVER : CMS_TOOLS);
+    if (cms_init_loggers(type) != CT_SUCCESS) {
+        printf("cms init type(%d) loggers failed.\n", type);
+        return CT_ERROR;
+    }
+    int64 init_end = cm_now();
     cms_info_log_print(cmd_def);
-
+    if (cmd_def->cmd_pro_func == cms_stat_cluster) {
+        CT_LOG_RUN_INF("cms stat time statistic, parse cmd: %lld(us), load param: %lld(us) init logs: %lld(us) "
+                       "load param step cost(us):[%lld, %lld, %lld, %lld, %lld, %lld, %lld, %lld, %lld, %lld, %lld].",
+                       parse_end - begain, load_end - parse_end, init_end - load_end,
+                       time_stamp[CM_DIGITAL_0], time_stamp[CM_DIGITAL_1], time_stamp[CM_DIGITAL_2],
+                       time_stamp[CM_DIGITAL_3], time_stamp[CM_DIGITAL_4], time_stamp[CM_DIGITAL_5],
+                       time_stamp[CM_DIGITAL_6], time_stamp[CM_DIGITAL_7], time_stamp[CM_DIGITAL_8],
+                       time_stamp[CM_DIGITAL_9], time_stamp[CM_DIGITAL_10]);
+    }
     if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
         cmd_def->cmd_pro_func == cms_server_start) {
         if (cms_lock_server() != CT_SUCCESS) {

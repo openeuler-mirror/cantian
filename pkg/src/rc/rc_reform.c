@@ -391,6 +391,9 @@ void rc_refresh_cluster_info(void)
                 tmp_current_stat.master_inst_id, g_rc_ctx->info.master_id);
         }
     }
+    if (g_rc_ctx->info.master_changed) {
+        g_rc_ctx->info.standby_get_txn = CT_FALSE;
+    }
     g_rc_ctx->info.master_id = tmp_current_stat.master_inst_id;
 
     // refresh self info from cms
@@ -454,6 +457,7 @@ void reset_reform_info(bool32 init)
         g_rc_ctx->info.full_restart = CT_FALSE;
         g_rc_ctx->info.cluster_steady = CT_TRUE;
         g_rc_ctx->info.have_error = CT_FALSE;
+        g_rc_ctx->info.standby_get_txn = CT_FALSE;
     }
 }
 

@@ -920,10 +920,6 @@ status_t cms_disk_unlock_dbs(cms_disk_lock_t* lock, uint8_t lock_type)
             if (ret != CT_SUCCESS) {
                 continue;
             }
-            // ret = cms_unlock_dbs_fd(lock, DISK_LOCK_WRITE); // 解master锁？
-            if (ret != CT_SUCCESS) {
-                continue;
-            }
             cms_refresh_last_check_time(start_time);
         }
         if (is_force == CT_FALSE) {

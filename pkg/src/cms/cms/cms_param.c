@@ -492,7 +492,7 @@ status_t cms_get_dbstore_config_value(config_t *cfg)
     return CT_SUCCESS;
 }
 
-status_t cms_load_param(void)
+status_t cms_load_param(int64* time_stamp)
 {
     char file_name[CMS_FILE_NAME_BUFFER_SIZE];
     errno_t ret;
@@ -500,15 +500,12 @@ status_t cms_load_param(void)
     uint64 size;
     uint32 val_uint32;
     int64 val_int64;
-
     CT_RETURN_IFERR(cms_get_cms_home());
     g_cm_io_record_open = CT_TRUE;
-
     // get config info
     ret = snprintf_s(file_name, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN, "%s/cfg/%s", g_param.cms_home,
         CMS_CFG_FILENAME);
     PRTS_RETURN_IFERR(ret);
-
     config_t cfg;
     if (cm_load_config(g_cms_params, sizeof(g_cms_params) / sizeof(config_item_t), file_name, &cfg, CT_FALSE) != CT_SUCCESS) {
         return CT_ERROR;
@@ -519,12 +516,10 @@ status_t cms_load_param(void)
         CT_THROW_ERROR(ERR_CTSTORE_INVALID_PARAM, "invalid parameter value of 'NODE_ID'");
         return CT_ERROR;
     }
-
     if (size < 0 || size >= CMS_MAX_NODES) {
         CT_THROW_ERROR(ERR_CTSTORE_INVALID_PARAM, "invalid parameter value[%lld] of 'NODE_ID'", size);
         return CT_ERROR;
     }
-
     g_param.node_id = (uint16)size;
 
     value = cm_get_config_value(&cfg, "FS_NAME");
@@ -726,15 +721,19 @@ status_t cms_load_param(void)
             return CT_ERROR;
         }
     }
+
     cms_get_mes_config_value(&cfg);
     if (cms_get_mes_ssl_config(&cfg) != CT_SUCCESS) {
         return CT_ERROR;
     }
+
     if (g_param.cms_mes_pipe_type == CS_TYPE_UC || g_param.cms_mes_pipe_type == CS_TYPE_UC_RDMA || enable) {
         CT_RETURN_IFERR(set_all_inst_lsid(val_uint32, 1));
     }
-
     CT_RETURN_IFERR(cms_get_dbstore_config_value(&cfg));
+    for(int idx = 0; idx < MES_TIME_STAMP_NUM; idx++) {
+        time_stamp[idx] = g_mes_config_time[idx];
+    }
     return CT_SUCCESS;
 }
 

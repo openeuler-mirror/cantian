@@ -245,7 +245,7 @@ status_t cm_remove_device_when_enoent(device_type_t type, const char *name)
     return CT_ERROR;
 }
 
-status_t cm_open_device(const char *name, device_type_t type, uint32 flags, int32 *handle)
+status_t cm_open_device_common(const char *name, device_type_t type, uint32 flags, int32 *handle, uint8 is_retry)
 {
     timeval_t tv_begin;
     if (type == DEV_TYPE_FILE) {
@@ -275,7 +275,7 @@ status_t cm_open_device(const char *name, device_type_t type, uint32 flags, int3
             return CT_SUCCESS;
         }
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_OPEN_ULOG, &tv_begin);
-        if (cm_dbs_ulog_open(name, handle) == CT_ERROR) {
+        if (cm_dbs_ulog_open(name, handle, is_retry) == CT_ERROR) {
             cantian_record_io_stat_end(IO_RECORD_EVENT_NS_OPEN_ULOG, &tv_begin, IO_STAT_FAILED);
             return CT_ERROR;
         }
@@ -296,6 +296,14 @@ status_t cm_open_device(const char *name, device_type_t type, uint32 flags, int3
     }
 
     return CT_SUCCESS;
+}
+
+status_t cm_open_device(const char *name, device_type_t type, uint32 flags, int32 *handle){
+    return cm_open_device_common(name, type ,flags, handle, CT_TRUE);
+}
+
+status_t cm_open_device_no_retry(const char *name, device_type_t type, uint32 flags, int32 *handle){
+    return cm_open_device_common(name, type ,flags, handle, CT_FALSE);
 }
 
 void cm_close_device(device_type_t type, int32 *handle)
@@ -422,13 +430,23 @@ status_t cm_device_read_batch(device_type_t type, int32 handle, uint64 startLsn,
     return CT_ERROR;
 }
  
-status_t cm_device_get_used_cap(device_type_t type, int32 handle, uint64_t startLsn, uint32_t *sizeKb)
+status_t cm_device_get_used_cap_common(device_type_t type, int32 handle, uint64_t startLsn, uint32_t *sizeKb, uint8 is_retry)
 {
     if (type == DEV_TYPE_ULOG) {
-        return cm_dbs_get_used_cap(handle, startLsn, sizeKb);
+        return cm_dbs_get_used_cap(handle, startLsn, sizeKb, is_retry);
     }
     CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
     return CT_ERROR;
+}
+
+status_t cm_device_get_used_cap(device_type_t type, int32 handle, uint64_t startLsn, uint32_t *sizeKb)
+{
+    return cm_device_get_used_cap_common(type, handle, startLsn, sizeKb, CT_TRUE);
+}
+
+status_t cm_device_get_used_cap_no_retry(device_type_t type, int32 handle, uint64_t startLsn, uint32_t *sizeKb)
+{
+    return cm_device_get_used_cap_common(type, handle, startLsn, sizeKb, CT_FALSE);
 }
 
 status_t cm_device_capacity(device_type_t type, int64 *capacity)

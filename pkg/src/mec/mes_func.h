@@ -30,6 +30,7 @@
 #include "cm_defs.h"
 #include "cm_thread.h"
 #include "cm_timer.h"
+#include "cm_date.h"
 #include "cs_pipe.h"
 #include "cs_listener.h"
 #include "cm_checksum.h"

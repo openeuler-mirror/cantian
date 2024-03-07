@@ -1043,7 +1043,7 @@ static status_t vm_get_datafile_size(knl_session_t *session, datafile_ctrl_t *ct
     }
     handle = DATAFILE_FD(session, ctrl->id);
     SYNC_POINT_GLOBAL_START(CANTIAN_SPC_OPEN_DATAFILE_FAIL, &Ret, CT_ERROR);
-    Ret = spc_open_datafile(session, df, handle);
+    Ret = spc_open_datafile_no_retry(session, df, handle);
     SYNC_POINT_GLOBAL_END;
     if (*handle == -1 && Ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[SPACE] failed to open file %s", ctrl->name);

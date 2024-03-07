@@ -88,6 +88,7 @@ typedef struct st_reform_info {
 
     bool8           cluster_steady;
     bool8           have_error;
+    bool8           standby_get_txn;
     volatile uint32 failed_reform_status;
 } reform_info_t;
 

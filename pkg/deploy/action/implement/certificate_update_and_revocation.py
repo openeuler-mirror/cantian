@@ -4,6 +4,8 @@ import stat
 import sys
 import shutil
 import getpass
+import grp
+import pwd
 from datetime import datetime, timedelta, timezone
 
 from dateutil import parser
@@ -12,6 +14,21 @@ CUR_PATH = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.join(CUR_PATH, "../"))
 from logic.common_func import exec_popen
 from om_log import LOGGER as LOG
+ENV_FILE = "/opt/cantian/action/env.sh"
+
+
+def get_param_value(param):
+    with open(ENV_FILE, 'r', encoding='utf-8') as file:
+        env_config = file.readlines()
+    if param == "cantian_user":
+        for line in env_config:
+            if line.startswith("cantian_user"):
+                return line.split("=")[1].strip("\n").strip('"')
+    if param == "cantian_group":
+        for line in env_config:
+            if line.startswith("cantian_group"):
+                return line.split("=")[1].strip("\n").strip('"')
+    return ""
 
 
 class CertificateUpdateAndRevocation(object):
@@ -21,6 +38,10 @@ class CertificateUpdateAndRevocation(object):
         self.cert_file_path = f"{certificate_path}/mes.crt"
         self.key_file_path = f"{certificate_path}/mes.key"
         self.crl_file_path = f"{certificate_path}/mes.crl"
+        self.cantian_user = get_param_value("cantian_user")
+        self.cantian_group = get_param_value("cantian_group")
+        self.cantian_uid = pwd.getpwnam(self.cantian_user).pw_uid
+        self.cantian_gid = grp.getgrnam(self.cantian_group).gr_gid
 
     @staticmethod
     def check_key_passwd(key_file_path, passwd):
@@ -135,12 +156,14 @@ class CertificateUpdateAndRevocation(object):
         if os.path.exists(self.crl_file_path):
             crt_serial_num = self.get_crt_serial_num(cert_file_path)
             # 验证证书是否在CRL中
-            if self.get_revoked_cert_by_serial_num(crl_file_path, crt_serial_num):
+            if self.get_revoked_cert_by_serial_num(self.crl_file_path, crt_serial_num):
                 raise Exception("The certificate has been revoked.")
             else:
                 LOG.info("The certificate is valid.")
         shutil.copy(cert_file_path, self.cert_file_path)
         shutil.copy(key_file_path, self.key_file_path)
+        os.chown(self.cert_file_path, self.cantian_uid, self.cantian_gid)
+        os.chown(self.key_file_path, self.cantian_uid, self.cantian_gid)
         self.update_certificate_passwd(passwd)
         print("update crt and key succeed.")
 
@@ -164,6 +187,9 @@ class CertificateUpdateAndRevocation(object):
         shutil.copy(ca_file_path, self.ca_file_path)
         shutil.copy(cert_file_path, self.cert_file_path)
         shutil.copy(key_file_path, self.key_file_path)
+        os.chown(self.ca_file_path, self.cantian_uid, self.cantian_gid)
+        os.chown(self.cert_file_path, self.cantian_uid, self.cantian_gid)
+        os.chown(self.key_file_path, self.cantian_uid, self.cantian_gid)
         self.update_certificate_passwd(passwd)
         print("update ca, crt and key succeed.")
 

@@ -43,6 +43,7 @@ FLUSH_TABLE = "flush table with read lock;"
 UNLOCK_TABLE = "unlock tables;"
 INSTALL_TIMEOUT = 900
 START_TIMEOUT = 3600
+FS_CREAT_TIMEOUT = 300
 
 
 ACTIVE_RECORD_DICT = {
@@ -1094,6 +1095,10 @@ class DRDeploy(object):
                 self.record_deploy_process("standby_install", "success")
                 is_installed_flag = True
             else:
+                if wait_time > FS_CREAT_TIMEOUT:
+                    err_mag = "Wait for the filesystem creat timeout, please check."
+                    LOG.error(err_mag)
+                    raise Exception(err_mag)
                 LOG.info("Wait until the DR is successfully set up, waited[%s]s", wait_time)
             pair_ready = metadata_fs_ready_flag and ulog_fs_pair_ready_flag and page_fs_pair_ready_flag
             if is_installed_flag and pair_ready:

@@ -68,7 +68,7 @@ typedef struct st_cms_params {
     int8            unused;
 }cms_param_t;
 
-status_t cms_load_param(void);
+status_t cms_load_param(int64* time);
 status_t cms_update_param(const char* param_name, const char* value);
 status_t cms_get_gcc_dir(char *gcc_dir, uint32 gcc_dir_len, char *gcc_file, uint32 gcc_file_len);
 status_t cms_get_detect_file(char *detect_file_all, uint32 detect_file_all_len, char *gcc_dir, uint32 gcc_dir_len);

@@ -104,6 +104,7 @@ device_type_t cm_device_type(const char *name);
 status_t cm_remove_device(device_type_t type, const char *name);
 status_t cm_remove_device_when_enoent(device_type_t type, const char *name);
 status_t cm_open_device(const char *name, device_type_t type, uint32 flags, int32 *handle);
+status_t cm_open_device_no_retry(const char *name, device_type_t type, uint32 flags, int32 *handle);
 void cm_close_device(device_type_t type, int32 *handle);
 status_t cm_rename_device(device_type_t type, const char *src, const char *dst);
 status_t cm_rename_device_when_enoent(device_type_t type, const char *src, const char *dst);
@@ -130,6 +131,7 @@ bool32 cm_create_device_dir_ex(device_type_t type, const char *name);
 status_t cm_check_device_size(device_type_t type, int32 size);
 int32 cm_align_device_size(device_type_t type, int32 size);
 status_t cm_device_get_used_cap(device_type_t type, int32 handle, uint64_t startLsn, uint32_t *sizeKb);
+status_t cm_device_get_used_cap_no_retry(device_type_t type, int32 handle, uint64_t startLsn, uint32_t *sizeKb);
 status_t cm_device_capacity(device_type_t type, int64 *capacity);
 status_t cm_device_read_batch(device_type_t type, int32 handle, uint64 startLsn, uint64 endLsn,
                               void *buf, int32 size, int32 *r_size, uint64 *outLsn);
