@@ -185,6 +185,7 @@ typedef struct __attribute__((aligned(128))) st_datafile {
 } datafile_t;
 
 status_t spc_open_datafile(knl_session_t *session, datafile_t *df, int32 *handle);
+status_t spc_open_datafile_no_retry(knl_session_t *session, datafile_t *df, int32 *handle);
 void spc_close_datafile(datafile_t *df, int32 *handle);
 void spc_invalidate_datafile(knl_session_t *session, datafile_t *df, bool32 ckpt_disable);
 status_t spc_read_datafile(knl_session_t *session, datafile_t *df, int32 *handle, int64 offset, void *buf, uint32 size);

@@ -341,6 +341,7 @@ typedef struct {
     UlogMeta    meta;
     uint32_t    tierType;
     uint64_t    feature;
+    bool        isRetry;
 } UlogAttr;
 
 typedef struct {
