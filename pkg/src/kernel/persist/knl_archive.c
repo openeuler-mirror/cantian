@@ -2480,10 +2480,25 @@ status_t rc_arch_generate_file(arch_proc_context_t *proc_ctx)
     return CT_SUCCESS;
 }
 
+void rc_arch_file_archive(knl_session_t *session, arch_proc_context_t *proc_ctx)
+{
+    errno_t ret;
+    knl_session_t *rc_session = (knl_session_t *)(g_rc_ctx->session);
+    cm_spin_lock(&rc_session->kernel->db.ctrl_lock, NULL);
+    ret = memcpy_s(&session->kernel->db.ctrlfiles, sizeof(ctrlfile_set_t), &rc_session->kernel->db.ctrlfiles,
+                   sizeof(ctrlfile_set_t));
+    knl_securec_check(ret);
+    arch_file_archive(session, proc_ctx);
+    ret = memcpy_s(&rc_session->kernel->db.ctrlfiles, sizeof(ctrlfile_set_t), &session->kernel->db.ctrlfiles,
+                   sizeof(ctrlfile_set_t));
+    knl_securec_check(ret);
+    cm_spin_unlock(&rc_session->kernel->db.ctrl_lock);
+}
+
 void rc_arch_proc(thread_t *thread)
 {
     arch_proc_context_t *proc_ctx = (arch_proc_context_t *)thread->argument;
-    arch_proc_context_t *rc_proc_ctx = &proc_ctx->session->kernel->arch_ctx.arch_proc[0];
+    arch_proc_context_t *rc_proc_ctx = &proc_ctx->session->kernel->arch_ctx.arch_proc[ARCH_DEFAULT_DEST - 1];
     errno_t ret = memcpy_s((char*)rc_proc_ctx, sizeof(arch_proc_context_t), (char*)proc_ctx,
                            sizeof(arch_proc_context_t));
     knl_securec_check(ret);
@@ -2500,7 +2515,7 @@ void rc_arch_proc(thread_t *thread)
 
         if (arch_need_archive_file(rc_proc_ctx, redo_ctx)) {
             // Try to archive log file
-            arch_file_archive(session, rc_proc_ctx);
+            rc_arch_file_archive(session, rc_proc_ctx);
         } else {
             rc_proc_ctx->arch_execute = CT_FALSE;
             ret = memcpy_s((char*)proc_ctx, sizeof(arch_proc_context_t), (char*)rc_proc_ctx,
@@ -2515,7 +2530,6 @@ void rc_arch_proc(thread_t *thread)
     }
 
     free(session->kernel);
-    KNL_SESSION_CLEAR_THREADID(session);
     free(session);
     CT_LOG_RUN_INF("[ARCH] arch proc thread exit.");
 }
