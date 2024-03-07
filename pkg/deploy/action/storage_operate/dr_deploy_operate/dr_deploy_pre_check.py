@@ -539,6 +539,8 @@ class DRDeployPreCheck(object):
         :return:
         """
         check_result = []
+        if self.site == "active":
+            return check_result
         check_cantain_cmd = "rpm -qa |grep cantian"
         check_ctom_cmd = "rpm -qa |grep ct_om"
         cantain_result_code, _, _ = exec_popen(check_cantain_cmd)
