@@ -113,6 +113,25 @@ typedef enum en_cs_shd_node_type {
     CS_MAX_NODE_TYPE,
 } cs_shd_node_type_t;
 
+typedef enum en_cm_digital_type {
+    CM_DIGITAL_0  = 0,
+    CM_DIGITAL_1  = 1,
+    CM_DIGITAL_2  = 2,
+    CM_DIGITAL_3  = 3,
+    CM_DIGITAL_4  = 4,
+    CM_DIGITAL_5  = 5,
+    CM_DIGITAL_6  = 6,
+    CM_DIGITAL_7  = 7,
+    CM_DIGITAL_8  = 8,
+    CM_DIGITAL_9  = 9,
+    CM_DIGITAL_10 = 10,
+    CM_DIGITAL_11 = 11,
+    CM_DIGITAL_12 = 12,
+    CM_DIGITAL_13 = 13,
+    CM_DIGITAL_14 = 14,
+    CM_DIGITAL_15 = 15,
+} cm_digital_type_t;
+
 typedef enum en_cs_distribute_type {
     DIST_NONE = 0,
     DIST_HASH = 1,
