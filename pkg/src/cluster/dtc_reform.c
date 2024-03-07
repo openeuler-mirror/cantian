@@ -331,6 +331,7 @@ status_t dtc_rollback_node(void)
         for (uint8 i = 0; i < deposit_list.inst_id_count; i++) {
             tx_area_release_impl(session, 0, core_ctrl->undo_segments, deposit_list.inst_id_list[i]);
         }
+        g_rc_ctx->info.standby_get_txn = CT_TRUE;
         g_rc_ctx->status = REFORM_OPEN;
         return CT_SUCCESS;
     }

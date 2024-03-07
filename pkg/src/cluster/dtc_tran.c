@@ -292,7 +292,7 @@ void dtc_process_txn_snapshot_req(void *sess, mes_message_t *msg)
 status_t dtc_standby_get_txn_info(knl_session_t *session, bool32 is_scan, xid_t xid, txn_info_t *txn_info)
 {
     if (rc_is_master()) {
-        if (g_rc_ctx->status >= REFORM_OPEN) {
+        if (session->kernel->db.status >= DB_STATUS_INIT_PHASE2 && g_rc_ctx->info.standby_get_txn) {
             tx_get_info(session, is_scan, xid, txn_info);
         } else {
             cm_sleep(MES_MSG_RETRY_TIME);
