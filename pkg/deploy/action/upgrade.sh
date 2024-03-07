@@ -90,9 +90,7 @@ function input_params_check() {
     fi
 
     # 若使用入湖，需校验so依赖文件路径进行文件拷贝
-    chmod 400 ${CURRENT_PATH}/logicrep/check_logicrep_status.sh
-    sh ${CURRENT_PATH}/logicrep/check_logicrep_status.sh
-    if [ $? -eq 0 ]; then
+    if [[ -f /opt/software/tools/logicrep/start.success ]]; then
         read -p "please input the so rely path of logicrep: " SO_PATH
         if [ ! -d "${SO_PATH}" ]; then
             logAndEchoInfo "pass upgrade mode check, current upgrade mode: ${UPGRADE_MODE}"
