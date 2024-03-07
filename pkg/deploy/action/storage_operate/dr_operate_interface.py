@@ -91,11 +91,10 @@ def main():
         raise Exception(err_msg)
     action = sys.argv[1]
     try:
-        getattr(dr_deploy_operate, action)()
+        getattr(dr_deploy_operate, action)
     except AttributeError as _err:
         raise Exception(err_msg) from _err
-    except Exception as _err:
-        raise _err
+    getattr(dr_deploy_operate, action)()
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ from logic.storage_operate import StorageInf
 from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from om_log import LOGGER as LOG
 from utils.config.rest_constant import DomainAccess, MetroDomainRunningStatus, VstorePairRunningStatus, HealthStatus, \
-    ConfigRole
+    ConfigRole, DataIntegrityStatus
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
@@ -21,6 +21,7 @@ class SwitchOver(object):
         self.hyper_domain_id = self.dr_deploy_info.get("hyper_domain_id")
         self.page_fs_pair_id = self.dr_deploy_info.get("page_fs_pair_id")
         self.meta_fs_pair_id = self.dr_deploy_info.get("meta_fs_pair_id")
+        self.ulog_fs_pair_id = self.dr_deploy_info.get("ulog_fs_pair_id")
         self.metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
 
     @staticmethod
@@ -112,6 +113,13 @@ class SwitchOver(object):
         node_id = self.dr_deploy_info.get("node_id")
         self.check_cluster_status(node_id)
         self.init_storage_opt()
+        pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info_by_pair_id(self.ulog_fs_pair_id)
+        local_data_status = pair_info.get("LOCALDATASTATE")
+        remote_data_status = pair_info.get("REMOTEDATASTATE")
+        if local_data_status == DataIntegrityStatus.inconsistent or remote_data_status == DataIntegrityStatus.inconsistent:
+            err_msg = "Data is inconsistent, please check."
+            LOG.error(err_msg)
+            raise Exception(err_msg)
         domain_info = self.dr_deploy_opt.query_hyper_metro_domain_info(self.hyper_domain_id)
         config_role = domain_info.get("CONFIGROLE")
         if config_role != ConfigRole.Primary:
