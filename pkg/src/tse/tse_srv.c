@@ -1090,12 +1090,6 @@ EXTER_ATTACK int tse_rnd_next(tianchi_handler_t *tch, record_info_t *record_info
     knl_cursor_t *cursor = (knl_cursor_t *)tch->cursor_addr;
     CT_LOG_DEBUG_INF("tse_rnd_next: tbl=%s, thd_id=%u", tse_context->table.str, tch->thd_id);
 
-    CM_SAVE_STACK(knl_session->stack);
-    cursor->row = (row_head_t *)cm_push(knl_session->stack, CT_MAX_ROW_SIZE);
-    if (cursor->row == NULL) {
-        CT_LOG_RUN_ERR("init row space failed!");
-        return CT_ERROR;
-    }
     if (cursor->dc_type == DICT_TYPE_TEMP_TABLE_SESSION && cursor->ssn < knl_session->ssn) {
         knl_inc_session_ssn(knl_session);
         cursor->ssn = knl_session->ssn;
@@ -1107,7 +1101,6 @@ EXTER_ATTACK int tse_rnd_next(tianchi_handler_t *tch, record_info_t *record_info
         tse_free_handler_cursor(session, tch);
         return ret;
     }
-    TSE_POP_CURSOR(knl_session);
     return CT_SUCCESS;
 }
 
@@ -1149,13 +1142,6 @@ EXTER_ATTACK int tse_scan_records(tianchi_handler_t *tch, uint64_t *num_rows, ch
         return tse_get_and_reset_err();
     }
 
-    cursor->row = (row_head_t *)cm_push(knl_session->stack, CT_MAX_ROW_SIZE);
-    if (cursor->row == NULL) {
-        CT_LOG_RUN_ERR("init row space failed!");
-        CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
-        return CT_ERROR;
-    }
-
     int ret = tse_count_rows(session, dc, knl_session, cursor, &rows);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("tse_scan_records: tse_count_all_rows failed");
@@ -1182,12 +1168,6 @@ int tse_rnd_prefetch(tianchi_handler_t *tch, uint8_t *records, uint16_t *record_
     *recNum = 0;
     CT_LOG_DEBUG_INF("tse_rnd_prefetch: tbl=%s, thd_id=%u", tse_context->table.str, tch->thd_id);
 
-    CM_SAVE_STACK(knl_session->stack);
-    cursor->row = (row_head_t *)cm_push(knl_session->stack, CT_MAX_ROW_SIZE);
-    if (cursor->row == NULL) {
-        CT_LOG_RUN_ERR("init row space failed!");
-        return CT_ERROR;
-    }
     if (cursor->dc_type == DICT_TYPE_TEMP_TABLE_SESSION && cursor->ssn < knl_session->ssn) {
         knl_inc_session_ssn(knl_session);
         cursor->ssn = knl_session->ssn;
@@ -1211,7 +1191,6 @@ int tse_rnd_prefetch(tianchi_handler_t *tch, uint8_t *records, uint16_t *record_
         *recNum += 1;
         record_buf_left_lens -= record_lens[i];
     }
-    TSE_POP_CURSOR(knl_session);
     return CT_SUCCESS;
 }
 
@@ -1246,13 +1225,6 @@ EXTER_ATTACK int tse_rnd_pos(tianchi_handler_t *tch, uint16_t pos_length, uint8_
     knl_cursor_t *cursor = (knl_cursor_t *)tch->cursor_addr;
     CT_LOG_DEBUG_INF("tse_rnd_pos: tbl=%s, thd_id=%u", tse_context->table.str, tch->thd_id);
 
-    CM_SAVE_STACK(knl_session->stack);
-    cursor->row = (row_head_t *)cm_push(knl_session->stack, CT_MAX_ROW_SIZE);
-    if (cursor->row == NULL) {
-        CT_LOG_RUN_ERR("init row space failed!");
-        return CT_ERROR;
-    }
-
     cursor->scan_mode = SCAN_MODE_ROWID;
     cursor->rowid = *((rowid_t *)position);
 
@@ -1282,7 +1254,6 @@ EXTER_ATTACK int tse_rnd_pos(tianchi_handler_t *tch, uint16_t pos_length, uint8_
     } else {
         record_info->record_len = 0;
     }
-    TSE_POP_CURSOR(knl_session);
     return CT_SUCCESS;
 }
 
@@ -1576,20 +1547,11 @@ EXTER_ATTACK int tse_index_read(tianchi_handler_t *tch, record_info_t *record_in
 
     CT_RETURN_IFERR(tse_get_index_info_and_set_scan_key(cursor, index_info));
 
-    CM_SAVE_STACK(knl_session->stack);
-    cursor->row = (row_head_t *)cm_push(knl_session->stack, CT_MAX_ROW_SIZE);
-    if (cursor->row == NULL) {
-        CT_LOG_RUN_ERR("init row space failed!");
-        return CT_ERROR;
-    }
-
     int ret = get_correct_pos_by_fetch(tch, cursor, record_info, index_info);
     if (ret != CT_SUCCESS) {
-        TSE_POP_CURSOR(knl_session);
         return ret;
     }
 
-    TSE_POP_CURSOR(knl_session);
     return CT_SUCCESS;
 }
 
@@ -2027,17 +1989,10 @@ EXTER_ATTACK int tse_general_fetch(tianchi_handler_t *tch, record_info_t *record
     knl_cursor_t *cursor = (knl_cursor_t *)tch->cursor_addr;
     CT_LOG_DEBUG_INF("tse_general_fetch: tbl=%s, thd_id=%u", tse_context->table.str, tch->thd_id);
 
-    CM_SAVE_STACK(knl_session->stack);
-    cursor->row = (row_head_t *)cm_push(knl_session->stack, CT_MAX_ROW_SIZE);
-    if (cursor->row == NULL) {
-        CT_LOG_RUN_ERR("init row space failed!");
-        return CT_ERROR;
-    }
     ret = tse_fetch_and_filter(cursor, knl_session, record_info->record, &record_info->record_len);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("tse_general_fetch: tse_fetch_and_filter FAIL");
         tse_free_handler_cursor(session, tch);
-        TSE_POP_CURSOR(knl_session);
         return ret;
     }
     if (!cursor->eof) {
@@ -2049,7 +2004,6 @@ EXTER_ATTACK int tse_general_fetch(tianchi_handler_t *tch, record_info_t *record
         record_info->record_len = 0;
     }
 
-    TSE_POP_CURSOR(knl_session);
     return ret;
 }
 
@@ -2072,12 +2026,6 @@ int tse_general_prefetch(tianchi_handler_t *tch, uint8_t *records, uint16_t *rec
     knl_cursor_t *cursor = (knl_cursor_t *)tch->cursor_addr;
     CT_LOG_DEBUG_INF("tse_general_prefetch: tbl=%s, thd_id=%u", tse_context->table.str, tch->thd_id);
 
-    CM_SAVE_STACK(knl_session->stack);
-    cursor->row = (row_head_t *)cm_push(knl_session->stack, CT_MAX_ROW_SIZE);
-    if (cursor->row == NULL) {
-        CT_LOG_RUN_ERR("init row space failed!");
-        return CT_ERROR;
-    }
     *recNum = 0;
     uint32_t record_buf_left_lens = MAX_RECORD_SIZE;
     for (uint32_t i = 0; i < TSE_MAX_PREFETCH_NUM && record_buf_left_lens >= max_row_size; i++) {
@@ -2101,7 +2049,6 @@ int tse_general_prefetch(tianchi_handler_t *tch, uint8_t *records, uint16_t *rec
         *recNum += 1;
         record_buf_left_lens -= record_lens[i];
     }
-    TSE_POP_CURSOR(knl_session);
     return ret;
 }
 
