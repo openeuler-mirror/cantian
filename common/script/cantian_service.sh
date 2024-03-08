@@ -45,7 +45,12 @@ function mountNfs()
         if [ $? -ne 0 ]; then
             logAndEchoInfo "/mnt/dbdata/remote/share_${storage_archive_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             archive_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "archive_logic_ip"`
-            mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
+            if [[ x"${deploy_mode}" != x"nas" ]]; then
+                mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
+            else
+                mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
+            fi
+
             if [ $? -ne 0 ]; then
                 logAndEchoError "mount /mnt/dbdata/remote/share_${storage_archive_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
                 exit 1
@@ -59,7 +64,12 @@ function mountNfs()
     if [ $? -ne 0 ]; then
         logAndEchoInfo "/mnt/dbdata/remote/metadata_${storage_metadata_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         metadata_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "metadata_logic_ip"`
-        mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+        if [[ x"${deploy_mode}" != x"nas" ]]; then
+            mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+        else
+            mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+        fi
+
         if [ $? -ne 0 ]; then
             logAndEchoError "mount /mnt/dbdata/remote/metadata_${storage_metadata_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
@@ -80,13 +90,34 @@ function mountNfs()
                 logAndEchoError "Sysctl service is not ready.[Line:${LINENO}, File:${SCRIPT_NAME}]"
                 exit 1
             fi
-            mount -t nfs -o vers=4.0,sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+            if [[ x"${deploy_mode}" != x"nas" ]]; then
+                mount -t nfs -o vers=4.0,sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+            else
+                mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+            fi
+
             if [ $? -ne 0 ]; then
                 logAndEchoError "mount /mnt/dbdata/remote/share_${storage_share_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
                 exit 1
             else
                 logAndEchoInfo "mount /mnt/dbdata/remote/share_${storage_share_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             fi
+        fi
+    fi
+
+    if [[ x"${deploy_mode}" == x"nas" ]]; then
+        storage_dbstore_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_dbstore_fs"`
+        storage_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_logic_ip"`
+        mountpoint /mnt/dbdata/remote/storage_"${storage_dbstore_fs}" > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
+        fi
+
+        if [ $? -ne 0 ]; then
+            logAndEchoError "mount /mnt/dbdata/remote/storage_"${storage_dbstore_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            exit 1
+        else
+            logAndEchoInfo "mount /mnt/dbdata/remote/storage_"${storage_dbstore_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         fi
     fi
 }
