@@ -1610,7 +1610,7 @@ void log_try_alert(log_context_t *ctx)
     ctx->alerted = CT_TRUE;
     cm_spin_unlock(&ctx->alert_lock);
 
-    CT_LOG_RUN_WAR("checkpoint not completed, freesize of rlog is %llu.", ctx->free_size);
+    CT_LOG_RUN_WAR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20,"checkpoint not completed, freesize of rlog is %llu.", ctx->free_size);
 }
 
 wait_event_t log_get_switch_wait_event(knl_session_t *session)
