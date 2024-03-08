@@ -70,7 +70,7 @@ SUSE_VERSION_PATH=/etc/SuSE-release
 REDHAT_VERSION_PATH=/etc/redhat-release
 CENTOS_VERSION_PATH=/etc/centos-release
 KYLIN_VERSION_PATH=/etc/kylin-release
-NEOKYLIN_VERSION_PATH=neokylin-release
+NEOKYLIN_VERSION_PATH=/etc/neokylin-release
 EULER_VERSION_PATH=/etc/euleros-release
 OPENEULER_VERSION_PATH=/etc/openEuler-release
 
@@ -79,13 +79,13 @@ if [[ -f "${SUSE_VERSION_PATH}" ]]; then
     OS_MINOR_VERSION=$(cat ${SUSE_VERSION_PATH} | grep PATCHLEVEL |cut -d ' ' -f 3)
     OS_SUFFIX=SUSE"${OS_MAJOR_VERSION}SP${OS_MINOR_VERSION}"
 elif [[ -f "${KYLIN_VERSION_PATH}" ]]; then
-        if [[ -n $(cat ${KYLIN_VERSION_PATH} | grep 'Kylin') ]]; then
-            OS_SUFFIX=KYLIN
-        fi
+    if [[ -n $(cat ${KYLIN_VERSION_PATH} | grep 'Kylin') ]]; then
+        OS_SUFFIX=KYLIN
+    fi
 elif [[ -f "${NEOKYLIN_VERSION_PATH}" ]]; then
-        if [[ -n $(cat ${NEOKYLIN_VERSION_PATH} | grep 'NeoKylin') ]]; then
-            OS_SUFFIX=NEOKYLINREDHAT
-        fi
+    if [[ -n $(cat ${NEOKYLIN_VERSION_PATH} | grep 'NeoKylin') ]]; then
+        OS_SUFFIX=NEOKYLINREDHAT
+    fi
 elif [[ -f "${REDHAT_VERSION_PATH}" ]]; then
     if [[ -n $(cat ${REDHAT_VERSION_PATH} | grep 'Red Hat') ]]; then
         OS_SUFFIX=RHEL
