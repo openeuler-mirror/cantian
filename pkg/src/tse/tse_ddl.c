@@ -1953,6 +1953,11 @@ static int tse_create_tmp_table_for_copy(session_t *session, tse_ddl_def_node_t 
     status = knl_create_table4mysql(knl_session, stmt, create_def);
     SYNC_POINT_GLOBAL_END;
 
+    if (knl_lock_table_self_parent_child_directly(knl_session, &dc) != CT_SUCCESS) {
+        knl_close_dc(&dc);
+        CT_RETURN_IFERR_NOCLEAR(CT_ERROR, ddl_ctrl);
+    }
+
     knl_close_dc(&dc);
     CT_RETURN_IFERR_NOCLEAR(status, ddl_ctrl);
     
@@ -3766,7 +3771,7 @@ static int tse_rename_table_impl(TcDb__TseDDLRenameTableDef *req, ddl_ctrl_t *dd
         CT_RETURN_IFERR_EX(status, stmt, ddl_ctrl);
     }
 
-    status = tse_ddl_lock_table(session, &dc, NULL, CT_FALSE);
+    status = tse_ddl_lock_table(session, &dc, NULL, ddl_ctrl->is_alter_copy);
     if (status != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[TSE_LOCK_ALTER_TABLE]:rename table to lock table failed, ret:%d,"
                        "conn_id:%u, tse_instance_id:%u", (int)status, ddl_ctrl->tch.thd_id, ddl_ctrl->tch.inst_id);
