@@ -11,7 +11,8 @@ from logic.storage_operate import StorageInf
 from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from storage_operate.dr_deploy_operate.dr_deploy_common import RemoteStorageOPT
 from utils.config.rest_constant import SUPPORT_VERSION, SystemRunningStatus, \
-    HealthStatus, RemoteDeviceStatus, FilesystemRunningStatus, PoolStatus, PoolHealth, CANTIAN_DOMAIN_PREFIX
+    HealthStatus, RemoteDeviceStatus, FilesystemRunningStatus, PoolStatus, PoolHealth, CANTIAN_DOMAIN_PREFIX, \
+    RepFileSystemNameRule
 from om_log import LOGGER as LOG
 from logic.common_func import exec_popen, read_json_config, write_json_config, get_status
 
@@ -231,12 +232,14 @@ class DRDeployPreCheck(object):
             return err_msg
         remote_vstore_id = self.local_conf_params.get("remote_dbstore_fs_vstore_id")
         LOG.info("Check standby filesystem nums start.")
-        metadata_fs_name = self.remote_conf_params.get("storage_metadata_fs") if self.site == "active" else \
-            self.local_conf_params.get("storage_metadata_fs")
-        dbstore_page_fs = self.remote_conf_params.get("storage_dbstore_page_fs") if self.site == "active" else \
-            self.local_conf_params.get("storage_dbstore_page_fs")
-
+        metadata_fs_name = self.local_conf_params.get("storage_metadata_fs")
+        dbstore_page_fs = self.local_conf_params.get("storage_dbstore_page_fs")
         metadata_in_cantian = self.local_conf_params.get("mysql_metadata_in_cantian")
+        name_suffix = self.local_conf_params.get("name_suffix", "")
+        if name_suffix:
+            dbstore_page_fs = RepFileSystemNameRule.NamePrefix + dbstore_page_fs + name_suffix
+        if name_suffix and not metadata_in_cantian:
+            metadata_fs_name = RepFileSystemNameRule.NamePrefix + metadata_fs_name + name_suffix
         self.remote_operate = RemoteStorageOPT(self.storage_opt, self.remote_device_id)
         file_system_count = self.remote_operate.query_remote_storage_vstore_filesystem_num(remote_vstore_id)
         remote_metadata_fs_info = self.remote_operate.\
@@ -258,7 +261,7 @@ class DRDeployPreCheck(object):
     def check_license_effectivity(self) -> list:
         """
         检查license有效性：远程复制（HyperReplication）和NAS基础特性（NAS Foundation）有效
-        data 返回jsonarray 特性的license状态信息。参数取值：各个json对象由特性名称、特性状态键值对组成。
+        data 返回json array 特性的license状态信息。参数取值：各个json对象由特性名称、特性状态键值对组成。
         License的状态枚举：1：有效；2：过期；3：无效。备注：license过期后，有60天试用期。
         :return: bool
         """
@@ -380,13 +383,15 @@ class DRDeployPreCheck(object):
         remote_dr_deploy_param = conf_params.get("dr_deploy").get(remote_site)
         remote_pool_id = conf_params.get("dr_deploy").get("standby").get("pool_id")
         remote_dbstore_fs_vstore_id = conf_params.get("dr_deploy").get("standby").get("dbstore_fs_vstore_id")
+        name_suffix = conf_params.get("dr_deploy").get("standby").get("name_suffix", "")
         del conf_params["dr_deploy"]
         self.local_conf_params = copy.deepcopy(conf_params)
         self.local_conf_params.update(local_dr_deploy_param)
         if self.site == "active":
             self.local_conf_params.update({
                 "remote_pool_id": remote_pool_id,
-                "remote_dbstore_fs_vstore_id": remote_dbstore_fs_vstore_id
+                "remote_dbstore_fs_vstore_id": remote_dbstore_fs_vstore_id,
+                "name_suffix": name_suffix
             })
         self.remote_conf_params = copy.deepcopy(conf_params)
         self.remote_conf_params.update(remote_dr_deploy_param)
@@ -405,6 +410,15 @@ class DRDeployPreCheck(object):
             "remote_device_id": self.remote_device_id,
             "remote_dbstore_fs_vstore_id": self.local_conf_params.get("remote_dbstore_fs_vstore_id")
         }
+        name_suffix = self.local_conf_params.get("name_suffix")
+        if name_suffix and self.site == "standby":
+            self.local_conf_params["storage_dbstore_page_fs"] = RepFileSystemNameRule.NamePrefix + \
+                                                                self.local_conf_params[
+                                                                    "storage_dbstore_page_fs"] + name_suffix
+        if name_suffix and self.site == "standby" and not self.local_conf_params.get("mysql_metadata_in_cantian"):
+            self.local_conf_params["mysql_metadata_in_cantian"] = RepFileSystemNameRule.NamePrefix + \
+                                                                self.local_conf_params[
+                                                                    "mysql_metadata_in_cantian"] + name_suffix
         self.local_conf_params.update(dr_params)
         write_json_config(DR_DEPLOY_PARAM_FILE, self.local_conf_params)
 

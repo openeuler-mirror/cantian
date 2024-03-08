@@ -9,6 +9,7 @@ from storage_operate.dr_deploy_operate.dr_undeploy import UNDeploy
 from storage_operate.dr_deploy_operate.dr_deploy_progress_query import ProgressQuery
 from storage_operate.dr_deploy_operate.dr_deploy_full_sync import FullSyncRepPair
 from storage_operate.dr_deploy_operate.dr_deploy_switchover import SwitchOver, DRRecover, CancelStandbyResPro
+from storage_operate.dr_deploy_operate.update_dr_params import UpdateDRParams
 
 HELP_MSG = "example:\n" \
            "        sh appctl.sh dr_operate pre_check active/standby --conf=config_file_path\n" \
@@ -20,7 +21,8 @@ HELP_MSG = "example:\n" \
            "-mysql_cmd='/usr/local/mysql/bin/mysql' --mysql_user=myuser\n" \
            "        sh appctl.sh dr_operate switch_over\n" \
            "        sh appctl.sh dr_operate recover\n" \
-           "        sh appctl.sh dr_operate cancel_res_pro\n"
+           "        sh appctl.sh dr_operate cancel_res_pro\n" \
+           "        sh appctl.sh dr_operate update_conf\n"
 
 
 class DRDeployOperate(object):
@@ -77,6 +79,12 @@ class DRDeployOperate(object):
         del sys.argv[1]
         cancel_res_pro = CancelStandbyResPro()
         cancel_res_pro.execute()
+
+    @staticmethod
+    def update_conf():
+        del sys.argv[1]
+        update_dr_params = UpdateDRParams()
+        update_dr_params.execute()
 
     @staticmethod
     def help():
