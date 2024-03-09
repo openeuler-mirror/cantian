@@ -901,26 +901,36 @@ status_t ctback_read_output_from_pipe(ctbak_child_info_t child_info, char *cmd_o
         return CT_ERROR;
     }
     int32 write_size = write(child_info.to_child, passwd, MAX_PASSWORD_LENGTH);
+    memset_s(passwd, MAX_PASSWORD_LENGTH, 0, MAX_PASSWORD_LENGTH);
     if (write_size == -1) {
-        memset_s(passwd, MAX_PASSWORD_LENGTH, 0, MAX_PASSWORD_LENGTH);
         printf("[ctbackup]write ctsql info failed\n");
         return CT_ERROR;
     }
     close(child_info.to_child);
-    int32 read_size = read(child_info.from_child, cmd_out, CTSQL_CMD_OUT_BUFFER_SIZE);
-    if (read_size == -1) {
-        memset_s(passwd, MAX_PASSWORD_LENGTH, 0, MAX_PASSWORD_LENGTH);
-        printf("[ctbackup]read ctsql output failed\n");
-        return CT_ERROR;
+    cm_sleep(100);
+    uint32_t read_count = 0;
+    uint32_t read_once = CTSQL_CMD_OUT_BUFFER_SIZE;
+    char *buf_pos = cmd_out;
+    while (read_count < CTSQL_CMD_OUT_BUFFER_SIZE) {
+        int32 read_size = read(child_info.from_child, buf_pos, read_once);
+        if (read_size == -1) {
+            printf("[ctbackup]read ctsql output failed\n");
+            close(child_info.from_child);
+            return CT_ERROR;
+        }
+        if (read_size == 0) {
+            break;
+        }
+        read_count = read_count + read_size;
+        buf_pos = cmd_out + read_count;
+        read_once = read_once - read_size;
     }
     close(child_info.from_child);
     int32 wait = waitpid(child_info.child_pid, &ret, 0);
     if (wait == child_info.child_pid && WIFEXITED((unsigned int)ret) && WEXITSTATUS((unsigned int)ret) != 0) {
-        memset_s(passwd, MAX_PASSWORD_LENGTH, 0, MAX_PASSWORD_LENGTH);
         printf("[ctbackup]child process exec failed\n");
         return CT_ERROR;
     }
-    memset_s(passwd, MAX_PASSWORD_LENGTH, 0, MAX_PASSWORD_LENGTH);
     return CT_SUCCESS;
 }
 
