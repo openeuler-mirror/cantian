@@ -3,7 +3,7 @@ import os
 import time
 
 from logic.storage_operate import StorageInf
-from utils.config.rest_constant import Constant
+from utils.config.rest_constant import Constant, RepFileSystemNameRule
 from logic.common_func import exec_popen
 from logic.common_func import retry
 from om_log import LOGGER as LOG
@@ -384,12 +384,18 @@ class DRDeployCommon(object):
         return rsp_data
 
     @retry(retry_times=3, wait_times=20, log=LOG, task="create_remote_replication_filesystem_pair")
-    def create_remote_replication_filesystem_pair(self, remote_device_id: str, remote_pool_id: str, local_fs_id: str):
+    def create_remote_replication_filesystem_pair(self, remote_device_id: str,
+                                                  remote_pool_id: str,
+                                                  local_fs_id: str,
+                                                  remote_name_rule=1,
+                                                  name_suffix=None):
         """
 
         :param remote_device_id: 远端设备id
         :param remote_pool_id: 远端存储池id
         :param local_fs_id:  组复制pair的文件系统id
+        :param remote_name_rule: 远端文件系统命名规则，0，表示系统自动化创建，1，表示与与主端保持一直，2表示自定义前后缀
+        :param name_suffix: 当remote_name_rule为2时，该字段不能为None
         :return:
         """
         LOG.info("Start to create remote replication filesystem[%s] pair.", local_fs_id)
@@ -402,7 +408,7 @@ class DRDeployCommon(object):
                 "recoveryPolicy": 2,
                 "remoteStoragePoolId": remote_pool_id,
                 "remoteVstoreId": 0,
-                "remoteNameRule": 1,
+                "remoteNameRule": remote_name_rule,
                 "enableCompress": False,
                 "syncPair": True,
                 "syncSnapPolicy": 0,
@@ -416,6 +422,9 @@ class DRDeployCommon(object):
                 }
             ]
         }
+        if remote_name_rule == 2:
+            data["replication"]["namePrefix"] = RepFileSystemNameRule.NamePrefix
+            data["replication"]["nameSuffix"] = name_suffix
         url = Constant.CREATE_REMOTE_REPLICATION_FILESYSTEM_PAIR
         res = self.rest_client.normal_request(url, data=data, method="post")
         err_msg = "Failed to create remote replication filesystem pair"
