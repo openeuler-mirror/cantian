@@ -46,3 +46,19 @@ FILE_MODE_MAP["${CURRENT_PATH}/inspection/inspection_scripts/ct_om"]="750"
 FILE_MODE_MAP["${CURRENT_PATH}/storage_operate/file_system_info.json"]="600"
 FILE_MODE_MAP["${CURRENT_PATH}/inspection/log_tool.py"]="400"
 FILE_MODE_MAP["${CURRENT_PATH}/wsr_report/report.cnf"]="600"
+
+function correct_files_mod() {
+    for file_path in "${!FILE_MODE_MAP[@]}"; do
+        if [ ! -e ${file_path} ]; then
+            continue
+        fi
+
+        chmod ${FILE_MODE_MAP[$file_path]} $file_path
+        if [ $? -ne 0 ]; then
+            logAndEchoError "chmod ${FILE_MODE_MAP[$file_path]} ${file_path} failed"
+            exit 1
+        fi
+    done
+}
+
+correct_files_mod
