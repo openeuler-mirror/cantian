@@ -73,6 +73,11 @@ void dtc_process_log_switch(void *sess, mes_message_t * receive_msg)
         return;
     }
 
+    if (lsn != CT_INVALID_ID64) {
+        SYNC_POINT_GLOBAL_START(CANTIAN_BACKUP_TRIGGER_FORCH_ARCH_WAIT_ABORT, NULL, 0);
+        SYNC_POINT_GLOBAL_END;
+    }
+
     if (lsn == 0) {
         ret = dtc_bak_force_arch_local_file(session);
     } else {
