@@ -2268,14 +2268,16 @@ void knl_cache_cbo_text2variant(dc_entity_t *entity, uint32 col_id, text_t *colu
         ret_val->is_null = CT_TRUE;
         return;
     }
-
+    CT_LOG_RUN_INF("[Histgram ep_value Print] column_id:%u  ,ep_value:",col_id);
     switch (dc_column->datatype) {
         case CT_TYPE_BOOLEAN:
             ret_val->v_bool = *(bool32 *)column->str;
+            CT_LOG_RUN_INF("[Histgram ep_value Print]%u",ret_val->v_bool);
             break;
         case CT_TYPE_UINT32:
             ret_val->v_uint32 = *(uint32 *)column->str;
             ret_val->type     = CT_TYPE_UINT32;
+            CT_LOG_RUN_INF("[Histgram ep_value Print]%u",ret_val->v_uint32);
             break;
         case CT_TYPE_SMALLINT:
         case CT_TYPE_INTEGER:
@@ -2284,19 +2286,23 @@ void knl_cache_cbo_text2variant(dc_entity_t *entity, uint32 col_id, text_t *colu
         case CT_TYPE_UTINYINT:
             ret_val->v_int = *(int32 *)column->str;
             ret_val->type = CT_TYPE_INTEGER;
+            CT_LOG_RUN_INF("[Histgram ep_value Print](%d)",ret_val->v_int);
             break;
         case CT_TYPE_UINT64:
             ret_val->v_ubigint = *(uint64 *)column->str;
             ret_val->type = CT_TYPE_UINT64;
+            CT_LOG_RUN_INF("[Histgram ep_value Print](%llu)",ret_val->v_ubigint);
             break;
         case CT_TYPE_BIGINT:
             ret_val->v_bigint = *(int64 *)column->str;
             ret_val->type = CT_TYPE_BIGINT;
+            CT_LOG_RUN_INF("[Histgram ep_value Print](%lld)",ret_val->v_ubigint);
             break;
         case CT_TYPE_FLOAT:
         case CT_TYPE_REAL:
             ret_val->v_real = *(double *)column->str;
             ret_val->type = CT_TYPE_REAL;
+            CT_LOG_RUN_INF("[Histgram ep_value Print](%lf)",ret_val->v_real);
             break;
         default:
             ret_val->is_null = CT_TRUE;
