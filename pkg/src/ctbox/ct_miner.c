@@ -301,7 +301,7 @@ static log_group_t *miner_fetch_group(log_cursor_t *cursor)
     }
 
     /* the max size of log buffer is 64M, the size of batch is less than 64M */
-    cursor->offsets[id] += group->size;
+    cursor->offsets[id] += LOG_GROUP_ACTUAL_SIZE(group);
 
     return group;
 }

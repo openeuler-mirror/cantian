@@ -66,10 +66,10 @@ void miner_desc_group(log_group_t *group)
     page[0] = INVALID_PAGID;
     offset = sizeof(log_group_t);
 
-    printf("group: %llu size: %u rmid: %u nologging insert: %u\n", group->lsn, (uint32)group->size, group->rmid,
-        group->nologging_insert);
+    printf("group: %llu size: %u rmid: %u nologging insert: %u\n", group->lsn, (uint32)LOG_GROUP_ACTUAL_SIZE(group),
+        group->rmid, group->nologging_insert);
 
-    while (offset < group->size) {
+    while (offset < LOG_GROUP_ACTUAL_SIZE(group)) {
         entry = (log_entry_t *)((char *)group + offset);
 
         if (RD_TYPE_IS_ENTER_PAGE(entry->type)) {
@@ -101,7 +101,7 @@ void miner_desc_group_xid(log_group_t *group, bool32 has_xid, tx_msg_t *tx_msg, 
     page[0] = INVALID_PAGID;
     offset = sizeof(log_group_t);
 
-    while (offset < group->size) {
+    while (offset < LOG_GROUP_ACTUAL_SIZE(group) {
         entry = (log_entry_t *)((char *)group + offset);
 
         if (entry->type != RD_TX_BEGIN && entry->type != RD_TX_END) {
@@ -123,7 +123,7 @@ void miner_desc_group_xid(log_group_t *group, bool32 has_xid, tx_msg_t *tx_msg, 
                 if ((uint32)data->xmap.seg_id == tx_msg[i].xid.xmap.seg_id &&
                     (uint32)data->xmap.slot == tx_msg[i].xid.xmap.slot && group->rmid == tx_msg[i].rmid) {
                     printf("group: %llu size: %u rmid: %u nologging insert: %u\n",
-                        group->lsn, (uint32)group->size, group->rmid, group->nologging_insert);
+                        group->lsn, (uint32)LOG_GROUP_ACTUAL_SIZE(group), group->rmid, group->nologging_insert);
                     miner_desc_entry(entry, page[level]);
                     break;
                 }

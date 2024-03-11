@@ -9574,6 +9574,9 @@ void knl_recover_get_max_lrp(knl_session_t *se, uint64 *max_recover_lrp_lsn)
     if (!se->kernel->db.recover_for_restore) {
         return;
     }
+    if (cm_dbs_is_enable_dbs() == CT_FALSE) {
+        return;
+    }
     uint64 max_lsn = 0;
     dtc_node_ctrl_t *ctrl;
     for (uint32 i = 0; i < se->kernel->db.ctrl.core.node_count; i++) {

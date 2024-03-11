@@ -315,6 +315,7 @@ fun_pkg_mysql_lib()
 
     cp -d ${CANTIANDB_HOME}/../output/lib/*.a ${DAAC_LIB_DIR_TMP}
     cp -d ${CANTIANDB_HOME}/../library/huawei_security/lib/*.a ${DAAC_LIB_DIR_TMP}
+    cp -d ${CANTIANDB_HOME}/../library/huawei_security/lib/libsecurec.so ${DAAC_LIB_DIR}
     
     cd ${DAAC_LIB_DIR_TMP} && find . -name '*.a' -exec ar -x {} \;
     cd ${DAAC_LIB_DIR_TMP} && rm -rf *.a

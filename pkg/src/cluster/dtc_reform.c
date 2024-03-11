@@ -651,6 +651,8 @@ status_t rc_arch_init_session(arch_proc_context_t *proc_ctx, knl_session_t *sess
     knl_securec_check(ret);
 
     proc_ctx->session->kernel->id = node_id;
+    proc_ctx->session->kernel->db.ctrl_lock = 0;
+    proc_ctx->session->kernel->arch_ctx.record_lock = 0;
     return CT_SUCCESS;
 }
 
@@ -717,11 +719,31 @@ uint64 get_curr_file_size(arch_proc_context_t *proc_ctx, uint32 node_id)
     return head.write_pos;
 }
 
+void switch_log_file(arch_proc_context_t *proc_ctx)
+{
+    errno_t ret;
+    knl_session_t *rc_session = (knl_session_t *)(g_rc_ctx->session);
+    knl_session_t *session = proc_ctx->session;
+    cm_spin_lock(&rc_session->kernel->db.ctrl_lock, NULL);
+    ret = memcpy_s(&session->kernel->db.ctrlfiles, sizeof(ctrlfile_set_t), &rc_session->kernel->db.ctrlfiles,
+                   sizeof(ctrlfile_set_t));
+    knl_securec_check(ret);
+    log_switch_file(proc_ctx->session);
+    ret = memcpy_s(&rc_session->kernel->db.ctrlfiles, sizeof(ctrlfile_set_t), &session->kernel->db.ctrlfiles,
+                   sizeof(ctrlfile_set_t));
+    knl_securec_check(ret);
+    cm_spin_unlock(&rc_session->kernel->db.ctrl_lock);
+}
+
 status_t rc_init_arch_proc_ctx(arch_proc_context_t *proc_ctx, log_file_t *logfile, dtc_node_ctrl_t *node_ctrl,
                            uint32 arch_num, uint32 node_id)
 {
     knl_session_t *session = proc_ctx->session;
-    proc_ctx->arch_id = node_id;
+    if (cm_dbs_is_enable_dbs() != CT_TRUE) {
+        proc_ctx->arch_id = ARCH_DEFAULT_DEST;
+    } else {
+        proc_ctx->arch_id = node_id;
+    }
     proc_ctx->last_archived_log_record.rst_id = session->kernel->db.ctrl.core.resetlogs.rst_id;
     proc_ctx->last_archived_log_record.offset = CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size);
     proc_ctx->write_failed = CT_FALSE;
@@ -738,7 +760,7 @@ status_t rc_init_arch_proc_ctx(arch_proc_context_t *proc_ctx, log_file_t *logfil
                 free(ctx->logwr_head_buf);
                 return CT_ERROR;
             }
-            log_switch_file(proc_ctx->session);
+            switch_log_file(proc_ctx);
         }
         free(ctx->logwr_head_buf);
         rc_arch_set_last_file_id(proc_ctx, node_id);

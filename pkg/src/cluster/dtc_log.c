@@ -238,6 +238,7 @@ void dtc_log_flush_head(knl_session_t *session, log_file_t *file)
 
     if (cm_write_device(file->ctrl->type, file->handle, 0, logwr_head_buf, size) != CT_SUCCESS) {
         free(logwr_head_buf);
+        CT_LOG_RUN_WAR("[LOG] file handle is %u.", file->handle);
         cm_close_device(file->ctrl->type, &file->handle);
         CM_ABORT(0, "[LOG] ABORT INFO: flush redo file:%s, offset:%u, size:%lu failed.", file->ctrl->name, 0,
             sizeof(log_file_head_t));
