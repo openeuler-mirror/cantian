@@ -1250,10 +1250,10 @@ void buf_clean_log(knl_session_t *session)
 {
     uint32 enter_page_size = LOG_ENTRY_SIZE + CM_ALIGN4(sizeof(rd_enter_page_t));
     log_group_t *group = (log_group_t *)(session->log_buf);
-    log_entry_t *entry = (log_entry_t *)(session->log_buf + group->size - enter_page_size);
+    log_entry_t *entry = (log_entry_t *)(session->log_buf + LOG_GROUP_ACTUAL_SIZE(group) - enter_page_size);
 
     knl_panic(entry->size == enter_page_size && RD_TYPE_IS_ENTER_PAGE(entry->type));
-    group->size -= enter_page_size;
+    log_reduce_group_size(group, enter_page_size);
 }
 
 static inline bool32 buf_log_is_nolog_insert(knl_session_t *session, bool32 changed)
@@ -1340,7 +1340,7 @@ static void buf_validate_page(knl_session_t *session, buf_ctrl_t *ctrl, bool32 c
     }
 
     group = (log_group_t *)(session->log_buf);
-    if (buf_log_entry_length(session) >= group->size && !group->nologging_insert) {
+    if (buf_log_entry_length(session) >= LOG_GROUP_ACTUAL_SIZE(group) && !group->nologging_insert) {
         CT_LOG_DEBUG_WAR("WARNING: leave page with change, but no log [file: %d, page: %d, type: %d].\n",
                          (uint32)AS_PAGID_PTR(page->id)->file,
                          (uint32)AS_PAGID_PTR(page->id)->page, (uint32)page->type);
@@ -1425,7 +1425,7 @@ static void buf_log_leave_page(knl_session_t *session, buf_ctrl_t *ctrl, bool32 
 
     if (session->page_stack.latch_modes[session->page_stack.depth - 1] == LATCH_MODE_X) {
         group = (log_group_t *)(session->log_buf);
-        if (SECUREC_LIKELY(buf_log_entry_length(session) != group->size) ||
+        if (SECUREC_LIKELY(buf_log_entry_length(session) != LOG_GROUP_ACTUAL_SIZE(group)) ||
             SECUREC_LIKELY(buf_log_is_nolog_insert(session, changed))) {
 #ifdef LOG_DIAG
             /* skip space entry page, because we always record log for entry page even it's nologging */

@@ -519,7 +519,7 @@ static status_t rcy_paral_replay_group(knl_session_t *session, rcy_bucket_t *buc
     session->ddl_lsn_pitr = paral_group->ddl_lsn_pitr;
     offset = sizeof(log_group_t);
     session->rm->nolog_type = group->nologging_insert ? TABLE_LEVEL : LOGGING_LEVEL;
-    while (offset < group->size) {
+    while (offset < LOG_GROUP_ACTUAL_SIZE(group)) {
         log = (log_entry_t *)((char *)group + offset);
         if (rcy_paral_replay_entry(session, bucket, log, paral_group, pcn_list) != CT_SUCCESS) {
             session->rm->nolog_type = LOGGING_LEVEL;
@@ -551,7 +551,7 @@ void rcy_replay_group(knl_session_t *session, log_context_t *ctx, log_group_t *g
     se->curr_lsn = group->lsn;
     offset = sizeof(log_group_t);
     se->rm->nolog_type = group->nologging_insert ? TABLE_LEVEL : LOGGING_LEVEL;
-    while (offset < group->size) {
+    while (offset < LOG_GROUP_ACTUAL_SIZE(group)) {
         log = (log_entry_t *)((char *)group + offset);
         rcy_replay_entry(se, log, log_pcns, KNL_MAX_PAGE_STACK_DEPTH);
         offset += log->size;
@@ -575,7 +575,7 @@ static void rcy_analysis_group(knl_session_t *session, log_context_t *ctx, log_g
     se->curr_lsn = group->lsn;
     offset = sizeof(log_group_t);
 
-    while (offset < group->size) {
+    while (offset < LOG_GROUP_ACTUAL_SIZE(group)) {
         log = (log_entry_t *)((char *)group + offset);
         rcy_analysis_entry(se, log);
         offset += log->size;
@@ -719,7 +719,7 @@ void rcy_add_pages(rcy_paral_group_t *paral_group, log_group_t *group, uint32 gr
     paral_group->group_scn = 0;
     *logic = CT_FALSE;
 
-    while (offset < group->size) {
+    while (offset < LOG_GROUP_ACTUAL_SIZE(group)) {
         log = (log_entry_t *)((char *)group + offset);
         if (RD_TYPE_IS_ENTER_PAGE(log->type)) {
             rd = (rd_enter_page_t *)log->data;
