@@ -7,6 +7,7 @@ import time
 import shutil
 
 from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
+from storage_operate.dr_deploy_operate.dr_deploy_pre_check import CANTIAN_STOP_SUCCESS_FLAG
 from storage_operate.dr_deploy_operate.dr_deploy import DRDeploy
 from logic.storage_operate import StorageInf
 from logic.common_func import read_json_config
@@ -180,7 +181,7 @@ class UNDeploy(object):
         self.delete_hyper_metro_domain()
 
     def do_stop(self):
-        stop_flag_file = f"/opt/cantian/.stop_success"
+        stop_flag_file = CANTIAN_STOP_SUCCESS_FLAG
         if not os.path.exists(stop_flag_file):
             node_id = self.dr_deploy_info.get("node_id")
             share_fs_name = self.dr_deploy_info.get("storage_share_fs")

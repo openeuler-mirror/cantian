@@ -19,6 +19,7 @@ from logic.common_func import exec_popen, read_json_config, write_json_config, g
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_PARAM_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
 DR_PROCESS_RECORD_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_process_record.json")
+CANTIAN_STOP_SUCCESS_FLAG = os.path.join(CURRENT_PATH, "../../../config/.stop_success")
 DEPLOY_PARAM_FILE = "/opt/cantian/config/deploy_param.json"
 DOMAIN_LIMITS = 4
 
@@ -69,7 +70,7 @@ class DRDeployPreCheck(object):
         部署前清理环境
         :return:
         """
-        file_list = [DR_PROCESS_RECORD_FILE, DR_DEPLOY_PARAM_FILE]
+        file_list = [DR_PROCESS_RECORD_FILE, DR_DEPLOY_PARAM_FILE, CANTIAN_STOP_SUCCESS_FLAG]
         for file in file_list:
             if os.path.exists(file):
                 os.remove(file)
