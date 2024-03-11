@@ -3331,9 +3331,6 @@ status_t dtc_log_prepare_for_pitr(knl_session_t *se)
             return CT_ERROR;
         }
         CT_LOG_RUN_INF("[RESTORE] after register, archive_asn %llu.", (uint64)archive_asn);
-        if (se->kernel->id != i) {
-            continue;
-        }
         uint32 max_asn;
         if (arch_try_arch_redo_by_nodeid(se, &max_asn, i) != CT_SUCCESS) {
             return CT_ERROR;
