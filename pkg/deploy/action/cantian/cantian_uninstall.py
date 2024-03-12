@@ -47,7 +47,7 @@ CANTIAN_START_STATUS_FILE = os.path.join("/opt/cantian/cantian", "cfg", "start_s
 CANTIAN_UNINSTALL_LOG_FILE = "/opt/cantian/cantian/log/cantian_deploy.log"
 CONFIG_PARAMS_FILE = os.path.join(PKG_DIR, "config", "deploy_param.json")
 FORCE_UNINSTALL = None
-CHECK_MAX_TIMES = 24
+CHECK_MAX_TIMES = 60
 
 
 def _exec_popen(_cmd, values=None):
@@ -766,7 +766,7 @@ def check_process_status(process_name):
                 time.sleep(5)
         else:
             return
-    log_exit("Failed to kill %s. It is still alive after 2 minutes." % process_name)
+    log_exit("Failed to kill %s. It is still alive after 5 minutes." % process_name)
 
 
 def kill_process(process_name):
