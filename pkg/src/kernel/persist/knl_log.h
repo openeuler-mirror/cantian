@@ -133,7 +133,7 @@ typedef struct st_log_group {
     uint16 reserved : 11;
 } log_group_t;
 
-#define CT_MAX_LOG_GROUP_SIZE (uint32)((uint32)CT_MAX_UINT16 * (uint32)0x1111 + (uint32)CT_MAX_UINT16)
+#define CT_MAX_LOG_GROUP_SIZE (uint32)((uint32)CT_MAX_UINT16 * (uint32)0xF + (uint32)CT_MAX_UINT16)
 #define LOG_GROUP_ACTUAL_SIZE(group)  \
     ((group)->extend == 0 ? (uint32)(group)->size : (uint32)((group)->size + (group)->extend * (uint32)CT_MAX_UINT16))
 
