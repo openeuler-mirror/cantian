@@ -12040,11 +12040,7 @@ status_t knl_update_serial_value_tmp_table(knl_handle_t session, dc_entity_t *en
         return CT_SUCCESS;
     }
 
-    if (is_uint64) {
-        temp_table->serial = (value == CT_INVALID_ID64) ? value : (value + 1);
-    } else {
-        temp_table->serial = (value == CT_INVALID_INT64) ? value : (value + 1);
-    }
+    temp_table->serial = value;
 
     return CT_SUCCESS;
 }
