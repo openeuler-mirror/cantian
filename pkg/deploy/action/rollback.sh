@@ -24,6 +24,7 @@ ctsql_pwd=""
 node_id=""
 cluster_status=""
 choose=""
+do_snapshot_choice=""
 NFS_TIMEO=50
 deploy_user=$(python3 "${CURRENT_PATH}"/get_config_info.py "deploy_user")
 deploy_group=$(python3 "${CURRENT_PATH}"/get_config_info.py "deploy_group")
@@ -56,6 +57,24 @@ function input_params_check() {
     if [[ " ${ROLLBACK_MODE_LIS[*]} " != *" ${ROLLBACK_MODE} "* ]]; then
         logAndEchoError "input rollback module must be one of '${ROLLBACK_MODE_LIS[@]}', instead of '${ROLLBACK_MODE}'"
         exit 1
+    fi
+    # 离线升级需要检查阵列侧ip
+    if [ "${ROLLBACK_MODE}" == "offline" ]; then
+        if [ -z "${DORADO_IP}" ]; then
+            logAndEchoError "storage array ip must be provided"
+            exit 1
+        fi
+
+        ping -c 1 ${DORADO_IP} > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            logAndEchoError "try to ping storage array ip '${DORADO_IP}', but failed"
+            echo "Please check whether input is correct. If the network is disconnected, manually rollback snapshot according to the upgrade guide."
+            read -p "Continue rollback please input yes, otherwise exit:" do_snapshot_choice
+            echo ""
+            if [[ x"${do_snapshot_choice}" != x"yes" ]];then
+                exit 1
+            fi
+        fi
     fi
     logAndEchoInfo ">>>>> pass check input params <<<<<"
 }
@@ -376,6 +395,10 @@ function do_rollback() {
 
 # 快照回退
 function rollback_snapshot() {
+    if [[ x"${do_snapshot_choice}" == x"yes" ]];then
+        logAndEchoInfo " The ip[${DORADO_IP}] address is unreachable, No snapshot is required."
+        return 0
+    fi
     local backup_path="/opt/cantian/upgrade_backup/cantian_upgrade_bak_${back_version}"
     logAndEchoInfo "begin to rollback snapshot"
     get_user_input

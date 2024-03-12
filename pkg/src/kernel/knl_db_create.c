@@ -367,8 +367,6 @@ static void dbc_init_doublewrite(knl_session_t *session)
     node->dw_end = DW_DISTRICT_BEGIN(session->kernel->id);
 
     dw_space->head->hwms[0] = SPACE_IS_BITMAPMANAGED(dw_space) ? DW_MAP_HWM_START : DW_SPC_HWM_START;
-    dw_space->head->hwms[0] += (node_count - 1) * DOUBLE_WRITE_PAGES; /* bypass all the doublewrite area for all nodes.
-                                                                       */
     CM_ASSERT(DATAFILE_GET(session, dw_space->ctrl->files[0])->ctrl->size >=
               (dw_space->head->hwms[0] + CT_MIN_SYSAUX_DATAFILE_SIZE) * DEFAULT_PAGE_SIZE(session));
     buf_leave_page(session, CT_TRUE);

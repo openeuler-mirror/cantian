@@ -53,7 +53,7 @@ extern "C" {
 #define DOUBLE_WRITE_PAGES  (uint32)(8 * 1024)
 #define DW_DISTRICT_BEGIN(node_id) (uint32)(4 + (node_id) * DOUBLE_WRITE_PAGES)
 #define DW_DISTRICT_END(node_id) (uint32)(DW_DISTRICT_BEGIN(node_id) + DOUBLE_WRITE_PAGES)
-#define DW_SPC_HWM_START (uint32)(DW_DISTRICT_END(knl_db_node_id(session)) + 2)
+#define DW_SPC_HWM_START (uint32)(DW_DISTRICT_END(knl_db_node_count(session) - 1) + 2)
 #define DW_DISTRICT_PAGES   (uint32)(DOUBLE_WRITE_PAGES + 4)
 
 #define DW_MAP_HEAD_PAGE     DW_SPC_HWM_START

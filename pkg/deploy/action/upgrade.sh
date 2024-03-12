@@ -21,6 +21,7 @@ UPGRADE_MODE_LIS=("offline" "rollup")
 dorado_user=""
 dorado_pwd=""
 node_id=""
+do_snapshot_choice=""
 upgrade_module_correct=false
 # 滚动升级
 CLUSTER_COMMIT_STATUS=("prepared" "commit")
@@ -85,7 +86,12 @@ function input_params_check() {
         ping -c 1 ${DORADO_IP} > /dev/null 2>&1
         if [ $? -ne 0 ]; then
             logAndEchoError "try to ping storage array ip '${DORADO_IP}', but failed"
-            exit 1
+            echo "Please check whether input is correct. If the network is disconnected, manually create snapshot according to the upgrade guide."
+            read -p "Continue upgrade please input yes, otherwise exit:" do_snapshot_choice
+            echo ""
+            if [[ x"${do_snapshot_choice}" != x"yes" ]];then
+                exit 1
+            fi
         fi
     fi
 
@@ -227,6 +233,10 @@ function cantian_status_check() {
 
 #  打快照
 function creat_snapshot() {
+    if [[ x"${do_snapshot_choice}" == x"yes" ]];then
+        logAndEchoInfo " The ip[${DORADO_IP}] address is unreachable, No snapshot is required."
+        return 0
+    fi
     logAndEchoInfo "begin to create snapshot"
     get_user_input
     echo -e "${dorado_user}\n${dorado_pwd}" | python3 ${CURRENT_PATH}/storage_operate/do_snapshot.py create ${DORADO_IP} ${dircetory_path}

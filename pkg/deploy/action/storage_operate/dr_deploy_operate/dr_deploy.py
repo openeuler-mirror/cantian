@@ -1098,7 +1098,7 @@ class DRDeploy(object):
                 self.record_deploy_process("standby_install", "success")
                 is_installed_flag = True
             else:
-                if wait_time > FS_CREAT_TIMEOUT:
+                if wait_time > FS_CREAT_TIMEOUT and not is_installed_flag:
                     err_msg = "Wait for the filesystem creat timeout, please check."
                     self.record_deploy_process("standby_install", "failed", code=-1, description=err_msg)
                     LOG.error(err_msg)

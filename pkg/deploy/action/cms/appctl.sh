@@ -483,7 +483,7 @@ function update_cms_scripts() {
 
 function update_cms_config() {
     echo "update the cms ini in ${cms_home}/cfg"
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]] || [[ x"${deploy_mode_backup}" == x"dbstore_unify" ]]; then
         return 0
     fi
 
@@ -497,7 +497,7 @@ function update_cms_config() {
 
 function update_cms_gcc_file() {
     echo "update the cms gcc file in share fs"
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]] || [[ x"${deploy_mode_backup}" == x"dbstore_unify" ]]; then
         return 0
     fi
     su -s /bin/bash - ${cantian_user} -c "sh ${CURRENT_PATH}/start_cms.sh -P install_cms"
@@ -511,6 +511,12 @@ function safety_upgrade()
               awk -F ',' '{for(i=1;i<=NF;i++){if($i~"link_type"){print $i}}}' |
               sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
               awk -F '=' '{print $2}')
+
+    deploy_mode_backup=$(cat ${BACKUP_UPGRADE_PATH}/config/deploy_param.json  |
+              awk -F ',' '{for(i=1;i<=NF;i++){if($i~"deploy_mode"){print $i}}}' |
+              sed 's/ //g' | sed 's/:/=/1' | sed 's/"//g' |
+              awk -F '=' '{print $2}')
+
     update_cms_service ${link_type}
 
     chown_mod_cms_service

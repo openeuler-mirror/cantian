@@ -12040,11 +12040,7 @@ status_t knl_update_serial_value_tmp_table(knl_handle_t session, dc_entity_t *en
         return CT_SUCCESS;
     }
 
-    if (is_uint64) {
-        temp_table->serial = (value == CT_INVALID_ID64) ? value : (value + 1);
-    } else {
-        temp_table->serial = (value == CT_INVALID_INT64) ? value : (value + 1);
-    }
+    temp_table->serial = value;
 
     return CT_SUCCESS;
 }
@@ -15609,6 +15605,12 @@ void knl_invalid_dd_log_put4mysql(knl_handle_t session, void *invalid_info)
     rd_invalid_dd_4mysql_ddl *info = (rd_invalid_dd_4mysql_ddl*)invalid_info;
     log_put(se, RD_LOGIC_OPERATION, invalid_info, sizeof(rd_invalid_dd_4mysql_ddl), LOG_ENTRY_FLAG_NONE);
     log_append_data(se, info->buff, info->buff_len);
+}
+
+uint32 knl_db_node_count(knl_handle_t sess)
+{
+    knl_session_t *session = (knl_session_t *)sess;
+    return DB_CORE_CTRL(session)->node_count;
 }
 
 #ifdef __cplusplus
