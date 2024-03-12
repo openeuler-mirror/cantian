@@ -15607,6 +15607,12 @@ void knl_invalid_dd_log_put4mysql(knl_handle_t session, void *invalid_info)
     log_append_data(se, info->buff, info->buff_len);
 }
 
+uint32 knl_db_node_count(knl_handle_t sess)
+{
+    knl_session_t *session = (knl_session_t *)sess;
+    return DB_CORE_CTRL(session)->node_count;
+}
+
 #ifdef __cplusplus
 }
 #endif
