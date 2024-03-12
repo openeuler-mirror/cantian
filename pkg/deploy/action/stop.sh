@@ -28,7 +28,7 @@ function stop_systemd_timer() {
 
 if [ ! -d /opt/cantian/image ]; then
     echo "Cantian id not install, stop success."
-    echo "Stop cantian Engine success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    echo "Stop Cantian Engine success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     exit 0
 fi
 source ${CURRENT_PATH}/env.sh
