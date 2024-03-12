@@ -1942,8 +1942,17 @@ status_t srv_instance_startup(db_startup_phase_t phase, bool32 is_coordinator, b
 
     if (srv_load_params() != CT_SUCCESS) {
         CM_FREE_PTR(g_instance);
+        int32 error_code;
+        const char *error_message;
+        source_location_t error_location;
+        cm_get_error(&error_code, &error_message, &error_location);
         CT_LOG_RUN_ERR("failed to load params");
-        printf("%s\n", "Failed to load params");
+        if (error_code == 0) {
+            printf("Failed to load params\n");
+        } else {
+            printf("Failed to load params:%s\n", error_message);
+        }
+
         return CT_ERROR;
     }
 

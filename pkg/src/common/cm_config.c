@@ -374,7 +374,9 @@ static status_t cm_set_config_item(config_t *config, text_t *name, text_t *value
     }
 
     CT_RETURN_IFERR(cm_get_cfg_item_by_name(name, is_infile, &temp));
-    CT_RETURN_IFERR(cm_check_invalid_cfg_item(item, name, value));
+    if (!cm_str_equal(item->name, "SHM_CPU_GROUP_INFO") && !cm_str_equal(item->name, "SHM_MYSQL_CPU_GROUP_INFO")) {
+        CT_RETURN_IFERR(cm_check_invalid_cfg_item(item, name, value));
+    }
     if (!ifile_item) {
         CT_RETURN_IFERR(cm_set_cfg_item_value(config, item, value));
     }
@@ -457,10 +459,6 @@ static status_t cm_parse_config(config_t *config, char *buf, uint32 buf_len, boo
 
         line_no++;
         cm_trim_text(&line);
-        if (line.len >= CT_MAX_CONFIG_LINE_SIZE) {
-            CT_THROW_ERROR(ERR_LINE_SIZE_TOO_LONG, line_no);
-            return CT_ERROR;
-        }
 
         if (line.len == 0 || *line.str == '#') { /* commentted line */
             continue;
@@ -471,6 +469,15 @@ static status_t cm_parse_config(config_t *config, char *buf, uint32 buf_len, boo
         cm_split_text(&line, '=', '\0', &name, &value);
         cm_text_upper(&name);  // Case insensitive
         cm_trim_text(&name);
+
+        if (!cm_text_str_equal_ins(&name, "SHM_CPU_GROUP_INFO") &&
+            !cm_text_str_equal_ins(&name, "SHM_MYSQL_CPU_GROUP_INFO")) {
+            if (line.len >= CT_MAX_CONFIG_LINE_SIZE) {
+                CT_THROW_ERROR(ERR_LINE_SIZE_TOO_LONG, line_no);
+                return CT_ERROR;
+            }
+        }
+
         if (name.len == 0) {
             CT_THROW_ERROR(ERR_INVALID_PARAMETER_NAME, " ");
             return CT_ERROR;

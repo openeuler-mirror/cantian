@@ -1238,6 +1238,16 @@ typedef struct st_handle_mutiple_ptrs {
         }                                               \
     } while (0)
 
+// print ERROR if error occurs
+#define CT_PRINT_IFERR(ret,param,limit)                                                     \
+    do {                                                                                    \
+        status_t _status_ = (ret);                                                          \
+        if (SECUREC_UNLIKELY(_status_ != CT_SUCCESS)) {                                     \
+            printf("Error,the parameter [%s] is too large,the limit is %d. \n",param,limit);\
+            return _status_;                                                                \
+        }                                                                                   \
+    } while (0)
+
 // return CT_SUCCESS if success occurs
 #define CT_RETURN_IFSUC(ret)                          \
     do {                                              \
