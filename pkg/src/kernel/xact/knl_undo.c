@@ -294,9 +294,8 @@ void undo_init(knl_session_t *session, uint32 lseg_no, uint32 rseg_no)
     ctx->undos = undo_set->undos;
     undo_set->space = ctx->space;
     undo_set->inst_id = session->kernel->id;
-    if (!cm_dbs_is_enable_dbs() || DB_IS_PRIMARY(&session->kernel->db) || rc_is_master()) {
-        undo_init_impl(session, undo_set, lseg_no, rseg_no);
-    }
+
+    undo_init_impl(session, undo_set, lseg_no, rseg_no);
 
     temp2_undo_init(session);
 }
