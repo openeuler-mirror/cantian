@@ -737,6 +737,12 @@ static inline status_t sql_convert_object_name_ex(sql_stmt_t *stmt, word_t *word
 {
     status_t status;
     text_t public_user = { PUBLIC_USER, (uint32)strlen(PUBLIC_USER) };
+    sql_copy_func_t sql_copy_func;
+    if (IS_COMPATIBLE_MYSQL_INST) {
+        sql_copy_func = sql_copy_name_cs;
+    } else {
+        sql_copy_func = sql_copy_name;
+    }
 
     if (word->ex_count == 1) {
         if (is_public) {
@@ -745,9 +751,9 @@ static inline status_t sql_convert_object_name_ex(sql_stmt_t *stmt, word_t *word
                     "owner of object should be public, but is %s", T2S((text_t *)&word->text));
                 return CT_ERROR;
             }
-            CT_RETURN_IFERR(sql_copy_name(stmt->context, &public_user, owner));
+            CT_RETURN_IFERR(sql_copy_func(stmt->context, &public_user, owner));
         } else {
-            status = sql_copy_prefix_tenant(stmt, (text_t *)&word->text, owner, sql_copy_name);
+            status = sql_copy_prefix_tenant(stmt, (text_t *)&word->text, owner, sql_copy_func);
             CT_RETURN_IFERR(status);
         }
 
