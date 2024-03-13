@@ -3208,7 +3208,8 @@ static status_t vw_transaction_fetch(knl_handle_t se, knl_cursor_t *cursor)
     tx_item_t *tx_item = NULL;
     txn_t *txn = NULL;
 
-    if (cursor->rowid.vm_slot >= session->kernel->attr.undo_segments || session->kernel->db.status < DB_STATUS_OPEN) {
+    if (cursor->rowid.vm_slot >= session->kernel->attr.undo_segments || session->kernel->db.status < DB_STATUS_OPEN ||
+        (cm_dbs_is_enable_dbs() && !DB_IS_PRIMARY(&session->kernel->db) && !rc_is_master())) {
         cursor->eof = CT_TRUE;
         return CT_SUCCESS;
     }
@@ -3256,7 +3257,8 @@ static status_t vw_all_transaction_fetch_core(knl_handle_t se, knl_cursor_t *cur
     knl_session_t *tx_se = NULL;
     session_t *sess = NULL;
 
-    if (cursor->rowid.vm_slot >= session->kernel->attr.undo_segments) {
+    if (cursor->rowid.vm_slot >= session->kernel->attr.undo_segments ||
+        (cm_dbs_is_enable_dbs() && !DB_IS_PRIMARY(&session->kernel->db) && !rc_is_master())) {
         cursor->eof = CT_TRUE;
         return CT_SUCCESS;
     }
