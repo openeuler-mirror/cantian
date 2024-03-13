@@ -74,6 +74,14 @@ static void fill_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, tia
             stats->tse_cbo_stats_table.columns[col_id].total_rows = 0;
         }
     }
+    for (uint32 idx_id = 0; idx_id < entity->table.desc.index_count; idx_id++) {
+        cbo_stats_index_t *index = knl_get_cbo_index(handle, entity, idx_id);
+        if (index != NULL) {
+            *(stats->tse_cbo_stats_table.ndv_keys + idx_id) = index->distinct_keys;
+        } else {
+            *(stats->tse_cbo_stats_table.ndv_keys + idx_id) = 0;
+        }
+    }
 }
 
 static void fill_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, tianchi_cbo_stats_t *stats,
@@ -89,6 +97,14 @@ static void fill_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *
             stats->tse_cbo_stats_part_table[stats_idx].columns[col_id].total_rows = 0;
         }
     }
+    for (uint32 idx_id = 0; idx_id < entity->table.desc.index_count; idx_id++) {
+        cbo_stats_index_t *index = knl_get_cbo_part_index(handle, entity, stats_idx + stats->first_partid, idx_id);
+        if (index != NULL) {
+            *(stats->tse_cbo_stats_part_table[stats_idx].ndv_keys + idx_id) = index->distinct_keys;
+        } else {
+            *(stats->tse_cbo_stats_part_table[stats_idx].ndv_keys + idx_id) = 0;
+        }
+    }
 }
 
 static void fill_sub_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, tianchi_cbo_stats_t *stats,
@@ -102,6 +118,14 @@ static void fill_sub_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity
             fill_cbo_stats_column(column, &stats->tse_cbo_stats_part_table[stats_idx].columns[col_id], col_id, entity);
         } else {
             stats->tse_cbo_stats_part_table[stats_idx].columns[col_id].total_rows = 0;
+        }
+    }
+    for (uint32 idx_id = 0; idx_id < entity->table.desc.index_count; idx_id++) {
+        cbo_stats_index_t *index = knl_get_cbo_subpart_index(handle, entity, part_id, idx_id, subpart_id);
+        if (index != NULL) {
+            *(stats->tse_cbo_stats_part_table[stats_idx].ndv_keys + idx_id) = index->distinct_keys;
+        } else {
+            *(stats->tse_cbo_stats_part_table[stats_idx].ndv_keys + idx_id) = 0;
         }
     }
 }
