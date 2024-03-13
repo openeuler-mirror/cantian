@@ -675,10 +675,11 @@ status_t srv_load_server_params(void)
 
     CT_RETURN_IFERR(srv_get_mq_cfg(mq_cfg));
     char *cpu_info_param = srv_get_param("SHM_CPU_GROUP_INFO");
-    CT_RETURN_IFERR(memcpy_s(cpu_info, CPU_INFO_STR_SIZE, cpu_info_param, strlen(cpu_info_param) + 1));
+    CT_PRINT_IFERR(memcpy_s(cpu_info, CPU_INFO_STR_SIZE, cpu_info_param, strlen(cpu_info_param) + 1),
+                   "SHM_CPU_GROUP_INFO", CPU_INFO_STR_SIZE - 1);
     char *mysql_cpu_info_param = srv_get_param("SHM_MYSQL_CPU_GROUP_INFO");
-    CT_RETURN_IFERR(
-        memcpy_s(mysql_cpu_info, CPU_INFO_STR_SIZE, mysql_cpu_info_param, strlen(mysql_cpu_info_param) + 1));
+    CT_PRINT_IFERR(memcpy_s(mysql_cpu_info, CPU_INFO_STR_SIZE, mysql_cpu_info_param, strlen(mysql_cpu_info_param) + 1),
+                   "SHM_MYSQL_CPU_GROUP_INFO", CPU_INFO_STR_SIZE - 1);
 
     uint32_t max_inst_num = 0;
     CT_RETURN_IFERR(srv_get_param_uint32("CTC_MAX_INST_PER_NODE", &max_inst_num));
