@@ -758,15 +758,15 @@ void tse_init_index_scan(knl_cursor_t *cursor, bool32 is_equal, bool32 *need_ini
     return;
 }
 
-static inline void tse_set_scan_range_flag(knl_cursor_t *cursor, const index_profile_t *profile)
+static inline void tse_set_scan_range_flag(knl_cursor_t *cursor, const index_profile_t *profile, bool32 *index_contain_null)
 {
-    if (profile->primary == CT_TRUE || profile->unique == CT_TRUE) {
+    if (*index_contain_null == CT_FALSE && (profile->primary == CT_TRUE || profile->unique == CT_TRUE)) {
         cursor->scan_range.is_equal = CT_TRUE;
     }
 }
 
 int tse_set_index_scan_key(knl_cursor_t *cursor, uint32 col_id, bool32 *need_init_index, uint32_t column_count,
-                           const index_key_info_t *index_key_info)
+                           const index_key_info_t *index_key_info, bool32 *index_contain_null)
 {
     index_t *index = (index_t *)cursor->index;
     knl_index_desc_t *desc = INDEX_DESC(index);
@@ -790,6 +790,7 @@ int tse_set_index_scan_key(knl_cursor_t *cursor, uint32 col_id, bool32 *need_ini
             // go through
         case TSE_HA_READ_KEY_EXACT:
             if (index_key_info->key_info[col_id].is_key_null) {
+                *index_contain_null = CT_TRUE;
                 if (col_id < index_key_info->key_num) {
                     knl_set_key_flag(l_border, SCAN_KEY_IS_NULL, col_id);
                     knl_set_key_flag(r_border, SCAN_KEY_IS_NULL, col_id);
@@ -803,7 +804,7 @@ int tse_set_index_scan_key(knl_cursor_t *cursor, uint32 col_id, bool32 *need_ini
                 knl_set_scan_key(desc, r_border, index_column_type, index_key_info->key_info[col_id].left_key,
                                  index_key_info->key_info[col_id].left_key_len, col_id);
                 if (is_tse_ha_read_prefix_last == CT_FALSE) {
-                    tse_set_scan_range_flag(cursor, &profile);
+                    tse_set_scan_range_flag(cursor, &profile, index_contain_null);
                 }
             }
             break;
@@ -873,8 +874,10 @@ int tse_get_index_info_and_set_scan_key(knl_cursor_t *cursor, const index_key_in
     }
  
     bool32 need_init_index = true;
+    bool32 index_contain_null = false;
     for (int col_id = 0; col_id < desc->column_count; ++col_id) {
-        int error_code = tse_set_index_scan_key(cursor, col_id, &need_init_index, desc->column_count, index_key_info);
+        int error_code = tse_set_index_scan_key(cursor, col_id, &need_init_index, desc->column_count, index_key_info,
+            &index_contain_null);
         if (error_code != CT_SUCCESS) {
             CT_LOG_RUN_ERR("tse_index_read: set index scan key error");
             return error_code;
