@@ -1130,8 +1130,8 @@ static status_t db_recovery_to_initphase2(knl_session_t *session, bool32 has_off
         if (spc_clean_garbage_space(session) != CT_SUCCESS) {
             CT_LOG_RUN_WAR("[SPACE] failed to clean garbage tablespace");
         }
-    } else {
-        core_ctrl_t *core_ctrl = DB_CORE_CTRL(session);
+    } else if (rc_is_master()) {
+        core_ctrl_t *core_ctrl = DB_CORE_CTRL(session); 
         tx_area_release_impl(session, 0, core_ctrl->undo_segments, session->kernel->id);
     }
 
