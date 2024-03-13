@@ -977,7 +977,15 @@ EXTER_ATTACK int tse_drop_db_pre_check(tianchi_handler_t *tch, const char *db_na
 static status_t tse_generate_tablespace_path(const char *db_tablespace_name, char *db_ts_path, uint32_t path_max_len)
 {
     int ret;
-    char *path_prefix = srv_get_param("SHARED_PATH");
+    char path_prefix[CT_FILE_NAME_BUFFER_SIZE];
+    if (cm_dbs_is_enable_dbs() == CT_TRUE) {
+        PRTS_RETURN_IFERR(snprintf_s(path_prefix, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1,
+                                     "%s", srv_get_param("SHARED_PATH")));
+    } else {
+        PRTS_RETURN_IFERR(snprintf_s(path_prefix, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1,
+                                     "%s/data/", g_instance->home));
+    }
+    CT_LOG_RUN_INF("[CTC_CREATE_TS] mysql path: %s", path_prefix);
     int path_prefix_len = path_prefix == NULL ? 0 : strlen(path_prefix);
     if ((path_prefix_len + strlen(db_tablespace_name)) > path_max_len) {
         CT_LOG_RUN_ERR("[CTC_CREATE_TS]: tablespace and prefix exceeds the total maximum value %d, prefix:%s,\

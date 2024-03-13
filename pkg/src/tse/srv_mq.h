@@ -33,7 +33,7 @@ extern "C" {
 #endif /* __cpluscplus */
 
 #define REG_RECV_THD_NUM (1)
-#define CPU_INFO_STR_SIZE 1280  // 配置的CPU绑核信息，最大取1280
+#define CPU_INFO_STR_SIZE 10240  // 配置的CPU绑核信息
 
 typedef struct tag_mq_cfg_s {
     uint32_t num_msg_recv_thd;
