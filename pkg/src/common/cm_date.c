@@ -2939,7 +2939,7 @@ status_t cm_date2text_mysql_ex(uint32 datatype, date_t date, text_t *fmt, uint32
     }
 
     if (detail.year == 0 || detail.mon == 0 || detail.day == 0) {
-        CT_LOG_RUN_ERR("invalid date time, year:%u, month:%u, date:%u", detail.year, detail.mon, detail.day);
+        CT_LOG_RUN_ERR("invalid date time, datatype:%u, year:%u, month:%u, date:%u", datatype, detail.year, detail.mon, detail.day);
         CT_SET_DATETIME_FMT_ERROR;
         return CT_ERROR;
     }
