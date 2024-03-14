@@ -273,7 +273,6 @@ typedef struct st_heap_compact_def {
         } else if ((cursor)->rowid_count == 0) {                                               \
             CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");                               \
         } else {                                                                               \
-            knl_panic_log(0, "HEAP_CHECKPAGE_ERROR");                                          \
             CT_THROW_ERROR(ERR_INVALID_ROWID);                                                 \
         }                                                                                      \
     } while (0)
