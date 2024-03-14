@@ -51,6 +51,7 @@
 #define CTSQL_DEC_SYS_PASSWORD "ENABLE_DBSTOR"
 #define CANTIAND_INI_LSNR_ADDR "LSNR_ADDR"
 #define CANTIAND_INI_LSNR_PORT "LSNR_PORT"
+#define CANTIAND_INI_MYSQL_METADATA_IN_CANTIAN "MYSQL_METADATA_IN_CANTIAN"
 
 #define CHILD_ID 1
 #define PARENT_ID 0
@@ -493,7 +494,21 @@ status_t get_ctsql_passwd(char *ctsql_ini_file_name, char *cantiand_ini_file_nam
     return CT_SUCCESS;
 }
 
-status_t get_cfg_ini_file_name(char *ctsql_ini_file_name, char *cantiand_ini_file_path)
+status_t get_cantiand_ini_file_name(char *cantiand_ini_file_path)
+{
+    const char *data_path = getenv("CTDB_DATA");
+    if (data_path == NULL) {
+        printf("[ctbackup]get data dir error!\n");
+        return CT_ERROR;
+    }
+    int32 iret_snprintf;
+    iret_snprintf = snprintf_s(cantiand_ini_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/cfg/%s",
+                               data_path, CANTIAND_INI_FILE_MAME);
+    PRTS_RETURN_IFERR(iret_snprintf);
+    return CT_SUCCESS;
+}
+
+status_t get_ctsql_ini_file_name(char *ctsql_ini_file_name)
 {
     const char *data_path = getenv("CTDB_DATA");
     if (data_path == NULL) {
@@ -503,9 +518,6 @@ status_t get_cfg_ini_file_name(char *ctsql_ini_file_name, char *cantiand_ini_fil
     int32 iret_snprintf;
     iret_snprintf = snprintf_s(ctsql_ini_file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/cfg/%s",
                                data_path, CTSQL_INI_FILE_NAME);
-    PRTS_RETURN_IFERR(iret_snprintf);
-    iret_snprintf = snprintf_s(cantiand_ini_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/cfg/%s",
-                               data_path, CANTIAND_INI_FILE_MAME);
     PRTS_RETURN_IFERR(iret_snprintf);
     return CT_SUCCESS;
 }
@@ -562,7 +574,8 @@ status_t get_ctsql_login_for_passwd_addr_port(char **ctsql_login_info, ctbak_cts
 {
     char ctsql_ini_file_name[CT_MAX_FILE_PATH_LENGH] = {0};
     char cantiand_ini_file_name[CT_MAX_FILE_PATH_LENGH] = {0};
-    if (get_cfg_ini_file_name(ctsql_ini_file_name, cantiand_ini_file_name) != CT_SUCCESS) {
+    if (get_ctsql_ini_file_name(ctsql_ini_file_name) != CT_SUCCESS ||
+        get_cantiand_ini_file_name(cantiand_ini_file_name) != CT_SUCCESS) {
         return CT_ERROR;
     }
     char passwd[MAX_PASSWORD_LENGTH] = {0};
@@ -875,8 +888,12 @@ status_t ctbak_get_ctsql_passwd_for_shell(char *passwd)
     errno_t ret;
     char ctsql_ini_file_name[CT_MAX_FILE_PATH_LENGH] = { 0 };
     char cantiand_ini_file_name[CT_MAX_FILE_PATH_LENGH] = { 0 };
-    if (get_cfg_ini_file_name(ctsql_ini_file_name, cantiand_ini_file_name) != CT_SUCCESS) {
+    if (get_ctsql_ini_file_name(ctsql_ini_file_name) != CT_SUCCESS) {
         printf("[ctbackup]get ctsql ini file failed!\n");
+        return CT_ERROR;
+    }
+    if (get_cantiand_ini_file_name(cantiand_ini_file_name) != CT_SUCCESS) {
+        printf("[ctbackup]get cantiand ini file failed!\n");
         return CT_ERROR;
     }
     if (get_ctsql_passwd(ctsql_ini_file_name, cantiand_ini_file_name, passwd) != CT_SUCCESS) {
@@ -1004,52 +1021,33 @@ status_t fill_params_for_ctsql_cmd(char *ct_params[], char *ctsql_cmd[])
     return CT_SUCCESS;
 }
 
-status_t ctbak_get_ctsql_output_by_shell(char *ctsql_cmd[], char *cmd_out)
+status_t ctbak_get_metadata_mode_by_cfg(char *metadata_mode)
 {
-    errno_t ret;
-    text_t shell_cmd;
-    char *cmd_str = (char *)malloc(CTSQL_CMD_BUFFER_SIZE);
-    if (cmd_str == NULL) {
-        printf("[ctbackup]failed to malloc memory for cmd_str!\n");
+    char cantiand_ini_file_name[CT_MAX_FILE_PATH_LENGH] = {0};
+    if (get_cantiand_ini_file_name(cantiand_ini_file_name) != CT_SUCCESS) {
+        printf("[ctbackup]get cantiand ini file failed!\n");
         return CT_ERROR;
     }
-    char *ct_params[CTBACKUP_MAX_PARAMETER_CNT] = { 0 };
-    
-    memset_s(cmd_str, CTSQL_CMD_BUFFER_SIZE, 0, CTSQL_CMD_BUFFER_SIZE);
-    status_t status = fill_params_for_ctsql_cmd(ct_params, ctsql_cmd);
-    if (status != CT_SUCCESS) {
-        printf("[ctbackup]fill params for ctsql cmd failed!\n");
-        CM_FREE_PTR(cmd_str);
+
+    if (get_ctsql_config(cantiand_ini_file_name, CANTIAND_INI_MYSQL_METADATA_IN_CANTIAN, metadata_mode) != CT_SUCCESS) {
+        printf("[ctbackup]get config metadata mode failed!\n");
         return CT_ERROR;
     }
-    for (uint32 i = 0; i < CTBACKUP_MAX_PARAMETER_CNT && ct_params[i] != NULL; i++) {
-        ret = snprintf_s(cmd_str, CTSQL_CMD_BUFFER_SIZE, CTSQL_CMD_BUFFER_SIZE - 1, "%s %s", cmd_str, ct_params[i]);
-        FREE_AND_RETURN_ERROR_IF_SNPRINTF_FAILED(ret, cmd_str);
-    }
-    cm_str2text(cmd_str, &shell_cmd);
-    if (ctbak_do_shell_get_output(&shell_cmd, cmd_out, ctback_read_output_from_pipe) != CT_SUCCESS) {
-        printf("[ctbackup]popen ctsql cmd failed!\n");
-        CM_FREE_PTR(cmd_str);
-        return CT_ERROR;
-    }
-    CM_FREE_PTR(cmd_str);
+
     return CT_SUCCESS;
 }
 
 status_t ctbackup_set_metadata_mode(ctbak_param_t *ctbak_param)
 {
-    uint32 param_index = 0;
-    char cmd_out[CTSQL_CMD_OUT_BUFFER_SIZE] = { 0 };
-    char *ctsql_cmd[CTSQL_MAX_PARAMETER_CNT] = { 0 };
-    ctsql_cmd[param_index++] = CTSQL_QUERY_CANTIAN_PARAMETERS;
-    ctsql_cmd[param_index++] = MYSQL_METADATA_IN_CANTIAN_GREP;
-    if (ctbak_get_ctsql_output_by_shell(ctsql_cmd, cmd_out) != CT_SUCCESS) {
+    char metadata_mode[CTSQL_CMD_OUT_BUFFER_SIZE] = { 0 };
+    if (ctbak_get_metadata_mode_by_cfg(metadata_mode) != CT_SUCCESS) {
         printf("[ctbackup]get mysql_metadata_in_cantian param failed!\n");
         return CT_ERROR;
     }
-    if (strcmp(cmd_out, "TRUE\n") == 0) {
+
+    if (strcmp(metadata_mode, "TRUE") == 0) {
         ctbak_param->is_mysql_metadata_in_cantian = CT_TRUE;
-    } else if (strcmp(cmd_out, "FALSE\n") == 0) {
+    } else if (strcmp(metadata_mode, "FALSE") == 0) {
         ctbak_param->is_mysql_metadata_in_cantian = CT_FALSE;
     } else {
         printf("[ctbackup]invalid mysql_metadata_in_cantian param!\n");
