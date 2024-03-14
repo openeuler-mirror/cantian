@@ -580,7 +580,6 @@ static status_t sys_user_row_put(knl_session_t *session, knl_cursor_t *cursor, r
     row_put_null(ra);                                        // options
     (void)(row_put_int32(ra, 0));                            // tenant id
     if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
-        cm_pop(session->stack);
         return CT_ERROR;
     }
 
@@ -611,7 +610,10 @@ status_t db_build_sys_user(knl_session_t *session, knl_cursor_t *cursor)
 
     cipher = (char *)cm_push(session->stack, CT_PASSWORD_BUFFER_SIZE);
 
-    CT_RETURN_IFERR(sys_user_row_put(session, cursor, &ra, 0, "SYS", session->kernel->attr.sys_pwd));
+    if (sys_user_row_put(session, cursor, &ra, 0, "SYS", session->kernel->attr.sys_pwd) != CT_SUCCESS) {
+        cm_pop(session->stack);
+        return CT_ERROR;
+    }
 
     err = memset_sp(cipher, CT_PASSWORD_BUFFER_SIZE, 0, CT_PASSWORD_BUFFER_SIZE);
     knl_securec_check(err);
@@ -622,11 +624,20 @@ status_t db_build_sys_user(knl_session_t *session, knl_cursor_t *cursor)
         return CT_ERROR;
     }
 
-    CT_RETURN_IFERR(sys_user_row_put(session, cursor, &ra, 1, "PUBLIC", cipher));
+    if (sys_user_row_put(session, cursor, &ra, 1, "PUBLIC", cipher) != CT_SUCCESS) {
+        cm_pop(session->stack);
+        return CT_ERROR;
+    }
 
     if (DB_ATTR_COMPATIBLE_MYSQL(session)) {
-        CT_RETURN_IFERR(sys_user_row_put(session, cursor, &ra, 2, "tmp", cipher));
-        CT_RETURN_IFERR(sys_user_row_put(session, cursor, &ra, 3, "cantian", cipher));
+        if (sys_user_row_put(session, cursor, &ra, 2, "tmp", cipher) != CT_SUCCESS) {
+            cm_pop(session->stack);
+            return CT_ERROR;
+        }
+        if (sys_user_row_put(session, cursor, &ra, 3, "cantian", cipher) != CT_SUCCESS) {
+            cm_pop(session->stack);
+            return CT_ERROR;            
+        }
     }
 
     knl_commit(session);
