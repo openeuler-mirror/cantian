@@ -99,7 +99,10 @@ static inline status_t stat_read(uint64 offset, char* data, uint32 size)
     if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
         return cm_read_disk(ctx->gcc_handle, offset, data, size);
     }
-    return cm_read_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size);
+    if (cm_read_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
 }
 
 static inline status_t stat_write(uint64 offset, char* data, uint32 size)
@@ -117,7 +120,10 @@ static status_t res_data_read(cms_local_ctx_t* ctx, uint64 offset, char* data, u
     if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
         return cm_read_disk(ctx->gcc_handle, offset, data, size);
     }
-    return cm_read_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size);
+    if (cm_read_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
 }
  
 static status_t res_data_write(cms_local_ctx_t* ctx, uint64 offset, char* data, uint32 size)
