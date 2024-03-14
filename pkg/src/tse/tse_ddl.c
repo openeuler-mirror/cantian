@@ -4242,6 +4242,7 @@ bool32 tse_command_type_read(sql_command_filter_op_t cmd)
         case SQLCOM_SHOW_CREATE_DB:
         case SQLCOM_SHOW_TABLE_STATUS:
         case SQLCOM_SHOW_TRIGGERS:
+        case SQLCOM_SET_OPTION:
         case SQLCOM_CHECK:
         case SQLCOM_SHOW_BINLOGS:
         case SQLCOM_SHOW_OPEN_TABLES:
