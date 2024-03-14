@@ -930,6 +930,19 @@ int tse_db_common_pre_check(knl_session_t *knl_session, const char *db_name, int
         return CT_ERROR;
     }
 
+    text_t user_name;
+    cm_str2text(db_name, &user_name);
+    if (cm_text_str_equal(&user_name, "tmp") || cm_text_str_equal(&user_name, "SYS") ||
+        cm_text_str_equal(&user_name, "PUBLIC") || cm_text_str_equal(&user_name, "LREP") ||
+        cm_text_str_equal(&user_name, "cantian")) {
+        *error_code = ERR_OPERATIONS_NOT_SUPPORT;
+        ret = snprintf_s(error_message, ERROR_MESSAGE_LEN, ERROR_MESSAGE_LEN - 1,
+                         "[CTC_DB]: Not allowed to operate sys users for mysql.");
+        knl_securec_check_ss(ret);
+        CT_LOG_RUN_ERR("[CTC_DB] user %s is sys users, not allowed to operate for mysql", db_name);
+        return CT_ERROR;
+    }
+
     return CT_SUCCESS;
 }
 
