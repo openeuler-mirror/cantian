@@ -559,15 +559,41 @@ status_t db_write_sysindex(knl_session_t *session, knl_cursor_t *cursor, knl_ind
     return knl_internal_insert(session, cursor);
 }
 
+static status_t sys_user_row_put(knl_session_t *session, knl_cursor_t *cursor, row_assist_t *ra,
+                              int32 id, const char *name, const char *pwd)
+{
+    uint32 max_size = session->kernel->attr.max_row_size;
+    date_t date = cm_now();
+    row_init(ra, cursor->buf, max_size, SYSUSER_COLS);
+    (void)(row_put_int32(ra, id));                           // id
+    (void)(row_put_str(ra, name));                           // name
+    (void)(row_put_str(ra, pwd));                            // pwd
+    (void)(row_put_int32(ra, SYS_SPACE_ID));                 // tablespace system
+    (void)(row_put_int32(ra, dtc_my_ctrl(session)->swap_space));  // default tablespace
+    (void)(row_put_date(ra, date));                          // create time
+    (void)(row_put_date(ra, date));                          // pwd change time
+    row_put_null(ra);                                        // expire time
+    row_put_null(ra);                                        // lock time
+    (void)(row_put_int32(ra, 0));                            // profile#, default 0
+    (void)(row_put_int32(ra, ACCOUNT_STATUS_OPEN));          // astatus
+    (void)(row_put_int32(ra, 0));                            // lcount
+    row_put_null(ra);                                        // options
+    (void)(row_put_int32(ra, 0));                            // tenant id
+    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
+        cm_pop(session->stack);
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+
 status_t db_build_sys_user(knl_session_t *session, knl_cursor_t *cursor)
 {
-    uint32 max_size;
     row_assist_t ra;
     char rand_buf[CT_PASSWD_MIN_LEN + 1];
     SENSI_INFO char public_pwd[CT_PASSWORD_BUFFER_SIZE];
     uint32 public_pwd_len = CT_PASSWORD_BUFFER_SIZE;
     char *cipher = NULL;
-    date_t date = cm_now();
     errno_t err;
 
     /* create a random string for public as the password. */
@@ -583,28 +609,9 @@ status_t db_build_sys_user(knl_session_t *session, knl_cursor_t *cursor)
     
     knl_open_core_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_USER_ID);
 
-    max_size = session->kernel->attr.max_row_size;
     cipher = (char *)cm_push(session->stack, CT_PASSWORD_BUFFER_SIZE);
 
-    row_init(&ra, cursor->buf, max_size, SYSUSER_COLS);
-    (void)(row_put_int32(&ra, 0));                            // id
-    (void)(row_put_str(&ra, "SYS"));                          // name
-    (void)(row_put_str(&ra, session->kernel->attr.sys_pwd));  // pwd
-    (void)(row_put_int32(&ra, SYS_SPACE_ID));                 // tablespace system
-    (void)(row_put_int32(&ra, dtc_my_ctrl(session)->swap_space));  // default tablespace
-    (void)(row_put_date(&ra, date));                          // create time
-    (void)(row_put_date(&ra, date));                          // pwd change time
-    row_put_null(&ra);                                        // expire time
-    row_put_null(&ra);                                        // lock time
-    (void)(row_put_int32(&ra, 0));                            // profile#, default 0
-    (void)(row_put_int32(&ra, ACCOUNT_STATUS_OPEN));          // astatus
-    (void)(row_put_int32(&ra, 0));                            // lcount
-    row_put_null(&ra);                                        // options
-    (void)(row_put_int32(&ra, 0));                            // tenant id
-    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
-        cm_pop(session->stack);
-        return CT_ERROR;
-    }
+    CT_RETURN_IFERR(sys_user_row_put(session, cursor, &ra, 0, "SYS", session->kernel->attr.sys_pwd));
 
     err = memset_sp(cipher, CT_PASSWORD_BUFFER_SIZE, 0, CT_PASSWORD_BUFFER_SIZE);
     knl_securec_check(err);
@@ -615,47 +622,13 @@ status_t db_build_sys_user(knl_session_t *session, knl_cursor_t *cursor)
         return CT_ERROR;
     }
 
-    row_init(&ra, cursor->buf, max_size, SYSUSER_COLS);
-    (void)row_put_int32(&ra, 1);                    // id
-    (void)row_put_str(&ra, "PUBLIC");               // name
-    (void)row_put_str(&ra, cipher);                 // pwd
-    (void)row_put_int32(&ra, SYS_SPACE_ID);         // tablespace system
-    (void)row_put_int32(&ra, dtc_my_ctrl(session)->swap_space);  // temp tablespace
-    (void)row_put_date(&ra, date);                  // create time
-    (void)row_put_date(&ra, date);                  // pwd change time
-    row_put_null(&ra);                              // expire time
-    row_put_null(&ra);                              // lock time
-    (void)row_put_int32(&ra, 0);                    // profile#, default 0
-    (void)row_put_int32(&ra, ACCOUNT_STATUS_OPEN);  // astatus
-    (void)row_put_int32(&ra, 0);                    // lcount
-    row_put_null(&ra);                              // options
-    (void)(row_put_int32(&ra, 0));                  // tenant id
-    if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
-        cm_pop(session->stack);
-        return CT_ERROR;
-    }
+    CT_RETURN_IFERR(sys_user_row_put(session, cursor, &ra, 1, "PUBLIC", cipher));
 
     if (DB_ATTR_COMPATIBLE_MYSQL(session)) {
-        row_init(&ra, cursor->buf, max_size, SYSUSER_COLS);
-        (void)row_put_int32(&ra, 2);                    // id
-        (void)row_put_str(&ra, "tmp");               // name
-        (void)row_put_str(&ra, cipher);                 // pwd
-        (void)row_put_int32(&ra, SYS_SPACE_ID);         // tablespace system
-        (void)row_put_int32(&ra, dtc_my_ctrl(session)->swap_space);  // temp tablespace
-        (void)row_put_date(&ra, date);                  // create time
-        (void)row_put_date(&ra, date);                  // pwd change time
-        row_put_null(&ra);                              // expire time
-        row_put_null(&ra);                              // lock time
-        (void)row_put_int32(&ra, 0);                    // profile#, default 0
-        (void)row_put_int32(&ra, ACCOUNT_STATUS_OPEN);  // astatus
-        (void)row_put_int32(&ra, 0);                    // lcount
-        row_put_null(&ra);                              // options
-        (void)(row_put_int32(&ra, 0));                  // tenant id
-        if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
-            cm_pop(session->stack);
-            return CT_ERROR;
-        }
+        CT_RETURN_IFERR(sys_user_row_put(session, cursor, &ra, 2, "tmp", cipher));
+        CT_RETURN_IFERR(sys_user_row_put(session, cursor, &ra, 3, "cantian", cipher));
     }
+
     knl_commit(session);
     cm_pop(session->stack);
 
