@@ -173,7 +173,7 @@ status_t cms_detect_file_stat(const char *read_file, disk_handle_t* gcc_handle)
 
 status_t cms_detect_dbs_file_stat(const char *read_file, object_id_t* handle)
 {
-    status_t ret = CT_SUCCESS;
+    int32 ret = CT_SUCCESS;
     cms_gcc_t *new_gcc = (cms_gcc_t *)cm_malloc_align(CMS_BLOCK_SIZE, sizeof(cms_gcc_t));
     if (new_gcc == NULL) {
         CMS_LOG_ERR("cms allocate memory failed.");

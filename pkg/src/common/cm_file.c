@@ -538,29 +538,29 @@ status_t cm_read_file(int32 file, void *buf, int32 len, int32 *read_size)
     return CT_SUCCESS;
 }
 
-status_t cm_read_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, void* buf, uint32 length)
+int32 cm_read_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, void* buf, uint32 length)
 {
     int64 start = cm_now();
     object_id_t handle;
     int32 ret =  dbs_global_handle()->dbs_file_open(phandle, file_name, FILE_TYPE, &handle);
     if (ret != 0) {
-        CT_THROW_ERROR(ERR_WRITE_FILE, ret);
+        CT_THROW_ERROR(ERR_OPEN_FILE, ret);
         CT_LOG_RUN_ERR("cm_read_dbs_file get file %s handle failed.", file_name);
-        return CT_ERROR;
+        return ret;
     }
 
     ret = dbs_global_handle()->dbs_file_read(&handle, offset, (char *)buf, length);
     if (ret != 0) {
         CT_THROW_ERROR(ERR_READ_FILE, ret);
         CT_LOG_RUN_ERR("cm_read_dbs_file file %s offset:%u len:%u failed.", file_name, offset, length);
-        return CT_ERROR;
+        return ret;
     }
 
     int64 end = cm_now();
     if (end - start > 50 * MICROSECS_PER_MILLISEC) {
         CT_LOG_RUN_WAR("cm_read_dbs_file %u elapsed:%lld(ms)", length, (end - start) / MICROSECS_PER_MILLISEC);
     }
-    return CT_SUCCESS;
+    return ret;
 }
 
 status_t cm_write_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, void* buf, uint32 length)
@@ -569,7 +569,7 @@ status_t cm_write_dbs_file(object_id_t* phandle, char *file_name, uint32 offset,
     object_id_t handle;
     int32 ret =  dbs_global_handle()->dbs_file_open(phandle, file_name, FILE_TYPE, &handle);
     if (ret != 0) {
-        CT_THROW_ERROR(ERR_WRITE_FILE, ret);
+        CT_THROW_ERROR(ERR_OPEN_FILE, ret);
         CT_LOG_RUN_ERR("cm_write_dbs_file get file %s handle failed.", file_name);
         return CT_ERROR;
     }
