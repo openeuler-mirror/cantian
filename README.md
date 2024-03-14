@@ -1,7 +1,7 @@
 # Cantian Storage Engine
 数据存储加速引擎
 
-# 工程说明
+# 一、工程说明
 - 编程语言：C
 
 - 编译工程：cmake或make，建议使用cmake
@@ -14,18 +14,19 @@
     -   ct_om：安装部署脚本；
     -   pkg: 源代码目录，按子目录划分模块解耦；
 
-# 编译指导<a name="ZH-CN_TOPIC_0000001801512341"></a>
+# 二、编译指导<a name="ZH-CN_TOPIC_0000001801512341"></a>
 
 
 
 
-## 概述<a name="ZH-CN_TOPIC_0000001801631373"></a>
+## 2.1 概述<a name="ZH-CN_TOPIC_0000001801631373"></a>
 
 本文档介绍如何对Cantian引擎源码进行编译，生成Cantian引擎软件包。[图1](#fig2092784815585)说明了Cantian引擎的编译流程。
+**如需在计算云进行开发者验证调试，请参考第四章**
 
 **图 1**  Cantian引擎编译流程<a name="fig2092784815585"></a>  
 ![输入图片说明](https://foruda.gitee.com/images/1707301302643678557/8d1658bf_1686238.png "Cantian引擎编译流程.png")
-## 准备编译环境<a name="ZH-CN_TOPIC_0000001754552768"></a>
+## 2.2 准备编译环境<a name="ZH-CN_TOPIC_0000001754552768"></a>
 
 **硬件要求<a name="section179914360134"></a>**
 
@@ -56,12 +57,12 @@ Cantian引擎编译过程所依赖的软件如[表1 环境构建依赖](#table16
 |Git|>=2.18.0|用于下载源码。|
 
 
-## 版本编译<a name="ZH-CN_TOPIC_0000001754711680"></a>
+## 2.3 版本编译<a name="ZH-CN_TOPIC_0000001754711680"></a>
 
 
 
 
-### 下载源码<a name="ZH-CN_TOPIC_0000001801512345"></a>
+### 2.3.1 下载源码<a name="ZH-CN_TOPIC_0000001801512345"></a>
 
 本节介绍如何下载Cantian引擎源码以及其他依赖源码。
 
@@ -100,7 +101,7 @@ Cantian引擎编译过程所依赖的软件如[表1 环境构建依赖](#table16
     wget https://github.com/mysql/mysql-server/archive/refs/tags/mysql-8.0.26.tar.gz --no-check-certificate
     tar -zxf mysql-8.0.26.tar.gz
     ```
-### 标题
+### 2.3.2 标题
     mv mysql-server-mysql-8.0.26 mysql-source
     ```
     
@@ -112,7 +113,7 @@ Cantian引擎编译过程所依赖的软件如[表1 环境构建依赖](#table16
     >----------cantian-connector-mysql
     >----------------mysql-source
 
-### 准备容器镜像<a name="ZH-CN_TOPIC_0000001817435653"></a>
+### 2.3.3 准备容器镜像<a name="ZH-CN_TOPIC_0000001817435653"></a>
 
 Cantian引擎仅支持在容器内编译，本节介绍两种准备容器镜像的方法：①通过Cantian-Connector-MySQL源码中的Dockerfile文件自行构建容器镜像；②通过Docker Hub直接获取容器镜像。如果执行编译的主机无法连接网络，则可选择第一种方式，否则两种方式任选其一。
 
@@ -211,7 +212,7 @@ Cantian引擎仅支持在容器内编译，本节介绍两种准备容器镜像�
 
     ![输入图片说明](https://foruda.gitee.com/images/1707301524241624886/575c1997_1686238.png "1705455515494.png")
 
-### 编译源码<a name="ZH-CN_TOPIC_0000001754552772"></a>
+### 2.3.4 编译源码<a name="ZH-CN_TOPIC_0000001754552772"></a>
 
 本节介绍如何在容器环境编译Cantian引擎源码，并生成Cantian引擎软件包。Cantian-Connector作为Cantian引擎运行的必要组件，会在Cantian引擎的自动化编译脚本中一同编译，并打包进Cantian引擎软件包。
 
@@ -290,18 +291,18 @@ build\_cantian.sh是编译过程中的入口脚本，其集成了软件编译和
     -   X86：Cantian\__xxx_\_x86\_64\_DEBUG.tgz或Cantian\__xxx_\_x86\_64\_RELEASE.tgz
     -   ARM：Cantian\__xxx_\_aarch64\_DEBUG.tgz或Cantian\_\__xxx_\_aarch64\_RELEASE.tgz
 
-# 安装与卸载Cantian引擎<a name="ZH-CN_TOPIC_0000001800412081"></a>
+# 三、安装与卸载Cantian引擎<a name="ZH-CN_TOPIC_0000001800412081"></a>
 
 
 
 
-## 安装前规划<a name="ZH-CN_TOPIC_0000001754837214"></a>
+## 3.1 安装前规划<a name="ZH-CN_TOPIC_0000001754837214"></a>
 
 安装Cantian引擎前，请先完成软件和硬件的准备、以及相关的网络和存储规划。
 
 
 
-### 组网规划<a name="ZH-CN_TOPIC_0000001779891302"></a>
+### 3.1.1 组网规划<a name="ZH-CN_TOPIC_0000001779891302"></a>
 
 介绍Cantian引擎规划的原则、硬件的基本配置和软件要求，以及存储设备所需配置的文件系统。
 
@@ -372,13 +373,13 @@ build\_cantian.sh是编译过程中的入口脚本，其集成了软件编译和
 >![输入图片说明](https://foruda.gitee.com/images/1707301851414022105/fc841ea9_1686238.gif "icon-note.gif") **说明：** 
 >此处的文件系统名称和容量仅作为样例进行展示，规划时，请根据实际情况进行设置。
 
-### 规划样例<a name="ZH-CN_TOPIC_0000001788641304"></a>
+### 3.1.2 规划样例<a name="ZH-CN_TOPIC_0000001788641304"></a>
 
 在有条件的情况下，建议采取交换机冗余连接的组网方式，提升网络的可靠性。同时，设备也支持直接连接的方式进行组网。
 
 
 
-#### 规划样例（交换机组网）<a name="ZH-CN_TOPIC_0000001780380972"></a>
+#### 3.1.2.1 规划样例（交换机组网）<a name="ZH-CN_TOPIC_0000001780380972"></a>
 
 本节以通过交换机实现冗余连接的组网方式为样例进行介绍，实际规划时请根据需要进行调整。
 
@@ -465,7 +466,7 @@ build\_cantian.sh是编译过程中的入口脚本，其集成了软件编译和
 |eth34|bond_nas_2|lgc_nas_4|77|172.16.77.5|255.255.255.0|
 
 
-#### 规划样例（直连组网）<a name="ZH-CN_TOPIC_0000001785105780"></a>
+#### 3.1.2.2 规划样例（直连组网）<a name="ZH-CN_TOPIC_0000001785105780"></a>
 
 在未部署交换机的情况下，可通过不同设备间的直接连接进行组网。
 
@@ -547,7 +548,7 @@ build\_cantian.sh是编译过程中的入口脚本，其集成了软件编译和
 |eth32|lgc_nas_8|172.16.77.9|255.255.255.0|
 
 
-## 安装Cantian引擎<a name="ZH-CN_TOPIC_0000001754996162"></a>
+## 3.2 安装Cantian引擎<a name="ZH-CN_TOPIC_0000001754996162"></a>
 
 请根据实际的硬件情况和网络规划进行网络配置，并安装Cantian引擎软件。
 
@@ -555,7 +556,7 @@ build\_cantian.sh是编译过程中的入口脚本，其集成了软件编译和
 
 
 
-### 配置10GE交换机<a name="ZH-CN_TOPIC_0000001801796821"></a>
+### 3.2.1 配置10GE交换机<a name="ZH-CN_TOPIC_0000001801796821"></a>
 
 若规划了交换机，请根据规划，将业务网络和Cantian引擎心跳网络、以及NAS共享网络接入10GE交换机，此处以[规划样例（交换机组网）](规划样例（交换机组网）.md)为例、使用CE6857交换机进行配置介绍。
 
@@ -652,7 +653,7 @@ Info: Save the configuration successfully.
     >![输入图片说明](https://foruda.gitee.com/images/1707301851414022105/fc841ea9_1686238.gif "icon-note.gif") **说明：** 
     >所有规划要与数据库服务器NAS共享网络相连的交换机端口，均需进行上述配置并添加规划的VLAN。对端数据库服务器端口的VLAN规划，请参见[表4](规划样例（交换机组网）.md#table331465013188)。
 
-### 配置服务器网络<a name="ZH-CN_TOPIC_0000001832597329"></a>
+### 3.2.2 配置服务器网络<a name="ZH-CN_TOPIC_0000001832597329"></a>
 
 安装Cantian引擎前，请在数据库服务器上对用于业务网络和Cantian引擎心跳网络、以及NAS共享网络的端口进行配置。
 
@@ -996,7 +997,7 @@ Info: Save the configuration successfully.
     >![输入图片说明](https://foruda.gitee.com/images/1707301851414022105/fc841ea9_1686238.gif "icon-note.gif") **说明：** 
     >以eth11端口为例，根据[图1](规划样例（直连组网）.md#fig1252163502417)的线缆连接，eth11端口的对端端口为“业务下发设备”的eth01端口，eth01端口的IP地址即为进行Ping操作的同平面IP地址。
 
-### 配置存储网络<a name="ZH-CN_TOPIC_0000001802782129"></a>
+### 3.2.3 配置存储网络<a name="ZH-CN_TOPIC_0000001802782129"></a>
 
 在部署Cantian引擎前，您还需在存储设备上进行如下的配置：
 
@@ -1004,7 +1005,7 @@ Info: Save the configuration successfully.
 -   创建[表3](组网规划.md#zh-cn_topic_0000001690212893_zh-cn_topic_0000001519546530_table86641344117)中规划的不同用途的文件系统，并为各个文件系统创建NFS共享。
 -   创建用于挂载[表3](组网规划.md#zh-cn_topic_0000001690212893_zh-cn_topic_0000001519546530_table86641344117)中规划的各个文件系统的逻辑端口。
 
-### 部署Cantian引擎<a name="ZH-CN_TOPIC_0000001801875845"></a>
+### 3.2.4 部署Cantian引擎<a name="ZH-CN_TOPIC_0000001801875845"></a>
 
 **前提条件<a name="zh-cn_topic_0000001690212877_zh-cn_topic_0000001521308384_zh-cn_topic_0000001571256873_section14896551532"></a>**
 
@@ -1226,13 +1227,13 @@ Info: Save the configuration successfully.
               1  db        ONLINE  OFFLINE     ONLINE                1            0             1   REFORMER 2024-02-06 02:42:34.599 2024-02-06 02:42:34.599 2024-02-05 05:47:06.742
         ```
 
-## 卸载Cantian引擎<a name="ZH-CN_TOPIC_0000001754837234"></a>
+## 3.3 卸载Cantian引擎<a name="ZH-CN_TOPIC_0000001754837234"></a>
 
 系统支持通过override方式或reserve方式卸载Cantian引擎。卸载时，请在两台数据库服务器上使用相同的方式对Cantian引擎进行卸载。
 
 
 
-### 通过override方式卸载Cantian引擎<a name="ZH-CN_TOPIC_0000001801796829"></a>
+### 3.3.1 通过override方式卸载Cantian引擎<a name="ZH-CN_TOPIC_0000001801796829"></a>
 
 若无需对数据库服务器的数据进行备份，请通过override方式卸载Cantian引擎。
 
@@ -1265,7 +1266,7 @@ Info: Save the configuration successfully.
 
     若依然无法卸载，请联系技术工程师。
 
-### 通过reserve方式卸载Cantian引擎<a name="ZH-CN_TOPIC_0000001754996174"></a>
+### 3.3.2 通过reserve方式卸载Cantian引擎<a name="ZH-CN_TOPIC_0000001754996174"></a>
 
 若需对数据库服务器的数据进行备份，请通过reserve方式卸载Cantian引擎。
 
@@ -1293,23 +1294,23 @@ Info: Save the configuration successfully.
 
     若无法卸载，请联系技术工程师。
 
-# 对接MySQL<a name="ZH-CN_TOPIC_0000001800412089"></a>
+# 四、对接MySQL<a name="ZH-CN_TOPIC_0000001800412089"></a>
 
 
 
-## 安装MySQL<a name="ZH-CN_TOPIC_0000001753452360"></a>
+## 4.1 安装MySQL<a name="ZH-CN_TOPIC_0000001753452360"></a>
 
 请安装与Cantian引擎匹配的8.0.26版本的MySQL。
 
 >![输入图片说明](https://foruda.gitee.com/images/1707302488160637737/8ec1a8be_1686238.gif "icon-notice.gif") **须知：** 
 >请根据[编译源码](编译源码.md)中生成的软件包版本类型（realase或debug版本），安装对应版本类型的MySQL。
 
-## 加载插件依赖库<a name="ZH-CN_TOPIC_0000001786761450"></a>
+## 4.2 加载插件依赖库<a name="ZH-CN_TOPIC_0000001786761450"></a>
 
 Cantian引擎支持通过物理方式和容器方式加载插件依赖库。
 
 
-### 通过物理方式加载插件依赖库<a name="ZH-CN_TOPIC_0000001808214541"></a>
+### 4.2.1 通过物理方式加载插件依赖库<a name="ZH-CN_TOPIC_0000001808214541"></a>
 
 本章节介绍在数据库服务器上如何通过直接加载或启动MySQL进程的方式加载插件依赖库。
 
@@ -1409,7 +1410,7 @@ Cantian引擎支持通过物理方式和容器方式加载插件依赖库。
 
 4.  登录另一台数据库服务器，重复执行[2](#li95222027105913)和[3](#li142421623195811)，为另一台数据库服务器加载插件ha\_ctc.so的依赖库。
 
-# 健康巡检<a name="ZH-CN_TOPIC_0000001755835620"></a>
+# 五、健康巡检<a name="ZH-CN_TOPIC_0000001755835620"></a>
 
 通过脚本对Cantian引擎执行健康巡检，以便了解Cantian引擎各模块的运行状态。
 
@@ -1503,4 +1504,223 @@ Cantian引擎已正确安装且正常运行。
     巡检结果查询如下：
 
     ![输入图片说明](https://foruda.gitee.com/images/1707301648920644690/22c0aa8b_1686238.png "zh-cn_image_0000001690293749.png")
+# 六、Cantian云主机开发编译部署
 
+## 6.1 环境准备
+
+### 6.1.1 下载最新docker镜像
+
+#### x86版本
+```shell
+docker pull ykfnxx/cantian_dev:0.1.0
+docker tag ykfnxx/cantian_dev:0.1.0 cantian_dev:latest
+```
+#### ARM版本
+```shell
+docker pull ykfnxx/cantian_dev:0.1.1
+docker tag ykfnxx/cantian_dev:0.1.1 cantian_dev:latest
+```
+
+### 6.1.2 下载cantian源码
+1.执行以下命令下载Cantian引擎源码。
+```shell
+git clone git@gitee.com:openeuler/cantian.git
+```
+2.执行以下命令下载Cantian-Connector-MySQL源码，用于编译Cantian引擎对接MySQL的插件。
+```shell
+git clone git@gitee.com:openeuler/cantian-connector-mysql.git
+```
+3.执行以下命令,下载MySQL-8.0.26版本源码，用于编译Cantian引擎对接MySQL的插件，并将源码拷贝到cantian-connector-mysql/mysql-source目录下。
+```shell
+wget --no-check-certificate https://github.com/mysql/mysql-server/archive/refs/tags/mysql-8.0.26.tar.gz
+tar -zxf mysql-8.0.26.tar.gz
+mv mysql-server-mysql-8.0.26 cantian-connector-mysql/mysql-source
+```
+4.创建与cantian、cantian-connector-mysql同级的cantian_data目录用于存放相关数据。
+```shell
+mkdir -p cantian_data
+```
+
+### 6.1.3 启动容器
+
+进入cantian目录,启动容器。
+
++ 单节点
+```shell
+sh docker/container.sh dev
+sh docker/container.sh enterdev
+```
++ 双节点
+```shell
+# 目前只支持双节点，node_id为0, 1
+sh docker/container.sh startnode 0
+sh docker/container.sh enternode 1
+```
+
+[container.sh](https://gitee.com/openeuler/cantian/blob/master/docker/container.sh)按`startnode`和`dev`参数启动时会执行代码拷贝的操作，具体操作参考脚本中`sync_mysql_code`函数
+
+## 6.2 Cantian编译部署
+
+### 6.2.1 cantian编包
+
+以下命令在容器内使用。若为双节点，则只需在其中一个节点执行一次。为方便描述，后续双节点仅需在一个节点的操作默认在node0进行
+```shell
+cd /home/regress/CantianKernel/build
+export local_build=true
+# 若此前编译过第三方依赖，可以再加上--no-deps参数，跳过第三方依赖的编译
+# debug
+sh Makefile.sh package
+# release
+sh Makefile.sh package-release
+```
+
+### 6.2.2 cantian部署
+
+配置core_pattern（在两个节点上配置，用于记录core file）
+```shell
+echo "/home/core/core-%e-%p-%t" > /proc/sys/kernel/core_pattern
+echo 2 > /proc/sys/fs/suid_dumpable
+ulimit -c unlimited
+```
+##### 单节点部署Cantian
+
+```shell
+cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
+mkdir -p /home/cantiandba/logs
+# -Z SESSIONS=1000方便调试，需运行MTR时需要去掉此参数
+# 如果需要部署非元数据归一版本，则需要加参数-Z MYSQL_METADATA_IN_CANTIAN=FALSE
+python3 install.py -U cantiandba:cantiandba -R /home/cantiandba/install -D /home/cantiandba/data -l /home/cantiandba/logs/install.log -Z _LOG_LEVEL=255 -g withoutroot -d -M cantiand -c -Z _SYS_PASSWORD=Huawei@123 -Z SESSIONS=1000
+```
+##### 双节点部署Cantian
+node0
+```shell
+cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
+mkdir -p /home/cantiandba/logs
+python3 install.py -U cantiandba:cantiandba -R /home/cantiandba/install -D /home/cantiandba/data -l /home/cantiandba/logs/install.log -M cantiand_in_cluster -Z _LOG_LEVEL=255 -N 0 -W 192.168.0.1 -g withoutroot -d -c -Z _SYS_PASSWORD=Huawei@123 -Z SESSIONS=1000
+```
+node1
+```shell
+cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
+mkdir -p /home/cantiandba/logs
+python3 install.py -U cantiandba:cantiandba -R /home/cantiandba/install -D /home/cantiandba/data -l /home/cantiandba/logs/install.log -M cantiand_in_cluster -Z _LOG_LEVEL=255 -N 1 -W 192.168.0.1 -g withoutroot -d -c -Z _SYS_PASSWORD=Huawei@123 -Z SESSIONS=1000
+```
+#### 验证cantian状态是否正常
+
+```shell
+su - cantiandba
+cms stat
+ctsql / as sysdba -q -c 'SELECT NAME, STATUS, OPEN_STATUS FROM DV_DATABASE'
+```
+
+### 6.2.3 卸载cantian
+**需要使用gaussdba用户执行卸载命令**
+如果存在与cantiand相连的mysqld进程，执行以下指令，先停止mysqld进程再停止cantiand:
+```shell
+/usr/local/mysql/bin/mysql -uroot -e "shutdown;"
+```
+卸载指令：
+```shell
+cd /home/cantiandba/install/bin
+python3 uninstall.py -U cantiandba -F -D /home/cantiandba/data -g withoutroot -d
+```
+**如果出现报错，部分目录无法删除，则可以使用root用户手动清理相关目录**
+```shell
+kill -9 $(pidof mysqld)
+kill -9 $(pidof cantiand)
+kill -9 $(pidof cms)
+rm -rf /home/regress/cantian_data/* /home/regress/install /home/regress/data /home/cantiandba/install/* /data/data/* /home/cantiandba/data
+sed -i '/cantiandba/d' /home/cantiandba/.bashrc
+```
+## 6.3 mysql编译部署
+### 6.3.1 mysql编译
+
+#### 6.3.1.1 元数据归一
+元数据归一需要应用patch，修改源码
+```shell
+cd cantian-connector-mysql/mysql-source
+patch --ignore-whitespace -p1 < mysql-scripts-meta.patch
+patch --ignore-whitespace -p1 < mysql-test-meta.patch
+patch --ignore-whitespace -p1 < mysql-source-code-meta.patch
+```
+编译：
+```shell
+cd /home/regress/CantianKernel/build
+sh Makefile.sh mysql
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/regress/cantian-connector-mysql/bld_debug/library_output_directory
+rm -rf /home/regress/mydata/*
+```
+
+双节点部署时，如果使用**手动部署**，则两个节点需要分别执行编译。若使用**脚本部署**，只需在一个节点编译即可
+特别地，若在node0完成cantian的编译，在node1编译mysql前需要先执行以下命令
+```shell
+mkdir /home/regress/cantian-connector-mysql/mysql-source/include/protobuf-c
+cp /home/regress/CantianKernel/library/protobuf/protobuf-c/protobuf-c.h /home/regress/cantian-connector-mysql/mysql-source/include/protobuf-c
+```
+
+#### 6.3.1.2 非归一
+
+双节点部署时，非归一版本只需要在其中一个节点编译mysql即可
+
+```shell
+cd /home/regress/CantianKernel/build
+sh Makefile.sh mysql
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/regress/cantian-connector-mysql/bld_debug/library_output_directory
+```
+
+### 6.3.2 mysql部署
+
+#### 6.3.2.1 元数据归一(手动拉起)
+
+初始化：
+双节点仅需在其中一个节点执行初始化命令，且在初始化前，需保证`/home/regress/mydata`下没有文件需先执行
+
+```shell
+rm -rf /home/regress/mydata/*
+```
+
+```shell
+/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/cantian-connector-mysql/scripts/my.cnf --initialize-insecure --datadir=/home/regress/mydata --early-plugin-load="ha_ctc.so" --core-file
+```
+
+部署：
+双节点在初始化后分别执行部署命令。若在node0完成初始化，则node1需先执行以下命令
+
+```shell
+rm -rf /home/regress/mydata/*
+mkdir -p /home/regress/mydata/
+mkdir -p /home/regress/mydata/mysql
+```
+
+部署命令为：
+```shell
+/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/cantian-connector-mysql/scripts/my.cnf  --datadir=/home/regress/mydata --user=root --early-plugin-load="ha_ctc.so" --core-file
+```
+
+#### 6.3.2.2 元数据归一/非归一（脚本）
+
+双节点拉起前需分别执行以下命令
+
+```shell
+# node0
+cd /home/regress/CantianKernel/build
+sh Makefile.sh mysql_package_node0
+
+# node1
+cd /home/regress/CantianKernel/build
+sh Makefile.sh mysql_package_node1
+```
+
+以下为使用`install.py`脚本拉起的命令
+
+```shell
+cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
+mkdir -p /home/regress/logs
+python3 install.py -U cantiandba:cantiandba -l /home/cantiandba/logs/install.log -d -M mysqld -m /home/regress/cantian-connector-mysql/scripts/my.cnf
+```
+
+#### 6.3.2.3 拉起检验
+
+```shell
+/usr/local/mysql/bin/mysql -uroot
+```
+##
