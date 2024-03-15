@@ -2410,6 +2410,26 @@ void bak_get_arch_from_redo_free(knl_compress_t *compress_ctx, knl_session_t *se
     cm_aligned_free(&rcy_node->read_buf);
 }
 
+bool32 dtc_bak_logfile_empty(log_file_t *logfile, dtc_node_ctrl_t *node_ctrl)
+{
+    if (logfile->ctrl->status == LOG_FILE_CURRENT) {
+        logfile->head.write_pos = node_ctrl->lrp_point.block_id * logfile->ctrl->block_size;
+    }
+    if (logfile->head.write_pos == CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size)) {
+        return CT_TRUE;
+    }
+    return CT_FALSE;
+}
+
+void dtc_bak_init_file_info(arch_file_info_t *file_info, uint32 inst_id, log_file_t *logfile, uint32 tmp_asn,
+                            bak_t *bak)
+{
+    file_info->logfile.ctrl = logfile->ctrl;
+    file_info->inst_id = inst_id;
+    file_info->asn = tmp_asn + 1;
+    file_info->arch_file_type = cm_device_type(bak->record.path);
+}
+
 status_t dtc_bak_get_logfile_by_asn_file(knl_session_t *session, bak_arch_files_t *arch_file_buf,
                                          log_start_end_asn_t asn, uint32 inst_id, log_start_end_asn_t *target_asn)
 {
@@ -2421,6 +2441,11 @@ status_t dtc_bak_get_logfile_by_asn_file(knl_session_t *session, bak_arch_files_
     knl_compress_t compress_ctx;
     knl_session_t session_bak;
     status_t status = CT_SUCCESS;
+
+    if (dtc_read_node_ctrl(session, inst_id) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] failed to read ctrl page for crashed node=%u", inst_id);
+        return CT_ERROR;
+    }
     if (knl_compress_alloc(DEFAULT_ARCH_COMPRESS_ALGO, &compress_ctx, CT_TRUE) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] Failed to alloc compress context");
         return CT_ERROR;
@@ -2429,8 +2454,9 @@ status_t dtc_bak_get_logfile_by_asn_file(knl_session_t *session, bak_arch_files_
         knl_compress_free(DEFAULT_ARCH_COMPRESS_ALGO, &compress_ctx, CT_TRUE);
         return CT_ERROR;
     }
-    uint32 rst_id = session->kernel->db.ctrl.core.resetlogs.rst_id;
-    dtc_node_ctrl_t *node_ctrl = dtc_get_ctrl(session, inst_id);
+    uint32 rst_id = session_bak.kernel->db.ctrl.core.resetlogs.rst_id;
+
+    dtc_node_ctrl_t *node_ctrl = dtc_get_ctrl(&session_bak, inst_id);
     log_file_t *curr_logfile = &local_file_set.items[node_ctrl->log_last];
     uint32 tmp_asn = asn.end_asn == 0 ? target_asn->start_asn - 1 : asn.end_asn;
     CT_LOG_RUN_INF("[BACKUP] log_first %llu, log_last %llu, last_asn %llu, curr_asn %llu, asn.end_asn %u, tmp_asn %u.",
@@ -2443,15 +2469,12 @@ status_t dtc_bak_get_logfile_by_asn_file(knl_session_t *session, bak_arch_files_
         }
         CT_LOG_RUN_INF("[BACKUP] get next_file_id %u.", file_id);
         log_file_t *logfile = &local_file_set.items[file_id];
-        if (logfile->head.write_pos == CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size)) {
+        if (dtc_bak_logfile_empty(logfile, node_ctrl) == CT_TRUE) {
             tmp_asn += 1;
             continue;
         }
-        file_info.logfile.ctrl = logfile->ctrl;
-        file_info.inst_id = inst_id;
-        file_info.asn = tmp_asn + 1;
-        file_info.arch_file_type = cm_device_type(bak->record.path);
-        if (bak_get_logfile_file(session, &file_info, logfile, &compress_ctx) != CT_SUCCESS) {
+        dtc_bak_init_file_info(&file_info, inst_id, logfile, tmp_asn, bak);
+        if (bak_get_logfile_file(&session_bak, &file_info, logfile, &compress_ctx) != CT_SUCCESS) {
             status = CT_ERROR;
             break;
         }
