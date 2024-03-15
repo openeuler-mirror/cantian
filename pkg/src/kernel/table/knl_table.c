@@ -13884,7 +13884,8 @@ status_t db_analyze_table_part(knl_session_t *session, knl_analyze_tab_def_t *de
         return CT_ERROR;
     }
     stats_flush_logic_log(session, &dc, &load_info);
-    if (stats_refresh_dc(session, &dc, load_info) != CT_SUCCESS) {
+    status_t result = stats_refresh_dc(session, &dc, load_info); 
+    if (result != CT_SUCCESS) {
         unlock_tables_directly(session);
         stats_dc_invalidate(session, &dc);
         dc_close(&dc);
@@ -13893,7 +13894,9 @@ status_t db_analyze_table_part(knl_session_t *session, knl_analyze_tab_def_t *de
 
     unlock_tables_directly(session);
     dc_close(&dc);
-    return CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_ANALYZED_DATA_FAIL, &result, CT_ERROR);
+    SYNC_POINT_GLOBAL_END;
+    return result;
 }
 
 static void stat_put_version(bool32 *stat_exists, uint32 *stats_version)
@@ -14091,7 +14094,8 @@ status_t db_analyze_table(knl_session_t *session, knl_analyze_tab_def_t *def, bo
     if (need_invalidate) {
         stats_dc_invalidate(session, &dc);
     }
-
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_ANALYZED_DATA_FAIL, &status, CT_ERROR);
+    SYNC_POINT_GLOBAL_END;
     return status;
 }
 

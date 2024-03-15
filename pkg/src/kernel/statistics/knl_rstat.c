@@ -3172,8 +3172,8 @@ status_t stats_create_global_mtrl_table(knl_session_t *session, knl_dictionary_t
     } else {
         stats_sample_ratio_init(session, dc, &stats_sample, &table_stats->estimate_sample_ratio, table_stats);
     }
-   
-    if (stats_insert_mtrl_heap_table(session, cursor, temp_ctx, &stats_sample, seg_id, table_stats) != CT_SUCCESS) {
+    status_t result = stats_insert_mtrl_heap_table(session, cursor, temp_ctx, &stats_sample, seg_id, table_stats);
+    if (result != CT_SUCCESS) {
         knl_close_cursor(session, cursor);
         CM_RESTORE_STACK(session->stack);
         return CT_ERROR;
@@ -3181,7 +3181,9 @@ status_t stats_create_global_mtrl_table(knl_session_t *session, knl_dictionary_t
 
     knl_close_cursor(session, cursor);
     CM_RESTORE_STACK(session->stack);
-    return CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_CREATE_TEMP_TABLE_FAIL, &result, CT_ERROR);
+    SYNC_POINT_GLOBAL_END;
+    return result;
 }
 
 status_t stats_create_mtrl_table(knl_session_t *session, knl_dictionary_t *dc, stats_tab_context_t *tab_ctx)
@@ -3202,7 +3204,8 @@ status_t stats_create_mtrl_table(knl_session_t *session, knl_dictionary_t *dc, s
     cursor->action = CURSOR_ACTION_SELECT;
     cursor->scan_mode = SCAN_MODE_TABLE_FULL;
     cursor->part_loc.part_no = table_stats->part_stats.part_no;
-    if (knl_open_cursor(session, cursor, dc) != CT_SUCCESS) {
+    status_t result = knl_open_cursor(session, cursor, dc);
+    if (result != CT_SUCCESS) {
         knl_close_cursor(session, cursor);
         CM_RESTORE_STACK(session->stack);
         return CT_ERROR;
@@ -3233,7 +3236,9 @@ status_t stats_create_mtrl_table(knl_session_t *session, knl_dictionary_t *dc, s
     mtrl_close_segment(temp_ctx, seg_id);
     knl_close_cursor(session, cursor);
     CM_RESTORE_STACK(session->stack);
-    return CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_CREATE_TEMP_TABLE_FAIL, &result, CT_ERROR);
+    SYNC_POINT_GLOBAL_END;
+    return result;
 }
 
 status_t stats_alloc_vm_memory(knl_session_t *session, uint32 *vmid, char **page)
@@ -4424,7 +4429,10 @@ status_t stats_gather_indexes(knl_session_t *session, knl_dictionary_t *dc, stat
 
     cm_pop(session->stack);
     stats_internal_commit(session, table_stats);
-    return CT_SUCCESS;
+    status_t result = CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_INDEX_FAIL, &result, CT_ERROR);
+    SYNC_POINT_GLOBAL_END;
+    return result;
 }
 
 static status_t stats_update_sys_column(knl_session_t *session, stats_col_handler_t *column_handler,
@@ -5459,11 +5467,14 @@ static status_t stats_persist_column_stats(knl_session_t *session, stats_col_han
         }
     }
 
-    if (stats_persist_global_column_stats(session, column_handler, table_stats, entity) != CT_SUCCESS) {
+    status_t result = stats_persist_global_column_stats(session, column_handler, table_stats, entity);
+    if (result != CT_SUCCESS) {
         return CT_ERROR;
     }
 
-    return CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_PERSISTENCE_THROUGH_RESULT_FAIL, &result, CT_ERROR);
+    SYNC_POINT_GLOBAL_END;
+    return result;
 }
 
 static status_t stats_parall_persist_stats(knl_session_t *session, stats_par_ctrl_t *ctrl)
@@ -6593,7 +6604,10 @@ status_t stats_gather_part_index(knl_session_t *session, knl_dictionary_t *dc, s
     
     CM_RESTORE_STACK(session->stack);
     stats_internal_commit(session, table_stats);
-    return CT_SUCCESS;
+    status_t result = CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_INDEX_FAIL, &result, CT_ERROR)
+    SYNC_POINT_GLOBAL_END;
+    return result;
 }
 
 static status_t stats_update_empty_sys_subindexs(knl_session_t *session, part_index_t *part_index,
