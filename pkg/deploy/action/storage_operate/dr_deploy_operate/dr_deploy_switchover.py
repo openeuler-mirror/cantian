@@ -12,6 +12,7 @@ from utils.config.rest_constant import DomainAccess, MetroDomainRunningStatus, V
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
+LOGICREP_APPCTL_FILE = os.path.join(CURRENT_PATH, "../../logicrep/appctl.sh")
 
 
 class SwitchOver(object):
@@ -86,6 +87,15 @@ class SwitchOver(object):
                 break
             time.sleep(60)
 
+    def standby_logicrep_stop(self):
+        LOG.info("logcirep stop by appctl.")
+        cmd = "sh %s shutdown" % LOGICREP_APPCTL_FILE
+        return_code, output, stderr = exec_popen(cmd, timeout=600)
+        if return_code:
+            err_msg = "logicrep stop failed, error:%s." % output + stderr
+            LOG.info(err_msg)
+        LOG.info("Stop logicrep by appctl success.")
+
     def standby_cms_res_stop(self):
         LOG.info("Standby stop by cms command.")
         cmd = "source ~/.bashrc && su -s /bin/bash - cantian -c " \
@@ -158,6 +168,7 @@ class SwitchOver(object):
             LOG.error(err_msg)
             raise Exception(err_msg)
         if config_role == ConfigRole.Primary and running_status == MetroDomainRunningStatus.Normal:
+            self.standby_logicrep_stop()
             self.standby_cms_res_stop()
             self.dr_deploy_opt.split_filesystem_hyper_metro_domain(self.hyper_domain_id)
             self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
@@ -301,6 +312,7 @@ class DRRecover(SwitchOver):
         try:
             self.check_cluster_status()
         except Exception as _err:
+            self.standby_logicrep_stop()
             self.standby_cms_res_stop()
             time.sleep(10)
             self.standby_cms_res_start()
