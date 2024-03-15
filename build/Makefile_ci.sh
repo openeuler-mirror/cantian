@@ -373,24 +373,11 @@ func_pkg_symbol()
     sha256sum ${CANTIANDB_BIN}/${SYMBOL_PACK_DIR_NAME}.tar.gz | cut -c1-64 > ${CANTIANDB_BIN}/${SYMBOL_PACK_DIR_NAME}.sha256
 }
 
-function prepare_kmc()
-{
-    echo "prepare kmc"
-    mkdir -p "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared
-    mkdir -p "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared_temp
-    local build_mode=$1
-    tar -zxvf "${WORKSPACE}"/*${OS_ARCH}*${build_mode}* -C "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared_temp
-    cp -arf "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared_temp/lib/* "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared
-    chmod 500 "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared/*
-    rm -rf "${CANTIANDB_BIN}"/"${RUN_PACK_DIR_NAME}"/kmc_shared_temp
-}
-
 func_make_debug()
 {
     echo "make debug"
     func_all Debug
     func_prepare_pkg_name
-    prepare_kmc "debug"
     func_pkg_run
 }
 
@@ -400,7 +387,6 @@ func_make_release()
     func_all Release
     func_prepare_pkg_name
     func_release_symbol
-    prepare_kmc "release"
     func_pkg_run
 }
 
@@ -698,7 +684,6 @@ func_making_package()
 
     if [[ "${build_package_mode}" = 'Release' ]] || [[ "${build_package_mode}" = 'Shard_Release' ]]; then
         func_release_symbol
-        prepare_kmc "release"
         func_pkg_run
     fi
     func_toolkit
@@ -963,7 +948,6 @@ func_make_test_debug()
         ln cantiand ${CANTIAND_BIN}
     fi
     func_prepare_pkg_name
-    prepare_kmc "debug"
     func_pkg_run_basic
     chmod 400 ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/admin/scripts/*
     #chmod 700 ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/admin/scripts/upgrade

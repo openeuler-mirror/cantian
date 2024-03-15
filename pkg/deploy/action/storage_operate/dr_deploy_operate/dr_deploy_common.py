@@ -511,7 +511,8 @@ class DRDeployCommon(object):
     def delete_remote_replication_filesystem_pair(self, pair_id, is_local_del=False) -> dict:
         LOG.info("Start to delete remote replication filesystem pair[%s].", pair_id)
         data = {
-            "ISLOCALDELETE": is_local_del
+            "ISLOCALDELETE": is_local_del,
+            "TOSYNCSRWHENDELETE": False
         }
         url = Constant.REMOTE_REPLICATION_FILESYSTEM_PAIR_OPT.format(deviceId=self.device_id, id=pair_id)
         res = self.rest_client.normal_request(url, data=data, method="delete")

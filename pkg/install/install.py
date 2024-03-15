@@ -4020,6 +4020,7 @@ class Installer:
         # mysql init
         # Do not init mysql in slave cluster.
         if not is_slave_cluster:
+            # mysql_view_file = self.get_cantian_defs_file()
             cmd = "%s --defaults-file=%s --initialize-insecure --datadir=%s \
                 --early-plugin-load=\"ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so;\" \
                 --core-file --log-error=%s" % (
@@ -4055,7 +4056,7 @@ class Installer:
         log("Starting mysqld...", True)
         if os.path.exists(MYSQL_LOG_FILE) and os.path.isfile(MYSQL_LOG_FILE):
             log("Warning: the mysql log file %s should empty for mysqld start" % MYSQL_LOG_FILE, True)
-        #mysql_view_file = self.get_cantian_defs_file()
+        # mysql_view_file = self.get_cantian_defs_file()
         cmd_init_metadata_in_cantian = "%s --defaults-file=%s --initialize-insecure --datadir=%s \
                                        --early-plugin-load=\"ha_ctc.so\" --core-file --log-error=%s" % (
                                        os.path.join(MYSQL_BIN_DIR, "bin/mysqld"),

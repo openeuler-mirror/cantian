@@ -5823,12 +5823,6 @@ status_t knl_check_user_4mysql(knl_handle_t session, knl_user_def_t *user_def, b
     uint32 uid;
     text_t user_name;
     cm_str2text(user_def->name, &user_name);
-    if (cm_text_str_equal(&user_name, "tmp") || cm_text_str_equal(&user_name, "SYS") ||
-        cm_text_str_equal(&user_name, "PUBLIC") || cm_text_str_equal(&user_name, "LREP")) {
-        CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "create database", "sys users");
-        CT_LOG_RUN_ERR("[DB] user %s is sys users, not allowed to create db for mysql", user_def->name);
-        return CT_ERROR;
-    }
     if (dc_get_user_id(se, &user_name, &uid)) {
         // user already exist, check if this user has table
         *exist = CT_TRUE;

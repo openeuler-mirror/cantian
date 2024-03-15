@@ -1489,7 +1489,7 @@ status_t rst_restore_datafile(knl_session_t *session, bak_t *bak, bak_process_t 
         rst_assist.page_count = rst_calc_ordered_pages(buf + data_offset, (uint32)ctx->read_size - data_offset,
             DEFAULT_PAGE_SIZE(session));
         while (bak->extended[rst_assist.page_id.file] == 0) {
-            CT_LOG_RUN_ERR("[RESTORE] page_file %u has not been extend.", rst_assist.page_id.file);
+            CT_LOG_RUN_WAR("[RESTORE] page_file %u has not been extend.", rst_assist.page_id.file);
             cm_sleep(BAK_WAIT_FILE_EXTEND_MS);
         }
         if (rst_save_pages(session, ctx, (page_head_t *)(buf + data_offset), rst_assist) != CT_SUCCESS) {
@@ -3320,6 +3320,42 @@ status_t rst_restore_database(knl_session_t *session, knl_restore_t *param)
     return rst_proc(session);
 }
 
+status_t dtc_init_logset_for_pitr(knl_session_t *session, uint8 node_id)
+{
+    knl_instance_t *kernel = session->kernel;
+    database_t *db = &kernel->db;
+    log_file_t *logfile = NULL;
+    logfile_set_t *file_set = LOGFILE_SET(session, node_id);
+    uint32 i;
+    status_t ret;
+
+    if (session->kernel->id == node_id) {
+        return CT_SUCCESS;
+    }
+
+    // mount redo files
+    file_set->logfile_hwm = dtc_get_ctrl(session, node_id)->log_hwm;
+    file_set->log_count = dtc_get_ctrl(session, node_id)->log_count;
+
+    for (i = 0; i < file_set->logfile_hwm; i++) {
+        logfile = &file_set->items[i];
+        logfile->ctrl = (log_file_ctrl_t *)db_get_log_ctrl_item(db->ctrl.pages, i, sizeof(log_file_ctrl_t),
+                                                                db->ctrl.log_segment, node_id);
+        if (LOG_IS_DROPPED(logfile->ctrl->flg)) {
+            continue;
+        }
+        logfile->handle = CT_INVALID_HANDLE;
+        /* closed in dtc_rcy_close_logfile */
+        ret = cm_open_device(logfile->ctrl->name, logfile->ctrl->type, knl_redo_io_flag(session), &logfile->handle);
+        if (ret != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DB] failed to open %s ", logfile->ctrl->name);
+            return CT_ERROR;
+        }
+    }
+    CT_LOG_RUN_INF("[DB] init logset for node %u finish.", node_id);
+    return CT_SUCCESS;
+}
+
 status_t dtc_log_prepare_for_pitr(knl_session_t *se)
 {
     knl_instance_t *kernel = se->kernel;
@@ -3331,6 +3367,10 @@ status_t dtc_log_prepare_for_pitr(knl_session_t *se)
             return CT_ERROR;
         }
         CT_LOG_RUN_INF("[RESTORE] after register, archive_asn %llu.", (uint64)archive_asn);
+        if (dtc_init_logset_for_pitr(se, i) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] init logset for node %u failed.", i);
+            return CT_ERROR;
+        }
         uint32 max_asn;
         if (arch_try_arch_redo_by_nodeid(se, &max_asn, i) != CT_SUCCESS) {
             return CT_ERROR;

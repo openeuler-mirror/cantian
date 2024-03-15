@@ -137,7 +137,10 @@ static status_t cms_read_gcc_info(cms_local_ctx_t *ctx, uint64 offset, char* dat
     if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
         return cm_read_disk(ctx->gcc_handle, offset, data, size);
     }
-    return cm_read_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size);
+    if (cm_read_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
 }
 
 static status_t cms_write_gcc_info(cms_local_ctx_t *ctx, uint64 offset, char* data, uint32 size)

@@ -676,7 +676,7 @@ static status_t cms_disk_lock_try_lock_dbs(cms_disk_lock_t* lock, uint8 lock_typ
         CMS_LOG_ERR("invalid lock type(%u),dbs lock file name:%s", lock_type, lock->file_name);
         return CT_ERROR;
     }
-    status_t ret = CT_ERROR;
+    int32 ret = CT_ERROR;
     int cnt = 0;
     cm_thread_lock(&lock->slock);
     do {
@@ -719,8 +719,14 @@ static status_t cms_disk_lock_try_lock_dbs(cms_disk_lock_t* lock, uint8 lock_typ
         return CT_SUCCESS;
     } while (cnt <= 1);
     cm_thread_unlock(&lock->slock);
+    if (ret == CM_DBS_LINK_DOWN_ERROR) {
+        CMS_LOG_ERR("cms dbs link down.");
+        if (cms_daemon_stop_pull() != CT_SUCCESS) {
+            CMS_LOG_ERR("stop cms daemon process failed.");
+        }
+    }
     cms_exec_exit_proc();
-    return ret;
+    return CT_ERROR;
 }
 
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
@@ -900,7 +906,7 @@ status_t cms_disk_unlock_nfs(cms_disk_lock_t* lock)
 status_t cms_disk_unlock_dbs(cms_disk_lock_t* lock, uint8_t lock_type)
 {
     int32 cnt = 0;
-    status_t ret;
+    int32 ret;
     bool32 is_force = CT_FALSE;
     cm_thread_lock(&lock->slock);
     do {
@@ -939,6 +945,13 @@ status_t cms_disk_unlock_dbs(cms_disk_lock_t* lock, uint8_t lock_type)
         return CT_SUCCESS;
     } while (cnt <= 1);
     cm_thread_unlock(&lock->slock);
+    if (ret == CM_DBS_LINK_DOWN_ERROR) {
+        CMS_LOG_ERR("cms dbs link down.");
+        if (cms_daemon_stop_pull() != CT_SUCCESS) {
+            CMS_LOG_ERR("stop cms daemon process failed.");
+        }
+    }
+        
     cms_exec_exit_proc();
     return CT_ERROR;
 }
@@ -1050,7 +1063,7 @@ static status_t cms_seek_read_master_info(cms_disk_lock_t* lock, cms_master_info
 
 static status_t cms_read_dbs_master_info(cms_disk_lock_t* lock, cms_master_info_t* master_info, uint64 offset)
 {
-    status_t ret = CT_ERROR;
+    int32 ret = CT_ERROR;
     int32 cnt = 0;
     object_id_t* dbs_dir_handle = NULL;
     object_id_t* dbs_file_handle = NULL;
@@ -1073,6 +1086,12 @@ static status_t cms_read_dbs_master_info(cms_disk_lock_t* lock, cms_master_info_
         }
         return CT_SUCCESS;
     } while (cnt <= 1);
+    if (ret == CM_DBS_LINK_DOWN_ERROR) {
+        CMS_LOG_ERR("cms dbs link down.");
+        if (cms_daemon_stop_pull() != CT_SUCCESS) {
+            CMS_LOG_ERR("stop cms daemon process failed.");
+        }
+    }
     cms_exec_exit_proc();
     return ret;
 }

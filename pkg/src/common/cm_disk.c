@@ -460,7 +460,7 @@ status_t cm_dbs_lock_init(char *fileName, uint32 offset, uint32 len, int32* lock
     return CT_SUCCESS;
 }
 
-status_t cm_lock_range_dbs(int32 fd, uint8 lock_type)
+int32 cm_lock_range_dbs(int32 fd, uint8 lock_type)
 {
 #ifndef _WIN32
     int32 ret = dbs_global_handle()->dbs_inst_lock((uint32_t)fd, (uint32_t)lock_type);
@@ -468,6 +468,8 @@ status_t cm_lock_range_dbs(int32 fd, uint8 lock_type)
         CT_LOG_DEBUG_ERR("cm_lock_range_dbs failed %d, fd %d type %d.", ret, fd, lock_type);
         if (ret == CM_DBS_LOCK_OCCUPIED) {
             return CT_EAGAIN;
+        } else if (ret == CM_DBS_LINK_DOWN_ERROR) {
+            return CM_DBS_LINK_DOWN_ERROR;
         }
         return CT_ERROR;
     }
@@ -513,10 +515,14 @@ status_t cm_unlock_range_fd(int32 fd, uint64 l_start, uint64 l_len)
     return CT_SUCCESS;
 }
 
-status_t cm_unlock_range_dbs(int32 fd, uint8 lock_type)
+int32 cm_unlock_range_dbs(int32 fd, uint8 lock_type)
 {
 #ifndef _WIN32
-    if (dbs_global_handle()->dbs_inst_unlock(fd, lock_type) != 0) {
+    int32 ret = dbs_global_handle()->dbs_inst_unlock(fd, lock_type);
+    if (ret == CM_DBS_LINK_DOWN_ERROR) {
+        return CM_DBS_LINK_DOWN_ERROR;
+    }
+    if (ret != 0) {
         CT_LOG_DEBUG_ERR("cm_unlock_range_dbs failed, fd %d type %d.", fd, lock_type);
         return CT_ERROR;
     }
@@ -524,10 +530,14 @@ status_t cm_unlock_range_dbs(int32 fd, uint8 lock_type)
     return CT_SUCCESS;
 }
 
-status_t cm_unlock_range_dbs_force(int32 fd, uint8 lock_type)
+int32 cm_unlock_range_dbs_force(int32 fd, uint8 lock_type)
 {
 #ifndef _WIN32
-    if (dbs_global_handle()->dbs_inst_unlock_force(fd, lock_type) != 0) {
+    int32 ret = dbs_global_handle()->dbs_inst_unlock_force(fd, lock_type);
+    if (ret == CM_DBS_LINK_DOWN_ERROR) {
+        return CM_DBS_LINK_DOWN_ERROR;
+    }
+    if (ret != 0) {
         CT_LOG_DEBUG_ERR("cm_unlock_range_dbs_force failed, fd %d type %d.", fd, lock_type);
         return CT_ERROR;
     }

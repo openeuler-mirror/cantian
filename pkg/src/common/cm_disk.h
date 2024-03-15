@@ -46,6 +46,8 @@ typedef enum en_cm_lock_type {
     DISK_LOCK_READ = 1,
 } cm_lock_type;
 
+#define CM_DBS_LINK_DOWN_ERROR 90
+
 status_t cm_open_disk(const char *name, disk_handle_t *handle);
 void cm_close_disk(disk_handle_t handle);
 uint64 cm_get_disk_size(disk_handle_t handle);
@@ -81,9 +83,9 @@ status_t cm_lockw_range_fd(int32 fd, uint64 l_start, uint64 l_len);
 status_t cm_lockr_range_fd(int32 fd, uint64 l_start, uint64 l_len);
 status_t cm_unlock_range_fd(int32 fd, uint64 l_start, uint64 l_len);
 status_t cm_dbs_lock_init(char *fileName, uint32 offset, uint32 len, int32* lockId);
-status_t cm_lock_range_dbs(int32 fd, uint8 lock_type);
-status_t cm_unlock_range_dbs(int32 fd, uint8 lock_type);
-status_t cm_unlock_range_dbs_force(int32 fd, uint8 lock_type);
+int32 cm_lock_range_dbs(int32 fd, uint8 lock_type);
+int32 cm_unlock_range_dbs(int32 fd, uint8 lock_type);
+int32 cm_unlock_range_dbs_force(int32 fd, uint8 lock_type);
 bool32 cm_check_dbs_beat(uint32 timeout);
 #ifdef __cplusplus
 }
