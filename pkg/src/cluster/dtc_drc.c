@@ -7081,7 +7081,8 @@ status_t drc_mes_send_connect_ready_msg(knl_session_t *session, uint8 dst_id)
 status_t drc_mes_recv_connect_ready_msg(knl_session_t *session)
 {
     mes_message_t msg = {0};
-    if (mes_recv(session->id, &msg, CT_FALSE, CT_INVALID_ID32, DRC_CHECK_FULL_CONNECT_SLEEP_INTERVAL) != CT_SUCCESS) {
+    if (mes_recv_no_quick_stop(session->id, &msg, CT_FALSE, CT_INVALID_ID32, DRC_CHECK_FULL_CONNECT_SLEEP_INTERVAL) !=
+        CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DRC] failed to recv ack from session id %d.", session->id);
         return CT_ERROR;
     }
