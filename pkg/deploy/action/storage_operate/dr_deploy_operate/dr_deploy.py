@@ -802,6 +802,7 @@ class DRDeploy(object):
         dbstore_fs_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
         dbstore_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(
             dbstore_fs_name, vstore_id=dbstore_fs_vstore_id)
+        ulog_fs_pair_info = None
         if dbstore_fs_info and not ulog_fs_pair_ready_flag:
             dbstore_fs_id = dbstore_fs_info.get("ID")
             try:
@@ -834,7 +835,7 @@ class DRDeploy(object):
                     self.record_disaster_recovery_info("ulog_fs_pair_id", ulog_fs_pair_id)
                     self.record_disaster_recovery_info("hyper_domain_id", hyper_domain_id)
                     self.record_disaster_recovery_info("vstore_pair_id", vstore_pair_id)
-        return dbstore_fs_info, ulog_fs_pair_ready_flag
+        return ulog_fs_pair_info, ulog_fs_pair_ready_flag
 
     def standby_check_page_fs_pair_ready(self, page_fs_pair_ready_flag):
         """
@@ -845,6 +846,7 @@ class DRDeploy(object):
         dbstore_page_fs_name = self.dr_deploy_info.get("storage_dbstore_page_fs")
         dbstore_page_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(
             dbstore_page_fs_name)
+        page_fs_pair_info = None
         if dbstore_page_fs_info and not page_fs_pair_ready_flag:
             self.record_deploy_process("create_rep_page_fs_pair", "success")
             dbstore_page_fs_id = dbstore_page_fs_info.get("ID")
@@ -863,7 +865,7 @@ class DRDeploy(object):
                     self.record_deploy_process("sync_rep_page_fs_pair", "success")
                     page_fs_pair_ready_flag = True
                     self.record_disaster_recovery_info("page_fs_pair_id", page_fs_pair_id)
-        return dbstore_page_fs_info, page_fs_pair_ready_flag
+        return page_fs_pair_info, page_fs_pair_ready_flag
 
     def standby_check_metadata_fs_pair_ready(self, metadata_fs_ready_flag):
         """
@@ -875,6 +877,7 @@ class DRDeploy(object):
         metadata_fs_name = self.dr_deploy_info.get("storage_metadata_fs")
         metadata_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(
             metadata_fs_name)
+        metadata_fs_pair_info = None if not mysql_metadata_in_cantian else metadata_fs_info
         if metadata_fs_info and not mysql_metadata_in_cantian and not metadata_fs_ready_flag:
             metadata_fs_id = metadata_fs_info.get("ID")
             metadata_fs_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info(metadata_fs_id)
@@ -893,7 +896,7 @@ class DRDeploy(object):
                     self.record_deploy_process("sync_rep_meta_fs_pair", "success")
                     metadata_fs_ready_flag = True
                     self.record_disaster_recovery_info("meta_fs_pair_id", meta_fs_pair_id)
-        return metadata_fs_info, metadata_fs_ready_flag
+        return metadata_fs_pair_info, metadata_fs_ready_flag, metadata_fs_info
 
     def create_nfs_share_and_client(self, fs_info: dict) -> None:
         """
@@ -1083,13 +1086,13 @@ class DRDeploy(object):
         is_installed_flag = False
         wait_time = 0
         while True:
-            dbstore_fs_info, ulog_fs_pair_ready_flag = \
+            ulog_fs_pair_info, ulog_fs_pair_ready_flag = \
                 self.standby_check_ulog_fs_pair_ready(ulog_fs_pair_ready_flag)
-            dbstore_page_fs_info, page_fs_pair_ready_flag = \
+            page_fs_pair_info, page_fs_pair_ready_flag = \
                 self.standby_check_page_fs_pair_ready(page_fs_pair_ready_flag)
-            metadata_fs_info, metadata_fs_ready_flag = \
+            metadata_fs_pair_info, metadata_fs_ready_flag, metadata_fs_info = \
                 self.standby_check_metadata_fs_pair_ready(metadata_fs_ready_flag)
-            fs_ready = dbstore_fs_info and dbstore_page_fs_info and metadata_fs_info
+            fs_ready = ulog_fs_pair_info and page_fs_pair_info and metadata_fs_pair_info
             if fs_ready and not is_installed_flag:
                 LOG.info("Filesystem creat success, start to isntall cantian engine.")
                 self.record_deploy_process("standby_install", "running")
