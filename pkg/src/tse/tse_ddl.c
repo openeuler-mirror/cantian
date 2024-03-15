@@ -658,7 +658,7 @@ int tse_ddl_execute_and_broadcast(tianchi_handler_t *tch, tse_ddl_broadcast_requ
 
     if (!knl_db_is_primary(knl_session)) {
         // Repeatedlly try to execute on current node.
-        while (ret != CT_SUCCESS) {
+        if (ret != CT_SUCCESS) {
             CT_LOG_DEBUG_INF("[Disaster Recovery] Failed to reform ddl at mysqld on current node, "
                     "sql_str:%s, user_name:%s, sql_command:%u, err_code:%d, err_msg:%s, conn_id:%u, tse_instance_id:%u, allow_fail:%d",
                     broadcast_req->sql_str, broadcast_req->user_name, broadcast_req->sql_command, broadcast_req->err_code, 
@@ -689,7 +689,7 @@ int tse_ddl_execute_and_broadcast(tianchi_handler_t *tch, tse_ddl_broadcast_requ
     int error_code = tse_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, &broadcast_req->err_msg);
     if (!knl_db_is_primary(knl_session)) {
         // Repeatedlly try to execute on current node.
-        while (error_code != CT_SUCCESS) {
+        if (error_code != CT_SUCCESS) {
             CT_LOG_DEBUG_INF("[Disaster Recovery] Failed to reform ddl at mysqld on remote node, "
                     "sql_str:%s, user_name:%s, sql_command:%u, err_code:%d, err_msg:%s, conn_id:%u, tse_instance_id:%u, allow_fail:%d",
                     broadcast_req->sql_str, broadcast_req->user_name, broadcast_req->sql_command, broadcast_req->err_code, 
