@@ -262,6 +262,7 @@ status_t cm_dbs_init(const char *home_path, char *cfg_name, dbs_init_mode init_m
 
     ret = dbs_global_handle()->dbs_client_lib_init(dbstor_work_path, cfg_name);
     if (ret != 0) {
+        (void)dbs_global_handle()->dbs_client_flush_log();
         CT_LOG_RUN_ERR("Failed(%d) to init dbstor client at %s.", ret, dbstor_work_path);
         return CT_ERROR;
     }
