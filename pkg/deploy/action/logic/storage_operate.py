@@ -372,7 +372,20 @@ class StorageInf(object):
         url = (Constant.CREATE_FSSNAPSHOT + "/{id}").format(deviceId=self.rest_client.device_id,
                                                             id=snapshot_id)
         res = self.rest_client.normal_request(url, "get")
-        err_msg = f"Failed to rollback snapshot, snapshot_id:[%s]" % snapshot_id
+        err_msg = f"Failed to query snapshot info, snapshot_id:[%s]" % snapshot_id
+        rsp_data = self.result_parse(err_msg, res)
+        return rsp_data
+
+    def delete_file_system_snapshot(self, snapshot_id):
+        """
+        回滚快照
+        :param snapshot_id: 快照ID
+        :return:
+        """
+        url = (Constant.CREATE_FSSNAPSHOT + "/{id}").format(deviceId=self.rest_client.device_id,
+                                                            id=snapshot_id)
+        res = self.rest_client.normal_request(url, "delete")
+        err_msg = f"Failed to delete snapshot, snapshot_id:[%s]" % snapshot_id
         rsp_data = self.result_parse(err_msg, res)
         return rsp_data
 

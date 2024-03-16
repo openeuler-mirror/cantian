@@ -387,8 +387,8 @@ function do_rollback() {
     # 回滚完快照再执行拷贝操作，避免回滚快照使用的是旧脚本
 
     if [[ ${node_id} == '0' && ! -f ${CHECK_POINT_FLAG} && ${ROLLBACK_MODE} == "offline" && x"${choose}" != x"yes" && ${deploy_mode} != "nas" ]]; then
-        clear_mem
         rollback_snapshot
+        clear_mem
     fi
     logAndEchoInfo "om rollback finished"
 }
@@ -407,11 +407,16 @@ function rollback_snapshot() {
         logAndEchoError "rollback snapshot failed"
         exit 1
     fi
-
     logAndEchoInfo "rollback snapshot success"
+    echo -e "${dorado_user}\n${dorado_pwd}" | python3 ${CURRENT_PATH}/storage_operate/do_snapshot.py delete ${DORADO_IP} ${backup_path}
+    if [ $? -ne 0 ]; then
+        logAndEchoError "delete snapshot failed"
+        exit 1
+    fi
+    logAndEchoInfo "delete snapshot success"
 }
 
-# 调用dbstor的脚本在回滚快照前，清除内存占用
+# 调用dbstor的脚本在回滚快照后，清除内存占用
 function clear_mem() {
     if [[ x"${deploy_mode}" == x"nas" ]];then
         return

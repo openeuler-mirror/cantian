@@ -26,7 +26,8 @@ class SnapShotRestClient(object):
         self.processed_fs = processed_fs
         self.handler = {
             'create': self.create_snapshots,
-            'rollback': self.rollback_snapshots
+            'rollback': self.rollback_snapshots,
+            "delete": self.delete_snapshots
         }
 
     @staticmethod
@@ -80,13 +81,41 @@ class SnapShotRestClient(object):
         if not self.processed_fs.get(fs_name):
             return NORMAL_STATE
         snapshot_id = self.processed_fs.get(fs_name)
-        snapshot_info = self.storage_operate.query_file_system_snapshot_info(snapshot_id)
+        try:
+            snapshot_info = self.storage_operate.query_file_system_snapshot_info(snapshot_id)
+        except Exception as e:
+            if str(e).find("1077937875") != -1 or str(e).find("snapshot does not exist") != -1:
+                err_msg = "The snapshot is already not exist, details:%s" % str(e)
+                LOG.info(err_msg)
+                return NORMAL_STATE
+            else:
+                raise e
         rollback_status = snapshot_info.get("rollbackStatus")
         # rollback_status == "1"表示当前正在进行回退
         if rollback_status == "1":
             return NORMAL_STATE
         self.storage_operate.rollback_file_system_snapshot(snapshot_id, vstore_id)
         return NORMAL_STATE
+
+    def delete_snapshots(self, fs_name, vstore_id=0):
+        # 若该fs_name的快照未成功创建则无需回退
+        if not self.processed_fs.get(fs_name):
+            return NORMAL_STATE
+        snapshot_id = self.processed_fs.get(fs_name)
+        try:
+            snapshot_info = self.storage_operate.query_file_system_snapshot_info(snapshot_id)
+        except Exception as e:
+            if str(e).find("1077937875") != -1 or str(e).find("snapshot does not exist") != -1:
+                err_msg = "The snapshot is already not exist, details:%s" % str(e)
+                LOG.info(err_msg)
+                return NORMAL_STATE
+            else:
+                raise e
+        if not snapshot_info:
+            return NORMAL_STATE
+        else:
+            self.storage_operate.delete_file_system_snapshot(snapshot_id)
+            return NORMAL_STATE
 
     def execute(self, fs_name, mode, vstore_id=0):
         if isinstance(self.processed_fs, str):
@@ -164,7 +193,7 @@ def main(mode, ip_address, main_path):
     if mode == 'create':
         new_processed_info = rest_client_obj.processed_fs
         write_helper(recoder_path, new_processed_info)
-    elif mode == 'rollback':
+    elif mode == 'delete':
         write_helper(recoder_path, '')
 
     return NORMAL_STATE
