@@ -205,7 +205,7 @@ function dr_deploy() {
     comfirm=""
     declare -A action_opt
     action_opt=([deploy]=1 [pre_check]=1 [undeploy]=1 [full_sync]=1 [progress_query]=1 \
-    [switch_over]=1 [recover]=1 [cancel_res_pro]=1 [update_conf]=1)
+    [switch_over]=1 [recover]=1 [fail_over]=1 [update_conf]=1)
     if [[ ! "${action_opt[$dr_action]}" ]];then
         dr_action="help"
     fi

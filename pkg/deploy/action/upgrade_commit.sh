@@ -39,6 +39,7 @@ function init_cluster_status_flag() {
     fi
 
     storage_metadata_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs")
+    node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
     if [[ ${storage_metadata_fs} == 'None' ]]; then
         logAndEchoError "obtain current node  storage_metadata_fs error, please check file: config/deploy_param.json"
         exit 1
@@ -197,7 +198,39 @@ function rollup_upgrade_commit() {
 
 # 版本号抬升适配离线升级
 function offline_upgrade_commit() {
+    dorado_ip=""
+    dorado_user=""
+    dorado_pwd=""
+    do_snapshot_choice=""
+    if [[ x"${node_id}" != x"0" ]];then
+        logAndEchoError "Upgrade offline commit only allows operations at node 0. Please check."
+        exit 1
+    fi
     raise_version_num
+    read -p "Please input dorado_ip:" dorado_ip
+    echo "dorado_ip is: ${dorado_ip}"
+    ping -c 1 "${dorado_ip}" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        logAndEchoError "try to ping storage array ip '${dorado_ip}', but failed"
+        echo "Please check whether input is correct. If the network is disconnected, manually rollback snapshot according to the upgrade guide."
+        read -p "Continue rollback please input yes, otherwise exit:" do_snapshot_choice
+        echo ""
+        if [[ x"${do_snapshot_choice}" != x"yes" ]];then
+            exit 1
+        fi
+    fi
+    if [[ x"${do_snapshot_choice}" != x"yes" ]];then
+        read -p "please enter dorado_user: " dorado_user
+        echo "dbstor_user is: ${dorado_user}"
+        read -s -p "please enter dorado_pwd: " dorado_pwd
+        echo ''
+        echo -e "${dorado_user}\n${dorado_pwd}" | python3 ${CURRENT_PATH}/storage_operate/do_snapshot.py delete "${dorado_ip}" "${business_code_backup_path}"
+        if [ $? -ne 0 ]; then
+            logAndEchoError "delete snapshot failed"
+            exit 1
+        fi
+        logAndEchoInfo "delete snapshot success."
+    fi
     touch "${cluster_commit_flag}" && chmod 400 "${cluster_commit_flag}"
     # 等待创建的标记文件生效
     sleep "${WAIT_TIME}"
