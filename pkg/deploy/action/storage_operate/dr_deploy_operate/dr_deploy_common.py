@@ -509,6 +509,12 @@ class DRDeployCommon(object):
         return rsp_data
 
     def delete_remote_replication_filesystem_pair(self, pair_id, is_local_del=False) -> dict:
+        """
+        删除远程复制
+        :param pair_id: 远程复制pair id
+        :param is_local_del: bool, 是否删除本地数据
+        :return:
+        """
         LOG.info("Start to delete remote replication filesystem pair[%s].", pair_id)
         data = {
             "ISLOCALDELETE": is_local_del,
@@ -634,7 +640,7 @@ class DRDeployCommon(object):
 
     def change_fs_hyper_metro_domain_second_access(self, domain_id: str, access: str) -> None:
         """
-        双活域主备切换
+        设置/取消从资源保护
         :param access: 1: 禁止访问 2: 读写
         :param domain_id:
         :return:

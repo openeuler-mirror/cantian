@@ -8,7 +8,7 @@ from storage_operate.dr_deploy_operate.dr_deploy import DRDeploy
 from storage_operate.dr_deploy_operate.dr_undeploy import UNDeploy
 from storage_operate.dr_deploy_operate.dr_deploy_progress_query import ProgressQuery
 from storage_operate.dr_deploy_operate.dr_deploy_full_sync import FullSyncRepPair
-from storage_operate.dr_deploy_operate.dr_deploy_switchover import SwitchOver, DRRecover, CancelStandbyResPro
+from storage_operate.dr_deploy_operate.dr_deploy_switchover import SwitchOver, DRRecover, FailOver
 from storage_operate.dr_deploy_operate.update_dr_params import UpdateDRParams
 
 HELP_MSG = "example:\n" \
@@ -17,11 +17,9 @@ HELP_MSG = "example:\n" \
            "-mysql_cmd='/usr/local/mysql/bin/mysql' --mysql_user=myuser\n" \
            "        sh appctl.sh dr_operate progress_query --action=deploy/full_sync --display=table/json\n" \
            "        sh appctl.sh dr_operate undeploy active/standby\n" \
-           "        sh appctl.sh dr_operate full_sync active/standby " \
-           "-mysql_cmd='/usr/local/mysql/bin/mysql' --mysql_user=myuser\n" \
            "        sh appctl.sh dr_operate switch_over\n" \
            "        sh appctl.sh dr_operate recover\n" \
-           "        sh appctl.sh dr_operate cancel_res_pro\n" \
+           "        sh appctl.sh dr_operate fail_over\n" \
            "        sh appctl.sh dr_operate update_conf\n"
 
 
@@ -75,10 +73,10 @@ class DRDeployOperate(object):
         dr_recover.execute()
 
     @staticmethod
-    def cancel_res_pro():
+    def fail_over():
         del sys.argv[1]
-        cancel_res_pro = CancelStandbyResPro()
-        cancel_res_pro.execute()
+        fail_over = FailOver()
+        fail_over.execute()
 
     @staticmethod
     def update_conf():
