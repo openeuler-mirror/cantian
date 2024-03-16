@@ -611,9 +611,9 @@ function check_and_create_cms_home()
     if [ ! -d ${cms_home}/log ]; then
         mkdir -m 750 -p ${cms_home}/log
         touch ${LOG_FILE}
-        chmod 640 ${LOG_FILE}
-        chown ${cantian_user_and_group} -hR ${cms_home}/log
     fi
+    chmod 640 ${LOG_FILE}
+    chown ${cantian_user_and_group} -hR ${cms_home}/log
 }
 
 function check_old_install()
