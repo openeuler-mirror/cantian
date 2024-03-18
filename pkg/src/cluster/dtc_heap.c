@@ -376,7 +376,8 @@ status_t dtc_heap_enter_cr_page(knl_session_t *session, knl_cursor_t *cursor, kn
 
         if (status == PCR_READ_PAGE) {
             page = (heap_page_t *)CURR_PAGE(session);
-            if (pcrh_chk_r_visible(session, cursor, query_scn, page, (uint16)rowid.slot)) {
+            if (DB_IS_PRIMARY(&session->kernel->db) &&
+                pcrh_chk_r_visible(session, cursor, query_scn, page, (uint16)rowid.slot)) {
                 cursor->page_cache = NO_PAGE_CACHE;
                 return CT_SUCCESS;
             }
