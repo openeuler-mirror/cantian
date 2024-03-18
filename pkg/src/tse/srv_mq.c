@@ -890,6 +890,7 @@ EXTER_ATTACK int tse_mq_index_read(dsw_message_block_t *message_block)
     index_key_info.need_init = req->need_init;
     index_key_info.key_num = req->key_num;
     index_key_info.active_index = MAX_INDEXES;
+    index_key_info.index_skip_scan = req->index_skip_scan;
     errno_t ret = memcpy_s(index_key_info.index_name, TSE_MAX_KEY_NAME_LENGTH + 1, req->index_name,
                            strlen(req->index_name));
     MEMS_RETURN_IFERR(ret);

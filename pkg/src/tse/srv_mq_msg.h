@@ -250,6 +250,7 @@ struct index_read_request {
     tse_select_mode_t mode;
     tse_conds *cond;
     bool is_replace;
+    bool index_skip_scan;
 };
 
 struct index_end_request {
