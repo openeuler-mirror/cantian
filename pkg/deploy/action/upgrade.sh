@@ -347,6 +347,23 @@ function install_dbstore(){
     tar -zxf "${dbstor_client_file}" -C "${dbstor_file_path}"/client
     cp -arf "${dbstor_file_path}"/client/lib/* "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/add-ons/
     cp -arf "${dbstor_file_path}"/client_test "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit
+    if [ ! -d "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/kmc_shared ];then
+        mkdir -p "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/kmc_shared
+        cd "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/kmc_shared || exit 1
+        so_name=("libkmc.so.23.0.0" "libkmcext.so.23.0.0" "libsdp.so.23.0.0" "libsecurec.so" "libcrypto.so.1.1")
+        link_name1=("libkmc.so.23" "libkmcext.so.23" "libsdp.so.23" "libcrypto.so.1.1")
+        link_name2=("libkmc.so" "libkmcext.so" "libsdp.so" "libcrypto.so")
+        ls -l "${dbstor_file_path}"/client/lib/kmc_shared
+        for i in {0..2};do
+            cp -f "${dbstor_file_path}"/client/lib/kmc_shared/"${so_name[$i]}" "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/kmc_shared
+            ln -s "${so_name[$i]}" "${link_name1[$i]}"
+            ln -s "${link_name1[$i]}" "${link_name2[$i]}"
+        done
+        cp -f "${dbstor_file_path}"/client/lib/kmc_shared/"${so_name[4]}" "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/kmc_shared
+        ln -s "${link_name1[3]}" "${link_name2[3]}"
+        cp -f "${dbstor_file_path}"/client/lib/kmc_shared/libsecurec.so "${RPM_PACK_ORG_PATH}"/Cantian-RUN-CENTOS-64bit/kmc_shared
+        cd - || exit 1
+    fi    
     rm -rf "${dbstor_file_path}"
     return 0
 }
