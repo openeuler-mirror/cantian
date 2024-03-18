@@ -59,6 +59,7 @@ CMD_RESOURCE_LIMIT = f"ALTER SYSTEM SET RESOURCE_LIMIT=TRUE;"
 CMD_OPEN = "ALTER DATABASE ENABLE_LOGIC_REPLICATION ON;"
 CMD_CLOSE = "ALTER DATABASE ENABLE_LOGIC_REPLICATION OFF;"
 CMD_CHECK_OPEN = "SELECT LREP_MODE FROM SYS.DV_DATABASE;"
+CMD_CHECK_ACTIVE = "SELECT * FROM DV_LRPL_DETAIL;"
 DV_LRPL_DETAIL = "select * from DV_LRPL_DETAIL;"
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 CTSQL_INI_PATH = r'/mnt/dbdata/local/cantian/tmp/data/cfg/*sql.ini'
@@ -348,6 +349,10 @@ class Logicrep:
     def startup(self):
         LOG.info("begin start logicrep")
         self.set_cantian_conf()
+        res = self.execute(CMD_CHECK_ACTIVE, "check active")
+        res = res.replace("\n", "")
+        if "PHYSICAL_STANDBY" in res:
+            raise Exception("standby node can not startup logicrep")
         res = self.execute_sql(CMD_CHECK_OPEN, "check switch")
         res = res.replace("\n", "")
         if re.match(".*LREP_MODE.*OFF.*", res):
