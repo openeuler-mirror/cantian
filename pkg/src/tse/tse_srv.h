@@ -284,6 +284,7 @@ typedef struct {
     char index_name[TSE_MAX_KEY_NAME_LENGTH + 1];        // 索引名
     uint16_t key_num;                      // 查询条件覆盖多少列
     key_info_t key_info[MAX_KEY_COLUMNS];  // 索引查询条件数组
+    bool index_skip_scan;
 } index_key_info_t;
 
 enum TSE_FUNC_TYPE {

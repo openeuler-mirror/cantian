@@ -883,6 +883,10 @@ int tse_get_index_info_and_set_scan_key(knl_cursor_t *cursor, const index_key_in
             return error_code;
         }
     }
+
+    if (desc->column_count > BTREE_MIN_SKIP_COLUMNS && index_key_info->index_skip_scan) {
+        cursor->skip_index_match = CT_TRUE;
+    }
  
     return CT_SUCCESS;
 }

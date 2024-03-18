@@ -1387,22 +1387,8 @@ int tse_check_partition_status(tianchi_handler_t *tch, knl_cursor_t **cursor,
     return ret;
 }
 
-bool is_need_one_more_fetch(knl_cursor_t *cursor, const index_key_info_t *index_key_info,
-                            uint16_t find_flag, bool *has_fetched_null)
-{
-    if (index_key_info->key_num == 0) { // 不带where子句
-        return false;
-    }
-
-    if (find_flag != TSE_HA_READ_BEFORE_KEY && find_flag != TSE_HA_READ_AFTER_KEY) {
-        return false;
-    }
-
-    index_t *cursor_index = (index_t *)cursor->index;
-    dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
-    knl_index_desc_t *desc = INDEX_DESC(cursor_index);
-
-    int column_id = index_key_info->key_num - 1;
+bool is_fetched_the_same_key(knl_cursor_t *cursor, const index_key_info_t *index_key_info,
+                             int column_id, knl_index_desc_t *desc, bool *has_fetched_null) {
     if (desc->is_func && (index_key_info->key_info[column_id].left_key_len == 0 ||
         index_key_info->key_info[column_id].right_key_len == 0)) {
         return false;
@@ -1430,8 +1416,32 @@ bool is_need_one_more_fetch(knl_cursor_t *cursor, const index_key_info_t *index_
             }
         }
     }
-
     return false;
+}
+
+bool is_need_one_more_fetch(knl_cursor_t *cursor, const index_key_info_t *index_key_info,
+                            uint16_t find_flag, bool *has_fetched_null)
+{
+    if (index_key_info->key_num == 0) { // 不带where子句
+        return false;
+    }
+
+    if (find_flag != TSE_HA_READ_BEFORE_KEY && find_flag != TSE_HA_READ_AFTER_KEY) {
+        return false;
+    }
+
+    index_t *cursor_index = (index_t *)cursor->index;
+    dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
+    knl_index_desc_t *desc = INDEX_DESC(cursor_index);
+
+    int iter_end_id = index_key_info->index_skip_scan ? index_key_info->key_num - 1 : 0;
+    for (int column_id = index_key_info->key_num - 1; column_id >= iter_end_id; column_id--) {
+        if (!is_fetched_the_same_key(cursor, index_key_info, column_id, desc, has_fetched_null)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 int get_correct_pos_by_fetch(tianchi_handler_t *tch, knl_cursor_t *cursor,
