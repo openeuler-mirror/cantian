@@ -608,6 +608,16 @@ knl_global_syncpoint_def g_knl_syncpoint[] = {
       knl_syncpoint_inject_errcode, 0 },
     { CANTIAN_CKPT_CHECKSUM_VERIFY_FAIL, CT_FALSE, "CANTIAN_CKPT_CHECKSUM_VERIFY_FAIL", 0,
       knl_syncpoint_inject_errcode, 0 },
+    { COLLECT_STATISTICS_CREATE_TEMP_TABLE_FAIL, CT_FALSE, "COLLECT_STATISTICS_CREATE_TEMP_TABLE_FAIL", 0,
+      knl_syncpoint_inject_errcode, 0 },
+    { COLLECT_STATISTICS_COLLECT_SAMPLED_DATA_FAIL, CT_FALSE, "COLLECT_STATISTICS_COLLECT_SAMPLED_DATA_FAIL", 0,
+      knl_syncpoint_inject_errcode, 0 },
+    { COLLECT_STATISTICS_ANALYZED_DATA_FAIL, CT_FALSE, "COLLECT_STATISTICS_ANALYZED_DATA_FAIL", 0,
+      knl_syncpoint_inject_errcode, 0 },
+    { COLLECT_STATISTICS_INDEX_FAIL, CT_FALSE, "COLLECT_STATISTICS_INDEX_FAIL", 0,
+      knl_syncpoint_inject_errcode, 0 },
+    { COLLECT_STATISTICS_PERSISTENCE_THROUGH_RESULT_FAIL, CT_FALSE, "COLLECT_STATISTICS_PERSISTENCE_THROUGH_RESULT_FAIL", 0,//
+      knl_syncpoint_inject_errcode, 0 },
 };
 
 #define KNL_SYNCPOINT_COUNT (sizeof(g_knl_syncpoint) / sizeof(g_knl_syncpoint[0]))
