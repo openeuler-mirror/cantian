@@ -10726,6 +10726,26 @@ void knl_begin_session_wait(knl_handle_t se, wait_event_t event, bool32 immediat
 
 }
 
+void knl_end_session_wait_ex(knl_handle_t se, wait_event_t old_event,wait_event_t new_event)
+{
+    knl_session_t *session = (knl_session_t *)se;
+    knl_session_wait_t *old_wait = &session->wait_pool[old_event];
+    knl_session_wait_t *new_wait = &session->wait_pool[new_event];
+    timeval_t tv_end;
+    if (!new_wait->is_waiting && !old_wait->is_waiting) {
+        return;
+    }
+    if (old_wait->immediate && session->kernel->attr.enable_timed_stat) {
+        (void)cm_gettimeofday(&tv_end);
+        new_wait->usecs = TIMEVAL_DIFF_US(&old_wait->begin_tv, &tv_end);
+    } else {
+        new_wait->usecs = cm_total_spin_usecs() - old_wait->pre_spin_usecs;
+    }
+    session->stat->wait_time[new_event] += new_wait->usecs;
+    session->stat->wait_count[new_event]++;
+    old_wait->is_waiting = CT_FALSE;
+    new_wait->is_waiting = CT_FALSE;
+}
 void knl_end_session_wait(knl_handle_t se, wait_event_t event)
 {
     knl_session_t *session = (knl_session_t *)se;

@@ -485,7 +485,11 @@ static inline status_t dcs_ask_master4page_r(knl_session_t *session, buf_ctrl_t 
     if (ret == CT_SUCCESS) {
         wait_event_t event = DCS_REQ_MASTER4PAGE_2WAY;
         ret = dcs_handle_ask_master_ack(session, master_id, ctrl, mode, &event);
-        knl_end_session_wait(session, event);
+        if (event != DCS_REQ_MASTER4PAGE_2WAY) {
+            knl_end_session_wait_ex(session, DCS_REQ_MASTER4PAGE_2WAY, event);
+        } else {
+            knl_end_session_wait(session, event);
+        }
         return ret;
     }
 
@@ -1410,14 +1414,14 @@ status_t dcs_ask_master4page_l(knl_session_t *session, buf_ctrl_t *ctrl, drc_loc
             // owner is another instance
             ret = dcs_ask_owner_for_page(session, ctrl, &result, result.req_mode, req_version);
 
-            knl_end_session_wait(session, DCS_REQ_MASTER4PAGE_1WAY);
+            knl_end_session_wait_ex(session, DCS_REQ_MASTER4PAGE_1WAY, DCS_REQ_OWNER4PAGE);
             return ret;
         }
 
         case DRC_REQ_OWNER_WAITING: {
             ret = dcs_handle_ask_master_ack(session, DCS_SELF_INSTID(session), ctrl, result.req_mode, NULL);
 
-            knl_end_session_wait(session, DCS_REQ_MASTER4PAGE_1WAY);
+            knl_end_session_wait_ex(session, DCS_REQ_MASTER4PAGE_1WAY, DCS_REQ_OWNER4PAGE);
             return ret;
         }
 
