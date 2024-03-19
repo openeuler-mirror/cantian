@@ -59,6 +59,7 @@ typedef int (*dbs_file_open_t)(object_id_t *, char *, uint32_t, object_id_t *);
 typedef int (*dbs_file_write_t)(object_id_t *, uint32_t, char *, uint32_t);
 typedef int (*dbs_file_read_t)(object_id_t *, uint32_t, char *, uint32_t);
 typedef int (*dbs_file_remove_t)(object_id_t *, char *);
+typedef int (*dbs_clear_cms_name_space_t)(void);
 
 //pagepool
 typedef int (*create_pagepool_t)(char *, PagePoolAttr *, PagePoolId *);
@@ -112,6 +113,7 @@ typedef struct st_dbs_interface {
     dbs_file_write_t dbs_file_write;
     dbs_file_read_t dbs_file_read;
     dbs_file_remove_t dbs_file_remove;
+    dbs_clear_cms_name_space_t dbs_clear_cms_name_space;
 
     // pagepool
     create_pagepool_t create_pagepool;
