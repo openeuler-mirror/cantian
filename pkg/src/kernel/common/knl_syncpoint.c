@@ -568,6 +568,7 @@ knl_global_syncpoint_def g_knl_syncpoint[] = {
     {CANTIAN_UPGRADE_CTRL_VERSION_SEND_ACK_FAIL, CT_FALSE, "UPGRADE_CTRL_VERSION_SEND_ACK_FAIL", 0,
         knl_syncpoint_inject_errcode, 0},
     { CANTIAN_RD_DROP_TABLE_DELAY, CT_FALSE, "RD_DROP_TABLE_DELAY", 0, knl_syncpoint_inject_delay, 0},
+    { CANTIAN_BEFORE_RD_DROP_TABLE_DELAY, CT_FALSE, "BEFORE_RD_DROP_TABLE_DELAY", 0, knl_syncpoint_inject_delay, 0},
     { TSE_CRETAE_TABLE_STATS_ACK_TIMEOUT, CT_FALSE, "TSE_CRETAE_TABLE_STATS_ACK_TIMEOUT", 0,
         knl_syncpoint_inject_delay, 0},
     { TSE_ALTER_TABLE_STATS_ACK_TIMEOUT, CT_FALSE, "TSE_ALTER_TABLE_STATS_ACK_TIMEOUT", 0,
