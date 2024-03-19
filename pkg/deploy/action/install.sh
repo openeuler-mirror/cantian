@@ -257,9 +257,9 @@ function copy_certificate() {
     key_path=$(python3 "${CURRENT_PATH}"/get_config_info.py "key_path")
     cp -arf "${ca_path}" "${certificate_dir}"/ca.crt
     cp -arf "${crt_path}" "${certificate_dir}"/mes.crt
-    cp -arf "${key_path}" "${certificate_dir}"/mes.key
-    chmod 600 "${certificate_dir}"/*
-    chown -hR "${deploy_user}":"${deploy_group}" "${certificate_dir}"
+    cp -arf "${key_path}" "${certificate_dir}"/mes.key 
+    chown -hR "${cantian_user}":"${cantian_group}" "${certificate_dir}"
+    su -s /bin/bash - "${cantian_user}" -c "chmod 600 ${certificate_dir}/*"
     echo -e "${cert_encrypt_pwd}" | python3 -B "${CURRENT_PATH}"/implement/check_pwd.py "check_cert_pwd"
     if [ $? -ne 0 ];then
         logAndEchoError "Cert file or passwd check failed."

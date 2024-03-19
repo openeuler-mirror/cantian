@@ -20,7 +20,7 @@
   "archive_logic_ip": "10.77.78.2",
   "metadata_logic_ip": "10.77.78.3",
   "mes_type": "UC",
-  "mes_ssl_switch": false,
+  "mes_ssl_switch": true,
   "link_type": "1",
   "db_type": "0",
   "kerberos_key": "krb5",
