@@ -10726,6 +10726,26 @@ void knl_begin_session_wait(knl_handle_t se, wait_event_t event, bool32 immediat
 
 }
 
+void knl_end_session_wait_ex(knl_handle_t se, wait_event_t old_event,wait_event_t new_event)
+{
+    knl_session_t *session = (knl_session_t *)se;
+    knl_session_wait_t *old_wait = &session->wait_pool[old_event];
+    knl_session_wait_t *new_wait = &session->wait_pool[new_event];
+    timeval_t tv_end;
+    if (!new_wait->is_waiting && !old_wait->is_waiting) {
+        return;
+    }
+    if (old_wait->immediate && session->kernel->attr.enable_timed_stat) {
+        (void)cm_gettimeofday(&tv_end);
+        new_wait->usecs = TIMEVAL_DIFF_US(&old_wait->begin_tv, &tv_end);
+    } else {
+        new_wait->usecs = cm_total_spin_usecs() - old_wait->pre_spin_usecs;
+    }
+    session->stat->wait_time[new_event] += new_wait->usecs;
+    session->stat->wait_count[new_event]++;
+    old_wait->is_waiting = CT_FALSE;
+    new_wait->is_waiting = CT_FALSE;
+}
 void knl_end_session_wait(knl_handle_t se, wait_event_t event)
 {
     knl_session_t *session = (knl_session_t *)se;
@@ -10905,6 +10925,7 @@ uint32 knl_get_global_syncpoint_total_count(void)
 
 status_t knl_analyze_table_dynamic(knl_handle_t session, knl_analyze_tab_def_t *def)
 {
+    status_t ret = CT_SUCCESS;
     knl_session_t *se = (knl_session_t *)session;
 
     if (knl_ddl_enabled(session, CT_FALSE) != CT_SUCCESS) {
@@ -10912,14 +10933,19 @@ status_t knl_analyze_table_dynamic(knl_handle_t session, knl_analyze_tab_def_t *
     }
 
     if (def->part_no != CT_INVALID_ID32) {
-        return db_analyze_table_part(se, def, CT_TRUE);
+        ret = db_analyze_table_part(se, def, CT_TRUE);
+       
     } else {
-        return db_analyze_table(se, def, CT_TRUE);
+        ret = db_analyze_table(se, def, CT_TRUE);
     }
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_COLLECT_SAMPLED_DATA_FAIL, &ret, CT_ERROR);
+    SYNC_POINT_GLOBAL_END;
+    return ret;
 }
 
 status_t knl_analyze_table(knl_handle_t session, knl_analyze_tab_def_t *def)
 {
+    status_t ret = CT_SUCCESS;
     knl_session_t *se = (knl_session_t *)session;
 
     if (knl_ddl_enabled(session, CT_FALSE) != CT_SUCCESS) {
@@ -10928,10 +10954,13 @@ status_t knl_analyze_table(knl_handle_t session, knl_analyze_tab_def_t *def)
 
     if (def->part_name.len > 0 ||
        (((session_t *)session)->is_tse && (def->part_no != CT_INVALID_ID32))) {
-        return db_analyze_table_part(se, def, CT_FALSE);
+        ret = db_analyze_table_part(se, def, CT_FALSE);
     } else {
-        return db_analyze_table(se, def, CT_FALSE);
+        ret = db_analyze_table(se, def, CT_FALSE);
     }
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_COLLECT_SAMPLED_DATA_FAIL, &ret, CT_ERROR);
+    SYNC_POINT_GLOBAL_END;
+    return ret;
 }
 
 status_t knl_analyze_index_dynamic(knl_handle_t session, knl_analyze_index_def_t *def)

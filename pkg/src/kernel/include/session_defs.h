@@ -178,6 +178,7 @@ void knl_end_session_waits(knl_handle_t se);
 void knl_destroy_session(knl_handle_t kernel, uint32 sid);
 void knl_set_session_scn(knl_handle_t handle, uint64 scn);
 void knl_inc_session_ssn(knl_handle_t handle);
+void knl_end_session_wait_ex(knl_handle_t se, wait_event_t old_event,wait_event_t new_event);
 
 #ifdef __cplusplus
 }

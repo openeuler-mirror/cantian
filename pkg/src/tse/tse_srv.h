@@ -169,6 +169,7 @@ typedef struct {
 typedef struct {
     uint32_t estimate_rows;
     tse_cbo_stats_column_t *columns;
+    uint32_t *ndv_keys;
 } tse_cbo_stats_table_t;
 
 /*
@@ -180,6 +181,7 @@ typedef struct {
     uint16_t num_part_fetch;
     uint32_t part_cnt;
     uint32_t msg_len;
+    uint32_t key_len;
     bool is_updated;
     tse_cbo_stats_table_t tse_cbo_stats_table;
     tse_cbo_stats_table_t *tse_cbo_stats_part_table;
