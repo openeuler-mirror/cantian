@@ -110,7 +110,7 @@ function mountNfs()
         storage_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_logic_ip"`
         mountpoint /mnt/dbdata/remote/storage_"${storage_dbstore_fs}" > /dev/null 2>&1
         if [ $? -ne 0 ]; then
-            mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
+            mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
         fi
 
         if [ $? -ne 0 ]; then
