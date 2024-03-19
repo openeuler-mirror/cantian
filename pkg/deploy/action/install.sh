@@ -740,7 +740,7 @@ if [[ ${config_install_type} = 'override' ]]; then
       storage_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "storage_logic_ip"`
       mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
       chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-      mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
+      mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
       checkMountNFS $?
       chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
       mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
