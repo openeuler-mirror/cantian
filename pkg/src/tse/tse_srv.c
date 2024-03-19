@@ -1434,7 +1434,7 @@ bool is_need_one_more_fetch(knl_cursor_t *cursor, const index_key_info_t *index_
     dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
     knl_index_desc_t *desc = INDEX_DESC(cursor_index);
 
-    int iter_end_id = index_key_info->index_skip_scan ? index_key_info->key_num - 1 : 0;
+    int iter_end_id = index_key_info->index_skip_scan ? 0 : index_key_info->key_num - 1;
     for (int column_id = index_key_info->key_num - 1; column_id >= iter_end_id; column_id--) {
         if (!is_fetched_the_same_key(cursor, index_key_info, column_id, desc, has_fetched_null)) {
             return false;
