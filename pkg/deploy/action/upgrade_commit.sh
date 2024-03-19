@@ -212,8 +212,8 @@ function offline_upgrade_commit() {
     ping -c 1 "${dorado_ip}" > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         logAndEchoError "try to ping storage array ip '${dorado_ip}', but failed"
-        echo "Please check whether input is correct. If the network is disconnected, manually rollback snapshot according to the upgrade guide."
-        read -p "Continue rollback please input yes, otherwise exit:" do_snapshot_choice
+        echo "Please check whether input is correct. If the network is disconnected, manually delete snapshot according to the upgrade guide."
+        read -p "Continue upgrade commit please input yes, otherwise exit:" do_snapshot_choice
         echo ""
         if [[ x"${do_snapshot_choice}" != x"yes" ]];then
             exit 1

@@ -188,6 +188,45 @@ function upgrade_lock() {
     fi
 }
 
+function warning_tips() {
+    declare -A warning_opt
+    declare -A warning_msg
+    local invalid_input_msg="Invalid input. Please enter 'yes' or 'no': "
+    local conform_msg="Do you want to continue? (yes/no): "
+    local second_conform_msg="To confirm operation, enter yes. Otherwise, exit:"
+    local cancel_msg="Operation cancelled."
+    warning_opt=([switch_over]=1 [recover]=1 [fail_over]=1)
+    warning_msg=([switch_over]="\tSwitchover operation will be performed.
+    \tThe current operation will cause the active-standby switch,
+    \tplease make sure the standby data is consistent with the main data,
+    \tif the data is not consistent, the execution of the switch operation may cause data loss." \
+    [recover]="\tRecover operation will downgrade current station to standby,
+    \tsynchronize data from remote to local, and cover local data.
+    \tEnsure remote data consistency to avoid data loss." \
+    [fail_over]="\tFailover operation will start the standby cluster.
+    \tPlease confirm that the active device or cantian has failed,
+    \tAfter this operation,
+    \tplease ensure that the original active cluster is not accessed for write operations,
+    \totherwise it will cause data inconsistency.")
+    if [[ "${warning_opt[$dr_action]}" -eq 1 ]]; then
+        echo -e "\033[5;31mWarning:\033[0m"
+        echo -e "\033[31m${warning_msg[${dr_action}]}\033[0m"
+        read -p "${conform_msg}" warning_confirm
+        if [[ ${warning_confirm} != "yes" ]] && [[ ${warning_confirm} != "no" ]];then
+            read -p "${invalid_input_msg}"  warning_confirm
+        fi
+        if [[ ${warning_confirm} == "no" ]];then
+            echo "${cancel_msg}"
+            exit 1
+        fi
+        read -p "${second_conform_msg}" second_warning_confirm
+        if [[ ${second_warning_confirm} != "yes" ]];then
+            echo "${cancel_msg}"
+            exit 1
+        fi
+    fi
+}
+
 function dr_deploy() {
     dr_action=$2
     dr_site=$3
@@ -209,6 +248,7 @@ function dr_deploy() {
     if [[ ! "${action_opt[$dr_action]}" ]];then
         dr_action="help"
     fi
+    warning_tips
     if [[ x"${dr_action}" == x"undeploy" ]];then
         dbstor_user="yes"
         dbstor_pwd_first="no"

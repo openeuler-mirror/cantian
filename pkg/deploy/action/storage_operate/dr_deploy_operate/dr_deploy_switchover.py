@@ -28,7 +28,7 @@ class SwitchOver(object):
         self.metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
 
     @staticmethod
-    def check_cluster_status(target_node=None):
+    def check_cluster_status(target_node=None, log_type="error"):
         """
         cms 命令拉起参天后检查集群状态
         :return:
@@ -65,7 +65,10 @@ class SwitchOver(object):
                 break
         else:
             err_msg = "Check cluster status timeout."
-            LOG.error(err_msg)
+            if log_type == "info":
+                LOG.info(err_msg)
+            else:
+                LOG.error(err_msg)
             raise Exception(err_msg)
 
     def query_sync_status(self):
@@ -148,9 +151,9 @@ class SwitchOver(object):
                 2）、故障退出
         :return:
         """
-        LOG.info("Active/standby switchover start.")
+        LOG.info("Active/standby switch start.")
         node_id = self.dr_deploy_info.get("node_id")
-        self.check_cluster_status(node_id)
+        self.check_cluster_status(target_node=node_id)
         self.init_storage_opt()
         pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info_by_pair_id(self.ulog_fs_pair_id)
         local_data_status = pair_info.get("LOCALDATASTATE")
@@ -202,6 +205,7 @@ class SwitchOver(object):
 class DRRecover(SwitchOver):
     def __init__(self):
         super(DRRecover, self).__init__()
+        self.repl_success_flag = False
 
     def execute_replication_steps(self, running_status, pair_id):
         if running_status != ReplicationRunningStatus.Synchronizing:
@@ -219,8 +223,19 @@ class DRRecover(SwitchOver):
             replication_progress = pair_info.get("REPLICATIONPROGRESS")
             LOG.info(f"Page fs rep pair is synchronizing, current progress: {replication_progress}%, please wait...")
             time.sleep(10)
+        self.repl_success_flag = True
         self.dr_deploy_opt.split_remote_replication_filesystem_pair(pair_id)
         self.dr_deploy_opt.remote_replication_filesystem_pair_cancel_secondary_write_lock(pair_id)
+
+    def standby_cms_purge_backup(self):
+        LOG.info("Standby purge backup by cms command.")
+        cmd = "source ~/.bashrc && su -s /bin/bash - cantian -c " \
+              "\"ctbackup --purge-logs\""
+        return_code, output, stderr = exec_popen(cmd, timeout=600)
+        if return_code:
+            err_msg = "Execute command[cms stat] failed, details::%s." % output + stderr
+            LOG.info(err_msg)
+        LOG.info("Standby purge backup by cms command success.")
 
     def rep_pair_recover(self, pair_id: str) -> None:
         pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(
@@ -235,7 +250,7 @@ class DRRecover(SwitchOver):
             LOG.info("Page fs rep pair is already standby site.")
             if running_status == ReplicationRunningStatus.Split:
                 try:
-                    self.check_cluster_status()
+                    self.check_cluster_status(log_type="info")
                 except Exception as _er:
                     self.dr_deploy_opt.remote_replication_filesystem_pair_set_secondary_write_lock(pair_id)
                     self.execute_replication_steps(running_status, pair_id)
@@ -310,12 +325,14 @@ class DRRecover(SwitchOver):
         if not self.metadata_in_cantian:
             self.rep_pair_recover(self.meta_fs_pair_id)
         try:
-            self.check_cluster_status()
+            self.check_cluster_status(log_type="info")
         except Exception as _err:
             self.standby_logicrep_stop()
             self.standby_cms_res_stop()
             time.sleep(10)
             self.standby_cms_res_start()
+            if self.repl_success_flag:
+                self.standby_cms_purge_backup()
             self.check_cluster_status()
         LOG.info("DR recovery complete")
 
@@ -342,7 +359,7 @@ class FailOver(SwitchOver):
             raise Exception(err_msg)
         running_status = domain_info.get("RUNNINGSTATUS")
         try:
-            self.check_cluster_status(self.node_id)
+            self.check_cluster_status(target_node=self.node_id)
         except Exception as _er:
             err_msg = "Check cantian status failed, error: {}".format(_er)
             LOG.error(err_msg)
