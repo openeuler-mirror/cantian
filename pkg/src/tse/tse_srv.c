@@ -2188,7 +2188,6 @@ EXTER_ATTACK int tse_get_cbo_stats(tianchi_handler_t *tch, tianchi_cbo_stats_t *
     CT_RETURN_IFERR(tse_try_reopen_dc(knl_session, &tse_context->user, &tse_context->table, tse_context->dc));
     
     get_cbo_stats(knl_session, DC_ENTITY(tse_context->dc), stats);
-    
     return CT_SUCCESS;
 }
 
