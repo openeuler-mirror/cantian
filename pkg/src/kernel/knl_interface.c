@@ -15612,14 +15612,12 @@ void knl_lock_info_log_put4mysql(knl_handle_t session, void *lock_info)
     uint32 total_buf_len = info->db_name_len + info->table_name_len;
     log_put(se, RD_LOGIC_OPERATION, lock_info, sizeof(rd_lock_info_4mysql_ddl), LOG_ENTRY_FLAG_NONE);
     log_append_data(se, info->buff, total_buf_len);
-    if (info->op_type == RD_UNLOCK_TABLE_FOR_MYSQL_DDL) {
-        tx_copy_logic_log(se);
-        if (se->rm->large_page_id != CT_INVALID_ID32) {
-            mpool_free_page(se->kernel->attr.large_pool, se->rm->large_page_id);
-            se->rm->large_page_id = CT_INVALID_ID32;
-        }
-        se->logic_log_size = 0;
+    tx_copy_logic_log(se);
+    if (se->rm->large_page_id != CT_INVALID_ID32) {
+        mpool_free_page(se->kernel->attr.large_pool, se->rm->large_page_id);
+        se->rm->large_page_id = CT_INVALID_ID32;
     }
+    se->logic_log_size = 0;
 }
 
 void knl_invalid_dd_log_put4mysql(knl_handle_t session, void *invalid_info)

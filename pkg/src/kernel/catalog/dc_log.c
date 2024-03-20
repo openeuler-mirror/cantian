@@ -712,6 +712,8 @@ void rd_drop_table(knl_session_t *session, log_entry_t *log)
     dc_entity_t *entity = NULL;
     rd->name[CT_NAME_BUFFER_SIZE - 1] = 0;
     CT_LOG_RUN_INF("[DC] start to replay drop table %s, user id %u", rd->name, rd->uid);
+    SYNC_POINT_GLOBAL_START(CANTIAN_BEFORE_DROP_TABLE_RD_DELAY, NULL, 200000); // delay 200S
+    SYNC_POINT_GLOBAL_END;
 
     if (dc_open_user_by_id(session, rd->uid, &user) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DC] failed to replay drop table %s,user id %u doesn't exists\n", rd->name, rd->uid);
