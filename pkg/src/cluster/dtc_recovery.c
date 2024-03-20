@@ -138,8 +138,25 @@ static inline void dtc_rcy_add_to_bucket(rcy_set_bucket_t *bucket, rcy_set_item_
 status_t dtc_rcy_set_item_update_need_replay(rcy_set_bucket_t *bucket, page_id_t page_id, bool8 need_replay)
 {
     rcy_set_item_t *item = bucket->first;
+    uint64 curr_page_lsn = CT_INVALID_ID64;
+    knl_session_t *session = g_instance->kernel.sessions[SESSION_ID_KERNEL];
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        // TODO: this is only for 2 nodes cluster, need change
+        buf_bucket_t *buf_bucket = buf_find_bucket(session, page_id);
+        cm_spin_lock(&buf_bucket->lock, NULL);
+        buf_ctrl_t *ctrl = buf_find_from_bucket(buf_bucket, page_id);
+        if (!ctrl || ctrl->lock_mode == DRC_LOCK_NULL) {
+            /* If the page is not in memory or lock mode is null, the partial recovery for that page can't be skipped,
+            as the page on disk may be not the latest one. */
+            curr_page_lsn = 0;
+            cm_spin_unlock(&buf_bucket->lock);
+        } else {
+            curr_page_lsn = (ctrl->page)->lsn;        
+            cm_spin_unlock(&buf_bucket->lock);
+        }
+    }
     while (item != NULL) {
-        if (IS_SAME_PAGID(item->page_id, page_id)) {
+        if (IS_SAME_PAGID(item->page_id, page_id) && (item->last_dirty_lsn <= curr_page_lsn)) {
             item->need_replay = need_replay;
             return CT_SUCCESS;
         }
@@ -986,7 +1003,7 @@ bool8 dtc_rcy_page_in_rcyset(page_id_t page_id)
 {
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
 
-    if (dtc_rcy->full_recovery || !DB_IS_PRIMARY(&((knl_session_t*)g_rc_ctx->session)->kernel->db)) {
+    if (dtc_rcy->full_recovery) {
         return CT_TRUE;
     }
 
@@ -3068,68 +3085,65 @@ static status_t dtc_rcy_partial_recovery(knl_session_t *session)
     stat->last_rcy_is_full_recovery = CT_FALSE;
     knl_session_t *se  = session->kernel->sessions[SESSION_ID_KERNEL];
 
-    if (DB_IS_PRIMARY(&session->kernel->db))
-    {
-        dtc_rcy->recovery_status = RECOVERY_ANALYSIS;
-        RC_STEP_BEGIN(rf_detail->recovery_set_create_elapsed);
-        if (dtc_rcy_analyze_batches_paral(session) != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[DTC RCY][partial recovery] failed to paral analyze redo logs, dtc_rcy->failed=%u, "
-                "dtc_rcy->ss->canceled=%u", dtc_rcy->failed, dtc_rcy->ss->canceled);
-            RC_STEP_END(rf_detail->recovery_set_create_elapsed, RC_STEP_FAILED);
+    dtc_rcy->recovery_status = RECOVERY_ANALYSIS;
+    RC_STEP_BEGIN(rf_detail->recovery_set_create_elapsed);
+    if (dtc_rcy_analyze_batches_paral(session) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DTC RCY][partial recovery] failed to paral analyze redo logs, dtc_rcy->failed=%u, "
+            "dtc_rcy->ss->canceled=%u", dtc_rcy->failed, dtc_rcy->ss->canceled);
+        RC_STEP_END(rf_detail->recovery_set_create_elapsed, RC_STEP_FAILED);
+        return CT_ERROR;
+    }
+    RC_STEP_END(rf_detail->recovery_set_create_elapsed, RC_STEP_FINISH);
+
+    dtc_rcy_set_num_stat();
+
+    // send recovery set to each alive node and wait for response
+    RC_STEP_BEGIN(rf_detail->recovery_set_revise_elapsed);
+    if (dtc_send_rcy_set(session) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DTC RCY][partial recovery] failed to send rcy set to each master");
+        RC_STEP_END(rf_detail->recovery_set_revise_elapsed, RC_STEP_FAILED);
+        return CT_ERROR;
+    }
+
+    // wait for response from alive nodes
+    while (dtc_rcy->phase != PHASE_HANDLE_RCYSET_DONE) {
+        if (dtc_rcy_check_rcyset_msg(session) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("DTC RCY] failed to check rcyset msg");
+            RC_STEP_END(rf_detail->recovery_set_revise_elapsed, RC_STEP_FAILED);
             return CT_ERROR;
         }
-        RC_STEP_END(rf_detail->recovery_set_create_elapsed, RC_STEP_FINISH);
+        cm_sleep(10);
+        if (session->canceled) {
+            CT_LOG_RUN_ERR("[DTC RCY] rcy session is cancled, session->id=%u", session->id);
+            RC_STEP_END(rf_detail->recovery_set_revise_elapsed, RC_STEP_FAILED);
+            CT_THROW_ERROR(ERR_OPERATION_CANCELED);
+            return CT_ERROR;
+        }
 
-        dtc_rcy_set_num_stat();
+        if (session->killed) {
+            CT_LOG_RUN_ERR("[DTC RCY] rcy session is cancled, session->id=%u", session->id);
+            RC_STEP_END(rf_detail->recovery_set_revise_elapsed, RC_STEP_FAILED);
+            CT_THROW_ERROR(ERR_OPERATION_KILLED);
+            return CT_ERROR;
+        }
 
-        // send recovery set to each alive node and wait for response
-        RC_STEP_BEGIN(rf_detail->recovery_set_revise_elapsed);
-        if (dtc_send_rcy_set(session) != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[DTC RCY][partial recovery] failed to send rcy set to each master");
+        // check whether need to cancel this task
+        if (dtc_rcy->canceled) {
+            session->canceled = CT_TRUE;
+            CT_LOG_RUN_ERR("[DTC RCY] required to cancel this dtc recovery task, session canceled=%u", session->canceled);
             RC_STEP_END(rf_detail->recovery_set_revise_elapsed, RC_STEP_FAILED);
             return CT_ERROR;
         }
 
-        // wait for response from alive nodes
-        while (dtc_rcy->phase != PHASE_HANDLE_RCYSET_DONE) {
-            if (dtc_rcy_check_rcyset_msg(session) != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("DTC RCY] failed to check rcyset msg");
-                RC_STEP_END(rf_detail->recovery_set_revise_elapsed, RC_STEP_FAILED);
-                return CT_ERROR;
-            }
-            cm_sleep(10);
-            if (session->canceled) {
-                CT_LOG_RUN_ERR("[DTC RCY] rcy session is cancled, session->id=%u", session->id);
-                RC_STEP_END(rf_detail->recovery_set_revise_elapsed, RC_STEP_FAILED);
-                CT_THROW_ERROR(ERR_OPERATION_CANCELED);
-                return CT_ERROR;
-            }
-
-            if (session->killed) {
-                CT_LOG_RUN_ERR("[DTC RCY] rcy session is cancled, session->id=%u", session->id);
-                RC_STEP_END(rf_detail->recovery_set_revise_elapsed, RC_STEP_FAILED);
-                CT_THROW_ERROR(ERR_OPERATION_KILLED);
-                return CT_ERROR;
-            }
-
-            // check whether need to cancel this task
-            if (dtc_rcy->canceled) {
-                session->canceled = CT_TRUE;
-                CT_LOG_RUN_ERR("[DTC RCY] required to cancel this dtc recovery task, session canceled=%u", session->canceled);
-                RC_STEP_END(rf_detail->recovery_set_revise_elapsed, RC_STEP_FAILED);
-                return CT_ERROR;
-            }
-
-            if (dtc_rcy->failed == CT_TRUE) {
-                CT_LOG_RUN_ERR("[DTC RCY] check dtc_rcy->failed=%u", dtc_rcy->failed);
-                RC_STEP_END(rf_detail->recovery_set_revise_elapsed, RC_STEP_FAILED);
-                return CT_ERROR;
-            }
+        if (dtc_rcy->failed == CT_TRUE) {
+            CT_LOG_RUN_ERR("[DTC RCY] check dtc_rcy->failed=%u", dtc_rcy->failed);
+            RC_STEP_END(rf_detail->recovery_set_revise_elapsed, RC_STEP_FAILED);
+            return CT_ERROR;
         }
-        RC_STEP_END(rf_detail->recovery_set_revise_elapsed, RC_STEP_FINISH);
-        CT_LOG_RUN_INF("[DTC RCY][partial recovery] wait masters send rcy set results successfully, msg_sent=%u, "
-            "msg_recv=%u, dtc_rcy->phase=%u", dtc_rcy->msg_sent, dtc_rcy->msg_recv, dtc_rcy->phase);
     }
+    RC_STEP_END(rf_detail->recovery_set_revise_elapsed, RC_STEP_FINISH);
+    CT_LOG_RUN_INF("[DTC RCY][partial recovery] wait masters send rcy set results successfully, msg_sent=%u, "
+        "msg_recv=%u, dtc_rcy->phase=%u", dtc_rcy->msg_sent, dtc_rcy->msg_recv, dtc_rcy->phase);
 
     // move partial recovery to next phase
     dtc_rcy_next_phase(session);
