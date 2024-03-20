@@ -30,6 +30,9 @@
 #include "knl_context.h"
 #include "tse_ddl_broadcast.h"
 
+#define REFORM_LOG_DDL_TERM_SIZE (1)
+#define REFORM_LOG_DDL_TERM_DATA ";"
+
 void tse_process_broadcast_ack_ex(void *session, mes_message_t *msg)
 {
     if (msg->head->dst_sid >= CT_MAX_MES_ROOMS) {
@@ -247,11 +250,16 @@ status_t ctc_execute_ddl_in_slave_node(knl_handle_t session, char *sql_text, uin
     }
 
     ret = memset_s(broadcast_req, sizeof(tse_ddl_broadcast_request), 0, sizeof(tse_ddl_broadcast_request));
-    knl_securec_check(ret);
-    ret = memcpy_s(broadcast_req->sql_str, sql_len, sql_text, sql_len);
-    knl_securec_check(ret);
-    broadcast_req->sql_str[sql_len] = '\0';
+    memcpy_sp(broadcast_req->sql_str, sql_len, sql_text, sql_len);
+    memcpy_sp(broadcast_req->sql_str + sql_len, REFORM_LOG_DDL_TERM_SIZE, REFORM_LOG_DDL_TERM_DATA, REFORM_LOG_DDL_TERM_SIZE);
     broadcast_req->mysql_inst_id = CT_INVALID_ID32 - 1;
+
+    for (int i = 0; i < sql_len + REFORM_LOG_DDL_TERM_SIZE; i++) {
+        if (broadcast_req->sql_str[i] == (char)'\n') {
+            broadcast_req->sql_str[i] = (char)';';
+            break;
+        }
+    }
 
     ret = tse_ddl_execute_and_broadcast(&tch, broadcast_req, false, (knl_session_t *)session); 
 

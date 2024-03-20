@@ -1108,6 +1108,7 @@ const char *g_error_desc[] = {
     [ERR_FK_NO_INDEX_PAREN_4MYSQL] =
         "Failed to add the foreign key constraint. Missing index for constraint '%s' in the referenced table '%s'",
     [ERR_CHILD_DUPLICATE_KEY] = "Foreign key constraint would lead to a duplicate entry in child table",
+    [ERR_WRITE_OPT_IN_READONLY] = "Cantian can not execute write-operation in readonly mode.",
 
     // ARCH
     [ERR_FORCE_ARCH_FAILED] = "failed to force archive with lrp point lsn",

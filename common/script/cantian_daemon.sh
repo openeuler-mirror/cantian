@@ -150,6 +150,8 @@ do
     # CCB结论：内存阈值主动故障倒换
     system_memory_used_percent
     if [[ -n ${cms_pid} ]] && [[ $(echo "$mem_usage > ${CMS_MEM_LIMIT}" | bc) -eq 1 ]]; then
+        top5_processes=$(ps aux --sort=-%mem | awk 'NR<=6{print $11, $2, $6/1024/1024}' | awk 'NR>1{printf "%s %s %.2fGB ", $1, $2, $3}')
+        logAndEchoError "[cantian daemon] The top5 processes that occupy the memory are as follows: ${top5_processes}."
         su -s /bin/bash - "${cantian_user}" -c "sh /opt/cantian/action/cms/cms_reg.sh disable"
         kill -9 ${cms_pid}
         logAndEchoError "[cantian daemon] CMS ABORT !!! cause system memory problem, Current usage: ${mem_usage}%."

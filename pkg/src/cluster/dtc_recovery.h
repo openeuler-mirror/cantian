@@ -153,6 +153,8 @@ typedef struct st_dtc_rcy_node {
     int32 handle[CT_MAX_LOG_FILES];  // online logfile handle
     log_point_t analysis_read_end_point;
     log_point_t recovery_read_end_point;
+    uint64 latest_lsn;
+    uint64 latest_rcy_end_lsn;
 } dtc_rcy_node_t;
 
 typedef struct st_rcy_node_stat {

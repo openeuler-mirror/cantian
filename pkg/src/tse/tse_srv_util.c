@@ -328,6 +328,7 @@ knl_cursor_t *tse_alloc_session_cursor(session_t *session, uint32_t part_id, uin
     }
     cursor->stmt = NULL;
     cursor->decode_count = CT_INVALID_ID16;
+    cursor->rowid = g_invalid_rowid;
     cm_oamap_insert(&session->cursor_map, cm_hash_int64((uint64)cursor), cursor, cursor);
     session->total_cursor_num++;
     cursor->mysql_using = CT_TRUE;
