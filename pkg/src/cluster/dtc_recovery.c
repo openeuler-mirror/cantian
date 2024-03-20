@@ -138,8 +138,25 @@ static inline void dtc_rcy_add_to_bucket(rcy_set_bucket_t *bucket, rcy_set_item_
 status_t dtc_rcy_set_item_update_need_replay(rcy_set_bucket_t *bucket, page_id_t page_id, bool8 need_replay)
 {
     rcy_set_item_t *item = bucket->first;
+    uint64 curr_page_lsn = CT_INVALID_ID64;
+    knl_session_t *session = g_instance->kernel.sessions[SESSION_ID_KERNEL];
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        // TODO: this is only for 2 nodes cluster, need change
+        buf_bucket_t *buf_bucket = buf_find_bucket(session, page_id);
+        cm_spin_lock(&buf_bucket->lock, NULL);
+        buf_ctrl_t *ctrl = buf_find_from_bucket(buf_bucket, page_id);
+        if (!ctrl || ctrl->lock_mode == DRC_LOCK_NULL) {
+            /* If the page is not in memory or lock mode is null, the partial recovery for that page can't be skipped,
+            as the page on disk may be not the latest one. */
+            curr_page_lsn = 0;
+            cm_spin_unlock(&buf_bucket->lock);
+        } else {
+            curr_page_lsn = (ctrl->page)->lsn;        
+            cm_spin_unlock(&buf_bucket->lock);
+        }
+    }
     while (item != NULL) {
-        if (IS_SAME_PAGID(item->page_id, page_id)) {
+        if (IS_SAME_PAGID(item->page_id, page_id) && (item->last_dirty_lsn <= curr_page_lsn)) {
             item->need_replay = need_replay;
             return CT_SUCCESS;
         }
