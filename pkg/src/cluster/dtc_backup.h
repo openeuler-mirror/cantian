@@ -232,7 +232,8 @@ status_t bak_set_archfile_info_file(log_start_end_info_t arch_info, local_arch_f
                                     bak_arch_files_t *arch_file_buf, char *file_name, log_file_head_t *head);
 status_t dtc_bak_get_logfile_by_asn_file(knl_session_t *session, bak_arch_files_t *arch_file_buf,
                                          log_start_end_asn_t asn, uint32 inst_id, log_start_end_asn_t *target_asn);
-status_t bak_get_logfile_file(knl_session_t *session, arch_file_info_t *file_info, log_file_t *logfile, knl_compress_t *compress_ctx);
+status_t bak_get_logfile_file(knl_session_t *session, knl_session_t *session_bak, arch_file_info_t *file_info,
+                              log_file_t *logfile, knl_compress_t *compress_ctx);
 status_t dtc_bak_get_arch_ctrl(knl_session_t *session, bak_process_t *process, uint32 asn, uint32 *block_size, bak_arch_files_t *arch_file);
 status_t bak_get_arch_asn_file(knl_session_t *session, log_start_end_info_t arch_info, uint32 inst_id,
                                bak_arch_files_t *arch_file_buf);

@@ -2474,7 +2474,7 @@ status_t dtc_bak_get_logfile_by_asn_file(knl_session_t *session, bak_arch_files_
             continue;
         }
         dtc_bak_init_file_info(&file_info, inst_id, logfile, tmp_asn, bak);
-        if (bak_get_logfile_file(&session_bak, &file_info, logfile, &compress_ctx) != CT_SUCCESS) {
+        if (bak_get_logfile_file(session, &session_bak, &file_info, logfile, &compress_ctx) != CT_SUCCESS) {
             status = CT_ERROR;
             break;
         }
@@ -2816,12 +2816,12 @@ status_t bak_get_logfile_dbstor(knl_session_t *session, arch_file_info_t *file_i
     return CT_SUCCESS;
 }
 
-status_t bak_get_logfile_file(knl_session_t *session, arch_file_info_t *file_info,
+status_t bak_get_logfile_file(knl_session_t *session, knl_session_t *session_bak, arch_file_info_t *file_info,
                               log_file_t *logfile, knl_compress_t *compress_ctx)
 {
-    bak_set_tmp_archfile_name(session, file_info->tmp_file_name);
+    bak_set_tmp_archfile_name(session_bak, file_info->tmp_file_name);
     CT_LOG_DEBUG_INF("[BACKUP] set tmp_archfile_name %s.", file_info->tmp_file_name);
-    if (arch_archive_file(session, file_info->read_buf, logfile, file_info->tmp_file_name, compress_ctx) != CT_SUCCESS) {
+    if (arch_archive_file(session_bak, file_info->read_buf, logfile, file_info->tmp_file_name, compress_ctx) != CT_SUCCESS) {
         return CT_ERROR;
     }
     if (bak_generate_archfile_file(session, file_info) != CT_SUCCESS) {
