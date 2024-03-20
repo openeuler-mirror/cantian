@@ -1394,14 +1394,6 @@ bool is_fetched_the_same_key(knl_cursor_t *cursor, const index_key_info_t *index
         return false;
     }
     int col_offset = cursor->index_only ? column_id : desc->columns[column_id];
-    // 先判断数据长度是否相等，再将取出来的值与key作memcmp，如果值相等则返回true
-    if (cursor->lens[col_offset] != 0 &&
-        cursor->lens[col_offset] == index_key_info->key_info[column_id].left_key_len &&
-        memcmp((uint8_t *)cursor->row + cursor->offsets[col_offset],
-            index_key_info->key_info[column_id].left_key, index_key_info->key_info[column_id].left_key_len) == 0) {
-        return true;
-    }
-
     if (index_key_info->key_info[column_id].is_key_null) {
         if (cursor->index_only) {
             if (cursor->lens[col_offset] == CT_NULL_VALUE_LEN) {
@@ -1416,6 +1408,15 @@ bool is_fetched_the_same_key(knl_cursor_t *cursor, const index_key_info_t *index
             }
         }
     }
+    // 先判断数据长度是否相等，再将取出来的值与key作memcmp，如果值相等则返回true
+    if (!(cursor->lens[col_offset] == 0 ||
+        cursor->lens[col_offset] != index_key_info->key_info[column_id].left_key_len ||
+        memcmp((uint8_t *)cursor->row + cursor->offsets[col_offset],
+            index_key_info->key_info[column_id].left_key,
+            index_key_info->key_info[column_id].left_key_len) != 0)) {
+        return true;
+    }
+
     return false;
 }
 
