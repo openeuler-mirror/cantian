@@ -1231,14 +1231,18 @@ void dtc_rcy_next_file(knl_session_t *session, uint32 idx, bool32 *need_more_log
         point->asn++;
         point->block_id = 0;
         *need_more_log = CT_TRUE;
-        CT_LOG_RUN_INF("[DTC RCY] Move log point to [%u-%u/%u/%llu]",
-            (uint32)point->rst_id, point->asn, point->block_id, (uint64)point->lfn);
+        if (rcy_node->latest_rcy_end_lsn != rcy_node->recovery_read_end_point.lsn) {
+            CT_LOG_RUN_INF("[DTC RCY] Move log point to [%u-%u/%u/%llu]", (uint32)point->rst_id, point->asn,
+                           point->block_id, (uint64)point->lfn);
+        }
     } else {
         point->asn++;
         point->block_id = 0;
         *need_more_log = CT_TRUE;
-        CT_LOG_RUN_INF("[DTC RCY] Move log point to [%u-%u/%u/%llu]",
-            (uint32)point->rst_id, point->asn, point->block_id, (uint64)point->lfn);
+        if (rcy_node->latest_rcy_end_lsn != rcy_node->recovery_read_end_point.lsn) {
+            CT_LOG_RUN_INF("[DTC RCY] Move log point to [%u-%u/%u/%llu]", (uint32)point->rst_id, point->asn,
+                           point->block_id, (uint64)point->lfn);
+        }
     }
     rcy_node->curr_file_length = 0;
 }
@@ -1409,7 +1413,12 @@ status_t dtc_rcy_read_online_log(knl_session_t *session, uint32 file_id, uint32 
         offset = point->lsn + 1;   // read redo data after rcy_point.
         size_need_read = buf_size; // read as much data as possible.
     }
-    CT_LOG_RUN_INF("[DTC RCY] start read online redo log point %u/%u/%lld from %s", point->asn, point->block_id, offset, file->ctrl->name);
+    if (rcy_node->latest_lsn != offset) {
+        CT_LOG_RUN_INF("[DTC RCY] start read online redo log point %u/%u/%lld from %s", point->asn, point->block_id,
+                       offset, file->ctrl->name);
+        rcy_node->latest_lsn = offset;
+    }
+
     return dtc_rcy_read_log(session, handle, file->ctrl->name, offset, buf, buf_size, size_need_read, size_read);
 }
 
@@ -1667,8 +1676,13 @@ status_t dtc_rcy_read_node_log(knl_session_t *session, uint32 idx, uint32 *size_
         log_unlatch_file(session, logfile_id);
         cantian_record_io_stat_end(IO_RECORD_EVENT_RECOVERY_READ_ONLINE_LOG, &tv_begin,
             status == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED);
-        CT_LOG_RUN_INF("[DTC RCY] finish read online redo log of crashed node=%u, logfile_id=%u, size_read=%u",
-                       rcy_node->node_id, logfile_id, *size_read);
+        if (!DB_IS_PRIMARY(&session->kernel->db) && (*size_read == 0)) {
+            CT_LOG_DEBUG_INF("[DTC RCY] finish read online redo log of crashed node=%u, logfile_id=%u, size_read=%u",
+                             rcy_node->node_id, logfile_id, *size_read);
+        } else {
+            CT_LOG_RUN_INF("[DTC RCY] finish read online redo log of crashed node=%u, logfile_id=%u, size_read=%u",
+                           rcy_node->node_id, logfile_id, *size_read);
+        }
     } else {
         status = dtc_rcy_read_archived_log(session, idx, size_read);
         CT_LOG_DEBUG_INF("[DTC RCY] dtc rcy read archived redo log of crashed node=%u, logfile_id=%u, size_read=%u",
@@ -1885,12 +1899,14 @@ status_t dtc_update_batch(knl_session_t *session, uint32 node_id)
                         (uint64)rcy_node->analysis_read_end_point.rst_id, (uint64)rcy_node->analysis_read_end_point.lfn,
                         rcy_node->analysis_read_end_point.lsn);
                 }
-                if (dtc_rcy->phase == PHASE_RECOVERY) {
+                if (dtc_rcy->phase == PHASE_RECOVERY &&
+                    (rcy_node->latest_rcy_end_lsn != rcy_node->recovery_read_end_point.lsn)) {
                     CT_LOG_RUN_INF(
                         "[DTC RCY] recovery read end point[asn(%u)-block_id(%u)-rst_id(%llu)-lfn(%llu)-lsn(%llu)]",
                         rcy_node->recovery_read_end_point.asn, rcy_node->recovery_read_end_point.block_id,
                         (uint64)rcy_node->recovery_read_end_point.rst_id, (uint64)rcy_node->recovery_read_end_point.lfn,
                         rcy_node->recovery_read_end_point.lsn);
+                    rcy_node->latest_rcy_end_lsn = rcy_node->recovery_read_end_point.lsn;
                 }
             }
         }
@@ -1915,11 +1931,11 @@ bool32 dtc_log_need_reload(knl_session_t *session, uint32 node_id)
     CT_LOG_DEBUG_INF("[DTC LRPL] lrpl_ctx->redo_is_reload = %u, node_id = %u", lrpl_ctx->redo_is_reload, node_id);
     if (lrpl_ctx->redo_is_reload) {
         lrpl_ctx->redo_is_reload = CT_FALSE;
-        CT_LOG_RUN_INF("[DTC LRPL] redo no need reload");
+        CT_LOG_DEBUG_INF("[DTC LRPL] redo no need reload");
         return CT_FALSE;
     }
     lrpl_ctx->redo_is_reload = CT_TRUE;
-    CT_LOG_RUN_INF("[DTC LRPL] redo need reload");
+    CT_LOG_DEBUG_INF("[DTC LRPL] redo need reload");
     return CT_TRUE;
 }
 
@@ -2958,6 +2974,8 @@ static inline void dtc_rcy_next_phase(knl_session_t *session)
         dtc_rcy->rcy_nodes[i].ulog_exist_data = CT_TRUE;
         dtc_rcy->rcy_nodes[i].read_pos = 0;
         dtc_rcy->rcy_nodes[i].write_pos = 0;
+        dtc_rcy->rcy_nodes[i].latest_lsn = 0;
+        dtc_rcy->rcy_nodes[i].latest_rcy_end_lsn = 0;
         if (cm_dbs_is_enable_dbs() && session->kernel->db.recover_for_restore) {
             dtc_rcy->rcy_log_points[i].rcy_point.asn = 0;
             dtc_rcy->rcy_log_points[i].rcy_point.block_id = CT_INFINITE32;
@@ -3301,6 +3319,8 @@ status_t dtc_rcy_init_rcynode(knl_session_t *session, instance_list_t *recover_l
     rcy_node->write_pos = 0;
     rcy_node->read_pos = 0;
     rcy_node->curr_file_length = 0;
+    rcy_node->latest_lsn = 0;
+    rcy_node->latest_rcy_end_lsn = 0;
 
     rcy_log_point->node_id = node_id;
     rcy_log_point->lsn = ctrl->lsn;
