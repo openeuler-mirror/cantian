@@ -1334,7 +1334,8 @@ static status_t pcrb_locate_with_find(knl_session_t *session, knl_cursor_t *curs
             knl_panic_log(locator->page_cache == NO_PAGE_CACHE, "page_cache is abnormal, panic info: page %u-%u "
                 "type %u table %s index %s page_cache %u", cursor->rowid.file, cursor->rowid.page, page->head.type,
                 ((table_t *)cursor->table)->desc.name, index->desc.name, locator->page_cache);
-            if (pcrb_check_key_visible(session, cursor, cursor->query_scn, page, (uint16)path_info.path[0].slot)) {
+            if (DB_IS_PRIMARY(&session->kernel->db) &&
+                pcrb_check_key_visible(session, cursor, cursor->query_scn, page, (uint16)path_info.path[0].slot)) {
                 break;
             }
 
