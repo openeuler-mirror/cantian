@@ -43,10 +43,12 @@ function initUserAndGroup()
 {
     # 创建用户组
     groupadd cantiangroup -g 1100 > /dev/null 2>&1
-    useradd cantian -s /sbin/nologin -G cantiangroup -u 6000 > /dev/null 2>&1
-    useradd ctmgruser -s /sbin/nologin -G cantiangroup -u 6004 > /dev/null 2>&1
+    useradd cantian -s /sbin/nologin -u 6000 > /dev/null 2>&1
+    useradd ctmgruser -s /sbin/nologin -u 6004 > /dev/null 2>&1
     # 增加用户到用户组
     usermod -a -G cantiangroup ${deploy_user}
+    usermod -a -G cantiangroup cantian
+    usermod -a -G cantiangroup ctmgruser
     usermod -a -G ${deploy_group} cantian
 }
 

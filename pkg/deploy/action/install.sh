@@ -158,10 +158,12 @@ function initUserAndGroup()
     fi
     # 创建用户组
     groupadd cantiangroup -g 1100
-    useradd cantian -s /sbin/nologin -G cantiangroup -u 6000
-    useradd ctmgruser -s /sbin/nologin -G cantiangroup -u 6004
+    useradd cantian -s /sbin/nologin -u 6000
+    useradd ctmgruser -s /sbin/nologin -u 6004
     # 增加用户到用户组
     usermod -a -G cantiangroup ${deploy_user}
+    usermod -a -G cantiangroup cantian
+    usermod -a -G cantiangroup ctmgruser
     usermod -a -G ${deploy_group} cantian
     config_sudo
 }

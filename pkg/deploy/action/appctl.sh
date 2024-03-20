@@ -241,9 +241,10 @@ function dr_deploy() {
     dbstor_pwd_first=""
     unix_sys_pwd_first=""
     unix_sys_pwd_second=""
+    cert_encrypt_pwd=""
     comfirm=""
     declare -A action_opt
-    action_opt=([deploy]=1 [pre_check]=1 [undeploy]=1 [full_sync]=1 [progress_query]=1 \
+    action_opt=([deploy]=1 [pre_check]=1 [undeploy]=1 [progress_query]=1 \
     [switch_over]=1 [recover]=1 [fail_over]=1 [update_conf]=1)
     if [[ ! "${action_opt[$dr_action]}" ]];then
         dr_action="help"
@@ -290,11 +291,16 @@ function dr_deploy() {
         echo ""
         read -s -p "please enter cantian_sys_pwd again: " unix_sys_pwd_second
         echo ""
+        cat ${CURRENT_PATH}/../config/dr_deploy_param.json | grep 'mes_ssl_switch' | grep "true" > /dev/null
+        if [[ $? -eq 0 ]];then
+            read -s -p "please enter private key encryption password:" cert_encrypt_pwd
+            echo ''
+        fi
     fi
-    if [[ x"${dr_site}" == x"active" ]] && [[ x"${dr_action}" == x"deploy" || "${dr_action}" == "full_sync" ]];then
+    if [[ x"${dr_site}" == x"active" ]] && [[ x"${dr_action}" == x"deploy" ]];then
         read -s -p "Please input mysql login passwd:" dbstor_user
     fi
-    if [[ "${dr_action}" == "deploy" ]] || [[ "${dr_action}" == "full_sync" ]];then
+    if [[ "${dr_action}" == "deploy" ]];then
         _pid=$(ps -ef | grep "storage_operate/dr_operate_interface.py ${dr_action}" | grep -v grep | awk '{print $2}')
         if [[ -z $_pid ]];then
             echo -e "${dm_pwd}\n${dbstor_user}\n" | python3 -B "${CURRENT_PATH}/storage_operate/dr_operate_interface.py" param_check --action="${dr_action}" --site="${dr_site}" "$@"
@@ -302,7 +308,7 @@ function dr_deploy() {
                 logAndEchoError "Passwd check failed."
                 exit 1
             fi
-            echo -e "${dm_pwd}\n${dbstor_user}\n${dbstor_pwd_first}\n${unix_sys_pwd_first}\n${unix_sys_pwd_second}" | \
+            echo -e "${dm_pwd}\n${dbstor_user}\n${dbstor_pwd_first}\n${unix_sys_pwd_first}\n${unix_sys_pwd_second}\n${cert_encrypt_pwd}" | \
             nohup python3 -B "${CURRENT_PATH}/storage_operate/dr_operate_interface.py" "${dr_action}" --site="${dr_site}" "$@" \
             >> /opt/cantian/deploy/deploy.log 2>&1 &
         else
@@ -314,7 +320,7 @@ function dr_deploy() {
             logAndEchoError "dr ${dr_action} execute failed."
             exit 1
         fi
-        logAndEchoInfo "dr ${dr_action} execute success, process id[${_pid}].\n        please use command[sh appctl.sh dr_operate progress_query --action=deploy/full_sync --display=table\json] to query progress."
+        logAndEchoInfo "dr ${dr_action} execute success, process id[${_pid}].\n        please use command[sh appctl.sh dr_operate progress_query --action=deploy --display=table\json] to query progress."
     elif [[ "${dr_action}" == "progress_query" ]]; then
         if [[ -z ${dr_site} ]];then
             dr_site="--action=deploy"
