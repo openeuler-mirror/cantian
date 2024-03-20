@@ -63,6 +63,15 @@ static void fill_cbo_stats_column(cbo_stats_column_t *cbo_column, tse_cbo_stats_
     }
 }
 
+static void fill_cbo_stats_index(cbo_stats_index_t *index, uint32_t *ndv_keys, uint32 idx_id)
+{
+    if (index != NULL) {
+        *(ndv_keys + idx_id) = index->distinct_keys;
+    } else {
+        *(ndv_keys + idx_id) = 0;
+    }
+}
+
 static void fill_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, tianchi_cbo_stats_t *stats,
                                    cbo_stats_table_t *table_stats)
 {
@@ -76,11 +85,7 @@ static void fill_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, tia
     }
     for (uint32 idx_id = 0; idx_id < entity->table.desc.index_count; idx_id++) {
         cbo_stats_index_t *index = knl_get_cbo_index(handle, entity, idx_id);
-        if (index != NULL) {
-            *(stats->tse_cbo_stats_table.ndv_keys + idx_id) = index->distinct_keys;
-        } else {
-            *(stats->tse_cbo_stats_table.ndv_keys + idx_id) = 0;
-        }
+        fill_cbo_stats_index(index, stats->tse_cbo_stats_table.ndv_keys, idx_id);
     }
 }
 
@@ -99,11 +104,7 @@ static void fill_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *
     }
     for (uint32 idx_id = 0; idx_id < entity->table.desc.index_count; idx_id++) {
         cbo_stats_index_t *index = knl_get_cbo_part_index(handle, entity, stats_idx + stats->first_partid, idx_id);
-        if (index != NULL) {
-            *(stats->tse_cbo_stats_part_table[stats_idx].ndv_keys + idx_id) = index->distinct_keys;
-        } else {
-            *(stats->tse_cbo_stats_part_table[stats_idx].ndv_keys + idx_id) = 0;
-        }
+        fill_cbo_stats_index(index, stats->tse_cbo_stats_part_table[stats_idx].ndv_keys, idx_id);
     }
 }
 
@@ -122,11 +123,7 @@ static void fill_sub_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity
     }
     for (uint32 idx_id = 0; idx_id < entity->table.desc.index_count; idx_id++) {
         cbo_stats_index_t *index = knl_get_cbo_subpart_index(handle, entity, part_id, idx_id, subpart_id);
-        if (index != NULL) {
-            *(stats->tse_cbo_stats_part_table[stats_idx].ndv_keys + idx_id) = index->distinct_keys;
-        } else {
-            *(stats->tse_cbo_stats_part_table[stats_idx].ndv_keys + idx_id) = 0;
-        }
+        fill_cbo_stats_index(index, stats->tse_cbo_stats_part_table[stats_idx].ndv_keys, idx_id);
     }
 }
 
