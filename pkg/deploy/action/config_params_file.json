@@ -13,7 +13,7 @@
   "metadata_logic_ip": "10.77.78.3",
   "storage_logic_ip": "10.77.78.4",
   "db_type": "0",
-  "mes_ssl_switch": false,
+  "mes_ssl_switch": true,
   "mysql_metadata_in_cantian": true,
   "MAX_ARCH_FILES_SIZE": "300G",
   "ca_path": "/opt/certificate/ca.crt",
