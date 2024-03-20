@@ -247,6 +247,7 @@ void update_undo_ctx_active_workers(undo_context_t *ctx, undo_set_t *undo_set)
 
 void rd_tx_begin(knl_session_t *session, log_entry_t *log)
 {
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
     xid_t *xid = (xid_t *)log->data;
     if (session->kernel->undo_ctx.undos == NULL) {
         undo_set_t *undo_set = MY_UNDO_SET(session);
@@ -266,7 +267,7 @@ void rd_tx_begin(knl_session_t *session, log_entry_t *log)
     if (XID_INST_ID(*xid) != session->kernel->id) {
         return;
     }
-    if (!DB_IS_PRIMARY(&session->kernel->db) && !DB_NOT_READY(session)) {
+    if (!DB_IS_PRIMARY(&session->kernel->db) && !DB_NOT_READY(session) && dtc_rcy->full_recovery) {
         tx_id_t tx_id = tx_xmap_get_txid(session, xid->xmap);
         undo_t *undo = &session->kernel->undo_ctx.undos[tx_id.seg_id];
         tx_item_t *tx_item = &undo->items[tx_id.item_id];
@@ -324,7 +325,7 @@ void rd_tx_end(knl_session_t *session, log_entry_t *log)
     undo_t *undo = &undo_set->undos[tx_id.seg_id];
     tx_item_t *tx_item = &undo->items[tx_id.item_id];
     bool32 is_skip = session->page_stack.is_skip[session->page_stack.depth - 1];
-
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
     if (session->log_diag) {
         txn->scn = redo->scn;
         txn->status = (uint8)XACT_END;
@@ -347,7 +348,7 @@ void rd_tx_end(knl_session_t *session, log_entry_t *log)
     }
 
     if (XMAP_INST_ID(redo->xmap) == session->kernel->id && !is_skip && !DB_IS_PRIMARY(&session->kernel->db) &&
-        !DB_NOT_READY(session)) {
+        !DB_NOT_READY(session) && dtc_rcy->full_recovery) {
         cm_spin_lock(&tx_item->lock, &session->stat->spin_stat.stat_txn);
         tx_item->rmid = CT_INVALID_ID16;
         cm_spin_unlock(&tx_item->lock);
