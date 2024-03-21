@@ -156,8 +156,10 @@ status_t dtc_rcy_set_item_update_need_replay(rcy_set_bucket_t *bucket, page_id_t
         }
     }
     while (item != NULL) {
-        if (IS_SAME_PAGID(item->page_id, page_id) && (item->last_dirty_lsn <= curr_page_lsn)) {
-            item->need_replay = need_replay;
+        if (IS_SAME_PAGID(item->page_id, page_id)) {
+            if (item->last_dirty_lsn <= curr_page_lsn) {
+                item->need_replay = need_replay;
+            }
             return CT_SUCCESS;
         }
         item = item->next_item;
