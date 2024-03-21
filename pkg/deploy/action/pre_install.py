@@ -144,6 +144,9 @@ class ConfigChecker:
         except Exception as error:
             LOG.error('redo_num type must be int : %s', str(error))
             return False
+        if int(value) < 3 or int(value) > 256:
+            LOG.error('redo_num cannot be less than 3 or more than 256')
+            return False
         return True
 
     @staticmethod

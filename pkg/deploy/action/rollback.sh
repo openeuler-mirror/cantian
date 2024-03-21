@@ -11,6 +11,7 @@ CMS_CHECK_FILE='/opt/cantian/action/fetch_cls_stat.py'
 CHECK_POINT_FILE=${CURRENT_PATH}/cantian/upgrade_checkpoint.sh
 CHECK_POINT_FLAG=/opt/cantian/check_point.success
 CLEAR_MEM_FILE=/opt/cantian/dbstor/tools/cs_clear_mem.sh
+DR_DEPLOY_FLAG=${CURRENT_PATH}/../config/.dr_deploy_flag
 MYSQL_MOUNT_PATH=/opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir
 UPGRADE_SUCCESS_FLAG=/opt/cantian/pre_upgrade_${ROLLBACK_MODE}.success
 BACKUP_NOTE=/opt/backup_note
@@ -519,7 +520,7 @@ function upgrade_checkpoint() {
 function clear_tag_file() {
     local ctbackup_flag=/mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/upgrade/rollup_bak_"${back_version}"/call_ctback_tool.success
     local offline_commit_flag="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/cantian_offline_upgrade_commit_${source_version}.success"
-    TAG_FILES=("${CHECK_POINT_FLAG}" "${ctbackup_flag}" "${offline_commit_flag}" "${UPGRADE_SUCCESS_FLAG}")
+    TAG_FILES=("${CHECK_POINT_FLAG}" "${ctbackup_flag}" "${offline_commit_flag}" "${UPGRADE_SUCCESS_FLAG}" "${DR_DEPLOY_FLAG}")
     for _file in "${TAG_FILES[@]}";
     do
         if [ -f "${_file}" ];then
@@ -879,6 +880,11 @@ function offline_rollback() {
     if [[ x"${choose}" != x"yes" ]];then
         start_cantian
         check_local_nodes
+    fi
+    if [[ -f ${DR_DEPLOY_FLAG} ]];then
+        local warning_msg="\tThe standby side needs to perform recover operation, otherwise there may be data inconsistency situations"
+        echo -e "\033[5;31mWarning:\033[0m"
+        echo -e "\033[31m${warning_msg}\033[0m"
     fi
     clear_tag_file
     remove_old_user

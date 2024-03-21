@@ -358,14 +358,16 @@ class FailOver(SwitchOver):
             LOG.error(err_msg)
             raise Exception(err_msg)
         running_status = domain_info.get("RUNNINGSTATUS")
-        try:
-            self.check_cluster_status(target_node=self.node_id)
-        except Exception as _er:
-            err_msg = "Check cantian status failed, error: {}".format(_er)
-            LOG.error(err_msg)
-            raise Exception(err_msg) from _er
         if running_status == MetroDomainRunningStatus.Normal:
             self.dr_deploy_opt.split_filesystem_hyper_metro_domain(self.hyper_domain_id)
         self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
             self.hyper_domain_id, DomainAccess.ReadAndWrite)
+        while True:
+            try:
+                self.check_cluster_status(target_node=self.node_id, log_type="info")
+                break
+            except Exception as _er:
+                err_msg = "Check cluster status failed, error: {}".format(_er)
+                LOG.error(err_msg)
+                time.sleep(30)
         LOG.info("Cancel secondary resource protection success.")
