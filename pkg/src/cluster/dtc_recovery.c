@@ -156,8 +156,10 @@ status_t dtc_rcy_set_item_update_need_replay(rcy_set_bucket_t *bucket, page_id_t
         }
     }
     while (item != NULL) {
-        if (IS_SAME_PAGID(item->page_id, page_id) && (item->last_dirty_lsn <= curr_page_lsn)) {
-            item->need_replay = need_replay;
+        if (IS_SAME_PAGID(item->page_id, page_id)) {
+            if (item->last_dirty_lsn <= curr_page_lsn) {
+                item->need_replay = need_replay;
+            }
             return CT_SUCCESS;
         }
         item = item->next_item;
@@ -2027,6 +2029,7 @@ status_t dtc_rcy_fetch_log_batch(knl_session_t *session, log_batch_t **batch_out
                                rcy_log_point->rcy_point.rst_id, rcy_log_point->rcy_point.asn,
                                rcy_log_point->rcy_point.block_id, (uint64)rcy_log_point->rcy_point.lfn,
                                rcy_log_point->rcy_point.lsn);
+                CM_ABORT_REASONABLE(!cm_dbs_is_enable_dbs(), "[DTC RCY] ABORT INFO: DBStore batch not continuous");
                 rcy_node->recover_done = CT_TRUE;
                 continue;
             }
