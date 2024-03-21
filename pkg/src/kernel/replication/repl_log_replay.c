@@ -880,6 +880,7 @@ status_t lrpl_init(knl_session_t *session)
     lrpl->begin_point.asn = CT_INVALID_ASN;
     lrpl->begin_time = cm_now();
     lrpl->end_time = 0;
+    lrpl->curr_point.lsn = 0;
 
     for (i = 0; i < CT_MAX_LOG_FILES; i++) {
         lrpl->log_handle[i] = -1;
