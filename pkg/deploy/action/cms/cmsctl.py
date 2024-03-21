@@ -332,7 +332,7 @@ CMS_CONFIG = {
     "_DISK_DETECT_FILE": "gcc_file_detect_disk,",
     "_STOP_RERUN_CMS_SCRIPT": "/opt/cantian/action/cms/cms_reg.sh",
     "_EXIT_NUM_COUNT_FILE": "/opt/cantian/cms/cfg/exit_num.txt",
-    "_CMS_NODE_FAULT_THRESHOLD": "5",
+    "_CMS_NODE_FAULT_THRESHOLD": "6",
     "_CMS_MES_THREAD_NUM": "5",
     "_CMS_MES_MAX_SESSION_NUM": "40",
     "_CMS_MES_MESSAGE_POOL_COUNT": "1",

@@ -42,7 +42,7 @@ extern "C" {
 #define CMS_VOTE_RES_MAGIC (*((uint64 *)"VOTE_RES"))
 #define CMS_VOTE_INIT_MAGIC (*((uint64 *)"VOTE_INIT"))
 #define CMS_VOTE_RESULT_OFFSET  (OFFSET_OF(vote_result_ctx_t, vote_round))
-#define CMS_VOTE_VALID_PERIOD 5000
+#define CMS_VOTE_VALID_PERIOD 4000
 // reserve 100 blocks
 #define CMS_VOTE_DATA_GCC_OFFSET (CMS_MES_CHANNEL_OFFSET + sizeof(cms_mes_channel_t) + CMS_RESERVED_BLOCKS_SIZE)
 
