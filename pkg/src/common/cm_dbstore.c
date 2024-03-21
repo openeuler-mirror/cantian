@@ -92,6 +92,7 @@ status_t dbs_init_lib(void)
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileWrite",                   (void **)(&intf->dbs_file_write)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileRead",                    (void **)(&intf->dbs_file_read)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileRemove",                  (void **)(&intf->dbs_file_remove)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsClearCmsNameSpace",           (void **)(&intf->dbs_clear_cms_name_space)));
 
     // pagepool
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "CreatePagePool",                 (void **)(&intf->create_pagepool)));
