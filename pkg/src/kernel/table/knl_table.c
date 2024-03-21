@@ -13838,13 +13838,13 @@ status_t db_analyze_table_part(knl_session_t *session, knl_analyze_tab_def_t *de
     knl_dictionary_t dc;
     bool32 sys_table = CT_FALSE;
     stats_load_info_t load_info;
+    status_t result = CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_ANALYZED_DATA_FAIL, &result, CT_ERROR);
 
     stats_init_stats_option(&stats_option, def);
-
     if (db_analyze_check_sample(stats_option.sample_ratio, stats_option.sample_level) != CT_SUCCESS) {
         return CT_ERROR;
     }
-
     if (dc_open(session, &user, &name, &dc) != CT_SUCCESS) {
         return CT_ERROR;
     }
@@ -13884,8 +13884,8 @@ status_t db_analyze_table_part(knl_session_t *session, knl_analyze_tab_def_t *de
         return CT_ERROR;
     }
     stats_flush_logic_log(session, &dc, &load_info);
-    status_t result = stats_refresh_dc(session, &dc, load_info); 
-    if (result != CT_SUCCESS) {
+
+    if (stats_refresh_dc(session, &dc, load_info) != CT_SUCCESS) {
         unlock_tables_directly(session);
         stats_dc_invalidate(session, &dc);
         dc_close(&dc);
@@ -13894,7 +13894,6 @@ status_t db_analyze_table_part(knl_session_t *session, knl_analyze_tab_def_t *de
 
     unlock_tables_directly(session);
     dc_close(&dc);
-    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_ANALYZED_DATA_FAIL, &result, CT_ERROR);
     SYNC_POINT_GLOBAL_END;
     return result;
 }
@@ -14063,7 +14062,7 @@ status_t db_analyze_table(knl_session_t *session, knl_analyze_tab_def_t *def, bo
     bool32 unsupport_type = CT_FALSE;
     bool32 need_invalidate = CT_FALSE;
     status_t status = CT_SUCCESS;
-
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_ANALYZED_DATA_FAIL, &status, CT_ERROR);
     stats_init_stats_option(&stats_option, def);
 
     if (db_analyze_check_sample(stats_option.sample_ratio, stats_option.sample_level) != CT_SUCCESS) {
@@ -14094,7 +14093,7 @@ status_t db_analyze_table(knl_session_t *session, knl_analyze_tab_def_t *def, bo
     if (need_invalidate) {
         stats_dc_invalidate(session, &dc);
     }
-    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_ANALYZED_DATA_FAIL, &status, CT_ERROR);
+
     SYNC_POINT_GLOBAL_END;
     return status;
 }
