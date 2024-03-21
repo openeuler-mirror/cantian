@@ -2013,6 +2013,7 @@ status_t dtc_rcy_fetch_log_batch(knl_session_t *session, log_batch_t **batch_out
                                rcy_log_point->rcy_point.rst_id, rcy_log_point->rcy_point.asn,
                                rcy_log_point->rcy_point.block_id, (uint64)rcy_log_point->rcy_point.lfn,
                                rcy_log_point->rcy_point.lsn);
+                CM_ABORT_REASONABLE(!cm_dbs_is_enable_dbs(), "[DTC RCY] ABORT INFO: DBStore batch not continuous");
                 rcy_node->recover_done = CT_TRUE;
                 continue;
             }
