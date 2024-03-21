@@ -380,8 +380,8 @@ status_t mes_uc_add_buf_list_to_msg_head(dpuc_msg *mes_uc_msg, mes_message_head_
 int32_t mes_uc_send_msg_ack_callback(int32_t result, dpuc_msg_param_s *msg_param, void *context)
 {
     if (result != RETURN_OK) {
-        CT_LOG_RUN_ERR("mes uc send failed, ret %d, eid(0x%lx -> 0x%lx) opcode %u",
-                       result, msg_param->sendEid, msg_param->recvEid, msg_param->uiOpcode);
+        MES_LOGGING(MES_LOGGING_SEND, "mes uc send failed, ret %d, eid(0x%lx -> 0x%lx) opcode %u",
+                    result, msg_param->sendEid, msg_param->recvEid, msg_param->uiOpcode);
     }
 
     if (msg_param == NULL) {
