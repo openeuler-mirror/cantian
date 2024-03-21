@@ -45,8 +45,9 @@ function input_params_check() {
 # 修改用户用户组
 function initUserAndGroup()
 {
-    useradd ${cantian_user} -s /sbin/nologin -G cantiangroup -u 6000 > /dev/null 2>&1
+    useradd ${cantian_user} -s /sbin/nologin -u 6000 > /dev/null 2>&1
     usermod -a -G cantiangroup ctmgruser
+    usermod -a -G cantiangroup ${cantian_user}
     usermod -a -G ${deploy_group} ${cantian_user}
 }
 

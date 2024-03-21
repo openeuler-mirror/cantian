@@ -953,9 +953,12 @@ class DRDeploy(object):
             dbstor_pwd = input()
             cantian_pwd = input()
             comfirm_cantian_pwd = input()
-            cmd = "echo -e \"%s\\n%s\\n%s\\n%s\"|sh %s/install.sh %s" \
+            cert_encrypt_pwd = ""
+            if self.dr_deploy_info.get("mes_ssl_switch"):
+                cert_encrypt_pwd = input()
+            cmd = "echo -e \"%s\\n%s\\n%s\\n%s\\n%s\"|sh %s/install.sh %s" \
                   % (dbstor_user, dbstor_pwd,
-                     cantian_pwd, comfirm_cantian_pwd,
+                     cantian_pwd, comfirm_cantian_pwd, cert_encrypt_pwd,
                      ctl_file_path, DR_DEPLOY_CONFIG)
             _, output, stderr = exec_popen(cmd, timeout=180)
             if "install success" not in output:

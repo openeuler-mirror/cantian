@@ -2487,7 +2487,7 @@ class Installer:
                 sql_file))
             return_code, stdout_data, stderr_data = _exec_popen(cmd)
 
-        output = "%s%s" % (str(stdout_data), str(stderr_data))
+        output = "%s%s".replace("password", "***") % (str(stdout_data), str(stderr_data))
         if g_opts.db_passwd in output:
             output = "execute ctsql file failed"
         log("Execute sql file %s output: %s" % (sql_file, output))

@@ -7,7 +7,6 @@ from storage_operate.dr_deploy_operate.dr_deploy_pre_check import DRDeployPreChe
 from storage_operate.dr_deploy_operate.dr_deploy import DRDeploy
 from storage_operate.dr_deploy_operate.dr_undeploy import UNDeploy
 from storage_operate.dr_deploy_operate.dr_deploy_progress_query import ProgressQuery
-from storage_operate.dr_deploy_operate.dr_deploy_full_sync import FullSyncRepPair
 from storage_operate.dr_deploy_operate.dr_deploy_switchover import SwitchOver, DRRecover, FailOver
 from storage_operate.dr_deploy_operate.update_dr_params import UpdateDRParams
 
@@ -15,7 +14,7 @@ HELP_MSG = "example:\n" \
            "        sh appctl.sh dr_operate pre_check active/standby --conf=config_file_path\n" \
            "        sh appctl.sh dr_operate deploy standby/active -" \
            "-mysql_cmd='/usr/local/mysql/bin/mysql' --mysql_user=myuser\n" \
-           "        sh appctl.sh dr_operate progress_query --action=deploy/full_sync --display=table/json\n" \
+           "        sh appctl.sh dr_operate progress_query --action=deploy --display=table/json\n" \
            "        sh appctl.sh dr_operate undeploy active/standby\n" \
            "        sh appctl.sh dr_operate switch_over\n" \
            "        sh appctl.sh dr_operate recover\n" \
@@ -53,12 +52,6 @@ class DRDeployOperate(object):
         del sys.argv[1]
         dr_pre_check = UNDeploy()
         dr_pre_check.execute()
-
-    @staticmethod
-    def full_sync():
-        del sys.argv[1]
-        full_sync_rep_pair = FullSyncRepPair()
-        full_sync_rep_pair.execute()
 
     @staticmethod
     def switch_over():

@@ -33,6 +33,7 @@
 #include "cm_utils.h"
 #include "cms_log.h"
 #include "cm_dbs_defs.h"
+#include "cm_dbstore.h"
 
 typedef struct st_gcc_buffer {
     uint64      buff[CMS_BLOCK_SIZE / sizeof(uint64)][(sizeof(cms_gcc_t) / CMS_BLOCK_SIZE + 1)];
@@ -299,6 +300,11 @@ status_t cms_delete_gcc(void)
 
     if (cm_rm_dbs_dir_file(&cluster_name_dir_handle, CMS_GCC_DIR_NAME) != CT_SUCCESS) {
         printf("Failed to delete gcc dir\n");
+        return CT_ERROR;
+    }
+
+    if (dbs_global_handle()->dbs_clear_cms_name_space() != CT_SUCCESS) {
+        printf("Failed to clear name space\n");
         return CT_ERROR;
     }
 

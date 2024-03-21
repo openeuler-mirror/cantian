@@ -1,4 +1,5 @@
 import os
+import stat
 import sys
 import json
 import time
@@ -15,6 +16,7 @@ from utils.client.rest_client import get_cur_timestamp, read_helper, write_helpe
 from om_log import REST_LOG as LOG
 
 DEPLOY_PARAM_PATH = '/opt/cantian/config/deploy_param.json'
+DR_DEPLOY_FLAG = os.path.join(CUR_PATH, '../../config/.dr_deploy_flag')
 
 NORMAL_STATE, ABNORMAL_STATE = 0, 1
 
@@ -47,16 +49,16 @@ class SnapShotRestClient(object):
         storage_dbstore_page_fs = config_params.get("storage_dbstore_page_fs")
         page_fs_info = self.storage_operate.query_filesystem_info(storage_dbstore_page_fs)
         page_fs_id = page_fs_info.get("ID")
-        ulog_fs_info = self.storage_operate.query_filesystem_info(storage_dbstore_page_fs)
-        ulog_fs_id = ulog_fs_info.get("ID")
         dr_deploy_opt = DRDeployCommon(self.storage_operate)
         page_pair_info = dr_deploy_opt.query_remote_replication_pair_info(page_fs_id)
-        ulog_pair_info = dr_deploy_opt.query_hyper_metro_filesystem_pair_info(ulog_fs_id)
         if page_pair_info:
             secondary = page_pair_info[0].get("ISPRIMARY")
-            return secondary == "false"
-        if ulog_pair_info:
-            secondary = ulog_pair_info[0].get("ISPRIMARY")
+            if secondary == "true":
+                if not os.path.exists(DR_DEPLOY_FLAG):
+                    modes = stat.S_IWRITE | stat.S_IRUSR
+                    flags = os.O_WRONLY | os.O_TRUNC | os.O_CREAT
+                    with os.fdopen(os.open(DR_DEPLOY_FLAG, flags, modes), 'w', encoding='utf-8') as file:
+                        file.write("")
             return secondary == "false"
         LOG.info("Current node is not dr or is primary")
         return False

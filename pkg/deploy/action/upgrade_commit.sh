@@ -207,29 +207,32 @@ function offline_upgrade_commit() {
         exit 1
     fi
     raise_version_num
-    read -p "Please input dorado_ip:" dorado_ip
-    echo "dorado_ip is: ${dorado_ip}"
-    ping -c 1 "${dorado_ip}" > /dev/null 2>&1
-    if [ $? -ne 0 ]; then
-        logAndEchoError "try to ping storage array ip '${dorado_ip}', but failed"
-        echo "Please check whether input is correct. If the network is disconnected, manually delete snapshot according to the upgrade guide."
-        read -p "Continue upgrade commit please input yes, otherwise exit:" do_snapshot_choice
-        echo ""
-        if [[ x"${do_snapshot_choice}" != x"yes" ]];then
-            exit 1
-        fi
-    fi
-    if [[ x"${do_snapshot_choice}" != x"yes" ]];then
-        read -p "please enter dorado_user: " dorado_user
-        echo "dbstor_user is: ${dorado_user}"
-        read -s -p "please enter dorado_pwd: " dorado_pwd
-        echo ''
-        echo -e "${dorado_user}\n${dorado_pwd}" | python3 ${CURRENT_PATH}/storage_operate/do_snapshot.py delete "${dorado_ip}" "${business_code_backup_path}"
+    deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
+    if [[ x"${deploy_mode}" != x"nas" ]];then
+        read -p "Please input dorado_ip:" dorado_ip
+        echo "dorado_ip is: ${dorado_ip}"
+        ping -c 1 "${dorado_ip}" > /dev/null 2>&1
         if [ $? -ne 0 ]; then
-            logAndEchoError "delete snapshot failed"
-            exit 1
+            logAndEchoError "try to ping storage array ip '${dorado_ip}', but failed"
+            echo "Please check whether input is correct. If the network is disconnected, manually delete snapshot according to the upgrade guide."
+            read -p "Continue upgrade commit please input yes, otherwise exit:" do_snapshot_choice
+            echo ""
+            if [[ x"${do_snapshot_choice}" != x"yes" ]];then
+                exit 1
+            fi
         fi
-        logAndEchoInfo "delete snapshot success."
+        if [[ x"${do_snapshot_choice}" != x"yes" ]];then
+            read -p "please enter dorado_user: " dorado_user
+            echo "dbstor_user is: ${dorado_user}"
+            read -s -p "please enter dorado_pwd: " dorado_pwd
+            echo ''
+            echo -e "${dorado_user}\n${dorado_pwd}" | python3 ${CURRENT_PATH}/storage_operate/do_snapshot.py delete "${dorado_ip}" "${business_code_backup_path}"
+            if [ $? -ne 0 ]; then
+                logAndEchoError "delete snapshot failed"
+                exit 1
+            fi
+            logAndEchoInfo "delete snapshot success."
+        fi
     fi
     touch "${cluster_commit_flag}" && chmod 400 "${cluster_commit_flag}"
     # 等待创建的标记文件生效

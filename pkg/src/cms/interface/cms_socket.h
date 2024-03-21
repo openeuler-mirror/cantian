@@ -34,7 +34,7 @@ extern "C" {
 #endif
 
 #define CT_ERROR_CONN_CLOSED      (-2)
-#define CMS_RETRY_CONN_COUNT      5
+#define CMS_RETRY_CONN_COUNT      6
 #define CMS_RETRY_CONN_INTERVAL   1000
 #define CMS_UDS_LISTEN_BACKLOG    20
 #define CMS_CLI_UDS_SEND_TMOUT    1000

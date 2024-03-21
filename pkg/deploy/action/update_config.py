@@ -150,7 +150,6 @@ def update_cms_conf(action, key, value):
     config["group"] = get_env_info("cantian_group")
     config["user_profile"] = "/home/cantian/.bashrc"
     config["user_home"] = "/home/cantian"
-    config["gcc_type"] = "NFS"
     config["share_logic_ip"] = deploy_config.get("share_logic_ip")
     write_config_file(file_path, config)
 
