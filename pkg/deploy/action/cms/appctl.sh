@@ -128,32 +128,34 @@ function clear_shm()
 }
 
 function iptables_accept() {
-    ret=`iptables -L INPUT | grep ACCEPT | grep 14587 | grep udp | wc -l`
+    echo "start accept iptables"
+    ret=`iptables -L INPUT -w 60 | grep ACCEPT | grep 14587 | grep udp | wc -l`
     if [ ${ret} != 0 ];then
-        iptables -I INPUT -p udp --sport 14587 -j ACCEPT
+        iptables -I INPUT -p udp --sport 14587 -j ACCEPT -w 60
     fi
-    ret=`iptables -L FORWARD | grep ACCEPT | grep 14587 | grep udp | wc -l`
+    ret=`iptables -L FORWARD -w 60 | grep ACCEPT | grep 14587 | grep udp | wc -l`
     if [ ${ret} != 0 ];then
-        iptables -I FORWARD -p udp --sport 14587 -j ACCEPT
+        iptables -I FORWARD -p udp --sport 14587 -j ACCEPT -w 60
     fi
-    ret=`iptables -L OUTPUT | grep ACCEPT | grep 14587 | grep udp | wc -l`
+    ret=`iptables -L OUTPUT -w 60 | grep ACCEPT | grep 14587 | grep udp | wc -l`
     if [ ${ret} != 0 ];then
-        iptables -I OUTPUT -p udp --sport 14587 -j ACCEPT
+        iptables -I OUTPUT -p udp --sport 14587 -j ACCEPT -w 60
     fi
 }
 
 function iptables_delete() {
-    ret=`iptables -L INPUT | grep ACCEPT | grep 14587 | grep udp | wc -l`
+    echo "start delete iptables"
+    ret=`iptables -L INPUT -w 60 | grep ACCEPT | grep 14587 | grep udp | wc -l`
     if [ ${ret} != 0 ];then
-        iptables -D INPUT -p udp --sport 14587 -j ACCEPT
+        iptables -D INPUT -p udp --sport 14587 -j ACCEPT -w 60
     fi
-    ret=`iptables -L FORWARD | grep ACCEPT | grep 14587 | grep udp | wc -l`
+    ret=`iptables -L FORWARD -w 60 | grep ACCEPT | grep 14587 | grep udp | wc -l`
     if [ ${ret} != 0 ];then
-        iptables -D FORWARD -p udp --sport 14587 -j ACCEPT
+        iptables -D FORWARD -p udp --sport 14587 -j ACCEPT -w 60
     fi
-    ret=`iptables -L OUTPUT | grep ACCEPT | grep 14587 | grep udp | wc -l`
+    ret=`iptables -L OUTPUT -w 60 | grep ACCEPT | grep 14587 | grep udp | wc -l`
     if [ ${ret} != 0 ];then
-        iptables -D OUTPUT -p udp --sport 14587 -j ACCEPT
+        iptables -D OUTPUT -p udp --sport 14587 -j ACCEPT -w 60
     fi
 }
 
