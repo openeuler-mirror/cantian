@@ -8990,6 +8990,9 @@ status_t knl_checkpoint(knl_handle_t handle, ckpt_type_t type)
         dcs_ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL);
         return CT_SUCCESS;
     } else {
+        if (!DB_IS_PRIMARY(db) && rc_is_master() == CT_FALSE) {
+            return CT_SUCCESS;
+        }
         ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL);
         return CT_SUCCESS;
     }
