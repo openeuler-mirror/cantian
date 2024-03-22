@@ -288,6 +288,11 @@ status_t cms_delete_gcc(void)
     int32 ret = sprintf_s(cluster_dir_name, CMS_PATH_BUFFER_SIZE, "%s_cms", (char *)g_cms_param->cluster_name);
     PRTS_RETURN_IFERR(ret);
 
+    if (dbs_global_handle()->dbs_clear_cms_name_space() != CT_SUCCESS) {
+        printf("Failed to clear name space\n");
+        return CT_ERROR;
+    }
+
     if (cm_get_dbs_root_dir_handle((char *)g_cms_param->fs_name, &root_handle) != CT_SUCCESS) {
         printf("Failed to open root dir\n");
         return CT_ERROR;
@@ -300,11 +305,6 @@ status_t cms_delete_gcc(void)
 
     if (cm_rm_dbs_dir_file(&cluster_name_dir_handle, CMS_GCC_DIR_NAME) != CT_SUCCESS) {
         printf("Failed to delete gcc dir\n");
-        return CT_ERROR;
-    }
-
-    if (dbs_global_handle()->dbs_clear_cms_name_space() != CT_SUCCESS) {
-        printf("Failed to clear name space\n");
         return CT_ERROR;
     }
 
