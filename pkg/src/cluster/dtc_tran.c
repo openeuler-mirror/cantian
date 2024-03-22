@@ -62,8 +62,9 @@ status_t dtc_get_remote_txn_info(knl_session_t *session, bool32 is_scan, xid_t x
         case MES_CMD_TXN_INFO_ACK:
             *txn_info = *(txn_info_t *)MES_MESSAGE_BODY(&message);
             mes_release_message_buf(message.buffer);
-
-            dtc_update_scn(session, txn_info->scn);
+            if (DB_IS_PRIMARY(&session->kernel->db)) {
+                dtc_update_scn(session, txn_info->scn);
+            }
             return CT_SUCCESS;
         case MES_CMD_ERROR_MSG:
             mes_handle_error_msg(message.buffer);
