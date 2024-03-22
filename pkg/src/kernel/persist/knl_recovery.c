@@ -2447,6 +2447,7 @@ void rcy_init_proc(knl_session_t *session)
         rcy_stat->session_util_rate = 0;
         rcy_stat->sleep_time_in_log_add_bucket = 0;
         rcy_stat->session_replay_log_group_count = 0;
+        rcy_stat->wait_cond_time = 0;
  
         CT_LOG_DEBUG_INF("[DTC RCY] init rcy_paral_proc,rcy->capacity=%u, session_id=%u, "
             "sleep_time_in_log_add_bucket=%llu, session_replay_log_group_count=%llu", rcy->capacity,

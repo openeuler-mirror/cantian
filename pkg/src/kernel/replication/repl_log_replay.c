@@ -881,6 +881,7 @@ status_t lrpl_init(knl_session_t *session)
     lrpl->begin_time = cm_now();
     lrpl->end_time = 0;
     lrpl->curr_point.lsn = 0;
+    lrpl->is_replaying = CT_FALSE;
 
     for (i = 0; i < CT_MAX_LOG_FILES; i++) {
         lrpl->log_handle[i] = -1;
