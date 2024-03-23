@@ -2347,6 +2347,9 @@ void arch_proc_init_dbstor(knl_session_t *session, arch_proc_context_t *proc_ctx
     ELAPSED_BEGIN(proc_ctx->arch_record_time.start_time);
     ELAPSED_BEGIN(proc_ctx->arch_record_time.start_intf_time);
     ELAPSED_BEGIN(proc_ctx->check_time_interval_pitr);
+
+    arch_set_tmp_filename(proc_ctx->tmp_file_name, proc_ctx, proc_ctx->session->kernel->id);
+    CT_LOG_RUN_INF("[ARCH] set tmp arch file name: %s", proc_ctx->tmp_file_name);
 }
 
 void arch_proc_init_file(knl_session_t *session, arch_proc_context_t *proc_ctx, uint64 *sleep_time)
@@ -2366,9 +2369,19 @@ static void arch_proc(thread_t *thread)
 
     cm_set_thread_name("arch_proc");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
-
+    repl_role_t last_role = session->kernel->db.ctrl.core.db_role;
     while (!thread->closed) {
-        if (DB_NOT_READY(session) || !proc_ctx->enabled) {
+        if (last_role != REPL_ROLE_PRIMARY && DB_IS_PRIMARY(&session->kernel->db)) {
+            last_role = REPL_ROLE_PRIMARY;
+            proc_ctx->last_archived_log_record.start_lsn = dtc_my_ctrl(session)->rcy_point.lsn;
+            proc_ctx->last_archived_log_record.end_lsn = dtc_my_ctrl(session)->rcy_point.lsn;
+            proc_ctx->last_archived_log_record.cur_lsn = dtc_my_ctrl(session)->rcy_point.lsn;
+            device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
+            (void)arch_clear_tmp_file(arch_file_type, proc_ctx->tmp_file_name);
+            CT_LOG_RUN_INF("[ARCH] swtich role to pirmary, set start_lsn %llu.",
+                proc_ctx->last_archived_log_record.start_lsn);
+        }
+        if (!DB_IS_PRIMARY(&session->kernel->db) || DB_NOT_READY(session) || !proc_ctx->enabled) {
             cm_sleep(200);
             continue;
         }
