@@ -1670,6 +1670,52 @@ bool8 dtc_rcy_check_recovery_is_done(knl_session_t *session, uint32 idx)
     return CT_FALSE;
 }
 
+void dtc_standby_update_lrp(knl_session_t *session, uint32 idx, uint32 size_read)
+{
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        return;
+    }
+
+    // just update ctrl lrp point in lrpl_proc
+    lrpl_context_t *lrpl_ctx = &session->kernel->lrpl_ctx;
+    if (lrpl_ctx->is_replaying == CT_FALSE) {
+        return;
+    }
+
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+    dtc_rcy_node_t *rcy_node = &dtc_rcy->rcy_nodes[idx];
+    // find last lsn in log
+    log_batch_t *batch = NULL;
+    log_batch_t *tmp_batch = DTC_RCY_GET_CURR_BATCH(dtc_rcy, idx);
+    uint32 left_size;
+    for (;;) {
+        left_size = size_read - rcy_node->read_pos;
+        if (left_size < sizeof(log_batch_t) || left_size < tmp_batch->space_size) {
+            break;
+        }
+        batch = DTC_RCY_GET_CURR_BATCH(dtc_rcy, idx);
+        rcy_node->read_pos += batch->space_size;
+        tmp_batch = DTC_RCY_GET_CURR_BATCH(dtc_rcy, idx);
+    }
+    if (batch == NULL) {
+        return;
+    }
+    rcy_node->read_pos = 0;
+    dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, idx);
+    CT_LOG_DEBUG_INF("ctrl lsn %llu lfn %llu ,log end lsn %llu, lfn %llu", ctrl->lsn, ctrl->lfn, batch->head.point.lsn,
+                     (uint64)batch->head.point.lfn);
+    if (ctrl->lrp_point.lsn < batch->head.point.lsn) {
+        ctrl->lrp_point = batch->head.point;
+        ctrl->scn = DB_CURR_SCN(session);
+        ctrl->lsn = batch->head.point.lsn;
+        ctrl->lfn = (uint64)batch->head.point.lfn;
+        if (dtc_save_ctrl(session, idx) != CT_SUCCESS) {
+            CM_ABORT(0, "ABORT INFO: save core control file failed when update standby cluster ctrl");
+        }
+    }
+    return;
+}
+
 status_t dtc_rcy_read_node_log(knl_session_t *session, uint32 idx, uint32 *size_read)
 {
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
@@ -1697,8 +1743,9 @@ status_t dtc_rcy_read_node_log(knl_session_t *session, uint32 idx, uint32 *size_
             status == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED);
         if (!DB_IS_PRIMARY(&session->kernel->db) && (*size_read == 0)) {
             CT_LOG_DEBUG_INF("[DTC RCY] finish read online redo log of crashed node=%u, logfile_id=%u, size_read=%u",
-                             rcy_node->node_id, logfile_id, *size_read);
+                            rcy_node->node_id, logfile_id, *size_read);
         } else {
+            dtc_standby_update_lrp(session, idx, *size_read);
             CT_LOG_RUN_INF("[DTC RCY] finish read online redo log of crashed node=%u, logfile_id=%u, size_read=%u",
                            rcy_node->node_id, logfile_id, *size_read);
         }
@@ -2513,13 +2560,15 @@ static void dtc_rcy_analyze_paral_proc(thread_t *thread)
     CT_LOG_RUN_INF("[DTC RCY] dtc_rcy_analyze_paral_proc finish, rcy_set ref num=%u", dtc_rcy->rcy_set_ref_num);
 }
 
-bool32 is_min_batch_lsn(uint64 batch_lsn)
+bool32 is_min_batch_lsn(uint64 batch_lsn, knl_scn_t *batch_scn, bool32 *has_batch)
 {
     log_batch_t *batch = NULL;
     for (uint32 idx = 0; idx < DTC_RCY_PARAL_BUF_LIST_SIZE; idx++) {
+        *batch_scn = MAX(*batch_scn, g_replay_paral_mgr.batch_scn[idx]);
         if (g_replay_paral_mgr.group_num[idx] == 0) {
             continue;
         }
+        *has_batch = CT_TRUE;
         batch = (log_batch_t *)g_replay_paral_mgr.buf_list[idx].aligned_buf;
         if (batch_lsn > batch->lsn) {
             CT_LOG_DEBUG_INF("batch_lsn %llu is not min, batch->lsn %llu", batch_lsn, batch->lsn);
@@ -2534,19 +2583,21 @@ void dtc_update_standby_cluster_scn(knl_session_t *session, uint32 idx)
     if (DB_IS_PRIMARY(&session->kernel->db)) {
         return;
     }
+    knl_scn_t batch_scn = 0;
+    bool32 has_batch = CT_FALSE;
     lrpl_context_t *lrpl_ctx = &session->kernel->lrpl_ctx;
     log_batch_t *batch = (log_batch_t *)g_replay_paral_mgr.buf_list[idx].aligned_buf;
-    lrpl_ctx->curr_point.lsn = batch->lsn;
+    lrpl_ctx->curr_point.lsn = batch->lsn > lrpl_ctx->curr_point.lsn ? batch->lsn : lrpl_ctx->curr_point.lsn;
     date_t rcy_time = cm_now() - g_replay_paral_mgr.batch_rpl_start_time[idx];
     if (rcy_time != 0) {
         lrpl_ctx->lrpl_speed = (double)(batch->space_size) * MICROSECS_PER_SECOND / SIZE_M(1)
                                          / ((double)rcy_time);
     }
-    if (!is_min_batch_lsn(batch->lsn)) {
+    if (!is_min_batch_lsn(batch->lsn, &batch_scn, &has_batch)) {
         return;
     }
-    knl_scn_t batch_scn = MAX(session->kernel->scn, g_replay_paral_mgr.batch_scn[idx]);
-    CT_LOG_DEBUG_INF("update scn, old scn %llu, new scn %llu, batch_scn %llu", session->kernel->scn, batch_scn, g_replay_paral_mgr.batch_scn[idx]);
+    batch_scn = has_batch ? g_replay_paral_mgr.batch_scn[idx] : batch_scn;
+    CT_LOG_DEBUG_INF("update scn, old scn %llu, new scn %llu", session->kernel->scn, batch_scn);
     if (batch_scn > session->kernel->scn) {
         KNL_SET_SCN(&session->kernel->scn, batch_scn);
         if (session->kernel->attr.enable_boc) {
@@ -2574,22 +2625,6 @@ void dtc_rcy_atomic_dec_group_num(knl_session_t *session, uint32 idx, int32 val)
     }
 }
 
-void dtc_standby_update_lrp(knl_session_t *session, uint32 idx)
-{
-    log_batch_t *batch = (log_batch_t *)g_replay_paral_mgr.buf_list[idx].aligned_buf;
-    dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, g_replay_paral_mgr.node_id[idx]);
-    if (ctrl->lrp_point.lsn < batch->head.point.lsn) {
-        ctrl->lrp_point = batch->head.point;
-        ctrl->scn = DB_CURR_SCN(session);
-        ctrl->lsn = batch->head.point.lsn;
-        ctrl->lfn = batch->head.point.lfn;
-        if (dtc_save_ctrl(session, g_replay_paral_mgr.node_id[idx]) != CT_SUCCESS) {
-            CM_ABORT(0, "ABORT INFO: save core control file failed when update standby cluster ctrl");
-        }
-    }
-    return;
-}
-
 static void dtc_rcy_paral_replay_batch(knl_session_t *session, log_cursor_t *cursor, uint32 idx)
 {
     knl_instance_t *kernel = session->kernel;
@@ -2606,7 +2641,6 @@ static void dtc_rcy_paral_replay_batch(knl_session_t *session, log_cursor_t *cur
     g_replay_paral_mgr.group_num[idx] = DTC_RCY_GROUP_NUM_BASE;
     g_replay_paral_mgr.batch_scn[idx] = 0;
     g_replay_paral_mgr.batch_rpl_start_time[idx] = cm_now();
-    dtc_standby_update_lrp(session, idx);
     for (;;) {
         group = log_fetch_group(ctx, cursor);
         if (group == NULL) {

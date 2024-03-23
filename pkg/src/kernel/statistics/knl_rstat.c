@@ -4381,7 +4381,8 @@ status_t stats_gather_indexes(knl_session_t *session, knl_dictionary_t *dc, stat
     stats_index_t     stats_idx;
     btree_t          *btree = NULL;
     errno_t           ret;
-
+    status_t result = CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_INDEX_FAIL, &result, CT_ERROR);
     table = &entity->table;
     btree = (btree_t *)cm_push(session->stack, sizeof(btree_t));
     ret = memset_sp(btree, sizeof(btree_t), 0, sizeof(btree_t));
@@ -4429,8 +4430,6 @@ status_t stats_gather_indexes(knl_session_t *session, knl_dictionary_t *dc, stat
 
     cm_pop(session->stack);
     stats_internal_commit(session, table_stats);
-    status_t result = CT_SUCCESS;
-    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_INDEX_FAIL, &result, CT_ERROR);
     SYNC_POINT_GLOBAL_END;
     return result;
 }
@@ -6551,7 +6550,8 @@ status_t stats_gather_part_index(knl_session_t *session, knl_dictionary_t *dc, s
     uint32 part_no = table_stats->part_stats.part_no;
     table_t          *table = DC_TABLE(dc);
     stats_index_t     stats_idx;
-
+    status_t result = CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_INDEX_FAIL, &result, CT_ERROR)
     CM_SAVE_STACK(session->stack);
     btree_t *btree = (btree_t *)cm_push(session->stack, sizeof(btree_t));
     errno_t ret = memset_sp(btree, sizeof(btree_t), 0, sizeof(btree_t));
@@ -6604,8 +6604,6 @@ status_t stats_gather_part_index(knl_session_t *session, knl_dictionary_t *dc, s
     
     CM_RESTORE_STACK(session->stack);
     stats_internal_commit(session, table_stats);
-    status_t result = CT_SUCCESS;
-    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_INDEX_FAIL, &result, CT_ERROR)
     SYNC_POINT_GLOBAL_END;
     return result;
 }

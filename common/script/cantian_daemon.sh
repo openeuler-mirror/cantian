@@ -185,12 +185,12 @@ do
             CMS_COUNT=$(expr "${CMS_COUNT}" + 1)
             if [ ${cms_process_count} -eq 0 ]; then
                 logAndEchoInfo "[cantian daemon] begin to close iptables. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-                iptables -D INPUT -p udp --sport 14587 -j ACCEPT
-                iptables -D FORWARD -p udp --sport 14587 -j ACCEPT
-                iptables -D OUTPUT -p udp --sport 14587 -j ACCEPT
-                iptables -I INPUT -p udp --sport 14587 -j ACCEPT
-                iptables -I FORWARD -p udp --sport 14587 -j ACCEPT
-                iptables -I OUTPUT -p udp --sport 14587 -j ACCEPT
+                iptables -D INPUT -p udp --sport 14587 -j ACCEPT -w 60
+                iptables -D FORWARD -p udp --sport 14587 -j ACCEPT -w 60
+                iptables -D OUTPUT -p udp --sport 14587 -j ACCEPT -w 60
+                iptables -I INPUT -p udp --sport 14587 -j ACCEPT -w 60
+                iptables -I FORWARD -p udp --sport 14587 -j ACCEPT -w 60
+                iptables -I OUTPUT -p udp --sport 14587 -j ACCEPT -w 60
                 logAndEchoInfo "[cantian daemon] begin to start cms use ${cantian_user}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
                 # 防止重拉cms时，僵尸进程占用文件锁
                 if [ -f "/opt/cantian/cms/cms_server.lck" ]; then

@@ -698,8 +698,10 @@ void dcs_ckpt_trigger(knl_session_t *session, bool32 wait, ckpt_mode_t trigger)
         return;
     }
 
-    ckpt_trigger(session, wait, trigger);
-    if (!DB_IS_CLUSTER(session)) {
+    if (DB_IS_PRIMARY(&session->kernel->db) || rc_is_master()) {
+        ckpt_trigger(session, wait, trigger);
+    }
+    if (!DB_IS_CLUSTER(session) || (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master())) {
         return;
     }
 

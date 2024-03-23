@@ -8990,6 +8990,9 @@ status_t knl_checkpoint(knl_handle_t handle, ckpt_type_t type)
         dcs_ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL);
         return CT_SUCCESS;
     } else {
+        if (!DB_IS_PRIMARY(db) && rc_is_master() == CT_FALSE) {
+            return CT_SUCCESS;
+        }
         ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL);
         return CT_SUCCESS;
     }
@@ -10926,6 +10929,7 @@ uint32 knl_get_global_syncpoint_total_count(void)
 status_t knl_analyze_table_dynamic(knl_handle_t session, knl_analyze_tab_def_t *def)
 {
     status_t ret = CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_COLLECT_SAMPLED_DATA_FAIL, &ret, CT_ERROR);
     knl_session_t *se = (knl_session_t *)session;
 
     if (knl_ddl_enabled(session, CT_FALSE) != CT_SUCCESS) {
@@ -10938,7 +10942,6 @@ status_t knl_analyze_table_dynamic(knl_handle_t session, knl_analyze_tab_def_t *
     } else {
         ret = db_analyze_table(se, def, CT_TRUE);
     }
-    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_COLLECT_SAMPLED_DATA_FAIL, &ret, CT_ERROR);
     SYNC_POINT_GLOBAL_END;
     return ret;
 }
@@ -10946,6 +10949,7 @@ status_t knl_analyze_table_dynamic(knl_handle_t session, knl_analyze_tab_def_t *
 status_t knl_analyze_table(knl_handle_t session, knl_analyze_tab_def_t *def)
 {
     status_t ret = CT_SUCCESS;
+    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_COLLECT_SAMPLED_DATA_FAIL, &ret, CT_ERROR);
     knl_session_t *se = (knl_session_t *)session;
 
     if (knl_ddl_enabled(session, CT_FALSE) != CT_SUCCESS) {
@@ -10958,7 +10962,6 @@ status_t knl_analyze_table(knl_handle_t session, knl_analyze_tab_def_t *def)
     } else {
         ret = db_analyze_table(se, def, CT_FALSE);
     }
-    SYNC_POINT_GLOBAL_START(COLLECT_STATISTICS_COLLECT_SAMPLED_DATA_FAIL, &ret, CT_ERROR);
     SYNC_POINT_GLOBAL_END;
     return ret;
 }
