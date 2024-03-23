@@ -901,7 +901,7 @@ status_t rc_archive_log_offline_node(arch_proc_context_t *proc_ctx, uint32 node_
 bool32 rc_need_archive_log(void)
 {
     knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
-    if (session->kernel->db.ctrl.core.log_mode != ARCHIVE_LOG_ON) {
+    if (session->kernel->db.ctrl.core.log_mode != ARCHIVE_LOG_ON || !DB_IS_PRIMARY(&session->kernel->db)) {
         return CT_FALSE;
     }
     knl_panic_log(g_dtc->profile.node_count < DTC_MAX_NODE_COUNT, "not support node count");

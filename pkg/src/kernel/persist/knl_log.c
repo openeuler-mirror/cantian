@@ -1423,7 +1423,7 @@ static log_point_t log_recycle_get_arch_point(knl_session_t *session, log_point_
     arch_proc_context_t *proc_ctx = NULL;
     uint32 dest = ARCH_DEFAULT_DEST;
 
-    if (is_archive) {
+    if (DB_IS_PRIMARY(&session->kernel->db) && is_archive) {
         proc_ctx = &arch_ctx->arch_proc[dest - 1];
         last_arch_log_record = proc_ctx->last_archived_log_record;
         recycle_point.lsn = MIN(point->lsn, last_arch_log_record.end_lsn);

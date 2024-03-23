@@ -2177,6 +2177,7 @@ EXTER_ATTACK int tse_analyze_table(tianchi_handler_t *tch, const char *db_name,
 
 EXTER_ATTACK int tse_get_cbo_stats(tianchi_handler_t *tch, tianchi_cbo_stats_t *stats)
 {
+    status_t ret;
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     tse_set_no_use_other_sess4thd(session);
@@ -2187,8 +2188,13 @@ EXTER_ATTACK int tse_get_cbo_stats(tianchi_handler_t *tch, tianchi_cbo_stats_t *
     
     knl_session_t *knl_session = &session->knl_session;
     CT_RETURN_IFERR(tse_try_reopen_dc(knl_session, &tse_context->user, &tse_context->table, tse_context->dc));
-    
-    get_cbo_stats(knl_session, DC_ENTITY(tse_context->dc), stats);
+    SYNC_POINT_GLOBAL_START(TSE_GET_CBO_STATS_FAIL, &ret, CT_ERROR);
+    ret = get_cbo_stats(knl_session, DC_ENTITY(tse_context->dc), stats);
+    SYNC_POINT_GLOBAL_END;
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[tse_get_cbo_stats]: get_cbo_stats failed.");
+        return ERR_GENERIC_INTERNAL_ERROR;
+    }
     return CT_SUCCESS;
 }
 
