@@ -1014,7 +1014,6 @@ char* sql_without_plaintext_password(bool contains_plaintext_password, char* sql
 int tse_get_and_reset_err(void)
 {
     int ret = cm_get_error_code();
-    CM_ASSERT(ret != ERR_ERRNO_BASE);
     cm_reset_error();
     return (ret == ERR_ERRNO_BASE) ? CT_ERROR : ret;
 }
