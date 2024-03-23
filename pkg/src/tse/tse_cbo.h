@@ -32,6 +32,6 @@
 #define DEFAULT_RANGE_DENSITY 0.5
 #define PREFER_RANGE_DENSITY 0.8
 
-void get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, tianchi_cbo_stats_t *stats);
+status_t get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, tianchi_cbo_stats_t *stats);
 
 #endif // __TSE_CBO_H__
