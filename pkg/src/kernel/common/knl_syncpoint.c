@@ -619,10 +619,10 @@ knl_global_syncpoint_def g_knl_syncpoint[] = {
       knl_syncpoint_inject_errcode, 0 },
     { COLLECT_STATISTICS_PERSISTENCE_THROUGH_RESULT_FAIL, CT_FALSE, "COLLECT_STATISTICS_PERSISTENCE_THROUGH_RESULT_FAIL", 0,//
       knl_syncpoint_inject_errcode, 0 },
-    { TSE_FILL_CBO_STATS_COL_NULL, CT_FALSE, "TSE_FILL_CBO_STATS_COL_NULL", 0,
-      knl_syncpoint_inject_null, 0 },
-    { TSE_FILL_CBO_STATS_INDEX_NULL, CT_FALSE, "TSE_FILL_CBO_STATS_INDEX_NULL", 0,
-      knl_syncpoint_inject_null, 0 },
+    { TSE_FILL_CBO_STATS_COL_FAIL, CT_FALSE, "TSE_FILL_CBO_STATS_COL_FAIL", 0,
+      knl_syncpoint_inject_errcode, 0 },
+    { TSE_FILL_CBO_STATS_INDEX_FAIL, CT_FALSE, "TSE_FILL_CBO_STATS_INDEX_FAIL", 0,
+      knl_syncpoint_inject_errcode, 0 },
     { TSE_GET_CBO_STATS_FAIL, CT_FALSE, "TSE_GET_CBO_STATS_FAIL", 0,
       knl_syncpoint_inject_errcode, 0 },
 };
