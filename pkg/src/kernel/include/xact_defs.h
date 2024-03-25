@@ -117,7 +117,7 @@ status_t knl_xa_commit(knl_handle_t session, xa_xid_t *xa_xid, uint64 flags, knl
 status_t knl_xa_rollback(knl_handle_t session, xa_xid_t *xa_xid, uint64 flags);
 status_t knl_xa_status(knl_handle_t session, xa_xid_t *xa_xid, xact_status_t *status);
 void knl_xa_reset_rm(void *rm);
-void knl_tx_reset_rm(void *rm);
+void knl_tx_reset_rm(knl_handle_t session, void *rm);
 status_t knl_convert_xa_xid(xa_xid_t *src, knl_xa_xid_t *dst);
 bool32 knl_xa_xid_equal(knl_xa_xid_t *xid1, knl_xa_xid_t *xid2);
 status_t knl_set_session_trans(knl_handle_t session, isolation_level_t level, bool32 is_select);
