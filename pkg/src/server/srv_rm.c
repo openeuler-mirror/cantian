@@ -392,7 +392,7 @@ void srv_shrink_xa_rms(knl_handle_t handle, bool32 force)
                 lock_free_sch_group(&session->knl_session);
                 // used for rollback procs to recover table locks of current residual xa transaction
                 assign_trans_to_bg_rollback(rm);
-                knl_tx_reset_rm(rm);
+                knl_tx_reset_rm(&session->knl_session, rm);
                 CT_LOG_DEBUG_INF("lock free sch group of pending rm.rmid %u", i);
                 release_rm = CT_TRUE;
             }

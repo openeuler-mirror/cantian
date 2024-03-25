@@ -43,7 +43,7 @@
 
 pcr_itl_t g_init_pcr_itl = { .scn = 0, .xid.value = 0, .undo_page.value = 0, .undo_slot = 0, .flags = 0 };
 
-static inline void tx_reset_rm(knl_rm_t *rm)
+static inline void tx_reset_rm(knl_session_t *session, knl_rm_t *rm)
 {
     lock_reset(rm);
     lob_items_reset(rm);
@@ -57,11 +57,15 @@ static inline void tx_reset_rm(knl_rm_t *rm)
     rm->noredo_undo_pages.count = 0;
     rm->noredo_undo_pages.first = INVALID_UNDO_PAGID;
     rm->noredo_undo_pages.last = INVALID_UNDO_PAGID;
+    if (rm->large_page_id != CT_INVALID_ID32) {
+        mpool_free_page(session->kernel->attr.large_pool, rm->large_page_id);
+        rm->large_page_id = CT_INVALID_ID32;
+    }
 }
 
-void knl_tx_reset_rm(void *rm)
+void knl_tx_reset_rm(knl_handle_t session, void *rm)
 {
-    tx_reset_rm((knl_rm_t *)rm);
+    tx_reset_rm((knl_session_t *)session, (knl_rm_t *)rm);
 }
 
 status_t tx_area_init_impl(knl_session_t *session, undo_set_t *undo_set, uint32 lseg_no, uint32 rseg_no,
@@ -667,7 +671,7 @@ static inline void tx_release(knl_session_t *session)
     lock_free(session, rm);
     txn_release(session, undo_set, rm->tx_id);
 
-    tx_reset_rm(rm);
+    tx_reset_rm(session, rm);
 
     session->tx_fpl.count = 0;
     session->tx_fpl.index = 0;
