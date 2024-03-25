@@ -45,8 +45,8 @@ class DRStatusCheck(object):
         err_msg = err_msg + ", Detail:[%s]%s.Suggestion:%s"
         result = ResponseParse(res)
         status_code, error_code, error_des = result.get_res_code()
-        if status_code != 200 or error_code != 0:
-            err_msg = err_msg % (status_code, error_code, error_des)
+        if status_code != 200:
+            err_msg = "Login failed"
             raise Exception(err_msg)
         rsp_code, rsp_result, rsp_data = result.get_rsp_data()
         error_code = rsp_result.get('code')
@@ -209,9 +209,25 @@ class DRStatusCheck(object):
         return result
 
     def query_dr_status(self):
+        data = {
+            "local_con": "Abnormal",
+            "local_system_status": "Abnormal",
+            "remote_system_status": "Abnormal",
+            "remote_device_status": "Abnormal",
+            "rep_link_status": "Abnormal",
+            "metro_domain_status": "Abnormal",
+            "metro_vstore_status": "Abnormal"
+        }
         self.remote_device_id = self.dr_deploy_params.get("remote_device_id")
         hyper_domain_id = self.dr_deploy_params.get("hyper_domain_id")
         vstore_pair_id = self.dr_deploy_params.get("vstore_pair_id")
+        try:
+            local_con = self.query_storage_system_info()
+        except Exception as err:
+            if "the unauthorized REST" in str(err):
+                self.opt_init()
+            if "Connection timed out" in str(err):
+                return data
         try:
             local_system_status = self.query_storage_system_info()
         except Exception as err:

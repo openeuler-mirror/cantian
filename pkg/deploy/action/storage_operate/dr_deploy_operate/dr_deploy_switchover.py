@@ -3,7 +3,7 @@
 import os
 import time
 
-from logic.common_func import read_json_config, get_status, exec_popen, retry
+from logic.common_func import read_json_config, get_status, exec_popen
 from logic.storage_operate import StorageInf
 from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from om_log import LOGGER as LOG
@@ -13,6 +13,11 @@ from utils.config.rest_constant import DomainAccess, MetroDomainRunningStatus, V
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
 LOGICREP_APPCTL_FILE = os.path.join(CURRENT_PATH, "../../logicrep/appctl.sh")
+EXEC_SQL = os.path.join(CURRENT_PATH, "../../cantian_common/exec_sql.py")
+CANTIAN_DISASTER_RECOVERY_STATUS_CHECK = 'echo -e "select DATABASE_ROLE from DV_LRPL_DETAIL;" | '\
+                                         'su -s /bin/bash - cantian -c \'source ~/.bashrc && '\
+                                         'export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && '\
+                                         'python3 -B %s\'' % EXEC_SQL
 
 
 class SwitchOver(object):
@@ -131,6 +136,25 @@ class SwitchOver(object):
         storage_opt = StorageInf((dm_ip, dm_user, dm_passwd))
         storage_opt.login()
         self.dr_deploy_opt = DRDeployCommon(storage_opt)
+
+    def query_database_role(self):
+        """
+        查询当前站点数据库角色
+        :return:
+        """
+        LOG.info("Start querying the replay.")
+        while True:
+            return_code, output, stderr = exec_popen(CANTIAN_DISASTER_RECOVERY_STATUS_CHECK, timeout=20)
+            if return_code:
+                err_msg = "Query database role failed, error:%s." % output + stderr
+                LOG.error(err_msg)
+                raise Exception(err_msg)
+            if "PRIMARY" in output:
+                LOG.info("The current site database role is primary.")
+                break
+            LOG.info("The current site database role is {}".format(output))
+            time.sleep(20)
+        LOG.info("Query the replay success.")
 
     def execute(self):
         """
@@ -331,9 +355,9 @@ class DRRecover(SwitchOver):
             self.standby_cms_res_stop()
             time.sleep(10)
             self.standby_cms_res_start()
-            if self.repl_success_flag:
-                self.standby_cms_purge_backup()
             self.check_cluster_status()
+        if self.repl_success_flag:
+            self.standby_cms_purge_backup()
         LOG.info("DR recovery complete")
 
 
@@ -370,4 +394,5 @@ class FailOver(SwitchOver):
                 err_msg = "Check cluster status failed, error: {}".format(_er)
                 LOG.error(err_msg)
                 time.sleep(30)
+        self.query_database_role()
         LOG.info("Cancel secondary resource protection success.")
