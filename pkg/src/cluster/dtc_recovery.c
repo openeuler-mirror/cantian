@@ -2076,7 +2076,8 @@ status_t dtc_rcy_fetch_log_batch(knl_session_t *session, log_batch_t **batch_out
                                rcy_log_point->rcy_point.rst_id, rcy_log_point->rcy_point.asn,
                                rcy_log_point->rcy_point.block_id, (uint64)rcy_log_point->rcy_point.lfn,
                                rcy_log_point->rcy_point.lsn);
-                CM_ABORT_REASONABLE(!cm_dbs_is_enable_dbs(), "[DTC RCY] ABORT INFO: DBStore batch not continuous");
+                CM_ABORT_REASONABLE(!cm_dbs_is_enable_dbs() || session->kernel->db.recover_for_restore,
+                    "[DTC RCY] ABORT INFO: DBStore batch not continuous");
                 rcy_node->recover_done = CT_TRUE;
                 continue;
             }
@@ -2817,7 +2818,6 @@ status_t dtc_lrpl_load_log_batch(knl_session_t *session, log_batch_t **batch, ui
     lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
 
     while (*batch == NULL) {
-        cm_sleep(DTC_RCY_STANDBY_WAIT_SLEEP_TIME);
         if (dtc_rcy_fetch_log_batch(session, batch, curr_node_idx) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DTC LRPL] failed to extract log batch in paral replay");
             return CT_ERROR;
