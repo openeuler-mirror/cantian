@@ -100,9 +100,11 @@ function system_memory_used_percent() {
     # 获取当前系统内存使用情况
     total_mem=$(free -m | grep Mem | awk '{print $2}')
     used_mem=$(free -m | grep Mem | awk '{print $3}')
+    able_mem=$(free -m | grep Mem | awk '{print $7}')
     
     # 计算内存使用占比
-    mem_usage=$(echo "scale=2; $used_mem / $total_mem * 100" | bc)
+    mem_usage=$(printf "%.2f" $(echo "scale=2; $used_mem / $total_mem * 100" | bc))
+    mem_able=$(printf "%.2f" $(echo "scale=2; $able_mem / $total_mem * 100" | bc))
 }
 
 # 守护进程启动时，默认开启enable cms_reg
@@ -149,12 +151,14 @@ do
 
     # CCB结论：内存阈值主动故障倒换
     system_memory_used_percent
-    if [[ -n ${cms_pid} ]] && [[ $(echo "$mem_usage > ${CMS_MEM_LIMIT}" | bc) -eq 1 ]]; then
-        top5_processes=$(ps aux --sort=-%mem | awk 'NR<=6{print $11, $2, $6/1024/1024}' | awk 'NR>1{printf "%s %s %.2fGB ", $1, $2, $3}')
-        logAndEchoError "[cantian daemon] The top5 processes that occupy the memory are as follows: ${top5_processes}."
-        su -s /bin/bash - "${cantian_user}" -c "sh /opt/cantian/action/cms/cms_reg.sh disable"
-        kill -9 ${cms_pid}
-        logAndEchoError "[cantian daemon] CMS ABORT !!! cause system memory problem, Current usage: ${mem_usage}%."
+    if [[ -n ${cms_pid} ]]; then
+        if [[ $(echo "$mem_usage > ${CMS_MEM_LIMIT}" | bc) -eq 1 ]] || [[ $(echo "$mem_able < 100-${CMS_MEM_LIMIT}" | bc) -eq 1 ]]; then
+            top5_processes=$(ps aux --sort=-%mem | awk 'NR<=6{print $11, $2, $6/1024/1024}' | awk 'NR>1{printf "%s %s %.2fGB ", $1, $2, $3}')
+            logAndEchoError "[cantian daemon] The top5 processes that occupy the memory are as follows: ${top5_processes}."
+            su -s /bin/bash - "${cantian_user}" -c "sh /opt/cantian/action/cms/cms_reg.sh disable"
+            kill -9 ${cms_pid}
+            logAndEchoError "[cantian daemon] CMS ABORT !!! cause system memory problem, Current usage: ${mem_usage}%, Current able: ${mem_able}%."
+        fi
     fi
     
     if [ ! -f ${CMS_ENABLE_FLAG} ]; then
@@ -192,10 +196,6 @@ do
                 iptables -I FORWARD -p udp --sport 14587 -j ACCEPT -w 60
                 iptables -I OUTPUT -p udp --sport 14587 -j ACCEPT -w 60
                 logAndEchoInfo "[cantian daemon] begin to start cms use ${cantian_user}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-                # 防止重拉cms时，僵尸进程占用文件锁
-                if [ -f "/opt/cantian/cms/cms_server.lck" ]; then
-                    rm -rf /opt/cantian/cms/cms_server.lck
-                fi
                 su -s /bin/bash - ${cantian_user} -c "sh /opt/cantian/action/cms/cms_start2.sh -start" >> /opt/cantian/deploy/deploy_daemon.log 2>&1 &
                 logAndEchoInfo "[cantian daemon] starting cms in backstage ${CMS_COUNT} times. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             fi
