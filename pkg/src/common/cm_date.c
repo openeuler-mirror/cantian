@@ -1240,7 +1240,7 @@ static uint32 cm_get_day_of_year(const date_detail_t *detail)
     uint16 *day_tab = (uint16 *)g_month_days[IS_LEAP_YEAR(detail->year)];
     days = 0;
 
-    for (i = 0; i < (uint32)detail->mon - 1; i++) {
+    for (i = 0; i < ((uint32)detail->mon > 0 ? (uint32)detail->mon - 1 : 0); i++) {
         days += day_tab[i];
     }
 
@@ -2936,13 +2936,6 @@ status_t cm_date2text_mysql_ex(uint32 datatype, date_t date, text_t *fmt, uint32
         detail.year = 1;
         detail.mon = 1;
         detail.day = 1;
-    }
-
-    if (detail.year == 0 || detail.mon == 0 || detail.day == 0) {
-        CT_LOG_RUN_ERR("invalid date time, datatype:%u, year:%u, month:%u, date:%u", datatype, detail.year, detail.mon, detail.day);
-        CT_SET_DATETIME_FMT_ERROR;
-        cm_panic(0);
-        return CT_ERROR;
     }
     return cm_detail2text(&detail, &format_text, precision, text, max_len);
 }
