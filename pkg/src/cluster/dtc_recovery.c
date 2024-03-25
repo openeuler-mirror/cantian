@@ -2817,7 +2817,6 @@ status_t dtc_lrpl_load_log_batch(knl_session_t *session, log_batch_t **batch, ui
     lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
 
     while (*batch == NULL) {
-        cm_sleep(DTC_RCY_STANDBY_WAIT_SLEEP_TIME);
         if (dtc_rcy_fetch_log_batch(session, batch, curr_node_idx) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DTC LRPL] failed to extract log batch in paral replay");
             return CT_ERROR;
