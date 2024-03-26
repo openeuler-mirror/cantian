@@ -36,6 +36,7 @@
 #include "dtc_dls.h"
 #include "dtc_recovery.h"
 #include "dtc_context.h"
+#include "dc_tbl.h"
 
 void btree_area_init(knl_session_t *session)
 {
@@ -1712,6 +1713,7 @@ void btree_rd_set_scn(knl_session_t *session, rd_btree_info_t btree_info, rd_btr
     }
 
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+    dc_wait_till_load_finish_standby(session, entry);
     if (entry->entity == NULL) {
         cm_spin_unlock(&entry->lock);
         return;

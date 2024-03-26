@@ -920,6 +920,25 @@ void dc_wait_till_load_finish(knl_session_t *session, dc_entry_t *entry)
     return;
 }
 
+void dc_wait_till_load_finish_standby(knl_session_t *session, dc_entry_t *entry)
+{
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        return;
+    }
+
+    // precondition: entry->lock is locked before this function
+    // postcondition: entry->lock is locked
+    for (;;) {
+        if (!entry->is_loading) {
+            return;
+        }
+        cm_spin_unlock(&entry->lock);
+        cm_sleep(ENTRY_IS_LOADING_INTERVAL);
+        cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+    }
+    return;
+}
+
 status_t dc_load_entity(knl_session_t *session, dc_user_t *user, uint32 oid, dc_entry_t *entry, knl_dictionary_t *dc)
 {
     dc_wait_till_load_finish(session, entry);
