@@ -107,9 +107,11 @@ class FilesystemRunningStatus:
 
 class MetroDomainRunningStatus:
     Normal = "0"              # 正常
-    ToBeRecovered = "2"       # 待恢复
+    Recovering = "1"          # 恢复中
+    Faulty = "2"              # 故障
     Split = "3"               # 分裂
-    Invalid = "6"             # 失效
+    ForceStarted = "4"        # 强制拉起
+    Invalid = "5"             # 失效
 
 
 class VstorePairRunningStatus:
