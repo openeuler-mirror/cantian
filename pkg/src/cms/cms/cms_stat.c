@@ -187,6 +187,7 @@ status_t cms_is_all_restart(bool32 *all_restart)
 {
     uint32 node_count = cms_get_gcc_node_count();
     cms_node_stat_t *node_stat;
+    uint32 detect_timemout = g_cms_param->detect_disk_timeout;
     char disk_hb[32], now_str[32];
     
     for (uint32 node_id = 0; node_id < node_count; node_id++) {
@@ -199,7 +200,11 @@ status_t cms_is_all_restart(bool32 *all_restart)
         uint64_t now_time = cm_now();
         cms_date2str(node_stat->disk_hb, disk_hb, sizeof(disk_hb));
         cms_date2str(now_time, now_str, sizeof(now_str));
-        if (node_stat->disk_hb + g_cms_param->detect_disk_timeout * CMS_SECOND_TRANS_MICROSECOND > cm_now()) {
+        if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
+            detect_timemout = CMS_DBS_DETECT_TIMEOUT;
+        }
+
+        if (node_stat->disk_hb + detect_timemout * CMS_SECOND_TRANS_MICROSECOND > cm_now()) {
             CMS_LOG_INF("node %u cms is online, last disk_hb %s, now time %s", node_id, disk_hb, now_str);
             *all_restart = CT_FALSE;
             return CT_SUCCESS;
