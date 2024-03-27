@@ -59,6 +59,7 @@ typedef struct st_arch_file_attr {
     const char *arch_file_name;
     int32 src_file;
     int32 dst_file;
+    log_file_head_t *log_head;
 } arch_file_attr_t;
 
 uint32 arch_get_arch_start(knl_session_t *session, uint32 node_id)
@@ -1017,10 +1018,16 @@ static status_t arch_write_arch_file_nocompress(knl_session_t *session, aligned_
 static status_t arch_compress_write(arch_file_attr_t *arch_files, knl_compress_t *compress_ctx,
     char *buf, int32 size, bool32 stream_end)
 {
-    knl_compress_set_input(DEFAULT_ARCH_COMPRESS_ALGO, compress_ctx, buf, (uint32)size);
-    CT_LOG_DEBUG_INF("[ARCHIVE] compress log file %s set input data_size %d", arch_files->arch_file_name, size);
+    compress_algo_e compress_alog;
+    if (arch_files->log_head != NULL && arch_files->log_head->cmp_algorithm == COMPRESS_LZ4) {
+        compress_alog = COMPRESS_LZ4;
+    } else {
+        compress_alog = DEFAULT_ARCH_COMPRESS_ALGO;
+    }
+    knl_compress_set_input(compress_alog, compress_ctx, buf, (uint32)size);
+    CT_LOG_DEBUG_INF("[ARCHIVE] compress log file %s set input data_size %d, compress_alog %u.", arch_files->arch_file_name, size, compress_alog);
     for (;;) {
-        if (knl_compress(DEFAULT_ARCH_COMPRESS_ALGO, compress_ctx, stream_end,
+        if (knl_compress(compress_alog, compress_ctx, stream_end,
             compress_ctx->compress_buf.aligned_buf, (uint32)compress_ctx->compress_buf.buf_size) != CT_SUCCESS) {
             return CT_ERROR;
         }
@@ -1041,6 +1048,33 @@ static status_t arch_compress_write(arch_file_attr_t *arch_files, knl_compress_t
     return CT_SUCCESS;
 }
 
+// lz4 compress algorithm needs to write a compress head when starting a compression
+status_t arch_write_lz4_compress_head(bak_t *bak, knl_compress_t *compress_ctx, arch_file_attr_t *arch_files, log_file_head_t *log_head)
+{
+    if (log_head->cmp_algorithm != COMPRESS_LZ4) {
+        return CT_SUCCESS;
+    }
+    LZ4F_preferences_t ref = LZ4F_INIT_PREFERENCES;
+    char *lz4_write_buf = NULL;
+    size_t res;
+
+    ref.compressionLevel = bak->compress_ctx.compress_level;
+    res = LZ4F_compressBegin(compress_ctx->lz4f_cstream, compress_ctx->compress_buf.aligned_buf,
+        (uint32)COMPRESS_BUFFER_SIZE(bak), &ref);
+    if (LZ4F_isError(res)) {
+        CT_THROW_ERROR(ERR_COMPRESS_ERROR, "lz4f", res, LZ4F_getErrorName(res));
+        return CT_ERROR;
+    }
+    lz4_write_buf = compress_ctx->compress_buf.aligned_buf;
+
+    if (cm_write_file(arch_files->dst_file, lz4_write_buf, res) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[ARCHIVE] failed to write archive log file %s size %lu",
+            arch_files->arch_file_name, res);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
 static status_t arch_write_arch_file_compress(knl_session_t *session, aligned_buf_t buf, log_file_t *logfile,
     arch_file_attr_t *arch_files, knl_compress_t *compress_ctx)
 {
@@ -1058,13 +1092,20 @@ static status_t arch_write_arch_file_compress(knl_session_t *session, aligned_bu
 
     // Update archived logfile head if compression needed
     log_file_head_t *arch_log_head = (log_file_head_t *)buf.aligned_buf;
-    arch_log_head->cmp_algorithm = DEFAULT_ARCH_COMPRESS_ALGO;
+    arch_log_head->dbid = session->kernel->db.ctrl.core.dbid;
+    if (logfile->head.cmp_algorithm != COMPRESS_LZ4) {
+        arch_log_head->cmp_algorithm = DEFAULT_ARCH_COMPRESS_ALGO; 
+    }
     // Recalculate checksum for log head
     log_calc_head_checksum(session, arch_log_head);
-
+    
     if (cm_write_file(arch_files->dst_file, buf.aligned_buf, data_size) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[ARCHIVE] failed to write archive log file %s offset size %llu write size %u",
             arch_files->arch_file_name, logfile->head.write_pos - left_size, data_size);
+        return CT_ERROR;
+    }
+
+    if (arch_write_lz4_compress_head(&session->kernel->backup_ctx.bak, compress_ctx, arch_files, &logfile->head) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -1072,6 +1113,7 @@ static status_t arch_write_arch_file_compress(knl_session_t *session, aligned_bu
     arch_ctx->total_bytes += data_size;
     logfile->arch_pos += data_size;
 
+    arch_files->log_head = &logfile->head;
     while (left_size > 0) {
         read_size = (int32)((left_size > buf.buf_size) ? buf.buf_size : left_size);
         if (cm_read_file(arch_files->src_file, buf.aligned_buf, read_size, &data_size) != CT_SUCCESS) {
