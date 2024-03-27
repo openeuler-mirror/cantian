@@ -64,6 +64,7 @@ void dc_fk_indexable(knl_session_t *session, table_t *table, cons_dep_t *dep);
 void estimate_row_len(table_t *table, knl_column_t *column);
 void dc_release_segment_dls(knl_session_t *session, dc_entity_t *entity);
 void dc_wait_till_load_finish(knl_session_t *session, dc_entry_t *entry);
+void dc_wait_till_load_finish_standby(knl_session_t *session, dc_entry_t *entry);
 #ifdef __cplusplus
 }
 #endif

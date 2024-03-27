@@ -65,7 +65,7 @@ fi
 seccomp_status=$(getenforce)
 language=$(localectl | grep "System Locale" |awk -F"=" '{print $2}')
 if [[ ${seccomp_status} == "Enforcing" ]]; then
-    logAndEchoError "The current system seccomp_status is Enforcing. Please switch to Permissive or Disabled and reinstall."
+    logAndEchoError "The current system selinux is Enforcing. Please switch to Permissive or Disabled and reinstall."
     exit 1
 fi
 if [[ ${language} == "zh_CN.UTF-8" ]]; then
@@ -295,13 +295,6 @@ function check_deploy_param() {
         cp -rf "${CONFIG_PATH}"/deploy_param.json /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/
         chmod 600 /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
         chown "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
-    else
-        su -s /bin/bash - "${cantian_user}" -c "python3 -B ${CURRENT_PATH}/implement/check_deploy_param.py"
-        if [ $? -ne 0 ];then
-            logAndEchoError "Check params failed."
-            uninstall
-            exit 1
-        fi
     fi
 }
 

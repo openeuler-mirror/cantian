@@ -2428,6 +2428,37 @@ void dtc_bak_init_file_info(arch_file_info_t *file_info, uint32 inst_id, log_fil
     file_info->inst_id = inst_id;
     file_info->asn = tmp_asn + 1;
     file_info->arch_file_type = cm_device_type(bak->record.path);
+    file_info->tmp_file_handle = INVALID_FILE_HANDLE;
+}
+
+status_t dtc_bak_get_logfile_compress_init(bak_t *bak, knl_compress_t *compress_ctx)
+{
+    if (knl_compress_alloc(bak->record.attr.compress, compress_ctx, CT_TRUE) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] Failed to alloc compress context");
+        return CT_ERROR;
+    }
+    compress_ctx->compress_level = bak->compress_ctx.compress_level;
+    CT_LOG_DEBUG_INF("[BACKUP] compress_level is %u.", compress_ctx->compress_level);
+
+    if (knl_compress_init(bak->record.attr.compress, compress_ctx, CT_TRUE) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] Failed to init compress context");
+        knl_compress_free(bak->record.attr.compress, compress_ctx, CT_TRUE);
+        return CT_ERROR;
+    }
+
+    if (cm_aligned_malloc(COMPRESS_BUFFER_SIZE(bak), "bak compress buffer",
+        &compress_ctx->compress_buf) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)CT_COMPRESS_BUFFER_SIZE, "bak compress buffer");
+        knl_compress_free(bak->record.attr.compress, compress_ctx, CT_TRUE);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+void dtc_bak_get_logfile_compress_free(bak_t *bak, knl_compress_t *compress_ctx)
+{
+    cm_aligned_free(&compress_ctx->compress_buf);
+    knl_compress_free(bak->record.attr.compress, compress_ctx, CT_TRUE);
 }
 
 status_t dtc_bak_get_logfile_by_asn_file(knl_session_t *session, bak_arch_files_t *arch_file_buf,
@@ -2446,12 +2477,14 @@ status_t dtc_bak_get_logfile_by_asn_file(knl_session_t *session, bak_arch_files_
         CT_LOG_RUN_ERR("[BACKUP] failed to read ctrl page for crashed node=%u", inst_id);
         return CT_ERROR;
     }
-    if (knl_compress_alloc(DEFAULT_ARCH_COMPRESS_ALGO, &compress_ctx, CT_TRUE) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[BACKUP] Failed to alloc compress context");
+
+    if (dtc_bak_get_logfile_compress_init(bak, &compress_ctx) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] Failed to init compress context");
         return CT_ERROR;
     }
+    
     if (bak_get_arch_from_redo_prepare(session, &session_bak, &file_info, &rcy_node, &local_file_set) != CT_SUCCESS) {
-        knl_compress_free(DEFAULT_ARCH_COMPRESS_ALGO, &compress_ctx, CT_TRUE);
+        dtc_bak_get_logfile_compress_free(bak, &compress_ctx);
         return CT_ERROR;
     }
     uint32 rst_id = session_bak.kernel->db.ctrl.core.resetlogs.rst_id;
@@ -2474,16 +2507,16 @@ status_t dtc_bak_get_logfile_by_asn_file(knl_session_t *session, bak_arch_files_
             continue;
         }
         dtc_bak_init_file_info(&file_info, inst_id, logfile, tmp_asn, bak);
-        if (bak_get_logfile_file(&session_bak, &file_info, logfile, &compress_ctx) != CT_SUCCESS) {
+        if (bak_get_logfile_file(session, &session_bak, &file_info, logfile, &compress_ctx) != CT_SUCCESS) {
             status = CT_ERROR;
             break;
         }
         tmp_asn += 1;
     }
-    knl_compress_free(DEFAULT_ARCH_COMPRESS_ALGO, &compress_ctx, CT_TRUE);
+    dtc_bak_get_logfile_compress_free(bak, &compress_ctx);
     bak_get_arch_from_redo_free(&compress_ctx, &session_bak, &file_info, &rcy_node, &local_file_set);
     CT_LOG_RUN_INF("[BACKUP] backup logfile from file finished, status %u, end_asn %u.", status, tmp_asn);
-    return CT_SUCCESS;
+    return status;
 }
 
 void bak_set_archfile_info(knl_session_t *session, log_start_end_info_t arch_info,
@@ -2756,7 +2789,13 @@ status_t bak_generate_archfile_file(knl_session_t *session, arch_file_info_t *fi
     uint32 file_index = bak->file_count - 1;
     bak_generate_bak_file(session, bak_path, bak->files[file_index].type, file_index, bak->files[file_index].id, 0,
                           bak_arch_name);
+    if (cm_open_file(file_info->tmp_file_name, O_RDWR | O_SYNC, &file_info->tmp_file_handle) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
     bak->files[file_index].size = cm_device_size(cm_device_type(file_info->tmp_file_name), file_info->tmp_file_handle);
+    CT_LOG_DEBUG_INF("[BACKUP] tmp file %s habdle %u, size %llu.", file_info->tmp_file_name, file_info->tmp_file_handle, bak->files[file_index].size);
+    cm_close_file(file_info->tmp_file_handle);
+    file_info->tmp_file_handle = INVALID_FILE_HANDLE;
     status_t status = cm_rename_device(file_info->arch_file_type, file_info->tmp_file_name, bak_arch_name);
     if (status != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] rename tmp file %s to %s failed", file_info->tmp_file_name, bak_arch_name);
@@ -2816,12 +2855,19 @@ status_t bak_get_logfile_dbstor(knl_session_t *session, arch_file_info_t *file_i
     return CT_SUCCESS;
 }
 
-status_t bak_get_logfile_file(knl_session_t *session, arch_file_info_t *file_info,
+status_t bak_get_logfile_file(knl_session_t *session, knl_session_t *session_bak, arch_file_info_t *file_info,
                               log_file_t *logfile, knl_compress_t *compress_ctx)
 {
-    bak_set_tmp_archfile_name(session, file_info->tmp_file_name);
+    bak_attr_t *attr = &session->kernel->backup_ctx.bak.record.attr;
+    if (attr->compress == COMPRESS_LZ4) {
+        logfile->head.cmp_algorithm = COMPRESS_LZ4;
+        log_calc_head_checksum(session_bak, &logfile->head);
+        session_bak->kernel->attr.enable_arch_compress = CT_TRUE;
+        CT_LOG_DEBUG_INF("[BACKUP] the logfile %s should be compressed.", logfile->ctrl->name);
+    }
+    bak_set_tmp_archfile_name(session_bak, file_info->tmp_file_name);
     CT_LOG_DEBUG_INF("[BACKUP] set tmp_archfile_name %s.", file_info->tmp_file_name);
-    if (arch_archive_file(session, file_info->read_buf, logfile, file_info->tmp_file_name, compress_ctx) != CT_SUCCESS) {
+    if (arch_archive_file(session_bak, file_info->read_buf, logfile, file_info->tmp_file_name, compress_ctx) != CT_SUCCESS) {
         return CT_ERROR;
     }
     if (bak_generate_archfile_file(session, file_info) != CT_SUCCESS) {

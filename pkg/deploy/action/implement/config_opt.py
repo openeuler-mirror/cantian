@@ -29,7 +29,7 @@ def opt_ini_conf(file_path, action, key, value):
 
 
 def cantian_opt_ini_conf(action, key, value):
-    file_path = "/mnt/dbdata/local/cantian/tmp/data/cfg/cantian.ini"
+    file_path = "/mnt/dbdata/local/cantian/tmp/data/cfg/cantiand.ini"
     opt_ini_conf(file_path, action, key, value)
 
 

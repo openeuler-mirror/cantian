@@ -85,6 +85,7 @@ typedef struct st_cms_hb_aync_start_t {
 #define CMS_RETRY_SLEEP_TIME 100
 #define CMS_HB_AYNC_UPDATE_INTERNAL 5000
 #define CMS_CHECK_RES_RUNING_TIMES 10
+#define CMS_DBS_DETECT_TIMEOUT 11
 
 // range lock defs for nfs
 #define CMS_RLOCK_VOTE_RESULT_LOCK_START    (0)
