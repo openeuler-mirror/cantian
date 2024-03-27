@@ -266,6 +266,15 @@ void dtc_rcy_handle_pcn_discon(knl_session_t *session, rcy_set_item_t *item, pag
         return;
     }
     
+    datafile_t *datafile = DATAFILE_GET(session, page_id.file);
+    if (!datafile->ctrl->used || !DATAFILE_IS_ONLINE(datafile)) {
+        CT_LOG_RUN_ERR("[DTC RCY] analyze update page [%u-%u], first_dirty_lsn: %llu,"
+                       "last_dirty_lsn: %llu, curr_dirty_lsn: %llu, pcn[%u-%u]",
+                       page_id.file, page_id.page, item->first_dirty_lsn,
+                       item->last_dirty_lsn, lsn, pcn, item->pcn);
+        dtc_rcy_set_pitr_end_analysis(session->kernel->db.recover_for_restore);
+        return;
+    }
     buf_enter_page(session, page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL);
     if (item->pcn < ((page_head_t *)session->curr_page)->pcn) {
         item->pcn = pcn;
