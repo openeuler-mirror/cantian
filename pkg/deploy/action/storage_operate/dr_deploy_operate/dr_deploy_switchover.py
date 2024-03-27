@@ -33,18 +33,20 @@ class SwitchOver(object):
         self.metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
 
     @staticmethod
-    def check_cluster_status(target_node=None, log_type="error"):
+    def check_cluster_status(target_node=None, log_type="error", check_time=100):
         """
         cms 命令拉起参天后检查集群状态
         :return:
         """
-        check_time = 100
+        check_count = 5
+        if check_time < 50:
+            check_count = 1
         LOG.info("Check cantian status.")
         cmd = "su -s /bin/bash - cantian -c \"cms stat | " \
               "grep -v STAT | awk '{print \$1, \$3, \$6}'\""
         while check_time:
-            time.sleep(20)
-            check_time -= 20
+            time.sleep(check_time // check_count)
+            check_time -= check_time // check_count
             return_code, output, stderr = exec_popen(cmd, timeout=100)
             if return_code:
                 err_msg = "Execute cmd[%s] failed, details:%s" % (cmd, stderr)
@@ -338,6 +340,17 @@ class DRRecover(SwitchOver):
                 self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
                     self.hyper_domain_id, DomainAccess.ReadAndWrite)
                 self.dr_deploy_opt.swap_role_fs_hyper_metro_domain(self.hyper_domain_id)
+            try:
+                self.standby_cms_res_stop()
+            except Exception as _er:
+                try:
+                    self.check_cluster_status(log_type="info", check_time=5)
+                except Exception as _err:
+                    LOG.info("The cantian has stopped")
+                else:
+                    err_msg = "standby cms res stop cantian error."
+                    LOG.error(err_msg)
+                    raise Exception(err_msg)
             self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
                 self.hyper_domain_id, DomainAccess.ReadOnly)
             try:

@@ -225,8 +225,11 @@ class DRStatusCheck(object):
             local_con = self.query_storage_system_info()
         except Exception as err:
             if "the unauthorized REST" in str(err):
-                self.opt_init()
-            if "Connection timed out" in str(err):
+                try:
+                    self.opt_init()
+                except Exception as err:
+                    return data
+            else:
                 return data
         try:
             local_system_status = self.query_storage_system_info()
