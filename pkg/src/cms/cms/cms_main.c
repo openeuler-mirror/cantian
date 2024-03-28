@@ -243,15 +243,17 @@ status_t cms_alloc_g_master_info(void)
 
 static void cms_info_log_print(cms_cmd_def_t* cmd_def)
 {
-    if (cmd_def->cmd_pro_func == cms_local_disk_iostat || cmd_def->cmd_pro_func == cms_node_connected) {
+    if (cmd_def->cmd_pro_func == cms_local_disk_iostat ||
+        cmd_def->cmd_pro_func == cms_node_connected ||
+        cmd_def->cmd_pro_func == cms_node_list) {
+        CT_LOG_RUN_INF("CMS_CMD_DESC:%s.", cmd_def->desc);
         return;
     }
     char dev_type[CMS_DEV_TYPE_BUTT][CMS_MAX_INFO_LEN] = {{"SD"}, {"FILE"}, {"NFS"}, {"DBS"}};
-    CT_LOG_RUN_INF("CMS NODE_ID:%d", (int32)g_cms_param->node_id);
-    CT_LOG_RUN_INF("CMS CMS_HOME:%s", g_cms_param->cms_home);
-    CT_LOG_RUN_INF("CMS GCC_HOME:%s", g_cms_param->gcc_home);
-    CT_LOG_RUN_INF("CMS GCC_TYPE:%s", dev_type[g_cms_param->gcc_type - 1]);
-    CT_LOG_RUN_INF("CMS CMD: %s", cmd_def->desc);
+    CT_LOG_RUN_INF("CMS START INFO NODE_ID:%d, CMS_HOME:%s, GCC_HOME:%s, GCC_TYPE:%s.",
+                   (int32)g_cms_param->node_id, g_cms_param->cms_home, g_cms_param->gcc_home,
+                   dev_type[g_cms_param->gcc_type - 1]);
+    CT_LOG_RUN_INF("CMS_CMD_DESC:%s.", cmd_def->desc);
 }
 
 status_t cm_get_gcc_file_handle()

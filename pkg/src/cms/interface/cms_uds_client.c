@@ -367,7 +367,6 @@ status_t cms_uds_cli_init(uint16 node_id, const char* cms_home)
         return ret;
     }
 
-    CT_LOG_RUN_INF("cms uds client init succ");
     return CT_SUCCESS;
 }
 

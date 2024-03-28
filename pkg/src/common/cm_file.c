@@ -558,7 +558,8 @@ int32 cm_read_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, voi
 
     int64 end = cm_now();
     if (end - start > 50 * MICROSECS_PER_MILLISEC) {
-        CT_LOG_RUN_WAR("cm_read_dbs_file %u elapsed:%lld(ms)", length, (end - start) / MICROSECS_PER_MILLISEC);
+        CT_LOG_RUN_WAR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, "cm_read_dbs_file %u elapsed:%lld(ms)",
+                             length, (end - start) / MICROSECS_PER_MILLISEC);
     }
     return ret;
 }
@@ -582,7 +583,8 @@ status_t cm_write_dbs_file(object_id_t* phandle, char *file_name, uint32 offset,
 
     int64 end = cm_now();
     if (end - start > 50 * MICROSECS_PER_MILLISEC) {
-        CT_LOG_RUN_WAR("cm_write_dbs_file %u elapsed:%lld(ms)", length, (end - start) / MICROSECS_PER_MILLISEC);
+        CT_LOG_RUN_WAR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, "cm_write_dbs_file %u elapsed:%lld(ms)",
+                             length, (end - start) / MICROSECS_PER_MILLISEC);
     }
     return CT_SUCCESS;
 }

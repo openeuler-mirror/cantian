@@ -30,7 +30,7 @@ def main():
             save_file.create_files(cms_nodes_info)
         except Exception as err:
             LOG.error("[result] Fail to record report data in json file, [err_msg] {}".format(str(err)))
-        time.sleep(5)
+        time.sleep(20)
 
 
 if __name__ == "__main__":
