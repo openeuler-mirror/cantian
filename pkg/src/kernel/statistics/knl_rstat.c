@@ -565,8 +565,8 @@ static status_t stats_write_report_hist_value(stats_col_handler_t *column_handle
     cbo_column_hist_t *hist_infos = NULL;
     uint32 buck_pos = column_handler->hist_info.bucket_num;
     text_t old_value;
-    char val_buf[STATS_MAX_BUCKET_SIZE] = { '\0' };
-    char ep_buf[STATS_MAX_BUCKET_SIZE] = { '\0' };
+    char val_buf[STATS_DEC_BUCKET_SIZE] = { '\0' };
+    char ep_buf[STATS_DEC_BUCKET_SIZE] = { '\0' };
     text_t old_ep_num;
 
     old_value.len = 0;
@@ -609,8 +609,8 @@ static status_t stats_put_report_hist_value(knl_session_t *session, stats_col_ha
     knl_column_t *column = column_handler->column;
     uint32 endpoint = column_handler->hist_info.endpoint;
     text_t res_value;
-    char val_buf[STATS_MAX_BUCKET_SIZE] = { '\0' };
-    char ep_buf[STATS_MAX_BUCKET_SIZE] = { '\0' };
+    char val_buf[STATS_DEC_BUCKET_SIZE] = { '\0' };
+    char ep_buf[STATS_DEC_BUCKET_SIZE] = { '\0' };
     text_t value;
     text_t endpoint_value;
 
@@ -1986,7 +1986,7 @@ status_t stats_drop_hists(knl_session_t *session, uint32 uid, uint32 oid, bool32
 
 status_t stats_put_result_value(row_assist_t *ra, text_t *res_value, ct_type_t type)
 {
-    char buf[STATS_MAX_BUCKET_SIZE] = { '\0' };
+    char buf[STATS_DEC_BUCKET_SIZE] = { '\0' };
     text_t value;
     binary_t bin;
     dec8_t d8;
