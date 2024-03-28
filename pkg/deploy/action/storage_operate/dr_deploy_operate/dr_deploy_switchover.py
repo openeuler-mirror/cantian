@@ -39,14 +39,15 @@ class SwitchOver(object):
         :return:
         """
         check_count = 5
-        if check_time < 50:
+        if check_time < 20:
             check_count = 1
         LOG.info("Check cantian status.")
         cmd = "su -s /bin/bash - cantian -c \"cms stat | " \
               "grep -v STAT | awk '{print \$1, \$3, \$6}'\""
+        check_time_step = check_time // check_count
         while check_time:
-            time.sleep(check_time // check_count)
-            check_time -= check_time // check_count
+            time.sleep(check_time_step)
+            check_time -= check_time_step
             return_code, output, stderr = exec_popen(cmd, timeout=100)
             if return_code:
                 err_msg = "Execute cmd[%s] failed, details:%s" % (cmd, stderr)

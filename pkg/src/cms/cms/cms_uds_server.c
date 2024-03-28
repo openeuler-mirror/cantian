@@ -282,7 +282,7 @@ void cms_uds_srv_listen_entry(thread_t* thread)
     status_t ret = CT_SUCCESS;
     cms_cli_msg_req_conn_t req;
     cms_cli_msg_res_conn_t res;
-
+    uint32 loop_cnt = 0;
     while (!thread->closed) {
         sock = CMS_IO_INVALID_SOCKET;
         ret = cms_uds_srv_accept_conn(&sock, &req, &res);
@@ -293,15 +293,25 @@ void cms_uds_srv_listen_entry(thread_t* thread)
             }
             continue;
         }
-        CMS_LOG_INF("accept new conn succ, sock %d, res type %s, inst id %u, session id %llu",
-            sock, req.res_type, req.inst_id, res.session_id);
+        loop_cnt++;
+        if ((loop_cnt & CM_DIGITAL_3) == 0) {
+            CMS_LOG_INF("cms srv accept new conn succ, sock %d, res type %s, inst id %u, session id %llu.",
+                sock, req.res_type, req.inst_id, res.session_id);
+        } else if ((loop_cnt & CM_DIGITAL_3) == 1) {
+            CMS_LOG_INF("uds srv get conn form inst id %u, res type %s, sock %d, session id %llu succ.",
+                req.inst_id, req.res_type, sock, res.session_id);
+        } else {
+            CMS_LOG_INF("accept new uds conn success, sock %d, res type %s, inst id %u, session id %llu.",
+                sock, req.res_type, req.inst_id, res.session_id);
+        }
+
     }
 }
 
 status_t cms_uds_srv_disconn(socket_t sock, cms_res_session_t* res_sessions, uint32 sessions_count)
 {
     status_t ret = CT_SUCCESS;
-
+    static uint32 disconn_cnt = 0;
     for (uint32 i = 0; i < sessions_count; i++) {
         if (res_sessions[i].uds_sock != sock) {
             continue;
@@ -317,7 +327,14 @@ status_t cms_uds_srv_disconn(socket_t sock, cms_res_session_t* res_sessions, uin
             CMS_LOG_INF("process client disconnect cli res req succ, sock %u, sessionId %u", sock, i);
         } else if (res_sessions[i].type == CMS_CLI_TOOL) {
             cms_tool_detect_offline(i);
-            CMS_LOG_INF("process client disconnect cli tool req succ, sock %d sessionId %u", sock, i);
+            if ((disconn_cnt & CM_DIGITAL_3) == 0) {
+                CMS_LOG_INF("process disconnect cli tool req succ, sock %d sessionId %u", sock, i);
+            } else if ((disconn_cnt & CM_DIGITAL_3) == 1) {
+                CMS_LOG_INF("proc disconnect cms tool cli uds req succ, sessionId %u sock %d", i, sock);
+            } else {
+                CMS_LOG_INF("proc client disconnect uds cli tool req succ, sock %d session_id %u", sock, i);
+            }
+            disconn_cnt++;
         }
         break;
     }
@@ -388,7 +405,7 @@ void cms_uds_srv_proc_pevents(struct pollfd *pfd, cms_cli_type_t *type, uint32 c
         } else if (pfd[i].revents == 0 && type[i] == CMS_CLI_RES && timeout == CT_TRUE) {
             cms_handle_sockpoll_timeout(pfd[i].fd, res_sessions, sessions_count);
         } else {
-            CMS_LOG_INF_LIMIT(LOG_PRINT_INTERVAL_SECOND_10, "get other poll event, type %d revents %d",
+            CMS_LOG_INF_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, "get other poll event, type %d revents %d",
                 type[i], pfd[i].revents);
         }
     }

@@ -626,6 +626,8 @@ void cm_cnvrt_time_from_int_to_date_detail(int64 input, date_detail_t *detail);
 
 status_t cm_text2date_mysql(const text_t *text, const text_t *fmt, date_t *date, uint32 datatype);
 
+status_t cm_text2date_binary_mysql(const text_t *text, const text_t *fmt, date_t *date, uint32 datatype);
+
 // decode a date type from mysql into a data_detail_t.
 void cm_decode_date_mysql(date_t date, date_detail_t *detail);
 

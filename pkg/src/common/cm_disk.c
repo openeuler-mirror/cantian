@@ -253,7 +253,8 @@ status_t cm_read_disk(disk_handle_t handle, uint64 offset, void *buf, int32 size
                      line);
 #else
     if (end - start > 50 * MICROSECS_PER_MILLISEC) {
-        CT_LOG_RUN_WAR("cm_disk_read %d elapsed:%lld(ms)", size, (end - start) / MICROSECS_PER_MILLISEC);
+        CT_LOG_RUN_WAR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, "cm_disk_read %d elapsed:%lld(ms)",
+                             size, (end - start) / MICROSECS_PER_MILLISEC);
     }
 #endif
     return CT_SUCCESS;
@@ -289,7 +290,8 @@ status_t cm_write_disk(disk_handle_t handle, uint64 offset, void *buf, int32 siz
                      line);
 #else
     if (end - start > 50 * MICROSECS_PER_MILLISEC) {
-        CT_LOG_RUN_WAR("cm_disk_write %d elapsed:%lld(ms)", size, (end - start) / MICROSECS_PER_MILLISEC);
+        CT_LOG_RUN_WAR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, "cm_disk_write %d elapsed:%lld(ms)",
+                             size, (end - start) / MICROSECS_PER_MILLISEC);
     }
 #endif
     return CT_SUCCESS;

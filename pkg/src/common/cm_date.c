@@ -2821,6 +2821,27 @@ status_t cm_text2date_mysql(const text_t *text, const text_t *fmt, date_t *date,
     return CT_SUCCESS;
 }
 
+status_t cm_text2date_binary_mysql(const text_t *text, const text_t *fmt, date_t *date, uint32 datatype)
+{
+    date_t res;
+    if (cm_text2date_mysql(text, fmt, &res, datatype) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    switch (datatype) {
+        case CT_TYPE_DATETIME_MYSQL:
+            cm_datetime_int_to_binary(res, (uchar*)date, DATETIME_MAX_DECIMALS);
+            break;
+        case CT_TYPE_TIME_MYSQL:
+            cm_time_int_to_binary(res, (uchar*)date, DATETIME_MAX_DECIMALS);
+            break;
+        case CT_TYPE_DATE_MYSQL:
+        default:
+            break;
+    }
+
+    return CT_SUCCESS;
+}
+
 void cm_cnvrt_datetime_from_int_to_date_detail(int64 input, date_detail_t *detail)
 {
     int64 y_m_d;

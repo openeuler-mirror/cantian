@@ -106,7 +106,6 @@ static void timer_proc(thread_t *thread)
     sync_time = start_time;
     timer_temp->status = TIMER_STATUS_RUNNING;
     cm_set_thread_name("timer");
-    CT_LOG_RUN_INF("timer thread started");
 
     while (!thread->closed) {
         // In order to solve the thread deadlock problem caused by local_time_r function when fork child process.
