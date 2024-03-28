@@ -932,7 +932,7 @@ status_t cbo_get_stats_values(dc_entity_t *entity, knl_column_t *column, text_t 
         case CT_TYPE_DATE_MYSQL:
         case CT_TYPE_DATETIME_MYSQL:
         case CT_TYPE_TIME_MYSQL:
-            status = cm_text2date_mysql(v_input, NULL, (date_t *)v_output->str, column->datatype);
+            status = cm_text2date_binary_mysql(v_input, NULL, (date_t *)v_output->str, column->datatype);
             v_output->len = sizeof(date_t);
             break;
         case CT_TYPE_INTERVAL_DS:
