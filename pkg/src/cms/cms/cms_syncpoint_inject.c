@@ -51,7 +51,19 @@ void cms_syncpoint_inject_errno5(int32 *user_param, int32 ret)
     errno = EIO;
 }
 
-void cms_syncpoint_inject_sleep(int32 *user_param, int32 ret)
+void cms_syncpoint_inject_sleep5(int32 *user_param, int32 ret)
+{
+    uint32 interval = 5000;
+    cm_sleep(interval);
+    if (user_param == NULL) {
+        CMS_LOG_DEBUG_ERR("[SYNCPOINT] cms inject code err param");
+        return;
+    }
+    *user_param = ret;
+    CMS_LOG_DEBUG_INF("[SYNCPOINT] cms inject errcode %d", ret);
+}
+
+void cms_syncpoint_inject_sleep30(int32 *user_param, int32 ret)
 {
     uint32 interval = 30000;
     cm_sleep(interval);
@@ -163,7 +175,7 @@ cms_global_syncpoint_def g_cms_syncpoint[] = {
     {CMS_DISK_GET_DATA_FILE_READ_FAIL, CT_FALSE, "CMS_DISK_GET_DATA_FILE_READ_FAIL", 0,
         cms_syncpoint_inject_errno5, 0},
     {CMS_DISK_REOPEN_SLEEP, CT_FALSE, "CMS_DISK_REOPEN_SLEEP", 0,
-        cms_syncpoint_inject_sleep, 0},
+        cms_syncpoint_inject_sleep30, 0},
     {CMS_UPGRADE_CTD_VERSION_FAIL, CT_FALSE, "CMS_UPGRADE_CTD_VERSION_FAIL", 0,
         cms_syncpoint_inject_errcode, 0},
     {CMS_UPGRADE_VERSION_ABORT, CT_FALSE, "CMS_UPGRADE_VERSION_ABORT", 0,
@@ -176,6 +188,8 @@ cms_global_syncpoint_def g_cms_syncpoint[] = {
         cms_syncpoint_inject_errcode, 0},
     {CMS_DISK_LOCK_FILE_RANGE_LOCK_FAIL, CT_FALSE, "CMS_DISK_LOCK_FILE_RANGE_LOCK_FAIL", 0,
         cms_syncpoint_inject_errcode, 0},
+    {CMS_RES_CONN_SLEEP, CT_FALSE, "CMS_RES_CONN_SLEEP", 0,
+        cms_syncpoint_inject_sleep5, 0},
 };
 
 bool32 cms_sp_get_global_syncpoint_flag(uint32 sp_id)

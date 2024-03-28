@@ -1461,7 +1461,8 @@ status_t cms_res_connect(socket_t sock, cms_cli_msg_req_conn_t *req, cms_cli_msg
         "cur_stat %s, work_stat %d, pre_stat %s, target_stat %s", version, res_stat->res_type, res_stat->session_id,
         res_stat->inst_id, cms_stat_str(res_stat->cur_stat), (int32)res_stat->work_stat,
         cms_stat_str(res_stat->pre_stat), cms_stat_str(res_stat->target_stat));
-
+    CMS_SYNC_POINT_GLOBAL_START(CMS_RES_CONN_SLEEP, NULL, 0);
+    CMS_SYNC_POINT_GLOBAL_END;
     return CT_SUCCESS;
 }
 
