@@ -127,16 +127,6 @@ typedef struct cache_st_variant {
         unsigned long long v_ubigint;
         double v_real;
     };
-
-    union {
-        struct {
-            short type;
-            unsigned char is_null;
-            unsigned char is_hex;
-        };
-
-        unsigned int ctrl;
-    };
 } cache_variant_t;
 
 typedef enum {
