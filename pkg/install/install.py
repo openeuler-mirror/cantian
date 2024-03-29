@@ -1803,6 +1803,11 @@ class Installer:
             logExit("Failed to check user [%s] path [%s] permission. Error: %s"
                     % (self.user, onePath, stderr))
 
+    def checkMysqlDir(self, onePath):
+        log("Checking Mysql path [%s]." % onePath)
+        if not os.path.exists(onePath):
+            logExit("Database path %s does not exist or can not accessed. Please check it." % onePath)
+
     def checkPermission(self, originalPath, check_enter_only=False):
         """
         function:
@@ -3981,7 +3986,11 @@ class Installer:
     def prepare_mysql_data_dir(self):
         log("Preparing mysql data dir...", True)
         self.clean_dir(MYSQL_DATA_DIR)
-        self.prepareGivenPath(MYSQL_DATA_DIR, True)
+        if os.path.exists("/.dockerenv"):
+            self.prepareGivenPath(MYSQL_DATA_DIR, True)
+        else:
+            self.checkMysqlDir(MYSQL_DATA_DIR)
+            self.prepareGivenPath(MYSQL_DATA_DIR, True)
 
     def prepare_mysql_bin_dir(self):
         log("Preparing mysql bin dir...", True)
