@@ -42,6 +42,10 @@ class CertificateUpdateAndRevocation(object):
         self.cantian_group = get_param_value("cantian_group")
         self.cantian_uid = pwd.getpwnam(self.cantian_user).pw_uid
         self.cantian_gid = grp.getgrnam(self.cantian_group).gr_gid
+        if not os.path.exists(certificate_path):
+            os.makedirs(certificate_path)
+            os.chmod(certificate_path, 0o700)
+            os.chown(certificate_path, self.cantian_uid, self.cantian_gid)
 
     @staticmethod
     def check_key_passwd(key_file_path, passwd):
