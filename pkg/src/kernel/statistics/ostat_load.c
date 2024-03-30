@@ -2261,13 +2261,6 @@ void knl_cache_cbo_text2variant(dc_entity_t *entity, uint32 col_id, text_t *colu
 {
     knl_column_t *dc_column = dc_get_column(entity, col_id);
 
-    ret_val->is_null = CT_FALSE;
-    ret_val->type = dc_column->datatype;
-
-    if (column->len == CT_NULL_VALUE_LEN) {
-        ret_val->is_null = CT_TRUE;
-        return;
-    }
     CT_LOG_DEBUG_INF("[Histgram ep_value Print] column_id:%u ",col_id);
     switch (dc_column->datatype) {
         case CT_TYPE_BOOLEAN:
@@ -2276,7 +2269,6 @@ void knl_cache_cbo_text2variant(dc_entity_t *entity, uint32 col_id, text_t *colu
             break;
         case CT_TYPE_UINT32:
             ret_val->v_uint32 = *(uint32 *)column->str;
-            ret_val->type     = CT_TYPE_UINT32;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %u",ret_val->v_uint32);
             break;
         case CT_TYPE_SMALLINT:
@@ -2285,27 +2277,22 @@ void knl_cache_cbo_text2variant(dc_entity_t *entity, uint32 col_id, text_t *colu
         case CT_TYPE_TINYINT:
         case CT_TYPE_UTINYINT:
             ret_val->v_int = *(int32 *)column->str;
-            ret_val->type = CT_TYPE_INTEGER;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %d",ret_val->v_int);
             break;
         case CT_TYPE_UINT64:
             ret_val->v_ubigint = *(uint64 *)column->str;
-            ret_val->type = CT_TYPE_UINT64;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %llu",ret_val->v_ubigint);
             break;
         case CT_TYPE_BIGINT:
             ret_val->v_bigint = *(int64 *)column->str;
-            ret_val->type = CT_TYPE_BIGINT;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %lld",ret_val->v_ubigint);
             break;
         case CT_TYPE_FLOAT:
         case CT_TYPE_REAL:
             ret_val->v_real = *(double *)column->str;
-            ret_val->type = CT_TYPE_REAL;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %lf",ret_val->v_real);
             break;
         default:
-            ret_val->is_null = CT_TRUE;
             break;
     }
 }

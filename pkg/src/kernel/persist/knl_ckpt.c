@@ -1237,7 +1237,7 @@ static status_t ckpt_prepare_normal(knl_session_t *session, ckpt_context_t *ctx,
 status_t ckpt_prepare_pages(knl_session_t *session, ckpt_context_t *ctx)
 {
     buf_ctrl_t *ctrl_next = NULL;
-    buf_ctrl_t *ctrl = ctx->queue.first;
+    buf_ctrl_t *ctrl = NULL;
     bool8 ctrl_next_is_flushed = CT_FALSE;
     bool8 need_exit = CT_FALSE;
 
@@ -1259,7 +1259,7 @@ status_t ckpt_prepare_pages(knl_session_t *session, ckpt_context_t *ctx)
     ctx->has_compressed = CT_FALSE;
     ctx->stat.ckpt_curr_neighbors_times = 0;
     ctx->stat.ckpt_curr_neighbors_len = 0;
-
+    ctrl = ctx->queue.first;
     while (ctrl != NULL) {
         ctrl_next = ctrl->ckpt_next;
         ctrl_next_is_flushed = CT_FALSE;
