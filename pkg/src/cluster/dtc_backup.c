@@ -2791,7 +2791,7 @@ status_t bak_generate_archfile_dbstor(knl_session_t *session, arch_file_info_t *
     uint32 file_index = bak->file_count - 1;
     bak_generate_bak_file(session, bak_path, bak->files[file_index].type, file_index, bak->files[file_index].id, 0,
                           bak_arch_name);
-    bak->files[file_index].size = cm_device_size(cm_device_type(file_info->tmp_file_name), file_info->tmp_file_handle);
+    bak->files[file_index].size = file_info->offset;
     status_t status = cm_rename_device(file_info->arch_file_type, file_info->tmp_file_name, bak_arch_name);
     if (status != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] rename tmp file %s to %s failed", file_info->tmp_file_name, bak_arch_name);
