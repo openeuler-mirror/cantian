@@ -544,7 +544,7 @@ int32 cm_read_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, voi
     object_id_t handle;
     int32 ret =  dbs_global_handle()->dbs_file_open(phandle, file_name, FILE_TYPE, &handle);
     if (ret != 0) {
-        CT_THROW_ERROR(ERR_OPEN_FILE, ret);
+        CT_THROW_ERROR(ERR_OPEN_FILE, file_name, ret);
         CT_LOG_RUN_ERR("cm_read_dbs_file get file %s handle failed.", file_name);
         return ret;
     }
@@ -570,7 +570,7 @@ status_t cm_write_dbs_file(object_id_t* phandle, char *file_name, uint32 offset,
     object_id_t handle;
     int32 ret =  dbs_global_handle()->dbs_file_open(phandle, file_name, FILE_TYPE, &handle);
     if (ret != 0) {
-        CT_THROW_ERROR(ERR_OPEN_FILE, ret);
+        CT_THROW_ERROR(ERR_OPEN_FILE, file_name, ret);
         CT_LOG_RUN_ERR("cm_write_dbs_file get file %s handle failed.", file_name);
         return CT_ERROR;
     }
