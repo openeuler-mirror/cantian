@@ -36,6 +36,8 @@
 
 #define BAK_GET_CTRL_RETRY_TIMES 3
 #define ARCH_FORCE_ARCH_CHECK_INTERVAL_MS 1000
+#define BAK_BROADCAST_BLOCK_TIMEOUT (5 * 1000)
+#define BAK_BROADCAST_BLOCK_RETRYTIME 0xFFFFFFFF
 
 static status_t dtc_load_archive(list_t *arch_dir_list)
 {
@@ -126,7 +128,12 @@ void dtc_bak_file_blocking(knl_session_t *session, uint32 file_id, uint32 sec_id
     bcast.block.start = start;
     bcast.block.end = end;
 
-    mes_broadcast(session->id, MES_BROADCAST_ALL_INST, &bcast, success_inst);
+    status_t ret = mes_broadcast_data_and_wait_with_retry(session->id, MES_BROADCAST_ALL_INST, &bcast, BAK_BROADCAST_BLOCK_TIMEOUT, BAK_BROADCAST_BLOCK_RETRYTIME);
+    CT_LOG_DEBUG_INF("[BACKUP] file_block file_id %llu, sec_id %llu, start %llu, end %llu, success %llu, rsn %llu.",
+                   (uint64)file_id, (uint64)sec_id, start, end, *success_inst, (uint64)bcast.head.rsn);
+    if (ret != CT_SUCCESS) {
+        CM_ABORT(0, "[BACKUP] ABORT INFO: dtc_bak_file_blocking");
+    }
 }
 
 void bak_process_block_file(void *sess, mes_message_t *msg)
@@ -159,7 +166,15 @@ void bak_process_block_file(void *sess, mes_message_t *msg)
         return;
     }
     spc_block_datafile(df, bcast->block.sec_id, bcast->block.start, bcast->block.end);
+
+    mes_message_head_t head = {0};
+    mes_init_ack_head(msg->head, &head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
+    CT_LOG_DEBUG_INF("[BACKUP] process_file_block file_id %llu, sec_id %llu, start %llu, end %llu, rsn %llu-[%llu].",
+                   (uint64)bcast->block.file_id, (uint64)bcast->block.sec_id, bcast->block.start, bcast->block.end, (uint64)bcast->head.rsn, (uint64)msg->head->rsn);
     mes_release_message_buf(msg->buffer);
+    if (mes_send_data(&head) != CT_SUCCESS) {
+        CM_ASSERT(0);
+    }
 }
 
 void dtc_bak_file_unblocking(knl_session_t *session, uint32 file_id, uint32 sec_id)
@@ -173,7 +188,12 @@ void dtc_bak_file_unblocking(knl_session_t *session, uint32 file_id, uint32 sec_
     bcast.block.start = CT_INVALID_INT64;
     bcast.block.end = CT_INVALID_INT64;
 
-    mes_broadcast(session->id, MES_BROADCAST_ALL_INST, &bcast, NULL);
+    status_t ret = mes_broadcast_data_and_wait_with_retry(session->id, MES_BROADCAST_ALL_INST, &bcast, BAK_BROADCAST_BLOCK_TIMEOUT, BAK_BROADCAST_BLOCK_RETRYTIME);
+    CT_LOG_DEBUG_INF("[BACKUP] file_unblock file_id %llu, sec_id %llu, start %llu, end %llu, rsn %llu.",
+                   (uint64)file_id, (uint64)sec_id, bcast.block.start, bcast.block.end, (uint64)bcast.head.rsn);
+    if (ret != CT_SUCCESS) {
+        CM_ABORT(0, "[BACKUP] ABORT INFO: dtc_bak_file_unblocking");
+    }              
 }
 
 void bak_process_unblock_file(void *sess, mes_message_t *msg)
@@ -199,7 +219,15 @@ void bak_process_unblock_file(void *sess, mes_message_t *msg)
         return;
     }
     spc_unblock_datafile(df, bcast->block.sec_id);
+
+    mes_message_head_t head = {0};
+    mes_init_ack_head(msg->head, &head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
+    CT_LOG_DEBUG_INF("[BACKUP] process_file_unblock file_id %llu, sec_id %llu, start %llu, end %llu, rsn %llu-[%llu].",
+                   (uint64)bcast->block.file_id, (uint64)bcast->block.sec_id, bcast->block.start, bcast->block.end, (uint64)bcast->head.rsn, (uint64)msg->head->rsn);
     mes_release_message_buf(msg->buffer);
+    if (mes_send_data(&head) != CT_SUCCESS) {
+        CM_ASSERT(0);
+    }
 }
 
 static status_t dtc_bak_switch_logfile(knl_session_t *session, uint32 last_asn, uint32 inst_id)
@@ -2763,7 +2791,7 @@ status_t bak_generate_archfile_dbstor(knl_session_t *session, arch_file_info_t *
     uint32 file_index = bak->file_count - 1;
     bak_generate_bak_file(session, bak_path, bak->files[file_index].type, file_index, bak->files[file_index].id, 0,
                           bak_arch_name);
-    bak->files[file_index].size = cm_device_size(cm_device_type(file_info->tmp_file_name), file_info->tmp_file_handle);
+    bak->files[file_index].size = file_info->offset;
     status_t status = cm_rename_device(file_info->arch_file_type, file_info->tmp_file_name, bak_arch_name);
     if (status != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] rename tmp file %s to %s failed", file_info->tmp_file_name, bak_arch_name);

@@ -312,6 +312,9 @@ function update_config() {
     su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cms_ini --action=add --key=_CMS_MES_SSL_CRT_KEY_PATH --value=/opt/cantian/common/config/certificates"
     su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=update --key=MES_SSL_CRT_KEY_PATH --value=/opt/cantian/common/config/certificates"
     su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cms_ini --action=update --key=_CMS_MES_SSL_CRT_KEY_PATH --value=/opt/cantian/common/config/certificates"
+    # 更新ks路径
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=add --key=KMC_KEY_FILES --value='(/opt/cantian/common/config/primary_keystore_bak.ks, /opt/cantian/common/config/standby_keystore_bak.ks)'"
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cms_ini --action=add --key=KMC_KEY_FILES --value='(/opt/cantian/common/config/primary_keystore_bak.ks, /opt/cantian/common/config/standby_keystore_bak.ks)'"
 }
 
 function install_dbstore(){
