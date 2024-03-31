@@ -175,6 +175,42 @@ typedef struct {
     bool is_updated;
     tse_cbo_stats_table_t tse_cbo_stats_table;
     tse_cbo_stats_table_t *tse_cbo_stats_part_table;
+} tse_hist_cbo_stats_t;
+
+typedef struct {
+    uint32_t max_col_id;
+    uint32_t *num_distincts;
+    cache_variant_t *low_values;
+    cache_variant_t *high_values;
+    uint32_t max_part_no;  // the part no of max rows num part
+    uint32_t *part_table_num_distincts;
+    cache_variant_t *part_table_low_values;
+    cache_variant_t *part_table_high_values;
+} tse_normal_cbo_stats_table_t;
+
+typedef struct {
+    uint32_t rows_and_blocks_size;
+    uint32_t num_distinct_size;
+    uint32_t low_value_size;
+    uint32_t high_value_size;
+} tse_normal_part_table_cbo_info_t;
+
+/*
+ * statistics information that mysql optimizer need
+ * expand this struct if need more cbo stats
+ */
+typedef struct {
+    uint32_t estimate_rows;
+    uint32_t estimate_blocks;
+    bool is_updated;
+    tse_normal_cbo_stats_table_t tse_cbo_stats_table;
+    tse_normal_part_table_cbo_info_t part_table_info;
+    uint32_t estimate_part_rows_and_blocks[0];
+} tse_normal_cbo_stats_t;
+
+typedef struct {
+    tse_hist_cbo_stats_t *hist_stats;
+    tse_normal_cbo_stats_t *normal_stats;
 } tianchi_cbo_stats_t;
 #pragma pack()
 

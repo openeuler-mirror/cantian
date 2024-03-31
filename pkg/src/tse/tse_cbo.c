@@ -84,7 +84,7 @@ status_t fill_cbo_stats_index(cbo_stats_index_t *index, uint32_t *ndv_keys, uint
     return ret;
 }
 
-status_t fill_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, tianchi_cbo_stats_t *stats,
+status_t fill_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, tse_hist_cbo_stats_t *stats,
                                 cbo_stats_table_t *table_stats)
 {
     for (uint32 col_id = 0; col_id <= table_stats->max_col_id; col_id++) {
@@ -102,7 +102,7 @@ status_t fill_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, tianch
     return CT_SUCCESS;
 }
 
-status_t fill_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, tianchi_cbo_stats_t *stats,
+status_t fill_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, tse_hist_cbo_stats_t *stats,
                                            cbo_stats_table_t *table_stats, uint32 stats_idx)
 {
     stats->tse_cbo_stats_part_table[stats_idx].estimate_rows = table_stats->rows;
@@ -122,7 +122,7 @@ status_t fill_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *ent
     return CT_SUCCESS;
 }
 
-status_t fill_sub_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, tianchi_cbo_stats_t *stats,
+status_t fill_sub_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, tse_hist_cbo_stats_t *stats,
                                                cbo_stats_table_t *table_stats, uint32 part_id, uint32 subpart_id,
                                                uint32 stats_idx)
 {
@@ -142,7 +142,7 @@ status_t fill_sub_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity_t 
     return CT_SUCCESS;
 }
 
-status_t get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, tianchi_cbo_stats_t *stats)
+status_t get_hist_cbo_stats(knl_handle_t handle, dc_entity_t *entity, tse_hist_cbo_stats_t *stats)
 {
     status_t ret = CT_SUCCESS;
     cbo_stats_table_t *table_stats = NULL;
@@ -166,7 +166,7 @@ status_t get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, tianchi_cbo_sta
             } else {
                 stats->tse_cbo_stats_part_table[i].estimate_rows = 0;
             }
-        }
+        }   
     } else {
         uint32 subpart_cnt = knl_subpart_count((handle_t)entity, 0);
         for (uint32 i = 0; i < stats->num_part_fetch; i++) {
@@ -184,4 +184,108 @@ status_t get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, tianchi_cbo_sta
         }
     }
     return ret;
+}
+
+static void fill_normal_cbo_stats_table(knl_handle_t handle, dc_entity_t *entity, tse_normal_cbo_stats_t *stats,
+                                   cbo_stats_table_t *table_stats)
+{
+    for (uint32 col_id = 0; col_id <= table_stats->max_col_id; col_id++) {
+        cbo_stats_column_t *column = knl_get_cbo_column(handle, entity, col_id);
+        // 字段类型为 text 类型时，column 字段为空
+        if (column != NULL) {
+            *(stats->tse_cbo_stats_table.num_distincts + col_id) = column->num_distinct;
+            knl_cache_cbo_text2variant(entity, col_id, &column->low_value,
+                                       stats->tse_cbo_stats_table.low_values + col_id);
+            knl_cache_cbo_text2variant(entity, col_id, &column->high_value,
+                                       stats->tse_cbo_stats_table.high_values + col_id);
+        } else {
+            *(stats->tse_cbo_stats_table.num_distincts + col_id) = 0;
+        }
+    }
+}
+
+static void fill_normal_part_table_cbo_stats_table(knl_handle_t handle, dc_entity_t *entity, tse_normal_cbo_stats_t *stats,
+                                              cbo_stats_table_t *table_stats, uint32 part_id)
+{
+    uint32 total_parts_cnt = knl_get_part_count(entity);
+    for (uint32 col_id = 0; col_id <= table_stats->max_col_id; col_id++) {
+        cbo_stats_column_t *column = knl_get_cbo_part_column(handle, entity, part_id, col_id);
+        uint32 index_no = total_parts_cnt  * col_id + part_id;
+        // 字段类型为 text 类型时，column 字段为空
+        if (column != NULL) {
+            stats->tse_cbo_stats_table.part_table_num_distincts[index_no] = column->num_distinct;
+            knl_cache_cbo_text2variant(entity, col_id, &column->low_value,
+                                       &(stats->tse_cbo_stats_table.part_table_low_values[index_no]));
+            knl_cache_cbo_text2variant(entity, col_id, &column->high_value,
+                                       &(stats->tse_cbo_stats_table.part_table_high_values[index_no]));
+        } else {
+            stats->tse_cbo_stats_table.part_table_num_distincts[index_no] = 0;
+        }
+    }
+}
+
+static void fill_normal_sub_part_table_cbo_stats_table(knl_handle_t handle, dc_entity_t *entity, tse_normal_cbo_stats_t *stats,
+                                              cbo_stats_table_t *table_stats, uint32 part_id, uint32 subpart_id)
+{
+    uint32 part_cnt = knl_get_part_count(entity);
+    uint32 subpart_cnt = knl_subpart_count((handle_t)entity, part_id);
+    for (uint32 col_id = 0; col_id <= table_stats->max_col_id; col_id++) {
+        cbo_stats_column_t *column = knl_get_cbo_subpart_column(handle, entity, part_id, col_id, subpart_id);
+        uint32 index_no = (part_cnt * subpart_cnt * col_id) + (part_id * subpart_cnt + subpart_id);
+        // 字段类型为 text 类型时，column 字段为空
+        if (column != NULL) {
+            stats->tse_cbo_stats_table.part_table_num_distincts[index_no] = column->num_distinct;
+            knl_cache_cbo_text2variant(entity, col_id, &column->low_value,
+                                       &(stats->tse_cbo_stats_table.part_table_low_values[index_no]));
+            knl_cache_cbo_text2variant(entity, col_id, &column->high_value,
+                                       &(stats->tse_cbo_stats_table.part_table_high_values[index_no]));
+        } else {
+            stats->tse_cbo_stats_table.part_table_num_distincts[index_no] = 0;
+        }
+    }
+}
+
+void get_normal_cbo_stats(knl_handle_t handle, dc_entity_t *entity, tse_normal_cbo_stats_t *stats)
+{
+    cbo_stats_table_t *table_stats = NULL;
+    if (!knl_is_part_table(entity)) {
+        table_stats = knl_get_cbo_table(handle, entity);
+        if (table_stats != NULL && table_stats->is_ready) {
+            stats->estimate_rows = table_stats->rows;
+            stats->estimate_blocks = table_stats->blocks;
+            stats->is_updated = CT_TRUE;
+            fill_normal_cbo_stats_table(handle, entity, stats, table_stats);
+        }
+    } else if (!knl_is_compart_table(entity)){
+        uint32 total_parts_cnt = knl_get_part_count(entity);
+        for (uint32 part_id = 0; part_id < total_parts_cnt; ++part_id) {
+            table_stats = knl_get_cbo_part_table(handle, entity, part_id);
+            if (table_stats != NULL) {
+                uint32_t row_no = part_id;
+                uint32_t block_no = part_id + total_parts_cnt;
+                stats->estimate_part_rows_and_blocks[row_no] = table_stats->rows;
+                stats->estimate_part_rows_and_blocks[block_no] = table_stats->blocks;
+                stats->tse_cbo_stats_table.max_part_no = table_stats->max_part_no;
+                stats->is_updated = CT_TRUE;
+                fill_normal_part_table_cbo_stats_table(handle, entity, stats, table_stats, part_id);
+            }
+        }
+    } else {
+        uint32 part_cnt = knl_get_part_count(entity);
+        for (uint32 part_id = 0; part_id < part_cnt; ++part_id) {
+            uint32 subpart_cnt = knl_subpart_count((handle_t)entity, part_id);
+            for(uint32 subpart_id = 0; subpart_id < subpart_cnt; ++subpart_id) {
+                table_stats = knl_get_cbo_subpart_table(handle, entity, part_id, subpart_id);
+                if (table_stats != NULL) {
+                    uint32_t row_no = part_id * subpart_cnt + subpart_id;
+                    uint32_t block_no = (part_cnt * subpart_cnt) + (part_id * subpart_cnt + subpart_id);
+                    stats->estimate_part_rows_and_blocks[row_no] = table_stats->rows;
+                    stats->estimate_part_rows_and_blocks[block_no] = table_stats->blocks;
+                    stats->tse_cbo_stats_table.max_part_no = table_stats->max_part_no;
+                    stats->is_updated = CT_TRUE;
+                    fill_normal_sub_part_table_cbo_stats_table(handle, entity, stats, table_stats, part_id, subpart_id);
+                }
+            }
+        }
+    }
 }
