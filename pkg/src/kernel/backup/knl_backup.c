@@ -1599,6 +1599,10 @@ static status_t bak_set_read_range(knl_session_t *session, bak_assignment_t *ass
     if (DB_ATTR_CLUSTER(session)) {
         dtc_bak_file_blocking(session, assign_ctrl->file_id, sec_id, assign_ctrl->start, assign_ctrl->end,
                               &success_inst);
+        if (dtc_get_mes_sent_success_cnt(success_inst) != (session->kernel->db.ctrl.core.node_count - 1)) {
+            CT_LOG_DEBUG_ERR("[BACKUP] failed to block remote file.");
+            return CT_ERROR;
+        }
     }
     spc_block_datafile(df, sec_id, assign_ctrl->start, assign_ctrl->end);
 
