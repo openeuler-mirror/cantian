@@ -1815,11 +1815,6 @@ static void bak_process_init(bak_context_t *ctx, knl_session_t *session)
     for (i = 0; i < CT_MAX_BACKUP_PROCESS; i++) {
         process = &ctx->process[i];
         process->session = session;
-
-        if (g_knl_callback.alloc_knl_session(CT_FALSE, (knl_handle_t *)&process->session) != CT_SUCCESS) {
-            CM_ASSERT(0);
-            return;
-        }
         process->ctrl.handle = CT_INVALID_HANDLE;
 
         for (j = 0; j < CT_MAX_DATA_FILES; j++) {
