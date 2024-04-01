@@ -151,6 +151,13 @@ class UNDeploy(object):
             self.dr_deploy_opt.delete_filesystem_hyper_metro_domain(hyper_domain_id)
         except Exception as err:
             self.dr_deploy_opt.delete_filesystem_hyper_metro_domain(hyper_domain_id, is_local_del=True)
+        metadata_dr_deploy_path = f"/mnt/dbdata/remote/metadata_{self.dr_deploy_info.get('storage_metadata_fs')}"
+        metadata_dr_deploy_config = os.path.join(metadata_dr_deploy_path, "dr_deploy_param.json")
+        dr_deploy_config = f"/opt/cantian/config/dr_deploy_param.json"
+        if os.path.exists(dr_deploy_config):
+            os.remove(dr_deploy_config)
+        if os.path.exists(metadata_dr_deploy_config):
+            os.remove(metadata_dr_deploy_config)
         LOG.info("Delete hyper metro domain[id:%s] success", hyper_domain_id)
 
     def delete_replication(self):
