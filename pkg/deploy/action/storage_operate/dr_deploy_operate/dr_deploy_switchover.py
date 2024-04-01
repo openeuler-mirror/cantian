@@ -260,7 +260,7 @@ class DRRecover(SwitchOver):
               "\"ctbackup --purge-logs\""
         return_code, output, stderr = exec_popen(cmd, timeout=600)
         if return_code:
-            err_msg = "Execute command[cms stat] failed, details::%s." % output + stderr
+            err_msg = "Execute command[ctbackup --purge-logs] failed."
             LOG.info(err_msg)
         LOG.info("Standby purge backup by cms command success.")
 
