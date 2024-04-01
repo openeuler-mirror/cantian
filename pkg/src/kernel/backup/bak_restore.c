@@ -2057,7 +2057,7 @@ status_t rst_prepare(knl_session_t *session, knl_restore_t *param)
     }
 
     bak_reset_process_ctrl(bak, CT_TRUE);
-    bak_reset_stats(session);
+    bak_reset_stats_and_alloc_sess(session);
     if (rst_alloc_resource(session, bak) != CT_SUCCESS) {
         return CT_ERROR;
     }
