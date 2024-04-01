@@ -543,6 +543,13 @@ status_t get_real_addr(char *addr)
     if (split_index == 0) {
         return CT_SUCCESS;
     }
+    // lsrn addr format: 127.0.0.1,x.x.x.x,y.y.y.y
+    for (uint32_t i = split_index + 1; i < total_len; i++) {
+        if (addr_tmp[i] == ',') {
+            addr_tmp[i] = '\0';
+            break;
+        }
+    }
     ret = strcpy_sp(addr, CT_PARAM_BUFFER_SIZE, addr_tmp + split_index + 1);
     if (ret != EOK) {
         printf("[ctbackup]strcpy_sp for addr failed!\n");
