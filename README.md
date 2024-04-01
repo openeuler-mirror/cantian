@@ -1392,7 +1392,7 @@ Cantian引擎支持通过物理方式和容器方式加载插件依赖库。
         2.  执行以下命令，启动MySQL。
 
             ```
-            mysqld_binary_path --defaults-file=onfiguration_file_path --datadir=data_path --plugin-dir=mysqld_plugin_path --plugin_load="ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so;" -- check_proxy_users=ON --mysql_native_password_proxy_users=ON --default-storage-engine=CTC
+            mysqld_binary_path --defaults-file=onfiguration_file_path --datadir=data_path --plugin-dir=mysqld_plugin_path --plugin_load="ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so;" --check_proxy_users=ON --mysql_native_password_proxy_users=ON --default-storage-engine=CTC
             ```
 
             参数说明：
@@ -1405,7 +1405,7 @@ Cantian引擎支持通过物理方式和容器方式加载插件依赖库。
             例如：
 
             ```
-            /usr/local/mysql/bin/mysqld --defaults-file=/ctdb/cantian_install/mysql-server/scripts/my.cnf --datadir=/data/data --plugin-dir=/usr/local/mysql/lib/plugin --plugin_load="ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so;" -- check_proxy_users=ON --mysql_native_password_proxy_users=ON --default-storage-engine=CTC
+            /usr/local/mysql/bin/mysqld --defaults-file=/ctdb/cantian_install/mysql-server/scripts/my.cnf --datadir=/data/data --plugin-dir=/usr/local/mysql/lib/plugin --plugin_load="ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so;" --check_proxy_users=ON --mysql_native_password_proxy_users=ON --default-storage-engine=CTC
             ```
 
 4.  登录另一台数据库服务器，重复执行[2](#li95222027105913)和[3](#li142421623195811)，为另一台数据库服务器加载插件ha\_ctc.so的依赖库。
