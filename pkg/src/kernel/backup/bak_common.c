@@ -1778,7 +1778,7 @@ static void bak_reset_ctrl(bak_ctrl_t *ctrl)
     ctrl->offset = 0;
 }
 
-void bak_reset_stats(knl_session_t *session)
+void bak_reset_stats_and_alloc_sess(knl_session_t *session)
 {
     bak_process_t *procs = session->kernel->backup_ctx.process;
     errno_t ret;
@@ -1786,6 +1786,10 @@ void bak_reset_stats(knl_session_t *session)
     for (uint32 i = 0; i < CT_MAX_BACKUP_PROCESS; i++) {
         ret = memset_sp(&procs[i].stat, sizeof(bak_process_stat_t), 0, sizeof(bak_process_stat_t));
         knl_securec_check(ret);
+        if (g_knl_callback.alloc_knl_session(CT_FALSE, (knl_handle_t *)&procs[i].session) != CT_SUCCESS) {
+            CM_ASSERT(0);
+            return;
+        }
     }
 }
 
@@ -1801,6 +1805,8 @@ void bak_reset_process(bak_process_t *ctx)
     cm_aligned_free(&ctx->table_compress_ctx.zip_buf);
     cm_aligned_free(&ctx->backup_rw_buf.aligned_buf);
 
+    g_knl_callback.release_knl_session((knl_handle_t *)ctx->session);
+
     ctx->read_size = 0;
     ctx->write_size = 0;
     bak_reset_ctrl(&ctx->ctrl);
@@ -1814,7 +1820,8 @@ static void bak_process_init(bak_context_t *ctx, knl_session_t *session)
 
     for (i = 0; i < CT_MAX_BACKUP_PROCESS; i++) {
         process = &ctx->process[i];
-        process->session = session;
+        process->session = NULL;
+
         process->ctrl.handle = CT_INVALID_HANDLE;
 
         for (j = 0; j < CT_MAX_DATA_FILES; j++) {

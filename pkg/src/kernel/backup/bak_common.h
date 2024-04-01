@@ -768,7 +768,7 @@ status_t bak_head_verify_checksum(knl_session_t *session, bak_head_t *head, uint
 status_t bak_init_uds(uds_link_t *link, const char *sun_path);
 status_t bak_read_param(knl_session_t *session);
 void bak_reset_process(bak_process_t *ctx);
-void bak_reset_stats(knl_session_t *session);
+void bak_reset_stats_and_alloc_sess(knl_session_t *session);
 void bak_reset_process_ctrl(bak_t *bak, bool32 restore);
 void bak_set_error(bak_error_t *error_info);
 status_t bak_set_running(knl_session_t *session, bak_context_t *ctx);
