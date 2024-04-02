@@ -1152,13 +1152,15 @@ class DRDeploy(object):
             encrypted_pwd = KmcResolve.kmc_resolve_password("encrypted", self.dm_passwd)
             self.record_disaster_recovery_info("dm_pwd", encrypted_pwd)
             os.chmod(os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json"), mode=0o644)
-            dst_file = "/opt/cantian/config/dr_deploy_param.json"
-            if not os.path.exists(dst_file):
+            try:
                 shutil.copy(os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json"), "/opt/cantian/config/")
+            except Exception as _err:
+                LOG.info(f"copy dr_deploy_param failed")
             share_path = f"/mnt/dbdata/remote/metadata_{self.dr_deploy_info.get('storage_metadata_fs')}"
-            dst_share_file = f"{share_path}/dr_deploy_param.json"
-            if not os.path.exists(dst_share_file):
+            try:
                 shutil.copy(os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json"), share_path)
+            except Exception as _err:
+                LOG.info(f"copy dr_deploy_param failed")
             self.restart_cantian_exporter()
         try:
             _execute()

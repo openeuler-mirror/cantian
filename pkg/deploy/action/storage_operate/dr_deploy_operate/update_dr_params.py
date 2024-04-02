@@ -63,15 +63,19 @@ class UpdateDRParams(object):
         current_real_path = os.path.realpath(CURRENT_PATH)
         target_real_path = os.path.realpath(target_path)
         if os.path.dirname(current_real_path) != os.path.dirname(target_real_path):
-            if not os.path.exists(os.path.join(CURRENT_PATH, "../../../config/deploy_param.json")):
+            try:
                 shutil.copy(DEPLOY_PARAM_FILE, os.path.join(CURRENT_PATH, "../../../config"))
+            except Exception as _err:
+                LOG.info(f"copy DEPLOY_PARAM_FILE failed")
         encrypted_pwd = KmcResolve.kmc_resolve_password("encrypted", dm_passwd)
         dr_deploy_params["dm_pwd"] = encrypted_pwd
         write_json_config(DR_DEPLOY_CONFIG, dr_deploy_params)
         os.chmod(os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json"), mode=0o644)
         if os.path.dirname(current_real_path) != os.path.dirname(target_real_path):
-            if not os.path.exists("/opt/cantian/config/dr_deploy_param.json"):
+            try:
                 shutil.copy(DR_DEPLOY_CONFIG, "/opt/cantian/config")
+            except Exception as _err:
+                LOG.info(f"copy DR_DEPLOY_CONFIG failed")
         LOG.info("Restart cantian_exporter process")
         self.restart_cantian_exporter()
         LOG.info("Update dr params success.")

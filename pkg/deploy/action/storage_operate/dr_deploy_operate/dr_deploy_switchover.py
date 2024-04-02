@@ -261,7 +261,7 @@ class DRRecover(SwitchOver):
         return_code, output, stderr = exec_popen(cmd, timeout=600)
         if return_code:
             err_msg = "Execute command[ctbackup --purge-logs] failed."
-            LOG.info(err_msg)
+            LOG.error(err_msg)
         LOG.info("Standby purge backup by cms command success.")
 
     def rep_pair_recover(self, pair_id: str) -> None:
