@@ -294,7 +294,11 @@ void ctsql_print_error(ctconn_conn_t conn)
         return;
     }
 
-    ctsql_printf("CT-%05d, %s\n", code, message);
+    if (loc.line == 0) {
+        ctsql_printf("CT-%05d, %s\n", code, message);
+    } else {
+        ctsql_printf("CT-%05d, [%d:%d]%s\n", code, (int)loc.line, (int)loc.column, message);
+    }
 
     cm_reset_error();
 }

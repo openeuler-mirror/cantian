@@ -1,0 +1,11 @@
+test: ct_json_1
+test: ct_resource_manager
+test: ct_stat
+test: ct_withas ct_newpage ct_colsep_long
+test: ct_alter_session
+test: ct_expression ct_rownum
+test: ct_decimal ct_number ct_number2
+test: ct_json_3 ct_json_4 ct_json_5
+test: ct_jsonb_1 ct_jsonb_2 ct_jsonb_table
+test: ct_having
+test: ct_union_all ct_union ct_datatype

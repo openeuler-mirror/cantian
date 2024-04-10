@@ -1,0 +1,216 @@
+
+
+SQL> -- The code of JSONB_TABLE is almost depended on JSON_TABLE.
+SQL> -- The main process is not changed, so when someone find a bug in JSONB_TABLE, it maybe occurs in JSON_TABLE very possiblely.
+SQL> SELECT * FROM JSON_TABLE('{"a":100, "b":200}', '$' COLUMNS (a  PATH '$.a' , b PATH '$.b', c EXISTS PATH '$.a'));
+
+A                                                                B                                                                C                                                               
+---------------------------------------------------------------- ---------------------------------------------------------------- ----------------------------------------------------------------
+100                                                              200                                                              TRUE                                                            
+
+1 rows fetched.
+
+SQL> SELECT * FROM JSON_TABLE('{"a":100, "b":200, "c":[true, false]}', '$' COLUMNS (a  PATH '$.a' , b PATH '$.b', c PATH '$.c[*]'));
+
+A                                                                B                                                                C                                                               
+---------------------------------------------------------------- ---------------------------------------------------------------- ----------------------------------------------------------------
+100                                                              200                                                                                                                              
+
+1 rows fetched.
+
+SQL> SELECT * FROM JSON_TABLE('{"list":[{"a":100, "b":200}, {"a":300, "b":400}]}', '$.list[*]' COLUMNS (a PATH '$.a' , b PATH '$.b')) order by a;
+
+A                                                                B                                                               
+---------------------------------------------------------------- ----------------------------------------------------------------
+100                                                              200                                                             
+300                                                              400                                                             
+
+2 rows fetched.
+
+SQL> SELECT * FROM JSON_TABLE('{"list":[{"a":100, "b":200}, {"a":300, "b":400}, {"a":500, "b":600}]}', '$.list[*]' COLUMNS (a PATH '$.a' , b PATH '$.b')) order by a;
+
+A                                                                B                                                               
+---------------------------------------------------------------- ----------------------------------------------------------------
+100                                                              200                                                             
+300                                                              400                                                             
+500                                                              600                                                             
+
+3 rows fetched.
+
+SQL> SELECT * FROM JSON_TABLE('[1, {"start":{"list":[{"a":100, "b":200}, {"a":300, "b":400}, {"a":500, "b":600}]}}]', '$[1].start.list[*]' COLUMNS (a PATH '$.a' , b PATH '$.b')) order by a;
+
+A                                                                B                                                               
+---------------------------------------------------------------- ----------------------------------------------------------------
+100                                                              200                                                             
+300                                                              400                                                             
+500                                                              600                                                             
+
+3 rows fetched.
+
+SQL> 
+SQL> drop table if exists jsonb_tbl_test;
+
+Succeed.
+
+SQL> create table jsonb_tbl_test (a jsonb, b int);
+
+Succeed.
+
+SQL> insert into jsonb_tbl_test values('{"a":100, "b":200}', 1);
+
+1 rows affected.
+
+SQL> insert into jsonb_tbl_test values('{"a":100, "b":200, "c":[true, false]}', 2);
+
+1 rows affected.
+
+SQL> insert into jsonb_tbl_test values('{"list":[{"a":100, "b":200}, {"a":300, "b":400}]}', 3);
+
+1 rows affected.
+
+SQL> insert into jsonb_tbl_test values('{"list":[{"a":100, "b":200}, {"a":300, "b":400}, {"a":500, "b":600}]}', 4);
+
+1 rows affected.
+
+SQL> insert into jsonb_tbl_test values('[1, {"start":{"list":[{"a":100, "b":200}, {"a":300, "b":400}, {"a":500, "b":600}]}}]', 5);
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> SELECT jbt.a, jbt.b, jbt.c FROM jsonb_tbl_test t join JSONB_TABLE(t.a, '$' COLUMNS (a  PATH '$.a' , b PATH '$.b', c EXISTS PATH '$.a')) jbt on t.b = 1;
+
+A                                                                B                                                                C                                                               
+---------------------------------------------------------------- ---------------------------------------------------------------- ----------------------------------------------------------------
+100                                                              200                                                              TRUE                                                            
+
+1 rows fetched.
+
+SQL> SELECT jbt.a, jbt.b, jbt.c FROM jsonb_tbl_test t join JSONB_TABLE(t.a, '$' COLUMNS (a  PATH '$.a' , b PATH '$.b', c PATH '$.c[*]')) jbt on t.b = 2;
+
+A                                                                B                                                                C                                                               
+---------------------------------------------------------------- ---------------------------------------------------------------- ----------------------------------------------------------------
+100                                                              200                                                                                                                              
+
+1 rows fetched.
+
+SQL> SELECT jbt.a, jbt.b FROM jsonb_tbl_test t join JSONB_TABLE(t.a, '$.list' error on error COLUMNS (a PATH '$.a' , b PATH '$.b')) jbt on t.b = 3 order by jbt.a;
+
+CT-02506, JSON_VALUE evaluated to multiple value
+SQL> SELECT jbt.a, jbt.b FROM jsonb_tbl_test t join JSONB_TABLE(t.a, '$.list[*]' COLUMNS (a PATH '$.a' , b PATH '$.b')) jbt on t.b = 3 order by jbt.a;
+
+A                                                                B                                                               
+---------------------------------------------------------------- ----------------------------------------------------------------
+100                                                              200                                                             
+300                                                              400                                                             
+
+2 rows fetched.
+
+SQL> SELECT jbt.a, jbt.b FROM jsonb_tbl_test t join JSONB_TABLE(t.a, '$.list[*]' COLUMNS (a PATH '$.a' , b PATH '$.b')) jbt on t.b = 4 order by jbt.a;
+
+A                                                                B                                                               
+---------------------------------------------------------------- ----------------------------------------------------------------
+100                                                              200                                                             
+300                                                              400                                                             
+500                                                              600                                                             
+
+3 rows fetched.
+
+SQL> SELECT jbt.a, jbt.b FROM jsonb_tbl_test t join JSONB_TABLE(t.a, '$.list[*]' COLUMNS (a PATH '$.a' , b PATH '$.b')) jbt on (t.b = 3 or t.b = 4) order by jbt.a;
+
+A                                                                B                                                               
+---------------------------------------------------------------- ----------------------------------------------------------------
+100                                                              200                                                             
+100                                                              200                                                             
+300                                                              400                                                             
+300                                                              400                                                             
+500                                                              600                                                             
+
+5 rows fetched.
+
+SQL> SELECT jbt.a, jbt.b FROM jsonb_tbl_test t join JSONB_TABLE(t.a, '$[1].start.list[*]' COLUMNS (a PATH '$.a' , b PATH '$.b')) jbt on t.b = 5 order by jbt.a;
+
+A                                                                B                                                               
+---------------------------------------------------------------- ----------------------------------------------------------------
+100                                                              200                                                             
+300                                                              400                                                             
+500                                                              600                                                             
+
+3 rows fetched.
+
+SQL> drop table if exists jsonb_tbl_test;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists test_jsonb_table;
+
+Succeed.
+
+SQL> create table test_jsonb_table (f1 varchar(100), f2 jsonb);
+
+Succeed.
+
+SQL> insert into test_jsonb_table values(1, '[{"Phone" : [{"type" : "a", "number" : "909-555-7307"}, {"type" : "b", "number" : "415-555-1234"}]}, {"Phone" : [{"type" : "c", "number" : "909-555-7307"}, {"type" : "d", "number" : "415-555-1234"}]}]');
+
+1 rows affected.
+
+SQL> insert into test_jsonb_table values(2, '[{"Phone" : [{"type" : "e", "number" : "909-555-7307"}, {"type" : "f", "number" : "415-555-1234"}]}, {"Phone" : [{"type" : "g", "number" : "909-555-7307"}, {"type" : "h", "number" : "415-555-1234"}]}]');
+
+1 rows affected.
+
+SQL> insert into test_jsonb_table values(3, '[{"Phone" : [{"type" : "3", "number" : "909-555-7307"}, {"type" : "b", "number" : "415-555-1234"}]}, {"Phone" : [{"type" : "3", "number" : "909-555-7307"}, {"type" : "d", "number" : "415-555-1234"}]}]');
+
+1 rows affected.
+
+SQL> insert into test_jsonb_table values(4, '[{"Phone" : [{"type" : "4", "number" : "909-555-7307"}, {"type" : "4", "number" : "415-555-1234"}]}, {"Phone" : [{"type" : "g", "number" : "909-555-7307"}, {"type" : "h", "number" : "415-555-1234"}]}]');
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> select a.f1,b.* from test_jsonb_table a, jsonb_table(a.f2,'$[*].Phone[*]' error on error COLUMNS (type VARChAR2(100) PATH '$.type' )) b where a.f1(+) = b.type;
+
+F1                                                               TYPE                                                            
+---------------------------------------------------------------- ----------------------------------------------------------------
+3                                                                3                                                               
+3                                                                3                                                               
+4                                                                4                                                               
+4                                                                4                                                               
+
+4 rows fetched.
+
+SQL> select a.f1,b.* from test_jsonb_table a, jsonb_table(a.f2,'$[*].Phone[*]' error on error COLUMNS (type VARChAR2(100) PATH '$.type' )) b;
+
+F1                                                               TYPE                                                            
+---------------------------------------------------------------- ----------------------------------------------------------------
+1                                                                a                                                               
+1                                                                b                                                               
+1                                                                c                                                               
+1                                                                d                                                               
+2                                                                e                                                               
+2                                                                f                                                               
+2                                                                g                                                               
+2                                                                h                                                               
+3                                                                3                                                               
+3                                                                b                                                               
+3                                                                3                                                               
+3                                                                d                                                               
+4                                                                4                                                               
+4                                                                4                                                               
+4                                                                g                                                               
+4                                                                h                                                               
+
+16 rows fetched.
+
+SQL> drop table if exists test_jsonb_table;
+
+Succeed.
+
+SQL> 
+
+

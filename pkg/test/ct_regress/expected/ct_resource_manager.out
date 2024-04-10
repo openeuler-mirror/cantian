@@ -1,0 +1,748 @@
+
+
+SQL> drop user if exists resmgr_user_1;
+
+Succeed.
+
+SQL> create user resmgr_user_1 identified by Cantian_234;
+
+Succeed.
+
+SQL> grant connect,resource to resmgr_user_1;
+
+Succeed.
+
+SQL> 
+SQL> --unit test for create_plan
+SQL> call DBE_RSRC_MGR.create_plan(name => 'test_plan', comment => 'Test resource plan');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.create_plan(name => 'test_plan', comment => 'Duplicate test resource plan');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.CREATE_PLAN) terminated with execute errors
+CT-00753, The object resource plan TEST_PLAN already exists.
+
+SQL> call DBE_RSRC_MGR.create_plan(name => 'plan_with_no_comm');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.create_plan(comment => 'Plan with no name');
+
+CT-00944, PL/SQL(SYS.ANONYMOUS BLOCK) terminated with compiling errors
+[1:2] PLC-00614 Parameter error: name cannot be null
+
+SQL> call DBE_RSRC_MGR.create_plan(); --plan with nothing
+
+CT-00944, PL/SQL(SYS.ANONYMOUS BLOCK) terminated with compiling errors
+[1:2] PLC-00615 Invalid argument number for CREATE_PLAN, min=1, max=3
+
+SQL> call DBE_RSRC_MGR.create_plan(name => 'plan_with_inv_arg', comment => 'Plan with invalid argument', num_rules => 3);
+
+CT-00944, PL/SQL(SYS.ANONYMOUS BLOCK) terminated with compiling errors
+[1:110] PLC-00614 Parameter error: error params name 'NUM_RULES'
+
+SQL> call DBE_RSRC_MGR.create_plan(name => '', comment => 'plan with empty string name');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.CREATE_PLAN) terminated with execute errors
+[1:35] CT-00614, Parameter error: name
+
+SQL> call DBE_RSRC_MGR.create_plan(name => 'Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', comment => 'plan with a long name');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.create_plan(name => 'Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', comment => 'plan with too long name');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.CREATE_PLAN) terminated with execute errors
+[1:35] CT-00748, resource plan name length is exceeded. name len = 65, max_len = 64
+
+SQL> call DBE_RSRC_MGR.create_plan(name => '12345', comment => 'plan with invalid plan name');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.CREATE_PLAN) terminated with execute errors
+[1:35] CT-00601, Sql syntax error: invalid identifier
+
+SQL> SELECT NAME, NUM_RULES, DESCRIPTION FROM SYS_RSRC_PLANS ORDER BY 1;
+
+NAME                                                             NUM_RULES    DESCRIPTION                                                     
+---------------------------------------------------------------- ------------ ----------------------------------------------------------------
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 1            plan with a long name                                           
+PLAN_WITH_NO_COMM                                                1                                                                            
+TEST_PLAN                                                        1            Test resource plan                                              
+
+3 rows fetched.
+
+SQL> 
+SQL> --unit test for update_plan
+SQL> call DBE_RSRC_MGR.update_plan(name=> 'test_plan', comment => 'Plan with comment updated');
+
+PL/SQL procedure successfully completed.
+
+SQL> SELECT NAME, NUM_RULES, DESCRIPTION FROM SYS_RSRC_PLANS where name = upper('test_plan');
+
+NAME                                                             NUM_RULES    DESCRIPTION                                                     
+---------------------------------------------------------------- ------------ ----------------------------------------------------------------
+TEST_PLAN                                                        1            Plan with comment updated                                       
+
+1 rows fetched.
+
+SQL> 
+SQL> call DBE_RSRC_MGR.update_plan(name=> 'test_plan');
+
+PL/SQL procedure successfully completed.
+
+SQL> SELECT NAME, NUM_RULES, DESCRIPTION FROM SYS_RSRC_PLANS where name = upper('test_plan');
+
+NAME                                                             NUM_RULES    DESCRIPTION                                                     
+---------------------------------------------------------------- ------------ ----------------------------------------------------------------
+TEST_PLAN                                                        1                                                                            
+
+1 rows fetched.
+
+SQL> call DBE_RSRC_MGR.update_plan(name=> 'test_plan', comment => 'Plan with comment updated');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.update_plan(); --update with nothing
+
+CT-00944, PL/SQL(SYS.ANONYMOUS BLOCK) terminated with compiling errors
+[1:2] PLC-00615 Invalid argument number for UPDATE_PLAN, min=1, max=2
+
+SQL> call DBE_RSRC_MGR.update_plan(name=> 'test_plan', comment => 'Plan with comment updated');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.update_plan(name => 'none_exists_plan');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.UPDATE_PLAN) terminated with execute errors
+CT-00708, The object resource plan NONE_EXISTS_PLAN does not exist
+
+SQL> 
+SQL> --unit test for delete_plan
+SQL> call DBE_RSRC_MGR.delete_plan(name => 'plan_with_no_comm');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.delete_plan(name => 'plan_with_no_comm');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.DELETE_PLAN) terminated with execute errors
+CT-00708, The object resource plan PLAN_WITH_NO_COMM does not exist
+
+SQL> call DBE_RSRC_MGR.delete_plan();
+
+CT-00944, PL/SQL(SYS.ANONYMOUS BLOCK) terminated with compiling errors
+[1:2] PLC-00615 Invalid argument number for DELETE_PLAN, min=1, max=1
+
+SQL> call DBE_RSRC_MGR.delete_plan(name => '');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.DELETE_PLAN) terminated with execute errors
+[1:35] CT-00614, Parameter error: name
+
+SQL> SELECT NAME, NUM_RULES, DESCRIPTION FROM SYS_RSRC_PLANS order by 1;
+
+NAME                                                             NUM_RULES    DESCRIPTION                                                     
+---------------------------------------------------------------- ------------ ----------------------------------------------------------------
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 1            plan with a long name                                           
+TEST_PLAN                                                        1            Plan with comment updated                                       
+
+2 rows fetched.
+
+SQL> 
+SQL> --unit test for create_control_group
+SQL> call DBE_RSRC_MGR.create_control_group(name => 'cgroup_1', comment => 'Control group for user resmgr_user_1');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.create_control_group(name => 'cgroup_2', comment => 'Control group for user resmgr_user_2');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.create_control_group(name => 'Cgroup_1', comment => 'Control group for user resmgr_user_1');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.CREATE_CONTROL_GROUP) terminated with execute errors
+CT-00753, The object control group CGROUP_1 already exists.
+
+SQL> call DBE_RSRC_MGR.create_control_group(name => '', comment => 'Control group for user resmgr_user_1');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.CREATE_CONTROL_GROUP) terminated with execute errors
+[1:44] CT-00614, Parameter error: name
+
+SQL> call DBE_RSRC_MGR.create_control_group(name => 'cgroup_3');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.create_control_group(name => 'default_groups');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.CREATE_CONTROL_GROUP) terminated with execute errors
+CT-00753, The object control group DEFAULT_GROUPS already exists.
+
+SQL> call DBE_RSRC_MGR.create_control_group(name => 'consumer groups');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.CREATE_CONTROL_GROUP) terminated with execute errors
+[1:44] CT-00601, Sql syntax error: invalid identifier
+
+SQL> 
+SQL> --unit test for update_control_group
+SQL> call DBE_RSRC_MGR.update_control_group(name => 'cgroup_1', comment => 'Updated control group for user resmgr_user_1');
+
+PL/SQL procedure successfully completed.
+
+SQL> SELECT NAME, DESCRIPTION FROM SYS_RSRC_CONTROL_GROUPS order by 1;
+
+NAME                                                             DESCRIPTION                                                     
+---------------------------------------------------------------- ----------------------------------------------------------------
+CGROUP_1                                                         Updated control group for user resmgr_user_1                    
+CGROUP_2                                                         Control group for user resmgr_user_2                            
+CGROUP_3                                                                                                                         
+DEFAULT_GROUPS                                                   Control group for users or tenants not assigned to any control group
+
+4 rows fetched.
+
+SQL> call DBE_RSRC_MGR.delete_control_group(name => 'cgroup_3');
+
+PL/SQL procedure successfully completed.
+
+SQL> SELECT NAME, DESCRIPTION FROM SYS_RSRC_CONTROL_GROUPS order by 1;
+
+NAME                                                             DESCRIPTION                                                     
+---------------------------------------------------------------- ----------------------------------------------------------------
+CGROUP_1                                                         Updated control group for user resmgr_user_1                    
+CGROUP_2                                                         Control group for user resmgr_user_2                            
+DEFAULT_GROUPS                                                   Control group for users or tenants not assigned to any control group
+
+3 rows fetched.
+
+SQL> 
+SQL> --unit test for ADD_USER_TO_CONTROL_GROUP
+SQL> call DBE_RSRC_MGR.ADD_USER_TO_CONTROL_GROUP(name => 'db_user', control_group => 'cgroup_1');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.ADD_USER_TO_CONTROL_GROUP(name => 'db_user', control_group => 'cgroup_2');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.ADD_USER_TO_CONTROL_GROUP(name => 'db_user', control_group => 'cgroup_3');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.ADD_USER_TO_CONTROL_GROUP) terminated with execute errors
+CT-00708, The object control group CGROUP_3 does not exist
+
+SQL> call DBE_RSRC_MGR.ADD_USER_TO_CONTROL_GROUP(name => 'username', control_group => 'cgroup_1');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.ADD_USER_TO_CONTROL_GROUP(name => 'username', control_group => 'cgroup_1');
+
+PL/SQL procedure successfully completed.
+
+SQL> select * from sys_rsrc_group_mappings order by 1,2;
+
+ATTRIBUTE                                                        VALUE                                                            CONTROL_GROUP                                                   
+---------------------------------------------------------------- ---------------------------------------------------------------- ----------------------------------------------------------------
+DB_USER                                                          DB_USER                                                          CGROUP_2                                                        
+DB_USER                                                          USERNAME                                                         CGROUP_1                                                        
+
+2 rows fetched.
+
+SQL> call DBE_RSRC_MGR.ADD_USER_TO_CONTROL_GROUP(name => 'db_user');
+
+PL/SQL procedure successfully completed.
+
+SQL> select * from sys_rsrc_group_mappings order by 1,2;
+
+ATTRIBUTE                                                        VALUE                                                            CONTROL_GROUP                                                   
+---------------------------------------------------------------- ---------------------------------------------------------------- ----------------------------------------------------------------
+DB_USER                                                          USERNAME                                                         CGROUP_1                                                        
+
+1 rows fetched.
+
+SQL> 
+SQL> 
+SQL> call DBE_RSRC_MGR.create_plan_rule(
+  2 	plan_name => 'test_plan',
+  3 	control_group => 'cgroup_1',
+  4 	comment => 'plan rule for test_plan, cgroup_1',
+  5 	cpu => 20,
+  6 	sessions => 50,
+  7 	active_sess => 20,
+  8 	queue_time => 30,
+  9 	temp_pool => 64,
+ 10 	max_iops => 1000,
+ 11 	max_commits => 1000,
+ 12 	max_exec_time => 100
+ 13 );
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> call DBE_RSRC_MGR.create_plan_rule(
+  2 	plan_name => 'test_plan',
+  3 	control_group => 'cgroup_2',
+  4 	comment => 'plan rule for test_plan, cgroup_2',
+  5 	cpu => 40,
+  6 	sessions => 50,
+  7 	active_sess => 30,
+  8 	queue_time => 30,
+  9 	max_iops => 1000,
+ 10 	max_commits => 1000,
+ 11 	max_exec_time => 100
+ 12 );
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> select * from sys_rsrc_plan_rules order by 1,2;
+
+PLAN                                                             CONTROL_GROUP                                                    CPU          SESSIONS     ACTIVE_SESS  QUEUE_TIME   MAX_EXEC_TIME TEMP_POOL    MAX_IOPS     MAX_COMMITS  DESCRIPTION                                                     
+---------------------------------------------------------------- ---------------------------------------------------------------- ------------ ------------ ------------ ------------ ------------- ------------ ------------ ------------ ----------------------------------------------------------------
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+TEST_PLAN                                                        CGROUP_1                                                         20           50           20           30           100           64           1000         1000         plan rule for test_plan, cgroup_1                               
+TEST_PLAN                                                        CGROUP_2                                                         40           50           30           30           100                        1000         1000         plan rule for test_plan, cgroup_2                               
+TEST_PLAN                                                        DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+
+4 rows fetched.
+
+SQL> 
+SQL> call DBE_RSRC_MGR.update_plan_rule(
+  2 	plan_name => 'test_plan',
+  3 	control_group => 'cgroup_1',
+  4 	comment => 'Plan rule for test_plan, cgroup_1'
+  5 );
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> call DBE_RSRC_MGR.update_plan_rule(
+  2 	plan_name => 'test_plan',
+  3 	control_group => 'cgroup_2',
+  4 	comment => 'Plan rule for test_plan, cgroup_2',
+  5 	cpu => 80,
+  6 	sessions => 200,
+  7 	max_exec_time => -1
+  8 );
+
+PL/SQL procedure successfully completed.
+
+SQL> select * from sys_rsrc_plan_rules ORDER BY 1,2;
+
+PLAN                                                             CONTROL_GROUP                                                    CPU          SESSIONS     ACTIVE_SESS  QUEUE_TIME   MAX_EXEC_TIME TEMP_POOL    MAX_IOPS     MAX_COMMITS  DESCRIPTION                                                     
+---------------------------------------------------------------- ---------------------------------------------------------------- ------------ ------------ ------------ ------------ ------------- ------------ ------------ ------------ ----------------------------------------------------------------
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+TEST_PLAN                                                        CGROUP_1                                                         20           50           20           30           100           64           1000         1000         Plan rule for test_plan, cgroup_1                               
+TEST_PLAN                                                        CGROUP_2                                                         80           200          30           30                                      1000         1000         Plan rule for test_plan, cgroup_2                               
+TEST_PLAN                                                        DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+
+4 rows fetched.
+
+SQL> 
+SQL> --cpu overflow
+SQL> call DBE_RSRC_MGR.update_plan_rule(
+  2 	plan_name => 'test_plan',
+  3 	control_group => 'cgroup_2',
+  4 	comment => 'Plan rule for test_plan, cgroup_2',
+  5 	cpu => 101,
+  6 	sessions => 200,
+  7 	max_exec_time => -1
+  8 );
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.UPDATE_PLAN_RULE) terminated with execute errors
+[5:8] CT-00242, The function argument is out of range
+
+SQL> --sessions overflow
+SQL> call DBE_RSRC_MGR.update_plan_rule(
+  2 	plan_name => 'test_plan',
+  3 	control_group => 'cgroup_2',
+  4 	sessions => -2
+  5 );
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.UPDATE_PLAN_RULE) terminated with execute errors
+[4:13] CT-00242, The function argument is out of range
+
+SQL> select * from sys_rsrc_plan_rules order by 1,2;
+
+PLAN                                                             CONTROL_GROUP                                                    CPU          SESSIONS     ACTIVE_SESS  QUEUE_TIME   MAX_EXEC_TIME TEMP_POOL    MAX_IOPS     MAX_COMMITS  DESCRIPTION                                                     
+---------------------------------------------------------------- ---------------------------------------------------------------- ------------ ------------ ------------ ------------ ------------- ------------ ------------ ------------ ----------------------------------------------------------------
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+TEST_PLAN                                                        CGROUP_1                                                         20           50           20           30           100           64           1000         1000         Plan rule for test_plan, cgroup_1                               
+TEST_PLAN                                                        CGROUP_2                                                         80           200          30           30                                      1000         1000         Plan rule for test_plan, cgroup_2                               
+TEST_PLAN                                                        DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+
+4 rows fetched.
+
+SQL> 
+SQL> call DBE_RSRC_MGR.VALIDATE_PLAN(name=>'test_plan');
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> call DBE_RSRC_MGR.update_plan_rule(
+  2     plan_name => 'test_plan',
+  3     control_group => 'cgroup_2',
+  4     temp_pool => 1000
+  5 );
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.VALIDATE_PLAN(name=>'test_plan');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.VALIDATE_PLAN) terminated with execute errors
+CT-00629, Virtual memory error,detail is 'temp buffer size of control group exceeds the maximum'
+
+SQL> call DBE_RSRC_MGR.update_plan_rule(
+  2     plan_name => 'test_plan',
+  3     control_group => 'cgroup_2',
+  4     temp_pool => -1
+  5 );
+
+PL/SQL procedure successfully completed.
+
+SQL> alter system set resource_plan = 'test_plan';
+
+Succeed.
+
+SQL> select name,sessions,active_sessions,vm_pages from dv_rsrc_control_group;
+
+NAME                                                             SESSIONS     ACTIVE_SESSIONS VM_PAGES    
+---------------------------------------------------------------- ------------ --------------- ------------
+DEFAULT_GROUPS                                                   1            1               2047        
+CGROUP_1                                                         0            0               2047        
+CGROUP_2                                                         0            0               2047        
+
+3 rows fetched.
+
+SQL> call DBE_RSRC_MGR.delete_plan(name => 'test_plan');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.DELETE_PLAN) terminated with execute errors
+CT-00815, resource plan TEST_PLAN is being used, can not drop
+
+SQL> call DBE_RSRC_MGR.delete_control_group(name => 'cgroup_1');
+
+CT-00932, [1:2] PL/SQL(SYS.ANONYMOUS BLOCK) terminated with execute errors
+[1:2] PL/SQL(DBE_RSRC_MGR.DELETE_CONTROL_GROUP) terminated with execute errors
+CT-00815, control group CGROUP_1 is being used, can not drop
+
+SQL> 
+SQL> --privilege test
+SQL> conn resmgr_user_1/Cantian_234@127.0.0.1:1611
+
+connected.
+
+SQL> call DBE_RSRC_MGR.delete_plan(name => 'test_plan');
+
+CT-00944, PL/SQL(RESMGR_USER_1.ANONYMOUS BLOCK) terminated with compiling errors
+[1:2] PLC-01001 Permissions were insufficient
+
+SQL> call DBE_RSRC_MGR.delete_control_group(name => 'cgroup_1');
+
+CT-00944, PL/SQL(RESMGR_USER_1.ANONYMOUS BLOCK) terminated with compiling errors
+[1:2] PLC-01001 Permissions were insufficient
+
+SQL> call DBE_RSRC_MGR.create_plan(name => 'test_plan_1', comment => 'Resource plan created by normal user');
+
+CT-00944, PL/SQL(RESMGR_USER_1.ANONYMOUS BLOCK) terminated with compiling errors
+[1:2] PLC-01001 Permissions were insufficient
+
+SQL> 
+SQL> conn / as sysdba
+
+connected.
+
+SQL> alter system set resource_plan = 'test_plan_1';
+
+CT-00708, The object resource plan TEST_PLAN_1 does not exist
+SQL> alter system set resource_plan = '';
+
+Succeed.
+
+SQL> call DBE_RSRC_MGR.delete_plan(name => 'Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.delete_plan(name => 'test_plan');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.delete_control_group(name => 'cgroup_1');
+
+PL/SQL procedure successfully completed.
+
+SQL> call DBE_RSRC_MGR.delete_control_group(name => 'cgroup_2');
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> select * from dv_rsrc_control_group order by 1;
+
+ID           NAME                                                             SESSIONS     SESSION_LIMIT_HIT    ACTIVE_SESSIONS CPU_TIME             QUEUED_TIME          QUEUE_TIME_OUTS      QUEUED_SESSIONS      QUEUE_LENGTH IO_WAITS             IO_WAIT_TIME         VM_PAGES     VM_USED_PAGES SQL_CANCELED         DISK_READS           COMMITS             
+------------ ---------------------------------------------------------------- ------------ -------------------- --------------- -------------------- -------------------- -------------------- -------------------- ------------ -------------------- -------------------- ------------ ------------- -------------------- -------------------- --------------------
+
+0 rows fetched.
+
+SQL> drop user resmgr_user_1 cascade;
+
+Succeed.
+
+SQL> 
+SQL> --plsql/block
+SQL> declare 
+  2 BEGIN
+  3    FOR i IN 1..10 LOOP
+  4    DBE_RSRC_MGR.create_control_group('nicec_test_group' || i,'dsvfds' || i);
+  5    end loop;
+  6 end;
+  7 /
+
+PL/SQL procedure successfully completed.
+
+SQL> select name, description from sys.sys_rsrc_control_groups order by name;
+
+NAME                                                             DESCRIPTION                                                     
+---------------------------------------------------------------- ----------------------------------------------------------------
+DEFAULT_GROUPS                                                   Control group for users or tenants not assigned to any control group
+NICEC_TEST_GROUP1                                                dsvfds1                                                         
+NICEC_TEST_GROUP10                                               dsvfds10                                                        
+NICEC_TEST_GROUP2                                                dsvfds2                                                         
+NICEC_TEST_GROUP3                                                dsvfds3                                                         
+NICEC_TEST_GROUP4                                                dsvfds4                                                         
+NICEC_TEST_GROUP5                                                dsvfds5                                                         
+NICEC_TEST_GROUP6                                                dsvfds6                                                         
+NICEC_TEST_GROUP7                                                dsvfds7                                                         
+NICEC_TEST_GROUP8                                                dsvfds8                                                         
+NICEC_TEST_GROUP9                                                dsvfds9                                                         
+
+11 rows fetched.
+
+SQL> 
+SQL> declare 
+  2 BEGIN
+  3    FOR i IN 1..10 LOOP
+  4    DBE_RSRC_MGR.update_control_group('nicec_test_group' || i, 'updated_dsvfds' || i);
+  5    end loop;
+  6 end;
+  7 /
+
+PL/SQL procedure successfully completed.
+
+SQL> select name, description from sys.sys_rsrc_control_groups order by name;
+
+NAME                                                             DESCRIPTION                                                     
+---------------------------------------------------------------- ----------------------------------------------------------------
+DEFAULT_GROUPS                                                   Control group for users or tenants not assigned to any control group
+NICEC_TEST_GROUP1                                                updated_dsvfds1                                                 
+NICEC_TEST_GROUP10                                               updated_dsvfds10                                                
+NICEC_TEST_GROUP2                                                updated_dsvfds2                                                 
+NICEC_TEST_GROUP3                                                updated_dsvfds3                                                 
+NICEC_TEST_GROUP4                                                updated_dsvfds4                                                 
+NICEC_TEST_GROUP5                                                updated_dsvfds5                                                 
+NICEC_TEST_GROUP6                                                updated_dsvfds6                                                 
+NICEC_TEST_GROUP7                                                updated_dsvfds7                                                 
+NICEC_TEST_GROUP8                                                updated_dsvfds8                                                 
+NICEC_TEST_GROUP9                                                updated_dsvfds9                                                 
+
+11 rows fetched.
+
+SQL> 
+SQL> declare 
+  2 BEGIN
+  3    FOR i IN 1..10 LOOP
+  4    DBE_RSRC_MGR.create_plan('nicec_test_plan' || i,'dsvfds' || i);
+  5    end loop;
+  6 end;
+  7 /
+
+PL/SQL procedure successfully completed.
+
+SQL> select name, description from sys.sys_rsrc_plans order by name;
+
+NAME                                                             DESCRIPTION                                                     
+---------------------------------------------------------------- ----------------------------------------------------------------
+NICEC_TEST_PLAN1                                                 dsvfds1                                                         
+NICEC_TEST_PLAN10                                                dsvfds10                                                        
+NICEC_TEST_PLAN2                                                 dsvfds2                                                         
+NICEC_TEST_PLAN3                                                 dsvfds3                                                         
+NICEC_TEST_PLAN4                                                 dsvfds4                                                         
+NICEC_TEST_PLAN5                                                 dsvfds5                                                         
+NICEC_TEST_PLAN6                                                 dsvfds6                                                         
+NICEC_TEST_PLAN7                                                 dsvfds7                                                         
+NICEC_TEST_PLAN8                                                 dsvfds8                                                         
+NICEC_TEST_PLAN9                                                 dsvfds9                                                         
+
+10 rows fetched.
+
+SQL> 
+SQL> declare 
+  2 BEGIN
+  3    FOR i IN 1..10 LOOP
+  4    DBE_RSRC_MGR.update_plan('nicec_test_plan' || i, 'updated_dsvfds' || i);
+  5    end loop;
+  6 end;
+  7 /
+
+PL/SQL procedure successfully completed.
+
+SQL> select name, description from sys.sys_rsrc_plans order by name;
+
+NAME                                                             DESCRIPTION                                                     
+---------------------------------------------------------------- ----------------------------------------------------------------
+NICEC_TEST_PLAN1                                                 updated_dsvfds1                                                 
+NICEC_TEST_PLAN10                                                updated_dsvfds10                                                
+NICEC_TEST_PLAN2                                                 updated_dsvfds2                                                 
+NICEC_TEST_PLAN3                                                 updated_dsvfds3                                                 
+NICEC_TEST_PLAN4                                                 updated_dsvfds4                                                 
+NICEC_TEST_PLAN5                                                 updated_dsvfds5                                                 
+NICEC_TEST_PLAN6                                                 updated_dsvfds6                                                 
+NICEC_TEST_PLAN7                                                 updated_dsvfds7                                                 
+NICEC_TEST_PLAN8                                                 updated_dsvfds8                                                 
+NICEC_TEST_PLAN9                                                 updated_dsvfds9                                                 
+
+10 rows fetched.
+
+SQL> 
+SQL> 
+SQL> declare 
+  2 BEGIN
+  3    FOR i IN 1..10 LOOP
+  4    DBE_RSRC_MGR.create_plan_rule(
+  5      plan_name=>'nicec_test_plan' || i,
+  6      control_group=>'nicec_test_group' || i,
+  7      comment=>'plan rule for nicec_test_plan' || i || ', nicec_test_group' || i,
+  8      cpu=>10*i);
+  9    end loop;
+ 10 end;
+ 11 /
+
+PL/SQL procedure successfully completed.
+
+SQL> select * from sys.sys_rsrc_plan_rules order by 1,2;
+
+PLAN                                                             CONTROL_GROUP                                                    CPU          SESSIONS     ACTIVE_SESS  QUEUE_TIME   MAX_EXEC_TIME TEMP_POOL    MAX_IOPS     MAX_COMMITS  DESCRIPTION                                                     
+---------------------------------------------------------------- ---------------------------------------------------------------- ------------ ------------ ------------ ------------ ------------- ------------ ------------ ------------ ----------------------------------------------------------------
+NICEC_TEST_PLAN1                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN1                                                 NICEC_TEST_GROUP1                                                10                                                                                                       plan rule for nicec_test_plan1, nicec_test_group1               
+NICEC_TEST_PLAN10                                                DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN10                                                NICEC_TEST_GROUP10                                               100                                                                                                      plan rule for nicec_test_plan10, nicec_test_group10             
+NICEC_TEST_PLAN2                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN2                                                 NICEC_TEST_GROUP2                                                20                                                                                                       plan rule for nicec_test_plan2, nicec_test_group2               
+NICEC_TEST_PLAN3                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN3                                                 NICEC_TEST_GROUP3                                                30                                                                                                       plan rule for nicec_test_plan3, nicec_test_group3               
+NICEC_TEST_PLAN4                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN4                                                 NICEC_TEST_GROUP4                                                40                                                                                                       plan rule for nicec_test_plan4, nicec_test_group4               
+NICEC_TEST_PLAN5                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN5                                                 NICEC_TEST_GROUP5                                                50                                                                                                       plan rule for nicec_test_plan5, nicec_test_group5               
+NICEC_TEST_PLAN6                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN6                                                 NICEC_TEST_GROUP6                                                60                                                                                                       plan rule for nicec_test_plan6, nicec_test_group6               
+NICEC_TEST_PLAN7                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN7                                                 NICEC_TEST_GROUP7                                                70                                                                                                       plan rule for nicec_test_plan7, nicec_test_group7               
+NICEC_TEST_PLAN8                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN8                                                 NICEC_TEST_GROUP8                                                80                                                                                                       plan rule for nicec_test_plan8, nicec_test_group8               
+NICEC_TEST_PLAN9                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN9                                                 NICEC_TEST_GROUP9                                                90                                                                                                       plan rule for nicec_test_plan9, nicec_test_group9               
+
+20 rows fetched.
+
+SQL> 
+SQL> declare 
+  2 BEGIN
+  3    FOR i IN 1..10 LOOP
+  4    DBE_RSRC_MGR.update_plan_rule(
+  5      plan_name=>'nicec_test_plan' || i,
+  6      control_group=>'nicec_test_group' || i,
+  7      comment=>'updated plan rule for nicec_test_plan' || i || ', nicec_test_group' || i,
+  8      cpu=>10*i);
+  9    end loop;
+ 10 end;
+ 11 /
+
+PL/SQL procedure successfully completed.
+
+SQL> select * from sys.sys_rsrc_plan_rules order by 1,2;
+
+PLAN                                                             CONTROL_GROUP                                                    CPU          SESSIONS     ACTIVE_SESS  QUEUE_TIME   MAX_EXEC_TIME TEMP_POOL    MAX_IOPS     MAX_COMMITS  DESCRIPTION                                                     
+---------------------------------------------------------------- ---------------------------------------------------------------- ------------ ------------ ------------ ------------ ------------- ------------ ------------ ------------ ----------------------------------------------------------------
+NICEC_TEST_PLAN1                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN1                                                 NICEC_TEST_GROUP1                                                10                                                                                                       updated plan rule for nicec_test_plan1, nicec_test_group1       
+NICEC_TEST_PLAN10                                                DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN10                                                NICEC_TEST_GROUP10                                               100                                                                                                      updated plan rule for nicec_test_plan10, nicec_test_group10     
+NICEC_TEST_PLAN2                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN2                                                 NICEC_TEST_GROUP2                                                20                                                                                                       updated plan rule for nicec_test_plan2, nicec_test_group2       
+NICEC_TEST_PLAN3                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN3                                                 NICEC_TEST_GROUP3                                                30                                                                                                       updated plan rule for nicec_test_plan3, nicec_test_group3       
+NICEC_TEST_PLAN4                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN4                                                 NICEC_TEST_GROUP4                                                40                                                                                                       updated plan rule for nicec_test_plan4, nicec_test_group4       
+NICEC_TEST_PLAN5                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN5                                                 NICEC_TEST_GROUP5                                                50                                                                                                       updated plan rule for nicec_test_plan5, nicec_test_group5       
+NICEC_TEST_PLAN6                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN6                                                 NICEC_TEST_GROUP6                                                60                                                                                                       updated plan rule for nicec_test_plan6, nicec_test_group6       
+NICEC_TEST_PLAN7                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN7                                                 NICEC_TEST_GROUP7                                                70                                                                                                       updated plan rule for nicec_test_plan7, nicec_test_group7       
+NICEC_TEST_PLAN8                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN8                                                 NICEC_TEST_GROUP8                                                80                                                                                                       updated plan rule for nicec_test_plan8, nicec_test_group8       
+NICEC_TEST_PLAN9                                                 DEFAULT_GROUPS                                                   0                                                                                                        Plan rule for all other operations                              
+NICEC_TEST_PLAN9                                                 NICEC_TEST_GROUP9                                                90                                                                                                       updated plan rule for nicec_test_plan9, nicec_test_group9       
+
+20 rows fetched.
+
+SQL> 
+SQL> declare 
+  2 BEGIN
+  3    FOR i IN 1..10 LOOP
+  4    DBE_RSRC_MGR.REMOVE_PLAN_RULE(
+  5      plan_name=>'nicec_test_plan' || i,
+  6      control_group=>'nicec_test_group' || i);
+  7    end loop;
+  8 end;
+  9 /
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> declare 
+  2 BEGIN
+  3    FOR i IN 1..10 LOOP
+  4    DBE_RSRC_MGR.ADD_USER_TO_CONTROL_GROUP('db_user', 'nicec_test_group' || i);
+  5    end loop;
+  6 end;
+  7 /
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> --clean up
+SQL> declare 
+  2 BEGIN
+  3    FOR i IN 1..10 LOOP
+  4    DBE_RSRC_MGR.delete_control_group('nicec_test_group' || i);
+  5    end loop;
+  6 end;
+  7 /
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> declare 
+  2 BEGIN
+  3    FOR i IN 1..10 LOOP
+  4    DBE_RSRC_MGR.delete_plan('nicec_test_plan' || i);
+  5    end loop;
+  6 end;
+  7 /
+PL/SQL procedure successfully completed.
+
+
+
+

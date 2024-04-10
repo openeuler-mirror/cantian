@@ -1,0 +1,593 @@
+
+
+SQL> ---test json 
+SQL> select * from SYS_DUMMY where 'dsd' is not json;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from SYS_DUMMY where '{' is not json;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from SYS_DUMMY where '{}' is not json;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from SYS_DUMMY where '{"name":"er"}' is json;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from SYS_DUMMY where NULL is not json;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from SYS_DUMMY where NULL is json;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> 
+SQL> drop table if exists student;
+
+Succeed.
+
+SQL> create table student(id int,info varchar2(8000) check (info is json), teachers varchar2(8000) check(teachers is JSON));
+
+Succeed.
+
+SQL> --test unipue index
+SQL> create unique index ind_unique_json on student(JSON_VALUE(info,'$.name'));
+
+Succeed.
+
+SQL> insert into student values(1,'{"name":"merry","birthday":"2012-04-08","class":"02-1"}','{"Liberal_arts":{"History":"Aaron","Chinese":"lilei"}}');
+
+1 rows affected.
+
+SQL> insert into student values(1,'{"name":"merry","birthday":"2012-05-08","class":"03-1"}','{"Liberal_arts":{"History":"Aaron","Chinese":"lilei"}}');
+
+CT-00729, Unique constraint violated, index IND_UNIQUE_JSON, duplicate key merry
+SQL> drop index ind_unique_json on student;
+
+Succeed.
+
+SQL> 
+SQL> create index ind_t on student(JSON_VALUE(info,'$.name'));
+
+Succeed.
+
+SQL> insert into student values(1,'{"name":"merry","birthday":"2012-04-08","class":"02-1"}','{"Liberal_arts":{"History":"Abraham ","Chinese":"Adolph"}}');
+
+1 rows affected.
+
+SQL> insert into student values(2,'{"name":"kite","birthday":"2012-06-08","class":"03-1"}','');
+
+1 rows affected.
+
+SQL> insert into student values(3,'{"name":"hanmeimei","birthday":"2012-07-08","class":"04-1"}','{"Liberal_arts":{"History":"Abraham ","Chinese":"Adolph"}}');
+
+1 rows affected.
+
+SQL> ----test JSON_QUERY and JSON_VALUE
+SQL> SELECT JSON_VALUE(info,'$.birthday') as birthday from student where JSON_VALUE(info,'$.name')='merry';
+
+BIRTHDAY                                                        
+----------------------------------------------------------------
+2012-04-08                                                      
+2012-04-08                                                      
+
+2 rows fetched.
+
+SQL> SELECT JSON_VALUE(teachers,'$') from student;
+
+JSON_VALUE(TEACHERS,'$')                                        
+----------------------------------------------------------------
+                                                                
+                                                                
+                                                                
+                                                                
+
+4 rows fetched.
+
+SQL> SELECT JSON_VALUE(teachers,'$.Liberal_arts') from student;
+
+JSON_VALUE(TEACHERS,'$.LIBERAL_ARTS')                           
+----------------------------------------------------------------
+                                                                
+                                                                
+                                                                
+                                                                
+
+4 rows fetched.
+
+SQL> SELECT JSON_VALUE(teachers,'$.Liberal_arts.History') from student;
+
+JSON_VALUE(TEACHERS,'$.LIBERAL_ARTS.HISTORY')                   
+----------------------------------------------------------------
+Aaron                                                           
+Abraham                                                         
+                                                                
+Abraham                                                         
+
+4 rows fetched.
+
+SQL> SELECT JSON_QUERY(teachers, '$' ERROR ON ERROR) FROM student;
+
+JSON_QUERY(TEACHERS, '$' ERROR ON ERROR)                        
+----------------------------------------------------------------
+{"Liberal_arts":{"History":"Aaron","Chinese":"lilei"}}          
+{"Liberal_arts":{"History":"Abraham ","Chinese":"Adolph"}}      
+                                                                
+{"Liberal_arts":{"History":"Abraham ","Chinese":"Adolph"}}      
+
+4 rows fetched.
+
+SQL> SELECT JSON_QUERY(teachers, '$.Liberal_arts' ERROR ON ERROR) FROM student;
+
+JSON_QUERY(TEACHERS, '$.LIBERAL_ARTS' ERROR ON ERROR)           
+----------------------------------------------------------------
+{"History":"Aaron","Chinese":"lilei"}                           
+{"History":"Abraham ","Chinese":"Adolph"}                       
+                                                                
+{"History":"Abraham ","Chinese":"Adolph"}                       
+
+4 rows fetched.
+
+SQL> SELECT JSON_QUERY(teachers, '$.Liberal_arts.History' ERROR ON ERROR) FROM student;
+
+CT-02506, JSON_VALUE evaluated to scalar value
+SQL> ---test json_mergepatch
+SQL> SELECT json_mergepatch(info,'{"name":"merry1"}') from student where JSON_VALUE(info, '$.name')='merry';
+
+JSON_MERGEPATCH(INFO,'{"NAME":"MERRY1"}')                       
+----------------------------------------------------------------
+{"name":"merry1","birthday":"2012-04-08","class":"02-1"}        
+{"name":"merry1","birthday":"2012-04-08","class":"02-1"}        
+
+2 rows fetched.
+
+SQL> SELECT info from student where JSON_VALUE(info, '$.name')='merry';
+
+INFO                                                            
+----------------------------------------------------------------
+{"name":"merry","birthday":"2012-04-08","class":"02-1"}         
+{"name":"merry","birthday":"2012-04-08","class":"02-1"}         
+
+2 rows fetched.
+
+SQL> SELECT json_mergepatch(info,'{"name":"merry1","birthday":"2012-05-08","class":"03-1"}') from student where JSON_VALUE(info, '$.name')='merry';
+
+JSON_MERGEPATCH(INFO,'{"NAME":"MERRY1","BIRTHDAY":"2012-05-08","
+----------------------------------------------------------------
+{"name":"merry1","birthday":"2012-05-08","class":"03-1"}        
+{"name":"merry1","birthday":"2012-05-08","class":"03-1"}        
+
+2 rows fetched.
+
+SQL> SELECT JSON_VALUE(info,'$.name') from student where id = 1;
+
+JSON_VALUE(INFO,'$.NAME')                                       
+----------------------------------------------------------------
+merry                                                           
+merry                                                           
+
+2 rows fetched.
+
+SQL> ---test json_array
+SQL> SELECT json_array('true','test','','NULL') from SYS_DUMMY;
+
+JSON_ARRAY('TRUE','TEST','','NULL')                             
+----------------------------------------------------------------
+["true","test","NULL"]                                          
+
+1 rows fetched.
+
+SQL> SELECT json_array('true' format json, null format json ABSENT on null) from SYS_DUMMY;
+
+JSON_ARRAY('TRUE' FORMAT JSON, NULL FORMAT JSON ABSENT ON NULL) 
+----------------------------------------------------------------
+[true]                                                          
+
+1 rows fetched.
+
+SQL> SELECT json_array('true' format json, null format json NULL on null returning varchar2(23)) from SYS_DUMMY;
+
+JSON_ARRAY('TRUE' FORMAT JSON, NULL FORMAT JSON NULL ON NULL RET
+----------------------------------------------------------------
+[true,null]                                                     
+
+1 rows fetched.
+
+SQL> select json_array('["sd","123",NULL]') from SYS_DUMMY;
+
+JSON_ARRAY('["SD","123",NULL]')                                 
+----------------------------------------------------------------
+["[\"sd\",\"123\",NULL]"]                                       
+
+1 rows fetched.
+
+SQL> select json_array('["sd","123",NULL]' FORMAT json) from SYS_DUMMY;
+
+CT-02504, [1:32]JSON syntax error, unexpected N found
+SQL> ---test json_object
+SQL> select json_object(key 'class' is '"05-1"' FORMAT json,key 'name' is NULL ABSENT on null) from SYS_DUMMY;
+
+JSON_OBJECT(KEY 'CLASS' IS '"05-1"' FORMAT JSON,KEY 'NAME' IS NU
+----------------------------------------------------------------
+{"class":"05-1"}                                                
+
+1 rows fetched.
+
+SQL> select json_object(key 'class' is '"05-1"' FORMAT json,key 'name' is NULL NULL on null) from SYS_DUMMY;
+
+JSON_OBJECT(KEY 'CLASS' IS '"05-1"' FORMAT JSON,KEY 'NAME' IS NU
+----------------------------------------------------------------
+{"class":"05-1","name":null}                                    
+
+1 rows fetched.
+
+SQL> select json_object(key 'class' is '"05-1"' FORMAT json,key 'name' is '"NULL"' ABSENT on null) from SYS_DUMMY;
+
+JSON_OBJECT(KEY 'CLASS' IS '"05-1"' FORMAT JSON,KEY 'NAME' IS '"
+----------------------------------------------------------------
+{"class":"05-1","name":"\"NULL\""}                              
+
+1 rows fetched.
+
+SQL> ---test json_exists
+SQL> select json_exists(teachers,'$.Liberal_arts') from student where id = 1;
+
+JSON_EXISTS(TEACHERS,'$.LIBERAL_ARTS')
+--------------------------------------
+TRUE                                  
+TRUE                                  
+
+2 rows fetched.
+
+SQL> select json_exists(teachers,'$.Liberal_arts.History') from student where id = 1;
+
+JSON_EXISTS(TEACHERS,'$.LIBERAL_ARTS.HISTORY')
+----------------------------------------------
+TRUE                                          
+TRUE                                          
+
+2 rows fetched.
+
+SQL> select json_exists(teachers,'$.Liberal_arts') from student where id = 1;
+
+JSON_EXISTS(TEACHERS,'$.LIBERAL_ARTS')
+--------------------------------------
+TRUE                                  
+TRUE                                  
+
+2 rows fetched.
+
+SQL> select json_exists('{"name":"NULL"}','$.name') from SYS_DUMMY;
+
+JSON_EXISTS('{"NAME":"NULL"}','$.NAME')
+---------------------------------------
+TRUE                                   
+
+1 rows fetched.
+
+SQL> select json_exists('{"name":"NULL"}','$.class') from SYS_DUMMY;
+
+JSON_EXISTS('{"NAME":"NULL"}','$.CLASS')
+----------------------------------------
+FALSE                                   
+
+1 rows fetched.
+
+SQL> ---test json_array_length, Exception scenarios
+SQL> select json_array_length() from SYS_DUMMY;
+
+CT-00615, [1:8]Invalid argument number for JSON_ARRAY_LENGTH, min=1, max=1
+SQL> select json_array_length(NULL) from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH(NULL)
+-----------------------
+                       
+
+1 rows fetched.
+
+SQL> select json_array_length("sd":"de") from SYS_DUMMY;
+
+CT-00601, [1:30]Sql syntax error: namable char expected but " found
+SQL> select json_array_length('["sd":"de"') from SYS_DUMMY;
+
+CT-02504, [1:32]JSON syntax error, "," expected but : found
+SQL> select json_array_length('["sd":"de"]') from SYS_DUMMY;
+
+CT-02504, [1:32]JSON syntax error, "," expected but : found
+SQL> select json_array_length('[{"sd":"de"]') from SYS_DUMMY;
+
+CT-02504, [1:38]JSON syntax error, "," expected but ] found
+SQL> select json_array_length('["sd":"de"}]') from SYS_DUMMY;
+
+CT-02504, [1:32]JSON syntax error, "," expected but : found
+SQL> ---test json_array_length, the depth is one
+SQL> select json_array_length('["sd"]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('["SD"]')
+---------------------------
+1                          
+
+1 rows fetched.
+
+SQL> select json_array_length('[{"sd":"de"}]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"SD":"DE"}]')
+----------------------------------
+1                                 
+
+1 rows fetched.
+
+SQL> select json_array_length('["sd","wd"]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('["SD","WD"]')
+--------------------------------
+2                               
+
+1 rows fetched.
+
+SQL> select json_array_length('[{"sd":"de"},{"qa":"ret"}]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"SD":"DE"},{"QA":"RET"}]')
+-----------------------------------------------
+2                                              
+
+1 rows fetched.
+
+SQL> select json_array_length('["sd",{"qa":"ret"}]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('["SD",{"QA":"RET"}]')
+----------------------------------------
+2                                       
+
+1 rows fetched.
+
+SQL> select json_array_length('["sd",{"qa":"ret"}]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('["SD",{"QA":"RET"}]')
+----------------------------------------
+2                                       
+
+1 rows fetched.
+
+SQL> select json_array_length('[{"qa":"ret"},"sd"]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"QA":"RET"},"SD"]')
+----------------------------------------
+2                                       
+
+1 rows fetched.
+
+SQL> select json_array_length('[{"qa":"ret"},"sd",{"qa":"ret"}]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"QA":"RET"},"SD",{"QA":"RET"}]')
+-----------------------------------------------------
+3                                                    
+
+1 rows fetched.
+
+SQL> select json_array_length('[{"qa":"ret"},"sd","qa"]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"QA":"RET"},"SD","QA"]')
+---------------------------------------------
+3                                            
+
+1 rows fetched.
+
+SQL> select json_array_length('["sd",{"qa":"ret"},"qa"]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('["SD",{"QA":"RET"},"QA"]')
+---------------------------------------------
+3                                            
+
+1 rows fetched.
+
+SQL> select json_array_length('["sd","qa",{"qa":"ret"}]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('["SD","QA",{"QA":"RET"}]')
+---------------------------------------------
+3                                            
+
+1 rows fetched.
+
+SQL> ---test json_array_length, the depth is two
+SQL> select json_array_length('[{"qa":{"er":"rt"}}]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"QA":{"ER":"RT"}}]')
+-----------------------------------------
+1                                        
+
+1 rows fetched.
+
+SQL> select json_array_length('[{"qa":{"er":"rt"}}]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"QA":{"ER":"RT"}}]')
+-----------------------------------------
+1                                        
+
+1 rows fetched.
+
+SQL> select json_array_length('["as",{"qa":{"er":"rt"}}]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('["AS",{"QA":{"ER":"RT"}}]')
+----------------------------------------------
+2                                             
+
+1 rows fetched.
+
+SQL> select json_array_length('[{"qa":{"er":"rt"}},"as"]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"QA":{"ER":"RT"}},"AS"]')
+----------------------------------------------
+2                                             
+
+1 rows fetched.
+
+SQL> select json_array_length('[{"qa":{"er":"rt"}},"as","sd"]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"QA":{"ER":"RT"}},"AS","SD"]')
+---------------------------------------------------
+3                                                  
+
+1 rows fetched.
+
+SQL> select json_array_length('["as",{"qa":{"er":"rt"}},"sd"]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('["AS",{"QA":{"ER":"RT"}},"SD"]')
+---------------------------------------------------
+3                                                  
+
+1 rows fetched.
+
+SQL> select json_array_length('["as","sd",{"qa":{"er":"rt"}}]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('["AS","SD",{"QA":{"ER":"RT"}}]')
+---------------------------------------------------
+3                                                  
+
+1 rows fetched.
+
+SQL> select json_array_length('[{"as":"sd"},{"qa":{"er":"rt"}}]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"AS":"SD"},{"QA":{"ER":"RT"}}]')
+-----------------------------------------------------
+2                                                    
+
+1 rows fetched.
+
+SQL> select json_array_length('["as",{"as":"sd"},{"qa":{"er":"rt"}}]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('["AS",{"AS":"SD"},{"QA":{"ER":"RT"}}]')
+----------------------------------------------------------
+3                                                         
+
+1 rows fetched.
+
+SQL> select json_array_length('[{"as":"sd"},"as",{"qa":{"er":"rt"}}]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"AS":"SD"},"AS",{"QA":{"ER":"RT"}}]')
+----------------------------------------------------------
+3                                                         
+
+1 rows fetched.
+
+SQL> select json_array_length('[{"as":"sd"},{"qa":{"er":"rt"}},"as"]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"AS":"SD"},{"QA":{"ER":"RT"}},"AS"]')
+----------------------------------------------------------
+3                                                         
+
+1 rows fetched.
+
+SQL> select json_array_length('["df",{"as":"sd"},{"qa":{"er":"rt"}},"as"]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('["DF",{"AS":"SD"},{"QA":{"ER":"RT"}},"AS"]')
+---------------------------------------------------------------
+4                                                              
+
+1 rows fetched.
+
+SQL> select json_array_length('[{"as":"sd"},"df",{"qa":{"er":"rt"}},"as"]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"AS":"SD"},"DF",{"QA":{"ER":"RT"}},"AS"]')
+---------------------------------------------------------------
+4                                                              
+
+1 rows fetched.
+
+SQL> select json_array_length('[{"as":"sd"},{"qa":{"er":"rt"}},"df","as"]') from SYS_DUMMY;
+
+JSON_ARRAY_LENGTH('[{"AS":"SD"},{"QA":{"ER":"RT"}},"DF","AS"]')
+---------------------------------------------------------------
+4                                                              
+
+1 rows fetched.
+
+SQL> 
+SQL> drop table if exists student;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists test;
+
+Succeed.
+
+SQL> create table test(a int, b varchar(300));
+
+Succeed.
+
+SQL> insert into test values(1, 'aaaaaaaa');
+
+1 rows affected.
+
+SQL> insert into test values(2,'bbbb				bbbb');
+
+1 rows affected.
+
+SQL> insert into test values(3, 'cc
+  2 cc
+  3 c
+  4 ccc');
+
+1 rows affected.
+
+SQL> select length(b) from test;
+
+LENGTH(B)
+--------------------
+8
+12
+11
+
+3 rows fetched.
+
+SQL> select json_object('b' is b) from test;
+
+JSON_OBJECT('B' IS B)
+----------------------------------------------------------------
+{"b":"aaaaaaaa"}
+{"b":"bbbb\t\t\t\tbbbb"}
+{"b":"cc\ncc\nc\nccc"}
+
+3 rows fetched.
+
+SQL> select length(json_value(json_object('b' is b), '$.b')) from test;
+
+LENGTH(JSON_VALUE(JSON_OBJECT('B' IS B), '$.B'))
+------------------------------------------------
+8
+12
+11
+
+3 rows fetched.
+
+SQL> 
+SQL> --test when the length of second parameter is 32
+SQL> select json_value('[1,2,3,4]', '$[12345678901234567890123456789000]') from dual;
+	 
+CT-02503, JSON path expression syntax error, the indexes too long

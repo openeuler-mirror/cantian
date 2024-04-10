@@ -8,7 +8,7 @@ function help()
     echo ""
     echo "$0"
     echo ""
-    echo "Usage:    Dev_gs_cantian_regress.sh       {help} [--coverage --user]"
+    echo "Usage:    Dev_ct_cantian_regress.sh       {help} [--coverage --user]"
     echo "          --coverage         run test with test coverage report"
     echo "          --user             run test with user, if using docker/container.sh dev start container with different user,
                                        pass this user through --user, default is cantiandba"
@@ -134,7 +134,7 @@ function compile_code()
 
 function parse_parameter()
 {
-    ARGS=$(getopt -o c:u:d: --long coverage:,user:,core_dir:,gs_schedule_list: -n "$0" -- "$@")
+    ARGS=$(getopt -o c:u:d: --long coverage:,user:,core_dir:,ct_schedule_list: -n "$0" -- "$@")
 
     if [ $? != 0 ]; then
         echo "Terminating..."
@@ -145,7 +145,7 @@ function parse_parameter()
     declare -g LCOV_ENABLE=FALSE
     declare -g RUN_TEST_USER="cantiandba"
     declare -g CORE_DIR="/home/core"
-    declare -g GS_SCHEDULE_LIST="gs_schedule"
+    declare -g GS_SCHEDULE_LIST="ct_schedule"
     while true
     do
         case "$1" in
@@ -161,7 +161,7 @@ function parse_parameter()
                 CORE_DIR="$2"
                 shift 2
                 ;;
-            -g | --gs_schedule_list)
+            -g | --ct_schedule_list)
                 GS_SCHEDULE_LIST="$2"
                 shift 2
                 ;;
@@ -177,7 +177,7 @@ function parse_parameter()
     done
     # using docker/container.sh dev start container will create user and config core pattern
     # pass this user to the script through --user, default is cantiandba
-    declare -g TEST_DATA_DIR="/home/${RUN_TEST_USER}/gs_regress"
+    declare -g TEST_DATA_DIR="/home/${RUN_TEST_USER}/ct_regress"
     declare -g INSTALL_LOG_DIR=${TEST_DATA_DIR}/logs
     declare -g TEMP_DIR=${TEST_DATA_DIR}/tmp
     declare -g COMPILE_LOG=${TEST_DATA_DIR}/logs/compile_log

@@ -1,0 +1,1443 @@
+
+
+SQL> --- The optimization for constant expression 
+SQL> select * from dual where 1=1 and 1 = -1-2-3-4+5+6;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> 
+SQL> --- The optimization for ROWNUM
+SQL> select * from dual where rownum is null;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where rownum is not null;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where rownum = 1;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where rownum = 2;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where rownum >= 0;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where rownum >= 1;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where rownum >= 2;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where rownum > 0;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where rownum > 0.5;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where rownum > 1;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where rownum > 1.5;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where rownum < 0;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where rownum < 1;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where rownum < 2;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where rownum <= 1;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where rownum <= 0;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where rownum <= 2;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where rownum <> 0;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where rownum <> 1;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where rownum <> 3;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where rownum <> 3.1;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where rownum<1+1-1+2-2;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> 
+SQL> select * from dual where 1   =  rownum;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where 2   =  rownum;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where 0   >= rownum;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where 1   >= rownum;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where 2   >= rownum;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where 0   >  rownum;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where 0.5 >  rownum;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where 1   >  rownum;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where 1.5 >  rownum;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where 0   <  rownum;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where 1   <  rownum;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where 2   <  rownum;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where 1   <= rownum;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where 0   <= rownum;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where 2   <= rownum;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where 0   <> rownum;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where 1   <> rownum;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select * from dual where 3   <> rownum;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where 3.1 <> rownum;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select * from dual where 1+1-1+2-2 < rownum;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> 
+SQL> 
+SQL> --- Select data from table
+SQL> DROP TABLE IF EXISTS rownum_test;
+
+Succeed.
+
+SQL> create table rownum_test(id int, tt char(30));
+
+Succeed.
+
+SQL> insert into rownum_test values(1, 'Hello 1');
+
+1 rows affected.
+
+SQL> insert into rownum_test values(2, 'Hello 2');
+
+1 rows affected.
+
+SQL> insert into rownum_test values(2, 'Hello 3');
+
+1 rows affected.
+
+SQL> insert into rownum_test values(4, 'Hello 4');
+
+1 rows affected.
+
+SQL> insert into rownum_test values(3, 'Hello 5');
+
+1 rows affected.
+
+SQL> DROP TABLE IF EXISTS ROWNUM_TEST_1;
+
+Succeed.
+
+SQL> CREATE TABLE ROWNUM_TEST_1(F_INT INT, F_CHAR CHAR(30));
+
+Succeed.
+
+SQL> INSERT INTO  ROWNUM_TEST_1 VALUES(1, 'TEST 1');
+
+1 rows affected.
+
+SQL> INSERT INTO  ROWNUM_TEST_1 VALUES(1, 'TEST 2');
+
+1 rows affected.
+
+SQL> INSERT INTO  ROWNUM_TEST_1 VALUES(2, 'TEST 1');
+
+1 rows affected.
+
+SQL> INSERT INTO  ROWNUM_TEST_1 VALUES(2, 'TEST 2');
+
+1 rows affected.
+
+SQL> INSERT INTO  ROWNUM_TEST_1 VALUES(3, 'TEST 1');
+
+1 rows affected.
+
+SQL> INSERT INTO  ROWNUM_TEST_1 VALUES(3, 'TEST 2');
+
+1 rows affected.
+
+SQL> INSERT INTO  ROWNUM_TEST_1 VALUES(4, 'TEST 1');
+
+1 rows affected.
+
+SQL> INSERT INTO  ROWNUM_TEST_1 VALUES(4, 'TEST 2');
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> 
+SQL> -- basic test
+SQL> select rownum, id, tt from rownum_test;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum is null;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+
+0 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum is not null;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum < -1;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+
+0 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum < 1;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+
+0 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum < 1.1;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+
+1 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum < 1.0000001;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+
+1 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum < 1.0000000000000000000000000000000000001;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1
+
+1 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum < 2;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+
+1 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum <= 2;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+
+2 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum <= 2.1;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+
+2 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum > 0;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum > -1;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum > 1;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+
+0 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum > 0.9;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum >= 0;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum >= 1;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum >= 2;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+
+0 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum = 1;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+
+1 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum = 1.2;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+
+0 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum = 3;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+
+0 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum <> -2;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum <> 1;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+
+0 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum <> 1.000001;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum <> 1.0000000000000000000000000000000000001;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1
+2            2            Hello 2
+3            2            Hello 3
+4            4            Hello 4
+5            3            Hello 5
+
+5 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum <> 3;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+
+2 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum <> 3.2;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> 
+SQL> -- rownum in constant expression
+SQL> select rownum, id, tt from rownum_test rt where rownum < 3 + 2 -3;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+
+1 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum >= 3 + 2 -3;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> -- rownum in complex condition expression
+SQL> select rownum, id, tt from rownum_test rt where rownum > 1 or id = 2;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            2            Hello 2                       
+2            2            Hello 3                       
+3            4            Hello 4                       
+4            3            Hello 5                       
+
+4 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum > 1 and id = 2;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+
+0 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum <= 1 and id = 2;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            2            Hello 2                       
+
+1 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum <= 10 and id = 2;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            2            Hello 2                       
+2            2            Hello 3                       
+
+2 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum > 1 or rownum < 3;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum < 2 and rownum < 3;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+
+1 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum < 2 or rownum < 3;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+
+2 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum < 2 or (rownum < 3 and id <> 2);
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            4            Hello 4                       
+
+2 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where rownum <= 4 or (rownum < 3 and id <> 2);
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+
+4 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test rt where 1=1 or rownum > 100;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> select rownum, rt.id, rt.tt from rownum_test rt;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> select rt.rownum, rt.id, rt.tt from rownum_test rt;
+
+CT-00601, [1:17]Sql syntax error: expression expected but 'rownum' found
+SQL> 
+SQL> 
+SQL> --- rownum order by
+SQL> select rownum, rt.id, rt.tt from rownum_test rt order by id;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+5            3            Hello 5                       
+4            4            Hello 4                       
+
+5 rows fetched.
+
+SQL> 
+SQL> --- ROWNUM and in expression
+SQL> -- The following queries show that ROWNUM = 2 can not be optimized directly,
+SQL> -- since when rownum = 1 holds, then rownum = 2 may satisfy the conditions.
+SQL> select rownum, id, tt from rownum_test where rownum in (1,2,4);
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+
+2 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test where rownum = 1 or rownum = 2 or rownum = 4;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+
+2 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test where (rownum, id) in ((1,2), (2,3));
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            2            Hello 2                       
+2            3            Hello 5                       
+
+2 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test where (rownum = 1 and id = 2) or (rownum = 2 and id = 3);
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            2            Hello 2                       
+2            3            Hello 5                       
+
+2 rows fetched.
+
+SQL> -- Similarly, we can not optimize rownum>2, since the condition rownum < 3 may be hold
+SQL> select rownum, id, tt from rownum_test where rownum>2 or rownum < 3;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test where (rownum<>1 or id = 1) and rownum < 5;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+
+4 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test where (rownum<>1 or id = 1) or rownum=1;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            1            Hello 1                       
+2            2            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> 
+SQL> --- for condtion optimization, which can emit some illegal 
+SQL> --- id is an integer type, thus conditions id = 'afasdf' is illegal, and an error
+SQL> --- should be notified. The rownum < 0 (false) can eliminate (rownum < 0 and id = 'afasdf');
+SQL> -- The following SQLs seems to have no effect. :(
+SQL> select rownum, id, tt from rownum_test where id = 'afasdf';
+
+CT-00636, Invalid number -- unexpected character
+SQL> select rownum, id, tt from rownum_test where rownum < 0 and id = 'afasdf';
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+
+0 rows fetched.
+
+SQL> select rownum, id, tt from rownum_test where id = 'afasdf' and rownum < 0;
+
+CT-00636, Invalid number -- unexpected character
+SQL> select rownum, id, tt from rownum_test where id = 'afasdf' or rownum < 0;
+
+CT-00636, Invalid number -- unexpected character
+SQL> 
+SQL> -- The following SQLs have effects. :)
+SQL> select * from rownum_test where id + 'sdf' < 5;
+
+CT-00636, [1:36]Invalid number -- unexpected character
+SQL> select * from rownum_test where rownum<2 or id + 'sdf' < 5;
+
+CT-00636, [1:48]Invalid number -- unexpected character
+SQL> -- The illegal condition id + 'sdf' < 5 can be eliminated.
+SQL> select * from rownum_test where rownum<1 and id + 'sdf' < 5;
+
+ID           TT                            
+------------ ------------------------------
+
+0 rows fetched.
+
+SQL> select * from rownum_test where id + 'sdf' < 5 and rownum<1;
+
+CT-00636, [1:36]Invalid number -- unexpected character
+SQL> select * from rownum_test where (rownum = 2.3 and id + 'sdf' < 5) or rownum<3;
+
+ID           TT                            
+------------ ------------------------------
+1            Hello 1                       
+2            Hello 2                       
+
+2 rows fetched.
+
+SQL> select * from rownum_test where rownum<3 or (rownum = 2.3 and id + 'sdf' < 5);
+
+ID           TT                            
+------------ ------------------------------
+1            Hello 1                       
+2            Hello 2                       
+
+2 rows fetched.
+
+SQL> --- for UPDATE test
+SQL> update rownum_test set id = 6 where 2 >= rownum;
+
+2 rows affected.
+
+SQL> select rownum, id, tt from rownum_test;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            6            Hello 1                       
+2            6            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> 
+SQL> update rownum_test set rownum = 6 where 2 >= rownum;
+
+CT-01358, [1:24]Expect user.table.column, table.column, or column specification here
+SQL> 
+SQL> update rownum_test set id = 7 where 2 > rownum;
+
+1 rows affected.
+
+SQL> select rownum, id, tt from rownum_test;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            7            Hello 1                       
+2            6            Hello 2                       
+3            2            Hello 3                       
+4            4            Hello 4                       
+5            3            Hello 5                       
+
+5 rows fetched.
+
+SQL> 
+SQL> --- for DELETE test
+SQL> delete rownum_test where id >5 and rownum < 4;
+
+2 rows affected.
+
+SQL> select rownum, id, tt from rownum_test;
+
+ROWNUM       ID           TT                            
+------------ ------------ ------------------------------
+1            2            Hello 3                       
+2            4            Hello 4                       
+3            3            Hello 5                       
+
+3 rows fetched.
+
+SQL> 
+SQL> -- TEST SORT
+SQL> SELECT * FROM ROWNUM_TEST_1 WHERE ROWNUM < 7 ORDER BY F_INT;
+
+F_INT        F_CHAR                        
+------------ ------------------------------
+1            TEST 1                        
+1            TEST 2                        
+2            TEST 1                        
+2            TEST 2                        
+3            TEST 1                        
+3            TEST 2                        
+
+6 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST_1 WHERE ROWNUM > 1 ORDER BY F_INT;
+
+F_INT        F_CHAR                        
+------------ ------------------------------
+
+0 rows fetched.
+
+SQL> SELECT F_INT, COUNT(*) FROM ROWNUM_TEST_1 WHERE ROWNUM < 7 GROUP BY F_INT ORDER BY F_INT;
+
+F_INT        COUNT(*)            
+------------ --------------------
+1            2                   
+2            2                   
+3            2                   
+
+3 rows fetched.
+
+SQL> SELECT F_INT, COUNT(*) FROM ROWNUM_TEST_1 WHERE ROWNUM > 0 GROUP BY F_INT ORDER BY F_INT;
+
+F_INT        COUNT(*)            
+------------ --------------------
+1            2                   
+2            2                   
+3            2                   
+4            2                   
+
+4 rows fetched.
+
+SQL> SELECT F_INT, COUNT(*) FROM ROWNUM_TEST_1 WHERE ROWNUM > 1 GROUP BY F_INT ORDER BY F_INT;
+
+F_INT        COUNT(*)            
+------------ --------------------
+
+0 rows fetched.
+
+SQL> SELECT F_INT, F_CHAR,COUNT(*) FROM ROWNUM_TEST_1 WHERE ROWNUM < 7 GROUP BY F_INT, F_CHAR ORDER BY F_INT,F_CHAR;
+
+F_INT        F_CHAR                         COUNT(*)            
+------------ ------------------------------ --------------------
+1            TEST 1                         1                   
+1            TEST 2                         1                   
+2            TEST 1                         1                   
+2            TEST 2                         1                   
+3            TEST 1                         1                   
+3            TEST 2                         1                   
+
+6 rows fetched.
+
+SQL> SELECT F_INT, F_CHAR,COUNT(*) FROM ROWNUM_TEST_1 WHERE ROWNUM > 1 GROUP BY F_INT, F_CHAR ORDER BY F_INT;
+
+F_INT        F_CHAR                         COUNT(*)            
+------------ ------------------------------ --------------------
+
+0 rows fetched.
+
+SQL> SELECT DISTINCT F_INT, F_CHAR FROM ROWNUM_TEST_1 WHERE ROWNUM < 7;
+
+F_INT        F_CHAR                        
+------------ ------------------------------
+1            TEST 1                        
+1            TEST 2                        
+2            TEST 1                        
+2            TEST 2                        
+3            TEST 1                        
+3            TEST 2                        
+
+6 rows fetched.
+
+SQL> SELECT DISTINCT F_INT, F_CHAR FROM ROWNUM_TEST_1 WHERE ROWNUM > 1;
+
+F_INT        F_CHAR                        
+------------ ------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> -- TEST JOIN
+SQL> -- SELECT TT2.F_INT, TT2.F_CHAR FROM ROWNUM_TEST TT1 JOIN ROWNUM_TEST_1 TT2 ON TT1.ID = TT2.F_INT WHERE ROWNUM < 5 ORDER BY TT2.F_INT;
+SQL> -- SELECT TT2.F_INT, TT2.F_CHAR FROM ROWNUM_TEST TT1 JOIN ROWNUM_TEST_1 TT2 ON TT1.ID = TT2.F_INT WHERE ROWNUM > 0 ORDER BY TT2.F_INT;
+SQL> -- SELECT TT2.F_INT, TT2.F_CHAR FROM ROWNUM_TEST TT1 JOIN ROWNUM_TEST_1 TT2 ON TT1.ID = TT2.F_INT WHERE ROWNUM > 1;
+SQL> -- TEST SUB_SELECT
+SQL> SELECT * FROM (SELECT * FROM ROWNUM_TEST_1 WHERE ROWNUM < 7);
+
+F_INT        F_CHAR                        
+------------ ------------------------------
+1            TEST 1                        
+1            TEST 2                        
+2            TEST 1                        
+2            TEST 2                        
+3            TEST 1                        
+3            TEST 2                        
+
+6 rows fetched.
+
+SQL> SELECT * FROM (SELECT * FROM ROWNUM_TEST_1 WHERE ROWNUM > 0);
+
+F_INT        F_CHAR                        
+------------ ------------------------------
+1            TEST 1                        
+1            TEST 2                        
+2            TEST 1                        
+2            TEST 2                        
+3            TEST 1                        
+3            TEST 2                        
+4            TEST 1                        
+4            TEST 2                        
+
+8 rows fetched.
+
+SQL> SELECT * FROM (SELECT * FROM ROWNUM_TEST_1 WHERE ROWNUM > 1);
+
+F_INT        F_CHAR                        
+------------ ------------------------------
+
+0 rows fetched.
+
+SQL> SELECT * FROM (SELECT * FROM ROWNUM_TEST_1) WHERE ROWNUM < 7;
+
+F_INT        F_CHAR                        
+------------ ------------------------------
+1            TEST 1                        
+1            TEST 2                        
+2            TEST 1                        
+2            TEST 2                        
+3            TEST 1                        
+3            TEST 2                        
+
+6 rows fetched.
+
+SQL> SELECT * FROM (SELECT * FROM ROWNUM_TEST_1 WHERE ROWNUM < 7) WHERE ROWNUM < 5;
+
+F_INT        F_CHAR                        
+------------ ------------------------------
+1            TEST 1                        
+1            TEST 2                        
+2            TEST 1                        
+2            TEST 2                        
+
+4 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST WHERE ID IN (SELECT F_INT FROM ROWNUM_TEST_1 WHERE ROWNUM < 7);
+
+ID           TT                            
+------------ ------------------------------
+2            Hello 3                       
+3            Hello 5                       
+
+2 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST WHERE ID IN (SELECT F_INT FROM ROWNUM_TEST_1 WHERE ROWNUM > 0) ORDER BY ID;
+
+ID           TT                            
+------------ ------------------------------
+2            Hello 3                       
+3            Hello 5                       
+4            Hello 4                       
+
+3 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST WHERE ID IN (SELECT F_INT FROM ROWNUM_TEST_1 WHERE ROWNUM > 1);
+
+ID           TT                            
+------------ ------------------------------
+
+0 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST WHERE ID IN (SELECT F_INT FROM ROWNUM_TEST_1) AND ROWNUM < 4 ORDER BY ID;
+
+ID           TT                            
+------------ ------------------------------
+2            Hello 3                       
+3            Hello 5                       
+4            Hello 4                       
+
+3 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST WHERE ID IN (SELECT F_INT FROM ROWNUM_TEST_1 WHERE ROWNUM < 7) AND ROWNUM < 4;
+
+ID           TT                            
+------------ ------------------------------
+2            Hello 3                       
+3            Hello 5                       
+
+2 rows fetched.
+
+SQL> -- TEST UNION
+SQL> SELECT * FROM ROWNUM_TEST WHERE ROWNUM < 4 UNION SELECT * FROM ROWNUM_TEST_1 ORDER BY 1,2;
+
+ID           TT                            
+------------ ------------------------------
+1            TEST 1                        
+1            TEST 2                        
+2            Hello 3                       
+2            TEST 1                        
+2            TEST 2                        
+3            Hello 5                       
+3            TEST 1                        
+3            TEST 2                        
+4            Hello 4                       
+4            TEST 1                        
+4            TEST 2                        
+
+11 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST UNION SELECT * FROM ROWNUM_TEST_1 WHERE ROWNUM < 7 ORDER BY 1,2;
+
+ID           TT                            
+------------ ------------------------------
+1            TEST 1                        
+1            TEST 2                        
+2            Hello 3                       
+2            TEST 1                        
+2            TEST 2                        
+3            Hello 5                       
+3            TEST 1                        
+3            TEST 2                        
+4            Hello 4                       
+
+9 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST WHERE ROWNUM < 4 UNION SELECT * FROM ROWNUM_TEST_1 WHERE ROWNUM < 7 ORDER BY 1,2;
+
+ID           TT                            
+------------ ------------------------------
+1            TEST 1                        
+1            TEST 2                        
+2            Hello 3                       
+2            TEST 1                        
+2            TEST 2                        
+3            Hello 5                       
+3            TEST 1                        
+3            TEST 2                        
+4            Hello 4                       
+
+9 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST WHERE ROWNUM < 4 UNION SELECT * FROM ROWNUM_TEST_1 WHERE ROWNUM > 0 ORDER BY 1,2;
+
+ID           TT                            
+------------ ------------------------------
+1            TEST 1                        
+1            TEST 2                        
+2            Hello 3                       
+2            TEST 1                        
+2            TEST 2                        
+3            Hello 5                       
+3            TEST 1                        
+3            TEST 2                        
+4            Hello 4                       
+4            TEST 1                        
+4            TEST 2                        
+
+11 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST WHERE ROWNUM < 4 UNION SELECT * FROM ROWNUM_TEST_1 WHERE ROWNUM > 1 ORDER BY 1,2;
+
+ID           TT                            
+------------ ------------------------------
+2            Hello 3                       
+3            Hello 5                       
+4            Hello 4                       
+
+3 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST WHERE ROWNUM < 4 UNION ALL SELECT * FROM ROWNUM_TEST_1;
+
+ID           TT                            
+------------ ------------------------------
+2            Hello 3                       
+4            Hello 4                       
+3            Hello 5                       
+1            TEST 1                        
+1            TEST 2                        
+2            TEST 1                        
+2            TEST 2                        
+3            TEST 1                        
+3            TEST 2                        
+4            TEST 1                        
+4            TEST 2                        
+
+11 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST UNION ALL SELECT * FROM ROWNUM_TEST_1 WHERE ROWNUM < 7;
+
+ID           TT                            
+------------ ------------------------------
+2            Hello 3                       
+4            Hello 4                       
+3            Hello 5                       
+1            TEST 1                        
+1            TEST 2                        
+2            TEST 1                        
+2            TEST 2                        
+3            TEST 1                        
+3            TEST 2                        
+
+9 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST WHERE ROWNUM < 4 UNION ALL SELECT * FROM ROWNUM_TEST_1 WHERE ROWNUM < 7;
+
+ID           TT                            
+------------ ------------------------------
+2            Hello 3                       
+4            Hello 4                       
+3            Hello 5                       
+1            TEST 1                        
+1            TEST 2                        
+2            TEST 1                        
+2            TEST 2                        
+3            TEST 1                        
+3            TEST 2                        
+
+9 rows fetched.
+
+SQL> SELECT * FROM ROWNUM_TEST WHERE ROWNUM < 4 UNION ALL SELECT * FROM ROWNUM_TEST_1 WHERE ROWNUM > 1;
+
+ID           TT                            
+------------ ------------------------------
+2            Hello 3                       
+4            Hello 4                       
+3            Hello 5                       
+
+3 rows fetched.
+
+SQL> DROP TABLE IF EXISTS rownum_test;
+
+Succeed.
+
+SQL> DROP TABLE IF EXISTS ROWNUM_TEST_1;
+
+Succeed.
+
+SQL> commit;
+Succeed.
+
+SQL> 
+SQL> drop table if exists t_join_base_101;
+
+Succeed.
+
+SQL> drop table if exists t_join_base_102;
+
+Succeed.
+
+SQL> create table t_join_base_101(id int,c_int int not null,c_vchar varchar(100) not null,c_clob clob not null,c_blob blob not null,c_date date);
+
+Succeed.
+
+SQL> create table t_join_base_102(id int,c_int int not null,c_vchar varchar(100) not null,c_clob clob not null,c_blob blob not null,c_date date);
+
+Succeed.
+
+SQL> 
+SQL> insert into t_join_base_101 values(1,1000,'abc123',lpad('123abc',50,'abc'),lpad('11100011',50,'1100'),to_timestamp(to_char('1800-01-01 10:51:47'),'yyyy-mm-dd hh24:mi:ss'));
+
+1 rows affected.
+
+SQL> insert into t_join_base_102 values(1,1000,'abc123',lpad('123abc',50,'abc'),lpad('11100011',50,'1100'),to_timestamp(to_char('1800-01-01 10:51:47'),'yyyy-mm-dd hh24:mi:ss'));
+
+1 rows affected.
+
+SQL> CREATE or replace procedure proc_insert(tname varchar,startall int,endall int) as
+  2 sqlst varchar(500);
+  3 BEGIN
+  4   FOR i IN startall..endall LOOP
+  5                 sqlst := 'insert into ' || tname ||' select id+'||i||',c_int+'||i||',c_vchar||'||i||',c_clob||'||i||',c_blob'||',c_date from '||tname|| ' where id=1';
+  6         execute immediate sqlst;
+  7   END LOOP;
+  8 END;
+  9 /
+
+Succeed.
+
+SQL> exec proc_insert('t_join_base_101',1,10);
+
+PL/SQL procedure successfully completed.
+
+SQL> exec proc_insert('t_join_base_102',1,5);
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> select t1.c_int,t2.c_int,t3.c_int,1 from  t_join_base_101 t1 full join (t_join_base_101 t2 full join t_join_base_102 t3 on t2.c_vchar=t3.c_vchar) on t1.c_int>t2.c_int  and rownum in(select rownum from t_join_base_101) order by 1,2,3;
+
+C_INT        C_INT        C_INT        1           
+------------ ------------ ------------ ------------
+1000                                   1           
+1001         1000         1000         1           
+1002         1000         1000         1           
+1002         1001         1001         1           
+1003         1000         1000         1           
+1003         1001         1001         1           
+1003         1002         1002         1           
+1004         1000         1000         1           
+1004         1001         1001         1           
+1004         1002         1002         1           
+1004         1003         1003         1           
+1005                                   1           
+1006                                   1           
+1007                                   1           
+1008                                   1           
+1009                                   1           
+1010                                   1           
+             1000         1000         1           
+             1001         1001         1           
+             1002         1002         1           
+             1003         1003         1           
+             1004         1004         1           
+             1005         1005         1           
+             1006                      1           
+             1007                      1           
+             1008                      1           
+             1009                      1           
+             1010                      1           
+
+28 rows fetched.
+
+SQL> 
+SQL> drop table if exists t_join_base_101;
+
+Succeed.
+
+SQL> drop table if exists t_join_base_102;
+
+Succeed.
+
+SQL> drop procedure proc_insert;
+
+Succeed.
+
+SQL> 
+
+

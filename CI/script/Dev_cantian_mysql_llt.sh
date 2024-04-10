@@ -5,11 +5,11 @@
 # run with command -- sh Dev_cantian_mysql_llt.sh [--coverage] [--test_list=]
 # log dir: /home/regress/mysql_llt
 # lcov dir: /home/regress/CantianKernel/lcov_output/Dev_mtr_lcov*
-# ref Dev_gs_cantian_regress.sh
+# ref Dev_ct_cantian_regress.sh
 
 DIR_PATH=$(cd `dirname $0`;pwd)
 ROOT_PATH=$(cd ${DIR_PATH}/../../;pwd)
-REGRESS_PATH=${ROOT_PATH}/pkg/test/gs_regress
+REGRESS_PATH=${ROOT_PATH}/pkg/test/ct_regress
 MYSQL_PATH=/home/regress/cantian-connector-mysql
 MYSQL_USER_PATH=/usr/local/mysql
 MYSQL_LCOV_PATH=${MYSQL_PATH}/bld_debug/storage/tianchi/CMakeFiles/ctc.dir
@@ -18,7 +18,7 @@ function help() {
     echo ""
     echo "$0"
     echo ""
-    echo "Usage:    Dev_gs_cantian_regress.sh       {help} [--coverage --user --test_list]"
+    echo "Usage:    Dev_ct_cantian_regress.sh       {help} [--coverage --user --test_list]"
     echo "          --coverage         run test with test coverage report"
     echo "          --test_list        run test with specific test list file for mtr --do-test-list, use enableCases_gcov.list as default"
     echo "          --user             run test with user, if using docker/container.sh dev start container with different user,

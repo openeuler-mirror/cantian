@@ -40,33 +40,33 @@ function run_test() {
   echo "CTDB_CODE_PATH: ${CTDB_CODE_PATH}"
   pram=$1
   case $pram in
-    part1)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_gs_cantian_regress.sh"; gs_schedule_list="gs_schedule_part1"   ;;
-    part2)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_gs_cantian_regress.sh"; gs_schedule_list="gs_schedule_part2"   ;;
-    part3)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_gs_cantian_regress.sh"; gs_schedule_list="gs_schedule_part3"   ;;
-    part4)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_gs_cantian_regress.sh"; gs_schedule_list="gs_schedule_part4"   ;;
-    part5)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_gs_cantian_regress.sh"; gs_schedule_list="gs_schedule_part5"   ;;
-    part6)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_gs_cantian_regress.sh"; gs_schedule_list="gs_schedule_part6"   ;;
-    part7)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_gs_cantian_regress.sh"; gs_schedule_list="gs_schedule_part7"   ;;
-    part8)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_gs_cantian_regress.sh"; gs_schedule_list="gs_schedule_part8"   ;;
-    Dev_Basic)        script_path="${CURRENT_CODE_PATH}/CI/script/Dev_Basic_test.sh"; gs_schedule_list="gs_schedule"   ;;
-    cms)              script_path="${CURRENT_CODE_PATH}/CI/script/Dev_cms_test.sh"; gs_schedule_list="gs_schedule"   ;;
-    cms_ut)           script_path="${CURRENT_CODE_PATH}/CI/script/Dev_cms_unit_test.sh"; gs_schedule_list="gs_schedule"   ;;
-    gtest)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_unit_test.sh"; gs_schedule_list="gs_schedule"   ;;
-    cluster_part1)          script_path="${CURRENT_CODE_PATH}/CI/script/cluster_test.sh test_list_0"; gs_schedule_list="gs_schedule"   ;;
-    cluster_part2)          script_path="${CURRENT_CODE_PATH}/CI/script/cluster_test.sh test_list_1"; gs_schedule_list="gs_schedule"   ;;
-    Dev_unit_dtc)     script_path="${CURRENT_CODE_PATH}/CI/script/Dev_unit_dtc_test.sh"; gs_schedule_list="gs_schedule"   ;;
-    cluster_ha_regress_1)           script_path="${CURRENT_CODE_PATH}/pkg/test/cluster_ha_regress/cluster_ha_regress.sh cluster_ha_regress11.lst"; gs_schedule_list="gs_schedule"   ;;
-    cluster_ha_regress_2)           script_path="${CURRENT_CODE_PATH}/pkg/test/cluster_ha_regress/cluster_ha_regress.sh cluster_ha_regress12.lst"; gs_schedule_list="gs_schedule"   ;;
-    cluster_ha_regress_3)           script_path="${CURRENT_CODE_PATH}/pkg/test/cluster_ha_regress/cluster_ha_regress.sh cluster_ha_regress13.lst"; gs_schedule_list="gs_schedule"   ;;
-    cluster_ha_regress_4)           script_path="${CURRENT_CODE_PATH}/pkg/test/cluster_ha_regress/cluster_ha_regress.sh cluster_ha_regress14.lst"; gs_schedule_list="gs_schedule"   ;;
-    cluster_ha_regress_5)           script_path="${CURRENT_CODE_PATH}/pkg/test/cluster_ha_regress/cluster_ha_regress.sh cluster_ha_regress15.lst"; gs_schedule_list="gs_schedule"   ;;
-    Dev_mes_unit)     script_path="${CURRENT_CODE_PATH}/CI/script/Dev_mes_unit_test.sh"; gs_schedule_list="gs_schedule"   ;;
-    Dev_all_unit)     script_path="${CURRENT_CODE_PATH}/CI/script/Dev_run_all_llt.sh"; gs_schedule_list="gs_schedule"   ;;
+    part1)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_ct_cantian_regress.sh"; ct_schedule_list="ct_schedule_part1"   ;;
+    part2)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_ct_cantian_regress.sh"; ct_schedule_list="ct_schedule_part2"   ;;
+    part3)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_ct_cantian_regress.sh"; ct_schedule_list="ct_schedule_part3"   ;;
+    part4)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_ct_cantian_regress.sh"; ct_schedule_list="ct_schedule_part4"   ;;
+    part5)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_ct_cantian_regress.sh"; ct_schedule_list="ct_schedule_part5"   ;;
+    part6)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_ct_cantian_regress.sh"; ct_schedule_list="ct_schedule_part6"   ;;
+    part7)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_ct_cantian_regress.sh"; ct_schedule_list="ct_schedule_part7"   ;;
+    part8)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_ct_cantian_regress.sh"; ct_schedule_list="ct_schedule_part8"   ;;
+    Dev_Basic)        script_path="${CURRENT_CODE_PATH}/CI/script/Dev_Basic_test.sh"; ct_schedule_list="ct_schedule"   ;;
+    cms)              script_path="${CURRENT_CODE_PATH}/CI/script/Dev_cms_test.sh"; ct_schedule_list="ct_schedule"   ;;
+    cms_ut)           script_path="${CURRENT_CODE_PATH}/CI/script/Dev_cms_unit_test.sh"; ct_schedule_list="ct_schedule"   ;;
+    gtest)            script_path="${CURRENT_CODE_PATH}/CI/script/Dev_unit_test.sh"; ct_schedule_list="ct_schedule"   ;;
+    cluster_part1)          script_path="${CURRENT_CODE_PATH}/CI/script/cluster_test.sh test_list_0"; ct_schedule_list="ct_schedule"   ;;
+    cluster_part2)          script_path="${CURRENT_CODE_PATH}/CI/script/cluster_test.sh test_list_1"; ct_schedule_list="ct_schedule"   ;;
+    Dev_unit_dtc)     script_path="${CURRENT_CODE_PATH}/CI/script/Dev_unit_dtc_test.sh"; ct_schedule_list="ct_schedule"   ;;
+    cluster_ha_regress_1)           script_path="${CURRENT_CODE_PATH}/pkg/test/cluster_ha_regress/cluster_ha_regress.sh cluster_ha_regress11.lst"; ct_schedule_list="ct_schedule"   ;;
+    cluster_ha_regress_2)           script_path="${CURRENT_CODE_PATH}/pkg/test/cluster_ha_regress/cluster_ha_regress.sh cluster_ha_regress12.lst"; ct_schedule_list="ct_schedule"   ;;
+    cluster_ha_regress_3)           script_path="${CURRENT_CODE_PATH}/pkg/test/cluster_ha_regress/cluster_ha_regress.sh cluster_ha_regress13.lst"; ct_schedule_list="ct_schedule"   ;;
+    cluster_ha_regress_4)           script_path="${CURRENT_CODE_PATH}/pkg/test/cluster_ha_regress/cluster_ha_regress.sh cluster_ha_regress14.lst"; ct_schedule_list="ct_schedule"   ;;
+    cluster_ha_regress_5)           script_path="${CURRENT_CODE_PATH}/pkg/test/cluster_ha_regress/cluster_ha_regress.sh cluster_ha_regress15.lst"; ct_schedule_list="ct_schedule"   ;;
+    Dev_mes_unit)     script_path="${CURRENT_CODE_PATH}/CI/script/Dev_mes_unit_test.sh"; ct_schedule_list="ct_schedule"   ;;
+    Dev_all_unit)     script_path="${CURRENT_CODE_PATH}/CI/script/Dev_run_all_llt.sh"; ct_schedule_list="ct_schedule"   ;;
      *)
        echo "invalid pram ${pram}"
   esac
   echo "script_path is : ${script_path}"
-  bash ${script_path} --coverage 1 --gs_schedule_list ${gs_schedule_list}
+  bash ${script_path} --coverage 1 --ct_schedule_list ${ct_schedule_list}
 }
 
 function change_shm_size() {
