@@ -44,6 +44,7 @@ typedef struct st_lrpl_context {
     thread_t promote_thread;
     aligned_buf_t *read_buf;
     log_point_t curr_point;
+    log_point_t dtc_curr_point[CT_MAX_INSTANCES];
     log_point_t begin_point;
     bool32 is_replaying;
     bool32 is_closing;

@@ -795,6 +795,11 @@ void dtc_lrpl_proc_loop(thread_t *thread)
 {
     knl_session_t *session = (knl_session_t *)thread->argument;
     lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
+    dtc_node_ctrl_t *node_ctrl = NULL;
+    for (uint32 i = 0; i < g_dtc->profile.node_count; i++) {
+        node_ctrl = dtc_get_ctrl(session, i);
+        lrpl->dtc_curr_point[i] = node_ctrl->rcy_point;
+    }
 
     while (!thread->closed) {
         if (rc_is_master() == CT_TRUE && lrpl->is_done == CT_FALSE) {
@@ -880,7 +885,6 @@ status_t lrpl_init(knl_session_t *session)
     lrpl->begin_point.asn = CT_INVALID_ASN;
     lrpl->begin_time = cm_now();
     lrpl->end_time = 0;
-    lrpl->curr_point.lsn = 0;
     lrpl->is_replaying = CT_FALSE;
 
     for (i = 0; i < CT_MAX_LOG_FILES; i++) {
@@ -947,12 +951,14 @@ status_t dtc_cal_redo_size_by_node_id(knl_session_t *session, uint32 node_id, ui
         CT_LOG_RUN_ERR("[DB] failed to open redo log file %s ", log_file->ctrl->name);
         return CT_ERROR;
     }
-    if (cm_device_get_used_cap_no_retry(log_file->ctrl->type, handle, lrpl_ctx->curr_point.lsn + 1, redo_recovery_size) !=
-        CT_SUCCESS) {
+    if (cm_device_get_used_cap_no_retry(log_file->ctrl->type, handle, lrpl_ctx->dtc_curr_point[node_id].lsn + 1,
+                                        redo_recovery_size) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("failed to fetch rcy redo log size of rcy point lsn(%llu) from DBStor",
-            lrpl_ctx->curr_point.lsn + 1);
+                       lrpl_ctx->dtc_curr_point[node_id].lsn + 1);
         return CT_ERROR;
     }
+    CT_LOG_DEBUG_INF("succ to fetch rcy redo log size (%u) of rcy point lsn(%llu) from DBStor", *redo_recovery_size,
+                     lrpl_ctx->dtc_curr_point[node_id].lsn + 1);
     return CT_SUCCESS;
 }
 
