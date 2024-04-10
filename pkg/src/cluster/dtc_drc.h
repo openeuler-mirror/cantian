@@ -324,6 +324,7 @@ typedef struct st_drc_part_mngr {
     uint8 remaster_inst;
     uint8 remaster_finish_step;
     uint16 reversed;
+    bool8 mgrt_fail_list;
 
     drc_part_t part_map[DRC_MAX_PART_NUM];
     drc_inst_part_t inst_part_tbl[CT_MAX_INSTANCES];  // reverse table, find part map of a specific instantance
