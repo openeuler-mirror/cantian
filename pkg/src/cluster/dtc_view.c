@@ -66,7 +66,7 @@ status_t dtc_view_buffer_ctrl_open(knl_handle_t session, knl_cursor_t *cursor)
     cursor->rowid.vm_slot = 0;
     cursor->rowid.vm_tag = 0;
 
-    //get first active inst
+    // get first active inst
     buffer_pos_stats->current_peer_inst_id = 0;
     while ((buffer_pos_stats->current_peer_inst_id < CMS_MAX_NODES_FOR_TEST) &&
            (g_node_list_for_test[buffer_pos_stats->current_peer_inst_id] != 1)) {
@@ -1149,7 +1149,7 @@ static status_t dtc_view_buffer_ctrl_fetch(knl_handle_t se, knl_cursor_t *cursor
     dtc_view_buffer_pos_t *buffer_pos_stats = (dtc_view_buffer_pos_t *)cursor->page_buf;
     dtc_view_buffer_ctrls_t *buffer_ctrls_stats =
         (dtc_view_buffer_ctrls_t *)(cursor->page_buf + sizeof(dtc_view_buffer_pos_t));
-    id = (uint32)cursor->rowid.vmid;  //for each row.
+    id = (uint32)cursor->rowid.vmid;  // for each row.
     read_pos = (uint16)cursor->rowid.vm_slot;
     src_inst = g_dtc->profile.inst_id;
 
@@ -1157,7 +1157,7 @@ static status_t dtc_view_buffer_ctrl_fetch(knl_handle_t se, knl_cursor_t *cursor
         if (buffer_ctrls_stats->buffer_ctrl_cnt == 0 || read_pos == buffer_ctrls_stats->buffer_ctrl_cnt) {
             cursor->rowid.vm_slot = 0;
             read_pos = (uint8)cursor->rowid.vm_slot;
-            ret = dtc_view_get_buffer_ctrl_req(se, src_inst,cursor);
+            ret = dtc_view_get_buffer_ctrl_req(se, src_inst, cursor);
             if (ret == CT_ERROR) {  // send or receive error, go to next inst;
                 buffer_pos_stats->is_next_inst = CT_TRUE;
                 return CT_SUCCESS;
@@ -1180,7 +1180,7 @@ static status_t dtc_view_buffer_ctrl_fetch(knl_handle_t se, knl_cursor_t *cursor
         buffer_pos_stats->is_next_inst = CT_FALSE;
         cursor->rowid.vm_slot = 0;
         read_pos = (uint8)cursor->rowid.vm_slot;
-        ret = dtc_view_get_buffer_ctrl_req(se, src_inst,cursor);
+        ret = dtc_view_get_buffer_ctrl_req(se, src_inst, cursor);
         if (ret == CT_ERROR) {
             buffer_pos_stats->next_inst_id++;
             buffer_pos_stats->is_next_inst = CT_TRUE;
