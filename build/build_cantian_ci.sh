@@ -82,9 +82,12 @@ function newPackageTarget() {
   mkdir -p ${pkg_real_path}/{action,repo,config,common,zlogicrep}
   mkdir -p ${pkg_real_path}/zlogicrep/build/Cantian_PKG/file
   B_VERSION=$(grep -oP '<Bversion>\K[^<]+' "${CTDB_CODE_PATH}"/../ProductComm_DoradoAA/CI/conf/cmc/dbstore/archive_cmc_versions.xml | sed 's/Cantian //g')
-  echo "B_VERSION: ${B_VERSION}"
+  # 提取B_VERSION最后一个点之后的部分
+  B_VERSION_SUFFIX="${B_VERSION##*.}"
+  echo "B_VERSION_SUFFIX: ${B_VERSION_SUFFIX}"
   if [[ x"${B_VERSION}" != x"" ]];then
-      sed -i "s/Version: [^ ]*/Version: ${B_VERSION}/" "${CURRENT_PATH}"/versions.yml
+      # 替换versions.yml 中的版本号的最后一个点后的部分
+      sed -i "s/\(Version: .*\)\.[A-Z].*/\1.${B_VERSION_SUFFIX}/" "${CURRENT_PATH}"/versions.yml
   fi
   sed -i 's#ChangeVersionTime: .*#ChangeVersionTime: '"$(date +%Y/%m/%d\ %H:%M)"'#' "${CURRENT_PATH}"/versions.yml
   cp -arf "${CURRENT_PATH}"/versions.yml ${pkg_real_path}/

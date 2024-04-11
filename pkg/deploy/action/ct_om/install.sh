@@ -5,7 +5,7 @@ SCRIPT_NAME=${CURRENT_PATH}/$(basename $0)
 MAIN_PATH=$(dirname $(dirname ${CURRENT_PATH}))
 
 source ${CURRENT_PATH}/ct_om_log.sh
-version=$(cat ${CURRENT_PATH}/../../versions.yml | grep -E "Version:" | awk '{print $2}' | cut -d '.' -f 1-3)
+version=$(cat ${CURRENT_PATH}/../../versions.yml | grep -E "Version:" | awk '{print $2}' | \sed 's/\([0-9]*\.[0-9]*\)\(\.[0-9]*\)\?\.[A-Z].*/\1\2/')
 
 function check_rpm_exist()
 {
