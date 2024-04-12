@@ -49,8 +49,6 @@ dtc_view_mes_channel_stat_t g_mes_channel_stat_array;
 #define ADDR_LEN 15
 int g_node_list_for_test[CMS_MAX_NODES_FOR_TEST] = { 1, 1, 0, 0 };  // Max node number is 4;0,1 is online. Later will
                                                                     // call CMS interface to get info.
-dtc_view_buffer_pos_t g_buffer_pos;
-dtc_view_buffer_ctrls_t g_buffer_ctrls;
 
 status_t dtc_view_open(knl_handle_t session, knl_cursor_t *cursor)
 {
@@ -61,21 +59,26 @@ status_t dtc_view_open(knl_handle_t session, knl_cursor_t *cursor)
 }
 status_t dtc_view_buffer_ctrl_open(knl_handle_t session, knl_cursor_t *cursor)
 {
+    dtc_view_buffer_pos_t *buffer_pos_stats = (dtc_view_buffer_pos_t *)cursor->page_buf;
+    dtc_view_buffer_ctrls_t *buffer_ctrls_stats =
+        (dtc_view_buffer_ctrls_t *)(cursor->page_buf + sizeof(dtc_view_buffer_pos_t));
     cursor->rowid.vmid = 0;
     cursor->rowid.vm_slot = 0;
     cursor->rowid.vm_tag = 0;
-    cm_spin_lock(&g_buffer_pos.lock, NULL);
-    //get first active inst
-    g_buffer_pos.current_peer_inst_id = 0;
-    while ((g_buffer_pos.current_peer_inst_id < CMS_MAX_NODES_FOR_TEST) && (g_node_list_for_test[g_buffer_pos.current_peer_inst_id] != 1)) {
-        g_buffer_pos.current_peer_inst_id++;
-    }
-    g_buffer_pos.next_inst_id = g_buffer_pos.current_peer_inst_id;
-    g_buffer_pos.buf_set_id = 0;
-    g_buffer_pos.ctrl_id = 0;
 
-    g_buffer_pos.is_next_inst = CT_FALSE;
-    g_buffer_ctrls.buffer_ctrl_cnt = 0;
+    // get first active inst
+    buffer_pos_stats->current_peer_inst_id = 0;
+    while ((buffer_pos_stats->current_peer_inst_id < CMS_MAX_NODES_FOR_TEST) &&
+           (g_node_list_for_test[buffer_pos_stats->current_peer_inst_id] != 1)) {
+        buffer_pos_stats->current_peer_inst_id++;
+    }
+    buffer_pos_stats->next_inst_id = buffer_pos_stats->current_peer_inst_id;
+    buffer_pos_stats->buf_set_id = 0;
+    buffer_pos_stats->ctrl_id = 0;
+
+    buffer_pos_stats->is_next_inst = CT_FALSE;
+    buffer_ctrls_stats->buffer_ctrl_cnt = 0;
+
     return CT_SUCCESS;
 }
 //Colums defination of View
@@ -1068,41 +1071,45 @@ static void dtc_view_get_buffer_ctrl(knl_session_t *session, dtc_view_buffer_ctr
     return;
 }
 
-status_t dtc_view_get_buffer_ctrl_req(knl_session_t *knl_session, uint8 src_id)
+status_t dtc_view_get_buffer_ctrl_req(knl_session_t *knl_session, uint8 src_id, knl_cursor_t *cursor)
 {
     dtc_view_buffer_ctrl_req_t req;
     mes_message_t msg;
     dtc_view_buffer_ctrls_t *ctrls = NULL;
     dtc_view_buffer_ctrls_t buffer_ctrls;
     uint32 i;
+    dtc_view_buffer_pos_t *buffer_pos_stats = (dtc_view_buffer_pos_t *)cursor->page_buf;
+    dtc_view_buffer_ctrls_t *buffer_ctrls_stats =
+        (dtc_view_buffer_ctrls_t *)(cursor->page_buf + sizeof(dtc_view_buffer_pos_t));
 
-    g_buffer_ctrls.buffer_ctrl_cnt = 0;
-    if (src_id == g_buffer_pos.current_peer_inst_id) {
-        buffer_ctrls.buf_set_id = g_buffer_pos.buf_set_id;
-        buffer_ctrls.ctrl_id = g_buffer_pos.ctrl_id;
+    buffer_ctrls_stats->buffer_ctrl_cnt = 0;
+    if (src_id == buffer_pos_stats->current_peer_inst_id) {
+        buffer_ctrls.buf_set_id = buffer_pos_stats->buf_set_id;
+        buffer_ctrls.ctrl_id = buffer_pos_stats->ctrl_id;
         dtc_view_get_buffer_ctrl(knl_session, &buffer_ctrls);
         for (i = 0; i < buffer_ctrls.buffer_ctrl_cnt; i++) {
-            g_buffer_ctrls.buffer_ctrl[i] = buffer_ctrls.buffer_ctrl[i];
+            buffer_ctrls_stats->buffer_ctrl[i] = buffer_ctrls.buffer_ctrl[i];
         }
-        g_buffer_ctrls.buffer_ctrl_cnt = buffer_ctrls.buffer_ctrl_cnt;
+        buffer_ctrls_stats->buffer_ctrl_cnt = buffer_ctrls.buffer_ctrl_cnt;
 
-        g_buffer_pos.buf_set_id = buffer_ctrls.buf_set_id;
-        g_buffer_pos.ctrl_id = buffer_ctrls.ctrl_id;
-        g_buffer_pos.is_next_inst = buffer_ctrls.is_next_inst;
+        buffer_pos_stats->buf_set_id = buffer_ctrls.buf_set_id;
+        buffer_pos_stats->ctrl_id = buffer_ctrls.ctrl_id;
+        buffer_pos_stats->is_next_inst = buffer_ctrls.is_next_inst;
         if (buffer_ctrls.is_next_inst) {
-            g_buffer_pos.next_inst_id++;
+            buffer_pos_stats->next_inst_id++;
         }
         return CT_SUCCESS;
     }
 
-    //remote info
-    CT_LOG_RUN_INF("get infro: %d--->%d,bufset = %d,ctrl_id = %d.\n", src_id, g_buffer_pos.current_peer_inst_id, g_buffer_pos.buf_set_id, g_buffer_pos.ctrl_id);
+    // remote info
+    CT_LOG_RUN_INF("get infro: %d--->%d,bufset = %d,ctrl_id = %d.\n", src_id, buffer_pos_stats->current_peer_inst_id,
+                   buffer_pos_stats->buf_set_id, buffer_pos_stats->ctrl_id);
     cm_sleep(100);
 
     mes_init_send_head(&req.head, MES_CMD_DTC_VIEW_BUFFER_CTRL_REQ, sizeof(dtc_view_buffer_ctrl_req_t), CT_INVALID_ID32,
-                       src_id, g_buffer_pos.current_peer_inst_id, knl_session->id, CT_INVALID_ID16);
-    req.buf_set_id = g_buffer_pos.buf_set_id;
-    req.ctrl_id = g_buffer_pos.ctrl_id;
+                       src_id, buffer_pos_stats->current_peer_inst_id, knl_session->id, CT_INVALID_ID16);
+    req.buf_set_id = buffer_pos_stats->buf_set_id;
+    req.ctrl_id = buffer_pos_stats->ctrl_id;
 
     if (mes_send_data((void *)&req) != CT_SUCCESS) {
         return CT_ERROR;
@@ -1117,16 +1124,16 @@ status_t dtc_view_get_buffer_ctrl_req(knl_session_t *knl_session, uint8 src_id)
         return CT_ERROR;
     }
     ctrls = (dtc_view_buffer_ctrls_t *)MES_MESSAGE_BODY(&msg);
-    for (i = 0; i < ctrls->buffer_ctrl_cnt;i++) {
-        g_buffer_ctrls.buffer_ctrl[i] = ctrls->buffer_ctrl[i];
+    for (i = 0; i < ctrls->buffer_ctrl_cnt; i++) {
+        buffer_ctrls_stats->buffer_ctrl[i] = ctrls->buffer_ctrl[i];
     }
-    g_buffer_ctrls.buffer_ctrl_cnt = ctrls->buffer_ctrl_cnt;
+    buffer_ctrls_stats->buffer_ctrl_cnt = ctrls->buffer_ctrl_cnt;
 
-    g_buffer_pos.buf_set_id = ctrls->buf_set_id;
-    g_buffer_pos.ctrl_id = ctrls->ctrl_id;
-    g_buffer_pos.is_next_inst = ctrls->is_next_inst;
+    buffer_pos_stats->buf_set_id = ctrls->buf_set_id;
+    buffer_pos_stats->ctrl_id = ctrls->ctrl_id;
+    buffer_pos_stats->is_next_inst = ctrls->is_next_inst;
     if (ctrls->is_next_inst) {
-        g_buffer_pos.next_inst_id++;
+        buffer_pos_stats->next_inst_id++;
     }
     mes_release_message_buf(msg.buffer);
 
@@ -1139,57 +1146,60 @@ static status_t dtc_view_buffer_ctrl_fetch(knl_handle_t se, knl_cursor_t *cursor
     status_t ret;
     uint8 src_inst;
     row_assist_t ra;
-
-    id = (uint32)cursor->rowid.vmid;  //for each row.
+    dtc_view_buffer_pos_t *buffer_pos_stats = (dtc_view_buffer_pos_t *)cursor->page_buf;
+    dtc_view_buffer_ctrls_t *buffer_ctrls_stats =
+        (dtc_view_buffer_ctrls_t *)(cursor->page_buf + sizeof(dtc_view_buffer_pos_t));
+    id = (uint32)cursor->rowid.vmid;  // for each row.
     read_pos = (uint16)cursor->rowid.vm_slot;
     src_inst = g_dtc->profile.inst_id;
 
-    if (g_buffer_pos.is_next_inst == CT_FALSE) {
-        if (g_buffer_ctrls.buffer_ctrl_cnt == 0 || read_pos == g_buffer_ctrls.buffer_ctrl_cnt) {
+    if (buffer_pos_stats->is_next_inst == CT_FALSE) {
+        if (buffer_ctrls_stats->buffer_ctrl_cnt == 0 || read_pos == buffer_ctrls_stats->buffer_ctrl_cnt) {
             cursor->rowid.vm_slot = 0;
             read_pos = (uint8)cursor->rowid.vm_slot;
-            ret = dtc_view_get_buffer_ctrl_req(se, src_inst);
-            if (ret == CT_ERROR) { // send or receive error, go to next inst;
-                g_buffer_pos.is_next_inst = CT_TRUE;
+            ret = dtc_view_get_buffer_ctrl_req(se, src_inst, cursor);
+            if (ret == CT_ERROR) {  // send or receive error, go to next inst;
+                buffer_pos_stats->is_next_inst = CT_TRUE;
                 return CT_SUCCESS;
             }
         }
-    } else if (g_buffer_pos.is_next_inst == CT_TRUE && read_pos < g_buffer_ctrls.buffer_ctrl_cnt) {
+    } else if (buffer_pos_stats->is_next_inst == CT_TRUE && read_pos < buffer_ctrls_stats->buffer_ctrl_cnt) {
     } else {
-        while ((g_buffer_pos.next_inst_id < CMS_MAX_NODES_FOR_TEST) && (g_node_list_for_test[g_buffer_pos.next_inst_id] != 1)) {
-            g_buffer_pos.next_inst_id++;
+        while ((buffer_pos_stats->next_inst_id < CMS_MAX_NODES_FOR_TEST) &&
+               (g_node_list_for_test[buffer_pos_stats->next_inst_id] != 1)) {
+            buffer_pos_stats->next_inst_id++;
         }
-        if (g_buffer_pos.next_inst_id >= CMS_MAX_NODES_FOR_TEST) {
+        if (buffer_pos_stats->next_inst_id >= CMS_MAX_NODES_FOR_TEST) {
             cursor->eof = CT_TRUE;
-            cm_spin_unlock(&g_buffer_pos.lock);
+            cm_spin_unlock(&buffer_pos_stats->lock);
             return CT_SUCCESS;
         }
-        g_buffer_pos.current_peer_inst_id = g_buffer_pos.next_inst_id;
-        g_buffer_pos.buf_set_id = 0;
-        g_buffer_pos.ctrl_id = 0;
-        g_buffer_pos.is_next_inst = CT_FALSE;
+        buffer_pos_stats->current_peer_inst_id = buffer_pos_stats->next_inst_id;
+        buffer_pos_stats->buf_set_id = 0;
+        buffer_pos_stats->ctrl_id = 0;
+        buffer_pos_stats->is_next_inst = CT_FALSE;
         cursor->rowid.vm_slot = 0;
         read_pos = (uint8)cursor->rowid.vm_slot;
-        ret = dtc_view_get_buffer_ctrl_req(se, src_inst);
+        ret = dtc_view_get_buffer_ctrl_req(se, src_inst, cursor);
         if (ret == CT_ERROR) {
-            g_buffer_pos.next_inst_id++;
-            g_buffer_pos.is_next_inst = CT_TRUE;
+            buffer_pos_stats->next_inst_id++;
+            buffer_pos_stats->is_next_inst = CT_TRUE;
             return CT_SUCCESS;
         }
     }
 
-    if (read_pos < g_buffer_ctrls.buffer_ctrl_cnt) {
+    if (read_pos < buffer_ctrls_stats->buffer_ctrl_cnt) {
         char addr[ADDR_LEN];
         row_init(&ra, (char *)cursor->row, CT_MAX_ROW_SIZE, BUFFER_CTRL_COLS);
-        sprintf_s(addr, ADDR_LEN, "%llx", g_buffer_ctrls.buffer_ctrl[read_pos].addr);
+        sprintf_s(addr, ADDR_LEN, "%llx", buffer_ctrls_stats->buffer_ctrl[read_pos].addr);
         CT_RETURN_IFERR(row_put_int32(&ra, (uint32)id));
         CT_RETURN_IFERR(row_put_str(&ra, addr));
-        CT_RETURN_IFERR(row_put_int32(&ra, (uint32)g_buffer_ctrls.buffer_ctrl[read_pos].ts_num));
-        CT_RETURN_IFERR(row_put_int32(&ra, (uint32)g_buffer_ctrls.buffer_ctrl[read_pos].file_num));
-        CT_RETURN_IFERR(row_put_int32(&ra, (uint32)g_buffer_ctrls.buffer_ctrl[read_pos].dbablk_num));
-        sprintf_s(addr, ADDR_LEN, "%llx", g_buffer_ctrls.buffer_ctrl[read_pos].ba);
+        CT_RETURN_IFERR(row_put_int32(&ra, (uint32)buffer_ctrls_stats->buffer_ctrl[read_pos].ts_num));
+        CT_RETURN_IFERR(row_put_int32(&ra, (uint32)buffer_ctrls_stats->buffer_ctrl[read_pos].file_num));
+        CT_RETURN_IFERR(row_put_int32(&ra, (uint32)buffer_ctrls_stats->buffer_ctrl[read_pos].dbablk_num));
+        sprintf_s(addr, ADDR_LEN, "%llx", buffer_ctrls_stats->buffer_ctrl[read_pos].ba);
         CT_RETURN_IFERR(row_put_str(&ra, addr));
-        CT_RETURN_IFERR(row_put_int32(&ra, (int32)g_buffer_pos.current_peer_inst_id));
+        CT_RETURN_IFERR(row_put_int32(&ra, (int32)buffer_pos_stats->current_peer_inst_id));
         cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, &cursor->data_size);
         cursor->rowid.vm_slot++;
         cursor->rowid.vmid++;
