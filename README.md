@@ -1534,7 +1534,7 @@ git clone git@gitee.com:openeuler/cantian-connector-mysql.git
 ```shell
 wget --no-check-certificate https://github.com/mysql/mysql-server/archive/refs/tags/mysql-8.0.26.tar.gz
 tar -zxf mysql-8.0.26.tar.gz
-mv mysql-server-mysql-8.0.26 cantian-connector-mysql/mysql-source
+mv mysql-server-mysql-8.0.26 /home/regress/cantian-connector-mysql/mysql-source
 ```
 4.创建与cantian、cantian-connector-mysql同级的cantian_data目录用于存放相关数据。
 ```shell
@@ -1643,6 +1643,7 @@ patch --ignore-whitespace -p1 < mysql-test-meta.patch
 patch --ignore-whitespace -p1 < mysql-source-code-meta.patch
 ```
 编译：
+双节点部署时，如果使用**手动部署**，则两个节点需要分别执行编译。若使用**脚本部署**，只需在一个节点编译即可
 ```shell
 cd /home/regress/CantianKernel/build
 sh Makefile.sh mysql
@@ -1650,7 +1651,6 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/regress/cantian-connector-mysql/bl
 rm -rf /home/regress/mydata/*
 ```
 
-双节点部署时，如果使用**手动部署**，则两个节点需要分别执行编译。若使用**脚本部署**，只需在一个节点编译即可
 特别地，若在node0完成cantian的编译，在node1编译mysql前需要先执行以下命令
 ```shell
 mkdir /home/regress/cantian-connector-mysql/mysql-source/include/protobuf-c
@@ -1672,7 +1672,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/regress/cantian-connector-mysql/bl
 #### 6.3.2.1 元数据归一(手动拉起)
 
 初始化：
-双节点仅需在其中一个节点执行初始化命令，且在初始化前，需保证`/home/regress/mydata`下没有文件需先执行
+双节点**仅需在其中一个节点**执行初始化命令，且在初始化前，需保证`/home/regress/mydata`下没有文件需先执行
 
 ```shell
 rm -rf /home/regress/mydata/*
@@ -1693,7 +1693,8 @@ mkdir -p /home/regress/mydata/mysql
 
 部署命令为：
 ```shell
-/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/cantian-connector-mysql/scripts/my.cnf  --datadir=/home/regress/mydata --user=root --early-plugin-load="ha_ctc.so" --core-file
+mkdir -p /data/data
+/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/cantian-connector-mysql/scripts/my.cnf  --datadir=/home/regress/mydata --user=root --early-plugin-load="ha_ctc.so" --core-file >> /data/data/mysql.log 2>&1 &
 ```
 
 #### 6.3.2.2 元数据归一/非归一（脚本）
@@ -1718,9 +1719,23 @@ mkdir -p /home/regress/logs
 python3 install.py -U cantiandba:cantiandba -l /home/cantiandba/logs/install.log -d -M mysqld -m /home/regress/cantian-connector-mysql/scripts/my.cnf
 ```
 
-#### 6.3.2.3 拉起检验
+### 6.3.2.3 拉起检验
 
 ```shell
 /usr/local/mysql/bin/mysql -uroot
 ```
-##
+## 6.4 日志和gdb调试
+参天日志位置：
+```shell
+/home/cantiandba/data/log/run/cantiand.rlog
+```
+mysql日志位置：
+```shell
+/data/data/mysql.log
+```
+双节点下，gdb attach进程前需要同步心跳
+```shell
+su cantiandba
+cms res -edit db -attr HB_TIMEOUT=1000000000
+cms res -edit db -attr CHECK_TIMEOUT=1000000000
+```
