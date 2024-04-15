@@ -30,6 +30,8 @@ SHARE_FS_TYPE_LIST = [
     "storage_share_fs", "storage_archive_fs",
     "storage_metadata_fs"
 ]
+ID_NAS_DBSTORE = 1038
+ID_NAS_DEFAULT = 11
 
 
 def is_valid_string(string):
@@ -61,6 +63,7 @@ class CreateFS(object):
         self.ssh_client = SshClient(*login_tuple)
         self.fs_info = self._init_params()
         self.pre_check_result = list()
+        self.deploy_info = json.loads(read_helper(DEPLOY_PARAM_PATH))
 
     @staticmethod
     def handle_error_msg(err_msg):
@@ -161,16 +164,20 @@ class CreateFS(object):
                 _fs_name = _fs_info.get("NAME")
                 LOG.info("Begin to create fs [%s] name: %s", fs_type, _fs_name)
                 vstore_id = self.fs_info.get(fs_type).get("vstoreId")
-                LOG.info("Begin to create fs [%s] name: %s, vstore id:[%s]",
-                         fs_type, _fs_name, vstore_id)
+                deploy_mode = self.deploy_info.get("deploy_mode")
+                LOG.info("Begin to create fs [%s] name: %s, vstore id:[%s] in [%s] deploy mode",
+                         fs_type, _fs_name, vstore_id, deploy_mode)
                 _fs_info = self.storage_opt.query_filesystem_info(_fs_name, vstore_id)
                 if _fs_info:
                     err_msg = "The file system[%s] already exists." % _fs_name
                     self.handle_error_msg(err_msg)
-                fs_id = self._create_fs(fs_type)
-                if fs_type in SHARE_FS_TYPE_LIST:
+                if fs_type in SHARE_FS_TYPE_LIST and \
+                        not (deploy_mode == "dbstore_unify" and fs_type == "storage_share_fs"):
+                    fs_id = self._create_fs(fs_type, work_load_type=ID_NAS_DEFAULT)
                     nfs_share_id = self._create_nfs_share(fs_id, fs_type)
                     nfs_share_client_id = self._add_nfs_client(nfs_share_id, fs_type)
+                else:
+                    fs_id = self._create_fs(fs_type, work_load_type=ID_NAS_DBSTORE)
                 fs_info[fs_type] = {
                     "fs_id": fs_id,
                     "nfs_share_id": nfs_share_id,
@@ -335,10 +342,10 @@ class CreateFS(object):
             err_msg = "Check vstore failed: %s" % check_fail
             self.handle_error_msg(err_msg)
 
-    def _get_fs_info(self, fs_type):
+    def _get_fs_info(self, fs_type, work_load_type):
         data = {
             "PARENTID": self.fs_info.get("PARENTID"),
-            "workloadTypeId": 1038,
+            "workloadTypeId": work_load_type,
         }
         capacity = self.compute_capacity(self.fs_info[fs_type].get("CAPACITY"))
         data.update(self.fs_info.get(fs_type))
@@ -371,12 +378,12 @@ class CreateFS(object):
             recorde_info.get(fs_type).update(fs_info.get(fs_type))
         write_helper(FS_PARAM_PATH, recorde_info)
 
-    def _create_fs(self, fs_type):
+    def _create_fs(self, fs_type, work_load_type):
         """
         param fs_type: storage_dbstore_fs、storage_share_fs、storage_archive_fs、storage_metadata_fs
         :return:the file system id
         """
-        data = self._get_fs_info(fs_type)
+        data = self._get_fs_info(fs_type, work_load_type)
         return self.storage_opt.create_file_system(data)
 
     def _create_nfs_share(self, fs_id, fs_type):
