@@ -1089,13 +1089,13 @@ Info: Save the configuration successfully.
 
     其中，“path”为安装包的上传路径，“Installation Package”为[编译指导](编译指导.md)中编译生成的软件包。
 
-    此处以软件包名称为“Cantian\_24.03\_x86\_64\_RELEASE.tgz”、将包放到目录“/ctdb/cantian\_install”为例进行说明。最终的参数配置以[编译指导](编译指导.md)中编译生成的软件包和实际的安装路径为准。
+    此处以软件包名称为“Cantian\_24.06\_x86\_64\_RELEASE.tgz”、将包放到目录“/ctdb/cantian\_install”为例进行说明。最终的参数配置以[编译指导](编译指导.md)中编译生成的软件包和实际的安装路径为准。
 
     ```
     [root@host ~]# mkdir /ctdb/cantian_install
     [root@host ~]# chmod 755 /ctdb/cantian_install
     [root@host ~]# cd /ctdb/cantian_install
-    [root@host  ]# tar -zxvf Cantian_24.03_x86_64_RELEASE.tgz
+    [root@host  ]# tar -zxvf Cantian_24.06_x86_64_RELEASE.tgz
     ```
 
 5.  修改配置文件config\_params\_file.json，相关参数如[表1](#zh-cn_topic_0000001690212877_zh-cn_topic_0000001521308384_zh-cn_topic_0000001571256873_table111125312412)所示。
