@@ -40,7 +40,9 @@ extern "C" {
 #define BAK_WAIT_TIMEOUT    (5000)  //ms
 #define ARCHIVE_FILENAME "archive.conf"
 #define BAK_ARCH_FILE_NAME_MAX_LENGTH 256
-#define BAK_ARCH_FILE_MAX_NUM 50
+#define BAK_ARCH_FILE_INIT_NUM 50
+#define BAK_ARCH_FILE_INC_NUM 10
+#define BAK_ARCH_FILE_MAX_NUM 2000
 
 extern instance_t *g_instance;
 
@@ -169,10 +171,10 @@ status_t dtc_bak_log_ckpt_trigger_local(knl_session_t *session, bak_ctrlinfo_t *
 status_t dtc_bak_read_logfiles_dbstor(knl_session_t *session, uint32 inst_id);
 status_t dtc_bak_set_log_ctrl_dbstor(knl_session_t *session, bak_process_t *process,
                                      uint32 *block_size, uint32 target_id, bak_arch_files_t *arch_file);
-status_t dtc_bak_get_arch_start_and_end_point(knl_session_t *session, uint32 inst_id, bak_arch_files_t *arch_file_buf,
+status_t dtc_bak_get_arch_start_and_end_point(knl_session_t *session, uint32 inst_id, bak_arch_files_t **arch_file_buf,
                                               log_start_end_asn_t *local_arch_file_asn, log_start_end_asn_t *target_asn);
 void bak_set_archfile_info(knl_session_t *session, log_start_end_info_t arch_info,
-                           local_arch_file_info_t file_info, bak_arch_files_t *arch_file_buf, char *file_name);
+                           local_arch_file_info_t file_info, char *file_name);
 status_t bak_open_logfile_dbstor(knl_session_t *session, log_file_t *logfile, uint32 inst_id);
 status_t bak_flush_archfile_head(knl_session_t *session, arch_file_info_t *file_info);
 status_t bak_prepare_read_logfile_dbstor(knl_session_t *session, log_file_t *logfile, uint64 start_lsn, uint32 inst_id,
@@ -182,11 +184,10 @@ status_t bak_get_log_dbstor(knl_session_t *session, log_start_end_lsn_t *lsn,
 status_t bak_generate_archfile_dbstor(knl_session_t *session, arch_file_info_t *file_info);
 status_t bak_get_logfile_dbstor(knl_session_t *session, arch_file_info_t *file_info, log_start_end_lsn_t lsn);
 status_t bak_get_arch_start_and_end_point_dbstor(knl_session_t *session, uint32 inst_id,
-                                                 log_start_end_asn_t *asn, bak_arch_files_t *arch_file_buf);
+                                                 log_start_end_asn_t *asn, bak_arch_files_t **arch_file_buf);
 status_t bak_get_logfile_by_lsn_dbstor(knl_session_t *session, bak_arch_files_t *arch_file_buf,
                                        log_start_end_asn_t asn, uint32 inst_id);
-status_t bak_get_arch_asn(knl_session_t *session, log_start_end_info_t arch_info, uint32 inst_id,
-                          bak_arch_files_t *arch_file_buf);
+status_t bak_get_arch_info(knl_session_t *session, log_start_end_info_t arch_info, uint32 inst_id);
 void bak_free_res_for_get_logfile(arch_file_info_t *file_info);
 status_t bak_get_arch_start_and_end_point(knl_session_t *session, uint32 *start_asn, uint32 *end_asn);
 bak_arch_files_t *bak_get_arch_by_index(bak_arch_files_t *arch_buf, uint32 index, log_start_end_asn_t arch_asn);
@@ -229,15 +230,15 @@ status_t bak_check_log_file(bak_log_file_info_t *log_file);
 void bak_update_ctrlinfo_lsn(knl_session_t *session);
 status_t dtc_bak_force_arch_local_file(knl_session_t *session);
 status_t bak_set_archfile_info_file(log_start_end_info_t arch_info, local_arch_file_info_t file_info,
-                                    bak_arch_files_t *arch_file_buf, char *file_name, log_file_head_t *head);
+                                    char *file_name, log_file_head_t *head);
 status_t dtc_bak_get_logfile_by_asn_file(knl_session_t *session, bak_arch_files_t *arch_file_buf,
                                          log_start_end_asn_t asn, uint32 inst_id, log_start_end_asn_t *target_asn);
 status_t bak_get_logfile_file(knl_session_t *session, knl_session_t *session_bak, arch_file_info_t *file_info,
                               log_file_t *logfile, knl_compress_t *compress_ctx);
 status_t dtc_bak_get_arch_ctrl(knl_session_t *session, bak_process_t *process, uint32 asn, uint32 *block_size, bak_arch_files_t *arch_file);
-status_t bak_get_arch_asn_file(knl_session_t *session, log_start_end_info_t arch_info, uint32 inst_id,
-                               bak_arch_files_t *arch_file_buf);
+status_t bak_get_arch_asn_file(knl_session_t *session, log_start_end_info_t arch_info, uint32 inst_id);
 status_t dtc_bak_reset_logfile(knl_session_t *session, uint32 asn, uint32 file_id, uint32 inst_id);
+status_t bak_check_arch_file_num(log_start_end_info_t arch_info);
 
 #ifdef __cplusplus
 }
