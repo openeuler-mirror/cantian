@@ -107,8 +107,8 @@ function modify_cluster_status() {
 # 调用cms工具抬升版本号
 function raise_version_num() {
     logAndEchoInfo "begin to call cms tool to raise the version num"
-    target_numbers=$(cat "${CURRENT_PATH}"/../versions.yml |sed 's/ //g' | grep 'Version:' | awk -F ':' '{print $2}' | sed -n 's/\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p')
-    format_target="${target_numbers[@]//./ }"
+    target_numbers=$(cat ${CURRENT_PATH}/../versions.yml | grep -E "Version:" | awk '{print $2}' | \sed 's/\([0-9]*\.[0-9]*\)\(\.[0-9]*\)\?\.[A-Z].*/\1\2/')
+    format_target="${target_numbers[@]//./ } 0"
 
     for ((i=1;i<11;i++))
     do
