@@ -14,6 +14,7 @@
   "storage_archive_fs": "archive",
   "storage_metadata_fs": "metadata",
   "dbstore_fs_vstore_id": "0",
+  "cantian_in_container": "0",
   "mysql_in_container": "1",
   "vstore_id": "1",
   "share_logic_ip": "10.77.78.1",

@@ -156,8 +156,10 @@ function set_cms() {
 }
 
 function install_cms() {
-  prepare_cms_gcc
-  set_cms
+  if [[ ${cantian_in_container} == "0" ]]; then
+    prepare_cms_gcc
+    set_cms
+  fi
 }
 
 function start_cms() {
@@ -194,6 +196,7 @@ function main() {
   source $TMPCFG
   CMS_INSTALL_PATH="${CMS_HOME}/service"
   DEPLOY_MODE=$(python3 "${CURRENT_PATH}"/get_config_info.py "deploy_mode")
+  cantian_in_container=$(python3 "${CURRENT_PATH}"/get_config_info.py "cantian_in_container")
 
   if [ ${PROCESS} == install_cms ]; then
     install_cms

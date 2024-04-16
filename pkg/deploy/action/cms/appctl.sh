@@ -52,6 +52,7 @@ cantian_home=/opt/cantian/cantian
 cms_scripts=/opt/cantian/action/cms
 cms_tmp_file="${cms_home}/cms_server.lck ${cms_home}/local ${cms_home}/gcc_backup ${cms_home}/cantian.ctd.cms*"
 shm_home=/dev/shm
+cantian_in_container=`python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container"`
 
 LOG_FILE="${cms_home}/log/cms_deploy.log"
 
@@ -695,7 +696,7 @@ function main_deploy()
             exit $?
             ;;
         install)
-            if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+            if [[ "${cantian_in_container}" == "0" && "${deploy_mode}" != "dbstore_unify" ]]; then
                 chown ${cantian_user_and_group} /mnt/dbdata/remote/share_${storage_share_fs}
             fi
             copy_cms_scripts

@@ -7,6 +7,7 @@ import argparse
 import logging
 import time
 import glob
+from get_config_info import get_value
 from logging import handlers
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
@@ -124,6 +125,7 @@ class Logicrep:
         self.logicrep_user = ""
         self.storage_archive_fs = ""
         self.deploy_mode = "nas"
+        self.cantian_in_container = get_value("cantian_in_container")
         self.home = r"/opt/software/tools/logicrep"
         self.init_conf_file = os.path.join(self.home, "conf", "init.properties")
         self.conf_file = os.path.join(self.home, "conf", "datasource.properties")
@@ -328,8 +330,9 @@ class Logicrep:
 
     def install(self):
         LOG.info("begin install logicrep")
-        self.set_cantian_conf(mode="install")
-        self.write_key()
+        if self.cantian_in_container == "0":
+            self.set_cantian_conf(mode="install")
+            self.write_key()
         LOG.info("install logicrep success")
 
     def start(self):

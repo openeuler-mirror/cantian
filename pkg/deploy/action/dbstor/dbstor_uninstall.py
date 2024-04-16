@@ -21,7 +21,6 @@ try:
     import logging
     import sys
     from configparser import ConfigParser
-    from dbstor_install import dbstor_check_share_logic_ip_isvalid
 except ImportError as error:
     raise ValueError("Unable to import module: %s." % str(error)) from error
 
@@ -46,7 +45,7 @@ class Options(object):
         self.dbstor_log_path = "/opt/cantian/dbstor"
         self.log_path = "/opt/cantian/dbstor/log"
         self.log_file = "/opt/cantian/dbstor/log/uninstall.log"
-        self.ini_file = "/mnt/dbdata/remote/share_"
+        self.ini_file = "/opt/cantian/dbstor/tools/dbstor_config.ini"
         self.docker_ini_file = "/home/regress/cantian_data"
         self.js_conf_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../config/deploy_param.json")
         self.note_id = ""
@@ -154,8 +153,6 @@ def check_ini():
     """
     check ini
     """
-    if g_opts.force_uninstall != "force":
-        dbstor_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
     console_and_log("Check whether dbstor_config.ini exists")
     cmd = "timeout 10 ls %s" % g_opts.ini_file
     ret_code, stdout, _ = _exec_popen(cmd)
@@ -170,8 +167,6 @@ def clean_ini():
     """
     clean ini
     """
-    if g_opts.force_uninstall != "force":
-        dbstor_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
     console_and_log("Begin uninstall dbstor config ")
     try:
         os.remove(g_opts.ini_file)

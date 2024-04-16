@@ -1437,18 +1437,20 @@ class Installer:
                 log_exit("check kernel parameter failed: " + str(ex))
 
         if self.lsnr_addr != "":
-            _list = self.lsnr_addr.split(",")
-            # Check the ip address
-            for item in _list:
-                if len(_list) != 1 and all_zero_addr_after_ping(item):
-                    log_exit("lsnr_addr contains all-zero ip,"
-                             " can not specify other ip.")
-                self.check_ip_is_vaild(item)
+            if not g_opts.cantian_in_container:
+                _list = self.lsnr_addr.split(",")
+                # Check the ip address
+                for item in _list:
+                    if len(_list) != 1 and all_zero_addr_after_ping(item):
+                        log_exit("lsnr_addr contains all-zero ip,"
+                                " can not specify other ip.")
+                    self.check_ip_is_vaild(item)
         else:
             # If this parameter is empty, the IPv4 is used by default.
             # The default IP address is 127.0.0.1
             self.lsnr_addr = "127.0.0.1"
-        self.check_sga_buff_size(sga_buff_size, tmp_mb, tmp_kb)
+        if not g_opts.cantian_in_container:
+            self.check_sga_buff_size(sga_buff_size, tmp_mb, tmp_kb)
 
     def check_sga_buff_size(self, sga_buff_size, tmp_mb, tmp_kb):
         """
@@ -1799,7 +1801,8 @@ class Installer:
                 self.failed_pos = self.DECOMPRESS_BIN_FAILED
                 log_exit("Decompress bin return: " + str(ret_code) + os.linesep + stderr)
 
-        cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
+        if not g_opts.cantian_in_container:
+            cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
 
         if g_opts.use_dbstor:
             self.install_xnet_lib()
@@ -1972,7 +1975,7 @@ class Installer:
         # Generate new kernel parameters
         common_parameters = copy.deepcopy(config)
         # Set password of NOMOUNT mode before create database.
-        if encrypt_passwd:
+        if encrypt_passwd and not g_opts.cantian_in_container:
             mode = "encrypted"
             self.ctsql_conf["SYS_PASSWORD"] = Installer.kmc_resovle_password(mode, common_parameters["_SYS_PASSWORD"])
             common_parameters["_SYS_PASSWORD"] = self.generate_nomount_passwd(common_parameters["_SYS_PASSWORD"])
@@ -2960,8 +2963,8 @@ class Installer:
         process read the install step and clean the files
         and directory created when install
         """
-
-        self.verify_new_passwd(g_opts.password, 8)
+        if not g_opts.cantian_in_container:
+            self.verify_new_passwd(g_opts.password, 8)
         self.check_parameter()  # add cantiand, cms, gss config parameter check logic in this method
         self.chown_log_file()
         self.check_old_install()

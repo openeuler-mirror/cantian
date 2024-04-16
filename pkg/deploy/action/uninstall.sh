@@ -10,6 +10,7 @@ source ${CURRENT_PATH}/log4sh.sh
 
 deploy_user=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_user")
 deploy_group=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_group")
+cantian_in_container=$(python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container")
 
 # 获取已创建路径的路径名
 storage_dbstore_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstore_fs")
@@ -84,6 +85,49 @@ function clear_security_limits() {
   logAndEchoInfo "clear security limits success"
 }
 
+# override模式下umount
+function umount_fs() {
+    if [[ "$cantian_in_container" != "0" ]]; then
+        return 0
+    fi
+
+    if [[ ${storage_archive_fs} != '' ]] && [[ -d /mnt/dbdata/remote/archive_"${storage_archive_fs}"/binlog ]] && [[ "${node_id}" == "0" ]]; then
+      rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/binlog
+    fi
+    if [[ ${storage_archive_fs} != '' ]] && [[ -d /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf ]] && [[ "${node_id}" == "0" ]]; then
+      rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf
+    fi
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+      rm -rf /mnt/dbdata/remote/share_"${storage_share_fs}"/node"${node_id}"_install_record.json > /dev/null 2>&1
+    fi
+
+    sysctl fs.nfs.nfs_callback_tcpport=0
+    # 取消nfs挂载
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+        umount -f -l /mnt/dbdata/remote/share_${storage_share_fs}
+    fi
+    if [[ ${storage_archive_fs} != '' ]]; then
+        umount -f -l /mnt/dbdata/remote/archive_${storage_archive_fs}
+    fi
+
+    umount -f -l /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+    # 取消nfs挂载
+    if [ -d /mnt/dbdata/remote/storage_${storage_dbstore_fs}/data ];then
+        rm -rf /mnt/dbdata/remote/storage_${storage_dbstore_fs}/data
+    fi
+    if [[ x"${deploy_mode}" == x"nas" ]];then
+        umount -f -l /mnt/dbdata/remote/storage_${storage_dbstore_fs}
+    fi
+
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+        rm -rf /mnt/dbdata/remote/share_${storage_share_fs}
+    fi
+    if [[ ${storage_archive_fs} != '' ]]; then
+        rm -rf /mnt/dbdata/remote/archive_${storage_archive_fs}
+    fi
+    rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+}
+
 
 # 检查输入项是否为override或者reserve
 if [[ ${uninstall_type} != 'override' && ${uninstall_type} != 'reserve' ]]; then
@@ -136,42 +180,12 @@ clear_residual_files
 # 如果uninstall_type为override 执行以下操作
 echo "uninstall_type is: ${uninstall_type}"
 if [[ ${uninstall_type} = 'override' ]]; then
-    if [[ ${storage_archive_fs} != '' ]] && [[ -d /mnt/dbdata/remote/archive_"${storage_archive_fs}"/binlog ]] && [[ "${node_id}" == "0" ]]; then
-      rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/binlog
-    fi
-    if [[ ${storage_archive_fs} != '' ]] && [[ -d /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf ]] && [[ "${node_id}" == "0" ]]; then
-      rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf
-    fi
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-      rm -rf /mnt/dbdata/remote/share_"${storage_share_fs}"/node"${node_id}"_install_record.json > /dev/null 2>&1
-    fi
-  sysctl fs.nfs.nfs_callback_tcpport=0
-  # 取消nfs挂载
-  if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-      umount -f -l /mnt/dbdata/remote/share_${storage_share_fs}
-  fi
-  if [[ ${storage_archive_fs} != '' ]]; then
-      umount -f -l /mnt/dbdata/remote/archive_${storage_archive_fs}
-  fi
-
-  umount -f -l /mnt/dbdata/remote/metadata_${storage_metadata_fs}
-    # 取消nfs挂载
-  if [ -d /mnt/dbdata/remote/storage_${storage_dbstore_fs}/data ];then
-      rm -rf /mnt/dbdata/remote/storage_${storage_dbstore_fs}/data
-  fi
-  if [[ x"${deploy_mode}" == x"nas" ]];then
-      umount -f -l /mnt/dbdata/remote/storage_${storage_dbstore_fs}
-  fi
+  umount_fs
 
   # 删除创建的公共目录（挂载目录）
   rm -rf /opt/cantian/common/data
   rm -rf /opt/cantian/common/socket
   rm -rf /opt/cantian/common/config
-  rm -rf /mnt/dbdata/remote/share_${storage_share_fs}
-  if [[ ${storage_archive_fs} != '' ]]; then
-      rm -rf /mnt/dbdata/remote/archive_${storage_archive_fs}
-  fi
-  rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}
 
   if [[ ${auto_create_fs} == "delete_fs" && ${node_id} == "0" ]];then
         read -p "please input DM login ip:" dm_login_ip

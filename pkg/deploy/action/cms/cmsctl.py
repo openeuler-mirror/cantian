@@ -313,6 +313,7 @@ def genreg_string(text):
     return reg_string
 
 deploy_mode = get_value("deploy_mode")
+cantian_in_container = get_value("cantian_in_container")
 mes_type = get_value("mes_type") if deploy_mode != "nas" else "TCP"
 mes_ssl_switch = get_value("mes_ssl_switch")
 node_id = get_value("node_id")
@@ -811,7 +812,7 @@ class CmsCtl(object):
 
         log("change app permission cmd: %s" % str_cmd)
         run_cmd(str_cmd, "failed to chmod %s" % CommonValue.KEY_DIRECTORY_MODE)
-        if deploy_mode != "dbstore_unify":
+        if cantian_in_container == "0" and deploy_mode != "dbstore_unify":
             self.chown_gcc_dirs()
 
     def export_user_env(self):
@@ -989,14 +990,16 @@ class CmsCtl(object):
                 if len(_list) != 1 and self.all_zero_addr_after_ping(item):
                     log_exit("ip contains all-zero ip,"
                              " can not specify other ip.")
-                self.check_ip_isvaild(item)
+                if cantian_in_container == "0":
+                    self.check_ip_isvaild(item)
         else:
             self.ip_addr = "127.0.0.1"
 
         for _ip in self.ip_addr.split(","):
             self.check_port(self.port, _ip)
 
-        self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
+        if cantian_in_container == "0":
+            self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
 
         log("check running mode: %s" % self.running_mode)
         if self.running_mode not in VALID_RUNNING_MODE:
@@ -1113,7 +1116,6 @@ class CmsCtl(object):
         str_cmd += " && chown -R %s:%s %s/dbstor" % (self.user, self.group, self.cms_home)
         str_cmd += " && chmod 640 %s/dbstor/conf/dbs/dbstor_config.ini" % (self.cms_home)
 
-        self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
         log("copy config files cmd: " + str_cmd)
         ret_code, stdout, stderr = _exec_popen(str_cmd)
         if ret_code:
@@ -1134,7 +1136,8 @@ class CmsCtl(object):
 
         self.copy_app_files()
 
-        self.prepare_gccdata_dir()
+        if cantian_in_container == "0":
+            self.prepare_gccdata_dir()
         self.export_user_env()
         self.change_app_permission()
 
@@ -1276,8 +1279,9 @@ class CmsCtl(object):
         if deploy_mode != "dbstore_unify" and self.gcc_home == "":
             self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
         if self.node_id == 0:
-            self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
-            log("if blocked here, please check if the network is normal")
+            if cantian_in_container == "0":
+                self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
+                log("if blocked here, please check if the network is normal")
             if deploy_mode != "dbstore_unify":
                 str_cmd = "rm -rf %s" % (self.gcc_home)
                 ret_code, stdout, stderr = _exec_popen("timeout 10 ls %s" % self.gcc_home)
