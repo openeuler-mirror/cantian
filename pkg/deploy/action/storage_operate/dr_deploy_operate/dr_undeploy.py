@@ -215,33 +215,26 @@ class UNDeploy(object):
         if os.path.exists("/opt/cantian"):
             shutil.rmtree("/opt/cantian")
 
-    def site_uninstall(self):
-        node_id = self.dr_deploy_info.get("node_id")
-        if node_id == "1":
-            self.do_uninstall()
-        else:
-            self.wait_remote_node_exec("1", "stop", UNINSTALL_TIMEOUT)
-            self.do_uninstall()
-        return True
-
-    def wait_remote_node_exec(self, node_id, exec_step, timeout):
-        share_fs_name = self.dr_deploy_info.get("storage_share_fs")
-        install_record_file = f"/mnt/dbdata/remote/share_{share_fs_name}/node{node_id}_install_record.json"
+    def wait_remote_node_exec(self, node_id, timeout):
         wait_time = 0
+        cmd = "su -s /bin/bash - cantian -c \"cms stat | " \
+              "grep -v STAT | awk '{print \$1, \$3, \$6}'\""
         while timeout:
+            return_code, output, stderr = exec_popen(cmd, timeout=100)
+            cms_stat = output.split("\n")
+            if return_code or len(cms_stat) < 2:
+                return
+            for node_stat in cms_stat:
+                _node_id, online, work_stat = node_stat.split(" ")
+                if (online != "ONLINE" or work_stat != "1") and _node_id == node_id:
+                    return
+            LOG.info("wait node%s uninstall success, waited[%s]s", node_id, wait_time)
             time.sleep(10)
             wait_time += 10
             timeout -= 10
-            LOG.info("wait node%s %s success, waited[%s]s", node_id, exec_step, wait_time)
-            if not os.path.exists(install_record_file):
-                return
-            with open(install_record_file, "r") as fp:
-                status_info = json.loads(fp.read())
-            status = status_info.get(exec_step)
-            if status == "success":
-                break
-            else:
-                continue
+        else:
+            err_msg = "wait node%s uninstall timeout" % node_id
+            LOG.error(err_msg)
 
     def check_process(self):
         process_name = "/storage_operate/dr_operate_interface.py deploy"
@@ -272,7 +265,9 @@ class UNDeploy(object):
             except Exception as err:
                 LOG.info("Standby site delete hyper system failed: %s", str(err))
         if self.site == "standby" and os.path.exists(CANTIAN_DEPLOY_CONFIG) and uninstall_cantian_flag:
-            self.site_uninstall()
+            if node_id == "0":
+                self.wait_remote_node_exec("1", UNINSTALL_TIMEOUT)
+            self.do_uninstall()
             # stop cantian, uninstall cantian 备集群需要卸载cantian， 主集群不需要卸载，不需要停
             LOG.info("Uninstall Cantian engine success.")
         LOG.info("Successfully uninstalled!")
