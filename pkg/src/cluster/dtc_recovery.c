@@ -2597,7 +2597,11 @@ void dtc_update_standby_cluster_scn(knl_session_t *session, uint32 idx)
     bool32 has_batch = CT_FALSE;
     lrpl_context_t *lrpl_ctx = &session->kernel->lrpl_ctx;
     log_batch_t *batch = (log_batch_t *)g_replay_paral_mgr.buf_list[idx].aligned_buf;
-    lrpl_ctx->curr_point.lsn = batch->lsn > lrpl_ctx->curr_point.lsn ? batch->lsn : lrpl_ctx->curr_point.lsn;
+    uint32 node_id = g_replay_paral_mgr.node_id[idx];
+    lrpl_ctx->dtc_curr_point[node_id] = batch->lsn > lrpl_ctx->dtc_curr_point[node_id].lsn
+                                            ? batch->head.point
+                                            : lrpl_ctx->dtc_curr_point[node_id];
+
     date_t rcy_time = cm_now() - g_replay_paral_mgr.batch_rpl_start_time[idx];
     if (rcy_time != 0) {
         lrpl_ctx->lrpl_speed = (double)(batch->space_size) * MICROSECS_PER_SECOND / SIZE_M(1)
