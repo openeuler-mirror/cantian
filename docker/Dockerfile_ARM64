@@ -34,7 +34,7 @@ RUN wget --progress=bar:force -O fzf-master.zip https://github.com/junegunn/fzf/
 RUN wget --progress=bar:force https://boostorg.jfrog.io/artifactory/main/release/1.73.0/source/boost_1_73_0.tar.gz \
     && tar -zxf boost_1_73_0.tar.gz
 RUN wget --progress=bar:force  https://github.com/doxygen/doxygen/releases/download/Release_1_9_2/doxygen-1.9.2.src.tar.gz \
-    && unzip Release_1_9_2.zip && cd doxygen-Release_1_9_2 && mkdir build && cd build \
+    && tar -zxf doxygen-1.9.2.src.tar.gz && cd doxygen-1.9.2 && mkdir build && cd build \
     && cmake -G "Unix Makefiles" .. && make && cd ../..
 
 RUN wget --progress=bar:force -O /tmp/mysql80-community-release-el8-9.noarch.rpm https://dev.mysql.com/get/mysql80-community-release-el8-9.noarch.rpm
