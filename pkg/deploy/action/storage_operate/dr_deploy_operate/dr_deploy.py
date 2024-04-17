@@ -688,34 +688,6 @@ class DRDeploy(object):
         LOG.info("Check cantian replay success.")
         self.record_deploy_process("cantian_disaster_recovery_status", "success")
 
-    def wait_remote_node_exec(self, node_id, exec_step, timeout):
-        """
-        等待远端节点执行结束
-        :param node_id: 远端节点id
-        :param exec_step: 当前执行步骤（install/start）
-        :param timeout: 超时时间
-        :return:
-        """
-        share_fs_name = self.dr_deploy_info.get("storage_share_fs")
-        install_record_file = f"/mnt/dbdata/remote/share_{share_fs_name}/node{node_id}_install_record.json"
-        wait_time = 0
-        while timeout:
-            time.sleep(10)
-            wait_time += 10
-            timeout -= 10
-            LOG.info("wait node%s %s success, waited[%s]s", node_id, exec_step, wait_time)
-            if not os.path.exists(install_record_file):
-                continue
-            with open(install_record_file, "r") as fp:
-                status_info = json.loads(fp.read())
-                status = status_info.get(exec_step)
-            if status == "success":
-                break
-            if status == "failed":
-                err_msg = "Failed to %s the remote node." % exec_step
-                LOG.error(err_msg)
-                raise Exception(err_msg)
-
     def do_start(self, node_id):
         """
         本端节点启动
@@ -976,11 +948,7 @@ class DRDeploy(object):
     def standby_do_start(self):
         LOG.info("Start to start cantian engine.")
         node_id = self.dr_deploy_info.get("node_id")
-        if node_id == "1":
-            self.wait_remote_node_exec("0", "start", START_TIMEOUT)
-            self.do_start(node_id)
-        else:
-            self.do_start(node_id)
+        self.do_start(node_id)
         LOG.info("Start cantian engine success.")
 
     def active_dr_deploy_and_sync(self):
