@@ -138,7 +138,7 @@ static status_t cms_read_gcc_info(cms_local_ctx_t *ctx, uint64 offset, char* dat
     if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
         return cm_read_disk(ctx->gcc_handle, offset, data, size);
     }
-    if (cm_read_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size) != CT_SUCCESS) {
+    if (cm_read_dbs_file(&ctx->gcc_dbs_handle, offset, data, size) != CT_SUCCESS) {
         return CT_ERROR;
     }
     return CT_SUCCESS;
@@ -149,7 +149,7 @@ static status_t cms_write_gcc_info(cms_local_ctx_t *ctx, uint64 offset, char* da
     if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
         return cm_write_disk(ctx->gcc_handle, offset, data, size);
     }
-    return cm_write_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size);
+    return cm_write_dbs_file(&ctx->gcc_dbs_handle, offset, data, size);
 }
 
 static status_t cms_get_valid_gcc_id(cms_local_ctx_t *ctx, uint32 *gcc_id)
@@ -316,14 +316,9 @@ status_t cms_create_gcc(void)
     // object_id_t root_handle = { 0 };
     // object_id_t gcc_file_handle = { 0 };
 
-    object_id_t gcc_home_handle = { 0 };
-    object_id_t gcc_dir_handle = { 0 };
-    if (cm_get_dbs_last_file_handle(g_cms_param->gcc_home, &gcc_home_handle)) {
+    object_id_t gcc_file_handle = { 0 };
+    if (cm_get_dbs_last_file_handle(g_cms_param->gcc_home, &gcc_file_handle)) {
         printf("Failed to get gcc file handle\n");
-        return CT_ERROR;
-    }
-    if (cm_get_dbs_last_dir_handle(g_cms_param->gcc_dir, &gcc_dir_handle)) {
-        printf("Failed to get gcc dir handle\n");
         return CT_ERROR;
     }
 
@@ -335,7 +330,7 @@ status_t cms_create_gcc(void)
         return CT_ERROR;
     }
     for (int32_t i = 0 ; i < times; i++) {
-        if (cm_write_dbs_file(&gcc_dir_handle, CMS_GCC_FILE_NAME, i * CMS_WRITE_GCC_PER_SIZE, buffer,
+        if (cm_write_dbs_file(&gcc_file_handle, i * CMS_WRITE_GCC_PER_SIZE, buffer,
             sizeof(buffer)) != CT_SUCCESS) {
             printf("Failed to init gcc file\n");
             return CT_ERROR;

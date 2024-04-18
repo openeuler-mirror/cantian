@@ -41,9 +41,7 @@ extern "C" {
 #define CMS_GCC_UPGRADE_MAGIC    (*((uint64*)"UPGRADE"))
 
 #define CMS_GCC_DIR_NAME         "gcc_home"
-#define CMS_GCC_FILE_NAME        "gcc_file"
-#define CMS_MASTER_FILE_NAME     "gcc_file_master_lock"
-#define CMS_VOTE_FILE_NAME       "gcc_file_vote_file"
+
 typedef union un_cms_res_t {
     struct {
         uint64          magic;
