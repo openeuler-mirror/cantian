@@ -1429,9 +1429,6 @@ status_t btree_create_part_segment(knl_session_t *session, index_part_t *index_p
 
     if (DB_IS_CLUSTER(session) && (session->rm->logic_log_size >= KNL_LOGIC_LOG_FLUSH_SIZE)) {
         tx_copy_logic_log(session);
-        if (db_write_ddl_op(session) != CT_SUCCESS) {
-            knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
-        }
         dtc_sync_ddl(session);
     }
 
@@ -1671,9 +1668,6 @@ status_t btree_prepare_pages(knl_session_t *session, btree_t *btree)
 
     if (DB_IS_CLUSTER(session) && (session->rm->logic_log_size >= KNL_LOGIC_LOG_FLUSH_SIZE)) {
         tx_copy_logic_log(session);
-        if (db_write_ddl_op(session) != CT_SUCCESS) {
-            knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
-        }
         dtc_sync_ddl(session);
     }
 
