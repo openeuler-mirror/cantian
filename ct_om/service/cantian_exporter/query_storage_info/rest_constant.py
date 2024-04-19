@@ -62,7 +62,7 @@ class Constant:
     CREATE_REMOTE_REPLICATION_FILESYSTEM_PAIR = "/api/v2/task/protection/nas"
 
 
-SUPPORT_VERSION = ["6.1.7", "6.1.7RC1", "6.1.8RC1"]
+SUPPORT_VERSION = ["6.1.7", "6.1.7RC1", "6.1.8RC1", "6.1.8"]
 CANTIAN_DOMAIN_PREFIX = "CantianDomain_%s"
 
 
