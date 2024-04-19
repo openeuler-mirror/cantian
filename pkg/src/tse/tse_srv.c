@@ -2175,7 +2175,7 @@ EXTER_ATTACK int tse_analyze_table(tianchi_handler_t *tch, const char *db_name,
     return ret;
 }
 
-EXTER_ATTACK int tse_get_cbo_stats(tianchi_handler_t *tch, tianchi_cbo_stats_t *stats)
+EXTER_ATTACK int tse_get_cbo_stats(tianchi_handler_t *tch, tianchi_cbo_stats_t *stats, tse_cbo_stats_table_t *tse_cbo_stats_table, uint32_t first_partid, uint32_t num_part_fetch)
 {
     status_t ret;
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
@@ -2189,7 +2189,7 @@ EXTER_ATTACK int tse_get_cbo_stats(tianchi_handler_t *tch, tianchi_cbo_stats_t *
     knl_session_t *knl_session = &session->knl_session;
     CT_RETURN_IFERR(tse_try_reopen_dc(knl_session, &tse_context->user, &tse_context->table, tse_context->dc));
     SYNC_POINT_GLOBAL_START(TSE_GET_CBO_STATS_FAIL, &ret, CT_ERROR);
-    ret = get_cbo_stats(knl_session, DC_ENTITY(tse_context->dc), stats);
+    ret = get_cbo_stats(knl_session, DC_ENTITY(tse_context->dc), stats, tse_cbo_stats_table, first_partid, num_part_fetch);
     SYNC_POINT_GLOBAL_END;
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[tse_get_cbo_stats]: get_cbo_stats failed.");

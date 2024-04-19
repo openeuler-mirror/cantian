@@ -167,8 +167,6 @@ typedef struct {
  * expand this struct if need more cbo stats
  */
 typedef struct {
-    uint16_t first_partid;
-    uint16_t num_part_fetch;
     uint32_t part_cnt;
     uint32_t msg_len;
     uint32_t key_len;
@@ -570,7 +568,7 @@ int tse_srv_release_savepoint(tianchi_handler_t *tch, const char *name);
 
 /* Optimizer Related Interface */
 int tse_analyze_table(tianchi_handler_t *tch, const char *db_name, const char *table_name, double sampling_ratio);
-int tse_get_cbo_stats(tianchi_handler_t *tch, tianchi_cbo_stats_t *stats);
+int tse_get_cbo_stats(tianchi_handler_t *tch, tianchi_cbo_stats_t *stats, tse_cbo_stats_table_t *tse_cbo_stats_table, uint32_t first_partid, uint32_t num_part_fetch);
 int tse_get_index_name(tianchi_handler_t *tch, char *index_name);
 
 /* Datatype Related Interface */

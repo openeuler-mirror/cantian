@@ -346,6 +346,9 @@ struct get_cbo_stats_request {
     int result;
     tianchi_handler_t tch;
     tianchi_cbo_stats_t *stats;
+    tse_cbo_stats_table_t *tse_cbo_stats_table;
+    uint16_t first_partid;
+    uint16_t num_part_fetch;
 };
 
 struct get_serial_val_request {
