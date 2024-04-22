@@ -60,6 +60,7 @@ status_t init_dtc_rc(void)
     init_st.callback.stop_cur_reform = (rc_cb_stop_cur_reform)rc_stop_cur_reform;
     init_st.callback.rc_reform_cancled = (rc_cb_reform_canceled)rc_reform_cancled;
     init_st.callback.rc_start_lrpl_proc = (rc_cb_start_lrpl_proc)rc_start_lrpl_proc;
+    init_st.callback.rc_notify_reform_status = (rc_cb_notify_reform_stat)rc_notify_reform_status;
 
     return init_cms_rc(&g_dtc->rf_ctx, &init_st);
 }
@@ -504,6 +505,8 @@ status_t rc_master_partial_recovery(reform_mode_t mode, reform_detail_t *detail)
             return CT_ERROR;
         }
     } else {
+        SYNC_POINT_GLOBAL_START(CANTIAN_BCAST_RECOVERY_DONE_OTHER_ABORT, (int32 *)g_rc_ctx->session, 0);
+        SYNC_POINT_GLOBAL_END;
         if (rc_set_redo_replay_done(g_rc_ctx->session, &(g_rc_ctx->info), CT_FALSE) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[RC][partial restart] failed to broadcast reform status g_rc_ctx->status=%u",
                            g_rc_ctx->status);
@@ -1283,7 +1286,9 @@ void rc_stop_cur_reform(void)
         dtc_stop_recovery();
     }
     // current reform failed after remaster done, exit
-    if (g_rc_ctx->info.failed_reform_status > REFORM_RECOVERING && g_rc_ctx->info.failed_reform_status < REFORM_DONE) {
+    reform_mode_t mode = rc_get_change_mode();
+    if (mode == REFORM_MODE_OUT_OF_PLAN && g_rc_ctx->info.failed_reform_status > REFORM_RECOVERING &&
+        g_rc_ctx->info.failed_reform_status < REFORM_DONE) {
         CM_ABORT_REASONABLE(0, "ABORT INFO: current reform failed and cannot reentrant, exit");
     }
     CT_LOG_RUN_INF("[RC] finish stop current reform");
@@ -1306,4 +1311,18 @@ status_t rc_start_lrpl_proc(knl_session_t *session)
         }
     }
     return CT_SUCCESS;
+}
+
+status_t rc_notify_reform_status(knl_session_t *session, reform_info_t *rc_info, uint32 status)
+{
+    knl_panic(status <= REFORM_DONE);
+    if (status == REFORM_DONE)
+    {
+        SYNC_POINT_GLOBAL_START(CANTIAN_BCAST_REFORM_DONE_OTHER_ABORT, (int32 *)g_rc_ctx->session, 0);
+        SYNC_POINT_GLOBAL_END;
+    }
+
+    status_t ret = rc_broadcast_change_status((knl_session_t*)session, rc_info, status);
+    CT_LOG_RUN_INF("[RC] drc_broadcast_change_status ret=%d, curr=%u, notify=%u", ret, g_rc_ctx->status, status);
+    return ret;
 }

@@ -273,6 +273,9 @@ void drc_update_remaster_local_status(drc_remaster_status_e status)
         if (status > REMASTER_PREPARE) {
             part_mngr->is_reentrant = CT_FALSE;
         }
+        if (status == REMASTER_DONE) {
+            part_mngr->mgrt_fail_list = CT_TRUE;
+        }
     } else {
         CT_LOG_RUN_ERR("[DRC] remaster update status %d failed", status);
     }
@@ -363,6 +366,7 @@ void drc_part_init(uint8 *inst_id_array, uint8 inst_num, drc_part_mngr_t *part_m
     part_mngr->version = 1;
     part_mngr->remaster_status = REMASTER_DONE;
     part_mngr->is_reentrant = CT_TRUE;
+    part_mngr->mgrt_fail_list = CT_FALSE;
 
     for (i = 0; i < CT_MAX_INSTANCES; i++) {
         if (CT_TRUE == part_mngr->inst_part_tbl[i].is_used) {
@@ -5324,10 +5328,11 @@ status_t drc_execute_remaster(knl_session_t *session, reform_info_t *reform_info
     status_t ret;
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     drc_remaster_mngr_t *remaster_mngr = DRC_PART_REMASTER_MNGR;
-    CT_LOG_RUN_INF("[DRC]master assigned remaster tasks,jNum(%u),lNum(%u),aNum(%u).",
+    CT_LOG_RUN_INF("[DRC]master assigned remaster tasks,jNum(%u),lNum(%u),aNum(%u),fNum(%u).",
         reform_info->reform_list[REFORM_LIST_JOIN].inst_id_count,
         reform_info->reform_list[REFORM_LIST_LEAVE].inst_id_count,
-        reform_info->reform_list[REFORM_LIST_ABORT].inst_id_count);
+        reform_info->reform_list[REFORM_LIST_ABORT].inst_id_count,
+        reform_info->reform_list[REFORM_LIST_FAIL].inst_id_count);
 
     cm_spin_lock(&part_mngr->lock, NULL);
     ret = drc_int_remaster_target(part_mngr);
@@ -5357,6 +5362,16 @@ status_t drc_execute_remaster(knl_session_t *session, reform_info_t *reform_info
 
     if (reform_info->reform_list[REFORM_LIST_ABORT].inst_id_count > 0) {
         ret = drc_scalein_remaster(reform_info->reform_list[REFORM_LIST_ABORT].inst_id_list, reform_info->reform_list[REFORM_LIST_ABORT].inst_id_count, part_mngr, CT_TRUE);
+        if (ret != CT_SUCCESS) {
+            cm_spin_unlock(&part_mngr->lock);
+            CT_LOG_RUN_ERR("[DRC]scale in remaster error,return error: %d", ret);
+            return ret;
+        }
+    }
+
+    if (part_mngr->mgrt_fail_list == CT_TRUE && reform_info->reform_list[REFORM_LIST_FAIL].inst_id_count > 0) {
+        ret = drc_scalein_remaster(reform_info->reform_list[REFORM_LIST_FAIL].inst_id_list,
+                                   reform_info->reform_list[REFORM_LIST_FAIL].inst_id_count, part_mngr, CT_TRUE);
         if (ret != CT_SUCCESS) {
             cm_spin_unlock(&part_mngr->lock);
             CT_LOG_RUN_ERR("[DRC]scale in remaster error,return error: %d", ret);
@@ -6811,8 +6826,12 @@ bool32 drc_remaster_need_stop(void)
 {
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     if (REMASTER_DONE != part_mngr->remaster_status) {
+        part_mngr->mgrt_fail_list = CT_FALSE;
         return CT_TRUE;
     } else {
+        if (g_rc_ctx->info.failed_reform_status <= REFORM_RECOVERING) {
+            part_mngr->mgrt_fail_list = CT_FALSE;
+        }
         return CT_FALSE;
     }
 }

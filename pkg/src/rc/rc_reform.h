@@ -259,6 +259,7 @@ typedef void (*rc_cb_stop_cur_reform)(void);
 typedef bool32 (*rc_cb_reform_canceled)(void);
 typedef status_t (*rc_cb_promote_role)(knl_session_t *session);
 typedef status_t (*rc_cb_start_lrpl_proc)(knl_session_t *session);
+typedef status_t (*rc_cb_notify_reform_stat)(knl_session_t *session, reform_info_t *rc_info, uint32 status);
 
 extern const uint8_t g_bitcnt[256];
 
@@ -272,6 +273,7 @@ typedef struct st_reform_callback {
     rc_cb_stop_cur_reform stop_cur_reform;
     rc_cb_reform_canceled rc_reform_cancled;
     rc_cb_start_lrpl_proc rc_start_lrpl_proc;
+    rc_cb_notify_reform_stat rc_notify_reform_status;
 } reform_callback_t;
 
 typedef struct st_reform_init {
@@ -397,8 +399,6 @@ void rc_allow_reform_finish(void);
 uint64 get_alive_bitmap_by_reform_info(reform_info_t *reform_info);
 
 EXTER_ATTACK void rc_accept_status_change(void *sess, mes_message_t *receive_msg);
-
-status_t rc_notify_reform_status(knl_session_t *session, reform_info_t *rc_info, uint32 status);
 
 status_t rc_set_redo_replay_done(knl_session_t *session, reform_info_t *rc_info, bool32 full_recovery);
 
