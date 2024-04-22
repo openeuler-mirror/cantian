@@ -31,7 +31,7 @@ cms_disk_check_t g_check_disk = { 0 };
 
 cms_disk_check_stat_t g_local_disk_stat = { 0 };
 disk_handle_t g_detect_file_fd[CMS_MAX_DISK_DETECT_FILE];
-object_id_t g_detect_dbs_file; // only used in dbs type
+object_id_t g_detect_dbs_file[CMS_MAX_DISK_DETECT_FILE]; // only used in dbs type
 
 status_t cms_detect_disk(void)
 {
@@ -48,13 +48,8 @@ status_t cms_detect_disk(void)
             return CT_ERROR;
         }
     } else if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
-        char file_name[CMS_MAX_NAME_LEN] = {0};
         for (int i = 0; i < g_cms_param->wait_detect_file_num; i++) {
-            if (cm_get_path_file_name(g_cms_param->wait_detect_file[i], file_name, CMS_MAX_NAME_LEN) != CT_SUCCESS) {
-                CMS_LOG_ERR("get path last file name failed, file %s.", g_cms_param->wait_detect_file[i]);
-                return CT_ERROR;
-            }
-            if (cms_detect_dbs_file_stat(file_name, &g_detect_dbs_file) != CT_SUCCESS) {
+            if (cms_detect_dbs_file_stat(g_cms_param->wait_detect_file[i], &g_detect_dbs_file[i]) != CT_SUCCESS) {
                 CMS_LOG_ERR("cms detect file %s failed.", g_cms_param->wait_detect_file[i]);
                 return CT_ERROR;
             }
@@ -182,7 +177,7 @@ status_t cms_detect_dbs_file_stat(const char *read_file, object_id_t* handle)
     date_t start_time = cm_now();
     CMS_LOG_DEBUG_INF("cms detect dbs file name is %s", read_file);
     // TODO：if this file new create，but file size is zero
-    ret = cm_read_dbs_file(handle, (char *)read_file, CMS_ERROR_DETECT_START, new_gcc, sizeof(cms_gcc_t));
+    ret = cm_read_dbs_file(handle, CMS_ERROR_DETECT_START, new_gcc, sizeof(cms_gcc_t));
     if (ret != CT_SUCCESS) {
         CMS_LOG_ERR("cms read dbs file %s failed.", read_file);
         CM_FREE_PTR(new_gcc);
@@ -343,22 +338,10 @@ status_t cms_open_detect_file(void)
             return ret;
         }
     } else if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
-        char file_name[CMS_MAX_NAME_LEN] = {0};
-        object_id_t file_handle = {0};
-        ret = cm_get_dbs_last_dir_handle(g_cms_param->gcc_dir, &g_detect_dbs_file);
-        if (ret != CT_SUCCESS) {
-            CMS_LOG_ERR("open dbs gcc dir failed, path %s, ret %d", g_cms_param->gcc_dir, ret);
-            return ret;
-        }
         for (int i = 0; i < g_cms_param->wait_detect_file_num; i++) {
-            ret = cm_get_path_file_name(g_cms_param->wait_detect_file[i], file_name, CMS_MAX_NAME_LEN);
+            ret = cm_get_dbs_last_file_handle(g_cms_param->wait_detect_file[i], &g_detect_dbs_file[i]);
             if (ret != CT_SUCCESS) {
-                CMS_LOG_ERR("get path last file name failed, file %s, ret %d", g_cms_param->wait_detect_file[i], ret);
-                return ret;
-            }
-            ret = cm_get_dbs_file_handle(&g_detect_dbs_file, file_name, &file_handle);
-            if (ret != CT_SUCCESS) {
-                CMS_LOG_ERR("open dbs file %s failed %d", file_name, ret);
+                CMS_LOG_ERR("get path last file handle failed, file %s, ret %d", g_cms_param->wait_detect_file[i], ret);
                 return ret;
             }
         }

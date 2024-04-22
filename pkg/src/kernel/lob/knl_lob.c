@@ -2211,9 +2211,6 @@ status_t lob_write_data(knl_session_t *session, knl_cursor_t *cursor, lob_entity
     }
     if (DB_IS_CLUSTER(session) && (session->rm->logic_log_size >= KNL_LOGIC_LOG_FLUSH_SIZE)) {
         tx_copy_logic_log(session);
-        if (db_write_ddl_op(session) != CT_SUCCESS) {
-            knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
-        }
         dtc_sync_ddl(session);
     }
 

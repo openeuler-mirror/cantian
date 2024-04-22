@@ -153,7 +153,6 @@ status_t dtc_get_heap_extend_status(knl_session_t *session, heap_t *heap, knl_pa
 status_t dtc_get_btree_split_status(knl_session_t *session, btree_t *btree, knl_part_locate_t part_loc,
                                     bool8 *is_splitting);
 status_t dtc_ddl_enabled(knl_handle_t knl_session, bool32 forbid_in_rollback);
-status_t db_write_ddl_op(knl_session_t* session);
 status_t db_write_ddl_op_internal(knl_session_t* session, char *log, uint32 log_size);
 status_t db_write_ddl_op_for_children(knl_session_t* session, table_t* table);
 status_t db_write_ddl_op_for_constraints(knl_session_t* session, uint32 uid, uint32 id, galist_t* constraints);

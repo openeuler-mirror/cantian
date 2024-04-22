@@ -917,7 +917,7 @@ void rc_sync_cluster_view(knl_session_t *session)
     // in 4 nodes, need extra work to finish
     if (g_rc_ctx->info.role == REFORM_ROLE_STAY) {
         wait_alive_bitmap_stable();
-        rc_notify_reform_status(session, &g_rc_ctx->info, REFORM_DONE);
+        g_rc_callback.rc_notify_reform_status(session, &g_rc_ctx->info, REFORM_DONE);
         return;
     }
 
@@ -1328,13 +1328,6 @@ void rc_accept_status_change(void *sess, mes_message_t *receive_msg)
     mes_release_message_buf(receive_msg->buffer);
 }
 
-status_t rc_notify_reform_status(knl_session_t *session, reform_info_t *rc_info, uint32 status)
-{
-    knl_panic(status <= REFORM_DONE);
-    status_t ret = rc_broadcast_change_status((knl_session_t*)session, rc_info, status);
-    CT_LOG_RUN_INF("[RC] drc_broadcast_change_status ret=%d, curr=%u, notify=%u", ret, g_rc_ctx->status, status);
-    return ret;
-}
 
 status_t rc_set_redo_replay_done(knl_session_t *session, reform_info_t *rc_info, bool32 full_recovery)
 {
@@ -1343,6 +1336,6 @@ status_t rc_set_redo_replay_done(knl_session_t *session, reform_info_t *rc_info,
     }
     knl_panic(g_rc_ctx->status < REFORM_RECOVER_DONE);
     g_rc_ctx->status = REFORM_RECOVER_DONE;
-    return rc_notify_reform_status(session, rc_info, REFORM_RECOVER_DONE);
+    return g_rc_callback.rc_notify_reform_status(session, rc_info, REFORM_RECOVER_DONE);
 }
 

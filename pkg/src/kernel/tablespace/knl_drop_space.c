@@ -539,9 +539,6 @@ status_t spc_remove_datafile(knl_session_t *session, space_t *space, uint32 id, 
     if (DB_IS_CLUSTER(session)) {
         tx_copy_logic_log(session);
         if (session->logic_log_size > 0 || session->rm->logic_log_size > 0) {
-            if (db_write_ddl_op(session) != CT_SUCCESS) {
-                knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
-            }
             dtc_sync_ddl(session);
         }
     }
@@ -939,9 +936,6 @@ status_t spc_remove_space_online(knl_session_t *session, knl_handle_t stmt, spac
     if (DB_IS_CLUSTER(session)) {
         tx_copy_logic_log(session);
         if (session->logic_log_size > 0 || session->rm->logic_log_size > 0) {
-            if (db_write_ddl_op(session) != CT_SUCCESS) {
-                knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
-            }
             dtc_sync_ddl(session);
         }
     }

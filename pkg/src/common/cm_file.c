@@ -538,21 +538,13 @@ status_t cm_read_file(int32 file, void *buf, int32 len, int32 *read_size)
     return CT_SUCCESS;
 }
 
-int32 cm_read_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, void* buf, uint32 length)
+int32 cm_read_dbs_file(object_id_t* handle, uint32 offset, void* buf, uint32 length)
 {
     int64 start = cm_now();
-    object_id_t handle;
-    int32 ret =  dbs_global_handle()->dbs_file_open(phandle, file_name, FILE_TYPE, &handle);
-    if (ret != 0) {
-        CT_THROW_ERROR(ERR_OPEN_FILE, file_name, ret);
-        CT_LOG_RUN_ERR("cm_read_dbs_file get file %s handle failed.", file_name);
-        return ret;
-    }
-
-    ret = dbs_global_handle()->dbs_file_read(&handle, offset, (char *)buf, length);
+    int32 ret = dbs_global_handle()->dbs_file_read(handle, offset, (char *)buf, length);
     if (ret != 0) {
         CT_THROW_ERROR(ERR_READ_FILE, ret);
-        CT_LOG_RUN_ERR("cm_read_dbs_file file %s offset:%u len:%u failed.", file_name, offset, length);
+        CT_LOG_RUN_ERR("cm_read_dbs_file offset:%u len:%u failed.", offset, length);
         return ret;
     }
 
@@ -564,20 +556,13 @@ int32 cm_read_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, voi
     return ret;
 }
 
-status_t cm_write_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, void* buf, uint32 length)
+status_t cm_write_dbs_file(object_id_t* handle, uint32 offset, void* buf, uint32 length)
 {
     int64 start = cm_now();
-    object_id_t handle;
-    int32 ret =  dbs_global_handle()->dbs_file_open(phandle, file_name, FILE_TYPE, &handle);
-    if (ret != 0) {
-        CT_THROW_ERROR(ERR_OPEN_FILE, file_name, ret);
-        CT_LOG_RUN_ERR("cm_write_dbs_file get file %s handle failed.", file_name);
-        return CT_ERROR;
-    }
-    ret = dbs_global_handle()->dbs_file_write(&handle, offset, (char *)buf, length);
+    int32 ret = dbs_global_handle()->dbs_file_write(handle, offset, (char *)buf, length);
     if (ret != 0) {
         CT_THROW_ERROR(ERR_WRITE_FILE, ret);
-        CT_LOG_RUN_ERR("cm_write_dbs_file write file %s offset:%u len:%u failed.", file_name, offset, length);
+        CT_LOG_RUN_ERR("cm_write_dbs_file write offset:%u len:%u failed.", offset, length);
         return CT_ERROR;
     }
 

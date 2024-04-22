@@ -99,7 +99,7 @@ static inline status_t stat_read(uint64 offset, char* data, uint32 size)
     if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
         return cm_read_disk(ctx->gcc_handle, offset, data, size);
     }
-    if (cm_read_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size) != CT_SUCCESS) {
+    if (cm_read_dbs_file(&ctx->gcc_dbs_handle, offset, data, size) != CT_SUCCESS) {
         return CT_ERROR;
     }
     return CT_SUCCESS;
@@ -112,7 +112,7 @@ static inline status_t stat_write(uint64 offset, char* data, uint32 size)
     if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
         return cm_write_disk(ctx->gcc_handle, offset, data, size);
     }
-    return cm_write_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size);
+    return cm_write_dbs_file(&ctx->gcc_dbs_handle, offset, data, size);
 }
 
 static status_t res_data_read(cms_local_ctx_t* ctx, uint64 offset, char* data, uint32 size)
@@ -120,7 +120,7 @@ static status_t res_data_read(cms_local_ctx_t* ctx, uint64 offset, char* data, u
     if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
         return cm_read_disk(ctx->gcc_handle, offset, data, size);
     }
-    if (cm_read_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size) != CT_SUCCESS) {
+    if (cm_read_dbs_file(&ctx->gcc_dbs_handle, offset, data, size) != CT_SUCCESS) {
         return CT_ERROR;
     }
     return CT_SUCCESS;
@@ -131,7 +131,7 @@ static status_t res_data_write(cms_local_ctx_t* ctx, uint64 offset, char* data, 
     if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
         return cm_write_disk(ctx->gcc_handle, offset, data, size);
     }
-    return cm_write_dbs_file(&ctx->gcc_dbs_handle, CMS_GCC_FILE_NAME, offset, data, size);
+    return cm_write_dbs_file(&ctx->gcc_dbs_handle, offset, data, size);
 }
 
 static bool32 res_is_active(cms_disk_lock_t* lock, uint64 inst_id)
@@ -284,13 +284,11 @@ status_t cms_vote_file_init(void)
     } else if (g_cms_param->gcc_type == CMS_DEV_TYPE_SD) {
         CT_RETURN_IFERR(cm_open_disk(g_cms_param->gcc_home, &g_cms_inst->vote_file_fd));
     } else if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
-        char file_name[CMS_FILE_NAME_BUFFER_SIZE] = { 0 };
-        object_id_t file_handle = {0};
-        int ret = snprintf_s(file_name, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN, "%s_vote_file",
+        char file_path[CMS_FILE_NAME_BUFFER_SIZE] = { 0 };
+        int ret = snprintf_s(file_path, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN, "%s_vote_file",
             g_cms_param->gcc_home);
         PRTS_RETURN_IFERR(ret);
-        CT_RETURN_IFERR(cm_get_dbs_last_dir_handle(g_cms_param->gcc_dir, &g_cms_inst->vote_file_handle));
-        CT_RETURN_IFERR(cm_get_dbs_last_file_handle(file_name, &file_handle)); // create file
+        CT_RETURN_IFERR(cm_get_dbs_last_file_handle(file_path, &g_cms_inst->vote_file_handle)); // create file
     } else {
         CMS_LOG_ERR("invalid device type:%d", g_cms_param->gcc_type);
         return CT_ERROR;

@@ -1178,7 +1178,6 @@ void sql_unlock_lnk_tabs(sql_stmt_t *stmt)
     }
 }
 
-
 static inline status_t sql_check_pre_exec(sql_stmt_t *stmt)
 {
     if (stmt->is_verifying != CT_TRUE && (stmt->status < STMT_STATUS_PREPARED || stmt->context == NULL)) {
@@ -1187,10 +1186,9 @@ static inline status_t sql_check_pre_exec(sql_stmt_t *stmt)
     }
 #ifndef DAAC_READ_WRITE
     // disable dml, except under procedure; disable create procedure
-    if (((stmt->context->type > CTSQL_TYPE_SELECT && stmt->context->type < CTSQL_TYPE_DML_CEIL &&
-        stmt->context->type != CTSQL_TYPE_INSERT && stmt->context->type != CTSQL_TYPE_DELETE &&
-        stmt->context->type != CTSQL_TYPE_UPDATE && !IS_PL_SQL(stmt)) ||
-        stmt->context->type == CTSQL_TYPE_CREATE_PROC) && DB_IS_OPEN(KNL_SESSION(stmt))) {
+    if (((stmt->context->type > CTSQL_TYPE_SELECT && stmt->context->type < CTSQL_TYPE_DML_CEIL) || 
+        (stmt->context->type == CTSQL_TYPE_CREATE_PROC)) && 
+        !IS_PL_SQL(stmt) && DB_IS_OPEN(KNL_SESSION(stmt))) {
         CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "DML or create_proc on cantian node");
         return CT_ERROR;
     }
