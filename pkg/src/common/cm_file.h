@@ -187,8 +187,8 @@ status_t cm_get_dbs_full_dir_handle(const char* path, const char* delim, object_
 status_t cm_get_dbs_last_file_handle(const char* file, object_id_t* last_handle);
 status_t cm_get_dbs_last_dir_handle(const char* file, object_id_t* last_handle);
 status_t cm_rm_dbs_dir_file(object_id_t* phandle, char* name);
-int32 cm_read_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, void* buf, uint32 length);
-status_t cm_write_dbs_file(object_id_t* phandle, char *file_name, uint32 offset, void* buf, uint32 length);
+int32 cm_read_dbs_file(object_id_t* handle, uint32 offset, void* buf, uint32 length);
+status_t cm_write_dbs_file(object_id_t* handle, uint32 offset, void* buf, uint32 length);
 
 
 #ifndef WIN32

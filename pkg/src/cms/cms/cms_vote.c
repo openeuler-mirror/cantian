@@ -51,7 +51,7 @@ static status_t vote_data_read(uint64 offset, char* data, uint32 size)
     if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
         return cm_read_disk(g_cms_inst->vote_file_fd, offset, data, size);
     }
-    if (cm_read_dbs_file(&g_cms_inst->vote_file_handle, CMS_VOTE_FILE_NAME, offset, data, size) != CT_SUCCESS) {
+    if (cm_read_dbs_file(&g_cms_inst->vote_file_handle, offset, data, size) != CT_SUCCESS) {
         return CT_ERROR;
     }
     return CT_SUCCESS;
@@ -62,7 +62,7 @@ static status_t vote_data_write(uint64 offset, char* data, uint32 size)
     if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
         return cm_write_disk(g_cms_inst->vote_file_fd, offset, data, size);
     }
-    return cm_write_dbs_file(&g_cms_inst->vote_file_handle, CMS_VOTE_FILE_NAME, offset, data, size);
+    return cm_write_dbs_file(&g_cms_inst->vote_file_handle, offset, data, size);
 }
 
 static status_t cms_set_vote_data_inner(uint16 node_id, uint32 slot_id, char *data, uint32 data_size,

@@ -539,18 +539,17 @@ status_t cms_seek_write_master_lock(cms_disk_lock_t* lock, cms_flock_t* lock_inf
 
 status_t cms_write_master_lock_with_dbs(cms_disk_lock_t* lock, cms_flock_t* lock_info, uint8 lock_type)
 {
-    if (lock->fd_len < CMS_DBS_LAST_DIR_HANDLE_IDX) {
-        CMS_LOG_ERR("cms write master info dbs fd len(%d) invalid.", lock->fd_len);
+    if (lock->fd_len < CMS_DBS_LAST_DIR_HANDLE_IDX || lock->dbs_fd == NULL) {
+        CMS_LOG_ERR("cms write master info dbs fd invalid, len(%d).", lock->fd_len);
         return CT_ERROR;
     }
     uint64 offset = lock->flock->l_start;
-    object_id_t* dbs_fd = &lock->dbs_fd[lock->fd_len - CMS_DBS_LAST_DIR_HANDLE_IDX];
-    status_t ret = cm_write_dbs_file(dbs_fd, lock->file_name, offset, lock_info, sizeof(cms_flock_t));
+    object_id_t* dbs_fd = &lock->dbs_fd[lock->fd_len - CMS_DBS_LAST_FILE_HANDLE_IDX];
+    status_t ret = cm_write_dbs_file(dbs_fd, offset, lock_info, sizeof(cms_flock_t));
     CMS_SYNC_POINT_GLOBAL_START(CMS_DISK_UNLOCK_FILE_WRITE_FAIL, &ret, CT_ERROR);
     CMS_SYNC_POINT_GLOBAL_END;
     if (ret != CT_SUCCESS) {
-        CMS_LOG_ERR("dbs write failed:%s:%llu,%d:%s",
-            lock->flock->file_name, lock->flock->l_start, errno, strerror(errno));
+        CMS_LOG_ERR("dbs write file:%s start:%llu failed.",lock->flock->file_name, lock->flock->l_start);
         if (cm_unlock_range_dbs(lock->fd, lock_type) != 0) {
             CMS_LOG_ERR("cms unlock(%s) type(%d) start(%llu) len(%llu) failed.",
                 lock->file_name, lock_type, lock->flock->l_start, lock->flock->l_len);
@@ -588,12 +587,12 @@ status_t cms_seek_write_master_info(cms_disk_lock_t* lock, cms_master_info_t* da
 
 status_t cms_write_master_info_with_dbs(cms_disk_lock_t* lock, cms_master_info_t* data_info, uint64 offset, uint8 type)
 {
-    if (lock->fd_len < CMS_DBS_LAST_DIR_HANDLE_IDX) {
-        CMS_LOG_ERR("cms write master info dbs fd len(%d) invalid.", lock->fd_len);
+    if (lock->fd_len < CMS_DBS_LAST_DIR_HANDLE_IDX || lock->dbs_fd == NULL) {
+        CMS_LOG_ERR("cms write master info dbs fd invalid, len(%d).", lock->fd_len);
         return CT_ERROR;
     }
-    object_id_t* dbs_fd = &lock->dbs_fd[lock->fd_len - CMS_DBS_LAST_DIR_HANDLE_IDX];
-    status_t ret = cm_write_dbs_file(dbs_fd, lock->file_name, offset, data_info, sizeof(cms_master_info_t));
+    object_id_t* dbs_fd = &lock->dbs_fd[lock->fd_len - CMS_DBS_LAST_FILE_HANDLE_IDX];
+    status_t ret = cm_write_dbs_file(dbs_fd, offset, data_info, sizeof(cms_master_info_t));
     CMS_SYNC_POINT_GLOBAL_START(CMS_DISK_UNLOCK_FILE_WRITE_FAIL, &ret, CT_ERROR);
     CMS_SYNC_POINT_GLOBAL_END;
     if (ret != CT_SUCCESS) {
@@ -1069,18 +1068,18 @@ static status_t cms_read_dbs_master_info(cms_disk_lock_t* lock, cms_master_info_
     object_id_t* dbs_file_handle = NULL;
     do {
         ++cnt;
-        int fd_len = lock->fd_len;
-        if (fd_len <= CMS_DBS_LAST_DIR_HANDLE_IDX || lock->dbs_fd == NULL || lock->flock == NULL) {
+        if (lock->fd_len <= CMS_DBS_LAST_DIR_HANDLE_IDX || lock->dbs_fd == NULL || lock->flock == NULL) {
             CMS_LOG_ERR("cms read dbs master file error, file(%s) not open.", lock->dev_name);
             break;
         }
-        dbs_dir_handle = &lock->dbs_fd[fd_len - CMS_DBS_LAST_DIR_HANDLE_IDX];
-        ret = cm_read_dbs_file(dbs_dir_handle, lock->file_name, offset, master_info, sizeof(cms_master_info_t));
+        dbs_file_handle = &lock->dbs_fd[lock->fd_len - CMS_DBS_LAST_FILE_HANDLE_IDX];
+        ret = cm_read_dbs_file(dbs_file_handle, offset, master_info, sizeof(cms_master_info_t));
         CMS_SYNC_POINT_GLOBAL_START(CMS_DISK_GET_INST_FILE_READ_FAIL, &ret, CT_ERROR);
         CMS_SYNC_POINT_GLOBAL_END;
         if (ret != CT_SUCCESS) {
             CMS_LOG_ERR("cm read dbs file %s offset %llu failed", lock->file_name, offset);
-            dbs_file_handle = &lock->dbs_fd[fd_len - CMS_DBS_LAST_FILE_HANDLE_IDX];
+            dbs_file_handle = &lock->dbs_fd[lock->fd_len - CMS_DBS_LAST_FILE_HANDLE_IDX];
+            dbs_dir_handle = &lock->dbs_fd[lock->fd_len - CMS_DBS_LAST_DIR_HANDLE_IDX];
             cm_open_dbs_file(dbs_dir_handle, lock->file_name, dbs_file_handle);
             continue;
         }

@@ -597,7 +597,7 @@ status_t cms_get_local_ctx(cms_local_ctx_t** ctx)
 
     if (_ctx->handle_valid == -1) {
         if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
-            CT_RETURN_IFERR(cm_get_dbs_last_dir_handle(g_cms_param->gcc_dir, &_ctx->gcc_dbs_handle));
+            CT_RETURN_IFERR(cm_get_dbs_last_file_handle(g_cms_param->gcc_home, &_ctx->gcc_dbs_handle));
         } else {
             CT_RETURN_IFERR(cm_open_disk(g_cms_param->gcc_home, &_ctx->gcc_handle));
             CT_LOG_DEBUG_INF("thread id %u, gcc handle %d, gcc %s", cm_get_current_thread_id(),
