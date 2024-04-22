@@ -1037,9 +1037,6 @@ status_t db_alter_logicrep(knl_session_t *session, lrep_mode_t logic_mode)
     if (DB_IS_CLUSTER(session)) {
         tx_copy_logic_log(session);
         if (session->logic_log_size > 0 || session->rm->logic_log_size > 0) {
-            if (db_write_ddl_op(session) != CT_SUCCESS) {
-                knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
-            }
             dtc_sync_ddl(session);
         }
     }

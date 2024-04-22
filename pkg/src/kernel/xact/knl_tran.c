@@ -710,19 +710,10 @@ void tx_commit(knl_session_t *session, knl_scn_t xa_scn)
     if (rm->txn == NULL || rm->txn->status == (uint8)XACT_END) {
         tx_copy_logic_log(session);
         if (has_logic) {
-            if (db_write_ddl_op(session) != CT_SUCCESS) {
-                knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
-            }
             dtc_sync_ddl(session);
         }
         rm->svpt_count = 0;
         return;
-    }
-
-    if (has_logic) {
-        if (db_write_ddl_op(session) != CT_SUCCESS) {
-            knl_panic_log(0, "[DDL]can't record logical log for session(%d)", session->id);
-        }
     }
 
     // to recycle lob deleted pages

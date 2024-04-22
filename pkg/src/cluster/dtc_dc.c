@@ -1020,13 +1020,6 @@ void dtc_process_check_ddl_enabled(void *sess, mes_message_t *msg)
     }
 }
 
-inline status_t db_write_ddl_op(knl_session_t *session)
-{
-    // Before sync ddl will write system table, used for recover sync ddl when node crashed.
-    // Maybe extend data file during this process, will rewrite the logic log buf.
-    return CT_SUCCESS;
-}
-
 status_t db_write_ddl_op_internal(knl_session_t* session, char *log, uint32 log_size)
 {
     knl_cursor_t* cursor = NULL;
