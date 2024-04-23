@@ -167,9 +167,7 @@ if [[ ${uninstall_type} = 'override' ]]; then
   rm -rf /opt/cantian/common/data
   rm -rf /opt/cantian/common/socket
   rm -rf /opt/cantian/common/config
-  if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-      rm -rf /mnt/dbdata/remote/share_${storage_share_fs}
-  fi
+  rm -rf /mnt/dbdata/remote/share_${storage_share_fs}
   if [[ ${storage_archive_fs} != '' ]]; then
       rm -rf /mnt/dbdata/remote/archive_${storage_archive_fs}
   fi

@@ -6,7 +6,6 @@ SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
 UPGRADE_MODE=$1
 PRE_UPGRADE_SUCCESS_FLAG=/opt/cantian/pre_upgrade.success
 BACKUP_NOTE=/opt/backup_note
-CLUSTER_COMMIT_STATUS=("prepared" "commit")
 UPGRADE_MODE_LIS=("offline" "rollup")
 WAIT_TIME=10
 storage_metadata_fs_path=""
@@ -15,10 +14,17 @@ cluster_status_flag=""
 business_code_backup_path=""
 cluster_commit_flag=""
 modify_sys_table_success_flag=""
+DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/deploy/.dbstor_unify_flag
 
 
 source "${CURRENT_PATH}"/log4sh.sh
 source "${CURRENT_PATH}"/env.sh
+
+if [ -f DEPLOY_MODE_DBSTORE_UNIFY_FLAG ]; then
+  CLUSTER_COMMIT_STATUS=("prepared" "commit")
+else
+  CLUSTER_COMMIT_STATUS=("rollup" "prepared" "commit")
+fi
 
 # 输入参数检查
 function input_params_check() {

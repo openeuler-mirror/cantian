@@ -43,6 +43,7 @@ UNLOCK_TABLE = "unlock tables;"
 INSTALL_TIMEOUT = 900
 START_TIMEOUT = 3600
 FS_CREAT_TIMEOUT = 300
+FLUSH_TABLE_WITH_READ_LOCK_TIMEOUT = 300
 
 
 ACTIVE_RECORD_DICT = {
@@ -251,14 +252,20 @@ class DRDeploy(object):
                                            FLUSH_TABLE)
         cmd += ";echo last_cmd=$?"
         self.record_deploy_process("do_flush_table_with_read_lock", "start")
-        _, output, stderr = exec_popen(cmd)
-        if "last_cmd=0" not in output:
-            err_msg = "Failed to do flush table with read lock, " \
-                      "output:%s, stderr:%s" % (output, stderr)
+        wait_time = 0
+        while wait_time < FLUSH_TABLE_WITH_READ_LOCK_TIMEOUT:
+            _, output, stderr = exec_popen(cmd)
+            if "last_cmd=0" in output:
+                LOG.info("Success to do flush table with read lock.")
+                break
+            else:
+                err_msg = "Failed to do flush table with read lock"
+                LOG.error(err_msg)
+                time.sleep(20)
+                wait_time += 20
+        else:
             self.record_deploy_process("do_flush_table_with_read_lock", "failed", code=-1, description=err_msg)
-            LOG.error(err_msg)
             raise Exception(err_msg)
-        LOG.info("Success to do flush table with read lock.")
         LOG.info("Start to do unlock table with read lock.")
         cmd = "%s -u'%s' -p'%s' -e \"%s;\"" % (self.mysql_cmd,
                                            self.mysql_user,

@@ -5,6 +5,7 @@
 set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
+DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/deploy/.dbstor_unify_flag
 source ${CURRENT_PATH}/../../action/env.sh
 source ${CURRENT_PATH}/log4sh.sh
 NFS_TIMEO=50
@@ -134,7 +135,10 @@ MAL_LOOP_COUNT=3
 
 function startDaemon()
 {
-    mountNfs
+    # 当前如果为去nas模式，不启动挂载
+    if [ ! -f "${DEPLOY_MODE_DBSTORE_UNIFY_FLAG}" ];then
+        mountNfs
+    fi
     local cantianPid=$(getDaemonPid)
     if [ -z "${cantianPid}" ];then
         logAndEchoInfo "[cantian service] cantian_daemon is not found, begin to start cantian_daemon. [Line:${LINENO}, File:${SCRIPT_NAME}]"
