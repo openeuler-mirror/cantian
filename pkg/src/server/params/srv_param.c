@@ -505,7 +505,7 @@ config_item_t g_parameters[] = {
     { "ARCH_LOG_CHECK", CT_TRUE, ATTR_NONE, "TRUE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
       PARAM_ARCH_LOG_CHECK, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool, sql_notify_als_bool,
       sql_notify_als_bool, NULL },
-    { "ARCH_FILE_SIZE", CT_TRUE, ATTR_NONE, "10G", NULL, NULL, "-", "[0,10G]", "CT_TYPE_INTEGER", NULL,
+    { "ARCH_FILE_SIZE", CT_TRUE, ATTR_NONE, "10G", NULL, NULL, "-", "[512M,10G]", "CT_TYPE_INTEGER", NULL,
       PARAM_ARCHIVE_FILE_SIZE, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_arch_file_size,
       sql_notify_als_need_arch_file_size, NULL, NULL },
     { "ARCH_SIZE", CT_TRUE, ATTR_NONE, "512M", NULL, NULL, "-", "[0,512MB]", "CT_TYPE_INTEGER", NULL,

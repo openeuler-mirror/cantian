@@ -614,7 +614,8 @@ static status_t sql_get_table_dc(sql_stmt_t *stmt, sql_table_t *sql_table)
             return CT_ERROR;
         }
     } else {
-	    knl_panic(0);
+        CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "select wtih @dblink on DBLINK table");
+        return CT_ERROR;
     }
 
     sql_table->entry->dc = dc;
