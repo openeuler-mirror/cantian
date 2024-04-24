@@ -546,7 +546,7 @@ status_t sql_verify_als_arch_size(void *se, void *lex, void *def)
 
 status_t sql_verify_als_arch_file_size(void *se, void *lex, void *def)
 {
-    return sql_verify_pool_size(lex, def, 0, BUDDY_MEM_POOL_MAX_SIZE);
+    return sql_verify_pool_size(lex, def, BUDDY_MIN_ARCH_FILE_SIZE, BUDDY_MAX_ARCH_FILE_SIZE);
 }
 
 status_t sql_verify_als_time(void *se, void *lex, void *def)

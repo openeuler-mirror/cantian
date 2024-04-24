@@ -48,7 +48,10 @@ typedef struct log_start_end_info {
     log_start_end_lsn_t *target_lsn;
     uint64 *result_end_lsn;
     uint32 *arch_num;
+    uint32 *arch_num_cap;
+    char **arch_file_buf;
 } log_start_end_info_t;
+
 typedef struct arch_info {
     char *buf;
     log_start_end_lsn_t *find_lsn;

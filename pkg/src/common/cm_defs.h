@@ -1524,6 +1524,9 @@ static inline uint64 cm_get_prev_2power(uint64 size)
 #define BUDDY_INIT_BLOCK_SIZE SIZE_M(32)
 #define BUDDY_MEM_POOL_INIT_SIZE SIZE_G(2)
 
+#define BUDDY_MAX_ARCH_FILE_SIZE SIZE_G((uint64)10)
+#define BUDDY_MIN_ARCH_FILE_SIZE SIZE_M((uint64)512)
+
 static inline bool32 cm_is_even(int32 val)
 {
     return (val & 1) == 0;
