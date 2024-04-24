@@ -384,8 +384,11 @@ static void deal_msg(uint32_t q_head, struct shm_seg_s *_seg,
         }
         int *clean_up_flag = get_clean_up_flag(seg->seg_id, src);
         int *client_id_list = get_client_id_list();
+        int shm_client_status = client_id_list[src];
         __sync_add_and_fetch(clean_up_flag, 1);
-        recv_msg(_seg, msg);
+        if (shm_client_status == SHM_CLIENT_STATUS_WORKING || shm_client_status == SHM_CLIENT_STATUS_CONNECTING) {
+            recv_msg(_seg, msg);
+        }
         __sync_add_and_fetch(clean_up_flag, -1);
     }
 }

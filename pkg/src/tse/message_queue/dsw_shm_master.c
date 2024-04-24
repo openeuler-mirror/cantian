@@ -137,25 +137,27 @@ static void clean_up_proc_resource(int *proc_id_ptr)
     p->state = SHM_PROC_STATE_DOWN;  // must set this proc dead and then recovery the memory
     p->sock_fd = -1;
     if (g_client_id_list[client_id] == SHM_CLIENT_STATUS_RELEASING) {
-        LOG_SHM_INFO("[shm]client already in releasing, client_id(%d)", client_id);
+        LOG_SHM_INFO("[shm] client already in releasing, client_id(%d)", client_id);
         return;
     }
 
-    g_client_id_list[client_id] = SHM_CLIENT_STATUS_RELEASING;
+    LOG_SHM_INFO("[shm] start to clean up proc resource, client_id(%d)", client_id);
+    set_client_status(client_id, SHM_CLIENT_STATUS_RELEASING);
 
     if (g_pre_clean_up_proc != NULL && g_pre_clean_up_proc(client_id, &g_client_id_list[client_id]) != 0) {
-        LOG_SHM_ERROR("[shm]pre clean up for bad mysql failed! client_id(%d)", client_id);
+        LOG_SHM_ERROR("[shm] pre clean up for bad mysql failed! client_id(%d)", client_id);
         pthread_join(pthread_self(), NULL);
         return;
     }
 
     if (g_clean_up_proc != NULL && g_clean_up_proc(client_id, &g_client_id_list[client_id]) < 0) {
-        LOG_SHM_ERROR("[shm]clean up bad mysql failed! client_id(%d)", client_id);
+        LOG_SHM_ERROR("[shm] clean up bad mysql failed! client_id(%d)", client_id);
         pthread_join(pthread_self(), NULL);
         return;
     }
 
-    g_client_id_list[client_id] = SHM_CLIENT_STATUS_DOWN;
+    set_client_status(client_id, SHM_CLIENT_STATUS_DOWN);
+    LOG_SHM_INFO("[shm] success to clean up proc resource, client_id(%d)", client_id);
     pthread_join(pthread_self(), NULL);
 }
 
