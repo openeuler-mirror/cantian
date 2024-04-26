@@ -2,7 +2,7 @@ FROM openeuler/openeuler:22.03-lts-sp1
 
 ARG BUILD=debug
 
-RUN sed -i "$a insecure" /root/.curlrc
+RUN touch /root/.curlrc && sed -i "$a insecure" /root/.curlrc
 
 RUN yum clean all && echo 'sslverify=False' >> /etc/yum.conf
 RUN yum update -y
