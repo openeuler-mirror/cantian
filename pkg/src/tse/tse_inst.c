@@ -139,19 +139,19 @@ int tse_release_inst_id(uint32_t inst_id)
     // inst_id 高16位为daac的nodeId,低16位为proc_id/mysql_instid
     uint32_t mysql_inst_pos = GET_MYSQL_INST_POS(inst_id);
     if (mysql_inst_pos >= g_ctc_max_inst_num) {
-        CT_LOG_RUN_ERR("tse_release_inst_id error inst id:%x, mysql_inst_pos:%u", inst_id, mysql_inst_pos);
+        CT_LOG_RUN_ERR("[CTC_CLEAN_UP]: tse_release_inst_id error inst id:%x, mysql_inst_pos:%u", inst_id, mysql_inst_pos);
         return CT_ERROR;
     }
 
     mysql_inst_info_s *inst = &g_mysql_inst_infos[mysql_inst_pos];
     if (inst->empty == true || inst->inst_id != inst_id) {
-        CT_LOG_RUN_ERR("tse_release_inst_id error inst id:%x %x, empty:%d", inst->inst_id, inst_id, inst->empty);
+        CT_LOG_RUN_ERR("[CTC_CLEAN_UP]: tse_release_inst_id error inst id:%x %x, empty:%d", inst->inst_id, inst_id, inst->empty);
         return CT_SUCCESS;  // 这个地方可能存在没有调用alloc然后来调用release的情况，检查到状态错误直接返回，做任何操作
     }
     clean_up_mysql_inst_ctx_list(inst);
     inst->empty = true;
     inst->inst_id = CT_INFINITE32;
-    CT_LOG_RUN_INF("tse_release_inst_id release inst id:%x", inst_id);
+    CT_LOG_RUN_INF("[CTC_CLEAN_UP]: tse_release_inst_id release inst id:%x success.", inst_id);
     return CT_SUCCESS;
 }
 
