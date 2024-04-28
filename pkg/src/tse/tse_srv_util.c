@@ -901,7 +901,7 @@ static void clean_up_session(session_t *session)
     do {
         cm_oamap_fetch(&session->cursor_map, &iter, (void**)&cursor, (void**)&cursor);
         if (cursor != NULL) {
-            CT_LOG_RUN_INF("[TSE_CLEAN_UP]:free cursor for bad mysql");
+            CT_LOG_RUN_INF("[CTC_CLEAN_UP]: free cursor for bad mysql");
             tse_free_session_cursor(session, cursor);
         }
     } while (cursor != NULL);
@@ -914,7 +914,7 @@ static void clean_up_session(session_t *session)
     session->query_id = CT_INVALID_INT64;
     cm_spin_unlock(&session->map_lock);
 
-    CT_LOG_RUN_INF("[TSE_CLEAN_UP]:free session for bad mysql: session_id=%u", session->knl_session.id);
+    CT_LOG_RUN_INF("[CTC_CLEAN_UP]: free session for bad mysql: session_id=%u", session->knl_session.id);
     tse_free_session(session);
 }
 
@@ -937,7 +937,7 @@ static inline bool tse_is_session_cleanable(session_t *session, uint32_t inst_id
 
 void unlock_instance_for_bad_mysql(uint32_t inst_id)
 {
-    CT_LOG_RUN_INF("[TSE_CLEAN_UP]: Start to unlock instance when mysql is dead, inst_id=%u", inst_id);
+    CT_LOG_RUN_INF("[CTC_CLEAN_UP]: Start to unlock instance when mysql is dead, inst_id=%u", inst_id);
     session_pool_t session_pool = g_instance->session_pool;
     for (int i = 0; i < CT_MAX_SESSIONS; i++) {
         session_t *session = session_pool.sessions[i];
@@ -945,12 +945,13 @@ void unlock_instance_for_bad_mysql(uint32_t inst_id)
             continue;
         }
         unlock_user_ddl(session);
+        CT_LOG_RUN_INF("[CTC_CLEAN_UP]: Success unlock instance when mysql is dead, inst_id=%u", inst_id);
     }
 }
 
 int clean_up_for_bad_mysql(uint32_t inst_id)
 {
-    CT_LOG_RUN_INF("[TSE_CLEAN_UP]: Start to clean up when mysql is dead, inst_id=%u", inst_id);
+    CT_LOG_RUN_INF("[CTC_CLEAN_UP]: Start to clean up when mysql is dead, inst_id=%u", inst_id);
     /**
      * 0. get_session 1.clean ctx 2.close_session
      */
@@ -973,20 +974,20 @@ int clean_up_for_bad_cantian(uint32_t cantian_inst_id)
     tch.inst_id = inst_id;
     tch.sess_addr = INVALID_VALUE64;
     tch.is_broadcast = true;
-    CT_LOG_RUN_WAR("[CTC_CLEAN_UP]:Release CTC resources on bad node Begin. cantian_inst_id:%u, inst_id:%u",
+    CT_LOG_RUN_WAR("[CTC_CLEAN_UP]: Release CTC resources on bad node Begin. cantian_inst_id:%u, inst_id:%u",
         cantian_inst_id, inst_id);
 
     // Make sure there are no queries being processed
     msg_rsp_res_pair *tse_msg_result_arr = get_tse_msg_result_arr();
     while ((uint32_t)cm_atomic32_get(&tse_msg_result_arr[cantian_inst_id].err_code) == TSE_DDL_PROCESSING) {
         usleep(TSE_DDL_WAIT_PROCESS);
-        CT_LOG_RUN_WAR("[CTC_CLEAN_UP]:Have processing query... wait until it's finish. cantian_inst_id:%u",
+        CT_LOG_RUN_WAR("[CTC_CLEAN_UP]: Have processing query... wait until it's finish. cantian_inst_id:%u",
             cantian_inst_id);
     }
     
     int ret = tse_close_mysql_connection(&tch);
     if (ret != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[CTC_CLEAN_UP]:close mysql connection failed, ret:%d, tse_inst_id:%u",
+        CT_LOG_RUN_ERR("[CTC_CLEAN_UP]: close mysql connection failed, ret:%d, tse_inst_id:%u",
             ret, inst_id);
     }
     return ret;

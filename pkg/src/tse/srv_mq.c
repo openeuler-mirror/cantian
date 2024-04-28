@@ -346,7 +346,7 @@ int pre_clean_up_for_bad_mysql_proc(int client_id, int *client_status)
 {
     uint32_t inst_id = 0;
     if (tse_get_inst_id(client_id, &inst_id) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[TSE_CLEAN_UP]: Failed to get inst_id by client_id=%d", client_id);
+        CT_LOG_RUN_ERR("[CTC_CLEAN_UP]: Failed to get inst_id by client_id=%d", client_id);
         return CT_ERROR;
     }
     
@@ -362,7 +362,7 @@ int clean_up_for_bad_mysql_proc(int client_id, int* client_status)
 {
     uint32_t inst_id = 0;
     if (tse_get_inst_id(client_id, &inst_id) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[TSE_CLEAN_UP]: Failed to get inst_id by client_id=%d", client_id);
+        CT_LOG_RUN_ERR("[CTC_CLEAN_UP]: Failed to get inst_id by client_id=%d", client_id);
         return CT_ERROR;
     }
     
@@ -373,13 +373,13 @@ int clean_up_for_bad_mysql_proc(int client_id, int* client_status)
     /* thd_id为0时，关闭实例id为inst_id的实例所建立的所有mysql连接 */
     int ret = tse_close_mysql_connection(&tch);
     if (ret != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[TSE_CLEAN_UP]:close mysql connection failed, ret:%d, tse_inst_id:%u",
+        CT_LOG_RUN_ERR("[CTC_CLEAN_UP]: close mysql connection failed, ret:%d, tse_inst_id:%u",
             ret, inst_id);
     }
     ret = clean_up_for_bad_mysql(inst_id);
     free_mem(client_id);
     if (tse_release_inst_id(inst_id) == CT_ERROR) {
-        CT_LOG_RUN_INF("[TSE_CLEAN_UP]:inst_id has been release before clean up, inst_id:%u",
+        CT_LOG_RUN_INF("[CTC_CLEAN_UP]: inst_id has been release before clean up, inst_id:%u",
             inst_id);
     }
     return ret;
