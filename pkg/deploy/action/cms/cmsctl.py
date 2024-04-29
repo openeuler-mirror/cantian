@@ -1385,8 +1385,10 @@ class CmsCtl(object):
             shutil.rmtree(self.install_path)
         if os.path.exists(os.path.join(self.cms_home, "cfg")):
             shutil.rmtree(os.path.join(self.cms_home, "cfg"))
-        if os.path.exists(os.path.join(self.cms_home, "dbstor")):
-            shutil.rmtree(os.path.join(self.cms_home, "dbstor"))
+        if os.path.exists(os.path.join(self.cms_home, "dbstor/conf")):
+            shutil.rmtree(os.path.join(self.cms_home, "dbstor/conf"))
+        if os.path.exists(os.path.join(self.cms_home, "dbstor/data/ftds")):
+            shutil.rmtree(os.path.join(self.cms_home, "dbstor/data/ftds"))
         log("end clean install path")
 
     def clean_environment(self):
