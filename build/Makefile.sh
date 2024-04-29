@@ -592,8 +592,10 @@ func_clean()
     cd ${CANTIANDB_BUILD}
     make clean
 
-    cd ${CT_TEST_BUILD_DIR}
-    make clean
+    if [[ -d "${CT_TEST_BUILD_DIR}" ]];then
+        cd ${CT_TEST_BUILD_DIR}
+        make clean
+    fi
 
     if [[ -d "${CANTIANDB_BIN}" ]];then
         echo ${CANTIANDB_BIN}
