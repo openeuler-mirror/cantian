@@ -964,7 +964,7 @@ EXTER_ATTACK int tse_mq_analyze_table(dsw_message_block_t *message_block)
 EXTER_ATTACK int tse_mq_get_cbo_stats(dsw_message_block_t *message_block)
 {
     struct get_cbo_stats_request *req = message_block->seg_buf[0];
-    req->result = tse_get_cbo_stats(&req->tch, req->stats);
+    req->result = tse_get_cbo_stats(&req->tch, req->stats, req->tse_cbo_stats_table, req->first_partid, req->num_part_fetch);
     return req->result;
 }
 
