@@ -568,7 +568,7 @@ static bool32 cbo_exist_same_endpoint(uint32 *endpints, uint32 curr_endpoint)
     return CT_FALSE;
 }
 
-static status_t cbo_verify_vaild_histgram(dc_entity_t *entity, cbo_stats_column_t *stats, knl_cursor_t *cursor,
+static status_t cbo_verify_valid_histgram(dc_entity_t *entity, cbo_stats_column_t *stats, knl_cursor_t *cursor,
     bool32 *valid)
 {
     knl_column_t *column = dc_get_column(entity, stats->column_id);
@@ -670,7 +670,7 @@ static status_t cbo_load_column_sub_histgrams(knl_session_t *session, knl_cursor
             }
 
             bool32 valid = CT_TRUE;
-            if (cbo_verify_vaild_histgram(entity, stats, cursor, &valid) != CT_SUCCESS) {
+            if (cbo_verify_valid_histgram(entity, stats, cursor, &valid) != CT_SUCCESS) {
                 return CT_ERROR;
             }
 
@@ -744,7 +744,7 @@ static status_t cbo_load_column_histgrams(knl_session_t *session, knl_cursor_t *
         }
 
         bool32 valid = CT_TRUE;
-        if (cbo_verify_vaild_histgram(entity, stats, cursor, &valid) != CT_SUCCESS) {
+        if (cbo_verify_valid_histgram(entity, stats, cursor, &valid) != CT_SUCCESS) {
             return CT_ERROR;
         }
 
@@ -2291,6 +2291,14 @@ void knl_cache_cbo_text2variant(dc_entity_t *entity, uint32 col_id, text_t *colu
         case CT_TYPE_REAL:
             ret_val->v_real = *(double *)column->str;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %lf",ret_val->v_real);
+            break;
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_DATE:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_DATETIME_MYSQL:
+        case CT_TYPE_DATE_MYSQL:
+            ret_val->v_date = *(date_t *)column->str;
+            CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %lld",ret_val->v_date); // todo: to str
             break;
         default:
             break;

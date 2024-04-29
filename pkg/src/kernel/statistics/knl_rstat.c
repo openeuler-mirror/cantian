@@ -466,10 +466,14 @@ static status_t stats_values_convert_str(knl_column_t *column, text_t *res_value
             break;
 
         case CT_TYPE_DATE:
+            if (cm_date2text(*(date_t *)res_value->str, NULL, value, STATS_MAX_BUCKET_SIZE) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+            break;
         case CT_TYPE_TIMESTAMP:
         case CT_TYPE_TIMESTAMP_TZ_FAKE:
         case CT_TYPE_TIMESTAMP_LTZ:
-            if (cm_date2text(*(date_t *)res_value->str, NULL, value, STATS_MAX_BUCKET_SIZE) != CT_SUCCESS) {
+            if (cm_timestamp2text(*(date_t *)res_value->str, NULL, value, STATS_MAX_BUCKET_SIZE) != CT_SUCCESS) {
                 return CT_ERROR;
             }
             break;
@@ -2020,10 +2024,14 @@ status_t stats_put_result_value(row_assist_t *ra, text_t *res_value, ct_type_t t
             break;
 
         case CT_TYPE_DATE:
+            if (cm_date2text(*(date_t *)res_value->str, NULL, &value, STATS_MAX_BUCKET_SIZE) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+            break;
         case CT_TYPE_TIMESTAMP:
         case CT_TYPE_TIMESTAMP_TZ_FAKE:
         case CT_TYPE_TIMESTAMP_LTZ:
-            if (cm_date2text(*(date_t *)res_value->str, NULL, &value, STATS_MAX_BUCKET_SIZE) != CT_SUCCESS) {
+            if (cm_timestamp2text(*(timestamp_t *)res_value->str, NULL, &value, STATS_MAX_BUCKET_SIZE) != CT_SUCCESS) {
                 return CT_ERROR;
             }
             break;
