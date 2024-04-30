@@ -1066,27 +1066,6 @@ status_t tse_fill_dbuser_info(knl_user_def_t *user_def, const char *user_name)
     return status;
 }
 
-static int is_column_with_default_func(const TcDb__TseDDLColumnDef *def, ddl_ctrl_t *ddl_ctrl)
-{
-    bool is_default_func = ((tse_column_option_set_bit)def->is_option_set).is_default_func &&
-                           !((tse_column_option_set_bit)def->is_option_set).is_curr_timestamp;
-    if (is_default_func) {
-        text_t default_func;
-        char *func_name = def->default_func_name;
-        cm_str2text(func_name, &default_func);
-        uint32 func_id = sql_get_func_id(&default_func);
-        if (func_id == CT_INVALID_ID32) {
-            MEMS_RETURN_IFERR(strcat_s(ddl_ctrl->error_msg, MAX_DDL_ERROR_MSG_LEN, def->name));
-            MEMS_RETURN_IFERR(strcat_s(ddl_ctrl->error_msg, MAX_DDL_ERROR_MSG_LEN, ","));
-            MEMS_RETURN_IFERR(strcat_s(ddl_ctrl->error_msg, MAX_DDL_ERROR_MSG_LEN, func_name));
-            CT_THROW_ERROR(ERR_FUNCTION_NOT_EXIST, T2S(&default_func));
-             
-            return ERR_FUNCTION_NOT_EXIST;
-        }
-    }
-    return CT_SUCCESS;
-}
-
 EXTER_ATTACK int tse_pre_create_db(tianchi_handler_t *tch, const char *sql_str, tse_db_infos_t *db_infos,
                                    int *error_code, char *error_message)
 {
@@ -1330,17 +1309,6 @@ status_t fill_column_default_text(session_t *session, sql_stmt_t *stmt, knl_colu
     int ret = sprintf_s(column->default_text.str, strlen(def->default_text) + appendLen, format, def->default_text);
     column->default_text.len = strlen(column->default_text.str);
     knl_securec_check_ss(ret);
-    ret = is_column_with_default_func(def, ddl_ctrl);
-    if (ret != CT_SUCCESS) {
-        return ret;
-    }
-    knl_column_t column_t = { 0 };
-    char column_name[CT_NAME_BUFFER_SIZE] = { 0 };
-    column_t.name = column_name;
-    db_convert_column_def(&column_t, CT_INVALID_ID32, CT_INVALID_ID32, column, NULL, CT_INVALID_ID32);
-    ret = g_knl_callback.verify_default_from_text(session, &column_t, column->default_text);
-    CT_RETURN_IFERR_NOCLEAR(ret, ddl_ctrl);
-    
     return CT_SUCCESS;
 }
 
