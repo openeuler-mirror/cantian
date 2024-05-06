@@ -129,7 +129,7 @@ function enter_pwd()
 function checkGroupUserAdd() {
     check_item=$1
     if [[ ${check_item} != '0' ]]; then
-        add_group_user_ceck='fales'
+        add_group_user_ceck='false'
     fi
 }
 
@@ -137,7 +137,7 @@ function checkGroupUserAdd() {
 function checkMountNFS() {
     check_item=$1
     if [[ ${check_item} != '0' ]]; then
-        mount_nfs_check='fales'
+        mount_nfs_check='false'
     fi
 }
 
