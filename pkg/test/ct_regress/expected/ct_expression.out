@@ -1,0 +1,4332 @@
+
+
+SQL> ---- The following cases have been debugged and passed by pufuan, p00421579
+SQL> 
+SQL> --- The test cases for expression calculating
+SQL> select -9 << 20;
+
+-9 << 20            
+--------------------
+-9437184            
+
+1 rows fetched.
+
+SQL> select -9 << 2;
+
+-9 << 2             
+--------------------
+-36                 
+
+1 rows fetched.
+
+SQL> select 9 << 63;
+
+9 << 63             
+--------------------
+-9223372036854775808
+
+1 rows fetched.
+
+SQL> select 5423237233838653440 << 20;
+
+5423237233838653440 << 20
+-------------------------
+6376386787845079040      
+
+1 rows fetched.
+
+SQL> select 5423237233838653440 << 32;
+
+5423237233838653440 << 32
+-------------------------
+-2909325359281340416     
+
+1 rows fetched.
+
+SQL> select -5423237233838653440 >> 32;
+
+-5423237233838653440 >> 32
+--------------------------
+-1262695816               
+
+1 rows fetched.
+
+SQL> select 542323723383865345324532452343440 >> 32;
+
+CT-00659, [1:42]BIGINT out of range
+SQL> select 5423237233838653440 >> 32;
+
+5423237233838653440 >> 32
+-------------------------
+1262695815               
+
+1 rows fetched.
+
+SQL> select -542323723334534534534535838653440 >> 32;
+
+CT-00659, [1:43]BIGINT out of range
+SQL> select -5423237233838653440 >> 30;
+
+-5423237233838653440 >> 30
+--------------------------
+-5050783264               
+
+1 rows fetched.
+
+SQL> select 838653440 >> 32234444444444444444444444444444444;
+
+CT-00659, [1:18]BIGINT out of range
+SQL> 
+SQL> select 1 + (1/2 * 3) from dual;
+
+1 + (1/2 * 3)       
+--------------------
+2.5                 
+
+1 rows fetched.
+
+SQL> select (1/3+2)*3 from dual;
+
+(1/3+2)*3           
+--------------------
+7                   
+
+1 rows fetched.
+
+SQL> select 12E-1-1 from dual;
+
+12E-1-1                                 
+----------------------------------------
+.2                                      
+
+1 rows fetched.
+
+SQL> select 12E-1*10 from dual;
+
+12E-1*10                                
+----------------------------------------
+12                                      
+
+1 rows fetched.
+
+SQL> select 12E-1*10E1 from dual;
+
+12E-1*10E1                              
+----------------------------------------
+120                                     
+
+1 rows fetched.
+
+SQL> select 12E1*10E1 from dual;
+
+12E1*10E1                               
+----------------------------------------
+12000                                   
+
+1 rows fetched.
+
+SQL> select 12E1/10E1 from dual;
+
+12E1/10E1                               
+----------------------------------------
+1.2                                     
+
+1 rows fetched.
+
+SQL> 
+SQL> select -(1 + 2) from dual;
+
+-(1 + 2)            
+--------------------
+-3                  
+
+1 rows fetched.
+
+SQL> select -(1.0 - 1.0) from dual;
+
+-(1.0 - 1.0)                            
+----------------------------------------
+0                                       
+
+1 rows fetched.
+
+SQL> select -abs(3.0 - 2  -1) from dual;
+
+-ABS(3.0 - 2  -1)                       
+----------------------------------------
+0                                       
+
+1 rows fetched.
+
+SQL> select -1 + (- (3 + 2)) from dual;
+
+-1 + (- (3 + 2))    
+--------------------
+-6                  
+
+1 rows fetched.
+
+SQL> select -1 + -(- (3 + 2)) from dual;
+
+-1 + -(- (3 + 2))   
+--------------------
+4                   
+
+1 rows fetched.
+
+SQL> select -1 + -(-(- (3 + 2))) from dual;
+
+-1 + -(-(- (3 + 2)))
+--------------------
+-6                  
+
+1 rows fetched.
+
+SQL> 
+SQL> select '123123'||123 + '123'||123 from dual;
+
+'123123'||123 + '123'||123
+--------------------------
+123123246123              
+
+1 rows fetched.
+
+SQL> select ('123123'||123) + ('123'||123) from dual;
+
+('123123'||123) + ('123'||123)          
+----------------------------------------
+123246246                               
+
+1 rows fetched.
+
+SQL> select * from dual where systimestamp > null;
+
+DUMMY
+-----
+
+0 rows fetched.
+
+SQL> select cast(null as timestamp) from dual;
+
+CAST(NULL AS TIMESTAMP)         
+--------------------------------
+                                
+
+1 rows fetched.
+
+SQL> 
+SQL> --DTS2019022811768
+SQL> select cast(0 as bigint)*cast(-1 as real) from dual;
+
+CAST(0 AS BIGINT)*CAST(-1 AS REAL)
+----------------------------------
+0                                 
+
+1 rows fetched.
+
+SQL> select cast(0 as real)*cast(-1 as bigint) from dual;
+
+CAST(0 AS REAL)*CAST(-1 AS BIGINT)
+----------------------------------
+0                                 
+
+1 rows fetched.
+
+SQL> select cast(-0 as real)*cast(-1 as bigint) from dual;
+
+CAST(-0 AS REAL)*CAST(-1 AS BIGINT)
+-----------------------------------
+0                                  
+
+1 rows fetched.
+
+SQL> select cast(-0 as real)*cast(1 as bigint) from dual;
+
+CAST(-0 AS REAL)*CAST(1 AS BIGINT)
+----------------------------------
+0                                 
+
+1 rows fetched.
+
+SQL> select cast(-1 as real)*cast(0 as bigint) from dual;
+
+CAST(-1 AS REAL)*CAST(0 AS BIGINT)
+----------------------------------
+0                                 
+
+1 rows fetched.
+
+SQL> select cast(0 as bigint)/cast(-1 as real) from dual;  
+
+CAST(0 AS BIGINT)/CAST(-1 AS REAL)
+----------------------------------
+0                                 
+
+1 rows fetched.
+
+SQL> select cast(0 as real)/cast(-1 as bigint) from dual;  
+
+CAST(0 AS REAL)/CAST(-1 AS BIGINT)
+----------------------------------
+0                                 
+
+1 rows fetched.
+
+SQL> select cast(-0 as real)/cast(-1 as bigint) from dual;   
+
+CAST(-0 AS REAL)/CAST(-1 AS BIGINT)
+-----------------------------------
+0                                  
+
+1 rows fetched.
+
+SQL> 
+SQL> 
+SQL> select * from dual where '' is null;
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> 
+SQL> select -null from dual;
+
+-NULL                                   
+----------------------------------------
+                                        
+
+1 rows fetched.
+
+SQL> select +null from dual;
+
++NULL
+-----
+     
+
+1 rows fetched.
+
+SQL> 
+SQL> desc -q select -null from dual;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+-NULL                                        NUMBER                              
+
+SQL> desc -q select +null from dual;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
++NULL                                        VARCHAR                             
+
+SQL> select -sysdate from dual;
+
+CT-00606, [1:8]Inconsistent datatypes, expected NUMERIC - got DATE
+SQL> 
+SQL> select +'123123123' from dual;
+
++'123123123'
+------------
+123123123   
+
+1 rows fetched.
+
+SQL> 
+SQL> select -to_dsinterval('0 0:0:0.01') from dual;
+
+CT-01303, [1:8]Convert INTERVAL DAY TO SECOND type to NUMERIC type failed
+SQL> select -to_yminterval('0-1') from dual;
+
+CT-01303, [1:8]Convert INTERVAL YEAR TO MONTH type to NUMERIC type failed
+SQL> select -cast('010110' as raw(11)) from dual;
+
+CT-01303, [1:8]Convert RAW type to NUMERIC type failed
+SQL> 
+SQL> --issue#23788
+SQL> select cast('12312313' as raw(300))||'123123' from dual;
+
+CAST('12312313' AS RAW(300))||'123123'
+--------------------------------------
+12312313123123                        
+
+1 rows fetched.
+
+SQL> 
+SQL> --- bad cases
+SQL> select 12E-1E*10 from dual;
+
+CT-00636, [1:8]Invalid number 
+SQL> 
+SQL> --- DATETIME function and expression
+SQL> select to_date('2017-08-11', 'YYYY-MM-DD'), 
+  2        to_date('2017-08-11', 'YYYY-MM-DD')+1, 
+  3        to_date('2017-08-11', 'YYYY-MM-DD')+1/86400, 
+  4        to_date('2017-08-11', 'YYYY-MM-DD')-1.0/86400, 
+  5        to_date('2017-08-11', 'YYYY-MM-DD')-1.0/8.0 
+  6        from dual;
+
+TO_DATE('2017-08-11', 'YYYY-MM-DD') TO_DATE('2017-08-11', 'YYYY-MM-DD')+1 TO_DATE('2017-08-11', 'YYYY-MM-DD')+1/86400 TO_DATE('2017-08-11', 'YYYY-MM-DD')-1.0/86400 TO_DATE('2017-08-11', 'YYYY-MM-DD')-1.0/8.0
+----------------------------------- ------------------------------------- ------------------------------------------- --------------------------------------------- -------------------------------------------
+2017-08-11 00:00:00                 2017-08-12 00:00:00                   2017-08-11 00:00:01                         2017-08-10 23:59:59                           2017-08-10 21:00:00                        
+
+1 rows fetched.
+
+SQL> 
+SQL> select to_date('2017-09-23', 'YYYY-MM-DD'), 
+  2        to_date('2017-09-23', 'YYYY-MM-DD') + '1'/86400 
+  3        from dual;
+
+TO_DATE('2017-09-23', 'YYYY-MM-DD') TO_DATE('2017-09-23', 'YYYY-MM-DD') + '1'/86400
+----------------------------------- -----------------------------------------------
+2017-09-23 00:00:00                 2017-09-23 00:00:01                            
+
+1 rows fetched.
+
+SQL> 
+SQL> select to_date('2017-09-23', 'YYYY-MM-DD') || 333 from dual;
+
+TO_DATE('2017-09-23', 'YYYY-MM-DD') || 333
+------------------------------------------
+2017-09-23 00:00:00333                    
+
+1 rows fetched.
+
+SQL> select to_date('2017-09-23', 'YYYY-MM-DD')||9999||to_date('2017-09-23', 'YYYY-MM-DD') from dual;
+
+TO_DATE('2017-09-23', 'YYYY-MM-DD')||9999||TO_DATE('2017-09-23',
+----------------------------------------------------------------
+2017-09-23 00:00:0099992017-09-23 00:00:00                      
+
+1 rows fetched.
+
+SQL> select to_date('2017-09-23', 'YYYY-MM-DD') + '1' from dual;
+
+TO_DATE('2017-09-23', 'YYYY-MM-DD') + '1'
+-----------------------------------------
+2017-09-24 00:00:00                      
+
+1 rows fetched.
+
+SQL> select 1+to_date('2017-09-23', 'YYYY-MM-DD') from dual;
+
+1+TO_DATE('2017-09-23', 'YYYY-MM-DD')
+-------------------------------------
+2017-09-24 00:00:00                  
+
+1 rows fetched.
+
+SQL> select 1-to_date('2017-09-23', 'YYYY-MM-DD') from dual;  
+
+CT-01320, [1:9]Undefined operator: BINARY_INTEGER - DATE
+SQL> 
+SQL> -- The overflow case for int32
+SQL> select 4294967294 + 4294967292, 4294967296 * 4294967296 from dual;
+
+CT-00659, [1:44]BIGINT out of range
+SQL> select 2147483633 + 999 from dual;
+
+2147483633 + 999    
+--------------------
+2147484632          
+
+1 rows fetched.
+
+SQL> select 2147483647 + 1;
+
+2147483647 + 1      
+--------------------
+2147483648          
+
+1 rows fetched.
+
+SQL> select 2147483647 + 2;
+
+2147483647 + 2      
+--------------------
+2147483649          
+
+1 rows fetched.
+
+SQL> select 2147483648 + 1;      
+
+2147483648 + 1      
+--------------------
+2147483649          
+
+1 rows fetched.
+
+SQL> 
+SQL> -- The priority of concat operator
+SQL> select 33+44||55 from dual;
+
+33+44||55
+---------
+7755     
+
+1 rows fetched.
+
+SQL> select 33+(44||55) from dual;
+
+33+(44||55)                             
+----------------------------------------
+4488                                    
+
+1 rows fetched.
+
+SQL> 
+SQL> --- The cases for operator priority
+SQL> -- 60 <--- Oracle output
+SQL> select 2||1+39 from dual;
+
+2||1+39                                 
+----------------------------------------
+60                                      
+
+1 rows fetched.
+
+SQL> 
+SQL> -- 411 <--- Oracle and Nebula output
+SQL> select 39+2||1 from dual;
+
+39+2||1
+-------
+411    
+
+1 rows fetched.
+
+SQL> -- The priority `*` and `/` is higher than `||`. This is consistent with Oracle
+SQL> select 11||22||33*2 from dual;
+
+11||22||33*2
+------------
+112266      
+
+1 rows fetched.
+
+SQL> 
+SQL> -- The cases for concat and arithmetic operators
+SQL> select (44||55)/2 from dual;
+
+(44||55)/2                              
+----------------------------------------
+2227.5                                  
+
+1 rows fetched.
+
+SQL> select 333/(1.1||1) from dual;
+
+333/(1.1||1)                            
+----------------------------------------
+300                                     
+
+1 rows fetched.
+
+SQL> 
+SQL> --- The case for division operator
+SQL> select 3/0 from dual;
+
+CT-00637, [1:9]The divisor was zero
+SQL> select 3/0.0 from dual;
+
+CT-00637, [1:9]The divisor was zero
+SQL> select 123123/0.1 from dual;
+
+123123/0.1                              
+----------------------------------------
+1231230                                 
+
+1 rows fetched.
+
+SQL> select 3.0/0.0000000000010, to_char(3.0/0.0000000000010) from dual;
+
+3.0/0.0000000000010                      TO_CHAR(3.0/0.0000000000010)                                    
+---------------------------------------- ----------------------------------------------------------------
+3000000000000                            3000000000000                                                   
+
+1 rows fetched.
+
+SQL> 
+SQL> --- The case for string and number
+SQL> select 125423523543.3 + '234', to_char(125423523543.3 + '234') from dual;
+
+125423523543.3 + '234'                   TO_CHAR(125423523543.3 + '234')                                 
+---------------------------------------- ----------------------------------------------------------------
+125423523777.3                           125423523777.3                                                  
+
+1 rows fetched.
+
+SQL> select '2222'*'3' from dual;
+
+'2222'*'3'                              
+----------------------------------------
+6666                                    
+
+1 rows fetched.
+
+SQL> select '2222'/'2' from dual;
+
+'2222'/'2'                              
+----------------------------------------
+1111                                    
+
+1 rows fetched.
+
+SQL> select '2222222222222222'+'2' from dual;
+
+'2222222222222222'+'2'                  
+----------------------------------------
+2222222222222224                        
+
+1 rows fetched.
+
+SQL> select '2222222222222222'||'3' from dual;
+
+'2222222222222222'||'3'
+-----------------------
+22222222222222223      
+
+1 rows fetched.
+
+SQL> select '2222222222222222'-'3' from dual;
+
+'2222222222222222'-'3'                  
+----------------------------------------
+2222222222222219                        
+
+1 rows fetched.
+
+SQL> select 1 + '212' + 44 from dual;
+
+1 + '212' + 44                          
+----------------------------------------
+257                                     
+
+1 rows fetched.
+
+SQL> 
+SQL> --- The cases for complex expression operation with brackets
+SQL> select (33+11*22)/5+11 from dual;
+
+(33+11*22)/5+11     
+--------------------
+66                  
+
+1 rows fetched.
+
+SQL> select (3322)/5+11 from dual;
+
+(3322)/5+11         
+--------------------
+675.4               
+
+1 rows fetched.
+
+SQL> select to_date('2017-09-23', 'YYYY-MM-DD') + (1) from dual;
+
+TO_DATE('2017-09-23', 'YYYY-MM-DD') + (1)
+-----------------------------------------
+2017-09-24 00:00:00                      
+
+1 rows fetched.
+
+SQL> 
+SQL> select 1+2*(3+4/4/4) from dual;
+
+1+2*(3+4/4/4)       
+--------------------
+7.5                 
+
+1 rows fetched.
+
+SQL> select 1+2*(3+4/4/4)||2 from dual;
+
+1+2*(3+4/4/4)||2
+----------------
+7.52            
+
+1 rows fetched.
+
+SQL> select (11||22||33)*2 from dual;
+
+(11||22||33)*2                          
+----------------------------------------
+224466                                  
+
+1 rows fetched.
+
+SQL> 
+SQL> select (-11||22||33)*2 from dual;
+
+(-11||22||33)*2                         
+----------------------------------------
+-224466                                 
+
+1 rows fetched.
+
+SQL> 
+SQL> --- invalid cases
+SQL> select (11||-22||33)*2 from dual;
+
+CT-00636, [1:21]Invalid number -- unexpected character
+SQL> 
+SQL> 
+SQL> --- decimal/number and expression
+SQL> select cast('1231233413.123123213E100' as decimal)||'e213213', to_char(cast('1231233413.123123213E100' as decimal))||'e213213' from dual;
+
+CAST('1231233413.123123213E100' AS DECIMAL)||'E213213' TO_CHAR(CAST('1231233413.123123213E100' AS DECIMAL))||'E213213' 
+------------------------------------------------------ ----------------------------------------------------------------
+1.231233413123123213000000000000000E+109e213213        1.231233413123123213000000000000000E+109e213213                 
+
+1 rows fetched.
+
+SQL> select 123456789012345678901234567890||'e213213' from dual;
+
+123456789012345678901234567890||'E213213'
+-----------------------------------------
+123456789012345678901234567890e213213    
+
+1 rows fetched.
+
+SQL> select .00000000000000000000001234567890123456789012345678901234567890||'e213213' from dual;
+
+.00000000000000000000001234567890123456789012345678901234567890|
+----------------------------------------------------------------
+1.2345678901234567890123456789012346E-23e213213                 
+
+1 rows fetched.
+
+SQL> select cast('3.141596253589793232256213599323513340034588234600534524522345245277345'||'E+9' as decimal), to_char(cast('3.141596253589793232256213599323513340034588234600534524522345245277345'||'E+9' as decimal)) from dual;
+
+CAST('3.14159625358979323225621359932351334003458823460053452452 TO_CHAR(CAST('3.141596253589793232256213599323513340034588234600
+---------------------------------------------------------------- ----------------------------------------------------------------
+3141596253.58979323225621359932351334003                         3141596253.58979323225621359932351334003                        
+
+1 rows fetched.
+
+SQL> 
+SQL> --- The following bug cases have been solved
+SQL> select 32233236434563456345.0/0.000000010, to_char(32233236434563456345.0/0.000000010) from dual;
+
+32233236434563456345.0/0.000000010       TO_CHAR(32233236434563456345.0/0.000000010)                     
+---------------------------------------- ----------------------------------------------------------------
+3223323643456345634500000000             3223323643456345634500000000                                    
+
+1 rows fetched.
+
+SQL> select 35423645/0.000000001, to_char(35423645/0.000000001) from dual;
+
+35423645/0.000000001                     TO_CHAR(35423645/0.000000001)                                   
+---------------------------------------- ----------------------------------------------------------------
+35423645000000000                        35423645000000000                                               
+
+1 rows fetched.
+
+SQL> select 0.23435254254234/212341241341234.99999325423542354, to_char(0.23435254254234/212341241341234.99999325423542354) from dual;
+
+0.23435254254234/212341241341234.99999325423542354 TO_CHAR(0.23435254254234/212341241341234.99999325423542354)     
+-------------------------------------------------- ----------------------------------------------------------------
+1.1036600382576296935770605310852665E-15           1.1036600382576296935770605310852665E-15                        
+
+1 rows fetched.
+
+SQL> select 2/3*3.00000000000095, to_char(2/3*3.00000000000095) from dual;
+
+2/3*3.00000000000095                     TO_CHAR(2/3*3.00000000000095)                                   
+---------------------------------------- ----------------------------------------------------------------
+2.00000000000063433333333333365          2.00000000000063433333333333365                                 
+
+1 rows fetched.
+
+SQL> 
+SQL> 
+SQL> -- Test some corner cases for multiplication
+SQL> select 4790999999999999999999999999999999999999999999999999999999999999999999999999999999999999 * 9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999;
+
+CT-01319, [1:97]High-Precision numeric overflow
+SQL> select 4789999999999999999999999999999999999999999999999999999999999999999999999999999999999999 * 9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999;
+
+CT-01319, [1:97]High-Precision numeric overflow
+SQL> select 4770999999999999999999999999999999999999999999999999999999999999999999999999999999999999 * 9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999;
+
+CT-01319, [1:97]High-Precision numeric overflow
+SQL> select 4769999999999999999999999999999999999999999999999999999999999999999999999999999999999999 * 9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999;
+
+CT-01319, [1:97]High-Precision numeric overflow
+SQL> select 999999999999999999999/1000000000000000000000;
+
+999999999999999999999/1000000000000000000000
+--------------------------------------------
+.999999999999999999999                      
+
+1 rows fetched.
+
+SQL> select 70.0 / 70 ;
+
+70.0 / 70                               
+----------------------------------------
+1                                       
+
+1 rows fetched.
+
+SQL> select 12345678901234567890 / 123;
+
+12345678901234567890 / 123              
+----------------------------------------
+100371373180768844.634146341463414634146
+
+1 rows fetched.
+
+SQL> 
+SQL> 
+SQL> DROP TABLE if exists REAL_TBL;
+
+Succeed.
+
+SQL> CREATE TABLE REAL_TBL (f1  real);
+
+Succeed.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('    0.0');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('1004.30   ');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('     -34.84    ');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('1.2345678901234e+20');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('1.2345678901234e-20');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (    0.0);
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (1004.30   );
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (     -34.84    );
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (1.2345678901234e+20);
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (1.2345678901234e-20);
+
+1 rows affected.
+
+SQL> SELECT 'TEST 1' as "ONE", * FROM REAL_TBL order by f1;
+
+ONE    F1                  
+------ --------------------
+TEST 1 -34.84              
+TEST 1 -34.84              
+TEST 1 0                   
+TEST 1 0                   
+TEST 1 1.2345678901234e-20 
+TEST 1 1.2345678901234e-20 
+TEST 1 1004.3              
+TEST 1 1004.3              
+TEST 1 1.2345678901234e+20 
+TEST 1 1.2345678901234e+20 
+
+10 rows fetched.
+
+SQL> 
+SQL> DELETE FROM REAL_TBL;
+
+10 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('10e70');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('-10e70');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('10e-70');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('-10e-70');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (10e70);
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (-10e70);
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (10e-70);
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (-10e-70);
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (10e170);
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (-10e270);
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (10e-170);
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (-10e-270);
+
+1 rows affected.
+
+SQL> SELECT 'TEST 2', * FROM REAL_TBL order by f1;
+
+'TEST 2' F1                  
+-------- --------------------
+TEST 2   -1e+271             
+TEST 2   -1e+71              
+TEST 2   -1e+71              
+TEST 2   -1e-69              
+TEST 2   -1e-69              
+TEST 2   -1e-269             
+TEST 2   1e-169              
+TEST 2   1e-69               
+TEST 2   1e-69               
+TEST 2   1e+71               
+TEST 2   1e+71               
+TEST 2   1e+171              
+
+12 rows fetched.
+
+SQL> 
+SQL> -- bad input
+SQL> DELETE FROM REAL_TBL;
+
+12 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('       ');
+
+CT-00636, Invalid number -- text is empty or too long
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('xyz');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('5.0.0');
+
+CT-00636, Invalid number -- existing multiple decimal points
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('5 . 0');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('5.   0');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('     - 3.0');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('123            5');
+
+CT-00636, Invalid number -- unexpected character
+SQL> SELECT 'TEST 3', * FROM REAL_TBL order by f1;
+
+'TEST 3' F1                  
+-------- --------------------
+TEST 3                       
+
+1 rows fetched.
+
+SQL> 
+SQL> -- test for over- and underflow
+SQL> DELETE FROM REAL_TBL;
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('10e400');
+
+CT-00636, Invalid number -- overflow
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('-10e400');
+
+CT-00636, Invalid number -- overflow
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('-10e400');
+
+CT-00636, Invalid number -- overflow
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('-10e400');
+
+CT-00636, Invalid number -- overflow
+SQL> INSERT INTO REAL_TBL(f1) VALUES (10e400);
+
+CT-00601, [1:34]Sql syntax error: invalid number
+SQL> INSERT INTO REAL_TBL(f1) VALUES (-10e400);
+
+CT-00601, [1:35]Sql syntax error: invalid number
+SQL> INSERT INTO REAL_TBL(f1) VALUES (-10e400);
+
+CT-00601, [1:35]Sql syntax error: invalid number
+SQL> INSERT INTO REAL_TBL(f1) VALUES (-10e400);
+
+CT-00601, [1:35]Sql syntax error: invalid number
+SQL> SELECT 'TEST 4', * FROM REAL_TBL order by f1;
+
+'TEST 4' F1                  
+-------- --------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> 
+SQL> DELETE FROM REAL_TBL;
+
+0 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('0.0');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('-34.84');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('-1004.30');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('-1.2345678901234e+200');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES ('-1.2345678901234e-200');
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (0.0);
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (-34.84);
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (-1004.30);
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (-1.2345678901234e+200);
+
+1 rows affected.
+
+SQL> INSERT INTO REAL_TBL(f1) VALUES (-1.2345678901234e-200);
+
+1 rows affected.
+
+SQL> SELECT '' AS five, * FROM REAL_TBL order by f1;
+
+FIVE F1                  
+---- --------------------
+     -1.2345678901234e+200
+     -1.2345678901234e+200
+     -1004.3             
+     -1004.3             
+     -34.84              
+     -34.84              
+     -1.2345678901234e-200
+     -1.2345678901234e-200
+     0                   
+     0                   
+
+10 rows fetched.
+
+SQL> 
+SQL> DROP TABLE if exists num_data;
+
+Succeed.
+
+SQL> CREATE TABLE num_data (id int, val number(38,10));
+
+Succeed.
+
+SQL> DROP TABLE if exists num_exp_add;
+
+Succeed.
+
+SQL> CREATE TABLE num_exp_add (id1 int, id2 int, expected number(38,10));
+
+Succeed.
+
+SQL> DROP TABLE if exists num_exp_sub;
+
+Succeed.
+
+SQL> CREATE TABLE num_exp_sub (id1 int, id2 int, expected number(38,10));
+
+Succeed.
+
+SQL> DROP TABLE if exists num_exp_div;
+
+Succeed.
+
+SQL> CREATE TABLE num_exp_div (id1 int, id2 int, expected number(38,10));
+
+Succeed.
+
+SQL> DROP TABLE if exists num_exp_mul;
+
+Succeed.
+
+SQL> CREATE TABLE num_exp_mul (id1 int, id2 int, expected number(38,10));
+
+Succeed.
+
+SQL> DROP TABLE if exists num_result;
+
+Succeed.
+
+SQL> CREATE TABLE num_result (id1 int, id2 int, result number(38,10));
+
+Succeed.
+
+SQL> 
+SQL> INSERT INTO num_exp_add VALUES (0,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (0,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (0,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (0,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (0,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (0,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (0,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (0,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (0,2,'-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (0,2,'34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (0,2,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (0,2,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (0,3,'4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (0,3,'-4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (0,3,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (0,3,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (0,4,'7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (0,4,'-7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (0,4,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (0,4,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (0,5,'16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (0,5,'-16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (0,5,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (0,5,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (0,6,'93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (0,6,'-93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (0,6,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (0,6,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (0,7,'-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (0,7,'83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (0,7,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (0,7,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (0,8,'74881');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (0,8,'-74881');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (0,8,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (0,8,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (0,9,'-24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (0,9,'24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (0,9,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (0,9,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (1,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (1,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (1,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (1,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (1,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (1,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (1,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (1,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (1,2,'-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (1,2,'34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (1,2,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (1,2,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (1,3,'4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (1,3,'-4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (1,3,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (1,3,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (1,4,'7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (1,4,'-7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (1,4,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (1,4,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (1,5,'16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (1,5,'-16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (1,5,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (1,5,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (1,6,'93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (1,6,'-93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (1,6,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (1,6,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (1,7,'-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (1,7,'83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (1,7,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (1,7,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (1,8,'74881');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (1,8,'-74881');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (1,8,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (1,8,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (1,9,'-24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (1,9,'24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (1,9,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (1,9,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (2,0,'-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (2,0,'-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (2,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (2,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (2,1,'-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (2,1,'-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (2,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (2,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (2,2,'-68676984.430794094');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (2,2,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (2,2,'1179132047626883.596862135856320209');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (2,2,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (2,3,'-34338487.905397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (2,3,'-34338496.525397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (2,3,'-147998901.44836127257');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (2,3,'-7967167.56737750510440835266');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (2,4,'-26539030.803497047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (2,4,'-42137953.627297047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (2,4,'-267821744976817.8111137106593');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (2,4,'-4.40267480046830116685');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (2,5,'-34322095.176906047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (2,5,'-34354889.253888047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (2,5,'-563049578578.769242506736077');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (2,5,'-2094.18866914563535496429');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (2,6,'-34244590.637766787');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (2,6,'-34432393.793027307');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (2,6,'-3224438592470.18449811926184222');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (2,6,'-365.68599891479766440940');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (2,7,'-117366977.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (2,7,'48689992.784602953');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (2,7,'2851072985828710.485883795');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (2,7,'.41357483778485235518');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (2,8,'-34263611.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (2,8,'-34413373.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (2,8,'-2571300635581.146276407');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (2,8,'-458.57416721727870888476');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (2,9,'-59265296.260444467');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (2,9,'-9411688.170349627');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (2,9,'855948866655588.453741509242968740');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (2,9,'1.37757299946438931811');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (3,0,'4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (3,0,'4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (3,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (3,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (3,1,'4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (3,1,'4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (3,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (3,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (3,2,'-34338487.905397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (3,2,'34338496.525397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (3,2,'-147998901.44836127257');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (3,2,'-.00000012551512084352');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (3,3,'8.62');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (3,3,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (3,3,'18.5761');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (3,3,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (3,4,'7799465.7219');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (3,4,'-7799457.1019');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (3,4,'33615678.685289');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (3,4,'.00000055260225961552');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (3,5,'16401.348491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (3,5,'-16392.728491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (3,5,'70671.23589621');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (3,5,'.00026285234387695504');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (3,6,'93905.88763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (3,6,'-93897.26763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (3,6,'404715.7995864206');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (3,6,'.00004589912234457595');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (3,7,'-83028480.69');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (3,7,'83028489.31');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (3,7,'-357852770.35');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (3,7,'-.00000005190989574240');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (3,8,'74885.31');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (3,8,'-74876.69');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (3,8,'322737.11');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (3,8,'.00005755799201399553');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (3,9,'-24926799.735047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (3,9,'24926808.355047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (3,9,'-107434525.43415438020');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (3,9,'-.00000017290624149854');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (4,0,'7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (4,0,'7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (4,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (4,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (4,1,'7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (4,1,'7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (4,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (4,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (4,2,'-26539030.803497047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (4,2,'42137953.627297047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (4,2,'-267821744976817.8111137106593');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (4,2,'-.22713465002993920385');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (4,3,'7799465.7219');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (4,3,'7799457.1019');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (4,3,'33615678.685289');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (4,3,'1809619.81714617169373549883');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (4,4,'15598922.8238');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (4,4,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (4,4,'60831598315717.14146161');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (4,4,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (4,5,'7815858.450391');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (4,5,'7783064.373409');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (4,5,'127888068979.9935054429');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (4,5,'475.66281046305802686061');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (4,6,'7893362.98953026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (4,6,'7705559.83426974');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (4,6,'732381731243.745115764094');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (4,6,'83.05996138436129499606');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (4,7,'-75229023.5881');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (4,7,'90827946.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (4,7,'-647577464846017.9715');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (4,7,'-.09393717604145131637');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (4,8,'7874342.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (4,8,'7724580.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (4,8,'584031469984.4839');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (4,8,'104.15808298366741897143');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (4,9,'-17127342.633147420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (4,9,'32726265.456947420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (4,9,'-194415646271340.1815956522980');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (4,9,'-.31289456112403769409');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (5,0,'16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (5,0,'16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (5,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (5,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (5,1,'16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (5,1,'16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (5,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (5,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (5,2,'-34322095.176906047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (5,2,'34354889.253888047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (5,2,'-563049578578.769242506736077');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (5,2,'-.00047751189505192446');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (5,3,'16401.348491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (5,3,'16392.728491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (5,3,'70671.23589621');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (5,3,'3804.41728329466357308584');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (5,4,'7815858.450391');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (5,4,'-7783064.373409');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (5,4,'127888068979.9935054429');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (5,4,'.00210232958726897192');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (5,5,'32794.076982');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (5,5,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (5,5,'268862871.275335557081');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (5,5,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (5,6,'110298.61612126');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (5,6,'-77504.53913926');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (5,6,'1539707782.76899778633766');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (5,6,'.17461941433576102689');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (5,7,'-83012087.961509');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (5,7,'83044882.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (5,7,'-1361421264394.416135');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (5,7,'-.00019748690453643710');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (5,8,'91278.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (5,8,'-58483.961509');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (5,8,'1227826639.244571');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (5,8,'.21897461960978085228');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (5,9,'-24910407.006556420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (5,9,'24943201.083538420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (5,9,'-408725765384.257043660243220');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (5,9,'-.00065780749354660427');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (6,0,'93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (6,0,'93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (6,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (6,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (6,1,'93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (6,1,'93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (6,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (6,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (6,2,'-34244590.637766787');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (6,2,'34432393.793027307');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (6,2,'-3224438592470.18449811926184222');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (6,2,'-.00273458651128995823');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (6,3,'93905.88763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (6,3,'93897.26763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (6,3,'404715.7995864206');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (6,3,'21786.90896293735498839907');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (6,4,'7893362.98953026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (6,4,'-7705559.83426974');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (6,4,'732381731243.745115764094');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (6,4,'.01203949512295682469');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (6,5,'110298.61612126');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (6,5,'77504.53913926');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (6,5,'1539707782.76899778633766');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (6,5,'5.72674008674192359679');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (6,6,'187803.15526052');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (6,6,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (6,6,'8817506281.4517452372676676');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (6,6,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (6,7,'-82934583.42236974');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (6,7,'83122386.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (6,7,'-7796505729750.37795610');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (6,7,'-.00113095617281538980');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (6,8,'168782.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (6,8,'19020.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (6,8,'7031444034.53149906');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (6,8,'1.25401073209839612184');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (6,9,'-24832902.467417160');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (6,9,'25020705.622677680');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (6,9,'-2340666225110.29929521292692920');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (6,9,'-.00376709254265256789');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (7,0,'-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (7,0,'-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (7,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (7,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (7,1,'-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (7,1,'-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (7,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (7,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (7,2,'-117366977.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (7,2,'-48689992.784602953');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (7,2,'2851072985828710.485883795');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (7,2,'2.41794207151503385700');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (7,3,'-83028480.69');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (7,3,'-83028489.31');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (7,3,'-357852770.35');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (7,3,'-19264149.65197215777262180974');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (7,4,'-75229023.5881');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (7,4,'-90827946.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (7,4,'-647577464846017.9715');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (7,4,'-10.64541262725136247686');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (7,5,'-83012087.961509');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (7,5,'-83044882.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (7,5,'-1361421264394.416135');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (7,5,'-5063.62688881730941836574');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (7,6,'-82934583.42236974');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (7,6,'-83122386.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (7,6,'-7796505729750.37795610');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (7,6,'-884.20756174009028770294');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (7,7,'-166056970');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (7,7,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (7,7,'6893729321395225');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (7,7,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (7,8,'-82953604');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (7,8,'-83103366');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (7,8,'-6217255985285');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (7,8,'-1108.80577182462841041118');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (7,9,'-107955289.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (7,9,'-58101680.954952580');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (7,9,'2069634775752159.035758700');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (7,9,'3.33089171198810413382');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (8,0,'74881');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (8,0,'74881');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (8,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (8,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (8,1,'74881');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (8,1,'74881');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (8,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (8,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (8,2,'-34263611.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (8,2,'34413373.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (8,2,'-2571300635581.146276407');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (8,2,'-.00218067233500788615');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (8,3,'74885.31');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (8,3,'74876.69');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (8,3,'322737.11');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (8,3,'17373.78190255220417633410');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (8,4,'7874342.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (8,4,'-7724580.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (8,4,'584031469984.4839');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (8,4,'.00960079113741758956');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (8,5,'91278.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (8,5,'58483.961509');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (8,5,'1227826639.244571');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (8,5,'4.56673929509287019456');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (8,6,'168782.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (8,6,'-19020.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (8,6,'7031444034.53149906');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (8,6,'.79744134113322314424');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (8,7,'-82953604');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (8,7,'83103366');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (8,7,'-6217255985285');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (8,7,'-.00090187120721280172');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (8,8,'149762');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (8,8,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (8,8,'5607164161');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (8,8,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (8,9,'-24851923.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (8,9,'25001685.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (8,9,'-1866544013697.195857020');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (8,9,'-.00300403532938582735');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (9,0,'-24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (9,0,'-24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (9,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (9,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (9,1,'-24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (9,1,'-24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (9,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (9,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO num_exp_add VALUES (9,2,'-59265296.260444467');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (9,2,'9411688.170349627');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (9,2,'855948866655588.453741509242968740');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (9,2,'.72591434384152961526');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (9,3,'-24926799.735047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (9,3,'-24926808.355047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (9,3,'-107434525.43415438020');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (9,3,'-5783481.21694835730858468677');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (9,4,'-17127342.633147420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (9,4,'-32726265.456947420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (9,4,'-194415646271340.1815956522980');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (9,4,'-3.19596478892958416484');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (9,5,'-24910407.006556420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (9,5,'-24943201.083538420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (9,5,'-408725765384.257043660243220');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (9,5,'-1520.20159364322004505807');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (9,6,'-24832902.467417160');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (9,6,'-25020705.622677680');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (9,6,'-2340666225110.29929521292692920');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (9,6,'-265.45671195426965751280');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (9,7,'-107955289.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (9,7,'58101680.954952580');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (9,7,'2069634775752159.035758700');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (9,7,'.30021990699995814689');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (9,8,'-24851923.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (9,8,'-25001685.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (9,8,'-1866544013697.195857020');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (9,8,'-332.88556569820675471748');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_add VALUES (9,9,'-49853608.090094840');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_sub VALUES (9,9,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_mul VALUES (9,9,'621345559900192.420120630048656400');
+
+1 rows affected.
+
+SQL> INSERT INTO num_exp_div VALUES (9,9,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> 
+SQL> INSERT INTO num_data VALUES (0, '0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_data VALUES (1, '0');
+
+1 rows affected.
+
+SQL> INSERT INTO num_data VALUES (2, '-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO num_data VALUES (3, '4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO num_data VALUES (4, '7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO num_data VALUES (5, '16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO num_data VALUES (6, '93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO num_data VALUES (7, '-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO num_data VALUES (8, '74881');
+
+1 rows affected.
+
+SQL> INSERT INTO num_data VALUES (9, '-24926804.045047420');
+
+1 rows affected.
+
+SQL> 
+SQL> 
+SQL> DROP INDEX if exists num_exp_add_idx ON num_exp_add;
+
+Succeed.
+
+SQL> CREATE UNIQUE INDEX num_exp_add_idx ON num_exp_add (id1, id2);
+
+Succeed.
+
+SQL> DROP INDEX if exists num_exp_sub_idx ON num_exp_sub;
+
+Succeed.
+
+SQL> CREATE UNIQUE INDEX num_exp_sub_idx ON num_exp_sub (id1, id2);
+
+Succeed.
+
+SQL> DROP INDEX if exists num_exp_div_idx ON num_exp_div;
+
+Succeed.
+
+SQL> CREATE UNIQUE INDEX num_exp_div_idx ON num_exp_div (id1, id2);
+
+Succeed.
+
+SQL> DROP INDEX if exists num_exp_mul_idx ON num_exp_mul;
+
+Succeed.
+
+SQL> CREATE UNIQUE INDEX num_exp_mul_idx ON num_exp_mul (id1, id2);
+
+Succeed.
+
+SQL> 
+SQL> DELETE FROM num_result;
+
+0 rows affected.
+
+SQL> INSERT INTO num_result SELECT t1.id, t2.id, t1.val + t2.val
+  2     FROM num_data t1, num_data t2;
+
+100 rows affected.
+
+SQL> SELECT t1.id1, t1.id2, t1.result, t2.expected
+  2     FROM num_result t1, num_exp_add t2 
+  3     WHERE t1.id1 = t2.id1 AND t1.id2 = t2.id2 order by t1.id1, t1.id2;
+
+ID1          ID2          RESULT                                   EXPECTED                                
+------------ ------------ ---------------------------------------- ----------------------------------------
+0            0            0                                        0                                       
+0            1            0                                        0                                       
+0            2            -34338492.215397047                      -34338492.215397047                     
+0            3            4.31                                     4.31                                    
+0            4            7799461.4119                             7799461.4119                            
+0            5            16397.038491                             16397.038491                            
+0            6            93901.57763026                           93901.57763026                          
+0            7            -83028485                                -83028485                               
+0            8            74881                                    74881                                   
+0            9            -24926804.04504742                       -24926804.04504742                      
+1            0            0                                        0                                       
+1            1            0                                        0                                       
+1            2            -34338492.215397047                      -34338492.215397047                     
+1            3            4.31                                     4.31                                    
+1            4            7799461.4119                             7799461.4119                            
+1            5            16397.038491                             16397.038491                            
+1            6            93901.57763026                           93901.57763026                          
+1            7            -83028485                                -83028485                               
+1            8            74881                                    74881                                   
+1            9            -24926804.04504742                       -24926804.04504742                      
+2            0            -34338492.215397047                      -34338492.215397047                     
+2            1            -34338492.215397047                      -34338492.215397047                     
+2            2            -68676984.430794094                      -68676984.430794094                     
+2            3            -34338487.905397047                      -34338487.905397047                     
+2            4            -26539030.803497047                      -26539030.803497047                     
+2            5            -34322095.176906047                      -34322095.176906047                     
+2            6            -34244590.637766787                      -34244590.637766787                     
+2            7            -117366977.215397047                     -117366977.215397047                    
+2            8            -34263611.215397047                      -34263611.215397047                     
+2            9            -59265296.260444467                      -59265296.260444467                     
+3            0            4.31                                     4.31                                    
+3            1            4.31                                     4.31                                    
+3            2            -34338487.905397047                      -34338487.905397047                     
+3            3            8.62                                     8.62                                    
+3            4            7799465.7219                             7799465.7219                            
+3            5            16401.348491                             16401.348491                            
+3            6            93905.88763026                           93905.88763026                          
+3            7            -83028480.69                             -83028480.69                            
+3            8            74885.31                                 74885.31                                
+3            9            -24926799.73504742                       -24926799.73504742                      
+4            0            7799461.4119                             7799461.4119                            
+4            1            7799461.4119                             7799461.4119                            
+4            2            -26539030.803497047                      -26539030.803497047                     
+4            3            7799465.7219                             7799465.7219                            
+4            4            15598922.8238                            15598922.8238                           
+4            5            7815858.450391                           7815858.450391                          
+4            6            7893362.98953026                         7893362.98953026                        
+4            7            -75229023.5881                           -75229023.5881                          
+4            8            7874342.4119                             7874342.4119                            
+4            9            -17127342.63314742                       -17127342.63314742                      
+5            0            16397.038491                             16397.038491                            
+5            1            16397.038491                             16397.038491                            
+5            2            -34322095.176906047                      -34322095.176906047                     
+5            3            16401.348491                             16401.348491                            
+5            4            7815858.450391                           7815858.450391                          
+5            5            32794.076982                             32794.076982                            
+5            6            110298.61612126                          110298.61612126                         
+5            7            -83012087.961509                         -83012087.961509                        
+5            8            91278.038491                             91278.038491                            
+5            9            -24910407.00655642                       -24910407.00655642                      
+6            0            93901.57763026                           93901.57763026                          
+6            1            93901.57763026                           93901.57763026                          
+6            2            -34244590.637766787                      -34244590.637766787                     
+6            3            93905.88763026                           93905.88763026                          
+6            4            7893362.98953026                         7893362.98953026                        
+6            5            110298.61612126                          110298.61612126                         
+6            6            187803.15526052                          187803.15526052                         
+6            7            -82934583.42236974                       -82934583.42236974                      
+6            8            168782.57763026                          168782.57763026                         
+6            9            -24832902.46741716                       -24832902.46741716                      
+7            0            -83028485                                -83028485                               
+7            1            -83028485                                -83028485                               
+7            2            -117366977.215397047                     -117366977.215397047                    
+7            3            -83028480.69                             -83028480.69                            
+7            4            -75229023.5881                           -75229023.5881                          
+7            5            -83012087.961509                         -83012087.961509                        
+7            6            -82934583.42236974                       -82934583.42236974                      
+7            7            -166056970                               -166056970                              
+7            8            -82953604                                -82953604                               
+7            9            -107955289.04504742                      -107955289.04504742                     
+8            0            74881                                    74881                                   
+8            1            74881                                    74881                                   
+8            2            -34263611.215397047                      -34263611.215397047                     
+8            3            74885.31                                 74885.31                                
+8            4            7874342.4119                             7874342.4119                            
+8            5            91278.038491                             91278.038491                            
+8            6            168782.57763026                          168782.57763026                         
+8            7            -82953604                                -82953604                               
+8            8            149762                                   149762                                  
+8            9            -24851923.04504742                       -24851923.04504742                      
+9            0            -24926804.04504742                       -24926804.04504742                      
+9            1            -24926804.04504742                       -24926804.04504742                      
+9            2            -59265296.260444467                      -59265296.260444467                     
+9            3            -24926799.73504742                       -24926799.73504742                      
+9            4            -17127342.63314742                       -17127342.63314742                      
+9            5            -24910407.00655642                       -24910407.00655642                      
+9            6            -24832902.46741716                       -24832902.46741716                      
+9            7            -107955289.04504742                      -107955289.04504742                     
+9            8            -24851923.04504742                       -24851923.04504742                      
+9            9            -49853608.09009484                       -49853608.09009484                      
+
+100 rows fetched.
+
+SQL> 
+SQL> DELETE FROM num_result;
+
+100 rows affected.
+
+SQL> INSERT INTO num_result SELECT t1.id, t2.id, t1.val - t2.val
+  2     FROM num_data t1, num_data t2;
+
+100 rows affected.
+
+SQL> SELECT t1.id1, t1.id2, t1.result, t2.expected
+  2     FROM num_result t1, num_exp_sub t2
+  3     WHERE t1.id1 = t2.id1 
+  4     AND t1.id2 = t2.id2 
+  5     AND t1.result != t2.expected order by t1.id1, t1.id2;
+
+ID1          ID2          RESULT                                   EXPECTED                                
+------------ ------------ ---------------------------------------- ----------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> -- ******************************
+SQL> -- * Multiply check
+SQL> -- ******************************
+SQL> DELETE FROM num_result;
+
+100 rows affected.
+
+SQL> INSERT INTO num_result SELECT t1.id, t2.id, t1.val * t2.val
+  2     FROM num_data t1, num_data t2;
+
+100 rows affected.
+
+SQL> SELECT t1.id1, t1.id2, t1.result, t2.expected
+  2     FROM num_result t1, num_exp_mul t2
+  3     WHERE t1.id1 = t2.id1 
+  4     AND t1.id2 = t2.id2 
+  5     AND t1.result != t2.expected order by t1.id1, t1.id2;
+
+ID1          ID2          RESULT                                   EXPECTED                                
+------------ ------------ ---------------------------------------- ----------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> DELETE FROM num_result;
+
+100 rows affected.
+
+SQL> INSERT INTO num_result SELECT t1.id, t2.id, t1.val / t2.val
+  2     FROM num_data t1, num_data t2
+  3     WHERE t2.val != '0.0';
+
+80 rows affected.
+
+SQL> 
+SQL> SELECT t1.id1, t1.id2, t1.result, t2.expected
+  2     FROM num_result t1, num_exp_div t2
+  3     WHERE t1.id1 = t2.id1 
+  4     AND t1.id2 = t2.id2 
+  5     AND t1.result != t2.expected order by t1.id1, t1.id2;
+
+ID1          ID2          RESULT                                   EXPECTED                                
+------------ ------------ ---------------------------------------- ----------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> 
+SQL> SELECT t1.id1, t1.id2, t1.result, t2.expected
+  2     FROM num_result t1, num_exp_div t2
+  3     WHERE t1.id1 = t2.id1 
+  4     AND t1.id2 = t2.id2 
+  5     order by t1.id1, t1.id2;	
+
+ID1          ID2          RESULT                                   EXPECTED                                
+------------ ------------ ---------------------------------------- ----------------------------------------
+0            2            0                                        0                                       
+0            3            0                                        0                                       
+0            4            0                                        0                                       
+0            5            0                                        0                                       
+0            6            0                                        0                                       
+0            7            0                                        0                                       
+0            8            0                                        0                                       
+0            9            0                                        0                                       
+1            2            0                                        0                                       
+1            3            0                                        0                                       
+1            4            0                                        0                                       
+1            5            0                                        0                                       
+1            6            0                                        0                                       
+1            7            0                                        0                                       
+1            8            0                                        0                                       
+1            9            0                                        0                                       
+2            2            1                                        1                                       
+2            3            -7967167.5673775051                      -7967167.5673775051                     
+2            4            -4.4026748005                            -4.4026748005                           
+2            5            -2094.1886691456                         -2094.1886691456                        
+2            6            -365.6859989148                          -365.6859989148                         
+2            7            .4135748378                              .4135748378                             
+2            8            -458.5741672173                          -458.5741672173                         
+2            9            1.3775729995                             1.3775729995                            
+3            2            -.0000001255                             -.0000001255                            
+3            3            1                                        1                                       
+3            4            .0000005526                              .0000005526                             
+3            5            .0002628523                              .0002628523                             
+3            6            .0000458991                              .0000458991                             
+3            7            -.0000000519                             -.0000000519                            
+3            8            .000057558                               .000057558                              
+3            9            -.0000001729                             -.0000001729                            
+4            2            -.22713465                               -.22713465                              
+4            3            1809619.8171461717                       1809619.8171461717                      
+4            4            1                                        1                                       
+4            5            475.6628104631                           475.6628104631                          
+4            6            83.0599613844                            83.0599613844                           
+4            7            -.093937176                              -.093937176                             
+4            8            104.1580829837                           104.1580829837                          
+4            9            -.3128945611                             -.3128945611                            
+5            2            -.0004775119                             -.0004775119                            
+5            3            3804.4172832947                          3804.4172832947                         
+5            4            .0021023296                              .0021023296                             
+5            5            1                                        1                                       
+5            6            .1746194143                              .1746194143                             
+5            7            -.0001974869                             -.0001974869                            
+5            8            .2189746196                              .2189746196                             
+5            9            -.0006578075                             -.0006578075                            
+6            2            -.0027345865                             -.0027345865                            
+6            3            21786.9089629374                         21786.9089629374                        
+6            4            .0120394951                              .0120394951                             
+6            5            5.7267400867                             5.7267400867                            
+6            6            1                                        1                                       
+6            7            -.0011309562                             -.0011309562                            
+6            8            1.2540107321                             1.2540107321                            
+6            9            -.0037670925                             -.0037670925                            
+7            2            2.4179420715                             2.4179420715                            
+7            3            -19264149.6519721578                     -19264149.6519721578                    
+7            4            -10.6454126273                           -10.6454126273                          
+7            5            -5063.6268888173                         -5063.6268888173                        
+7            6            -884.2075617401                          -884.2075617401                         
+7            7            1                                        1                                       
+7            8            -1108.8057718246                         -1108.8057718246                        
+7            9            3.330891712                              3.330891712                             
+8            2            -.0021806723                             -.0021806723                            
+8            3            17373.7819025522                         17373.7819025522                        
+8            4            .0096007911                              .0096007911                             
+8            5            4.5667392951                             4.5667392951                            
+8            6            .7974413411                              .7974413411                             
+8            7            -.0009018712                             -.0009018712                            
+8            8            1                                        1                                       
+8            9            -.0030040353                             -.0030040353                            
+9            2            .7259143438                              .7259143438                             
+9            3            -5783481.2169483573                      -5783481.2169483573                     
+9            4            -3.1959647889                            -3.1959647889                           
+9            5            -1520.2015936432                         -1520.2015936432                        
+9            6            -265.4567119543                          -265.4567119543                         
+9            7            .300219907                               .300219907                              
+9            8            -332.8855656982                          -332.8855656982                         
+9            9            1                                        1                                       
+
+80 rows fetched.
+
+SQL> 
+SQL> drop table if exists expr_abc;
+
+Succeed.
+
+SQL> create table expr_abc(c int);
+
+Succeed.
+
+SQL> insert into expr_abc values(123.333::int);
+
+1 rows affected.
+
+SQL> select c::char    from expr_abc;
+
+C::CHAR
+-------
+1      
+
+1 rows fetched.
+
+SQL> select c::char(2)    from expr_abc;
+
+C::CHAR(2)
+----------
+12        
+
+1 rows fetched.
+
+SQL> select c::char(3)    from expr_abc;
+
+C::CHAR(3)
+----------
+123       
+
+1 rows fetched.
+
+SQL> select c::char(5)    from expr_abc;
+
+C::CHAR(5)
+----------
+123       
+
+1 rows fetched.
+
+SQL> select c::varchar from expr_abc;
+
+CT-00601, [1:19]Sql syntax error: the column size must be specified
+SQL> select c::decimal from expr_abc;
+
+C::DECIMAL                              
+----------------------------------------
+123                                     
+
+1 rows fetched.
+
+SQL> select c::decimal(3, -1) from expr_abc;
+
+C::DECIMAL(3, -1)                       
+----------------------------------------
+120                                     
+
+1 rows fetched.
+
+SQL> select c::bigint  from expr_abc;
+
+C::BIGINT           
+--------------------
+123                 
+
+1 rows fetched.
+
+SQL> select c::date    from expr_abc;
+
+CT-00606, [1:8]Inconsistent datatypes, expected DATE - got BINARY_INTEGER
+SQL> select c::blob    from expr_abc;
+
+CT-01304, [1:11]Data type 'BLOB' is not supported
+SQL> select c::real    from expr_abc;
+
+C::REAL             
+--------------------
+123                 
+
+1 rows fetched.
+
+SQL> select c::timestamp  from expr_abc;
+
+CT-00606, [1:8]Inconsistent datatypes, expected TIMESTAMP - got BINARY_INTEGER
+SQL> insert into expr_abc values(100);
+
+1 rows affected.
+
+SQL> insert into expr_abc values(200);
+
+1 rows affected.
+
+SQL> SELECT 10 * c::numeric / 3::numeric FROM expr_abc;
+
+10 * C::NUMERIC / 3::NUMERIC            
+----------------------------------------
+410                                     
+333.333333333333333333333333333333333333
+666.666666666666666666666666666666666667
+
+3 rows fetched.
+
+SQL> SELECT max(10 * c::numeric / 3::numeric) FROM expr_abc WHERE c < 150;
+
+MAX(10 * C::NUMERIC / 3::NUMERIC)       
+----------------------------------------
+410                                     
+
+1 rows fetched.
+
+SQL> 
+SQL> select 0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001;
+
+0.00000000000000000000000000000000000000000000000000000000000000
+----------------------------------------------------------------
+0                                                               
+
+1 rows fetched.
+
+SQL> select 0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001;
+
+0.00000000000000000000000000000000000000000000000000000000000000
+----------------------------------------------------------------
+1e-307                                                          
+
+1 rows fetched.
+
+SQL> select '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001'::double;
+
+'0.0000000000000000000000000000000000000000000000000000000000000
+----------------------------------------------------------------
+1e-307                                                          
+
+1 rows fetched.
+
+SQL> 
+SQL> select 12.34-'123' from dual;
+
+12.34-'123'                             
+----------------------------------------
+-110.66                                 
+
+1 rows fetched.
+
+SQL> drop table if exists employees;
+
+Succeed.
+
+SQL> create table employees (
+  2 	employee_id integer,
+  3 	manager_id integer,
+  4 	first_name varchar2(10) not null,
+  5 	last_name varchar2(10) not null,
+  6 	title varchar2(20),
+  7 	salary number(10),
+  8   	clobemp      CLOB,
+  9   	intemp       NUMBER(10),
+ 10   	longemp      NUMBER(24),
+ 11   	numberemp    NUMBER(10,2),
+ 12   	blobemp      BLOB,
+ 13   	dateemp      DATE,
+ 14   	timestampemp TIMESTAMP(6),
+ 15 	constraint employees_pk primary key (employee_id)
+ 16 );
+
+Succeed.
+
+SQL> insert into employees(employee_id,first_name,last_name,title,intemp) values(1,'aaa','bbb','1234',1234);
+
+1 rows affected.
+
+SQL> insert into employees(employee_id,first_name,last_name,title,numberemp) values(2,'aaa','bbb','1234',12.34);
+
+1 rows affected.
+
+SQL> select intemp, title, intemp-title from employees where employee_id=1;
+
+INTEMP                                   TITLE                INTEMP-TITLE                            
+---------------------------------------- -------------------- ----------------------------------------
+1234                                     1234                 0                                       
+
+1 rows fetched.
+
+SQL> select numberemp, title, numberemp-title from employees where employee_id=2;
+
+NUMBEREMP                                TITLE                NUMBEREMP-TITLE                         
+---------------------------------------- -------------------- ----------------------------------------
+12.34                                    1234                 -1221.66                                
+
+1 rows fetched.
+
+SQL> 
+SQL> drop table if exists PFA_UNARY_TBL;
+
+Succeed.
+
+SQL> create table PFA_UNARY_TBL(xx int, yy bigint, dd double, de decimal, cc char(100));
+
+Succeed.
+
+SQL> insert into PFA_UNARY_TBL values(10, 10, 10, 10, '10');
+
+1 rows affected.
+
+SQL> insert into PFA_UNARY_TBL values(-2, -2, -2, -2, '-2');
+
+1 rows affected.
+
+SQL> select -xx, -yy, -dd, -de, -cc from PFA_UNARY_TBL order by xx;
+
+-XX                  -YY                  -DD                  -DE                                      -CC                                     
+-------------------- -------------------- -------------------- ---------------------------------------- ----------------------------------------
+2                    2                    2                    2                                        2                                       
+-10                  -10                  -10                  -10                                      -10                                     
+
+2 rows fetched.
+
+SQL> 
+SQL> select sum(xx), sum(yy), sum(dd), sum(de), sum(cc) from PFA_UNARY_TBL;
+
+SUM(XX)              SUM(YY)                                  SUM(DD)              SUM(DE)                                  SUM(CC)                                 
+-------------------- ---------------------------------------- -------------------- ---------------------------------------- ----------------------------------------
+8                    8                                        8                    8                                        8                                       
+
+1 rows fetched.
+
+SQL> select -sum(xx), -sum(yy), -sum(dd), -sum(de), -sum(cc) from PFA_UNARY_TBL;
+
+-SUM(XX)             -SUM(YY)                                 -SUM(DD)             -SUM(DE)                                 -SUM(CC)                                
+-------------------- ---------------------------------------- -------------------- ---------------------------------------- ----------------------------------------
+-8                   -8                                       -8                   -8                                       -8                                      
+
+1 rows fetched.
+
+SQL> 
+SQL> select case when 1 = 0 then null else 1.231 end from dual;
+
+CASE WHEN 1 = 0 THEN NULL ELSE 1.231 END
+----------------------------------------
+1.231                                   
+
+1 rows fetched.
+
+SQL> select case when 1 = 1 then null else 1.231 end from dual;
+
+CASE WHEN 1 = 1 THEN NULL ELSE 1.231 END
+----------------------------------------
+                                        
+
+1 rows fetched.
+
+SQL> select case when 1 = 1 then null || null else 2.123 end from dual;
+
+CASE WHEN 1 = 1 THEN NULL || NULL ELSE 2.123 END
+------------------------------------------------
+                                                
+
+1 rows fetched.
+
+SQL> select case when 1 = 0 then null || null else 2.123 end from dual;
+
+CASE WHEN 1 = 0 THEN NULL || NULL ELSE 2.123 END
+------------------------------------------------
+2.123                                           
+
+1 rows fetched.
+
+SQL> select case when 1 = 0 then null - null else 2.123 end from dual;
+
+CASE WHEN 1 = 0 THEN NULL - NULL ELSE 2.123 END
+-----------------------------------------------
+2.123                                          
+
+1 rows fetched.
+
+SQL> select case when 1 = 0 then null - systimestamp else 2.123 end from dual;
+
+CT-01320, [1:34]Undefined operator: VARCHAR - TIMESTAMP_TZ
+SQL> select case when 1 = 0 then systimestamp - null else 2.123 end from dual;
+
+CT-00606, [1:54]Inconsistent datatypes, expected TIMESTAMP_TZ - got NUMBER
+SQL> select case when 1 = 0 then sysdate - sysdate else 2.123 end from dual;
+
+CASE WHEN 1 = 0 THEN SYSDATE - SYSDATE ELSE 2.123 END
+-----------------------------------------------------
+2.123                                                
+
+1 rows fetched.
+
+SQL> 
+SQL> drop table if exists EMPLOYEES;
+
+Succeed.
+
+SQL> CREATE TABLE EMPLOYEES
+  2 (EMPLOYEE_ID NUMBER(6,0), 
+  3  FIRST_NAME  VARCHAR2(20), 
+  4  LAST_NAME   VARCHAR2(25) CONSTRAINT EMP_LAST_NAME_NN NOT NULL, 
+  5  SALARY NUMBER(8,2)
+  6 );
+
+Succeed.
+
+SQL> 
+SQL> insert into employees values(1,'li','lilei', 2000);
+
+1 rows affected.
+
+SQL> insert into employees values(2,'li','hanmm', 5000);
+
+1 rows affected.
+
+SQL> insert into employees values(3,'li','jack', 5000);
+
+1 rows affected.
+
+SQL> insert into employees values(4,'li','lusi', 1000);
+
+1 rows affected.
+
+SQL> 
+SQL> SELECT AVG((CASE WHEN (e.salary > 2000) THEN (e.salary) ELSE (2000) END)) Average_Salary FROM employees e;
+
+AVERAGE_SALARY                          
+----------------------------------------
+3500                                    
+
+1 rows fetched.
+
+SQL> SELECT AVG((CASE WHEN (e.salary > 2000 AND e.salary < 6000) THEN (e.salary) ELSE (2000) END)) Average_Salary FROM employees e;
+
+AVERAGE_SALARY                          
+----------------------------------------
+3500                                    
+
+1 rows fetched.
+
+SQL> SELECT AVG((CASE WHEN (e.salary > 2000 or e.salary < 1000) THEN (e.salary) ELSE (2000) END)) Average_Salary FROM employees e;
+
+AVERAGE_SALARY                          
+----------------------------------------
+3500                                    
+
+1 rows fetched.
+
+SQL> 
+SQL> SELECT AVG(CASE WHEN (e.salary > 4000) THEN (e.salary + 200)
+  2 WHEN (e.salary > 1999) THEN (e.salary + 100)
+  3 WHEN (e.salary > 999) THEN (e.salary + 50)
+  4 END) Average_Salary FROM employees e;
+
+AVERAGE_SALARY                          
+----------------------------------------
+3387.5                                  
+
+1 rows fetched.
+
+SQL> 
+SQL> SELECT CASE WHEN (e.salary > 4000) THEN (e.salary) END as NULL_COLUMN FROM employees e;
+
+NULL_COLUMN                             
+----------------------------------------
+                                        
+5000                                    
+5000                                    
+                                        
+
+4 rows fetched.
+
+SQL> drop table employees;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists customer;
+
+Succeed.
+
+SQL> CREATE TABLE customer
+  2 (CUSTOMER_ID NUMBER(6,0), 
+  3  CUST_FIRST_NAME  VARCHAR2(20) NOT NULL, 
+  4  CUST_LAST_NAME   VARCHAR2(20) NOT NULL, 
+  5  CREDIT_LIMIT INTEGER
+  6 );
+
+Succeed.
+
+SQL> insert into customer values (1, 'li', 'adjani', 100); 
+
+1 rows affected.
+
+SQL> insert into customer values (2, 'li', 'alexander', 2000);
+
+1 rows affected.
+
+SQL> insert into customer values (3, 'li', 'altman', 5000);
+
+1 rows affected.
+
+SQL> 
+SQL> SELECT cust_last_name,
+  2 CASE (credit_limit) WHEN (100) THEN ('Low')
+  3 WHEN (5000) THEN ('High')
+  4 ELSE ('Medium') END AS credit
+  5 FROM customer
+  6 ORDER BY cust_last_name, credit;
+
+CUST_LAST_NAME       CREDIT
+-------------------- ------
+adjani               Low   
+alexander            Medium
+altman               High  
+
+3 rows fetched.
+
+SQL> 
+SQL> insert into customer values (4, 'li', 'jack', 1990);
+
+1 rows affected.
+
+SQL> SELECT cust_last_name,
+  2 CASE (credit_limit) WHEN (100) THEN ('Low')
+  3 WHEN (5000) THEN ('High')
+  4 WHEN (2000) THEN ('Medium') END AS credit
+  5 FROM customer
+  6 ORDER BY cust_last_name, credit;
+
+CUST_LAST_NAME       CREDIT
+-------------------- ------
+adjani               Low   
+alexander            Medium
+altman               High  
+jack                       
+
+4 rows fetched.
+
+SQL> select (CUSTOMER_ID + case (CREDIT_LIMIT) when (100) then (110) else (case (CREDIT_LIMIT) when (1990) then (2000) when (2000) then (2010) else (5010) end) end ) as nest_case_result from customer ORDER BY CUSTOMER_ID;
+
+NEST_CASE_RESULT                        
+----------------------------------------
+111                                     
+2012                                    
+5013                                    
+2004                                    
+
+4 rows fetched.
+
+SQL> select (CUSTOMER_ID + case when (CREDIT_LIMIT < 1000) then (110) else (case when (CREDIT_LIMIT < 2000) then (2000) when (CREDIT_LIMIT < 5000) then (2010) else  (5010) end) end ) as nest_case_result from customer ORDER BY CUSTOMER_ID;
+
+NEST_CASE_RESULT                        
+----------------------------------------
+111                                     
+2012                                    
+5013                                    
+2004                                    
+
+4 rows fetched.
+
+SQL> select (CUSTOMER_ID + case when (CREDIT_LIMIT < 1000) then (110) else (case (CREDIT_LIMIT) when (1990) then (2000) when (2000) then (2010) else (5010) end) end ) as nest_case_result from customer ORDER BY CUSTOMER_ID;
+
+NEST_CASE_RESULT                        
+----------------------------------------
+111                                     
+2012                                    
+5013                                    
+2004                                    
+
+4 rows fetched.
+
+SQL> select (CUSTOMER_ID + case (CREDIT_LIMIT) when (100) then (110) else (case when (CREDIT_LIMIT < 2000) then (2000) when (CREDIT_LIMIT < 5000) then (2010) else (5010) end) end ) as nest_case_result from customer ORDER BY CUSTOMER_ID;
+
+NEST_CASE_RESULT                        
+----------------------------------------
+111                                     
+2012                                    
+5013                                    
+2004                                    
+
+4 rows fetched.
+
+SQL> 
+SQL> select (CUSTOMER_ID + case credit THEN 2000 END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:35]Sql syntax error: WHEN expected but THEN found
+SQL> select (CUSTOMER_ID + case credit WHEN WHEN 1990 then 2000 END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:40]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case credit WHEN 1990 2000 END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:45]Sql syntax error: the word "2000" is not correct
+SQL> select (CUSTOMER_ID + case credit WHEN 1990 THEN THEN 2000 END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:50]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case credit WHEN 1990 THEN WHEN 2000 END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:50]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case credit WHEN 1990 THEN END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:50]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case credit WHEN 1990 THEN 2000 WHEN WHEN) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:60]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case credit WHEN 1990 THEN 2000 WHEN ELSE) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:60]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case credit WHEN 1990 THEN 2000 WHEN END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:60]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case credit WHEN 1990 THEN 2000 ELSE WHEN) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:60]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case credit WHEN 1990 THEN 2000 ELSE ELSE) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:60]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case credit WHEN 1990 THEN 2000 ELSE END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:60]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case credit WHEN 1990 THEN 2000 END ELSE) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:59]Sql syntax error: the word "ELSE" is not correct
+SQL> select (CUSTOMER_ID + case credit WHEN 1990 THEN 2000 END WHEN) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:59]Sql syntax error: the word "WHEN" is not correct
+SQL> select (CUSTOMER_ID + case credit WHEN 1990 THEN 2000 END END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:59]Sql syntax error: the word "END" is not correct
+SQL> 
+SQL> select (CUSTOMER_ID + case THEN 2000 END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:28]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case WHEN WHEN credit > 1990 then 2000 END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:33]Sql syntax error: the "WHEN" is not a correct keyword
+SQL> select (CUSTOMER_ID + case WHEN credit > 1990 2000 END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:47]Sql syntax error: the word "2000" is not correct
+SQL> select (CUSTOMER_ID + case WHEN credit > 1990 THEN THEN 2000 END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:52]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case WHEN credit > 1990 THEN WHEN credit > 4000 END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:52]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case WHEN credit > 1990 THEN END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:52]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case WHEN credit > 1990 THEN 2000 WHEN WHEN) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:62]Sql syntax error: the "WHEN" is not a correct keyword
+SQL> select (CUSTOMER_ID + case WHEN credit > 1990 THEN 2000 WHEN ELSE) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:62]Sql syntax error: the "ELSE" is not a correct keyword
+SQL> select (CUSTOMER_ID + case WHEN credit > 1990 THEN 2000 WHEN END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:62]Sql syntax error: the "END" is not a correct keyword
+SQL> select (CUSTOMER_ID + case WHEN credit > 1990 THEN 2000 ELSE WHEN) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:62]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case WHEN credit > 1990 THEN 2000 ELSE ELSE) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:62]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case WHEN credit > 1990 THEN 2000 ELSE END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:62]Sql syntax error: invalid expression
+SQL> select (CUSTOMER_ID + case WHEN credit > 1990 THEN 2000 END ELSE) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:61]Sql syntax error: the word "ELSE" is not correct
+SQL> select (CUSTOMER_ID + case WHEN credit > 1990 THEN 2000 END WHEN) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:61]Sql syntax error: the word "WHEN" is not correct
+SQL> select (CUSTOMER_ID + case WHEN credit > 1990 THEN 2000 END END) from customer ORDER BY cust_last_name, credit;
+
+CT-00601, [1:61]Sql syntax error: the word "END" is not correct
+SQL> drop table customer;
+
+Succeed.
+
+SQL> 
+SQL> CREATE TABLE customer
+  2 (CUSTOMER_ID NUMBER(6,0), 
+  3  CUST_FIRST_NAME  VARCHAR2(20) default case 1 when 1 then 'ABC' end , 
+  4  CREDIT_LIMIT INTEGER
+  5 );
+
+Succeed.
+
+SQL> drop table customer;
+
+Succeed.
+
+SQL> -- the text for to_char
+SQL> select to_char(to_timestamp('2014-04-04 04:04:04.040404', 'YYYY-MM-DD HH24:MI:SS.FF'), 'YYYY-MM-DD"T"HH24:MI:SS') from dual;
+
+TO_CHAR(TO_TIMESTAMP('2014-04-04 04:04:04.040404', 'YYYY-MM-DD H
+----------------------------------------------------------------
+2014-04-04T04:04:04                                             
+
+1 rows fetched.
+
+SQL> select to_char(to_timestamp('2014-04-04 04:04:04.040404', 'YYYY-MM-DD HH24:MI:SS.FF'), 'YYYY-MM-DD"T""T"HH24:MI:SS') from dual;
+
+TO_CHAR(TO_TIMESTAMP('2014-04-04 04:04:04.040404', 'YYYY-MM-DD H
+----------------------------------------------------------------
+2014-04-04TT04:04:04                                            
+
+1 rows fetched.
+
+SQL> select to_char(to_timestamp('2014-04-04 04:04:04.040404', 'YYYY-MM-DD HH24:MI:SS.FF'), 'YYYY-MM-DD"X123123123123123123123X"HH24:MI:SS') from dual;
+
+TO_CHAR(TO_TIMESTAMP('2014-04-04 04:04:04.040404', 'YYYY-MM-DD H
+----------------------------------------------------------------
+2014-04-04X123123123123123123123X04:04:04                       
+
+1 rows fetched.
+
+SQL> select to_char(to_timestamp('2014-04-04 04:04:04.040404', 'YYYY-MM-DD HH24:MI:SS.FF'), 'YYYY-MM-DD"-- I LOVE CHINA --"HH24:MI:SS') from dual;
+
+TO_CHAR(TO_TIMESTAMP('2014-04-04 04:04:04.040404', 'YYYY-MM-DD H
+----------------------------------------------------------------
+2014-04-04-- I LOVE CHINA --04:04:04                            
+
+1 rows fetched.
+
+SQL> select to_char(to_timestamp('2014-04-04 04:04:04.040404', 'YYYY-MM-DD HH24:MI:SS.FF'), 'YYYY-MM-DD"select * from dual"HH24:MI:SS') from dual;
+
+TO_CHAR(TO_TIMESTAMP('2014-04-04 04:04:04.040404', 'YYYY-MM-DD H
+----------------------------------------------------------------
+2014-04-04select * from dual04:04:04                            
+
+1 rows fetched.
+
+SQL> select to_char(to_timestamp('2018-06-07 x 11:40:30', 'YYYY-MM-DD"    x "HH24:MI:SS'), 'YYYY-MM-DD HH24:MI:SS.FF') from dual;
+
+TO_CHAR(TO_TIMESTAMP('2018-06-07 X 11:40:30', 'YYYY-MM-DD"    X 
+----------------------------------------------------------------
+2018-06-07 11:40:30.000000                                      
+
+1 rows fetched.
+
+SQL> select to_char(to_timestamp('2018-06-07 x 11:40:30', 'YYYY-MM-DD"    x "HH24:MI:SS'), 'YYYY-MM-DD "   x " HH24:MI:SS.FF') from dual;
+
+TO_CHAR(TO_TIMESTAMP('2018-06-07 X 11:40:30', 'YYYY-MM-DD"    X 
+----------------------------------------------------------------
+2018-06-07    x  11:40:30.000000                                
+
+1 rows fetched.
+
+SQL> 
+SQL> -- the format text for to_timestamp
+SQL> select to_timestamp('""2014-04-04 04:04:04.040404', '""YYYY-MM-DD HH24:MI:SS.FF') from dual;
+
+CT-00105, [1:8]Invalid format of datetime
+SQL> select to_timestamp('2014-04-04 04:04:04.040404', '""YYYY-MM-DD HH24:MI:SS.FF') from dual;
+
+TO_TIMESTAMP('2014-04-04 04:04:04.040404', '""YYYY-MM-DD HH24:MI
+----------------------------------------------------------------
+2014-04-04 04:04:04.040404                                      
+
+1 rows fetched.
+
+SQL> select to_timestamp('00002014-04-04 04:04:04.040404', '"0000"YYYY-MM-DD HH24:MI:SS.FF') from dual;
+
+TO_TIMESTAMP('00002014-04-04 04:04:04.040404', '"0000"YYYY-MM-DD
+----------------------------------------------------------------
+2014-04-04 04:04:04.040404                                      
+
+1 rows fetched.
+
+SQL> select to_timestamp('20182014-04-04 04:04:04.040404', '"2018"YYYY-MM-DD HH24:MI:SS.FF') from dual;
+
+TO_TIMESTAMP('20182014-04-04 04:04:04.040404', '"2018"YYYY-MM-DD
+----------------------------------------------------------------
+2014-04-04 04:04:04.040404                                      
+
+1 rows fetched.
+
+SQL> select to_timestamp('20182014-04-04 04:04:04.040404', 'YYYY"2014"-MM-DD HH24:MI:SS.FF') from dual;
+
+TO_TIMESTAMP('20182014-04-04 04:04:04.040404', 'YYYY"2014"-MM-DD
+----------------------------------------------------------------
+2018-04-04 04:04:04.040404                                      
+
+1 rows fetched.
+
+SQL> select to_timestamp('YYYY2018-04-04 04:04:04.040404', '"YYYY"YYYY-MM-DD HH24:MI:SS.FF') from dual;
+
+TO_TIMESTAMP('YYYY2018-04-04 04:04:04.040404', '"YYYY"YYYY-MM-DD
+----------------------------------------------------------------
+2018-04-04 04:04:04.040404                                      
+
+1 rows fetched.
+
+SQL> select to_timestamp('2018-06-0711:40:30', 'YYYY-MM-DD""HH24:MI:SS') from dual;
+
+TO_TIMESTAMP('2018-06-0711:40:30', 'YYYY-MM-DD""HH24:MI:SS')
+------------------------------------------------------------
+2018-06-07 11:40:30.000000                                  
+
+1 rows fetched.
+
+SQL> select to_timestamp('2018 - 06-0711:40:30', 'YYYY-MM-DD""HH24:MI:SS') from dual;
+
+TO_TIMESTAMP('2018 - 06-0711:40:30', 'YYYY-MM-DD""HH24:MI:SS')
+--------------------------------------------------------------
+2018-06-07 11:40:30.000000                                    
+
+1 rows fetched.
+
+SQL> 
+SQL> select 1 from dual where to_timestamp('YYYY2018-04-04 04:04:04.040404', '"YYYY"YYYY-MM-DD HH24:MI:SS.FF') = to_timestamp('2018-04-04 04:04:04.040404', 'YYYY-MM-DD HH24:MI:SS.FF');
+
+1           
+------------
+1           
+
+1 rows fetched.
+
+SQL> select 1 from dual where to_timestamp('mm2018-04-04 04:04:04.040404', '"MM"YYYY-MM-DD HH24:MI:SS.FF') = to_timestamp('2018-04-04 04:04:04.040404', 'YYYY-MM-DD HH24:MI:SS.FF');
+
+1           
+------------
+1           
+
+1 rows fetched.
+
+SQL> select 1 from dual where to_timestamp('mm2018-04-04 04:04:04.040404ff', '"MM"YYYY-MM-DD HH24:MI:SS.FF"FF"') = to_timestamp('2018-04-04 04:04:04.040404', 'YYYY-MM-DD HH24:MI:SS.FF');
+
+1           
+------------
+1           
+
+1 rows fetched.
+
+SQL> 
+SQL> -- The space is allowed when parsing a datetime text
+SQL> select to_timestamp('2018 - 06-0711:40:30', 'YYYY-MM-DDHH24:MI:SS') from dual;
+
+TO_TIMESTAMP('2018 - 06-0711:40:30', 'YYYY-MM-DDHH24:MI:SS')
+------------------------------------------------------------
+2018-06-07 11:40:30.000000                                  
+
+1 rows fetched.
+
+SQL> 
+SQL> select 1 from dual where to_timestamp('2014-04-04 04:04:04.040404', 'YYYY-MM-DD HH24:MI:SS.FF') < current_timestamp(3 + 1);
+
+1           
+------------
+1           
+
+1 rows fetched.
+
+SQL> select 1 from dual where to_timestamp('2014-04-04 04:04:04.040404', 'YYYY-MM-DD HH24:MI:SS.FF') < current_timestamp();
+
+1           
+------------
+1           
+
+1 rows fetched.
+
+SQL> select 1 from dual where to_timestamp('2000-04-04 04:04:04.040404', 'YYYY-MM-DD HH24:MI:SS.FF') < current_timestamp(2);
+
+1           
+------------
+1           
+
+1 rows fetched.
+
+SQL> select 1 from dual where to_timestamp('2000-04-04 04:04:04.040404', 'YYYY-MM-DD HH24:MI:SS.FF') < current_timestamp(6);
+
+1           
+------------
+1           
+
+1 rows fetched.
+
+SQL> 
+SQL> --DTS2018071200658
+SQL> drop table if exists test_groupby;
+
+Succeed.
+
+SQL> create table test_groupby(a int, b int, c int);
+
+Succeed.
+
+SQL> insert into test_groupby values(1,2,3);
+
+1 rows affected.
+
+SQL> insert into test_groupby values(2,2,2);
+
+1 rows affected.
+
+SQL> insert into test_groupby values(2,2,2);
+
+1 rows affected.
+
+SQL> insert into test_groupby values(3,2,2);
+
+1 rows affected.
+
+SQL> select * from test_groupby;
+
+A            B            C           
+------------ ------------ ------------
+1            2            3           
+2            2            2           
+2            2            2           
+3            2            2           
+
+4 rows fetched.
+
+SQL> select a,b,case when c > 0 then 1 else 0 end as d from test_groupby group by a,b,c order by 1,2,3;
+
+A            B            D           
+------------ ------------ ------------
+1            2            1           
+2            2            1           
+3            2            1           
+
+3 rows fetched.
+
+SQL> drop table test_groupby;
+
+Succeed.
+
+SQL> 
+SQL> 
+SQL> create view ma5600tv8_PORT_DUMP_VIEW 
+  2  as select 'Port' as Type, b.Name as NE_ID,CONCAT(b.Name,'-',SUBSTR(a.Name,1,instr(a.Name,'/') -1)) as SHELF_ID,a.ID2 as Slot,a.ID4 as Port_Name, c.Alias as Description, 
+  3 case((select count(*) 
+  4       from ma5600tv8_pvc_SrvFlowTrafNameVw d
+  5       where isDefaultName <>  1  and  (a.ID1 = d.DstResID1 and a.ID2 = d.DstResID2 and a.ID4 = d.DstResID3 and a.ID0 = d.DevID))) when 0 then 'DOWN' else 'UP' end as Status
+  6 from bms_gdm_ObjectTab a left join bms_res_ptp c on (a.ID0 = c.ID0 and a.ID1 = c.ID1 and a.ID2 = c.ID2 and a.ID3 = c.ID3 and a.ID4 = c.ID4),bms_gdm_DeviceTab b 
+  7 where a.ID0 = b.ID and a.MainType = 6 and b.Type = 41;
+
+CT-00843, [6:6]The table or view SYS.BMS_GDM_OBJECTTAB does not exist.
+SQL> 
+SQL> drop table if exists tbl_Qos_Behavior;
+
+Succeed.
+
+SQL> create table tbl_Qos_Behavior 
+  2 (
+  3    id INT  DEFAULT  -1 not null,
+  4    iDevID INT DEFAULT  -1 not null  ,
+  5    strName VARCHAR(64)   DEFAULT  '--' not null,
+  6    iDefType INT  DEFAULT  -1 not null,
+  7    iPermitVal INT   DEFAULT  -1 not null,
+  8    strActFilt VARCHAR(16)   DEFAULT  '--' not null,
+  9    strCarCirVal VARCHAR(50)   DEFAULT  '--' not null,
+ 10    strCarPirVal VARCHAR(50) not null  DEFAULT  '--',
+ 11    strCarCbsVal VARCHAR(50) not null  DEFAULT  '--',
+ 12    strCarPbsVal VARCHAR(50) not null  DEFAULT  '--',
+ 13    iCarGreenAct INT not null  DEFAULT  -1,
+ 14    iGreenActClsVal INT not null  DEFAULT  -1,
+ 15    iGreenActClsColVal INT not null  DEFAULT  -1,
+ 16    iGreenActionRmkDscpVal INT not null  DEFAULT  -1,
+ 17    iGreenActionRmkMplsVal INT not null  DEFAULT  -1,
+ 18    iGreenActionRmkIpPrecVal INT not null  DEFAULT  -1,
+ 19    iCarYellowAct INT not null  DEFAULT  -1,
+ 20    iYellowActClsVal INT not null  DEFAULT  -1,
+ 21    iYellowActClsColVal INT not null  DEFAULT  -1,
+ 22    iYellowActionRmkDscpVal INT not null  DEFAULT  -1,
+ 23    iYellowActionRmkMplsVal INT not null  DEFAULT  -1,
+ 24    iYellowActionRmkIpPrecVal INT not null  DEFAULT  -1,
+ 25    iCarRedAct INT not null  DEFAULT  -1,
+ 26    iRedActClsVal INT not null  DEFAULT  -1,
+ 27    iRedActClsColVal INT not null  DEFAULT  -1,
+ 28    iRedActionRmkDscpVal INT not null  DEFAULT  -1,
+ 29    iRedActionRmkMplsVal INT not null  DEFAULT  -1,
+ 30    iRedActionRmkIpPrecVal INT not null  DEFAULT  -1,
+ 31    iCarSummary INT not null  DEFAULT  -1,
+ 32    iRmkIpPreVal INT not null  DEFAULT  -1,
+ 33    iRmk8021pVal INT not null  DEFAULT  -1,
+ 34    iRmkDscpVal INT not null  DEFAULT  -1,
+ 35    iRmkMplsExpVal INT not null  DEFAULT  -1,
+ 36    iRmkProtocol INT not null  DEFAULT  -1,
+ 37    iRmkLocalPrecedenceVal INT not null  DEFAULT  -1,
+ 38    strRmkDestMac VARCHAR(50) not null  DEFAULT  '--',
+ 39    strNhpIp VARCHAR(50) not null  DEFAULT  '--',
+ 40    strNhpIf VARCHAR(50) not null  DEFAULT  '--',
+ 41    iVlanID INT not null  DEFAULT  -1,
+ 42    strMultiNhpIp1 VARCHAR(50) not null  DEFAULT  '--',
+ 43    strMultiNhpIf1 VARCHAR(50) not null  DEFAULT  '--',
+ 44    strMultiNhpIp2 VARCHAR(50) not null  DEFAULT  '--',
+ 45    strMultiNhpIf2 VARCHAR(50) not null  DEFAULT  '--',
+ 46    strMultiNhpIp3 VARCHAR(50) not null  DEFAULT  '--',
+ 47    strMultiNhpIf3 VARCHAR(50) not null  DEFAULT  '--',
+ 48    strMultiNhpIp4 VARCHAR(50) not null  DEFAULT  '--',
+ 49    strMultiNhpIf4 VARCHAR(50) not null  DEFAULT  '--',
+ 50    strLspDesIp VARCHAR(50) not null  DEFAULT  '--',
+ 51    strLspNhpIp VARCHAR(50) not null  DEFAULT  '--',
+ 52    strLspIf VARCHAR(50) not null  DEFAULT  '--',
+ 53    iLspSecondary INT not null  DEFAULT  -1,
+ 54    strRdcSI VARCHAR(50) not null  DEFAULT  '--',
+ 55    iRdcCp INT not null  DEFAULT  -1,
+ 56    iUrpfType INT not null  DEFAULT  -1,
+ 57    iUrpfDefault INT not null  DEFAULT  -1,
+ 58    iObsportIndex INT not null  DEFAULT  -1,
+ 59    iPortMirrEnable INT not null  DEFAULT  -1,
+ 60    iServClsVal INT not null  DEFAULT  -1,
+ 61    iServClsColVal INT not null  DEFAULT  -1,
+ 62    iLoadBalance INT not null  DEFAULT  -1,
+ 63    iDenyPacLenType INT not null  DEFAULT  -1,
+ 64    iDenyPacLenVal INT not null  DEFAULT  -1,
+ 65    iDenyMaxPacLenval INT not null  DEFAULT  -1,
+ 66    iTrafficStatistic INT not null  DEFAULT  -1,
+ 67    iRandomDiscard INT not null  DEFAULT  -1,
+ 68    iTrafStaSummary INT not null  DEFAULT  -1,
+ 69    iDropPreHigh INT not null  DEFAULT  -1,
+ 70    iDpi INT not null  DEFAULT  -1,
+ 71    iHitCount INT not null  DEFAULT  -1,
+ 72    iMainType INT not null  DEFAULT  -1,
+ 73    iSubType INT not null  DEFAULT  -1,
+ 74    strCirThreshold VARCHAR(50) not null  DEFAULT  '--',
+ 75    strPirThreshold VARCHAR(50) not null  DEFAULT  '--',
+ 76    iCarShare INT not null  DEFAULT  -1,
+ 77    iAggregation INT not null  DEFAULT  -1,
+ 78    iGreenActionRmk8021pVal INT not null  DEFAULT  -1,
+ 79    iYellowActionRmk8021pVal INT not null  DEFAULT  -1,
+ 80    iRedActionRmk8021pVal INT not null  DEFAULT  -1,
+ 81    strVPNGroup VARCHAR(64) not null  DEFAULT  '--',
+ 82    strCir VARCHAR(128) not null  DEFAULT  '--',
+ 83    strPir VARCHAR(128) not null  DEFAULT  '--',
+ 84    strFlowQueue VARCHAR(128) not null  DEFAULT  '--',
+ 85    strFlowMapping VARCHAR(128) not null  DEFAULT  '--',
+ 86    strUserGroup VARCHAR(128) not null  DEFAULT  '--',
+ 87    strSvcTmp VARCHAR(128) not null  DEFAULT  '--',
+ 88    ProfileMD5 VARCHAR(64) not null  DEFAULT  '--',
+ 89    strRemoteMirrorIns VARCHAR(31) not null  DEFAULT  '--',
+ 90    strRemoteMirrorCir VARCHAR(10) not null  DEFAULT  '--',
+ 91    strVSIName VARCHAR(31) not null  DEFAULT  '--',
+ 92    iColorAware INT not null  DEFAULT  -1,
+ 93    strVRFName VARCHAR(31) not null  DEFAULT  '--' 
+ 94 );
+
+Succeed.
+
+SQL> drop index if exists index_Qos_Behavior on tbl_Qos_Behavior;
+
+Succeed.
+
+SQL> create unique index index_Qos_Behavior 
+  2 on tbl_Qos_Behavior
+  3 (id, 
+  4 iDevID, 
+  5 strName);
+
+Succeed.
+
+SQL> drop table if exists tbl_R_Qos_Pf_BehaviorInfo;
+
+Succeed.
+
+SQL> create table tbl_R_Qos_Pf_BehaviorInfo 
+  2 (
+  3    ProfileName VARCHAR(255) not null,
+  4    ProfileAlias VARCHAR(100),
+  5    LocalKey INT   AUTO_INCREMENT UNIQUE,
+  6    ProfileType INT not null  DEFAULT  -1,
+  7    iFirewall INT not null  DEFAULT  -1,
+  8    ProfileMD5 VARCHAR(32) not null  DEFAULT  '--',
+  9    CONSTRAINT PK_TBL_R_QOS_PF_BEHAVIORINFO PRIMARY KEY(ProfileName)   
+ 10 );
+
+Succeed.
+
+SQL> 
+SQL> drop view if exists tbl_R_Qos_Pf_BehaviorInfoNE;
+
+Succeed.
+
+SQL>  create view tbl_R_Qos_Pf_BehaviorInfoNE
+  2 (DevID, ProfileName, ProfileMD5, iSame)
+  3 as 
+  4 select LP.iDevID, LP.strName, LP.ProfileMD5,
+  5 case GP.ProfileMD5 when LP.ProfileMD5 then 1 else 2 end as iSame
+  6 from tbl_R_Qos_Pf_BehaviorInfo GP, (select iDevID, strName, ProfileMD5
+  7    from tbl_Qos_Behavior)  LP
+  8 where GP.ProfileName = LP.strName; 
+
+Succeed.
+
+SQL> 
+SQL> drop view if exists view_R_Qos_Pf_BehaviorInfo;
+
+Succeed.
+
+SQL>  create view view_R_Qos_Pf_BehaviorInfo
+  2 (ProfileName, ProfileAlias, LocalKey, ProfileType, iFirewall, ProfileMD5, iSame)
+  3 as
+  4 select GP.ProfileName, GP.ProfileAlias, GP.LocalKey, GP.ProfileType, GP.iFirewall, GP.ProfileMD5,
+  5 case when count(DISTINCT GP.ProfileMD5) > 1 then 2 
+  6 when count(DISTINCT GP.ProfileMD5) = 1 then case GP.ProfileMD5 when max(GP.ProfileMD5) then 1 else 2 end
+  7 when count(DISTINCT GP.ProfileMD5) = 0 then 1 end as iSame
+  8 from tbl_R_Qos_Pf_BehaviorInfo GP left join tbl_R_Qos_Pf_BehaviorInfoNE LP
+  9 on GP.ProfileName = LP.ProfileName
+ 10 group by GP.ProfileName,GP.ProfileAlias,GP.LocalKey,GP.ProfileType,GP.iFirewall, 
+ 11 GP.ProfileMD5; 
+
+Succeed.
+
+SQL> 
+SQL> drop index index_Qos_Behavior on tbl_Qos_Behavior;
+
+Succeed.
+
+SQL> drop view  tbl_R_Qos_Pf_BehaviorInfoNE;
+
+Succeed.
+
+SQL> drop view  view_R_Qos_Pf_BehaviorInfo;
+
+Succeed.
+
+SQL> drop table tbl_Qos_Behavior;
+
+Succeed.
+
+SQL> drop table tbl_R_Qos_Pf_BehaviorInfo;
+
+Succeed.
+
+SQL> 
+SQL> select convert((case(cast(1 as int) & 2) when 0 then 1 else 2 end) / 2, int);
+
+CONVERT((CASE(CAST(1 AS INT) & 2) WHEN 0 THEN 1 ELSE 2 END) / 2,
+----------------------------------------------------------------
+1                                                               
+
+1 rows fetched.
+
+SQL> select convert((case(cast(1 as int) & 1) when (cast(1 as int) & 1) then (case (1) when (1) then (1) else (0) end) else (cast (3 as int) & 3) end) / 2, int);
+
+CONVERT((CASE(CAST(1 AS INT) & 1) WHEN (CAST(1 AS INT) & 1) THEN
+----------------------------------------------------------------
+1                                                               
+
+1 rows fetched.
+
+SQL> 
+SQL> drop table if exists tTENE;
+
+Succeed.
+
+SQL> create table tTENE 
+  2 (
+  3    PID INT,
+  4    cAutoSync TINYINT ,
+  5    cBuildTime INT,
+  6    cCodeSet TINYINT ,
+  7    cConfigState TINYINT ,
+  8    cCreater VARCHAR(512),
+  9    cEnableIntelligence TINYINT ,
+ 10    cID INT not null,
+ 11    cLastDBCHGSEQ DECIMAL(20,0),
+ 12    cLastSyncTime DECIMAL(20,0),
+ 13    cLocationName VARCHAR(512),
+ 14    cMemo VARCHAR(512),
+ 15    cNEFlags INT,
+ 16    cNEID DECIMAL(20,0),
+ 17    cNEMac VARCHAR(512),
+ 18    cNE_ATTRIB_TimeDivision INT,
+ 19    cName VARCHAR(512),
+ 20    cNamingRuleType INT,
+ 21    cOwner VARCHAR(512),
+ 22    cPatchVerList VARCHAR(512),
+ 23    cPfmMonEndTime15m INT,
+ 24    cPfmMonEndTime24h INT,
+ 25    cPfmMonNeverStop15m TINYINT ,
+ 26    cPfmMonNeverStop24h TINYINT ,
+ 27    cPfmMonStartTime15m INT,
+ 28    cPfmMonStartTime24h INT,
+ 29    cPfmMonitor15m TINYINT ,
+ 30    cPfmMonitor24h TINYINT ,
+ 31    cPhyID DECIMAL(20,0),
+ 32    cPreConfig TINYINT ,
+ 33    cRackType INT,
+ 34    cSCBMode TINYINT ,
+ 35    cShelfType INT,
+ 36    cSyncNumber DECIMAL(20,0),
+ 37    cSyncState DECIMAL(20,0),
+ 38    cType DECIMAL(10,0),
+ 39    cUserLabel VARCHAR(512),
+ 40    cVRCBVer VARCHAR(512),
+ 41    cVersion DECIMAL(20,0),
+ 42    PRIMARY KEY  
+ 43 (cID)   
+ 44 );
+
+Succeed.
+
+SQL> drop index if exists idx_TENE_DevID on tTENE;
+
+Succeed.
+
+SQL> create unique index idx_TENE_DevID 
+  2 on tTENE
+  3 (cNEID);
+
+Succeed.
+
+SQL> drop index if exists idx_TENE_PhyID on tTENE;
+
+Succeed.
+
+SQL> create index idx_TENE_PhyID 
+  2 on tTENE
+  3 (cPhyID);
+
+Succeed.
+
+SQL> 
+SQL> SELECT 
+  2 cNEID, 
+  3 cType,
+  4 cShelfType,
+  5 CASE WHEN tTENE.cVRCBVer is NULL or tTENE.cVRCBVer = '/' or tTENE.cVRCBVer = '--' or (tTENE.cVRCBVer not like '%V%')
+  6 THEN(CONCAT(CONVERT(mod(tTENE.cVersion/(256*256*256),256),CHAR(3)),'.',CONVERT(mod(tTENE.cVersion/(256*256),256),CHAR(3)),'.',CONVERT(mod(tTENE.cVersion/256,256),CHAR(3)),'.',CONVERT(mod(cast(tTENE.cVersion as  INTEGER),256),CHAR(3))))
+  7 ELSE tTENE.cVRCBVer END AS strOsVersion FROM tTENE group by cType,cNEID,cShelfType,cVRCBVer,cVersion;
+
+CNEID                                    CTYPE                                    CSHELFTYPE   STROSVERSION                                                    
+---------------------------------------- ---------------------------------------- ------------ ----------------------------------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> 
+SQL> drop table if exists tTENASubrack;
+
+Succeed.
+
+SQL> create table tTENASubrack 
+  2 (
+  3    Flag VARCHAR(512),
+  4    PID INT,
+  5    cID INT not null,
+  6    cServiceType DECIMAL(20,0),
+  7    cServiceTypeCount INT,
+  8    cSubrackFIC VARCHAR(512),
+  9    cSubrackID DECIMAL(10,0),
+ 10    cSubrackName VARCHAR(512),
+ 11    cSubrackType DECIMAL(20,0),
+ 12    cXCCapacity DECIMAL(20,0),
+ 13    cXCCapacityCount INT 
+ 14 );
+
+Succeed.
+
+SQL> create index IndextTENASubrack 
+  2 on tTENASubrack
+  3 (PID);
+
+Succeed.
+
+SQL> 
+SQL> SELECT
+  2 tTENE.cType,
+  3   tTENE.cNEID,
+  4   cast(tTENASubrack.cSubrackType as  INTEGER) AS cShelfType,
+  5   CAST(CASE WHEN tTENE.cVRCBVer is NULL or tTENE.cVRCBVer = '/' or tTENE.cVRCBVer = '--' or (tTENE.cVRCBVer not like '%V%')
+  6 THEN(CONCAT(CAST(mod(cast(tTENE.cVersion/(256*256*256) as  INTEGER),256) AS CHAR(3)),'.',CAST(mod(cast(tTENE.cVersion/(256*256) as  INTEGER),256) AS CHAR(3)),'.',CAST(mod(cast(tTENE.cVersion/256 as  INTEGER),256) AS CHAR(3)),
+  7    '.',CAST(mod(cast(tTENE.cVersion as  INTEGER),256) AS CHAR(3))))
+  8 ELSE tTENE.cVRCBVer END AS CHAR(128)) AS strOsVersion
+  9 FROM tTENASubrack,tTENE;
+
+CTYPE                                    CNEID                                    CSHELFTYPE   STROSVERSION                                                    
+---------------------------------------- ---------------------------------------- ------------ ----------------------------------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> drop index idx_TENE_DevID on tTENE;
+
+Succeed.
+
+SQL> drop index idx_TENE_PhyID on tTENE;
+
+Succeed.
+
+SQL> drop table tTENE;
+
+Succeed.
+
+SQL> drop index IndextTENASubrack on tTENASubrack;
+
+Succeed.
+
+SQL> drop table tTENASubrack;
+
+Succeed.
+
+SQL> 
+SQL> --begin:DTS2018072601365 
+SQL> drop table if exists zsharding_tbl1;
+
+Succeed.
+
+SQL> create table zsharding_tbl1(c_id int, c_char char(55), c_varchar varchar(55));
+
+Succeed.
+
+SQL> insert into zsharding_tbl1 values(1,'Fluffy','Fluffy');
+
+1 rows affected.
+
+SQL> select C_ID,c_varchar from zsharding_tbl1 where regexp_like(c_varchar,'ffy****') order by 1;
+
+CT-00681, Regular expression compiling error, errloc=4, errmsg=[quantifier does not follow a repeatable item]
+SQL>
+SQL> drop table if exists zsharding_tbl12;
+
+Succeed.
+
+SQL> create table zsharding_tbl12(c_id int, c_clob clob, c_date date);
+
+Succeed.
+
+SQL> insert into zsharding_tbl12 values(1,'Fluffy',TO_DATE('2018-06-28 13:14:15', 'YYYY-MM-DD HH24:MI:SS'));
+
+1 rows affected.
+
+SQL> select regexp_substr(c_date,'18') from zsharding_tbl12 order by 1;
+
+CT-00606, [1:8]Inconsistent datatypes, expected VARCHAR - got DATE
+SQL> --end:DTS2018072601365 
+SQL> 
+SQL> -- regexp error code should not overwrite sql parser error.
+SQL> drop table if exists nls_error_t;
+
+Succeed.
+
+SQL> create table nls_error_t(c1 int, c2 int);
+
+Succeed.
+
+SQL> select 
+  2     c1, 
+  3     REGEXP_COUNT(CAST('K(%`$!Qdnsr0Lzw;<Vv[:$GEbL8s60BcxiUjlXhP*7u:216??l' AS VARCHAR(100)), CAST('|f;/sc{g~HQg=fMO?VW;=?h,^$zhoLU+5XAi:1Z2U6It{CEA*L' AS VARCHAR(100))),
+SQL>     c3
+  2 from nls_error_t;
+
+CT-00601, [4:1]Sql syntax error: invalid column name 'C3'
+SQL> 
+SQL> create or replace function GetBigintFromHex (
+  2     v_HexNum in varchar2  )
+  3 return number 
+  4 is
+  5     v_IntNum number(19,0) ;
+  6     v_Pos number(10, 0) ;
+  7     v_j number(10, 0) ;
+  8 begin
+  9     v_IntNum := 0;
+ 10     v_Pos := 0;
+ 11     v_j :=  length(v_HexNum) - 2;
+ 12     while v_Pos < v_j
+ 13     loop 
+ 14         begin
+ 15             v_IntNum := v_IntNum +  power(16, v_Pos) * (case ( ( ( right( substr(v_HexNum, 3, v_j - v_Pos), 1)) )) when '0' then 0 when '1' then 1 when '2' then 2 when '3' then 3 when '4' then 4 when '5' then 5 when '6' then 6 when '7' then 7 when '8' then 8 when '9' then 9 when 'a' then 10 when 'b' then 11 when 'c' then 12 when 'd' then 13 when 'e' then 14 when 'f' then 15 when 'A' then 10 when 'B' then 11 when 'C' then 12 when 'D' then 13 when 'E' then 14 when 'F' then 15 end);
+ 16             v_Pos := v_Pos + 1;
+ 17         end;
+ 18     end loop;
+ 19 
+ 20     return v_IntNum;
+ 21 end;
+ 22 /
+
+Succeed.
+
+SQL> 
+SQL> select GetBigintFromHex('0xFF');
+
+GETBIGINTFROMHEX('0XFF')                
+----------------------------------------
+255                                     
+
+1 rows fetched.
+
+SQL> drop function GetBigintFromHex;
+Succeed.
+
+
+
+

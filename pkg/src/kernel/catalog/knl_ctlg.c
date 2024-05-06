@@ -634,9 +634,17 @@ status_t db_build_sys_user(knl_session_t *session, knl_cursor_t *cursor)
             cm_pop(session->stack);
             return CT_ERROR;
         }
+    }
+
+    if (session->kernel->attr.enable_upper_case_names) {
+        if (sys_user_row_put(session, cursor, &ra, 3, "CANTIAN", cipher) != CT_SUCCESS) {
+            cm_pop(session->stack);
+            return CT_ERROR;
+        }
+    } else {
         if (sys_user_row_put(session, cursor, &ra, 3, "cantian", cipher) != CT_SUCCESS) {
             cm_pop(session->stack);
-            return CT_ERROR;            
+            return CT_ERROR;
         }
     }
 

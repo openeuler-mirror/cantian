@@ -1,7 +1,7 @@
 #!/bin/sh
 DIR_PATH=$(cd `dirname $0`;pwd)
 code_path=$(cd ${DIR_PATH}/../../;pwd)
-regress_path=${code_path}/pkg/test/gs_regress
+regress_path=${code_path}/pkg/test/ct_regress
 script_path=${code_path}/CI/script
 mkdir /home/cantiandba/tmp -p
 tmp_file_path=/home/cantiandba/tmp
@@ -105,7 +105,7 @@ init_and_start_cms2()
     nohup su - cantiandba -c 'cms server -start' >> $report_file  2>&1 &
 }
 
-init_gs_regress()
+init_ct_regress()
 {
     log "=============== Initialize the Regression Program =============="
     kill_cantiandb
@@ -433,7 +433,7 @@ main()
 
     echo "test_list is ${test_list}"
 
-    init_gs_regress
+    init_ct_regress
     make_code
     install_cantiandb
     #run_ctbox_test

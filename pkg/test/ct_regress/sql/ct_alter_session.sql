@@ -1,0 +1,29 @@
+--_alter session optinfo_log
+alter session enable optinfo_log;
+alter session enable optinfo_log;
+alter session disable OPTINFO_LOG;
+alter session disable OPTINFO_LOG;
+alter session ENABLE NOLOGGING aa;
+alter session ENABLE NOLOGGING ..rr;
+alter session ENABLE TRIGGERS rrrrr;
+alter session DISABLE TRIGGERS rrrrr;
+alter session ENABLE INTERACTIVE TIMEOUT sfdf;
+alter session DISABLE INTERACTIVE TIMEOUT sfdf;
+alter session ENABLE OPTINFO_LOG sfdf;
+alter session DISABLE OPTINFO_LOG sfdf;
+
+ALTER DATABASE ENABLE_LOGIC_REPLICATION OFF;
+ALTER SYSTEM SET ARCH_TIME=100000;
+show parameter arch_time;
+ALTER SYSTEM ARCHIVE_SET ARCH_TIME=200000 LOCAL;
+show parameter arch_time;
+ALTER SYSTEM ARCHIVE_SET ARCH_TIME=300000 GLOBAL;
+show parameter arch_time;
+ALTER DATABASE ENABLE_LOGIC_REPLICATION ON;
+ALTER SYSTEM ARCHIVE_SET ARCH_TIME=400000 LOCAL;
+ALTER SYSTEM ARCHIVE_SET ARCH_TIME=500000 GLOBAL;
+ALTER SYSTEM SET ARCH_TIME=600000;
+ALTER DATABASE ENABLE_LOGIC_REPLICATION OFF;
+show parameter arch_time;
+ ALTER SYSTEM ARCHIVE_SET ARCH_TIME=700000 SCOPE=MEMORY LOCAL;
+ show parameter arch_time;

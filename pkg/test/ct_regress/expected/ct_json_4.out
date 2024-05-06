@@ -1,0 +1,358 @@
+
+
+SQL> --dv_mem_stats include json dynamic buffer 
+SQL> select name from dv_mem_stats where name = 'json_dyn_buf';
+
+NAME                
+--------------------
+json_dyn_buf        
+
+1 rows fetched.
+
+SQL> 
+SQL> --json parameter
+SQL> show parameter _MAX_JSON_DYNAMIC_BUFFER_SIZE;
+
+NAME                                                             DATATYPE             VALUE                                                            RUNTIME_VALUE                                                    EFFECTIVE           
+---------------------------------------------------------------- -------------------- ---------------------------------------------------------------- ---------------------------------------------------------------- --------------------
+_MAX_JSON_DYNAMIC_BUFFER_SIZE                                    CT_TYPE_INTEGER      1G                                                               1G                                                               immediately         
+
+
+SQL> 
+SQL> --_MAX_JSON_LEVEL is in [1M, 32T]
+SQL> alter system set _MAX_JSON_DYNAMIC_BUFFER_SIZE = 0.1M;
+
+CT-00636, [1:50]Invalid number 
+SQL> 
+SQL> --test single json array object, more than 1M
+SQL> drop table if exists LOAD_CLOB_TABLE;
+
+Succeed.
+
+SQL> create TABLE LOAD_CLOB_TABLE(
+  2 	c1         clob
+  3 );
+
+Succeed.
+
+SQL> load data infile "./data/json_data_array.dat" into table LOAD_CLOB_TABLE
+  2 fields enclosed by '`' 
+  3 fields terminated by ',' 
+  4 lines terminated by '\n'
+  5 ignore 0 lines;
+1 rows have been committed.
+
+Complete the data load.
+totally read rows: 1
+     ignored rows: 0
+      loaded rows: 1
+   committed rows: 1
+       error rows: 0
+        skip rows: 0
+SQL> select length(c1) from load_clob_table;
+
+LENGTH(C1)          
+--------------------
+1265697             
+
+1 rows fetched.
+
+SQL> select 1 from LOAD_CLOB_TABLE where c1 is json;
+
+1           
+------------
+1           
+
+1 rows fetched.
+
+SQL> drop table if exists LOAD_CLOB_TABLE;
+
+Succeed.
+
+SQL> 
+SQL> --test json level object, more than 32
+SQL> drop table if exists LOAD_CLOB_TABLE;
+
+Succeed.
+
+SQL> create TABLE LOAD_CLOB_TABLE(
+  2 	c1         clob
+  3 );
+
+Succeed.
+
+SQL> load data infile "./data/json_data_level.dat" into table LOAD_CLOB_TABLE
+  2 fields enclosed by '`' 
+  3 fields terminated by ',' 
+  4 lines terminated by '\n'
+  5 ignore 0 lines;
+1 rows have been committed.
+
+Complete the data load.
+totally read rows: 1
+     ignored rows: 0
+      loaded rows: 1
+   committed rows: 1
+       error rows: 0
+        skip rows: 0
+SQL> select length(c1) from load_clob_table;
+
+LENGTH(C1)          
+--------------------
+3783                
+
+1 rows fetched.
+
+SQL> select 1 from LOAD_CLOB_TABLE where c1 is json;
+
+1           
+------------
+1           
+
+1 rows fetched.
+
+SQL> drop table if exists LOAD_CLOB_TABLE;
+
+Succeed.
+
+SQL> 
+SQL> --test json object pairs, more than 1M
+SQL> drop table if exists LOAD_CLOB_TABLE;
+
+Succeed.
+
+SQL> create TABLE LOAD_CLOB_TABLE(
+  2 	c1         clob
+  3 );
+
+Succeed.
+
+SQL> load data infile "./data/json_data_object_pairs.dat" into table LOAD_CLOB_TABLE
+  2 fields enclosed by '`' 
+  3 fields terminated by ',' 
+  4 lines terminated by '\n'
+  5 ignore 0 lines;
+1 rows have been committed.
+
+Complete the data load.
+totally read rows: 1
+     ignored rows: 0
+      loaded rows: 1
+   committed rows: 1
+       error rows: 0
+        skip rows: 0
+SQL> select length(c1) from load_clob_table;
+
+LENGTH(C1)          
+--------------------
+1412241             
+
+1 rows fetched.
+
+SQL> select 1 from LOAD_CLOB_TABLE where c1 is json;
+
+1           
+------------
+1           
+
+1 rows fetched.
+
+SQL> drop table if exists LOAD_CLOB_TABLE;
+
+Succeed.
+
+SQL> 
+SQL> --test JSON_LEVEL
+SQL> select 1 from dual where '{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":"asdsadsa"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}' is json;
+
+1           
+------------
+1           
+
+1 rows fetched.
+
+SQL> select 1 from dual where '{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":{"A":"asdsadsa"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}' is json;
+
+1           
+------------
+1           
+
+1 rows fetched.
+
+SQL> 
+SQL> --when the length of single element is more than 32767, it should display error info 
+SQL> drop table if exists LOAD_CLOB_TABLE;
+
+Succeed.
+
+SQL> create TABLE LOAD_CLOB_TABLE(c1 clob);
+
+Succeed.
+
+SQL> insert into LOAD_CLOB_TABLE values('0123456789');
+
+1 rows affected.
+
+SQL> update LOAD_CLOB_TABLE set c1 = c1 || c1 || c1 || c1 || c1 || c1 || c1 || c1 || c1 || c1;
+
+1 rows affected.
+
+SQL> update LOAD_CLOB_TABLE set c1 = c1 || c1 || c1 || c1 || c1 || c1 || c1 || c1 || c1 || c1;
+
+1 rows affected.
+
+SQL> update LOAD_CLOB_TABLE set c1 = c1 || c1 || c1 || c1 || c1 || c1 || c1 || c1 || c1 || c1;
+
+1 rows affected.
+
+SQL> update LOAD_CLOB_TABLE set c1 = c1 || c1 || c1 || c1 || c1 || c1 || c1 || c1 || c1 || c1;
+
+1 rows affected.
+
+SQL> update LOAD_CLOB_TABLE set c1 = '["' || c1;
+
+1 rows affected.
+
+SQL> update LOAD_CLOB_TABLE set c1 = c1 || '"]';
+
+1 rows affected.
+
+SQL> select length(c1) from LOAD_CLOB_TABLE;
+
+LENGTH(C1)          
+--------------------
+100004              
+
+1 rows fetched.
+
+SQL> select 1 from LOAD_CLOB_TABLE where c1 is json;
+
+1
+------------
+1
+
+1 rows fetched.
+
+SQL> drop table if exists LOAD_CLOB_TABLE;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists test_json_src;
+
+Succeed.
+
+SQL> create table test_json_src(a clob);
+
+Succeed.
+
+SQL> insert into test_json_src values(lpad('dscds', 8000, 'asdcsaf'));
+
+1 rows affected.
+
+SQL> update test_json_src set a = a || lpad('dscds', 8000, 'asdcsaf');
+
+1 rows affected.
+
+SQL> update test_json_src set a = a || lpad('dscds', 8000, 'asdcsaf');
+
+1 rows affected.
+
+SQL> update test_json_src set a = a || lpad('dscds', 8000, 'asdcsaf');
+
+1 rows affected.
+
+SQL> update test_json_src set a = a || lpad('dscds', 8000, 'asdcsaf');
+
+1 rows affected.
+
+SQL> update test_json_src set a = a || lpad('dscds', 8000, 'asdcsaf');
+
+1 rows affected.
+
+SQL> update test_json_src set a = a || lpad('dscds', 8000, 'asdcsaf');
+
+1 rows affected.
+
+SQL> select length(a) from test_json_src;
+
+LENGTH(A)
+--------------------
+56000
+
+1 rows fetched.
+
+SQL> update test_json_src set a = '{"name":"' || a || '"}';
+
+1 rows affected.
+
+SQL> select length(a) from test_json_src;
+
+LENGTH(A)
+--------------------
+56011
+
+1 rows fetched.
+
+SQL> select 1 from test_json_src where a is json;
+
+1
+------------
+1
+
+1 rows fetched.
+
+SQL> select length(json_value(a, '$.name' returning clob)) from test_json_src;
+
+LENGTH(JSON_VALUE(A, '$.NAME' RETURNING CLOB))
+----------------------------------------------
+56000
+
+1 rows fetched.
+
+SQL> select length(json_query(a, '$' returning clob)) from test_json_src;
+
+LENGTH(JSON_QUERY(A, '$' RETURNING CLOB))
+-----------------------------------------
+56011
+
+1 rows fetched.
+
+SQL> 
+SQL> drop table if exists test_json_dst;
+
+Succeed.
+
+SQL> create table test_json_dst(a clob check (a is json));
+
+Succeed.
+
+SQL> insert into test_json_dst select * from test_json_src;
+
+1 rows affected.
+
+SQL> select length(json_value(a, '$.name' returning clob)) from test_json_dst;
+
+LENGTH(JSON_VALUE(A, '$.NAME' RETURNING CLOB))
+----------------------------------------------
+56000
+
+1 rows fetched.
+
+SQL> select length(json_query(a, '$' returning clob)) from test_json_dst;
+
+LENGTH(JSON_QUERY(A, '$' RETURNING CLOB))
+-----------------------------------------
+56011
+
+1 rows fetched.
+
+SQL> drop table if exists test_json_src;
+
+Succeed.
+
+SQL> drop table if exists test_json_dst;
+
+Succeed.
+
+SQL> 

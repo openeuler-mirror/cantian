@@ -14,8 +14,8 @@ echo $DFT_WORKSPACE " " $WORKSPACE
 if [[ "$WORKSPACE" == *"regress"* ]]; then
     echo $DFT_WORKSPACE " eq " $WORKSPACE
 else
-    export OPEN_SOURCE=${WORKSPACE}/daac/open_source
-    export LIBRARY=${WORKSPACE}/daac/library
+    export OPEN_SOURCE=${WORKSPACE}/cantian/open_source
+    export LIBRARY=${WORKSPACE}/cantian/library
 fi
 
 #pcre
@@ -39,7 +39,7 @@ mkdir -p ${OPEN_SOURCE}/lz4/include/
 cp lz4frame.h lz4.h ${OPEN_SOURCE}/lz4/include
 
 #zstd
-cd ${OPEN_SOURCE}/Zstandard/zstd-1.5.2-h1
+cd ${OPEN_SOURCE}/Zstandard/zstd-1.5.2
 mkdir -p ${OPEN_SOURCE}/Zstandard/include
 cp lib/zstd.h ${OPEN_SOURCE}/Zstandard/include
 cd lib/;rm -f libzstd.so libzstd.so.1
@@ -73,11 +73,11 @@ ln -s libzstd.so.1.5.2 libzstd.so.1
 #protobuf-c
 mkdir -p ${OPEN_SOURCE}/protobuf-c/include/
 mkdir -p ${LIBRARY}/protobuf/protobuf-c/
-cp ${OPEN_SOURCE}/protobuf-c/protobuf-c.1.4.1/protobuf-c/protobuf-c.h ${OPEN_SOURCE}/protobuf-c/include/
-cp ${OPEN_SOURCE}/protobuf-c/protobuf-c.1.4.1/protobuf-c/protobuf-c.h ${LIBRARY}/protobuf/protobuf-c/
+cp ${OPEN_SOURCE}/protobuf-c/protobuf-c-1.4.1/protobuf-c/protobuf-c.h ${OPEN_SOURCE}/protobuf-c/include/
+cp ${OPEN_SOURCE}/protobuf-c/protobuf-c-1.4.1/protobuf-c/protobuf-c.h ${LIBRARY}/protobuf/protobuf-c/
 
 #openssl
-cd  ${OPEN_SOURCE}/openssl/openssl-3.0.7-h14/
+cd  ${OPEN_SOURCE}/openssl/openssl-3.0.7/
 ./config shared
 if [[ ${OS_ARCH} =~ "x86_64" ]]; then
     export CPU_CORES_NUM_x86=`cat /proc/cpuinfo |grep "cores" |wc -l`
@@ -92,11 +92,11 @@ else
 fi
 mkdir -p ${OPEN_SOURCE}/openssl/include/
 mkdir -p ${LIBRARY}/openssl/lib/
-cp -rf ${OPEN_SOURCE}/openssl/openssl-3.0.7-h14/include/* ${OPEN_SOURCE}/openssl/include/
-cp -rf ${OPEN_SOURCE}/openssl/openssl-3.0.7-h14/*.a ${LIBRARY}/openssl/lib
+cp -rf ${OPEN_SOURCE}/openssl/openssl-3.0.7/include/* ${OPEN_SOURCE}/openssl/include/
+cp -rf ${OPEN_SOURCE}/openssl/openssl-3.0.7/*.a ${LIBRARY}/openssl/lib
 echo "copy lib finished"
 
 #zlib
-cd ${OPEN_SOURCE}/zlib/zlib-1.2.11-h5
+cd ${OPEN_SOURCE}/zlib/zlib-1.2.13
 mkdir -p ${OPEN_SOURCE}/zlib/include
 cp zconf.h zlib.h ${OPEN_SOURCE}/zlib/include

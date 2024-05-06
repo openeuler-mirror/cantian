@@ -8,13 +8,13 @@ function help() {
     echo ""
     echo "$0"
     echo ""
-    echo "Usage:    Dev_gs_cantian_regress.sh       {help} [--coverage --user]"
+    echo "Usage:    Dev_ct_cantian_regress.sh       {help} [--coverage --user]"
     echo "          --coverage         run test with test coverage report"
     echo "          --user             run test with user, if using docker/container.sh dev start container with different user,
                                        pass this user through --user, default is cantiandba"
     echo "          --core_dir        run test with user, if using docker/container.sh dev start container with different coredir,
                                        pass this core dir path through --core_dir, default is /home/core"
-    echo "          --gs_schedule_list run test with specified test list, default is full test cases list gs_schedule"
+    echo "          --ct_schedule_list run test with specified test list, default is full test cases list ct_schedule"
 }
 
 
@@ -23,11 +23,11 @@ function collect_core() {
 	sh ${collect_script} ${CORE_DIR} ${TEMP_DIR} ${ROOT_PATH} ${TEST_DATA_DIR}/data  ${RUN_TEST_USER}
 }
 
-function run_gs_regress() {
+function run_ct_regress() {
 	echo "========================= Run Regression ======================="
 	cd ${ROOT_PATH}
-	# git clean -nf |grep "pkg/test/gs_regress/*.*"|xargs rm -f
-	# chmod u+x ${REGRESS_PATH}/gs_regress
+	# git clean -nf |grep "pkg/test/ct_regress/*.*"|xargs rm -f
+	# chmod u+x ${REGRESS_PATH}/ct_regress
 	chown -R ${RUN_TEST_USER}:${RUN_TEST_USER} ${REGRESS_PATH}
     su - ${RUN_TEST_USER} -c "cd ${REGRESS_PATH} && sh basic_test.sh 2>&1 "| tee ${REGRESS_LOG}
     set +e
@@ -35,11 +35,11 @@ function run_gs_regress() {
 	ok_count=`grep -c "success" ${REGRESS_LOG}`
     set -e
 	if [ $fail_count -ne 0 ] || [ $ok_count -eq 0 ]; then
-		echo "Error: Some cases failed when gs_regress!!"
-		echo "Error: Some cases failed when gs_regress!!" >> ${REGRESS_LOG} 2>&1
-		cat $ROOT_PATH/pkg/test/gs_regress/results/*.diff >> ${REGRESS_LOG} 2>&1
+		echo "Error: Some cases failed when ct_regress!!"
+		echo "Error: Some cases failed when ct_regress!!" >> ${REGRESS_LOG} 2>&1
+		cat $ROOT_PATH/pkg/test/ct_regress/results/*.diff >> ${REGRESS_LOG} 2>&1
 		mkdir -p ${TEMP_DIR}/diff
-		cp $ROOT_PATH/pkg/test/gs_regress/results/*.diff ${TEMP_DIR}/diff
+		cp $ROOT_PATH/pkg/test/ct_regress/results/*.diff ${TEMP_DIR}/diff
 		echo "Regress Failed! Regress Failed! Regress Failed! "
 		collect_core # local debug, can annotate this step
 		exit 1
@@ -240,7 +240,7 @@ function clear_old_install() {
 }
 
 function parse_parameter() {
-    ARGS=$(getopt -o c:u:d:g: --long coverage:,user:,core_dir:,gs_schedule_list: -n "$0" -- "$@")
+    ARGS=$(getopt -o c:u:d:g: --long coverage:,user:,core_dir:,ct_schedule_list: -n "$0" -- "$@")
 
     if [ $? != 0 ]; then
         echo "Terminating..."
@@ -267,7 +267,7 @@ function parse_parameter() {
                 CORE_DIR="$2"
                 shift 2
                 ;;
-            -g | --gs_schedule_list)
+            -g | --ct_schedule_list)
                 BASIC_TEST_LIST="$2"
                 shift 2
                 ;;
@@ -283,7 +283,7 @@ function parse_parameter() {
     done
     # using docker/container.sh dev start container will create user and config core pattern
     # pass this user to the script through --user, default is cantiandba
-    declare -g TEST_DATA_DIR="/home/regress/gs_regress"
+    declare -g TEST_DATA_DIR="/home/regress/ct_regress"
     declare -g INSTALL_LOG_DIR=${TEST_DATA_DIR}/logs
     declare -g TEMP_DIR=${TEST_DATA_DIR}/tmp
     declare -g COMPILE_LOG=${TEST_DATA_DIR}/logs/compile_log
@@ -301,7 +301,7 @@ main() {
     compile_code # local debug, if only change sql test file can annotate this step
     install_cantiandb
 
-    run_gs_regress
+    run_ct_regress
     uninstall_cantiandb
 }
 

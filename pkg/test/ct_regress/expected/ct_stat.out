@@ -1,0 +1,324 @@
+
+SQL> -- check system-auto tablespace, include 'SYSTEM','TEMP','UNDO','USERS','TEMP2','TEMP2_UNDO','SYSAUX'
+SQL> -- if system-auto tablespaces changed, you must modify this UseCase and export-tool's function "exp_get_all_tbspace".
+SQL> select count(*),'Can not be changed!!!!!!!!!!!!!!!' from dv_tablespaces;
+
+COUNT(*)             'CAN NOT BE CHANGED!!!!!!!!!!!!!!!'
+-------------------- -----------------------------------
+8                    Can not be changed!!!!!!!!!!!!!!!  
+
+1 rows fetched.
+
+SQL> 
+SQL> -- start to stat
+SQL> alter system set sql_stat = true;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists t_stat_1;
+
+Succeed.
+
+SQL> create table t_stat_1(f1 int);
+
+Succeed.
+
+SQL> insert into t_stat_1 values(1);
+
+1 rows affected.
+
+SQL> select * from t_stat_1;
+
+F1          
+------------
+1           
+
+1 rows fetched.
+
+SQL> update t_stat_1 set f1=2;
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> select * from t_stat_1;
+
+F1          
+------------
+2           
+
+1 rows fetched.
+
+SQL> delete from t_stat_1;
+
+1 rows affected.
+
+SQL> insert into t_stat_1 values(2);
+
+1 rows affected.
+
+SQL> select * from t_stat_1;
+
+F1          
+------------
+2           
+
+1 rows fetched.
+
+SQL> rollback;
+
+Succeed.
+
+SQL> drop table t_stat_1;
+
+Succeed.
+
+SQL> 
+SQL> -- end of stat
+SQL> alter system set sql_stat = false;
+
+Succeed.
+
+SQL> 
+SQL> select * from v$sysstat where NAME = 'CPU time' and VALUE < 0; -- 0 row
+
+STATISTIC#   NAME                                                             CLASS        VALUE               
+------------ ---------------------------------------------------------------- ------------ --------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> select count(*) from v$sgastat where value like '0x%';
+
+COUNT(*)            
+--------------------
+0                  
+
+1 rows fetched.
+
+SQL> select count(*) from v$sgastat where value like '0x0x%';
+
+COUNT(*)            
+--------------------
+0                   
+
+1 rows fetched.
+
+SQL> 
+SQL> drop table if exists CUSTOMER_TEST0417;
+
+Succeed.
+
+SQL> CREATE TABLE CUSTOMER_TEST0417
+  2 (CUSTOMER_ID integer,
+  3 CUST_FIRST_NAME  VARCHAR(20) NOT NULL,
+  4 CUST_LAST_NAME   VARCHAR(20) NOT NULL,
+  5 CREDIT_LIMIT INTEGER);
+
+Succeed.
+
+SQL> 
+SQL> insert into CUSTOMER_TEST0417 values (1, 'li', 'adjani', 100);
+
+1 rows affected.
+
+SQL> insert into CUSTOMER_TEST0417 values (2, 'li', 'alexander', 2000);
+
+1 rows affected.
+
+SQL> insert into CUSTOMER_TEST0417 values (3, 'li', 'altman', 5000);
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> call dbe_stats.collect_schema_stats('sys');
+
+PL/SQL procedure successfully completed.
+
+SQL> SELECT A.NUM_DISTINCT,A.LOW_VALUE,A.HIGH_VALUE,A.HISTOGRAM FROM SYS_COLUMNS A,SYS_TABLES b,SYS_USERS where A.TABLE#=b.ID AND b.NAME='CUSTOMER_TEST0417' and SYS_USERS.id=b.USER# and SYS_USERS.name='SYS' order by a.id;
+
+NUM_DISTINCT LOW_VALUE                                                        HIGH_VALUE                                                       HISTOGRAM                                                       
+------------ ---------------------------------------------------------------- ---------------------------------------------------------------- ----------------------------------------------------------------
+3            1                                                                3                                                                FREQUENCY                                                       
+1            li                                                               li                                                               FREQUENCY                                                       
+3            adjani                                                           altman                                                           FREQUENCY                                                       
+3            100                                                              5000                                                             FREQUENCY                                                       
+
+4 rows fetched.
+
+SQL> select a.BUCKET_NUM,a.ROW_NUM,a.NULL_NUM,a.MINVALUE,a.MAXVALUE,a.DIST_NUM,a.DENSITY FROM SYS_HISTGRAM_ABSTR a,SYS_TABLES b,SYS_USERS where A.TAB#=b.ID AND b.NAME='CUSTOMER_TEST0417' and SYS_USERS.id=b.USER# and SYS_USERS.name='SYS' order by a.col#;
+
+BUCKET_NUM   ROW_NUM      NULL_NUM     MINVALUE                                                         MAXVALUE                                                         DIST_NUM     DENSITY             
+------------ ------------ ------------ ---------------------------------------------------------------- ---------------------------------------------------------------- ------------ --------------------
+3            3            0            1                                                                3                                                                3            0.333333333333333   
+1            3            0            li                                                               li                                                               1            1                   
+3            3            0            adjani                                                           altman                                                           3            0.333333333333333   
+3            3            0            100                                                              5000                                                             3            0.333333333333333   
+
+4 rows fetched.
+
+SQL> drop table if exists CUSTOMER_TEST0417;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists test_vmstat;
+
+Succeed.
+
+SQL> create table test_vmstat (fd int, fd2 varchar(100));
+
+Succeed.
+
+SQL> CREATE or replace procedure vmstat_proc(startnum int, endall int) is
+  2 i INT :=1;
+  3 j varchar(20);
+  4 str varchar(100);
+  5 BEGIN
+  6   FOR i IN startnum..endall LOOP
+  7     select 'test' || i into j from dual;
+  8     insert into test_vmstat values(i%10,j);
+  9   END LOOP;
+ 10 END;
+ 11 /
+
+Succeed.
+
+SQL> 
+SQL> call vmstat_proc(1,10000);
+
+PL/SQL procedure successfully completed.
+
+SQL> commit;
+
+Succeed.
+
+SQL> select LENGTH(GROUP_CONCAT(fd2)) from test_vmstat group by fd;
+
+LENGTH(GROUP_CONCAT(FD2))
+-------------------------
+8888                     
+8888                     
+8888                     
+8892                     
+8888                     
+8888                     
+8888                     
+8888                     
+8888                     
+8888                     
+
+10 rows fetched.
+
+SQL> drop table test_vmstat purge;
+
+Succeed.
+
+SQL> drop procedure vmstat_proc;
+
+Succeed.
+
+SQL> 
+SQL> 
+SQL> drop table if exists CUSTOMER_TEST0417;
+
+Succeed.
+
+SQL> CREATE TABLE CUSTOMER_TEST0417
+  2 (CUSTOMER_ID integer,
+  3 CUST_FIRST_NAME  VARCHAR(20) NOT NULL,
+  4 CUST_LAST_NAME   VARCHAR(20) NOT NULL,
+  5 CREDIT_LIMIT INTEGER);
+
+Succeed.
+
+SQL> 
+SQL> insert into CUSTOMER_TEST0417 values (1, 'li', 'adjani', 100);
+
+1 rows affected.
+
+SQL> insert into CUSTOMER_TEST0417 values (2, 'li', 'alexander', 2000);
+
+1 rows affected.
+
+SQL> insert into CUSTOMER_TEST0417 values (3, 'li', 'altman', 5000);
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> 
+SQL> 
+SQL> call dbe_stats.collect_schema_stats('sys'); 
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> SELECT A.NUM_DISTINCT,A.LOW_VALUE,A.HIGH_VALUE,A.HISTOGRAM 
+  2 FROM SYS_COLUMNS A,SYS_TABLES b,SYS_USERS 
+  3 where A.TABLE#=b.ID AND b.NAME='CUSTOMER_TEST0417' and SYS_USERS.id=b.USER# and SYS_USERS.name='SYS' 
+  4 order by a.id;
+
+NUM_DISTINCT LOW_VALUE                                                        HIGH_VALUE                                                       HISTOGRAM                                                       
+------------ ---------------------------------------------------------------- ---------------------------------------------------------------- ----------------------------------------------------------------
+3            1                                                                3                                                                FREQUENCY                                                       
+1            li                                                               li                                                               FREQUENCY                                                       
+3            adjani                                                           altman                                                           FREQUENCY                                                       
+3            100                                                              5000                                                             FREQUENCY                                                       
+
+4 rows fetched.
+
+SQL> 
+SQL> SELECT A.NUM_DISTINCT,A.LOW_VALUE,A.HIGH_VALUE,A.HISTOGRAM
+  2 FROM SYS_COLUMNS A,SYS_TABLES b,SYS_USERS 
+  3 where A.TABLE#=b.ID AND b.NAME='CUSTOMER_TEST0417' and SYS_USERS.id=b.USER# and SYS_USERS.name='SYS' 
+  4 order by a.id;
+
+NUM_DISTINCT LOW_VALUE                                                        HIGH_VALUE                                                       HISTOGRAM                                                       
+------------ ---------------------------------------------------------------- ---------------------------------------------------------------- ----------------------------------------------------------------
+3            1                                                                3                                                                FREQUENCY                                                       
+1            li                                                               li                                                               FREQUENCY                                                       
+3            adjani                                                           altman                                                           FREQUENCY                                                       
+3            100                                                              5000                                                             FREQUENCY                                                       
+
+4 rows fetched.
+
+SQL> 
+SQL> drop table if exists CUSTOMER_TEST0417;
+
+Succeed.
+
+SQL> --DTS2019092413327
+SQL> select if(VALUE>0,1,0) "judge" from v$sysstat where NAME='user logons current';
+
+judge
+------------
+1
+
+1 rows fetched.
+
+SQL> select if(VALUE<1000000,1,0) "judge" from v$sysstat where NAME='user logons current';
+
+judge
+------------
+1
+
+1 rows fetched.
+
+SQL> select 1 "judge"  from dual where((select VALUE from v$sysstat where NAME='user logons cumulation')>=(select VALUE from v$sysstat where NAME='user logons current'));
+
+judge
+------------
+1
+
+1 rows fetched.
+
+SQL>

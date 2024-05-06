@@ -1,0 +1,1292 @@
+
+
+SQL> drop table if exists t_withas1;
+
+Succeed.
+
+SQL> drop table if exists t_withas2;
+
+Succeed.
+
+SQL> 
+SQL> create table t_withas1(f_int1 int, f_int2 number(10,2), f_int3 int);
+
+Succeed.
+
+SQL> create table t_withas2(f_int1 int, f_int2 number(10,2), f_int3 int);
+
+Succeed.
+
+SQL> insert into t_withas1(f_int1, f_int2) values(1, 11);
+
+1 rows affected.
+
+SQL> insert into t_withas2(f_int1, f_int2) values(2, 22);
+
+1 rows affected.
+
+SQL> 
+SQL> -- oracle not support, zenith support
+SQL> insert into t_withas2(f_int1, f_int2) (with t_tmp1 as (select f_int1, f_int2 from t_withas1) select f_int1, f_int2 from t_tmp1);
+
+1 rows affected.
+
+SQL> insert into t_withas2(f_int1, f_int2) ( with t_tmp1 as (select f_int1, f_int2 from t_withas1) select f_int1, f_int2 from t_tmp1 );
+
+1 rows affected.
+
+SQL> (with t_tmp1 as (select * from t_withas1)select * from t_tmp1);
+
+F_INT1       F_INT2                                   F_INT3      
+------------ ---------------------------------------- ------------
+1            11                                                   
+
+1 rows fetched.
+
+SQL> select f_int1, f_int2 from t_withas1 where f_int1=(((with t_tmp1 as (select * from t_withas1) select f_int1 from t_tmp1))) order by f_int1, f_int2;
+
+F_INT1       F_INT2                                  
+------------ ----------------------------------------
+1            11                                      
+
+1 rows fetched.
+
+SQL> select f_int1, f_int2 from t_withas2 where f_int1 in (with t_tmp1 as (select f_int1 from t_withas2) select f_int1 from t_tmp1) order by f_int1, f_int2;
+
+F_INT1       F_INT2                                  
+------------ ----------------------------------------
+1            11                                      
+1            11                                      
+2            22                                      
+
+3 rows fetched.
+
+SQL> insert into t_withas2 (with cr as (select * from t_withas2) select * from cr);
+
+3 rows affected.
+
+SQL> insert into t_withas2 (with cr as (select * from t_withas2) select * from cr union select * from cr);
+
+2 rows affected.
+
+SQL> select * from t_withas2 order by f_int1 desc;
+
+F_INT1       F_INT2                                   F_INT3      
+------------ ---------------------------------------- ------------
+2            22                                                   
+2            22                                                   
+2            22                                                   
+1            11                                                   
+1            11                                                   
+1            11                                                   
+1            11                                                   
+1            11                                                   
+
+8 rows fetched.
+
+SQL> 
+SQL> CREATE TABLE "HOUSEHOLD_DEMOGRAPHICS"
+  2 (
+  3 "HD_DEMO_SK" BINARY_INTEGER NOT NULL,
+  4 "HD_INCOME_BAND_SK" BINARY_INTEGER,
+  5 "HD_BUY_POTENTIAL" CHAR(15 BYTE),
+  6 "HD_DEP_COUNT" BINARY_INTEGER,
+  7 "HD_VEHICLE_COUNT" BINARY_INTEGER
+  8 );
+
+Succeed.
+
+SQL> insert into household_demographics values (1,2,0,0,null);
+
+1 rows affected.
+
+SQL> insert into household_demographics values (1,2,0,null,0);
+
+1 rows affected.
+
+SQL> with tmp1 as (select hd_demo_sk, hd_income_band_sk, hd_dep_count, hd_vehicle_count from household_demographics order by 1,2,3,4) select hd_demo_sk, hd_income_band_sk, hd_dep_count from (select hd_demo_sk, hd_income_band_sk, hd_dep_count from tmp1 where (hd_demo_sk||hd_dep_count)= (select hd_demo_sk||hd_vehicle_count from tmp1 order by 1 limit 1));
+
+HD_DEMO_SK   HD_INCOME_BAND_SK HD_DEP_COUNT
+------------ ----------------- ------------
+1            2                             
+
+1 rows fetched.
+
+SQL> DROP TABLE "HOUSEHOLD_DEMOGRAPHICS";
+
+Succeed.
+
+SQL> 
+SQL> --DTS2019062511066: transform with as clause
+SQL> drop table if exists store_returns;
+
+Succeed.
+
+SQL> create table store_returns
+  2 (
+  3     sr_returned_date_sk       integer                       ,
+  4     sr_return_time_sk         integer                       ,
+  5     sr_item_sk                integer               not null,
+  6     sr_customer_sk            integer                       ,
+  7     sr_cdemo_sk               integer                       ,
+  8     sr_hdemo_sk               integer                       ,
+  9     sr_addr_sk                integer                       ,
+ 10     sr_store_sk               integer                       ,
+ 11     sr_reason_sk              integer                       ,
+ 12     sr_ticket_number          bigint               not null,
+ 13     sr_return_quantity        integer                       ,
+ 14     sr_return_amt             decimal(7,2)                  ,
+ 15     sr_return_tax             decimal(7,2)                  ,
+ 16     sr_return_amt_inc_tax     decimal(7,2)                  ,
+ 17     sr_fee                    decimal(7,2)                  ,
+ 18     sr_return_ship_cost       decimal(7,2)                  ,
+ 19     sr_refunded_cash          decimal(7,2)                  ,
+ 20     sr_reversed_charge        decimal(7,2)                  ,
+ 21     sr_store_credit           decimal(7,2)                  ,
+ 22     sr_net_loss               decimal(7,2)
+ 23  )
+ 24 partition by range(sr_returned_date_sk)
+ 25 (
+ 26         partition p1 values less than (2451179) ,
+ 27         partition p2 values less than (2451544) ,
+ 28         partition p3 values less than (2451910) ,
+ 29         partition p4 values less than (2452275) ,
+ 30         partition p5 values less than (2452640) ,
+ 31         partition p6 values less than (2453005) ,
+ 32         partition p7 values less than (maxvalue)
+ 33 );
+
+Succeed.
+
+SQL> create index store_returns_index on store_returns(sr_item_sk, sr_ticket_number) local;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists web_page;
+
+Succeed.
+
+SQL> create table web_page
+  2 (
+  3     wp_web_page_sk            integer               not null,
+  4     wp_web_page_id            char(16)              not null,
+  5     wp_rec_start_date         date                          ,
+  6     wp_rec_end_date           date                          ,
+  7     wp_creation_date_sk       integer                       ,
+  8     wp_access_date_sk         integer                       ,
+  9     wp_autogen_flag           char(1)                       ,
+ 10     wp_customer_sk            integer                       ,
+ 11     wp_url                    varchar(100)                  ,
+ 12     wp_type                   char(50)                      ,
+ 13     wp_char_count             integer                       ,
+ 14     wp_link_count             integer                       ,
+ 15     wp_image_count            integer                       ,
+ 16     wp_max_ad_count           integer
+ 17  )
+ 18 partition by range(wp_rec_start_date)
+ 19 (
+ 20         partition p1 values less than('1990-01-01'),
+ 21         partition p2 values less than('1995-01-01'),
+ 22         partition p3 values less than('2000-01-01'),
+ 23         partition p4 values less than('2005-01-01'),
+ 24         partition p5 values less than('2010-01-01'),
+ 25         partition p6 values less than('2015-01-01'),
+ 26         partition p7 values less than(maxvalue)
+ 27 );
+
+Succeed.
+
+SQL> create index web_page_index on web_page (wp_web_page_sk) local;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists store;
+
+Succeed.
+
+SQL> create table store
+  2 (
+  3     s_store_sk                integer               not null,
+  4     s_store_id                char(16)              not null,
+  5     s_rec_start_date          date                          ,
+  6     s_rec_end_date            date                          ,
+  7     s_closed_date_sk          integer                       ,
+  8     s_store_name              varchar(50)                   ,
+  9     s_number_employees        integer                       ,
+ 10     s_floor_space             integer                       ,
+ 11     s_hours                   char(20)                      ,
+ 12     s_manager                 varchar(40)                   ,
+ 13     s_market_id               integer                       ,
+ 14     s_geography_class         varchar(100)                  ,
+ 15     s_market_desc             varchar(100)                  ,
+ 16     s_market_manager          varchar(40)                   ,
+ 17     s_division_id             integer                       ,
+ 18     s_division_name           varchar(50)                   ,
+ 19     s_company_id              integer                       ,
+ 20     s_company_name            varchar(50)                   ,
+ 21     s_street_number           varchar(10)                   ,
+ 22     s_street_name             varchar(60)                   ,
+ 23     s_street_type             char(15)                      ,
+ 24     s_suite_number            char(10)                      ,
+ 25     s_city                    varchar(60)                   ,
+ 26     s_county                  varchar(30)                   ,
+ 27     s_state                   char(2)                       ,
+ 28     s_zip                     char(10)                      ,
+ 29     s_country                 varchar(20)                   ,
+ 30     s_gmt_offset              decimal(5,2)                  ,
+ 31     s_tax_precentage          decimal(5,2)
+ 32 );
+
+Succeed.
+
+SQL> create index ds_store_index on store (s_store_sk);
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists web_site;
+
+Succeed.
+
+SQL> create table web_site
+  2 (
+  3     web_site_sk               integer               not null,
+  4     web_site_id               char(16)              not null,
+  5     web_rec_start_date        date                          ,
+  6     web_rec_end_date          date                          ,
+  7     web_name                  varchar(50)                   ,
+  8     web_open_date_sk          integer                       ,
+  9     web_close_date_sk         integer                       ,
+ 10     web_class                 varchar(50)                   ,
+ 11     web_manager               varchar(40)                   ,
+ 12     web_mkt_id                integer                       ,
+ 13     web_mkt_class             varchar(50)                   ,
+ 14     web_mkt_desc              varchar(100)                  ,
+ 15     web_market_manager        varchar(40)                   ,
+ 16     web_company_id            integer                       ,
+ 17     web_company_name          char(50)                      ,
+ 18     web_street_number         char(10)                      ,
+ 19     web_street_name           varchar(60)                   ,
+ 20     web_street_type           char(15)                      ,
+ 21     web_suite_number          char(10)                      ,
+ 22     web_city                  varchar(60)                   ,
+ 23     web_county                varchar(30)                   ,
+ 24     web_state                 char(2)                       ,
+ 25     web_zip                   char(10)                      ,
+ 26     web_country               varchar(20)                   ,
+ 27     web_gmt_offset            decimal(5,2)                  ,
+ 28     web_tax_percentage        decimal(5,2)
+ 29  )
+ 30  partition by range(web_rec_start_date)
+ 31 (
+ 32         partition p1 values less than('1990-01-01'),
+ 33         partition p2 values less than('1995-01-01'),
+ 34         partition p3 values less than('2000-01-01'),
+ 35         partition p4 values less than('2005-01-01'),
+ 36         partition p5 values less than('2010-01-01'),
+ 37         partition p6 values less than('2015-01-01'),
+ 38         partition p7 values less than(maxvalue)
+ 39 );
+
+Succeed.
+
+SQL> create index web_site_index on web_site (web_site_sk) local;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists customer;
+
+Succeed.
+
+SQL> create table customer
+  2 (
+  3     c_customer_sk             integer               not null,
+  4     c_customer_id             char(16)              not null,
+  5     c_current_cdemo_sk        integer                       ,
+  6     c_current_hdemo_sk        integer                       ,
+  7     c_current_addr_sk         integer                       ,
+  8     c_first_shipto_date_sk    integer                       ,
+  9     c_first_sales_date_sk     integer                       ,
+ 10     c_salutation              char(10)                      ,
+ 11     c_first_name              char(20)                      ,
+ 12     c_last_name               char(30)                      ,
+ 13     c_preferred_cust_flag     char(1)                       ,
+ 14     c_birth_day               integer                       ,
+ 15     c_birth_month             integer                       ,
+ 16     c_birth_year              integer                       ,
+ 17     c_birth_country           varchar(20)                   ,
+ 18     c_login                   char(13)                      ,
+ 19     c_email_address           char(50)                      ,
+ 20     c_last_review_date        char(10)
+ 21 );
+
+Succeed.
+
+SQL> create index customer_index on customer(c_customer_sk);
+
+Succeed.
+
+SQL>
+SQL> drop table store_returns;
+
+Succeed.
+
+SQL> drop table web_page;
+
+Succeed.
+
+SQL> drop table store;
+
+Succeed.
+
+SQL> drop table web_site;
+
+Succeed.
+
+SQL> drop table customer;
+
+Succeed.
+
+SQL> 
+SQL> --DTS2019082710521
+SQL> DROP TABLE if exists "DES_BASE_OBJENTITYREL_T" ;
+
+Succeed.
+
+SQL> DROP TABLE if exists "DES_SITE_PHYSICAL_REL_T" ;
+
+Succeed.
+
+SQL> DROP TABLE if exists "ESUR_DECO_JOB_SUBSIDIARY_T";
+
+Succeed.
+
+SQL> DROP TABLE if exists "ESUR_SURVEY_JOB_T";
+
+Succeed.
+
+SQL> 
+SQL> CREATE TABLE "DES_BASE_OBJENTITYREL_T"
+  2 (
+  3   "PHYSICAL_ID" NUMBER NOT NULL,
+  4   "COUNTRY_CODE" VARCHAR(32 BYTE) NOT NULL,
+  5   "PROVINCE_CODE" VARCHAR(32 BYTE),
+  6   "OBJECT_CODE" VARCHAR(64 BYTE) NOT NULL,
+  7   "PARENT_OBJECT_CODE" VARCHAR(32 BYTE),
+  8   "PHYSICAL_SITE_NUMBER" VARCHAR(64 BYTE) NOT NULL,
+  9   "PRIMARY_FIELD" VARCHAR(4000 BYTE) NOT NULL,
+ 10   "MODEL_ID" NUMBER,
+ 11   "DELETE_FLAG" CHAR(1 BYTE),
+ 12   "CREATED_BY" NUMBER,
+ 13   "CREATION_DATE" DATE,
+ 14   "LAST_UPDATED_BY" NUMBER,
+ 15   "LAST_UPDATE_DATE" DATE,
+ 16   "IS_SCATTERED" VARCHAR(1 BYTE),
+ 17   "ENTITY_STATUS" VARCHAR(10 BYTE),
+ 18   "IS_TEMP" VARCHAR(1 BYTE),
+ 19   "PROJECT_CODE" VARCHAR(40 BYTE),
+ 20   "SOURCE" VARCHAR(32 BYTE),
+ 21   "NODE_NUMBER" VARCHAR(32 BYTE),
+ 22   "IS_HISTORY" CHAR(1 BYTE),
+ 23   "IS_MODIFY" CHAR(1 BYTE),
+ 24   "IS_ORIGINAL_STATUS" NUMBER,
+ 25   "CONFIRM_RESULT" NUMBER,
+ 26   "CONFIRM_REMARK" VARCHAR(4000 BYTE),
+ 27   "OPERATOR_NAME" VARCHAR(500 BYTE),
+ 28   "IS_TO_DELETE" NUMBER,
+ 29   "IS_WSD" CHAR(1 BYTE),
+ 30   "ENTITY_ID" VARCHAR(64 BYTE),
+ 31   "PARENT_ENTITY_ID" VARCHAR(64 BYTE)
+ 32 );
+
+Succeed.
+
+SQL> INSERT INTO "DES_BASE_OBJENTITYREL_T" ("PHYSICAL_ID","COUNTRY_CODE","PROVINCE_CODE","OBJECT_CODE","PARENT_OBJECT_CODE","PHYSICAL_SITE_NUMBER","PRIMARY_FIELD","MODEL_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","IS_SCATTERED","ENTITY_STATUS","IS_TEMP","PROJECT_CODE","SOURCE","NODE_NUMBER","IS_HISTORY","IS_MODIFY","IS_ORIGINAL_STATUS","CONFIRM_RESULT","CONFIRM_REMARK","OPERATOR_NAME","IS_TO_DELETE","IS_WSD","ENTITY_ID","PARENT_ENTITY_ID") values
+  2   (25142322480211,'NC',null,'60002','50001','NSTP1J9XHA','Board',6689211,'0',999999999998949,'2019-08-02 10:28:11',999999999998949,'2019-08-13 14:19:17','0','1',null,'5555551S','eSurvey TSS','210010441981211','0','0',0,null,null,null,null,null,'70844766211','70844761211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_BASE_OBJENTITYREL_T" ("PHYSICAL_ID","COUNTRY_CODE","PROVINCE_CODE","OBJECT_CODE","PARENT_OBJECT_CODE","PHYSICAL_SITE_NUMBER","PRIMARY_FIELD","MODEL_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","IS_SCATTERED","ENTITY_STATUS","IS_TEMP","PROJECT_CODE","SOURCE","NODE_NUMBER","IS_HISTORY","IS_MODIFY","IS_ORIGINAL_STATUS","CONFIRM_RESULT","CONFIRM_REMARK","OPERATOR_NAME","IS_TO_DELETE","IS_WSD","ENTITY_ID","PARENT_ENTITY_ID") values
+  2   (25142322482211,'NC',null,'70003','60002','NSTP1J9XHA','Board(Board)_Port001',null,'0',999999999998949,'2019-08-02 10:28:12',999999999998949,'2019-08-13 14:19:17','0','1',null,'5555551S','eSurvey TSS','210010441981211','0','0',0,null,null,null,null,null,'70844771211','70844766211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_BASE_OBJENTITYREL_T" ("PHYSICAL_ID","COUNTRY_CODE","PROVINCE_CODE","OBJECT_CODE","PARENT_OBJECT_CODE","PHYSICAL_SITE_NUMBER","PRIMARY_FIELD","MODEL_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","IS_SCATTERED","ENTITY_STATUS","IS_TEMP","PROJECT_CODE","SOURCE","NODE_NUMBER","IS_HISTORY","IS_MODIFY","IS_ORIGINAL_STATUS","CONFIRM_RESULT","CONFIRM_REMARK","OPERATOR_NAME","IS_TO_DELETE","IS_WSD","ENTITY_ID","PARENT_ENTITY_ID") values
+  2   (25142322486211,'NC',null,'50001','-31415926','NSTP1J9XHA','BBU Subrack',2305000,'0',999999999998949,'2019-08-02 10:28:14',999999999998949,'2019-08-13 14:19:17','1','1',null,'5555551S','eSurvey TSS','210010441981211','0','0',0,null,null,null,null,null,'70844761211','-31415926');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_BASE_OBJENTITYREL_T" ("PHYSICAL_ID","COUNTRY_CODE","PROVINCE_CODE","OBJECT_CODE","PARENT_OBJECT_CODE","PHYSICAL_SITE_NUMBER","PRIMARY_FIELD","MODEL_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","IS_SCATTERED","ENTITY_STATUS","IS_TEMP","PROJECT_CODE","SOURCE","NODE_NUMBER","IS_HISTORY","IS_MODIFY","IS_ORIGINAL_STATUS","CONFIRM_RESULT","CONFIRM_REMARK","OPERATOR_NAME","IS_TO_DELETE","IS_WSD","ENTITY_ID","PARENT_ENTITY_ID") values
+  2   (25142322777211,'NC',null,'50001','-31415926','NSTP1J9XHA','BBU Subrack',2305000,'0',435259918449113,'2019-08-03 16:30:53',435259918449113,'2019-08-03 16:30:53','1','1',null,null,'eSurvey TSS','210010441981211','1','0',0,null,null,null,null,null,'70844761211','25142322776211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_BASE_OBJENTITYREL_T" ("PHYSICAL_ID","COUNTRY_CODE","PROVINCE_CODE","OBJECT_CODE","PARENT_OBJECT_CODE","PHYSICAL_SITE_NUMBER","PRIMARY_FIELD","MODEL_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","IS_SCATTERED","ENTITY_STATUS","IS_TEMP","PROJECT_CODE","SOURCE","NODE_NUMBER","IS_HISTORY","IS_MODIFY","IS_ORIGINAL_STATUS","CONFIRM_RESULT","CONFIRM_REMARK","OPERATOR_NAME","IS_TO_DELETE","IS_WSD","ENTITY_ID","PARENT_ENTITY_ID") values
+  2   (25142322787211,'NC',null,'50001','-31415926','NSTP1J9XHA','BBU Subrack',2305000,'0',435259918449113,'2019-08-03 16:35:16',435259918449113,'2019-08-03 16:35:16','1','1',null,null,'eSurvey TSS','210010441981211','1','0',0,null,null,null,null,null,'70844761211','25142322786211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_BASE_OBJENTITYREL_T" ("PHYSICAL_ID","COUNTRY_CODE","PROVINCE_CODE","OBJECT_CODE","PARENT_OBJECT_CODE","PHYSICAL_SITE_NUMBER","PRIMARY_FIELD","MODEL_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","IS_SCATTERED","ENTITY_STATUS","IS_TEMP","PROJECT_CODE","SOURCE","NODE_NUMBER","IS_HISTORY","IS_MODIFY","IS_ORIGINAL_STATUS","CONFIRM_RESULT","CONFIRM_REMARK","OPERATOR_NAME","IS_TO_DELETE","IS_WSD","ENTITY_ID","PARENT_ENTITY_ID") values
+  2   (25142322814211,'NC',null,'70006','30010','NSTP1JCP85','AAU(AAU001)_Port001',null,'0',999999999998949,'2019-08-03 16:39:55',999999999998949,'2019-08-05 14:06:52','0','2',null,'5555551S','eSurvey TSS','210010444264211','0','0',0,null,null,null,null,null,'80776744211','80776743211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_BASE_OBJENTITYREL_T" ("PHYSICAL_ID","COUNTRY_CODE","PROVINCE_CODE","OBJECT_CODE","PARENT_OBJECT_CODE","PHYSICAL_SITE_NUMBER","PRIMARY_FIELD","MODEL_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","IS_SCATTERED","ENTITY_STATUS","IS_TEMP","PROJECT_CODE","SOURCE","NODE_NUMBER","IS_HISTORY","IS_MODIFY","IS_ORIGINAL_STATUS","CONFIRM_RESULT","CONFIRM_REMARK","OPERATOR_NAME","IS_TO_DELETE","IS_WSD","ENTITY_ID","PARENT_ENTITY_ID") values
+  2   (25142322819211,'NC',null,'70006','30010','NSTP1JCP85','AAU(AAU002)_Port001',null,'0',999999999998949,'2019-08-03 16:39:55',999999999998949,'2019-08-05 14:06:52','0','2',null,'5555551S','eSurvey TSS','210010444264211','0','0',0,null,null,null,null,null,'80776753211','80776752211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_BASE_OBJENTITYREL_T" ("PHYSICAL_ID","COUNTRY_CODE","PROVINCE_CODE","OBJECT_CODE","PARENT_OBJECT_CODE","PHYSICAL_SITE_NUMBER","PRIMARY_FIELD","MODEL_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","IS_SCATTERED","ENTITY_STATUS","IS_TEMP","PROJECT_CODE","SOURCE","NODE_NUMBER","IS_HISTORY","IS_MODIFY","IS_ORIGINAL_STATUS","CONFIRM_RESULT","CONFIRM_REMARK","OPERATOR_NAME","IS_TO_DELETE","IS_WSD","ENTITY_ID","PARENT_ENTITY_ID") values
+  2   (25142322821211,'NC',null,'70006','30010','NSTP1JCP85','AAU(AAU)_Port001',null,'0',999999999998949,'2019-08-03 16:39:55',999999999998949,'2019-08-05 14:06:52','0','2',null,'5555551S','eSurvey TSS','210010444264211','0','0',0,null,null,null,null,null,'80776716211','80776711211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_BASE_OBJENTITYREL_T" ("PHYSICAL_ID","COUNTRY_CODE","PROVINCE_CODE","OBJECT_CODE","PARENT_OBJECT_CODE","PHYSICAL_SITE_NUMBER","PRIMARY_FIELD","MODEL_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","IS_SCATTERED","ENTITY_STATUS","IS_TEMP","PROJECT_CODE","SOURCE","NODE_NUMBER","IS_HISTORY","IS_MODIFY","IS_ORIGINAL_STATUS","CONFIRM_RESULT","CONFIRM_REMARK","OPERATOR_NAME","IS_TO_DELETE","IS_WSD","ENTITY_ID","PARENT_ENTITY_ID") values
+  2   (25142322807211,'NC',null,'70003','60002','NSTP1JCP85','Board(Board)_Port2(RM71073308211)',71142211,'0',999999999998949,'2019-08-03 16:39:58',999999999998949,'2019-08-05 14:06:53','0','3',null,'5555551S','eSurvey TSS','210010444264211','0','0',0,null,null,null,null,null,'71073308211','71073304211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_BASE_OBJENTITYREL_T" ("PHYSICAL_ID","COUNTRY_CODE","PROVINCE_CODE","OBJECT_CODE","PARENT_OBJECT_CODE","PHYSICAL_SITE_NUMBER","PRIMARY_FIELD","MODEL_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","IS_SCATTERED","ENTITY_STATUS","IS_TEMP","PROJECT_CODE","SOURCE","NODE_NUMBER","IS_HISTORY","IS_MODIFY","IS_ORIGINAL_STATUS","CONFIRM_RESULT","CONFIRM_REMARK","OPERATOR_NAME","IS_TO_DELETE","IS_WSD","ENTITY_ID","PARENT_ENTITY_ID") values
+  2   (25142322822211,'NC',null,'70003','60002','NSTP1JCP85','Board(Board)_Port1(RM71073307211)',71141211,'0',999999999998949,'2019-08-03 16:39:58',999999999998949,'2019-08-05 14:06:53','0','3',null,'5555551S','eSurvey TSS','210010444264211','0','0',0,null,null,null,null,null,'71073307211','71073304211');
+
+1 rows affected.
+
+SQL> 
+SQL> CREATE TABLE "DES_SITE_PHYSICAL_REL_T"
+  2 (
+  3   "ID" NUMBER NOT NULL,
+  4   "PROJECT_CODE" VARCHAR(200 BYTE) NOT NULL,
+  5   "PHYSICAL_SITE_NUMBER" VARCHAR(12 BYTE) NOT NULL,
+  6   "CUSTOMER_SITE_NUMBER" VARCHAR(12 BYTE) NOT NULL,
+  7   "DELETE_FLAG" CHAR(1 BYTE) NOT NULL,
+  8   "CREATED_BY" NUMBER,
+  9   "CREATION_DATE" DATE NOT NULL,
+ 10   "LAST_UPDATED_BY" NUMBER,
+ 11   "LAST_UPDATE_DATE" DATE NOT NULL,
+ 12   "NODE_NUMBER" VARCHAR(32 BYTE)
+ 13 );
+
+Succeed.
+
+SQL> INSERT INTO "DES_SITE_PHYSICAL_REL_T" ("ID","PROJECT_CODE","PHYSICAL_SITE_NUMBER","CUSTOMER_SITE_NUMBER","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","NODE_NUMBER") values
+  2   (6761329211,'1807091S','NSTP09V34G','NSTC0EDKRX','0',0,'2019-01-07 19:45:26',0,'2019-01-19 19:18:46','210010055600211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_SITE_PHYSICAL_REL_T" ("ID","PROJECT_CODE","PHYSICAL_SITE_NUMBER","CUSTOMER_SITE_NUMBER","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","NODE_NUMBER") values
+  2   (6782182211,'1807091S','NSTP1JQE58','NSTC1HHP8G','0',0,'2019-07-30 17:26:37',0,'2019-07-30 17:26:37','210010742547211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_SITE_PHYSICAL_REL_T" ("ID","PROJECT_CODE","PHYSICAL_SITE_NUMBER","CUSTOMER_SITE_NUMBER","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","NODE_NUMBER") values
+  2   (6782354211,'1807091S','NSTP1JQE59','NSTC1HJ3FW','0',0,'2019-08-05 10:55:06',0,'2019-08-05 14:53:03','210010744305211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_SITE_PHYSICAL_REL_T" ("ID","PROJECT_CODE","PHYSICAL_SITE_NUMBER","CUSTOMER_SITE_NUMBER","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","NODE_NUMBER") values
+  2   (6782168211,'5590161','NSTP1JQLU1','NSTC1HHP83','0',0,'2019-07-30 10:22:06',0,'2019-07-30 10:22:25','210010742417211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_SITE_PHYSICAL_REL_T" ("ID","PROJECT_CODE","PHYSICAL_SITE_NUMBER","CUSTOMER_SITE_NUMBER","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","NODE_NUMBER") values
+  2   (6782282211,'5590161','NSTP1JQLU2','NSTC1HHP84','0',0,'2019-08-02 15:57:06',0,'2019-08-02 15:57:32','210010742416211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_SITE_PHYSICAL_REL_T" ("ID","PROJECT_CODE","PHYSICAL_SITE_NUMBER","CUSTOMER_SITE_NUMBER","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","NODE_NUMBER") values
+  2   (6782419211,'5590161','NSTP1JQLU3','NSTC1HHP85','0',0,'2019-08-05 17:34:38',0,'2019-08-05 17:34:38','210010742415211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_SITE_PHYSICAL_REL_T" ("ID","PROJECT_CODE","PHYSICAL_SITE_NUMBER","CUSTOMER_SITE_NUMBER","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","NODE_NUMBER") values
+  2   (6782173211,'5590161','NSTP1JQLU7','NSTC1HHP89','0',0,'2019-07-30 14:58:18',0,'2019-07-30 14:58:29','210010742526211');
+
+1 rows affected.
+
+SQL> INSERT INTO "DES_SITE_PHYSICAL_REL_T" ("ID","PROJECT_CODE","PHYSICAL_SITE_NUMBER","CUSTOMER_SITE_NUMBER","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","NODE_NUMBER") values
+  2   (6782183211,'1807091S','NSTP1JQLUA','NSTC1HHP8H','0',0,'2019-07-30 17:26:41',0,'2019-07-30 17:26:41','210010742546211');
+
+1 rows affected.
+
+SQL> 
+SQL> 
+SQL> CREATE TABLE "ESUR_DECO_JOB_SUBSIDIARY_T"
+  2 (
+  3   "ID" NUMBER NOT NULL,
+  4   "PHYSICAL_SITE_NUMBER" VARCHAR(64 BYTE) NOT NULL,
+  5   "CUSTOM_SITE_NUMBER" VARCHAR(64 BYTE) NOT NULL,
+  6   "PROJECT_NUMBER" VARCHAR(200 BYTE),
+  7   "ENTITY_ID" VARCHAR(64 BYTE),
+  8   "ENTITY_STATUS" VARCHAR(10 BYTE),
+  9   "WORK_TYPE" VARCHAR(2 BYTE),
+ 10   "NODE_NUMBER" VARCHAR(32 BYTE),
+ 11   "ATTRIBUTE_CODE" VARCHAR(64 BYTE),
+ 12   "SYS_SOURCE" VARCHAR(64 BYTE),
+ 13   "JOB_ID" NUMBER,
+ 14   "DELETE_FLAG" VARCHAR(1 BYTE) NOT NULL,
+ 15   "CREATED_BY" NUMBER NOT NULL,
+ 16   "CREATION_DATE" DATE NOT NULL,
+ 17   "LAST_UPDATED_BY" NUMBER NOT NULL,
+ 18   "LAST_UPDATE_DATE" DATE NOT NULL
+ 19 );
+
+Succeed.
+
+SQL> INSERT INTO "ESUR_DECO_JOB_SUBSIDIARY_T" ("ID","PHYSICAL_SITE_NUMBER","CUSTOM_SITE_NUMBER","PROJECT_NUMBER","ENTITY_ID","ENTITY_STATUS","WORK_TYPE","NODE_NUMBER","ATTRIBUTE_CODE","SYS_SOURCE","JOB_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE") values
+  2   (18002211,'NSTP0CDX9R','NSTC0CDV1C',null,'937307229211','1','0','NSTC0CDV1C','SDB00005287','2',1016932211,'0',715926521613826,'2019-08-01 16:04:31',715926521613826,'2019-08-01 16:04:31');
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_DECO_JOB_SUBSIDIARY_T" ("ID","PHYSICAL_SITE_NUMBER","CUSTOM_SITE_NUMBER","PROJECT_NUMBER","ENTITY_ID","ENTITY_STATUS","WORK_TYPE","NODE_NUMBER","ATTRIBUTE_CODE","SYS_SOURCE","JOB_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE") values
+  2   (18003211,'NSTP0CDX9R','NSTC0CDV1C',null,'937307229211','1','0','NSTC0CDV1C','SDB00005287','2',1016933211,'0',715926521613826,'2019-08-01 16:05:27',715926521613826,'2019-08-01 16:05:27');
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_DECO_JOB_SUBSIDIARY_T" ("ID","PHYSICAL_SITE_NUMBER","CUSTOM_SITE_NUMBER","PROJECT_NUMBER","ENTITY_ID","ENTITY_STATUS","WORK_TYPE","NODE_NUMBER","ATTRIBUTE_CODE","SYS_SOURCE","JOB_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE") values
+  2   (18004211,'NSTP0CDX9R','NSTC0CDV1C',null,'937307229211','1','0','NSTC0CDV1C','SDB00005287','2',1016934211,'0',715926521613826,'2019-08-01 16:16:09',715926521613826,'2019-08-01 16:16:09');
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_DECO_JOB_SUBSIDIARY_T" ("ID","PHYSICAL_SITE_NUMBER","CUSTOM_SITE_NUMBER","PROJECT_NUMBER","ENTITY_ID","ENTITY_STATUS","WORK_TYPE","NODE_NUMBER","ATTRIBUTE_CODE","SYS_SOURCE","JOB_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE") values
+  2   (18005211,'NSTP0CDX9R','NSTC0CDV1C',null,'937307229211','1','0','NSTC0CDV1C','SDB00005287','2',1016935211,'0',715926521613826,'2019-08-01 16:16:30',715926521613826,'2019-08-01 16:16:30');
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_DECO_JOB_SUBSIDIARY_T" ("ID","PHYSICAL_SITE_NUMBER","CUSTOM_SITE_NUMBER","PROJECT_NUMBER","ENTITY_ID","ENTITY_STATUS","WORK_TYPE","NODE_NUMBER","ATTRIBUTE_CODE","SYS_SOURCE","JOB_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE") values
+  2   (18006211,'NSTP09F303','NSTC09F15R',null,'937307980211','1','0','NSTC09F15R','SDB00005287','2',1016936211,'0',715926302421665,'2019-08-02 09:40:06',715926302421665,'2019-08-02 09:40:06');
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_DECO_JOB_SUBSIDIARY_T" ("ID","PHYSICAL_SITE_NUMBER","CUSTOM_SITE_NUMBER","PROJECT_NUMBER","ENTITY_ID","ENTITY_STATUS","WORK_TYPE","NODE_NUMBER","ATTRIBUTE_CODE","SYS_SOURCE","JOB_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE") values
+  2   (18007211,'NSTP09F303','NSTC09F15R',null,'937307980211','1','0','NSTC09F15R','SDB00005287','2',1016937211,'0',715926302421665,'2019-08-02 09:40:44',715926302421665,'2019-08-02 09:40:44');
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_DECO_JOB_SUBSIDIARY_T" ("ID","PHYSICAL_SITE_NUMBER","CUSTOM_SITE_NUMBER","PROJECT_NUMBER","ENTITY_ID","ENTITY_STATUS","WORK_TYPE","NODE_NUMBER","ATTRIBUTE_CODE","SYS_SOURCE","JOB_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE") values
+  2   (18008211,'NSTP101JU8','NSTC101M39',null,'937308387211','1','0','NSTC101M39','SDB00005287','2',1016938211,'0',715926521613826,'2019-08-02 18:27:12',715926521613826,'2019-08-02 18:27:12');
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_DECO_JOB_SUBSIDIARY_T" ("ID","PHYSICAL_SITE_NUMBER","CUSTOM_SITE_NUMBER","PROJECT_NUMBER","ENTITY_ID","ENTITY_STATUS","WORK_TYPE","NODE_NUMBER","ATTRIBUTE_CODE","SYS_SOURCE","JOB_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE") values
+  2   (18009211,'NSTP0CWAD4','NSTC0CW1FR',null,'937311985211','1','0','NSTC0CW1FR','ITEM17303000','2',1016939211,'0',655783474775805,'2019-08-07 08:57:26',655783474775805,'2019-08-07 08:57:26');
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_DECO_JOB_SUBSIDIARY_T" ("ID","PHYSICAL_SITE_NUMBER","CUSTOM_SITE_NUMBER","PROJECT_NUMBER","ENTITY_ID","ENTITY_STATUS","WORK_TYPE","NODE_NUMBER","ATTRIBUTE_CODE","SYS_SOURCE","JOB_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE") values
+  2   (18010211,'NSTP0CWAD4','NSTC0CW1FR',null,'937311985211','1','0','NSTC0CW1FR','ITEM17303000','2',1016940211,'0',655783474775805,'2019-08-07 08:58:42',655783474775805,'2019-08-07 08:58:42');
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_DECO_JOB_SUBSIDIARY_T" ("ID","PHYSICAL_SITE_NUMBER","CUSTOM_SITE_NUMBER","PROJECT_NUMBER","ENTITY_ID","ENTITY_STATUS","WORK_TYPE","NODE_NUMBER","ATTRIBUTE_CODE","SYS_SOURCE","JOB_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE") values
+  2   (18011211,'NSTP0CWAD4','NSTC0CW1FR',null,'937311985211','1','0','NSTC0CW1FR','ITEM17303000','2',1016941211,'0',655783474775805,'2019-08-07 08:58:48',655783474775805,'2019-08-07 08:58:48');
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_DECO_JOB_SUBSIDIARY_T" ("ID","PHYSICAL_SITE_NUMBER","CUSTOM_SITE_NUMBER","PROJECT_NUMBER","ENTITY_ID","ENTITY_STATUS","WORK_TYPE","NODE_NUMBER","ATTRIBUTE_CODE","SYS_SOURCE","JOB_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE") values
+  2   (18012211,'NSTP0CWAD4','NSTC0CW1FR',null,'937311985211','1','0','NSTC0CW1FR','ITEM17303000','2',1016942211,'0',655783474775805,'2019-08-07 08:59:01',655783474775805,'2019-08-07 08:59:01');
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_DECO_JOB_SUBSIDIARY_T" ("ID","PHYSICAL_SITE_NUMBER","CUSTOM_SITE_NUMBER","PROJECT_NUMBER","ENTITY_ID","ENTITY_STATUS","WORK_TYPE","NODE_NUMBER","ATTRIBUTE_CODE","SYS_SOURCE","JOB_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE") values
+  2   (18013211,'NSTP0CWAD4','NSTC0CW1FR',null,'937311985211','1','0','NSTC0CW1FR','ITEM17303000','2',1016943211,'0',655783474775805,'2019-08-07 09:02:55',655783474775805,'2019-08-07 09:02:55');
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_DECO_JOB_SUBSIDIARY_T" ("ID","PHYSICAL_SITE_NUMBER","CUSTOM_SITE_NUMBER","PROJECT_NUMBER","ENTITY_ID","ENTITY_STATUS","WORK_TYPE","NODE_NUMBER","ATTRIBUTE_CODE","SYS_SOURCE","JOB_ID","DELETE_FLAG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE") values
+  2   (18014211,'NSTP0CWAD4','NSTC0CW1FR',null,'937311965211','1','0','NSTC0CW1FR','ITEM17303000','2',1016944211,'0',655783474775805,'2019-08-07 10:17:47',655783474775805,'2019-08-07 10:17:47');
+
+1 rows affected.
+
+SQL> 
+SQL> 
+SQL> CREATE TABLE "ESUR_SURVEY_JOB_T"
+  2 (
+  3   "ID" NUMBER NOT NULL,
+  4   "JOB_ID" NUMBER NOT NULL,
+  5   "JOB_TYPE" VARCHAR(64 BYTE),
+  6   "JOB_PARA" CLOB,
+  7   "JOB_STATE" NUMBER,
+  8   "START_DATE" DATE,
+  9   "FINISH_DATE" DATE,
+ 10   "RESULT_MSG" VARCHAR(1024 BYTE),
+ 11   "CREATED_BY" NUMBER NOT NULL,
+ 12   "CREATION_DATE" DATE NOT NULL,
+ 13   "LAST_UPDATED_BY" NUMBER NOT NULL ,
+ 14   "LAST_UPDATE_DATE" DATE NOT NULL,
+ 15   "DOCKING_SYS_ID" VARCHAR(1024 BYTE)
+ 16 );
+
+Succeed.
+
+SQL> INSERT INTO "ESUR_SURVEY_JOB_T" ("ID","JOB_ID","JOB_TYPE","JOB_PARA","JOB_STATE","START_DATE","FINISH_DATE","RESULT_MSG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","DOCKING_SYS_ID") values
+  2   (1016932211,1016932211,'ConvertPanorama','<?xml version="1.0" encoding="UTF-8"?>
+  3 <root>
+  4     <para>
+  5         <customSiteId>LOPAL</customSiteId>
+  6         <physicSiteNumber>NSTP0CDX9R</physicSiteNumber>
+  7         <isScattered>0</isScattered>
+  8         <attrCode>SDB00005287</attrCode>
+  9         <customSiteNumber>NSTC0CDV1C</customSiteNumber>
+ 10         <entityStatus>1</entityStatus>
+ 11         <nodeNumber>NSTC0CDV1C</nodeNumber>
+ 12         <workType>0</workType>
+ 13         <entityId>937307229211</entityId>
+ 14         <pickerSysType>2</pickerSysType>
+ 15     </para>
+ 16     <extr></extr>
+ 17 </root>',3,null,null,'fail;0022',715926521613826,'2019-08-01 16:04:30',-1,'2019-08-01 16:04:34',null);
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_SURVEY_JOB_T" ("ID","JOB_ID","JOB_TYPE","JOB_PARA","JOB_STATE","START_DATE","FINISH_DATE","RESULT_MSG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","DOCKING_SYS_ID") values
+  2   (1016933211,1016933211,'ConvertPanorama','<?xml version="1.0" encoding="UTF-8"?>
+  3 <root>
+  4     <para>
+  5         <customSiteId>LOPAL</customSiteId>
+  6         <physicSiteNumber>NSTP0CDX9R</physicSiteNumber>
+  7         <isScattered>0</isScattered>
+  8         <attrCode>SDB00005287</attrCode>
+  9         <customSiteNumber>NSTC0CDV1C</customSiteNumber>
+ 10         <entityStatus>1</entityStatus>
+ 11         <nodeNumber>NSTC0CDV1C</nodeNumber>
+ 12         <workType>0</workType>
+ 13         <entityId>937307229211</entityId>
+ 14         <pickerSysType>2</pickerSysType>
+ 15     </para>
+ 16     <extr></extr>
+ 17 </root>',3,null,null,'fail;0022',715926521613826,'2019-08-01 16:05:27',-1,'2019-08-01 16:05:30',null);
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_SURVEY_JOB_T" ("ID","JOB_ID","JOB_TYPE","JOB_PARA","JOB_STATE","START_DATE","FINISH_DATE","RESULT_MSG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","DOCKING_SYS_ID") values
+  2   (1016934211,1016934211,'ConvertPanorama','<?xml version="1.0" encoding="UTF-8"?>
+  3 <root>
+  4     <para>
+  5         <customSiteId>LOPAL</customSiteId>
+  6         <physicSiteNumber>NSTP0CDX9R</physicSiteNumber>
+  7         <isScattered>0</isScattered>
+  8         <attrCode>SDB00005287</attrCode>
+  9         <customSiteNumber>NSTC0CDV1C</customSiteNumber>
+ 10         <entityStatus>1</entityStatus>
+ 11         <nodeNumber>NSTC0CDV1C</nodeNumber>
+ 12         <workType>0</workType>
+ 13         <entityId>937307229211</entityId>
+ 14         <pickerSysType>2</pickerSysType>
+ 15     </para>
+ 16     <extr></extr>
+ 17 </root>',3,null,null,'fail;0022',715926521613826,'2019-08-01 16:16:09',-1,'2019-08-01 16:16:12',null);
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_SURVEY_JOB_T" ("ID","JOB_ID","JOB_TYPE","JOB_PARA","JOB_STATE","START_DATE","FINISH_DATE","RESULT_MSG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","DOCKING_SYS_ID") values
+  2   (1016935211,1016935211,'ConvertPanorama','<?xml version="1.0" encoding="UTF-8"?>
+  3 <root>
+  4     <para>
+  5         <customSiteId>LOPAL</customSiteId>
+  6         <physicSiteNumber>NSTP0CDX9R</physicSiteNumber>
+  7         <isScattered>0</isScattered>
+  8         <attrCode>SDB00005287</attrCode>
+  9         <customSiteNumber>NSTC0CDV1C</customSiteNumber>
+ 10         <entityStatus>1</entityStatus>
+ 11         <nodeNumber>NSTC0CDV1C</nodeNumber>
+ 12         <workType>0</workType>
+ 13         <entityId>937307229211</entityId>
+ 14         <pickerSysType>2</pickerSysType>
+ 15     </para>
+ 16     <extr></extr>
+ 17 </root>',3,null,null,'fail;0022',715926521613826,'2019-08-01 16:16:30',-1,'2019-08-01 16:16:33',null);
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_SURVEY_JOB_T" ("ID","JOB_ID","JOB_TYPE","JOB_PARA","JOB_STATE","START_DATE","FINISH_DATE","RESULT_MSG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","DOCKING_SYS_ID") values
+  2   (1016936211,1016936211,'ConvertPanorama','<?xml version="1.0" encoding="UTF-8"?>
+  3 <root>
+  4     <para>
+  5         <customSiteId>TI0062</customSiteId>
+  6         <physicSiteNumber>NSTP09F303</physicSiteNumber>
+  7         <isScattered>0</isScattered>
+  8         <attrCode>SDB00005287</attrCode>
+  9         <customSiteNumber>NSTC09F15R</customSiteNumber>
+ 10         <entityStatus>1</entityStatus>
+ 11         <nodeNumber>NSTC09F15R</nodeNumber>
+ 12         <workType>0</workType>
+ 13         <entityId>937307980211</entityId>
+ 14         <pickerSysType>2</pickerSysType>
+ 15     </para>
+ 16     <extr></extr>
+ 17 </root>',3,null,null,'fail;0022',715926302421665,'2019-08-02 09:40:06',-1,'2019-08-02 09:40:09',null);
+
+1 rows affected.
+
+SQL> INSERT INTO "ESUR_SURVEY_JOB_T" ("ID","JOB_ID","JOB_TYPE","JOB_PARA","JOB_STATE","START_DATE","FINISH_DATE","RESULT_MSG","CREATED_BY","CREATION_DATE","LAST_UPDATED_BY","LAST_UPDATE_DATE","DOCKING_SYS_ID") values
+  2   (1016937211,1016937211,'ConvertPanorama','<?xml version="1.0" encoding="UTF-8"?>
+  3 <root>
+  4     <para>
+  5         <customSiteId>TI0062</customSiteId>
+  6         <physicSiteNumber>NSTP09F303</physicSiteNumber>
+  7         <isScattered>0</isScattered>
+  8         <attrCode>SDB00005287</attrCode>
+  9         <customSiteNumber>NSTC09F15R</customSiteNumber>
+ 10         <entityStatus>1</entityStatus>
+ 11         <nodeNumber>NSTC09F15R</nodeNumber>
+ 12         <workType>0</workType>
+ 13         <entityId>937307980211</entityId>
+ 14         <pickerSysType>2</pickerSysType>
+ 15     </para>
+ 16     <extr></extr>
+ 17 </root>',3,null,null,'fail;0022',715926302421665,'2019-08-02 09:40:44',-1,'2019-08-02 09:40:47',null);
+
+1 rows affected.
+
+SQL>
+SQL> DROP TABLE "DES_BASE_OBJENTITYREL_T" ;
+
+Succeed.
+
+SQL> DROP TABLE "DES_SITE_PHYSICAL_REL_T" ;
+
+Succeed.
+
+SQL> DROP TABLE "ESUR_DECO_JOB_SUBSIDIARY_T";
+
+Succeed.
+
+SQL> DROP TABLE "ESUR_SURVEY_JOB_T";
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists t_dql_base_001;
+
+Succeed.
+SQL> create table t_dql_base_001(id int not null,c_int int,c_vchar varchar(20) not null,c_clob clob not null,c_blob blob not null,c_date date,constraint t_dql_base_001_con primary key(c_vchar));
+
+Succeed.
+
+SQL> insert into t_dql_base_001 values(1,100,'abc123',lpad('123abc',50,'abc'),lpad('11100011',50,'1100'),to_timestamp(to_char('1800-01-01 10:51:47'),'yyyy-mm-dd hh24:mi:ss'));
+
+1 rows affected.
+
+SQL> select distinct count((with tmpt as (select id from t_dql_base_001) select * from tmpt where t1.id=id)) over(partition by (with tmpt as (select id from t_dql_base_001) select * from tmpt where t1.id=id)) c from t_dql_base_001 t1;
+
+C
+--------------------
+1
+
+1 rows fetched.
+
+SQL> select distinct count((with tmpt as (select id from t_dql_base_001) select * from tmpt where t1.id=id)) over(partition by (with tmpt as (select id from tmpt) select * from tmpt where t1.id=id)) c from t_dql_base_001 t1;
+
+CT-00601, [1:129]Sql syntax error: recursive WITH clause must have column alias list
+SQL> 
+SQL>
+SQL> -- DTS20201226076I4MP1G00
+SQL> drop table if exists withas_free_page_t;
+
+Succeed.
+
+SQL> create table withas_free_page_t(id number(8), c_str varchar(5));
+
+Succeed.
+
+SQL> insert into withas_free_page_t values(1, 'M');
+
+1 rows affected.
+
+SQL> insert into withas_free_page_t values(2, 'M');
+
+1 rows affected.
+
+SQL> insert into withas_free_page_t values(3, 'F');
+
+1 rows affected.
+
+SQL> insert into withas_free_page_t values(4, 'F');
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> 
+SQL> with jennifer_1 as (
+  2     select 
+  3         ref_0.id as c0, 
+  4         ref_0.c_str as c1
+  5     from withas_free_page_t as ref_0
+  6 )
+  7 
+  8 select
+  9     corr(0,2.0) as c0,
+ 10     ref_1.c0 as c1
+ 11 from
+ 12     (jennifer_1 as ref_1) right outer join 
+ 13     (jennifer_1 as ref_2)
+ 14     on (regexp_like(ref_1.c1,'.*'))
+ 15 group by
+ 16     cube(
+ 17         ref_2.c0, ref_2.c0, cast('2020-12-21 20:55:54' as timestamp with local time zone), ref_1.c1,
+ 18         cast('c288ef3a9deaeca4' as binary(100)), ref_2.c0, ref_2.c0, null, false, null, cast('688015 0:44:6' as interval day to second(6))
+ 19     ),
+ 20     ref_2.c0, ref_1.c0, ref_1.c1;
+
+CT-01328, Too many aggregation
+SQL> 
+SQL> drop table withas_free_page_t;
+
+Succeed.
+
+SQL> 
+SQL> --DTS2020042010859
+SQL> drop table if exists FILECURRENT_0422;
+
+Succeed.
+
+SQL> drop table if exists FILEATTRIBUTE_0422;
+
+Succeed.
+
+SQL> drop table if exists sharp_0422;
+
+Succeed.
+
+SQL> CREATE TABLE FILECURRENT_0422 (
+  2     ID BINARY_INTEGER NOT NULL,
+  3     SN BINARY_INTEGER,
+  4     OID VARCHAR(50),
+  5     NAME VARCHAR(100),
+  6     PATH VARCHAR(200),
+  7     TYPE BINARY_INTEGER,
+  8     STATUS BINARY_INTEGER,
+  9     FLAG BINARY_INTEGER,
+ 10     CREATEUSER VARCHAR(20),
+ 11     CREATETIME VARCHAR(20),
+ 12     UPDATEUSER VARCHAR(20),
+ 13     UPDATETIME VARCHAR(20),
+ 14     REMARK VARCHAR(100),
+ 15     CID BINARY_INTEGER,
+ 16     CREATETYPE BINARY_INTEGER,
+ 17     OPSTATUS BINARY_INTEGER,
+ 18     FROMFILEID BINARY_INTEGER,
+ 19     FILESOURCE BINARY_INTEGER,
+ 20     TDCNAME VARCHAR(1000),
+ 21     CONSTRAINT PK_FILECURRENT_DTS2020042010859 PRIMARY KEY (ID)
+ 22 );
+
+Succeed.
+
+SQL> CREATE TABLE FILEATTRIBUTE_0422 (
+  2     ID BINARY_INTEGER NOT NULL,
+  3     FTYPE BINARY_INTEGER,
+  4     FID BINARY_INTEGER,
+  5     FSN BINARY_INTEGER,
+  6     ATYPE BINARY_INTEGER,
+  7     AID VARCHAR(20),
+  8     CONSTRAINT PK_FILEATTRIBUTE_DTS2020042010859 PRIMARY KEY (ID)
+  9 );
+
+Succeed.
+
+SQL> CREATE TABLE sharp_0422 (
+  2     ID BINARY_INTEGER NOT NULL,
+  3     NAME VARCHAR(100),
+  4     CREATEUSER VARCHAR(20),
+  5     CREATETIME VARCHAR(20),
+  6     UPDATEUSER VARCHAR(20),
+  7     UPDATETIME VARCHAR(20),
+  8     VERNAME VARCHAR(100),
+  9     REMARK VARCHAR(500),
+ 10     STATUS BINARY_INTEGER,
+ 11     SHARPBASICID BINARY_INTEGER,
+ 12     ALIASNAME VARCHAR(200),
+ 13     CONSTRAINT PK_SHARP_DTS2020042010859 PRIMARY KEY (ID)
+ 14 );
+
+Succeed.
+
+SQL> CREATE OR REPLACE FUNCTION newsort_DTS2020042010859
+  2 (
+  3    name in varchar2
+  4 )
+  5 RETURN VARCHAR2
+  6 as
+  7 results varchar2(8000 char);
+  8 colum_name_v1 varchar2(8000 char);
+  9 colum_name_v2 varchar2(8000 char);
+ 10 begin
+ 11     if instr(name,'_')>0 and instr(name,'-')=0 then
+ 12     colum_name_v2:=replace(name,'_','|');
+ 13
+ 14     elsif instr(name,'-')>0 and instr(name,'_')=0 then
+ 15     colum_name_v2:=replace(name,'-','|');
+ 16
+ 17     elsif instr(name,'-')>0 and instr(name,'_')=0 then
+ 18     colum_name_v1:=replace(name,'-','|');
+ 19     colum_name_v2:=replace(colum_name_v1,'_','|');
+ 20
+ 21     else colum_name_v2:=name;
+ 22     end if;
+ 23
+ 24     results:=colum_name_v2;
+ 25     return results;
+ 26 end;
+ 27 /
+
+Succeed.
+
+SQL>
+SQL> WITH ret AS(SELECT a.id , c.name AS sharpName FROM FILECURRENT_0422 a  INNER JOIN FILEATTRIBUTE_0422 b ON a.id = b.fid  AND a.sn = b.fsn AND b.ftype = 1 AND b.atype = 6 INNER JOIN sharp_0422 c ON isnumeric(b.aid) and b.aid = c.id and c.status <> 9 INNER JOIN (
+  2 SELECT 4158772 AS fileid  from dual UNION SELECT 4158774 from dual UNION SELECT 4158776 from dual UNION SELECT 4158778 from dual UNION SELECT 4158780 from dual UNION SELECT 4158782 from dual UNION SELECT 4158784 from dual UNION SELECT 4158784 from dual
+  3 UNION SELECT 4158786 from dual UNION SELECT 4158788 from dual UNION SELECT 4158790 from dual UNION SELECT 4158792 from dual UNION SELECT 4158792 from dual UNION SELECT 4158794 from dual UNION SELECT 4158796 from dual UNION SELECT 4158798 from dual
+  4 UNION SELECT 4158798 from dual UNION SELECT 4158798 from dual UNION SELECT 4158798 from dual UNION SELECT 4158798 from dual UNION SELECT 4158800 from dual UNION SELECT 4158802 from dual UNION SELECT 4158804 from dual UNION SELECT 4158807 from dual
+  5 UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual
+  6 UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual
+  7 UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158811 from dual UNION SELECT 4158813 from dual UNION SELECT 4158813 from dual UNION SELECT 4158815 from dual UNION SELECT 4158815 from dual
+  8 UNION SELECT 4158817 from dual UNION SELECT 4158819 from dual UNION SELECT 4158821 from dual UNION SELECT 4158822 from dual UNION SELECT 4158823 from dual UNION SELECT 4158824 from dual UNION SELECT 4158825 from dual UNION SELECT 4158826 from dual
+  9 UNION SELECT 4158827 from dual UNION SELECT 4158828 from dual UNION SELECT 4158829 from dual UNION SELECT 4158830 from dual UNION SELECT 4158831 from dual UNION SELECT 4158832 from dual UNION SELECT 4158833 from dual UNION SELECT 4158834 from dual
+ 10 UNION SELECT 4158835 from dual UNION SELECT 4158836 from dual UNION SELECT 4158837 from dual UNION SELECT 4158838 from dual UNION SELECT 4158839 from dual UNION SELECT 4158840 from dual UNION SELECT 4158841 from dual UNION SELECT 4158842 from dual
+ 11 UNION SELECT 4158843 from dual UNION SELECT 4158844 from dual UNION SELECT 4158845 from dual UNION SELECT 4158847 from dual UNION SELECT 4158848 from dual UNION SELECT 4158850 from dual UNION SELECT 4158851 from dual UNION SELECT 4158852 from dual
+ 12 UNION SELECT 4158853 from dual UNION SELECT 4158854 from dual UNION SELECT 4158855 from dual UNION SELECT 4158856 from dual UNION SELECT 4158856 from dual UNION SELECT 4158856 from dual UNION SELECT 4158856 from dual UNION SELECT 4158857 from dual
+ 13 UNION SELECT 4158858 from dual UNION SELECT 4158859 from dual UNION SELECT 4158860 from dual UNION SELECT 4158861 from dual UNION SELECT 4158862 from dual UNION SELECT 4158863 from dual UNION SELECT 4158864 from dual UNION SELECT 4158865 from dual
+ 14 uNION SELECT 4158866 from dual UNION SELECT 4158867 from dual UNION SELECT 4158868 from dual UNION SELECT 4158869 from dual UNION SELECT 4158870 from dual UNION SELECT 4158871 from dual UNION SELECT 4158872 from dual UNION SELECT 4158873 from dual
+ 15 UNION SELECT 4158874 from dual UNION SELECT 4158875 from dual UNION SELECT 4158876 from dual UNION SELECT 4158877 from dual UNION SELECT 4158878 from dual UNION SELECT 4158879 from dual UNION SELECT 4158880 from dual UNION SELECT 4158881 from dual
+ 16 UNION SELECT 4158882 from dual UNION SELECT 4158883 from dual UNION SELECT 4158884 from dual UNION SELECT 4158885 from dual UNION SELECT 4158886 from dual UNION SELECT 4158887 from dual UNION SELECT 4158888 from dual UNION SELECT 4158889 from dual
+ 17 UNION SELECT 4158890 from dual UNION SELECT 4158891 from dual UNION SELECT 4158892 from dual UNION SELECT 4158893 from dual UNION SELECT 4158894 from dual UNION SELECT 4158895 from dual UNION SELECT 4158896 from dual UNION SELECT 4158897 from dual
+ 18 UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual
+ 19 UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual
+ 20 UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual
+ 21 UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual
+ 22 UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual
+ 23 UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158997 from dual UNION SELECT 4158998 from dual UNION SELECT 4158999 from dual UNION SELECT 4159000 from dual
+ 24 UNION SELECT 4159001 from dual UNION SELECT 4159002 from dual UNION SELECT 4159003 from dual UNION SELECT 4159004 from dual UNION SELECT 4159005 from dual UNION SELECT 4159006 from dual UNION SELECT 4159007 from dual UNION SELECT 4159008 from dual
+ 25 UNION SELECT 4159009 from dual UNION SELECT 4159010 from dual UNION SELECT 4159012 from dual UNION SELECT 4159013 from dual UNION SELECT 4159013 from dual UNION SELECT 4159013 from dual UNION SELECT 4159014 from dual UNION SELECT 4159015 from dual
+ 26 UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual
+ 27 UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159017 from dual UNION SELECT 4159018 from dual UNION SELECT 4159019 from dual UNION SELECT 4159020 from dual UNION SELECT 4159021 from dual UNION SELECT 4159022 from dual
+ 28 UNION SELECT 4159023 from dual UNION SELECT 4159024 from dual UNION SELECT 4159025 from dual UNION SELECT 4159026 from dual UNION SELECT 4159027 from dual UNION SELECT 4159028 from dual UNION SELECT 4159029 from dual UNION SELECT 4159030 from dual
+ 29 UNION SELECT 4159031 from dual UNION SELECT 4159032 from dual UNION SELECT 4159033 from dual UNION SELECT 4159034 from dual UNION SELECT 4159035 from dual UNION SELECT 4159036 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual
+ 30 UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual
+ 31 UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual UNION SELECT 4159039 from dual UNION SELECT 4159039 from dual UNION SELECT 4159040 from dual
+ 32 UNION SELECT 4159041 from dual UNION SELECT 4159042 from dual UNION SELECT 4159043 from dual UNION SELECT 4159044 from dual UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual
+ 33 UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual
+ 34 UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual
+ 35 UNION SELECT 4159046 from dual UNION SELECT 4159047 from dual UNION SELECT 4159048 from dual UNION SELECT 4159049 from dual UNION SELECT 4159050 from dual UNION SELECT 4159051 from dual UNION SELECT 4159052 from dual UNION SELECT 4159053 from dual
+ 36 UNION SELECT 4159054 from dual UNION SELECT 4159055 from dual UNION SELECT 4159056 from dual UNION SELECT 4159057 from dual UNION SELECT 4159058 from dual UNION SELECT 4159059 from dual UNION SELECT 4159060 from dual UNION SELECT 4159061 from dual
+ 37 UNION SELECT 4159062 from dual UNION SELECT 4159063 from dual UNION SELECT 4159064 from dual UNION SELECT 4159065 from dual UNION SELECT 4159066 from dual UNION SELECT 4159067 from dual UNION SELECT 4159068 from dual UNION SELECT 4159069 from dual
+ 38 UNION SELECT 4159070 from dual UNION SELECT 4159071 from dual UNION SELECT 4159072 from dual UNION SELECT 4159073 from dual UNION SELECT 4159074 from dual UNION SELECT 4159074 from dual UNION SELECT 4159075 from dual UNION SELECT 4159076 from dual
+ 39 UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual
+ 40 UNION SELECT 4159076 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual
+ 41 UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual
+ 42 UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159078 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual
+ 43 UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual
+ 44 UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159080 from dual UNION SELECT 4159081 from dual UNION SELECT 4159082 from dual
+ 45 UNION SELECT 4159083 from dual UNION SELECT 4159084 from dual UNION SELECT 4159084 from dual UNION SELECT 4159084 from dual UNION SELECT 4159084 from dual UNION SELECT 4159085 from dual UNION SELECT 4159086 from dual UNION SELECT 4159087 from dual
+ 46 UNION SELECT 4159088 from dual UNION SELECT 4159089 from dual UNION SELECT 4159089 from dual UNION SELECT 4159089 from dual UNION SELECT 4159089 from dual UNION SELECT 4159090 from dual UNION SELECT 4159091 from dual UNION SELECT 4159092 from dual
+ 47 UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual
+ 48 UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual
+ 49 UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159094 from dual UNION SELECT 4159095 from dual UNION SELECT 4159096 from dual UNION SELECT 4159097 from dual
+ 50 UNION SELECT 4159098 from dual UNION SELECT 4159099 from dual UNION SELECT 4159100 from dual UNION SELECT 4159101 from dual UNION SELECT 4159102 from dual UNION SELECT 4159103 from dual UNION SELECT 4159104 from dual UNION SELECT 4159105 from dual
+ 51 UNION SELECT 4159106 from dual UNION SELECT 4159107 from dual UNION SELECT 4159108 from dual UNION SELECT 4159109 from dual UNION SELECT 4159110 from dual UNION SELECT 4159111 from dual UNION SELECT 4159112 from dual UNION SELECT 4159112 from dual
+ 52 UNION SELECT 4159113 from dual UNION SELECT 4159114 from dual UNION SELECT 4159115 from dual UNION SELECT 4159116 from dual UNION SELECT 4159117 from dual UNION SELECT 4159118 from dual UNION SELECT 4159119 from dual UNION SELECT 4159120 from dual
+ 53 UNION SELECT 4159121 from dual UNION SELECT 4159122 from dual UNION SELECT 4159123 from dual UNION SELECT 4159124 from dual UNION SELECT 4159125 from dual UNION SELECT 4159126 from dual UNION SELECT 4159127 from dual UNION SELECT 4159127 from dual
+ 54 UNION SELECT 4159128 from dual UNION SELECT 4159129 from dual UNION SELECT 4159130 from dual UNION SELECT 4159131 from dual UNION SELECT 4159132 from dual UNION SELECT 4159133 from dual UNION SELECT 4159134 from dual UNION SELECT 4159135 from dual
+ 55 UNION SELECT 4159136 from dual UNION SELECT 4159137 from dual UNION SELECT 4159138 from dual UNION SELECT 4159139 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual
+ 56 UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual
+ 57 UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159141 from dual UNION SELECT 4159142 from dual UNION SELECT 4159143 from dual UNION SELECT 4159144 from dual UNION SELECT 4159145 from dual UNION SELECT 4159146 from dual
+ 58 UNION SELECT 4159147 from dual UNION SELECT 4159148 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual
+ 59 UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual
+ 60 UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159150 from dual
+ 61 UNION SELECT 4159151 from dual UNION SELECT 4159152 from dual UNION SELECT 4159153 from dual UNION SELECT 4159154 from dual UNION SELECT 4159155 from dual UNION SELECT 4159155 from dual UNION SELECT 4159156 from dual UNION SELECT 4159157 from dual
+ 62 UNION SELECT 4159158 from dual UNION SELECT 4159159 from dual UNION SELECT 4159160 from dual UNION SELECT 4159161 from dual UNION SELECT 4159162 from dual UNION SELECT 4159163 from dual UNION SELECT 4159164 from dual UNION SELECT 4159165 from dual
+ 63 UNION SELECT 4159166 from dual UNION SELECT 4159167 from dual UNION SELECT 4159167 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual
+ 64 UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159169 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual
+ 65 UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual
+ 66 UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual
+ 67 UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159278 from dual UNION SELECT 4159279 from dual UNION SELECT 4159280 from dual UNION SELECT 4159281 from dual UNION SELECT 4159282 from dual
+ 68 UNION SELECT 4159283 from dual UNION SELECT 4159284 from dual UNION SELECT 4159285 from dual UNION SELECT 4159286 from dual UNION SELECT 4159287 from dual UNION SELECT 4159288 from dual UNION SELECT 4159289 from dual UNION SELECT 4159290 from dual
+ 69 UNION SELECT 4159291 from dual UNION SELECT 4159292 from dual UNION SELECT 4159293 from dual UNION SELECT 4159294 from dual UNION SELECT 4159295 from dual UNION SELECT 4159296 from dual UNION SELECT 4159297 from dual UNION SELECT 4159298 from dual
+ 70 UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual
+ 71 UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159299 from dual UNION SELECT 4159300 from dual
+ 72 UNION SELECT 4159301 from dual UNION SELECT 4159302 from dual UNION SELECT 4159303 from dual UNION SELECT 4159304 from dual UNION SELECT 4159305 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual
+ 73 UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159307 from dual UNION SELECT 4159308 from dual
+ 74 UNION SELECT 4159309 from dual UNION SELECT 4159310 from dual UNION SELECT 4159311 from dual UNION SELECT 4159312 from dual UNION SELECT 4159313 from dual UNION SELECT 4159314 from dual UNION SELECT 4159315 from dual UNION SELECT 4159316 from dual
+ 75 UNION SELECT 4159317 from dual UNION SELECT 4159318 from dual UNION SELECT 4159319 from dual UNION SELECT 4159320 from dual UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual
+ 76 UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual UNION SELECT 4159322 from dual UNION SELECT 4159323 from dual UNION SELECT 4159324 from dual UNION SELECT 4159325 from dual UNION SELECT 4159326 from dual
+ 77 UNION SELECT 4159327 from dual UNION SELECT 4159328 from dual UNION SELECT 4159329 from dual UNION SELECT 4159330 from dual UNION SELECT 4159330 from dual UNION SELECT 4159330 from dual UNION SELECT 4159331 from dual UNION SELECT 4159332 from dual
+ 78 UNION SELECT 4159333 from dual UNION SELECT 4159334 from dual UNION SELECT 4159334 from dual UNION SELECT 4159335 from dual UNION SELECT 4159336 from dual UNION SELECT 4159337 from dual UNION SELECT 4159338 from dual UNION SELECT 4159339 from dual
+ 79 UNION SELECT 4159340 from dual UNION SELECT 4159341 from dual UNION SELECT 4159342 from dual UNION SELECT 4159343 from dual UNION SELECT 4159344 from dual UNION SELECT 4159345 from dual UNION SELECT 4159346 from dual UNION SELECT 4159347 from dual
+ 80 UNION SELECT 4159348 from dual UNION SELECT 4159349 from dual UNION SELECT 4159350 from dual UNION SELECT 4159351 from dual UNION SELECT 4159352 from dual UNION SELECT 4159353 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual
+ 81 UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual
+ 82 UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159355 from dual UNION SELECT 4159356 from dual UNION SELECT 4159357 from dual UNION SELECT 4159358 from dual UNION SELECT 4159359 from dual
+ 83 UNION SELECT 4159360 from dual UNION SELECT 4159361 from dual UNION SELECT 4159362 from dual UNION SELECT 4159391 from dual UNION SELECT 4159392 from dual UNION SELECT 4159392 from dual UNION SELECT 4159393 from dual UNION SELECT 4159394 from dual
+ 84 UNION SELECT 4159395 from dual UNION SELECT 4159396 from dual UNION SELECT 4159396 from dual UNION SELECT 4159397 from dual UNION SELECT 4159398 from dual UNION SELECT 4159399 from dual UNION SELECT 4159400 from dual UNION SELECT 4159401 from dual
+ 85 UNION SELECT 4159402 from dual UNION SELECT 4159403 from dual UNION SELECT 4159404 from dual UNION SELECT 4159405 from dual UNION SELECT 4159406 from dual UNION SELECT 4159407 from dual UNION SELECT 4159408 from dual UNION SELECT 4159409 from dual
+ 86 UNION SELECT 4159410 from dual UNION SELECT 4159411 from dual UNION SELECT 4159412 from dual UNION SELECT 4159413 from dual UNION SELECT 4159414 from dual UNION SELECT 4159415 from dual UNION SELECT 4159416 from dual UNION SELECT 4159417 from dual
+ 87 UNION SELECT 4159418 from dual UNION SELECT 4159419 from dual UNION SELECT 4159420 from dual UNION SELECT 4159421 from dual UNION SELECT 4159422 from dual UNION SELECT 4159423 from dual UNION SELECT 4159424 from dual UNION SELECT 4159425 from dual
+ 88 UNION SELECT 4159426 from dual UNION SELECT 4159427 from dual UNION SELECT 4159428 from dual UNION SELECT 4159429 from dual UNION SELECT 4159430 from dual UNION SELECT 4159430 from dual UNION SELECT 4159430 from dual UNION SELECT 4159430 from dual
+ 89 UNION SELECT 4159430 from dual UNION SELECT 4159431 from dual UNION SELECT 4159432 from dual UNION SELECT 4159433 from dual UNION SELECT 4159434 from dual UNION SELECT 4159435 from dual UNION SELECT 4159436 from dual UNION SELECT 4159437 from dual
+ 90 UNION SELECT 4159437 from dual UNION SELECT 4159437 from dual UNION SELECT 4159438 from dual UNION SELECT 4159439 from dual UNION SELECT 4159440 from dual UNION SELECT 4159440 from dual UNION SELECT 4159440 from dual UNION SELECT 4159441 from dual
+ 91 UNION SELECT 4159442 from dual UNION SELECT 4159443 from dual UNION SELECT 4159444 from dual UNION SELECT 4159445 from dual UNION SELECT 4159446 from dual UNION SELECT 4159447 from dual UNION SELECT 4159448 from dual UNION SELECT 4159449 from dual
+ 92 UNION SELECT 4159450 from dual UNION SELECT 4159451 from dual UNION SELECT 4159452 from dual UNION SELECT 4159453 from dual UNION SELECT 4159454 from dual UNION SELECT 4159455 from dual UNION SELECT 4159456 from dual UNION SELECT 4159456 from dual
+ 93 UNION SELECT 4159457 from dual UNION SELECT 4159458 from dual UNION SELECT 4159459 from dual UNION SELECT 4159460 from dual UNION SELECT 4159461 from dual UNION SELECT 4159462 from dual UNION SELECT 4159463 from dual UNION SELECT 4159464 from dual
+ 94 UNION SELECT 4159465 from dual UNION SELECT 4159466 from dual UNION SELECT 4159467 from dual UNION SELECT 4159468 from dual UNION SELECT 4159469 from dual UNION SELECT 4159470 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual
+ 95 UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual
+ 96 UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual
+ 97 UNION SELECT 4159472 from dual UNION SELECT 4159473 from dual UNION SELECT 4159474 from dual UNION SELECT 4159475 from dual UNION SELECT 4159476 from dual UNION SELECT 4159476 from dual UNION SELECT 4159477 from dual UNION SELECT 4159478 from dual
+ 98 UNION SELECT 4159479 from dual UNION SELECT 4159480 from dual UNION SELECT 4159481 from dual UNION SELECT 4159482 from dual UNION SELECT 4159483 from dual UNION SELECT 4159484 from dual UNION SELECT 4159485 from dual UNION SELECT 4159486 from dual
+ 99 UNION SELECT 4159487 from dual UNION SELECT 4159488 from dual UNION SELECT 4159489 from dual UNION SELECT 4159490 from dual UNION SELECT 4159491 from dual UNION SELECT 4159492 from dual UNION SELECT 4159492 from dual UNION SELECT 4159493 from dual
+100 UNION SELECT 4159494 from dual UNION SELECT 4159495 from dual UNION SELECT 4159496 from dual UNION SELECT 4159497 from dual UNION SELECT 4159498 from dual UNION SELECT 4159499 from dual UNION SELECT 4159500 from dual UNION SELECT 4159501 from dual
+101 UNION SELECT 4159502 from dual UNION SELECT 4159503 from dual UNION SELECT 4159504 from dual UNION SELECT 4159505 from dual UNION SELECT 4159506 from dual UNION SELECT 4159507 from dual UNION SELECT 4159508 from dual UNION SELECT 4159509 from dual
+102 UNION SELECT 4159510 from dual UNION SELECT 4159511 from dual UNION SELECT 4159512 from dual UNION SELECT 4159513 from dual UNION SELECT 4159514 from dual UNION SELECT 4159515 from dual UNION SELECT 4159516 from dual UNION SELECT 4159517 from dual
+103 UNION SELECT 4159518 from dual UNION SELECT 4159519 from dual UNION SELECT 4159520 from dual UNION SELECT 4159521 from dual UNION SELECT 4159522 from dual UNION SELECT 4159523 from dual UNION SELECT 4159524 from dual UNION SELECT 4159525 from dual
+104 UNION SELECT 4159526 from dual UNION SELECT 4159527 from dual UNION SELECT 4159528 from dual UNION SELECT 4159529 from dual UNION SELECT 4159530 from dual UNION SELECT 4159530 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual
+105 UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual
+106 UNION SELECT 4158786 from dual UNION SELECT 4158788 from dual UNION SELECT 4158790 from dual UNION SELECT 4158792 from dual UNION SELECT 4158792 from dual UNION SELECT 4158794 from dual UNION SELECT 4158796 from dual UNION SELECT 4158798 from dual
+107 UNION SELECT 4158798 from dual UNION SELECT 4158798 from dual UNION SELECT 4158798 from dual UNION SELECT 4158798 from dual UNION SELECT 4158800 from dual UNION SELECT 4158802 from dual UNION SELECT 4158804 from dual UNION SELECT 4158807 from dual
+108 UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual
+109 UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual
+110 UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158811 from dual UNION SELECT 4158813 from dual UNION SELECT 4158813 from dual UNION SELECT 4158815 from dual UNION SELECT 4158815 from dual
+111 UNION SELECT 4158817 from dual UNION SELECT 4158819 from dual UNION SELECT 4158821 from dual UNION SELECT 4158822 from dual UNION SELECT 4158823 from dual UNION SELECT 4158824 from dual UNION SELECT 4158825 from dual UNION SELECT 4158826 from dual
+112 UNION SELECT 4158827 from dual UNION SELECT 4158828 from dual UNION SELECT 4158829 from dual UNION SELECT 4158830 from dual UNION SELECT 4158831 from dual UNION SELECT 4158832 from dual UNION SELECT 4158833 from dual UNION SELECT 4158834 from dual
+113 UNION SELECT 4158835 from dual UNION SELECT 4158836 from dual UNION SELECT 4158837 from dual UNION SELECT 4158838 from dual UNION SELECT 4158839 from dual UNION SELECT 4158840 from dual UNION SELECT 4158841 from dual UNION SELECT 4158842 from dual
+114 UNION SELECT 4158843 from dual UNION SELECT 4158844 from dual UNION SELECT 4158845 from dual UNION SELECT 4158847 from dual UNION SELECT 4158848 from dual UNION SELECT 4158850 from dual UNION SELECT 4158851 from dual UNION SELECT 4158852 from dual
+115 UNION SELECT 4158853 from dual UNION SELECT 4158854 from dual UNION SELECT 4158855 from dual UNION SELECT 4158856 from dual UNION SELECT 4158856 from dual UNION SELECT 4158856 from dual UNION SELECT 4158856 from dual UNION SELECT 4158857 from dual
+116 UNION SELECT 4158858 from dual UNION SELECT 4158859 from dual UNION SELECT 4158860 from dual UNION SELECT 4158861 from dual UNION SELECT 4158862 from dual UNION SELECT 4158863 from dual UNION SELECT 4158864 from dual UNION SELECT 4158865 from dual
+117 uNION SELECT 4158866 from dual UNION SELECT 4158867 from dual UNION SELECT 4158868 from dual UNION SELECT 4158869 from dual UNION SELECT 4158870 from dual UNION SELECT 4158871 from dual UNION SELECT 4158872 from dual UNION SELECT 4158873 from dual
+118 UNION SELECT 4158874 from dual UNION SELECT 4158875 from dual UNION SELECT 4158876 from dual UNION SELECT 4158877 from dual UNION SELECT 4158878 from dual UNION SELECT 4158879 from dual UNION SELECT 4158880 from dual UNION SELECT 4158881 from dual
+119 UNION SELECT 4158882 from dual UNION SELECT 4158883 from dual UNION SELECT 4158884 from dual UNION SELECT 4158885 from dual UNION SELECT 4158886 from dual UNION SELECT 4158887 from dual UNION SELECT 4158888 from dual UNION SELECT 4158889 from dual
+120 UNION SELECT 4158890 from dual UNION SELECT 4158891 from dual UNION SELECT 4158892 from dual UNION SELECT 4158893 from dual UNION SELECT 4158894 from dual UNION SELECT 4158895 from dual UNION SELECT 4158896 from dual UNION SELECT 4158897 from dual
+121 UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual
+122 UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual
+123 UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual
+124 UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual
+125 UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual
+126 UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158997 from dual UNION SELECT 4158998 from dual UNION SELECT 4158999 from dual UNION SELECT 4159000 from dual
+127 UNION SELECT 4159001 from dual UNION SELECT 4159002 from dual UNION SELECT 4159003 from dual UNION SELECT 4159004 from dual UNION SELECT 4159005 from dual UNION SELECT 4159006 from dual UNION SELECT 4159007 from dual UNION SELECT 4159008 from dual
+128 UNION SELECT 4159009 from dual UNION SELECT 4159010 from dual UNION SELECT 4159012 from dual UNION SELECT 4159013 from dual UNION SELECT 4159013 from dual UNION SELECT 4159013 from dual UNION SELECT 4159014 from dual UNION SELECT 4159015 from dual
+129 UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual
+130 UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159017 from dual UNION SELECT 4159018 from dual UNION SELECT 4159019 from dual UNION SELECT 4159020 from dual UNION SELECT 4159021 from dual UNION SELECT 4159022 from dual
+131 UNION SELECT 4159023 from dual UNION SELECT 4159024 from dual UNION SELECT 4159025 from dual UNION SELECT 4159026 from dual UNION SELECT 4159027 from dual UNION SELECT 4159028 from dual UNION SELECT 4159029 from dual UNION SELECT 4159030 from dual
+132 UNION SELECT 4159031 from dual UNION SELECT 4159032 from dual UNION SELECT 4159033 from dual UNION SELECT 4159034 from dual UNION SELECT 4159035 from dual UNION SELECT 4159036 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual
+133 UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual
+134 UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual UNION SELECT 4159039 from dual UNION SELECT 4159039 from dual UNION SELECT 4159040 from dual
+135 UNION SELECT 4159041 from dual UNION SELECT 4159042 from dual UNION SELECT 4159043 from dual UNION SELECT 4159044 from dual UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual
+136 UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual
+137 UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual
+138 UNION SELECT 4159046 from dual UNION SELECT 4159047 from dual UNION SELECT 4159048 from dual UNION SELECT 4159049 from dual UNION SELECT 4159050 from dual UNION SELECT 4159051 from dual UNION SELECT 4159052 from dual UNION SELECT 4159053 from dual
+139 UNION SELECT 4159054 from dual UNION SELECT 4159055 from dual UNION SELECT 4159056 from dual UNION SELECT 4159057 from dual UNION SELECT 4159058 from dual UNION SELECT 4159059 from dual UNION SELECT 4159060 from dual UNION SELECT 4159061 from dual
+140 UNION SELECT 4159062 from dual UNION SELECT 4159063 from dual UNION SELECT 4159064 from dual UNION SELECT 4159065 from dual UNION SELECT 4159066 from dual UNION SELECT 4159067 from dual UNION SELECT 4159068 from dual UNION SELECT 4159069 from dual
+141 UNION SELECT 4159070 from dual UNION SELECT 4159071 from dual UNION SELECT 4159072 from dual UNION SELECT 4159073 from dual UNION SELECT 4159074 from dual UNION SELECT 4159074 from dual UNION SELECT 4159075 from dual UNION SELECT 4159076 from dual
+142 UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual
+143 UNION SELECT 4159076 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual
+144 UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual
+145 UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159078 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual
+146 UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual
+147 UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159080 from dual UNION SELECT 4159081 from dual UNION SELECT 4159082 from dual
+148 UNION SELECT 4159083 from dual UNION SELECT 4159084 from dual UNION SELECT 4159084 from dual UNION SELECT 4159084 from dual UNION SELECT 4159084 from dual UNION SELECT 4159085 from dual UNION SELECT 4159086 from dual UNION SELECT 4159087 from dual
+149 UNION SELECT 4159088 from dual UNION SELECT 4159089 from dual UNION SELECT 4159089 from dual UNION SELECT 4159089 from dual UNION SELECT 4159089 from dual UNION SELECT 4159090 from dual UNION SELECT 4159091 from dual UNION SELECT 4159092 from dual
+150 UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual
+151 UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual
+152 UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159094 from dual UNION SELECT 4159095 from dual UNION SELECT 4159096 from dual UNION SELECT 4159097 from dual
+153 UNION SELECT 4159098 from dual UNION SELECT 4159099 from dual UNION SELECT 4159100 from dual UNION SELECT 4159101 from dual UNION SELECT 4159102 from dual UNION SELECT 4159103 from dual UNION SELECT 4159104 from dual UNION SELECT 4159105 from dual
+154 UNION SELECT 4159106 from dual UNION SELECT 4159107 from dual UNION SELECT 4159108 from dual UNION SELECT 4159109 from dual UNION SELECT 4159110 from dual UNION SELECT 4159111 from dual UNION SELECT 4159112 from dual UNION SELECT 4159112 from dual
+155 UNION SELECT 4159113 from dual UNION SELECT 4159114 from dual UNION SELECT 4159115 from dual UNION SELECT 4159116 from dual UNION SELECT 4159117 from dual UNION SELECT 4159118 from dual UNION SELECT 4159119 from dual UNION SELECT 4159120 from dual
+156 UNION SELECT 4159121 from dual UNION SELECT 4159122 from dual UNION SELECT 4159123 from dual UNION SELECT 4159124 from dual UNION SELECT 4159125 from dual UNION SELECT 4159126 from dual UNION SELECT 4159127 from dual UNION SELECT 4159127 from dual
+157 UNION SELECT 4159128 from dual UNION SELECT 4159129 from dual UNION SELECT 4159130 from dual UNION SELECT 4159131 from dual UNION SELECT 4159132 from dual UNION SELECT 4159133 from dual UNION SELECT 4159134 from dual UNION SELECT 4159135 from dual
+158 UNION SELECT 4159136 from dual UNION SELECT 4159137 from dual UNION SELECT 4159138 from dual UNION SELECT 4159139 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual
+159 UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual
+160 UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159141 from dual UNION SELECT 4159142 from dual UNION SELECT 4159143 from dual UNION SELECT 4159144 from dual UNION SELECT 4159145 from dual UNION SELECT 4159146 from dual
+161 UNION SELECT 4159147 from dual UNION SELECT 4159148 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual
+162 UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual
+163 UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159150 from dual
+164 UNION SELECT 4159151 from dual UNION SELECT 4159152 from dual UNION SELECT 4159153 from dual UNION SELECT 4159154 from dual UNION SELECT 4159155 from dual UNION SELECT 4159155 from dual UNION SELECT 4159156 from dual UNION SELECT 4159157 from dual
+165 UNION SELECT 4159158 from dual UNION SELECT 4159159 from dual UNION SELECT 4159160 from dual UNION SELECT 4159161 from dual UNION SELECT 4159162 from dual UNION SELECT 4159163 from dual UNION SELECT 4159164 from dual UNION SELECT 4159165 from dual
+166 UNION SELECT 4159166 from dual UNION SELECT 4159167 from dual UNION SELECT 4159167 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual
+167 UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159169 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual
+168 UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual
+169 UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual
+170 UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159278 from dual UNION SELECT 4159279 from dual UNION SELECT 4159280 from dual UNION SELECT 4159281 from dual UNION SELECT 4159282 from dual
+171 UNION SELECT 4159283 from dual UNION SELECT 4159284 from dual UNION SELECT 4159285 from dual UNION SELECT 4159286 from dual UNION SELECT 4159287 from dual UNION SELECT 4159288 from dual UNION SELECT 4159289 from dual UNION SELECT 4159290 from dual
+172 UNION SELECT 4159291 from dual UNION SELECT 4159292 from dual UNION SELECT 4159293 from dual UNION SELECT 4159294 from dual UNION SELECT 4159295 from dual UNION SELECT 4159296 from dual UNION SELECT 4159297 from dual UNION SELECT 4159298 from dual
+173 UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual
+174 UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159299 from dual UNION SELECT 4159300 from dual
+175 UNION SELECT 4159301 from dual UNION SELECT 4159302 from dual UNION SELECT 4159303 from dual UNION SELECT 4159304 from dual UNION SELECT 4159305 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual
+176 UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159307 from dual UNION SELECT 4159308 from dual
+177 UNION SELECT 4159309 from dual UNION SELECT 4159310 from dual UNION SELECT 4159311 from dual UNION SELECT 4159312 from dual UNION SELECT 4159313 from dual UNION SELECT 4159314 from dual UNION SELECT 4159315 from dual UNION SELECT 4159316 from dual
+178 UNION SELECT 4159317 from dual UNION SELECT 4159318 from dual UNION SELECT 4159319 from dual UNION SELECT 4159320 from dual UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual
+179 UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual UNION SELECT 4159322 from dual UNION SELECT 4159323 from dual UNION SELECT 4159324 from dual UNION SELECT 4159325 from dual UNION SELECT 4159326 from dual
+180 UNION SELECT 4159327 from dual UNION SELECT 4159328 from dual UNION SELECT 4159329 from dual UNION SELECT 4159330 from dual UNION SELECT 4159330 from dual UNION SELECT 4159330 from dual UNION SELECT 4159331 from dual UNION SELECT 4159332 from dual
+181 UNION SELECT 4159333 from dual UNION SELECT 4159334 from dual UNION SELECT 4159334 from dual UNION SELECT 4159335 from dual UNION SELECT 4159336 from dual UNION SELECT 4159337 from dual UNION SELECT 4159338 from dual UNION SELECT 4159339 from dual
+182 UNION SELECT 4159340 from dual UNION SELECT 4159341 from dual UNION SELECT 4159342 from dual UNION SELECT 4159343 from dual UNION SELECT 4159344 from dual UNION SELECT 4159345 from dual UNION SELECT 4159346 from dual UNION SELECT 4159347 from dual
+183 UNION SELECT 4159348 from dual UNION SELECT 4159349 from dual UNION SELECT 4159350 from dual UNION SELECT 4159351 from dual UNION SELECT 4159352 from dual UNION SELECT 4159353 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual
+184 UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual
+185 UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159355 from dual UNION SELECT 4159356 from dual UNION SELECT 4159357 from dual UNION SELECT 4159358 from dual UNION SELECT 4159359 from dual
+186 UNION SELECT 4159360 from dual UNION SELECT 4159361 from dual UNION SELECT 4159362 from dual UNION SELECT 4159391 from dual UNION SELECT 4159392 from dual UNION SELECT 4159392 from dual UNION SELECT 4159393 from dual UNION SELECT 4159394 from dual
+187 UNION SELECT 4159395 from dual UNION SELECT 4159396 from dual UNION SELECT 4159396 from dual UNION SELECT 4159397 from dual UNION SELECT 4159398 from dual UNION SELECT 4159399 from dual UNION SELECT 4159400 from dual UNION SELECT 4159401 from dual
+188 UNION SELECT 4159402 from dual UNION SELECT 4159403 from dual UNION SELECT 4159404 from dual UNION SELECT 4159405 from dual UNION SELECT 4159406 from dual UNION SELECT 4159407 from dual UNION SELECT 4159408 from dual UNION SELECT 4159409 from dual
+189 UNION SELECT 4159410 from dual UNION SELECT 4159411 from dual UNION SELECT 4159412 from dual UNION SELECT 4159413 from dual UNION SELECT 4159414 from dual UNION SELECT 4159415 from dual UNION SELECT 4159416 from dual UNION SELECT 4159417 from dual
+190 UNION SELECT 4159418 from dual UNION SELECT 4159419 from dual UNION SELECT 4159420 from dual UNION SELECT 4159421 from dual UNION SELECT 4159422 from dual UNION SELECT 4159423 from dual UNION SELECT 4159424 from dual UNION SELECT 4159425 from dual
+191 UNION SELECT 4159426 from dual UNION SELECT 4159427 from dual UNION SELECT 4159428 from dual UNION SELECT 4159429 from dual UNION SELECT 4159430 from dual UNION SELECT 4159430 from dual UNION SELECT 4159430 from dual UNION SELECT 4159430 from dual
+192 UNION SELECT 4159430 from dual UNION SELECT 4159431 from dual UNION SELECT 4159432 from dual UNION SELECT 4159433 from dual UNION SELECT 4159434 from dual UNION SELECT 4159435 from dual UNION SELECT 4159436 from dual UNION SELECT 4159437 from dual
+193 UNION SELECT 4159437 from dual UNION SELECT 4159437 from dual UNION SELECT 4159438 from dual UNION SELECT 4159439 from dual UNION SELECT 4159440 from dual UNION SELECT 4159440 from dual UNION SELECT 4159440 from dual UNION SELECT 4159441 from dual
+194 UNION SELECT 4159442 from dual UNION SELECT 4159443 from dual UNION SELECT 4159444 from dual UNION SELECT 4159445 from dual UNION SELECT 4159446 from dual UNION SELECT 4159447 from dual UNION SELECT 4159448 from dual UNION SELECT 4159449 from dual
+195 UNION SELECT 4159450 from dual UNION SELECT 4159451 from dual UNION SELECT 4159452 from dual UNION SELECT 4159453 from dual UNION SELECT 4159454 from dual UNION SELECT 4159455 from dual UNION SELECT 4159456 from dual UNION SELECT 4159456 from dual
+196 UNION SELECT 4159457 from dual UNION SELECT 4159458 from dual UNION SELECT 4159459 from dual UNION SELECT 4159460 from dual UNION SELECT 4159461 from dual UNION SELECT 4159462 from dual UNION SELECT 4159463 from dual UNION SELECT 4159464 from dual
+197 UNION SELECT 4159465 from dual UNION SELECT 4159466 from dual UNION SELECT 4159467 from dual UNION SELECT 4159468 from dual UNION SELECT 4159469 from dual UNION SELECT 4159470 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual
+198 UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual
+199 UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual
+200 UNION SELECT 4159472 from dual UNION SELECT 4159473 from dual UNION SELECT 4159474 from dual UNION SELECT 4159475 from dual UNION SELECT 4159476 from dual UNION SELECT 4159476 from dual UNION SELECT 4159477 from dual UNION SELECT 4159478 from dual
+201 UNION SELECT 4159479 from dual UNION SELECT 4159480 from dual UNION SELECT 4159481 from dual UNION SELECT 4159482 from dual UNION SELECT 4159483 from dual UNION SELECT 4159484 from dual UNION SELECT 4159485 from dual UNION SELECT 4159486 from dual
+202 UNION SELECT 4159487 from dual UNION SELECT 4159488 from dual UNION SELECT 4159489 from dual UNION SELECT 4159490 from dual UNION SELECT 4159491 from dual UNION SELECT 4159492 from dual UNION SELECT 4159492 from dual UNION SELECT 4159493 from dual
+203 UNION SELECT 4159494 from dual UNION SELECT 4159495 from dual UNION SELECT 4159496 from dual UNION SELECT 4159497 from dual UNION SELECT 4159498 from dual UNION SELECT 4159499 from dual UNION SELECT 4159500 from dual UNION SELECT 4159501 from dual
+204 UNION SELECT 4159502 from dual UNION SELECT 4159503 from dual UNION SELECT 4159504 from dual UNION SELECT 4159505 from dual UNION SELECT 4159506 from dual UNION SELECT 4159507 from dual UNION SELECT 4159508 from dual UNION SELECT 4159509 from dual
+205 UNION SELECT 4159510 from dual UNION SELECT 4159511 from dual UNION SELECT 4159512 from dual UNION SELECT 4159513 from dual UNION SELECT 4159514 from dual UNION SELECT 4159515 from dual UNION SELECT 4159516 from dual UNION SELECT 4159517 from dual
+206 UNION SELECT 4159518 from dual UNION SELECT 4159519 from dual UNION SELECT 4159520 from dual UNION SELECT 4159521 from dual UNION SELECT 4159522 from dual UNION SELECT 4159523 from dual UNION SELECT 4159524 from dual UNION SELECT 4159525 from dual
+207 UNION SELECT 4159526 from dual UNION SELECT 4159527 from dual UNION SELECT 4159528 from dual UNION SELECT 4159529 from dual UNION SELECT 4159530 from dual UNION SELECT 4159530 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual
+208 UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual
+209 UNION SELECT 4158786 from dual UNION SELECT 4158788 from dual UNION SELECT 4158790 from dual UNION SELECT 4158792 from dual UNION SELECT 4158792 from dual UNION SELECT 4158794 from dual UNION SELECT 4158796 from dual UNION SELECT 4158798 from dual
+210 UNION SELECT 4158798 from dual UNION SELECT 4158798 from dual UNION SELECT 4158798 from dual UNION SELECT 4158798 from dual UNION SELECT 4158800 from dual UNION SELECT 4158802 from dual UNION SELECT 4158804 from dual UNION SELECT 4158807 from dual
+211 UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual
+212 UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual
+213 UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158809 from dual UNION SELECT 4158811 from dual UNION SELECT 4158813 from dual UNION SELECT 4158813 from dual UNION SELECT 4158815 from dual UNION SELECT 4158815 from dual
+214 UNION SELECT 4158817 from dual UNION SELECT 4158819 from dual UNION SELECT 4158821 from dual UNION SELECT 4158822 from dual UNION SELECT 4158823 from dual UNION SELECT 4158824 from dual UNION SELECT 4158825 from dual UNION SELECT 4158826 from dual
+215 UNION SELECT 4158827 from dual UNION SELECT 4158828 from dual UNION SELECT 4158829 from dual UNION SELECT 4158830 from dual UNION SELECT 4158831 from dual UNION SELECT 4158832 from dual UNION SELECT 4158833 from dual UNION SELECT 4158834 from dual
+216 UNION SELECT 4158835 from dual UNION SELECT 4158836 from dual UNION SELECT 4158837 from dual UNION SELECT 4158838 from dual UNION SELECT 4158839 from dual UNION SELECT 4158840 from dual UNION SELECT 4158841 from dual UNION SELECT 4158842 from dual
+217 UNION SELECT 4158843 from dual UNION SELECT 4158844 from dual UNION SELECT 4158845 from dual UNION SELECT 4158847 from dual UNION SELECT 4158848 from dual UNION SELECT 4158850 from dual UNION SELECT 4158851 from dual UNION SELECT 4158852 from dual
+218 UNION SELECT 4158853 from dual UNION SELECT 4158854 from dual UNION SELECT 4158855 from dual UNION SELECT 4158856 from dual UNION SELECT 4158856 from dual UNION SELECT 4158856 from dual UNION SELECT 4158856 from dual UNION SELECT 4158857 from dual
+219 UNION SELECT 4158858 from dual UNION SELECT 4158859 from dual UNION SELECT 4158860 from dual UNION SELECT 4158861 from dual UNION SELECT 4158862 from dual UNION SELECT 4158863 from dual UNION SELECT 4158864 from dual UNION SELECT 4158865 from dual
+220 uNION SELECT 4158866 from dual UNION SELECT 4158867 from dual UNION SELECT 4158868 from dual UNION SELECT 4158869 from dual UNION SELECT 4158870 from dual UNION SELECT 4158871 from dual UNION SELECT 4158872 from dual UNION SELECT 4158873 from dual
+221 UNION SELECT 4158874 from dual UNION SELECT 4158875 from dual UNION SELECT 4158876 from dual UNION SELECT 4158877 from dual UNION SELECT 4158878 from dual UNION SELECT 4158879 from dual UNION SELECT 4158880 from dual UNION SELECT 4158881 from dual
+222 UNION SELECT 4158882 from dual UNION SELECT 4158883 from dual UNION SELECT 4158884 from dual UNION SELECT 4158885 from dual UNION SELECT 4158886 from dual UNION SELECT 4158887 from dual UNION SELECT 4158888 from dual UNION SELECT 4158889 from dual
+223 UNION SELECT 4158890 from dual UNION SELECT 4158891 from dual UNION SELECT 4158892 from dual UNION SELECT 4158893 from dual UNION SELECT 4158894 from dual UNION SELECT 4158895 from dual UNION SELECT 4158896 from dual UNION SELECT 4158897 from dual
+224 UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual
+225 UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual
+226 UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158898 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual
+227 UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual
+228 UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual
+229 UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158996 from dual UNION SELECT 4158997 from dual UNION SELECT 4158998 from dual UNION SELECT 4158999 from dual UNION SELECT 4159000 from dual
+230 UNION SELECT 4159001 from dual UNION SELECT 4159002 from dual UNION SELECT 4159003 from dual UNION SELECT 4159004 from dual UNION SELECT 4159005 from dual UNION SELECT 4159006 from dual UNION SELECT 4159007 from dual UNION SELECT 4159008 from dual
+231 UNION SELECT 4159009 from dual UNION SELECT 4159010 from dual UNION SELECT 4159012 from dual UNION SELECT 4159013 from dual UNION SELECT 4159013 from dual UNION SELECT 4159013 from dual UNION SELECT 4159014 from dual UNION SELECT 4159015 from dual
+232 UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual
+233 UNION SELECT 4159016 from dual UNION SELECT 4159016 from dual UNION SELECT 4159017 from dual UNION SELECT 4159018 from dual UNION SELECT 4159019 from dual UNION SELECT 4159020 from dual UNION SELECT 4159021 from dual UNION SELECT 4159022 from dual
+234 UNION SELECT 4159023 from dual UNION SELECT 4159024 from dual UNION SELECT 4159025 from dual UNION SELECT 4159026 from dual UNION SELECT 4159027 from dual UNION SELECT 4159028 from dual UNION SELECT 4159029 from dual UNION SELECT 4159030 from dual
+235 UNION SELECT 4159031 from dual UNION SELECT 4159032 from dual UNION SELECT 4159033 from dual UNION SELECT 4159034 from dual UNION SELECT 4159035 from dual UNION SELECT 4159036 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual
+236 UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159037 from dual UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual
+237 UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual UNION SELECT 4159038 from dual UNION SELECT 4159039 from dual UNION SELECT 4159039 from dual UNION SELECT 4159040 from dual
+238 UNION SELECT 4159041 from dual UNION SELECT 4159042 from dual UNION SELECT 4159043 from dual UNION SELECT 4159044 from dual UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual
+239 UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual UNION SELECT 4159045 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual
+240 UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual UNION SELECT 4159046 from dual
+241 UNION SELECT 4159046 from dual UNION SELECT 4159047 from dual UNION SELECT 4159048 from dual UNION SELECT 4159049 from dual UNION SELECT 4159050 from dual UNION SELECT 4159051 from dual UNION SELECT 4159052 from dual UNION SELECT 4159053 from dual
+242 UNION SELECT 4159054 from dual UNION SELECT 4159055 from dual UNION SELECT 4159056 from dual UNION SELECT 4159057 from dual UNION SELECT 4159058 from dual UNION SELECT 4159059 from dual UNION SELECT 4159060 from dual UNION SELECT 4159061 from dual
+243 UNION SELECT 4159062 from dual UNION SELECT 4159063 from dual UNION SELECT 4159064 from dual UNION SELECT 4159065 from dual UNION SELECT 4159066 from dual UNION SELECT 4159067 from dual UNION SELECT 4159068 from dual UNION SELECT 4159069 from dual
+244 UNION SELECT 4159070 from dual UNION SELECT 4159071 from dual UNION SELECT 4159072 from dual UNION SELECT 4159073 from dual UNION SELECT 4159074 from dual UNION SELECT 4159074 from dual UNION SELECT 4159075 from dual UNION SELECT 4159076 from dual
+245 UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual UNION SELECT 4159076 from dual
+246 UNION SELECT 4159076 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual
+247 UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual
+248 UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159077 from dual UNION SELECT 4159078 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual
+249 UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual
+250 UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159079 from dual UNION SELECT 4159080 from dual UNION SELECT 4159081 from dual UNION SELECT 4159082 from dual
+251 UNION SELECT 4159083 from dual UNION SELECT 4159084 from dual UNION SELECT 4159084 from dual UNION SELECT 4159084 from dual UNION SELECT 4159084 from dual UNION SELECT 4159085 from dual UNION SELECT 4159086 from dual UNION SELECT 4159087 from dual
+252 UNION SELECT 4159088 from dual UNION SELECT 4159089 from dual UNION SELECT 4159089 from dual UNION SELECT 4159089 from dual UNION SELECT 4159089 from dual UNION SELECT 4159090 from dual UNION SELECT 4159091 from dual UNION SELECT 4159092 from dual
+253 UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual
+254 UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual
+255 UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159093 from dual UNION SELECT 4159094 from dual UNION SELECT 4159095 from dual UNION SELECT 4159096 from dual UNION SELECT 4159097 from dual
+256 UNION SELECT 4159098 from dual UNION SELECT 4159099 from dual UNION SELECT 4159100 from dual UNION SELECT 4159101 from dual UNION SELECT 4159102 from dual UNION SELECT 4159103 from dual UNION SELECT 4159104 from dual UNION SELECT 4159105 from dual
+257 UNION SELECT 4159106 from dual UNION SELECT 4159107 from dual UNION SELECT 4159108 from dual UNION SELECT 4159109 from dual UNION SELECT 4159110 from dual UNION SELECT 4159111 from dual UNION SELECT 4159112 from dual UNION SELECT 4159112 from dual
+258 UNION SELECT 4159113 from dual UNION SELECT 4159114 from dual UNION SELECT 4159115 from dual UNION SELECT 4159116 from dual UNION SELECT 4159117 from dual UNION SELECT 4159118 from dual UNION SELECT 4159119 from dual UNION SELECT 4159120 from dual
+259 UNION SELECT 4159121 from dual UNION SELECT 4159122 from dual UNION SELECT 4159123 from dual UNION SELECT 4159124 from dual UNION SELECT 4159125 from dual UNION SELECT 4159126 from dual UNION SELECT 4159127 from dual UNION SELECT 4159127 from dual
+260 UNION SELECT 4159128 from dual UNION SELECT 4159129 from dual UNION SELECT 4159130 from dual UNION SELECT 4159131 from dual UNION SELECT 4159132 from dual UNION SELECT 4159133 from dual UNION SELECT 4159134 from dual UNION SELECT 4159135 from dual
+261 UNION SELECT 4159136 from dual UNION SELECT 4159137 from dual UNION SELECT 4159138 from dual UNION SELECT 4159139 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual
+262 UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual
+263 UNION SELECT 4159140 from dual UNION SELECT 4159140 from dual UNION SELECT 4159141 from dual UNION SELECT 4159142 from dual UNION SELECT 4159143 from dual UNION SELECT 4159144 from dual UNION SELECT 4159145 from dual UNION SELECT 4159146 from dual
+264 UNION SELECT 4159147 from dual UNION SELECT 4159148 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual
+265 UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual
+266 UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159149 from dual UNION SELECT 4159150 from dual
+267 UNION SELECT 4159151 from dual UNION SELECT 4159152 from dual UNION SELECT 4159153 from dual UNION SELECT 4159154 from dual UNION SELECT 4159155 from dual UNION SELECT 4159155 from dual UNION SELECT 4159156 from dual UNION SELECT 4159157 from dual
+268 UNION SELECT 4159158 from dual UNION SELECT 4159159 from dual UNION SELECT 4159160 from dual UNION SELECT 4159161 from dual UNION SELECT 4159162 from dual UNION SELECT 4159163 from dual UNION SELECT 4159164 from dual UNION SELECT 4159165 from dual
+269 UNION SELECT 4159166 from dual UNION SELECT 4159167 from dual UNION SELECT 4159167 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual
+270 UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159168 from dual UNION SELECT 4159169 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual
+271 UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual
+272 UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual
+273 UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159170 from dual UNION SELECT 4159278 from dual UNION SELECT 4159279 from dual UNION SELECT 4159280 from dual UNION SELECT 4159281 from dual UNION SELECT 4159282 from dual
+274 UNION SELECT 4159283 from dual UNION SELECT 4159284 from dual UNION SELECT 4159285 from dual UNION SELECT 4159286 from dual UNION SELECT 4159287 from dual UNION SELECT 4159288 from dual UNION SELECT 4159289 from dual UNION SELECT 4159290 from dual
+275 UNION SELECT 4159291 from dual UNION SELECT 4159292 from dual UNION SELECT 4159293 from dual UNION SELECT 4159294 from dual UNION SELECT 4159295 from dual UNION SELECT 4159296 from dual UNION SELECT 4159297 from dual UNION SELECT 4159298 from dual
+276 UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual
+277 UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159298 from dual UNION SELECT 4159299 from dual UNION SELECT 4159300 from dual
+278 UNION SELECT 4159301 from dual UNION SELECT 4159302 from dual UNION SELECT 4159303 from dual UNION SELECT 4159304 from dual UNION SELECT 4159305 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual
+279 UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159306 from dual UNION SELECT 4159307 from dual UNION SELECT 4159308 from dual
+280 UNION SELECT 4159309 from dual UNION SELECT 4159310 from dual UNION SELECT 4159311 from dual UNION SELECT 4159312 from dual UNION SELECT 4159313 from dual UNION SELECT 4159314 from dual UNION SELECT 4159315 from dual UNION SELECT 4159316 from dual
+281 UNION SELECT 4159317 from dual UNION SELECT 4159318 from dual UNION SELECT 4159319 from dual UNION SELECT 4159320 from dual UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual
+282 UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual UNION SELECT 4159321 from dual UNION SELECT 4159322 from dual UNION SELECT 4159323 from dual UNION SELECT 4159324 from dual UNION SELECT 4159325 from dual UNION SELECT 4159326 from dual
+283 UNION SELECT 4159327 from dual UNION SELECT 4159328 from dual UNION SELECT 4159329 from dual UNION SELECT 4159330 from dual UNION SELECT 4159330 from dual UNION SELECT 4159330 from dual UNION SELECT 4159331 from dual UNION SELECT 4159332 from dual
+284 UNION SELECT 4159333 from dual UNION SELECT 4159334 from dual UNION SELECT 4159334 from dual UNION SELECT 4159335 from dual UNION SELECT 4159336 from dual UNION SELECT 4159337 from dual UNION SELECT 4159338 from dual UNION SELECT 4159339 from dual
+285 UNION SELECT 4159340 from dual UNION SELECT 4159341 from dual UNION SELECT 4159342 from dual UNION SELECT 4159343 from dual UNION SELECT 4159344 from dual UNION SELECT 4159345 from dual UNION SELECT 4159346 from dual UNION SELECT 4159347 from dual
+286 UNION SELECT 4159348 from dual UNION SELECT 4159349 from dual UNION SELECT 4159350 from dual UNION SELECT 4159351 from dual UNION SELECT 4159352 from dual UNION SELECT 4159353 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual
+287 UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual
+288 UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159354 from dual UNION SELECT 4159355 from dual UNION SELECT 4159356 from dual UNION SELECT 4159357 from dual UNION SELECT 4159358 from dual UNION SELECT 4159359 from dual
+289 UNION SELECT 4159360 from dual UNION SELECT 4159361 from dual UNION SELECT 4159362 from dual UNION SELECT 4159391 from dual UNION SELECT 4159392 from dual UNION SELECT 4159392 from dual UNION SELECT 4159393 from dual UNION SELECT 4159394 from dual
+290 UNION SELECT 4159395 from dual UNION SELECT 4159396 from dual UNION SELECT 4159396 from dual UNION SELECT 4159397 from dual UNION SELECT 4159398 from dual UNION SELECT 4159399 from dual UNION SELECT 4159400 from dual UNION SELECT 4159401 from dual
+291 UNION SELECT 4159402 from dual UNION SELECT 4159403 from dual UNION SELECT 4159404 from dual UNION SELECT 4159405 from dual UNION SELECT 4159406 from dual UNION SELECT 4159407 from dual UNION SELECT 4159408 from dual UNION SELECT 4159409 from dual
+292 UNION SELECT 4159410 from dual UNION SELECT 4159411 from dual UNION SELECT 4159412 from dual UNION SELECT 4159413 from dual UNION SELECT 4159414 from dual UNION SELECT 4159415 from dual UNION SELECT 4159416 from dual UNION SELECT 4159417 from dual
+293 UNION SELECT 4159418 from dual UNION SELECT 4159419 from dual UNION SELECT 4159420 from dual UNION SELECT 4159421 from dual UNION SELECT 4159422 from dual UNION SELECT 4159423 from dual UNION SELECT 4159424 from dual UNION SELECT 4159425 from dual
+294 UNION SELECT 4159426 from dual UNION SELECT 4159427 from dual UNION SELECT 4159428 from dual UNION SELECT 4159429 from dual UNION SELECT 4159430 from dual UNION SELECT 4159430 from dual UNION SELECT 4159430 from dual UNION SELECT 4159430 from dual
+295 UNION SELECT 4159430 from dual UNION SELECT 4159431 from dual UNION SELECT 4159432 from dual UNION SELECT 4159433 from dual UNION SELECT 4159434 from dual UNION SELECT 4159435 from dual UNION SELECT 4159436 from dual UNION SELECT 4159437 from dual
+296 UNION SELECT 4159437 from dual UNION SELECT 4159437 from dual UNION SELECT 4159438 from dual UNION SELECT 4159439 from dual UNION SELECT 4159440 from dual UNION SELECT 4159440 from dual UNION SELECT 4159440 from dual UNION SELECT 4159441 from dual
+297 UNION SELECT 4159442 from dual UNION SELECT 4159443 from dual UNION SELECT 4159444 from dual UNION SELECT 4159445 from dual UNION SELECT 4159446 from dual UNION SELECT 4159447 from dual UNION SELECT 4159448 from dual UNION SELECT 4159449 from dual
+298 UNION SELECT 4159450 from dual UNION SELECT 4159451 from dual UNION SELECT 4159452 from dual UNION SELECT 4159453 from dual UNION SELECT 4159454 from dual UNION SELECT 4159455 from dual UNION SELECT 4159456 from dual UNION SELECT 4159456 from dual
+299 UNION SELECT 4159457 from dual UNION SELECT 4159458 from dual UNION SELECT 4159459 from dual UNION SELECT 4159460 from dual UNION SELECT 4159461 from dual UNION SELECT 4159462 from dual UNION SELECT 4159463 from dual UNION SELECT 4159464 from dual
+300 UNION SELECT 4159465 from dual UNION SELECT 4159466 from dual UNION SELECT 4159467 from dual UNION SELECT 4159468 from dual UNION SELECT 4159469 from dual UNION SELECT 4159470 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual
+301 UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual
+302 UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual UNION SELECT 4159471 from dual
+303 UNION SELECT 4159472 from dual UNION SELECT 4159473 from dual UNION SELECT 4159474 from dual UNION SELECT 4159475 from dual UNION SELECT 4159476 from dual UNION SELECT 4159476 from dual UNION SELECT 4159477 from dual UNION SELECT 4159478 from dual
+304 UNION SELECT 4159479 from dual UNION SELECT 4159480 from dual UNION SELECT 4159481 from dual UNION SELECT 4159482 from dual UNION SELECT 4159483 from dual UNION SELECT 4159484 from dual UNION SELECT 4159485 from dual UNION SELECT 4159486 from dual
+305 UNION SELECT 4159487 from dual UNION SELECT 4159488 from dual UNION SELECT 4159489 from dual UNION SELECT 4159490 from dual UNION SELECT 4159491 from dual UNION SELECT 4159492 from dual UNION SELECT 4159492 from dual UNION SELECT 4159493 from dual
+306 UNION SELECT 4159494 from dual UNION SELECT 4159495 from dual UNION SELECT 4159496 from dual UNION SELECT 4159497 from dual UNION SELECT 4159498 from dual UNION SELECT 4159499 from dual UNION SELECT 4159500 from dual UNION SELECT 4159501 from dual
+307 UNION SELECT 4159502 from dual UNION SELECT 4159503 from dual UNION SELECT 4159504 from dual UNION SELECT 4159505 from dual UNION SELECT 4159506 from dual UNION SELECT 4159507 from dual UNION SELECT 4159508 from dual UNION SELECT 4159509 from dual
+308 UNION SELECT 4159510 from dual UNION SELECT 4159511 from dual UNION SELECT 4159512 from dual UNION SELECT 4159513 from dual UNION SELECT 4159514 from dual UNION SELECT 4159515 from dual UNION SELECT 4159516 from dual UNION SELECT 4159517 from dual
+309 UNION SELECT 4159518 from dual UNION SELECT 4159519 from dual UNION SELECT 4159520 from dual UNION SELECT 4159521 from dual UNION SELECT 4159522 from dual UNION SELECT 4159523 from dual UNION SELECT 4159524 from dual UNION SELECT 4159525 from dual
+310 UNION SELECT 4159526 from dual UNION SELECT 4159527 from dual UNION SELECT 4159528 from dual UNION SELECT 4159529 from dual UNION SELECT 4159530 from dual UNION SELECT 4159530 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual
+311 UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual UNION SELECT 4159531 from dual
+312 UNION SELECT 4159531 from dual ) d ON a.id = d.fileid order by newsort_DTS2020042010859(c.name)) SELECT DISTINCT id, group_concat(sharpName) AS sharpNames FROM ret GROUP BY id;
+
+ID           SHARPNAMES
+------------ ----------------------------------------------------------------
+
+0 rows fetched.
+
+SQL> drop table FILECURRENT_0422;
+
+Succeed.
+
+SQL> drop table FILEATTRIBUTE_0422;
+
+Succeed.
+
+SQL> drop table sharp_0422;
+
+Succeed.
+
+SQL> set termout off
+
+
+
+OFF
+
+
+
+C0           C1           C2           C3           C4           C5           C6           C7           C8           C9          
+------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------
+
+
+
+
+
+
+
+ON
+
+
+
