@@ -27,6 +27,6 @@ endif ()
 
 # add subdir
 add_subdirectory(src)
-#if(NOT USE_OSS_BUILD)
-#    add_subdirectory(test)
-#endif()
+if(NOT USE_OSS_BUILD)
+   add_subdirectory(test)
+endif()

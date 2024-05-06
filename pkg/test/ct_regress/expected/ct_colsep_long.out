@@ -1,0 +1,100 @@
+
+
+SQL> --colsep
+SQL> drop table if exists wg_colsep;
+
+Succeed.
+
+SQL> create table wg_colsep (f1 int, f2 int, f3 int);
+
+Succeed.
+
+SQL> insert into wg_colsep values(1,1,1);
+
+1 rows affected.
+
+SQL> insert into wg_colsep values(2,2,2);
+
+1 rows affected.
+
+SQL> insert into wg_colsep values(3,3,3);
+
+1 rows affected.
+
+SQL> set colsep "
+
+String """ missing terminating quote (")
+Usage: SET colsep {'text'|"text"|text}.
+
+SQL> set colsep '
+
+String "'" missing terminating quote (')
+Usage: SET colsep {'text'|"text"|text}.
+
+SQL> set colsep "asdf
+
+String ""asdf" missing terminating quote (")
+Usage: SET colsep {'text'|"text"|text}.
+
+SQL> set colsep 'asd
+
+String "'asd" missing terminating quote (')
+Usage: SET colsep {'text'|"text"|text}.
+
+SQL> select * from wg_colsep;
+
+F1           F2           F3          
+------------ ------------ ------------
+1            1            1           
+2            2            2           
+3            3            3           
+
+3 rows fetched.
+
+SQL> set colsep ','
+
+
+SQL> select * from wg_colsep;
+
+F1          ,F2          ,F3          
+------------,------------,------------
+1           ,1           ,1           
+2           ,2           ,2           
+3           ,3           ,3           
+
+3 rows fetched.
+
+SQL> set colsep ","
+
+
+SQL> select * from wg_colsep;
+
+F1          ,F2          ,F3          
+------------,------------,------------
+1           ,1           ,1           
+2           ,2           ,2           
+3           ,3           ,3           
+
+3 rows fetched.
+
+SQL> set colsep "|||"
+
+
+SQL> select * from wg_colsep;
+
+F1          |||F2          |||F3          
+------------|||------------|||------------
+1           |||1           |||1           
+2           |||2           |||2           
+3           |||3           |||3           
+
+3 rows fetched.
+
+SQL> 
+SQL> --long
+SQL> set long 9000
+
+
+SQL> 
+
+

@@ -231,7 +231,7 @@ class Logicrep:
         for i in range(RETRY_TIMES):
             cmd = "source ~/.bashrc && echo -e '%s' | ctsql sys@%s:%s -q -c \"%s\"" % (
                 self.passwd,
-                self.cmsip[int(self.node_id)],
+                self.cmsip[int(self.node_id)].split(",")[0],
                 self.lsnr_port,
                 sql)
 

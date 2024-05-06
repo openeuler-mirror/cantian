@@ -1,0 +1,26 @@
+/*
+cdgfdg;
+*/
+select 1 from dual;
+
+/*
+cdgfdg
+*/
+select 2 from dual;
+
+/*/
+cdgfdg;
+*/
+select 3 from dual;
+
+/*/
+cdgfdg
+*/
+select 4 from dual;
+
+/*/*
+cdgfdg;
+*/
+/*////////****
+****/
+select 5 from dual;

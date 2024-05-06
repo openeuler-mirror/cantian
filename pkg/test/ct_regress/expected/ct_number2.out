@@ -1,0 +1,4303 @@
+
+
+SQL> drop user if exists number2_tester cascade;
+
+Succeed.
+
+SQL> create user number2_tester identified by 'Changeme_123';
+
+Succeed.
+
+SQL> grant dba to number2_tester;
+
+Succeed.
+
+SQL> conn number2_tester/Changeme_123@127.0.0.1:1611
+
+connected.
+
+SQL> 
+SQL> --- overflow/underflow test
+SQL> select exp(295); --exp() return value is number
+
+CT-01319, [1:12]High-Precision numeric overflow
+SQL> select exp(294);
+
+EXP(294)                                
+----------------------------------------
+4.814793655218451387395298079782470E+127
+
+1 rows fetched.
+
+SQL> select exp(-292);
+
+EXP(-292)                               
+----------------------------------------
+1.534656857188909439900348619122621E-127
+
+1 rows fetched.
+
+SQL> select exp(-293);
+
+EXP(-293)                               
+----------------------------------------
+0                                       
+
+1 rows fetched.
+
+SQL> SELECT TANH(50) ;
+
+TANH(50)                                
+----------------------------------------
+1                                       
+
+1 rows fetched.
+
+SQL> select TANH(-50);
+
+TANH(-50)                               
+----------------------------------------
+-1                                      
+
+1 rows fetched.
+
+SQL> 
+SQL> drop table if exists number2_test_overflow;
+
+Succeed.
+
+SQL> create table number2_test_overflow(id number2);
+
+Succeed.
+
+SQL> insert into number2_test_overflow values(cast('9.999999999999999999999999999999999999999E+125' as number2));
+
+1 rows affected.
+
+SQL> select * from  number2_test_overflow;
+
+ID                                      
+----------------------------------------
+########################################
+
+1 rows fetched.
+
+SQL> select id - 1E125 from  number2_test_overflow;
+
+ID - 1E125                              
+----------------------------------------
+9.000000000000000000000000000000000E+125
+
+1 rows fetched.
+
+SQL> drop table if exists number2_test_overflow;
+
+Succeed.
+
+SQL> 
+SQL> select to_char(cast('9.999999999999999999999999999999999999999E+125' as number2)) from dual;
+
+TO_CHAR(CAST('9.999999999999999999999999999999999999999E+125' AS
+----------------------------------------------------------------
+1.000000000000000000000000000000000E+126                        
+
+1 rows fetched.
+
+SQL> select cast('9.9999999999999999999999999999999999999999E+125' as number2) from dual;
+
+CAST('9.9999999999999999999999999999999999999999E+125' AS NUMBER
+----------------------------------------------------------------
+########################################                        
+
+1 rows fetched.
+
+SQL> select cast('9.999999999999999999999999999999999999999E-131' as number2), to_char(cast('9.999999999999999999999999999999999999999E-131' as number2)) from dual;
+
+CAST('9.999999999999999999999999999999999999999E-131' AS NUMBER2 TO_CHAR(CAST('9.999999999999999999999999999999999999999E-131' AS
+---------------------------------------------------------------- ----------------------------------------------------------------
+0                                                                0                                                               
+
+1 rows fetched.
+
+SQL> 
+SQL> select to_char(cast('1234567890123456789012345678901234567890123456789012345678901234567890' as number2) * cast('1234567890123456789012345678901234567890123456789012345678' as number2)) from dual;
+
+CT-01319, [1:8]High-Precision numeric overflow
+SQL> select to_char(cast('1234567890123456789012345678901234567890123456789012345678901234567890' as number2) * cast('123456789012345678901234567890123456789012345678901234567' as number2)) from dual;
+
+TO_CHAR(CAST('12345678901234567890123456789012345678901234567890
+----------------------------------------------------------------
+1.524157875323883675049535156256668E+125                        
+
+1 rows fetched.
+
+SQL> select to_char(cast('9.99999999999999999999999999999999999999999E-125' as number2) * cast('1E-130' as number2)) from dual;
+
+TO_CHAR(CAST('9.99999999999999999999999999999999999999999E-125' 
+----------------------------------------------------------------
+0                                                               
+
+1 rows fetched.
+
+SQL> select to_char(cast('9.9999999999999999999999999999999999999E+125' as number2) * cast('1E-127' as number2)) from dual;
+
+TO_CHAR(CAST('9.9999999999999999999999999999999999999E+125' AS N
+----------------------------------------------------------------
+.099999999999999999999999999999999999999                        
+
+1 rows fetched.
+
+SQL> select to_char(cast('9.9999999999999999999999999999999999999999E-125' as number2) * cast('1E-6' as number2)) from dual;
+
+TO_CHAR(CAST('9.9999999999999999999999999999999999999999E-125' A
+----------------------------------------------------------------
+0                                                               
+
+1 rows fetched.
+
+SQL> select 3.333333333333333333333333333333 * 3.03030303030303030303030303030304;
+
+3.333333333333333333333333333333 * 3.030303030303030303030303030
+----------------------------------------------------------------
+10.1010101010101010101010101010091232323                        
+
+1 rows fetched.
+
+SQL> 
+SQL> select to_char(cast('9.999999999999999999999999999E+125' as number2) + cast('1' as number2)) from dual;
+
+TO_CHAR(CAST('9.999999999999999999999999999E+125' AS NUMBER2) + 
+----------------------------------------------------------------
+9.999999999999999999999999999000000E+125                        
+
+1 rows fetched.
+
+SQL> select to_char(cast('9.99999999999E+125' as number2) + cast('1e125' as number2)) from dual;
+
+CT-01319, [1:8]High-Precision numeric overflow
+SQL> 
+SQL> select to_char(cast('1234567890123456789012345678901234567895123456789012345678901234567890' as number2) - cast('1234567890123456789012345678901234567895123456789012345678901234567891' as number2)) from dual;
+
+TO_CHAR(CAST('12345678901234567890123456789012345678951234567890
+----------------------------------------------------------------
+0                                                               
+
+1 rows fetched.
+
+SQL> select to_char(cast('1E-130' as number2) - cast('1.0E-129' as number2)) from dual;
+
+TO_CHAR(CAST('1E-130' AS NUMBER2) - CAST('1.0E-129' AS NUMBER2))
+----------------------------------------------------------------
+-9.00000000000000000000000000000000E-130                        
+
+1 rows fetched.
+
+SQL> select to_char(cast('1E-130' as number2) - cast('1.0E-131' as number2)) from dual;
+
+TO_CHAR(CAST('1E-130' AS NUMBER2) - CAST('1.0E-131' AS NUMBER2))
+----------------------------------------------------------------
+1.000000000000000000000000000000000E-130                        
+
+1 rows fetched.
+
+SQL> select to_char(cast('9.9999999999999999E-130' as number2) - cast('-0.00010E-130' as number2)) from dual;
+
+TO_CHAR(CAST('9.9999999999999999E-130' AS NUMBER2) - CAST('-0.00
+----------------------------------------------------------------
+9.999999999999999900000000000000000E-130                        
+
+1 rows fetched.
+
+SQL> 
+SQL> select 1/(8E-126) from dual;
+
+1/(8E-126)                              
+----------------------------------------
+1.250000000000000000000000000000000E+125
+
+1 rows fetched.
+
+SQL> select to_char(cast('9.999999999999999999999999999999999999999E+125' as number2) / cast('1.0E-130' as number2)) from dual;
+
+CT-01319, [1:82]High-Precision numeric overflow
+SQL> 
+SQL> --csf
+SQL> drop table if exists number2_test_csf;
+
+Succeed.
+
+SQL> create table number2_test_csf(f1 int, f2 number2(12, 5), f3 DECIMAL(38, 0), f4 int) format csf;
+
+Succeed.
+
+SQL> alter table number2_test_csf add constraint f2_check check(f2 < 2);
+
+Succeed.
+
+SQL> insert into number2_test_csf values(1, 1.25765, 444, 1);
+
+1 rows affected.
+
+SQL> insert into number2_test_csf values(0, 0,444, 1);
+
+1 rows affected.
+
+SQL> insert into number2_test_csf values(0, NULL, 0, 0);
+
+1 rows affected.
+
+SQL> insert into number2_test_csf values(0, 2.2, 1.25765, 444);
+
+CT-01127, Check constraint violated
+SQL> insert into number2_test_csf values(3, 1.25765, NULL, 444);
+
+1 rows affected.
+
+SQL> select * from number2_test_csf;
+
+F1           F2                                       F3                                       F4          
+------------ ---------------------------------------- ---------------------------------------- ------------
+1            1.25765                                  444                                      1           
+0            0                                        444                                      1           
+0                                                     0                                        0           
+3            1.25765                                                                           444         
+
+4 rows fetched.
+
+SQL> update number2_test_csf set f2 = 1.2;
+
+4 rows affected.
+
+SQL> select * from number2_test_csf;
+
+F1           F2                                       F3                                       F4          
+------------ ---------------------------------------- ---------------------------------------- ------------
+1            1.2                                      444                                      1           
+0            1.2                                      444                                      1           
+0            1.2                                      0                                        0           
+3            1.2                                                                               444         
+
+4 rows fetched.
+
+SQL> drop table if exists number2_test_csf;
+
+Succeed.
+
+SQL> 
+SQL> --create tabel/orderby/index/update
+SQL> drop table if exists number2_orderby;
+
+Succeed.
+
+SQL> CREATE TABLE  number2_orderby(
+  2      COL_1 real,
+  3      COL_2 double,
+  4      COL_3 float,
+  5      COL_4 number2(12,6),
+  6      COL_5 number2,
+  7      COL_6 number2,
+  8      PRIMARY KEY (COL_6) using index
+  9 );
+
+Succeed.
+
+SQL> begin
+  2     for i in 1..10 loop
+  3       insert into number2_orderby values(
+  4       i+3.1415926,
+  5       i+445.255,
+  6       3.1415926-i*2,
+  7       98*0.99*i, 
+  8       99*1.01*i,
+  9       -98*0.99*i
+ 10       );
+ 11       commit;
+ 12     end loop;
+ 13 end;
+ 14 /
+
+PL/SQL procedure successfully completed.
+
+SQL> update number2_orderby set COL_5 = 0.08;
+
+10 rows affected.
+
+SQL> create index number2_index on number2_orderby(COL_4);
+
+Succeed.
+
+SQL> select COL_4 from number2_orderby order by COL_4;
+
+COL_4                                   
+----------------------------------------
+97.02                                   
+194.04                                  
+291.06                                  
+388.08                                  
+485.1                                   
+582.12                                  
+679.14                                  
+776.16                                  
+873.18                                  
+970.2                                   
+
+10 rows fetched.
+
+SQL> select COL_4 from number2_orderby order by COL_4 desc limit 2;
+
+COL_4                                   
+----------------------------------------
+970.2                                   
+873.18                                  
+
+2 rows fetched.
+
+SQL> drop index number2_index on number2_orderby;
+
+Succeed.
+
+SQL> select (select COL_4||dummy from dual) from number2_orderby order by COL_4 desc limit 2;
+
+(SELECT COL_4||DUMMY FROM DUAL)                                 
+----------------------------------------------------------------
+970.2X                                                          
+873.18X                                                         
+
+2 rows fetched.
+
+SQL> select (select COL_3||dummy from dual) from number2_orderby order by COL_4;
+
+(SELECT COL_3||DUMMY FROM DUAL)
+-------------------------------
+1.1415926X                     
+-0.8584074X                    
+-2.8584074X                    
+-4.8584074X                    
+-6.8584074X                    
+-8.8584074X                    
+-10.8584074X                   
+-12.8584074X                   
+-14.8584074X                   
+-16.8584074X                   
+
+10 rows fetched.
+
+SQL> drop table number2_orderby;
+
+Succeed.
+
+SQL> 
+SQL> --aggr
+SQL> drop table if exists t_aggr_number2;
+
+Succeed.
+
+SQL> create table t_aggr_number2(f1 number2(20,10), C_VARCHAR VARCHAR(2000));
+
+Succeed.
+
+SQL> insert into t_aggr_number2 values(9912334.997, 43244354354354);
+
+1 rows affected.
+
+SQL> insert into t_aggr_number2 values(null, 564654646554);
+
+1 rows affected.
+
+SQL> insert into t_aggr_number2 values(9912334.999, NULL);
+
+1 rows affected.
+
+SQL> insert into t_aggr_number2 values(9912334.998, 345344443);
+
+1 rows affected.
+
+SQL> select count(f1) from t_aggr_number2;
+
+COUNT(F1)           
+--------------------
+3                   
+
+1 rows fetched.
+
+SQL> select sum(f1) from t_aggr_number2;
+
+SUM(F1)                                 
+----------------------------------------
+29737004.994                            
+
+1 rows fetched.
+
+SQL> select max(f1) from t_aggr_number2;
+
+MAX(F1)                                 
+----------------------------------------
+9912334.999                             
+
+1 rows fetched.
+
+SQL> select min(f1) from t_aggr_number2;
+
+MIN(F1)                                 
+----------------------------------------
+9912334.997                             
+
+1 rows fetched.
+
+SQL> select avg(f1) from t_aggr_number2;
+
+AVG(F1)                                 
+----------------------------------------
+9912334.998                             
+
+1 rows fetched.
+
+SQL> select distinct sum(c_varchar + f1) from t_aggr_number2;
+
+SUM(C_VARCHAR + F1)                     
+----------------------------------------
+43244719523466.995                      
+
+1 rows fetched.
+
+SQL> select distinct max(c_varchar::number2(38, -6)) from t_aggr_number2;
+
+MAX(C_VARCHAR::NUMBER2(38, -6))         
+----------------------------------------
+43244354000000                          
+
+1 rows fetched.
+
+SQL> select distinct min(c_varchar::number2(38, -5)) from t_aggr_number2;
+
+MIN(C_VARCHAR::NUMBER2(38, -5))         
+----------------------------------------
+345300000                               
+
+1 rows fetched.
+
+SQL> drop table t_aggr_number2;
+
+Succeed.
+
+SQL> commit;
+
+Succeed.
+
+SQL> 
+SQL> ----array
+SQL> select array[null, '1234567.89', 1234567.89, null]::number2(12,1)[] from dual;
+
+ARRAY[NULL, '1234567.89', 1234567.89, NULL]::NUMBER2(12,1)[]    
+----------------------------------------------------------------
+{NULL,1234567.9,1234567.9,NULL}                                 
+
+1 rows fetched.
+
+SQL> 
+SQL> drop table if exists array_number2_1;
+
+Succeed.
+
+SQL> create table array_number2_1(a number2(12,3)[]);
+
+Succeed.
+
+SQL> desc array_number2_1;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+A                                            NUMBER2(12, 3)[]                    
+
+SQL> insert into array_number2_1 values('{null,1234567.89,1234567.89,null}');
+
+1 rows affected.
+
+SQL> insert into array_number2_1 values(array[null, '1234567.89', 1234567.89, null]);
+
+1 rows affected.
+
+SQL> insert into array_number2_1 values('{null,12347.89,12567.9,null}');
+
+1 rows affected.
+
+SQL> insert into array_number2_1 values(array[null, '1234567.89', 13.89, null]);
+
+1 rows affected.
+
+SQL> select * from array_number2_1;
+
+A                                                               
+----------------------------------------------------------------
+{NULL,1234567.89,1234567.89,NULL}                               
+{NULL,1234567.89,1234567.89,NULL}                               
+{NULL,12347.89,12567.9,NULL}                                    
+{NULL,1234567.89,13.89,NULL}                                    
+
+4 rows fetched.
+
+SQL> select to_char(a[3]) from array_number2_1;
+
+TO_CHAR(A[3])                                                   
+----------------------------------------------------------------
+1234567.89                                                      
+1234567.89                                                      
+12567.9                                                         
+13.89                                                           
+
+4 rows fetched.
+
+SQL> select to_char(a) from array_number2_1;
+
+TO_CHAR(A)                                                      
+----------------------------------------------------------------
+{NULL,1234567.89,1234567.89,NULL}                               
+{NULL,1234567.89,1234567.89,NULL}                               
+{NULL,12347.89,12567.9,NULL}                                    
+{NULL,1234567.89,13.89,NULL}                                    
+
+4 rows fetched.
+
+SQL> drop table if exists array_number2_1;
+
+Succeed.
+
+SQL> 
+SQL> 
+SQL> set serveroutput on
+
+ON
+SQL> drop table if exists array_number2_2;
+
+Succeed.
+
+SQL> create table array_number2_2 (COL1 int,COL2 INTERVAL YEAR TO MONTH[],COL3 number2[]);
+
+Succeed.
+
+SQL> insert into array_number2_2 values(1,array[(INTERVAL '12' YEAR(4)) , (INTERVAL '-99' YEAR(3)) , (INTERVAL '0' YEAR(2))],array[-0.9E124 , 1.0E124 -1 , -89.0000001]);
+
+1 rows affected.
+
+SQL> insert into array_number2_2 values(2,array[(INTERVAL '12' YEAR(4)) , (INTERVAL '-99' YEAR(3)) , (INTERVAL '0' YEAR(2))],array[-1.0E124 , 1.0E28 , -1-128]);
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> 
+SQL> CREATE OR REPLACE PROCEDURE PROC_ARRAY_NUMBER2(P1 out number2 )
+  2 AS
+  3 V1 number2;
+  4 BEGIN
+  5 	select COL3[2] into V1 from array_number2_2 where COL1 = 2;
+  6 	P1:= V1;
+  7 	dbe_output.print_line(P1);
+  8 EXCEPTION WHEN NO_DATA_FOUND THEN dbe_output.print_line('NO_DATA_FOUND');
+  9 END;
+ 10 /
+
+Succeed.
+
+SQL> 
+SQL> declare
+  2   p number2;
+  3 begin
+  4     begin PROC_ARRAY_NUMBER2(p); end;
+  5 end;
+  6 /
+
+10000000000000000000000000000
+
+PL/SQL procedure successfully completed.
+
+SQL> drop table if exists array_number2_2;
+
+Succeed.
+
+SQL> drop PROCEDURE PROC_ARRAY_NUMBER2;
+
+Succeed.
+
+SQL> set serveroutput off
+
+OFF
+SQL> 
+SQL> --COLLECTION
+SQL> set serveroutput on
+
+ON
+SQL> DROP TYPE IF EXISTS number2_test_table;
+
+Succeed.
+
+SQL> DECLARE
+  2     type number2_test_table is table of number2;
+  3     var_test number2_test_table := number2_test_table(123, 234, 345); 
+  4 BEGIN
+  5     var_test(2) := 8E30;
+  6     DBE_OUTPUT.PRINT_LINE(var_test(2));
+  7     var_test.delete(2,3);
+  8     DBE_OUTPUT.PRINT_LINE(var_test.count);
+  9 END;
+ 10 /
+
+8000000000000000000000000000000
+1
+
+PL/SQL procedure successfully completed.
+
+SQL> DROP TYPE IF EXISTS number2_test_table;
+
+Succeed.
+
+SQL> 
+SQL> DROP TYPE IF EXISTS number2_test_varry;
+
+Succeed.
+
+SQL> DECLARE
+  2     type number2_test_varry is varray(20) of number2;
+  3     var_test number2_test_varry := number2_test_varry(123, 234, 345); 
+  4 BEGIN
+  5     var_test(2) := 8E-30;
+  6     DBE_OUTPUT.PRINT_LINE(var_test(2));
+  7     DBE_OUTPUT.PRINT_LINE(var_test.count);
+  8 END;
+  9 /
+
+.000000000000000000000000000008
+3
+
+PL/SQL procedure successfully completed.
+
+SQL> DROP TYPE IF EXISTS number2_test_varry;
+
+Succeed.
+
+SQL> 
+SQL> DROP TYPE IF EXISTS number2_type_asso;
+
+Succeed.
+
+SQL> DECLARE
+  2     TYPE number2_type_asso IS TABLE OF number2 INDEX BY int; 
+  3     var_asso number2_type_asso;
+  4 BEGIN
+  5     var_asso(4) := 1.2E30;
+  6     var_asso(3) := -1.2E30;
+  7     DBE_OUTPUT.PRINT_LINE(var_asso(3));
+  8 END;
+  9 /
+
+-1200000000000000000000000000000
+
+PL/SQL procedure successfully completed.
+
+SQL> DROP TYPE IF EXISTS number2_type_asso;
+
+Succeed.
+
+SQL> 
+SQL> --record
+SQL> DROP TYPE IF EXISTS number2_type_record;
+
+Succeed.
+
+SQL> DECLARE
+  2     TYPE number2_type_record IS RECORD(rec1 int, rec2 number2);    
+  3     var_rec number2_type_record;
+  4 BEGIN
+  5     var_rec.rec1 := 1;
+  6     var_rec.rec2 := 1E2;
+  7     DBE_OUTPUT.PRINT_LINE(var_rec.rec1 + var_rec.rec2);
+  8 END;
+  9 /
+
+101
+
+PL/SQL procedure successfully completed.
+
+SQL> DROP TYPE IF EXISTS number2_type_record;
+
+Succeed.
+
+SQL> 
+SQL> 
+SQL> --object
+SQL> DROP TYPE IF EXISTS number2_obj_type;
+
+Succeed.
+
+SQL> CREATE OR REPLACE TYPE number2_obj_type FORCE AS OBJECT(f1 number2, f2 int) NOT FINAL;
+  2 /
+
+Succeed.
+
+SQL> DECLARE
+  2     var_obj number2_obj_type;
+  3 BEGIN
+  4     var_obj := number2_obj_type(5E3, 2);
+  5     DBE_OUTPUT.PRINT_LINE(var_obj.f1 + var_obj.f2);
+  6 END;
+  7 /
+
+5002
+
+PL/SQL procedure successfully completed.
+
+SQL> DROP TYPE IF EXISTS number2_obj_type;
+
+Succeed.
+
+SQL> 
+SQL> --%type,%ROWTYPE
+SQL> DROP table IF EXISTS number2_type_test;
+
+Succeed.
+
+SQL> CREATE TABLE number2_type_test(f1 number2, f2 int); 
+
+Succeed.
+
+SQL> INSERT INTO number2_type_test VALUES(1E2, 456);
+
+1 rows affected.
+
+SQL> COMMIT; 
+
+Succeed.
+
+SQL> 
+SQL> DECLARE
+  2 cv      SYS_REFCURSOR;
+  3 v_f1    number2_type_test.f1%TYPE;
+  4 v_f2    number2_type_test.f2%TYPE;
+  5 v_test  number2_type_test%ROWTYPE; 
+  6 BEGIN
+  7 OPEN cv FOR SELECT f1,f2 FROM number2_type_test ORDER BY f1;
+  8 LOOP
+  9 FETCH cv INTO v_f1, v_f2;
+ 10 EXIT WHEN cv%NOTFOUND;
+ 11 DBE_OUTPUT.PRINT_LINE(v_f1 + v_f2);
+ 12 END LOOP;
+ 13 CLOSE cv;
+ 14 END;
+ 15 /
+
+556
+
+PL/SQL procedure successfully completed.
+
+SQL> DROP table IF EXISTS number2_type_test;
+
+Succeed.
+
+SQL> 
+SQL> drop TYPE if exists number2_c_n_s force;
+
+Succeed.
+
+SQL> drop TYPE if exists number2_c_v_n force;
+
+Succeed.
+
+SQL> drop TYPE if exists number2_r_s_r_n_v force;
+
+Succeed.
+
+SQL> drop TYPE if exists number2_c_v_r force;
+
+Succeed.
+
+SQL> drop TYPE if exists number2_c_n_r force;
+
+Succeed.
+
+SQL> create type number2_c_n_s is table of number2;
+  2 /   
+
+Succeed.
+
+SQL> create type number2_c_v_n is varray(3) of number2_c_n_s;
+  2 /   
+
+Succeed.
+
+SQL> create type number2_r_s_r_n_v FORCE AS OBJECT(a number2, b number2_c_v_n);
+  2 /      
+
+Succeed.
+
+SQL> create type number2_c_v_r is varray(3) of number2_r_s_r_n_v;
+  2 /      
+
+Succeed.
+
+SQL> create type number2_c_n_r is table of number2_r_s_r_n_v;
+  2 /
+
+Succeed.
+
+SQL> DECLARE
+  2     v1 number2_c_n_s := number2_c_n_s(123, 456, 789);
+  3     v2 number2_c_v_n := number2_c_v_n(v1, number2_c_n_s(111, 222, 333));
+  4     v3 number2_r_s_r_n_v := number2_r_s_r_n_v(1, v2);
+  5     v4 number2_c_v_r := number2_c_v_r(v3, v3);
+  6     v5 number2_c_n_r := number2_c_n_r(v3, v3, v3);
+  7 BEGIN
+  8     dbe_output.print_line(v5(1).b(1)(1));
+  9 	v4 :=null;
+ 10 	if v4 is NULL then
+ 11       dbe_output.print_line('v4' ||' is null');
+ 12 	end if;
+ 13     END;
+ 14 /
+
+123
+v4 is null
+
+PL/SQL procedure successfully completed.
+
+SQL> drop TYPE if exists number2_c_n_s force;
+
+Succeed.
+
+SQL> drop TYPE if exists number2_c_v_n force;
+
+Succeed.
+
+SQL> drop TYPE if exists number2_r_s_r_n_v force;
+
+Succeed.
+
+SQL> drop TYPE if exists number2_c_v_r force;
+
+Succeed.
+
+SQL> drop TYPE if exists number2_c_n_r force;
+
+Succeed.
+
+SQL> set serveroutput off
+
+OFF
+SQL> 
+SQL> --alter table
+SQL> drop table if exists alt_dec_number2;
+
+Succeed.
+
+SQL> create table alt_dec_number2(id int, c1 decimal, c2 number, c3 number(5,3), c4 number(5, -2));
+
+Succeed.
+
+SQL> insert into alt_dec_number2 values(1, 1.123123123123, 1.123456789, 1.001, 123456.812839);
+
+1 rows affected.
+
+SQL> alter table alt_dec_number2 modify c1 number2;
+
+CT-00805, Column C1 is not empty in table ALT_DEC_NUMBER2
+SQL> drop table if exists alt_dec_number2;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists alt_dec_number2_2;
+
+Succeed.
+
+SQL> create table alt_dec_number2_2(id int, c1 decimal, c2 number2, c3 number2(5,3), c4 number(5, -2));
+
+Succeed.
+
+SQL> ALTER TABLE alt_dec_number2_2 ADD (CONSTRAINT alt_dec_number2_2_CONSTRAINT UNIQUE(c2));
+
+Succeed.
+
+SQL> insert into alt_dec_number2_2 values(1, 1.123123123123, 1.123456789, 1.001, 123456.812839);
+
+1 rows affected.
+
+SQL> insert into alt_dec_number2_2 values(2, 1.123123123123, 1.123456789, 2.0022, 123456.812839);
+
+CT-00729, Unique constraint violated, index ALT_DEC_NUMBER2_2_CONSTRAINT, duplicate key 1.123456789
+SQL> insert into alt_dec_number2_2 values(2, 1.123123123123, 0.123456789, 2.0022, 123456.812839);
+
+1 rows affected.
+
+SQL> ALTER TABLE alt_dec_number2_2 drop CONSTRAINT alt_dec_number2_2_CONSTRAINT;
+
+Succeed.
+
+SQL> 
+SQL> insert into alt_dec_number2_2 values(3, 1.123123123123, 1.123456789, 333.0033, 123456.812839);
+
+CT-00635, Value error: value larger than specified precision
+SQL> create index alt_table_index on alt_dec_number2_2(c3);
+
+Succeed.
+
+SQL> alter table alt_dec_number2_2 modify c2 number;
+
+CT-00805, Column C2 is not empty in table ALT_DEC_NUMBER2_2
+SQL> alter table alt_dec_number2_2 modify c3 number2(7,4);
+
+Succeed.
+
+SQL> alter table alt_dec_number2_2 modify c3 number2(5,1);
+
+CT-00805, Column C3 is not empty in table ALT_DEC_NUMBER2_2
+SQL> ALTER TABLE alt_dec_number2_2 ADD COLUMN c5 NUMBER2 DEFAULT 110 NOT NULL; 
+
+Succeed.
+
+SQL> alter table alt_dec_number2_2 drop c5;
+
+Succeed.
+
+SQL> select * from alt_dec_number2_2;
+
+ID           C1                                       C2                                       C3                                       C4                                      
+------------ ---------------------------------------- ---------------------------------------- ---------------------------------------- ----------------------------------------
+1            1.123123123123                           1.123456789                              1.001                                    123500                                  
+2            1.123123123123                           .123456789                               2.002                                    123500                                  
+
+2 rows fetched.
+
+SQL> drop table if exists alt_dec_number2_2;
+
+Succeed.
+
+SQL> 
+SQL> --analyze
+SQL> drop table if exists analyze_number2;
+
+Succeed.
+
+SQL> create table analyze_number2(a number2);
+
+Succeed.
+
+SQL> -- 15
+SQL> insert into analyze_number2 values(12312.121);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.122);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.122);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.123);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.123);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.123);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.124);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.124);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.124);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.124);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.125);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.125);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.125);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.125);
+
+1 rows affected.
+
+SQL> insert into analyze_number2 values(12312.125);
+
+1 rows affected.
+
+SQL> analyze table analyze_number2 compute statistics;
+
+Succeed.
+
+SQL> select ENDPOINT_NUMBER, ENDPOINT_VALUE, ENDPOINT_ACTUAL_VALUE from MY_HISTOGRAMS where TABLE_NAME ='ANALYZE_NUMBER2' order by ENDPOINT_NUMBER;
+
+ENDPOINT_NUMBER ENDPOINT_VALUE ENDPOINT_ACTUAL_VALUE                                           
+--------------- -------------- ----------------------------------------------------------------
+1               1              12312.121                                                       
+2               3              12312.122                                                       
+3               6              12312.123                                                       
+4               10             12312.124                                                       
+5               15             12312.125                                                       
+
+5 rows fetched.
+
+SQL> 
+SQL> delete from analyze_number2 where a = 12312.125;
+
+5 rows affected.
+
+SQL> call dbe_stats.collect_table_stats('NUMBER2_TESTER','ANALYZE_NUMBER2');
+
+PL/SQL procedure successfully completed.
+
+SQL> select ENDPOINT_NUMBER, ENDPOINT_VALUE, ENDPOINT_ACTUAL_VALUE from MY_HISTOGRAMS where TABLE_NAME ='ANALYZE_NUMBER2' order by ENDPOINT_NUMBER;
+
+ENDPOINT_NUMBER ENDPOINT_VALUE ENDPOINT_ACTUAL_VALUE                                           
+--------------- -------------- ----------------------------------------------------------------
+1               1              12312.121                                                       
+2               3              12312.122                                                       
+3               6              12312.123                                                       
+4               10             12312.124                                                       
+
+4 rows fetched.
+
+SQL> drop table analyze_number2;
+
+Succeed.
+
+SQL> 
+SQL> --partition/index
+SQL> drop table if exists number2_part_1;
+
+Succeed.
+
+SQL> drop index if exists idx_number2_part_1 on number2_part_1;
+
+CT-00843, The table or view NUMBER2_TESTER.NUMBER2_PART_1 does not exist.
+SQL> create table number2_part_1(f1 number2)
+  2 PARTITION BY RANGE(f1)
+  3 (
+  4  PARTITION p1 values less than(10),
+  5  PARTITION p2 values less than(20),
+  6  PARTITION p3 values less than(30),
+  7  PARTITION p4 values less than(maxvalue)
+  8 ) crmode row;
+
+Succeed.
+
+SQL> create index idx_number2_part_1 on number2_part_1(f1) local
+  2 (
+  3 partition p1,
+  4 partition p2,
+  5 partition p3,
+  6 partition p4
+  7 );
+
+Succeed.
+
+SQL> insert into number2_part_1 values (1E-30);
+
+1 rows affected.
+
+SQL> insert into number2_part_1 values (1E50);
+
+1 rows affected.
+
+SQL> select * from number2_part_1 partition (p1);
+
+F1                                      
+----------------------------------------
+.000000000000000000000000000001         
+
+1 rows fetched.
+
+SQL> select * from number2_part_1 partition (p4);
+
+F1                                      
+----------------------------------------
+1.0000000000000000000000000000000000E+50
+
+1 rows fetched.
+
+SQL> 
+SQL> drop table if exists number2_part_1;
+
+Succeed.
+
+SQL> drop index if exists idx_number2_part_1 on number2_part_1;
+
+CT-00843, The table or view NUMBER2_TESTER.NUMBER2_PART_1 does not exist.
+SQL> 
+SQL> drop table if exists number2_part_2;
+
+Succeed.
+
+SQL> drop index if exists idx_number2_part_2 on number2_part_2;
+
+CT-00843, The table or view NUMBER2_TESTER.NUMBER2_PART_2 does not exist.
+SQL> create table number2_part_2(f1 number2, f2 number2)
+  2 PARTITION BY RANGE(f1)
+  3 (
+  4  PARTITION p1 values less than(10),
+  5  PARTITION p2 values less than(20),
+  6  PARTITION p3 values less than(30),
+  7  PARTITION p4 values less than(maxvalue)
+  8 ) crmode row;
+
+Succeed.
+
+SQL> create index idx_number2_part_2 on number2_part_2(f1, f2);
+
+Succeed.
+
+SQL> insert into number2_part_2 values (1E-30, 1E-31);
+
+1 rows affected.
+
+SQL> insert into number2_part_2 values (1E-32, 1E31);
+
+1 rows affected.
+
+SQL> alter table number2_part_2 split partition p1 at(5.25) into (partition p1_f, partition p1_r);
+
+Succeed.
+
+SQL> insert into number2_part_2 values (7, 1E-31);
+
+1 rows affected.
+
+SQL> select * from number2_part_2 partition(p1_r);
+
+F1                                       F2                                      
+---------------------------------------- ----------------------------------------
+7                                        .0000000000000000000000000000001        
+
+1 rows fetched.
+
+SQL> select * from number2_part_2 order by 1,2;
+
+F1                                       F2                                      
+---------------------------------------- ----------------------------------------
+.00000000000000000000000000000001        10000000000000000000000000000000        
+.000000000000000000000000000001          .0000000000000000000000000000001        
+7                                        .0000000000000000000000000000001        
+
+3 rows fetched.
+
+SQL> drop table if exists number2_part_2;
+
+Succeed.
+
+SQL> drop index if exists idx_number2_part_2 on number2_part_2;
+
+CT-00843, The table or view NUMBER2_TESTER.NUMBER2_PART_2 does not exist.
+SQL> 
+SQL> 
+SQL> drop table if exists number2_part_3;
+
+Succeed.
+
+SQL> create table number2_part_3(f1 number2, f2 number2)
+  2 PARTITION BY hash(f1) SUBPARTITION BY RANGE(f2)
+  3 (
+  4 PARTITION p1
+  5 (
+  6 SUBPARTITION PART_11 VALUES LESS THAN(20),
+  7 SUBPARTITION PART_12 VALUES LESS THAN(70),
+  8 SUBPARTITION PART_13 VALUES LESS THAN(MAXVALUE)
+  9 ),
+ 10 PARTITION p2
+ 11 (
+ 12 SUBPARTITION PART_21 VALUES LESS THAN(1E-5),
+ 13 SUBPARTITION PART_22 VALUES LESS THAN(1E50),
+ 14 SUBPARTITION PART_23 VALUES LESS THAN(MAXVALUE)
+ 15 ),
+ 16 PARTITION p3
+ 17 ) crmode page;
+
+Succeed.
+
+SQL> 
+SQL> begin
+  2     for i in 1..20 loop
+  3       insert into number2_part_3 values( 3.1415926-i*2, 98*0.99*i);
+  4       commit;
+  5     end loop;
+  6 end;
+  7 /
+
+PL/SQL procedure successfully completed.
+
+SQL> select count(*) from number2_part_3 partition(p1);
+
+COUNT(*)            
+--------------------
+5                   
+
+1 rows fetched.
+
+SQL> select count(*) from number2_part_3 subpartition(PART_22);
+
+COUNT(*)            
+--------------------
+10                  
+
+1 rows fetched.
+
+SQL> drop table if exists number2_part_3;
+
+Succeed.
+
+SQL> 
+SQL> 
+SQL> drop table if exists number2_part_4;
+
+Succeed.
+
+SQL> create table number2_part_4(f1 int, f2 bigint, f3 number2(38, 5), f4 DECIMAL(38, 0))
+  2 PARTITION BY RANGE(f3)
+  3 INTERVAL(10)
+  4 (
+  5 PARTITION number2_part_4_p1 values less than(10)
+  6 )format csf;
+
+Succeed.
+
+SQL> create index idx_number2_part_4 on number2_part_4(f3) local;
+
+Succeed.
+
+SQL> insert into number2_part_4 values(1,2,3.256,444);
+
+1 rows affected.
+
+SQL> insert into number2_part_4 values(1,2,33,444);
+
+1 rows affected.
+
+SQL> insert into number2_part_4 values(1,2,333,444);
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> 
+SQL>  select PARTITION_COUNT from MY_PART_TABLES where TABLE_NAME = upper('number2_part_4');
+
+PARTITION_COUNT
+---------------
+34             
+
+1 rows fetched.
+
+SQL> select * from number2_part_4 partition(number2_part_4_p1);
+
+F1           F2                   F3                                       F4                                      
+------------ -------------------- ---------------------------------------- ----------------------------------------
+1            2                    3.256                                    444                                     
+
+1 rows fetched.
+
+SQL> drop table if exists number2_part_4;
+
+Succeed.
+
+SQL> 
+SQL> 
+SQL> drop table if exists number2_part_5;
+
+Succeed.
+
+SQL> create table number2_part_5(f1 int, f2 bigint, f3 number2(10, 5), f4 number2(12, 6))
+  2 PARTITION BY list(f3) SUBPARTITION BY LIST(f4) 
+  3 (
+  4 PARTITION number2_part_5_p1 VALUES(1.01, 1.02, 1.03)
+  5 (
+  6 SUBPARTITION number2_part_5_p11 VALUES(2.01, 2.02, 2.03),
+  7 SUBPARTITION number2_part_5_p12 VALUES(2.04, 2.05, 2.06)
+  8 ),
+  9 PARTITION number2_part_5_p2 VALUES(1.04, 1.05, 1.06)
+ 10 (
+ 11 SUBPARTITION number2_part_5_p21 VALUES(2.01, 2.02, 2.03),
+ 12 SUBPARTITION number2_part_5_p22 VALUES(2.04, 2.05, 2.06)
+ 13 )
+ 14 );
+
+Succeed.
+
+SQL> insert into number2_part_5 values(1,2,1.01,2.02);
+
+1 rows affected.
+
+SQL> insert into number2_part_5 values(1,2,1.05,2.02);
+
+1 rows affected.
+
+SQL> insert into number2_part_5 values(1,2,1.08,3.26);
+
+CT-01103, Invalid (sub)partition key, inserted partition key does not map to any partition
+SQL> insert into number2_part_5 values(1,2,1.03,3.26);
+
+CT-01103, Invalid (sub)partition key, inserted partition key does not map to any subpartition
+SQL> commit;
+
+Succeed.
+
+SQL> select * from number2_part_5 partition(number2_part_5_p1);
+
+F1           F2                   F3                                       F4                                      
+------------ -------------------- ---------------------------------------- ----------------------------------------
+1            2                    1.01                                     2.02                                    
+
+1 rows fetched.
+
+SQL> select * from number2_part_5 subpartition(number2_part_5_p21);
+
+F1           F2                   F3                                       F4                                      
+------------ -------------------- ---------------------------------------- ----------------------------------------
+1            2                    1.05                                     2.02                                    
+
+1 rows fetched.
+
+SQL> drop table if exists number2_part_5;
+
+Succeed.
+
+SQL> 
+SQL> 
+SQL> drop table if exists number2_part_6;
+
+Succeed.
+
+SQL> create table number2_part_6(f1 number2(10, 5), f2 number2(12, 6))
+  2 PARTITION BY hash(f1) SUBPARTITION BY hash(f2) 
+  3 (
+  4 PARTITION number2_part_6_p1
+  5 (
+  6 SUBPARTITION number2_part_6_p11,
+  7 SUBPARTITION number2_part_6_p12
+  8 ),
+  9 PARTITION number2_part_6_p2
+ 10 (
+ 11 SUBPARTITION number2_part_6_p21,
+ 12 SUBPARTITION number2_part_6_p22
+ 13 ),
+ 14 PARTITION number2_part_6_p3
+ 15 (
+ 16 SUBPARTITION number2_part_6_p31,
+ 17 SUBPARTITION number2_part_6_p32
+ 18 )
+ 19 );
+
+Succeed.
+
+SQL> begin
+  2     for i in 1..20 loop
+  3       insert into number2_part_6 values(i * 1.23, 98*0.99*i);
+  4       commit;
+  5     end loop;
+  6 end;
+  7 /
+
+PL/SQL procedure successfully completed.
+
+SQL> commit;
+
+Succeed.
+
+SQL> select count(*) from number2_part_6 partition(number2_part_6_p1);
+
+COUNT(*)            
+--------------------
+4                   
+
+1 rows fetched.
+
+SQL> select count(*) from number2_part_6 subpartition(number2_part_6_p21);
+
+COUNT(*)            
+--------------------
+4                   
+
+1 rows fetched.
+
+SQL> select count(*) from number2_part_6 subpartition(number2_part_6_p22);
+
+COUNT(*)            
+--------------------
+5                   
+
+1 rows fetched.
+
+SQL> alter table number2_part_6 modify partition number2_part_6_p2 coalesce subpartition;
+
+Succeed.
+
+SQL> select count(*) from number2_part_6 subpartition(number2_part_6_p21);
+
+COUNT(*)            
+--------------------
+9                   
+
+1 rows fetched.
+
+SQL> alter table number2_part_6 modify partition number2_part_6_p2 add subpartition number2_part_6_p23;
+
+Succeed.
+
+SQL> select count(*) from number2_part_6 subpartition(number2_part_6_p21);
+
+COUNT(*)            
+--------------------
+4                   
+
+1 rows fetched.
+
+SQL> drop table if exists number2_part_6;
+
+Succeed.
+
+SQL> 
+SQL> --package
+SQL> drop package if exists number2_pack1;
+
+Succeed.
+
+SQL> create or replace package number2_pack1 is
+  2 function f2 return number2;
+  3 end;
+  4 /
+
+Succeed.
+
+SQL> create or replace package body number2_pack1 is
+  2 function f2 return number2 
+  3 as
+  4 a number2;
+  5 begin
+  6 a:= 1;
+  7 return(a);
+  8 end f2;
+  9 end number2_pack1;
+ 10 /
+
+Succeed.
+
+SQL> select object_name,object_type from my_procedures where object_name='NUMBER2_PACK1';
+
+OBJECT_NAME                                                      OBJECT_TYPE 
+---------------------------------------------------------------- ------------
+NUMBER2_PACK1                                                    PACKAGE SPEC
+NUMBER2_PACK1                                                    PACKAGE BODY
+
+2 rows fetched.
+
+SQL> drop package if exists number2_pack1;
+
+Succeed.
+
+SQL> 
+SQL> --function
+SQL> select '9223371000000000000.005'::number2::bigint from dual;
+
+'9223371000000000000.005'::NUMBER2::BIGINT
+------------------------------------------
+9223371000000000000                       
+
+1 rows fetched.
+
+SQL> select cast(45::int as number2(10,0));
+
+CAST(45::INT AS NUMBER2(10,0))          
+----------------------------------------
+45                                      
+
+1 rows fetched.
+
+SQL> select convert(45::int, number2(10,0));
+
+CONVERT(45::INT, NUMBER2(10,0))         
+----------------------------------------
+45                                      
+
+1 rows fetched.
+
+SQL> select convert('1.01E5', number2(10,0));
+
+CONVERT('1.01E5', NUMBER2(10,0))        
+----------------------------------------
+101000                                  
+
+1 rows fetched.
+
+SQL> select abs(-1.0123564E5::number2(10,0));
+
+ABS(-1.0123564E5::NUMBER2(10,0))        
+----------------------------------------
+101236                                  
+
+1 rows fetched.
+
+SQL> select * from dual where abs(-1.0123564E5::number2(10,0)) = '101236';
+
+DUMMY
+-----
+X    
+
+1 rows fetched.
+
+SQL> select cast('1231233413.123123213E100' as number2)||'e213213', to_char(cast('1231233413.123123213E100' as number2))||'e213213' from dual;
+
+CAST('1231233413.123123213E100' AS NUMBER2)||'E213213' TO_CHAR(CAST('1231233413.123123213E100' AS NUMBER2))||'E213213' 
+------------------------------------------------------ ----------------------------------------------------------------
+1.231233413123123213000000000000000E+109e213213        1.231233413123123213000000000000000E+109e213213                 
+
+1 rows fetched.
+
+SQL> select to_date(20091001000000::number2);
+
+TO_DATE(20091001000000::NUMBER2)
+--------------------------------
+2009-10-01 00:00:00             
+
+1 rows fetched.
+
+SQL> select to_blob(122::NUMBER);
+
+CT-01303, Convert NUMBER type to RAW type failed
+SQL> select decode(-1.0123564E5::number2(10,0), -1.01236E5, array[11.11, 22.22], array[2.0e+129, 3.0e+129]);
+
+DECODE(-1.0123564E5::NUMBER2(10,0), -1.01236E5, ARRAY[11.11, 22.
+----------------------------------------------------------------
+{11.11,22.22}                                                   
+
+1 rows fetched.
+
+SQL> select cast(null as number2) from dual;
+
+CAST(NULL AS NUMBER2)                   
+----------------------------------------
+                                        
+
+1 rows fetched.
+
+SQL> 
+SQL> --compare
+SQL> drop table if exists number2_cmp_t;
+
+Succeed.
+
+SQL> create table number2_cmp_t
+  2 (
+  3     f1 integer, f2 binary_uint32, f3 bigint, f4 binary_double, f5 double, f6 float, f7 real, f8 number(12,3), f9 decimal(20,5), f10 char(30), f11 nchar(30), f12 varchar(30), 
+  4     f13 varchar2(30), f14 nvarchar(30), f15 date, f16 datetime, f17 timestamp, f18 timestamp(3) with time zone, f19 timestamp(3) with local time zone, f20 boolean, 
+  5     f21 interval year(4) to month, f22 interval day(7) to second(6), f23 int[], f24 binary(20), f25 varbinary(20), f26 raw(100), f27 clob, f28 blob, f29 image, f30 number(18,3)
+  6 );
+
+Succeed.
+
+SQL> 
+SQL> select f1 from number2_cmp_t where f1 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f2 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f3 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f4 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f5 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f6 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f7 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f8 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f9 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f10 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f12 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f15 = f30;
+
+CT-00606, [1:42]Inconsistent datatypes, expected DATE - got NUMBER
+SQL> select f1 from number2_cmp_t where f17 = f30;
+
+CT-00606, [1:42]Inconsistent datatypes, expected TIMESTAMP - got NUMBER
+SQL> select f1 from number2_cmp_t where f18 = f30;
+
+CT-00606, [1:42]Inconsistent datatypes, expected TIMESTAMP_TZ - got NUMBER
+SQL> select f1 from number2_cmp_t where f19 = f30;
+
+CT-00606, [1:42]Inconsistent datatypes, expected TIMESTAMP_LTZ - got NUMBER
+SQL> select f1 from number2_cmp_t where f20 = f30;
+
+CT-00606, [1:42]Inconsistent datatypes, expected BOOLEAN - got NUMBER
+SQL> select f1 from number2_cmp_t where f21 = f30;
+
+CT-00606, [1:42]Inconsistent datatypes, expected INTERVAL YEAR TO MONTH - got NUMBER
+SQL> select f1 from number2_cmp_t where f22 = f30;
+
+CT-00606, [1:42]Inconsistent datatypes, expected INTERVAL DAY TO SECOND - got NUMBER
+SQL> select f1 from number2_cmp_t where f23 = f30;
+
+CT-00601, [1:36]Sql syntax error: unexpected array expression
+SQL> select f1 from number2_cmp_t where f24 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f25 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f26 = f30;
+
+CT-00606, [1:42]Inconsistent datatypes, expected RAW - got NUMBER
+SQL> select f1 from number2_cmp_t where f27 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> select f1 from number2_cmp_t where f28 = f30;
+
+CT-00606, [1:42]Inconsistent datatypes, expected BLOB - got NUMBER
+SQL> select f1 from number2_cmp_t where f29 = f30;
+
+F1          
+------------
+
+0 rows fetched.
+
+SQL> drop table number2_cmp_t;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists test_number2_add_timeltz;
+
+Succeed.
+
+SQL> CREATE TABLE test_number2_add_timeltz 
+  2 (
+  3   "COL_INT_UNSIGNED" NUMBER2(38) NOT NULL,
+  4   "COL_TIMESTAMP4" TIMESTAMP(6) WITH LOCAL TIME ZONE
+  5 );
+
+Succeed.
+
+SQL> INSERT INTO test_number2_add_timeltz ("COL_INT_UNSIGNED","COL_TIMESTAMP4") values (1,'2008-08-01 00:00:00.000000');
+
+1 rows affected.
+
+SQL> select col_int_unsigned+col_timestamp4,col_timestamp4  from test_number2_add_timeltz;
+
+COL_INT_UNSIGNED+COL_TIMESTAMP4  COL_TIMESTAMP4                  
+-------------------------------- --------------------------------
+2008-08-02 00:00:00.000000       2008-08-01 00:00:00.000000      
+
+1 rows fetched.
+
+SQL> drop table test_number2_add_timeltz;
+
+Succeed.
+
+SQL> 
+SQL> 
+SQL> --bind para
+SQL> CREATE OR REPLACE FUNCTION get_number2(acc_no IN NUMBER2)
+  2    RETURN NUMBER2
+  3    IS acc_bal NUMBER2(11,2);
+  4    BEGIN
+  5       acc_bal := acc_no;
+  6       RETURN(acc_bal);
+  7     END get_number2;
+  8 /
+
+Succeed.
+
+SQL> 
+SQL> select get_number2(1) from dual;
+
+GET_NUMBER2(1)                          
+----------------------------------------
+1                                       
+
+1 rows fetched.
+
+SQL> select get_number2(2::int) from dual;
+
+GET_NUMBER2(2::INT)                     
+----------------------------------------
+2                                       
+
+1 rows fetched.
+
+SQL> select get_number2(6.556::real)::int from dual;
+
+GET_NUMBER2(6.556::REAL)::INT
+-----------------------------
+7                            
+
+1 rows fetched.
+
+SQL> drop function get_number2;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists for_number2_array;
+
+Succeed.
+
+SQL> create table for_number2_array
+  2 (
+  3 c1 INT
+  4 );
+
+Succeed.
+
+SQL> begin
+  2 	for i in 1 .. 100 loop
+  3 		insert into for_number2_array values(i);
+  4 	end loop;
+  5 end;
+  6 /
+
+PL/SQL procedure successfully completed.
+
+SQL> create or replace function func_numer2_array(a number2[],n int) return number2
+  2 as
+  3 b number2;
+  4 begin
+  5 	b:=a[3]-n;
+  6 	return b;
+  7 end;
+  8 /
+
+Succeed.
+
+SQL> select func_numer2_array(array_agg(c1),9) from for_number2_array;
+
+FUNC_NUMER2_ARRAY(ARRAY_AGG(C1),9)      
+----------------------------------------
+-6                                      
+
+1 rows fetched.
+
+SQL> drop function func_numer2_array;
+
+Succeed.
+
+SQL> drop table if exists for_number2_array;
+
+Succeed.
+
+SQL> 
+SQL> --expression:add sub mul div
+SQL> DROP TABLE if exists number2_data;
+
+Succeed.
+
+SQL> CREATE TABLE number2_data (id int, val number2(38,10));
+
+Succeed.
+
+SQL> DROP TABLE if exists number2_exp_add;
+
+Succeed.
+
+SQL> CREATE TABLE number2_exp_add (id1 int, id2 int, expected number2(38,10));
+
+Succeed.
+
+SQL> DROP TABLE if exists number2_exp_sub;
+
+Succeed.
+
+SQL> CREATE TABLE number2_exp_sub (id1 int, id2 int, expected number2(38,10));
+
+Succeed.
+
+SQL> DROP TABLE if exists number2_exp_div;
+
+Succeed.
+
+SQL> CREATE TABLE number2_exp_div (id1 int, id2 int, expected number2(38,10));
+
+Succeed.
+
+SQL> DROP TABLE if exists number2_exp_mul;
+
+Succeed.
+
+SQL> CREATE TABLE number2_exp_mul (id1 int, id2 int, expected number2(38,10));
+
+Succeed.
+
+SQL> DROP TABLE if exists number2_result;
+
+Succeed.
+
+SQL> CREATE TABLE number2_result (id1 int, id2 int, result number2(38,10));
+
+Succeed.
+
+SQL> 
+SQL> INSERT INTO number2_exp_add VALUES (0,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (0,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (0,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (0,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (0,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (0,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (0,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (0,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (0,2,'-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (0,2,'34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (0,2,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (0,2,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (0,3,'4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (0,3,'-4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (0,3,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (0,3,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (0,4,'7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (0,4,'-7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (0,4,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (0,4,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (0,5,'16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (0,5,'-16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (0,5,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (0,5,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (0,6,'93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (0,6,'-93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (0,6,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (0,6,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (0,7,'-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (0,7,'83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (0,7,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (0,7,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (0,8,'74881');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (0,8,'-74881');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (0,8,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (0,8,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (0,9,'-24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (0,9,'24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (0,9,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (0,9,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (1,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (1,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (1,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (1,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (1,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (1,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (1,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (1,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (1,2,'-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (1,2,'34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (1,2,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (1,2,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (1,3,'4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (1,3,'-4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (1,3,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (1,3,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (1,4,'7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (1,4,'-7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (1,4,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (1,4,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (1,5,'16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (1,5,'-16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (1,5,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (1,5,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (1,6,'93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (1,6,'-93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (1,6,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (1,6,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (1,7,'-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (1,7,'83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (1,7,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (1,7,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (1,8,'74881');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (1,8,'-74881');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (1,8,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (1,8,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (1,9,'-24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (1,9,'24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (1,9,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (1,9,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (2,0,'-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (2,0,'-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (2,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (2,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (2,1,'-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (2,1,'-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (2,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (2,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (2,2,'-68676984.430794094');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (2,2,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (2,2,'1179132047626883.596862135856320209');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (2,2,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (2,3,'-34338487.905397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (2,3,'-34338496.525397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (2,3,'-147998901.44836127257');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (2,3,'-7967167.56737750510440835266');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (2,4,'-26539030.803497047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (2,4,'-42137953.627297047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (2,4,'-267821744976817.8111137106593');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (2,4,'-4.40267480046830116685');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (2,5,'-34322095.176906047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (2,5,'-34354889.253888047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (2,5,'-563049578578.769242506736077');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (2,5,'-2094.18866914563535496429');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (2,6,'-34244590.637766787');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (2,6,'-34432393.793027307');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (2,6,'-3224438592470.18449811926184222');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (2,6,'-365.68599891479766440940');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (2,7,'-117366977.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (2,7,'48689992.784602953');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (2,7,'2851072985828710.485883795');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (2,7,'.41357483778485235518');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (2,8,'-34263611.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (2,8,'-34413373.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (2,8,'-2571300635581.146276407');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (2,8,'-458.57416721727870888476');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (2,9,'-59265296.260444467');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (2,9,'-9411688.170349627');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (2,9,'855948866655588.453741509242968740');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (2,9,'1.37757299946438931811');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (3,0,'4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (3,0,'4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (3,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (3,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (3,1,'4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (3,1,'4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (3,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (3,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (3,2,'-34338487.905397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (3,2,'34338496.525397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (3,2,'-147998901.44836127257');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (3,2,'-.00000012551512084352');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (3,3,'8.62');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (3,3,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (3,3,'18.5761');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (3,3,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (3,4,'7799465.7219');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (3,4,'-7799457.1019');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (3,4,'33615678.685289');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (3,4,'.00000055260225961552');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (3,5,'16401.348491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (3,5,'-16392.728491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (3,5,'70671.23589621');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (3,5,'.00026285234387695504');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (3,6,'93905.88763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (3,6,'-93897.26763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (3,6,'404715.7995864206');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (3,6,'.00004589912234457595');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (3,7,'-83028480.69');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (3,7,'83028489.31');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (3,7,'-357852770.35');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (3,7,'-.00000005190989574240');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (3,8,'74885.31');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (3,8,'-74876.69');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (3,8,'322737.11');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (3,8,'.00005755799201399553');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (3,9,'-24926799.735047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (3,9,'24926808.355047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (3,9,'-107434525.43415438020');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (3,9,'-.00000017290624149854');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (4,0,'7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (4,0,'7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (4,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (4,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (4,1,'7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (4,1,'7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (4,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (4,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (4,2,'-26539030.803497047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (4,2,'42137953.627297047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (4,2,'-267821744976817.8111137106593');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (4,2,'-.22713465002993920385');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (4,3,'7799465.7219');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (4,3,'7799457.1019');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (4,3,'33615678.685289');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (4,3,'1809619.81714617169373549883');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (4,4,'15598922.8238');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (4,4,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (4,4,'60831598315717.14146161');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (4,4,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (4,5,'7815858.450391');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (4,5,'7783064.373409');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (4,5,'127888068979.9935054429');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (4,5,'475.66281046305802686061');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (4,6,'7893362.98953026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (4,6,'7705559.83426974');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (4,6,'732381731243.745115764094');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (4,6,'83.05996138436129499606');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (4,7,'-75229023.5881');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (4,7,'90827946.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (4,7,'-647577464846017.9715');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (4,7,'-.09393717604145131637');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (4,8,'7874342.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (4,8,'7724580.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (4,8,'584031469984.4839');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (4,8,'104.15808298366741897143');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (4,9,'-17127342.633147420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (4,9,'32726265.456947420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (4,9,'-194415646271340.1815956522980');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (4,9,'-.31289456112403769409');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (5,0,'16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (5,0,'16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (5,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (5,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (5,1,'16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (5,1,'16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (5,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (5,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (5,2,'-34322095.176906047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (5,2,'34354889.253888047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (5,2,'-563049578578.769242506736077');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (5,2,'-.00047751189505192446');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (5,3,'16401.348491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (5,3,'16392.728491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (5,3,'70671.23589621');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (5,3,'3804.41728329466357308584');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (5,4,'7815858.450391');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (5,4,'-7783064.373409');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (5,4,'127888068979.9935054429');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (5,4,'.00210232958726897192');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (5,5,'32794.076982');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (5,5,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (5,5,'268862871.275335557081');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (5,5,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (5,6,'110298.61612126');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (5,6,'-77504.53913926');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (5,6,'1539707782.76899778633766');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (5,6,'.17461941433576102689');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (5,7,'-83012087.961509');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (5,7,'83044882.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (5,7,'-1361421264394.416135');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (5,7,'-.00019748690453643710');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (5,8,'91278.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (5,8,'-58483.961509');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (5,8,'1227826639.244571');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (5,8,'.21897461960978085228');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (5,9,'-24910407.006556420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (5,9,'24943201.083538420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (5,9,'-408725765384.257043660243220');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (5,9,'-.00065780749354660427');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (6,0,'93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (6,0,'93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (6,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (6,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (6,1,'93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (6,1,'93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (6,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (6,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (6,2,'-34244590.637766787');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (6,2,'34432393.793027307');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (6,2,'-3224438592470.18449811926184222');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (6,2,'-.00273458651128995823');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (6,3,'93905.88763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (6,3,'93897.26763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (6,3,'404715.7995864206');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (6,3,'21786.90896293735498839907');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (6,4,'7893362.98953026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (6,4,'-7705559.83426974');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (6,4,'732381731243.745115764094');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (6,4,'.01203949512295682469');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (6,5,'110298.61612126');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (6,5,'77504.53913926');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (6,5,'1539707782.76899778633766');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (6,5,'5.72674008674192359679');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (6,6,'187803.15526052');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (6,6,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (6,6,'8817506281.4517452372676676');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (6,6,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (6,7,'-82934583.42236974');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (6,7,'83122386.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (6,7,'-7796505729750.37795610');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (6,7,'-.00113095617281538980');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (6,8,'168782.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (6,8,'19020.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (6,8,'7031444034.53149906');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (6,8,'1.25401073209839612184');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (6,9,'-24832902.467417160');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (6,9,'25020705.622677680');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (6,9,'-2340666225110.29929521292692920');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (6,9,'-.00376709254265256789');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (7,0,'-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (7,0,'-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (7,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (7,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (7,1,'-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (7,1,'-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (7,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (7,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (7,2,'-117366977.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (7,2,'-48689992.784602953');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (7,2,'2851072985828710.485883795');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (7,2,'2.41794207151503385700');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (7,3,'-83028480.69');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (7,3,'-83028489.31');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (7,3,'-357852770.35');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (7,3,'-19264149.65197215777262180974');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (7,4,'-75229023.5881');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (7,4,'-90827946.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (7,4,'-647577464846017.9715');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (7,4,'-10.64541262725136247686');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (7,5,'-83012087.961509');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (7,5,'-83044882.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (7,5,'-1361421264394.416135');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (7,5,'-5063.62688881730941836574');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (7,6,'-82934583.42236974');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (7,6,'-83122386.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (7,6,'-7796505729750.37795610');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (7,6,'-884.20756174009028770294');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (7,7,'-166056970');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (7,7,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (7,7,'6893729321395225');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (7,7,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (7,8,'-82953604');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (7,8,'-83103366');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (7,8,'-6217255985285');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (7,8,'-1108.80577182462841041118');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (7,9,'-107955289.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (7,9,'-58101680.954952580');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (7,9,'2069634775752159.035758700');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (7,9,'3.33089171198810413382');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (8,0,'74881');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (8,0,'74881');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (8,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (8,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (8,1,'74881');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (8,1,'74881');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (8,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (8,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (8,2,'-34263611.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (8,2,'34413373.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (8,2,'-2571300635581.146276407');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (8,2,'-.00218067233500788615');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (8,3,'74885.31');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (8,3,'74876.69');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (8,3,'322737.11');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (8,3,'17373.78190255220417633410');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (8,4,'7874342.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (8,4,'-7724580.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (8,4,'584031469984.4839');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (8,4,'.00960079113741758956');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (8,5,'91278.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (8,5,'58483.961509');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (8,5,'1227826639.244571');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (8,5,'4.56673929509287019456');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (8,6,'168782.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (8,6,'-19020.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (8,6,'7031444034.53149906');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (8,6,'.79744134113322314424');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (8,7,'-82953604');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (8,7,'83103366');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (8,7,'-6217255985285');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (8,7,'-.00090187120721280172');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (8,8,'149762');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (8,8,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (8,8,'5607164161');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (8,8,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (8,9,'-24851923.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (8,9,'25001685.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (8,9,'-1866544013697.195857020');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (8,9,'-.00300403532938582735');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (9,0,'-24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (9,0,'-24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (9,0,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (9,0,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (9,1,'-24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (9,1,'-24926804.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (9,1,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (9,1,'NaN');
+
+CT-00636, Invalid number -- unexpected character
+SQL> INSERT INTO number2_exp_add VALUES (9,2,'-59265296.260444467');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (9,2,'9411688.170349627');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (9,2,'855948866655588.453741509242968740');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (9,2,'.72591434384152961526');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (9,3,'-24926799.735047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (9,3,'-24926808.355047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (9,3,'-107434525.43415438020');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (9,3,'-5783481.21694835730858468677');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (9,4,'-17127342.633147420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (9,4,'-32726265.456947420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (9,4,'-194415646271340.1815956522980');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (9,4,'-3.19596478892958416484');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (9,5,'-24910407.006556420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (9,5,'-24943201.083538420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (9,5,'-408725765384.257043660243220');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (9,5,'-1520.20159364322004505807');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (9,6,'-24832902.467417160');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (9,6,'-25020705.622677680');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (9,6,'-2340666225110.29929521292692920');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (9,6,'-265.45671195426965751280');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (9,7,'-107955289.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (9,7,'58101680.954952580');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (9,7,'2069634775752159.035758700');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (9,7,'.30021990699995814689');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (9,8,'-24851923.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (9,8,'-25001685.045047420');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (9,8,'-1866544013697.195857020');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (9,8,'-332.88556569820675471748');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_add VALUES (9,9,'-49853608.090094840');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_sub VALUES (9,9,'0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_mul VALUES (9,9,'621345559900192.420120630048656400');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_exp_div VALUES (9,9,'1.00000000000000000000');
+
+1 rows affected.
+
+SQL> 
+SQL> INSERT INTO number2_data VALUES (0, '0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_data VALUES (1, '0');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_data VALUES (2, '-34338492.215397047');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_data VALUES (3, '4.31');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_data VALUES (4, '7799461.4119');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_data VALUES (5, '16397.038491');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_data VALUES (6, '93901.57763026');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_data VALUES (7, '-83028485');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_data VALUES (8, '74881');
+
+1 rows affected.
+
+SQL> INSERT INTO number2_data VALUES (9, '-24926804.045047420');
+
+1 rows affected.
+
+SQL> 
+SQL> 
+SQL> DROP INDEX if exists number2_exp_add_idx ON number2_exp_add;
+
+Succeed.
+
+SQL> CREATE UNIQUE INDEX number2_exp_add_idx ON number2_exp_add (id1, id2);
+
+Succeed.
+
+SQL> DROP INDEX if exists number2_exp_sub_idx ON number2_exp_sub;
+
+Succeed.
+
+SQL> CREATE UNIQUE INDEX number2_exp_sub_idx ON number2_exp_sub (id1, id2);
+
+Succeed.
+
+SQL> DROP INDEX if exists number2_exp_div_idx ON number2_exp_div;
+
+Succeed.
+
+SQL> CREATE UNIQUE INDEX number2_exp_div_idx ON number2_exp_div (id1, id2);
+
+Succeed.
+
+SQL> DROP INDEX if exists number2_exp_mul_idx ON number2_exp_mul;
+
+Succeed.
+
+SQL> CREATE UNIQUE INDEX number2_exp_mul_idx ON number2_exp_mul (id1, id2);
+
+Succeed.
+
+SQL> 
+SQL> DELETE FROM number2_result;
+
+0 rows affected.
+
+SQL> INSERT INTO number2_result SELECT t1.id, t2.id, t1.val + t2.val
+  2     FROM number2_data t1, number2_data t2;
+
+100 rows affected.
+
+SQL> SELECT t1.id1, t1.id2, t1.result, t2.expected
+  2     FROM number2_result t1, number2_exp_add t2 
+  3     WHERE t1.id1 = t2.id1 AND t1.id2 = t2.id2 AND t1.result != t2.expected 
+  4     order by t1.id1, t1.id2;
+
+ID1          ID2          RESULT                                   EXPECTED                                
+------------ ------------ ---------------------------------------- ----------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> DELETE FROM number2_result;
+
+100 rows affected.
+
+SQL> DELETE FROM number2_result;
+
+0 rows affected.
+
+SQL> INSERT INTO number2_result SELECT t1.id, t2.id, t1.val - t2.val
+  2     FROM number2_data t1, number2_data t2;
+
+100 rows affected.
+
+SQL> SELECT t1.id1, t1.id2, t1.result, t2.expected
+  2     FROM number2_result t1, number2_exp_sub t2
+  3     WHERE t1.id1 = t2.id1 
+  4     AND t1.id2 = t2.id2 
+  5     AND t1.result != t2.expected order by t1.id1, t1.id2;
+
+ID1          ID2          RESULT                                   EXPECTED                                
+------------ ------------ ---------------------------------------- ----------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> -- ******************************
+SQL> -- * Multiply check
+SQL> -- ******************************
+SQL> DELETE FROM number2_result;
+
+100 rows affected.
+
+SQL> INSERT INTO number2_result SELECT t1.id, t2.id, t1.val * t2.val
+  2     FROM number2_data t1, number2_data t2;
+
+100 rows affected.
+
+SQL> SELECT t1.id1, t1.id2, t1.result, t2.expected
+  2     FROM number2_result t1, number2_exp_mul t2
+  3     WHERE t1.id1 = t2.id1 
+  4     AND t1.id2 = t2.id2 
+  5     AND t1.result != t2.expected order by t1.id1, t1.id2;
+
+ID1          ID2          RESULT                                   EXPECTED                                
+------------ ------------ ---------------------------------------- ----------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> DELETE FROM number2_result;
+
+100 rows affected.
+
+SQL> INSERT INTO number2_result SELECT t1.id, t2.id, t1.val / t2.val
+  2     FROM number2_data t1, number2_data t2
+  3     WHERE t2.val != '0.0';
+
+80 rows affected.
+
+SQL> 
+SQL> SELECT t1.id1, t1.id2, t1.result, t2.expected
+  2     FROM number2_result t1, number2_exp_div t2
+  3     WHERE t1.id1 = t2.id1 
+  4     AND t1.id2 = t2.id2 
+  5     AND t1.result != t2.expected order by t1.id1, t1.id2;
+
+ID1          ID2          RESULT                                   EXPECTED                                
+------------ ------------ ---------------------------------------- ----------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> DROP TABLE if exists number2_data;
+
+Succeed.
+
+SQL> DROP TABLE if exists number2_exp_add;
+
+Succeed.
+
+SQL> DROP TABLE if exists number2_exp_sub;
+
+Succeed.
+
+SQL> DROP TABLE if exists number2_exp_div;
+
+Succeed.
+
+SQL> DROP TABLE if exists number2_exp_mul;
+
+Succeed.
+
+SQL> DROP TABLE if exists number2_result;
+
+Succeed.
+
+SQL> 
+SQL> DROP TABLE if exists t_num;
+
+Succeed.
+
+SQL> create table t_num(number2 number2);
+
+Succeed.
+
+SQL> insert into t_num values(1234);
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> select number2 from t_num;
+
+NUMBER2                                 
+----------------------------------------
+1234                                    
+
+1 rows fetched.
+
+SQL> DROP TABLE t_num;
+
+Succeed.
+
+SQL> 
+SQL> create or replace function DBA_ARGUMENTS_003_f1(number1 in out number ) return number2
+  2 IS
+  3 number2 number2(9,3);
+  4 number3 number(9,3);
+  5 begin
+  6     null;
+  7 end;
+  8 /
+
+Succeed.
+
+SQL> select data_type,data_length,data_precision,data_scale from user_arguments where object_name = 'DBA_ARGUMENTS_003_F1' order by sequence;
+
+DATA_TYPE                                                        DATA_LENGTH  DATA_PRECISION DATA_SCALE  
+---------------------------------------------------------------- ------------ -------------- ------------
+NUMBER2                                                          23                                      
+NUMBER                                                           24                                      
+
+2 rows fetched.
+
+SQL> drop function DBA_ARGUMENTS_003_f1;
+
+Succeed.
+
+SQL> 
+SQL> --nameable datatype as right value in pl
+SQL> set serveroutput on;
+
+ON
+SQL> drop table if exists t123;
+
+Succeed.
+
+SQL> create table t123(number2 number2, id number2);
+
+Succeed.
+
+SQL> insert into t123 values(12, 45);
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> select sum(number2) from t123 where number2 < 20;
+
+SUM(NUMBER2)                            
+----------------------------------------
+12                                      
+
+1 rows fetched.
+
+SQL> select dense_rank(15) within group (order by number2) from t123;
+
+DENSE_RANK(15) WITHIN GROUP (ORDER BY NUMBER2)
+----------------------------------------------
+2                                             
+
+1 rows fetched.
+
+SQL> 
+SQL> CREATE OR REPLACE FUNCTION ztest_f1112(a number2, b number2) RETURN number2
+  2 AS
+  3 number2 number2;
+  4 n number2;
+  5 id number2 := 3;
+  6 BEGIN
+  7 number2 := a + b + 2;
+  8 dbe_output.print_line(number2);
+  9 n := number2;
+ 10 dbe_output.print_line(n);
+ 11 select id into n from t123; --When a column name has the same name as a variable, the variable takes precedence
+ 12 dbe_output.print_line(n);
+ 13 select number2 into number2 from t123;
+ 14 RETURN number2;
+ 15 END;
+ 16 /
+
+Succeed.
+
+SQL> select ztest_f1112(number2, 2) from t123;
+
+ZTEST_F1112(NUMBER2, 2)                 
+----------------------------------------
+16                                      
+
+1 rows fetched.
+
+16
+16
+3
+
+SQL> 
+SQL> declare
+  2 c2 sys_refcursor;
+  3 type type_name is record
+  4 (c_int number2,
+  5 c_id number2);
+  6 number2 type_name;
+  7 begin
+  8 open c2 for select * from t123;
+  9 fetch c2 into number2;
+ 10 close c2;
+ 11 DBE_OUTPUT.PRINT_LINE('Happy new year ' || number2.c_int);
+ 12 DBE_OUTPUT.PRINT_LINE('Happy new year ' || number2.c_id);
+ 13 end;
+ 14 /
+
+Happy new year 12
+Happy new year 45
+
+PL/SQL procedure successfully completed.
+
+SQL> drop table if exists t123;
+
+Succeed.
+
+SQL> 
+SQL> declare
+  2 type type_name is record
+  3 (
+  4 c_num number(10),
+  5 c_num2 number2(10));
+  6 number3 type_name;
+  7 begin
+  8 number3.c_num := 9.9E127;
+  9 number3.c_num2 := 9.9E125;
+ 10 DBE_OUTPUT.PRINT_LINE('Happy new year ' || number3.c_num);
+ 11 DBE_OUTPUT.PRINT_LINE('Happy new year ' || number3.c_num2);
+ 12 number3.c_num2 := 9.9E127;
+ 13 end;
+ 14 /
+
+Happy new year 9.900000000000000000000000000000000E+127
+Happy new year 9.900000000000000000000000000000000E+125
+CT-00932, [12:1] PL/SQL(NUMBER2_TESTER.ANONYMOUS BLOCK) terminated with execute errors
+[12:1] CT-01319, High-Precision numeric overflow
+
+SQL> set serveroutput off;
+
+OFF
+SQL> 
+SQL> drop table if exists tbl_number2_011;
+
+Succeed.
+
+SQL> create table tbl_number2_011
+  2 (c_id bigint auto_increment not null 	primary key,
+  3 c_clob clob,
+  4 c_time date,
+  5 c_num number2(10,2) check (c_num >=0),
+  6 c_name varchar2(100))  format csf ;
+
+Succeed.
+
+SQL> create unique index IDX_number2_011 on tbl_number2_011(c_num);
+
+Succeed.
+
+SQL> insert into tbl_number2_011(c_num) values(1);
+
+1 rows affected.
+
+SQL> insert into tbl_number2_011(c_num) values(0);
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> update tbl_number2_011 set c_num = 10 where c_clob is null;
+
+CT-00729, Unique constraint violated
+SQL> drop table if exists tbl_number2_011;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists tbl_number2_012;
+
+Succeed.
+
+SQL> create table tbl_number2_012
+  2 (c_id bigint auto_increment not null 	primary key,
+  3 c_clob clob,
+  4 c_time date,
+  5 c_num number2(10,2) check (c_num >=0),
+  6 c_name varchar2(100))  format csf crmode row;
+
+Succeed.
+
+SQL> create unique index IDX_number2_012 on tbl_number2_012(c_num);
+
+Succeed.
+
+SQL> insert into tbl_number2_012(c_num) values(1);
+
+1 rows affected.
+
+SQL> insert into tbl_number2_012(c_num) values(0);
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> update tbl_number2_012 set c_num = 10 where c_clob is null;
+
+CT-00729, Unique constraint violated
+SQL> drop table if exists tbl_number2_012;
+
+Succeed.
+
+SQL> 
+SQL> select acos(1) from dual;
+
+ACOS(1)                                 
+----------------------------------------
+0                                       
+
+1 rows fetched.
+
+SQL> select acos(-1) from dual;
+
+ACOS(-1)                                
+----------------------------------------
+3.1415926535897932384626433832795028842 
+
+1 rows fetched.
+
+SQL> 
+SQL> drop table if exists tbl_number2_013;
+
+Succeed.
+
+SQL> create table tbl_number2_013(a1 varchar(8000),a2 varchar(8000),a3 varchar(8000),a4 varchar(8000),a5 varchar(8000),a6 varchar(8000),a7 varchar(8000),a8 varchar(8000),b number2);
+
+Succeed.
+
+SQL> insert into tbl_number2_013 select 
+  2 lpad('sbfacwjdafgjyjhfpyxcpmnutcjxrbfgxxbm',8000-4-8,'yxcfgdsgtcsdsjxrbxxbm'),
+  3 lpad('sbfacwjdafgjyjhfpyxcpmnutcjxrbfgxxbm',8000-4,'yxcfgdsgtcsdsjxrbxxbm'),
+  4 lpad('sbfacwjdafgjyjhfpyxcpmnutcjxrbfgxxbm',8000-4,'yxcfgdsgtcsdsjxrbxxbm'),
+  5 lpad('sbfacwjdafgjyjhfpyxcpmnutcjxrbfgxxbm',8000-4,'yxcfgdsgtcsdsjxrbxxbm'),
+  6 lpad('sbfacwjdafgjyjhfpyxcpmnutcjxrbfgxxbm',8000-4,'yxcfgdsgtcsdsjxrbxxbm'),
+  7 lpad('sbfacwjdafgjyjhfpyxcpmnutcjxrbfgxxbm',8000-4,'yxcfgdsgtcsdsjxrbxxbm'),
+  8 lpad('sbfacwjdafgjyjhfpyxcpmnutcjxrbfgxxbm',8000-4,'yxcfgdsgtcsdsjxrbxxbm'),
+  9 lpad('sbfacwjdafgjyjhfpyxcpmnutcjxrbfgxxbm',8000-4,'yxcfgdsgtcsdsjxrbxxbm'),
+ 10 1 from sys_dummy;
+
+CT-00106, The size of row is too large, max_row_size=64000
+SQL> drop table if exists tbl_number2_013;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists tbl_number2_014;
+
+Succeed.
+
+SQL> create table tbl_number2_014(c_num number(10,1),c_name varchar(80)) format csf;
+
+Succeed.
+
+SQL> 
+SQL> begin
+  2 for i in 0..100
+  3 loop
+  4     insert into tbl_number2_014 values(i,'abs'||i) ;
+  5 end loop;
+  6 end;
+  7 /
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> exec DBE_STATS.COLLECT_TABLE_STATS(schema =>'NUMBER2_TESTER', name =>'TBL_NUMBER2_014', sample_ratio =>100);
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> select a.COL#,a.row_num,a.minvalue,a.maxvalue,a.dist_num from sys.sys_histgram_abstr a,sys.sys_tables b  where a.tab#=b.id and
+  2  b.name=upper('TBL_NUMBER2_014')and a.USER#=b.USER#  and b.user#=( select id from sys.SYS_USERS where name='NUMBER2_TESTER' ) order by 1,2,3,4,5;
+
+COL#         ROW_NUM      MINVALUE                                                         MAXVALUE                                                         DIST_NUM    
+------------ ------------ ---------------------------------------------------------------- ---------------------------------------------------------------- ------------
+0            101          0                                                                100                                                              101         
+1            101          abs0                                                             abs99                                                            101         
+
+2 rows fetched.
+
+SQL> 
+SQL> drop table if exists tbl_number2_015_part;
+
+Succeed.
+
+SQL> create table tbl_number2_015_part
+  2 (
+  3 c_int bigint unique ,
+  4 c_clob clob,
+  5 c_varchar varchar(80) ,
+  6 c_number number  check (c_number>=-10000),
+  7 c_date date
+  8 )partition by range (c_number) interval (2000900000)
+  9 (
+ 10  partition p1 values less than (1),
+ 11  partition p2 values less than (20),
+ 12  partition p3 values less than (10000),
+ 13  partition p4 values less than (1000000)
+ 14 );
+
+Succeed.
+
+SQL> 
+SQL> insert into tbl_number2_015_part values(999999999999999,5,'11',99999999999999,null);
+
+1 rows affected.
+
+SQL> insert into tbl_number2_015_part values(99999999999999,5,'11',99999999999999,null);
+
+1 rows affected.
+
+SQL> drop table if exists tbl_number2_015_part;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists tbl_number2_016_part;
+
+Succeed.
+
+SQL> create table tbl_number2_016_part(f1 number2)
+  2 PARTITION BY RANGE(f1)
+  3 (
+  4  PARTITION p1 values less than(-10),
+  5  PARTITION p2 values less than(4),
+  6  PARTITION p3 values less than(10),
+  7  PARTITION p4 values less than(maxvalue)
+  8 ) format csf;
+
+Succeed.
+
+SQL> 
+SQL> insert into tbl_number2_016_part values(-5);
+
+1 rows affected.
+
+SQL> insert into tbl_number2_016_part values(0);
+
+1 rows affected.
+
+SQL> insert into tbl_number2_016_part values(2);
+
+1 rows affected.
+
+SQL> alter table tbl_number2_016_part split partition p2 at(-5) into (partition p21, partition p22);
+
+Succeed.
+
+SQL> 
+SQL> select * from tbl_number2_016_part partition(p21);
+
+F1                                      
+----------------------------------------
+
+0 rows fetched.
+
+SQL> select * from tbl_number2_016_part partition(p22);
+
+F1                                      
+----------------------------------------
+-5                                      
+0                                       
+2                                       
+
+3 rows fetched.
+
+SQL> drop table if exists tbl_number2_016_part;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists tbl_number2_017;
+
+Succeed.
+
+SQL> create table tbl_number2_017(number_col1 number2);
+
+Succeed.
+
+SQL> alter table tbl_number2_017 add constraint PK_number2_002 primary key (number_col1);
+
+Succeed.
+
+SQL> ALTER TABLE tbl_number2_017 ADD logical log(PRIMARY KEY);
+
+Succeed.
+
+SQL> 
+SQL> insert into tbl_number2_017 values(1.2364556);
+
+1 rows affected.
+
+SQL> 
+SQL> insert into tbl_number2_017 values(1.0E-130);
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> 
+SQL> update tbl_number2_017 set number_col1=0 where number_col1=1.2364556;
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> drop table if exists tbl_number2_017;
+
+Succeed.
+
+SQL> 
+SQL> conn / as sysdba
+
+connected.
+
+SQL> drop user if exists number2_tester cascade;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists subpart_csf_tbl_000;
+
+Succeed.
+
+SQL> drop table if exists subpart_csf_intevl_range_tbl_001;
+
+Succeed.
+
+SQL> drop sequence if exists subpart_csf_seq_000;
+
+Succeed.
+
+SQL> drop sequence if exists subpart_csf_seq_000_1;
+
+Succeed.
+
+SQL> create table subpart_csf_tbl_000(num int,c_id int,c_d_id bigint NOT NULL,c_w_id tinyint unsigned NOT NULL,c_uint UINT not null,c_first varchar(16) NOT NULL,c_middle char(2),c_last varchar(16) NOT NULL,c_street_1 varchar(20) NOT NULL,c_street_2 varchar(20),c_zero timestamp with time zone NOT NULL,c_start date NOT NULL,c_zip char(9) NOT NULL,c_phone char(16) NOT NULL,c_since timestamp,c_credit char(2),c_credit_lim numeric,c_discount numeric(5,2),c_balance numeric(12,2),c_ytd_payment real NOT NULL,c_payment_cnt number NOT NULL,c_delivery_cnt bool NOT NULL,c_end date NOT NULL,c_data1 varchar(7744),c_data2 varchar(7744),c_data3 varchar(7744),c_data4 varchar(7744),c_data5 varchar(7744),c_data6 varchar(7744),c_data7 varchar(7744),c_data8 varchar(7744),c_clob clob,c_blob blob);
+
+Succeed.
+
+SQL> insert into subpart_csf_tbl_000(num,C_ID,C_D_ID,C_W_ID,C_UINT,C_FIRST,C_MIDDLE,C_LAST,C_STREET_1,C_STREET_2,C_ZERO,C_START,C_ZIP,C_PHONE,C_SINCE,C_CREDIT,C_CREDIT_LIM,C_DISCOUNT,C_BALANCE,C_YTD_PAYMENT,C_PAYMENT_CNT,C_DELIVERY_CNT,C_END,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,C_DATA7,C_DATA8,C_CLOB,C_BLOB) select 0,0,0,0,0,'iscmRDs','OE','BARBar','RGF','SDG','2041-06-17 03:03:03.00 +08:00','2041-06-17 03:03:03','4801','940215','2041-06-17 03:03:03','GC',50000.0,0.4361328,-10.0,10.0,1,true,'2041-06-17 03:03:03',lpad('QVBRfSCC3484942ZCSfjvCF',500,'QVLDBURhlhfrc484ZCSfjF'),lpad('QVBUflcHOQNvmgfvdPFZSF',500,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',500,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',500,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',500,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',500,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',500,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',500,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',500,'QVLDfscHOQgfvmPFZDSF'),lpad('12314315487569809',500,'1435764ABC7890abcdef');
+
+1 rows affected.
+
+SQL> create sequence subpart_csf_seq_000 start with 1 MAXVALUE 10 increment by 1 CACHE 2 cycle;
+
+Succeed.
+
+SQL> create sequence subpart_csf_seq_000_1 start with 1 MAXVALUE 100 increment by 1 CACHE 2 cycle;
+
+Succeed.
+
+SQL> CREATE or replace procedure subpart_csf_proc(startall int,endall int)  as
+  2 i INT;
+  3 j int;
+  4 k int;
+  5 BEGIN
+  6   FOR i IN startall..endall LOOP
+  7     if i%8=1 then
+  8         select subpart_csf_seq_000.nextval into j from sys_dummy;
+  9             if i%40=1 then
+ 10                select subpart_csf_seq_000_1.nextval into k from sys_dummy;
+ 11                commit;
+ 12             end if;
+ 13         insert into subpart_csf_tbl_000(NUM,C_ID,C_D_ID,C_W_ID,C_UINT,C_FIRST,C_MIDDLE,C_LAST,C_STREET_1,C_STREET_2,C_ZERO,C_START,C_ZIP,C_PHONE,C_SINCE,C_CREDIT,C_CREDIT_LIM,C_DISCOUNT,C_BALANCE,C_YTD_PAYMENT,C_PAYMENT_CNT,C_DELIVERY_CNT,C_END,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,C_DATA7,C_DATA8,C_CLOB,C_BLOB) select 1,i,i%80,j,k,'iscmRDs'||i||'aa',C_MIDDLE,'BARBar'||(i%80)||'xx','RGF'||j||'AB','RGF'||k||'ABC',C_ZERO+i,C_START+(i%80),C_ZIP,C_PHONE,C_SINCE+j,C_CREDIT,i||'.'||i,i%80,j,C_YTD_PAYMENT,k,C_DELIVERY_CNT,C_END+k,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,lpad('QVBUflcHOQNvmgfvdPFZSF',2000,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',2000,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',1000,'QVLDfscHOQgfvmPFZDSF'),lpad('12314315487569809',2000,'1435764ABC7890abcdef') from subpart_csf_tbl_000 where c_id=0;
+ 14     elsif i%8=2 then
+ 15         insert into subpart_csf_tbl_000(NUM,C_ID,C_D_ID,C_W_ID,C_UINT,C_FIRST,C_MIDDLE,C_LAST,C_STREET_1,C_STREET_2,C_ZERO,C_START,C_ZIP,C_PHONE,C_SINCE,C_CREDIT,C_CREDIT_LIM,C_DISCOUNT,C_BALANCE,C_YTD_PAYMENT,C_PAYMENT_CNT,C_DELIVERY_CNT,C_END,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,C_DATA7,C_DATA8,C_CLOB,C_BLOB) select 2,i,i%80,j,k,'iscmRDs'||i||'aa',C_MIDDLE,'BARBar'||(i%80)||'xx','RGF'||j||'AB','RGF'||k||'ABC',C_ZERO+i,C_START+(i%80),C_ZIP,C_PHONE,C_SINCE+j,C_CREDIT,i||'.'||i,i%80,j,C_YTD_PAYMENT,k,C_DELIVERY_CNT,C_END+k,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,lpad('QVBUflcHOQNvmgfvdPFZSF',3000,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',3000,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',5000,'QVLDfscHOQgfvmPFZDSF'),lpad('12314315487569809',10000,'1435764ABC7890abcdef') from subpart_csf_tbl_000 where c_id=0;
+ 16     elsif i%8=3 then
+ 17         insert into subpart_csf_tbl_000(NUM,C_ID,C_D_ID,C_W_ID,C_UINT,C_FIRST,C_MIDDLE,C_LAST,C_STREET_1,C_STREET_2,C_ZERO,C_START,C_ZIP,C_PHONE,C_SINCE,C_CREDIT,C_CREDIT_LIM,C_DISCOUNT,C_BALANCE,C_YTD_PAYMENT,C_PAYMENT_CNT,C_DELIVERY_CNT,C_END,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,C_DATA7,C_DATA8,C_CLOB,C_BLOB) select 3,i,i%80,j,k,'iscmRDs'||i||'aa',C_MIDDLE,'BARBar'||(i%80)||'xx','RGF'||j||'AB','RGF'||k||'ABC',C_ZERO+i,C_START+(i%80),C_ZIP,C_PHONE,C_SINCE+j,C_CREDIT,i||'.'||i,i%80,j,C_YTD_PAYMENT,k,C_DELIVERY_CNT,C_END+k,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,lpad('QVBUflcHOQNvmgfvdPFZSF',3000,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',3000,'QVLDfscHOQgfvmPFZDSF'),null,null from subpart_csf_tbl_000 where c_id=0;
+ 18     elsif i%8=4 then
+ 19         insert into subpart_csf_tbl_000(NUM,C_ID,C_D_ID,C_W_ID,C_UINT,C_FIRST,C_MIDDLE,C_LAST,C_STREET_1,C_STREET_2,C_ZERO,C_START,C_ZIP,C_PHONE,C_SINCE,C_CREDIT,C_CREDIT_LIM,C_DISCOUNT,C_BALANCE,C_YTD_PAYMENT,C_PAYMENT_CNT,C_DELIVERY_CNT,C_END,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,C_DATA7,C_DATA8,C_CLOB,C_BLOB) select 4,i,i%80,j,k,'iscmRDs'||i||'aa',C_MIDDLE,'BARBar'||(i%80)||'xx','RGF'||j||'AB','RGF'||k||'ABC',C_ZERO+i,C_START+(i%80),C_ZIP,C_PHONE,C_SINCE+j,C_CREDIT,i||'.'||i,i%80,j,C_YTD_PAYMENT,k,C_DELIVERY_CNT,C_END+k,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,lpad('QVBUflcHOQNvmgfvdPFZSF',2000,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',2000,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',2000,'QVLDfscHOQgfvmPFZDSF'),lpad('12314315487569809',10000,'1435764ABC7890abcdef') from subpart_csf_tbl_000 where c_id=0;
+ 20     elsif i%8=5 then
+ 21         insert into subpart_csf_tbl_000(NUM,C_ID,C_D_ID,C_W_ID,C_UINT,C_FIRST,C_MIDDLE,C_LAST,C_STREET_1,C_STREET_2,C_ZERO,C_START,C_ZIP,C_PHONE,C_SINCE,C_CREDIT,C_CREDIT_LIM,C_DISCOUNT,C_BALANCE,C_YTD_PAYMENT,C_PAYMENT_CNT,C_DELIVERY_CNT,C_END,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,C_DATA7,C_DATA8,C_CLOB,C_BLOB) select 5,i,i%80,j,k,'iscmRDs'||i||'aa',C_MIDDLE,'BARBar'||(i%80)||'xx','RGF'||j||'AB','RGF'||k||'ABC',C_ZERO+i,C_START+(i%80),C_ZIP,C_PHONE,C_SINCE+j,C_CREDIT,i||'.'||i,i%80,j,C_YTD_PAYMENT,k,C_DELIVERY_CNT,C_END+k,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,lpad('QVBUflcHOQNvmgfvdPFZSF',100,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',100,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',100,'QVLDfscHOQgfvmPFZDSF'),lpad('12314315487569809',200,'1435764ABC7890abcdef') from subpart_csf_tbl_000 where c_id=0;
+ 22     elsif i%8=6 then
+ 23         insert into subpart_csf_tbl_000(NUM,C_ID,C_D_ID,C_W_ID,C_UINT,C_FIRST,C_MIDDLE,C_LAST,C_STREET_1,C_STREET_2,C_ZERO,C_START,C_ZIP,C_PHONE,C_SINCE,C_CREDIT,C_CREDIT_LIM,C_DISCOUNT,C_BALANCE,C_YTD_PAYMENT,C_PAYMENT_CNT,C_DELIVERY_CNT,C_END,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,C_DATA7,C_DATA8,C_CLOB,C_BLOB) select 6,i,i%80,j,k,'iscmRDs'||i||'aa',C_MIDDLE,'BARBar'||(i%80)||'xx','RGF'||j||'AB','RGF'||k||'ABC',C_ZERO+i,C_START+(i%80),C_ZIP,C_PHONE,C_SINCE+j,C_CREDIT,i||'.'||i,i%80,j,C_YTD_PAYMENT,k,C_DELIVERY_CNT,C_END+k,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,lpad('QVBUflcHOQNvmgfvdPFZSF',200,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',200,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',5000,'QVLDfscHOQgfvmPFZDSF'),lpad('12314315487569809',10000,'1435764ABC7890abcdef') from subpart_csf_tbl_000 where c_id=0;
+ 24     elsif i%8=7 then
+ 25         insert into subpart_csf_tbl_000(NUM,C_ID,C_D_ID,C_W_ID,C_UINT,C_FIRST,C_MIDDLE,C_LAST,C_STREET_1,C_STREET_2,C_ZERO,C_START,C_ZIP,C_PHONE,C_SINCE,C_CREDIT,C_CREDIT_LIM,C_DISCOUNT,C_BALANCE,C_YTD_PAYMENT,C_PAYMENT_CNT,C_DELIVERY_CNT,C_END,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,C_DATA7,C_DATA8,C_CLOB,C_BLOB) select 7,i,i%80,j,k,'iscmRDs'||i||'aa',C_MIDDLE,'BARBar'||(i%80)||'xx','RGF'||j||'AB','RGF'||k||'ABC',C_ZERO+i,C_START+(i%80),C_ZIP,C_PHONE,C_SINCE+j,C_CREDIT,i||'.'||i,i%80,j,C_YTD_PAYMENT,k,C_DELIVERY_CNT,C_END+k,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,lpad('QVBUflcHOQNvmgfvdPFZSF',200,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',200,'QVLDfscHOQgfvmPFZDSF'),null,null from subpart_csf_tbl_000 where c_id=0;
+ 26     elsif i%8=0 then
+ 27         insert into subpart_csf_tbl_000(NUM,C_ID,C_D_ID,C_W_ID,C_UINT,C_FIRST,C_MIDDLE,C_LAST,C_STREET_1,C_STREET_2,C_ZERO,C_START,C_ZIP,C_PHONE,C_SINCE,C_CREDIT,C_CREDIT_LIM,C_DISCOUNT,C_BALANCE,C_YTD_PAYMENT,C_PAYMENT_CNT,C_DELIVERY_CNT,C_END,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,C_DATA7,C_DATA8,C_CLOB,C_BLOB) select 8,i,i%80,j,k,'iscmRDs'||i||'aa',C_MIDDLE,'BARBar'||(i%80)||'xx','RGF'||j||'AB','RGF'||k||'ABC',C_ZERO+i,C_START+(i%80),C_ZIP,C_PHONE,C_SINCE+j,C_CREDIT,i||'.'||i,i%80,j,C_YTD_PAYMENT,k,C_DELIVERY_CNT,C_END+k,C_DATA1,C_DATA2,C_DATA3,C_DATA4,C_DATA5,C_DATA6,lpad('QVBUflcHOQNvmgfvdPFZSF',100,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',100,'QVLDfscHOQgfvmPFZDSF'),lpad('QVBUflcHOQNvmgfvdPFZSF',200,'QVLDfscHOQgfvmPFZDSF'),lpad('12314315487569809',10000,'1435764ABC7890abcdef') from subpart_csf_tbl_000 where c_id=0;
+ 28    end if;
+ 29   END LOOP;
+ 30 END;
+ 31 /
+
+Succeed.
+
+SQL> call subpart_csf_proc(1,400);
+
+PL/SQL procedure successfully completed.
+
+SQL> create table subpart_csf_intevl_range_tbl_001(num int,c_id number2(5),c_d_id number not null,c_w_id tinyint unsigned not null,c_uint uint not null,c_first varchar(500) not null,c_middle char(2),c_last varchar(500) not null,c_street_1 varchar(20) not null,c_street_2 varchar(500),c_zero timestamp not null,c_start date not null,c_zip char(9) not null,c_phone char(1600) not null,c_since timestamp,c_credit char(2),c_credit_lim numeric,c_discount numeric(5,2),c_balance number(12,2),c_ytd_payment real not null,c_payment_cnt number not null,c_delivery_cnt bool not null,c_end date not null,c_data1 varchar(7744),c_data2 varchar(7744),c_data3 varchar(7744),c_data4 varchar(7744),c_data5 varchar(7744),c_data6 varchar(7744),c_data7 varchar(7744),c_data8 varchar(7744),c_clob clob,c_blob blob)
+  2 partition by range(c_id) interval(80) subpartition by range(c_d_id)(
+  3     partition p1 values less than(161) format csf (
+  4 	subpartition p11 values less than(16),
+  5 	subpartition p12 values less than(32),
+  6 	subpartition p13 values less than(48),
+  7 	subpartition p14 values less than(64),
+  8 	subpartition p15 values less than(maxvalue)),
+  9     partition p2 values less than(321) format csf 
+ 10 	(subpartition p21 values less than(16),
+ 11 	subpartition p22 values less than(32),
+ 12 	subpartition p23 values less than(48),
+ 13 	subpartition p24 values less than(64),
+ 14 	subpartition p25 values less than(maxvalue)),
+ 15     partition p3 values less than(481)  format csf 
+ 16 	(subpartition p31 values less than(16),
+ 17 	subpartition p32 values less than(32),
+ 18 	subpartition p33 values less than(48),
+ 19 	subpartition p34 values less than(64),
+ 20 	subpartition p35 values less than(maxvalue)),
+ 21     partition p4 values less than(641) format asf (
+ 22 	subpartition p41 values less than(16),
+ 23 	subpartition p42 values less than(32),
+ 24 	subpartition p43 values less than(48),
+ 25 	subpartition p44 values less than(64),
+ 26 	subpartition p45 values less than(maxvalue))
+ 27     );
+
+Succeed.
+
+SQL> insert into subpart_csf_intevl_range_tbl_001 (num,c_id,c_d_id,c_w_id,c_uint,c_first,c_middle,c_last,c_street_1,c_street_2,c_zero,c_start,c_zip,c_phone,c_since,c_credit,c_credit_lim,c_discount,c_balance,c_ytd_payment,c_payment_cnt,c_delivery_cnt,c_end,c_data1,c_data2,c_data3,c_data4,c_data5,c_data6,c_data7,c_data8,c_clob,c_blob)select num,c_id,c_d_id,c_w_id,c_uint,c_first,c_middle,c_last,c_street_1,c_street_2,c_zero,c_start,c_zip,c_phone,c_since,c_credit,c_credit_lim,c_discount,c_balance,c_ytd_payment,c_payment_cnt,c_delivery_cnt,c_end,c_data1,c_data2,c_data3,c_data4,c_data5,c_data6,c_data7,c_data8,c_clob,c_blob from subpart_csf_tbl_000 where mod(c_id,2)=0;
+
+201 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> select count(0) from subpart_csf_tbl_000 where c_id>320 or c_id not in(select c_id from subpart_csf_intevl_range_tbl_001);
+
+COUNT(0)            
+--------------------
+240                 
+
+1 rows fetched.
+
+SQL> drop table subpart_csf_tbl_000;
+
+Succeed.
+
+SQL> drop table subpart_csf_intevl_range_tbl_001;
+
+Succeed.
+
+SQL> drop sequence subpart_csf_seq_000;
+
+Succeed.
+
+SQL> drop sequence subpart_csf_seq_000_1;
+Succeed.
+
+
+
+

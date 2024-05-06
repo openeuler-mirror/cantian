@@ -2,19 +2,19 @@
 
 DIR_PATH=$(cd `dirname $0`;pwd)
 ROOT_PATH=$(cd ${DIR_PATH}/../../;pwd)
-REGRESS_PATH=${ROOT_PATH}/pkg/test/gs_regress
+REGRESS_PATH=${ROOT_PATH}/pkg/test/ct_regress
 
 function help() {
     echo ""
     echo "$0"
     echo ""
-    echo "Usage:    Dev_gs_cantian_regress.sh       {help} [--coverage --user]"
+    echo "Usage:    Dev_ct_cantian_regress.sh       {help} [--coverage --user]"
     echo "          --coverage         run test with test coverage report"
     echo "          --user             run test with user, if using docker/container.sh dev start container with different user,
                                        pass this user through --user, default is cantiandba"
     echo "          --core_dir        run test with user, if using docker/container.sh dev start container with different coredir,
                                        pass this core dir path through --core_dir, default is /home/core"
-    echo "          --gs_schedule_list run test with specified test list, default is full test cases list gs_schedule"
+    echo "          --ct_schedule_list run test with specified test list, default is full test cases list ct_schedule"
 }
 
 
@@ -23,39 +23,39 @@ function collect_core() {
 	sh ${collect_script} ${CORE_DIR} ${TEMP_DIR} ${ROOT_PATH} ${TEST_DATA_DIR}/data  ${RUN_TEST_USER}
 }
 
-function run_gs_regress() {
+function run_ct_regress() {
 	echo "========================= Run Regression ======================="
 	cd ${ROOT_PATH}
-	git clean -nf |grep "pkg/test/gs_regress/*.*"|xargs rm -f
-	cp -f ${ROOT_PATH}/output/bin/gs_regress ${REGRESS_PATH}
-	chmod u+x ${REGRESS_PATH}/gs_regress
+	git clean -nf |grep "pkg/test/ct_regress/*.*"|xargs rm -f
+	cp -f ${ROOT_PATH}/output/bin/ct_regress ${REGRESS_PATH}
+	chmod u+x ${REGRESS_PATH}/ct_regress
 	chown -R ${RUN_TEST_USER}:${RUN_TEST_USER} ${REGRESS_PATH}
-    su - ${RUN_TEST_USER} -c "cd ${REGRESS_PATH} && sh gsdb_regress_cantian.sh ${TEST_DATA_DIR}/install ${SYS_PASSWD} ${GS_SCHEDULE_LIST} 2>&1 "| tee ${REGRESS_LOG}
+    su - ${RUN_TEST_USER} -c "cd ${REGRESS_PATH} && sh ctdb_regress_cantian.sh ${TEST_DATA_DIR}/install ${SYS_PASSWD} ${CT_SCHEDULE_LIST} 2>&1 "| tee ${REGRESS_LOG}
     set +e
     fail_count=`grep -c ":  FAILED" ${REGRESS_LOG}`
 	ok_count=`grep -c ":  OK" ${REGRESS_LOG}`
     set -e
 	if [ $fail_count -ne 0 ] || [ $ok_count -eq 0 ]; then
-		echo "Error: Some cases failed when gs_regress!!"
-		echo "Error: Some cases failed when gs_regress!!" >> ${REGRESS_LOG} 2>&1
-		cat $ROOT_PATH/pkg/test/gs_regress/results/*.diff >> ${REGRESS_LOG} 2>&1
+		echo "Error: Some cases failed when ct_regress!!"
+		echo "Error: Some cases failed when ct_regress!!" >> ${REGRESS_LOG} 2>&1
+		cat $ROOT_PATH/pkg/test/ct_regress/results/*.diff >> ${REGRESS_LOG} 2>&1
 		mkdir -p ${TEMP_DIR}/diff
-		cp $ROOT_PATH/pkg/test/gs_regress/results/*.diff ${TEMP_DIR}/diff
+		cp $ROOT_PATH/pkg/test/ct_regress/results/*.diff ${TEMP_DIR}/diff
 		echo "Regress Failed! Regress Failed! Regress Failed! "
 		collect_core # local debug, can annotate this step
 		exit 1
 	fi
 	echo "Regress Success"
-	echo "LCOV_ENABLE is ${LCOV_ENABLE}"
-	if [ "${LCOV_ENABLE}" = TRUE ]; then
-		echo "make lcov report"
-		gen_lcov_report
-	fi
+#	echo "LCOV_ENABLE is ${LCOV_ENABLE}"
+#	if [ "${LCOV_ENABLE}" = TRUE ]; then
+#		echo "make lcov report"
+#		gen_lcov_report
+#	fi
 }
 
 function uninstall_cantiandb() {
     echo "========================= Uninstall CantianDB ======================="
-    chown -R ${RUN_TEST_USER}:${RUN_TEST_USER} /home/regress/cantian_data
+    sudo chown -R ${RUN_TEST_USER}:${RUN_TEST_USER} ${TEST_DATA_DIR}/cantian_data
     rm -f ${UDF_CFG}
     su - ${RUN_TEST_USER} -c "python3 ${TEST_DATA_DIR}/install/bin/uninstall.py -U ${RUN_TEST_USER} -F -D ${TEST_DATA_DIR}/data -g withoutroot -d"
 }
@@ -65,7 +65,9 @@ function install_cantiandb() {
     DATA_PATH=${TEST_DATA_DIR}/data/data
     ESCAPE_DATA_PATH=${DATA_PATH//'/'/'\/'}
     sed -i 's/dbfiles1/'${ESCAPE_DATA_PATH}'/g' ${CREATEDB_SQL}
-
+    #CANTIAN_DATA_DIR="/home/jenkins/agent/workspace/multiarch/openeuler/aarch64/cantian/cantian_data"
+    #chmod 755 -R ${CANTIAN_DATA_DIR}
+    export LD_LIBRARY_PATH=${TEST_DATA_DIR}/cantian/daac_lib
     echo "========================= Install CantianDB ======================="
     cd ${ROOT_PATH}/output/bin/Cantian-DATABASE-CENTOS-64bit
     python3 install.py -U ${RUN_TEST_USER}:${RUN_TEST_USER}  \
@@ -133,9 +135,9 @@ function compile_code() {
     fi
 
     cd ${ROOT_PATH}/build
-    sh Makefile.sh clean
+    sudo sh Makefile.sh clean
     echo "### Compile & Make CantianKernel and CTSQL, no errors and warnings are allowed"
-    sh Makefile.sh make_cantian_pkg_test ${lcov_build_flag} DAAC_READ_WRITE=1 | tee -a ${COMPILE_LOG}
+    sudo sh Makefile.sh make_cantian_pkg_test ${lcov_build_flag} DAAC_READ_WRITE=1 | tee -a ${COMPILE_LOG}
 #    error_num=`cat ${COMPILE_LOG} |grep 'error:'|wc -l`
 #    ignore_error=`cat ${COMPILE_LOG} |grep 'error: unexpected end of file'|wc -l`
 #    if [ $error_num -ne 0 ]; then
@@ -153,9 +155,9 @@ function compile_code() {
     echo "### Compile & Make test fold source file, no errors and warnings are allowed"
     cd ${ROOT_PATH}/build
     source ./common.sh
-    cd ${ROOT_PATH}/build/pkg/test/gs_regress
-    strip -N main ${CANTIANDB_LIB}/libzeserver.a
-    make -sj 8 | tee -a ${COMPILE_LOG}
+    cd ${ROOT_PATH}/build/pkg/test/ct_regress
+    sudo strip -N main ${CANTIANDB_LIB}/libzeserver.a
+    sudo make -sj 8 | tee -a ${COMPILE_LOG}
 #    error_num=`cat ${COMPILE_LOG} |grep 'error:'|wc -l`
 #    if [ $error_num -ne 0 ];then
 
@@ -175,7 +177,7 @@ function compile_code() {
         mv -f ${ROOT_PATH}/pkg/src/server/srv_main.c.bak ${ROOT_PATH}/pkg/src/server/srv_main.c
         echo "Restoring the srv_main.c file"
         # 修改编译后gcov生成的*.gcno和*.gcda文件属组，用户RUN_TEST_USER运行用例时生成覆盖率报告
-        chown ${RUN_TEST_USER}:${RUN_TEST_USER} -R ${ROOT_PATH}/build
+        sudo chown ${RUN_TEST_USER}:${RUN_TEST_USER} -R ${ROOT_PATH}/build
     fi
     echo "### Compile & Make test fold source file success"
 }
@@ -190,8 +192,8 @@ gen_lcov_report()
 	    mkdir -p ${ROOT_PATH}/lcov_output
         echo "mkdir ${ROOT_PATH}/lcov_output"
     fi
-    coverage_info_name="${ROOT_PATH}/lcov_output/Dev_gs_regress_test_coverage_${GS_SCHEDULE_LIST}.info"
-    coverage_report_name="${ROOT_PATH}/lcov_output/Dev_gs_regress_test_coverage_${GS_SCHEDULE_LIST}.report"
+    coverage_info_name="${ROOT_PATH}/lcov_output/Dev_ct_regress_test_coverage_${CT_SCHEDULE_LIST}.info"
+    coverage_report_name="${ROOT_PATH}/lcov_output/Dev_ct_regress_test_coverage_${CT_SCHEDULE_LIST}.report"
     find ${ROOT_PATH}/ -name "*.gcno" | xargs touch
     lcov --capture --directory ${ROOT_PATH}/ --rc lcov_branch_coverage=1 --output-file "${coverage_info_name}" 
     lcov -l --rc lcov_branch_coverage=1 "${coverage_info_name}" > "${coverage_report_name}" 
@@ -201,18 +203,23 @@ gen_lcov_report()
 }
 
 function init_test_environment() {
-    rm -rf ${TEST_DATA_DIR}
+    #rm -rf ${TEST_DATA_DIR}
     rm -rf ${INSTALL_LOG_DIR}
     rm -rf ${TEMP_DIR}
     rm -rf ${CORE_DIR}/*
-    mkdir -p ${TEST_DATA_DIR}
+    mkdir -p ${TEST_DATA_DIR}/cantian_data
+    sudo chmod 755 -R ${TEST_DATA_DIR}/cantian_data
+    sudo rm -rf ${TEST_DATA_DIR}/install/*
+    sudo rm -rf ${TEST_DATA_DIR}/data/*
+    sudo rm -rf ${INSTALL_LOG_DIR}
+    mkdir -p ${TEST_DATA_DIR}/install ${TEST_DATA_DIR}/data
     mkdir -p ${INSTALL_LOG_DIR}
     mkdir -p ${TEMP_DIR}
     mkdir -p ${CORE_DIR}
     touch ${COMPILE_LOG}
     touch ${REGRESS_LOG}
-    chown -R ${RUN_TEST_USER}:${RUN_TEST_USER} ${TEST_DATA_DIR}
-    chown -R ${RUN_TEST_USER}:${RUN_TEST_USER} ${CORE_DIR}
+    sudo chown -R ${RUN_TEST_USER}:${RUN_TEST_USER} ${TEST_DATA_DIR}/cantian
+    sudo chown -R ${RUN_TEST_USER}:${RUN_TEST_USER} ${CORE_DIR}
 
     UDF_CFG=${ROOT_PATH}/pkg/cfg/udf.ini
     echo "self_func_tst.abs" > ${UDF_CFG}
@@ -234,7 +241,7 @@ function check_old_install() {
 }
 
 function parse_parameter() {
-    ARGS=$(getopt -o c:u:d:g: --long coverage:,user:,core_dir:,gs_schedule_list: -n "$0" -- "$@")
+    ARGS=$(getopt -o c:u:d:g: --long coverage:,user:,core_dir:,ct_schedule_list: -n "$0" -- "$@")
 
     if [ $? != 0 ]; then
         echo "Terminating..."
@@ -243,9 +250,9 @@ function parse_parameter() {
 
     eval set -- "${ARGS}"
     declare -g LCOV_ENABLE=FALSE
-    declare -g RUN_TEST_USER="cantiandba"
-    declare -g CORE_DIR="/home/core"
-    declare -g GS_SCHEDULE_LIST="gs_schedule"
+    declare -g RUN_TEST_USER="jenkins"
+    declare -g CORE_DIR="/home/jenkins/agent/workspace/multiarch/openeuler/aarch64/core"
+    declare -g CT_SCHEDULE_LIST="ct_schedule"
     while true
     do
         case "$1" in
@@ -261,8 +268,8 @@ function parse_parameter() {
                 CORE_DIR="$2"
                 shift 2
                 ;;
-            -g | --gs_schedule_list)
-                GS_SCHEDULE_LIST="$2"
+            -g | --ct_schedule_list)
+                CT_SCHEDULE_LIST="$2"
                 shift 2
                 ;;
             --)
@@ -277,7 +284,7 @@ function parse_parameter() {
     done
     # using docker/container.sh dev start container will create user and config core pattern
     # pass this user to the script through --user, default is cantiandba
-    declare -g TEST_DATA_DIR="/home/regress/gs_regress"
+    declare -g TEST_DATA_DIR="/home/jenkins/agent/workspace/multiarch/openeuler/aarch64/cantian"
     declare -g INSTALL_LOG_DIR=${TEST_DATA_DIR}/logs
     declare -g TEMP_DIR=${TEST_DATA_DIR}/tmp
     declare -g COMPILE_LOG=${TEST_DATA_DIR}/logs/compile_log
@@ -295,7 +302,7 @@ main() {
     compile_code # local debug, if only change sql test file can annotate this step
     install_cantiandb
 
-    run_gs_regress
+    run_ct_regress
     uninstall_cantiandb
 }
 

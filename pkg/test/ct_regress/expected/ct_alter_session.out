@@ -1,0 +1,116 @@
+
+
+SQL> --_alter session optinfo_log
+SQL> alter session enable optinfo_log;
+
+Succeed.
+
+SQL> alter session enable optinfo_log;
+
+Succeed.
+
+SQL> alter session disable OPTINFO_LOG;
+
+Succeed.
+
+SQL> alter session disable OPTINFO_LOG;
+
+Succeed.
+
+SQL> alter session ENABLE NOLOGGING aa;
+
+CT-00601, [1:34]Sql syntax error: expected end but aa found
+SQL> alter session ENABLE NOLOGGING ..rr;
+
+CT-00601, [1:32]Sql syntax error: expected end but .. found
+SQL> alter session ENABLE TRIGGERS rrrrr;
+
+CT-00601, [1:36]Sql syntax error: expected end but rrrrr found
+SQL> alter session DISABLE TRIGGERS rrrrr;
+
+CT-00601, [1:37]Sql syntax error: expected end but rrrrr found
+SQL> alter session ENABLE INTERACTIVE TIMEOUT sfdf;
+
+CT-00601, [1:46]Sql syntax error: expected end but sfdf found
+SQL> alter session DISABLE INTERACTIVE TIMEOUT sfdf;
+
+CT-00601, [1:47]Sql syntax error: expected end but sfdf found
+SQL> alter session ENABLE OPTINFO_LOG sfdf;
+
+CT-00601, [1:38]Sql syntax error: expected end but sfdf found
+SQL> alter session DISABLE OPTINFO_LOG sfdf;
+
+CT-00601, [1:39]Sql syntax error: expected end but sfdf found
+SQL> 
+SQL> ALTER DATABASE ENABLE_LOGIC_REPLICATION OFF;
+
+Succeed.
+
+SQL> ALTER SYSTEM SET ARCH_TIME=100000;
+
+Succeed.
+
+SQL> show parameter arch_time;
+
+NAME                                                             DATATYPE             VALUE                                                            RUNTIME_VALUE                                                    EFFECTIVE           
+---------------------------------------------------------------- -------------------- ---------------------------------------------------------------- ---------------------------------------------------------------- --------------------
+ARCH_TIME                                                        CT_TYPE_INTEGER      100000                                                           100000                                                           immediately         
+
+
+SQL> ALTER SYSTEM ARCHIVE_SET ARCH_TIME=200000 LOCAL;
+
+Succeed.
+
+SQL> show parameter arch_time;
+
+NAME                                                             DATATYPE             VALUE                                                            RUNTIME_VALUE                                                    EFFECTIVE           
+---------------------------------------------------------------- -------------------- ---------------------------------------------------------------- ---------------------------------------------------------------- --------------------
+ARCH_TIME                                                        CT_TYPE_INTEGER      200000                                                           200000                                                           immediately         
+
+
+SQL> ALTER SYSTEM ARCHIVE_SET ARCH_TIME=300000 GLOBAL;
+
+Succeed.
+
+SQL> show parameter arch_time;
+
+NAME                                                             DATATYPE             VALUE                                                            RUNTIME_VALUE                                                    EFFECTIVE           
+---------------------------------------------------------------- -------------------- ---------------------------------------------------------------- ---------------------------------------------------------------- --------------------
+ARCH_TIME                                                        CT_TYPE_INTEGER      300000                                                           300000                                                           immediately         
+
+
+SQL> ALTER DATABASE ENABLE_LOGIC_REPLICATION ON;
+
+Succeed.
+
+SQL> ALTER SYSTEM ARCHIVE_SET ARCH_TIME=400000 LOCAL;
+
+CT-00626, Set arch time while lrep_mode is LOG_REPLICATION_ON is not supported
+SQL> ALTER SYSTEM ARCHIVE_SET ARCH_TIME=500000 GLOBAL;
+
+CT-00626, Set arch time while lrep_mode is LOG_REPLICATION_ON is not supported
+SQL> ALTER SYSTEM SET ARCH_TIME=600000;
+
+CT-00626, Set arch time while lrep_mode is LOG_REPLICATION_ON is not supported
+SQL> ALTER DATABASE ENABLE_LOGIC_REPLICATION OFF;
+
+Succeed.
+
+SQL> show parameter arch_time;
+
+NAME                                                             DATATYPE             VALUE                                                            RUNTIME_VALUE                                                    EFFECTIVE           
+---------------------------------------------------------------- -------------------- ---------------------------------------------------------------- ---------------------------------------------------------------- --------------------
+ARCH_TIME                                                        CT_TYPE_INTEGER      300000                                                           300000                                                           immediately         
+
+
+SQL> ALTER SYSTEM ARCHIVE_SET ARCH_TIME=700000 SCOPE=MEMORY LOCAL;
+
+Succeed.
+
+SQL> show parameter arch_time;
+
+NAME                                                             DATATYPE             VALUE                                                            RUNTIME_VALUE                                                    EFFECTIVE           
+---------------------------------------------------------------- -------------------- ---------------------------------------------------------------- ---------------------------------------------------------------- --------------------
+ARCH_TIME                                                        CT_TYPE_INTEGER      700000                                                           700000                                                           immediately         
+
+

@@ -1,0 +1,865 @@
+
+
+SQL> SELECT JSON_QUERY('{A:"B"}', '$') FROM DUAL;
+
+JSON_QUERY('{A:"B"}', '$')                                      
+----------------------------------------------------------------
+                                                                
+
+1 rows fetched.
+
+SQL> SELECT JSON_QUERY('{"A":"B"}', '$') FROM DUAL;
+
+JSON_QUERY('{"A":"B"}', '$')                                    
+----------------------------------------------------------------
+{"A":"B"}                                                       
+
+1 rows fetched.
+
+SQL> SELECT JSON_QUERY('1,1', '$') JSON FROM DUAL;
+
+JSON                                                            
+----------------------------------------------------------------
+                                                                
+
+1 rows fetched.
+
+SQL> SELECT JSON_QUERY(' ', '$') JSON FROM DUAL;
+
+JSON                                                            
+----------------------------------------------------------------
+                                                                
+
+1 rows fetched.
+
+SQL> 
+SQL> SELECT JSON_QUERY('{A:"B"}', '$' ERROR ON ERROR) FROM DUAL;
+
+CT-02504, [1:21]JSON syntax error, " expected but A found
+SQL> SELECT JSON_QUERY('{"A":"B"}', '$' ERROR ON ERROR) FROM DUAL;
+
+JSON_QUERY('{"A":"B"}', '$' ERROR ON ERROR)                     
+----------------------------------------------------------------
+{"A":"B"}                                                       
+
+1 rows fetched.
+
+SQL> SELECT JSON_QUERY('1,1', '$' ERROR ON ERROR) JSON FROM DUAL;
+
+CT-02504, JSON syntax error, expect non-scalar
+SQL> SELECT JSON_QUERY(' ', '$' ERROR ON ERROR) JSON FROM DUAL;
+
+CT-02504, JSON syntax error, expect non-scalar
+SQL> 
+SQL> select json_query('{"name":"\/"}', '$') from dual;
+
+JSON_QUERY('{"NAME":"\/"}', '$')                                
+----------------------------------------------------------------
+{"name":"\/"}                                                   
+
+1 rows fetched.
+
+SQL> select length(json_query('{"name":"\/"}', '$')) from dual;
+
+LENGTH(JSON_QUERY('{"NAME":"\/"}', '$'))
+----------------------------------------
+13                                      
+
+1 rows fetched.
+
+SQL> 
+SQL> 
+SQL> select 1 from dual where '{"name":TRUE}' is json;
+
+1           
+------------
+
+0 rows fetched.
+
+SQL> select 1 from dual where '{"name":FALSE}' is json;
+
+1           
+------------
+
+0 rows fetched.
+
+SQL> select json_value('{"name":TRUE}', '$.name') from dual;
+
+JSON_VALUE('{"NAME":TRUE}', '$.NAME')                           
+----------------------------------------------------------------
+                                                                
+
+1 rows fetched.
+
+SQL> select json_value('{"name":FALSE}', '$.name') from dual;
+
+JSON_VALUE('{"NAME":FALSE}', '$.NAME')                          
+----------------------------------------------------------------
+                                                                
+
+1 rows fetched.
+
+SQL> 
+SQL> select 1 from dual where json_value('{"name":TRUE}', '$.name') = 'TRUE';
+
+1           
+------------
+
+0 rows fetched.
+
+SQL> select 1 from dual where json_value('{"name":FALSE}', '$.name') = 'FALSE';
+
+1           
+------------
+
+0 rows fetched.
+
+SQL> select 1 from dual where json_value('{"name":TRUE}', '$.name') = true;
+
+1           
+------------
+
+0 rows fetched.
+
+SQL> select 1 from dual where json_value('{"name":FALSE}', '$.name') = false;
+
+1           
+------------
+
+0 rows fetched.
+
+SQL> select 1 from dual where json_value('{"name":TRUE}', '$.name' error on error) = 'TRUE';
+
+CT-02504, [1:46]JSON syntax error, unexpected T found
+SQL> select 1 from dual where json_value('{"name":FALSE}', '$.name' error on error) = 'FALSE';
+
+CT-02504, [1:46]JSON syntax error, unexpected F found
+SQL> 
+SQL> select RAWTOHEX(json_value('{"name":"\r\ra\rs\rdf\rdf\r\r\ras\rd\rf\rxxxx\r\r\r"}', '$.name')) from dual;
+
+RAWTOHEX(JSON_VALUE('{"NAME":"\R\RA\RS\RDF\RDF\R\R\RAS\RD\RF\RXX
+----------------------------------------------------------------
+0D0D610D730D64660D64660D0D0D61730D640D660D787878780D0D0D        
+
+1 rows fetched.
+
+SQL> select RAWTOHEX(json_value('{"name":"\r\ra\rs\rdf\rdf\r\r\ras\rd\rf\rxxxx"}', '$.name')) from dual;
+
+RAWTOHEX(JSON_VALUE('{"NAME":"\R\RA\RS\RDF\RDF\R\R\RAS\RD\RF\RXX
+----------------------------------------------------------------
+0D0D610D730D64660D64660D0D0D61730D640D660D78787878              
+
+1 rows fetched.
+
+SQL> select RAWTOHEX(json_value('{"name":"\r\ra\rs\rdf\rdf\r\r\ras\rd\rf\rxxxx\r"}', '$.name')) from dual;
+
+RAWTOHEX(JSON_VALUE('{"NAME":"\R\RA\RS\RDF\RDF\R\R\RAS\RD\RF\RXX
+----------------------------------------------------------------
+0D0D610D730D64660D64660D0D0D61730D640D660D787878780D            
+
+1 rows fetched.
+
+SQL> select RAWTOHEX(json_value('{"name":"\r\ra\rs\rdf\rdf\r\r\ras\rd\rf\rxxxx\r\r"}', '$.name')) from dual;
+
+RAWTOHEX(JSON_VALUE('{"NAME":"\R\RA\RS\RDF\RDF\R\R\RAS\RD\RF\RXX
+----------------------------------------------------------------
+0D0D610D730D64660D64660D0D0D61730D640D660D787878780D0D          
+
+1 rows fetched.
+
+SQL> select RAWTOHEX(json_value('{"name":"\r\ra\rs\rdf\rdf\r\r\ras\rd\rf\rxxxx\r\r\r"}', '$.name')) from dual;
+
+RAWTOHEX(JSON_VALUE('{"NAME":"\R\RA\RS\RDF\RDF\R\R\RAS\RD\RF\RXX
+----------------------------------------------------------------
+0D0D610D730D64660D64660D0D0D61730D640D660D787878780D0D0D        
+
+1 rows fetched.
+
+SQL> select RAWTOHEX(json_value('{"name":"\b\ba\b\bsdfdf\b\basdf\b\bdf"}', '$.name')) from dual;
+
+RAWTOHEX(JSON_VALUE('{"NAME":"\B\BA\B\BSDFDF\B\BASDF\B\BDF"}', '
+----------------------------------------------------------------
+0808610808736466646608086173646608086466                        
+
+1 rows fetched.
+
+SQL> select RAWTOHEX(json_value('{"name":"\b\ba\b\bsdfdf\b\basdf\b\bdf\b"}', '$.name')) from dual;
+
+RAWTOHEX(JSON_VALUE('{"NAME":"\B\BA\B\BSDFDF\B\BASDF\B\BDF\B"}',
+----------------------------------------------------------------
+080861080873646664660808617364660808646608                      
+
+1 rows fetched.
+
+SQL> select RAWTOHEX(json_value('{"name":"\b\ba\b\bsdfdf\b\basdf\b\bdf\b\b"}', '$.name')) from dual;
+
+RAWTOHEX(JSON_VALUE('{"NAME":"\B\BA\B\BSDFDF\B\BASDF\B\BDF\B\B"}
+----------------------------------------------------------------
+08086108087364666466080861736466080864660808                    
+
+1 rows fetched.
+
+SQL> select RAWTOHEX(json_value('{"name":"\b\ba\b\bsdfdf\b\basdf\b\bdf\b\b\b"}', '$.name')) from dual;
+
+RAWTOHEX(JSON_VALUE('{"NAME":"\B\BA\B\BSDFDF\B\BASDF\B\BDF\B\B\B
+----------------------------------------------------------------
+0808610808736466646608086173646608086466080808                  
+
+1 rows fetched.
+
+SQL> 
+SQL> 
+SQL> drop table if exists t_tj_1;
+
+Succeed.
+
+SQL> create table t_tj_1 as select json_value('{"name":"123456789"}','$.name') c1 from dual;
+
+Succeed.
+
+SQL> desc t_tj_1
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C1                                           VARCHAR(3900 CHAR)                  
+
+SQL> 
+SQL> drop table if exists t_tj_1;
+
+Succeed.
+
+SQL> create table t_tj_1 as select json_value('{"name":"123456789"}','$.name' returning varchar2(20) error on error) c1 from dual;
+
+Succeed.
+
+SQL> desc t_tj_1
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C1                                           VARCHAR(20 CHAR)                    
+
+SQL> 
+SQL> drop table if exists t_tj_1;
+
+Succeed.
+
+SQL> create table t_tj_1 as select json_value('{"name":"123456789"}','$.name' returning varchar2(3900) error on error) c1 from dual;
+
+Succeed.
+
+SQL> desc t_tj_1
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C1                                           VARCHAR(3900 CHAR)                  
+
+SQL> 
+SQL> drop table if exists t_tj_1;
+
+Succeed.
+
+SQL> create table t_tj_1 as select json_value('{"name":"123456789"}','$.name' returning varchar2(4000) error on error) c1 from dual;
+
+Succeed.
+
+SQL> desc t_tj_1
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C1                                           VARCHAR(4000 CHAR)                  
+
+SQL> 
+SQL> drop table if exists t_tj_1;
+
+Succeed.
+
+SQL> create table t_tj_1 as select json_value('{"name":"123456789"}','$.name' returning varchar2(7000) error on error) c1 from dual;
+
+Succeed.
+
+SQL> desc t_tj_1
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C1                                           VARCHAR(7000 CHAR)                  
+
+SQL> 
+SQL> drop table if exists t_tj_1;
+
+Succeed.
+
+SQL> create table t_tj_1 as select json_value('{"name":"' || lpad('asdds', 9, 'as') || '"}','$.name') c1 from dual;
+
+Succeed.
+
+SQL> desc t_tj_1
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C1                                           VARCHAR(3900 CHAR)                  
+
+SQL> 
+SQL> drop table if exists t_tj_1;
+
+Succeed.
+
+SQL> create table t_tj_1 as select json_value('{"name":"' || lpad('asdds', 9, 'as') || '"}','$.name' returning varchar2(20) error on error) c1 from dual;
+
+Succeed.
+
+SQL> desc t_tj_1
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C1                                           VARCHAR(20 CHAR)                    
+
+SQL> 
+SQL> drop table if exists t_tj_1;
+
+Succeed.
+
+SQL> create table t_tj_1 as select json_value('{"name":"' || lpad('asdds', 9, 'as') || '"}','$.name' returning varchar2(3900) error on error) c1 from dual;
+
+Succeed.
+
+SQL> desc t_tj_1
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C1                                           VARCHAR(3900 CHAR)                  
+
+SQL> 
+SQL> drop table if exists t_tj_1;
+
+Succeed.
+
+SQL> create table t_tj_1 as select json_value('{"name":"' || lpad('asdds', 9, 'as') || '"}','$.name' returning varchar2(4000) error on error) c1 from dual;
+
+Succeed.
+
+SQL> desc t_tj_1
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C1                                           VARCHAR(4000 CHAR)                  
+
+SQL> 
+SQL> drop table if exists t_tj_1;
+
+Succeed.
+
+SQL> create table t_tj_1 as select json_value('{"name":"' || lpad('asdds', 9, 'as') || '"}','$.name' returning varchar2(7000) error on error) c1 from dual;
+
+Succeed.
+
+SQL> desc t_tj_1
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C1                                           VARCHAR(7000 CHAR)                  
+
+SQL> 
+SQL> 
+SQL> drop table if exists t_jn_1;
+
+Succeed.
+
+SQL> create table t_jn_1(id int, c1 clob);
+
+Succeed.
+
+SQL> 
+SQL> begin
+  2     insert into t_jn_1 values (1, NULL);
+  3     for i in 1..255 loop
+  4             update t_jn_1 set c1 = c1 || '"' || lpad('c1', 4093, 'c1') || '",';
+  5             commit;
+  6     end loop;
+  7 
+  8     update t_jn_1 set c1 = c1 || '"' || lpad('c1', 4092, 'c1') || '"';
+  9 
+ 10     commit;
+ 11 end;
+ 12 /
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> update t_jn_1 set c1 = '[' || c1 || ']' where id = 1;
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> 
+SQL> select id, length(c1), 1024*1024 - length(c1) from t_jn_1;
+
+ID           LENGTH(C1)           1024*1024 - LENGTH(C1)
+------------ -------------------- ----------------------
+1            1048576              0                     
+
+1 rows fetched.
+
+SQL> 
+SQL> select 1 from t_jn_1 where c1 is json;
+
+1           
+------------
+1           
+
+1 rows fetched.
+
+SQL> select 1 from t_jn_1 where c1 is not json;
+
+1           
+------------
+
+0 rows fetched.
+
+SQL> 
+SQL> -- OK
+SQL> alter table t_jn_1 add  CONSTRAINT con1 check(c1 is json);
+
+Succeed.
+
+SQL> alter table t_jn_1 drop CONSTRAINT con1;
+
+Succeed.
+
+SQL> 
+SQL> -- FAILED
+SQL> alter table t_jn_1 add CONSTRAINT con2 check(c1 is not json);
+
+CT-01127, Check constraint violated
+SQL> 
+SQL> -- OK
+SQL> select length(json_value(c1, '$[0]' returning varchar2(8192) error on error)) from t_jn_1;
+
+LENGTH(JSON_VALUE(C1, '$[0]' RETURNING VARCHAR2(8192) ERROR ON E
+----------------------------------------------------------------
+4093                                                            
+
+1 rows fetched.
+
+SQL> 
+SQL> ----------------
+SQL> -- 1M+1
+SQL> update t_jn_1 set c1 = c1 || ' ';
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> select id, length(c1), 1024*1024 - length(c1) from t_jn_1;
+
+ID           LENGTH(C1)           1024*1024 - LENGTH(C1)
+------------ -------------------- ----------------------
+1            1048577              -1                    
+
+1 rows fetched.
+
+SQL> 
+SQL> -- success
+SQL> alter table t_jn_1 add  CONSTRAINT con1 check(c1 is json);
+
+Succeed.
+
+SQL> 
+SQL> -- failed
+SQL> alter table t_jn_1 add  CONSTRAINT con2 check(c1 is not json);
+
+CT-01127, Check constraint violated
+SQL> alter table t_jn_1 drop CONSTRAINT con1;
+
+Succeed.
+
+SQL> 
+SQL> -- FAILED
+SQL> select length(json_value(c1, '$[0]' returning varchar2(8192) error on error)) from t_jn_1;
+
+LENGTH(JSON_VALUE(C1, '$[0]' RETURNING VARCHAR2(8192) ERROR ON E
+----------------------------------------------------------------
+4093                                                            
+
+1 rows fetched.
+
+SQL> ----------------
+SQL> drop table t_jn_1;
+
+Succeed.
+
+SQL> 
+SQL> 
+SQL> select json_query('[123, -123, 4.5572E+18, -4.5572E+18, 4.5572111112312321E+8, -4.5572111112312321E+8]','$') from dual;
+
+JSON_QUERY('[123, -123, 4.5572E+18, -4.5572E+18, 4.5572111112312
+----------------------------------------------------------------
+[123,-123,4.5572E+18,-4.5572E+18,4.5572111112312321E+8,-4.5572111112312321E+8]
+
+1 rows fetched.
+
+SQL> 
+SQL> DROP TABLE if exists T_JSON_TEST_1;
+
+Succeed.
+
+SQL> CREATE TABLE T_JSON_TEST_1 (C1 VARCHAR2(8000) check (c1 is json));
+
+Succeed.
+
+SQL> CREATE INDEX IDX_T_JSON_TEST_1_C1 ON T_JSON_TEST_1 (json_value(c1, '$.Aa' returning VARCHAR2(3900) null on error null on empty));
+
+Succeed.
+
+SQL> SELECT DEFAULT_TEXT FROM ALL_IND_COLUMNS WHERE TABLE_NAME = 'T_JSON_TEST_1' AND INDEX_NAME = 'IDX_T_JSON_TEST_1_C1' ORDER BY COLUMN_POSITION;
+
+DEFAULT_TEXT                                                    
+----------------------------------------------------------------
+json_value(c1, '$.Aa' returning VARCHAR2(3900) null on error null on empty)
+
+1 rows fetched.
+
+SQL> insert into T_JSON_TEST_1 values ('{"Aa":123}');
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> select * from T_JSON_TEST_1 where json_value(c1, '$.Aa' returning VARCHAR2(3900) null on error null on empty) = '123';
+
+C1                                                              
+----------------------------------------------------------------
+{"Aa":123}                                                      
+
+1 rows fetched.
+
+SQL>
+SQL> DROP TABLE T_JSON_TEST_1;
+
+Succeed.
+
+SQL> 
+SQL> ------------------------------- JSON FUNC INDEX -------------------------------
+SQL> DROP TABLE IF EXISTS T_JSON_TEST_1;
+
+Succeed.
+
+SQL> CREATE TABLE T_JSON_TEST_1 (C1 VARCHAR2(8000) check (c1 is json));
+
+Succeed.
+
+SQL> CREATE INDEX IDX_T_JSON_TEST_1_C1 ON T_JSON_TEST_1 (json_value(c1, '$.Aa'));
+
+Succeed.
+
+SQL> insert into T_JSON_TEST_1 values ('{"Aa":123}');
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> 
+SQL> -- function
+SQL> select * from T_JSON_TEST_1 where json_value(c1, '$.Aa') = 123;
+
+C1                                                              
+----------------------------------------------------------------
+{"Aa":123}                                                      
+
+1 rows fetched.
+
+SQL> select * from T_JSON_TEST_1 where json_value(c1, '$.Aa' RETURNING VARCHAR2(3900)) = 123;
+
+C1                                                              
+----------------------------------------------------------------
+{"Aa":123}                                                      
+
+1 rows fetched.
+
+SQL> select * from T_JSON_TEST_1 where json_value(c1, '$.Aa' RETURNING VARCHAR2(3900) NULL ON ERROR) = 123;
+
+C1                                                              
+----------------------------------------------------------------
+{"Aa":123}                                                      
+
+1 rows fetched.
+
+SQL> select * from T_JSON_TEST_1 where json_value(c1, '$.Aa' NULL ON ERROR) = 123;
+
+C1                                                              
+----------------------------------------------------------------
+{"Aa":123}                                                      
+
+1 rows fetched.
+
+SQL> select * from T_JSON_TEST_1 where json_value(c1, '$.Aa' RETURNING VARCHAR2(3901)) = 123;
+
+C1                                                              
+----------------------------------------------------------------
+{"Aa":123}                                                      
+
+1 rows fetched.
+
+SQL> select * from T_JSON_TEST_1 where json_value(c1, '$.Aa' RETURNING VARCHAR2(3900) ERROR ON ERROR) = 123;
+
+C1                                                              
+----------------------------------------------------------------
+{"Aa":123}                                                      
+
+1 rows fetched.
+
+SQL> select * from T_JSON_TEST_1 where json_value(c1, '$.Aa' RETURNING VARCHAR2(3900) ERROR ON ERROR ERROR ON EMPTY) = 123;
+
+C1                                                              
+----------------------------------------------------------------
+{"Aa":123}                                                      
+
+1 rows fetched.
+
+SQL> select * from T_JSON_TEST_1 where json_value(c1, '$.Aa' RETURNING VARCHAR2(3900) ERROR ON EMPTY) = 123;
+
+C1                                                              
+----------------------------------------------------------------
+{"Aa":123}                                                      
+
+1 rows fetched.
+
+SQL> select * from T_JSON_TEST_1 where json_value(c1, '$.Aa' RETURNING VARCHAR2(3900) NULL ON EMPTY) = 123;
+
+C1                                                              
+----------------------------------------------------------------
+{"Aa":123}                                                      
+
+1 rows fetched.
+
+SQL> select * from T_JSON_TEST_1 where json_value(c1, '$.Aa' RETURNING VARCHAR2(3900) NULL ON ERROR NULL ON EMPTY) = 123;
+
+C1                                                              
+----------------------------------------------------------------
+{"Aa":123}                                                      
+
+1 rows fetched.
+
+SQL> 
+SQL> DROP TABLE T_JSON_TEST_1;
+
+Succeed.
+
+SQL> 
+SQL> 
+SQL> ------------------------------- JSON FUNC SERIALIZATION -------------------------------
+SQL> -- constraint serialization
+SQL> DROP TABLE IF EXISTS T_JSON_TEST_1;
+
+Succeed.
+
+SQL> CREATE TABLE T_JSON_TEST_1 ("c1" varchar2(8000), constraint con_T_JSON_TEST_1_1 check(length(json_value("c1", '$.Aa' returning varchar2(1024) error on error)) > 0));
+
+Succeed.
+
+SQL> SELECT COND_TEXT FROM SYS.CONSDEF$ WHERE CONS_NAME = 'CON_T_JSON_TEST_1_1';
+
+COND_TEXT                                                       
+----------------------------------------------------------------
+length(json_value("c1", '$.Aa' returning varchar2(1024) error on error)) > 0
+
+1 rows fetched.
+
+SQL> DROP TABLE T_JSON_TEST_1;
+
+Succeed.
+
+SQL> 
+SQL> DROP TABLE IF EXISTS T_JSON_TEST_1;
+
+Succeed.
+
+SQL> CREATE TABLE T_JSON_TEST_1 ("c1" varchar2(8000), "c2" int default length(json_value("c1", '$.Aa' returning varchar2(1024) error on error)));
+
+CT-00601, [1:67]Sql syntax error: invalid column name 'c1'
+SQL> SELECT COND_TEXT FROM SYS.CONSDEF$ WHERE CONS_NAME = 'CON_T_JSON_TEST_1_1';
+
+COND_TEXT                                                       
+----------------------------------------------------------------
+
+0 rows fetched.
+
+SQL> DROP TABLE T_JSON_TEST_1;
+
+CT-00843, The table or view SYS.T_JSON_TEST_1 does not exist.
+SQL> 
+SQL> -- constraint serialization
+SQL> DROP TABLE IF EXISTS T_JSON_TEST_1;
+
+Succeed.
+
+SQL> CREATE TABLE T_JSON_TEST_1 (C1 INT, COL_T_JSON_TEST_1_C1 varchar2(8000) default length(json_value('{"Aa":123}', '$.Aa' returning varchar2(1024) error on error)));
+
+Succeed.
+
+SQL> select DEFAULT_TEXT from sys.column$ where name = 'COL_T_JSON_TEST_1_C1';
+
+DEFAULT_TEXT                                                    
+----------------------------------------------------------------
+length(json_value('{"Aa":123}', '$.Aa' returning varchar2(1024) error on error))
+
+1 rows fetched.
+
+SQL> DROP TABLE T_JSON_TEST_1;
+
+Succeed.
+
+SQL> 
+SQL> -- view serialization
+SQL> create view V_JSON_TEST_1 as select json_value('{"Aa":123}', '$.Aa' returning varchar2(1024) error on error) C1 from dual;
+
+Succeed.
+
+SQL> desc V_JSON_TEST_1
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C1                                           VARCHAR(1024 CHAR)                  
+
+SQL> select * from V_JSON_TEST_1;
+
+C1                                                              
+----------------------------------------------------------------
+123                                                             
+
+1 rows fetched.
+
+SQL> SELECT 'CREATE OR REPLACE VIEW ' || U.NAME || '.' || V.NAME || ' ( '|| VC.COLUMNS || ' ) AS ', V.TEXT || ';' AS VIEWDEF FROM SYS.VIEW$ V, (SELECT USER#, VIEW#, GROUP_CONCAT(NAME ORDER BY ID) COLUMNS FROM SYS.VIEWCOL$ GROUP BY USER#, VIEW#) VC, SYS.USER$ U WHERE V.USER# = VC.USER# AND V.ID = VC.VIEW# AND V.USER# = U.ID AND V.NAME = 'V_JSON_TEST_1'; 
+
+'CREATE OR REPLACE VIEW ' || U.NAME || '.' || V.NAME || ' ( '||  VIEWDEF                                                         
+---------------------------------------------------------------- ----------------------------------------------------------------
+CREATE OR REPLACE VIEW SYS.V_JSON_TEST_1 ( C1 ) AS               select json_value('{"Aa":123}', '$.Aa' returning varchar2(1024) error on error) C1 from dual;
+
+1 rows fetched.
+
+SQL> drop view V_JSON_TEST_1;
+
+Succeed.
+
+SQL> --DTS2020021009659
+SQL> select json_array('true' format json, '1234' format json, 'null' format json) from dual;
+JSON_ARRAY('TRUE' FORMAT JSON, '1234' FORMAT JSON, 'NULL' FORMAT
+----------------------------------------------------------------
+[true,1234,null]                                                
+
+1 rows fetched.
+
+SQL> 
+SQL> -- AR.SR.IREQ02575689.001.001
+SQL> drop table if exists json_t_mem_opt;
+
+Succeed.
+
+SQL> create table json_t_mem_opt (c clob);
+
+Succeed.
+
+SQL> insert into json_t_mem_opt values('[1,');
+
+1 rows affected.
+
+SQL> begin 
+  2 for i in 1..2000
+  3     loop    
+  4         update json_t_mem_opt set c = c || '1,1,1,8,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,';
+  5     end loop;
+  6     update json_t_mem_opt set c = c || '1]';
+  7 end;
+  8 /
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> commit;
+
+Succeed.
+
+SQL> select lengthb(c) from json_t_mem_opt;
+
+LENGTHB(C)          
+--------------------
+200005              
+
+1 rows fetched.
+
+SQL> 
+SQL> begin 
+  2 for i in 1..5
+  3     loop    
+  4         insert into json_t_mem_opt select * from json_t_mem_opt;
+  5     end loop;
+  6 end;
+  7 /
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> commit;
+
+Succeed.
+
+SQL> 
+SQL> select json_value(c,'$[4]') from json_t_mem_opt;
+
+JSON_VALUE(C,'$[4]')                                            
+----------------------------------------------------------------
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+8                                                               
+
+32 rows fetched.
+
+SQL> 
+SQL> select json_value('{"Aaa":{"A":12, "B":13, "c":[[[1,2],[3,4]],[[5,6],[7.8]]]}}', '$.Aaa[*].c[0][1][0]') as val from SYS_DUMMY;
+
+VAL                                                             
+----------------------------------------------------------------
+3                                                               
+
+1 rows fetched.
+
+SQL> 
+
+

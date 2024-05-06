@@ -1,0 +1,274 @@
+
+
+SQL> --test newpage
+SQL> set pagesize 4;
+
+
+SQL> drop table if exists wg_newpage;
+
+Succeed.
+
+SQL> create table wg_newpage (f1 int);
+
+Succeed.
+
+SQL> insert into wg_newpage values(1);
+
+1 rows affected.
+
+SQL> insert into wg_newpage values(2);
+
+1 rows affected.
+
+SQL> insert into wg_newpage values(3);
+
+1 rows affected.
+
+SQL> insert into wg_newpage values(4);
+
+1 rows affected.
+
+SQL> insert into wg_newpage values(5);
+
+1 rows affected.
+
+SQL> insert into wg_newpage values(6);
+
+1 rows affected.
+
+SQL> insert into wg_newpage values(7);
+
+1 rows affected.
+
+SQL> insert into wg_newpage values(8);
+
+1 rows affected.
+
+SQL> insert into wg_newpage values(9);
+
+1 rows affected.
+
+SQL> insert into wg_newpage values(10);
+
+1 rows affected.
+
+SQL> insert into wg_newpage values(11);
+
+1 rows affected.
+
+SQL> insert into wg_newpage values(12);
+
+1 rows affected.
+
+SQL> set newpage none
+
+
+SQL> select * from wg_newpage;
+
+F1          
+------------
+1           
+F1          
+------------
+2           
+F1          
+------------
+3           
+F1          
+------------
+4           
+F1          
+------------
+5           
+F1          
+------------
+6           
+F1          
+------------
+7           
+F1          
+------------
+8           
+F1          
+------------
+9           
+F1          
+------------
+10          
+F1          
+------------
+11          
+F1          
+------------
+12          
+
+12 rows fetched.
+
+SQL> set newpage 0
+
+
+SQL> select * from wg_newpage;
+
+F1          
+------------
+1           
+F1          
+------------
+2           
+F1          
+------------
+3           
+F1          
+------------
+4           
+F1          
+------------
+5           
+F1          
+------------
+6           
+F1          
+------------
+7           
+F1          
+------------
+8           
+F1          
+------------
+9           
+F1          
+------------
+10          
+F1          
+------------
+11          
+F1          
+------------
+12          
+
+12 rows fetched.
+
+SQL> set newpage 1
+
+
+SQL> select * from wg_newpage;
+
+F1          
+------------
+1           
+
+F1          
+------------
+2           
+
+F1          
+------------
+3           
+
+F1          
+------------
+4           
+
+F1          
+------------
+5           
+
+F1          
+------------
+6           
+
+F1          
+------------
+7           
+
+F1          
+------------
+8           
+
+F1          
+------------
+9           
+
+F1          
+------------
+10          
+
+F1          
+------------
+11          
+
+F1          
+------------
+12          
+
+12 rows fetched.
+
+SQL> set newpage 2
+
+
+SQL> select * from wg_newpage;
+
+F1          
+------------
+1           
+
+
+F1          
+------------
+2           
+
+
+F1          
+------------
+3           
+
+
+F1          
+------------
+4           
+
+
+F1          
+------------
+5           
+
+
+F1          
+------------
+6           
+
+
+F1          
+------------
+7           
+
+
+F1          
+------------
+8           
+
+
+F1          
+------------
+9           
+
+
+F1          
+------------
+10          
+
+
+F1          
+------------
+11          
+
+
+F1          
+------------
+12          
+
+12 rows fetched.
+
+SQL> 
+
+

@@ -18,7 +18,7 @@ kill_cantiandb()
     sleep 2
 }
 
-init_gs_regress()
+init_ct_regress()
 {
     echo "=============== Initialize the Regression Program =============="
     kill_cantiandb
@@ -251,7 +251,7 @@ main()
         fi
     done
 
-    init_gs_regress
+    init_ct_regress
     make_code
     install_cantiandb
     run_dtc_test
