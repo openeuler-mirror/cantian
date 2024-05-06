@@ -453,7 +453,7 @@ function wait_for_node0_install() {
 }
 
 function update_random_seed() {
-  if [[ x"${dbstore_demo}" != x"true" ]]; then
+  if [[ x"${dbstore_demo}" != x"True" ]]; then
     if [[ x"${node_id}" == x"0" ]];then
         random_seed=$(python3 -c 'import secrets; secrets_generator = secrets.SystemRandom(); print(secrets_generator.randint(0, 255))')
     else
@@ -483,7 +483,7 @@ python3 ${CURRENT_PATH}/write_config.py "install_type" ${INSTALL_TYPE}
 
 deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
 dbstore_demo=`python3 ${CURRENT_PATH}/get_config_info.py "dbstore_demo"`
-if [[ x"${dbstore_demo}" == x"true" ]]; then
+if [[ x"${dbstore_demo}" == x"True" ]]; then
     touch "${DEPLOY_MODE_DBSTORE_UNIFY_FLAG}"
     cp -f "${CURRENT_PATH}/storage_operate/deploy_operate_patch/env.sh" "${CURRENT_PATH}/env.sh"
 fi
@@ -707,7 +707,7 @@ if [[ ${config_install_type} = 'override' ]]; then
   fi
   metadata_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "metadata_logic_ip"`
 
-  if [[ x"${dbstore_demo}" != x"true" ]]; then
+  if [[ x"${dbstore_demo}" != x"True" ]]; then
       if [[ x"${deploy_mode}" != x"nas" ]]; then
           kerberos_type=`python3 ${CURRENT_PATH}/get_config_info.py "kerberos_key"`
           mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
@@ -738,7 +738,7 @@ if [[ ${config_install_type} = 'override' ]]; then
       chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
       checkMountNFS ${share_result}
   fi
-  if [[ ${storage_archive_fs} != '' ]] && [[ x"${dbstore_demo}" != x"true" ]]; then
+  if [[ ${storage_archive_fs} != '' ]] && [[ x"${dbstore_demo}" != x"True" ]]; then
       if [[ x"${deploy_mode}" != x"nas" ]]; then
           mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
       else
@@ -771,7 +771,7 @@ if [[ ${config_install_type} = 'override' ]]; then
   fi
 
   # 检查nfs是否都挂载成功
-  if [[ ${mount_nfs_check} != 'true' ]] && [[ x"${dbstore_demo}" != x"true" ]]; then
+  if [[ ${mount_nfs_check} != 'true' ]] && [[ x"${dbstore_demo}" != x"True" ]]; then
       logAndEchoInfo "mount nfs failed"
       uninstall
       exit 1
@@ -791,7 +791,7 @@ if [[ ${config_install_type} = 'override' ]]; then
   chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
   update_random_seed
   # 挂载后，0节点拷贝配置文件至文件系统下，1节点检查对应配置文件参数
-  if [[ x"${dbstore_demo}" != x"true" ]]; then
+  if [[ x"${dbstore_demo}" != x"True" ]]; then
     check_deploy_param
   fi
   if [[ ${mes_ssl_switch} == "True" ]];then

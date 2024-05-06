@@ -294,7 +294,7 @@ class CheckInstallConfig(CheckBase):
             'deploy_user', 'node_id', 'cms_ip', 'storage_dbstore_fs', 'storage_share_fs', 'storage_archive_fs',
             'storage_metadata_fs', 'share_logic_ip', 'archive_logic_ip', 'metadata_logic_ip', 'db_type',
             'MAX_ARCH_FILES_SIZE', 'mysql_in_container', 'mysql_metadata_in_cantian', 'storage_logic_ip', 'deploy_mode',
-            'mes_ssl_switch'
+            'mes_ssl_switch', 'dbstore_demo'
         }
         self.dbstore_config_key = {
             'cluster_name', 'cantian_vlan_ip', 'storage_vlan_ip', 'link_type', 'storage_dbstore_page_fs',
@@ -367,7 +367,7 @@ class CheckInstallConfig(CheckBase):
         not_in_either = install_config_keys ^ self.config_key
         # 如果 config_key中存在的关键字install_config.json中没有，报错。
         for element in not_in_either:
-            if element not in install_config_keys:
+            if element != 'dbstore_demo' and element not in install_config_keys:
                 LOG.error('config_params.json need param %s', element)
                 return False
         return True
