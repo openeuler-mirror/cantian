@@ -1727,6 +1727,7 @@ status_t srv_load_kernel_params(void)
         CT_THROW_ERROR(ERR_INVALID_PARAMETER_ENUM, "BATCH_FLUSH_CAPACITY", attr->batch_flush_capacity);
         return CT_ERROR;
     }
+    CT_RETURN_IFERR(srv_get_param_uint32("RCY_NODE_READ_BUF_SIZE", &attr->rcy_node_read_buf_size));
     return CT_SUCCESS;
 }
 
