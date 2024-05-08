@@ -29,6 +29,7 @@
 #include "expr_parser.h"
 #include "ctsql_package.h"
 #include "srv_agent.h"
+#include "rc_reform.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -628,6 +629,11 @@ void jobs_proc(thread_t *thread)
             session->status = SESSION_ACTIVE;
         }
 
+        if (!rc_is_master()) {
+            cm_sleep(JOB_CHECK_INTERVAL_MS * 5);
+            continue;
+        }
+        
         // job does not work when JOB_QUEUE_PROCESSES is zero
         if (job_get_max_process() == 0) {
             cm_sleep(JOB_CHECK_INTERVAL_MS * 5);
