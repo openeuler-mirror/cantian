@@ -722,7 +722,7 @@ func_download_3rdparty()
     mkdir -p ${WORKSPACE}/3rdPartyPkg
     cd ${WORKSPACE}/3rdPartyPkg
     if [[ ! -e "cantian3.0.0.zip" ]]; then
-        wget https://gitee.com/solid-yang/cantian-test/repository/archive/cantian3.0.0.zip
+        wget --no-check-certificate https://gitee.com/solid-yang/cantian-test/repository/archive/cantian3.0.0.zip
         unzip cantian3.0.0.zip
         mv cantian-test-cantian3.0.0/* ./
         rm -rf cantian-test-cantian3.0.0

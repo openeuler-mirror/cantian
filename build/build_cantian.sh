@@ -164,7 +164,7 @@ function prepare() {
   cp -arf "${CANTIANDB_BIN}"/cantian-connector-mysql "${CANTIANDB_BIN}"/"${BUILD_TARGET_NAME}"
 }
 
-BUILD_TYPE=$1
+BUILD_TYPE=${1,,}
 if [[ ${BUILD_TYPE} != "debug" ]] && [[ ${BUILD_TYPE} != "release" ]]; then
   echo "Usage: ${0##*/} {debug|release}."
   exit 0
