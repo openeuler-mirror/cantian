@@ -794,6 +794,12 @@ static status_t sql_execute_alter_space(sql_stmt_t *ctsql_stmt)
 {
     knl_altspace_def_t *def = (knl_altspace_def_t *)ctsql_stmt->context->entry;
 
+    if (def->action == ALTSPACE_DROP_DATAFILE || def->action == ALTSPACE_RENAME_DATAFILE ||
+        def->action == ALTSPACE_OFFLINE_DATAFILE) {
+        CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "drop, rename or offline datafile when alter tablespace");
+        return CT_ERROR;
+    }
+
     return knl_alter_space(&ctsql_stmt->session->knl_session, ctsql_stmt, def);
 }
 
