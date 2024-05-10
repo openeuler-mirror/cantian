@@ -142,7 +142,6 @@ typedef struct {
 typedef struct {
     uint32_t total_rows;
     uint32_t num_buckets;
-    uint32_t num_distinct;
     uint32_t num_null;
     double density;
     tse_cbo_hist_type_t hist_type;
@@ -159,7 +158,6 @@ typedef struct {
 typedef struct {
     uint32_t estimate_rows;
     tse_cbo_stats_column_t *columns;
-    uint32_t *ndv_keys;
 } tse_cbo_stats_table_t;
 
 /*
@@ -171,8 +169,9 @@ typedef struct {
     uint32_t msg_len;
     uint32_t key_len;
     bool is_updated;
-    tse_cbo_stats_table_t tse_cbo_stats_table;
-    tse_cbo_stats_table_t *tse_cbo_stats_part_table;
+    uint32_t records;
+    uint32_t *ndv_keys;
+    tse_cbo_stats_table_t *tse_cbo_stats_table;
 } tianchi_cbo_stats_t;
 #pragma pack()
 
