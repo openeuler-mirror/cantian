@@ -28,6 +28,8 @@
 #include "cm_nls.h"
 #include "cm_timer.h"
 
+static text_t g_idx_time_fmt = { "HH24:MI:SS.FF", 13 };
+
 #define IS_MYSQL_NEW_TYPE(type) \
     (type == CT_TYPE_DATETIME_MYSQL || type == CT_TYPE_TIME_MYSQL || type == CT_TYPE_DATE_MYSQL)
 
@@ -566,7 +568,7 @@ static void cm_text2date_init(date_detail_t *datetime)
     datetime->millisec = 0;
     datetime->microsec = 0;
     datetime->nanosec = 0;
-
+    datetime->neg = 0;
     return ;
 }
 
@@ -2787,11 +2789,14 @@ status_t cm_text2date_mysql(const text_t *text, const text_t *fmt, date_t *date,
     if (fmt == NULL) {
         switch (datatype) {
             case CT_TYPE_DATETIME_MYSQL:
-            case CT_TYPE_DATE_MYSQL:
-            case CT_TYPE_TIME_MYSQL:
                 cm_default_nls_geter(NLS_TIMESTAMP_FORMAT, &fmt_text);
                 break;
+            case CT_TYPE_TIME_MYSQL:
+                fmt_text = g_idx_time_fmt;
+                break;
+            case CT_TYPE_DATE_MYSQL:
             default:
+                cm_default_nls_geter(NLS_DATE_FORMAT, &fmt_text);
                 break;
         }
     } else {
@@ -2938,20 +2943,17 @@ status_t cm_date2text_mysql_ex(uint32 datatype, date_t date, text_t *fmt, uint32
     switch (datatype) {
         case CT_TYPE_DATETIME_MYSQL:
             cm_decode_datetime_mysql(date, &detail);
+            cm_default_nls_geter(NLS_TIMESTAMP_FORMAT, &format_text);
             break;
         case CT_TYPE_TIME_MYSQL:
             cm_decode_time_mysql(date, &detail);
+            format_text = g_idx_time_fmt;
             break;
         case CT_TYPE_DATE_MYSQL:
         default:
             cm_decode_date_mysql(date, &detail);
+            cm_default_nls_geter(NLS_DATE_FORMAT, &format_text);
             break;
-    }
-
-    if (fmt == NULL || fmt->str == NULL) {
-        cm_default_nls_geter(NLS_DATE_FORMAT, &format_text);
-    } else {
-        format_text = *fmt;
     }
 
     if (datatype == CT_TYPE_TIME_MYSQL) {

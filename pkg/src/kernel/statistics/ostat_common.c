@@ -26,6 +26,8 @@
 #include "ostat_common.h"
 #include "cm_decimal.h"
 
+static text_t g_idx_ts_fmt = { "YYYY-MM-DD HH24:MI:SS.FF", 24 };
+
 index_t *cbo_find_part_index_entity(dc_entity_t *entity, uint32 idx_id)
 {
     index_t *idx = NULL;
@@ -918,10 +920,13 @@ status_t cbo_get_stats_values(dc_entity_t *entity, knl_column_t *column, text_t 
             cm_dec2_copy_payload((payload_t *)v_output->str, GET_PAYLOAD(&d2), d2.len);
             v_output->len = d2.len;
             break;
-        case CT_TYPE_DATE:
         case CT_TYPE_TIMESTAMP:
         case CT_TYPE_TIMESTAMP_TZ_FAKE:
         case CT_TYPE_TIMESTAMP_LTZ:
+            status = cm_text2date(v_input, &g_idx_ts_fmt, (timestamp_t *)v_output->str);
+            v_output->len = sizeof(date_t);
+            break;
+        case CT_TYPE_DATE:
             status = cm_text2date(v_input, NULL, (date_t *)v_output->str);
             v_output->len = sizeof(date_t);
             break;

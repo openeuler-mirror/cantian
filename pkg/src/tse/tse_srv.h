@@ -87,6 +87,8 @@ extern "C" {
 #define CTC_AUTOINC_NEW_STYLE_LOCKING 1
 #define CTC_AUTOINC_NO_LOCKING 2
 
+typedef int64 date_t;
+
 typedef struct {
     uint32_t inst_id; // instance id, thd_id alone is not sufficient to uniquely identify a tse session
     uint32_t thd_id;
@@ -126,6 +128,7 @@ typedef struct cache_st_variant {
         long long v_bigint;
         unsigned long long v_ubigint;
         double v_real;
+        date_t v_date;
     };
 } cache_variant_t;
 
