@@ -2836,6 +2836,7 @@ status_t cm_text2date_binary_mysql(const text_t *text, const text_t *fmt, date_t
             break;
         case CT_TYPE_DATE_MYSQL:
         default:
+            memcpy_s((char*)date, CM_BYTE_8, (char*)&res, CM_BYTE_8);
             break;
     }
 
