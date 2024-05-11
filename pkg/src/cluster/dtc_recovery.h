@@ -141,13 +141,18 @@ typedef struct st_dtc_rcy_node {
     uint8 node_id;
     uint8 unused;
     uint16 blk_size;
-    aligned_buf_t read_buf;
+    aligned_buf_t *read_buf;
+    uint8 read_buf_read_index;
+    uint8 read_buf_write_index;
+    bool32 *read_buf_ready;
     bool32 recover_done;
+    uint32 *read_size;
+    bool32 *not_finished;
     bool32 ulog_exist_data;
     uint64 pitr_lfn;  // pitr use
     uint64 ddl_lsn_pitr;  // pitr use
-    uint32 read_pos;
-    uint32 write_pos;
+    uint32 *read_pos;
+    uint32 *write_pos;
     uint64 curr_file_length;
     arch_file_t arch_file; // archive logfile
     int32 handle[CT_MAX_LOG_FILES];  // online logfile handle
@@ -200,6 +205,7 @@ typedef struct st_dtc_rcy_context {
     rcy_bucket_t bucket[CT_MAX_PARAL_RCY];
     spinlock_t lock;
     thread_t thread;
+    thread_t read_log_thread;
     bool32 full_recovery;
     bool32 paral_rcy;
     bool32 lrpl_rcy;
@@ -291,14 +297,14 @@ status_t dtc_init_node_logset_for_backup(knl_session_t *session, uint32 node_id,
 void dtc_standby_reset_recovery_stat(knl_session_t *session);
 status_t dtc_lrpl_load_log_batch(knl_session_t *session, log_batch_t **batch, uint32 *curr_node_idx);
 bool32 dtc_rcy_need_continue(knl_session_t *session, log_batch_t **batch, uint32 *curr_node_idx);
-bool32 dtc_log_need_reload(knl_session_t *session, uint32 node_id);
+bool32 dtc_log_need_reload(knl_session_t *session, uint32 node_id, bool32 batch_loaded);
 void dtc_update_standby_cluster_scn(knl_session_t *session, uint32 idx);
 uint32 dtc_rcy_get_logfile_by_node(knl_session_t *session, uint32 idx);
+void dtc_rcy_read_node_log_proc(thread_t *thread);
+log_batch_t* dtc_rcy_get_curr_batch(dtc_rcy_context_t *dtc_rcy, uint32 idx, uint8 index);
 
 extern dtc_rcy_replay_paral_node_t g_replay_paral_mgr;;
 #define DTC_RCY_CONTEXT                         (&g_dtc->dtc_rcy_ctx)
-#define DTC_RCY_GET_CURR_BATCH(dtc_rcy, idx) \
-    ((log_batch_t *)((dtc_rcy)->rcy_nodes[(idx)].read_buf.aligned_buf + (dtc_rcy)->rcy_nodes[(idx)].read_pos))
 
 #define DAAC_FULL_RECOVERY(session)             ((DTC_RCY_CONTEXT)->in_progress && (DTC_RCY_CONTEXT->full_recovery))
 #define DAAC_PART_RECOVERY(session)             ((DTC_RCY_CONTEXT)->in_progress && !(DTC_RCY_CONTEXT->full_recovery))

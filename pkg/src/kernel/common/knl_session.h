@@ -103,6 +103,7 @@ typedef struct st_knl_spin_stat_t {
     spin_statis_t stat_pcr_pool;
     spin_statis_t stat_pcr_bucket;
     spin_statis_t stat_gbp_queue;
+    spin_statis_t stat_rcy_buf;
 } knl_spin_stat_t;
 
 typedef struct st_knl_stat {
