@@ -105,8 +105,9 @@ typedef struct st_core_ctrl {
     bool32 is_restored;
     uint32 bak_dbid;
     uint64 ddl_pitr_lsn;
+    bool32 inc_backup_block;
 
-    char reserved[2036];                          // reserved bytes for nonclustered database
+    char reserved[2032];                          // reserved bytes for nonclustered database
     bool32 clustered;                             // is clustered database?
     uint32 node_count;                            // instance nodes
     uint32 max_nodes;                             // max instance nodes number

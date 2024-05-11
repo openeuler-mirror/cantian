@@ -43,15 +43,22 @@
 #define ARCH_FAIL_WAIT_SLEEP_TIME 5000
 #define ARCH_WAIT_WRITE_FINISH_SLEEP_TIME 200 // 200ms
 #define DTC_TIME_INTERVAL_OPEN_WARNING_US 500000 // 500ms
+#define ARCH_FORCE_WAIT_PROC_TIME 100
 
 const char *g_arch_suffix_name = ".arc";
 const uint32 g_arch_suffix_length = 4;
 
+arch_standby_ctx_t g_arch_standby_ctx = { 0 };
+
 const arch_func_context g_arch_func[] = {
     {"ARCHIVE_FORMAT", ARCH_RW_BUF_NUM, arch_proc_init_file, arch_need_archive_file, arch_file_archive,
-     arch_check_cont_archived_log_file, arch_write_proc_file, arch_log_point_file},
-    {"ARCHIVE_FORMAT_WITH_LSN", DBSTOR_ARCH_RW_BUF_NUM, arch_proc_init_dbstor, arch_need_archive_dbstor, arch_dbstor_archive,
-     arch_check_cont_archived_log_dbstor, arch_write_proc_dbstor, arch_log_point_dbstor},
+     arch_check_cont_archived_log_file, arch_write_proc_file, arch_log_point_file, arch_auto_clean},
+    {"ARCHIVE_FORMAT_WITH_LSN", DBSTOR_ARCH_RW_BUF_NUM, arch_proc_init_dbstor, arch_need_archive_dbstor,
+     arch_dbstor_archive, arch_check_cont_archived_log_dbstor, arch_write_proc_dbstor, arch_log_point_dbstor,
+     arch_auto_clean},
+    {"ARCHIVE_FORMAT_WITH_LSN_STANDBY", DBSTOR_ARCH_RW_BUF_NUM, arch_proc_init_dbstor, arch_need_archive_dbstor,
+     arch_dbstor_archive, arch_check_cont_archived_log_dbstor, arch_write_proc_dbstor, arch_log_point_dbstor,
+     arch_auto_clean_standby},
 };
 
 typedef struct st_arch_file_attr {
@@ -104,14 +111,33 @@ void arch_reset_file_id(knl_session_t *session, uint32 dest_pos)
     proc_ctx->next_file_id = CT_INVALID_ID32;
 }
 
+
+bool32 arch_need_wait_clean(arch_proc_context_t *proc_ctx)
+{
+    uint32 node_id = arch_get_proc_node_id(proc_ctx);
+    uint32 archived_start = arch_get_arch_start(proc_ctx->session, node_id);
+    uint32 archived_end = arch_get_arch_end(proc_ctx->session, node_id);
+    uint32 end_pos = (archived_end + 1) % CT_MAX_ARCH_NUM;
+    if (end_pos == archived_start) {
+        CT_LOG_RUN_WAR("[ARCH] need to wait archived file clean");
+        return CT_TRUE;
+    }
+    return CT_FALSE;
+}
+
 bool32 arch_need_archive_dbstor(arch_proc_context_t *proc_ctx, log_context_t *redo_ctx)
 {
     status_t status;
     uint32 redo_log_filesize = 0;
     uint64 used_time, used_intf_time;
     bool32 need_arch = CT_FALSE;
-    log_file_t* logfile = redo_ctx->files + redo_ctx->curr_file;
     proc_ctx->next_file_id = redo_ctx->curr_file;
+    log_file_t* logfile = arch_get_proc_logfile(proc_ctx);
+
+    if (arch_need_wait_clean(proc_ctx) == CT_TRUE) {
+        return CT_FALSE;
+    }
+
     ELAPSED_END(proc_ctx->arch_record_time.start_time, used_time);
     ELAPSED_END(proc_ctx->arch_record_time.start_intf_time, used_intf_time);
 
@@ -119,9 +145,10 @@ bool32 arch_need_archive_dbstor(arch_proc_context_t *proc_ctx, log_context_t *re
     arch_context_t *arch_ctx = &session->kernel->arch_ctx;
     uint64 arch_intervel_time = session->kernel->db.ctrl.core.lrep_mode == LOG_REPLICATION_ON ?
         ARCH_TIME_FOR_LOGICREP : arch_ctx->arch_time;
-    uint64 used_cap_intf_interval =  arch_intervel_time / ARCH_TRY_CAP_INTERVAL;
+    uint64 used_cap_intf_interval = arch_intervel_time / ARCH_TRY_CAP_INTERVAL;
 
-    bool32 force_archive = arch_ctx->force_archive_param.force_archive;
+    bool32 force_archive = CT_FALSE;
+    arch_get_force_archive_param(proc_ctx, &force_archive);
     if (force_archive) {
         proc_ctx->is_force_archive = CT_TRUE;
         need_arch = CT_TRUE;
@@ -139,10 +166,12 @@ bool32 arch_need_archive_dbstor(arch_proc_context_t *proc_ctx, log_context_t *re
         CT_LOG_RUN_ERR("[ARCH] failed to fetch redolog size from DBStor");
         return CT_FALSE;
     }
+    // 间隔 used_intf_time 查询一次
     ELAPSED_BEGIN(proc_ctx->arch_record_time.start_intf_time);
     proc_ctx->redo_log_filesize = SIZE_K_U64(redo_log_filesize);
     CT_LOG_DEBUG_INF("[ARCH] logfile handle (%d) lsn (%llu) size(%u)", logfile->handle, start_lsn, redo_log_filesize);
     if (need_arch) {
+        ELAPSED_BEGIN(proc_ctx->arch_record_time.start_time);
         return CT_TRUE;
     }
 
@@ -158,7 +187,8 @@ bool32 arch_need_archive_dbstor(arch_proc_context_t *proc_ctx, log_context_t *re
     if (proc_ctx->redo_log_filesize < arch_size && used_time < arch_intervel_time) {
         return CT_FALSE;
     }
-
+    // 间隔 arch_intervel_time 执行一次
+    ELAPSED_BEGIN(proc_ctx->arch_record_time.start_time);
     return CT_TRUE;
 }
 
@@ -408,8 +438,100 @@ void wait_archive_finished(knl_session_t *session)
     return;
 }
 
+// 等待所有线程归档完成，不阻塞备升主
+status_t wait_archive_finished_standby()
+{
+    CT_LOG_RUN_INF("[ARCH_STANDBY] force archive, wait all standby node finish");
+    status_t result = CT_SUCCESS;
+    for (uint32 idx = 0; idx < ARCH_MAX_NODE_COUNT;) {
+        cm_spin_lock(&g_arch_standby_ctx.arch_lock, NULL);
+        if (g_arch_standby_ctx.enabled == CT_FALSE) {
+            CT_LOG_RUN_ERR("[ARCH_STANDBY] force archive, db role is switch to primary");
+            cm_spin_unlock(&g_arch_standby_ctx.arch_lock);
+            return CT_ERROR;
+        }
+        arch_proc_context_t *arch_proc_ctx = &g_arch_standby_ctx.arch_proc_ctx[idx];
+        if (arch_proc_ctx->enabled != CT_TRUE) {
+            idx++;
+            cm_spin_unlock(&g_arch_standby_ctx.arch_lock);
+            cm_sleep(ARCH_FORCE_WAIT_PROC_TIME);
+            continue;
+        }
+        if (arch_proc_ctx->force_archive_trigger == CT_TRUE) {
+            cm_spin_unlock(&g_arch_standby_ctx.arch_lock);
+            cm_sleep(ARCH_FORCE_WAIT_PROC_TIME);
+            continue;
+        }
+        if (arch_proc_ctx->force_archive_failed == CT_TRUE) {
+            CT_LOG_RUN_ERR("[ARCH_STANDBY] force archive failed, standby node %u",
+                           arch_proc_ctx->arch_standby_node);
+            arch_proc_ctx->force_archive_failed = CT_FALSE;
+            result = CT_ERROR;
+        }
+        idx++;
+        CT_LOG_RUN_INF("[ARCH_STANDBY] force archive succ, standby node %u end wait lsn (%llu)",
+                       arch_proc_ctx->arch_standby_node, CT_INVALID_ID64);
+        cm_spin_unlock(&g_arch_standby_ctx.arch_lock);
+        cm_sleep(ARCH_FORCE_WAIT_PROC_TIME);
+    }
+    return result;
+}
+
+status_t arch_force_trigger_standby_node(arch_proc_context_t *arch_proc_ctx)
+{
+    cm_spin_lock(&arch_proc_ctx->record_lock, NULL);
+    if (arch_proc_ctx->force_archive_trigger == CT_TRUE ||
+        arch_proc_ctx->force_archive_failed == CT_TRUE) {
+        cm_spin_unlock(&arch_proc_ctx->record_lock);
+        return CT_ERROR;
+    }
+    arch_proc_ctx->force_archive_trigger = CT_TRUE;
+    cm_spin_unlock(&arch_proc_ctx->record_lock);
+    CT_LOG_RUN_INF("[ARCH_STANDBY] force archive for standby node %u trigger succ",
+                   arch_proc_ctx->arch_standby_node);
+    return CT_SUCCESS;
+}
+
+status_t arch_force_archive_trigger_standby()
+{
+    CT_LOG_RUN_INF("[ARCH_STANDBY] force archive for all standby node trigger");
+    for (uint32 idx = 0; idx < ARCH_MAX_NODE_COUNT;) {
+        cm_spin_lock(&g_arch_standby_ctx.arch_lock, NULL);
+        if (g_arch_standby_ctx.enabled == CT_FALSE) {
+            CT_LOG_RUN_ERR("[ARCH_STANDBY] force archive, db role is switch to primary");
+            cm_spin_unlock(&g_arch_standby_ctx.arch_lock);
+            return CT_ERROR;
+        }
+        arch_proc_context_t *arch_proc_ctx = &g_arch_standby_ctx.arch_proc_ctx[idx];
+        if (arch_proc_ctx->enabled != CT_TRUE) {
+            idx++;
+            cm_spin_unlock(&g_arch_standby_ctx.arch_lock);
+            cm_sleep(ARCH_FORCE_WAIT_PROC_TIME);
+            continue;
+        }
+        if (arch_force_trigger_standby_node(arch_proc_ctx) != CT_SUCCESS) {
+            cm_spin_unlock(&g_arch_standby_ctx.arch_lock);
+            cm_sleep(ARCH_FORCE_ARCHIVE_WAIT_SLEEP_TIME);
+            continue;
+        }
+        idx++;
+        cm_spin_unlock(&g_arch_standby_ctx.arch_lock);
+        cm_sleep(ARCH_FORCE_WAIT_PROC_TIME);
+    }
+    
+    if (wait_archive_finished_standby() != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[ARCH_STANDBY] force archive failed");
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
 status_t arch_force_archive_trigger(knl_session_t *session, uint64 end_lsn, bool32 wait)
 {
+    if (DB_IS_PRIMARY(&session->kernel->db) != CT_TRUE) {
+        return arch_force_archive_trigger_standby();
+    }
+
     arch_context_t *arch_ctx = &session->kernel->arch_ctx;
     while (CT_TRUE) {
         cm_spin_lock(&arch_ctx->dest_lock, NULL);
@@ -427,12 +549,14 @@ status_t arch_force_archive_trigger(knl_session_t *session, uint64 end_lsn, bool
     }
 
     if (!wait) {
-        CT_LOG_RUN_INF("force arch file, no need wait, end(%llu)", arch_ctx->force_archive_param.end_lsn);
+        CT_LOG_RUN_INF("force archive file, no need wait, end(%llu)", arch_ctx->force_archive_param.end_lsn);
         return CT_SUCCESS;
     }
+    CT_LOG_RUN_INF("[ARCH] wait force archive file, node %u, end wait lsn (%llu)",
+                   session->kernel->id, arch_ctx->force_archive_param.end_lsn);
     wait_archive_finished(session);
-    CT_LOG_RUN_INF("[ARCH] force arch file, end wait lsn (%llu)", arch_ctx->force_archive_param.end_lsn);
     if (arch_ctx->force_archive_param.failed == CT_TRUE) {
+        CT_LOG_RUN_ERR("[ARCH] force archive file failed, node %u", session->kernel->id);
         arch_ctx->force_archive_param.failed = CT_FALSE;
         return CT_ERROR;
     }
@@ -525,9 +649,9 @@ status_t arch_clear_tmp_file(device_type_t arch_file_type, char *file_name)
 {
     bool32 exist_tmp_file = cm_exist_device(arch_file_type, file_name);
     if (exist_tmp_file) {
-        CT_LOG_RUN_INF("[ARCHIVE] exist temp archive log file %s", file_name);
+        CT_LOG_RUN_INF("[ARCH] exist temp archive log file %s", file_name);
         if (cm_remove_device_when_enoent(arch_file_type, file_name) != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[ARCHIVE] failed to create temp archive log file %s", file_name);
+            CT_LOG_RUN_ERR("[ARCH] failed to create temp archive log file %s", file_name);
             return CT_ERROR;
         }
     }
@@ -845,11 +969,17 @@ void arch_set_tmp_filename(char *file_name, arch_proc_context_t *proc_ctx, uint3
 
 void arch_set_force_endlsn(bool32 force_archive, arch_proc_context_t *proc_ctx, uint64 *end_lsn)
 {
-    arch_context_t *arch_ctx = &proc_ctx->session->kernel->arch_ctx;
-    if (force_archive && proc_ctx->is_force_archive && arch_ctx->force_archive_param.end_lsn != CT_INVALID_ID64) {
-        *end_lsn = arch_ctx->force_archive_param.end_lsn;
-        CT_LOG_RUN_INF("[ARCH] set end_lsn %llu for force archive!", arch_ctx->force_archive_param.end_lsn);
+    CT_LOG_DEBUG_INF("[ARCH] set force archive endlsn, proc data type is %u", proc_ctx->data_type);
+    if (proc_ctx->data_type == ARCH_DATA_TYPE_DBSTOR) {
+        arch_context_t *arch_ctx = &proc_ctx->session->kernel->arch_ctx;
+        if (force_archive && proc_ctx->is_force_archive && arch_ctx->force_archive_param.end_lsn != CT_INVALID_ID64) {
+            *end_lsn = arch_ctx->force_archive_param.end_lsn;
+            CT_LOG_RUN_INF("[ARCH] set end_lsn %llu for force archive!", arch_ctx->force_archive_param.end_lsn);
+        }
+        return;
     }
+    *end_lsn = CT_INVALID_ID64;
+    return;
 }
 
 status_t arch_dbstor_rename_tmp_file(const char *tmp_file_name, const char *arch_file_name,
@@ -866,11 +996,23 @@ status_t arch_dbstor_rename_tmp_file(const char *tmp_file_name, const char *arch
     return CT_SUCCESS;
 }
 
+void arch_set_force_archive_stat(arch_proc_context_t *proc_ctx, bool32 result)
+{
+    CT_LOG_RUN_INF("[ARCH] force archive failed, proc data type is %u", proc_ctx->data_type);
+    if (proc_ctx->data_type == ARCH_DATA_TYPE_DBSTOR_STANDBY) {
+        proc_ctx->force_archive_failed = result;
+        return;
+    }
+    arch_context_t *arch_ctx = &proc_ctx->session->kernel->arch_ctx;
+    arch_ctx->force_archive_param.failed = result;
+    return;
+}
+
 status_t arch_dbstor_generate_arch_file(arch_proc_context_t *proc_ctx, log_file_t *logfile,
                                         char *tmp_file_name, char *arch_file_name, log_file_head_t *head)
 {
+    uint32 node_id = arch_get_proc_node_id(proc_ctx);
     uint32 *asn = &proc_ctx->last_archived_log_record.asn;
-    arch_context_t *arch_ctx = &proc_ctx->session->kernel->arch_ctx;
     device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
     if (proc_ctx->last_archived_log_record.end_lsn == proc_ctx->last_archived_log_record.cur_lsn) {
         proc_ctx->need_file_archive = CT_FALSE; // no log when force archive, need clear.
@@ -881,7 +1023,7 @@ status_t arch_dbstor_generate_arch_file(arch_proc_context_t *proc_ctx, log_file_
     arch_dbstor_update_progress(logfile, proc_ctx);
     if (arch_flush_head(arch_file_type, tmp_file_name, proc_ctx, logfile, head) != CT_SUCCESS) {
         proc_ctx->last_archived_log_record = tmp_record;
-        arch_ctx->force_archive_param.failed = CT_TRUE;
+        arch_set_force_archive_stat(proc_ctx, CT_TRUE);
         return CT_ERROR;
     }
     proc_ctx->total_arch_size += proc_ctx->last_archived_log_record.offset;
@@ -889,19 +1031,30 @@ status_t arch_dbstor_generate_arch_file(arch_proc_context_t *proc_ctx, log_file_
                    proc_ctx->total_arch_size, proc_ctx->total_used_time,
                    ((float)proc_ctx->total_arch_size / SIZE_M(1)) / (proc_ctx->total_used_time / MS_PER_SEC));
     proc_ctx->last_archived_log_record.offset = CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size);
-    arch_file_name_info_t file_name_info = {logfile->head.rst_id, *asn, proc_ctx->session->kernel->id,
-                                            CT_FILE_NAME_BUFFER_SIZE,
+    arch_file_name_info_t file_name_info = {logfile->head.rst_id, *asn, node_id, CT_FILE_NAME_BUFFER_SIZE,
                                             proc_ctx->last_archived_log_record.start_lsn,
-                                            proc_ctx->last_archived_log_record.cur_lsn,
-                                            arch_file_name};
+                                            proc_ctx->last_archived_log_record.cur_lsn, arch_file_name};
     arch_set_archive_log_name_with_lsn(proc_ctx->session, ARCH_DEFAULT_DEST, &file_name_info);
     if (arch_dbstor_rename_tmp_file(tmp_file_name, arch_file_name, arch_file_type) != CT_SUCCESS) {
         proc_ctx->last_archived_log_record = tmp_record;
-        arch_ctx->force_archive_param.failed = CT_TRUE;
+        arch_set_force_archive_stat(proc_ctx, CT_TRUE);
         return CT_ERROR;
     }
     return CT_SUCCESS;
 }
+
+void arch_get_force_archive_param(arch_proc_context_t *proc_ctx, bool32 *force_archive)
+{
+    // CT_LOG_RUN_INF("[ARCH] get force archive param, proc data type is %u", proc_ctx->data_type);
+    if (proc_ctx->data_type == ARCH_DATA_TYPE_DBSTOR_STANDBY) {
+        *force_archive = proc_ctx->force_archive_trigger;
+        return;
+    }
+    arch_context_t *arch_ctx = &proc_ctx->session->kernel->arch_ctx;
+    *force_archive = arch_ctx->force_archive_param.force_archive;
+    return;
+}
+
 
 status_t arch_dbstor_archive_file(const char *src_name, char *arch_file_name, log_file_t *logfile,
                                   log_file_head_t *head, arch_proc_context_t *proc_ctx)
@@ -909,13 +1062,13 @@ status_t arch_dbstor_archive_file(const char *src_name, char *arch_file_name, lo
     uint64 start_lsn = proc_ctx->last_archived_log_record.cur_lsn + 1;
     uint64 end_lsn = CT_INVALID_ID64;
     arch_context_t *arch_ctx = &proc_ctx->session->kernel->arch_ctx;
-    bool32 force_archive = arch_ctx->force_archive_param.force_archive;
+    bool32 force_archive = proc_ctx->is_force_archive;
     uint64 arch_file_size = arch_ctx->arch_file_size;
     char *tmp_file_name = proc_ctx->tmp_file_name;
     device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
-    arch_set_tmp_filename(tmp_file_name, proc_ctx, proc_ctx->session->kernel->id);
+    // arch_set_tmp_filename(tmp_file_name, proc_ctx, proc_ctx->session->kernel->id);
     if (arch_handle_fault(proc_ctx, logfile, tmp_file_name) != CT_SUCCESS) {
-        arch_ctx->force_archive_param.failed = CT_TRUE;
+        arch_set_force_archive_stat(proc_ctx, CT_TRUE);
         return CT_ERROR;
     }
     if (force_archive || proc_ctx->redo_log_filesize + proc_ctx->last_archived_log_record.offset >= arch_file_size) {
@@ -926,11 +1079,26 @@ status_t arch_dbstor_archive_file(const char *src_name, char *arch_file_name, lo
     arch_set_force_endlsn(force_archive, proc_ctx, &end_lsn);
     arch_read_file_src_info_t read_file_src_info = {(char *)src_name, logfile, start_lsn, end_lsn};
     if (arch_write_file(&read_file_src_info, proc_ctx, tmp_file_name, arch_file_type) != CT_SUCCESS) {
-        arch_ctx->force_archive_param.failed = CT_TRUE;
+        arch_set_force_archive_stat(proc_ctx, CT_TRUE);
         return CT_ERROR;
     }
+
+    CT_LOG_DEBUG_INF("[ARCH] archive info, tmp name %s, handle %d, start lsn %llu, end lsn %llu, cur lsn %llu, offset %llu",
+        proc_ctx->tmp_file_name, proc_ctx->tmp_file_handle, proc_ctx->last_archived_log_record.start_lsn,
+        proc_ctx->last_archived_log_record.end_lsn, proc_ctx->last_archived_log_record.cur_lsn,
+        proc_ctx->last_archived_log_record.offset);
     if (proc_ctx->need_file_archive) {
-        return arch_dbstor_generate_arch_file(proc_ctx, logfile, tmp_file_name, arch_file_name, head);
+        if (arch_need_wait_clean(proc_ctx) == CT_TRUE) {
+            g_arch_func[proc_ctx->data_type].arch_auto_clean_func(proc_ctx);
+            if (arch_need_wait_clean(proc_ctx) == CT_TRUE) {
+                arch_set_force_archive_stat(proc_ctx, CT_TRUE);
+                return CT_ERROR;
+            }
+        }
+        if (arch_dbstor_generate_arch_file(proc_ctx, logfile, tmp_file_name, arch_file_name, head) != CT_SUCCESS) {
+            arch_set_force_archive_stat(proc_ctx, CT_TRUE);
+            return CT_ERROR;
+        }
     }
     return CT_SUCCESS;
 }
@@ -1372,15 +1540,22 @@ status_t arch_save_archinfo(knl_session_t *session, arch_ctrl_record_info_t *arc
     log_file_head_t *log_head = arch_ctrl_record_info->log_head;
     int64 real_file_size = arch_ctrl_record_info->real_file_size;
     uint32 node_id = arch_ctrl_record_info->node_id;
-    uint32 id = archived_end;
-    arch_ctrl_t *arch_ctrl = db_get_arch_ctrl(session, id, node_id);
+    arch_proc_context_t *proc_ctx = arch_ctrl_record_info->proc_ctx;
+    arch_ctrl_t *arch_ctrl = db_get_arch_ctrl(session, archived_end, node_id);
     arch_ctrl_record_info->arch_ctrl = arch_ctrl;
+
     arch_record_arch_ctrl(session, arch_ctrl_record_info);
-    
-    arch_context_t *arch_ctx = &session->kernel->arch_ctx;
-    arch_proc_context_t *proc_ctx = &arch_ctx->arch_proc[arch_ctrl_record_info->dest_id];
+
     proc_ctx->curr_arch_size += real_file_size;
     arch_set_arch_end(session, end_pos, node_id);
+
+    int32 head_size = CM_CALC_ALIGN(sizeof(log_file_head_t), arch_ctrl->block_size);
+    aligned_buf_t *arch_buf = &proc_ctx->arch_rw_buf.aligned_buf;
+    if (arch_flush_head_by_arch_ctrl(session, arch_ctrl, head_size, arch_buf) != CT_SUCCESS) {
+        cm_spin_unlock(&proc_ctx->record_lock);
+        CT_LOG_RUN_ERR("[ARCH] failed to flush file head by arch_ctrl.");
+        return CT_ERROR;
+    }
 
     if (proc_ctx->last_archived_log.rst_id < log_head->rst_id ||
         (proc_ctx->last_archived_log.rst_id == log_head->rst_id && proc_ctx->last_archived_log.asn < log_head->asn)) {
@@ -1391,7 +1566,7 @@ status_t arch_save_archinfo(knl_session_t *session, arch_ctrl_record_info_t *arc
     }
 
     // save node ctrl and arch ctrl
-    if (db_save_arch_ctrl(session, id, node_id) != CT_SUCCESS) {
+    if (db_save_arch_ctrl(session, archived_end, node_id) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -1401,48 +1576,34 @@ status_t arch_save_archinfo(knl_session_t *session, arch_ctrl_record_info_t *arc
     return CT_SUCCESS;
 }
 
-status_t arch_record_archinfo(knl_session_t *session, uint32 dest_pos, const char *file_name, log_file_head_t *log_head,
-                              uint32 node_id)
+status_t arch_record_archinfo(knl_session_t *session, const char *file_name,
+                              log_file_head_t *log_head, arch_proc_context_t *proc_ctx)
 {
-    arch_ctrl_t *arch_ctrl = NULL;
     arch_context_t *arch_ctx = &session->kernel->arch_ctx;
-    uint32 dest_id = dest_pos - 1;
-    arch_proc_context_t *proc_ctx = &arch_ctx->arch_proc[dest_id];
+    uint32 node_id = arch_get_proc_node_id(proc_ctx);
     uint32 archived_start = arch_get_arch_start(session, node_id);
     uint32 archived_end = arch_get_arch_end(session, node_id);
     uint32 end_pos = (archived_end + 1) % CT_MAX_ARCH_NUM;
-    int64 real_file_size;
-    uint32 recid;
-    dtc_node_ctrl_t *node_ctrl = dtc_my_ctrl(session);
-
+    dtc_node_ctrl_t *node_ctrl = dtc_get_ctrl(session, node_id);
+    int64 real_file_size = 0;
     if (arch_get_real_size(file_name, &real_file_size) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[ARCH] Failed to record archive log file %s for log [%u-%u] start %u end %u", file_name,
                        log_head->rst_id, log_head->asn, node_ctrl->archived_start, node_ctrl->archived_end);
         return CT_ERROR;
     }
 
+    if (end_pos == archived_start) {
+        CM_ABORT(0,
+                 "[ARCH] ABORT INFO: Failed to record archive log file %s for log [%u-%u] start %u end %u",
+                 file_name, log_head->rst_id, log_head->asn, node_ctrl->archived_start, node_ctrl->archived_end);
+    }
     cm_spin_lock(&arch_ctx->record_lock, NULL);
-    recid = ++arch_ctx->archived_recid;
+    ++arch_ctx->archived_recid;
     cm_spin_unlock(&arch_ctx->record_lock);
 
     cm_spin_lock(&proc_ctx->record_lock, NULL);
-
-    if (end_pos == archived_start) {
-        arch_ctrl = db_get_arch_ctrl(session, end_pos, node_id);
-        arch_ctrl->recid = recid;
-        archived_end = (archived_start + 1) % CT_MAX_ARCH_NUM;
-        arch_set_arch_end(session, archived_end, node_id);
-        // only save node ctrl
-        if (arch_save_ctrl(session, node_id) != CT_SUCCESS) {
-            cm_spin_unlock(&proc_ctx->record_lock);
-            CM_ABORT(0,
-                     "[ARCH] ABORT INFO: save core control file failed when record archive log file %s for "
-                     "log [%u-%u] start %u end %u",
-                     file_name, log_head->rst_id, log_head->asn, node_ctrl->archived_start, node_ctrl->archived_end);
-        }
-    }
-
-    arch_ctrl_record_info_t arch_ctrl_record_info = {real_file_size, dest_id, node_id, 0, NULL, file_name, log_head};
+    arch_ctrl_record_info_t arch_ctrl_record_info = {real_file_size, 0, node_id, 0,
+                                                     NULL, file_name, log_head, proc_ctx};
     if (arch_save_archinfo(session, &arch_ctrl_record_info, archived_start, archived_end, end_pos) != CT_SUCCESS) {
         cm_spin_unlock(&proc_ctx->record_lock);
         CM_ABORT(0,
@@ -1450,16 +1611,6 @@ status_t arch_record_archinfo(knl_session_t *session, uint32 dest_pos, const cha
                  "log [%u-%u] start %u end %u",
                  file_name, log_head->rst_id, log_head->asn, node_ctrl->archived_start, node_ctrl->archived_end);
     }
-    log_file_t *logfile = session->kernel->redo_ctx.files + proc_ctx->next_file_id;
-    int32 head_size = CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size);
-    aligned_buf_t *arch_buf = &proc_ctx->arch_rw_buf.aligned_buf;
-    arch_ctrl = db_get_arch_ctrl(session, archived_end, node_id);
-    if (arch_flush_head_by_arch_ctrl(session, arch_ctrl, head_size, arch_buf) != CT_SUCCESS) {
-        cm_spin_unlock(&proc_ctx->record_lock);
-        CT_LOG_RUN_ERR("[ARCH] failed to flush file head by arch_ctrl.");
-        return CT_ERROR;
-    }
-
     cm_spin_unlock(&proc_ctx->record_lock);
     return CT_SUCCESS;
 }
@@ -1470,7 +1621,9 @@ status_t arch_try_record_archinfo(knl_session_t *session, uint32 dest_pos, const
     if (arch_archive_log_recorded(session, head->rst_id, head->asn, dest_pos, session->kernel->id)) {
         return CT_SUCCESS;
     }
-    if (arch_record_archinfo(session, dest_pos, file_name, head, session->kernel->id) != CT_SUCCESS) {
+    arch_context_t *arch_ctx = &session->kernel->arch_ctx;
+    arch_proc_context_t *proc_ctx = &arch_ctx->arch_proc[dest_pos - 1];
+    if (arch_record_archinfo(session, file_name, head, proc_ctx) != CT_SUCCESS) {
         return CT_ERROR;
     }
     return CT_SUCCESS;
@@ -1607,7 +1760,6 @@ bool32 arch_check_logfile(knl_session_t *session, arch_proc_context_t *proc_ctx,
 
 void arch_file_archive(knl_session_t *session, arch_proc_context_t *proc_ctx)
 {
-    arch_context_t *arch_ctx = &proc_ctx->session->kernel->arch_ctx;
     log_file_t *logfile = session->kernel->redo_ctx.files + proc_ctx->next_file_id;
     char arch_file_name[CT_FILE_NAME_BUFFER_SIZE] = {0};
     if (arch_check_logfile(session, proc_ctx, logfile) == CT_TRUE) {
@@ -1618,9 +1770,9 @@ void arch_file_archive(knl_session_t *session, arch_proc_context_t *proc_ctx)
                               CT_FILE_NAME_BUFFER_SIZE, session->kernel->id);
 
     status_t arch_ret = arch_archive_file(session, proc_ctx->arch_rw_buf.aligned_buf, logfile, arch_file_name, &proc_ctx->cmp_ctx);
-    arch_ctx->force_archive_param.failed = CT_FALSE;
+    arch_set_force_archive_stat(proc_ctx, CT_FALSE);
     if (proc_ctx->is_force_archive == CT_TRUE) {
-        arch_ctx->force_archive_param.failed = arch_ret == CT_SUCCESS ? CT_FALSE : CT_TRUE;
+        arch_set_force_archive_stat(proc_ctx, !(arch_ret == CT_SUCCESS));
     }
     if (arch_ret == CT_SUCCESS) {
         // Update last archived log file id
@@ -1630,7 +1782,7 @@ void arch_file_archive(knl_session_t *session, arch_proc_context_t *proc_ctx)
 
         if (!arch_archive_log_recorded(session, logfile->head.rst_id, logfile->head.asn, ARCH_DEFAULT_DEST, session->kernel->id)) {
             // Update control file archive information
-            if (arch_record_archinfo(session, proc_ctx->arch_id, arch_file_name, &logfile->head, session->kernel->id) !=CT_SUCCESS) {
+            if (arch_record_archinfo(session, arch_file_name, &logfile->head, proc_ctx) !=CT_SUCCESS) {
                 return;
             }
         } else {
@@ -1707,6 +1859,35 @@ void arch_wake_force_thread(arch_proc_context_t *proc_ctx)
     }
 }
 
+void arch_wake_force_thread_standby(arch_proc_context_t *proc_ctx)
+{
+    // handle archive failure in abnormal scenarios
+    if (proc_ctx->force_archive_failed == CT_TRUE) {
+        CT_LOG_RUN_WAR("[ARCH_STANDBY] archive failed, clear force artchive params!");
+        if (proc_ctx->force_archive_trigger && proc_ctx->is_force_archive) {
+            proc_ctx->redo_log_filesize = 0;
+            proc_ctx->is_force_archive = CT_FALSE;
+            proc_ctx->force_archive_trigger = CT_FALSE;
+        } else {
+            proc_ctx->force_archive_failed = CT_FALSE;
+        }
+        return;
+    }
+
+    if (proc_ctx->force_archive_trigger && proc_ctx->is_force_archive) {
+        if (proc_ctx->redo_log_filesize > 0) {
+            CT_LOG_RUN_INF("[ARCH_STANDBY] force_archive process, remaining size of redo log %llu",
+                           proc_ctx->redo_log_filesize);
+            return;
+        }
+        CT_LOG_RUN_INF("[ARCH_STANDBY] force_archive success, cur_lsn %llu, clear params!",
+                       proc_ctx->last_archived_log_record.cur_lsn);
+        proc_ctx->is_force_archive = CT_FALSE;
+        proc_ctx->force_archive_trigger = CT_FALSE;
+    }
+    return;
+}
+
 void arch_set_process_alarmed(arch_proc_context_t *proc_ctx, const char *arch_file_name, status_t arch_ret)
 {
     if (arch_ret == CT_SUCCESS) {
@@ -1723,9 +1904,76 @@ void arch_set_process_alarmed(arch_proc_context_t *proc_ctx, const char *arch_fi
     }
 }
 
+void arch_dbstor_wake_force_thread(arch_proc_context_t *proc_ctx)
+{
+    cm_spin_lock(&proc_ctx->record_lock, NULL);
+    if (proc_ctx->data_type == ARCH_DATA_TYPE_DBSTOR_STANDBY) {
+        arch_wake_force_thread_standby(proc_ctx);
+        cm_spin_unlock(&proc_ctx->record_lock);
+        return;
+    }
+    arch_wake_force_thread(proc_ctx);
+    cm_spin_unlock(&proc_ctx->record_lock);
+    return;
+}
+
+log_file_t* arch_get_proc_logfile(arch_proc_context_t *proc_ctx)
+{
+    if (proc_ctx->data_type == ARCH_DATA_TYPE_DBSTOR_STANDBY) {
+        return &proc_ctx->logfile;
+    }
+    return proc_ctx->session->kernel->redo_ctx.files + proc_ctx->next_file_id;
+}
+
+uint32 arch_get_proc_node_id(arch_proc_context_t *proc_ctx)
+{
+    if (proc_ctx->data_type == ARCH_DATA_TYPE_DBSTOR_STANDBY) {
+        return proc_ctx->arch_standby_node;
+    }
+    return proc_ctx->session->kernel->id;
+}
+
+void arch_log_recycle_file(arch_proc_context_t *proc_ctx, uint32 node_id)
+{
+    uint64 free_size = 0;
+    knl_session_t *session = proc_ctx->session;
+    log_file_t *logfile = arch_get_proc_logfile(proc_ctx);
+    dtc_node_ctrl_t *node_ctrl = dtc_get_ctrl(session, node_id);
+    log_point_t recycle_point = { 0 };
+    recycle_point.lsn = MIN(node_ctrl->rcy_point.lsn, proc_ctx->last_archived_log_record.end_lsn);
+    cm_spin_lock(&session->kernel->redo_ctx.flush_lock, &session->stat->spin_stat.stat_log_flush);
+    free_size = cm_dbs_ulog_recycle(logfile->handle, recycle_point.lsn);
+    CT_LOG_RUN_INF("[ARCH] recycle redo logs in ulog, rcy lsn %llu, archive lsn %llu, free size %llu",
+                   node_ctrl->rcy_point.lsn, proc_ctx->last_archived_log_record.end_lsn, free_size);
+    cm_spin_unlock(&session->kernel->redo_ctx.flush_lock);
+    return;
+}
+
+void arch_print_err_info(arch_proc_context_t *proc_ctx)
+{
+    uint32 node_id = arch_get_proc_node_id(proc_ctx);
+    if (proc_ctx->data_type == ARCH_DATA_TYPE_DBSTOR_STANDBY) {
+        CT_LOG_RUN_ERR("[ARCH_STANDBY] archive failed, need archive %u, force %u, node id %u, cur arch size %lld,"
+                       " cur_lsn %llu, offset %llu, redo log size %llu",
+                       proc_ctx->need_file_archive, proc_ctx->force_archive_trigger, node_id,
+                       proc_ctx->curr_arch_size, proc_ctx->last_archived_log_record.cur_lsn,
+                       proc_ctx->last_archived_log_record.offset, proc_ctx->redo_log_filesize);   
+        return; 
+    }
+    arch_context_t *arch_ctx = &proc_ctx->session->kernel->arch_ctx;
+    CT_LOG_RUN_ERR("[ARCH] archive failed, need archive %u, force %u, node id %u, cur arch size %lld,"
+                    " cur_lsn %llu, offset %llu, redo log size %llu, wait %u, end_lsn %llu",
+                    proc_ctx->need_file_archive, arch_ctx->force_archive_param.force_archive, node_id,
+                    proc_ctx->curr_arch_size, proc_ctx->last_archived_log_record.cur_lsn,
+                    proc_ctx->last_archived_log_record.offset, proc_ctx->redo_log_filesize,
+                    arch_ctx->force_archive_param.wait, arch_ctx->force_archive_param.end_lsn);
+    return;
+}
+
 void arch_dbstor_do_archive(knl_session_t *session, arch_proc_context_t *proc_ctx)
 {
-    log_file_t *logfile = session->kernel->redo_ctx.files + proc_ctx->next_file_id;
+    log_file_t *logfile = arch_get_proc_logfile(proc_ctx);
+    uint32 node_id = arch_get_proc_node_id(proc_ctx);
     log_file_head_t head = {0};
     uint32 *cur_asn = &proc_ctx->last_archived_log_record.asn;
     char arch_file_name[CT_FILE_NAME_BUFFER_SIZE] = {0};
@@ -1734,43 +1982,35 @@ void arch_dbstor_do_archive(knl_session_t *session, arch_proc_context_t *proc_ct
     status_t ret = arch_dbstor_archive_file(logfile->ctrl->name, arch_file_name, logfile, &head, proc_ctx);
     if (ret == CT_SUCCESS) {
         if (!proc_ctx->need_file_archive) {
-            arch_wake_force_thread(proc_ctx);
+            arch_dbstor_wake_force_thread(proc_ctx);
             return;
         }
         proc_ctx->need_file_archive = CT_FALSE;
-
-        if (!arch_archive_log_recorded(session, logfile->head.rst_id, *cur_asn, ARCH_DEFAULT_DEST,
-                                       proc_ctx->session->kernel->id)) {
-            if (arch_record_archinfo(session, ARCH_DEFAULT_DEST, arch_file_name, &head,
-                proc_ctx->session->kernel->id) != CT_SUCCESS) {
-                arch_wake_force_thread(proc_ctx);
+        if (!arch_archive_log_recorded(session, logfile->head.rst_id, *cur_asn, ARCH_DEFAULT_DEST, node_id)) {
+            if (arch_record_archinfo(session, arch_file_name, &head, proc_ctx) != CT_SUCCESS) {
+                arch_dbstor_rename_tmp_file(arch_file_name, proc_ctx->tmp_file_name, cm_device_type(proc_ctx->arch_dest));
+                arch_dbstor_wake_force_thread(proc_ctx);
                 return;
             }
             proc_ctx->last_archived_log_record.asn++;
         } else {
             CT_LOG_RUN_ERR("[ARCH] the corresponding arch ctrl for archive log file [%s] already exists, "
-                "restlog id is %u, asn is %u",
-                arch_file_name, logfile->head.rst_id, *cur_asn);
+                           "restlog id is %u, asn is %u", arch_file_name, logfile->head.rst_id, *cur_asn);
             CM_ABORT(0, "[ARCH] ABORT INFO: the arch ctrl has been occupied.");
         }
-        arch_wake_force_thread(proc_ctx);
-        logfile->ctrl->archived = CT_TRUE;
-        if (db_save_log_ctrl(session, proc_ctx->next_file_id, proc_ctx->session->kernel->id) != CT_SUCCESS) {
-            CM_ABORT(0, "[ARCH] ABORT INFO: save control redo file failed when archive file");
-        }
+        arch_dbstor_wake_force_thread(proc_ctx);
+        // logfile->ctrl->archived = CT_TRUE;
+        // if (db_save_log_ctrl(session, 0, node_id) != CT_SUCCESS) {
+        //     CM_ABORT(0, "[ARCH] ABORT INFO: save control redo file failed when archive file");
+        // }
         proc_ctx->last_archived_log_record.end_lsn = proc_ctx->last_archived_log_record.cur_lsn;
-        dtc_node_ctrl_t *node_ctrl = dtc_my_ctrl(session);
-        log_recycle_file(session, &node_ctrl->rcy_point);
+        arch_log_recycle_file(proc_ctx, node_id);
     } else {
-        proc_ctx->need_file_archive = CT_FALSE;
         if (arch_need_print_error(session, proc_ctx)) {
-            arch_context_t *arch_ctx = &proc_ctx->session->kernel->arch_ctx;
-            CT_LOG_RUN_ERR("[ARCH] archive failed, force %u, wait %u, end_lsn %llu, cur_lsn %llu, redo log size %llu",
-                arch_ctx->force_archive_param.force_archive, arch_ctx->force_archive_param.wait,
-                arch_ctx->force_archive_param.end_lsn,
-                proc_ctx->last_archived_log_record.cur_lsn, proc_ctx->redo_log_filesize);
+            arch_print_err_info(proc_ctx);        
         }
-        arch_wake_force_thread(proc_ctx);
+        proc_ctx->need_file_archive = CT_FALSE;
+        arch_dbstor_wake_force_thread(proc_ctx);
         cm_reset_error();
     }
     arch_set_process_alarmed(proc_ctx, arch_file_name, ret);
@@ -1874,20 +2114,20 @@ status_t clean_arch_file(arch_ctrl_t *arch_ctrl, uint32 archived_start, uint32 a
     log_point_t *rcy_point, log_point_t *backup_rcy)
 {
     if (!cm_exist_device(cm_device_type(arch_ctrl->name), arch_ctrl->name)) {
-        CT_LOG_RUN_INF("archive file %s is not exist", arch_ctrl->name);
+        CT_LOG_RUN_INF("[ARCH] archive file %s is not exist", arch_ctrl->name);
         return CT_SUCCESS;
     }
 
     if (cm_remove_device(cm_device_type(arch_ctrl->name), arch_ctrl->name) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("Failed to remove archive file %s", arch_ctrl->name);
+        CT_LOG_RUN_ERR("[ARCH] Failed to remove archive file %s", arch_ctrl->name);
         return CT_ERROR;
     }
 
-    CT_LOG_RUN_INF("[ARCH]archive file %s is cleaned, resetlog %u asn %u start_lsn %llu end_lsn %llu start %u end %u."
-        "rcy_point(rst_id: %u, lsn: %llu, asn: %u), backup_rcy(rst_id: %u, lsn: %llu, asn: %u).",
+    CT_LOG_RUN_INF("[ARCH] archive file %s is cleaned, resetlog %u asn %u start_lsn %llu end_lsn %llu start %u end %u."
+        "real_size %llu, rcy_point(rst_id: %u, lsn: %llu, asn: %u), backup_rcy(rst_id: %u, lsn: %llu, asn: %u).",
         arch_ctrl->name, arch_ctrl->rst_id, arch_ctrl->asn, arch_ctrl->start_lsn, arch_ctrl->end_lsn,
-        archived_start, archived_end, rcy_point->rst_id, rcy_point->lsn, rcy_point->asn, backup_rcy->rst_id,
-        backup_rcy->lsn, backup_rcy->asn);
+        archived_start, archived_end, arch_ctrl->real_size, rcy_point->rst_id, rcy_point->lsn, rcy_point->asn,
+        backup_rcy->rst_id, backup_rcy->lsn, backup_rcy->asn);
     
     return CT_SUCCESS;
 }
@@ -1907,7 +2147,8 @@ status_t arch_do_real_clean(knl_session_t *session, arch_proc_context_t *proc_ct
     cm_spin_lock(&proc_ctx->record_lock, NULL);
 
     arch_get_files_num(session, proc_ctx->arch_id - 1, session->kernel->id, &arch_num);
-
+    CT_LOG_RUN_INF("[ARCH] current arch file num %u, start %u, end %u, size %lld",
+                   arch_num, archived_start, archived_end, proc_ctx->curr_arch_size);
     for (uint32 i = 0; i < arch_num; i++) {
         clean_locator = (archived_start + i) % CT_MAX_ARCH_NUM;
         arch_ctrl = db_get_arch_ctrl(session, clean_locator, session->kernel->id);
@@ -1956,7 +2197,8 @@ status_t arch_do_real_clean(knl_session_t *session, arch_proc_context_t *proc_ct
     if (arch_save_ctrl(session, session->kernel->id) != CT_SUCCESS) {
         status = CT_ERROR;
     }
-
+    CT_LOG_RUN_INF("[ARCH_STANDBY] clean archive file succ, current archived start %u, end %u, size %lld",
+                   archived_start, archived_end, proc_ctx->curr_arch_size);
     cm_spin_unlock(&proc_ctx->record_lock);
     return status;
 }
@@ -1979,7 +2221,7 @@ status_t arch_check_bak_proc_status(knl_session_t *session)
             return CT_ERROR;
         }
         if (running != CT_FALSE) {
-            CT_LOG_DEBUG_ERR("[ARCH] backup process is running in node %u, do not clean archived logfiles.", i);
+            CT_LOG_RUN_ERR("[ARCH] backup process is running in node %u, do not clean archived logfiles.", i);
             return CT_ERROR;
         }
     }
@@ -2051,15 +2293,14 @@ status_t arch_clean_set_params(knl_session_t *session, arch_clean_attr_t* clean_
 void arch_auto_clean(arch_proc_context_t *proc_ctx)
 {
     knl_session_t *session = proc_ctx->session;
-    arch_context_t *arch_ctx = &session->kernel->arch_ctx;
-    if (arch_ctx->force_archive_param.force_archive == CT_TRUE) {
-        return;
-    }
     uint64 max_arch_size = session->kernel->attr.max_arch_files_size;
     uint64 hwm_arch_size = max_arch_size * session->kernel->attr.arch_upper_limit / 100;
     knl_alterdb_archivelog_t def;
     arch_clean_attr_t clean_attr;
 
+    // CT_LOG_RUN_INF("[ARCH] start to clean archive logs, max_arch_size %llu,"
+    //                "cur_arch_size %lld, hwm_arch_size %llu",
+    //                max_arch_size, proc_ctx->curr_arch_size, hwm_arch_size);
     if (!DB_IS_OPEN(session) || DB_IS_MAINTENANCE(session) ||
         max_arch_size == 0 || (uint64)proc_ctx->curr_arch_size < hwm_arch_size) {
         return;
@@ -2074,6 +2315,90 @@ void arch_auto_clean(arch_proc_context_t *proc_ctx)
     def.until_time = CT_INVALID_INT64;
 
     (void)arch_clean_arch_files(session, proc_ctx, &def, clean_attr);
+}
+
+status_t arch_clean_arch_files_standby(knl_session_t *session, arch_proc_context_t *proc_ctx,
+    knl_alterdb_archivelog_t *def, arch_clean_attr_t clean_attr)
+{
+    uint64 target_size = clean_attr.opt_size;
+    log_point_t backup_rcy = clean_attr.backup_rcy_point;
+    log_point_t rcy_point = clean_attr.min_rcy_point;
+    uint32 archived_start = arch_get_arch_start(session, proc_ctx->arch_standby_node);
+    uint32 archived_end = arch_get_arch_end(session, proc_ctx->arch_standby_node);
+    uint32 arch_num = 0;
+    uint32 clean_num = 0;
+    status_t status = CT_SUCCESS;
+
+    cm_spin_lock(&proc_ctx->record_lock, NULL);
+    arch_get_files_num(session, proc_ctx->arch_id - 1, proc_ctx->arch_standby_node, &arch_num);
+    CT_LOG_RUN_INF("[ARCH_STANDBY] current arch file num %u, start %u, end %u", arch_num, archived_start, archived_end);
+    for (uint32 i = 0; i < arch_num; i++) {
+        uint32 clean_locator = (archived_start + i) % CT_MAX_ARCH_NUM;
+        arch_ctrl_t *arch_ctrl = db_get_arch_ctrl(session, clean_locator, proc_ctx->arch_standby_node);
+        if (arch_ctrl->recid == 0) {
+            clean_num++;
+            CT_LOG_RUN_WAR("[ARCH_STANDBY] invalid arch ctrl, locator: %u", clean_locator);
+            continue;
+        }
+        if (!arch_can_be_cleaned(g_arch_func[proc_ctx->data_type].check_log_point_func,
+                                 arch_ctrl, &rcy_point, &backup_rcy, def)) {
+            continue;
+        }
+        if (clean_arch_file(arch_ctrl, archived_start, archived_end, &rcy_point, &backup_rcy) != CT_SUCCESS) {
+            status = CT_ERROR;
+            break;
+        }
+        arch_ctrl->recid = 0;
+        clean_num++;
+        proc_ctx->curr_arch_size -= arch_get_ctrl_real_size(arch_ctrl);
+        if (db_save_arch_ctrl(session, clean_locator, proc_ctx->arch_standby_node) != CT_SUCCESS) {
+            CT_LOG_RUN_WAR("[ARCH_STANDBY] save arch ctrl failed, locator: %u", clean_locator);
+            cm_spin_unlock(&proc_ctx->record_lock);
+            return CT_ERROR;
+        }
+        if ((uint64)proc_ctx->curr_arch_size < target_size) {
+            break;
+        }
+    }
+    archived_start = (archived_start + clean_num) % CT_MAX_ARCH_NUM;
+    arch_set_arch_start(session, archived_start, proc_ctx->arch_standby_node);
+    if (arch_save_ctrl(session, proc_ctx->arch_standby_node) != CT_SUCCESS) {
+        status = CT_ERROR;
+    }
+    CT_LOG_RUN_INF("[ARCH_STANDBY] clean archive file succ, current archived start %u, end %u, arch size %lld",
+                   archived_start, archived_end, proc_ctx->curr_arch_size);
+    cm_spin_unlock(&proc_ctx->record_lock);
+    return status;
+}
+
+void arch_auto_clean_standby(arch_proc_context_t *proc_ctx)
+{
+    if (proc_ctx->is_force_archive == CT_TRUE) {
+        return;
+    }
+    knl_session_t *session = proc_ctx->session;
+    uint64 max_arch_size = session->kernel->attr.max_arch_files_size;
+    uint64 hwm_arch_size = max_arch_size * session->kernel->attr.arch_upper_limit / 100;
+    if (!DB_IS_OPEN(session) || DB_IS_MAINTENANCE(session) ||
+        max_arch_size == 0 || (uint64)proc_ctx->curr_arch_size < hwm_arch_size) {
+        return;
+    }
+
+    knl_alterdb_archivelog_t def = { 0 };
+    arch_clean_attr_t clean_attr = { 0 };
+    clean_attr.hwm_size = max_arch_size * session->kernel->attr.arch_upper_limit / 100;
+    clean_attr.opt_size = max_arch_size * session->kernel->attr.arch_lower_limit / 100;
+    clean_attr.min_rcy_point = dtc_get_ctrl(session, proc_ctx->arch_standby_node)->rcy_point;
+    def.all_delete = CT_FALSE;
+    def.force_delete = CT_TRUE;
+    def.until_time = CT_INVALID_INT64;
+
+    CT_LOG_RUN_INF("[ARCH_STANDBY] clean archived file, hwm_size %llu, opt_size %llu, rcy lsn %llu",
+                    clean_attr.hwm_size, clean_attr.opt_size, clean_attr.min_rcy_point.lsn);
+    if (arch_clean_arch_files_standby(session, proc_ctx, &def, clean_attr) != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("[ARCH_STANDBY] clean archived file failed!");
+    }
+    return;
 }
 
 static inline void arch_set_file_name(char *buf, const char *arch_dest, char *file_name)
@@ -2339,10 +2664,10 @@ void arch_check_cont_archived_log_dbstor(arch_proc_context_t *proc_ctx)
 }
 
 void arch_dbstor_archive(knl_session_t *session, arch_proc_context_t *proc_ctx)
-{
-    ELAPSED_BEGIN(proc_ctx->arch_record_time.start_time);
-    arch_context_t *arch_ctx = &session->kernel->arch_ctx;
-    if (proc_ctx->is_force_archive == CT_TRUE && arch_ctx->force_archive_param.force_archive == CT_TRUE) {
+{   
+    bool32 force_archive = CT_FALSE;
+    arch_get_force_archive_param(proc_ctx, &force_archive);
+    if (proc_ctx->is_force_archive == CT_TRUE && force_archive == CT_TRUE) {
         do {
             arch_dbstor_do_archive(session, proc_ctx);
         } while (proc_ctx->redo_log_filesize > 0);
@@ -2390,8 +2715,11 @@ void arch_proc_init_dbstor(knl_session_t *session, arch_proc_context_t *proc_ctx
     ELAPSED_BEGIN(proc_ctx->arch_record_time.start_intf_time);
     ELAPSED_BEGIN(proc_ctx->check_time_interval_pitr);
 
-    arch_set_tmp_filename(proc_ctx->tmp_file_name, proc_ctx, proc_ctx->session->kernel->id);
-    CT_LOG_RUN_INF("[ARCH] set tmp arch file name: %s", proc_ctx->tmp_file_name);
+    uint32 node_id = proc_ctx->data_type == ARCH_DATA_TYPE_DBSTOR ?
+                     proc_ctx->session->kernel->id : proc_ctx->arch_standby_node;
+    arch_set_tmp_filename(proc_ctx->tmp_file_name, proc_ctx, node_id);
+    CT_LOG_RUN_INF("[ARCH] data_type %u, set tmp arch file name: %s",
+                   proc_ctx->data_type, proc_ctx->tmp_file_name);
 }
 
 void arch_proc_init_file(knl_session_t *session, arch_proc_context_t *proc_ctx, uint64 *sleep_time)
@@ -2411,20 +2739,9 @@ static void arch_proc(thread_t *thread)
 
     cm_set_thread_name("arch_proc");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
-    repl_role_t last_role = session->kernel->db.ctrl.core.db_role;
     while (!thread->closed) {
-        if (last_role != REPL_ROLE_PRIMARY && DB_IS_PRIMARY(&session->kernel->db)) {
-            last_role = REPL_ROLE_PRIMARY;
-            proc_ctx->last_archived_log_record.start_lsn = dtc_my_ctrl(session)->rcy_point.lsn;
-            proc_ctx->last_archived_log_record.end_lsn = dtc_my_ctrl(session)->rcy_point.lsn;
-            proc_ctx->last_archived_log_record.cur_lsn = dtc_my_ctrl(session)->rcy_point.lsn;
-            device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
-            (void)arch_clear_tmp_file(arch_file_type, proc_ctx->tmp_file_name);
-            CT_LOG_RUN_INF("[ARCH] swtich role to pirmary, set start_lsn %llu.",
-                proc_ctx->last_archived_log_record.start_lsn);
-        }
         if (!DB_IS_PRIMARY(&session->kernel->db) || DB_NOT_READY(session) || !proc_ctx->enabled) {
-            cm_sleep(200);
+            cm_sleep(2000);
             continue;
         }
         if (g_arch_func[proc_ctx->data_type].need_archive_func(proc_ctx, redo_ctx)) {
@@ -2436,7 +2753,8 @@ static void arch_proc(thread_t *thread)
                 arch_ctx->force_archive_param.force_archive = CT_FALSE;
                 cm_spin_unlock(&arch_ctx->dest_lock);
                 proc_ctx->is_force_archive = CT_FALSE;
-            } else if (arch_ctx->force_archive_param.force_archive == CT_TRUE && // force arch trigger but not done arch
+            // force arch trigger but not done arch
+            } else if (arch_ctx->force_archive_param.force_archive == CT_TRUE &&
                        proc_ctx->is_force_archive == CT_FALSE) {
                 continue;
             }
@@ -2446,7 +2764,7 @@ static void arch_proc(thread_t *thread)
         // Try to record the max continuous received log in standby
         g_arch_func[proc_ctx->data_type].check_cont_archived_log_func(proc_ctx);
         // Try to clean archived log file
-        arch_auto_clean(proc_ctx);
+        g_arch_func[proc_ctx->data_type].arch_auto_clean_func(proc_ctx);
         arch_print_dtc_time_interval(&proc_ctx->check_time_interval_pitr);
     }
 
@@ -2835,7 +3153,7 @@ void arch_init_arch_files_size(knl_session_t *session, uint32 dest_id)
         renew_arch_log_record_lsn(session, last_arch_log_record);
     }
     if (dest_id == 0) {
-        CT_LOG_RUN_INF("[ARCH]update last archlog record rstid[%u], endlsn[%llu], curlsn[%llu], asn[%u], archnum[%u]",
+        CT_LOG_RUN_INF("[ARCH] update last archlog record rstid[%u], endlsn[%llu], curlsn[%llu], asn[%u], archnum[%u]",
                        last_arch_log_record->rst_id, last_arch_log_record->end_lsn,
                        last_arch_log_record->cur_lsn, last_arch_log_record->asn, arch_num);
     }
@@ -2931,6 +3249,41 @@ static status_t arch_init_proc_ctx(arch_context_t *arch_ctx, knl_session_t *sess
     return CT_SUCCESS;
 }
 
+status_t arch_open_logfile_dbstor(knl_session_t *session, log_file_t *logfile, uint32 inst_id)
+{
+    database_t *db = &session->kernel->db;
+    logfile->ctrl = (log_file_ctrl_t *)db_get_log_ctrl_item(db->ctrl.pages, 0, sizeof(log_file_ctrl_t),
+                                                            db->ctrl.log_segment, inst_id);
+    logfile->head.rst_id = db->ctrl.core.resetlogs.rst_id;
+    status_t ret = cm_open_device(logfile->ctrl->name, logfile->ctrl->type,
+                                  knl_redo_io_flag(session), &logfile->handle);
+    if (ret != CT_SUCCESS || logfile->handle == -1) {
+        CT_LOG_RUN_ERR("[ARCH] failed to open %s ", logfile->ctrl->name);
+        return CT_ERROR;
+    }
+    CT_LOG_RUN_INF("[ARCH] open logfile %s finish for instance %u, handle %u",
+                   logfile->ctrl->name, inst_id, logfile->handle);
+    return CT_SUCCESS;
+}
+
+status_t arch_init_logfile(knl_session_t *session)
+{
+    if (cm_dbs_is_enable_dbs() != CT_TRUE) {
+        return CT_SUCCESS;
+    }
+
+    arch_context_t *arch_ctx = &session->kernel->arch_ctx;
+    // init for standby node recycle log 
+    for (uint32 node_id = 0; node_id < g_dtc->profile.node_count; node_id++) {
+        log_file_t *logfile = &arch_ctx->logfile[node_id];
+        logfile->handle = CT_INVALID_HANDLE;
+        if (arch_open_logfile_dbstor(session, logfile, node_id) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    }
+    return CT_SUCCESS;
+}
+
 status_t arch_init(knl_session_t *session)
 {
     arch_context_t *arch_ctx = &session->kernel->arch_ctx;
@@ -2977,6 +3330,10 @@ status_t arch_init(knl_session_t *session)
     }
 
     if (arch_init_proc_ctx(arch_ctx, session) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    if (arch_init_logfile(session) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -3086,6 +3443,9 @@ status_t arch_start(knl_session_t *session)
         return CT_SUCCESS;
     }
 
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        return CT_SUCCESS;
+    }
     for (i = 0; i < CT_MAX_ARCH_DEST; i++) {
         proc_ctx = &arch_ctx->arch_proc[i];
         proc_ctx->data_type = arch_ctx->data_type;
@@ -4611,5 +4971,285 @@ status_t arch_dbs_ctrl_rebuild_parse_arch_file(knl_session_t *session, uint32 no
         }
         (*archive_asn)++;
     }
+    return CT_SUCCESS;
+}
+
+status_t arch_handle_tmp_file(arch_proc_context_t *proc_ctx, uint32 node_id)
+{
+    knl_session_t *session = proc_ctx->session;
+    device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
+    log_file_t *logfile = &proc_ctx->logfile;
+    arch_set_tmp_filename(proc_ctx->tmp_file_name, proc_ctx, node_id);
+    CT_LOG_RUN_INF("[ARCH] handle tmp arch file %s", proc_ctx->tmp_file_name);
+    if (arch_clear_tmp_file(arch_file_type, proc_ctx->tmp_file_name) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (cm_create_device_retry_when_eexist(proc_ctx->tmp_file_name, arch_file_type,
+                                           knl_io_flag(session), &proc_ctx->tmp_file_handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[ARCH] failed to create temp archive log file %s", proc_ctx->tmp_file_name);
+        return CT_ERROR;
+    }
+
+    if (cm_dbs_is_enable_dbs() == true) {
+        if (arch_tmp_flush_head(arch_file_type, proc_ctx->tmp_file_name,
+                                proc_ctx, logfile, proc_ctx->tmp_file_handle) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    }
+    return CT_SUCCESS;
+}
+
+status_t arch_update_arch_ctrl(uint32 node_id)
+{
+    CT_LOG_RUN_INF("[ARCH] update node %u arch ctrl from device", node_id);
+    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+    database_t *db = &session->kernel->db;
+    cm_spin_lock(&db->ctrl_lock, NULL);
+    uint32 count = CTRL_MAX_BUF_SIZE / sizeof(arch_ctrl_t);
+    uint32 pages_per_inst = (CT_MAX_ARCH_NUM - 1) / count + 1;
+    ctrl_page_t *pages = &db->ctrl.pages[db->ctrl.arch_segment + pages_per_inst * node_id];
+    bool32 loaded = CT_FALSE;
+    for (int i = 0; i < db->ctrlfiles.count; i++) {
+        ctrlfile_t *ctrlfile = &db->ctrlfiles.items[i];
+        int64 offset = (db->ctrl.arch_segment + pages_per_inst * node_id) * ctrlfile->block_size;
+        if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[ARCH] failed to open ctrlfile[%d], filename[%s], instid[%u]",
+                           i, ctrlfile->name, node_id);
+            continue;
+        }
+        if (cm_read_device(ctrlfile->type, ctrlfile->handle, offset,
+                           pages, pages_per_inst * ctrlfile->block_size) != CT_SUCCESS) {
+            cm_close_device(ctrlfile->type, &ctrlfile->handle);
+            CT_LOG_RUN_ERR("[ARCH] fail to read offline node arch ctrl from ctrlfile[%d], instid[%u]", i, node_id);
+            continue;
+        }
+        CT_LOG_RUN_INF("[ARCH] succ to get offline node arch ctrl, ctrlfile[%d], instid[%u]", i, node_id);
+        loaded = CT_TRUE;
+        break;
+    }
+    if (!loaded) {
+        CT_THROW_ERROR(ERR_LOAD_CONTROL_FILE, "no usable control file");
+        cm_spin_unlock(&db->ctrl_lock);
+        return CT_ERROR;
+    }
+    cm_spin_unlock(&db->ctrl_lock);
+    return CT_SUCCESS;
+}
+
+void arch_proc_standby(thread_t *thread)
+{
+    arch_proc_context_t *proc_ctx = (arch_proc_context_t *)thread->argument;
+    knl_session_t *session = proc_ctx->session;
+    log_context_t *redo_ctx = &session->kernel->redo_ctx;
+    arch_context_t *arch_ctx = &session->kernel->arch_ctx;
+    uint64 sleep_time;
+    g_arch_func[proc_ctx->data_type].proc_init_func(session, proc_ctx, &sleep_time);
+    CT_LOG_RUN_INF("[ARCH_STANDBY] arch proc standby node %u thread run.", proc_ctx->arch_standby_node);
+    cm_set_thread_name("arch_proc_standby");
+    while (!thread->closed) {
+        if (DB_NOT_READY(session) || !proc_ctx->enabled) {
+            cm_sleep(200);
+            continue;
+        }
+        if (g_arch_func[proc_ctx->data_type].need_archive_func(proc_ctx, redo_ctx)) {
+            g_arch_func[proc_ctx->data_type].archive_func(session, proc_ctx);
+        } else {
+            if (arch_ctx->force_archive_param.force_archive == CT_TRUE &&
+                proc_ctx->is_force_archive == CT_TRUE) {
+                cm_spin_lock(&arch_ctx->dest_lock, NULL);
+                arch_ctx->force_archive_param.force_archive = CT_FALSE;
+                cm_spin_unlock(&arch_ctx->dest_lock);
+                proc_ctx->is_force_archive = CT_FALSE;
+            } else if (arch_ctx->force_archive_param.force_archive == CT_TRUE && // force arch trigger but not done arch
+                       proc_ctx->is_force_archive == CT_FALSE) {
+                continue;
+            }
+            cm_sleep(sleep_time);
+        }
+
+        g_arch_func[proc_ctx->data_type].arch_auto_clean_func(proc_ctx);
+        arch_print_dtc_time_interval(&proc_ctx->check_time_interval_pitr);
+    }
+    CT_LOG_RUN_INF("[ARCH_STANDBY] arch proc standby node %u thread exit.", proc_ctx->arch_standby_node);
+}
+
+status_t arch_init_proc_ctx_standby(arch_proc_context_t *proc_ctx, uint32 node_id)
+{
+    CT_LOG_RUN_INF("[ARCH_STANDBY] init arch proc ctx params and resource, node id %u", node_id);
+    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+    dtc_node_ctrl_t *node_ctrl = dtc_get_ctrl(session, node_id);
+    log_file_t *logfile = &proc_ctx->logfile;
+    logfile->handle = CT_INVALID_HANDLE;
+    if (arch_open_logfile_dbstor(session, logfile, node_id) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    if (strcpy_s(proc_ctx->arch_dest, CT_FILE_NAME_BUFFER_SIZE,
+                 session->kernel->arch_ctx.arch_proc[ARCH_DEFAULT_DEST - 1].arch_dest) != EOK) {
+        CT_LOG_RUN_ERR("[ARCH_STANDBY] strcpy_s arch_dest failed, node id %u", node_id);
+        return CT_ERROR;
+    }
+    proc_ctx->session = session;
+    proc_ctx->arch_id = node_id;
+    proc_ctx->last_archived_log_record.rst_id = session->kernel->db.ctrl.core.resetlogs.rst_id;
+    proc_ctx->last_archived_log_record.offset = CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size);
+    proc_ctx->write_failed = CT_FALSE;
+    proc_ctx->read_failed = CT_FALSE;
+    proc_ctx->enabled = CT_TRUE;
+    proc_ctx->tmp_file_handle = CT_INVALID_HANDLE;
+    proc_ctx->data_type = ARCH_DATA_TYPE_DBSTOR_STANDBY;
+    proc_ctx->arch_standby_node = node_id;
+    proc_ctx->force_archive_failed = CT_FALSE;
+    proc_ctx->force_archive_trigger = CT_FALSE;
+    
+    uint32 arch_num = (node_ctrl->archived_end - node_ctrl->archived_start + CT_MAX_ARCH_NUM) % CT_MAX_ARCH_NUM;
+    if (arch_num != 0) {
+        arch_ctrl_t *arch_ctrl = db_get_arch_ctrl(session, node_ctrl->archived_end - 1, node_id);
+        proc_ctx->last_archived_log_record.asn = arch_ctrl->asn + 1;
+        proc_ctx->last_archived_log_record.start_lsn = arch_ctrl->end_lsn;
+        proc_ctx->last_archived_log_record.end_lsn = arch_ctrl->end_lsn;
+        proc_ctx->last_archived_log_record.cur_lsn = arch_ctrl->end_lsn;
+        for (uint32 i = 0; i < arch_num; i++) {
+            uint32 arch_locator = (node_ctrl->archived_start + i) % CT_MAX_ARCH_NUM;
+            arch_ctrl = db_get_arch_ctrl(session, arch_locator, node_id);
+            if (arch_ctrl->recid == 0) {
+                CT_LOG_RUN_WAR("[ARCH] invalid recid %u, asn %u", arch_ctrl->recid, arch_ctrl->asn);
+                continue;
+            }
+            proc_ctx->curr_arch_size += arch_get_ctrl_real_size(arch_ctrl);
+        }
+    } else {
+        proc_ctx->last_archived_log_record.asn = 1;
+    }
+    CT_LOG_RUN_INF("[ARCH_STANDBY] cur arch num %u, next asn %u, next start lsn %llu", arch_num,
+                   proc_ctx->last_archived_log_record.asn, proc_ctx->last_archived_log_record.end_lsn);
+    return CT_SUCCESS;
+}
+
+void arch_deinit_proc_standby()
+{
+    cm_spin_lock(&g_arch_standby_ctx.arch_lock, NULL);
+    CT_LOG_RUN_INF("[ARCH_STANDBY] release all archive proc ctx resource");
+    for (uint32 idx = 0; idx < ARCH_MAX_NODE_COUNT; idx++) {
+        arch_proc_context_t *arch_proc_ctx = &g_arch_standby_ctx.arch_proc_ctx[idx];
+        if (arch_proc_ctx->enabled != CT_TRUE) {
+            continue;
+        }
+        CT_LOG_RUN_INF("[ARCH_STANDBY] release proc ctx resource for node %u", idx);
+        arch_proc_ctx->enabled = CT_FALSE;
+        cm_close_thread(&arch_proc_ctx->read_thread);
+        cm_close_thread(&arch_proc_ctx->write_thread);
+
+        arch_release_rw_buf(&arch_proc_ctx->arch_rw_buf, "ARCH_STANDBY");
+
+        if (arch_proc_ctx->tmp_file_name[0] != '\0' && arch_proc_ctx->tmp_file_handle != CT_INVALID_HANDLE) {
+            cm_close_device(cm_device_type(arch_proc_ctx->tmp_file_name), &arch_proc_ctx->tmp_file_handle);
+        }
+        if (arch_proc_ctx->logfile.ctrl != NULL && arch_proc_ctx->logfile.handle != CT_INVALID_HANDLE) {
+            cm_close_device(arch_proc_ctx->logfile.ctrl->type, &arch_proc_ctx->logfile.handle);
+        }
+        (void)memset_sp(arch_proc_ctx, sizeof(arch_proc_context_t), 0, sizeof(arch_proc_context_t));
+    }
+    g_arch_standby_ctx.enabled = CT_FALSE;
+    cm_spin_unlock(&g_arch_standby_ctx.arch_lock);
+    CT_LOG_RUN_INF("[ARCH_STANDBY] finish to release all archive proc ctx resource");
+    return;
+}
+
+status_t arch_init_proc_standby_node(arch_proc_context_t *proc_ctx, uint32 node_id)
+{
+    if (arch_update_arch_ctrl(node_id) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (arch_init_proc_ctx_standby(proc_ctx, node_id) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    uint32 buffer_size = proc_ctx->session->kernel->attr.lgwr_buf_size;
+    if (arch_init_rw_buf(&proc_ctx->arch_rw_buf, buffer_size * DBSTOR_ARCH_RW_BUF_NUM, "ARCH_STANDBY")
+        != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    proc_ctx->enabled = CT_TRUE;
+    if (arch_handle_tmp_file(proc_ctx, node_id) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (cm_create_thread(arch_proc_standby, 0, proc_ctx, &proc_ctx->read_thread) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (cm_create_thread(arch_write_proc_all, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t arch_init_proc_standby()
+{
+    knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+    bool32 is_archive = session->kernel->arch_ctx.is_archive;
+    CT_LOG_RUN_INF("[ARCH_STANDBY] is primary %d, is dbstor %d, is master %d, is changed %d, is archive %d", 
+        knl_db_is_primary(session), cm_dbs_is_enable_dbs(), rc_is_master(),
+        g_rc_ctx->info.master_changed, is_archive);
+    if (knl_db_is_primary(session) || !cm_dbs_is_enable_dbs() || !is_archive) {
+        CT_LOG_RUN_INF("[ARCH_STANDBY] db is primary or not dbstor, no need to init arch proc for other nodes");
+        return CT_SUCCESS;
+    }
+    if (!rc_is_master() || (rc_is_master() && !g_rc_ctx->info.master_changed)) {
+        CT_LOG_RUN_INF("[ARCH_STANDBY] not master changed, no need to init arch proc for other nodes");
+        return CT_SUCCESS;
+    }
+
+    cm_spin_lock(&g_arch_standby_ctx.arch_lock, NULL);
+    knl_panic_log(g_arch_standby_ctx.enabled == CT_FALSE, "standby arch proc ctx is already inited");
+    CT_LOG_RUN_INF("[ARCH_STANDBY] start to init arch proc for all nodes");
+    for (uint32 i = 0; i < g_dtc->profile.node_count; i++) {
+        CT_LOG_RUN_INF("[ARCH_STANDBY] start to init arch proc for node %u", i);
+        if (arch_init_proc_standby_node(&g_arch_standby_ctx.arch_proc_ctx[i], i) != CT_SUCCESS) {
+            cm_spin_unlock(&g_arch_standby_ctx.arch_lock);
+            CT_LOG_RUN_INF("[ARCH_STANDBY] failed to init arch proc for node %u", i);
+            return CT_ERROR;
+        }
+    }
+    g_arch_standby_ctx.enabled = CT_TRUE;
+    cm_spin_unlock(&g_arch_standby_ctx.arch_lock);
+    return CT_SUCCESS;
+}
+
+status_t arch_start_proc_primary(knl_session_t *session)
+{
+    arch_context_t *arch_ctx = &session->kernel->arch_ctx;
+    arch_proc_context_t *proc_ctx = NULL;
+    database_ctrl_t *ctrl = &session->kernel->db.ctrl;
+    uint32 node_id = session->kernel->id;
+    arch_ctx->is_archive = (ctrl->core.log_mode == ARCHIVE_LOG_ON);
+    if (!arch_ctx->is_archive) {
+        CT_LOG_RUN_INF("[ARCH] log archive function is disabled");
+        return CT_SUCCESS;
+    }
+    
+    proc_ctx = &arch_ctx->arch_proc[ARCH_DEFAULT_DEST - 1];
+    proc_ctx->data_type = ARCH_DATA_TYPE_DBSTOR;
+    if (arch_update_arch_ctrl(node_id) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    arch_init_arch_files_size(session, proc_ctx->arch_id - 1);
+    arch_set_tmp_filename(proc_ctx->tmp_file_name, proc_ctx, node_id);
+    device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
+    if (arch_clear_tmp_file(arch_file_type, proc_ctx->tmp_file_name) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    CT_LOG_RUN_INF("[ARCH] node %u swtich role to pirmary, init arch proc.", node_id);
+    if (proc_ctx != NULL && proc_ctx->arch_dest[0] != '\0' && proc_ctx->enabled) {
+        if (arch_init_proc_resource(session, proc_ctx) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+        if (arch_create_proc(proc_ctx) != CT_SUCCESS) {
+            arch_release_proc_resource(proc_ctx);
+            return CT_ERROR;
+        }
+        CT_LOG_RUN_INF("[ARCH] Start ARCH thread for ARCHIVE_DEST_%d[%s]", proc_ctx->arch_id, proc_ctx->arch_dest);
+    }
+
     return CT_SUCCESS;
 }

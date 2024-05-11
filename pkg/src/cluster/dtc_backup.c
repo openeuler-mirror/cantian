@@ -1286,6 +1286,10 @@ status_t dtc_bak_force_arch_local_file(knl_session_t *session)
 
 status_t dtc_bak_force_arch_local(knl_session_t *session, uint64 lsn)
 {
+    if (!DB_IS_PRIMARY(&session->kernel->db) && !rc_is_master()) {
+        CT_LOG_RUN_INF("[BACKUP] standby but not master node %u, skip archive", session->kernel->id);
+        return CT_SUCCESS;         
+    }
     if (arch_force_archive_trigger(session, lsn, CT_TRUE) != CT_SUCCESS) {
         CT_THROW_ERROR(ERR_FORCE_ARCH_FAILED, "in backup");
         CT_LOG_RUN_ERR("[BACKUP] failed to switch archfile");
@@ -1361,7 +1365,9 @@ status_t dtc_bak_handle_cluster_arch(knl_session_t *session)
 status_t dtc_bak_handle_log_switch(knl_session_t *session)
 {
     status_t status;
+    cluster_view_t view;
     for (uint32 i = 0; i < g_dtc->profile.node_count; i++) {
+        rc_get_cluster_view(&view, CT_FALSE);
         if (i == g_dtc->profile.inst_id) {
             if (cm_dbs_is_enable_dbs() == CT_TRUE) {
                 status = dtc_bak_force_arch_local(session, CT_INVALID_ID64);
@@ -1373,6 +1379,10 @@ status_t dtc_bak_handle_log_switch(knl_session_t *session)
                 return status;
             }
         } else {
+            if (!rc_bitmap64_exist(&view.bitmap, i)) {
+                CT_LOG_RUN_WAR("[ARCH] offline node logs cannot be force archived.");
+                continue;
+            }
             if (cm_dbs_is_enable_dbs() == CT_TRUE) {
                 status = dtc_bak_force_arch_by_instid(session, CT_INVALID_ID64, i);
             } else {
@@ -1612,7 +1622,7 @@ status_t dtc_rst_arch_record_archinfo(knl_session_t *session, uint32 dest_pos, c
 
     id = archived_end;
     arch_ctrl = db_get_arch_ctrl(session, id, inst_id);
-    arch_ctrl_record_info_t arch_ctrl_record_info = {0, dest_id, 0, recid, arch_ctrl, file_name, log_head};
+    arch_ctrl_record_info_t arch_ctrl_record_info = {0, dest_id, 0, recid, arch_ctrl, file_name, log_head, NULL};
     arch_init_arch_ctrl(session, &arch_ctrl_record_info);
 
     if (arch_ctx->inst_id == inst_id) {
@@ -2732,22 +2742,6 @@ status_t bak_get_arch_info(knl_session_t *session, log_start_end_info_t arch_inf
     return CT_SUCCESS;
 }
 
-status_t bak_open_logfile_dbstor(knl_session_t *session, log_file_t *logfile, uint32 inst_id)
-{
-    database_t *db = &session->kernel->db;
-    logfile->ctrl = (log_file_ctrl_t *)db_get_log_ctrl_item(db->ctrl.pages, 0, sizeof(log_file_ctrl_t),
-                                                            db->ctrl.log_segment, inst_id);
-    logfile->head.rst_id = db->ctrl.core.resetlogs.rst_id;
-    status_t ret = cm_open_device(logfile->ctrl->name, logfile->ctrl->type,
-                                  knl_redo_io_flag(session), &logfile->handle);
-    if (ret != CT_SUCCESS || logfile->handle == -1) {
-        CT_LOG_RUN_ERR("[BACKUP] failed to open %s ", logfile->ctrl->name);
-        return CT_ERROR;
-    }
-    CT_LOG_RUN_INF("[BACKUP] open logfile finish for instance %u, handle %u", inst_id, logfile->handle);
-    return CT_SUCCESS;
-}
-
 status_t bak_flush_archfile_head(knl_session_t *session, arch_file_info_t *file_info)
 {
     int32 head_size = CM_CALC_ALIGN(sizeof(log_file_head_t), file_info->logfile.ctrl->block_size);
@@ -2785,7 +2779,7 @@ status_t bak_flush_archfile_head(knl_session_t *session, arch_file_info_t *file_
 status_t bak_prepare_read_logfile_dbstor(knl_session_t *session, log_file_t *logfile, uint64 start_lsn, uint32 inst_id,
                                          uint32 *redo_log_filesize)
 {
-    if (bak_open_logfile_dbstor(session, logfile, inst_id) != CT_SUCCESS) {
+    if (arch_open_logfile_dbstor(session, logfile, inst_id) != CT_SUCCESS) {
         return CT_ERROR;
     }
     status_t status = cm_device_get_used_cap(logfile->ctrl->type, logfile->handle, start_lsn, redo_log_filesize);

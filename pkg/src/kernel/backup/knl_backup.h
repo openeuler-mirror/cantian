@@ -124,6 +124,8 @@ status_t bak_deal_datafile_pages_read(knl_session_t *session, bak_process_t *bak
 status_t bak_write_to_write_buf(bak_context_t *ctx, const void *buf, int32 size);
 void bak_free_reform_veiw_buffer(bak_t *bak);
 status_t bak_read_end_check(knl_session_t *session, bak_process_t *bak_proc);
+status_t bak_set_increment_unblock(knl_session_t *session);
+status_t bak_check_increment_unblock(knl_session_t *session, bool32 *unblock);
 
 #ifdef __cplusplus
 }

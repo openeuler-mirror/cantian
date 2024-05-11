@@ -1118,6 +1118,10 @@ const char *g_error_desc[] = {
 
     // REBUILD
     [ERR_REBUILD_WITH_STORAGE] = "The current storage does not support restoring control files.",
+
+    // BACKUP AND RESTORE
+    [ERR_BACKUP_IN_STANDBY] = "The backup function is not supported by the standby node.",
+    [ERR_BACKUP_INCREMENT_BLOCK] = "Incremental backup cannot be performed without full backup.",
     /*
      * NOTICE: the error code defined should be smaller than ERR_ERRNO_CEIL.
      */

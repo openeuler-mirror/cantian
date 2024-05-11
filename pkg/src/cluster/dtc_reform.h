@@ -76,9 +76,7 @@ status_t rc_start_lrpl_proc(knl_session_t *session);
 status_t rc_notify_reform_status(knl_session_t *session, reform_info_t *rc_info, uint32 status);
 
 // force arch redo log for offline node
-status_t rc_arch_handle_tmp_file(arch_proc_context_t *proc_ctx, uint32 node_id);
 status_t rc_arch_init_proc_ctx(arch_proc_context_t *proc_ctx, uint32 node_id);
-status_t rc_arch_update_node_ctrl(uint32 node_id);
 status_t rc_archive_log_offline_node(arch_proc_context_t *proc_ctx, uint32 node_id);
 bool32 rc_need_archive_log(void);
 status_t rc_archive_log(arch_proc_context_t *arch_proc_ctx);
