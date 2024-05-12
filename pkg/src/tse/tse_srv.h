@@ -118,12 +118,30 @@ typedef struct {
     int32_t sql_type;
     int32_t mdl_namespace;
 } tse_lock_table_info;
-
 #pragma pack(4)
 typedef struct my_st_text {
     char str[64];
     uint32_t len;
 } my_text_t;
+#pragma pack()
+typedef uint16_t my_c4typ_t;
+typedef uint32_t my_cc4typ_t;
+#define MY_DEC4_CELL_SIZE (uint8_t)18
+typedef my_c4typ_t my_cell4_t[MY_DEC4_CELL_SIZE];
+#pragma pack(2)
+typedef struct my_st_dec4 {
+  union {
+    struct {
+      uint8_t sign : 1;   /* 0: for positive integer; 1: for negative integer */
+      uint8_t ncells : 7; /* number of cells, 0: for unspecified precision */
+      int8_t expn;        /* the exponent of the number */
+    };
+    my_c4typ_t head;
+  };
+  my_cell4_t cells;
+  my_text_t num_text;  // only for bind param
+} my_dec4_t;
+#pragma pack()
 typedef struct cache_st_variant {
     union {
         int v_int;
@@ -134,6 +152,7 @@ typedef struct cache_st_variant {
         double v_real;
         date_t v_date;
         my_text_t v_text;
+        my_dec4_t v_dec;
     };
 } cache_variant_t;
 
