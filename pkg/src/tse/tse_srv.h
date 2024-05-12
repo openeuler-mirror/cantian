@@ -120,6 +120,10 @@ typedef struct {
 } tse_lock_table_info;
 
 #pragma pack(4)
+typedef struct my_st_text {
+    char str[64];
+    uint32_t len;
+} my_text_t;
 typedef struct cache_st_variant {
     union {
         int v_int;
@@ -129,6 +133,7 @@ typedef struct cache_st_variant {
         unsigned long long v_ubigint;
         double v_real;
         date_t v_date;
+        my_text_t v_text;
     };
 } cache_variant_t;
 
