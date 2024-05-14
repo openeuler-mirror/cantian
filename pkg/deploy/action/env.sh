@@ -20,4 +20,5 @@ PRE_UPGRADE_ORDER=("ct_om" "cantian_exporter" "dbstor" "cms" "cantian" "mysql" "
 UPGRADE_ORDER=("ct_om" "cantian_exporter" "dbstor" "cms" "cantian" "mysql" "logicrep")
 POST_UPGRADE_ORDER=("ct_om" "cantian_exporter" "dbstor" "cms" "cantian" "mysql")
 ROLLBACK_ORDER=("dbstor" "cms" "cantian" "mysql" "ct_om" "cantian_exporter" "logicrep")
+INIT_CONTAINER_ORDER=("dbstor" "cms" "cantian" "logicrep")
 DIR_LIST=(/opt/cantian/cms  /opt/cantian/cantian /opt/cantian/dbstor /opt/cantian/mysql ${CURRENT_FILE_PATH}/inspection/inspection_scripts/kernal ${CURRENT_FILE_PATH}/inspection/inspection_scripts/cms ${CURRENT_FILE_PATH}/inspection/inspection_scripts/ct_om)

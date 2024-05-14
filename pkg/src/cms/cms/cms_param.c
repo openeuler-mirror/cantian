@@ -546,9 +546,9 @@ status_t cms_load_param(int64* time_stamp)
     ret = strncpy_sp(g_param.gcc_dir, CMS_FILE_NAME_BUFFER_SIZE, value, CMS_MAX_FILE_NAME_LEN);
     MEMS_RETURN_IFERR(ret);
 
-    value = cm_get_config_value(&cfg, "CLUSTER_NAME");
+    value = cm_get_config_value(&cfg, "_DBSTOR_NAMESPACE");
     if (value == NULL) {
-        CT_THROW_ERROR(ERR_CTSTORE_INVALID_PARAM, "invalid parameter value of 'CLUSTER_NAME'");
+        CT_THROW_ERROR(ERR_CTSTORE_INVALID_PARAM, "invalid parameter value of '_DBSTOR_NAMESPACE'");
         return CT_ERROR;
     }
     ret = strncpy_sp(g_param.cluster_name, CMS_FILE_NAME_BUFFER_SIZE, value, CMS_MAX_FILE_NAME_LEN);

@@ -42,6 +42,7 @@ RESTORE_NAME="restore.sh"
 STATUS_NAME="check_status.sh"
 UPGRADE_NAME="upgrade.sh"
 ROLLBACK_NAME="rollback.sh"
+INIT_CONTAINER_NAME="init_container.sh"
 source ${CURRENT_PATH}/cantiand_cgroup_calculate.sh
 LOG_FILE="/opt/cantian/cantian/log/cantian_deploy.log"
 
@@ -56,7 +57,7 @@ cantian_user="${cantian_user}":"${cantian_group}"
 function usage()
 {
     echo "Usage: ${0##*/} {start|stop|install|uninstall|pre_install|
-                          pre_upgrade|check_status|upgrade|post_upgrade|rollback|upgrade_backup}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+                          pre_upgrade|check_status|upgrade|post_upgrade|rollback|upgrade_backup|init_container}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     exit 1
 }
 
@@ -697,6 +698,10 @@ function main_deploy() {
             copy_cantian_scripts
             create_mysql_dir
             do_deploy ${INSTALL_NAME} ${INSTALL_TYPE}
+            exit $?
+            ;;
+        init_container)
+            do_deploy ${INIT_CONTAINER_NAME}
             exit $?
             ;;
         uninstall)

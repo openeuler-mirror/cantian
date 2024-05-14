@@ -44,6 +44,7 @@ RESTORE_NAME="restore.sh"
 STATUS_NAME="check_status.sh"
 UPGRADE_NAME="upgrade.sh"
 ROLLBACK_NAME="rollback.sh"
+INIT_CONTAINER_NAME="init_container.sh"
 
 #cgroup预留cms内存隔离值，单位G
 DEFAULT_MEM_SIZE=10
@@ -52,6 +53,7 @@ cantian_home=/opt/cantian/cantian
 cms_scripts=/opt/cantian/action/cms
 cms_tmp_file="${cms_home}/cms_server.lck ${cms_home}/local ${cms_home}/gcc_backup ${cms_home}/cantian.ctd.cms*"
 shm_home=/dev/shm
+cantian_in_container=`python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container"`
 
 LOG_FILE="${cms_home}/log/cms_deploy.log"
 
@@ -60,7 +62,7 @@ cantian_user_and_group=${cantian_user}:${cantian_group}
 function usage()
 {
     echo "Usage: ${0##*/} {start|stop|install|uninstall|pre_install|
-                          pre_upgrade|check_status|upgrade|post_upgrade|rollback|upgrade_backup}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+                          pre_upgrade|check_status|upgrade|post_upgrade|rollback|upgrade_backup|init_container}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     exit 1
 }
 
@@ -695,7 +697,7 @@ function main_deploy()
             exit $?
             ;;
         install)
-            if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+            if [[ "${cantian_in_container}" == "0" && "${deploy_mode}" != "dbstore_unify" ]]; then
                 chown ${cantian_user_and_group} /mnt/dbdata/remote/share_${storage_share_fs}
             fi
             copy_cms_scripts
@@ -711,6 +713,10 @@ function main_deploy()
         uninstall)
             do_deploy ${UNINSTALL_NAME} ${UNINSTALL_TYPE} ${FORCE_UNINSTALL}
             cgroup_clean
+            exit $?
+            ;;
+        init_container)
+            do_deploy ${INIT_CONTAINER_NAME}
             exit $?
             ;;
         check_status)

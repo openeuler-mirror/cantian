@@ -122,7 +122,7 @@ class Options(object):
         self.in_container = False
 
         # flag of if cantian and mysql are in the same container
-        self.cantian_in_container = False
+        self.cantian_in_container = "0"
 
         # flag of if need to check package is mattched with current os version
         self.ignore_pkg_check = False
@@ -143,7 +143,7 @@ def check_directories():
     global MYSQL_BIN_DIR
     global CONFIG_FILE
     global MYSQL_LOG_FILE
-    if os.path.exists("/.dockerenv") and (not g_opts.cantian_in_container):
+    if os.path.exists("/.dockerenv") and (g_opts.cantian_in_container != "1"):
         MYSQL_CODE_DIR = os.path.join(PKG_DIR, "cantian-connector-mysql/mysql-source")
         is_mysql_metadata_in_cantian = (DefaultConfigValue.CANTIAND_CONFIG["MYSQL_METADATA_IN_CANTIAN"] == "TRUE")
         MYSQL_VERSION = VERSION_DOCKER_META if is_mysql_metadata_in_cantian else VERSION_DOCKER_NOMETA
@@ -569,9 +569,9 @@ def parse_parameter():
             with open(CONFIG_FILE, "r") as conf:
                 _tmp = conf.read()
                 info = json.loads(_tmp)
-            is_cantian_in_container = info.get("cantian_in_container")
-            if is_cantian_in_container:
-                g_opts.cantian_in_container = True
+            cantian_in_container = info.get("cantian_in_container")
+            if cantian_in_container:
+                g_opts.cantian_in_container = cantian_in_container
         g_opts.opts = opts
     except getopt.GetoptError as err:
         print("Parameter input error: " + err.msg)
@@ -665,7 +665,7 @@ def check_parameter():
         print("Invalid node id: " + g_opts.node_id + ", this node id can only run in cluster mode")
         sys.exit(1)
     # Check docker option
-    if (g_opts.in_container ^ os.path.exists("/.dockerenv")) and (not g_opts.cantian_in_container):
+    if (g_opts.in_container ^ os.path.exists("/.dockerenv")) and (g_opts.cantian_in_container != "1"):
         print("Wrong docker container env option of -d")
         sys.exit(1)
 
@@ -4009,7 +4009,7 @@ class Installer:
     def prepare_mysql_data_dir(self):
         log("Preparing mysql data dir...", True)
         self.clean_dir(MYSQL_DATA_DIR)
-        if os.path.exists("/.dockerenv") and (not g_opts.cantian_in_container):
+        if os.path.exists("/.dockerenv") and (g_opts.cantian_in_container != "1"):
             self.prepareGivenPath(MYSQL_DATA_DIR, True)
         else:
             self.checkMysqlDir(MYSQL_DATA_DIR)
@@ -4106,7 +4106,7 @@ class Installer:
                                        g_opts.mysql_config_file_path,
                                        MYSQL_DATA_DIR,
                                        MYSQL_LOG_FILE)
-        if os.path.exists("/.dockerenv") and (not g_opts.cantian_in_container):
+        if os.path.exists("/.dockerenv") and (g_opts.cantian_in_container != "1"):
             cmd_start_mysqld = """LD_PRELOAD=%s %s --defaults-file=%s --datadir=%s --user=root --skip-innodb \
             --early-plugin-load="ha_ctc.so" --core-file >> %s 2>&1 &
             """ % (je_path, os.path.join(MYSQL_BIN_DIR, "bin/mysqld"), g_opts.mysql_config_file_path, MYSQL_DATA_DIR,
@@ -4220,7 +4220,7 @@ class Installer:
             # execute customized sql file, check -f parameter
             self.checkCreatecantiandefsFile()
             return self.create_cantian_defs_file
-        if os.path.exists("/.dockerenv") and (not g_opts.cantian_in_container):
+        if os.path.exists("/.dockerenv") and (g_opts.cantian_in_container != "1"):
             sql_file_path = "/home/regress/CantianKernel/pkg/admin/scripts"
         else:
             sql_file_path = "/opt/cantian/mysql/scripts/"

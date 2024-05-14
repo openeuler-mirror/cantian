@@ -33,6 +33,7 @@ try:
     LOG_FILE = "/opt/cantian/dbstor/log/install.log"
     JS_CONF_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../config/deploy_param.json")
     DBSTOR_CONF_FILE = "/mnt/dbdata/remote/share_"
+    CONTAINER_DBSTOR_CONF_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../config/container")
     DOCKER_DBSTOR_CONF_FILE = "/home/regress/cantian_data"
     BACKUP_CONF_FILE = "/opt/cantian/backup/files"
     SECTION = 'CLIENT'
@@ -249,26 +250,6 @@ def check_user(user, group):
         raise ValueError(message)
 
 
-def dbstor_check_share_logic_ip_isvalid(node_ip):
-    """
-    function: Check the nfs logic ip is valid
-    input : ip
-    output: NA
-    """
-    def ping_execute(p_cmd):
-        cmd = "%s %s -i 1 -c 3 | grep ttl | wc -l" % (p_cmd, node_ip)
-        ret_code, stdout, _ = _exec_popen(cmd)
-        if ret_code or stdout != '3':
-            return False
-        return True
-
-    console_and_log("check nfs logic ip or domain name : %s" % node_ip)
-    if not ping_execute("ping") and not ping_execute("ping6"):
-        log_exit("checked the node IP address or domain name failed: %s" % node_ip)
-
-    console_and_log("checked the node IP address or domain name success: %s" % node_ip)
-
-
 class DBStor:
     """ This is DBStor installer. """
 
@@ -301,6 +282,7 @@ class DBStor:
         self.share_logic_ip = ""
         self.cluster_name = ""
         self.cluster_id = ""
+        self.cantian_in_container = ""
         self.dbstore_fs_vstore_id = "0"
         self.dbstor_page_fs_vstore_id = "0"
 
@@ -352,6 +334,10 @@ class DBStor:
             if json_data.get('link_type', "").strip() != '0':
                 self.dbstor_config['LINK_TYPE'] = '1'
             self.dbstor_config['CLUSTER_ID'] = json_data.get('cluster_id', "").strip()
+            if self.cantian_in_container == "0":
+                self.dbstor_config['IS_CONTAINER'] = "0"
+            else:
+                self.dbstor_config['IS_CONTAINER'] = "1"
             self.cluster_name = json_data.get('cluster_name', '')
 
     def check_dbstor_para(self):
@@ -380,7 +366,7 @@ class DBStor:
             message = "The cluster_id parameter is not entered"
             console_and_log(message)
             raise ValueError(message)
-        else:
+        elif self.cantian_in_container == "0":
             remote_ip_list = self.dbstor_config.get('REMOTE_IP', "").strip().split(';')
             link_cnt = 0
             global DBSTOR_WARN_TYPE
@@ -534,10 +520,10 @@ class DBStor:
         for _ in range(3):
             console_and_log("Please enter %s of %s: " % (input_prompt, file_prompt))
             try:
-                if input_prompt == "UserName":
+                if input_prompt == "UserName" and self.cantian_in_container == "0":
                     new_param = input("UserName: ")
                     self.verify_dbstor_usernm(input_prompt, new_param, shortest_len, longest_len)
-                else:
+                elif self.cantian_in_container == "0":
                     new_param = input("PassWord: ")
                     self.verify_dbstor_passwd(input_prompt, new_param, shortest_len, longest_len)
                 break
@@ -557,14 +543,13 @@ class DBStor:
         input : should generate encrypt passwd
         output: NA
         """
-        dbstor_check_share_logic_ip_isvalid(self.share_logic_ip)
         self.check_ini()
         # Generate new kernel parameters
         conf = ReadConfigParserNoCast()
         # rewrite parameters
         conf.add_section(SECTION)
         # 对密码进行加密
-        if encrypt_passwd:
+        if encrypt_passwd and self.cantian_in_container == "0":
             self.dbstor_config['PASSWORD'] = GLOBAL_KMC_EXT.encrypt(self.dbstor_config.get('PASSWORD', ""))
         for key in self.dbstor_config:
             conf.set(SECTION, key, self.dbstor_config[key])
@@ -645,13 +630,12 @@ class DBStor:
             self.backup = json_data.get('install_type', "override").strip()
             self.note_id = json_data.get('node_id', "").strip()
             self.cluster_id = json_data.get('cluster_id', "").strip()
-            self.share_logic_ip = json_data.get('share_logic_ip', "").strip()
+            self.cantian_in_container = json_data.get('cantian_in_container', "0").strip()
             self.dbstore_fs_vstore_id = json_data.get('dbstore_fs_vstore_id', "0").strip()
             self.conf_file_path = "/opt/cantian/dbstor/tools"
             self.backup_conf_file = os.path.join(BACKUP_CONF_FILE, "dbstor_config.ini")
             self.cluster_name = json_data.get("cluster_name", '')
 
-        dbstor_check_share_logic_ip_isvalid(self.share_logic_ip)
         self.check_ini_path()
         self.dbstor_conf_file = os.path.join(self.conf_file_path, "dbstor_config.ini")
         if self.backup == "reserve":

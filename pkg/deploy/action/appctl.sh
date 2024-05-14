@@ -51,6 +51,7 @@ UPGRADE_COMMIT_NAME="upgrade_commit.sh"
 ROLLBACK_NAME="rollback.sh"
 PRE_UPGRADE="pre_upgrade.sh"
 CHECK_POINT="check_point.sh"
+INIT_CONTAINER_NAME="init_container.sh"
 lock_file=""
 
 function clear_history_flag() {
@@ -88,7 +89,8 @@ function usage()
     logAndEchoInfo "Usage: ${0##*/} {
     start|stop|install|uninstall|pre_install|pre_upgrade|
     check_status|upgrade|backup|restore|upgrade_commit|check_point|
-    rollback|clear_upgrade_backup|certificate|update_pwd|dr_operate}.
+    rollback|clear_upgrade_backup|certificate|update_pwd|dr_operate|
+    config_opt|init_container}.
     [Line:${LINENO}, File:${SCRIPT_NAME}]"
     exit 1
 }
@@ -394,6 +396,11 @@ case "$ACTION" in
     restore)
         lock_file=${RESTORE_NAME}
         do_deploy ${RESTORE_NAME}
+        exit $?
+        ;;
+    init_container)
+        lock_file=${INIT_CONTAINER_NAME}
+        do_deploy ${INIT_CONTAINER_NAME}
         exit $?
         ;;
     pre_upgrade)
