@@ -2323,7 +2323,7 @@ status_t dtc_rcy_fetch_log_batch(knl_session_t *session, log_batch_t **batch_out
     }
 
     if (batch_loaded) {
-        rcy_node = &dtc_rcy->rcy_nodes[curr_node];
+        rcy_node = &dtc_rcy->rcy_nodes[*curr_node_idx];
         *batch_out = dtc_rcy_get_curr_batch(dtc_rcy, *curr_node_idx, rcy_node->read_buf_read_index);
         dtc_print_batch(*batch_out, curr_node);
         dtc_rcy->curr_node_idx = *curr_node_idx;
