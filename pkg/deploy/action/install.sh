@@ -259,7 +259,7 @@ function rpm_check(){
 }
 
 function copy_certificate() {
-    if [[ "${deploy_type}" == "container" ]]; then
+    if [[ "${cantian_in_container}" != "0" ]]; then
         return 0
     fi
 
@@ -591,6 +591,10 @@ function mount_fs() {
 # 容器内无需ntp服务检查、参数预检查
 if [ ! -f /.dockerenv ]; then
     check_ntp_active
+fi
+
+cantian_in_container=`cat ${CURRENT_PATH}/config_params.json | grep -oP '(?<="cantian_in_container": ")[^"]*'`
+if [[ "${cantian_in_container}" != "1" && "${cantian_in_container}" != "2" ]]; then
     python3 ${PRE_INSTALL_PY_PATH} ${INSTALL_TYPE} ${CONFIG_FILE}
     if [ $? -ne 0 ]; then
         logAndEchoError "over all pre_install failed. For details, see the /opt/cantian/ct_om/log/om_deploy.log"
@@ -839,6 +843,9 @@ cp -fp ${CURRENT_PATH}/../config/cantian.service /etc/systemd/system/
 cp -fp ${CURRENT_PATH}/../config/cantian.timer /etc/systemd/system/
 cp -fp ${CURRENT_PATH}/../config/cantian_logs_handler.service /etc/systemd/system/
 cp -fp ${CURRENT_PATH}/../config/cantian_logs_handler.timer /etc/systemd/system/
+if [[ "${cantian_in_container}" != "0" ]]; then
+    cp -fp ${CURRENT_PATH}/../config/cantian_initer.service /etc/systemd/system/
+fi
 
 cp -fp ${CURRENT_PATH}/* /opt/cantian/action > /dev/null 2>&1
 cp -rfp ${CURRENT_PATH}/inspection /opt/cantian/action

@@ -184,7 +184,7 @@ class Logicrep:
         info = json.loads(file_reader(CANTIAN_CONFIG))
         self.cmsip = info.get("cms_ip").split(";")
         self.node_id = info.get("node_id")
-        if mode == "install":
+        if mode == "install" or mode == "init_container":
             self.storage_archive_fs = info.get("storage_archive_fs")
             self.deploy_mode = info.get("deploy_mode")
             ctsql_file = glob.glob(CTSQL_INI_PATH)[0]
@@ -335,6 +335,12 @@ class Logicrep:
             self.write_key()
         LOG.info("install logicrep success")
 
+    def init_container(self):
+        LOG.info("begin init container logicrep")
+        self.set_cantian_conf(mode="init_container")
+        self.write_key()
+        LOG.info("container init logicrep success")
+
     def start(self):
         LOG.info("begin create logicrep user")
         self.set_cantian_conf()
@@ -388,7 +394,7 @@ class Logicrep:
 def main():
     ctl_parse = argparse.ArgumentParser()
     ctl_parse.add_argument("--act", type=str,
-                           choices=["install", "start", "startup", "stop", "shutdown", "pre_upgrade",
+                           choices=["install", "init_container", "start", "startup", "stop", "shutdown", "pre_upgrade",
                                     "set_resource_limit"])
     ctl_parse.add_argument("--mode", required=False, dest="mode")
     arg = ctl_parse.parse_args()
@@ -397,6 +403,7 @@ def main():
     logicrep = Logicrep(mode)
     func_dict = {
         "install": logicrep.install,
+        "init_container": logicrep.init_container,
         "start": logicrep.start,
         "startup": logicrep.startup,
         "stop": logicrep.stop,

@@ -44,6 +44,7 @@ RESTORE_NAME="restore.sh"
 STATUS_NAME="check_status.sh"
 UPGRADE_NAME="upgrade.sh"
 ROLLBACK_NAME="rollback.sh"
+INIT_CONTAINER_NAME="init_container.sh"
 
 #cgroup预留cms内存隔离值，单位G
 DEFAULT_MEM_SIZE=10
@@ -61,7 +62,7 @@ cantian_user_and_group=${cantian_user}:${cantian_group}
 function usage()
 {
     echo "Usage: ${0##*/} {start|stop|install|uninstall|pre_install|
-                          pre_upgrade|check_status|upgrade|post_upgrade|rollback|upgrade_backup}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+                          pre_upgrade|check_status|upgrade|post_upgrade|rollback|upgrade_backup|init_container}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     exit 1
 }
 
@@ -712,6 +713,10 @@ function main_deploy()
         uninstall)
             do_deploy ${UNINSTALL_NAME} ${UNINSTALL_TYPE} ${FORCE_UNINSTALL}
             cgroup_clean
+            exit $?
+            ;;
+        init_container)
+            do_deploy ${INIT_CONTAINER_NAME}
             exit $?
             ;;
         check_status)

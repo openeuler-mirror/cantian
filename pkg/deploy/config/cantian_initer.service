@@ -1,0 +1,10 @@
+[Unit]
+Description=cantian_initer_test
+
+[Service]
+Type=simple
+ExecStart=sh /ctdb/cantian_install/cantian_connector/action/docker/cantian_initer.sh
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

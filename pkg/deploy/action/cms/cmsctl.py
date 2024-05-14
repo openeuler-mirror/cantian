@@ -589,7 +589,6 @@ class CmsCtl(object):
         config["GCC_HOME"] = self.gcc_home  # generate by installer
         config["GCC_DIR"] = self.gcc_dir
         config["FS_NAME"] = self.storage_share_fs
-        config["CLUSTER_NAME"] = self.cluster_name
         config["GCC_TYPE"] = self.gcc_type
         config["_CMS_GCC_BAK"] = self.cms_gcc_bak
         config["_USE_DBSTOR"] = self.use_dbstor
@@ -1336,6 +1335,28 @@ class CmsCtl(object):
 
         log("======================== upgrade cms dbstor config successfully ========================")
 
+    def init_container(self):
+        """
+        cms init in container
+        """
+        log("======================== begin to init cms process =======================")
+        if self.install_step == 3:
+            log("Warning: cms start already")
+            return
+        if deploy_mode != "nas":
+            self.copy_dbstor_config()
+        if deploy_mode == "dbstore_unify":
+            self.prepare_cms_tool_dbstor_config()
+        
+        log("======================= init cms process ============================")
+        if self.node_id == 0:    
+            cmd = "sh %s -P init_container >> %s 2>&1" %(os.path.join(os.path.dirname(__file__), "start_cms.sh"), LOG_FILE)
+            run_cmd(cmd, "failed to init cms")
+        
+        self.install_step = 2
+        self.set_cms_conf()
+        log("======================= init cms process successfully ======================")
+
     def kill_process(self, process_name):
         """
         kill process
@@ -1434,7 +1455,7 @@ def main():
             cms.parse_parameters(cms.cms_new_config)
             cms.install()
 
-        if arg in {"start", "check_status", "stop", "uninstall", "backup", "upgrade"}:
+        if arg in {"start", "check_status", "stop", "uninstall", "backup", "upgrade", "init_container"}:
 
             if os.path.exists("/opt/cantian/cms/cfg/cms.json"):
                 install_cms_cfg = "/opt/cantian/cms/cfg/cms.json"
@@ -1454,6 +1475,8 @@ def main():
                 cms.uninstall()
             if arg == "upgrade":
                 cms.upgrade()
+            if arg == "init_container":
+                cms.init_container()
 
 
 if __name__ == "__main__":
