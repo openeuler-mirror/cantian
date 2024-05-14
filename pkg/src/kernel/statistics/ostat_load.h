@@ -202,6 +202,7 @@ typedef struct st_cbo_stats_index {
     volatile uint32 stats_version;
     volatile bool8 is_ready;
     part_group_t part_group;
+    uint32 distinct_keys_arr[MAX_KEY_COLUMNS];
 } cbo_stats_index_t;
 
 typedef struct st_cbo_column_hist {
