@@ -2300,6 +2300,12 @@ void knl_cache_cbo_text2variant(dc_entity_t *entity, uint32 col_id, text_t *colu
             ret_val->v_date = *(date_t *)column->str;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %lld",ret_val->v_date); // todo: to str
             break;
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
+            memcpy_s(ret_val->v_text.str, column->len, column->str, column->len);
+            ret_val->v_text.len = column->len;              
+            break;
         default:
             break;
     }
