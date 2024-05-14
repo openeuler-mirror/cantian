@@ -1,4 +1,5 @@
 #define VERSION_DESCRIP Cantian
+#define VERSION_MYSQLIP Mysql
 #define DRIVER_VERSION_DESCRIP Cantian
 #define CTSQL_VERSION_DESCRIP 
 #define PACK_PREFIX Cantian
