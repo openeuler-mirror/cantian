@@ -1041,9 +1041,6 @@ status_t srv_load_cluster_params(void)
     CT_RETURN_IFERR(cm_split_host_port(g_dtc->profile.ports, value));
 
     CT_RETURN_IFERR(srv_get_interconnect_type_param(&g_dtc->profile.pipe_type));
-    if (g_dtc->profile.pipe_type == CS_TYPE_UC_RDMA) {
-        CT_RETURN_IFERR(mes_set_process_config());
-    }
 
     CT_RETURN_IFERR(srv_get_param_uint32("INTERCONNECT_CHANNEL_NUM", &g_dtc->profile.channel_num));
     if ((g_dtc->profile.channel_num == 0) || (g_dtc->profile.channel_num > CT_MES_MAX_CHANNEL_NUM)) {

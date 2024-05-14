@@ -351,6 +351,8 @@ void cms_get_mes_str_config_value(config_t *cfg)
         g_param.cms_mes_pipe_type = CS_TYPE_UC;
     } else if (cm_strcmpi(pipe_value, "TCP") == 0) {
         g_param.cms_mes_pipe_type = CS_TYPE_TCP;
+    } else if (cm_strcmpi(pipe_value, "UC_RDMA") == 0) {
+        g_param.cms_mes_pipe_type = CS_TYPE_UC_RDMA;
     } else {
         g_param.cms_mes_pipe_type = CS_TYPE_TCP;
     }
