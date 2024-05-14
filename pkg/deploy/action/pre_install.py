@@ -8,7 +8,9 @@ import socket
 import sys
 import stat
 import json
+import collections
 from pathlib import Path
+from logic.common_func import exec_popen
 from om_log import LOGGER as LOG
 
 INSTALL_PATH = "/opt/cantian"
@@ -16,6 +18,7 @@ NEEDED_SIZE = 20580  # M
 NEEDED_MEM_SIZE = 16 * 1024  # M
 
 dir_name, _ = os.path.split(os.path.abspath(__file__))
+CANTIAND_INI_FILE = "/mnt/dbdata/local/cantian/tmp/data/cfg/cantiand.ini"
 
 ip_check_element = {
     'cantian_vlan_ip',
@@ -33,6 +36,16 @@ ping_check_element = {
     'storage_logic_ip'
 }
 
+kernel_element = {
+    'TEMP_BUFFER_SIZE',
+    'DATA_BUFFER_SIZE',
+    'SHARED_POOL_SIZE',
+    'LOG_BUFFER_SIZE'
+}
+UnitConversionInfo = collections.namedtuple('UnitConversionInfo', ['tmp_gb', 'tmp_mb', 'tmp_kb', 'key', 'value',
+                                                                   'sga_buff_size', 'temp_buffer_size',
+                                                                   'data_buffer_size', 'shared_pool_size',
+                                                                   'log_buffer_size'])
 
 class ConfigChecker:
     """
@@ -94,6 +107,14 @@ class ConfigChecker:
         if value not in deploy_mode_enum:
             return False
 
+        return True
+    
+    @staticmethod
+    def cantian_in_container(value):
+        cantian_in_container_enum = {'0', '1', '2'}
+        if value not in cantian_in_container_enum:
+            return False
+        
         return True
 
     @staticmethod
@@ -294,7 +315,7 @@ class CheckInstallConfig(CheckBase):
             'deploy_user', 'node_id', 'cms_ip', 'storage_dbstore_fs', 'storage_share_fs', 'storage_archive_fs',
             'storage_metadata_fs', 'share_logic_ip', 'archive_logic_ip', 'metadata_logic_ip', 'db_type',
             'MAX_ARCH_FILES_SIZE', 'mysql_in_container', 'mysql_metadata_in_cantian', 'storage_logic_ip', 'deploy_mode',
-            'mes_ssl_switch', 'dbstore_demo'
+            'mes_ssl_switch', 'cantian_in_container', 'dbstore_demo'
         }
         self.dbstore_config_key = {
             'cluster_name', 'cantian_vlan_ip', 'storage_vlan_ip', 'link_type', 'storage_dbstore_page_fs',
@@ -427,6 +448,74 @@ class CheckInstallConfig(CheckBase):
             with os.fdopen(os.open(self.config_path, flag, modes), 'w') as file_path:
                 file_path.write(config_params)
 
+    def do_unit_conversion(self, get_unit_conversion_info):
+        tmp_gb, tmp_mb, tmb_kb, key, value,\
+        sga_buff_size, temp_buffer_size, data_buffer_size,\
+        shared_pool_size, log_buffer_size = get_unit_conversion_info
+        if value[0: -1].isdigit() and value[-1:] in ["G", "M", "K"]:
+            unit_map = {
+                "G": tmp_gb,
+                "M": tmp_mb,
+                "K": tmb_kb,
+            }
+            size_unit = unit_map.get(value[-1:])
+            sga_buff_size += int(value[0:-1]) * size_unit
+        
+        if key == "TEMP_BUFFER_SIZE":
+            sga_buff_size -= temp_buffer_size
+        if key == "DATA_BUFFER_SIZE":
+            sga_buff_size -= data_buffer_size
+        if key == "SHARED_POOL_SIZE":
+            sga_buff_size -= shared_pool_size
+        if key == "LOG_BUFFER_SIZE":
+            sga_buff_size -= log_buffer_size
+        
+        return sga_buff_size
+
+    def check_sga_buff_size(self):
+        LOG.info("Checking sga buff size.")
+        # GB MB KB
+        tmp_gb = 1024 * 1024 * 1024
+        tmp_mb = 1024 * 1024
+        tmp_kb = 1024
+        # The size of database
+        log_buffer_size = 4 * tmp_mb
+        shared_pool_size = 128 * tmp_mb
+        data_buffer_size = 128 * tmp_mb
+        temp_buffer_size = 32 * tmp_mb
+        sga_buff_size = (log_buffer_size + shared_pool_size + data_buffer_size + temp_buffer_size)
+
+        # parse the value of kernel parameters
+        modes = stat.S_IWUSR | stat.S_IRUSR
+        flags = os.O_RDONLY
+        with os.fdopen(os.open(CANTIAND_INI_FILE, flags, modes), 'r') as fp:
+            for line in fp:
+                if line == "\n":
+                    continue
+                (key, value) = line.split(" = ")
+                if key in kernel_element:
+                    # Unit consersion
+                    get_unit_conversion_info = UnitConversionInfo(tmp_gb ,tmp_mb, tmp_kb, key, value.strip(),
+                                                                  sga_buff_size, temp_buffer_size, data_buffer_size,
+                                                                  shared_pool_size, log_buffer_size)
+                    sga_buff_size = self.do_unit_conversion(get_unit_conversion_info)
+        
+        # check sga buff size
+        cmd = "cat /proc/meminfo |grep -wE 'MemFree:|Buffers:|Cached:|SwapCached' |awk '{sum += $2};END {print sum}'"
+        ret_code, cur_avi_memory, stderr = exec_popen(cmd)
+        if ret_code:
+            LOG.error("cannot get shmmax parameters, command: %s, err: %s" % (cmd, stderr))
+        if sga_buff_size < 114 * tmp_mb:
+            LOG.error("sga buffer size should not less than 114MB, please check it!")
+        
+        try:
+            if sga_buff_size > int(cur_avi_memory) * tmp_kb:
+                LOG.error("sga buffer size should less than shmmax, please check it!")
+        except ValueError as ex:
+            LOG.error("check sga buffer size failed: " + str(ex))
+        
+        LOG.info("End check sga buffer size")
+
     def get_result(self, *args, **kwargs):
         if not self.config_path:
             LOG.error('path of config file is not entered, example: sh install.sh xxx/xxx/xxx')
@@ -453,8 +542,8 @@ class CheckInstallConfig(CheckBase):
             self.config_params['mes_type'] = "TCP"
             self.config_key.update(self.file_config_key)
 
-        if os.path.exists("/.dockerenv"):
-            self.config_params['cantian_in_container'] = "1"
+        if install_config_params['cantian_in_container'] != '0':
+            ping_check_element.remove("cms_ip")
 
         if install_config_params['archive_logic_ip'] == "" \
                 and install_config_params['share_logic_ip'] == "" \
@@ -481,16 +570,21 @@ class CheckInstallConfig(CheckBase):
         except Exception as error:
             LOG.error('write config param to config_param.json failed, error: %s', str(error))
             return False
-        try:
-            self.write_result_to_json()
-        except Exception as error:
-            LOG.error('write config param to deploy_param.json failed, error: %s', str(error))
-            return False
+        if install_config_params['cantian_in_container'] == '0':
+            try:
+                self.write_result_to_json()
+            except Exception as error:
+                LOG.error('write config param to deploy_param.json failed, error: %s', str(error))
+                return False
+        if install_config_params['cantian_in_container'] != '0':
+            self.check_sga_buff_size()
         return True
 
     def install_config_params_init(self, install_config_params):
         if 'link_type' not in install_config_params.keys():
             install_config_params['link_type'] = '1'
+        if 'cantian_in_container' not in install_config_params.keys():
+            install_config_params['cantian_in_container'] = "0"
         if 'mysql_in_container' not in install_config_params.keys():
             install_config_params['mysql_in_container'] = '1'
         if 'storage_archive_fs' not in install_config_params.keys():

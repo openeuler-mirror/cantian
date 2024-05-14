@@ -2300,6 +2300,22 @@ void knl_cache_cbo_text2variant(dc_entity_t *entity, uint32 col_id, text_t *colu
             ret_val->v_date = *(date_t *)column->str;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %lld",ret_val->v_date); // todo: to str
             break;
+        case CT_TYPE_DECIMAL:
+        case CT_TYPE_NUMBER3:
+            // ret_val->v_dec = *(dec4_t*)column->str;
+            MEMS_RETVOID_IFERR(memcpy_s((void *)&ret_val->v_dec, sizeof(my_dec4_t), column->str, sizeof(dec4_t)));
+            if ((uint32)(cm_dec4_stor_sz((void *)&ret_val->v_dec)) > column->len) {
+                cm_latch_s(&dc_column->cbo_col_latch, 0, CT_FALSE, NULL);
+                MEMS_RETVOID_IFERR(memcpy_s((void *)&ret_val->v_dec, sizeof(my_dec4_t), column->str, sizeof(dec4_t)));
+                cm_unlatch(&dc_column->cbo_col_latch, NULL);
+            }
+            break;
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
+            MEMS_RETVOID_IFERR(memcpy_s(ret_val->v_text.str, column->len, column->str, column->len));
+            ret_val->v_text.len = column->len;              
+            break;
         default:
             break;
     }

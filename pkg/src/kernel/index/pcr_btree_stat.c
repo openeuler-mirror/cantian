@@ -27,6 +27,7 @@
 #include "rcr_btree_scan.h"
 #include "knl_context.h"
 #include "knl_datafile.h"
+#include "ostat_load.h"
 
 void pcrb_calc_ndv_key(index_t *index, pcrb_key_t *key, pcrb_key_t *compare_key, btree_info_t *info)
 {
@@ -42,6 +43,8 @@ void pcrb_calc_ndv_key(index_t *index, pcrb_key_t *key, pcrb_key_t *compare_key,
     int32 result = 0;
     bool32 is_distinct = CT_TRUE;
     uint16 collate_id;
+    cbo_stats_table_t *cbo_stats = entity->cbo_table_stats;
+    cbo_stats_index_t *cbo_index = cbo_stats->indexs[index->desc.id];
 
     if (key == NULL || compare_key->is_infinite) {
         btree_set_comb_ndv(info, BTREE_COMB_1_NDV, column_count);
@@ -55,6 +58,7 @@ void pcrb_calc_ndv_key(index_t *index, pcrb_key_t *key, pcrb_key_t *compare_key,
                 btree_set_comb_ndv(info, i, column_count);
                 if (is_distinct) {
                     info->distinct_keys++;
+                    cbo_index->distinct_keys_arr[i] = cbo_index->distinct_keys_arr[i] + 1;
                     is_distinct = CT_FALSE;
                 }
             }
@@ -78,6 +82,7 @@ void pcrb_calc_ndv_key(index_t *index, pcrb_key_t *key, pcrb_key_t *compare_key,
             btree_set_comb_ndv(info, i, column_count);
             if (is_distinct) {
                 info->distinct_keys++;
+                cbo_index->distinct_keys_arr[i] = cbo_index->distinct_keys_arr[i] + 1;
                 is_distinct = CT_FALSE;
             }
             break;
@@ -91,6 +96,7 @@ void pcrb_calc_ndv_key(index_t *index, pcrb_key_t *key, pcrb_key_t *compare_key,
             btree_set_comb_ndv(info, i, column_count);
             if (is_distinct) {
                 info->distinct_keys++;
+                cbo_index->distinct_keys_arr[i] = cbo_index->distinct_keys_arr[i] + 1;
                 is_distinct = CT_FALSE;
             }
             break;

@@ -7,6 +7,7 @@
   "storage_share_fs": "share",
   "storage_archive_fs": "archive",
   "storage_metadata_fs": "metadata",
+  "cantian_in_container": "0",
   "mysql_in_container": "1",
   "share_logic_ip": "10.77.78.1",
   "archive_logic_ip": "10.77.78.2",

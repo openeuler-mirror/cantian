@@ -313,6 +313,7 @@ def genreg_string(text):
     return reg_string
 
 deploy_mode = get_value("deploy_mode")
+cantian_in_container = get_value("cantian_in_container")
 mes_type = get_value("mes_type") if deploy_mode != "nas" else "TCP"
 mes_ssl_switch = get_value("mes_ssl_switch")
 node_id = get_value("node_id")
@@ -588,7 +589,6 @@ class CmsCtl(object):
         config["GCC_HOME"] = self.gcc_home  # generate by installer
         config["GCC_DIR"] = self.gcc_dir
         config["FS_NAME"] = self.storage_share_fs
-        config["CLUSTER_NAME"] = self.cluster_name
         config["GCC_TYPE"] = self.gcc_type
         config["_CMS_GCC_BAK"] = self.cms_gcc_bak
         config["_USE_DBSTOR"] = self.use_dbstor
@@ -811,7 +811,7 @@ class CmsCtl(object):
 
         log("change app permission cmd: %s" % str_cmd)
         run_cmd(str_cmd, "failed to chmod %s" % CommonValue.KEY_DIRECTORY_MODE)
-        if deploy_mode != "dbstore_unify":
+        if cantian_in_container == "0" and deploy_mode != "dbstore_unify":
             self.chown_gcc_dirs()
 
     def export_user_env(self):
@@ -989,14 +989,16 @@ class CmsCtl(object):
                 if len(_list) != 1 and self.all_zero_addr_after_ping(item):
                     log_exit("ip contains all-zero ip,"
                              " can not specify other ip.")
-                self.check_ip_isvaild(item)
+                if cantian_in_container == "0":
+                    self.check_ip_isvaild(item)
         else:
             self.ip_addr = "127.0.0.1"
 
         for _ip in self.ip_addr.split(","):
             self.check_port(self.port, _ip)
 
-        self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
+        if cantian_in_container == "0":
+            self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
 
         log("check running mode: %s" % self.running_mode)
         if self.running_mode not in VALID_RUNNING_MODE:
@@ -1113,7 +1115,6 @@ class CmsCtl(object):
         str_cmd += " && chown -R %s:%s %s/dbstor" % (self.user, self.group, self.cms_home)
         str_cmd += " && chmod 640 %s/dbstor/conf/dbs/dbstor_config.ini" % (self.cms_home)
 
-        self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
         log("copy config files cmd: " + str_cmd)
         ret_code, stdout, stderr = _exec_popen(str_cmd)
         if ret_code:
@@ -1134,7 +1135,8 @@ class CmsCtl(object):
 
         self.copy_app_files()
 
-        self.prepare_gccdata_dir()
+        if cantian_in_container == "0":
+            self.prepare_gccdata_dir()
         self.export_user_env()
         self.change_app_permission()
 
@@ -1276,8 +1278,9 @@ class CmsCtl(object):
         if deploy_mode != "dbstore_unify" and self.gcc_home == "":
             self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
         if self.node_id == 0:
-            self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
-            log("if blocked here, please check if the network is normal")
+            if cantian_in_container == "0":
+                self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
+                log("if blocked here, please check if the network is normal")
             if deploy_mode != "dbstore_unify":
                 str_cmd = "rm -rf %s" % (self.gcc_home)
                 ret_code, stdout, stderr = _exec_popen("timeout 10 ls %s" % self.gcc_home)
@@ -1331,6 +1334,28 @@ class CmsCtl(object):
             self.prepare_cms_tool_dbstor_config()
 
         log("======================== upgrade cms dbstor config successfully ========================")
+
+    def init_container(self):
+        """
+        cms init in container
+        """
+        log("======================== begin to init cms process =======================")
+        if self.install_step == 3:
+            log("Warning: cms start already")
+            return
+        if deploy_mode != "nas":
+            self.copy_dbstor_config()
+        if deploy_mode == "dbstore_unify":
+            self.prepare_cms_tool_dbstor_config()
+        
+        log("======================= init cms process ============================")
+        if self.node_id == 0:    
+            cmd = "sh %s -P init_container >> %s 2>&1" %(os.path.join(os.path.dirname(__file__), "start_cms.sh"), LOG_FILE)
+            run_cmd(cmd, "failed to init cms")
+        
+        self.install_step = 2
+        self.set_cms_conf()
+        log("======================= init cms process successfully ======================")
 
     def kill_process(self, process_name):
         """
@@ -1430,7 +1455,7 @@ def main():
             cms.parse_parameters(cms.cms_new_config)
             cms.install()
 
-        if arg in {"start", "check_status", "stop", "uninstall", "backup", "upgrade"}:
+        if arg in {"start", "check_status", "stop", "uninstall", "backup", "upgrade", "init_container"}:
 
             if os.path.exists("/opt/cantian/cms/cfg/cms.json"):
                 install_cms_cfg = "/opt/cantian/cms/cfg/cms.json"
@@ -1450,6 +1475,8 @@ def main():
                 cms.uninstall()
             if arg == "upgrade":
                 cms.upgrade()
+            if arg == "init_container":
+                cms.init_container()
 
 
 if __name__ == "__main__":

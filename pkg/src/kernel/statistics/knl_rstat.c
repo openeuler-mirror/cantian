@@ -3689,6 +3689,10 @@ static void stats_gather_pcrb_key(index_t *idx, stats_index_t *stats_idx, pcrb_k
     pcrb_key_t     *key = (pcrb_key_t *)cursor->sort.row;
     errno_t         ret;
 
+    dc_entity_t *entity = idx->entity;
+    cbo_stats_table_t *cbo_stats = entity->cbo_table_stats;
+    cbo_stats_index_t *cbo_index = cbo_stats->indexs[idx->desc.id];
+
     if (stats_idx->info.keys == 0) {
         stats_idx->clus_factor++;
     } else {
@@ -3699,6 +3703,18 @@ static void stats_gather_pcrb_key(index_t *idx, stats_index_t *stats_idx, pcrb_k
         } else {
             if (!IS_SAME_TEMP_PAGEID(prev_key->rowid, key->rowid)) {
                 stats_idx->clus_factor++;
+            }
+        }
+    }
+
+    // clear for next analyze
+    if (stats_idx->info.distinct_keys == 0) {
+        if (table_stats->part_stats.part_no == CT_INVALID_ID32 ||
+            (!table_stats->part_stats.is_subpart && table_stats->part_stats.part_no == 0) ||
+            (table_stats->part_stats.is_subpart && table_stats->part_stats.part_no == 0 &&
+             table_stats->part_stats.sub_stats->part_no == 0)) {
+            for (uint32_t i = 0; i < MAX_KEY_COLUMNS; i++) {
+                cbo_index->distinct_keys_arr[i] = 0;
             }
         }
     }

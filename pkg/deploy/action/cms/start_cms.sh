@@ -156,8 +156,10 @@ function set_cms() {
 }
 
 function install_cms() {
-  prepare_cms_gcc
-  set_cms
+  if [[ ${cantian_in_container} == "0" ]]; then
+    prepare_cms_gcc
+    set_cms
+  fi
 }
 
 function start_cms() {
@@ -182,6 +184,11 @@ function start_cms() {
   log "=========== finished start cms ${NODE_ID} ================"
 }
 
+function init_container() {
+  prepare_cms_gcc
+  set_cms
+}
+
 function main() {
 
   source ~/.bashrc
@@ -194,11 +201,17 @@ function main() {
   source $TMPCFG
   CMS_INSTALL_PATH="${CMS_HOME}/service"
   DEPLOY_MODE=$(python3 "${CURRENT_PATH}"/get_config_info.py "deploy_mode")
+  cantian_in_container=$(python3 "${CURRENT_PATH}"/get_config_info.py "cantian_in_container")
+  METADATA_FS=$(python3 "${CURRENT_PATH}"/get_config_info.py "storage_metadata_fs")
+  VERSION_PATH="/mnt/dbdata/remote/metadata_${METADATA_FS}"
+  VERSION_FILE="versions.yml"
 
   if [ ${PROCESS} == install_cms ]; then
     install_cms
-  else
+  elif [ ${PROCESS} == start_cms ]; then
     start_cms
+  elif [ ${PROCESS} == init_container ] && [ ! -f ${VERSION_PATH}/${VERSION_FILE} ]; then
+    init_container
   fi
 
   exit 0

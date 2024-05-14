@@ -65,7 +65,7 @@ driver_name="com.huawei.cantian.jdbc.CantianDriver-Cantian.jar"
 function usage()
 {
     echo "Usage: ${0##*/} {start|startup|shutdown|stop|install|uninstall|pre_upgrade|
-                           upgrade_backup|upgrade|rollback|check_status}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+                           upgrade_backup|upgrade|rollback|check_status|init_container}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     exit 1
 }
 
@@ -361,6 +361,10 @@ function main_deploy()
         install)
             chown_mod_scripts
             copy_logicrep
+            do_deploy "--act ${ACTION}"
+            exit $?
+            ;;
+        init_container)
             do_deploy "--act ${ACTION}"
             exit $?
             ;;

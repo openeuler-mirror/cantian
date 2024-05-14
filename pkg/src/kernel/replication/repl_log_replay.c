@@ -833,7 +833,7 @@ void lrpl_proc(thread_t *thread)
 
     lrpl->curr_point = session->kernel->redo_ctx.curr_point;
     lrpl->begin_point = lrpl->curr_point;
-    rcy->last_lrpl_time = cm_now();
+    rcy->last_lrpl_time = 0;
 
     if (DB_IS_CLUSTER(session)) {
         dtc_lrpl_proc_loop(thread);

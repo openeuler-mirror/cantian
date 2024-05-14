@@ -30,6 +30,7 @@ storage_metadata_fs=''
 deploy_mode=''
 deploy_user=''
 deploy_group=''
+cantian_in_container=''
 NFS_TIMEO=50
 
 source ${CURRENT_PATH}/log4sh.sh
@@ -122,7 +123,6 @@ function enter_pwd()
         read -s -p "please enter private key encryption password:" cert_encrypt_pwd
         echo ''
     fi
-
 }
 
 # 检查用户用户组是否创建成功
@@ -259,6 +259,10 @@ function rpm_check(){
 }
 
 function copy_certificate() {
+    if [[ "${cantian_in_container}" != "0" ]]; then
+        return 0
+    fi
+
     local certificate_dir="/opt/cantian/common/config/certificates"
     if [ -d "${certificate_dir}" ];then
         rm -rf "${certificate_dir}"
@@ -376,7 +380,7 @@ function install_rpm()
         fi
     fi
     chmod -R 750 ${RPM_PACK_ORG_PATH}/Cantian-RUN-CENTOS-64bit
-    chown ${deploy_user}:${deploy_group} -hR ${RPM_PACK_ORG_PATH}/
+    chown ${cantian_user}:${cantian_group} -hR ${RPM_PACK_ORG_PATH}/
     chown root:root ${RPM_PACK_ORG_PATH}
 }
 
@@ -466,15 +470,138 @@ function update_random_seed() {
     python3 ${CURRENT_PATH}/write_config.py "random_seed" "${random_seed}"
 }
 
-# 容器内无需检查ntp服务
+function mount_fs() {
+    if [[ "${cantian_in_container}" != "0" ]]; then
+        return 0
+    fi
+
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+        mkdir -m 750 -p /mnt/dbdata/remote/share_${storage_share_fs}
+        chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/share_${storage_share_fs}
+    fi
+
+    if [[ ${storage_archive_fs} != '' ]]; then
+        mkdir -m 750 -p /mnt/dbdata/remote/archive_${storage_archive_fs}
+        chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/archive_${storage_archive_fs}
+    fi
+
+    mkdir -m 755 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+    chmod 755 /mnt/dbdata/remote
+
+
+    # 获取nfs挂载的ip
+    share_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "share_logic_ip"`
+    if [[ ${storage_archive_fs} != '' ]]; then
+        archive_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "archive_logic_ip"`
+        if [[ ${archive_logic_ip} = '' ]]; then
+            logAndEchoInfo "please check archive_logic_ip"
+        fi
+    fi
+    metadata_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "metadata_logic_ip"`
+
+    if [[ x"${dbstore_demo}" != x"True" ]]; then
+        if [[ x"${deploy_mode}" != x"nas" ]]; then
+            kerberos_type=`python3 ${CURRENT_PATH}/get_config_info.py "kerberos_key"`
+            mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+        else
+            mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+        fi
+
+        metadata_result=$?
+        if [ ${metadata_result} -ne 0 ]; then
+            logAndEchoError "mount metadata nfs failed"
+        fi
+    fi
+
+    # 检查36729~36728是否有可用端口
+    check_port
+    sysctl fs.nfs.nfs_callback_tcpport="${NFS_PORT}" > /dev/null 2>&1
+    # 挂载share nfs
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+        if [[ x"${deploy_mode}" == x"dbstore" ]]; then
+            mount -t nfs -o sec="${kerberos_type}",vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+        else
+            mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+        fi
+        share_result=$?
+        if [ ${share_result} -ne 0 ]; then
+            logAndEchoError "mount share nfs failed"
+        fi
+        chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
+        checkMountNFS ${share_result}
+    fi
+    if [[ ${storage_archive_fs} != '' ]] && [[ x"${dbstore_demo}" != x"True" ]]; then
+        if [[ x"${deploy_mode}" != x"nas" ]]; then
+            mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
+        else
+            mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
+        fi
+
+        archive_result=$?
+        if [ ${archive_result} -ne 0 ]; then
+            logAndEchoError "mount archive nfs failed"
+        fi
+        checkMountNFS ${archive_result}
+        chmod 750 /mnt/dbdata/remote/archive_${storage_archive_fs}
+        chown -hR "${cantian_user}":"${deploy_group}" /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
+        # 修改备份nfs路径属主属组
+    fi
+    checkMountNFS ${metadata_result}
+
+    if [[ x"${deploy_mode}" == x"nas" ]]; then
+        storage_dbstore_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstore_fs"`
+        storage_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "storage_logic_ip"`
+        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
+        chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
+        mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
+        checkMountNFS $?
+        chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
+        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
+        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
+        chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
+        chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
+    fi
+
+    # 检查nfs是否都挂载成功
+    if [[ ${mount_nfs_check} != 'true' ]] && [[ x"${dbstore_demo}" != x"True" ]]; then
+        logAndEchoInfo "mount nfs failed"
+        uninstall
+        exit 1
+    fi
+    remoteInfo=`ls -l /mnt/dbdata/remote`
+    logAndEchoInfo "/mnt/dbdata/remote detail is: ${remoteInfo}"
+    # 目录权限最小化
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+        chmod 750 /mnt/dbdata/remote/share_${storage_share_fs}
+    fi
+    chmod 755 /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+    node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
+    if [ -d /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id} ];then
+        rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
+    fi
+    mkdir -m 770 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
+    chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
+    update_random_seed
+    # 挂载后，0节点拷贝配置文件至文件系统下，1节点检查对应配置文件参数
+    if [[ x"${dbstore_demo}" != x"True" ]]; then
+        check_deploy_param
+    fi
+}
+
+# 容器内无需ntp服务检查、参数预检查
 if [ ! -f /.dockerenv ]; then
     check_ntp_active
 fi
 
-python3 ${PRE_INSTALL_PY_PATH} ${INSTALL_TYPE} ${CONFIG_FILE}
-if [ $? -ne 0 ]; then
-  logAndEchoError "over all pre_install failed. For details, see the /opt/cantian/ct_om/log/om_deploy.log"
-  exit 1
+cantian_in_container=`cat ${CURRENT_PATH}/config_params.json | grep -oP '(?<="cantian_in_container": ")[^"]*'`
+if [[ "${cantian_in_container}" != "1" && "${cantian_in_container}" != "2" ]]; then
+    python3 ${PRE_INSTALL_PY_PATH} ${INSTALL_TYPE} ${CONFIG_FILE}
+    if [ $? -ne 0 ]; then
+        logAndEchoError "over all pre_install failed. For details, see the /opt/cantian/ct_om/log/om_deploy.log"
+        exit 1
+    fi
+else
+    cp -arf ${CURRENT_PATH}/${CONFIG_FILE} ${CURRENT_PATH}/deploy_param.json
 fi
 
 # 把生成的deploy_param.json移到config路径下
@@ -487,6 +614,7 @@ if [[ x"${dbstore_demo}" == x"True" ]]; then
     touch "${DEPLOY_MODE_DBSTORE_UNIFY_FLAG}"
     cp -f "${CURRENT_PATH}/storage_operate/deploy_operate_patch/env.sh" "${CURRENT_PATH}/env.sh"
 fi
+cantian_in_container=`python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container"`
 # 公共预安装检查
 rpm_check
 
@@ -607,8 +735,15 @@ node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
 echo "install_type in deploy_param.json is: ${config_install_type}"
 if [[ ${config_install_type} = 'override' ]]; then
   # 用户输入密码
-  enter_pwd
-  if [[ ${auto_create_fs} == "true" && ${node_id} == "0" ]];then
+  if [[ "${cantian_in_container}" == "0" ]]; then
+      enter_pwd
+  else
+      dbstor_user=""
+      dbstor_pwd_first=""
+      unix_sys_pwd_first=""
+  fi
+
+  if [[ "${cantian_in_container}" == "0" && ${auto_create_fs} == "true" && ${node_id} == "0" ]];then
       if [ ! -f "${FS_CONFIG_FILE}" ];then
           logAndEchoError "Auto create fs config file is not exist, please check"
           exit 1
@@ -662,20 +797,9 @@ if [[ ${config_install_type} = 'override' ]]; then
   mkdir -m 750 -p /opt/cantian/common/data
   mkdir -m 755 -p /opt/cantian/common/socket
   mkdir -m 755 -p /opt/cantian/common/config # 秘钥配置文件
-  if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-      mkdir -m 750 -p /mnt/dbdata/remote/share_${storage_share_fs}
-  fi
+  
   mkdir -m 755 -p /mnt/dbdata/local
-  chmod 755 /mnt/dbdata /mnt/dbdata/remote /mnt/dbdata/local
-  if [[ ${storage_archive_fs} != '' ]]; then
-      mkdir -m 750 -p /mnt/dbdata/remote/archive_${storage_archive_fs}
-      chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/archive_${storage_archive_fs}
-  fi
-
-  if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-      chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/share_${storage_share_fs}
-  fi
-  mkdir -m 755 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+  chmod 755 /mnt/dbdata /mnt/dbdata/local
 
   chown ${cantian_user}:${cantian_group} /opt/cantian/common/data
   if [ $? -ne 0 ]; then
@@ -697,103 +821,9 @@ if [[ ${config_install_type} = 'override' ]]; then
       chmod 600 /opt/cantian/common/config/standby_keystore.ks
   fi
 
-  # 获取nfs挂载的ip
-  share_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "share_logic_ip"`
-  if [[ ${storage_archive_fs} != '' ]]; then
-      archive_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "archive_logic_ip"`
-      if [[ ${archive_logic_ip} = '' ]]; then
-          logAndEchoInfo "please check archive_logic_ip"
-      fi
-  fi
-  metadata_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "metadata_logic_ip"`
+  # 挂载文件系统
+  mount_fs
 
-  if [[ x"${dbstore_demo}" != x"True" ]]; then
-      if [[ x"${deploy_mode}" != x"nas" ]]; then
-          kerberos_type=`python3 ${CURRENT_PATH}/get_config_info.py "kerberos_key"`
-          mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
-      else
-          mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
-      fi
-
-      metadata_result=$?
-      if [ ${metadata_result} -ne 0 ]; then
-          logAndEchoError "mount metadata nfs failed"
-      fi
-  fi
-
-  # 检查36729~36728是否有可用端口
-  check_port
-  sysctl fs.nfs.nfs_callback_tcpport="${NFS_PORT}" > /dev/null 2>&1
-  # 挂载share nfs
-  if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-      if [[ x"${deploy_mode}" == x"dbstore" ]]; then
-          mount -t nfs -o sec="${kerberos_type}",vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
-      else
-          mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
-      fi
-      share_result=$?
-      if [ ${share_result} -ne 0 ]; then
-          logAndEchoError "mount share nfs failed"
-      fi
-      chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
-      checkMountNFS ${share_result}
-  fi
-  if [[ ${storage_archive_fs} != '' ]] && [[ x"${dbstore_demo}" != x"True" ]]; then
-      if [[ x"${deploy_mode}" != x"nas" ]]; then
-          mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
-      else
-          mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
-      fi
-
-      archive_result=$?
-      if [ ${archive_result} -ne 0 ]; then
-          logAndEchoError "mount archive nfs failed"
-      fi
-      checkMountNFS ${archive_result}
-      chmod 750 /mnt/dbdata/remote/archive_${storage_archive_fs}
-      chown -hR "${cantian_user}":"${deploy_group}" /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
-      # 修改备份nfs路径属主属组
-  fi
-  checkMountNFS ${metadata_result}
-
-  if [[ x"${deploy_mode}" == x"nas" ]]; then
-      storage_dbstore_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstore_fs"`
-      storage_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "storage_logic_ip"`
-      mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-      chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-      mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-      checkMountNFS $?
-      chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-      mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
-      mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
-      chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
-      chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
-  fi
-
-  # 检查nfs是否都挂载成功
-  if [[ ${mount_nfs_check} != 'true' ]] && [[ x"${dbstore_demo}" != x"True" ]]; then
-      logAndEchoInfo "mount nfs failed"
-      uninstall
-      exit 1
-  fi
-  remoteInfo=`ls -l /mnt/dbdata/remote`
-  logAndEchoInfo "/mnt/dbdata/remote detail is: ${remoteInfo}"
-  # 目录权限最小化
-  if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-      chmod 750 /mnt/dbdata/remote/share_${storage_share_fs}
-  fi
-  chmod 755 /mnt/dbdata/remote/metadata_${storage_metadata_fs}
-  node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
-  if [ -d /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id} ];then
-      rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
-  fi
-  mkdir -m 770 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
-  chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
-  update_random_seed
-  # 挂载后，0节点拷贝配置文件至文件系统下，1节点检查对应配置文件参数
-  if [[ x"${dbstore_demo}" != x"True" ]]; then
-    check_deploy_param
-  fi
   if [[ ${mes_ssl_switch} == "True" ]];then
       copy_certificate
   fi
@@ -813,6 +843,9 @@ cp -fp ${CURRENT_PATH}/../config/cantian.service /etc/systemd/system/
 cp -fp ${CURRENT_PATH}/../config/cantian.timer /etc/systemd/system/
 cp -fp ${CURRENT_PATH}/../config/cantian_logs_handler.service /etc/systemd/system/
 cp -fp ${CURRENT_PATH}/../config/cantian_logs_handler.timer /etc/systemd/system/
+if [[ "${cantian_in_container}" != "0" ]]; then
+    cp -fp ${CURRENT_PATH}/../config/cantian_initer.service /etc/systemd/system/
+fi
 
 cp -fp ${CURRENT_PATH}/* /opt/cantian/action > /dev/null 2>&1
 cp -rfp ${CURRENT_PATH}/inspection /opt/cantian/action
@@ -828,9 +861,6 @@ cp -rfp ${CURRENT_PATH}/dbstor /opt/cantian/action
 
 # 适配开源场景，使用file，不使用dbstore，提前安装参天rpm包
 install_rpm
-
-# 增UUID至参天、cms、dostore配置文件
-system_uuid=$(dmidecode -s system-uuid)
 
 # 调用各模块安装脚本，如果有模块安装失败直接退出，不继续安装接下来的模块
 logAndEchoInfo "Begin to install. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -861,10 +891,12 @@ do
                 exit 1
             fi
         fi
-        su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=dbstore --action=add --key=SYSTEM_UUID --value=${system_uuid}"
-        check_dbstor_usr_passwd
-        # 检查dbstore client 与server端是否兼容
-        check_dbstore_client_compatibility
+
+        if [[ "${cantian_in_container}" == "0" ]]; then
+            check_dbstor_usr_passwd
+            # 检查dbstore client 与server端是否兼容
+            check_dbstore_client_compatibility
+        fi
     else
         sh ${CURRENT_PATH}/${lib_name}/appctl.sh install >> ${OM_DEPLOY_LOG_FILE} 2>&1
         install_result=$?
@@ -883,7 +915,6 @@ cp -rfp ${CURRENT_PATH}/../repo /opt/cantian/
 cp -rfp ${CURRENT_PATH}/../versions.yml /opt/cantian/
 
 config_security_limits > /dev/null 2>&1
-su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=dbstore --action=add --key=SYSTEM_UUID --value=${system_uuid}"
 
 # 修改/home/regress/action目录下cantian, cantian_exporter, cms, dbstor, mysql权限，防止复写造成提权
 for module in "${INSTALL_ORDER[@]}"

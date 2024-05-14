@@ -43,6 +43,7 @@ RESTORE_NAME="restore.sh"
 STATUS_NAME="check_status.sh"
 UPGRADE_NAME="upgrade.sh"
 ROLLBACK_NAME="rollback.sh"
+INIT_CONTAINER_NAME="init_container.sh"
 RPM_UNPACK_PATH="/opt/cantian/image/Cantian-RUN-CENTOS-64bit"
 CILENT_TEST_PATH="/opt/cantian/dbstor/tools"
 
@@ -53,7 +54,7 @@ cantian_user_and_group="${cantian_user}":"${cantian_group}"
 
 function usage()
 {
-    echo "Usage: ${0##*/} {start|stop|install|uninstall|pre_install|pre_upgrade|check_status|upgrade|rollback|upgrade_backup}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    echo "Usage: ${0##*/} {start|stop|install|uninstall|pre_install|pre_upgrade|check_status|upgrade|rollback|upgrade_backup|init_container}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     exit 1
 }
 
@@ -547,6 +548,10 @@ case "$ACTION" in
         ;;
     restore)
         do_deploy ${RESTORE_NAME}
+        exit $?
+        ;;
+    init_container)
+        do_deploy ${INIT_CONTAINER_NAME}
         exit $?
         ;;
     pre_upgrade)
