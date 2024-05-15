@@ -20,7 +20,6 @@ try:
     import time
     import logging
     from configparser import ConfigParser
-    from dbstor_install import dbstor_check_share_logic_ip_isvalid
 except ImportError as error:
     raise ValueError("Unable to import module: %s." % str(error)) from error
 
@@ -47,13 +46,12 @@ class Options(object):
         self.backup_ini_file = ""
         self.backup_select = True
         self.log_file = "/opt/cantian/dbstor/log/backup.log"
-        self.ini_file = "/mnt/dbdata/remote/share_"
+        self.ini_file = "/opt/cantian/dbstor/tools/dbstor_config.ini"
         self.docker_ini_file = "/home/regress/cantian_data"
         self.js_conf_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../config/deploy_param.json")
         self.dbstor_config = {}
         self.section = 'CLIENT'
         self.note_id = ""
-        self.share_logic_ip = ""
         self.cluster_name = ""
 
 
@@ -157,7 +155,6 @@ def check_ini():
     """
     if len(g_opts.note_id.strip()) == 0:
         log_exit("Parameter note_id is not input.")
-    dbstor_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
     logger.info("Check whether dbstor_config.ini exists")
     if not os.path.exists(g_opts.ini_file):
         log_exit("Failed to get dbstor_config.ini. DBStor config is not installed")
@@ -169,7 +166,6 @@ def clean_backup_ini():
     clean backup ini
     """
     # Clean the old log file.
-    dbstor_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
     if os.path.exists(g_opts.backup_ini_file):
         try:
             os.remove(g_opts.backup_ini_file)
@@ -178,7 +174,6 @@ def clean_backup_ini():
 
 
 def read_ini_parameter():
-    dbstor_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
     console_and_log("read DBstor Config file.")
     conf = ReadConfigParserNoCast()
     conf.read(g_opts.ini_file, encoding="utf-8")
@@ -220,7 +215,6 @@ def read_file_path():
             as file_handle:
         json_data = json.load(file_handle)
         g_opts.note_id = json_data.get('node_id', "").strip()
-        g_opts.share_logic_ip = json_data.get('share_logic_ip', "").strip()
         g_opts.cluster_name = json_data.get('cluster_name', "").strip()
         g_opts.ini_file = "/opt/cantian/dbstor/tools/dbstor_config.ini"
         g_opts.backup_ini_file = os.path.join(g_opts.conf_file_path, "dbstor_config.ini")
