@@ -62,6 +62,7 @@ static uint32_t MY_PID = 400;
 #define MES_UC_FREE_PAGES(sgl_ptr) mes_global_handle()->free_multi_pages((sgl_ptr), (MY_PID), __FUNCTION__, __LINE__)
 
 #define MES_HOST_NAME(id) ((char *)g_mes.profile.inst_arr[id].ip)
+#define MES_SHOULD_RECONN(bits, id) (((bits) >> (id)) & 0x1)
 // return DP_ERROR if error occurs
 #define MES_UC_RETURN_IFERR(ret)           \
     do {                               \
@@ -99,6 +100,10 @@ uint8 g_thread_id = 0;
 // 唯一标识UC的处理线程
 __thread uint8 g_thread_queue_id = 0xFF;
 static mes_interface_t g_mes_interface = { .uc_handle = NULL};
+
+thread_t g_mes_channel_check_thread;
+uint64 g_channel_reconn_bits;
+cm_thread_cond_t g_reconn_thread_cond;
 
 mes_interface_t *mes_global_handle(void)
 {
@@ -768,15 +773,31 @@ int32_t create_link_callback(u32 uiDstlsId, dpuc_qlink_event qlinkEvent, dpuc_pl
         CT_LOG_RUN_ERR("Not find valid inst id");
         return DP_FAIL;
     }
+    CT_LOG_RUN_INF("UC link %s, dst lsid=(0x%x)", (qlinkEvent == DPUC_QLINK_UP ? "up" : "down"), uiDstlsId);
     if (inst_id == g_mes.profile.inst_id) {
         CT_LOG_RUN_INF("other inst create link to own inst");
         return DP_OK;
     }
 
     mes_uc_conn_t *conn = &g_mes_uc_channel_status[inst_id];
-    conn->uc_channel_state = (qlinkEvent == DPUC_QLINK_UP ? MES_CHANNEL_CONNECTED : MES_CHANNEL_UNCONNECTED);
-    CT_LOG_RUN_INF("UC link %s, dst lsid=(0x%x), inst id=%d", (qlinkEvent == DPUC_QLINK_UP ? "up" : "down"),
-        uiDstlsId, inst_id);
+    mes_channel_stat_t pre_status = conn->uc_channel_state;
+    cm_thread_lock(&conn->lock);
+    if (qlinkEvent == DPUC_QLINK_UP) {
+        conn->uc_channel_state = MES_CHANNEL_CONNECTED;
+        CT_LOG_RUN_INF("channel status covert to CONNECTED.");
+    } else if ((qlinkEvent == DPUC_QLINK_DOWN) && (conn->uc_channel_state == MES_CHANNEL_CONNECTED)) {
+        conn->uc_channel_state = MES_CHANNEL_UNCONNECTED;
+        CT_LOG_RUN_INF("channel status covert to UNCONNECTED.");
+        rc_bitmap64_set(&g_channel_reconn_bits, inst_id);
+        cm_release_cond_signal(&g_reconn_thread_cond);
+        CT_LOG_RUN_INF("cm realse cond signal success.");
+    } else {
+        CT_LOG_RUN_WAR("qlinkEvent is invalid");
+    }
+    cm_thread_unlock(&conn->lock);
+
+    CT_LOG_RUN_INF("UC link %s, dst lsid=(0x%x), inst id=%d, pre_status=%d, cur_status=%d", (qlinkEvent == DPUC_QLINK_UP ? "up" : "down"),
+        uiDstlsId, inst_id, pre_status, conn->uc_channel_state);
     return DP_OK;
 }
 
@@ -1029,7 +1050,13 @@ status_t mes_uc_connect_init_addr(dpuc_addr eid_addr[], char *ip, uint16 port, u
         eid_addr[i].AddrFamily = (g_mes.profile.pipe_type == CS_TYPE_UC ? DPUC_ADDR_FAMILY_IPV4 :
             DPUC_ADDR_FAMILY_IPV4_RDMA);
         eid_addr[i].PlaneType = DPUC_DATA_PLANE;
-        PRTS_RETURN_IFERR(sprintf_s(eid_addr[i].Url, DPUC_URL_LEN, "%s:%u", ip_addrs[i], port));
+        char listen_ip[CM_MAX_IP_LEN] = {0};
+        if (cm_domain_to_ip(ip_addrs[i], listen_ip) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("mes get listen ip failed.");
+            return CT_ERROR;
+        }
+        CT_LOG_RUN_INF("domain to ip success, listen ip %s", listen_ip);
+        PRTS_RETURN_IFERR(sprintf_s(eid_addr[i].Url, DPUC_URL_LEN, "%s:%u", listen_ip, port));
     }
     return CT_SUCCESS;
 }
@@ -1137,6 +1164,15 @@ status_t mes_uc_connect(uint32 inst_id)
             return CT_ERROR;
         }
     }
+        
+    // 发起建链后，更改链路状态
+    mes_uc_conn_t *conn = &g_mes_uc_channel_status[inst_id];
+    cm_thread_lock(&conn->lock);
+    if (conn->uc_channel_state == MES_CHANNEL_CLOSED) {
+        conn->uc_channel_state = MES_CHANNEL_UNCONNECTED;
+    }
+    cm_thread_unlock(&conn->lock);
+
     CT_LOG_RUN_INF("mes uc inst(%u) connect to inst(%u) create (%u:%u) link success.",
                    g_mes.profile.inst_id, inst_id, server_ip_cnt, client_ip_cnt);
     return CT_SUCCESS;
@@ -1157,6 +1193,10 @@ void mes_uc_disconnect(uint32 inst_id)
         CT_LOG_RUN_ERR("Disconnect dst_lsid 0x%x failed.", lsid);
         return;
     }
+    mes_uc_conn_t *conn = &g_mes_uc_channel_status[inst_id];
+    cm_thread_lock(&conn->lock);
+    conn->uc_channel_state = MES_CHANNEL_CLOSED;
+    cm_thread_unlock(&conn->lock);
     CT_LOG_RUN_INF("Disconnect dst_lsid 0x%x success.", lsid);
 }
 
@@ -1197,11 +1237,60 @@ void mes_init_uc_channel_status(void)
     mes_uc_conn_t *conn;
     for (i = 0; i < CT_MAX_INSTANCES; i++) {
         conn = &g_mes_uc_channel_status[i];
-        conn->uc_channel_state = MES_CHANNEL_UNCONNECTED;
+        conn->uc_channel_state = MES_CHANNEL_CLOSED;
         conn->is_allow_msg_transfer = CT_FALSE;
+        cm_init_thread_lock(&conn->lock);
     }
     // 本节点消息
     g_mes_uc_channel_status[g_mes.profile.inst_id].is_allow_msg_transfer = CT_TRUE;
+}
+
+static uint64 mes_uc_get_reconn_bitmap()
+{
+    uint64 reconn_bitmap = 0;
+    for (uint32 i = 0; i < g_mes.profile.inst_count; i++) {
+        if (i == g_mes.profile.inst_id) {
+            continue;
+        }
+        if (rc_bitmap64_exist(&g_channel_reconn_bits, i)) {
+            rc_bitmap64_set(&reconn_bitmap, i);
+            rc_bitmap64_clear(&g_channel_reconn_bits, i);
+        }
+    }
+    CT_LOG_RUN_INF("mes uc should reconnect, reconn_bitmap = %llu", reconn_bitmap);
+    return reconn_bitmap;
+}
+
+void mes_channel_check_thread(thread_t *thread)
+{
+    while (!thread->closed) {
+        CT_LOG_RUN_INF("mes channel check is running.");
+        uint64 reconn_bitmap = mes_uc_get_reconn_bitmap();
+        if (reconn_bitmap == 0) {
+            cm_wait_cond_no_timeout(&g_reconn_thread_cond);
+            CT_LOG_RUN_INF("cm wait cond no timeout success.");
+            continue;
+        }
+
+        for (uint32 i = 0; i < g_mes.profile.inst_count; ++i) {
+            if (i == g_mes.profile.inst_id) {
+                continue;
+            }
+            if (!MES_SHOULD_RECONN(reconn_bitmap, i)) {
+                continue;
+            }
+
+            //断掉原来的链路
+            mes_uc_disconnect(i);
+            CT_LOG_RUN_INF("disconnect success, inst_id = %d", i);
+            //重新建链
+            if (mes_uc_connect(i) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("reconnect failed, inst_id = %d", i);
+                continue;
+            }
+            CT_LOG_RUN_INF("reconnect success, inst_id = %d", i);
+        }
+    }
 }
 
 // mes uc init
@@ -1238,5 +1327,13 @@ status_t mes_init_uc(void)
     CT_LOG_DEBUG_INF("UC config initialize success.");
 
     CT_RETURN_IFERR(mes_uc_lsnr());
+    
+    // 开启线程，监听链路变化，重新解析域名
+    cm_init_cond(&g_reconn_thread_cond);
+    g_channel_reconn_bits = 0;
+    if (cm_create_thread(mes_channel_check_thread, 0, NULL, &g_mes_channel_check_thread) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("mes create channel check thread failed.");
+        return CT_ERROR;
+    }
     return CT_SUCCESS;
 }

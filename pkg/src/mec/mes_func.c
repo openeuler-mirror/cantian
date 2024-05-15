@@ -289,9 +289,16 @@ void mes_clear_addr(uint32 node_id)
     return;
 }
 
-status_t mes_connect(uint32 inst_id, char *ip, uint16 port)
+status_t mes_connect(uint32 inst_id, char *target_address, uint16 port)
 {
     mes_conn_t *conn;
+    char ip[CM_MAX_IP_LEN] = {0};
+
+    if (cm_check_ip_valid(target_address)) {
+        CT_RETURN_IFERR(memcpy_s(ip, CM_MAX_IP_LEN, target_address, CM_MAX_IP_LEN));
+    } else {
+        CT_RETURN_IFERR(cm_domain_to_ip(target_address, ip) != CT_SUCCESS);
+    }
 
     if ((inst_id == g_mes.profile.inst_id) || (inst_id >= CT_MAX_INSTANCES)) {
         CT_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes]: connect inst_id %u failed, current inst_id %u.", inst_id,
