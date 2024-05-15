@@ -15,7 +15,6 @@ try:
     import logging
     import copy
     from configparser import ConfigParser
-    from dbstor_install import dbstor_check_share_logic_ip_isvalid
     from kmc_adapter import CApiWrapper
     PYTHON242 = "2.4.2"
     PYTHON25 = "2.5"
@@ -61,7 +60,6 @@ class Options(object):
         self.cstool_ini_path = "/opt/cantian/dbstor/conf/dbs/dbstor_config.ini"
         self.tools_ini_path = "/opt/cantian/dbstor/tools/dbstor_config.ini"
         self.cms_ini_path = "/opt/cantian/cms/dbstor/conf/dbs/dbstor_config.ini"
-        self.share_logic_ip = ""
         self.cluster_name = ""
 
 db_opts = Options()
@@ -181,7 +179,6 @@ def usage():
 
 
 def read_default_parameter():
-    dbstor_check_share_logic_ip_isvalid(db_opts.share_logic_ip)
     #Read default parameters
     conf = ReadConfigParserNoCast()
     conf.read(db_opts.inipath, encoding="utf-8")
@@ -289,7 +286,6 @@ def update_file_parameter(file_path, ini_file, encrypt_passwd=False):
 
 def update_parameter():
     #Update parameters
-    dbstor_check_share_logic_ip_isvalid(db_opts.share_logic_ip)
     console_and_log("Start to update parameters")
     cantian_dbstor_config = copy.deepcopy(db_opts.dbstor_config)
     cantian_dbstor_config["DBSTOR_OWNER_NAME"] = "cantian"
@@ -487,7 +483,6 @@ def read_file_path():
         json_data = json.load(file_obj)
         db_opts.note_id = json_data.get('node_id', "").strip()
         db_opts.inipath = "/opt/cantian/dbstor/tools/dbstor_config.ini"
-        db_opts.share_logic_ip = json_data.get('share_logic_ip', "").strip()
         db_opts.cluster_name = json_data.get('cluster_name', "").strip()
 
 
@@ -495,7 +490,6 @@ def check_ini():
     """
     check ini
     """
-    dbstor_check_share_logic_ip_isvalid(db_opts.share_logic_ip)
     console_and_log("Check whether dbstor_config.ini exists")
     if not os.path.exists(db_opts.inipath):
         log_exit("Failed to get dbstor_config.ini. DBStor config is not installed")
