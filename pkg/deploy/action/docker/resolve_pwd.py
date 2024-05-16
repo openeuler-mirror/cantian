@@ -45,6 +45,11 @@ def resolve_kmc_pwd(encrypt_pwd):
         passwd = kmc_adapter.decrypt(encrypt_pwd)
     except Exception as error:
         raise Exception("Failed to decrypt password of user [sys]. Error: %s" % str(error)) from error
+    
+    split_env = os.environ['LD_LIBRARY_PATH'].split(":")
+    filtered_env = [single_env for single_env in split_env if "/opt/cantian/dbstor/lib" not in single_env]
+    os.environ['LD_LIBRARY_PATH'] = ":".join(filtered_env)
+    
     return passwd
 
 def resolve_check_cert_pwd(encrypt_pwd):

@@ -142,7 +142,7 @@ function prepare_certificate() {
 
     cert_password=`cat ${CERT_CONFIG_PATH}/${CERT_PASS}`
     export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH}
-    python3 -B "${CURRENT_PATH}"/resolve_pwd.py "check_cert_pwd" "${cert_password}"
+    python3 -B "${CURRENT_PATH}"/resolve_pwd.py "resolve_check_cert_pwd" "${cert_password}"
     if [ $? -ne 0 ]; then
         logAndEchoError "Cert file or passwd check failed."
         exit 1
