@@ -5,17 +5,26 @@ set -e
 
 func_prepare_git_msg()
 {
+  echo "start func_prepare_git_msg"
   git_id=$(git rev-parse --short HEAD)
   WHOLE_COMMIT_ID=$(git rev-parse HEAD)
   merge_time=$(git log | grep Date | sed -n '1p' | sed 's/^Date:\s*//g')
+  cantian_merge_time=$(git log | grep Date | sed -n '1p' | sed 's/^Date:\s*//g')
   driver_commit_id=$(git log --pretty=format:%h -n 1 ${CANTIANDB_SRC}/driver/)
   ctsql_commit_id=$(git log --pretty=format:%h -n 1 ${CANTIANDB_SRC}/utils/ctsql)
   cat /dev/null > ${CANTIANDB_BUILD}/conf/git_message.in
   echo "git_id=${git_id}" >> ${CANTIANDB_BUILD}/conf/git_message.in
   echo "gitVersion=${WHOLE_COMMIT_ID}" >> ${CANTIANDB_BUILD}/conf/git_message.in
   echo "merge_time=${merge_time}" >> ${CANTIANDB_BUILD}/conf/git_message.in
+  echo "cantian_merge_time=${cantian_merge_time}" >> ${CANTIANDB_BUILD}/conf/git_message.in
   echo "driver_commit_id=${driver_commit_id}" >> ${CANTIANDB_BUILD}/conf/git_message.in
   echo "ctsql_commit_id=${ctsql_commit_id}" >> ${CANTIANDB_BUILD}/conf/git_message.in
+  cd ${MYSQL_CODE_PATH}
+  MYSQL_COMMIT_ID=$(git rev-parse HEAD)
+  mysql_merge_time=$(git log | grep Date | sed -n '1p' | sed 's/^Date:\s*//g')
+  echo "mysqlGitVersion=${MYSQL_COMMIT_ID}" >> ${CANTIANDB_BUILD}/conf/git_message.in
+  echo "mysql_merge_time=${mysql_merge_time}" >> ${CANTIANDB_BUILD}/conf/git_message.in
+  cd -
 }
 
 function prepareGetMysqlClientStaticLibToDaaclib() {

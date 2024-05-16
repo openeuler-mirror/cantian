@@ -19,6 +19,7 @@ execute_process(
 )
 ######################################### version configuration here ################################################
 set(VERSION_DESCRIP "Cantian")
+set(VERSION_MYSQLIP "Mysql")
 set(DRIVER_VERSION_DESCRIP "Cantian")
 set(CTSQL_VERSION_DESCRIP "Cantian")
 set(PACK_PREFIX "Cantian")
