@@ -1674,7 +1674,7 @@ status_t dtc_rcy_find_batch_by_lsn(char *buf, dtc_rcy_node_t *rcy_node, log_poin
                            point->block_id, point->lsn, (uint64)point->lfn);
             rcy_node->recover_done = CT_TRUE;
             *is_find_start = CT_TRUE;
-            rcy_node->read_pos[rcy_node->read_buf_read_index] += invalide_size;
+            rcy_node->read_pos[rcy_node->read_buf_write_index] += invalide_size;
             return CT_ERROR;
         }
         if (batch->head.point.lsn > point->lsn) {
@@ -1687,7 +1687,7 @@ status_t dtc_rcy_find_batch_by_lsn(char *buf, dtc_rcy_node_t *rcy_node, log_poin
     rcy_node->curr_file_length += invalide_size;
     if (batch->head.point.lsn > point->lsn) {
         *is_find_start = CT_TRUE;
-        rcy_node->read_pos[rcy_node->read_buf_read_index] += invalide_size;
+        rcy_node->read_pos[rcy_node->read_buf_write_index] += invalide_size;
         return CT_SUCCESS;
     }
     return CT_SUCCESS;
