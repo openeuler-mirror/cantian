@@ -1133,7 +1133,7 @@ config_item_t g_parameters[] = {
     { "ENABLE_SYS_CRC_CHECK", CT_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "GS_TYPE_BOOLEAN", NULL,
       PARAM_ENABLE_CHECK_SECURITY_LOG, EFFECT_REBOOT, CFG_INS, sql_verify_als_bool,
       sql_notify_enable_crc_check, sql_notify_als_bool, NULL },
-    { "RCY_NODE_READ_BUF_SIZE", CT_TRUE, ATTR_NONE, "2", NULL, NULL, "-", "NULL", "CT_TYPE_INTEGER", NULL,
+    { "RCY_NODE_READ_BUF_SIZE", CT_TRUE, ATTR_NONE, "4", NULL, NULL, "-", "NULL", "CT_TYPE_INTEGER", NULL,
       PARAM_RCY_NODE_READ_BUF_SIZE, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_uint32, NULL,
       NULL, NULL },
 };
