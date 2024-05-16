@@ -15236,7 +15236,7 @@ status_t knl_alter_single_action(knl_session_t *session, knl_handle_t stmt, knl_
             break;
         }
     } while (0);
-    if (ret == CT_SUCCESS && knl_reopen_dc_in_alter_constraints(session, dc, cur_def) != CT_SUCCESS) {
+    if (knl_reopen_dc_in_alter_constraints(session, dc, cur_def) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[knl_alter_single_action]: knl_reopen_dc_in_alter_constraints failed");
         log_add_lrep_ddl_end(session);
         return CT_ERROR;
