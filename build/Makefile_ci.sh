@@ -5,6 +5,7 @@
 set -e
 PS4=':${LINENO}+'
 declare VERSION_DESCRIP=""
+declare VERSION_MYSQLIP=""
 declare PACK_PREFIX=""
 declare PROJECT_VERSION=""
 declare RUN_PACK_DIR_NAME=""
@@ -234,15 +235,29 @@ func_release_symbol()
 
 func_version()
 {
+    echo "Start build CTC func_version..."
     echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" > ${CANTIANDB_BIN}/package.xml
     echo "<PackageInfo>" >> ${CANTIANDB_BIN}/package.xml
+    echo "----------Start build Cantian-----------" >> ${CANTIANDB_BIN}/package.xml
     echo "name=\"CantianDB 100\"" >> ${CANTIANDB_BIN}/package.xml
     echo "version=\"${VERSION_DESCRIP} ${BUILD_MODE}\"" >> ${CANTIANDB_BIN}/package.xml
     echo "desc=\"CantianDB 100 install\"" >> ${CANTIANDB_BIN}/package.xml
     merge_time=$(cat ${CANTIANDB_BUILD}/conf/git_message.in | grep merge_time |  awk -F'=' '{print  $2}')
     echo "createDate=\"${merge_time}\"" >> ${CANTIANDB_BIN}/package.xml
+    cantian_merge_time=$(cat ${CANTIANDB_BUILD}/conf/git_message.in | grep cantian_merge_time |  awk -F'=' '{print  $2}')
+    echo "createDate=\"${cantian_merge_time}\"" >> ${CANTIANDB_BIN}/package.xml
     WHOLE_COMMIT_ID=$(cat ${CANTIANDB_BUILD}/conf/git_message.in | grep gitVersion |  awk -F'=' '{print  $2}')
     echo "gitVersion=\"${WHOLE_COMMIT_ID}\"" >> ${CANTIANDB_BIN}/package.xml
+    echo "Start build Mysql func_version..."
+    echo "---------- Start build Mysql -----------" >> ${CANTIANDB_BIN}/package.xml
+    echo "name=\"Mysql\"" >> ${CANTIANDB_BIN}/package.xml
+    echo "version=\"${VERSION_MYSQLIP} ${BUILD_MODE}\"" >> ${CANTIANDB_BIN}/package.xml
+    echo "desc=\"Mysql install\"" >> ${CANTIANDB_BIN}/package.xml
+    mysql_merge_time=$(cat ${CANTIANDB_BUILD}/conf/git_message.in | grep mysql_merge_time |  awk -F'=' '{print  $2}')
+    echo "createDate=\"${mysql_merge_time}\"" >> ${CANTIANDB_BIN}/package.xml
+    MYSQL_COMMIT_ID=$(cat ${CANTIANDB_BUILD}/conf/git_message.in | grep mysqlGitVersion |  awk -F'=' '{print  $2}')
+    echo "Start build Mysql func_version mysql COMMITID: \"${MYSQL_COMMIT_ID}\""
+    echo "gitVersion=\"${MYSQL_COMMIT_ID}\"" >> ${CANTIANDB_BIN}/package.xml
     echo "</PackageInfo>" >> ${CANTIANDB_BIN}/package.xml
 }
 

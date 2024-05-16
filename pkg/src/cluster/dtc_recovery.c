@@ -179,8 +179,8 @@ static status_t wait_for_read_buf_finish_read(uint32 index){
             cm_sleep(CT_DTC_RCY_NODE_READ_BUF_SLEEP_TIME);
             time_out -= CT_DTC_RCY_NODE_READ_BUF_SLEEP_TIME;
             if(time_out <= 0){
-                CT_LOG_RUN_ERR("[DTC RCY] dtc rcy fetch log batch wait for read buf time out node_id =%u",index);
-                CM_ABORT(0, "[DTC RCY] ABORT INFO: wait read node log proc time out");
+                CT_LOG_RUN_WAR("[DTC RCY] dtc rcy fetch log batch wait for read buf time out node_id =%u",index);
+                time_out = CT_DTC_RCY_NODE_READ_BUF_TIMEOUT;
             }
         }else{
             break;
@@ -1674,7 +1674,7 @@ status_t dtc_rcy_find_batch_by_lsn(char *buf, dtc_rcy_node_t *rcy_node, log_poin
                            point->block_id, point->lsn, (uint64)point->lfn);
             rcy_node->recover_done = CT_TRUE;
             *is_find_start = CT_TRUE;
-            rcy_node->read_pos[rcy_node->read_buf_read_index] += invalide_size;
+            rcy_node->read_pos[rcy_node->read_buf_write_index] += invalide_size;
             return CT_ERROR;
         }
         if (batch->head.point.lsn > point->lsn) {
@@ -1687,7 +1687,7 @@ status_t dtc_rcy_find_batch_by_lsn(char *buf, dtc_rcy_node_t *rcy_node, log_poin
     rcy_node->curr_file_length += invalide_size;
     if (batch->head.point.lsn > point->lsn) {
         *is_find_start = CT_TRUE;
-        rcy_node->read_pos[rcy_node->read_buf_read_index] += invalide_size;
+        rcy_node->read_pos[rcy_node->read_buf_write_index] += invalide_size;
         return CT_SUCCESS;
     }
     return CT_SUCCESS;
@@ -2134,6 +2134,7 @@ status_t dtc_read_node_log(dtc_rcy_context_t *dtc_rcy, knl_session_t *session, u
     // need to read log
     if (dtc_rcy_read_node_log(session, node_id, read_size) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DTC RCY] failed to load redo log of crashed node=%u", rcy_node->node_id);
+        CM_ABORT(0, "ABORT INFO:dtc read node log failed");
         return CT_ERROR;
     }
     if (*read_size == 0) {

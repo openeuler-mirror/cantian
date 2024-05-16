@@ -1768,20 +1768,30 @@ EXTER_ATTACK int tse_trx_commit(tianchi_handler_t *tch, uint64_t *cursors, int32
     return CT_SUCCESS;
 }
 
+static void tse_set_invalid_dc_node_id(tse_ddl_dc_array_t *dc_node)
+{
+    dc_node->dc.uid = CT_INVALID_INT32;
+    dc_node->dc.oid = CT_INVALID_INT32;
+}
+
 int tse_ddl_rollback_update_dc(knl_session_t *knl_session, knl_handle_t stmt, tse_ddl_def_node_t *def_node,
-    tse_ddl_dc_array_t *dc_node)
+                               tse_ddl_dc_array_t *dc_node)
 {
     if (def_node == NULL) {
         dc_node = NULL;
         return CT_SUCCESS;
     }
+    dc_node->ddl_def = def_node->ddl_def;
+    dc_node->def_mode = def_node->def_mode;
 
     switch (def_node->def_mode) {
         case ALTER_DEF:
         case TRUNC_DEF:
         case DROP_DEF: {
             if (knl_open_dc_by_id(knl_session, def_node->uid, def_node->oid, &(dc_node->dc), CT_TRUE) != CT_SUCCESS) {
-                CT_LOG_DEBUG_ERR("Fail to open dc for rollback(user_id:%d table_id:%d)!", def_node->uid, def_node->oid);
+                tse_set_invalid_dc_node_id(dc_node);
+                CT_LOG_RUN_ERR("Fail to open dc for rollback(user_id:%d, table_id:%d, def_mode:%d)!", 
+                               def_node->uid, def_node->oid, def_node->def_mode);
                 return CT_ERROR;
             }
             break;
@@ -1790,7 +1800,9 @@ int tse_ddl_rollback_update_dc(knl_session_t *knl_session, knl_handle_t stmt, ts
             knl_altable_def_t *rename_def = (knl_altable_def_t *)def_node->ddl_def;
             // if rename fail and dc_rename_table not executed
             if (knl_open_dc_by_id(knl_session, def_node->uid, def_node->oid, &(dc_node->dc), CT_TRUE) != CT_SUCCESS) {
+                tse_set_invalid_dc_node_id(dc_node);
                 CT_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, " %s not find", T2S(&(rename_def->table_def.new_name)));
+                CT_LOG_RUN_ERR("Fail to open dc for rollback in rename def(user_id:%d, table_id:%d)!", def_node->uid, def_node->oid);
                 return CT_ERROR;
             }
             dc_entry_t *entry = DC_ENTRY(&(dc_node->dc));
@@ -1804,28 +1816,28 @@ int tse_ddl_rollback_update_dc(knl_session_t *knl_session, knl_handle_t stmt, ts
             if (def_node->uid != CT_INVALID_INT32 && def_node->oid != CT_INVALID_INT32) {
                 if (knl_open_dc_by_id(knl_session, def_node->uid, def_node->oid, &(dc_node->dc), CT_TRUE) !=
                     CT_SUCCESS) {
-                    dc_node->dc.uid = CT_INVALID_INT32;
-                    dc_node->dc.oid = CT_INVALID_INT32;
-                    CT_LOG_DEBUG_ERR("Fail to open dc for create of copy algorithm during the rollback!");
+                    tse_set_invalid_dc_node_id(dc_node);
+                    CT_LOG_RUN_ERR("Fail to open dc for create of copy algorithm during the rollback!");
                     return CT_ERROR;
                 }
             } else {
-                dc_node->dc.uid = CT_INVALID_INT32;
-                dc_node->dc.oid = CT_INVALID_INT32;
+                tse_set_invalid_dc_node_id(dc_node);
             }
             break;
         }
         default:
             break;
     }
-    dc_node->ddl_def = def_node->ddl_def;
-    dc_node->def_mode = def_node->def_mode;
     
     return CT_SUCCESS;
 }
 
 void tse_ddl_table_after_rollback(knl_session_t *session, tse_ddl_dc_array_t *dc_node)
 {
+    if (dc_node->dc.uid == CT_INVALID_INT32 || dc_node->dc.oid == CT_INVALID_INT32 || dc_node->dc.type == DICT_TYPE_UNKNOWN) {
+        return;
+    }
+
     switch (dc_node->def_mode) {
         case ALTER_DEF:
         case RENAME_DEF: {
@@ -1838,9 +1850,6 @@ void tse_ddl_table_after_rollback(knl_session_t *session, tse_ddl_dc_array_t *dc
             break;
         }
         case CREATE_DEF: {
-            if (dc_node->dc.uid == CT_INVALID_INT32 || dc_node->dc.oid == CT_INVALID_INT32) {
-                break;
-            }
             knl_table_def_t *create_def = (knl_table_def_t *)dc_node->ddl_def;
             if (!create_def->create_as_select && !create_def->is_mysql_copy) {
                 dc_free_broken_entry(session, dc_node->dc.uid, dc_node->dc.oid);
@@ -1905,9 +1914,7 @@ EXTER_ATTACK int tse_trx_rollback(tianchi_handler_t *tch, uint64_t *cursors, int
         tse_ddl_def_node_t *def_node = (tse_ddl_def_node_t *)BILIST_NODE_OF(tse_ddl_def_node_t, node, bilist_node);
         tse_ddl_dc_array_t *dc_node = &(dc_array[dc_index]);
         if (tse_ddl_rollback_update_dc(knl_session, stmt, def_node, dc_node) != CT_SUCCESS) {
-            TSE_POP_CURSOR(knl_session);
-            CT_LOG_RUN_ERR("[TSE] ASSERT INFO: failed to rollback for ddl");
-            CM_ASSERT(0);
+            CT_LOG_RUN_ERR("[tse_trx_rollback] failed to rollback for ddl");
         }
         dc_index--;
     }
