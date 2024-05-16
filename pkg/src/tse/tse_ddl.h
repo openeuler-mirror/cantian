@@ -120,7 +120,7 @@ typedef enum sql_command_filter_op {
 
 void unlock_user_ddl(session_t *session);
 int tse_close_mysql_connection(tianchi_handler_t *tch);
-ct_type_t get_ct_type_from_tse_ddl_type(enum_tse_ddl_field_types tse_type);
+ct_type_t get_ct_type_from_tse_ddl_type(enum_tse_ddl_field_types tse_type, uint32_t is_unsigned);
 void tse_ddl_clear_stmt(sql_stmt_t *stmt);
 status_t tse_sql_parse_hash_partition(sql_stmt_t *stmt, knl_part_def_t *part_def);
 status_t tse_sql_subpart_parse_partition(sql_stmt_t *stmt, knl_part_def_t *part_def, knl_part_obj_def_t *obj_def);
