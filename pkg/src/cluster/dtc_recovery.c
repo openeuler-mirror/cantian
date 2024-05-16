@@ -179,8 +179,8 @@ static status_t wait_for_read_buf_finish_read(uint32 index){
             cm_sleep(CT_DTC_RCY_NODE_READ_BUF_SLEEP_TIME);
             time_out -= CT_DTC_RCY_NODE_READ_BUF_SLEEP_TIME;
             if(time_out <= 0){
-                CT_LOG_RUN_ERR("[DTC RCY] dtc rcy fetch log batch wait for read buf time out node_id =%u",index);
-                CM_ABORT(0, "[DTC RCY] ABORT INFO: wait read node log proc time out");
+                CT_LOG_RUN_WAR("[DTC RCY] dtc rcy fetch log batch wait for read buf time out node_id =%u",index);
+                time_out = CT_DTC_RCY_NODE_READ_BUF_TIMEOUT;
             }
         }else{
             break;
@@ -2134,6 +2134,7 @@ status_t dtc_read_node_log(dtc_rcy_context_t *dtc_rcy, knl_session_t *session, u
     // need to read log
     if (dtc_rcy_read_node_log(session, node_id, read_size) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DTC RCY] failed to load redo log of crashed node=%u", rcy_node->node_id);
+        CM_ABORT(0, "ABORT INFO:dtc read node log failed");
         return CT_ERROR;
     }
     if (*read_size == 0) {
