@@ -19,12 +19,14 @@ func_prepare_git_msg()
   echo "cantian_merge_time=${cantian_merge_time}" >> ${CANTIANDB_BUILD}/conf/git_message.in
   echo "driver_commit_id=${driver_commit_id}" >> ${CANTIANDB_BUILD}/conf/git_message.in
   echo "ctsql_commit_id=${ctsql_commit_id}" >> ${CANTIANDB_BUILD}/conf/git_message.in
-  cd ${MYSQL_CODE_PATH}
-  MYSQL_COMMIT_ID=$(git rev-parse HEAD)
-  mysql_merge_time=$(git log | grep Date | sed -n '1p' | sed 's/^Date:\s*//g')
-  echo "mysqlGitVersion=${MYSQL_COMMIT_ID}" >> ${CANTIANDB_BUILD}/conf/git_message.in
-  echo "mysql_merge_time=${mysql_merge_time}" >> ${CANTIANDB_BUILD}/conf/git_message.in
-  cd -
+  if [ -d ${MYSQL_CODE_PATH} ]; then
+    cd ${MYSQL_CODE_PATH}
+    MYSQL_COMMIT_ID=$(git rev-parse HEAD)
+    mysql_merge_time=$(git log | grep Date | sed -n '1p' | sed 's/^Date:\s*//g')
+    echo "mysqlGitVersion=${MYSQL_COMMIT_ID}" >> ${CANTIANDB_BUILD}/conf/git_message.in
+    echo "mysql_merge_time=${mysql_merge_time}" >> ${CANTIANDB_BUILD}/conf/git_message.in
+    cd -
+  fi
 }
 
 function prepareGetMysqlClientStaticLibToDaaclib() {
