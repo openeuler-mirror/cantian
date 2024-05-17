@@ -139,7 +139,6 @@ typedef struct my_st_dec4 {
     my_c4typ_t head;
   };
   my_cell4_t cells;
-  my_text_t num_text;  // only for bind param
 } my_dec4_t;
 #pragma pack()
 typedef struct cache_st_variant {
