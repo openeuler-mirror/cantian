@@ -1269,14 +1269,24 @@ status_t init_ddl_session(session_t *session)
     return CT_SUCCESS;
 }
 
-ct_type_t get_ct_type_from_tse_ddl_type(enum_tse_ddl_field_types tse_type)
+ct_type_t get_ct_type_from_tse_ddl_type(enum_tse_ddl_field_types tse_type, uint32_t is_unsigned)
 {
+    ct_type_t ct_type = CT_TYPE_UNKNOWN;
     for (size_t i = 0; i < sizeof(g_mysql_to_cantian_type) / sizeof(mysql_cantiandba_type_t); i++) {
         if (tse_type == g_mysql_to_cantian_type[i].mysql_type) {
-            return g_mysql_to_cantian_type[i].cantian_type;
+            ct_type = g_mysql_to_cantian_type[i].cantian_type;
+            if (is_unsigned == 1) {
+                if (ct_type == CT_TYPE_INTEGER) {
+                    ct_type = CT_TYPE_UINT32;
+                } else if (ct_type == CT_TYPE_BIGINT) {
+                    ct_type = CT_TYPE_UINT64;
+                }
+            }
+            return ct_type;
         }
     }
-    return CT_TYPE_UNKNOWN;
+
+    return ct_type;
 }
 
 bool type_is_number(ct_type_t datatype)
@@ -1316,15 +1326,8 @@ status_t tse_fill_column_info(session_t *session, sql_stmt_t *stmt, knl_column_d
                               const TcDb__TseDDLColumnDef *def, ddl_ctrl_t *ddl_ctrl)
 {
     proto_str2text(def->name, &column->name);
-    column->datatype = get_ct_type_from_tse_ddl_type(def->datatype->datatype);
+    column->datatype = get_ct_type_from_tse_ddl_type(def->datatype->datatype, def->is_unsigned);
     column->mysql_ori_datatype = def->datatype->mysql_ori_datatype;
-    if (def->is_unsigned == 1) {
-        if (column->datatype == CT_TYPE_INTEGER) {
-            column->datatype = CT_TYPE_UINT32;
-        } else if (column->datatype == CT_TYPE_BIGINT) {
-            column->datatype = CT_TYPE_UINT64;
-        }
-    }
 
     if (column->mysql_ori_datatype == MYSQL_TYPE_ENUM || column->mysql_ori_datatype == MYSQL_TYPE_SET ||
         column->mysql_ori_datatype == MYSQL_TYPE_BIT) {
@@ -1441,7 +1444,7 @@ int fill_tse_create_fk_info(sql_stmt_t *stmt, TcDb__TseDDLCreateTableDef *req, k
 static status_t tse_ddl_fill_key_column(TcDb__TseDDLTableKeyPart *key_part, knl_index_col_def_t *key_column)
 {
     proto_str2text(key_part->name, &key_column->name);
-    key_column->datatype = get_ct_type_from_tse_ddl_type(key_part->datatype);
+    key_column->datatype = get_ct_type_from_tse_ddl_type(key_part->datatype, key_part->is_unsigned);
     key_column->size = key_part->length;
     key_column->is_func = key_part->is_func;
     if (key_column->is_func) {

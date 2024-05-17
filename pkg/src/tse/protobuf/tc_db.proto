@@ -53,6 +53,7 @@ message TseDDLTableKeyPart {
   bool is_func = 4;
   string func_text = 5;
   string func_name = 6;
+  uint32 is_unsigned = 7;
 }
 message TseDDLTableKey {
     // Key
