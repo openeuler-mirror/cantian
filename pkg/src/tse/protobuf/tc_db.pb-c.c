@@ -1634,7 +1634,7 @@ const ProtobufCMessageDescriptor tc_db__tse_ddlforeign_key_def__descriptor =
   (ProtobufCMessageInit) tc_db__tse_ddlforeign_key_def__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor tc_db__tse_ddltable_key_part__field_descriptors[6] =
+static const ProtobufCFieldDescriptor tc_db__tse_ddltable_key_part__field_descriptors[7] =
 {
   {
     "name",
@@ -1708,19 +1708,32 @@ static const ProtobufCFieldDescriptor tc_db__tse_ddltable_key_part__field_descri
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "is_unsigned",
+    7,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_UINT32,
+    0,   /* quantifier_offset */
+    offsetof(TcDb__TseDDLTableKeyPart, is_unsigned),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
 static const unsigned tc_db__tse_ddltable_key_part__field_indices_by_name[] = {
   2,   /* field[2] = datatype */
   5,   /* field[5] = func_name */
   4,   /* field[4] = func_text */
   3,   /* field[3] = is_func */
+  6,   /* field[6] = is_unsigned */
   1,   /* field[1] = length */
   0,   /* field[0] = name */
 };
 static const ProtobufCIntRange tc_db__tse_ddltable_key_part__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 6 }
+  { 0, 7 }
 };
 const ProtobufCMessageDescriptor tc_db__tse_ddltable_key_part__descriptor =
 {
@@ -1730,7 +1743,7 @@ const ProtobufCMessageDescriptor tc_db__tse_ddltable_key_part__descriptor =
   "TcDb__TseDDLTableKeyPart",
   "tc_db",
   sizeof(TcDb__TseDDLTableKeyPart),
-  6,
+  7,
   tc_db__tse_ddltable_key_part__field_descriptors,
   tc_db__tse_ddltable_key_part__field_indices_by_name,
   1,  tc_db__tse_ddltable_key_part__number_ranges,

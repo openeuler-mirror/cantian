@@ -164,10 +164,11 @@ struct  TcDb__TseDDLTableKeyPart
   protobuf_c_boolean is_func;
   char *func_text;
   char *func_name;
+  uint32_t is_unsigned;
 };
 #define TC_DB__TSE_DDLTABLE_KEY_PART__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&tc_db__tse_ddltable_key_part__descriptor) \
-    , (char *)protobuf_c_empty_string, 0, 0, 0, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string }
+    , (char *)protobuf_c_empty_string, 0, 0, 0, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, 0 }
 
 
 struct  TcDb__TseDDLTableKey
