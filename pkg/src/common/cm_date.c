@@ -2889,8 +2889,8 @@ void cm_cnvrt_time_from_int_to_date_detail(int64 input, date_detail_t *detail)
     detail->year = 0;
     detail->mon = 0;
     detail->day = 0;
-    detail->hour = (uint8)(((uint64)h_m_s >> DT_ENCODE_12) % (1 << DT_ENCODE_10));
-    detail->min = (uint8)(((uint64)h_m_s >> DT_ENCODE_6) % (1 << DT_ENCODE_6));
+    detail->hour = (int32)((h_m_s >> DT_ENCODE_12) % (1 << DT_ENCODE_10));
+    detail->min = (uint8)((h_m_s >> DT_ENCODE_6) % (1 << DT_ENCODE_6));
     detail->sec = (uint8)(h_m_s % (1 << DT_ENCODE_6));
 
     uint32 tmp = (uint32)(time % (1LL << DT_ENCODE_24));
