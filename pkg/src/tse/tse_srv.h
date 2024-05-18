@@ -150,7 +150,6 @@ typedef struct cache_st_variant {
         unsigned long long v_ubigint;
         double v_real;
         date_t v_date;
-        my_text_t v_text;
         my_dec4_t v_dec;
     };
 } cache_variant_t;
