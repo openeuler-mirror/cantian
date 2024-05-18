@@ -2264,57 +2264,46 @@ void knl_cache_cbo_text2variant(dc_entity_t *entity, uint32 col_id, text_t *colu
     CT_LOG_DEBUG_INF("[Histgram ep_value Print] column_id:%u ",col_id);
     switch (dc_column->datatype) {
         case CT_TYPE_BOOLEAN:
-            ret_val->v_bool = *(bool32 *)column->str;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %u",ret_val->v_bool);
+            ret_val->v_bool = *(bool32 *)column->str;
             break;
         case CT_TYPE_UINT32:
-            ret_val->v_uint32 = *(uint32 *)column->str;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %u",ret_val->v_uint32);
+            ret_val->v_uint32 = *(uint32 *)column->str;
             break;
         case CT_TYPE_SMALLINT:
         case CT_TYPE_INTEGER:
         case CT_TYPE_USMALLINT:
         case CT_TYPE_TINYINT:
         case CT_TYPE_UTINYINT:
-            ret_val->v_int = *(int32 *)column->str;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %d",ret_val->v_int);
+            ret_val->v_int = *(int32 *)column->str;
             break;
         case CT_TYPE_UINT64:
-            ret_val->v_ubigint = *(uint64 *)column->str;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %llu",ret_val->v_ubigint);
+            ret_val->v_ubigint = *(uint64 *)column->str;
             break;
         case CT_TYPE_BIGINT:
-            ret_val->v_bigint = *(int64 *)column->str;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %lld",ret_val->v_ubigint);
+            ret_val->v_bigint = *(int64 *)column->str;
             break;
         case CT_TYPE_FLOAT:
         case CT_TYPE_REAL:
-            ret_val->v_real = *(double *)column->str;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %lf",ret_val->v_real);
+            ret_val->v_real = *(double *)column->str;
             break;
         case CT_TYPE_TIMESTAMP:
         case CT_TYPE_DATE:
         case CT_TYPE_TIME_MYSQL:
         case CT_TYPE_DATETIME_MYSQL:
         case CT_TYPE_DATE_MYSQL:
-            ret_val->v_date = *(date_t *)column->str;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %lld",ret_val->v_date); // todo: to str
+            ret_val->v_date = *(date_t *)column->str;
             break;
         case CT_TYPE_DECIMAL:
         case CT_TYPE_NUMBER3:
-            // ret_val->v_dec = *(dec4_t*)column->str;
-            MEMS_RETVOID_IFERR(memcpy_s((void *)&ret_val->v_dec, sizeof(my_dec4_t), column->str, sizeof(dec4_t)));
-            if ((uint32)(cm_dec4_stor_sz((void *)&ret_val->v_dec)) > column->len) {
-                cm_latch_s(&dc_column->cbo_col_latch, 0, CT_FALSE, NULL);
-                MEMS_RETVOID_IFERR(memcpy_s((void *)&ret_val->v_dec, sizeof(my_dec4_t), column->str, sizeof(dec4_t)));
-                cm_unlatch(&dc_column->cbo_col_latch, NULL);
-            }
-            break;
-        case CT_TYPE_CHAR:
-        case CT_TYPE_VARCHAR:
-        case CT_TYPE_STRING:
-            MEMS_RETVOID_IFERR(memcpy_s(ret_val->v_text.str, column->len, column->str, column->len));
-            ret_val->v_text.len = column->len;              
+            CT_LOG_DEBUG_INF("[Histgram ep_value Print] datatype: %d", dc_column->datatype);
+            ret_val->v_real = cm_dec4_to_real((dec4_t *)column->str);
             break;
         default:
             break;
