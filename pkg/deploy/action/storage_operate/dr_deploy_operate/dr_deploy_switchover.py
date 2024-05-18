@@ -395,18 +395,17 @@ class FailOver(SwitchOver):
             err_msg = "Fail over operation is not allowed in primary node."
             LOG.error(err_msg)
             raise Exception(err_msg)
+        self.check_cluster_status(target_node=self.node_id)
         running_status = domain_info.get("RUNNINGSTATUS")
         if running_status == MetroDomainRunningStatus.Normal:
             self.dr_deploy_opt.split_filesystem_hyper_metro_domain(self.hyper_domain_id)
         self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
             self.hyper_domain_id, DomainAccess.ReadAndWrite)
-        while True:
-            try:
-                self.check_cluster_status(target_node=self.node_id, log_type="info")
-                break
-            except Exception as _er:
-                err_msg = "Check cluster status failed, error: {}".format(_er)
-                LOG.error(err_msg)
-                time.sleep(30)
+        try:
+            self.check_cluster_status(target_node=self.node_id, log_type="info")
+        except Exception as _er:
+            err_msg = "Check cluster status failed, error: {}".format(_er)
+            LOG.error(err_msg)
+            raise Exception(err_msg)
         self.query_database_role()
         LOG.info("Cancel secondary resource protection success.")
