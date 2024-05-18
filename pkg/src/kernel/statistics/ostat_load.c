@@ -2302,14 +2302,8 @@ void knl_cache_cbo_text2variant(dc_entity_t *entity, uint32 col_id, text_t *colu
             break;
         case CT_TYPE_DECIMAL:
         case CT_TYPE_NUMBER3:
-            // ret_val->v_dec = *(dec4_t*)column->str;
             CT_LOG_DEBUG_INF("[Histgram ep_value Print] datatype: %d", dc_column->datatype);
-            MEMS_RETVOID_IFERR(memcpy_s((void *)&ret_val->v_dec, sizeof(my_dec4_t), column->str, sizeof(dec4_t)));
-            if ((uint32)(cm_dec4_stor_sz((void *)&ret_val->v_dec)) > column->len) {
-                cm_latch_s(&dc_column->cbo_col_latch, 0, CT_FALSE, NULL);
-                MEMS_RETVOID_IFERR(memcpy_s((void *)&ret_val->v_dec, sizeof(my_dec4_t), column->str, sizeof(dec4_t)));
-                cm_unlatch(&dc_column->cbo_col_latch, NULL);
-            }
+            ret_val->v_real = cm_dec4_to_real((dec4_t *)column->str);
             break;
         default:
             break;
