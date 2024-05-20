@@ -2094,8 +2094,9 @@ static status_t vw_tablespaces_fetch_core(knl_handle_t session, knl_cursor_t *cu
     }
 
     space_t *space = &db->spaces[(cursor->rowid.vmid)];
-
+    dls_spin_lock(sess, &space->lock, &sess->stat->spin_stat.stat_space);
     while (!space->ctrl->used) {
+        dls_spin_unlock(sess, &space->lock);
         cursor->rowid.vmid++;
         if (cursor->rowid.vmid >= CT_MAX_SPACES) {
             cursor->eof = CT_TRUE;
@@ -2103,9 +2104,11 @@ static status_t vw_tablespaces_fetch_core(knl_handle_t session, knl_cursor_t *cu
         }
 
         space = &db->spaces[(cursor->rowid.vmid)];
+        dls_spin_lock(sess, &space->lock, &sess->stat->spin_stat.stat_space);
     }
 
     CT_RETURN_IFERR(vw_tablespaces_fetch_one_space(session, cursor, (uint32)cursor->rowid.vmid));
+    dls_spin_unlock(sess, &space->lock);
     cursor->rowid.vmid++;
     return CT_SUCCESS;
 }

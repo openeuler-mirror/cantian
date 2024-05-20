@@ -185,6 +185,12 @@ function stop_cantian() {
     logAndEchoInfo "stop cantian success"
 }
 
+#  停止CMS, 离线升级不使用，滚动升级预留
+function stop_cms() {
+    kill -9 $(pidof cms)
+    logAndEchoInfo "success stop cms"
+}
+
 #  检查参天是否停止
 function cantian_status_check() {
     logAndEchoInfo "begin to check cantian status"
@@ -909,6 +915,7 @@ function do_rollup_upgrade() {
     logAndEchoInfo ">>>>> begin to do rollup upgrade for node${node_id} <<<<<"
 
     stop_cantian
+    stop_cms
 
     # 生成调用ct_backup成功的标记文件，避免重入调用时失败
     touch "${storage_metadata_fs_path}/call_ctback_tool.success" && chmod 400 "${storage_metadata_fs_path}/call_ctback_tool.success"
