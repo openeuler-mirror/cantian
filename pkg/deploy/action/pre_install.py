@@ -544,6 +544,8 @@ class CheckInstallConfig(CheckBase):
 
         if install_config_params['cantian_in_container'] != '0':
             ping_check_element.remove("cms_ip")
+            ip_check_element.remove("cantian_vlan_ip")
+            ping_check_element.remove("cantian_vlan_ip")
 
         if install_config_params['archive_logic_ip'] == "" \
                 and install_config_params['share_logic_ip'] == "" \

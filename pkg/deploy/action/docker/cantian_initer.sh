@@ -15,14 +15,19 @@ START_STATUS_NAME="start_status.json"
 MOUNT_FILE="mount.sh"
 VERSION_FILE="versions.yml"
 PRE_INSTALL_PY_PATH=${CURRENT_PATH}/../pre_install.py
-WAIT_TIMES=100
+WAIT_TIMES=120
 LOGICREP_HOME='/opt/software/tools/logicrep'
 USER_FILE="${LOGICREP_HOME}/create_user.json"
+HEALTHY_FILE="/opt/cantian/healthy"
+READINESS_FILE="/opt/cantian/readiness"
 
 source ${CURRENT_PATH}/../log4sh.sh
 
-cp -rf ${INIT_CONFIG_PATH}/${CONFIG_NAME} ${CONFIG_PATH}/${CONFIG_NAME}
-cp -rf ${INIT_CONFIG_PATH}/${CONFIG_NAME} ${OPT_CONFIG_PATH}/${CONFIG_NAME}
+# 创建存活探针
+touch ${HEALTHY_FILE}
+
+cat ${INIT_CONFIG_PATH}/${CONFIG_NAME} > ${CONFIG_PATH}/${CONFIG_NAME}
+cat ${INIT_CONFIG_PATH}/${CONFIG_NAME} > ${OPT_CONFIG_PATH}/${CONFIG_NAME}
 
 ulimit -c unlimited
 ulimit -l unlimited
@@ -91,6 +96,7 @@ function check_init_status() {
         sleep 60
         logAndEchoInfo "The cluster has been initialized, no need create database. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         sed -i "s/\"db_create_status\": \"default\"/\"db_create_status\": \"done\"/g" /opt/cantian/cantian/cfg/${START_STATUS_NAME}
+        sed -i "s/\"ever_started\": false/\"ever_started\": true/g" /opt/cantian/cantian/cfg/${START_STATUS_NAME}
         rm -rf ${USER_FILE}
     fi
 
@@ -104,6 +110,7 @@ function check_init_status() {
             exit 1
         fi
         let resolve_times++
+        sleep 5
     done
     # TODO
     if [ -f ${VERSION_PATH}/${VERSION_FILE} ] || [ ${node_id} -ne 0 ]; then
@@ -161,14 +168,14 @@ function init_start() {
     # Cantian启动前先执行升级流程
     sh ${CURRENT_PATH}/container_upgrade.sh
     if [ $? -ne 0 ]; then
-        rm -rf /etc/healthy
+        rm -rf ${HEALTHY_FILE}
         exit 1
     fi
 
     # Cantian启动前执行init流程，更新各个模块配置文件，初始化cms
     sh ${SCRIPT_PATH}/appctl.sh init_container
     if [ $? -ne 0 ]; then
-        rm -rf /etc/healthy
+        rm -rf ${HEALTHY_FILE}
         exit 1
     fi
 
@@ -177,6 +184,7 @@ function init_start() {
     python3 ${PRE_INSTALL_PY_PATH} 'override' ${INIT_CONFIG_PATH}/${CONFIG_NAME}
     if [ $? -ne 0 ]; then
         logAndEchoError "parameters pre-check failed."
+        rm -rf ${HEALTHY_FILE}
         exit 1
     fi
     logAndEchoInfo "pre-check the parameters success."
@@ -184,7 +192,7 @@ function init_start() {
     # Cantian启动
     sh ${SCRIPT_PATH}/appctl.sh start
     if [ $? -ne 0 ]; then
-        rm -rf /etc/healthy
+        rm -rf ${HEALTHY_FILE}
         exit 1
     fi
 
@@ -196,7 +204,7 @@ function init_start() {
             -U ${deploy_user}:${deploy_group} -l /home/${deploy_user}/logs/install.log \
             -M mysqld -m /opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts/my.cnf -g withoutroot"
         if [ $? -ne 0 ]; then
-            rm -rf /etc/healthy
+            rm -rf ${HEALTHY_FILE}
             logAndEchoError "start mysqld failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
         fi
@@ -207,6 +215,10 @@ function init_start() {
     if [ ! -f ${VERSION_PATH}/${VERSION_FILE} ]; then
         set_version_file
     fi
+
+    # 创建就绪探针
+    touch ${READINESS_FILE}
+
     logAndEchoInfo "cantian container init success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 }
 

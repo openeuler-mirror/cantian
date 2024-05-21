@@ -741,6 +741,8 @@ bool32 knl_is_table_csf(knl_handle_t dc_entity, knl_part_locate_t part_loc);
 uint32 knl_table_max_row_len(knl_handle_t dc_entity, uint32 max_col_size, knl_part_locate_t part_loc);
 status_t knl_ddl_latch_s(drlatch_t *latch, knl_handle_t session, latch_statis_t *stat);
 status_t knl_ddl_latch_x(knl_handle_t session, latch_statis_t *stat);
+status_t knl_ddl_latch_sx(knl_handle_t session, latch_statis_t *stat);
+void knl_ddl_unlatch_x(knl_handle_t session);
 status_t knl_verify_index_by_name(knl_handle_t session, knl_dictionary_t *dc, text_t *index_name,
     knl_corrupt_info_t *info);
 status_t knl_verify_table(knl_handle_t session, knl_dictionary_t *dc, knl_corrupt_info_t *corrupt_info);
