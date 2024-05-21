@@ -107,7 +107,7 @@ config_item_t g_parameters[] = {
     { "BUFFER_LRU_SEARCH_THRE", CT_TRUE, ATTR_NONE, "60", NULL, NULL, "-", "[1,100]", "CT_TYPE_INTEGER", NULL,
       PARAM_BUFFER_LRU_SEARCH_THRE, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_lru_search_threshold,
       sql_notify_als_lru_search_threshold, NULL, NULL },
-    { "BUFFER_PAGE_CLEAN_RATIO", CT_TRUE, ATTR_NONE, "0.4", NULL, NULL, "-", "[0.1,1]", "CT_TYPE_REAL", NULL,
+    { "BUFFER_PAGE_CLEAN_RATIO", CT_TRUE, ATTR_NONE, "0.4", NULL, NULL, "-", "[0.0001,1]", "CT_TYPE_REAL", NULL,
       PARAM_BUFFER_PAGE_CLEAN_RATIO, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_page_clean_ratio,
       sql_notify_als_page_clean_ratio, NULL, NULL },
     { "_BUFFER_PAGE_CLEAN_WAIT_TIMEOUT", CT_TRUE, ATTR_NONE, "0", NULL, NULL, "-", "[0,4294967295]", "CT_TYPE_INTEGER",

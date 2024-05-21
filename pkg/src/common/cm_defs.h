@@ -1440,7 +1440,7 @@ static inline void cm_try_delete_end_slash(char *str)
 #define CT_MIN_LRU_SEARCH_THRESHOLD (uint32_t)1
 #define CT_MAX_LRU_SEARCH_THRESHOLD (uint32_t)100
 
-#define CT_MIN_PAGE_CLEAN_RATIO (double)0.1
+#define CT_MIN_PAGE_CLEAN_RATIO (double)0.0001
 #define CT_MAX_PAGE_CLEAN_RATIO (double)1
 
 #define OLD_PREFIX_SYS_PART_NAME "SYS_P"
