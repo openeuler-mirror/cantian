@@ -1900,7 +1900,7 @@ static inline status_t cm_get_date_item(text_t *date_text,
             cm_check_special_char(date_text);
             item_len = cm_find_point(date_text);
             if ((item_len % EVEN_NUM) == 0) {
-                cm_check_time(MASK_HOUR, 2, 0, 23, date_text, mask, num_value);
+                cm_check_time(MASK_HOUR, 2, -99, 99, date_text, mask, num_value);
             } else {
                 cm_check_time(MASK_HOUR, 3, -838, 838, date_text, mask, num_value);
             }
