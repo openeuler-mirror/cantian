@@ -1777,8 +1777,11 @@ status_t dtc_recover_check_assign_nodeid(knl_session_t *session, uint32_t node_i
     CT_LOG_RUN_INF("[DTC RCY] node:%u, current lfn: %llu, rcy point lfn: %llu, lrp point lfn: %llu",
                    rcy_log_point->node_id, (uint64)rcy_log_point->rcy_point.lfn, (uint64)ctrl->rcy_point.lfn,
                    (uint64)(uint64)ctrl->lrp_point.lfn);
+    CT_LOG_RUN_INF("[DTC RCY] node:%u, recovery real end with file: %u, read node log proc point: %u, lfn: %llu", rcy_log_point->node_id,
+                   rcy_log_point->rcy_write_point.asn, rcy_log_point->rcy_write_point.block_id,
+                   (uint64)rcy_log_point->rcy_write_point.lfn);
 
-    if (rcy_log_point->rcy_point.lfn >= ctrl->lrp_point.lfn) {
+    if (rcy_log_point->rcy_write_point.lfn >= ctrl->lrp_point.lfn) {
         return CT_SUCCESS;
     }
 
