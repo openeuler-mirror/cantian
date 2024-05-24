@@ -560,7 +560,8 @@ status_t knl_perform_alter_table(knl_handle_t session, knl_handle_t stmt, knl_al
 status_t knl_alter_table_shrink(knl_handle_t session, knl_handle_t stmt, knl_altable_def_t *def);
 void knl_drop_table_log_put(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t *def,
                             knl_dictionary_t *dc);
-void knl_drop_table_after_commit4mysql(knl_handle_t session, knl_dictionary_t *dc, knl_drop_def_t *def);
+void knl_drop_table_after_commit4mysql(knl_handle_t session, void *dc_node, knl_drop_def_t *def);
+void knl_free_entry_after_commit4mysql(knl_handle_t session, void *dc_node);
 status_t knl_drop_table(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t *def);
 status_t knl_drop_table_no_commit4mysql(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t *def);
 status_t knl_drop_view(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t *def);
