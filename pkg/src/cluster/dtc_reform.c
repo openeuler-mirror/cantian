@@ -290,9 +290,11 @@ status_t dtc_standby_partial_recovery(void)
         }
         CT_LOG_RUN_INF("standby start to partial recovery");
         if (dtc_partial_recovery(rcy_list) != CT_SUCCESS) {
+            cm_pop(session->stack);
             CT_LOG_RUN_ERR("[RC] failed to do partial recovery");
             return CT_ERROR;
         }
+        cm_pop(session->stack);
     } else {
         if (rc_set_redo_replay_done(g_rc_ctx->session, &(g_rc_ctx->info), CT_FALSE) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[RC][partial restart] failed to broadcast reform status g_rc_ctx->status=%u",
