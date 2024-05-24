@@ -1681,8 +1681,7 @@ void tse_ddl_table_after_commit(knl_session_t *session, tse_ddl_dc_array_t *dc_n
         }
         case DROP_DEF: {
             knl_drop_def_t *drop_def = (knl_drop_def_t *)dc_node->ddl_def;
-            knl_drop_table_after_commit4mysql(session, &(dc_node->dc), drop_def);
-            knl_close_dc(&(dc_node->dc));
+            knl_drop_table_after_commit4mysql(session, dc_node, drop_def);
             break;
         }
         case CREATE_DEF: {
@@ -1709,6 +1708,12 @@ void tse_ddl_table_after_commit_list(bilist_t *def_list, tse_ddl_dc_array_t *dc_
         tse_ddl_table_after_commit(knl_session, dc_node);
         if (dc_node->def_mode == DROP_DEF) {
             *unlock_tables = CT_FALSE;
+        }
+    }
+    for (uint32_t i = 0; i < def_list->count; i++) {
+        tse_ddl_dc_array_t *dc_node = &(dc_array[i]);
+        if (dc_node->def_mode == DROP_DEF) {
+            knl_free_entry_after_commit4mysql(knl_session, dc_node);
         }
     }
 }
