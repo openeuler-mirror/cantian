@@ -81,6 +81,7 @@
 #include "dtc_database.h"
 #include "dtc_backup.h"
 #include "dtc_dcs.h"
+#include "tse_ddl_list.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -7760,8 +7761,10 @@ status_t knl_internal_drop_table_handle_ref(knl_handle_t session, knl_drop_def_t
     return CT_ERROR;
 }
 
-void knl_drop_table_after_commit4mysql(knl_handle_t session, knl_dictionary_t *dc, knl_drop_def_t *def)
+void knl_drop_table_after_commit4mysql(knl_handle_t session, void *node, knl_drop_def_t *def)
 {
+    tse_ddl_dc_array_t *dc_node = (tse_ddl_dc_array_t *)node;
+    knl_dictionary_t *dc = &(dc_node->dc);
     knl_session_t *se = (knl_session_t *)session;
     core_ctrl_t *core = &se->kernel->db.ctrl.core;
     table_t *table = DC_TABLE(dc);
@@ -7771,10 +7774,20 @@ void knl_drop_table_after_commit4mysql(knl_handle_t session, knl_dictionary_t *d
     }
     bool32 is_drop = (dc->type != DICT_TYPE_TABLE || table->desc.space_id == SYS_SPACE_ID ||
                table->desc.space_id == core->sysaux_space || def->purge || !se->kernel->attr.recyclebin);
+    dc_node->is_dropped = is_drop;
+}
+
+void knl_free_entry_after_commit4mysql(knl_handle_t session, void *node)
+{
+    tse_ddl_dc_array_t *dc_node = (tse_ddl_dc_array_t *)node;
+    knl_dictionary_t *dc = &(dc_node->dc);
+    knl_session_t *se = (knl_session_t *)session;
+
     unlock_tables_directly(session);
-    if (is_drop) {
+    if (dc_node->is_dropped) {
         dc_free_entry(se, DC_ENTRY(dc));
     }
+    knl_close_dc(dc);
 }
 
 status_t knl_internal_drop_table(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t *def, bool32 commit)

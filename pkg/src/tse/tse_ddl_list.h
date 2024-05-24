@@ -53,6 +53,7 @@ typedef struct tse_ddl_dc_array {
     knl_dictionary_t dc;
     void *ddl_def;
     ddl_def_mode_t def_mode;
+    bool8 is_dropped;
 } tse_ddl_dc_array_t;
 
 void tse_init_ddl_def_list(sql_stmt_t *stmt);
