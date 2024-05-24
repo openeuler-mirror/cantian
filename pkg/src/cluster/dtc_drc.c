@@ -2833,7 +2833,11 @@ status_t drc_lock_local_lock_res_by_id_for_recycle(knl_session_t *session, drid_
             lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
         return CT_SUCCESS;
     }
-    drc_lock_local_resx(lock_res);
+    if (!drc_try_lock_local_resx(lock_res)) {
+        CT_LOG_RUN_WAR("[DRC] dls_lock_res_local(%u/%u/%u/%u/%u) is locked",
+            lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
+        return CT_ERROR;
+    }
     drc_get_local_latch_statx(lock_res, &latch_stat);
     if (lock_res->is_locked || latch_stat->stat != LATCH_STATUS_IDLE) {
         CT_LOG_RUN_WAR("[DRC] dls_lock_res_local(%u/%u/%u/%u/%u) is locked, stat %u",
