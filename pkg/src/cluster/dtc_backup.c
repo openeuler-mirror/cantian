@@ -2434,8 +2434,7 @@ status_t bak_get_arch_from_redo_prepare(knl_session_t *session, knl_session_t *s
         return CT_ERROR;
     }
     int64 size = (int64)LOG_LGWR_BUF_SIZE(session);
-    if (cm_aligned_malloc(size, "bak rcy read buffer",
-                          &rcy_node->read_buf[rcy_node->read_buf_read_index]) != CT_SUCCESS) {
+    if (cm_aligned_malloc(size, "bak rcy read buffer", &rcy_node->read_buf) != CT_SUCCESS) {
         return CT_ERROR;
     }
     logfile_set_t *file_set = LOGFILE_SET(session, rcy_node->node_id);
@@ -2450,20 +2449,15 @@ status_t bak_get_arch_from_redo_prepare(knl_session_t *session, knl_session_t *s
 void bak_get_arch_from_redo_free(knl_compress_t *compress_ctx, knl_session_t *session, arch_file_info_t *file_info,
                                  dtc_rcy_node_t *rcy_node, logfile_set_t *local_file_set)
 {
-    uint32 read_buf_size = g_instance->kernel.attr.rcy_node_read_buf_size;
     CM_FREE_PTR(session->kernel);
     cm_aligned_free(&file_info->read_buf);
-    for(int i = 0; i < read_buf_size;  ++i){
-        cm_aligned_free(&rcy_node->read_buf[i]);
-    }
+    cm_aligned_free(&rcy_node->read_buf);
     for (uint32 i = 0; i <  local_file_set->logfile_hwm; i++) {
         if (rcy_node->handle[i] != CT_INVALID_HANDLE) {
             cm_close_device(local_file_set->items[i].ctrl->type, &rcy_node->handle[i]);
         }
     }
-    for(int i = 0; i < read_buf_size;  ++i){
-        cm_aligned_free(&rcy_node->read_buf[i]);
-    }
+    cm_aligned_free(&rcy_node->read_buf);
 }
 
 bool32 dtc_bak_logfile_empty(log_file_t *logfile, dtc_node_ctrl_t *node_ctrl)

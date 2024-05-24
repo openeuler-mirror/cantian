@@ -303,7 +303,6 @@ typedef struct st_knl_attr {
     uint32 batch_flush_capacity;
     bool32 enable_hwm_change;
     bool32 enable_boc;
-    uint32 rcy_node_read_buf_size;
 } knl_attr_t;
 
 typedef struct st_sys_name_context {  // for system name
