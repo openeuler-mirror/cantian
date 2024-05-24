@@ -191,7 +191,6 @@ typedef struct st_reform_rcy_node {
     uint8 node_id;
     uint8 reserved[3];
     log_point_t rcy_point;
-    log_point_t rcy_write_point;
     log_point_t rcy_point_saved;
     atomic_t lsn;
 } reform_rcy_node_t;
