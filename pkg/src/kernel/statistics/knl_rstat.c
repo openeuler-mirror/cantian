@@ -3682,7 +3682,7 @@ static status_t stats_create_mtrl_index(knl_session_t *session, index_t *idx, st
     return CT_SUCCESS;
 }
 
-static void stats_gather_pcrb_key(index_t *idx, stats_index_t *stats_idx, pcrb_key_t *prev_key,
+static void stats_gather_pcrb_key(knl_session_t *session, index_t *idx, stats_index_t *stats_idx, pcrb_key_t *prev_key,
                                   stats_table_t *table_stats)
 {
     mtrl_cursor_t *cursor = &stats_idx->mtrl.mtrl_cur;
@@ -3690,8 +3690,7 @@ static void stats_gather_pcrb_key(index_t *idx, stats_index_t *stats_idx, pcrb_k
     errno_t         ret;
 
     dc_entity_t *entity = idx->entity;
-    cbo_stats_table_t *cbo_stats = entity->cbo_table_stats;
-    cbo_stats_index_t *cbo_index = cbo_stats->indexs[idx->desc.id];
+    cbo_stats_index_t *cbo_index = knl_get_cbo_index(session, entity, idx->desc.id);
 
     if (stats_idx->info.keys == 0) {
         stats_idx->clus_factor++;
@@ -3719,7 +3718,7 @@ static void stats_gather_pcrb_key(index_t *idx, stats_index_t *stats_idx, pcrb_k
         }
     }
 
-    pcrb_calc_ndv_key(idx, key, prev_key, &stats_idx->info);
+    pcrb_calc_ndv_key(session, idx, key, prev_key, &stats_idx->info);
 
     stats_idx->info.keys++;
     stats_idx->info.keys_total_size += key->size;
@@ -3728,7 +3727,7 @@ static void stats_gather_pcrb_key(index_t *idx, stats_index_t *stats_idx, pcrb_k
     knl_securec_check(ret);
 }
 
-static void stats_gather_btree_key(index_t *idx,
+static void stats_gather_btree_key(knl_session_t *session, index_t *idx,
                                    stats_index_t *stats_idx, btree_key_t *prev_key, stats_table_t *table_stats)
 {
     mtrl_cursor_t *cursor = &stats_idx->mtrl.mtrl_cur;
@@ -3749,7 +3748,7 @@ static void stats_gather_btree_key(index_t *idx,
         }
     }
 
-    btree_calc_ndv_key(idx, key, prev_key, &stats_idx->info);
+    btree_calc_ndv_key(session, idx, key, prev_key, &stats_idx->info);
 
     stats_idx->info.keys++;
     stats_idx->info.keys_total_size += key->size;
@@ -3918,9 +3917,9 @@ static status_t stats_gather_key_info(knl_session_t *session, index_t *idx, stat
         }
 
         if (idx->desc.cr_mode == CR_PAGE) {
-            stats_gather_pcrb_key(idx, stats_idx, prev_pcrb_key, table_stats);
+            stats_gather_pcrb_key(session, idx, stats_idx, prev_pcrb_key, table_stats);
         } else {
-            stats_gather_btree_key(idx, stats_idx, prev_btree_key, table_stats);
+            stats_gather_btree_key(session, idx, stats_idx, prev_btree_key, table_stats);
         }
     }
 
