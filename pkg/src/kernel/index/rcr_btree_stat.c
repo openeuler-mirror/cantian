@@ -57,7 +57,7 @@ void btree_set_comb_ndv(btree_info_t *info, uint32 col_id_input, uint32 column_c
     }
 }
 
-void btree_calc_ndv_key(index_t *index, btree_key_t *key, btree_key_t *compare_key, btree_info_t *info)
+void btree_calc_ndv_key(knl_session_t *session, index_t *index, btree_key_t *key, btree_key_t *compare_key, btree_info_t *info)
 {
     dc_entity_t *entity = index->entity;
     knl_column_t *column = NULL;
@@ -71,8 +71,7 @@ void btree_calc_ndv_key(index_t *index, btree_key_t *key, btree_key_t *compare_k
     int32 result = 0;
     bool32 is_distinct = CT_TRUE;
     uint16 collate_id;
-    cbo_stats_table_t *cbo_stats = entity->cbo_table_stats;
-    cbo_stats_index_t *cbo_index = cbo_stats->indexs[index->desc.id];
+    cbo_stats_index_t *cbo_index = knl_get_cbo_index(session, entity, index->desc.id);
 
     if (key == NULL || compare_key->is_infinite) {
         btree_set_comb_ndv(info, BTREE_COMB_1_NDV, column_count);
@@ -191,7 +190,7 @@ void btree_stats_leaf_page(knl_session_t *session, btree_t *btree, btree_info_t 
             continue;
         }
 
-        btree_calc_ndv_key(btree->index, key, compare_key, info);
+        btree_calc_ndv_key(session, btree->index, key, compare_key, info);
         compare_key = key;
         *prev_page_id = GET_ROWID_PAGE(key->rowid);
     }

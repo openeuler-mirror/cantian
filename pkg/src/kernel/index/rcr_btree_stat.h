@@ -58,7 +58,7 @@ void btree_stats_leaf_page(knl_session_t *session, btree_t *btree, btree_info_t 
                            page_id_t *prev_page_id, btree_key_t *prev_compare_key);
 
 void btree_set_comb_ndv(btree_info_t *info, uint32 col_id_input, uint32 column_count);
-void btree_calc_ndv_key(index_t *index, btree_key_t *key, btree_key_t *compare_key, btree_info_t *info);
+void btree_calc_ndv_key(knl_session_t *session, index_t *index, btree_key_t *key, btree_key_t *compare_key, btree_info_t *info);
 status_t btree_get_table_by_page(knl_session_t *session, page_head_t *page, uint32 *uid, uint32 *tabid);
 status_t btree_get_table_by_rowid(knl_session_t *session, page_head_t *page, rowid_t rowid, uint32 *uid, uint32 *tabid);
 #ifdef __cplusplus

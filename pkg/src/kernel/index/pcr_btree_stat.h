@@ -37,7 +37,7 @@ status_t pcrb_full_stats_info(knl_session_t *session, btree_t *btree, btree_info
 status_t pcrb_stats_leaf_by_parent(knl_session_t *session, btree_t *btree, double sample_ratio_input,
                                    btree_info_t *info, page_id_t page_id_input);
 
-void pcrb_calc_ndv_key(index_t *index, pcrb_key_t *key, pcrb_key_t *compare_key, btree_info_t *info);
+void pcrb_calc_ndv_key(knl_session_t *session, index_t *index, pcrb_key_t *key, pcrb_key_t *compare_key, btree_info_t *info);
 void pcrb_stats_leaf_page(knl_session_t *session, btree_t *btree, btree_info_t *info, page_id_t *page_id,
                           page_id_t *prev_page_id, pcrb_key_t *prev_compare_key);
 bool32 pcrb_is_key_dead(knl_session_t *session, btree_page_t *page, knl_scn_t min_scn, pcrb_key_t *key);
