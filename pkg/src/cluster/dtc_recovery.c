@@ -159,7 +159,7 @@ static inline void reset_read_buffer(){
     }
 }
 
-static status_t close_read_log_proc(thread_t *read_log_thread){
+static status_t close_read_log_proc(thread_t *read_log_thread, knl_session_t *session){
     CT_LOG_RUN_INF("[DTC RCY] start close read log proc");
     read_log_thread->result = CT_FALSE;
     read_log_thread->closed = CT_TRUE;
@@ -177,6 +177,7 @@ static status_t close_read_log_proc(thread_t *read_log_thread){
         }
     }
     reset_read_buffer();
+    g_knl_callback.release_knl_session(session);
     CT_LOG_RUN_INF("[DTC RCY] finish close read log proc");
     return CT_SUCCESS;
 }
@@ -2636,7 +2637,12 @@ status_t dtc_rcy_process_batches(knl_session_t *session)
     ELAPSED_END(elapsed_begin, used_time);
     CT_LOG_RUN_INF("[DTC RCY] dtc_read_all_logs used %llu", used_time);
 
-    if (CT_SUCCESS != cm_create_thread(dtc_rcy_read_node_log_proc, 0, session, &dtc_rcy->read_log_thread)) {
+    knl_session_t *ss = NULL;
+    if (g_knl_callback.alloc_knl_session(CT_TRUE, (knl_handle_t *)&ss) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DTC RCY] dtc rcy proc init failed as alloc session failed");
+        return CT_ERROR;
+    }
+    if (CT_SUCCESS != cm_create_thread(dtc_rcy_read_node_log_proc, 0, ss, &dtc_rcy->read_log_thread)) {
         CT_LOG_RUN_ERR("[DTC RCY] failed to create thread read node log proc");
         return CT_ERROR;
     }
@@ -2697,7 +2703,7 @@ status_t dtc_rcy_process_batches(knl_session_t *session)
         ELAPSED_END(elapsed_begin, used_time);
         fetch_log_time += used_time;
     }
-    if(close_read_log_proc(&dtc_rcy->read_log_thread) != CT_SUCCESS){
+    if(close_read_log_proc(&dtc_rcy->read_log_thread, ss) != CT_SUCCESS){
         CT_LOG_RUN_ERR("[DTC RCY] close read log proc time out");
         return CT_ERROR;
     }
@@ -2984,7 +2990,12 @@ static status_t dtc_rcy_analyze_batches_paral(knl_session_t *session)
         return CT_ERROR;
     }
 
-    if (CT_SUCCESS != cm_create_thread(dtc_rcy_read_node_log_proc, 0, session, &dtc_rcy->read_log_thread)) {
+    knl_session_t *ss = NULL;
+    if (g_knl_callback.alloc_knl_session(CT_TRUE, (knl_handle_t *)&ss) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DTC RCY] dtc rcy proc init failed as alloc session failed");
+        return CT_ERROR;
+    }
+    if (CT_SUCCESS != cm_create_thread(dtc_rcy_read_node_log_proc, 0, ss, &dtc_rcy->read_log_thread)) {
         CT_LOG_RUN_ERR("[DTC RCY] failed to create thread read node log proc");
         return CT_ERROR;
     }
@@ -3055,7 +3066,7 @@ static status_t dtc_rcy_analyze_batches_paral(knl_session_t *session)
             break;
         }
     }
-    if(close_read_log_proc(&dtc_rcy->read_log_thread) != CT_SUCCESS){
+    if(close_read_log_proc(&dtc_rcy->read_log_thread, ss) != CT_SUCCESS){
         CT_LOG_RUN_ERR("[DTC RCY] close read log proc time out");
         return CT_ERROR;
     }
@@ -3201,7 +3212,12 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
     ELAPSED_END(elapsed_begin, used_time);
     CT_LOG_RUN_INF("[DTC RCY] read redo logs in paral replay used=%llu", used_time);
 
-    if (CT_SUCCESS != cm_create_thread(dtc_rcy_read_node_log_proc, 0, session, &dtc_rcy->read_log_thread)) {
+    knl_session_t *ss = NULL;
+    if (g_knl_callback.alloc_knl_session(CT_TRUE, (knl_handle_t *)&ss) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DTC RCY] dtc rcy proc init failed as alloc session failed");
+        return CT_ERROR;
+    }
+    if (CT_SUCCESS != cm_create_thread(dtc_rcy_read_node_log_proc, 0, ss, &dtc_rcy->read_log_thread)) {
         CT_LOG_RUN_ERR("[DTC RCY] failed to create thread read node log proc");
         return CT_ERROR;
     }
@@ -3278,7 +3294,7 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
         ELAPSED_END(elapsed_begin, used_time);
         fetch_log_time += used_time;
     }
-    if(close_read_log_proc(&dtc_rcy->read_log_thread) != CT_SUCCESS){
+    if(close_read_log_proc(&dtc_rcy->read_log_thread, ss) != CT_SUCCESS){
         CT_LOG_RUN_ERR("[DTC RCY] close read log proc time out");
         return CT_ERROR;
     }
