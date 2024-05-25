@@ -2712,6 +2712,13 @@ void db_promote_cluster_role_follower(knl_session_t *session, DbsRoleInfo role_i
             knl_panic(0);
             return;
         }
+        if (arch_update_arch_ctrl(session->kernel->id) != CT_SUCCESS ||
+            arch_start_proc_primary(session) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[INST] [SWITCHOVER] failed to read arch ctrl page or start arch proc for node=%u",
+                           session->kernel->id);
+            knl_panic(0);
+            return;
+        }
 
         log_context_t *redo_ctx = &session->kernel->redo_ctx;
         dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, session->kernel->id);
@@ -2771,6 +2778,7 @@ void db_promote_cluster_role(thread_t* thread)
         ctrl_page_t *page = (ctrl_page_t *)cm_push(session->stack, kernel->db.ctrlfiles.items[0].block_size);
         while (dtc_read_core_ctrl(session, page) == CT_SUCCESS) {
             if (((core_ctrl_t *)&page->buf[0])->db_role == REPL_ROLE_PRIMARY) {
+                kernel->db.ctrl.core.inc_backup_block = CT_TRUE;
                 db_promote_cluster_role_follower(session, role_info);
                 cm_pop(session->stack);
                 return;
@@ -2805,11 +2813,17 @@ reformerpromote:
     }
     CT_LOG_RUN_INF("[INST] [SWITCHOVER] undo rollback is done");
 
-    // step3 ckpt all node rcy_point
+    // step3 ckpt all node rcy_point, stop standby arch proc and start primary arch proc
     ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL_STANDBY);
     CT_LOG_RUN_INF("[INST] [SWITCHOVER] CKPT_TRIGGER_FULL_STANDBY is done");
 
+    arch_deinit_proc_standby();
+    if (arch_start_proc_primary(session) != CT_SUCCESS) {
+        CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] start primary arch failed");
+    }
+
     // step4 set disaster cluster role, save ctrl
+    kernel->db.ctrl.core.inc_backup_block = CT_TRUE;
     kernel->db.ctrl.core.db_role = REPL_ROLE_PRIMARY;
     if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT_REASONABLE(0,"[INST] [SWITCHOVER] ABORT INFO: save core control file failed when switch role");

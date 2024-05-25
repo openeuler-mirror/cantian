@@ -1423,7 +1423,7 @@ static log_point_t log_recycle_get_arch_point(knl_session_t *session, log_point_
     arch_proc_context_t *proc_ctx = NULL;
     uint32 dest = ARCH_DEFAULT_DEST;
 
-    if (DB_IS_PRIMARY(&session->kernel->db) && is_archive) {
+    if (is_archive) {
         proc_ctx = &arch_ctx->arch_proc[dest - 1];
         last_arch_log_record = proc_ctx->last_archived_log_record;
         recycle_point.lsn = MIN(point->lsn, last_arch_log_record.end_lsn);
@@ -1435,12 +1435,64 @@ static log_point_t log_recycle_get_arch_point(knl_session_t *session, log_point_
     return recycle_point;
 }
 
+static void log_recycle_ulog_space_standby(knl_session_t *session, log_point_t *point)
+{
+    arch_context_t *arch_ctx = &session->kernel->arch_ctx;
+    bool32 is_archive = session->kernel->arch_ctx.is_archive;
+    log_context_t *ctx = &session->kernel->redo_ctx;
+    uint64 recycle_lsn = 0;
+
+    log_lock_logfile(session);
+    for (uint32 node_id = 0; node_id < g_dtc->profile.node_count; node_id++) {
+        arch_proc_context_t *proc_ctx = &g_arch_standby_ctx.arch_proc_ctx[node_id];
+        int32 logfile_handle = arch_ctx->logfile[node_id].handle;
+        if (is_archive && proc_ctx->enabled == CT_TRUE) {
+            st_arch_log_record_id_t last_arch_log_record = proc_ctx->last_archived_log_record;
+            recycle_lsn = MIN(point->lsn, last_arch_log_record.end_lsn);
+            CT_LOG_DEBUG_INF("[ARCH] recycle lsn %llu, point lsn %llu, end lsn %llu",
+                           recycle_lsn, point->lsn, last_arch_log_record.end_lsn);
+        } else if (is_archive && proc_ctx->enabled != CT_TRUE) { 
+            CT_LOG_DEBUG_INF("[ARCH] skip recycle log, wait standby arch proc ctx initialized");
+            continue;
+        } else {
+            recycle_lsn = point->lsn;
+            CT_LOG_DEBUG_INF("[ARCH] recycle lsn %llu, archive disabled", recycle_lsn);
+        }
+
+        timeval_t tv_begin;
+        cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_TRUNCATE_ULOG, &tv_begin);
+        uint64 free_size = cm_dbs_ulog_recycle(logfile_handle, recycle_lsn);
+        if (free_size != 0) {
+            ctx->free_size = free_size;
+        }
+        ctx->alerted = CT_FALSE;
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_TRUNCATE_ULOG, &tv_begin, IO_STAT_SUCCESS);
+    }
+    log_unlock_logfile(session);
+    return;
+}
+
+void log_recycle_file_dbstor(knl_session_t *session, log_point_t *point)
+{
+    log_point_t recycle_point = {0};
+    if (DB_IS_PRIMARY(&session->kernel->db)) {
+        recycle_point = log_recycle_get_arch_point(session, point);
+        log_recycle_ulog_space(session, &recycle_point);
+        return;
+    }
+    if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master()) {
+        log_recycle_ulog_space_standby(session, point);
+        return;
+    }
+    CT_LOG_RUN_ERR("the standby node %u is not master, can not recycle log", session->kernel->id);
+    return;
+}
+
 void log_recycle_file(knl_session_t *session, log_point_t *point)
 {
     log_context_t *ctx = &session->kernel->redo_ctx;
     lrcv_context_t *lrcv = &session->kernel->lrcv_ctx;
     arch_log_id_t last_arch_log;
-    log_point_t recycle_point;
 
     arch_last_archived_log(session, ARCH_DEFAULT_DEST, &last_arch_log);
 
@@ -1453,17 +1505,7 @@ void log_recycle_file(knl_session_t *session, log_point_t *point)
     CT_LOG_DEBUG_INF("try to recycle log file with last_arch_log [%u-%u] active[%d] file [%u-%u]",
                      last_arch_log.rst_id, last_arch_log.asn, ctx->active_file, file->head.rst_id, file->head.asn);
     if (cm_dbs_is_enable_dbs() == CT_TRUE) {
-        if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master() == CT_FALSE) {
-            if (dtc_read_node_ctrl(session, session->kernel->id) != CT_SUCCESS) {
-                return;
-            }
-            dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, session->kernel->id);
-            *point = ctrl->rcy_point;
-            recycle_point = log_recycle_get_arch_point(session, &ctrl->rcy_point);
-        } else {
-            recycle_point = log_recycle_get_arch_point(session, point);
-        }
-        log_recycle_ulog_space(session, &recycle_point);
+        log_recycle_file_dbstor(session, point);
         return;
     }
     log_lock_logfile(session);

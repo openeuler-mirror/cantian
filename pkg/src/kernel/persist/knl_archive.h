@@ -45,6 +45,7 @@ extern "C" {
 #define ARCH_RW_BUF_NUM 1
 #define DBSTOR_ARCH_RW_BUF_NUM 2
 #define ARCH_TIME_FOR_LOGICREP 1000000
+#define ARCH_MAX_NODE_COUNT 4
 
 extern const char *g_arch_suffix_name;
 extern const uint32 g_arch_suffix_length;
@@ -175,6 +176,7 @@ typedef struct st_log_sync_param {
 typedef enum st_arch_data_type {
     ARCH_DATA_TYPE_FILE = 0,
     ARCH_DATA_TYPE_DBSTOR = 1,
+    ARCH_DATA_TYPE_DBSTOR_STANDBY = 2,
     ARCH_DATA_TYPE_END = 2,
 } arch_data_type_t;
 
@@ -210,6 +212,9 @@ typedef struct st_arch_proc_context {
     log_file_t logfile;
     timeval_t check_time_interval_pitr;
     arch_data_type_t data_type;
+    uint32 arch_standby_node;
+    bool32 force_archive_trigger;
+    bool32 force_archive_failed;
 } arch_proc_context_t;
 
 typedef struct st_archive_ctx {
@@ -235,6 +240,7 @@ typedef struct st_archive_ctx {
     uint64 arch_size;
     uint64 arch_time;
     arch_data_type_t data_type;
+    log_file_t logfile[ARCH_MAX_NODE_COUNT];
 } arch_context_t;
 
 typedef enum en_arch_dest_sync {
@@ -275,6 +281,7 @@ typedef struct arch_ctrl_record_info {
     arch_ctrl_t *arch_ctrl;
     const char *file_name;
     log_file_head_t *log_head;
+    arch_proc_context_t *proc_ctx;
 } arch_ctrl_record_info_t;
 
 typedef struct arch_format_info {
@@ -290,14 +297,22 @@ typedef struct arch_dest_bk {
     char arch_dest[CT_FILE_NAME_BUFFER_SIZE];
 } arch_dest_bk_t;
  
+typedef struct arch_standby_ctx {
+    spinlock_t arch_lock;
+    bool32 enabled;
+    arch_proc_context_t arch_proc_ctx[ARCH_MAX_NODE_COUNT];
+} arch_standby_ctx_t;
+
+extern arch_standby_ctx_t g_arch_standby_ctx;
+
 status_t arch_init(knl_session_t *session);
 status_t arch_start(knl_session_t *session);
 void arch_close(knl_session_t *session);
 void arch_last_archived_log(knl_session_t *session, uint32 dest_pos, arch_log_id_t *arch_log_out);
 void arch_set_archive_log_name(knl_session_t *session, uint32 rst_id, uint32 asn,
                                uint32 dest_pos, char *buf, uint32 buf_size, uint32 node_id);
-status_t arch_record_archinfo(knl_session_t *session, uint32 dest_pos, const char *file_name,
-                              log_file_head_t *log_head, uint32 node_id);
+status_t arch_record_archinfo(knl_session_t *session, const char *file_name,
+                              log_file_head_t *log_head, arch_proc_context_t *proc_ctx);
 status_t arch_try_record_archinfo(knl_session_t *session, uint32 dest_pos, const char *file_name,
     log_file_head_t *head);
 status_t arch_set_dest(arch_context_t *arch_ctx, char *value, uint32 pos);
@@ -463,6 +478,7 @@ typedef void (*arch_check_cont_archived_log)(arch_proc_context_t *proc_ctx);
 typedef void (*arch_write_proc)(thread_t *thread);
 typedef bool32 (*arch_check_log_point)(log_point_t curr_rcy_point, log_point_t *rcy_point, log_point_t *backup_rcy,
                                        bool32 force_delete);
+typedef void (*arch_auto_clean_file)(arch_proc_context_t *proc_ctx);
 typedef struct st_arch_func_context {
     char *archive_format_name;
     uint32 rw_buf_num;
@@ -472,12 +488,31 @@ typedef struct st_arch_func_context {
     arch_check_cont_archived_log check_cont_archived_log_func;
     arch_write_proc write_proc_func;
     arch_check_log_point check_log_point_func;
+    arch_auto_clean_file arch_auto_clean_func;
 } arch_func_context;
 
 extern const arch_func_context g_arch_func[];
+
+status_t arch_update_arch_ctrl(uint32 node_id);
+status_t arch_handle_tmp_file(arch_proc_context_t *proc_ctx, uint32 node_id);;
+void arch_auto_clean(arch_proc_context_t *proc_ctx);
+void arch_auto_clean_standby(arch_proc_context_t *proc_ctx);
 bool32 arch_can_be_cleaned(arch_check_log_point check_log_point_func, arch_ctrl_t *arch_ctrl, log_point_t *rcy_point,
                            log_point_t *backup_rcy, knl_alterdb_archivelog_t *def);
+void arch_proc_standby(thread_t *thread);
+void arch_write_proc_all(thread_t *thread);
+void arch_wake_force_thread_standby(arch_proc_context_t *proc_ctx);
+void arch_set_force_archive_stat(arch_proc_context_t *proc_ctx, bool32 result);
+void arch_get_force_archive_param(arch_proc_context_t *proc_ctx, bool32 *force_archive);
+status_t arch_init_proc_standby();
+void arch_deinit_proc_standby();
 
+bool32 arch_need_wait_clean(arch_proc_context_t *proc_ctx);
+log_file_t *arch_get_proc_logfile(arch_proc_context_t *proc_ctx);
+uint32 arch_get_proc_node_id(arch_proc_context_t *proc_ctx);
+void arch_log_recycle_file(arch_proc_context_t *proc_ctx, uint32 node_id);
+status_t arch_start_proc_primary(knl_session_t *session);
+status_t arch_open_logfile_dbstor(knl_session_t *session, log_file_t *logfile, uint32 inst_id);
 #ifdef __cplusplus
 }
 #endif
