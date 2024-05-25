@@ -56,6 +56,7 @@ status_t verify_uds_file_permission(uint16 permission);
 status_t srv_get_plan_display_format_param(sql_instance_t *sql);
 status_t sql_verify_als_plan_display_format(void *se, void *lex, void *def);
 status_t sql_notify_als_plan_display_format(void *se, void *item, char *value);
+status_t sql_verify_rcy_read_buf_size(void *se, void *lex, void *def);
 
 void srv_get_config_info(config_item_t **params, uint32 *count);
 void init_runtime_params(void);

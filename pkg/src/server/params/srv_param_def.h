@@ -396,6 +396,7 @@ typedef enum en_param_global {
     PARAM_DTC_CKPT_NOTIFY_TASK_RATIO,
     PARAM_DTC_CLEAN_EDP_TASK_RATIO,
     PARAM_DTC_TXN_INFO_TASK_RATIO,
+    PARAM_RCY_NODE_READ_BUF_SIZE,
     // SHM MQ
     PARAM_SHM_MQ_MSG_RECV_THD_NUM,
     PARAM_SHM_MQ_MSG_QUEUE_NUM,
@@ -434,7 +435,6 @@ typedef enum en_param_global {
     PARAM_ENABLE_CHECK_SECURITY_LOG,
     PARAM_MYSQL_DEPLOY_GROUP_ID,
     PARAM_CEIL,
-    PARAM_RCY_NODE_READ_BUF_SIZE,
 } param_global_t;
 
 #ifdef __cplusplus
