@@ -8968,11 +8968,6 @@ status_t knl_switch_log(knl_handle_t session)
     knl_session_t *se = (knl_session_t *)session;
     database_t *db = &se->kernel->db;
 
-    if (DB_IS_READONLY(se)) {
-        CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
-        return CT_ERROR;
-    }
-
     if (db->status == DB_STATUS_NOMOUNT && cm_dbs_is_enable_dbs()) {
         return knl_do_force_archive(session);
     }
@@ -9498,6 +9493,11 @@ status_t knl_backup(knl_handle_t session, knl_backup_t *param)
 {
     CM_POINTER(session);
     knl_session_t *se = (knl_session_t *)session;
+    if (!DB_IS_PRIMARY(&se->kernel->db)) {
+        CT_THROW_ERROR(ERR_BACKUP_IN_STANDBY);
+        return CT_ERROR;
+    }
+
     uint32 retry_times = 0;
     status_t status = CT_SUCCESS;
     CT_LOG_RUN_INF("[BACKUP] backup task start!");

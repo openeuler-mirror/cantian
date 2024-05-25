@@ -1386,6 +1386,7 @@ status_t bak_end_check(knl_session_t *session)
 {
     status_t status = CT_SUCCESS;
     bak_t *bak = &session->kernel->backup_ctx.bak;
+    bak_attr_t *attr = &bak->record.attr;
     bak_free_check_reform(session);
     if (bak->failed) {
         status = CT_ERROR;
@@ -1393,6 +1394,11 @@ status_t bak_end_check(knl_session_t *session)
         if (bak_record(session) != CT_SUCCESS) {
             bak->failed = CT_TRUE;
             status = CT_ERROR;
+        }
+        if (status == CT_SUCCESS && attr->level == 0 &&
+            session->kernel->db.ctrl.core.inc_backup_block == CT_TRUE) {
+            // 取消只能进行全量备份的限制
+            status = bak_set_increment_unblock(session);
         }
     }
     bak_end(session, CT_FALSE);
@@ -1450,13 +1456,20 @@ status_t bak_check_increment_type(knl_session_t *session, knl_backup_t *param)
     backup_type_t last_inc_type;
     backup_type_t cur_inc_type;
     uint32 last_level;
- 
-    CM_SAVE_STACK(session->stack);
+
     if (param->level == 0) {
-        CM_RESTORE_STACK(session->stack);
         return CT_SUCCESS;
     }
 
+    bool32 unblock = CT_TRUE;
+    if (bak_check_increment_unblock(session, &unblock) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (unblock == CT_TRUE) {
+        CT_THROW_ERROR(ERR_BACKUP_INCREMENT_BLOCK);
+        return CT_ERROR;
+    }
+    CM_SAVE_STACK(session->stack);
     CT_LOG_RUN_INF("[BACKUP] incremental backup, cumulative is [%u].", param->cumulative);
     knl_set_session_scn(session, CT_INVALID_ID64);
     bak_cursor = knl_push_cursor(session);
@@ -3289,6 +3302,36 @@ status_t bak_fsync_and_close(bak_t *bak, device_type_t type, int32 *handle)
         return CT_ERROR;
     }
     cm_close_device(type, handle);
+    return CT_SUCCESS;
+}
+
+status_t bak_set_increment_unblock(knl_session_t *session)
+{
+    session->kernel->db.ctrl.core.inc_backup_block = CT_FALSE;
+    if (db_save_core_ctrl(session) != CT_SUCCESS) {
+        CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when set inc backup unblock");
+    }
+    CT_LOG_RUN_INF("[BACKUP] set inc_backup_block value in core control file succ");
+    return CT_SUCCESS;
+}
+
+status_t bak_check_increment_unblock(knl_session_t *session, bool32 *unblock)
+{
+    ctrl_page_t *page = (ctrl_page_t *)cm_push(session->stack,
+                                               session->kernel->db.ctrlfiles.items[0].block_size);
+    if (dtc_read_core_ctrl(session, page) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] read core control file failed");
+        CT_THROW_ERROR(ERR_LOAD_CONTROL_FILE, "no usable control file");
+        cm_pop(session->stack);
+        return CT_ERROR;
+    }
+    if (((core_ctrl_t *)&page->buf[0])->inc_backup_block == CT_TRUE) {
+        *unblock = CT_FALSE;
+    } else {
+        *unblock = CT_TRUE;
+    }
+    cm_pop(session->stack);
+    CT_LOG_RUN_INF("[BACKUP] get inc_backup_block value from core control file succ");
     return CT_SUCCESS;
 }
 

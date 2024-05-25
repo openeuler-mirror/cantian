@@ -175,7 +175,6 @@ status_t dtc_bak_get_arch_start_and_end_point(knl_session_t *session, uint32 ins
                                               log_start_end_asn_t *local_arch_file_asn, log_start_end_asn_t *target_asn);
 void bak_set_archfile_info(knl_session_t *session, log_start_end_info_t arch_info,
                            local_arch_file_info_t file_info, char *file_name);
-status_t bak_open_logfile_dbstor(knl_session_t *session, log_file_t *logfile, uint32 inst_id);
 status_t bak_flush_archfile_head(knl_session_t *session, arch_file_info_t *file_info);
 status_t bak_prepare_read_logfile_dbstor(knl_session_t *session, log_file_t *logfile, uint64 start_lsn, uint32 inst_id,
                                          uint32 *redo_log_filesize);

@@ -683,6 +683,9 @@ typedef struct st_bak {
     bak_reform_check_t reform_check;
     uint64 target_bits;
     int32 extended[CT_MAX_DATA_FILES];
+
+    // increment
+    bool32 increment_mode_block;
 } bak_t;
 
 typedef enum st_bak_condition {
