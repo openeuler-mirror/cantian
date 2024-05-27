@@ -131,6 +131,8 @@ typedef struct st_lock_area {
     uint32 hwm;
     uint32 capacity;
     spinlock_t upgrade_lock;
+    atomic_t pcrh_lock_row_time;
+    atomic_t pcrh_lock_row_count;
 } lock_area_t;
 
 #define LOCKS_THRESHOLD(session) \

@@ -480,6 +480,7 @@ static stat_item_t g_sysstat_items[] = {
     { STAT_TYPE_KERNEL,  "undo disk reads" },
     { STAT_TYPE_KERNEL,  "undo buffer reads" },
     { STAT_TYPE_KERNEL, "btree leaf recycled" },
+    { STAT_TYPE_KERNEL, "pcrh lock row avg time"},
 };
 
 typedef enum en_sysstat_id {
@@ -579,6 +580,7 @@ typedef enum en_sysstat_id {
     UNDO_DISK_READS,
     UNDO_BUF_READS,
     BTREE_LEAF_RECYCLED,
+    PCRH_LOCK_ROW_AVG_TIME,
     SYSTEM_STAT_COUNT, // ceil
 } sysstat_id_t;
 
@@ -732,6 +734,7 @@ status_t vw_sysstat_open(knl_handle_t se, knl_cursor_t *cursor)
     ckpt_context_t *ckpt = &g_instance->kernel.ckpt_ctx;
     bak_context_t *backup = &g_instance->kernel.backup_ctx;
     sql_par_pool_t *par_pool = &g_instance->sql_par_pool;
+    lock_area_t *area = &g_instance->kernel.lock_ctx;
 
     cursor->rowid.vmid = 0;
     cursor->rowid.vm_slot = 0;
@@ -773,6 +776,9 @@ status_t vw_sysstat_open(knl_handle_t se, knl_cursor_t *cursor)
     stats[PARALLEL_UNREACHABLE_UNDER_TRANS] = par_pool->par_stat.under_trans_cnt;
     stats[PARALLEL_UNREACHABLE_RESOURCE_LIMITED] = par_pool->par_stat.res_limited_cnt;
     stats[PARALLEL_UNREACHABLE_BREAK_PROCESS] = par_pool->par_stat.break_proc_cnt;
+    uint64 pcrh_lock_row_count = cm_atomic_get(&area->pcrh_lock_row_count);
+    uint64 pcrh_lock_row_time = cm_atomic_get(&area->pcrh_lock_row_time);
+    stats[PCRH_LOCK_ROW_AVG_TIME] = pcrh_lock_row_count == 0 ? 0 : pcrh_lock_row_time / pcrh_lock_row_count;
 
     return CT_SUCCESS;
 }

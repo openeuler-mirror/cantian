@@ -54,6 +54,8 @@ status_t lock_area_init(knl_session_t *session)
     area->free_items.first = CT_INVALID_ID32;
     area->free_items.last = CT_INVALID_ID32;
     area->page_count = init_lockpool_pages;
+    (void)cm_atomic_set(&area->pcrh_lock_row_time, 0);
+    (void)cm_atomic_set(&area->pcrh_lock_row_count, 0);
 
     for (i = 0; i < init_lockpool_pages; i++) {
         area->pages[i] = buf + i * shared_pool->page_size;
