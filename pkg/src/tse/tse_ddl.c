@@ -1885,6 +1885,13 @@ static int tse_truncate_partition_impl(TcDb__TseDDLTruncateTablePartitionDef *re
         CT_RETURN_IFERR_EX(status, stmt, ddl_ctrl);
     }
     status = knl_alter_table4mysql(session, stmt, def_arrays, n_defs_num, &dc, true);
+    uint32_t part_cnt = req->is_subpart ? DC_TABLE(&dc)->part_table->desc.subpart_cnt : DC_TABLE(&dc)->part_table->desc.partcnt;
+    if (status == CT_SUCCESS && part_cnt == n_defs_num) {
+        status = knl_reset_serial_value(&session->knl_session, dc.handle);
+        if (status != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[TRUNCATE TABLE] Failed to check table %s", T2S_EX(&def->name));
+        }
+    }
     if (status != CT_SUCCESS) {
         CT_LOG_RUN_ERR("tse_truncate_partition: faild to truncate partitions");
         knl_alter_table_rollback(&session->knl_session, &dc, true);
