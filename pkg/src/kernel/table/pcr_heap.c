@@ -769,6 +769,13 @@ static inline status_t pcrh_try_check_restart(knl_session_t *session, knl_cursor
     return CT_SUCCESS;
 }
 
+static inline void pcrh_record_lock_info(knl_session_t *session, uint64 begin_time)
+{
+    lock_area_t *area = &session->kernel->lock_ctx;
+    cm_atomic_inc(&area->pcrh_lock_row_count);
+    cm_atomic_add(&area->pcrh_lock_row_time, (KNL_NOW(session) - begin_time));
+}
+
 /*
  * PCR lock heap row interface
  * @note lock the specified row, before we lock the row, we should
@@ -779,6 +786,7 @@ static inline status_t pcrh_try_check_restart(knl_session_t *session, knl_cursor
  */
 status_t pcrh_lock_row(knl_session_t *session, knl_cursor_t *cursor, bool32 *is_locked)
 {
+    uint64 begin_time = KNL_NOW(session);
     heap_t *heap = CURSOR_HEAP(cursor);
     table_t *table = (table_t *)cursor->table;
     lock_row_status_t status;
@@ -787,11 +795,13 @@ status_t pcrh_lock_row(knl_session_t *session, knl_cursor_t *cursor, bool32 *is_
     bool32 is_deleted = CT_FALSE;
 
     if (pcrh_prepare_lock_row(session, cursor) != CT_SUCCESS) {
+        pcrh_record_lock_info(session, begin_time);
         return CT_ERROR;
     }
 
     for (;;) {
         if (pcrh_try_lock_row(session, cursor, heap, &status) != CT_SUCCESS) {
+            pcrh_record_lock_info(session, begin_time);
             return CT_ERROR;
         }
 
@@ -802,6 +812,7 @@ status_t pcrh_lock_row(knl_session_t *session, knl_cursor_t *cursor, bool32 *is_
 
         if (session->wxid.value != CT_INVALID_ID64) {
             if (heap_try_tx_wait(session, cursor, &is_skipped) != CT_SUCCESS) {
+                pcrh_record_lock_info(session, begin_time);
                 return CT_ERROR;
             }
 
@@ -813,6 +824,7 @@ status_t pcrh_lock_row(knl_session_t *session, knl_cursor_t *cursor, bool32 *is_
         /* try read the latest committed row version */
         if (pcrh_read_by_given_rowid(session, cursor, DB_CURR_SCN(session),
                                ISOLATION_CURR_COMMITTED, &is_found) != CT_SUCCESS) {
+            pcrh_record_lock_info(session, begin_time);
             return CT_ERROR;
         }
 
@@ -822,6 +834,7 @@ status_t pcrh_lock_row(knl_session_t *session, knl_cursor_t *cursor, bool32 *is_
         }
 
         if (knl_match_cond(session, cursor, &is_found) != CT_SUCCESS) {
+            pcrh_record_lock_info(session, begin_time);
             return CT_ERROR;
         }
 
@@ -832,11 +845,14 @@ status_t pcrh_lock_row(knl_session_t *session, knl_cursor_t *cursor, bool32 *is_
 
     *is_locked = (status == ROW_IS_LOCKED);
     if (!*is_locked && cursor->isolevel == (uint8)ISOLATION_SERIALIZABLE) {
+        pcrh_record_lock_info(session, begin_time);
         CT_THROW_ERROR(ERR_SERIALIZE_ACCESS);
         return CT_ERROR;
     }
 
-    return pcrh_try_check_restart(session, cursor, heap, table, is_deleted);
+    status_t stat = pcrh_try_check_restart(session, cursor, heap, table, is_deleted);
+    pcrh_record_lock_info(session, begin_time);
+    return stat;
 }
 
 /*
