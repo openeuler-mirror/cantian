@@ -389,7 +389,7 @@ function show_cantian_version() {
     set +x
     sn=$(dmidecode -s system-uuid)
     name=$(cat /etc/hostname)
-    version=$(cat /opt/cantian/versions.yml | grep -oE "([0-9]+\.[0-9]+\.[0-9]+)" | sed "s/\.$//")
+    version=$(cat /opt/cantian/versions.yml | grep -E "Version:" | awk '{print $2}' | \sed 's/\([0-9]*\.[0-9]*\)\(\.[0-9]*\)\?\.[A-Z].*/\1\2/')
     echo SN                          : ${sn}
     echo System Name                 : ${name}
     echo Product Model               : Cantian
