@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "knl_database.h"
 #include "knl_persist_module.h"
 #include "knl_recovery.h"
 #include "knl_log_mgr.h"
@@ -32,6 +33,7 @@
 #include "knl_ctlg.h"
 #include "knl_xa_persist.h"
 #include "dtc_dc.h"
+#include "dtc_buffer.h"
 
 void log_get_manager(log_manager_t **lmgr, uint32 *count)
 {
@@ -84,7 +86,7 @@ static bool32 rcy_contain_spc_log(uint8 type)
 void print_rcy_skip_page_limit(knl_session_t *session)
 {
     page_head_t *head = (page_head_t *)session->curr_page;
-    static page_id_t damage_pages[DAMAGE_PAGE_CACHE_COUNT] = {0};
+    static page_id_t damage_pages[DAMAGE_PAGE_CACHE_COUNT] = { 0 };
     static uint64 count = 0;
     bool not_found = CT_TRUE;
     uint64 num = (count > DAMAGE_PAGE_CACHE_COUNT) ? DAMAGE_PAGE_CACHE_COUNT : count;
@@ -97,7 +99,7 @@ void print_rcy_skip_page_limit(knl_session_t *session)
         damage_pages[count % DAMAGE_PAGE_CACHE_COUNT] = AS_PAGID(head->id);
         count++;
         CT_LOG_RUN_WAR("[RCY] page: %u-%u is damaged, skip redo for this page, current count: %llu",
-            AS_PAGID(head->id).file, AS_PAGID(head->id).page, count);
+                       AS_PAGID(head->id).file, AS_PAGID(head->id).page, count);
     }
     return;
 }
@@ -115,10 +117,10 @@ static bool32 rcy_is_skip(knl_session_t *session, log_type_t type)
 
     if (!DB_IS_CLUSTER(session) && DB_IS_OPEN(session) && (type == RD_TX_END || type == RD_XA_PHASE1)) {
         /*
-        * gbp log analyze proc will replay txn redo, and maintain txn area, but it can not forward scn
-        * only lrpl proc can forward scn, so we do not skip RD_TX_END and RD_XA_PHASE1 in rcy_is_skip
-        * is_skip will been judged in rd_tx_end and rd_xa_phase1
-        */
+         * gbp log analyze proc will replay txn redo, and maintain txn area, but it can not forward scn
+         * only lrpl proc can forward scn, so we do not skip RD_TX_END and RD_XA_PHASE1 in rcy_is_skip
+         * is_skip will been judged in rd_tx_end and rd_xa_phase1
+         */
         return CT_FALSE;
     }
 
@@ -135,16 +137,11 @@ static bool32 rcy_is_skip(knl_session_t *session, log_type_t type)
 
 static inline bool32 rcy_pcn_verifiable(knl_session_t *session, log_entry_t *log)
 {
-    return (bool32)(DB_IS_RCY_CHECK_PCN(session) &&
-        !RD_TYPE_IS_ENTER_PAGE(log->type) &&
-        !RD_TYPE_IS_LEAVE_PAGE(log->type) &&
-        log->type != RD_LOGIC_OPERATION &&
-        session->page_stack.depth > 0 &&
-        session->curr_page_ctrl &&
-        session->curr_page_ctrl->page->pcn != 0 &&
-        !format_page_redo_type(log->type)) &&
-        !(session->rm->nolog_type == TABLE_LEVEL) &&
-        !session->curr_page_ctrl->page->soft_damage;
+    return (bool32)(DB_IS_RCY_CHECK_PCN(session) && !RD_TYPE_IS_ENTER_PAGE(log->type) &&
+                    !RD_TYPE_IS_LEAVE_PAGE(log->type) && log->type != RD_LOGIC_OPERATION &&
+                    session->page_stack.depth > 0 && session->curr_page_ctrl &&
+                    session->curr_page_ctrl->page->pcn != 0 && !format_page_redo_type(log->type)) &&
+           !(session->rm->nolog_type == TABLE_LEVEL) && !session->curr_page_ctrl->page->soft_damage;
 }
 
 void rcy_page_set_damage(knl_session_t *session, pcn_verify_t *log_pcns)
@@ -164,15 +161,17 @@ void rcy_page_set_damage(knl_session_t *session, pcn_verify_t *log_pcns)
 void rcy_replay_pcn_verify(knl_session_t *session, log_entry_t *log, pcn_verify_t *log_pcns, uint32 log_pcns_size)
 {
     log_context_t *ctx = &session->kernel->redo_ctx;
-    rd_enter_page_t *rd  = NULL;
+    rd_enter_page_t *rd = NULL;
     datafile_t *df = NULL;
     bool32 changed = CT_FALSE;
 
     if (RD_TYPE_IS_ENTER_PAGE(log->type)) {
         rd = (rd_enter_page_t *)log->data;
         df = DATAFILE_GET(session, rd->file);
-        knl_panic_log(session->page_stack.depth < log_pcns_size, "the page_stack's depth is more than log_pcns_size, "
-                      "panic info: log_pcns_size %u log_pcns_size %u", session->page_stack.depth, log_pcns_size);
+        knl_panic_log(session->page_stack.depth < log_pcns_size,
+                      "the page_stack's depth is more than log_pcns_size, "
+                      "panic info: log_pcns_size %u log_pcns_size %u",
+                      session->page_stack.depth, log_pcns_size);
         log_pcns[session->page_stack.depth].failed = CT_FALSE;
         if (SPACE_IS_NOLOGGING(SPACE_GET(session, df->space_id)) || (rd->options & ENTER_PAGE_NO_READ)) {
             log_pcns[session->page_stack.depth].skip = CT_TRUE;
@@ -187,7 +186,7 @@ void rcy_replay_pcn_verify(knl_session_t *session, log_entry_t *log, pcn_verify_
         if (!log_pcns[session->page_stack.depth - 1].failed) {
             return;
         }
-        
+
         changed = *(bool32 *)log->data;
         if (changed && (!DB_IS_MAXFIX(session))) {
             knl_panic_log(CT_FALSE, "log entry pcn %u not equal page pcn %u.page_id: %u-%u, lsn: %llu, curr_file: %s",
@@ -219,7 +218,7 @@ void rcy_replay_pcn_verify(knl_session_t *session, log_entry_t *log, pcn_verify_
 void rcy_flexible_sleep(knl_session_t *session, rcy_context_t *rcy, rcy_bucket_t *bucket)
 {
     if (!DB_IS_OPEN(session) || rcy->last_lrpl_time == 0) {
-        cm_spin_sleep(); // when db is in recover, just sleep 100ns
+        cm_spin_sleep();  // when db is in recover, just sleep 100ns
         return;
     }
     if (g_timer()->now - rcy->last_lrpl_time > RCY_SLEEP_TIME_THRESHOLD) {
@@ -305,7 +304,7 @@ static inline void rcy_replay_entry(knl_session_t *session, log_entry_t *log, pc
          * checking page was safe format or punch format,skip punch format situation
          */
         ctx->verify_page_format_proc[log->type](session, log, &need_replay);
-        
+
         if (need_replay) {
             /*
              * checking page was nologging inserted, we need skip most logs of nolog_insert pages
@@ -385,7 +384,7 @@ void rcy_wait_replay_complete(knl_session_t *session)
 }
 
 static void rcy_wait_cond(knl_session_t *session, rcy_bucket_t *bucket, uint32 index, volatile uint32 *curr,
-    uint32 target, uint32 *wait_count)
+                          uint32 target, uint32 *wait_count)
 {
     uint32 sleep_times = 0;
 
@@ -451,8 +450,10 @@ static status_t rcy_paral_replay_entry(knl_session_t *session, rcy_bucket_t *buc
         rd_enter_page_t *redo = (rd_enter_page_t *)log->data;
         uint32 index = paral_group->items[paral_group->curr_enter_id].page_index;
         rcy_page_t *page = &rcy->page_list[index >> RCY_PAGE_LIST_MOD_BITLEN][index & PCY_PAGE_LIST_MOD_MASK];
-        knl_panic_log(redo->file == page->file && redo->page == page->page, "the redo is not match to page, "
-                      "panic info: page %u-%u redo %u-%u", page->page, page->file, redo->file, redo->page);
+        knl_panic_log(redo->file == page->file && redo->page == page->page,
+                      "the redo is not match to page, "
+                      "panic info: page %u-%u redo %u-%u",
+                      page->page, page->file, redo->file, redo->page);
         uint32 group_slot = paral_group->items[paral_group->curr_enter_id].slot;
         uint8 next_bucket_id = paral_group->items[paral_group->curr_enter_id].next_bucket_id;
 
@@ -509,7 +510,7 @@ static status_t rcy_paral_replay_group(knl_session_t *session, rcy_bucket_t *buc
     uint32 offset;
     log_entry_t *log = NULL;
     log_group_t *group = paral_group->group;
-    pcn_verify_t log_pcns[KNL_MAX_PAGE_STACK_DEPTH] = {0};
+    pcn_verify_t log_pcns[KNL_MAX_PAGE_STACK_DEPTH] = { 0 };
     pcn_verify_list_t pcn_list;
 
     pcn_list.list = log_pcns;
@@ -528,8 +529,7 @@ static status_t rcy_paral_replay_group(knl_session_t *session, rcy_bucket_t *buc
         if (!DB_IS_PRIMARY(&session->kernel->db) && DB_IS_CLUSTER(session) && log->type == RD_LOGIC_OPERATION) {
             if (dtc_sync_ddl_redo(session, log->data, log->size - LOG_ENTRY_SIZE) != CT_SUCCESS) {
                 logic_op_t *op_type = (logic_op_t *)log->data;
-                CT_LOG_RUN_ERR("dtc sync ddl failed, type=%d, op_type=%d, size=%u", log->type, *op_type,
-                    log->size);
+                CT_LOG_RUN_ERR("dtc sync ddl failed, type=%d, op_type=%d, size=%u", log->type, *op_type, log->size);
                 knl_panic(0);
             }
         }
@@ -544,7 +544,7 @@ void rcy_replay_group(knl_session_t *session, log_context_t *ctx, log_group_t *g
 {
     uint32 offset;
     log_entry_t *log = NULL;
-    knl_session_t *se  = session->kernel->sessions[SESSION_ID_KERNEL];
+    knl_session_t *se = session->kernel->sessions[SESSION_ID_KERNEL];
     pcn_verify_t log_pcns[KNL_MAX_PAGE_STACK_DEPTH] = { 0 };
 
     se->dtc_session_type = session->dtc_session_type;
@@ -568,7 +568,7 @@ static void rcy_analysis_group(knl_session_t *session, log_context_t *ctx, log_g
     knl_session_t *se = session->kernel->sessions[SESSION_ID_KERNEL];
 
     if (SESSION_IS_LOG_ANALYZE(session)) {
-        se = session; // use aly session for log analysis
+        se = session;  // use aly session for log analysis
     }
 
     ctx->gbp_aly_lsn = group->lsn;
@@ -583,7 +583,7 @@ static void rcy_analysis_group(knl_session_t *session, log_context_t *ctx, log_g
     rcy_replay_group_end(se);
 }
 
-bool32 rcy_page_already_added(rcy_paral_group_t *paral_group, uint32 page_index, uint32* inpage_slot)
+bool32 rcy_page_already_added(rcy_paral_group_t *paral_group, uint32 page_index, uint32 *inpage_slot)
 {
     for (uint32 i = 0; i < paral_group->enter_count; i++) {
         if (page_index == paral_group->items[i].page_index) {
@@ -619,13 +619,13 @@ bool32 rcy_get_page_index(rcy_context_t *rcy_ctx, uint32 page, uint32 file, uint
         }
         page_index = page_info->hash_next;
     }
-    
+
     if (rcy_ctx->page_list_count >= RCY_PAGE_MAX_COUNT) {
-            // __TODO__: try hold more page
-            CT_LOG_RUN_ERR("rcy paral replay error, page list if full! page_limit:%u", RCY_PAGE_MAX_COUNT);
-            knl_panic(0);
+        // __TODO__: try hold more page
+        CT_LOG_RUN_ERR("rcy paral replay error, page list if full! page_limit:%u", RCY_PAGE_MAX_COUNT);
+        knl_panic(0);
     }
-    
+
     *index = rcy_ctx->page_list_count;
     page_list_idx = (*index) >> RCY_PAGE_LIST_MOD_BITLEN;
     if (!CT_BIT_TEST(rcy_ctx->page_list_bitmap, 1ULL << page_list_idx)) {
@@ -739,14 +739,16 @@ void rcy_add_pages(rcy_paral_group_t *paral_group, log_group_t *group, uint32 gr
             // }
             // rcy->prev_tx_group = paral_group; // reset prev_tx_group to current tx group
         }
-        if (log->type == RD_LOGIC_OPERATION || log->type == RD_LOGIC_REP_ALL_DDL  || rcy_contain_spc_log(log->type)) {
+        if (log->type == RD_LOGIC_OPERATION || log->type == RD_LOGIC_REP_ALL_DDL || rcy_contain_spc_log(log->type)) {
             *logic = CT_TRUE;
         }
         offset += log->size;
     }
 
-    knl_panic_log(page_count == paral_group->enter_count, "the page_count is not equal to paral_group's enter_count, "
-                  "panic info: page_count %u enter_count %u.", page_count, paral_group->enter_count);
+    knl_panic_log(page_count == paral_group->enter_count,
+                  "the page_count is not equal to paral_group's enter_count, "
+                  "panic info: page_count %u enter_count %u.",
+                  page_count, paral_group->enter_count);
     *next_group = (rcy_paral_group_t *)(&paral_group->items[page_count]);
 }
 
@@ -791,13 +793,15 @@ void rcy_release_lock_pages(knl_session_t *session, rcy_paral_group_t *paral_gro
     for (i = 0; i < paral_group->enter_count; i++) {
         index = paral_group->items[i].page_index;
         page = &rcy->page_list[index >> RCY_PAGE_LIST_MOD_BITLEN][index & PCY_PAGE_LIST_MOD_MASK];
-        knl_panic_log(page->group_count >= page->current_group, "the page's group_count is smaller than current_group,"
+        knl_panic_log(page->group_count >= page->current_group,
+                      "the page's group_count is smaller than current_group,"
                       " panic info: page %u-%u group_count %u current_group %u",
                       page->page, page->file, page->group_count, page->current_group);
         if (page->current_group > paral_group->items[i].slot) {
             continue;
         }
-        knl_panic_log(page->current_group == paral_group->items[i].slot,
+        knl_panic_log(
+            page->current_group == paral_group->items[i].slot,
             "page's current_group is not equal to paral_group's slot, panic info: page %u-%u current_group %u slot %u",
             page->page, page->file, page->current_group, paral_group->items[i].slot);
         page->current_group++;
@@ -823,7 +827,7 @@ void rcy_replay_logic_group(knl_session_t *session, rcy_paral_group_t *paral_gro
     }
     ELAPSED_END(begin_time, used_time);
     stat->latc_rcy_logic_log_wait_time += used_time;
- 
+
     ELAPSED_BEGIN(begin_time);
     if (rcy_paral_replay_group(session, NULL, ctx, paral_group) == CT_SUCCESS) {
         rcy_release_lock_pages(session, paral_group);
@@ -951,8 +955,7 @@ uint64 rcy_fetch_batch_lsn(knl_session_t *session, log_batch_t *batch)
 bool32 rcy_validate_batch(log_batch_t *batch, log_batch_tail_t *tail)
 {
     if (batch->head.magic_num == LOG_MAGIC_NUMBER && tail->magic_num == LOG_MAGIC_NUMBER &&
-        batch->head.point.lfn == tail->point.lfn && batch->size != 0 &&
-        batch->raft_index != CT_INVALID_ID64) {
+        batch->head.point.lfn == tail->point.lfn && batch->size != 0 && batch->raft_index != CT_INVALID_ID64) {
         return CT_TRUE;
     }
     return CT_FALSE;
@@ -967,8 +970,7 @@ static inline void rcy_next_file(knl_session_t *session, log_point_t *point, boo
 
     if (!lrcv->wait_info.waiting && LOG_POINT_FILE_EQUAL(*point, ctx->files[ctx->curr_file].head)) {
         *need_more_log = (db->status != DB_STATUS_RECOVERY) && db->status != DB_STATUS_REDO_ANALYSIS;
-    } else if (point->rst_id < reset_log->rst_id &&
-               point->asn == reset_log->last_asn &&
+    } else if (point->rst_id < reset_log->rst_id && point->asn == reset_log->last_asn &&
                (uint64)point->lfn == reset_log->last_lfn) {
         point->rst_id++;
         point->asn++;
@@ -982,8 +984,8 @@ static inline void rcy_next_file(knl_session_t *session, log_point_t *point, boo
         point->asn++;
         point->block_id = 0;
         *need_more_log = CT_TRUE;
-        CT_LOG_RUN_INF("[RCY] Move log point to [%u-%u/%u/%llu]",
-                       (uint32)point->rst_id, point->asn, point->block_id, (uint64)point->lfn);
+        CT_LOG_RUN_INF("[RCY] Move log point to [%u-%u/%u/%llu]", (uint32)point->rst_id, point->asn, point->block_id,
+                       (uint64)point->lfn);
     }
 }
 
@@ -1005,8 +1007,8 @@ static bool32 rcy_prepare_standby_batch(knl_session_t *session, log_point_t *poi
      */
     CT_LOG_RUN_INF("[RCY] find useless batch at point [%u-%u/%u/%llu] in %s recovery, rstlog [%u-%u/%llu]",
                    point->rst_id, point->asn, point->block_id, (uint64)point->lfn,
-                   (db->status == DB_STATUS_RECOVERY) ? "rcy" : "lrpl",
-                   rst_log->rst_id, rst_log->last_asn, rst_log->last_lfn);
+                   (db->status == DB_STATUS_RECOVERY) ? "rcy" : "lrpl", rst_log->rst_id, rst_log->last_asn,
+                   rst_log->last_lfn);
 
     /* maxrst_id <= 2^18, cannot oveflow */
     file_id = log_get_id_by_asn(session, (uint32)point->rst_id, point->asn, NULL);
@@ -1022,8 +1024,8 @@ static bool32 rcy_prepare_standby_batch(knl_session_t *session, log_point_t *poi
     return CT_FALSE;
 }
 
-static bool32 rcy_prepare_batch(knl_session_t *session, log_point_t *point, log_batch_t *batch,
-                                bool32 *need_more_log, bool32 is_analysis)
+static bool32 rcy_prepare_batch(knl_session_t *session, log_point_t *point, log_batch_t *batch, bool32 *need_more_log,
+                                bool32 is_analysis)
 {
     database_t *db = &session->kernel->db;
     log_context_t *ctx = &session->kernel->redo_ctx;
@@ -1109,8 +1111,8 @@ static inline bool32 rcy_gbp_triggered(knl_session_t *session, bool32 *need_more
 {
     gbp_aly_ctx_t *aly_ctx = &session->kernel->gbp_aly_ctx;
 
-    if (!KNL_RECOVERY_WITH_GBP(session->kernel) && knl_failover_triggered(session->kernel) &&
-        aly_ctx->is_done && !aly_ctx->has_return_replay) {
+    if (!KNL_RECOVERY_WITH_GBP(session->kernel) && knl_failover_triggered(session->kernel) && aly_ctx->is_done &&
+        !aly_ctx->has_return_replay) {
         aly_ctx->has_return_replay = CT_TRUE;
         *need_more_log = CT_TRUE;
         return CT_TRUE;
@@ -1124,10 +1126,10 @@ static bool32 rcy_pitr_replay_end(rcy_context_t *rcy, log_batch_t *batch, log_po
         return CT_FALSE;
     }
 
-    CT_LOG_RUN_INF("[RCY] pitr replay end at point [%u-%u/%u/%llu]",
-                   (uint32)point->rst_id, point->asn, point->block_id, (uint64)point->lfn);
+    CT_LOG_RUN_INF("[RCY] pitr replay end at point [%u-%u/%u/%llu]", (uint32)point->rst_id, point->asn, point->block_id,
+                   (uint64)point->lfn);
     if (point->block_id > 1) {
-        point->asn = point->asn + 1; // if block_id > 1, it means the half of current file has been replayed
+        point->asn = point->asn + 1;  // if block_id > 1, it means the half of current file has been replayed
     }
     *need_more_log = CT_FALSE;
     return CT_TRUE;
@@ -1144,7 +1146,8 @@ static status_t rcy_try_decrypt(knl_session_t *session, log_batch_t *batch, bool
         return log_decrypt(session, batch, ctx->logwr_cipher_buf, ctx->logwr_cipher_buf_size);
     } else {
         gbp_aly_ctx_t *aly_ctx = &session->kernel->gbp_aly_ctx;
-        return log_decrypt(session, batch, aly_ctx->log_decrypt_buf.aligned_buf, (uint32)aly_ctx->log_decrypt_buf.buf_size);
+        return log_decrypt(session, batch, aly_ctx->log_decrypt_buf.aligned_buf,
+                           (uint32)aly_ctx->log_decrypt_buf.buf_size);
     }
 }
 
@@ -1162,7 +1165,7 @@ void rcy_set_points(knl_session_t *session, log_point_t *point, bool32 is_analys
 }
 
 status_t rcy_replay(knl_session_t *session, log_point_t *point, uint32 data_size_input, log_batch_t *batch,
-    uint32 block_size, bool32 *need_more_log, bool32 *replay_fail, bool32 is_analysis)
+                    uint32 block_size, bool32 *need_more_log, bool32 *replay_fail, bool32 is_analysis)
 {
     rcy_context_t *rcy = &session->kernel->rcy_ctx;
     log_batch_tail_t *tail = (log_batch_tail_t *)((char *)batch + batch->size - sizeof(log_batch_tail_t));
@@ -1299,10 +1302,10 @@ static bool32 rcy_load_backup_arch(knl_session_t *session, uint32 asn, char *buf
         return CT_FALSE;
     }
 
-     /* when repairing data file to load arch from backupset, backupset with compress or enctyption is not supported */
+    /* when repairing data file to load arch from backupset, backupset with compress or enctyption is not supported */
     if (IS_FILE_RECOVER(session) && IS_ENCTYPT_OR_COMPRESS_BACKUPSET(bak)) {
         CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "replaying log in backupset to repairing file",
-            "backupset with compress or enctyption");
+                       "backupset with compress or enctyption");
         return CT_FALSE;
     }
 
@@ -1356,9 +1359,9 @@ static status_t rcy_is_arch_compressed(arch_file_t *file, bool32 *is_compress)
     }
     if (file->head.cmp_algorithm != COMPRESS_ZSTD) {
         CT_LOG_RUN_ERR("arch compressed mode expected compress algorithm is zstd, actual is %s",
-            bak_compress_algorithm_name(file->head.cmp_algorithm));
+                       bak_compress_algorithm_name(file->head.cmp_algorithm));
         CT_THROW_ERROR(ERR_BACKUP_RESTORE, "recovery check arch compress algorithm",
-            "arch compressed mode expected compress algorithm is zstd, actual is zlib or lz4");
+                       "arch compressed mode expected compress algorithm is zstd, actual is zlib or lz4");
         return CT_ERROR;
     }
     *is_compress = CT_TRUE;
@@ -1450,8 +1453,8 @@ static void rcy_move_buf_data(rcy_context_t *rcy_ctx)
     rcy_ctx->write_len = data_len;
 }
 
-static status_t rcy_deal_first_arch_file(rcy_context_t *rcy_ctx, log_point_t *point,
-    knl_compress_t *cmp_ctx, arch_file_t *file)
+static status_t rcy_deal_first_arch_file(rcy_context_t *rcy_ctx, log_point_t *point, knl_compress_t *cmp_ctx,
+                                         arch_file_t *file)
 {
     int64 targe_pos = point->block_id * file->head.block_size - file->head.block_size;
     aligned_buf_t *cmp_read_buf = &rcy_ctx->cmp_read_buf;
@@ -1479,12 +1482,12 @@ static status_t rcy_deal_first_arch_file(rcy_context_t *rcy_ctx, log_point_t *po
         cmp_ctx->finished = CT_FALSE;
         while (!cmp_ctx->finished) {
             if (knl_decompress(file->head.cmp_algorithm, cmp_ctx, CT_FALSE, batch_buf->aligned_buf,
-                (uint32)batch_buf->buf_size) != CT_SUCCESS) {
+                               (uint32)batch_buf->buf_size) != CT_SUCCESS) {
                 return CT_ERROR;
             }
             rcy_ctx->cur_arc_read_pos += cmp_ctx->write_len;
-            CT_LOG_DEBUG_INF("[RECOVERY] decompress log file %s with %d to %u read %lld target pos %lld",
-                file->name, read_size, cmp_ctx->write_len, rcy_ctx->cur_arc_read_pos, targe_pos);
+            CT_LOG_DEBUG_INF("[RECOVERY] decompress log file %s with %d to %u read %lld target pos %lld", file->name,
+                             read_size, cmp_ctx->write_len, rcy_ctx->cur_arc_read_pos, targe_pos);
             if (rcy_ctx->cur_arc_read_pos >= targe_pos) {
                 rcy_ctx->cmp_file_offset = rcy_ctx->cmp_file_offset - read_size + cmp_ctx->zstd_in_buf.pos;
                 break;
@@ -1506,8 +1509,8 @@ static status_t rcy_deal_first_arch_file(rcy_context_t *rcy_ctx, log_point_t *po
     return CT_SUCCESS;
 }
 
-static status_t rcy_load_arch_compressed_file(knl_session_t *session, log_point_t *point,
-    uint32 *data_size, arch_file_t *arch_file)
+static status_t rcy_load_arch_compressed_file(knl_session_t *session, log_point_t *point, uint32 *data_size,
+                                              arch_file_t *arch_file)
 {
     rcy_context_t *rcy_ctx = &session->kernel->rcy_ctx;
     knl_compress_t *cmp_ctx = &rcy_ctx->cmp_ctx;
@@ -1544,7 +1547,7 @@ static status_t rcy_load_arch_compressed_file(knl_session_t *session, log_point_
         knl_compress_set_input(file->head.cmp_algorithm, cmp_ctx, cmp_read_buf->aligned_buf, (uint32)read_size);
         CT_LOG_DEBUG_INF("[RECOVERY] read log file %s set input with %d", file->name, read_size);
         if (knl_decompress(file->head.cmp_algorithm, cmp_ctx, CT_FALSE, batch_buf->aligned_buf + rcy_ctx->write_len,
-            (uint32)batch_buf->buf_size - rcy_ctx->write_len) != CT_SUCCESS) {
+                           (uint32)batch_buf->buf_size - rcy_ctx->write_len) != CT_SUCCESS) {
             return CT_ERROR;
         }
         CT_LOG_DEBUG_INF("[RECOVERY] decompress log file %s with %d to %u", file->name, read_size, cmp_ctx->write_len);
@@ -1556,8 +1559,8 @@ static status_t rcy_load_arch_compressed_file(knl_session_t *session, log_point_
     return CT_SUCCESS;
 }
 
-status_t rcy_load_arch_file(knl_session_t *session, log_point_t *point, uint32 *data_size,
-    arch_file_t *file, aligned_buf_t *align_buf)
+status_t rcy_load_arch_file(knl_session_t *session, log_point_t *point, uint32 *data_size, arch_file_t *file,
+                            aligned_buf_t *align_buf)
 {
     uint64 buf_size = (uint64)align_buf->buf_size;
     char *buf = align_buf->aligned_buf;
@@ -1586,13 +1589,15 @@ status_t rcy_load_arch_file(knl_session_t *session, log_point_t *point, uint32 *
     return CT_SUCCESS;
 }
 
-status_t rcy_load_from_arch(knl_session_t *session, log_point_t *point, uint32 *data_size,
-    arch_file_t *file, aligned_buf_t *align_buf)
+status_t rcy_load_from_arch(knl_session_t *session, log_point_t *point, uint32 *data_size, arch_file_t *file,
+                            aligned_buf_t *align_buf)
 {
     rcy_context_t *rcy_ctx = &session->kernel->rcy_ctx;
-    
+
     bool32 is_compress = CT_FALSE;
-    if (rcy_load_arch(session, (uint32)point->rst_id, point->asn, file, &is_compress) != CT_SUCCESS)  { /* max rst_id <= 2^18, cannot overflow */
+    if (rcy_load_arch(session, (uint32)point->rst_id, point->asn, file, &is_compress) != CT_SUCCESS) { /* max rst_id <=
+                                                                                                          2^18, cannot
+                                                                                                          overflow */
         rcy_close_file(session);
         return CT_ERROR;
     }
@@ -1656,8 +1661,8 @@ status_t rcy_load_from_online(knl_session_t *session, uint32 file_id, log_point_
         return CT_ERROR;
     }
     /* size <= buf_size, (uint32)size cannot overflow */
-    if (cm_read_device(file->ctrl->type, *handle, (int64)point->block_id * file->ctrl->block_size, buf,
-                       (uint32)size) != CT_SUCCESS) {
+    if (cm_read_device(file->ctrl->type, *handle, (int64)point->block_id * file->ctrl->block_size, buf, (uint32)size) !=
+        CT_SUCCESS) {
         log_unlatch_file(session, file_id);
         CT_LOG_RUN_ERR("[RECOVERY] failed to read %s, offset %u", file->ctrl->name, point->block_id);
         cm_close_device(file->ctrl->type, handle);
@@ -1778,16 +1783,16 @@ void rcy_proc(thread_t *thread)
     KNL_SESSION_CLEAR_THREADID(session);
 
     CT_LOG_RUN_INF("[DTC RCY] rcy_paral_proc end. session_id:%u, work_time(us):%llu, life_cycle(us):%llu,"
-        " rate of utilization:%u%%, read_page_num:%llu, total_time(us):%llu, ave_time(us):%llu, "
-        "sleep_time_in_log_add_bucket=%llu, session_replay_log_group_count=%llu,wait_cond_time=%llu",
-        sid, work_time, used_time, bucket->rcy_stat.session_util_rate, rcy_disk_read, rcy_disk_read_time,
-        bucket->rcy_stat.rcy_read_disk_avg_time, bucket->rcy_stat.sleep_time_in_log_add_bucket,
-        bucket->rcy_stat.session_replay_log_group_count, bucket->rcy_stat.wait_cond_time);
+                   " rate of utilization:%u%%, read_page_num:%llu, total_time(us):%llu, ave_time(us):%llu, "
+                   "sleep_time_in_log_add_bucket=%llu, session_replay_log_group_count=%llu,wait_cond_time=%llu",
+                   sid, work_time, used_time, bucket->rcy_stat.session_util_rate, rcy_disk_read, rcy_disk_read_time,
+                   bucket->rcy_stat.rcy_read_disk_avg_time, bucket->rcy_stat.sleep_time_in_log_add_bucket,
+                   bucket->rcy_stat.session_replay_log_group_count, bucket->rcy_stat.wait_cond_time);
 }
 
 static status_t rcy_alloc_buffer(rcy_context_t *rcy)
 {
-    rcy->buf = (char *)malloc(CT_RCY_BUF_SIZE); // 4M
+    rcy->buf = (char *)malloc(CT_RCY_BUF_SIZE);  // 4M
     if (rcy->buf == NULL) {
         CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)CT_RCY_BUF_SIZE, "bucket");
         return CT_ERROR;
@@ -1795,7 +1800,7 @@ static status_t rcy_alloc_buffer(rcy_context_t *rcy)
     errno_t ret = memset_sp(rcy->buf, CT_RCY_BUF_SIZE, 0, CT_RCY_BUF_SIZE);
     knl_securec_check(ret);
 
-    rcy->group_list = (rcy_paral_group_t *)malloc(CT_MAX_BATCH_SIZE); // 64M
+    rcy->group_list = (rcy_paral_group_t *)malloc(CT_MAX_BATCH_SIZE);  // 64M
     if (rcy->group_list == NULL) {
         CT_THROW_ERROR(ERR_ALLOC_MEMORY, CT_MAX_BATCH_SIZE, "group list");
         CM_FREE_PTR(rcy->buf);
@@ -1804,7 +1809,7 @@ static status_t rcy_alloc_buffer(rcy_context_t *rcy)
     ret = memset_sp(rcy->group_list, CT_MAX_BATCH_SIZE, 0, CT_MAX_BATCH_SIZE);
     knl_securec_check(ret);
 
-    rcy->page_bucket = (rcy_page_bucket_t *)malloc(sizeof(rcy_page_bucket_t) * CT_RCY_MAX_PAGE_COUNT); // 32M
+    rcy->page_bucket = (rcy_page_bucket_t *)malloc(sizeof(rcy_page_bucket_t) * CT_RCY_MAX_PAGE_COUNT);  // 32M
     if (rcy->page_bucket == NULL) {
         CT_THROW_ERROR(ERR_ALLOC_MEMORY, sizeof(rcy_page_bucket_t) * CT_RCY_MAX_PAGE_COUNT, "page bucket");
         CM_FREE_PTR(rcy->buf);
@@ -1815,7 +1820,7 @@ static status_t rcy_alloc_buffer(rcy_context_t *rcy)
                     sizeof(rcy_page_bucket_t) * CT_RCY_MAX_PAGE_COUNT);
     knl_securec_check(ret);
 
-    rcy->page_bitmap = (uint16 *)malloc(sizeof(uint16) * CT_RCY_MAX_PAGE_BITMAP_LEN); // 512K
+    rcy->page_bitmap = (uint16 *)malloc(sizeof(uint16) * CT_RCY_MAX_PAGE_BITMAP_LEN);  // 512K
     if (rcy->page_bitmap == NULL) {
         CT_THROW_ERROR(ERR_ALLOC_MEMORY, sizeof(uint16) * CT_RCY_MAX_PAGE_BITMAP_LEN, "page bucket");
         CM_FREE_PTR(rcy->buf);
@@ -1827,8 +1832,8 @@ static status_t rcy_alloc_buffer(rcy_context_t *rcy)
                     sizeof(uint16) * CT_RCY_MAX_PAGE_BITMAP_LEN);
     knl_securec_check(ret);
 
-    ret = memset_sp(rcy->page_list, RCY_PAGE_LIST_BITMAP_LEN * sizeof(rcy_page_t *),
-                    0, RCY_PAGE_LIST_BITMAP_LEN * sizeof(rcy_page_t *));
+    ret = memset_sp(rcy->page_list, RCY_PAGE_LIST_BITMAP_LEN * sizeof(rcy_page_t *), 0,
+                    RCY_PAGE_LIST_BITMAP_LEN * sizeof(rcy_page_t *));
     knl_securec_check(ret);
     return CT_SUCCESS;
 }
@@ -1996,7 +2001,7 @@ void rcy_close_file(knl_session_t *session)
     uint32 i;
 
     if (SESSION_IS_LOG_ANALYZE(session)) {
-        return; // gbp aly session's log file handle is closed in gbp_aly_proc
+        return;  // gbp aly session's log file handle is closed in gbp_aly_proc
     }
     cm_close_device(cm_device_type(rcy_ctx->arch_file.name), &rcy_ctx->arch_file.handle);
     rcy_ctx->arch_file.handle = CT_INVALID_HANDLE;
@@ -2030,15 +2035,13 @@ static status_t rcy_reset_file(knl_session_t *session, log_point_t *point)
  */
 static void rcy_try_use_gbp(knl_session_t *session, log_point_t *curr_point)
 {
-    if (KNL_GBP_SAFE(session->kernel) &&
-        KNL_GBP_FOR_RECOVERY(session->kernel) &&
-        !KNL_RECOVERY_WITH_GBP(session->kernel) &&
-        gbp_replay_in_window(session, *curr_point)) {
+    if (KNL_GBP_SAFE(session->kernel) && KNL_GBP_FOR_RECOVERY(session->kernel) &&
+        !KNL_RECOVERY_WITH_GBP(session->kernel) && gbp_replay_in_window(session, *curr_point)) {
         if (session->kernel->rcy_ctx.paral_rcy) {
             rcy_wait_replay_complete(session);
         }
 
-        if (KNL_GBP_SAFE(session->kernel)) { // recheck again, gbp status may set unsafe when rcy_wait_replay_complete
+        if (KNL_GBP_SAFE(session->kernel)) {  // recheck again, gbp status may set unsafe when rcy_wait_replay_complete
             gbp_knl_begin_read(session, curr_point);
         }
     }
@@ -2054,7 +2057,7 @@ static status_t rcy_analysis_all_redo(knl_session_t *session, log_point_t *curr_
     rcy->is_first_arch_file = CT_TRUE;
 
     while (rcy_load(session, curr_point, &data_size, &block_size) == CT_SUCCESS) {
-        batch = (log_batch_t*)rcy->read_buf.aligned_buf;
+        batch = (log_batch_t *)rcy->read_buf.aligned_buf;
         if (log_need_realloc_buf(batch, &rcy->read_buf, "rcy", CT_MAX_BATCH_SIZE)) {
             continue;
         }
@@ -2092,8 +2095,8 @@ static status_t rcy_redo_analysis(knl_session_t *session, log_point_t *curr_poin
         gbp_reset_unsafe(session);
         kernel->db.status = DB_STATUS_REDO_ANALYSIS;
 
-        CT_LOG_RUN_INF("[GBP] log analysis: from file:%u,point:%u,lfn:%llu\n",
-                       curr_point->asn, curr_point->block_id, (uint64)curr_point->lfn);
+        CT_LOG_RUN_INF("[GBP] log analysis: from file:%u,point:%u,lfn:%llu\n", curr_point->asn, curr_point->block_id,
+                       (uint64)curr_point->lfn);
         (void)cm_gettimeofday(&redo_ctx->replay_stat.analyze_begin);
 
         if (rcy_analysis_all_redo(session, curr_point) != CT_SUCCESS) {
@@ -2105,10 +2108,10 @@ static status_t rcy_redo_analysis(knl_session_t *session, log_point_t *curr_poin
         redo_ctx->replay_stat.analyze_elapsed = TIMEVAL_DIFF_US(&redo_ctx->replay_stat.analyze_begin,
                                                                 &redo_ctx->replay_stat.analyze_end);
 
-        CT_LOG_RUN_INF("[GBP] log analysis: end with file:%u,point:%u,lfn:%llu\n",
-                       curr_point->asn, curr_point->block_id, (uint64)curr_point->lfn);
+        CT_LOG_RUN_INF("[GBP] log analysis: end with file:%u,point:%u,lfn:%llu\n", curr_point->asn,
+                       curr_point->block_id, (uint64)curr_point->lfn);
 
-        cm_sleep(200); // wait gbp background process connected
+        cm_sleep(200);  // wait gbp background process connected
         if (gbp_pre_check(session, redo_ctx->redo_end_point)) {
             gbp_knl_check_end_point(session);
 
@@ -2135,7 +2138,7 @@ status_t rcy_recover_check(knl_session_t *session, log_point_t curr_point, log_p
     uint64 rcy_point_lfn = dtc_my_ctrl(session)->rcy_point.lfn;
 
     CT_LOG_RUN_INF("[RCY] recovery real end with file:%u,point:%u,lfn:%llu", curr_point.asn, curr_point.block_id,
-        (uint64)curr_point.lfn);
+                   (uint64)curr_point.lfn);
     CT_LOG_RUN_INF("[RCY] current lfn %llu, rcy point lfn %llu, consistent point %llu, lrp point lfn %llu",
                    (uint64)curr_point.lfn, (uint64)rcy_point_lfn, (uint64)consistent_lfn, (uint64)lrp_point.lfn);
     if (curr_point.lfn >= lrp_point.lfn) {
@@ -2147,8 +2150,7 @@ status_t rcy_recover_check(knl_session_t *session, log_point_t curr_point, log_p
         return CT_SUCCESS;
     }
 
-    CT_THROW_ERROR(ERR_INVALID_RCV_END_POINT,
-        curr_point.asn, curr_point.block_id, lrp_point.asn, lrp_point.block_id);
+    CT_THROW_ERROR(ERR_INVALID_RCV_END_POINT, curr_point.asn, curr_point.block_id, lrp_point.asn, lrp_point.block_id);
     knl_panic(0);
     return CT_ERROR;
 }
@@ -2205,8 +2207,8 @@ status_t rcy_recover(knl_session_t *session)
     CT_LOG_RUN_INF("[RCY] database start recovery");
     CT_LOG_RUN_INF("[RCY] recovery from file:%u,point:%u,lfn:%llu", curr_point.asn, curr_point.block_id,
                    (uint64)curr_point.lfn);
-    CT_LOG_RUN_INF("[RCY] recovery expected least end with file:%u,point:%u,lfn:%llu", lrp_point.asn, lrp_point.block_id,
-                   (uint64)lrp_point.lfn);
+    CT_LOG_RUN_INF("[RCY] recovery expected least end with file:%u,point:%u,lfn:%llu", lrp_point.asn,
+                   lrp_point.block_id, (uint64)lrp_point.lfn);
 
     rcy_init_proc(session);
 
@@ -2226,7 +2228,8 @@ status_t rcy_recover(knl_session_t *session)
         }
         rcy->curr_group = rcy->group_list;
         rcy->curr_group_id = 0;
-        if (rcy_replay(session, &curr_point, data_size, batch, block_size, &need_more_log, NULL, CT_FALSE) != CT_SUCCESS) {
+        if (rcy_replay(session, &curr_point, data_size, batch, block_size, &need_more_log, NULL, CT_FALSE) !=
+            CT_SUCCESS) {
             rcy_close_file(session);
             return CT_ERROR;
         }
@@ -2359,6 +2362,14 @@ void rcy_preload_proc(thread_t *thread)
         }
         knl_panic(ctrl->load_status == (uint8)BUF_NEED_LOAD);
 
+        if (DB_IS_CLUSTER(session)) {
+            if (dtc_get_share_owner_pages(session, &ctrl, NULL, 1) != CT_SUCCESS) {
+                rcy_update_preload_info(info, rcy, PRELOAD_BUFFER_PAGES);
+                buf_unlatch(session, ctrl, CT_TRUE);
+                continue;
+            }
+        }
+
         if (page_compress(session, page_id)) {
             status = buf_load_group(session, ctrl);
         } else {
@@ -2389,7 +2400,7 @@ void rcy_init_proc(knl_session_t *session)
     errno_t ret;
     uint32 i = 0;
     ELAPSED_BEGIN(rcy->paral_rcy_thread_start_work_time);
-    
+
     if (kernel->attr.log_replay_processes > CT_DEFAULT_PARAL_RCY) {
         rcy->paral_rcy = CT_TRUE;
         rcy->capacity = kernel->attr.log_replay_processes;
@@ -2436,7 +2447,7 @@ void rcy_init_proc(knl_session_t *session)
             CT_LOG_RUN_ERR("rcy proc init failed as create thread failed now=%u, capacity=%u", i, rcy->capacity);
             break;
         }
- 
+
         rcy_paral_stat_t *rcy_stat = &bucket->rcy_stat;
         rcy_stat->session_id = bucket->session->id;
         rcy_stat->rcy_read_disk_page_num = 0;
@@ -2448,10 +2459,11 @@ void rcy_init_proc(knl_session_t *session)
         rcy_stat->sleep_time_in_log_add_bucket = 0;
         rcy_stat->session_replay_log_group_count = 0;
         rcy_stat->wait_cond_time = 0;
- 
+
         CT_LOG_DEBUG_INF("[DTC RCY] init rcy_paral_proc,rcy->capacity=%u, session_id=%u, "
-            "sleep_time_in_log_add_bucket=%llu, session_replay_log_group_count=%llu", rcy->capacity,
-            rcy_stat->session_id, rcy_stat->sleep_time_in_log_add_bucket, rcy_stat->session_replay_log_group_count);
+                         "sleep_time_in_log_add_bucket=%llu, session_replay_log_group_count=%llu",
+                         rcy->capacity, rcy_stat->session_id, rcy_stat->sleep_time_in_log_add_bucket,
+                         rcy_stat->session_replay_log_group_count);
     }
 
     if (i < rcy->capacity) {
@@ -2577,18 +2589,14 @@ void rcy_replay_logic(knl_session_t *session, log_entry_t *log)
 {
     logic_op_t *op_type = (logic_op_t *)log->data;
     if (DB_IS_PRIMARY(&session->kernel->db) &&
-        (*op_type == RD_LOCK_TABLE_FOR_MYSQL_DDL ||
-        *op_type == RD_UNLOCK_TABLE_FOR_MYSQL_DDL ||
-        *op_type == RD_INVALID_DD_FOR_MYSQL_DDL)) {
+        (*op_type == RD_LOCK_TABLE_FOR_MYSQL_DDL || *op_type == RD_UNLOCK_TABLE_FOR_MYSQL_DDL ||
+         *op_type == RD_INVALID_DD_FOR_MYSQL_DDL)) {
         return;
     }
 
     if (DB_NOT_READY(session) || (DB_IS_PRIMARY(&session->kernel->db)) || DB_IS_UPGRADE(session)) {
-        if (*op_type != RD_CREATE_MK_BEGIN &&
-            *op_type != RD_CREATE_MK_END &&
-            *op_type != RD_CREATE_MK_DATA &&
-            *op_type != RD_UPDATE_SYSDATA_VERSION &&
-            !need_replay_in_partial_restart(session, log)) {
+        if (*op_type != RD_CREATE_MK_BEGIN && *op_type != RD_CREATE_MK_END && *op_type != RD_CREATE_MK_DATA &&
+            *op_type != RD_UPDATE_SYSDATA_VERSION && !need_replay_in_partial_restart(session, log)) {
             return;
         }
     }
@@ -2605,12 +2613,11 @@ void rcy_replay_logic(knl_session_t *session, log_entry_t *log)
 
     if (*op_type >= RD_SQL_LOG_BEGIN && *op_type < RD_SQL_LOG_END) {
         if (g_knl_callback.pl_logic_log_replay(session, *op_type - RD_SQL_LOG_BEGIN,
-            (void *)(log->data + CM_ALIGN4(sizeof(logic_op_t)))) != CT_SUCCESS) {
+                                               (void *)(log->data + CM_ALIGN4(sizeof(logic_op_t)))) != CT_SUCCESS) {
             int32 error_code;
             const char *error_message = NULL;
             cm_get_error(&error_code, &error_message, NULL);
-            CT_LOG_RUN_ERR("sql logic log replay fail, error code:%u, error message:%s",
-                           error_code, error_message);
+            CT_LOG_RUN_ERR("sql logic log replay fail, error code:%u, error message:%s", error_code, error_message);
             cm_reset_error();
         }
     }
@@ -2661,7 +2668,7 @@ void backup_logic_entry(knl_session_t *session, log_entry_t *log, bool32 *need_u
     }
 }
 
-const char* rcy_logic_name(log_entry_t *log)
+const char *rcy_logic_name(log_entry_t *log)
 {
     logic_op_t *op_type = (logic_op_t *)log->data;
 
@@ -2673,7 +2680,7 @@ const char* rcy_logic_name(log_entry_t *log)
     return NULL;
 }
 
-const char* rcy_redo_name(log_entry_t *log)
+const char *rcy_redo_name(log_entry_t *log)
 {
     if (log->type == RD_LOGIC_OPERATION) {
         return rcy_logic_name(log);
