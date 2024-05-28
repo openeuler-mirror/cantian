@@ -1998,10 +1998,6 @@ void arch_dbstor_do_archive(knl_session_t *session, arch_proc_context_t *proc_ct
             CM_ABORT(0, "[ARCH] ABORT INFO: the arch ctrl has been occupied.");
         }
         arch_dbstor_wake_force_thread(proc_ctx);
-        // logfile->ctrl->archived = CT_TRUE;
-        // if (db_save_log_ctrl(session, 0, node_id) != CT_SUCCESS) {
-        //     CM_ABORT(0, "[ARCH] ABORT INFO: save control redo file failed when archive file");
-        // }
         proc_ctx->last_archived_log_record.end_lsn = proc_ctx->last_archived_log_record.cur_lsn;
         arch_log_recycle_file(proc_ctx, node_id);
     } else {
