@@ -1016,7 +1016,7 @@ status_t arch_dbstor_generate_arch_file(arch_proc_context_t *proc_ctx, log_file_
     device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
     if (proc_ctx->last_archived_log_record.end_lsn == proc_ctx->last_archived_log_record.cur_lsn) {
         proc_ctx->need_file_archive = CT_FALSE; // no log when force archive, need clear.
-        CT_LOG_RUN_ERR("[ARCH] empty file no need to archive %s", tmp_file_name);
+        CT_LOG_RUN_WAR("[ARCH] empty file no need to archive %s", tmp_file_name);
         return CT_ERROR;
     }
     st_arch_log_record_id_t tmp_record = proc_ctx->last_archived_log_record;
@@ -1096,7 +1096,6 @@ status_t arch_dbstor_archive_file(const char *src_name, char *arch_file_name, lo
             }
         }
         if (arch_dbstor_generate_arch_file(proc_ctx, logfile, tmp_file_name, arch_file_name, head) != CT_SUCCESS) {
-            arch_set_force_archive_stat(proc_ctx, CT_TRUE);
             return CT_ERROR;
         }
     }
