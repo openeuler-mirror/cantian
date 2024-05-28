@@ -712,7 +712,7 @@ config_item_t g_parameters[] = {
     { "ENABLE_IDX_KEY_LEN_CHECK", CT_TRUE, ATTR_NONE, "TRUE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
       PARAM_ENABLE_IDX_KEY_LEN_CHECK, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool, sql_notify_idx_key_len_check,
       sql_notify_als_bool, NULL },
-    { "CBO", CT_TRUE, ATTR_NONE, "ON", NULL, NULL, "-", "OFF,ON", "CT_TYPE_VARCHAR", NULL, PARAM_CBO,
+    { "CBO", CT_TRUE, ATTR_NONE, "OFF", NULL, NULL, "-", "OFF,ON", "CT_TYPE_VARCHAR", NULL, PARAM_CBO,
       EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_onoff, sql_notify_als_cbo, sql_notify_als_onoff, NULL },
     { "MAX_COLUMN_COUNT", CT_TRUE, ATTR_NONE, "1024", NULL, NULL, "-", "1024,2048,3072,4096", "CT_TYPE_INTEGER", NULL,
       PARAM_MAX_COLUMN_COUNT, EFFECT_REBOOT, CFG_DB, sql_verify_als_max_column_count, NULL, NULL, NULL },

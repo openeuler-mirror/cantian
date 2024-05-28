@@ -1465,7 +1465,7 @@ status_t bak_check_increment_type(knl_session_t *session, knl_backup_t *param)
     if (bak_check_increment_unblock(session, &unblock) != CT_SUCCESS) {
         return CT_ERROR;
     }
-    if (unblock == CT_TRUE) {
+    if (unblock == CT_FALSE) {
         CT_THROW_ERROR(ERR_BACKUP_INCREMENT_BLOCK);
         return CT_ERROR;
     }
