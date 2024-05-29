@@ -1,0 +1,49 @@
+{
+    "default": {},
+    "ModeA": {
+        "single_process": "0",
+        "config": {
+            "cantian_in_container": "0",
+            "mysql_in_container": "0",
+            "deploy_mode": "nas",
+            "mysql_metadata_in_cantian": false
+        }
+    },
+    "ModeB": {
+        "single_process": "0",
+        "config": {
+            "cantian_in_container": "0",
+            "mysql_in_container": "0",
+            "deploy_mode": "dbstore",
+            "mysql_metadata_in_cantian": true
+        }
+    },
+    "ModeC": {
+        "single_process": "1",
+        "config": {
+            "cantian_in_container": "1",
+            "mysql_in_container": "1",
+            "deploy_mode": "dbstore_unify",
+            "mysql_metadata_in_cantian": false
+        }
+    },
+    "ModeD": {
+        "single_process": "1",
+        "config": {
+            "cantian_in_container": "0",
+            "mysql_in_container": "0",
+            "deploy_mode": "dbstore_unify",
+            "mysql_metadata_in_cantian": false
+        }
+    },
+    "ModeE": {
+        "single_process": "1",
+        "config": {
+            "cantian_in_container": "2",
+            "mysql_in_container": "1",
+            "deploy_mode": "dbstore_unify",
+            "mysql_metadata_in_cantian": false
+        }
+    }
+  }
+  
