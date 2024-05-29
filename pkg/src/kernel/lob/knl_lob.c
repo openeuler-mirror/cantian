@@ -2067,6 +2067,9 @@ status_t lob_temp_alloc_page(knl_session_t *session, knl_cursor_t *cursor, lob_e
     lob_undo.first_page = *lob_assist->lob_page_id;
     lob_undo.lob_segid = temp_cache->lob_segid;
     lob_undo.ori_scn = lob_assist->org_scn;
+    lob_undo.uid = temp_cache->user_id;
+    lob_undo.table_id = temp_cache->table_id;
+    lob_undo.seg_scn = temp_cache->seg_scn;
     if (cursor->nologging_type != SESSION_LEVEL && lob_assist->generate_undo) {
         lob_temp_generate_undo_alloc_page(session, cursor, lob_entity, &lob_undo);
     }
@@ -3803,6 +3806,16 @@ void lob_temp_undo_write_page(knl_session_t *session, undo_row_t *ud_row, undo_p
     lob_temp_undo_alloc_page_t *lob_undo;
 
     lob_undo = (lob_temp_undo_alloc_page_t *)ud_row->data;
+
+    if (DB_IS_BG_ROLLBACK_SE(session)) {
+	    return;
+    }
+
+    knl_temp_cache_t *knl_temp_cache = knl_get_temp_cache(session, lob_undo->uid, lob_undo->table_id);
+
+    if (knl_temp_cache == NULL || knl_temp_cache->seg_scn != lob_undo->seg_scn) {
+	    return;
+    }
 
     lob_temp_free_alloc_page(session, (uint32)ud_row->seg_page, lob_undo);
 }
