@@ -10041,6 +10041,7 @@ status_t knl_put_temp_cache(knl_handle_t session, knl_handle_t dc_entity)
     temp_table_ptr->table_id = table->desc.id;
     temp_table_ptr->table_segid = CT_INVALID_ID32;
     temp_table_ptr->index_segid = CT_INVALID_ID32;
+    temp_table_ptr->lob_segid = CT_INVALID_ID32;
     temp_table_ptr->rows = 0;
     temp_table_ptr->serial = 0;
     temp_table_ptr->cbo_stats = NULL;
@@ -10076,6 +10077,11 @@ void knl_free_temp_vm(knl_handle_t session, knl_handle_t temp_table)
     if (cache->index_segid != CT_INVALID_ID32) {
         temp_drop_segment(se->temp_mtrl, cache->index_segid);
         cache->index_segid = CT_INVALID_ID32;
+    }
+
+    if (cache->lob_segid != CT_INVALID_ID32) {
+        temp_drop_segment(se->temp_mtrl, cache->lob_segid);
+        cache->lob_segid = CT_INVALID_ID32;
     }
 
     cache->table_id = CT_INVALID_ID32;
