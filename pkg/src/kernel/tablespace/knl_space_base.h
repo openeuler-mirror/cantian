@@ -456,6 +456,7 @@ status_t spc_find_extend_file(knl_session_t *session, space_t *space, uint32 ext
 int64 spc_get_extend_size(knl_session_t *session, datafile_t *df, uint32 extent_size, bool32 *need_group);
 void spc_alloc_free_extent(knl_session_t *session, space_t *space, page_id_t *extent);
 space_t *spc_get_undo_space(knl_session_t *session, uint8 inst_id);
+space_t *spc_get_temp_undo_space(knl_session_t *session, uint8 inst_id);
 bool32 spc_is_remote_swap_space(knl_session_t *session, space_t *space);
 
 #ifdef __cplusplus
