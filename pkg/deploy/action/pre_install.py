@@ -585,10 +585,6 @@ class CheckInstallConfig(CheckBase):
     def install_config_params_init(self, install_config_params):
         if 'link_type' not in install_config_params.keys():
             install_config_params['link_type'] = '1'
-        if 'cantian_in_container' not in install_config_params.keys():
-            install_config_params['cantian_in_container'] = "0"
-        if 'mysql_in_container' not in install_config_params.keys():
-            install_config_params['mysql_in_container'] = '1'
         if 'storage_archive_fs' not in install_config_params.keys():
             install_config_params['storage_archive_fs'] = ''
         if 'archive_logic_ip' not in install_config_params.keys():

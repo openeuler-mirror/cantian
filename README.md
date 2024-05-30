@@ -88,18 +88,23 @@ Cantian引擎编译过程所依赖的软件如[表1 环境构建依赖](#table16
     git clone https://gitee.com/openeuler/cantian.git
     ```
 
-1.  执行以下命令下载Cantian-Connector-MySQL源码，用于编译Cantian引擎对接MySQL的插件。
+4.  执行以下命令下载Cantian-Connector-MySQL源码，用于编译Cantian引擎对接MySQL的插件。
 
     ```
     git clone https://gitee.com/openeuler/cantian-connector-mysql.git
     ```
 
-1.  进入Cantian-Connector-MySQL源码目录，执行以下命令下载MySQL-8.0.26版本源码，用于编译Cantian引擎对接MySQL的插件。
+5.  进入Cantian-Connector-MySQL源码目录，执行以下命令下载MySQL-8.0.26版本源码，用于编译Cantian引擎对接MySQL的插件。
 
     ```
     cd cantian-connector-mysql
     wget https://github.com/mysql/mysql-server/archive/refs/tags/mysql-8.0.26.tar.gz --no-check-certificate
     tar -zxf mysql-8.0.26.tar.gz
+    ```
+6.  如需数据入湖工具，需额外下载以下仓库代码（需申请权限）
+
+    ```
+    git clone https://gitee.com/data-migration-tools/logicrep.git
     ```
 ### 2.3.2 标题
     mv mysql-server-mysql-8.0.26 mysql-source
@@ -253,12 +258,16 @@ build\_cantian.sh是编译过程中的入口脚本，其集成了软件编译和
         ```
         cd /ctdb/cantian_compile/cantian/docker
         ```
-
-    3.  执行脚本，启动并进入编译容器。
+    3.  若需要入湖工具，则需将入湖代码同步放到容器里。
+        ```
+        cp -r /ctdb/cantian_compile/logicrep ctdb/cantian_compile/cantian/pkg/src/ 
+        ```
+    4.  执行脚本，启动并进入编译容器。
 
         ```
         sh container.sh dev
         ```
+
 
 2.  进入编译脚本目录。
 
@@ -290,6 +299,14 @@ build\_cantian.sh是编译过程中的入口脚本，其集成了软件编译和
 
     -   X86：Cantian\__xxx_\_x86\_64\_DEBUG.tgz或Cantian\__xxx_\_x86\_64\_RELEASE.tgz
     -   ARM：Cantian\__xxx_\_aarch64\_DEBUG.tgz或Cantian\_\__xxx_\_aarch64\_RELEASE.tgz
+3. 如有需要单独编译数据入湖软件包
+
+    ```
+    cd /home/regress/CantianKernel/pkg/src/logicrep/build/
+    sh Makefile.sh
+    ```
+    获取软件包路径  /home/regress/CantianKernel/pkg/src/logicrep/pkg/src/zlogicrep/build/Cantian_PKG/file
+    安装部署cantian前需将整个zlogicrep文件夹拷贝并覆盖掉cantian_connector下zlogicerp文件夹。
 
 # 三、安装与卸载Cantian引擎<a name="ZH-CN_TOPIC_0000001800412081"></a>
 
@@ -1410,7 +1427,23 @@ Cantian引擎支持通过物理方式和容器方式加载插件依赖库。
 
 4.  登录另一台数据库服务器，重复执行[2](#li95222027105913)和[3](#li142421623195811)，为另一台数据库服务器加载插件ha\_ctc.so的依赖库。
 
-# 五、健康巡检<a name="ZH-CN_TOPIC_0000001755835620"></a>
+# 五、对接数据入湖工具<a name="ZH-CN_TOPIC_0000001755835620"></a>
+数据入湖工具主要用于根据cantian产生的归档日志文件生成binlog，若有需要需在完成代码下载编译后，按照以下方式进行启动。
+1. 准备相关依赖文件，文件需找代码仓开发人员获取使用权限，并将文件夹存到/home/logicrep/sofile/路径下
+2. 环境准备：安装jdk17版本
+3. 拉起操作：
+   ```
+   sh /opt/cantian/action/logicrep/appctl.sh startup /home/logicrep/sofile/
+   ```
+4. 暂停操作：
+   ```
+   sh /opt/cantian/action/logicrep/appctl.sh stop
+   ```
+5. 终止操作：
+   ```
+   sh /opt/cantian/action/logicrep/appctl.sh shutdown
+   ```
+# 六、健康巡检<a name="ZH-CN_TOPIC_0000001755835620"></a>
 
 通过脚本对Cantian引擎执行健康巡检，以便了解Cantian引擎各模块的运行状态。
 
@@ -1504,11 +1537,11 @@ Cantian引擎已正确安装且正常运行。
     巡检结果查询如下：
 
     ![输入图片说明](https://foruda.gitee.com/images/1707301648920644690/22c0aa8b_1686238.png "zh-cn_image_0000001690293749.png")
-# 六、Cantian云主机开发编译部署
+# 七、Cantian云主机开发编译部署
 
-## 6.1 环境准备
+## 7.1 环境准备
 
-### 6.1.1 下载最新docker镜像
+### 7.1.1 下载最新docker镜像
 
 #### x86版本
 ```shell
@@ -1521,7 +1554,7 @@ docker pull ykfnxx/cantian_dev:0.1.1
 docker tag ykfnxx/cantian_dev:0.1.1 cantian_dev:latest
 ```
 
-### 6.1.2 下载cantian源码
+### 7.1.2 下载cantian源码
 1.执行以下命令下载Cantian引擎源码。
 ```shell
 git clone git@gitee.com:openeuler/cantian.git
@@ -1541,7 +1574,7 @@ mv mysql-server-mysql-8.0.26 /home/regress/cantian-connector-mysql/mysql-source
 mkdir -p cantian_data
 ```
 
-### 6.1.3 启动容器
+### 7.1.3 启动容器
 
 进入cantian目录,启动容器。
 
@@ -1559,9 +1592,9 @@ sh docker/container.sh enternode 1
 
 [container.sh](https://gitee.com/openeuler/cantian/blob/master/docker/container.sh)按`startnode`和`dev`参数启动时会执行代码拷贝的操作，具体操作参考脚本中`sync_mysql_code`函数
 
-## 6.2 Cantian编译部署
+## 7.2 Cantian编译部署
 
-### 6.2.1 cantian编包
+### 7.2.1 cantian编包
 
 以下命令在容器内使用。若为双节点，则只需在其中一个节点执行一次。为方便描述，后续双节点仅需在一个节点的操作默认在node0进行
 ```shell
@@ -1574,7 +1607,7 @@ sh Makefile.sh package
 sh Makefile.sh package-release
 ```
 
-### 6.2.2 cantian部署
+### 7.2.2 cantian部署
 
 配置core_pattern（在两个节点上配置，用于记录core file）
 ```shell
@@ -1612,7 +1645,7 @@ cms stat
 ctsql / as sysdba -q -c 'SELECT NAME, STATUS, OPEN_STATUS FROM DV_DATABASE'
 ```
 
-### 6.2.3 卸载cantian
+### 7.2.3 卸载cantian
 **需要使用gaussdba用户执行卸载命令**
 如果存在与cantiand相连的mysqld进程，执行以下指令，先停止mysqld进程再停止cantiand:
 ```shell
@@ -1631,10 +1664,10 @@ kill -9 $(pidof cms)
 rm -rf /home/regress/cantian_data/* /home/regress/install /home/regress/data /home/cantiandba/install/* /data/data/* /home/cantiandba/data
 sed -i '/cantiandba/d' /home/cantiandba/.bashrc
 ```
-## 6.3 mysql编译部署
-### 6.3.1 mysql编译
+## 7.3 mysql编译部署
+### 7.3.1 mysql编译
 
-#### 6.3.1.1 元数据归一
+#### 7.3.1.1 元数据归一
 元数据归一需要应用patch，修改源码
 ```shell
 cd cantian-connector-mysql/mysql-source
@@ -1657,7 +1690,7 @@ mkdir /home/regress/cantian-connector-mysql/mysql-source/include/protobuf-c
 cp /home/regress/CantianKernel/library/protobuf/protobuf-c/protobuf-c.h /home/regress/cantian-connector-mysql/mysql-source/include/protobuf-c
 ```
 
-#### 6.3.1.2 非归一
+#### 7.3.1.2 非归一
 
 双节点部署时，非归一版本只需要在其中一个节点编译mysql即可
 
@@ -1667,9 +1700,9 @@ sh Makefile.sh mysql
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/regress/cantian-connector-mysql/bld_debug/library_output_directory
 ```
 
-### 6.3.2 mysql部署
+### 7.3.2 mysql部署
 
-#### 6.3.2.1 元数据归一(手动拉起)
+#### 7.3.2.1 元数据归一(手动拉起)
 
 初始化：
 双节点**仅需在其中一个节点**执行初始化命令，且在初始化前，需保证`/home/regress/mydata`下没有文件需先执行
@@ -1697,7 +1730,7 @@ mkdir -p /data/data
 /usr/local/mysql/bin/mysqld --defaults-file=/home/regress/cantian-connector-mysql/scripts/my.cnf  --datadir=/home/regress/mydata --user=root --early-plugin-load="ha_ctc.so" --core-file >> /data/data/mysql.log 2>&1 &
 ```
 
-#### 6.3.2.2 元数据归一/非归一（脚本）
+#### 7.3.2.2 元数据归一/非归一（脚本）
 
 双节点拉起前需分别执行以下命令
 
@@ -1719,12 +1752,12 @@ mkdir -p /home/regress/logs
 python3 install.py -U cantiandba:cantiandba -l /home/cantiandba/logs/install.log -d -M mysqld -m /home/regress/cantian-connector-mysql/scripts/my.cnf
 ```
 
-### 6.3.2.3 拉起检验
+### 7.3.2.3 拉起检验
 
 ```shell
 /usr/local/mysql/bin/mysql -uroot
 ```
-## 6.4 日志和gdb调试
+## 7.4 日志和gdb调试
 参天日志位置：
 ```shell
 /home/cantiandba/data/log/run/cantiand.rlog
