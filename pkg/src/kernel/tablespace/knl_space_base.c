@@ -758,6 +758,15 @@ space_t *spc_get_undo_space(knl_session_t *session, uint8 inst_id)
     return SPACE_GET(session, space_id);
 }
 
+space_t *spc_get_temp_undo_space(knl_session_t *session, uint8 inst_id)
+{
+    uint32 space_id;
+
+    space_id = dtc_get_ctrl(session, inst_id)->temp_undo_space;
+
+    return SPACE_GET(session, space_id);
+}
+
 void spc_unlock_space(knl_session_t *session, space_t *space)
 {
     dls_spin_unlock(session, &space->lock);
