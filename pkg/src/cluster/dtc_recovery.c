@@ -2167,6 +2167,7 @@ status_t dtc_read_node_log(dtc_rcy_context_t *dtc_rcy, knl_session_t *session, u
             // read log again after advancing the log point
             if (dtc_rcy_read_node_log(session, node_id, read_size) != CT_SUCCESS) {
                 CT_LOG_RUN_ERR("[DTC RCY] failed to load redo log of instance=%u", rcy_node->node_id);
+                CM_ABORT(0, "ABORT INFO:dtc read node log failed");
                 return CT_ERROR;
             }
         }
