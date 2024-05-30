@@ -3463,7 +3463,8 @@ static status_t db_init_ltt_column(knl_column_t *column, uint32 uid, uint32 oid,
     column->precision = column_def->typmod.precision;
     column->scale = column_def->typmod.scale;
     column->flags = 0;
-
+    column->is_collate = column_def->is_collate;
+    column->collate_id = column_def->collate_id;
     /* 
     if (column->datatype == CT_TYPE_CLOB || column->datatype == CT_TYPE_IMAGE) {
         column->datatype = CT_TYPE_VARCHAR;
