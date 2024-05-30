@@ -138,6 +138,8 @@ cms_cmd_def_t    g_cms_cmd_defs[] = {
     {{"gcc",   "-imp", "*[INPUT FILE PATH]"}, cms_gcc_import, "import gcc from format file"},
     {{"gcc",   "-backup"}, cms_gcc_backup, "backup current gcc with a binary file and a export file in cms home"},
     {{"gcc",   "-restore", "*[BACKUP FILE PATH]"}, cms_gcc_restore, "restore gcc from backup file"},
+    {{"gccmark",   "-create"}, cms_create_mark_file, "create gcc mark file"},
+    {{"gccmark",   "-check"}, cms_check_mark_file, "check gcc mark file"},
     {{"node",  "-add", "*[NAME]", "*[IP]", "*[PORT]"}, cms_node_add, "add a node to gcc"},
     {{"node",  "-add", "*[NODE_ID]", "*[NAME]", "*[IP]", "*[PORT]"}, cms_node_add_with_id, "add a node with node_id to gcc"},
     {{"node",  "-del", "*[NODE_ID]"}, cms_node_del, "delete a node from gcc"},
@@ -339,7 +341,8 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
     }
 
     int32 ret = CT_ERROR;
-    if (cmd_def->cmd_pro_func == cms_gcc_create || cmd_def->cmd_pro_func == cms_gcc_delete) {
+    if (cmd_def->cmd_pro_func == cms_gcc_create || cmd_def->cmd_pro_func == cms_gcc_delete ||
+        cmd_def->cmd_pro_func == cms_create_mark_file || cmd_def->cmd_pro_func == cms_check_mark_file) {
         ret = cmd_def->cmd_pro_func(argc, argv);
         printf("cms cmd gcc create or delete ret(%d).\n", ret);
         CMS_LOG_INF("%s, ret is %d", cmd_def->desc, ret);
