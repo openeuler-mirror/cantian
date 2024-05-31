@@ -36,6 +36,7 @@
 #include "dtc_dc.h"
 #include "rc_reform.h"
 #include "srv_instance.h"
+#include "cm_io_record.h"
 
 #define PCRB_MIN_PAGE_USED_RATIO 0.4
 #define PCRB_MAX_BATCH_INSERT_SIZE 128
@@ -1751,6 +1752,9 @@ status_t pcrb_insert(knl_session_t *session, knl_cursor_t *cursor)
 {
     btree_t *btree;
     idx_conflict_info_t conflict_info = { CT_FALSE, CT_FALSE };
+    io_record_stat_t io_stat = IO_STAT_SUCCESS;
+    timeval_t tv_begin;
+    cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_PCRB_INSERT, &tv_begin);
 
     btree = CURSOR_BTREE(cursor);
     if (SECUREC_UNLIKELY(btree->segment == NULL)) {
@@ -1759,10 +1763,12 @@ status_t pcrb_insert(knl_session_t *session, knl_cursor_t *cursor)
                 "table %s, index %s", cursor->rowid.file, cursor->rowid.page, ((page_head_t *)cursor->page_buf)->type,
                 ((table_t *)cursor->table)->desc.name, ((index_t *)btree->index)->desc.name);
             if (btree_create_part_entry(session, btree, cursor->index_part, cursor->part_loc) != CT_SUCCESS) {
+                cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_PCRB_INSERT, &tv_begin, IO_STAT_FAILED);
                 return CT_ERROR;
             }
         } else {
             if (btree_create_entry(session, btree) != CT_SUCCESS) {
+                cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_PCRB_INSERT, &tv_begin, IO_STAT_FAILED);
                 return CT_ERROR;
             }
         }
@@ -1771,13 +1777,17 @@ status_t pcrb_insert(knl_session_t *session, knl_cursor_t *cursor)
     if (pcrb_do_insert(session, cursor, &conflict_info) != CT_SUCCESS) {
         if (!conflict_info.is_duplicate || conflict_info.conflict) {
             cursor->query_scn = DB_CURR_SCN(session);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_PCRB_INSERT, &tv_begin, IO_STAT_FAILED);
             return CT_ERROR;
         }
-
+        status_t status;
         cm_reset_error();
-        return pcrb_force_update_dupkey(session, cursor);
+        status = pcrb_force_update_dupkey(session, cursor);
+        io_stat = (status == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_PCRB_INSERT, &tv_begin, io_stat);
+        return status;
     }
-
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_PCRB_INSERT, &tv_begin, IO_STAT_SUCCESS);
     return CT_SUCCESS;
 }
 
@@ -2120,16 +2130,21 @@ status_t pcrb_delete(knl_session_t *session, knl_cursor_t *cursor)
 {
     btree_t *btree = NULL;
     bool32 is_found = CT_FALSE;
+    
+    timeval_t tv_begin;
+    cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_PCRB_DELETE, &tv_begin);
 
     if (pcrb_do_delete(session, cursor, &is_found) != CT_SUCCESS) {
         btree = CURSOR_BTREE(cursor);
         if (!btree->is_shadow || is_found) {
+            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_PCRB_DELETE, &tv_begin, IO_STAT_FAILED);
             return CT_ERROR;
         }
 
         if (pcrb_insert_into_shadow(session, cursor) != CT_SUCCESS) {
             int32 code = cm_get_error_code();
             if (code != ERR_DUPLICATE_KEY) {
+                cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_PCRB_DELETE, &tv_begin, IO_STAT_FAILED);
                 return CT_ERROR;
             }
 
@@ -2137,10 +2152,11 @@ status_t pcrb_delete(knl_session_t *session, knl_cursor_t *cursor)
         }
 
         if (pcrb_do_delete(session, cursor, &is_found) != CT_SUCCESS) {
+            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_PCRB_DELETE, &tv_begin, IO_STAT_FAILED);
             return CT_ERROR;
         }
     }
-
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_PCRB_DELETE, &tv_begin, IO_STAT_SUCCESS);
     return CT_SUCCESS;
 }
 
