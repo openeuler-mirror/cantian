@@ -70,6 +70,8 @@ EXTER_ATTACK int32 cms_gcc_export(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_gcc_import(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_gcc_backup(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_gcc_restore(int32 argc, char* argv[]);
+EXTER_ATTACK int32 cms_create_mark_file(int32 argc, char* argv[]);
+EXTER_ATTACK int32 cms_check_mark_file(int32 argc, char* argv[]);
 
 EXTER_ATTACK int32 cms_node_list(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_node_connected(int32 argc, char* argv[]);
