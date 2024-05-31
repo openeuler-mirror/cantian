@@ -126,10 +126,21 @@ function check_res_in_cluster() {
 }
 
 function wait_for_node1_in_cluster() {
+  log "wait for node1 in cluster"
   function is_node1_joined_cluster() {
     ${CMS_INSTALL_PATH}/bin/cms node -list | grep -q node1
   }
-  wait_for_success 180 is_node1_joined_cluster
+  function is_gcc_file_initialized() {
+    ${CMS_INSTALL_PATH}/bin/cms gccmark -check | grep -q success
+  }
+
+  if [[ x${DEPLOY_MODE} != x"dbstore_unify" ]]; then
+    wait_for_success 180 is_node1_joined_cluster
+  else
+    wait_for_success 180 is_gcc_file_initialized
+    ${CMS_INSTALL_PATH}/bin/cms gccmark -check
+    wait_for_success 180 is_node1_joined_cluster
+  fi
 }
 
 function set_cms() {
@@ -144,6 +155,9 @@ function set_cms() {
     fi
 
     ${CMS_INSTALL_PATH}/bin/cms res -add db -type db -attr "script=${CMS_INSTALL_PATH}/bin/cluster.sh"
+    if [[ x${DEPLOY_MODE} == x"dbstore_unify" ]]; then
+      ${CMS_INSTALL_PATH}/bin/cms gccmark -create
+    fi
   elif [ ${NODE_ID} == 1 ]; then
     wait_for_node1_in_cluster
   fi
@@ -152,6 +166,7 @@ function set_cms() {
   ${CMS_INSTALL_PATH}/bin/cms node -list
   check_res_in_cluster
   ${CMS_INSTALL_PATH}/bin/cms res -list
+  
   log "=========== finished set cms ${NODE_ID} ================"
 }
 

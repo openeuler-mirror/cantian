@@ -69,10 +69,14 @@ typedef enum {
 typedef enum en_dbs_init_mode {
     DBS_RUN_CREATE_CMS_GCC = 0,
     DBS_RUN_DEL_CMS_GCC,
+    DBS_RUN_CREATE_CMS_GCC_MARK,
+    DBS_RUN_CHECK_CMS_GCC_MARK,
+
+    DBS_RUN_CMS_LOCAL = 10,
     DBS_RUN_CMS_SERVER,
-    DBS_RUN_CMS_LOCAL,
-    DBS_RUN_CANTIAND_SERVER,
     DBS_RUN_CMS_SERVER_NFS,
+    
+    DBS_RUN_CANTIAND_SERVER = 20,
 } dbs_init_mode;
 
 // enum-namespace

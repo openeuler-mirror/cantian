@@ -43,6 +43,7 @@
 #include "cms_vote.h"
 #include "cms_log.h"
 #include "cms_uds_client.h"
+#include "cm_dbstore.h"
 
 static const char *g_cms_lock_file = "cms_server.lck";
 
@@ -258,6 +259,81 @@ int32 cms_gcc_create(int32 argc, char* argv[])
     return CT_SUCCESS;
 }
 
+status_t cms_create_gcc_mark_file(void)
+{
+    char mark_file_path[CMS_FILE_NAME_BUFFER_SIZE] = { 0 };
+    if (EOK != strcpy_s(mark_file_path, CMS_FILE_NAME_BUFFER_SIZE, g_cms_param->gcc_dir)) {
+        printf("Failed to create gcc mark file, strcpy failed\n");
+        return CT_ERROR;
+    }
+    if (EOK != strcat_s(mark_file_path, CMS_FILE_NAME_BUFFER_SIZE, "/gcc_file_mark")) {
+        printf("Failed to create gcc mark file, strcat failed\n");
+        return CT_ERROR;
+    }
+
+    object_id_t gcc_file_handle = { 0 };
+    if (cm_get_dbs_last_file_handle(mark_file_path, &gcc_file_handle)) {
+        printf("Failed to get gcc mark file handle\n");
+        return CT_ERROR;
+    }
+    printf("create gcc mark file success.\n");
+    return CT_SUCCESS;
+}
+
+int32 cms_create_mark_file(int32 argc, char* argv[])
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        printf("invalid gcc type.\n");
+        return CT_ERROR;
+    }
+
+    if (cms_cmd_init_dbs(DBS_RUN_CREATE_CMS_GCC_MARK) != CT_SUCCESS) {
+        printf("init dbs failed, wait gcc mark file failed.\n");
+        return CT_ERROR;
+    }
+
+    if (cms_create_gcc_mark_file() != CT_SUCCESS) {
+        printf("Failed to create gcc mark file\n");
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+
+
+status_t cms_check_gcc_mark_file(void)
+{
+    int ret = 0;
+    object_id_t gcc_dir_handle = { 0 };
+    if (cm_get_dbs_last_dir_handle(g_cms_param->gcc_dir, &gcc_dir_handle)) {
+        printf("Failed to get gcc mark dir handle\n");
+        return CT_ERROR;
+    }
+    object_id_t gcc_file_handle = { 0 };
+    ret = dbs_global_handle()->dbs_file_open(&gcc_dir_handle, "gcc_file_mark", FILE_TYPE, &gcc_file_handle);
+    return (ret == 0 ? CT_SUCCESS : CT_ERROR);
+}
+
+int32 cms_check_mark_file(int32 argc, char* argv[])
+{
+    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        printf("invalid gcc type.\n");
+        return CT_ERROR;
+    }
+
+    if (cms_cmd_init_dbs(DBS_RUN_CHECK_CMS_GCC_MARK) != CT_SUCCESS) {
+        printf("init dbs failed, wait gcc mark file failed.\n");
+        return CT_ERROR;
+    }
+
+    if (cms_check_gcc_mark_file() != CT_SUCCESS) {
+        printf("Failed to check gcc mark file, strcat failed\n");
+        return CT_ERROR;
+    }
+
+    printf("check gcc mark file success.\n");
+    return CT_SUCCESS;
+}
 
 int32 cms_gcc_list(int32 argc, char* argv[])
 {
