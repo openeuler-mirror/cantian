@@ -208,7 +208,7 @@ status_t ctbak_do_prepare(ctbak_param_t* ctbak_param)
     }
     CT_RETURN_IFERR(check_cantiand_status());
     CT_RETURN_IFERR(start_cantiand_server());
-    CT_RETURN_IFERR(ctbak_check_ctsql_online());
+    CT_RETURN_IFERR(ctbak_check_ctsql_online(CTSQL_CHECK_CONN_MAX_TIME_S));
     if (ctbackup_set_metadata_mode(ctbak_param) != CT_SUCCESS) {
         free_input_params(ctbak_param);
         CT_RETURN_IFERR(stop_cantiand_server());

@@ -26,6 +26,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <sys/wait.h>
+#include <sys/prctl.h>
+#include <signal.h>
 #include "ctbackup_module.h"
 #include "ctbackup_info.h"
 #include "ctbackup.h"
@@ -34,6 +37,9 @@
 #include "cm_file.h"
 #include "ctbackup_mysql_operator.h"
 #include "ctbackup_backup.h"
+
+#define CTBAK_BACKUP_RETRY_MAX_NUM 2
+#define CTBAK_BACKUP_CECHK_ONLINE_TIME 5
 
 const struct option ctbak_backup_options[] = {
     {CTBAK_LONG_OPTION_BACKUP, no_argument, NULL, CTBAK_PARSE_OPTION_COMMON},
@@ -54,6 +60,8 @@ const struct option ctbak_backup_options[] = {
     {CTBAK_LONG_OPTION_SKIP_BADBLOCK, no_argument, NULL, CTBAK_SHORT_OPTION_SKIP_BADBLOCK},
     {0, 0, 0, 0}
 };
+
+#define CTSQL_CONNECT_CLOSED_32 "tcp connection is closed, reason: 32"
 
 status_t convert_database_string_to_cantian(char *database, char *ct_database)
 {
@@ -265,7 +273,6 @@ status_t ctbak_do_backup_mysql(ctbak_param_t* ctbak_param)
     char *params[CTBACKUP_MAX_PARAMETER_CNT] = {0};
     if (fill_params_for_mysql_backup(ctbak_param, params, &index) != CT_SUCCESS) {
         printf("[ctbackup]fill_params_for_mysql_backup failed!\n");
-        free_input_params(ctbak_param);
         return CT_ERROR;
     }
     status_t status = ctbak_system_call(XTRABACKUP_PATH, params, "mysql backup");
@@ -277,11 +284,65 @@ status_t ctbak_do_backup_mysql(ctbak_param_t* ctbak_param)
     return CT_SUCCESS;
 }
 
-status_t ctbak_do_backup_cantian(ctbak_param_t* ctbak_param)
+void ctbak_check_backup_output(char *output, bool32 *need_retry)
+{   
+    if (strstr(output, CTSQL_CONNECT_CLOSED_32) != NULL) {
+        *need_retry = CT_TRUE;
+    }
+    return;
+}
+status_t ctbak_do_ctsql_backup(char *path, char *params[], bool32 *retry)
+{
+    errno_t status = 0;
+    int32 pipe_stdout[2] = { 0 };
+    if (pipe(pipe_stdout) != EOK) {
+        printf("[ctbackup]create stdout pipe failed!\n");
+        return CT_ERROR;
+    }
+
+    pid_t child_pid = fork();
+    if (child_pid == 0) {
+        prctl(PR_SET_PDEATHSIG, SIGKILL);
+        close(pipe_stdout[PARENT_ID]);
+        dup2(pipe_stdout[CHILD_ID], STD_OUT_ID);
+        status = execv(path, params);
+        perror("execve");
+        if (status != EOK) {
+            printf("[ctbackup]failed to execute shell command %d:%s\n", errno, strerror(errno));
+            exit(CT_ERROR);
+        }
+    } else if (child_pid < 0) {
+        printf("[ctbackup]failed to fork child process with result %d:%s\n", errno, strerror(errno));
+        return CT_ERROR;
+    }
+    close(pipe_stdout[CHILD_ID]);
+    char output[MAX_STATEMENT_LENGTH];
+    bool32 need_retry = CT_FALSE;
+    FILE *fp = fdopen(pipe_stdout[PARENT_ID], "r");
+    while(fgets(output, MAX_STATEMENT_LENGTH, fp) != NULL) {
+        // output ctsql backup result and check the error info
+        printf("%s", output);
+        ctbak_check_backup_output(output, &need_retry);
+    }
+    pclose(fp);
+    close(pipe_stdout[PARENT_ID]);
+    int32 wait = waitpid(child_pid, &status, 0);
+    if (wait == child_pid && WIFEXITED((unsigned int)status) && WEXITSTATUS((unsigned int)status) != 0) {
+        printf("[ctbackup]child process exec backup failed, ret=%d\n, try to check cantian stat.", status);
+        if (need_retry == CT_TRUE &&
+            ctbak_check_ctsql_online(CTBAK_BACKUP_CECHK_ONLINE_TIME) == CT_SUCCESS) {
+            *retry = CT_TRUE;
+        }
+        return CT_ERROR;
+    }
+    printf("[ctbackup]%s execute success and exit with: %d\n", "cantian backup", WEXITSTATUS((unsigned int)status));
+    return CT_SUCCESS;
+}
+
+status_t ctbak_do_backup_cantian(ctbak_param_t* ctbak_param, bool32 *retry)
 {
     char *ct_params[CTBACKUP_MAX_PARAMETER_CNT] = {0};
     status_t status = fill_params_for_cantian_backup(ctbak_param, ct_params);
-    free_input_params(ctbak_param);
     if (status != CT_SUCCESS) {
         printf("[ctbackup]fill_params_for_cantian_backup failed!\n");
         return CT_ERROR;
@@ -290,9 +351,10 @@ status_t ctbak_do_backup_cantian(ctbak_param_t* ctbak_param)
     if (get_ctsql_binary_path(&ctsql_binary_path) != CT_SUCCESS) {
         CM_FREE_PTR(ct_params[CTSQL_LOGININFO_INDEX]);
         CM_FREE_PTR(ct_params[CTSQL_STATEMENT_INDEX]);
+        printf("[ctbackup]get_ctsql_binary_path failed!\n");
         return CT_ERROR;
     }
-    status = ctbak_system_call(ctsql_binary_path, ct_params, "cantian backup");
+    status = ctbak_do_ctsql_backup(ctsql_binary_path, ct_params, retry);
     // free space of heap
     CM_FREE_PTR(ct_params[CTSQL_LOGININFO_INDEX]);
     CM_FREE_PTR(ct_params[CTSQL_STATEMENT_INDEX]);
@@ -327,26 +389,48 @@ status_t ctbak_do_backup(ctbak_param_t* ctbak_param)
     if (check_common_params(ctbak_param) != CT_SUCCESS) {
         return CT_ERROR;
     }
-    if (ctbackup_set_metadata_mode(ctbak_param) != CT_SUCCESS) {
-        printf("[ctbackup]set mysql_metadata_in_cantian param failed!\n");
-        return CT_ERROR;
-    }
-    if (ctback_lock_mysql_for_backup(ctbak_param) != CT_SUCCESS) {
-        printf("[ctbackup]call ctback_lock_mysql_for_backup failed!\n");
-        return CT_ERROR;
-    }
-    // 元数据归一模式下，不备份mysql数据
-    if (ctbak_param->is_mysql_metadata_in_cantian == CT_FALSE && ctback_backup_mysql(ctbak_param) != CT_SUCCESS) {
-        ctback_unlock_mysql_for_backup();
-        return CT_ERROR;
-    }
-    if (ctbak_do_backup_cantian(ctbak_param) != CT_SUCCESS) {
-        ctback_unlock_mysql_for_backup();
-        return CT_ERROR;
-    }
-    printf("[ctbackup]cantian data files backup success\n");
-    CT_RETURN_IFERR(ctback_unlock_mysql_for_backup());
-    return CT_SUCCESS;
+
+    uint32 retry_num = 0;
+    while (retry_num < CTBAK_BACKUP_RETRY_MAX_NUM) {
+        bool32 retry = CT_FALSE;
+        if (ctbackup_set_metadata_mode(ctbak_param) != CT_SUCCESS) {
+            printf("[ctbackup]set mysql_metadata_in_cantian param failed!\n");
+            break;
+        }
+        if (ctbak_check_data_dir(ctbak_param->target_dir.str) != CT_SUCCESS) {
+            printf("[ctbackup]check datadir is empty failed!\n");
+            break;
+        }
+        if (ctback_lock_mysql_for_backup(ctbak_param) != CT_SUCCESS) {
+            printf("[ctbackup]call ctback_lock_mysql_for_backup failed!\n");
+            break;
+        }
+        // 元数据归一模式下，不备份mysql数据
+        if (ctbak_param->is_mysql_metadata_in_cantian == CT_FALSE &&
+            ctback_backup_mysql(ctbak_param) != CT_SUCCESS) {
+            ctback_unlock_mysql_for_backup();
+            break;
+        }
+        if (ctbak_do_backup_cantian(ctbak_param, &retry) == CT_SUCCESS) {
+            printf("[ctbackup]cantian data files backup success\n");
+            CT_RETURN_IFERR(ctback_unlock_mysql_for_backup());
+            free_input_params(ctbak_param);
+            return CT_SUCCESS;
+        }
+        CT_RETURN_IFERR(ctback_unlock_mysql_for_backup());
+        if (retry != CT_TRUE) {
+            break;
+        }
+        printf("[ctbackup]call ctbak_do_backup_cantian failed, clear targer dir and retry again!\n");
+        if (ctbak_clear_data_dir(ctbak_param->target_dir.str, ctbak_param->target_dir.str) != CT_SUCCESS) {
+            printf("[ctbackup]clear targer dir %s failed for backup retry!\n", ctbak_param->target_dir.str);
+            break;
+        }
+        retry_num++;
+    };
+    free_input_params(ctbak_param);
+    printf("[ctbackup]cantian backup execute failed!\n");
+    return CT_ERROR;
 }
 
 static inline void ctbak_hide_password(char* password)

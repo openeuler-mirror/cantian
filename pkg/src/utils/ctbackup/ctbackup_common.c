@@ -42,8 +42,6 @@
 #define CTSQL_SSL_LOGIN_AUTHENTICATION_OPTION "-q"
 #define CTSQL_EXECUTE_SQL_STATEMENT_OPTION "-c"
 #define CTSQL_CHECK_CONN_SHOW  "SHOW CHARSET"
-#define CTSQL_CHECK_CONN_MAX_TIME_S 300
-#define CTSQL_CHECK_CONN_SLEEP_TIME_MS 1000
 
 #define CTSQL_INI_FILE_NAME "ctsql.ini"
 #define CANTIAND_INI_FILE_MAME "cantiand.ini"
@@ -52,11 +50,6 @@
 #define CANTIAND_INI_LSNR_ADDR "LSNR_ADDR"
 #define CANTIAND_INI_LSNR_PORT "LSNR_PORT"
 #define CANTIAND_INI_MYSQL_METADATA_IN_CANTIAN "MYSQL_METADATA_IN_CANTIAN"
-
-#define CHILD_ID 1
-#define PARENT_ID 0
-#define STD_IN_ID 0
-#define STD_OUT_ID 1
 
 status_t ctbak_do_shell_background(text_t* command, int* child_pid, int exec_mode)
 {
@@ -722,64 +715,6 @@ status_t get_ctsql_binary_path(char** ctsql_binary_path)
     return CT_SUCCESS;
 }
 
-status_t ctbak_check_ctsql_online(void)
-{
-    status_t status;
-    char *ct_params[CTBACKUP_MAX_PARAMETER_CNT] = { 0 };
-    int32_t param_index = 0;
-    status = fill_params_for_ctsql_login(ct_params, &param_index, CTBAK_CTSQL_EXECV_MODE);
-    if (status != CT_SUCCESS) {
-        printf("[ctbackup]check_ctsql_online failed!\n");
-        return CT_ERROR;
-    }
-    ct_params[param_index++] = CTSQL_CHECK_CONN_SHOW;
-    // The last parameter must be NULL
-    ct_params[param_index++] = NULL;
-    char *ctsql_binary_path = NULL;
-    if (get_ctsql_binary_path(&ctsql_binary_path) != CT_SUCCESS) {
-        CM_FREE_PTR(ct_params[CTSQL_LOGININFO_INDEX]);
-        printf("[ctbackup]check_ctsql_online failed!\n");
-        return CT_ERROR;
-    }
-    struct timeval start_work_time;
-    gettimeofday(&start_work_time, NULL);
-    struct timeval current_time;
-    uint32_t interval_time = 0;
-    status = CT_ERROR;
-    while (interval_time <= CTSQL_CHECK_CONN_MAX_TIME_S) {
-        if (ctbak_system_call(ctsql_binary_path, ct_params, "check_ctsql_online") == CT_SUCCESS) {
-            status = CT_SUCCESS;
-            break;
-        }
-        cm_sleep(CTSQL_CHECK_CONN_SLEEP_TIME_MS);
-        gettimeofday(&current_time, NULL);
-        interval_time = current_time.tv_sec - start_work_time.tv_sec;
-    }
-    // free space of heap
-    CM_FREE_PTR(ct_params[CTSQL_LOGININFO_INDEX]);
-    CM_FREE_PTR(ctsql_binary_path);
-    if (status != CT_SUCCESS) {
-        printf("[ctbackup]check_ctsql_online failed! try to connect ctsql for %u secs.\n", interval_time);
-        return CT_ERROR;
-    }
-    printf("[ctbackup]check_ctsql_online success\n");
-    return CT_SUCCESS;
-}
-
-status_t check_ctsql_online(void)
-{
-    int child_pid;
-    text_t try_conn_ctsql_cmd;
-    cm_str2text(TRY_CONN_CTSQL_CMD, &try_conn_ctsql_cmd);
-    status_t result = ctbak_do_shell_background(&try_conn_ctsql_cmd, &child_pid, 0);
-    if (result != CT_SUCCESS) {
-        printf("[ctbackup]try conn ctsql failed!\n");
-        return CT_ERROR;
-    }
-    printf("[ctbackup]ctsql now is ready to be connected!\n");
-    return CT_SUCCESS;
-}
-
 status_t check_input_params(char* params)
 {
     if (params[0] == '-' && params[1] == '-') {
@@ -822,6 +757,9 @@ status_t ctbak_change_work_dir(const char *path)
 
 status_t ctbak_clear_data_dir(const char *sub_path, const char *src_path)
 {
+    if (sub_path == NULL || src_path == NULL) {
+        return CT_ERROR;
+    }
     struct dirent *dirp = NULL;
     char *cwdir = getcwd(NULL, 0);
     if (cwdir == NULL) {
@@ -1069,5 +1007,63 @@ status_t ctbak_check_dir_access(const char *path)
         printf("[ctbackup] the directory %s can not access!\n", path);
         return CT_ERROR;
     }
+    return CT_SUCCESS;
+}
+
+status_t ctbak_check_ctsql_online(uint32 retry_time)
+{
+    status_t status;
+    char *ct_params[CTBACKUP_MAX_PARAMETER_CNT] = { 0 };
+    int32_t param_index = 0;
+    status = fill_params_for_ctsql_login(ct_params, &param_index, CTBAK_CTSQL_EXECV_MODE);
+    if (status != CT_SUCCESS) {
+        printf("[ctbackup]check_ctsql_online failed!\n");
+        return CT_ERROR;
+    }
+    ct_params[param_index++] = CTSQL_CHECK_CONN_SHOW;
+    // The last parameter must be NULL
+    ct_params[param_index++] = NULL;
+    char *ctsql_binary_path = NULL;
+    if (get_ctsql_binary_path(&ctsql_binary_path) != CT_SUCCESS) {
+        CM_FREE_PTR(ct_params[CTSQL_LOGININFO_INDEX]);
+        printf("[ctbackup]check_ctsql_online failed!\n");
+        return CT_ERROR;
+    }
+    struct timeval start_work_time;
+    gettimeofday(&start_work_time, NULL);
+    struct timeval current_time;
+    uint32_t interval_time = 0;
+    status = CT_ERROR;
+    while (interval_time <= retry_time) {
+        if (ctbak_system_call(ctsql_binary_path, ct_params, "check_ctsql_online") == CT_SUCCESS) {
+            status = CT_SUCCESS;
+            break;
+        }
+        cm_sleep(CTSQL_CHECK_CONN_SLEEP_TIME_MS);
+        gettimeofday(&current_time, NULL);
+        interval_time = current_time.tv_sec - start_work_time.tv_sec;
+    }
+    // free space of heap
+    CM_FREE_PTR(ct_params[CTSQL_LOGININFO_INDEX]);
+    CM_FREE_PTR(ctsql_binary_path);
+    if (status != CT_SUCCESS) {
+        printf("[ctbackup]check_ctsql_online failed! try to connect ctsql for %u secs.\n", interval_time);
+        return CT_ERROR;
+    }
+    printf("[ctbackup]check_ctsql_online success\n");
+    return CT_SUCCESS;
+}
+
+status_t check_ctsql_online(void)
+{
+    int child_pid;
+    text_t try_conn_ctsql_cmd;
+    cm_str2text(TRY_CONN_CTSQL_CMD, &try_conn_ctsql_cmd);
+    status_t result = ctbak_do_shell_background(&try_conn_ctsql_cmd, &child_pid, 0);
+    if (result != CT_SUCCESS) {
+        printf("[ctbackup]try conn ctsql failed!\n");
+        return CT_ERROR;
+    }
+    printf("[ctbackup]ctsql now is ready to be connected!\n");
     return CT_SUCCESS;
 }
