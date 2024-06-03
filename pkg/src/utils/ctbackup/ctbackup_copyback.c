@@ -172,22 +172,17 @@ status_t ctbak_do_copyback_for_mysql(ctbak_param_t* ctbak_param)
  */
 status_t ctbak_do_copyback(ctbak_param_t* ctbak_param)
 {
-    CT_RETURN_IFERR(start_cantiand_server());
-    CT_RETURN_IFERR(ctbak_check_ctsql_online());
     if (ctbackup_set_metadata_mode(ctbak_param) != CT_SUCCESS) {
         free_input_params(ctbak_param);
-        CT_RETURN_IFERR(stop_cantiand_server());
         return CT_ERROR;
     }
     if (ctbak_param->is_mysql_metadata_in_cantian == CT_TRUE) {
         printf("[ctbackup]no need to do copyback for mysql in mysql_metadata_in_cantian mode\n");
     } else if (ctbak_do_copyback_for_mysql(ctbak_param) != CT_SUCCESS) {
         free_input_params(ctbak_param);
-        CT_RETURN_IFERR(stop_cantiand_server());
         return CT_ERROR;
     }
     free_input_params(ctbak_param);
-    CT_RETURN_IFERR(stop_cantiand_server());
     return CT_SUCCESS;
 }
 
