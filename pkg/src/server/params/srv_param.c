@@ -1104,7 +1104,7 @@ config_item_t g_parameters[] = {
     { "BACKUP_RETRY", CT_TRUE, ATTR_NONE, "TRUE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
       PARAM_BACKUP_RETRY, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool, sql_notify_als_bool,
       sql_notify_als_bool, NULL },
-    { "BATCH_FLUSH_CAPACITY", CT_TRUE, ATTR_NONE, "8", NULL, NULL, "-", "[1,4096]", "CT_TYPE_INTEGER", NULL,
+    { "BATCH_FLUSH_CAPACITY", CT_TRUE, ATTR_NONE, "160", NULL, NULL, "-", "[1,4096]", "CT_TYPE_INTEGER", NULL,
       PARAM_BATCH_FLUSH_CAPACITY, EFFECT_REBOOT, CFG_INS, sql_verify_als_batch_flush_capacity,
       NULL, NULL, NULL },
     { "ENABLE_HWN_CHANGE", CT_TRUE, ATTR_READONLY, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
