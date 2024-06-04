@@ -76,7 +76,7 @@ status_t ctbak_do_force_archive(char *ct_params[], char *ctsql_binary_path)
         return CT_ERROR;
     }
 
-    if (ctbak_check_ctsql_online() != CT_SUCCESS) {
+    if (ctbak_check_ctsql_online(CTSQL_CHECK_CONN_MAX_TIME_S) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
