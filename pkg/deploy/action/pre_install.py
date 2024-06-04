@@ -523,6 +523,9 @@ class CheckInstallConfig(CheckBase):
 
         install_config_params = self.read_install_config()
 
+        if install_config_params['cantian_in_container'] != '0':
+            ip_check_element.remove('cms_ip')
+
         self.install_config_params_init(install_config_params)
 
         self.cluster_name = install_config_params.get("cluster_name")

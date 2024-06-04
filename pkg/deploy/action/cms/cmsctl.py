@@ -752,14 +752,15 @@ class CmsCtl(object):
         output: NA
         """
         log("check the node IP address.")
-        try:
-            socket.inet_aton(nodeip)
-        except socket.error:
-            self.ipv_type = "ipv6"
+        if get_value("cantian_in_container") == '0':
             try:
-                socket.inet_pton(socket.AF_INET6, nodeip)
+                socket.inet_aton(nodeip)
             except socket.error:
-                log_exit("the invalid IP address : %s is not ipv4 or ipv6 format." % nodeip)
+                self.ipv_type = "ipv6"
+                try:
+                    socket.inet_pton(socket.AF_INET6, nodeip)
+                except socket.error:
+                    log_exit("the invalid IP address : %s is not ipv4 or ipv6 format." % nodeip)
 
         if self.ipv_type == "ipv6":
             ping_cmd = "ping6"
@@ -775,6 +776,8 @@ class CmsCtl(object):
         ip_is_found = 1
         if nodeip in self.ip_addr:
             if self.all_zero_addr_after_ping(nodeip):
+                ip_is_found = 1
+            elif get_value("cantian_in_container") != 0:
                 ip_is_found = 1
             elif len(nodeip) != 0:
                 ip_cmd = "/usr/sbin/ip addr | grep -w %s | wc -l" % nodeip

@@ -25,6 +25,7 @@
 #ifndef __CM_IP_H__
 #define __CM_IP_H__
 
+#include "cm_common_module.h"
 #include "cm_defs.h"
 #include "cm_system.h"
 #include "cm_error.h"
@@ -241,6 +242,7 @@ status_t cm_split_node_ip(char host[][CT_MAX_INST_IP_LEN], const char *value);
 status_t cm_split_host_ip(char host[][CM_MAX_IP_LEN], const char *value);
 status_t cm_split_host_port(uint16 ports[], const char *port_addr);
 bool32 cm_check_user(white_context_t *ctx, const char *ip_str, const char *user, bool32 *hostssl);
+status_t cm_domain_to_ip(const char *hostname, char *hostip);
 #ifdef __cplusplus
 }
 #endif

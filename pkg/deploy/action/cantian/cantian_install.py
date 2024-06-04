@@ -1317,15 +1317,16 @@ class Installer:
         output: NA
         """
         log("check the node IP address.")
-        try:
-            socket.inet_aton(node_ip)
-            self.ipv_type = "ipv4"
-        except socket.error:
+        if get_value("cantian_in_container") == '0':
             try:
-                socket.inet_pton(socket.AF_INET6, node_ip)
-                self.ipv_type = "ipv6"
+                socket.inet_aton(node_ip)
+                self.ipv_type = "ipv4"
             except socket.error:
-                log_exit("The invalid IP address : %s is not ipv4 or ipv6 format." % node_ip)
+                try:
+                    socket.inet_pton(socket.AF_INET6, node_ip)
+                    self.ipv_type = "ipv6"
+                except socket.error:
+                    log_exit("The invalid IP address : %s is not ipv4 or ipv6 format." % node_ip)
 
         if self.ipv_type == "ipv6":
             ping_cmd = "ping6"
@@ -1341,6 +1342,8 @@ class Installer:
                      "ret_code : %s, stdout : %s, stderr : %s" % (node_ip, ret_code, stdout, stderr))
 
         if all_zero_addr_after_ping(node_ip):
+            ip_is_found = 1
+        elif get_value("cantian_in_container") != 0:
             ip_is_found = 1
         elif len(node_ip) != 0:
             ip_cmd = "/usr/sbin/ip addr | grep -w %s | wc -l" % node_ip

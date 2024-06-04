@@ -157,9 +157,11 @@ status_t cm_ipport_to_sockaddr(const char *host, int port, sock_addr_t *sock_add
         case AF_INET6:
             return cm_ipport_to_sockaddr_ipv6(host, port, sock_addr);
 
-        default:
-            CT_THROW_ERROR_EX(ERR_TCP_INVALID_IPADDRESS, "%s", host);
-            return CT_ERROR;
+        default: {
+            char ip[CM_MAX_IP_LEN] = {0};
+            CT_RETURN_IFERR(cm_domain_to_ip(host, ip));
+            return cm_ipport_to_sockaddr(ip, port, sock_addr);
+        }
     }
 }
 
@@ -171,6 +173,13 @@ status_t cm_ip_to_sockaddr(const char *host, sock_addr_t *sock_addr)
 
 static inline status_t cm_get_cidrmask(const char *cidr_str, int *mask)
 {
+    if (!cm_check_ip_valid(cidr_str)) {
+        char ip[CM_MAX_IP_LEN] = {0};
+        CT_RETURN_IFERR(cm_domain_to_ip(cidr_str, ip));
+        int family = cm_get_ip_version(ip);
+        *mask = (family == AF_INET) ? 32 : 128;
+        return CT_SUCCESS;
+    }
     int family = cm_get_ip_version(cidr_str);
     if (family != AF_INET && family != AF_INET6) {
         CT_THROW_ERROR_EX(ERR_TCP_INVALID_IPADDRESS, "invalid address \"%s\"", cidr_str);
@@ -194,6 +203,7 @@ static inline status_t cm_get_cidrmask(const char *cidr_str, int *mask)
 
 status_t cm_parse_lsnr_addr(const char *ipaddrs, uint32 len, uint32 *ip_cnt, char out[][CM_MAX_IP_LEN])
 {
+    char address_temp[CM_MAX_IP_LEN] = {0};
     char ip_temp[CM_MAX_IP_LEN] = {0};
     uint32 start = 0;
     uint32 end = 0;
@@ -208,13 +218,15 @@ status_t cm_parse_lsnr_addr(const char *ipaddrs, uint32 len, uint32 *ip_cnt, cha
             }
 
             if (ip_len > 0) {
-                MEMS_RETURN_IFERR(memcpy_s(ip_temp, CM_MAX_IP_LEN, ipaddrs + start, ip_len));
+                MEMS_RETURN_IFERR(memcpy_s(address_temp, CM_MAX_IP_LEN, ipaddrs + start, ip_len));
             }
-            ip_temp[end - start] = '\0';
-            if (!cm_check_ip_valid(ip_temp)) {
-                return CT_ERROR;
+            address_temp[end - start] = '\0';
+            if (cm_check_ip_valid(address_temp)) {
+                MEMS_RETURN_IFERR(memcpy_s(ip_temp, CM_MAX_IP_LEN, address_temp, ip_len + 1));
+            } else {
+                CT_RETURN_IFERR(cm_domain_to_ip(address_temp, ip_temp));
             }
-            MEMS_RETURN_IFERR(strncpy_s(out[*ip_cnt], CM_MAX_IP_LEN, ip_temp, ip_len));
+            MEMS_RETURN_IFERR(strncpy_s(out[*ip_cnt], CM_MAX_IP_LEN, ip_temp, strlen(ip_temp)));
             start = end + 1;
             (*ip_cnt)++;
             if ((*ip_cnt) > CM_INST_MAX_IP_NUM) {
@@ -246,9 +258,11 @@ status_t cm_verify_lsnr_addr(const char *ipaddrs, uint32 len, uint32 *ip_cnt)
                 MEMS_RETURN_IFERR(memcpy_s(one_addr, sizeof(one_addr), ipaddrs + addr_begin, addr_end - addr_begin));
             }
             one_addr[addr_end - addr_begin] = '\0';
+            /* 适配域名 
             if (!cm_check_ip_valid(one_addr)) {
                 return CT_ERROR;
             }
+            */
             addr_begin = addr_end + 1;
 
             if (ip_cnt != NULL) {
@@ -779,12 +793,19 @@ status_t cm_str_to_cidr(char *cidr_str, cidr_t *cidr, uint32 cidr_str_len)
 bool32 cm_check_ip_valid(const char *ip)
 {
     sock_addr_t sock_addr;
+    int sa_family = cm_get_ip_version(ip);
+    switch (sa_family) {
+        case AF_INET: 
+            return CT_TRUE;
+        
+        case AF_INET6:
+            return cm_ipport_to_sockaddr_ipv6(ip, 0, &sock_addr) == CT_SUCCESS ? CT_TRUE : CT_FALSE;
 
-    if (cm_ip_to_sockaddr(ip, &sock_addr) != CT_SUCCESS) {
-        return CT_FALSE;
+        default:
+            return CT_FALSE;
     }
 
-    return CT_TRUE;
+    return CT_FALSE;
 }
 
 // !!Caution: Invoker should cm_destroy_list(cidr_list) if CT_ERROR returned.
@@ -853,4 +874,54 @@ bool32 cm_check_user(white_context_t *ctx, const char *ip_str, const char *user,
     cm_spin_unlock(&ctx->lock);
 
     return CT_FALSE;
+}
+
+status_t cm_domain_to_ip(const char *hostname, char *hostip)
+{
+    if (hostname == NULL || hostip == NULL) {
+        CT_LOG_RUN_ERR("domain to ip failed, intput param invalid.");
+        return CT_ERROR;
+    }
+    
+    int status;
+    struct addrinfo hints, *res;
+    char ipstr[INET6_ADDRSTRLEN];
+    memset_s(&hints, sizeof(struct addrinfo), 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    status = getaddrinfo(hostname, NULL, &hints, &res);
+    if (status != 0) {
+        CT_LOG_RUN_ERR("mes get ip failed, getaddrinfo %s", gai_strerror(status));
+        return CT_ERROR;
+    }
+
+    status_t lookupstatus = CT_ERROR;
+
+    for (struct addrinfo *p = res; p != NULL; p = p->ai_next) {
+        void *addr;
+        const char *ipver;
+        if (p->ai_family == AF_INET) {
+            struct sockaddr_in *ipv4 = (struct sockaddr_in*)p->ai_addr;
+            addr = &(ipv4->sin_addr);
+            ipver = "IPv4";
+        } else {
+            struct sockaddr_in6 *ipv6 = (struct sockaddr_in6*)p->ai_addr;
+            addr = &(ipv6->sin6_addr);
+            ipver = "IPv6";
+        }
+        inet_ntop(p->ai_family, addr, ipstr, sizeof(ipstr));
+
+        errno_t ret = strncpy_s(hostip, CM_MAX_IP_LEN, ipstr, strlen(ipstr));
+        MEMS_RETURN_IFERR(ret);
+        lookupstatus = CT_SUCCESS;
+        CT_LOG_RUN_INF("domain to ip, ipver %s, ip %s to %s", ipver, hostname, ipstr);
+        break;
+    }
+    freeaddrinfo(res);
+    if (lookupstatus != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("domain to ip, ip not found for %s", ipstr);
+        return CT_ERROR;
+    }
+    return lookupstatus;
 }
