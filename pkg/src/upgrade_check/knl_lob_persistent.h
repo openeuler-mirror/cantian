@@ -123,6 +123,9 @@ typedef struct st_lob_temp_undo_alloc_page {
     page_id_t first_page;
     uint32    lob_segid;
     knl_scn_t ori_scn;
+    knl_scn_t seg_scn;
+    uint32 uid;
+    uint32 table_id;
 } lob_temp_undo_alloc_page_t;
 #pragma pack()
 #ifdef __cplusplus
