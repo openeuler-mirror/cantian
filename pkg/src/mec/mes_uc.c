@@ -1052,11 +1052,11 @@ status_t mes_uc_connect_init_addr(dpuc_addr eid_addr[], char *ip, uint16 port, u
         eid_addr[i].PlaneType = DPUC_DATA_PLANE;
         char listen_ip[CM_MAX_IP_LEN] = {0};
         if (cm_check_ip_valid(ip_addrs[i])) {
-            CT_RETURN_IFERR(memcpy_s(ip_addrs[i], CM_MAX_IP_LEN, listen_ip, CM_MAX_IP_LEN));
+            CT_RETURN_IFERR(memcpy_s(listen_ip, CM_MAX_IP_LEN, ip_addrs[i], CM_MAX_IP_LEN));
         } else {
             CT_RETURN_IFERR(cm_domain_to_ip(ip_addrs[i], listen_ip) != CT_SUCCESS);
         }
-        CT_LOG_RUN_INF("domain to ip success, listen ip %s", listen_ip);
+        CT_LOG_RUN_INF("listen ip %s", listen_ip);
         PRTS_RETURN_IFERR(sprintf_s(eid_addr[i].Url, DPUC_URL_LEN, "%s:%u", listen_ip, port));
     }
     return CT_SUCCESS;
