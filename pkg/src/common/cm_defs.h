@@ -1575,6 +1575,9 @@ static inline bool32 cm_is_odd(int32 val)
 #define CT_MQ_MAX_COOL_TIME (uint32)0xffffffff
 #define CT_MQ_MIN_COOL_TIME (uint32)0
 
+#define CT_MAX_RCY_NODE_BUF_SIZE (uint32)10
+#define CT_MIN_RCY_NODE_BUF_SIZE (uint32)2
+
 #ifndef EXTER_ATTACK
 #define EXTER_ATTACK
 #endif

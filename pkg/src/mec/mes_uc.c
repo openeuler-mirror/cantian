@@ -1054,7 +1054,7 @@ status_t mes_uc_connect_init_addr(dpuc_addr eid_addr[], char *ip, uint16 port, u
         if (cm_check_ip_valid(ip_addrs[i])) {
             CT_RETURN_IFERR(memcpy_s(ip_addrs[i], CM_MAX_IP_LEN, listen_ip, CM_MAX_IP_LEN));
         } else {
-            CT_RETURN_IFERR(cm_domain_to_ip(ip_addrs[i], listen_ip) != CT_SUCCESS));
+            CT_RETURN_IFERR(cm_domain_to_ip(ip_addrs[i], listen_ip) != CT_SUCCESS);
         }
         CT_LOG_RUN_INF("domain to ip success, listen ip %s", listen_ip);
         PRTS_RETURN_IFERR(sprintf_s(eid_addr[i].Url, DPUC_URL_LEN, "%s:%u", listen_ip, port));
