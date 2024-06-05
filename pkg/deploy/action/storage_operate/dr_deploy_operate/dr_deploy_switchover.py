@@ -269,6 +269,7 @@ class DRRecover(SwitchOver):
         if return_code:
             err_msg = "Execute command[ctbackup --purge-logs] failed."
             LOG.error(err_msg)
+            return
         LOG.info("Standby purge backup by cms command success.")
 
     def do_dbstore_baseline(self):
@@ -318,6 +319,41 @@ class DRRecover(SwitchOver):
             LOG.error(err_msg)
             raise Exception(err_msg)
 
+    def wait_res_stop(self):
+        cmd = "su -s /bin/bash - cantian -c \"cms stat | " \
+              "grep -v STAT | awk '{print \$1, \$3}'\""
+        while True:
+            return_code, output, stderr = exec_popen(cmd, timeout=10)
+            if return_code:
+                err_msg = "Execute cmd[%s] failed, details:%s" % (cmd, stderr)
+                LOG.error(err_msg)
+                raise Exception(err_msg)
+            cms_stat = output.split("\n")
+            if len(cms_stat) < 2:
+                err_msg = "Current cluster status is abnormal, output:%s, stderr:%s" % (output, stderr)
+                LOG.error(err_msg)
+                raise Exception(err_msg)
+            online_flag = False
+            unknown_flag = False
+            for node_stat in cms_stat:
+                node_id, stat = node_stat.split(" ")
+                if (stat == "ONLINE"):
+                    online_flag = True
+                    continue
+                if (stat == "UNKNOWN"):
+                    unknown_flag = False
+            if online_flag:
+                time.sleep(2)
+                LOG.info("waiting for cantian stop")
+                continue
+            elif unknown_flag:
+                time.sleep(2)
+                LOG.info("waiting for io fence")
+                break
+            else:
+                LOG.info("cms offline success")
+                return
+            
     def execute(self):
         """
         step:
@@ -358,6 +394,7 @@ class DRRecover(SwitchOver):
                 self.dr_deploy_opt.swap_role_fs_hyper_metro_domain(self.hyper_domain_id)
             try:
                 self.standby_cms_res_stop()
+                self.wait_res_stop()
             except Exception as _er:
                 try:
                     self.check_cluster_status(log_type="info", check_time=5)
@@ -374,6 +411,8 @@ class DRRecover(SwitchOver):
                 self.dr_deploy_opt.join_fs_hyper_metro_domain(self.hyper_domain_id)
             except Exception as _er:
                 LOG.info("Fail to recover hyper metro domain, details: %s", str(_er))
+        else:
+            self.standby_cms_res_stop()
         self.query_sync_status()
         self.rep_pair_recover(self.page_fs_pair_id)
         if not self.metadata_in_cantian:
