@@ -29,9 +29,26 @@ function set_ctsql_config() {
     sed -i -r "s:(SYS_PASSWORD = ).*:\1${sys_password}:g" ${CONFIG_PATH}/${CTSQL_CONFIG_NAME}
 }
 
+# 清除信号量
+function clear_sem_id() {
+    signal_num="0x20161227"
+    sem_id=$(lsipc -s -c | grep ${signal_num} | grep -v grep | awk '{print $2}')
+    if [ -n "${sem_id}" ]; then
+        ipcrm -s ${sem_id}
+        if [ $? -ne 0 ]; then
+            logAndEchoError "clear sem_id failed"
+            exit 1
+        fi
+        logAndEchoInfo "clear sem_id success"
+    fi
+}
+
 function set_cantian_config() {
+    tmp_path=${LD_LIBRARY_PATH}
     export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH}
     password_tmp=`python3 -B "${CURRENT_PATH}"/../docker/resolve_pwd.py "kmc_to_ctencrypt_pwd" "${sys_password}"`
+    export LD_LIBRARY_PATH=${tmp_path}
+    clear_sem_id
     # 去除多余空格
     password=`eval echo ${password_tmp}`
     if [ -z "${password}" ]; then

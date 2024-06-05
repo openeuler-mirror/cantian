@@ -128,6 +128,20 @@ function prepare_kmc_conf() {
     chown -R ${cantian_user}:${cantian_group} /opt/cantian/common/config/*
 }
 
+# 清除信号量
+function clear_sem_id() {
+    signal_num="0x20161227"
+    sem_id=$(lsipc -s -c | grep ${signal_num} | grep -v grep | awk '{print $2}')
+    if [ -n "${sem_id}" ]; then
+        ipcrm -s ${sem_id}
+        if [ $? -ne 0 ]; then
+            logAndEchoError "clear sem_id failed"
+            exit 1
+        fi
+        logAndEchoInfo "clear sem_id success"
+    fi
+}
+
 function prepare_certificate() {
     if [[ ${mes_ssl_switch} == "False" ]]; then
         return 0
@@ -148,12 +162,15 @@ function prepare_certificate() {
     su -s /bin/bash - "${cantian_user}" -c "chmod 600 ${certificate_dir}/*"
 
     cert_password=`cat ${CERT_CONFIG_PATH}/${CERT_PASS}`
+    tmp_path=${LD_LIBRARY_PATH}
     export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH}
     python3 -B "${CURRENT_PATH}"/resolve_pwd.py "resolve_check_cert_pwd" "${cert_password}"
     if [ $? -ne 0 ]; then
         logAndEchoError "Cert file or passwd check failed."
         exit_with_log
     fi
+    export LD_LIBRARY_PATH=${tmp_path}
+    clear_sem_id
 }
 
 function set_version_file() {

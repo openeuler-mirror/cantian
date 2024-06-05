@@ -14,6 +14,7 @@ function set_dbstor_config() {
     link_type=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "link_type"`
     node_id=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "node_id"`
     cluster_id=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "cluster_id"`
+    log_vstor=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "dbstore_fs_vstore_id"`
     
     cantian_vlan_name=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "cantian_vlan_ip"`
     cantian_vlan_ip=""
@@ -52,6 +53,7 @@ function set_dbstor_config() {
     sed -i -r "s:(USER_NAME = ).*:\1${dbstor_user}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(PASSWORD = ).*:\1${dbstor_pwd}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(CLUSTER_ID = ).*:\1${cluster_id}:g" ${DBSTOR_CONFIG_PATH}
+    sed -i -r "s:(LOG_VSTOR = ).*:\1${log_vstor}:g" ${DBSTOR_CONFIG_PATH}
 }
 
 function cantian_copy_dbstor_config() {
