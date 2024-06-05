@@ -174,7 +174,7 @@ status_t lock_table_exclusive_mode(knl_session_t *session, knl_handle_t dc_entit
                                    uint32 timeout_s, uint8 inst_id);
 status_t lock_try_lock_table_shared_local(knl_session_t *session, knl_handle_t dc_entity, uint32 timeout_s,
                                           lock_item_t *item);
-void unlock_table_local(knl_session_t *session, knl_handle_t dc_entry, uint32 inst_id);
+void unlock_table_local(knl_session_t *session, knl_handle_t dc_entry, uint32 inst_id, bool32 is_clean);
 bool32 lock_table_is_shared_mode(knl_session_t *session, uint64 table_id);
 
 
