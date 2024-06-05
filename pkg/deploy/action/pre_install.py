@@ -600,7 +600,7 @@ class CheckInstallConfig(CheckBase):
             install_config_params['deploy_mode'] = "dbstore"
         if 'dbstore_fs_vstore_id' not in install_config_params.keys():
             install_config_params['dbstore_fs_vstore_id'] = "0"
-        if install_config_params.get("mes_ssl_switch") == True:
+        if install_config_params.get("mes_ssl_switch") == True and install_config_params.get("cantian_in_container", -1) == 0:
             self.config_key.update(self.mes_type_key)
         if 'db_type' not in install_config_params.keys():
             install_config_params['db_type'] = '0'
