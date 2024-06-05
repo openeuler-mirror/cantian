@@ -429,7 +429,7 @@ static status_t lock_local_temp_table(knl_session_t *session, lock_group_t *grou
     lock_item_t *item = NULL;
     dc_entity_t *entity = (dc_entity_t *)dc_entity;
 
-    CT_LOG_RUN_INF("[lock_local_temp_table] start to lock temp table %s in mode %u", entity->entry->name, mode);
+    CT_LOG_DEBUG_INF("[lock_local_temp_table] start to lock temp table %s in mode %u", entity->entry->name, mode);
 
     if (entity->entry->ltt_lock_mode != LOCK_MODE_IDLE) {
         entity->entry->ltt_lock_mode = (entity->entry->ltt_lock_mode == LOCK_MODE_X) ? LOCK_MODE_X : mode;
@@ -443,7 +443,7 @@ static status_t lock_local_temp_table(knl_session_t *session, lock_group_t *grou
     }
 
     if (DB_ATTR_COMPATIBLE_MYSQL(session)) {
-        CT_LOG_RUN_INF("[lock_local_temp_table] Finish to lock temp table %s in mode %u for mysql, not alloc item",
+        CT_LOG_DEBUG_INF("[lock_local_temp_table] Finish to lock temp table %s in mode %u for mysql, not alloc item",
                        entity->entry->name, mode);
         return CT_SUCCESS;
     }
@@ -456,7 +456,7 @@ static status_t lock_local_temp_table(knl_session_t *session, lock_group_t *grou
     item->dc_entry = entity->entry;
     entity->entry->ltt_lock_mode = mode;
 
-    CT_LOG_RUN_INF("[lock_local_temp_table] Finish to lock temp table %s in mode %u", entity->entry->name, mode);
+    CT_LOG_DEBUG_INF("[lock_local_temp_table] Finish to lock temp table %s in mode %u", entity->entry->name, mode);
 
     return CT_SUCCESS;
 }
