@@ -45,6 +45,7 @@ extern "C" {
 #endif
 
 extern bool32 g_get_role_from_dbs;
+extern bool32 g_cluster_no_cms;
 
 #define DB_SYS_USER_ID       0
 #define DB_PUB_USER_ID       1
@@ -320,6 +321,7 @@ knl_scn_t db_time_scn(knl_session_t *session, uint32 second, uint32 msecond);
 #define DB_ATTR_ENABLE_HWM_CHANGE(session) ((session)->kernel->attr.enable_hwm_change)
 #define DB_ATTR_MYSQL_META_IN_DACC(session) ((session)->kernel->attr.mysql_metadata_in_cantian)
 #define DB_SQL_SERVER_INITIALIZING(session) ((session)->kernel->is_sql_server_initializing)
+#define DB_CLUSTER_NO_CMS (g_cluster_no_cms) /* there is no cms and no reform in this mode. */
 
 status_t db_init(knl_session_t *session);
 status_t db_mount_ctrl(knl_session_t *session);

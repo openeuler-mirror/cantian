@@ -99,12 +99,12 @@ elif [[ -f "${REDHAT_VERSION_PATH}" ]]; then
         OS_SUFFIX=RHEL20SP9
     elif [[ -n $(cat ${REDHAT_VERSION_PATH} | grep '2.0 (SP10') ]]; then
         OS_SUFFIX=RHEL20SP10
-    elif [[ -f "${CENTOS_VERSION_PATH}" ]]; then
+    fi
+elif [[ -f "${CENTOS_VERSION_PATH}" ]]; then
         cent_os_str=$(cat ${CENTOS_VERSION_PATH} | grep 'CentOS')
         if [[ -n "${cent_os_str}" ]]; then
             OS_SUFFIX=CENTOS
         fi
-    fi
 elif [[ -f "${EULER_VERSION_PATH}" ]]; then
     if [[ -n $(cat ${EULER_VERSION_PATH} | grep '2.0 (SP10') ]]; then
         OS_SUFFIX=EULER20SP10

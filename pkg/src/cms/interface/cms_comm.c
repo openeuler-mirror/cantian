@@ -31,7 +31,7 @@
 #include "cms_client.h"
 #include "cs_uds.h"
 #include "securec.h"
-
+bool32 g_cluster_no_cms = CT_FALSE;
 status_t cms_check_addr_dev_stat(struct sockaddr_in* addr)
 {
     struct ifaddrs* ifaddr;

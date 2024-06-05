@@ -235,7 +235,7 @@ typedef struct st_instance {
     atomic_t logined_cumu_count; // the cumulative account of external user connected from client
     atomic32_t seq_xid; // for xid generating
     bool32 sync_doing;
-    bool32 is_ztrst_instance;
+    bool32 is_ctrst_instance;
     bool8 lsnr_abort_status : 1;
     bool8 is_setlocale_success : 1;
     bool8 gts_started : 1;
@@ -282,7 +282,7 @@ typedef struct st_promote_record {
 #define GET_HBA_CTX (&g_instance->session_pool.hba_ctx)
 #define SHUTDOWN_WAIT_INTERVAL 1000
 #define GET_CONFIG (&g_instance->config)
-#define IS_ZTRST_INSTANCE (g_instance->is_ztrst_instance)
+#define IS_CTRST_INSTANCE (g_instance->is_ctrst_instance)
 #define GET_CHARSET_ID (g_instance->kernel.db.ctrl.core.charset_id)
 #define GET_DATABASE_CHARSET (&(CM_CHARSET_FUNC(GET_CHARSET_ID)))
 #define GET_RSRC_MGR (&g_instance->rsrc_mgr)

@@ -4247,6 +4247,10 @@ status_t dtc_recover(knl_session_t *session)
         status = dtc_start_recovery(session, rcy_list, CT_TRUE);
         RC_STEP_END(rf_detail->recovery_elapsed, RC_STEP_FINISH);
     }
+
+    if (DB_CLUSTER_NO_CMS) {
+        g_rc_ctx->status = REFORM_DONE;
+    }
     if (!cm_dbs_is_enable_dbs() && session->kernel->db.recover_for_restore) {
         dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
         for (uint32_t i = 0; i < session->kernel->db.ctrl.core.node_count; i++) {

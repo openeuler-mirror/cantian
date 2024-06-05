@@ -292,9 +292,9 @@ void dtc_update_lsn(knl_session_t *session, atomic_t lamport_lsn)
 
 void dtc_wait_reform_util(knl_session_t *session, bool8 is_master, reform_status_t stat)
 {
-#ifndef DTC_RUN_WITH_REFORM
-    return;
-#endif
+    if (DB_CLUSTER_NO_CMS) {
+        return;
+    }
 
     if (!DB_IS_CLUSTER(session)) {
         return;
@@ -312,9 +312,9 @@ void dtc_wait_reform_util(knl_session_t *session, bool8 is_master, reform_status
 
 void dtc_wait_reform(void)
 {
-#ifndef DTC_RUN_WITH_REFORM
-    return;
-#endif
+    if(DB_CLUSTER_NO_CMS) {
+        return;
+    }
     for (;;) {
         if (rc_is_master() && g_rc_ctx->status >= REFORM_MOUNTING) { /* wait for remaster to finish when full restart on
                                                                         master node. */
@@ -331,9 +331,9 @@ void dtc_wait_reform(void)
 
 void dtc_wait_reform_open(void)
 {
-#ifndef DTC_RUN_WITH_REFORM
-    return;
-#endif
+    if (DB_CLUSTER_NO_CMS) {
+        return;
+    }
     if (!rc_is_master()) {
         return;
     }

@@ -973,7 +973,7 @@ static status_t sql_parse_restore_type(sql_stmt_t *stmt, knl_restore_t *param)
     status_t status;
     uint32 match_id = CT_INVALID_ID32;
 
-    if (IS_ZTRST_INSTANCE) {
+    if (IS_CTRST_INSTANCE) {
         status = lex_expected_fetch_1of2(stmt->session->lex, "database", "blockrecover", &match_id);
     } else {
         status = lex_expected_fetch_1of3(stmt->session->lex, "database", "filerecover", "archivelog", &match_id);
@@ -981,7 +981,7 @@ static status_t sql_parse_restore_type(sql_stmt_t *stmt, knl_restore_t *param)
     CT_RETURN_IFERR(status);
 
     if (match_id == 1) {
-        if (IS_ZTRST_INSTANCE) {
+        if (IS_CTRST_INSTANCE) {
             param->type = RESTORE_BLOCK_RECOVER;
             status = sql_parse_restore_blockrecover(stmt, param);
         } else {

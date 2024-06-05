@@ -619,6 +619,10 @@ static status_t abr_replay_page_to_latest(knl_session_t *session, log_point_t cu
     rcy->paral_rcy = CT_FALSE;
     rcy->is_first_arch_file = CT_TRUE;
 
+    if (DB_IS_CLUSTER(session)) {
+        return dtc_recover(session);
+    }
+
     while (rcy_load(session, &curr_point, &data_size, &block_size) == CT_SUCCESS) {
         batch = (log_batch_t*)rcy->read_buf.aligned_buf;
         if (log_need_realloc_buf(batch, &rcy->read_buf, "rcy", CT_MAX_BATCH_SIZE)) {
@@ -695,6 +699,7 @@ status_t abr_open_bak_file(knl_session_t *session, const char *path, bak_local_t
                            uint32 index, uint32 file_id, uint32 sec_id)
 {
     bak_generate_bak_file(session, path, file_type, index, file_id, sec_id, bak_file->name);
+    bak_file->type = cm_device_type(bak_file->name);
     if (cm_open_device(bak_file->name, cm_device_type(bak_file->name), O_BINARY | O_SYNC | O_RDWR, &bak_file->handle) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] failed to open backupset file, path is %s", path);
         return CT_ERROR;
@@ -746,6 +751,7 @@ static status_t abr_bakfile_contain_page(knl_session_t *session, bak_page_search
 
     cm_close_device(search_ctx->file_type, &search_ctx->handle);       // try to close last bakfile handle
     search_ctx->handle = bak_handle->handle; // search_ctx->handle is closed at abr_clean_search_context
+    search_ctx->file_type = bak_handle->type;
     bak_handle->handle = CT_INVALID_HANDLE;  // bak_handle->handle will not be used
     search_ctx->rcy_point = bak_head->ctrlinfo.rcy_point;
 
@@ -958,7 +964,7 @@ static void abr_clear_search_context(knl_session_t *session, bak_page_search_t *
     cm_aligned_free(&search_ctx->read_buf);
 
     if (bak->backup_buf != NULL) {
-        free(bak->backup_buf);
+        cm_aligned_free(&bak->align_buf);
         bak->backup_buf = NULL;
         bak->depends = NULL;
         bak->compress_buf = NULL;
