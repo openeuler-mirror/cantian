@@ -282,12 +282,11 @@ void undo_set_release(knl_session_t *session, undo_set_t *undo_set)
 void undo_init(knl_session_t *session, uint32 lseg_no, uint32 rseg_no)
 {
     undo_context_t *ctx = &session->kernel->undo_ctx;
-    core_ctrl_t *core_ctrl = DB_CORE_CTRL(session);
     undo_set_t *undo_set = MY_UNDO_SET(session);
 
     ctx->retention = session->kernel->attr.undo_retention_time;
     ctx->space = spc_get_undo_space(session, session->kernel->id);
-    ctx->temp_space = SPACE_GET(session, core_ctrl->temp_undo_space);
+    ctx->temp_space = spc_get_temp_undo_space(session, session->kernel->id);
     ctx->is_switching = CT_FALSE;
     ctx->extend_segno = 0;
     ctx->extend_cnt = 0;

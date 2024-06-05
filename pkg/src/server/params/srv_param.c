@@ -1065,6 +1065,9 @@ config_item_t g_parameters[] = {
       PARAM_DTC_CLEAN_EDP_TASK_RATIO, EFFECT_REBOOT, CFG_INS, sql_verify_als_mes_task_ratio, NULL, NULL, NULL },
     { "DTC_TXN_INFO_TASK_RATIO", CT_TRUE, ATTR_NONE, "0.25", NULL, NULL, "-", "[0.001,0.999]", "CT_TYPE_REAL", NULL,
       PARAM_DTC_TXN_INFO_TASK_RATIO, EFFECT_REBOOT, CFG_INS, sql_verify_als_mes_task_ratio, NULL, NULL, NULL },
+    { "RCY_NODE_READ_BUF_SIZE", CT_TRUE, ATTR_NONE, "4", NULL, NULL, "-", "[2,10]", "CT_TYPE_INTEGER", NULL,
+    PARAM_RCY_NODE_READ_BUF_SIZE, EFFECT_REBOOT, CFG_INS, sql_verify_rcy_read_buf_size, NULL,
+    NULL, NULL },
     /* SHM MQ */
     { "SHM_MQ_MSG_RECV_THD_NUM",    CT_TRUE, ATTR_NONE,     "200",     NULL, NULL, "-", "[1, 1024]",          "CT_TYPE_INTEGER", NULL, PARAM_SHM_MQ_MSG_RECV_THD_NUM,     EFFECT_REBOOT,      CFG_INS, sql_verify_als_mq_thd_num,    NULL, NULL, NULL },
     { "SHM_MQ_MSG_QUEUE_NUM",       CT_TRUE, ATTR_NONE,     "8",      NULL, NULL, "-", "[1, 64]",            "CT_TYPE_INTEGER", NULL, PARAM_SHM_MQ_MSG_QUEUE_NUM,        EFFECT_REBOOT,      CFG_INS, sql_verify_als_mq_queue_num,  NULL, NULL, NULL },
@@ -1104,7 +1107,7 @@ config_item_t g_parameters[] = {
     { "BACKUP_RETRY", CT_TRUE, ATTR_NONE, "TRUE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
       PARAM_BACKUP_RETRY, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool, sql_notify_als_bool,
       sql_notify_als_bool, NULL },
-    { "BATCH_FLUSH_CAPACITY", CT_TRUE, ATTR_NONE, "8", NULL, NULL, "-", "[1,4096]", "CT_TYPE_INTEGER", NULL,
+    { "BATCH_FLUSH_CAPACITY", CT_TRUE, ATTR_NONE, "160", NULL, NULL, "-", "[1,4096]", "CT_TYPE_INTEGER", NULL,
       PARAM_BATCH_FLUSH_CAPACITY, EFFECT_REBOOT, CFG_INS, sql_verify_als_batch_flush_capacity,
       NULL, NULL, NULL },
     { "ENABLE_HWN_CHANGE", CT_TRUE, ATTR_READONLY, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
@@ -1133,9 +1136,6 @@ config_item_t g_parameters[] = {
     { "ENABLE_SYS_CRC_CHECK", CT_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "GS_TYPE_BOOLEAN", NULL,
       PARAM_ENABLE_CHECK_SECURITY_LOG, EFFECT_REBOOT, CFG_INS, sql_verify_als_bool,
       sql_notify_enable_crc_check, sql_notify_als_bool, NULL },
-    { "RCY_NODE_READ_BUF_SIZE", CT_TRUE, ATTR_NONE, "4", NULL, NULL, "-", "NULL", "CT_TYPE_INTEGER", NULL,
-      PARAM_RCY_NODE_READ_BUF_SIZE, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_uint32, NULL,
-      NULL, NULL },
 };
 
 void srv_get_config_info(config_item_t **params, uint32 *count)
@@ -1173,6 +1173,23 @@ void srv_get_debug_config_info(debug_config_item_t **params, uint32 *count)
 {
     *params = g_debug_parameters;
     *count = sizeof(g_debug_parameters) / sizeof(debug_config_item_t);
+}
+
+status_t sql_verify_rcy_read_buf_size(void *se, void *lex, void *def)
+{
+    uint32 num;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (num < CT_MIN_RCY_NODE_BUF_SIZE) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "RCY_NODE_READ_BUF_SIZE", (int64)CT_MIN_RCY_NODE_BUF_SIZE);
+        return CT_ERROR;
+    }
+    if (num > CT_MAX_RCY_NODE_BUF_SIZE) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "RCY_NODE_READ_BUF_SIZE", (int64)CT_MAX_RCY_NODE_BUF_SIZE);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
 }
 
 static status_t verify_uds_temp_path(const char *path, char *input_path, char *temp_path, uint32 len)

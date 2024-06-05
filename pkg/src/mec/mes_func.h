@@ -218,7 +218,8 @@ typedef enum en_mes_time_stat {
 } mes_time_stat_t;
 
 typedef enum en_mes_channel_stat {
-    MES_CHANNEL_UNCONNECTED = 0,
+    MES_CHANNEL_CLOSED = 0,
+    MES_CHANNEL_UNCONNECTED,
     MES_CHANNEL_CONNECTED,
     MES_CHANNEL_SUBHEALTH,
     MES_CHANNEL_CEIL

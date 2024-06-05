@@ -47,22 +47,43 @@ typedef enum {
     IO_RECORD_EVENT_CMS_UDS_UNREGISTER,
     IO_RECORD_EVENT_CMS_UDS_SET_WORK_STAT,
 
-    // add knl interface stat
+    // 记录创表（函数：knl_create_table）的时间
     IO_RECORD_EVENT_KNL_CREATE_TABLE,
+    // 记录修改表定义（函数：knl_alter_table）的时间
     IO_RECORD_EVENT_KNL_ALTER_TABLE,
+    // 记录删表（函数：knl_drop_table）的时间
     IO_RECORD_EVENT_KNL_DROP_TABLE,
     IO_RECORD_EVENT_KNL_TRUNCATE_TABLE,
     IO_RECORD_EVENT_KNL_CREATE_SPACE,
     IO_RECORD_EVENT_KNL_ALTER_SPACE,
     IO_RECORD_EVENT_KNL_DROP_SPACE,
+    // 记录创建用户（函数：knl_create_user_internal）的时间
     IO_RECORD_EVENT_KNL_CREATE_USER,
+    // 记录删除用户（函数：knl_drop_user_internal）的时间
     IO_RECORD_EVENT_KNL_DROP_USER,
+    // 记录insert操作（函数：knl_insert）的时间
     IO_RECORD_EVENT_KNL_INSERT,
+    // 记录delete操作（函数：knl_internal_delete）的时间
     IO_RECORD_EVENT_KNL_INTERNAL_DELETE,
+    // 记录update插入操作（函数：knl_internal_update）的时间
     IO_RECORD_EVENT_KNL_INTERNAL_UPDATE,
+    // 记录查索引（函数：pcrb_fetch）的时间
     IO_RECORD_EVENT_PCRB_FETCH,
+    // 记录查heap（函数：pcrh_fetch_inter）的时间
     IO_RECORD_EVENT_PCRH_FETCH,
+    // 记录得到特定一批row id（函数：pcrh_fetch_by_rid）的时间
     IO_RECORD_EVENT_KNL_FETCH_BY_ROWID,
+
+    // 记录插入heap（函数：pcrh_insert）的时间
+    IO_RECORD_EVENT_KNL_PCRH_INSERT,
+    // 记录插入索引（函数：pcrb_insert）的时间
+    IO_RECORD_EVENT_KNL_PCRB_INSERT,
+    // 记录修改heap（函数：pcrh_update）的时间
+    IO_RECORD_EVENT_KNL_PCRH_UPDATE,
+    // 记录删除heap（函数：pcrh_delete）的时间
+    IO_RECORD_EVENT_KNL_PCRH_DELETE,
+    // 记录删除索引（函数：pcrb_delete）的时间
+    IO_RECORD_EVENT_KNL_PCRB_DELETE,
 
     IO_RECORD_EVENT_RECOVERY_READ_ONLINE_LOG,
     IO_RECORD_EVENT_NS_BATCH_READ_ULOG,

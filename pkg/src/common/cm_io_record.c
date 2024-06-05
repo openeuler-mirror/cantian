@@ -47,21 +47,44 @@ io_record_event_desc_t g_io_record_event_desc[IO_RECORD_EVENT_COUNT] = {
     { "cms uds unregister", ""},
     { "cms uds set work stat", ""},
 
+    // 记录创表（函数：knl_create_table）的时间
     { "knl create table", ""},
+    // 记录修改表定义（函数：knl_alter_table）的时间
     { "knl alter table", ""},
+    // 记录删表（函数：knl_drop_table）的时间
     { "knl drop table", ""},
     { "knl truncate table", ""},
     { "knl create space", ""},
     { "knl alter space", ""},
     { "knl drop space", ""},
+    // 记录创建用户（函数：knl_create_user_internal）的时间
     { "knl create user", ""},
+    // 记录删除用户（函数：knl_drop_user_internal）的时间
     { "knl drop user", ""},
+    // 记录insert操作（函数：knl_insert）的时间
     { "knl insert", ""},
-    { "knl update", ""},
+    // 记录delete操作（函数：knl_internal_delete）的时间
     { "knl delete", ""},
+    // 记录update插入操作（函数：knl_internal_update）的时间
+    { "knl update", ""},
+    // 记录查索引（函数：pcrb_fetch）的时间
     { "pcrb fetch", ""},
+    // 记录查heap（函数：pcrh_fetch_inter）的时间
     { "pcrh fetch", ""},
+    // 记录得到特定一批row id（函数：pcrh_fetch_by_rid）的时间
     { "knl fetch by rowid", ""},
+
+    // 记录插入heap（函数：pcrh_insert）的时间
+    {"pcrh insert", ""},
+    // 记录插入索引（函数：pcrb_insert）的时间
+    {"pcrb insert", ""},
+    // 记录修改heap（函数：pcrh_update）的时间
+    {"pcrh update", ""},
+    // 记录删除heap（函数：pcrh_delete）的时间
+    {"pcrh delete", ""},
+    // 记录删除索引（函数：pcrb_delete）的时间
+    {"pcrb delete", ""},
+
     { "recovery read online log", ""},
     { "ns batch read ulog", ""},
 

@@ -231,9 +231,8 @@ class Logicrep:
 
     def execute(self, sql, message):
         for i in range(RETRY_TIMES):
-            cmd = "source ~/.bashrc && echo -e '%s' | ctsql sys@%s:%s -q -c \"%s\"" % (
+            cmd = "source ~/.bashrc && echo -e '%s' | ctsql sys@127.0.0.1:%s -q -c \"%s\"" % (
                 self.passwd,
-                self.cmsip[int(self.node_id)].split(",")[0],
                 self.lsnr_port,
                 sql)
 

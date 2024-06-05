@@ -32,6 +32,7 @@ extern "C" {
 #endif
 
 typedef struct st_mes_uc_conn {
+    thread_lock_t lock;
     mes_channel_stat_t uc_channel_state;
     bool8 is_allow_msg_transfer;
 } mes_uc_conn_t;

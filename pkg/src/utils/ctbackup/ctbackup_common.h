@@ -92,6 +92,15 @@ extern "C" {
 #define MAX_DATABASE_NAME_LENGTH 128
 #define MAX_PASSWORD_LENGTH 1024
 #define MAX_SHELL_CMD_LENGTH (MAX_PASSWORD_LENGTH + 512)
+
+#define CTSQL_CHECK_CONN_MAX_TIME_S 300
+#define CTSQL_CHECK_CONN_SLEEP_TIME_MS 1000
+
+#define CHILD_ID 1
+#define PARENT_ID 0
+#define STD_IN_ID 0
+#define STD_OUT_ID 1
+
 // TRUE or FALSE
 #define MAX_BOOL_STR_LENGTH 6
 #define SINGLE_QUOTE "\'"
@@ -195,7 +204,7 @@ status_t check_ctsql_online(void);
 
 status_t check_input_params(char *params);
 
-status_t ctbak_check_ctsql_online(void);
+status_t ctbak_check_ctsql_online(uint32 retry_time);
 
 status_t ctbak_check_data_dir(const char *path);
 
