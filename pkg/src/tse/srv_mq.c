@@ -1602,7 +1602,7 @@ static int tse_send_msg_to_one_client(void *shm_inst, enum TSE_FUNC_TYPE func_ty
                 break;
             }
             if (errno == ETIMEDOUT || errno == EINTR) {
-                CT_LOG_RUN_WAR("wait sem again, client_id:(%d), client_status:(%d), errno(%d)",
+                CT_LOG_RUN_WAR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, "wait sem again, client_id:(%d), client_status:(%d), errno(%d)",
                                client_id, client_id_list[client_id], errno);
                 continue;
             } else {
