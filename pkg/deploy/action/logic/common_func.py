@@ -71,6 +71,11 @@ def exec_popen(cmd, timeout=TIME_OUT):
 
     return return_code, stdout, stderr
 
+def exec_popen_long(cmd):
+    bash_cmd = ["bash",cmd]
+    pobj = subprocess.Popen(bash_cmd, shell=False, stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=os.setsid)
+    return pobj
 
 def read_json_config(file_path):
     with open(file_path, "r") as f:

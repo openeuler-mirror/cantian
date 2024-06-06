@@ -18,6 +18,8 @@ from logic.storage_operate import StorageInf
 from logic.common_func import read_json_config
 from logic.common_func import write_json_config
 from logic.common_func import exec_popen
+from logic.common_func import exec_popen_long
+from logic.common_func import close_child_process
 from logic.common_func import retry
 from logic.common_func import get_status
 from om_log import DR_DEPLOY_LOG as LOG
@@ -36,8 +38,8 @@ CANTIAN_DISASTER_RECOVERY_STATUS_CHECK = 'echo -e "select * from DV_LRPL_DETAIL;
                                          'export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && '\
                                          'python3 -B %s\'' % EXEC_SQL
 ZSQL_INI_PATH = '/mnt/dbdata/local/cantian/tmp/data/cfg/ctsql.ini'
-LOCK_INSTANCE = "lock instance for backup;"
-UNLOCK_INSTANCE = "unlock instance;"
+LOCK_INSTANCE = "set @ctc_ddl_enabled=true;lock instance for backup;"
+LOCK_INSTANCE_LONG_LIVED = "lock instance for backup;do sleep(100000)"
 FLUSH_TABLE = "flush table with read lock;"
 UNLOCK_TABLE = "unlock tables;"
 INSTALL_TIMEOUT = 900
@@ -86,6 +88,7 @@ class DRDeploy(object):
         self.mysql_pwd = None
         self.site = None
         self.metadata_in_cantian = False
+        self.backup_lock = None
 
     @staticmethod
     def restart_cantian_exporter():
@@ -211,32 +214,22 @@ class DRDeploy(object):
             LOG.error(err_msg)
             self.record_deploy_process("do_lock_instance_for_backup", "failed", code=-1, description=err_msg)
             raise Exception(err_msg)
-        LOG.info("Success to do lock instance for backup.")
-        self.record_deploy_process("do_lock_instance_for_backup", "success")
-
-    def do_unlock_instance_for_backup(self):
-        """
-        mysql 执行备份锁
-        mysql_cmd:
-             物理mysql:/usr/local/mysql/bin/mysql
-             k8s: kubectl exec -n namespace pod_name -c mysql -- mysql
-        :return:
-        """
-        LOG.info("Start to do unlock instance for backup.")
+        
         cmd = "%s -u'%s' -p'%s' -e \"%s;\"" % (self.mysql_cmd,
                                            self.mysql_user,
                                            self.mysql_pwd,
-                                           UNLOCK_TABLE)
-        cmd += ";echo last_cmd=$?"
+                                           LOCK_INSTANCE_LONG_LIVED)
+        self.backup_lock = exec_popen_long(cmd)
+        self.record_deploy_process("do_lock_instance_for_backup", "success")
+        LOG.info("Success to do lock instance for backup.")
+
+    def do_unlock_instance_for_backup(self):
+        """
+        关闭长连接
+        """
+        LOG.info("Start to do unlock instance for backup.")
         self.record_deploy_process("do_unlock_instance_for_backup", "start")
-        _, output, stderr = exec_popen(cmd)
-        if "last_cmd=0" not in output:
-            err_msg = "Failed to do unlock instance for backup," \
-                      " output:%s, stderr:%s" % (output, stderr)
-            err_msg.replace(self.mysql_pwd, "***")
-            LOG.error(err_msg)
-            self.record_deploy_process("do_unlock_instance_for_backup", "failed", code=-1, description=err_msg)
-            raise Exception(err_msg)
+        close_child_process(self.backup_lock)
         LOG.info("Success to do unlock instance for backup.")
         self.record_deploy_process("do_unlock_instance_for_backup", "success")
 
