@@ -242,10 +242,10 @@ static int init_cpu_mask(char *cpu_info_str, int *cpu_group_num, int cpu_info[SH
         char *cpu_str = strtok_r(cpu_group_str_cp, ",", &cpu_p);
         int count = 0;
         while (cpu_str != NULL) {
-            int s, e;
+            int s = 0, e = 0;
             int num = sscanf_s(cpu_str, "%d-%d", &s, &e);
-            if (num < 0) {
-                CT_LOG_RUN_ERR("cpu configuration error, should be like \"0-3\": %s", cpu_str);
+            if (num < 2) {
+                CT_LOG_RUN_ERR("cpu configuration error, s= %d, e= %d, should be like \"0-3\": %s", s, e, cpu_str);
                 return CT_ERROR;
             }
             for (int j = s; j <= e; j++) {
@@ -1602,7 +1602,7 @@ static int tse_send_msg_to_one_client(void *shm_inst, enum TSE_FUNC_TYPE func_ty
                 break;
             }
             if (errno == ETIMEDOUT || errno == EINTR) {
-                CT_LOG_RUN_WAR("wait sem again, client_id:(%d), client_status:(%d), errno(%d)",
+                CT_LOG_RUN_WAR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, "wait sem again, client_id:(%d), client_status:(%d), errno(%d)",
                                client_id, client_id_list[client_id], errno);
                 continue;
             } else {

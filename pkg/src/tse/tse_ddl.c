@@ -241,6 +241,7 @@ static status_t tse_ddl_reentrant_lock_user(session_t *session, dc_user_t *user,
 
     if (max_wait_time != CT_INVALID_ID32) {
         if (!dls_latch_timed_x(knl_session, &user->user_latch, 0, 1, NULL, max_wait_time)) {
+            CT_THROW_ERROR_EX(ERR_LOCK_TIMEOUT, "Getting user lock timed out");
             CT_LOG_RUN_ERR("[TSE LOCK]: user %s is locked by reentrant lock fail", user->desc.name);
             return CT_ERROR;
         }
@@ -3660,7 +3661,7 @@ static status_t tse_open_new_dc4rename(knl_session_t *knl_session, sql_stmt_t *s
     return CT_SUCCESS;
 }
 
-static status_t tse_rename_table_cross_database_impl(TcDb__TseDDLRenameTableDef *req, ddl_ctrl_t *ddl_ctrl)
+static int tse_rename_table_cross_database_impl(TcDb__TseDDLRenameTableDef *req, ddl_ctrl_t *ddl_ctrl)
 {
     status_t ret = CT_SUCCESS;
     bool is_new_session = CT_FALSE;
@@ -3711,6 +3712,7 @@ static status_t tse_rename_table_cross_database_impl(TcDb__TseDDLRenameTableDef 
     if (is_open_new_dc) {
         knl_close_dc(&new_dc);
     }
+    CT_RETURN_IFERR_NOCLEAR(ret,ddl_ctrl);
     return ret;
 }
 
