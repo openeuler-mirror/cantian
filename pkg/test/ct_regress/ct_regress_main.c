@@ -22,7 +22,7 @@
 // #include <win32.h>
 #ifdef WIN32
 #include <conio.h>
-#include<windows.h>
+#include <windows.h>
 #include <direct.h>
 #define getcwd _getcwd // stupid MSFT "deprecation" warning
 #else
@@ -204,7 +204,7 @@ wait_for_tests(int pos, int num_tests)
 
         if (p == INVALID_PID)
         {
-            fprintf(stderr, "failed to wait for subprocesses: %s\n",
+            fprintf(stderr, "Failed to wait for subprocesses: %s\n",
                 strerror(errno));
             exit(2);
         }
@@ -215,7 +215,7 @@ wait_for_tests(int pos, int num_tests)
         r = WaitForMultipleObjects(tests_left, active_pids, FALSE, INFINITE);
         if (r < (int)WAIT_OBJECT_0 || r >= (int)WAIT_OBJECT_0 + tests_left)
         {
-            fprintf(stderr, "failed to wait for subprocesses: error code %lu\n",
+            fprintf(stderr, "Failed to wait for subprocesses: error code %lu\n",
                 GetLastError());
             exit(2);
         }
@@ -320,7 +320,7 @@ static void prepare_test_group(text_t *line, int line_no, test_type_t ttyp)
         g_cases.num++;
         if (g_cases.num > MAX_PARALLEL_TESTS)
         {
-            fprintf(stderr, "too many parallel tests in schedule file \"%s:%d\" \n", g_opts[OPT_SCHEDULE].value, line_no);
+            fprintf(stderr, "Too many parallel tests in schedule file \"%s:%d\" \n", g_opts[OPT_SCHEDULE].value, line_no);
             exit(-1);
         }
         cm_trim_text(line);
@@ -363,7 +363,7 @@ static PID_TYPE ctsql_exec_test(const char* conn_str, gtest_t* test, test_type_t
 
     if (pid == INVALID_PID)
     {
-        fprintf(stderr, "could not start process for test %s\n",
+        fprintf(stderr, "Could not start process for test %s\n",
             test->name);
         exit(2);
     }
@@ -377,7 +377,7 @@ static void exec_test_group(int line_no)
 
     if (g_cases.num < 1)
     {
-        fprintf(stderr, "syntax error in schedule file \"%s\" line %d\n",
+        fprintf(stderr, "Syntax error in schedule file \"%s\" line %d\n",
             g_opts[OPT_SCHEDULE].value, line_no);
         exit(-1);
     }
@@ -390,7 +390,7 @@ static void exec_test_group(int line_no)
 
     if (g_cases.num <= g_opts[OPT_MAX_CONN].ival)
     {
-        gr_printf("parallel group (%d tests):", g_cases.num);
+        gr_printf("Parallel group (%d tests):", g_cases.num);
         for (i = 0; i < g_cases.num; i++)
         {
             g_cases.pids[i] = ctsql_exec_test(g_conn_str, &g_cases.tests[i], g_cases.t_typ);
@@ -403,7 +403,7 @@ static void exec_test_group(int line_no)
     else
     {
         int			oldest = 0;
-        gr_printf("parallel group (%d tests, in groups of %d): ", g_cases.num, g_opts[OPT_MAX_CONN].ival);
+        gr_printf("Parallel group (%d tests, in groups of %d): ", g_cases.num, g_opts[OPT_MAX_CONN].ival);
         for (i = 0; i < g_cases.num; i++)
         {
             if (i - oldest >= g_opts[OPT_MAX_CONN].ival)
@@ -474,7 +474,7 @@ static void set_opts(int argc, char* argv[], option_t* opts)
                     cm_str2text(opt_str + name_len + 1, &numtext);
                     if (cm_text2uint32_ex(&numtext, &opts[j].ival) != NERR_SUCCESS)
                     {
-                        fprintf(stderr, "the MAX_CONNS must be an unsigned integer\n");
+                        fprintf(stderr, "The MAX_CONNS must be an unsigned integer\n");
                         exit(-1);
                     }
                     if (opts[j].ival > MAX_PARALLEL_TESTS)
@@ -628,13 +628,13 @@ GetTokenUser(HANDLE hToken, PTOKEN_USER *ppTokenUser)
 
             if (*ppTokenUser == NULL)
             {
-                gr_printf("could not allocate %lu bytes of memory", dwLength);
+                gr_printf("Could not allocate %lu bytes of memory", dwLength);
                 return FALSE;
             }
         }
         else
         {
-            gr_printf("could not get token information buffer size: error code %lu", GetLastError());
+            gr_printf("Could not get token information buffer size: error code %lu", GetLastError());
             return FALSE;
         }
     }
@@ -648,7 +648,7 @@ GetTokenUser(HANDLE hToken, PTOKEN_USER *ppTokenUser)
         LocalFree(*ppTokenUser);
         *ppTokenUser = NULL;
 
-        gr_printf("could not get token information: error code %lu", GetLastError());
+        gr_printf("Could not get token information: error code %lu", GetLastError());
         return FALSE;
     }
 
@@ -702,19 +702,19 @@ AddUserToTokenDacl(HANDLE hToken)
             ptdd = (TOKEN_DEFAULT_DACL *)LocalAlloc(LPTR, dwSize);
             if (ptdd == NULL)
             {
-                gr_printf("could not allocate %lu bytes of memory", dwSize);
+                gr_printf("Could not allocate %lu bytes of memory", dwSize);
                 goto cleanup;
             }
 
             if (!GetTokenInformation(hToken, tic, (LPVOID)ptdd, dwSize, &dwSize))
             {
-                gr_printf("could not get token information: error code %lu", GetLastError());
+                gr_printf("Could not get token information: error code %lu", GetLastError());
                 goto cleanup;
             }
         }
         else
         {
-            gr_printf("could not get token information buffer size: error code %lu", GetLastError());
+            gr_printf("Could not get token information buffer size: error code %lu", GetLastError());
             goto cleanup;
         }
     }
@@ -724,7 +724,7 @@ AddUserToTokenDacl(HANDLE hToken)
         (DWORD) sizeof(ACL_SIZE_INFORMATION),
         AclSizeInformation))
     {
-        gr_printf("could not get ACL information: error code %lu", GetLastError());
+        gr_printf("Could not get ACL information: error code %lu", GetLastError());
         goto cleanup;
     }
 
@@ -740,13 +740,13 @@ AddUserToTokenDacl(HANDLE hToken)
     pacl = (PACL)LocalAlloc(LPTR, dwNewAclSize);
     if (pacl == NULL)
     {
-        gr_printf("could not allocate %lu bytes of memory", dwNewAclSize);
+        gr_printf("Could not allocate %lu bytes of memory", dwNewAclSize);
         goto cleanup;
     }
 
     if (!InitializeAcl(pacl, dwNewAclSize, ACL_REVISION))
     {
-        gr_printf("could not initialize ACL: error code %lu", GetLastError());
+        gr_printf("Could not initialize ACL: error code %lu", GetLastError());
         goto cleanup;
     }
 
@@ -755,13 +755,13 @@ AddUserToTokenDacl(HANDLE hToken)
     {
         if (!GetAce(ptdd->DefaultDacl, i, (LPVOID *)&pace))
         {
-            gr_printf("could not get ACE: error code %lu", GetLastError());
+            gr_printf("Could not get ACE: error code %lu", GetLastError());
             goto cleanup;
         }
 
         if (!AddAce(pacl, ACL_REVISION, MAXDWORD, pace, ((PACE_HEADER)pace)->AceSize))
         {
-            gr_printf("could not add ACE: error code %lu", GetLastError());
+            gr_printf("Could not add ACE: error code %lu", GetLastError());
             goto cleanup;
         }
     }
@@ -769,7 +769,7 @@ AddUserToTokenDacl(HANDLE hToken)
     /* Add the new ACE for the current user */
     if (!AddAccessAllowedAceEx(pacl, ACL_REVISION, OBJECT_INHERIT_ACE, GENERIC_ALL, pTokenUser->User.Sid))
     {
-        gr_printf("could not add access allowed ACE: error code %lu", GetLastError());
+        gr_printf("Could not add access allowed ACE: error code %lu", GetLastError());
         goto cleanup;
     }
 
@@ -778,7 +778,7 @@ AddUserToTokenDacl(HANDLE hToken)
 
     if (!SetTokenInformation(hToken, tic, (LPVOID)&tddNew, dwNewAclSize))
     {
-        gr_printf("could not set token information: error code %lu", GetLastError());
+        gr_printf("Could not set token information: error code %lu", GetLastError());
         goto cleanup;
     }
 
