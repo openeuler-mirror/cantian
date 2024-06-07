@@ -241,22 +241,22 @@ class DRRecover(SwitchOver):
         LOG.info("Execute replication steps. Singel_write: %s" % self.single_write)
         if self.single_write == "0":
             LOG.info("Single write is disabled, no need to execute replication steps.")
-            return
-        if running_status != ReplicationRunningStatus.Synchronizing:
-            self.dr_deploy_opt.sync_remote_replication_filesystem_pair(pair_id=pair_id,
-                                                                       vstore_id="0",
-                                                                       is_full_copy=False)
-            time.sleep(10)
-        pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(
-            pair_id)
-        running_status = pair_info.get("RUNNINGSTATUS")
-        while running_status == ReplicationRunningStatus.Synchronizing:
+        else:
+            if running_status != ReplicationRunningStatus.Synchronizing:
+                self.dr_deploy_opt.sync_remote_replication_filesystem_pair(pair_id=pair_id,
+                                                                        vstore_id="0",
+                                                                        is_full_copy=False)
+                time.sleep(10)
             pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(
-               pair_id)
+                pair_id)
             running_status = pair_info.get("RUNNINGSTATUS")
-            replication_progress = pair_info.get("REPLICATIONPROGRESS")
-            LOG.info(f"Page fs rep pair is synchronizing, current progress: {replication_progress}%, please wait...")
-            time.sleep(10)
+            while running_status == ReplicationRunningStatus.Synchronizing:
+                pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(
+                pair_id)
+                running_status = pair_info.get("RUNNINGSTATUS")
+                replication_progress = pair_info.get("REPLICATIONPROGRESS")
+                LOG.info(f"Page fs rep pair is synchronizing, current progress: {replication_progress}%, please wait...")
+                time.sleep(10)
         self.repl_success_flag = True
         self.dr_deploy_opt.split_remote_replication_filesystem_pair(pair_id)
         self.dr_deploy_opt.remote_replication_filesystem_pair_cancel_secondary_write_lock(pair_id)
