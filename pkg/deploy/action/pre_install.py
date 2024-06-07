@@ -140,7 +140,7 @@ class ConfigChecker:
 
     @staticmethod
     def mes_type(value):
-        if value not in ["UC", "TCP"]:
+        if value not in ["UC", "TCP", "UC_RDMA"]:
             return False
         return True
     
@@ -197,7 +197,7 @@ class ConfigChecker:
 
     @staticmethod
     def mes_type(value):
-        mes_type_enum = {"TCP", "UC"}
+        mes_type_enum = {"TCP", "UC", "UC_RDMA"}
         if value not in mes_type_enum:
             return False
 
