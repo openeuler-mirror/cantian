@@ -328,7 +328,7 @@ status_t ctbak_do_ctsql_backup(char *path, char *params[], bool32 *retry)
     close(pipe_stdout[PARENT_ID]);
     int32 wait = waitpid(child_pid, &status, 0);
     if (wait == child_pid && WIFEXITED((unsigned int)status) && WEXITSTATUS((unsigned int)status) != 0) {
-        printf("[ctbackup]child process exec backup failed, ret=%d\n, try to check cantian stat.", status);
+        printf("[ctbackup]child process exec backup failed, ret=%d, try to check cantian stat.\n", status);
         if (need_retry == CT_TRUE &&
             ctbak_check_ctsql_online(CTBAK_BACKUP_CECHK_ONLINE_TIME) == CT_SUCCESS) {
             *retry = CT_TRUE;
