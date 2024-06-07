@@ -936,11 +936,11 @@ class Installer:
         """
         # 获取默认值
         if g_opts.running_mode in [CANTIAND, CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST]:
-            self.cantiand_configs = SingleNodeConfig.get_config(g_opts.cantian_in_container)
+            self.cantiand_configs = SingleNodeConfig.get_config(False)
         if g_opts.running_mode in [CANTIAND_IN_CLUSTER, CANTIAND_WITH_MYSQL_IN_CLUSTER] and g_opts.node_id == 0:
-            self.cantiand_configs = ClusterNode0Config.get_config(g_opts.cantian_in_container)
+            self.cantiand_configs = ClusterNode0Config.get_config(False)
         if g_opts.running_mode in [CANTIAND_IN_CLUSTER, CANTIAND_WITH_MYSQL_IN_CLUSTER] and g_opts.node_id == 1:
-            self.cantiand_configs = ClusterNode1Config.get_config(g_opts.cantian_in_container)
+            self.cantiand_configs = ClusterNode1Config.get_config(False)
 
     def check_parameter(self):
         """

@@ -939,7 +939,7 @@ class DRDeploy(object):
                   % (dbstor_user, dbstor_pwd,
                      cantian_pwd, comfirm_cantian_pwd, cert_encrypt_pwd,
                      ctl_file_path, DR_DEPLOY_CONFIG)
-            _, output, stderr = exec_popen(cmd, timeout=180)
+            _, output, stderr = exec_popen(cmd, timeout=600)
             if "install success" not in output:
                 err_pattern = re.compile(".*ERROR.*")
                 _err = err_pattern.findall(output + stderr)

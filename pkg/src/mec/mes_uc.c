@@ -921,11 +921,11 @@ status_t mes_uc_set_process_config(void)
 {
     dpuc_necessary_config_param_t dpuc_config_para = {1024, 64, 0, 10240, 10240, 1024, 1024, 1024, 1024};
     int32 ret = mes_global_handle()->dpuc_process_set_config(&dpuc_config_para, NULL, __FUNCTION__);
-    if (ret != DP_OK) {
-        CT_LOG_RUN_ERR("Set dpuc process config failed (%d).", ret);
-        return CT_ERROR;
+    if (ret == DP_OK || ret == DPUC_RESULT_PARAM_REPEAT_SET) {
+        return CT_SUCCESS;
     }
-    return CT_SUCCESS;
+    CT_LOG_RUN_ERR("Set dpuc process config failed (%d).", ret);
+    return CT_ERROR;
 }
 
 int32_t mes_uc_decode_kmc_pwd(char *pass, uint32 pass_len, char *plain, uint32_t max_key_len, uint32 *plain_len)
@@ -989,6 +989,8 @@ int32_t init_xnet_dpuc(mes_uc_config_t *uc_config)
         (void)mes_global_handle()->dpuc_xnet_set_process_ver(g_mes.profile.channel_version);
         CT_LOG_RUN_INF("mes set channel version=%lld.", g_mes.profile.channel_version);
     }
+
+    CT_RETURN_IFERR(mes_uc_set_process_config());
 
     // UC鉴权认证初始化设置
     dpuc_security_cert_info_t dpuc_link_cert_info;
@@ -1104,7 +1106,7 @@ status_t mes_uc_create_link(uint32 inst_id, dpuc_addr *client_eid_addr, dpuc_add
         ret = mes_global_handle()->dpuc_link_create_with_addr(g_mes_uc_config.eid_obj, 
             g_mes_uc_config.dst_eid[inst_id], &con_param, __FUNCTION__);
         if (ret != DP_OK) {
-            CT_LOG_RUN_ERR("To intance %d create link failed.", inst_id);
+            CT_LOG_RUN_ERR("To intance %d create link failed.ret = %d", inst_id, ret);
             return CT_ERROR;
         }
     }

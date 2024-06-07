@@ -21,7 +21,7 @@ do
         logAndEchoInfo "${lib_name} is online. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         allOfflineFlag=1
     else
-        logAndEchoInfo "${lib_name} is offline. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        logAndEchoError "${lib_name} is offline. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         allOnlineFlag=1
     fi
 done
@@ -33,7 +33,7 @@ if [ -n "${daemonPid}" ];then
     logAndEchoInfo "cantian_daemon is online, pid is ${daemonPid}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     allOfflineFlag=1
 else
-    logAndEchoInfo "cantian_daemon is offline, pid is ${daemonPid}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    logAndEchoError "cantian_daemon is offline, pid is ${daemonPid}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     allOnlineFlag=1
 fi
 
@@ -46,7 +46,7 @@ if [ $? -eq 0 ];then
     logAndEchoInfo "cantian.timer is active. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     allOfflineFlag=1
 else
-    logAndEchoInfo "cantian.timer is inactive. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    logAndEchoError "cantian.timer is inactive. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     allOnlineFlag=1
 fi
 
@@ -55,7 +55,7 @@ if [ $? -eq 0 ];then
     logAndEchoInfo "cantian.timer is enabled. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     allOfflineFlag=1
 else
-    logAndEchoInfo "cantian.timer is disabled. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    logAndEchoError "cantian.timer is disabled. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     allOnlineFlag=1
 fi
 
@@ -67,7 +67,7 @@ if [ $? -eq 0 ];then
     logAndEchoInfo "cantian_logs_handler.timer is active. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     allOfflineFlag=1
 else
-    logAndEchoInfo "cantian_logs_handler.timer is inactive. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    logAndEchoError "cantian_logs_handler.timer is inactive. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     allOnlineFlag=1
 fi
 
@@ -76,7 +76,7 @@ if [ $? -eq 0 ];then
     logAndEchoInfo "cantian_logs_handler.timer is enabled. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     allOfflineFlag=1
 else
-    logAndEchoInfo "cantian_logs_handler.timer is disabled. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    logAndEchoError "cantian_logs_handler.timer is disabled. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     allOnlineFlag=1
 fi
 
@@ -88,7 +88,7 @@ if [ ${allOnlineFlag} -eq 0 ]; then
 fi
 
 if [ ${allOfflineFlag} -eq 0 ]; then
-    logAndEchoInfo "process and systemd is all offline. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    logAndEchoError "process and systemd is all offline. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     exit 1
 fi
 
