@@ -385,15 +385,18 @@ function install_rpm()
 }
 
 function show_cantian_version() {
-    echo '#!/bin/bash
-    set +x
     sn=$(dmidecode -s system-uuid)
     name=$(cat /etc/hostname)
-    version=$(cat /opt/cantian/versions.yml | grep -E "Version:" | awk '{print $2}' | \sed 's/\([0-9]*\.[0-9]*\)\(\.[0-9]*\)\?\.[A-Z].*/\1\2/')
-    echo SN                          : ${sn}
-    echo System Name                 : ${name}
-    echo Product Model               : Cantian
-    echo Product Version             : ${version}' > /usr/local/bin/show
+    version=$(grep -E "Version:" /opt/cantian/versions.yml | awk '{print $2}' | sed 's/\([0-9]*\.[0-9]*\)\(\.[0-9]*\)\?\.[A-Z].*/\1\2/')
+
+    cat <<EOF > /usr/local/bin/show
+#!/bin/bash
+echo "SN : ${sn}"
+echo "System Name : ${name}"
+echo "Product Model : Cantian"
+echo "Product Version : ${version}"
+EOF
+
     chmod 550 /usr/local/bin/show
 }
 
