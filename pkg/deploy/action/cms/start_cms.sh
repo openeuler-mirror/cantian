@@ -97,6 +97,7 @@ function wait_for_success() {
     sleep 1
     i=$((i + 1))
     if [ $i -eq ${attempts} ]; then
+      log "WAIT FOR SUCCESS TIMEOUT"
       break
     fi
   done
