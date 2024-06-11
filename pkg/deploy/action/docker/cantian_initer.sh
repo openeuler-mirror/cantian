@@ -60,7 +60,7 @@ function change_mtu() {
 
 function wait_config_done() {
     # 等待pod网络配置完成
-    logAndEchoInfo "Begin to wait network done. if block here, please check it."
+    logAndEchoInfo "Begin to wait network done. cms_ip: ${node_domain}"
     resolve_times=1
     ping ${node_domain} -c 1 -w 1
     while [ $? -ne 0 ]
@@ -71,6 +71,7 @@ function wait_config_done() {
             logAndEchoError "timeout for resolving cms domain name!"
             exit_with_log
         fi
+        logAndEchoInfo "wait cms_ip: ${node_domain} ready, it has been ping ${resolve_times} times."
         ping ${node_domain} -c 1 -w 1
     done
 }
@@ -178,16 +179,13 @@ function set_version_file() {
         logAndEchoError "${VERSION_FILE} is not exist!"
         exit_with_log
     fi
-    cp -rf ${PKG_PATH}/${VERSION_FILE} ${VERSION_PATH}/${VERSION_FILE}
+
+    if [ ! -f ${VERSION_PATH}/${VERSION_FILE} ]; then
+        cp -rf ${PKG_PATH}/${VERSION_FILE} ${VERSION_PATH}/${VERSION_FILE}
+    fi
 }
 
 function init_start() {
-    # Cantian启动前先执行升级流程
-    sh ${CURRENT_PATH}/container_upgrade.sh
-    if [ $? -ne 0 ]; then
-        exit_with_log
-    fi
-
     # Cantian启动前执行init流程，更新各个模块配置文件，初始化cms
     sh ${SCRIPT_PATH}/appctl.sh init_container
     if [ $? -ne 0 ]; then
@@ -203,11 +201,20 @@ function init_start() {
     fi
     logAndEchoInfo "pre-check the parameters success."
 
+    # Cantian启动前先执行升级流程
+    sh ${CURRENT_PATH}/container_upgrade.sh
+    if [ $? -ne 0 ]; then
+        rm -rf ${HEALTHY_FILE}
+        exit_with_log
+    fi
+
     # Cantian启动
     sh ${SCRIPT_PATH}/appctl.sh start
     if [ $? -ne 0 ]; then
         exit_with_log
     fi
+
+    set_version_file
 
     # 拉起MySQL
     if [[ "${cantian_in_container}" == "1" ]]; then
@@ -221,11 +228,6 @@ function init_start() {
             exit_with_log
         fi
         logAndEchoInfo "start mysqld success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-    fi
-    
-
-    if [ ! -f ${VERSION_PATH}/${VERSION_FILE} ]; then
-        set_version_file
     fi
 
     # 创建就绪探针
