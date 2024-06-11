@@ -1089,7 +1089,7 @@ AS SELECT * FROM `cantian`.`dv_buffer_recycle_stats`;
 
 -- buffer pool命中率：DV_BUFFER_ACCESS_STATS
 CREATE OR REPLACE VIEW cantian_buffer_pool_hit
-AS SELECT AVG(HIT_RATIO) as cantian_buffer_pool_hit FROM `cantian`.`dv_buffer_access_stats`;
+AS SELECT 1-SUM(MISS_COUNT)/SUM(TOTAL_ACCESS) as cantian_buffer_pool_hit FROM `cantian`.`dv_buffer_access_stats`;
 
 -- fsync data当前等待数频率：DV_SYS_STATS
 CREATE OR REPLACE VIEW cantian_data_pending_fsyncs
