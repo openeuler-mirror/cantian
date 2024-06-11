@@ -210,6 +210,8 @@ dc_entity_t *rd_invalid_entity(knl_session_t *session, dc_entry_t *entry)
 {
     dc_entity_t *entity = NULL;
 
+    dc_wait_till_load_finish(session, entry);
+
     if (entry->entity != NULL) {
         table_t *table = &entry->entity->table;
 
@@ -642,6 +644,7 @@ void rd_dc_drop(knl_session_t *session, dc_user_t *user, dc_entry_t *entry)
     }
 
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+    dc_wait_till_load_finish(session, entry);
     if (entry->entity != NULL) {
         dc_release_segment_dls(session, entry->entity);
         entry->entity->valid = CT_FALSE;
@@ -689,6 +692,7 @@ void rd_dc_remove(knl_session_t *session, dc_entry_t *entry, text_t *name)
     }
 
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+    dc_wait_till_load_finish(session, entry);
     if (entry->entity != NULL) {
         dc_release_segment_dls(session, entry->entity);
         entry->entity->valid = CT_FALSE;
@@ -758,6 +762,7 @@ void rd_drop_table(knl_session_t *session, log_entry_t *log)
 
     /* seem like dc_open */
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+    dc_wait_till_load_finish(session, entry);
     if (entry->entity != NULL) {
         cm_spin_lock(&entry->entity->ref_lock, NULL);
         entry->entity->ref_count++;
@@ -815,6 +820,7 @@ void rd_drop_view(knl_session_t *session, log_entry_t *log)
 
     /* seem like dc_open */
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+    dc_wait_till_load_finish(session, entry);
     if (entry->entity != NULL) {
         cm_spin_lock(&entry->entity->ref_lock, NULL);
         entry->entity->ref_count++;
@@ -2358,6 +2364,7 @@ void rd_refresh_dc(knl_session_t *session, log_entry_t *log)
 
     entry = DC_GET_ENTRY(user, rd->oid);
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+    dc_wait_till_load_finish(session, entry);
     if (entry->entity == NULL) {
         cm_spin_unlock(&entry->lock);
         return;
