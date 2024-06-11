@@ -337,6 +337,7 @@ static status_t lock_try_lock_table_shared(knl_session_t *session, knl_handle_t 
         if (!locked) {
             drc_unlock_local_resx(lock_res);
             unlock_table_local(session, entry, session->kernel->dtc_attr.inst_id, local_lock_released); /* the table may be dropped and invalidated from other nodes.*/
+            item->dc_entry = NULL;
             return CT_ERROR;
         }
         latch_stat->lock_mode = DRC_LOCK_SHARE;
