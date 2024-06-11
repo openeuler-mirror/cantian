@@ -523,9 +523,6 @@ class CheckInstallConfig(CheckBase):
 
         install_config_params = self.read_install_config()
 
-        if install_config_params['cantian_in_container'] != '0':
-            ip_check_element.remove('cms_ip')
-
         self.install_config_params_init(install_config_params)
 
         self.cluster_name = install_config_params.get("cluster_name")
@@ -546,6 +543,7 @@ class CheckInstallConfig(CheckBase):
             self.config_key.update(self.file_config_key)
 
         if install_config_params['cantian_in_container'] != '0':
+            ip_check_element.remove('cms_ip')
             ping_check_element.remove("cms_ip")
             ip_check_element.remove("cantian_vlan_ip")
             ping_check_element.remove("cantian_vlan_ip")
@@ -600,7 +598,7 @@ class CheckInstallConfig(CheckBase):
             install_config_params['deploy_mode'] = "dbstore"
         if 'dbstore_fs_vstore_id' not in install_config_params.keys():
             install_config_params['dbstore_fs_vstore_id'] = "0"
-        if install_config_params.get("mes_ssl_switch") == True and install_config_params.get("cantian_in_container", -1) == "0":
+        if install_config_params.get("mes_ssl_switch") == True and install_config_params.get("cantian_in_container", "-1") == "0":
             self.config_key.update(self.mes_type_key)
         if 'db_type' not in install_config_params.keys():
             install_config_params['db_type'] = '0'

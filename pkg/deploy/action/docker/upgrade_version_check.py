@@ -3,10 +3,10 @@ import os
 import re
 from pathlib import Path
 from get_config_info import get_value
-sys.path.append("..")
-from om_log import UPGRADE_VERSION_CHECK_LOGS as LOG
-
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(os.path.join(CUR_PATH, ".."))
+from om_log import LOGGER as LOG
+
 METADATA_FS = get_value("storage_metadata_fs")
 VERSION_PREFIX = 'Version:'
 SUB_VERSION_PREFIX = ('B', 'SP')
@@ -35,7 +35,7 @@ class UpgradeVersionCheck:
     
     def process_white_list(self):
         with open(self.white_list_file, 'r', encoding='utf-8') as file:
-            white_list_info = file.readline()
+            white_list_info = file.readlines()
 
         for white_list_detail in white_list_info[1:]:
             if not white_list_detail.strip():
@@ -62,14 +62,15 @@ class UpgradeVersionCheck:
                 continue
 
             if white_sub_version == '*' or white_sub_version == source_sub_version:
-                if not self.update_system_version():
-                    err_msg = 'change system list failed'
-                    return self.execption_handler(err_msg)
-                return 'True success'
+                if "rollup" in white_list_detail[0]:
+                    return 'True {} rollup'.format(white_list_detail[1])
+                return 'True {} offline'.format(white_list_detail[1])
 
-        err_msg = "source version '{}' not in white list.".formate(self.source_version)
+        err_msg = "source version '{}' not in white list.".format(self.source_version)
         return self.execption_handler(err_msg)
 
 if __name__ == '__main__':
     version_check = UpgradeVersionCheck()
+    version_check.read_source_version_info()
+    version_check.process_white_list()
     print(version_check.source_version_check())
