@@ -2166,7 +2166,7 @@ EXTER_ATTACK int tse_analyze_table(tianchi_handler_t *tch, const char *db_name,
     cm_str2text(db_name, &def->owner);
     cm_str2text(table_name, &def->name);
     def->sample_ratio = (sampling_ratio == STATS_MAX_ESTIMATE_PERCENT) ? STATS_FULL_TABLE_SAMPLE : sampling_ratio;
-    def->sample_type = STATS_SPECIFIED_SAMPLE;
+    def->sample_type = (sampling_ratio == STATS_MAX_ESTIMATE_PERCENT) ? STATS_AUTO_SAMPLE : STATS_SPECIFIED_SAMPLE;
     def->is_default = CT_FALSE;
     def->part_name = CM_NULL_TEXT;
     def->sample_level = BLOCK_SAMPLE;
