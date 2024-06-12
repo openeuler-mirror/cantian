@@ -225,13 +225,14 @@ class DRDeploy(object):
         关闭长连接
         :return:
         """
+        LOG.info("Start to do unlock instance for backup.")
         self.record_deploy_process("do_unlock_instance_for_backup", "start")
         try:
             os.killpg(self.backup_lock_pid, signal.SIGKILL)
         except ProcessLookupError as err:
             err_msg = "Failed to do unlock instance for backup, the child process was accidentally killed prematurely"
             LOG.error(err_msg)
-            self.record_deploy_process("do_unlock_instance_for_backup", "failed")
+            self.record_deploy_process("do_unlock_instance_for_backup", "failed", code=-1, description=err_msg)
             raise Exception(err_msg)
         except Exception as err:
             err_msg = "Failed to do unlock instance for backup, stderr:%s" % (str(err))
