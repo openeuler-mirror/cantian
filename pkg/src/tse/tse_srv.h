@@ -63,7 +63,7 @@ extern "C" {
 #define MAX_DDL_ERROR_MSG_LEN 1024
 #define PART_CURSOR_NUM 8192
 #define MAX_SUBPART_NUM 4096    // 参天限制每个一级分区下子分区不超过4096
-#define TSE_BUF_LEN (70 * 1024)
+#define TSE_BUF_LEN (64 * 1024)
 #define BIG_RECORD_SIZE TSE_BUF_LEN  // 采用最大长度
 #define MAX_RECORD_SIZE (1 * TSE_BUF_LEN)
 #define TSE_MAX_KEY_NAME_LENGTH 64
