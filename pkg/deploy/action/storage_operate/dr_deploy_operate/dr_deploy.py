@@ -10,6 +10,7 @@ import stat
 import time
 import traceback
 import signal
+import subprocess
 
 from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from storage_operate.dr_deploy_operate.dr_deploy_common import KmcResolve
@@ -207,7 +208,6 @@ class DRDeploy(object):
             err_msg.replace(self.mysql_pwd, "***")
             LOG.error(err_msg)
             self.record_deploy_process("do_lock_instance_for_backup", "failed", code=-1, description=err_msg)
-            close_child_process(pobj)
             raise Exception(err_msg)
         self.backup_lock_pid = pobj.pid
         LOG.info("Success to do lock instance for backup.")
