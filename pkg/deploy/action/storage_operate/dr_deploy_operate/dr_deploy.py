@@ -232,6 +232,7 @@ class DRDeploy(object):
             LOG.error(err_msg)
             self.record_deploy_process("do_unlock_instance_for_backup", "failed", code=-1, description=err_msg)
             raise Exception(err_msg)
+        self.backup_lock_pid = None
         LOG.info("Success to do unlock instance for backup.")
         self.record_deploy_process("do_unlock_instance_for_backup", "success")
 
@@ -1111,6 +1112,9 @@ class DRDeploy(object):
                     self.active_execute()
                 else:
                     self.standby_execute()
+            except:
+                if self.backup_lock_pid is not None:
+                    self.do_unlock_instance_for_backup()
             finally:
                 self.dr_deploy_opt.storage_opt.logout()
             # 安装部署完成后记录加密密码到配置文件
