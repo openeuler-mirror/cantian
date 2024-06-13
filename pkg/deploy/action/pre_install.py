@@ -20,6 +20,11 @@ NEEDED_MEM_SIZE = 16 * 1024  # M
 dir_name, _ = os.path.split(os.path.abspath(__file__))
 CANTIAND_INI_FILE = "/mnt/dbdata/local/cantian/tmp/data/cfg/cantiand.ini"
 
+SINGLE_DOUBLE_PROCESS_MAP = {
+    "0": "cantiand_in_cluster",
+    "1": "cantiand_with_mysql_in_cluster"
+}
+
 ip_check_element = {
     'cantian_vlan_ip',
     'storage_vlan_ip',
@@ -315,7 +320,7 @@ class CheckInstallConfig(CheckBase):
             'deploy_user', 'node_id', 'cms_ip', 'storage_dbstore_fs', 'storage_share_fs', 'storage_archive_fs',
             'storage_metadata_fs', 'share_logic_ip', 'archive_logic_ip', 'metadata_logic_ip', 'db_type',
             'MAX_ARCH_FILES_SIZE', 'mysql_in_container', 'mysql_metadata_in_cantian', 'storage_logic_ip', 'deploy_mode',
-            'mes_ssl_switch', 'cantian_in_container', 'dbstore_demo'
+            'mes_ssl_switch', 'cantian_in_container', 'dbstore_demo', 'deploy_policy'
         }
         self.dbstore_config_key = {
             'cluster_name', 'cantian_vlan_ip', 'storage_vlan_ip', 'link_type', 'storage_dbstore_page_fs',
@@ -522,6 +527,10 @@ class CheckInstallConfig(CheckBase):
             return False
 
         install_config_params = self.read_install_config()
+        ret = self.init_config_by_deploy_policy(install_config_params)
+        if not ret:
+            LOG.error("init deploy policy failed")
+            return False
 
         self.install_config_params_init(install_config_params)
 
@@ -604,6 +613,69 @@ class CheckInstallConfig(CheckBase):
             install_config_params['db_type'] = '0'
         if 'mysql_metadata_in_cantian' not in install_config_params.keys():
             install_config_params['mysql_metadata_in_cantian'] = True
+
+    def parse_policy_config_file(self):
+        current_dir = os.path.dirname(self.config_path)
+        policy_path = os.path.join(current_dir, "deploy_policy_config.json")
+        try:
+            with open(policy_path, 'r', encoding='utf8') as file_path:
+                json_data = json.load(file_path)
+                return json_data
+        except Exception as error:
+            LOG.error('load %s error, error: %s', policy_path, str(error))
+            return False
+    
+    def parse_cantian_config_file(self):
+        current_dir = os.path.dirname(self.config_path)
+        cantian_config_path = os.path.join(current_dir, "cantian")
+        cantian_config_path = os.path.join(cantian_config_path, "install_config.json")
+        try:
+            with open(cantian_config_path, 'r', encoding='utf8') as file_path:
+                json_data = json.load(file_path)
+                return json_data
+        except Exception as error:
+            LOG.error('load %s error, error: %s', cantian_config_path, str(error))
+            return False
+    
+    def init_config_by_deploy_policy(self, install_config_params):
+        deploy_policy_json = self.parse_policy_config_file()
+        if deploy_policy_json is False:
+            LOG.error("parse deploy_policy_config.json failed")
+            return False
+
+        cantian_config_json = self.parse_cantian_config_file()
+        if cantian_config_json is False:
+            LOG.error("parse cantian/install_config.json failed")
+            return False
+        # 根据配置文件获取配置方案
+        deploy_policy_key = install_config_params.get("deploy_policy", "")
+        # 如果配置方案为空或者默认走原安装流程，直接返回
+        if deploy_policy_key == "" or deploy_policy_key == "default":
+            LOG.info("deploy policy is default")
+            # 如果未配置套餐参数，初始化套餐参数
+            install_config_params["deploy_policy"] = "default"
+            return True
+        LOG.info("deploy policy is %s" % deploy_policy_key)       
+        # 如果配置方案未配置则返回失败，安装结束
+        deploy_policy_value = deploy_policy_json.get(deploy_policy_key, {})
+        if deploy_policy_value == {}:
+            LOG.error("can not find the deploy policy(%s)" % deploy_policy_key)
+            return False
+            
+        # 如果配置方案合法则将方案中的参数写入配置文件
+        is_single_process = deploy_policy_value.get("single_process", "0")
+        if SINGLE_DOUBLE_PROCESS_MAP.get(is_single_process, "") != cantian_config_json.get("M_RUNING_MODE"):
+            LOG.error("The package type does not match the configuration parameters.")
+            return False
+        tmp_config = deploy_policy_value.get("config", {})
+
+        for item in tmp_config.keys():
+            if item in self.config_key:
+                install_config_params[item] = tmp_config.get(item, "")
+            else:
+                LOG.error("deploy policy has invalid params %s" % item)
+                return False
+        return True
 
 
 class PreInstall:
