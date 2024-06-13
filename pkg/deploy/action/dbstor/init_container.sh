@@ -52,6 +52,7 @@ function set_dbstor_config() {
     sed -i -r "s:(REMOTE_IP = ).*:\1${storage_vlan_ip}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(USER_NAME = ).*:\1${dbstor_user}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(PASSWORD = ).*:\1${dbstor_pwd}:g" ${DBSTOR_CONFIG_PATH}
+    sed -i -r "s:(NODE_ID = ).*:\1${node_id}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(CLUSTER_ID = ).*:\1${cluster_id}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(LOG_VSTOR = ).*:\1${log_vstor}:g" ${DBSTOR_CONFIG_PATH}
 }
