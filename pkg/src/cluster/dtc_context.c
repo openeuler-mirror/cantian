@@ -403,6 +403,10 @@ status_t dtc_register_proc(void)
         dtc_register_proc_func(MES_CMD_ARCH_SET_REQ, dcs_process_arch_set_request, CT_TRUE, "arch set req"));
     knl_securec_check(
         dtc_register_proc_func(MES_CMD_TIME_BROADCAST, dtc_process_time_broadcast, CT_FALSE, "TIME broadcast"));
+    knl_securec_check(dtc_register_proc_func(MES_CMD_SET_INCREMENT_UNBLOCK, dtc_bak_process_set_inc_unblock, CT_TRUE,
+        "set bak increment unblock"));
+    knl_securec_check(dtc_register_proc_func(MES_CMD_SET_INCREMENT_UNBLOCK_ACK, mes_process_msg_ack, CT_FALSE,
+        "set bak increment unblock ack"));
     for (uint32 i = 0; i < MES_CMD_CEIL; i++) {
         mes_set_msg_enqueue(i, g_processors[i].is_enqueue);
     }

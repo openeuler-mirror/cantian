@@ -3512,3 +3512,72 @@ void bak_set_archfile_name_with_lsn(knl_session_t *session,
         last_pos = current_pos;
     }
 }
+
+status_t dtc_bak_set_inc_unblock(knl_session_t *session, uint32 inst_id)
+{
+    mes_message_head_t head = { 0 };
+    mes_message_t msg = { 0 };
+    mes_init_send_head(&head, MES_CMD_SET_INCREMENT_UNBLOCK, sizeof(mes_message_head_t),
+                       CT_INVALID_ID32, session->kernel->dtc_attr.inst_id, inst_id, session->id, CT_INVALID_ID16);
+
+    if (mes_send_data((void *)&head) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] %s failed", "send bak set increment unblock mes ");
+        return CT_ERROR;
+    }
+
+    if (mes_recv(session->id, &msg, CT_FALSE, CT_INVALID_ID32, MES_WAIT_MAX_TIME) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] %s failed", "receive bak set increment unblock mes ");
+        return CT_ERROR;
+    }
+
+    if (SECUREC_UNLIKELY(msg.head->cmd != MES_CMD_SET_INCREMENT_UNBLOCK_ACK)) {
+        mes_release_message_buf(msg.buffer);
+        return CT_ERROR;
+    }
+
+    mes_release_message_buf(msg.buffer);
+    return CT_SUCCESS;
+}
+
+void dtc_bak_process_set_inc_unblock(void *sess, mes_message_t *receive_msg)
+{
+    if (sizeof(mes_message_head_t) != receive_msg->head->size) {
+        CT_LOG_RUN_ERR("[BACKUP] bak set inc unblock msg size is invalid, msg size %u.", receive_msg->head->size);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
+
+    knl_session_t *session = (knl_session_t *)sess;
+    session->kernel->db.ctrl.core.inc_backup_block = CT_FALSE;
+
+    mes_message_head_t head = { 0 };
+    mes_init_ack_head(receive_msg->head, &head, MES_CMD_SET_INCREMENT_UNBLOCK_ACK,
+                      sizeof(mes_message_head_t), session->id);
+    mes_release_message_buf(receive_msg->buffer);
+    if (mes_send_data(&head) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] %s failed", "send bak set increment unblock finish mes ");
+        return;
+    }
+    CT_LOG_RUN_INF("[BACKUP] succ to process backup increment unblock");
+    return;
+}
+
+status_t dtc_bak_set_increment_unblock(knl_session_t *session)
+{
+    cluster_view_t view = { 0 };
+    for (uint32 i = 0; i < g_dtc->profile.node_count; i++) {
+        if (SECUREC_UNLIKELY(i == g_dtc->profile.inst_id)) {
+            continue;
+        }
+        rc_get_cluster_view(&view, CT_FALSE);
+        if (!rc_bitmap64_exist(&view.bitmap, i)) {
+            continue;
+        }
+        if (dtc_bak_set_inc_unblock(session, i) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[BACKUP] set node %u increment unblock mes failed", i);
+            return CT_ERROR;
+        }
+    }
+    CT_LOG_RUN_INF("[BACKUP] succ to set backup increment unblock");
+    return CT_SUCCESS;
+}

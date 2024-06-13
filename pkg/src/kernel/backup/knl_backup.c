@@ -3307,6 +3307,12 @@ status_t bak_fsync_and_close(bak_t *bak, device_type_t type, int32 *handle)
 
 status_t bak_set_increment_unblock(knl_session_t *session)
 {
+    if (session->kernel->attr.clustered) {
+        if (dtc_bak_set_increment_unblock(session) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[BACKUP] set inc_backup_block value for other node failed");
+            return CT_ERROR;
+        }
+    }
     session->kernel->db.ctrl.core.inc_backup_block = CT_FALSE;
     if (db_save_core_ctrl(session) != CT_SUCCESS) {
         CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when set inc backup unblock");

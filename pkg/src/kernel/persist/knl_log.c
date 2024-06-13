@@ -1435,7 +1435,7 @@ static log_point_t log_recycle_get_arch_point(knl_session_t *session, log_point_
     return recycle_point;
 }
 
-static void log_recycle_ulog_space_standby(knl_session_t *session, log_point_t *point)
+static void log_recycle_ulog_space_standby(knl_session_t *session)
 {
     arch_context_t *arch_ctx = &session->kernel->arch_ctx;
     bool32 is_archive = session->kernel->arch_ctx.is_archive;
@@ -1445,17 +1445,18 @@ static void log_recycle_ulog_space_standby(knl_session_t *session, log_point_t *
     log_lock_logfile(session);
     for (uint32 node_id = 0; node_id < g_dtc->profile.node_count; node_id++) {
         arch_proc_context_t *proc_ctx = &g_arch_standby_ctx.arch_proc_ctx[node_id];
+        log_point_t point = dtc_get_ctrl(session, node_id)->rcy_point;
         int32 logfile_handle = arch_ctx->logfile[node_id].handle;
         if (is_archive && proc_ctx->enabled == CT_TRUE) {
             st_arch_log_record_id_t last_arch_log_record = proc_ctx->last_archived_log_record;
-            recycle_lsn = MIN(point->lsn, last_arch_log_record.end_lsn);
+            recycle_lsn = MIN(point.lsn, last_arch_log_record.end_lsn);
             CT_LOG_DEBUG_INF("[ARCH] recycle lsn %llu, point lsn %llu, end lsn %llu",
-                           recycle_lsn, point->lsn, last_arch_log_record.end_lsn);
+                           recycle_lsn, point.lsn, last_arch_log_record.end_lsn);
         } else if (is_archive && proc_ctx->enabled != CT_TRUE) { 
             CT_LOG_DEBUG_INF("[ARCH] skip recycle log, wait standby arch proc ctx initialized");
             continue;
         } else {
-            recycle_lsn = point->lsn;
+            recycle_lsn = point.lsn;
             CT_LOG_DEBUG_INF("[ARCH] recycle lsn %llu, archive disabled", recycle_lsn);
         }
 
@@ -1481,7 +1482,7 @@ void log_recycle_file_dbstor(knl_session_t *session, log_point_t *point)
         return;
     }
     if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master()) {
-        log_recycle_ulog_space_standby(session, point);
+        log_recycle_ulog_space_standby(session);
         return;
     }
     CT_LOG_RUN_ERR("the standby node %u is not master, can not recycle log", session->kernel->id);
