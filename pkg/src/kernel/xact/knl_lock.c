@@ -335,6 +335,7 @@ static status_t lock_try_lock_table_shared(knl_session_t *session, knl_handle_t 
         if (!locked) {
             drc_unlock_local_resx(lock_res);
             unlock_table_local(session, entry, session->kernel->dtc_attr.inst_id, local_lock_released); /* the table may be dropped and invalidated from other nodes.*/
+            item->dc_entry = NULL;
             return CT_ERROR;
         }
         latch_stat->lock_mode = DRC_LOCK_SHARE;
@@ -1634,6 +1635,10 @@ void unlock_table_without_xact(knl_session_t *session, knl_handle_t dc_entity, b
     lock = entity->entry->sch_lock;
 
     cm_spin_lock(&entity->entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
+    if (lock == NULL) {
+        cm_spin_unlock(&entity->entry->sch_lock_mutex);
+        return;
+    }
     knl_panic(lock->shared_count > 0);
     lock->shared_count--;
     SCH_LOCK_CLEAN(session, lock);
@@ -1670,9 +1675,16 @@ bool32 lock_table_without_xact(knl_session_t *session, knl_handle_t dc_entity, b
     drc_get_local_latch_statx(lock_res, &latch_stat);
     if (latch_stat->lock_mode == DRC_LOCK_NULL) {
         locked = dls_request_latch_s(session, &entry->ddl_latch.drid, CT_TRUE, LOCK_INF_WAIT, CT_INVALID_ID32);
+        cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
+        if (locked && !entity->valid) {
+            dls_request_clean_granted_map(session, &entry->ddl_latch.drid);
+            locked = CT_FALSE;
+            // request master to unlock dls
+        }
+        cm_spin_unlock(&entry->sch_lock_mutex);
         if (!locked) {
             drc_unlock_local_resx(lock_res);
-            unlock_table_without_xact(session, entry, *inuse);
+            unlock_table_without_xact(session, dc_entity, *inuse);
             return CT_FALSE;
         }
         latch_stat->lock_mode = DRC_LOCK_SHARE;

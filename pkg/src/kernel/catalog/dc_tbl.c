@@ -826,24 +826,42 @@ status_t dc_load_table_monitor(knl_session_t *session, dc_entity_t *entity)
     return CT_SUCCESS;
 }
 
-status_t dc_load_entity_internal(knl_session_t *session, dc_user_t *user, uint32 oid, dc_entry_t *entry)
+dc_entity_t *dc_alloc_entity_internal(knl_session_t *session, dc_user_t *user, uint32 oid, dc_entry_t *entry)
 {
     dc_context_t *ctx = &session->kernel->dc_ctx;
-    dc_entity_t *entity = entry->entity;
 
     session->query_scn = DB_CURR_SCN(session);
 
     if (dc_alloc_entity(ctx, entry) != CT_SUCCESS) {
         entry->entity = NULL;
-        return CT_ERROR;
+        return NULL;
     }
 
-    entity = entry->entity;
+
+    if (entry->appendix == NULL) {
+        if (dc_alloc_appendix(session, entry) != CT_SUCCESS) {
+            dc_entry_dec_ref(entry->entity);
+            mctx_destroy(entry->entity->memory);
+            return NULL;
+        }
+    }
+
+    if (entry->sch_lock == NULL) {
+        if (dc_alloc_schema_lock(session, entry) != CT_SUCCESS) {
+            dc_entry_dec_ref(entry->entity);
+            mctx_destroy(entry->entity->memory);
+            return NULL;
+        }
+    }
+    return entry->entity;
+}
+
+status_t dc_load_entity_internal(knl_session_t *session, dc_user_t *user, uint32 oid, dc_entity_t *entity, dc_entry_t *entry)
+{
 #ifdef Z_SHARDING
     if (entry->type == DICT_TYPE_DISTRIBUTE_RULE) {
-        if (dc_load_distribute_rule_entity(session, user, oid, entry->entity) != CT_SUCCESS) {
-            mctx_destroy(entry->entity->memory);
-            entry->entity = NULL;
+        if (dc_load_distribute_rule_entity(session, user, oid, entity) != CT_SUCCESS) {
+            mctx_destroy(entity->memory);
             return CT_ERROR;
         }
 
@@ -854,22 +872,19 @@ status_t dc_load_entity_internal(knl_session_t *session, dc_user_t *user, uint32
     if (entry->type == DICT_TYPE_VIEW) {
         dc_entry_dec_ref(entity);
         if (dc_load_view_entity(session, user, oid, entity) != CT_SUCCESS) {
-            mctx_destroy(entry->entity->memory);
-            entry->entity = NULL;
+            mctx_destroy(entity->memory);
             return CT_ERROR;
         }
     } else {
         if (dc_load_table_entity(session, user, oid, entity) != CT_SUCCESS) {
             dc_entry_dec_ref(entity);
-            mctx_destroy(entry->entity->memory);
-            entry->entity = NULL;
+            mctx_destroy(entity->memory);
             return CT_ERROR;
         }
 
         if (entity->column_count >= session->kernel->attr.max_column_count) {
             dc_entry_dec_ref(entity);
-            mctx_destroy(entry->entity->memory);
-            entry->entity = NULL;
+            mctx_destroy(entity->memory);
             CT_THROW_ERROR_EX(ERR_INVALID_PARAMETER,
                 "the parameter MAX_COLUMN_COUNT is smaller than the columns count of table %s",
                 entity->table.desc.name);
@@ -877,31 +892,11 @@ status_t dc_load_entity_internal(knl_session_t *session, dc_user_t *user, uint32
         }
     }
 
-    if (entry->appendix == NULL) {
-        if (dc_alloc_appendix(session, entry) != CT_SUCCESS) {
-            dc_entry_dec_ref(entity);
-            mctx_destroy(entry->entity->memory);
-            entry->entity = NULL;
-            return CT_ERROR;
-        }
-
-        if (dc_load_table_monitor(session, entity) != CT_SUCCESS) {
-            dc_entry_dec_ref(entity);
-            mctx_destroy(entity->memory);
-            entry->entity = NULL;
-            return CT_ERROR;
-        }
+    if (dc_load_table_monitor(session, entity) != CT_SUCCESS) {
+        dc_entry_dec_ref(entity);
+        mctx_destroy(entity->memory);
+        return CT_ERROR;
     }
-
-    if (entry->sch_lock == NULL) {
-        if (dc_alloc_schema_lock(session, entry) != CT_SUCCESS) {
-            dc_entry_dec_ref(entity);
-            mctx_destroy(entry->entity->memory);
-            entry->entity = NULL;
-            return CT_ERROR;
-        }
-    }
-
     return CT_SUCCESS;
 }
 
@@ -945,41 +940,33 @@ status_t dc_load_entity(knl_session_t *session, dc_user_t *user, uint32 oid, dc_
     if (entry->entity != NULL) { // check entity
         return CT_SUCCESS;
     }
-    entry->is_loading = CT_TRUE;
-    cm_spin_unlock(&entry->lock);
 
-    while (!dls_latch_timed_s(session, &entry->ddl_latch, 1, CT_FALSE, NULL, CT_INVALID_ID32)) {
-        if (dc != NULL && !dc_entry_visible(entry, dc)) {
-            cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
-            entry->is_loading = CT_FALSE;
-            CT_THROW_ERROR(ERR_TABLE_OR_VIEW_NOT_EXIST, user->desc.name, entry->name);
-            return CT_ERROR;
-        }
-    }
     if (RC_REFORM_RECOVERY_IN_PROGRESS) {
-        dls_unlatch(session, &entry->ddl_latch, NULL);
-        cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
-        knl_panic(entry->is_loading);
-        entry->is_loading = CT_FALSE;
         CT_LOG_RUN_ERR("loading dc during reform");
         return CT_ERROR;
     }
 
     if (dc != NULL && !dc_entry_visible(entry, dc)) {
-        dls_unlatch(session, &entry->ddl_latch, NULL);
-        cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
-        entry->is_loading = CT_FALSE;
         CT_THROW_ERROR(ERR_TABLE_OR_VIEW_NOT_EXIST, user->desc.name, entry->name);
         return CT_ERROR;
     }
 
-    status_t ret = dc_load_entity_internal(session, user, oid, entry);
-    dls_unlatch(session, &entry->ddl_latch, NULL);
+    dc_entity_t *entity = dc_alloc_entity_internal(session, user, oid, entry);
+    if (entity == NULL) {
+        entry->entity = NULL;
+        return CT_ERROR;
+    }
+    entry->is_loading = CT_TRUE;
+    cm_spin_unlock(&entry->lock);
 
+
+    status_t ret = dc_load_entity_internal(session, user, oid, entity, entry);
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
     knl_panic(entry->is_loading);
     entry->is_loading = CT_FALSE;
-    if (ret != CT_ERROR && entry->entity == NULL) {
+    if (ret == CT_ERROR) {
+        entry->entity = NULL;
+    } else if (entry->entity == NULL) {
         cm_reset_error();
         CT_THROW_ERROR(ERR_DC_LOAD_CONFLICT);
         // loading conflict with dc invalidation from ddl redo in partial recovery
@@ -1530,23 +1517,9 @@ static status_t dc_open_table_entry_internal(knl_session_t *session, dc_user_t *
     dc_entry_inc_ref(entry);
 
     entity = entry->entity;
-    knl_set_session_scn(session, CT_INVALID_ID64);
-    if (dc_load_table_entity(session, user, entry->id, entity) != CT_SUCCESS) {
-        dc_entry_dec_ref(entity);
-        mctx_destroy(entity->memory);
-        entry->entity = NULL;
-        return CT_ERROR;
-    }
 
     if (entry->appendix == NULL) {
         if (dc_alloc_appendix(session, entry) != CT_SUCCESS) {
-            dc_entry_dec_ref(entity);
-            mctx_destroy(entity->memory);
-            entry->entity = NULL;
-            return CT_ERROR;
-        }
-
-        if (dc_load_table_monitor(session, entity) != CT_SUCCESS) {
             dc_entry_dec_ref(entity);
             mctx_destroy(entity->memory);
             entry->entity = NULL;
@@ -1572,26 +1545,35 @@ static status_t dc_open_table_entry_internal(knl_session_t *session, dc_user_t *
 static status_t dc_open_table_entry(knl_session_t *session, dc_user_t *user, dc_entry_t *entry,
     knl_dictionary_t *dc)
 {
+    dc_entity_t *entity = NULL;
+
     dc_wait_till_load_finish(session, entry);
+    status_t ret = dc_open_table_entry_internal(session, user, entry, dc);
+    if (ret == CT_ERROR) {
+        entry->entity = NULL;
+        return ret;
+    }
+
     entry->is_loading = CT_TRUE;
+    entity = entry->entity;
     cm_spin_unlock(&entry->lock);
 
-    dls_latch_s(session, &entry->ddl_latch, session->id, CT_FALSE, NULL);
-    if (RC_REFORM_RECOVERY_IN_PROGRESS) {
-        dls_unlatch(session, &entry->ddl_latch, NULL);
-        cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
-        knl_panic(entry->is_loading);
-        entry->is_loading = CT_FALSE;
-        CT_LOG_RUN_ERR("loading dc during reform");
-        return CT_ERROR;
-    }
-    status_t ret = dc_open_table_entry_internal(session, user, entry, dc);
-    dls_unlatch(session, &entry->ddl_latch, NULL);
- 
+    knl_set_session_scn(session, CT_INVALID_ID64);
+    ret = dc_load_table_entity(session, user, entry->id, entity);
+
+    if (ret == CT_SUCCESS) {
+        ret = dc_load_table_monitor(session, entity);
+     }
+
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
     knl_panic(entry->is_loading);
     entry->is_loading = CT_FALSE;
-    if (ret != CT_ERROR && entry->entity == NULL) {
+    if (ret == CT_ERROR) {
+        dc_entry_dec_ref(entity);
+        mctx_destroy(entity->memory);
+        entry->entity = NULL;
+        return CT_ERROR;
+    } else if (entry->entity == NULL) {
         // loading conflict with dc invalidation from ddl redo in partial recovery
         CT_LOG_RUN_ERR("loading conflict, entity is null");
         ret = CT_ERROR;
