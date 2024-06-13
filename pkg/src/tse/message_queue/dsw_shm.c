@@ -157,9 +157,6 @@ void *_shm_alloc(struct shm_seg_sysv_s *seg, size_t size, int proc_id, int qbit_
 
     while (mem_list != NULL) {
         hdr = shm_get_blk_from_list(seg, mem_list);
-        if (hdr == NULL && size == BIG_RECORD_SIZE) {
-            return NULL;
-        }
         if (hdr != NULL) {
             break;
         }

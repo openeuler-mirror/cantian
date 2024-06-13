@@ -21,6 +21,7 @@ cluster_name=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_name"`
 max_arch_files_size=`python3 ${CURRENT_PATH}/get_config_info.py "MAX_ARCH_FILES_SIZE"`
 cms_ip=`python3 ${CURRENT_PATH}/get_config_info.py "cms_ip"`
 mes_ssl_switch=`python3 ${CURRENT_PATH}/get_config_info.py "mes_ssl_switch"`
+mysql_metadata_in_cantian=`python3 ${CURRENT_PATH}/get_config_info.py "mysql_metadata_in_cantian"`
 primary_keystore="/opt/cantian/common/config/primary_keystore_bak.ks"
 standby_keystore="/opt/cantian/common/config/standby_keystore_bak.ks"
 
@@ -68,6 +69,7 @@ function set_cantian_config() {
     sed -i -r "s:(INSTANCE_ID = ).*:\1${node_id}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(NODE_ID = ).*:\1${node_id}:g" ${CONFIG_PATH}/${CLUSTER_CONFIG_NAME}
     sed -i -r "s:(MAX_ARCH_FILES_SIZE = ).*:\1${max_arch_files_size}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+    sed -i -r "s:(MYSQL_METADATA_IN_CANTIAN = ).*:\1${mysql_metadata_in_cantian}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(CLUSTER_ID = ).*:\1${cluster_id}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(_SYS_PASSWORD = ).*:\1${password}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     if [ ${node_id} == 0 ]; then

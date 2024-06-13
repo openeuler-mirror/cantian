@@ -183,7 +183,7 @@ status_t dls_process_unlock_table(knl_session_t *session, drid_t *lock_id, drc_l
     // for table lock, master lock res not recycle, so master records grand_map is not correct,
     // would let table which is not owner to release lock
     if (lock_res == NULL) {
-        unlock_table_local(session, entry, session->kernel->dtc_attr.inst_id);
+        unlock_table_local(session, entry, session->kernel->dtc_attr.inst_id, CT_FALSE);
         dc_close(&dc);
         CT_LOG_RUN_WAR("[DLS] process unlock table lock(%u/%u/%u/%u/%u) success, local lock res is been recycled",
             lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
@@ -201,7 +201,7 @@ status_t dls_process_unlock_table(knl_session_t *session, drid_t *lock_id, drc_l
         latch_stat->lock_mode = DRC_LOCK_SHARE;
     }
     drc_unlock_local_resx(lock_res);
-    unlock_table_local(session, entry, session->kernel->dtc_attr.inst_id);
+    unlock_table_local(session, entry, session->kernel->dtc_attr.inst_id, CT_FALSE);
     dc_close(&dc);
     DTC_DLS_DEBUG_INF(
         "[DLS] release successfully table lock(%u/%u/%u/%u/%u) table name %s, local mode:%d, for remote mode:%d",

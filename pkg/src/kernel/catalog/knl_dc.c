@@ -892,6 +892,7 @@ void dc_remove(knl_session_t *session, dc_entity_t *entity, text_t *name)
     dc_invalidate_parents(session, entity);
 
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+    dc_wait_till_load_finish(session, entry);
     entity->valid = CT_FALSE;
     entry->entity = NULL;
     entry->recycled = CT_TRUE;
@@ -916,6 +917,7 @@ void dc_drop(knl_session_t *session, dc_entity_t *entity)
     dc_invalidate_parents(session, entity);
 
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+    dc_wait_till_load_finish(session, entry);
     entity->valid = CT_FALSE;
     entry->used = CT_FALSE;
     entry->org_scn = 0;
