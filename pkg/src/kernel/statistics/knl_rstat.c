@@ -33,6 +33,7 @@
 #include "temp_btree.h"
 #include "dc_part.h"
 #include "knl_sys_part_defs.h"
+#include "tse_ddl_list.h"
 
 #define STATS_GET_ENDPOINT(column_handler) \
     ((column_handler)->hist_info.prev_endpoint + (column_handler)->hist_info.dnv_per_num)
@@ -9179,6 +9180,11 @@ status_t stats_flush_monitor_normal(knl_session_t *session)
             continue;
         }
 
+	if (strncmp(((dc_entity_t *)dc.handle)->entry->name,
+	            MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) != 0) {
+            dc_close(&dc);
+            continue;
+        }
         if (lock_table_shared_directly(session, &dc) == CT_SUCCESS) {
             if (db_flush_sys_mon_modes(session, DC_ENTITY(&dc), uid, table_id) != CT_SUCCESS) {
                 status = CT_ERROR;
