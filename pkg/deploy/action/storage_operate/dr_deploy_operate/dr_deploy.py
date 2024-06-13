@@ -20,7 +20,6 @@ from logic.storage_operate import StorageInf
 from logic.common_func import read_json_config
 from logic.common_func import write_json_config
 from logic.common_func import exec_popen
-from logic.common_func import close_child_process
 from logic.common_func import retry
 from logic.common_func import get_status
 from om_log import DR_DEPLOY_LOG as LOG
