@@ -37,46 +37,18 @@
 #include <execinfo.h>
 #endif
 
-static char *g_module_info[] = {
-    "DB",
-    "INDEX",
-    "DC",
-    "SPACE",
-    "BUFFER",
-    "FLASH_BACK",
-    "PERSIST",
-    "TABLE",
-    "XACT",
-    "CLUSTER",
-    "COMMON",
-    "RC",
-    "TBOX",
-    "PE",
-    "DBSTORE",
-    "TSE",
-    "SERVER",
-    "KNL_COMM",
-    "CMS",
-    "MES",
-    "ZENFS",
-    "EXT_PROC",
-    "BACKUP",
-    "ARCHIVE",
-    "DEVICE",
-    "REPLICATION",
-    "PROTOCOL",
-    "ODBC",
-    "SHARD",
-    "TMS",
-    "CTBACKUP"
-};
+static char *g_module_info[] = { "DB",       "INDEX",  "DC",      "SPACE",    "BUFFER",      "FLASH_BACK", "PERSIST",
+                                 "TABLE",    "XACT",   "CLUSTER", "COMMON",   "RC",          "TBOX",       "PE",
+                                 "DBSTORE",  "TSE",    "SERVER",  "KNL_COMM", "CMS",         "MES",        "DSSAPI",
+                                 "EXT_PROC", "BACKUP", "ARCHIVE", "DEVICE",   "REPLICATION", "PROTOCOL",   "ODBC",
+                                 "SHARD",    "TMS",    "CTBACKUP" };
 
 typedef struct st_log_info_t {
     uint32 sess_id;
 } log_info_t;
 
 #ifdef WIN32
-__declspec(thread)log_info_t g_log_info = { 0 };
+__declspec(thread) log_info_t g_log_info = { 0 };
 #else
 __thread log_info_t g_log_info = { 0 };
 #endif
@@ -106,12 +78,14 @@ static void cm_log_remove_file(const char *file_name)
 bool32 g_filter_enable = 0;
 
 regex_conf_t g_regex_conf[] = {
-    {REGEX_LINE,     ENABLE_REGEX, "\n"}, // newline
-    {REGEX_SECURITY, ENABLE_REGEX, "security:\\S*"}, // security key
-    {REGEX_TOKEN,    ENABLE_REGEX, "[Tt][Oo][Kk][Ee][Nn]((\\S*)|(\\s*:\\s*)"
-    "|(\\s*=\\s*)|(\\s*-\\s*)|(\\s*\\(\\s*)|(\\s*\\[\\s*)|(\\s*\\{\\s*))\\S*"}, // token
-    {REGEX_PASSWORD, ENABLE_REGEX, "[Pp][Aa][Ss][Ss]([Ww]|[Ww][Dd]|[Ww][Oo][Rr][Dd])((\\S*)"
-     "|(\\s*:\\s*)|(\\s*=\\s*)|(\\s*-\\s*)|(\\s*\\(\\s*)|(\\s*\\[\\s*)|(\\s*\\{\\s*))\\S*"}, // password
+    { REGEX_LINE, ENABLE_REGEX, "\n" },                 // newline
+    { REGEX_SECURITY, ENABLE_REGEX, "security:\\S*" },  // security key
+    { REGEX_TOKEN, ENABLE_REGEX,
+      "[Tt][Oo][Kk][Ee][Nn]((\\S*)|(\\s*:\\s*)"
+      "|(\\s*=\\s*)|(\\s*-\\s*)|(\\s*\\(\\s*)|(\\s*\\[\\s*)|(\\s*\\{\\s*))\\S*" },  // token
+    { REGEX_PASSWORD, ENABLE_REGEX,
+      "[Pp][Aa][Ss][Ss]([Ww]|[Ww][Dd]|[Ww][Oo][Rr][Dd])((\\S*)"
+      "|(\\s*:\\s*)|(\\s*=\\s*)|(\\s*-\\s*)|(\\s*\\(\\s*)|(\\s*\\[\\s*)|(\\s*\\{\\s*))\\S*" },  // password
 };
 
 int compile_regex(regex_t *reg, const char *regex)
@@ -330,11 +304,13 @@ static void cm_log_build_normal_head(char *buf, uint32 buf_size, log_level_t log
     if (tz_hour >= 0) {
         // truncation CT_MAX_LOG_HEAD_LENGTH content
         errcode = snprintf_s(buf, (size_t)buf_size, CT_MAX_LOG_HEAD_LENGTH - 1, "UTC+%02d:%02d %s|%s|%05u|%u|%s>",
-            tz_hour, tz_min, date, module_name, g_log_info.sess_id, cm_get_current_thread_id(), log_level_str);
+                             tz_hour, tz_min, date, module_name, g_log_info.sess_id, cm_get_current_thread_id(),
+                             log_level_str);
     } else {
         // truncation CT_MAX_LOG_HEAD_LENGTH content
         errcode = snprintf_s(buf, (size_t)buf_size, CT_MAX_LOG_HEAD_LENGTH - 1, "UTC%02d:%02d %s|%s|%05u|%u|%s>",
-            tz_hour, tz_min, date, module_name, g_log_info.sess_id, cm_get_current_thread_id(), log_level_str);
+                             tz_hour, tz_min, date, module_name, g_log_info.sess_id, cm_get_current_thread_id(),
+                             log_level_str);
     }
 
     if (SECUREC_UNLIKELY(errcode == -1)) {
@@ -438,13 +414,13 @@ static bool32 cm_log_compare_file(const char *left_file_name, const char *right_
 }
 
 static status_t cm_log_add_backup_file(char *backup_file_name[CT_MAX_LOG_FILE_COUNT], uint32 *backup_file_count,
-    const char *log_dir, const char *bak_file)
+                                       const char *log_dir, const char *bak_file)
 {
     uint32 i, j;
     bool32 need_insert = CT_TRUE;
     errno_t errcode;
 
-    char *file_name = (char *)malloc(CT_FILE_NAME_BUFFER_SIZE); // free in remove_bak_file
+    char *file_name = (char *)malloc(CT_FILE_NAME_BUFFER_SIZE);  // free in remove_bak_file
     if (file_name == NULL) {
         CT_THROW_ERROR(ERR_MALLOC_BYTES_MEMORY, CT_FILE_NAME_BUFFER_SIZE);
         return CT_ERROR;
@@ -492,13 +468,13 @@ static status_t cm_log_add_backup_file(char *backup_file_name[CT_MAX_LOG_FILE_CO
 
 #ifdef _WIN32
 static status_t cm_log_search_backup_file(char *backup_file_name[CT_MAX_LOG_FILE_COUNT], uint32 *backup_file_count,
-    const char *log_dir, const char *log_file_name, const char *log_ext_name)
+                                          const char *log_dir, const char *log_file_name, const char *log_ext_name)
 {
     char bak_file_fmt[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
     WIN32_FIND_DATA data;
 
     PRTS_RETURN_IFERR(snprintf_s(bak_file_fmt, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/%s*.%s", log_dir,
-        log_file_name, log_ext_name));
+                                 log_file_name, log_ext_name));
 
     HANDLE handle = FindFirstFile(bak_file_fmt, &data);
     if (handle == INVALID_HANDLE_VALUE) {
@@ -520,7 +496,7 @@ static status_t cm_log_search_backup_file(char *backup_file_name[CT_MAX_LOG_FILE
 }
 #else
 static status_t cm_log_search_backup_file(char *backup_file_name[CT_MAX_LOG_FILE_COUNT], uint32 *backup_file_count,
-    const char *log_dir, const char *file_name, const char *log_ext_name)
+                                          const char *log_dir, const char *file_name, const char *log_ext_name)
 {
     struct dirent *ent = NULL;
 
@@ -547,7 +523,7 @@ static status_t cm_log_search_backup_file(char *backup_file_name[CT_MAX_LOG_FILE
 #endif
 
 status_t cm_log_get_bak_file_list(char *backup_file_name[CT_MAX_LOG_FILE_COUNT], uint32 *backup_file_count,
-    const char *log_file)
+                                  const char *log_file)
 {
     // 1.The log file path, the file name, and extension of the log file are parsed from the input parameters
     const char *log_dir = NULL;
@@ -590,7 +566,7 @@ status_t cm_log_get_bak_file_list(char *backup_file_name[CT_MAX_LOG_FILE_COUNT],
 
 // Deletes redundant backup files with the number of files that need to be preserved
 static void cm_log_remove_bak_file(char *backup_file_name[CT_MAX_LOG_FILE_COUNT], uint32 *remove_file_count,
-    uint32 backup_file_count, uint32 need_backup_count)
+                                   uint32 backup_file_count, uint32 need_backup_count)
 {
     uint32 i;
     *remove_file_count = 0;
@@ -626,7 +602,7 @@ static void cm_log_get_bak_file_name(log_file_handle_t *log_file_handle, char *b
     cm_now_detail(&detail);
 
     errcode = snprintf_s(timestamp, sizeof(timestamp), sizeof(timestamp) - 1, "%4u%02u%02u%02d%02u%02u%03u",
-        detail.year, detail.mon, detail.day, detail.hour, detail.min, detail.sec, detail.millisec);
+                         detail.year, detail.mon, detail.day, detail.hour, detail.min, detail.sec, detail.millisec);
     if (SECUREC_UNLIKELY(errcode == -1)) {
         CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
         return;
@@ -657,7 +633,7 @@ static void cm_log_get_bak_file_name(log_file_handle_t *log_file_handle, char *b
         return;
     }
     errcode = snprintf_s(bak_file, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s_%s.%s", file_name, timestamp,
-        ext_name);
+                         ext_name);
     if (SECUREC_UNLIKELY(errcode == -1)) {
         CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
         return;
@@ -670,13 +646,13 @@ static void cm_log_get_bak_file_name(log_file_handle_t *log_file_handle, char *b
     3.new_bak_file_name : a new log file name cantiand.rlog transferred to, for example cantiand_20190414041002173.rlog
 */
 static status_t cm_rmv_and_bak_log_file(log_file_handle_t *log_file_handle, char *bak_file_name[CT_MAX_LOG_FILE_COUNT],
-    char new_bak_file_name[CT_FILE_NAME_BUFFER_SIZE], uint32 *remove_file_count)
+                                        char new_bak_file_name[CT_FILE_NAME_BUFFER_SIZE], uint32 *remove_file_count)
 {
     uint32 backup_file_count = 0;
     uint64 file_size;
     uint32 file_inode;
-    uint32 need_bak_file_count =
-        log_file_handle->log_id == LOG_AUDIT ? g_log_param.audit_backup_file_count : g_log_param.log_backup_file_count;
+    uint32 need_bak_file_count = log_file_handle->log_id == LOG_AUDIT ? g_log_param.audit_backup_file_count
+                                                                      : g_log_param.log_backup_file_count;
     uint32 file_name_len = CT_MAX_FILE_NAME_LEN;
 
     // When you do not back up, delete the log file directly, and re-open will automatically generate a new empty file.
@@ -792,7 +768,7 @@ static void cm_write_longsql_file(log_file_handle_t *log_file_handle, char *buf,
 }
 
 static void cm_write_rmv_and_bak_file_log(char *bak_file_name[CT_MAX_LOG_FILE_COUNT], uint32 remove_file_count,
-    char curr_bak_file_name[CT_FILE_NAME_BUFFER_SIZE])
+                                          char curr_bak_file_name[CT_FILE_NAME_BUFFER_SIZE])
 {
     for (uint32 i = 0; i < remove_file_count; ++i) {
         CT_LOG_RUN_FILE_INF(CT_FALSE, "[LOG] file '%s' is removed", bak_file_name[i]);
@@ -804,7 +780,7 @@ static void cm_write_rmv_and_bak_file_log(char *bak_file_name[CT_MAX_LOG_FILE_CO
 }
 
 static void cm_stat_and_write_log(log_file_handle_t *log_file_handle, char *buf, uint32 size, bool32 need_rec_filelog,
-    cm_log_write_func_t func)
+                                  cm_log_write_func_t func)
 {
     uint64 file_size = 0;
     uint32 file_inode = 0;
@@ -835,15 +811,15 @@ static void cm_stat_and_write_log(log_file_handle_t *log_file_handle, char *buf,
         cm_log_close_file(log_file_handle);
     }
 
-    max_file_size =
-        log_file_handle->log_id == LOG_AUDIT ? g_log_param.max_audit_file_size : g_log_param.max_log_file_size;
+    max_file_size = log_file_handle->log_id == LOG_AUDIT ? g_log_param.max_audit_file_size
+                                                         : g_log_param.max_log_file_size;
     if ((file_size + 100 > max_file_size && need_rec_filelog == CT_TRUE) ||
         /*
         1.reserve 2000 bytes in case of run log increasing continuously with backup file log
         2.in case of dead loop when file_size larger than max_file_size + SIZE_K(2)
         */
         (file_size < max_file_size + SIZE_K(3) && file_size > max_file_size + SIZE_K(2) &&
-        need_rec_filelog == CT_FALSE)) {
+         need_rec_filelog == CT_FALSE)) {
         cm_log_close_file(log_file_handle);
         ret = cm_rmv_and_bak_log_file(log_file_handle, bak_file_name, new_bak_file_name, &remove_file_count);
     }
@@ -865,7 +841,7 @@ static void cm_stat_and_write_log(log_file_handle_t *log_file_handle, char *buf,
 }
 
 static void cm_log_write_large_buf(const char *buf, bool32 need_rec_filelog, const char *format, va_list ap,
-    log_file_handle_t *log_file_hanle)
+                                   log_file_handle_t *log_file_hanle)
 {
     size_t log_head_len = strlen(buf);
     va_list ap1;
@@ -885,7 +861,7 @@ static void cm_log_write_large_buf(const char *buf, bool32 need_rec_filelog, con
         return;
     }
     errcode = vsnprintf_s(pTmp + log_head_len, (size_t)(CT_MAX_LOG_NEW_BUFFER_SIZE - log_head_len),
-        (size_t)(CT_MAX_LOG_NEW_BUFFER_SIZE - log_head_len - 1), format, ap1);
+                          (size_t)(CT_MAX_LOG_NEW_BUFFER_SIZE - log_head_len - 1), format, ap1);
     va_end(ap1);
     if (errcode >= 0) {
         cm_stat_and_write_log(log_file_hanle, pTmp, (uint32)strlen(pTmp), need_rec_filelog, cm_write_log_file);
@@ -897,12 +873,12 @@ static void cm_log_write_large_buf(const char *buf, bool32 need_rec_filelog, con
 }
 
 static void cm_log_fulfil_write_buf(log_file_handle_t *log_file_handle, text_t *buf_text, uint32 buf_size,
-    bool32 need_rec_filelog, const char *format, va_list ap)
+                                    bool32 need_rec_filelog, const char *format, va_list ap)
 {
     va_list ap1;
     va_copy(ap1, ap);
     int32 iRtn = vsnprintf_s(buf_text->str + buf_text->len, (size_t)(buf_size - buf_text->len),
-        (size_t)(buf_size - buf_text->len - 1), format, ap1);
+                             (size_t)(buf_size - buf_text->len - 1), format, ap1);
     va_end(ap1);
     if (iRtn < 0) {
         CM_NULL_TERM(buf_text);
@@ -914,11 +890,11 @@ static void cm_log_fulfil_write_buf(log_file_handle_t *log_file_handle, text_t *
     }
 
     cm_stat_and_write_log(log_file_handle, buf_text->str, (uint32)strlen(buf_text->str), need_rec_filelog,
-        cm_write_log_file);
+                          cm_write_log_file);
 }
 
 void cm_write_normal_log(log_id_t log_id, log_level_t log_level, const char *code_file_name, uint32 code_line_num,
-    const int module_id, bool32 need_rec_filelog, const char *format, ...)
+                         const int module_id, bool32 need_rec_filelog, const char *format, ...)
 {
     int32 error_code = 0;
     char buf[CT_MAX_LOG_CONTENT_LENGTH + CT_MAX_LOG_HEAD_LENGTH + 2] = { 0 };
@@ -938,7 +914,7 @@ void cm_write_normal_log(log_id_t log_id, log_level_t log_level, const char *cod
 
     if (log_param->log_instance_startup) {
         errcode = snprintf_s(new_format, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1, "%s [%s:%u]", format,
-            last_file + 1, code_line_num);
+                             last_file + 1, code_line_num);
     } else {
         if (log_id == LOG_RUN) {
             cm_get_error(&error_code, &err_msg, NULL);
@@ -946,18 +922,66 @@ void cm_write_normal_log(log_id_t log_id, log_level_t log_level, const char *cod
 
         if (error_code == 0 || need_rec_filelog == CT_FALSE) {
             errcode = snprintf_s(new_format, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1, "%s [%s:%u]",
-                format, last_file + 1, code_line_num);
+                                 format, last_file + 1, code_line_num);
         } else if (error_code == ERR_ASSERT_ERROR) {
             errcode = snprintf_s(new_format, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1,
-                "CT-%05d:%s,%s [%s:%u]", error_code, format, err_msg, last_file + 1, code_line_num);
+                                 "CT-%05d:%s,%s [%s:%u]", error_code, format, err_msg, last_file + 1, code_line_num);
         } else {
             errcode = snprintf_s(new_format, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1,
-                "CT-%05d:%s,%s [%s:%u]", error_code, format, err_msg, last_file + 1, code_line_num);
+                                 "CT-%05d:%s,%s [%s:%u]", error_code, format, err_msg, last_file + 1, code_line_num);
         }
     }
- 
+
     cm_log_build_normal_head((char *)buf, sizeof(buf), log_level, g_module_info[module_id]);
- 
+
+    va_list args;
+    va_start(args, format);
+    buf_text.str = buf;
+    buf_text.len = (uint32)strlen(buf);
+    if (errcode >= 0) {
+        cm_log_fulfil_write_buf(log_file_handle, &buf_text, sizeof(buf), need_rec_filelog, new_format, args);
+    } else {
+        // if the security function fails, continue to write the log after the string is truncated
+        cm_log_fulfil_write_buf(log_file_handle, &buf_text, sizeof(buf), need_rec_filelog, new_format, args);
+    }
+    va_end(args);
+}
+
+void cm_write_normal_log2(log_id_t log_id, log_level_t log_level, const char *code_file_name, uint32 code_line_num,
+                          const int module_id, bool32 need_rec_filelog, const char *format, ...)
+{
+    int32 error_code = 0;
+    char buf[CT_MAX_LOG_CONTENT_LENGTH + CT_MAX_LOG_HEAD_LENGTH + 2] = { 0 };
+    char new_format[CT_MAX_LOG_CONTENT_LENGTH] = { 0 };
+    log_file_handle_t *log_file_handle = &g_logger[log_id];
+    text_t buf_text;
+    char *last_file = NULL;
+    const char *err_msg = NULL;
+    log_param_t *log_param = cm_log_param_instance();
+    errno_t errcode;
+
+    if (log_param->log_instance_startup) {
+        errcode = snprintf_s(new_format, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1, "%s [%s:%u]", format,
+                             last_file + 1, code_line_num);
+    } else {
+        if (log_id == LOG_RUN) {
+            cm_get_error(&error_code, &err_msg, NULL);
+        }
+
+        if (error_code == 0 || need_rec_filelog == CT_FALSE) {
+            errcode = snprintf_s(new_format, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1, "%s [%s:%u]",
+                                 format, code_file_name, code_line_num);
+        } else if (error_code == ERR_ASSERT_ERROR) {
+            errcode = snprintf_s(new_format, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1,
+                                 "CT-%05d:%s,%s [%s:%u]", error_code, format, err_msg, code_file_name, code_line_num);
+        } else {
+            errcode = snprintf_s(new_format, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1,
+                                 "CT-%05d:%s,%s [%s:%u]", error_code, format, err_msg, code_file_name, code_line_num);
+        }
+    }
+
+    cm_log_build_normal_head((char *)buf, sizeof(buf), log_level, g_module_info[module_id]);
+
     va_list args;
     va_start(args, format);
     buf_text.str = buf;
@@ -1025,8 +1049,8 @@ void cm_write_alarm_log(uint32 warn_id, const char *format, ...)
     (void)cm_date2str(cm_now(), "yyyy-mm-dd hh24:mi:ss", date, CT_MAX_TIME_STRLEN);
     // Format: Date | Warn_Id | Warn_Desc | Components | Instance_name | parameters
     errcode = snprintf_s(buf, sizeof(buf), CT_MAX_LOG_CONTENT_LENGTH + 1,
-        "%s|%u|%s|%s|%s|{'component-name':'%s','datanode-name':'%s',", date, g_warn_id[warn_id],
-        g_warning_desc[warn_id], "DN", g_log_param.instance_name, "DN", g_log_param.instance_name);
+                         "%s|%u|%s|%s|%s|{'component-name':'%s','datanode-name':'%s',", date, g_warn_id[warn_id],
+                         g_warning_desc[warn_id], "DN", g_log_param.instance_name, "DN", g_log_param.instance_name);
     if (errcode < 0) {
         return;
     }
@@ -1050,7 +1074,7 @@ void cm_write_alarm_log_cn(uint32 warn_id, const char *format, ...)
     (void)cm_date2str(cm_now(), "yyyy-mm-dd hh24:mi:ss", date, CT_MAX_TIME_STRLEN);
     // Format: Date | Warn_Id | Warn_Desc | Components | Instance_name | parameters
     rc_memzero = snprintf_s(buf, sizeof(buf), CT_MAX_LOG_CONTENT_LENGTH + 1, "%s|%u|%s|%s|%s|", date,
-        g_warn_id[warn_id], g_warning_desc[warn_id], "CN", g_log_param.instance_name);
+                            g_warn_id[warn_id], g_warning_desc[warn_id], "CN", g_log_param.instance_name);
     if (rc_memzero < 0) {
         return;
     }
@@ -1099,8 +1123,8 @@ void cm_write_max_longsql_log(const char *format, ...)
     log_file_handle_t *log_file_handle = &g_logger[LOG_LONGSQL];
     va_list args;
     va_start(args, format);
-    rc_memzero =
-        vsnprintf_s(buf + sizeof(uint32), CT_MAX_LOG_LONGSQL_LENGTH + 1, CT_MAX_LOG_LONGSQL_LENGTH, format, args);
+    rc_memzero = vsnprintf_s(buf + sizeof(uint32), CT_MAX_LOG_LONGSQL_LENGTH + 1, CT_MAX_LOG_LONGSQL_LENGTH, format,
+                             args);
 
     *((uint32 *)buf) = (uint32)strlen(buf + sizeof(uint32));
     if (rc_memzero >= 0) {
@@ -1134,7 +1158,7 @@ void cm_write_pe_oper_log(char *buf, uint32 len)
 
 void cm_write_trace_log(const char *format, ...)
 {
-    char buf[CT_LOG_LONGSQL_LENGTH_16K] = { 0 }; // print deadlock sql log, use long sql length
+    char buf[CT_LOG_LONGSQL_LENGTH_16K] = { 0 };  // print deadlock sql log, use long sql length
     log_file_handle_t *log_file_handle = &g_logger[LOG_TRACE];
     va_list args;
     errno_t errcode;

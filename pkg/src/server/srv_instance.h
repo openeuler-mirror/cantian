@@ -111,7 +111,7 @@ typedef struct st_shutdown_context {
     shutdown_mode_t mode;
     shutdown_phase_t phase;
     bool32 enabled;
-    drlatch_t shutdown_latch; // keep shutdown in order
+    drlatch_t shutdown_latch;  // keep shutdown in order
 } shutdown_context_t;
 
 typedef struct st_instance_attr {
@@ -157,6 +157,7 @@ typedef struct st_instance_attr {
     bool32 disable_var_peek;
     bool32 enable_cursor_sharing;
     bool32 enable_use_spm;
+    bool32 enable_dbstor;
 } instance_attr_t;
 
 typedef struct st_os_run_desc {
@@ -231,9 +232,9 @@ typedef struct st_instance {
     job_mgr_t job_mgr; /* job manager */
     st_library_cache_t library_cache_info[10];
     rsrc_mgr_t rsrc_mgr;
-    atomic_t logined_count;      // the account of current external user connected from client
-    atomic_t logined_cumu_count; // the cumulative account of external user connected from client
-    atomic32_t seq_xid; // for xid generating
+    atomic_t logined_count;       // the account of current external user connected from client
+    atomic_t logined_cumu_count;  // the cumulative account of external user connected from client
+    atomic32_t seq_xid;           // for xid generating
     bool32 sync_doing;
     bool32 is_ztrst_instance;
     bool8 lsnr_abort_status : 1;
@@ -289,7 +290,7 @@ typedef struct st_promote_record {
 #define GET_PL_MGR (&g_instance->sql.pl_mngr)
 #define IS_LOG_OUT(session)                                                                          \
     ((session)->knl_session.killed || (g_instance->shutdown_ctx.phase != SHUTDOWN_PHASE_NOT_BEGIN && \
-        g_instance->shutdown_ctx.mode != SHUTDOWN_MODE_NORMAL))
+                                       g_instance->shutdown_ctx.mode != SHUTDOWN_MODE_NORMAL))
 #define MIN_NODE_POOL_SIZE (g_instance->conn_pool_info.min_pool_size + g_instance->attr.priv_connection)
 #define MAX_NODE_POOL_SIZE (g_instance->conn_pool_info.max_pool_size + g_instance->attr.priv_connection)
 #define DISABLE_VPEEK (g_instance->attr.disable_var_peek)

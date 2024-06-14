@@ -44,13 +44,12 @@
 extern "C" {
 #endif
 
-
 static bool32 volatile g_system_initialized = CT_FALSE;
 static spinlock_t g_system_lock;
-static char g_program_name[CT_FILE_NAME_BUFFER_SIZE + 1] = {0};
-static char g_user_name[CT_NAME_BUFFER_SIZE] = {0};
-static char g_host_name[CT_HOST_NAME_BUFFER_SIZE] = {0};
-static char g_platform_name[CT_NAME_BUFFER_SIZE] = {0};
+static char g_program_name[CT_FILE_NAME_BUFFER_SIZE + 1] = { 0 };
+static char g_user_name[CT_NAME_BUFFER_SIZE] = { 0 };
+static char g_host_name[CT_HOST_NAME_BUFFER_SIZE] = { 0 };
+static char g_platform_name[CT_NAME_BUFFER_SIZE] = { 0 };
 static uint64 g_process_id = 0;
 static uint32 g_nprocs = 0;
 
@@ -81,10 +80,10 @@ static void cm_get_program_name(void)
     while (getprocs64(&processInfo, sizeof(processInfo), 0, 0, &pid, 1) > 0) {
         if (uint64)
             (processInfo.pi_pid == g_process_id)
-        {
-            len = getargs(&processInfo, sizeof(processInfo), g_program_name, CT_FILE_NAME_BUFFER_SIZE);
-            break;
-        }
+            {
+                len = getargs(&processInfo, sizeof(processInfo), g_program_name, CT_FILE_NAME_BUFFER_SIZE);
+                break;
+            }
     }
 #else /* linux */
     len = readlink("/proc/self/exe", g_program_name, CT_FILE_NAME_BUFFER_SIZE);
@@ -99,8 +98,8 @@ static void cm_get_program_name(void)
     // architecture is hard to be allowed
     if (len == 0) {
         CT_THROW_ERROR(ERR_INIT_SYSTEM, cm_get_os_error());
-        PRTS_RETVOID_IFERR(snprintf_s(g_program_name, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1,
-                                      "<empty>"));
+        PRTS_RETVOID_IFERR(
+            snprintf_s(g_program_name, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1, "<empty>"));
     }
 }
 
@@ -195,7 +194,7 @@ static void cm_get_sys_nprocs(void)
     g_nprocs = (uint32)info.dwNumberOfProcessors;
 #else
     g_nprocs = (uint32)get_nprocs();
-#endif // WIN32
+#endif  // WIN32
 }
 
 void cm_try_init_system(void)
@@ -265,7 +264,7 @@ static time_t cm_convert_filetime(FILETIME *ft)
 }
 #endif
 
-int64 cm_sys_process_start_time(uint64 pid)
+int64 cm_sys_process_start_time_s(uint64 pid)
 {
 #ifdef WIN32
     FILETIME create_time, exit_time, kernel_time, user_time;
@@ -284,7 +283,7 @@ int64 cm_sys_process_start_time(uint64 pid)
     return (int64)cm_convert_filetime(&create_time);
 
 #else
-    char path[32] = {0};
+    char path[32] = { 0 };
     char stat_buf[2048];
     int32 size, ret;
     int64 ticks;
@@ -322,9 +321,9 @@ int64 cm_sys_process_start_time(uint64 pid)
         (void)cm_fetch_text(&stat_text, ' ', '\0', &ticks_text);
     }
     /*
-    * Time the process started after system boot.
-    * The value is expressed in clock ticks.
-    */
+     * Time the process started after system boot.
+     * The value is expressed in clock ticks.
+     */
     (void)cm_text2bigint(&ticks_text, &ticks);
     return ticks;
 #endif
@@ -332,7 +331,7 @@ int64 cm_sys_process_start_time(uint64 pid)
 
 bool32 cm_sys_process_alived(uint64 pid, int64 start_time)
 {
-    int64 process_time = cm_sys_process_start_time(pid);
+    int64 process_time = cm_sys_process_start_time_s(pid);
 
 #ifdef WIN32
     return (llabs(start_time - process_time) <= 1);
@@ -363,7 +362,7 @@ status_t cm_get_file_host_name(char *path, char *host_name)
     }
     name_len = strlen(pw->pw_name);
     MEMS_RETURN_IFERR(strncpy_s(host_name, CT_NAME_BUFFER_SIZE, pw->pw_name, name_len));
-    
+
     return CT_SUCCESS;
 }
 #endif

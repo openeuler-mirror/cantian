@@ -39,9 +39,8 @@ char *g_shm_prefix = "gsipc_shm";
 uint32 g_shm_id = 0;
 #endif
 
-
 spinlock_t g_ipc_lock = 0;
-ipc_context_t g_ipc_context = {0};
+ipc_context_t g_ipc_context = { 0 };
 
 static status_t cs_get_ipc_link_id(uint32 *id)
 {
@@ -302,7 +301,7 @@ status_t cs_init_ipc_context(const char *ipc_name)
     }
 
     g_ipc_context.lsnr_ctrl = (ipc_lsnr_ctrl_t *)g_ipc_context.lsnr_shm.addr;
-   
+
     if (cs_wait_server_ready() != CT_SUCCESS) {
         return CT_ERROR;
     }
@@ -338,7 +337,7 @@ status_t cs_init_ipc_context(const char *ipc_name)
         return CT_ERROR;
     }
 
-    g_ipc_context.start_time = cm_sys_process_start_time(req.client_info.pid);
+    g_ipc_context.start_time = cm_sys_process_start_time_s(req.client_info.pid);
 
     code = cs_request_ipc_lsnr(&req, &token);
     if (code != CT_SUCCESS) {

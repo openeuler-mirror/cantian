@@ -37,6 +37,7 @@
 #include "cm_log.h"
 #include "cm_file_iofence.h"
 #include "kmc_init.h"
+#include "srv_device_adpt.h"
 
 extern bool32 g_enable_fdsa;
 extern bool32 g_crc_verify;
@@ -70,7 +71,7 @@ static status_t verify_log_path_permission(uint16 permission)
 
     if (num < CT_DEF_LOG_PATH_PERMISSIONS || num > CT_MAX_LOG_PERMISSIONS) {
         CT_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "_LOG_PATH_PERMISSIONS", (int64)CT_DEF_LOG_PATH_PERMISSIONS,
-            (int64)CT_MAX_LOG_PERMISSIONS);
+                       (int64)CT_MAX_LOG_PERMISSIONS);
         return CT_ERROR;
     }
 
@@ -96,7 +97,7 @@ static status_t verify_log_file_permission(uint16 permission)
 
     if (num < CT_DEF_LOG_FILE_PERMISSIONS || num > CT_MAX_LOG_PERMISSIONS) {
         CT_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "_LOG_FILE_PERMISSIONS", (int64)CT_DEF_LOG_PATH_PERMISSIONS,
-            (int64)CT_MAX_LOG_PERMISSIONS);
+                       (int64)CT_MAX_LOG_PERMISSIONS);
         return CT_ERROR;
     }
 
@@ -113,19 +114,19 @@ static status_t srv_init_loggers(void)
     MEMS_RETURN_IFERR(strcpy_sp(log_param->instance_name, CT_MAX_NAME_LEN, g_instance->kernel.instance_name));
 
     PRTS_RETURN_IFERR(snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/run/%s",
-        log_param->log_home, "cantiand.rlog"));
+                                 log_param->log_home, "cantiand.rlog"));
     cm_log_init(LOG_RUN, file_name);
 
     PRTS_RETURN_IFERR(snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/debug/%s",
-        log_param->log_home, "cantiand.dlog"));
+                                 log_param->log_home, "cantiand.dlog"));
     cm_log_init(LOG_DEBUG, file_name);
 
     PRTS_RETURN_IFERR(snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/audit/%s",
-        log_param->log_home, "cantiand.aud"));
+                                 log_param->log_home, "cantiand.aud"));
     cm_log_init(LOG_AUDIT, file_name);
 
     PRTS_RETURN_IFERR(snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/%s_alarm.log",
-        g_instance->kernel.alarm_log_dir, g_instance->kernel.instance_name));
+                                 g_instance->kernel.alarm_log_dir, g_instance->kernel.instance_name));
     cm_log_init(LOG_ALARM, file_name);
 
     cm_log_open_file(log_file_handle);
@@ -133,21 +134,21 @@ static status_t srv_init_loggers(void)
 
 #ifndef WIN32
     PRTS_RETURN_IFERR(snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/raft/%s",
-        log_param->log_home, "cantiand.raft"));
+                                 log_param->log_home, "cantiand.raft"));
     cm_log_init(LOG_RAFT, file_name);
 #endif
 
     PRTS_RETURN_IFERR(snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/longsql/%s",
-        log_param->log_home, "cantiand.lsql"));
+                                 log_param->log_home, "cantiand.lsql"));
     cm_log_init(LOG_LONGSQL, file_name);
 
     PRTS_RETURN_IFERR(snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/opt/%s",
-        log_param->log_home, "cantiand.opt"));
+                                 log_param->log_home, "cantiand.opt"));
     cm_log_init(LOG_OPTINFO, file_name);
 
 #ifndef WIN32
     PRTS_RETURN_IFERR(snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/blackbox/%s",
-        log_param->log_home, "cantiand.blog"));
+                                 log_param->log_home, "cantiand.blog"));
     cm_log_init(LOG_BLACKBOX, file_name);
 #endif
 
@@ -159,7 +160,7 @@ static status_t srv_init_loggers(void)
 
     log_file_handle = cm_log_logger_file(LOG_TRACE);
     PRTS_RETURN_IFERR(snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN,
-        "%s/trc/cantiand_smon_%05u.trc", g_instance->home, (uint32)SESSION_ID_SMON));
+                                 "%s/trc/cantiand_smon_%05u.trc", g_instance->home, (uint32)SESSION_ID_SMON));
 
     cm_log_init(LOG_TRACE, file_name);
     cm_log_open_file(log_file_handle);
@@ -302,7 +303,7 @@ static status_t srv_get_log_params(void)
         alarm_log_cfg = CT_TRUE;
     } else {
         PRTS_RETURN_IFERR(snprintf_s(g_instance->kernel.alarm_log_dir, CT_MAX_PATH_BUFFER_SIZE, CT_MAX_PATH_LEN,
-            "%s/log", g_instance->home));
+                                     "%s/log", g_instance->home));
     }
 
     CT_RETURN_IFERR(srv_get_log_params_extra(log_param, &log_cfg));
@@ -363,7 +364,7 @@ static status_t srv_keyfile_config_prepare(knl_attr_t *attr)
     uint32 idx = 0;
 
     errno_t ret = snprintf_s(attr->kmc_key_files[idx].name, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1,
-        "%s/protect/%s", g_instance->home, CT_KMC_FILENAMEA);
+                             "%s/protect/%s", g_instance->home, CT_KMC_FILENAMEA);
     knl_securec_check_ss(ret);
     cm_str2text(attr->kmc_key_files[idx].name, &name);
     cm_convert_os_path(&name);
@@ -374,7 +375,7 @@ static status_t srv_keyfile_config_prepare(knl_attr_t *attr)
         return CT_ERROR;
     }
     ret = snprintf_s(attr->kmc_key_files[idx].name, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1,
-        "%s/protect/%s", g_instance->home, CT_KMC_FILENAMEB);
+                     "%s/protect/%s", g_instance->home, CT_KMC_FILENAMEB);
     knl_securec_check_ss(ret);
     cm_str2text(attr->kmc_key_files[idx].name, &name);
     cm_convert_os_path(&name);
@@ -415,10 +416,7 @@ static status_t srv_parse_keyfiles(text_t *value, char **files)
 static status_t srv_update_keyfiles_config(knl_attr_t *attr)
 {
     char buf[CT_MAX_CONFIG_LINE_SIZE] = { 0 };
-    text_t file_list = {
-        .len = 0,
-        .str = buf
-    };
+    text_t file_list = { .len = 0, .str = buf };
     text_t file_name;
 
     if (cm_concat_string(&file_list, CT_MAX_CONFIG_LINE_SIZE, "(") != CT_SUCCESS) {
@@ -576,9 +574,9 @@ static status_t srv_load_factor_key(void)
     PRTS_RETURN_IFERR(
         snprintf_s(dbs_dir, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1, "%s/dbs/", g_instance->home));
     PRTS_RETURN_IFERR(snprintf_s(file_name1, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1, "%s/dbs/%s",
-        g_instance->home, CT_FKEY_FILENAME1));
+                                 g_instance->home, CT_FKEY_FILENAME1));
     PRTS_RETURN_IFERR(snprintf_s(file_name2, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1, "%s/dbs/%s",
-        g_instance->home, CT_FKEY_FILENAME2));
+                                 g_instance->home, CT_FKEY_FILENAME2));
 
     if (!cm_dir_exist(dbs_dir)) {
         if (cm_create_dir(dbs_dir) != CT_SUCCESS) {
@@ -619,7 +617,7 @@ static status_t srv_get_mq_cfg(mq_cfg_s *cfg)
     CT_RETURN_IFERR(srv_get_param_uint32("SHM_MQ_MSG_RECV_THD_NUM", &msg_thd_num));
     if (msg_thd_num > (uint32_t)CT_MQ_MAX_THD_NUM || msg_thd_num < (uint32_t)CT_MQ_MIN_THD_NUM) {
         CT_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "SHM_MQ_MSG_RECV_THD_NUM", (long long)CT_MQ_MIN_THD_NUM,
-            (long long)CT_MQ_MAX_THD_NUM);
+                       (long long)CT_MQ_MAX_THD_NUM);
         return CT_ERROR;
     };
     cfg->num_msg_recv_thd = msg_thd_num;
@@ -628,7 +626,7 @@ static status_t srv_get_mq_cfg(mq_cfg_s *cfg)
     CT_RETURN_IFERR(srv_get_param_uint32("SHM_MQ_MSG_QUEUE_NUM", &msg_queue_num));
     if (msg_queue_num > (uint32_t)CT_MQ_MAX_QUEUE_NUM || msg_queue_num < (uint32_t)CT_MQ_MIN_QUEUE_NUM) {
         CT_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "SHM_MQ_MSG_QUEUE_NUM", (long long)CT_MQ_MIN_QUEUE_NUM,
-            (long long)CT_MQ_MAX_QUEUE_NUM);
+                       (long long)CT_MQ_MAX_QUEUE_NUM);
         return CT_ERROR;
     };
     cfg->num_msg_queue = msg_queue_num;
@@ -637,7 +635,7 @@ static status_t srv_get_mq_cfg(mq_cfg_s *cfg)
     CT_RETURN_IFERR(srv_get_param_uint32("SHM_MQ_MSG_THD_COOL_TIME_US", &cool_time));
     if (cool_time > (uint32_t)CT_MQ_MAX_COOL_TIME || cool_time < (uint32_t)CT_MQ_MIN_COOL_TIME) {
         CT_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "SHM_MQ_MSG_THD_COOL_TIME_US", (long long)CT_MQ_MIN_COOL_TIME,
-            (long long)CT_MQ_MAX_COOL_TIME);
+                       (long long)CT_MQ_MAX_COOL_TIME);
         return CT_ERROR;
     };
     shm_set_thread_cool_time(cool_time);
@@ -646,6 +644,28 @@ static status_t srv_get_mq_cfg(mq_cfg_s *cfg)
     CT_RETURN_IFERR(srv_get_param_uint32("MYSQL_DEPLOY_GROUP_ID", &mysql_deploy_group_id));
     cfg->mysql_deploy_group_id = mysql_deploy_group_id;
 
+    return CT_SUCCESS;
+}
+
+status_t srv_load_dss_path()
+{
+    char *value = NULL;
+    MEMS_RETURN_IFERR(memset_s(g_instance->kernel.dtc_attr.ctstore_inst_path, CT_UNIX_PATH_MAX, 0, CT_UNIX_PATH_MAX));
+    value = srv_get_param("CTSTORE_INST_PATH");
+    if (value == NULL) {
+        cm_reset_error();
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "CTSTORE_INST_PATH");
+        return CT_ERROR;
+    }
+    uint32 val_len = (uint32)strlen(value);
+    if (val_len >= CT_UNIX_PATH_MAX || val_len == 0) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "CTSTORE_INST_PATH");
+        return CT_ERROR;
+    } else {
+        CT_PRINT_IFERR2(snprintf_s(g_instance->kernel.dtc_attr.ctstore_inst_path, CT_UNIX_PATH_MAX,
+                                   CT_UNIX_PATH_MAX - 1, "%s", value),
+                        "CTSTORE_INST_PATH", CT_UNIX_PATH_MAX - 1);
+    }
     return CT_SUCCESS;
 }
 
@@ -685,7 +705,7 @@ status_t srv_load_server_params(void)
     CT_RETURN_IFERR(srv_get_param_uint32("CTC_MAX_INST_PER_NODE", &max_inst_num));
     if (max_inst_num > (uint32_t)CT_CTC_MAX_INST_NUM || max_inst_num < (uint32_t)CT_CTC_MIN_INST_NUM) {
         CT_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "CTC_MAX_INST_PER_NODE", (long long)CT_CTC_MIN_INST_NUM,
-            (long long)CT_CTC_MAX_INST_NUM);
+                       (long long)CT_CTC_MAX_INST_NUM);
         return CT_ERROR;
     };
     *ctc_max_inst_num = max_inst_num;
@@ -732,11 +752,11 @@ status_t srv_load_server_params(void)
 
     /* uds communication mode, g_instance->lsnr.uds_service.names[0] for emerg session */
     PRTS_RETURN_IFERR(snprintf_s(g_instance->lsnr.uds_service.names[0], CT_UNIX_PATH_MAX, CT_UNIX_PATH_MAX - 1,
-        "%s/protect/%s", g_instance->home, CTDB_UDS_EMERG_SERVER));
+                                 "%s/protect/%s", g_instance->home, CTDB_UDS_EMERG_SERVER));
 
     char protect_dir[CT_FILE_NAME_BUFFER_SIZE];
     PRTS_RETURN_IFERR(snprintf_s(protect_dir, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1, "%s/protect/",
-        g_instance->home));
+                                 g_instance->home));
 
     if (!cm_dir_exist(protect_dir)) {
         if (cm_create_dir(protect_dir) != CT_SUCCESS) {
@@ -793,7 +813,7 @@ status_t srv_load_server_params(void)
         g_instance->attr.max_worker_count = g_instance->attr.optimized_worker_count;
         char new_value[CT_PARAM_BUFFER_SIZE] = { 0 };
         PRTS_RETURN_IFERR(snprintf_s(new_value, CT_PARAM_BUFFER_SIZE, CT_PARAM_BUFFER_SIZE - 1, "%u",
-            g_instance->attr.max_worker_count));
+                                     g_instance->attr.max_worker_count));
         CT_RETURN_IFERR(
             cm_alter_config(&g_instance->config, "MAX_WORKER_THREADS", new_value, CONFIG_SCOPE_BOTH, CT_TRUE));
         CT_RETURN_IFERR(cm_modify_runtimevalue(&g_instance->config, "MAX_WORKER_THREADS", new_value));
@@ -822,7 +842,7 @@ status_t srv_load_server_params(void)
     }
 
     CT_RETURN_IFERR(srv_get_param_double("NORMAL_USER_RESERVED_SESSIONS_FACTOR",
-        &g_instance->kernel.attr.normal_emerge_sess_factor));
+                                         &g_instance->kernel.attr.normal_emerge_sess_factor));
     if (g_instance->kernel.attr.normal_emerge_sess_factor < 0 ||
         g_instance->kernel.attr.normal_emerge_sess_factor > 1) {
         CT_THROW_ERROR(ERR_INVALID_PARAMETER, "NORMAL_USER_RESERVED_SESSIONS_FACTOR");
@@ -864,7 +884,7 @@ status_t srv_load_server_params(void)
     value = srv_get_param("_ENCRYPTION_ALG");
     if (cm_str_equal_ins(value, "PBKDF2")) {
         CT_LOG_RUN_WAR("The PBKDF2 encryption algorithm is insecure and has been deprecated, "
-            "please use SCRAM_SHA256 instead");
+                       "please use SCRAM_SHA256 instead");
 
         MEMS_RETURN_IFERR(strncpy_s(g_instance->kernel.attr.pwd_alg, CT_NAME_BUFFER_SIZE, value, strlen(value)));
     } else if (cm_str_equal_ins(value, "SCRAM_SHA256")) {
@@ -970,6 +990,13 @@ status_t srv_load_server_params(void)
         CT_RETURN_IFERR(srv_load_keyfiles());
     }
 
+    g_instance->attr.enable_dbstor = enable_dbstor;
+
+    if (!enable_dbstor) {
+        CT_RETURN_IFERR(srv_load_dss_path());
+        CT_RETURN_IFERR(srv_device_init(g_instance->kernel.dtc_attr.ctstore_inst_path));
+    }
+
     CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_LOCAL_INFILE", &g_instance->attr.enable_local_infile));
     CT_RETURN_IFERR(srv_get_param_bool32("_STRICT_CASE_DATATYPE", &g_instance->sql.strict_case_datatype));
     return CT_SUCCESS;
@@ -1006,7 +1033,7 @@ static status_t srv_get_dbs_cfg(void)
     char *value = NULL;
     bool32 enable = CT_FALSE;
     knl_attr_t *attr = &g_instance->kernel.attr;
-    uint32 partition_num = attr->dbwr_processes; // partition_num same with dbwr count
+    uint32 partition_num = attr->dbwr_processes;  // partition_num same with dbwr count
     bool32 enable_batch_flush = CT_FALSE;
     CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_DBSTOR", &enable));
     CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_DBSTOR_BATCH_FLUSH", &enable_batch_flush));
@@ -1098,16 +1125,22 @@ status_t srv_load_cluster_params(void)
         char cert_dir_path[CT_FILE_NAME_BUFFER_SIZE];
         PRTS_RETURN_IFERR(snprintf_s(cert_dir_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, mes_ssl_crt_path));
         char ca_file_path[CT_FILE_NAME_BUFFER_SIZE];
-        PRTS_RETURN_IFERR(snprintf_s(ca_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/ca.crt", mes_ssl_crt_path));
+        PRTS_RETURN_IFERR(
+            snprintf_s(ca_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/ca.crt", mes_ssl_crt_path));
         char cert_file_path[CT_FILE_NAME_BUFFER_SIZE];
-        PRTS_RETURN_IFERR(snprintf_s(cert_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.crt", mes_ssl_crt_path));
+        PRTS_RETURN_IFERR(
+            snprintf_s(cert_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.crt", mes_ssl_crt_path));
         char key_file_path[CT_FILE_NAME_BUFFER_SIZE];
-        PRTS_RETURN_IFERR(snprintf_s(key_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.key", mes_ssl_crt_path));
+        PRTS_RETURN_IFERR(
+            snprintf_s(key_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.key", mes_ssl_crt_path));
         char crl_file_path[CT_FILE_NAME_BUFFER_SIZE];
-        PRTS_RETURN_IFERR(snprintf_s(crl_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.crl", mes_ssl_crt_path));
+        PRTS_RETURN_IFERR(
+            snprintf_s(crl_file_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.crl", mes_ssl_crt_path));
         char mes_pass_path[CT_FILE_NAME_BUFFER_SIZE];
-        PRTS_RETURN_IFERR(snprintf_s(mes_pass_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.pass", mes_ssl_crt_path));
-        CT_RETURN_IFERR(mes_set_ssl_crt_file(cert_dir_path, ca_file_path, cert_file_path, key_file_path, crl_file_path, mes_pass_path));
+        PRTS_RETURN_IFERR(
+            snprintf_s(mes_pass_path, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/mes.pass", mes_ssl_crt_path));
+        CT_RETURN_IFERR(mes_set_ssl_crt_file(cert_dir_path, ca_file_path, cert_file_path, key_file_path, crl_file_path,
+                                             mes_pass_path));
         mes_set_ssl_verify_peer(CT_TRUE);
         char *enc_pwd = srv_get_param("MES_SSL_KEY_PWD");
         CT_RETURN_IFERR(mes_set_ssl_key_pwd(enc_pwd));

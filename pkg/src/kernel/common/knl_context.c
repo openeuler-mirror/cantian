@@ -76,7 +76,7 @@ status_t knl_init_dbs_client(knl_instance_t *ctx)
         return CT_SUCCESS;
     }
     knl_session_t *session = ctx->sessions[SESSION_ID_KERNEL];
-    const char* uuid = get_config_uuid(session->kernel->id);
+    const char *uuid = get_config_uuid(session->kernel->id);
     uint32 lsid = get_config_lsid(session->kernel->id);
     cm_set_dbs_uuid_lsid(uuid, lsid);
     if (cm_dbs_init(ctx->home, DBS_CONFIG_NAME, DBS_RUN_CANTIAND_SERVER) != CT_SUCCESS) {
@@ -109,18 +109,20 @@ status_t knl_startup(knl_handle_t kernel)
     }
 
     if (DB_ATTR_CLUSTER(session)) {
-        if (g_knl_callback.device_init((const char *)session->kernel->dtc_attr.ctstore_inst_path) != CT_SUCCESS) {
+        cm_dbs_cfg_s *cfg = cm_dbs_get_cfg();
+        if (cfg->enable &&
+            g_knl_callback.device_init((const char *)session->kernel->dtc_attr.ctstore_inst_path) != CT_SUCCESS) {
             CT_LOG_RUN_INF("RAFT: db init raw type device failed");
             return CT_ERROR;
         }
-        cm_dbs_cfg_s *cfg = cm_dbs_get_cfg();
+
         if (!cfg->enable) {
             CT_LOG_RUN_INF("Note: dbstore is not enabled, the disaster recovery funcs would not work.");
         } else {
-            const char* uuid = get_config_uuid(session->kernel->id);
+            const char *uuid = get_config_uuid(session->kernel->id);
             uint32 lsid = get_config_lsid(session->kernel->id);
             cm_set_dbs_uuid_lsid(uuid, lsid);
- 
+
             if (dbs_global_handle()->reg_role_info_callback(set_disaster_cluster_role) != CT_SUCCESS) {
                 CT_LOG_RUN_INF("Failed to register RoleInfoCallBack.");
                 return CT_ERROR;
@@ -151,7 +153,7 @@ void knl_shutdown(knl_handle_t sess, knl_handle_t kernel, bool32 need_ckpt)
 {
     knl_handle_t session = sess;
     knl_instance_t *ctx = (knl_instance_t *)kernel;
-    
+
     alck_deinit_ctx(ctx);
 
     if (session == NULL) {

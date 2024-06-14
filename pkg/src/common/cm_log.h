@@ -78,7 +78,7 @@ typedef enum en_module_id {
     KNL_COMM,
     CMS,
     MES,
-    ZENFS,
+    DSSAPI,
     EXT_PROC,
     BACKUP,
     ARCHIVE,
@@ -92,17 +92,17 @@ typedef enum en_module_id {
 } module_id_t;
 
 // define audit trail mode
-#define AUDIT_TRAIL_NONE    (uint8)0
-#define AUDIT_TRAIL_FILE    (uint8)1
-#define AUDIT_TRAIL_DB      (uint8)2
-#define AUDIT_TRAIL_SYSLOG  (uint8)4
-#define AUDIT_TRAIL_ALL     (uint8)255
+#define AUDIT_TRAIL_NONE (uint8)0
+#define AUDIT_TRAIL_FILE (uint8)1
+#define AUDIT_TRAIL_DB (uint8)2
+#define AUDIT_TRAIL_SYSLOG (uint8)4
+#define AUDIT_TRAIL_ALL (uint8)255
 
 typedef struct st_audit_log_param {
     uint32 audit_level;
     uint8 audit_trail_mode;
-    uint8 syslog_facility; // refer to openlog.facility
-    uint8 syslog_level; // refer to syslog.level
+    uint8 syslog_facility;  // refer to openlog.facility
+    uint8 syslog_level;     // refer to syslog.level
     uint8 reserved;
 } audit_log_param_t;
 
@@ -129,21 +129,21 @@ typedef struct st_log_param {
 #define SQL_AUDIT_DDL 0x00000001
 #define SQL_AUDIT_DCL 0x00000002
 #define SQL_AUDIT_DML 0x00000004
-#define SQL_AUDIT_PL  0x00000008
-#define SQL_AUDIT_PARAM  0x00000010
+#define SQL_AUDIT_PL 0x00000008
+#define SQL_AUDIT_PARAM 0x00000010
 #define SQL_AUDIT_ALL 0xffffffff
 
-#define LOG_RUN_ERR_ON   (cm_log_param_instance()->log_level & (LOG_RUN_ERR_LEVEL))
-#define LOG_RUN_WAR_ON   (cm_log_param_instance()->log_level & (LOG_RUN_WAR_LEVEL))
-#define LOG_RUN_INF_ON   (cm_log_param_instance()->log_level & (LOG_RUN_INF_LEVEL))
+#define LOG_RUN_ERR_ON (cm_log_param_instance()->log_level & (LOG_RUN_ERR_LEVEL))
+#define LOG_RUN_WAR_ON (cm_log_param_instance()->log_level & (LOG_RUN_WAR_LEVEL))
+#define LOG_RUN_INF_ON (cm_log_param_instance()->log_level & (LOG_RUN_INF_LEVEL))
 #define LOG_DEBUG_ERR_ON (cm_log_param_instance()->log_level & (LOG_DEBUG_ERR_LEVEL))
 #define LOG_DEBUG_WAR_ON (cm_log_param_instance()->log_level & (LOG_DEBUG_WAR_LEVEL))
 #define LOG_DEBUG_INF_ON (cm_log_param_instance()->log_level & (LOG_DEBUG_INF_LEVEL))
-#define LOG_LONGSQL_ON   (cm_log_param_instance()->log_level & (LOG_LONGSQL_LEVEL))
-#define LOG_OPER_ON      (cm_log_param_instance()->log_level & (LOG_OPER_LEVEL))
-#define LOG_ODBC_ERR_ON  (cm_log_param_instance()->log_level & (LOG_ODBC_ERR_LEVEL))
-#define LOG_ODBC_WAR_ON  (cm_log_param_instance()->log_level & (LOG_ODBC_WAR_LEVEL))
-#define LOG_ODBC_INF_ON  (cm_log_param_instance()->log_level & (LOG_ODBC_INF_LEVEL))
+#define LOG_LONGSQL_ON (cm_log_param_instance()->log_level & (LOG_LONGSQL_LEVEL))
+#define LOG_OPER_ON (cm_log_param_instance()->log_level & (LOG_OPER_LEVEL))
+#define LOG_ODBC_ERR_ON (cm_log_param_instance()->log_level & (LOG_ODBC_ERR_LEVEL))
+#define LOG_ODBC_WAR_ON (cm_log_param_instance()->log_level & (LOG_ODBC_WAR_LEVEL))
+#define LOG_ODBC_INF_ON (cm_log_param_instance()->log_level & (LOG_ODBC_INF_LEVEL))
 
 // 0x00010000 ~ 0x00800000 reserved for DTC
 #define DTC_DCS_LOG_INF_ON (cm_log_param_instance()->log_level & DTC_DCS_LOG_INF_LEVEL)  // 65536
@@ -167,20 +167,20 @@ typedef struct st_log_file_handle {
 
 typedef void (*cm_log_write_func_t)(log_file_handle_t *log_file_handle, char *buf, uint32 size);
 
-#define CT_MIN_LOG_FILE_SIZE        SIZE_M(1)                  // this value can not be less than 1M
-#define CT_MAX_LOG_FILE_SIZE        ((uint64)SIZE_M(1024) * 4) // this value can not be larger than 4G
-#define CT_MAX_LOG_FILE_COUNT       128                        // this value can not be larger than 128
-#define CT_MAX_LOG_CONTENT_LENGTH   CT_MESSAGE_BUFFER_SIZE
-#define CT_LOG_LONGSQL_LENGTH_16K   SIZE_K(16)
-#define CT_MAX_LOG_HEAD_LENGTH      100     // UTC+8 2019-01-16 22:40:15.292|CANTIAND|00000|140084283451136|INFO> 65
-#define CT_MAX_LOG_NEW_BUFFER_SIZE  1048576 // (1024 * 1024)
-#define CT_MAX_LOG_PERMISSIONS      777
+#define CT_MIN_LOG_FILE_SIZE SIZE_M(1)                   // this value can not be less than 1M
+#define CT_MAX_LOG_FILE_SIZE ((uint64)SIZE_M(1024) * 4)  // this value can not be larger than 4G
+#define CT_MAX_LOG_FILE_COUNT 128                        // this value can not be larger than 128
+#define CT_MAX_LOG_CONTENT_LENGTH CT_MESSAGE_BUFFER_SIZE
+#define CT_LOG_LONGSQL_LENGTH_16K SIZE_K(16)
+#define CT_MAX_LOG_HEAD_LENGTH 100          // UTC+8 2019-01-16 22:40:15.292|CANTIAND|00000|140084283451136|INFO> 65
+#define CT_MAX_LOG_NEW_BUFFER_SIZE 1048576  // (1024 * 1024)
+#define CT_MAX_LOG_PERMISSIONS 777
 #define CT_DEF_LOG_PATH_PERMISSIONS 700
 #define CT_DEF_LOG_FILE_PERMISSIONS 600
 #define CT_DEF_LOG_PATH_PERMISSIONS_750 750
 #define CT_DEF_LOG_FILE_PERMISSIONS_640 640
-#define CT_MAX_LOG_LONGSQL_LENGTH   1056768
-#define CT_MAX_LOG_USER_PERMISSION  7
+#define CT_MAX_LOG_LONGSQL_LENGTH 1056768
+#define CT_MAX_LOG_USER_PERMISSION 7
 
 log_file_handle_t *cm_log_logger_file(uint32 log_count);
 log_param_t *cm_log_param_instance(void);
@@ -189,8 +189,8 @@ void cm_log_init(log_id_t log_id, const char *file_name);
 void cm_log_set_path_permissions(uint16 val);
 void cm_log_set_file_permissions(uint16 val);
 void cm_log_open_file(log_file_handle_t *log_file_handle);
-status_t cm_log_get_bak_file_list(
-    char *backup_file_name[CT_MAX_LOG_FILE_COUNT], uint32 *backup_file_count, const char *log_file);
+status_t cm_log_get_bak_file_list(char *backup_file_name[CT_MAX_LOG_FILE_COUNT], uint32 *backup_file_count,
+                                  const char *log_file);
 
 void cm_write_optinfo_log(const char *format, ...) CT_CHECK_FMT(1, 2);
 void cm_write_longsql_log(const char *format, ...) CT_CHECK_FMT(1, 2);
@@ -201,7 +201,9 @@ void cm_write_alarm_log_cn(uint32 warn_id, const char *format, ...) CT_CHECK_FMT
 void cm_write_blackbox_log(const char *format, ...) CT_CHECK_FMT(1, 2);
 
 void cm_write_normal_log(log_id_t log_id, log_level_t log_level, const char *code_file_name, uint32 code_line_num,
-    const int module_id, bool32 need_rec_filelog, const char *format, ...) CT_CHECK_FMT(7, 8);
+                         const int module_id, bool32 need_rec_filelog, const char *format, ...) CT_CHECK_FMT(7, 8);
+void cm_write_normal_log2(log_id_t log_id, log_level_t log_level, const char *code_file_name, uint32 code_line_num,
+                          const int module_id, bool32 need_rec_filelog, const char *format, ...) CT_CHECK_FMT(7, 8);
 void cm_write_oper_log(char *buf, uint32 len);
 void cm_write_trace_log(const char *format, ...);
 void cm_fync_logfile(void);
@@ -266,32 +268,32 @@ uint64_t cm_print_memory_usage(void);
 
 #define CT_LOG_AUDIT(format, ...) cm_write_audit_log(format, ##__VA_ARGS__)
 
-#define CT_LOG_ALARM(warn_id, format, ...)                                  \
-    do {                                                                    \
-        if (LOG_ON) {                                                       \
-            cm_write_alarm_log(warn_id, format"|1", ##__VA_ARGS__);         \
-        }                                                                   \
+#define CT_LOG_ALARM(warn_id, format, ...)                           \
+    do {                                                             \
+        if (LOG_ON) {                                                \
+            cm_write_alarm_log(warn_id, format "|1", ##__VA_ARGS__); \
+        }                                                            \
     } while (0)
 
-#define CT_LOG_ALARM_CN(warn_id, format, ...)                               \
-    do {                                                                    \
-        if (LOG_ON) {                                                       \
-            cm_write_alarm_log_cn(warn_id, format"|1", ##__VA_ARGS__);      \
-        }                                                                   \
+#define CT_LOG_ALARM_CN(warn_id, format, ...)                           \
+    do {                                                                \
+        if (LOG_ON) {                                                   \
+            cm_write_alarm_log_cn(warn_id, format "|1", ##__VA_ARGS__); \
+        }                                                               \
     } while (0)
 
-#define CT_LOG_ALARM_RECOVER(warn_id, format, ...)                          \
-    do {                                                                    \
-        if (LOG_ON) {                                                       \
-            cm_write_alarm_log(warn_id, format"|2", ##__VA_ARGS__);         \
-        }                                                                   \
+#define CT_LOG_ALARM_RECOVER(warn_id, format, ...)                   \
+    do {                                                             \
+        if (LOG_ON) {                                                \
+            cm_write_alarm_log(warn_id, format "|2", ##__VA_ARGS__); \
+        }                                                            \
     } while (0)
 
-#define CT_LOG_ALARM_RECOVER_CN(warn_id, format, ...)                       \
-    do {                                                                    \
-        if (LOG_ON) {                                                       \
-            cm_write_alarm_log_cn(warn_id, format"|2", ##__VA_ARGS__);      \
-        }                                                                   \
+#define CT_LOG_ALARM_RECOVER_CN(warn_id, format, ...)                   \
+    do {                                                                \
+        if (LOG_ON) {                                                   \
+            cm_write_alarm_log_cn(warn_id, format "|2", ##__VA_ARGS__); \
+        }                                                               \
     } while (0)
 
 #define CT_LOG_RAFT(level, format, ...)                                                                               \
@@ -356,7 +358,6 @@ uint64_t cm_print_memory_usage(void);
         }                                                 \
     } while (0)
 
-
 #define CT_LOG_ODBC_INF(format, ...)                                                                                \
     do {                                                                                                            \
         if (LOG_ODBC_INF_ON) {                                                                                      \
@@ -381,25 +382,25 @@ uint64_t cm_print_memory_usage(void);
         }                                                                                                            \
     } while (0)
 
-#define CT_LOG_LIMIT_PERIOD(interval, can)              \
-do {                                                    \
-    static uint64 ulMaxToks = (interval);               \
-    static uint64 ulToks = (interval);                  \
-    static uint64 ulLast = 0;                           \
-    uint64 ulNow = time(NULL);                          \
-    /*更新当前配额*/                                     \
-    ulToks += ulNow - ulLast;                           \
-    ulToks = (ulToks > ulMaxToks) ? ulMaxToks : ulToks; \
-    /*如果当前配额大于每次消耗的时间*/                    \
-    if (ulToks >= (interval)) {                         \
-        /*允许打印，同时配额消耗*/                       \
-        ulToks -= (interval);                           \
-        (can) = CT_TRUE;                                \
-    } else {                                            \
-        (can) = CT_FALSE;                               \
-    }                                                   \
-    ulLast = ulNow;                                     \
-} while (0)
+#define CT_LOG_LIMIT_PERIOD(interval, can)                  \
+    do {                                                    \
+        static uint64 ulMaxToks = (interval);               \
+        static uint64 ulToks = (interval);                  \
+        static uint64 ulLast = 0;                           \
+        uint64 ulNow = time(NULL);                          \
+        /*更新当前配额*/                              \
+        ulToks += ulNow - ulLast;                           \
+        ulToks = (ulToks > ulMaxToks) ? ulMaxToks : ulToks; \
+        /*如果当前配额大于每次消耗的时间*/   \
+        if (ulToks >= (interval)) {                         \
+            /*允许打印，同时配额消耗*/           \
+            ulToks -= (interval);                           \
+            (can) = CT_TRUE;                                \
+        } else {                                            \
+            (can) = CT_FALSE;                               \
+        }                                                   \
+        ulLast = ulNow;                                     \
+    } while (0)
 
 #define CT_LOG_RUN_ERR_LIMIT(interval, format, ...)                                                                    \
     do {                                                                                                               \
@@ -505,48 +506,44 @@ typedef enum st_warn_id {
 } warn_id_t;
 
 typedef enum st_warn_name {
-    WARN_FILEDESC,          /* Too many open files in %s */
-    WARN_DEADLOCK,          /* Deadlock detected in %s */
-    WARN_DEGRADE,           /* LNS(%s:%u) changed to temporary asynchronous in %s */
-    WARN_REPL_PASSWD,       /* Replication password has been changed, please generate keys and cipher manually on %s */
-    WARN_JOB,               /* Job %lld failed, error message %s */
-    WARN_AGENT,             /* Attach dedicate agent failed. sid = %d */
-    WARN_MAXCONNECTIONS,    /* Session has exceeded maximum connections %u */
-    WARN_ARCHIVE,           /* Failed to archive redo file %s */
-    WARN_FLUSHREDO,         /* Failed to flush redo file %s */
-    WARN_FLUSHBUFFER,       /* %s failed to flush datafile */
-    WARN_SPACEUSAGE,        /* Available data space in tablespace %s has already been up to %d percent of total space */
-    WARN_FILEMONITOR,       /* File %s has been removed or moved on disk unexpectedly */
-    WARN_MALICIOUSLOGIN,    /* Ip %s failed to log in multiple times in succession. */
+    WARN_FILEDESC,       /* Too many open files in %s */
+    WARN_DEADLOCK,       /* Deadlock detected in %s */
+    WARN_DEGRADE,        /* LNS(%s:%u) changed to temporary asynchronous in %s */
+    WARN_REPL_PASSWD,    /* Replication password has been changed, please generate keys and cipher manually on %s */
+    WARN_JOB,            /* Job %lld failed, error message %s */
+    WARN_AGENT,          /* Attach dedicate agent failed. sid = %d */
+    WARN_MAXCONNECTIONS, /* Session has exceeded maximum connections %u */
+    WARN_ARCHIVE,        /* Failed to archive redo file %s */
+    WARN_FLUSHREDO,      /* Failed to flush redo file %s */
+    WARN_FLUSHBUFFER,    /* %s failed to flush datafile */
+    WARN_SPACEUSAGE,     /* Available data space in tablespace %s has already been up to %d percent of total space */
+    WARN_FILEMONITOR,    /* File %s has been removed or moved on disk unexpectedly */
+    WARN_MALICIOUSLOGIN, /* Ip %s failed to log in multiple times in succession. */
     WARN_PARAMCHANGE,    /* Parameter of %s has been changed */
     WARN_PASSWDCHANGE,   /* User password of %s has been changed */
     WARN_PROFILECHANGE,  /* Profile of %s has been changed */
-    WARN_AUDITLOG,          /* Failed to write audit log in %s */
-    WARN_PAGECORRUPTED,     /* page %s, %s, %s is corrupted */
-    WARN_UNDO_USAGE,        /* The undo space size of has been used %s has already been up to %d percent of total undo size */
-    WARN_NOLOG_OBJ,         /* Nolog object found in %s */
-}warn_name_t;
+    WARN_AUDITLOG,       /* Failed to write audit log in %s */
+    WARN_PAGECORRUPTED,  /* page %s, %s, %s is corrupted */
+    WARN_UNDO_USAGE, /* The undo space size of has been used %s has already been up to %d percent of total undo size */
+    WARN_NOLOG_OBJ,  /* Nolog object found in %s */
+} warn_name_t;
 
-#define MAX_FILTER_STR_LEN  (2 * 1024)
+#define MAX_FILTER_STR_LEN (2 * 1024)
 
-typedef enum en_regex_status_e {
-    ENABLE_REGEX  = 0,
-    DISABLE_REGEX = 1
-}regex_status_e;
+typedef enum en_regex_status_e { ENABLE_REGEX = 0, DISABLE_REGEX = 1 } regex_status_e;
 
 typedef enum en_regex_type_e {
     REGEX_LINE = 0,
     REGEX_SECURITY = 1,
-    REGEX_TOKEN    = 2,
+    REGEX_TOKEN = 2,
     REGEX_PASSWORD = 3,
-}regex_type_e;
-
+} regex_type_e;
 
 typedef struct regex_conf {
-    regex_type_e   regex_type;
+    regex_type_e regex_type;
     regex_status_e regex_status;
     const char regex[256];
-}regex_conf_t;
+} regex_conf_t;
 
 #ifdef __cplusplus
 }

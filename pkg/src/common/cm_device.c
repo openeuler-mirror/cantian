@@ -117,8 +117,9 @@ status_t cm_create_device(const char *name, device_type_t type, uint32 flags, in
     timeval_t tv_begin;
     status_t ret = CT_SUCCESS;
     io_record_stat_t io_stat = IO_STAT_SUCCESS;
+    uint32 mode = O_BINARY | O_SYNC | O_RDWR | O_EXCL | flags;
     if (type == DEV_TYPE_FILE) {
-        if (cm_create_file(name, O_BINARY | O_SYNC | O_RDWR | O_EXCL | flags, handle) != CT_SUCCESS) {
+        if (cm_create_file(name, mode, handle) != CT_SUCCESS) {
             cm_check_file_error();
             return CT_ERROR;
         }
@@ -128,10 +129,10 @@ status_t cm_create_device(const char *name, device_type_t type, uint32 flags, in
             return CT_ERROR;
         }
 
-        if (g_raw_device_op.raw_create(name, O_BINARY | O_SYNC | O_RDWR | O_EXCL | flags) != CT_SUCCESS) {
+        if (g_raw_device_op.raw_create(name, mode) != CT_SUCCESS) {
             return CT_ERROR;
         }
-        if (g_raw_device_op.raw_open(name, flags, handle) != CT_SUCCESS) {
+        if (g_raw_device_op.raw_open(name, mode, handle) != CT_SUCCESS) {
             return CT_ERROR;
         }
     } else if (type == DEV_TYPE_ULOG) {
@@ -298,12 +299,14 @@ status_t cm_open_device_common(const char *name, device_type_t type, uint32 flag
     return CT_SUCCESS;
 }
 
-status_t cm_open_device(const char *name, device_type_t type, uint32 flags, int32 *handle){
-    return cm_open_device_common(name, type ,flags, handle, CT_TRUE);
+status_t cm_open_device(const char *name, device_type_t type, uint32 flags, int32 *handle)
+{
+    return cm_open_device_common(name, type, flags, handle, CT_TRUE);
 }
 
-status_t cm_open_device_no_retry(const char *name, device_type_t type, uint32 flags, int32 *handle){
-    return cm_open_device_common(name, type ,flags, handle, CT_FALSE);
+status_t cm_open_device_no_retry(const char *name, device_type_t type, uint32 flags, int32 *handle)
+{
+    return cm_open_device_common(name, type, flags, handle, CT_FALSE);
 }
 
 void cm_close_device(device_type_t type, int32 *handle)
@@ -336,15 +339,12 @@ status_t cm_read_device(device_type_t type, int32 handle, int64 offset, void *bu
             return CT_ERROR;
         }
     } else if (type == DEV_TYPE_RAW) {
-        if (g_raw_device_op.raw_seek == NULL || g_raw_device_op.raw_read == NULL) {
+        if (g_raw_device_op.raw_pread == NULL) {
             CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
             return CT_ERROR;
         }
 
-        if (g_raw_device_op.raw_seek(handle, offset, SEEK_SET) != offset) {
-            return CT_ERROR;
-        }
-        if (g_raw_device_op.raw_read(handle, offset, buf, size, &read_size) != CT_SUCCESS) {
+        if (g_raw_device_op.raw_pread(handle, buf, size, offset, &read_size) != CT_SUCCESS) {
             return CT_ERROR;
         }
     } else if (type == DEV_TYPE_ULOG) {
@@ -420,8 +420,8 @@ status_t cm_read_device_nocheck(device_type_t type, int32 handle, int64 offset, 
     return CT_SUCCESS;
 }
 
-status_t cm_device_read_batch(device_type_t type, int32 handle, uint64 startLsn, uint64 endLsn,
-                              void *buf, int32 size, int32 *r_size, uint64 *outLsn)
+status_t cm_device_read_batch(device_type_t type, int32 handle, uint64 startLsn, uint64 endLsn, void *buf, int32 size,
+                              int32 *r_size, uint64 *outLsn)
 {
     if (type == DEV_TYPE_ULOG) {
         return cm_dbs_ulog_batch_read(handle, startLsn, endLsn, buf, size, r_size, outLsn);
@@ -429,8 +429,9 @@ status_t cm_device_read_batch(device_type_t type, int32 handle, uint64 startLsn,
     CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
     return CT_ERROR;
 }
- 
-status_t cm_device_get_used_cap_common(device_type_t type, int32 handle, uint64_t startLsn, uint32_t *sizeKb, uint8 is_retry)
+
+status_t cm_device_get_used_cap_common(device_type_t type, int32 handle, uint64_t startLsn, uint32_t *sizeKb,
+                                       uint8 is_retry)
 {
     if (type == DEV_TYPE_ULOG) {
         return cm_dbs_get_used_cap(handle, startLsn, sizeKb, is_retry);
@@ -470,15 +471,12 @@ status_t cm_write_device(device_type_t type, int32 handle, int64 offset, const v
             return CT_ERROR;
         }
     } else if (type == DEV_TYPE_RAW) {
-        if (g_raw_device_op.raw_seek == NULL || g_raw_device_op.raw_write == NULL) {
+        if (g_raw_device_op.raw_pwrite == NULL) {
             CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
             return CT_ERROR;
         }
 
-        if (g_raw_device_op.raw_seek(handle, offset, SEEK_SET) != offset) {
-            return CT_ERROR;
-        }
-        if (g_raw_device_op.raw_write(handle, offset, buf, size) != CT_SUCCESS) {
+        if (g_raw_device_op.raw_pwrite(handle, buf, size, offset) != CT_SUCCESS) {
             return CT_ERROR;
         }
     } else if (type == DEV_TYPE_ULOG) {
@@ -623,8 +621,7 @@ status_t cm_prealloc_device(int32 handle, int64 offset, int64 size)
     return cm_fallocate_file(handle, 0, offset, size);
 }
 
-status_t cm_write_device_by_zero(int32 handle, device_type_t type, char *buf, uint32 buf_size,
-    int64 offset, int64 size)
+status_t cm_write_device_by_zero(int32 handle, device_type_t type, char *buf, uint32 buf_size, int64 offset, int64 size)
 {
     int64 offset_tmp = offset;
     if (type == DEV_TYPE_PGPOOL || type == DEV_TYPE_ULOG) {
@@ -651,8 +648,7 @@ status_t cm_write_device_by_zero(int32 handle, device_type_t type, char *buf, ui
     return CT_SUCCESS;
 }
 
-status_t cm_extend_device(device_type_t type, int32 handle, char *buf, uint32 buf_size, int64 size,
-    bool32 prealloc)
+status_t cm_extend_device(device_type_t type, int32 handle, char *buf, uint32 buf_size, int64 size, bool32 prealloc)
 {
     int64 offset = cm_device_size(type, handle);
     if (offset == -1) {
@@ -676,7 +672,7 @@ status_t cm_extend_device(device_type_t type, int32 handle, char *buf, uint32 bu
 }
 
 status_t cm_try_prealloc_extend_device(device_type_t type, int32 handle, char *buf, uint32 buf_size, int64 size,
-    bool32 prealloc)
+                                       bool32 prealloc)
 {
     int64 offset = cm_device_size(type, handle);
     if (offset == -1) {
@@ -700,7 +696,6 @@ status_t cm_try_prealloc_extend_device(device_type_t type, int32 handle, char *b
 
     return cm_write_device_by_zero(handle, type, buf, buf_size, offset, size);
 }
-
 
 status_t cm_truncate_device(device_type_t type, int32 handle, int64 keep_size)
 {
@@ -773,8 +768,8 @@ bool32 cm_check_device_offset_valid(device_type_t type, int32 handle, int64 offs
     return CT_FALSE;
 }
 
-status_t cm_build_device(const char *name, device_type_t type, char *buf, uint32 buf_size, int64 size,
-    uint32 flags, bool32 prealloc, int32 *handle)
+status_t cm_build_device(const char *name, device_type_t type, char *buf, uint32 buf_size, int64 size, uint32 flags,
+                         bool32 prealloc, int32 *handle)
 {
     *handle = -1;
     if (type == DEV_TYPE_PGPOOL) {
@@ -830,10 +825,10 @@ status_t cm_aio_destroy(cm_aio_lib_t *lib_ctx, cm_io_context_t io_ctx)
     return CT_SUCCESS;
 }
 
-status_t cm_aio_getevents(cm_aio_lib_t *lib_ctx, cm_io_context_t io_ctx, long min_nr, long nr,
-                          cm_io_event_t *events, int32 *aio_ret)
+status_t cm_aio_getevents(cm_aio_lib_t *lib_ctx, cm_io_context_t io_ctx, long min_nr, long nr, cm_io_event_t *events,
+                          int32 *aio_ret)
 {
-    struct timespec timeout  = { 0, 200 };
+    struct timespec timeout = { 0, 200 };
     *aio_ret = lib_ctx->io_getevents(io_ctx, min_nr, nr, events, &timeout);
     if (*aio_ret < 0) {
         if (*aio_ret != -EINTR) {
@@ -904,4 +899,3 @@ status_t cm_cal_partid_by_pageid(uint64 page_id, uint32 page_size, uint32 *part_
 #ifdef __cplusplus
 }
 #endif
-
