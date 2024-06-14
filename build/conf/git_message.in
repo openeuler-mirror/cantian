@@ -1,8 +1,5 @@
-git_id=747e3aa
-gitVersion=747e3aab5198e12ed94e04bb80ac03a9defb3df4
-merge_time=Fri Jun 7 14:00:15 2024 +0000
-cantian_merge_time=Fri Jun 7 14:00:15 2024 +0000
+git_id=0d24758
+gitVersion=0d2475835d8f619cc36c5deeddd62df24d71104e
+merge_time=Wed Feb 21 10:17:26 2024 +0800
 driver_commit_id=c2755f6
-ctsql_commit_id=726d7d9
-mysqlGitVersion=bb8ca31a830ed32e29840fd55ada21504be6802b
-mysql_merge_time=Thu Jun 6 13:45:13 2024 +0000
+ctsql_commit_id=d4238c4
