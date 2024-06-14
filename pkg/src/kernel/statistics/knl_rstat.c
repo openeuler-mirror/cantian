@@ -9180,8 +9180,7 @@ status_t stats_flush_monitor_normal(knl_session_t *session)
             continue;
         }
 
-	if (strncmp(((dc_entity_t *)dc.handle)->entry->name,
-	            MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) != 0) {
+        if (strncmp(((dc_entity_t *)dc.handle)->entry->name, MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) == 0) {
             dc_close(&dc);
             continue;
         }
