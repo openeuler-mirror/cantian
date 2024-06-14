@@ -934,33 +934,67 @@ void dc_wait_till_load_finish_standby(knl_session_t *session, dc_entry_t *entry)
     return;
 }
 
+status_t dc_try_latch_ddl_for_load(knl_session_t *session, dc_user_t *user, dc_entry_t *entry, knl_dictionary_t *dc)
+{
+   for(;;) {
+        dc_wait_till_load_finish(session, entry);
+        if (entry->entity != NULL) { // check entity
+            return CT_SUCCESS;
+        }
+
+        entry->is_loading = CT_TRUE;
+        cm_spin_unlock(&entry->lock);
+
+        if (!dls_latch_timed_s(session, &entry->ddl_latch, 2, CT_FALSE, NULL, CT_INVALID_ID32)) {  /* in case other node is doing ddl. */
+            if (dc != NULL && !dc_entry_visible(entry, dc)) {
+                cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+                entry->is_loading = CT_FALSE;
+                CT_THROW_ERROR(ERR_TABLE_OR_VIEW_NOT_EXIST, user->desc.name, entry->name);
+                return CT_ERROR;
+            }
+
+            cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+            entry->is_loading = CT_FALSE;
+            cm_spin_unlock(&entry->lock);
+            cm_sleep(ENTRY_IS_LOADING_DDL_INTERVAL);
+            cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+            continue;
+        }
+        if (RC_REFORM_RECOVERY_IN_PROGRESS) {
+            dls_unlatch(session, &entry->ddl_latch, NULL);
+            cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+            knl_panic(entry->is_loading);
+            entry->is_loading = CT_FALSE;
+            CT_LOG_RUN_ERR("loading dc during reform");
+            return CT_ERROR;
+        }
+        break;
+    }
+    return CT_SUCCESS;
+}
+
+
 status_t dc_load_entity(knl_session_t *session, dc_user_t *user, uint32 oid, dc_entry_t *entry, knl_dictionary_t *dc)
 {
-    dc_wait_till_load_finish(session, entry);
-    if (entry->entity != NULL) { // check entity
-        return CT_SUCCESS;
+    status_t ret = dc_try_latch_ddl_for_load(session, user, entry, dc);
+    if ((ret != CT_SUCCESS) || (entry->entity != NULL)) {
+        knl_panic(!entry->is_loading);
+        return ret;
     }
 
-    if (RC_REFORM_RECOVERY_IN_PROGRESS) {
-        CT_LOG_RUN_ERR("loading dc during reform");
-        return CT_ERROR;
-    }
-
-    if (dc != NULL && !dc_entry_visible(entry, dc)) {
-        CT_THROW_ERROR(ERR_TABLE_OR_VIEW_NOT_EXIST, user->desc.name, entry->name);
-        return CT_ERROR;
-    }
-
+    knl_panic(entry->is_loading);
     dc_entity_t *entity = dc_alloc_entity_internal(session, user, oid, entry);
     if (entity == NULL) {
+        cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+        knl_panic(entry->is_loading);
+        entry->is_loading = CT_FALSE;
         entry->entity = NULL;
         return CT_ERROR;
     }
-    entry->is_loading = CT_TRUE;
-    cm_spin_unlock(&entry->lock);
 
+    ret = dc_load_entity_internal(session, user, oid, entity, entry);
+    dls_unlatch(session, &entry->ddl_latch, NULL);
 
-    status_t ret = dc_load_entity_internal(session, user, oid, entity, entry);
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
     knl_panic(entry->is_loading);
     entry->is_loading = CT_FALSE;
@@ -1548,15 +1582,22 @@ static status_t dc_open_table_entry(knl_session_t *session, dc_user_t *user, dc_
     dc_entity_t *entity = NULL;
 
     dc_wait_till_load_finish(session, entry);
-    status_t ret = dc_open_table_entry_internal(session, user, entry, dc);
+    entry->entity = NULL;
+    status_t ret = dc_try_latch_ddl_for_load(session, user, entry, dc);
+    if ((ret != CT_SUCCESS) || (entry->entity != NULL)) {
+        knl_panic(!entry->is_loading);
+        return ret;
+    }
+
+    knl_panic(entry->is_loading);
+    ret = dc_open_table_entry_internal(session, user, entry, dc);
     if (ret == CT_ERROR) {
         entry->entity = NULL;
         return ret;
     }
 
-    entry->is_loading = CT_TRUE;
     entity = entry->entity;
-    cm_spin_unlock(&entry->lock);
+
 
     knl_set_session_scn(session, CT_INVALID_ID64);
     ret = dc_load_table_entity(session, user, entry->id, entity);
@@ -1564,6 +1605,7 @@ static status_t dc_open_table_entry(knl_session_t *session, dc_user_t *user, dc_
     if (ret == CT_SUCCESS) {
         ret = dc_load_table_monitor(session, entity);
      }
+    dls_unlatch(session, &entry->ddl_latch, NULL);
 
     cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
     knl_panic(entry->is_loading);
