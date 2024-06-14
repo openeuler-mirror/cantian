@@ -615,8 +615,7 @@ class CheckInstallConfig(CheckBase):
             install_config_params['mysql_metadata_in_cantian'] = True
 
     def parse_policy_config_file(self):
-        current_dir = os.path.dirname(self.config_path)
-        policy_path = os.path.join(current_dir, "deploy_policy_config.json")
+        policy_path = os.path.join(dir_name, "deploy_policy_config.json")
         try:
             with open(policy_path, 'r', encoding='utf8') as file_path:
                 json_data = json.load(file_path)
@@ -626,8 +625,7 @@ class CheckInstallConfig(CheckBase):
             return False
     
     def parse_cantian_config_file(self):
-        current_dir = os.path.dirname(self.config_path)
-        cantian_config_path = os.path.join(current_dir, "cantian")
+        cantian_config_path = os.path.join(dir_name, "cantian")
         cantian_config_path = os.path.join(cantian_config_path, "install_config.json")
         try:
             with open(cantian_config_path, 'r', encoding='utf8') as file_path:
