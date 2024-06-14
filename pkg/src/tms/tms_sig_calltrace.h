@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-#define SIGTASKTRACK        61 // SIGRTMAX-3
+#define SIGTIMEOUT        62 // SIGRTMAX-2
 
 status_t tms_dump_thread_stack_sig(pid_t dwPid, pid_t dwTid);
 

@@ -12,7 +12,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 class KubernetesService:
     def __init__(self, kube_config_path):
         self.kube_config_path = kube_config_path
-        self.api_server = None
+        self.api_server = "https://kubernetes.default.svc"
         self.cert = None
         self.headers = {
             "Accept": "application/json"
@@ -22,7 +22,6 @@ class KubernetesService:
     def _load_kube_config(self):
         with open(self.kube_config_path, "r") as kube_config_file:
             kube_config_content = kube_config_file.read()
-        self.api_server = re.search(r'server: (.+)', kube_config_content).group(1)
         client_cert_data = re.search(r'client-certificate-data: (.+)', kube_config_content).group(1)
         client_key_data = re.search(r'client-key-data: (.+)', kube_config_content).group(1)
         client_cert_data = base64.b64decode(client_cert_data)

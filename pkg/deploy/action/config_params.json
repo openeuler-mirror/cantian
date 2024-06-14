@@ -24,6 +24,7 @@
   "mes_ssl_switch": true,
   "link_type": "1",
   "db_type": "0",
+  "deploy_policy": "default",
   "kerberos_key": "krb5",
   "mysql_metadata_in_cantian": true,
   "MAX_ARCH_FILES_SIZE": "300G",

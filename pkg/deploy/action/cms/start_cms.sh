@@ -203,6 +203,7 @@ function start_cms() {
 function init_container() {
   prepare_cms_gcc
   set_cms
+  touch ${CMS_HOME}/cfg/container_flag
 }
 
 function main() {

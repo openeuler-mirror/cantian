@@ -192,7 +192,10 @@ function mount_fs() {
         chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node0
         mkdir -m 770 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node1
         chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node1
-
+        if [ -f "/mnt/dbdata/remote/share_${storage_share_fs}/gcc_home/gcc_file" ]; then
+            logAndEchoError "gcc file already exists, please check if any cluster is running."
+            exit 1
+        fi
         update_random_seed
         # 挂载后，0节点拷贝配置文件至文件系统下，1节点检查对应配置文件参数
         check_deploy_param
