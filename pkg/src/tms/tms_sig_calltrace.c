@@ -79,7 +79,7 @@ status_t tms_dump_thread_stack_sig(pid_t dwPid, pid_t dwTid)
     errno_t ret;
 
     CT_LOG_RUN_INF("Show task context by signal: pid=%d, tid=%d.", dwPid, dwTid);
-    ret = syscall((errno_t)TMS_TGKILL, dwPid, dwTid, SIGTASKTRACK);
+    ret = syscall((errno_t)TMS_TGKILL, dwPid, dwTid, SIGTIMEOUT);
     CT_LOG_RUN_INF("Show task context by signal end: pid=%d, tid=%d, ret=%d.", dwPid, dwTid, ret);
     
     return ret;

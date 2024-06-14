@@ -274,7 +274,7 @@ void tms_check_monitor_result(thread_t* thread)
 tms_monitor_handle tms_sig_event_reg(const char *monitor_event_name, tms_monitor_cb_fn_t monitor_cb,
     uint32 monitor_step)
 {
-    if (tms_sigcap_reg_proc(SIGTASKTRACK) != CT_SUCCESS) {
+    if (tms_sigcap_reg_proc(SIGTIMEOUT) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[tms]: Failed to reg sigcap.");
         return NULL;
     }

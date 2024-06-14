@@ -20,6 +20,7 @@ LOGICREP_HOME='/opt/software/tools/logicrep'
 USER_FILE="${LOGICREP_HOME}/create_user.json"
 HEALTHY_FILE="/opt/cantian/healthy"
 READINESS_FILE="/opt/cantian/readiness"
+CMS_CONTAINER_FLAG="/opt/cantian/cms/cfg/container_flag"
 
 source ${CURRENT_PATH}/../log4sh.sh
 
@@ -47,6 +48,7 @@ mysql_metadata_in_cantian=`python3 ${CURRENT_PATH}/get_config_info.py "mysql_met
 primary_keystore="/opt/cantian/common/config/primary_keystore_bak.ks"
 standby_keystore="/opt/cantian/common/config/standby_keystore_bak.ks"
 VERSION_PATH="/mnt/dbdata/remote/metadata_${storage_metadata_fs}"
+gcc_file="/mnt/dbdata/remote/share_${storage_share_fs}/gcc_home/gcc_file"
 
 if [ ${node_id} -eq 0 ]; then
     node_domain=`echo ${cms_ip} | awk '{split($1,arr,";");print arr[1]}'`
@@ -114,12 +116,6 @@ function check_init_status() {
         let resolve_times++
         sleep 5
     done
-    # TODO
-    if [ -f ${VERSION_PATH}/${VERSION_FILE} ] || [ ${node_id} -ne 0 ]; then
-        return 0
-    fi
-    rm -rf /mnt/dbdata/remote/share_${storage_share_fs}/*
-    rm -rf /mnt/dbdata/remote/archive_${storage_archive_fs}/*
 }
 
 function prepare_kmc_conf() {
@@ -183,6 +179,10 @@ function set_version_file() {
 
     if [ ! -f ${VERSION_PATH}/${VERSION_FILE} ]; then
         cp -rf ${PKG_PATH}/${VERSION_FILE} ${VERSION_PATH}/${VERSION_FILE}
+    fi
+
+    if [ -f ${CMS_CONTAINER_FLAG} ]; then
+        rm -rf ${CMS_CONTAINER_FLAG}
     fi
 }
 
@@ -257,6 +257,11 @@ function init_start() {
 }
 
 function exit_with_log() {
+    # 首次初始化失败，清理gcc_file
+    if [ -f ${CMS_CONTAINER_FLAG} ] && [ -f ${gcc_file} ]; then
+        rm -rf ${gcc_file}*
+    fi
+
     # 失败后保存日志并删除存活探针
     DATE=`date +"%Y-%m-%d-%H-%M-%S"`
     mkdir -p /home/mfdb_core/${DATE}-node${node_id}
