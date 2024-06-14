@@ -1,0 +1,273 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cantian-service
+  labels:
+    app: cantian
+  namespace: cantian
+spec:
+  selector:
+    app: cantian
+  ports:
+  - protocol: TCP
+    port: 33060
+    targetPort: 3306
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cantian-node0
+  namespace: cantian
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: cantian
+  template:
+    metadata:
+      labels:
+        app: cantian
+      annotations:
+        k8s.v1.cni.cncf.io/networks: kube-system/rdma-sriov-net1-node0, kube-system/rdma-sriov-net2-node0
+    spec:
+      hostname: cantian-node0
+      subdomain: cantian-service
+      nodeSelector:
+        sriov: enabled
+      containers:
+        - name: cantian
+          image: {{ .Values.images.cantian }}
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/sbin/init"]
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [ "ALL" ]
+            seccompProfile:
+              type: Unconfined
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - name: localtime
+              mountPath: /etc/localtime
+            - name: mfdb-core
+              mountPath: /home/mfdb_core
+            - name: deploy-volume
+              mountPath: /ctdb/cantian_install/cantian_connector/config/container_conf
+            - name: config-volume
+              mountPath: /ctdb/cantian_install/cantian_connector/config/container_conf/init_conf/
+            - name: kube-config-volume
+              mountPath: /root/.kube
+            - name: shared-memory
+              mountPath: /dev/shm
+          resources:
+            requests:
+              memory: "40Gi"
+              cpu: "12"
+              huawei.io/rdma1: '1'
+              huawei.io/rdma2: '1'
+            limits:
+              memory: "64Gi"
+              cpu: "12"
+              huawei.io/rdma1: '1'
+              huawei.io/rdma2: '1'
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - /ctdb/cantian_install/cantian_connector/action/docker/readiness_probe.sh
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "[ -f /opt/cantian/healthy ]"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          env:
+            - name: SERVICE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: cantian-config
+                  key: service_name
+            - name: MY_MEMORY_SIZE
+              valueFrom:
+                resourceFieldRef:
+                  containerName: cantian
+                  resource: limits.memory
+            - name: MY_CPU_NUM
+              valueFrom:
+                resourceFieldRef:
+                  containerName: cantian
+                  resource: limits.cpu
+      volumes:
+      - name: localtime
+        hostPath:
+          path: /etc/localtime
+      - name: mfdb-core
+        hostPath:
+          path: /home/mfdb_core
+      - name: deploy-volume
+        hostPath:
+          path: /home/k8s-node/container_conf
+      - name: config-volume
+        configMap:
+          name: node0-config
+      - name: kube-config-volume
+        hostPath:
+          path: /root/.kube
+      - name: shared-memory
+        emptyDir:
+          medium: Memory
+          sizeLimit: "5120Mi"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: cantian
+              topologyKey: "kubernetes.io/hostname"
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: "master"
+                    operator: DoesNotExist
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cantian-node1
+  namespace: cantian
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: cantian
+  template:
+    metadata:
+      labels:
+        app: cantian
+      annotations:
+        k8s.v1.cni.cncf.io/networks: kube-system/rdma-sriov-net1-node1, kube-system/rdma-sriov-net2-node1
+    spec:
+      hostname: cantian-node1
+      subdomain: cantian-service
+      nodeSelector:
+        sriov: enabled
+      containers:
+        - name: cantian
+          image: {{ .Values.images.cantian }}
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/sbin/init"]
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [ "ALL" ]
+            seccompProfile:
+              type: Unconfined
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - name: localtime
+              mountPath: /etc/localtime
+            - name: mfdb-core
+              mountPath: /home/mfdb_core
+            - name: deploy-volume
+              mountPath: /ctdb/cantian_install/cantian_connector/config/container_conf
+            - name: config-volume
+              mountPath: /ctdb/cantian_install/cantian_connector/config/container_conf/init_conf/
+            - name: kube-config-volume
+              mountPath: /root/.kube
+            - name: shared-memory
+              mountPath: /dev/shm
+          resources:
+            requests:
+              memory: "40Gi"
+              cpu: "12"
+              huawei.io/rdma1: '1'
+              huawei.io/rdma2: '1'
+            limits:
+              memory: "64Gi"
+              cpu: "12"  # 最大 CPU
+              huawei.io/rdma1: '1'
+              huawei.io/rdma2: '1'
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - /ctdb/cantian_install/cantian_connector/action/docker/readiness_probe.sh
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "[ -f /opt/cantian/healthy ]"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          env:
+            - name: SERVICE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: cantian-config
+                  key: service_name
+            - name: MY_MEMORY_SIZE
+              valueFrom:
+                resourceFieldRef:
+                  containerName: cantian
+                  resource: limits.memory
+            - name: MY_CPU_NUM
+              valueFrom:
+                resourceFieldRef:
+                  containerName: cantian
+                  resource: limits.cpu
+      volumes:
+      - name: localtime
+        hostPath:
+          path: /etc/localtime
+      - name: mfdb-core
+        hostPath:
+          path: /home/mfdb_core
+      - name: deploy-volume
+        hostPath:
+          path:  /home/k8s-node/container_conf
+      - name: config-volume
+        configMap:
+          name: node1-config
+      - name: kube-config-volume
+        hostPath:
+          path: /root/.kube
+      - name: shared-memory
+        emptyDir:
+          medium: Memory
+          sizeLimit: "5120Mi"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: cantian
+              topologyKey: "kubernetes.io/hostname"
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: "master"
+                    operator: DoesNotExist
