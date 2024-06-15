@@ -138,6 +138,9 @@ status_t dtc_bak_set_logfile_ctrl(knl_session_t *session, uint32 curr_file_index
 void dtc_rst_update_process_data_size(knl_session_t *session, bak_context_t *ctx);
 status_t dtc_bak_running(knl_session_t *session, uint32 target_id, bool32 *running);
 EXTER_ATTACK void dtc_process_running(void *sess, mes_message_t *receive_msg);
+status_t dtc_bak_set_increment_unblock(knl_session_t *session);
+status_t dtc_bak_set_inc_unblock(knl_session_t *session, uint32 inst_id);
+EXTER_ATTACK void dtc_bak_process_set_inc_unblock(void *sess, mes_message_t *receive_msg);
 void dtc_set_record_lsn(bak_record_t *record);
 uint64 dtc_get_min_lsn_lrp_point(bak_record_t *record);
 status_t dtc_get_record_lsn_by_nodeid(bak_record_t *record, uint32_t node_id, uint64_t *lsn);
