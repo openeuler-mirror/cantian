@@ -33,6 +33,7 @@
 #include "temp_btree.h"
 #include "dc_part.h"
 #include "knl_sys_part_defs.h"
+#include "tse_ddl_list.h"
 
 #define STATS_GET_ENDPOINT(column_handler) \
     ((column_handler)->hist_info.prev_endpoint + (column_handler)->hist_info.dnv_per_num)
