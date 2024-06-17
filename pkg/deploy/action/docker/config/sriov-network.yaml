@@ -1,0 +1,110 @@
+---
+# 网卡一
+# 子网一，用于node0
+apiVersion: sriovnetwork.openshift.io/v1
+kind: SriovNetwork
+metadata:
+  name: rdma-sriov-net1-node0
+  namespace: kube-system
+spec:
+  ipam: |-
+    {
+     "type": "host-local",
+     "ranges": [ [ { "subnet": "77.77.77.0/25","rangeStart": "77.77.77.20","rangeEnd": "77.77.77.50" } ] ]
+    }
+  resourceName: rdma1
+  vlanQoS: 3
+  maxTxRate: 25000
+  vlan: 1004
+---
+# 子网二，用于node1
+apiVersion: sriovnetwork.openshift.io/v1
+kind: SriovNetwork
+metadata:
+  name: rdma-sriov-net1-node1
+  namespace: kube-system
+spec:
+  ipam: |-
+    {
+     "type": "host-local",
+     "ranges": [ [ { "subnet": "77.77.77.128/25","rangeStart": "77.77.77.150","rangeEnd": "77.77.77.180" } ] ]
+    }
+  resourceName: rdma1
+  vlanQoS: 3
+  maxTxRate: 25000
+  vlan: 1004
+---
+apiVersion: sriovnetwork.openshift.io/v1
+kind: SriovNetworkNodePolicy
+metadata:
+  name: sriov-net1
+  namespace: kube-system
+spec:
+  deviceType: netdevice
+  isRdma: true
+  mtu: 5500
+  linkType: ETH
+  nicSelector:
+    deviceID: "1015"
+    pfNames:
+    - enp4s0f1np1
+    - enp132s0f1np1
+  nodeSelector:
+    sriov: enabled
+  numVfs: 8
+  priority: 99
+  resourceName: rdma1
+---
+# 网卡二
+apiVersion: sriovnetwork.openshift.io/v1
+kind: SriovNetwork
+metadata:
+  name: rdma-sriov-net2-node0
+  namespace: kube-system
+spec:
+  ipam: |-
+    {
+     "type": "host-local",
+     "ranges": [ [ { "subnet": "66.66.66.0/25","rangeStart": "66.66.66.20","rangeEnd": "66.66.66.50" } ] ]
+    }
+  resourceName: rdma2
+  vlanQoS: 3
+  maxTxRate: 25000
+  vlan: 1003
+---
+apiVersion: sriovnetwork.openshift.io/v1
+kind: SriovNetwork
+metadata:
+  name: rdma-sriov-net2-node1
+  namespace: kube-system
+spec:
+  ipam: |-
+    {
+     "type": "host-local",
+     "ranges": [ [ { "subnet": "66.66.66.128/25","rangeStart": "66.66.66.150","rangeEnd": "66.66.66.180" } ] ]
+    }
+  resourceName: rdma2
+  vlanQoS: 3
+  maxTxRate: 25000
+  vlan: 1003
+---
+apiVersion: sriovnetwork.openshift.io/v1
+kind: SriovNetworkNodePolicy
+metadata:
+  name: sriov-net2
+  namespace: kube-system
+spec:
+  deviceType: netdevice
+  isRdma: true
+  mtu: 5500
+  linkType: ETH
+  nicSelector:
+    deviceID: "1015"
+    pfNames:
+    - enp4s0f0np0
+    - enp132s0f0np0
+  nodeSelector:
+    sriov: enabled
+  numVfs: 8
+  priority: 99
+  resourceName: rdma2
