@@ -2562,6 +2562,8 @@ status_t dtc_update_ckpt_log_point(void)
     CT_LOG_RUN_INF("[RC][partial start] start waiting prcy ckpt done, session->kernel->lsn=%llu, "
                    "g_rc_ctx->status=%u",
                    ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
+    SYNC_POINT_GLOBAL_START(CANTIAN_PART_RECOVERY_BEFORE_CKPT_ABORT, NULL, 0);
+    SYNC_POINT_GLOBAL_END;
     uint32 loop = 0;
     for (;;) {
         CT_RETVALUE_IFTRUE(rc_reform_cancled(), CT_ERROR);
@@ -2836,7 +2838,7 @@ bool32 is_min_batch_lsn(uint64 batch_lsn, knl_scn_t *batch_scn, bool32 *has_batc
 
 void dtc_update_standby_cluster_scn(knl_session_t *session, uint32 idx)
 {
-    if (DB_IS_PRIMARY(&session->kernel->db)) {
+    if (DB_IS_PRIMARY(&session->kernel->db) || DAAC_PART_RECOVERY(session)) {
         return;
     }
     knl_scn_t batch_scn = 0;
