@@ -45,7 +45,10 @@ kernel_element = {
     'TEMP_BUFFER_SIZE',
     'DATA_BUFFER_SIZE',
     'SHARED_POOL_SIZE',
-    'LOG_BUFFER_SIZE'
+    'LOG_BUFFER_SIZE',
+    'SESSIONS',
+    'VARIANT_MEMORY_AREA_SIZE',
+    '_INDEX_BUFFER_SIZE'
 }
 UnitConversionInfo = collections.namedtuple('UnitConversionInfo', ['tmp_gb', 'tmp_mb', 'tmp_kb', 'key', 'value',
                                                                    'sga_buff_size', 'temp_buffer_size',
@@ -474,6 +477,9 @@ class CheckInstallConfig(CheckBase):
             sga_buff_size -= shared_pool_size
         if key == "LOG_BUFFER_SIZE":
             sga_buff_size -= log_buffer_size
+        if key == "SESSIONS":
+            buff_size_pre_session = 5.5 * tmp_gb / 1024
+            sga_buff_size += int(value) * buff_size_pre_session
         
         return sga_buff_size
 
@@ -510,16 +516,28 @@ class CheckInstallConfig(CheckBase):
         ret_code, cur_avi_memory, stderr = exec_popen(cmd)
         if ret_code:
             LOG.error("cannot get shmmax parameters, command: %s, err: %s" % (cmd, stderr))
+            return False
         if sga_buff_size < 114 * tmp_mb:
             LOG.error("sga buffer size should not less than 114MB, please check it!")
+            return False
         
-        try:
-            if sga_buff_size > int(cur_avi_memory) * tmp_kb:
-                LOG.error("sga buffer size should less than shmmax, please check it!")
-        except ValueError as ex:
-            LOG.error("check sga buffer size failed: " + str(ex))
+        # memory for Mysql, share memory, Dbstor, and CMS
+        sga_buff_size += 12.2 * tmp_gb
+        if int(sga_buff_size) > int(cur_avi_memory) * tmp_kb:
+            LOG.error("sga buffer size(%.2f GB) should less than availble memory(%.2f GB), please check it!" % (int(sga_buff_size) / tmp_gb, int(cur_avi_memory) / tmp_mb))
+            return False
+
+        cmd = r"cat /proc/1/environ | tr '\0' '\n' | grep MY_MEMORY_SIZE | cut -d= -f2"
+        ret_code, container_memory_limit, stderr = exec_popen(cmd)
+        if ret_code:
+            LOG.error("cannot get memory limit, command: %s, err: %s" % (cmd, stderr))
+            return False
+        if container_memory_limit and int(sga_buff_size) > int(container_memory_limit):
+            LOG.error("sga buffer size(%.2f GB) should less than container memory limit(%.2f GB), please check it!" % (int(sga_buff_size) / tmp_gb, int(container_memory_limit) / tmp_gb))
+            return False
         
         LOG.info("End check sga buffer size")
+        return True
 
     def get_result(self, *args, **kwargs):
         if not self.config_path:
@@ -589,7 +607,8 @@ class CheckInstallConfig(CheckBase):
                 LOG.error('write config param to deploy_param.json failed, error: %s', str(error))
                 return False
         if install_config_params['cantian_in_container'] != '0':
-            self.check_sga_buff_size()
+            if not self.check_sga_buff_size():
+                return False
         return True
 
     def install_config_params_init(self, install_config_params):

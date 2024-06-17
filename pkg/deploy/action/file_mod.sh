@@ -46,6 +46,7 @@ FILE_MODE_MAP["${CURRENT_PATH}/inspection/inspection_scripts/ct_om"]="750"
 FILE_MODE_MAP["${CURRENT_PATH}/storage_operate/file_system_info.json"]="600"
 FILE_MODE_MAP["${CURRENT_PATH}/inspection/log_tool.py"]="400"
 FILE_MODE_MAP["${CURRENT_PATH}/wsr_report/report.cnf"]="600"
+FILE_MODE_MAP["${CURRENT_PATH}/docker/get_pod_ip_info.py"]="500"
 
 function correct_files_mod() {
     for file_path in "${!FILE_MODE_MAP[@]}"; do

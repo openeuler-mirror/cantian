@@ -143,10 +143,17 @@ function checkMountNFS() {
 
 # 配置ctmgruser sudo权限
 function config_sudo() {
-    cantian_sudo="cantian ALL=(root) NOPASSWD:/usr/bin/chrt"
+    cantian_sudo="cantian ALL=(root) NOPASSWD:/usr/bin/chrt,/opt/cantian/action/docker/get_pod_ip_info.py"
     cat /etc/sudoers | grep ^cantian
     if [[ -n $? ]];then
         sed -i '/^cantian*/d' /etc/sudoers
+    fi
+    cat /etc/sudoers | grep SERVICE_NAME
+    if [[ $? -ne 0 ]];then
+      if [[ "${cantian_in_container}" != "0" ]]; then
+          sed -i '$a\Defaults    env_keep += "SERVICE_NAME"' /etc/sudoers
+          echo "export SERVICE_NAME=${SERVICE_NAME}" >> /home/cantian/.bashrc
+      fi
     fi
     echo "${cantian_sudo}" >> /etc/sudoers
     local chmod_script="/opt/cantian/action/change_log_priority.sh"
