@@ -238,6 +238,8 @@ knl_global_syncpoint_def g_knl_syncpoint[] = {
       knl_syncpoint_inject_null, 0 },
     { CANTIAN_RECOVERY_SEND_RCY_SET_ACK_FAIL, CT_FALSE, "RECOVERY_SEND_RCY_SET_ACK_FAIL", 0,
       knl_syncpoint_inject_errcode, 0 },
+    { CANTIAN_PART_RECOVERY_BEFORE_CKPT_ABORT, CT_FALSE, "PART_RECOVERY_BEFORE_CKPT_ABORT", 0,
+      knl_syncpoint_inject_abort, 0 },
     { CANTIAN_SMON_REQUEST_TXN_DLOCK_TIMEOUT_AND_FAIL, CT_FALSE, "SMON_REQUEST_TXN_DLOCK_TIMEOUT_AND_FAIL", 0,
       knl_syncpoint_inject_timeout_and_error, 0 },
     { CANTIAN_SMON_REQUEST_SID_TIMEOUT_AND_FAIL, CT_FALSE, "SMON_REQUEST_SID_TIMEOUT_AND_FAIL", 0,
