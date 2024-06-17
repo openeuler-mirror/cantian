@@ -31,6 +31,7 @@
 extern "C" {
 #endif
 #define ENTRY_IS_LOADING_INTERVAL 5  // unit: ms
+#define ENTRY_IS_LOADING_DDL_INTERVAL (ENTRY_IS_LOADING_INTERVAL * 2)  // unit: ms
 
 status_t dc_load_systables(knl_session_t *session, dc_context_t *ctx);
 status_t dc_load_table(knl_session_t *session, knl_cursor_t *cursor, dc_user_t *user, uint32 oid,
