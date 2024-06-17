@@ -79,6 +79,46 @@ function wait_config_done() {
     done
 }
 
+function check_mysql_pkg() {
+    if [[ "${cantian_in_container}" == "1" ]]; then
+        # 归一
+        MYSQLD_PKG=/ctdb/cantian_install/Cantian_connector_mysql_*
+        if [ "${mysql_metadata_in_cantian,,}" == "false" ];then
+            # 非归一 
+            MYSQLD_PKG=/ctdb/cantian_install/mysql_*
+        fi 
+        if [ ! -f ${MYSQLD_PKG} ]; then 
+            logAndEchoError "mysql_metadata_in_cantian is ${mysql_metadata_in_cantian}, ${MYSQLD_PKG} is not exist!"
+            exit_with_log
+        fi
+    fi
+}
+
+function check_cpu_memory_limit() {
+    MY_CPU_NUM=$(cat /proc/1/environ | tr '\0' '\n' | grep MY_CPU_NUM | cut -d= -f2)
+    MY_MEMORY_SIZE=$(cat /proc/1/environ | tr '\0' '\n' | grep MY_MEMORY_SIZE | cut -d= -f2)
+
+    if [[ ! -z "${MY_CPU_NUM}" ]]; then  
+        if (( $(echo "${MY_CPU_NUM} < 12" | bc -l) )); then  
+            logAndEchoError "cpu limit cannot be less than 12, current cpu limit is ${MY_CPU_NUM}."
+            exit_with_log
+        fi
+    fi
+
+    if [[ ! -z "${MY_MEMORY_SIZE}" ]]; then
+        MY_MEMORY_SIZE_GB=$(echo "${MY_MEMORY_SIZE} / (1024*1024*1024)" | bc)
+        if (( $(echo "${MY_MEMORY_SIZE_GB} < 64" | bc -l) )); then  
+            logAndEchoError "memory limit cannot be less than 64G, current memory limit is ${MY_MEMORY_SIZE_GB}."
+            exit_with_log
+        fi 
+    fi
+}
+
+function check_container_context() {
+    check_mysql_pkg
+    check_cpu_memory_limit
+}
+
 function mount_fs() {
     logAndEchoInfo "Begin to mount file system. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     if [ ! -f ${CURRENT_PATH}/${MOUNT_FILE} ]; then
@@ -186,20 +226,6 @@ function set_version_file() {
     fi
 }
 
-function check_mysql_pkg() {
-    if [[ "${cantian_in_container}" == "1" ]]; then
-        # 归一
-        MYSQLD_PKG=/ctdb/cantian_install/Cantian_connector_mysql_*
-        if [ "${mysql_metadata_in_cantian,,}" == "false" ];then
-            # 非归一 
-            MYSQLD_PKG=/ctdb/cantian_install/mysql_*
-        fi 
-        if [ ! -f ${MYSQLD_PKG} ]; then 
-            logAndEchoError "mysql_metadata_in_cantian is ${mysql_metadata_in_cantian}, ${MYSQLD_PKG} is not exist!"
-            exit_with_log
-        fi
-    fi
-}
 
 function start_mysqld() {
     logAndEchoInfo "Begin to start mysqld. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -303,7 +329,7 @@ function check_path_and_copy() {
 function main() {
     #change_mtu
     wait_config_done
-    check_mysql_pkg
+    check_container_context
     mount_fs
     check_init_status
     prepare_kmc_conf
