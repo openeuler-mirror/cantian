@@ -985,6 +985,7 @@ status_t dc_load_entity(knl_session_t *session, dc_user_t *user, uint32 oid, dc_
     knl_panic(entry->is_loading);
     dc_entity_t *entity = dc_alloc_entity_internal(session, user, oid, entry);
     if (entity == NULL) {
+        dls_unlatch(session, &entry->ddl_latch, NULL);
         cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
         knl_panic(entry->is_loading);
         entry->is_loading = CT_FALSE;
@@ -1592,6 +1593,10 @@ static status_t dc_open_table_entry(knl_session_t *session, dc_user_t *user, dc_
     knl_panic(entry->is_loading);
     ret = dc_open_table_entry_internal(session, user, entry, dc);
     if (ret == CT_ERROR) {
+        dls_unlatch(session, &entry->ddl_latch, NULL);
+        cm_spin_lock(&entry->lock, &session->stat->spin_stat.stat_dc_entry);
+        knl_panic(entry->is_loading);
+        entry->is_loading = CT_FALSE;
         entry->entity = NULL;
         return ret;
     }
