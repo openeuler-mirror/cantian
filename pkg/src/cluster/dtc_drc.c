@@ -768,6 +768,8 @@ void drc_buf_res_recycle(knl_session_t *session, uint32 inst_id, date_t time, pa
                         CT_LOG_RUN_ERR("[DRC][%u-%u]: failed to invalidate, ignore recycle this buf_res",
                                        page_id.file, page_id.page);
                         buf_res->pending = DRC_RES_INVALID_ACTION;
+                        cm_spin_unlock(&bucket->lock);
+                        cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
                         return;
                     }
                     buf_res->readonly_copies = 0;
