@@ -148,6 +148,7 @@ function config_sudo() {
     if [[ -n $? ]];then
         sed -i '/^cantian*/d' /etc/sudoers
     fi
+    SERVICE_NAME=$(printenv SERVICE_NAME)
     cat /etc/sudoers | grep SERVICE_NAME
     if [[ $? -ne 0 ]];then
       if [[ "${cantian_in_container}" != "0" ]]; then
