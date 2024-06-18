@@ -52,12 +52,8 @@ function initUserAndGroup()
 }
 
 function update_share_config() {
-    if [[ -f /mnt/dbdata/remote/share_"${storage_share_fs}"/deploy_param.json ]] && [[ ! -f /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json ]]; then
-        cp -arf /mnt/dbdata/remote/share_"${storage_share_fs}"/deploy_param.json /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/
-    elif [[ ! -f /mnt/dbdata/remote/share_"${storage_share_fs}"/deploy_param.json ]] && [[ ! -f /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json ]]; then
-      cp -arf ${CONFIG_PATH}/deploy_param.json /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"
-      chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
-    fi
+    cp -arf "${CONFIG_PATH}"/deploy_param.json /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"
+    chown "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
 }
 
 function prepare_env() {
@@ -88,11 +84,6 @@ function prepare_env() {
     storage_share_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_share_fs")
     storage_metadata_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs")
     node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
-    random_seed=$(python3 ${CURRENT_PATH}/get_config_info.py "share_random_seed")
-    if [[ x"${random_seed}" == x"None" ]] || [[ x"${random_seed}" == x"" ]]; then
-        random_seed=$(python3 -c 'import secrets; secrets_generator = secrets.SystemRandom(); print(secrets_generator.randint(0, 255))')
-    fi
-    python3 ${CURRENT_PATH}/write_config.py "random_seed" "${random_seed}"
     if [[ ${node_id} == '0' ]]; then
         update_share_config
     fi

@@ -469,11 +469,10 @@ function wait_for_node0_install() {
 
 function update_random_seed() {
   if [[ x"${dbstore_demo}" != x"True" ]]; then
-    if [[ x"${node_id}" == x"0" ]];then
-        random_seed=$(python3 -c 'import secrets; secrets_generator = secrets.SystemRandom(); print(secrets_generator.randint(0, 255))')
-    else
+    cluster_name=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_name"`
+    random_seed=$(python3 -c "import random;import hashlib;random.seed(int(hashlib.sha256('${cluster_name}'.encode('utf-8')).hexdigest(), 16));print(random.randint(0, 255))")
+    if [[ x"${node_id}" != x"0" ]];then
         wait_for_node0_install
-        random_seed=$(python3 ${CURRENT_PATH}/get_config_info.py "share_random_seed")
     fi
   else
     random_seed=0
