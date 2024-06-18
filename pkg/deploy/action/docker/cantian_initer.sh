@@ -27,8 +27,16 @@ source ${CURRENT_PATH}/../log4sh.sh
 # 创建存活探针
 touch ${HEALTHY_FILE}
 
+user=$(cat ${CONFIG_PATH}/${CONFIG_NAME} | grep -Po '(?<="deploy_user": ")[^":\\]*(?:\\.[^"\\]*)*')
 cat ${INIT_CONFIG_PATH}/${CONFIG_NAME} > ${CONFIG_PATH}/${CONFIG_NAME}
 cat ${INIT_CONFIG_PATH}/${CONFIG_NAME} > ${OPT_CONFIG_PATH}/${CONFIG_NAME}
+if ( grep -q 'deploy_user' ${CONFIG_PATH}/${CONFIG_NAME} ); then
+    sed -i 's/  "deploy_user": ".*"/  "deploy_user": "'${user}':'${user}'"/g' ${CONFIG_PATH}/${CONFIG_NAME}
+    sed -i 's/  "deploy_user": ".*"/  "deploy_user": "'${user}':'${user}'"/g' ${OPT_CONFIG_PATH}/${CONFIG_NAME}
+else
+    sed -i '2i\  "deploy_user": \"'${user}':'${user}'",' ${CONFIG_PATH}/${CONFIG_NAME}
+    sed -i '2i\  "deploy_user": \"'${user}':'${user}'",' ${OPT_CONFIG_PATH}/${CONFIG_NAME}
+fi
 
 ulimit -c unlimited
 ulimit -l unlimited
@@ -249,7 +257,7 @@ function init_start() {
 
     # Cantian启动前参数预检查
     logAndEchoInfo "Begin to pre-check the parameters."
-    python3 ${PRE_INSTALL_PY_PATH} 'override' ${INIT_CONFIG_PATH}/${CONFIG_NAME}
+    python3 ${PRE_INSTALL_PY_PATH} 'override' ${CONFIG_PATH}/${CONFIG_NAME}
     if [ $? -ne 0 ]; then
         logAndEchoError "parameters pre-check failed."
         exit_with_log
