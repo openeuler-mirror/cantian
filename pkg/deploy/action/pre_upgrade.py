@@ -34,7 +34,8 @@ if __name__ == '__main__':
             NEW_CONFIG_PATH = NEW_FILE_CONFIG_PATH
             if os.path.exists(SOURCE_FILE_CONFIG_PATH):
                 SOURCE_CONFIG_PATH = SOURCE_FILE_CONFIG_PATH
-        new_config_keys = read_install_config(NEW_CONFIG_PATH).keys()
+        new_config_keys = read_install_config(NEW_CONFIG_PATH).keys() - {"install_type", "cantian_in_container",
+                                                                         "auto_create_fs"}
         source_config_keys = read_install_config(SOURCE_CONFIG_PATH).keys() - {"install_type", "cantian_in_container",
                                                                                "auto_create_fs"}
         keys_diff = new_config_keys ^ source_config_keys

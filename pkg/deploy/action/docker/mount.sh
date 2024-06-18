@@ -49,6 +49,7 @@ function check_port() {
 
 function wait_for_node0_install() {
     logAndEchoInfo "if block here, this node is wait for node 0 to install. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    local random_seed
     random_seed=$(python3 ${CURRENT_PATH}/../get_config_info.py "share_random_seed")
     try_times=180
     while [ ${try_times} -gt 0 ]
@@ -66,11 +67,10 @@ function wait_for_node0_install() {
 }
 
 function update_random_seed() {
-    if [[ x"${node_id}" == x"0" ]];then
-        random_seed=$(python3 -c 'import secrets; secrets_generator = secrets.SystemRandom(); print(secrets_generator.randint(0, 255))')
-    else
+    cluster_name=$(python3 "${CURRENT_PATH}"/get_config_info.py "cluster_name")
+    random_seed=$(python3 -c "import random;import hashlib;random.seed(int(hashlib.sha256('${cluster_name}'.encode('utf-8')).hexdigest(), 16));print(random.randint(0, 255))")
+    if [[ x"${node_id}" != x"0" ]];then
         wait_for_node0_install
-        random_seed=$(python3 ${CURRENT_PATH}/../get_config_info.py "share_random_seed")
     fi
     python3 ${CURRENT_PATH}/../write_config.py "random_seed" "${random_seed}"
 }

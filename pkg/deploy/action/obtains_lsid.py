@@ -20,19 +20,6 @@ else:
         "random_seed": "1"
     }
 
-if not DBSTORE_UNIFY_FLAG:
-    SHARE_INSTALL_FILE = os.path.join("/mnt/dbdata/remote/metadata_%s" % info.get("storage_metadata_fs"),
-                                                "deploy_param.json")
-    if os.path.exists(SHARE_INSTALL_FILE):
-        with open(SHARE_INSTALL_FILE, encoding="utf-8") as f:
-            _tmp = f.read()
-            share_info = json.loads(_tmp)
-    else:
-        share_info = {
-            "cluster_id": "1",
-            "random_seed": "1"
-        }
-
 
 class LSIDGenerate(object):
     def __init__(self, n_type, c_id, p_id, n_id):
@@ -67,7 +54,8 @@ class LSIDGenerate(object):
             else:
                 self.random_seed = self.generate_random_seed()
         else:
-            tmp_seed = share_info.get("random_seed")
+            # 多租场景容器构建没有随机数生成，先默认取值0
+            tmp_seed = info.get("random_seed", '1')
             if not tmp_seed:
                 raise Exception("invalid random seed!")
             else:

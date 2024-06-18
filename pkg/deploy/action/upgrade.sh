@@ -508,6 +508,8 @@ function correct_files_mod() {
     chown -h "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/obtains_lsid.py
     chown -h "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/implement/update_cantian_passwd.py
     chown -h "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/update_config.py
+    # 修改日志定期清理执行脚本权限
+    chown -h "${cantian_user}":"${cantian_group}" ${CURRENT_PATH}/../common/script/logs_handler/do_compress_and_archive.py
     version_first_number=$(cat /opt/cantian/versions.yml |sed 's/ //g' | grep 'Version:' | awk -F ':' '{print $2}' | awk -F '.' '{print $1}')
     if [[ ${version_first_number} -eq 2 ]];then
         change_new_owner

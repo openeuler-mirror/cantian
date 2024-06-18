@@ -88,7 +88,8 @@ class LogsHandler:
                 item.get('userandgroup') != "deploy_user" else self.deploy_user
             self.user_name = user.split(':')[0]
             log_file_dir, max_log_vol = item.get('log_file_dir'), int(item.get('max_log_vol'))
-
+            if os.path.exists("/.dockerenv"):
+                max_log_vol //= 2
             # 分离日志目录和日志名
             log_content, log_name = os.path.split(log_file_dir)
             if not os.path.exists(log_content):
