@@ -28,6 +28,7 @@
 #include "dtc_drc.h"
 #include "dtc_reform.h"
 #include "cm_dbs_intf.h"
+#include "cm_dbs_ulog.h"
 #include "dirent.h"
 #include "knl_space_log.h"
 #include "knl_map.h"
@@ -3811,7 +3812,10 @@ status_t dtc_rcy_init_rcynode(knl_session_t *session, instance_list_t *recover_l
         rcy_log_point->rcy_write_point.block_id = CT_INFINITE32;
     }
 
-    int64 size = (int64)LOG_LGWR_BUF_SIZE(session);
+    int64 lgwr_buf_size = (int64)LOG_LGWR_BUF_SIZE(session);
+    // 调整DBStor部署方式时备站点单次读写redo日志大小
+    int64 size = (is_dbstor && !DB_IS_PRIMARY(&session->kernel->db)) ?
+        MAX(DBSTOR_LOG_SEGMENT_SIZE, lgwr_buf_size) : lgwr_buf_size;
     for(int i = 0; i < read_buf_size; ++i){
         if (cm_aligned_malloc(size, "dtc rcy read buffer", &rcy_node->read_buf[i]) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DTC RCY] failed to alloc log read buffer for crashed node=%u", node_id);

@@ -820,8 +820,8 @@ status_t rc_archive_log_offline_node(arch_proc_context_t *proc_ctx, uint32 node_
         return CT_SUCCESS;
     }
 
-    uint32 buffer_size = proc_ctx->session->kernel->attr.lgwr_buf_size;
-    uint32 arch_rw_buf_num = cm_dbs_is_enable_dbs() == true ? DBSTOR_ARCH_RW_BUF_NUM : ARCH_RW_BUF_NUM;
+    int64 buffer_size = proc_ctx->session->kernel->attr.lgwr_buf_size;
+    int64 arch_rw_buf_num = cm_dbs_is_enable_dbs() == true ? DBSTOR_ARCH_RW_BUF_NUM : ARCH_RW_BUF_NUM;
     if (arch_init_rw_buf(&proc_ctx->arch_rw_buf, buffer_size * arch_rw_buf_num, "ARCH") != CT_SUCCESS) {
         return CT_ERROR;
     }
