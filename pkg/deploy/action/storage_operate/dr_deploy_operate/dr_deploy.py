@@ -197,7 +197,9 @@ class DRDeploy(object):
         :return:
         """
         LOG.info("Start to do lock instance for backup.")
-        cmd = [self.mysql_cmd, "-u%s" % self.mysql_user, "-p%s" % self.mysql_pwd, "-e", LOCK_INSTANCE]
+        mysql_cmd = self.mysql_cmd.split(' ')
+        cmd = ["-u%s" % self.mysql_user, "-p%s" % self.mysql_pwd, "-e", LOCK_INSTANCE]
+        cmd = mysql_cmd + cmd
         self.record_deploy_process("do_lock_instance_for_backup", "start")
         try:
             pobj = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE,
