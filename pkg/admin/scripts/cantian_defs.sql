@@ -1068,49 +1068,101 @@ AS
   WHERE s.NAME = 'pcrh lock row avg time';
 
 -- 超过10s/60s/180s/600s的事务个数：DV_TRANSACTIONS
-CREATE OR REPLACE VIEW cantian_transactions
-AS SELECT * FROM `cantian`.`dv_transactions`;
-CREATE OR REPLACE VIEW cantian_transactions_cnt_over10s
-AS SELECT COUNT(*) as trx_count FROM `cantian`.`dv_transactions`
-WHERE EXEC_TIME > (10 * 1000000);
-CREATE OR REPLACE VIEW cantian_transactions_cnt_over60s
-AS SELECT COUNT(*) as trx_count FROM `cantian`.`dv_transactions`
-WHERE EXEC_TIME > (60 * 1000000);
-CREATE OR REPLACE VIEW cantian_transactions_cnt_over180s
-AS SELECT COUNT(*) as trx_count FROM `cantian`.`dv_transactions`
-WHERE EXEC_TIME > (180 * 1000000);
-CREATE OR REPLACE VIEW cantian_transactions_cnt_over600s
-AS SELECT COUNT(*) as trx_count FROM `cantian`.`dv_transactions`
-WHERE EXEC_TIME > (600 * 1000000);
+CREATE OR REPLACE 
+  DEFINER = 'mysql.cantian'@'localhost'
+  SQL SECURITY INVOKER VIEW cantian_transactions
+AS 
+  SELECT * 
+  FROM `cantian`.`dv_transactions`;
+CREATE OR REPLACE 
+  DEFINER = 'mysql.cantian'@'localhost'
+  SQL SECURITY INVOKER VIEW cantian_transactions_cnt_over10s
+AS 
+  SELECT COUNT(*) as trx_count 
+  FROM `cantian`.`dv_transactions`
+  WHERE EXEC_TIME > (10 * 1000000);
+CREATE OR REPLACE 
+  DEFINER = 'mysql.cantian'@'localhost'
+  SQL SECURITY INVOKER VIEW cantian_transactions_cnt_over60s
+AS 
+  SELECT COUNT(*) as trx_count 
+  FROM `cantian`.`dv_transactions`
+  WHERE EXEC_TIME > (60 * 1000000);
+CREATE OR REPLACE
+  DEFINER = 'mysql.cantian'@'localhost'
+  SQL SECURITY INVOKER VIEW cantian_transactions_cnt_over180s
+AS 
+  SELECT COUNT(*) as trx_count 
+  FROM `cantian`.`dv_transactions`
+  WHERE EXEC_TIME > (180 * 1000000);
+CREATE OR REPLACE 
+  DEFINER = 'mysql.cantian'@'localhost'
+  SQL SECURITY INVOKER VIEW cantian_transactions_cnt_over600s
+AS 
+  SELECT COUNT(*) as trx_count 
+  FROM `cantian`.`dv_transactions`
+  WHERE EXEC_TIME > (600 * 1000000);
 
 -- DV_BUFFER_RECYCLE_STATS
-CREATE OR REPLACE VIEW cantian_buffer_pool_wait_free
-AS SELECT * FROM `cantian`.`dv_buffer_recycle_stats`;
+CREATE OR REPLACE 
+  DEFINER = 'mysql.cantian'@'localhost'
+  SQL SECURITY INVOKER VIEW cantian_buffer_pool_wait_free
+AS 
+  SELECT * 
+  FROM `cantian`.`dv_buffer_recycle_stats`;
 
 -- buffer pool命中率：DV_BUFFER_ACCESS_STATS
-CREATE OR REPLACE VIEW cantian_buffer_pool_hit
-AS SELECT 1-SUM(MISS_COUNT)/SUM(TOTAL_ACCESS) as cantian_buffer_pool_hit FROM `cantian`.`dv_buffer_access_stats`;
+CREATE OR REPLACE 
+  DEFINER = 'mysql.cantian'@'localhost'
+  SQL SECURITY INVOKER VIEW cantian_buffer_pool_hit
+AS 
+  SELECT 1-SUM(MISS_COUNT)/SUM(TOTAL_ACCESS) as cantian_buffer_pool_hit 
+  FROM `cantian`.`dv_buffer_access_stats`;
 
 -- fsync data当前等待数频率：DV_SYS_STATS
-CREATE OR REPLACE VIEW cantian_data_pending_fsyncs
-AS SELECT VALUE FROM `cantian`.`dv_sys_stats`
-WHERE NAME = 'DBWR disk writes';
+CREATE OR REPLACE 
+  DEFINER = 'mysql.cantian'@'localhost'
+  SQL SECURITY INVOKER VIEW cantian_data_pending_fsyncs
+AS 
+  SELECT VALUE 
+  FROM `cantian`.`dv_sys_stats`
+  WHERE NAME = 'DBWR disk writes';
 
 -- fsync log当前等待数频率：DV_SYS_STATS
-CREATE OR REPLACE VIEW cantian_os_log_pending_fsyncs
-AS SELECT VALUE FROM `cantian`.`dv_sys_stats`
-WHERE NAME = 'redo writes';
+CREATE OR REPLACE 
+  DEFINER = 'mysql.cantian'@'localhost'
+  SQL SECURITY INVOKER VIEW cantian_os_log_pending_fsyncs
+AS 
+  SELECT VALUE 
+  FROM `cantian`.`dv_sys_stats`
+  WHERE NAME = 'redo writes';
 
 -- Redo Log Pending Writes会话级 & 系统级日志写操作被挂起的次数：DV_SESSION_EVENTS & DV_SYS_EVENTS
-CREATE OR REPLACE VIEW cantian_redo_log_pending_writes_session
-AS SELECT SID,AVERAGE_WAIT FROM `cantian`.`dv_session_events`
-WHERE EVENT = 'log file sync';
-CREATE OR REPLACE VIEW cantian_redo_log_pending_writes_sys
-AS SELECT AVERAGE_WAIT FROM `cantian`.`dv_sys_events`
-WHERE EVENT = 'log file sync';
+CREATE OR REPLACE 
+  DEFINER = 'mysql.cantian'@'localhost'
+  SQL SECURITY INVOKER VIEW cantian_redo_log_pending_writes_session
+AS 
+  SELECT SID,AVERAGE_WAIT 
+  FROM `cantian`.`dv_session_events`
+  WHERE EVENT = 'log file sync';
+CREATE OR REPLACE 
+  DEFINER = 'mysql.cantian'@'localhost'
+  SQL SECURITY INVOKER VIEW cantian_redo_log_pending_writes_sys
+AS 
+  SELECT AVERAGE_WAIT 
+  FROM `cantian`.`dv_sys_events`
+  WHERE EVENT = 'log file sync';
 
 -- Semaphores会话级 & 系统级等待事件的统计信息：DV_SESSION_EVENTS & DV_SYS_EVENTS
-CREATE OR REPLACE VIEW cantian_semaphores_session
-AS SELECT * FROM `cantian`.`dv_session_events`;
-CREATE OR REPLACE VIEW cantian_semaphores_sys
-AS SELECT * FROM `cantian`.`dv_sys_events`;
+CREATE OR REPLACE 
+  DEFINER = 'mysql.cantian'@'localhost'
+  SQL SECURITY INVOKER VIEW cantian_semaphores_session
+AS 
+  SELECT * 
+  FROM `cantian`.`dv_session_events`;
+CREATE OR REPLACE 
+  DEFINER = 'mysql.cantian'@'localhost'
+  SQL SECURITY INVOKER VIEW cantian_semaphores_sys
+AS 
+  SELECT * 
+  FROM `cantian`.`dv_sys_events`;
