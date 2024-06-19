@@ -419,7 +419,7 @@ status_t arch_create_open_file(arch_proc_context_t *proc_ctx, const char *file_n
 status_t arch_convert_file_name_id_rst(char *file_name, char **pos, uint32 *node_id, uint32 *rst_id);
 status_t arch_convert_file_name(char *file_name, uint32 *asn, uint64 *start_lsn, uint64 *end_lsn);
 status_t arch_save_ctrl(knl_session_t *session, uint32 node_id);
-status_t arch_init_rw_buf(arch_rw_buf_t *rw_buf, uint32 buf_size, const char *task);
+status_t arch_init_rw_buf(arch_rw_buf_t *rw_buf, int64 buf_size, const char *task);
 void arch_release_rw_buf(arch_rw_buf_t *rw_buf, const char *task);
 status_t arch_get_read_buf(arch_rw_buf_t *rw_buf, buf_data_t **read_buf);
 void arch_set_read_done(arch_rw_buf_t *rw_buf);

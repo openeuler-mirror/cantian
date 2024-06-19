@@ -28,6 +28,8 @@
 #include "cm_types.h"
 #include "cm_defs.h"
 
+#define DBSTOR_LOG_SEGMENT_SIZE SIZE_M(64)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
