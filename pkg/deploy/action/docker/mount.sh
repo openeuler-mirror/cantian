@@ -73,6 +73,7 @@ function update_random_seed() {
         wait_for_node0_install
     fi
     python3 ${CURRENT_PATH}/../write_config.py "random_seed" "${random_seed}"
+    python3 /opt/cantian/action/write_config.py "random_seed" "${random_seed}"
 }
 
 function check_deploy_param() {
@@ -196,10 +197,10 @@ function mount_fs() {
             logAndEchoError "gcc file already exists, please check if any cluster is running."
             exit 1
         fi
-        update_random_seed
         # 挂载后，0节点拷贝配置文件至文件系统下，1节点检查对应配置文件参数
         check_deploy_param
     fi
+    update_random_seed
 }
 
 mount_fs
