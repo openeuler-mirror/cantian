@@ -3374,7 +3374,7 @@ int64 arch_get_buffer_size(knl_session_t *session)
 
 status_t arch_init_proc_resource(knl_session_t *session, arch_proc_context_t *proc_ctx)
 {
-    uint32 buffer_size = arch_get_buffer_size(session);
+    int64 buffer_size = arch_get_buffer_size(session);
     if (arch_init_rw_buf(&proc_ctx->arch_rw_buf, buffer_size * g_arch_func[proc_ctx->data_type].rw_buf_num,
                          "ARCH") != CT_SUCCESS) {
         CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)CT_ARCHIVE_BUFFER_SIZE, "archive rw buffer");
@@ -4811,9 +4811,9 @@ status_t arch_force_archive_file(knl_session_t *session, uint32 node_id, int32 b
     return CT_SUCCESS;
 }
 
-status_t arch_init_rw_buf(arch_rw_buf_t *rw_buf, uint32 buf_size, const char *task)
+status_t arch_init_rw_buf(arch_rw_buf_t *rw_buf, int64 buf_size, const char *task)
 {
-    CT_LOG_RUN_INF("[%s] init aligned buf for read and write process paral. buf size %u, num %u", task, buf_size,
+    CT_LOG_RUN_INF("[%s] init aligned buf for read and write process paral. buf size %lld, num %u", task, buf_size,
                    DBSTOR_ARCH_RW_BUF_NUM);
     error_t err = memset_sp(rw_buf, sizeof(arch_rw_buf_t), 0, sizeof(arch_rw_buf_t));
     knl_securec_check(err);
@@ -5160,7 +5160,7 @@ status_t arch_init_proc_standby_node(arch_proc_context_t *proc_ctx, uint32 node_
         return CT_ERROR;
     }
 
-    uint32 buffer_size = proc_ctx->session->kernel->attr.lgwr_buf_size;
+    int64 buffer_size = MAX(DBSTOR_LOG_SEGMENT_SIZE, proc_ctx->session->kernel->attr.lgwr_buf_size);
     if (arch_init_rw_buf(&proc_ctx->arch_rw_buf, buffer_size * DBSTOR_ARCH_RW_BUF_NUM, "ARCH_STANDBY")
         != CT_SUCCESS) {
         return CT_ERROR;

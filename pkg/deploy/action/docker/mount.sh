@@ -73,9 +73,10 @@ function update_random_seed() {
         wait_for_node0_install
     fi
     python3 ${CURRENT_PATH}/../write_config.py "random_seed" "${random_seed}"
+    python3 /opt/cantian/action/write_config.py "random_seed" "${random_seed}"
 }
 
-function check_deploy_param() {
+function copy_deploy_param() {
     if [[ x"${node_id}" == x"0" ]];then
         cp -rf "${CONFIG_PATH}"/deploy_param.json /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/
         chmod 600 /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
@@ -181,7 +182,10 @@ function mount_fs() {
     fi
     chmod 755 /mnt/dbdata/remote/metadata_${storage_metadata_fs}
     node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
-    if [ ! -f /mnt/dbdata/remote/metadata_${storage_metadata_fs}/versions.yml ]; then
+    update_random_seed
+    # 挂载后，0节点拷贝配置文件至文件系统下，1节点检查对应配置文件参数
+    copy_deploy_param
+    if [ ! -f /mnt/dbdata/remote/metadata_${storage_metadata_fs}/versions.yml ] && [ "${node_id}" == "0" ]; then
         if [ -d /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node0 ]; then
             rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
         fi
@@ -196,9 +200,6 @@ function mount_fs() {
             logAndEchoError "gcc file already exists, please check if any cluster is running."
             exit 1
         fi
-        update_random_seed
-        # 挂载后，0节点拷贝配置文件至文件系统下，1节点检查对应配置文件参数
-        check_deploy_param
     fi
 }
 
