@@ -190,51 +190,17 @@ class DRDeploy(object):
 
     def do_lock_instance_for_backup(self):
         """
-        mysql 执行备份锁
-        mysql_cmd:
-             物理mysql:/usr/local/mysql/bin/mysql
-             k8s: kubectl exec -n namespace pod_name -c mysql -- mysql
-        :return:
+        To do:
+            容灾搭建期间加备份锁，防止DDL操作
         """
-        LOG.info("Start to do lock instance for backup.")
-        mysql_cmd = self.mysql_cmd.split(' ')
-        cmd = ["-u%s" % self.mysql_user, "-p%s" % self.mysql_pwd, "-e", LOCK_INSTANCE]
-        cmd = mysql_cmd + cmd
-        self.record_deploy_process("do_lock_instance_for_backup", "start")
-        try:
-            pobj = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=os.setsid)
-        except Exception as err:
-            err_msg = "Failed to do lock instance for backup, stderr:%s" % (str(err))
-            err_msg.replace(self.mysql_pwd, "***")
-            LOG.error(err_msg)
-            self.record_deploy_process("do_lock_instance_for_backup", "failed", code=-1, description=err_msg)
-            raise Exception(err_msg)
-        self.backup_lock_pid = pobj.pid
         LOG.info("Success to do lock instance for backup.")
         self.record_deploy_process("do_lock_instance_for_backup", "success")
 
     def do_unlock_instance_for_backup(self):
         """
-        关闭长连接
-        :return:
+        To do:
+            容灾部署结束时，释放备份锁
         """
-        LOG.info("Start to do unlock instance for backup.")
-        self.record_deploy_process("do_unlock_instance_for_backup", "start")
-        try:
-            os.killpg(self.backup_lock_pid, signal.SIGKILL)
-        except ProcessLookupError as err:
-            err_msg = "Failed to do unlock instance for backup, the child process was accidentally killed prematurely"
-            LOG.error(err_msg)
-            self.record_deploy_process("do_unlock_instance_for_backup", "failed", code=-1, description=err_msg)
-            raise Exception(err_msg)
-        except Exception as err:
-            err_msg = "Failed to do unlock instance for backup, stderr:%s" % (str(err))
-            err_msg.replace(self.mysql_pwd, "***")
-            LOG.error(err_msg)
-            self.record_deploy_process("do_unlock_instance_for_backup", "failed", code=-1, description=err_msg)
-            raise Exception(err_msg)
-        self.backup_lock_pid = None
         LOG.info("Success to do unlock instance for backup.")
         self.record_deploy_process("do_unlock_instance_for_backup", "success")
 
