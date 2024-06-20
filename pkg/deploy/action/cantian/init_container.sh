@@ -69,7 +69,7 @@ function set_cantian_config() {
     sed -i -r "s:(INSTANCE_ID = ).*:\1${node_id}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(NODE_ID = ).*:\1${node_id}:g" ${CONFIG_PATH}/${CLUSTER_CONFIG_NAME}
     sed -i -r "s:(MAX_ARCH_FILES_SIZE = ).*:\1${max_arch_files_size}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
-    sed -i -r "s:(MYSQL_METADATA_IN_CANTIAN = ).*:\1${mysql_metadata_in_cantian}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+    sed -i -r "s:(MYSQL_METADATA_IN_CANTIAN = ).*:\1${mysql_metadata_in_cantian^^}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(CLUSTER_ID = ).*:\1${cluster_id}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(_SYS_PASSWORD = ).*:\1${password}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     if [ ${node_id} == 0 ]; then
