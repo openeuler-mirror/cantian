@@ -967,6 +967,10 @@ status_t sql_parse_dcl(sql_stmt_t *stmt, key_wid_t key_wid)
         case KEY_WORD_BUILD:
             stmt->context->type = CTSQL_TYPE_BUILD;
             return sql_parse_build(stmt);
+        case KEY_WORD_REPAIR_PAGE:
+            stmt->context->type = CTSQL_TYPE_REPAIR_PAGE;
+            status = CT_SUCCESS;
+            break;
 
 #ifdef DB_DEBUG_VERSION
         case KEY_WORD_SYNCPOINT:

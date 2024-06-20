@@ -30,6 +30,7 @@
 #include "knl_buffer.h"
 #include "repl_log_send.h"
 #include "dtc_database.h"
+#include "cm_dbs_pgpool.h"
 
 // MUST call this function with task lock held.
 static inline void abr_set_task(lsnd_abr_task_t *task, uint16 file, uint32 page, char *buf, uint32 buf_size)
@@ -689,6 +690,8 @@ static uint32 abr_bak_index_contain_page(knl_session_t *session, bak_t *bak, bak
             continue;
         }
 
+        CT_LOG_RUN_INF("[ABR] abr_bak_index_contain_page for name:%s id:%u type:%u page_id.file:%u", bak->files[id].spc_name, bak->files[id].id,
+                       bak->files[id].type, page_id.file);
         return id;
     }
 
@@ -700,6 +703,7 @@ status_t abr_open_bak_file(knl_session_t *session, const char *path, bak_local_t
 {
     bak_generate_bak_file(session, path, file_type, index, file_id, sec_id, bak_file->name);
     bak_file->type = cm_device_type(bak_file->name);
+    CT_LOG_RUN_INF("[ABR] abr_open_bak_file bak_file->name is %s", bak_file->name);
     if (cm_open_device(bak_file->name, cm_device_type(bak_file->name), O_BINARY | O_SYNC | O_RDWR, &bak_file->handle) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] failed to open backupset file, path is %s", path);
         return CT_ERROR;
@@ -743,6 +747,7 @@ static status_t abr_bakfile_contain_page(knl_session_t *session, bak_page_search
     uint32 id = abr_bak_index_contain_page(session, bak, bak_head, search_ctx->page_id, search_ctx->page_size);
     if (id != CT_INVALID_ID32) {
         search_ctx->sec_start = bak->files[id].sec_start;
+        CT_LOG_RUN_INF("[ABR] abr_open_bak_file bak->files[id].id:%u bak_file->name is %s type:%u id:%u", bak->files[id].id , bak_handle->name, bak_handle->type, id);
         if (abr_open_bak_file(session, path, bak_handle, BACKUP_DATA_FILE, id,
                               bak->files[id].id, bak->files[id].sec_id) != CT_SUCCESS) {
             return CT_ERROR;
@@ -756,7 +761,9 @@ static status_t abr_bakfile_contain_page(knl_session_t *session, bak_page_search
     search_ctx->rcy_point = bak_head->ctrlinfo.rcy_point;
 
     if (search_ctx->max_rcy_point.asn == CT_INVALID_ASN) {
-        knl_panic(bak_head->ctrlinfo.rcy_point.asn != CT_INVALID_ASN);
+        if (!DB_CLUSTER_NO_CMS){
+            knl_panic(bak_head->ctrlinfo.rcy_point.asn != CT_INVALID_ASN);
+        }
         search_ctx->max_rcy_point = bak_head->ctrlinfo.rcy_point;
     }
 
@@ -1189,6 +1196,69 @@ static inline void abr_save_recover_file(knl_session_t *session)
     ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL);
     session->kernel->db.status = DB_STATUS_MOUNT;
     session->kernel->rcy_ctx.is_file_repair = CT_FALSE;
+}
+
+status_t abr_restore_flush_page(knl_session_t *session, knl_restore_t *param){
+    CT_LOG_RUN_INF("[RESTORE] start flush page");
+    int32 handle = CT_INVALID_HANDLE;
+    char *buf = NULL;
+    int32 read_size;
+    page_head_t *page_head = NULL;
+    page_id_t *page_id = NULL;
+    datafile_t *df = NULL;
+    int32 df_handle;
+    int64 offset;
+
+    CT_LOG_RUN_INF("data file path %s\n", param->path.str);
+    buf = (char *)cm_push(session->stack, DEFAULT_PAGE_SIZE(session));
+    if (buf == NULL) {
+        CT_LOG_RUN_ERR("failed to malloc buffer size %u\n", DEFAULT_PAGE_SIZE(session));
+        return CT_ERROR;
+    }
+    if (cm_open_file(param->path.str, O_SYNC | O_RDWR | O_BINARY, &handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("failed to open data file %s\n", param->path.str);
+        cm_pop(session->stack);
+        return CT_ERROR;
+    }
+    if (cm_read_file(handle, buf, DEFAULT_PAGE_SIZE(session), &read_size) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("failed to read data file %s\n", param->path.str);
+        cm_pop(session->stack);
+        cm_close_file(handle);
+        return CT_ERROR;
+    }
+
+    page_head = (page_head_t *)buf;
+    if (page_head == NULL){
+        CT_LOG_RUN_ERR("failed to read data file %s\n", param->path.str);
+        cm_pop(session->stack);
+        cm_close_file(handle);
+        return CT_ERROR;
+    }
+    page_id = AS_PAGID_PTR(page_head->id);
+    df = DATAFILE_GET(session, page_id->file);
+    df_handle = session->datafiles[df->ctrl->id];
+
+    offset = DEFAULT_PAGE_SIZE(session) * page_id->page;
+    if (df_handle == -1) {
+        if (spc_open_datafile(session, df, &df_handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to open datafile %s", df->ctrl->name);
+            cm_pop(session->stack);
+            cm_close_file(handle);
+            return CT_ERROR;
+        }
+    }
+    CT_LOG_RUN_INF("[RESTORE] cm write device file:%u page:%u df_name:%s offset:%llu", page_id->file, page_id->page, df->ctrl->name, offset);
+    if(cm_write_device(df->ctrl->type, df_handle, offset, page_head, PAGE_SIZE(*page_head)) != CT_SUCCESS){
+        CT_LOG_RUN_ERR("[RESTORE] failed write file:%s handle:%u", df->ctrl->name, handle);
+        cm_pop(session->stack);
+        cm_close_file(handle);
+        return CT_ERROR;
+    }
+
+    cm_pop(session->stack);
+    cm_close_file(handle);
+    CT_LOG_RUN_INF("[RESTORE] finish flush page file:%u page:%u", page_id->file, page_id->page);
+    return CT_SUCCESS;
 }
 
 status_t abr_restore_file_recover(knl_session_t *session, knl_restore_t *param)

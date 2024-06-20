@@ -976,7 +976,7 @@ static status_t sql_parse_restore_type(sql_stmt_t *stmt, knl_restore_t *param)
     if (IS_CTRST_INSTANCE) {
         status = lex_expected_fetch_1of2(stmt->session->lex, "database", "blockrecover", &match_id);
     } else {
-        status = lex_expected_fetch_1of3(stmt->session->lex, "database", "filerecover", "archivelog", &match_id);
+        status = lex_expected_fetch_1ofn(stmt->session->lex, &match_id,4 , "database", "filerecover", "archivelog", "flushpage");
     }
     CT_RETURN_IFERR(status);
 
@@ -996,6 +996,9 @@ static status_t sql_parse_restore_type(sql_stmt_t *stmt, knl_restore_t *param)
         param->file_type = RESTORE_ARCHFILE;
     }
 
+    if (match_id == 3) {
+        param->file_type = RESTORE_FLUSHPAGE;
+    }
     return CT_SUCCESS;
 }
 

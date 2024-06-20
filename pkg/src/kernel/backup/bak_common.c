@@ -1885,9 +1885,11 @@ static void bak_generate_datafile_name(knl_session_t *session, const char *path,
         ret = snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN,
                          "%s/data_%s_%u_%u.bak", path, bak->files[index].spc_name, file_id, sec_id);
     } else {
-        space_id = DATAFILE_GET(session, file_id)->space_id;
-        ret = strcpy_sp(bak->files[index].spc_name, CT_NAME_BUFFER_SIZE, SPACE_GET(session, space_id)->ctrl->name);
-        knl_securec_check_ss(ret);
+        if(!g_cluster_no_cms){
+            space_id = DATAFILE_GET(session, file_id)->space_id;
+            ret = strcpy_sp(bak->files[index].spc_name, CT_NAME_BUFFER_SIZE, SPACE_GET(session, space_id)->ctrl->name);
+            knl_securec_check_ss(ret);
+        }
         ret = snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN,
                          "%s/data_%s_%u_%u.bak", path, bak->files[index].spc_name, file_id, sec_id);
     }

@@ -91,6 +91,8 @@ typedef struct st_ctrst_conn_params {
     char port[MAX_PORT_LEN];
     char url[URL_BUF_SIZE];      // ctrst client connect to server of ctrst
     char imp_url[URL_BUF_SIZE];  // ctrst client connect to server of database
+    char max_column_count[CT_PARAM_BUFFER_SIZE];
+    char undo_segments[CT_PARAM_BUFFER_SIZE];
     page_id_t page_id;
     uint64 lfn;
     db_status_t db_status;
@@ -123,6 +125,7 @@ ctrst_ssl_params_t g_ssl_params;
 int32 g_gm_optopt;
 int32 g_gm_optind = 1;
 char *g_gm_optarg = NULL;
+static status_t ctrst_is_enable_dbs(bool32 *is_enable_db);
 
 static void ctrst_usage()
 {
@@ -863,9 +866,12 @@ static status_t ctrst_generate_config_file(void)
                                  "INSTANCE_ID = 0\n"
                                  "INTERCONNECT_PORT = 65535\n"
                                  "CLUSTER_NO_CMS = TRUE\n"
-                                 "CLUSTER_DATABASE = TRUE\n",
+                                 "CLUSTER_DATABASE = TRUE\n"
+                                 "_UNDO_SEGMENTS=%s\n"
+                                 "MAX_COLUMN_COUNT=%s\n",
                                  g_conn_params.port, g_conn_params.db_home, g_conn_params.log_path,
-                                 g_conn_params.encrypt_passwd));
+                                 g_conn_params.encrypt_passwd, g_conn_params.undo_segments
+                                 , g_conn_params.max_column_count));
 
     if (strlen(g_imp_params.kmc_keyfile_a) > 0 && strlen(g_imp_params.kmc_keyfile_b) > 0) {
         PRTS_RETURN_IFERR(snprintf_s(param + strlen(param), CT_PARAM_BUFFER_SIZE - strlen(param),
@@ -1029,6 +1035,7 @@ static void ctrst_free_conn(void)
 static status_t ctrst_execute_sql(const char *sql, bool32 free_conn)
 {
     if (ctconn_prepare(STMT, sql) != CT_SUCCESS) {
+        ctrst_log_print("ctrst execute sql conn prepare failed\n");
         ctrst_print_error(CONN);
     } else {
         if (ctconn_execute(STMT) != CT_SUCCESS) {
@@ -1419,6 +1426,17 @@ static status_t ctrst_init_instance(void)
         return CT_ERROR;
     }
 
+    if (ctrst_query_param("MAX_COLUMN_COUNT", g_conn_params.max_column_count, CT_PARAM_BUFFER_SIZE) != CT_SUCCESS) {
+        ctrst_log_print("query MAX_COLUMN_COUNT failed\n");
+        return CT_ERROR;
+    }
+    if (ctrst_query_param("_UNDO_SEGMENTS", g_conn_params.undo_segments, CT_PARAM_BUFFER_SIZE) != CT_SUCCESS) {
+        ctrst_log_print("query _UNDO_SEGMENTS failed\n");
+        return CT_ERROR;
+    }
+    ctrst_log_print("MAX_COLUMN_COUNT: '%s'\n", g_conn_params.max_column_count);
+    ctrst_log_print("_UNDO_SEGMENTS: '%s'\n", g_conn_params.undo_segments);
+
     if (ctrst_generate_config_file() != CT_SUCCESS) {
         ctrst_log_print("init database config file failed\n");
         return CT_ERROR;
@@ -1547,8 +1565,12 @@ static status_t ctrst_wait_archive_flush(uint32 asn)
     char sql[MAX_SQL_LEN] = { 0 };
     uint32 rows;
     uint32 retry_times = 0;
+    bool32 is_enable_dbs;
 
     ctrst_log_print("begin wait archive flush\n");
+    if (ctrst_is_enable_dbs(&is_enable_dbs) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
 
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.imp_url) != CT_SUCCESS) {
         return CT_ERROR;
@@ -1559,29 +1581,30 @@ static status_t ctrst_wait_archive_flush(uint32 asn)
         ctrst_free_conn();
         return CT_ERROR;
     }
+    if(!is_enable_dbs){
+        for (;;) {
+            PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1,
+                                          "SELECT NAME FROM DV_ARCHIVED_LOGS WHERE SEQUENCE#=%u", asn),
+                               ctrst_free_conn());
 
-    for (;;) {
-        PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1,
-                                      "SELECT NAME FROM DV_ARCHIVED_LOGS WHERE SEQUENCE#=%u", asn),
-                           ctrst_free_conn());
+            if (ctrst_execute_sql(sql, CT_FALSE) != CT_SUCCESS) {
+                ctrst_free_conn();
+                return CT_ERROR;
+            }
 
-        if (ctrst_execute_sql(sql, CT_FALSE) != CT_SUCCESS) {
-            ctrst_free_conn();
-            return CT_ERROR;
-        }
+            if (ctconn_fetch(STMT, &rows) != CT_SUCCESS) {
+                ctrst_free_conn();
+                return CT_ERROR;
+            }
 
-        if (ctconn_fetch(STMT, &rows) != CT_SUCCESS) {
-            ctrst_free_conn();
-            return CT_ERROR;
-        }
-
-        if (rows > 0) {
-            break;
-        }
-        cm_sleep(MILLISECS_PER_SECOND);
-        retry_times++;
-        if (retry_times % SECONDS_PER_MIN == 0) {
-            ctrst_log_print("wait archive flush spend %u minutes\n", retry_times / SECONDS_PER_MIN);
+            if (rows > 0) {
+                break;
+            }
+            cm_sleep(MILLISECS_PER_SECOND);
+            retry_times++;
+            if (retry_times % SECONDS_PER_MIN == 0) {
+                ctrst_log_print("wait archive flush spend %u minutes\n", retry_times / SECONDS_PER_MIN);
+            }
         }
     }
 
@@ -1885,9 +1908,13 @@ static status_t ctrst_flush_repaired_page(const char *page, int32 page_size, pag
     char sql[MAX_SQL_LEN] = { 0 };
     char str_buf[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
     int32 handle = CT_INVALID_HANDLE;
-    int64 offset = (int64)CTRST_PAGE_SIZE * page_id.page;
+    bool32 is_enable_dbs;
 
     ctrst_log_print("begin flush repaired page\n");
+    if (ctrst_is_enable_dbs(&is_enable_dbs) != CT_SUCCESS) {
+        ctrst_log_print("get ctrst is enable dbs failed");
+        return CT_ERROR;
+    }
 
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.imp_url) != CT_SUCCESS) {
         return CT_ERROR;
@@ -1896,36 +1923,36 @@ static status_t ctrst_flush_repaired_page(const char *page, int32 page_size, pag
                                   page_id.file),
                        ctrst_free_conn());
 
-    if (ctrst_execute_sql_get_string(sql, str_buf, CT_FILE_NAME_BUFFER_SIZE, CT_TRUE) != CT_SUCCESS) {
+    if (ctrst_execute_sql_get_string(sql, str_buf, CT_FILE_NAME_BUFFER_SIZE, CT_FALSE) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
     ctrst_log_print("data file path %s\n", str_buf);
-    if (cm_open_file(str_buf, O_SYNC | O_RDWR | O_BINARY, &handle) != CT_SUCCESS) {
-        ctrst_log_print("failed to open data file %s\n", str_buf);
-        return CT_ERROR;
-    }
+    if (!is_enable_dbs){
+        if (cm_open_file(str_buf, O_SYNC | O_RDWR | O_BINARY, &handle) != CT_SUCCESS) {
+            ctrst_log_print("failed to open data file %s\n", str_buf);
+            return CT_ERROR;
+        }
 
-    if (ctrst_backup_corrupted_page(handle) != CT_SUCCESS) {
-        ctrst_log_print("failed to backup corrupted page\n");
+        if (ctrst_backup_corrupted_page(handle) != CT_SUCCESS) {
+            ctrst_log_print("failed to backup corrupted page\n");
+            cm_close_file(handle);
+            return CT_ERROR;
+        }
         cm_close_file(handle);
+    }
+
+    PRTS_RETURN_IFERR2(snprintf_s(str_buf, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1, "%s/data/page_%u_%u",
+                                  g_conn_params.db_home, g_conn_params.page_id.file, g_conn_params.page_id.page), ctrst_free_conn());
+    PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1, "RESTORE flushpage from \'%s\'",str_buf),
+                       ctrst_free_conn());
+    ctrst_log_print("begin flush repaired page:%s sql:%s\n", str_buf, sql);
+
+    if (ctrst_execute_sql(sql, CT_TRUE) != CT_SUCCESS) {
+        ctrst_log_print("failed to flush repaired page\n");
         return CT_ERROR;
     }
 
-    if (cm_seek_file(handle, offset, SEEK_SET) != offset) {
-        ctrst_log_print("failed to seek data file %s\n, offset %lld", str_buf, offset);
-        cm_close_file(handle);
-        return CT_ERROR;
-    }
-
-    /* write repaired page */
-    if (cm_write_file(handle, page, page_size) != CT_SUCCESS) {
-        ctrst_log_print("failed to write size %u\n", CTRST_PAGE_SIZE);
-        cm_close_file(handle);
-        return CT_ERROR;
-    }
-
-    cm_close_file(handle);
     ctrst_log_print("end flush repaired page\n");
     return CT_SUCCESS;
 }
@@ -2116,6 +2143,24 @@ static bool32 ctrst_confirm_risk()
         }
     }
     return CT_FALSE;
+}
+
+static status_t ctrst_is_enable_dbs(bool32 *is_enable_db){
+    ctrst_log_print("begin get is enable dbs\n");
+    char sql[MAX_SQL_LEN] = { 0 };
+    char str_buf[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
+    if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.imp_url) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1, "SELECT FILE_NAME FROM DV_LOG_FILES WHERE STATUS=\'CURRENT\'"),
+                       ctrst_free_conn());
+    if (ctrst_execute_sql_get_string(sql, str_buf, CT_FILE_NAME_BUFFER_SIZE, CT_TRUE) != CT_SUCCESS) {
+        ctrst_log_print("ctrst get is enable dbs failed\n");
+        return CT_ERROR;
+    }
+    *is_enable_db = cm_device_type(str_buf) == DEV_TYPE_ULOG;
+    ctrst_log_print("end get is enable dbs\n");
+    return CT_SUCCESS;
 }
 
 status_t ctrst_start(thread_t *thread)
