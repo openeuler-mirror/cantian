@@ -62,7 +62,8 @@ function cantian_copy_dbstor_config() {
         rm -rf ${CANTIAN_CONFIG_PATH}/${DBSTOR_CONFIG_NAME}
     fi
     cp -arf ${DBSTOR_CONFIG_PATH} ${CANTIAN_CONFIG_PATH}/${DBSTOR_CONFIG_NAME}
-    sed -i -r "s:(DBSTOR_OWNER_NAME = ).*:\1cantian:g" ${CANTIAN_CONFIG_PATH}/${DBSTOR_CONFIG_NAME}
+    echo 'DBSTOR_OWNER_NAME = cantian' >> ${CANTIAN_CONFIG_PATH}/${DBSTOR_CONFIG_NAME}
+    sed -i '/^$/d' ${CANTIAN_CONFIG_PATH}/${DBSTOR_CONFIG_NAME}
 }
 
 set_dbstor_config
