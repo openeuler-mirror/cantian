@@ -2200,6 +2200,10 @@ void ckpt_set_trunc_point(knl_session_t *session, log_point_t *point)
 void ckpt_set_trunc_point_slave_role(knl_session_t *session, log_point_t *point, uint32 curr_node_idx)
 {
     ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
+    if (log_cmp_point(&ctx->queue.trunc_point, point) > 0)
+    {
+        return;
+    }
  
     /* do not move forward trunc point if GBP_RECOVERY is not completed */
     if (KNL_RECOVERY_WITH_GBP(session->kernel)) {
