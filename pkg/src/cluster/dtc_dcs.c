@@ -1063,7 +1063,7 @@ void dcs_process_ask_master_for_page(void *sess, mes_message_t * receive_msg)
         // if requester alive, send err msg
         mes_send_error_msg(&page_req.head);
 
-        CT_LOG_RUN_ERR(
+        DTC_DCS_DEBUG_ERR(
             "[DCS][%u-%u][%s]: failed to request page_req owner, src_id=%u, src_sid=%u, req_mode=%u, curr_mode=%u, "
             "req_rsn=%u",
             page_req.page_id.file, page_req.page_id.page, MES_CMD2NAME(page_req.head.cmd), page_req.head.src_inst,
@@ -1376,7 +1376,7 @@ status_t dcs_ask_master4page_l(knl_session_t *session, buf_ctrl_t *ctrl, drc_loc
     status_t ret = drc_request_page_owner(session, page_id, &req_info, CT_FALSE, &result);
     if (SECUREC_UNLIKELY(ret != CT_SUCCESS)) {
         knl_end_session_wait(session, DCS_REQ_MASTER4PAGE_1WAY);
-        CT_LOG_RUN_ERR("[DCS]failed to get page owner id: file=%u, page=%u, master id=%u",
+        DTC_DCS_DEBUG_ERR("[DCS]failed to get page owner id: file=%u, page=%u, master id=%u",
             page_id.file, page_id.page, req_id);
         return CT_ERROR;
     }
