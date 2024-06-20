@@ -230,6 +230,7 @@ typedef enum en_errno {
     ERR_INVALID_REPL_PORT = 260,
     ERR_UNDO_TABLESPACE_NOT_MATCH = 261,
     ERR_RANDOM_INIT = 262,
+    ERR_PARAMETER_NOT_POWER_OF_TWO = 263,
     // 254 - 298 available
     ERR_GENERIC_INTERNAL_ERROR = 299, /* used for internal logical error, no message template */
 

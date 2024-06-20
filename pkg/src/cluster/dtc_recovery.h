@@ -43,8 +43,6 @@ extern "C" {
 #define CT_RCY_SET_SIZE                 SIZE_M(64)
 #define CT_RCY_SET_BUCKET               1048573
 #define RCY_SET_BUCKET_TIMES            3 // the times of buckets against buffer ctrl
-#define DTC_RCY_PARAL_BUF_LIST_SIZE     256 // must is power of 2
-#define DTC_RCY_PARAL_BUF_LIST_MASK     (DTC_RCY_PARAL_BUF_LIST_SIZE - 1)
 #define PARAL_ANALYZE_THREAD_NUM        8
 #define DTC_RCY_GROUP_NUM_BASE          SIZE_M(1)
 // wait alive nodes send collected page info of rcy_set back to reformer timeout (seconds)
@@ -59,7 +57,7 @@ extern "C" {
 #define DTC_RCY_SET_SEND_MSG_MAX_PAGE_NUM ((MES_MESSAGE_BUFFER_SIZE - sizeof(dtc_rcy_set_msg_t)) / sizeof(page_id_t))
 
 typedef struct st_dtc_rcy_atomic_list_node {
-    uint32 array[DTC_RCY_PARAL_BUF_LIST_SIZE];
+    uint32 *array;
     atomic_t begin;
     atomic_t end;
     atomic_t writed_end;
@@ -67,7 +65,7 @@ typedef struct st_dtc_rcy_atomic_list_node {
 } dtc_rcy_atomic_list;
 
 typedef struct st_dtc_rcy_analyze_paral_node {
-    aligned_buf_t buf_list[DTC_RCY_PARAL_BUF_LIST_SIZE];
+    aligned_buf_t *buf_list;
     thread_t thread[PARAL_ANALYZE_THREAD_NUM];
     dtc_rcy_atomic_list free_list;
     dtc_rcy_atomic_list used_list;
@@ -77,12 +75,12 @@ typedef struct st_dtc_rcy_analyze_paral_node {
 } dtc_rcy_analyze_paral_node_t;
 
 typedef struct st_dtc_rcy_replay_paral_node {
-    aligned_buf_t buf_list[DTC_RCY_PARAL_BUF_LIST_SIZE];
-    aligned_buf_t group_list[DTC_RCY_PARAL_BUF_LIST_SIZE];
-    atomic32_t group_num[DTC_RCY_PARAL_BUF_LIST_SIZE];
-    knl_scn_t batch_scn[DTC_RCY_PARAL_BUF_LIST_SIZE];
-    uint32 node_id[DTC_RCY_PARAL_BUF_LIST_SIZE];
-    date_t batch_rpl_start_time[DTC_RCY_PARAL_BUF_LIST_SIZE];
+    aligned_buf_t *buf_list;
+    aligned_buf_t *group_list;
+    atomic32_t *group_num;
+    knl_scn_t *batch_scn;
+    uint32 *node_id;
+    date_t *batch_rpl_start_time;
     dtc_rcy_atomic_list free_list;
     log_point_t rcy_point[CT_MAX_INSTANCES];
 } dtc_rcy_replay_paral_node_t;

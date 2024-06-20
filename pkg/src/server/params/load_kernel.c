@@ -1728,6 +1728,7 @@ status_t srv_load_kernel_params(void)
         return CT_ERROR;
     }
     CT_RETURN_IFERR(srv_get_param_uint32("RCY_NODE_READ_BUF_SIZE", &attr->rcy_node_read_buf_size));
+    CT_RETURN_IFERR(srv_get_param_uint32("DTC_RCY_PARAL_BUF_LIST_SIZE", &attr->dtc_rcy_paral_buf_list_size));
     return CT_SUCCESS;
 }
 

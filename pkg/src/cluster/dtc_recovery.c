@@ -1231,6 +1231,17 @@ void dtc_recovery_close(knl_session_t *session)
     }
     // [reformer] release memroy malloced in dtc_rcy_init_context
     CM_FREE_PTR(dtc_rcy->rcy_nodes);
+    CM_FREE_PTR(g_analyze_paral_mgr.free_list.array);
+    CM_FREE_PTR(g_analyze_paral_mgr.buf_list);
+    CM_FREE_PTR(g_analyze_paral_mgr.used_list.array);
+    CM_FREE_PTR(g_replay_paral_mgr.buf_list);
+    CM_FREE_PTR(g_replay_paral_mgr.group_list);
+    CM_FREE_PTR(g_replay_paral_mgr.batch_scn);
+    CM_FREE_PTR(g_replay_paral_mgr.node_id);
+    CM_FREE_PTR(g_replay_paral_mgr.batch_rpl_start_time);
+    CM_FREE_PTR(g_replay_paral_mgr.free_list.array);
+    free((void *)g_replay_paral_mgr.group_num);
+    g_replay_paral_mgr.group_num = NULL;
     
     rcy_set_t *rcy_set = &dtc_rcy->rcy_set;
     if (rcy_set->buckets != NULL) {
@@ -2728,6 +2739,7 @@ static uint32 dtc_rcy_atomic_list_pop(dtc_rcy_atomic_list *list)
 {
     int64 begin, end;
     uint32 val;
+    uint32 prarl_buf_list_size = g_instance->kernel.attr.dtc_rcy_paral_buf_list_size;
     cm_spin_lock(&list->lock, NULL);
     do {
         begin = list->begin;
@@ -2736,7 +2748,7 @@ static uint32 dtc_rcy_atomic_list_pop(dtc_rcy_atomic_list *list)
             cm_spin_unlock(&list->lock);
             return CT_INVALID_INT32;
         }
-        val = list->array[begin % DTC_RCY_PARAL_BUF_LIST_SIZE];
+        val = list->array[begin % prarl_buf_list_size];
     } while (!cm_atomic_cas(&list->begin, begin, begin + 1));
     cm_spin_unlock(&list->lock);
     return val;
@@ -2746,15 +2758,16 @@ static bool8 dtc_rcy_atomic_list_push(dtc_rcy_atomic_list *list, uint32 val)
 {
     int64 begin, end;
     cm_spin_lock(&list->lock, NULL);
+    uint32 prarl_buf_list_size = g_instance->kernel.attr.dtc_rcy_paral_buf_list_size;
     do {
         begin = list->begin;
         end   = list->end;
-        if (begin + DTC_RCY_PARAL_BUF_LIST_SIZE == end) { // list is full
+        if (begin + prarl_buf_list_size == end) { // list is full
             cm_spin_unlock(&list->lock);
             return CT_FALSE;
         }
     } while (!cm_atomic_cas(&list->end, end, end + 1)); // placeholder
-    list->array[end % DTC_RCY_PARAL_BUF_LIST_SIZE] = val;
+    list->array[end % prarl_buf_list_size] = val;
     while (!cm_atomic_cas(&list->writed_end, end, end + 1)) { // update end
         // yield
         continue;
@@ -2822,7 +2835,8 @@ static void dtc_rcy_analyze_paral_proc(thread_t *thread)
 bool32 is_min_batch_lsn(uint64 batch_lsn, knl_scn_t *batch_scn, bool32 *has_batch)
 {
     log_batch_t *batch = NULL;
-    for (uint32 idx = 0; idx < DTC_RCY_PARAL_BUF_LIST_SIZE; idx++) {
+    uint32 prarl_buf_list_size = g_instance->kernel.attr.dtc_rcy_paral_buf_list_size;
+    for (uint32 idx = 0; idx < prarl_buf_list_size; idx++) {
         *batch_scn = MAX(*batch_scn, g_replay_paral_mgr.batch_scn[idx]);
         if (g_replay_paral_mgr.group_num[idx] == 0) {
             continue;
@@ -2964,13 +2978,14 @@ static status_t dtc_rcy_analyze_batches_paral(knl_session_t *session)
     g_analyze_paral_mgr.killed_flag         = CT_FALSE;
     g_analyze_paral_mgr.read_log_end_flag     = CT_FALSE;
     g_analyze_paral_mgr.running_thread_num  = 0;
+    uint32 prarl_buf_list_size = g_instance->kernel.attr.dtc_rcy_paral_buf_list_size;
 
     CT_LOG_RUN_INF("[DTC RCY] paral redo log analyze start, dtc_rcy->phase=%u, session->id=%u",
         dtc_rcy->phase, session->id);
 
     dtc_rcy_atomic_list_init(&g_analyze_paral_mgr.free_list);
     dtc_rcy_atomic_list_init(&g_analyze_paral_mgr.used_list);
-    for (uint32 i = 0; i < DTC_RCY_PARAL_BUF_LIST_SIZE; i++) {
+    for (uint32 i = 0; i < prarl_buf_list_size; i++) {
         g_analyze_paral_mgr.free_list.array[i] = i;
 
         if (cm_aligned_malloc(lgwr_buf_size, "dtc rcy read buffer", &g_analyze_paral_mgr.buf_list[i]) != CT_SUCCESS) {
@@ -2980,14 +2995,14 @@ static status_t dtc_rcy_analyze_batches_paral(knl_session_t *session)
             return CT_ERROR;
         }
     }
-    g_analyze_paral_mgr.free_list.end = DTC_RCY_PARAL_BUF_LIST_SIZE;
-    g_analyze_paral_mgr.free_list.writed_end = DTC_RCY_PARAL_BUF_LIST_SIZE;
+    g_analyze_paral_mgr.free_list.end = prarl_buf_list_size;
+    g_analyze_paral_mgr.free_list.writed_end = prarl_buf_list_size;
 
     SYNC_POINT_GLOBAL_START(CANTIAN_RECOVERY_ANAL_READ_LOG_FAIL, &status, CT_ERROR);
     status = dtc_read_all_logs(session);
     SYNC_POINT_GLOBAL_END;
     if (status != CT_SUCCESS) {
-        dtc_rcy_free_list_in_analyze_paral(g_analyze_paral_mgr.buf_list, DTC_RCY_PARAL_BUF_LIST_SIZE);
+        dtc_rcy_free_list_in_analyze_paral(g_analyze_paral_mgr.buf_list, prarl_buf_list_size);
         session->canceled = CT_TRUE;
         CT_LOG_RUN_ERR("[DTC RCY] failed to load first log file in paral analyze, dtc_rcy->failed=%u. "
             "session->canceled=%u", dtc_rcy->failed, session->canceled);
@@ -3005,7 +3020,7 @@ static status_t dtc_rcy_analyze_batches_paral(knl_session_t *session)
     }
 
     if (dtc_rcy_fetch_log_batch(session, &batch, &curr_node_idx) != CT_SUCCESS) {
-        dtc_rcy_free_list_in_analyze_paral(g_analyze_paral_mgr.buf_list, DTC_RCY_PARAL_BUF_LIST_SIZE);
+        dtc_rcy_free_list_in_analyze_paral(g_analyze_paral_mgr.buf_list, prarl_buf_list_size);
         CT_LOG_RUN_ERR("[DTC RCY] failed to extract first log batch in paral analyze, dtc_rcy->failed=%u. "
             "session->canceled=%u", dtc_rcy->failed, session->canceled);
         return CT_ERROR;
@@ -3080,7 +3095,7 @@ static status_t dtc_rcy_analyze_batches_paral(knl_session_t *session)
     while (cm_atomic32_get(&g_analyze_paral_mgr.running_thread_num) > 0) {
         cm_sleep(1);
     }
-    dtc_rcy_free_list_in_analyze_paral(g_analyze_paral_mgr.buf_list, DTC_RCY_PARAL_BUF_LIST_SIZE);
+    dtc_rcy_free_list_in_analyze_paral(g_analyze_paral_mgr.buf_list, prarl_buf_list_size);
     session->canceled = dtc_rcy->canceled ? CT_TRUE : CT_FALSE;
 
     CT_LOG_RUN_INF("[DTC RCY] paral redo log analyze finish, dtc_rcy->phase=%u, session->id=%u, "
@@ -3177,12 +3192,13 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
     uint64 fetch_log_time = 0;
     uint64 replay_batch_time = 0;
     uint32 curr_node_idx = 0;
+    uint32 prarl_buf_list_size = g_instance->kernel.attr.dtc_rcy_paral_buf_list_size;
 
     CT_LOG_RUN_INF("[DTC RCY] start paral redo replay, dtc_rcy->phase=%u, session->kernel->lsn=%llu",
         dtc_rcy->phase, session->kernel->lsn);
 
     dtc_rcy_atomic_list_init(&g_replay_paral_mgr.free_list);
-    for (uint32 i = 0; i < DTC_RCY_PARAL_BUF_LIST_SIZE; i++) {
+    for (uint32 i = 0; i < prarl_buf_list_size; i++) {
         g_replay_paral_mgr.free_list.array[i] = i;
 
         if (cm_aligned_malloc(lgwr_buf_size, "dtc rcy read buffer", &g_replay_paral_mgr.buf_list[i]) != CT_SUCCESS) {
@@ -3191,25 +3207,24 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
             return CT_ERROR;
         }
     }
-
-    for (uint32 i = 0; i < DTC_RCY_PARAL_BUF_LIST_SIZE; i++) {
+    for (uint32 i = 0; i < prarl_buf_list_size; i++) {
         if (cm_aligned_malloc(lgwr_buf_size, "dtc rcy paral group buffer", &g_replay_paral_mgr.group_list[i]) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DTC RCY] failed to alloc paral group buffer in paral replay for group=%u", i);
             dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.group_list, i);
-            dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.buf_list, DTC_RCY_PARAL_BUF_LIST_SIZE);
+            dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.buf_list, prarl_buf_list_size);
             return CT_ERROR;
         }
     }
-    g_replay_paral_mgr.free_list.end         = DTC_RCY_PARAL_BUF_LIST_SIZE;
-    g_replay_paral_mgr.free_list.writed_end  = DTC_RCY_PARAL_BUF_LIST_SIZE;
+    g_replay_paral_mgr.free_list.end         = prarl_buf_list_size;
+    g_replay_paral_mgr.free_list.writed_end  = prarl_buf_list_size;
 
     ELAPSED_BEGIN(elapsed_begin);
     SYNC_POINT_GLOBAL_START(CANTIAN_PARAL_REPLAY_READ_LOG_FAIL, &status, CT_ERROR);
     status = dtc_read_all_logs(session);
     SYNC_POINT_GLOBAL_END;
     if (status != CT_SUCCESS) {
-        dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.buf_list, DTC_RCY_PARAL_BUF_LIST_SIZE);
-        dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.group_list, DTC_RCY_PARAL_BUF_LIST_SIZE);
+        dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.buf_list, prarl_buf_list_size);
+        dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.group_list, prarl_buf_list_size);
         CT_LOG_RUN_ERR("[DTC RCY] failed to read redo log files in paral replay");
         return CT_ERROR;
     }
@@ -3228,8 +3243,8 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
 
     ELAPSED_BEGIN(elapsed_begin);
     if (dtc_rcy_fetch_log_batch(session, &batch, &curr_node_idx) != CT_SUCCESS) {
-        dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.buf_list, DTC_RCY_PARAL_BUF_LIST_SIZE);
-        dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.group_list, DTC_RCY_PARAL_BUF_LIST_SIZE);
+        dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.buf_list, prarl_buf_list_size);
+        dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.group_list, prarl_buf_list_size);
         CT_LOG_RUN_ERR("[DTC RCY] failed to extract log batch in paral replay");
         return CT_ERROR;
     }
@@ -3303,8 +3318,8 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
         return CT_ERROR;
     }
     dtc_rcy_wait_paral_replay_end(session);
-    dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.buf_list, DTC_RCY_PARAL_BUF_LIST_SIZE);
-    dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.group_list, DTC_RCY_PARAL_BUF_LIST_SIZE);
+    dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.buf_list, prarl_buf_list_size);
+    dtc_rcy_free_list_in_analyze_paral(g_replay_paral_mgr.group_list, prarl_buf_list_size);
 
     session->canceled = dtc_rcy->canceled ? CT_TRUE : CT_FALSE;
     CT_LOG_RUN_INF("[DTC RCY] dtc_rcy canceled=%u, session canceled=%u", dtc_rcy->canceled, session->canceled);
@@ -3775,6 +3790,10 @@ static void dtc_init_node(dtc_rcy_node_t *rcy_node,
     rcy_node->read_buf_ready = (bool32 *)malloc(read_buf_size * sizeof(bool32));
     rcy_node->read_size = (uint32 *)malloc(read_buf_size * sizeof(uint32));
     rcy_node->not_finished = (bool32 *)malloc(read_buf_size * sizeof(bool32));
+    if (rcy_node->read_buf == NULL || rcy_node->read_pos == NULL || rcy_node->write_pos == NULL ||
+        rcy_node->read_buf_ready == NULL || rcy_node->read_size == NULL || rcy_node->not_finished == NULL) {
+        CM_ABORT(0, "[DTC RCY] alloc memory failed");
+    }
     for(int i = 0 ; i < read_buf_size ; ++i){
         rcy_node->write_pos[i] = 0;
         rcy_node->read_pos[i] = 0;
@@ -3903,6 +3922,24 @@ status_t dtc_recovery_init(knl_session_t *session, instance_list_t *recover_list
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
     uint32 count = recover_list->inst_id_count;
     uint32 read_buf_size = g_instance->kernel.attr.rcy_node_read_buf_size;
+    uint32 prarl_buf_list_size = g_instance->kernel.attr.dtc_rcy_paral_buf_list_size;
+    g_analyze_paral_mgr.free_list.array = (uint32 *)malloc(prarl_buf_list_size * sizeof(uint32));
+    g_analyze_paral_mgr.used_list.array = (uint32 *)malloc(prarl_buf_list_size * sizeof(uint32));
+    g_analyze_paral_mgr.buf_list = (aligned_buf_t *)malloc(prarl_buf_list_size * sizeof(aligned_buf_t));
+    g_replay_paral_mgr.buf_list = (aligned_buf_t *)malloc(prarl_buf_list_size * sizeof(aligned_buf_t));
+    g_replay_paral_mgr.group_list = (aligned_buf_t *)malloc(prarl_buf_list_size * sizeof(aligned_buf_t));
+    g_replay_paral_mgr.group_num = (atomic32_t *)malloc(prarl_buf_list_size * sizeof(atomic32_t));
+    g_replay_paral_mgr.batch_scn = (knl_scn_t *)malloc(prarl_buf_list_size * sizeof(knl_scn_t));
+    g_replay_paral_mgr.node_id = (uint32 *)malloc(prarl_buf_list_size * sizeof(uint32));
+    g_replay_paral_mgr.batch_rpl_start_time = (date_t *)malloc(prarl_buf_list_size * sizeof(date_t));
+    g_replay_paral_mgr.free_list.array = (uint32 *)malloc(prarl_buf_list_size * sizeof(uint32));
+    if (g_analyze_paral_mgr.free_list.array == NULL || g_analyze_paral_mgr.buf_list == NULL || g_replay_paral_mgr.buf_list == NULL ||
+        g_replay_paral_mgr.group_list == NULL || g_replay_paral_mgr.group_num == NULL || g_replay_paral_mgr.batch_scn == NULL ||
+        g_replay_paral_mgr.node_id == NULL || g_replay_paral_mgr.batch_rpl_start_time == NULL || g_replay_paral_mgr.free_list.array == NULL ||
+        g_analyze_paral_mgr.used_list.array == NULL) {
+        CM_ABORT(0, "[DTC RCY] alloc memory failed");
+    }
+
     dtc_rcy_init_last_recovery_stat(recover_list);
     cm_reset_error();
     if (dtc_rcy_init_context(session, dtc_rcy, count, full_recovery) != CT_SUCCESS) {

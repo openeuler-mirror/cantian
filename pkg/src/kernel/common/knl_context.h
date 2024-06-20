@@ -304,6 +304,7 @@ typedef struct st_knl_attr {
     bool32 enable_hwm_change;
     bool32 enable_boc;
     uint32 rcy_node_read_buf_size;
+    uint32 dtc_rcy_paral_buf_list_size;
 } knl_attr_t;
 
 typedef struct st_sys_name_context {  // for system name
