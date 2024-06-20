@@ -3932,6 +3932,11 @@ status_t dtc_recovery_init(knl_session_t *session, instance_list_t *recover_list
             CT_LOG_RUN_ERR("[DTC RCY] failed to init rcynode");
             return CT_ERROR;
         }
+        if (!DB_IS_PRIMARY(&session->kernel->db))
+        {
+            dtc_node_ctrl_t *ctrl = dtc_get_ctrl(session, i);
+            ckpt_set_trunc_point_slave_role(session, &ctrl->rcy_point, i);
+        }
     }
 
     // init the recovery set
