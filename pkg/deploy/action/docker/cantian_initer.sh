@@ -201,13 +201,14 @@ function prepare_certificate() {
     crt_path="${CERT_CONFIG_PATH}"/mes.crt
     local key_path
     key_path="${CERT_CONFIG_PATH}"/mes.key
+    cert_password=`cat ${CERT_CONFIG_PATH}/${CERT_PASS}`
     cp -arf "${ca_path}" "${certificate_dir}"/ca.crt
     cp -arf "${crt_path}" "${certificate_dir}"/mes.crt
-    cp -arf "${key_path}" "${certificate_dir}"/mes.key 
+    cp -arf "${key_path}" "${certificate_dir}"/mes.key
+    echo "${cert_password}" > "${certificate_dir}"/mes.pass
     chown -hR "${cantian_user}":"${cantian_group}" "${certificate_dir}"
     su -s /bin/bash - "${cantian_user}" -c "chmod 600 ${certificate_dir}/*"
 
-    cert_password=`cat ${CERT_CONFIG_PATH}/${CERT_PASS}`
     tmp_path=${LD_LIBRARY_PATH}
     export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH}
     python3 -B "${CURRENT_PATH}"/resolve_pwd.py "resolve_check_cert_pwd" "${cert_password}"
