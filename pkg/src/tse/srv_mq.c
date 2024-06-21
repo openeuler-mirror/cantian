@@ -50,7 +50,7 @@
 struct shm_seg_s* g_shm_segs[SHM_SEG_MAX_NUM + 1] = {NULL};
 struct shm_seg_s *g_upstream_shm_seg = NULL;
 static spinlock_t g_client_id_list_lock;
-
+extern uint32 g_shm_memory_reduction_ratio;
 
 typedef struct tag_mem_class_cfg_s {
     uint32_t size; // align to 8 bytes
@@ -425,7 +425,7 @@ int create_mq_shm_file(void)
 
         shm_mem_class_t shm_class[MEM_CLASS_NUM];
         for (int j = 0; j < MEM_CLASS_NUM; j++) {
-            shm_class[j].num = (uint32_t)g_mem_class_cfg[j].num;
+            shm_class[j].num = (uint32_t)g_mem_class_cfg[j].num / g_shm_memory_reduction_ratio;
             shm_class[j].size = (uint32_t)g_mem_class_cfg[j].size;
         }
         g_shm_segs[i] = shm_master_init(&shm_key, shm_class, MEM_CLASS_NUM, i == mq_num ? 1 : 0);
