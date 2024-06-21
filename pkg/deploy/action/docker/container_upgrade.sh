@@ -246,7 +246,7 @@ function upgrade_init_flag() {
 
 function upgrade_lock() {
     exec 506>"${upgrade_lock}"
-    flock -n 506
+    flock -x --wait 600 506 
     if [ $? -ne 0 ]; then
         logAndEchoError "Other node is upgrading or rollback, please check again later."
         exit 1
