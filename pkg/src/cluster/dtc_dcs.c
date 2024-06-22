@@ -741,6 +741,7 @@ status_t static inline dcs_owner_transfer_page(knl_session_t *session, uint8 own
                 CT_LOG_RUN_ERR("[DCS][%u-%u]: owner transfer page failed, invalid lock_mode(%u)",
                     page_req->page_id.file, page_req->page_id.page, ctrl->lock_mode);
                 mes_send_error_msg(&page_req->head);
+                dcs_leave_page(session);
                 return CT_ERROR;
             }
             flag = MES_FLAG_READONLY2X;
@@ -750,6 +751,7 @@ status_t static inline dcs_owner_transfer_page(knl_session_t *session, uint8 own
                 "[DCS][%u-%u]: owner transfer page failed, invalid page_req->lsn(%llu), ctrl->page->lsn(%llu)",
                 page_req->page_id.file, page_req->page_id.page, page_req->lsn, ctrl->page->lsn);
             mes_send_error_msg(&page_req->head);
+            dcs_leave_page(session);
             return CT_ERROR;
         }
     }
@@ -928,7 +930,7 @@ status_t dcs_notify_owner_for_page(knl_session_t *session, uint8 owner_id, msg_p
         // this instance is owner, transfer local page, and requester must be on another instance
         status_t ret = dcs_owner_transfer_page(session, owner_id, page_req);
         if (SECUREC_UNLIKELY(ret != CT_SUCCESS)) {
-            DTC_DCS_DEBUG_ERR("[DCS][%u-%u][owner transfer page]: failed, dest_id=%u, dest_sid=%u, dest_rsn=%u, mode=%u",
+            CT_LOG_RUN_ERR("[DCS][%u-%u][owner transfer page]: failed, dest_id=%u, dest_sid=%u, dest_rsn=%u, mode=%u",
                               page_req->page_id.file, page_req->page_id.page, page_req->head.src_inst,
                               page_req->head.src_sid, page_req->head.rsn, page_req->req_mode);
         }
@@ -1236,7 +1238,7 @@ void dcs_process_ask_owner_for_page(void *sess, mes_message_t *receive_msg)
 
     status_t ret = dcs_owner_transfer_page(session, DCS_SELF_INSTID(session), &page_req);
     if (SECUREC_UNLIKELY(ret != CT_SUCCESS)) {
-        DTC_DCS_DEBUG_ERR(
+        CT_LOG_RUN_ERR(
             "[DCS][%u-%u][process ask owner] failed, owner_id=%u, req_id=%u, req_sid=%u, req_rsn=%u, mode=%u, lsn=%llu",
             page_req.page_id.file, page_req.page_id.page, DCS_SELF_INSTID(session), page_req.head.src_inst,
             page_req.head.src_sid, page_req.head.rsn, page_req.req_mode, page_req.lsn);
@@ -1263,7 +1265,7 @@ status_t inline dcs_try_notify_owner_for_page(knl_session_t *session, cvt_info_t
 
     status_t ret = dcs_notify_owner_for_page(session, cvt_info->owner_id, &page_req);
     if (SECUREC_UNLIKELY(ret != CT_SUCCESS)) {
-        DTC_DCS_DEBUG_ERR("[DCS][%u-%u][notify owner transfer page]: failed, owner_id=%u, req_id=%u, "
+        CT_LOG_RUN_ERR("[DCS][%u-%u][notify owner transfer page]: failed, owner_id=%u, req_id=%u, "
                           "req_sid=%u, req_rsn=%u, req_mode=%u, curr_mode=%u, copy_insts=%llu",
                           page_req.page_id.file, page_req.page_id.page, cvt_info->owner_id, cvt_info->req_id,
                           cvt_info->req_sid, cvt_info->req_rsn, cvt_info->req_mode, cvt_info->curr_mode,

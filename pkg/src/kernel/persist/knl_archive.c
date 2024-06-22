@@ -5131,9 +5131,9 @@ void arch_deinit_proc_standby()
             continue;
         }
         CT_LOG_RUN_INF("[ARCH_STANDBY] release proc ctx resource for node %u", idx);
-        arch_proc_ctx->enabled = CT_FALSE;
         cm_close_thread(&arch_proc_ctx->read_thread);
         cm_close_thread(&arch_proc_ctx->write_thread);
+        arch_proc_ctx->enabled = CT_FALSE;
 
         arch_release_rw_buf(&arch_proc_ctx->arch_rw_buf, "ARCH_STANDBY");
 

@@ -440,8 +440,9 @@ class FailOver(SwitchOver):
         step:
             1、检查双活域角色
             2、检查当前双活域状态
-            3、检查参天状态
-            4、取消从资源保护
+            3、重拉节点
+            4、检查参天状态
+            5、取消从资源保护
         """
         LOG.info("Cancel secondary resource protection start.")
         self.init_storage_opt()
@@ -451,14 +452,18 @@ class FailOver(SwitchOver):
             err_msg = "Fail over operation is not allowed in primary node."
             LOG.error(err_msg)
             raise Exception(err_msg)
-        self.check_cluster_status(target_node=self.node_id)
         running_status = domain_info.get("RUNNINGSTATUS")
         if running_status == MetroDomainRunningStatus.Normal:
             self.dr_deploy_opt.split_filesystem_hyper_metro_domain(self.hyper_domain_id)
         self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
             self.hyper_domain_id, DomainAccess.ReadAndWrite)
         try:
-            self.check_cluster_status(target_node=self.node_id, log_type="info")
+            self.standby_cms_res_start()
+        except Exception as _er:
+            err_msg ="Standby cms res start failed, error: {}".format(_er)
+            LOG.error(err_msg)
+        try:
+            self.check_cluster_status(target_node=self.node_id, log_type="info",check_time=300)
         except Exception as _er:
             err_msg = "Check cluster status failed, error: {}".format(_er)
             LOG.error(err_msg)
