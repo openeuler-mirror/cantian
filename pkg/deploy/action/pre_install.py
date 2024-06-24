@@ -532,6 +532,9 @@ class CheckInstallConfig(CheckBase):
         if ret_code:
             LOG.error("cannot get memory limit, command: %s, err: %s" % (cmd, stderr))
             return False
+        if container_memory_limit and (int(container_memory_limit) / tmp_gb) < 60:
+            LOG.error("container memory limit(%.2f GB) cannot be less than 60GB, please check it!" % (int(container_memory_limit) / tmp_gb))
+            return False
         if container_memory_limit and int(sga_buff_size) > int(container_memory_limit):
             LOG.error("sga buffer size(%.2f GB) should less than container memory limit(%.2f GB), please check it!" % (int(sga_buff_size) / tmp_gb, int(container_memory_limit) / tmp_gb))
             return False

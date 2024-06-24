@@ -477,6 +477,9 @@ config_item_t g_parameters[] = {
     { "_MAX_CONNECT_BY_LEVEL", CT_TRUE, ATTR_NONE, "256", NULL, NULL, "-", "[0,4294967295]", "CT_TYPE_UINT32", NULL,
       PARAM_MAX_CONNECT_BY_LEVEL, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_uint32,
       sql_notify_als_max_connect_by_level, NULL, NULL },
+    { "SHM_MEMORY_REDUCTION_RATIO", CT_TRUE, ATTR_NONE, "1", NULL, NULL, "-", "[1,8]", "CT_TYPE_INTEGER", NULL,
+      PARAM_CANTIAN_CONTAINER_NUMS, EFFECT_REBOOT, CFG_INS, sql_verify_als_uint32, NULL,
+      NULL, NULL },
     { "BACKUP_BUFFER_SIZE", CT_TRUE, ATTR_NONE, "128M", NULL, NULL, "-", "[8M,512M]", "CT_TYPE_INTEGER", NULL,
       PARAM_BACKUP_BUFFER_SIZE, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_backup_buf_size,
       sql_notify_als_backup_buf_size, NULL, NULL },
@@ -1068,6 +1071,9 @@ config_item_t g_parameters[] = {
     { "RCY_NODE_READ_BUF_SIZE", CT_TRUE, ATTR_NONE, "4", NULL, NULL, "-", "[2,10]", "CT_TYPE_INTEGER", NULL,
     PARAM_RCY_NODE_READ_BUF_SIZE, EFFECT_REBOOT, CFG_INS, sql_verify_rcy_read_buf_size, NULL,
     NULL, NULL },
+    { "DTC_RCY_PARAL_BUF_LIST_SIZE", CT_TRUE, ATTR_NONE, "256", NULL, NULL, "-", "[2,256]", "CT_TYPE_INTEGER", NULL,
+      PARAM_DTC_RCY_PARAL_BUF_LIST_SIZE, EFFECT_REBOOT, CFG_INS, sql_verify_dtc_rcy_paral_buf_list_size, NULL,
+      NULL, NULL },
     /* SHM MQ */
     { "SHM_MQ_MSG_RECV_THD_NUM",    CT_TRUE, ATTR_NONE,     "200",     NULL, NULL, "-", "[1, 1024]",          "CT_TYPE_INTEGER", NULL, PARAM_SHM_MQ_MSG_RECV_THD_NUM,     EFFECT_REBOOT,      CFG_INS, sql_verify_als_mq_thd_num,    NULL, NULL, NULL },
     { "SHM_MQ_MSG_QUEUE_NUM",       CT_TRUE, ATTR_NONE,     "8",      NULL, NULL, "-", "[1, 64]",            "CT_TYPE_INTEGER", NULL, PARAM_SHM_MQ_MSG_QUEUE_NUM,        EFFECT_REBOOT,      CFG_INS, sql_verify_als_mq_queue_num,  NULL, NULL, NULL },
@@ -1173,6 +1179,27 @@ void srv_get_debug_config_info(debug_config_item_t **params, uint32 *count)
 {
     *params = g_debug_parameters;
     *count = sizeof(g_debug_parameters) / sizeof(debug_config_item_t);
+}
+
+status_t sql_verify_dtc_rcy_paral_buf_list_size(void *se, void *lex, void *def)
+{
+    uint32 num;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (num < CT_MIN_DTC_RCY_PARAL_BUF_LIST_SIZE) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "DTC_RCY_PARAL_BUF_LIST_SIZE", (int64)CT_MIN_DTC_RCY_PARAL_BUF_LIST_SIZE);
+        return CT_ERROR;
+    }
+    if (num > CT_MAX_DTC_RCY_PARAL_BUF_LIST_SIZE) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "DTC_RCY_PARAL_BUF_LIST_SIZE", (int64)CT_MAX_DTC_RCY_PARAL_BUF_LIST_SIZE);
+        return CT_ERROR;
+    }
+    if ((num & (num - 1)) != 0) {
+        CT_THROW_ERROR(ERR_PARAMETER_NOT_POWER_OF_TWO, "DTC_RCY_PARAL_BUF_LIST_SIZE", (int64)num);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
 }
 
 status_t sql_verify_rcy_read_buf_size(void *se, void *lex, void *def)

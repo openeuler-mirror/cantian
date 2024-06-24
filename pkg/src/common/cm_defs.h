@@ -458,6 +458,8 @@ typedef enum en_cs_distribute_type {
 #define CT_MAX_SAVEPOINTS (uint8)8
 #define CT_MIN_ROLLBACK_PROC (uint32)1
 #define CT_MAX_ROLLBACK_PROC (uint32)2
+#define CT_MIN_SHM_MEMORY_REDUCTION_RATIO (uint32)1
+#define CT_MAX_SHM_MEMORY_REDUCTION_RATIO (uint32)8
 #define CT_MAX_PARAL_RCY (uint32)128
 #define CT_DEFAULT_PARAL_RCY (uint32)1
 #define CT_RCY_BUF_SIZE (uint32)SIZE_M(64)
@@ -1577,6 +1579,9 @@ static inline bool32 cm_is_odd(int32 val)
 
 #define CT_MAX_RCY_NODE_BUF_SIZE (uint32)10
 #define CT_MIN_RCY_NODE_BUF_SIZE (uint32)2
+
+#define CT_MAX_DTC_RCY_PARAL_BUF_LIST_SIZE (uint32)256
+#define CT_MIN_DTC_RCY_PARAL_BUF_LIST_SIZE (uint32)2
 
 #ifndef EXTER_ATTACK
 #define EXTER_ATTACK
