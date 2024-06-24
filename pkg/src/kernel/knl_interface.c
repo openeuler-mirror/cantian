@@ -10473,7 +10473,7 @@ static status_t knl_find_ltt_slot(knl_session_t *session, uint32 *tmp_id)
 
 status_t knl_create_ltt(knl_handle_t session, knl_table_def_t *def, bool32 *is_existed)
 {
-    CT_LOG_RUN_INF("[DB] Start to create tmp table %s", T2S_EX(&def->name));
+    CT_LOG_DEBUG_INF("[DB] Start to create tmp table %s", T2S_EX(&def->name));
     memory_context_t *ctx = NULL;
     dc_entry_t *entry = NULL;
     dc_entity_t *entity = NULL;
@@ -10554,13 +10554,13 @@ status_t knl_create_ltt(knl_handle_t session, knl_table_def_t *def, bool32 *is_e
     entry->ready = CT_TRUE;
     sess->temp_dc->entries[tmp_id] = entity->entry;
 
-    CT_LOG_RUN_INF("[DB] Finish to create tmp table %s, ret: %d", T2S_EX(&def->name), status);
+    CT_LOG_DEBUG_INF("[DB] Finish to create tmp table %s, ret: %d", T2S_EX(&def->name), status);
     return CT_SUCCESS;
 }
 
 status_t knl_drop_ltt(knl_handle_t session, knl_drop_def_t *def)
 {
-    CT_LOG_RUN_INF("[DB] Start to drop tmp table %s", T2S_EX(&def->name));
+    CT_LOG_DEBUG_INF("[DB] Start to drop tmp table %s", T2S_EX(&def->name));
     knl_dictionary_t dc;
     dc_user_t *user = NULL;
     bool32 found = CT_FALSE;
@@ -10592,7 +10592,7 @@ status_t knl_drop_ltt(knl_handle_t session, knl_drop_def_t *def)
     cm_latch_x(&se->ltt_latch, se->id, NULL);
     status_t status = db_drop_ltt(se, &dc);
     cm_unlatch(&se->ltt_latch, NULL);
-    CT_LOG_RUN_INF("[DB] Finish to drop tmp table %s, ret:%d", T2S_EX(&def->name), status);
+    CT_LOG_DEBUG_INF("[DB] Finish to drop tmp table %s, ret:%d", T2S_EX(&def->name), status);
 
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_DROP_TMP_TABLE_AFTER_RELEASE_LTT_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
