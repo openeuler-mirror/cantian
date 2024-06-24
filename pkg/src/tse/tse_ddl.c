@@ -745,8 +745,7 @@ EXTER_ATTACK int tse_execute_mysql_ddl_sql(tianchi_handler_t *tch, tse_ddl_broad
     CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
     tse_set_no_use_other_sess4thd(session);
     knl_session_t *knl_session = &session->knl_session;
-    if (DB_ATTR_MYSQL_META_IN_DACC(knl_session) && !(broadcast_req->sql_command == SQLCOM_CREATE_DB) &&
-        !(broadcast_req->sql_command == SQLCOM_DROP_DB) && !(broadcast_req->sql_command == SQLCOM_SET_OPTION)) {
+    if (DB_ATTR_MYSQL_META_IN_DACC(knl_session) && !(broadcast_req->sql_command == SQLCOM_SET_OPTION)) {
         return CT_SUCCESS;
     }
     if (tch->query_id == session->query_id && broadcast_req->sql_command != SQLCOM_DROP_TABLE) {
