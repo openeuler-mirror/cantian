@@ -102,29 +102,20 @@ function check_mysql_pkg() {
     fi
 }
 
-function check_cpu_memory_limit() {
+function check_cpu_limit() {
     MY_CPU_NUM=$(cat /proc/1/environ | tr '\0' '\n' | grep MY_CPU_NUM | cut -d= -f2)
-    MY_MEMORY_SIZE=$(cat /proc/1/environ | tr '\0' '\n' | grep MY_MEMORY_SIZE | cut -d= -f2)
 
     if [[ ! -z "${MY_CPU_NUM}" ]]; then  
-        if (( $(echo "${MY_CPU_NUM} < 12" | bc -l) )); then  
+        if [[ "${MY_CPU_NUM}" -lt 12 ]]; then  
             logAndEchoError "cpu limit cannot be less than 12, current cpu limit is ${MY_CPU_NUM}."
             exit_with_log
         fi
-    fi
-
-    if [[ ! -z "${MY_MEMORY_SIZE}" ]]; then
-        MY_MEMORY_SIZE_GB=$(echo "${MY_MEMORY_SIZE} / (1024*1024*1024)" | bc)
-        if (( $(echo "${MY_MEMORY_SIZE_GB} < 64" | bc -l) )); then  
-            logAndEchoError "memory limit cannot be less than 64G, current memory limit is ${MY_MEMORY_SIZE_GB}."
-            exit_with_log
-        fi 
     fi
 }
 
 function check_container_context() {
     check_mysql_pkg
-    check_cpu_memory_limit
+    check_cpu_limit
 }
 
 function mount_fs() {
@@ -145,7 +136,6 @@ function mount_fs() {
 function check_init_status() {
     # 对端节点的cms会使用旧ip建链60s，等待对端节点cms解析新的ip
     if [ -f ${VERSION_PATH}/${VERSION_FILE} ]; then
-        sleep 60
         logAndEchoInfo "The cluster has been initialized, no need create database. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         sed -i "s/\"db_create_status\": \"default\"/\"db_create_status\": \"done\"/g" /opt/cantian/cantian/cfg/${START_STATUS_NAME}
         sed -i "s/\"ever_started\": false/\"ever_started\": true/g" /opt/cantian/cantian/cfg/${START_STATUS_NAME}
