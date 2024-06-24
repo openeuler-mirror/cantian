@@ -1580,6 +1580,9 @@ static inline bool32 cm_is_odd(int32 val)
 #define CT_MAX_RCY_NODE_BUF_SIZE (uint32)10
 #define CT_MIN_RCY_NODE_BUF_SIZE (uint32)2
 
+#define CT_MAX_DTC_RCY_PARAL_BUF_LIST_SIZE (uint32)256
+#define CT_MIN_DTC_RCY_PARAL_BUF_LIST_SIZE (uint32)2
+
 #ifndef EXTER_ATTACK
 #define EXTER_ATTACK
 #endif

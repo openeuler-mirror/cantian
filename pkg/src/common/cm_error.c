@@ -165,6 +165,7 @@ const char *g_error_desc[] = {
     [ERR_DUPLICATE_FILE] = "Duplicate or conflicting file %s",
     [ERR_RANDOM_GENERATE] = "Could not generate random encryption vector",
     [ERR_RANDOM_INIT] = "Could not initialize openssl random bit generator",
+    [ERR_PARAMETER_NOT_POWER_OF_TWO] = "must be power of two",
     /*
      * newly added in 09.26 for configuration error. the "PARAMETER"
      * here refers to the config parameter in the configuration,
