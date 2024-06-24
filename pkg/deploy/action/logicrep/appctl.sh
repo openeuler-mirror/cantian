@@ -50,6 +50,7 @@ USER_FILE="${LOGICREP_HOME}/create_user.json"
 deploy_group=$(python3 "${CURRENT_PATH}"/../get_config_info.py "deploy_group")
 node_id=$(python3 "${CURRENT_PATH}"/../get_config_info.py "node_id")
 node_count=$(python3 "${CURRENT_PATH}"/../get_config_info.py "cluster_scale")
+in_container=$(python3 "${CURRENT_PATH}"/../get_config_info.py "cantian_in_container")
 storage_archive_fs_name=$(python3 "${CURRENT_PATH}"/../get_config_info.py "storage_archive_fs")
 storage_archive_fs_path="/mnt/dbdata/remote/archive_${storage_archive_fs_name}"
 install_type=$(python3 "${CURRENT_PATH}"/../get_config_info.py "install_type")
@@ -360,11 +361,15 @@ function main_deploy()
             ;;
         install)
             chown_mod_scripts
-            copy_logicrep
+            if [[ "${in_container}" == "0" ]];then
+                copy_logicrep
+            fi
+
             do_deploy "--act ${ACTION}"
             exit $?
             ;;
         init_container)
+            copy_logicrep
             do_deploy "--act ${ACTION}"
             exit $?
             ;;
