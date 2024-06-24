@@ -16,7 +16,7 @@ ENV_FILE = os.path.join(PKG_DIR, "action", "env.sh")
 info = {}
 kernel_params_list = ['SHM_CPU_GROUP_INFO', 'LARGE_POOL_SIZE', 'CR_POOL_COUNT', 'CR_POOL_SIZE',
                       'TEMP_POOL_NUM', 'BUF_POOL_NUM', 'LOG_BUFFER_SIZE', 'LOG_BUFFER_COUNT',
-                      'SHARED_POOL_SIZE', 'DATA_BUFFER_SIZE', 'TEMP_BUFFER_SIZE', 'SESSIONS']
+                      'SHARED_POOL_SIZE', 'DATA_BUFFER_SIZE', 'TEMP_BUFFER_SIZE', 'SESSIONS', 'SHM_MEMORY_REDUCTION_RATIO']
 
 with open(CONFIG_PARAMS_FILE, encoding="utf-8") as f:
     _tmp = f.read()

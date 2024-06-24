@@ -169,6 +169,7 @@ class DefaultConfigValue(object):
         "_BUFFER_PAGE_CLEAN_WAIT_TIMEOUT": "1",
         "SHM_MQ_MSG_RECV_THD_NUM": 40,
         "MYSQL_METADATA_IN_CANTIAN": "TRUE",
+        "SHM_MEMORY_REDUCTION_RATIO": "1",
         "MYSQL_DEPLOY_GROUP_ID": mysql_group_id
     }
     
@@ -237,6 +238,7 @@ class DefaultConfigValue(object):
         "MES_SSL_KEY_PWD": None,
         "MES_SSL_CRT_KEY_PATH": "/opt/cantian/certificate",
         "KMC_KEY_FILES": None,
+        "SHM_MEMORY_REDUCTION_RATIO": "1",
         "MYSQL_DEPLOY_GROUP_ID": mysql_group_id
     }
     MES_CONFIG = {
