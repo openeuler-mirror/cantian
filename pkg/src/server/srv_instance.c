@@ -1613,6 +1613,7 @@ static void srv_set_kernel_callback_ex(void)
     g_knl_callback.cc_execute_replay_unlock_table = ctc_unlock_table_in_slave_node;
     g_knl_callback.cc_execute_replay_invalid_dd = ctc_invalid_dd_in_slave_node;
     g_knl_callback.cc_execute_replay_ddl = ctc_execute_ddl_in_slave_node;
+    g_knl_callback.cc_execute_replay_unlock_mdl_key = ctc_unlock_mdl_key_in_slave_node;
 }
 
 static void srv_set_kernel_callback(void)

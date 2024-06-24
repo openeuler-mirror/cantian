@@ -2807,6 +2807,9 @@ reformerpromote:
     // step1 wait redo replay
     db_wait_lrpl_done(session);
 
+    // step1.5 release mdl thd
+    g_knl_callback.cc_execute_replay_unlock_mdl_key(session);
+
     // step2 undo rollback
     if (db_promote_undo_rollback(session) != CT_SUCCESS) {
         CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] failed to do undo rollback");

@@ -38,5 +38,5 @@ status_t ctc_lock_table_in_slave_node(knl_handle_t session, void *buff);
 status_t ctc_unlock_table_in_slave_node(knl_handle_t session, void *buff);
 status_t ctc_invalid_dd_in_slave_node(knl_handle_t session, void *buff);
 status_t ctc_execute_ddl_in_slave_node(knl_handle_t session, char *sql_text, uint32 sql_len);
-
+status_t ctc_unlock_mdl_key_in_slave_node(knl_handle_t session);
 #endif

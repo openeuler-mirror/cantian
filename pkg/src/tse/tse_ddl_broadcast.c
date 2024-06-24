@@ -273,3 +273,19 @@ status_t ctc_execute_ddl_in_slave_node(knl_handle_t session, char *sql_text, uin
 
     return CT_SUCCESS;
 }
+
+status_t ctc_unlock_mdl_key_in_slave_node(knl_handle_t session)
+{
+    tianchi_handler_t tch = {0};
+    status_t ret;
+    tch.thd_id = CT_INVALID_ID32 - 1;
+    tch.inst_id = CT_INVALID_ID32 - 1;
+    tch.sess_addr = (uint64_t)session;
+    uint32_t mysql_inst_id = CT_INVALID_ID32 - 1;
+    (void)tse_unlock_instance(NULL, &tch);
+    ret = tse_unlock_mdl_key_impl(&tch, session, mysql_inst_id);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[ctc_unlock_mdl_key_in_slave_node] ret: %d", ret);
+    }
+    return ret;
+}
