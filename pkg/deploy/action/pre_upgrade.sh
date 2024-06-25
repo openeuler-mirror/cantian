@@ -64,7 +64,9 @@ function prepare_env() {
             logAndEchoError "config check failed, please check /opt/cantian/ct_om/log/om_deploy.log for detail"
             exit 1
         else
+            local random_seed=$(python3 /opt/cantian/action/get_config_info.py "random_seed")
             mv -f ${CURRENT_PATH}/deploy_param.json ${CONFIG_PATH}
+            python3 ${CURRENT_PATH}/write_config.py random_seed "${random_seed}"
         fi
     else
         python3 ${CURRENT_PATH}/pre_upgrade.py
