@@ -1469,6 +1469,7 @@ static inline void cm_try_delete_end_slash(char *str)
 /* log print interval */
 #define LOG_PRINT_INTERVAL_SECOND_10 10
 #define LOG_PRINT_INTERVAL_SECOND_20 20
+#define LOG_PRINT_INTERVAL_SECOND_60 60
 
 // 0x00010000 ~ 0x00800000 reserved for DTC
 #define DTC_DCS_LOG_INF_LEVEL 0x00010000 // 65536
