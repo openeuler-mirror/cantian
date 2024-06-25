@@ -248,7 +248,7 @@ class DRRecover(SwitchOver):
             err_msg = "Current cluster status is abnormal, output:%s, stderr:%s" % (output, stderr)
             LOG.error(err_msg)
             raise Exception(err_msg)
-        return outputs, output, stderr
+        return outputs
 
     def check_cluster_status_for_recover(self):
         """
@@ -269,45 +269,41 @@ class DRRecover(SwitchOver):
         while check_time:
             check_time -= check_time_step
             # 检查存在cantian恢复的节点
-            cms_stat, output, stderr = SwitchOver.query_cluster_status(cmd)
+            cms_stat = self.query_cluster_status(cmd)
             online_flag = False
             for node_stat in cms_stat:
                 _, online, work_stat = node_stat.split(" ")
-                if online != "ONLINE" or work_stat != "1":
+                if online == "ONLINE" and work_stat == "1":
                     online_flag = True
             if not online_flag:
-                LOG.info("Current cluster status is abnormal, output:%s, stderr:%s", output, stderr)
+                LOG.info("Current cluster status is abnormal, details (node_id, STAT, work_stat): %s", ';'.join(cms_stat))
                 time.sleep(check_time_step)
                 continue
             # 检查所有节点cms正常
-            srv_stat, output, stderr = SwitchOver.query_cluster_status(cmd_srv)
+            srv_stat= self.query_cluster_status(cmd_srv)
             ready_flag = True
             for node_stat in srv_stat:
                 _, ready_stat = node_stat.split(" ")
                 if ready_stat == "FALSE":
                     ready_flag = False
             if not ready_flag:
-                LOG.info("Current cms server status is NOT ready, output:%s, stderr:%s", output, stderr)
+                LOG.info("Current cms server status is NOT ready, details (node_id, SRV_READY): %s", ';'.join(srv_stat))
                 time.sleep(check_time_step)
                 continue
-            voteing_stat, output, stderr = SwitchOver.query_cluster_status(cmd_voting)
+            cms_voting_stat = self.query_cluster_status(cmd_voting)
             voting_flag = False
-            for node_stat in voteing_stat:
+            for node_stat in cms_voting_stat:
                 _, voting_stat = node_stat.split(" ")
                 if voting_stat == "TRUE":
                     voting_flag = True
             if voting_flag:
-                LOG.info("Current cms is voting, output:%s, stderr:%s", output, stderr)
+                LOG.info("Current cms is voting, details (node_id, VOTING): %s", ';'.join(cms_voting_stat))
                 time.sleep(check_time_step)
                 continue
-
             break
         else:
             err_msg = "Timeout while waiting for cluster status to be ready for recovery."
-            if log_type == "info":
-                LOG.info(err_msg)
-            else:
-                LOG.error(err_msg)
+            LOG.error(err_msg)
             raise Exception(err_msg)
 
     def execute_replication_steps(self, running_status, pair_id):
