@@ -18,6 +18,8 @@ NEEDED_SIZE = 20580  # M
 NEEDED_MEM_SIZE = 16 * 1024  # M
 
 dir_name, _ = os.path.split(os.path.abspath(__file__))
+PKG_DIR = os.path.abspath(os.path.join(dir_name, ".."))
+CANTIAN_MEM_SPEC_FILE = os.path.join(dir_name, "config", "container_conf", "init_conf", "mem_spec")
 CANTIAND_INI_FILE = "/mnt/dbdata/local/cantian/tmp/data/cfg/cantiand.ini"
 
 SINGLE_DOUBLE_PROCESS_MAP = {
@@ -382,6 +384,17 @@ class CheckInstallConfig(CheckBase):
             return -1, str(err), -1
         return stdout.decode().strip("\n"), stderr.decode().strip("\n"), process_list[-1].returncode
 
+    @staticmethod
+    def check_cantian_mem_spec():
+        if os.path.exists(CANTIAN_MEM_SPEC_FILE):
+            with open(CANTIAN_MEM_SPEC_FILE, encoding="utf-8") as f:
+                mem_spec = json.load(f)
+            if mem_spec not in ["1", "2", "3"]:
+                LOG.error("Check mem spec failed, current value[%s], " \
+                          "value range [\"1\", \"2\", \"3\"]", mem_spec)
+                return False
+        return True
+
     def read_install_config(self):
         try:
             with open(self.config_path, 'r', encoding='utf8') as file_path:
@@ -506,7 +519,7 @@ class CheckInstallConfig(CheckBase):
                 (key, value) = line.split(" = ")
                 if key in kernel_element:
                     # Unit consersion
-                    get_unit_conversion_info = UnitConversionInfo(tmp_gb ,tmp_mb, tmp_kb, key, value.strip(),
+                    get_unit_conversion_info = UnitConversionInfo(tmp_gb, tmp_mb, tmp_kb, key, value.strip(),
                                                                   sga_buff_size, temp_buffer_size, data_buffer_size,
                                                                   shared_pool_size, log_buffer_size)
                     sga_buff_size = self.do_unit_conversion(get_unit_conversion_info)
@@ -610,6 +623,9 @@ class CheckInstallConfig(CheckBase):
                 LOG.error('write config param to deploy_param.json failed, error: %s', str(error))
                 return False
         if install_config_params['cantian_in_container'] != '0':
+            if not self.check_cantian_mem_spec():
+                return False
+
             if not self.check_sga_buff_size():
                 return False
         return True
