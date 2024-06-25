@@ -33,6 +33,7 @@
 #include "knl_sys_part_defs.h"
 #include "dtc_dls.h"
 #include "dtc_drc.h"
+#include "dtc_recovery.h"
 
 void dc_set_table_accessor(table_t *table)
 {
@@ -904,6 +905,10 @@ void dc_wait_till_load_finish(knl_session_t *session, dc_entry_t *entry)
 {
     // precondition: entry->lock is locked before this function
     // postcondition: entry->lock is locked
+    if (DAAC_SESSION_IN_RECOVERY(session)) {
+        return;
+    }
+
     for (;;) {
         if (!entry->is_loading && ((g_rc_ctx == NULL) || !RC_REFORM_RECOVERY_IN_PROGRESS)) {
             return;
@@ -1080,7 +1085,7 @@ static status_t dc_init_entity_entry(knl_session_t *session, dc_user_t *user, kn
     return CT_SUCCESS;
 }
 
-static void dc_load_table_heap_segment(knl_session_t *session, dc_user_t *user, knl_table_desc_t *desc,
+static status_t dc_load_table_heap_segment(knl_session_t *session, dc_user_t *user, knl_table_desc_t *desc,
     dc_entity_t *entity)
 {
     if (spc_valid_space_object(session, desc->space_id)) {
@@ -1113,6 +1118,7 @@ static void dc_load_table_heap_segment(knl_session_t *session, dc_user_t *user, 
         CT_LOG_RUN_ERR("[DC CORRUPTED] could not load table %s.%s, tablespace %s is offline.",
             user->desc.name, desc->name, SPACE_GET(session, desc->space_id)->ctrl->name);
     }
+    return (entity->corrupted == CT_TRUE) ? CT_ERROR : CT_SUCCESS;
 }
 
 status_t dc_get_table_storage_desc(knl_session_t *session, dc_entity_t* entity)
@@ -1183,7 +1189,9 @@ status_t dc_load_table(knl_session_t *session, knl_cursor_t *cursor, dc_user_t *
         return dc_load_external_table(session, cursor, entity);
     }
 
-    dc_load_table_heap_segment(session, user, desc, entity);
+    if (dc_load_table_heap_segment(session, user, desc, entity) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
 
     if (!dc_is_reserved_entry(user->desc.id, oid)) {
         if (stats_seg_load_entity(session, desc->org_scn, &entity->table.heap.stat) != CT_SUCCESS) {
