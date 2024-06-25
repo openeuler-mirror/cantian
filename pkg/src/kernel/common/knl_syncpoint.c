@@ -631,6 +631,7 @@ knl_global_syncpoint_def g_knl_syncpoint[] = {
       knl_syncpoint_inject_errcode, 0 },
     { TSE_GET_CBO_STATS_FAIL, CT_FALSE, "TSE_GET_CBO_STATS_FAIL", 0,
       knl_syncpoint_inject_errcode, 0 },
+    { TSE_UNLOCK_MDL_KEY_ABORT, CT_FALSE, "TSE_UNLOCK_MDL_KEY_ABORT", 0, knl_syncpoint_inject_abort, 0 },
 };
 
 #define KNL_SYNCPOINT_COUNT (sizeof(g_knl_syncpoint) / sizeof(g_knl_syncpoint[0]))

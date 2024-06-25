@@ -139,4 +139,5 @@ int tse_unlock_table_impl(tianchi_handler_t *tch, knl_handle_t knl_session, uint
                           tse_lock_table_info *lock_info);
 int tse_broadcast_mysql_dd_invalidate_impl(tianchi_handler_t *tch, knl_handle_t knl_session,
                                            tse_invalidate_broadcast_request *broadcast_req);
+int tse_unlock_mdl_key_impl(tianchi_handler_t *tch, knl_handle_t knl_session, uint32_t mysql_inst_id);
 #endif //__TSE_DDL_H__
