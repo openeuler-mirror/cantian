@@ -326,6 +326,7 @@ typedef enum {
     TSE_FILL_CBO_STATS_COL_FAIL,
     TSE_FILL_CBO_STATS_INDEX_FAIL,
     TSE_GET_CBO_STATS_FAIL,
+    TSE_UNLOCK_MDL_KEY_ABORT,
 } knl_syncpoint_id;
 
 typedef void (*syncpoint_callback)(int32 *param, int32 ret);

@@ -506,7 +506,7 @@ typedef status_t (*cc_execute_replay_lock_table_t)(knl_handle_t session, void *l
 typedef status_t (*cc_execute_replay_unlock_table_t)(knl_handle_t session, void *lock_info);
 typedef status_t (*cc_execute_replay_invalid_dd_t)(knl_handle_t session, void *invalid_info);
 typedef status_t (*cc_execute_replay_ddl_t)(knl_handle_t knl_session, char *sql_text, uint32 sql_len);
-
+typedef status_t (*cc_execute_replay_unlock_mdl_key_t)(knl_handle_t knl_session);
 
 typedef struct st_knl_callback {
     knl_set_vm_lob_to_knl_t set_vm_lob_to_knl;
@@ -583,6 +583,7 @@ typedef struct st_knl_callback {
     cc_execute_replay_unlock_table_t cc_execute_replay_unlock_table;
     cc_execute_replay_invalid_dd_t cc_execute_replay_invalid_dd;
     cc_execute_replay_ddl_t cc_execute_replay_ddl;
+    cc_execute_replay_unlock_mdl_key_t cc_execute_replay_unlock_mdl_key;
 } knl_callback_t;
 
 extern knl_callback_t g_knl_callback;

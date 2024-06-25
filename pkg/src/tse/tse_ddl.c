@@ -4219,6 +4219,36 @@ EXTER_ATTACK int tse_search_metadata_status(bool *cantian_metadata_switch, bool 
     return CT_ERROR;
 }
 
+int tse_unlock_mdl_key_impl(tianchi_handler_t *tch, knl_handle_t knl_session, uint32_t mysql_inst_id)
+{
+    int ret;
+    // 广播 mysqld
+    ret = close_mysql_connection(tch->thd_id, tch->inst_id);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[TSE_UNLOCK_MDL_KEY]:execute failed at other mysqld on current node, "
+                       "ret = %d, conn_id:%u, inst_id:%u.", ret, tch->thd_id, tch->inst_id);
+        return ret;
+    }
+
+    // 广播 其他cantian节点
+    knl_session_t *knl_sess = (knl_session_t *)knl_session;
+    msg_close_connection_req_t req;
+    req.thd_id = tch->thd_id;
+    req.mysql_inst_id = mysql_inst_id;
+    req.msg_num = cm_random(CT_INVALID_ID32);
+    mes_init_send_head(&req.head, MES_CMD_CLOSE_MYSQL_CONNECTION_REQ, sizeof(msg_close_connection_req_t), CT_INVALID_ID32,
+        DCS_SELF_INSTID(knl_sess), 0, knl_sess->id, CT_INVALID_ID16);
+
+    int error_code = tse_broadcast_and_recv(knl_sess, MES_BROADCAST_ALL_INST, &req, NULL);
+    if(error_code != CT_SUCCESS){
+        CT_LOG_RUN_ERR("[TSE_UNLOCK_MDL]:execute failed on remote node, conn_id:%u, tse_instance_id:%u", tch->thd_id, tch->inst_id);
+    }
+
+    SYNC_POINT_GLOBAL_START(TSE_UNLOCK_MDL_KEY_ABORT, NULL, 0);
+    SYNC_POINT_GLOBAL_END;
+    return CT_SUCCESS;
+}
+
 bool32 tse_command_type_read(sql_command_filter_op_t cmd)
 {
     switch (cmd) {
