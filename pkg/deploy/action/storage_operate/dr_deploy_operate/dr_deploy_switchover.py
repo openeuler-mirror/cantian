@@ -250,7 +250,7 @@ class DRRecover(SwitchOver):
             raise Exception(err_msg)
         return outputs
 
-    def check_cluster_status_for_recover(self):
+    def check_cluster_status_for_recover(self, check_time):
         """
         cms 命令拉起参天后检查集群状态
         :return:
