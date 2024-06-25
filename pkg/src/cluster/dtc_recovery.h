@@ -135,6 +135,11 @@ typedef enum en_dtc_rcy_phase {
     PHASE_RECOVERY = 3,
 } dtc_rcy_phase_e;
 
+typedef struct st_dtc_rcy_lsn_records {
+    uint64 move_point_lsn_record;
+    uint64 read_log_lsn_record;
+} dtc_rcy_lsn_records_t;
+
 typedef struct st_dtc_rcy_node {
     uint8 node_id;
     uint8 unused;
@@ -158,6 +163,7 @@ typedef struct st_dtc_rcy_node {
     log_point_t recovery_read_end_point;
     uint64 latest_lsn;
     uint64 latest_rcy_end_lsn;
+    dtc_rcy_lsn_records_t lsn_records; // lsn records for reduce redundant log
 } dtc_rcy_node_t;
 
 typedef struct st_rcy_node_stat {
@@ -301,7 +307,7 @@ uint32 dtc_rcy_get_logfile_by_node(knl_session_t *session, uint32 idx);
 void dtc_rcy_read_node_log_proc(thread_t *thread);
 log_batch_t* dtc_rcy_get_curr_batch(dtc_rcy_context_t *dtc_rcy, uint32 idx, uint8 index);
 
-extern dtc_rcy_replay_paral_node_t g_replay_paral_mgr;;
+extern dtc_rcy_replay_paral_node_t g_replay_paral_mgr;
 #define DTC_RCY_CONTEXT                         (&g_dtc->dtc_rcy_ctx)
 
 #define DAAC_FULL_RECOVERY(session)             ((DTC_RCY_CONTEXT)->in_progress && (DTC_RCY_CONTEXT->full_recovery))
