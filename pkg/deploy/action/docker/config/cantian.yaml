@@ -9,10 +9,27 @@ spec:
   selector:
     app: cantian
   ports:
-  - protocol: TCP
-    port: 33060
-    targetPort: 3306
+    - protocol: TCP
+      port: 33060
+      targetPort: 3306
   type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cantian-svc  # 供集群内部通信
+  labels:
+    app: cantian
+  namespace: cantian
+spec:
+  publishNotReadyAddresses: true
+  clusterIP: None
+  selector:
+    app: cantian
+  ports:
+    - protocol: TCP
+      port: 33060
+      targetPort: 3306
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -34,10 +51,10 @@ spec:
       labels:
         app: cantian
       annotations:
-        k8s.v1.cni.cncf.io/networks: kube-system/rdma-sriov-net1-node0, kube-system/rdma-sriov-net2-node0
+        k8s.v1.cni.cncf.io/networks: kube-system/rdma-sriov-net1, kube-system/rdma-sriov-net2
     spec:
       hostname: cantian-node0
-      subdomain: cantian-service
+      subdomain: cantian-svc
       nodeSelector:
         sriov: enabled
       containers:
@@ -48,7 +65,7 @@ spec:
           securityContext:
             privileged: true
             capabilities:
-              add: [ "ALL" ]
+              add: ["ALL"]
             seccompProfile:
               type: Unconfined
           ports:
@@ -94,11 +111,6 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
           env:
-            - name: SERVICE_NAME
-              valueFrom:
-                configMapKeyRef:
-                  name: cantian-config
-                  key: service_name
             - name: MY_MEMORY_SIZE
               valueFrom:
                 resourceFieldRef:
@@ -110,25 +122,25 @@ spec:
                   containerName: cantian
                   resource: limits.cpu
       volumes:
-      - name: localtime
-        hostPath:
-          path: /etc/localtime
-      - name: mfdb-core
-        hostPath:
-          path: /home/mfdb_core
-      - name: deploy-volume
-        hostPath:
-          path: /home/k8s-node/container_conf
-      - name: config-volume
-        configMap:
-          name: node0-config
-      - name: kube-config-volume
-        hostPath:
-          path: /root/.kube
-      - name: shared-memory
-        emptyDir:
-          medium: Memory
-          sizeLimit: "5120Mi"
+        - name: localtime
+          hostPath:
+            path: /etc/localtime
+        - name: mfdb-core
+          hostPath:
+            path: /home/mfdb_core
+        - name: deploy-volume
+          hostPath:
+            path: /home/k8s-node/container_conf
+        - name: config-volume
+          configMap:
+            name: node0-config
+        - name: kube-config-volume
+          hostPath:
+            path: /root/.kube
+        - name: shared-memory
+          emptyDir:
+            medium: Memory
+            sizeLimit: "5120Mi"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -163,10 +175,10 @@ spec:
       labels:
         app: cantian
       annotations:
-        k8s.v1.cni.cncf.io/networks: kube-system/rdma-sriov-net1-node1, kube-system/rdma-sriov-net2-node1
+        k8s.v1.cni.cncf.io/networks: kube-system/rdma-sriov-net1, kube-system/rdma-sriov-net2
     spec:
       hostname: cantian-node1
-      subdomain: cantian-service
+      subdomain: cantian-svc
       nodeSelector:
         sriov: enabled
       containers:
@@ -177,7 +189,7 @@ spec:
           securityContext:
             privileged: true
             capabilities:
-              add: [ "ALL" ]
+              add: ["ALL"]
             seccompProfile:
               type: Unconfined
           ports:
@@ -198,7 +210,7 @@ spec:
           resources:
             requests:
               memory: "40Gi"
-              cpu: "12"
+              cpu: "12"  # 最小 CPU 需求
               huawei.io/rdma1: '1'
               huawei.io/rdma2: '1'
             limits:
@@ -223,11 +235,6 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
           env:
-            - name: SERVICE_NAME
-              valueFrom:
-                configMapKeyRef:
-                  name: cantian-config
-                  key: service_name
             - name: MY_MEMORY_SIZE
               valueFrom:
                 resourceFieldRef:
@@ -239,25 +246,25 @@ spec:
                   containerName: cantian
                   resource: limits.cpu
       volumes:
-      - name: localtime
-        hostPath:
-          path: /etc/localtime
-      - name: mfdb-core
-        hostPath:
-          path: /home/mfdb_core
-      - name: deploy-volume
-        hostPath:
-          path:  /home/k8s-node/container_conf
-      - name: config-volume
-        configMap:
-          name: node1-config
-      - name: kube-config-volume
-        hostPath:
-          path: /root/.kube
-      - name: shared-memory
-        emptyDir:
-          medium: Memory
-          sizeLimit: "5120Mi"
+        - name: localtime
+          hostPath:
+            path: /etc/localtime
+        - name: mfdb-core
+          hostPath:
+            path: /home/mfdb_core
+        - name: deploy-volume
+          hostPath:
+            path: /home/k8s-node/container_conf
+        - name: config-volume
+          configMap:
+            name: node1-config
+        - name: kube-config-volume
+          hostPath:
+            path: /root/.kube
+        - name: shared-memory
+          emptyDir:
+            medium: Memory
+            sizeLimit: "5120Mi"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

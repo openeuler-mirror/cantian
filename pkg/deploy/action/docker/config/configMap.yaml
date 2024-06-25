@@ -1,14 +1,6 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: cantian-config
-  namespace: cantian
-data:
-  service_name: cantian-service
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
   name: node0-config
   namespace: cantian
 data:
@@ -23,12 +15,12 @@ data:
       "node_id": "0",
       "cantian_vlan_ip": "net1;net2",
       "storage_vlan_ip": "66.66.66.10;66.66.66.11;77.77.77.10;77.77.77.11",
-      "cms_ip": "cantian-node0.cantian-service.cantian.svc.cluster.local;cantian-node1.cantian-service.cantian.svc.cluster.local",
-      "storage_dbstore_fs": "fs_dsh_0529",
-      "storage_dbstore_page_fs": "page_fs_dsh_0529",
-      "storage_share_fs": "share_0529",
-      "storage_archive_fs": "archive_0529",
-      "storage_metadata_fs": "metadata_0529",
+      "cms_ip": "cantian-node0.cantian-svc.cantian.svc.cluster.local;cantian-node1.cantian-svc.cantian.svc.cluster.local",
+      "storage_dbstore_fs": "foo",
+      "storage_dbstore_page_fs": "foo_page",
+      "storage_share_fs": "share",
+      "storage_archive_fs": "archive",
+      "storage_metadata_fs": "metadata",
       "dbstore_fs_vstore_id": "0",
       "cantian_in_container": "1",
       "mysql_in_container": "1",
@@ -89,12 +81,12 @@ data:
       "node_id": "1",
       "cantian_vlan_ip": "net1;net2",
       "storage_vlan_ip": "66.66.66.10;66.66.66.11;77.77.77.10;77.77.77.11",
-      "cms_ip": "cantian-node0.cantian-service.cantian.svc.cluster.local;cantian-node1.cantian-service.cantian.svc.cluster.local",
-      "storage_dbstore_fs": "fs_dsh_0529",
-      "storage_dbstore_page_fs": "page_fs_dsh_0529",
-      "storage_share_fs": "share_0529",
-      "storage_archive_fs": "archive_0529",
-      "storage_metadata_fs": "metadata_0529",      
+      "cms_ip": "cantian-node0.cantian-svc.cantian.svc.cluster.local;cantian-node1.cantian-svc.cantian.svc.cluster.local",
+      "storage_dbstore_fs": "foo",
+      "storage_dbstore_page_fs": "foo_page",
+      "storage_share_fs": "share",
+      "storage_archive_fs": "archive",
+      "storage_metadata_fs": "metadata",
       "dbstore_fs_vstore_id": "0",
       "cantian_in_container": "1",
       "mysql_in_container": "1",

@@ -19,17 +19,24 @@ if [[ "$1" == "startup-check" ]]; then
     fi
 fi
 
-if [[ ! -f "${READINESS_FILE}" ]]; then
+function handle_failure() {
+    if [[ -f "${READINESS_FILE}" ]]; then
+        python3 ${CURRENT_PATH}/delete_unready_pod.py
+    fi
     exit 1
+}
+
+if [[ ! -f "${READINESS_FILE}" ]]; then
+    handle_failure
 fi
 
 if [[ -z "${cantiand_pid}" ]] || [[ -z "${cms_pid}" ]]; then
-    exit 1
+    handle_failure
 fi
 
 work_stat=$(su -s /bin/bash - ${cantian_user} -c 'cms stat' | awk -v nid=$((${node_id}+1)) 'NR==nid+1 {print $6}')
 if [[ "${work_stat}" != "1" ]]; then
-    exit 1
+    handle_failure
 fi
 
 if [[ -z "${mysql_pid}" ]]; then
@@ -39,7 +46,7 @@ if [[ -z "${mysql_pid}" ]]; then
         -M mysqld -m /opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts/my.cnf -g withoutroot"
     mysql_pid=$(ps -ef | grep -v grep | grep mysqld | awk 'NR==1 {print $2}')
     if [[ -z "${mysql_pid}" ]]; then
-        exit 1
+        handle_failure
     fi
 fi
 
