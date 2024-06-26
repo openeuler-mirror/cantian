@@ -474,12 +474,12 @@ class DRRecover(SwitchOver):
                 LOG.info("Fail to recover hyper metro domain, details: %s", str(_er))
         else:
             self.standby_cms_res_stop()
+            self.wait_res_stop()
         self.query_sync_status()
         self.rep_pair_recover(self.page_fs_pair_id)
         if not self.metadata_in_cantian:
             self.rep_pair_recover(self.meta_fs_pair_id)
         self.standby_logicrep_stop()
-        self.standby_cms_res_stop()
         time.sleep(10)
         self.standby_cms_res_start()
         self.check_cluster_status()
