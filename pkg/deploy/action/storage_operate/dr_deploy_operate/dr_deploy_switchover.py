@@ -256,9 +256,7 @@ class DRRecover(SwitchOver):
         :return:
         """
         check_time_step = 2
-        LOG.info("Check cantian status.")
-        cmd = "su -s /bin/bash - cantian -c \"cms stat | " \
-              "grep -v STAT | awk '{print \$1, \$3, \$6}'\""
+        LOG.info("Check cluster status.")
         cmd_srv = "su -s /bin/bash - cantian -c \"cms stat -server | " \
               "grep -v SRV_READY | awk '{print \$1, \$2}'\""
         cmd_voting = "su -s /bin/bash - cantian -c \"cms node -connected | " \
@@ -266,18 +264,6 @@ class DRRecover(SwitchOver):
         
         while check_time:
             check_time -= check_time_step
-            # 检查存在cantian恢复的节点
-            cms_stat = self.query_cluster_status(cmd)
-            online_flag = False
-            if len(cms_stat)>1:
-                for node_stat in cms_stat:
-                    _, online, work_stat = node_stat.split(" ")
-                    if online == "ONLINE" and work_stat == "1":
-                        online_flag = True
-            if not online_flag:
-                LOG.info("Current cluster status is abnormal, details (node_id, STAT, work_stat): %s", ';'.join(cms_stat))
-                time.sleep(check_time_step)
-                continue
             # 检查所有节点cms正常
             srv_stat= self.query_cluster_status(cmd_srv)
             ready_flag = False
