@@ -93,6 +93,10 @@ function check_mysql_pkg() {
         MYSQLD_PKG=/ctdb/cantian_install/Cantian_connector_mysql_*
         if [ "${mysql_metadata_in_cantian,,}" == "false" ];then
             # 非归一 
+            mkdir -p /var/lib/mysql-files
+            chmod -R 500 /var/lib/mysql-files /var/lib/mysql
+            chmod 750 /var/lib/mysql-files /var/lib/mysql
+            chown -hR ${deploy_user}:${deploy_group} /var/lib/mysql-files /var/lib/mysql
             MYSQLD_PKG=/ctdb/cantian_install/mysql_*
         fi 
         if [ ! -f ${MYSQLD_PKG} ]; then 
