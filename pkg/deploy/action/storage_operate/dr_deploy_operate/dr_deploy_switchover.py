@@ -244,20 +244,18 @@ class DRRecover(SwitchOver):
             LOG.error(err_msg)
             raise Exception(err_msg)
         outputs = output.split("\n")
-        if len(outputs) < 2:
-            err_msg = "Current cluster status is abnormal, output:%s, stderr:%s" % (output, stderr)
-            LOG.error(err_msg)
-            raise Exception(err_msg)
+        # if len(outputs) < 2:
+        #     err_msg = "Current cluster status is abnormal, output:%s, stderr:%s" % (output, stderr)
+        #     LOG.error(err_msg)
+        #     raise Exception(err_msg)
         return outputs
 
-    def check_cluster_status_for_recover(self, check_time):
+    def check_cluster_status_for_recover(self, check_time=20):
         """
         cms 命令拉起参天后检查集群状态
         :return:
         """
-        check_count = 5
-        if check_time < 20:
-            check_count = 1
+        check_time_step = 2
         LOG.info("Check cantian status.")
         cmd = "su -s /bin/bash - cantian -c \"cms stat | " \
               "grep -v STAT | awk '{print \$1, \$3, \$6}'\""
@@ -265,44 +263,49 @@ class DRRecover(SwitchOver):
               "grep -v SRV_READY | awk '{print \$1, \$2}'\""
         cmd_voting = "su -s /bin/bash - cantian -c \"cms node -connected | " \
               "grep -v VOTING | awk '{print \$1, \$NF}'\""
-        check_time_step = check_time // check_count
+        
         while check_time:
             check_time -= check_time_step
             # 检查存在cantian恢复的节点
             cms_stat = self.query_cluster_status(cmd)
             online_flag = False
-            for node_stat in cms_stat:
-                _, online, work_stat = node_stat.split(" ")
-                if online == "ONLINE" and work_stat == "1":
-                    online_flag = True
+            if len(cms_stat)>1:
+                for node_stat in cms_stat:
+                    _, online, work_stat = node_stat.split(" ")
+                    if online == "ONLINE" and work_stat == "1":
+                        online_flag = True
             if not online_flag:
                 LOG.info("Current cluster status is abnormal, details (node_id, STAT, work_stat): %s", ';'.join(cms_stat))
                 time.sleep(check_time_step)
                 continue
             # 检查所有节点cms正常
             srv_stat= self.query_cluster_status(cmd_srv)
-            ready_flag = True
-            for node_stat in srv_stat:
-                _, ready_stat = node_stat.split(" ")
-                if ready_stat == "FALSE":
-                    ready_flag = False
+            ready_flag = False
+            if len(srv_stat)>1:
+                ready_flag = True
+                for node_stat in srv_stat:
+                    _, ready_stat = node_stat.split(" ")
+                    if ready_stat == "FALSE":
+                        ready_flag = False
             if not ready_flag:
                 LOG.info("Current cms server status is NOT ready, details (node_id, SRV_READY): %s", ';'.join(srv_stat))
                 time.sleep(check_time_step)
                 continue
             cms_voting_stat = self.query_cluster_status(cmd_voting)
-            voting_flag = False
-            for node_stat in cms_voting_stat:
-                _, voting_stat = node_stat.split(" ")
-                if voting_stat == "TRUE":
-                    voting_flag = True
+            voting_flag = True
+            if len(cms_voting_stat)>1:
+                voting_flag = False
+                for node_stat in cms_voting_stat:
+                    _, voting_stat = node_stat.split(" ")
+                    if voting_stat == "TRUE":
+                        voting_flag = True
             if voting_flag:
                 LOG.info("Current cms is voting, details (node_id, VOTING): %s", ';'.join(cms_voting_stat))
                 time.sleep(check_time_step)
                 continue
             break
         else:
-            err_msg = "Timeout while waiting for cluster status to be ready for recovery."
+            err_msg = "Timeout while waiting for cluster status to be ready for recovery. Please try again "
             LOG.error(err_msg)
             raise Exception(err_msg)
 
@@ -395,12 +398,7 @@ class DRRecover(SwitchOver):
         wait_time_step = 2
         while wait_time:
             wait_time -= wait_time_step
-            return_code, output, stderr = exec_popen(cmd, timeout=10)
-            if return_code:
-                err_msg = "Execute cmd[%s] failed, details:%s" % (cmd, stderr)
-                LOG.error(err_msg)
-                raise Exception(err_msg)
-            cms_stat = output.split("\n")
+            cms_stat = self.query_cluster_status(cmd)
             if len(cms_stat) < 2:
                 err_msg = "Current cluster status is abnormal, output:%s, stderr:%s" % (output, stderr)
                 LOG.error(err_msg)
