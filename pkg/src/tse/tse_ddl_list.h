@@ -33,9 +33,6 @@
 extern "C" {
 #endif
 
-#define MYSQL_TMP_TABLE_PREFIX "#sql"
-#define MYSQL_TMP_TABLE_PREFIX_LEN 4
-
 typedef enum ddl_def_mode {
     CREATE_DEF = 0,
     ALTER_DEF,

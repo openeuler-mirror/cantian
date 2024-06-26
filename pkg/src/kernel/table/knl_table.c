@@ -13800,6 +13800,7 @@ bool32 db_check_analyze_wsr_table(text_t *name)
 static status_t db_analyze_check_dc(knl_dictionary_t *dc, text_t *user, text_t *name, bool32 *unsupport_type)
 {
     dc_entity_t *entity = DC_ENTITY(dc);
+    dc_entry_t *entry = ((dc_entity_t *)dc->handle)->entry;
 
     if (STATS_INVALID_TABLE(entity->type)) {
         CT_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "analyze table", dc_type2name(entity->type));
@@ -13821,6 +13822,16 @@ static status_t db_analyze_check_dc(knl_dictionary_t *dc, text_t *user, text_t *
             *unsupport_type = CT_TRUE;
             return CT_SUCCESS;
         }
+    }
+
+    if (entry != NULL && strncmp(entry->name, MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) == 0) {
+        *unsupport_type = CT_TRUE;
+        return CT_SUCCESS;
+    }
+
+    if (strncmp(entity->table.desc.name, MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) == 0) {
+        *unsupport_type = CT_TRUE;
+        return CT_SUCCESS;
     }
 
     if (entity->stats_locked) {
