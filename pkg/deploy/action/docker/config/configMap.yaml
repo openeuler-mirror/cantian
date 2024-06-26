@@ -53,16 +53,7 @@ data:
         }
       }
     }
-  start_config.json: |
-    {
-      "SESSIONS": "1024",
-      "TEMP_BUFFER_SIZE": "1G",
-      "TEMP_POOL_NUM": "4",
-      "BUF_POOL_NUM": "16",
-      "LARGE_POOL_SIZE": "1G",
-      "DATA_BUFFER_SIZE": "120G",
-      "SHARED_POOL_SIZE": "1G"
-    }
+  mem_spec: "1"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -119,13 +110,30 @@ data:
         }
       }
     }
-  start_config.json: |
-    {
-      "SESSIONS": "1024",
-      "TEMP_BUFFER_SIZE": "1G",
-      "TEMP_POOL_NUM": "4",
-      "BUF_POOL_NUM": "16",
-      "LARGE_POOL_SIZE": "1G",
-      "DATA_BUFFER_SIZE": "120G",
-      "SHARED_POOL_SIZE": "1G"
-    }
+  mem_spec: "1"
+#   内存：60G mem_spec -> "1"
+#  "SESSIONS": "1024",
+#  "TEMP_BUFFER_SIZE": "256M",
+#  "LARGE_POOL_SIZE": "256M",
+#  "DATA_BUFFER_SIZE": "30G",
+#  "SHARED_POOL_SIZE": "512M",
+#  "DTC_RCY_PARAL_BUF_LIST_SIZE": "8",
+#  "SHM_MEMORY_REDUCTION_RATIO": "8"
+
+#   内存：60G mem_spec -> "2"
+#  "SESSIONS": "2048",
+#  "TEMP_BUFFER_SIZE": "512M",
+#  "LARGE_POOL_SIZE": "512M",
+#  "DATA_BUFFER_SIZE": "60G",
+#  "SHARED_POOL_SIZE": "1G",
+#  "DTC_RCY_PARAL_BUF_LIST_SIZE": "16",
+#  "SHM_MEMORY_REDUCTION_RATIO": "4"
+
+#   内存：60G mem_spec -> "2"
+#  "SESSIONS": "4096",
+#  "TEMP_BUFFER_SIZE": "1G",
+#  "LARGE_POOL_SIZE": "1G",
+#  "DATA_BUFFER_SIZE": "120G",
+#  "SHARED_POOL_SIZE": "2G",
+#  "DTC_RCY_PARAL_BUF_LIST_SIZE": "32",
+#  "SHM_MEMORY_REDUCTION_RATIO": "2"

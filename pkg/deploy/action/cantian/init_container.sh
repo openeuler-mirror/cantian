@@ -11,7 +11,9 @@ CANTIAN_CONFIG_NAME="cantiand.ini"
 CLUSTER_CONFIG_NAME="cluster.ini"
 CTSQL_CONFIG_NAME="ctsql.ini"
 CANTIAN_PARAM=("SHM_CPU_GROUP_INFO" "LARGE_POOL_SIZE" "CR_POOL_COUNT" "CR_POOL_SIZE" "TEMP_POOL_NUM" "BUF_POOL_NUM" \
-                "LOG_BUFFER_SIZE" "LOG_BUFFER_COUNT" "SHARED_POOL_SIZE" "DATA_BUFFER_SIZE" "TEMP_BUFFER_SIZE" "SESSIONS" "SHM_MEMORY_REDUCTION_RATIO")
+                "LOG_BUFFER_SIZE" "LOG_BUFFER_COUNT" "SHARED_POOL_SIZE" "DATA_BUFFER_SIZE" "TEMP_BUFFER_SIZE" \
+                "SESSIONS" "SHM_MEMORY_REDUCTION_RATIO" "SHM_MEMORY_REDUCTION_RATIO" "VARIANT_MEMORY_AREA_SIZE" \
+                "DTC_RCY_PARAL_BUF_LIST_SIZE")
 
 node_id=`python3 ${CURRENT_PATH}/get_config_info.py "node_id"`
 cantian_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
@@ -100,12 +102,15 @@ function set_cantian_config() {
 }
 
 function set_cantian_param() {
-    if [ -f ${INIT_CONFIG_PATH}/start_config.json ]; then
+    if [ -f ${INIT_CONFIG_PATH}/start_config.json ] || [ -f ${INIT_CONFIG_PATH}/mem_spec ]; then
         for param_name in "${CANTIAN_PARAM[@]}"
         do
             param_value=`python3 ${CURRENT_PATH}/get_config_info.py ${param_name}`
             if [ ! -z ${param_value} ] && [ ${param_value} != "None" ]; then
                 sed -i -r "s:(${param_name} = ).*:\1${param_value}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+                if ! grep -q "${param_name}" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME};then
+                  echo "${param_name} = ${param_value}" >> ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+                fi
             fi
         done
     fi
