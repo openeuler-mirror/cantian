@@ -478,14 +478,11 @@ class DRRecover(SwitchOver):
         self.rep_pair_recover(self.page_fs_pair_id)
         if not self.metadata_in_cantian:
             self.rep_pair_recover(self.meta_fs_pair_id)
-        try:
-            self.check_cluster_status(log_type="info")
-        except Exception as _err:
-            self.standby_logicrep_stop()
-            self.standby_cms_res_stop()
-            time.sleep(10)
-            self.standby_cms_res_start()
-            self.check_cluster_status()
+        self.standby_logicrep_stop()
+        self.standby_cms_res_stop()
+        time.sleep(10)
+        self.standby_cms_res_start()
+        self.check_cluster_status()
         if self.repl_success_flag:
             self.standby_cms_purge_backup()
         LOG.info("DR recovery complete")
