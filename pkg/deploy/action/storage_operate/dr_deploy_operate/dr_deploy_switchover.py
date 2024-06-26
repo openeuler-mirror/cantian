@@ -244,10 +244,6 @@ class DRRecover(SwitchOver):
             LOG.error(err_msg)
             raise Exception(err_msg)
         outputs = output.split("\n")
-        # if len(outputs) < 2:
-        #     err_msg = "Current cluster status is abnormal, output:%s, stderr:%s" % (output, stderr)
-        #     LOG.error(err_msg)
-        #     raise Exception(err_msg)
         return outputs
 
     def check_cluster_status_for_recover(self, check_time=20):
