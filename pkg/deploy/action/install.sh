@@ -170,9 +170,9 @@ function config_sudo() {
 function initUserAndGroup()
 {
     # 删除残留用户和用户组
-    userdel cantian
-    userdel ctmgruser
-    groupdel cantiangroup
+    userdel cantian > /dev/null 2>&1
+    userdel ctmgruser > /dev/null 2>&1
+    groupdel cantiangroup > /dev/null 2>&1
     if [ -f /etc/uid_list ];then
         sed -i '/6004/d' /etc/uid_list
         sed -i '/6000/d' /etc/uid_list

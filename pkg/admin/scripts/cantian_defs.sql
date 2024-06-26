@@ -963,27 +963,28 @@ CREATE OR REPLACE
   SQL SECURITY INVOKER VIEW cantian.cantian_lock_waits
 (
   session_id,
+  lock_watting,
   requesting_trx_rmid,
   requesting_trx_status,
   requesting_trx_begin_time,
-  requesting_trx_exec_time,
+  `requesting_trx_exec_time(s)`,
   blocking_wait_sid,
   blocking_trx_rmid,
   blocking_trx_status,
   blocking_trx_begin_time,
-  blocking_trx_exec_time,
+  `blocking_trx_exec_time(s)`,
   lock_type,
   lock_page,
   lock_itl
 )
 AS
-  SELECT s.SID,t.RMID,t.STATUS,t.BEGIN_TIME,t.EXEC_TIME,s.WAIT_SID,twait.RMID,twait.STATUS,twait.BEGIN_TIME,twait.EXEC_TIME,l.TYPE,l.ID1,l.ID2
+  SELECT s.SID,s.LOCK_WAIT,t.RMID,t.STATUS,t.BEGIN_TIME,t.EXEC_TIME/1000000,s.WAIT_SID,twait.RMID,twait.STATUS,twait.BEGIN_TIME,twait.EXEC_TIME/1000000,l.TYPE,l.ID1,l.ID2
   FROM cantian.dv_locks l
   JOIN cantian.dv_transactions t 
   JOIN cantian.dv_transactions twait
   JOIN cantian.dv_sessions s
   JOIN cantian.dv_sessions swait
-  WHERE s.LOCK_WAIT = 'Y' AND l.TYPE = 'RX' AND s.SID = l.SID AND s.SID = t.SID AND s.WAIT_SID = swait.SID AND swait.SID = twait.SID AND swait.SID = l.SID;
+  WHERE s.LOCK_WAIT = 'Y' AND s.SID = l.SID AND s.SID = t.SID AND s.WAIT_SID = swait.SID AND swait.SID = twait.SID;
 
 -- cantian_trx
 CREATE OR REPLACE
@@ -1024,6 +1025,7 @@ CREATE OR REPLACE
   SQL SECURITY INVOKER VIEW cantian.cantian_locks
 (
   session_id,
+  lock_watting,
   requesting_trx_rmid,
   blocking_wait_sid,
   blocking_trx_rmid,
@@ -1032,13 +1034,19 @@ CREATE OR REPLACE
   lock_itl
 )
 AS
-  SELECT s.SID,t.RMID,s.WAIT_SID,twait.RMID,l.TYPE,l.ID1,l.ID2
+  SELECT s.SID,s.LOCK_WAIT,t.RMID,s.WAIT_SID,twait.RMID,l.TYPE,l.ID1,l.ID2
   FROM cantian.dv_locks l
   JOIN cantian.dv_transactions t 
   JOIN cantian.dv_transactions twait
   JOIN cantian.dv_sessions s
   JOIN cantian.dv_sessions swait
-  WHERE s.LOCK_WAIT = 'Y' AND l.TYPE = 'RX' AND s.SID = l.SID AND s.SID = t.SID AND s.WAIT_SID = swait.WAIT_SID AND swait.SID = twait.SID AND swait.SID = l.SID;
+  WHERE s.LOCK_WAIT = 'Y' AND s.SID = l.SID AND s.SID = t.SID AND s.WAIT_SID = swait.SID AND swait.SID = twait.SID 
+  UNION ALL
+  SELECT s.SID,s.LOCK_WAIT,t.RMID,s.WAIT_SID,null,l.TYPE,l.ID1,l.ID2
+  FROM cantian.dv_sessions s
+  JOIN cantian.dv_transactions t ON s.SID = t.SID
+  JOIN cantian.dv_locks l ON s.SID = l.SID
+  WHERE s.LOCK_WAIT = 'N';
 
 -- cantian_io_stats
 CREATE OR REPLACE
