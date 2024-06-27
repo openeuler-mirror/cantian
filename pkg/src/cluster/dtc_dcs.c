@@ -850,6 +850,8 @@ status_t static inline dcs_owner_transfer_page(knl_session_t *session, uint8 own
             // send read-only copy, don't change owner
             ctrl->lock_mode = DRC_LOCK_SHARE;
         }
+    } else if (ret == CT_SUCCESS && !DCS_BUF_CTRL_IS_OWNER(session, ctrl)) {
+        knl_panic(0);
     }
     if (ret != CT_SUCCESS && ctrl->transfer_status == BUF_TRANS_REL_OWNER) {
         ctrl->transfer_status = BUF_TRANS_NONE;
