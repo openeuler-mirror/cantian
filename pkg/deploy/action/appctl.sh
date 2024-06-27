@@ -202,6 +202,7 @@ function warning_tips() {
     \tThe current operation will cause the active-standby switch,
     \tplease make sure the standby data is consistent with the main data,
     \tif the data is not consistent, the execution of the switch operation may cause data loss,
+    \tplease make sure the standby and DeviceManager are in good condition, if not, the new active will hang after switch over.
     \tAfter the command is executed, check the replay status on the standby side to determine if the active-standby switch was successful." \
     [recover]="\tRecover operation will downgrade current station to standby,
     \tsynchronize data from remote to local, and cover local data.
