@@ -2117,7 +2117,7 @@ status_t buf_invalidate_page_owner(knl_session_t *session, page_id_t page_id, ui
 
     if (!BUF_IN_USE_IS_RECYCLABLE(ctrl) || ctrl->is_resident || (ctrl->ref_num != 1)) {
         buf_unlatch_page(session, ctrl);
-        CT_LOG_DEBUG_INF(
+        CT_LOG_RUN_ERR(
             "[buffer][%u-%u][buf_invalidate_page_owner]: not recyclable and return, ctrl_dirty=%u, ctrl_remote_dirty=%u, ctrl_readonly=%u, in ckpt=%u, ctrl_lock_mode=%u, edp=%d",
             ctrl->page_id.file, ctrl->page_id.page, ctrl->is_dirty, ctrl->is_remote_dirty, ctrl->is_readonly,
             ctrl->in_ckpt, ctrl->lock_mode, ctrl->is_edp);
