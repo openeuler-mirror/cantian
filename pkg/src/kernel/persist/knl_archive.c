@@ -1942,6 +1942,9 @@ void arch_log_recycle_file(arch_proc_context_t *proc_ctx, uint32 node_id)
     recycle_point.lsn = MIN(node_ctrl->rcy_point.lsn, proc_ctx->last_archived_log_record.end_lsn);
     cm_spin_lock(&session->kernel->redo_ctx.flush_lock, &session->stat->spin_stat.stat_log_flush);
     free_size = cm_dbs_ulog_recycle(logfile->handle, recycle_point.lsn);
+    if (proc_ctx->data_type == ARCH_DATA_TYPE_DBSTOR && free_size != 0) {
+        session->kernel->redo_ctx.free_size = free_size;
+    }
     CT_LOG_RUN_INF("[ARCH] recycle redo logs in ulog, rcy lsn %llu, archive lsn %llu, free size %llu",
                    node_ctrl->rcy_point.lsn, proc_ctx->last_archived_log_record.end_lsn, free_size);
     cm_spin_unlock(&session->kernel->redo_ctx.flush_lock);
