@@ -28,6 +28,7 @@
 
 #include "ostat_load.h"
 #include "tse_srv.h"
+#include "knl_rstat.h"
 
 #define DEFAULT_RANGE_DENSITY 0.5
 #define PREFER_RANGE_DENSITY 0.8

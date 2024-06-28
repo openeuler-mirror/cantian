@@ -59,8 +59,6 @@
     ((stats_table)->single_part_analyze && (stats_table)->specify_part_id == (part_id))
 #define STATS_IS_NOT_SPECIFY_PART(stats_table, part_id)  \
     ((stats_table)->single_part_analyze && (stats_table)->specify_part_id != (part_id))
-#define STATS_GLOBAL_CBO_STATS_EXIST(entity)                    \
-    ((entity)->stat_exists && (entity)->cbo_table_stats->global_stats_exist)
 #define STATS_GENERATE_SERIERS_PAGE_STAP(stat_sample)                    \
     ((stat_sample)->extent_size >= EXT_SIZE_1024) &&                      \
     ((stat_sample)->pages_per_ext >= ((stat_sample)->extent_size * 0.7))

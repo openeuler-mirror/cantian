@@ -148,6 +148,9 @@ extern "C" {
     ((err_code) == ERR_OBJECT_ALREADY_DROPPED || (err_code) == ERR_INDEX_ALREADY_DROPPED || \
     (err_code) == ERR_INVALID_PAGE_ID)
 
+#define STATS_GLOBAL_CBO_STATS_EXIST(entity)                    \
+    ((entity)->stat_exists && (entity)->cbo_table_stats->global_stats_exist)
+
 typedef enum st_stats_hist_type {
     FREQUENCY = 0,
     HEIGHT_BALANCED = 1,
