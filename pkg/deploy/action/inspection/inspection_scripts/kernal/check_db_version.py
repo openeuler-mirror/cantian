@@ -28,13 +28,13 @@ class CheckDBVersion(BaseItem):
         vals = {}
         self.result.rst = ResultStatus.OK
 
-        cmd = "source ~/.bashrc && %s/cantiand -v | grep -oP \"\K\d+\.\d+\.\d+\"" % \
+        cmd = "source ~/.bashrc && %s/cantiand -v | grep -oP \"\K\d+\.\d+\"" % \
               os.path.join(self.context.app_path, "bin")
         self.result.raw = cmd
         status, output = self.get_cmd_result(cmd, self.user)
         if (status == 0):
             vals["db_version"] = output
-            cmd = "cat /opt/cantian/versions.yml | grep -oP 'Version: \K\d+\.\d+\.\d+'"
+            cmd = "cat /opt/cantian/versions.yml | grep -oP 'Version: \K\d+\.\d+'"
             status, output = self.get_cmd_result(cmd, self.user)
             version_info = vals.get("db_version").strip()
             if version_info and version_info != output.strip(" "):
