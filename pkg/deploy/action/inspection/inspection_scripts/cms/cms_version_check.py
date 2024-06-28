@@ -12,11 +12,11 @@ from common_func import _exec_popen
 
 def fetch_cms_version(logger):
     logger.info("cms version check start!")
-    cmd = "source ~/.bashrc && cms -help |head -n 1 | grep -oP \"\K\d+\.\d+\.\d+\""
+    cmd = "source ~/.bashrc && cms -help |head -n 1 | grep -oP \"\K\d+\.\d+\""
     ret_code, output, stderr = _exec_popen(cmd)
     if ret_code:
         logger.error("get cms help information failed, std_err: %s", stderr)
-    cmd_yml = "cat /opt/cantian/versions.yml | grep -oP 'Version: \K\d+\.\d+\.\d+'"
+    cmd_yml = "cat /opt/cantian/versions.yml | grep -oP 'Version: \K\d+\.\d+'"
     ret_code_yml, output_yml, stderr_yml = _exec_popen(cmd_yml)
     if ret_code_yml != 0:
         logger.error("Get cms version failed.")
