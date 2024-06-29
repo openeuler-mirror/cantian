@@ -1357,6 +1357,15 @@ status_t dtc_init_node_logset(knl_session_t *session, uint8 idx)
     return CT_SUCCESS;
 }
 
+static inline bool32 dtc_stats_lsn_is_changed(uint64 *lsn_record, uint64 curr_lsn)
+{
+    bool32 changed = (curr_lsn != *lsn_record);
+    if (changed) {
+        *lsn_record = curr_lsn;
+    }
+    return changed;
+}
+
 void dtc_rcy_next_file(knl_session_t *session, uint32 idx, bool32 *need_more_log)
 {
     CT_LOG_DEBUG_INF("[DTC RCY] dtc rcy next file");
@@ -1395,7 +1404,8 @@ void dtc_rcy_next_file(knl_session_t *session, uint32 idx, bool32 *need_more_log
         reply_point->asn++;
         reply_point->block_id = 0;
         *need_more_log = CT_TRUE;
-        if (rcy_node->latest_rcy_end_lsn != rcy_node->recovery_read_end_point.lsn) {
+        if (rcy_node->latest_rcy_end_lsn != rcy_node->recovery_read_end_point.lsn && 
+            dtc_stats_lsn_is_changed(&(rcy_node->lsn_records.move_point_lsn_record), rcy_log_point->rcy_write_point.lsn)) {
             CT_LOG_RUN_INF("[DTC RCY] Move log point to [%u-%u/%u/%llu]", (uint32)point->rst_id, point->asn,
                            point->block_id, (uint64)point->lfn);
         }
@@ -1874,6 +1884,8 @@ status_t dtc_rcy_read_node_log(knl_session_t *session, uint32 idx, uint32 *size_
 {
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
     dtc_rcy_node_t *rcy_node = &dtc_rcy->rcy_nodes[idx];
+    reform_rcy_node_t *rcy_log_point = &dtc_rcy->rcy_log_points[idx];
+    
     status_t status;
     timeval_t tv_begin;
 
@@ -1900,8 +1912,10 @@ status_t dtc_rcy_read_node_log(knl_session_t *session, uint32 idx, uint32 *size_
                             rcy_node->node_id, logfile_id, *size_read);
         } else {
             dtc_standby_update_lrp(session, idx, *size_read);
-            CT_LOG_RUN_INF("[DTC RCY] finish read online redo log of crashed node=%u, logfile_id=%u, size_read=%u",
-                           rcy_node->node_id, logfile_id, *size_read);
+            if (dtc_stats_lsn_is_changed(&(rcy_node->lsn_records.read_log_lsn_record), rcy_log_point->rcy_write_point.lsn)) {
+                CT_LOG_RUN_INF("[DTC RCY] finish read online redo log of crashed node=%u, logfile_id=%u, size_read=%u",
+                            rcy_node->node_id, logfile_id, *size_read);
+            }  
         }
     } else {
         status = dtc_rcy_read_archived_log(session, idx, size_read);
