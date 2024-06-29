@@ -845,7 +845,8 @@ static buf_ctrl_t *buf_recycle(knl_session_t *session, buf_set_t *set, buf_lru_l
     cm_spin_unlock(&list->lock);
     buf_lru_append_list(&set->write_list, &dirty_list);
 
-    if (DB_IS_CLUSTER(session) && (item != NULL) && DCS_BUF_CTRL_IS_OWNER(session, item)) {
+    if (DB_IS_CLUSTER(session) && (item != NULL) && (item->bucket_id != CT_INVALID_ID32) &&
+        DCS_BUF_CTRL_IS_OWNER(session, item)) {
         drc_buf_res_try_recycle(session, item->page_id);
     }
 
