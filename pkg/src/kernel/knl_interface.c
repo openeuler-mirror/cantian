@@ -8242,7 +8242,7 @@ static status_t knl_truncate_table_internal(knl_session_t *se, knl_trunc_def_t *
     def->is_not_rcyclebin = dc->type != DICT_TYPE_TABLE || table->desc.space_id == SYS_SPACE_ID ||
                        def->option != TRUNC_RECYCLE_STORAGE || !se->kernel->attr.recyclebin ||
                        IS_SYS_STATS_TABLE(dc->uid, dc->oid);
-    log_add_lrep_ddl_begin(se);
+
     if (def->is_not_rcyclebin) {
         // when the state(is_invalid) of global index is changed, the flag is_changed will be set to CT_TRUE
         status = db_truncate_table_prepare(se, dc, def->option & TRUNC_REUSE_STORAGE, &(def->is_changed));
@@ -8312,6 +8312,7 @@ status_t knl_truncate_table(knl_handle_t session, knl_handle_t stmt, knl_trunc_d
         return status;
     }
 
+    log_add_lrep_ddl_begin(se);
     status = knl_truncate_table_internal(se, def, &dc);
 
     if (status == CT_SUCCESS) {
@@ -8322,10 +8323,10 @@ status_t knl_truncate_table(knl_handle_t session, knl_handle_t stmt, knl_trunc_d
         knl_truncate_table_after_commit(session, def, &dc); // handle garbage segment and invalidate dc
         SYNC_POINT(session, "SP_B2_TRUNCATE_TABLE");
     } else {
-        log_add_lrep_ddl_end(se);
         knl_rollback(session, NULL);
         knl_truncate_table_invalidate_dc(session, &dc, def->is_changed, def->is_not_rcyclebin);
     }
+    log_add_lrep_ddl_end(se);
 
     dc_close(&dc);
     unlock_tables_directly(se);
@@ -8355,6 +8356,8 @@ status_t knl_truncate_table4mysql(knl_handle_t session, knl_handle_t stmt, knl_t
     }
 
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_TRUNCATE_TABLE_FAIL, &status, CT_ERROR);
+
+    log_add_lrep_ddl_begin(se);
     status = knl_truncate_table_internal(se, def, dc);
     SYNC_POINT_GLOBAL_END;
 
