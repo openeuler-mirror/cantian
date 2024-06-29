@@ -246,6 +246,16 @@ void tms_check_monitor_time_result(void)
             tms_monitor_trig_calltrace(monitor);
             monitor->monitor_print_num = monitor->monitor_print_num << TMS_MONITOR_PRINT_POW;
         }
+        
+        if (monitor->monitor_is_running && cm_now() > monitor->monitor_start_time + 600 * TMS_MONITOR_HZ) {
+            tms_monitor_trig_calltrace(monitor);
+            char now_str[32], start_str[32];
+            tms_date2str(cm_now(), now_str, sizeof(now_str));
+            tms_date2str(monitor->monitor_start_time, start_str, sizeof(start_str));
+            CM_ABORT_REASONABLE(0, "[TMS] ABORT INFO: Monitor '%s' with thread ID %u has timed out. Current time: %s, Start time: %s",
+                        monitor->monitor_name, monitor->thread_tid, now_str, start_str);
+        }
+
     }
     cm_spin_unlock(&g_tms->monitor_lock);
 
