@@ -384,7 +384,7 @@ void drc_res_recycle_proc(thread_t *thread)
     uint32 buf_res_idx;
     drc_global_res_t *g_buf_res = &(ctx->global_buf_res);
     drc_res_pool_t *pool = &g_buf_res->res_map.res_pool;
-    bool32 recycle_limits = MAX(pool->item_num / 16, 8192);
+    bool32 recycle_limits = MAX(pool->item_num / 4, 8192);
 
     cm_set_thread_name("drc_buf_res_recycle");
     CT_LOG_RUN_INF("drc buf res recycle thread started");

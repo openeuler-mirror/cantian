@@ -154,7 +154,7 @@ status_t get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, tianchi_cbo_sta
     uint32 max_sub_part_no = 0;
     if (!knl_is_part_table(entity)) {
         table_stats = knl_get_cbo_table(handle, entity);
-        if (table_stats != NULL && table_stats->is_ready) {
+        if (table_stats != NULL && table_stats->is_ready && STATS_GLOBAL_CBO_STATS_EXIST(entity)) {
             tse_cbo_stats_table->estimate_rows = table_stats->rows;
             stats->records = table_stats->rows;
             stats->is_updated = CT_TRUE;

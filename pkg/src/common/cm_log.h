@@ -225,6 +225,7 @@ uint64_t cm_print_memory_usage(void);
                                 format, ##__VA_ARGS__);                                                             \
         }                                                                                                           \
     } while (0)
+
 #define CT_LOG_DEBUG_ERR(format, ...)                                                                                \
     do {                                                                                                             \
         if (LOG_DEBUG_ERR_ON) {                                                                                      \
@@ -240,6 +241,7 @@ uint64_t cm_print_memory_usage(void);
                                 format, ##__VA_ARGS__);                                                           \
         }                                                                                                         \
     } while (0)
+
 #define CT_LOG_RUN_WAR(format, ...)                                                                               \
     do {                                                                                                          \
         if (LOG_RUN_WAR_ON) {                                                                                     \
@@ -247,6 +249,7 @@ uint64_t cm_print_memory_usage(void);
                                 format, ##__VA_ARGS__);                                                           \
         }                                                                                                         \
     } while (0)
+
 #define CT_LOG_RUN_ERR(format, ...)                                                                                \
     do {                                                                                                           \
         if (LOG_RUN_ERR_ON) {                                                                                      \
