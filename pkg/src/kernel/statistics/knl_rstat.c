@@ -9147,6 +9147,7 @@ status_t stats_flush_monitor_normal(knl_session_t *session)
     uint32 table_id = CT_INVALID_ID32;
     bool32 eof = CT_FALSE;
     dc_appendix_t *appendix = NULL;
+    dc_entry_t *entry = NULL;
 
     for (;;) {
         status = CT_SUCCESS;
@@ -9179,10 +9180,16 @@ status_t stats_flush_monitor_normal(knl_session_t *session)
             continue;
         }
 
-        if (strncmp(((dc_entity_t *)dc.handle)->entry->name, MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) == 0) {
+        entry = ((dc_entity_t *)dc.handle)->entry;
+        if (entry != NULL && strncmp(entry->name, MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) == 0) {
             dc_close(&dc);
             continue;
         }
+        if (strncmp(((dc_entity_t *)dc.handle)->table.desc.name, MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) == 0) {
+            dc_close(&dc);
+            continue;
+        }
+
         if (lock_table_shared_directly(session, &dc) == CT_SUCCESS) {
             if (db_flush_sys_mon_modes(session, DC_ENTITY(&dc), uid, table_id) != CT_SUCCESS) {
                 status = CT_ERROR;

@@ -10978,12 +10978,6 @@ status_t knl_analyze_table(knl_handle_t session, knl_analyze_tab_def_t *def)
         return CT_ERROR;
     }
 
-    // do not analyze inner temp table for mysql alter copy
-    if (def->name.len >= MYSQL_TMP_TABLE_PREFIX_LEN &&
-        strncmp(def->name.str, MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) == 0) {
-        return CT_SUCCESS;
-    }
-
     if (def->part_name.len > 0 ||
        (((session_t *)session)->is_tse && (def->part_no != CT_INVALID_ID32))) {
         ret = db_analyze_table_part(se, def, CT_FALSE);

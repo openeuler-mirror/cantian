@@ -45,6 +45,9 @@ extern "C" {
 #define MYSQL_TYPE_FLOAT 4
 #define MYSQL_TYPE_DOUBLE 5
 
+#define MYSQL_TMP_TABLE_PREFIX "#sql"
+#define MYSQL_TMP_TABLE_PREFIX_LEN 4
+
 typedef struct st_rebuild_info_t {
     bool32 is_alter;
     knl_parts_locate_t parts_loc;
