@@ -32,6 +32,7 @@
 #include "dtc_trace.h"
 #include "dtc_dcs.h"
 #include "dtc_dc.h"
+#include "knl_table.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -163,6 +164,15 @@ status_t dls_process_unlock_table(knl_session_t *session, drid_t *lock_id, drc_l
     }
     entity = (dc_entity_t *)(dc.handle);
     entry = entity->entry;
+
+    if (entry != NULL && strncmp(entry->name, MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) == 0) {
+        dc_close(&dc);
+        return CT_SUCCESS;
+    }
+    if (strncmp(((dc_entity_t *)dc.handle)->table.desc.name, MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) == 0) {
+        dc_close(&dc);
+        return CT_SUCCESS;
+    }
 
     DTC_DLS_DEBUG_INF("[DLS] process release table lock(%u/%u/%u/%u/%u) table name %s", lock_id->type, lock_id->uid,
                       lock_id->id, lock_id->idx, lock_id->part, entry->name);

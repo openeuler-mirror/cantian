@@ -1428,6 +1428,7 @@ status_t db_delete_schema_stats(knl_session_t *session, text_t *schema_name)
     uint32 uid = CT_INVALID_ID32;
     uint32 table_id = CT_INVALID_ID32;
     bool32 eof = CT_FALSE;
+    dc_entry_t *entry = NULL;
 
     if (DB_IS_READONLY(session)) {
         CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
@@ -1460,6 +1461,16 @@ status_t db_delete_schema_stats(knl_session_t *session, text_t *schema_name)
         }
 
         if (knl_open_dc_by_id(session, uid, table_id, &dc, CT_TRUE) != CT_SUCCESS) {
+            continue;
+        }
+
+        entry = ((dc_entity_t *)dc.handle)->entry;
+        if (entry != NULL && strncmp(entry->name, MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) == 0) {
+            dc_close(&dc);
+            continue;
+        }
+        if (strncmp(((dc_entity_t *)dc.handle)->table.desc.name, MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) == 0) {
+            dc_close(&dc);
             continue;
         }
 
