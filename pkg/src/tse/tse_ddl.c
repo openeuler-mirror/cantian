@@ -899,8 +899,8 @@ int tse_close_mysql_connection(tianchi_handler_t *tch)
 
     if (tch->is_broadcast == true) {
         (void)tse_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, NULL);
-        CT_LOG_RUN_INF("[TSE_CLOSE_CONNECTION]:session total_cursor_num = %d",
-                       session->total_cursor_num);
+        CT_LOG_RUN_INF_LIMIT(LOG_PRINT_INTERVAL_SECOND_60,
+            "[TSE_CLOSE_CONNECTION]:session total_cursor_num = %d", session->total_cursor_num);
     }
     
     tse_free_session(session);
