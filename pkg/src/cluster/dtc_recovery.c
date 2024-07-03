@@ -1182,6 +1182,21 @@ void dtc_rcy_close_logfile(knl_session_t *session)
     }
 }
 
+void free_paral_mgr()
+{
+    CM_FREE_PTR(g_analyze_paral_mgr.free_list.array);
+    CM_FREE_PTR(g_analyze_paral_mgr.buf_list);
+    CM_FREE_PTR(g_analyze_paral_mgr.used_list.array);
+    CM_FREE_PTR(g_replay_paral_mgr.buf_list);
+    CM_FREE_PTR(g_replay_paral_mgr.group_list);
+    CM_FREE_PTR(g_replay_paral_mgr.batch_scn);
+    CM_FREE_PTR(g_replay_paral_mgr.node_id);
+    CM_FREE_PTR(g_replay_paral_mgr.batch_rpl_start_time);
+    CM_FREE_PTR(g_replay_paral_mgr.free_list.array);
+    free((void *)g_replay_paral_mgr.group_num);
+    g_replay_paral_mgr.group_num = NULL;
+}
+
 void dtc_recovery_close(knl_session_t *session)
 {
     CT_LOG_RUN_INF("[DTC RCY] start dtc recovery close");
@@ -1231,18 +1246,8 @@ void dtc_recovery_close(knl_session_t *session)
     }
     // [reformer] release memroy malloced in dtc_rcy_init_context
     CM_FREE_PTR(dtc_rcy->rcy_nodes);
-    CM_FREE_PTR(g_analyze_paral_mgr.free_list.array);
-    CM_FREE_PTR(g_analyze_paral_mgr.buf_list);
-    CM_FREE_PTR(g_analyze_paral_mgr.used_list.array);
-    CM_FREE_PTR(g_replay_paral_mgr.buf_list);
-    CM_FREE_PTR(g_replay_paral_mgr.group_list);
-    CM_FREE_PTR(g_replay_paral_mgr.batch_scn);
-    CM_FREE_PTR(g_replay_paral_mgr.node_id);
-    CM_FREE_PTR(g_replay_paral_mgr.batch_rpl_start_time);
-    CM_FREE_PTR(g_replay_paral_mgr.free_list.array);
-    free((void *)g_replay_paral_mgr.group_num);
-    g_replay_paral_mgr.group_num = NULL;
-    
+    free_paral_mgr();
+
     rcy_set_t *rcy_set = &dtc_rcy->rcy_set;
     if (rcy_set->buckets != NULL) {
         CM_FREE_PTR(rcy_set->buckets);
@@ -3931,11 +3936,8 @@ static inline void dtc_free_read_buf(uint32 index){
     }
 }
 
-status_t dtc_recovery_init(knl_session_t *session, instance_list_t *recover_list, bool32 full_recovery)
+status_t init_paral_mgr()
 {
-    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
-    uint32 count = recover_list->inst_id_count;
-    uint32 read_buf_size = g_instance->kernel.attr.rcy_node_read_buf_size;
     uint32 prarl_buf_list_size = g_instance->kernel.attr.dtc_rcy_paral_buf_list_size;
     g_analyze_paral_mgr.free_list.array = (uint32 *)malloc(prarl_buf_list_size * sizeof(uint32));
     g_analyze_paral_mgr.used_list.array = (uint32 *)malloc(prarl_buf_list_size * sizeof(uint32));
@@ -3952,6 +3954,30 @@ status_t dtc_recovery_init(knl_session_t *session, instance_list_t *recover_list
         g_replay_paral_mgr.node_id == NULL || g_replay_paral_mgr.batch_rpl_start_time == NULL || g_replay_paral_mgr.free_list.array == NULL ||
         g_analyze_paral_mgr.used_list.array == NULL) {
         CM_ABORT(0, "[DTC RCY] alloc memory failed");
+    }
+    MEMS_RETURN_IFERR(memset_sp(g_analyze_paral_mgr.free_list.array, prarl_buf_list_size * sizeof(uint32), 0, prarl_buf_list_size * sizeof(uint32)));
+    MEMS_RETURN_IFERR(memset_sp(g_analyze_paral_mgr.used_list.array, prarl_buf_list_size * sizeof(uint32), 0, prarl_buf_list_size * sizeof(uint32)));
+    MEMS_RETURN_IFERR(memset_sp(g_analyze_paral_mgr.buf_list, prarl_buf_list_size * sizeof(aligned_buf_t), 0, prarl_buf_list_size * sizeof(aligned_buf_t)));
+    MEMS_RETURN_IFERR(memset_sp(g_replay_paral_mgr.buf_list, prarl_buf_list_size * sizeof(aligned_buf_t), 0, prarl_buf_list_size * sizeof(aligned_buf_t)));
+    MEMS_RETURN_IFERR(memset_sp(g_replay_paral_mgr.group_list, prarl_buf_list_size * sizeof(aligned_buf_t), 0, prarl_buf_list_size * sizeof(aligned_buf_t)));
+    MEMS_RETURN_IFERR(memset_sp((void *)g_replay_paral_mgr.group_num, prarl_buf_list_size * sizeof(atomic32_t), 0, prarl_buf_list_size * sizeof(atomic32_t)));
+    MEMS_RETURN_IFERR(memset_sp(g_replay_paral_mgr.batch_scn, prarl_buf_list_size * sizeof(knl_scn_t), 0, prarl_buf_list_size * sizeof(knl_scn_t)));
+    MEMS_RETURN_IFERR(memset_sp(g_replay_paral_mgr.node_id, prarl_buf_list_size * sizeof(uint32), 0, prarl_buf_list_size * sizeof(uint32)));
+    MEMS_RETURN_IFERR(memset_sp(g_replay_paral_mgr.batch_rpl_start_time, prarl_buf_list_size * sizeof(date_t), 0, prarl_buf_list_size * sizeof(date_t)));
+    MEMS_RETURN_IFERR(memset_sp(g_replay_paral_mgr.free_list.array, prarl_buf_list_size * sizeof(uint32), 0, prarl_buf_list_size * sizeof(uint32)));
+
+    return CT_SUCCESS;
+}
+
+status_t dtc_recovery_init(knl_session_t *session, instance_list_t *recover_list, bool32 full_recovery)
+{
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+    uint32 count = recover_list->inst_id_count;
+    uint32 read_buf_size = g_instance->kernel.attr.rcy_node_read_buf_size;
+    if (init_paral_mgr() != CT_SUCCESS){
+        CT_LOG_RUN_ERR("[DTC RCY] failed to init paral mgr");
+        free_paral_mgr();
+        return CT_ERROR;
     }
 
     dtc_rcy_init_last_recovery_stat(recover_list);
