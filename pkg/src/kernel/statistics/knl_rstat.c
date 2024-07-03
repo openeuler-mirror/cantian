@@ -10401,6 +10401,16 @@ void stats_disable_table_part_mon(knl_dictionary_t *dc, table_part_t *table_part
     knl_securec_check(ret);
 }
 
+static inline bool32 stats_check_table_has_active_txn(dc_entity_t *entity, const knl_session_t *session) {
+    cm_spin_lock(&entity->entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
+    bool32 in_txn = CT_FALSE;
+    if (entity->entry->sch_lock != NULL) {
+        in_txn = (entity->entry->sch_lock->shared_count > 0);
+    }
+    cm_spin_unlock(&entity->entry->sch_lock_mutex);
+    return in_txn;
+}
+
 void stats_disable_table_mon(knl_session_t *session, knl_dictionary_t *dc, bool32 analyzed)
 {
     dc_entity_t *entity = DC_ENTITY(dc);
@@ -10428,8 +10438,12 @@ void stats_disable_table_mon(knl_session_t *session, knl_dictionary_t *dc, bool3
         tab_mon = &entity->entry->appendix->table_smon;
     }
 
-    errno_t ret = memset_sp(tab_mon, sizeof(stats_table_mon_t), 0, sizeof(stats_table_mon_t));
-    knl_securec_check(ret);
+    errno_t ret;
+    bool32 has_active_txn = stats_check_table_has_active_txn(entity, session);
+    if (!has_active_txn) {
+        ret = memset_sp(tab_mon, sizeof(stats_table_mon_t), 0, sizeof(stats_table_mon_t));
+        knl_securec_check(ret);
+    }
 
     if (IS_PART_TABLE(table)) {
         part_table = table->part_table;
@@ -10438,9 +10452,10 @@ void stats_disable_table_mon(knl_session_t *session, knl_dictionary_t *dc, bool3
             if (!IS_READY_PART(table_part)) {
                 continue;
             }
-            
-            ret = memset_sp(&table_part->table_smon, sizeof(stats_table_mon_t), 0, sizeof(stats_table_mon_t));
-            knl_securec_check(ret);
+            if (!has_active_txn) { 
+                ret = memset_sp(&table_part->table_smon, sizeof(stats_table_mon_t), 0, sizeof(stats_table_mon_t));
+                knl_securec_check(ret);
+            }
         }
     }
 }
