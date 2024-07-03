@@ -45,6 +45,10 @@ extern "C" {
 #define DRC_DEFAULT_LOCK_RES_NUM (SIZE_M(1))
 #define DRC_FILE_EXTENT_SIZE    (8 * 1024 * 1024)    //8M one extent to manage the page resource
 #define DRC_FILE_EXTENT_PAGE_NUM(ctx)  (DRC_FILE_EXTENT_SIZE / (ctx)->kernel->attr.page_size)
+#define DRC_RECYCLE_BUFER_SIZE_CON SIZE_G(128) // 128G
+#define DRC_RECYCLE_MIN_NUM 8192
+#define DRC_RECYCLE_RATIO_16 16
+#define DRC_RECYCLE_RATIO_4 4
 
 //lock item structures
 typedef enum en_drc_lock_mode {
