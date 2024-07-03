@@ -10399,7 +10399,7 @@ static inline bool32 stats_check_table_has_active_txn(dc_entity_t *entity, const
     cm_spin_lock(&entity->entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
     bool32 in_txn = CT_FALSE;
     if (entity->entry->sch_lock != NULL) {
-        in_txn = (entity->entry->sch_lock->shared_count > 1);
+        in_txn = (entity->entry->sch_lock->shared_count > 0);
     }
     cm_spin_unlock(&entity->entry->sch_lock_mutex);
     return in_txn;
