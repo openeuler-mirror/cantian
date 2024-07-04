@@ -3175,7 +3175,7 @@ static status_t sql_collect_table_stats(sql_stmt_t *stmt, expr_node_t *func, var
         def->name = tabname.v_text;
         def->sample_ratio = STATS_MAX_ESTIMATE_PERCENT;
         def->sample_level = BLOCK_SAMPLE;
-        def->sample_type = STATS_SPECIFIED_SAMPLE;
+        def->sample_type = STATS_AUTO_SAMPLE;
         def->is_default = CT_FALSE;
         def->part_name = partname.is_null ? CM_NULL_TEXT : partname.v_text;
         def->specify_cols.cols_count = 0;
