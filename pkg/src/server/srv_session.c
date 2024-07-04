@@ -107,6 +107,7 @@ void srv_reset_session(session_t *session, cs_pipe_t *pipe)
     session->knl_session.dtc_session_type = DTC_TYPE_NONE;
     session->knl_session.user_locked_ddl = CT_FALSE;
     session->knl_session.user_locked_lst = NULL;
+    session->knl_session.is_loading = CT_FALSE;
     MEMS_RETVOID_IFERR(memset_s(session->challenge, 2 * CT_MAX_CHALLENGE_LEN, 0, 2 * CT_MAX_CHALLENGE_LEN));
 
     CT_INIT_SPIN_LOCK(session->dbg_ctl_lock);
