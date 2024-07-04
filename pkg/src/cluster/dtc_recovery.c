@@ -324,7 +324,7 @@ status_t dtc_rcy_try_alloc_itempool(rcy_set_t *rcy_set, rcy_set_item_pool_t *old
 
 void dtc_rcy_handle_pcn_discon(knl_session_t *session, rcy_set_item_t *item, page_id_t page_id, uint32 pcn, uint64 lsn)
 {
-    if (pcn == (uint32)(item->pcn + 1)) {
+    if (pcn == 0 || pcn == (uint32)(item->pcn + 1)) {
         item->pcn = pcn;
         return;
     }
@@ -386,6 +386,14 @@ void dtc_rcy_pop_page_id(bool32 recover_flag, page_id_t *page_id)
         knl_panic(g_dtc_rcy_page_id_stack.depth > 0);
         g_dtc_rcy_page_id_stack.depth--;
         *page_id = g_dtc_rcy_page_id_stack.gbp_aly_page_id[g_dtc_rcy_page_id_stack.depth];
+    }
+}
+
+void dtc_rcy_get_page_id(bool32 recover_flag, page_id_t *page_id)
+{
+    if (recover_flag) {
+        knl_panic(g_dtc_rcy_page_id_stack.depth > 0);
+        *page_id = g_dtc_rcy_page_id_stack.gbp_aly_page_id[g_dtc_rcy_page_id_stack.depth - 1];
     }
 }
 
@@ -531,6 +539,11 @@ bool8 dtc_get_page_id_by_redo(log_entry_t *log, page_id_t *page_id_value)
             {
                 dtc_rcy_pop_page_id(CT_TRUE, page_id_value);
                 return dtc_rcy_is_need_analysis_leave_page(CT_TRUE);
+            }
+        case RD_SPC_FREE_PAGE:
+            {
+                dtc_rcy_get_page_id(CT_TRUE, page_id_value);
+                break;
             }
         default:
             return CT_FALSE;
@@ -2430,6 +2443,20 @@ static uint64 dtc_rcy_get_ddl_lsn_pitr(void)
     return rcy_node->ddl_lsn_pitr;
 }
 
+void dtc_convert_scn_to_time(knl_session_t *session, uint64 batch_scn, char *time_str)
+{
+    timeval_t time_val = { 0 };
+    KNL_SCN_TO_TIME(batch_scn, &time_val, DB_INIT_TIME(session));
+    time_t scn_time = cm_date2time(cm_timeval2date(time_val));
+    text_t fmt_text = { 0 };
+    cm_str2text("YYYY-MM-DD HH24:MI:SS", &fmt_text);
+    text_t time_text = { 0 };
+    time_text.str = time_str;
+    time_text.len = 0;
+    cm_time2text(scn_time, &fmt_text, &time_text, CT_MAX_TIME_STRLEN);
+    return;
+}
+
 status_t dtc_rcy_process_batch(knl_session_t *session, log_batch_t *batch)
 {
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
@@ -2467,10 +2494,16 @@ status_t dtc_rcy_process_batch(knl_session_t *session, log_batch_t *batch)
                 return CT_ERROR;
             }
             if (dtc_rcy_check_is_end_restore_recovery()) {
-                CT_LOG_RUN_INF("[DTC RCY] pcn is invalide, lsn=%llu, rmid=%u, batch_start_lsn=%llu",
-                               group->lsn, group->rmid, batch_start_lsn);
+                CT_LOG_RUN_INF("[DTC RCY] pcn is invalide, lsn=%llu, rmid=%u, batch_start_lsn=%llu, batch scn=%llu",
+                               group->lsn, group->rmid, batch_start_lsn, batch->scn);
                 dtc_rcy->end_lsn_restore_recovery = batch_start_lsn;
-                CT_RETURN_IFERR(dtc_rcy_set_batch_invalidate(session, batch));
+                uint64 pitr_scn = session->kernel->rcy_ctx.max_scn;
+                if (pitr_scn != CT_INVALID_ID64 && batch->scn < pitr_scn) {
+                    char time_str[CT_MAX_TIME_STRLEN] = { 0 };
+                    dtc_convert_scn_to_time(session, batch->scn, time_str);
+                    CT_LOG_RUN_WAR("[DTC RCY] the end replay batch scn %llu is smaller than pitr scn %llu, "
+                        "replay batch end time: %s", batch->scn, pitr_scn, time_str);
+                }
                 break;
             }
         }

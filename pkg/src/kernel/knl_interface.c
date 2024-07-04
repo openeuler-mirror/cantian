@@ -9616,6 +9616,8 @@ status_t knl_recover_set_end_point(knl_session_t *se, knl_recover_t *param, knl_
     } else {
         knl_recover_get_max_lrp(se, max_recover_lrp_lsn);
     }
+    CT_LOG_RUN_INF("[RECOVER] max_recover_scn: %llu, max_recover_lrp_lsn %llu, init time %llu", 
+        *max_recover_scn, *max_recover_lrp_lsn, (uint64)DB_INIT_TIME(se));
     return CT_SUCCESS;
 }
 
