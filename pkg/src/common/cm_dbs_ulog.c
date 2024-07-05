@@ -40,6 +40,9 @@
 #define CM_DBS_ULOG_HEAD_SIZE 512
 bool32 g_ulog_recycled = CT_FALSE;
 
+uint64 g_recycle_retry_num = 0;
+#define RECYCLE_FORCE_RETRY_MAX_NUM 10
+
 int64 cm_dbs_ulog_seek(int32 handle, int64 offset, int32 origin)
 {
     CM_DBS_ULOG_UNSUPPORTED("seek");
@@ -400,8 +403,13 @@ uint64 cm_dbs_ulog_recycle(int32 handle, uint64 lsn)
         return 0;
     }
     if (obj.ulog.trun_lsn >= lsn) {
-        return 0;
+        g_recycle_retry_num++;
+        if (g_recycle_retry_num < RECYCLE_FORCE_RETRY_MAX_NUM) {
+            return 0;
+        }
     }
+    g_recycle_retry_num = 0;
+
     TruncLogOption option = { 0 };
     TruncResult result = { 0 };
     option.opcode = ULOG_OP_TRUNCATE_WITH_LSN;
