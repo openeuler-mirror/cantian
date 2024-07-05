@@ -794,6 +794,7 @@ void knl_init_session(knl_handle_t kernel, knl_handle_t knl_session, uint32 uid,
     KNL_SESSION_CLEAR_THREADID(session);
     cm_init_cond(&session->commit_cond);
     session->dist_ddl_id = NULL;
+    session->is_loading = CT_FALSE;
     session->has_migr = CT_FALSE;
     lock_init_group(&session->alck_lock_group);
 
@@ -1661,7 +1662,7 @@ void knl_open_sys_cursor(knl_session_t *session, knl_cursor_t *cursor, knl_curso
     cursor->page_buf = cursor->buf + DEFAULT_PAGE_SIZE(session);
     cursor->update_info.data = session->update_info.data;
     cursor->isolevel = ISOLATION_READ_COMMITTED;
-    if (DB_IS_PRIMARY(&session->kernel->db)) {
+    if (DB_IS_PRIMARY(&session->kernel->db) && !session->is_loading) {
         cursor->query_scn = DB_CURR_SCN(session);
     } else {
         cursor->query_scn = session->query_scn;
