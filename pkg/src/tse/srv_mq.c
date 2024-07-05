@@ -392,7 +392,7 @@ static void shm_log_err(char *log_text, int length)
 
 static void shm_log_info(char *log_text, int length)
 {
-    CT_LOG_RUN_INF(log_text);
+    CT_LOG_RUN_INF_LIMIT(LOG_PRINT_INTERVAL_SECOND_60, log_text);
 }
 
 static int client_connected_cb(int *inst_id)
