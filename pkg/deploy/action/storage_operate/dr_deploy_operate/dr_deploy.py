@@ -23,6 +23,7 @@ from logic.common_func import exec_popen
 from logic.common_func import retry
 from logic.common_func import get_status
 from om_log import DR_DEPLOY_LOG as LOG
+from cantian_common.mysql_shell import MysqlShell
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
@@ -38,7 +39,10 @@ CANTIAN_DISASTER_RECOVERY_STATUS_CHECK = 'echo -e "select * from DV_LRPL_DETAIL;
                                          'export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && '\
                                          'python3 -B %s\'' % EXEC_SQL
 ZSQL_INI_PATH = '/mnt/dbdata/local/cantian/tmp/data/cfg/ctsql.ini'
-LOCK_INSTANCE = "set @ctc_ddl_enabled=true;lock instance for backup;do sleep(100000);"
+LOCK_INSTANCE_STEP1 = "set @ctc_ddl_enabled=true"
+LOCK_INSTANCE_STEP2 = "lock instance for backup"
+UNLOCK_INSTANCE = "unlock instance"
+LOCK_INSTANCE_TIMEOUT = 100
 FLUSH_TABLE = "flush table with read lock;unlock tables;"
 INSTALL_TIMEOUT = 900
 START_TIMEOUT = 3600
@@ -85,7 +89,7 @@ class DRDeploy(object):
         self.mysql_pwd = None
         self.site = None
         self.metadata_in_cantian = False
-        self.backup_lock_pid = None
+        self.backup_lock_shell = None
 
     @staticmethod
     def restart_cantian_exporter():
@@ -197,21 +201,31 @@ class DRDeploy(object):
         :return:
         """
         LOG.info("Start to do lock instance for backup.")
-        mysql_cmd = self.mysql_cmd.split(' ')
-        cmd = ["-u%s" % self.mysql_user, "-p%s" % self.mysql_pwd, "-e", LOCK_INSTANCE]
-        cmd = mysql_cmd + cmd
-        self.record_deploy_process("do_lock_instance_for_backup", "start")
-        try:
-            pobj = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=os.setsid)
-        except Exception as err:
-            err_msg = "Failed to do lock instance for backup, stderr:%s" % (str(err))
-            err_msg.replace(self.mysql_pwd, "***")
+        lock_instance_flag = False
+        wait_lock_instance_time = 0
+        while not lock_instance_flag and wait_lock_instance_time < LOCK_INSTANCE_TIMEOUT:
+            try:
+                # 创建mysql shell会话，并启动会话
+                mysql_shell = MysqlShell(self.mysql_cmd, user=self.mysql_user, password=self.mysql_pwd)
+                mysql_shell.start_session()
+                self.record_deploy_process("do_lock_instance_for_backup", "start")
+
+                mysql_shell.execute_command(LOCK_INSTANCE_STEP1, timeout=3)
+                lock_instance_output = mysql_shell.execute_command(LOCK_INSTANCE_STEP2, timeout=3)
+                if "Query OK" in lock_instance_output:
+                    lock_instance_flag = True
+                    LOG.info("Success to do lock instance for backup.")
+                    self.backup_lock_shell = mysql_shell
+            except Exception as err:
+                LOG.info("Failed to do lock instance for backup, error msg:%s" % (str(err)))
+            wait_lock_instance_time += 10
+            time.sleep(10)
+
+        if not lock_instance_flag:
+            err_msg = "Failed to do lock instance for backup, timeout."
             LOG.error(err_msg)
             self.record_deploy_process("do_lock_instance_for_backup", "failed", code=-1, description=err_msg)
-            raise Exception(err_msg)
-        self.backup_lock_pid = pobj.pid
-        LOG.info("Success to do lock instance for backup.")
+            raise Exception("err_msg")
         self.record_deploy_process("do_lock_instance_for_backup", "success")
 
     def do_unlock_instance_for_backup(self):
@@ -221,28 +235,37 @@ class DRDeploy(object):
         """
         LOG.info("Start to do unlock instance for backup.")
         self.record_deploy_process("do_unlock_instance_for_backup", "start")
+        unlock_success = False
+        close_success = False
+
+        # 解锁实例
         try:
-            os.killpg(self.backup_lock_pid, signal.SIGKILL)
-        except ProcessLookupError as err:
-            err_msg = "Failed to do unlock instance for backup, the child process was accidentally killed prematurely"
-            LOG.error(err_msg)
-            self.record_deploy_process("do_unlock_instance_for_backup", "failed", code=-1, description=err_msg)
-            raise Exception(err_msg)
+            self.backup_lock_shell.execute_command(UNLOCK_INSTANCE, timeout=10)
+            unlock_success = True
+            LOG.info("UNLOCK_INSTANCE executed successfully.")
         except Exception as err:
-            err_msg = "Failed to do unlock instance for backup, stderr:%s" % (str(err))
-            err_msg.replace(self.mysql_pwd, "***")
+            err_msg = "Failed to execute UNLOCK_INSTANCE, error msg: %s" % (str(err))
+            LOG.info(err_msg)
+        # 关闭shell会话
+        try:
+            self.backup_lock_shell.close_session()
+            close_success = True
+            LOG.info("close_session executed successfully.")
+        except Exception as err:
+            err_msg = "Failed to close session, error msg: %s" % (str(err))
+            LOG.error(err_msg)
+
+        # 根据执行结果记录最终状态
+        if unlock_success or close_success:
+            LOG.info("Success to do unlock instance for backup.")
+            self.record_deploy_process("do_unlock_instance_for_backup", "success")
+        else:
+            err_msg = "Failed to do unlock instance for backup."
             LOG.error(err_msg)
             self.record_deploy_process("do_unlock_instance_for_backup", "failed", code=-1, description=err_msg)
             raise Exception(err_msg)
-        # mysql容器场景需要登录mysql容器内kill锁进程
-        if "kubectl" in self.mysql_cmd:
-            kill_cmd = self.mysql_cmd.split(" ")[:-1]
-            kill_cmd = " ".join(
-                kill_cmd) + " bash -c \"ps -ef | grep -v grep | grep '%s'| awk '{print \$2}' | xargs kill -9\"" % LOCK_INSTANCE
-            exec_popen(kill_cmd)
-        self.backup_lock_pid = None
-        LOG.info("Success to do unlock instance for backup.")
-        self.record_deploy_process("do_unlock_instance_for_backup", "success")
+
+        self.backup_lock_shell = None
 
     def do_flush_table_with_read_lock(self):
         """
@@ -1121,7 +1144,7 @@ class DRDeploy(object):
                 else:
                     self.standby_execute()
             except:
-                if self.backup_lock_pid is not None:
+                if self.backup_lock_shell is not None:
                     self.do_unlock_instance_for_backup()
             finally:
                 self.dr_deploy_opt.storage_opt.logout()

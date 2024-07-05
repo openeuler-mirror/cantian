@@ -399,7 +399,10 @@ status_t lock_table_shared_directly(knl_session_t *session, knl_handle_t dc)
             return CT_ERROR;
         }
         cm_reset_error();
-        if (knl_open_dc_by_id(session, pdc->uid, pdc->oid, &reopen_dc, CT_TRUE) != CT_SUCCESS) {
+        text_t user_name, table_name;
+        cm_str2text(user->desc.name, &user_name);
+        cm_str2text(table->desc.name, &table_name);
+        if (knl_open_dc(session, &user_name, &table_name, &reopen_dc) != CT_SUCCESS) {
             code = cm_get_error_code();
             /*
              * if table was dropped, table name described by error message is recycle table name.

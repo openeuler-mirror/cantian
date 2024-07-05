@@ -324,7 +324,7 @@ status_t dtc_rcy_try_alloc_itempool(rcy_set_t *rcy_set, rcy_set_item_pool_t *old
 
 void dtc_rcy_handle_pcn_discon(knl_session_t *session, rcy_set_item_t *item, page_id_t page_id, uint32 pcn, uint64 lsn)
 {
-    if (pcn == (uint32)(item->pcn + 1)) {
+    if (pcn == 0 || pcn == (uint32)(item->pcn + 1)) {
         item->pcn = pcn;
         return;
     }
@@ -386,6 +386,14 @@ void dtc_rcy_pop_page_id(bool32 recover_flag, page_id_t *page_id)
         knl_panic(g_dtc_rcy_page_id_stack.depth > 0);
         g_dtc_rcy_page_id_stack.depth--;
         *page_id = g_dtc_rcy_page_id_stack.gbp_aly_page_id[g_dtc_rcy_page_id_stack.depth];
+    }
+}
+
+void dtc_rcy_get_page_id(bool32 recover_flag, page_id_t *page_id)
+{
+    if (recover_flag) {
+        knl_panic(g_dtc_rcy_page_id_stack.depth > 0);
+        *page_id = g_dtc_rcy_page_id_stack.gbp_aly_page_id[g_dtc_rcy_page_id_stack.depth - 1];
     }
 }
 
@@ -531,6 +539,11 @@ bool8 dtc_get_page_id_by_redo(log_entry_t *log, page_id_t *page_id_value)
             {
                 dtc_rcy_pop_page_id(CT_TRUE, page_id_value);
                 return dtc_rcy_is_need_analysis_leave_page(CT_TRUE);
+            }
+        case RD_SPC_FREE_PAGE:
+            {
+                dtc_rcy_get_page_id(CT_TRUE, page_id_value);
+                break;
             }
         default:
             return CT_FALSE;
@@ -1182,6 +1195,21 @@ void dtc_rcy_close_logfile(knl_session_t *session)
     }
 }
 
+void free_paral_mgr()
+{
+    CM_FREE_PTR(g_analyze_paral_mgr.free_list.array);
+    CM_FREE_PTR(g_analyze_paral_mgr.buf_list);
+    CM_FREE_PTR(g_analyze_paral_mgr.used_list.array);
+    CM_FREE_PTR(g_replay_paral_mgr.buf_list);
+    CM_FREE_PTR(g_replay_paral_mgr.group_list);
+    CM_FREE_PTR(g_replay_paral_mgr.batch_scn);
+    CM_FREE_PTR(g_replay_paral_mgr.node_id);
+    CM_FREE_PTR(g_replay_paral_mgr.batch_rpl_start_time);
+    CM_FREE_PTR(g_replay_paral_mgr.free_list.array);
+    free((void *)g_replay_paral_mgr.group_num);
+    g_replay_paral_mgr.group_num = NULL;
+}
+
 void dtc_recovery_close(knl_session_t *session)
 {
     CT_LOG_RUN_INF("[DTC RCY] start dtc recovery close");
@@ -1231,18 +1259,8 @@ void dtc_recovery_close(knl_session_t *session)
     }
     // [reformer] release memroy malloced in dtc_rcy_init_context
     CM_FREE_PTR(dtc_rcy->rcy_nodes);
-    CM_FREE_PTR(g_analyze_paral_mgr.free_list.array);
-    CM_FREE_PTR(g_analyze_paral_mgr.buf_list);
-    CM_FREE_PTR(g_analyze_paral_mgr.used_list.array);
-    CM_FREE_PTR(g_replay_paral_mgr.buf_list);
-    CM_FREE_PTR(g_replay_paral_mgr.group_list);
-    CM_FREE_PTR(g_replay_paral_mgr.batch_scn);
-    CM_FREE_PTR(g_replay_paral_mgr.node_id);
-    CM_FREE_PTR(g_replay_paral_mgr.batch_rpl_start_time);
-    CM_FREE_PTR(g_replay_paral_mgr.free_list.array);
-    free((void *)g_replay_paral_mgr.group_num);
-    g_replay_paral_mgr.group_num = NULL;
-    
+    free_paral_mgr();
+
     rcy_set_t *rcy_set = &dtc_rcy->rcy_set;
     if (rcy_set->buckets != NULL) {
         CM_FREE_PTR(rcy_set->buckets);
@@ -2425,6 +2443,20 @@ static uint64 dtc_rcy_get_ddl_lsn_pitr(void)
     return rcy_node->ddl_lsn_pitr;
 }
 
+void dtc_convert_scn_to_time(knl_session_t *session, uint64 batch_scn, char *time_str)
+{
+    timeval_t time_val = { 0 };
+    KNL_SCN_TO_TIME(batch_scn, &time_val, DB_INIT_TIME(session));
+    time_t scn_time = cm_date2time(cm_timeval2date(time_val));
+    text_t fmt_text = { 0 };
+    cm_str2text("YYYY-MM-DD HH24:MI:SS", &fmt_text);
+    text_t time_text = { 0 };
+    time_text.str = time_str;
+    time_text.len = 0;
+    cm_time2text(scn_time, &fmt_text, &time_text, CT_MAX_TIME_STRLEN);
+    return;
+}
+
 status_t dtc_rcy_process_batch(knl_session_t *session, log_batch_t *batch)
 {
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
@@ -2462,10 +2494,16 @@ status_t dtc_rcy_process_batch(knl_session_t *session, log_batch_t *batch)
                 return CT_ERROR;
             }
             if (dtc_rcy_check_is_end_restore_recovery()) {
-                CT_LOG_RUN_INF("[DTC RCY] pcn is invalide, lsn=%llu, rmid=%u, batch_start_lsn=%llu",
-                               group->lsn, group->rmid, batch_start_lsn);
+                CT_LOG_RUN_INF("[DTC RCY] pcn is invalide, lsn=%llu, rmid=%u, batch_start_lsn=%llu, batch scn=%llu",
+                               group->lsn, group->rmid, batch_start_lsn, batch->scn);
                 dtc_rcy->end_lsn_restore_recovery = batch_start_lsn;
-                CT_RETURN_IFERR(dtc_rcy_set_batch_invalidate(session, batch));
+                uint64 pitr_scn = session->kernel->rcy_ctx.max_scn;
+                if (pitr_scn != CT_INVALID_ID64 && batch->scn < pitr_scn) {
+                    char time_str[CT_MAX_TIME_STRLEN] = { 0 };
+                    dtc_convert_scn_to_time(session, batch->scn, time_str);
+                    CT_LOG_RUN_WAR("[DTC RCY] the end replay batch scn %llu is smaller than pitr scn %llu, "
+                        "replay batch end time: %s", batch->scn, pitr_scn, time_str);
+                }
                 break;
             }
         }
@@ -3931,11 +3969,8 @@ static inline void dtc_free_read_buf(uint32 index){
     }
 }
 
-status_t dtc_recovery_init(knl_session_t *session, instance_list_t *recover_list, bool32 full_recovery)
+status_t init_paral_mgr()
 {
-    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
-    uint32 count = recover_list->inst_id_count;
-    uint32 read_buf_size = g_instance->kernel.attr.rcy_node_read_buf_size;
     uint32 prarl_buf_list_size = g_instance->kernel.attr.dtc_rcy_paral_buf_list_size;
     g_analyze_paral_mgr.free_list.array = (uint32 *)malloc(prarl_buf_list_size * sizeof(uint32));
     g_analyze_paral_mgr.used_list.array = (uint32 *)malloc(prarl_buf_list_size * sizeof(uint32));
@@ -3952,6 +3987,30 @@ status_t dtc_recovery_init(knl_session_t *session, instance_list_t *recover_list
         g_replay_paral_mgr.node_id == NULL || g_replay_paral_mgr.batch_rpl_start_time == NULL || g_replay_paral_mgr.free_list.array == NULL ||
         g_analyze_paral_mgr.used_list.array == NULL) {
         CM_ABORT(0, "[DTC RCY] alloc memory failed");
+    }
+    MEMS_RETURN_IFERR(memset_sp(g_analyze_paral_mgr.free_list.array, prarl_buf_list_size * sizeof(uint32), 0, prarl_buf_list_size * sizeof(uint32)));
+    MEMS_RETURN_IFERR(memset_sp(g_analyze_paral_mgr.used_list.array, prarl_buf_list_size * sizeof(uint32), 0, prarl_buf_list_size * sizeof(uint32)));
+    MEMS_RETURN_IFERR(memset_sp(g_analyze_paral_mgr.buf_list, prarl_buf_list_size * sizeof(aligned_buf_t), 0, prarl_buf_list_size * sizeof(aligned_buf_t)));
+    MEMS_RETURN_IFERR(memset_sp(g_replay_paral_mgr.buf_list, prarl_buf_list_size * sizeof(aligned_buf_t), 0, prarl_buf_list_size * sizeof(aligned_buf_t)));
+    MEMS_RETURN_IFERR(memset_sp(g_replay_paral_mgr.group_list, prarl_buf_list_size * sizeof(aligned_buf_t), 0, prarl_buf_list_size * sizeof(aligned_buf_t)));
+    MEMS_RETURN_IFERR(memset_sp((void *)g_replay_paral_mgr.group_num, prarl_buf_list_size * sizeof(atomic32_t), 0, prarl_buf_list_size * sizeof(atomic32_t)));
+    MEMS_RETURN_IFERR(memset_sp(g_replay_paral_mgr.batch_scn, prarl_buf_list_size * sizeof(knl_scn_t), 0, prarl_buf_list_size * sizeof(knl_scn_t)));
+    MEMS_RETURN_IFERR(memset_sp(g_replay_paral_mgr.node_id, prarl_buf_list_size * sizeof(uint32), 0, prarl_buf_list_size * sizeof(uint32)));
+    MEMS_RETURN_IFERR(memset_sp(g_replay_paral_mgr.batch_rpl_start_time, prarl_buf_list_size * sizeof(date_t), 0, prarl_buf_list_size * sizeof(date_t)));
+    MEMS_RETURN_IFERR(memset_sp(g_replay_paral_mgr.free_list.array, prarl_buf_list_size * sizeof(uint32), 0, prarl_buf_list_size * sizeof(uint32)));
+
+    return CT_SUCCESS;
+}
+
+status_t dtc_recovery_init(knl_session_t *session, instance_list_t *recover_list, bool32 full_recovery)
+{
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+    uint32 count = recover_list->inst_id_count;
+    uint32 read_buf_size = g_instance->kernel.attr.rcy_node_read_buf_size;
+    if (init_paral_mgr() != CT_SUCCESS){
+        CT_LOG_RUN_ERR("[DTC RCY] failed to init paral mgr");
+        free_paral_mgr();
+        return CT_ERROR;
     }
 
     dtc_rcy_init_last_recovery_stat(recover_list);
