@@ -159,11 +159,19 @@ uint8 drc_get_deposit_id(uint8 inst_id)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     uint8 deposit_id = CT_INVALID_ID8;
-    if (inst_id < CT_MAX_INSTANCES) {
+    if (inst_id > CT_MAX_INSTANCES) {
+        CT_LOG_RUN_ERR("inst_id %d is invalid", inst_id);
+        return deposit_id;
+    }
+    drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
+    if (part_mngr->remaster_status < REMASTER_DONE) {
         cm_spin_lock(&ctx->drc_deposit_map[inst_id].lock, NULL);
         deposit_id = (uint8)ctx->drc_deposit_map[inst_id].deposit_id;
         cm_spin_unlock(&ctx->drc_deposit_map[inst_id].lock);
+    } else {
+        deposit_id = (uint8)ctx->drc_deposit_map[inst_id].deposit_id;
     }
+
     return deposit_id;
 }
 
