@@ -953,7 +953,6 @@ void unlock_table_local(knl_session_t *session, knl_handle_t dc_entry, uint32 in
 
     cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
     if (lock == NULL) {
-        knl_panic(is_clean);
         cm_spin_unlock(&entry->sch_lock_mutex);
         return;
     }
