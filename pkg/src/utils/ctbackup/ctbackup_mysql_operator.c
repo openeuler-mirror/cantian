@@ -41,7 +41,7 @@
         (target) = TIMEVAL_DIFF_US(&(elapsed_begin), &(elapsed_end)); \
     } while (0)
 
-#define MYSQL_SHELL_EXE "python /opt/cantian/action/cantian_common/mysql_shell.py"
+#define MYSQL_SHELL_EXE "python3 /opt/cantian/action/cantian_common/mysql_shell.py"
 #define MYSQL_SET_DDL_ENABLE_CMD "set @ctc_ddl_enabled=true;"
 #define MYSQL_LOCK_INSTANCE_CMD "lock instance for backup;"
 #define MYSQL_CMD_SUCCESS_SYMBOL "Query OK, 0 rows affected"
