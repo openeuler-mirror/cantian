@@ -1428,7 +1428,6 @@ status_t db_delete_schema_stats(knl_session_t *session, text_t *schema_name)
     uint32 uid = CT_INVALID_ID32;
     uint32 table_id = CT_INVALID_ID32;
     bool32 eof = CT_FALSE;
-    dc_entry_t *entry = NULL;
 
     if (DB_IS_READONLY(session)) {
         CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
