@@ -128,13 +128,16 @@ def lock_instance_for_backup():
         output = mysql_shell.execute_command("set @ctc_ddl_enabled=true", timeout=3)
         print("output: ", output, flush=True)
         if "Query OK" not in output:
+            mysql_shell.close_session()
             sys.exit(1)
         output = mysql_shell.execute_command("lock instance for backup", timeout=3)
         print("output: ", output, flush=True)
         if "Query OK" not in output:
+            mysql_shell.close_session()
             sys.exit(1)
     except TimeoutError as e:
         print("Error: LOCK INSTANCE FOR BACKUP timed out.")
+        mysql_shell.close_session()
         sys.exit(1)
 
     start_time = time.time()
