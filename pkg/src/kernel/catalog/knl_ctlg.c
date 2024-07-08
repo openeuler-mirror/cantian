@@ -1464,16 +1464,6 @@ status_t db_delete_schema_stats(knl_session_t *session, text_t *schema_name)
             continue;
         }
 
-        entry = ((dc_entity_t *)dc.handle)->entry;
-        if (entry != NULL && strncmp(entry->name, MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) == 0) {
-            dc_close(&dc);
-            continue;
-        }
-        if (strncmp(((dc_entity_t *)dc.handle)->table.desc.name, MYSQL_TMP_TABLE_PREFIX, MYSQL_TMP_TABLE_PREFIX_LEN) == 0) {
-            dc_close(&dc);
-            continue;
-        }
-
         if (lock_table_shared_directly(session, &dc) != CT_SUCCESS) {
             status = CT_ERROR;
         } else {
