@@ -708,7 +708,7 @@ void drc_start_remaster(reform_info_t *reform_info);
 status_t drc_stop_remaster(void);
 bool32 drc_remaster_in_progress(void);
 bool32 drc_remaster_need_stop(void);
-void drc_clean_remaster_res(void);
+status_t drc_clean_remaster_res(void);
 uint8 drc_get_remaster_status(void);
 EXTER_ATTACK void drc_process_remaster_status_notify(void *sess, mes_message_t *receive_msg);
 EXTER_ATTACK void drc_accept_remaster_task(void *sess, mes_message_t *msg);
@@ -731,7 +731,7 @@ status_t drc_remaster_task_ack(uint32 id, status_t task_status);
 bool32 drc_remaster_recovery_is_complete(drc_remaster_mngr_t *remaster_mngr);
 status_t drc_remaster_recovery(knl_session_t *session, reform_info_t *reform_info);
 status_t drc_remaster_step_migrate(knl_session_t *session, reform_info_t *reform_info);
-void drc_remaster_migrate_clean_res_owner(knl_session_t *session, reform_info_t *reform_info);
+status_t drc_remaster_migrate_clean_res_owner(knl_session_t *session, reform_info_t *reform_info);
 status_t drc_remaster_wait_migrate_finish(uint64 timeout);
 status_t drc_remaster_migrate(knl_session_t *session);
 
