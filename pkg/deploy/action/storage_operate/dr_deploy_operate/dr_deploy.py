@@ -203,6 +203,7 @@ class DRDeploy(object):
         LOG.info("Start to do lock instance for backup.")
         lock_instance_flag = False
         wait_lock_instance_time = 0
+        mysql_shell = None
         while not lock_instance_flag and wait_lock_instance_time < LOCK_INSTANCE_TIMEOUT:
             try:
                 # 创建mysql shell会话，并启动会话
@@ -217,6 +218,7 @@ class DRDeploy(object):
                     LOG.info("Success to do lock instance for backup.")
                     self.backup_lock_shell = mysql_shell
             except Exception as err:
+                mysql_shell.close_session()
                 LOG.info("Failed to do lock instance for backup, error msg:%s" % (str(err)))
             wait_lock_instance_time += 10
             time.sleep(10)
