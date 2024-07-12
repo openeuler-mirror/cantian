@@ -455,7 +455,7 @@ status_t spc_create_datafile(knl_session_t *session, space_t *space, knl_device_
     }
 
     spc_update_head(session, space, new_df);
-    ckpt_disable(session);
+    ckpt_disable_update_point(session);
     log_atomic_op_end(session);
 
     log_commit(session);
@@ -491,7 +491,7 @@ status_t spc_create_datafile(knl_session_t *session, space_t *space, knl_device_
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_CREATE_DATAFILE_AFTER_SYNC_DDL_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
 
-    ckpt_enable(session);
+    ckpt_enable_update_point(session);
     CT_LOG_RUN_INF("[SPACE] space %s add datafile %s success", space->ctrl->name, new_df->ctrl->name);
  
     return CT_SUCCESS;
