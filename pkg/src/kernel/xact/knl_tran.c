@@ -649,7 +649,7 @@ static void tx_end(knl_session_t *session, bool32 is_commit, knl_scn_t xa_scn, b
 
     if (dis_ckpt) {
         knl_begin_session_wait(session, CKPT_DISABLE_WAIT, CT_TRUE);
-        ckpt_disable(session);
+        ckpt_disable_update_point(session);
         knl_end_session_wait(session, CKPT_DISABLE_WAIT);
     }
     log_atomic_op_end(session);
@@ -729,7 +729,7 @@ void tx_commit(knl_session_t *session, knl_scn_t xa_scn)
         SYNC_POINT_GLOBAL_START(CANTIAN_DDL_BEFORE_SYNC_DDL_ABORT, NULL, 0);
         SYNC_POINT_GLOBAL_END;
         dtc_sync_ddl(session);
-        ckpt_enable(session);
+        ckpt_enable_update_point(session);
     }
 
     tx_release(session);
