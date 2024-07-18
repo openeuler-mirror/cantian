@@ -77,6 +77,8 @@ typedef enum en_dbs_init_mode {
     DBS_RUN_CMS_SERVER_NFS,
     
     DBS_RUN_CANTIAND_SERVER = 20,
+
+    DBS_RUN_DBS_TOOL = 30,
 } dbs_init_mode;
 
 // enum-namespace

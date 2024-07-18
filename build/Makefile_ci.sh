@@ -209,12 +209,14 @@ func_release_symbol()
         sh  ${CANTIANDB_BUILD}/${DBG_SYMBOL_SCRIPT} ${CANTIANDB_BIN}/ctsql
         sh  ${CANTIANDB_BUILD}/${DBG_SYMBOL_SCRIPT} ${CANTIANDB_BIN}/ctbox
         sh  ${CANTIANDB_BUILD}/${DBG_SYMBOL_SCRIPT} ${CANTIANDB_BIN}/ctbackup
+        sh  ${CANTIANDB_BUILD}/${DBG_SYMBOL_SCRIPT} ${CANTIANDB_BIN}/dbstor
         mv -f ${CANTIANDB_BIN}/${CANTIAND_BIN}.${SYMBOLFIX} ${CANTIANDB_SYMBOL}/${CANTIAND_BIN}.${SYMBOLFIX}
         mv -f ${CANTIANDB_BIN}/cms.${SYMBOLFIX} ${CANTIANDB_SYMBOL}/cms.${SYMBOLFIX}
         mv -f ${CANTIANDB_BIN}/ctencrypt.${SYMBOLFIX} ${CANTIANDB_SYMBOL}/ctencrypt.${SYMBOLFIX}
         mv -f ${CANTIANDB_BIN}/ctsql.${SYMBOLFIX} ${CANTIANDB_SYMBOL}/ctsql.${SYMBOLFIX}
         mv -f ${CANTIANDB_BIN}/ctbox.${SYMBOLFIX} ${CANTIANDB_SYMBOL}/ctbox.${SYMBOLFIX}
         mv -f ${CANTIANDB_BIN}/ctbackup.${SYMBOLFIX} ${CANTIANDB_SYMBOL}/ctbackup.${SYMBOLFIX}
+        mv -f ${CANTIANDB_BIN}/dbstor.${SYMBOLFIX} ${CANTIANDB_SYMBOL}/dbstor.${SYMBOLFIX}
 
         ##opensource library
         sh  ${CANTIANDB_BUILD}/${DBG_SYMBOL_SCRIPT} ${LZ4_LIB_PATH}/liblz4.so.1.9.4
@@ -278,7 +280,7 @@ func_pkg_run_basic()
     func_version_run_pkg
 
     cd ${CANTIANDB_BIN}
-    cp ctsql cantiand ctencrypt cms ctbackup ctbox ctrst ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/bin/
+    cp ctsql cantiand ctencrypt cms ctbackup ctbox ctrst dbstor ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/bin/
 
     cp -d ${ZSTD_LIB_PATH}/../bin/zstd ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/bin/
     cd ${CANTIANDB_HOME}
