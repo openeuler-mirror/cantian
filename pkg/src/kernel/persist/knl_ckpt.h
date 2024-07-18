@@ -238,6 +238,8 @@ typedef struct st_ckpt_ctx {
     uint8 reserved[3];
     volatile uint32 disable_cnt;
     spinlock_t disable_lock;
+    volatile bool32 ckpt_enable_update_point;
+    volatile uint32 disable_update_point_cnt;
 } ckpt_context_t;
 
 void ckpt_update_log_point_slave_role(knl_session_t *session);
@@ -275,6 +277,8 @@ status_t ckpt_prepare_compress(knl_session_t *session, ckpt_context_t *ctx, buf_
     buf_ctrl_t *ctrl_next, bool8 *ctrl_next_is_flushed, bool8 *need_exit);
 status_t dbwr_aio_init(knl_session_t *session, dbwr_context_t *dbwr);
 bool32 ckpt_try_latch_group(knl_session_t *session, buf_ctrl_t *ctrl);
+void ckpt_disable_update_point(knl_session_t *session);
+void ckpt_enable_update_point(knl_session_t *session);
 
 #ifdef __cplusplus
 }

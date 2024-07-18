@@ -142,6 +142,8 @@ status_t ckpt_init(knl_session_t *session)
     ctx->ckpt_blocked = CT_FALSE;
     CT_INIT_SPIN_LOCK(ctx->disable_lock);
     ctx->disable_cnt = 0;
+    ctx->ckpt_enable_update_point = CT_TRUE;
+    ctx->disable_update_point_cnt = 0;
 
     if (dbwr_init(session) != CT_SUCCESS) {
         return CT_ERROR;
@@ -336,6 +338,14 @@ void ckpt_block_and_wait_enable(ckpt_context_t *ctx)
 
     ctx->ckpt_blocked = CT_FALSE;
 }
+
+void ckpt_wait_enable_update_point(ckpt_context_t *ctx)
+{
+    while (ctx->ckpt_enable_update_point == CT_FALSE)
+    {
+        cm_sleep(CKPT_WAIT_ENABLE_MS);
+    }
+}
 /*
  * trigger full checkpoint to promote rcy point to current point
  */
@@ -363,6 +373,7 @@ static void ckpt_full_checkpoint(knl_session_t *session)
         }
 
         ckpt_block_and_wait_enable(ctx);
+        ckpt_wait_enable_update_point(ctx);
 
         if (!DB_IS_PRIMARY(&session->kernel->db)) {
             ckpt_update_log_point_slave_role(session);
@@ -429,14 +440,17 @@ static void ckpt_inc_checkpoint(knl_session_t *session)
 
     ckpt_block_and_wait_enable(ctx);
 
-    if (!DB_IS_PRIMARY(&session->kernel->db)) {
-        ckpt_update_log_point_slave_role(session);
-    } else {
-        ckpt_update_log_point(session);
-        // save log point first
-        if (ckpt_save_ctrl(session) != CT_SUCCESS) {
-            KNL_SESSION_CLEAR_THREADID(session);
-            CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
+    if (ctx->ckpt_enable_update_point == CT_TRUE)
+    {
+        if (!DB_IS_PRIMARY(&session->kernel->db)) {
+            ckpt_update_log_point_slave_role(session);
+        } else {
+            ckpt_update_log_point(session);
+            // save log point first
+            if (ckpt_save_ctrl(session) != CT_SUCCESS) {
+                KNL_SESSION_CLEAR_THREADID(session);
+                CM_ABORT(0, "[CKPT] ABORT INFO: save core control file failed when perform checkpoint");
+            }
         }
     }
     
@@ -2880,6 +2894,32 @@ void ckpt_enable(knl_session_t *session)
     }
     if (ctx->disable_cnt == 0) {
         ctx->ckpt_enabled = CT_TRUE;
+    }
+    cm_spin_unlock(&ctx->disable_lock);
+}
+
+void ckpt_disable_update_point(knl_session_t *session)
+{
+    ckpt_disable(session);
+    ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
+    cm_spin_lock(&ctx->disable_lock, NULL);
+    ctx->disable_update_point_cnt++;
+    ctx->ckpt_enable_update_point = CT_FALSE;
+    cm_spin_unlock(&ctx->disable_lock);
+    ckpt_enable(session);
+}
+
+void ckpt_enable_update_point(knl_session_t *session)
+{
+    ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
+    cm_spin_lock(&ctx->disable_lock, NULL);
+    if (ctx->disable_update_point_cnt > 0)
+    {
+        ctx->disable_update_point_cnt--;
+    }
+    if (ctx->disable_update_point_cnt == 0)
+    {
+        ctx->ckpt_enable_update_point = CT_TRUE;
     }
     cm_spin_unlock(&ctx->disable_lock);
 }
