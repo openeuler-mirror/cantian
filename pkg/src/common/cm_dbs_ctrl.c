@@ -31,6 +31,7 @@
 #include "cm_text.h"
 #include "cm_dbs_iofence.h"
 #include "cm_dbstore.h"
+#include "srv_param_common.h"
 
 typedef struct {
     NameSpaceId pgNsId;
@@ -196,7 +197,7 @@ cm_dbs_cfg_s *cm_dbs_get_cfg(void)
 }
 
 status_t cm_dbs_set_cfg(bool32 enable, uint32 dataPgSize, uint32 ctrlPgSize, const char *ns_name, uint32 partition_num,
-    bool32 enable_batch_flush)
+    bool32 enable_batch_flush, uint32 deploy_mode)
 {
     status_t ret;
 
@@ -206,8 +207,9 @@ status_t cm_dbs_set_cfg(bool32 enable, uint32 dataPgSize, uint32 ctrlPgSize, con
         g_dbs_cfg.ctrlFilePgSize = ctrlPgSize;
         g_dbs_cfg.partition_num = partition_num;
         g_dbs_cfg.enable_batch_flush = enable_batch_flush;
-        CT_LOG_RUN_INF("date page size is %d, ctrl page size is %d, partition num %d, enable_batch_flush %d",
-            dataPgSize, ctrlPgSize, partition_num, enable_batch_flush);
+        g_dbs_cfg.deploy_mode = deploy_mode;
+        CT_LOG_RUN_INF("date page size is %d, ctrl page size is %d, partition num %d, enable_batch_flush %d, mode %u",
+            dataPgSize, ctrlPgSize, partition_num, enable_batch_flush, deploy_mode);
         if (ns_name == NULL || strlen(ns_name) == 0) {
             CT_LOG_RUN_ERR("DBStor namespace param error");
             return CT_ERROR;
@@ -224,6 +226,12 @@ bool32 cm_dbs_is_enable_dbs(void)
 {
     cm_dbs_cfg_s *cfg = cm_dbs_get_cfg();
     return cfg->enable;
+}
+
+uint32 cm_dbs_get_deploy_mode(void)
+{
+    cm_dbs_cfg_s *cfg = cm_dbs_get_cfg();
+    return cfg->deploy_mode;
 }
 
 void exit_panic(void)

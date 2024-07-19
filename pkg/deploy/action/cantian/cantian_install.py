@@ -85,6 +85,7 @@ MYSQL_CODE_DIR = "/opt/cantian/image/cantian_connector/cantian-connector-mysql"
 MYSQL_BIN_DIR = "/opt/cantian/mysql/install/mysql"
 MYSQL_DATA_DIR = ""
 MYSQL_LOG_FILE = ""
+DEPLOY_MODE = ""
 
 g_opts = Options()
 CheckPathsInfo = collections.namedtuple('CheckPathsInfo', ['path_len', 'path_type_in', 'a_ascii',
@@ -304,7 +305,12 @@ def load_config_param(json_data):
     g_opts.archive_logic_ip = json_data.get('archive_logic_ip', '').strip()
     g_opts.mes_type = json_data.get("mes_type", "UC").strip()
     g_opts.mes_ssl_switch = json_data.get("mes_ssl_switch", False)
-    g_opts.archive_location = "location=/mnt/dbdata/remote/archive_" + json_data['storage_archive_fs'].strip()
+    global DEPLOY_MODE
+    DEPLOY_MODE = json_data.get("deploy_mode", "").strip()
+    storage_archive_fs = json_data['storage_archive_fs'].strip()
+    g_opts.use_dbstor = DEPLOY_MODE != "nas"
+    g_opts.archive_location = f"location=/{f'mnt/dbdata/remote/archive_{storage_archive_fs}' if DEPLOY_MODE != 'dbstore_unify' else f'{storage_archive_fs}/archive'}"
+    g_opts.dbstor_deploy_mode = DEPLOY_MODE == "dbstore_unify"
     metadata_str = "metadata_" + json_data.get('storage_metadata_fs', '').strip()
     node_str = "node" + str(g_opts.node_id)
     global MYSQL_DATA_DIR
@@ -313,7 +319,6 @@ def load_config_param(json_data):
     MYSQL_LOG_FILE = os.path.join(MYSQL_DATA_DIR, "mysql.log")
     g_opts.max_arch_files_size = json_data['MAX_ARCH_FILES_SIZE'].strip()
     g_opts.cluster_id = json_data['cluster_id'].strip()
-    g_opts.use_dbstor = True if json_data.get("deploy_mode", "").strip() != "nas" else False
 
 
 def parse_parameter():
@@ -1016,6 +1021,8 @@ class Installer:
             self.cantiand_configs["LOG_HOME"] = os.path.join(self.data, "log")
         if len(self.cantiand_configs.get("SHARED_PATH")) == 0:
             self.cantiand_configs["SHARED_PATH"] = os.path.join(self.data, "data")
+        if g_opts.use_dbstor:
+            self.cantiand_configs["DBSTOR_DEPLOY_MODE"] = "1" if g_opts.dbstor_deploy_mode else "0"
         self.cantiand_configs["ARCHIVE_DEST_1"] = g_opts.archive_location
         self.cantiand_configs["MAX_ARCH_FILES_SIZE"] = g_opts.max_arch_files_size
         self.cantiand_configs["CLUSTER_ID"] = g_opts.cluster_id
@@ -3340,20 +3347,38 @@ def check_archive_dir():
     if start_parameters.setdefault('db_create_status', "default") == "done":
         return
 
-    cantian_check_share_logic_ip_isvalid(g_opts.archive_logic_ip)
-    archive_dir = g_opts.archive_location.split("=")[1]
-    if os.path.exists(archive_dir):
-        files = os.listdir(archive_dir)
-        for file in files:
-            if (file[-4:] == ".arc" and file[:4] == "arch") or ("arch_file.tmp" in file):
-                err_msg = "archive dir %s is not empty, history archive file or archive tmp file : %s." % (archive_dir, file)
+    if DEPLOY_MODE != "dbstore_unify":
+        cantian_check_share_logic_ip_isvalid(g_opts.archive_logic_ip)
+        archive_dir = g_opts.archive_location.split("=")[1]
+        if os.path.exists(archive_dir):
+            files = os.listdir(archive_dir)
+            for file in files:
+                if (file[-4:] == ".arc" and file[:4] == "arch") or ("arch_file.tmp" in file):
+                    err_msg = "archive dir %s is not empty, history archive file or archive tmp file : %s." % (
+                    archive_dir, file)
+                    LOGGER.error(err_msg)
+                    raise Exception(err_msg)
+        else:
+            err_msg = "archive dir %s is not exist." % archive_dir
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
+        LOGGER.info("checked the archive dir.")
+    else:
+        arch_query_cmd = "dbstor --arch-query"
+        return_code, output, stderr = _exec_popen(arch_query_cmd)
+        if return_code:
+            if "the archive dir does not exist" in str(output):
+                log("INFO: %s" % output.strip())
+            else:
+                err_msg = "Failed to execute command '%s', error: %s" % (arch_query_cmd, stderr)
                 LOGGER.error(err_msg)
                 raise Exception(err_msg)
-    else:
-        err_msg = "archive dir %s is not exist." % archive_dir
-        LOGGER.error(err_msg)
-        raise Exception(err_msg)
-    LOGGER.info("checked the archive dir.")
+        else:
+            if any("arch" in line and (".arc" in line or "arch_file.tmp" in line) for line in output.splitlines()):
+                err_msg = "Archive files found in dbstore: %s" % output
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
+            log("Checked the archive status in dbstore.")
 
 
 class CanTian(object):

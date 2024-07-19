@@ -94,14 +94,14 @@ char* cm_find_fix_delim(char *file_path, const char delim, uint32 fix_num)
     return NULL;
 }
 
-status_t cm_get_fs_name(const char *file_path, char delim, char *fs_name)
+status_t cm_get_fs_name(const char *file_path, const char *delim, char *fs_name)
 {
     char *context = NULL;
     char *token = NULL;
 
     char file[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
     MEMS_RETURN_IFERR(strcpy_sp(file, MAX_DBS_FS_FILE_PATH_LEN, file_path));
-    token = strtok_s(file, &delim, &context);
+    token = strtok_s(file, delim, &context);
     if (token == NULL) {
         CT_LOG_RUN_ERR("[CM_DEVICE] get fs name failed, file_path %s", file);
         return CT_ERROR;
@@ -114,14 +114,14 @@ status_t cm_get_fs_name(const char *file_path, char delim, char *fs_name)
     return CT_SUCCESS;
 }
 
-status_t cm_get_file_name_and_dir(const char *file_path, uint32 path_depth, char delim, char *file_name, char *file_dir)
+status_t cm_get_file_name_and_dir(const char *file_path, uint32 path_depth, const char *delim, char *file_name, char *file_dir)
 {
     char *context = NULL;
     char *token = NULL;
     uint32 cur_depth = 0;
     char file[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
     MEMS_RETURN_IFERR(strcpy_sp(file, MAX_DBS_FS_FILE_PATH_LEN, file_path));
-    token = strtok_s(file, &delim, &context);
+    token = strtok_s(file, delim, &context);
     while (token != NULL) {
         if (cur_depth >= path_depth) {
             CT_LOG_RUN_INF("[CM_DEVICE] get file name failed, cur depth %u, path depth %u",
@@ -136,7 +136,7 @@ status_t cm_get_file_name_and_dir(const char *file_path, uint32 path_depth, char
             MEMS_RETURN_IFERR(strcat_s(file_dir, MAX_DBS_FS_FILE_PATH_LEN, token));
         }
         cur_depth++;
-        token = strtok_s(NULL, &delim, &context);
+        token = strtok_s(NULL, delim, &context);
     }
     return CT_SUCCESS;
 }
@@ -178,7 +178,7 @@ status_t cm_dbs_open_file_common(const char *name, uint32 file_type, int32 *hand
     }
 
     char fs_name[MAX_DBS_FS_NAME_LEN] = { 0 };
-    if (cm_get_fs_name(file_path, '/', fs_name) != CT_SUCCESS) {
+    if (cm_get_fs_name(file_path, "/", fs_name) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CM_DEVICE] get fs name failed, file path %s", file_path);
         return CT_ERROR;
     }
@@ -244,7 +244,7 @@ status_t cm_dbs_create_file_common(const char *name, uint32 file_type, int32 *ha
 
     char fs_name[MAX_DBS_FS_NAME_LEN] = { 0 };
     object_id_t root_obj_id = { 0 };
-    if (cm_get_fs_name(file_path, '/', fs_name) != CT_SUCCESS) {
+    if (cm_get_fs_name(file_path, "/", fs_name) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CM_DEVICE] get fs name failed, file path %s", file_path);
         return CT_ERROR;
     }
@@ -273,7 +273,7 @@ status_t cm_dbs_create_file_common(const char *name, uint32 file_type, int32 *ha
 status_t cm_dbs_get_dir_handle(char *file_dir, uint32 dir_path_depth, object_id_t *obj_id)
 {
     char fs_name[MAX_DBS_FS_NAME_LEN] = { 0 };
-    if (cm_get_fs_name(file_dir, '/', fs_name) != CT_SUCCESS) {
+    if (cm_get_fs_name(file_dir, "/", fs_name) != CT_SUCCESS) {
         return CT_ERROR;
     }
     CT_LOG_RUN_INF("[CM_DEVICE] begin to open root, file dir %s, fs_name %s", file_dir, fs_name);
@@ -320,7 +320,7 @@ status_t cm_dbs_remove_file(const char *name)
 
     char file_name[MAX_DBS_FILE_NAME_LEN] = { 0 };
     char file_dir[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
-    if (cm_get_file_name_and_dir(file_path, path_depth, '/', file_name, file_dir) != CT_SUCCESS) {
+    if (cm_get_file_name_and_dir(file_path, path_depth, "/", file_name, file_dir) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CM_DEVICE] get dbs file name and dir failed, file path %s", file_path);
         return CT_ERROR;
     }
@@ -529,11 +529,11 @@ status_t cm_dbs_rename_file(const char *src_name, const char *dst_name)
     char src_file_dir[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
     char dst_file_name[MAX_DBS_FILE_NAME_LEN] = { 0 };
     char dst_file_dir[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
-    if (cm_get_file_name_and_dir(src_path, src_path_depth, '/', src_file_name, src_file_dir) != CT_SUCCESS) {
+    if (cm_get_file_name_and_dir(src_path, src_path_depth, "/", src_file_name, src_file_dir) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CM_DEVICE] get dbs src file name and dir failed, file path %s", src_path);
         return CT_ERROR;
     }
-    if (cm_get_file_name_and_dir(dst_path, dst_path_depth, '/', dst_file_name, dst_file_dir) != CT_SUCCESS) {
+    if (cm_get_file_name_and_dir(dst_path, dst_path_depth, "/", dst_file_name, dst_file_dir) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CM_DEVICE] get dbs dst file name and dir failed, file path %s", dst_path);
         return CT_ERROR;
     }
@@ -576,7 +576,7 @@ bool32 cm_dbs_exist_file(const char *name, uint32 file_type)
     }
 
     char fs_name[MAX_DBS_FS_NAME_LEN] = { 0 };
-    if (cm_get_fs_name(file_path, '/', fs_name) != CT_SUCCESS) {
+    if (cm_get_fs_name(file_path, "/", fs_name) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CM_DEVICE] get fs name failed, file path %s", file_path);
         return CT_FALSE;
     }

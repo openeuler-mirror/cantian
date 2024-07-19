@@ -978,6 +978,8 @@ def get_error_msg(outmsg, errmsg):
 
 def clean_archive_dir(json_data_deploy):
     db_type = json_data_deploy.get('db_type', '')
+    deploy_model = json_data_deploy.get('deploy_mode', '')
+    archive_fs = json_data_deploy.get('storage_archive_fs', '')
     uninstall_type = sys.argv[1]
     if db_type == '' or db_type == '0' or uninstall_type == "reserve":
         return
@@ -991,16 +993,31 @@ def clean_archive_dir(json_data_deploy):
     storage_archive_fs = json_data_deploy.get('storage_archive_fs', '').strip()
     archive_dir = os.path.join("/mnt/dbdata/remote", "archive_" + storage_archive_fs)
     cantian_check_share_logic_ip_isvalid(archive_logic_ip)
-    cmd = "timeout 10 ls %s" % archive_dir
-    ret_code, _, stderr = _exec_popen(cmd)
-    if node_id == "0" and (ret_code == 0 or FORCE_UNINSTALL != "force"):
-        cmd_str = "rm -rf %s/arch*.arc %s/*arch_file.tmp" % (archive_dir, archive_dir)
-        ret_code, _, stderr = _exec_popen(cmd_str)
-        if ret_code:
-            LOGGER.error("can not clean the archive dir %s, command: %s, output: %s" % (archive_dir, cmd_str, stderr))
-            if FORCE_UNINSTALL != "force":
-                raise Exception("can not clean the archive dir %s, command: %s, output: %s" % (archive_dir, cmd_str, stderr))
-    LOGGER.info("cleaned archive files.")
+
+    if deploy_model != "dbstore_unify":
+        cmd = "timeout 10 ls %s" % archive_dir
+        ret_code, _, stderr = _exec_popen(cmd)
+        if node_id == "0" and (ret_code == 0 or FORCE_UNINSTALL != "force"):
+            cmd_str = "rm -rf %s/arch*.arc %s/*arch_file.tmp" % (archive_dir, archive_dir)
+            ret_code, _, stderr = _exec_popen(cmd_str)
+            if ret_code:
+                LOGGER.error(
+                    "can not clean the archive dir %s, command: %s, output: %s" % (archive_dir, cmd_str, stderr))
+                if FORCE_UNINSTALL != "force":
+                    raise Exception(
+                        "can not clean the archive dir %s, command: %s, output: %s" % (archive_dir, cmd_str, stderr))
+        LOGGER.info("cleaned archive files.")
+    else:
+        arch_clean_cmd = f"dbstor --arch-clean --fs-name={archive_fs}"
+        try:
+            ret_code, output, stderr = _exec_popen(arch_clean_cmd)
+            if ret_code:
+                LOGGER.info(f"Failed to execute command '{arch_clean_cmd}', error: {stderr}")
+            else:
+                LOGGER.info("Cleaned archive files using dbstor --arch-clean.")
+        except Exception as e:
+            LOGGER.info(f"Exception occurred while executing command '{arch_clean_cmd}': {str(e)}")
+
 
 
 class CanTian(object):

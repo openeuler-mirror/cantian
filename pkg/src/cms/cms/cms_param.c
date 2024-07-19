@@ -473,7 +473,7 @@ status_t cms_get_dbstore_config_value(config_t *cfg)
     if (value == NULL || cm_strcmpi(value, "FALSE") == 0) {
         enable = CT_FALSE;
         CMS_LOG_INF("DBStore is not enabled");
-        return cm_dbs_set_cfg(enable, dataPgSize, CT_DFLT_CTRL_BLOCK_SIZE, value, 0, CT_FALSE);
+        return cm_dbs_set_cfg(enable, dataPgSize, CT_DFLT_CTRL_BLOCK_SIZE, value, 0, CT_FALSE, 0);
     } else if (cm_strcmpi(value, "TRUE") == 0) {
         enable = CT_TRUE;
     } else {
@@ -486,7 +486,7 @@ status_t cms_get_dbstore_config_value(config_t *cfg)
         CMS_LOG_ERR("invalid parameter value of '_DBSTOR_NAMESPACE'");
         return CT_ERROR;
     }
-    ret = cm_dbs_set_cfg(enable, dataPgSize, CT_DFLT_CTRL_BLOCK_SIZE, value, 0, CT_FALSE);
+    ret = cm_dbs_set_cfg(enable, dataPgSize, CT_DFLT_CTRL_BLOCK_SIZE, value, 0, CT_FALSE, 0);
     if (ret != CT_SUCCESS) {
         CMS_LOG_ERR("cms set dbstore config failed");
         return CT_ERROR;

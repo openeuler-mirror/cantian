@@ -104,6 +104,20 @@ static uint32 cm_dbs_cache_calc_index_by_handle(int32 handle)
     return cm_hash_uint32((uint32)handle, CM_DBS_MAP_HASH_TABLE_SIZE);
 }
 
+static cm_dbs_map_value_s *cm_dbs_cache_get_by_index(uint32 index, int32 handle)
+{
+    cm_list_head *list = &(g_cm_dbs_cache_mgr.hs_cache[index].hs_list);
+    cm_list_head *node = NULL;
+    cm_dbs_map_value_s *entry = NULL;
+    cm_list_for_each(node, list) {
+        entry = cm_list_entry(node, cm_dbs_map_value_s, node);
+        if (entry->handle == handle) {
+            return entry;
+        }
+    }
+    return NULL;
+}
+
 bool32 cm_dbs_map_handle_exist(int32 handle)
 {
     uint32 index = cm_dbs_cache_calc_index_by_handle(handle);
@@ -159,20 +173,6 @@ status_t cm_dbs_map_set(const char *name, cm_dbs_map_item_s *item, int32 *handle
     *handle = value->handle;
     cm_dbs_map_unlatch(index);
     return CT_SUCCESS;
-}
-
-static cm_dbs_map_value_s *cm_dbs_cache_get_by_index(uint32 index, int32 handle)
-{
-    cm_list_head *list = &(g_cm_dbs_cache_mgr.hs_cache[index].hs_list);
-    cm_list_head *node = NULL;
-    cm_dbs_map_value_s *entry = NULL;
-    cm_list_for_each(node, list) {
-        entry = cm_list_entry(node, cm_dbs_map_value_s, node);
-        if (entry->handle == handle) {
-            return entry;
-        }
-    }
-    return NULL;
 }
 
 status_t cm_dbs_map_get(int32 handle, cm_dbs_map_item_s *item)

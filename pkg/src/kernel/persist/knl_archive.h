@@ -513,6 +513,7 @@ uint32 arch_get_proc_node_id(arch_proc_context_t *proc_ctx);
 void arch_log_recycle_file(arch_proc_context_t *proc_ctx, uint32 node_id);
 status_t arch_start_proc_primary(knl_session_t *session);
 status_t arch_open_logfile_dbstor(knl_session_t *session, log_file_t *logfile, uint32 inst_id);
+device_type_t arch_get_device_type(const char *name);
 #ifdef __cplusplus
 }
 #endif

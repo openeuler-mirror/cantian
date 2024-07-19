@@ -1094,6 +1094,8 @@ config_item_t g_parameters[] = {
     /* dbstor */
     { "ENABLE_DBSTOR", CT_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
       PARAM_ENABLE_DBSTORE, EFFECT_REBOOT, CFG_INS, sql_verify_als_bool, sql_notify_als_bool, sql_notify_als_bool, NULL },
+    { "DBSTOR_DEPLOY_MODE", CT_TRUE, ATTR_NONE, "0", NULL, NULL, "-", "[0,1]", "CT_TYPE_INTEGER", NULL,
+      PARAM_DBSTORE_DEPLOY_MODE, EFFECT_REBOOT, CFG_INS, sql_verify_als_bool, NULL, NULL, NULL },
     { "DBSTOR_NAMESPACE", CT_TRUE, ATTR_NONE, "", NULL, NULL, "-", "-", "CT_TYPE_VARCHAR", NULL,
       PARAM_DBSTORE_NAMESPACE, EFFECT_REBOOT, CFG_INS, sql_verify_als_comm, NULL, NULL, NULL },
     { "COMPATIBLE_MYSQL",    CT_TRUE, ATTR_READONLY,     "1",    NULL, NULL, "-", "[0, 1]",    "CT_TYPE_INTEGER", NULL,
