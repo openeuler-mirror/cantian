@@ -278,13 +278,14 @@ class DBStor:
         self.dbstor_config = {}
         self.user = ""
         self.group = ""
-        self.note_id = ""
+        self.node_id = ""
         self.share_logic_ip = ""
         self.cluster_name = ""
         self.cluster_id = ""
         self.cantian_in_container = ""
         self.dbstore_fs_vstore_id = "0"
         self.dbstor_page_fs_vstore_id = "0"
+        self.dbstor_home="/opt/cantian/dbstor"
 
     def check_ini(self):
         """
@@ -611,8 +612,8 @@ class DBStor:
         """
         check ini file exists
         """
-        if len(self.note_id.strip()) == 0:
-            log_exit("Parameter note_id is not input.")
+        if len(self.node_id.strip()) == 0:
+            log_exit("Parameter node_id is not input.")
             # check ini file exists
         if not os.path.exists(self.conf_file_path):
             try:
@@ -628,7 +629,7 @@ class DBStor:
                 as file_handle:
             json_data = json.load(file_handle)
             self.backup = json_data.get('install_type', "override").strip()
-            self.note_id = json_data.get('node_id', "").strip()
+            self.node_id = json_data.get('node_id', "").strip()
             self.cluster_id = json_data.get('cluster_id', "").strip()
             self.cantian_in_container = json_data.get('cantian_in_container', "0").strip()
             self.dbstore_fs_vstore_id = json_data.get('dbstore_fs_vstore_id', "0").strip()
@@ -645,6 +646,55 @@ class DBStor:
             self.read_dbstor_para()
             self.check_dbstor_para()
             self.generate_db_config()
+        with os.fdopen(os.open(JS_CONF_FILE, os.O_RDONLY | os.O_EXCL, stat.S_IWUSR | stat.S_IRUSR), "r") as file_obj:
+            json_data = json.load(file_obj)
+            deploy_mode = json_data.get("deploy_mode")
+        if deploy_mode == "dbstore_unify":
+            logger.info('Deploy_mode = dbstore_unify, begin to set config.')
+            config = ConfigParser()
+            config.optionxform = str
+            config.read(self.dbstor_conf_file)
+            split_env = os.environ['LD_LIBRARY_PATH'].split(":")
+            filtered_env = [single_env for single_env in split_env if "/opt/cantian/dbstor/lib" not in single_env]
+            os.environ['LD_LIBRARY_PATH'] = ":".join(filtered_env)
+            for i in range(7,10):
+                file_num=i-6
+                cmd = "python %s/../obtains_lsid.py %s %s %s %s"
+                ret_code, stdout, stderr = _exec_popen(cmd % ("/opt/cantian/action/dbstor", 2, self.cluster_id, i, self.node_id))
+                if ret_code:
+                    raise OSError("Failed to execute LSIDGenerate."
+                        " Error: %s" % (stderr + os.linesep + stderr))
+                data = stdout.split("\n")
+                if len(data) == 2:
+                    inst_id, dbs_tool_uuid = data[0], data[1]
+                else:
+                    raise ValueError("Data parse error: length of parsed data is not 2.")
+                logger.info('Generate inst_id, dbs_tool_uuid success.')
+                ret_code, stdout, stderr = _exec_popen(cmd % ("/opt/cantian/action/dbstor", 0, self.cluster_id, 0, 0))
+                if ret_code:
+                    raise OSError("Failed to execute LSIDGenerate."
+                        " Error: %s" % (stderr + os.linesep + stderr))
+                data = stdout.split("\n")
+                if len(data) == 2:
+                    self.cluster_uuid = data[1]
+                else:
+                    raise ValueError("Data parse error: length of parsed data is not 2.")
+                logger.info('Generate cluster_uuid success.')
+                folder_path = "%s/conf/dbs/" % (self.dbstor_home)
+                if not os.path.exists(folder_path):
+                    os.makedirs(folder_path)
+                config.set('CLIENT','DBSTOR_OWNER_NAME','dbstor')    
+                config.set('CLIENT','CLUSTER_NAME',str(self.cluster_name))
+                config.set('CLIENT','CLUSTER_UUID',str(self.cluster_uuid))
+                config.set('CLIENT','INST_ID',inst_id)      
+                config.set('CLIENT','DBS_TOOL_UUID',dbs_tool_uuid)
+                flags = os.O_CREAT | os.O_RDWR
+                modes = stat.S_IWUSR | stat.S_IRUSR
+                file_path = "%s/conf/dbs/dbstor_config_tool_%s.ini" % (self.dbstor_home, str(file_num))
+                with os.fdopen(os.open(file_path, flags, modes), "w") as file_obj:
+                    config.write(file_obj)
+            logger.info('Set config success.')
+
     
      
     def cp_ini_to_client_test(self):
