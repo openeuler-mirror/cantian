@@ -910,7 +910,7 @@ void dc_wait_till_load_finish(knl_session_t *session, dc_entry_t *entry)
     }
 
     for (;;) {
-        if (!entry->is_loading && ((g_rc_ctx == NULL) || !RC_REFORM_RECOVERY_IN_PROGRESS)) {
+        if (!entry->is_loading && ((g_rc_ctx == NULL) || dtc_dcs_readable(session))) {
             return;
         }
         cm_spin_unlock(&entry->lock);
@@ -2234,7 +2234,7 @@ static status_t dc_convert_icol_desc(knl_session_t *session, dc_entity_t *entity
     return CT_SUCCESS;
 }
 
-static void dc_cal_index_maxtrans(knl_session_t *session, dc_entity_t *entity, index_t *index)
+void dc_cal_index_maxtrans(knl_session_t *session, dc_entity_t *entity, index_t *index)
 {
     uint16 max_key_len;
     uint16 free_page_size;

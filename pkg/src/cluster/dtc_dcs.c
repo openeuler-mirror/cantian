@@ -72,6 +72,10 @@ status_t dcs_send_data_retry(void *msg)
         }
         cluster_view_t view;
         rc_get_cluster_view(&view, CT_FALSE);
+        if (DB_CLUSTER_NO_CMS) {
+            view.bitmap = 0;
+        }
+
         if (rc_bitmap64_exist(&view.bitmap, head->dst_inst)) {
             cm_sleep(DCS_RESEND_MSG_INTERVAL);
             SYNC_POINT_GLOBAL_START(CANTIAN_DCS_SEND_EDP_MESSAGE_FAIL, &status, CT_ERROR);
@@ -101,6 +105,10 @@ status_t dcs_send_data3_retry(mes_message_head_t *head, uint32 head_size, const 
         retry_time++;
         cluster_view_t view;
         rc_get_cluster_view(&view, CT_FALSE);
+        if (DB_CLUSTER_NO_CMS) {
+            view.bitmap = 0;
+        }
+
         if (rc_bitmap64_exist(&view.bitmap, head->dst_inst)) {
             cm_sleep(DCS_RESEND_MSG_INTERVAL);
             status = mes_send_data3(head, head_size, body);

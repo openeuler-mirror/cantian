@@ -977,6 +977,8 @@ status_t srv_load_server_params(void)
 
     CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_LOCAL_INFILE", &g_instance->attr.enable_local_infile));
     CT_RETURN_IFERR(srv_get_param_bool32("_STRICT_CASE_DATATYPE", &g_instance->sql.strict_case_datatype));
+
+    CT_RETURN_IFERR(srv_get_param_bool32("CLUSTER_NO_CMS", &g_cluster_no_cms));
     return CT_SUCCESS;
 }
 

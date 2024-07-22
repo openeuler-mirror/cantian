@@ -518,10 +518,10 @@ status_t drc_init(void)
     }
 
     //if run without reform cluster, set all of part in instance 0
-#ifndef DTC_RUN_WITH_REFORM
-    uint8 inst_id = 0;
-    drc_part_init((uint8*)&inst_id, 1, &ctx->part_mngr);
-#endif
+    if (DB_CLUSTER_NO_CMS) {
+        uint8 inst_id = 0;
+        drc_part_init((uint8*)&inst_id, 1, &ctx->part_mngr);
+    }
 
     if (cm_create_thread(drc_res_recycle_proc, 0, ctx->kernel->sessions[SESSION_ID_RES_PROCESS], &ctx->gc_thread) !=
         CT_SUCCESS) {

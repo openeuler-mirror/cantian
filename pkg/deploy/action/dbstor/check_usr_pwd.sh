@@ -63,7 +63,6 @@ function use_cstool_query_connection()
 function main()
 {
     link_type=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "link_type")
-    rm -rf ${DBSTOOL_PATH}/conf/
     mkdir -p ${DBSTOOL_PATH}/conf/{dbs,infra/config}
     if [ ${link_type} == 1 ];then
         cp -arf /opt/cantian/image/Cantian-RUN-CENTOS-64bit/cfg/node_config_rdma.xml ${DBSTOOL_PATH}/conf/infra/config/node_config.xml

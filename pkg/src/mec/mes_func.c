@@ -33,6 +33,7 @@
 #include "mes_uc.h"
 #include "mes_tcp.h"
 #include "mes_func.h"
+#include "knl_database.h"
 
 mes_instance_t g_mes;
 
@@ -1231,6 +1232,14 @@ status_t mes_wait_acks(uint32 sid, uint32 timeout)
 static uint64 mes_get_alive_bitmap(void)
 {
     cluster_view_t view;
+
+    if (DB_CLUSTER_NO_CMS) {
+        view.version = 0;
+        view.bitmap = 0;
+        view.is_stable = CT_TRUE;
+        return view.bitmap;
+    }
+
     rc_get_cluster_view(&view, CT_FALSE);
     return view.bitmap;
 }

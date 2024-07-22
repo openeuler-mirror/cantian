@@ -40,8 +40,6 @@
 extern "C" {
 #endif
 
-#define DTC_RUN_WITH_REFORM
-
 #define RC_WAIT_DB_OPEN_TIME (10)  // ms
 #define CKPT_LOG_REDO_STAT_COUNT (500)
 

@@ -973,7 +973,7 @@ static status_t db_mount_to_recovery(knl_session_t *session, db_open_opt_t *opti
 
     dtc_wait_reform_util(session, CT_FALSE, REFORM_RECOVER_DONE);
 
-    if (knl_ddl_latch_s(ctrl_latch, session, NULL) != CT_SUCCESS) {
+    if (!DB_CLUSTER_NO_CMS && knl_ddl_latch_s(ctrl_latch, session, NULL) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DB OPEN] latch ddl failed");
         return CT_ERROR;
     }
@@ -1061,8 +1061,10 @@ static status_t db_mount_to_recovery(knl_session_t *session, db_open_opt_t *opti
         return CT_ERROR;
     }
     CT_LOG_RUN_INF("[DB OPEN] arch_start finished");
-    dls_unlatch(session, ctrl_latch, NULL);
 
+    if (!DB_CLUSTER_NO_CMS) {
+        dls_unlatch(session, ctrl_latch, NULL);
+    }
     return CT_SUCCESS;
 }
 

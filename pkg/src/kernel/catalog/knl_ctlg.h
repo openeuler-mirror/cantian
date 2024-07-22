@@ -26,6 +26,7 @@
 #define KNL_CTLG_H
 
 #include "knl_dc.h"
+#include "dc_tbl.h"
 #include "knl_ctlg_persistent.h"
 
 #define CT_SYS_OPT_LEN 16

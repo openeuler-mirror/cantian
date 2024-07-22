@@ -27,6 +27,7 @@
 #include "rc_reform.h"
 #include "tse_mysql_client.h"
 #include "tse_srv_util.h"
+#include "knl_database.h"
 
 // 下标代表发送端节点id
 msg_rsp_res_pair g_tse_msg_result_arr[TSE_CLUSTER_MAX_NODES] = {
@@ -49,6 +50,9 @@ status_t tse_send_data_retry(const void *msg_data, uint8 dst_inst)
         retry_time++;
         cluster_view_t view;
         rc_get_cluster_view(&view, CT_FALSE);
+        if (DB_CLUSTER_NO_CMS) {
+            view.bitmap = 0;
+        }
         if (rc_bitmap64_exist(&view.bitmap, dst_inst)) {
             cm_sleep(TSE_RESEND_MSG_INTERVAL);
             status = mes_send_data(msg_data);
