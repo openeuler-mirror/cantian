@@ -909,6 +909,9 @@ status_t cbo_get_stats_values(dc_entity_t *entity, knl_column_t *column, text_t 
             v_output->len = sizeof(double);
             break;
         case CT_TYPE_UINT64:
+            status = cm_text2uint64(v_input, (uint64 *)(v_output->str));
+            v_output->len = sizeof(uint64);
+            break;
         case CT_TYPE_NUMBER:
         case CT_TYPE_NUMBER3:
         case CT_TYPE_DECIMAL:
