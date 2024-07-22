@@ -2234,7 +2234,7 @@ static status_t dc_convert_icol_desc(knl_session_t *session, dc_entity_t *entity
     return CT_SUCCESS;
 }
 
-static void dc_cal_index_maxtrans(knl_session_t *session, dc_entity_t *entity, index_t *index)
+void dc_cal_index_maxtrans(knl_session_t *session, dc_entity_t *entity, index_t *index)
 {
     uint16 max_key_len;
     uint16 free_page_size;

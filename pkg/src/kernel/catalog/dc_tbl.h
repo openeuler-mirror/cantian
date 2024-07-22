@@ -66,6 +66,7 @@ void estimate_row_len(table_t *table, knl_column_t *column);
 void dc_release_segment_dls(knl_session_t *session, dc_entity_t *entity);
 void dc_wait_till_load_finish(knl_session_t *session, dc_entry_t *entry);
 void dc_wait_till_load_finish_standby(knl_session_t *session, dc_entry_t *entry);
+void dc_cal_index_maxtrans(knl_session_t *session, dc_entity_t *entity, index_t *index);
 #ifdef __cplusplus
 }
 #endif

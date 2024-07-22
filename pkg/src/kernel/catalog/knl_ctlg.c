@@ -1254,6 +1254,8 @@ static status_t db_init_dc_index(knl_session_t *session, dc_entity_t *entity, kn
 
         index->entity = entity;
         index->desc.seg_scn = BTREE_SEGMENT(session, index->btree.entry, index->btree.segment)->seg_scn;
+
+        dc_cal_index_maxtrans(session, entity, index);
     }
 
     return CT_SUCCESS;
