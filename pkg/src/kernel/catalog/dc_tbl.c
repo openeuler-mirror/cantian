@@ -910,7 +910,7 @@ void dc_wait_till_load_finish(knl_session_t *session, dc_entry_t *entry)
     }
 
     for (;;) {
-        if (!entry->is_loading && ((g_rc_ctx == NULL) || !RC_REFORM_RECOVERY_IN_PROGRESS)) {
+        if (!entry->is_loading && ((g_rc_ctx == NULL) || dtc_dcs_readable(session))) {
             return;
         }
         cm_spin_unlock(&entry->lock);

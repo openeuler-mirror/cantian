@@ -2316,7 +2316,7 @@ status_t srv_shutdown_wait(session_t *session, shutdown_mode_t mode, shutdown_co
     }
 
     // if reform in progress, shutdown is not allowed;
-    if (DB_IS_CLUSTER(&(session->knl_session))) {
+    if (DB_IS_CLUSTER(&(session->knl_session)) && !DB_CLUSTER_NO_CMS) {
         if (!rc_reform_trigger_disable()) {
             cm_spin_unlock(&g_instance->kernel.db.lock);
             CT_THROW_ERROR(ERR_SHUTDOWN_IN_PROGRESS, session->knl_session.id);
@@ -2384,7 +2384,7 @@ status_t srv_shutdown(session_t *session, shutdown_mode_t mode)
         }
     }
 
-    if (DB_IS_CLUSTER(&(session->knl_session))) {
+    if (DB_IS_CLUSTER(&(session->knl_session)) && !DB_CLUSTER_NO_CMS) {
         if (!dls_latch_timed_x(&(session->knl_session), &(ctx->shutdown_latch), session->knl_session.id, 1, NULL,
             CT_INVALID_ID32)) {
             CT_LOG_RUN_WAR("sql get shutdown lock failed, other node in shutdown progress");

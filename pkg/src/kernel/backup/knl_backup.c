@@ -1309,6 +1309,9 @@ void bak_unload_tablespace(knl_session_t *session)
 
 status_t bak_precheck(knl_session_t *session)
 {
+    if (DB_CLUSTER_NO_CMS) {
+        return CT_SUCCESS;
+    }
     arch_context_t *arch_ctx = &session->kernel->arch_ctx;
     bak_t *bak = &session->kernel->backup_ctx.bak;
     CT_LOG_RUN_INF("[BACKUP] start backup precheck");

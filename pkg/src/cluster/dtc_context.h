@@ -42,8 +42,6 @@
 extern "C" {
 #endif
 
-#define DTC_RUN_WITH_REFORM
-
 typedef struct st_dtc_profile {
     uint32 mes_pool_size;
     uint32 node_count;

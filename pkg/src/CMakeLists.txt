@@ -29,6 +29,7 @@ add_subdirectory(cms)
 add_subdirectory(cluster)
 add_subdirectory(tse)
 add_subdirectory(fdsa)
+add_subdirectory(ctrst)
 
 if(NOT USE_OSS_BUILD)
     add_subdirectory(ctbox)

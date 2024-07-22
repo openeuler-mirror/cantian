@@ -417,9 +417,9 @@ void rc_refresh_cluster_info(void)
 
 bool32 rc_is_master(void)
 {
-#ifndef DTC_RUN_WITH_REFORM
+    if (DB_CLUSTER_NO_CMS) {
         return (g_rc_ctx->self_id == 0) ? CT_TRUE : CT_FALSE;
-#endif
+    }
 
     // wait if not get master_id info yet
     while (CT_INVALID_ID8 == g_rc_ctx->info.master_id) {
@@ -575,9 +575,10 @@ status_t init_cms_rc(reform_ctx_t *rf_ctx, reform_init_t *init_st)
     }
     g_rc_callback = init_st->callback;
 
-#ifndef DTC_RUN_WITH_REFORM
-    return CT_SUCCESS;
-#endif
+    if (DB_CLUSTER_NO_CMS) {
+        g_rc_ctx->status = REFORM_MOUNTING;
+        return CT_SUCCESS;
+    }
     res_init_info_t res_init_info;
     CT_RETURN_IFERR(cms_cli_init());
     CT_RETURN_IFERR(cms_res_inst_register(g_rc_ctx->res_type, g_rc_ctx->self_id, &res_init_info,
@@ -1150,12 +1151,12 @@ void rc_reform_proc(thread_t *thread)
 
 void rc_get_cluster_view(cluster_view_t *view, bool32 need_stable)
 {
-#ifndef DTC_RUN_WITH_REFORM
-    view->version = 0;
-    view->bitmap = 0;
-    view->is_stable = CT_TRUE;
-    return;
-#endif
+    if (DB_CLUSTER_NO_CMS) {
+        view->version = 0;
+        view->bitmap = CT_INVALID_ID64;
+        view->is_stable = CT_TRUE;
+        return;
+    }
     while (need_stable && g_cluster_view.is_joining) {
         cm_sleep(RC_RETRY_SLEEP);
     }
@@ -1169,12 +1170,12 @@ void rc_get_cluster_view(cluster_view_t *view, bool32 need_stable)
 
 void rc_get_cluster_view4reform(cluster_view_t *view)
 {
-#ifndef DTC_RUN_WITH_REFORM
-    view->version = 0;
-    view->bitmap = 0;
-    view->is_stable = CT_TRUE;
-    return;
-#endif
+    if (DB_CLUSTER_NO_CMS) {
+        view->version = 0;
+        view->bitmap = CT_INVALID_ID64;
+        view->is_stable = CT_TRUE;
+        return;
+    }
     cm_latch_s(&g_cluster_view.latch, 0, CT_FALSE, NULL);
     view->version = g_cluster_view.version;
     view->is_stable = g_cluster_view.is_stable;
@@ -1334,7 +1335,9 @@ status_t rc_set_redo_replay_done(knl_session_t *session, reform_info_t *rc_info,
     if (!DB_IS_PRIMARY(&session->kernel->db) && full_recovery && !DB_NOT_READY(session)) {
         return CT_SUCCESS;
     }
-    knl_panic(g_rc_ctx->status < REFORM_RECOVER_DONE);
+    if (!DB_CLUSTER_NO_CMS) {
+        knl_panic(g_rc_ctx->status < REFORM_RECOVER_DONE);
+    }
     g_rc_ctx->status = REFORM_RECOVER_DONE;
     return g_rc_callback.rc_notify_reform_status(session, rc_info, REFORM_RECOVER_DONE);
 }

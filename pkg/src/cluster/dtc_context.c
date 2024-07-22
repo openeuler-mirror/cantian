@@ -621,5 +621,7 @@ void dtc_shutdown(knl_session_t *session, bool32 need_ckpt)
     free_dtc_rc();
     dmon_close();
     mes_clean();
-    cms_res_inst_unregister();
+    if (!DB_CLUSTER_NO_CMS) {
+        cms_res_inst_unregister();
+    }
 }

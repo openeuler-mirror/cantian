@@ -209,7 +209,9 @@ status_t bak_paral_create_bakfile(knl_session_t *session, uint32 file_index, bak
 
     bak_generate_bak_file(session, path, bak->files[file_index].type, file_index, bak->files[file_index].id, sec_id,
         bak_name);
-    mode = (bak->record.attr.compress != COMPRESS_NONE ? mode : (mode | O_DIRECT));
+    if (!DB_CLUSTER_NO_CMS) {
+        mode = (bak->record.attr.compress != COMPRESS_NONE ? mode : (mode | O_DIRECT));
+    }
     if (cm_create_file(bak_name, mode, bak_handle) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] failed to generate bak file %s, file_index %u, sec_id %u.", bak_name, file_index, sec_id);
         return CT_ERROR;
@@ -231,7 +233,9 @@ status_t rst_paral_open_bakfile(knl_session_t *session, bak_file_type_t file_typ
 
     bak_generate_bak_file(session, path, file_type, file_index, file_id, sec_id, bak->local.name);
     bak->local.type = cm_device_type(bak->local.name);
-    mode = (bak->record.attr.compress != COMPRESS_NONE ? mode : (mode | O_DIRECT));
+    if (!DB_CLUSTER_NO_CMS) {
+        mode = (bak->record.attr.compress != COMPRESS_NONE ? mode : (mode | O_DIRECT));
+    }
     if (cm_open_file(bak->local.name, mode, &bak->local.handle) != CT_SUCCESS) {
         return CT_ERROR;
     }
@@ -887,6 +891,11 @@ status_t bak_paral_backup(knl_session_t *session, bak_process_t *proc)
 
 status_t bak_check_direct_mode_for_archfile(bak_assignment_t *assign_ctrl, bak_t *bak, uint32 mode, bool32 *can_direct)
 {
+    if (DB_CLUSTER_NO_CMS) {
+        *can_direct = CT_FALSE;
+        return CT_SUCCESS;
+    }
+
     if (bak->record.attr.compress != COMPRESS_NONE) {
         *can_direct = CT_FALSE;
         return CT_SUCCESS;

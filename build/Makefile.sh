@@ -278,7 +278,7 @@ func_pkg_run_basic()
     func_version_run_pkg
 
     cd ${CANTIANDB_BIN}
-    cp ctsql cantiand ctencrypt cms ctbackup ctbox ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/bin/
+    cp ctsql cantiand ctencrypt cms ctbackup ctbox ctrst ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/bin/
     
     cp -d ${ZSTD_LIB_PATH}/../bin/zstd ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/bin/
     cd ${CANTIANDB_HOME}

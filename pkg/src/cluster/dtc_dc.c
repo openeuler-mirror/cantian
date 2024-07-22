@@ -60,6 +60,10 @@ bool32 can_ignore(logic_op_t type)
 
 static status_t dtc_get_alive_bitmap(uint64 *target_bits)
 {
+    if(DB_CLUSTER_NO_CMS){
+        *target_bits = CT_INVALID_ID64;
+        return CT_SUCCESS;
+    }
     cluster_view_t view;
     rc_get_cluster_view(&view, CT_FALSE);
     *target_bits = view.bitmap;
@@ -976,11 +980,13 @@ status_t dtc_ddl_enabled(knl_handle_t knl_session, bool32 forbid_in_rollback)
     if (!DB_IS_CLUSTER(session) || session->bootstrap) {
         return CT_SUCCESS;
     }
-    if (RC_REFORM_IN_PROGRESS) {
+
+    if (!DB_CLUSTER_NO_CMS && RC_REFORM_IN_PROGRESS) {
         CT_LOG_RUN_WAR("reform is preparing, refuse to ddl operation");
         CT_THROW_ERROR(ERR_CLUSTER_DDL_DISABLED, "reform is preparing");
         return CT_ERROR;
     }
+
     CT_LOG_DEBUG_INF("dtc check ddl enabled");
     mes_message_head_t head;
     mes_init_send_head(&head, MES_CMD_CHECK_DDL_ENABLED, sizeof(mes_message_head_t) + sizeof(bool32), CT_INVALID_ID32,
