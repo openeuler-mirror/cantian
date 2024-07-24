@@ -30,6 +30,7 @@ add_subdirectory(cluster)
 add_subdirectory(tse)
 add_subdirectory(fdsa)
 add_subdirectory(ctrst)
+add_subdirectory(dbstool)
 
 if(NOT USE_OSS_BUILD)
     add_subdirectory(ctbox)
