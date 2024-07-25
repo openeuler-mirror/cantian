@@ -142,7 +142,6 @@ typedef struct {
 } tse_cbo_column_hist_t;
 
 typedef struct {
-    uint32_t total_rows;
     uint32_t num_buckets;
     uint32_t num_null;
     double density;
