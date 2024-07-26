@@ -28,7 +28,6 @@
 #include "cm_types.h"
 #include "cm_defs.h"
 
-
 /*
  * @Note
  *   when you added a new errno for kernel, please think it over
@@ -702,7 +701,7 @@ typedef enum en_errno {
     ERR_EXT_PROC_NOT_STARTED = 968,
     ERR_EXT_PROC_NOT_WORK = 969,
     ERR_DUPLICATE_ENTRY = 970,
-    
+
     ERR_DYNAMIC_WRONG_TYPE = 971,
     ERR_DYNAMIC_ILLEGAL_INTO = 972,
     ERR_UDF_DDL_DCL = 973,
@@ -956,7 +955,7 @@ typedef enum en_errno {
     ERR_TF_TABLE_DIST_DDL_ID_NULL = 1403,
     ERR_TF_QUERY_DDL_INFO_FAILED = 1404,
 
-     /* auto increment */
+    /* auto increment */
     ERR_AUTOINC_READ_FAILED = 1467,
 
     /* XA Errors */
@@ -987,7 +986,7 @@ typedef enum en_errno {
     ERR_DLS_LOCK_FAILED = 1900,
     ERR_DLS_LOCK_TIMEOUT = 1901,
     ERR_DLS_INVALID_CMD = 1902,
-    
+
     // other error
     ERR_SPACE_NO_DATAFILE = 1950,
     ERR_DC_LOAD_CONFLICT = 1951,
@@ -1105,6 +1104,7 @@ typedef enum en_errno {
     ERR_CMS_VOTEDISK_PATH = 2825,
 
     ERR_ACCESS_DEPOSIT_INST = 2900,
+    ERR_DSS_FAILED = 2901,
 
     /* DCS */
     ERR_DCS_REQ_PAGE_FAILED = 3000,
@@ -1167,7 +1167,7 @@ typedef struct st_error_info_t {
     char t2s_buf1[CT_T2S_LARGER_BUFFER_SIZE];
     char t2s_buf2[CT_T2S_BUFFER_SIZE];
     char message[CT_MESSAGE_BUFFER_SIZE];
-    struct { // first position of err occurs
+    struct {  // first position of err occurs
         char err_file[CT_MAX_NAME_LEN];
         uint32 err_line;
     };
@@ -1190,15 +1190,14 @@ typedef enum en_err_object {
 } err_object_t;
 
 typedef struct st_tls_plc_error_t {
-    bool8 plc_flag; // The flag indicates whether connecting errors are required
-    uint8 plc_cnt; // Count the number of consecutive entering plc_do_compile
-    uint16 last_head; // The header of the last line of g_tls_error.message
-    uint16 last_head_bak; // backup last_head if last_head will be changed
-    uint16 start_pos[CT_MAX_PLC_CNT]; // Store the start position of g_tls_error.message when entering plc_do_compile.
+    bool8 plc_flag;                    // The flag indicates whether connecting errors are required
+    uint8 plc_cnt;                     // Count the number of consecutive entering plc_do_compile
+    uint16 last_head;                  // The header of the last line of g_tls_error.message
+    uint16 last_head_bak;              // backup last_head if last_head will be changed
+    uint16 start_pos[CT_MAX_PLC_CNT];  // Store the start position of g_tls_error.message when entering plc_do_compile.
 } tls_plc_error_t;
 
-typedef status_t (*cm_error_handler)(const char *file, uint32 line, ct_errno_t code, const char *format,
-    va_list args);
+typedef status_t (*cm_error_handler)(const char *file, uint32 line, ct_errno_t code, const char *format, va_list args);
 void cm_init_error_handler(cm_error_handler handler);
 status_t cm_set_srv_error(const char *file, uint32 line, ct_errno_t code, const char *format, va_list args);
 status_t cm_set_clt_error(const char *file, uint32 line, ct_errno_t code, const char *format, va_list args);
@@ -1258,8 +1257,8 @@ extern bool32 g_enable_err_superposed;
 
 #define CT_TRACE_ON
 
-#define T2S(text)            cm_t2s((text)->str, (text)->len)
-#define T2S_EX(text)         cm_t2s_ex((text)->str, (text)->len)
+#define T2S(text) cm_t2s((text)->str, (text)->len)
+#define T2S_EX(text) cm_t2s_ex((text)->str, (text)->len)
 #define T2S_CASE(text, flag) cm_t2s_case((text)->str, (text)->len, (flag))
 #define CC_T2S(text1, text2, c_mid) cm_concat_t2s((text1)->str, (text1)->len, (text2)->str, (text2)->len, (c_mid))
 
@@ -1308,8 +1307,8 @@ extern const char *g_error_desc[];
         cm_set_error((char *)__FILE__, (uint32)__LINE__, err_no, g_error_desc[err_no], ##__VA_ARGS__); \
     } while (0)
 
-#define CT_SRC_THROW_ERROR(loc, err_no, ...)                                                           \
-    do {                                                                                               \
+#define CT_SRC_THROW_ERROR(loc, err_no, ...)                                                               \
+    do {                                                                                                   \
         if (g_tls_plc_error.plc_flag) {                                                                    \
             cm_set_error_loc(loc);                                                                         \
             cm_set_error((char *)__FILE__, (uint32)__LINE__, err_no, g_error_desc[err_no], ##__VA_ARGS__); \
@@ -1319,29 +1318,28 @@ extern const char *g_error_desc[];
         }                                                                                                  \
     } while (0)
 
-#define CT_THROW_ERROR_TRY_SRC(loc, err_no, ...)                                                           \
-    do {                                                                                                     \
-        cm_set_error((char *)__FILE__, (uint32)__LINE__, err_no, g_error_desc[err_no], ##__VA_ARGS__);       \
-        if (loc != NULL) {                                                                                 \
-            cm_set_error_loc(*loc);                                                                        \
-        }                                                                                                    \
+#define CT_THROW_ERROR_TRY_SRC(loc, err_no, ...)                                                       \
+    do {                                                                                               \
+        cm_set_error((char *)__FILE__, (uint32)__LINE__, err_no, g_error_desc[err_no], ##__VA_ARGS__); \
+        if (loc != NULL) {                                                                             \
+            cm_set_error_loc(*loc);                                                                    \
+        }                                                                                              \
     } while (0)
-
 
 #define CT_THROW_ERROR_EX(err_no, format, ...)                                              \
     do {                                                                                    \
         cm_set_error_ex((char *)__FILE__, (uint32)__LINE__, err_no, format, ##__VA_ARGS__); \
     } while (0)
 
-#define CT_SRC_THROW_ERROR_EX(loc, err_no, format, ...)                                     \
-    do {                                                                                    \
-        if (g_tls_plc_error.plc_flag) {                                                                    \
-            cm_set_error_loc(loc);                                                                         \
-            cm_set_error_ex((char *)__FILE__, (uint32)__LINE__, err_no, format, ##__VA_ARGS__);            \
-        } else {                                                                                           \
-            cm_set_error_ex((char *)__FILE__, (uint32)__LINE__, err_no, format, ##__VA_ARGS__);            \
-            cm_set_error_loc(loc);                                                                         \
-        }                                                                                                  \
+#define CT_SRC_THROW_ERROR_EX(loc, err_no, format, ...)                                         \
+    do {                                                                                        \
+        if (g_tls_plc_error.plc_flag) {                                                         \
+            cm_set_error_loc(loc);                                                              \
+            cm_set_error_ex((char *)__FILE__, (uint32)__LINE__, err_no, format, ##__VA_ARGS__); \
+        } else {                                                                                \
+            cm_set_error_ex((char *)__FILE__, (uint32)__LINE__, err_no, format, ##__VA_ARGS__); \
+            cm_set_error_loc(loc);                                                              \
+        }                                                                                       \
     } while (0)
 
 /* PL_THROW_ERROR() and PL_SRC_THROW_ERROR() should be used only in pl layer */
@@ -1356,8 +1354,8 @@ extern const char *g_error_desc[];
         cm_set_error_loc(loc);                                                           \
     } while (0)
 
-//CAUTION: only for db inherit error from ctstore instance in ctstore_interface.c
-#define CT_THROW_CTSTORE_ERROR(err_no, ...)                                                  \
+// CAUTION: only for db inherit error from ctstore instance in ctstore_interface.c
+#define CT_THROW_CTSTORE_ERROR(err_no, ...)                                              \
     do {                                                                                 \
         cm_set_error((char *)__FILE__, (uint32)__LINE__, err_no, " %s ", ##__VA_ARGS__); \
     } while (0)
@@ -1369,7 +1367,7 @@ extern const char *g_error_desc[];
             return ret;                             \
         }                                           \
     }
-    
+
 void cm_set_error(const char *file, uint32 line, ct_errno_t code, const char *format, ...) CT_CHECK_FMT(4, 5);
 void cm_set_hint(const char *format, ...) CT_CHECK_FMT(1, 2);
 void cm_set_error_ex(const char *file, uint32 line, ct_errno_t code, const char *format, ...) CT_CHECK_FMT(4, 5);

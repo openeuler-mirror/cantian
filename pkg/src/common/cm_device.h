@@ -64,6 +64,12 @@ typedef io_callback_t cm_io_callback_t;
 typedef io_context_t cm_io_context_t;
 #endif
 
+typedef struct st_iocb_ex_t {
+    cm_iocb_t obj;  // caution:SHOULD be the FIRST
+    uint64 handle;  // the handle of raw interface
+    uint64 offset;  // the offset of raw interface
+} cm_iocb_ex_t;
+
 #define CM_IOCB_LENTH (sizeof(cm_iocb_t) + sizeof(cm_iocb_t *) + sizeof(cm_io_event_t))
 
 typedef int (*cm_io_setup)(int maxevents, cm_io_context_t *io_ctx);
@@ -115,6 +121,10 @@ status_t cm_aio_getevents(cm_aio_lib_t *lib_ctx, cm_io_context_t io_ctx, long mi
 void cm_aio_prep_read(cm_iocb_t *iocb, int fd, void *buf, size_t count, long long offset);
 void cm_aio_prep_write(cm_iocb_t *iocb, int fd, void *buf, size_t count, long long offset);
 void cm_aio_set_callback(cm_iocb_t *iocb, cm_io_callback_t cb);
+
+int cm_aio_dss_prep_read(cm_iocb_t *iocb, int fd, void *buf, size_t count, long long offset);
+int cm_aio_dss_prep_write(cm_iocb_t *iocb, int fd, void *buf, size_t count, long long offset);
+int cm_aio_dss_post_write(cm_iocb_t *iocb, int fd, size_t count, long long offset);
 
 device_type_t cm_device_type(const char *name);
 status_t cm_remove_device(device_type_t type, const char *name);

@@ -1091,6 +1091,7 @@ const char *g_error_desc[] = {
     [ERR_CMS_CONVERT_VALUE] = "cannot convert '%s' to %s type",
 
     [ERR_ACCESS_DEPOSIT_INST] = "failed to access deposit instance, logical id %d physical id %d",
+    [ERR_DSS_FAILED] = "failed when calling dss interface, error code: %d, error message = %s",
 
     [ERR_CLUSTER_DDL_DISABLED] = "cluster DDL operation not available, please check whether other instances are open",
     [ERR_CM_OPEN_DISK] = "open disk failed, errno %d",

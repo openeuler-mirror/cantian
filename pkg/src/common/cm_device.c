@@ -42,6 +42,14 @@ raw_device_op_t g_raw_device_op;
 
 cm_check_file_error_t g_check_file_error = NULL;
 
+#define CT_THROW_RAW_ERROR                                \
+    do {                                                  \
+        int32 errcode;                                    \
+        const char *errmsg = NULL;                        \
+        g_raw_device_op.raw_get_error(&errcode, &errmsg); \
+        CT_THROW_ERROR(ERR_DSS_FAILED, errcode, errmsg);  \
+    } while (0)
+
 void cm_raw_device_register(raw_device_op_t *device_op)
 {
     g_raw_device_op = *device_op;
@@ -894,6 +902,51 @@ status_t cm_sync_device_by_part(int32 handle, int32 part_id)
 status_t cm_cal_partid_by_pageid(uint64 page_id, uint32 page_size, uint32 *part_id)
 {
     return cm_dbs_pg_cal_part_id(page_id, page_size, part_id);
+}
+
+int cm_aio_dss_prep_read(cm_iocb_t *iocb, int fd, void *buf, size_t count, long long offset)
+{
+    if (SECUREC_UNLIKELY(g_raw_device_op.aio_prep_pread == NULL)) {
+        CT_LOG_RUN_ERR("File aio_prep_pread function is not defined.");
+        return CT_ERROR;
+    }
+
+    if (g_raw_device_op.aio_prep_pread(iocb, fd, buf, count, offset) != CT_SUCCESS) {
+        CT_THROW_RAW_ERROR;
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+
+int cm_aio_dss_prep_write(cm_iocb_t *iocb, int fd, void *buf, size_t count, long long offset)
+{
+    if (SECUREC_UNLIKELY(g_raw_device_op.aio_prep_pwrite == NULL)) {
+        CT_LOG_RUN_ERR("File aio_prep_pread function is not defined.");
+        return CT_ERROR;
+    }
+
+    if (g_raw_device_op.aio_prep_pwrite(iocb, fd, buf, count, offset) != CT_SUCCESS) {
+        CT_THROW_RAW_ERROR;
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+
+int cm_aio_dss_post_write(cm_iocb_t *iocb, int fd, size_t count, long long offset)
+{
+    if (SECUREC_UNLIKELY(g_raw_device_op.aio_post_pwrite == NULL)) {
+        CT_LOG_RUN_ERR("File aio_prep_pread function is not defined.");
+        return CT_ERROR;
+    }
+
+    if (g_raw_device_op.aio_post_pwrite(iocb, fd, count, offset) != CT_SUCCESS) {
+        CT_THROW_RAW_ERROR;
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
 }
 
 #ifdef __cplusplus
