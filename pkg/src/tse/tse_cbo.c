@@ -51,10 +51,8 @@ status_t fill_cbo_stats_column(cbo_stats_column_t *cbo_column, tse_cbo_stats_col
     SYNC_POINT_GLOBAL_START(TSE_FILL_CBO_STATS_COL_FAIL, &ret, CT_ERROR);
     SYNC_POINT_GLOBAL_END;
     if (cbo_column == NULL) {
-        tse_column->total_rows = 0;
         return ret;
     }
-    tse_column->total_rows = cbo_column->total_rows;
     tse_column->num_buckets = cbo_column->num_buckets;
     tse_column->num_null = cbo_column->num_null;
     tse_column->density = cbo_column->density;
