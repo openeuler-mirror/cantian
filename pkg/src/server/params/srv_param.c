@@ -1140,7 +1140,7 @@ config_item_t g_parameters[] = {
     { "MYSQL_DEPLOY_GROUP_ID", CT_TRUE, ATTR_NONE, "5000", NULL, NULL, "-", NULL, "GS_TYPE_VARCHAR", NULL,
       PARAM_MYSQL_DEPLOY_GROUP_ID, EFFECT_REBOOT, CFG_INS, sql_verify_als_uint32, NULL, NULL, NULL },
     { "ENABLE_SYS_CRC_CHECK", CT_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "GS_TYPE_BOOLEAN", NULL,
-      PARAM_ENABLE_CHECK_SECURITY_LOG, EFFECT_REBOOT, CFG_INS, sql_verify_als_bool,
+      PARAM_ENABLE_SYS_CRC_CHECK, EFFECT_REBOOT, CFG_INS, sql_verify_als_bool,
       sql_notify_enable_crc_check, sql_notify_als_bool, NULL },
     { "CLUSTER_NO_CMS", CT_TRUE, ATTR_READONLY, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
       PARAM_CLUSTER_NO_CMS, EFFECT_REBOOT, CFG_INS, sql_verify_als_bool, sql_notify_als_bool, sql_notify_als_bool, NULL },
