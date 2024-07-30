@@ -176,7 +176,7 @@ int32 stats_compare_data_ex(void *data1, uint16 size_1, void *data2, uint16 size
         size2 = column->size;
     }
 
-    return var_compare_data_ex(data1, size1, data2, size2, column->datatype);
+    return var_compare_data_ex(data1, size1, data2, size2, column->datatype, column->collate_id);
 }
 
 static inline void stats_decode_mtrl_row(mtrl_row_t *row, char *data)
