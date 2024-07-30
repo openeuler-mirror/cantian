@@ -191,6 +191,7 @@ typedef enum en_rst_file_type {
     RESTORE_DATAFILE = 2, // restore the specifical datafile and recover
     RESTORE_ARCHFILE = 3,
     RESTORE_FLUSHPAGE = 4,
+    RESTORE_COPYCTRL = 5,
 } rst_file_type_t;
 
 typedef struct st_knl_restore {

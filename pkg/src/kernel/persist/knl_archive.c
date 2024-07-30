@@ -1665,6 +1665,7 @@ arch_ctrl_t *arch_get_archived_log_info_for_recovery(knl_session_t *session, uin
     arch_ctrl_t *arch_ctrl = NULL;
     uint32 arch_locator = 0;
     uint32 archived_start = arch_get_arch_start(session, node_id);
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
 
     arch_get_files_num(session, dest_pos - 1, node_id, &arch_num);
     for (uint32 i = 0; i < arch_num; i++) {
@@ -1677,6 +1678,9 @@ arch_ctrl_t *arch_get_archived_log_info_for_recovery(knl_session_t *session, uin
         if (asn == 0) {
             if (lsn >= arch_ctrl->start_lsn && lsn < arch_ctrl->end_lsn) {
                 return arch_ctrl;
+            }
+            if (DB_CLUSTER_NO_CMS) {
+                dtc_rcy->rcy_log_points[node_id].rcy_write_point.block_id = 0;
             }
             continue;
         }

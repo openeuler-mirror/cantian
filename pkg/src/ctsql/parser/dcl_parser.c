@@ -971,6 +971,10 @@ status_t sql_parse_dcl(sql_stmt_t *stmt, key_wid_t key_wid)
             stmt->context->type = CTSQL_TYPE_REPAIR_PAGE;
             status = CT_SUCCESS;
             break;
+        case KEY_WORD_REPAIR_COPYCTRL:
+            stmt->context->type = CTSQL_TYPE_REPAIR_COPYCTRL;
+            status = CT_SUCCESS;
+            break;
 
 #ifdef DB_DEBUG_VERSION
         case KEY_WORD_SYNCPOINT:

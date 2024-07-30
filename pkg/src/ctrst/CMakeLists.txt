@@ -25,9 +25,12 @@ set(CTRST_ALL_SRC
 
 ADD_EXECUTABLE(ctrst ${CTRST_ALL_SRC} ${VERSION_SRC})
 target_include_directories(ctrst PUBLIC
-	"${PROJECT_SOURCE_DIR}/src/utils"
-	"${PROJECT_SOURCE_DIR}/src/driver/gsc"
-  "${CANTIANDB_SRC}/cms/interface")
+        "${CANTIANDB_SRC}/cluster"
+        "${CANTIANDB_SRC}/rc"
+        "${PROJECT_SOURCE_DIR}/src/utils"
+        "${PROJECT_SOURCE_DIR}/src/driver/gsc"
+        "${CANTIANDB_SRC}/cms/interface"
+        )
 if (USE_FUZZASAN)
     target_link_libraries(ctrst PRIVATE zeserver zesql zemes zeprotocol zekernel zeclient zecommon m rt pthread dl z zstd lz4 Secodefuzz) 
 else()

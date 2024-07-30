@@ -289,7 +289,8 @@ status_t buf_load_page_from_disk(knl_session_t *session, buf_ctrl_t *ctrl, page_
         return CT_ERROR;
     }
 
-    knl_panic(lsn <= ctrl->page->lsn || DAAC_SESSION_IN_RECOVERY(session));
+    knl_panic_log(lsn <= ctrl->page->lsn || DAAC_SESSION_IN_RECOVERY(session),
+                  "buf load page from disk lsn [%llu-%llu]", (uint64)lsn ,(uint64) ctrl->page->lsn);
 
     return CT_SUCCESS;
 }

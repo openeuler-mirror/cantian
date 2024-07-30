@@ -962,7 +962,9 @@ void log_set_page_lsn(knl_session_t *session, uint64 lsn, uint64 lfn)
 #if defined(__arm__) || defined(__aarch64__)
         CM_MFENCE;
 #endif
-        knl_panic(!DB_IS_CLUSTER(session) || DCS_BUF_CTRL_IS_OWNER(session, ctrl));
+        if (!DB_CLUSTER_NO_CMS) {
+            knl_panic(!DB_IS_CLUSTER(session) || DCS_BUF_CTRL_IS_OWNER(session, ctrl));
+        }
         log_reset_readonly(ctrl);
     }
 
@@ -1491,6 +1493,10 @@ void log_recycle_file_dbstor(knl_session_t *session, log_point_t *point)
 
 void log_recycle_file(knl_session_t *session, log_point_t *point)
 {
+    if (DB_CLUSTER_NO_CMS) {
+        CT_LOG_RUN_INF("no cms log recycle file dont need log recycle file");
+        return;
+    }
     log_context_t *ctx = &session->kernel->redo_ctx;
     lrcv_context_t *lrcv = &session->kernel->lrcv_ctx;
     arch_log_id_t last_arch_log;

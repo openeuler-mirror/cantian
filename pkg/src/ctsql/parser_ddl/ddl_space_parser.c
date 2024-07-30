@@ -855,7 +855,7 @@ status_t sql_parse_alter_space(sql_stmt_t *stmt)
         CT_RETURN_IFERR(status);
     } else if (IS_VARIANT(&word)) {
         altspace_def->is_for_create_db = CT_FALSE;
-    } else{
+    } else {
         CT_SRC_THROW_ERROR(word.text.loc, ERR_SQL_SYNTAX_ERROR, "invalid variant/object name was found");
         return CT_ERROR;
     }
