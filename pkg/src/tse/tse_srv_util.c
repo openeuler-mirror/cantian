@@ -1189,14 +1189,7 @@ cond_pushdown_result_t compare_cond_field_value(tse_conds *cond, knl_cursor_t *c
     void *field_value = cond->field_info.field_value;
     uint16 field_size = cond->field_info.field_size;
     int32 cmp = 0;
-    if (CT_IS_STRING_TYPE(ct_type) || ct_type == CT_TYPE_CLOB) {
-        CHARSET_COLLATION *cs = cm_get_charset_coll(cond->field_info.collate_id);
-        text_t text1 = {fetch_value, fetch_size};
-        text_t text2 = {field_value, field_size};
-        cmp = cs->collsp(cs, &text1, &text2);
-    } else {
-        cmp = var_compare_data_ex(fetch_value, fetch_size, field_value, field_size, ct_type);
-    }
+    cmp = var_compare_data_ex(fetch_value, fetch_size, field_value, field_size, ct_type, cond->field_info.collate_id);
     return (cond_pushdown_result_t)check_value_is_compare(cond->func_type, cmp);
 }
 

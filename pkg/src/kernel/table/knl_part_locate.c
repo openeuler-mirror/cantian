@@ -47,7 +47,7 @@ static int32 part_compare_key_column(ct_type_t type, part_decode_key_t *key1,
         data1 = key1->buf + key1->offsets[col];
         data2 = key2->buf + key2->offsets[col];
 
-        result = var_compare_data_ex(data1, key1->lens[col], data2, key2->lens[col], type);
+        result = var_compare_data_ex(data1, key1->lens[col], data2, key2->lens[col], type, CT_INVALID_ID16);
     }
 
     return result;
@@ -125,7 +125,7 @@ static bool32 part_compare_list_key(knl_part_column_desc_t *desc, part_decode_ke
             data1 = key1->buf + key1->offsets[i];
             data2 = key2->buf + key2->offsets[i];
 
-            if (var_compare_data_ex(data1, key1->lens[i], data2, key2->lens[i], (ct_type_t)desc[i].datatype) != 0) {
+            if (var_compare_data_ex(data1, key1->lens[i], data2, key2->lens[i], (ct_type_t)desc[i].datatype, CT_INVALID_ID16) != 0) {
                 return CT_FALSE;
             }
         }

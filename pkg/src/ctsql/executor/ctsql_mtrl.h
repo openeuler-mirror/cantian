@@ -37,7 +37,7 @@ static inline int32 sql_compare_data_ex(void *data1, uint16 size1, void *data2, 
         return (size1 == size2) ? 0 : (size1 == CT_NULL_VALUE_LEN) ? 1 : -1;
     }
 
-    return var_compare_data_ex(data1, size1, data2, size2, type);
+    return var_compare_data_ex(data1, size1, data2, size2, type, CT_INVALID_ID16);
 }
 
 static inline int32 sql_sort_mtrl_rows(mtrl_row_t *row1, mtrl_row_t *row2, uint32 col, ct_type_t type,
@@ -56,7 +56,7 @@ static inline int32 sql_sort_mtrl_rows(mtrl_row_t *row1, mtrl_row_t *row2, uint3
         return (size1 == CT_NULL_VALUE_LEN) ? flag : -flag;
     }
 
-    flag = var_compare_data_ex(MT_CDATA(row1, col), size1, MT_CDATA(row2, col), size2, type);
+    flag = var_compare_data_ex(MT_CDATA(row1, col), size1, MT_CDATA(row2, col), size2, type, CT_INVALID_ID16);
     return (order_mode->direction == SORT_MODE_ASC) ? flag : -flag;
 }
 
