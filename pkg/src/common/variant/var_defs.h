@@ -332,7 +332,7 @@ bool32 var_is_zero(variant_t *var);
 
 #define NUM_DATA_CMP(T, data1, data2) ((*(T *)(data1) < *(T *)(data2)) ? -1 : (*(T *)(data1) > *(T *)(data2)) ? 1 : 0)
 
-static inline int32 var_compare_data_ex(void *data1, uint16 size1, void *data2, uint16 size2, ct_type_t type)
+static inline int32 var_compare_data_ex(void *data1, uint16 size1, void *data2, uint16 size2, ct_type_t type, uint16 collate_id)
 {
     text_t text1, text2;
 
@@ -390,6 +390,10 @@ static inline int32 var_compare_data_ex(void *data1, uint16 size1, void *data2, 
             text1.len = size1;
             text2.str = (char *)data2;
             text2.len = size2;
+            if (collate_id != CT_INVALID_ID16) {
+                CHARSET_COLLATION *charset = cm_get_charset_coll(collate_id);
+                return cm_mysql_compare(charset, &text1, &text2);
+            }
             return cm_compare_text_rtrim(&text1, &text2);
 
         case CT_TYPE_VARCHAR:
@@ -400,6 +404,10 @@ static inline int32 var_compare_data_ex(void *data1, uint16 size1, void *data2, 
             text1.len = size1;
             text2.str = (char *)data2;
             text2.len = size2;
+            if (collate_id != CT_INVALID_ID16) {
+                CHARSET_COLLATION *charset = cm_get_charset_coll(collate_id);
+                return cm_mysql_compare(charset, &text1, &text2);
+            }
             return cm_compare_text(&text1, &text2);
         }
     }
