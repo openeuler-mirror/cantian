@@ -100,7 +100,7 @@ function start_cantiand() {
       err "Invalid mysql config file: ${MYSQL_CONFIG_FILE}"
     fi
 
-    export CANTIAN_RUN_MODE=${RUN_MODE}
+    export RUN_MODE=${RUN_MODE}
     export CANTIAND_MODE=${START_MODE}
     export CANTIAND_HOME_DIR=${CTDB_DATA}
     export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:$LD_LIBRARY_PATH
@@ -273,7 +273,7 @@ function check_cantiand_status() {
 
 function temp_start_cantiand() {
   if [ ${single_mode} = "single" ];then
-    export CANTIAN_RUN_MODE=$running_mode
+    export RUN_MODE=$running_mode
     export CANTIAND_MODE=nomount
     export CANTIAND_HOME_DIR=${CTDB_DATA}
     export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:${LD_LIBRARY_PATH}

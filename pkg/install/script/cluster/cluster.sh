@@ -61,7 +61,7 @@ function start_cantian() {
 	if [ "${loguser}" = "root" ]; then
 		if [ ${single_mode} = "single" ];then
 			sudo -E -i -u ${dbuser} sh -c "export CANTIAND_MODE=open && export CANTIAND_HOME_DIR=${CTDB_DATA} && export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:${LD_LIBRARY_PATH} \
-											&& export CANTIAN_RUN_MODE=$running_mode && nohup ${MYSQL_BIN_DIR}/bin/mysqld \
+											&& export RUN_MODE=$running_mode && nohup ${MYSQL_BIN_DIR}/bin/mysqld \
 											--defaults-file=${MYSQL_CODE_DIR}/scripts/my.cnf --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin \
 											--early-plugin-load="ha_ctc.so" --default-storage-engine=CTC --core-file >> ${MYSQL_LOG_FILE} 2>&1 &"
 			if [ $? -ne 0 ]; then 
@@ -79,7 +79,7 @@ function start_cantian() {
 		if [ ${single_mode} = "single" ];then
 			export CANTIAND_MODE=open
 			export CANTIAND_HOME_DIR=${CTDB_DATA}
-			export CANTIAN_RUN_MODE=$running_mode
+			export RUN_MODE=$running_mode
 			export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:${LD_LIBRARY_PATH}
 			nohup ${MYSQL_BIN_DIR}/bin/mysqld \
 				--defaults-file=${MYSQL_CODE_DIR}/scripts/my.cnf --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin \
