@@ -24,6 +24,8 @@ try:
     import tarfile
     import copy
     import json
+    import threading
+    import signal
     from funclib import CommonValue, SingleNodeConfig, ClusterNode0Config, ClusterNode1Config, DefaultConfigValue
     import argparse
 
@@ -357,6 +359,45 @@ def check_runner():
                   " with the executor [%s]." % (owner, runner))
             sys.exit(1)
 
+def persist_environment_variable(var_name, var_value, config_file=None):
+    """
+    将环境变量持久化到指定的配置文件中。
+
+    参数:
+    var_name (str): 要持久化的环境变量名称。
+    var_value (str): 要持久化的环境变量值。
+    config_file (str, optional): 要修改的配置文件路径。如果没有提供，则默认为 ~/.bashrc。
+    """
+    if config_file is None:
+        config_file = os.path.expanduser("~/.bashrc")
+
+    # 读取现有的配置文件内容
+    try:
+        with open(config_file, 'r') as file:
+            lines = file.readlines()
+    except FileNotFoundError:
+        lines = []
+
+    # 检查配置文件中是否已经存在该变量设置
+    var_exists = False
+    for i, line in enumerate(lines):
+        if line.startswith(f"export {var_name}="):
+            lines[i] = f"export {var_name}={var_value}\n"
+            var_exists = True
+            break
+
+    # 如果变量不存在，则添加新变量设置
+    if not var_exists:
+        lines.append(f"\nexport {var_name}={var_value}\n")
+
+    # 写回配置文件
+    with open(config_file, 'w') as file:
+        file.writelines(lines)
+
+    # 使更改生效
+    os.system(f"source {config_file}")
+
+    print(f"{var_name} set to {var_value} and made persistent.")
 
 def get_random_num(lower_num, upper_num):
     # range of values
@@ -1620,7 +1661,7 @@ class Installer:
                 self.gssConfigs[_value[0].strip().upper()] = _value[1].strip()
             elif key == "-P":
                 pass  # Compatibility parameter
-            elif key in ["-g", "-l", "-U", "-M", "-W", "-s", "-N", "-d", "-p", "--dbstor", "--linktype"]:
+            elif key in ["-g", "-l", "-U", "-M", "-W", "-s", "-N", "-d", "-p", "-m", "--dbstor", "--linktype"]:
                 pass
             elif key == "-f":
                 self.create_db_file = value.strip()
@@ -3532,22 +3573,77 @@ class Installer:
                 raise Exception("chown to %s:%s return: %s%s%s"
                                 % (self.user, self.group, str(ret_code),
                                     os.linesep, stderr))
-
-        try:
-            # 1.start dn process in nomount mode
-            self.FAILED_POS = self.CREATE_DB_FAILED
-            if os.getuid() == 0:
-                self.setcap()
-            self.start_cms()
-            self.start_gss()
-            self.start_cantiand()
-            log("Creating cantian database...", True)
-            self.update_factor_key()
-            self.execute_sql_file(self.get_database_file())
-        except Exception as err:
-            self.rollBack()
-            logExit(str(err))
+                
+        persist_environment_variable("RUN_MODE", g_opts.running_mode.lower(),self.userProfile)
+            
+        # start mysql and cantian in single process mode with metadata in cantian 
+        if g_opts.running_mode.lower() in [CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST, CANTIAND_WITH_MYSQL_IN_CLUSTER]:
+            try:
+                # start MySQL in single process mode
+                self.FAILED_POS = self.CREATE_DB_FAILED
+                if os.getuid() == 0:
+                    self.setcap()
+                self.start_cms()
+                self.start_gss()
+                # create and start threads to start mysql and create db
+                cantiand_thread = threading.Thread(target=self.start_cantiand)
+                create_db_thread = threading.Thread(target=self.create_db_for_cantian_in_single)
+                cantiand_thread.start()
+                create_db_thread.start()
+                # wait for completion of threads
+                cantiand_thread.join()
+                create_db_thread.join()
+                log("Both cantiand and database creation processes are complete.",True)
+            except Exception as err:
+                self.rollBack()
+                logExit(str(err))
+        # all other running modes go this way
+        else:
+            try:
+                # 1.start dn process in nomount mode
+                self.FAILED_POS = self.CREATE_DB_FAILED
+                if os.getuid() == 0:
+                    self.setcap()
+                self.start_cms()
+                self.start_gss()
+                self.start_cantiand()
+                log("Creating cantian database...", True)
+                self.update_factor_key()
+                self.execute_sql_file(self.get_database_file())
+            except Exception as err:
+                self.rollBack()
+                logExit(str(err))
         log("Creating database succeed.", True)
+
+    # create db for cantian during mysql initialization in single process mode
+    def create_db_for_cantian_in_single(self):
+        # wait for mysql process to start
+        log_home = self.cantiandConfigs["LOG_HOME"]
+        run_log = os.path.join(log_home, "run", "cantiand.rlog")
+        search_string = 'start waiting for db to be open'
+        cmd = "cat %s | grep '%s'" % (run_log, search_string)
+        is_instance_up = False
+        while not is_instance_up:
+            ret_code, stdout, stderr = _exec_popen(cmd)
+            output = stdout + stderr
+            if ret_code:
+                log("still waiting for cantian to start",True)
+            else:
+                is_instance_up = True
+                log("cantian instance started",True)
+            # wait for 5 seconds
+            time.sleep(5)
+        log("mysqld is running. Proceeding with database creation...", True)
+        self.update_factor_key()
+        self.execute_sql_file(self.get_database_file())
+
+    # look for mysqld process to check whether mysql has started
+    def is_mysqld_running(self):
+        try:
+            output = subprocess.check_output(["pgrep", "mysqld"])
+            return True
+        except subprocess.CalledProcessError:
+            return False
 
     def get_database_file(self):
         if self.create_db_file:
@@ -3987,7 +4083,12 @@ class Installer:
         self.securityAudit()
         # Don't set the core_dump_filter with -O option.
         if self.option == self.INS_ALL:
-            self.set_core_dump_filter()
+            # check cantiand process if not single process mode
+            if g_opts.running_mode.lower() not in VALID_SINGLE_MYSQL_RUNNING_MODE:
+                self.set_core_dump_filter()
+            # if single process mode, check mysqld process
+            else:
+                self.set_core_dump_filter_mysql()
         log("Successfully install %s instance." % self.instance_name)
 
     def check_parameter_mysql(self):
