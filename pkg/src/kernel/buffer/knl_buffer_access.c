@@ -2024,7 +2024,7 @@ status_t buf_invalidate_page_with_version(knl_session_t *session, page_id_t page
 
     SYNC_POINT_GLOBAL_START(CANTIAN_DCS_INVALID_REQ_OTHER_ABORT, (int32 *)session, 0);
     SYNC_POINT_GLOBAL_END;
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session, page_id)) {
         CT_LOG_RUN_ERR(
             "[buffer][%u-%u][reforming, buf_invalidate_page failed]: ctrl_dirty=%u, ctrl_remote_dirty=%u, "
             "ctrl_readonly=%u, in ckpt=%u, ctrl_lock_mode=%u, edp=%d",
@@ -2124,7 +2124,7 @@ status_t buf_invalidate_page_owner(knl_session_t *session, page_id_t page_id, ui
         return CT_ERROR;
     }
 
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session, ctrl->page_id)) {
         CT_LOG_RUN_ERR(
             "[buffer][%u-%u][reforming, buf_invalidate_page page failed]: ctrl_dirty=%u, ctrl_remote_dirty=%u, "
             "ctrl_readonly=%u, in ckpt=%u, ctrl_lock_mode=%u, edp=%d",

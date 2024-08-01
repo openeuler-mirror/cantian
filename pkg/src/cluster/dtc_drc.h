@@ -576,23 +576,23 @@ typedef struct st_drc_remaster_target_part_msg {
 extern drc_res_ctx_t g_drc_res_ctx;
 #define DRC_RES_CTX  (&g_drc_res_ctx)
 extern int32 page_req_count;
-static inline bool32 stop_dcs_io(knl_session_t *session)
+static inline bool32 stop_dcs_io(knl_session_t *session, page_id_t page_id)
 {
-    return !dtc_dcs_readable(session);
+    return !dtc_dcs_readable(session, page_id);
 }
 
-static inline bool32 stop_dls_req(knl_session_t *session)
+static inline bool32 stop_dls_req(knl_session_t *session, drid_t *lock_id)
 {
-    return !dtc_dcs_readable(session);
+    return !dtc_dls_readable(session, lock_id);
 }
 
 #define DRC_GET_CURR_REFORM_VERSION (g_rc_ctx->info.trigger_version)
 
-#define DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session) \
-    ((stop_dcs_io(session)) || (req_version) < (DRC_GET_CURR_REFORM_VERSION))
+#define DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session, page_id) \
+    ((stop_dcs_io(session, page_id)) || (req_version) < (DRC_GET_CURR_REFORM_VERSION))
 
-#define DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session) \
-    ((stop_dls_req(session)) || (req_version) < (DRC_GET_CURR_REFORM_VERSION))
+#define DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id) \
+    ((stop_dls_req(session, lock_id)) || (req_version) < (DRC_GET_CURR_REFORM_VERSION))
 
 #define DRC_PAGE_BATCH_BUF_SIZE (30000)
 #define DRC_PAGE_RLS_OWNER_BATCH_SIZE (DRC_PAGE_BATCH_BUF_SIZE / sizeof(page_id_t))
