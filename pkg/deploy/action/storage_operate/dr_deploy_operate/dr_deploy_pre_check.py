@@ -562,6 +562,19 @@ class DRDeployPreCheck(object):
         ctom_result_code, _, _ = exec_popen(check_ctom_cmd)
         if not cantain_result_code or not ctom_result_code:
             check_result.append("Cantian standby has been installed, please check!")
+        install_json_path = os.path.join(CURRENT_PATH,"../../cantian/install_config.json")
+        install_json_data = read_json_config(install_json_path)
+        root_dir = os.path.join(CURRENT_PATH, "../../../../../")
+        if install_json_data.get("M_RUNING_MODE") == "cantiand_with_mysql_in_cluster":
+            meta_path = os.path.join(CURRENT_PATH,"../../config_params.json")
+            meta_data = read_json_config(meta_path)
+            if meta_data.get("mysql_metadata_in_cantian"):
+                # 归一
+                mysql_pkg = root_dir + "Cantian_connector_mysql_*.tgz"
+            else:
+                mysql_pkg = root_dir + "mysql_release_*.tar.gz"
+            if not os.path.exists(mysql_pkg):
+                check_result.append("No such file: %s" % mysql_pkg)
         return check_result
 
     def execute(self):

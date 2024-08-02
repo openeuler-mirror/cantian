@@ -21,6 +21,7 @@ USER_FILE="${LOGICREP_HOME}/create_user.json"
 HEALTHY_FILE="/opt/cantian/healthy"
 READINESS_FILE="/opt/cantian/readiness"
 CMS_CONTAINER_FLAG="/opt/cantian/cms/cfg/container_flag"
+SINGLE_FLAG="/opt/cantian/cantian/cfg/single_flag"
 
 source ${CURRENT_PATH}/../log4sh.sh
 
@@ -277,7 +278,7 @@ function init_start() {
     set_version_file
 
     # 安装并拉起MySQL
-    if [[ "${cantian_in_container}" == "1" ]]; then
+    if [[ "${cantian_in_container}" == "1" ]] && [ ! -f "${SINGLE_FLAG}" ]; then
         start_mysqld
     fi
 

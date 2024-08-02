@@ -324,7 +324,7 @@ status_t ctbak_do_ctsql_backup(char *path, char *params[], bool32 *retry)
         printf("%s", output);
         ctbak_check_backup_output(output, &need_retry);
     }
-    pclose(fp);
+    fclose(fp);
     close(pipe_stdout[PARENT_ID]);
     int32 wait = waitpid(child_pid, &status, 0);
     if (wait == child_pid && WIFEXITED((unsigned int)status) && WEXITSTATUS((unsigned int)status) != 0) {

@@ -1,6 +1,7 @@
 #!/bin/bash
 CURRENT_PATH=$(dirname $(readlink -f $0))
 READINESS_FILE="/opt/cantian/readiness"
+SINGLE_FLAG="/opt/cantian/cantian/cfg/single_flag"
 cantian_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
 deploy_user=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_user"`
 deploy_group=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_group"`
@@ -30,7 +31,11 @@ if [[ ! -f "${READINESS_FILE}" ]]; then
     handle_failure
 fi
 
-if [[ -z "${cantiand_pid}" ]] || [[ -z "${cms_pid}" ]]; then
+if [[ -z "${cantiand_pid}" ]] && [ ! -f "${SINGLE_FLAG}" ]; then
+    handle_failure
+fi
+
+if [[ -z "${cms_pid}" ]]; then
     handle_failure
 fi
 

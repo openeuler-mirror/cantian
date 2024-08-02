@@ -445,7 +445,7 @@ def init_start_status_file():
     try:
         flags = os.O_WRONLY | os.O_TRUNC | os.O_CREAT
         modes = stat.S_IWUSR | stat.S_IRUSR
-        start_parameters = {'start_status': 'default', 'db_create_status': 'default', 'ever_started': False}
+        start_parameters = {'start_status': 'default', 'db_create_status': 'default', 'ever_started': False , 'mysql_init': 'default'}
         with os.fdopen(os.open(CANTIAN_START_STATUS_FILE, flags, modes), 'w') as load_fp:
             json.dump(start_parameters, load_fp)
     except IOError as ex:
@@ -2348,7 +2348,7 @@ class Installer:
     ##################################################################
     # start cantian instance
     ##################################################################
-    def start_cantiand(self):
+    def start_cantiand(self, no_init=False):
         """
         function:start cantian instacne
         input : start mode, start type
@@ -2362,6 +2362,7 @@ class Installer:
             start_parameters = json.load(load_fp)
         self.chown_data_dir()
         status_success = False
+        mysql_init = True
         start_mode = self.NOMOUNT_MODE
         if g_opts.node_id == 1:
             start_mode = self.OPEN_MODE
@@ -2369,9 +2370,16 @@ class Installer:
             start_mode = self.OPEN_MODE
         if start_parameters.setdefault('db_create_status', "default") == "done" and g_opts.node_id == 0:
             start_mode = self.OPEN_MODE
+        if start_parameters.setdefault('mysql_init', "default") == "done" or no_init:
+            mysql_init = False
 
         # Start instance, according to running mode can point to cantiand or cantiand with mysql
         cmd = "echo -e '%s' | sh %s -P cantiand -M %s -T %s -C %s >> %s 2>&1" % (
+            g_opts.db_passwd, INSTALL_SCRIPT, start_mode, g_opts.running_mode.lower(),
+            g_opts.mysql_config_file_path, g_opts.log_file)
+        
+        if not mysql_init and g_opts.running_mode.lower() in [CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_IN_CLUSTER, CANTIAND_WITH_MYSQL_ST]:
+            cmd="echo -e '%s' | sh %s -P cantiand -M %s -T %s -C %s -R >> %s 2>&1" % (
             g_opts.db_passwd, INSTALL_SCRIPT, start_mode, g_opts.running_mode.lower(),
             g_opts.mysql_config_file_path, g_opts.log_file)
 
@@ -2386,7 +2394,7 @@ class Installer:
         # it by checking the process cyclically after the start command
         # returned. If the cantiand process can't be found within the
         # expected time, it is considered that the startup failed.
-        tem_log_info, status_success = self.init_some_condition(status_success, self.status_log)
+        tem_log_info, status_success = self.init_some_condition(status_success, self.status_log, mysql_init)
 
         # the log file's permission is 600, change it
         if os.path.exists(self.status_log):
@@ -2399,6 +2407,15 @@ class Installer:
             raise Exception("Can not get instance '%s' process pid,"
                             "The detailed information: '%s' " % (self.data, tem_log_info))
         log("cantiand has started")
+        flags = os.O_RDWR | os.O_CREAT
+        modes = stat.S_IWUSR | stat.S_IRUSR
+        with os.fdopen(os.open(CANTIAN_START_STATUS_FILE, flags, modes), 'w+') as load_fp:
+            start_parameters = json.load(load_fp)
+            start_status_item = {'mysql_init': "done"}
+            start_parameters.update(start_status_item)
+            load_fp.seek(0)
+            load_fp.truncate()
+            json.dump(start_parameters, load_fp)
 
     def get_invalid_parameter(self):
         log_home = self.cantiand_configs["LOG_HOME"]
@@ -2412,7 +2429,7 @@ class Installer:
         else:
             return output
 
-    def init_some_condition(self, status_success, status_log):
+    def init_some_condition(self, status_success, status_log, mysql_init=False):
         start_time = 300
         tem_log_info = ""
         for i in range(0, start_time):
@@ -2422,8 +2439,7 @@ class Installer:
                    "|awk '{print $2}'" % (self.data))
             if g_opts.running_mode.lower() in [CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST,
                                                CANTIAND_WITH_MYSQL_IN_CLUSTER]:
-                cmd = "ps -ef | grep -v grep | grep mysqld"
-                status_log = MYSQL_LOG_FILE
+                cmd = "ps -ef | grep -v grep | grep mysqld | awk '{print $2}'"
 
             ret_code, stdout, stderr = _exec_popen(cmd)
             if ret_code:
@@ -2600,15 +2616,59 @@ class Installer:
                 raise Exception("chown to %s:%s return: %s%s%s"
                                 % (self.user, self.group, str(ret_code),
                                    os.linesep, stderr))
-
         try:
-            # 1.start dn process in nomount or mount mode
+            # 准备拉起cantiand或mysqld
             self.failed_pos = self.CREATE_DB_FAILED
-            cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
-            self.start_cantiand()
-            log("Creating cantian database...")
-            cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
-            self.create_db()
+            mysql_init = True
+            with os.fdopen(os.open(CANTIAN_START_STATUS_FILE, flags, modes), 'r') as load_fp:
+                start_parameters = json.load(load_fp)
+            if start_parameters.setdefault('mysql_init', "default") == "done":
+                mysql_init = False
+            if g_opts.node_id != 0:
+                # node 1
+                self.failed_pos = self.CREATE_DB_FAILED
+                cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
+                LOGGER.info('Begin to start node1')
+                with os.fdopen(os.open(CONFIG_PARAMS_FILE, flags, modes), 'r') as fp:
+                    json_data = json.load(fp)
+                    is_metadata_in_cantian = str(json_data.get('mysql_metadata_in_cantian', 'True'))
+                if is_metadata_in_cantian != 'True':
+                    # 非归一，第一次是初始化，需要第二次start
+                    log('mysql initialize...........')
+                    self.start_cantiand()
+                    if g_opts.running_mode in VALID_SINGLE_MYSQL_RUNNING_MODE and mysql_init:
+                        # 若是首次拉起且单进程，还需二次启动mysql；否则退出
+                        cmd = "pidof mysqld"
+                        log('wait for mysqld init complete.....................')
+                        while True:
+                            return_code, stdout_data, _ = _exec_popen(cmd)
+                            if return_code or not stdout_data:
+                                break
+                            time.sleep(2)
+                        self.start_cantiand()
+                else:
+                    # 归一，第一次直接正常拉起 || 后续启停逻辑一样，也是正常拉起，不初始化
+                    self.start_cantiand(no_init=True)
+            else:
+                # node 0
+                # 1.start dn process in nomount or mount mode
+                cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
+                self.start_cantiand()
+                log("Creating cantian database...")
+                log('wait for cantiand thread startup')
+                time.sleep(20)
+                self.create_db()
+
+                if g_opts.running_mode in VALID_SINGLE_MYSQL_RUNNING_MODE and mysql_init: 
+                    # 第二次拉起mysqld。
+                    cmd = "pidof mysqld"
+                    log('wait for mysqld init complete.....................')
+                    while True:
+                        return_code, stdout_data, _ = _exec_popen(cmd)
+                        if return_code or not stdout_data:
+                            break
+                        time.sleep(2)
+                    self.start_cantiand()
         except Exception as error:
             log_exit(str(error))
         self.check_db_status()
@@ -3137,14 +3197,33 @@ class Installer:
         if ret_code:
             log_exit("Can not link mysql lib, command: %s, output: %s" % (cmd, stderr))
 
+    def export_mysql_env(self):
+        try:
+            flags = os.O_RDWR
+            modes = stat.S_IWUSR | stat.S_IRUSR
+            with os.fdopen(os.open(self.user_profile, flags, modes), 'a') as _file:
+                _file.write("export MYSQL_BIN_DIR=\"%s\"" % MYSQL_BIN_DIR)
+                _file.write(os.linesep)
+                _file.write("export MYSQL_CODE_DIR=\"%s\"" % MYSQL_CODE_DIR)
+                _file.write(os.linesep)
+                _file.write("export MYSQL_DATA_DIR=\"%s\"" % MYSQL_DATA_DIR)
+                _file.write(os.linesep)
+                _file.write("export MYSQL_LOG_FILE=\"%s\"" % MYSQL_LOG_FILE)
+                _file.write(os.linesep)
+                _file.flush()
+        except IOError as ex:
+            self.failed_pos = self.SET_ENV_FAILED
+            log_exit("Can not set user environment variables: %s" % str(ex))
+    
     def prepare_mysql_for_single(self):
-        if g_opts.running_mode.lower() not in VALID_SINGLE_MYSQL_RUNNING_MODE:
+        if g_opts.running_mode.lower() not in VALID_SINGLE_MYSQL_RUNNING_MODE or int(g_opts.cantian_in_container)==1:
             return
         log("prepare_mysql_for_single")
         self.check_parameter_mysql()
         self.prepare_mysql_data_dir()
         self.prepare_mysql_bin_dir()
         self.set_mysql_env()
+        self.export_mysql_env()
 
 
 def check_archive_dir():
