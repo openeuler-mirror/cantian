@@ -2234,7 +2234,7 @@ status_t sql_notify_io_record(void *se, void *item, char *value)
         tse_record_io_state_reset();
     }
     set_iorecord_status(open_record);
-    return CT_SUCCESS;
+    return sql_notify_als_bool(se, item, value);
 }
 
 status_t sql_verify_als_page_clean_mode(void *se, void *lex, void *def)

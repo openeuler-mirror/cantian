@@ -3682,15 +3682,11 @@ static status_t stats_create_mtrl_index(knl_session_t *session, index_t *idx, st
 }
 
 static void stats_gather_pcrb_key(index_t *idx, stats_index_t *stats_idx, pcrb_key_t *prev_key,
-                                  stats_table_t *table_stats)
+                                  stats_table_t *table_stats, cbo_stats_index_t *cbo_index)
 {
     mtrl_cursor_t *cursor = &stats_idx->mtrl.mtrl_cur;
     pcrb_key_t     *key = (pcrb_key_t *)cursor->sort.row;
     errno_t         ret;
-
-    dc_entity_t *entity = idx->entity;
-    cbo_stats_table_t *cbo_stats = entity->cbo_table_stats;
-    cbo_stats_index_t *cbo_index = cbo_stats->indexs[idx->desc.id];
 
     if (stats_idx->info.keys == 0) {
         stats_idx->clus_factor++;
@@ -3713,12 +3709,14 @@ static void stats_gather_pcrb_key(index_t *idx, stats_index_t *stats_idx, pcrb_k
             (table_stats->part_stats.is_subpart && table_stats->part_stats.part_no == 0 &&
              table_stats->part_stats.sub_stats->part_no == 0)) {
             for (uint32_t i = 0; i < MAX_KEY_COLUMNS; i++) {
-                cbo_index->distinct_keys_arr[i] = 0;
+                if (cbo_index != NULL) {
+                    cbo_index->distinct_keys_arr[i] = 0;
+                }
             }
         }
     }
 
-    pcrb_calc_ndv_key(idx, key, prev_key, &stats_idx->info);
+    pcrb_calc_ndv_key(idx, key, prev_key, &stats_idx->info, cbo_index);
 
     stats_idx->info.keys++;
     stats_idx->info.keys_total_size += key->size;
@@ -3873,6 +3871,7 @@ static status_t stats_gather_key_info(knl_session_t *session, index_t *idx, stat
     pcrb_key_t *prev_pcrb_key = NULL;
     btree_key_t *prev_btree_key = NULL;
     errno_t ret;
+    cbo_stats_index_t *cbo_index = knl_get_cbo_index(session, idx->entity, idx->desc.id);
 
     CM_SAVE_STACK(session->stack);
 
@@ -3917,7 +3916,7 @@ static status_t stats_gather_key_info(knl_session_t *session, index_t *idx, stat
         }
 
         if (idx->desc.cr_mode == CR_PAGE) {
-            stats_gather_pcrb_key(idx, stats_idx, prev_pcrb_key, table_stats);
+            stats_gather_pcrb_key(idx, stats_idx, prev_pcrb_key, table_stats, cbo_index);
         } else {
             stats_gather_btree_key(idx, stats_idx, prev_btree_key, table_stats);
         }
