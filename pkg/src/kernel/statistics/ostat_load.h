@@ -36,6 +36,7 @@ extern "C" {
 #define CBO_LIST_COUNT   64
 #define CBO_EXTENT_COUNT 64
 #define CBO_INVALID_COLUMN_ID          (uint32)0xFFFFFFFF
+#define CBO_STRING_MAX_LEN 16
 
 #define CBO_GET_GROUP_NO(object, id) ((object)->part_group.group_id[(id) / PART_GROUP_SIZE])
 #define CBO_TABLE_PART_IS_INIT(object, id) (((CBO_GET_GROUP_NO(object, id)) != CT_INVALID_ID32) && \

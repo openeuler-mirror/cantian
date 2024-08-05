@@ -128,6 +128,7 @@ typedef struct cache_st_variant {
         unsigned long long v_ubigint;
         double v_real;
         date_t v_date;
+        char *v_str;
     };
 } cache_variant_t;
 
@@ -172,6 +173,8 @@ typedef struct {
     bool is_updated;
     uint32_t records;
     uint32_t *ndv_keys;
+    uint32_t num_str_cols;
+    bool *col_type;
     tse_cbo_stats_table_t *tse_cbo_stats_table;
 } tianchi_cbo_stats_t;
 #pragma pack()
