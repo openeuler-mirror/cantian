@@ -2,6 +2,13 @@
 #
 # This library is using the variables listed in cfg/cluster.ini, and value come from install.py#set_cluster_conf
 #
+running_mode=$(grep '"M_RUNING_MODE"' /opt/cantian/action/cantian/install_config.json | cut -d '"' -f 4)
+single_mode="multiple"
+if [ "$running_mode" = "cantiand_with_mysql" ] || 
+   [ "$running_mode" = "cantiand_with_mysql_in_cluster" ] || 
+   [ "$running_mode" = "cantiand_with_mysql_in_cluster_st" ]; then
+	single_mode="single"
+fi
 
 function help() {
     echo ""
@@ -93,21 +100,22 @@ function start_cantiand() {
       err "Invalid mysql config file: ${MYSQL_CONFIG_FILE}"
     fi
 
+    export RUN_MODE=${RUN_MODE}
     export CANTIAND_MODE=${START_MODE}
     export CANTIAND_HOME_DIR=${CTDB_DATA}
     export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:$LD_LIBRARY_PATH
     
     if [ "${IS_RERUN}" == 0 ]; then
         echo "Init mysqld data dir ${MYSQL_DATA_DIR}"
-        ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --initialize-insecure --datadir=${MYSQL_DATA_DIR}
+        ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --initialize-insecure --datadir=${MYSQL_DATA_DIR} --early-plugin-load="ha_ctc.so" --core-file
     fi
     
     if [ "${RUN_MODE}" != "cantiand_with_mysql_st" ]; then
         echo "Start mysqld with conf ${MYSQL_CONFIG_FILE}"
         nohup ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin \
-                                      --plugin_load="ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so;" \
+                                      --early-plugin-load="ha_ctc.so" \
                                       --check_proxy_users=ON --mysql_native_password_proxy_users=ON \
-                                      --default-storage-engine=CTC --core-file >> ${MYSQL_LOG_FILE} 2>&1 &
+                                      --default-storage-engine=CTC --core-file >> ${STATUS_LOG} 2>&1 &
     fi
     sleep 10
   else
@@ -250,7 +258,11 @@ function check_env() {
 }
 
 function check_cantiand_status() {
-  num=`pidof cantiand | wc -l`
+  if [ ${single_mode} = "single" ];then
+    num=`pidof mysqld | wc -l`
+  else
+    num=`pidof cantiand | wc -l`
+  fi
   if [ $num -gt 0 ];then
     echo "cantiand is running."
     return 1
@@ -260,6 +272,21 @@ function check_cantiand_status() {
 }
 
 function temp_start_cantiand() {
+  if [ ${single_mode} = "single" ];then
+    export RUN_MODE=$running_mode
+    export CANTIAND_MODE=nomount
+    export CANTIAND_HOME_DIR=${CTDB_DATA}
+    export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:${LD_LIBRARY_PATH}
+    nohup ${MYSQL_BIN_DIR}/bin/mysqld \
+      --defaults-file=${MYSQL_CODE_DIR}/scripts/my.cnf --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin \
+      --early-plugin-load="ha_ctc.so" --default-storage-engine=CTC --core-file >> ${STATUS_LOG} 2>&1 &
+    sleep 3
+    num=`ps -ef | grep -w mysqld | grep -v grep | grep -v defunct | wc -l`
+    if [ $num -gt 0 ];then
+        echo "mysqld start success."
+        return 0
+    fi
+  else
     nohup ${CTDB_HOME}/bin/cantiand nomount -D ${CTDB_DATA} >> ${STATUS_LOG} 2>&1 &
     sleep 3
     num=`ps -ef | grep -w cantiand | grep -v grep | grep -v defunct | wc -l`
@@ -267,20 +294,29 @@ function temp_start_cantiand() {
         echo "cantiand start success."
         return 0
     fi
-    return 1
+  fi
+  return 1
 }
 
 function stop_cantiand() {
   node_id=$(cat ${CMS_HOME}/cfg/cms.ini  | grep NODE_ID | awk '{print $3}')
   ${CTDB_HOME}/bin/cms res -stop db -node $node_id -f
   set +e
-  pid=`pidof cantiand`
+  if [ ${single_mode} = "single" ];then
+    pid=`pidof mysqld`
+  else
+    pid=`pidof cantiand`
+  fi
   if [[ ! -z ${pid} ]]; then
     kill -35 $pid
     sleep 3
   fi
 
-  num=`pidof cantiand | wc -l`
+  if [ ${single_mode} = "single" ];then
+    num=`pidof mysqld | wc -l`
+  else
+    num=`pidof cantiand | wc -l`
+  fi
   if [[ $num -gt 0 ]];then
     log "cantiand is still running, failed to stop cantian."
     set -e
