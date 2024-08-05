@@ -53,7 +53,6 @@ status_t fill_cbo_stats_column(cbo_stats_column_t *cbo_column, tse_cbo_stats_col
     if (cbo_column == NULL) {
         return ret;
     }
-    tse_column->num_buckets = cbo_column->num_buckets;
     tse_column->num_null = cbo_column->num_null;
     tse_column->density = cbo_column->density;
     tse_column->hist_type = cbo_column->hist_type;
