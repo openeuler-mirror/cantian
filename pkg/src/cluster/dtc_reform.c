@@ -831,11 +831,17 @@ status_t rc_archive_log_offline_node(arch_proc_context_t *proc_ctx, uint32 node_
         if (arch_handle_tmp_file(proc_ctx, node_id) != CT_SUCCESS) {
             return CT_ERROR;
         }
-        if (cm_create_thread(rc_arch_dbstor_read_proc, 0, proc_ctx, &proc_ctx->read_thread) != CT_SUCCESS) {
-            return CT_ERROR;
-        }
-        if (cm_create_thread(arch_write_proc_dbstor, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
-            return CT_ERROR;
+        if (cm_dbs_get_deploy_mode() != DBSTOR_DEPLOY_MODE_NO_NAS) {
+            if (cm_create_thread(rc_arch_dbstor_read_proc, 0, proc_ctx, &proc_ctx->read_thread) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+            if (cm_create_thread(arch_write_proc_dbstor, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
+                return CT_ERROR;
+            } 
+        } else {
+            if (cm_create_thread(rc_arch_dbstor_ulog_proc, 0, proc_ctx, &proc_ctx->read_thread) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
         }
     } else {
         if (cm_create_thread(rc_arch_proc, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {

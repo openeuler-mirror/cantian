@@ -49,6 +49,8 @@ bool32 cm_dbs_exist_file(const char *name, uint32 file_type);
 status_t cm_dbs_access_file(const char *name, int32 *handle);
 status_t cm_dbs_query_dir(const char *name, void *file_list, uint32 *file_num);
 status_t cm_dbs_get_file_size(int32 handle, int64 *file_size);
+status_t cm_dbs_ulog_archive(int32 src_file, int32 dst_file, uint64 offset, uint64 start_lsn,
+                             uint64 arch_size, uint64 *real_arch_size, uint64 *last_lsn);
 
 #ifdef __cplusplus
 }

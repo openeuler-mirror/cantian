@@ -318,6 +318,23 @@ void cms_judge_disk_io_stat(void)
     }
 }
 
+status_t cm_write_detect_file_dbs(object_id_t *handle)
+{
+    char *buf = (char *)malloc(SIZE_M(1));
+    if (buf == NULL) {
+        CMS_LOG_ERR("malloc buf failed.");
+        return CT_ERROR;
+    }
+    MEMS_RETURN_IFERR(memset_sp(buf, SIZE_M(1), 0, SIZE_M(1)));
+    status_t ret = cm_write_dbs_file(handle, 0, buf, SIZE_M(1));
+    free(buf);
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("write detect file failed.");
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
 status_t cms_open_detect_file(void)
 {
     status_t ret;
@@ -344,6 +361,11 @@ status_t cms_open_detect_file(void)
                 CMS_LOG_ERR("get path last file handle failed, file %s, ret %d", g_cms_param->wait_detect_file[i], ret);
                 return ret;
             }
+            ret = cm_write_detect_file_dbs(&g_detect_dbs_file[i]);
+            if (ret != CT_SUCCESS) {
+                return ret;
+            }
+
         }
     } else {
         CMS_LOG_ERR("invalid device type:%d", g_cms_param->gcc_type);

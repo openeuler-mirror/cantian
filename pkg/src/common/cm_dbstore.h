@@ -37,6 +37,17 @@ extern "C" {
 #define CSS_MAX_NAME_LEN 68
 #define DBS_DIR_MAX_FILE_NUM 1024
 
+typedef struct {
+    uint64 offset;
+    uint64 length;
+    uint64 start_lsn;
+} ulog_archive_option_t;
+
+typedef struct {
+    uint64 end_lsn;
+    uint64 real_len;
+} ulog_archive_result_t;
+
 // libdbstoreClient.so
 // namespace
 typedef int (*create_namespace_t)(char *, NameSpaceAttr *);
@@ -68,6 +79,7 @@ typedef int (*dbs_file_rename_t)(object_id_t *, char *, char *);
 typedef int (*dbs_file_get_num_t)(object_id_t *, uint32_t *);
 typedef int (*dbs_file_get_list_t)(object_id_t *, void *, uint32_t *);
 typedef int (*dbs_get_file_size_t)(object_id_t *, uint64 *);
+typedef int (*dbs_ulog_archive_t)(object_id_t *, object_id_t *, ulog_archive_option_t *, ulog_archive_result_t *);
 
 //pagepool
 typedef int (*create_pagepool_t)(char *, PagePoolAttr *, PagePoolId *);
@@ -128,6 +140,7 @@ typedef struct st_dbs_interface {
     dbs_file_get_num_t dbs_file_get_num;
     dbs_file_get_list_t dbs_file_get_list;
     dbs_get_file_size_t dbs_get_file_size;
+    dbs_ulog_archive_t dbs_ulog_archive;
 
     // pagepool
     create_pagepool_t create_pagepool;

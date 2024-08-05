@@ -39,8 +39,11 @@
 #include "cm_dbs_defs.h"
 #include "cm_dbstore.h"
 
+#define DBSTOR_MAX_FILE_SIZE (1024ULL * 1024 * 1024 * 1024)
 #define DBSTOR_MAX_RWBUF_SIZE (1 * 1024 * 1024)
 #define DBSTOR_RETRY_COUNT 3
+
+#define DBSTOR_ULOG_ARCHIVE_END 21
 
 status_t cm_check_file_path(const char *file_path)
 {
@@ -416,6 +419,11 @@ status_t cm_do_dbs_file_read(object_id_t *obj_id, uint32_t offset, char *buf, ui
 
 status_t cm_dbs_read_file(int32 handle, int64 offset, const void *buf, int32 size, int32 *return_size)
 {
+    if (offset + size > DBSTOR_MAX_FILE_SIZE) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] invalid file offset %llu and size %d", offset, size);
+        return CT_ERROR;
+    }
+
     int32 already_r_size = 0;
     int32 read_size = 0;
     int64 read_offset = offset;
@@ -468,6 +476,11 @@ status_t cm_do_dbs_file_write(object_id_t *obj_id, uint64 offset, char *buf, uin
 
 status_t cm_dbs_write_file(int32 handle, int64 offset, const void *buf, int32 size)
 {
+    if (offset + size > DBSTOR_MAX_FILE_SIZE) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] invalid file offset %llu and size %d", offset, size);
+        return CT_ERROR;
+    }
+
     int32 write_size = 0;
     int64 off = offset;
     int32 total_size = size;
@@ -646,19 +659,64 @@ status_t cm_dbs_get_file_size(int32 handle, int64 *file_size)
         return CT_ERROR;
     }
 
-    cm_dbs_map_item_s obj = { 0 };
-    if (cm_dbs_map_get(handle, &obj) != CT_SUCCESS) {
+    cm_dbs_map_item_s item = { 0 };
+    if (cm_dbs_map_get(handle, &item) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CM_DEVICE] Failed to get dbstor file to get file size by handle(%d).", handle);
         return CT_ERROR;
     }
     CT_LOG_RUN_INF("[CM_DEVICE] Success to get dbstor file to get file size by handle(%d).", handle);
 
-    int32 ret = dbs_global_handle()->dbs_get_file_size(&obj.obj_id, &size);
+    int32 ret = dbs_global_handle()->dbs_get_file_size(&item.obj_id, &size);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CM_DEVICE] Failed to get file size, ret %d, handle %d", ret, handle);
         return CT_ERROR;
     }
 
     *file_size = (int64)size;
+    return CT_SUCCESS;
+}
+
+status_t cm_dbs_ulog_archive(int32 src_file, int32 dst_file, uint64 offset, uint64 start_lsn,
+                             uint64 arch_size, uint64 *real_arch_size, uint64 *last_lsn)
+{
+    if (src_file == CT_INVALID_HANDLE || dst_file == CT_INVALID_HANDLE) {
+        CT_LOG_RUN_ERR("[CM_ARCH] invalid file handle, src %d, dst %d", src_file, dst_file);
+        return CT_ERROR;
+    }
+
+    if (offset + arch_size > DBSTOR_MAX_FILE_SIZE) {
+        CT_LOG_RUN_ERR("[CM_ARCH] invalid file offset %llu and arch_size %llu", offset, arch_size);
+        return CT_ERROR;
+    }
+
+    cm_dbs_map_item_s src_item = { 0 };
+    if (cm_dbs_map_get(src_file, &src_item) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CM_ARCH] Failed to get dbstor object id by handle(%d).", src_file);
+        return CT_ERROR;
+    }
+    cm_dbs_map_item_s dst_item = { 0 };
+    if (cm_dbs_map_get(dst_file, &dst_item) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CM_ARCH] Failed to get dbstor object id by handle(%d).", dst_file);
+        return CT_ERROR;
+    }
+
+    ulog_archive_option_t option = { offset, arch_size, start_lsn };
+    ulog_archive_result_t result = { 0 };
+    int32 ret = dbs_global_handle()->dbs_ulog_archive(&src_item.obj_id, &dst_item.obj_id, &option, &result);
+    if (ret == DBSTOR_ULOG_ARCHIVE_END) {
+        CT_LOG_RUN_WAR("[CM_ARCH] redo log has been archived to the end, ret %d, offset %llu, start lsn %llu", 
+                       ret, offset, start_lsn);
+        *real_arch_size = 0;
+        return CT_SUCCESS;
+    }
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CM_ARCH] Failed to arch redo log, ret %d, offset %llu, start lsn %llu",
+                       ret, offset, start_lsn);
+        return CT_ERROR;
+    }
+    *last_lsn = result.end_lsn;
+    *real_arch_size = result.real_len;
+    CT_LOG_RUN_INF("[CM_ARCH] ulog archive redo successful, offset %llu, start lsn %llu, "
+                   "last lsn %llu, real_arch_size %llu.", offset, start_lsn, *last_lsn, *real_arch_size);
     return CT_SUCCESS;
 }

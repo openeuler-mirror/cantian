@@ -448,6 +448,7 @@ status_t rc_arch_record_archinfo(arch_proc_context_t *proc_ctx, uint32 dest_pos,
 void rc_arch_recycle_file(arch_proc_context_t *proc_ctx);
 status_t rc_arch_generate_file(arch_proc_context_t *proc_ctx);
 void rc_arch_dbstor_read_proc(thread_t *thread);
+void rc_arch_dbstor_ulog_proc(thread_t *thread);
 status_t arch_get_real_size(const char *file_name, int64 *file_size);
 void arch_print_dtc_time_interval(timeval_t *start_time);
 status_t arch_find_convert_file_name_id_rst_asn_lsn(arch_file_name_info_t *file_name_info);

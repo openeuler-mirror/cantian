@@ -29,6 +29,7 @@
 #include "knl_ctrl_restore.h"
 #include "dtc_database.h"
 #include "cm_dbs_ulog.h"
+#include "cm_dbs_file.h"
 #include "srv_param_common.h"
 #include "dirent.h"
 #include "dtc_recovery.h"
@@ -785,7 +786,8 @@ status_t arch_read_batch(log_file_t *logfile, arch_proc_context_t *proc_ctx,
     int32 *data_size = &read_batch_attr.read_buf->data_size;
     uint32 buf_size = proc_ctx->arch_rw_buf.aligned_buf.buf_size / DBSTOR_ARCH_RW_BUF_NUM;
     status_t status;
-    for (uint32 i = 0; i < ARCH_READ_BATCH_RETRY_TIMES; i++) {
+    uint32 retry_num = 0;
+    for (; retry_num < ARCH_READ_BATCH_RETRY_TIMES; retry_num++) {
         SYNC_POINT_GLOBAL_START(CANTIAN_ARCH_GET_LOG_FAIL, &status, CT_ERROR);
         status = cm_device_read_batch(logfile->ctrl->type, src_file, read_batch_attr.start_lsn, CT_INVALID_ID64,
             buf, buf_size, data_size, read_batch_attr.last_lsn);
@@ -794,22 +796,22 @@ status_t arch_read_batch(log_file_t *logfile, arch_proc_context_t *proc_ctx,
             CT_LOG_RUN_ERR("[ARCH] fail to read log file %s lsn %llu read size %u", read_batch_attr.src_name,
                            read_batch_attr.start_lsn, *data_size);
             cm_sleep(ARCH_FAIL_WAIT_SLEEP_TIME);
-            return CT_ERROR;
+            continue;
         }
 
         if (proc_ctx->session->kernel->attr.arch_log_check &&
             arch_check_log_valid(*data_size, buf) != CT_SUCCESS) {
-            if (i < (ARCH_READ_BATCH_RETRY_TIMES - 1)) {
-                cm_sleep(ARCH_FAIL_WAIT_SLEEP_TIME);
-                continue;
-            } else if (cm_dbs_is_enable_dbs() == CT_TRUE) {
-                CT_LOG_RUN_ERR("[ARCH] fail to check log file.");
-                return CT_ERROR;
-            }
-        } else {
-            break;
-        }
+            cm_sleep(ARCH_FAIL_WAIT_SLEEP_TIME);
+            continue;
+        } 
+        break;
     }
+    if (retry_num == ARCH_READ_BATCH_RETRY_TIMES) {
+        CT_LOG_RUN_ERR("[ARCH] fail to read redo log from logfile %s, lsn %llu", 
+                       read_batch_attr.src_name, read_batch_attr.start_lsn);
+        return CT_ERROR;
+    }
+
     return CT_SUCCESS;
 }
 
@@ -895,6 +897,82 @@ status_t arch_write_file(arch_read_file_src_info_t *read_file_src_info, arch_pro
     proc_ctx->last_archived_log_record.start_lsn = proc_ctx->last_archived_log_record.end_lsn;
     CT_LOG_DEBUG_INF("[ARCH] succ, lsn start(%llu) cur(%llu) size(%llu)", proc_ctx->last_archived_log_record.start_lsn,
                      last_lsn, *file_offset);
+    return CT_SUCCESS;
+}
+
+status_t arch_dbstor_ulog_archive(log_file_t *logfile, arch_proc_context_t *proc_ctx,
+    uint64 start_lsn, uint64 *last_lsn, uint64 *real_copy_size)
+{
+    int32 src_file = logfile->handle;
+    int32 dst_file = proc_ctx->tmp_file_handle;
+    uint64 offset = proc_ctx->last_archived_log_record.offset;
+    uint64 copy_size = DBSTOR_LOG_SEGMENT_SIZE;
+    uint32 retry_num = 0;
+    for (; retry_num < ARCH_READ_BATCH_RETRY_TIMES; retry_num++) {
+        status_t ret = cm_dbs_ulog_archive(src_file, dst_file, offset, start_lsn, copy_size, real_copy_size, last_lsn);
+        if (ret != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[ARCH] fail to copy redo log by dbstor, lsn %llu, size %llu", start_lsn, copy_size);
+            cm_sleep(ARCH_FAIL_WAIT_SLEEP_TIME);
+            continue;
+        }
+        break;
+    }
+    if (retry_num == ARCH_READ_BATCH_RETRY_TIMES) {
+        CT_LOG_RUN_ERR("[ARCH] fail to copy redo log by dbstor, lsn %llu, size %llu", start_lsn, copy_size);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t arch_copy_file(arch_read_file_src_info_t *read_file_src_info, arch_proc_context_t *proc_ctx,
+                         const char *dst_name, device_type_t arch_file_type)
+{
+    log_file_t *logfile = read_file_src_info->logfile;
+    if (arch_create_open_file(proc_ctx, dst_name, arch_file_type, &proc_ctx->tmp_file_handle, logfile) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    timeval_t start_time;
+    uint64 used_time;
+    ELAPSED_BEGIN(start_time);
+    uint64 last_lsn = 0;
+    uint64 start_lsn = read_file_src_info->start_lsn_input;
+    uint64 end_lsn = read_file_src_info->end_lsn;
+    int64 left_size = proc_ctx->redo_log_filesize;
+    uint64 real_copy_size = 0;
+    do {
+        if (arch_dbstor_ulog_archive(logfile, proc_ctx, start_lsn, &last_lsn, &real_copy_size) != CT_SUCCESS) {
+            cm_close_device(arch_file_type, &proc_ctx->tmp_file_handle);
+            return CT_ERROR;
+        }
+        if (real_copy_size == 0) {
+            proc_ctx->redo_log_filesize = 0;
+            CT_LOG_DEBUG_INF("[ARCH] reach data end, left(%lld), last(%llu)", left_size, last_lsn);
+            break; 
+        }
+
+        left_size -= real_copy_size;
+        proc_ctx->redo_log_filesize -= real_copy_size;
+        proc_ctx->last_archived_log_record.offset += real_copy_size;
+        proc_ctx->last_archived_log_record.cur_lsn = last_lsn;
+        start_lsn = last_lsn + 1;
+        if (last_lsn >= end_lsn) {
+            proc_ctx->redo_log_filesize = 0;
+            CT_LOG_RUN_INF("[ARCH] read lsn end, left(%lld), last(%llu), end(%llu)", left_size, last_lsn, end_lsn);
+            break;
+        }
+        if (proc_ctx->last_archived_log_record.offset >= proc_ctx->session->kernel->arch_ctx.arch_file_size) {
+            CT_LOG_RUN_INF("[ARCH] file oversize(%llu), left(%lld), last(%llu)",
+                           proc_ctx->last_archived_log_record.offset, left_size, last_lsn);
+            break;
+        }
+    } while (left_size > 0);
+
+    ELAPSED_END(start_time, used_time);
+    proc_ctx->total_used_time += used_time;
+    proc_ctx->last_archived_log_record.start_lsn = proc_ctx->last_archived_log_record.end_lsn;
+    CT_LOG_DEBUG_INF("[ARCH] succ, lsn start(%llu) cur(%llu) size(%llu)", proc_ctx->last_archived_log_record.start_lsn,
+                     last_lsn, proc_ctx->last_archived_log_record.offset);
+    cm_close_device(arch_file_type, &proc_ctx->tmp_file_handle);
     return CT_SUCCESS;
 }
  
@@ -1063,6 +1141,14 @@ void arch_get_force_archive_param(arch_proc_context_t *proc_ctx, bool32 *force_a
     return;
 }
 
+status_t arch_write_file_dbstor(arch_read_file_src_info_t *read_file_src_info, arch_proc_context_t *proc_ctx,
+    const char *dst_name, device_type_t arch_file_type)
+{
+    if (cm_dbs_get_deploy_mode() == DBSTOR_DEPLOY_MODE_NO_NAS) {
+        return arch_copy_file(read_file_src_info, proc_ctx, dst_name, arch_file_type);
+    }
+    return arch_write_file(read_file_src_info, proc_ctx, dst_name, arch_file_type);
+}
 
 status_t arch_dbstor_archive_file(const char *src_name, char *arch_file_name, log_file_t *logfile,
                                   log_file_head_t *head, arch_proc_context_t *proc_ctx)
@@ -1086,7 +1172,7 @@ status_t arch_dbstor_archive_file(const char *src_name, char *arch_file_name, lo
     }
     arch_set_force_endlsn(force_archive, proc_ctx, &end_lsn);
     arch_read_file_src_info_t read_file_src_info = {(char *)src_name, logfile, start_lsn, end_lsn};
-    if (arch_write_file(&read_file_src_info, proc_ctx, tmp_file_name, arch_file_type) != CT_SUCCESS) {
+    if (arch_write_file_dbstor(&read_file_src_info, proc_ctx, tmp_file_name, arch_file_type) != CT_SUCCESS) {
         arch_set_force_archive_stat(proc_ctx, CT_TRUE);
         return CT_ERROR;
     }
@@ -3042,6 +3128,39 @@ void rc_arch_dbstor_read_proc(thread_t *thread)
                    last_lsn, proc_ctx->read_failed == CT_SUCCESS ? "SUCCESS" : "ERROR");
 }
 
+void rc_arch_dbstor_ulog_proc(thread_t *thread)
+{
+    arch_proc_context_t *proc_ctx = (arch_proc_context_t *)thread->argument;
+    log_file_t *logfile = &proc_ctx->logfile;
+    uint64 start_lsn = proc_ctx->last_archived_log_record.cur_lsn + 1;
+    uint64 last_lsn = proc_ctx->last_archived_log_record.cur_lsn;
+    CT_LOG_RUN_INF("[RC_ARCH] start to archive redo %s, start lsn %llu", logfile->ctrl->name, start_lsn);
+    uint64 real_copy_size = 0;
+    while (proc_ctx->redo_log_filesize > 0) {
+        if (arch_dbstor_ulog_archive(logfile, proc_ctx, start_lsn, &last_lsn, &real_copy_size) != CT_SUCCESS) {
+            proc_ctx->read_failed = CT_TRUE;
+            break;
+        }
+        if (real_copy_size == 0) {
+            CT_LOG_DEBUG_INF("[ARCH] reach data end, left(%lld), last(%llu)", proc_ctx->redo_log_filesize, last_lsn);
+            break; 
+        }
+
+        proc_ctx->redo_log_filesize -= real_copy_size;
+        proc_ctx->last_archived_log_record.offset += real_copy_size;
+        start_lsn = last_lsn + 1;
+    }
+
+    if (!proc_ctx->read_failed && last_lsn != proc_ctx->last_archived_log_record.cur_lsn) {
+        proc_ctx->last_archived_log_record.cur_lsn = last_lsn;
+        if (rc_arch_generate_file(proc_ctx) != CT_SUCCESS) {
+            proc_ctx->read_failed = CT_TRUE;
+        }
+    }
+    CT_LOG_RUN_INF("[RC_ARCH] arch read thread exit, last lsn %llu, read stat: %s",
+                   last_lsn, proc_ctx->read_failed == CT_SUCCESS ? "SUCCESS" : "ERROR");
+}
+
 void arch_write_proc_file(thread_t *thread)
 {
     return;
@@ -3474,8 +3593,11 @@ status_t arch_create_proc(arch_proc_context_t *proc_ctx)
     if (cm_create_thread(arch_proc, 0, proc_ctx, &proc_ctx->read_thread) != CT_SUCCESS) {
         return CT_ERROR;
     }
-    if (cm_create_thread(arch_write_proc_all, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
-        return CT_ERROR;
+
+    if (cm_dbs_get_deploy_mode() != DBSTOR_DEPLOY_MODE_NO_NAS) {
+        if (cm_create_thread(arch_write_proc_all, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
     }
     return CT_SUCCESS;
 }
@@ -5299,8 +5421,10 @@ status_t arch_init_proc_standby_node(arch_proc_context_t *proc_ctx, uint32 node_
     if (cm_create_thread(arch_proc_standby, 0, proc_ctx, &proc_ctx->read_thread) != CT_SUCCESS) {
         return CT_ERROR;
     }
-    if (cm_create_thread(arch_write_proc_all, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
-        return CT_ERROR;
+    if (cm_dbs_get_deploy_mode() != DBSTOR_DEPLOY_MODE_NO_NAS) {
+        if (cm_create_thread(arch_write_proc_all, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
+            return CT_ERROR;
+        } 
     }
     return CT_SUCCESS;
 }

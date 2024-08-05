@@ -99,6 +99,7 @@ status_t dbs_init_lib(void)
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileGetNum",                  (void **)(&intf->dbs_file_get_num)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileGetList",                 (void **)(&intf->dbs_file_get_list)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsGetFileSize",                 (void **)(&intf->dbs_get_file_size)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsUlogArchive",                 (void **)(&intf->dbs_ulog_archive)));
 
     // pagepool
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "CreatePagePool",                 (void **)(&intf->create_pagepool)));
