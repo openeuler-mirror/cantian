@@ -43,12 +43,16 @@ PKG_DIR = os.path.abspath(os.path.join(INSTALL_SCPRIT_DIR, "../.."))
 JS_CONF_FILE = os.path.join(PKG_DIR, "action", "cantian", "install_config.json")
 UNINSTALL_PATH = os.path.join(PKG_DIR, "action", "cantian")
 CANTIAN_UNINSTALL_CONF_FILE = os.path.join(PKG_DIR, "action", "cantian", "cantian_uninstall_config.json")
+CANTIAN_CONF_FILE = os.path.join("/opt/cantian/cantian", "cfg", "cantian_config.json")
 CANTIAN_START_STATUS_FILE = os.path.join("/opt/cantian/cantian", "cfg", "start_status.json")
 CANTIAN_UNINSTALL_LOG_FILE = "/opt/cantian/cantian/log/cantian_deploy.log"
 CONFIG_PARAMS_FILE = os.path.join(PKG_DIR, "config", "deploy_param.json")
 FORCE_UNINSTALL = None
 CHECK_MAX_TIMES = 60
-
+CANTIAND_WITH_MYSQL = "cantiand_with_mysql"
+CANTIAND_WITH_MYSQL_ST = "cantiand_with_mysql_st"
+CANTIAND_WITH_MYSQL_IN_CLUSTER = "cantiand_with_mysql_in_cluster"
+VALID_SINGLE_MYSQL_RUNNING_MODE = {CANTIAND_WITH_MYSQL_IN_CLUSTER, CANTIAND_WITH_MYSQL_ST, CANTIAND_WITH_MYSQL}
 
 def _exec_popen(_cmd, values=None):
     """
@@ -616,6 +620,17 @@ def clean_environment():
 
     cmds = [path_cmd, lib_cmd, home_cmd,
             ca_cmd, cert_cmd, key_cmd, mode_cmd, cipher_cmd]
+    flags = os.O_RDONLY
+    modes = stat.S_IWUSR | stat.S_IRUSR
+    with os.fdopen(os.open(JS_CONF_FILE, flags, modes), 'r') as fp:
+        json_data = json.load(fp)
+        g_opts.running_mode = json_data['M_RUNING_MODE'].strip() 
+    if g_opts.running_mode.lower() in VALID_SINGLE_MYSQL_RUNNING_MODE:
+        mysql_bin_cmd = r"/^\s*export\s*MYSQL_BIN_DIR=\".*\"$/d"
+        mysql_code_cmd = r"/^\s*export\s*MYSQL_CODE_DIR=\".*\"$/d"
+        mysql_data_cmd = r"/^\s*export\s*MYSQL_DATA_DIR=\".*\"$/d"
+        mysql_log_cmd = r"/^\s*export\s*MYSQL_LOG_FILE=\".*\"$/d"
+        cmds = cmds + [mysql_bin_cmd, mysql_code_cmd, mysql_data_cmd, mysql_log_cmd]
     if g_opts.clean_data_dir_on == 0:
         cmds.insert(0, data_cmd)
 
@@ -627,7 +642,6 @@ def clean_environment():
             log("Failed to clean environment variables. Error: %s" % stderr_1)
             log_exit("Failed to clean environment variables.")
     log("End clean user environment variables...")
-
 
 def read_ifile(ifile, keyword):
     if not os.path.isfile(ifile):
@@ -681,8 +695,15 @@ def get_instance_id():
     input: NA
     output: NA
     """
+    flags = os.O_RDONLY
+    modes = stat.S_IWUSR | stat.S_IRUSR
     _cmd = ("ps ux | grep -v grep | grep cantiand "
             "| grep -w '\-D %s' |awk '{print $2}'") % g_opts.gs_data_path
+    with os.fdopen(os.open(CANTIAN_CONF_FILE, flags, modes), 'r') as fp:
+            json_data = json.load(fp)
+            g_opts.running_mode = json_data['RUNNING_MODE'].strip()
+    if g_opts.running_mode.lower() in [CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_IN_CLUSTER, CANTIAND_WITH_MYSQL_ST]:
+        _cmd = ("ps ux | grep -v grep | grep mysqld |awk '{print $2}'")
     status, output, _ = _exec_popen(_cmd)
     if status:
         log_exit("Failed to execute cmd: %s. Error:%s." % (str(_cmd),

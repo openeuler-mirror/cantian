@@ -491,23 +491,6 @@ func_make_mysql_debug()
   cd -
 }
 
-func_separate_mysql_symbol()
-{
-  local bin_dir=$1
-  local symbol_dir=$2
-  mkdir -p ${symbol_dir}
-  rm -f ${symbol_dir}/*
-  local file_list=("mysqld" "mysql")
-  cd ${bin_dir}
-  for file in ${file_list[@]}
-  do
-    cp ${file} ${file}.debug
-    mv ${file}.debug ${symbol_dir}
-    objcopy --strip-debug ${file}
-  done
-  cd -
-}
-
 func_make_mysql_release()
 {
   echo "Start build Mysql Release..."
@@ -554,7 +537,6 @@ func_make_mysql_release()
   fi
   cp -r -f -p ${MYSQL_CODE_PATH}/daac_lib/libctc_proxy.so /usr/lib64
   echo 'log_raw=ON' >> /usr/local/mysql/mysql-test/include/default_mysqld.cnf
-  func_separate_mysql_symbol /usr/local/mysql/bin ${MYSQL_CODE_PATH}/mysql_bin/symbol
   cd -
 }
 

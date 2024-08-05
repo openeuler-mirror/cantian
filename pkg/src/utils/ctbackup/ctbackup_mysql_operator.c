@@ -182,13 +182,13 @@ void ctbak_execute_lock_instance(int32 pipe_stdout, int32 pipe_stdin, text_t *my
         if (ctbak_check_mysql_output(pipe_stdout_fp, MYSQL_LOCK_INSTANCE_CMD) != CT_SUCCESS) {
             break;
         }
-        pclose(pipe_stdout_fp);
+        fclose(pipe_stdout_fp);
         *lock_succ = CT_TRUE; 
         return;
     } while (0);
     printf("[ctbackup]check mysql execute output failed!\n");
     *lock_succ = CT_FALSE;
-    pclose(pipe_stdout_fp);
+    fclose(pipe_stdout_fp);
     return;
 }
 

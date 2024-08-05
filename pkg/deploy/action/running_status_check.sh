@@ -10,11 +10,21 @@ if [[ -n ${cms_info} ]]; then
     online_list[${#online_list[*]}]="cms"
 fi
 
-pidof cantiand > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-    cantiand_info=$(ps -ef | grep cantiand | grep /mnt/dbdata/local/cantian/tmp/data | grep -v grep)
-    logAndEchoInfo "cantiand process info:\n ${cantiand_info}"
-    online_list[${#online_list[*]}]="cantiand"
+# 单进程场景使用deploy_user
+is_single=$(cat "${CURRENT_PATH}"/cantian/options.py | grep -oP 'self\.running_mode = "\K[^"]+')
+if [[ x"${is_single}" == x"cantiand_with_mysql_in_cluster" ]];then
+    mysqld_info=$(ps -ef | grep mysqld | grep -v grep)
+    if [[ -n ${mysqld_info} ]];then
+        logAndEchoInfo "mysqld process info:\n ${mysqld_info}"
+        online_list[${#online_list[*]}]="mysqld"
+    fi
+else
+    pidof cantiand > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        cantiand_info=$(ps -ef | grep cantiand | grep /mnt/dbdata/local/cantian/tmp/data | grep -v grep)
+        logAndEchoInfo "cantiand process info:\n ${cantiand_info}"
+        online_list[${#online_list[*]}]="cantiand"
+    fi
 fi
 
 ctmgr_info=$(ps -ef | grep "python3 /opt/cantian/ct_om/service/ctmgr/uds_server.py" | grep -v grep)
