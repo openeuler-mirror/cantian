@@ -113,10 +113,8 @@ function newPackageTarget() {
   rm -rf ${TMP_PKG_PATH}/${pkg_dir_name}
   mkdir -p ${MYSQL_BIN_NAME}
   cp -arf /usr/local/mysql ${MYSQL_BIN_NAME}
-  if [[ ${BUILD_MODE} == "multiple" ]] || [[ -z ${BUILD_MODE} ]]; then
-    echo "Start pkg ${mysql_pkg_name}..."
-    tar -zcf "${mysql_pkg_name}" ${MYSQL_BIN_NAME}
-  fi
+  echo "Start pkg ${mysql_pkg_name}..."
+  tar -zcf "${mysql_pkg_name}" ${MYSQL_BIN_NAME}
   rm -rf ${MYSQL_BIN_NAME}
   rm -rf ${pkg_dir_name}
   echo "Packing ${pkg_name} success"
@@ -178,11 +176,6 @@ function buildMysql() {
   fi
   cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/nometa
 
-  if [[ ${BUILD_MODE} == "single" ]]; then
-    collectMysqlTarget
-    return 0
-  fi
-
   echo "patching MysqlCode for mysql source"
   patchingMysqlCode
   if [ $? -ne 0 ]; then
@@ -191,7 +184,14 @@ function buildMysql() {
   fi
 
   cd "${CURRENT_PATH}"
-  sh "${CURRENT_PATH}"/Makefile_ci.sh "${MYSQL_BUILD_TYPE}"
+  if [[ ${BUILD_MODE} == "multiple" ]] || [[ -z ${BUILD_MODE} ]]; then
+    echo "compile multiple mysql process"
+    sh "${CURRENT_PATH}"/Makefile_ci.sh "${MYSQL_BUILD_TYPE}"
+  elif [[ ${BUILD_MODE} == "single" ]]; then
+    echo "compile single mysql process"
+    sh "${CURRENT_PATH}"/Makefile_ci.sh "${MYSQL_BUILD_TYPE} no_shm=1"
+  fi
+
   revertPatching
   if [[ ${BUILD_TYPE} == "release" ]]; then
     seperateSymbol ${MYSQL_CODE_PATH}/bld_debug/plugin_output_directory/ha_ctc.so

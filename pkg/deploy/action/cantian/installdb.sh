@@ -84,11 +84,11 @@ function start_cantiand() {
   log "Start cantiand with mode=${START_MODE}, CTDB_HOME=${CTDB_HOME}, RUN_MODE=${RUN_MODE}"
 
   if [ "${RUN_MODE}" == "cantiand_with_mysql" ] || [ "${RUN_MODE}" == "cantiand_with_mysql_st" ] || [ "${RUN_MODE}" == "cantiand_with_mysql_in_cluster" ]; then
-    
     if [ ! -f "${MYSQL_CONFIG_FILE}" ]; then
       err "Invalid mysql config file: ${MYSQL_CONFIG_FILE}"
     fi
 
+    export RUN_MODE=${RUN_MODE}
     export CANTIAND_MODE=${START_MODE}
     export CANTIAND_HOME_DIR=${CTDB_DATA}
     if [ -z "${LD_LIBRARY_PATH}" ];then
@@ -96,18 +96,40 @@ function start_cantiand() {
     else
         export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:${LD_LIBRARY_PATH}
     fi
-
+    
     if [ "${IS_RERUN}" == 0 ]; then
         log "Init mysqld data dir ${MYSQL_DATA_DIR}"
-        ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --initialize-insecure --datadir=${MYSQL_DATA_DIR}
+        nohup ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --initialize-insecure --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin --early-plugin-load="ha_ctc.so" > ${STATUS_LOG} 2>&1 &
+        return 0
     fi
-
     if [ "${RUN_MODE}" != "cantiand_with_mysql_st" ]; then
-        log "Start mysqld with conf ${MYSQL_CONFIG_FILE}"
-        nohup ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin \
-                                      --plugin_load="ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so;" \
-                                      --default-storage-engine=CTC --core-file >> ${MYSQL_LOG_FILE} 2>&1 &
-    fi
+      mysqld_pid=$(ps -ef | grep "${MYSQL_BIN_DIR}/bin/mysqld" | grep -v grep | grep -v "initialize" | awk '{print $2}')
+      if [ ! -z "${mysqld_pid}" ]; then
+        log "cms has start cantiand already"
+        if [ "${NODE_ID}" == 0 ]; then
+          wait_node0_online || err "timeout waiting for node0"
+        else
+          wait_node1_online || err "timeout waiting for node1"
+        fi
+        echo "instance started" > /mnt/dbdata/local/cantian/tmp/data/log/cantianstatus.log
+        return 0
+      fi
+        if [ "${ever_started}" == "True" ]; then
+          cms res -start db -node "${NODE_ID}"
+          if [ $? -eq 0 ]; then
+            echo "instance started" > /mnt/dbdata/local/cantian/tmp/data/log/cantianstatus.log
+          else
+            echo "instance startup failed" > /mnt/dbdata/local/cantian/tmp/data/log/cantianstatus.log
+          fi
+        else
+          log "Start mysqld with conf ${MYSQL_CONFIG_FILE}"
+          nohup ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin \
+                                        --early-plugin-load="ha_ctc.so" \
+                                        --default-storage-engine=CTC --core-file > ${STATUS_LOG} 2>&1 &
+        fi
+      fi
+    touch ${SINGLE_FLAG}
+
     sleep 10
   else
     # 如果参天被cms抢占拉起，等待此参天拉起完成，并跳过安装部署的启动参天进程命令
@@ -218,6 +240,7 @@ function parse_parameter() {
   declare -g RUN_MODE=
   declare -g MYSQL_CONFIG_FILE=
   declare -g CLUSTER_CONFIG="${CTDB_DATA}/cfg/cluster.ini"
+  declare -g SINGLE_FLAG="/opt/cantian/cantian/cfg/single_flag"
   
   while true
   do

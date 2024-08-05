@@ -24,8 +24,10 @@ max_arch_files_size=`python3 ${CURRENT_PATH}/get_config_info.py "MAX_ARCH_FILES_
 cms_ip=`python3 ${CURRENT_PATH}/get_config_info.py "cms_ip"`
 mes_ssl_switch=`python3 ${CURRENT_PATH}/get_config_info.py "mes_ssl_switch"`
 mysql_metadata_in_cantian=`python3 ${CURRENT_PATH}/get_config_info.py "mysql_metadata_in_cantian"`
+storage_metadata_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs"`
 primary_keystore="/opt/cantian/common/config/primary_keystore_bak.ks"
 standby_keystore="/opt/cantian/common/config/standby_keystore_bak.ks"
+mysql_data_dir="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}"
 
 function set_ctsql_config() {
     sys_password=`cat ${DORADO_CONF_PATH}/${SYS_PASS}`
@@ -70,6 +72,8 @@ function set_cantian_config() {
     sed -i -r "s:(DBSTOR_NAMESPACE = ).*:\1${cluster_name}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(INSTANCE_ID = ).*:\1${node_id}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(NODE_ID = ).*:\1${node_id}:g" ${CONFIG_PATH}/${CLUSTER_CONFIG_NAME}
+    sed -i -r "s:(MYSQL_DATA_DIR = ).*:\1${mysql_data_dir}:g" ${CONFIG_PATH}/${CLUSTER_CONFIG_NAME}
+    sed -i -r "s:(MYSQL_LOG_FILE = ).*:\1${mysql_data_dir}/mysql.log:g" ${CONFIG_PATH}/${CLUSTER_CONFIG_NAME}
     sed -i -r "s:(MAX_ARCH_FILES_SIZE = ).*:\1${max_arch_files_size}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(MYSQL_METADATA_IN_CANTIAN = ).*:\1${mysql_metadata_in_cantian^^}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(CLUSTER_ID = ).*:\1${cluster_id}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
@@ -78,6 +82,21 @@ function set_cantian_config() {
         sed -i -r "s:(LSNR_ADDR = ).*:\1127.0.0.1,${node_domain_0}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     else
         sed -i -r "s:(LSNR_ADDR = ).*:\1127.0.0.1,${node_domain_1}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+    fi
+
+    # 判断单进程，并加入环境变量
+    running_mode=$(grep '"M_RUNING_MODE"' /opt/cantian/action/cantian/install_config.json | cut -d '"' -f 4)
+    single_mode="multiple"
+    if [ "$running_mode" = "cantiand_with_mysql" ] || 
+        [ "$running_mode" = "cantiand_with_mysql_in_cluster" ] || 
+        [ "$running_mode" = "cantiand_with_mysql_in_cluster_st" ]; then
+        single_mode="single"
+    fi
+    if [ "${single_mode}" == "single" ];then
+        echo "MYSQL_CODE_DIR=/opt/cantian/image/cantian_connector/cantian-connector-mysql" >> /home/${cantian_user}/.bashrc
+        echo "MYSQL_BIN_DIR=/opt/cantian/mysql/install/mysql" >> /home/${cantian_user}/.bashrc
+        echo "MYSQL_DATA_DIR=${mysql_data_dir}" >> /home/${cantian_user}/.bashrc
+        echo "MYSQL_LOG_FILE=${mysql_data_dir}/mysql.log" >> /home/${cantian_user}/.bashrc
     fi
 
     if [[ ${mes_ssl_switch} == "True" ]]; then

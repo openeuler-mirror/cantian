@@ -24,6 +24,7 @@ from logic.common_func import retry
 from logic.common_func import get_status
 from om_log import DR_DEPLOY_LOG as LOG
 from cantian_common.mysql_shell import MysqlShell
+import install_mysql
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
@@ -974,6 +975,18 @@ class DRDeploy(object):
                 raise Exception(err_msg)
             self.update_install_status(node_id, "install", "success")
         LOG.info("Install cantian engine success.")
+        # 判断是否是单进程，单进程要安装mysql
+        install_json_path = os.path.join(CURRENT_PATH, "../../cantian/install_config.json")
+        install_json_data = read_json_config(install_json_path)
+        if install_json_data.get("M_RUNING_MODE") == "cantiand_with_mysql_in_cluster":
+            # 单进程需要在拉起前安装mysql
+            # do install mysql
+            LOG.info("Start to install mysql.")
+            if self.metadata_in_cantian:
+                install_mysql.execute_meta()
+            else:
+                install_mysql.execute_nometa()
+            LOG.info("Install mysql for single success.")
         return True
 
     def standby_do_start(self):
@@ -1096,7 +1109,7 @@ class DRDeploy(object):
                 self.standby_check_metadata_fs_pair_ready(metadata_fs_ready_flag)
             fs_ready = ulog_fs_pair_info and page_fs_pair_info and metadata_fs_pair_info
             if fs_ready and not is_installed_flag:
-                LOG.info("Filesystem creat success, start to isntall cantian engine.")
+                LOG.info("Filesystem creat success, start to install cantian engine.")
                 self.record_deploy_process("standby_install", "running")
                 self.create_nfs_share_and_client(metadata_fs_info)
                 self.standby_do_install()
