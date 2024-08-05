@@ -4160,15 +4160,19 @@ EXTER_ATTACK int tse_check_db_table_exists(const char *db, const char *name, boo
     char buf_name[CT_NAME_BUFFER_SIZE + 1];
     text_t db_name = { .str = buf_db, .len = 0 };
     text_t table_name = { .str = buf_name, .len = 0 };
+    bool32 is_found = CT_FALSE;
     cm_text_copy_from_str(&db_name, db, CT_NAME_BUFFER_SIZE + 1);
     cm_text_copy_from_str(&table_name, name, CT_NAME_BUFFER_SIZE + 1);
     if (table_name.len == 0) {
-        ret = knl_schema_exists4mysql((knl_handle_t)session, &db_name, is_exists);
+        ret = knl_schema_exists4mysql((knl_handle_t)session, &db_name, &is_found);
     } else {
-        ret = knl_object_exists4mysql((knl_handle_t)session, &db_name, &table_name, is_exists);
+        ret = knl_object_exists4mysql((knl_handle_t)session, &db_name, &table_name, &is_found);
     }
-    if (!*is_exists) {
+    if (is_found) {
+        *is_exists = true;
+    } else {
         knl_set_sql_server_initializing_status(&session->knl_session, CT_TRUE);
+        *is_exists = false;
     }
     cm_reset_error();
     (void)tse_free_session(session);
@@ -4178,10 +4182,12 @@ EXTER_ATTACK int tse_check_db_table_exists(const char *db, const char *name, boo
 EXTER_ATTACK int tse_query_cluster_role(bool *is_slave, bool *cantian_cluster_ready)
 {
     database_t *db = &g_instance->kernel.db;
+    bool32 ct_cluster_ready = CT_FALSE;
     for (int i = 0; i < META_SEARCH_TIMES; i++) {
-        CT_RETURN_IFERR(knl_is_daac_cluster_ready(cantian_cluster_ready));
-        if (*cantian_cluster_ready) {
-            CT_LOG_DEBUG_INF("[Disaster Recovery]: cantian_cluster_ready: %d.", *cantian_cluster_ready);
+        CT_RETURN_IFERR(knl_is_daac_cluster_ready(&ct_cluster_ready));
+        if (ct_cluster_ready) {
+            *cantian_cluster_ready = true;
+            CT_LOG_DEBUG_INF("[Disaster Recovery]: cantian_cluster_ready: %d.", ct_cluster_ready);
             if(DB_IS_PHYSICAL_STANDBY(db)) {
                 *is_slave = true;
             } else {
@@ -4191,31 +4197,69 @@ EXTER_ATTACK int tse_query_cluster_role(bool *is_slave, bool *cantian_cluster_re
         }
         cm_sleep(META_SEARCH_WAITING_TIME_IN_MS);
     }
-    CT_LOG_RUN_ERR("[Disaster Recovery]: cantian_cluster_cluster_read: %d.", *cantian_cluster_ready);
+    CT_LOG_RUN_ERR("[Disaster Recovery]: cantian_cluster_cluster_read: %d.", ct_cluster_ready);
  
     return CT_ERROR;
 }
 
+static bool32 is_runmode_single() {
+    // use env variable to check if single process
+    const char* run_mode = getenv("RUN_MODE");
+
+    const char* valid_modes[] = {
+        "cantiand_with_mysql", // single process mode
+        "cantiand_with_mysql_st", // single process mode with mysql llt
+        "cantiand_with_mysql_in_cluster" // single process mode in cluster
+    };
+
+    if (run_mode != NULL) {
+        bool32 found = CT_FALSE;
+
+        // check if cantian is installed with single process mode
+        for (int i = 0; i < sizeof(valid_modes) / sizeof(valid_modes[0]); i++) {
+            if (strcmp(run_mode, valid_modes[i]) == 0) {
+                found = CT_TRUE;
+                break;
+            }
+        }
+        
+        // single process mode no need to check whether cluster is ready
+        if (found) {
+            CT_LOG_RUN_INF("RUN_MODE %s is single process", run_mode);
+            return CT_TRUE;
+        } else {
+            CT_LOG_RUN_INF("RUN_MODE %s is not single process", run_mode);
+            return CT_FALSE;
+        }
+    } else {
+        CT_LOG_RUN_INF("RUN_MODE not set");
+        return CT_FALSE;
+    }
+}
+
 EXTER_ATTACK int tse_search_metadata_status(bool *cantian_metadata_switch, bool *cantian_cluster_ready)
 {
-    CT_RETURN_IFERR(srv_get_param_bool32("MYSQL_METADATA_IN_CANTIAN", cantian_metadata_switch));
-    CT_LOG_RUN_INF("[TSE_SEARCH_METADATA_STATUS]: cantian_metadata_switch: %d.", *cantian_metadata_switch);
-    if (!(*cantian_metadata_switch)) {
+    bool32 ct_metadata_switch = CT_FALSE;
+    CT_RETURN_IFERR(srv_get_param_bool32("MYSQL_METADATA_IN_CANTIAN", &ct_metadata_switch));
+    *cantian_metadata_switch = (ct_metadata_switch == CT_TRUE);
+    CT_LOG_RUN_INF("[TSE_SEARCH_METADATA_STATUS]: cantian_metadata_switch: %d.", ct_metadata_switch);
+    
+    if (is_runmode_single()) {
         *cantian_cluster_ready = true;
-        CT_LOG_RUN_INF("[TSE_SEARCH_METADATA_STATUS]: cantian_cluster_ready: %d.", *cantian_cluster_ready);
         return CT_SUCCESS;
     }
-
+    
+    bool32 ct_cluster_ready = CT_FALSE;
     for (int i = 0; i < META_SEARCH_TIMES; i++) {
-        CT_RETURN_IFERR(knl_is_daac_cluster_ready(cantian_cluster_ready));
-        if (*cantian_cluster_ready) {
-            CT_LOG_RUN_INF("[TSE_SEARCH_METADATA_STATUS]: cantian_cluster_ready: %d.", *cantian_cluster_ready);
+        CT_RETURN_IFERR(knl_is_daac_cluster_ready(&ct_cluster_ready));
+        if (ct_cluster_ready) {
+            *cantian_cluster_ready = true;
+            CT_LOG_RUN_INF("[TSE_SEARCH_METADATA_STATUS]: cantian_cluster_ready: %d.", ct_cluster_ready);
             return CT_SUCCESS;
         }
         cm_sleep(META_SEARCH_WAITING_TIME_IN_MS);
     }
-    CT_LOG_RUN_INF("[TSE_SEARCH_METADATA_STATUS]: cantian_cluster_ready: %d.", *cantian_cluster_ready);
- 
+    CT_LOG_RUN_INF("[TSE_SEARCH_METADATA_STATUS]: cantian_cluster_ready: %d.", ct_cluster_ready);
     return CT_ERROR;
 }
 
@@ -4240,7 +4284,7 @@ int tse_unlock_mdl_key_impl(tianchi_handler_t *tch, knl_handle_t knl_session, ui
         DCS_SELF_INSTID(knl_sess), 0, knl_sess->id, CT_INVALID_ID16);
 
     int error_code = tse_broadcast_and_recv(knl_sess, MES_BROADCAST_ALL_INST, &req, NULL);
-    if(error_code != CT_SUCCESS){
+    if(error_code != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[TSE_UNLOCK_MDL]:execute failed on remote node, conn_id:%u, tse_instance_id:%u", tch->thd_id, tch->inst_id);
     }
 
