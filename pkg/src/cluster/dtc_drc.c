@@ -4948,7 +4948,7 @@ static void drc_free_migrated_res_proc(thread_t* thread)
     return;
 }
 
-void drc_free_migrated_res(void)
+status_t drc_free_migrated_res(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_remaster_mngr_t *remaster_mngr = DRC_PART_REMASTER_MNGR;
@@ -4960,11 +4960,13 @@ void drc_free_migrated_res(void)
     CT_LOG_RUN_INF("[DRC]drc_free_migrated_res start, local tasks:%u.", local_task_num);
     atomic_t job_num;
     cm_atomic_set(&job_num, (int64)DRC_FREE_MIG_RES_MAX_THREAD_NUM);
+    status_t status = CT_SUCCESS;
     
-    thread_t thread[DRC_FREE_MIG_RES_MAX_THREAD_NUM];
+    thread_t thread[DRC_FREE_MIG_RES_MAX_THREAD_NUM] = {0};
     drc_free_mig_res_param_t param[DRC_FREE_MIG_RES_MAX_THREAD_NUM];
     uint32 count_per_thread = local_task_num / DRC_FREE_MIG_RES_MAX_THREAD_NUM;
-    for (uint32 i = 0; i < DRC_FREE_MIG_RES_MAX_THREAD_NUM; i++) {
+    uint32 i;
+    for (i = 0; i < DRC_FREE_MIG_RES_MAX_THREAD_NUM; i++) {
         param[i].start_task_idx = i * count_per_thread;
         param[i].cnt_per_thread = count_per_thread;
         param[i].buf_res       = buf_res;
@@ -4975,17 +4977,24 @@ void drc_free_migrated_res(void)
             param[i].cnt_per_thread += local_task_num % DRC_FREE_MIG_RES_MAX_THREAD_NUM;
         }
 
-        status_t status = cm_create_thread(drc_free_migrated_res_proc, 0, &param[i], &thread[i]);
+        SYNC_POINT_GLOBAL_START(CANTIAN_REMASTER_CREATE_FREE_MIGRATE_PROC_FAIL, &status, CT_ERROR);
+        status = cm_create_thread(drc_free_migrated_res_proc, 0, &param[i], &thread[i]);
+        SYNC_POINT_GLOBAL_END;
         if (status != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DCS]cm_create_thread(%u): failed, task_count=%u", i, count_per_thread);
-            cm_atomic_dec(&job_num);
+            cm_atomic_add(&job_num, (int64)(i) - DRC_FREE_MIG_RES_MAX_THREAD_NUM);
+            break;
         }
     }
 
     while (cm_atomic_get(&job_num) != 0) {
         cm_sleep(DRC_FREE_RES_SLEEP_TIME);
     }
+    for (i = 0; i < DRC_FREE_MIG_RES_MAX_THREAD_NUM; i++) {
+        cm_close_thread(&thread[i]);
+    }
     CT_LOG_RUN_INF("[DRC]drc_free_migrated_res finished, local tasks:%u.", local_task_num);
+    return status;
 }
 
 status_t drc_broadcast_target_part(knl_session_t *session, status_t status, uint64 alive_bitmap)
@@ -5250,18 +5259,20 @@ static void drc_clean_res_owner_proc(thread_t *thread)
     return;
 }
 
-void drc_clean_res_owner_by_inst(uint8 inst_id, knl_session_t *session)
+status_t drc_clean_res_owner_by_inst(uint8 inst_id, knl_session_t *session)
 {
     atomic_t job_num;
-    thread_t thread[DCS_CLEAN_OWNER_MAX_THREAD_NUM];
+    thread_t thread[DCS_CLEAN_OWNER_MAX_THREAD_NUM] = {0};
     drc_clean_owner_param_t param[DCS_CLEAN_OWNER_MAX_THREAD_NUM];
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     drc_inst_part_t *inst_part = &part_mngr->inst_part_tbl[DRC_SELF_INST_ID];
 
     uint32 count_per_thread = inst_part->count / DCS_CLEAN_OWNER_MAX_THREAD_NUM;
     uint16 tmp_part_id = 0;
+    status_t status = CT_SUCCESS;
     cm_atomic_set(&job_num, (int64)(DCS_CLEAN_OWNER_MAX_THREAD_NUM));
-    for (uint32 i = 0; i < DCS_CLEAN_OWNER_MAX_THREAD_NUM; i++) {
+    uint32 i;
+    for (i = 0; i < DCS_CLEAN_OWNER_MAX_THREAD_NUM; i++) {
         param[i].job_num = &job_num;
         param[i].count_per_thread = count_per_thread;
         param[i].inst_id = inst_id;
@@ -5271,18 +5282,26 @@ void drc_clean_res_owner_by_inst(uint8 inst_id, knl_session_t *session)
         }
         param[i].start_part_id = drc_get_part_id(part_mngr, inst_part, count_per_thread * i,
                                                  param[i].count_per_thread, &tmp_part_id);
-        status_t status = cm_create_thread(drc_clean_res_owner_proc, 0, &param[i], &thread[i]);
+        SYNC_POINT_GLOBAL_START(CANTIAN_REMASTER_CREATE_CLEAN_OWNER_PROC_FAIL, &status, CT_ERROR);
+        status = cm_create_thread(drc_clean_res_owner_proc, 0, &param[i], &thread[i]);
+        SYNC_POINT_GLOBAL_END;
         if (status != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DCS]cm_create_thread(%i): failed, inst_id=%u, count=%u",
                 i, DRC_SELF_INST_ID, inst_part->count);
-            cm_atomic_dec(&job_num);
+            cm_atomic_add(&job_num, (int64)(i) - DCS_CLEAN_OWNER_MAX_THREAD_NUM);
+            drc_update_remaster_local_status(REMASTER_FAIL);
+            break;
         }
     }
     while (cm_atomic_get(&job_num) != 0) {
         cm_sleep(DRC_COLLECT_SLEEP_TIME);
     }
+    for (i = 0; i < DCS_CLEAN_OWNER_MAX_THREAD_NUM; i++) {
+        cm_close_thread(&thread[i]);
+    }
     CT_LOG_RUN_INF("[DRC]instance(%u) remaster clean owner(%u) end, count(%u)",
         DRC_SELF_INST_ID, inst_id, inst_part->count);
+    return status;
 }
 
 void drc_prepare_remaster(knl_session_t *session, reform_info_t *reform_info)
@@ -5564,10 +5583,11 @@ status_t drc_remaster_migrate(knl_session_t *session)
     atomic_t job_num;
     cm_atomic_set(&job_num, (int64)(DRC_REMASTER_MIGRATE_RES_MAX_THREAD_NUM));
 
-    thread_t thread[DRC_REMASTER_MIGRATE_RES_MAX_THREAD_NUM];
+    thread_t thread[DRC_REMASTER_MIGRATE_RES_MAX_THREAD_NUM] = {0};
     drc_remaster_migrate_param_t param[DRC_REMASTER_MIGRATE_RES_MAX_THREAD_NUM];
     uint32 count_per_thread = local_task_num / DRC_REMASTER_MIGRATE_RES_MAX_THREAD_NUM;
-    for (uint32 i = 0; i < DRC_REMASTER_MIGRATE_RES_MAX_THREAD_NUM; i++) {
+    uint32 i;
+    for (i = 0; i < DRC_REMASTER_MIGRATE_RES_MAX_THREAD_NUM; i++) {
         param[i].start = i * count_per_thread;
         param[i].count_per_thread = count_per_thread;
         param[i].job_num = &job_num;
@@ -5576,7 +5596,10 @@ status_t drc_remaster_migrate(knl_session_t *session)
             param[i].count_per_thread += local_task_num % DRC_REMASTER_MIGRATE_RES_MAX_THREAD_NUM;
         }
 
-        if (cm_create_thread(drc_remaster_migrate_res, 0, &param[i], &thread[i]) != CT_SUCCESS) {
+        SYNC_POINT_GLOBAL_START(CANTIAN_REMASTER_CREATE_MIGRATE_RES_PROC_FAIL, &ret, CT_ERROR);
+        ret = cm_create_thread(drc_remaster_migrate_res, 0, &param[i], &thread[i]);
+        SYNC_POINT_GLOBAL_END;
+        if (ret != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DRC] remaster migrate cm create thread(%u) failed, start(%u), count per thread(%u)", i,
                            param[i].start, param[i].count_per_thread);
             cm_atomic_add(&job_num, (int64)(i) - DRC_REMASTER_MIGRATE_RES_MAX_THREAD_NUM);
@@ -5589,13 +5612,16 @@ status_t drc_remaster_migrate(knl_session_t *session)
     while (cm_atomic_get(&job_num) != 0) {
         cm_sleep(REMASTER_SLEEP_INTERVAL);
     }
+    for (i = 0; i < DRC_REMASTER_MIGRATE_RES_MAX_THREAD_NUM; i++) {
+        cm_close_thread(&thread[i]);
+    }
     CT_LOG_RUN_INF("[DRC] remaster migrate res finish, task num(%u), start part_id(%u)",
         local_task_num, param[0].start);
     ret = part_mngr->remaster_status == REMASTER_FAIL ? CT_ERROR : ret;
     return ret;
 }
 
-void drc_remaster_migrate_clean_res_owner(knl_session_t *session, reform_info_t *reform_info)
+status_t drc_remaster_migrate_clean_res_owner(knl_session_t *session, reform_info_t *reform_info)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     uint8 self_id = DRC_SELF_INST_ID;
@@ -5605,7 +5631,7 @@ void drc_remaster_migrate_clean_res_owner(knl_session_t *session, reform_info_t 
     for (j = 0; j < reform_info->reform_list[REFORM_LIST_LEAVE].inst_id_count; j++) {
         uint8 leave_id = reform_info->reform_list[REFORM_LIST_LEAVE].inst_id_list[j];
         CT_LOG_RUN_INF("[DRC] inst(%u) remaster clean res for LEAVE node inst(%u) start", self_id, leave_id);
-        drc_clean_res_owner_by_inst(leave_id, session);
+        CT_RETURN_IFERR(drc_clean_res_owner_by_inst(leave_id, session));
         CT_LOG_RUN_INF("[DRC] inst(%u) remaster clean res for LEAVE node inst(%u) end", self_id, leave_id);
     }
 
@@ -5618,7 +5644,7 @@ void drc_remaster_migrate_clean_res_owner(knl_session_t *session, reform_info_t 
     for (j = 0; j < reform_info->reform_list[REFORM_LIST_ABORT].inst_id_count; j++) {
         uint8 abort_id = reform_info->reform_list[REFORM_LIST_ABORT].inst_id_list[j];
         CT_LOG_RUN_INF("[DRC] inst(%u) remaster clean res for ABORT inst(%u) start", self_id, abort_id);
-        drc_clean_res_owner_by_inst(abort_id, session);
+        CT_RETURN_IFERR(drc_clean_res_owner_by_inst(abort_id, session));
         CT_LOG_RUN_INF("[DRC] inst(%u) remaster clean res for ABORT inst(%u) end", self_id, abort_id);
     }
 
@@ -5627,7 +5653,7 @@ void drc_remaster_migrate_clean_res_owner(knl_session_t *session, reform_info_t 
                    cm_atomic_get(&ctx->stat.clean_page_cnt), cm_atomic_get(&ctx->stat.clean_lock_cnt),
                    cm_atomic_get(&ctx->stat.rcy_page_cnt), cm_atomic_get(&ctx->stat.rcy_lock_cnt),
                    cm_atomic_get(&ctx->stat.clean_convert_cnt));
-    return;
+    return CT_SUCCESS;
 }
 
 status_t drc_remaster_step_migrate(knl_session_t *session, reform_info_t *reform_info)
@@ -5671,7 +5697,12 @@ status_t drc_remaster_step_migrate(knl_session_t *session, reform_info_t *reform
         }
     }
 
-    drc_remaster_migrate_clean_res_owner(session, reform_info);
+    if (drc_remaster_migrate_clean_res_owner(session, reform_info) != CT_SUCCESS) {
+        cm_spin_unlock(&remaster_mngr->lock);
+        CT_LOG_RUN_ERR("[DRC] remaster migrate clean res failed, local task num(%u), local task complete num(%u)",
+                       remaster_mngr->local_task_num, (uint32)remaster_mngr->local_task_complete_num);
+        RC_STEP_END(detail->remaster_migrate_elapsed, RC_STEP_FAILED);
+    }
 
     if ((drc_remaster_migrate(session) != CT_SUCCESS) ||
         (remaster_mngr->local_task_num != remaster_mngr->local_task_complete_num)) {
@@ -5750,11 +5781,18 @@ void drc_reset_remaster_info(void)
     knl_securec_check(ret);
 }
 
-void drc_clean_remaster_res(void)
+status_t drc_clean_remaster_res(void)
 {
     // clean migrated global buf/lock res for remaster reentrant
-    drc_free_migrated_res();
+    if (drc_free_migrated_res() != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RC]drc free migrated res failed, session->kernel->lsn=%llu,"
+                       " g_rc_ctx->status=%u",
+                       ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
+        CM_ABORT_REASONABLE(0, "ABORT INFO: [RC] drc free migrated res failed");
+        return CT_ERROR;
+    }
     drc_reset_remaster_info();
+    return CT_SUCCESS;
 }
 
 void drc_remaster_fail(knl_session_t   *session, status_t ret)
@@ -6071,11 +6109,12 @@ status_t drc_handle_lock_res_recovery(knl_session_t *session, uint8 inst_id)
     cm_atomic_set(&job_num, (int64)(DRC_REMASTER_RCY_MAX_THREAD_NUM));
 
     // Cache collected pages concurrently
-    thread_t thread[DRC_REMASTER_RCY_MAX_THREAD_NUM];
+    thread_t thread[DRC_REMASTER_RCY_MAX_THREAD_NUM] = {0};
     dcs_collect_param_t param[DRC_REMASTER_RCY_MAX_THREAD_NUM];
     uint32 count_per_thread = bucket_num / DRC_REMASTER_RCY_MAX_THREAD_NUM;
     status_t status = CT_SUCCESS;
-    for (uint32 i = 0; i < DRC_REMASTER_RCY_MAX_THREAD_NUM; i++) {
+    uint32 i;
+    for (i = 0; i < DRC_REMASTER_RCY_MAX_THREAD_NUM; i++) {
         param[i].inst_id    = inst_id;
         param[i].start      = i * count_per_thread;
         param[i].job_num    = &job_num;
@@ -6085,7 +6124,9 @@ status_t drc_handle_lock_res_recovery(knl_session_t *session, uint8 inst_id)
             param[i].count_per_thread += bucket_num % DRC_REMASTER_RCY_MAX_THREAD_NUM;
         }
 
+        SYNC_POINT_GLOBAL_START(CANTIAN_REMASTER_CREATE_LOCKRES_RCY_PROC_FAIL, &status, CT_ERROR);
         status = cm_create_thread(drc_lock_res_recovery, 0, &param[i], &thread[i]);
+        SYNC_POINT_GLOBAL_END;
         if (status != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DCS]cm_create_thread(%u): failed, inst_id=%u, count=%u", i, inst_id, count_per_thread);
             cm_atomic_add(&job_num, (int64)(i) - DRC_REMASTER_RCY_MAX_THREAD_NUM);
@@ -6096,6 +6137,9 @@ status_t drc_handle_lock_res_recovery(knl_session_t *session, uint8 inst_id)
 
     while (cm_atomic_get(&job_num) != 0) {
         cm_sleep(DRC_COLLECT_SLEEP_TIME);
+    }
+    for (i = 0; i < DRC_REMASTER_RCY_MAX_THREAD_NUM; i++) {
+        cm_close_thread(&thread[i]);
     }
     return status;
 }
@@ -6356,11 +6400,12 @@ status_t drc_handle_buf_res_recovery(knl_session_t *session, uint8 inst_id)
     cm_atomic_set(&job_num, (int64)(DRC_REMASTER_RCY_MAX_THREAD_NUM));
 
     // Cache collected pages concurrently
-    thread_t thread[DRC_REMASTER_RCY_MAX_THREAD_NUM];
+    thread_t thread[DRC_REMASTER_RCY_MAX_THREAD_NUM] = {0};
     dcs_collect_param_t param[DRC_REMASTER_RCY_MAX_THREAD_NUM];
     uint32 count_per_thread = buf_set_count / DRC_REMASTER_RCY_MAX_THREAD_NUM;
     status_t status = CT_SUCCESS;
-    for (uint32 i = 0; i < DRC_REMASTER_RCY_MAX_THREAD_NUM; i++) {
+    uint32 i;
+    for (i = 0; i < DRC_REMASTER_RCY_MAX_THREAD_NUM; i++) {
         param[i].ctx        = ctx;
         param[i].inst_id    = inst_id;
         param[i].start      = i * count_per_thread;
@@ -6373,7 +6418,9 @@ status_t drc_handle_buf_res_recovery(knl_session_t *session, uint8 inst_id)
             param[i].count_per_thread += buf_set_count % DRC_REMASTER_RCY_MAX_THREAD_NUM;
         }
 
+        SYNC_POINT_GLOBAL_START(CANTIAN_REMASTER_CREATE_COLLECT_PAGEINFO_PROC_FAIL, &status, CT_ERROR);
         status = cm_create_thread(drc_collect_page_info, 0, &param[i], &thread[i]);
+        SYNC_POINT_GLOBAL_END;
         if (status != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DCS]cm_create_thread(%u): failed, inst_id=%u, count=%u", i, inst_id, count_per_thread);
             cm_atomic_add(&job_num, (int64)(i) - DRC_REMASTER_RCY_MAX_THREAD_NUM);
@@ -6384,6 +6431,9 @@ status_t drc_handle_buf_res_recovery(knl_session_t *session, uint8 inst_id)
 
     while (cm_atomic_get(&job_num) != 0) {
         cm_sleep(DRC_COLLECT_SLEEP_TIME);
+    }
+    for (i = 0; i < DRC_REMASTER_RCY_MAX_THREAD_NUM; i++) {
+        cm_close_thread(&thread[i]);
     }
     return status;
 }
@@ -6405,7 +6455,10 @@ status_t drc_remaster_recovery(knl_session_t *session, reform_info_t *reform_inf
         abort_id = reform_info->reform_list[REFORM_LIST_ABORT].inst_id_list[i];
 
         CT_LOG_RUN_INF("[DRC]instance(%u) remaster recovery lock res inst(%u) start", self_id, abort_id);
-        ret = drc_handle_lock_res_recovery(session, abort_id);
+        if (drc_handle_lock_res_recovery(session, abort_id) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DRC]instance(%u) remaster recovery lock res inst(%u) failed", self_id, abort_id);
+            return CT_ERROR;
+        }
         CT_LOG_RUN_INF("[DRC]instance(%u) remaster recovery lock res inst(%u) end", self_id, abort_id);
 
         CT_LOG_RUN_INF("[DRC]instance(%u) remaster handle abort inst(%u) start", self_id, abort_id);

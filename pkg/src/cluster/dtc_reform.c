@@ -411,7 +411,7 @@ status_t rc_follower_reform(reform_mode_t mode, reform_detail_t *detail)
     }
     RC_STEP_END(detail->recovery_elapsed, RC_STEP_FINISH);
 
-    drc_clean_remaster_res();
+    CT_RETURN_IFERR(drc_clean_remaster_res());
 
     if (rc_need_archive_log() == CT_TRUE) {
         arch_proc_context_t arch_proc_ctx[DTC_MAX_NODE_COUNT] = { 0 };
@@ -946,7 +946,7 @@ status_t rc_master_reform(reform_mode_t mode, reform_detail_t *detail)
     // recovery finish, trigger ckpt
     RC_STEP_BEGIN(detail->ckpt_elapsed);
 
-    drc_clean_remaster_res();
+    CT_RETURN_IFERR(drc_clean_remaster_res());
 
     bool32 need_arch = rc_need_archive_log();
     arch_proc_context_t arch_proc_ctx[DTC_MAX_NODE_COUNT] = { 0 };
