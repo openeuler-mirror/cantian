@@ -49,6 +49,7 @@ static char *db_get_role(database_t *db);
 uint32 g_local_inst_id = CT_INVALID_ID32;
 bool8 g_local_set_disaster_cluster_role = CT_FALSE;
 bool32 g_get_role_from_dbs = CT_FALSE;
+bool8 g_standby_will_promote = CT_FALSE;
 
 /*
  * Initialize member of database
@@ -2743,6 +2744,7 @@ void db_promote_cluster_role_follower(knl_session_t *session, DbsRoleInfo role_i
             CT_LOG_RUN_INF("[Disaster Recovery] in db_switch_role, set mysql role, is slave: true");
         }
         ckpt_enable(session);
+        g_standby_will_promote = CT_FALSE;
         lrpl->is_promoting = CT_FALSE;
         CT_LOG_RUN_INF("[INST] [SWITCHOVER] promote completed, running as primary");
     }
@@ -2835,6 +2837,7 @@ reformerpromote:
     }
 
     // step5 cloese lrpl, modify readonly
+    g_standby_will_promote = CT_FALSE;
     lrpl->is_promoting = CT_FALSE;
     kernel->db.is_readonly = CT_FALSE;
     kernel->db.readonly_reason = PRIMARY_SET;

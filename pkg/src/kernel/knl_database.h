@@ -46,6 +46,7 @@ extern "C" {
 
 extern bool32 g_get_role_from_dbs;
 extern bool32 g_cluster_no_cms;
+extern bool8 g_standby_will_promote;
 
 #define DB_SYS_USER_ID       0
 #define DB_PUB_USER_ID       1

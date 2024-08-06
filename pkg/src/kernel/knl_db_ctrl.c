@@ -372,6 +372,7 @@ status_t db_load_ctrlspace(knl_session_t *session, text_t *files)
             CT_LOG_RUN_INF("[INST] [SWITCHOVER] db role is PHYSICAL_STANDBY, need promote role");
             tx_rollback_close(session);
             lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
+            g_standby_will_promote = CT_TRUE;
             status_t status = cm_create_thread(db_promote_cluster_role, 0, NULL, &lrpl->promote_thread);
             if (status != CT_SUCCESS) {
                 CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] promote cm_create_thread failed");
@@ -577,6 +578,11 @@ status_t db_save_core_ctrl(knl_session_t *session)
     knl_instance_t *kernel = (knl_instance_t *)session->kernel;
     database_t *db = &kernel->db;
     uint32 i;
+    // standby follower in promote don't need save core ctrl
+    if (DB_IS_CLUSTER(session) && !DB_IS_PRIMARY(db) && !rc_is_master() && g_standby_will_promote)
+    {
+        return CT_SUCCESS;
+    }
 
     cm_spin_lock(&db->ctrl_lock, NULL);
     db_store_core(db);
