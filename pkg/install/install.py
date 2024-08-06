@@ -1347,25 +1347,6 @@ class Installer:
         tars.close()
         return basename
 
-    def check_pkg_version(self):
-        """
-        check package version is matched with os version
-        """
-        # In python3.7 the function platform.dist is not recommended, and
-        # it will cause a warning. so we must inhibition it.
-        distname, _, _ = Platform.dist()
-        bits, _ = platform.architecture()
-
-        # check package version
-        if self.run_pkg_name.find(distname.upper().replace("OS", "")) == -1:
-            logExit("Run package %s.tar.gz is inconsistent with os system %s."
-                    % (self.run_pkg_name, distname))
-
-        # check package bits, 64bits
-        if self.runFile.find(bits) == -1:
-            logExit("Run package %s.tar.gz is inconsistent with os system %s."
-                    % (self.run_pkg_name, bits))
-
     def getRunPkg(self):
         """
         Get the database package.
@@ -1394,9 +1375,6 @@ class Installer:
         # compress package name is run.tar.gz,
         # decompress is run, remove .tar.gz
         self.run_pkg_name = self.get_decompress_tarname(self.runFile)
-        # check os version of package is mattched with current os version
-        if not g_opts.ignore_pkg_check:
-            self.check_pkg_version()
 
         log("Using run file as : %s" % self.runFile)
 
