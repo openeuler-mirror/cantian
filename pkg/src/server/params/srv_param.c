@@ -76,7 +76,7 @@ config_item_t g_parameters[] = {
       NULL, NULL },
     { "SHARED_POOL_SIZE", CT_TRUE, ATTR_NONE, "192M", NULL, NULL, "-", "[82M,32T]", "CT_TYPE_INTEGER", NULL,
       PARAM_SHARED_POOL_SIZE, EFFECT_REBOOT, CFG_INS, sql_verify_als_shared_pool_size, NULL, NULL, NULL },
-    { "_SQL_POOL_FACTOR", CT_TRUE, ATTR_NONE, "0.5", NULL, NULL, "-", "[0.001,0.999]", "CT_TYPE_REAL", NULL,
+    { "_SQL_POOL_FACTOR", CT_TRUE, ATTR_NONE, "0.3", NULL, NULL, "-", "[0.001,0.999]", "CT_TYPE_REAL", NULL,
       PARAM_SQL_POOL_FACTOR, EFFECT_REBOOT, CFG_INS, sql_verify_als_sql_pool_fat, NULL, NULL, NULL },
     { "LARGE_POOL_SIZE", CT_TRUE, ATTR_NONE, "32M", NULL, NULL, "-", "[4M,32T]", "CT_TYPE_INTEGER", NULL,
       PARAM_LARGE_POOL_SIZE, EFFECT_REBOOT, CFG_INS, sql_verify_als_large_pool_size, NULL, NULL, NULL },
