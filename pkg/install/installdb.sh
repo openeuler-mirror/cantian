@@ -111,11 +111,12 @@ function start_cantiand() {
     fi
     
     if [ "${RUN_MODE}" != "cantiand_with_mysql_st" ]; then
+        export CANTIAND_MODE="open"
         echo "Start mysqld with conf ${MYSQL_CONFIG_FILE}"
         nohup ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin \
                                       --early-plugin-load="ha_ctc.so" \
                                       --check_proxy_users=ON --mysql_native_password_proxy_users=ON \
-                                      --default-storage-engine=CTC --core-file >> ${STATUS_LOG} 2>&1 &
+                                      --default-storage-engine=CTC --core-file >> ${MYSQL_LOG_FILE} 2>&1 &
     fi
     sleep 10
   else
