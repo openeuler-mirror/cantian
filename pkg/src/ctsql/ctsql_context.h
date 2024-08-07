@@ -77,6 +77,7 @@ typedef enum en_sql_type {
     CTSQL_TYPE_LOCK_NODE,
     CTSQL_TYPE_UNLOCK_NODE,
     CTSQL_TYPE_DAAC,
+    CTSQL_TYPE_REPAIR_COPYCTRL,
     CTSQL_TYPE_REPAIR_PAGE,
     CTSQL_TYPE_DCL_CEIL, /* pseudo */
 

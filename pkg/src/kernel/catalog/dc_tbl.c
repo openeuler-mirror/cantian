@@ -909,8 +909,10 @@ void dc_wait_till_load_finish(knl_session_t *session, dc_entry_t *entry)
         return;
     }
 
+    page_id_t page_id;
+    page_id.file = INVALID_FILE_ID;
     for (;;) {
-        if (!entry->is_loading && ((g_rc_ctx == NULL) || dtc_dcs_readable(session))) {
+        if (!entry->is_loading && ((g_rc_ctx == NULL) || dtc_dcs_readable(session, page_id))) {
             return;
         }
         cm_spin_unlock(&entry->lock);

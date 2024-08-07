@@ -19,6 +19,7 @@
 #include "wsecv2_type.h"
 #include "sdpv1_itf.h"
 #include "knl_user.h"
+#include "dtc_database.h"
 #ifndef WIN32
 #include <sys/wait.h>
 #include <unistd.h>
@@ -122,6 +123,7 @@ ctrst_conn_params_t g_conn_params;
 static bool32 g_is_page_repair;
 ctrst_import_params_t g_imp_params;
 ctrst_ssl_params_t g_ssl_params;
+static uint32 g_node_count = 2;
 int32 g_gm_optopt;
 int32 g_gm_optind = 1;
 char *g_gm_optarg = NULL;
@@ -1016,7 +1018,7 @@ static status_t ctrst_init_conn(const char *user, const char *user_pwd, const ch
     PRTS_RETURN_IFERR(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1, "conn %s/%s@%s", user, user_pwd, url));
     cm_str2text_safe(sql, (uint32)strlen(sql), &line);
     if (ctsql_connect(&line) != CT_SUCCESS) {
-        ctrst_log_print("gsql connect failed\n");
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
     return CT_SUCCESS;
@@ -1094,6 +1096,7 @@ static status_t ctrst_restore_tablespace(void)
     ctrst_log_print("begin restore tablespace\n");
 
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
     if (g_conn_params.is_set_passwd) {
@@ -1124,6 +1127,7 @@ static status_t ctrst_recover_database(void)
     ctrst_log_print("begin recover database\n");
 
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
     PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1, "RECOVER DATABASE"), ctrst_free_conn());
@@ -1182,6 +1186,7 @@ static status_t ctrst_open_database(void)
     ctrst_log_print("begin open database\n");
 
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
     PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1, "ALTER DATABASE OPEN"), ctrst_free_conn());
@@ -1226,6 +1231,7 @@ static status_t ctrst_change_database_readonly(void)
     ctrst_log_print("begin change database readonly\n");
 
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
     PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1, "ALTER DATABASE CONVERT TO READONLY"),
@@ -1246,6 +1252,7 @@ static status_t ctrst_export_schema_data(void)
     ctrst_log_print("begin export schema data\n");
 
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
 
@@ -1274,6 +1281,7 @@ static status_t ctrst_import_schema_data(void)
     ctrst_log_print("begin import schema data\n");
 
     if (ctrst_init_conn(g_conn_params.schema, g_conn_params.user_passwd, g_conn_params.imp_url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
 
@@ -1304,6 +1312,7 @@ static status_t ctrst_block_recover(void)
     ctrst_log_print("begin block recover\n");
 
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
     if (g_conn_params.db_status == DB_STATUS_OPEN) {
@@ -1333,6 +1342,7 @@ static status_t ctrst_query_param(const char *param, char *str_buf, uint32 buf_s
 {
     char sql[MAX_SQL_LEN] = { 0 };
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.imp_url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
 
@@ -1460,6 +1470,7 @@ static status_t ctrst_query_db_status(void)
     ctrst_log_print("begin query database status\n");
 
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.imp_url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
     PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1, "SELECT STATUS FROM DV_DATABASE"),
@@ -1494,6 +1505,7 @@ static status_t ctrst_validate_page(void)
     ctrst_log_print("begin validate page\n");
 
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.imp_url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
     PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1, "VALIDATE DATAFILE %u PAGE %u",
@@ -1528,6 +1540,7 @@ static status_t ctrst_current_point(uint32 *asn)
     ctrst_log_print("begin fetch current point\n");
 
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.imp_url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
     PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1,
@@ -1573,6 +1586,7 @@ static status_t ctrst_wait_archive_flush(uint32 asn)
     }
 
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.imp_url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
     PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1, "ALTER SYSTEM SWITCH LOGFILE"), ctrst_free_conn());
@@ -1609,6 +1623,7 @@ static status_t ctrst_wait_archive_flush(uint32 asn)
     }
 
     ctrst_free_conn();
+    cm_sleep(MILLISECS_PER_SECOND);
     ctrst_log_print("end wait archive flush\n");
     return CT_SUCCESS;
 }
@@ -1733,6 +1748,7 @@ static void ctrst_reset_ctrlfile_storages(ctrl_page_t *ctrl_pages)
     }
 
     log_file_ctrl_t *logfile = NULL;
+    g_node_count = ctrl.core.node_count;
     for (i = 0; i < ctrl.core.node_count; i++) {
         for (j = 0; j < CT_MAX_LOG_FILES; j++) {
             logfile = (log_file_ctrl_t *)db_get_log_ctrl_item(ctrl.pages, j, sizeof(log_file_ctrl_t), ctrl.log_segment,
@@ -1750,10 +1766,33 @@ static void ctrst_reset_ctrlfile_storages(ctrl_page_t *ctrl_pages)
 
 static status_t ctrst_make_ctrlfile(char *str_buf, uint32 buf_size)
 {
-    bool32 retry = CT_TRUE;
-    uint32 retry_times = 0;
+    ctrst_log_print("start make ctrl file\n");
     int32 dst_file;
     aligned_buf_t buf;
+    aligned_buf_t buf_current;
+    char sql[MAX_SQL_LEN] = { 0 };
+    bool32 retry = CT_TRUE;
+    uint32 retry_times = 0;
+    dtc_node_ctrl_t *node_ctrl = NULL;
+    dtc_node_ctrl_t *node_ctrl_current = NULL;
+    ctrl_page_t *ctrl_page = NULL;
+    ctrl_page_t *ctrl_page_current = NULL;
+    char name_buf[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
+
+    if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.imp_url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
+        return CT_ERROR;
+    }
+    PRTS_RETURN_IFERR2(snprintf_s(name_buf, buf_size, buf_size - 1, "%s/data/ctrl1_current", g_conn_params.db_home),
+                       ctrst_free_conn());
+    PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1, "RESTORE COPYCTRL to \'%s\'",name_buf),
+                       ctrst_free_conn());
+    ctrst_log_print("begin copy ctrl file:%s name%s sql:%s\n", name_buf, str_buf, sql);
+
+    if (ctrst_execute_sql(sql, CT_TRUE) != CT_SUCCESS) {
+        ctrst_log_print("failed to flush repaired page\n");
+        return CT_ERROR;
+    }
 
     /* CODE_REVIEW muting 00198166 2019-8-14: fix me, temp use CTRL_MAX_PAGES_CLUSTERED instead of CTRL_MAX_PAGES */
     if (cm_aligned_malloc((int64)(CTRL_MAX_PAGES_CLUSTERED * CT_DFLT_CTRL_BLOCK_SIZE), "ctrst ctrl", &buf) !=
@@ -1761,41 +1800,91 @@ static status_t ctrst_make_ctrlfile(char *str_buf, uint32 buf_size)
         return CT_ERROR;
     }
 
+    if (cm_aligned_malloc((int64)(CTRL_MAX_PAGES_CLUSTERED * CT_DFLT_CTRL_BLOCK_SIZE), "ctrst ctrl_bak", &buf_current) !=
+        CT_SUCCESS) {
+        cm_aligned_free(&buf);
+        return CT_ERROR;
+    }
+
+    while (retry) {
+        if (retry_times > MAX_READ_RETRY_TIMES) {
+            ctrst_log_print("read ctrl file failed, exceed max retry times %d \n", MAX_READ_RETRY_TIMES);
+            cm_aligned_free(&buf);
+            cm_aligned_free(&buf_current);
+            return CT_ERROR;
+        }
+        if (cm_file_exist(name_buf)) {
+            ctrst_log_print("read ctrl file success, retry times %d \n", retry_times);
+            retry_times = 0;
+            break;
+        }
+        retry_times++;
+        cm_sleep(MILLISECS_PER_SECOND);
+    }
+
     while (retry) {
         if (retry_times > MAX_READ_RETRY_TIMES) {
             ctrst_log_print("read ctrl file failed, exceed max retry times %n \n", MAX_READ_RETRY_TIMES);
             cm_aligned_free(&buf);
+            cm_aligned_free(&buf_current);
             return CT_ERROR;
         }
         if (ctrst_read_ctrlfile(buf.aligned_buf, str_buf, &retry) != CT_SUCCESS) {
             ctrst_log_print("read ctrl file failed, path %s \n", str_buf);
             cm_aligned_free(&buf);
+            cm_aligned_free(&buf_current);
+            return CT_ERROR;
+        }
+        if (ctrst_read_ctrlfile(buf_current.aligned_buf, name_buf, &retry) != CT_SUCCESS) {
+            ctrst_log_print("read ctrl file failed, path %s \n", name_buf);
+            cm_aligned_free(&buf);
+            cm_aligned_free(&buf_current);
             return CT_ERROR;
         }
         retry_times++;
     }
+    
+    ctrl_page = (ctrl_page_t *)buf.aligned_buf;
+    ctrl_page_current = (ctrl_page_t *)buf_current.aligned_buf;
     ctrst_invalid_ctrlfile_dataitem((ctrl_page_t *)buf.aligned_buf);
     ctrst_reset_ctrlfile_storages((ctrl_page_t *)buf.aligned_buf);
 
+    for (uint32 i = 0; i < g_node_count; ++i){
+        node_ctrl = (dtc_node_ctrl_t *)ctrl_page[CTRL_LOG_SEGMENT + i].buf;
+        node_ctrl_current = (dtc_node_ctrl_t *)ctrl_page_current[CTRL_LOG_SEGMENT + i].buf;
+        ctrst_log_print("node_id:%u before rcy lfn:[%llu-%llu] node_count:%u\n", i,  node_ctrl->rcy_point.lfn,node_ctrl_current->rcy_point.lfn, g_node_count);
+        node_ctrl_current->rcy_point = node_ctrl->rcy_point;
+        node_ctrl_current->lsn = node_ctrl->lsn;
+        node_ctrl_current->lfn = node_ctrl->lfn;
+        node_ctrl_current->consistent_lfn = node_ctrl->consistent_lfn;
+        ctrst_log_print("node_id:%u after rcy lfn:[%llu-%llu] node_count:%u\n",i , node_ctrl->rcy_point.lfn,node_ctrl_current->rcy_point.lfn, g_node_count);
+    }
+
+    ctrst_invalid_ctrlfile_dataitem((ctrl_page_t *)buf_current.aligned_buf);
+    ctrst_reset_ctrlfile_storages((ctrl_page_t *)buf_current.aligned_buf);
     PRTS_RETURN_IFERR2(snprintf_s(str_buf, buf_size, buf_size - 1, "%s/data/ctrl1", g_conn_params.db_home),
                        cm_aligned_free(&buf));
+    ctrst_log_print("rcy lfn:[%llu-%llu]\n", node_ctrl->lrp_point.lfn,node_ctrl_current->lrp_point.lfn);
 
     if (cm_create_file(str_buf, O_BINARY | O_SYNC | O_RDWR | O_EXCL, &dst_file) != CT_SUCCESS) {
         ctrst_log_print("failed to create control file %s\n", str_buf);
         cm_aligned_free(&buf);
+        cm_aligned_free(&buf_current);
         return CT_ERROR;
     }
 
     /* CODE_REVIEW muting 00198166 2019-8-14: fix me, temp use CTRL_MAX_PAGES_CLUSTERED instead of CTRL_MAX_PAGES */
-    if (cm_write_file(dst_file, buf.aligned_buf, CTRL_MAX_PAGES_CLUSTERED * CT_DFLT_CTRL_BLOCK_SIZE) != CT_SUCCESS) {
+    if (cm_write_file(dst_file, buf_current.aligned_buf, CTRL_MAX_PAGES_CLUSTERED * CT_DFLT_CTRL_BLOCK_SIZE) != CT_SUCCESS) {
         ctrst_log_print("failed to write size %u\n", CTRL_MAX_PAGES_CLUSTERED * CT_DFLT_CTRL_BLOCK_SIZE);
         cm_close_file(dst_file);
         cm_aligned_free(&buf);
+        cm_aligned_free(&buf_current);
         return CT_ERROR;
     }
 
     cm_close_file(dst_file);
     cm_aligned_free(&buf);
+    cm_aligned_free(&buf_current);
     return CT_SUCCESS;
 }
 
@@ -1917,6 +2006,7 @@ static status_t ctrst_flush_repaired_page(const char *page, int32 page_size, pag
     }
 
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.imp_url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
     PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1, "SELECT FILE_NAME FROM DV_DATA_FILES WHERE ID=%u",
@@ -2150,6 +2240,7 @@ static status_t ctrst_is_enable_dbs(bool32 *is_enable_db){
     char sql[MAX_SQL_LEN] = { 0 };
     char str_buf[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
     if (ctrst_init_conn("sys", g_conn_params.passwd, g_conn_params.imp_url) != CT_SUCCESS) {
+        ctrst_log_print("ctrst init conn failed\n");
         return CT_ERROR;
     }
     PRTS_RETURN_IFERR2(snprintf_s(sql, MAX_SQL_LEN, MAX_SQL_LEN - 1, "SELECT FILE_NAME FROM DV_LOG_FILES WHERE STATUS=\'CURRENT\'"),

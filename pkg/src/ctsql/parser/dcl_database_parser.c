@@ -976,7 +976,7 @@ static status_t sql_parse_restore_type(sql_stmt_t *stmt, knl_restore_t *param)
     if (IS_CTRST_INSTANCE) {
         status = lex_expected_fetch_1of2(stmt->session->lex, "database", "blockrecover", &match_id);
     } else {
-        status = lex_expected_fetch_1ofn(stmt->session->lex, &match_id,4 , "database", "filerecover", "archivelog", "flushpage");
+        status = lex_expected_fetch_1ofn(stmt->session->lex, &match_id, 5, "database", "filerecover", "archivelog", "flushpage", "COPYCTRL");
     }
     CT_RETURN_IFERR(status);
 
@@ -998,6 +998,10 @@ static status_t sql_parse_restore_type(sql_stmt_t *stmt, knl_restore_t *param)
 
     if (match_id == 3) {
         param->file_type = RESTORE_FLUSHPAGE;
+    }
+
+    if (match_id == 4) {
+        param->file_type = RESTORE_COPYCTRL;
     }
     return CT_SUCCESS;
 }
@@ -1033,8 +1037,13 @@ status_t sql_parse_restore(sql_stmt_t *stmt)
     status = sql_parse_restore_type(stmt, param);
     CT_RETURN_IFERR(status);
 
-    status = lex_expected_fetch_word(stmt->session->lex, "from");
-    CT_RETURN_IFERR(status);
+    if (param->file_type == RESTORE_COPYCTRL) {
+        status = lex_expected_fetch_word(stmt->session->lex, "to");
+        CT_RETURN_IFERR(status);
+    } else {
+        status = lex_expected_fetch_word(stmt->session->lex, "from");
+        CT_RETURN_IFERR(status);
+    }
 
     status = sql_parse_restore_from(stmt, &word, param, param->type == RESTORE_BLOCK_RECOVER);
     CT_RETURN_IFERR(status);

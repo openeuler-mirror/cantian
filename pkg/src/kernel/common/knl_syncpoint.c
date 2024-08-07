@@ -122,8 +122,10 @@ void knl_syncpoint_inject_other_node_abort(int32 *user_param, int32 ret)
     // wait reform
     uint64 version = DRC_GET_CURR_REFORM_VERSION;
     uint32 i = 0;
+    page_id_t page_id;
+    page_id.file = INVALID_FILE_ID;
     while (i < SYNCPOINT_WAIT_REFORM_TIMEOUT) {
-        if (DRC_STOP_DCS_IO_FOR_REFORMING(version, session)) {
+        if (DRC_STOP_DCS_IO_FOR_REFORMING(version, session, page_id)) {
             CT_LOG_RUN_INF("syncpoint executed successfully, other node exited, reforming");
             break;
         }

@@ -196,7 +196,7 @@ status_t dtc_read_page(knl_session_t *session, buf_read_assist_t *ra)
     date_t last_time = 0;
 
     for (;;) {
-        if (!dtc_dcs_readable(session)) {
+        if (!dtc_dcs_readable(session, ra->page_id)) {
             if (last_time + DCS_LOG_LIMIT_INTERVAL * MICROSECS_PER_MILLISEC <= KNL_NOW(session)) {
                 last_time = KNL_NOW(session);
                 CT_LOG_DEBUG_ERR("[DCS][%u-%u] dcs not readable, session is hanging.",
@@ -287,11 +287,91 @@ status_t dtc_get_share_owner_pages(knl_session_t *session, buf_ctrl_t **ctrl_arr
     return CT_SUCCESS;
 }
 
-bool32 dtc_dcs_readable(knl_session_t *session)
+bool32 dtc_lock_in_rcy_space_set(uint16 uid)
+{
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+    rcy_set_t *rcy_set = &dtc_rcy->rcy_set;
+    for (uint32 i = 0; i < rcy_set->space_set_size; i++) {
+        if (uid == rcy_set->space_id_set[i]) {
+            return CT_TRUE;
+        }
+    }
+    return CT_FALSE;
+}
+
+bool32 dtc_dcs_readable(knl_session_t *session, page_id_t page_id)
 {
     drc_part_mngr_t *part_mngr = (&g_drc_res_ctx.part_mngr);
+    if (part_mngr->remaster_status != REMASTER_DONE) {
+        return CT_FALSE;
+    }
 
-    return (part_mngr->remaster_status == REMASTER_DONE &&
-            (g_rc_ctx->status >= REFORM_RECOVER_DONE || DAAC_SESSION_IN_RECOVERY(session) ||
-             g_rc_ctx->status == REFORM_MOUNTING));
+    bool32 readable = (part_mngr->remaster_status == REMASTER_DONE &&
+                       (g_rc_ctx->status >= REFORM_RECOVER_DONE || DAAC_SESSION_IN_RECOVERY(session) ||
+                        g_rc_ctx->status == REFORM_MOUNTING));
+
+    // only check page_rcy_set in primary and partial recovery
+    if (readable == CT_TRUE || !DAAC_PART_RECOVERY(session) || !DB_IS_PRIMARY(&session->kernel->db)) {
+        return readable;
+    }
+
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+    if (dtc_rcy->recovery_status <= RECOVERY_ANALYSIS) {
+        return CT_FALSE;
+    }
+
+    if (IS_INVALID_PAGID(page_id)) {
+        CT_LOG_RUN_ERR("page_id is invalid");
+        return CT_FALSE;
+    }
+    bool32 page_need_recover = dtc_page_in_rcyset(session, page_id);
+    return !page_need_recover;
+}
+
+bool32 is_df_ctrl_lock(knl_session_t *session, drid_t *lock_id)
+{
+    knl_instance_t *kernel = (knl_instance_t *)session->kernel;
+    database_t *db = &kernel->db;
+    drlock_t *df_ctrl_lock = &(db->df_ctrl_lock);
+    drid_t *df_ctrl_lock_id = &(df_ctrl_lock->drid);
+    if (df_ctrl_lock_id->type == lock_id->type && df_ctrl_lock_id->id == lock_id->id &&
+        df_ctrl_lock_id->uid == lock_id->uid) {
+        return CT_TRUE;
+    }
+    return CT_FALSE;
+}
+
+bool32 dtc_dls_readable(knl_session_t *session, drid_t *lock_id)
+{
+    drc_part_mngr_t *part_mngr = (&g_drc_res_ctx.part_mngr);
+    if (part_mngr->remaster_status != REMASTER_DONE) {
+        return CT_FALSE;
+    }
+
+    bool32 readable = (part_mngr->remaster_status == REMASTER_DONE &&
+                       (g_rc_ctx->status >= REFORM_RECOVER_DONE || DAAC_SESSION_IN_RECOVERY(session) ||
+                        g_rc_ctx->status == REFORM_MOUNTING));
+
+    // only check lock_space_set in primary and partial recovery
+    if (readable == CT_TRUE || !DAAC_PART_RECOVERY(session) || !DB_IS_PRIMARY(&session->kernel->db)) {
+        return readable;
+    }
+
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+    if (dtc_rcy->recovery_status <= RECOVERY_ANALYSIS) {
+        return CT_FALSE;
+    }
+
+    if (is_df_ctrl_lock(session, lock_id))
+    {
+        return CT_TRUE;
+    }
+
+    uint16 uid = lock_id->uid;
+    if (uid == CT_INVALID_ID16) {
+        CT_LOG_RUN_ERR("lock uid is invalid");
+        return CT_FALSE;
+    }
+    bool32 lock_need_recover = dtc_lock_in_rcy_space_set(uid);
+    return !lock_need_recover;
 }

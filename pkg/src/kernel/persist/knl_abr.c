@@ -597,9 +597,11 @@ static status_t abr_replay_page_to_latest(knl_session_t *session, log_point_t cu
     if (bak->lfn > 0) {
         rcy->abr_db_status = DB_STATUS_OPEN;
         lrp_point.lfn = bak->lfn;
+        CT_LOG_RUN_INF("abr replay page to latest bak->lfn %llu", bak->lfn);
     } else {
         rcy->abr_db_status = DB_STATUS_MOUNT;
         lrp_point = dtc_my_ctrl(session)->lrp_point;
+        CT_LOG_RUN_INF("abr replay page to latest dtc my ctrl [%llu-%llu]", (uint64)lrp_point.lfn, (uint64)lrp_point.lsn);
     }
 
     CT_LOG_RUN_INF("[ABR] recovery expected least end with file:%u,point:%u,lfn:%llu",
@@ -1196,6 +1198,59 @@ static inline void abr_save_recover_file(knl_session_t *session)
     ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL);
     session->kernel->db.status = DB_STATUS_MOUNT;
     session->kernel->rcy_ctx.is_file_repair = CT_FALSE;
+}
+
+status_t abr_restore_copy_ctrl(knl_session_t *session, knl_restore_t *param) {
+    CT_LOG_RUN_INF("[RESTORE] start copy ctrl");
+    knl_instance_t *kernel = (knl_instance_t *)session->kernel;
+    database_t *db = &kernel->db;
+    ctrlfile_t *ctrlfile = NULL;
+    aligned_buf_t buf;
+    int32 dst_file;
+
+    if (db->ctrlfiles.count <= 0) {
+        CT_LOG_RUN_ERR("[RESTORE] ctrl files not exist");
+        return CT_ERROR;
+    }
+    ctrlfile = &db->ctrlfiles.items[0];
+
+    if (cm_aligned_malloc((int64)(CTRL_MAX_PAGES_CLUSTERED * CT_DFLT_CTRL_BLOCK_SIZE), "ctrl", &buf) !=
+        CT_SUCCESS) {
+        CT_LOG_RUN_ERR("make ctrl file malloc memory failed");
+        return CT_ERROR;
+    }
+    if (ctrlfile->handle == CT_INVALID_HANDLE) {
+        if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[RESTORE] failed to open %s ", ctrlfile->name);
+            cm_aligned_free(&buf);
+            return CT_ERROR;
+        }
+    }
+    if (cm_read_device(ctrlfile->type, ctrlfile->handle, 0,
+                       buf.aligned_buf, (int64)CTRL_MAX_PAGES_CLUSTERED * CT_DFLT_CTRL_BLOCK_SIZE) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[RESTORE] failed to read %s offset %lld", ctrlfile->name, (int64)CORE_CTRL_PAGE_ID * ctrlfile->block_size);
+        cm_aligned_free(&buf);
+        return CT_ERROR;
+    }
+
+    CT_LOG_RUN_INF("[RESTORE] ctrl file path %s\n", param->path.str);
+    if (cm_create_file(param->path.str, O_BINARY | O_SYNC | O_RDWR | O_EXCL, &dst_file) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("failed to create control file %s\n", param->path.str);
+        cm_aligned_free(&buf);
+        return CT_ERROR;
+    }
+
+    if (cm_write_file(dst_file, buf.aligned_buf, CTRL_MAX_PAGES_CLUSTERED * CT_DFLT_CTRL_BLOCK_SIZE) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("failed to write size %u\n", CTRL_MAX_PAGES_CLUSTERED * CT_DFLT_CTRL_BLOCK_SIZE);
+        cm_close_file(dst_file);
+        cm_aligned_free(&buf);
+        return CT_ERROR;
+    }
+
+    cm_aligned_free(&buf);
+    cm_close_file(dst_file);
+    CT_LOG_RUN_INF("[RESTORE] finish copy ctrl");
+    return CT_SUCCESS;
 }
 
 status_t abr_restore_flush_page(knl_session_t *session, knl_restore_t *param){

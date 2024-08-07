@@ -77,7 +77,7 @@ static status_t dls_request_msg(knl_session_t *session, drid_t *id, uint8 dst_in
     msg_lock_ack_t *lock_ack = (msg_lock_ack_t *)(recv_msg.buffer);
     uint64 req_version_ack = lock_ack->req_version;
 
-    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version_ack, session)) {
+    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version_ack, session, id)) {
         DTC_DLS_DEBUG_ERR("[DLS]reforming, request lock owner failed, req_version_ack=%llu, cur_version=%llu",
             req_version_ack, DRC_GET_CURR_REFORM_VERSION);
         mes_release_message_buf(recv_msg.buffer);
@@ -269,7 +269,7 @@ status_t dls_process_release_ownership(knl_session_t *session, drid_t *lock_id, 
     DTC_DLS_DEBUG_INF("[DLS] release lock(%u/%u/%u/%u/%u)", lock_id->type, lock_id->uid, lock_id->id, lock_id->idx,
                       lock_id->part);
 
-    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
+    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id)) {
         CT_LOG_RUN_ERR("[DLS]reforming, owner release lock(%u/%u/%u/%u/%u) failed, req_version=%llu, cur_version=%llu",
             lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
             DRC_GET_CURR_REFORM_VERSION);
@@ -316,7 +316,7 @@ status_t dls_process_release_ownership(knl_session_t *session, drid_t *lock_id, 
             continue;
         }
 
-        if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
+        if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id)) {
             CT_LOG_RUN_ERR("[DLS] reforming, owner release lock(%u/%u/%u/%u/%u) failed, req_version=%llu,"
                 "cur_version=%llu", lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
                 DRC_GET_CURR_REFORM_VERSION);
@@ -375,7 +375,7 @@ status_t dls_process_try_release_ownership(knl_session_t *session, drid_t *lock_
     DTC_DLS_DEBUG_INF("[DLS] release spinlock(%u/%u/%u/%u/%u)", lock_id->type, lock_id->uid, lock_id->id, lock_id->idx,
                       lock_id->part);
 
-    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
+    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id)) {
         CT_LOG_RUN_ERR(
             "[DLS]reforming, owner try release lock(%u/%u/%u/%u/%u) failed, req_version=%llu, cur_version=%llu",
             lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
@@ -494,7 +494,7 @@ status_t dls_process_ask_master_for_lock(knl_session_t * session, mes_message_t 
         }
         if (ret != CT_SUCCESS) {
             //not claimed
-            if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
+            if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id)) {
                 CT_LOG_RUN_ERR("[DLS]reforming, process dls request master ask owner(%u) for"
                     "lock(%u/%u/%u/%u/%u) failed, req_version=%llu, cur_version=%llu",
                     owner_id, lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
@@ -567,7 +567,7 @@ status_t dls_process_ask_master_for_latch(knl_session_t * session, mes_message_t
             }
             if (ret != CT_SUCCESS) {
                 //not claimed
-                if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
+                if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id)) {
                     CT_LOG_RUN_ERR("[DLS]reforming, process dls request master ask owner(%u) for"
                         "latch(%u/%u/%u/%u/%u) failed, req_version=%llu, cur_version=%llu",
                         i, lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
@@ -656,7 +656,7 @@ status_t dls_process_try_ask_master_for_lock(knl_session_t * session, mes_messag
                                        DLS_REQ_LOCK, req_version);
         }
         if (ret != CT_SUCCESS) {
-            if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
+            if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id)) {
                 CT_LOG_RUN_ERR("[DLS]reforming, process dls request master ask owner(%u) for"
                     "lock(%u/%u/%u/%u/%u) failed, req_version=%llu, cur_version=%llu",
                     owner_id, lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
@@ -695,7 +695,7 @@ status_t dls_process_clean_granted_map(knl_session_t * session, mes_message_t * 
     drid_t  *lock_id = &lock_req.lock_id;
     uint8 inst_id = lock_req.head.src_inst;
     uint64 req_version = lock_req.req_version;
-    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
+    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id)) {
         CT_LOG_DEBUG_ERR("[DLS]reforming, clean granted map failed, req_version=%llu, cur_version=%llu",
             req_version, DRC_GET_CURR_REFORM_VERSION);
         return CT_ERROR;

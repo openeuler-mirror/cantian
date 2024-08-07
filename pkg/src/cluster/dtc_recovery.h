@@ -126,6 +126,8 @@ typedef struct st_rcy_set {
     rcy_set_item_pool_t *curr_item_pools;
     page_id_t *pages[CT_MAX_INSTANCES];
     uint32 page_count[CT_MAX_INSTANCES];
+    uint32 space_id_set[CT_MAX_SPACES];
+    uint32 space_set_size;
 } rcy_set_t;
 
 typedef enum en_dtc_rcy_phase {
@@ -252,6 +254,7 @@ bool32 dtc_recovery_in_progress(void);
 bool32 dtc_recovery_failed(void);
 void dtc_rcy_atomic_dec_group_num(knl_session_t *session, uint32 idx, int32 val);
 bool8 dtc_rcy_page_in_rcyset(page_id_t page_id);
+bool32 dtc_page_in_rcyset(knl_session_t *session, page_id_t page_id);
 void dtc_rcy_page_update_need_replay(page_id_t page_id);
 rcy_set_item_t *dtc_rcy_get_item_internal(page_id_t page_id);
 EXTER_ATTACK void dtc_process_rcy_set_ack(void *sess, mes_message_t *msg);
