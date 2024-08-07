@@ -231,7 +231,7 @@ BEGIN
     --flush modification to table
     DBE_STATS.FLUSH_DB_STATS_INFO();
     --(1)gather the new table
-    insert into ltt_analyze_job1 SELECT OWNER, TABLE_NAME FROM ADM_TABLES WHERE TABLE_TYPE in ('HEAP', 'NOLOGGING') AND LAST_ANALYZED is NULL AND OWNER != 'SYS';
+    insert into ltt_analyze_job1 SELECT OWNER, TABLE_NAME FROM ADM_TABLES WHERE TABLE_TYPE in ('HEAP', 'NOLOGGING') AND OWNER != 'SYS' AND (LAST_ANALYZED is NULL OR NUM_ROWS = 0);
     LOOP
         is_finish := false;
         BEGIN
@@ -268,7 +268,7 @@ BEGIN
     --(2)gather the new partition
     insert into ltt_analyze_job2 SELECT U.NAME AS OWNER, T.NAME AS TABLE_NAME, TP.NAME AS PARTITION_NAME
            FROM SYS.SYS_USERS U JOIN SYS.SYS_TABLES T ON U.ID = T.USER# 
-           JOIN SYS.SYS_TABLE_PARTS TP ON T.USER# = TP.USER# AND T.ID = TP.TABLE# AND TP.ANALYZETIME IS NULL AND U.NAME != 'SYS';
+           JOIN SYS.SYS_TABLE_PARTS TP ON T.USER# = TP.USER# AND T.ID = TP.TABLE# AND U.NAME != 'SYS' AND (TP.ANALYZETIME IS NULL OR ROWCNT = 0);
     LOOP
         is_finish := false;
         
