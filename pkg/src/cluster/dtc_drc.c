@@ -738,7 +738,7 @@ void drc_buf_res_recycle(knl_session_t *session, uint32 inst_id, date_t time, pa
     // if reforming, stop recycle
     SYNC_POINT_GLOBAL_START(CANTIAN_DCS_RECYCLE_MASTER_OTHER_ABORT, (int32 *)session, 0);
     SYNC_POINT_GLOBAL_END;
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session, page_id)) {
         cm_spin_unlock(&bucket->lock);
         cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
         CT_LOG_RUN_ERR("[DRC][%u-%u]reforming, buf res recycle failed, req_version=%llu, cur_version=%llu",
@@ -874,7 +874,7 @@ uint32 drc_recycle_items(knl_session_t *session, bool32 is_batch)
         uint64 req_version = DRC_GET_CURR_REFORM_VERSION;
         SYNC_POINT_GLOBAL_START(CANTIAN_DCS_RECYCLE_ITEM_OTHER_ABORT, (int32 *)session, 0);
         SYNC_POINT_GLOBAL_END;
-        if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session)) {
+        if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session, buf_res->page_id)) {
             CT_LOG_RUN_ERR("[DRC][%u-%u]: reforming, recycle buf res failed",
                 buf_res->page_id.file, buf_res->page_id.page);
             cm_spin_unlock(&bucket->lock);
@@ -906,7 +906,7 @@ uint32 drc_recycle_items(knl_session_t *session, bool32 is_batch)
         // if reforming, stop recycle buf res
         SYNC_POINT_GLOBAL_START(CANTIAN_DCS_RECYCLE_ITEM_PENDING_OTHER_ABORT, (int32 *)session, 0);
         SYNC_POINT_GLOBAL_END;
-        if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session)) {
+        if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session, buf_res->page_id)) {
             CT_LOG_RUN_ERR("[DRC][%u-%u]: reforming, recycle buf res failed",
                 buf_res->page_id.file, buf_res->page_id.page);
             buf_res->pending = DRC_RES_INVALID_ACTION;
@@ -1370,7 +1370,7 @@ status_t drc_request_page_owner(knl_session_t *session, page_id_t pagid, drc_req
     SYNC_POINT_GLOBAL_START(CANTIAN_DCS_REQUEST_PAGE_OWNER_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
 
-    if (!dtc_dcs_readable(session)) {
+    if (!dtc_dcs_readable(session, pagid)) {
         CT_LOG_RUN_ERR("[DRC][%u-%u]: request page fail, remaster status(%u) is in progress or in g_rc status (%u)",
                        pagid.file, pagid.page, part_mngr->remaster_status, g_rc_ctx->status);
         return CT_ERROR;
@@ -1380,7 +1380,7 @@ status_t drc_request_page_owner(knl_session_t *session, page_id_t pagid, drc_req
     uint32 part_id = drc_page_partid(pagid);
     cm_spin_lock(&g_buf_res->res_part_stat_lock[part_id], NULL);
     cm_spin_lock(&bucket->lock, NULL);
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_info->req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_info->req_version, session, pagid)) {
         CT_LOG_RUN_ERR("[DCS][%u-%u]reforming, request page owner failed, req_rsn=%u, "
             "req_version=%llu, cur_version=%llu",
             pagid.file, pagid.page, req_info->rsn, req_info->req_version, DRC_GET_CURR_REFORM_VERSION);
@@ -1415,7 +1415,7 @@ status_t drc_request_page_owner(knl_session_t *session, page_id_t pagid, drc_req
             goto allocated;
         }
 
-        if (DRC_STOP_DCS_IO_FOR_REFORMING(req_info->req_version, session)) {
+        if (DRC_STOP_DCS_IO_FOR_REFORMING(req_info->req_version, session, pagid)) {
             CT_LOG_RUN_ERR("[DCS][%u-%u]reforming, request page owner failed, req_version=%llu, cur_version=%llu "
                 "req_rsn=%u",
                 pagid.file, pagid.page, req_info->req_version, DRC_GET_CURR_REFORM_VERSION, req_info->rsn);
@@ -1459,7 +1459,7 @@ status_t drc_request_page_owner(knl_session_t *session, page_id_t pagid, drc_req
         cm_spin_lock(lock, NULL);
 
         // if remaster has already scanned, stop DRC_REQ_OWNER_GRANTED
-        if (DRC_STOP_DCS_IO_FOR_REFORMING(req_info->req_version, session)) {
+        if (DRC_STOP_DCS_IO_FOR_REFORMING(req_info->req_version, session, pagid)) {
             CT_LOG_RUN_ERR("[DCS][%u-%u]reforming, request page owner failed, req_version=%llu, cur_version=%llu "
                 "req_rsn=%u",
                 pagid.file, pagid.page, req_info->req_version, DRC_GET_CURR_REFORM_VERSION, req_info->rsn);
@@ -1511,7 +1511,7 @@ allocated:
     }
 
     if (buf_res->claimed_owner == CT_INVALID_ID8) {
-        if (DAAC_SESSION_IN_RECOVERY(session) || g_rc_ctx->status >= REFORM_RECOVER_DONE) {
+        if (DAAC_SESSION_IN_RECOVERY(session) || g_rc_ctx->status >= REFORM_RECOVER_DONE || dtc_dcs_readable(session, pagid)) {
             drc_clean_buf_res(buf_res);
         } else {
             cm_spin_unlock(&bucket->lock);
@@ -2336,7 +2336,7 @@ status_t drc_request_lock_owner(knl_session_t *session, drid_t *lock_id, drc_req
     res_part_stat_lock = &ctx->global_lock_res.res_part_stat_lock[part_id];
     cm_spin_lock(res_part_stat_lock, NULL);
     cm_spin_lock(&bucket->lock, NULL);
-    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
+    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id)) {
         CT_LOG_DEBUG_ERR("[DLS]reforming, request lock owner failed, req_version=%llu, cur_version=%llu",
             req_version, DRC_GET_CURR_REFORM_VERSION);
         cm_spin_unlock(&bucket->lock);
@@ -2438,7 +2438,7 @@ status_t drc_request_lock_owner(knl_session_t *session, drid_t *lock_id, drc_req
         cm_spin_lock(res_part_stat_lock, NULL);
         cm_spin_lock(&bucket->lock, NULL);
 
-        if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
+        if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id)) {
             CT_LOG_RUN_ERR("[DLS]reforming, request lock owner failed, req_version=%llu, cur_version=%llu",
                 req_version, DRC_GET_CURR_REFORM_VERSION);
             cm_spin_unlock(&bucket->lock);
@@ -2494,7 +2494,7 @@ status_t drc_try_request_lock_owner(knl_session_t *session, drid_t *lock_id, drc
     res_part_stat_lock = &ctx->global_lock_res.res_part_stat_lock[part_id];
     cm_spin_lock(res_part_stat_lock, NULL);
     cm_spin_lock(&bucket->lock, NULL);
-    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
+    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id)) {
         CT_LOG_RUN_ERR("[DLS]reforming, try request lock owner failed, req_version=%llu, cur_version=%llu",
             req_version, DRC_GET_CURR_REFORM_VERSION);
         cm_spin_unlock(&bucket->lock);
@@ -2835,7 +2835,7 @@ status_t drc_lock_local_lock_res_by_id_for_recycle(knl_session_t *session, drid_
 {
     drc_local_lock_res_t *lock_res = NULL;
     drc_local_latch *latch_stat;
-    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
+    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id)) {
         CT_LOG_RUN_ERR("[DRC] reforming, recycle lock(%u/%u/%u/%u/%u) failed",
             lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
         return CT_ERROR;
@@ -2912,7 +2912,7 @@ status_t drc_recycle_dls_master(knl_session_t *session, drid_t *lock_id, uint64 
     spinlock_t *res_part_stat_lock = &ctx->global_lock_res.res_part_stat_lock[part_id];
     cm_spin_lock(res_part_stat_lock, NULL);
     cm_spin_lock(&bucket->lock, NULL);
-    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session)) {
+    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id)) {
         DTC_DLS_DEBUG_ERR("[DLS]reforming, recycle lock(%u/%u/%u/%u/%u) failed, "
             "req_version=%llu, cur_version=%llu",
             lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
@@ -7171,7 +7171,7 @@ status_t drc_lock_bucket_and_stat_with_version_check(knl_session_t *session, dri
     *res_part_stat_lock = &ctx->global_lock_res.res_part_stat_lock[part_id];
     cm_spin_lock(*res_part_stat_lock, NULL);
     cm_spin_lock(&(*bucket)->lock, NULL);
-    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session) && !is_remaster) {
+    if (DRC_STOP_DLS_REQ_FOR_REFORMING(req_version, session, lock_id) && !is_remaster) {
         drc_unlock_bucket_and_stat(*bucket, *res_part_stat_lock);
         return CT_ERROR;
     }

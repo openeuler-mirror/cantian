@@ -160,7 +160,7 @@ static inline status_t dcs_notify_local_owner4page(knl_session_t * session, cvt_
     page_req.lsn = cvt_info->lsn;
     page_req.is_retry = CT_FALSE;
 
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(page_req.req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(page_req.req_version, session, page_req.page_id)) {
         CT_LOG_RUN_ERR("[DCS][%u-%u]: reforming, notify local owner4page failed, req_rsn=%u, "
             "req_version=%llu, cur_version=%llu",
             page_req.page_id.file, page_req.page_id.page,
@@ -367,7 +367,7 @@ static inline status_t dcs_handle_ack_need_load(knl_session_t *session, mes_mess
     msg_pg_ack_ld_t *ack = (msg_pg_ack_ld_t *)msg->buffer;
 
     page_id_t page_id = ctrl->page_id;
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(ack->req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(ack->req_version, session, page_id)) {
         CT_LOG_RUN_ERR("[DCS][%u-%u]reforming, handle ack need_load failed, req_version=%llu, cur_version=%llu",
             page_id.file, page_id.page, ack->req_version, DRC_GET_CURR_REFORM_VERSION);
         // TODO 4node
@@ -388,7 +388,7 @@ static inline status_t dcs_handle_ack_already_owner(knl_session_t *session, uint
     msg_ack_owner_t *ack = (msg_ack_owner_t *)msg->buffer;
 
     page_id_t page_id = ctrl->page_id;
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(ack->req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(ack->req_version, session, page_id)) {
         // master inst down
         CT_LOG_RUN_ERR("[DCS][%u-%u]reforming, handle ack already owner failed, masterId=%u, "
                        "req_version=%llu, cur_version=%llu",
@@ -417,7 +417,7 @@ static inline status_t dcs_handle_ack_page_ready(knl_session_t *session, uint32 
     drc_lock_mode_e mode = lock_mode;
     msg_ask_page_ack_t *ack = (msg_ask_page_ack_t *)(msg->buffer);
     page_id_t page_id = ctrl->page_id;
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(ack->req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(ack->req_version, session, page_id)) {
         // master inst down
         CT_LOG_RUN_ERR("[DCS][%u-%u]reforming, handle ack page ready failed, masterId=%u,"
             "req_version=%llu, cur_version=%llu",
@@ -631,9 +631,6 @@ status_t dcs_read_local_page4transfer(knl_session_t *session, msg_page_req_t *pa
 
 void dcs_clean_local_ctrl(knl_session_t *session, buf_ctrl_t *ctrl, drc_res_action_e action, uint64 clean_lsn)
 {
-    /*  during recovery: only recovery session can clean ctrl stautus
-     */
-    knl_panic(DAAC_SESSION_IN_RECOVERY(session) || (g_rc_ctx->status >= REFORM_RECOVER_DONE));
     buf_set_t *set = &session->kernel->buf_ctx.buf_set[ctrl->buf_pool_id];
     buf_bucket_t *bucket = BUF_GET_BUCKET(set, ctrl->bucket_id);
 
@@ -723,7 +720,7 @@ status_t static inline dcs_owner_transfer_page(knl_session_t *session, uint8 own
         return CT_ERROR;
     }
 
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(page_req->req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(page_req->req_version, session, page_req->page_id)) {
         CT_LOG_RUN_ERR("[DCS][%u-%u]: reforming, owner transfer page failed, req_version=%llu, cur_version=%llu",
             page_req->page_id.file, page_req->page_id.page, page_req->req_version, DRC_GET_CURR_REFORM_VERSION);
         mes_send_error_msg(&page_req->head);
@@ -825,7 +822,7 @@ status_t static inline dcs_owner_transfer_page(knl_session_t *session, uint8 own
     SYNC_POINT_GLOBAL_START(CANTIAN_DCS_TRANSFER_BEFORE_SEND_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
     
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(page_req->req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(page_req->req_version, session, page_req->page_id)) {
         CT_LOG_RUN_ERR("[DCS][%u-%u]: reforming, owner transfer page failed, req_version=%llu, cur_version=%llu",
             page_req->page_id.file, page_req->page_id.page, page_req->req_version, DRC_GET_CURR_REFORM_VERSION);
         ctrl->transfer_status = BUF_TRANS_NONE;
@@ -885,7 +882,7 @@ static inline status_t dcs_notify_owner_for_page_r(knl_session_t *session, uint8
     uint32 req_rsn = page_req->head.rsn;
 
     if (owner_id != req_id) {
-        if (DRC_STOP_DCS_IO_FOR_REFORMING(page_req->req_version, session)) {
+        if (DRC_STOP_DCS_IO_FOR_REFORMING(page_req->req_version, session, page_req->page_id)) {
             CT_LOG_RUN_ERR("[DCS][%u-%u]: doing remaster", page_req->page_id.file, page_req->page_id.page);
             return CT_ERROR;
         }
@@ -1041,7 +1038,7 @@ void dcs_process_ask_master_for_page(void *sess, mes_message_t * receive_msg)
     }
 
     page_id_t page_id = page_req.page_id;
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(page_req.req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(page_req.req_version, session, page_id)) {
         CT_LOG_RUN_ERR("[DCS][%u-%u]reforming, ask master failed, req_version=%llu, cur_version=%llu",
             page_id.file, page_id.page, page_req.req_version, DRC_GET_CURR_REFORM_VERSION);
         // if requester alive, send err msg
@@ -1190,7 +1187,7 @@ static status_t dcs_ask_owner_for_page(knl_session_t *session, buf_ctrl_t *ctrl,
     page_req.lsn = dtc_get_ctrl_lsn(ctrl);
     page_req.is_retry = result->is_retry;
 
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(page_req.req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(page_req.req_version, session, page_req.page_id)) {
         CT_LOG_RUN_ERR("[DCS][%u-%u]: reforming, send ask owner failed, req_version=%llu, cur_version=%llu",
             page_req.page_id.file, page_req.page_id.page, req_version, DRC_GET_CURR_REFORM_VERSION);
         return CT_ERROR;
@@ -1306,7 +1303,7 @@ void dcs_process_claim_ownership_req(void *sess, mes_message_t *receive_msg)
     DRC_SET_CLAIM_INFO(&claim_info, request->head.src_inst, request->head.src_sid, request->page_id, request->has_edp,
                        request->mode, request->lsn);
 
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session, request->page_id)) {
         CT_LOG_RUN_ERR("[DCS][%u-%u]: reforming, claim owner failed, req_version=%llu, cur_version=%llu",
             request->page_id.file, request->page_id.page, req_version, DRC_GET_CURR_REFORM_VERSION);
         mes_release_message_buf(receive_msg->buffer);
@@ -1473,7 +1470,7 @@ status_t dcs_request_page(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t pa
             return CT_SUCCESS;
         }
 
-        if (!dtc_dcs_readable(session)) {
+        if (!dtc_dcs_readable(session, page_id)) {
             DTC_DCS_DEBUG_INF("[DCS][%u-%u] dcs not readable, stop trying to read page.", page_id.file, page_id.page);
             return ret;
         }
@@ -2127,7 +2124,7 @@ void dcs_process_invld_req(void *sess, mes_message_t * msg)
                       MES_CMD2NAME(req->head.cmd), req->head.src_inst, req->head.src_sid, is_owner);
 
     // if reforming, stop invalidate readonly copy
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(req->req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(req->req_version, session, pagid)) {
         CT_LOG_RUN_ERR("[DCS][%u-%u]reforming, invalidate copy failed, req_version=%llu, cur_version=%llu",
             pagid.file, pagid.page, req->req_version, DRC_GET_CURR_REFORM_VERSION);
         ret = CT_ERROR;
@@ -2168,7 +2165,7 @@ status_t dcs_invalidate_readonly_copy(knl_session_t *session, page_id_t page_id,
     }
 
     // if reforming, stop invalidate readonly copy
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session, page_id)) {
         CT_LOG_RUN_ERR("[DCS][%u-%u]reforming, invalidate copy failed,, req_version=%llu, cur_version=%llu",
             page_id.file, page_id.page, req_version, DRC_GET_CURR_REFORM_VERSION);
         knl_end_session_wait(session, DCS_INVLDT_READONLY_REQ);
@@ -2196,7 +2193,7 @@ status_t dcs_invalidate_readonly_copy(knl_session_t *session, page_id_t page_id,
     req.req_version = req_version;
 
     // if reforming, stop invalidate readonly copy
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session)) {
+    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session, page_id)) {
         CT_LOG_RUN_ERR("[DCS][%u-%u]reforming, invalidate copy failed, req_version=%llu, cur_version=%llu",
             page_id.file, page_id.page, req_version, DRC_GET_CURR_REFORM_VERSION);
         knl_end_session_wait(session, DCS_INVLDT_READONLY_REQ);

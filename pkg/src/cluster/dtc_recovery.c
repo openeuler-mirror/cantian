@@ -601,6 +601,22 @@ status_t dtc_rcy_reset_page_pcn(knl_session_t *session, log_entry_t *log)
     return CT_SUCCESS;
 }
 
+void dtc_record_space_id(uint32 space_id)
+{
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+    rcy_set_t *rcy_set = &dtc_rcy->rcy_set;
+    uint32 *space_id_set = rcy_set->space_id_set;
+    for (uint32 i = 0; i < rcy_set->space_set_size; i++) {
+        if (space_id == space_id_set[i]) {
+            return;
+        }
+    }
+    space_id_set[rcy_set->space_set_size] = space_id;
+    rcy_set->space_set_size++;
+    CT_LOG_RUN_INF("[DTC RCY] add new space_id %u, space_set_size %u", space_id, rcy_set->space_set_size);
+    return;
+}
+
 status_t dtc_rcy_analyze_entry(knl_session_t *session, log_entry_t *log, uint64 lsn, bool32 is_create_df)
 {
     knl_panic(log->type >= RD_ENTER_PAGE);
@@ -630,6 +646,8 @@ status_t dtc_rcy_analyze_entry(knl_session_t *session, log_entry_t *log, uint64 
         knl_panic(0);
         return CT_ERROR;
     }
+    //dtc record space_id
+    dtc_record_space_id(df->space_id);
 
     if (dtc_rcy_record_page(session, page_id, lsn, redo->pcn) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DTC RCY] failed to record page [%u-%u] in recovery_set", page_id.file, page_id.page);
@@ -1140,6 +1158,38 @@ bool8 dtc_rcy_page_in_rcyset(page_id_t page_id)
     knl_panic_log(item != NULL, "rcy set item is NULL, panic info: page[%u-%u] is not in rcy set, but appears in "
                   "replay", page_id.file, page_id.page);
     return item->need_replay;
+}
+
+bool32 dtc_page_in_rcyset(knl_session_t *session, page_id_t page_id)
+{
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+    rcy_set_t *rcy_set = &dtc_rcy->rcy_set;
+    uint32 hash_id = dtc_rcy_bucket_hash(page_id, rcy_set->bucket_num);
+    rcy_set_bucket_t *bucket = &rcy_set->buckets[hash_id];
+    rcy_set_item_t *item = dtc_rcy_get_item(bucket, page_id);
+    uint64 curr_page_lsn = CT_INVALID_ID64;
+    if (item != NULL && item->need_replay) {
+        buf_bucket_t *buf_bucket = buf_find_bucket(session, page_id);
+        cm_spin_lock(&buf_bucket->lock, NULL);
+        buf_ctrl_t *ctrl = buf_find_from_bucket(buf_bucket, page_id);
+        if (!ctrl || ctrl->lock_mode == DRC_LOCK_NULL) {
+            /* If the page is not in memory or lock mode is null, the partial recovery for that page can't be skipped,
+            as the page on disk may be not the latest one. */
+            curr_page_lsn = 0;
+            cm_spin_unlock(&buf_bucket->lock);
+        } else {
+            curr_page_lsn = (ctrl->page)->lsn;
+            cm_spin_unlock(&buf_bucket->lock);
+        }
+
+        if (item->last_dirty_lsn <= curr_page_lsn) {
+            item->need_replay = CT_FALSE;
+            return CT_FALSE;
+        } else {
+            return item->need_replay;
+        }
+    }
+    return CT_FALSE;
 }
 
 void dtc_rcy_page_update_need_replay(page_id_t page_id)
@@ -3969,6 +4019,9 @@ status_t dtc_rcy_init_rcyset(rcy_set_t *rcy_set)
         return CT_ERROR;
     }
     rcy_set->curr_item_pools = rcy_set->item_pools;
+    ret = memset_sp(rcy_set->space_id_set, sizeof(rcy_set->space_id_set), CT_INVALID_ID32, sizeof(rcy_set->space_id_set));
+    knl_securec_check(ret);
+    rcy_set->space_set_size = 0;
     return CT_SUCCESS;
 }
 
