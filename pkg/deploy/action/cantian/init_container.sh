@@ -14,6 +14,7 @@ CANTIAN_PARAM=("SHM_CPU_GROUP_INFO" "LARGE_POOL_SIZE" "CR_POOL_COUNT" "CR_POOL_S
                 "LOG_BUFFER_SIZE" "LOG_BUFFER_COUNT" "SHARED_POOL_SIZE" "DATA_BUFFER_SIZE" "TEMP_BUFFER_SIZE" \
                 "SESSIONS" "SHM_MEMORY_REDUCTION_RATIO" "SHM_MEMORY_REDUCTION_RATIO" "VARIANT_MEMORY_AREA_SIZE" \
                 "DTC_RCY_PARAL_BUF_LIST_SIZE")
+CTC_MAX_INST_PER_NODE=1
 
 node_id=`python3 ${CURRENT_PATH}/get_config_info.py "node_id"`
 cantian_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
@@ -72,6 +73,7 @@ function set_cantian_config() {
     sed -i -r "s:(NODE_ID = ).*:\1${node_id}:g" ${CONFIG_PATH}/${CLUSTER_CONFIG_NAME}
     sed -i -r "s:(MAX_ARCH_FILES_SIZE = ).*:\1${max_arch_files_size}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(MYSQL_METADATA_IN_CANTIAN = ).*:\1${mysql_metadata_in_cantian^^}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+    sed -i -r "s:(CTC_MAX_INST_PER_NODE = ).*:\1${CTC_MAX_INST_PER_NODE}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(CLUSTER_ID = ).*:\1${cluster_id}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(_SYS_PASSWORD = ).*:\1${password}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     if [ ${node_id} == 0 ]; then
