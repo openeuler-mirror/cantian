@@ -9547,9 +9547,9 @@ status_t knl_restore(knl_handle_t session, knl_restore_t *param)
             CT_THROW_ERROR(ERR_INVALID_OPERATION, ",not mount mode, can not recover block or recover file from backup");
             return CT_ERROR;
         }
-    } else if (param->file_type == RESTORE_FLUSHPAGE) {
+    } else if (param->file_type == RESTORE_FLUSHPAGE || param->file_type == RESTORE_COPYCTRL) {
         if (se->kernel->db.status != DB_STATUS_OPEN) {
-            CT_THROW_ERROR(ERR_INVALID_OPERATION, ",db not open mode, can not flush page");
+            CT_THROW_ERROR(ERR_INVALID_OPERATION, ",db not open mode, can not flush page or copy ctrl");
             return CT_ERROR;
         }
     } else {
@@ -9565,8 +9565,12 @@ status_t knl_restore(knl_handle_t session, knl_restore_t *param)
         return CT_ERROR;
     }
 
-    if (param->file_type == RESTORE_FLUSHPAGE){
+    if (param->file_type == RESTORE_FLUSHPAGE) {
         return abr_restore_flush_page((knl_session_t *)session, param);
+    }
+
+    if (param->file_type == RESTORE_COPYCTRL) {
+        return abr_restore_copy_ctrl((knl_session_t *)session, param);
     }
 
     if (rst_check_backupset_path(param) != CT_SUCCESS) {

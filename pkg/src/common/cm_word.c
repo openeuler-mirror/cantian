@@ -316,6 +316,7 @@ static key_word_t g_key_words[] = {
     { (uint32)KEY_WORD_RELY, CT_TRUE, { (char *)"rely" } },
     { (uint32)KEY_WORD_RENAME, CT_FALSE, { (char *)"rename" } },
     { (uint32)KEY_WORD_REPAIR, CT_FALSE, { (char *)"repair" } },
+    { (uint32)KEY_WORD_REPAIR_COPYCTRL, CT_FALSE, { (char *)"repair_copyctrl" } },
     { (uint32)KEY_WORD_REPAIR_PAGE, CT_FALSE, { (char *)"repair_page" } },
     { (uint32)KEY_WORD_REPLACE, CT_TRUE, { (char *)"replace" } },
     { (uint32)KEY_WORD_REPLICATION, CT_TRUE, { (char *)"replication" } },

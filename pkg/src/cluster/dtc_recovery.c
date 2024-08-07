@@ -200,7 +200,7 @@ static status_t wait_for_read_buf_finish_read(uint32 index){
                 CT_LOG_RUN_WAR("[DTC RCY] dtc rcy fetch log batch wait for read buf time out node_id =%u",index);
                 time_out = CT_DTC_RCY_NODE_READ_BUF_TIMEOUT;
             }
-        }else{
+        }else {
             break;
         }
     }
@@ -1528,6 +1528,8 @@ status_t dtc_rcy_read_log(knl_session_t *session, int32 *handle, const char *nam
     int64 size = size_need_read;
     *size_read = 0;
     if (size_need_read == 0) {
+        CT_LOG_DEBUG_WAR("[DTC RCY] read redo log size_need_read=%lld, offset=%lld, logfile handle=%d "
+                       "from file=%s", size_need_read, offset, *handle, name);
         return CT_SUCCESS;
     }
     if (size_need_read > buf_size) {
@@ -1542,7 +1544,7 @@ status_t dtc_rcy_read_log(knl_session_t *session, int32 *handle, const char *nam
     if (cm_dbs_is_enable_dbs() == CT_TRUE) {
         int32 return_size = 0;
         if (cm_read_device_nocheck(type, *handle, offset, buf, (int32)size, &return_size) != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[DTC RCY] failed to read redo log size_need_read=%lld, offet=%lld, logfile handle=%d "
+            CT_LOG_RUN_ERR("[DTC RCY] failed to read redo log size_need_read=%lld, offset=%lld, logfile handle=%d "
                 "from file=%s", size_need_read, offset, *handle, name);
             if (DB_IS_MAXFIX(session)) {
                 errno_t ret = memset_sp(buf, size, 0, size);
@@ -1555,7 +1557,7 @@ status_t dtc_rcy_read_log(knl_session_t *session, int32 *handle, const char *nam
         *size_read = return_size;
     } else {
         if (cm_read_device(type, *handle, offset, buf, (int32)size) != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[DTC RCY] failed to read redo log size_need_read=%lld, offet=%lld, logfile handle=%d "
+            CT_LOG_RUN_ERR("[DTC RCY] failed to read redo log size_need_read=%lld, offset=%lld, logfile handle=%d "
                 "from file=%s", size_need_read, offset, *handle, name);
             return CT_ERROR;
         }
@@ -1609,13 +1611,31 @@ status_t dtc_rcy_read_online_log(knl_session_t *session, uint32 file_id, uint32 
     return dtc_rcy_read_log(session, handle, file->ctrl->name, offset, buf, buf_size, size_need_read, size_read);
 }
 
-static status_t dtc_rcy_load_archfile(knl_session_t *session, uint32 idx, arch_file_t *file, log_point_t *point)
+static status_t dtc_rcy_load_archfile_no_dbs(knl_session_t *session, uint32 idx, arch_file_t *file, log_point_t *point){
+    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+    dtc_rcy_node_t *rcy_node = &dtc_rcy->rcy_nodes[idx];
+    if (!arch_get_archived_log_name(session, (uint32)point->rst_id, point->asn, ARCH_DEFAULT_DEST, file->name,
+                                    CT_FILE_NAME_BUFFER_SIZE, rcy_node->node_id)) {
+        // Need to use the archive dest of corresponding node
+        arch_set_archive_log_name(session, (uint32)point->rst_id, point->asn, ARCH_DEFAULT_DEST,
+                                  file->name, CT_FILE_NAME_BUFFER_SIZE, rcy_node->node_id);
+        if (!cm_exist_device(cm_device_type(file->name), file->name)) {
+            CT_LOG_RUN_ERR("[DTC RCY] failed to get archived redo log file[%u-%u] for instance %u name:%s",
+                           (uint32)point->rst_id, point->asn, rcy_node->node_id, file->name);
+            return CT_ERROR;
+        }
+    }
+    return CT_SUCCESS;
+}
+
+static status_t dtc_rcy_load_archfile(knl_session_t *session, uint32 idx, arch_file_t *file, log_point_t *point, bool8 *finish)
 {
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
     dtc_rcy_node_t *rcy_node = &dtc_rcy->rcy_nodes[idx];
     bool32 is_dbstor = cm_dbs_is_enable_dbs();
-    if (!is_dbstor && file->head.rst_id == point->rst_id && file->head.asn == point->asn) {
+    if (!DB_CLUSTER_NO_CMS && !is_dbstor && file->head.rst_id == point->rst_id && file->head.asn == point->asn) {
         // already load the need archived logfile.
+        CT_LOG_RUN_INF("[DTC RCY] dtc rcy load archfile already load the need archived logfile %u/%u/ ", point->asn, point->block_id);
         return CT_SUCCESS;
     }
 
@@ -1624,35 +1644,50 @@ static status_t dtc_rcy_load_archfile(knl_session_t *session, uint32 idx, arch_f
         file->handle = CT_INVALID_HANDLE;
     }
 
-    if (is_dbstor) {
+    if (is_dbstor || DB_CLUSTER_NO_CMS) {
         arch_ctrl_t *arch_ctrl = arch_get_archived_log_info_for_recovery(session, (uint32)point->rst_id, point->asn,
                                                                          ARCH_DEFAULT_DEST, point->lsn,
                                                                          rcy_node->node_id);
         if (arch_ctrl == NULL) {
-            CT_LOG_RUN_ERR("[RECOVERY] failed to get archived log for [%u-%u-%u-%llu]",
+            CT_LOG_RUN_WAR("[RECOVERY] failed to get archived log for [%u-%u-%u-%llu]",
                            rcy_node->node_id, point->rst_id, point->asn, point->lsn);
-            return CT_ERROR;
-        }
-        point->asn = arch_ctrl->asn;
-        arch_file_name_info_t file_name_info = {arch_ctrl->rst_id, arch_ctrl->asn, rcy_node->node_id,
-                                                CT_FILE_NAME_BUFFER_SIZE, arch_ctrl->start_lsn, arch_ctrl->end_lsn, file->name};
-        arch_set_archive_log_name_with_lsn(session, ARCH_DEFAULT_DEST, &file_name_info);
-        if (!cm_exist_device(cm_device_type(file->name), file->name)) {
-            CT_LOG_RUN_ERR("[DTC RCY] failed to get archived redo log file[%u-%u] for instance %u",
-                           (uint32)point->rst_id, point->asn, rcy_node->node_id);
-            return CT_ERROR;
-        }
-    } else {
-        if (!arch_get_archived_log_name(session, (uint32)point->rst_id, point->asn, ARCH_DEFAULT_DEST, file->name,
-                                        CT_FILE_NAME_BUFFER_SIZE, rcy_node->node_id)) {
-            // TODO: Need to use the archive dest of corresponding node
-            arch_set_archive_log_name(session, (uint32)point->rst_id, point->asn, ARCH_DEFAULT_DEST,
-                                      file->name, CT_FILE_NAME_BUFFER_SIZE, rcy_node->node_id);
-            if (!cm_exist_device(cm_device_type(file->name), file->name)) {
-                CT_LOG_RUN_ERR("[DTC RCY] failed to get archived redo log file[%u-%u] for instance %u",
-                               (uint32)point->rst_id, point->asn, rcy_node->node_id);
+            if (!DB_CLUSTER_NO_CMS) {
                 return CT_ERROR;
             }
+            if (dtc_rcy_load_archfile_no_dbs(session, idx, file, point) != CT_SUCCESS) {
+                CT_LOG_RUN_WAR("[DTC RCY] dtc rcy load archfile no dbs is null %u/%u/%s ", point->asn, point->block_id, file->name);
+                *finish = CT_TRUE;
+                return CT_SUCCESS;
+            }
+        }
+        if (arch_ctrl != NULL) {
+            point->asn = arch_ctrl->asn;
+            CT_LOG_RUN_INF("[DTC RCY] dtc rcy load archfile arch ctrl is null %u/%u/%s ", point->asn, point->block_id, file->name);
+            arch_file_name_info_t file_name_info = {arch_ctrl->rst_id, arch_ctrl->asn, rcy_node->node_id,
+                                                     CT_FILE_NAME_BUFFER_SIZE, arch_ctrl->start_lsn, arch_ctrl->end_lsn, file->name};
+            char str_buf[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
+            status_t ret = snprintf_s(str_buf, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s", file->name);
+            knl_securec_check_ss(ret);
+            arch_set_archive_log_name_with_lsn(session, ARCH_DEFAULT_DEST, &file_name_info);
+            if (!cm_exist_device(cm_device_type(file->name), file->name)) {
+                CT_LOG_RUN_WAR("[DTC RCY] get archived redo log file[%u-%u] for instance %u",
+                               (uint32)point->rst_id, point->asn, rcy_node->node_id);
+                if (!DB_CLUSTER_NO_CMS) {
+                    return CT_ERROR;
+                }
+                ret = snprintf_s(file->name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s", str_buf);
+                knl_securec_check_ss(ret);
+                if (dtc_rcy_load_archfile_no_dbs(session, idx, file, point) != CT_SUCCESS) {
+                    CT_LOG_RUN_INF("[DTC RCY] dtc rcy load archfile no dbs is null %u/%u/%s ", point->asn, point->block_id, file->name);
+                    *finish = CT_TRUE;
+                    return CT_SUCCESS;
+                }
+            }
+        }
+    } else {
+        if (dtc_rcy_load_archfile_no_dbs(session, idx, file, point) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[DTC RCY] dtc rcy load archfile %u/%u/%s ", point->asn, point->block_id, file->name);
+            return CT_ERROR;
         }
     }
 
@@ -1760,9 +1795,15 @@ status_t dtc_rcy_read_archived_log(knl_session_t *session, uint32 idx, uint32 *s
     int64 buf_size = rcy_node->read_buf[rcy_node->read_buf_write_index].buf_size;
     log_point_t *point = &rcy_log_point->rcy_write_point;
     bool8 is_find_start = CT_TRUE;
+    bool8 repair_finish = CT_FALSE;
 
-    if (dtc_rcy_load_archfile(session, idx, file, point) != CT_SUCCESS) {
+    if (dtc_rcy_load_archfile(session, idx, file, point, &repair_finish) != CT_SUCCESS) {
         return CT_ERROR;
+    }
+
+    if (repair_finish) {
+        CT_LOG_RUN_INF("repair page read archiver log finish");
+        return CT_SUCCESS;
     }
 
     if (point->block_id == 0) {
@@ -3408,7 +3449,6 @@ void try_to_read_no_log_node(thread_t *thread, uint32* last_nod_log_buffer_index
         node->read_size[node->read_buf_write_index] = CT_INVALID_ID32;
         if (dtc_read_node_log(dtc_rcy,session,j,&read_size) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DTC RCY] read node lod proc failed to load redo log of last failed node=%u",j);
-            thread->closed = CT_TRUE;
             return;
         }
         node->read_size[node->read_buf_write_index] = read_size;
@@ -3430,7 +3470,7 @@ void dtc_rcy_read_node_log_proc(thread_t *thread)
     knl_session_t *session = (knl_session_t *)thread->argument;
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
     uint32 last_nod_log_buffer_index[read_buf_size];
-    for(int i = 0 ; i < read_buf_size ;++i){
+    for (int i = 0 ; i < read_buf_size ;++i) {
         last_nod_log_buffer_index[i] = CT_INVALID_ID32;
     }
     CT_LOG_RUN_INF("[DTC RCY] rcy read node log thread start");
@@ -3448,8 +3488,7 @@ void dtc_rcy_read_node_log_proc(thread_t *thread)
             if (dtc_read_node_log(dtc_rcy,session,i,&read_size) != CT_SUCCESS) {
                 CT_LOG_RUN_ERR("[DTC RCY] read node log proc failed to "
                                "load redo log of crashed node=%u", node->node_id);
-                thread->closed = CT_TRUE;
-                break ;
+                break;
             }
             if (read_size == 0){
                 node->read_size[node->read_buf_write_index] = read_size;

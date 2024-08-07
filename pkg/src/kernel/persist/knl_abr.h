@@ -51,6 +51,7 @@ status_t abr_wait_paral_rcy_compelte(knl_session_t *session);
 void nolog_page_need_rcy_log(knl_session_t *session, log_entry_t *log, bool32 *need_replay);
 void nolog_page_skip_rcy_log(knl_session_t *session, log_entry_t *log, bool32 *need_replay);
 status_t abr_restore_flush_page(knl_session_t *session, knl_restore_t *param);
+status_t abr_restore_copy_ctrl(knl_session_t *session, knl_restore_t *param);
 
 #ifdef __cplusplus
 }
