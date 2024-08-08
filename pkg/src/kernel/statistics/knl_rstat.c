@@ -2866,10 +2866,212 @@ static void stats_flow_control(knl_session_t *session, knl_cursor_t *cursor, sta
     }
 }
 
+static void stat_get_sample_pages_by_map(knl_session_t *session, stats_map_sampler_t *map_sampler, page_id_t *page_id)
+{
+    uint32 *steps = map_sampler->steps;
+    map_path_t *path = &map_sampler->path;
+    uint32 max_map_nodes = map_sampler->max_map_nodes;
+    double *residual = &map_sampler->residual;
+    double interval = map_sampler->interval;
+
+    map_node_t *node = NULL;
+    page_id_t map_id = { 0 };
+    map_index_t *index = NULL;
+    map_page_t *page = NULL;
+    uint32 curr;
+
+    for (;;) {
+        if (map_sampler->level > path->level) {
+            *page_id = INVALID_PAGID;
+            return;
+        }
+
+        index = &path->index[map_sampler->level];
+
+        if (index->slot == INVALID_SLOT) {
+            map_sampler->level++;
+            continue;
+        }
+        
+        map_id.file = (uint16)index->file;
+        map_id.page = (uint32)index->page;
+        map_id.aligned = 0;
+
+        buf_enter_page(session, map_id, LATCH_MODE_S, ENTER_PAGE_NORMAL);
+        page = (map_page_t *)CURR_PAGE(session);
+        if (page->head.type != PAGE_TYPE_HEAP_MAP) {
+            *page_id = INVALID_PAGID;
+            buf_leave_page(session, CT_FALSE);
+            return;
+        }
+
+        for (;;) {
+            curr = (uint32)index->slot + steps[map_sampler->level];
+            if (curr >= (uint32)page->hwm) {
+                if ((uint32)page->hwm != max_map_nodes || map_sampler->level == path->level) {
+                    *page_id = INVALID_PAGID;
+                    buf_leave_page(session, CT_FALSE);
+                    return;
+                }
+
+                steps[map_sampler->level + 1] = (curr - (uint32)page->hwm) / max_map_nodes + 1;
+                steps[map_sampler->level] = (curr - (uint32)page->hwm) % max_map_nodes;
+                index->slot = 0;
+
+                buf_leave_page(session, CT_FALSE);
+                map_sampler->level++;
+                return;
+            }
+            
+            node = heap_get_map_node((char *)page, (uint16)curr);
+            index->slot = (uint64)curr;
+
+            if (map_sampler->level > 0) {
+                map_sampler->level--;
+                index = &path->index[map_sampler->level];
+                index->file = node->file;
+                index->page = node->page;
+
+                if (index->slot == INVALID_SLOT) {
+                    index->slot = 0;
+                }
+                buf_leave_page(session, CT_FALSE);
+                break;
+            }
+
+            page_id->file = (uint16)node->file;
+            page_id->page = (uint32)node->page;
+            page_id->aligned = 0;
+            steps[0] = (uint32)floor(*residual + interval);
+            *residual += (interval - steps[0]);
+            map_sampler->count++;
+            page_id++;
+        }
+    }
+    return;
+}
+
+static status_t stats_get_next_sample_page_by_map(knl_session_t *session, knl_cursor_t *cursor, stats_sampler_t *stats_sample,
+                                                  stats_table_t *tab_stats, page_id_t page_id)
+{
+    uint32 blocks = 0;
+    uint32 empty_block = 0;
+    table_t *table = (table_t *)cursor->table;
+    page_type_t expect_type = (table->desc.cr_mode == CR_PAGE) ? PAGE_TYPE_PCRH_DATA : PAGE_TYPE_HEAP_DATA;
+
+    if (buf_read_page(session, page_id, LATCH_MODE_S,
+        ENTER_PAGE_NORMAL | ENTER_PAGE_SEQUENTIAL) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    
+    heap_page_t *page = (heap_page_t *)CURR_PAGE(session);
+        
+    if (!heap_check_page(session, cursor, page, expect_type)) {
+        cursor->eof = CT_TRUE;
+        buf_leave_page(session, CT_FALSE);
+        return CT_ERROR;
+    }
+
+    errno_t ret = memcpy_sp(cursor->page_buf, DEFAULT_PAGE_SIZE(session), page, DEFAULT_PAGE_SIZE(session));
+    knl_securec_check(ret);
+    SET_ROWID_PAGE(&cursor->rowid, page_id);
+
+    stats_sample->hwm_pages++;
+    if (stats_sample->hwm_pages >= stats_sample->sample_size) {
+        cursor->eof = CT_TRUE;
+        buf_leave_page(session, CT_FALSE);
+        return CT_SUCCESS;
+    }
+
+    blocks++;
+    if (page->rows == 0) {
+        empty_block++;
+    }
+
+    buf_leave_page(session, CT_FALSE);
+    knl_set_table_scan_range(session, cursor, page_id, page_id);
+    cursor->eof = CT_FALSE;
+
+    if (IS_PART_TABLE(table)) {
+        if (tab_stats->part_stats.is_subpart) {
+            tab_stats->part_stats.sub_stats->info.blocks += blocks;
+            tab_stats->part_stats.sub_stats->info.empty_block += empty_block;
+        } else {
+            tab_stats->part_stats.info.blocks += blocks;
+            tab_stats->part_stats.info.empty_block += empty_block;
+        }
+    } else {
+        tab_stats->tab_info.blocks += blocks;
+        tab_stats->tab_info.empty_block += empty_block;
+    }
+
+    return CT_SUCCESS;
+}
+
+static void stats_init_sample_map_page(knl_session_t *session, stats_map_sampler_t *map_sampler, double sample_ratio)
+{
+    errno_t ret = memset_sp(map_sampler->steps, sizeof(uint32) * HEAP_MAX_MAP_LEVEL, 0, sizeof(uint32) * HEAP_MAX_MAP_LEVEL);
+    knl_securec_check(ret);
+    map_sampler->residual = 0;
+    map_sampler->level = 0;
+    map_sampler->max_map_nodes = session->kernel->attr.max_map_nodes;
+    map_sampler->count = 0;
+    if (sample_ratio < CT_REAL_PRECISION) {
+        map_sampler->interval = (double)CT_MAX_UINT32;
+    } else {
+        map_sampler->interval = ((double)1 / (sample_ratio));
+    }
+    heap_segment_t *segment = HEAP_SEG_HEAD(session);
+    page_id_t map_id = AS_PAGID(segment->tree_info.root);
+    uint32 level = segment->tree_info.level;
+    heap_paral_init_map_path(&map_sampler->path, map_id, level);
+}
+
+/*
+    traversal map tree for sampling heap pages and filling into mtrl table.
+*/
+static status_t stats_insert_mtrl_sample_by_map(knl_session_t *session, knl_cursor_t *cursor, mtrl_context_t *temp_ctx,
+                                                stats_sampler_t *stats_sample, uint32 seg_id, stats_table_t *table_stats)
+{
+    // initialization traversal
+    stats_map_sampler_t map_sampler;
+    stats_init_sample_map_page(session, &map_sampler, table_stats->estimate_sample_ratio);
+    
+    // sampling pages by traversaling map tree
+    page_id_t sample_pages[session->kernel->attr.max_map_nodes]; // div by interval
+    for (;;) {
+        map_sampler.count = 0;
+        stat_get_sample_pages_by_map(session, &map_sampler, sample_pages);
+        
+        if (IS_INVALID_PAGID(sample_pages[0])) {
+            cursor->eof = CT_TRUE;
+            return CT_SUCCESS;
+        }
+        
+        for (uint32 i = 0; i< map_sampler.count; i++) {
+            if (stats_get_next_sample_page_by_map(session, cursor, stats_sample, table_stats, sample_pages[i]) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+            
+            if (cursor->eof) {
+                return CT_SUCCESS;
+            }
+
+            stats_flow_control(session, cursor, table_stats);
+
+            if (stats_insert_row(session, cursor, temp_ctx, seg_id, table_stats) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+        }
+    }
+    return CT_SUCCESS;
+}
+
 static status_t stats_insert_mtrl_heap_table(knl_session_t *session, knl_cursor_t *cursor, mtrl_context_t *temp_ctx,
                                              stats_sampler_t *stats_sample, uint32 seg_id, stats_table_t *table_stats)
 {
     bool32 is_sample = (stats_sample->sample_size != CT_INVALID_ID32) ? CT_TRUE : CT_FALSE;
+    bool32 sample_by_map = is_sample & session->kernel->attr.sample_by_map;
     table_t *table = (table_t *)cursor->table;
     stats_table_info_t *info = NULL;
 
@@ -2881,9 +3083,16 @@ static status_t stats_insert_mtrl_heap_table(knl_session_t *session, knl_cursor_
 
     for (;;) {
         if (is_sample) {
-            if (stats_get_sample_page(session, cursor, stats_sample, table_stats) != CT_SUCCESS) {
-                session->stat_sample = CT_FALSE;
-                return CT_ERROR;
+            if (sample_by_map) {
+                if (stats_insert_mtrl_sample_by_map(session, cursor, temp_ctx, stats_sample, seg_id, table_stats) != CT_SUCCESS) {
+                    session->stat_sample = CT_FALSE;
+                    return CT_ERROR;
+                }
+            } else {
+                if (stats_get_sample_page(session, cursor, stats_sample, table_stats) != CT_SUCCESS) {
+                    session->stat_sample = CT_FALSE;
+                    return CT_ERROR;
+                }
             }
         } else {
             if (stats_get_nonsample_page(session, cursor, table_stats) != CT_SUCCESS) {
@@ -2903,10 +3112,12 @@ static status_t stats_insert_mtrl_heap_table(knl_session_t *session, knl_cursor_
             break;
         }
 
-        stats_flow_control(session, cursor, table_stats);
+        if (!sample_by_map) {
+            stats_flow_control(session, cursor, table_stats);
 
-        if (stats_insert_row(session, cursor, temp_ctx, seg_id, table_stats) != CT_SUCCESS) {
-            return CT_ERROR;
+            if (stats_insert_row(session, cursor, temp_ctx, seg_id, table_stats) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
         }
     }
 

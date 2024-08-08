@@ -358,6 +358,17 @@ typedef struct st_stats_seg_sampler {
     uint32 *random_step;
 } stats_sampler_t;
 
+typedef struct st_stats_map_sampler {
+    uint32_t level;
+    uint32_t steps[HEAP_MAX_MAP_LEVEL];
+    uint32_t max_map_nodes;
+    uint16_t count;
+    uint16_t unused;
+    double interval;
+    double residual;
+    map_path_t path;
+} stats_map_sampler_t;
+
 typedef struct st_stats_cols_list {
     uint32  max_count;
     uint32  column_count;

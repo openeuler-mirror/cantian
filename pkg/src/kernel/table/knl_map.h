@@ -68,7 +68,7 @@ void heap_format_free_ufp(knl_session_t *session, heap_segment_t *segment);
 void heap_change_map(knl_session_t *session, heap_segment_t *segment, map_index_t *map, uint8 new_id, uint32 level);
 void heap_add_ufp(knl_session_t *session, heap_segment_t *segment,
     page_id_t page_id, uint32 count, bool32 need_noread);
-
+void heap_paral_init_map_path(map_path_t *path, page_id_t map_id, uint32 map_level);
 static inline void heap_format_map(knl_session_t *session, map_page_t *page, page_id_t page_id, uint32 extent_size)
 {
     page_init(session, (page_head_t *)page, page_id, PAGE_TYPE_HEAP_MAP);
