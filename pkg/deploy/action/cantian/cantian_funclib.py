@@ -170,7 +170,8 @@ class DefaultConfigValue(object):
         "SHM_MQ_MSG_RECV_THD_NUM": 40,
         "MYSQL_METADATA_IN_CANTIAN": "TRUE",
         "SHM_MEMORY_REDUCTION_RATIO": "1",
-        "MYSQL_DEPLOY_GROUP_ID": mysql_group_id
+        "MYSQL_DEPLOY_GROUP_ID": mysql_group_id,
+        "CTC_MAX_INST_PER_NODE": 6
     }
     
     CANTIAND_DBG_CONFIG = {
@@ -239,7 +240,8 @@ class DefaultConfigValue(object):
         "MES_SSL_CRT_KEY_PATH": "/opt/cantian/certificate",
         "KMC_KEY_FILES": None,
         "SHM_MEMORY_REDUCTION_RATIO": "1",
-        "MYSQL_DEPLOY_GROUP_ID": mysql_group_id
+        "MYSQL_DEPLOY_GROUP_ID": mysql_group_id,
+        "CTC_MAX_INST_PER_NODE": 6
     }
     MES_CONFIG = {
         "MES_SSL_SWITCH": mes_ssl_switch,
