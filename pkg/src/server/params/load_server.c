@@ -965,6 +965,8 @@ status_t srv_load_server_params(void)
 
     CT_RETURN_IFERR(srv_get_param_uint32("_AUTO_UNDO_RETENTION", &g_instance->kernel.attr.auto_undo_retention));
 
+    CT_RETURN_IFERR(srv_get_param_uint32("INT_SYSINDEX_TRANS", &g_instance->kernel.attr.init_sysindex_trans));
+
     CT_RETURN_IFERR(srv_get_param_uint32("COMPATIBLE_MYSQL", &g_instance->kernel.attr.compatible_mysql));
     CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_HWN_CHANGE", &g_instance->kernel.attr.enable_hwm_change));
     temp_set_compative_config(g_instance->kernel.attr.compatible_mysql == 1 ? CT_TRUE : CT_FALSE);
