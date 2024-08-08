@@ -49,7 +49,7 @@ function run_daac() {
     if [ ! -d $cantian_data_path ];then
       mkdir -p $cantian_data_path
     fi
-    chmod 755 -R $cantian_data_path
+    chmod 777 -R $cantian_data_path
     rm -rf /home/regress/cantian_data/*  /home/regress/install /home/regress/data /home/cantiandba/install/*
     sed -i '/regress/d' /home/cantiandba/.bashrc
     cd ${CTDB_CODE_PATH}/output/bin/Cantian-DATABASE-CENTOS-64bit
