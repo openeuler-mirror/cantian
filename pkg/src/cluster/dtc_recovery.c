@@ -3320,6 +3320,19 @@ bool32 dtc_rcy_need_continue(knl_session_t *session, log_batch_t **batch, uint32
     return (*batch != NULL);
 }
 
+static void dtc_release_rcy_page_list(knl_session_t *session)
+{
+    knl_instance_t *kernel = session->kernel;
+    rcy_context_t *rcy = &kernel->rcy_ctx;
+    if (rcy->page_list_count < RCY_PAGE_LIST_RELEASE_THRESHOLD) {
+        return;
+    }
+    CT_LOG_RUN_INF("[DTC RCY] page_list count is %u, release threshold is %u, need to release", rcy->page_list_count,
+                   RCY_PAGE_LIST_RELEASE_THRESHOLD);
+    rcy_wait_replay_complete(session);
+    return;
+}
+
 static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
 {
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
@@ -3427,6 +3440,8 @@ static status_t dtc_rcy_replay_batches_paral(knl_session_t *session)
             cm_spin_sleep(); // 100ns
             continue;
         }
+
+        dtc_release_rcy_page_list(session);
 
         ret = memcpy_sp(g_replay_paral_mgr.buf_list[idx].aligned_buf, lgwr_buf_size, (char*)batch, batch->space_size);
         knl_securec_check(ret);
