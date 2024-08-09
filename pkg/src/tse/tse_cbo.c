@@ -51,12 +51,14 @@ status_t fill_cbo_stats_column(cbo_stats_column_t *cbo_column, tse_cbo_stats_col
     SYNC_POINT_GLOBAL_START(TSE_FILL_CBO_STATS_COL_FAIL, &ret, CT_ERROR);
     SYNC_POINT_GLOBAL_END;
     if (cbo_column == NULL) {
+        CT_LOG_RUN_INF("[fill_cbo_stats_column]cbo_column = null hist count:%u", tse_column->hist_count);
         return ret;
     }
     tse_column->num_null = cbo_column->num_null;
     tse_column->density = cbo_column->density;
     tse_column->hist_type = cbo_column->hist_type;
     tse_column->hist_count = cbo_column->hist_count;
+    cm_assert(cbo_column->hist_count <= HIST_COUNT);
     knl_cache_cbo_text2variant(entity, col_id, &cbo_column->high_value, &tse_column->high_value);
     knl_cache_cbo_text2variant(entity, col_id, &cbo_column->low_value, &tse_column->low_value);
     for (int i = 0; i < cbo_column->hist_count; i++) {
