@@ -124,20 +124,28 @@ def check_runner():
     """Check whether the user and owner of the script are the same."""
     owner_uid = os.stat(__file__).st_uid
     runner_uid = os.getuid()
-    log("check runner and owner uid: %d %d" % (owner_uid, runner_uid))
+    LOGGER.info("check runner and owner uid: %d %d" % (owner_uid, runner_uid))
 
     if owner_uid == 0:
         if runner_uid != 0:
             runner = pwd.getpwuid(runner_uid).pw_name
-            log_exit("the owner of *.sh has root privilege,can't run it by user [%s]." % runner)
+            err_msg = "the owner of *.sh has root privilege,can't run it by user [%s]." % runner
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
     else:
         if runner_uid == 0:
             owner = pwd.getpwuid(owner_uid).pw_name
-            log_exit("the owner of *.sh is [%s],can't run it by root." % owner)
+            err_msg = "the owner of *.sh is [%s],can't run it by root." % owner
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
         elif runner_uid != owner_uid:
             runner = pwd.getpwuid(runner_uid).pw_name
             owner = pwd.getpwuid(owner_uid).pw_name
-            log_exit("the owner of *.sh [%s] is different with the executor [%s]." % (owner, runner))
+            LOGGER.error("the owner of *.sh [%s] is different with the executor [%s]." % (owner, runner))
+            if FORCE_UNINSTALL != "force":
+                raise Exception("the owner of *.sh [%s] is different with the executor [%s]." % (owner, runner))
 
 
 def _exec_popen(cmd, values=None):
@@ -189,7 +197,9 @@ def run_cmd(str_cmd, wrong_info):
     ret_code, stdout, stderr = _exec_popen(str_cmd)
     if ret_code:
         output = stdout + stderr
-        log_exit("%s.\ncommand: %s.\noutput: %s" % (wrong_info, str_cmd, output))
+        LOGGER.error("%s.\ncommand: %s.\noutput: %s" % (wrong_info, str_cmd, output))
+        if FORCE_UNINSTALL != "force":
+            raise Exception("%s.\ncommand: %s.\noutput: %s" % (wrong_info, str_cmd, output))
     return stdout
 
 
@@ -198,41 +208,65 @@ def check_platform():
     check platform
     Currently only supports Linux platforms.
     """
-    log("check current os: %s" % CURRENT_OS)
+    LOGGER.info("check current os: %s" % CURRENT_OS)
     if CURRENT_OS is None or not CURRENT_OS.strip():
-        log_exit("failed to get platform information.")
+        err_msg = "failed to get platform information."
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
     if CURRENT_OS == "Linux":
         pass
     else:
-        log_exit("this install script can not support %s platform." % CURRENT_OS)
+        err_msg = "this install script can not support %s platform." % CURRENT_OS
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
 
 
 def check_user(user, group):
     """Verify user legitimacy"""
-    log("check user and group: %s:%s" % (user, group))
+    LOGGER.info("check user and group: %s:%s" % (user, group))
     try:
         user_ = pwd.getpwnam(user)
     except KeyError:
-        log_exit("parameter input error: -U, the user does not exists.")
+        err_msg = "parameter input error: -U, the user does not exists."
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
 
     try:
         group_ = grp.getgrnam(group)
     except KeyError:
-        log_exit("parameter input error: -U, the group does not exists.")
+        err_msg = "parameter input error: -U, the group does not exists."
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
 
     if user_.pw_gid != group_.gr_gid:
-        log_exit("parameter input error: -U, the user does not match the group.")
+        err_msg = "parameter input error: -U, the user does not match the group."
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
     elif user == "root" or user_.pw_uid == 0:
-        log_exit("parameter input error: -U, can not install program to"
+        LOGGER.error("parameter input error: -U, can not install program to"
+                 " root user.")
+        if FORCE_UNINSTALL != "force":
+            raise Exception("parameter input error: -U, can not install program to"
                  " root user.")
     elif group == "root" or user_.pw_gid == 0:
-        log_exit("parameter input error: -U, can not install program to"
+        LOGGER.error("parameter input error: -U, can not install program to"
+                 " user with root privilege.")
+        if FORCE_UNINSTALL != "force":
+            raise Exception("parameter input error: -U, can not install program to"
                  " user with root privilege.")
 
     runner_uid = os.getuid()
     if runner_uid != 0 and runner_uid != user_.pw_uid:
         runner = pwd.getpwuid(runner_uid).pw_name
-        log_exit("Parameter input error: -U, has to be the same as the"
+        LOGGER.error("Parameter input error: -U, has to be the same as the"
+                 " executor [%s]" % runner)
+        if FORCE_UNINSTALL != "force":
+            raise Exception("Parameter input error: -U, has to be the same as the"
                  " executor [%s]" % runner)
 
 
@@ -261,7 +295,7 @@ def check_path(path_type_in):
     elif CURRENT_OS == "Windows":
         return check_path_windows(path_len, path_type_in, char_check_list2)
     else:
-        log("can not support this platform.")
+        LOGGER.info("can not support this platform.")
         return False
 
 
@@ -422,16 +456,18 @@ class CmsCtl(object):
             cmd = "%s %s -i 1 -c 3 | grep ttl | wc -l" % (p_cmd, node_ip)
             ret_code, stdout, stderr = _exec_popen(cmd)
             if ret_code or stdout != '3':
-                log("The invalid IP address is %s. "
+                LOGGER.info("The invalid IP address is %s. "
                      "ret_code : %s, stdout : %s, stderr : %s" % (node_ip, ret_code, stdout, stderr))
                 return False
             return True
 
-        log("check the node IP address or domain name.")
+        LOGGER.info("check the node IP address or domain name.")
         if not ping_execute("ping") and not ping_execute("ping6"):
-            log_exit("checked the node IP address or domain name failed: %s" % node_ip)
+            LOGGER.error("checked the node IP address or domain name failed: %s" % node_ip)
+            if FORCE_UNINSTALL != "force":
+                raise Exception("checked the node IP address or domain name failed: %s" % node_ip)
 
-        log("checked the node IP address or domain name success: %s" % node_ip)
+        LOGGER.info("checked the node IP address or domain name success: %s" % node_ip)
 
     def load_path_config(self, load_dict):
         if "gcc_home" in load_dict:
@@ -525,9 +561,14 @@ class CmsCtl(object):
                     global MYSQL_LOG_FILE
                     MYSQL_LOG_FILE = os.path.join(MYSQL_DATA_DIR, "mysql.log")
             except OSError as ex:
-                log_exit("get config file : %s" % str(ex))
+                LOGGER.error("get config file : %s" % str(ex))
+                if FORCE_UNINSTALL != "force":
+                    raise Exception("get config file : %s" % str(ex))
         else:
-            log_exit("the file does not exist : %s" % config_file)
+            err_msg = "the file does not exist : %s" % config_file
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
 
     def set_cms_conf(self):
         conf_dict = {}
@@ -562,14 +603,16 @@ class CmsCtl(object):
         conf_dict["cms_gcc_bak"] = self.cms_gcc_bak
         conf_dict["mes_type"] = self.mes_type
 
-        log("set cms configs : %s" % (self.cms_new_config))
+        LOGGER.info("set cms configs : %s" % (self.cms_new_config))
         flags = os.O_RDWR | os.O_CREAT | os.O_TRUNC
         modes = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP
         try:
             with os.fdopen(os.open(self.cms_new_config, flags, modes), "w") as file_object:
                 json.dump(conf_dict, file_object)
         except OSError as ex:
-            log_exit("failed to read config : %s" % str(ex))
+            LOGGER.error("failed to read config : %s" % str(ex))
+            if FORCE_UNINSTALL != "force":
+                raise Exception("failed to read config : %s" % str(ex))
 
     def set_conf(self, config, file):
         """
@@ -687,7 +730,7 @@ class CmsCtl(object):
         param value: port
         return: NA
         """
-        log("check port: %s" % self.port)
+        LOGGER.info("check port: %s" % self.port)
         time_out, inner_port = self.check_inner_port(value)
 
         if self.ipv_type == "ipv6":
@@ -698,7 +741,10 @@ class CmsCtl(object):
         socket_check.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         socket_check.settimeout(time_out)
         if gPyVersion < PYTHON242:
-            log_exit("this install script can not support python version"
+            LOGGER.error("this install script can not support python version"
+                     " : " + gPyVersion)
+            if FORCE_UNINSTALL != "force":
+                raise Exception("this install script can not support python version"
                      " : " + gPyVersion)
 
         try:
@@ -707,11 +753,14 @@ class CmsCtl(object):
             socket_check.close()
             if (int(err_socket.errno) == 98 or int(err_socket.errno) == 95
                     or int(err_socket.errno) == 13):
-                log("Error: port %s has been used,the detail"
+                LOGGER.info("Error: port %s has been used,the detail"
                     " information is as follows:" % value)
                 str_cmd = "netstat -unltp | grep %s" % value
                 ret_code, stdout, stderr = _exec_popen(str_cmd)
-                log_exit("can not get detail information of the"
+                LOGGER.error("can not get detail information of the"
+                             " port, command:%s, output:%s, stderr:%s" % (str_cmd, str(stdout), stderr))
+                if FORCE_UNINSTALL != "force":
+                    raise Exception("can not get detail information of the"
                              " port, command:%s, output:%s, stderr:%s" % (str_cmd, str(stdout), stderr))
 
         socket_check.close()
@@ -719,15 +768,27 @@ class CmsCtl(object):
     def check_inner_port(self, value):
         time_out = 2
         if not value:
-            log_exit("the number of port is null.")
+            err_msg = "the number of port is null."
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
         if not value:
-            log_exit("illegal number of port.")
+            err_msg = "illegal number of port."
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
 
         inner_port = int(value)
         if inner_port < 0 or inner_port > 65535:
-            log_exit("illegal number of port.")
+            err_msg = "illegal number of port."
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
         if inner_port >= 0 and inner_port <= 1023:
-            log_exit("system reserve port.")
+            err_msg = "system reserve port."
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
 
         return time_out, inner_port
 
@@ -751,7 +812,7 @@ class CmsCtl(object):
         input : ip
         output: NA
         """
-        log("check the node IP address.")
+        LOGGER.info("check the node IP address.")
         if get_value("cantian_in_container") == '0':
             try:
                 socket.inet_aton(nodeip)
@@ -760,7 +821,10 @@ class CmsCtl(object):
                 try:
                     socket.inet_pton(socket.AF_INET6, nodeip)
                 except socket.error:
-                    log_exit("the invalid IP address : %s is not ipv4 or ipv6 format." % nodeip)
+                    err_msg = "the invalid IP address : %s is not ipv4 or ipv6 format." % nodeip
+                    LOGGER.error(err_msg)
+                    if FORCE_UNINSTALL != "force":
+                        raise Exception(err_msg)
 
         if self.ipv_type == "ipv6":
             ping_cmd = "ping6"
@@ -770,7 +834,10 @@ class CmsCtl(object):
         ret_code, stdout, stderr = _exec_popen(cmd)
 
         if ret_code or stdout != '3':
-            log_exit("The invalid IP address is %s. "
+            LOGGER.error("The invalid IP address is %s. "
+                     "ret_code : %s, stdout : %s, stderr : %s" % (nodeip, ret_code, stdout, stderr))
+            if FORCE_UNINSTALL != "force":
+                raise Exception("The invalid IP address is %s. "
                      "ret_code : %s, stdout : %s, stderr : %s" % (nodeip, ret_code, stdout, stderr))
 
         ip_is_found = 1
@@ -786,10 +853,13 @@ class CmsCtl(object):
                 ip_is_found = 0
 
         if ret_code or not int(ip_is_found):
-            log_exit("The invalid IP address is %s. "
+            LOGGER.error("The invalid IP address is %s. "
+                     "ret_code : %s, ip_is_found : %s, stderr : %s" % (nodeip, ret_code, ip_is_found, stderr))
+            if FORCE_UNINSTALL != "force":
+                raise Exception("The invalid IP address is %s. "
                      "ret_code : %s, ip_is_found : %s, stderr : %s" % (nodeip, ret_code, ip_is_found, stderr))
 
-        log("checked the node IP address : %s" % nodeip)
+        LOGGER.info("checked the node IP address : %s" % nodeip)
 
     def change_app_permission(self):
         """
@@ -812,7 +882,7 @@ class CmsCtl(object):
             str_cmd += ("&& chmod %s '%s'/package.xml"
                         % (CommonValue.MIN_FILE_MODE, self.install_path))
 
-        log("change app permission cmd: %s" % str_cmd)
+        LOGGER.info("change app permission cmd: %s" % str_cmd)
         run_cmd(str_cmd, "failed to chmod %s" % CommonValue.KEY_DIRECTORY_MODE)
         if cantian_in_container == "0" and deploy_mode != "dbstore_unify":
             self.chown_gcc_dirs()
@@ -841,32 +911,42 @@ class CmsCtl(object):
                                    os.path.join(self.install_path, "add-ons")))
                 _file.write(os.linesep)
                 _file.flush()
-                log("write export for cms_home, path, lib_path")
+                LOGGER.info("write export for cms_home, path, lib_path")
         except OSError as ex:
-            log_exit("export user env : %s" % str(ex))
+            LOGGER.error("export user env : %s" % str(ex))
+            if FORCE_UNINSTALL != "force":
+                raise Exception("export user env : %s" % str(ex))
 
     def check_old_install(self):
         """
         is there a database installed by the user?
         :return: NA
         """
-        log("check old install...")
+        LOGGER.info("check old install...")
         str_cmd = "echo ~"
         ret_code, stdout, stderr = _exec_popen(str_cmd)
         if ret_code:
-            log_exit("failed to get user home."
+            LOGGER.error("failed to get user home."
+                     "ret_code : %s, stdout : %s, stderr : %s" % (ret_code, stdout, stderr))
+            if FORCE_UNINSTALL != "force":
+                raise Exception("failed to get user home."
                      "ret_code : %s, stdout : %s, stderr : %s" % (ret_code, stdout, stderr))
         output = os.path.realpath(os.path.normpath(stdout))
         if not check_path(output):
-            log_exit("the user home directory is invalid.")
+            err_msg = "the user home directory is invalid."
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
         self.user_profile = os.path.join(output, ".bashrc")
         self.user_home = output
-        log("use user profile : " + self.user_profile)
+        LOGGER.info("use user profile : " + self.user_profile)
         try:
             self.check_profile()
         except OSError as ex:
-            log_exit("failed to check user profile : %s" % str(ex))
-        log("end check old cms install.")
+            LOGGER.error("failed to check user profile : %s" % str(ex))
+            if FORCE_UNINSTALL != "force":
+                raise Exception("failed to check user profile : %s" % str(ex))
+        LOGGER.info("end check old cms install.")
 
     def check_profile(self):
         """
@@ -891,7 +971,10 @@ class CmsCtl(object):
                 else:
                     continue
         if is_find:
-            log_exit("CMS has been installed already.")
+            err_msg = "CMS has been installed already."
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
 
     def skip_execute_in_node_1(self):
         if self.running_mode in [CANTIAND_IN_CLUSTER, CANTIAND_WITH_MYSQL_IN_CLUSTER] and self.node_id == 1:
@@ -904,19 +987,19 @@ class CmsCtl(object):
         :return:
         """
         cmd = "chown %s:%s -hR \"%s\";" % (self.user, self.group, self.gcc_home)
-        log("change owner cmd: %s" % cmd)
+        LOGGER.info("change owner cmd: %s" % cmd)
         self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
-        log("if blocked here, please check if the network is normal")
+        LOGGER.info("if blocked here, please check if the network is normal")
 
         run_cmd(cmd, "failed to chown gcc dir: %s:%s" % (self.user, self.group))
 
     def prepare_gccdata_dir(self):
-        log("prepare gcc home dir")
+        LOGGER.info("prepare gcc home dir")
         self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
-        log("if blocked here, please check if the network is normal")
+        LOGGER.info("if blocked here, please check if the network is normal")
         if deploy_mode != "dbstore_unify" and not os.path.exists(self.gcc_home):
             os.makedirs(self.gcc_home, CommonValue.KEY_DIRECTORY_PERMISSION)
-            log("makedir for gcc_home %s" % (self.gcc_home))
+            LOGGER.info("makedir for gcc_home %s" % (self.gcc_home))
 
     def install_xnet_lib(self):
         if self.is_rdma_startup():
@@ -926,12 +1009,12 @@ class CmsCtl(object):
         else:
             str_cmd = "cp -arf %s/add-ons/nomlnx/lib* %s/add-ons/" % (self.install_path, self.install_path)
 
-        log("install xnet lib cmd: " + str_cmd)
+        LOGGER.info("install xnet lib cmd: " + str_cmd)
         run_cmd(str_cmd, "failed to install xnet lib")
 
     def install_kmc_lib(self):
         str_cmd = "cp -arf %s/add-ons/kmc_shared/lib* %s/add-ons/" % (self.install_path, self.install_path)
-        log("install kmc lib cmd: " + str_cmd)
+        LOGGER.info("install kmc lib cmd: " + str_cmd)
         run_cmd(str_cmd, "failed to install kmc lib")
 
     def is_mlnx(self):
@@ -940,38 +1023,41 @@ class CmsCtl(object):
         """
         ret_code, stdout, stderr = _exec_popen("which ofed_info")
         if ret_code:
-            log("no ofed_info cmd found"
+            LOGGER.info("no ofed_info cmd found"
                 "ret_code : %s, stdout : %s, stderr : %s" % (ret_code, stdout, stderr))
             return False
 
         ret_code, stdout, stderr = _exec_popen("ofed_info -s")
         if ret_code:
-            log("exec ofed_info cmd failed"
+            LOGGER.info("exec ofed_info cmd failed"
                 "ret_code : %s, stdout : %s, stderr : %s" % (ret_code, stdout, stderr))
             return False
 
         if 'MLNX_OFED_LINUX-5.5' in stdout:
-            log("mlnx version 5.5")
+            LOGGER.info("mlnx version 5.5")
             return True
 
         ret_code, os_arch, stderr = _exec_popen("uname -i")
         if ret_code:
-            log_exit("failed to get linux release version."
+            LOGGER.error("failed to get linux release version."
+                     "ret_code : %s, os_arch : %s, stderr : %s" % (ret_code, os_arch, stderr))
+            if FORCE_UNINSTALL != "force":
+                raise Exception("failed to get linux release version."
                      "ret_code : %s, os_arch : %s, stderr : %s" % (ret_code, os_arch, stderr))
         aarch_mlnx_version_list = ['OFED-internal-5.8-2.0.3', 'MLNX_OFED_LINUX-5.8', 'MLNX_OFED_LINUX-5.9']
         aarch_version_check_result = any(mlnx_version if mlnx_version in stdout else False
             for mlnx_version in aarch_mlnx_version_list)
         if os_arch == "aarch64" and aarch_version_check_result == True:
-            log("Is mlnx 5.8~5.9")
+            LOGGER.info("Is mlnx 5.8~5.9")
             return True
 
-        log("Not mlnx 5.5")
+        LOGGER.info("Not mlnx 5.5")
         return False
 
     def is_hinicadm3(self):
         ret_code, _, sterr = _exec_popen("whereis hinicadm3")
         if ret_code:
-            log("can not find hinicadm3")
+            LOGGER.info("can not find hinicadm3")
             return False
         return True
 
@@ -990,7 +1076,10 @@ class CmsCtl(object):
             self.ip_addr = _list[self.node_id]
             for item in re.split(r"[;,]", self.ip_cluster):
                 if len(_list) != 1 and self.all_zero_addr_after_ping(item):
-                    log_exit("ip contains all-zero ip,"
+                    LOGGER.error("ip contains all-zero ip,"
+                             " can not specify other ip.")
+                    if FORCE_UNINSTALL != "force":
+                        raise Exception("ip contains all-zero ip,"
                              " can not specify other ip.")
                 if cantian_in_container == "0":
                     self.check_ip_isvaild(item)
@@ -1003,12 +1092,16 @@ class CmsCtl(object):
         if cantian_in_container == "0":
             self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
 
-        log("check running mode: %s" % self.running_mode)
+        LOGGER.info("check running mode: %s" % self.running_mode)
         if self.running_mode not in VALID_RUNNING_MODE:
-            log_exit("Invalid running mode: " + str(self.node_id))
-        log("check node id: %d" % self.node_id)
+            LOGGER.error("Invalid running mode: " + str(self.node_id))
+            if FORCE_UNINSTALL != "force":
+                raise Exception("Invalid running mode: " + str(self.node_id))
+        LOGGER.info("check node id: %d" % self.node_id)
         if self.node_id not in [0, 1]:
-            log_exit("invalid node id: " + str(self.node_id))
+            LOGGER.error("invalid node id: " + str(self.node_id))
+            if FORCE_UNINSTALL != "force":
+                raise Exception("invalid node id: " + str(self.node_id))
 
     def copy_app_files(self):
         """
@@ -1021,7 +1114,7 @@ class CmsCtl(object):
                    % (cms_pkg_file, cms_pkg_file, cms_pkg_file,
                       cms_pkg_file, cms_pkg_file, cms_pkg_file,
                       self.install_path))
-        log("copy install files cmd: " + str_cmd)
+        LOGGER.info("copy install files cmd: " + str_cmd)
         run_cmd(str_cmd, "failed to install cms lib files")
 
         if deploy_mode != "nas":
@@ -1034,13 +1127,16 @@ class CmsCtl(object):
         check_runner()
 
         if self.install_type not in ["override", "reserve"]:
-            log_exit("wrong install type")
+            err_msg = "wrong install type"
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
         if self.install_type != "override":
-            log("check install type : reserve cms")
+            LOGGER.info("check install type : reserve cms")
             self.parse_parameters(self.cms_old_config)
             self.__init__()
         else:
-            log("check install type : override cms")
+            LOGGER.info("check install type : override cms")
             self.parse_parameters(self.install_config_file)
             if deploy_mode == "dbstore_unify":
                 self.gcc_home = os.path.join("/", self.storage_share_fs, str(self.cluster_name) + "_cms", "gcc_home")
@@ -1049,17 +1145,20 @@ class CmsCtl(object):
             self.gcc_dir = self.gcc_home
             self.cms_gcc_bak = os.path.join("/mnt/dbdata/remote", "archive_" + self.storage_archive_fs)
 
-        log("======================== begin to pre_install cms configs ========================")
+        LOGGER.info("======================== begin to pre_install cms configs ========================")
 
         check_user(self.user, self.group)
         if deploy_mode != "dbstore_unify" and not check_path(self.gcc_home):
-            log_exit("the gcc home directory is invalid.")
+            err_msg = "the gcc home directory is invalid."
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
 
         self.check_parameter_install()
         self.check_old_install()
         self.install_step = 1
         self.set_cms_conf()
-        log("======================== pre_install cms configs successfully ========================")
+        LOGGER.info("======================== pre_install cms configs successfully ========================")
 
     def prepare_cms_tool_dbstor_config(self):
         for i in range(10, CMS_TOOL_CONFIG_COUNT + 10):
@@ -1084,7 +1183,10 @@ class CmsCtl(object):
             str_cmd += " && chmod 640 %s/dbstor/conf/dbs/dbstor_config_tool_%s.ini" % (self.cms_home, str(file_num))
             ret_code, stdout, stderr = _exec_popen(str_cmd)
             if ret_code:
-                log_exit("prepare cms tool dbstor config file failed, return: " +
+                LOGGER.error("prepare cms tool dbstor config file failed, return: " +
+                         str(ret_code) + os.linesep + stdout + os.linesep + stderr)
+                if FORCE_UNINSTALL != "force":
+                    raise Exception("prepare cms tool dbstor config file failed, return: " +
                          str(ret_code) + os.linesep + stdout + os.linesep + stderr)
 
     def copy_dbstor_config(self):
@@ -1118,23 +1220,29 @@ class CmsCtl(object):
         str_cmd += " && chown -R %s:%s %s/dbstor" % (self.user, self.group, self.cms_home)
         str_cmd += " && chmod 640 %s/dbstor/conf/dbs/dbstor_config.ini" % (self.cms_home)
 
-        log("copy config files cmd: " + str_cmd)
+        LOGGER.info("copy config files cmd: " + str_cmd)
         ret_code, stdout, stderr = _exec_popen(str_cmd)
         if ret_code:
-            log_exit("copy dbstor config file failed, return: " +
+            LOGGER.error("copy dbstor config file failed, return: " +
+                     str(ret_code) + os.linesep + stdout + os.linesep + stderr)
+            if FORCE_UNINSTALL != "force":
+                raise Exception("copy dbstor config file failed, return: " +
                      str(ret_code) + os.linesep + stdout + os.linesep + stderr)
 
     def install(self):
         """
         install cms process, copy bin
         """
-        log("======================== begin to install cms ========================")
+        LOGGER.info("======================== begin to install cms ========================")
         if self.install_step == 2:
-            log("cms install already")
-            log("======================== install cms module successfully ========================")
+            LOGGER.info("cms install already")
+            LOGGER.info("======================== install cms module successfully ========================")
             return
         if self.install_step == 0:
-            log_exit("please run pre_install previously")
+            err_msg = "please run pre_install previously"
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
 
         self.copy_app_files()
 
@@ -1156,7 +1264,7 @@ class CmsCtl(object):
         self.install_step = 2
         self.set_cms_conf()
 
-        log("======================== install cms module successfully ========================")
+        LOGGER.info("======================== install cms module successfully ========================")
 
     def check_start_status(self):
         """
@@ -1174,12 +1282,15 @@ class CmsCtl(object):
                 time.sleep(1)
                 continue
             if server_status == "TRUE":
-                log("Current cms server status is %s" % server_status)
+                LOGGER.info("Current cms server status is %s" % server_status)
                 break
-            log("Current cms server status is %s" % server_status)
+            LOGGER.info("Current cms server status is %s" % server_status)
             time.sleep(1)
         else:
-            log_exit("Query cms server status timeout")
+            err_msg = "Query cms server status timeout"
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
         time.sleep(15)
         timeout = 30
         while timeout:
@@ -1195,23 +1306,28 @@ class CmsCtl(object):
             for node_voting_status in voting_status.strip().split("\n"):
                 _node_id, status = node_voting_status.split(" ")
                 if int(_node_id) == int(self.node_id) and status == "FALSE":
-                    log("Current cms voting status is %s" % node_voting_status)
+                    LOGGER.info("Current cms voting status is %s" % node_voting_status)
                     return
-            log("Current cms voting status is %s" % voting_status)
+            LOGGER.info("Current cms voting status is %s" % voting_status)
             time.sleep(1)
         else:
-            log_exit("Query cms voting status timeout")
+            err_msg = "Query cms voting status timeout"
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
 
     def start(self):
         """
         start cms process: check>>start>>change status
         """
-        log("========================= begin to start cms process ========================")
+        LOGGER.info("========================= begin to start cms process ========================")
         if self.install_step <= 1:
-            log_exit("please run install previously")
+            LOGGER.error("please run install previously")
+            if FORCE_UNINSTALL != "force":
+                raise Exception("please run install previously")
         if self.install_step == 3:
-            log("warning: cms started already")
-            log("========================= start cms process successfully ========================")
+            LOGGER.info("warning: cms started already")
+            LOGGER.info("========================= start cms process successfully ========================")
             return
         cmd = "sh %s -P start_cms >> %s 2>&1" % (os.path.join(self.cms_scripts, "start_cms.sh"), LOG_FILE)
         run_cmd(cmd, "failed to start cms process")
@@ -1219,30 +1335,36 @@ class CmsCtl(object):
         self.install_step = 3
         self.set_cms_conf()
         self.check_start_status()
-        log("======================== start cms process successfully ========================")
+        LOGGER.info("======================== start cms process successfully ========================")
 
     def check_status(self):
         """
         check cms process status
         """
-        log("======================== begin to check cms process status ========================")
+        LOGGER.info("======================== begin to check cms process status ========================")
         if self.install_step <= 1:
-            log_exit("please install cms previously")
+            err_msg = "please install cms previously"
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
         cmd = "source ~/.bashrc && %s/bin/cms stat -server 2>&1" % self.install_path
         stdout = run_cmd(cmd, "can not check cms process status")
         node_list = stdout.split("\n")[1:]
         for node_info in node_list:
             _node_id = node_info.split(" ")[0].strip(" ")
             if self.node_id == int(_node_id) and "TRUE" in node_info:
-                log("======================== check cms process status successfully ========================")
+                LOGGER.info("======================== check cms process status successfully ========================")
                 return
-        log_exit("check cms process status failed")
+        err_msg = "check cms process status failed"
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
 
     def stop(self):
         """
         stop cms process: kill>>change status
         """
-        log("======================== begin to stop the cms process ========================")
+        LOGGER.info("======================== begin to stop the cms process ========================")
         cms_processes = ["cms server", "cmsctl.py start", "cms/start.sh", "start_cms.sh"]
         for cms_process in cms_processes:
             self.kill_process(cms_process)
@@ -1250,7 +1372,7 @@ class CmsCtl(object):
 
         self.install_step = 2
         self.set_cms_conf()
-        log("======================== stop the cms successfully ========================")
+        LOGGER.info("======================== stop the cms successfully ========================")
 
     def check_gcc_home_process(self):
         """
@@ -1270,20 +1392,20 @@ class CmsCtl(object):
                     _cmd = "ps -ef | grep %s | grep -v grep" % pid
                     ret_code, _stdout, stderr = _exec_popen(cmd)
                     if _stdout:
-                        log("gcc_home occupied by a process:%s" % _stdout)
+                        LOGGER.info("gcc_home occupied by a process:%s" % _stdout)
 
     def uninstall(self):
         """
         uninstall cms: environment values and app files
         """
-        log("======================== begin to uninstall cms module ========================")
+        LOGGER.info("======================== begin to uninstall cms module ========================")
 
         if deploy_mode != "dbstore_unify" and self.gcc_home == "":
             self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
         if self.node_id == 0:
             if cantian_in_container == "0":
                 self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
-                log("if blocked here, please check if the network is normal")
+                LOGGER.info("if blocked here, please check if the network is normal")
             if deploy_mode != "dbstore_unify":
                 str_cmd = "rm -rf %s" % (self.gcc_home)
                 ret_code, stdout, stderr = _exec_popen("timeout 10 ls %s" % self.gcc_home)
@@ -1291,21 +1413,27 @@ class CmsCtl(object):
                 str_cmd = "cms gcc -del"
                 ret_code = 0
             if ret_code == 0:
-                log("clean gcc home cmd : %s" % str_cmd)
+                LOGGER.info("clean gcc home cmd : %s" % str_cmd)
                 ret_code, stdout, stderr = _exec_popen(str_cmd)
                 if ret_code and deploy_mode == "dbstore_unify" and self.install_step < 2:
-                    log("cms install failed, no need to clean gcc file")
+                    LOGGER.info("cms install failed, no need to clean gcc file")
                 elif ret_code:
                     output = stdout + stderr
                     self.check_gcc_home_process()
-                    log_exit("failed to remove gcc home.\ncommand: %s.\noutput: %s \
+                    err_msg = "failed to remove gcc home.\ncommand: %s.\noutput: %s \
                               \npossible reasons: \
                               \n1. user was using cms tool when uninstall. \
                               \n2. cms has not stopped. \
                               \n3. dbstor link was error. \
-                              \n4. others, please contact the engineer to solve." % (str_cmd, output))
+                              \n4. others, please contact the engineer to solve." % (str_cmd, output)
+                    LOGGER.error(err_msg)
+                    if FORCE_UNINSTALL != "force":
+                        raise Exception(err_msg)
             elif FORCE_UNINSTALL != "force" and ret_code != 2:
-                log_exit("can not connect to remote %s"
+                LOGGER.error("can not connect to remote %s"
+                         "ret_code : %s, stdout : %s, stderr : %s" % (self.gcc_home, ret_code, stdout, stderr))
+                if FORCE_UNINSTALL != "force":
+                    raise Exception("can not connect to remote %s"
                          "ret_code : %s, stdout : %s, stderr : %s" % (self.gcc_home, ret_code, stdout, stderr))
 
         self.clean_environment()
@@ -1314,51 +1442,54 @@ class CmsCtl(object):
         str_cmd = "rm -rf {0}/cms_server.lck {0}/local {0}/gcc_backup {0}/cantian.ctd.cms*".format(
             self.cms_home)
         run_cmd(str_cmd, "failed to remove running files in cms home")
-        log("======================== uninstall cms module successfully ========================")
+        LOGGER.info("======================== uninstall cms module successfully ========================")
 
     def backup(self):
         """
         save cms config
         """
-        log("======================== begin to backup config files ========================")
+        LOGGER.info("======================== begin to backup config files ========================")
         config_json = os.path.join(self.cms_home, "cfg/cms.json")
         if os.path.exists(config_json):
             str_cmd = ("cp -arf %s/cfg/* %s" % (self.cms_home, os.path.dirname(self.cms_old_config)))
-            log("save cms json files cmd: " + str_cmd)
+            LOGGER.info("save cms json files cmd: " + str_cmd)
             run_cmd(str_cmd, "failed to save cms config files")
         else:
-            log_exit("the file does not exist : %s" % config_json)
-        log("======================== backup config files successfully ========================")
+            err_msg = "the file does not exist : %s" % config_json
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
+        LOGGER.info("======================== backup config files successfully ========================")
 
     def upgrade(self):
-        log("======================== begin to upgrade cms dbstor config ========================")
+        LOGGER.info("======================== begin to upgrade cms dbstor config ========================")
         if deploy_mode == "dbstore_unify" and not glob.glob("%s/dbstor/conf/dbs/dbstor_config_tool*" % self.cms_home):
             self.copy_dbstor_config()
             self.prepare_cms_tool_dbstor_config()
 
-        log("======================== upgrade cms dbstor config successfully ========================")
+        LOGGER.info("======================== upgrade cms dbstor config successfully ========================")
 
     def init_container(self):
         """
         cms init in container
         """
-        log("======================== begin to init cms process =======================")
+        LOGGER.info("======================== begin to init cms process =======================")
         if self.install_step == 3:
-            log("Warning: cms start already")
+            LOGGER.info("Warning: cms start already")
             return
         if deploy_mode != "nas":
             self.copy_dbstor_config()
         if deploy_mode == "dbstore_unify":
             self.prepare_cms_tool_dbstor_config()
         
-        log("======================= init cms process ============================")
+        LOGGER.info("======================= init cms process ============================")
         if self.node_id == 0:    
             cmd = "sh %s -P init_container >> %s 2>&1" %(os.path.join(os.path.dirname(__file__), "start_cms.sh"), LOG_FILE)
             run_cmd(cmd, "failed to init cms")
         
         self.install_step = 2
         self.set_cms_conf()
-        log("======================= init cms process successfully ======================")
+        LOGGER.info("======================= init cms process successfully ======================")
 
     def kill_process(self, process_name):
         """
@@ -1370,7 +1501,7 @@ class CmsCtl(object):
                         r"|awk '{print $2}'` && " % process_name)
         kill_cmd += (r"(if [[ X\"$proc_pid_list\" != X\"\" ]];then echo "
                          r"$proc_pid_list | xargs kill -9; fi)")
-        log("kill process cmd: %s" % kill_cmd)
+        LOGGER.info("kill process cmd: %s" % kill_cmd)
         run_cmd(kill_cmd, "failed to kill process %s" % process_name)
 
     def get_pid(self, process_name):
@@ -1380,10 +1511,12 @@ class CmsCtl(object):
         output: pid
         """
         get_cmd = "ps ux | grep '%s' | grep -v grep | awk '{print $2}'" % process_name
-        log("get process cmd: %s" % get_cmd)
+        LOGGER.info("get process cmd: %s" % get_cmd)
         ret_code, stdout, stderr = _exec_popen(get_cmd)
         if ret_code:
-            log_exit("Failed to get %s pid. cmd: %s. Error: %s" % (process_name, get_cmd, stderr))
+            LOGGER.error("Failed to get %s pid. cmd: %s. Error: %s" % (process_name, get_cmd, stderr))
+            if FORCE_UNINSTALL != "force":
+                raise Exception("Failed to get %s pid. cmd: %s. Error: %s" % (process_name, get_cmd, stderr))
         return stdout
 
     def check_process_status(self, process_name):
@@ -1395,12 +1528,15 @@ class CmsCtl(object):
         for i in range(CHECK_MAX_TIMES):
             pid = self.get_pid(process_name)
             if pid:
-                log("checked %s times, %s pid is %s" % (i + 1, process_name, pid))
+                LOGGER.info("checked %s times, %s pid is %s" % (i + 1, process_name, pid))
                 if i != CHECK_MAX_TIMES - 1:
                     time.sleep(5)
             else:
                 return
-        log_exit("Failed to kill %s. It is still alive after 30s." % process_name)
+        err_msg = "Failed to kill %s. It is still alive after 30s." % process_name
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
 
     def clean_install_path(self):
         """
@@ -1408,7 +1544,7 @@ class CmsCtl(object):
         input: NA
         output: NA
         """
-        log("cleaning install path...")
+        LOGGER.info("cleaning install path...")
         if os.path.exists(self.install_path):
             shutil.rmtree(self.install_path)
         if os.path.exists(os.path.join(self.cms_home, "cfg")):
@@ -1417,7 +1553,7 @@ class CmsCtl(object):
             shutil.rmtree(os.path.join(self.cms_home, "dbstor/conf"))
         if os.path.exists(os.path.join(self.cms_home, "dbstor/data/ftds")):
             shutil.rmtree(os.path.join(self.cms_home, "dbstor/data/ftds"))
-        log("end clean install path")
+        LOGGER.info("end clean install path")
 
     def clean_environment(self):
         """
@@ -1425,7 +1561,7 @@ class CmsCtl(object):
         input: NA
         output: NA
         """
-        log("cleaning user environment variables...")
+        LOGGER.info("cleaning user environment variables...")
         path_cmd = (r"/^\s*export\s*PATH=\"%s\/bin\":\$PATH$/d"
                     % genreg_string(self.install_path))
         lib_cmd = (r"/^\s*export\s*LD_LIBRARY_PATH=\"%s\/lib\":\"%s\/add-ons\".*$/d"
@@ -1439,7 +1575,7 @@ class CmsCtl(object):
         for cmd in cmds:
             cmd = 'sed -i "%s" "%s"' % (cmd, self.user_profile)
             run_cmd(cmd, "failed to clean environment variables")
-        log("end clean user environment variables")
+        LOGGER.info("end clean user environment variables")
 
 
 def main():

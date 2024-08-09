@@ -109,11 +109,14 @@ def cantian_check_share_logic_ip_isvalid(node_ip):
             return False
         return True
 
-    log("check nfs logic ip address or domain name.")
+    LOGGER.info("check nfs logic ip address or domain name.")
     if not ping_execute("ping") and not ping_execute("ping6"):
-        log_exit("checked the node IP address or domain name failed: %s" % node_ip)
+        err_msg = "checked the node IP address or domain name failed: %s" % node_ip
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
 
-    log("checked the node IP address or domain name success: %s" % node_ip)
+    LOGGER.info("checked the node IP address or domain name success: %s" % node_ip)
 
 
 class Options(object):
@@ -182,7 +185,7 @@ def parse_parameter():
     input: NA
     output: NA
     """
-    log("Checking uninstall parameters...")
+    LOGGER.info("Checking uninstall parameters...")
     try:
         # Parameters are passed into argv. After parsing, they are stored
         # in opts as binary tuples. Unresolved parameters are stored in args.
@@ -231,7 +234,10 @@ def check_parameter():
         ret_code, stdout, stderr = _exec_popen(cmd)
 
         if ret_code:
-            log_exit("cannot get uid. error: %s" % stderr)
+            err_msg = "cannot get uid. error: %s" % stderr
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
 
         if user_id != int(stdout):
             print_str = CommonPrint()
@@ -306,7 +312,7 @@ def get_install_path():
     under the installation path
     :return: NA
     """
-    log("Getting install path...")
+    LOGGER.info("Getting install path...")
 
     flags = os.O_RDONLY
     modes = stat.S_IWUSR | stat.S_IRUSR
@@ -315,8 +321,11 @@ def get_install_path():
         g_opts.install_path_l = json_data['R_INSTALL_PATH'].strip()
         # Must be exist
     if not os.path.exists(g_opts.install_path_l):
-        log_exit("Failed to get install path.")
-    log("End get install path")
+        err_msg = "Failed to get install path."
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
+    LOGGER.info("End get install path")
 
 
 def get_deploy_user():
@@ -336,13 +345,16 @@ def get_user_environment_file():
     Get the path to the user environment variable.
     :return: NA
     """
-    log("Getting user environment variables file path...")
+    LOGGER.info("Getting user environment variables file path...")
     home_path = g_opts.user_info.pw_dir
     g_opts.user_env_path = os.path.realpath(
         os.path.normpath(os.path.join(home_path, ".bashrc")))
     if not os.path.isfile(os.path.realpath(g_opts.user_env_path)):
-        log_exit("Can't get the environment variables file.")
-    log("End get user environment variables file path")
+        err_msg = "Can't get the environment variables file."
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
+    LOGGER.info("End get user environment variables file path")
 
 
 #####################################################################
@@ -367,15 +379,17 @@ def check_environment_install_path():
     input: NA
     output: NA
     """
-    log("Checking whether install path in the user environment variables...")
+    LOGGER.info("Checking whether install path in the user environment variables...")
 
     tmp_f = None
     try:
         tmp_f = open(g_opts.user_env_path)
     except IOError:
-        log_exit("Check environment variables failed:can not open "
-                 "environment variables file,please check the user that "
-                 "you offered is right")
+        err_msg = "Check environment variables failed:can not open environment variables file,\
+              please check the user that you offered is right"
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
 
     line = tmp_f.readline()
     while line:
@@ -390,16 +404,18 @@ def check_environment_install_path():
                 install_env_l = os.path.normpath(install_env_temp_l)
                 install_env_l = os.path.realpath(install_env_l[1:-1])
                 if install_env_l == g_opts.install_path_l:
-                    log("Found install path in user environment variables.")
+                    LOGGER.info("Found install path in user environment variables.")
                     tmp_f.close()
                     return 0
         line = tmp_f.readline()
     tmp_f.close()
-    log_exit("Check install path in user environment variables failed:"
-             "can not find install path in user: %s environment variables"
-             % g_opts.user_info.pw_name)
+    err_msg = "Check install path in user environment variables failed:\
+             can not find install path in user: %s environment variables" % g_opts.user_info.pw_name
+    LOGGER.error(err_msg)
+    if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
 
-    log("End check install path in user environment variables")
+    LOGGER.info("End check install path in user environment variables")
 
 
 ######################################################################
@@ -411,13 +427,16 @@ def get_gsdata_path_env():
     input: NA
     output: NA
     """
-    log("Getting data directory...")
-    log("Begin get data directory in user environment variables")
+    LOGGER.info("Getting data directory...")
+    LOGGER.info("Begin get data directory in user environment variables")
 
     try:
         f = open(g_opts.user_env_path)
     except IOError:
-        log_exit("Failed to open the environment file.")
+        err_msg = "Failed to open the environment file."
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
 
     line = f.readline()
     # the environment varible write by install.py whil start with '"'
@@ -438,10 +457,13 @@ def get_gsdata_path_env():
                 DefaultValue.check_invalid_path(g_opts.gs_data_path)
                 if not os.path.exists(g_opts.gs_data_path):
                     f.close()
-                    log_exit("Get data directory in user environment variables"
-                             " failed:data directory have been destroyed,"
-                             "can not uninstall")
-                log("End find data directory in user environment variables")
+                    err_msg = "Get data directory in user environment variables\
+                              failed:data directory have been destroyed,\
+                             can not uninstall"
+                    LOGGER.error(err_msg)
+                    if FORCE_UNINSTALL != "force":
+                        raise Exception(err_msg)
+                LOGGER.info("End find data directory in user environment variables")
                 f.close()
                 return 0
         # deal with the CTDB_HOME with """
@@ -457,17 +479,20 @@ def get_gsdata_path_env():
                     os.path.normpath(gsdata_path_temp))
                 if not os.path.exists(g_opts.gs_data_path):
                     f.close()
-                    log_exit("Get data directory in user environment variables "
-                             "failed:data directory have been destroyed,"
-                             "can not uninstall")
-                log("End find data directory in user environment variables")
+                    err_msg = "Get data directory in user environment variables \
+                        failed:data directory have been destroyed,\
+                              can not uninstall"
+                    LOGGER.error(err_msg)
+                    if FORCE_UNINSTALL != "force":
+                        raise Exception(err_msg)
+                LOGGER.info("End find data directory in user environment variables")
                 f.close()
                 return 0
         # Loop through each line
         line = f.readline()
     f.close()
-    log("Not find data directory in user environment variables")
-    log("End find data directory int user environment variables")
+    LOGGER.info("Not find data directory in user environment variables")
+    LOGGER.info("End find data directory int user environment variables")
     return 1
 
 
@@ -480,15 +505,18 @@ def check_data_dir():
     input: NA
     output: NA
     """
-    log("Begin check data dir...")
+    LOGGER.info("Begin check data dir...")
     if g_opts.clean_data_dir:
         if os.path.exists(g_opts.clean_data_dir) \
                 and os.path.isdir(g_opts.clean_data_dir) \
                 and g_opts.clean_data_dir == g_opts.gs_data_path:
-            log("path: \"%s\" is correct" % g_opts.clean_data_dir)
+            LOGGER.info("path: \"%s\" is correct" % g_opts.clean_data_dir)
         else:
-            log_exit("path: \"%s\" is incorrect" % g_opts.clean_data_dir)
-    log("end check,match")
+            err_msg = "path: \"%s\" is incorrect" % g_opts.clean_data_dir
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
+    LOGGER.info("end check,match")
 
 
 #########################################################################
@@ -502,7 +530,7 @@ def check_uninstall_pos():
     input: NA
     output: NA
     """
-    log("Checking uninstall.py position...")
+    LOGGER.info("Checking uninstall.py position...")
     bin_path = g_opts.install_path_l + os.sep + 'bin'
     addons_path = g_opts.install_path_l + os.sep + 'add-ons'
     admin_path = g_opts.install_path_l + os.sep + 'admin'
@@ -511,29 +539,47 @@ def check_uninstall_pos():
 
     # Check if the install path exists
     if not os.path.exists(g_opts.install_path_l):
-        log_exit("Check uninstall.py position failed:You have"
-                 " changed uninstall.py position,install path not exist")
+        err_msg = "Check uninstall.py position failed:You have\
+              changed uninstall.py position,install path not exist"
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
     # Check if the bin path exists
     if not os.path.exists(bin_path):
-        log_exit("Check uninstall.py position failed:You have"
-                 " changed uninstall.py position,can not find path bin")
+        err_msg = "Check uninstall.py position failed:You have\
+              changed uninstall.py position,can not find path bin"
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
     # Check if the addons path exists
     if not os.path.exists(addons_path):
-        log_exit("Check uninstall.py position failed:You have"
-                 " changed uninstall.py position,can not find path add-ons")
+        err_msg = "Check uninstall.py position failed:You have\
+              changed uninstall.py position,can not find path add-ons"
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
     # Check if the admin path exists
     if not os.path.exists(admin_path):
-        log_exit("Check uninstall.py position failed:You have"
-                 " changed uninstall.py position,can not find path admin")
+        err_msg = "Check uninstall.py position failed:You have\
+              changed uninstall.py position,can not find path admin"
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
     # Check if the lib path exists
     if not os.path.exists(lib_path):
-        log_exit("Check uninstall.py position failed:You have"
-                 " changed uninstall.py position,can not find file lib")
+        err_msg = "Check uninstall.py position failed:You have\
+              changed uninstall.py position,can not find file lib"
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
     # Check if the package path exists
     if not os.path.isfile(pkg_file):
-        log_exit("Check uninstall.py position failed:You have"
-                 " changed uninstall.py position,can not find file package.xml")
-    log("End check uninstall.py position")
+        err_msg = "Check uninstall.py position failed:You have\
+              changed uninstall.py position,can not find file package.xml"
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
+    LOGGER.info("End check uninstall.py position")
 
 
 #########################################################################
@@ -547,7 +593,7 @@ def clean_install_path():
     input: NA
     output: NA
     """
-    log("Cleaning install path...")
+    LOGGER.info("Cleaning install path...")
     try:
         # Remove the install path and cfg
         if os.path.exists(os.path.join(g_opts.install_path_l, "../cfg")):
@@ -555,10 +601,13 @@ def clean_install_path():
         if os.path.exists(g_opts.install_path_l):
             shutil.rmtree(g_opts.install_path_l)
     except OSError as error:
-        log_exit("Clean install path failed:can not delete install path "
+        LOGGER.error("Clean install path failed:can not delete install path "
                  "%s\nPlease manually delete it." % str(error))
-    log("Clean install path success")
-    log("End clean Install path")
+        if FORCE_UNINSTALL != "force":
+            raise Exception("Clean install path failed:can not delete install path "
+                 "%s\nPlease manually delete it." % str(error))
+    LOGGER.info("Clean install path success")
+    LOGGER.info("End clean Install path")
 
 
 ###########################################################################
@@ -594,7 +643,7 @@ def clean_environment():
     input: NA
     output: NA
     """
-    log("Cleaning user environment variables...")
+    LOGGER.info("Cleaning user environment variables...")
     # Clear environment variable CTDB_DATA
     data_cmd = r"/^\s*export\s*CTDB_DATA=\".*\"$/d"
     # Clear environment variable PATH about database
@@ -624,14 +673,19 @@ def clean_environment():
         _cmd = 'sed -i "%s" "%s"' % (_cmd, g_opts.user_env_path)
         ret_code_1, _, stderr_1 = _exec_popen(_cmd)
         if ret_code_1:
-            log("Failed to clean environment variables. Error: %s" % stderr_1)
-            log_exit("Failed to clean environment variables.")
-    log("End clean user environment variables...")
+            LOGGER.info("Failed to clean environment variables. Error: %s" % stderr_1)
+            err_msg = "Failed to clean environment variables."
+            LOGGER.error(err_msg)
+            if FORCE_UNINSTALL != "force":
+                raise Exception(err_msg)
+    LOGGER.info("End clean user environment variables...")
 
 
 def read_ifile(ifile, keyword):
     if not os.path.isfile(ifile):
-        log_exit("The value of IFILE '{}' is not exists.".format(ifile))
+        LOGGER.error("The value of IFILE '{}' is not exists.".format(ifile))
+        if FORCE_UNINSTALL != "force":
+            raise Exception("The value of IFILE '{}' is not exists.".format(ifile))
     flags = os.O_RDONLY
     modes = stat.S_IWUSR | stat.S_IRUSR
     with os.fdopen(os.open(ifile, flags, modes), 'r') as fp:
@@ -648,11 +702,14 @@ def read_cantiand_cfg(keyword):
     input:string
     output:string
     """
-    log("Begin read cantiand cfg file")
+    LOGGER.info("Begin read cantiand cfg file")
     # Get the cantiand config file.
     cantiand_cfg_file = os.path.join(g_opts.gs_data_path, "cfg", "cantiand.ini")
     if not os.path.exists(cantiand_cfg_file):
-        log_exit("File %s is not exists." % cantiand_cfg_file)
+        err_msg = "File %s is not exists." % cantiand_cfg_file
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
 
     cantiand_cfg_file = os.path.realpath(os.path.normpath(cantiand_cfg_file))
     # keyword is value in cantiand.ini
@@ -685,7 +742,10 @@ def get_instance_id():
             "| grep -w '\-D %s' |awk '{print $2}'") % g_opts.gs_data_path
     status, output, _ = _exec_popen(_cmd)
     if status:
-        log_exit("Failed to execute cmd: %s. Error:%s." % (str(_cmd),
+        LOGGER.error("Failed to execute cmd: %s. Error:%s." % (str(_cmd),
+                                                           str(output)))
+        if FORCE_UNINSTALL != "force":
+            raise Exception("Failed to execute cmd: %s. Error:%s." % (str(_cmd),
                                                            str(output)))
     # process exists
     return output
@@ -705,7 +765,10 @@ def get_error_id(error_name):
                 "| awk '{print $2}'")
     status, output, error = _exec_popen(_cmd)
     if status:
-        log_exit("Failed to execute cmd: %s. Output:%s. Error:%s" % (str(_cmd),
+        LOGGER.error("Failed to execute cmd: %s. Output:%s. Error:%s" % (str(_cmd),
+                                                                     str(output), str(error)))
+        if FORCE_UNINSTALL != "force":
+            raise Exception("Failed to execute cmd: %s. Output:%s. Error:%s" % (str(_cmd),
                                                                      str(output), str(error)))
     # process exists
     return output
@@ -718,14 +781,17 @@ def kill_instance(instance_pid):
     """
     # user do install, kill process
     kill_cmd_tmp = "kill -9 %s" % instance_pid
-    log("kill process cmd: %s" % kill_cmd_tmp)
+    LOGGER.info("kill process cmd: %s" % kill_cmd_tmp)
     ret_code_1, stdout, stderr = _exec_popen(kill_cmd_tmp)
     if ret_code_1 and "No such process" not in stderr:
-        log_exit("kill process %s failed."
+        LOGGER.error("kill process %s failed."
+                 "ret_code : %s, stdout : %s, stderr : %s" % (instance_pid, ret_code_1, stdout, stderr))
+        if FORCE_UNINSTALL != "force":
+            raise Exception("kill process %s failed."
                  "ret_code : %s, stdout : %s, stderr : %s" % (instance_pid, ret_code_1, stdout, stderr))
 
     check_process_status("cantiand")
-    log("Kill cantiand instance succeed")
+    LOGGER.info("Kill cantiand instance succeed")
 
 
 def kill_extra_process():
@@ -739,13 +805,15 @@ def kill_extra_process():
         installdb_pid = get_error_id(extra_process)
         if installdb_pid:
             kill_cmd_tmp = "kill -9 %s" % installdb_pid
-            log("kill process cmd: %s" % kill_cmd_tmp)
+            LOGGER.info("kill process cmd: %s" % kill_cmd_tmp)
             ret_code, output, error = _exec_popen(kill_cmd_tmp)
             if ret_code and "No such process" not in error:
-                log_exit("kill extra process failed. Output:%s. Error:%s." % (str(output), str(error)))
+                LOGGER.error("kill extra process failed. Output:%s. Error:%s." % (str(output), str(error)))
+                if FORCE_UNINSTALL != "force":
+                    raise Exception("kill extra process failed. Output:%s. Error:%s." % (str(output), str(error)))
 
             check_process_status(extra_process)
-            log("Kill %s succeed" % extra_process)
+            LOGGER.info("Kill %s succeed" % extra_process)
 
 
 def check_process_status(process_name):
@@ -761,12 +829,15 @@ def check_process_status(process_name):
             pid = get_error_id(process_name)
 
         if pid:
-            log("checked %s times, %s pid is %s" % (i + 1, process_name, pid))
+            LOGGER.info("checked %s times, %s pid is %s" % (i + 1, process_name, pid))
             if i != CHECK_MAX_TIMES - 1:
                 time.sleep(5)
         else:
             return
-    log_exit("Failed to kill %s. It is still alive after 5 minutes." % process_name)
+    err_msg = "Failed to kill %s. It is still alive after 5 minutes." % process_name
+    LOGGER.error(err_msg)
+    if FORCE_UNINSTALL != "force":
+        raise Exception(err_msg)
 
 
 def kill_process(process_name):
@@ -774,10 +845,13 @@ def kill_process(process_name):
                   r"|awk '{print $2}'` && " % process_name)
     kill_cmd_1 += (r"(if [ X\"$proc_pid_list\" != X\"\" ];then echo "
                    r"$proc_pid_list | xargs kill -9; exit 0; fi)")
-    log("kill process cmd: %s" % kill_cmd_1)
+    LOGGER.info("kill process cmd: %s" % kill_cmd_1)
     ret_code_2, stdout, stderr = _exec_popen(kill_cmd_1)
     if ret_code_2:
-        log_exit("kill process %s faild."
+        LOGGER.error("kill process %s faild."
+                 "ret_code : %s, stdout : %s, stderr : %s" % (process_name, ret_code_2, stdout, stderr))
+        if FORCE_UNINSTALL != "force":
+            raise Exception("kill process %s faild."
                  "ret_code : %s, stdout : %s, stderr : %s" % (process_name, ret_code_2, stdout, stderr))
 
 
@@ -787,17 +861,23 @@ def stop_instance():
     input : NA
     output: NA
     """
-    log("Stopping cantian instance...")
+    LOGGER.info("Stopping cantian instance...")
 
     # Get the listen port
     lsnr_port = read_cantiand_cfg("LSNR_PORT")
     if not lsnr_port:
-        log_exit("Failed to get the listen port of database.")
+        err_msg = "Failed to get the listen port of database."
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
 
     # Get the listen address
     lsnr_addr = read_cantiand_cfg("LSNR_ADDR")
     if not lsnr_addr:
-        log_exit("Failed to get the listen address of database.")
+        err_msg = "Failed to get the listen address of database."
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
     host_ip = lsnr_addr.split(',')[0]
 
     # if the cantian process not exists, and disable sysdba user
@@ -820,7 +900,7 @@ def stop_instance():
         # uninstall, clean data dir, stop failed, kill process
         kill_instance(instance_pid)
         g_opts.db_passwd = ""
-        log("Successfully killed cantian instance.")
+        LOGGER.info("Successfully killed cantian instance.")
         return
 
     # becasue lsof will can't work for find cantian process,
@@ -851,10 +931,13 @@ def stop_instance():
             stdout_2 += ("\nsysdba login is disabled, please specify -P "
                          "parameter to input password, refer to --help.")
 
-        log_exit("stop cantian instance failed. Error: %s" % stdout_2)
+        err_msg = "stop cantian instance failed. Error: %s" % stdout_2
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
 
     g_opts.db_passwd = ""
-    log("Successfully stopped cantian instance.")
+    LOGGER.info("Successfully stopped cantian instance.")
 
 
 def get_error_msg(outmsg, errmsg):
@@ -879,7 +962,10 @@ def clean_archive_dir(json_data_deploy):
         return
     node_id = json_data_deploy.get('node_id', '').strip()
     if node_id == "":
-        log_exit("node_id is not found.")
+        err_msg = "node_id is not found."
+        LOGGER.error(err_msg)
+        if FORCE_UNINSTALL != "force":
+            raise Exception(err_msg)
     archive_logic_ip = json_data_deploy.get('archive_logic_ip', '').strip()
     storage_archive_fs = json_data_deploy.get('storage_archive_fs', '').strip()
     archive_dir = os.path.join("/mnt/dbdata/remote", "archive_" + storage_archive_fs)
@@ -890,8 +976,10 @@ def clean_archive_dir(json_data_deploy):
         cmd_str = "rm -rf %s/arch*.arc %s/*arch_file.tmp" % (archive_dir, archive_dir)
         ret_code, _, stderr = _exec_popen(cmd_str)
         if ret_code:
-            log_exit("can not clean the archive dir %s, command: %s, output: %s" % (archive_dir, cmd_str, stderr))
-    log("cleaned archive files.")
+            LOGGER.error("can not clean the archive dir %s, command: %s, output: %s" % (archive_dir, cmd_str, stderr))
+            if FORCE_UNINSTALL != "force":
+                raise Exception("can not clean the archive dir %s, command: %s, output: %s" % (archive_dir, cmd_str, stderr))
+    LOGGER.info("cleaned archive files.")
 
 
 class CanTian(object):
@@ -928,14 +1016,14 @@ class CanTian(object):
                 "S_IRUSR": stat.S_IRUSR,
             }
 
-            log("Begin uninstall cantiand ")
+            LOGGER.info("Begin uninstall cantiand ")
             stop_instance()
 
             flags = os.O_WRONLY | os.O_TRUNC
             modes = stat.S_IWUSR | stat.S_IRUSR | stat.S_IXOTH | stat.S_IWOTH
             with os.fdopen(os.open(CANTIAN_UNINSTALL_CONF_FILE, flags, modes), 'w') as fp:
                 json.dump(cantian_uninstall_config_data, fp)
-            log("Uninstall cantiand finish ")
+            LOGGER.info("Uninstall cantiand finish ")
 
             flags = os.O_RDWR | os.O_CREAT
             modes = stat.S_IWUSR | stat.S_IRUSR
@@ -947,13 +1035,13 @@ class CanTian(object):
                 load_fp.truncate()
                 json.dump(start_parameters, load_fp)
         except Exception as error:
-            log("Stop failed: " + str(error))
-            log("Please refer to uninstall log \"%s\" for more detailed information." % g_opts.log_file)
+            LOGGER.info("Stop failed: " + str(error))
+            LOGGER.info("Please refer to uninstall log \"%s\" for more detailed information." % g_opts.log_file)
             raise ValueError(str(error)) from error
 
     def cantian_uninstall(self):
         check_log_path()
-        log("uninstall step 0")
+        LOGGER.info("uninstall step 0")
         user, json_data_deploy = get_deploy_user()
 
         flags = os.O_RDONLY
@@ -972,21 +1060,21 @@ class CanTian(object):
 
         g_opts.gs_data_path = "/mnt/dbdata/local/cantian/tmp/data"
 
-        log("uninstall step 1")
+        LOGGER.info("uninstall step 1")
         parse_parameter()
-        log("uninstall step 2")
+        LOGGER.info("uninstall step 2")
         clean_environment()
-        log("uninstall step 3")
+        LOGGER.info("uninstall step 3")
         clean_archive_dir(json_data_deploy)
-        log("uninstall step 4")
+        LOGGER.info("uninstall step 4")
 
         start_parameters = {'start_status': 'default', 'db_create_status': 'default'}
         flags = os.O_WRONLY | os.O_TRUNC | os.O_CREAT
         with os.fdopen(os.open(CANTIAN_START_STATUS_FILE, flags, modes), 'w') as load_fp:
             json.dump(start_parameters, load_fp)
-        log("uninstall step 5")
+        LOGGER.info("uninstall step 5")
         clean_install_path()
-        log("uninstall step 6")
+        LOGGER.info("uninstall step 6")
         log("Cantiand was successfully removed from your computer, "
             "for more message please see %s." % g_opts.log_file)
 
@@ -998,7 +1086,10 @@ class CanTian(object):
 
         ret_code, cantiand_pid, stderr = _exec_popen('exit')
         if ret_code:
-            log_exit("can not logout, command: exit"
+            LOGGER.error("can not logout, command: exit"
+                     " ret_code : %s, stdout : %s, stderr : %s" % (ret_code, cantiand_pid, stderr))
+            if FORCE_UNINSTALL != "force":
+                raise Exception("can not logout, command: exit"
                      " ret_code : %s, stdout : %s, stderr : %s" % (ret_code, cantiand_pid, stderr))
 
     def cantian_check_status(self):

@@ -9,6 +9,7 @@ DBSTOR_USER="dbstorUser"
 DBSTOR_PWD="dbstorPwd"
 
 function set_dbstor_config() {
+    deploy_mode=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "deploy_mode"`
     storage_dbstore_fs=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "storage_dbstore_fs"`
     storage_dbstore_page_fs=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "storage_dbstore_page_fs"`
     link_type=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "link_type"`
@@ -55,12 +56,12 @@ function set_dbstor_config() {
     sed -i -r "s:(NODE_ID = ).*:\1${node_id}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(CLUSTER_ID = ).*:\1${cluster_id}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(LOG_VSTOR = ).*:\1${log_vstor}:g" ${DBSTOR_CONFIG_PATH}
+    if [ ${deploy_mode} == dbstore_unify ];then
+        python3 ${CURRENT_PATH}/init_unify_config.py
+    fi
 }
 
 function cantian_copy_dbstor_config() {
-    if [ -f ${CANTIAN_CONFIG_PATH}/${DBSTOR_CONFIG_NAME} ]; then
-        rm -rf ${CANTIAN_CONFIG_PATH}/${DBSTOR_CONFIG_NAME}
-    fi
     cp -arf ${DBSTOR_CONFIG_PATH} ${CANTIAN_CONFIG_PATH}/${DBSTOR_CONFIG_NAME}
     echo 'DBSTOR_OWNER_NAME = cantian' >> ${CANTIAN_CONFIG_PATH}/${DBSTOR_CONFIG_NAME}
     sed -i '/^$/d' ${CANTIAN_CONFIG_PATH}/${DBSTOR_CONFIG_NAME}

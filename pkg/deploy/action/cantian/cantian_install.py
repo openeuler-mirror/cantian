@@ -44,13 +44,13 @@ try:
         print_str = CommonPrint()
         print_str.common_log("This install script can not support python version: %s"
                              % gPyVersion)
-        raise ValueError("This install script can not support python version: %s"
+        raise Exception("This install script can not support python version: %s"
                          % gPyVersion)
 
     sys.path.append(os.path.split(os.path.realpath(__file__))[0])
     sys.dont_write_bytecode = True
 except ImportError as err:
-    raise ValueError("Unable to import module: %s." % str(err)) from err
+    raise Exception("Unable to import module: %s." % str(err)) from err
 
 CURRENT_OS = platform.system()
 
@@ -103,7 +103,7 @@ def check_kernel_parameter(para):
     if not pattern.match(para.upper().strip()):
         print_str_1 = CommonPrint()
         print_str_1.common_log("The kernel parameter '%s' is invalid." % para)
-        raise ValueError("The kernel parameter '%s' is invalid." % para)
+        raise Exception("The kernel parameter '%s' is invalid." % para)
 
 
 def check_invalid_symbol(para):
@@ -117,7 +117,7 @@ def check_invalid_symbol(para):
         if para.find(symbol) > -1:
             print_str_1 = CommonPrint()
             print_str_1.common_log("There is invalid symbol \"%s\" in %s" % (symbol, para))
-            raise ValueError("There is invalid symbol \"%s\" in %s" % (symbol, para))
+            raise Exception("There is invalid symbol \"%s\" in %s" % (symbol, para))
 
 
 def all_zero_addr_after_ping(node_ip):
@@ -178,7 +178,7 @@ def check_path(path_type_in):
     else:
         print_str_1 = CommonPrint()
         print_str_1.common_log("Error: Can not support this platform.")
-        raise ValueError("Error: Can not support this platform.")
+        raise Exception("Error: Can not support this platform.")
 
 
 def check_path_linux(get_check_path_linux_info):
@@ -272,13 +272,13 @@ def check_platform():
     if CURRENT_OS is None or not CURRENT_OS.strip():
         print_str_1 = CommonPrint()
         print_str_1.common_log("Can not get platform information.")
-        raise ValueError("Can not get platform information.")
+        raise Exception("Can not get platform information.")
     if CURRENT_OS == "Linux":
         pass
     else:
         print_str_2 = CommonPrint()
         print_str_2.common_log("This install script can not support %s platform." % CURRENT_OS)
-        raise ValueError("This install script can not support %s platform." % CURRENT_OS)
+        raise Exception("This install script can not support %s platform." % CURRENT_OS)
 
 
 def usage():
@@ -325,7 +325,7 @@ def parse_parameter():
         if args:
             print_str_1 = CommonPrint()
             print_str_1.common_log("Parameter input error: " + str(args[0]))
-            raise ValueError("Parameter input error: " + str(args[0]))
+            raise Exception("Parameter input error: " + str(args[0]))
 
         for _key, _value in opts:
             if _key == "-s":
@@ -352,7 +352,7 @@ def parse_parameter():
     except getopt.GetoptError as error:
         print_str_2 = CommonPrint()
         print_str_2.common_log("Parameter input error: " + error.msg)
-        raise ValueError(str(error)) from error
+        raise Exception(str(error)) from error
 
 
 def is_mlnx():
@@ -372,7 +372,7 @@ def is_mlnx():
         return False
 
     if 'MLNX_OFED_LINUX-5.5' in stdout:
-        log("Is mlnx 5.5")
+        LOGGER.info("Is mlnx 5.5")
         return True
 
     ret_code, os_arch, stderr = _exec_popen("uname -i")
@@ -384,14 +384,14 @@ def is_mlnx():
             " ret_code : %s, stdout : %s, stderr : %s" % (ret_code, os_arch, stderr))
         return True
 
-    log("Not mlnx 5.5")
+    LOGGER.info("Not mlnx 5.5")
     return False
 
 
 def is_hinicadm3():
     ret_code, _, sterr = _exec_popen("whereis hinicadm3")
     if ret_code:
-        log("can not find hinicadm3")
+        LOGGER.info("can not find hinicadm3")
         return False
     return True
 
@@ -424,20 +424,20 @@ def check_running_mode(print_str_7):
     # Check running mode
     if len(g_opts.running_mode) == 0 or g_opts.running_mode.lower() not in VALID_RUNNING_MODE:
         print_str_7.common_log("Invalid running mode: " + g_opts.running_mode)
-        raise ValueError("Invalid running mode: " + g_opts.running_mode)
+        raise Exception("Invalid running mode: " + g_opts.running_mode)
     if g_opts.node_id not in [0, 1]:
         print_str_7.common_log("Invalid node id: " + g_opts.node_id)
-        raise ValueError("Invalid node id: " + g_opts.node_id)
+        raise Exception("Invalid node id: " + g_opts.node_id)
     if g_opts.running_mode.lower() in [CANTIAND, CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST] and g_opts.node_id == 1:
         print_str_7.common_log("Invalid node id: " + g_opts.node_id + ", this node id can only run in cluster mode")
-        raise ValueError("Invalid node id: " + g_opts.node_id + ", this node id can only run in cluster mode")
+        raise Exception("Invalid node id: " + g_opts.node_id + ", this node id can only run in cluster mode")
 
 
 def check_logfile_path(print_str_7):
     # Check the legitimacy of the path logfile
     if not check_path(g_opts.log_file):
         print_str_7.common_log("Error: There is invalid character in specified log file.")
-        raise ValueError("Error: There is invalid character in specified log file.")
+        raise Exception("Error: There is invalid character in specified log file.")
 
 
 def init_start_status_file():
@@ -451,7 +451,7 @@ def init_start_status_file():
     except IOError as ex:
         print_str_7.common_log("Error: Can not create or write file: " + CANTIAN_START_STATUS_FILE)
         print_str_7.common_log(str(ex))
-        raise ValueError(str(ex)) from ex
+        raise Exception(str(ex)) from ex
 
 
 def check_log_path():
@@ -477,7 +477,7 @@ def use_default_log_path():
     if not os.path.exists(CANTIAN_INSTALL_LOG_FILE):
         print_str_1 = CommonPrint()
         print_str_1.common_log("The cantian_deploy.log is not exist.")
-        raise ValueError("The cantian_deploy.log is not exist.")
+        raise Exception("The cantian_deploy.log is not exist.")
     g_opts.log_file = CANTIAN_INSTALL_LOG_FILE
 
 
@@ -500,7 +500,6 @@ def log_exit(msg):
     :return: NA
     """
     LOGGER.error(msg)
-    raise ValueError("Execute cantian_install.py failed")
 
 
 def cantian_check_share_logic_ip_isvalid(nodeip):
@@ -517,11 +516,13 @@ def cantian_check_share_logic_ip_isvalid(nodeip):
             return False
         return True
 
-    log("check nfs logic ip address or domain name.")
+    LOGGER.info("check nfs logic ip address or domain name.")
     if not ping_execute("ping") and not ping_execute("ping6"):
-        log_exit("checked the node IP address or domain name failed: %s" % nodeip)
+        err_msg = "checked the node IP address or domain name failed: %s" % nodeip
+        LOGGER.error(err_msg)
+        raise Exception(err_msg)
 
-    log("checked the node IP address or domain name success: %s" % nodeip)
+    LOGGER.info("checked the node IP address or domain name success: %s" % nodeip)
 
 
 def file_reader(file_path):
@@ -620,7 +621,7 @@ class Platform(object):
                 with os.fdopen(os.open(etc_file_name, flags, modes), 'r') as f:
                     firstline = f.readline()
             except Exception as error:
-                log("read first line exception: %s." % str(error))
+                LOGGER.info("read first line exception: %s." % str(error))
                 continue
 
             # when euler, has centos-release
@@ -759,8 +760,8 @@ class Installer:
 
     def __init__(self, user, group):
         """ Constructor for the Installer class. """
-        log("Begin init...")
-        log("Installer runs on python version : " + gPyVersion)
+        LOGGER.info("Begin init...")
+        LOGGER.info("Installer runs on python version : " + gPyVersion)
 
         os.umask(0o27)
 
@@ -838,7 +839,7 @@ class Installer:
 
         self.ctsql_conf = {}
 
-        log("End init")
+        LOGGER.info("End init")
 
     @staticmethod
     def set_sql_redo_size_and_num(db_data_path, create_database_sql):
@@ -948,48 +949,69 @@ class Installer:
         and return process if not legal.
         :return: NA
         """
-        log("Checking parameters.")
+        LOGGER.info("Checking parameters.")
         self.parse_default_config()
         self.parse_key_and_value()
         if len(self.cantiand_configs.get("INTERCONNECT_ADDR")) == 0:
-            log_exit("Database INTERCONNECT_ADDR must input, need -Z parameter.")
+            err_msg = "Database INTERCONNECT_ADDR must input, need -Z parameter."
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         # Check database user
         if g_opts.db_user and g_opts.db_user.lower() != "sys":
-            log_exit("Database connector's name must be [sys].")
+            err_msg = "Database connector's name must be [sys]."
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         if not self.install_path:
-            log_exit("Parameter input error, need -R parameter.")
+            err_msg = "Parameter input error, need -R parameter."
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         self.install_path = os.path.normpath(self.install_path)
         if not self.data:
-            log_exit("Parameter input error, need -D parameter.")
+            err_msg = "Parameter input error, need -D parameter."
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         self.data = os.path.normpath(self.data)
         # Check user
         if not self.user:
-            log_exit("Parameter input error, need -U parameter.")
+            err_msg = "Parameter input error, need -U parameter."
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         os.environ['cantiand_user'] = str(self.user)
         # User must be exist.
         str_cmd = "id -u ${cantiand_user}"
         ret_code, stdout, stderr = _exec_popen(str_cmd)
         if ret_code:
-            log_exit("%s : no such user, command: %s"
-                     "ret_code : %s, stdout : %s, stderr : %s" % (self.user, str_cmd, ret_code, stdout, stderr))
+            err_msg = "%s : no such user, command: %s ret_code : %s, stdout : %s, stderr : %s" % (self.user, str_cmd, ret_code, stdout, stderr)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         if self.option == self.INS_ALL:
             # App data and inst data can't be the same one.
             if self.install_path == self.data:
-                log_exit("Program path should not equal to data path!")
+                err_msg = "Program path should not equal to data path!"
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
             elif self.install_path.find(self.data + os.sep) == 0:
-                log_exit("Can not install program under data path!")
+                err_msg = "Can not install program under data path!"
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
             elif self.data.find(self.install_path + os.sep) == 0:
-                log_exit("Can not install data under program path!")
+                err_msg = "Can not install data under program path!"
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
             else:
-                log("Program path is separated with data path!")
+                LOGGER.info("Program path is separated with data path!")
         # Check the app path
         real_path = os.path.realpath(self.install_path)
         if not check_path(real_path):
-            log_exit("Install program path invalid: " + self.install_path)
+            err_msg = "Install program path invalid: " + self.install_path
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         # Check the data path
         real_path = os.path.realpath(self.data)
         if not check_path(real_path):
-            log_exit("Install data path invalid: " + self.data)
+            err_msg = "Install data path invalid: " + self.data
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         if len(self.cantiand_configs.get("LOG_HOME")) == 0:
             self.cantiand_configs["LOG_HOME"] = os.path.join(self.data, "log")
         if len(self.cantiand_configs.get("SHARED_PATH")) == 0:
@@ -1003,10 +1025,10 @@ class Installer:
 
     def show_parse_result(self):
         # Print the result of parse.
-        log("Using %s:%s to install database" % (self.user, self.group))
-        log("Using install program path : %s" % self.install_path)
-        log("Using option : " + self.option)
-        log("Using install data path : %s" % self.data)
+        LOGGER.info("Using %s:%s to install database" % (self.user, self.group))
+        LOGGER.info("Using install program path : %s" % self.install_path)
+        LOGGER.info("Using option : " + self.option)
+        LOGGER.info("Using install data path : %s" % self.data)
 
         conf_parameters = copy.deepcopy(self.cantiand_configs)
         for key in conf_parameters.keys():
@@ -1016,8 +1038,8 @@ class Installer:
                 conf_parameters[key] = "*"
             elif key.endswith("KEY") and key != "SSL_KEY":
                 conf_parameters[key] = "*"
-        log("Using set cantiand config parameters : " + str(conf_parameters))
-        log("End check parameters.")
+        LOGGER.info("Using set cantiand config parameters : " + str(conf_parameters))
+        LOGGER.info("End check parameters.")
 
     def add_config_for_dbstore(self):
         self.cantiand_configs["CONTROL_FILES"] = "{0}, {1}, {2}".format(os.path.join(self.data, "data/ctrl1"),
@@ -1072,15 +1094,17 @@ class Installer:
         :return: NA
         """
 
-        log("Checking runner.")
+        LOGGER.info("Checking runner.")
         gid = os.getgid()
         uid = os.getuid()
         log("Check runner user id and group id is : %s, %s"
             % (str(uid), str(gid)))
         if (gid != 0 and uid != 0):
-            log_exit("Only user with root privilege can run this script")
+            err_msg = "Only user with root privilege can run this script"
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
 
-        log("End check runner is root")
+        LOGGER.info("End check runner is root")
 
     def chown_log_file(self):
         """
@@ -1093,7 +1117,9 @@ class Installer:
                 gid = grp.getgrnam(self.group).gr_gid
                 os.chown(g_opts.log_file, uid, gid)
         except Exception as ex:
-            log_exit("Can not change log file's owner. Output:%s" % str(ex))
+            err_msg = "Can not change log file's owner. Output:%s" % str(ex)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
 
     def chown_data_dir(self):
         """
@@ -1101,7 +1127,7 @@ class Installer:
         :return:
         """
         cmd = "chown %s:%s -hR \"%s\";" % (self.user, self.group, self.data)
-        log("Change owner cmd: %s" % cmd)
+        LOGGER.info("Change owner cmd: %s" % cmd)
         ret_code, _, stderr = _exec_popen(cmd)
         if ret_code:
             raise Exception(
@@ -1118,21 +1144,24 @@ class Installer:
         :return: NA
         """
 
-        log("Checking old install.")
+        LOGGER.info("Checking old install.")
 
         # Check $CTDB_HOME.
         str_cmd = "echo ~"
         ret_code, stdout, stderr = _exec_popen(str_cmd)
         if ret_code:
-            log_exit("Can not get user home."
-                     "ret_code : %s, stdout : %s, stderr : %s" % (ret_code, stdout, stderr))
+            err_msg = "Can not get user home. ret_code : %s, stdout : %s, stderr : %s" % (ret_code, stdout, stderr)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         # Get the profile of user.
         output = os.path.realpath(os.path.normpath(stdout))
         if (not check_path(output)):
-            log_exit("The user home directory is invalid.")
+            err_msg = "The user home directory is invalid."
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         self.user_profile = os.path.join(output, ".bashrc")
         self.user_home_path = output
-        log("Using user profile : " + self.user_profile)
+        LOGGER.info("Using user profile : " + self.user_profile)
 
         is_find = False
         try:
@@ -1141,14 +1170,20 @@ class Installer:
             with os.fdopen(os.open(self.user_profile, flags, modes), 'r') as _file:
                 is_find = self.dealwith_gsdb(is_find, _file)
         except IOError as ex:
-            log_exit("Can not read user profile: " + str(ex))
+            err_msg = "Can not read user profile: " + str(ex)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         except IndexError as ex:
-            log_exit("Failed to read user profile: %s" % str(ex))
+            err_msg = "Failed to read user profile: %s" % str(ex)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
 
         if is_find:
-            log_exit("Database has been installed already.")
+            err_msg = "Database has been installed already."
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
 
-        log("End check old install.")
+        LOGGER.info("End check old install.")
 
     def dealwith_gsdb(self, is_find, _file):
         while True:
@@ -1176,10 +1211,14 @@ class Installer:
             self.old_data_path = os.path.normpath(self.old_data_path)
             real_path = os.path.realpath(self.old_data_path)
             if not check_path(real_path):
-                log_exit("The Path specified by CTDB_DATA is invalid.")
-            log("Old data path: " + self.old_data_path)
+                err_msg = "The Path specified by CTDB_DATA is invalid."
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
+            LOGGER.info("Old data path: " + self.old_data_path)
             if self.option == self.INS_ALL and self.old_data_path != self.data:
-                log_exit("User CTDB_DATA is different from -D parameter value")
+                err_msg = "User CTDB_DATA is different from -D parameter value"
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
         # deal with the CTDB_DATA path without """
         elif (len(user_info) >= 2 and user_info[0] == "export"
               and user_info[1].startswith("CTDB_DATA=") > 0):
@@ -1187,10 +1226,14 @@ class Installer:
             self.old_data_path = os.path.normpath(self.old_data_path)
             real_path = os.path.realpath(self.old_data_path)
             if (not check_path(real_path)):
-                log_exit("The Path specified by CTDB_DATA is invalid.")
-            log("Old data path: " + self.old_data_path)
+                err_msg = "The Path specified by CTDB_DATA is invalid."
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
+            LOGGER.info("Old data path: " + self.old_data_path)
             if self.option == self.INS_ALL and self.old_data_path != self.data:
-                log_exit("User CTDB_DATA is different from -D parameter value")
+                err_msg = "User CTDB_DATA is different from -D parameter value"
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
 
     def check_permission(self, original_path, check_enter_only=False):
         """
@@ -1280,30 +1323,42 @@ class Installer:
                         str_cmd = "netstat -unltp | grep %s" % value
                         ret_code, stdout, stderr = _exec_popen(str_cmd)
                         if ret_code:
-                            log_exit("can not get detail information of the"
-                                     " port, command: %s."
-                                     "ret_code : %s, stdout : %s, stderr : %s" % (str_cmd, ret_code, stdout, stderr))
-                        log_exit(str(stdout))
+                            err_msg = "can not get detail information of the port, command: %s. ret_code : %s, stdout : %s, stderr : %s" % (str_cmd, ret_code, stdout, stderr)
+                            LOGGER.error(err_msg)
+                            raise Exception(err_msg)
+                        LOGGER.error(str(stdout))
+                        raise Exception(str(stdout))
                 except ValueError as ex:
-                    log_exit("check port failed: " + str(ex))
+                    LOGGER.error("check port failed: " + str(ex))
+                    raise Exception("check port failed: " + str(ex))
             else:
-                log_exit("This install script can not support python version"
-                         " : " + gPyVersion)
+                err_msg = "This install script can not support python version : " + gPyVersion
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
 
     def check_inner_port(self, value):
         time_out = 2
         if not value:
-            log_exit("the number of port is null.")
+            err_msg = "the number of port is null."
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         if not value.isdigit():
-            log_exit("illegal number of port.")
+            err_msg = "illegal number of port."
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         try:
             inner_port = int(value)
             if inner_port < 0 or inner_port > 65535:
-                log_exit("illegal number of port.")
+                err_msg = "illegal number of port."
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
             if inner_port >= 0 and inner_port <= 1023:
-                log_exit("system reserve port.")
+                err_msg = "system reserve port."
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
         except ValueError as ex:
-            log_exit("check port failed: " + str(ex))
+            LOGGER.error("check port failed: " + str(ex))
+            raise Exception("check port failed: " + str(ex))
         return time_out, inner_port
 
     #########################################################################
@@ -1316,7 +1371,7 @@ class Installer:
         input : ip
         output: NA
         """
-        log("check the node IP address.")
+        LOGGER.info("check the node IP address.")
         if get_value("cantian_in_container") == '0':
             try:
                 socket.inet_aton(node_ip)
@@ -1326,7 +1381,9 @@ class Installer:
                     socket.inet_pton(socket.AF_INET6, node_ip)
                     self.ipv_type = "ipv6"
                 except socket.error:
-                    log_exit("The invalid IP address : %s is not ipv4 or ipv6 format." % node_ip)
+                    err_msg = "The invalid IP address : %s is not ipv4 or ipv6 format." % node_ip
+                    LOGGER.error(err_msg)
+                    raise Exception(err_msg)
 
         if self.ipv_type == "ipv6":
             ping_cmd = "ping6"
@@ -1338,8 +1395,9 @@ class Installer:
         ret_code, stdout, stderr = _exec_popen(cmd)
 
         if ret_code or stdout != '3':
-            log_exit("The invalid IP address is %s. "
-                     "ret_code : %s, stdout : %s, stderr : %s" % (node_ip, ret_code, stdout, stderr))
+            err_msg = "The invalid IP address is %s. ret_code : %s, stdout : %s, stderr : %s" % (node_ip, ret_code, stdout, stderr)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
 
         if all_zero_addr_after_ping(node_ip):
             ip_is_found = 1
@@ -1352,10 +1410,11 @@ class Installer:
             ip_is_found = 0
 
         if ret_code or not int(ip_is_found):
-            log_exit("The invalid IP address is %s. "
-                     "ret_code : %s, ip_is_found : %s, stderr : %s" % (node_ip, ret_code, ip_is_found, stderr))
+            err_msg = "The invalid IP address is %s. ret_code : %s, ip_is_found : %s, stderr : %s" % (node_ip, ret_code, ip_is_found, stderr)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
 
-        log("checked the node IP address : %s" % node_ip)
+        LOGGER.info("checked the node IP address : %s" % node_ip)
 
     #########################################################################
     # Check the operating system kernel parameters and exit if they do
@@ -1363,16 +1422,18 @@ class Installer:
     #########################################################################
     def set_numa_config(self):
         if not os.path.exists('/usr/bin/lscpu'):
-            log("Warning: lscpu path get error")
+            LOGGER.info("Warning: lscpu path get error")
             return
 
         ret_code, result, stderr = _exec_popen('/usr/bin/lscpu | grep -i "NUMA node(s)"')
         if ret_code:
-            log_exit("can not get numa node parameters, err: %s" % stderr)
+            err_msg = "can not get numa node parameters, err: %s" % stderr
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         _result = result.strip().split(':')
 
         if len(_result) != 2:
-            log("Warning: numa get error, result:%s" % result)
+            LOGGER.info("Warning: numa get error, result:%s" % result)
             return
 
         numa_num = 0
@@ -1381,13 +1442,13 @@ class Installer:
         numa_cpu_num = 6
         # 判断_result[1].strip()
         if not _result[1].strip().isdigit():
-            log("Warning: numa(s) size get error, result:%s" % result)
+            LOGGER.info("Warning: numa(s) size get error, result:%s" % result)
             return
         while numa_num < int(_result[1].strip()):
             err_code, ans, err_msg = _exec_popen('/usr/bin/lscpu | grep -i "NUMA node%s"' % numa_num)
             _ans = ans.strip().split(':')
             if len(_ans) != 2:
-                log("Warning: numa node get error, ans:%s" % ans)
+                LOGGER.info("Warning: numa node get error, ans:%s" % ans)
                 return
             numa_str = _ans[1].strip()
             if platform.machine() == 'aarch64' and numa_num == 0:
@@ -1409,7 +1470,7 @@ class Installer:
         not meet the requirements of the database。
         :return: NA
         """
-        log("Checking kernel parameters.")
+        LOGGER.info("Checking kernel parameters.")
         # GB MB kB
         tmp_gb = 1024 * 1024 * 1024
         tmp_mb = 1024 * 1024
@@ -1437,7 +1498,8 @@ class Installer:
                                                               shared_pool_size, log_buffer_size)
                 sga_buff_size = self.do_unit_conversion(get_unit_conversion_info)
             except ValueError as ex:
-                log_exit("check kernel parameter failed: " + str(ex))
+                LOGGER.error("check kernel parameter failed: " + str(ex))
+                raise Exception("check kernel parameter failed: " + str(ex))
 
         if self.lsnr_addr != "":
             if not g_opts.cantian_in_container:
@@ -1445,8 +1507,9 @@ class Installer:
                 # Check the ip address
                 for item in _list:
                     if len(_list) != 1 and all_zero_addr_after_ping(item):
-                        log_exit("lsnr_addr contains all-zero ip,"
-                                " can not specify other ip.")
+                        err_msg = "lsnr_addr contains all-zero ip, can not specify other ip."
+                        LOGGER.error(err_msg)
+                        raise Exception(err_msg)
                     self.check_ip_is_vaild(item)
         else:
             # If this parameter is empty, the IPv4 is used by default.
@@ -1471,18 +1534,23 @@ class Installer:
                "|SwapCached' |awk '{sum += $2};END {print sum}'")
         ret_code, cur_avi_memory, stderr = _exec_popen(cmd)
         if ret_code:
-            log_exit("can not get shmmax parameters, command: %s, err: %s" % (cmd, stderr))
+            err_msg = "can not get shmmax parameters, command: %s, err: %s" % (cmd, stderr)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         if sga_buff_size < 114 * tmp_mb:
-            log_exit("sga_buff_size should bigger than or equal to 114*MB,"
-                     " please check it!")
+            err_msg = "sga_buff_size should bigger than or equal to 114*MB, please check it!"
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         try:
             if sga_buff_size > int(cur_avi_memory) * tmp_kb:
-                log_exit("sga_buff_size should smaller than shmmax,"
-                         " please check it!")
+                err_msg = "sga_buff_size should smaller than shmmax, please check it!"
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
         except ValueError as ex:
-            log_exit("check kernel parameter failed: " + str(ex))
+            LOGGER.error("check kernel parameter failed: " + str(ex))
+            raise Exception("check kernel parameter failed: " + str(ex))
 
-        log("End check kernel parameters")
+        LOGGER.info("End check kernel parameters")
 
     @staticmethod
     def check_pare_bool_value(key, value):
@@ -1493,7 +1561,7 @@ class Installer:
         elif value == "FALSE":
             return False
         else:
-            raise ValueError("The value of %s must in [True, False]." % key)
+            raise Exception("The value of %s must in [True, False]." % key)
 
     @staticmethod
     def kmc_resovle_password(mode, plain_text):
@@ -1528,10 +1596,11 @@ class Installer:
         cms_conf = "/opt/cantian/cms/cfg/cms.ini"
         str_cmd = f"sed -i '/_CMS_MES_SSL_KEY_PWD = None/d' {cms_conf}" \
                   f"&& echo '_CMS_MES_SSL_KEY_PWD = {passwd}' >> {cms_conf}"
-        log("Copy config files cmd: " + str_cmd)
+        LOGGER.info("Copy config files cmd: " + str_cmd)
         ret_code, _, stderr = _exec_popen(str_cmd)
         if ret_code:
-            log_exit("update cms.ini failed: " + str(ret_code) + os.linesep + stderr)
+            LOGGER.error("update cms.ini failed: " + str(ret_code) + os.linesep + stderr)
+            raise Exception("update cms.ini failed: " + str(ret_code) + os.linesep + stderr)
     
     @staticmethod
     def set_mes_passwd(passwd):
@@ -1625,12 +1694,13 @@ class Installer:
             str_cmd += ("&& chmod %s '%s'/package.xml"
                         % (CommonValue.MIN_FILE_MODE, self.install_path))
 
-        log("Change app permission cmd: %s" % str_cmd)
+        LOGGER.info("Change app permission cmd: %s" % str_cmd)
         ret_code, _, stderr = _exec_popen(str_cmd)
         if ret_code:
             self.failed_pos = self.DECOMPRESS_BIN_FAILED
-            log_exit("chmod %s return: " % CommonValue.KEY_DIRECTORY_MODE
-                     + str(ret_code) + os.linesep + stderr)
+            err_msg = "chmod %s return: " % CommonValue.KEY_DIRECTORY_MODE + str(ret_code) + os.linesep + stderr
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         # 管控面使用
         str_cmd = "chmod %s %s " % (CommonValue.MAX_DIRECTORY_MODE,
                                     self.install_path)
@@ -1638,12 +1708,13 @@ class Installer:
                                         os.path.join(self.install_path, "admin"))
         str_cmd += "&& chmod %s %s" % (CommonValue.MAX_DIRECTORY_MODE,
                                        os.path.join(self.install_path, "admin", "scripts"))
-        log("Change app server/admin/scripts dir for om. cmd: %s" % str_cmd)
+        LOGGER.info("Change app server/admin/scripts dir for om. cmd: %s" % str_cmd)
         ret_code, _, stderr = _exec_popen(str_cmd)
         if ret_code:
             self.failed_pos = self.DECOMPRESS_BIN_FAILED
-            log_exit("chmod %s return: " % CommonValue.KEY_DIRECTORY_MODE
-                     + str(ret_code) + os.linesep + stderr)
+            err_msg = "chmod %s return: " % CommonValue.KEY_DIRECTORY_MODE + str(ret_code) + os.linesep + stderr
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
 
     def verify_new_passwd(self, passwd, shortest_len):
         """
@@ -1652,14 +1723,14 @@ class Installer:
         """
         # eg 'length in [8-64]'
         if len(passwd) < shortest_len or len(passwd) > 64:
-            raise ValueError("The length of password must be %s to 64."
+            raise Exception("The length of password must be %s to 64."
                              % shortest_len)
 
         # Can't save with user name
         if passwd == self.user:
-            raise ValueError("Error: Password can't be the same as username.")
+            raise Exception("Error: Password can't be the same as username.")
         elif passwd == self.user[::-1]:
-            raise ValueError("Error: Password cannot be the same as username "
+            raise Exception("Error: Password cannot be the same as username "
                              "in reverse order")
 
         upper_cases = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -1674,14 +1745,14 @@ class Installer:
             if passwd_set & cases:
                 types += 1
         if types < 3:
-            raise ValueError("Error: Password must contains at least three"
+            raise Exception("Error: Password must contains at least three"
                              " different types of characters.")
 
         # Only can contains enumerated cases
         all_cases = upper_cases | lower_cases | digits | special_cases
         un_cases = passwd_set - all_cases
         if un_cases:
-            raise ValueError("Error: There are characters that are not"
+            raise Exception("Error: There are characters that are not"
                              " allowed in the password: '%s'"
                              % "".join(un_cases))
 
@@ -1706,12 +1777,12 @@ class Installer:
                 break
             print_str_3.common_log("Passwd not match.")
         else:
-            raise ValueError("Failed to get new %s." % pw_prompt)
+            raise Exception("Failed to get new %s." % pw_prompt)
 
         if new_passwd:
             return new_passwd
         else:
-            raise ValueError("Failed to get new %s." % pw_prompt)
+            raise Exception("Failed to get new %s." % pw_prompt)
 
     def check_sys_passwd(self):
         """
@@ -1721,7 +1792,7 @@ class Installer:
         # 0. "_SYS_PASSWORD" can't be set when ENABLE_SYSDBA_LOGIN is False
         sys_password = self.cantiand_configs["_SYS_PASSWORD"]
         if not self.enable_sysdba_login and len(sys_password) != 0:
-            raise ValueError("Can't use _SYS_PASSWORD to set the password of "
+            raise Exception("Can't use _SYS_PASSWORD to set the password of "
                              "user [SYS] in the installation script when "
                              "ENABLE_SYSDBA_LOGIN is False.")
 
@@ -1743,7 +1814,7 @@ class Installer:
                 g_opts.db_passwd = _get_input("")
             except EOFError as error:
                 # Not find passwd from pipe
-                raise ValueError("The content got from pipe not find passwd.") from error
+                raise Exception("The content got from pipe not find passwd.") from error
             self.verify_new_passwd(g_opts.db_passwd, 8)
 
     def install_xnet_lib(self):
@@ -1754,17 +1825,19 @@ class Installer:
         else:
             str_cmd = "cp -rf %s/add-ons/nomlnx/lib* %s/add-ons/" % (self.install_path, self.install_path)
 
-        log("Install xnet lib cmd: " + str_cmd)
+        LOGGER.info("Install xnet lib cmd: " + str_cmd)
         ret_code, _, stderr = _exec_popen(str_cmd)
         if ret_code:
-            log_exit("Install xnet lib return: " + str(ret_code) + os.linesep + stderr)
+            LOGGER.error("Install xnet lib return: " + str(ret_code) + os.linesep + stderr)
+            raise Exception("Install xnet lib return: " + str(ret_code) + os.linesep + stderr)
 
     def install_kmc_lib(self):
         str_cmd = "cp -rf %s/add-ons/kmc_shared/lib* %s/add-ons/" % (self.install_path, self.install_path)
-        log("install kmc lib cmd:" + str_cmd)
+        LOGGER.info("install kmc lib cmd:" + str_cmd)
         ret_code, _, stderr = _exec_popen(str_cmd)
         if ret_code:
-            log_exit("Install kmc lib return: " + str(ret_code) + os.linesep + stderr)
+            LOGGER.error("Install kmc lib return: " + str(ret_code) + os.linesep + stderr)
+            raise Exception("Install kmc lib return: " + str(ret_code) + os.linesep + stderr)
 
     #########################################################################
     # Unzip the installation files to the installation directory.
@@ -1778,7 +1851,7 @@ class Installer:
                         "Cantian-RUN-CENTOS-64bit.tar.gz"
         self.run_pkg_name = self.get_decompress_tarname(self.run_file)
 
-        log("Decompressing run file.")
+        LOGGER.info("Decompressing run file.")
 
         if g_opts.use_dbstor:
             os.makedirs("%s/dbstor/conf/dbs" % self.data, CommonValue.KEY_DIRECTORY_PERMISSION)
@@ -1798,11 +1871,12 @@ class Installer:
             str_cmd += " && sed -i '/^\s*$/d' %s/dbstor/conf/dbs/dbstor_config.ini" % (self.data)
             str_cmd += " && chown -R %s:%s %s/dbstor" % (self.user, self.group, self.data)
             str_cmd += " && chmod 640 %s/dbstor/conf/dbs/dbstor_config.ini" % (self.data)
-            log("Copy config files cmd: " + str_cmd)
+            LOGGER.info("Copy config files cmd: " + str_cmd)
             ret_code, _, stderr = _exec_popen(str_cmd)
             if ret_code:
                 self.failed_pos = self.DECOMPRESS_BIN_FAILED
-                log_exit("Decompress bin return: " + str(ret_code) + os.linesep + stderr)
+                LOGGER.error("Decompress bin return: " + str(ret_code) + os.linesep + stderr)
+                raise Exception("Decompress bin return: " + str(ret_code) + os.linesep + stderr)
 
         if not g_opts.cantian_in_container:
             cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
@@ -1817,14 +1891,15 @@ class Installer:
         str_cmd = "chown %s:%s -hR %s " % (self.user, self.group,
                                            self.install_path)
         # Change the owner
-        log("Change owner cmd: %s" % str_cmd)
+        LOGGER.info("Change owner cmd: %s" % str_cmd)
         ret_code, _, stderr = _exec_popen(str_cmd)
         if ret_code:
             self.failed_pos = self.DECOMPRESS_BIN_FAILED
-            log_exit("chown to %s: %s return: %s%s%s"
-                     % (self.user, self.group, str(ret_code), os.linesep, stderr))
+            err_msg = "chown to %s: %s return: %s%s%s" % (self.user, self.group, str(ret_code), os.linesep, stderr)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
 
-        log("End decompress bin file.")
+        LOGGER.info("End decompress bin file.")
 
     def export_user_env(self):
         try:
@@ -1856,7 +1931,8 @@ class Installer:
                 _file.flush()
         except IOError as ex:
             self.failed_pos = self.SET_ENV_FAILED
-            log_exit("Can not set user environment variables: %s" % str(ex))
+            LOGGER.error("Can not set user environment variables: %s" % str(ex))
+            raise Exception("Can not set user environment variables: %s" % str(ex))
 
     def set_user_env(self):
         """
@@ -1870,7 +1946,7 @@ class Installer:
             4. export CTDB_HOME=the value of '-R'
         :return: NA
         """
-        log("Setting user env.")
+        LOGGER.info("Setting user env.")
         # set PATH, LD_LIBRARY_PATH
         self.export_user_env()
         # Avoid create database failed by the value of CTSQL_SSL_KEY_PASSWD
@@ -1900,7 +1976,7 @@ class Installer:
         os.environ["CTSQL_SSL_KEY"] = ""
         os.environ["CTSQL_SSL_MODE"] = ""
         os.environ["CTSQL_SSL_KEY_PASSWD"] = ""
-        log("End set user env.")
+        LOGGER.info("End set user env.")
 
     def set_new_conf(self, param_dict, conf_file):
         """
@@ -2085,12 +2161,13 @@ class Installer:
         """Replace host to hostssl in cthba.conf"""
         cthba_file = os.path.join(self.data, "cfg", self.CANTIAND_HBA_FILE)
         cmd = "sed -i 's#^host #hostssl #g' %s" % cthba_file
-        log("Set white list from host to hostssl.")
+        LOGGER.info("Set white list from host to hostssl.")
         ret_code, _, stderr = _exec_popen(cmd)
         if ret_code:
             err_msg = "Failed to set user white list from host to hostssl."
-            log(err_msg + " Error: %s" % stderr)
-            log_exit(err_msg)
+            LOGGER.info(err_msg + " Error: %s" % stderr)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
 
     def add_cthba_item(self):
         """Add INTERCONNECT_ADDR and ip white list to cthba.conf"""
@@ -2126,7 +2203,7 @@ class Installer:
         :return: NA
         """
 
-        log("Initialize db instance.")
+        LOGGER.info("Initialize db instance.")
         try:
             self.failed_pos = self.INIT_DB_FAILED
             # Set cthba.conf to hostssl
@@ -2137,10 +2214,10 @@ class Installer:
             self.set_conf(self.cantiand_configs, self.CANTIAND_CONF_FILE, g_opts.isencrept)
             self.set_cluster_conf()
         except Exception as error:
-            log_exit(str(error))
-            raise ValueError(str(error)) from error
+            LOGGER.error(str(error))
+            raise Exception(str(error)) from error
 
-        log("End init db instance")
+        LOGGER.info("End init db instance")
 
     def genregstring(self, text):
         """
@@ -2149,7 +2226,7 @@ class Installer:
         :param text: string path
         :return: NA
         """
-        log("Begin gen regular string...")
+        LOGGER.info("Begin gen regular string...")
         if not text:
             return ""
         ins_str = text
@@ -2160,26 +2237,28 @@ class Installer:
                 continue
             else:
                 reg_string += r"\/" + i
-        log("End gen regular string")
+        LOGGER.info("End gen regular string")
         return reg_string
 
     def __clean_env_cmd(self, cmds):
         # do clean
         for cmd in cmds:
             cmd = 'sed -i "%s" "%s"' % (cmd, self.user_profile)
-            log("Clean environment variables cmd: %s" % cmd)
+            LOGGER.info("Clean environment variables cmd: %s" % cmd)
             ret_code, _, stderr = _exec_popen(cmd)
             if ret_code:
                 log("Failed to clean environment variables."
                     " Error: %s" % stderr)
-                log_exit("Failed to clean environment variables.")
+                err_msg = "Failed to clean environment variables."
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
 
     def clean_ssl_env(self):
         """
         Clear environment variables about ssl
         :return: NA
         """
-        log("Begin clean user environment variables about ssl...")
+        LOGGER.info("Begin clean user environment variables about ssl...")
         # Clear environment ssl cert
         ca_cmd = r"/^\s*export\s*CTSQL_SSL_CA=.*$/d"
         cert_cmd = r"/^\s*export\s*CTSQL_SSL_CERT=.*$/d"
@@ -2190,14 +2269,14 @@ class Installer:
 
         # do clean
         self.__clean_env_cmd(cmds)
-        log("End clean user environment variables about ssl...")
+        LOGGER.info("End clean user environment variables about ssl...")
 
     def clean_environment(self):
         """
         Clear environment variables
         :return: NA
         """
-        log("Begin clean user environment variables...")
+        LOGGER.info("Begin clean user environment variables...")
 
         # Clear environment variable CTDB_DATA
         data_cmd = r"/^\s*export\s*CTDB_DATA=.*$/d"
@@ -2227,34 +2306,34 @@ class Installer:
 
         # do clean
         self.__clean_env_cmd(cmds)
-        log("End clean user environment variables...")
+        LOGGER.info("End clean user environment variables...")
 
     def rollback_data_dirs(self):
         if os.path.exists(self.data):
             shutil.rmtree(self.data)
-            log("Roll back: " + self.data)
+            LOGGER.info("Roll back: " + self.data)
 
     def rollback_from_decompress(self):
         if os.path.exists(self.install_path):
             shutil.rmtree(self.install_path)
-            log("Roll back: " + self.install_path)
+            LOGGER.info("Roll back: " + self.install_path)
         if self.option == self.INS_ALL:
             # Delete data
             self.rollback_data_dirs()
 
     def rollback_from_set_user_env(self):
-        log("Using user profile: " + self.user_profile)
+        LOGGER.info("Using user profile: " + self.user_profile)
         # Delete program
         if os.path.exists(self.install_path):
             shutil.rmtree(self.install_path)
-            log("Roll back: remove " + self.install_path)
+            LOGGER.info("Roll back: remove " + self.install_path)
         if self.option == self.INS_ALL:
             # Delete data
             self.rollback_data_dirs()
         # Delete env value
         self.clean_environment()
 
-        log("Roll back: profile is updated ")
+        LOGGER.info("Roll back: profile is updated ")
 
     def __kill_process(self, process_name):
         # root do install, need su - user kill process
@@ -2263,11 +2342,12 @@ class Installer:
                     r"|awk '{print $2}'` && " % process_name)
         kill_cmd += (r"(if [ X\"$proc_pid_list\" != X\"\" ];then echo "
                      r"$proc_pid_list | xargs kill -9; fi)")
-        log("kill process cmd: %s" % kill_cmd)
+        LOGGER.info("kill process cmd: %s" % kill_cmd)
         ret_code, stdout, stderr = _exec_popen(kill_cmd)
         if ret_code:
-            log_exit("kill process %s faild."
-                     "ret_code : %s, stdout : %s, stderr : %s" % (process_name, ret_code, stdout, stderr))
+            err_msg = "kill process %s faild. ret_code : %s, stdout : %s, stderr : %s" % (process_name, ret_code, stdout, stderr)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
 
     #######################################################################
     # check datadir and prepare cfg/cantiand.ini,
@@ -2286,7 +2366,7 @@ class Installer:
         try:
             self.failed_pos = self.PRE_DATA_DIR_FAILED
             str_cmd = "chmod %s %s" % (CommonValue.KEY_DIRECTORY_MODE, self.data)
-            log("Change privilege cmd: %s" % str_cmd)
+            LOGGER.info("Change privilege cmd: %s" % str_cmd)
             ret_code, _, stderr = _exec_popen(str_cmd)
             if ret_code:
                 raise Exception(
@@ -2327,7 +2407,8 @@ class Installer:
             # Change the owner of config files
             self.chown_data_dir()
         except Exception as ex:
-            log_exit(str(ex))
+            LOGGER.error(str(ex))
+            raise Exception(str(ex))
 
     def setcap(self):
         """
@@ -2343,7 +2424,7 @@ class Installer:
         if ret_code:
             output = stdout + stderr
             raise Exception("Failed to setcap.\ncmd: %s.\nOutput: %s" % (cmd, output))
-        log("setcap successed")
+        LOGGER.info("setcap successed")
 
     ##################################################################
     # start cantian instance
@@ -2354,7 +2435,7 @@ class Installer:
         input : start mode, start type
         output: NA
         """
-        log("Starting cantiand...")
+        LOGGER.info("Starting cantiand...")
         # start cantian dn
         flags = os.O_RDONLY
         modes = stat.S_IWUSR | stat.S_IRUSR
@@ -2399,6 +2480,15 @@ class Installer:
             raise Exception("Can not get instance '%s' process pid,"
                             "The detailed information: '%s' " % (self.data, tem_log_info))
         log("cantiand has started")
+        flags = os.O_RDWR | os.O_CREAT
+        modes = stat.S_IWUSR | stat.S_IRUSR
+        with os.fdopen(os.open(CANTIAN_START_STATUS_FILE, flags, modes), 'w+') as load_fp:
+            start_parameters = json.load(load_fp)
+            start_status_item = {'mysql_init': "done"}
+            start_parameters.update(start_status_item)
+            load_fp.seek(0)
+            load_fp.truncate()
+            json.dump(start_parameters, load_fp)
 
     def get_invalid_parameter(self):
         log_home = self.cantiand_configs["LOG_HOME"]
@@ -2407,7 +2497,7 @@ class Installer:
         ret_code, stdout, stderr = _exec_popen(cmd)
         output = stdout + stderr
         if ret_code:
-            log("Failed to get the error message from '%s'. Output: %s" % (run_log, output))
+            LOGGER.info("Failed to get the error message from '%s'. Output: %s" % (run_log, output))
             return ""
         else:
             return output
@@ -2433,12 +2523,12 @@ class Installer:
                 break
             else:
                 all_the_text = open(status_log).read()
-                log("Instance start log output: %s, cmd: %s" % (str(all_the_text), str(cmd)))
+                LOGGER.info("Instance start log output: %s, cmd: %s" % (str(all_the_text), str(cmd)))
                 if all_the_text.find("instance started") >= 0:
                     if stdout:
                         status_success = True
                         self.pid = stdout.strip()
-                        log("start instance successfully, pid = %s" % stdout)
+                        LOGGER.info("start instance successfully, pid = %s" % stdout)
                         break
                 elif all_the_text.find("instance startup failed") > 0:
                     status_success = False
@@ -2455,7 +2545,7 @@ class Installer:
                 status_success = False
                 tem_log_info = "Instance startup timeout, more than 900s"
             elif (i % 30) != 0:
-                log("Instance startup in progress, please wait.")
+                LOGGER.info("Instance startup in progress, please wait.")
         return tem_log_info, status_success
 
     def update_factor_key(self):
@@ -2496,7 +2586,7 @@ class Installer:
         output = "%s%s".replace("password", "***") % (str(stdout_data), str(stderr_data))
         if g_opts.db_passwd in output:
             output = "execute ctsql file failed"
-        log("Execute sql file %s output: %s" % (sql_file, output))
+        LOGGER.info("Execute sql file %s output: %s" % (sql_file, output))
         if return_code:
             raise Exception("Failed to execute sql file %s, output:%s" % (sql_file, output))
 
@@ -2557,7 +2647,7 @@ class Installer:
         input : NA
         output: NA
         """
-        log("Creating database.")
+        LOGGER.info("Creating database.")
 
         cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
 
@@ -2586,7 +2676,7 @@ class Installer:
         self.backup_log_dir = "/tmp/bak_log"
         if os.path.exists(self.backup_log_dir):
             shutil.rmtree(self.backup_log_dir)
-            log("rm the backup log of cantiand " + self.backup_log_dir)
+            LOGGER.info("rm the backup log of cantiand " + self.backup_log_dir)
 
         # Clean the old status log
         self.status_log = "%s/log/cantianstatus.log" % self.data
@@ -2604,15 +2694,61 @@ class Installer:
         try:
             # 1.start dn process in nomount or mount mode
             self.failed_pos = self.CREATE_DB_FAILED
-            cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
-            self.start_cantiand()
-            log("Creating cantian database...")
-            cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
-            self.create_db()
+            mysql_init = True
+            with os.fdopen(os.open(CANTIAN_START_STATUS_FILE, flags, modes), 'r') as load_fp:
+                start_parameters = json.load(load_fp)
+            if start_parameters.setdefault('mysql_init', "default") == "done":
+                mysql_init = False
+            if g_opts.node_id != 0:
+                # node 1
+                self.failed_pos = self.CREATE_DB_FAILED
+                cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
+                LOGGER.info('Begin to start node1')
+                with os.fdopen(os.open(CONFIG_PARAMS_FILE, flags, modes), 'r') as fp:
+                    json_data = json.load(fp)
+                    is_metadata_in_cantian = str(json_data.get('mysql_metadata_in_cantian', 'True'))
+                if is_metadata_in_cantian != 'True':
+                    # 非归一，第一次是初始化，需要第二次start
+                    log('mysql initialize...........')
+                    self.start_cantiand()
+                    if g_opts.running_mode in VALID_SINGLE_MYSQL_RUNNING_MODE and mysql_init:
+                        # 若是首次拉起且单进程，还需二次启动mysql；否则退出
+                        cmd = "pidof mysqld"
+                        log('wait for mysqld init complete.....................')
+                        while True:
+                            return_code, stdout_data, _ = _exec_popen(cmd)
+                            if return_code or not stdout_data:
+                                break
+                            time.sleep(2)
+                        self.start_cantiand()
+                else:
+                    # 归一，第一次直接正常拉起 || 后续启停逻辑一样，也是正常拉起，不初始化
+                    self.start_cantiand(no_init=True)
+            else:
+                # node 0
+                # 1.start dn process in nomount or mount mode
+                cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
+                self.start_cantiand()
+                log("Creating cantian database...")
+                log('wait for cantiand thread startup')
+                time.sleep(20)
+                self.create_db()
+
+                if g_opts.running_mode in VALID_SINGLE_MYSQL_RUNNING_MODE and mysql_init: 
+                    # 第二次拉起mysqld。
+                    cmd = "pidof mysqld"
+                    log('wait for mysqld init complete.....................')
+                    while True:
+                        return_code, stdout_data, _ = _exec_popen(cmd)
+                        if return_code or not stdout_data:
+                            break
+                        time.sleep(2)
+                    self.start_cantiand()
         except Exception as error:
-            log_exit(str(error))
+            LOGGER.error(str(error))
+            raise Exception(str(error))
         self.check_db_status()
-        log("Creating database succeed.")
+        LOGGER.info("Creating database succeed.")
 
     def create_db(self):
         if skip_execute_in_node_1():
@@ -2662,17 +2798,19 @@ class Installer:
             try:
                 res = self.execute_sql(sql_cmd, message)
             except Exception as _err:
-                log(str(_err))
+                LOGGER.info(str(_err))
                 continue
             if "1 rows fetched" not in res:
                 continue
             db_status = re.split(r"\s+", re.split(r"\n+", res.strip())[-2].strip())[1].strip()
-            log("ctsql db status: %s" % db_status)
+            LOGGER.info("ctsql db status: %s" % db_status)
             if db_status == "OPEN":
-                log("Cantiand start success, db status: %s" % db_status)
+                LOGGER.info("Cantiand start success, db status: %s" % db_status)
                 return
         else:
-            log_exit("Cantiand start timeout, db status:%s" % db_status)
+            err_msg = "Cantiand start timeout, db status:%s" % db_status
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
 
     def get_database_file(self):
         if self.create_db_file:
@@ -2741,7 +2879,7 @@ class Installer:
     def get_ctencrypt_keys(self, skip_execute_sql=False):
         """Set the config about _FACTOR_KEY and LOCAL_KEY."""
         # Generate Key and WorkKey
-        log("Generate encrypted keys.")
+        LOGGER.info("Generate encrypted keys.")
         cmd = "%s/bin/ctencrypt -g" % self.install_path
         ret_code, stdout, stderr = _exec_popen(cmd)
         if ret_code:
@@ -2763,12 +2901,12 @@ class Installer:
             sql = "ALTER SYSTEM SET LOCAL_KEY = '%s' " % work_key
             self.execute_sql(sql, "set the value of LOCAL_KEY")
 
-        log("Generate encrypted keys successfully.")
+        LOGGER.info("Generate encrypted keys successfully.")
         return key_, work_key
 
     def get_ctencrypt_keys_and_file(self):
         """Set the config about _FACTOR_KEY and LOCAL_KEY."""
-        log("Generate encrypted keys.")
+        LOGGER.info("Generate encrypted keys.")
         f_factor1 = os.path.join(self.data, "dbs", "zenith_key1")
         f_factor2 = os.path.join(self.data, "dbs", "zenith_key2")
 
@@ -2799,12 +2937,12 @@ class Installer:
         os.chown(f_factor2, uid, gid)
         os.chmod(f_factor2, CommonValue.KEY_FILE_PERMISSION)
 
-        log("Generate encrypted keys successfully.")
+        LOGGER.info("Generate encrypted keys successfully.")
         return key_, work_key
 
     def encrypt_ssl_key_passwd(self, key_, work_key, ssl_passwd, skip_execute_sql=False):
         """Encrypt ssl key password with _FACTOR_KEY and LOCAL_KEY."""
-        log("Encrypt ssl key password.")
+        LOGGER.info("Encrypt ssl key password.")
 
         cmd = ("%s/bin/ctencrypt -e AES256 -f %s -k %s"
                % (self.install_path, key_, work_key))
@@ -2862,7 +3000,7 @@ class Installer:
         # Don't set SSL_CA and CTSQL_SSL_CA.
         # Avoid the need to copy files, env and kernel parameter
         # from the primary dn when installing the backup dn.
-        log("Set user environment variables about ssl.")
+        LOGGER.info("Set user environment variables about ssl.")
         try:
             flags = os.O_RDWR
             modes = stat.S_IWUSR | stat.S_IRUSR
@@ -2886,10 +3024,10 @@ class Installer:
         os.environ["CTSQL_SSL_KEY"] = os.path.join(self.ssl_path, "client.key")
         os.environ["CTSQL_SSL_MODE"] = "required"
         os.environ["CTSQL_SSL_KEY_PASSWD"] = cipher
-        log("Set user environment variables about ssl successfully.")
+        LOGGER.info("Set user environment variables about ssl successfully.")
 
     def stop_database(self):
-        log("stop cantian instance.")
+        LOGGER.info("stop cantian instance.")
         # not specify -P parameter, password is empty, login by sysdba
         host_ip = self.lsnr_addr.split(",")[0]
         timeout = 1800
@@ -2912,7 +3050,7 @@ class Installer:
         if ret_code:
             raise Exception("Failed to stop database. Error: %s"
                             % (stderr + os.linesep + stderr))
-        log("stop cantian instance successfully.")
+        LOGGER.info("stop cantian instance successfully.")
 
     def chmod_install_sqlfile(self):
         """
@@ -2931,7 +3069,8 @@ class Installer:
                                        % (CommonValue.MIN_FILE_MODE,
                                           CommonValue.MIN_FILE_MODE, self.install_path))
         except Exception as error:
-            log_exit(str(error))
+            LOGGER.error(str(error))
+            raise Exception(str(error))
 
     def security_audit(self):
         """
@@ -2943,7 +3082,7 @@ class Installer:
         output: NA
         """
 
-        log("Changing file permission due to security audit.")
+        LOGGER.info("Changing file permission due to security audit.")
         # 1. chmod sql file permission
         self.chmod_install_sqlfile()
 
@@ -2977,7 +3116,7 @@ class Installer:
         self.prepare_data_dir()
         self.prepare_mysql_for_single()
         self.init_db_instance()  # init db config, including cantiand, cms, gss, ssl
-        log("Successfully Initialize %s instance." % self.instance_name)
+        LOGGER.info("Successfully Initialize %s instance." % self.instance_name)
 
     def parse_cantiand_ini(self):
         cantiand_ini = {}
@@ -2998,23 +3137,29 @@ class Installer:
         Installer.decrypt_db_passwd()
         self.deploy_cantian()
         self.security_audit()
-        log("Successfully install %s instance." % self.instance_name)
+        LOGGER.info("Successfully install %s instance." % self.instance_name)
 
     def check_parameter_mysql(self):
         if g_opts.mysql_config_file_path == "unset":
             g_opts.mysql_config_file_path = os.path.join(MYSQL_CODE_DIR, "scripts/my.cnf")
-            log("no mysql config file assigned, set to %s" % g_opts.mysql_config_file_path)
+            LOGGER.info("no mysql config file assigned, set to %s" % g_opts.mysql_config_file_path)
         real_path = os.path.realpath(g_opts.mysql_config_file_path)
         if not os.path.isfile(real_path):
-            log_exit("mysql config file {} not existed or it is not a file".format(real_path))
+            err_msg = "mysql config file {} not existed or it is not a file".format(real_path)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         if not self.is_readable(real_path, self.user):
-            log_exit("mysql config file {} is not readable by {}".format(real_path, self.user))
+            err_msg = "mysql config file {} is not readable by {}".format(real_path, self.user)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
         g_opts.mysql_config_file_path = real_path
         cmd = "chown {}:{} {};".format(self.user, self.group, real_path)
         cmd += "chmod {} {}".format(CommonValue.MAX_FILE_MODE, real_path)
         ret_code, _, stderr = _exec_popen(cmd)
         if ret_code:
-            log_exit("Can not set mysql config mode, command: %s, output: %s" % (cmd, stderr))
+            err_msg = "Can not set mysql config mode, command: %s, output: %s" % (cmd, stderr)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
 
     def clean_dir(self, dir_path):
         if not os.path.isdir(dir_path):
@@ -3057,16 +3202,18 @@ class Installer:
             check permission
             check path size
         """
-        log("Preparing path [%s]." % one_path)
+        LOGGER.info("Preparing path [%s]." % one_path)
         owner_path = one_path
         if (os.path.exists(one_path)):
             if (check_empty):
                 file_list = os.listdir(one_path)
                 if (len(file_list) != 0):
-                    log_exit("Database path %s should be empty." % one_path)
+                    err_msg = "Database path %s should be empty." % one_path
+                    LOGGER.error(err_msg)
+                    raise Exception(err_msg)
         else:
             # create the given path
-            log("Path [%s] does not exist. Please create it." % one_path)
+            LOGGER.info("Path [%s] does not exist. Please create it." % one_path)
             os.makedirs(one_path, 0o700)
             self.is_mkdir_prog = True
 
@@ -3084,25 +3231,27 @@ class Installer:
             cmd = "chown %s:%s %s; " % (self.user, self.group, owner_path)
             cmd += "chmod %s %s" % (CommonValue.KEY_DIRECTORY_MODE, owner_path)
 
-        log("cmd path %s" % cmd)
+        LOGGER.info("cmd path %s" % cmd)
         ret_code, _, stderr = _exec_popen(cmd)
         if ret_code:
-            log_exit(" Command: %s. Error:\n%s" % (cmd, stderr))
+            LOGGER.error("Command: %s. Error:\n%s" % (cmd, stderr))
+            raise Exception("Command: %s. Error:\n%s" % (cmd, stderr))
 
         # check permission
-        log("check [%s] user permission" % one_path)
+        LOGGER.info("check [%s] user permission" % one_path)
         permission_ok, stderr = self.check_permission(one_path)
         if not permission_ok:
-            log_exit("Failed to check user [%s] path [%s] permission. Error: %s"
-                     % (self.user, one_path, stderr))
+            err_msg = "Failed to check user [%s] path [%s] permission. Error: %s" % (self.user, one_path, stderr)
+            LOGGER.error(err_msg)
+            raise Exception(err_msg)
 
     def prepare_mysql_data_dir(self):
-        log("Preparing mysql data dir...")
+        LOGGER.info("Preparing mysql data dir...")
         self.clean_dir(MYSQL_DATA_DIR)
         self.prepare_given_path(MYSQL_DATA_DIR, True)
 
     def prepare_mysql_bin_dir(self):
-        log("Preparing mysql bin dir...")
+        LOGGER.info("Preparing mysql bin dir...")
         self.clean_dir(MYSQL_BIN_DIR)
         self.prepare_given_path(MYSQL_BIN_DIR, True)
         cmd = "cp -arf {} {};".format(os.path.join(MYSQL_CODE_DIR, "mysql_bin/mysql/*"), MYSQL_BIN_DIR)
@@ -3111,7 +3260,8 @@ class Installer:
         cmd += "chown -hR {}:{} {};".format(self.user, self.group, MYSQL_BIN_DIR)
         ret_code, _, stderr = _exec_popen(cmd)
         if ret_code:
-            log_exit("Can not copy mysql bin, command: %s, output: %s" % (cmd, stderr))
+            LOGGER.error("Can not copy mysql bin, command: %s, output: %s" % (cmd, stderr))
+            raise Exception("Can not copy mysql bin, command: %s, output: %s" % (cmd, stderr))
         is_mysql_metadata_in_cantian = self.cantiand_configs.get("MYSQL_METADATA_IN_CANTIAN")
         if is_mysql_metadata_in_cantian == "TRUE":
             ctc_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin/meta/ha_ctc.so")
@@ -3122,7 +3272,7 @@ class Installer:
             shutil.copy(ctc_path, mysql_plugin_path)
 
     def set_mysql_env(self):
-        log("Preparing mysql running env...")
+        LOGGER.info("Preparing mysql running env...")
         if 'LD_LIBRARY_PATH' in os.environ:
             os.environ['LD_LIBRARY_PATH'] = ("%s:%s:%s" % (
                 os.path.join(MYSQL_BIN_DIR, "lib"),
@@ -3135,12 +3285,13 @@ class Installer:
         cmd = "ldconfig -N %s %s" % (os.path.join(MYSQL_CODE_DIR, "daac_lib"), os.path.join(MYSQL_BIN_DIR, "lib"))
         ret_code, _, stderr = _exec_popen(cmd)
         if ret_code:
-            log_exit("Can not link mysql lib, command: %s, output: %s" % (cmd, stderr))
+            LOGGER.error("Can not link mysql lib, command: %s, output: %s" % (cmd, stderr))
+            raise Exception("Can not link mysql lib, command: %s, output: %s" % (cmd, stderr))
 
     def prepare_mysql_for_single(self):
         if g_opts.running_mode.lower() not in VALID_SINGLE_MYSQL_RUNNING_MODE:
             return
-        log("prepare_mysql_for_single")
+        LOGGER.info("prepare_mysql_for_single")
         self.check_parameter_mysql()
         self.prepare_mysql_data_dir()
         self.prepare_mysql_bin_dir()
@@ -3149,7 +3300,9 @@ class Installer:
 
 def check_archive_dir():
     if g_opts.db_type not in ['0', '1', '2']:
-        log_exit("Invalid db_type : %s." % g_opts.db_type)
+        err_msg = "Invalid db_type : %s." % g_opts.db_type
+        LOGGER.error(err_msg)
+        raise Exception(err_msg)
     if g_opts.db_type == '0' or g_opts.install_type == "reserve":
         return
     if g_opts.node_id == 1:
@@ -3168,11 +3321,14 @@ def check_archive_dir():
         files = os.listdir(archive_dir)
         for file in files:
             if (file[-4:] == ".arc" and file[:4] == "arch") or ("arch_file.tmp" in file):
-                log_exit("archive dir %s is not empty, "
-                         "history archive file or archive tmp file : %s." % (archive_dir, file))
+                err_msg = "archive dir %s is not empty, history archive file or archive tmp file : %s." % (archive_dir, file)
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
     else:
-        log_exit("archive dir %s is not exist." % archive_dir)
-    log("checked the archive dir.")
+        err_msg = "archive dir %s is not exist." % archive_dir
+        LOGGER.error(err_msg)
+        raise Exception(err_msg)
+    LOGGER.info("checked the archive dir.")
 
 
 class CanTian(object):
@@ -3190,10 +3346,10 @@ class CanTian(object):
         try:
             installer = Installer(g_opts.os_user, g_opts.os_group)
             installer.install()
-            log("Install successfully, for more detail information see %s." % g_opts.log_file)
+            LOGGER.info("Install successfully, for more detail information see %s." % g_opts.log_file)
         except Exception as error:
-            log_exit("Install failed: " + str(error))
-            raise ValueError(str(error)) from error
+            LOGGER.error("Install failed: " + str(error))
+            raise Exception(str(error)) from error
 
     def cantian_start(self):
         try:
@@ -3211,7 +3367,7 @@ class CanTian(object):
             check_archive_dir()
             installer = Installer(g_opts.os_user, g_opts.os_group)
             installer.install_start()
-            log("Start successfully, for more detail information see %s." % g_opts.log_file)
+            LOGGER.info("Start successfully, for more detail information see %s." % g_opts.log_file)
 
             flags = os.O_RDWR | os.O_CREAT
             with os.fdopen(os.open(CANTIAN_START_STATUS_FILE, flags, modes), 'w+') as load_fp:
@@ -3231,23 +3387,25 @@ class CanTian(object):
                 cmd = "pidof mysqld"
             ret_code, cantiand_pid, stderr = _exec_popen(cmd)
             if ret_code:
-                log_exit("can not get pid of cantiand or mysqld, command: %s, err: %s" % (cmd, stderr))
+                LOGGER.error("can not get pid of cantiand or mysqld, command: %s, err: %s" % (cmd, stderr))
+                raise Exception("can not get pid of cantiand or mysqld, command: %s, err: %s" % (cmd, stderr))
             cantiand_pid = cantiand_pid.strip(" ")
             if cantiand_pid is not None and len(cantiand_pid) > 0:
                 cmd = "echo 0x6f > " + sep_mark + "proc" + sep_mark + str(cantiand_pid) + \
                       sep_mark + "coredump_filter"
                 ret_code, cantiand_pid, stderr = _exec_popen(cmd)
                 if ret_code:
-                    log_exit("can not set coredump_filter, command: %s, err: %s" % (cmd, stderr))
-                log("Set coredump_filter successfully")
+                    LOGGER.error("can not set coredump_filter, command: %s, err: %s" % (cmd, stderr))
+                    raise Exception("can not set coredump_filter, command: %s, err: %s" % (cmd, stderr))
+                LOGGER.info("Set coredump_filter successfully")
 
         except Exception as error:
-            log("Start failed: " + str(error))
-            log("Please refer to install log \"%s\" for more detailed information." % g_opts.log_file)
-            raise ValueError(str(error)) from error
+            LOGGER.info("Start failed: " + str(error))
+            LOGGER.info("Please refer to install log \"%s\" for more detailed information." % g_opts.log_file)
+            raise Exception(str(error)) from error
 
     def post_check(self):
-        log("Post upgrade check start.")
+        LOGGER.info("Post upgrade check start.")
         installer = Installer(g_opts.os_user, g_opts.os_group)
         installer.decrypt_db_passwd()
         flags = os.O_RDONLY
@@ -3256,7 +3414,7 @@ class CanTian(object):
             json_data = json.load(fp)
             installer.install_path = json_data['R_INSTALL_PATH'].strip()
         installer.check_db_status()
-        log("Post upgrade check success.")
+        LOGGER.info("Post upgrade check success.")
 
 
 if __name__ == "__main__":
