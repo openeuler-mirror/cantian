@@ -80,6 +80,9 @@ MYSQL_DATA_DIR = "/data/data"
 MYSQL_BIN_DIR = "/usr/local/mysql"
 MYSQL_LOG_FILE = os.path.join(MYSQL_DATA_DIR, "mysql.log")
 
+MYSQL_LIB_OUTPUT_DIR = os.path.join(PKG_DIR, "cantian-connector-mysql/bld_debug/library_output_directory")
+CTC_PLUGIN = "ha_ctc.so"
+
 class Options(object):
     """
     command line options
@@ -134,7 +137,9 @@ class Options(object):
 
         # In slave cluster:
         self.slave_cluster = False
-
+        
+        # is re-launch mysql server
+        self.is_relaunch = False
 
 g_opts = Options()
 
@@ -552,12 +557,13 @@ def parse_parameter():
     -s: using gss storage
     -d: install inside docker container
     -p: ignore checking package and current os version
+    -r: is re-launch mysql server after shut down
     """
     try:
         # Parameters are passed into argv. After parsing, they are stored
         # in opts as binary tuples. Unresolved parameters are stored in args.
         opts, args = getopt.getopt(sys.argv[1:],
-                                   "U:R:M:N:OD:Z:C:G:W:cg:sdl:Ppf:m:S", ["help", "dbstor", "linktype="])
+                                   "U:R:M:N:OD:Z:C:G:W:cg:sdl:Ppf:m:S:r", ["help", "dbstor", "linktype="])
         if args:
             print("Parameter input error: " + str(args[0]))
             exit(1)
@@ -605,6 +611,8 @@ def parse_parameter():
                 g_opts.os_user, g_opts.os_group = user_info[0], user_info[1]
             elif _key == "-m":
                 g_opts.mysql_config_file_path = _value.strip()
+            elif _key == "-r":
+                g_opts.is_relaunch = True
 
         if os.path.exists(CONFIG_FILE):
             with open(CONFIG_FILE, "r") as conf:
@@ -1639,7 +1647,7 @@ class Installer:
                 self.gssConfigs[_value[0].strip().upper()] = _value[1].strip()
             elif key == "-P":
                 pass  # Compatibility parameter
-            elif key in ["-g", "-l", "-U", "-M", "-W", "-s", "-N", "-d", "-p", "-m", "--dbstor", "--linktype"]:
+            elif key in ["-g", "-l", "-U", "-M", "-W", "-s", "-N", "-d", "-p", "-m", "-r", "--dbstor", "--linktype"]:
                 pass
             elif key == "-f":
                 self.create_db_file = value.strip()
@@ -4306,7 +4314,77 @@ class Installer:
         file_name = "cantian_defs.sql"
         create_cantian_defs_file = os.path.join(sql_file_path, file_name)
         return create_cantian_defs_file
-
+    
+    def get_user_profile(self):
+        strCmd = ""
+        if(g_opts.install_user_privilege == "withoutroot"):
+            strCmd = "echo ~"
+        else:
+            strCmd = "su - '%s' -c \"echo ~\"" % self.user
+        ret_code, stdout, _ = _exec_popen(strCmd)
+        if ret_code:
+            logExit("Can not get user home.")
+        # Get the profile of user.
+        output = os.path.realpath(os.path.normpath(stdout))
+        if (not checkPath(output)):
+            logExit("The user home directory is invalid.")
+        self.userProfile = os.path.join(output, ".bashrc")
+        print("user profile path:%s" % self.userProfile)
+    
+    def set_relaunch_env_for_single(self):
+        # set necessary environment variables
+        self.get_user_profile()
+        self.parseKeyAndValue()
+        mysql_library_path = ("%s:%s:%s:%s:%s:%s" % (
+            os.path.join(self.installPath, "lib"), 
+            os.path.join(self.installPath, "add-ons"), 
+            os.path.join(MYSQL_BIN_DIR, "lib"), 
+            os.path.join(MYSQL_BIN_DIR, "lib/private"), 
+            os.path.join(MYSQL_CODE_DIR, "daac_lib"), 
+            MYSQL_LIB_OUTPUT_DIR))
+        persist_environment_variable("RUN_MODE", g_opts.running_mode.lower(), self.userProfile)
+        persist_environment_variable("LD_LIBRARY_PATH", mysql_library_path, self.userProfile)
+        persist_environment_variable("CANTIAND_MODE", self.OPEN_MODE, self.userProfile)
+        persist_environment_variable("CANTIAND_HOME_DIR", self.data.lower(), self.userProfile)
+    
+    def kill_process(self, process_name):
+        cmd = "pidof %s" % (process_name)
+        ret_code, pids, stderr = _exec_popen(cmd)
+        if ret_code:
+            print("can not get pid of %s, command: %s, err: %s" % (process_name, cmd, stderr))
+            return
+        for pid in pids.split():
+            pid = pid.strip()
+            cmd = "kill -9 %s" % (pid)
+            ret_code, _, stderr = _exec_popen(cmd)
+            if ret_code:
+                print("Failed to kill process %s. Error: %s" % (cmd, stderr))
+            else:
+                print("Process %s with PID %s killed successfully." % (process_name, pid))
+    
+    def relaunch_single_process(self):
+        self.kill_process('mysqld')
+        self.kill_process('cantiand')
+        self.set_relaunch_env_for_single()
+        relaunch_command = ("""%s --defaults-file=%s --datadir=%s --plugin-dir=%s --early-plugin-load=%s \
+        --check_proxy_users=ON --mysql_native_password_proxy_users=ON \
+        --default-storage-engine=CTC --core-file > %s 2>&1 &""" % (
+                       os.path.join(MYSQL_BIN_DIR, "bin/mysqld"), 
+                       g_opts.mysql_config_file_path, 
+                       MYSQL_DATA_DIR, 
+                       os.path.join(MYSQL_BIN_DIR, "lib/plugin"), 
+                       CTC_PLUGIN, 
+                       MYSQL_LOG_FILE))
+        if os.getuid() == 0:
+            relaunch_command = "su - %s -c '" % self.user + relaunch_command + "'"
+        print('relaunch mysql using command %s' % relaunch_command)
+        status, stdout, stderr = _exec_popen(relaunch_command)
+        if status != 0:
+            output = stdout + stderr
+            raise Exception("Can not start mysqld %s.\nStart cmd: %s.\nOutput: %s" % (self.data, relaunch_command, output))
+        if not self.check_has_start_mysqld():
+            raise Exception("failed or exceed time to start mysqld\nPlease see the log of %s" % MYSQL_LOG_FILE)
+    
 def main():
     """
     main entry
@@ -4321,6 +4399,8 @@ def main():
         installer = Installer(g_opts.os_user, g_opts.os_group)
         if g_opts.running_mode == MYSQLD:
             installer.install_mysql()
+        elif g_opts.running_mode.lower() in VALID_SINGLE_MYSQL_RUNNING_MODE and g_opts.is_relaunch:
+            installer.relaunch_single_process()
         else:
             installer.install()
         log("Install successfully, for more detail information see %s." % g_opts.log_file, True)

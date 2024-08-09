@@ -104,7 +104,7 @@ function start_cantiand() {
     export CANTIAND_MODE=${START_MODE}
     export CANTIAND_HOME_DIR=${CTDB_DATA}
     export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:$LD_LIBRARY_PATH
-    
+    set +e
     if [ "${IS_RERUN}" == 0 ]; then
         echo "Init mysqld data dir ${MYSQL_DATA_DIR}"
         ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --initialize-insecure --datadir=${MYSQL_DATA_DIR} --early-plugin-load="ha_ctc.so" --core-file
