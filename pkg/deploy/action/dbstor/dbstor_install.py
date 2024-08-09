@@ -27,6 +27,7 @@ try:
     import socket
     from configparser import ConfigParser
     from kmc_adapter import CApiWrapper
+    from init_unify_config import ConfigTool
 
     DBSTORE_LOG_PATH = "/opt/cantian/dbstor"
     LOG_PATH = "/opt/cantian/dbstor/log"
@@ -650,50 +651,8 @@ class DBStor:
             json_data = json.load(file_obj)
             deploy_mode = json_data.get("deploy_mode")
         if deploy_mode == "dbstore_unify":
-            logger.info('Deploy_mode = dbstore_unify, begin to set config.')
-            config = ConfigParser()
-            config.optionxform = str
-            config.read(self.dbstor_conf_file)
-            split_env = os.environ['LD_LIBRARY_PATH'].split(":")
-            filtered_env = [single_env for single_env in split_env if "/opt/cantian/dbstor/lib" not in single_env]
-            os.environ['LD_LIBRARY_PATH'] = ":".join(filtered_env)
-            for i in range(7,10):
-                file_num=i-6
-                cmd = "python %s/../obtains_lsid.py %s %s %s %s"
-                ret_code, stdout, stderr = _exec_popen(cmd % ("/opt/cantian/action/dbstor", 2, self.cluster_id, i, self.node_id))
-                if ret_code:
-                    raise OSError("Failed to execute LSIDGenerate."
-                        " Error: %s" % (stderr + os.linesep + stderr))
-                data = stdout.split("\n")
-                if len(data) == 2:
-                    inst_id, dbs_tool_uuid = data[0], data[1]
-                else:
-                    raise ValueError("Data parse error: length of parsed data is not 2.")
-                logger.info('Generate inst_id, dbs_tool_uuid success.')
-                ret_code, stdout, stderr = _exec_popen(cmd % ("/opt/cantian/action/dbstor", 0, self.cluster_id, 0, 0))
-                if ret_code:
-                    raise OSError("Failed to execute LSIDGenerate."
-                        " Error: %s" % (stderr + os.linesep + stderr))
-                data = stdout.split("\n")
-                if len(data) == 2:
-                    self.cluster_uuid = data[1]
-                else:
-                    raise ValueError("Data parse error: length of parsed data is not 2.")
-                logger.info('Generate cluster_uuid success.')
-                folder_path = "%s/conf/dbs/" % (self.dbstor_home)
-                if not os.path.exists(folder_path):
-                    os.makedirs(folder_path)
-                config.set('CLIENT','DBSTOR_OWNER_NAME','dbstor')    
-                config.set('CLIENT','CLUSTER_NAME',str(self.cluster_name))
-                config.set('CLIENT','CLUSTER_UUID',str(self.cluster_uuid))
-                config.set('CLIENT','INST_ID',inst_id)      
-                config.set('CLIENT','DBS_TOOL_UUID',dbs_tool_uuid)
-                flags = os.O_CREAT | os.O_RDWR
-                modes = stat.S_IWUSR | stat.S_IRUSR
-                file_path = "%s/conf/dbs/dbstor_config_tool_%s.ini" % (self.dbstor_home, str(file_num))
-                with os.fdopen(os.open(file_path, flags, modes), "w") as file_obj:
-                    config.write(file_obj)
-            logger.info('Set config success.')
+            configTool = ConfigTool()
+            configTool.create_unify_dbstor_config()
 
     
      
