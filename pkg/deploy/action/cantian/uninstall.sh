@@ -52,17 +52,6 @@ function cantian_uninstall()
     fi
 
     log "shell uninstall step 6 $(date)"
-    if [ -d /mnt/dbdata/local/cantian/tmp/data/dbstor/data/logs ]; then
-        mkdir -p -m 750 /opt/cantian/dbstor/log/dbstore_start_log
-        yes | cp -arf /mnt/dbdata/local/cantian/tmp/data/dbstor/data/logs /opt/cantian/dbstor/log/dbstore_start_log
-    fi
-
-    if [ $? -ne 0 ]; then
-        log "Copy log file or dir failed, please check the permission and manually repair this."
-        return 1
-    fi
-
-    log "shell uninstall step 7 $(date)"
     if [ -d /mnt/dbdata/local/cantian/tmp/data ]; then
         rm -rf /mnt/dbdata/local/cantian/tmp/data
     fi
@@ -72,7 +61,7 @@ function cantian_uninstall()
         return 1
     fi
 
-    log "shell uninstall step 8 $(date)"
+    log "shell uninstall step 7 $(date)"
     log "cantian uninstall success."
 
     return 0
