@@ -7,7 +7,17 @@ class DeclearEnv:
     def __init__(self):
         self.version_file = str(Path("/opt/cantian/versions.yml"))
         self.root_id = 0
-        self.deploy_id = 6000
+
+    @staticmethod
+    def get_run_user():
+        with open("/opt/cantian/action/env.sh", "r", encoding="utf-8") as f:
+            env_config = f.readlines()
+        run_user = "cantian"
+        for line in env_config:
+            if line.startswith("cantian_user"):
+                run_user = line.split("=")[1].strip("\n").strip('"')
+                break
+        return run_user
 
     def get_env_type(self):
         """
@@ -26,11 +36,13 @@ class DeclearEnv:
         :return:
             string: name of the user, such as root.
         """
+        run_user = self.get_run_user()
+        user_info = pwd.getpwnam(run_user)
         user_id = os.getuid()
         if user_id == self.root_id:
             return "root"
 
-        if user_id == self.deploy_id:
-            return pwd.getpwuid(self.deploy_id)[0]  # 列表下标0为uid对应的用户名
+        if user_id == user_info.pw_uid:
+            return run_user
 
         raise ValueError("[error] executor must be root or deploy_user")

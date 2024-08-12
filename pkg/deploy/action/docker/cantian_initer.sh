@@ -146,6 +146,7 @@ function check_init_status() {
         logAndEchoInfo "The cluster has been initialized, no need create database. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         sed -i "s/\"db_create_status\": \"default\"/\"db_create_status\": \"done\"/g" /opt/cantian/cantian/cfg/${START_STATUS_NAME}
         sed -i "s/\"ever_started\": false/\"ever_started\": true/g" /opt/cantian/cantian/cfg/${START_STATUS_NAME}
+        sed -i "s/\"mysql_init\": \"default\"/\"mysql_init\": \"done\"/g" /opt/cantian/cantian/cfg/${START_STATUS_NAME}
         rm -rf ${USER_FILE}
     fi
 

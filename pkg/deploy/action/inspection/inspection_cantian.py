@@ -5,6 +5,7 @@ import pwd
 import json
 from pathlib import Path
 
+from declear_env import DeclearEnv
 from inspection_task import InspectionTask
 
 DEPLOY_CONFIG_FILE = str(Path('/opt/cantian/config/deploy_param.json'))
@@ -28,7 +29,7 @@ class CantianInspection(InspectionTask):
         :return:
             string: deploy user name
         """
-        return "cantian"
+        return DeclearEnv.get_run_user()
 
     @staticmethod
     def get_node_ip():
