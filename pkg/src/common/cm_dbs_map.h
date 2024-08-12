@@ -52,12 +52,13 @@ typedef struct {
 
 void cm_dbs_map_init(void);
 void cm_dbs_map_deinit(void);
-status_t cm_dbs_map_set(const char *name, cm_dbs_map_item_s *item, int32 *handle);
+status_t cm_dbs_map_set(const char *name, cm_dbs_map_item_s *item, int32 *handle, uint32 type);
 status_t cm_dbs_map_get(int32 handle, cm_dbs_map_item_s *item);
 void cm_dbs_map_remove(int32 handle);
-bool32 cm_dbs_map_exist(const char *name);
+bool32 cm_dbs_map_exist(const char *name, uint32 type);
 void cm_dbs_map_update(int32 handle, cm_dbs_map_item_s *item);
 void cm_dbs_map_get_name(int32 handle, char *name, int32 size);
+bool32 cm_dbs_map_get_by_name(const char *name, int32 *handle, object_id_t *obj_id, uint32 type);
 
 #ifdef __cplusplus
 }

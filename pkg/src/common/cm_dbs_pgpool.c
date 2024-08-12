@@ -109,7 +109,7 @@ status_t cm_dbs_pg_create(const char *name, int64 size, uint32 flags, int32 *han
     }
     obj.pagepool.page_size = pageSize;
     obj.ns_name = nsName;
-    ret = cm_dbs_map_set(name, &obj, handle);
+    ret = cm_dbs_map_set(name, &obj, handle, DEV_TYPE_PGPOOL);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Failed to insert page pool to map");
         return CT_ERROR;
@@ -164,7 +164,7 @@ status_t cm_dbs_pg_open(const char *name, int32 *handle)
     }
     obj.pagepool.page_size = attr.pageSize;
     obj.ns_name = nsName;
-    status_t stat = cm_dbs_map_set(name, &obj, handle);
+    status_t stat = cm_dbs_map_set(name, &obj, handle, DEV_TYPE_PGPOOL);
     if (stat != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Failed to insert page pool to map");
         return CT_ERROR;
