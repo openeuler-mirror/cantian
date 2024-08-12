@@ -35,6 +35,7 @@ static mysql_inst_info_s *g_mysql_inst_infos;
 thread_lock_t g_tse_mes_lock;
 
 uint32_t g_ctc_max_inst_num;
+bool32 g_is_single_run_mode;
 
 thread_lock_t *get_g_tse_mes_lock(void)
 {
@@ -46,12 +47,21 @@ uint32_t *get_ctc_max_inst_num(void)
     return &g_ctc_max_inst_num;
 }
 
+void set_is_single_run_mode()
+{
+#ifndef WITH_DAAC
+    g_is_single_run_mode = CT_FALSE;
+#else
+    g_is_single_run_mode = CT_TRUE;
+#endif
+    CT_LOG_RUN_INF("set_is_single_run_mode: %d", g_is_single_run_mode);
+}
+
 void my_free_tse_ctx(uint64_t ctx)
 {
     tse_context_t *my_ctx = (tse_context_t *)ctx;
     free_tse_ctx(&my_ctx, true);
 }
-
 
 int init_mysql_inst(void)
 {

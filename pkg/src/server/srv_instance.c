@@ -2124,6 +2124,7 @@ status_t srv_instance_startup(db_startup_phase_t phase, bool32 is_coordinator, b
     }
 #endif
 
+    set_is_single_run_mode();
     if (init_job_manager() != CT_SUCCESS) {
         srv_instance_destroy();
         CT_LOG_RUN_ERR("failed to initialize job manager");

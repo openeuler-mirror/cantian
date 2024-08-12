@@ -117,6 +117,7 @@ typedef enum sql_command_filter_op {
     SQLCOM_UNLOCK_INSTANCE = 155,
     SQLCOM_END = 159,
 } sql_command_filter_op_t;
+extern bool32 g_is_single_run_mode;
 
 void unlock_user_ddl(session_t *session);
 int tse_close_mysql_connection(tianchi_handler_t *tch);

@@ -234,6 +234,8 @@ typedef struct {
 typedef struct {
     uint8_t *record;
     uint16_t record_len;
+    uint16_t *offsets;
+    uint16_t *lens;
 } record_info_t;
 
 typedef union {

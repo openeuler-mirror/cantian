@@ -15,6 +15,12 @@ include_directories(
     "${CANTIANDB_SRC}/upgrade_check"
 )
 
+option(NO_SHM OFF)
+if (NO_SHM)
+    add_compile_definitions(WITH_DAAC)
+    message(STATUS "Toolchain: Build use -DWITH_DAAC")
+endif (NO_SHM)
+
 add_subdirectory(common)
 add_subdirectory(driver)
 add_subdirectory(kernel)
