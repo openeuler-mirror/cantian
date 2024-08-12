@@ -668,6 +668,13 @@ EXTER_ATTACK int tse_mq_write_row(dsw_message_block_t *message_block)
     return req->result;
 }
 
+EXTER_ATTACK int tse_mq_update_job(dsw_message_block_t *message_block)
+{
+    struct update_job_request *req = message_block->seg_buf[0];
+    req->result = tse_update_job(req->info);
+    return req->result;
+}
+
 EXTER_ATTACK int tse_mq_write_through_row(dsw_message_block_t *message_block)
 {
     struct write_row_request *req = message_block->seg_buf[0];
@@ -1335,6 +1342,7 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {TSE_FUNC_TYPE_CLOSE_TABLE,                   tse_mq_close_table},
     {TSE_FUNC_TYPE_CLOSE_SESSION,                 tse_mq_close_session},
     {TSE_FUNC_TYPE_WRITE_ROW,                     tse_mq_write_row},
+    {TSE_FUNC_TYPE_UPDATE_JOB,                    tse_mq_update_job},
     {TSE_FUNC_TYPE_WRITE_THROUGH_ROW,             tse_mq_write_through_row},
     {TSE_FUNC_TYPE_UPDATE_ROW,                    tse_mq_update_row},
     {CTC_FUNC_TYPE_UPDATE_SAMPLE_SIZE,            ctc_mq_update_sample_size},
