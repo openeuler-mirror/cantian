@@ -33,6 +33,7 @@
 #include "cm_file.h"
 #include "dbs_adp.h"
 #include "cm_timer.h"
+#include "cm_dbstore.h"
 
 #define DBS_MAX_CMD_PARAM_COUNT 16
 #define DBS_LOGFILE_SIZE (10 * 1024 * 1024)
@@ -88,6 +89,14 @@ EXTER_ATTACK int32 dbs_cmd_help(int32 argc, char* argv[]);
 dbs_cmd_def_t g_dbs_cmd_defs[] = {
     {{"-h"}, dbs_cmd_help, "print dbs command parameters"},
     {{"-help"}, dbs_cmd_help, "print dbs command parameters"},
+    {{"--arch-import", "*[PARAM]"}, dbs_arch_import, "import all archive files from target dir"},
+    {{"--arch-export", "*[PARAM]"}, dbs_arch_export, "export all archive files to target dir"},
+    {{"--arch-clean", "*[PARAM]"}, dbs_arch_clean, "clean all or a specified archive file in archive fs"},
+    {{"--arch-query", "*[PARAM]"}, dbs_arch_query, "query all archive files in archive fs"},
+    {{"--ulog-clean", "*[PARAM]"}, dbs_ulog_clean, "clean all ulog data in log fs"},
+    {{"--pagepool-clean", "*[PARAM]"}, dbs_pagepool_clean, "clean all page data in page fs"},
+    {{"--create-file", "*[PARAM]"}, dbs_create_path_or_file, "create a path or file in the file system"},
+    {{"--delete-file", "*[PARAM]"}, dbs_delete_path_or_file, "delete a path or file in the file system"},
     {{"dbs", "test", "*[PARAM]"}, dbs_test_func, "dbs tool test"},
 };
 
@@ -135,7 +144,7 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
             }
         }
 
-        if (p == argc - 1 && cmd_def->param[p] == NULL) {
+        if (p >= 1 && (cmd_def->param[p] == NULL || cmd_def->param[p][0] == '*')) {
             break;
         }
     }
@@ -152,10 +161,12 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
     int32 ret = dbstool_init();
     if (ret != CT_SUCCESS) {
         printf("dbstool init failed(%d).\n.", ret);
+        (void)dbs_global_handle()->dbs_client_flush_log();
         return ret;
     }
     ret = cmd_def->cmd_pro_func(argc, argv);
     printf("%s, ret is %d.\n", cmd_def->desc, ret);
+    (void)dbs_global_handle()->dbs_client_flush_log();
 
     return ret;
 }

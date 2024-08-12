@@ -32,3 +32,11 @@
 
 status_t dbstool_init();
 int32 dbs_test_func(int32 argc, char *argv[]);
+int32 dbs_arch_import(int32 argc, char *argv[]);
+int32 dbs_arch_export(int32 argc, char *argv[]);
+int32 dbs_arch_clean(int32 argc, char *argv[]);
+int32 dbs_arch_query(int32 argc, char *argv[]);
+int32 dbs_ulog_clean(int32 argc, char *argv[]);
+int32 dbs_pagepool_clean(int32 argc, char *argv[]);
+int32 dbs_create_path_or_file(int32 argc, char *argv[]);
+int32 dbs_delete_path_or_file(int32 argc, char *argv[]);
