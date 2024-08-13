@@ -63,6 +63,7 @@ bool32 db_sysdata_version_is_equal(knl_session_t *session, bool32 is_upgrade);
 uint32 dbc_generate_dbid(knl_session_t *session);
 bool32 db_cur_ctrl_version_is_higher(knl_session_t *session, ctrl_version_t version);
 bool32 db_equal_to_cur_ctrl_version(knl_session_t *session, ctrl_version_t version);
+bool32 db_cur_ctrl_version_is_higher_or_equal(knl_session_t *session, ctrl_version_t version);
 
 static inline char *db_get_ctrl_item(ctrl_page_t *pages, uint32 id, uint32 item_size, uint32 offset)
 {

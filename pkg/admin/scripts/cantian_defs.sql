@@ -424,14 +424,14 @@ CREATE TABLE IF NOT EXISTS `cantian`.`dv_buffer_page_stats`(
 --   `LATCH_SID` INTEGER UNSIGNED
 -- ) ENGINE = CTC DEFAULT CHARSET=utf8mb3 COLLATE=utf8_bin;
 
--- -- DV_REFORM_STATS
--- -- 查看reform关键信息视图
--- CREATE TABLE IF NOT EXISTS `cantian`.`dv_reform_stats`(
---   `STATISTIC#` INTEGER,
---   `NAME` VARCHAR(64),
---   `VALUE` BIGINT,
---   `INFO` VARCHAR(1024)
--- ) ENGINE = CTC DEFAULT CHARSET=utf8mb3 COLLATE=utf8_bin;
+-- DV_REFORM_STATS
+-- 查看reform关键信息视图
+CREATE TABLE IF NOT EXISTS `cantian`.`dv_reform_stats`(
+  `STATISTIC#` INTEGER,
+  `NAME` VARCHAR(64),
+  `VALUE` BIGINT,
+  `INFO` VARCHAR(1024)
+) ENGINE = CTC DEFAULT CHARSET=utf8mb3 COLLATE=utf8_bin;
 
 -- -- DV_REFORM_DETAIL
 -- CREATE TABLE IF NOT EXISTS `cantian`.`dv_reform_detail`(

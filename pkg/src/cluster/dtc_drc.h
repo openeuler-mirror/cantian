@@ -49,6 +49,7 @@ extern "C" {
 #define DRC_RECYCLE_MIN_NUM 8192
 #define DRC_RECYCLE_RATIO_16 16
 #define DRC_RECYCLE_RATIO_4 4
+#define DRC_IN_REFORMER_MODE_RELEASE_VERSION {24, 6, 0, 4}
 
 //lock item structures
 typedef enum en_drc_lock_mode {
@@ -573,6 +574,11 @@ typedef struct st_drc_remaster_target_part_msg {
     drc_inst_part_t target_inst_part_tbl[CT_MAX_INSTANCES];
 } drc_remaster_target_part_msg_t;
 
+typedef struct st_drc_remaster_param_verify {
+    mes_message_head_t head;
+    bool32 reformer_drc_mode;
+} drc_remaster_param_verify_t;
+
 extern drc_res_ctx_t g_drc_res_ctx;
 #define DRC_RES_CTX  (&g_drc_res_ctx)
 extern int32 page_req_count;
@@ -715,6 +721,7 @@ bool32 drc_remaster_need_stop(void);
 status_t drc_clean_remaster_res(void);
 uint8 drc_get_remaster_status(void);
 EXTER_ATTACK void drc_process_remaster_status_notify(void *sess, mes_message_t *receive_msg);
+EXTER_ATTACK void drc_process_remaster_param_verify(void *sess, mes_message_t *receive_msg);
 EXTER_ATTACK void drc_accept_remaster_task(void *sess, mes_message_t *msg);
 EXTER_ATTACK void drc_process_mgrt_data(void *sess, mes_message_t *receive_msg);
 EXTER_ATTACK void drc_accept_target_part(void *sess, mes_message_t *receive_msg);
