@@ -1134,6 +1134,11 @@ bool32 db_equal_to_cur_ctrl_version(knl_session_t *session, ctrl_version_t versi
             cur_version.revision == version.revision && (cur_version.inner == version.inner));
 }
 
+bool32 db_cur_ctrl_version_is_higher_or_equal(knl_session_t *session, ctrl_version_t version)
+{
+    return (db_cur_ctrl_version_is_higher(session, version) || db_equal_to_cur_ctrl_version(session, version));
+}
+
 #ifdef __cplusplus
 }
 #endif

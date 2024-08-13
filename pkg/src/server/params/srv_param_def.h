@@ -437,6 +437,7 @@ typedef enum en_param_global {
     PARAM_MYSQL_DEPLOY_GROUP_ID,
     PARAM_ENABLE_SYS_CRC_CHECK,
     PARAM_CLUSTER_NO_CMS,
+    PARAM_DRC_IN_REFORMER_MODE,
     PARAM_CEIL,
 } param_global_t;
 
