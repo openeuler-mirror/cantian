@@ -22,7 +22,7 @@ kernel_params_list = ['SHM_CPU_GROUP_INFO', 'LARGE_POOL_SIZE', 'CR_POOL_COUNT', 
 MEM_SPEC = {
     "1": {
         "SESSIONS": "1024",
-        "TEMP_BUFFER_SIZE": "256M",
+        "TEMP_BUFFER_SIZE": "2G",
         "LARGE_POOL_SIZE": "256M",
         "DATA_BUFFER_SIZE": "30G",
         "SHARED_POOL_SIZE": "512M",
@@ -32,7 +32,7 @@ MEM_SPEC = {
     },
     "2": {
         "SESSIONS": "2048",
-        "TEMP_BUFFER_SIZE": "512M",
+        "TEMP_BUFFER_SIZE": "4G",
         "LARGE_POOL_SIZE": "512M",
         "DATA_BUFFER_SIZE": "60G",
         "SHARED_POOL_SIZE": "1G",
@@ -42,7 +42,7 @@ MEM_SPEC = {
     },
     "3": {
         "SESSIONS": "4096",
-        "TEMP_BUFFER_SIZE": "1G",
+        "TEMP_BUFFER_SIZE": "8G",
         "LARGE_POOL_SIZE": "1G",
         "DATA_BUFFER_SIZE": "120G",
         "SHARED_POOL_SIZE": "2G",
