@@ -54,7 +54,7 @@ extern char *cantiand_get_dbversion(void);
 #define CMS_INST_TRY_MASTER_WAIT_TIME 1000
 #define CMS_INST_SERVER_SLEEP_TIME 1000
 #define CMS_RES_STAT_MAX_RESOURCE_COUNT 2
-#define CMS_DEFAULT_INNNER_VERSION 3
+#define CMS_DEFAULT_INNNER_VERSION 4
 
 typedef struct st_cms_instance {
     int32                   server_lock_fd;

@@ -3431,12 +3431,70 @@ void drc_local_txn_awake(xid_t *xid)
     return;
 }
 
-status_t drc_scaleout_remaster(uint8* new_id_array, uint8 new_num, drc_part_mngr_t *part_mngr)
+static void drc_set_remaster_taskset_export_inst(drc_part_mngr_t *part_mngr, drc_inst_part_t *inst_part_entry, uint32 instance_index)
+{
+    if (inst_part_entry[instance_index].count > inst_part_entry[instance_index].expected_num) {
+        uint16 current = inst_part_entry[instance_index].first;
+        uint32 mgrt_num = inst_part_entry[instance_index].count - inst_part_entry[instance_index].expected_num;
+        uint32 loop;
+
+        for (loop = 0; loop < mgrt_num; loop++) {
+            part_mngr->remaster_mngr.remaster_task_set[part_mngr->remaster_mngr.task_num].part_id = current;
+            part_mngr->remaster_mngr.remaster_task_set[part_mngr->remaster_mngr.task_num].export_inst = instance_index;
+            current = part_mngr->remaster_mngr.target_part_map[current].next;
+            part_mngr->remaster_mngr.task_num++;
+        }
+
+        inst_part_entry[instance_index].first = current;
+        inst_part_entry[instance_index].count = inst_part_entry[instance_index].expected_num;
+    }
+}
+
+static void drc_set_remaster_taskset_drc_in_reformer_mode(drc_inst_part_t *inst_part_entry, drc_part_mngr_t *part_mngr)
+{
+    uint32 i = 0;
+
+    for (i = 0; i < CT_MAX_INSTANCES; i++) {
+        if (CT_TRUE == inst_part_entry[i].is_used) {
+            if (part_mngr->remaster_inst == i) {
+                inst_part_entry[i].expected_num = DRC_MAX_PART_NUM;
+            } else {
+                inst_part_entry[i].expected_num = 0;
+            }
+
+            drc_set_remaster_taskset_export_inst(part_mngr, inst_part_entry, i);
+        }
+    }
+}
+
+static void drc_set_remaster_taskset(drc_inst_part_t *inst_part_entry, drc_part_mngr_t *part_mngr, uint32 inst_num) 
+{
+    uint32 i = 0;
+    uint32 inst_loop_seq = 0;
+    uint32 avg_part_num = 0;
+    uint32 remain_part = 0;
+
+    avg_part_num = DRC_MAX_PART_NUM / inst_num;
+    remain_part = DRC_MAX_PART_NUM % inst_num;
+
+    for(i = 0; i < CT_MAX_INSTANCES; i++) {
+        if (CT_TRUE == inst_part_entry[i].is_used) {
+            if (inst_loop_seq < remain_part) {
+                inst_part_entry[i].expected_num = avg_part_num + 1;
+            } else {
+                inst_part_entry[i].expected_num = avg_part_num;
+            }
+            inst_loop_seq++;
+
+            drc_set_remaster_taskset_export_inst(part_mngr, inst_part_entry, i);
+        }
+    }
+}
+
+status_t drc_scaleout_remaster(knl_session_t *session, uint8* new_id_array, uint8 new_num, drc_part_mngr_t *part_mngr)
 {
     uint32 i;
     uint32 inst_num;
-    uint32 avg_part_num;
-    uint32 remain_part;
 
     if (0 == new_num) {
         return CT_SUCCESS;
@@ -3451,9 +3509,6 @@ status_t drc_scaleout_remaster(uint8* new_id_array, uint8 new_num, drc_part_mngr
 
     inst_num = new_num + part_mngr->inst_num;
 
-    avg_part_num = DRC_MAX_PART_NUM / inst_num;
-    remain_part = DRC_MAX_PART_NUM % inst_num;
-
     drc_inst_part_t *inst_part_entry = part_mngr->remaster_mngr.target_inst_part_tbl;
 
     for (i = 0; i < new_num; i++) {
@@ -3461,35 +3516,15 @@ status_t drc_scaleout_remaster(uint8* new_id_array, uint8 new_num, drc_part_mngr
         inst_part_entry[new_id_array[i]].count = 0;
     }
 
-    uint32 loop = 0;
-    uint32 inst_loop_seq = 0;
-
-    for (i = 0; i < CT_MAX_INSTANCES; i++) {
-        if (CT_TRUE == inst_part_entry[i].is_used) {
-            if (inst_loop_seq < remain_part) {
-                inst_part_entry[i].expected_num = avg_part_num + 1;
-            } else {
-                inst_part_entry[i].expected_num = avg_part_num;
-            }
-            inst_loop_seq++;
-
-            if (inst_part_entry[i].count > inst_part_entry[i].expected_num) {
-                uint16 current = inst_part_entry[i].first;
-                uint32 mgrt_num = inst_part_entry[i].count - inst_part_entry[i].expected_num;
-
-                for (loop = 0; loop < mgrt_num; loop++) {
-                    part_mngr->remaster_mngr.remaster_task_set[part_mngr->remaster_mngr.task_num].part_id = current;
-                    part_mngr->remaster_mngr.remaster_task_set[part_mngr->remaster_mngr.task_num].export_inst = i;
-                    current = part_mngr->remaster_mngr.target_part_map[current].next;
-                    part_mngr->remaster_mngr.task_num++;
-                }
-                inst_part_entry[i].first = current;
-                inst_part_entry[i].count = inst_part_entry[i].expected_num;
-            }
-        }
+    ctrl_version_t release_version = DRC_IN_REFORMER_MODE_RELEASE_VERSION;
+    if (!db_cur_ctrl_version_is_higher_or_equal(session, release_version) || session->kernel->attr.drc_in_reformer_mode == CT_FALSE) {
+        drc_set_remaster_taskset(inst_part_entry, part_mngr, inst_num);
+    } else {
+        drc_set_remaster_taskset_drc_in_reformer_mode(inst_part_entry, part_mngr);
     }
 
-    loop = 0;
+
+    uint32 loop = 0;
     uint16 part_id = 0;
     for (i = 0; i < part_mngr->remaster_mngr.task_num; i++) {
         if (inst_part_entry[new_id_array[loop]].count >= inst_part_entry[new_id_array[loop]].expected_num) {
@@ -3772,6 +3807,32 @@ void drc_process_remaster_status_notify(void *sess, mes_message_t *receive_msg)
                    receive_msg->head->src_inst, msg->remaster_status, remaster_mngr->reform_info.trigger_version,
                    msg->reform_trigger_version);
     mes_release_message_buf(receive_msg->buffer);
+}
+
+
+void drc_process_remaster_param_verify(void *sess, mes_message_t *receive_msg)
+{
+    drc_remaster_param_verify_t *msg = (drc_remaster_param_verify_t*)receive_msg->buffer;
+    knl_session_t *session = (knl_session_t *)sess;
+
+    if (msg->reformer_drc_mode != session->kernel->attr.drc_in_reformer_mode) {
+        CM_ABORT_REASONABLE(0, "[DRC] ABORT INFO: Inconsistent parameters between reformer and follower. Getting DRC_IN_REFORMER_MODE from Reformer: %u; But local DRC_IN_REFORMER_MODE: %u.", 
+                        msg->reformer_drc_mode, session -> kernel -> attr.drc_in_reformer_mode);
+        mes_release_message_buf(receive_msg->buffer);
+        return;
+    }
+
+    status_t ret = CT_SUCCESS;
+    mes_message_head_t ack_head = {0};
+
+    mes_init_ack_head(receive_msg->head, &ack_head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
+    ack_head.status = ret;
+    ret = drc_mes_send_data_with_retry((const char*)&ack_head, REMASTER_SLEEP_INTERVAL, REMASTER_SEND_MSG_RETRY_TIMES);
+
+    CT_LOG_RUN_INF("[DRC] send remaster verification done ack success, inst_id=%d, ret=%d", ack_head.src_inst, ret);
+
+    mes_release_message_buf(receive_msg->buffer);
+    return;
 }
 
 status_t drc_send_remaster_task_msg(knl_session_t *session, void* body, uint32 task_num, uint8 src_inst, uint8 dest_inst)
@@ -5285,6 +5346,25 @@ void drc_clean_res_owner_by_inst(uint8 inst_id, knl_session_t *session)
         DRC_SELF_INST_ID, inst_id, inst_part->count);
 }
 
+status_t drc_remaster_broadcast_param_verification(knl_session_t *session)
+{
+    drc_remaster_mngr_t *remaster_mngr = DRC_PART_REMASTER_MNGR;
+    uint64 alive_bitmap = get_alive_bitmap_by_reform_info(&(remaster_mngr->reform_info));
+    
+    drc_remaster_param_verify_t remaster_param_verify;
+    mes_init_send_head(&remaster_param_verify.head, MES_CMD_VERIFY_REMASTER_PARAM, sizeof(drc_remaster_param_verify_t),
+                        CT_INVALID_ID32, DRC_SELF_INST_ID, CT_INVALID_ID8, session->id, CT_INVALID_ID16);
+    remaster_param_verify.reformer_drc_mode = session->kernel->attr.drc_in_reformer_mode;
+
+    status_t ret = mes_broadcast_data_and_wait_with_retry(session->id, alive_bitmap, (const void *)&remaster_param_verify,
+                                                    REMASTER_BROADCAST_DONE_TIMEOUT, REMASTER_SEND_MSG_RETRY_TIMES);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[DRC] Reformer broadcast verification failed, ret=%d.", ret);
+        return ret;
+    }
+    return ret;
+}
+
 void drc_prepare_remaster(knl_session_t *session, reform_info_t *reform_info)
 {
     reform_detail_t *detail = &g_rc_ctx->reform_detail;
@@ -5292,6 +5372,22 @@ void drc_prepare_remaster(knl_session_t *session, reform_info_t *reform_info)
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     drc_remaster_mngr_t *remaster_mngr = DRC_PART_REMASTER_MNGR;
     uint8 self_id = DRC_SELF_INST_ID;
+
+    if (part_mngr->remaster_inst == self_id) {
+        ctrl_version_t release_version = DRC_IN_REFORMER_MODE_RELEASE_VERSION;
+        if (db_cur_ctrl_version_is_higher_or_equal(session, release_version)) {
+            if (drc_remaster_broadcast_param_verification(session) == CT_SUCCESS) {
+                CT_LOG_RUN_INF("[DRC] Instance[%u] have verify cluster parameter consistency successfully, reform "
+                        "trigger version[%llu].", self_id, remaster_mngr->reform_info.trigger_version);
+            } else {
+                drc_update_remaster_local_status(REMASTER_FAIL);
+                CT_LOG_RUN_ERR("[DRC] Instance[%u] prepared end, verify cluster parameter consistency failed, change status to[%u], "
+                        "reform trigger version[%llu].", self_id, part_mngr->remaster_status,
+                        remaster_mngr->reform_info.trigger_version);
+                return;
+            }
+        }
+    }
 
     /**
      * Notify reformer that current node is ready for remaster
@@ -5361,7 +5457,7 @@ status_t drc_execute_remaster(knl_session_t *session, reform_info_t *reform_info
 
     //step 1:remaster instance rebalance the resource distribution
     if (reform_info->reform_list[REFORM_LIST_JOIN].inst_id_count > 0) {
-        ret = drc_scaleout_remaster(reform_info->reform_list[REFORM_LIST_JOIN].inst_id_list, reform_info->reform_list[REFORM_LIST_JOIN].inst_id_count, part_mngr);
+        ret = drc_scaleout_remaster(session, reform_info->reform_list[REFORM_LIST_JOIN].inst_id_list, reform_info->reform_list[REFORM_LIST_JOIN].inst_id_count, part_mngr);
         if (ret != CT_SUCCESS) {
             cm_spin_unlock(&part_mngr->lock);
             CT_LOG_RUN_ERR("[DRC]scale out remaster error,return error:%d", ret);

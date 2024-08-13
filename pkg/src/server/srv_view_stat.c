@@ -943,6 +943,7 @@ static status_t vw_system_event_fetch(knl_handle_t se, knl_cursor_t *cursor)
 
 typedef enum en_rfstat_id {
     RF_REFORM_STATUS = 0,
+    RF_REFORMER_NODE,
     RF_REFORM_MODE,
     RF_REFORM_ROLE,
     RF_REFORM_TRIGGER_VERION,
@@ -988,6 +989,7 @@ typedef enum en_rfstat_id {
 
 static rf_stat_item_t g_rfstat_items[] = {
     { "reform status", "" },
+    { "reformer node", ""},
     { "reform mode", "" },
     { "reform role", "" },
     { "reform tigger version", "" },
@@ -1038,6 +1040,7 @@ void vm_rfstat_value_fetch(uint64 *stat_vals, dtc_rcy_stat_t *rcy_stat, drc_stat
     drc_remaster_mngr_t *remaster_mngr = (&g_drc_res_ctx.part_mngr.remaster_mngr);
 
     stat_vals[RF_REFORM_STATUS] = g_dtc->rf_ctx.status;
+    stat_vals[RF_REFORMER_NODE] = g_dtc->rf_ctx.info.master_id;
     stat_vals[RF_REFORM_MODE] = g_dtc->rf_ctx.mode;
     stat_vals[RF_REFORM_ROLE] = g_dtc->rf_ctx.info.role;
     stat_vals[RF_REFORM_TRIGGER_VERION] = g_dtc->rf_ctx.info.trigger_version;
