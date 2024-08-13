@@ -54,6 +54,17 @@
 #define DBS_TOOL_PARAM_FS_NAME "--fs-name="
 #define DBS_TOOL_PARAM_CLUSTER_NAME "--cluster-name="
 #define DBS_TOOL_PARAM_FILE_NAME "--file-name="
+#define DBS_TOOL_PARAM_FILE_PATH "--file-path="
+
+#define DBS_ARCH_QUERY_PRAMA_NUM 1
+#define DBS_ARCH_CLEAN_PRAMA_NUM 1
+#define DBS_ARCH_EXPORT_PRAMA_NUM 3
+#define DBS_ARCH_IMPORT_PRAMA_NUM 3
+#define DBS_ULOG_CLEAN_PRAMA_NUM 2
+#define DBS_PGPOOL_CLEAN_PRAMA_NUM 2
+#define DBS_CRAETE_FILE_PRAMA_NUM 2
+#define DBS_DELETE_FILE_PRAMA_NUM 2
+#define DBS_QUERY_FILE_PRAMA_NUM 2
 
 typedef bool32 (*file_filter_func)(const char *);
 typedef struct {
@@ -116,7 +127,8 @@ status_t get_archive_location(const char *file_name, const char *conf_name, char
             if (location != NULL) {
                 location += strlen("location=");
                 cm_trim_text(&value);
-                errno_t ret = strncpy_s(location_value, CT_PARAM_BUFFER_SIZE, location, value.len - (location - value.str));
+                errno_t ret = strncpy_s(location_value, CT_PARAM_BUFFER_SIZE, location,
+                    value.len - (location - value.str));
                 return ret == EOK ? CT_SUCCESS : CT_ERROR;
             }
         }
@@ -135,63 +147,12 @@ status_t get_location_by_cfg(char *location_value)
 
     status = get_archive_location(cantiand_ini_file_name, ARCHIVE_DEST_PATH, location_value);
     if (status != CT_SUCCESS) {
-        printf("Failed to get archive location from config. Ini file: %s, Status: %d\n", cantiand_ini_file_name, status);
+        printf("Failed to get archive location from config. Ini file: %s, Status: %d\n",
+            cantiand_ini_file_name, status);
         return CT_ERROR;
     }
 
     return CT_SUCCESS;
-}
-
-void cm_free_file_list(void **file_list) {
-    if (*file_list != NULL) {
-        free(*file_list);
-    }
-    *file_list = NULL;
-}
-
-status_t cm_malloc_file_list(device_type_t type, void **file_list) {
-    if (type == DEV_TYPE_DBSTOR_FILE) {
-        *file_list = malloc(DBS_DIR_MAX_FILE_NUM * sizeof(dbstor_file_info));
-        if (*file_list == NULL) {
-            CT_LOG_RUN_ERR("malloc dbstor arch file list array failed");
-            return CT_ERROR;
-        }
-        errno_t mem_ret = memset_sp(*file_list, sizeof(dbstor_file_info) * DBS_DIR_MAX_FILE_NUM, 
-                                    0, sizeof(dbstor_file_info) * DBS_DIR_MAX_FILE_NUM);
-        if (mem_ret != EOK) {
-            CT_LOG_RUN_ERR("memset dbstor arch file list array failed");
-            cm_free_file_list(file_list);
-            return CT_ERROR;
-        }
-    } else if (type == DEV_TYPE_FILE) {
-        *file_list = malloc(DBS_DIR_MAX_FILE_NUM * sizeof(cm_file_info));
-        if (*file_list == NULL) {
-            CT_LOG_RUN_ERR("malloc arch file list array failed");
-            return CT_ERROR;
-        }
-        errno_t mem_ret = memset_sp(*file_list, sizeof(cm_file_info) * DBS_DIR_MAX_FILE_NUM, 
-                                    0, sizeof(cm_file_info) * DBS_DIR_MAX_FILE_NUM);
-        if (mem_ret != EOK) {
-            CT_LOG_RUN_ERR("memset arch file list array failed");
-            cm_free_file_list(file_list);
-            return CT_ERROR;
-        }
-    } else {
-        return CT_ERROR;
-    }
-    return CT_SUCCESS;
-}
-
-char *cm_get_name_from_file_list(device_type_t type, void *list, int32 i) {
-    if (type == DEV_TYPE_DBSTOR_FILE) {
-        dbstor_file_info *file_list = (dbstor_file_info *)((char *)list + i * sizeof(dbstor_file_info));
-        return file_list->file_name;
-    } else if (type == DEV_TYPE_FILE) {
-        cm_file_info *file_list = (cm_file_info *)((char *)list + i * sizeof(cm_file_info));
-        return file_list->file_name;
-    }
-
-    return NULL;
 }
 
 status_t check_data_dir_empty(const char *path)
@@ -251,7 +212,8 @@ status_t copy_file(const dbs_device_info_t *src_info, const dbs_device_info_t *d
     return CT_SUCCESS;
 }
 
-status_t check_strcat_path(const char *dir, const char *name, char *strcat_name) {
+status_t check_strcat_path(const char *dir, const char *name, char *strcat_name)
+{
     if ((strlen(dir) + strlen(name)) >= MAX_DBS_FILE_PATH_LEN) {
         CT_LOG_RUN_ERR("srch file name is too long. dir is %s, file name is %s.", dir, name);
         return CT_ERROR;
@@ -261,7 +223,8 @@ status_t check_strcat_path(const char *dir, const char *name, char *strcat_name)
     return CT_SUCCESS;
 }
 
-status_t copy_arch_file(const char *file_name, dbs_device_info_t *src_info, dbs_device_info_t *dst_info) {  // 
+status_t copy_arch_file(const char *file_name, dbs_device_info_t *src_info, dbs_device_info_t *dst_info)
+{
     char src_file_name[MAX_DBS_FILE_PATH_LEN] = {0};
     char dst_file_name[MAX_DBS_FILE_PATH_LEN] = {0};
     if (check_strcat_path(src_info->path, file_name, src_file_name) != CT_SUCCESS) {
@@ -310,7 +273,7 @@ status_t copy_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t
         ret = copy_arch_file(arch_file, src_info, dst_info);
         if (ret != CT_SUCCESS) {
             CT_LOG_RUN_ERR("Failed to copy file from target dir, file name is %s, src handle %d, dst handle %d.",
-                            arch_file, src_info->handle, dst_info->handle);
+                           arch_file, src_info->handle, dst_info->handle);
             return CT_ERROR;
         }
         return CT_SUCCESS;
@@ -327,7 +290,7 @@ status_t copy_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t
         return CT_ERROR;
     }
 
-    for (int32 i = 0; i < file_num; i++) {
+    for (uint32 i = 0; i < file_num; i++) {
         char *file_name = cm_get_name_from_file_list(src_info->type, file_list, i);
         if (file_name == NULL) {
             CT_LOG_RUN_ERR("Failed to get file name, please check info type %d.", src_info->type);
@@ -337,14 +300,14 @@ status_t copy_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t
         if (!cm_match_arch_pattern(file_name)) {
             continue;
         }
-        printf("%s\n", file_name);
         ret = copy_arch_file(file_name, src_info, dst_info);
         if (ret != CT_SUCCESS) {
             CT_LOG_RUN_ERR("Failed to copy file from target dir, file name is %s, src handle %d, dst handle %d.",
-                            file_name, src_info->handle, dst_info->handle);
+                           file_name, src_info->handle, dst_info->handle);
             cm_free_file_list(&file_list);
             return CT_ERROR;
         }
+        printf("%s\n", file_name);
         cm_close_device(src_info->type, &src_info->handle);
         cm_close_device(dst_info->type, &dst_info->handle);
     }
@@ -474,7 +437,7 @@ status_t dbs_get_fs_info_from_config(char* cfg_name)
             }
         }
     }
-    fclose(fp);
+    (void)fclose(fp);
     return ret;
 }
 
@@ -535,7 +498,7 @@ status_t dbs_client_init(char* cfg_name)
         return CT_ERROR;
     }
     CT_LOG_RUN_INF("log fs name:%s, page fs name:%s, cluster name %s",
-        g_dbs_fs_info.log_fs_name, g_dbs_fs_info.page_fs_name, g_dbs_fs_info.cluster_name);    
+        g_dbs_fs_info.log_fs_name, g_dbs_fs_info.page_fs_name, g_dbs_fs_info.cluster_name);
 
     uint32 lsid;
     char uuid[DBS_CLUSTER_UUID_LEN] = { 0 };
@@ -553,6 +516,7 @@ status_t dbs_client_init(char* cfg_name)
 
     ret = cm_dbs_init(DBS_HOME_PATH, cfg_name, DBS_RUN_DBS_TOOL);
     if (ret != CT_SUCCESS) {
+        (void)dbs_global_handle()->dbs_client_flush_log();
         CT_LOG_RUN_ERR("Dbs init failed(%d).", ret);
     }
     int64_t end_time = cm_now();
@@ -587,7 +551,8 @@ int32 dbs_test_func(int32 argc, char *argv[])
     return ret;
 }
 
-status_t parse_params(int32 argc, char *argv[], const char **params, char **results, size_t *result_lens, int32 param_count)
+status_t parse_params(int32 argc, char *argv[], const char **params, char **results,
+    size_t *result_lens, int32 param_count)
 {
     for (int32 i = 2; i < argc; i++) {
         bool32 matched = CT_FALSE;
@@ -636,22 +601,18 @@ int32 dbs_arch_import(int32 argc, char *argv[])
     char archive_location[MAX_DBS_FS_FILE_PATH_LEN] = {0};
     char fs_name[MAX_DBS_FS_NAME_LEN] = {0};
 
-    if (argc < 3) {
-        printf("Usage: --arch-import --source-dir=xxx [--arch-file=xxx] [--fs-name=xxx]\n");
-        return CT_ERROR;
-    }
-
     const char *params[] = {DBS_TOOL_PARAM_SOURCE_DIR, DBS_TOOL_PARAM_ARCH_FILE, DBS_TOOL_PARAM_FS_NAME};
     char *results[] = {source_dir, arch_file, fs_name};
     size_t result_lens[] = {MAX_DBS_FS_FILE_PATH_LEN, MAX_DBS_FILE_NAME_LEN, MAX_DBS_FS_NAME_LEN};
 
-    if (parse_params(argc, argv, params, results, result_lens, 3) != CT_SUCCESS) {
+    if (parse_params(argc, argv, params, results, result_lens, DBS_ARCH_IMPORT_PRAMA_NUM) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --arch-import --source-dir=xxx [--arch-file=xxx] [--fs-name=xxx]\n");
         return CT_ERROR;
     }
 
     if (strlen(source_dir) == 0) {
-        printf("Source directory not specified.\n");
+        printf("Target directory not specified.\n"
+            "Usage: --arch-export --target-dir=xxx [--arch-file=xxx] [--fs-name=xxx]\n");
         return CT_ERROR;
     }
 
@@ -681,21 +642,17 @@ int32 dbs_arch_export(int32 argc, char *argv[])
     char archive_location[MAX_DBS_FILE_PATH_LEN] = {0};
     char fs_name[MAX_DBS_FILE_NAME_LEN] = {0};
 
-    if (argc < 3) {
-        printf("Usage: --arch-export --target-dir=xxx [--arch-file=xxx] [--fs-name=xxx]\n");
-        return CT_ERROR;
-    }
-
     const char *params[] = {DBS_TOOL_PARAM_TARGET_DIR, DBS_TOOL_PARAM_ARCH_FILE, DBS_TOOL_PARAM_FS_NAME};
     char *results[] = {target_dir, arch_file, fs_name};
     size_t result_lens[] = {MAX_DBS_FILE_PATH_LEN, MAX_DBS_FILE_PATH_LEN, MAX_DBS_FILE_NAME_LEN};
 
-    if (parse_params(argc, argv, params, results, result_lens, 3) != CT_SUCCESS) {
+    if (parse_params(argc, argv, params, results, result_lens, DBS_ARCH_EXPORT_PRAMA_NUM) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --arch-export --target-dir=xxx [--arch-file=xxx] [--fs-name=xxx]\n");
         return CT_ERROR;
     }
     if (strlen(target_dir) == 0) {
-        printf("Target directory not specified.\n");
+        printf("Target directory not specified.\n"
+            "Usage: --arch-export --target-dir=xxx [--arch-file=xxx] [--fs-name=xxx]\n");
         return CT_ERROR;
     }
 
@@ -726,7 +683,7 @@ status_t dbs_clean_files(dbs_device_info_t *src_info, void *file_list, uint32 fi
 {
     CT_LOG_RUN_INF("[DBSTOR] Removed files in dir %s", src_info->path);
     printf("Remove files list:\n");
-    for (int32 i = 0; i < file_num; i++) {
+    for (uint32 i = 0; i < file_num; i++) {
         char file_path[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
         char *file_name = cm_get_name_from_file_list(src_info->type, file_list, i);
         if (file_name == NULL) {
@@ -768,7 +725,7 @@ int32 dbs_arch_clean(int32 argc, char *argv[])
     char *results[] = {fs_name};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN};
 
-    if (parse_params(argc, argv, params, results, result_lens, 1) != CT_SUCCESS) {
+    if (parse_params(argc, argv, params, results, result_lens, DBS_ARCH_CLEAN_PRAMA_NUM) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --arch-clean [--fs-name=xxx]\n");
         return CT_ERROR;
     }
@@ -813,7 +770,7 @@ int32 dbs_arch_query(int32 argc, char *argv[])
     char *results[] = {fs_name};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN};
 
-    if (parse_params(argc, argv, params, results, result_lens, 1) != CT_SUCCESS) {
+    if (parse_params(argc, argv, params, results, result_lens, DBS_ARCH_QUERY_PRAMA_NUM) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --arch-query [--fs-name=xxx]\n");
         return CT_ERROR;
     }
@@ -843,7 +800,7 @@ int32 dbs_arch_query(int32 argc, char *argv[])
     }
 
     printf("Archive files list:\n");
-    for (int32 i = 0; i < file_num; i++) {
+    for (uint32 i = 0; i < file_num; i++) {
         char *file_name = cm_get_name_from_file_list(src_info.type, file_list, i);
         if (file_name == NULL) {
             printf("Failed to get file name.\n");
@@ -879,7 +836,7 @@ int32 dbs_ulog_clean(int32 argc, char *argv[])
     char *results[] = {fs_name, cluster_name};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN};
 
-    if (parse_params(argc, argv, params, results, result_lens, 2) != CT_SUCCESS) {
+    if (parse_params(argc, argv, params, results, result_lens, DBS_ULOG_CLEAN_PRAMA_NUM) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --ulog-clean [--fs-name=xxx] [--cluster-name=xxx]\n");
         return CT_ERROR;
     }
@@ -934,7 +891,7 @@ int32 dbs_pagepool_clean(int32 argc, char *argv[])
     char *results[] = {fs_name, cluster_name};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN};
 
-    if (parse_params(argc, argv, params, results, result_lens, 2) != CT_SUCCESS) {
+    if (parse_params(argc, argv, params, results, result_lens, DBS_PGPOOL_CLEAN_PRAMA_NUM) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --pagepool-clean [--fs-name=xxx] [--cluster-name=xxx]\n");
         return CT_ERROR;
     }
@@ -948,7 +905,7 @@ int32 dbs_pagepool_clean(int32 argc, char *argv[])
 
     void *file_list = NULL;
     uint32 file_num = 0;
-    dbs_device_info_t src_info = { .handle = -1, .type = DEV_TYPE_FILE, .path = "" };
+    dbs_device_info_t src_info = { .handle = -1, .type = DEV_TYPE_DBSTOR_FILE, .path = "" };
     MEMS_RETURN_IFERR(strncpy_s(src_info.path, MAX_DBS_FS_FILE_PATH_LEN, pagepool_path, strlen(pagepool_path)));
 
     if (cm_malloc_file_list(src_info.type, &file_list) != CT_SUCCESS) {
@@ -984,7 +941,7 @@ int32 dbs_create_path_or_file(int32 argc, char *argv[])
     char *results[] = {fs_name, file_name, source_dir};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN, MAX_DBS_FS_FILE_PATH_LEN};
 
-    if (parse_params(argc, argv, params, results, result_lens, 3) != CT_SUCCESS) {
+    if (parse_params(argc, argv, params, results, result_lens, DBS_CRAETE_FILE_PRAMA_NUM) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --creat-file --fs-name=xxx --file-name=xxx [--source-dir=xxx]\n");
         return CT_ERROR;
     }
@@ -1074,7 +1031,7 @@ int32 dbs_delete_path_or_file(int32 argc, char *argv[])
     char *results[] = {fs_name, file_name};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN};
 
-    if (parse_params(argc, argv, params, results, result_lens, 2) != CT_SUCCESS) {
+    if (parse_params(argc, argv, params, results, result_lens, DBS_DELETE_FILE_PRAMA_NUM) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --delete-file --fs-name=xxx --file-name=xxx\n");
         return CT_ERROR;
     }
@@ -1097,5 +1054,68 @@ int32 dbs_delete_path_or_file(int32 argc, char *argv[])
     }
 
     printf("Path or file deleted successfully: %s\n", dst_info.path);
+    return CT_SUCCESS;
+}
+
+// dbstor --query-file --fs-name=xxx --file-path=xxx
+int32 dbs_query_file(int32 argc, char *argv[])
+{
+    char fs_name[MAX_DBS_FS_NAME_LEN] = {0};
+    char file_path[MAX_DBS_FILE_PATH_LEN] = {0};
+
+    const char *params[] = {DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_FILE_PATH};
+    char *results[] = {fs_name, file_path};
+    size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN};
+
+    if (parse_params(argc, argv, params, results, result_lens, DBS_QUERY_FILE_PRAMA_NUM) != CT_SUCCESS) {
+        printf("Invalid command.\nUsage: --query-file --fs-name=xxx --file-path=xxx\n");
+        return CT_ERROR;
+    }
+
+    if (strlen(fs_name) == 0 || strlen(file_path) == 0) {
+        printf("fs_name or file_path not specified.\n");
+        return CT_ERROR;
+    }
+
+    char full_path[MAX_DBS_FS_FILE_PATH_LEN] = {0};
+    PRTS_RETURN_IFERR(snprintf_s(full_path, MAX_DBS_FS_FILE_PATH_LEN,
+                                 MAX_DBS_FS_FILE_PATH_LEN - 1, "/%s/%s", fs_name, file_path));
+
+    dbs_device_info_t query_info = { .handle = -1, .type = DEV_TYPE_DBSTOR_FILE, .path = "" };
+    MEMS_RETURN_IFERR(strncpy_s(query_info.path, MAX_DBS_FS_FILE_PATH_LEN, full_path, strlen(full_path)));
+
+    if (cm_exist_device_dir(query_info.type, query_info.path) != CT_TRUE) {
+        printf("Directory does not exist: %s\n", query_info.path);
+        return CT_ERROR;
+    }
+
+    void *file_list = NULL;
+    uint32 file_num = 0;
+
+    if (cm_malloc_file_list(query_info.type, &file_list) != CT_SUCCESS) {
+        printf("Failed to allocate memory for file list.\n");
+        return CT_ERROR;
+    }
+
+    status_t ret = cm_query_device(query_info.type, query_info.path, file_list, &file_num);
+    if (ret != CT_SUCCESS) {
+        printf("Failed to query files in directory: %s\n", query_info.path);
+        cm_free_file_list(&file_list);
+        return CT_ERROR;
+    }
+
+    if (file_num == 0) {
+        printf("No files found in directory: %s\n", query_info.path);
+    } else {
+        printf("Files in directory %s:\n", query_info.path);
+        for (uint32 i = 0; i < file_num; i++) {
+            char *file_name = cm_get_name_from_file_list(query_info.type, file_list, i);
+            if (file_name != NULL) {
+                printf("%s\n", file_name);
+            }
+        }
+    }
+
+    cm_free_file_list(&file_list);
     return CT_SUCCESS;
 }

@@ -1585,7 +1585,10 @@ status_t dtc_rcy_read_log(knl_session_t *session, int32 *handle, const char *nam
     if (size_need_read > buf_size) {
         size = buf_size;
     }
-    device_type_t type = arch_get_device_type(name);
+    device_type_t type = cm_device_type(name);
+    if (type != DEV_TYPE_ULOG) {
+        type = arch_get_device_type(name);
+    }
     if (cm_open_device(name, type, knl_io_flag(session), handle) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DTC RCY] failed to open redo log, filename=%s", name);
         return CT_ERROR;

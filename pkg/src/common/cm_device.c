@@ -63,13 +63,6 @@ device_type_t cm_device_type(const char *name)
     }
 }
 
-device_type_t arch_get_device_type(const char *name) {
-    if (cm_dbs_is_enable_dbs() && cm_dbs_get_deploy_mode() == DBSTOR_DEPLOY_MODE_NO_NAS) {
-        return DEV_TYPE_DBSTOR_FILE;
-    }
-    return cm_device_type(name);
-}
-
 static inline void cm_check_file_error(void)
 {
     if (g_check_file_error != NULL) {
@@ -116,8 +109,7 @@ status_t cm_create_device_dir(device_type_t type, const char *name)
     } else if (type == DEV_TYPE_DBSTOR_FILE) {
         int32 handle = CT_INVALID_HANDLE;
         return cm_dbs_create_dir(name, &handle);
-    }
-    else {
+    } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
         return CT_ERROR;
     }
@@ -317,7 +309,7 @@ status_t cm_open_device_common(const char *name, device_type_t type, uint32 flag
         if (cm_dbs_open_file(name, handle) == CT_ERROR) {
             return CT_ERROR;
         }
-    } else { 
+    } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
         return CT_ERROR;
     }
@@ -413,7 +405,7 @@ status_t cm_read_device_nocheck(device_type_t type, int32 handle, int64 offset, 
                                 int32 *return_size)
 {
     int32 read_size;
-
+    timeval_t tv_begin;
     if (type == DEV_TYPE_FILE) {
         if (cm_pread_file(handle, buf, size, offset, &read_size) != CT_SUCCESS) {
             return CT_ERROR;
@@ -441,9 +433,12 @@ status_t cm_read_device_nocheck(device_type_t type, int32 handle, int64 offset, 
             return CT_ERROR;
         }
     } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_READ_NOCHECK_DBSTOR_FILE, &tv_begin);
         if (cm_dbs_read_file(handle, offset, buf, size, &read_size) != CT_SUCCESS) {
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_NOCHECK_DBSTOR_FILE, &tv_begin, IO_STAT_FAILED);
             return CT_ERROR;
         }
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_NOCHECK_DBSTOR_FILE, &tv_begin, IO_STAT_SUCCESS);
     } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
         return CT_ERROR;
@@ -550,7 +545,8 @@ status_t cm_write_device(device_type_t type, int32 handle, int64 offset, const v
     return CT_SUCCESS;
 }
 
-status_t cm_query_device(device_type_t type, const char *name, void *file_list, uint32 *file_num) {
+status_t cm_query_device(device_type_t type, const char *name, void *file_list, uint32 *file_num)
+{
     if (type == DEV_TYPE_FILE) {
         if (cm_query_dir(name, file_list, file_num) != CT_SUCCESS) {
             return CT_ERROR;
@@ -566,7 +562,8 @@ status_t cm_query_device(device_type_t type, const char *name, void *file_list, 
     return CT_SUCCESS;
 }
 
-status_t cm_get_size_device(device_type_t type, int32 handle, int64 *file_size) {
+status_t cm_get_size_device(device_type_t type, int32 handle, int64 *file_size)
+{
     if (type == DEV_TYPE_FILE) {
         *file_size = cm_seek_file(handle, 0, SEEK_END);
     } else if (type == DEV_TYPE_DBSTOR_FILE) {
@@ -998,7 +995,7 @@ status_t cm_malloc_file_list(device_type_t type, void **file_list)
             CT_LOG_RUN_ERR("malloc dbstor arch file list array failed");
             return CT_ERROR;
         }
-        errno_t mem_ret = memset_sp(*file_list, sizeof(dbstor_file_info) * DBS_DIR_MAX_FILE_NUM, 
+        errno_t mem_ret = memset_sp(*file_list, sizeof(dbstor_file_info) * DBS_DIR_MAX_FILE_NUM,
                                     0, sizeof(dbstor_file_info) * DBS_DIR_MAX_FILE_NUM);
         if (mem_ret != EOK) {
             CT_LOG_RUN_ERR("memset dbstor arch file list array failed");
@@ -1011,7 +1008,7 @@ status_t cm_malloc_file_list(device_type_t type, void **file_list)
             CT_LOG_RUN_ERR("malloc arch file list array failed");
             return CT_ERROR;
         }
-        errno_t mem_ret = memset_sp(*file_list, sizeof(cm_file_info) * DBS_DIR_MAX_FILE_NUM, 
+        errno_t mem_ret = memset_sp(*file_list, sizeof(cm_file_info) * DBS_DIR_MAX_FILE_NUM,
                                     0, sizeof(cm_file_info) * DBS_DIR_MAX_FILE_NUM);
         if (mem_ret != EOK) {
             CT_LOG_RUN_ERR("memset arch file list array failed");
@@ -1033,7 +1030,6 @@ char *cm_get_name_from_file_list(device_type_t type, void *list, int32 index)
         cm_file_info *file_list = (cm_file_info *)((char *)list + index * sizeof(cm_file_info));
         return file_list->file_name;
     }
-
     return NULL;
 }
 
@@ -1044,16 +1040,13 @@ bool32 cm_match_arch_pattern(const char *filename)
     size_t filename_len = strlen(filename);
     size_t prefix_len = strlen(prefix);
     size_t suffix_len = strlen(suffix);
-
     if (filename_len < prefix_len + suffix_len) {
         return CT_FALSE;
     }
-
     if (strncmp(filename, prefix, prefix_len) == 0 &&
         strcmp(filename + filename_len - suffix_len, suffix) == 0) {
         return CT_TRUE; // Match
     }
-
     return CT_FALSE;
 }
 

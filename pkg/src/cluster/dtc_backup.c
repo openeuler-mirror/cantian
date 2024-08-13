@@ -1800,7 +1800,9 @@ status_t dtc_rst_arch_regist_archive(knl_session_t *session, const char *name, u
         cm_close_device(type, &handle);
         return CT_ERROR;
     }
-    cm_get_size_device(type, handle, &file_size);
+    if (cm_get_size_device(type, handle, &file_size) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
     if ((int64)head.write_pos != file_size) {
         cm_close_device(type, &handle);
         CT_THROW_ERROR(ERR_INVALID_ARCHIVE_LOG, name);
@@ -1938,7 +1940,8 @@ status_t dtc_rst_regist_archive_by_dbstor(knl_session_t *session, uint32 *last_a
             arch_info_t first_arch_info = {file_name, &first_find_lsn, &found_arch, last_archived_asn, inst_id, rst_id};
             status_t status = rst_find_first_archfile_with_lsn(session, first_arch_info);
             if (status != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("[DTC] failed to rst_find_first_archfile_with_lsn  inst_id %u, rst_id %u, last_archived_asn %u, start_lsn %llu, end_lsn %llu", inst_id, rst_id, *last_archived_asn, start_lsn, end_lsn);
+                CT_LOG_RUN_ERR("[DTC] failed to find inst_id %u, rst_id %u, last_archived_asn %u, "
+                    "start_lsn %llu, end_lsn %llu", inst_id, rst_id, *last_archived_asn, start_lsn, end_lsn);
                 return CT_ERROR;
             }
             find_lsn = first_find_lsn.end_lsn + 1;
@@ -1948,23 +1951,21 @@ status_t dtc_rst_regist_archive_by_dbstor(knl_session_t *session, uint32 *last_a
                                      .last_archived_asn = last_archived_asn, .inst_id = inst_id, .rst_id = rst_id};
             status_t status = rst_find_archfile_name_with_lsn(session, find_lsn, arch_info, &next_lsn);
             if (status != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("[DTC] failed to rst_find_archfile_name_with_lsn  inst_id %u, rst_id %u, last_archived_asn %u, start_lsn %llu, end_lsn %llu", inst_id, rst_id, *last_archived_asn, start_lsn, end_lsn);
+                CT_LOG_RUN_ERR("[DTC] failed to find inst_id %u, rst_id %u, last_archived_asn %u, start_lsn "
+                    "%llu, end_lsn %llu", inst_id, rst_id, *last_archived_asn, start_lsn, end_lsn);
                 return CT_ERROR;
             }
             find_lsn = next_lsn + 1;
         }
         if (found_arch != CT_TRUE) {
-            CT_LOG_RUN_INF("[DTC] break to dtc_rst_regist_archive_by_dbstor  inst_id %u, rst_id %u, last_archived_asn %u, start_lsn %llu, end_lsn %llu", inst_id, rst_id, *last_archived_asn, start_lsn, end_lsn);
             break;
         }
         CT_LOG_RUN_INF("[RESTORE] found archfile info %s:[first %u/rst id %u/find lsn %llu/last asn %u], instid[%u]",
                        file_name, is_first, rst_id, find_lsn, *last_archived_asn, inst_id);
         if (!cm_exist_device(arch_get_device_type((const char *)file_name), (const char *)file_name)) {
-            CT_LOG_RUN_INF("[DTC] break to dtc_rst_regist_archive_by_dbstor  inst_id %u, rst_id %u, last_archived_asn %u, start_lsn %llu, end_lsn %llu", inst_id, rst_id, *last_archived_asn, start_lsn, end_lsn);
             break;
         }
         if (dtc_rst_arch_regist_archive(session, file_name, inst_id) != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[DTC] failed to dtc_rst_arch_regist_archive  inst_id %u, rst_id %u, last_archived_asn %u, start_lsn %llu, end_lsn %llu", inst_id, rst_id, *last_archived_asn, start_lsn, end_lsn);
             return CT_ERROR;
         }
     }
@@ -2112,13 +2113,10 @@ status_t dtc_rst_amend_files(knl_session_t *session, int32 file_index)
             if (is_dbstor) {
                 if (dtc_rst_regist_archive_by_dbstor(session, &last_archived_asn, rst_id, file_info->start_lsn,
                                                      file_info->end_lsn, file_info->inst_id) != CT_SUCCESS) {
-                    CT_LOG_RUN_ERR("[DTC] failed to dtc_rst_regist_archive_by_dbstor  inst_id %u, rst_id %u, last_archived_asn %u, start_lsn %llu, end_lsn %llu",
-                        inst_id, rst_id, last_archived_asn, file_info->start_lsn, file_info->end_lsn);
                     return CT_ERROR;
                 }
             } else {
                 if (dtc_rst_regist_archive(session, &last_archived_asn, rst_id, inst_id) != CT_SUCCESS) {
-                    CT_LOG_RUN_ERR("[DTC] failed to dtc_rst_regist_archive  inst_id %u, rst_id %u, last_archived_asn %u", inst_id, rst_id, last_archived_asn);
                     return CT_ERROR;
                 }
             }
@@ -2127,7 +2125,6 @@ status_t dtc_rst_amend_files(knl_session_t *session, int32 file_index)
             }
         }
         if (dtc_rst_amend_ctrlinfo(session, last_archived_asn + 1, file_id, inst_id) != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[DTC] failed to dtc_rst_amend_ctrlinfo  inst_id %u, rst_id %u, last_archived_asn %u", inst_id, rst_id, last_archived_asn);
             return CT_ERROR;
         }
     }
@@ -2735,7 +2732,7 @@ status_t bak_get_arch_info(knl_session_t *session, log_start_end_info_t arch_inf
         cm_free_file_list(&file_list);
         return CT_ERROR;
     }
-    for(int32 i = 0; i < file_num; i++) {
+    for (uint32 i = 0; i < file_num; i++) {
         char *file_name = cm_get_name_from_file_list(type, file_list, i);
         if (file_name == NULL) {
             cm_free_file_list(&file_list);
@@ -3214,8 +3211,7 @@ status_t rst_find_first_archfile_with_lsn(knl_session_t *session, arch_info_t fi
 {
     local_arch_file_info_t file_info;
     log_start_end_lsn_t found_local_lsn = {0};
-    arch_attr_t *arch_attr = &session->kernel->attr.arch_attr[0];
-    char *arch_path = arch_attr->local_path;
+    char *arch_path = session->kernel->attr.arch_attr[0].local_path;
     bool32 dbid_equal = CT_FALSE;
     device_type_t type = arch_get_device_type(arch_path);
     void *file_list = NULL;
@@ -3230,7 +3226,7 @@ status_t rst_find_first_archfile_with_lsn(knl_session_t *session, arch_info_t fi
         return CT_ERROR;
     }
 
-    for (int32 i = 0; i < file_num; i++) {
+    for (uint32 i = 0; i < file_num; i++) {
         char *file_name = cm_get_name_from_file_list(type, file_list, i);
         if (file_name == NULL) {
             cm_free_file_list(&file_list);
@@ -3256,14 +3252,13 @@ status_t rst_find_first_archfile_with_lsn(knl_session_t *session, arch_info_t fi
             found_local_lsn.start_lsn = file_info.local_start_lsn;
             found_local_lsn.end_lsn = file_info.local_end_lsn;
             CT_LOG_RUN_INF("[RESTORE] found archive log %s, start lsn %llu, end lsn %llu, asn %u",
-                           first_arch_info.buf, file_info.local_start_lsn, file_info.local_end_lsn, file_info.local_asn);
+                first_arch_info.buf, file_info.local_start_lsn, file_info.local_end_lsn, file_info.local_asn);
             break;
         }
     }
 
     if (rst_reset_first_archfile(session, &found_local_lsn, first_arch_info) != CT_SUCCESS) {
         cm_free_file_list(&file_list);
-        CT_LOG_RUN_ERR("[RESTORE] reset first archive log file failed.");
         return CT_ERROR;
     }
 
@@ -3334,7 +3329,7 @@ status_t rst_find_archfile_name_with_lsn(knl_session_t *session, uint64 lsn, arc
         return CT_ERROR;
     }
 
-    for (int32 i = 0; i < file_num; i++) {
+    for (uint32 i = 0; i < file_num; i++) {
         char *file_name = cm_get_name_from_file_list(type, file_list, i);
         if (file_name == NULL) {
             cm_free_file_list(&file_list);

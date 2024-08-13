@@ -309,7 +309,8 @@ def load_config_param(json_data):
     DEPLOY_MODE = json_data.get("deploy_mode", "").strip()
     storage_archive_fs = json_data['storage_archive_fs'].strip()
     g_opts.use_dbstor = DEPLOY_MODE != "nas"
-    g_opts.archive_location = f"location=/{f'mnt/dbdata/remote/archive_{storage_archive_fs}' if DEPLOY_MODE != 'dbstore_unify' else f'{storage_archive_fs}/archive'}"
+    g_opts.archive_location = f"""location=/{f'mnt/dbdata/remote/archive_{storage_archive_fs}' 
+        if DEPLOY_MODE != 'dbstore_unify' else f'{storage_archive_fs}/archive'}"""
     g_opts.dbstor_deploy_mode = DEPLOY_MODE == "dbstore_unify"
     metadata_str = "metadata_" + json_data.get('storage_metadata_fs', '').strip()
     node_str = "node" + str(g_opts.node_id)

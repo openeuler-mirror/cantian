@@ -102,7 +102,6 @@ void cm_aio_prep_write(cm_iocb_t *iocb, int fd, void *buf, size_t count, long lo
 void cm_aio_set_callback(cm_iocb_t *iocb, cm_io_callback_t cb);
 
 device_type_t cm_device_type(const char *name);
-device_type_t arch_get_device_type(const char *name);
 status_t cm_remove_device(device_type_t type, const char *name);
 status_t cm_remove_device_when_enoent(device_type_t type, const char *name);
 status_t cm_open_device(const char *name, device_type_t type, uint32 flags, int32 *handle);

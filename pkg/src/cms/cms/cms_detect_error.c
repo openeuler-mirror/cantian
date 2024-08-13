@@ -365,7 +365,6 @@ status_t cms_open_detect_file(void)
             if (ret != CT_SUCCESS) {
                 return ret;
             }
-
         }
     } else {
         CMS_LOG_ERR("invalid device type:%d", g_cms_param->gcc_type);

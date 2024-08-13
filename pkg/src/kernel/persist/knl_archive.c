@@ -803,11 +803,11 @@ status_t arch_read_batch(log_file_t *logfile, arch_proc_context_t *proc_ctx,
             arch_check_log_valid(*data_size, buf) != CT_SUCCESS) {
             cm_sleep(ARCH_FAIL_WAIT_SLEEP_TIME);
             continue;
-        } 
+        }
         break;
     }
     if (retry_num == ARCH_READ_BATCH_RETRY_TIMES) {
-        CT_LOG_RUN_ERR("[ARCH] fail to read redo log from logfile %s, lsn %llu", 
+        CT_LOG_RUN_ERR("[ARCH] fail to read redo log from logfile %s, lsn %llu",
                        read_batch_attr.src_name, read_batch_attr.start_lsn);
         return CT_ERROR;
     }
@@ -903,20 +903,24 @@ status_t arch_write_file(arch_read_file_src_info_t *read_file_src_info, arch_pro
 status_t arch_dbstor_ulog_archive(log_file_t *logfile, arch_proc_context_t *proc_ctx,
     uint64 start_lsn, uint64 *last_lsn, uint64 *real_copy_size)
 {
+    timeval_t tv_begin;
     int32 src_file = logfile->handle;
     int32 dst_file = proc_ctx->tmp_file_handle;
     uint64 offset = proc_ctx->last_archived_log_record.offset;
     uint64 copy_size = DBSTOR_LOG_SEGMENT_SIZE;
     uint32 retry_num = 0;
     for (; retry_num < ARCH_READ_BATCH_RETRY_TIMES; retry_num++) {
+        cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_ULOG_ARCHIVE_DBSTOR_FILE, &tv_begin);
         status_t ret = cm_dbs_ulog_archive(src_file, dst_file, offset, start_lsn, copy_size, real_copy_size, last_lsn);
         if (ret != CT_SUCCESS) {
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_ULOG_ARCHIVE_DBSTOR_FILE, &tv_begin, IO_STAT_FAILED);
             CT_LOG_RUN_ERR("[ARCH] fail to copy redo log by dbstor, lsn %llu, size %llu", start_lsn, copy_size);
             cm_sleep(ARCH_FAIL_WAIT_SLEEP_TIME);
             continue;
         }
         break;
     }
+    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_ULOG_ARCHIVE_DBSTOR_FILE, &tv_begin, IO_STAT_SUCCESS);
     if (retry_num == ARCH_READ_BATCH_RETRY_TIMES) {
         CT_LOG_RUN_ERR("[ARCH] fail to copy redo log by dbstor, lsn %llu, size %llu", start_lsn, copy_size);
         return CT_ERROR;
@@ -947,7 +951,7 @@ status_t arch_copy_file(arch_read_file_src_info_t *read_file_src_info, arch_proc
         if (real_copy_size == 0) {
             proc_ctx->redo_log_filesize = 0;
             CT_LOG_DEBUG_INF("[ARCH] reach data end, left(%lld), last(%llu)", left_size, last_lsn);
-            break; 
+            break;
         }
 
         left_size -= real_copy_size;
@@ -1232,7 +1236,8 @@ static status_t arch_write_arch_file_nocompress(knl_session_t *session, aligned_
     device_type_t arch_file_type = arch_get_device_type(arch_files->arch_file_name);
 
     read_size = CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size);
-    if (cm_read_device_nocheck(arch_file_type, arch_files->src_file, file_offset, buf.aligned_buf, read_size, &data_size) != CT_SUCCESS) {
+    if (cm_read_device_nocheck(arch_file_type, arch_files->src_file,
+        file_offset, buf.aligned_buf, read_size, &data_size) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[ARCHIVE] failed to read archive log file %s offset size %llu actual read size %u",
             arch_files->src_name, logfile->head.write_pos - left_size, read_size);
         return CT_ERROR;
@@ -2092,7 +2097,8 @@ void arch_dbstor_do_archive(knl_session_t *session, arch_proc_context_t *proc_ct
         proc_ctx->need_file_archive = CT_FALSE;
         if (!arch_archive_log_recorded(session, logfile->head.rst_id, *cur_asn, ARCH_DEFAULT_DEST, node_id)) {
             if (arch_record_archinfo(session, arch_file_name, &head, proc_ctx) != CT_SUCCESS) {
-                arch_dbstor_rename_tmp_file(arch_file_name, proc_ctx->tmp_file_name, arch_get_device_type(proc_ctx->arch_dest));
+                arch_dbstor_rename_tmp_file(arch_file_name, proc_ctx->tmp_file_name,
+                    arch_get_device_type(proc_ctx->arch_dest));
                 arch_dbstor_wake_force_thread(proc_ctx);
                 return;
             }
@@ -3143,7 +3149,7 @@ void rc_arch_dbstor_ulog_proc(thread_t *thread)
         }
         if (real_copy_size == 0) {
             CT_LOG_DEBUG_INF("[ARCH] reach data end, left(%lld), last(%llu)", proc_ctx->redo_log_filesize, last_lsn);
-            break; 
+            break;
         }
 
         proc_ctx->redo_log_filesize -= real_copy_size;
@@ -5424,7 +5430,7 @@ status_t arch_init_proc_standby_node(arch_proc_context_t *proc_ctx, uint32 node_
     if (cm_dbs_get_deploy_mode() != DBSTOR_DEPLOY_MODE_NO_NAS) {
         if (cm_create_thread(arch_write_proc_all, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
             return CT_ERROR;
-        } 
+        }
     }
     return CT_SUCCESS;
 }
