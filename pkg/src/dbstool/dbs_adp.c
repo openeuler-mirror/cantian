@@ -62,7 +62,8 @@
 #define DBS_ARCH_IMPORT_PRAMA_NUM 3
 #define DBS_ULOG_CLEAN_PRAMA_NUM 2
 #define DBS_PGPOOL_CLEAN_PRAMA_NUM 2
-#define DBS_CRAETE_FILE_PRAMA_NUM 2
+#define DBS_CRAETE_FILE_PRAMA_NUM 3
+#define DBS_COPY_FILE_PRAMA_NUM 4
 #define DBS_DELETE_FILE_PRAMA_NUM 2
 #define DBS_QUERY_FILE_PRAMA_NUM 2
 
@@ -214,31 +215,31 @@ status_t copy_file(const dbs_device_info_t *src_info, const dbs_device_info_t *d
 
 status_t check_strcat_path(const char *dir, const char *name, char *strcat_name)
 {
-    if ((strlen(dir) + strlen(name)) >= MAX_DBS_FILE_PATH_LEN) {
+    if ((strlen(dir) + strlen(name)) >= MAX_DBS_FS_FILE_PATH_LEN) {
         CT_LOG_RUN_ERR("srch file name is too long. dir is %s, file name is %s.", dir, name);
         return CT_ERROR;
     }
-    int32 ret = snprintf_s(strcat_name, MAX_DBS_FILE_PATH_LEN, MAX_DBS_FILE_PATH_LEN - 1, "%s/%s", dir, name);
+    int32 ret = snprintf_s(strcat_name, MAX_DBS_FS_FILE_PATH_LEN, MAX_DBS_FS_FILE_PATH_LEN - 1, "%s/%s", dir, name);
     PRTS_RETURN_IFERR(ret);
     return CT_SUCCESS;
 }
 
-status_t copy_arch_file(const char *file_name, dbs_device_info_t *src_info, dbs_device_info_t *dst_info)
+status_t copy_file_by_name(const char *file_name, dbs_device_info_t *src_info, dbs_device_info_t *dst_info)
 {
-    char src_file_name[MAX_DBS_FILE_PATH_LEN] = {0};
-    char dst_file_name[MAX_DBS_FILE_PATH_LEN] = {0};
+    char src_file_name[MAX_DBS_FS_FILE_PATH_LEN] = {0};
+    char dst_file_name[MAX_DBS_FS_FILE_PATH_LEN] = {0};
     if (check_strcat_path(src_info->path, file_name, src_file_name) != CT_SUCCESS) {
         return CT_ERROR;
     }
     if (cm_exist_device(src_info->type, src_file_name) != CT_TRUE) {
-        CT_LOG_RUN_ERR("arch file not exsit, path is %s.", src_file_name);
+        CT_LOG_RUN_ERR("file not exsit, path is %s.", src_file_name);
         return CT_ERROR;
     }
     if (check_strcat_path(dst_info->path, file_name, dst_file_name) != CT_SUCCESS) {
         return CT_ERROR;
     }
     if (cm_exist_device(dst_info->type, dst_file_name) == CT_TRUE) {
-        CT_LOG_RUN_ERR("arch file exsit, path is %s.", dst_file_name);
+        CT_LOG_RUN_INF("file exsit, path is %s.", dst_file_name);
         return CT_SUCCESS;
     }
 
@@ -264,13 +265,13 @@ status_t copy_arch_file(const char *file_name, dbs_device_info_t *src_info, dbs_
     return CT_SUCCESS;
 }
 
-status_t copy_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t *dst_info, const char *arch_file)
+status_t copy_arch_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t *dst_info, const char *arch_file)
 {
     status_t ret;
     uint32 file_num = 0;
 
     if (arch_file != NULL) {
-        ret = copy_arch_file(arch_file, src_info, dst_info);
+        ret = copy_file_by_name(arch_file, src_info, dst_info);
         if (ret != CT_SUCCESS) {
             CT_LOG_RUN_ERR("Failed to copy file from target dir, file name is %s, src handle %d, dst handle %d.",
                            arch_file, src_info->handle, dst_info->handle);
@@ -300,7 +301,7 @@ status_t copy_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t
         if (!cm_match_arch_pattern(file_name)) {
             continue;
         }
-        ret = copy_arch_file(file_name, src_info, dst_info);
+        ret = copy_file_by_name(file_name, src_info, dst_info);
         if (ret != CT_SUCCESS) {
             CT_LOG_RUN_ERR("Failed to copy file from target dir, file name is %s, src handle %d, dst handle %d.",
                            file_name, src_info->handle, dst_info->handle);
@@ -313,6 +314,61 @@ status_t copy_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t
     }
     cm_free_file_list(&file_list);
     
+    CT_LOG_RUN_INF("Successfully copied files to %s.", dst_info->path);
+    return CT_SUCCESS;
+}
+
+status_t copy_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t *dst_info, const char *file_name)
+{
+    status_t ret;
+    uint32 file_num = 0;
+
+    if (file_name != NULL) {
+        ret = copy_file_by_name(file_name, src_info, dst_info);
+        if (ret != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("Failed to copy file from source dir, file name is %s, src handle %d, dst handle %d.",
+                           file_name, src_info->handle, dst_info->handle);
+            return CT_ERROR;
+        }
+        return CT_SUCCESS;
+    }
+
+    // 没有指定文件名则复制整个目录的所有文件
+    void *file_list = NULL;
+    if (cm_malloc_file_list(src_info->type, &file_list) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("Failed to malloc file list.");
+        return CT_ERROR;
+    }
+
+    ret = cm_query_device(src_info->type, src_info->path, file_list, &file_num);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("Failed to get file list, dir is %s.", src_info->path);
+        cm_free_file_list(&file_list);
+        return CT_ERROR;
+    }
+
+    for (uint32 i = 0; i < file_num; i++) {
+        char *current_file_name = cm_get_name_from_file_list(src_info->type, file_list, i);
+        if (current_file_name == NULL) {
+            CT_LOG_RUN_ERR("Failed to get file name, please check info type %d.", src_info->type);
+            cm_free_file_list(&file_list);
+            return CT_ERROR;
+        }
+
+        printf("Copying file: %s\n", current_file_name);
+        ret = copy_file_by_name(current_file_name, src_info, dst_info);
+        if (ret != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("Failed to copy file from source dir, file name is %s, src handle %d, dst handle %d.",
+                           current_file_name, src_info->handle, dst_info->handle);
+            cm_free_file_list(&file_list);
+            return CT_ERROR;
+        }
+        cm_close_device(src_info->type, &src_info->handle);
+        cm_close_device(dst_info->type, &dst_info->handle);
+    }
+
+    cm_free_file_list(&file_list);
+
     CT_LOG_RUN_INF("Successfully copied files to %s.", dst_info->path);
     return CT_SUCCESS;
 }
@@ -614,7 +670,7 @@ int32 dbs_arch_import(int32 argc, char *argv[])
     MEMS_RETURN_IFERR(strncpy_sp(src_info.path, MAX_DBS_FS_FILE_PATH_LEN, source_dir, strlen(source_dir)));
     MEMS_RETURN_IFERR(strncpy_sp(dst_info.path, MAX_DBS_FS_FILE_PATH_LEN, archive_location, strlen(archive_location)));
 
-    if (copy_files_to_target_dir(&src_info, &dst_info, strlen(arch_file) == 0 ? NULL : arch_file) != CT_SUCCESS) {
+    if (copy_arch_files_to_target_dir(&src_info, &dst_info, strlen(arch_file) == 0 ? NULL : arch_file) != CT_SUCCESS) {
         printf("Failed to import archive files.\n");
         return CT_ERROR;
     }
@@ -658,7 +714,7 @@ int32 dbs_arch_export(int32 argc, char *argv[])
     MEMS_RETURN_IFERR(strncpy_sp(src_info.path, CT_MAX_FILE_PATH_LENGH, archive_location, strlen(archive_location)));
     MEMS_RETURN_IFERR(strncpy_sp(dst_info.path, CT_MAX_FILE_PATH_LENGH, target_dir, strlen(target_dir)));
 
-    if (copy_files_to_target_dir(&src_info, &dst_info, strlen(arch_file) == 0 ? NULL : arch_file) != CT_SUCCESS) {
+    if (copy_arch_files_to_target_dir(&src_info, &dst_info, strlen(arch_file) == 0 ? NULL : arch_file) != CT_SUCCESS) {
         printf("Failed to export archive files.\n");
         return CT_ERROR;
     }
@@ -1006,6 +1062,56 @@ int32 dbs_create_path_or_file(int32 argc, char *argv[])
         printf("File created successfully: %s\n", dst_info.path);
     }
 
+    return CT_SUCCESS;
+}
+
+// dbstor --copy-file --fs-name=* --source-dir=* --target-dir=* [--file-name=*]
+int32 dbs_copy_file(int32 argc, char *argv[])
+{
+    char source_dir[MAX_DBS_FS_FILE_PATH_LEN] = {0};
+    char target_dir[MAX_DBS_FILE_PATH_LEN] = {0};
+    char file_name[MAX_DBS_FILE_NAME_LEN] = {0};
+    char fs_name[MAX_DBS_FS_NAME_LEN] = {0};
+
+    const char *params[] = {DBS_TOOL_PARAM_SOURCE_DIR, DBS_TOOL_PARAM_TARGET_DIR,
+                            DBS_TOOL_PARAM_FILE_NAME, DBS_TOOL_PARAM_FS_NAME};
+    char *results[] = {source_dir, target_dir, file_name, fs_name};
+    size_t result_lens[] = {MAX_DBS_FS_FILE_PATH_LEN, MAX_DBS_FILE_PATH_LEN,
+                            MAX_DBS_FILE_NAME_LEN, MAX_DBS_FS_NAME_LEN};
+
+    if (parse_params(argc, argv, params, results, result_lens, DBS_COPY_FILE_PRAMA_NUM) != CT_SUCCESS) {
+        printf("Invalid command.\nUsage: --copy-file --fs-name=* --source-dir=* --target-dir=* --file-name=*\n");
+        return CT_ERROR;
+    }
+
+    if (strlen(fs_name) == 0 || strlen(target_dir) == 0) {
+        printf("Source or target directory not specified.\nUsage: --copy-file --fs-name=* "
+                "--source-dir=* --target-dir=* --file-name=* \n");
+        return CT_ERROR;
+    }
+
+    if (cm_dir_exist(target_dir) != CT_TRUE) {
+        printf("Target directory is does not exist.\n");
+        return CT_ERROR;
+    }
+
+    char src_file_path[MAX_DBS_FS_FILE_PATH_LEN] = {0};
+    PRTS_RETURN_IFERR(snprintf_s(src_file_path, MAX_DBS_FS_FILE_PATH_LEN,
+                                    MAX_DBS_FS_FILE_PATH_LEN - 1, "/%s/%s", fs_name, source_dir));
+
+    dbs_device_info_t src_info = { .handle = -1, .type = DEV_TYPE_DBSTOR_FILE, .path = "" };
+    dbs_device_info_t dst_info = { .handle = -1, .type = DEV_TYPE_FILE, .path = "" };
+
+    MEMS_RETURN_IFERR(strncpy_s(src_info.path, MAX_DBS_FS_FILE_PATH_LEN, src_file_path, strlen(src_file_path)));
+    MEMS_RETURN_IFERR(strncpy_s(dst_info.path, MAX_DBS_FS_FILE_PATH_LEN, target_dir, strlen(target_dir)));
+
+    // 将源文件或目录复制到目标目录
+    if (copy_files_to_target_dir(&src_info, &dst_info, strlen(file_name) == 0 ? NULL : file_name) != CT_SUCCESS) {
+        printf("Failed to copy files from %s to %s.\n", src_info.path, dst_info.path);
+        return CT_ERROR;
+    }
+
+    printf("File(s) copied successfully from %s to %s.\n", src_info.path, dst_info.path);
     return CT_SUCCESS;
 }
 
