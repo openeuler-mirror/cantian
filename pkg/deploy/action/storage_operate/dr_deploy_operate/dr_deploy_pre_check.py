@@ -458,6 +458,10 @@ class DRDeployPreCheck(object):
         if not self.local_conf_params.get("mysql_metadata_in_cantian"):
             check_result.extend(self.check_file_system_status(
                 fs_name=self.local_conf_params.get("storage_metadata_fs"), vstore_id="0"))
+        speed_val_list = ["low", "medium", "high", "highest"]
+        sync_speed = self.local_conf_params.get("sync_speed", "medium")
+        if sync_speed not in speed_val_list:
+            check_result.append("sync_speed[%s] is invalid, the option is %s" % (sync_speed, speed_val_list))
         return check_result
 
     def check_nfs_lif_info(self):

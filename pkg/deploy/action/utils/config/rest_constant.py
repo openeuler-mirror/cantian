@@ -65,6 +65,12 @@ class Constant:
 
 SUPPORT_VERSION = ["6.1.8RC1", "6.1.8"]
 CANTIAN_DOMAIN_PREFIX = "CantianDomain_%s%s"
+SPEED = {
+    "low": 1,
+    "medium": 2,
+    "high": 3,
+    "highest": 4
+}
 
 
 class HealthStatus:
@@ -173,3 +179,4 @@ class DataIntegrityStatus:
 class RepFileSystemNameRule:
     NamePrefix = "ct_"
     NameSuffix = "_rep"
+

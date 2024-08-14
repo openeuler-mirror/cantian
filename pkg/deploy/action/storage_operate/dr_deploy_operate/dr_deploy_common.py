@@ -383,28 +383,50 @@ class DRDeployCommon(object):
         LOG.info("Success to create hyper metro filesystem pair.")
         return rsp_data
 
-    @retry(retry_times=3, wait_times=20, log=LOG, task="create_remote_replication_filesystem_pair")
-    def create_remote_replication_filesystem_pair(self, remote_device_id: str,
-                                                  remote_pool_id: str,
-                                                  local_fs_id: str,
-                                                  remote_name_rule=1,
-                                                  name_suffix=None):
+    def modify_hyper_metro_filesystem_pair_sync_speed(self, vstore_pair_id: str, speed: int) -> None:
         """
-
-        :param remote_device_id: 远端设备id
-        :param remote_pool_id: 远端存储池id
-        :param local_fs_id:  组复制pair的文件系统id
-        :param remote_name_rule: 远端文件系统命名规则，0，表示系统自动化创建，1，表示与与主端保持一直，2表示自定义前后缀
-        :param name_suffix: 当remote_name_rule为2时，该字段不能为None
+        修改同步速度
+        :param vstore_pair_id:
+        :param speed:
         :return:
         """
+        LOG.info("Start to modify hyper metro filesystem pair speed to [%d].", speed)
+        data = {
+            "ID": vstore_pair_id,
+            "SPEED": speed
+        }
+        url = Constant.HYPER_METRO_FILESYSTEM_PAIR.format(deviceId=self.device_id)
+        res = self.rest_client.normal_request(url, data=data, method="put")
+        err_msg = "Failed to modify hyper metro filesystem pair speed"
+        StorageInf.result_parse(err_msg, res)
+        LOG.info("Start to modify hyper metro filesystem pair speed.")
+
+    @retry(retry_times=3, wait_times=20, log=LOG, task="create_remote_replication_filesystem_pair")
+    def create_remote_replication_filesystem_pair(self, **pair_args) -> dict:
+        """
+
+        :param pair_args:
+          remote_device_id: 远端设备id
+          remote_pool_id: 远端存储池id
+          local_fs_id:  组复制pair的文件系统id
+          remote_name_rule: 远端文件系统命名规则，0，表示系统自动化创建，1，表示与与主端保持一直，2表示自定义前后缀
+          name_suffix: 当remote_name_rule为2时，该字段不能为None
+          speed: 当speed为2时
+        :return: dict
+        """
+        local_fs_id = pair_args.get("local_fs_id")
+        remote_device_id = pair_args.get("remote_device_id")
+        speed = pair_args.get("speed")
+        remote_pool_id = pair_args.get("remote_pool_id")
+        remote_name_rule = pair_args.get("remote_name_rule")
+        name_suffix = pair_args.get("name_suffix")
         LOG.info("Start to create remote replication filesystem[%s] pair.", local_fs_id)
         data = {
             "type": "filesystem",
             "replication": {
                 "replicationModel": 2,
                 "remoteStorageId": remote_device_id,
-                "speed": 2,
+                "speed": speed,
                 "recoveryPolicy": 2,
                 "remoteStoragePoolId": remote_pool_id,
                 "remoteVstoreId": 0,
