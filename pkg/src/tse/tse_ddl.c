@@ -50,6 +50,7 @@
 #include "tse_ddl_list.h"
 #include "knl_dc.h"
 #include "knl_lrepl_meta.h"
+#include "srv_mq.h"
 
 #define DEFAULT_NULL_TEXT_STR "NULL"
 #define DEFAULT_NULL_TEXT_LEN 4
@@ -4235,6 +4236,12 @@ static bool32 is_runmode_single() {
         CT_LOG_RUN_INF("RUN_MODE not set");
         return CT_FALSE;
     }
+}
+
+EXTER_ATTACK int ctc_query_shm_file_num(uint32_t *shm_file_num)
+{
+    *shm_file_num = get_mq_queue_num();
+    return CT_SUCCESS;
 }
 
 EXTER_ATTACK int tse_search_metadata_status(bool *cantian_metadata_switch, bool *cantian_cluster_ready)

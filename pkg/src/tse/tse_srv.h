@@ -339,6 +339,7 @@ enum TSE_FUNC_TYPE {
     TSE_FUNC_TYPE_RECORD_SQL,
     /* for instance registration, should be the last but before duplex */
     TSE_FUNC_TYPE_REGISTER_INSTANCE,
+    CTC_FUNC_QUERY_SHM_FILE_NUM,
     TSE_FUNC_TYPE_WAIT_CONNETOR_STARTUPED,
     /* for duplex channel */
     TSE_FUNC_TYPE_MYSQL_EXECUTE_UPDATE,

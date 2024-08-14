@@ -40,7 +40,7 @@
 
 extern bool32 g_enable_fdsa;
 extern bool32 g_crc_verify;
-uint32 g_shm_memory_reduction_ratio;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -829,9 +829,11 @@ status_t srv_load_server_params(void)
         CT_THROW_ERROR(ERR_INVALID_PARAMETER, "NORMAL_USER_RESERVED_SESSIONS_FACTOR");
         return CT_ERROR;
     }
-    CT_RETURN_IFERR(srv_get_param_uint32("SHM_MEMORY_REDUCTION_RATIO", &g_shm_memory_reduction_ratio));
-    if (g_shm_memory_reduction_ratio > CT_MAX_SHM_MEMORY_REDUCTION_RATIO || g_shm_memory_reduction_ratio < CT_MIN_SHM_MEMORY_REDUCTION_RATIO) {
-        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "SHM_MEMORY_REDUCTION_RATIO");
+    uint32_t shm_file_num = 0;
+    CT_RETURN_IFERR(srv_get_param_uint32("SHM_FILE_NUM", &shm_file_num));
+    set_mq_queue_num(shm_file_num);
+    if (shm_file_num > CT_MAX_SHM_FILE_NUM || shm_file_num < CT_MIN_SHM_FILE_NUM) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "SHM_FILE_NUM");
         return CT_ERROR;
     }
     CT_RETURN_IFERR(srv_get_param_uint32("SESSIONS", &session_pool->max_sessions));
