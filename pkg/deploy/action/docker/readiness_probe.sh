@@ -2,6 +2,7 @@
 CURRENT_PATH=$(dirname $(readlink -f $0))
 READINESS_FILE="/opt/cantian/readiness"
 SINGLE_FLAG="/opt/cantian/cantian/cfg/single_flag"
+CMS_ENABLE="/opt/cantian/cms/cfg/cms_enable"
 cantian_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
 deploy_user=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_user"`
 deploy_group=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_group"`
@@ -21,6 +22,11 @@ if [[ "$1" == "startup-check" ]]; then
 fi
 
 function handle_failure() {
+    # 手动停止cantian记录
+    manual_stop_count=$(su -s /bin/bash - ${cantian_user} -c "source ~/.bashrc && cms stat" | grep 'db' | awk '{if($5=="OFFLINE" && $1=='"${node_id}"'){print $5}}' | wc -l)
+    if  [[ -f "${CMS_ENABLE}" ]] && [[ ${manual_stop_count} -eq 1 ]];then
+        exit 0
+    fi
     if [[ -f "${READINESS_FILE}" ]]; then
         python3 ${CURRENT_PATH}/delete_unready_pod.py
     fi

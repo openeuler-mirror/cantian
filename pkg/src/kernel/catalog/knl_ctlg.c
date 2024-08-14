@@ -1256,6 +1256,7 @@ static status_t db_init_dc_index(knl_session_t *session, dc_entity_t *entity, kn
         index->desc.seg_scn = BTREE_SEGMENT(session, index->btree.entry, index->btree.segment)->seg_scn;
 
         dc_cal_index_maxtrans(session, entity, index);
+        index->desc.maxtrans = MIN(index->desc.maxtrans, g_instance->kernel.attr.init_sysindex_trans);
     }
 
     return CT_SUCCESS;

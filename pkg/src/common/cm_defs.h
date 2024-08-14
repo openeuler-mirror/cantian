@@ -449,6 +449,7 @@ typedef enum en_cs_distribute_type {
 #define CT_MAX_OBJECT_STACK_DEPTH (uint32)128 // 32
 #define CT_MAX_BTREE_LEVEL (uint32)8
 #define CT_INI_TRANS (uint32)2
+#define CT_MAX_SYSINDEX_TRANS (uint32)128
 #define CT_MAX_TRANS (uint32)255
 #define CT_PCT_FREE (uint32)8
 #define CT_PCT_FREE_MAX (uint32)80

@@ -35,6 +35,7 @@ extern "C" {
 status_t sql_verify_als_page_size(void *se, void *lex, void *def);
 status_t sql_verify_als_max_column_count(void *se, void *lex, void *def);
 status_t sql_verify_als_ini_trans(void *se, void *lex, void *def);
+status_t sql_verify_als_ini_sysindex_trans(void *se, void *lex, void *def);
 status_t sql_verify_als_cr_mode(void *se, void *lex, void *def);
 status_t sql_verify_als_row_format(void *se, void *lex, void *def);
 status_t sql_verify_als_undo_segments(void *se, void *lex, void *def);

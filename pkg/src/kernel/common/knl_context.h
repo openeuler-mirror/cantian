@@ -239,6 +239,7 @@ typedef struct st_knl_attr {
     uint32 idx_rebuild_keep_storage_time;
     uint32 lsnd_wait_time;
     uint32 initrans;
+    uint32 init_sysindex_trans;
     uint8 cr_mode;
     uint8 row_format;
     uint8 db_isolevel;

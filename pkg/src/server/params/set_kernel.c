@@ -96,6 +96,21 @@ status_t sql_verify_als_ini_trans(void *se, void *lex, void *def)
     return CT_SUCCESS;
 }
 
+status_t sql_verify_als_ini_sysindex_trans(void *se, void *lex, void *def)
+{
+    uint32 num;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    if (num > CT_MAX_SYSINDEX_TRANS || num < CT_INI_TRANS) {
+        CT_THROW_ERROR(ERR_PARAMETER_OVER_RANGE, "INI_SYSINDEX_TRANS", (int64)CT_INI_TRANS, (int64)CT_MAX_SYSINDEX_TRANS);
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+
 status_t sql_verify_als_cr_mode(void *se, void *lex, void *def)
 {
     uint32 match_id;
