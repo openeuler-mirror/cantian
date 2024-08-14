@@ -1149,6 +1149,7 @@ uint32 df_get_used_pages(knl_session_t *session, datafile_t *df)
     uint32 free_pages, total_pages, search_pages;
     uint32 i, j;
 
+    space_t *space = KNL_GET_SPACE(session, df->space_id);
     total_pages = (uint32)((uint64)df->ctrl->size / DEFAULT_PAGE_SIZE(session));
     search_pages = DF_MAP_HEAD_PAGE + 1;
     free_pages = 0;
@@ -1163,12 +1164,21 @@ uint32 df_get_used_pages(knl_session_t *session, datafile_t *df)
         search_pages += map_group->page_count;
 
         for (j = 0; j < map_group->page_count; j++) {
-            buf_enter_page(session, curr_page, LATCH_MODE_S, ENTER_PAGE_NORMAL);
+            if (IS_SWAP_SPACE(space)) {
+                buf_enter_temp_page(session, curr_page, LATCH_MODE_S, ENTER_PAGE_RESIDENT);
+            } else {
+                buf_enter_page(session, curr_page, LATCH_MODE_S, ENTER_PAGE_NORMAL);
+            }
+            
             map_page = (df_map_page_t *)CURR_PAGE(session);
             search_pages += DF_MAP_BIT_CNT(session) * df->map_head->bit_unit;
             free_pages += map_page->free_bits * df->map_head->bit_unit;
 
-            buf_leave_page(session, CT_FALSE);
+            if (IS_SWAP_SPACE(space)) {
+                buf_leave_temp_page(session);
+            } else {
+                buf_leave_page(session, CT_FALSE);
+            }
             curr_page.page++;
 
             if (search_pages > total_pages) {

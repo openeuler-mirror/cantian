@@ -737,6 +737,8 @@ config_item_t g_parameters[] = {
       EFFECT_REBOOT, CFG_INS, NULL, NULL, NULL, NULL },
     { "INI_TRANS", CT_TRUE, ATTR_NONE, "2", NULL, NULL, "-", "[1, 255]", "CT_TYPE_INTEGER", NULL, PARAM_INI_TRANS,
       EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_ini_trans, sql_notify_als_ini_trans, NULL, NULL },
+    { "INT_SYSINDEX_TRANS", CT_TRUE, ATTR_NONE, "2", NULL, NULL, "-", "[2, 128]", "CT_TYPE_INTEGER", NULL,
+      PARAM_INT_SYSINDEX_TRANS, EFFECT_REBOOT, CFG_INS, sql_verify_als_ini_sysindex_trans, NULL, NULL, NULL },
     { "CR_MODE", CT_TRUE, ATTR_NONE, "PAGE", NULL, NULL, "-", "PAGE,ROW", "CT_TYPE_VARCHAR", NULL, PARAM_CR_MODE,
       EFFECT_REBOOT, CFG_INS, sql_verify_als_cr_mode, NULL, NULL, NULL },
     { "ROW_FORMAT", CT_TRUE, ATTR_NONE, "ASF", NULL, NULL, "-", "ASF,CSF", "CT_TYPE_VARCHAR", NULL, PARAM_ROW_FORMAT,
