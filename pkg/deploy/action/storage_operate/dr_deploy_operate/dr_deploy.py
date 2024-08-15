@@ -9,13 +9,11 @@ import shutil
 import stat
 import time
 import traceback
-import signal
-import subprocess
 
 from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from storage_operate.dr_deploy_operate.dr_deploy_common import KmcResolve
 from utils.config.rest_constant import HealthStatus, MetroDomainRunningStatus, SecresAccess, VstorePairRunningStatus, \
-    FilesystemPairRunningStatus, ReplicationRunningStatus, CANTIAN_DOMAIN_PREFIX, Constant
+    FilesystemPairRunningStatus, ReplicationRunningStatus, CANTIAN_DOMAIN_PREFIX, Constant, SPEED
 from logic.storage_operate import StorageInf
 from logic.common_func import read_json_config
 from logic.common_func import write_json_config
@@ -24,7 +22,7 @@ from logic.common_func import retry
 from logic.common_func import get_status
 from om_log import DR_DEPLOY_LOG as LOG
 from cantian_common.mysql_shell import MysqlShell
-import install_mysql
+from storage_operate.dr_deploy_operate import install_mysql
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
@@ -91,6 +89,7 @@ class DRDeploy(object):
         self.site = None
         self.metadata_in_cantian = False
         self.backup_lock_shell = None
+        self.sync_speed = 2
 
     @staticmethod
     def restart_cantian_exporter():
@@ -488,7 +487,8 @@ class DRDeploy(object):
                 remote_pool_id=remote_pool_id,
                 local_fs_id=page_fs_id,
                 remote_name_rule=remote_name_rule,
-                name_suffix=name_suffix
+                name_suffix=name_suffix,
+                speed=self.sync_speed
             )
             rep_filesystem_pair_task_id = rep_filesystem_pair_task_info.get("taskId")
             self.dr_deploy_opt.query_omtask_process(rep_filesystem_pair_task_id, timeout=120)
@@ -675,6 +675,8 @@ class DRDeploy(object):
             self.record_deploy_process("create_metro_fs_pair", "failed", code=-1, description=str(err))
             raise err
         self.ulog_fs_pair_id = filesystem_pair_info.get("ID")
+        self.dr_deploy_opt.modify_hyper_metro_filesystem_pair_sync_speed(vstore_pair_id=self.ulog_fs_pair_id,
+                                                                         speed=self.sync_speed)
         self.record_disaster_recovery_info("ulog_fs_pair_id", filesystem_pair_info.get("ID"))
 
     def query_cantian_disaster_recovery_status(self):
@@ -1067,6 +1069,7 @@ class DRDeploy(object):
         self.do_flush_table_with_read_lock()
         dbstore_page_fs_name = self.dr_deploy_info.get("storage_dbstore_page_fs")
         metadata_fs_name = self.dr_deploy_info.get("storage_metadata_fs")
+        self.sync_speed = int(SPEED.get(self.dr_deploy_info.get("sync_speed", "medium")))
         self.deploy_hyper_metro_pair()
         try:
             self.page_fs_pair_id = self.deploy_remote_replication_pair(dbstore_page_fs_name, True)
