@@ -1107,3 +1107,301 @@ int32 dbs_query_file(int32 argc, char *argv[])
     cm_free_file_list(&file_list);
     return CT_SUCCESS;
 }
+
+void append_to_file(char *directory, char *filename, char *buffer, uint32 buffer_size)
+{
+    // 构建完整路径
+    char path[MAX_DBS_FILE_PATH_LEN];
+    snprintf(path, sizeof(path), "%s/%s", directory, filename);
+
+    // 打开文件以追加方式写入
+    FILE *file = fopen(path, "a");
+    if (file == NULL) {
+        // 文件不存在，尝试创建新文件
+        file = fopen(path, "w");  // 使用 "w" 模式创建新文件
+        if (file == NULL) {
+            printf("Error creating file %s\n", path);
+            return;
+        }
+    }
+
+    // 将缓冲区的数据写入文件
+    uint32 bytes_written = fwrite(buffer, 1, buffer_size, file);
+    if (bytes_written != buffer_size) {
+        printf("Error writing to file %s\n", path);
+    } else {
+        printf("Data appended to file %s\n", path);
+    }
+
+    // 关闭文件
+    fclose(file);
+}
+
+// dbstor --ulog-data [node] [target-dir] [start-lsn] [len(optional)]
+int32 dbs_ulog_export(int32 argc, char *argv[])
+{
+    // 检查输入
+    if (argc != 5 && argc != 6) {
+        printf("Invalid input, arg num %d.\n", argc);
+        printf("dbstor --ulog-data --node==xxx --target-dir=xxx --start-lsn=xxx --len=xxx(optional)\n");
+        return CT_ERROR;
+    }
+
+    // 参数准备
+    int32 ret = CT_SUCCESS;
+    char fs_name[MAX_DBS_FILE_NAME_LEN];
+    (void)strcpy_s(fs_name, sizeof(fs_name), g_dbs_fs_info.log_fs_name);
+    char cluster_name[MAX_DBS_FILE_NAME_LEN];
+    (void)strcpy_s(cluster_name, sizeof(cluster_name), g_dbs_fs_info.cluster_name);
+
+    uint32 node = 0;
+    char target_dir[MAX_DBS_FILE_PATH_LEN];
+    uint64 start_lsn = 1;
+    uint32 total_log_export_len = CT_INVALID_ID32;
+    node = (uint32)atoi(argv[2]);
+    (void)strcpy_s(target_dir, MAX_DBS_FILE_PATH_LEN, argv[3]);
+    start_lsn = (uint64)atoi(argv[4]);
+    if (start_lsn <= 0) {
+        printf("start_lsn input error.\n");
+        return CT_ERROR;
+    }
+
+    if (argc == 6) {
+        total_log_export_len = (uint32)atoi(argv[5]);
+    }
+    char path[MAX_DBS_FILE_PATH_LEN];
+    // 根据node的值拼接path
+    if (node == 0) {
+        snprintf(path, sizeof(path), "/%s/*redo01.dat/", cluster_name);
+    } else if (node == 1) {
+        snprintf(path, sizeof(path), "/%s/*redo11.dat/", cluster_name);
+    } else {
+        printf("Unsupported node\n");
+        return CT_ERROR;
+    }
+    printf("Fs name %s, cluster name %s, ulog dir %s, start_lsn %llu, total_log_export_len %u \n", fs_name,
+           cluster_name, path, start_lsn, total_log_export_len);
+
+    // 获取根目录的句柄
+    object_id_t root_obj_id = { 0 };
+    ret = dbs_global_handle()->dbs_file_open_root(fs_name, &root_obj_id);
+    if (ret != CT_SUCCESS) {
+        printf("Failed to dbs_file_open_root(%d), fs name %s\n", ret, fs_name);
+        return ret;
+    }
+
+    // 获取ulog目录的句柄
+    object_id_t ulog_obj_id = { 0 };
+    ret = dbs_global_handle()->dbs_file_open_by_path(&root_obj_id, path, 0, &ulog_obj_id);
+    if (ret != CT_SUCCESS) {
+        printf("Failed to dbs_file_open_by_path(%d), ulog path %s\n", ret, path);
+        return ret;
+    }
+
+    // 根据输入填充lsn区间
+    ReadBatchLogOption option = { 0 };
+    option.session.nsName = cluster_name;
+    option.opcode = ULOG_OP_READ_WITH_LSN;
+    option.view = ULOG_VIEW_ONLINE;
+    option.partId = CT_INVALID_ID32;
+    option.callBack.ctx = NULL;
+    option.callBack.callback = NULL;
+    option.length = (total_log_export_len >= CT_MAX_BATCH_SIZE) ? (uint32)CT_MAX_BATCH_SIZE
+                                                               : (uint32)total_log_export_len;
+
+    LogLsn lsn = { 0 };
+    lsn.startLsn = start_lsn;
+    lsn.endLsn = CT_INVALID_ID64;
+    option.lsn = lsn;
+
+    uint32 cur_log_export_len = 0;
+    char log_filename[MAX_DBS_FILE_NAME_LEN];
+    snprintf(log_filename, sizeof(log_filename), "log_file");
+
+    LogRecord logRecord = { 0 };
+    LogRecordList record_list = { 0 };
+    ReadResult result = { 0 };
+    aligned_buf_t read_buf = { 0 };
+    while (1) {
+        option.length = ((total_log_export_len - cur_log_export_len) >= CT_MAX_BATCH_SIZE)
+                            ? (uint32)CT_MAX_BATCH_SIZE
+                            : (uint32)(total_log_export_len - cur_log_export_len);
+        (void)memset_s(&read_buf, sizeof(aligned_buf_t), 0, sizeof(aligned_buf_t));
+        if (cm_aligned_malloc(CT_MAX_BATCH_SIZE, "export ulog buffer", &read_buf) != CT_SUCCESS) {
+            cm_aligned_free(&read_buf);
+            return CT_ERROR;
+        }
+
+        (void)memset_s(&logRecord, sizeof(LogRecord), 0, sizeof(LogRecord));
+        logRecord.type = DBS_DATA_FORMAT_BUFFER;
+        logRecord.buf.buf = (char *)read_buf.aligned_buf;
+        logRecord.buf.len = (uint32)CT_MAX_BATCH_SIZE;
+        logRecord.next = NULL;
+        record_list.cnt = 1;
+        record_list.recordList = &logRecord;
+        (void)memset_s(&result, sizeof(ReadResult), 0, sizeof(ReadResult));
+
+        ret = dbs_global_handle()->read_ulog_record_list(&ulog_obj_id, &option, &record_list, &result);
+        if (ret != CT_SUCCESS || result.result != CT_SUCCESS) {
+            if (ret == ULOG_READ_RETURN_LSN_NOT_EXIST) {
+                printf("LSN(%lu) not found\n", option.lsn.startLsn);
+                ret = CT_SUCCESS;
+            } else if (ret == ULOG_READ_RETURN_REACH_MAX_BUF_LEN) {
+                printf("The buffer capacity is insufficient for LSN(%lu)\n", option.lsn.startLsn);
+                ret = CT_SUCCESS;
+            } else if (ret == ULOG_READ_RETURN_LSN_NOT_EXIST_SMALL) {
+                printf("LSN(%lu) not found, redo logs have been recycled\n", option.lsn.startLsn);
+                ret = CT_ERROR;
+                cm_aligned_free(&read_buf);
+                break;
+            } else {
+                printf("Failed to read ulog ret:%u\n", ret);
+                ret = CT_ERROR;
+                cm_aligned_free(&read_buf);
+                break;
+            }
+        }
+        if (option.lsn.startLsn == result.endLsn) {
+            printf("No lsn left, from lsn %lu, to %lu, outlen %u \n\n", option.lsn.startLsn, result.endLsn,
+                   result.outLen);
+            cm_aligned_free(&read_buf);
+            break;
+        }
+
+        // 创建并将ulog追加写入到文件
+        append_to_file(target_dir, log_filename, record_list.recordList->buf.buf, option.length);
+        printf("Cur batch ulog export finished, from lsn %lu, to %lu, outlen %u \n\n", option.lsn.startLsn,
+               result.endLsn, option.length);
+        cm_aligned_free(&read_buf);
+        // 更新起始LSN和当前导出的大小
+        option.lsn.startLsn = result.endLsn;
+        cur_log_export_len += option.length;
+
+        // 判断是否结束循环
+        if (result.outLen == 0 || cur_log_export_len >= total_log_export_len) {
+            printf("Export ulog finished, lsn from %llu, to %lu, cur export len %u\n", start_lsn, result.endLsn,
+                   cur_log_export_len);
+            break;
+        }
+    }
+
+    printf("Export ulog finished, lsn from %llu, to %lu\n", start_lsn, result.endLsn);
+    return ret;
+}
+
+// dbstor --page-data [page-db] [target-dir] [page-id(optional)] [page-num(optional)]
+int32 dbs_page_export(int32 argc, char *argv[])
+{
+    // 检查输入
+    if (argc != 4 && argc != 5 && argc != 6) {
+        printf("Invalid input, arg num %d\n", argc);
+        printf("dbstor --page-data --page-db=xxx --target-dir=xxx --page-id=xxx(optional) --page-num=xxx(optional)\n");
+        return CT_ERROR;
+    }
+
+    // 参数准备
+    int32 ret = CT_SUCCESS;
+    char fs_name[MAX_DBS_FILE_NAME_LEN];
+    (void)strcpy_s(fs_name, MAX_DBS_FILE_NAME_LEN, g_dbs_fs_info.page_fs_name);
+    char cluster_name[MAX_DBS_FILE_NAME_LEN];
+    (void)strcpy_s(cluster_name, MAX_DBS_FILE_NAME_LEN, g_dbs_fs_info.cluster_name);
+
+    char page_pool_name[MAX_DBS_FILE_NAME_LEN];
+    char target_dir[MAX_DBS_FILE_PATH_LEN];
+    uint64 start_page_id = 0;
+    uint64 total_export_page_num = CT_INVALID_ID64;
+    (void)strcpy_s(page_pool_name, MAX_DBS_FILE_PATH_LEN, argv[2]);
+    (void)strcpy_s(target_dir, MAX_DBS_FILE_PATH_LEN, argv[3]);
+    if (argc == 5) {
+        start_page_id = (uint64)atoi(argv[4]);
+    }
+    if (argc == 6) {
+        start_page_id = (uint64)atoi(argv[4]);
+        total_export_page_num = (uint64)atoi(argv[5]);
+    }
+    printf("Fs name %s, cluster name %s\n", fs_name, cluster_name);
+
+    NameSpaceAttr ns_attr;
+    ret = dbs_global_handle()->open_namespace((char *)cluster_name, &ns_attr);
+    if (ret != 0) {
+        printf("Failed to open namespace %s, ret %d\n", cluster_name, ret);
+        return CT_ERROR;
+    }
+    // 通过open_pagepool获取句柄
+    object_id_t page_pool_id = { 0 };
+    PagePoolAttr attr = { 0 };
+    (void)strcpy_s(attr.nsName, sizeof(attr.nsName), cluster_name);
+    ret = dbs_global_handle()->open_pagepool((char *)page_pool_name, &attr, &page_pool_id);
+    if (ret != CT_SUCCESS) {
+        printf("Failed to open_pagepool(%d), page pool name %s, fs name %s, cluster name %s\n", ret, page_pool_name,
+               fs_name, cluster_name);
+        return ret;
+    }
+    printf(
+        "Success to open_pagepool, page pool name %s, maxPageId %lu, totalPageNum %lu, usedPageNum %lu, pageSize %u \n\n",
+        page_pool_name, attr.maxPageId, attr.totalPageNum, attr.usedPageNum, attr.pageSize);
+
+    uint64 single_batch_max_page_num = (uint64)CT_MAX_BATCH_SIZE / attr.pageSize;
+    uint64 cur_page_export_num = 0;
+    uint64 total_page_export_size = 0;
+    uint64 single_batch_page_num = (total_export_page_num >= single_batch_max_page_num)
+                                       ? single_batch_max_page_num
+                                       : total_export_page_num;
+    uint64 single_batch_page_size = single_batch_page_num * attr.pageSize;
+    uint64 cur_page_id = start_page_id;
+    char page_filename[MAX_DBS_FILE_NAME_LEN];
+    snprintf(page_filename, sizeof(page_filename), "page_file");
+
+    DbsPageOption pgOpt = { 0 };
+    pgOpt.priority = 0;
+    pgOpt.opcode = CS_PAGE_POOL_READ;
+    pgOpt.offset = 0;
+    pgOpt.lsn = 1;
+    pgOpt.callBack.cb = NULL;
+    pgOpt.callBack.ctx = NULL;
+    (void)memset_s(&pgOpt.session, sizeof(SessionId), 0, sizeof(SessionId));
+    aligned_buf_t read_buf = { 0 };
+    PageValue pgValue = { 0 };
+    while (1) {
+        if ((total_export_page_num - cur_page_export_num) >= single_batch_max_page_num) {
+            single_batch_page_num = single_batch_max_page_num;
+            single_batch_page_size = (uint64)CT_MAX_BATCH_SIZE;
+        } else {
+            single_batch_page_num = total_export_page_num - cur_page_export_num;
+            single_batch_page_size = single_batch_page_num * attr.pageSize;
+        }
+        
+        (void)memset_s(&read_buf, sizeof(aligned_buf_t), 0, sizeof(aligned_buf_t));
+        if (cm_aligned_malloc(CT_MAX_BATCH_SIZE, "export page buffer", &read_buf) != CT_SUCCESS) {
+            cm_aligned_free(&read_buf);
+            return CT_ERROR;
+        }
+        pgValue.buf.buf = (char *)read_buf.aligned_buf;
+        pgValue.type = DBS_DATA_FORMAT_BUFFER;
+        pgValue.buf.len = single_batch_page_size;
+        pgOpt.length = single_batch_page_size;
+        ret = dbs_global_handle()->dbs_mget_page(&page_pool_id, cur_page_id, single_batch_page_num, &pgOpt, &pgValue);
+        if (ret != CT_SUCCESS) {
+            printf("Export page fail(%d), cur_page_id %llu\n", ret, cur_page_id);
+            cm_aligned_free(&read_buf);
+            break;
+        }
+
+        // 将page追加写入到文件
+        append_to_file(target_dir, page_filename, pgValue.buf.buf, pgValue.buf.len);
+        cm_aligned_free(&read_buf);
+        printf("Cur batch page export finished, start page_id %llu, single_batch_page_num %llu, size %llu \n\n",
+               cur_page_id, single_batch_page_num, single_batch_page_size);
+        // 更新起始page id
+        cur_page_id += single_batch_page_num;
+        cur_page_export_num += single_batch_page_num;
+        total_page_export_size += single_batch_page_size;
+        // 判断是否结束循环
+        if (cur_page_export_num >= total_export_page_num) {
+            printf("Export page finished, page id start from %llu, total export num %llu, total export size %llu \n\n", start_page_id,
+                   cur_page_export_num, total_page_export_size);
+            break;
+        }
+    }
+    return ret;
+}

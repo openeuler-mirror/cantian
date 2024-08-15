@@ -40,3 +40,5 @@ int32 dbs_pagepool_clean(int32 argc, char *argv[]);
 int32 dbs_create_path_or_file(int32 argc, char *argv[]);
 int32 dbs_delete_path_or_file(int32 argc, char *argv[]);
 int32 dbs_query_file(int32 argc, char *argv[]);
+int32 dbs_ulog_export(int32 argc, char *argv[]);
+int32 dbs_page_export(int32 argc, char *argv[]);
