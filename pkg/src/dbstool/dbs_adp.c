@@ -539,18 +539,6 @@ status_t dbstool_init()
     return CT_SUCCESS;
 }
 
-int32 dbs_test_func(int32 argc, char *argv[]) 
-{
-    for (int32 i = 0; i < argc; i++) {
-        printf("arg(%d):%s.\n", i, argv[i]);
-    }
-    int32 ret = dbstool_init();
-    printf("dbstool init ret=%d.\n", ret);
-
-    // 自定义命令执行
-    return ret;
-}
-
 status_t parse_params(int32 argc, char *argv[], const char **params, char **results,
     size_t *result_lens, int32 param_count)
 {

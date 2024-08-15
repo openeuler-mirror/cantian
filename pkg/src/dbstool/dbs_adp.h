@@ -31,7 +31,6 @@
 #endif
 
 status_t dbstool_init();
-int32 dbs_test_func(int32 argc, char *argv[]);
 int32 dbs_arch_import(int32 argc, char *argv[]);
 int32 dbs_arch_export(int32 argc, char *argv[]);
 int32 dbs_arch_clean(int32 argc, char *argv[]);
