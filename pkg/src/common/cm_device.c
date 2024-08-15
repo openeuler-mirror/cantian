@@ -25,8 +25,10 @@
 #include "cm_device_module.h"
 #include "cm_device.h"
 #include "cm_file.h"
+#include "cm_dbstore.h"
 #include "cm_dbs_ulog.h"
 #include "cm_dbs_pgpool.h"
+#include "cm_dbs_file.h"
 #include "cm_dbs_map.h"
 #include "cm_io_record.h"
 #ifdef WIN32
@@ -84,7 +86,7 @@ status_t cm_access_device(device_type_t type, const char *file_name, uint32 mode
         }
         return CT_SUCCESS;
     } else if (type == DEV_TYPE_ULOG) {
-        return cm_dbs_map_exist(file_name) == CT_TRUE ? CT_SUCCESS : CT_ERROR;
+        return cm_dbs_map_exist(file_name, DEV_TYPE_ULOG) == CT_TRUE ? CT_SUCCESS : CT_ERROR;
     } else if (type == DEV_TYPE_PGPOOL) {
         return cm_dbs_pg_exist(file_name) == CT_TRUE ? CT_SUCCESS : CT_ERROR;
     } else {
@@ -104,6 +106,9 @@ status_t cm_create_device_dir(device_type_t type, const char *name)
         }
 
         return g_raw_device_op.raw_create_dir(name);
+    } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        int32 handle = CT_INVALID_HANDLE;
+        return cm_dbs_create_dir(name, &handle);
     } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
         return CT_ERROR;
@@ -145,6 +150,9 @@ status_t cm_create_device(const char *name, device_type_t type, uint32 flags, in
         ret = cm_dbs_pg_create(name, 0, flags, handle);
         io_stat = (ret == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED);
         cantian_record_io_stat_end(IO_RECORD_EVENT_NS_CREATE_PG_POOL, &tv_begin, io_stat);
+        return ret;
+    } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        ret = cm_dbs_create_file(name, handle);
         return ret;
     } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
@@ -188,6 +196,8 @@ status_t cm_rename_device(device_type_t type, const char *src, const char *dst)
         return g_raw_device_op.raw_rename(src, dst);
     } else if (type == DEV_TYPE_PGPOOL) {
         return cm_dbs_pg_rename(src, dst);
+    } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        return cm_dbs_rename_file(src, dst);
     } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
         return CT_ERROR;
@@ -225,6 +235,8 @@ status_t cm_remove_device(device_type_t type, const char *name)
         return cm_dbs_ulog_destroy(name);
     } else if (type == DEV_TYPE_PGPOOL) {
         return cm_dbs_pg_destroy(name);
+    } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        return cm_dbs_remove_file(name);
     } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
         return CT_ERROR;
@@ -290,6 +302,13 @@ status_t cm_open_device_common(const char *name, device_type_t type, uint32 flag
             return CT_ERROR;
         }
         cantian_record_io_stat_end(IO_RECORD_EVENT_NS_OPEN_PG_POOL, &tv_begin, IO_STAT_SUCCESS);
+    } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        if (*handle != -1) {
+            return CT_SUCCESS;
+        }
+        if (cm_dbs_open_file(name, handle) == CT_ERROR) {
+            return CT_ERROR;
+        }
     } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
         return CT_ERROR;
@@ -323,6 +342,8 @@ void cm_close_device(device_type_t type, int32 *handle)
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_CLOSE_PG_POOL, &tv_begin);
         cm_dbs_pg_close(*handle);
         cantian_record_io_stat_end(IO_RECORD_EVENT_NS_CLOSE_PG_POOL, &tv_begin, IO_STAT_SUCCESS);
+    } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        cm_dbs_close_file(*handle);
     }
     *handle = -1;  // reset handle
 }
@@ -361,6 +382,13 @@ status_t cm_read_device(device_type_t type, int32 handle, int64 offset, void *bu
             return CT_ERROR;
         }
         cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_PG_POOL, &tv_begin, IO_STAT_SUCCESS);
+    } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_READ_DBSTOR_FILE, &tv_begin);
+        if (cm_dbs_read_file(handle, offset, buf, size, &read_size) != CT_SUCCESS) {
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_DBSTOR_FILE, &tv_begin, IO_STAT_FAILED);
+            return CT_ERROR;
+        }
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_DBSTOR_FILE, &tv_begin, IO_STAT_SUCCESS);
     } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
         return CT_ERROR;
@@ -377,7 +405,7 @@ status_t cm_read_device_nocheck(device_type_t type, int32 handle, int64 offset, 
                                 int32 *return_size)
 {
     int32 read_size;
-
+    timeval_t tv_begin;
     if (type == DEV_TYPE_FILE) {
         if (cm_pread_file(handle, buf, size, offset, &read_size) != CT_SUCCESS) {
             return CT_ERROR;
@@ -404,6 +432,13 @@ status_t cm_read_device_nocheck(device_type_t type, int32 handle, int64 offset, 
         if (cm_dbs_pg_read(handle, offset, buf, size, &read_size) != CT_SUCCESS) {
             return CT_ERROR;
         }
+    } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_READ_NOCHECK_DBSTOR_FILE, &tv_begin);
+        if (cm_dbs_read_file(handle, offset, buf, size, &read_size) != CT_SUCCESS) {
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_NOCHECK_DBSTOR_FILE, &tv_begin, IO_STAT_FAILED);
+            return CT_ERROR;
+        }
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_NOCHECK_DBSTOR_FILE, &tv_begin, IO_STAT_SUCCESS);
     } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
         return CT_ERROR;
@@ -495,11 +530,50 @@ status_t cm_write_device(device_type_t type, int32 handle, int64 offset, const v
             return CT_ERROR;
         }
         cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_PG_POOL, &tv_begin, IO_STAT_SUCCESS);
+    } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_WRITE_DBSTOR_FILE, &tv_begin);
+        if (cm_dbs_write_file(handle, offset, buf, size) != CT_SUCCESS) {
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_DBSTOR_FILE, &tv_begin, IO_STAT_FAILED);
+            return CT_ERROR;
+        }
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_DBSTOR_FILE, &tv_begin, IO_STAT_SUCCESS);
     } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
         return CT_ERROR;
     }
 
+    return CT_SUCCESS;
+}
+
+status_t cm_query_device(device_type_t type, const char *name, void *file_list, uint32 *file_num)
+{
+    if (type == DEV_TYPE_FILE) {
+        if (cm_query_dir(name, file_list, file_num) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        if (cm_dbs_query_dir(name, file_list, file_num) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    } else {
+        return CT_ERROR;
+    }
+    
+    return CT_SUCCESS;
+}
+
+status_t cm_get_size_device(device_type_t type, int32 handle, int64 *file_size)
+{
+    if (type == DEV_TYPE_FILE) {
+        *file_size = cm_seek_file(handle, 0, SEEK_END);
+    } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        if (cm_dbs_get_file_size(handle, file_size) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+    } else {
+        return CT_ERROR;
+    }
+    
     return CT_SUCCESS;
 }
 
@@ -536,6 +610,8 @@ bool32 cm_exist_device_dir(device_type_t type, const char *name)
             return CT_FALSE;
         }
         return result;
+    } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        return cm_dbs_exist_file(name, DIR_TYPE);
     } else {
         return CT_FALSE;
     }
@@ -609,9 +685,11 @@ bool32 cm_exist_device(device_type_t type, const char *name)
         }
         return result;
     } else if (type == DEV_TYPE_ULOG) {
-        return cm_dbs_map_exist(name);
+        return cm_dbs_map_exist(name, DEV_TYPE_ULOG);
     } else if (type == DEV_TYPE_PGPOOL) {
         return cm_dbs_pg_exist(name);
+    } else if (type == DEV_TYPE_DBSTOR_FILE) {
+        return cm_dbs_exist_file(name, FILE_TYPE);
     } else {
         return CT_FALSE;
     }
@@ -899,6 +977,77 @@ status_t cm_sync_device_by_part(int32 handle, int32 part_id)
 status_t cm_cal_partid_by_pageid(uint64 page_id, uint32 page_size, uint32 *part_id)
 {
     return cm_dbs_pg_cal_part_id(page_id, page_size, part_id);
+}
+
+void cm_free_file_list(void **file_list)
+{
+    if (*file_list != NULL) {
+        free(*file_list);
+    }
+    *file_list = NULL;
+}
+
+status_t cm_malloc_file_list(device_type_t type, void **file_list)
+{
+    if (type == DEV_TYPE_DBSTOR_FILE) {
+        *file_list = malloc(DBS_DIR_MAX_FILE_NUM * sizeof(dbstor_file_info));
+        if (*file_list == NULL) {
+            CT_LOG_RUN_ERR("malloc dbstor arch file list array failed");
+            return CT_ERROR;
+        }
+        errno_t mem_ret = memset_sp(*file_list, sizeof(dbstor_file_info) * DBS_DIR_MAX_FILE_NUM,
+                                    0, sizeof(dbstor_file_info) * DBS_DIR_MAX_FILE_NUM);
+        if (mem_ret != EOK) {
+            CT_LOG_RUN_ERR("memset dbstor arch file list array failed");
+            cm_free_file_list(file_list);
+            return CT_ERROR;
+        }
+    } else if (type == DEV_TYPE_FILE) {
+        *file_list = malloc(DBS_DIR_MAX_FILE_NUM * sizeof(cm_file_info));
+        if (*file_list == NULL) {
+            CT_LOG_RUN_ERR("malloc arch file list array failed");
+            return CT_ERROR;
+        }
+        errno_t mem_ret = memset_sp(*file_list, sizeof(cm_file_info) * DBS_DIR_MAX_FILE_NUM,
+                                    0, sizeof(cm_file_info) * DBS_DIR_MAX_FILE_NUM);
+        if (mem_ret != EOK) {
+            CT_LOG_RUN_ERR("memset arch file list array failed");
+            cm_free_file_list(file_list);
+            return CT_ERROR;
+        }
+    } else {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+char *cm_get_name_from_file_list(device_type_t type, void *list, int32 index)
+{
+    if (type == DEV_TYPE_DBSTOR_FILE) {
+        dbstor_file_info *file_list = (dbstor_file_info *)((char *)list + index * sizeof(dbstor_file_info));
+        return file_list->file_name;
+    } else if (type == DEV_TYPE_FILE) {
+        cm_file_info *file_list = (cm_file_info *)((char *)list + index * sizeof(cm_file_info));
+        return file_list->file_name;
+    }
+    return NULL;
+}
+
+bool32 cm_match_arch_pattern(const char *filename)
+{
+    const char *prefix = "arch";
+    const char *suffix = ".arc";
+    size_t filename_len = strlen(filename);
+    size_t prefix_len = strlen(prefix);
+    size_t suffix_len = strlen(suffix);
+    if (filename_len < prefix_len + suffix_len) {
+        return CT_FALSE;
+    }
+    if (strncmp(filename, prefix, prefix_len) == 0 &&
+        strcmp(filename + filename_len - suffix_len, suffix) == 0) {
+        return CT_TRUE; // Match
+    }
+    return CT_FALSE;
 }
 
 #ifdef __cplusplus

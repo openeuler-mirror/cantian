@@ -72,7 +72,7 @@ status_t cm_dbs_ulog_create(const char *name, int64 size, uint32 flags, int32 *h
     obj.ns_name = attr.nsName;
     obj.ulog.curr_lsn = 0;
     obj.ulog.trun_lsn = 0;
-    status_t stat = cm_dbs_map_set(name, &obj, handle);
+    status_t stat = cm_dbs_map_set(name, &obj, handle, DEV_TYPE_ULOG);
     if (stat != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Failed to insert ulog into map");
         return CT_ERROR;
@@ -124,7 +124,7 @@ status_t cm_dbs_ulog_open(const char *name, int32 *handle, uint8 is_retry)
     obj.ns_name = attr.nsName;
     obj.ulog.curr_lsn = attr.meta.ulogLsn.serverLsn;
     obj.ulog.trun_lsn = attr.meta.ulogLsn.truncateLsn;
-    status_t stat = cm_dbs_map_set(name, &obj, handle);
+    status_t stat = cm_dbs_map_set(name, &obj, handle, DEV_TYPE_ULOG);
     if (stat != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Failed to insert ulog into map");
         return CT_ERROR;

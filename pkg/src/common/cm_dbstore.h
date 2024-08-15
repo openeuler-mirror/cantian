@@ -34,6 +34,19 @@ extern "C" {
 
 #define DBS_CONFIG_NAME "dbstor_config.ini"
 #define DBS_CONFIG_NAME_WITHOUT_SUFFIX "dbstor_config"
+#define CSS_MAX_NAME_LEN 68
+#define DBS_DIR_MAX_FILE_NUM 1024
+
+typedef struct {
+    uint64 offset;
+    uint64 length;
+    uint64 start_lsn;
+} ulog_archive_option_t;
+
+typedef struct {
+    uint64 end_lsn;
+    uint64 real_len;
+} ulog_archive_result_t;
 
 // libdbstoreClient.so
 // namespace
@@ -56,10 +69,17 @@ typedef bool (*dbs_check_inst_heart_beat_is_normal_t)(uint32_t);
 typedef int (*dbs_file_open_root_t)(char *, object_id_t *);
 typedef int (*dbs_file_create_t)(object_id_t *, char *, uint32_t, object_id_t *);
 typedef int (*dbs_file_open_t)(object_id_t *, char *, uint32_t, object_id_t *);
-typedef int (*dbs_file_write_t)(object_id_t *, uint32_t, char *, uint32_t);
-typedef int (*dbs_file_read_t)(object_id_t *, uint32_t, char *, uint32_t);
+typedef int (*dbs_file_write_t)(object_id_t *, uint64_t, char *, uint32_t);
+typedef int (*dbs_file_read_t)(object_id_t *, uint64_t, char *, uint32_t, uint32 *);
 typedef int (*dbs_file_remove_t)(object_id_t *, char *);
 typedef int (*dbs_clear_cms_name_space_t)(void);
+typedef int (*dbs_file_create_by_path_t)(object_id_t *, char *, uint32_t, object_id_t *);
+typedef int (*dbs_file_open_by_path_t)(object_id_t *, char *, uint32_t, object_id_t *);
+typedef int (*dbs_file_rename_t)(object_id_t *, char *, char *);
+typedef int (*dbs_file_get_num_t)(object_id_t *, uint32_t *);
+typedef int (*dbs_file_get_list_t)(object_id_t *, void *, uint32_t *);
+typedef int (*dbs_get_file_size_t)(object_id_t *, uint64 *);
+typedef int (*dbs_ulog_archive_t)(object_id_t *, object_id_t *, ulog_archive_option_t *, ulog_archive_result_t *);
 
 //pagepool
 typedef int (*create_pagepool_t)(char *, PagePoolAttr *, PagePoolId *);
@@ -114,6 +134,13 @@ typedef struct st_dbs_interface {
     dbs_file_read_t dbs_file_read;
     dbs_file_remove_t dbs_file_remove;
     dbs_clear_cms_name_space_t dbs_clear_cms_name_space;
+    dbs_file_create_by_path_t dbs_file_create_by_path;
+    dbs_file_open_by_path_t dbs_file_open_by_path;
+    dbs_file_rename_t dbs_file_rename;
+    dbs_file_get_num_t dbs_file_get_num;
+    dbs_file_get_list_t dbs_file_get_list;
+    dbs_get_file_size_t dbs_get_file_size;
+    dbs_ulog_archive_t dbs_ulog_archive;
 
     // pagepool
     create_pagepool_t create_pagepool;
@@ -144,6 +171,18 @@ typedef struct st_dbs_tool_interface {
     get_curr_log_offset_t get_curr_log_offset;
     get_correct_page_id_t get_correct_page_id;
 } dbs_tool_interface_t;
+
+typedef enum {
+    CS_FILE_TYPE_DIR = 0,
+    CS_FILE_TYPE_FILE,
+    CS_FILE_TYPE_BUTT,
+} cs_file_type;
+
+typedef struct cm_dbstor_file_info {
+    char file_name[CSS_MAX_NAME_LEN];
+    cs_file_type type;
+    object_id_t handle;
+} dbstor_file_info;
 
 dbs_interface_t *dbs_global_handle(void);
 dbs_tool_interface_t *dbs_tool_global_handle(void);

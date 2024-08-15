@@ -1586,6 +1586,9 @@ status_t dtc_rcy_read_log(knl_session_t *session, int32 *handle, const char *nam
         size = buf_size;
     }
     device_type_t type = cm_device_type(name);
+    if (type != DEV_TYPE_ULOG) {
+        type = arch_get_device_type(name);
+    }
     if (cm_open_device(name, type, knl_io_flag(session), handle) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DTC RCY] failed to open redo log, filename=%s", name);
         return CT_ERROR;
@@ -1669,7 +1672,7 @@ static status_t dtc_rcy_load_archfile_no_dbs(knl_session_t *session, uint32 idx,
         // Need to use the archive dest of corresponding node
         arch_set_archive_log_name(session, (uint32)point->rst_id, point->asn, ARCH_DEFAULT_DEST,
                                   file->name, CT_FILE_NAME_BUFFER_SIZE, rcy_node->node_id);
-        if (!cm_exist_device(cm_device_type(file->name), file->name)) {
+        if (!cm_exist_device(arch_get_device_type(file->name), file->name)) {
             CT_LOG_RUN_ERR("[DTC RCY] failed to get archived redo log file[%u-%u] for instance %u name:%s",
                            (uint32)point->rst_id, point->asn, rcy_node->node_id, file->name);
             return CT_ERROR;
@@ -1688,9 +1691,9 @@ static status_t dtc_rcy_load_archfile(knl_session_t *session, uint32 idx, arch_f
         CT_LOG_RUN_INF("[DTC RCY] dtc rcy load archfile already load the need archived logfile %u/%u/ ", point->asn, point->block_id);
         return CT_SUCCESS;
     }
-
+    device_type_t type = arch_get_device_type(file->name);
     if (file->handle != CT_INVALID_HANDLE) {
-        cm_close_device(cm_device_type(file->name), &file->handle);
+        cm_close_device(type, &file->handle);
         file->handle = CT_INVALID_HANDLE;
     }
 
@@ -1719,7 +1722,7 @@ static status_t dtc_rcy_load_archfile(knl_session_t *session, uint32 idx, arch_f
             status_t ret = snprintf_s(str_buf, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s", file->name);
             knl_securec_check_ss(ret);
             arch_set_archive_log_name_with_lsn(session, ARCH_DEFAULT_DEST, &file_name_info);
-            if (!cm_exist_device(cm_device_type(file->name), file->name)) {
+            if (!cm_exist_device(type, file->name)) {
                 CT_LOG_RUN_WAR("[DTC RCY] get archived redo log file[%u-%u] for instance %u",
                                (uint32)point->rst_id, point->asn, rcy_node->node_id);
                 if (!DB_CLUSTER_NO_CMS) {
@@ -1741,13 +1744,13 @@ static status_t dtc_rcy_load_archfile(knl_session_t *session, uint32 idx, arch_f
         }
     }
 
-    if (cm_open_device(file->name, cm_device_type(file->name), knl_io_flag(session), &file->handle) != CT_SUCCESS) {
+    if (cm_open_device(file->name, type, knl_io_flag(session), &file->handle) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DTC RCY] failed to open archived redo log file %s", file->name);
         return CT_ERROR;
     }
 
     /* size <= buf_size, (uint32)size cannot overflow */
-    if (cm_read_device(cm_device_type(file->name), file->handle, 0, rcy_node->read_buf[rcy_node->read_buf_write_index].aligned_buf,
+    if (cm_read_device(type, file->handle, 0, rcy_node->read_buf[rcy_node->read_buf_write_index].aligned_buf,
                        CM_CALC_ALIGN((uint32)sizeof(log_file_head_t), 512)) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DTC RCY] failed to read %s, offset 0 handle %d", file->name, file->handle);
         return CT_ERROR;

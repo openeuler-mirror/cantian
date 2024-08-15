@@ -133,6 +133,17 @@ status_t cm_reopen_file(int fd, const char* file_name, int* out_fd);
 #define FILE_POLL_TIMEOUT_MS 3000
 #define DIR_TYPE             0
 #define FILE_TYPE            1
+#define CM_FILE_MAX_NAME_LEN 256
+
+typedef enum {
+    FILE_TYPE_DIR = 0,
+    FILE_TYPE_FILE,
+} cm_file_type;
+
+typedef struct {
+    char file_name[CM_FILE_MAX_NAME_LEN];
+    cm_file_type type;
+} cm_file_info;
 
 static inline status_t cm_fchmod(uint32 perm, FILE *fp)
 {
@@ -149,6 +160,7 @@ status_t cm_io_poll(int32 fd, uint32 wait_type, int32 timeout_ms);
 status_t cm_read_file(int32 file, void *buf, int32 len, int32 *read_size);
 status_t cm_read_file_try_timeout(const char* file_name, int32* fd, void *buf, int32 len, int32 timeout_ms);
 status_t cm_write_file(int32 file, const void *buf, int32 size);
+status_t cm_query_dir(const char *name, void *file_list, uint32 *file_num);
 status_t cm_pwrite_file(int32 file, const char *buf, int32 size, int64 offset);
 status_t cm_pread_file(int32 file, void *buf, int length, int64 i_offset, int32 *read_size);
 status_t cm_truncate_file(int32 fd, int64 offset);
@@ -187,8 +199,8 @@ status_t cm_get_dbs_full_dir_handle(const char* path, const char* delim, object_
 status_t cm_get_dbs_last_file_handle(const char* file, object_id_t* last_handle);
 status_t cm_get_dbs_last_dir_handle(const char* file, object_id_t* last_handle);
 status_t cm_rm_dbs_dir_file(object_id_t* phandle, char* name);
-int32 cm_read_dbs_file(object_id_t* handle, uint32 offset, void* buf, uint32 length);
-status_t cm_write_dbs_file(object_id_t* handle, uint32 offset, void* buf, uint32 length);
+int32 cm_read_dbs_file(object_id_t* handle, uint64 offset, void* buf, uint32 length);
+status_t cm_write_dbs_file(object_id_t* handle, uint64 offset, void* buf, uint32 length);
 
 
 #ifndef WIN32

@@ -29,6 +29,7 @@
 #include "knl_ctrl_restore.h"
 #include "dtc_database.h"
 #include "cm_dbs_ulog.h"
+#include "cm_dbs_file.h"
 #include "srv_param_common.h"
 #include "dirent.h"
 #include "dtc_recovery.h"
@@ -100,6 +101,14 @@ status_t arch_save_ctrl(knl_session_t *session, uint32 node_id)
     }
 
     return CT_SUCCESS;
+}
+
+device_type_t arch_get_device_type(const char *name)
+{
+    if (cm_dbs_is_enable_dbs() && cm_dbs_get_deploy_mode() == DBSTOR_DEPLOY_MODE_NO_NAS) {
+        return DEV_TYPE_DBSTOR_FILE;
+    }
+    return cm_device_type(name);
 }
 
 void arch_reset_file_id(knl_session_t *session, uint32 dest_pos)
@@ -660,7 +669,7 @@ status_t arch_clear_tmp_file(device_type_t arch_file_type, char *file_name)
 
 status_t arch_handle_fault(arch_proc_context_t *proc_ctx, log_file_t *logfile, char *file_name)
 {
-    device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
+    device_type_t arch_file_type = arch_get_device_type(proc_ctx->arch_dest);
     bool32 exist_tmp_file;
     if (proc_ctx->last_archived_log_record.start_lsn == CT_INVALID_ID64) {
         CT_LOG_RUN_INF("[ARCH] clear temp archive log file %s", TMP_ARCH_FILE_NAME);
@@ -777,7 +786,8 @@ status_t arch_read_batch(log_file_t *logfile, arch_proc_context_t *proc_ctx,
     int32 *data_size = &read_batch_attr.read_buf->data_size;
     uint32 buf_size = proc_ctx->arch_rw_buf.aligned_buf.buf_size / DBSTOR_ARCH_RW_BUF_NUM;
     status_t status;
-    for (uint32 i = 0; i < ARCH_READ_BATCH_RETRY_TIMES; i++) {
+    uint32 retry_num = 0;
+    for (; retry_num < ARCH_READ_BATCH_RETRY_TIMES; retry_num++) {
         SYNC_POINT_GLOBAL_START(CANTIAN_ARCH_GET_LOG_FAIL, &status, CT_ERROR);
         status = cm_device_read_batch(logfile->ctrl->type, src_file, read_batch_attr.start_lsn, CT_INVALID_ID64,
             buf, buf_size, data_size, read_batch_attr.last_lsn);
@@ -786,22 +796,22 @@ status_t arch_read_batch(log_file_t *logfile, arch_proc_context_t *proc_ctx,
             CT_LOG_RUN_ERR("[ARCH] fail to read log file %s lsn %llu read size %u", read_batch_attr.src_name,
                            read_batch_attr.start_lsn, *data_size);
             cm_sleep(ARCH_FAIL_WAIT_SLEEP_TIME);
-            return CT_ERROR;
+            continue;
         }
 
         if (proc_ctx->session->kernel->attr.arch_log_check &&
             arch_check_log_valid(*data_size, buf) != CT_SUCCESS) {
-            if (i < (ARCH_READ_BATCH_RETRY_TIMES - 1)) {
-                cm_sleep(ARCH_FAIL_WAIT_SLEEP_TIME);
-                continue;
-            } else if (cm_dbs_is_enable_dbs() == CT_TRUE) {
-                CT_LOG_RUN_ERR("[ARCH] fail to check log file.");
-                return CT_ERROR;
-            }
-        } else {
-            break;
+            cm_sleep(ARCH_FAIL_WAIT_SLEEP_TIME);
+            continue;
         }
+        break;
     }
+    if (retry_num == ARCH_READ_BATCH_RETRY_TIMES) {
+        CT_LOG_RUN_ERR("[ARCH] fail to read redo log from logfile %s, lsn %llu",
+                       read_batch_attr.src_name, read_batch_attr.start_lsn);
+        return CT_ERROR;
+    }
+
     return CT_SUCCESS;
 }
 
@@ -887,6 +897,86 @@ status_t arch_write_file(arch_read_file_src_info_t *read_file_src_info, arch_pro
     proc_ctx->last_archived_log_record.start_lsn = proc_ctx->last_archived_log_record.end_lsn;
     CT_LOG_DEBUG_INF("[ARCH] succ, lsn start(%llu) cur(%llu) size(%llu)", proc_ctx->last_archived_log_record.start_lsn,
                      last_lsn, *file_offset);
+    return CT_SUCCESS;
+}
+
+status_t arch_dbstor_ulog_archive(log_file_t *logfile, arch_proc_context_t *proc_ctx,
+    uint64 start_lsn, uint64 *last_lsn, uint64 *real_copy_size)
+{
+    timeval_t tv_begin;
+    int32 src_file = logfile->handle;
+    int32 dst_file = proc_ctx->tmp_file_handle;
+    uint64 offset = proc_ctx->last_archived_log_record.offset;
+    uint64 copy_size = DBSTOR_LOG_SEGMENT_SIZE;
+    uint32 retry_num = 0;
+    for (; retry_num < ARCH_READ_BATCH_RETRY_TIMES; retry_num++) {
+        cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_ULOG_ARCHIVE_DBSTOR_FILE, &tv_begin);
+        status_t ret = cm_dbs_ulog_archive(src_file, dst_file, offset, start_lsn, copy_size, real_copy_size, last_lsn);
+        if (ret != CT_SUCCESS) {
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_ULOG_ARCHIVE_DBSTOR_FILE, &tv_begin, IO_STAT_FAILED);
+            CT_LOG_RUN_ERR("[ARCH] fail to copy redo log by dbstor, lsn %llu, size %llu", start_lsn, copy_size);
+            cm_sleep(ARCH_FAIL_WAIT_SLEEP_TIME);
+            continue;
+        }
+        break;
+    }
+    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_ULOG_ARCHIVE_DBSTOR_FILE, &tv_begin, IO_STAT_SUCCESS);
+    if (retry_num == ARCH_READ_BATCH_RETRY_TIMES) {
+        CT_LOG_RUN_ERR("[ARCH] fail to copy redo log by dbstor, lsn %llu, size %llu", start_lsn, copy_size);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t arch_copy_file(arch_read_file_src_info_t *read_file_src_info, arch_proc_context_t *proc_ctx,
+                         const char *dst_name, device_type_t arch_file_type)
+{
+    log_file_t *logfile = read_file_src_info->logfile;
+    if (arch_create_open_file(proc_ctx, dst_name, arch_file_type, &proc_ctx->tmp_file_handle, logfile) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    timeval_t start_time;
+    uint64 used_time;
+    ELAPSED_BEGIN(start_time);
+    uint64 last_lsn = 0;
+    uint64 start_lsn = read_file_src_info->start_lsn_input;
+    uint64 end_lsn = read_file_src_info->end_lsn;
+    int64 left_size = proc_ctx->redo_log_filesize;
+    uint64 real_copy_size = 0;
+    do {
+        if (arch_dbstor_ulog_archive(logfile, proc_ctx, start_lsn, &last_lsn, &real_copy_size) != CT_SUCCESS) {
+            cm_close_device(arch_file_type, &proc_ctx->tmp_file_handle);
+            return CT_ERROR;
+        }
+        if (real_copy_size == 0) {
+            proc_ctx->redo_log_filesize = 0;
+            CT_LOG_DEBUG_INF("[ARCH] reach data end, left(%lld), last(%llu)", left_size, last_lsn);
+            break;
+        }
+
+        left_size -= real_copy_size;
+        proc_ctx->redo_log_filesize -= real_copy_size;
+        proc_ctx->last_archived_log_record.offset += real_copy_size;
+        proc_ctx->last_archived_log_record.cur_lsn = last_lsn;
+        start_lsn = last_lsn + 1;
+        if (last_lsn >= end_lsn) {
+            proc_ctx->redo_log_filesize = 0;
+            CT_LOG_RUN_INF("[ARCH] read lsn end, left(%lld), last(%llu), end(%llu)", left_size, last_lsn, end_lsn);
+            break;
+        }
+        if (proc_ctx->last_archived_log_record.offset >= proc_ctx->session->kernel->arch_ctx.arch_file_size) {
+            CT_LOG_RUN_INF("[ARCH] file oversize(%llu), left(%lld), last(%llu)",
+                           proc_ctx->last_archived_log_record.offset, left_size, last_lsn);
+            break;
+        }
+    } while (left_size > 0);
+
+    ELAPSED_END(start_time, used_time);
+    proc_ctx->total_used_time += used_time;
+    proc_ctx->last_archived_log_record.start_lsn = proc_ctx->last_archived_log_record.end_lsn;
+    CT_LOG_DEBUG_INF("[ARCH] succ, lsn start(%llu) cur(%llu) size(%llu)", proc_ctx->last_archived_log_record.start_lsn,
+                     last_lsn, proc_ctx->last_archived_log_record.offset);
+    cm_close_device(arch_file_type, &proc_ctx->tmp_file_handle);
     return CT_SUCCESS;
 }
  
@@ -1013,7 +1103,7 @@ status_t arch_dbstor_generate_arch_file(arch_proc_context_t *proc_ctx, log_file_
 {
     uint32 node_id = arch_get_proc_node_id(proc_ctx);
     uint32 *asn = &proc_ctx->last_archived_log_record.asn;
-    device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
+    device_type_t arch_file_type = arch_get_device_type(proc_ctx->arch_dest);
     if (proc_ctx->last_archived_log_record.end_lsn == proc_ctx->last_archived_log_record.cur_lsn) {
         proc_ctx->need_file_archive = CT_FALSE; // no log when force archive, need clear.
         CT_LOG_RUN_WAR("[ARCH] empty file no need to archive %s", tmp_file_name);
@@ -1055,6 +1145,14 @@ void arch_get_force_archive_param(arch_proc_context_t *proc_ctx, bool32 *force_a
     return;
 }
 
+status_t arch_write_file_dbstor(arch_read_file_src_info_t *read_file_src_info, arch_proc_context_t *proc_ctx,
+    const char *dst_name, device_type_t arch_file_type)
+{
+    if (cm_dbs_get_deploy_mode() == DBSTOR_DEPLOY_MODE_NO_NAS) {
+        return arch_copy_file(read_file_src_info, proc_ctx, dst_name, arch_file_type);
+    }
+    return arch_write_file(read_file_src_info, proc_ctx, dst_name, arch_file_type);
+}
 
 status_t arch_dbstor_archive_file(const char *src_name, char *arch_file_name, log_file_t *logfile,
                                   log_file_head_t *head, arch_proc_context_t *proc_ctx)
@@ -1065,7 +1163,7 @@ status_t arch_dbstor_archive_file(const char *src_name, char *arch_file_name, lo
     bool32 force_archive = proc_ctx->is_force_archive;
     uint64 arch_file_size = arch_ctx->arch_file_size;
     char *tmp_file_name = proc_ctx->tmp_file_name;
-    device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
+    device_type_t arch_file_type = arch_get_device_type(proc_ctx->arch_dest);
     // arch_set_tmp_filename(tmp_file_name, proc_ctx, proc_ctx->session->kernel->id);
     if (arch_handle_fault(proc_ctx, logfile, tmp_file_name) != CT_SUCCESS) {
         arch_set_force_archive_stat(proc_ctx, CT_TRUE);
@@ -1078,7 +1176,7 @@ status_t arch_dbstor_archive_file(const char *src_name, char *arch_file_name, lo
     }
     arch_set_force_endlsn(force_archive, proc_ctx, &end_lsn);
     arch_read_file_src_info_t read_file_src_info = {(char *)src_name, logfile, start_lsn, end_lsn};
-    if (arch_write_file(&read_file_src_info, proc_ctx, tmp_file_name, arch_file_type) != CT_SUCCESS) {
+    if (arch_write_file_dbstor(&read_file_src_info, proc_ctx, tmp_file_name, arch_file_type) != CT_SUCCESS) {
         arch_set_force_archive_stat(proc_ctx, CT_TRUE);
         return CT_ERROR;
     }
@@ -1135,10 +1233,11 @@ static status_t arch_write_arch_file_nocompress(knl_session_t *session, aligned_
     uint64 left_size = logfile->head.write_pos;
     int32 read_size, data_size;
     int64 file_offset = 0;
-    device_type_t arch_file_type = cm_device_type(arch_files->arch_file_name);
+    device_type_t arch_file_type = arch_get_device_type(arch_files->arch_file_name);
 
     read_size = CM_CALC_ALIGN(sizeof(log_file_head_t), logfile->ctrl->block_size);
-    if (cm_read_file(arch_files->src_file, buf.aligned_buf, read_size, &data_size) != CT_SUCCESS) {
+    if (cm_read_device_nocheck(arch_file_type, arch_files->src_file,
+        file_offset, buf.aligned_buf, read_size, &data_size) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[ARCHIVE] failed to read archive log file %s offset size %llu actual read size %u",
             arch_files->src_name, logfile->head.write_pos - left_size, read_size);
         return CT_ERROR;
@@ -1148,7 +1247,7 @@ static status_t arch_write_arch_file_nocompress(knl_session_t *session, aligned_
     arch_log_head->dbid = session->kernel->db.ctrl.core.dbid;
     log_calc_head_checksum(session, arch_log_head);
 
-    if (cm_write_file(arch_files->dst_file, buf.aligned_buf, data_size) != CT_SUCCESS) {
+    if (cm_write_device(arch_file_type, arch_files->dst_file, file_offset, buf.aligned_buf, data_size) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[ARCHIVE] failed to write archive log file %s offset size %llu write size %u",
             arch_files->arch_file_name, logfile->head.write_pos - left_size, data_size);
         return CT_ERROR;
@@ -1334,7 +1433,7 @@ static status_t arch_archive_tmp_file(knl_session_t *session, aligned_buf_t buf,
     arch_files.arch_file_name = arch_file_name;
     arch_files.src_name = src_name;
     bool32 compress = session->kernel->attr.enable_arch_compress;
-    device_type_t arch_file_type = cm_device_type(arch_file_name);
+    device_type_t arch_file_type = arch_get_device_type(arch_file_name);
     if (cm_exist_device(arch_file_type, tmp_arch_file_name) &&
         cm_remove_device(arch_file_type, tmp_arch_file_name) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[ARCH] failed to remove remained temp archived log file %s", tmp_arch_file_name);
@@ -1380,7 +1479,7 @@ status_t arch_archive_file(knl_session_t *session, aligned_buf_t buf, log_file_t
     char tmp_arch_file_name[CT_FILE_NAME_BUFFER_SIZE + 4] = {0}; /* 4 bytes for ".tmp" */
     uint64 left_size = logfile->head.write_pos;
     int32 ret;
-    device_type_t arch_file_type = cm_device_type(arch_file_name);
+    device_type_t arch_file_type = arch_get_device_type(arch_file_name);
     if (cm_exist_device(arch_file_type, arch_file_name)) {
         CT_LOG_RUN_INF("[ARCH] Archived log file %s already exits", arch_file_name);
         return CT_SUCCESS;
@@ -1447,17 +1546,21 @@ bool32 arch_is_compressed(arch_ctrl_t *arch_ctrl)
 
 status_t arch_get_real_size(const char *file_name, int64 *file_size)
 {
-    int handle;
-
+    int handle = CT_INVALID_HANDLE;
+    device_type_t arch_file_type = arch_get_device_type(file_name);
     *file_size = 0;
 
-    if (cm_open_file(file_name, O_RDONLY | O_BINARY, &handle) != CT_SUCCESS) {
+    if (cm_open_device(file_name, arch_file_type, 0, &handle) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[ARCH] Failed to open file %s", file_name);
         return CT_ERROR;
     }
 
-    *file_size = cm_file_size(handle);
-    cm_close_file(handle);
+    if (cm_get_size_device(arch_file_type, handle, file_size) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[ARCH] Failed to get file size of %s", file_name);
+        cm_close_device(arch_file_type, &handle);
+        return CT_ERROR;
+    }
+    cm_close_device(arch_file_type, &handle);
 
     if (*file_size <= 0) {
         CT_LOG_RUN_ERR("[ARCH] Failed to get file size of %s", file_name);
@@ -1472,7 +1575,7 @@ status_t arch_flush_head_by_arch_ctrl(knl_session_t *session, arch_ctrl_t *arch_
     int32 dst_file = CT_INVALID_HANDLE;
     int32 data_size = 0;
     char *dst_name = arch_ctrl->name;
-    device_type_t arch_file_type = cm_device_type(dst_name);
+    device_type_t arch_file_type = arch_get_device_type(dst_name);
  
     if (cm_open_device(dst_name, arch_file_type, knl_io_flag(session), &dst_file) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[ARCHIVE] failed to open archive log file %s", dst_name);
@@ -1994,7 +2097,8 @@ void arch_dbstor_do_archive(knl_session_t *session, arch_proc_context_t *proc_ct
         proc_ctx->need_file_archive = CT_FALSE;
         if (!arch_archive_log_recorded(session, logfile->head.rst_id, *cur_asn, ARCH_DEFAULT_DEST, node_id)) {
             if (arch_record_archinfo(session, arch_file_name, &head, proc_ctx) != CT_SUCCESS) {
-                arch_dbstor_rename_tmp_file(arch_file_name, proc_ctx->tmp_file_name, cm_device_type(proc_ctx->arch_dest));
+                arch_dbstor_rename_tmp_file(arch_file_name, proc_ctx->tmp_file_name,
+                    arch_get_device_type(proc_ctx->arch_dest));
                 arch_dbstor_wake_force_thread(proc_ctx);
                 return;
             }
@@ -2115,12 +2219,12 @@ bool32 arch_needed_by_backup(knl_session_t *session, uint32 asn)
 status_t clean_arch_file(arch_ctrl_t *arch_ctrl, uint32 archived_start, uint32 archived_end,
     log_point_t *rcy_point, log_point_t *backup_rcy)
 {
-    if (!cm_exist_device(cm_device_type(arch_ctrl->name), arch_ctrl->name)) {
+    if (!cm_exist_device(arch_get_device_type(arch_ctrl->name), arch_ctrl->name)) {
         CT_LOG_RUN_INF("[ARCH] archive file %s is not exist", arch_ctrl->name);
         return CT_SUCCESS;
     }
 
-    if (cm_remove_device(cm_device_type(arch_ctrl->name), arch_ctrl->name) != CT_SUCCESS) {
+    if (cm_remove_device(arch_get_device_type(arch_ctrl->name), arch_ctrl->name) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[ARCH] Failed to remove archive file %s", arch_ctrl->name);
         return CT_ERROR;
     }
@@ -2434,7 +2538,7 @@ status_t arch_remove_abnormal_file(char *arch_path, char **logfile_name,
         ret = memset_sp(tmp_name, filename_len, 0, filename_len);
         knl_securec_check(ret);
         arch_set_file_name(tmp_name, arch_path, file_name);
-        if (cm_remove_device(cm_device_type(tmp_name), tmp_name) != CT_SUCCESS) {
+        if (cm_remove_device(arch_get_device_type(tmp_name), tmp_name) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("Failed to remove archive file %s", tmp_name);
             return CT_ERROR;
         }
@@ -2522,18 +2626,30 @@ bool32 arch_check_archfile_with_archctrl(knl_session_t *session, char *arch_path
 status_t arch_verify_abnormal_file(knl_session_t *session, char *arch_path, char **logfile_name,
                                    bool32 *dbid_zero_exist, uint32 *remove_file_num)
 {
-    DIR *arch_dir;
-    struct dirent *arch_dirent;
-    char *file_name;
+    device_type_t type = arch_get_device_type(arch_path);
+    void *file_list = NULL;
+    uint32 file_num = 0;
     errno_t ret;
     char tmp_name[CT_FILE_NAME_BUFFER_SIZE];
     uint32 filename_len = CT_FILE_NAME_BUFFER_SIZE;
-    if ((arch_dir = opendir(arch_path)) == NULL) {
+
+    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, "file_list");
+        return CT_ERROR;
+    }
+
+    if (cm_query_device(type, arch_path, file_list, &file_num) != CT_SUCCESS) {
+        cm_free_file_list(&file_list);
         CT_THROW_ERROR(ERR_INVALID_DIR, arch_path);
         return CT_ERROR;
     }
-    while ((arch_dirent = readdir(arch_dir)) != NULL) {
-        file_name = arch_dirent->d_name;
+
+    for (uint32 i = 0; i < file_num; i++) {
+        char *file_name = cm_get_name_from_file_list(type, file_list, i);
+        if (file_name == NULL) {
+            cm_free_file_list(&file_list);
+            return CT_ERROR;
+        }
         uint32 name_length = strlen(file_name);
         if (name_length <= g_arch_suffix_length ||
             strcmp(file_name + name_length - g_arch_suffix_length, g_arch_suffix_name) != 0) {
@@ -2548,7 +2664,7 @@ status_t arch_verify_abnormal_file(knl_session_t *session, char *arch_path, char
             logfile_name[*remove_file_num] = (char *)malloc(filename_len);
             if (logfile_name[*remove_file_num] == NULL) {
                 CT_THROW_ERROR(ERR_ALLOC_MEMORY, filename_len, "logfile_name");
-                closedir(arch_dir);
+                cm_free_file_list(&file_list);
                 return CT_ERROR;
             }
             ret = strcpy_sp(logfile_name[*remove_file_num], CT_FILE_NAME_BUFFER_SIZE, file_name);
@@ -2559,7 +2675,8 @@ status_t arch_verify_abnormal_file(knl_session_t *session, char *arch_path, char
             break;
         }
     }
-    closedir(arch_dir);
+
+    cm_free_file_list(&file_list);
     return CT_SUCCESS;
 }
 
@@ -2710,6 +2827,18 @@ void arch_print_dtc_time_interval(timeval_t *start_time)
 void arch_proc_init_dbstor(knl_session_t *session, arch_proc_context_t *proc_ctx, uint64 *sleep_time)
 {
     arch_context_t *arch_ctx = &session->kernel->arch_ctx;
+
+    if (cm_dbs_get_deploy_mode() == DBSTOR_DEPLOY_MODE_NO_NAS) {
+        device_type_t type = arch_get_device_type(proc_ctx->arch_dest);
+        if (!cm_exist_device_dir(type, proc_ctx->arch_dest)) {
+            if (cm_create_device_dir(type, proc_ctx->arch_dest) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[ARCH] failed to create dir %s", proc_ctx->arch_dest);
+                return;
+            }
+            cm_reset_error();
+        }
+    }
+
     *sleep_time = MIN(arch_ctx->arch_time / 2000, 1000);
     proc_ctx->total_arch_size = 0;
     proc_ctx->total_used_time = 0;
@@ -2867,7 +2996,7 @@ status_t rc_arch_generate_file(arch_proc_context_t *proc_ctx)
     log_file_head_t head = {0};
     knl_session_t *session = proc_ctx->session;
     log_file_t *logfile = &proc_ctx->logfile;
-    device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
+    device_type_t arch_file_type = arch_get_device_type(proc_ctx->arch_dest);
     char arch_file_name[CT_FILE_NAME_BUFFER_SIZE] = {0};
     CT_LOG_RUN_INF("[RC_ARCH] convert a temporary file to a new archive file with head info");
     if (arch_flush_head(arch_file_type, proc_ctx->tmp_file_name, proc_ctx, logfile, &head) != CT_SUCCESS) {
@@ -3005,6 +3134,39 @@ void rc_arch_dbstor_read_proc(thread_t *thread)
                    last_lsn, proc_ctx->read_failed == CT_SUCCESS ? "SUCCESS" : "ERROR");
 }
 
+void rc_arch_dbstor_ulog_proc(thread_t *thread)
+{
+    arch_proc_context_t *proc_ctx = (arch_proc_context_t *)thread->argument;
+    log_file_t *logfile = &proc_ctx->logfile;
+    uint64 start_lsn = proc_ctx->last_archived_log_record.cur_lsn + 1;
+    uint64 last_lsn = proc_ctx->last_archived_log_record.cur_lsn;
+    CT_LOG_RUN_INF("[RC_ARCH] start to archive redo %s, start lsn %llu", logfile->ctrl->name, start_lsn);
+    uint64 real_copy_size = 0;
+    while (proc_ctx->redo_log_filesize > 0) {
+        if (arch_dbstor_ulog_archive(logfile, proc_ctx, start_lsn, &last_lsn, &real_copy_size) != CT_SUCCESS) {
+            proc_ctx->read_failed = CT_TRUE;
+            break;
+        }
+        if (real_copy_size == 0) {
+            CT_LOG_DEBUG_INF("[ARCH] reach data end, left(%lld), last(%llu)", proc_ctx->redo_log_filesize, last_lsn);
+            break;
+        }
+
+        proc_ctx->redo_log_filesize -= real_copy_size;
+        proc_ctx->last_archived_log_record.offset += real_copy_size;
+        start_lsn = last_lsn + 1;
+    }
+
+    if (!proc_ctx->read_failed && last_lsn != proc_ctx->last_archived_log_record.cur_lsn) {
+        proc_ctx->last_archived_log_record.cur_lsn = last_lsn;
+        if (rc_arch_generate_file(proc_ctx) != CT_SUCCESS) {
+            proc_ctx->read_failed = CT_TRUE;
+        }
+    }
+    CT_LOG_RUN_INF("[RC_ARCH] arch read thread exit, last lsn %llu, read stat: %s",
+                   last_lsn, proc_ctx->read_failed == CT_SUCCESS ? "SUCCESS" : "ERROR");
+}
+
 void arch_write_proc_file(thread_t *thread)
 {
     return;
@@ -3015,7 +3177,7 @@ void arch_write_proc_dbstor(thread_t *thread)
     arch_proc_context_t *proc_ctx = (arch_proc_context_t *)thread->argument;
     buf_data_t *write_buf = NULL;
     status_t status;
-    device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
+    device_type_t arch_file_type = arch_get_device_type(proc_ctx->arch_dest);
     uint64 *file_offset = &proc_ctx->last_archived_log_record.offset;
     uint64 *cur_lsn = &proc_ctx->last_archived_log_record.cur_lsn;
     while (!thread->closed) {
@@ -3076,9 +3238,16 @@ status_t arch_check_dest(arch_context_t *arch_ctx, char *dest, uint32 cur_pos)
     }
 
     if ((attr->arch_attr[cur_pos].dest_mode == LOG_ARCH_DEST_LOCATION) &&
-        !cm_exist_device_dir(cm_device_type(dest), dest)) {
-        CT_THROW_ERROR(ERR_DIR_NOT_EXISTS, dest);
-        return CT_ERROR;
+        !cm_exist_device_dir(arch_get_device_type(dest), dest)) {
+        if (cm_dbs_get_deploy_mode() == DBSTOR_DEPLOY_MODE_NAS) {
+            CT_THROW_ERROR(ERR_DIR_NOT_EXISTS, dest);
+            return CT_ERROR;
+        }
+        status_t ret = cm_create_device_dir(arch_get_device_type(dest), dest);
+        if (ret != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_CREATE_DIR, dest, ret);
+            return CT_ERROR;
+        }
     }
 
     for (i = 0; i < CT_MAX_ARCH_DEST; i++) {
@@ -3212,6 +3381,7 @@ static status_t arch_init_single_proc_ctx(arch_context_t *arch_ctx, uint32 dest_
         arch_ctx->arch_dest_num++;
         proc_ctx->enabled = CT_TRUE;
     }
+
     return CT_SUCCESS;
 }
 
@@ -3237,11 +3407,12 @@ static status_t arch_init_proc_ctx(arch_context_t *arch_ctx, knl_session_t *sess
             return CT_ERROR;
         }
 
-        if (!cm_exist_device_dir(cm_device_type(proc_ctx->arch_dest), proc_ctx->arch_dest)) {
-            if (cm_create_device_dir(cm_device_type(proc_ctx->arch_dest), proc_ctx->arch_dest) != CT_SUCCESS) {
+        if (!cm_exist_device_dir(arch_get_device_type(proc_ctx->arch_dest), proc_ctx->arch_dest)) {
+            if (cm_create_device_dir(arch_get_device_type(proc_ctx->arch_dest), proc_ctx->arch_dest) != CT_SUCCESS) {
                 CT_LOG_RUN_ERR("[ARCH] failed to create dir %s", proc_ctx->arch_dest);
                 return CT_ERROR;
             }
+            cm_reset_error();
         }
 
         arch_ctx->arch_dest_num++;
@@ -3428,8 +3599,11 @@ status_t arch_create_proc(arch_proc_context_t *proc_ctx)
     if (cm_create_thread(arch_proc, 0, proc_ctx, &proc_ctx->read_thread) != CT_SUCCESS) {
         return CT_ERROR;
     }
-    if (cm_create_thread(arch_write_proc_all, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
-        return CT_ERROR;
+
+    if (cm_dbs_get_deploy_mode() != DBSTOR_DEPLOY_MODE_NO_NAS) {
+        if (cm_create_thread(arch_write_proc_all, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
     }
     return CT_SUCCESS;
 }
@@ -3906,7 +4080,8 @@ status_t arch_regist_archive(knl_session_t *session, const char *name)
 {
     int32 handle = CT_INVALID_HANDLE;
     log_file_head_t head = {0};
-    device_type_t type = cm_device_type(name);
+    int64 file_size = 0;
+    device_type_t type = arch_get_device_type(name);
     if (cm_open_device(name, type, O_BINARY | O_SYNC | O_RDWR, &handle) != CT_SUCCESS) {
         return CT_ERROR;
     }
@@ -3914,7 +4089,8 @@ status_t arch_regist_archive(knl_session_t *session, const char *name)
         cm_close_device(type, &handle);
         return CT_ERROR;
     }
-    if ((head.cmp_algorithm == COMPRESS_NONE) && ((int64)head.write_pos != cm_device_size(type, handle))) {
+    cm_get_size_device(type, handle, &file_size);
+    if ((head.cmp_algorithm == COMPRESS_NONE) && ((int64)head.write_pos != file_size)) {
         cm_close_device(type, &handle);
         CT_THROW_ERROR(ERR_INVALID_ARCHIVE_LOG, name);
         return CT_ERROR;
@@ -3929,9 +4105,15 @@ status_t arch_regist_archive(knl_session_t *session, const char *name)
 status_t arch_validate_archive_file(knl_session_t *session, arch_file_name_info_t *file_name_info)
 {
     // valid directory
-    DIR *arch_dir;
+    void *file_list = NULL;
+    uint32 file_num = 0;
     char *arch_path = session->kernel->attr.arch_attr[0].local_path;
-    if ((arch_dir = opendir(arch_path)) == NULL) {
+    device_type_t type = arch_get_device_type(arch_path);
+    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (cm_query_device(type, arch_path, file_list, &file_num) != CT_SUCCESS) {
+        cm_free_file_list(&file_list);
         return CT_ERROR;
     }
     
@@ -3940,12 +4122,20 @@ status_t arch_validate_archive_file(knl_session_t *session, arch_file_name_info_
     char tmp_name[CT_FILE_NAME_BUFFER_SIZE];
     uint32 filename_len = CT_FILE_NAME_BUFFER_SIZE;
     uint32 arch_file_dbid = 0;
-    struct dirent *arch_dirent;
     arch_file_name_info_t local_file_name_info = {0};
     char *file_name;
     uint32 name_length;
-    while ((arch_dirent = readdir(arch_dir)) != NULL) {
-        file_name = arch_dirent->d_name;
+
+    for (uint32 i = 0; i < file_num; i++) {
+        file_name = cm_get_name_from_file_list(type, file_list, i);
+        if (file_name == NULL) {
+            cm_free_file_list(&file_list);
+            return CT_ERROR;
+        }
+        if (cm_match_arch_pattern(file_name) == CT_FALSE) {
+            continue;
+        }
+
         name_length = strlen(file_name);
         if (name_length <= g_arch_suffix_length ||
             strcmp(file_name + name_length - g_arch_suffix_length, g_arch_suffix_name) != 0) {
@@ -3954,6 +4144,7 @@ status_t arch_validate_archive_file(knl_session_t *session, arch_file_name_info_
         char *pos;
         local_file_name_info.buf = file_name;
         if (arch_find_convert_file_name_id_rst(&local_file_name_info, &pos, local_file_name_info.buf) != CT_SUCCESS) {
+            cm_free_file_list(&file_list);
             return CT_ERROR;
         }
         
@@ -3969,14 +4160,15 @@ status_t arch_validate_archive_file(knl_session_t *session, arch_file_name_info_
         knl_securec_check(ret);
         arch_set_file_name(tmp_name, arch_path, file_name);
         if (get_dbid_from_arch_logfile(session, &arch_file_dbid, tmp_name) != CT_SUCCESS) {
-            closedir(arch_dir);
+            cm_free_file_list(&file_list);
             return CT_ERROR;
         }
         if (arch_file_dbid == session->kernel->db.ctrl.core.bak_dbid) {
+            cm_free_file_list(&file_list);
             return CT_SUCCESS;
         }
     }
-    closedir(arch_dir);
+    cm_free_file_list(&file_list);
     return CT_ERROR;
 }
 
@@ -3987,7 +4179,7 @@ status_t arch_try_regist_archive(knl_session_t *session, uint32 rst_id, uint32 *
         arch_set_archive_log_name(session, rst_id, *asn, ARCH_DEFAULT_DEST,
                                   file_name, CT_FILE_NAME_BUFFER_SIZE, session->kernel->id);
 
-        if (!cm_exist_device(cm_device_type(file_name), file_name)) {
+        if (!cm_exist_device(arch_get_device_type(file_name), file_name)) {
             break;
         }
         arch_file_name_info_t file_name_info = {rst_id, *asn, session->kernel->id,
@@ -4018,8 +4210,8 @@ void arch_reset_archfile(knl_session_t *session, uint32 replay_asn)
     for (uint32 i = archived_start; i != archived_end;) {
         arch_ctrl = db_get_arch_ctrl(session, i, session->kernel->id);
         if (arch_ctrl->asn > replay_asn) {
-            if (cm_exist_device(cm_device_type(arch_ctrl->name), arch_ctrl->name)) {
-                if (cm_remove_device(cm_device_type(arch_ctrl->name), arch_ctrl->name) != CT_SUCCESS) {
+            if (cm_exist_device(arch_get_device_type(arch_ctrl->name), arch_ctrl->name)) {
+                if (cm_remove_device(arch_get_device_type(arch_ctrl->name), arch_ctrl->name) != CT_SUCCESS) {
                     CT_LOG_RUN_ERR("[ARCH] failed to remove archive logfile %s", arch_ctrl->name);
                 } else {
                     proc_ctx->curr_arch_size -= arch_get_ctrl_real_size(arch_ctrl);
@@ -4102,7 +4294,8 @@ static bool32 arch_is_same(const char *arch_name, log_file_head_t head)
 {
     log_file_head_t arch_head = {0};
     int32 handle = CT_INVALID_HANDLE;
-    device_type_t type = cm_device_type(arch_name);
+    device_type_t type = arch_get_device_type(arch_name);
+    int64 file_size = 0;
     if (cm_open_device(arch_name, type, 0, &handle) != CT_SUCCESS) {
         CT_LOG_RUN_INF("[ARCH] failed to open %s", arch_name);
         cm_reset_error();
@@ -4116,7 +4309,8 @@ static bool32 arch_is_same(const char *arch_name, log_file_head_t head)
         return CT_FALSE;
     }
 
-    if (arch_head.cmp_algorithm == COMPRESS_NONE && cm_file_size(handle) != arch_head.write_pos) {
+    cm_get_size_device(type, handle, &file_size);
+    if (arch_head.cmp_algorithm == COMPRESS_NONE && file_size != (int64)arch_head.write_pos) {
         cm_close_device(type, &handle);
         CT_LOG_RUN_INF("[ARCH] archive file %s is invalid", arch_name);
         return CT_FALSE;
@@ -4137,12 +4331,13 @@ status_t arch_process_existed_archfile(knl_session_t *session, const char *arch_
 {
     arch_proc_context_t *proc_ctx = &session->kernel->arch_ctx.arch_proc[0];
     arch_ctrl_t *arch_ctrl = NULL;
+    device_type_t type = arch_get_device_type(arch_name);
     *ignore_data = arch_is_same(arch_name, head);
     if (*ignore_data) {
         return CT_SUCCESS;
     }
 
-    if (cm_remove_file(arch_name) != CT_SUCCESS) {
+    if (cm_remove_device(type, arch_name) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -4498,20 +4693,36 @@ status_t arch_find_convert_file_name_id_rst_asn_lsn(arch_file_name_info_t *file_
 
 status_t arch_find_archive_log_name(knl_session_t *session, arch_file_name_info_t *file_name_info)
 {
-    DIR *arch_dir;
-    struct dirent *arch_dirent;
-    char *file_name;
     char *arch_path = session->kernel->attr.arch_attr[0].local_path;
     char tmp_buf[CT_FILE_NAME_BUFFER_SIZE] = {0};
     uint32 tmp_buf_size = CT_FILE_NAME_BUFFER_SIZE;
     uint32 arch_file_dbid = 0;
     uint32 buf_size = file_name_info->buf_size;
     arch_file_name_info_t local_file_name_info = {0};
-    if ((arch_dir = opendir(arch_path)) == NULL) {
+    device_type_t type = arch_get_device_type(arch_path);
+    void *file_list = NULL;
+    uint32 file_num = 0;
+    char *file_name = NULL;
+
+    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
         return CT_ERROR;
     }
-    while ((arch_dirent = readdir(arch_dir)) != NULL) {
-        file_name = arch_dirent->d_name;
+
+    if (cm_query_device(type, arch_path, file_list, &file_num) != CT_SUCCESS) {
+        cm_free_file_list(&file_list);
+        return CT_ERROR;
+    }
+
+    for (uint32 i = 0; i < file_num; i++) {
+        file_name = cm_get_name_from_file_list(type, file_list, i);
+        if (file_name == NULL) {
+            cm_free_file_list(&file_list);
+            return CT_ERROR;
+        }
+        if (cm_match_arch_pattern(file_name) == CT_FALSE) {
+            continue;
+        }
+        
         uint32 name_length = strlen(file_name);
         if (name_length <= g_arch_suffix_length ||
             strcmp(file_name + name_length - g_arch_suffix_length, g_arch_suffix_name) != 0) {
@@ -4528,43 +4739,60 @@ status_t arch_find_archive_log_name(knl_session_t *session, arch_file_name_info_
         if (file_name_info->start_lsn > local_file_name_info.start_lsn &&
             file_name_info->start_lsn <= local_file_name_info.end_lsn) {
             memset_sp(tmp_buf, tmp_buf_size, 0, tmp_buf_size);
-            arch_set_file_name(tmp_buf, arch_path, arch_dirent->d_name);
+            arch_set_file_name(tmp_buf, arch_path, file_name);
             if (get_dbid_from_arch_logfile(session, &arch_file_dbid, tmp_buf) != CT_SUCCESS) {
-                closedir(arch_dir);
+                cm_free_file_list(&file_list);
                 return CT_ERROR;
             }
             if (arch_file_dbid == session->kernel->db.ctrl.core.bak_dbid) {
                 file_name_info->end_lsn = local_file_name_info.end_lsn;
                 file_name_info->asn = local_file_name_info.asn;
                 memset_sp(file_name_info->buf, buf_size, 0, buf_size);
-                arch_set_file_name(file_name_info->buf, arch_path, arch_dirent->d_name);
-                closedir(arch_dir);
+                arch_set_file_name(file_name_info->buf, arch_path, file_name);
+                cm_free_file_list(&file_list);
                 return CT_SUCCESS;
             } else {
                 CT_LOG_RUN_WAR("[RESTORE] the dbid %u of archive logfile %s is different from the bak dbid %u",
-                    arch_file_dbid, tmp_buf, session->kernel->db.ctrl.core.bak_dbid);
+                               arch_file_dbid, tmp_buf, session->kernel->db.ctrl.core.bak_dbid);
             }
         }
     }
-    closedir(arch_dir);
+
+    cm_free_file_list(&file_list);
     return CT_ERROR;
 }
 
 status_t arch_find_archive_asn_log_name(knl_session_t *session, const char *arch_path, uint32 bak_dbid, arch_file_name_info_t *file_name_info)
 {
-    DIR *arch_dir;
-    struct dirent *arch_dirent;
-    char *file_name;
+    device_type_t type = arch_get_device_type(arch_path);
+    void *file_list = NULL;
+    uint32 file_num = 0;
+    uint32 arch_file_dbid = 0;
     char tmp_buf[CT_FILE_NAME_BUFFER_SIZE] = {0};
     uint32 tmp_buf_size = CT_FILE_NAME_BUFFER_SIZE;
-    uint32 arch_file_dbid = 0;
     uint32 buf_size = file_name_info->buf_size;
     arch_file_name_info_t local_file_name_info = {0};
-    if ((arch_dir = opendir(arch_path)) == NULL) {
+    char *file_name = NULL;
+
+    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
         return CT_ERROR;
     }
-    while ((arch_dirent = readdir(arch_dir)) != NULL) {
-        file_name = arch_dirent->d_name;
+
+    if (cm_query_device(type, arch_path, file_list, &file_num) != CT_SUCCESS) {
+        cm_free_file_list(&file_list);
+        return CT_ERROR;
+    }
+
+    for (uint32 i = 0; i < file_num; i++) {
+        file_name = cm_get_name_from_file_list(type, file_list, i);
+        if (file_name == NULL) {
+            cm_free_file_list(&file_list);
+            return CT_ERROR;
+        }
+        if (cm_match_arch_pattern(file_name) == CT_FALSE) {
+            continue;
+        }
+        
         uint32 name_length = strlen(file_name);
         if (name_length <= g_arch_suffix_length ||
             strcmp(file_name + name_length - g_arch_suffix_length, g_arch_suffix_name) != 0) {
@@ -4582,43 +4810,60 @@ status_t arch_find_archive_asn_log_name(knl_session_t *session, const char *arch
         }
         if (local_file_name_info.asn == file_name_info->asn) {
             memset_sp(tmp_buf, tmp_buf_size, 0, tmp_buf_size);
-            arch_set_file_name(tmp_buf, arch_path, arch_dirent->d_name);
+            arch_set_file_name(tmp_buf, arch_path, file_name);
             if (get_dbid_from_arch_logfile(session, &arch_file_dbid, tmp_buf) != CT_SUCCESS) {
-                closedir(arch_dir);
+                cm_free_file_list(&file_list);
                 return CT_ERROR;
             }
             if (arch_file_dbid == bak_dbid) {
                 memset_sp(file_name_info->buf, buf_size, 0, buf_size);
-                arch_set_file_name(file_name_info->buf, arch_path, arch_dirent->d_name);
-                closedir(arch_dir);
+                arch_set_file_name(file_name_info->buf, arch_path, file_name);
+                cm_free_file_list(&file_list);
                 return CT_SUCCESS;
             } else {
                 CT_LOG_RUN_WAR("[RECOVER] the dbid %u of archive logfile %s is different from the bak dbid %u",
-                    arch_file_dbid, tmp_buf, bak_dbid);
+                               arch_file_dbid, tmp_buf, bak_dbid);
             }
         }
     }
-    closedir(arch_dir);
+
+    cm_free_file_list(&file_list);
     return CT_ERROR;
 }
 
 status_t arch_find_first_archfile_rst(knl_session_t *session, const char *arch_path, uint32 bak_dbid, arch_file_name_info_t *file_name_info)
 {
-    DIR *arch_dir;
-    struct dirent *arch_dirent;
-    char *file_name;
+    device_type_t type = arch_get_device_type(arch_path);
+    void *file_list = NULL;
+    uint32 file_num = 0;
     uint32 min_asn = 0;
+    uint32 arch_file_dbid = 0;
     file_name_info->asn = 0;
     char tmp_buf[CT_FILE_NAME_BUFFER_SIZE] = {0};
     uint32 tmp_buf_size = CT_FILE_NAME_BUFFER_SIZE;
-    uint32 arch_file_dbid = 0;
     uint32 buf_size = file_name_info->buf_size;
     arch_file_name_info_t local_file_name_info = {0};
-    if ((arch_dir = opendir(arch_path)) == NULL) {
+    char *file_name = NULL;
+
+    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
         return CT_ERROR;
     }
-    while ((arch_dirent = readdir(arch_dir)) != NULL) {
-        file_name = arch_dirent->d_name;
+
+    if (cm_query_device(type, arch_path, file_list, &file_num) != CT_SUCCESS) {
+        cm_free_file_list(&file_list);
+        return CT_ERROR;
+    }
+
+    for (uint32 i = 0; i < file_num; i++) {
+        file_name = cm_get_name_from_file_list(type, file_list, i);
+        if (file_name == NULL) {
+            cm_free_file_list(&file_list);
+            return CT_ERROR;
+        }
+        if (cm_match_arch_pattern(file_name) == CT_FALSE) {
+            continue;
+        }
+        
         uint32 name_length = strlen(file_name);
         if (name_length <= g_arch_suffix_length ||
             strcmp(file_name + name_length - g_arch_suffix_length, g_arch_suffix_name) != 0) {
@@ -4636,23 +4881,25 @@ status_t arch_find_first_archfile_rst(knl_session_t *session, const char *arch_p
         }
         if (min_asn == 0 || min_asn > local_file_name_info.asn) {
             memset_sp(tmp_buf, tmp_buf_size, 0, tmp_buf_size);
-            arch_set_file_name(tmp_buf, arch_path, arch_dirent->d_name);
+            arch_set_file_name(tmp_buf, arch_path, file_name);
             if (get_dbid_from_arch_logfile(session, &arch_file_dbid, tmp_buf) != CT_SUCCESS) {
-                closedir(arch_dir);
+                cm_free_file_list(&file_list);
                 return CT_ERROR;
             }
             if (arch_file_dbid == bak_dbid) {
                 file_name_info->asn = local_file_name_info.asn;
                 min_asn = local_file_name_info.asn;
                 memset_sp(file_name_info->buf, buf_size, 0, buf_size);
-                arch_set_file_name(file_name_info->buf, arch_path, arch_dirent->d_name);
+                arch_set_file_name(file_name_info->buf, arch_path, file_name);
             } else {
                 CT_LOG_RUN_WAR("[RECOVER] the dbid %u of archive logfile %s is different from the bak dbid %u",
-                    arch_file_dbid, tmp_buf, bak_dbid);
+                               arch_file_dbid, tmp_buf, bak_dbid);
             }
         }
     }
-    closedir(arch_dir);
+
+    cm_free_file_list(&file_list);
+
     if (file_name_info->asn != 0) {
         return CT_SUCCESS;
     }
@@ -4700,7 +4947,7 @@ status_t arch_read_file(knl_session_t *session, char *file_name, int64 head_size
     uint32 data_size = 0;
     aligned_buf_t read_buf = {0};
     arch_set_tmp_filename(file_name, proc_ctx, node_id);
-    bool32 exist_tmp_file = cm_exist_device(cm_device_type(proc_ctx->arch_dest), file_name);
+    bool32 exist_tmp_file = cm_exist_device(arch_get_device_type(proc_ctx->arch_dest), file_name);
     if (!exist_tmp_file) {
         *out_lsn = 0;
         return CT_SUCCESS;
@@ -4907,7 +5154,7 @@ status_t arch_dbs_ctrl_rebuild_parse_arch_ctrl(knl_session_t *session, const cha
 {
     log_file_head_t log_head;
     int32 handle = CT_INVALID_HANDLE;
-    device_type_t type = cm_device_type(file_name);
+    device_type_t type = arch_get_device_type(file_name);
     if (cm_open_device(file_name, type, O_BINARY | O_SYNC | O_RDWR, &handle) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[arch_bk] can not open archivelog %s.", file_name);
         return CT_ERROR;
@@ -4979,7 +5226,7 @@ status_t arch_dbs_ctrl_rebuild_parse_arch_file(knl_session_t *session, uint32 no
 status_t arch_handle_tmp_file(arch_proc_context_t *proc_ctx, uint32 node_id)
 {
     knl_session_t *session = proc_ctx->session;
-    device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
+    device_type_t arch_file_type = arch_get_device_type(proc_ctx->arch_dest);
     log_file_t *logfile = &proc_ctx->logfile;
     arch_set_tmp_filename(proc_ctx->tmp_file_name, proc_ctx, node_id);
     CT_LOG_RUN_INF("[ARCH] handle tmp arch file %s", proc_ctx->tmp_file_name);
@@ -5145,7 +5392,7 @@ void arch_deinit_proc_standby()
         arch_release_rw_buf(&arch_proc_ctx->arch_rw_buf, "ARCH_STANDBY");
 
         if (arch_proc_ctx->tmp_file_name[0] != '\0' && arch_proc_ctx->tmp_file_handle != CT_INVALID_HANDLE) {
-            cm_close_device(cm_device_type(arch_proc_ctx->tmp_file_name), &arch_proc_ctx->tmp_file_handle);
+            cm_close_device(arch_get_device_type(arch_proc_ctx->tmp_file_name), &arch_proc_ctx->tmp_file_handle);
         }
         if (arch_proc_ctx->logfile.ctrl != NULL && arch_proc_ctx->logfile.handle != CT_INVALID_HANDLE) {
             cm_close_device(arch_proc_ctx->logfile.ctrl->type, &arch_proc_ctx->logfile.handle);
@@ -5180,8 +5427,10 @@ status_t arch_init_proc_standby_node(arch_proc_context_t *proc_ctx, uint32 node_
     if (cm_create_thread(arch_proc_standby, 0, proc_ctx, &proc_ctx->read_thread) != CT_SUCCESS) {
         return CT_ERROR;
     }
-    if (cm_create_thread(arch_write_proc_all, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
-        return CT_ERROR;
+    if (cm_dbs_get_deploy_mode() != DBSTOR_DEPLOY_MODE_NO_NAS) {
+        if (cm_create_thread(arch_write_proc_all, 0, proc_ctx, &proc_ctx->write_thread) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
     }
     return CT_SUCCESS;
 }
@@ -5237,7 +5486,7 @@ status_t arch_start_proc_primary(knl_session_t *session)
     }
     arch_init_arch_files_size(session, proc_ctx->arch_id - 1);
     arch_set_tmp_filename(proc_ctx->tmp_file_name, proc_ctx, node_id);
-    device_type_t arch_file_type = cm_device_type(proc_ctx->arch_dest);
+    device_type_t arch_file_type = arch_get_device_type(proc_ctx->arch_dest);
     if (arch_clear_tmp_file(arch_file_type, proc_ctx->tmp_file_name) != CT_SUCCESS) {
         return CT_ERROR;
     }
