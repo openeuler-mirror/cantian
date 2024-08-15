@@ -59,7 +59,8 @@ status_t bak_found_archived_log(knl_session_t *session, uint32 rst_id, uint32 as
         cm_sleep(BAK_LOG_SLEEP_TIME);
     }
 
-    if (*arch_ctrl != NULL && !cm_file_exist((*arch_ctrl)->name)) {
+    device_type_t type = arch_get_device_type((*arch_ctrl)->name);
+    if (*arch_ctrl != NULL && !cm_exist_device(type, (*arch_ctrl)->name)) {
         CT_LOG_RUN_ERR("[BACKUP] failed to get archived log for [%u-%u]", rst_id, asn);
         return CT_ERROR;
     }
@@ -99,7 +100,7 @@ status_t bak_set_log_ctrl(knl_session_t *session, bak_process_t *process, uint32
         }
         ret = strcpy_sp(ctrl->name, CT_FILE_NAME_BUFFER_SIZE, arch_ctrl->name);
         knl_securec_check(ret);
-        ctrl->type = cm_device_type(arch_ctrl->name);
+        ctrl->type = arch_get_device_type(arch_ctrl->name);
         CT_LOG_DEBUG_INF("[BACKUP] Get archived log %s for [%u-%u]", ctrl->name, rst_id, asn);
         *block_size = (uint32)arch_ctrl->block_size;
         *compressed = arch_is_compressed(arch_ctrl);
@@ -165,7 +166,7 @@ status_t bak_set_archived_log_ctrl(knl_session_t *session, bak_process_t *proces
                         is_paral_log_proc, arch_ctrl->start_lsn,
                         arch_ctrl->end_lsn);
 
-    ctrl->type = cm_device_type(ctrl->name);
+    ctrl->type = arch_get_device_type(ctrl->name);
     if (cm_open_device(ctrl->name, ctrl->type, knl_arch_io_flag(session, *compressed), &ctrl->handle) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] failed to open %s", ctrl->name);
         return CT_ERROR;

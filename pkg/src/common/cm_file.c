@@ -538,14 +538,20 @@ status_t cm_read_file(int32 file, void *buf, int32 len, int32 *read_size)
     return CT_SUCCESS;
 }
 
-int32 cm_read_dbs_file(object_id_t* handle, uint32 offset, void* buf, uint32 length)
+int32 cm_read_dbs_file(object_id_t* handle, uint64 offset, void* buf, uint32 length)
 {
     int64 start = cm_now();
-    int32 ret = dbs_global_handle()->dbs_file_read(handle, offset, (char *)buf, length);
+    uint32 read_size = 0;
+    int32 ret = dbs_global_handle()->dbs_file_read(handle, offset, (char *)buf, length, &read_size);
     if (ret != 0) {
         CT_THROW_ERROR(ERR_READ_FILE, ret);
-        CT_LOG_RUN_ERR("cm_read_dbs_file offset:%u len:%u failed.", offset, length);
+        CT_LOG_RUN_ERR("cm_read_dbs_file offset:%llu len:%u failed.", offset, length);
         return ret;
+    }
+
+    if (read_size != length) {
+        CT_LOG_RUN_ERR("cm_read_dbs_file offset:%llu len:%u read_size:%u failed.", offset, length, read_size);
+        return CT_ERROR;
     }
 
     int64 end = cm_now();
@@ -556,13 +562,13 @@ int32 cm_read_dbs_file(object_id_t* handle, uint32 offset, void* buf, uint32 len
     return ret;
 }
 
-status_t cm_write_dbs_file(object_id_t* handle, uint32 offset, void* buf, uint32 length)
+status_t cm_write_dbs_file(object_id_t* handle, uint64 offset, void* buf, uint32 length)
 {
     int64 start = cm_now();
     int32 ret = dbs_global_handle()->dbs_file_write(handle, offset, (char *)buf, length);
     if (ret != 0) {
         CT_THROW_ERROR(ERR_WRITE_FILE, ret);
-        CT_LOG_RUN_ERR("cm_write_dbs_file write offset:%u len:%u failed.", offset, length);
+        CT_LOG_RUN_ERR("cm_write_dbs_file write offset:%llu len:%u failed.", offset, length);
         return CT_ERROR;
     }
 
@@ -648,6 +654,54 @@ status_t cm_write_file(int32 file, const void *buf, int32 size)
         return CT_ERROR;
     }
 
+    return CT_SUCCESS;
+}
+
+status_t cm_query_dir(const char *name, void *file_list, uint32 *file_num)
+{
+    DIR *dir = opendir(name);
+    if (dir == NULL) {
+        CT_LOG_RUN_ERR("Failed to open directory: %s.", name);
+        return CT_ERROR;
+    }
+
+    cm_file_info *list = (cm_file_info *)file_list;
+    int32 ret;
+    uint32 num = 0;
+    struct dirent *entry;
+    struct stat entry_stat;
+    while ((entry = readdir(dir)) != NULL) {
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) {
+            continue;
+        }
+
+        char full_path[CT_MAX_FILE_PATH_LENGH] = {0};
+        ret = snprintf_s(full_path, CT_MAX_FILE_PATH_LENGH, CT_MAX_FILE_PATH_LENGH - 1, "%s/%s", name, entry->d_name);
+        if (ret == -1) {
+            CT_LOG_RUN_ERR("Failed to strcat name to full path, the dir is %s, file name is %s.", name, entry->d_name);
+            (void)closedir(dir);
+            return CT_ERROR;
+        }
+        CT_LOG_RUN_INF("full path is %s.", full_path);
+        if (stat(full_path, &entry_stat) != 0) {
+            continue;
+        }
+        if (S_ISDIR(entry_stat.st_mode)) {
+            list[num].type = FILE_TYPE_DIR;
+        } else {
+            list[num].type = FILE_TYPE_FILE;
+        }
+
+        ret = strncpy_sp(list[num].file_name, CM_FILE_MAX_NAME_LEN, entry->d_name, strlen(entry->d_name));
+        if (ret != EOK) {
+            CT_LOG_RUN_ERR("Failed to copy name to file list, the dir is %s, file name is %s.", name, entry->d_name);
+            (void)closedir(dir);
+            return CT_ERROR;
+        }
+        num++;
+    }
+    *file_num = num;
+    (void)closedir(dir);
     return CT_SUCCESS;
 }
 

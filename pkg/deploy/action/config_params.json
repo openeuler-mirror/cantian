@@ -35,7 +35,8 @@
     "active": {
       "dm_ip": "",
       "dm_user": "",
-      "esn": ""
+      "esn": "",
+      "sync_speed": "medium"
     },
     "standby": {
       "dm_ip": "",

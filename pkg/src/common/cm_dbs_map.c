@@ -38,6 +38,7 @@ typedef struct {
     cm_list_head node;
     int32 handle;
     char obj_name[CSS_MAX_NAME_LEN + 1];
+    uint32 type;
     cm_dbs_map_item_s item;
 } cm_dbs_map_value_s;
 
@@ -98,22 +99,50 @@ void cm_dbs_map_deinit(void)
     g_cm_dbs_cache_mgr.hdl_seed = CM_DBS_INVALID_HANDLE;
 }
 
-static int32 cm_dbs_cache_gen_handle(void)
-{
-    if (g_cm_dbs_cache_mgr.hdl_seed == INT32_MAX) {
-        g_cm_dbs_cache_mgr.hdl_seed = 0;
-    } else {
-        g_cm_dbs_cache_mgr.hdl_seed++;
-    }
-    return g_cm_dbs_cache_mgr.hdl_seed;
-}
-
 static uint32 cm_dbs_cache_calc_index_by_handle(int32 handle)
 {
     return cm_hash_uint32((uint32)handle, CM_DBS_MAP_HASH_TABLE_SIZE);
 }
 
-status_t cm_dbs_map_set(const char *name, cm_dbs_map_item_s *item, int32 *handle)
+static cm_dbs_map_value_s *cm_dbs_cache_get_by_index(uint32 index, int32 handle)
+{
+    cm_list_head *list = &(g_cm_dbs_cache_mgr.hs_cache[index].hs_list);
+    cm_list_head *node = NULL;
+    cm_dbs_map_value_s *entry = NULL;
+    cm_list_for_each(node, list) {
+        entry = cm_list_entry(node, cm_dbs_map_value_s, node);
+        if (entry->handle == handle) {
+            return entry;
+        }
+    }
+    return NULL;
+}
+
+bool32 cm_dbs_map_handle_exist(int32 handle)
+{
+    uint32 index = cm_dbs_cache_calc_index_by_handle(handle);
+    cm_dbs_map_latch(LATCH_TYPE_X, index);
+    cm_dbs_map_value_s *value = cm_dbs_cache_get_by_index(index, handle);
+    cm_dbs_map_unlatch(index);
+    return value != NULL;
+}
+
+static int32 cm_dbs_cache_gen_handle(void)
+{
+    while (CT_TRUE) {
+        if (g_cm_dbs_cache_mgr.hdl_seed == INT32_MAX) {
+            g_cm_dbs_cache_mgr.hdl_seed = 0;
+        } else {
+            g_cm_dbs_cache_mgr.hdl_seed++;
+        }
+        if (cm_dbs_map_handle_exist(g_cm_dbs_cache_mgr.hdl_seed)) {
+            continue;
+        }
+        return g_cm_dbs_cache_mgr.hdl_seed;
+    }
+}
+
+status_t cm_dbs_map_set(const char *name, cm_dbs_map_item_s *item, int32 *handle, uint32 type)
 {
     cm_dbs_map_value_s *value = (cm_dbs_map_value_s *)cm_malloc(sizeof(cm_dbs_map_value_s));
     if (value == NULL) {
@@ -133,6 +162,7 @@ status_t cm_dbs_map_set(const char *name, cm_dbs_map_item_s *item, int32 *handle
         return CT_ERROR;
     }
     cm_list_init(&(value->node));
+    value->type = type;
     cm_spin_lock(&g_cm_dbs_cache_mgr.hdl_seed_lock, NULL);
     value->handle = cm_dbs_cache_gen_handle();
     cm_spin_unlock(&g_cm_dbs_cache_mgr.hdl_seed_lock);
@@ -143,20 +173,6 @@ status_t cm_dbs_map_set(const char *name, cm_dbs_map_item_s *item, int32 *handle
     *handle = value->handle;
     cm_dbs_map_unlatch(index);
     return CT_SUCCESS;
-}
-
-static cm_dbs_map_value_s *cm_dbs_cache_get_by_index(uint32 index, int32 handle)
-{
-    cm_list_head *list = &(g_cm_dbs_cache_mgr.hs_cache[index].hs_list);
-    cm_list_head *node = NULL;
-    cm_dbs_map_value_s *entry = NULL;
-    cm_list_for_each(node, list) {
-        entry = cm_list_entry(node, cm_dbs_map_value_s, node);
-        if (entry->handle == handle) {
-            return entry;
-        }
-    }
-    return NULL;
 }
 
 status_t cm_dbs_map_get(int32 handle, cm_dbs_map_item_s *item)
@@ -193,7 +209,7 @@ void cm_dbs_map_remove(int32 handle)
     cm_dbs_map_unlatch(index);
 }
 
-bool32 cm_dbs_map_exist(const char *name)
+bool32 cm_dbs_map_exist(const char *name, uint32 type)
 {
     cm_list_head *list = NULL;
     cm_list_head *node = NULL;
@@ -204,7 +220,7 @@ bool32 cm_dbs_map_exist(const char *name)
         cm_list_for_each(node, list)
         {
             entry = cm_list_entry(node, cm_dbs_map_value_s, node);
-            if (strcmp(name, entry->obj_name) == 0) {
+            if (strcmp(name, entry->obj_name) == 0 && type == entry->type) {
                 cm_dbs_map_unlatch(idx);
                 return CT_TRUE;
             }

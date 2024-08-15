@@ -418,6 +418,7 @@ typedef enum en_param_global {
     /* ADD HERE */
     // dbstor
     PARAM_ENABLE_DBSTORE,
+    PARAM_DBSTORE_DEPLOY_MODE,
     PARAM_DBSTORE_NAMESPACE,
     PARAM_COMPATIBLE_MYSQL,
     PARAM_ENABLE_IO_RECORD,

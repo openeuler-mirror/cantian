@@ -1021,7 +1021,14 @@ static status_t srv_get_dbs_cfg(void)
     CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_DBSTOR", &enable));
     CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_DBSTOR_BATCH_FLUSH", &enable_batch_flush));
     value = srv_get_param("DBSTOR_NAMESPACE");
-    return cm_dbs_set_cfg(enable, attr->page_size, CT_DFLT_CTRL_BLOCK_SIZE, value, partition_num, enable_batch_flush);
+
+    uint32 deploy_mode = 0;
+    if (srv_get_param_size_uint32("DBSTOR_DEPLOY_MODE", &deploy_mode) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "DBSTOR_DEPLOY_MODE");
+        return CT_ERROR;
+    }
+    return cm_dbs_set_cfg(enable, attr->page_size, CT_DFLT_CTRL_BLOCK_SIZE,
+        value, partition_num, enable_batch_flush, deploy_mode);
 }
 
 status_t srv_load_cluster_params(void)

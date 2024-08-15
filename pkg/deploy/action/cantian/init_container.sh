@@ -20,6 +20,7 @@ node_id=`python3 ${CURRENT_PATH}/get_config_info.py "node_id"`
 cantian_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
 archive_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_archive_fs"`
 cluster_id=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_id"`
+deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
 cluster_name=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_name"`
 max_arch_files_size=`python3 ${CURRENT_PATH}/get_config_info.py "MAX_ARCH_FILES_SIZE"`
 cms_ip=`python3 ${CURRENT_PATH}/get_config_info.py "cms_ip"`
@@ -68,7 +69,14 @@ function set_cantian_config() {
         node_domain_1="127.0.0.1"
     fi
 
-    sed -i -r "s:(archive_).*:\1${archive_fs}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+    if [ "$deploy_mode" = "dbstore_unify" ]; then
+        sed -i -r "s:(ARCHIVE_DEST_1 = location=).*:\1\/${archive_fs}\/archive:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+        sed -i -r "s/(DBSTOR_DEPLOY_MODE = ).*/\11/" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+    else
+        sed -i -r "s:(ARCHIVE_DEST_1 = location=/mnt/dbdata/remote/archive_).*:\1${archive_fs}:g" \
+            ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+    fi
+
     sed -i -r "s:(INTERCONNECT_ADDR = ).*:\1${node_domain_0};${node_domain_1}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(DBSTOR_NAMESPACE = ).*:\1${cluster_name}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(INSTANCE_ID = ).*:\1${node_id}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}

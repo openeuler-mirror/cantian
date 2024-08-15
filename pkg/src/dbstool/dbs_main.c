@@ -33,6 +33,7 @@
 #include "cm_file.h"
 #include "dbs_adp.h"
 #include "cm_timer.h"
+#include "cm_dbstore.h"
 
 #define DBS_MAX_CMD_PARAM_COUNT 16
 #define DBS_LOGFILE_SIZE (10 * 1024 * 1024)
@@ -86,9 +87,37 @@ status_t cms_init_loggers()
 EXTER_ATTACK int32 dbs_cmd_help(int32 argc, char* argv[]);
 
 dbs_cmd_def_t g_dbs_cmd_defs[] = {
-    {{"-h"}, dbs_cmd_help, "print dbs command parameters"},
-    {{"-help"}, dbs_cmd_help, "print dbs command parameters"},
-    {{"dbs", "test", "*[PARAM]"}, dbs_test_func, "dbs tool test"},
+    {{"--h"}, dbs_cmd_help, "print dbs command parameters"},
+    {{"--help"}, dbs_cmd_help, "print dbs command parameters"},
+    {{"--arch-import", "*[PARAM]"}, dbs_arch_import,
+        "Usage: import the archive file(s) from source dir.\n"
+        "\tparams: --source-dir=* [--arch-file=*] [--fs-name=*]"},
+    {{"--arch-export", "*[PARAM]"}, dbs_arch_export,
+        "Usage: export the archive file(s) to target dir.\n"
+        "\tparams: --target-dir=* [--arch-file=*] [--fs-name=*]"},
+    {{"--arch-clean", "*[PARAM]"}, dbs_arch_clean,
+        "Usage: clean the archive file(s) in archive dir.\n"
+        "\tparams: [--fs-name=*]"},
+    {{"--arch-query", "*[PARAM]"}, dbs_arch_query,
+        "Usage: query the archive file(s) in archive dir.\n"
+        "\tparams: [--fs-name=*]"},
+    {{"--ulog-clean", "*[PARAM]"}, dbs_ulog_clean,
+        "Usage: clean the ulog data in redo log file system.\n"
+        "\tparams: [--fs-name=*] [--cluster-name=*]"},
+    {{"--pagepool-clean", "*[PARAM]"}, dbs_pagepool_clean,
+        "Usage: clean the page data in data page file system.\n"
+        "\tparams: [--fs-name=*] [--cluster-name=*]"},
+    {{"--create-file", "*[PARAM]"}, dbs_create_path_or_file,
+        "Usage: create/copy the specified dir/file in the file system.\n"
+        "\tparams: --fs-name=* --file-name=* [--source-dir=xxx]"},
+    {{"--delete-file", "*[PARAM]"}, dbs_delete_path_or_file,
+        "Usage: delete a path or file in the file system.\n"
+        "\tparams: --fs-name=* --file-name=*"},
+    {{"--query-file", "*[PARAM]"}, dbs_query_file,
+        "Usage: query the dir in the file system.\n"
+        "\tparams: --fs-name=xxx --file-path=xxx"},
+    {{"--dbs", "test", "*[PARAM]"}, dbs_test_func,
+        "Usage: dbs tool test."},
 };
 
 int32 dbs_cmd_help(int32 argc, char* argv[])
@@ -101,13 +130,12 @@ int32 dbs_cmd_help(int32 argc, char* argv[])
             }
 
             if (cmd_def->param[p][0] == '*') {
-                printf(" %s", cmd_def->param[p] + 1);
+                continue;
             } else {
                 printf(" %s", cmd_def->param[p]);
             }
         }
-
-        printf(",%s\n", cmd_def->desc);
+        printf(" , %s\n", cmd_def->desc);
     }
     return CT_SUCCESS;
 }
@@ -135,7 +163,7 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
             }
         }
 
-        if (p == argc - 1 && cmd_def->param[p] == NULL) {
+        if (p >= 1 && (cmd_def->param[p] == NULL || cmd_def->param[p][0] == '*')) {
             break;
         }
     }
@@ -156,6 +184,7 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
     }
     ret = cmd_def->cmd_pro_func(argc, argv);
     printf("%s, ret is %d.\n", cmd_def->desc, ret);
+    (void)dbs_global_handle()->dbs_client_flush_log();
 
     return ret;
 }

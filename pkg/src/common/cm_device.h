@@ -39,6 +39,7 @@ typedef enum en_device_type {
     DEV_TYPE_CFS = 3,
     DEV_TYPE_ULOG = 4,
     DEV_TYPE_PGPOOL = 5,
+    DEV_TYPE_DBSTOR_FILE = 6,
 } device_type_t;
 
 #ifdef __cplusplus
@@ -112,6 +113,8 @@ status_t cm_read_device(device_type_t type, int32 handle, int64 offset, void *bu
 status_t cm_read_device_nocheck(device_type_t type, int32 handle, int64 offset, void *buf, int32 size,
                                 int32 *return_size);
 status_t cm_write_device(device_type_t type, int32 handle, int64 offset, const void *buf, int32 size);
+status_t cm_query_device(device_type_t type, const char *name, void *file_list, uint32 *file_num);
+status_t cm_get_size_device(device_type_t type, int32 handle, int64 *file_size);
 int64 cm_seek_device(device_type_t type, int32 handle, int64 offset, int32 origin);
 bool32 cm_exist_device(device_type_t type, const char *name);
 status_t cm_extend_device(device_type_t type, int32 handle, char *buf, uint32 buf_size, int64 size,
@@ -176,6 +179,10 @@ typedef struct st_raw_device_op {
 
 // interface for register raw device callback function
 void cm_raw_device_register(raw_device_op_t *device_op);
+void cm_free_file_list(void **file_list);
+status_t cm_malloc_file_list(device_type_t type, void **file_list);
+char *cm_get_name_from_file_list(device_type_t type, void *list, int32 index);
+bool32 cm_match_arch_pattern(const char *filename);
 
 #define CM_CTSTORE_ALIGN_SIZE 512
 

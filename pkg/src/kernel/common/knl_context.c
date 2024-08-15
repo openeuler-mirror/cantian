@@ -56,7 +56,7 @@ void knl_init_attr(knl_handle_t kernel)
     inst->attr.commit_nowait = CT_FALSE;
     /* the min value of inst->attr.max_map_nodes is 8192 */
     inst->attr.max_map_nodes = (page_size - sizeof(map_page_t) - sizeof(page_tail_t)) / sizeof(map_node_t);
-
+    inst->attr.sample_by_map = CT_TRUE;
     param = cm_get_config_value(inst->attr.config, "COMMIT_WAIT");
     if (param != NULL) {
         inst->attr.commit_nowait = cm_str_equal(param, "NOWAIT");

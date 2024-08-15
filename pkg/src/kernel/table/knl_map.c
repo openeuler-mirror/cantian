@@ -2185,7 +2185,7 @@ status_t heap_find_appendonly_page(knl_session_t *session, knl_handle_t heap_han
  * heap init map path for parallel query
  * @param map path, map page_id, map level
  */
-static void heap_paral_init_map_path(map_path_t *path, page_id_t map_id, uint32 map_level)
+void heap_paral_init_map_path(map_path_t *path, page_id_t map_id, uint32 map_level)
 {
     map_index_t *index = NULL;
     uint32 i;

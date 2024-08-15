@@ -44,14 +44,21 @@ typedef struct {
     uint32 partition_num;
     bool32 enable_batch_flush;
     char ns[DBS_NS_MAX_NAME_LEN];
+    uint32 deploy_mode; // 0 nas; 1 去nas
 } cm_dbs_cfg_s;
+
+typedef enum {
+    DBSTOR_DEPLOY_MODE_NAS = 0,
+    DBSTOR_DEPLOY_MODE_NO_NAS = 1
+} dbstor_deploy_mode;
 
 cm_dbs_cfg_s *cm_dbs_get_cfg(void);
 status_t cm_dbs_set_cfg(bool32 enable, uint32 dataPgSize, uint32 ctrlPgSize, const char *ns_name, uint32 partition_num,
-    bool32 enable_batch_flush);
+    bool32 enable_batch_flush, uint32 deploy_mode);
 status_t cm_dbs_create_all_ns(void);
 status_t cm_dbs_open_all_ns(void);
 bool32 cm_dbs_is_enable_dbs(void);
+uint32 cm_dbs_get_deploy_mode(void);
 uint64 cm_dbs_ulog_recycle(int32 handle, uint64 lsn);
 status_t cm_dbs_ulog_get_maxLsn(const char *name, uint64 *lsn);
 status_t cm_dbs_init(const char *home_path, char *cfg_name, dbs_init_mode init_mode);
