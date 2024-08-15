@@ -65,6 +65,7 @@ typedef struct st_knl_attr {
     uint32 plog_buf_size;
     uint32 cursor_size;
     uint32 max_map_nodes;  // max node count in map page
+    bool32 sample_by_map;
     uint32 max_sessions;
     uint32 db_block_checksum;
 
