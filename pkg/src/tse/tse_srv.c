@@ -28,6 +28,7 @@
 
 #define TSE_MAX_MYSQL_INST_SIZE (128)
 #define TSE_MAX_PREFETCH_NUM (100)
+#define CTC_SIZE_UNIT (1024)
 
 /*
  * lob text data struct
@@ -43,6 +44,12 @@ int32 sint3korr(uchar *A)
     return ((int32)(((A[2]) & 128)
                         ? (((uint32)255L << 24) | (((uint32)A[2]) << 16) | (((uint32)A[1]) << 8) | ((uint32)A[0]))
                         : (((uint32)A[2]) << 16) | (((uint32)A[1]) << 8) | ((uint32)A[0])));
+}
+
+EXTER_ATTACK int ctc_update_sample_size(uint32_t sample_size)
+{
+    g_instance->kernel.attr.stats_sample_size = sample_size * CTC_SIZE_UNIT * CTC_SIZE_UNIT;
+    return CT_SUCCESS;
 }
 
 EXTER_ATTACK int tse_open_table(tianchi_handler_t *tch, const char *table_name, const char *user_name)
