@@ -244,11 +244,16 @@ status_t cm_get_dbs_file_handle(object_id_t* phandle, char* file_name, object_id
     // 先打开再创建文件
     ret = dbs_global_handle()->dbs_file_open(phandle, file_name, FILE_TYPE, handle);
     if (ret != 0) {
-        ret = dbs_global_handle()->dbs_file_create(phandle, file_name, FILE_TYPE, handle);
         CT_LOG_RUN_INF("file_name(%s) not exist, new create.", file_name);
+        ret = dbs_global_handle()->dbs_file_create(phandle, file_name, FILE_TYPE, handle);
     }
 
-    return (ret == 0 ? CT_SUCCESS : CT_ERROR);
+    if (ret != 0) {
+        CT_LOG_RUN_INF("Failed to create file: %s, ret is %d", file_name, ret);
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
 }
 
 /* 重新打开文件获取句柄信息 */

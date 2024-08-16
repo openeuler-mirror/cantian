@@ -44,6 +44,7 @@
 #include "cms_log.h"
 #include "cms_uds_client.h"
 #include "cm_dbstore.h"
+#include "cm_dbs_file.h"
 
 static const char *g_cms_lock_file = "cms_server.lck";
 
@@ -362,9 +363,8 @@ int32 cms_gcc_reset_force(int32 argc, char* argv[])
 int32 cms_gcc_reset(int32 argc, char* argv[])
 {
     printf("The operation will reset all data on gcc, are you sure?(y/n)\n");
-    char confirm = getc(stdin);
-    if (confirm != 'Y' && confirm != 'y') {
-        printf("You have cancel reset gcc file.");
+    if (cms_get_input_confirm() != CT_TRUE) {
+        printf("You have cancel reset gcc file.\n");
         return 0;
     }
 
@@ -447,9 +447,7 @@ int32 cms_gcc_export(int32 argc, char* argv[])
     char *path = argv[3];
     if (cm_access_file(path, F_OK) == CT_SUCCESS) {
         printf("The operation will overwrite the current file, are you sure?(y/n)\n");
-        char confirm = getc(stdin);
-        CMS_LOG_INF("Input is %c.", confirm);
-        if (confirm != 'Y' && confirm != 'y') {
+        if (cms_get_input_confirm() != CT_TRUE) {
             return 0;
         }
     } else {
@@ -527,12 +525,15 @@ int32 cms_gcc_import(int32 argc, char* argv[])
     const char *err_msg = NULL;
     source_location_t loc = { 0, 0 };
     printf("The operation will replace all data on gcc and can not rollback, are you sure?(y/n)\n");
-    char confirm = getc(stdin);
-    const char* file_name = argv[3];
-    CMS_LOG_INF("input is %c.", confirm);
-    if (confirm != 'Y' && confirm != 'y') {
-        printf("You have cancel gcc import operation.");
-        return 0;
+    char* file_name = argv[3];
+    cm_remove_extra_delim(file_name, '/');
+    if (cm_check_file_path(file_name) != CT_SUCCESS) {
+        printf("Please enter a valid path.\n");
+        return CT_ERROR;
+    }
+
+    if (cms_get_input_confirm() != CT_TRUE) {
+        return CT_ERROR;
     }
 
     status_t ret = cms_tool_gcc_import_adapte_dbs(file_name);
@@ -590,6 +591,29 @@ status_t cms_tool_init(void)
     return CT_SUCCESS;
 }
 
+bool32 cms_get_input_confirm(void)
+{
+    char input[CM_CONFIRM_INPUT_LEN] = { 0 };
+    if (fgets(input, CM_CONFIRM_INPUT_LEN, stdin) == NULL) {
+        printf("Error reading from your input: %s\n", input);
+        return CT_FALSE;
+    }
+
+    CMS_LOG_INF("input is %s.", input);
+    int32 length = strlen(input);
+    if (length == 0 || length > CM_CONFIRM_LEN || input[length - 1] != '\n') {
+        printf("Please enter 'y' or 'n'.\n");
+        return CT_FALSE;
+    }
+    
+    if (input[0] == 'Y' || input[0] == 'y') {
+        return CT_TRUE;
+    }
+
+    printf("Process terminated based on your input: %s\n", input);
+    return CT_FALSE;
+}
+
 int32 cms_gcc_restore_adapter_dbs(const char* file_name)
 {
     if (cms_instance_init_with_dbs(DBS_RUN_CMS_LOCAL) != CT_SUCCESS) {
@@ -609,18 +633,17 @@ int32 cms_gcc_restore_adapter_dbs(const char* file_name)
         printf("node online: %llu, restore gcc failed.\n", cms_online_bitmap);
         return 0;
     }
+
     printf("cms check server status finish, please ensure all nodes in the cluster are stopped, are you sure?(y/n)\n");
-    char ack = getc(stdin);
-    CMS_LOG_INF("input is %c.", ack);
-    if (ack != 'Y' && ack != 'y') {
+    if (cms_get_input_confirm() != CT_TRUE) {
         return 0;
     }
+
     printf("The operation will replace all data on gcc and can not rollback, are you sure?(y/n)\n");
-    char confirm = getc(stdin);
-    CMS_LOG_INF("input is %c.", confirm);
-    if (confirm != 'Y' && confirm != 'y') {
+    if (cms_get_input_confirm() != CT_TRUE) {
         return 0;
     }
+    
     if (cms_restore_gcc(file_name) == CT_SUCCESS) {
         printf("restore gcc from file %s succeed.\n", file_name);
         CMS_LOG_INF("restore gcc from file %s succeed.", file_name);
@@ -634,7 +657,13 @@ int32 cms_gcc_restore_adapter_dbs(const char* file_name)
 int32 cms_gcc_restore(int32 argc, char* argv[])
 {
     uint64 cms_online_bitmap = 0;
-    const char* file_name = argv[3];
+    char* file_name = argv[3];
+    cm_remove_extra_delim(file_name, '/');
+    if (cm_check_file_path(file_name) != CT_SUCCESS) {
+        printf("Please enter a valid path.\n");
+        return CT_ERROR;
+    }
+
     if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
         return cms_gcc_restore_adapter_dbs(file_name);
     }
@@ -647,12 +676,9 @@ int32 cms_gcc_restore(int32 argc, char* argv[])
             return CT_ERROR;
         }
     } else {
-        printf(
-            "cms check server stat failed, please ensure all nodes in the cluster are stopped, are you sure?(y/n)\n");
+        printf("CMS check server stat failed. Ensure all cluster nodes are stopped. Proceed? (y/n)\n");
         CMS_LOG_WAR("cms check server stat failed.");
-        char ack = getc(stdin);
-        CMS_LOG_INF("input is %c.", ack);
-        if (ack != 'Y' && ack != 'y') {
+        if (cms_get_input_confirm() != CT_TRUE) {
             return CT_ERROR;
         }
     }
@@ -660,10 +686,7 @@ int32 cms_gcc_restore(int32 argc, char* argv[])
     int32 err_code = 0;
     const char *err_msg = NULL;
     printf("The operation will replace all data on gcc and can not rollback, are you sure?(y/n)\n");
-    char confirm = getc(stdin);
-    CMS_LOG_INF("input is %c.", confirm);
-    
-    if (confirm == 'Y' || confirm == 'y') {
+    if (cms_get_input_confirm() == CT_TRUE) {
         if (cms_restore_gcc(file_name) == CT_SUCCESS) {
             printf("restore gcc from file %s succeed.\n", file_name);
             CMS_LOG_INF("restore gcc from file %s succeed.", file_name);
@@ -2612,12 +2635,9 @@ int32 cms_resgrp_recursive_del(int32 argc, char* argv[])
             return CT_SUCCESS;
         }
 
-        char confirm;
         if (cms_check_resgrp_has_res(gcc, group)) {
             printf("the resource group has resource(s), delete anyway? (y/n):\n");
-            confirm = getc(stdin);
-            if (confirm != 'Y' && confirm != 'y') {
-                cms_release_gcc(&gcc);
+            if (cms_get_input_confirm() != CT_TRUE) {
                 return CT_SUCCESS;
             }
         }
