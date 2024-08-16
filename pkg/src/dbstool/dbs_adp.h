@@ -30,6 +30,16 @@
 #define MODULE_ID DBSTORE
 #endif
 
+#define NUM_ONE     1
+#define NUM_TWO     2
+#define NUM_THREE   3
+#define NUM_FOUR    4
+#define NUM_FIVE    5
+#define NUM_SIX     6
+#define NUM_SEVEN   7
+#define NUM_EIGHT   8
+#define NUM_NINE    9
+
 status_t dbstool_init();
 int32 dbs_arch_import(int32 argc, char *argv[]);
 int32 dbs_arch_export(int32 argc, char *argv[]);
