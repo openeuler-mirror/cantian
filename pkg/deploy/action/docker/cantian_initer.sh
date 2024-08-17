@@ -49,6 +49,7 @@ node_id=`python3 ${CURRENT_PATH}/get_config_info.py "node_id"`
 cms_ip=`python3 ${CURRENT_PATH}/get_config_info.py "cms_ip"`
 cantian_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
 cantian_group=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_group"`
+run_mode=`python3 ${CURRENT_PATH}/get_config_info.py "M_RUNING_MODE"`
 deploy_user=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_user"`
 deploy_group=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_group"`
 mes_ssl_switch=`python3 ${CURRENT_PATH}/get_config_info.py "mes_ssl_switch"`
@@ -278,8 +279,8 @@ function init_start() {
 
     set_version_file
 
-    # 安装并拉起MySQL
-    if [[ "${cantian_in_container}" == "1" ]] && [ ! -f "${SINGLE_FLAG}" ]; then
+    # 安装并拉起MySQL,单进程不执行
+    if [[ "${cantian_in_container}" == "1" ]] && [[ "${run_mode}" != "cantiand_with_mysql_in_cluster" ]]; then
         start_mysqld
     fi
 
