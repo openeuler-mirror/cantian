@@ -50,12 +50,13 @@
 struct shm_seg_s* g_shm_segs[SHM_SEG_MAX_NUM + 1] = {NULL};
 struct shm_seg_s *g_upstream_shm_seg = NULL;
 static spinlock_t g_client_id_list_lock;
-extern uint32 g_shm_memory_reduction_ratio;
 
 typedef struct tag_mem_class_cfg_s {
     uint32_t size; // align to 8 bytes
     uint32_t num;
 } mem_class_cfg_t;
+
+uint32 g_shm_file_num;
 
 int g_upstream_msg_cnt[MAX_SHM_PROC];
 
@@ -153,7 +154,12 @@ mq_cfg_s *get_global_mq_cfg(void)
 
 uint32_t get_mq_queue_num(void)
 {
-    return g_mq_cfg.num_msg_queue;
+    return g_shm_file_num;
+}
+
+void set_mq_queue_num(uint32_t shm_file_num)
+{
+    g_shm_file_num = shm_file_num;
 }
 
 
@@ -425,7 +431,7 @@ int create_mq_shm_file(void)
 
         shm_mem_class_t shm_class[MEM_CLASS_NUM];
         for (int j = 0; j < MEM_CLASS_NUM; j++) {
-            shm_class[j].num = (uint32_t)g_mem_class_cfg[j].num / g_shm_memory_reduction_ratio;
+            shm_class[j].num = (uint32_t)g_mem_class_cfg[j].num;
             shm_class[j].size = (uint32_t)g_mem_class_cfg[j].size;
         }
         g_shm_segs[i] = shm_master_init(&shm_key, shm_class, MEM_CLASS_NUM, i == mq_num ? 1 : 0);
@@ -1268,6 +1274,13 @@ EXTER_ATTACK int tse_mq_query_cluster_role(dsw_message_block_t *message_block)
     return req->result;
 }
 
+EXTER_ATTACK int ctc_mq_query_shm_file_num(dsw_message_block_t *message_block)
+{
+    struct query_shm_file_num_request *req = message_block->seg_buf[0];
+    req->result = ctc_query_shm_file_num(&req->shm_file_num);
+    return req->result;
+}
+
 EXTER_ATTACK int tse_mq_wait_instance_startuped(dsw_message_block_t *message_block)
 {
     return srv_wait_instance_startuped();
@@ -1367,6 +1380,7 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {TSE_FUNC_TYPE_RECORD_SQL,                    ctc_mq_record_sql_for_cantian},
     /* for instance registration, should be the last */
     {TSE_FUNC_TYPE_REGISTER_INSTANCE,             tse_mq_register_instance},
+    {CTC_FUNC_QUERY_SHM_FILE_NUM,                 ctc_mq_query_shm_file_num},
     {TSE_FUNC_TYPE_WAIT_CONNETOR_STARTUPED,       tse_mq_wait_instance_startuped},
 };
 
@@ -1401,7 +1415,7 @@ EXTER_ATTACK int mq_recv_msg(struct shm_seg_s *shm_seg, dsw_message_block_t *mes
 
     timeval_t tv_begin;
     mysql_record_io_stat_begin(g_mq_recv_msg[cmd_type].func_type, &tv_begin);
-    
+
     result = g_mq_recv_msg[cmd_type].deal_msg(message_block);
     
     mysql_record_io_stat_end(g_mq_recv_msg[cmd_type].func_type, &tv_begin, result);

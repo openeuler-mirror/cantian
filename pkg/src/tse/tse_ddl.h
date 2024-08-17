@@ -133,6 +133,7 @@ bool32 tse_command_type_read(sql_command_filter_op_t cmd);
 int tse_ddl_execute_and_broadcast(tianchi_handler_t *tch, tse_ddl_broadcast_request *broadcast_req,
     bool allow_fail, knl_session_t *knl_session);
 int tse_query_cluster_role(bool *is_slave, bool *cantian_cluster_ready);
+int ctc_query_shm_file_num(uint32_t *shm_file_num);
 int tse_lock_table_impl(tianchi_handler_t *tch, knl_handle_t knl_session, const char *db_name,
                         tse_lock_table_info *lock_info, int *error_code);
 int tse_unlock_table_impl(tianchi_handler_t *tch, knl_handle_t knl_session, uint32_t mysql_inst_id,

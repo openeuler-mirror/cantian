@@ -48,6 +48,8 @@ void *get_upstream_shm_inst(void);
 mq_cfg_s* get_global_mq_cfg(void);
 char *get_global_mq_cpu_info(void);
 char *get_global_mq_mysql_cpu_info(void);
+uint32_t get_mq_queue_num(void);
+void set_mq_queue_num(uint32_t shm_file_num);
 
 int tse_mq_deal_func(void* shm_inst, enum TSE_FUNC_TYPE func_type, void* request);
 
