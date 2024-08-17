@@ -1179,6 +1179,24 @@ void ulog_export_option_init(ReadBatchLogOption *option, char *cluster_name, uin
     option->lsn = lsn;
 }
 
+int32 read_log_record_init(LogRecord *logRecord, LogRecordList *record_list, ReadResult *result, aligned_buf_t *read_buf)
+{
+    (void)memset_s(read_buf, sizeof(aligned_buf_t), 0, sizeof(aligned_buf_t));
+    if (cm_aligned_malloc(CT_MAX_BATCH_SIZE, "export ulog buffer", read_buf) != CT_SUCCESS) {
+        cm_aligned_free(read_buf);
+        return CT_ERROR;
+    }
+    (void)memset_s(result, sizeof(ReadResult), 0, sizeof(ReadResult));
+    (void)memset_s(logRecord, sizeof(LogRecord), 0, sizeof(LogRecord));
+    logRecord->type = DBS_DATA_FORMAT_BUFFER;
+    logRecord->buf.buf = read_buf->aligned_buf;
+    logRecord->buf.len = (uint32)CT_MAX_BATCH_SIZE;
+    logRecord->next = NULL;
+    record_list->cnt = 1;
+    record_list->recordList = logRecord;
+    return CT_SUCCESS;
+}
+
 int32 ulog_export_handle(char *cluster_name, uint32 total_log_export_len, uint64 start_lsn, object_id_t *ulog_obj_id,
                          char *target_dir)
 {
@@ -1198,20 +1216,7 @@ int32 ulog_export_handle(char *cluster_name, uint32 total_log_export_len, uint64
         option.length = ((total_log_export_len - cur_log_export_len) >= CT_MAX_BATCH_SIZE)
                             ? (uint32)CT_MAX_BATCH_SIZE
                             : (uint32)(total_log_export_len - cur_log_export_len);
-        (void)memset_s(&read_buf, sizeof(aligned_buf_t), 0, sizeof(aligned_buf_t));
-        if (cm_aligned_malloc(CT_MAX_BATCH_SIZE, "export ulog buffer", &read_buf) != CT_SUCCESS) {
-            cm_aligned_free(&read_buf);
-            return CT_ERROR;
-        }
-        (void)memset_s(&result, sizeof(ReadResult), 0, sizeof(ReadResult));
-        (void)memset_s(&logRecord, sizeof(LogRecord), 0, sizeof(LogRecord));
-        logRecord.type = DBS_DATA_FORMAT_BUFFER;
-        logRecord.buf.buf = (char *)read_buf.aligned_buf;
-        logRecord.buf.len = (uint32)CT_MAX_BATCH_SIZE;
-        logRecord.next = NULL;
-        record_list.cnt = 1;
-        record_list.recordList = &logRecord;
-
+        read_log_record_init(&logRecord, &record_list, &result, &read_buf);
         ret = dbs_global_handle()->read_ulog_record_list(ulog_obj_id, &option, &record_list, &result);
         if (ret != CT_SUCCESS || result.result != CT_SUCCESS) {
             if (result.result == ULOG_READ_RETURN_LSN_NOT_EXIST) {
@@ -1226,7 +1231,8 @@ int32 ulog_export_handle(char *cluster_name, uint32 total_log_export_len, uint64
                 break;
             }
         }
-        if (option.lsn.startLsn == result.endLsn) {
+        // 判断是否结束循环
+        if (option.lsn.startLsn == result.endLsn || result.outLen == 0) {
             printf("No lsn left, from lsn %lu, to %lu, outlen %u \n\n", option.lsn.startLsn, result.endLsn,
                    result.outLen);
             cm_aligned_free(&read_buf);
@@ -1243,18 +1249,13 @@ int32 ulog_export_handle(char *cluster_name, uint32 total_log_export_len, uint64
         
         printf("Cur batch ulog export finished, from lsn %lu, to %lu, outlen %u \n\n", option.lsn.startLsn,
                result.endLsn, option.length);
-        cm_aligned_free(&read_buf);
         // 更新起始LSN和当前导出的大小
         option.lsn.startLsn = result.endLsn;
         cur_log_export_len += option.length;
-
-        // 判断是否结束循环
-        if (result.outLen == 0) {
-            break;
-        }
+        cm_aligned_free(&read_buf);
     }
-    printf("Export ulog finished, lsn from %llu, to %lu, cur export len %u\n",
-        start_lsn, result.endLsn, cur_log_export_len);
+    printf("Export ulog finished, lsn from %llu, to %lu, cur export len %u\n", start_lsn, result.endLsn,
+           cur_log_export_len);
     return ret;
 }
 
@@ -1280,7 +1281,10 @@ int32 dbs_ulog_export(int32 argc, char *argv[])
     uint64 start_lsn = 1;
     uint32 total_log_export_len = CT_INVALID_ID32;
     node = (uint32)atoi(argv[NUM_TWO]);
-    MEMS_RETURN_IFERR(strcpy_s(target_dir, MAX_DBS_FILE_PATH_LEN, argv[NUM_THREE]));
+    if (strcpy_s(target_dir, MAX_DBS_FILE_PATH_LEN, argv[NUM_THREE]) != EOK) {
+        printf("Failed to strcpy_s target_dir %s \n", target_dir);
+        return CT_ERROR;
+    }
     start_lsn = (uint64)atoi(argv[NUM_FOUR]);
     if (start_lsn <= 0) {
         printf("start_lsn input error.\n");
@@ -1320,13 +1324,32 @@ int32 dbs_ulog_export(int32 argc, char *argv[])
     return ret;
 }
 
+void page_export_param_init(DbsPageOption *pgOpt, PageValue *pgValue, char *aligned_buf, uint64 single_batch_page_size)
+{
+    pgOpt->priority = 0;
+    pgOpt->opcode = CS_PAGE_POOL_READ;
+    pgOpt->offset = 0;
+    pgOpt->lsn = 1;
+    pgOpt->callBack.cb = NULL;
+    pgOpt->callBack.ctx = NULL;
+    pgOpt->length = single_batch_page_size;
+    (void)memset_s(&pgOpt->session, sizeof(SessionId), 0, sizeof(SessionId));
+
+    pgValue->buf.buf = aligned_buf;
+    pgValue->type = DBS_DATA_FORMAT_BUFFER;
+    pgValue->buf.len = single_batch_page_size;
+}
+
 int32 page_export_handle(object_id_t *page_pool_id, uint64 start_page_id, uint64 total_export_page_num,
                          uint32_t pageSize, char *target_dir)
 {
     int32 ret = CT_SUCCESS;
+    if (pageSize == 0) {
+        printf("PageSize is zero.\n");
+        return CT_ERROR;
+    }
     uint64 single_batch_max_page_num = (uint64)CT_MAX_BATCH_SIZE / pageSize;
     uint64 cur_page_export_num = 0;
-    uint64 total_page_export_size = 0;
     uint64 single_batch_page_num = (total_export_page_num >= single_batch_max_page_num)
                                        ? single_batch_max_page_num
                                        : total_export_page_num;
@@ -1336,13 +1359,6 @@ int32 page_export_handle(object_id_t *page_pool_id, uint64 start_page_id, uint64
     PRTS_RETURN_IFERR(snprintf_s(page_filename, sizeof(page_filename), sizeof(page_filename) - 1, "page_file"));
 
     DbsPageOption pgOpt = { 0 };
-    pgOpt.priority = 0;
-    pgOpt.opcode = CS_PAGE_POOL_READ;
-    pgOpt.offset = 0;
-    pgOpt.lsn = 1;
-    pgOpt.callBack.cb = NULL;
-    pgOpt.callBack.ctx = NULL;
-    (void)memset_s(&pgOpt.session, sizeof(SessionId), 0, sizeof(SessionId));
     aligned_buf_t read_buf = { 0 };
     PageValue pgValue = { 0 };
     while (cur_page_export_num < total_export_page_num) {
@@ -1359,10 +1375,7 @@ int32 page_export_handle(object_id_t *page_pool_id, uint64 start_page_id, uint64
             cm_aligned_free(&read_buf);
             return CT_ERROR;
         }
-        pgValue.buf.buf = (char *)read_buf.aligned_buf;
-        pgValue.type = DBS_DATA_FORMAT_BUFFER;
-        pgValue.buf.len = single_batch_page_size;
-        pgOpt.length = single_batch_page_size;
+        page_export_param_init(&pgOpt, &pgValue, (char *)read_buf.aligned_buf, single_batch_page_size);
         ret = dbs_global_handle()->dbs_mget_page(page_pool_id, cur_page_id, single_batch_page_num, &pgOpt, &pgValue);
         if (ret != CT_SUCCESS) {
             printf("Export page fail(%d), cur_page_id %llu\n", ret, cur_page_id);
@@ -1373,7 +1386,6 @@ int32 page_export_handle(object_id_t *page_pool_id, uint64 start_page_id, uint64
         // 将page追加写入到文件
         ret = append_to_file(target_dir, page_filename, pgValue.buf.buf, pgValue.buf.len);
         if (ret != CT_SUCCESS) {
-            printf("Failed to append_to_file \n");
             cm_aligned_free(&read_buf);
             break;
         }
@@ -1384,10 +1396,9 @@ int32 page_export_handle(object_id_t *page_pool_id, uint64 start_page_id, uint64
         // 更新起始page id
         cur_page_id += single_batch_page_num;
         cur_page_export_num += single_batch_page_num;
-        total_page_export_size += single_batch_page_size;
     }
-    printf("Export page finished, page id start from %llu, total export num %llu, total export size %llu \n\n",
-           start_page_id, cur_page_export_num, total_page_export_size);
+    printf("Export page finished, page id start from %llu, total export num %llu \n\n", start_page_id,
+           cur_page_export_num);
     return ret;
 }
 
@@ -1409,9 +1420,15 @@ int32 dbs_page_export(int32 argc, char *argv[])
     MEMS_RETURN_IFERR(strcpy_s(cluster_name, MAX_DBS_FILE_NAME_LEN, g_dbs_fs_info.cluster_name));
 
     char page_pool_name[MAX_DBS_FILE_NAME_LEN];
-    MEMS_RETURN_IFERR(strcpy_s(page_pool_name, MAX_DBS_FILE_PATH_LEN, argv[NUM_TWO]));
+    if (strcpy_s(page_pool_name, MAX_DBS_FILE_PATH_LEN, argv[NUM_TWO]) != EOK) {
+        printf("Failed to strcpy_s page_pool_name %s \n", page_pool_name);
+        return CT_ERROR;
+    }
     char target_dir[MAX_DBS_FILE_PATH_LEN];
-    MEMS_RETURN_IFERR(strcpy_s(target_dir, MAX_DBS_FILE_PATH_LEN, argv[NUM_THREE]));
+    if (strcpy_s(target_dir, MAX_DBS_FILE_PATH_LEN, argv[NUM_THREE]) != EOK) {
+        printf("Failed to strcpy_s target_dir %s \n", target_dir);
+        return CT_ERROR;
+    }
     uint64 start_page_id = 0;
     if (argc == NUM_FIVE) {
         start_page_id = (uint64)atoi(argv[NUM_FOUR]);
@@ -1440,8 +1457,8 @@ int32 dbs_page_export(int32 argc, char *argv[])
         return ret;
     }
     printf("Success to open_pagepool, page pool name %s, maxPageId %lu, "
-       "totalPageNum %lu, usedPageNum %lu, pageSize %u \n\n",
-       page_pool_name, attr.maxPageId, attr.totalPageNum, attr.usedPageNum, attr.pageSize);
+           "totalPageNum %lu, usedPageNum %lu, pageSize %u \n\n",
+           page_pool_name, attr.maxPageId, attr.totalPageNum, attr.usedPageNum, attr.pageSize);
 
     ret = page_export_handle(&page_pool_id, start_page_id, total_export_page_num, attr.pageSize, target_dir);
     if (ret != CT_SUCCESS) {
