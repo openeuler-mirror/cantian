@@ -829,10 +829,11 @@ status_t srv_load_server_params(void)
         CT_THROW_ERROR(ERR_INVALID_PARAMETER, "NORMAL_USER_RESERVED_SESSIONS_FACTOR");
         return CT_ERROR;
     }
-    uint32_t shm_file_num = 0;
-    CT_RETURN_IFERR(srv_get_param_uint32("SHM_FILE_NUM", &shm_file_num));
-    set_mq_queue_num(shm_file_num);
-    if (shm_file_num > CT_MAX_SHM_FILE_NUM || shm_file_num < CT_MIN_SHM_FILE_NUM) {
+    uint32_t shm_memory_reduction_ratio = 0;
+    CT_RETURN_IFERR(srv_get_param_uint32("SHM_MEMORY_REDUCTION_RATIO", &shm_memory_reduction_ratio));
+    set_mq_queue_num(shm_memory_reduction_ratio);
+    if (shm_memory_reduction_ratio > CT_MAX_SHM_MEMORY_REDUCTION_RATIO
+        || shm_memory_reduction_ratio < CT_MIN_SHM_MEMORY_REDUCTION_RATIO) {
         CT_THROW_ERROR(ERR_INVALID_PARAMETER, "SHM_FILE_NUM");
         return CT_ERROR;
     }
