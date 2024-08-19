@@ -111,13 +111,17 @@ dbs_cmd_def_t g_dbs_cmd_defs[] = {
         "Usage: create/copy the specified dir/file in the file system.\n"
         "\tparams: --fs-name=* --file-name=* [--source-dir=xxx]"},
     {{"--delete-file", "*[PARAM]"}, dbs_delete_path_or_file,
-        "Usage: delete a path or file in the file system.\n"
+        "Usage: delete the specified dir/file in the file system.\n"
         "\tparams: --fs-name=* --file-name=*"},
     {{"--query-file", "*[PARAM]"}, dbs_query_file,
         "Usage: query the dir in the file system.\n"
-        "\tparams: --fs-name=xxx --file-path=xxx"},
-    {{"--dbs", "test", "*[PARAM]"}, dbs_test_func,
-        "Usage: dbs tool test."},
+        "\tparams: --fs-name=* --file-path=*"},
+    {{"--ulog-data", "*[PARAM]"}, dbs_ulog_export,
+        "Usage: export ulog file for debug.\n"
+        "\tparams: [node] [target-dir] [start-lsn] [len(optional)]"},
+    {{"--page-data", "*[PARAM]"}, dbs_page_export,
+        "Usage: export page file for debug.\n"
+        "\tparams: [page-db] [target-dir] [page-id(optional)] [page-num(optional)]"},
 };
 
 int32 dbs_cmd_help(int32 argc, char* argv[])
