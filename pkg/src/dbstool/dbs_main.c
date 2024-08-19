@@ -110,6 +110,9 @@ dbs_cmd_def_t g_dbs_cmd_defs[] = {
     {{"--create-file", "*[PARAM]"}, dbs_create_path_or_file,
         "Usage: create/copy the specified dir/file in the file system.\n"
         "\tparams: --fs-name=* --file-name=* [--source-dir=xxx]"},
+    {{"--copy-file", "*[PARAM]"}, dbs_copy_file,
+        "Usage: copy the dir/file in file system to target dir.\n"
+        "\tparams: --fs-name=* --source-dir=* --target-dir=* [--file-name=*]"},
     {{"--delete-file", "*[PARAM]"}, dbs_delete_path_or_file,
         "Usage: delete the specified dir/file in the file system.\n"
         "\tparams: --fs-name=* --file-name=*"},
