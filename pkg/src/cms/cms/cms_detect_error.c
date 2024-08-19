@@ -176,7 +176,6 @@ status_t cms_detect_dbs_file_stat(const char *read_file, object_id_t* handle)
     }
     date_t start_time = cm_now();
     CMS_LOG_DEBUG_INF("cms detect dbs file name is %s", read_file);
-    // TODO：if this file new create，but file size is zero
     ret = cm_read_dbs_file(handle, CMS_ERROR_DETECT_START, new_gcc, sizeof(cms_gcc_t));
     if (ret != CT_SUCCESS) {
         CMS_LOG_ERR("cms read dbs file %s failed.", read_file);
