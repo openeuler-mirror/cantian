@@ -46,6 +46,7 @@
 #define MEM_CLASS_NUM 27
 #define SHM_MSG_TIMEOUT_SEC 1
 #define MQ_RESERVED_THD_NUM (10)
+#define SHM_MEMORY_REDUCE 8
 
 struct shm_seg_s* g_shm_segs[SHM_SEG_MAX_NUM + 1] = {NULL};
 struct shm_seg_s *g_upstream_shm_seg = NULL;
@@ -157,9 +158,14 @@ uint32_t get_mq_queue_num(void)
     return g_shm_file_num;
 }
 
-void set_mq_queue_num(uint32_t shm_file_num)
+void set_mq_queue_num(uint32_t shm_memory_reduction_ratio)
 {
-    g_shm_file_num = shm_file_num;
+    /*
+     * The shm_memory_reduction_ratio indicates different memory specifications for a tenant:
+     * a value of 1 represents physical memory, 2 represents 256 GB, 3 represents 128 GB, and 4 represents 64 GB.
+    */
+    g_shm_file_num = shm_memory_reduction_ratio != 0 ?
+                      SHM_MEMORY_REDUCE / shm_memory_reduction_ratio : 0;
 }
 
 
