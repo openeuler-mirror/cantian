@@ -166,7 +166,6 @@ typedef struct {
  * expand this struct if need more cbo stats
  */
 typedef struct {
-    uint32_t stats_version;
     uint32_t part_cnt;
     uint32_t msg_len;
     uint32_t key_len;
