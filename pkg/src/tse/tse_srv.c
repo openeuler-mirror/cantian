@@ -2200,13 +2200,6 @@ EXTER_ATTACK int tse_get_cbo_stats(tianchi_handler_t *tch, tianchi_cbo_stats_t *
     
     knl_session_t *knl_session = &session->knl_session;
     CT_RETURN_IFERR(tse_try_reopen_dc(knl_session, &tse_context->user, &tse_context->table, tse_context->dc));
-
-    // if stats version not changed, no need to get cbo info
-    if (stats->stats_version == DC_ENTITY(tse_context->dc)->stats_version) {
-        return CT_SUCCESS;
-    }
-
-    stats->stats_version = DC_ENTITY(tse_context->dc)->stats_version;
     SYNC_POINT_GLOBAL_START(TSE_GET_CBO_STATS_FAIL, &ret, CT_ERROR);
     ret = get_cbo_stats(knl_session, DC_ENTITY(tse_context->dc), stats, tse_cbo_stats_table, first_partid, num_part_fetch);
     SYNC_POINT_GLOBAL_END;
