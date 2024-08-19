@@ -322,14 +322,14 @@ status_t cms_create_gcc(void)
         return CT_ERROR;
     }
 
-    int32_t times = CMS_GCC_FILE_SIZE / (CMS_WRITE_GCC_PER_SIZE);
+    uint64_t times = CMS_GCC_FILE_SIZE / (CMS_WRITE_GCC_PER_SIZE);
     char buffer[CMS_WRITE_GCC_PER_SIZE];
     errno_t ret = memset_sp(buffer, CMS_WRITE_GCC_PER_SIZE, 0, CMS_WRITE_GCC_PER_SIZE);
     if (ret != EOK) {
         CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
         return CT_ERROR;
     }
-    for (int32_t i = 0 ; i < times; i++) {
+    for (uint64_t i = 0 ; i < times; i++) {
         if (cm_write_dbs_file(&gcc_file_handle, i * CMS_WRITE_GCC_PER_SIZE, buffer,
             sizeof(buffer)) != CT_SUCCESS) {
             printf("Failed to init gcc file\n");

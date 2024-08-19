@@ -57,6 +57,8 @@ typedef struct st_cms_msg_iostat_contrast_t {
 #define CM_DBS_CONFIG_FILE_NAME_LEN 32
 #define CM_WAIT_CONFIG_INTERVAL_TIME 2000
 #define CM_WAIT_CONFIG_RETRY_NUM 2
+#define CM_CONFIRM_INPUT_LEN 64
+#define CM_CONFIRM_LEN 2
 
 EXTER_ATTACK int32 cms_server_start(int32 argc, char* argv[]);
 EXTER_ATTACK int32 cms_server_stop(int32 argc, char* argv[]);
@@ -122,6 +124,7 @@ status_t cms_edit_res_server(char* name, char* attrs, char* err_info, uint32 err
 status_t cms_unlock_gcc_disk(void);
 void cms_print_index(void);
 void cms_print_disk_iostat(cms_tool_msg_res_disk_iostat_t *res_msg);
+bool32 cms_get_input_confirm(void);
 #ifdef DB_DEBUG_VERSION
 int32 cms_enable_inject(int32 argc, char* argv[]);
 #endif

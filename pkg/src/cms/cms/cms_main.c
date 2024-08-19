@@ -389,7 +389,7 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
         }
         ret = cmd_def->cmd_pro_func(argc, argv);
     } while (0);
-    if(g_cms_param->gcc_type == CMS_DEV_TYPE_DBS && g_cms_inst->is_dbstor_cli_init == CT_TRUE) {
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS && g_cms_inst->is_dbstor_cli_init == CT_TRUE) {
         (void)dbs_global_handle()->dbs_client_flush_log();
     }
     CMS_LOG_INF("%s, ret is %d", cmd_def->desc, ret);

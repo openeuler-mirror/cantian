@@ -31,6 +31,7 @@
 #include "cm_ip.h"
 #include "cms_disk_lock.h"
 #include "cms_log.h"
+#include "cm_dbstore.h"
 
 #define GCC_IMP_OBJ_MAGIC_LEN               10
 
@@ -914,11 +915,83 @@ static status_t cms_import_gcc_read_file(const char* path, char* buf, int32* buf
     return CT_SUCCESS;
 }
 
+static status_t cms_import_gcc_read_file_dbs(const char* file_name, char* buf, int32* buf_size)
+{
+    object_id_t gcc_backup_dir_handle = { 0 };
+    object_id_t gcc_backup_file_handle = { 0 };
+    uint64 file_size = 0;
+    if (cm_get_dbs_last_dir_handle(g_cms_param->cms_gcc_bak, &gcc_backup_dir_handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("Failed to get gcc backup dir handle");
+        return CT_ERROR;
+    }
+
+    if (strlen(file_name) == strlen(g_cms_param->cms_gcc_bak)) {
+        CT_LOG_RUN_ERR("No file name provided. %s", file_name);
+        return CT_ERROR;
+    }
+
+    int ret = dbs_global_handle()->dbs_file_open(&gcc_backup_dir_handle,
+                                                 (char*)file_name + strlen(g_cms_param->cms_gcc_bak) + 1,
+                                                 FILE_TYPE, &gcc_backup_file_handle);
+    if (ret != EOK) {
+        CT_LOG_RUN_ERR("Failed to open gcc export file %s by dbstore",
+                       (char*)file_name + strlen(g_cms_param->cms_gcc_bak) + 1);
+        return CT_ERROR;
+    }
+
+    ret = dbs_global_handle()->dbs_get_file_size(&gcc_backup_file_handle, &file_size);
+    if (ret != EOK) {
+        CT_LOG_RUN_ERR("Failed to open gcc export file %s by dbstore",
+                       (char*)file_name + strlen(g_cms_param->cms_gcc_bak) + 1);
+        return CT_ERROR;
+    }
+
+    ret = cm_read_dbs_file(&gcc_backup_file_handle, 0, buf, (uint32)file_size);
+    if (ret != EOK) {
+        CMS_LOG_ERR("read gcc export file by dbstor failed. fileName(%s)", file_name);
+        return CT_ERROR;
+    }
+
+    *buf_size = (int32)file_size;
+    return CT_SUCCESS;
+}
+
+status_t cms_import_gcc_write_disk(char* buf, uint32 buf_len)
+{
+    errno_t ret;
+    cms_gcc_t* new_gcc = NULL;
+    new_gcc = (cms_gcc_t *)cm_malloc_align(CMS_BLOCK_SIZE, sizeof(cms_gcc_t));
+    if (new_gcc == NULL) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, sizeof(cms_gcc_t), "loading import file");
+        return CT_ERROR;
+    }
+    ret = memset_sp(new_gcc, sizeof(cms_gcc_t), 0, sizeof(cms_gcc_t));
+    if (ret != EOK) {
+        CM_FREE_PTR(new_gcc);
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+        return CT_ERROR;
+    }
+
+    if (cms_import_gcc_parse_text(new_gcc, buf, buf_len) != CT_SUCCESS) {
+        CM_FREE_PTR(new_gcc);
+        CMS_LOG_ERR("parse import file failed");
+        return CT_ERROR;
+    }
+
+    if (cms_gcc_write_disk(new_gcc) != CT_SUCCESS) {
+        CM_FREE_PTR(new_gcc);
+        CMS_LOG_ERR("write gcc failed");
+        return CT_ERROR;
+    }
+
+    CM_FREE_PTR(new_gcc);
+    return CT_SUCCESS;
+}
+
 status_t cms_import_gcc(const char* path)
 {
     char* buf = NULL;
     int32 buf_len = 0;
-    cms_gcc_t* new_gcc = NULL;
     errno_t ret;
 
     CT_RETURN_IFERR(cms_load_gcc());
@@ -935,41 +1008,29 @@ status_t cms_import_gcc(const char* path)
         return CT_ERROR;
     }
 
-    if (cms_import_gcc_read_file(path, buf, &buf_len) != CT_SUCCESS) {
-        CM_FREE_PTR(buf);
-        CMS_LOG_ERR("read file failed, path:%s, buf_len(%u)", path, buf_len);
-        return CT_ERROR;
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+        strncmp(path, g_cms_param->cms_gcc_bak, strlen(g_cms_param->cms_gcc_bak)) == 0) {
+        if (cms_import_gcc_read_file_dbs(path, buf, &buf_len) != CT_SUCCESS) {
+            CM_FREE_PTR(buf);
+            printf("Failed to read file %s by dbstor. Please check the file./n", path);
+            CMS_LOG_ERR("read gcc exp file by dbstor failed, path:%s", path);
+            return CT_ERROR;
+        }
+    } else {
+        if (cms_import_gcc_read_file(path, buf, &buf_len) != CT_SUCCESS) {
+            CM_FREE_PTR(buf);
+            printf("Failed to read file %s. Please check the file./n", path);
+            CMS_LOG_ERR("read file failed, path:%s", path);
+            return CT_ERROR;
+        }
     }
 
-    new_gcc = (cms_gcc_t *)cm_malloc_align(CMS_BLOCK_SIZE, sizeof(cms_gcc_t));
-    if (new_gcc == NULL) {
+    if (cms_import_gcc_write_disk(buf, (uint32)buf_len) != CT_SUCCESS) {
         CM_FREE_PTR(buf);
-        CT_THROW_ERROR(ERR_ALLOC_MEMORY, sizeof(cms_gcc_t), "loading import file");
         return CT_ERROR;
     }
-    ret = memset_sp(new_gcc, sizeof(cms_gcc_t), 0, sizeof(cms_gcc_t));
-    if (ret != EOK) {
-        CM_FREE_PTR(new_gcc);
-        CM_FREE_PTR(buf);
-        CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
-        return CT_ERROR;
-    }
-
-    if (cms_import_gcc_parse_text(new_gcc, buf, (uint32)buf_len) != CT_SUCCESS) {
-        CM_FREE_PTR(new_gcc);
-        CM_FREE_PTR(buf);
-        CMS_LOG_ERR("parse import file failed");
-        return CT_ERROR;
-    }
+    
     CM_FREE_PTR(buf);
-
-    if (cms_gcc_write_disk(new_gcc) != CT_SUCCESS) {
-        CM_FREE_PTR(new_gcc);
-        CMS_LOG_ERR("write gcc failed");
-        return CT_ERROR;
-    }
-
-    CM_FREE_PTR(new_gcc);
     return CT_SUCCESS;
 }
 
@@ -979,19 +1040,35 @@ static inline bool32 cms_is_export_gcc_file(const char* file_name, uint32 file_n
     return cm_text_str_equal(&tail, &file_name[file_name_len - tail.len]);
 }
 
-status_t cms_restore_gcc(const char* file_name)
+status_t cms_restore_gcc_dbs(const char* file_name)
 {
-    if (cms_is_export_gcc_file(file_name, (uint32)strlen(file_name))) {
-        return cms_import_gcc(file_name);
+    object_id_t gcc_backup_dir_handle = { 0 };
+    object_id_t gcc_backup_file_handle = { 0 };
+    if (cm_get_dbs_last_dir_handle(g_cms_param->cms_gcc_bak, &gcc_backup_dir_handle) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("Failed to get gcc backup dir handle");
+        return CT_ERROR;
     }
 
-    disk_handle_t handle;
-    errno_t ret;
+    if (strlen(file_name) == strlen(g_cms_param->cms_gcc_bak)) {
+        CT_LOG_RUN_ERR("No file name provided. %s", file_name);
+        return CT_ERROR;
+    }
+
+    int ret = dbs_global_handle()->dbs_file_open(&gcc_backup_dir_handle,
+                                                 (char*)file_name + strlen(g_cms_param->cms_gcc_bak) + 1,
+                                                 FILE_TYPE, &gcc_backup_file_handle);
+    if (ret != EOK) {
+        CT_LOG_RUN_ERR("Failed to open gcc backup file %s by dbstore",
+                       (char*)file_name + strlen(g_cms_param->cms_gcc_bak) + 1);
+        return CT_ERROR;
+    }
+    
     cms_gcc_t* new_gcc = (cms_gcc_t *)cm_malloc_align(CMS_BLOCK_SIZE, sizeof(cms_gcc_t));
     if (new_gcc == NULL) {
         CT_THROW_ERROR(ERR_ALLOC_MEMORY, sizeof(cms_gcc_t), "restoring gcc");
         return CT_ERROR;
     }
+
     ret = memset_sp(new_gcc, sizeof(cms_gcc_t), 0, sizeof(cms_gcc_t));
     if (ret != EOK) {
         CM_FREE_PTR(new_gcc);
@@ -999,26 +1076,79 @@ status_t cms_restore_gcc(const char* file_name)
         return CT_ERROR;
     }
 
-    if (cm_open_disk(file_name, &handle) != CT_SUCCESS) {
+    ret = cm_read_dbs_file(&gcc_backup_file_handle, 0, (char *)new_gcc, sizeof(cms_gcc_t));
+    if (ret != EOK) {
         CM_FREE_PTR(new_gcc);
+        CMS_LOG_ERR("read gcc backup file by dbstor failed. fileName(%s)", file_name);
+        return CT_ERROR;
+    }
+
+    if (cms_gcc_write_disk(new_gcc) != CT_SUCCESS) {
+        CM_FREE_PTR(new_gcc);
+        CMS_LOG_ERR("write disk failed. fileName(%s)", file_name);
+        return CT_ERROR;
+    }
+
+    CM_FREE_PTR(new_gcc);
+    return CT_SUCCESS;
+}
+
+status_t cms_read_gcc_disk(cms_gcc_t* new_gcc, const char* file_name)
+{
+    disk_handle_t handle;
+    if (cm_open_disk(file_name, &handle) != CT_SUCCESS) {
         CT_THROW_ERROR(ERR_OPEN_FILE, file_name, errno);
         CMS_LOG_ERR("open disk failed, fileName(%s)", file_name);
         return CT_ERROR;
     }
+
     if (cm_get_disk_size(handle) != (int64)sizeof(cms_gcc_t)) {
         CMS_LOG_ERR("get size failed, size(%llu), need_size(%u)", cm_get_disk_size(handle), (uint32)sizeof(cms_gcc_t));
-        CM_FREE_PTR(new_gcc);
         cm_close_disk(handle);
         CT_THROW_ERROR(ERR_CMS_GCC_VERSION_MISMATCH, "this binary backup file");
         return CT_ERROR;
     }
+
     if (cm_read_disk(handle, 0, (char *)new_gcc, sizeof(cms_gcc_t)) != CT_SUCCESS) {
-        CM_FREE_PTR(new_gcc);
         cm_close_disk(handle);
         CMS_LOG_ERR("read disk failed. fileName(%s)", file_name);
         return CT_ERROR;
     }
+
     cm_close_disk(handle);
+    return CT_SUCCESS;
+}
+
+status_t cms_restore_gcc(const char* file_name)
+{
+    if (cms_is_export_gcc_file(file_name, (uint32)strlen(file_name))) {
+        return cms_import_gcc(file_name);
+    }
+
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS &&
+        strncmp(file_name, g_cms_param->cms_gcc_bak, strlen(g_cms_param->cms_gcc_bak)) == 0) {
+        return cms_restore_gcc_dbs(file_name);
+    }
+
+    cms_gcc_t* new_gcc = (cms_gcc_t *)cm_malloc_align(CMS_BLOCK_SIZE, sizeof(cms_gcc_t));
+    if (new_gcc == NULL) {
+        CT_THROW_ERROR(ERR_ALLOC_MEMORY, sizeof(cms_gcc_t), "restoring gcc");
+        return CT_ERROR;
+    }
+    
+    errno_t ret;
+    ret = memset_sp(new_gcc, sizeof(cms_gcc_t), 0, sizeof(cms_gcc_t));
+    if (ret != EOK) {
+        CM_FREE_PTR(new_gcc);
+        CT_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+        return CT_ERROR;
+    }
+
+    if (cms_read_gcc_disk(new_gcc, file_name) != CT_SUCCESS) {
+        CM_FREE_PTR(new_gcc);
+        return CT_ERROR;
+    }
+
     if (new_gcc->head.magic != CMS_GCC_HEAD_MAGIC) {
         CM_FREE_PTR(new_gcc);
         CMS_LOG_ERR("gcc is invalid.");

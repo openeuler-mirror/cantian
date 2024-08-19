@@ -3163,6 +3163,7 @@ void rc_arch_dbstor_ulog_proc(thread_t *thread)
             proc_ctx->read_failed = CT_TRUE;
         }
     }
+    proc_ctx->arch_execute = CT_FALSE;
     CT_LOG_RUN_INF("[RC_ARCH] arch read thread exit, last lsn %llu, read stat: %s",
                    last_lsn, proc_ctx->read_failed == CT_SUCCESS ? "SUCCESS" : "ERROR");
 }

@@ -1140,10 +1140,12 @@ class CmsCtl(object):
             self.parse_parameters(self.install_config_file)
             if deploy_mode == "dbstore_unify":
                 self.gcc_home = os.path.join("/", self.storage_share_fs, str(self.cluster_name) + "_cms", "gcc_home")
+                self.cms_gcc_bak = os.path.join("/", self.storage_archive_fs, 
+                                                str(self.cluster_name) + "_cms", "gcc_backup")
             else:
                 self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
+                self.cms_gcc_bak = os.path.join("/mnt/dbdata/remote", "archive_" + self.storage_archive_fs)
             self.gcc_dir = self.gcc_home
-            self.cms_gcc_bak = os.path.join("/mnt/dbdata/remote", "archive_" + self.storage_archive_fs)
 
         LOGGER.info("======================== begin to pre_install cms configs ========================")
 
