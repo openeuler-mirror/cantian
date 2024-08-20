@@ -9,15 +9,17 @@ from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from om_log import LOGGER as LOG
 from utils.config.rest_constant import DomainAccess, MetroDomainRunningStatus, VstorePairRunningStatus, HealthStatus, \
     ConfigRole, DataIntegrityStatus, ReplicationRunningStatus
+from get_config_info import get_env_info
 
+RUN_USER = get_env_info("cantian_user")
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
 LOGICREP_APPCTL_FILE = os.path.join(CURRENT_PATH, "../../logicrep/appctl.sh")
 EXEC_SQL = os.path.join(CURRENT_PATH, "../../cantian_common/exec_sql.py")
 CANTIAN_DISASTER_RECOVERY_STATUS_CHECK = 'echo -e "select DATABASE_ROLE from DV_LRPL_DETAIL;" | '\
-                                         'su -s /bin/bash - cantian -c \'source ~/.bashrc && '\
+                                         'su -s /bin/bash - %s -c \'source ~/.bashrc && '\
                                          'export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && '\
-                                         'python3 -B %s\'' % EXEC_SQL
+                                         'python3 -B %s\'' % (RUN_USER, EXEC_SQL)
 DBSTORE_CHECK_VERSION_FILE = "/opt/cantian/dbstor/tools/cs_baseline.sh"
 
 
@@ -33,9 +35,9 @@ class SwitchOver(object):
         self.node_id = self.dr_deploy_info.get("node_id")
         self.cluster_name = self.dr_deploy_info.get("cluster_name")
         self.metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
+        self.run_user = RUN_USER
 
-    @staticmethod
-    def check_cluster_status(target_node=None, log_type="error", check_time=100):
+    def check_cluster_status(self, target_node=None, log_type="error", check_time=100):
         """
         cms 命令拉起参天后检查集群状态
         :return:
@@ -44,8 +46,8 @@ class SwitchOver(object):
         if check_time < 20:
             check_count = 1
         LOG.info("Check cantian status.")
-        cmd = "su -s /bin/bash - cantian -c \"cms stat | " \
-              "grep -v STAT | awk '{print \$1, \$3, \$6}'\""
+        cmd = "su -s /bin/bash - %s -c \"cms stat | " \
+              "grep -v STAT | awk '{print \$1, \$3, \$6}'\"" % self.run_user
         check_time_step = check_time // check_count
         while check_time:
             time.sleep(check_time_step)
@@ -111,8 +113,8 @@ class SwitchOver(object):
 
     def standby_cms_res_stop(self):
         LOG.info("Standby stop by cms command.")
-        cmd = "source ~/.bashrc && su -s /bin/bash - cantian -c " \
-              "\"cms res -stop db\""
+        cmd = "source ~/.bashrc && su -s /bin/bash - %s -c " \
+              "\"cms res -stop db\"" % self.run_user
         return_code, output, stderr = exec_popen(cmd, timeout=600)
         if return_code:
             err_msg = "Cantian stop failed, error:%s." % output + stderr
@@ -121,8 +123,8 @@ class SwitchOver(object):
 
     def standby_cms_res_start(self):
         LOG.info("Standby start by cms command.")
-        cmd = "source ~/.bashrc && su -s /bin/bash - cantian -c " \
-              "\"cms res -start db\""
+        cmd = "source ~/.bashrc && su -s /bin/bash - %s -c " \
+              "\"cms res -start db\"" % self.run_user
         return_code, output, stderr = exec_popen(cmd, timeout=600)
         if return_code:
             err_msg = "Cantian start failed, error:%s." % output + stderr
@@ -253,10 +255,10 @@ class DRRecover(SwitchOver):
         """
         check_time_step = 2
         LOG.info("Check cluster status.")
-        cmd_srv = "su -s /bin/bash - cantian -c \"cms stat -server | " \
-              "grep -v SRV_READY | awk '{print \$1, \$2}'\""
-        cmd_voting = "su -s /bin/bash - cantian -c \"cms node -connected | " \
-              "grep -v VOTING | awk '{print \$1, \$NF}'\""
+        cmd_srv = "su -s /bin/bash - %s -c \"cms stat -server | " \
+              "grep -v SRV_READY | awk '{print \$1, \$2}'\"" % self.run_user
+        cmd_voting = "su -s /bin/bash - %s -c \"cms node -connected | " \
+              "grep -v VOTING | awk '{print \$1, \$NF}'\"" % self.run_user
         
         while check_time:
             check_time -= check_time_step
@@ -317,8 +319,8 @@ class DRRecover(SwitchOver):
 
     def standby_cms_purge_backup(self):
         LOG.info("Standby purge backup by cms command.")
-        cmd = "source ~/.bashrc && su -s /bin/bash - cantian -c " \
-              "\"ctbackup --purge-logs\""
+        cmd = "source ~/.bashrc && su -s /bin/bash - %s -c " \
+              "\"ctbackup --purge-logs\"" % self.run_user
         return_code, output, stderr = exec_popen(cmd, timeout=600)
         if return_code:
             err_msg = "Execute command[ctbackup --purge-logs] failed."
@@ -374,25 +376,25 @@ class DRRecover(SwitchOver):
             raise Exception(err_msg)
         
     def wait_res_stop(self):
-        cmd = "su -s /bin/bash - cantian -c \"cms stat | " \
-              "grep -v STAT | awk '{print \$1, \$3}'\""
+        cmd = "su -s /bin/bash - %s -c \"cms stat | " \
+              "grep -v STAT | awk '{print \$1, \$3}'\"" % self.run_user
         wait_time = 30
         wait_time_step = 2
         while wait_time:
             wait_time -= wait_time_step
             cms_stat = self.query_cluster_status(cmd)
             if len(cms_stat) < 2:
-                err_msg = "Current cluster status is abnormal, output:%s, stderr:%s" % (output, stderr)
+                err_msg = "Current cluster status is abnormal, output:%s" % cms_stat
                 LOG.error(err_msg)
                 raise Exception(err_msg)
             online_flag = False
             unknown_flag = False
             for node_stat in cms_stat:
                 node_id, stat = node_stat.split(" ")
-                if (stat == "ONLINE"):
+                if stat == "ONLINE":
                     online_flag = True
                     continue
-                if (stat == "UNKNOWN"):
+                if stat == "UNKNOWN":
                     unknown_flag = True
             if online_flag:
                 time.sleep(wait_time_step)
@@ -407,7 +409,8 @@ class DRRecover(SwitchOver):
                 LOG.info("cms offline success")
                 return
         else:
-            LOG.error("cantian stop time out")
+            err_msg = "cantian stop time out"
+            LOG.error(err_msg)
             raise Exception(err_msg)
 
     def execute(self):

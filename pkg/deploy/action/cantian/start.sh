@@ -40,6 +40,7 @@ function cantian_start()
     # 容灾备站点拉起时，无需创库。设置创库状态为done
     if [[ x"${START_MODE}" == x"standby" ]];then
         sed -i 's/"db_create_status": "default"/"db_create_status": "done"/g'  /opt/cantian/cantian/cfg/start_status.json
+        sed -i 's/"mysql_init": "default"/"mysql_init": "done"/g'  /opt/cantian/cantian/cfg/start_status.json
     fi
     export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH}
     python3 ${CURRENT_PATH}/${CANTIAN_START_PY_NAME}
