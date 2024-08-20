@@ -1033,6 +1033,18 @@ char *cm_get_name_from_file_list(device_type_t type, void *list, int32 index)
     return NULL;
 }
 
+bool32 cm_check_dir_type_by_file_list(device_type_t type, void *list, int32 index)
+{
+    if (type == DEV_TYPE_DBSTOR_FILE) {
+        dbstor_file_info *file_list = (dbstor_file_info *)((char *)list + index * sizeof(dbstor_file_info));
+        return file_list->type == CS_FILE_TYPE_DIR;
+    } else if (type == DEV_TYPE_FILE) {
+        cm_file_info *file_list = (cm_file_info *)((char *)list + index * sizeof(cm_file_info));
+        return file_list->type == FILE_TYPE_DIR;
+    }
+    return CT_FALSE;
+}
+
 bool32 cm_match_arch_pattern(const char *filename)
 {
     const char *prefix = "arch";

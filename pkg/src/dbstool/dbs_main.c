@@ -87,43 +87,43 @@ status_t cms_init_loggers()
 EXTER_ATTACK int32 dbs_cmd_help(int32 argc, char* argv[]);
 
 dbs_cmd_def_t g_dbs_cmd_defs[] = {
-    {{"--h"}, dbs_cmd_help, "print dbs command parameters"},
-    {{"--help"}, dbs_cmd_help, "print dbs command parameters"},
+    {{"--h"}, dbs_cmd_help, "\tprint dbs command parameters"},
+    {{"--help"}, dbs_cmd_help, "\tprint dbs command parameters"},
     {{"--arch-import", "*[PARAM]"}, dbs_arch_import,
-        "Usage: import the archive file(s) from source dir.\n"
+        "\tUsage: import the archive file(s) from source dir.\n"
         "\tparams: --source-dir=* [--arch-file=*] [--fs-name=*]"},
     {{"--arch-export", "*[PARAM]"}, dbs_arch_export,
-        "Usage: export the archive file(s) to target dir.\n"
+        "\tUsage: export the archive file(s) to target dir.\n"
         "\tparams: --target-dir=* [--arch-file=*] [--fs-name=*]"},
     {{"--arch-clean", "*[PARAM]"}, dbs_arch_clean,
-        "Usage: clean the archive file(s) in archive dir.\n"
+        "\tUsage: clean the archive file(s) in archive dir.\n"
         "\tparams: [--fs-name=*]"},
     {{"--arch-query", "*[PARAM]"}, dbs_arch_query,
-        "Usage: query the archive file(s) in archive dir.\n"
+        "\tUsage: query the archive file(s) in archive dir.\n"
         "\tparams: [--fs-name=*]"},
     {{"--ulog-clean", "*[PARAM]"}, dbs_ulog_clean,
-        "Usage: clean the ulog data in redo log file system.\n"
+        "\tUsage: clean the ulog data in redo log file system.\n"
         "\tparams: [--fs-name=*] [--cluster-name=*]"},
     {{"--pagepool-clean", "*[PARAM]"}, dbs_pagepool_clean,
-        "Usage: clean the page data in data page file system.\n"
+        "\tUsage: clean the page data in data page file system.\n"
         "\tparams: [--fs-name=*] [--cluster-name=*]"},
     {{"--create-file", "*[PARAM]"}, dbs_create_path_or_file,
-        "Usage: create/copy the specified dir/file in the file system.\n"
+        "\tUsage: create/copy the specified dir/file in the file system.\n"
         "\tparams: --fs-name=* --file-name=* [--source-dir=xxx]"},
     {{"--copy-file", "*[PARAM]"}, dbs_copy_file,
-        "Usage: copy the dir/file in file system to target dir.\n"
+        "\tUsage: copy the dir/file in file system to target dir.\n"
         "\tparams: --fs-name=* --source-dir=* --target-dir=* [--file-name=*]"},
     {{"--delete-file", "*[PARAM]"}, dbs_delete_path_or_file,
-        "Usage: delete the specified dir/file in the file system.\n"
+        "\tUsage: delete the specified dir/file in the file system.\n"
         "\tparams: --fs-name=* --file-name=*"},
     {{"--query-file", "*[PARAM]"}, dbs_query_file,
-        "Usage: query the dir in the file system.\n"
+        "\tUsage: query the dir in the file system.\n"
         "\tparams: --fs-name=* --file-path=*"},
     {{"--ulog-data", "*[PARAM]"}, dbs_ulog_export,
-        "Usage: export ulog file for debug.\n"
+        "\tUsage: export ulog file for debug.\n"
         "\tparams: [node] [target-dir] [start-lsn] [len(optional)]"},
     {{"--page-data", "*[PARAM]"}, dbs_page_export,
-        "Usage: export page file for debug.\n"
+        "\tUsage: export page file for debug.\n"
         "\tparams: [page-db] [target-dir] [page-id(optional)] [page-num(optional)]"},
 };
 
@@ -139,10 +139,10 @@ int32 dbs_cmd_help(int32 argc, char* argv[])
             if (cmd_def->param[p][0] == '*') {
                 continue;
             } else {
-                printf(" %s", cmd_def->param[p]);
+                printf(" %s\n", cmd_def->param[p]);
             }
         }
-        printf(" , %s\n", cmd_def->desc);
+        printf(" %s\n", cmd_def->desc);
     }
     return CT_SUCCESS;
 }
@@ -176,6 +176,7 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
     }
     if (i == cmd_count) {
         printf("invalid argument\n");
+        dbs_cmd_help(argc, argv);
         return CT_ERROR;
     }
 
@@ -190,7 +191,10 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
         return ret;
     }
     ret = cmd_def->cmd_pro_func(argc, argv);
-    printf("%s, ret is %d.\n", cmd_def->desc, ret);
+    if (ret != 0) {
+        dbs_cmd_help(argc, argv);
+        printf("Fail to execute command, ret is %d.\n", ret);
+    }
     (void)dbs_global_handle()->dbs_client_flush_log();
 
     return ret;
