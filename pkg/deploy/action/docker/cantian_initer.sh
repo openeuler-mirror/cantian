@@ -181,7 +181,7 @@ function clear_sem_id() {
         ipcrm -s ${sem_id}
         if [ $? -ne 0 ]; then
             logAndEchoError "clear sem_id failed"
-            exit 1
+            tail -f /dev/null
         fi
         logAndEchoInfo "clear sem_id success"
     fi
@@ -298,7 +298,19 @@ function exit_with_log() {
     # 失败后保存日志并删除存活探针
     sh ${CURRENT_PATH}/log_backup.sh ${cluster_name} ${cluster_id} ${node_id} ${deploy_user} ${storage_metadata_fs}
     rm -rf ${HEALTHY_FILE}
-    exit 1
+    tail -f /dev/null
+}
+
+function process_logs() {
+  while true; do
+    /bin/python3 /opt/cantian/common/script/logs_handler/execute.py
+    if [ $? -ne 0 ]; then
+      echo "Error occurred in execute.py, retrying in 5 seconds..."
+      sleep 5
+      continue
+    fi
+    sleep 3600
+  done
 }
 
 function main() {
@@ -310,6 +322,7 @@ function main() {
     prepare_kmc_conf
     prepare_certificate
     init_start
+    process_logs
 }
 
 main

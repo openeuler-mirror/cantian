@@ -5,6 +5,7 @@ SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
 LIMITS_CONFIG_PATH="/etc/security/limits.conf"
 open_file_num=102400
 node_count=$(python3 ${CURRENT_PATH}/get_config_info.py "cluster_scale")
+cantian_in_container=$(python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container")
 source ${CURRENT_PATH}/env.sh
 source ${CURRENT_PATH}/log4sh.sh
 START_MODE=$1
@@ -99,17 +100,20 @@ else
     logAndEchoError "For details, see the ${OM_DEPLOY_LOG_FILE}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     exit 1
 fi
-# 守护进程拉起后启动system服务 开机启动后拉起守护进程
-systemctl daemon-reload >> ${OM_DEPLOY_LOG_FILE} 2>&1
 
-sys_service_batch=(cantian.timer cantian_logs_handler.timer)
-for service in "${sys_service_batch[@]}"
-do
-    systemd_timer_setter ${service}
-    if [ $? -ne 0 ];then
-        exit 1
-    fi
-done
+if [ "$cantian_in_container" -eq 0 ]; then
+    # 守护进程拉起后启动system服务 开机启动后拉起守护进程
+    systemctl daemon-reload >> ${OM_DEPLOY_LOG_FILE} 2>&1
+
+    sys_service_batch=(cantian.timer cantian_logs_handler.timer)
+    for service in "${sys_service_batch[@]}"
+    do
+        systemd_timer_setter ${service}
+        if [ $? -ne 0 ]; then
+            exit 1
+        fi
+    done
+fi
 
 chmod 660 /dev/shm/cantian*
 chown -hR "${cantian_user}":"${deploy_group}" /dev/shm/cantian*

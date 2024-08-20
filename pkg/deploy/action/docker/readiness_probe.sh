@@ -11,6 +11,7 @@ node_id=`python3 ${CURRENT_PATH}/get_config_info.py "node_id"`
 cantiand_pid=$(ps -ef | grep -v grep | grep cantiand | awk 'NR==1 {print $2}')
 mysql_pid=$(ps -ef | grep -v grep | grep mysqld | awk 'NR==1 {print $2}')
 cms_pid=$(ps -ef | grep cms | grep server | grep start | grep -v grep | awk 'NR==1 {print $2}')
+cantian_daemon_pid=$(pgrep -f cantian_daemon)
 
 # 启动项检查
 if [[ "$1" == "startup-check" ]]; then
@@ -57,6 +58,14 @@ if [[ -z "${mysql_pid}" ]]; then
         -M mysqld -m /opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts/my.cnf -g withoutroot"
     mysql_pid=$(ps -ef | grep -v grep | grep mysqld | awk 'NR==1 {print $2}')
     if [[ -z "${mysql_pid}" ]]; then
+        handle_failure
+    fi
+fi
+
+if [[ -z "${cantian_daemon_pid}" ]]; then
+    /bin/bash /opt/cantian/common/script/cantian_service.sh start
+    cantian_daemon_pid=$(pgrep -f cantian_daemon)
+    if [[ -z "${cantian_daemon_pid}" ]]; then
         handle_failure
     fi
 fi
