@@ -108,5 +108,7 @@ RUN sed -i '$a export PYTHON3_HOME=/usr/include/python3.6m' /etc/profile && \
 
 RUN pip3 install requests paramiko
 
+RUN yum install -y bc && yum clean all
+
 RUN mkdir /cores
 VOLUME /var/lib/mysql

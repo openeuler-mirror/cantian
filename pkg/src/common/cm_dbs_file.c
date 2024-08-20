@@ -500,13 +500,13 @@ status_t cm_dbs_open_dir(const char *name, int32 *handle)
     return cm_dbs_open_file_common(name, DIR_TYPE, handle);
 }
 
-status_t cm_do_dbs_file_read(object_id_t *obj_id, uint32_t offset, char *buf, uint32_t size, uint32 *real_read_size)
+status_t cm_do_dbs_file_read(object_id_t *obj_id, uint64 offset, char *buf, uint32 size, uint32 *real_read_size)
 {
-    int32 ret;
+    int32 ret = 0;
     for (uint32 i = 0; i < DBSTOR_MAX_RETRY_COUNT; i++) {
         ret = dbs_global_handle()->dbs_file_read(obj_id, offset, buf, size, real_read_size);
         if (ret != 0) {
-            CT_LOG_RUN_ERR("[CM_DEVICE] Failed to read file count %d ret:%u.", i + 1, ret);
+            CT_LOG_RUN_ERR("[CM_DEVICE] failed to read file, cnt %u info %llu/%u ret:%d.", i + 1, offset, size, ret);
             continue;
         }
         return CT_SUCCESS;
@@ -563,7 +563,7 @@ status_t cm_do_dbs_file_write(object_id_t *obj_id, uint64 offset, char *buf, uin
     for (uint32 i = 0; i < DBSTOR_MAX_RETRY_COUNT; i++) {
         ret = dbs_global_handle()->dbs_file_write(obj_id, offset, buf, size);
         if (ret != 0) {
-            CT_LOG_RUN_ERR("[CM_DEVICE] Failed to write file count %u ret:%u.", i + 1, ret);
+            CT_LOG_RUN_ERR("[CM_DEVICE] Failed to write file, cnt %u info %llu/%u ret:%d.", i + 1, offset, size, ret);
             continue;
         }
         return CT_SUCCESS;
@@ -582,13 +582,13 @@ status_t cm_dbs_write_file(int32 handle, int64 offset, const void *buf, int32 si
     int64 off = offset;
     int32 total_size = size;
     char *w_buf = (char *)buf;
-    CT_LOG_RUN_INF("[CM_DEVICE] Begin to write file handle %d offset %lld size %d.", handle, offset, size);
+    CT_LOG_DEBUG_INF("[CM_DEVICE] Begin to write file handle %d offset %lld size %d.", handle, offset, size);
     cm_dbs_map_item_s obj = { 0 };
     if (cm_dbs_map_get(handle, &obj) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CM_DEVICE] Failed to get dbstor file to write by handle(%d).", handle);
         return CT_ERROR;
     }
-    CT_LOG_RUN_INF("[CM_DEVICE] Success to get dbstor file to write by handle(%d).", handle);
+    CT_LOG_DEBUG_INF("[CM_DEVICE] Success to get dbstor file to write by handle(%d).", handle);
 
     while (total_size > 0) {
         write_size = total_size > DBSTOR_MAX_RWBUF_SIZE ? DBSTOR_MAX_RWBUF_SIZE : total_size;
@@ -602,7 +602,7 @@ status_t cm_dbs_write_file(int32 handle, int64 offset, const void *buf, int32 si
         total_size -= write_size;
     }
 
-    CT_LOG_RUN_INF("[CM_DEVICE] Success to write file total_size %d offset %lld already write size %d.",
+    CT_LOG_DEBUG_INF("[CM_DEVICE] Success to write file total_size %d offset %lld already write size %d.",
         size, off, size - total_size);
     return CT_SUCCESS;
 }
@@ -630,9 +630,9 @@ status_t cm_dbs_rename_file(const char *src_name, const char *dst_name)
         return CT_ERROR;
     }
 
-     if (!cm_dbs_exist_file(src_path, DIR_TYPE) && !cm_dbs_exist_file(src_path, FILE_TYPE)) {
+    if (!cm_dbs_exist_file(src_path, DIR_TYPE) && !cm_dbs_exist_file(src_path, FILE_TYPE)) {
         return CT_ERROR;
-     }
+    }
 
     char src_file_name[MAX_DBS_FILE_NAME_LEN] = { 0 };
     char src_file_dir[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
@@ -660,11 +660,11 @@ status_t cm_dbs_rename_file(const char *src_name, const char *dst_name)
 
     int ret = dbs_global_handle()->dbs_file_rename(&dir_obj_id, src_file_name, dst_file_name);
     if (ret != 0) {
-        CT_LOG_RUN_ERR("[CM_DEVICE] rename %s to %s failed, file dir %s", src_file_name, dst_file_name, dst_file_dir);
+        CT_LOG_RUN_ERR("[CM_DEVICE] rename %s to %s failed, ret %d", src_path, dst_path, ret);
         return CT_ERROR;
     }
 
-    CT_LOG_RUN_INF("[CM_DEVICE] rename %s to %s success, file dir %s", src_file_name, dst_file_name, dst_file_dir);
+    CT_LOG_RUN_INF("[CM_DEVICE] rename %s to %s success", src_path, dst_path);
     return CT_SUCCESS;
 }
 

@@ -103,4 +103,6 @@ RUN echo -e "y" | MLNX_OFED_LINUX-5.9-0.5.6.0-openeuler22.03-aarch64/mlnxofedins
 
 RUN pip install requests paramiko
 
+RUN yum install -y bc && yum clean all
+
 WORKDIR /home/regress
