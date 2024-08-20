@@ -406,7 +406,7 @@ int tse_lock_table_impl(tianchi_handler_t *tch, knl_handle_t knl_session, const 
     char *broadcast_db_name = tse_check_db_exists((knl_session_t *)knl_session, db_name) ? db_name : NULL;
     // 广播 mysqld
     int ret = tse_ddl_execute_lock_tables(tch, broadcast_db_name, lock_info, error_code);
-    if (ret != CT_SUCCESS) {
+    if (ret != CT_SUCCESS && DB_IS_PRIMARY(&g_instance->kernel.db)) {  
         CT_LOG_RUN_ERR("[TSE_LOCK_TABLE]:execute failed at other mysqld on current node, error_code:%d"
                        "lock_info(db:%s, table:%s), conn_id:%u, tse_instance_id:%u", *error_code,
                        lock_info->db_name, lock_info->table_name, tch->thd_id, tch->inst_id);
@@ -490,7 +490,8 @@ int tse_broadcast_mysql_dd_invalidate_impl(tianchi_handler_t *tch, knl_handle_t 
     // 本节点的其他mysqld
     int error_code;
     status_t ret = tse_invalidate_mysql_dd_cache(tch, broadcast_req, &error_code);
-    if (ret != CT_SUCCESS) {
+    //metadata DDL in slave node continue broadcast
+    if (ret != CT_SUCCESS && DB_IS_PRIMARY(&g_instance->kernel.db)) {
         CT_LOG_RUN_ERR("[TSE_DD_INVALID]:execute failed at other mysqld on current node, error_code:%d"
                        "conn_id:%u, tse_instance_id:%u", error_code, tch->thd_id, tch->inst_id);
         return CT_ERROR;
@@ -1179,7 +1180,7 @@ int tse_unlock_table_impl(tianchi_handler_t *tch, knl_handle_t knl_session, uint
 {
     // 广播 mysqld
     int ret = tse_ddl_execute_unlock_tables(tch, mysql_inst_id, lock_info);
-    if (ret != CT_SUCCESS) {
+    if (ret != CT_SUCCESS && DB_IS_PRIMARY(&g_instance->kernel.db)) {
         CT_LOG_RUN_ERR("[TSE_UNLOCK_TABLE]:execute failed at other mysqld on current node conn_id:%u", tch->thd_id);
         return CT_ERROR;
     }

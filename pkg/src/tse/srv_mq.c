@@ -1677,6 +1677,7 @@ int tse_mq_deal_func(void *shm_inst, enum TSE_FUNC_TYPE func_type, void *request
         if (at_least_one_succeed == CT_SUCCESS) {
             return ret;
         } else {
+            CT_LOG_RUN_ERR("[TSE_SHM]:slave cluster failed to send msg at least one mysql, ret:%d", ret);
             return CT_ERROR;
         }
     } else {
