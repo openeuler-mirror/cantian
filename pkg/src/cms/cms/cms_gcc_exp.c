@@ -799,17 +799,25 @@ status_t cms_keep_recent_files_local(const char *bak_path, char *prefix)
 status_t cms_create_gcc_backup_files_remote(date_t bak_time, const char *bak_type, const char *home_path)
 {
     char file_name[CMS_FILE_NAME_BUFFER_SIZE] = { 0 };
+    char dir_name[CMS_FILE_NAME_BUFFER_SIZE] = { 0 };
     char time_str[CT_MAX_TIME_STRLEN] = { 0 };
     object_id_t gcc_file_handle = { 0 };
     int ret;
     
     CT_RETURN_IFERR(cm_date2str(bak_time, "YYYYMMDDHH24MISS", time_str, CT_MAX_TIME_STRLEN));
 
-    ret = snprintf_s(file_name, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN, "%s/%s_%s.exp",
+    ret = snprintf_s(file_name, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN, "%s/gcc_backup/%s_%s.exp",
         home_path, bak_type, time_str);
     PRTS_RETURN_IFERR(ret);
 
     if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+        ret = snprintf_s(dir_name, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN, "%s/gcc_backup/", home_path);
+        PRTS_RETURN_IFERR(ret);
+
+        if (!cm_dir_exist(dir_name)) {
+            CT_RETURN_IFERR(cm_create_dir(dir_name));
+        }
+
         CT_RETURN_IFERR(cms_export_gcc(file_name));
     } else {
         CT_RETURN_IFERR(cms_export_gcc_dbs(file_name));
@@ -818,7 +826,7 @@ status_t cms_create_gcc_backup_files_remote(date_t bak_time, const char *bak_typ
     ret = memset_sp(file_name, CMS_FILE_NAME_BUFFER_SIZE, 0, CMS_FILE_NAME_BUFFER_SIZE);
     MEMS_RETURN_IFERR(ret);
 
-    ret = snprintf_s(file_name, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN, "%s/%s_%s",
+    ret = snprintf_s(file_name, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN, "%s/gcc_backup/%s_%s",
         home_path, bak_type, time_str);
     PRTS_RETURN_IFERR(ret);
 
