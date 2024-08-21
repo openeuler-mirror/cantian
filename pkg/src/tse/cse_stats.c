@@ -44,6 +44,7 @@ io_record_event_desc_t g_tse_io_record_event_desc[TSE_FUNC_TYPE_NUMBER] = {
     {"TSE_FUNC_TYPE_WRITE_ROW", ""},
     {"TSE_FUNC_TYPE_WRITE_THROUGH_ROW", ""},
     {"TSE_FUNC_TYPE_UPDATE_ROW", ""},
+    {"CTC_FUNC_TYPE_UPDATE_SAMPLE_SIZE", ""},
     {"TSE_FUNC_TYPE_DELETE_ROW", ""},
     {"TSE_FUNC_TYPE_RND_INIT", ""},
     {"TSE_FUNC_TYPE_RND_END", ""},
