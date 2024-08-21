@@ -13,7 +13,7 @@ fi
 # 单进程场景使用deploy_user
 is_single=$(cat "${CURRENT_PATH}"/cantian/options.py | grep -oP 'self\.running_mode = "\K[^"]+')
 if [[ x"${is_single}" == x"cantiand_with_mysql_in_cluster" ]];then
-    mysqld_info=$(ps -ef | grep mysqld | grep -v grep)
+    mysqld_info=$(ps -ef | grep /opt/cantian/mysql/install/mysql/bin/mysqld | grep -v grep)
     if [[ -n ${mysqld_info} ]];then
         logAndEchoInfo "mysqld process info:\n ${mysqld_info}"
         online_list[${#online_list[*]}]="mysqld"
