@@ -48,7 +48,7 @@ int32 sint3korr(uchar *A)
 
 EXTER_ATTACK int ctc_update_sample_size(uint32_t sample_size)
 {
-    g_instance->kernel.attr.stats_sample_size = sample_size * CTC_SIZE_UNIT * CTC_SIZE_UNIT;
+    g_instance->kernel.attr.stats_sample_size = (uint64_t)sample_size * CTC_SIZE_UNIT * CTC_SIZE_UNIT;
     return CT_SUCCESS;
 }
 
