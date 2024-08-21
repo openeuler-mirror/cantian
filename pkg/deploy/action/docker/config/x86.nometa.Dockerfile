@@ -18,4 +18,8 @@ RUN cd /opt/cantian/image/cantian_connector/cantian-connector-mysql/mysql_bin/ &
     chown 5000:5000 /opt/cantian/mysql/install/mysql -R && \
     cp -pf /opt/cantian/mysql/install/mysql/bin/mysql /usr/bin/ && \
     cp -prf /opt/cantian/mysql/install/mysql /usr/local/
-RUN systemctl enable cantian_initer.service
+
+RUN ln -s /ctdb/cantian_install/cantian_connector/action/docker/cantian_initer.sh /usr/local/bin/cantian-init && \
+    chmod +x /ctdb/cantian_install/cantian_connector/action/docker/cantian_initer.sh
+
+CMD ["cantian-init"]

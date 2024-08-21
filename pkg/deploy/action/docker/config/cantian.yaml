@@ -61,7 +61,6 @@ spec:
         - name: cantian
           image: {{ .Values.images.cantian }}
           imagePullPolicy: IfNotPresent
-          command: ["/usr/sbin/init"]
           securityContext:
             privileged: true
             capabilities:
@@ -185,7 +184,6 @@ spec:
         - name: cantian
           image: {{ .Values.images.cantian }}
           imagePullPolicy: IfNotPresent
-          command: ["/usr/sbin/init"]
           securityContext:
             privileged: true
             capabilities:
