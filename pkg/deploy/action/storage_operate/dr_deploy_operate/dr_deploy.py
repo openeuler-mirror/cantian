@@ -22,21 +22,23 @@ from logic.common_func import retry
 from logic.common_func import get_status
 from om_log import DR_DEPLOY_LOG as LOG
 from cantian_common.mysql_shell import MysqlShell
+from get_config_info import get_env_info
 from storage_operate.dr_deploy_operate import install_mysql
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
+RUN_USER = get_env_info("cantian_user")
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
 DEPLOY_PARAM_FILE = "/opt/cantian/config/deploy_param.json"
 EXEC_SQL = os.path.join(CURRENT_PATH, "../../cantian_common/exec_sql.py")
 LOCAL_PROCESS_RECORD_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_process_record.json")
 FULL_CHECK_POINT_CMD = 'echo -e "alter system checkpoint global;" | '\
-                       'su -s /bin/bash - cantian -c \'source ~/.bashrc && '\
+                       'su -s /bin/bash - %s -c \'source ~/.bashrc && '\
                        'export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && '\
-                       'python3 -B %s\'' % EXEC_SQL
+                       'python3 -B %s\'' % (RUN_USER, EXEC_SQL)
 CANTIAN_DISASTER_RECOVERY_STATUS_CHECK = 'echo -e "select * from DV_LRPL_DETAIL;" | '\
-                                         'su -s /bin/bash - cantian -c \'source ~/.bashrc && '\
+                                         'su -s /bin/bash - %s -c \'source ~/.bashrc && '\
                                          'export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && '\
-                                         'python3 -B %s\'' % EXEC_SQL
+                                         'python3 -B %s\'' % (RUN_USER, EXEC_SQL)
 ZSQL_INI_PATH = '/mnt/dbdata/local/cantian/tmp/data/cfg/ctsql.ini'
 LOCK_INSTANCE_STEP1 = "set @ctc_ddl_enabled=true"
 LOCK_INSTANCE_STEP2 = "lock instance for backup"
@@ -90,6 +92,7 @@ class DRDeploy(object):
         self.metadata_in_cantian = False
         self.backup_lock_shell = None
         self.sync_speed = 2
+        self.run_user = RUN_USER
 
     @staticmethod
     def restart_cantian_exporter():
@@ -687,8 +690,8 @@ class DRDeploy(object):
         """
         self.record_deploy_process("cantian_disaster_recovery_status", "start")
         node_id = self.dr_deploy_info.get("node_id")
-        cms_cmd = "su -s /bin/bash - cantian -c 'source ~/.bashrc " \
-                  "&& cms stat | awk \"{print \$1, \$9}\"'"
+        cms_cmd = "su -s /bin/bash - %s -c 'source ~/.bashrc " \
+                  "&& cms stat | awk \"{print \$1, \$9}\"'" % self.run_user
         return_code, output, stderr = exec_popen(cms_cmd)
         LOG.info("Check cms reformer node.")
         if return_code:
@@ -977,6 +980,14 @@ class DRDeploy(object):
                 raise Exception(err_msg)
             self.update_install_status(node_id, "install", "success")
         LOG.info("Install cantian engine success.")
+        try:
+            self.do_install_mysql()
+        except Exception as e:
+            LOG.info("Install mysql failed, details:\n%s" % str(e))
+            raise e
+        return True
+
+    def do_install_mysql(self):
         # 判断是否是单进程，单进程要安装mysql
         install_json_path = os.path.join(CURRENT_PATH, "../../cantian/install_config.json")
         install_json_data = read_json_config(install_json_path)
@@ -989,7 +1000,6 @@ class DRDeploy(object):
             else:
                 install_mysql.execute_nometa()
             LOG.info("Install mysql for single success.")
-        return True
 
     def standby_do_start(self):
         LOG.info("Start to start cantian engine.")

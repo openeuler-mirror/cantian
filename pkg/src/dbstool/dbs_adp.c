@@ -67,6 +67,16 @@
 #define DBS_DELETE_FILE_PRAMA_NUM 2
 #define DBS_QUERY_FILE_PRAMA_NUM 2
 
+#define DBS_NO_CHECK_PRAMA_NUM 0
+#define DBS_ARCH_EXPORT_PRAMA_CHECK_NUM 1
+#define DBS_ARCH_IMPORT_PRAMA_CHECK_NUM 1
+#define DBS_ULOG_CLEAN_CHECK_PRAMA_NUM 2
+#define DBS_PGPOOL_CLEAN_CHECK_PRAMA_NUM 2
+#define DBS_CRAETE_FILE_CHECK_PRAMA_NUM 2
+#define DBS_COPY_FILE_CHECK_PRAMA_NUM 3
+#define DBS_DELETE_FILE_CHECK_PRAMA_NUM 2
+#define DBS_QUERY_FILE_CHECK_PRAMA_NUM 2
+
 typedef bool32 (*file_filter_func)(const char *);
 typedef struct {
     char log_fs_name[MAX_DBS_FS_NAME_LEN];
@@ -83,6 +93,20 @@ typedef struct {
     int32 handle;
     char path[MAX_DBS_FS_FILE_PATH_LEN];
 } dbs_device_info_t;
+
+typedef struct {
+    char *key;
+    char *value;
+} params_check_list_t;
+
+typedef struct {
+    const char **keys;
+    char **values;
+    size_t *value_len;
+    params_check_list_t *check_list;
+    uint32 params_num;
+    uint32 check_num;
+} params_list_t;
 
 status_t get_cantiand_ini_file_name(char *cantiand_ini_file_path)
 {
@@ -277,6 +301,7 @@ status_t copy_arch_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_i
                            arch_file, src_info->handle, dst_info->handle);
             return CT_ERROR;
         }
+        printf("%s\n", arch_file);
         return CT_SUCCESS;
     }
 
@@ -288,6 +313,7 @@ status_t copy_arch_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_i
     ret = cm_query_device(src_info->type, src_info->path, file_list, &file_num);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Failed to get file list, dir is %s.", src_info->path);
+        cm_free_file_list(&file_list);
         return CT_ERROR;
     }
 
@@ -330,6 +356,7 @@ status_t copy_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t
                            file_name, src_info->handle, dst_info->handle);
             return CT_ERROR;
         }
+        printf("Copying file: %s\n", file_name);
         return CT_SUCCESS;
     }
 
@@ -354,8 +381,10 @@ status_t copy_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t
             cm_free_file_list(&file_list);
             return CT_ERROR;
         }
+        if (cm_check_dir_type_by_file_list(src_info->type, file_list, i)) {
+            continue;
+        }
 
-        printf("Copying file: %s\n", current_file_name);
         ret = copy_file_by_name(current_file_name, src_info, dst_info);
         if (ret != CT_SUCCESS) {
             CT_LOG_RUN_ERR("Failed to copy file from source dir, file name is %s, src handle %d, dst handle %d.",
@@ -363,6 +392,7 @@ status_t copy_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t
             cm_free_file_list(&file_list);
             return CT_ERROR;
         }
+        printf("Copying file: %s\n", current_file_name);
         cm_close_device(src_info->type, &src_info->handle);
         cm_close_device(dst_info->type, &dst_info->handle);
     }
@@ -595,25 +625,41 @@ status_t dbstool_init()
     return CT_SUCCESS;
 }
 
-status_t parse_params(int32 argc, char *argv[], const char **params, char **results,
-    size_t *result_lens, int32 param_count)
+status_t compare_param(char *argv[], params_list_t *params_list, uint32 i, uint32 j, bool32 *matched)
 {
-    for (int32 i = 2; i < argc; i++) {
+    if (strncmp(argv[i], params_list->keys[j], strlen(params_list->keys[j])) == 0) {
+        if (strlen(argv[i]) - strlen(params_list->keys[j]) >= params_list->value_len[j]) {
+            printf("Parameter value is too long for %s.\n", params_list->keys[j]);
+            return CT_ERROR;
+        }
+        MEMS_RETURN_IFERR(strncpy_sp(params_list->values[j], params_list->value_len[j],
+                                     argv[i] + strlen(params_list->keys[j]),
+                                     strlen(argv[i]) - strlen(params_list->keys[j])));
+        *matched = CT_TRUE;
+    }
+    return CT_SUCCESS;
+}
+
+status_t parse_params_list(int32 argc, char *argv[], params_list_t *params_list)
+{
+    for (uint32 i = 2; i < argc; i++) {
         bool32 matched = CT_FALSE;
-        for (int32 j = 0; j < param_count; j++) {
-            if (strncmp(argv[i], params[j], strlen(params[j])) == 0) {
-                matched = CT_TRUE;
-                if (strlen(argv[i]) - strlen(params[j]) >= result_lens[j]) {
-                    printf("Parameter value is too long for %s.\n", params[j]);
-                    return CT_ERROR;
-                }
-                MEMS_RETURN_IFERR(strncpy_sp(results[j], result_lens[j], argv[i] + strlen(params[j]),
-                                             strlen(argv[i]) - strlen(params[j])));
+        for (uint32 j = 0; j < params_list->params_num; j++) {
+            if (compare_param(argv, params_list, i, j, &matched) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+            if (matched) {
                 break;
             }
         }
         if (!matched) {
             printf("Invalid parameter: %s\n", argv[i]);
+            return CT_ERROR;
+        }
+    }
+    for (uint32 k = 0; k < params_list->check_num; k++) {
+        if (strlen(params_list->check_list->value) == 0) {
+            printf("%s not specified.\n", params_list->check_list->key);
             return CT_ERROR;
         }
     }
@@ -648,15 +694,12 @@ int32 dbs_arch_import(int32 argc, char *argv[])
     const char *params[] = {DBS_TOOL_PARAM_SOURCE_DIR, DBS_TOOL_PARAM_ARCH_FILE, DBS_TOOL_PARAM_FS_NAME};
     char *results[] = {source_dir, arch_file, fs_name};
     size_t result_lens[] = {MAX_DBS_FS_FILE_PATH_LEN, MAX_DBS_FILE_NAME_LEN, MAX_DBS_FS_NAME_LEN};
+    params_check_list_t check_list[] = {{DBS_TOOL_PARAM_SOURCE_DIR, source_dir}};
+    params_list_t params_list = {params, results, result_lens, check_list, DBS_ARCH_IMPORT_PRAMA_NUM,
+                                 DBS_ARCH_IMPORT_PRAMA_CHECK_NUM};
 
-    if (parse_params(argc, argv, params, results, result_lens, DBS_ARCH_IMPORT_PRAMA_NUM) != CT_SUCCESS) {
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --arch-import --source-dir=xxx [--arch-file=xxx] [--fs-name=xxx]\n");
-        return CT_ERROR;
-    }
-
-    if (strlen(source_dir) == 0) {
-        printf("Target directory not specified.\n"
-            "Usage: --arch-export --target-dir=xxx [--arch-file=xxx] [--fs-name=xxx]\n");
         return CT_ERROR;
     }
 
@@ -682,21 +725,19 @@ int32 dbs_arch_import(int32 argc, char *argv[])
 int32 dbs_arch_export(int32 argc, char *argv[])
 {
     char target_dir[MAX_DBS_FILE_PATH_LEN] = {0};
-    char arch_file[MAX_DBS_FILE_PATH_LEN] = {0};
+    char arch_file[MAX_DBS_FILE_NAME_LEN] = {0};
     char archive_location[MAX_DBS_FILE_PATH_LEN] = {0};
     char fs_name[MAX_DBS_FILE_NAME_LEN] = {0};
 
     const char *params[] = {DBS_TOOL_PARAM_TARGET_DIR, DBS_TOOL_PARAM_ARCH_FILE, DBS_TOOL_PARAM_FS_NAME};
     char *results[] = {target_dir, arch_file, fs_name};
     size_t result_lens[] = {MAX_DBS_FILE_PATH_LEN, MAX_DBS_FILE_PATH_LEN, MAX_DBS_FILE_NAME_LEN};
+    params_check_list_t check_list[] = {{DBS_TOOL_PARAM_TARGET_DIR, target_dir}};
+    params_list_t params_list = {params, results, result_lens, check_list, DBS_ARCH_EXPORT_PRAMA_NUM,
+                                 DBS_ARCH_EXPORT_PRAMA_CHECK_NUM};
 
-    if (parse_params(argc, argv, params, results, result_lens, DBS_ARCH_EXPORT_PRAMA_NUM) != CT_SUCCESS) {
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --arch-export --target-dir=xxx [--arch-file=xxx] [--fs-name=xxx]\n");
-        return CT_ERROR;
-    }
-    if (strlen(target_dir) == 0) {
-        printf("Target directory not specified.\n"
-            "Usage: --arch-export --target-dir=xxx [--arch-file=xxx] [--fs-name=xxx]\n");
         return CT_ERROR;
     }
 
@@ -768,8 +809,9 @@ int32 dbs_arch_clean(int32 argc, char *argv[])
     const char *params[] = {DBS_TOOL_PARAM_FS_NAME};
     char *results[] = {fs_name};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN};
+    params_list_t params_list = {params, results, result_lens, NULL, DBS_ARCH_CLEAN_PRAMA_NUM, DBS_NO_CHECK_PRAMA_NUM};
 
-    if (parse_params(argc, argv, params, results, result_lens, DBS_ARCH_CLEAN_PRAMA_NUM) != CT_SUCCESS) {
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --arch-clean [--fs-name=xxx]\n");
         return CT_ERROR;
     }
@@ -813,8 +855,9 @@ int32 dbs_arch_query(int32 argc, char *argv[])
     const char *params[] = {DBS_TOOL_PARAM_FS_NAME};
     char *results[] = {fs_name};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN};
+    params_list_t params_list = {params, results, result_lens, NULL, DBS_ARCH_QUERY_PRAMA_NUM, DBS_NO_CHECK_PRAMA_NUM};
 
-    if (parse_params(argc, argv, params, results, result_lens, DBS_ARCH_QUERY_PRAMA_NUM) != CT_SUCCESS) {
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --arch-query [--fs-name=xxx]\n");
         return CT_ERROR;
     }
@@ -873,19 +916,20 @@ int32 dbs_ulog_clean(int32 argc, char *argv[])
 {
     char fs_name[MAX_DBS_FS_NAME_LEN] = {0};
     char cluster_name[MAX_DBS_FILE_PATH_LEN] = {0};
-    MEMS_RETURN_IFERR(strncpy_s(fs_name, MAX_DBS_FS_NAME_LEN, g_dbs_fs_info.log_fs_name, strlen(g_dbs_fs_info.log_fs_name)));
-    MEMS_RETURN_IFERR(strncpy_s(cluster_name, MAX_DBS_FILE_PATH_LEN, g_dbs_fs_info.cluster_name, strlen(g_dbs_fs_info.cluster_name)));
+    MEMS_RETURN_IFERR(strncpy_s(fs_name, MAX_DBS_FS_NAME_LEN, g_dbs_fs_info.log_fs_name,
+                                strlen(g_dbs_fs_info.log_fs_name)));
+    MEMS_RETURN_IFERR(strncpy_s(cluster_name, MAX_DBS_FILE_PATH_LEN, g_dbs_fs_info.cluster_name,
+                                strlen(g_dbs_fs_info.cluster_name)));
 
     const char *params[] = {DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_CLUSTER_NAME};
     char *results[] = {fs_name, cluster_name};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN};
+    params_check_list_t check_list[] = {{DBS_TOOL_PARAM_FS_NAME, fs_name}, {DBS_TOOL_PARAM_CLUSTER_NAME, cluster_name}};
+    params_list_t params_list = {params, results, result_lens, check_list, DBS_ULOG_CLEAN_PRAMA_NUM,
+                                 DBS_ULOG_CLEAN_CHECK_PRAMA_NUM};
 
-    if (parse_params(argc, argv, params, results, result_lens, DBS_ULOG_CLEAN_PRAMA_NUM) != CT_SUCCESS) {
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --ulog-clean [--fs-name=xxx] [--cluster-name=xxx]\n");
-        return CT_ERROR;
-    }
-    if (strlen(fs_name) == 0 || strlen(cluster_name) == 0) {
-        printf("fs_name and cluster_name not specified.\n");
         return CT_ERROR;
     }
     char ulog_path[MAX_DBS_FS_FILE_PATH_LEN] = {0};
@@ -928,19 +972,20 @@ int32 dbs_pagepool_clean(int32 argc, char *argv[])
 {
     char fs_name[MAX_DBS_FS_NAME_LEN] = {0};
     char cluster_name[MAX_DBS_FILE_PATH_LEN] = {0};
-    MEMS_RETURN_IFERR(strncpy_s(fs_name, MAX_DBS_FS_NAME_LEN, g_dbs_fs_info.page_fs_name, strlen(g_dbs_fs_info.page_fs_name)));
-    MEMS_RETURN_IFERR(strncpy_s(cluster_name, MAX_DBS_FILE_PATH_LEN, g_dbs_fs_info.cluster_name, strlen(g_dbs_fs_info.cluster_name)));
+    MEMS_RETURN_IFERR(strncpy_s(fs_name, MAX_DBS_FS_NAME_LEN, g_dbs_fs_info.page_fs_name,
+                                strlen(g_dbs_fs_info.page_fs_name)));
+    MEMS_RETURN_IFERR(strncpy_s(cluster_name, MAX_DBS_FILE_PATH_LEN, g_dbs_fs_info.cluster_name,
+                                strlen(g_dbs_fs_info.cluster_name)));
 
     const char *params[] = {DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_CLUSTER_NAME};
     char *results[] = {fs_name, cluster_name};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN};
+    params_check_list_t check_list[] = {{DBS_TOOL_PARAM_FS_NAME, fs_name}, {DBS_TOOL_PARAM_CLUSTER_NAME, cluster_name}};
+    params_list_t params_list = {params, results, result_lens, check_list, DBS_PGPOOL_CLEAN_PRAMA_NUM,
+                                 DBS_PGPOOL_CLEAN_CHECK_PRAMA_NUM};
 
-    if (parse_params(argc, argv, params, results, result_lens, DBS_PGPOOL_CLEAN_PRAMA_NUM) != CT_SUCCESS) {
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --pagepool-clean [--fs-name=xxx] [--cluster-name=xxx]\n");
-        return CT_ERROR;
-    }
-    if (strlen(fs_name) == 0 || strlen(cluster_name) == 0) {
-        printf("fs_name or cluster_name not specified.\n");
         return CT_ERROR;
     }
     char pagepool_path[MAX_DBS_FS_FILE_PATH_LEN] = {0};
@@ -984,17 +1029,14 @@ int32 dbs_create_path_or_file(int32 argc, char *argv[])
     const char *params[] = {DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_FILE_NAME, DBS_TOOL_PARAM_SOURCE_DIR};
     char *results[] = {fs_name, file_name, source_dir};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN, MAX_DBS_FS_FILE_PATH_LEN};
+    params_check_list_t check_list[] = {{DBS_TOOL_PARAM_FS_NAME, fs_name}, {DBS_TOOL_PARAM_FILE_NAME, file_name}};
+    params_list_t params_list = {params, results, result_lens, check_list, DBS_CRAETE_FILE_PRAMA_NUM,
+                                 DBS_CRAETE_FILE_CHECK_PRAMA_NUM};
 
-    if (parse_params(argc, argv, params, results, result_lens, DBS_CRAETE_FILE_PRAMA_NUM) != CT_SUCCESS) {
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --creat-file --fs-name=xxx --file-name=xxx [--source-dir=xxx]\n");
         return CT_ERROR;
     }
-
-    if (strlen(fs_name) == 0 || strlen(file_name) == 0) {
-        printf("fs_name or file_name not specified.\n");
-        return CT_ERROR;
-    }
-
     char full_path[MAX_DBS_FS_FILE_PATH_LEN] = {0};
     PRTS_RETURN_IFERR(snprintf_s(full_path, MAX_DBS_FS_FILE_PATH_LEN,
                                  MAX_DBS_FS_FILE_PATH_LEN - 1, "/%s/%s", fs_name, file_name));
@@ -1078,15 +1120,13 @@ int32 dbs_copy_file(int32 argc, char *argv[])
     char *results[] = {source_dir, target_dir, file_name, fs_name};
     size_t result_lens[] = {MAX_DBS_FS_FILE_PATH_LEN, MAX_DBS_FILE_PATH_LEN,
                             MAX_DBS_FILE_NAME_LEN, MAX_DBS_FS_NAME_LEN};
+    params_check_list_t check_list[] = {{DBS_TOOL_PARAM_FS_NAME, fs_name}, {DBS_TOOL_PARAM_TARGET_DIR, target_dir},
+                                        {DBS_TOOL_PARAM_SOURCE_DIR, source_dir}};
+    params_list_t params_list = {params, results, result_lens, check_list, DBS_COPY_FILE_PRAMA_NUM,
+                                 DBS_COPY_FILE_CHECK_PRAMA_NUM};
 
-    if (parse_params(argc, argv, params, results, result_lens, DBS_COPY_FILE_PRAMA_NUM) != CT_SUCCESS) {
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --copy-file --fs-name=* --source-dir=* --target-dir=* --file-name=*\n");
-        return CT_ERROR;
-    }
-
-    if (strlen(fs_name) == 0 || strlen(target_dir) == 0) {
-        printf("Source or target directory not specified.\nUsage: --copy-file --fs-name=* "
-                "--source-dir=* --target-dir=* --file-name=* \n");
         return CT_ERROR;
     }
 
@@ -1124,14 +1164,12 @@ int32 dbs_delete_path_or_file(int32 argc, char *argv[])
     const char *params[] = {DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_FILE_NAME};
     char *results[] = {fs_name, file_name};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN};
+    params_check_list_t check_list[] = {{DBS_TOOL_PARAM_FS_NAME, fs_name}, {DBS_TOOL_PARAM_FILE_NAME, file_name}};
+    params_list_t params_list = {params, results, result_lens, check_list, DBS_DELETE_FILE_PRAMA_NUM,
+                                 DBS_DELETE_FILE_CHECK_PRAMA_NUM};
 
-    if (parse_params(argc, argv, params, results, result_lens, DBS_DELETE_FILE_PRAMA_NUM) != CT_SUCCESS) {
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --delete-file --fs-name=xxx --file-name=xxx\n");
-        return CT_ERROR;
-    }
-
-    if (strlen(fs_name) == 0 || strlen(file_name) == 0) {
-        printf("fs_name or file_name not specified.\n");
         return CT_ERROR;
     }
 
@@ -1160,14 +1198,12 @@ int32 dbs_query_file(int32 argc, char *argv[])
     const char *params[] = {DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_FILE_PATH};
     char *results[] = {fs_name, file_path};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN};
+    params_check_list_t check_list[] = {{DBS_TOOL_PARAM_FS_NAME, fs_name}, {DBS_TOOL_PARAM_FILE_PATH, file_path}};
+    params_list_t params_list = {params, results, result_lens, check_list, DBS_QUERY_FILE_PRAMA_NUM,
+                                 DBS_QUERY_FILE_CHECK_PRAMA_NUM};
 
-    if (parse_params(argc, argv, params, results, result_lens, DBS_QUERY_FILE_PRAMA_NUM) != CT_SUCCESS) {
-        printf("Invalid command.\nUsage: --query-file --fs-name=xxx --file-path=xxx\n");
-        return CT_ERROR;
-    }
-
-    if (strlen(fs_name) == 0 || strlen(file_path) == 0) {
-        printf("fs_name or file_path not specified.\n");
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
+        printf("Invalid command.\nUsage: --delete-file --fs-name=xxx --file-name=xxx\n");
         return CT_ERROR;
     }
 

@@ -3936,8 +3936,8 @@ static void stats_gather_pcrb_key(index_t *idx, stats_index_t *stats_idx, pcrb_k
     knl_securec_check(ret);
 }
 
-static void stats_gather_btree_key(index_t *idx,
-                                   stats_index_t *stats_idx, btree_key_t *prev_key, stats_table_t *table_stats)
+static void stats_gather_btree_key(index_t *idx, stats_index_t *stats_idx, btree_key_t *prev_key,
+                                   stats_table_t *table_stats, cbo_stats_index_t *cbo_index)
 {
     mtrl_cursor_t *cursor = &stats_idx->mtrl.mtrl_cur;
     btree_key_t    *key = (btree_key_t *)cursor->sort.row;
@@ -3957,7 +3957,7 @@ static void stats_gather_btree_key(index_t *idx,
         }
     }
 
-    btree_calc_ndv_key(idx, key, prev_key, &stats_idx->info);
+    btree_calc_ndv_key(idx, key, prev_key, &stats_idx->info, cbo_index);
 
     stats_idx->info.keys++;
     stats_idx->info.keys_total_size += key->size;
@@ -4129,7 +4129,7 @@ static status_t stats_gather_key_info(knl_session_t *session, index_t *idx, stat
         if (idx->desc.cr_mode == CR_PAGE) {
             stats_gather_pcrb_key(idx, stats_idx, prev_pcrb_key, table_stats, cbo_index);
         } else {
-            stats_gather_btree_key(idx, stats_idx, prev_btree_key, table_stats);
+            stats_gather_btree_key(idx, stats_idx, prev_btree_key, table_stats, cbo_index);
         }
     }
 

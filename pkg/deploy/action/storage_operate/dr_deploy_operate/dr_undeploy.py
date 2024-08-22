@@ -13,6 +13,7 @@ from logic.storage_operate import StorageInf
 from logic.common_func import read_json_config
 from logic.common_func import exec_popen
 from om_log import LOGGER as LOG
+from get_config_info import get_env_info
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 CANTIAN_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/deploy_param.json")
@@ -27,6 +28,7 @@ class UNDeploy(object):
         self.storage_opt = None
         self.site = None
         self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
+        self.run_user = get_env_info("cantian_user")
         
     def init_storage_opt(self):
         dm_ip = self.dr_deploy_info.get("dm_ip")
@@ -217,8 +219,8 @@ class UNDeploy(object):
 
     def wait_remote_node_exec(self, node_id, timeout):
         wait_time = 0
-        cmd = "su -s /bin/bash - cantian -c \"cms stat | " \
-              "grep -v STAT | awk '{print \$1, \$3, \$6}'\""
+        cmd = "su -s /bin/bash - %s -c \"cms stat | " \
+              "grep -v STAT | awk '{print \$1, \$3, \$6}'\"" % self.run_user
         while timeout:
             return_code, output, stderr = exec_popen(cmd, timeout=100)
             cms_stat = output.split("\n")

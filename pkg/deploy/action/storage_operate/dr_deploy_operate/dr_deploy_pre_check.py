@@ -14,6 +14,7 @@ from utils.config.rest_constant import SUPPORT_VERSION, SystemRunningStatus, \
     HealthStatus, RemoteDeviceStatus, FilesystemRunningStatus, PoolStatus, PoolHealth, CANTIAN_DOMAIN_PREFIX, \
     RepFileSystemNameRule
 from om_log import LOGGER as LOG
+from get_config_info import get_env_info
 from logic.common_func import exec_popen, read_json_config, write_json_config, get_status
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -37,32 +38,7 @@ class DRDeployPreCheck(object):
         self.site = None
         self.dm_login_passwd = None
         self.remote_operate = None
-
-    @staticmethod
-    def check_master_cantian_status() -> list:
-        """
-        主端检查参天集群状态
-        :return:
-        """
-        err_msg = []
-        cmd = "su -s /bin/bash - cantian -c \"cms stat | " \
-              "grep -v NODE_ID | awk '{print \$3,\$6,\$9}'\""
-        return_code, output, stderr = exec_popen(cmd)
-        if return_code == 1:
-            err_msg = ["Execute command[cms stat] failed, details:%s" % stderr]
-        else:
-            cms_stat = [re.split(r"\s+", item.strip()) for item in output.strip().split("\n")]
-            reformer_status = False
-            for index, item in enumerate(cms_stat):
-                if item[0].strip(" ") != "ONLINE":
-                    err_msg.append("Node[%s] status is not ONLINE." % index)
-                if item[1] != "1":
-                    err_msg.append("Node[%s] status is not normal." % index)
-                if item[2] == "REFORMER":
-                    reformer_status = True
-            if not reformer_status:
-                err_msg.append("Current cluster reformer status is not normal.")
-        return err_msg
+        self.run_user = get_env_info("cantian_user")
 
     @staticmethod
     def clean_env():
@@ -99,6 +75,31 @@ class DRDeployPreCheck(object):
             err_msg += "Dr full sync is executing, please check, details:\n%s" % sync_proc
         if err_msg:
             raise Exception(err_msg)
+
+    def check_master_cantian_status(self) -> list:
+        """
+        主端检查参天集群状态
+        :return:
+        """
+        err_msg = []
+        cmd = "su -s /bin/bash - %s -c \"cms stat | " \
+              "grep -v NODE_ID | awk '{print \$3,\$6,\$9}'\"" % self.run_user
+        return_code, output, stderr = exec_popen(cmd)
+        if return_code == 1:
+            err_msg = ["Execute command[cms stat] failed, details:%s" % stderr]
+        else:
+            cms_stat = [re.split(r"\s+", item.strip()) for item in output.strip().split("\n")]
+            reformer_status = False
+            for index, item in enumerate(cms_stat):
+                if item[0].strip(" ") != "ONLINE":
+                    err_msg.append("Node[%s] status is not ONLINE." % index)
+                if item[1] != "1":
+                    err_msg.append("Node[%s] status is not normal." % index)
+                if item[2] == "REFORMER":
+                    reformer_status = True
+            if not reformer_status:
+                err_msg.append("Current cluster reformer status is not normal.")
+        return err_msg
 
     def check_storage_system_info(self) -> list:
         """
@@ -566,19 +567,20 @@ class DRDeployPreCheck(object):
         ctom_result_code, _, _ = exec_popen(check_ctom_cmd)
         if not cantain_result_code or not ctom_result_code:
             check_result.append("Cantian standby has been installed, please check!")
-        install_json_path = os.path.join(CURRENT_PATH,"../../cantian/install_config.json")
+        install_json_path = os.path.join(CURRENT_PATH, "../../cantian/install_config.json")
         install_json_data = read_json_config(install_json_path)
-        root_dir = os.path.join(CURRENT_PATH, "../../../../../")
+        root_dir = os.path.join(CURRENT_PATH, "../../../../")
         if install_json_data.get("M_RUNING_MODE") == "cantiand_with_mysql_in_cluster":
-            meta_path = os.path.join(CURRENT_PATH,"../../config_params.json")
+            meta_path = os.path.join(CURRENT_PATH, "../../config_params.json")
             meta_data = read_json_config(meta_path)
             if meta_data.get("mysql_metadata_in_cantian"):
                 # 归一
-                mysql_pkg = root_dir + "Cantian_connector_mysql_*.tgz"
+                check_pkg_cmd = "ls %s/Cantian_connector_mysql_*.tgz" % root_dir
             else:
-                mysql_pkg = root_dir + "mysql_release_*.tar.gz"
-            if not os.path.exists(mysql_pkg):
-                check_result.append("No such file: %s" % mysql_pkg)
+                check_pkg_cmd = "ls %s/mysql_release_*.tar.gz" % root_dir
+            return_code, file, _ = exec_popen(check_pkg_cmd)
+            if return_code:
+                check_result.append("No such file: %s" % check_pkg_cmd)
         return check_result
 
     def execute(self):
