@@ -57,7 +57,23 @@ void btree_set_comb_ndv(btree_info_t *info, uint32 col_id_input, uint32 column_c
     }
 }
 
-void btree_calc_ndv_key(index_t *index, btree_key_t *key, btree_key_t *compare_key, btree_info_t *info)
+void handle_distinct_keys(cbo_stats_index_t *cbo_index,
+                          btree_info_t *info, int i,
+                          bool32 *is_distinct, uint32 column_count)
+{
+    btree_set_comb_ndv(info, i, column_count);
+    if (*is_distinct) {
+        info->distinct_keys++;
+        if (cbo_index != NULL) {
+            cbo_index->distinct_keys_arr[i]++;
+        }
+        *is_distinct = CT_FALSE;
+    }
+}
+
+void btree_calc_ndv_key(index_t *index, btree_key_t *key,
+                        btree_key_t *compare_key, btree_info_t *info,
+                        void *cbo_index_handle)
 {
     dc_entity_t *entity = index->entity;
     knl_column_t *column = NULL;
@@ -71,8 +87,7 @@ void btree_calc_ndv_key(index_t *index, btree_key_t *key, btree_key_t *compare_k
     int32 result = 0;
     bool32 is_distinct = CT_TRUE;
     uint16 collate_id;
-    cbo_stats_table_t *cbo_stats = entity->cbo_table_stats;
-    cbo_stats_index_t *cbo_index = cbo_stats->indexs[index->desc.id];
+    cbo_stats_index_t *cbo_index = (cbo_stats_index_t *)cbo_index_handle;
 
     if (key == NULL || compare_key->is_infinite) {
         btree_set_comb_ndv(info, BTREE_COMB_1_NDV, column_count);
@@ -83,12 +98,7 @@ void btree_calc_ndv_key(index_t *index, btree_key_t *key, btree_key_t *compare_k
     for (uint32 i = 0; i < index->desc.column_count; i++) {
         if (key->is_infinite || compare_key->is_infinite) {
             if (!key->is_deleted) {
-                btree_set_comb_ndv(info, i, column_count);
-                if (is_distinct) {
-                    info->distinct_keys++;
-                    cbo_index->distinct_keys_arr[i] = cbo_index->distinct_keys_arr[i] + 1;
-                    is_distinct = CT_FALSE;
-                }
+                handle_distinct_keys(cbo_index, info, i, &is_distinct, column_count);
             }
             break;
         }
@@ -107,12 +117,7 @@ void btree_calc_ndv_key(index_t *index, btree_key_t *key, btree_key_t *compare_k
         }
 
         if ((key_is_null && !com_key_is_null) || (!key_is_null && com_key_is_null)) {
-            btree_set_comb_ndv(info, i, column_count);
-            if (is_distinct) {
-                info->distinct_keys++;
-                cbo_index->distinct_keys_arr[i] = cbo_index->distinct_keys_arr[i] + 1;
-                is_distinct = CT_FALSE;
-            }
+            handle_distinct_keys(cbo_index, info, i, &is_distinct, column_count);
             break;
         }
 
@@ -121,12 +126,7 @@ void btree_calc_ndv_key(index_t *index, btree_key_t *key, btree_key_t *compare_k
 
         result = btree_cmp_column_data((void *)data1, (void *)data2, type, &offset, CT_FALSE, collate_id);
         if (result != 0) {
-            btree_set_comb_ndv(info, i, column_count);
-            if (is_distinct) {
-                info->distinct_keys++;
-                cbo_index->distinct_keys_arr[i] = cbo_index->distinct_keys_arr[i] + 1;
-                is_distinct = CT_FALSE;
-            }
+            handle_distinct_keys(cbo_index, info, i, &is_distinct, column_count);
             break;
         }
     }
@@ -166,6 +166,7 @@ void btree_stats_leaf_page(knl_session_t *session, btree_t *btree, btree_info_t 
     knl_scn_t seg_scn = segment->seg_scn;
     uint32 j;
     errno_t ret;
+    cbo_stats_index_t *cbo_index = knl_get_cbo_index(session, btree->index->entity, btree->index->desc.id);
 
     buf_enter_page(session, *page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL | ENTER_PAGE_SEQUENTIAL);
     page = BTREE_CURR_PAGE(session);
@@ -191,7 +192,7 @@ void btree_stats_leaf_page(knl_session_t *session, btree_t *btree, btree_info_t 
             continue;
         }
 
-        btree_calc_ndv_key(btree->index, key, compare_key, info);
+        btree_calc_ndv_key(btree->index, key, compare_key, info, cbo_index);
         compare_key = key;
         *prev_page_id = GET_ROWID_PAGE(key->rowid);
     }
