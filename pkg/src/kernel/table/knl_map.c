@@ -1117,7 +1117,7 @@ static bool32 heap_prepare_extend(knl_session_t *session, heap_t *heap, uint32 m
                     heap->extending = CT_FALSE;
                     dls_spin_unlock(session, &heap->lock);
                     cm_spin_sleep_and_stat2(1);
-                    CT_LOG_RUN_ERR(
+                    CT_LOG_DEBUG_ERR(
                         "prepare extend, heap failed to broadcast heap extending info, "
                         "uid/table_id/part/subpart:[%u-%u-%u-%u], extending:%d, compacting:%d",
                         heap->table->desc.uid, heap->table->desc.id, part_loc.part_no, part_loc.subpart_no,

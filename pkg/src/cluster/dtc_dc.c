@@ -520,7 +520,7 @@ status_t dtc_broadcast_heap_extend(knl_session_t *session, heap_t *heap, knl_par
     ret = mes_broadcast_bufflist_and_wait_with_retry(session->id, MES_BROADCAST_ALL_INST, &bcast.head,
         sizeof(msg_broadcast_data_t), (char *)&heap_data, HEAP_WAIT_ACK_TIMEOUT, HEAP_WAIT_ACK_RETRY_THRESHOLD);
     if (ret != CT_SUCCESS) {
-        CT_LOG_RUN_ERR(
+        CT_LOG_DEBUG_ERR(
             "[DTC][broadcast heap extend] the other node is doing heap extend, extend status:%d, compacting:%d, "
             "extend owner:%d, wait tickes:%u, uid/table_id/part/subpart:[%d-%d-%u-%u]", heap_data.extending,
             heap_data.compacting, heap->extend_owner, heap->wait_ticks, heap_data.uid, heap_data.table_id,
@@ -571,7 +571,7 @@ status_t dtc_process_heap_extend(knl_session_t *session, char *data, uint8 src_i
         return CT_ERROR;
     }
     if (bcast->extending == CT_TRUE && heap->extending) {
-        CT_LOG_RUN_ERR(
+        CT_LOG_DEBUG_ERR(
             "[DTC][process_heap_extend] current node is doing heap extend, uid/table_id/part/subpart:[%d-%d-%u-%u], "
             "extending:%d, compacting:%d, extend owner:%d, wait ticks:%u", bcast->uid, bcast->table_id,
             bcast->part_loc.part_no, bcast->part_loc.subpart_no, bcast->extending, bcast->compacting,
