@@ -21,11 +21,18 @@ from om_log import REST_LOG as LOG
 
 FS_PARAM_PATH = str(pathlib.Path(CUR_PATH, "../../config/file_system_info.json"))
 DEPLOY_PARAM_PATH = str(pathlib.Path(CUR_PATH, "../../config/deploy_param.json"))
+DEPLOY_PARAM = json.loads(read_helper(DEPLOY_PARAM_PATH))
+DEPLOY_MODE = DEPLOY_PARAM.get("deploy_mode")
 FS_TYPE_LIST = [
     "storage_dbstore_fs", "storage_dbstore_page_fs",
     "storage_share_fs", "storage_archive_fs",
     "storage_metadata_fs"
 ]
+if DEPLOY_MODE == "dbstore_unify":
+    FS_TYPE_LIST = [
+        "storage_dbstore_fs", "storage_dbstore_page_fs",
+        "storage_share_fs", "storage_archive_fs"
+    ]
 SHARE_FS_TYPE_LIST = [
     "storage_share_fs", "storage_archive_fs",
     "storage_metadata_fs"
@@ -63,7 +70,7 @@ class CreateFS(object):
         self.ssh_client = SshClient(*login_tuple)
         self.fs_info = self._init_params()
         self.pre_check_result = list()
-        self.deploy_info = json.loads(read_helper(DEPLOY_PARAM_PATH))
+        self.deploy_info = DEPLOY_PARAM
 
     @staticmethod
     def handle_error_msg(err_msg):
@@ -157,6 +164,7 @@ class CreateFS(object):
         """
         def _create_func():
             fs_info = {}
+            deploy_mode = self.deploy_info.get("deploy_mode")
             for fs_type in FS_TYPE_LIST:
                 nfs_share_id = None
                 nfs_share_client_id = None
@@ -164,15 +172,13 @@ class CreateFS(object):
                 _fs_name = _fs_info.get("NAME")
                 LOG.info("Begin to create fs [%s] name: %s", fs_type, _fs_name)
                 vstore_id = self.fs_info.get(fs_type).get("vstoreId")
-                deploy_mode = self.deploy_info.get("deploy_mode")
                 LOG.info("Begin to create fs [%s] name: %s, vstore id:[%s] in [%s] deploy mode",
                          fs_type, _fs_name, vstore_id, deploy_mode)
                 _fs_info = self.storage_opt.query_filesystem_info(_fs_name, vstore_id)
                 if _fs_info:
                     err_msg = "The file system[%s] already exists." % _fs_name
                     self.handle_error_msg(err_msg)
-                if fs_type in SHARE_FS_TYPE_LIST and \
-                        not (deploy_mode == "dbstore_unify" and fs_type == "storage_share_fs"):
+                if fs_type in SHARE_FS_TYPE_LIST and deploy_mode != "dbstore_unify":
                     fs_id = self._create_fs(fs_type, work_load_type=ID_NAS_DEFAULT)
                     nfs_share_id = self._create_nfs_share(fs_id, fs_type)
                     nfs_share_client_id = self._add_nfs_client(nfs_share_id, fs_type)
@@ -184,8 +190,7 @@ class CreateFS(object):
                     "nfs_share_client_id": nfs_share_client_id
                 }
                 LOG.info("Create fs [%s] success, detail:name[%s], info:%s", fs_type, _fs_name, fs_info)
-                if fs_type == "storage_share_fs":
-                    self._config_mandatory_lock_switch(vstore_id)
+
         LOG.info("Create fs start.")
         self.storage_opt.login()
         try:

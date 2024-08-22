@@ -165,7 +165,7 @@ def check_directories():
         is_mysql_metadata_in_cantian = info.get("mysql_metadata_in_cantian")
         MYSQL_VERSION = VERSION_ENV_META if is_mysql_metadata_in_cantian else VERSION_ENV_NOMETA
         MYSQL_DATA_DIR = "/mnt/dbdata/remote/metadata_{metadata}/node{node}"\
-            .format(metadata=info["storage_metadata_fs"], node=info["node_id"])
+            .format(metadata=info.get("storage_metadata_fs", ""), node=info["node_id"])
         MYSQL_BIN_DIR = "/opt/cantian/mysql/install/mysql"
 
     MYSQL_LOG_FILE = os.path.join(MYSQL_DATA_DIR, "mysql.log")

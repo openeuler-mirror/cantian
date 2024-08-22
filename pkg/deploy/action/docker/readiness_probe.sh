@@ -6,12 +6,18 @@ CMS_ENABLE="/opt/cantian/cms/cfg/cms_enable"
 cantian_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
 deploy_user=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_user"`
 deploy_group=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_group"`
+install_step=`python3 ${CURRENT_PATH}/../cms/get_config_info.py "install_step"`
 node_id=`python3 ${CURRENT_PATH}/get_config_info.py "node_id"`
 
 cantiand_pid=$(ps -ef | grep -v grep | grep cantiand | awk 'NR==1 {print $2}')
 mysql_pid=$(ps -ef | grep -v grep | grep mysqld | awk 'NR==1 {print $2}')
 cms_pid=$(ps -ef | grep cms | grep server | grep start | grep -v grep | awk 'NR==1 {print $2}')
 cantian_daemon_pid=$(pgrep -f cantian_daemon)
+
+
+if [[ x"${install_step}" != x"3" ]];then
+    exit 1
+fi
 
 # 启动项检查
 if [[ "$1" == "startup-check" ]]; then

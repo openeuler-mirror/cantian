@@ -96,8 +96,7 @@ function mount_fs() {
     fi
 
     mkdir -m 755 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}
-    chmod 755 /mnt/dbdata/remote
-
+    
 
     # 获取nfs挂载的ip
     share_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "share_logic_ip"`

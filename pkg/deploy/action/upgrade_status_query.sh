@@ -31,7 +31,7 @@ function init_cluster_status_flag() {
     fi
 
     storage_metadata_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs")
-    if [[ ${storage_metadata_fs} == 'None' ]]; then
+    if [[ ${storage_metadata_fs} == x'' ]]; then
         echo "[error] obtain current node storage_metadata_fs_name error, please check file: config/deploy_param.json" && exit 1
     fi
 

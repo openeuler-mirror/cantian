@@ -429,7 +429,6 @@ function check_dbstor_usr_passwd() {
 }
 
 function check_dbstore_client_compatibility() {
-    deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
     if [[ x"${deploy_mode}" == x"nas" ]]; then
         return 0
     fi
@@ -481,23 +480,21 @@ function update_random_seed() {
 }
 
 function mount_fs() {
-    if [[ "${cantian_in_container}" != "0" ]]; then
-        return 0
-    fi
-
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-        mkdir -m 750 -p /mnt/dbdata/remote/share_${storage_share_fs}
-        chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/share_${storage_share_fs}
-    fi
-
-    if [[ ${storage_archive_fs} != '' ]]; then
-        mkdir -m 750 -p /mnt/dbdata/remote/archive_${storage_archive_fs}
-        chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/archive_${storage_archive_fs}
-    fi
-
+    mkdir -m 750 -p /mnt/dbdata/remote/share_${storage_share_fs}
+    chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/share_${storage_share_fs}
+    mkdir -m 750 -p /mnt/dbdata/remote/archive_${storage_archive_fs}
+    chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/archive_${storage_archive_fs}
     mkdir -m 755 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}
     chmod 755 /mnt/dbdata/remote
-
+    chmod 755 /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+    if [ -d /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id} ];then
+        rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
+    fi
+    mkdir -m 770 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
+    chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
+    if [[ "${cantian_in_container}" != "0" ]] || [[ x"${deploy_mode}" == x"dbstore_unify" ]]; then
+        return 0
+    fi
 
     # 获取nfs挂载的ip
     share_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "share_logic_ip"`
@@ -585,7 +582,6 @@ function mount_fs() {
         chmod 750 /mnt/dbdata/remote/share_${storage_share_fs}
     fi
     chmod 755 /mnt/dbdata/remote/metadata_${storage_metadata_fs}
-    node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
     if [ -d /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id} ];then
         rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
     fi

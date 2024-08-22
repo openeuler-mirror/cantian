@@ -99,13 +99,13 @@ def _exec_popen(_cmd, values=None):
     return pobj.returncode, stdout_1, stderr_1
 
 
-def cantian_check_share_logic_ip_isvalid(node_ip):
+def cantian_check_share_logic_ip_isvalid(node_ip, deploy_mode):
     """
     function: Check the nfs logic ip is valid
     input : ip
     output: NA
     """
-
+    
     def ping_execute(p_cmd):
         cmd = "%s %s -i 1 -c 3 | grep ttl | wc -l" % (p_cmd, node_ip)
         ret_code, stdout, _ = _exec_popen(cmd)
@@ -113,6 +113,8 @@ def cantian_check_share_logic_ip_isvalid(node_ip):
             return False
         return True
 
+    if deploy_mode == "dbstore_unify":
+        return True
     LOGGER.info("check nfs logic ip address or domain name.")
     if not ping_execute("ping") and not ping_execute("ping6"):
         err_msg = "checked the node IP address or domain name failed: %s" % node_ip
@@ -978,7 +980,7 @@ def get_error_msg(outmsg, errmsg):
 
 def clean_archive_dir(json_data_deploy):
     db_type = json_data_deploy.get('db_type', '')
-    deploy_model = json_data_deploy.get('deploy_mode', '')
+    deploy_mode = json_data_deploy.get('deploy_mode', '')
     archive_fs = json_data_deploy.get('storage_archive_fs', '')
     uninstall_type = sys.argv[1]
     if db_type == '' or db_type == '0' or uninstall_type == "reserve":
@@ -992,9 +994,9 @@ def clean_archive_dir(json_data_deploy):
     archive_logic_ip = json_data_deploy.get('archive_logic_ip', '').strip()
     storage_archive_fs = json_data_deploy.get('storage_archive_fs', '').strip()
     archive_dir = os.path.join("/mnt/dbdata/remote", "archive_" + storage_archive_fs)
-    cantian_check_share_logic_ip_isvalid(archive_logic_ip)
+    cantian_check_share_logic_ip_isvalid(archive_logic_ip, deploy_mode)
 
-    if deploy_model != "dbstore_unify":
+    if deploy_mode != "dbstore_unify":
         cmd = "timeout 10 ls %s" % archive_dir
         ret_code, _, stderr = _exec_popen(cmd)
         if node_id == "0" and (ret_code == 0 or FORCE_UNINSTALL != "force"):
