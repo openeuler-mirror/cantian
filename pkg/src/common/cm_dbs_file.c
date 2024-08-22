@@ -257,7 +257,7 @@ status_t cm_dbs_open_file_common(const char *name, uint32 file_type, int32 *hand
         CT_LOG_RUN_ERR("[CM_DEVICE] map set item to handle failed");
         return CT_ERROR;
     }
-    CT_LOG_DEBUG_INF("[CM_DEVICE] open file path %s success, handle %u", file_path, *handle);
+    CT_LOG_RUN_INF("[CM_DEVICE] open file path %s success, handle %d", file_path, *handle);
     return CT_SUCCESS;
 }
 
@@ -268,7 +268,7 @@ void cm_dbs_close_file(int32 handle)
         return;
     }
     cm_dbs_map_remove(handle);
-    CT_LOG_DEBUG_INF("[CM_DEVICE] close handle %u success", tmp_handle);
+    CT_LOG_DEBUG_INF("[CM_DEVICE] close handle %d success", tmp_handle);
     return;
 }
 
@@ -760,7 +760,6 @@ status_t cm_dbs_get_file_size(int32 handle, int64 *file_size)
         CT_LOG_RUN_ERR("[CM_DEVICE] Failed to get dbstor file to get file size by handle(%d).", handle);
         return CT_ERROR;
     }
-    CT_LOG_RUN_INF("[CM_DEVICE] Success to get dbstor file to get file size by handle(%d).", handle);
 
     int32 ret = dbs_global_handle()->dbs_get_file_size(&item.obj_id, &size);
     if (ret != CT_SUCCESS) {
@@ -769,6 +768,7 @@ status_t cm_dbs_get_file_size(int32 handle, int64 *file_size)
     }
 
     *file_size = (int64)size;
+    CT_LOG_RUN_INF("[CM_DEVICE] Success to get dbstor file size by handle(%d), file size %llu.", handle, size);
     return CT_SUCCESS;
 }
 

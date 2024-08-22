@@ -182,6 +182,7 @@ void cm_raw_device_register(raw_device_op_t *device_op);
 void cm_free_file_list(void **file_list);
 status_t cm_malloc_file_list(device_type_t type, void **file_list);
 char *cm_get_name_from_file_list(device_type_t type, void *list, int32 index);
+bool32 cm_check_dir_type_by_file_list(device_type_t type, void *list, int32 index);
 bool32 cm_match_arch_pattern(const char *filename);
 
 #define CM_CTSTORE_ALIGN_SIZE 512
