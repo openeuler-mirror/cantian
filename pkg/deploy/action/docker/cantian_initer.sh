@@ -57,6 +57,7 @@ cantian_in_container=`python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_con
 mysql_metadata_in_cantian=`python3 ${CURRENT_PATH}/get_config_info.py "mysql_metadata_in_cantian"`
 cluster_name=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_name"`
 cluster_id=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_id"`
+deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
 primary_keystore="/opt/cantian/common/config/primary_keystore_bak.ks"
 standby_keystore="/opt/cantian/common/config/standby_keystore_bak.ks"
 VERSION_PATH="/mnt/dbdata/remote/metadata_${storage_metadata_fs}"
@@ -126,7 +127,35 @@ function check_container_context() {
     check_cpu_limit
 }
 
+function init_container() {
+    # 非去nas在后续init_container
+    if [ x"${deploy_mode}" != x"dbstore_unify" ]; then
+        return 0
+    fi
+    # Cantian启动前执行init流程，更新各个模块配置文件，初始化cms
+    sh ${SCRIPT_PATH}/appctl.sh init_container
+    if [ $? -ne 0 ]; then
+        exit_with_log
+    fi
+}
+
 function mount_fs() {
+    if [ x"${deploy_mode}" == x"dbstore_unify" ]; then
+        logAndEchoInfo "deploy_mode = dbstore_unify, no need to mount file system. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        # 去nas临时创建防止bug，后续版本要删除，权限暂时全开放
+        mkdir -m 755 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}
+        mkdir -m 755 -p /mnt/dbdata/remote/share_${storage_share_fs}
+        mkdir -m 755 -p /mnt/dbdata/remote/archive_${storage_archive_fs}
+        mkdir -m 770 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node0
+        chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node0
+        mkdir -m 770 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node1
+        chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node1
+        chmod 755 /mnt/dbdata/remote
+        # 多租会缺少这个标记文件，这里补上
+        DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/deploy/.dbstor_unify_flag
+        touch "${DEPLOY_MODE_DBSTORE_UNIFY_FLAG}"
+        return 0
+    fi
     logAndEchoInfo "Begin to mount file system. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     if [ ! -f ${CURRENT_PATH}/${MOUNT_FILE} ]; then
         logAndEchoError "${MOUNT_FILE} is not exist. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -141,21 +170,45 @@ function mount_fs() {
     logAndEchoInfo "mount file system success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 }
 
+function check_version_file() {
+    if [ x"${deploy_mode}" == x"dbstore_unify" ]; then
+        versions_no_nas=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path=/' | grep versions.yml | wc -l)
+        if [ ${versions_no_nas} -eq 1 ]; then
+            return 0
+        else
+            return 1
+        fi
+    else
+        if [ -f ${VERSION_PATH}/${VERSION_FILE} ]; then
+            return 0
+        else
+            return 1
+        fi
+    fi
+}
+
 function check_init_status() {
     # 对端节点的cms会使用旧ip建链60s，等待对端节点cms解析新的ip
-    if [ -f ${VERSION_PATH}/${VERSION_FILE} ]; then
+    check_version_file
+
+    if [ $? -eq 0 ]; then
         logAndEchoInfo "The cluster has been initialized, no need create database. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         sed -i "s/\"db_create_status\": \"default\"/\"db_create_status\": \"done\"/g" /opt/cantian/cantian/cfg/${START_STATUS_NAME}
         sed -i "s/\"ever_started\": false/\"ever_started\": true/g" /opt/cantian/cantian/cfg/${START_STATUS_NAME}
         sed -i "s/\"mysql_init\": \"default\"/\"mysql_init\": \"done\"/g" /opt/cantian/cantian/cfg/${START_STATUS_NAME}
         rm -rf ${USER_FILE}
     fi
-
+    
     resolve_times=1
     # 等待节点0启动成功
-    while [ ! -f ${VERSION_PATH}/${VERSION_FILE} ] && [ ${node_id} -ne 0 ]
+    check_version_file
+    is_version_file_exist=$?
+
+    while [ ${is_version_file_exist} -ne 0 ] && [ ${node_id} -ne 0 ]
     do
         logAndEchoInfo "wait for node 0 pod startup..."
+        check_version_file
+        is_version_file_exist=$?
         if [ ${resolve_times} -eq ${WAIT_TIMES} ]; then
             logAndEchoError "timeout for wait node 0 startup!"
             exit_with_log
@@ -224,9 +277,19 @@ function set_version_file() {
         logAndEchoError "${VERSION_FILE} is not exist!"
         exit_with_log
     fi
-
-    if [ ! -f ${VERSION_PATH}/${VERSION_FILE} ]; then
-        cp -rf ${PKG_PATH}/${VERSION_FILE} ${VERSION_PATH}/${VERSION_FILE}
+    check_version_file
+    is_version_file_exist=$?
+    if [ ${is_version_file_exist} -eq 1 ]; then
+        if [ x"${deploy_mode}" == x"dbstore_unify" ]; then
+            chown "${cantian_user}":"${cantian_group}" "${PKG_PATH}/${VERSION_FILE}"
+            su -s /bin/bash - "${cantian_user}" -c 'dbstor --create-file --fs-name='"${storage_share_fs}"' --source-dir='"${PKG_PATH}/${VERSION_FILE}"' --file-name='"${VERSION_FILE}"''
+            if [ $? -ne 0 ]; then
+                logAndEchoError "Execute dbstor tool command: --create-file failed."
+                exit_with_log
+            fi
+        else
+            cp -rf ${PKG_PATH}/${VERSION_FILE} ${VERSION_PATH}/${VERSION_FILE}
+        fi
     fi
 
     if [ -f ${CMS_CONTAINER_FLAG} ]; then
@@ -249,12 +312,13 @@ function start_mysqld() {
 }
 
 function init_start() {
-    # Cantian启动前执行init流程，更新各个模块配置文件，初始化cms
-    sh ${SCRIPT_PATH}/appctl.sh init_container
-    if [ $? -ne 0 ]; then
-        exit_with_log
+    # 非去nas在这里init_container
+    if [ x"${deploy_mode}" != x"dbstore_unify" ]; then
+        sh ${SCRIPT_PATH}/appctl.sh init_container
+        if [ $? -ne 0 ]; then
+            exit_with_log
+        fi
     fi
-
     # Cantian启动前参数预检查
     logAndEchoInfo "Begin to pre-check the parameters."
     python3 ${PRE_INSTALL_PY_PATH} 'override' ${CONFIG_PATH}/${CONFIG_NAME}
@@ -292,8 +356,17 @@ function init_start() {
 
 function exit_with_log() {
     # 首次初始化失败，清理gcc_file
-    if [ -f ${CMS_CONTAINER_FLAG} ] && [ -f ${gcc_file} ]; then
-        rm -rf ${gcc_file}*
+    if [ ${node_id} -eq 0 ]; then
+        if [ x"${deploy_mode}" == x"dbstore_unify" ]; then
+            local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="'${cluster_name}_cms'/gcc_home"' | grep gcc_file | wc -l)
+            if [[ ${is_gcc_file_exist} -ne 0 ]]; then
+                su -s /bin/bash - "${cantian_user}" -c 'cms gcc -del'
+            fi
+        else
+            if [ -f ${CMS_CONTAINER_FLAG} ] && [ -f ${gcc_file} ]; then
+                rm -rf ${gcc_file}*
+            fi
+        fi
     fi
     # 失败后保存日志并删除存活探针
     sh ${CURRENT_PATH}/log_backup.sh ${cluster_name} ${cluster_id} ${node_id} ${deploy_user} ${storage_metadata_fs}
@@ -305,10 +378,11 @@ function main() {
     #change_mtu
     wait_config_done
     check_container_context
-    mount_fs
-    check_init_status
     prepare_kmc_conf
     prepare_certificate
+    init_container
+    mount_fs
+    check_init_status
     init_start
 }
 

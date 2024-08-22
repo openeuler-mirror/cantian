@@ -409,6 +409,11 @@ class CheckInstallConfig(CheckBase):
         not_in_either = install_config_keys ^ self.config_key
         # 如果 config_key中存在的关键字install_config.json中没有，报错。
         for element in not_in_either:
+            # 去nas忽略部分参数
+            install_config_params = self.read_install_config()
+            ignore_params = {"storage_metadata_fs", "share_logic_ip", "archive_logic_ip", "metadata_logic_ip"}
+            if element in ignore_params and install_config_params['deploy_mode'] == "dbstore_unify":
+                continue
             if element != 'dbstore_demo' and element not in install_config_keys:
                 LOG.error('config_params.json need param %s', element)
                 return False
@@ -580,6 +585,9 @@ class CheckInstallConfig(CheckBase):
             if install_config_params['deploy_mode'] == "dbstore_unify":
                 ping_check_element.remove("share_logic_ip")
                 install_config_params['share_logic_ip'] = "127.0.0.1"
+                # 去nas防止报错，后续版本删除
+                install_config_params['archive_logic_ip'] = "127.0.0.1"
+                install_config_params['metadata_logic_ip'] = "127.0.0.1"
         else:
             self.config_params['cluster_id'] = "0"
             self.config_params['mes_type'] = "TCP"

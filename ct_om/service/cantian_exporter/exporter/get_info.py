@@ -21,6 +21,7 @@ from kmc_adapter import CApiWrapper
 cur_abs_path, _ = os.path.split(os.path.abspath(__file__))
 OLD_CANTIAND_DATA_SAVE_PATH = Path(cur_abs_path, 'cantiand_report_data_saves.json')
 DEPLOY_PARAM_PATH = '/opt/cantian/config/deploy_param.json'
+INSTALL_CONFIG_PATH = '/opt/cantian/action/cantian/install_config.json'
 CANTIAND_INI_PATH = '/mnt/dbdata/local/cantian/tmp/data/cfg/cantiand.ini'
 CANTIAND_LOG_PATH = '/mnt/dbdata/local/cantian/tmp/data/log/run/cantiand.rlog'
 CTSQL_INI_PATH = '/mnt/dbdata/local/cantian/tmp/data/cfg/*sql.ini'
@@ -134,6 +135,10 @@ class GetNodesInfo:
         """
         cmd = "ps -ef | grep -v grep | grep cantiand | grep -w '\-D " \
               "/mnt/dbdata/local/cantian/tmp/data' | awk '{print $2}'"
+        install_config = json.loads(file_reader(INSTALL_CONFIG_PATH))
+        is_single = install_config.get("M_RUNING_MODE")
+        if is_single == "cantiand_with_mysql_in_cluster":
+            cmd = "ps -ef | grep -v grep | grep \"/opt/cantian/mysql/install/mysql/bin/mysqld\" | awk '{print $2}'"
         err_code, pidof_cantiand, _ = _exec_popen(cmd)
 
         if err_code or not pidof_cantiand:

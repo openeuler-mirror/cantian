@@ -95,7 +95,7 @@ sh /opt/cantian/common/script/cantian_service.sh start
 if [ $? -eq 0 ];then
     logAndEchoInfo "start cantian_service success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 else
-    logAndEchoError "startcantian_service failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    logAndEchoError "start cantian_service failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     logAndEchoError "For details, see the ${OM_DEPLOY_LOG_FILE}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     exit 1
 fi

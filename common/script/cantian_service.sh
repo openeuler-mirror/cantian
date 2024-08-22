@@ -34,13 +34,6 @@ function check_port() {
 
 function mountNfs()
 {
-    # 获取要创建路径的路径名 /opt/cantian/common/script
-    storage_share_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_share_fs"`
-    storage_archive_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_archive_fs"`
-    storage_metadata_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_metadata_fs"`
-    kerberos_type=`python3 ${CURRENT_PATH}/../../action/get_config_info.py  "kerberos_key"`
-    deploy_mode=`python3 ${CURRENT_PATH}/../../action/get_config_info.py  "deploy_mode"`
-
     if [[ ${storage_archive_fs} != '' ]]; then
         mountpoint /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
         if [ $? -ne 0 ]; then
@@ -135,8 +128,15 @@ MAL_LOOP_COUNT=3
 
 function startDaemon()
 {
+
+    # 获取要创建路径的路径名 /opt/cantian/common/script
+    storage_share_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_share_fs"`
+    storage_archive_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_archive_fs"`
+    storage_metadata_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_metadata_fs"`
+    kerberos_type=`python3 ${CURRENT_PATH}/../../action/get_config_info.py  "kerberos_key"`
+    deploy_mode=`python3 ${CURRENT_PATH}/../../action/get_config_info.py  "deploy_mode"`
     # 当前如果为去nas模式，不启动挂载
-    if [ ! -f "${DEPLOY_MODE_DBSTORE_UNIFY_FLAG}" ];then
+    if [[ ! -f "${DEPLOY_MODE_DBSTORE_UNIFY_FLAG}"  ]] && [[ x"${deploy_mode}" != x"dbstore_unify" ]];then
         mountNfs
     fi
     local cantianPid=$(getDaemonPid)

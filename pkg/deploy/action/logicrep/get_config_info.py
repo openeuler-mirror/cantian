@@ -29,7 +29,7 @@ def get_value(param):
             if line.startswith("cantian_group"):
                 return line.split("=")[1].strip("\n").strip('"')
 
-    return info.get(param)
+    return info.get(param, "")
 
 
 if __name__ == "__main__":

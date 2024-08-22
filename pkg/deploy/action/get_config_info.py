@@ -31,7 +31,7 @@ def get_value(param):
     if param == "cluster_scale":
         return len(info.get("cms_ip").split(";"))
 
-    return info.get(param)
+    return info.get(param, "")
 
 
 def get_env_info(key):

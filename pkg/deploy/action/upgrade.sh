@@ -130,7 +130,7 @@ function get_user_input() {
 function get_config_info() {
     deploy_mode=$(python3 "${CURRENT_PATH}"/get_config_info.py "deploy_mode")
     node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
-    if [[ ${node} == 'None' ]]; then
+    if [[ ${node} == x'' ]]; then
         logAndEchoError "obtain current node id error, please check file: config/deploy_param.json"
         exit 1
     fi

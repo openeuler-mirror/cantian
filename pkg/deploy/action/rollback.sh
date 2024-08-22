@@ -127,7 +127,7 @@ function stopping_check() {
 # 获取当前节点
 function get_current_node() {
     node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
-    if [[ ${node} == 'None' ]]; then
+    if [[ ${node} == x'' ]]; then
         echo "obtain current node id error, please check file: config/deploy_param.json"
         exit 1
     fi
@@ -636,7 +636,7 @@ function init_cluster_or_node_status_flag() {
         exit 1
     fi
 
-    if [[ ${storage_share_fs_name} == 'None' ]]; then
+    if [[ ${storage_share_fs_name} == x'' ]]; then
         logAndEchoError "obtain current node  storage_share_fs_name error, please check file: config/deploy_param.json"
         exit 1
     fi

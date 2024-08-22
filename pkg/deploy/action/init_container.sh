@@ -5,6 +5,10 @@ SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
 DBSTORE_CHECK_FILE=${CURRENT_PATH}/dbstor/check_dbstor_compat.sh
 cantian_user=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "deploy_user"`
 cantian_group=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "deploy_group"`
+deploy_mode=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "deploy_mode"`
+storage_share_fs=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "storage_share_fs"`
+cluster_name=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "cluster_name"`
+node_id=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "node_id"`
 
 source ${CURRENT_PATH}/env.sh
 source ${CURRENT_PATH}/log4sh.sh
@@ -41,6 +45,20 @@ function check_dbstore_client_compatibility() {
     logAndEchoInfo "dbstore client compatibility check success."
 }
 
+function check_gcc_if_dbstore_unify() {
+    # 检查gcc文件
+    if [[ x"${deploy_mode}" != x"dbstore_unify" ]] || [[ ${node_id} -ne 0 ]]; then
+        return 0
+    fi
+    logAndEchoInfo "begin to check gcc file."
+    local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="'${cluster_name}_cms'/gcc_home"' | grep gcc_file | wc -l)
+    if [ ${is_gcc_file_exist} -ne 0 ]; then
+        logAndEchoError "gcc file already exists, please check if any cluster is running or clustername has been used and not been uninstalled."
+        exit 1
+    fi
+    logAndEchoInfo "gcc file not exist, check success."
+}
+
 function init_module() {
     for lib_name in "${INIT_CONTAINER_ORDER[@]}"
     do
@@ -57,6 +75,7 @@ function init_module() {
             check_dbstor_usr_passwd
             # 检查dbstore client 与server端是否兼容
             check_dbstore_client_compatibility
+            check_gcc_if_dbstore_unify
         fi
     done
 }
